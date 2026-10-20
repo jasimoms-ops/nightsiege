@@ -1,5 +1,7 @@
 package com.mki.nightsiege.game;
 
+import com.mki.nightsiege.core.SiegeEvent;
+
 import com.mki.nightsiege.core.AnchorPicker;
 import com.mki.nightsiege.core.MobEntry;
 import com.mki.nightsiege.core.PlayerSkills;
@@ -38,6 +40,13 @@ public final class SiegeCommands {
                                 .executes(SiegeCommands::buySkill)))
                 .then(Commands.literal("mobs").executes(SiegeCommands::mobs))
                 .then(Commands.literal("start").executes(SiegeCommands::start))
+                .then(Commands.literal("test")
+                        .then(Commands.argument("level", IntegerArgumentType.integer(1, 1000))
+                                .executes(ctx -> test(ctx, null))
+                                .then(Commands.literal("normal").executes(ctx -> test(ctx, SiegeEvent.NONE)))
+                                .then(Commands.literal("blutmond").executes(ctx -> test(ctx, SiegeEvent.BLOOD_MOON)))
+                                .then(Commands.literal("champion").executes(ctx -> test(ctx, SiegeEvent.ELITE)))
+                                .then(Commands.literal("thema").executes(ctx -> test(ctx, SiegeEvent.THEME_WAVE)))))
                 .then(Commands.literal("stop").executes(SiegeCommands::stop))
                 .then(Commands.literal("reload").executes(SiegeCommands::reload))
                 .then(Commands.literal("dev")
@@ -138,6 +147,34 @@ public final class SiegeCommands {
             String state = MobFactory.isUnavailable(entry.id) ? " (nicht installiert)" : "";
             reply(source, Component.literal(" - " + entry.id + "  x" + entry.weight + state));
         }
+        return 1;
+    }
+
+    /**
+     * A test siege at any level, around the caller: shows what that level looks
+     * like without touching the record, the points or the base.
+     */
+    private static int test(CommandContext<CommandSourceStack> ctx, SiegeEvent event) {
+        CommandSourceStack source = ctx.getSource();
+        SiegeManager manager = SiegeManager.get();
+        if (manager.isActive()) {
+            fail(source, Component.translatable("nightsiege.cmd.already_active"));
+            return 0;
+        }
+        ServerPlayer player;
+        try {
+            player = source.getPlayerOrException();
+        } catch (Exception e) {
+            fail(source, Component.translatable("nightsiege.cmd.player_only"));
+            return 0;
+        }
+        int level = IntegerArgumentType.getInteger(ctx, "level");
+        MinecraftServer server = source.getLevel().getServer();
+        if (!manager.startTest(server, player.level(), player.blockPosition(), level, event)) {
+            fail(source, Component.translatable("nightsiege.cmd.no_target"));
+            return 0;
+        }
+        reply(source, Component.translatable("nightsiege.cmd.test_started", manager.currentLevel()));
         return 1;
     }
 

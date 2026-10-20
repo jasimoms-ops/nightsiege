@@ -285,6 +285,26 @@ public final class SiegeManager {
 
     /** Starts a siege at the given core. Also used by the start command. */
     public boolean start(MinecraftServer server, ServerLevel targetWorld, BlockPos targetAnchor) {
+        return start(server, targetWorld, targetAnchor, 0, null);
+    }
+
+    /** True while a test siege runs: nothing it does is counted, won or lost. */
+    private boolean testRun;
+    private int levelOverride;
+    private SiegeEvent eventOverride;
+
+    /**
+     * Starts a test siege at a chosen level and, optionally, with a chosen event.
+     * It plays out like a real one but leaves no trace: no record, no points,
+     * no blast and no reset when it is lost.
+     */
+    public boolean startTest(MinecraftServer server, ServerLevel targetWorld, BlockPos targetAnchor,
+                             int level, SiegeEvent event) {
+        return start(server, targetWorld, targetAnchor, level, event);
+    }
+
+    private boolean start(MinecraftServer server, ServerLevel targetWorld, BlockPos targetAnchor,
+                          int forcedLevel, SiegeEvent forcedEvent) {
         if (active) {
             return false;
         }
@@ -294,7 +314,9 @@ public final class SiegeManager {
         }
         world = targetWorld;
         anchor = targetAnchor;
-        siegeLevel = SiegeMath.level(save.siegesWon, SiegeMath.dayOf(server.overworld().getGameTime()), config);
+        testRun = forcedLevel > 0;
+        siegeLevel = testRun ? Math.min(config.maxLevel, forcedLevel)
+                : SiegeMath.level(save.siegesWon, SiegeMath.dayOf(server.overworld().getGameTime()), config);
         totalTicks = SiegeMath.durationSeconds(siegeLevel, config) * 20;
         ticksLeft = totalTicks;
         batchCooldown = 0;
@@ -307,7 +329,7 @@ public final class SiegeManager {
             participants.add(player.getUUID());
         }
 
-        currentEvent = EventPicker.pick(siegeLevel, random, config);
+        currentEvent = testRun && forcedEvent != null ? forcedEvent : EventPicker.pick(siegeLevel, random, config);
         themeMobId = null;
         eliteId = null;
         elitePenaltyApplied = false;
@@ -588,6 +610,14 @@ public final class SiegeManager {
         clearRemainingMobs();
         digger.reset();
 
+        if (testRun) {
+            testRun = false;
+            broadcast(server, Component.translatable(won ? "nightsiege.msg.test_won" : "nightsiege.msg.test_lost")
+                    .withStyle(ChatFormatting.GRAY));
+            clearSiegeState();
+            return;
+        }
+
         save.highestLevel = Math.max(save.highestLevel, siegeLevel);
         if (won) {
             save.siegesWon++;
@@ -631,6 +661,7 @@ public final class SiegeManager {
         }
         clearRemainingMobs();
         digger.reset();
+        testRun = false;
         broadcast(server, Component.translatable("nightsiege.msg.aborted").withStyle(ChatFormatting.GRAY));
         clearSiegeState();
     }
@@ -937,6 +968,9 @@ public final class SiegeManager {
         }
         if (!killed.entityTags().contains(MobFactory.TAG)) {
             return;
+        }
+        if (testRun) {
+            return;   // Test sieges count for nothing.
         }
         boolean champion = killed.entityTags().contains(MobFactory.TAG_ELITE);
         PlayerStats stats = save.statsOf(player.getUUID().toString(), player.getScoreboardName());
