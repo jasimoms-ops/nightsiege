@@ -144,4 +144,60 @@ class SiegeCoreTest {
         assertFalse(bad.mobs.isEmpty());
         assertTrue(bad.protectedBlocks.contains("minecraft:bedrock"));
     }
+
+    @Test
+    void toolKindIsReadFromItemId() {
+        assertEquals(ToolKind.PICKAXE, ToolPicker.fromItemId("minecraft:iron_pickaxe"));
+        assertEquals(ToolKind.PICKAXE, ToolPicker.fromItemId("tconstruct:steel_pickaxe"));
+        // A pickaxe id also ends in "axe", so the order of the checks matters.
+        assertEquals(ToolKind.AXE, ToolPicker.fromItemId("minecraft:netherite_axe"));
+        assertEquals(ToolKind.SHOVEL, ToolPicker.fromItemId("minecraft:iron_shovel"));
+        assertEquals(ToolKind.NONE, ToolPicker.fromItemId("minecraft:iron_sword"));
+        assertEquals(ToolKind.NONE, ToolPicker.fromItemId(null));
+    }
+
+    @Test
+    void toolsAreHandedOutAtTheConfiguredRate() {
+        SiegeConfig c = cfg();
+        Random random = new Random(7);
+        int armed = 0;
+        for (int i = 0; i < 20000; i++) {
+            if (ToolPicker.pick(random, c).canDig()) {
+                armed++;
+            }
+        }
+        assertEquals(c.toolEquipChance, armed / 20000.0, 0.02);
+    }
+
+    @Test
+    void disabledToolGatingHandsOutNothing() {
+        SiegeConfig c = new SiegeConfig();
+        c.toolGatedDigging = false;
+        c.sanitize();
+        assertEquals(ToolKind.NONE, ToolPicker.pick(new Random(1), c));
+    }
+
+    @Test
+    void eventsRespectChanceAndMinimumLevel() {
+        SiegeConfig c = cfg();
+        assertEquals(SiegeEvent.NONE, EventPicker.pick(c.eventMinLevel - 1, new Random(1), c));
+        Random random = new Random(3);
+        int withEvent = 0;
+        for (int i = 0; i < 20000; i++) {
+            if (EventPicker.pick(10, random, c) != SiegeEvent.NONE) {
+                withEvent++;
+            }
+        }
+        assertEquals(c.eventChance, withEvent / 20000.0, 0.02);
+    }
+
+    @Test
+    void onlyBloodMoonChangesWaveStrength() {
+        SiegeConfig c = cfg();
+        assertEquals(1.0, SiegeEvent.NONE.mobCountMultiplier(c), 1e-9);
+        assertEquals(1.0, SiegeEvent.ELITE.healthMultiplier(c), 1e-9);
+        assertEquals(1.0, SiegeEvent.THEME_WAVE.damageMultiplier(c), 1e-9);
+        assertTrue(SiegeEvent.BLOOD_MOON.mobCountMultiplier(c) > 1.0);
+        assertTrue(SiegeEvent.BLOOD_MOON.healthMultiplier(c) > 1.0);
+    }
 }

@@ -2,26 +2,35 @@ package com.mki.nightsiege.game;
 
 import com.mki.nightsiege.NightSiegeMod;
 import com.mki.nightsiege.core.SiegeConfig;
+import com.mki.nightsiege.core.SiegeEvent;
 import com.mki.nightsiege.core.SiegeMath;
+import com.mki.nightsiege.core.ToolKind;
+import com.mki.nightsiege.core.ToolPicker;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.levelgen.Heightmap;
 
 import java.util.Random;
 
-/** Creates the siege mobs and scales their stats to the siege level. */
+/** Creates the siege mobs, scales them, and hands out the digging tools. */
 public final class MobFactory {
 
-    /** Entity tag every siege mob carries, so they can be told apart from normal mobs. */
+    /** Entity tag every siege mob carries, so they can be told apart. */
     public static final String TAG = "nightsiege";
+    /** Entity tag of the champion during an elite night. */
+    public static final String TAG_ELITE = "nightsiege_elite";
 
     private MobFactory() {
     }
@@ -33,12 +42,26 @@ public final class MobFactory {
     }
 
     /**
+     * Reads the tool a mob is actually holding. This covers mobs the mod armed
+     * as well as mobs that happened to spawn with a tool of their own.
+     */
+    public static ToolKind toolOf(Mob mob) {
+        ItemStack held = mob.getItemBySlot(EquipmentSlot.MAINHAND);
+        if (held == null || held.isEmpty()) {
+            return ToolKind.NONE;
+        }
+        Identifier id = BuiltInRegistries.ITEM.getKey(held.getItem());
+        return ToolPicker.fromItemId(id == null ? null : id.toString());
+    }
+
+    /**
      * Spawns one mob near the anchor.
      *
+     * @param elite true for the champion of an elite night
      * @return the mob, or null when nothing could be placed
      */
-    public static Mob spawn(ServerLevel world, BlockPos anchor, String entityId,
-                            int siegeLevel, SiegeConfig cfg, Random random) {
+    public static Mob spawn(ServerLevel world, BlockPos anchor, String entityId, int siegeLevel,
+                            SiegeConfig cfg, Random random, SiegeEvent event, boolean elite) {
         Identifier id = Identifier.tryParse(entityId);
         if (id == null || !BuiltInRegistries.ENTITY_TYPE.containsKey(id)) {
             return null;
@@ -59,9 +82,16 @@ public final class MobFactory {
             return null;
         }
         mob.snapTo(spot.getX() + 0.5, spot.getY(), spot.getZ() + 0.5, random.nextFloat() * 360.0f, 0.0f);
-        applyScaling(mob, siegeLevel, cfg);
+        applyScaling(mob, siegeLevel, cfg, event, elite);
+        equipTool(mob, cfg, random, elite);
         mob.setPersistenceRequired();
         mob.addTag(TAG);
+        if (elite) {
+            mob.addTag(TAG_ELITE);
+            mob.setCustomName(Component.translatable("nightsiege.elite.name"));
+            mob.setCustomNameVisible(true);
+            mob.setGlowingTag(true);
+        }
         if (!world.addFreshEntity(mob)) {
             mob.discard();
             return null;
@@ -69,9 +99,14 @@ public final class MobFactory {
         return mob;
     }
 
-    private static void applyScaling(Mob mob, int siegeLevel, SiegeConfig cfg) {
-        double healthMul = SiegeMath.healthMultiplier(siegeLevel, cfg);
-        double damageMul = SiegeMath.damageMultiplier(siegeLevel, cfg);
+    private static void applyScaling(Mob mob, int siegeLevel, SiegeConfig cfg,
+                                     SiegeEvent event, boolean elite) {
+        double healthMul = SiegeMath.healthMultiplier(siegeLevel, cfg) * event.healthMultiplier(cfg);
+        double damageMul = SiegeMath.damageMultiplier(siegeLevel, cfg) * event.damageMultiplier(cfg);
+        if (elite) {
+            healthMul *= cfg.eliteHealthMultiplier;
+            damageMul *= cfg.eliteDamageMultiplier;
+        }
 
         AttributeInstance health = mob.getAttribute(Attributes.MAX_HEALTH);
         if (health != null) {
@@ -87,6 +122,38 @@ public final class MobFactory {
         if (follow != null) {
             follow.setBaseValue(Math.max(follow.getBaseValue(), 72.0));
         }
+    }
+
+    /**
+     * Gives some mobs a tool. Only an armed mob can break blocks later, and the
+     * kind of tool decides which blocks. The champion always carries a pickaxe
+     * so it can always reach the base.
+     */
+    private static void equipTool(Mob mob, SiegeConfig cfg, Random random, boolean elite) {
+        if (!cfg.toolGatedDigging) {
+            return;
+        }
+        // A mob that already holds something keeps it; its own tool counts too.
+        ItemStack held = mob.getItemBySlot(EquipmentSlot.MAINHAND);
+        if (held != null && !held.isEmpty()) {
+            return;
+        }
+        ToolKind kind = elite ? ToolKind.PICKAXE : ToolPicker.pick(random, cfg);
+        if (kind == ToolKind.NONE) {
+            return;
+        }
+        String itemId = ToolPicker.itemId(kind, cfg);
+        Identifier id = Identifier.tryParse(itemId);
+        if (id == null || !BuiltInRegistries.ITEM.containsKey(id)) {
+            return;
+        }
+        Item item = BuiltInRegistries.ITEM.getValue(id);
+        if (item == null) {
+            return;
+        }
+        mob.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(item));
+        // Never drop it, otherwise sieges turn into a tool farm.
+        mob.setDropChance(EquipmentSlot.MAINHAND, 0.0f);
     }
 
     /** Looks for open ground in a ring around the anchor. */

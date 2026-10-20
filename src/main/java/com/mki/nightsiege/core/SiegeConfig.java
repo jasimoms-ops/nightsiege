@@ -55,6 +55,37 @@ public class SiegeConfig {
     /** Keep chests and other containers intact in the blast, so no items are lost. */
     public boolean failureBlastProtectsContainers = true;
 
+    // --- events -----------------------------------------------------------
+    public boolean eventsEnabled = true;
+    /** Chance that a siege night carries a special event. */
+    public double eventChance = 0.45;
+    /** No events below this siege level, so the first nights stay plain. */
+    public int eventMinLevel = 3;
+    public int bloodMoonWeight = 10;
+    public int eliteWeight = 8;
+    public int themeWaveWeight = 7;
+
+    public double bloodMoonMobMultiplier = 1.5;
+    public double bloodMoonHealthMultiplier = 1.3;
+    public double bloodMoonDamageMultiplier = 1.15;
+
+    public double eliteHealthMultiplier = 6.0;
+    public double eliteDamageMultiplier = 1.8;
+    /** Damage the rest of the wave loses once the champion is dead. */
+    public double eliteDeathDamagePenalty = 0.25;
+
+    // --- tools ------------------------------------------------------------
+    /** Only mobs carrying a fitting tool can break blocks. */
+    public boolean toolGatedDigging = true;
+    /** Share of siege mobs that spawn with a tool. */
+    public double toolEquipChance = 0.35;
+    public int toolPickaxeWeight = 10;
+    public int toolAxeWeight = 8;
+    public int toolShovelWeight = 5;
+    public String pickaxeItem = "minecraft:iron_pickaxe";
+    public String axeItem = "minecraft:iron_axe";
+    public String shovelItem = "minecraft:iron_shovel";
+
     // --- digging ----------------------------------------------------------
     public boolean diggingEnabled = true;
     /** Ticks a siege mob needs to chew through one ordinary block. */
@@ -132,6 +163,26 @@ public class SiegeConfig {
         failureBlastRadius = clamp(failureBlastRadius, 0, 64);
 
         digTicksPerBlock = clamp(digTicksPerBlock, 1, 2000);
+
+        eventChance = clampDouble(eventChance, 0.0, 1.0);
+        eventMinLevel = Math.max(1, eventMinLevel);
+        bloodMoonWeight = Math.max(0, bloodMoonWeight);
+        eliteWeight = Math.max(0, eliteWeight);
+        themeWaveWeight = Math.max(0, themeWaveWeight);
+        bloodMoonMobMultiplier = Math.max(1.0, bloodMoonMobMultiplier);
+        bloodMoonHealthMultiplier = Math.max(1.0, bloodMoonHealthMultiplier);
+        bloodMoonDamageMultiplier = Math.max(1.0, bloodMoonDamageMultiplier);
+        eliteHealthMultiplier = Math.max(1.0, eliteHealthMultiplier);
+        eliteDamageMultiplier = Math.max(1.0, eliteDamageMultiplier);
+        eliteDeathDamagePenalty = clampDouble(eliteDeathDamagePenalty, 0.0, 0.9);
+
+        toolEquipChance = clampDouble(toolEquipChance, 0.0, 1.0);
+        toolPickaxeWeight = Math.max(0, toolPickaxeWeight);
+        toolAxeWeight = Math.max(0, toolAxeWeight);
+        toolShovelWeight = Math.max(0, toolShovelWeight);
+        pickaxeItem = blankTo(pickaxeItem, "minecraft:iron_pickaxe");
+        axeItem = blankTo(axeItem, "minecraft:iron_axe");
+        shovelItem = blankTo(shovelItem, "minecraft:iron_shovel");
         if (protectedBlocks == null) {
             protectedBlocks = new ArrayList<>(List.of("minecraft:bedrock"));
         }
@@ -152,5 +203,13 @@ public class SiegeConfig {
 
     private static int clamp(int value, int min, int max) {
         return Math.max(min, Math.min(max, value));
+    }
+
+    private static double clampDouble(double value, double min, double max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    private static String blankTo(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
     }
 }

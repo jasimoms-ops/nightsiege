@@ -2,8 +2,10 @@ package com.mki.nightsiege.game;
 
 import com.mki.nightsiege.NightSiegeMod;
 import com.mki.nightsiege.core.AnchorPicker;
+import com.mki.nightsiege.core.EventPicker;
 import com.mki.nightsiege.core.MobPool;
 import com.mki.nightsiege.core.SiegeConfig;
+import com.mki.nightsiege.core.SiegeEvent;
 import com.mki.nightsiege.core.SiegeMath;
 import com.mki.nightsiege.core.SiegeScheduler;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
@@ -21,6 +23,8 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.BossEvent;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.ai.attributes.AttributeInstance;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -65,6 +69,12 @@ public final class SiegeManager {
     /** Updated every tick so the level can be shown without a server reference. */
     private long lastKnownDay;
     private ServerBossEvent bossBar;
+    private SiegeEvent currentEvent = SiegeEvent.NONE;
+    /** During a theme night every mob is of this type. */
+    private String themeMobId;
+    /** The champion of an elite night, while it lives. */
+    private UUID eliteId;
+    private boolean elitePenaltyApplied;
     private final Set<UUID> participants = new HashSet<>();
     private final Set<UUID> fallen = new HashSet<>();
     private final Set<UUID> liveMobs = new HashSet<>();
@@ -204,16 +214,64 @@ public final class SiegeManager {
         for (ServerPlayer player : nearby) {
             participants.add(player.getUUID());
         }
+        currentEvent = EventPicker.pick(siegeLevel, random, config);
+        themeMobId = null;
+        eliteId = null;
+        elitePenaltyApplied = false;
+        if (currentEvent == SiegeEvent.THEME_WAVE) {
+            themeMobId = pickAvailableMob();
+            if (themeMobId == null) {
+                // Nothing usable to build a theme night from, so stay plain.
+                currentEvent = SiegeEvent.NONE;
+            }
+        }
+
+        // The event is never named. A blood moon only shows as a red bar.
         bossBar = new ServerBossEvent(UUID.randomUUID(),
                 bossBarTitle(),
-                BossEvent.BossBarColor.PURPLE,
+                currentEvent == SiegeEvent.BLOOD_MOON
+                        ? BossEvent.BossBarColor.RED
+                        : BossEvent.BossBarColor.PURPLE,
                 BossEvent.BossBarOverlay.PROGRESS);
         bossBar.setProgress(1.0f);
         active = true;
 
         broadcast(server, Component.translatable("nightsiege.msg.start", siegeLevel)
                 .withStyle(ChatFormatting.RED));
+        if (currentEvent == SiegeEvent.ELITE) {
+            spawnElite(server);
+        }
         return true;
+    }
+
+    /** An entity id from the pool that is actually installed, or null. */
+    private String pickAvailableMob() {
+        for (int attempt = 0; attempt < 12; attempt++) {
+            String candidate = pool.pick(siegeLevel, random, unavailableMobs);
+            if (candidate == null) {
+                return null;
+            }
+            if (MobFactory.isUnavailable(candidate)) {
+                unavailableMobs.add(candidate);
+                continue;
+            }
+            return candidate;
+        }
+        return null;
+    }
+
+    private void spawnElite(MinecraftServer server) {
+        String entityId = pickAvailableMob();
+        if (entityId == null) {
+            return;
+        }
+        Mob champion = MobFactory.spawn(world, anchor, entityId, siegeLevel,
+                config, random, currentEvent, true);
+        if (champion != null) {
+            eliteId = champion.getUUID();
+            liveMobs.add(eliteId);
+            aimAtDefender(server, champion);
+        }
     }
 
     private Component bossBarTitle() {
@@ -288,11 +346,14 @@ public final class SiegeManager {
     }
 
     private void spawnBatch(MinecraftServer server) {
-        int wanted = SiegeMath.mobsPerBatch(siegeLevel, participants.size(), config);
+        int wanted = (int) Math.round(SiegeMath.mobsPerBatch(siegeLevel, participants.size(), config)
+                * currentEvent.mobCountMultiplier(config));
         int room = config.maxLiveMobs - liveMobs.size();
         int count = Math.min(wanted, Math.max(0, room));
         for (int i = 0; i < count; i++) {
-            String entityId = pool.pick(siegeLevel, random, unavailableMobs);
+            String entityId = themeMobId != null
+                    ? themeMobId
+                    : pool.pick(siegeLevel, random, unavailableMobs);
             if (entityId == null) {
                 return;
             }
@@ -303,7 +364,8 @@ public final class SiegeManager {
                 }
                 continue;
             }
-            Mob mob = MobFactory.spawn(world, anchor, entityId, siegeLevel, config, random);
+            Mob mob = MobFactory.spawn(world, anchor, entityId, siegeLevel,
+                    config, random, currentEvent, false);
             if (mob != null) {
                 liveMobs.add(mob.getUUID());
                 aimAtDefender(server, mob);
@@ -361,6 +423,10 @@ public final class SiegeManager {
         broadcast(server, Component.translatable("nightsiege.msg.aborted").withStyle(ChatFormatting.GRAY));
         world = null;
         anchor = null;
+        currentEvent = SiegeEvent.NONE;
+        themeMobId = null;
+        eliteId = null;
+        elitePenaltyApplied = false;
         participants.clear();
         fallen.clear();
         liveMobs.clear();
@@ -405,6 +471,10 @@ public final class SiegeManager {
 
         world = null;
         anchor = null;
+        currentEvent = SiegeEvent.NONE;
+        themeMobId = null;
+        eliteId = null;
+        elitePenaltyApplied = false;
         participants.clear();
         fallen.clear();
         liveMobs.clear();
@@ -451,6 +521,10 @@ public final class SiegeManager {
 
     /** Takes Object so the handler keeps compiling across Fabric API versions. */
     private void onDeath(Object entity) {
+        if (active && entity instanceof Mob mob && mob.getUUID().equals(eliteId)) {
+            onEliteKilled(mob);
+            return;
+        }
         if (!(entity instanceof ServerPlayer player)) {
             return;
         }
@@ -463,6 +537,31 @@ public final class SiegeManager {
         MinecraftServer server = player.level().getServer();
         broadcast(server, Component.translatable("nightsiege.msg.defender_down",
                 player.getScoreboardName(), countStanding()).withStyle(ChatFormatting.RED));
+    }
+
+    /** The wave loses its edge once the champion is down. */
+    private void onEliteKilled(Mob champion) {
+        if (elitePenaltyApplied) {
+            return;
+        }
+        elitePenaltyApplied = true;
+        eliteId = null;
+        double keep = 1.0 - config.eliteDeathDamagePenalty;
+        int weakened = 0;
+        for (UUID id : liveMobs) {
+            Entity other = world == null ? null : world.getEntity(id);
+            if (!(other instanceof Mob otherMob) || !otherMob.isAlive()) {
+                continue;
+            }
+            AttributeInstance damage = otherMob.getAttribute(Attributes.ATTACK_DAMAGE);
+            if (damage != null) {
+                damage.setBaseValue(damage.getBaseValue() * keep);
+                weakened++;
+            }
+        }
+        MinecraftServer server = champion.level().getServer();
+        broadcast(server, Component.translatable("nightsiege.msg.elite_down", weakened)
+                .withStyle(ChatFormatting.GREEN));
     }
 
     private int countStanding() {
