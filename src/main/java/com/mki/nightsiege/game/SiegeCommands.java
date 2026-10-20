@@ -86,7 +86,7 @@ public final class SiegeCommands {
             fail(source, Component.translatable("nightsiege.cmd.players_only"));
             return 0;
         }
-        CoreMenu.show(player, SiegeManager.get());
+        SiegeManager.get().openCoreWindow(player);
         return 1;
     }
 
@@ -122,7 +122,7 @@ public final class SiegeCommands {
         manager.persist();
         reply(source, Component.translatable("nightsiege.cmd.skill_bought",
                 Component.translatable(node.translationKey()), skills.levelOf(nodeId)));
-        CoreMenu.show(player, manager);
+        manager.openCoreWindow(player);
         return 1;
     }
 
