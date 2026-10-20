@@ -109,6 +109,14 @@ public class SiegeConfig {
             "decorated_pot", "campfire", "smoker", "spawner", "vault"));
 
     // --- skills -----------------------------------------------------------
+    // --- sound and visuals -------------------------------------------------
+    public boolean soundsEnabled = true;
+    public boolean particlesEnabled = true;
+    /** Colour the attackers' glow red on a blood moon night. */
+    public boolean bloodMoonGlow = true;
+    /** How many mobs of one batch make a spawn sound. The rest spawn quietly. */
+    public int audibleSpawnsPerBatch = 3;
+
     public boolean skillsEnabled = true;
     /** Hand every player the written guide the first time they join. */
     public boolean giveGuideBook = true;
@@ -193,6 +201,7 @@ public class SiegeConfig {
         eliteDeathDamagePenalty = clampDouble(eliteDeathDamagePenalty, 0.0, 0.9);
 
         skillPointsPerSiege = Math.max(0, skillPointsPerSiege);
+        audibleSpawnsPerBatch = Math.max(0, audibleSpawnsPerBatch);
         skillPointsLevelStep = Math.max(1, skillPointsLevelStep);
 
         toolEquipChance = clampDouble(toolEquipChance, 0.0, 1.0);

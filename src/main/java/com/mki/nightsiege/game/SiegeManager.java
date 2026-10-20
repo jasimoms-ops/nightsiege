@@ -476,6 +476,15 @@ public final class SiegeManager {
         }
         active = false;
         clearSkillsFromParticipants(server);
+        SiegeTeams.cleanUp(server);
+        if (world != null && anchor != null) {
+            Fx.coreFlare(world, config, anchor, won);
+        }
+        if (won) {
+            Fx.victory(server, config);
+        } else {
+            Fx.defeat(server, config);
+        }
         if (bossBar != null) {
             bossBar.removeAllPlayers();
             bossBar = null;
@@ -515,6 +524,7 @@ public final class SiegeManager {
         }
         active = false;
         clearSkillsFromParticipants(server);
+        SiegeTeams.cleanUp(server);
         if (bossBar != null) {
             bossBar.removeAllPlayers();
             bossBar = null;
