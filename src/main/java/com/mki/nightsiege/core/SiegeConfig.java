@@ -135,28 +135,56 @@ public class SiegeConfig {
     // --- mobs -------------------------------------------------------------
     public List<MobEntry> mobs = defaultMobs();
 
+    /** Raised whenever the default mob list changes, so old config files get the new list. */
+    public static final int CURRENT_MOB_LIST = 2;
+    /** Version of the mob list in this file. Older lists are replaced on load. */
+    public int mobListVersion = 0;
+
+    /**
+     * The default attackers. Easy mobs fade out as the level rises, hard ones
+     * grow more common. Entries of mods that are not installed are skipped.
+     * {@code a+b} means b riding a.
+     */
     public static List<MobEntry> defaultMobs() {
         List<MobEntry> list = new ArrayList<>();
-        // Level 1-2
-        list.add(new MobEntry("minecraft:zombie", 1, 20));
-        list.add(new MobEntry("minecraft:skeleton", 1, 14));
-        // Level 3-4
-        list.add(new MobEntry("minecraft:spider", 3, 10));
-        list.add(new MobEntry("minecraft:creeper", 3, 6));
-        // Level 5-7
-        list.add(new MobEntry("minecraft:husk", 5, 10));
-        list.add(new MobEntry("minecraft:stray", 5, 8));
-        list.add(new MobEntry("minecraft:cave_spider", 6, 6));
-        // Level 8-10
-        list.add(new MobEntry("minecraft:pillager", 8, 10));
-        list.add(new MobEntry("minecraft:vindicator", 8, 8));
-        list.add(new MobEntry("minecraft:witch", 9, 5));
-        // Level 11-14
-        list.add(new MobEntry("minecraft:drowned", 11, 8));
-        list.add(new MobEntry("minecraft:wither_skeleton", 12, 6));
-        // Level 15+
-        list.add(new MobEntry("minecraft:evoker", 15, 3));
-        list.add(new MobEntry("minecraft:ravager", 16, 2));
+        String vv = "variantsandventures:";
+        String tap = "takesapillage:";
+        String faf = "friendsandfoes:";
+        // Level 1: the classics, fading out later.
+        list.add(new MobEntry("minecraft:zombie", 1, 20, -1.0));
+        list.add(new MobEntry("minecraft:skeleton", 1, 14, -0.6));
+        // Level 2-4: spiders, creepers and the regional variants.
+        list.add(new MobEntry("minecraft:spider", 2, 10, -0.3));
+        list.add(new MobEntry(vv + "thicket", 2, 6, 0.0));
+        list.add(new MobEntry(vv + "verdant", 2, 6, 0.0));
+        list.add(new MobEntry("minecraft:creeper", 3, 6, 0.2));
+        list.add(new MobEntry("minecraft:husk", 3, 8, 0.0));
+        list.add(new MobEntry(vv + "murk", 3, 6, 0.1));
+        list.add(new MobEntry(vv + "gelid", 3, 6, 0.1));
+        list.add(new MobEntry("minecraft:stray", 4, 6, 0.1));
+        list.add(new MobEntry("minecraft:bogged", 4, 6, 0.1));
+        list.add(new MobEntry(tap + "skirmisher", 4, 6, 0.3));
+        // Level 5-7: the illagers arrive, first riders.
+        list.add(new MobEntry("minecraft:pillager", 5, 8, 0.4));
+        list.add(new MobEntry(tap + "archer", 5, 6, 0.4));
+        list.add(new MobEntry("minecraft:parched", 5, 5, 0.2));
+        list.add(new MobEntry("minecraft:camel_husk+minecraft:husk", 5, 3, 0.2));
+        list.add(new MobEntry("minecraft:cave_spider", 6, 4, 0.0));
+        list.add(new MobEntry("minecraft:spider+minecraft:skeleton", 6, 3, 0.2));
+        list.add(new MobEntry("minecraft:vindicator", 6, 6, 0.5));
+        list.add(new MobEntry(tap + "legioner", 6, 5, 0.5));
+        list.add(new MobEntry("minecraft:witch", 7, 4, 0.2));
+        list.add(new MobEntry("minecraft:breeze", 7, 3, 0.3));
+        list.add(new MobEntry("minecraft:drowned", 7, 5, 0.0));
+        // Level 8-10: casters and wither skeletons.
+        list.add(new MobEntry(faf + "iceologer", 8, 3, 0.4));
+        list.add(new MobEntry(faf + "illusioner", 8, 3, 0.4));
+        list.add(new MobEntry("minecraft:wither_skeleton", 8, 4, 0.5));
+        list.add(new MobEntry("minecraft:evoker", 10, 2, 0.4));
+        // Level 11+: ravagers with riders and the wildfire.
+        list.add(new MobEntry("minecraft:ravager+minecraft:pillager", 11, 1, 0.4));
+        list.add(new MobEntry(faf + "wildfire", 13, 1, 0.3));
+        list.add(new MobEntry("minecraft:ravager+minecraft:vindicator", 14, 1, 0.3));
         return list;
     }
 
@@ -234,6 +262,10 @@ public class SiegeConfig {
         }
         if (mobs == null || mobs.isEmpty()) {
             mobs = defaultMobs();
+        }
+        if (mobListVersion < CURRENT_MOB_LIST) {
+            mobs = defaultMobs();
+            mobListVersion = CURRENT_MOB_LIST;
         }
         mobs.removeIf(entry -> entry == null || !entry.isValid());
         if (mobs.isEmpty()) {

@@ -1,6 +1,7 @@
 package com.mki.nightsiege.client;
 
 import com.mki.nightsiege.core.CoreStats;
+import com.mki.nightsiege.core.UltState;
 import com.mki.nightsiege.game.CoreNetworking;
 import com.mki.nightsiege.game.Json;
 import com.mki.nightsiege.game.ModContent;
@@ -8,6 +9,8 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import org.lwjgl.glfw.GLFW;
@@ -38,6 +41,14 @@ public class NightSiegeClient implements ClientModInitializer {
                         }
                     });
                 });
+
+        ClientPlayNetworking.registerGlobalReceiver(CoreNetworking.UltHudPayload.TYPE,
+                (payload, context) -> {
+                    UltState state = Json.fromJson(payload.json(), UltState.class);
+                    context.client().execute(() -> UltHud.update(state));
+                });
+        HudElementRegistry.attachElementAfter(VanillaHudElements.HOTBAR, ModContent.id("ultimate"),
+                (gui, delta) -> UltHud.draw(gui, ultimateKey));
 
         KeyMapping.Category category = KeyMapping.Category.register(ModContent.id("main"));
         ultimateKey = KeyMappingHelper.registerKeyMapping(

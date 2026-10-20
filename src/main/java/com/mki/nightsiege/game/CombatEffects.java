@@ -143,7 +143,7 @@ public final class CombatEffects {
             default -> false;
         };
         if (fired) {
-            ultReadyAt.put(player.getUUID(), now + 600L - 100L * rank);
+            ultReadyAt.put(player.getUUID(), now + cooldownFor(rank));
             actionBar(player, Component.translatable("nightsiege.msg.ult_fired",
                     Component.translatable("nightsiege.skill." + node.id())));
         }
@@ -621,6 +621,17 @@ public final class CombatEffects {
                 }
             }
         }
+    }
+
+    /** Ticks until this player's ultimate is ready again. */
+    public int cooldownLeft(UUID player, long now) {
+        long readyAt = ultReadyAt.getOrDefault(player, 0L);
+        return (int) Math.max(0L, readyAt - now);
+    }
+
+    /** Full cooldown at this rank. */
+    public static int cooldownFor(int rank) {
+        return 600 - 100 * Math.max(1, rank);
     }
 
     public void forget(UUID player) {

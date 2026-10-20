@@ -57,11 +57,11 @@ public final class MobPool {
         }
         int total = 0;
         for (MobEntry entry : pool) {
-            total += entry.weight;
+            total += entry.weightAt(level);
         }
         int roll = random.nextInt(total);
         for (MobEntry entry : pool) {
-            roll -= entry.weight;
+            roll -= entry.weightAt(level);
             if (roll < 0) {
                 return entry.id;
             }

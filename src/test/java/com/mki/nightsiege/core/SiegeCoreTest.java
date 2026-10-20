@@ -51,8 +51,8 @@ class SiegeCoreTest {
     @Test
     void mobPoolRespectsLevelGates() {
         MobPool pool = new MobPool(cfg().mobs);
-        assertTrue(pool.eligible(1).stream().noneMatch(e -> e.id.equals("minecraft:ravager")));
-        assertTrue(pool.eligible(16).stream().anyMatch(e -> e.id.equals("minecraft:ravager")));
+        assertTrue(pool.eligible(1).stream().noneMatch(e -> e.baseId().equals("minecraft:ravager")));
+        assertTrue(pool.eligible(16).stream().anyMatch(e -> e.baseId().equals("minecraft:ravager")));
     }
 
     @Test
@@ -60,8 +60,8 @@ class SiegeCoreTest {
         MobPool pool = new MobPool(cfg().mobs);
         Random random = new Random(1);
         for (int i = 0; i < 200; i++) {
-            assertNotEquals("minecraft:ravager",
-                    pool.pick(16, random, Set.of("minecraft:ravager")));
+            assertNotEquals("minecraft:evoker",
+                    pool.pick(16, random, Set.of("minecraft:evoker")));
         }
         assertNull(pool.pick(1, random, Set.of("minecraft:zombie", "minecraft:skeleton")));
     }
@@ -573,5 +573,25 @@ class SiegeCoreTest {
                 assertTrue(json.contains("\"block.nightsiege." + kind.id() + "\""), lang + " lacks block " + kind.id());
             }
         }
+    }
+
+    @Test
+    void hardMobsGrowMoreCommonAndEasyOnesFade() {
+        MobEntry zombie = new MobEntry("minecraft:zombie", 1, 20, -1.0);
+        MobEntry evoker = new MobEntry("minecraft:evoker", 10, 2, 0.4);
+        assertTrue(zombie.weightAt(20) < zombie.weightAt(1));
+        assertEquals(1, zombie.weightAt(99));
+        assertTrue(evoker.weightAt(20) > evoker.weightAt(10));
+        assertEquals("minecraft:spider", new MobEntry("minecraft:spider+minecraft:skeleton", 6, 3).baseId());
+    }
+
+    @Test
+    void anOldConfigGetsTheNewMobList() {
+        SiegeConfig old = new SiegeConfig();
+        old.mobListVersion = 1;
+        old.mobs = new java.util.ArrayList<>(List.of(new MobEntry("minecraft:zombie", 1, 10)));
+        old.sanitize();
+        assertEquals(SiegeConfig.CURRENT_MOB_LIST, old.mobListVersion);
+        assertTrue(old.mobs.size() > 20);
     }
 }

@@ -230,6 +230,9 @@ public final class SiegeManager {
         tickModCheck(server);
         trapsDirty |= traps.tick(server);
         combat.tick(server);
+        if (server.overworld().getGameTime() % 20 == 0) {
+            sendUltHud(server);
+        }
         if (trapsDirty && ++trapSaveCounter >= 200) {
             trapSaveCounter = 0;
             trapsDirty = false;
@@ -494,6 +497,9 @@ public final class SiegeManager {
                     config, random, currentEvent, false, spawnDistanceBonus());
             if (mob != null) {
                 liveMobs.add(mob.getUUID());
+                for (Entity rider : mob.getPassengers()) {
+                    liveMobs.add(rider.getUUID());
+                }
                 aimAtDefender(server, mob);
                 Fx.mobSpawned(world, config, mob, spawned < config.audibleSpawnsPerBatch);
                 if (currentEvent == SiegeEvent.BLOOD_MOON && config.bloodMoonGlow) {
@@ -792,6 +798,29 @@ public final class SiegeManager {
     }
 
     /** Called from the block itself when a core is put down. */
+    /** Tells every player with the mod what their ultimate slot shows. */
+    private void sendUltHud(MinecraftServer server) {
+        long now = server.overworld().getGameTime();
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            if (!ServerPlayNetworking.canSend(player, CoreNetworking.UltHudPayload.TYPE)) {
+                continue;
+            }
+            PlayerSkills own = save.skillsOf(player.getUUID().toString());
+            com.mki.nightsiege.core.SkillNode node = skillTree.ultimateOf(own);
+            com.mki.nightsiege.core.UltState state = new com.mki.nightsiege.core.UltState();
+            if (node != null) {
+                int rank = Math.max(1, own.levelOf(node.id()));
+                state.has = true;
+                state.node = node.id();
+                state.icon = node.icon();
+                state.totalTicks = CombatEffects.cooldownFor(rank);
+                state.cooldownTicks = combat.cooldownLeft(player.getUUID(), now);
+                state.live = liveSkillsFor(player) != null;
+            }
+            ServerPlayNetworking.send(player, new CoreNetworking.UltHudPayload(Json.toJson(state)));
+        }
+    }
+
     /** Called by {@link TrapBlock} once a trap is set down. */
     public void onTrapPlaced(ServerLevel level, BlockPos pos, LivingEntity placer, TrapKind kind) {
         traps.onPlaced(level, pos, placer, kind);

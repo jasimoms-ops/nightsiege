@@ -30,6 +30,21 @@ public final class CoreNetworking {
         }
     }
 
+    /** Server to client, once a second: the ultimate slot next to the hotbar. */
+    public record UltHudPayload(String json) implements CustomPacketPayload {
+
+        public static final CustomPacketPayload.Type<UltHudPayload> TYPE =
+                new CustomPacketPayload.Type<>(ModContent.id("ult_hud"));
+
+        public static final StreamCodec<RegistryFriendlyByteBuf, UltHudPayload> CODEC =
+                StreamCodec.composite(ByteBufCodecs.STRING_UTF8, UltHudPayload::json, UltHudPayload::new);
+
+        @Override
+        public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
     /**
      * Client to server: one action from the window.
      *
@@ -68,6 +83,7 @@ public final class CoreNetworking {
         }
         typesRegistered = true;
         PayloadTypeRegistry.clientboundPlay().register(CoreUiPayload.TYPE, CoreUiPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(UltHudPayload.TYPE, UltHudPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(CoreActionPayload.TYPE, CoreActionPayload.CODEC);
     }
 

@@ -37,8 +37,16 @@ public final class MobFactory {
 
     /** True when this entity id is not registered, usually because the mod is missing. */
     public static boolean isUnavailable(String entityId) {
-        Identifier id = Identifier.tryParse(entityId);
-        return id == null || !BuiltInRegistries.ENTITY_TYPE.containsKey(id);
+        if (entityId == null) {
+            return true;
+        }
+        for (String part : entityId.split("\\+")) {
+            Identifier id = Identifier.tryParse(part.trim());
+            if (id == null || !BuiltInRegistries.ENTITY_TYPE.containsKey(id)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -64,19 +72,60 @@ public final class MobFactory {
     public static Mob spawn(ServerLevel world, BlockPos anchor, String entityId, int siegeLevel,
                             SiegeConfig cfg, Random random, SiegeEvent event, boolean elite,
                             double distanceBonus) {
+        if (isUnavailable(entityId)) {
+            return null;
+        }
+        String[] parts = entityId.split("\\+");
+        BlockPos spot = findSpawnSpot(world, anchor, cfg, random, distanceBonus);
+        if (spot == null) {
+            return null;
+        }
+        Mob mob = create(world, parts[0].trim(), spot, random);
+        if (mob == null) {
+            return null;
+        }
+        applyScaling(mob, siegeLevel, cfg, event, elite);
+        equipTool(mob, cfg, random, elite);
+        mob.setPersistenceRequired();
+        mob.addTag(TAG);
+        // A rider from the entry, unless vanilla already seated one.
+        if (parts.length > 1 && mob.getPassengers().isEmpty()) {
+            Mob rider = create(world, parts[1].trim(), spot, random);
+            if (rider != null && !rider.startRiding(mob)) {
+                rider.discard();
+            }
+        }
+        for (Entity passenger : mob.getPassengers()) {
+            if (passenger instanceof Mob riding) {
+                applyScaling(riding, siegeLevel, cfg, event, false);
+                riding.setPersistenceRequired();
+                riding.addTag(TAG);
+            }
+        }
+        if (elite) {
+            mob.addTag(TAG_ELITE);
+            mob.setCustomName(Component.translatable("nightsiege.elite.name"));
+            mob.setCustomNameVisible(true);
+            mob.setGlowingTag(true);
+        }
+        world.addFreshEntityWithPassengers(mob);
+        if (mob.isRemoved()) {
+            return null;
+        }
+        return mob;
+    }
+
+    /**
+     * Creates a mob the way the world itself would: with its weapons, armour and
+     * variants, so skeletons carry bows and pillagers crossbows.
+     */
+    private static Mob create(ServerLevel world, String entityId, BlockPos spot, Random random) {
         Identifier id = Identifier.tryParse(entityId);
         if (id == null || !BuiltInRegistries.ENTITY_TYPE.containsKey(id)) {
             return null;
         }
         EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.getValue(id);
-        if (type == null) {
-            return null;
-        }
-        BlockPos spot = findSpawnSpot(world, anchor, cfg, random, distanceBonus);
-        if (spot == null) {
-            return null;
-        }
-        Entity entity = type.create(world, EntitySpawnReason.EVENT);
+        Entity entity = type == null ? null : type.create(world, EntitySpawnReason.EVENT);
         if (!(entity instanceof Mob mob)) {
             if (entity != null) {
                 entity.discard();
@@ -84,19 +133,10 @@ public final class MobFactory {
             return null;
         }
         mob.snapTo(spot.getX() + 0.5, spot.getY(), spot.getZ() + 0.5, random.nextFloat() * 360.0f, 0.0f);
-        applyScaling(mob, siegeLevel, cfg, event, elite);
-        equipTool(mob, cfg, random, elite);
-        mob.setPersistenceRequired();
-        mob.addTag(TAG);
-        if (elite) {
-            mob.addTag(TAG_ELITE);
-            mob.setCustomName(Component.translatable("nightsiege.elite.name"));
-            mob.setCustomNameVisible(true);
-            mob.setGlowingTag(true);
-        }
-        if (!world.addFreshEntity(mob)) {
-            mob.discard();
-            return null;
+        try {
+            mob.finalizeSpawn(world, world.getCurrentDifficultyAt(spot), EntitySpawnReason.EVENT, null);
+        } catch (RuntimeException e) {
+            // A mob from another mod that cannot set itself up here still spawns bare.
         }
         return mob;
     }
