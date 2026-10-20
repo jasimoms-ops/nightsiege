@@ -380,7 +380,7 @@ class SiegeCoreTest {
         assertTrue(tree.unlock("archer_focus", one));
         assertEquals(0, two.points());
         assertEquals(0, two.levelOf("archer_focus"));
-        assertEquals("nochoice", tree.blockedReason("archer_focus", two) == null ? "" : "class");
+        assertEquals("class", tree.blockedReason("archer_focus", two));
     }
 
     @Test
