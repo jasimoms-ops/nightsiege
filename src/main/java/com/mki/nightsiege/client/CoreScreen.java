@@ -9,7 +9,7 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.resources.language.I18n;
+import net.minecraft.locale.Language;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
@@ -311,8 +311,8 @@ public class CoreScreen extends Screen {
         List<String> lines = new ArrayList<>();
         lines.add(Component.translatable("nightsiege.skill." + node.id).getString());
         String descKey = "nightsiege.skill." + node.id + ".desc";
-        if (I18n.exists(descKey)) {
-            for (String part : I18n.get(descKey).split("\n")) {
+        if (Language.getInstance().has(descKey)) {
+            for (String part : Language.getInstance().getOrDefault(descKey).split("\n")) {
                 lines.add(part);
             }
         }

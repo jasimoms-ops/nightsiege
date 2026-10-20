@@ -86,12 +86,12 @@ public final class SiegeManager {
 
     private SiegeConfig config = new SiegeConfig();
     private SiegeSave save = new SiegeSave();
-    private final TrapService traps = new TrapService(() -> save, skillTree);
     /** Trap wear is saved in batches, not on every spike hit. */
     private boolean trapsDirty;
     private int trapSaveCounter;
     private final SiegeScheduler scheduler = new SiegeScheduler();
     private final SkillTree skillTree = new SkillTree();
+    private final TrapService traps = new TrapService(() -> save, skillTree);
     private final Digger digger = new Digger();
     private final Random random = new Random();
     private MobPool pool = new MobPool(SiegeConfig.defaultMobs());
