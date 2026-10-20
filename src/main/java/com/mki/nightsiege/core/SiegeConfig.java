@@ -110,6 +110,8 @@ public class SiegeConfig {
 
     // --- skills -----------------------------------------------------------
     public boolean skillsEnabled = true;
+    /** Hand every player the written guide the first time they join. */
+    public boolean giveGuideBook = true;
     /** Points every surviving defender gets for a cleared siege. */
     public int skillPointsPerSiege = 1;
     /** One extra point for every this many siege levels. */

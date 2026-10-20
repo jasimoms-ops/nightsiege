@@ -640,6 +640,20 @@ public final class SiegeManager {
             SkillService.clear(player);
         }
         giveStarterCore(player);
+        giveGuideBook(player);
+    }
+
+    /** Every player gets the written guide once, the first time they join. */
+    private void giveGuideBook(ServerPlayer player) {
+        String id = player.getUUID().toString();
+        if (!config.giveGuideBook || !save.needsGuide(id)) {
+            return;
+        }
+        save.markGuideGiven(id);
+        persist();
+        if (!player.addItem(GuideBook.create())) {
+            player.drop(GuideBook.create(), false);
+        }
     }
 
     /** The very first player of a world is handed one core, once ever. */

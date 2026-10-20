@@ -15,6 +15,8 @@ public class SiegeSave {
     public List<CoreRecord> cores = new ArrayList<>();
     /** True once the free starter core has been handed out in this world. */
     public boolean starterCoreGiven;
+    /** Uuids of players who already received the guide book. */
+    public List<String> guideGiven = new ArrayList<>();
 
     public int siegesWon;
     public int siegesLost;
@@ -42,6 +44,23 @@ public class SiegeSave {
     public void removeCore(String dimension, int x, int y, int z) {
         if (cores != null) {
             cores.removeIf(core -> core == null || core.matches(dimension, x, y, z));
+        }
+    }
+
+    /** True when the book still has to be handed out to this player. */
+    public boolean needsGuide(String playerUuid) {
+        if (guideGiven == null) {
+            guideGiven = new ArrayList<>();
+        }
+        return playerUuid != null && !guideGiven.contains(playerUuid);
+    }
+
+    public void markGuideGiven(String playerUuid) {
+        if (guideGiven == null) {
+            guideGiven = new ArrayList<>();
+        }
+        if (playerUuid != null && !guideGiven.contains(playerUuid)) {
+            guideGiven.add(playerUuid);
         }
     }
 
