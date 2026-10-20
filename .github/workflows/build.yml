@@ -10,28 +10,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Offizielle Fabric-Vorlage lesen
-        run: |
-          python3 - <<'PY'
-          import urllib.request
-          out = []
-          for label, url in [
-              ("build.gradle", "https://raw.githubusercontent.com/FabricMC/fabric-example-mod/HEAD/build.gradle"),
-              ("gradle.properties", "https://raw.githubusercontent.com/FabricMC/fabric-example-mod/HEAD/gradle.properties"),
-          ]:
-              try:
-                  body = urllib.request.urlopen(url, timeout=30).read().decode()
-                  keep = [l for l in body.splitlines()
-                          if any(w in l for w in ("mappings", "minecraft", "loom", "loader",
-                                                  "fabric_version", "JavaVersion", "release",
-                                                  "sourceCompat", "targetCompat", "id '", "version ="))]
-                  out.append("== %s ==" % label)
-                  out.extend(keep[:40])
-              except Exception as e:
-                  out.append("%s Fehler: %s" % (label, e))
-          print("::error title=VORLAGE::" + "%0A".join(out)[:60000])
-          PY
-
       # fabric-api und Loader aendern sich staendig. Statt sie zu raten, wird
       # hier die jeweils neueste zur eingestellten Minecraft-Version passende
       # Fassung ermittelt und in gradle.properties eingetragen.

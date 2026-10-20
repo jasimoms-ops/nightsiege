@@ -1,5 +1,5 @@
 plugins {
-    id 'fabric-loom' version '1.19.2'
+    id 'net.fabricmc.fabric-loom' version "${loom_version}"
     id 'maven-publish'
 }
 
@@ -16,10 +16,10 @@ repositories {
 
 dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
-    // Mojang-Mappings, NICHT Yarn: der Quellcode benutzt Namen wie ServerLevel,
-    // Component und Mob. Mit Yarn-Mappings wuerde nichts davon kompilieren.
-    mappings loom.officialMojangMappings()
-    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    // Ab Minecraft 26.x ist das Spiel nicht mehr obfuskiert. Es gibt weder
+    // Mojang-Mappings noch Intermediary, deshalb steht hier bewusst keine
+    // mappings-Zeile. Die Klassennamen im Quellcode sind die echten.
+    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
