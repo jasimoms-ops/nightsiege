@@ -12,6 +12,11 @@ import java.util.List;
 /** Reports which sound, particle and team APIs this Minecraft version offers. */
 class ApiProbeTest {
 
+    /** Loads without running static initialisers, which need a booted game. */
+    private static Class<?> load(String className) throws ClassNotFoundException {
+        return Class.forName(className, false, ApiProbeTest.class.getClassLoader());
+    }
+
     private static void probe(String label, List<String> items) {
         if (items.isEmpty()) {
             System.out.println("PROBE: " + label + " -> keine");
@@ -27,7 +32,7 @@ class ApiProbeTest {
     private static List<String> methods(String className, String... nameParts) {
         List<String> out = new ArrayList<>();
         try {
-            Class<?> c = Class.forName(className);
+            Class<?> c = load(className);
             for (Method m : c.getMethods()) {
                 if (!Modifier.isPublic(m.getModifiers())) {
                     continue;
@@ -61,7 +66,7 @@ class ApiProbeTest {
     private static List<String> fields(String className, String... nameParts) {
         List<String> out = new ArrayList<>();
         try {
-            Class<?> c = Class.forName(className);
+            Class<?> c = load(className);
             for (Field f : c.getFields()) {
                 if (!Modifier.isStatic(f.getModifiers())) {
                     continue;
@@ -109,7 +114,7 @@ class ApiProbeTest {
 
     private static Object[] safeCtors(String className) {
         try {
-            Class<?> c = Class.forName(className);
+            Class<?> c = load(className);
             List<String> out = new ArrayList<>();
             for (var ctor : c.getConstructors()) {
                 StringBuilder sb = new StringBuilder("<init>(");
