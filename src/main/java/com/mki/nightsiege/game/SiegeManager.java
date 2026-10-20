@@ -1,5 +1,7 @@
 package com.mki.nightsiege.game;
 
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
+
 import com.mki.nightsiege.NightSiegeMod;
 import com.mki.nightsiege.core.AnchorPicker;
 import com.mki.nightsiege.core.EventPicker;
@@ -55,6 +57,21 @@ import java.util.UUID;
 public final class SiegeManager {
 
     private static final SiegeManager INSTANCE = new SiegeManager();
+    private final ArcherEffects archer = new ArcherEffects();
+
+    /**
+     * The skills that count for this player right now: during a siege for every
+     * defender still standing, and always in creative so classes can be tried.
+     */
+    PlayerSkills liveSkillsFor(ServerPlayer player) {
+        boolean defending = active && participants.contains(player.getUUID())
+                && !fallen.contains(player.getUUID());
+        if (!defending && !player.getAbilities().instabuild) {
+            return null;
+        }
+        return save.skillsOf(player.getUUID().toString());
+    }
+
     private static final String CONFIG_FILE = "nightsiege.json";
     private static final String SAVE_FILE = "nightsiege-state.json";
     private static final int DIG_INTERVAL = 10;
@@ -146,6 +163,8 @@ public final class SiegeManager {
         ServerEntityCombatEvents.AFTER_KILLED_OTHER_ENTITY.register(
                 (killWorld, killer, killed, killSource) -> onKill(killer, killed));
         ServerPlayerEvents.JOIN.register(player -> onJoin(player));
+        ServerEntityEvents.ENTITY_LOAD.register((entity, world) ->
+                archer.onEntityLoad(entity, world, skillTree, this::liveSkillsFor));
         PlayerBlockBreakEvents.AFTER.register(
                 (level, player, pos, state, blockEntity) -> onBlockBroken(level, pos));
         UseBlockCallback.EVENT.register(
