@@ -556,7 +556,6 @@ public final class SiegeManager {
         broadcast(server, Component.translatable("nightsiege.msg.points_earned", amount)
                 .withStyle(ChatFormatting.AQUA));
     }
-    }
 
     private void clearRemainingMobs() {
         if (world == null) {
