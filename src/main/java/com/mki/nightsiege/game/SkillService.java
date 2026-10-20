@@ -78,6 +78,7 @@ public final class SkillService {
             case ARMOR -> Attributes.ARMOR;
             case MOVEMENT_SPEED -> Attributes.MOVEMENT_SPEED;
             case KNOCKBACK_RESIST -> Attributes.KNOCKBACK_RESISTANCE;
+            case REACH -> Attributes.ENTITY_INTERACTION_RANGE;
             default -> null;
         };
     }

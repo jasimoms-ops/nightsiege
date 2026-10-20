@@ -15,6 +15,8 @@ public enum SkillEffect {
     ARMOR(0.0, Target.PLAYER),
     MOVEMENT_SPEED(0.1, Target.PLAYER),
     KNOCKBACK_RESIST(0.0, Target.PLAYER),
+    /** Melee reach in blocks. */
+    REACH(3.0, Target.PLAYER),
 
     /** Extra seconds between two waves. */
     WAVE_DELAY(0.0, Target.SIEGE),
@@ -25,17 +27,23 @@ public enum SkillEffect {
     DRAW_ASSIST(0.0, Target.ARROW),
     /** A second arrow beside the first. */
     DOUBLE_SHOT(0.0, Target.ARROW),
-    /** Flat extra damage on arrows from a bow. */
+    /** Flat extra damage on arrows from a bow or crossbow. */
     ARROW_DAMAGE(0.0, Target.ARROW),
-    /** A charged shot on a cooldown that hits far harder. */
-    POWER_SHOT(0.0, Target.ARROW),
+    /** Flat extra damage on bolts from a crossbow only. */
+    CROSSBOW_DAMAGE(0.0, Target.ARROW),
+    /** Share of a bolt's damage that also hits the monsters around the target. */
+    SHRAPNEL(0.0, Target.ARROW),
+    /** Arrow hits mark the target: it glows and takes this much more damage. */
+    MARK(0.0, Target.ARROW),
 
     /** Unlocks a trap; every further level is one tier stronger. */
     TRAP(0.0, Target.TRAP),
+    /** Raises the tier of one trap above what its own node allows. */
+    TRAP_BOOST(0.0, Target.TRAP),
 
-    /** Melee bonus that grows the lower the warrior's health: amount at zero health. */
+    /** Melee bonus that grows the lower the fighter's health: amount at zero health. */
     RAGE(0.0, Target.COMBAT),
-    /** Share of melee damage dealt that heals the warrior. */
+    /** Share of melee damage dealt that heals the fighter. */
     LIFESTEAL(0.0, Target.COMBAT),
     /** Chance for a melee hit to deal half again as much. */
     CRIT_CHANCE(0.0, Target.COMBAT),
@@ -45,17 +53,34 @@ public enum SkillEffect {
     COUNTER(0.0, Target.COMBAT),
     /** Health restored to nearby players every few seconds. */
     HEAL_AURA(0.0, Target.COMBAT),
+    /** Spear hits also strike the monster behind, for this share of the damage. */
+    IMPALE(0.0, Target.COMBAT),
+    /** Axe hits make the target take this much more damage for a while. */
+    SUNDER(0.0, Target.COMBAT),
+    /** Flat extra damage on axe hits, which also stagger. */
+    HEAVY_BLOW(0.0, Target.COMBAT),
+    /** Extra melee damage against the undead. */
+    SMITE(0.0, Target.COMBAT),
+    /** Once a night a falling teammate is caught. Fires by itself. */
+    GUARDIAN_ANGEL(0.0, Target.COMBAT),
 
-    /** Ultimate: spin and hit everything around. Level is its rank. */
+    // Ultimates: one per path, fired with the ultimate key. The level is the rank.
+    ARROW_STORM(0.0, Target.ULTIMATE),
+    POWER_SHOT(0.0, Target.ULTIMATE),
+    BOLT_VOLLEY(0.0, Target.ULTIMATE),
+    HUNTERS_MARK(0.0, Target.ULTIMATE),
     WHIRLWIND(0.0, Target.ULTIMATE),
-    /** Ultimate: finish a badly hurt monster outright. */
     EXECUTE(0.0, Target.ULTIMATE),
-    /** Ultimate: ram the shield forward and throw back everything in front. */
-    SHIELD_CHARGE(0.0, Target.ULTIMATE),
-    /** Ultimate: pull every monster around onto the guardian, who hardens. */
+    LANCE_THRUST(0.0, Target.ULTIMATE),
+    GROUND_SLAM(0.0, Target.ULTIMATE),
     TAUNT(0.0, Target.ULTIMATE),
-    /** Ultimate, passive: once a night a falling teammate is caught. */
-    GUARDIAN_ANGEL(0.0, Target.ULTIMATE);
+    MASS_HEAL(0.0, Target.ULTIMATE),
+    SHIELD_CHARGE(0.0, Target.ULTIMATE),
+    HOLY_LIGHT(0.0, Target.ULTIMATE),
+    BOMBARDMENT(0.0, Target.ULTIMATE),
+    OVERCHARGE(0.0, Target.ULTIMATE),
+    TOXIC_CLOUD(0.0, Target.ULTIMATE),
+    THUNDERSTORM(0.0, Target.ULTIMATE);
 
     public enum Target { PLAYER, SIEGE, ARROW, TRAP, COMBAT, ULTIMATE }
 

@@ -50,6 +50,8 @@ public final class TrapService {
     private final Supplier<SiegeSave> save;
     private final SkillTree tree;
     private int tickCounter;
+    /** Engineers whose turrets are overcharged: owner uuid to the game time it ends. */
+    private final java.util.Map<String, Long> overchargedUntil = new java.util.HashMap<>();
     private boolean dirty;
 
     public TrapService(Supplier<SiegeSave> save, SkillTree tree) {
@@ -123,6 +125,11 @@ public final class TrapService {
         }
         actionBar(player, Component.translatable("nightsiege.msg.turret_ammo", record.ammo, max));
         return true;
+    }
+
+    /** Gunner ultimate: this engineer's turrets fire three times as fast until the given time. */
+    public void overcharge(ServerPlayer owner, long until) {
+        overchargedUntil.put(owner.getUUID().toString(), until);
     }
 
     /** Hands an engineer their free traps for the night. */
@@ -309,7 +316,13 @@ public final class TrapService {
         playAt(level, pos, SoundEvents.DISPENSER_LAUNCH, 0.8f, 1.3f);
 
         record.ammo--;
-        record.readyAt = now + TrapKind.TURRET.cooldownTicks(tier);
+        int cooldown = TrapKind.TURRET.cooldownTicks(tier);
+        Long boosted = overchargedUntil.get(record.owner);
+        if (boosted != null && now <= boosted) {
+            cooldown = Math.max(3, cooldown / 3);
+            level.sendParticles(ParticleTypes.ELECTRIC_SPARK, muzzle.x, muzzle.y, muzzle.z, 3, 0.2, 0.2, 0.2, 0.05);
+        }
+        record.readyAt = now + cooldown;
         dirty = true;
     }
 
@@ -353,7 +366,7 @@ public final class TrapService {
         dirty = true;
     }
 
-    private static final net.minecraft.core.particles.DustParticleOptions POISON_DUST =
+    static final net.minecraft.core.particles.DustParticleOptions POISON_DUST =
             new net.minecraft.core.particles.DustParticleOptions(0x6FB33A, 1.5f);
 
     private void tickPoison(ServerLevel level, BlockPos pos, TrapRecord record, int tier, long now) {
@@ -416,7 +429,7 @@ public final class TrapService {
     }
 
     /** A crackling line of sparks between two points. */
-    private static void spark(ServerLevel level, Vec3 a, Vec3 b) {
+    static void spark(ServerLevel level, Vec3 a, Vec3 b) {
         Vec3 step = b.subtract(a);
         int n = Math.max(2, (int) (step.length() * 3));
         for (int i = 0; i <= n; i++) {
@@ -472,7 +485,7 @@ public final class TrapService {
         return owner != null ? level.damageSources().playerAttack(owner) : level.damageSources().cactus();
     }
 
-    private static List<LivingEntity> enemies(ServerLevel level, AABB box) {
+    static List<LivingEntity> enemies(ServerLevel level, AABB box) {
         return level.getEntitiesOfClass(LivingEntity.class, box, e -> e instanceof Enemy && e.isAlive());
     }
 

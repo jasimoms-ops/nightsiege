@@ -352,20 +352,17 @@ class SiegeCoreTest {
         SkillTree tree = new SkillTree();
         PlayerSkills skills = new PlayerSkills();
         skills.chosenClass = SkillClass.ARCHER.name();
-        skills.award(5000);
+        skills.award(1000);
         tree.unlock("archer_focus", skills);
         assertEquals("locked", tree.blockedReason("double_shot", skills));
-
         for (int i = 0; i < 4; i++) {
             assertTrue(tree.unlock("swift_draw", skills), "swift_draw " + i);
         }
-        assertEquals("locked", tree.blockedReason("double_shot", skills));
-        for (int i = 0; i < 4; i++) {
-            assertTrue(tree.unlock("quick_hands", skills), "quick_hands " + i);
-        }
-        assertNull(tree.blockedReason("double_shot", skills));
         assertTrue(tree.unlock("double_shot", skills));
         assertEquals("maxed", tree.blockedReason("double_shot", skills));
+        assertNull(tree.blockedReason("arrow_storm", skills));
+        assertTrue(tree.unlock("arrow_storm", skills));
+        assertEquals("arrow_storm", tree.ultimateOf(skills).id());
     }
 
     @Test
@@ -404,11 +401,17 @@ class SiegeCoreTest {
     }
 
     @Test
-    void onlyArrowEffectsBelongToTheArcher() {
+    void everyClassHasFourPaths() {
         SkillTree tree = new SkillTree();
-        for (SkillNode node : tree.ofClass(SkillClass.ARCHER)) {
-            assertEquals(SkillEffect.Target.ARROW, node.effect().target(),
-                    "archer node with a non-arrow effect: " + node.id());
+        for (SkillClass clazz : new SkillClass[]{SkillClass.ARCHER, SkillClass.WARRIOR,
+                SkillClass.GUARDIAN, SkillClass.ENGINEER}) {
+            Set<String> paths = new HashSet<>();
+            for (SkillNode node : tree.ofClass(clazz)) {
+                if (!node.onTrunk()) {
+                    paths.add(node.path());
+                }
+            }
+            assertEquals(4, paths.size(), clazz + " paths " + paths);
         }
         for (SkillNode node : tree.ofClass(SkillClass.CORE)) {
             assertEquals(SkillEffect.Target.SIEGE, node.effect().target(),
@@ -421,7 +424,7 @@ class SiegeCoreTest {
         assertEquals(SkillEffect.Target.PLAYER, SkillEffect.MAX_HEALTH.target());
         assertEquals(SkillEffect.Target.SIEGE, SkillEffect.SPAWN_DISTANCE.target());
         assertEquals(SkillEffect.Target.ARROW, SkillEffect.DOUBLE_SHOT.target());
-        assertEquals(SkillEffect.Target.ARROW, SkillEffect.POWER_SHOT.target());
+        assertEquals(SkillEffect.Target.ULTIMATE, SkillEffect.POWER_SHOT.target());
         assertEquals(20.0, SkillEffect.MAX_HEALTH.playerBase(), 1e-9);
     }
 
@@ -437,7 +440,7 @@ class SiegeCoreTest {
             assertNotNull(node, "no node for " + kind);
             assertEquals(SkillClass.ENGINEER, node.clazz());
             assertEquals(SkillEffect.TRAP, node.effect());
-            assertEquals(TrapKind.MAX_TIER, node.maxLevel());
+            assertEquals(TrapKind.NODE_LEVELS, node.maxLevel());
             assertEquals(kind, TrapKind.byId(kind.id()));
         }
     }
@@ -490,50 +493,68 @@ class SiegeCoreTest {
     // ------------------------------------------------------------------
 
     @Test
-    void theWarriorPicksOneOfThreePaths() {
+    void theWarriorPicksOneOfFourPaths() {
         SkillTree tree = new SkillTree();
         PlayerSkills warrior = new PlayerSkills();
         warrior.chosenClass = SkillClass.WARRIOR.name();
         warrior.award(1000);
         assertTrue(tree.unlock("warrior_drill", warrior));
-        assertTrue(tree.unlock("keen_edge", warrior));
-        assertEquals(SkillTree.PATH_BLADE, warrior.pathTaken(tree));
-        assertEquals("path", tree.blockedReason("bloodlust", warrior));
-        assertEquals("path", tree.blockedReason("iron_guard", warrior));
+        assertTrue(tree.unlock("long_reach", warrior));
+        assertEquals(SkillTree.PATH_SPEAR, warrior.pathTaken(tree));
+        for (String other : new String[]{"bloodlust", "keen_edge", "sunder"}) {
+            assertEquals("path", tree.blockedReason(other, warrior), other);
+        }
+        assertEquals("class", tree.blockedReason("iron_guard", warrior));
     }
 
     @Test
-    void theGuardianPicksBulwarkOrMedic() {
+    void theGuardianPicksOneOfFourPaths() {
         SkillTree tree = new SkillTree();
         PlayerSkills guardian = new PlayerSkills();
         guardian.chosenClass = SkillClass.GUARDIAN.name();
         guardian.award(1000);
         assertTrue(tree.unlock("vitality", guardian));
-        assertTrue(tree.unlock("field_dressing", guardian));
-        assertEquals("path", tree.blockedReason("toughness", guardian));
-        assertEquals("locked", tree.blockedReason("guardian_angel", guardian));
+        assertTrue(tree.unlock("iron_guard", guardian));
+        for (String other : new String[]{"toughness", "field_dressing", "smite"}) {
+            assertEquals("path", tree.blockedReason(other, guardian), other);
+        }
+        assertEquals("locked", tree.blockedReason("shield_charge", guardian));
     }
 
     @Test
-    void everyPathEndsInAnUltimate() {
+    void everyPathEndsInExactlyOneUltimate() {
         SkillTree tree = new SkillTree();
-        java.util.Map<String, Boolean> ultimate = new java.util.HashMap<>();
+        java.util.Map<String, Integer> ultimates = new java.util.HashMap<>();
         for (SkillNode node : tree.all()) {
-            if (node.onTrunk() || node.clazz() == SkillClass.ARCHER) {
+            if (node.onTrunk() || node.clazz() == SkillClass.CORE) {
                 continue;
             }
-            ultimate.merge(node.path(), node.effect().target() == SkillEffect.Target.ULTIMATE, (a, b) -> a || b);
+            ultimates.merge(node.path(), node.effect().target() == SkillEffect.Target.ULTIMATE ? 1 : 0, Integer::sum);
         }
-        assertEquals(5, ultimate.size());
-        ultimate.forEach((path, has) -> assertTrue(has, path + " has no ultimate"));
+        assertEquals(16, ultimates.size());
+        ultimates.forEach((path, count) -> assertEquals(1, count, path));
     }
 
     @Test
-    void theEngineerChainHasSevenTraps() {
+    void engineerSpecialitiesShareTheTrunkTraps() {
         SkillTree tree = new SkillTree();
-        assertEquals(7, tree.ofClass(SkillClass.ENGINEER).size());
-        assertEquals(7, TrapKind.values().length);
-        assertEquals(TrapKind.POISON.id(), tree.get(TrapKind.TESLA.id()).requires());
+        assertEquals(14, tree.ofClass(SkillClass.ENGINEER).size());
+        assertEquals(TrapKind.SNARE.id(), tree.get(TrapKind.TESLA.id()).requires());
+        assertTrue(tree.get(TrapKind.SPIKE.id()).onTrunk());
+        assertTrue(tree.get(TrapKind.SNARE.id()).onTrunk());
+    }
+
+    @Test
+    void boostersPushATrapPastItsNode() {
+        SkillTree tree = new SkillTree();
+        PlayerSkills engineer = new PlayerSkills();
+        engineer.chosenClass = SkillClass.ENGINEER.name();
+        engineer.setLevel(TrapKind.TURRET.id(), 3);
+        assertEquals(3, tree.trapTier(TrapKind.TURRET, engineer));
+        engineer.setLevel("turret_tuning", 2);
+        assertEquals(5, tree.trapTier(TrapKind.TURRET, engineer));
+        engineer.setLevel(TrapKind.TURRET.id(), 0);
+        assertEquals(0, tree.trapTier(TrapKind.TURRET, engineer));
     }
 
     @Test

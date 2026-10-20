@@ -27,8 +27,8 @@ import java.util.Locale;
  */
 public class CoreScreen extends Screen {
 
-    private static final int PANEL_W = 340;
-    private static final int PANEL_H = 244;
+    private static final int PANEL_W = 400;
+    private static final int PANEL_H = 262;
     /** Node rows that fit below the header. */
     private static final int ROWS = 4;
 
@@ -165,11 +165,21 @@ public class CoreScreen extends Screen {
         }
     }
 
+    /** The own class takes most of the width: it has four paths, the core tree one column. */
+    private static final int CLASS_W = 260;
+
+    private int columnStart(int column) {
+        return column == 0 ? left + 12 : left + 12 + CLASS_W;
+    }
+
+    private int columnWidth(int column) {
+        return column == 0 ? CLASS_W : PANEL_W - 24 - CLASS_W;
+    }
+
     private void addColumns(String[] columns) {
-        int columnWidth = (PANEL_W - 24) / columns.length;
         for (int column = 0; column < columns.length; column++) {
             String name = columns[column];
-            int centerX = left + 12 + column * columnWidth + columnWidth / 2;
+            int centerX = columnStart(column) + columnWidth(column) / 2;
             // Paths of the class, in the order the server lists them.
             List<String> paths = new ArrayList<>();
             int maxRow = 0;
@@ -191,7 +201,7 @@ public class CoreScreen extends Screen {
                 if (!paths.isEmpty()) {
                     // Paths side by side below their shared trunk.
                     int index = paths.indexOf(node.path);
-                    int spacing = paths.size() == 2 ? 68 : 52;
+                    int spacing = paths.size() <= 2 ? 68 : paths.size() == 3 ? 76 : 62;
                     offset = index < 0 ? 0 : (int) Math.round((index - (paths.size() - 1) / 2.0) * spacing);
                     row = node.row;
                 } else {
@@ -201,7 +211,7 @@ public class CoreScreen extends Screen {
                     offset = (int) Math.round((col - (snakeColumns - 1) / 2.0) * 56);
                 }
                 int x = centerX - 13 + offset;
-                int y = top + 98 + row * 30;
+                int y = top + 96 + row * 28;
                 nodeButtons.add(new NodeButton(node, x, y));
                 addRenderableWidget(Button.builder(Component.literal(""), b -> send("buy:" + node.id))
                         .bounds(x, y, 26, 26).build());
@@ -346,11 +356,11 @@ public class CoreScreen extends Screen {
         gui.text(font, Component.translatable("nightsiege.ui.core_pot", stats.corePoints, stats.donated).getString(),
                 left + 12, top + 72, GRAY, false);
 
-        int columnWidth = (PANEL_W - 24) / 2;
+
         gui.text(font, Component.translatable("nightsiege.class." + stats.myClass.toLowerCase(Locale.ROOT)).getString(),
-                left + 14, top + 86, GRAY, false);
+                left + 14, top + 84, GRAY, false);
         gui.text(font, Component.translatable("nightsiege.class.core").getString(),
-                left + 14 + columnWidth, top + 86, GRAY, false);
+                columnStart(1) + 2, top + 84, GRAY, false);
 
         CoreStats.NodeLine hovered = null;
         for (NodeButton button : nodeButtons) {

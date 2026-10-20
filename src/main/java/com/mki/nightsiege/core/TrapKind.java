@@ -23,7 +23,10 @@ public enum TrapKind {
     /** Block: lightning that jumps from monster to monster. Needs no ammunition. */
     TESLA("tesla_coil");
 
-    public static final int MAX_TIER = 3;
+    /** Levels of a trap's own skill node. */
+    public static final int NODE_LEVELS = 3;
+    /** Highest tier: the node plus up to two levels of a booster node. */
+    public static final int MAX_TIER = 5;
 
     private final String id;
 
@@ -96,10 +99,10 @@ public enum TrapKind {
             case SPIKE -> 10;
             case SNARE -> 240 - 40 * t;          // 10 s / 8 s / 6 s
             case MINE -> 0;
-            case TURRET -> 36 - 6 * t;           // 1.5 s / 1.2 s / 0.9 s
+            case TURRET -> Math.max(12, 36 - 6 * t);   // 1.5 s / 1.2 s / 0.9 s / 0.6 s
             case FLAME -> 120 - 20 * t;          // 5 s / 4 s / 3 s
             case POISON -> 280 - 40 * t;         // 12 s / 10 s / 8 s
-            case TESLA -> 60 - 10 * t;           // 2.5 s / 2 s / 1.5 s
+            case TESLA -> Math.max(20, 60 - 10 * t);   // 2.5 s / 2 s / 1.5 s / 1 s
         };
     }
 
@@ -149,7 +152,11 @@ public enum TrapKind {
 
     /** Strength of the poison or wither, 0 being level I. */
     public int amplifier(int tier) {
-        return this == POISON && clamp(tier) >= 2 ? 1 : 0;
+        if (this != POISON) {
+            return 0;
+        }
+        int t = clamp(tier);
+        return t >= 4 ? 2 : t >= 2 ? 1 : 0;
     }
 
     /** True for traps that are set into the floor and spring when stepped on. */
