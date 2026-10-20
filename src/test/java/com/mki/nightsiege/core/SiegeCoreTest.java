@@ -219,12 +219,6 @@ class SiegeCoreTest {
 
 
 
-    @Test
-    void theArrowSkillIsStillOnlyAPreview() {
-        assertFalse(SkillEffect.ARROW_DOUBLE.isLive());
-        assertTrue(SkillEffect.MAX_HEALTH.isLive());
-        assertEquals(20.0, SkillEffect.MAX_HEALTH.playerBase(), 1e-9);
-    }
 
     // --- config -------------------------------------------------------
 
@@ -301,14 +295,6 @@ class SiegeCoreTest {
 
 
 
-    @Test
-    void onlyPlayerEffectsTouchAttributes() {
-        assertEquals(SkillEffect.Target.PLAYER, SkillEffect.MAX_HEALTH.target());
-        assertEquals(SkillEffect.Target.SIEGE, SkillEffect.SPAWN_DISTANCE.target());
-        assertEquals(SkillEffect.Target.PREVIEW, SkillEffect.ARROW_DOUBLE.target());
-        assertFalse(SkillEffect.ARROW_DOUBLE.isLive());
-        assertTrue(SkillEffect.SPAWN_DISTANCE.isLive());
-    }
 
     @Test
     void shovelsAreNotHandedOutByDefault() {
@@ -428,5 +414,14 @@ class SiegeCoreTest {
             assertEquals(SkillEffect.Target.SIEGE, node.effect().target(),
                     "core node with a non-siege effect: " + node.id());
         }
+    }
+
+    @Test
+    void everyEffectKnowsWhatItActsOn() {
+        assertEquals(SkillEffect.Target.PLAYER, SkillEffect.MAX_HEALTH.target());
+        assertEquals(SkillEffect.Target.SIEGE, SkillEffect.SPAWN_DISTANCE.target());
+        assertEquals(SkillEffect.Target.ARROW, SkillEffect.DOUBLE_SHOT.target());
+        assertEquals(SkillEffect.Target.ARROW, SkillEffect.POWER_SHOT.target());
+        assertEquals(20.0, SkillEffect.MAX_HEALTH.playerBase(), 1e-9);
     }
 }
