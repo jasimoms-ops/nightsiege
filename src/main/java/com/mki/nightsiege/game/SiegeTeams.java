@@ -1,6 +1,7 @@
 package com.mki.nightsiege.game;
 
 import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.TextColor;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.scores.PlayerTeam;
@@ -30,7 +31,8 @@ public final class SiegeTeams {
         if (team == null) {
             team = scoreboard.addPlayerTeam(name);
         }
-        team.setColor(Optional.of(color));
+        // setColor takes a TextColor, not the plain ChatFormatting enum.
+        team.setColor(Optional.ofNullable(TextColor.fromLegacyFormat(color)));
         return team;
     }
 
