@@ -1,5 +1,6 @@
 package com.mki.nightsiege.game;
 
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.network.Filterable;
@@ -22,7 +23,14 @@ public final class GuideBook {
     public static ItemStack create() {
         List<Filterable<Component>> pages = new ArrayList<>();
         for (int i = 1; i <= PAGES; i++) {
-            pages.add(Filterable.passThrough(Component.translatable("nightsiege.book.page" + i)));
+            // Plain components instead of colour codes: the book's own dark ink stays
+            // crisp, and only the heading is bold.
+            Component page = Component.empty()
+                    .append(Component.translatable("nightsiege.book.page" + i + ".title")
+                            .withStyle(ChatFormatting.BOLD))
+                    .append(Component.literal("\n\n"))
+                    .append(Component.translatable("nightsiege.book.page" + i));
+            pages.add(Filterable.passThrough(page));
         }
         WrittenBookContent content = new WrittenBookContent(
                 Filterable.passThrough(Component.translatable("nightsiege.book.title").getString()),

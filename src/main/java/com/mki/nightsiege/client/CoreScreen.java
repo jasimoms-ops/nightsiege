@@ -28,7 +28,7 @@ import java.util.Locale;
 public class CoreScreen extends Screen {
 
     private static final int PANEL_W = 340;
-    private static final int PANEL_H = 236;
+    private static final int PANEL_H = 244;
 
     // Minecraft's own tooltip look: near black fill with a violet double edge.
     private static final int BG = 0xF0100010;
@@ -54,7 +54,7 @@ public class CoreScreen extends Screen {
     /** Kept between openings so buying a skill does not throw you back. */
     private static int activeTab;
 
-    private final CoreStats stats;
+    private CoreStats stats;
     private final List<NodeButton> nodeButtons = new ArrayList<>();
     private int left;
     private int top;
@@ -99,10 +99,15 @@ public class CoreScreen extends Screen {
 
     /** Opens the window again so the widgets match the new tab. */
     private void reopen() {
-        Minecraft client = Minecraft.getInstance();
-        if (client != null) {
-            client.setScreenAndShow(new CoreScreen(stats));
-        }
+        // Rebuilding the widgets in place, instead of opening a new screen,
+        // avoids the one frame of black between two screens.
+        rebuildWidgets();
+    }
+
+    /** New numbers from the server, e.g. after buying a skill. Keeps the window open. */
+    public void update(CoreStats fresh) {
+        this.stats = fresh;
+        rebuildWidgets();
     }
 
     // ------------------------------------------------------------------
@@ -152,9 +157,9 @@ public class CoreScreen extends Screen {
                     continue;
                 }
                 // The two paths of a class sit side by side below their shared trunk.
-                int offset = "swift".equals(node.path) ? -22 : "heavy".equals(node.path) ? 22 : 0;
+                int offset = "swift".equals(node.path) ? -34 : "heavy".equals(node.path) ? 34 : 0;
                 int x = centerX - 13 + offset;
-                int y = top + 86 + node.row * 30;
+                int y = top + 98 + node.row * 30;
                 nodeButtons.add(new NodeButton(node, x, y));
                 addRenderableWidget(Button.builder(Component.literal(""), b -> send("buy:" + node.id))
                         .bounds(x, y, 26, 26).build());
@@ -284,9 +289,9 @@ public class CoreScreen extends Screen {
 
         int columnWidth = (PANEL_W - 24) / 2;
         gui.text(font, Component.translatable("nightsiege.class." + stats.myClass.toLowerCase(Locale.ROOT)).getString(),
-                left + 14, top + 78, GRAY, false);
+                left + 14, top + 86, GRAY, false);
         gui.text(font, Component.translatable("nightsiege.class.core").getString(),
-                left + 14 + columnWidth, top + 78, GRAY, false);
+                left + 14 + columnWidth, top + 86, GRAY, false);
 
         CoreStats.NodeLine hovered = null;
         for (NodeButton button : nodeButtons) {
@@ -295,8 +300,9 @@ public class CoreScreen extends Screen {
                     : node.blocked == null ? SLOT_OPEN : SLOT_LOCKED;
             slot(gui, button.x() - 1, button.y() - 1, 28, frame);
             gui.item(iconOf(node.icon), button.x() + 5, button.y() + 5);
+            // Beside the slot, so it never runs into the slot below.
             gui.text(font, node.level + "/" + node.maxLevel,
-                    button.x() + 1, button.y() + 27, node.level > 0 ? GREEN : GRAY, false);
+                    button.x() + 30, button.y() + 9, node.level > 0 ? GREEN : GRAY, false);
             if (mouseX >= button.x() && mouseX < button.x() + 26
                     && mouseY >= button.y() && mouseY < button.y() + 26) {
                 hovered = node;
