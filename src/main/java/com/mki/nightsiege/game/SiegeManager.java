@@ -30,6 +30,7 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.scores.TeamColor;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.ItemStack;
@@ -316,7 +317,7 @@ public final class SiegeManager {
             liveMobs.add(eliteId);
             aimAtDefender(server, champion);
             Fx.championSpawned(world, config, champion);
-            SiegeTeams.mark(server, champion, SiegeTeams.CHAMPION, ChatFormatting.GOLD);
+            SiegeTeams.mark(server, champion, SiegeTeams.CHAMPION, TeamColor.GOLD);
         }
     }
 
@@ -443,7 +444,7 @@ public final class SiegeManager {
                 aimAtDefender(server, mob);
                 Fx.mobSpawned(world, config, mob, spawned < config.audibleSpawnsPerBatch);
                 if (currentEvent == SiegeEvent.BLOOD_MOON && config.bloodMoonGlow) {
-                    SiegeTeams.mark(server, mob, SiegeTeams.BLOOD_MOON, ChatFormatting.DARK_RED);
+                    SiegeTeams.mark(server, mob, SiegeTeams.BLOOD_MOON, TeamColor.DARK_RED);
                 }
                 spawned++;
             }

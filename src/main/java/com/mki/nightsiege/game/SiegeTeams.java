@@ -1,11 +1,10 @@
 package com.mki.nightsiege.game;
 
-import net.minecraft.ChatFormatting;
-import net.minecraft.network.chat.TextColor;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.scores.PlayerTeam;
 import net.minecraft.world.scores.Scoreboard;
+import net.minecraft.world.scores.TeamColor;
 
 import java.util.Optional;
 
@@ -25,19 +24,18 @@ public final class SiegeTeams {
     private SiegeTeams() {
     }
 
-    private static PlayerTeam ensure(MinecraftServer server, String name, ChatFormatting color) {
+    private static PlayerTeam ensure(MinecraftServer server, String name, TeamColor color) {
         Scoreboard scoreboard = server.getScoreboard();
         PlayerTeam team = scoreboard.getPlayerTeam(name);
         if (team == null) {
             team = scoreboard.addPlayerTeam(name);
         }
-        // TODO: Farbe setzen, sobald der generische Typ von setColor feststeht.
-        // Ohne Farbe leuchten die Mobs weiss, die Markierung wirkt trotzdem.
+        team.setColor(Optional.of(color));
         return team;
     }
 
     /** Puts the entity on a coloured team and makes it glow. */
-    public static void mark(MinecraftServer server, Entity entity, String teamName, ChatFormatting color) {
+    public static void mark(MinecraftServer server, Entity entity, String teamName, TeamColor color) {
         if (server == null || entity == null) {
             return;
         }
