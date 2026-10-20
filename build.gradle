@@ -20,7 +20,9 @@ dependencies {
     // Mojang-Mappings noch Intermediary, deshalb steht hier bewusst keine
     // mappings-Zeile. Die Klassennamen im Quellcode sind die echten.
     implementation "net.fabricmc:fabric-loader:${project.loader_version}"
-    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+    // Ohne Obfuskierung gibt es kein modImplementation mehr, Mod-Abhaengigkeiten
+    // muessen nicht umgeschrieben werden.
+    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
