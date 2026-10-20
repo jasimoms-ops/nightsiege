@@ -5,6 +5,7 @@ import com.mki.nightsiege.core.SkillEffect;
 import com.mki.nightsiege.core.SkillTree;
 import net.minecraft.core.Holder;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 
@@ -27,7 +28,7 @@ public final class SkillService {
             if (effect.target() != SkillEffect.Target.PLAYER) {
                 continue;
             }
-            Holder<?> attribute = attributeOf(effect);
+            Holder<Attribute> attribute = attributeOf(effect);
             if (attribute == null) {
                 continue;
             }
@@ -57,7 +58,7 @@ public final class SkillService {
             if (effect.target() != SkillEffect.Target.PLAYER) {
                 continue;
             }
-            Holder<?> attribute = attributeOf(effect);
+            Holder<Attribute> attribute = attributeOf(effect);
             if (attribute == null) {
                 continue;
             }
@@ -72,7 +73,7 @@ public final class SkillService {
         }
     }
 
-    private static Holder<?> attributeOf(SkillEffect effect) {
+    private static Holder<Attribute> attributeOf(SkillEffect effect) {
         return switch (effect) {
             case MAX_HEALTH -> Attributes.MAX_HEALTH;
             case ATTACK_DAMAGE -> Attributes.ATTACK_DAMAGE;
