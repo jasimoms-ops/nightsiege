@@ -14,7 +14,7 @@ import java.util.List;
 public final class GuideBook {
 
     /** How many pages the book has. Each one has its own translation key. */
-    private static final int PAGES = 8;
+    private static final int PAGES = 14;
 
     private GuideBook() {
     }
