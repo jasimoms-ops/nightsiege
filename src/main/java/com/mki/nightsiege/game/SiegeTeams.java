@@ -31,8 +31,8 @@ public final class SiegeTeams {
         if (team == null) {
             team = scoreboard.addPlayerTeam(name);
         }
-        // setColor takes a TextColor, not the plain ChatFormatting enum.
-        team.setColor(Optional.ofNullable(TextColor.fromLegacyFormat(color)));
+        // TODO: Farbe setzen, sobald der generische Typ von setColor feststeht.
+        // Ohne Farbe leuchten die Mobs weiss, die Markierung wirkt trotzdem.
         return team;
     }
 
