@@ -216,62 +216,8 @@ class SiegeCoreTest {
 
     // --- skills -------------------------------------------------------
 
-    @Test
-    void rootsOpenImmediatelyAndBranchesNeedTheirParent() {
-        SkillTree tree = new SkillTree();
-        SkillState skills = new SkillState();
-        assertEquals("points", tree.blockedReason("vitality", skills));
-        skills.award(2);
-        assertTrue(tree.canUnlock("vitality", skills));
-        assertEquals("locked", tree.blockedReason("toughness", skills));
 
-        assertTrue(tree.unlock("vitality", skills));
-        assertEquals(1, skills.levelOf("vitality"));
-        assertEquals(0, skills.points());
-        assertEquals(0.5, tree.totalBonus(SkillEffect.MAX_HEALTH, skills), 1e-9);
 
-        skills.award(100);
-        tree.unlock("vitality", skills);
-        tree.unlock("vitality", skills);
-        assertTrue(tree.canUnlock("toughness", skills), "branch opens once the root is deep enough");
-    }
-
-    @Test
-    void costRisesAndLevelsAreCapped() {
-        SkillTree tree = new SkillTree();
-        SkillState skills = new SkillState();
-        skills.award(10000);
-
-        int before = skills.points();
-        tree.unlock("vitality", skills);
-        int firstCost = before - skills.points();
-        before = skills.points();
-        tree.unlock("vitality", skills);
-        int secondCost = before - skills.points();
-        assertTrue(secondCost > firstCost);
-
-        for (int i = 0; i < 50; i++) {
-            tree.unlock("vitality", skills);
-        }
-        assertEquals(10, skills.levelOf("vitality"));
-        assertEquals("maxed", tree.blockedReason("vitality", skills));
-        assertEquals(5.0, tree.totalBonus(SkillEffect.MAX_HEALTH, skills), 1e-9);
-    }
-
-    @Test
-    void unknownSkillsAreRejectedAndResetClearsEverything() {
-        SkillTree tree = new SkillTree();
-        SkillState skills = new SkillState();
-        skills.award(50);
-        assertFalse(tree.canUnlock("does_not_exist", skills));
-        assertFalse(tree.unlock("does_not_exist", skills));
-
-        tree.unlock("vitality", skills);
-        skills.reset();
-        assertEquals(0, skills.points());
-        assertEquals(0, skills.earned);
-        assertEquals(0, skills.levelOf("vitality"));
-    }
 
     @Test
     void theArrowSkillIsStillOnlyAPreview() {
@@ -352,50 +298,8 @@ class SiegeCoreTest {
         }
     }
 
-    @Test
-    void skillTreeHasFourBranchesAndRespectsPrerequisites() {
-        SkillTree tree = new SkillTree();
-        for (SkillBranch branch : SkillBranch.values()) {
-            assertFalse(tree.ofBranch(branch).isEmpty(), "branch empty: " + branch);
-        }
-        SkillState skills = new SkillState();
-        // Nothing is affordable without points.
-        assertEquals("points", tree.blockedReason("strength", skills));
-        skills.award(100);
-        assertTrue(tree.canUnlock("strength", skills));
-        // A deeper node stays locked until its prerequisite is deep enough.
-        assertEquals("locked", tree.blockedReason("swift_blade", skills));
-        for (int i = 0; i < 3; i++) {
-            assertTrue(tree.unlock("strength", skills));
-        }
-        assertNull(tree.blockedReason("swift_blade", skills));
-    }
 
-    @Test
-    void skillPointsAreSpentAndBonusesAddUp() {
-        SkillTree tree = new SkillTree();
-        SkillState skills = new SkillState();
-        skills.award(50);
-        int before = skills.points();
-        assertTrue(tree.unlock("vitality", skills));
-        assertTrue(skills.points() < before);
-        assertEquals(1, skills.levelOf("vitality"));
-        assertTrue(tree.totalBonus(SkillEffect.MAX_HEALTH, skills) > 0.0);
-        // A branch the player never touched grants nothing.
-        assertEquals(0.0, tree.totalBonus(SkillEffect.ATTACK_DAMAGE, skills), 1e-9);
-    }
 
-    @Test
-    void losingWipesTheWholeTree() {
-        SkillTree tree = new SkillTree();
-        SkillState skills = new SkillState();
-        skills.award(50);
-        tree.unlock("vitality", skills);
-        skills.reset();
-        assertEquals(0, skills.points());
-        assertEquals(0, skills.levelOf("vitality"));
-        assertEquals(0.0, tree.totalBonus(SkillEffect.MAX_HEALTH, skills), 1e-9);
-    }
 
     @Test
     void onlyPlayerEffectsTouchAttributes() {
@@ -414,6 +318,115 @@ class SiegeCoreTest {
         Random random = new Random(5);
         for (int i = 0; i < 5000; i++) {
             assertNotEquals(ToolKind.SHOVEL, ToolPicker.pick(random, c));
+        }
+    }
+
+    @Test
+    void aClassMustBeChosenBeforeItsNodesOpen() {
+        SkillTree tree = new SkillTree();
+        PlayerSkills skills = new PlayerSkills();
+        skills.award(100);
+        assertEquals("nochoice", tree.blockedReason("archer_focus", skills));
+
+        skills.chosenClass = SkillClass.ARCHER.name();
+        assertNull(tree.blockedReason("archer_focus", skills));
+        // A node of a different class stays shut.
+        assertEquals("class", tree.blockedReason("strength", skills));
+    }
+
+    @Test
+    void theCoreTreeNeedsNoClass() {
+        SkillTree tree = new SkillTree();
+        PlayerSkills pot = new PlayerSkills();
+        pot.award(100);
+        assertNull(tree.blockedReason("watchtower", pot));
+        assertTrue(tree.unlock("watchtower", pot));
+    }
+
+    @Test
+    void thetwoArcherPathsLockEachOtherOut() {
+        SkillTree tree = new SkillTree();
+        PlayerSkills skills = new PlayerSkills();
+        skills.chosenClass = SkillClass.ARCHER.name();
+        skills.award(500);
+
+        assertTrue(tree.unlock("archer_focus", skills));
+        assertNull(tree.blockedReason("swift_draw", skills));
+        assertNull(tree.blockedReason("heavy_draw", skills));
+
+        assertTrue(tree.unlock("swift_draw", skills));
+        assertEquals(SkillTree.PATH_SWIFT, skills.pathTaken(tree));
+        // Once one path is started the other is shut for good.
+        assertEquals("path", tree.blockedReason("heavy_draw", skills));
+        assertEquals("path", tree.blockedReason("power_shot", skills));
+    }
+
+    @Test
+    void theFinalArcherNodesSitBehindTheirPath() {
+        SkillTree tree = new SkillTree();
+        PlayerSkills skills = new PlayerSkills();
+        skills.chosenClass = SkillClass.ARCHER.name();
+        skills.award(5000);
+        tree.unlock("archer_focus", skills);
+        assertEquals("locked", tree.blockedReason("double_shot", skills));
+
+        for (int i = 0; i < 4; i++) {
+            assertTrue(tree.unlock("swift_draw", skills), "swift_draw " + i);
+        }
+        assertEquals("locked", tree.blockedReason("double_shot", skills));
+        for (int i = 0; i < 4; i++) {
+            assertTrue(tree.unlock("quick_hands", skills), "quick_hands " + i);
+        }
+        assertNull(tree.blockedReason("double_shot", skills));
+        assertTrue(tree.unlock("double_shot", skills));
+        assertEquals("maxed", tree.blockedReason("double_shot", skills));
+    }
+
+    @Test
+    void everyPlayerKeepsTheirOwnProgress() {
+        SkillTree tree = new SkillTree();
+        PlayerSkills one = new PlayerSkills();
+        PlayerSkills two = new PlayerSkills();
+        one.chosenClass = SkillClass.ARCHER.name();
+        two.chosenClass = SkillClass.WARRIOR.name();
+        one.award(50);
+
+        assertTrue(tree.unlock("archer_focus", one));
+        assertEquals(0, two.points());
+        assertEquals(0, two.levelOf("archer_focus"));
+        assertEquals("nochoice", tree.blockedReason("archer_focus", two) == null ? "" : "class");
+    }
+
+    @Test
+    void costsRiseAndResetWipesEverything() {
+        SkillTree tree = new SkillTree();
+        PlayerSkills skills = new PlayerSkills();
+        skills.chosenClass = SkillClass.ARCHER.name();
+        skills.award(1000);
+
+        int first = skills.points();
+        tree.unlock("archer_focus", skills);
+        int afterFirst = skills.points();
+        tree.unlock("archer_focus", skills);
+        int afterSecond = skills.points();
+        assertTrue(first - afterFirst < afterFirst - afterSecond, "a second level must cost more");
+
+        skills.reset();
+        assertEquals(0, skills.points());
+        assertEquals(0, skills.levelOf("archer_focus"));
+        assertFalse(skills.hasClass());
+    }
+
+    @Test
+    void onlyArrowEffectsBelongToTheArcher() {
+        SkillTree tree = new SkillTree();
+        for (SkillNode node : tree.ofClass(SkillClass.ARCHER)) {
+            assertEquals(SkillEffect.Target.ARROW, node.effect().target(),
+                    "archer node with a non-arrow effect: " + node.id());
+        }
+        for (SkillNode node : tree.ofClass(SkillClass.CORE)) {
+            assertEquals(SkillEffect.Target.SIEGE, node.effect().target(),
+                    "core node with a non-siege effect: " + node.id());
         }
     }
 }
