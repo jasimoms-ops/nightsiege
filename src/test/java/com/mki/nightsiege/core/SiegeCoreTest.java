@@ -219,7 +219,7 @@ class SiegeCoreTest {
     @Test
     void rootsOpenImmediatelyAndBranchesNeedTheirParent() {
         SkillTree tree = new SkillTree();
-        PlayerSkills skills = new PlayerSkills();
+        SkillState skills = new SkillState();
         assertEquals("points", tree.blockedReason("vitality", skills));
         skills.award(2);
         assertTrue(tree.canUnlock("vitality", skills));
@@ -239,7 +239,7 @@ class SiegeCoreTest {
     @Test
     void costRisesAndLevelsAreCapped() {
         SkillTree tree = new SkillTree();
-        PlayerSkills skills = new PlayerSkills();
+        SkillState skills = new SkillState();
         skills.award(10000);
 
         int before = skills.points();
@@ -261,7 +261,7 @@ class SiegeCoreTest {
     @Test
     void unknownSkillsAreRejectedAndResetClearsEverything() {
         SkillTree tree = new SkillTree();
-        PlayerSkills skills = new PlayerSkills();
+        SkillState skills = new SkillState();
         skills.award(50);
         assertFalse(tree.canUnlock("does_not_exist", skills));
         assertFalse(tree.unlock("does_not_exist", skills));
