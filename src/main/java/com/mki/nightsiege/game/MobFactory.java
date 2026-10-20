@@ -57,11 +57,13 @@ public final class MobFactory {
     /**
      * Spawns one mob near the anchor.
      *
-     * @param elite true for the champion of an elite night
+     * @param elite          true for the champion of an elite night
+     * @param distanceBonus  extra blocks from the Basis branch of the skill tree
      * @return the mob, or null when nothing could be placed
      */
     public static Mob spawn(ServerLevel world, BlockPos anchor, String entityId, int siegeLevel,
-                            SiegeConfig cfg, Random random, SiegeEvent event, boolean elite) {
+                            SiegeConfig cfg, Random random, SiegeEvent event, boolean elite,
+                            double distanceBonus) {
         Identifier id = Identifier.tryParse(entityId);
         if (id == null || !BuiltInRegistries.ENTITY_TYPE.containsKey(id)) {
             return null;
@@ -70,7 +72,7 @@ public final class MobFactory {
         if (type == null) {
             return null;
         }
-        BlockPos spot = findSpawnSpot(world, anchor, cfg, random);
+        BlockPos spot = findSpawnSpot(world, anchor, cfg, random, distanceBonus);
         if (spot == null) {
             return null;
         }
@@ -157,10 +159,11 @@ public final class MobFactory {
     }
 
     /** Looks for open ground in a ring around the anchor. */
-    private static BlockPos findSpawnSpot(ServerLevel world, BlockPos anchor, SiegeConfig cfg, Random random) {
+    private static BlockPos findSpawnSpot(ServerLevel world, BlockPos anchor, SiegeConfig cfg,
+                                          Random random, double distanceBonus) {
         for (int attempt = 0; attempt < 24; attempt++) {
             double angle = random.nextDouble() * Math.PI * 2.0;
-            double distance = cfg.spawnMinDistance
+            double distance = cfg.spawnMinDistance + Math.max(0.0, distanceBonus)
                     + random.nextDouble() * (cfg.spawnMaxDistance - cfg.spawnMinDistance);
             int x = anchor.getX() + (int) Math.round(Math.cos(angle) * distance);
             int z = anchor.getZ() + (int) Math.round(Math.sin(angle) * distance);

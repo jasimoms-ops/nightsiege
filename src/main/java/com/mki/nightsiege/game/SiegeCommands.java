@@ -2,7 +2,9 @@ package com.mki.nightsiege.game;
 
 import com.mki.nightsiege.core.AnchorPicker;
 import com.mki.nightsiege.core.MobEntry;
-import com.mki.nightsiege.core.SiegeMath;
+import com.mki.nightsiege.core.SkillState;
+import com.mki.nightsiege.core.SkillNode;
+import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.context.CommandContext;
 import net.minecraft.commands.CommandSourceStack;
@@ -28,7 +30,11 @@ public final class SiegeCommands {
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("nightsiege")
                 .then(Commands.literal("info").executes(SiegeCommands::info))
-                .then(Commands.literal("bases").executes(SiegeCommands::bases))
+                .then(Commands.literal("cores").executes(SiegeCommands::cores))
+                .then(Commands.literal("skills").executes(SiegeCommands::skills))
+                .then(Commands.literal("skill")
+                        .then(Commands.argument("node", StringArgumentType.word())
+                                .executes(SiegeCommands::buySkill)))
                 .then(Commands.literal("mobs").executes(SiegeCommands::mobs))
                 .then(Commands.literal("start").executes(SiegeCommands::start))
                 .then(Commands.literal("stop").executes(SiegeCommands::stop))
@@ -50,18 +56,68 @@ public final class SiegeCommands {
         return 1;
     }
 
-    private static int bases(CommandContext<CommandSourceStack> ctx) {
+    private static int cores(CommandContext<CommandSourceStack> ctx) {
         CommandSourceStack source = ctx.getSource();
         SiegeManager manager = SiegeManager.get();
-        var beds = manager.save().registeredBeds(manager.config().sleepsToRegisterBase);
-        if (beds.isEmpty()) {
-            reply(source, Component.translatable("nightsiege.cmd.no_bases"));
+        var cores = manager.save().cores;
+        if (cores == null || cores.isEmpty()) {
+            reply(source, Component.translatable("nightsiege.cmd.no_cores"));
             return 1;
         }
-        reply(source, Component.translatable("nightsiege.cmd.bases_header", beds.size()));
-        for (BedRecord bed : beds) {
-            reply(source, Component.literal(" - " + bed.dimension + " " + bed.x + " " + bed.y + " " + bed.z));
+        reply(source, Component.translatable("nightsiege.cmd.cores_header", cores.size()));
+        for (CoreRecord core : cores) {
+            reply(source, Component.literal(" - " + core.dimension + " "
+                    + core.x + " " + core.y + " " + core.z));
         }
+        return 1;
+    }
+
+    private static int skills(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        ServerPlayer player;
+        try {
+            player = source.getPlayerOrException();
+        } catch (Exception e) {
+            fail(source, Component.translatable("nightsiege.cmd.players_only"));
+            return 0;
+        }
+        CoreMenu.show(player, SiegeManager.get());
+        return 1;
+    }
+
+    private static int buySkill(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        ServerPlayer player;
+        try {
+            player = source.getPlayerOrException();
+        } catch (Exception e) {
+            fail(source, Component.translatable("nightsiege.cmd.players_only"));
+            return 0;
+        }
+        SiegeManager manager = SiegeManager.get();
+        String nodeId = StringArgumentType.getString(ctx, "node");
+        SkillState skills = manager.save().skills();
+        SkillNode node = manager.skillTree().get(nodeId);
+        if (node == null) {
+            fail(source, Component.translatable("nightsiege.cmd.unknown_skill", nodeId));
+            return 0;
+        }
+        if (!manager.skillTree().unlock(nodeId, skills)) {
+            fail(source, Component.translatable(
+                    "nightsiege.menu.blocked_" + manager.skillTree().blockedReason(nodeId, skills),
+                    node.costFor(skills.levelOf(nodeId))));
+            return 0;
+        }
+        manager.persist();
+        // Skills gelten nur waehrend einer Belagerung. Laeuft gerade eine, wird
+        // der Kauf sofort wirksam, sonst erst in der naechsten Nacht.
+        if (manager.isActive()) {
+            SkillService.apply(player, skills, manager.skillTree());
+        }
+        manager.persist();
+        reply(source, Component.translatable("nightsiege.cmd.skill_bought",
+                Component.translatable(node.translationKey()), skills.levelOf(nodeId)));
+        CoreMenu.show(player, manager);
         return 1;
     }
 

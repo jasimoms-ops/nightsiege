@@ -10,20 +10,24 @@ import java.util.List;
 public class SiegeConfig {
 
     // --- scheduling -------------------------------------------------------
-    /** Minimum number of in-game days between two sieges. */
-    public int daysBetweenSieges = 3;
+    /** Shortest gap between two sieges, in in-game days of qualifying time. */
+    public int minDaysBetweenSieges = 2;
+    /** Longest gap. The actual gap is rolled anew after every siege. */
+    public int maxDaysBetweenSieges = 5;
     /** Day time at which the warning is sent (12000 = sunset). */
     public int warningDayTime = 12000;
     /** Day time at which the siege starts (15000 = full night). */
     public int startDayTime = 15000;
 
-    // --- base and participants -------------------------------------------
-    /** Times a player must sleep in a bed before it counts as a base. */
-    public int sleepsToRegisterBase = 2;
-    /** Radius in which players are counted for anchor selection and participation. */
-    public double anchorRadius = 50.0;
-    /** A participant further away than this for too long still counts as present. */
-    public double participantRadius = 80.0;
+    // --- core and participants -------------------------------------------
+    /** Players needed around the core before the countdown moves at all. */
+    public int requiredPlayers = 3;
+    /** Radius around the core in which those players are counted. */
+    public double coreRadius = 300.0;
+    /** Radius that decides who defends once a siege has begun. */
+    public double participantRadius = 120.0;
+    /** Give the first player who joins a world one core for free. */
+    public boolean giveStarterCore = true;
 
     // --- difficulty -------------------------------------------------------
     public int maxLevel = 20;
@@ -81,10 +85,12 @@ public class SiegeConfig {
     public double toolEquipChance = 0.35;
     public int toolPickaxeWeight = 10;
     public int toolAxeWeight = 8;
-    public int toolShovelWeight = 5;
+    public int toolShovelWeight = 0;
     public String pickaxeItem = "minecraft:iron_pickaxe";
     public String axeItem = "minecraft:iron_axe";
     public String shovelItem = "minecraft:iron_shovel";
+    /** Off by default: only stone and wood can be broken through. */
+    public boolean allowShovelDigging = false;
 
     // --- digging ----------------------------------------------------------
     public boolean diggingEnabled = true;
@@ -101,6 +107,13 @@ public class SiegeConfig {
             "chest", "shulker", "barrel", "furnace", "hopper", "dispenser", "dropper",
             "brewing", "crafter", "bookshelf", "lectern", "beehive", "bee_nest",
             "decorated_pot", "campfire", "smoker", "spawner", "vault"));
+
+    // --- skills -----------------------------------------------------------
+    public boolean skillsEnabled = true;
+    /** Points every surviving defender gets for a cleared siege. */
+    public int skillPointsPerSiege = 1;
+    /** One extra point for every this many siege levels. */
+    public int skillPointsLevelStep = 5;
 
     // --- mobs -------------------------------------------------------------
     public List<MobEntry> mobs = defaultMobs();
@@ -132,12 +145,13 @@ public class SiegeConfig {
 
     /** Clamps nonsense values so a hand-edited config can never break the mod. */
     public void sanitize() {
-        daysBetweenSieges = Math.max(1, daysBetweenSieges);
+        minDaysBetweenSieges = Math.max(1, minDaysBetweenSieges);
+        maxDaysBetweenSieges = Math.max(minDaysBetweenSieges, maxDaysBetweenSieges);
         warningDayTime = clamp(warningDayTime, 0, 23999);
         startDayTime = clamp(startDayTime, 0, 23999);
-        sleepsToRegisterBase = Math.max(1, sleepsToRegisterBase);
-        anchorRadius = Math.max(8.0, anchorRadius);
-        participantRadius = Math.max(anchorRadius, participantRadius);
+        requiredPlayers = Math.max(1, requiredPlayers);
+        coreRadius = Math.max(16.0, coreRadius);
+        participantRadius = Math.max(16.0, participantRadius);
 
         maxLevel = clamp(maxLevel, 1, 1000);
         daysPerLevel = Math.max(1, daysPerLevel);
@@ -176,7 +190,13 @@ public class SiegeConfig {
         eliteDamageMultiplier = Math.max(1.0, eliteDamageMultiplier);
         eliteDeathDamagePenalty = clampDouble(eliteDeathDamagePenalty, 0.0, 0.9);
 
+        skillPointsPerSiege = Math.max(0, skillPointsPerSiege);
+        skillPointsLevelStep = Math.max(1, skillPointsLevelStep);
+
         toolEquipChance = clampDouble(toolEquipChance, 0.0, 1.0);
+        if (!allowShovelDigging) {
+            toolShovelWeight = 0;
+        }
         toolPickaxeWeight = Math.max(0, toolPickaxeWeight);
         toolAxeWeight = Math.max(0, toolAxeWeight);
         toolShovelWeight = Math.max(0, toolShovelWeight);

@@ -38,6 +38,11 @@ public final class Demolition {
                     if (state.isAir()) {
                         continue;
                     }
+                    // The core survives on purpose: a lost siege resets it
+                    // instead of destroying it.
+                    if (ModContent.isCore(state)) {
+                        continue;
+                    }
                     if (cfg.failureBlastProtectsContainers && isProtected(state, cfg)) {
                         continue;
                     }

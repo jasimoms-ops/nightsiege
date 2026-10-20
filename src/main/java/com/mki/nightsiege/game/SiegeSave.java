@@ -1,5 +1,7 @@
 package com.mki.nightsiege.game;
 
+import com.mki.nightsiege.core.SkillState;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -7,36 +9,51 @@ import java.util.List;
  * Everything the mod remembers between restarts.
  *
  * <p>Note: this lives in the config folder, so it is shared by all worlds of one
- * installation. That matches how the predecessor mod stored its data and keeps
- * the implementation simple.</p>
+ * installation.</p>
  */
 public class SiegeSave {
-    public List<BedRecord> beds = new ArrayList<>();
+    public List<CoreRecord> cores = new ArrayList<>();
+    /** True once the free starter core has been handed out in this world. */
+    public boolean starterCoreGiven;
+
     public int siegesWon;
     public int siegesLost;
-    /** In-game day of the last finished siege, or -1 when there was none yet. */
-    public long lastSiegeDay = -1L;
 
-    public BedRecord findBed(String dimension, int x, int y, int z) {
-        for (BedRecord bed : beds) {
-            if (bed != null && bed.matches(dimension, x, y, z)) {
-                return bed;
+    /** Countdown state, so a restart does not reset the clock. */
+    public long readyTicks;
+    public long requiredTicks;
+
+
+    /** One shared pot of points and learned levels for the whole server. */
+    public SkillState skills = new SkillState();
+
+    public CoreRecord findCore(String dimension, int x, int y, int z) {
+        if (cores == null) {
+            return null;
+        }
+        for (CoreRecord core : cores) {
+            if (core != null && core.matches(dimension, x, y, z)) {
+                return core;
             }
         }
         return null;
     }
 
-    public void removeBed(String dimension, int x, int y, int z) {
-        beds.removeIf(bed -> bed == null || bed.matches(dimension, x, y, z));
+    public void removeCore(String dimension, int x, int y, int z) {
+        if (cores != null) {
+            cores.removeIf(core -> core == null || core.matches(dimension, x, y, z));
+        }
     }
 
-    public List<BedRecord> registeredBeds(int required) {
-        List<BedRecord> out = new ArrayList<>();
-        for (BedRecord bed : beds) {
-            if (bed != null && bed.isRegistered(required)) {
-                out.add(bed);
-            }
+    public SkillState skills() {
+        if (skills == null) {
+            skills = new SkillState();
         }
-        return out;
+        return skills;
+    }
+
+    /** Wipes every player's skill progress. Used when a lost siege resets the core. */
+    public void resetAllSkills() {
+        skills().reset();
     }
 }

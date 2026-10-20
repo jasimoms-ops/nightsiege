@@ -143,7 +143,8 @@ public final class Digger {
         return switch (tool) {
             case PICKAXE -> state.is(BlockTags.MINEABLE_WITH_PICKAXE);
             case AXE -> state.is(BlockTags.MINEABLE_WITH_AXE);
-            case SHOVEL -> state.is(BlockTags.MINEABLE_WITH_SHOVEL);
+            // Earth digging is off by default: only stone and wood give way.
+            case SHOVEL -> cfg.allowShovelDigging && state.is(BlockTags.MINEABLE_WITH_SHOVEL);
             case NONE -> false;
         };
     }

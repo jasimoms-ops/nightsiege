@@ -4,15 +4,20 @@ import com.mki.nightsiege.NightSiegeMod;
 import com.mki.nightsiege.core.AnchorPicker;
 import com.mki.nightsiege.core.EventPicker;
 import com.mki.nightsiege.core.MobPool;
+import com.mki.nightsiege.core.SkillEffect;
+import com.mki.nightsiege.core.SkillState;
 import com.mki.nightsiege.core.SiegeConfig;
 import com.mki.nightsiege.core.SiegeEvent;
 import com.mki.nightsiege.core.SiegeMath;
 import com.mki.nightsiege.core.SiegeScheduler;
+import com.mki.nightsiege.core.SkillTree;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
+import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
+import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
@@ -21,10 +26,15 @@ import net.minecraft.server.level.ServerBossEvent;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.BossEvent;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.BlockHitResult;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -35,14 +45,15 @@ import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 
-/** Runs the whole mod: scheduling, the active siege, and persistence. */
+/** Runs the whole mod: the countdown, the siege itself, skills and persistence. */
 public final class SiegeManager {
 
     private static final SiegeManager INSTANCE = new SiegeManager();
     private static final String CONFIG_FILE = "nightsiege.json";
     private static final String SAVE_FILE = "nightsiege-state.json";
-    /** The digger runs in blocks of this many ticks instead of every tick. */
     private static final int DIG_INTERVAL = 10;
+    /** Write the countdown to disk once a minute rather than every tick. */
+    private static final int PERSIST_INTERVAL = 1200;
 
     public static SiegeManager get() {
         return INSTANCE;
@@ -51,11 +62,13 @@ public final class SiegeManager {
     private SiegeConfig config = new SiegeConfig();
     private SiegeSave save = new SiegeSave();
     private final SiegeScheduler scheduler = new SiegeScheduler();
-    private final SleepWatch sleepWatch = new SleepWatch();
+    private final SkillTree skillTree = new SkillTree();
     private final Digger digger = new Digger();
     private final Random random = new Random();
     private MobPool pool = new MobPool(SiegeConfig.defaultMobs());
     private final Set<String> unavailableMobs = new HashSet<>();
+    private long lastKnownDay;
+    private int persistCounter;
 
     // --- state of the running siege ---
     private boolean active;
@@ -66,13 +79,9 @@ public final class SiegeManager {
     private int totalTicks;
     private int batchCooldown;
     private int digAccumulator;
-    /** Updated every tick so the level can be shown without a server reference. */
-    private long lastKnownDay;
     private ServerBossEvent bossBar;
     private SiegeEvent currentEvent = SiegeEvent.NONE;
-    /** During a theme night every mob is of this type. */
     private String themeMobId;
-    /** The champion of an elite night, while it lives. */
     private UUID eliteId;
     private boolean elitePenaltyApplied;
     private final Set<UUID> participants = new HashSet<>();
@@ -88,6 +97,14 @@ public final class SiegeManager {
 
     public SiegeSave save() {
         return save;
+    }
+
+    public SkillTree skillTree() {
+        return skillTree;
+    }
+
+    public SiegeScheduler scheduler() {
+        return scheduler;
     }
 
     public boolean isActive() {
@@ -107,22 +124,28 @@ public final class SiegeManager {
     // ------------------------------------------------------------------
 
     public void register() {
+        ModContent.register();
         ServerLifecycleEvents.SERVER_STARTED.register(server -> onServerStarted(server));
-        ServerLifecycleEvents.SERVER_STOPPING.register(server -> persist());
+        ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
+            syncSchedulerToSave();
+            persist();
+        });
         ServerTickEvents.END_SERVER_TICK.register(server -> onEndTick(server));
-        // Object parameters keep these handlers compiling even if the event
-        // signatures shift between Fabric API versions.
+        // Object parameters keep these handlers compiling across Fabric versions.
         ServerLivingEntityEvents.AFTER_DEATH.register((entity, source) -> onDeath(entity));
+        ServerPlayerEvents.JOIN.register(player -> onJoin(player));
         PlayerBlockBreakEvents.AFTER.register(
                 (level, player, pos, state, blockEntity) -> onBlockBroken(level, pos));
+        UseBlockCallback.EVENT.register(
+                (player, level, hand, hitResult) -> onUseBlock(player, level, hitResult));
         CommandRegistrationCallback.EVENT.register(
                 (dispatcher, access, environment) -> SiegeCommands.register(dispatcher));
     }
 
     private void onServerStarted(MinecraftServer server) {
         reload();
-        NightSiegeMod.LOGGER.info("[Night Siege] {} Betten bekannt, {} Belagerungen bestanden",
-                save.beds.size(), save.siegesWon);
+        NightSiegeMod.LOGGER.info("[Night Siege] {} Cores bekannt, {} Belagerungen bestanden",
+                save.cores == null ? 0 : save.cores.size(), save.siegesWon);
     }
 
     /** Reads config and saved state from disk. Also used by the reload command. */
@@ -135,13 +158,22 @@ public final class SiegeManager {
 
         SiegeSave loadedSave = Json.read(Json.configFile(SAVE_FILE), SiegeSave.class);
         save = loadedSave == null ? new SiegeSave() : loadedSave;
-        if (save.beds == null) {
-            save.beds = new ArrayList<>();
+        if (save.cores == null) {
+            save.cores = new ArrayList<>();
         }
-        scheduler.setLastSiegeDay(save.lastSiegeDay < 0 ? Long.MIN_VALUE : save.lastSiegeDay);
+        scheduler.setReadyTicks(save.readyTicks);
+        scheduler.setRequiredTicks(save.requiredTicks);
+        if (scheduler.requiredTicks() <= 0L && !save.cores.isEmpty()) {
+            scheduler.rollInterval(random, config);
+        }
 
         pool = new MobPool(config.mobs);
         unavailableMobs.clear();
+    }
+
+    private void syncSchedulerToSave() {
+        save.readyTicks = scheduler.readyTicks();
+        save.requiredTicks = scheduler.requiredTicks();
     }
 
     public void persist() {
@@ -153,33 +185,37 @@ public final class SiegeManager {
     // ------------------------------------------------------------------
 
     private void onEndTick(MinecraftServer server) {
-        sleepWatch.poll(server, this::onPlayerSlept);
-
         long gameTime = server.overworld().getGameTime();
         lastKnownDay = SiegeMath.dayOf(gameTime);
+
         if (active) {
             tickSiege(server);
             return;
         }
+
+        // The countdown only moves while enough defenders are gathered.
+        AnchorPicker.Result target = findTarget(server);
+        if (target != null && target.playerCount() >= config.requiredPlayers) {
+            scheduler.addQualifyingTicks(1L);
+            if (++persistCounter >= PERSIST_INTERVAL) {
+                persistCounter = 0;
+                syncSchedulerToSave();
+                persist();
+            }
+        }
+
         SiegeScheduler.Decision decision = scheduler.evaluate(gameTime, false, config);
         if (decision == SiegeScheduler.Decision.WARN) {
-            announceWarning(server);
+            if (target != null) {
+                broadcast(server, Component.translatable("nightsiege.msg.warning", currentLevel())
+                        .withStyle(ChatFormatting.GOLD));
+            }
         } else if (decision == SiegeScheduler.Decision.START) {
-            tryStart(server);
+            tryStart(server, target);
         }
     }
 
-    private void announceWarning(MinecraftServer server) {
-        if (findTarget(server) == null) {
-            return;
-        }
-        int level = SiegeMath.level(save.siegesWon, SiegeMath.dayOf(server.overworld().getGameTime()), config);
-        broadcast(server, Component.translatable("nightsiege.msg.warning", level)
-                .withStyle(ChatFormatting.GOLD));
-    }
-
-    private void tryStart(MinecraftServer server) {
-        AnchorPicker.Result target = findTarget(server);
+    private void tryStart(MinecraftServer server, AnchorPicker.Result target) {
         if (target == null) {
             return;
         }
@@ -187,11 +223,12 @@ public final class SiegeManager {
         if (targetWorld == null) {
             return;
         }
-        BlockPos pos = new BlockPos((int) target.anchor().x(), (int) target.anchor().y(), (int) target.anchor().z());
+        BlockPos pos = new BlockPos((int) target.anchor().x(), (int) target.anchor().y(),
+                (int) target.anchor().z());
         start(server, targetWorld, pos);
     }
 
-    /** Starts a siege at the given bed. Also used by the start command. */
+    /** Starts a siege at the given core. Also used by the start command. */
     public boolean start(MinecraftServer server, ServerLevel targetWorld, BlockPos targetAnchor) {
         if (active) {
             return false;
@@ -214,6 +251,7 @@ public final class SiegeManager {
         for (ServerPlayer player : nearby) {
             participants.add(player.getUUID());
         }
+
         currentEvent = EventPicker.pick(siegeLevel, random, config);
         themeMobId = null;
         eliteId = null;
@@ -221,7 +259,6 @@ public final class SiegeManager {
         if (currentEvent == SiegeEvent.THEME_WAVE) {
             themeMobId = pickAvailableMob();
             if (themeMobId == null) {
-                // Nothing usable to build a theme night from, so stay plain.
                 currentEvent = SiegeEvent.NONE;
             }
         }
@@ -235,6 +272,12 @@ public final class SiegeManager {
                 BossEvent.BossBarOverlay.PROGRESS);
         bossBar.setProgress(1.0f);
         active = true;
+        for (UUID id : participants) {
+            ServerPlayer player = server.getPlayerList().getPlayer(id);
+            if (player != null) {
+                SkillService.apply(player, save.skills(), skillTree);
+            }
+        }
 
         broadcast(server, Component.translatable("nightsiege.msg.start", siegeLevel)
                 .withStyle(ChatFormatting.RED));
@@ -244,7 +287,6 @@ public final class SiegeManager {
         return true;
     }
 
-    /** An entity id from the pool that is actually installed, or null. */
     private String pickAvailableMob() {
         for (int attempt = 0; attempt < 12; attempt++) {
             String candidate = pool.pick(siegeLevel, random, unavailableMobs);
@@ -266,7 +308,7 @@ public final class SiegeManager {
             return;
         }
         Mob champion = MobFactory.spawn(world, anchor, entityId, siegeLevel,
-                config, random, currentEvent, true);
+                config, random, currentEvent, true, spawnDistanceBonus());
         if (champion != null) {
             eliteId = champion.getUUID();
             liveMobs.add(eliteId);
@@ -286,10 +328,11 @@ public final class SiegeManager {
         pruneMobs();
         refreshBossBar(server);
 
-        // Players who walk into the defended area join the defence.
         for (ServerPlayer player : playersNear(server, world, anchor, config.participantRadius)) {
             if (!fallen.contains(player.getUUID())) {
-                participants.add(player.getUUID());
+                if (participants.add(player.getUUID())) {
+                    SkillService.apply(player, save.skills(), skillTree);
+                }
             }
         }
 
@@ -304,10 +347,8 @@ public final class SiegeManager {
         }
         if (standing == 0) {
             if (fallenCount > 0) {
-                // Every defender died: this is a real defeat.
                 finish(server, false);
             } else {
-                // Everyone logged out or crashed. Not a defeat, so no punishment.
                 abort(server);
             }
             return;
@@ -315,7 +356,8 @@ public final class SiegeManager {
 
         if (batchCooldown <= 0) {
             spawnBatch(server);
-            batchCooldown = config.batchIntervalSeconds * 20;
+            double extraDelay = skillTree.totalBonus(SkillEffect.WAVE_DELAY, save.skills());
+            batchCooldown = (int) Math.round((config.batchIntervalSeconds + extraDelay) * 20.0);
         } else {
             batchCooldown--;
         }
@@ -358,14 +400,13 @@ public final class SiegeManager {
                 return;
             }
             if (MobFactory.isUnavailable(entityId)) {
-                // Mod not installed: remember it and try something else next time.
                 if (unavailableMobs.add(entityId)) {
                     NightSiegeMod.LOGGER.warn("[Night Siege] Mob {} nicht gefunden, wird uebersprungen", entityId);
                 }
                 continue;
             }
             Mob mob = MobFactory.spawn(world, anchor, entityId, siegeLevel,
-                    config, random, currentEvent, false);
+                    config, random, currentEvent, false, spawnDistanceBonus());
             if (mob != null) {
                 liveMobs.add(mob.getUUID());
                 aimAtDefender(server, mob);
@@ -373,7 +414,6 @@ public final class SiegeManager {
         }
     }
 
-    /** Sends the mob after the closest living defender. */
     private void aimAtDefender(MinecraftServer server, Mob mob) {
         ServerPlayer closest = null;
         double bestDistance = Double.MAX_VALUE;
@@ -408,12 +448,73 @@ public final class SiegeManager {
         }
     }
 
+    // ------------------------------------------------------------------
+    // ending
+    // ------------------------------------------------------------------
+
+    /** Extra blocks the Basis branch pushes the attackers back by. */
+    private double spawnDistanceBonus() {
+        return skillTree.totalBonus(SkillEffect.SPAWN_DISTANCE, save.skills());
+    }
+
+    /** Skills only hold for the night, so everyone goes back to normal values. */
+    private void clearSkillsFromParticipants(MinecraftServer server) {
+        if (server == null) {
+            return;
+        }
+        for (UUID id : participants) {
+            ServerPlayer player = server.getPlayerList().getPlayer(id);
+            if (player != null) {
+                SkillService.clear(player);
+            }
+        }
+    }
+
+    public void finish(MinecraftServer server, boolean won) {
+        if (!active) {
+            return;
+        }
+        active = false;
+        clearSkillsFromParticipants(server);
+        if (bossBar != null) {
+            bossBar.removeAllPlayers();
+            bossBar = null;
+        }
+        clearRemainingMobs();
+        digger.reset();
+
+        if (won) {
+            save.siegesWon++;
+            awardSkillPoints(server);
+            int next = SiegeMath.level(save.siegesWon, lastKnownDay, config);
+            broadcast(server, Component.translatable("nightsiege.msg.won", next)
+                    .withStyle(ChatFormatting.GREEN));
+        } else {
+            save.siegesLost++;
+            int destroyed = 0;
+            if (world != null && anchor != null) {
+                destroyed = Demolition.blast(world, anchor, config);
+            }
+            resetProgress(server);
+            broadcast(server, Component.translatable("nightsiege.msg.lost", destroyed)
+                    .withStyle(ChatFormatting.DARK_RED));
+            broadcast(server, Component.translatable("nightsiege.msg.core_reset")
+                    .withStyle(ChatFormatting.DARK_RED));
+        }
+
+        scheduler.markSiegeFinished(random, config);
+        syncSchedulerToSave();
+        persist();
+        clearSiegeState();
+    }
+
     /** Ends the siege with no winner and no punishment. */
     public void abort(MinecraftServer server) {
         if (!active) {
             return;
         }
         active = false;
+        clearSkillsFromParticipants(server);
         if (bossBar != null) {
             bossBar.removeAllPlayers();
             bossBar = null;
@@ -421,6 +522,10 @@ public final class SiegeManager {
         clearRemainingMobs();
         digger.reset();
         broadcast(server, Component.translatable("nightsiege.msg.aborted").withStyle(ChatFormatting.GRAY));
+        clearSiegeState();
+    }
+
+    private void clearSiegeState() {
         world = null;
         anchor = null;
         currentEvent = SiegeEvent.NONE;
@@ -432,52 +537,25 @@ public final class SiegeManager {
         liveMobs.clear();
     }
 
-    // ------------------------------------------------------------------
-    // ending
-    // ------------------------------------------------------------------
+    /** A lost siege sets the core back to the start: progress and skills are gone. */
+    private void resetProgress(MinecraftServer server) {
+        save.siegesWon = 0;
+        save.resetAllSkills();
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            SkillService.clear(player);
+        }
+    }
 
-    public void finish(MinecraftServer server, boolean won) {
-        if (!active) {
+    private void awardSkillPoints(MinecraftServer server) {
+        if (!config.skillsEnabled || config.skillPointsPerSiege <= 0) {
             return;
         }
-        active = false;
-        if (bossBar != null) {
-            bossBar.removeAllPlayers();
-            bossBar = null;
-        }
-        clearRemainingMobs();
-        digger.reset();
-
-        long gameTime = server.overworld().getGameTime();
-        scheduler.markSiegeFinished(gameTime);
-        save.lastSiegeDay = SiegeMath.dayOf(gameTime);
-
-        if (won) {
-            save.siegesWon++;
-            int next = SiegeMath.level(save.siegesWon, save.lastSiegeDay, config);
-            broadcast(server, Component.translatable("nightsiege.msg.won", next)
-                    .withStyle(ChatFormatting.GREEN));
-        } else {
-            save.siegesLost++;
-            int destroyed = 0;
-            if (world != null && anchor != null) {
-                destroyed = Demolition.blast(world, anchor, config);
-                save.removeBed(dimensionName(world), anchor.getX(), anchor.getY(), anchor.getZ());
-            }
-            broadcast(server, Component.translatable("nightsiege.msg.lost", destroyed)
-                    .withStyle(ChatFormatting.DARK_RED));
-        }
-        persist();
-
-        world = null;
-        anchor = null;
-        currentEvent = SiegeEvent.NONE;
-        themeMobId = null;
-        eliteId = null;
-        elitePenaltyApplied = false;
-        participants.clear();
-        fallen.clear();
-        liveMobs.clear();
+        int amount = config.skillPointsPerSiege + siegeLevel / Math.max(1, config.skillPointsLevelStep);
+        // One shared pot: the points are earned by the team, not per player.
+        save.skills().award(amount);
+        broadcast(server, Component.translatable("nightsiege.msg.points_earned", amount)
+                .withStyle(ChatFormatting.AQUA));
+    }
     }
 
     private void clearRemainingMobs() {
@@ -497,28 +575,6 @@ public final class SiegeManager {
     // event handlers
     // ------------------------------------------------------------------
 
-    private void onPlayerSlept(ServerPlayer player, BlockPos bedPos) {
-        ServerLevel playerWorld = player.level();
-        String dimension = dimensionName(playerWorld);
-        BedRecord bed = save.findBed(dimension, bedPos.getX(), bedPos.getY(), bedPos.getZ());
-        if (bed == null) {
-            bed = new BedRecord(dimension, bedPos.getX(), bedPos.getY(), bedPos.getZ());
-            save.beds.add(bed);
-        }
-        if (bed.isRegistered(config.sleepsToRegisterBase)) {
-            return;
-        }
-        bed.sleeps++;
-        if (bed.isRegistered(config.sleepsToRegisterBase)) {
-            player.sendSystemMessage(Component.translatable("nightsiege.msg.base_registered")
-                    .withStyle(ChatFormatting.GOLD));
-        } else {
-            player.sendSystemMessage(Component.translatable("nightsiege.msg.sleep_progress",
-                    bed.sleeps, config.sleepsToRegisterBase).withStyle(ChatFormatting.GRAY));
-        }
-        persist();
-    }
-
     /** Takes Object so the handler keeps compiling across Fabric API versions. */
     private void onDeath(Object entity) {
         if (active && entity instanceof Mob mob && mob.getUUID().equals(eliteId)) {
@@ -529,7 +585,6 @@ public final class SiegeManager {
             return;
         }
         UUID id = player.getUUID();
-        sleepWatch.forget(id);
         if (!active || !participants.contains(id)) {
             return;
         }
@@ -539,7 +594,6 @@ public final class SiegeManager {
                 player.getScoreboardName(), countStanding()).withStyle(ChatFormatting.RED));
     }
 
-    /** The wave loses its edge once the champion is down. */
     private void onEliteKilled(Mob champion) {
         if (elitePenaltyApplied) {
             return;
@@ -559,9 +613,9 @@ public final class SiegeManager {
                 weakened++;
             }
         }
-        MinecraftServer server = champion.level().getServer();
-        broadcast(server, Component.translatable("nightsiege.msg.elite_down", weakened)
-                .withStyle(ChatFormatting.GREEN));
+        broadcast(champion.level().getServer(),
+                Component.translatable("nightsiege.msg.elite_down", weakened)
+                        .withStyle(ChatFormatting.GREEN));
     }
 
     private int countStanding() {
@@ -575,56 +629,116 @@ public final class SiegeManager {
     }
 
     /** Takes Object so the handler keeps compiling across Fabric API versions. */
+    private void onJoin(Object entity) {
+        if (!(entity instanceof ServerPlayer player)) {
+            return;
+        }
+        // Skills gelten nur waehrend einer Belagerung. Beim Betreten werden
+        // daher Reste entfernt, etwa nach einem Absturz mitten in der Nacht.
+        if (active && participants.contains(player.getUUID()) && !fallen.contains(player.getUUID())) {
+            SkillService.apply(player, save.skills(), skillTree);
+        } else {
+            SkillService.clear(player);
+        }
+        giveStarterCore(player);
+    }
+
+    /** The very first player of a world is handed one core, once ever. */
+    private void giveStarterCore(ServerPlayer player) {
+        if (!config.giveStarterCore || save.starterCoreGiven || ModContent.SIEGE_CORE_ITEM == null) {
+            return;
+        }
+        save.starterCoreGiven = true;
+        ItemStack stack = new ItemStack(ModContent.SIEGE_CORE_ITEM);
+        if (!player.addItem(stack)) {
+            player.drop(stack, false);
+        }
+        player.sendSystemMessage(Component.translatable("nightsiege.msg.starter_core")
+                .withStyle(ChatFormatting.GOLD));
+        persist();
+    }
+
+    /** Called from the block itself when a core is put down. */
+    public void onCorePlaced(ServerLevel level, BlockPos pos, LivingEntity placer) {
+        String dimension = dimensionName(level);
+        if (save.findCore(dimension, pos.getX(), pos.getY(), pos.getZ()) != null) {
+            return;
+        }
+        save.cores.add(new CoreRecord(dimension, pos.getX(), pos.getY(), pos.getZ()));
+        if (scheduler.requiredTicks() <= 0L) {
+            scheduler.rollInterval(random, config);
+        }
+        syncSchedulerToSave();
+        persist();
+        if (placer instanceof ServerPlayer player) {
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.core_placed",
+                    config.requiredPlayers, (int) config.coreRadius).withStyle(ChatFormatting.GOLD));
+        }
+    }
+
+    /** Takes Object so the handler keeps compiling across Fabric API versions. */
     private void onBlockBroken(Object levelObject, BlockPos pos) {
         if (!(levelObject instanceof ServerLevel brokenWorld)) {
             return;
         }
         String dimension = dimensionName(brokenWorld);
+        if (save.findCore(dimension, pos.getX(), pos.getY(), pos.getZ()) == null) {
+            return;
+        }
+        save.removeCore(dimension, pos.getX(), pos.getY(), pos.getZ());
+        syncSchedulerToSave();
+        persist();
 
-        if (active && world == brokenWorld && anchor != null && isSameBed(anchor, pos)) {
-            // Breaking the anchor bed mid-siege would be a free escape, so it loses.
-            MinecraftServer server = brokenWorld.getServer();
+        MinecraftServer server = brokenWorld.getServer();
+        if (active && world == brokenWorld && pos.equals(anchor)) {
             broadcast(server, Component.translatable("nightsiege.msg.anchor_broken")
                     .withStyle(ChatFormatting.DARK_RED));
             finish(server, false);
-            return;
-        }
-        if (save.findBed(dimension, pos.getX(), pos.getY(), pos.getZ()) != null) {
-            save.removeBed(dimension, pos.getX(), pos.getY(), pos.getZ());
-            persist();
         }
     }
 
-    /**
-     * A bed covers two blocks and the game may report either half, so positions
-     * one block apart are treated as the same bed.
-     */
-    private boolean isSameBed(BlockPos a, BlockPos b) {
-        return a.getY() == b.getY()
-                && Math.abs(a.getX() - b.getX()) <= 1
-                && Math.abs(a.getZ() - b.getZ()) <= 1;
+    /** Right clicking the core opens the status and skill menu. */
+    private InteractionResult onUseBlock(Object playerObject, Object levelObject, Object hitObject) {
+        if (!(levelObject instanceof ServerLevel serverLevel)
+                || !(playerObject instanceof ServerPlayer player)
+                || !(hitObject instanceof BlockHitResult hit)) {
+            return InteractionResult.PASS;
+        }
+        BlockPos pos = hit.getBlockPos();
+        if (!ModContent.isCore(serverLevel.getBlockState(pos))) {
+            return InteractionResult.PASS;
+        }
+        CoreMenu.show(player, this);
+        return InteractionResult.SUCCESS;
     }
 
     // ------------------------------------------------------------------
     // helpers
     // ------------------------------------------------------------------
 
-    /** The registered bed with the most players within the anchor radius. */
+    /** The core with the most players within the core radius. */
     public AnchorPicker.Result findTarget(MinecraftServer server) {
-        List<BedRecord> beds = save.registeredBeds(config.sleepsToRegisterBase);
-        if (beds.isEmpty()) {
+        if (save.cores == null || save.cores.isEmpty()) {
             return null;
         }
-        List<AnchorPicker.Point> bedPoints = new ArrayList<>();
-        for (BedRecord bed : beds) {
-            bedPoints.add(new AnchorPicker.Point(bed.dimension, bed.x, bed.y, bed.z));
+        List<AnchorPicker.Point> corePoints = new ArrayList<>();
+        for (CoreRecord core : save.cores) {
+            if (core != null) {
+                corePoints.add(new AnchorPicker.Point(core.dimension, core.x, core.y, core.z));
+            }
         }
         List<AnchorPicker.Point> playerPoints = new ArrayList<>();
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             playerPoints.add(new AnchorPicker.Point(dimensionName(player.level()),
                     player.getX(), player.getY(), player.getZ()));
         }
-        return AnchorPicker.pick(bedPoints, playerPoints, config.anchorRadius);
+        return AnchorPicker.pick(corePoints, playerPoints, config.coreRadius);
+    }
+
+    /** How many players are gathered at the best core right now. */
+    public int playersAtCore(MinecraftServer server) {
+        AnchorPicker.Result target = findTarget(server);
+        return target == null ? 0 : target.playerCount();
     }
 
     private List<ServerPlayer> playersNear(MinecraftServer server, ServerLevel targetWorld,
@@ -642,7 +756,7 @@ public final class SiegeManager {
         return out;
     }
 
-    public static String dimensionName(ServerLevel level) {
+    public static String dimensionName(Level level) {
         return level.dimension().identifier().toString();
     }
 

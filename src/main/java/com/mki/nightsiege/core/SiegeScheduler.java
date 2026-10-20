@@ -1,43 +1,78 @@
 package com.mki.nightsiege.core;
 
+import java.util.Random;
+
 /**
- * Decides when to warn and when to start, purely from the world clock.
- * Holds no Minecraft types so the timing can be tested directly.
+ * Decides when the next siege is due.
+ *
+ * <p>The countdown does not simply follow the world clock. It only advances
+ * while enough players are gathered around the core, so a base nobody defends
+ * is never attacked, and a group cannot run the clock down by logging off.</p>
  */
 public final class SiegeScheduler {
 
     public enum Decision {
-        /** Nothing to do this tick. */
         NONE,
-        /** Send the sunset warning. */
         WARN,
-        /** Start the siege now. */
         START
     }
 
-    private long lastSiegeDay = Long.MIN_VALUE;
+    private long readyTicks;
+    private long requiredTicks;
     private long warnedForDay = Long.MIN_VALUE;
     private long startedForDay = Long.MIN_VALUE;
 
-    public long lastSiegeDay() {
-        return lastSiegeDay;
+    public long readyTicks() {
+        return readyTicks;
     }
 
-    public void setLastSiegeDay(long day) {
-        this.lastSiegeDay = day;
+    public void setReadyTicks(long ticks) {
+        this.readyTicks = Math.max(0L, ticks);
     }
 
-    public long warnedForDay() {
-        return warnedForDay;
+    public long requiredTicks() {
+        return requiredTicks;
     }
 
-    public void setWarnedForDay(long day) {
-        this.warnedForDay = day;
+    public void setRequiredTicks(long ticks) {
+        this.requiredTicks = Math.max(0L, ticks);
     }
 
-    /** Called when a siege ends, so the cooldown starts from here. */
-    public void markSiegeFinished(long gameTime) {
-        this.lastSiegeDay = SiegeMath.dayOf(gameTime);
+    /** Rolls the next interval, somewhere between the configured bounds. */
+    public void rollInterval(Random random, SiegeConfig cfg) {
+        int min = Math.max(1, cfg.minDaysBetweenSieges);
+        int max = Math.max(min, cfg.maxDaysBetweenSieges);
+        int days = min + (max > min ? random.nextInt(max - min + 1) : 0);
+        requiredTicks = days * 24000L;
+        readyTicks = 0L;
+    }
+
+    /** Adds time, but only when the defenders are actually present. */
+    public void addQualifyingTicks(long ticks) {
+        if (ticks > 0) {
+            readyTicks += ticks;
+        }
+    }
+
+    public boolean armed() {
+        return requiredTicks > 0L && readyTicks >= requiredTicks;
+    }
+
+    /** 0 to 1, how far the countdown has come. */
+    public double progress() {
+        if (requiredTicks <= 0L) {
+            return 0.0;
+        }
+        return Math.min(1.0, (double) readyTicks / requiredTicks);
+    }
+
+    /** Qualifying ticks still to go. */
+    public long remainingTicks() {
+        return Math.max(0L, requiredTicks - readyTicks);
+    }
+
+    public void markSiegeFinished(Random random, SiegeConfig cfg) {
+        rollInterval(random, cfg);
     }
 
     /**
@@ -45,16 +80,12 @@ public final class SiegeScheduler {
      * @param siegeActive whether a siege is already running
      */
     public Decision evaluate(long gameTime, boolean siegeActive, SiegeConfig cfg) {
-        if (siegeActive) {
+        if (siegeActive || !armed()) {
             return Decision.NONE;
         }
         long day = SiegeMath.dayOf(gameTime);
         int time = SiegeMath.timeOfDay(gameTime);
 
-        if (!cooldownOver(day, cfg)) {
-            return Decision.NONE;
-        }
-        // The warning comes first and arms the start for the same night.
         if (warnedForDay != day && time >= cfg.warningDayTime && time < cfg.startDayTime) {
             warnedForDay = day;
             return Decision.WARN;
@@ -64,12 +95,5 @@ public final class SiegeScheduler {
             return Decision.START;
         }
         return Decision.NONE;
-    }
-
-    private boolean cooldownOver(long day, SiegeConfig cfg) {
-        if (lastSiegeDay == Long.MIN_VALUE) {
-            return true;
-        }
-        return day - lastSiegeDay >= cfg.daysBetweenSieges;
     }
 }

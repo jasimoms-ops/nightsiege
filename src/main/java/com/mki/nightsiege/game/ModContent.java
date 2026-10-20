@@ -1,0 +1,56 @@
+package com.mki.nightsiege.game;
+
+import com.mki.nightsiege.NightSiegeMod;
+import net.fabricmc.fabric.api.creativetab.v1.CreativeModeTabEvents;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.CreativeModeTabs;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.SoundType;
+import net.minecraft.world.level.block.state.BlockBehaviour;
+
+/** Registers the siege core block and its item. */
+public final class ModContent {
+
+    public static final String CORE_NAME = "siege_core";
+
+    public static Block SIEGE_CORE;
+    public static Item SIEGE_CORE_ITEM;
+
+    private ModContent() {
+    }
+
+    public static Identifier id(String path) {
+        return Identifier.fromNamespaceAndPath(NightSiegeMod.MOD_ID, path);
+    }
+
+    public static void register() {
+        Identifier id = id(CORE_NAME);
+
+        ResourceKey<Block> blockKey = ResourceKey.create(Registries.BLOCK, id);
+        SIEGE_CORE = new SiegeCoreBlock(BlockBehaviour.Properties.of()
+                .setId(blockKey)
+                // Tough enough that it is a deliberate build, not a throwaway.
+                .strength(25.0f, 1200.0f)
+                .sound(SoundType.METAL));
+        Registry.register(BuiltInRegistries.BLOCK, blockKey, SIEGE_CORE);
+
+        ResourceKey<Item> itemKey = ResourceKey.create(Registries.ITEM, id);
+        SIEGE_CORE_ITEM = new BlockItem(SIEGE_CORE, new Item.Properties()
+                .setId(itemKey)
+                .useBlockDescriptionPrefix());
+        Registry.register(BuiltInRegistries.ITEM, itemKey, SIEGE_CORE_ITEM);
+
+        CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS)
+                .register(output -> output.accept(SIEGE_CORE.asItem()));
+    }
+
+    public static boolean isCore(net.minecraft.world.level.block.state.BlockState state) {
+        return state != null && SIEGE_CORE != null && state.getBlock() == SIEGE_CORE;
+    }
+}
