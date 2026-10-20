@@ -45,6 +45,41 @@ jobs:
           print("::error title=VERSIONEN::" + "%0A".join(out))
           PY
 
+      # fabric-api und Loader aendern sich staendig. Statt sie zu raten, wird
+      # hier die jeweils neueste zur eingestellten Minecraft-Version passende
+      # Fassung ermittelt und in gradle.properties eingetragen.
+      - name: Passende Abhaengigkeiten waehlen
+        run: |
+          python3 - <<'PY'
+          import json, re, urllib.request
+
+          props = {}
+          for line in open("gradle.properties", encoding="utf-8"):
+              if "=" in line and not line.strip().startswith("#"):
+                  k, v = line.split("=", 1)
+                  props[k.strip()] = v.strip()
+          mc = props["minecraft_version"]
+
+          xml = urllib.request.urlopen(
+              "https://maven.fabricmc.net/net/fabricmc/fabric-api/fabric-api/maven-metadata.xml",
+              timeout=30).read().decode()
+          api = [v for v in re.findall(r"<version>([^<]+)</version>", xml) if v.endswith("+" + mc)]
+          if not api:
+              print("::error title=KEINE-API::fabric-api hat keine Fassung fuer %s%%0AVerfuegbar: %s"
+                    % (mc, ", ".join(re.findall(r"<version>([^<]+)</version>", xml)[-40:])))
+              raise SystemExit(1)
+
+          loaders = json.loads(urllib.request.urlopen(
+              "https://meta.fabricmc.net/v2/versions/loader", timeout=30).read().decode())
+          loader = loaders[0]["version"]
+
+          text = open("gradle.properties", encoding="utf-8").read()
+          text = re.sub(r"(?m)^fabric_version=.*$", "fabric_version=" + api[-1], text)
+          text = re.sub(r"(?m)^loader_version=.*$", "loader_version=" + loader, text)
+          open("gradle.properties", "w", encoding="utf-8").write(text)
+          print("::notice title=GEWAEHLT::mc=%s api=%s loader=%s" % (mc, api[-1], loader))
+          PY
+
       - name: JDK 25 einrichten
         uses: actions/setup-java@v5
         with:
