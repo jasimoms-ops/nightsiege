@@ -74,6 +74,7 @@ public class CoreScreen extends Screen {
 
     @Override
     protected void init() {
+        showing = this;
         left = (this.width - PANEL_W) / 2;
         top = (this.height - PANEL_H) / 2;
         nodeButtons.clear();
@@ -102,6 +103,21 @@ public class CoreScreen extends Screen {
         // Rebuilding the widgets in place, instead of opening a new screen,
         // avoids the one frame of black between two screens.
         rebuildWidgets();
+    }
+
+    /** The window currently on screen, if any. */
+    private static CoreScreen showing;
+
+    public static CoreScreen openInstance() {
+        return showing;
+    }
+
+    @Override
+    public void removed() {
+        if (showing == this) {
+            showing = null;
+        }
+        super.removed();
     }
 
     /** New numbers from the server, e.g. after buying a skill. Keeps the window open. */

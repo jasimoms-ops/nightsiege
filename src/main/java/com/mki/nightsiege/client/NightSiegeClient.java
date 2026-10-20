@@ -22,7 +22,8 @@ public class NightSiegeClient implements ClientModInitializer {
                     // Network threads must not touch the screen directly.
                     context.client().execute(() -> {
                         Minecraft client = Minecraft.getInstance();
-                        if (client.screen instanceof CoreScreen open) {
+                        CoreScreen open = CoreScreen.openInstance();
+                        if (open != null) {
                             open.update(stats);
                         } else {
                             client.setScreenAndShow(new CoreScreen(stats));
