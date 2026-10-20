@@ -10,39 +10,37 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Der Runner hat vollen Netzzugang. Diese Angaben sind von der
-      # Entwicklungsumgebung aus nicht erreichbar, deshalb werden sie hier
-      # ermittelt und als Annotation ausgegeben.
-      - name: Verfuegbare Fabric-Versionen melden
-        if: always()
+      - name: Mapping-Lage untersuchen
         run: |
           python3 - <<'PY'
-          import json, urllib.request, re
-          def get(url):
-              try:
-                  return urllib.request.urlopen(url, timeout=30).read().decode()
-              except Exception as e:
-                  return "FEHLER %s: %s" % (url, e)
+          import json, urllib.request
+          def get(u):
+              return urllib.request.urlopen(u, timeout=30).read().decode()
           out = []
+          mc = "26.2"
           try:
-              games = json.loads(get("https://meta.fabricmc.net/v2/versions/game"))
-              out.append("MC stabil: " + ", ".join(g["version"] for g in games if g.get("stable"))[:300])
-              out.append("MC neueste: " + ", ".join(g["version"] for g in games[:8]))
+              man = json.loads(get("https://launchermeta.mojang.com/mc/game/version_manifest_v2.json"))
+              hit = [v for v in man["versions"] if v["id"] == mc]
+              out.append("In Mojang-Manifest: %s" % bool(hit))
+              if hit:
+                  vj = json.loads(get(hit[0]["url"]))
+                  dl = vj.get("downloads", {})
+                  out.append("downloads-Schluessel: " + ", ".join(sorted(dl)))
+                  out.append("client_mappings vorhanden: %s" % ("client_mappings" in dl))
+                  out.append("javaVersion: %s" % json.dumps(vj.get("javaVersion")))
+              out.append("Manifest-Beispiele: " + ", ".join(v["id"] for v in man["versions"][:6]))
           except Exception as e:
-              out.append("game-API: %s" % e)
-          try:
-              loaders = json.loads(get("https://meta.fabricmc.net/v2/versions/loader"))
-              out.append("Loader: " + ", ".join(l["version"] for l in loaders[:5]))
-          except Exception as e:
-              out.append("loader-API: %s" % e)
-          for name, url in [
-              ("fabric-api", "https://maven.fabricmc.net/net/fabricmc/fabric-api/fabric-api/maven-metadata.xml"),
-              ("fabric-loom", "https://maven.fabricmc.net/net/fabricmc/fabric-loom/maven-metadata.xml"),
+              out.append("Mojang-Manifest Fehler: %s" % e)
+          for label, url in [
+              ("intermediary", "https://meta.fabricmc.net/v2/versions/intermediary/26.2"),
+              ("yarn", "https://meta.fabricmc.net/v2/versions/yarn/26.2"),
           ]:
-              xml = get(url)
-              vs = re.findall(r"<version>([^<]+)</version>", xml)
-              out.append("%s: %s" % (name, ", ".join(vs[-12:]) if vs else xml[:200]))
-          print("::error title=VERSIONEN::" + "%0A".join(out))
+              try:
+                  body = get(url)
+                  out.append("%s: %s" % (label, body[:200]))
+              except Exception as e:
+                  out.append("%s Fehler: %s" % (label, e))
+          print("::error title=MAPPINGS::" + "%0A".join(out))
           PY
 
       # fabric-api und Loader aendern sich staendig. Statt sie zu raten, wird
