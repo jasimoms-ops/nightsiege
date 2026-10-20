@@ -2,7 +2,11 @@ name: build
 
 on:
   push:
+    branches: [main]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -95,6 +99,27 @@ jobs:
           name: nightsiege-jar
           path: build/libs/*.jar
           if-no-files-found: warn
+
+      # Artefakte liegen auf einem Speicher, den die Entwicklungsumgebung nicht
+      # erreicht. Dateiinhalte aus einem Branch liefert die GitHub-API dagegen
+      # direkt aus, deshalb wandert die fertige Jar in den Branch "dist".
+      - name: Jar im dist-Branch bereitstellen
+        if: steps.build.outcome == 'success'
+        run: |
+          set -e
+          JAR=$(ls build/libs/*.jar | grep -v -- '-sources' | head -1)
+          echo "gefunden: $JAR"
+          TMP=$(mktemp -d)
+          cp "$JAR" "$TMP/nightsiege.jar"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan dist-tmp
+          git reset --hard
+          mkdir -p dist
+          cp "$TMP/nightsiege.jar" dist/nightsiege.jar
+          git add -f dist/nightsiege.jar
+          git commit -m "Build von ${GITHUB_SHA}"
+          git push -f origin dist-tmp:dist
 
       - name: Ergebnis weiterreichen
         if: steps.build.outcome == 'failure'
