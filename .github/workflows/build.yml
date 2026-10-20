@@ -10,37 +10,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Mapping-Lage untersuchen
+      - name: Offizielle Fabric-Vorlage lesen
         run: |
           python3 - <<'PY'
-          import json, urllib.request
-          def get(u):
-              return urllib.request.urlopen(u, timeout=30).read().decode()
+          import urllib.request
           out = []
-          mc = "26.2"
-          try:
-              man = json.loads(get("https://launchermeta.mojang.com/mc/game/version_manifest_v2.json"))
-              hit = [v for v in man["versions"] if v["id"] == mc]
-              out.append("In Mojang-Manifest: %s" % bool(hit))
-              if hit:
-                  vj = json.loads(get(hit[0]["url"]))
-                  dl = vj.get("downloads", {})
-                  out.append("downloads-Schluessel: " + ", ".join(sorted(dl)))
-                  out.append("client_mappings vorhanden: %s" % ("client_mappings" in dl))
-                  out.append("javaVersion: %s" % json.dumps(vj.get("javaVersion")))
-              out.append("Manifest-Beispiele: " + ", ".join(v["id"] for v in man["versions"][:6]))
-          except Exception as e:
-              out.append("Mojang-Manifest Fehler: %s" % e)
           for label, url in [
-              ("intermediary", "https://meta.fabricmc.net/v2/versions/intermediary/26.2"),
-              ("yarn", "https://meta.fabricmc.net/v2/versions/yarn/26.2"),
+              ("build.gradle", "https://raw.githubusercontent.com/FabricMC/fabric-example-mod/HEAD/build.gradle"),
+              ("gradle.properties", "https://raw.githubusercontent.com/FabricMC/fabric-example-mod/HEAD/gradle.properties"),
           ]:
               try:
-                  body = get(url)
-                  out.append("%s: %s" % (label, body[:200]))
+                  body = urllib.request.urlopen(url, timeout=30).read().decode()
+                  keep = [l for l in body.splitlines()
+                          if any(w in l for w in ("mappings", "minecraft", "loom", "loader",
+                                                  "fabric_version", "JavaVersion", "release",
+                                                  "sourceCompat", "targetCompat", "id '", "version ="))]
+                  out.append("== %s ==" % label)
+                  out.extend(keep[:40])
               except Exception as e:
                   out.append("%s Fehler: %s" % (label, e))
-          print("::error title=MAPPINGS::" + "%0A".join(out))
+          print("::error title=VORLAGE::" + "%0A".join(out)[:60000])
           PY
 
       # fabric-api und Loader aendern sich staendig. Statt sie zu raten, wird
