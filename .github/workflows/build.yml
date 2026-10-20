@@ -77,7 +77,7 @@ jobs:
           except FileNotFoundError:
               print("::error title=BUILD::build-output.txt fehlt")
               raise SystemExit(0)
-          pat = re.compile(r"(error:|warning:|FAILURE|What went wrong|Caused by|Could not|Execution failed|^\s*>|\.java:\d+)", re.M)
+          pat = re.compile(r"(PROBE:|error:|warning:|FAILURE|What went wrong|Caused by|Could not|Execution failed|^\s*>|\.java:\d+)", re.M)
           lines = [l.rstrip() for l in text.splitlines() if pat.search(l)]
           if not lines:
               lines = text.splitlines()[-80:]

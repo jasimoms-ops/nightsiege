@@ -1,7 +1,7 @@
 package com.mki.nightsiege.game;
 
 import com.mki.nightsiege.NightSiegeMod;
-import net.fabricmc.fabric.api.itemgroup.v1.FabricItemGroup;
+import net.fabricmc.fabric.api.creativetab.v1.CreativeModeTabEvents;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
@@ -9,7 +9,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.item.CreativeModeTab;
+import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
@@ -23,7 +23,6 @@ public final class ModContent {
 
     public static Block SIEGE_CORE;
     public static Item SIEGE_CORE_ITEM;
-    public static CreativeModeTab TAB;
 
     private ModContent() {
     }
@@ -49,17 +48,11 @@ public final class ModContent {
                 .useBlockDescriptionPrefix());
         Registry.register(BuiltInRegistries.ITEM, itemKey, SIEGE_CORE_ITEM);
 
-        // Everything the mod adds lives on its own creative page.
-        ResourceKey<CreativeModeTab> tabKey = ResourceKey.create(Registries.CREATIVE_MODE_TAB, id("general"));
-        TAB = FabricItemGroup.builder()
-                .title(Component.translatable("itemGroup.nightsiege.general"))
-                .icon(() -> new ItemStack(SIEGE_CORE_ITEM))
-                .displayItems((params, output) -> {
+        CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS)
+                .register(output -> {
                     output.accept(SIEGE_CORE_ITEM);
                     output.accept(GuideBook.create());
-                })
-                .build();
-        Registry.register(BuiltInRegistries.CREATIVE_MODE_TAB, tabKey, TAB);
+                });
     }
 
     public static boolean isCore(net.minecraft.world.level.block.state.BlockState state) {
