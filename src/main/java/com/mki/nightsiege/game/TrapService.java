@@ -184,6 +184,9 @@ public final class TrapService {
                 case SNARE -> tickSnare(level, pos, record, tier, now);
                 case MINE -> tickMine(level, pos, record, tier);
                 case TURRET -> tickTurret(level, pos, record, tier, now);
+                case FLAME -> tickFlame(level, pos, record, tier, now);
+                case POISON -> tickPoison(level, pos, record, tier, now);
+                case TESLA -> tickTesla(level, pos, record, tier, now);
             }
         }
         return takeDirty();
@@ -308,6 +311,117 @@ public final class TrapService {
         record.ammo--;
         record.readyAt = now + TrapKind.TURRET.cooldownTicks(tier);
         dirty = true;
+    }
+
+    /** Monsters standing right on top of a floor plate. */
+    private static List<LivingEntity> onTop(ServerLevel level, BlockPos pos) {
+        return enemies(level, new AABB(pos.getX(), pos.getY() + 1, pos.getZ(),
+                pos.getX() + 1, pos.getY() + 2.2, pos.getZ() + 1));
+    }
+
+    private static List<LivingEntity> around(ServerLevel level, Vec3 center, double r) {
+        List<LivingEntity> out = new ArrayList<>();
+        for (LivingEntity e : enemies(level, new AABB(center, center).inflate(r, 2.0, r))) {
+            if (e.distanceToSqr(center) <= r * r + 4.0) {
+                out.add(e);
+            }
+        }
+        return out;
+    }
+
+    private void tickFlame(ServerLevel level, BlockPos pos, TrapRecord record, int tier, long now) {
+        if (onTop(level, pos).isEmpty()) {
+            return;
+        }
+        Vec3 center = Vec3.atCenterOf(pos).add(0, 0.6, 0);
+        DamageSource source = sourceFor(level, record);
+        float seconds = TrapKind.FLAME.holdTicks(tier) / 20f;
+        for (LivingEntity victim : around(level, center, TrapKind.FLAME.radius(tier))) {
+            victim.igniteForSeconds(seconds);
+            victim.hurtServer(level, source, (float) TrapKind.FLAME.damage(tier));
+        }
+        // Only particles: the trap never places fire blocks.
+        level.sendParticles(ParticleTypes.FLAME, center.x, center.y, center.z, 40,
+                TrapKind.FLAME.radius(tier) * 0.5, 0.4, TrapKind.FLAME.radius(tier) * 0.5, 0.03);
+        level.sendParticles(ParticleTypes.LAVA, center.x, center.y, center.z, 6, 0.4, 0.2, 0.4, 0.0);
+        playAt(level, pos, SoundEvents.FIRECHARGE_USE, 0.9f, 0.8f);
+        record.uses--;
+        record.readyAt = now + TrapKind.FLAME.cooldownTicks(tier);
+        if (record.uses <= 0) {
+            wearOut(level, pos, record);
+        }
+        dirty = true;
+    }
+
+    private static final net.minecraft.core.particles.DustParticleOptions POISON_DUST =
+            new net.minecraft.core.particles.DustParticleOptions(0x6FB33A, 1.5f);
+
+    private void tickPoison(ServerLevel level, BlockPos pos, TrapRecord record, int tier, long now) {
+        if (onTop(level, pos).isEmpty()) {
+            return;
+        }
+        Vec3 center = Vec3.atCenterOf(pos).add(0, 0.8, 0);
+        double r = TrapKind.POISON.radius(tier);
+        int ticks = TrapKind.POISON.holdTicks(tier);
+        int amp = TrapKind.POISON.amplifier(tier);
+        for (LivingEntity victim : around(level, center, r)) {
+            // Poison heals the undead, so they wither instead.
+            boolean undead = victim.getType().is(net.minecraft.tags.EntityTypeTags.UNDEAD);
+            victim.addEffect(new MobEffectInstance(undead ? MobEffects.WITHER : MobEffects.POISON, ticks, amp));
+            victim.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, ticks, 0));
+            victim.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, ticks / 2, 0));
+        }
+        level.sendParticles(POISON_DUST, center.x, center.y, center.z, 60, r * 0.5, 0.5, r * 0.5, 0.0);
+        playAt(level, pos, SoundEvents.BREWING_STAND_BREW, 1.0f, 0.6f);
+        record.uses--;
+        record.readyAt = now + TrapKind.POISON.cooldownTicks(tier);
+        if (record.uses <= 0) {
+            wearOut(level, pos, record);
+        }
+        dirty = true;
+    }
+
+    private void tickTesla(ServerLevel level, BlockPos pos, TrapRecord record, int tier, long now) {
+        Vec3 from = Vec3.atCenterOf(pos).add(0, 0.8, 0);
+        double range = TrapKind.TESLA.radius(tier);
+        LivingEntity first = enemies(level, new AABB(from, from).inflate(range)).stream()
+                .filter(e -> e.distanceToSqr(from) <= range * range)
+                .filter(e -> clearShot(level, from, e.getEyePosition(), pos))
+                .min(Comparator.comparingDouble(e -> e.distanceToSqr(from)))
+                .orElse(null);
+        if (first == null) {
+            return;
+        }
+        DamageSource source = sourceFor(level, record);
+        float damage = (float) TrapKind.TESLA.damage(tier);
+        List<LivingEntity> hit = new ArrayList<>();
+        LivingEntity current = first;
+        Vec3 start = from;
+        while (current != null && hit.size() < TrapKind.TESLA.chainTargets(tier)) {
+            hit.add(current);
+            Vec3 end = current.position().add(0, current.getBbHeight() * 0.5, 0);
+            spark(level, start, end);
+            current.hurtServer(level, source, damage);
+            start = end;
+            // Jump to the nearest monster within four blocks not hit yet.
+            Vec3 at = end;
+            current = enemies(level, new AABB(at, at).inflate(4.0)).stream()
+                    .filter(e -> !hit.contains(e))
+                    .min(Comparator.comparingDouble(e -> e.distanceToSqr(at)))
+                    .orElse(null);
+        }
+        playAt(level, pos, SoundEvents.LIGHTNING_BOLT_IMPACT, 0.6f, 1.8f);
+        record.readyAt = now + TrapKind.TESLA.cooldownTicks(tier);
+    }
+
+    /** A crackling line of sparks between two points. */
+    private static void spark(ServerLevel level, Vec3 a, Vec3 b) {
+        Vec3 step = b.subtract(a);
+        int n = Math.max(2, (int) (step.length() * 3));
+        for (int i = 0; i <= n; i++) {
+            Vec3 p = a.add(step.scale(i / (double) n));
+            level.sendParticles(ParticleTypes.ELECTRIC_SPARK, p.x, p.y, p.z, 1, 0.05, 0.05, 0.05, 0.0);
+        }
     }
 
     // ------------------------------------------------------------------

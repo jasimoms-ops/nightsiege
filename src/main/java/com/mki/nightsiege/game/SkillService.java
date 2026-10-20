@@ -77,6 +77,7 @@ public final class SkillService {
             case ATTACK_SPEED -> Attributes.ATTACK_SPEED;
             case ARMOR -> Attributes.ARMOR;
             case MOVEMENT_SPEED -> Attributes.MOVEMENT_SPEED;
+            case KNOCKBACK_RESIST -> Attributes.KNOCKBACK_RESISTANCE;
             default -> null;
         };
     }

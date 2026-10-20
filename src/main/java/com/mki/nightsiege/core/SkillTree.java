@@ -16,6 +16,11 @@ public final class SkillTree {
 
     public static final String PATH_SWIFT = "swift";
     public static final String PATH_HEAVY = "heavy";
+    public static final String PATH_BERSERKER = "berserker";
+    public static final String PATH_BLADE = "blade";
+    public static final String PATH_SHIELD = "shield";
+    public static final String PATH_BULWARK = "bulwark";
+    public static final String PATH_MEDIC = "medic";
 
     private final Map<String, SkillNode> nodes = new LinkedHashMap<>();
 
@@ -34,7 +39,7 @@ public final class SkillTree {
     public static List<SkillNode> defaultNodes() {
         List<SkillNode> list = new ArrayList<>();
 
-        // ---------------- Archer: the finished class ----------------
+        // ---------------- Archer ----------------
         // Trunk. Both paths grow out of this one.
         list.add(new SkillNode("archer_focus", SkillClass.ARCHER, "", SkillEffect.ARROW_DAMAGE,
                 3, 2, 1, 0.5, null, 0, "minecraft:bow", 0));
@@ -55,16 +60,48 @@ public final class SkillTree {
         list.add(new SkillNode("power_shot", SkillClass.ARCHER, PATH_HEAVY, SkillEffect.POWER_SHOT,
                 3, 25, 10, 1.0, "piercing", 4, "minecraft:dragon_breath", 3));
 
-        // ---------------- The other three, still rough ----------------
-        list.add(new SkillNode("strength", SkillClass.WARRIOR, "", SkillEffect.ATTACK_DAMAGE,
-                10, 3, 1, 0.15, null, 0, "minecraft:iron_sword", 0));
-        list.add(new SkillNode("swift_blade", SkillClass.WARRIOR, "", SkillEffect.ATTACK_SPEED,
-                10, 4, 2, 0.04, "strength", 3, "minecraft:diamond_sword", 1));
+        // ---------------- Warrior: one trunk, three paths ----------------
+        list.add(new SkillNode("warrior_drill", SkillClass.WARRIOR, "", SkillEffect.ATTACK_DAMAGE,
+                3, 2, 1, 0.5, null, 0, "minecraft:iron_sword", 0));
+        // Berserker: hits harder the closer to death, drinks blood, spins.
+        list.add(new SkillNode("bloodlust", SkillClass.WARRIOR, PATH_BERSERKER, SkillEffect.RAGE,
+                4, 3, 2, 0.15, "warrior_drill", 1, "minecraft:redstone", 1));
+        list.add(new SkillNode("blood_drinker", SkillClass.WARRIOR, PATH_BERSERKER, SkillEffect.LIFESTEAL,
+                4, 5, 3, 0.05, "bloodlust", 4, "minecraft:ghast_tear", 2));
+        list.add(new SkillNode("whirlwind", SkillClass.WARRIOR, PATH_BERSERKER, SkillEffect.WHIRLWIND,
+                3, 25, 10, 1.0, "blood_drinker", 4, "minecraft:iron_axe", 3));
+        // Blademaster: precise strikes, champion hunter, finisher.
+        list.add(new SkillNode("keen_edge", SkillClass.WARRIOR, PATH_BLADE, SkillEffect.CRIT_CHANCE,
+                4, 3, 2, 0.08, "warrior_drill", 1, "minecraft:flint", 1));
+        list.add(new SkillNode("champion_bane", SkillClass.WARRIOR, PATH_BLADE, SkillEffect.CHAMPION_BANE,
+                4, 5, 3, 0.25, "keen_edge", 4, "minecraft:golden_sword", 2));
+        list.add(new SkillNode("execute", SkillClass.WARRIOR, PATH_BLADE, SkillEffect.EXECUTE,
+                3, 25, 10, 1.0, "champion_bane", 4, "minecraft:diamond_sword", 3));
+        // Shieldbearer: armour, punishes blocked hits, rams.
+        list.add(new SkillNode("iron_guard", SkillClass.WARRIOR, PATH_SHIELD, SkillEffect.ARMOR,
+                4, 3, 2, 1.5, "warrior_drill", 1, "minecraft:iron_chestplate", 1));
+        list.add(new SkillNode("riposte", SkillClass.WARRIOR, PATH_SHIELD, SkillEffect.COUNTER,
+                4, 5, 3, 1.5, "iron_guard", 4, "minecraft:shield", 2));
+        list.add(new SkillNode("shield_charge", SkillClass.WARRIOR, PATH_SHIELD, SkillEffect.SHIELD_CHARGE,
+                3, 25, 10, 1.0, "riposte", 4, "minecraft:anvil", 3));
 
+        // ---------------- Guardian: one trunk, two paths ----------------
         list.add(new SkillNode("vitality", SkillClass.GUARDIAN, "", SkillEffect.MAX_HEALTH,
-                10, 2, 1, 0.5, null, 0, "minecraft:golden_apple", 0));
-        list.add(new SkillNode("toughness", SkillClass.GUARDIAN, "", SkillEffect.ARMOR,
-                10, 3, 1, 0.25, "vitality", 3, "minecraft:iron_chestplate", 1));
+                4, 2, 1, 2.0, null, 0, "minecraft:golden_apple", 0));
+        // Bulwark: stands like a wall and draws the attack.
+        list.add(new SkillNode("toughness", SkillClass.GUARDIAN, PATH_BULWARK, SkillEffect.ARMOR,
+                4, 3, 2, 1.5, "vitality", 1, "minecraft:iron_chestplate", 1));
+        list.add(new SkillNode("steadfast", SkillClass.GUARDIAN, PATH_BULWARK, SkillEffect.KNOCKBACK_RESIST,
+                4, 5, 3, 0.15, "toughness", 4, "minecraft:netherite_ingot", 2));
+        list.add(new SkillNode("taunt", SkillClass.GUARDIAN, PATH_BULWARK, SkillEffect.TAUNT,
+                3, 25, 10, 1.0, "steadfast", 4, "minecraft:goat_horn", 3));
+        // Medic: keeps everyone standing.
+        list.add(new SkillNode("field_dressing", SkillClass.GUARDIAN, PATH_MEDIC, SkillEffect.HEAL_AURA,
+                4, 3, 2, 0.5, "vitality", 1, "minecraft:glistering_melon_slice", 1));
+        list.add(new SkillNode("triage", SkillClass.GUARDIAN, PATH_MEDIC, SkillEffect.HEAL_AURA,
+                4, 5, 3, 0.5, "field_dressing", 4, "minecraft:enchanted_golden_apple", 2));
+        list.add(new SkillNode("guardian_angel", SkillClass.GUARDIAN, PATH_MEDIC, SkillEffect.GUARDIAN_ANGEL,
+                3, 25, 10, 1.0, "triage", 4, "minecraft:totem_of_undying", 3));
 
         // ---------------- Engineer: one chain of four traps ----------------
         // Each node unlocks its trap; the next trap needs the one before at tier 2.
@@ -76,6 +113,12 @@ public final class SkillTree {
                 TrapKind.MAX_TIER, 8, 4, 1.0, TrapKind.SNARE.id(), 2, "nightsiege:blast_mine", 2));
         list.add(new SkillNode(TrapKind.TURRET.id(), SkillClass.ENGINEER, "", SkillEffect.TRAP,
                 TrapKind.MAX_TIER, 15, 8, 1.0, TrapKind.MINE.id(), 2, "nightsiege:arrow_turret", 3));
+        list.add(new SkillNode(TrapKind.FLAME.id(), SkillClass.ENGINEER, "", SkillEffect.TRAP,
+                TrapKind.MAX_TIER, 18, 8, 1.0, TrapKind.TURRET.id(), 2, "nightsiege:flame_trap", 4));
+        list.add(new SkillNode(TrapKind.POISON.id(), SkillClass.ENGINEER, "", SkillEffect.TRAP,
+                TrapKind.MAX_TIER, 22, 10, 1.0, TrapKind.FLAME.id(), 2, "nightsiege:poison_trap", 5));
+        list.add(new SkillNode(TrapKind.TESLA.id(), SkillClass.ENGINEER, "", SkillEffect.TRAP,
+                TrapKind.MAX_TIER, 30, 12, 1.0, TrapKind.POISON.id(), 2, "nightsiege:tesla_coil", 6));
 
         // ---------------- Core: shared, paid by donations ----------------
         list.add(new SkillNode("watchtower", SkillClass.CORE, "", SkillEffect.SPAWN_DISTANCE,

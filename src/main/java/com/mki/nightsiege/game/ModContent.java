@@ -82,7 +82,7 @@ public final class ModContent {
     private static void registerTrap(TrapKind kind) {
         Identifier id = id(kind.id());
         ResourceKey<Block> blockKey = ResourceKey.create(Registries.BLOCK, id);
-        boolean turret = kind == TrapKind.TURRET;
+        boolean turret = !kind.isFloorPlate();
         Block block = new TrapBlock(kind, BlockBehaviour.Properties.of()
                 .setId(blockKey)
                 .strength(turret ? 3.5f : 2.0f, 6.0f)

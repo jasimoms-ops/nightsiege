@@ -29,6 +29,8 @@ public class CoreScreen extends Screen {
 
     private static final int PANEL_W = 340;
     private static final int PANEL_H = 244;
+    /** Node rows that fit below the header. */
+    private static final int ROWS = 4;
 
     // Minecraft's own tooltip look: near black fill with a violet double edge.
     private static final int BG = 0xF0100010;
@@ -168,14 +170,38 @@ public class CoreScreen extends Screen {
         for (int column = 0; column < columns.length; column++) {
             String name = columns[column];
             int centerX = left + 12 + column * columnWidth + columnWidth / 2;
+            // Paths of the class, in the order the server lists them.
+            List<String> paths = new ArrayList<>();
+            int maxRow = 0;
+            for (CoreStats.NodeLine node : stats.nodes) {
+                if (name.equals(node.clazz)) {
+                    maxRow = Math.max(maxRow, node.row);
+                    if (node.path != null && !node.path.isBlank() && !paths.contains(node.path)) {
+                        paths.add(node.path);
+                    }
+                }
+            }
+            int snakeColumns = maxRow / ROWS + 1;
             for (CoreStats.NodeLine node : stats.nodes) {
                 if (!name.equals(node.clazz)) {
                     continue;
                 }
-                // The two paths of a class sit side by side below their shared trunk.
-                int offset = "swift".equals(node.path) ? -34 : "heavy".equals(node.path) ? 34 : 0;
+                int offset;
+                int row;
+                if (!paths.isEmpty()) {
+                    // Paths side by side below their shared trunk.
+                    int index = paths.indexOf(node.path);
+                    int spacing = paths.size() == 2 ? 68 : 52;
+                    offset = index < 0 ? 0 : (int) Math.round((index - (paths.size() - 1) / 2.0) * spacing);
+                    row = node.row;
+                } else {
+                    // A long chain snakes: down the first column, up the next.
+                    int col = node.row / ROWS;
+                    row = col % 2 == 0 ? node.row % ROWS : ROWS - 1 - node.row % ROWS;
+                    offset = (int) Math.round((col - (snakeColumns - 1) / 2.0) * 56);
+                }
                 int x = centerX - 13 + offset;
-                int y = top + 98 + node.row * 30;
+                int y = top + 98 + row * 30;
                 nodeButtons.add(new NodeButton(node, x, y));
                 addRenderableWidget(Button.builder(Component.literal(""), b -> send("buy:" + node.id))
                         .bounds(x, y, 26, 26).build());
@@ -274,16 +300,33 @@ public class CoreScreen extends Screen {
                 }
                 int px = parent.x() + 13;
                 int cx = button.x() + 13;
-                int fromY = parent.y() + 26;
-                int toY = button.y();
-                int midY = (fromY + toY) / 2;
                 int color = parent.node().level >= button.node().requiresLevel ? 0xFF6FD66F : 0xFF46414F;
-                // Down, across, down: straight for a chain, an elbow where the paths split.
-                gui.fill(px - 1, fromY, px + 1, midY + 1, color);
-                gui.fill(Math.min(px, cx) - 1, midY - 1, Math.max(px, cx) + 1, midY + 1, color);
-                gui.fill(cx - 1, midY, cx + 1, toY, color);
+                if (button.y() == parent.y()) {
+                    // Same row (where a chain turns): a short U underneath.
+                    int lowY = parent.y() + 28;
+                    vline(gui, px, parent.y() + 26, lowY, color);
+                    hline(gui, px, cx, lowY, color);
+                    vline(gui, cx, button.y() + 26, lowY, color);
+                    continue;
+                }
+                boolean down = button.y() > parent.y();
+                int fromY = down ? parent.y() + 26 : parent.y();
+                int toY = down ? button.y() : button.y() + 26;
+                int midY = (fromY + toY) / 2;
+                // Out of the parent, across, into the child: an elbow where the paths split.
+                vline(gui, px, fromY, midY, color);
+                hline(gui, px, cx, midY, color);
+                vline(gui, cx, midY, toY, color);
             }
         }
+    }
+
+    private static void vline(GuiGraphicsExtractor gui, int x, int y1, int y2, int color) {
+        gui.fill(x - 1, Math.min(y1, y2), x + 1, Math.max(y1, y2) + 1, color);
+    }
+
+    private static void hline(GuiGraphicsExtractor gui, int x1, int x2, int y, int color) {
+        gui.fill(Math.min(x1, x2) - 1, y - 1, Math.max(x1, x2) + 1, y + 1, color);
     }
 
     private void drawSkillOverlay(GuiGraphicsExtractor gui, Font font, int mouseX, int mouseY) {

@@ -23,6 +23,7 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
+import net.fabricmc.fabric.api.event.player.AttackEntityCallback;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
@@ -92,6 +93,8 @@ public final class SiegeManager {
     private final SiegeScheduler scheduler = new SiegeScheduler();
     private final SkillTree skillTree = new SkillTree();
     private final TrapService traps = new TrapService(() -> save, skillTree);
+    private final CombatEffects combat = new CombatEffects(skillTree, this::liveSkillsFor,
+            entity -> this.eliteId != null && this.eliteId.equals(entity.getUUID()));
     private final Digger digger = new Digger();
     private final Random random = new Random();
     private MobPool pool = new MobPool(SiegeConfig.defaultMobs());
@@ -169,6 +172,13 @@ public final class SiegeManager {
         ServerEntityCombatEvents.AFTER_KILLED_OTHER_ENTITY.register(
                 (killWorld, killer, killed, killSource) -> onKill(killer, killed));
         ServerPlayerEvents.JOIN.register(player -> onJoin(player));
+        AttackEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> {
+            combat.onAttack(player, entity);
+            return InteractionResult.PASS;
+        });
+        ServerLivingEntityEvents.AFTER_DAMAGE.register((entity, source, baseDamage, taken, blocked) ->
+                combat.afterDamage(entity, source, taken, blocked));
+        ServerLivingEntityEvents.ALLOW_DEATH.register((entity, source, amount) -> combat.allowDeath(entity));
         ServerEntityEvents.ENTITY_LOAD.register((entity, world) ->
                 archer.onEntityLoad(entity, world, skillTree, this::liveSkillsFor));
         PlayerBlockBreakEvents.AFTER.register(
@@ -224,6 +234,7 @@ public final class SiegeManager {
     private void onEndTick(MinecraftServer server) {
         tickModCheck(server);
         trapsDirty |= traps.tick(server);
+        combat.tick(server);
         if (trapsDirty && ++trapSaveCounter >= 200) {
             trapSaveCounter = 0;
             trapsDirty = false;
@@ -318,6 +329,7 @@ public final class SiegeManager {
                 BossEvent.BossBarOverlay.PROGRESS);
         bossBar.setProgress(1.0f);
         active = true;
+        combat.newSiege();
         for (UUID id : participants) {
             ServerPlayer player = server.getPlayerList().getPlayer(id);
             if (player != null) {

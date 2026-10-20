@@ -317,7 +317,7 @@ class SiegeCoreTest {
         skills.chosenClass = SkillClass.ARCHER.name();
         assertNull(tree.blockedReason("archer_focus", skills));
         // A node of a different class stays shut.
-        assertEquals("class", tree.blockedReason("strength", skills));
+        assertEquals("class", tree.blockedReason("warrior_drill", skills));
     }
 
     @Test
@@ -483,5 +483,74 @@ class SiegeCoreTest {
         assertEquals(1, TrapKind.MINE.uses(3));
         assertTrue(TrapKind.TURRET.startAmmo(1) <= TrapKind.TURRET.maxAmmo(1));
         assertEquals(TrapKind.SPIKE.damage(TrapKind.MAX_TIER), TrapKind.SPIKE.damage(99), 1e-9);
+    }
+
+    // ------------------------------------------------------------------
+    // warrior and guardian
+    // ------------------------------------------------------------------
+
+    @Test
+    void theWarriorPicksOneOfThreePaths() {
+        SkillTree tree = new SkillTree();
+        PlayerSkills warrior = new PlayerSkills();
+        warrior.chosenClass = SkillClass.WARRIOR.name();
+        warrior.award(1000);
+        assertTrue(tree.unlock("warrior_drill", warrior));
+        assertTrue(tree.unlock("keen_edge", warrior));
+        assertEquals(SkillTree.PATH_BLADE, warrior.pathTaken(tree));
+        assertEquals("path", tree.blockedReason("bloodlust", warrior));
+        assertEquals("path", tree.blockedReason("iron_guard", warrior));
+    }
+
+    @Test
+    void theGuardianPicksBulwarkOrMedic() {
+        SkillTree tree = new SkillTree();
+        PlayerSkills guardian = new PlayerSkills();
+        guardian.chosenClass = SkillClass.GUARDIAN.name();
+        guardian.award(1000);
+        assertTrue(tree.unlock("vitality", guardian));
+        assertTrue(tree.unlock("field_dressing", guardian));
+        assertEquals("path", tree.blockedReason("toughness", guardian));
+        assertEquals("locked", tree.blockedReason("guardian_angel", guardian));
+    }
+
+    @Test
+    void everyPathEndsInAnUltimate() {
+        SkillTree tree = new SkillTree();
+        java.util.Map<String, Boolean> ultimate = new java.util.HashMap<>();
+        for (SkillNode node : tree.all()) {
+            if (node.onTrunk() || node.clazz() == SkillClass.ARCHER) {
+                continue;
+            }
+            ultimate.merge(node.path(), node.effect().target() == SkillEffect.Target.ULTIMATE, (a, b) -> a || b);
+        }
+        assertEquals(5, ultimate.size());
+        ultimate.forEach((path, has) -> assertTrue(has, path + " has no ultimate"));
+    }
+
+    @Test
+    void theEngineerChainHasSevenTraps() {
+        SkillTree tree = new SkillTree();
+        assertEquals(7, tree.ofClass(SkillClass.ENGINEER).size());
+        assertEquals(7, TrapKind.values().length);
+        assertEquals(TrapKind.POISON.id(), tree.get(TrapKind.TESLA.id()).requires());
+    }
+
+    @Test
+    void everySkillAndTrapHasANameInBothLanguages() throws Exception {
+        SkillTree tree = new SkillTree();
+        for (String lang : new String[]{"de_de", "en_us"}) {
+            String json = new String(java.nio.file.Files.readAllBytes(java.nio.file.Path.of(
+                    "src/main/resources/assets/nightsiege/lang/" + lang + ".json")), java.nio.charset.StandardCharsets.UTF_8);
+            for (SkillNode node : tree.all()) {
+                assertTrue(json.contains("\"nightsiege.skill." + node.id() + "\""), lang + " lacks " + node.id());
+                if (!node.onTrunk()) {
+                    assertTrue(json.contains("\"nightsiege.ui.path_" + node.path() + "\""), lang + " lacks path " + node.path());
+                }
+            }
+            for (TrapKind kind : TrapKind.values()) {
+                assertTrue(json.contains("\"block.nightsiege." + kind.id() + "\""), lang + " lacks block " + kind.id());
+            }
+        }
     }
 }
