@@ -3,7 +3,9 @@ package com.mki.nightsiege.game;
 import com.mki.nightsiege.core.SkillState;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Everything the mod remembers between restarts.
@@ -20,6 +22,13 @@ public class SiegeSave {
 
     public int siegesWon;
     public int siegesLost;
+    public int currentStreak;
+    public int bestStreak;
+    public int totalKills;
+    public int totalChampionKills;
+    public int highestLevel;
+    /** Player uuid to their tally. */
+    public Map<String, PlayerStats> playerStats = new HashMap<>();
 
     /** Countdown state, so a restart does not reset the clock. */
     public long readyTicks;
@@ -62,6 +71,17 @@ public class SiegeSave {
         if (playerUuid != null && !guideGiven.contains(playerUuid)) {
             guideGiven.add(playerUuid);
         }
+    }
+
+    public PlayerStats statsOf(String playerUuid, String name) {
+        if (playerStats == null) {
+            playerStats = new HashMap<>();
+        }
+        PlayerStats stats = playerStats.computeIfAbsent(playerUuid, key -> new PlayerStats());
+        if (name != null && !name.isBlank()) {
+            stats.name = name;
+        }
+        return stats;
     }
 
     public SkillState skills() {

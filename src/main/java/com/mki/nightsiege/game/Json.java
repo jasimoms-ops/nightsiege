@@ -38,6 +38,15 @@ public final class Json {
         }
     }
 
+    /** Serialises an object for the network, never for a file. */
+    public static String toJson(Object value) {
+        return GSON.toJson(value);
+    }
+
+    public static <T> T fromJson(String text, Class<T> type) {
+        return GSON.fromJson(text, type);
+    }
+
     public static void write(Path path, Object value) {
         try {
             Files.createDirectories(path.getParent());

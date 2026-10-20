@@ -117,11 +117,18 @@ public class SiegeConfig {
     /** How many mobs of one batch make a spawn sound. The rest spawn quietly. */
     public int audibleSpawnsPerBatch = 3;
 
+    /** Disconnect players whose client does not have the mod. */
+    public boolean requireClientMod = true;
+
     public boolean skillsEnabled = true;
     /** Hand every player the written guide the first time they join. */
     public boolean giveGuideBook = true;
     /** Points every surviving defender gets for a cleared siege. */
     public int skillPointsPerSiege = 1;
+    /** Experience for every attacker a player kills. */
+    public int skillPointsPerKill = 1;
+    /** A champion is worth this many times a normal kill. */
+    public int championPointMultiplier = 10;
     /** One extra point for every this many siege levels. */
     public int skillPointsLevelStep = 5;
 
@@ -201,6 +208,8 @@ public class SiegeConfig {
         eliteDeathDamagePenalty = clampDouble(eliteDeathDamagePenalty, 0.0, 0.9);
 
         skillPointsPerSiege = Math.max(0, skillPointsPerSiege);
+        skillPointsPerKill = Math.max(0, skillPointsPerKill);
+        championPointMultiplier = Math.max(1, championPointMultiplier);
         audibleSpawnsPerBatch = Math.max(0, audibleSpawnsPerBatch);
         skillPointsLevelStep = Math.max(1, skillPointsLevelStep);
 

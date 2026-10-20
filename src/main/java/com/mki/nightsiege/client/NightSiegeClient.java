@@ -1,0 +1,27 @@
+package com.mki.nightsiege.client;
+
+import com.mki.nightsiege.core.CoreStats;
+import com.mki.nightsiege.game.CoreNetworking;
+import com.mki.nightsiege.game.Json;
+import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.minecraft.client.Minecraft;
+
+/** Client side: receives the core's state and opens the window. */
+public class NightSiegeClient implements ClientModInitializer {
+
+    @Override
+    public void onInitializeClient() {
+        CoreNetworking.registerTypes();
+        ClientPlayNetworking.registerGlobalReceiver(CoreNetworking.CoreUiPayload.TYPE,
+                (payload, context) -> {
+                    CoreStats stats = Json.fromJson(payload.json(), CoreStats.class);
+                    if (stats == null) {
+                        return;
+                    }
+                    // Network threads must not touch the screen directly.
+                    context.client().execute(() ->
+                            Minecraft.getInstance().setScreenAndShow(new CoreScreen(stats)));
+                });
+    }
+}

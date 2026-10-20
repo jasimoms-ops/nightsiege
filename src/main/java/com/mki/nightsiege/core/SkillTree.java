@@ -32,29 +32,29 @@ public final class SkillTree {
         List<SkillNode> list = new ArrayList<>();
         // --- Nahkampf
         list.add(new SkillNode("strength", SkillBranch.MELEE, SkillEffect.ATTACK_DAMAGE,
-                10, 3, 1, 0.15, null, 0));
+                10, 3, 1, 0.15, null, 0, "minecraft:iron_sword", 0));
         list.add(new SkillNode("swift_blade", SkillBranch.MELEE, SkillEffect.ATTACK_SPEED,
-                10, 4, 2, 0.04, "strength", 3));
+                10, 4, 2, 0.04, "strength", 3, "minecraft:diamond_sword", 1));
 
-        // --- Fernkampf. Beide Knoten sind vorerst nur beschrieben, nicht aktiv.
+        // --- Fernkampf. Beide Knoten sind bisher nur beschrieben, nicht wirksam.
         list.add(new SkillNode("steady_aim", SkillBranch.RANGED, SkillEffect.ARROW_SPEED,
-                8, 3, 1, 0.05, null, 0));
+                8, 3, 1, 0.05, null, 0, "minecraft:bow", 0));
         list.add(new SkillNode("double_shot", SkillBranch.RANGED, SkillEffect.ARROW_DOUBLE,
-                5, 8, 4, 0.10, "steady_aim", 4));
+                5, 8, 4, 0.10, "steady_aim", 4, "minecraft:arrow", 1));
 
         // --- Zaehigkeit
         list.add(new SkillNode("vitality", SkillBranch.TOUGHNESS, SkillEffect.MAX_HEALTH,
-                10, 2, 1, 0.5, null, 0));
+                10, 2, 1, 0.5, null, 0, "minecraft:golden_apple", 0));
         list.add(new SkillNode("toughness", SkillBranch.TOUGHNESS, SkillEffect.ARMOR,
-                10, 3, 1, 0.25, "vitality", 3));
+                10, 3, 1, 0.25, "vitality", 3, "minecraft:iron_chestplate", 1));
         list.add(new SkillNode("agility", SkillBranch.TOUGHNESS, SkillEffect.MOVEMENT_SPEED,
-                8, 4, 2, 0.002, "vitality", 5));
+                8, 4, 2, 0.002, "vitality", 5, "minecraft:feather", 2));
 
         // --- Basis. Wirkt auf die Belagerung selbst, nicht auf Spielerwerte.
         list.add(new SkillNode("watchtower", SkillBranch.BASE, SkillEffect.SPAWN_DISTANCE,
-                8, 3, 1, 1.0, null, 0));
+                8, 3, 1, 1.0, null, 0, "minecraft:spyglass", 0));
         list.add(new SkillNode("fortified", SkillBranch.BASE, SkillEffect.WAVE_DELAY,
-                8, 4, 2, 0.5, "watchtower", 3));
+                8, 4, 2, 0.5, "watchtower", 3, "minecraft:obsidian", 1));
         return list;
     }
 

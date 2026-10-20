@@ -12,12 +12,14 @@ import com.mki.nightsiege.core.SiegeMath;
 import com.mki.nightsiege.core.SiegeScheduler;
 import com.mki.nightsiege.core.SkillTree;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.fabricmc.fabric.api.entity.event.v1.ServerEntityCombatEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
@@ -41,6 +43,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
@@ -80,6 +84,8 @@ public final class SiegeManager {
     private int totalTicks;
     private int batchCooldown;
     private int digAccumulator;
+    /** Players waiting for the client-mod check, with the tick it is due. */
+    private final Map<UUID, Integer> pendingModCheck = new HashMap<>();
     private ServerBossEvent bossBar;
     private SiegeEvent currentEvent = SiegeEvent.NONE;
     private String themeMobId;
@@ -126,6 +132,8 @@ public final class SiegeManager {
 
     public void register() {
         ModContent.register();
+        CoreNetworking.registerTypes();
+        CoreNetworking.registerServerReceivers();
         ServerLifecycleEvents.SERVER_STARTED.register(server -> onServerStarted(server));
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
             syncSchedulerToSave();
@@ -134,6 +142,8 @@ public final class SiegeManager {
         ServerTickEvents.END_SERVER_TICK.register(server -> onEndTick(server));
         // Object parameters keep these handlers compiling across Fabric versions.
         ServerLivingEntityEvents.AFTER_DEATH.register((entity, source) -> onDeath(entity));
+        ServerEntityCombatEvents.AFTER_KILLED_OTHER_ENTITY.register(
+                (killWorld, killer, killed, killSource) -> onKill(killer, killed));
         ServerPlayerEvents.JOIN.register(player -> onJoin(player));
         PlayerBlockBreakEvents.AFTER.register(
                 (level, player, pos, state, blockEntity) -> onBlockBroken(level, pos));
@@ -186,6 +196,8 @@ public final class SiegeManager {
     // ------------------------------------------------------------------
 
     private void onEndTick(MinecraftServer server) {
+        tickModCheck(server);
+
         long gameTime = server.overworld().getGameTime();
         lastKnownDay = SiegeMath.dayOf(gameTime);
 
@@ -529,14 +541,18 @@ public final class SiegeManager {
         clearRemainingMobs();
         digger.reset();
 
+        save.highestLevel = Math.max(save.highestLevel, siegeLevel);
         if (won) {
             save.siegesWon++;
+            save.currentStreak++;
+            save.bestStreak = Math.max(save.bestStreak, save.currentStreak);
             awardSkillPoints(server);
             int next = SiegeMath.level(save.siegesWon, lastKnownDay, config);
             broadcast(server, Component.translatable("nightsiege.msg.won", next)
                     .withStyle(ChatFormatting.GREEN));
         } else {
             save.siegesLost++;
+            save.currentStreak = 0;
             int destroyed = 0;
             if (world != null && anchor != null) {
                 destroyed = Demolition.blast(world, anchor, config);
@@ -636,6 +652,7 @@ public final class SiegeManager {
             return;
         }
         fallen.add(id);
+        save.statsOf(id.toString(), player.getScoreboardName()).fallen++;
         MinecraftServer server = player.level().getServer();
         broadcast(server, Component.translatable("nightsiege.msg.defender_down",
                 player.getScoreboardName(), countStanding()).withStyle(ChatFormatting.RED));
@@ -693,6 +710,11 @@ public final class SiegeManager {
         }
         giveStarterCore(player);
         giveGuideBook(player);
+        if (config.requireClientMod) {
+            // The client registers its channels a moment after joining, so the
+            // check waits three seconds rather than kicking an honest player.
+            pendingModCheck.put(player.getUUID(), 60);
+        }
     }
 
     /** Every player gets the written guide once, the first time they join. */
@@ -773,8 +795,85 @@ public final class SiegeManager {
         if (!ModContent.isCore(serverLevel.getBlockState(pos))) {
             return InteractionResult.PASS;
         }
-        CoreMenu.show(player, this);
+        openCoreWindow(player);
         return InteractionResult.SUCCESS;
+    }
+
+    /** Disconnects players whose client does not have the mod. */
+    private void tickModCheck(MinecraftServer server) {
+        if (pendingModCheck.isEmpty()) {
+            return;
+        }
+        Iterator<Map.Entry<UUID, Integer>> it = pendingModCheck.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<UUID, Integer> entry = it.next();
+            int left = entry.getValue() - 1;
+            if (left > 0) {
+                entry.setValue(left);
+                continue;
+            }
+            it.remove();
+            ServerPlayer player = server.getPlayerList().getPlayer(entry.getKey());
+            if (player == null) {
+                continue;
+            }
+            if (!ServerPlayNetworking.canSend(player, CoreNetworking.CoreUiPayload.TYPE)) {
+                NightSiegeMod.LOGGER.info("[Night Siege] {} ohne Mod abgewiesen", player.getScoreboardName());
+                player.connection.disconnect(Component.translatable("nightsiege.msg.mod_required"));
+            }
+        }
+    }
+
+    /** Sends the window state, or falls back to chat for a client without it. */
+    public void openCoreWindow(ServerPlayer player) {
+        if (ServerPlayNetworking.canSend(player, CoreNetworking.CoreUiPayload.TYPE)) {
+            StatsService.sendTo(player, this);
+        } else {
+            CoreMenu.show(player, this);
+        }
+    }
+
+    /** Counts a kill and turns it into skill experience. */
+    private void onKill(Object killerObject, Object killedObject) {
+        if (!(killerObject instanceof ServerPlayer player) || !(killedObject instanceof Entity killed)) {
+            return;
+        }
+        if (!killed.entityTags().contains(MobFactory.TAG)) {
+            return;
+        }
+        boolean champion = killed.entityTags().contains(MobFactory.TAG_ELITE);
+        PlayerStats stats = save.statsOf(player.getUUID().toString(), player.getScoreboardName());
+        stats.kills++;
+        save.totalKills++;
+        if (champion) {
+            stats.championKills++;
+            save.totalChampionKills++;
+        }
+        if (config.skillsEnabled && config.skillPointsPerKill > 0) {
+            save.skills().award(champion
+                    ? config.skillPointsPerKill * config.championPointMultiplier
+                    : config.skillPointsPerKill);
+        }
+    }
+
+    /** A player clicked a node in the window. */
+    public void onBuySkill(ServerPlayer player, String nodeId) {
+        if (player == null || nodeId == null || !config.skillsEnabled) {
+            return;
+        }
+        if (skillTree.unlock(nodeId, save.skills())) {
+            persist();
+            // Skills only hold during a siege, so apply at once only if one runs.
+            if (active && participants.contains(player.getUUID()) && !fallen.contains(player.getUUID())) {
+                SkillService.apply(player, save.skills(), skillTree);
+            }
+        }
+        openCoreWindow(player);
+    }
+
+    /** The running event, or an empty string outside a siege. */
+    public String currentEventKey() {
+        return active && currentEvent != SiegeEvent.NONE ? currentEvent.name() : "";
     }
 
     // ------------------------------------------------------------------

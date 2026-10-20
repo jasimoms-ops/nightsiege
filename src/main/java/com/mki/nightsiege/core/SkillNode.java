@@ -12,10 +12,12 @@ package com.mki.nightsiege.core;
  * @param amountPerLevel how much the effect grows per level
  * @param requires       id of the node that must be learned first, or null
  * @param requiresLevel  level that node needs
+ * @param icon           item id drawn in the node frame
+ * @param row            position inside its branch column, starting at 0
  */
 public record SkillNode(String id, SkillBranch branch, SkillEffect effect, int maxLevel,
                         int baseCost, int costStep, double amountPerLevel,
-                        String requires, int requiresLevel) {
+                        String requires, int requiresLevel, String icon, int row) {
 
     /** Points needed to go from the given level to the next one. */
     public int costFor(int currentLevel) {
