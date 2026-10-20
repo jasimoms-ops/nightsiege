@@ -1,6 +1,6 @@
 package com.mki.nightsiege.game;
 
-import com.mki.nightsiege.core.SkillState;
+import com.mki.nightsiege.core.PlayerSkills;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -35,8 +35,10 @@ public class SiegeSave {
     public long requiredTicks;
 
 
-    /** One shared pot of points and learned levels for the whole server. */
-    public SkillState skills = new SkillState();
+    /** Every player keeps their own class, experience and levels. */
+    public Map<String, PlayerSkills> skills = new HashMap<>();
+    /** The shared core tree, paid for by donations. */
+    public PlayerSkills coreSkills = new PlayerSkills();
 
     public CoreRecord findCore(String dimension, int x, int y, int z) {
         if (cores == null) {
@@ -84,15 +86,28 @@ public class SiegeSave {
         return stats;
     }
 
-    public SkillState skills() {
+    public PlayerSkills skillsOf(String playerUuid) {
         if (skills == null) {
-            skills = new SkillState();
+            skills = new HashMap<>();
         }
-        return skills;
+        return skills.computeIfAbsent(playerUuid, key -> new PlayerSkills());
+    }
+
+    public PlayerSkills coreSkills() {
+        if (coreSkills == null) {
+            coreSkills = new PlayerSkills();
+        }
+        return coreSkills;
     }
 
     /** Wipes every player's skill progress. Used when a lost siege resets the core. */
+    /** A lost siege wipes every tree, the shared one included. */
     public void resetAllSkills() {
-        skills().reset();
+        if (skills != null) {
+            for (PlayerSkills entry : skills.values()) {
+                entry.reset();
+            }
+        }
+        coreSkills().reset();
     }
 }

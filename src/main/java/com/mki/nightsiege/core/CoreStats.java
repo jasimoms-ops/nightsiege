@@ -34,7 +34,8 @@ public class CoreStats {
     /** One node as the client needs to draw it. */
     public static class NodeLine {
         public String id = "";
-        public String branch = "";
+        public String clazz = "";
+        public String path = "";
         public String icon = "";
         public int row;
         public int level;
@@ -75,10 +76,18 @@ public class CoreStats {
     public int totalChampionKills;
     public int highestLevelReached;
 
-    // --- skills
+    // --- the viewing player's own tree
+    public String myClass = "";
     public int points;
     public int earned;
+    public int donated;
+    public String pathTaken = "";
+    public boolean creative;
     public boolean skillsEnabled;
+
+    /** The shared core tree. */
+    public int corePoints;
+    public int coreEarned;
 
     public List<PlayerLine> players = new ArrayList<>();
     public List<NodeLine> nodes = new ArrayList<>();

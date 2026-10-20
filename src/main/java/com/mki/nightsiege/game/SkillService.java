@@ -1,6 +1,6 @@
 package com.mki.nightsiege.game;
 
-import com.mki.nightsiege.core.SkillState;
+import com.mki.nightsiege.core.PlayerSkills;
 import com.mki.nightsiege.core.SkillEffect;
 import com.mki.nightsiege.core.SkillTree;
 import net.minecraft.core.Holder;
@@ -10,17 +10,18 @@ import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 
 /**
- * Writes the learned skills onto the player's attributes.
+ * Writes one player's own skills onto their attributes.
  *
  * <p>Every value is recomputed from Minecraft's own default plus the bonus, so
- * applying it twice changes nothing and the numbers can never creep upwards.</p>
+ * applying it twice changes nothing and the numbers can never creep upwards.
+ * Skills only hold during a siege, so {@link #clear} puts everything back.</p>
  */
 public final class SkillService {
 
     private SkillService() {
     }
 
-    public static void apply(ServerPlayer player, SkillState skills, SkillTree tree) {
+    public static void apply(ServerPlayer player, PlayerSkills skills, SkillTree tree) {
         if (player == null || skills == null || tree == null) {
             return;
         }
@@ -33,23 +34,14 @@ public final class SkillService {
                 continue;
             }
             AttributeInstance instance = player.getAttribute(attribute);
-            if (instance == null) {
-                continue;
+            if (instance != null) {
+                instance.setBaseValue(effect.playerBase() + tree.totalBonus(effect, skills));
             }
-            instance.setBaseValue(effect.playerBase() + tree.totalBonus(effect, skills));
         }
-        // Raising max health does not fill the new hearts, lowering it can leave
-        // the player above the cap.
-        float max = player.getMaxHealth();
-        if (player.getHealth() > max) {
-            player.setHealth(max);
-        }
+        capHealth(player);
     }
 
-    /**
-     * Puts every player attribute back to Minecraft's default. Called when a
-     * siege ends, so the skills only ever apply during the night itself.
-     */
+    /** Puts every attribute back to Minecraft's default. */
     public static void clear(ServerPlayer player) {
         if (player == null) {
             return;
@@ -67,6 +59,11 @@ public final class SkillService {
                 instance.setBaseValue(effect.playerBase());
             }
         }
+        capHealth(player);
+    }
+
+    /** Lowering max health can leave a player above the new cap. */
+    private static void capHealth(ServerPlayer player) {
         float max = player.getMaxHealth();
         if (player.getHealth() > max) {
             player.setHealth(max);
@@ -80,7 +77,7 @@ public final class SkillService {
             case ATTACK_SPEED -> Attributes.ATTACK_SPEED;
             case ARMOR -> Attributes.ARMOR;
             case MOVEMENT_SPEED -> Attributes.MOVEMENT_SPEED;
-            case WAVE_DELAY, SPAWN_DISTANCE, ARROW_DOUBLE, ARROW_SPEED -> null;
+            default -> null;
         };
     }
 }

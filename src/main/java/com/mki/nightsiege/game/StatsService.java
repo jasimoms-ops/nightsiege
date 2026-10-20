@@ -4,7 +4,7 @@ import com.mki.nightsiege.core.CoreStats;
 import com.mki.nightsiege.core.SiegeConfig;
 import com.mki.nightsiege.core.SiegeMath;
 import com.mki.nightsiege.core.SkillNode;
-import com.mki.nightsiege.core.SkillState;
+import com.mki.nightsiege.core.PlayerSkills;
 import com.mki.nightsiege.core.SkillTree;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -18,11 +18,11 @@ public final class StatsService {
     private StatsService() {
     }
 
-    public static CoreStats build(MinecraftServer server, SiegeManager manager) {
+    public static CoreStats build(MinecraftServer server, SiegeManager manager, ServerPlayer viewer) {
         SiegeConfig cfg = manager.config();
         SiegeSave save = manager.save();
         SkillTree tree = manager.skillTree();
-        SkillState skills = save.skills();
+        PlayerSkills skills = save.skillsOf(viewer.getUUID().toString());
 
         CoreStats stats = new CoreStats();
         int level = manager.currentLevel();
@@ -52,9 +52,15 @@ public final class StatsService {
         stats.totalChampionKills = save.totalChampionKills;
         stats.highestLevelReached = Math.max(save.highestLevel, level);
 
+        stats.myClass = skills.chosenClass == null ? "" : skills.chosenClass;
         stats.points = skills.points();
         stats.earned = skills.earned;
+        stats.donated = skills.donated;
+        stats.pathTaken = skills.pathTaken(tree);
+        stats.creative = viewer.getAbilities().instabuild;
         stats.skillsEnabled = cfg.skillsEnabled;
+        stats.corePoints = save.coreSkills().points();
+        stats.coreEarned = save.coreSkills().earned;
 
         if (save.playerStats != null) {
             for (Map.Entry<String, PlayerStats> entry : save.playerStats.entrySet()) {
@@ -75,15 +81,17 @@ public final class StatsService {
         for (SkillNode node : tree.all()) {
             CoreStats.NodeLine line = new CoreStats.NodeLine();
             line.id = node.id();
-            line.branch = node.branch().name();
+            line.clazz = node.clazz().name();
+            line.path = node.path() == null ? "" : node.path();
             line.icon = node.icon();
             line.row = node.row();
-            line.level = skills.levelOf(node.id());
+            boolean shared = node.clazz().isShared();
+            line.level = shared ? save.coreSkills().levelOf(node.id()) : skills.levelOf(node.id());
             line.maxLevel = node.maxLevel();
             line.cost = node.costFor(line.level);
             line.requires = node.requires();
             line.requiresLevel = node.requiresLevel();
-            line.blocked = tree.blockedReason(node.id(), skills);
+            line.blocked = tree.blockedReason(node.id(), shared ? save.coreSkills() : skills);
             line.live = node.effect().isLive();
             stats.nodes.add(line);
         }
@@ -96,7 +104,7 @@ public final class StatsService {
         if (server == null) {
             return;
         }
-        String json = Json.toJson(build(server, manager));
+        String json = Json.toJson(build(server, manager, player));
         net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(player,
                 new CoreNetworking.CoreUiPayload(json));
     }

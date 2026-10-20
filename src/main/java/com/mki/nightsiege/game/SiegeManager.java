@@ -5,7 +5,8 @@ import com.mki.nightsiege.core.AnchorPicker;
 import com.mki.nightsiege.core.EventPicker;
 import com.mki.nightsiege.core.MobPool;
 import com.mki.nightsiege.core.SkillEffect;
-import com.mki.nightsiege.core.SkillState;
+import com.mki.nightsiege.core.PlayerSkills;
+import com.mki.nightsiege.core.SkillClass;
 import com.mki.nightsiege.core.SiegeConfig;
 import com.mki.nightsiege.core.SiegeEvent;
 import com.mki.nightsiege.core.SiegeMath;
@@ -289,7 +290,7 @@ public final class SiegeManager {
         for (UUID id : participants) {
             ServerPlayer player = server.getPlayerList().getPlayer(id);
             if (player != null) {
-                SkillService.apply(player, save.skills(), skillTree);
+                SkillService.apply(player, save.skillsOf(player.getUUID().toString()), skillTree);
             }
         }
 
@@ -369,7 +370,7 @@ public final class SiegeManager {
         for (ServerPlayer player : playersNear(server, world, anchor, config.participantRadius)) {
             if (!fallen.contains(player.getUUID())) {
                 if (participants.add(player.getUUID())) {
-                    SkillService.apply(player, save.skills(), skillTree);
+                    SkillService.apply(player, save.skillsOf(player.getUUID().toString()), skillTree);
                 }
             }
         }
@@ -394,7 +395,7 @@ public final class SiegeManager {
 
         if (batchCooldown <= 0) {
             spawnBatch(server);
-            double extraDelay = skillTree.totalBonus(SkillEffect.WAVE_DELAY, save.skills());
+            double extraDelay = skillTree.totalBonus(SkillEffect.WAVE_DELAY, save.coreSkills());
             batchCooldown = (int) Math.round((config.batchIntervalSeconds + extraDelay) * 20.0);
         } else {
             batchCooldown--;
@@ -503,7 +504,7 @@ public final class SiegeManager {
 
     /** Extra blocks the Basis branch pushes the attackers back by. */
     private double spawnDistanceBonus() {
-        return skillTree.totalBonus(SkillEffect.SPAWN_DISTANCE, save.skills());
+        return skillTree.totalBonus(SkillEffect.SPAWN_DISTANCE, save.coreSkills());
     }
 
     /** Skills only hold for the night, so everyone goes back to normal values. */
@@ -614,8 +615,13 @@ public final class SiegeManager {
             return;
         }
         int amount = config.skillPointsPerSiege + siegeLevel / Math.max(1, config.skillPointsLevelStep);
-        // One shared pot: the points are earned by the team, not per player.
-        save.skills().award(amount);
+        // Everyone who was still standing earns it for themselves.
+        for (UUID id : participants) {
+            if (fallen.contains(id)) {
+                continue;
+            }
+            save.skillsOf(id.toString()).award(amount);
+        }
         Fx.pointsEarned(server, config);
         broadcast(server, Component.translatable("nightsiege.msg.points_earned", amount)
                 .withStyle(ChatFormatting.AQUA));
@@ -704,7 +710,7 @@ public final class SiegeManager {
         // Skills gelten nur waehrend einer Belagerung. Beim Betreten werden
         // daher Reste entfernt, etwa nach einem Absturz mitten in der Nacht.
         if (active && participants.contains(player.getUUID()) && !fallen.contains(player.getUUID())) {
-            SkillService.apply(player, save.skills(), skillTree);
+            SkillService.apply(player, save.skillsOf(player.getUUID().toString()), skillTree);
         } else {
             SkillService.clear(player);
         }
@@ -829,7 +835,7 @@ public final class SiegeManager {
         if (ServerPlayNetworking.canSend(player, CoreNetworking.CoreUiPayload.TYPE)) {
             StatsService.sendTo(player, this);
         } else {
-            CoreMenu.show(player, this);
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.mod_required"));
         }
     }
 
@@ -850,9 +856,48 @@ public final class SiegeManager {
             save.totalChampionKills++;
         }
         if (config.skillsEnabled && config.skillPointsPerKill > 0) {
-            save.skills().award(champion
+            save.skillsOf(player.getUUID().toString()).award(champion
                     ? config.skillPointsPerKill * config.championPointMultiplier
                     : config.skillPointsPerKill);
+        }
+    }
+
+    /** Routes one button press from the window. */
+    public void onCoreAction(ServerPlayer player, String action) {
+        if (player == null || action == null || action.isBlank()) {
+            return;
+        }
+        String[] parts = action.split(":", 2);
+        String verb = parts[0];
+        String argument = parts.length > 1 ? parts[1] : "";
+        switch (verb) {
+            case "buy" -> onBuySkill(player, argument);
+            case "class" -> onChooseClass(player, argument);
+            case "donate" -> onDonate(player, parseAmount(argument));
+            case "dev" -> onDevAction(player, argument);
+            default -> openCoreWindow(player);
+        }
+    }
+
+    private static int parseAmount(String text) {
+        try {
+            return Integer.parseInt(text.trim());
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    /** Creative shortcuts, so classes can be tried out without grinding. */
+    private void onDevAction(ServerPlayer player, String argument) {
+        if (!player.getAbilities().instabuild) {
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.creative_only")
+                    .withStyle(ChatFormatting.RED));
+            return;
+        }
+        if (argument.startsWith("reset")) {
+            devResetClass(player);
+        } else {
+            devGrant(player, Math.max(1, parseAmount(argument)));
         }
     }
 
@@ -861,13 +906,76 @@ public final class SiegeManager {
         if (player == null || nodeId == null || !config.skillsEnabled) {
             return;
         }
-        if (skillTree.unlock(nodeId, save.skills())) {
+        var node = skillTree.get(nodeId);
+        if (node == null) {
+            return;
+        }
+        PlayerSkills own = save.skillsOf(player.getUUID().toString());
+        if (node.clazz().isShared()) {
+            // The core tree is paid from the shared pot that donations fill.
+            if (skillTree.unlock(nodeId, save.coreSkills())) {
+                persist();
+            }
+        } else if (skillTree.unlock(nodeId, own)) {
             persist();
             // Skills only hold during a siege, so apply at once only if one runs.
             if (active && participants.contains(player.getUUID()) && !fallen.contains(player.getUUID())) {
-                SkillService.apply(player, save.skills(), skillTree);
+                SkillService.apply(player, own, skillTree);
             }
         }
+        openCoreWindow(player);
+    }
+
+    /** Commits a player to a class. Only possible while they have none. */
+    public void onChooseClass(ServerPlayer player, String className) {
+        SkillClass chosen = SkillClass.byName(className);
+        if (player == null || chosen == null || chosen.isShared()) {
+            return;
+        }
+        PlayerSkills own = save.skillsOf(player.getUUID().toString());
+        if (own.hasClass()) {
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.class_locked")
+                    .withStyle(ChatFormatting.RED));
+        } else {
+            own.chosenClass = chosen.name();
+            persist();
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.class_chosen",
+                    Component.translatable(chosen.translationKey())).withStyle(ChatFormatting.GREEN));
+        }
+        openCoreWindow(player);
+    }
+
+    /** Moves experience from a player into the shared core pot. */
+    public void onDonate(ServerPlayer player, int amount) {
+        if (player == null || amount <= 0) {
+            return;
+        }
+        PlayerSkills own = save.skillsOf(player.getUUID().toString());
+        int moved = Math.min(amount, own.points());
+        if (moved > 0) {
+            own.spend(moved);
+            own.donated += moved;
+            save.coreSkills().award(moved);
+            persist();
+            broadcast(player.level().getServer(), Component.translatable("nightsiege.msg.donated",
+                    player.getScoreboardName(), moved).withStyle(ChatFormatting.AQUA));
+        }
+        openCoreWindow(player);
+    }
+
+    /** Creative only: hands a player experience so a class can be tried out. */
+    public void devGrant(ServerPlayer player, int amount) {
+        save.skillsOf(player.getUUID().toString()).award(Math.max(0, amount));
+        save.coreSkills().award(Math.max(0, amount));
+        persist();
+        openCoreWindow(player);
+    }
+
+    /** Creative only: frees a player to pick a different class. */
+    public void devResetClass(ServerPlayer player) {
+        save.skillsOf(player.getUUID().toString()).reset();
+        SkillService.clear(player);
+        persist();
         openCoreWindow(player);
     }
 

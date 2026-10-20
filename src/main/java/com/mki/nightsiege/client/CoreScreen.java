@@ -1,6 +1,7 @@
 package com.mki.nightsiege.client;
 
 import com.mki.nightsiege.core.CoreStats;
+import com.mki.nightsiege.core.SkillClass;
 import com.mki.nightsiege.game.CoreNetworking;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
@@ -107,30 +108,59 @@ public class CoreScreen extends Screen {
     // skill tree layout
     // ------------------------------------------------------------------
 
-    private static final String[] BRANCH_ORDER = {"MELEE", "RANGED", "TOUGHNESS", "BASE"};
-
+    /** The viewing player's own tree on the left, the shared core tree right. */
     private void buildSkillNodes() {
-        int columnWidth = (PANEL_W - 24) / BRANCH_ORDER.length;
-        for (int column = 0; column < BRANCH_ORDER.length; column++) {
-            String branch = BRANCH_ORDER[column];
+        if (stats.myClass == null || stats.myClass.isBlank()) {
+            buildClassChoice();
+            return;
+        }
+        addColumns(new String[]{stats.myClass, SkillClass.CORE.name()});
+
+        addRenderableWidget(Button.builder(Component.translatable("nightsiege.ui.donate"),
+                        b -> send("donate:5"))
+                .bounds(left + PANEL_W - 128, top + PANEL_H - 24, 64, 18).build());
+        if (stats.creative) {
+            addRenderableWidget(Button.builder(Component.translatable("nightsiege.ui.dev_grant"),
+                            b -> send("dev:50"))
+                    .bounds(left + 8, top + PANEL_H - 24, 74, 18).build());
+            addRenderableWidget(Button.builder(Component.translatable("nightsiege.ui.dev_reset"),
+                            b -> send("dev:reset"))
+                    .bounds(left + 86, top + PANEL_H - 24, 74, 18).build());
+        }
+    }
+
+    /** Before a class is picked the page is a choice of four. */
+    private void buildClassChoice() {
+        SkillClass[] options = {SkillClass.ARCHER, SkillClass.WARRIOR,
+                SkillClass.GUARDIAN, SkillClass.ENGINEER};
+        for (int i = 0; i < options.length; i++) {
+            SkillClass option = options[i];
+            addRenderableWidget(Button.builder(Component.translatable(option.translationKey()),
+                            b -> send("class:" + option.name()))
+                    .bounds(left + 20 + (i % 2) * 150, top + 90 + (i / 2) * 26, 140, 20).build());
+        }
+    }
+
+    private void addColumns(String[] columns) {
+        int columnWidth = (PANEL_W - 24) / columns.length;
+        for (int column = 0; column < columns.length; column++) {
+            String name = columns[column];
             int centerX = left + 12 + column * columnWidth + columnWidth / 2;
             for (CoreStats.NodeLine node : stats.nodes) {
-                if (!branch.equals(node.branch)) {
+                if (!name.equals(node.clazz)) {
                     continue;
                 }
                 int x = centerX - 13;
-                int y = top + 72 + node.row * 36;
+                int y = top + 86 + node.row * 32;
                 nodeButtons.add(new NodeButton(node, x, y));
-                // An invisible-sized button carries the click; the frame and the
-                // icon are drawn on top afterwards.
-                addRenderableWidget(Button.builder(Component.literal(""), b -> buy(node.id))
+                addRenderableWidget(Button.builder(Component.literal(""), b -> send("buy:" + node.id))
                         .bounds(x, y, 26, 26).build());
             }
         }
     }
 
-    private void buy(String nodeId) {
-        ClientPlayNetworking.send(new CoreNetworking.BuySkillPayload(nodeId));
+    private void send(String action) {
+        ClientPlayNetworking.send(new CoreNetworking.CoreActionPayload(action));
     }
 
     // ------------------------------------------------------------------
@@ -228,15 +258,27 @@ public class CoreScreen extends Screen {
     }
 
     private void drawSkillOverlay(GuiGraphicsExtractor gui, Font font, int mouseX, int mouseY) {
-        gui.text(font, Component.translatable("nightsiege.ui.points", stats.points, stats.earned).getString(),
-                left + 12, top + 48, GOLD, false);
-
-        int columnWidth = (PANEL_W - 24) / BRANCH_ORDER.length;
-        for (int column = 0; column < BRANCH_ORDER.length; column++) {
-            String key = "nightsiege.branch." + BRANCH_ORDER[column].toLowerCase(Locale.ROOT);
-            gui.text(font, Component.translatable(key).getString(),
-                    left + 14 + column * columnWidth, top + 62, GRAY, false);
+        if (stats.myClass == null || stats.myClass.isBlank()) {
+            gui.text(font, Component.translatable("nightsiege.ui.pick_class").getString(),
+                    left + 12, top + 50, GOLD, false);
+            gui.text(font, Component.translatable("nightsiege.ui.pick_hint").getString(),
+                    left + 12, top + 64, GRAY, false);
+            return;
         }
+
+        gui.text(font, Component.translatable("nightsiege.ui.my_class",
+                        Component.translatable("nightsiege.class." + stats.myClass.toLowerCase(Locale.ROOT)))
+                .getString(), left + 12, top + 48, GOLD, false);
+        gui.text(font, Component.translatable("nightsiege.ui.points", stats.points, stats.earned).getString(),
+                left + 12, top + 60, WHITE, false);
+        gui.text(font, Component.translatable("nightsiege.ui.core_pot", stats.corePoints, stats.donated).getString(),
+                left + 12, top + 72, GRAY, false);
+
+        int columnWidth = (PANEL_W - 24) / 2;
+        gui.text(font, Component.translatable("nightsiege.class." + stats.myClass.toLowerCase(Locale.ROOT)).getString(),
+                left + 14, top + 78, GRAY, false);
+        gui.text(font, Component.translatable("nightsiege.class.core").getString(),
+                left + 14 + columnWidth, top + 78, GRAY, false);
 
         CoreStats.NodeLine hovered = null;
         for (NodeButton button : nodeButtons) {
@@ -267,8 +309,8 @@ public class CoreScreen extends Screen {
         if (node.blocked != null) {
             lines.add(Component.translatable("nightsiege.menu.blocked_" + node.blocked, node.cost).getString());
         }
-        if (!node.live) {
-            lines.add(Component.translatable("nightsiege.menu.preview").getString());
+        if (node.path != null && !node.path.isBlank()) {
+            lines.add(Component.translatable("nightsiege.ui.path_" + node.path).getString());
         }
 
         int width = 0;

@@ -30,14 +30,21 @@ public final class CoreNetworking {
         }
     }
 
-    /** Client to server: buy one skill. */
-    public record BuySkillPayload(String nodeId) implements CustomPacketPayload {
+    /**
+     * Client to server: one action from the window.
+     *
+     * <p>The action is a short string such as {@code buy:double_shot},
+     * {@code class:ARCHER}, {@code donate:10} or {@code dev:grant}. One message
+     * type covers every button, so a new button never means new network code.</p>
+     */
+    public record CoreActionPayload(String action) implements CustomPacketPayload {
 
-        public static final CustomPacketPayload.Type<BuySkillPayload> TYPE =
-                new CustomPacketPayload.Type<>(ModContent.id("buy_skill"));
+        public static final CustomPacketPayload.Type<CoreActionPayload> TYPE =
+                new CustomPacketPayload.Type<>(ModContent.id("core_action"));
 
-        public static final StreamCodec<RegistryFriendlyByteBuf, BuySkillPayload> CODEC =
-                StreamCodec.composite(ByteBufCodecs.STRING_UTF8, BuySkillPayload::nodeId, BuySkillPayload::new);
+        public static final StreamCodec<RegistryFriendlyByteBuf, CoreActionPayload> CODEC =
+                StreamCodec.composite(ByteBufCodecs.STRING_UTF8,
+                        CoreActionPayload::action, CoreActionPayload::new);
 
         @Override
         public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
@@ -51,16 +58,16 @@ public final class CoreNetworking {
     /** Registers both message types. Must run on both sides. */
     public static void registerTypes() {
         PayloadTypeRegistry.clientboundPlay().register(CoreUiPayload.TYPE, CoreUiPayload.CODEC);
-        PayloadTypeRegistry.serverboundPlay().register(BuySkillPayload.TYPE, BuySkillPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(CoreActionPayload.TYPE, CoreActionPayload.CODEC);
     }
 
     /** Server side handler for skill purchases. */
     public static void registerServerReceivers() {
-        ServerPlayNetworking.registerGlobalReceiver(BuySkillPayload.TYPE,
+        ServerPlayNetworking.registerGlobalReceiver(CoreActionPayload.TYPE,
                 (payload, context) -> {
                     // Network threads must not touch world state directly.
                     context.server().execute(() ->
-                            SiegeManager.get().onBuySkill(context.player(), payload.nodeId()));
+                            SiegeManager.get().onCoreAction(context.player(), payload.action()));
                 });
     }
 }

@@ -2,10 +2,11 @@ package com.mki.nightsiege.game;
 
 import com.mki.nightsiege.core.AnchorPicker;
 import com.mki.nightsiege.core.MobEntry;
-import com.mki.nightsiege.core.SkillState;
+import com.mki.nightsiege.core.PlayerSkills;
 import com.mki.nightsiege.core.SkillNode;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -38,7 +39,11 @@ public final class SiegeCommands {
                 .then(Commands.literal("mobs").executes(SiegeCommands::mobs))
                 .then(Commands.literal("start").executes(SiegeCommands::start))
                 .then(Commands.literal("stop").executes(SiegeCommands::stop))
-                .then(Commands.literal("reload").executes(SiegeCommands::reload)));
+                .then(Commands.literal("reload").executes(SiegeCommands::reload))
+                .then(Commands.literal("dev")
+                        .then(Commands.literal("reset").executes(SiegeCommands::devReset))
+                        .then(Commands.argument("punkte", IntegerArgumentType.integer(1, 100000))
+                                .executes(SiegeCommands::devGrant))));
     }
 
     private static int info(CommandContext<CommandSourceStack> ctx) {
@@ -96,7 +101,7 @@ public final class SiegeCommands {
         }
         SiegeManager manager = SiegeManager.get();
         String nodeId = StringArgumentType.getString(ctx, "node");
-        SkillState skills = manager.save().skills();
+        PlayerSkills skills = manager.save().skillsOf(player.getUUID().toString());
         SkillNode node = manager.skillTree().get(nodeId);
         if (node == null) {
             fail(source, Component.translatable("nightsiege.cmd.unknown_skill", nodeId));
@@ -180,6 +185,45 @@ public final class SiegeCommands {
         // Counts as survived, so stopping never triggers the punishment.
         manager.finish(source.getLevel().getServer(), true);
         reply(source, Component.translatable("nightsiege.cmd.stopped"));
+        return 1;
+    }
+
+    /** Creative only: hands out experience so a class can be tried out. */
+    private static int devGrant(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        ServerPlayer player;
+        try {
+            player = source.getPlayerOrException();
+        } catch (Exception e) {
+            fail(source, Component.translatable("nightsiege.cmd.player_only"));
+            return 0;
+        }
+        if (!player.getAbilities().instabuild) {
+            fail(source, Component.translatable("nightsiege.msg.creative_only"));
+            return 0;
+        }
+        int amount = IntegerArgumentType.getInteger(ctx, "punkte");
+        SiegeManager.get().devGrant(player, amount);
+        reply(source, Component.translatable("nightsiege.cmd.dev_granted", amount));
+        return 1;
+    }
+
+    /** Creative only: frees the player to pick a different class. */
+    private static int devReset(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        ServerPlayer player;
+        try {
+            player = source.getPlayerOrException();
+        } catch (Exception e) {
+            fail(source, Component.translatable("nightsiege.cmd.player_only"));
+            return 0;
+        }
+        if (!player.getAbilities().instabuild) {
+            fail(source, Component.translatable("nightsiege.msg.creative_only"));
+            return 0;
+        }
+        SiegeManager.get().devResetClass(player);
+        reply(source, Component.translatable("nightsiege.cmd.dev_reset"));
         return 1;
     }
 

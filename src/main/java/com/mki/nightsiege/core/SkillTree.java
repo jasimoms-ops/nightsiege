@@ -6,13 +6,16 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * The skill catalogue: four branches, each with a root that can be taken
- * straight away and deeper nodes behind it.
+ * The skill catalogue.
  *
- * <p>This is the frame, not the balance. The numbers are deliberately small so
- * the tree pays off over many sieges instead of deciding a single night.</p>
+ * <p>Four player classes and one shared core tree. A class usually has a short
+ * trunk and two paths behind it; once a player puts a point into one path, the
+ * other is closed for good.</p>
  */
 public final class SkillTree {
+
+    public static final String PATH_SWIFT = "swift";
+    public static final String PATH_HEAVY = "heavy";
 
     private final Map<String, SkillNode> nodes = new LinkedHashMap<>();
 
@@ -30,30 +33,46 @@ public final class SkillTree {
 
     public static List<SkillNode> defaultNodes() {
         List<SkillNode> list = new ArrayList<>();
-        // --- Nahkampf
-        list.add(new SkillNode("strength", SkillBranch.MELEE, SkillEffect.ATTACK_DAMAGE,
+
+        // ---------------- Archer: the finished class ----------------
+        // Trunk. Both paths grow out of this one.
+        list.add(new SkillNode("archer_focus", SkillClass.ARCHER, "", SkillEffect.ARROW_DAMAGE,
+                3, 2, 1, 0.5, null, 0, "minecraft:bow", 0));
+
+        // Path one: loose arrows faster. A half drawn bow still hits full force.
+        list.add(new SkillNode("swift_draw", SkillClass.ARCHER, PATH_SWIFT, SkillEffect.DRAW_ASSIST,
+                4, 3, 2, 0.22, "archer_focus", 1, "minecraft:feather", 1));
+        list.add(new SkillNode("quick_hands", SkillClass.ARCHER, PATH_SWIFT, SkillEffect.DRAW_ASSIST,
+                4, 5, 3, 0.07, "swift_draw", 4, "minecraft:sugar", 2));
+        list.add(new SkillNode("double_shot", SkillClass.ARCHER, PATH_SWIFT, SkillEffect.DOUBLE_SHOT,
+                1, 25, 0, 1.0, "quick_hands", 4, "minecraft:arrow", 3));
+
+        // Path two: slower, but every arrow lands like a hammer.
+        list.add(new SkillNode("heavy_draw", SkillClass.ARCHER, PATH_HEAVY, SkillEffect.ARROW_DAMAGE,
+                5, 3, 2, 1.2, "archer_focus", 1, "minecraft:iron_ingot", 1));
+        list.add(new SkillNode("piercing", SkillClass.ARCHER, PATH_HEAVY, SkillEffect.ARROW_DAMAGE,
+                4, 5, 3, 2.0, "heavy_draw", 5, "minecraft:spectral_arrow", 2));
+        list.add(new SkillNode("power_shot", SkillClass.ARCHER, PATH_HEAVY, SkillEffect.POWER_SHOT,
+                3, 25, 10, 1.0, "piercing", 4, "minecraft:dragon_breath", 3));
+
+        // ---------------- The other three, still rough ----------------
+        list.add(new SkillNode("strength", SkillClass.WARRIOR, "", SkillEffect.ATTACK_DAMAGE,
                 10, 3, 1, 0.15, null, 0, "minecraft:iron_sword", 0));
-        list.add(new SkillNode("swift_blade", SkillBranch.MELEE, SkillEffect.ATTACK_SPEED,
+        list.add(new SkillNode("swift_blade", SkillClass.WARRIOR, "", SkillEffect.ATTACK_SPEED,
                 10, 4, 2, 0.04, "strength", 3, "minecraft:diamond_sword", 1));
 
-        // --- Fernkampf. Beide Knoten sind bisher nur beschrieben, nicht wirksam.
-        list.add(new SkillNode("steady_aim", SkillBranch.RANGED, SkillEffect.ARROW_SPEED,
-                8, 3, 1, 0.05, null, 0, "minecraft:bow", 0));
-        list.add(new SkillNode("double_shot", SkillBranch.RANGED, SkillEffect.ARROW_DOUBLE,
-                5, 8, 4, 0.10, "steady_aim", 4, "minecraft:arrow", 1));
-
-        // --- Zaehigkeit
-        list.add(new SkillNode("vitality", SkillBranch.TOUGHNESS, SkillEffect.MAX_HEALTH,
+        list.add(new SkillNode("vitality", SkillClass.GUARDIAN, "", SkillEffect.MAX_HEALTH,
                 10, 2, 1, 0.5, null, 0, "minecraft:golden_apple", 0));
-        list.add(new SkillNode("toughness", SkillBranch.TOUGHNESS, SkillEffect.ARMOR,
+        list.add(new SkillNode("toughness", SkillClass.GUARDIAN, "", SkillEffect.ARMOR,
                 10, 3, 1, 0.25, "vitality", 3, "minecraft:iron_chestplate", 1));
-        list.add(new SkillNode("agility", SkillBranch.TOUGHNESS, SkillEffect.MOVEMENT_SPEED,
-                8, 4, 2, 0.002, "vitality", 5, "minecraft:feather", 2));
 
-        // --- Basis. Wirkt auf die Belagerung selbst, nicht auf Spielerwerte.
-        list.add(new SkillNode("watchtower", SkillBranch.BASE, SkillEffect.SPAWN_DISTANCE,
+        list.add(new SkillNode("agility", SkillClass.ENGINEER, "", SkillEffect.MOVEMENT_SPEED,
+                8, 4, 2, 0.002, null, 0, "minecraft:feather", 0));
+
+        // ---------------- Core: shared, paid by donations ----------------
+        list.add(new SkillNode("watchtower", SkillClass.CORE, "", SkillEffect.SPAWN_DISTANCE,
                 8, 3, 1, 1.0, null, 0, "minecraft:spyglass", 0));
-        list.add(new SkillNode("fortified", SkillBranch.BASE, SkillEffect.WAVE_DELAY,
+        list.add(new SkillNode("fortified", SkillClass.CORE, "", SkillEffect.WAVE_DELAY,
                 8, 4, 2, 0.5, "watchtower", 3, "minecraft:obsidian", 1));
         return list;
     }
@@ -66,26 +85,40 @@ public final class SkillTree {
         return new ArrayList<>(nodes.values());
     }
 
-    /** Every node of one branch, in display order. */
-    public List<SkillNode> ofBranch(SkillBranch branch) {
+    public List<SkillNode> ofClass(SkillClass clazz) {
         List<SkillNode> out = new ArrayList<>();
         for (SkillNode node : nodes.values()) {
-            if (node.branch() == branch) {
+            if (node.clazz() == clazz) {
                 out.add(node);
             }
         }
         return out;
     }
 
-    /** Why a node cannot be taken right now, or null when it can. */
-    public String blockedReason(String nodeId, SkillState skills) {
+    /**
+     * Why a node cannot be taken right now, or null when it can.
+     *
+     * <p>Reasons: {@code class} wrong or unchosen class, {@code path} the other
+     * path of this class is already taken, {@code locked} prerequisite missing,
+     * {@code maxed}, {@code points}.</p>
+     */
+    public String blockedReason(String nodeId, PlayerSkills skills) {
         SkillNode node = get(nodeId);
         if (node == null) {
             return "unknown";
         }
+        if (!node.clazz().isShared() && node.clazz() != skills.clazz()) {
+            return skills.hasClass() ? "class" : "nochoice";
+        }
         int level = skills.levelOf(nodeId);
         if (level >= node.maxLevel()) {
             return "maxed";
+        }
+        if (!node.onTrunk()) {
+            String taken = skills.pathTaken(this);
+            if (!taken.isEmpty() && !taken.equals(node.path())) {
+                return "path";
+            }
         }
         if (node.requires() != null && skills.levelOf(node.requires()) < node.requiresLevel()) {
             return "locked";
@@ -96,12 +129,12 @@ public final class SkillTree {
         return null;
     }
 
-    public boolean canUnlock(String nodeId, SkillState skills) {
+    public boolean canUnlock(String nodeId, PlayerSkills skills) {
         return blockedReason(nodeId, skills) == null;
     }
 
     /** Spends the points and raises the level. Returns false when not allowed. */
-    public boolean unlock(String nodeId, SkillState skills) {
+    public boolean unlock(String nodeId, PlayerSkills skills) {
         if (!canUnlock(nodeId, skills)) {
             return false;
         }
@@ -112,8 +145,8 @@ public final class SkillTree {
         return true;
     }
 
-    /** Total bonus across all nodes for one effect. */
-    public double totalBonus(SkillEffect effect, SkillState skills) {
+    /** Total bonus across all nodes of one effect. */
+    public double totalBonus(SkillEffect effect, PlayerSkills skills) {
         double sum = 0.0;
         for (SkillNode node : nodes.values()) {
             if (node.effect() == effect) {

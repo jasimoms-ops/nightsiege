@@ -4,8 +4,8 @@ package com.mki.nightsiege.core;
  * What a skill actually changes.
  *
  * <p>Player effects carry Minecraft's own default as their base; the mod adds
- * its bonus on top. Siege effects instead shift the parameters of the night and
- * never touch a player attribute.</p>
+ * its bonus on top. Siege effects shift the parameters of the night. Arrow
+ * effects are applied to the arrows a player looses.</p>
  */
 public enum SkillEffect {
     MAX_HEALTH(20.0, Target.PLAYER),
@@ -16,15 +16,19 @@ public enum SkillEffect {
 
     /** Extra seconds between two waves. */
     WAVE_DELAY(0.0, Target.SIEGE),
-    /** Extra blocks the attackers have to cross before they reach you. */
+    /** Extra blocks the attackers have to cross. */
     SPAWN_DISTANCE(0.0, Target.SIEGE),
 
-    /** Chance for a bow to loose a second arrow. Defined, not yet wired up. */
-    ARROW_DOUBLE(0.0, Target.PREVIEW),
-    /** Faster arrows. Defined, not yet wired up. */
-    ARROW_SPEED(0.0, Target.PREVIEW);
+    /** Pulls a half drawn shot towards full power. */
+    DRAW_ASSIST(0.0, Target.ARROW),
+    /** A second arrow beside the first. */
+    DOUBLE_SHOT(0.0, Target.ARROW),
+    /** Flat extra damage on arrows from a bow. */
+    ARROW_DAMAGE(0.0, Target.ARROW),
+    /** A charged shot on a cooldown that hits far harder. */
+    POWER_SHOT(0.0, Target.ARROW);
 
-    public enum Target { PLAYER, SIEGE, PREVIEW }
+    public enum Target { PLAYER, SIEGE, ARROW }
 
     private final double playerBase;
     private final Target target;
@@ -34,7 +38,6 @@ public enum SkillEffect {
         this.target = target;
     }
 
-    /** The value a player has without any skill. */
     public double playerBase() {
         return playerBase;
     }
@@ -43,8 +46,8 @@ public enum SkillEffect {
         return target;
     }
 
-    /** True once the effect is actually applied in game. */
+    /** Everything is wired up now; kept so the window can still mark previews. */
     public boolean isLive() {
-        return target != Target.PREVIEW;
+        return true;
     }
 }
