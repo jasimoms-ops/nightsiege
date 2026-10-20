@@ -209,6 +209,7 @@ public final class SiegeManager {
             if (target != null) {
                 broadcast(server, Component.translatable("nightsiege.msg.warning", currentLevel())
                         .withStyle(ChatFormatting.GOLD));
+                Fx.warning(server, config);
             }
         } else if (decision == SiegeScheduler.Decision.START) {
             tryStart(server, target);
@@ -281,6 +282,7 @@ public final class SiegeManager {
 
         broadcast(server, Component.translatable("nightsiege.msg.start", siegeLevel)
                 .withStyle(ChatFormatting.RED));
+        Fx.siegeStart(server, config, currentEvent == SiegeEvent.BLOOD_MOON);
         if (currentEvent == SiegeEvent.ELITE) {
             spawnElite(server);
         }
@@ -313,6 +315,29 @@ public final class SiegeManager {
             eliteId = champion.getUUID();
             liveMobs.add(eliteId);
             aimAtDefender(server, champion);
+            Fx.championSpawned(world, config, champion);
+            SiegeTeams.mark(server, champion, SiegeTeams.CHAMPION, ChatFormatting.GOLD);
+        }
+    }
+
+    /** Champion aura and blood moon haze, on a slow beat so they stay cheap. */
+    private void tickAtmosphere(MinecraftServer server) {
+        if (!config.particlesEnabled || world == null) {
+            return;
+        }
+        if (ticksLeft % 10 == 0 && eliteId != null) {
+            Entity champion = world.getEntity(eliteId);
+            if (champion instanceof Mob championMob && championMob.isAlive()) {
+                Fx.championAura(world, config, championMob);
+            }
+        }
+        if (ticksLeft % 40 == 0 && currentEvent == SiegeEvent.BLOOD_MOON) {
+            for (UUID id : participants) {
+                ServerPlayer player = server.getPlayerList().getPlayer(id);
+                if (player != null && player.level() == world) {
+                    Fx.bloodMoonHaze(world, config, player);
+                }
+            }
         }
     }
 
@@ -362,6 +387,8 @@ public final class SiegeManager {
             batchCooldown--;
         }
 
+        tickAtmosphere(server);
+
         digAccumulator++;
         if (digAccumulator >= DIG_INTERVAL) {
             digger.tick(world, new ArrayList<>(liveMobs), anchor, config, digAccumulator);
@@ -392,6 +419,10 @@ public final class SiegeManager {
                 * currentEvent.mobCountMultiplier(config));
         int room = config.maxLiveMobs - liveMobs.size();
         int count = Math.min(wanted, Math.max(0, room));
+        if (count > 0) {
+            Fx.waveIncoming(server, config, participants);
+        }
+        int spawned = 0;
         for (int i = 0; i < count; i++) {
             String entityId = themeMobId != null
                     ? themeMobId
@@ -410,6 +441,11 @@ public final class SiegeManager {
             if (mob != null) {
                 liveMobs.add(mob.getUUID());
                 aimAtDefender(server, mob);
+                Fx.mobSpawned(world, config, mob, spawned < config.audibleSpawnsPerBatch);
+                if (currentEvent == SiegeEvent.BLOOD_MOON && config.bloodMoonGlow) {
+                    SiegeTeams.mark(server, mob, SiegeTeams.BLOOD_MOON, ChatFormatting.DARK_RED);
+                }
+                spawned++;
             }
         }
     }
@@ -563,6 +599,7 @@ public final class SiegeManager {
         int amount = config.skillPointsPerSiege + siegeLevel / Math.max(1, config.skillPointsLevelStep);
         // One shared pot: the points are earned by the team, not per player.
         save.skills().award(amount);
+        Fx.pointsEarned(server, config);
         broadcast(server, Component.translatable("nightsiege.msg.points_earned", amount)
                 .withStyle(ChatFormatting.AQUA));
     }
@@ -601,6 +638,7 @@ public final class SiegeManager {
         MinecraftServer server = player.level().getServer();
         broadcast(server, Component.translatable("nightsiege.msg.defender_down",
                 player.getScoreboardName(), countStanding()).withStyle(ChatFormatting.RED));
+        Fx.defenderDown(server, config, participants);
     }
 
     private void onEliteKilled(Mob champion) {
@@ -621,6 +659,9 @@ public final class SiegeManager {
                 damage.setBaseValue(damage.getBaseValue() * keep);
                 weakened++;
             }
+        }
+        if (world != null) {
+            Fx.championDown(world, config, champion);
         }
         broadcast(champion.level().getServer(),
                 Component.translatable("nightsiege.msg.elite_down", weakened)
