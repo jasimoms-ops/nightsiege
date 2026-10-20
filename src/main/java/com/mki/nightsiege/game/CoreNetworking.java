@@ -55,8 +55,18 @@ public final class CoreNetworking {
     private CoreNetworking() {
     }
 
-    /** Registers both message types. Must run on both sides. */
-    public static void registerTypes() {
+    private static boolean typesRegistered;
+
+    /**
+     * Registers both message types. The main entrypoint calls this, and it runs on
+     * client and server alike; a second call is ignored, since Fabric refuses to
+     * register a type twice and would stop the game from starting.
+     */
+    public static synchronized void registerTypes() {
+        if (typesRegistered) {
+            return;
+        }
+        typesRegistered = true;
         PayloadTypeRegistry.clientboundPlay().register(CoreUiPayload.TYPE, CoreUiPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(CoreActionPayload.TYPE, CoreActionPayload.CODEC);
     }

@@ -12,7 +12,7 @@ public class NightSiegeClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
-        CoreNetworking.registerTypes();
+        // The message types are registered by the main entrypoint, which also runs here.
         ClientPlayNetworking.registerGlobalReceiver(CoreNetworking.CoreUiPayload.TYPE,
                 (payload, context) -> {
                     CoreStats stats = Json.fromJson(payload.json(), CoreStats.class);
