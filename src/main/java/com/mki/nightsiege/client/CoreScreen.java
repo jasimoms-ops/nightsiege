@@ -84,11 +84,11 @@ public class CoreScreen extends Screen {
 
     private void switchTab(int tab) {
         activeTab = tab;
-        rebuildWidgets();
+        reopen();
     }
 
-    /** Re-runs init so the widgets match the new tab. */
-    private void rebuildWidgets() {
+    /** Opens the window again so the widgets match the new tab. */
+    private void reopen() {
         Minecraft client = Minecraft.getInstance();
         if (client != null) {
             client.setScreenAndShow(new CoreScreen(stats));
