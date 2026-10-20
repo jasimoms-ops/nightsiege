@@ -2,41 +2,50 @@ package com.mki.nightsiege;
 
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.lang.reflect.Type;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.List;
 
-/** Reports the exact generic signature of the team colour API. */
+/** Reports what TeamColor looks like, so the glow colour can be set cleanly. */
 class ApiProbeTest {
 
     @Test
-    void reportTeamColourApi() {
-        for (String className : new String[]{
-                "net.minecraft.world.scores.PlayerTeam",
-                "net.minecraft.world.scores.Team"}) {
-            try {
-                Class<?> c = Class.forName(className, false, getClass().getClassLoader());
-                for (Method m : c.getMethods()) {
-                    String n = m.getName().toLowerCase();
-                    if (!n.contains("color") && !n.contains("colour")) {
-                        continue;
-                    }
-                    StringBuilder sb = new StringBuilder();
-                    sb.append(m.getGenericReturnType().getTypeName()).append(' ')
-                      .append(m.getName()).append('(');
-                    Type[] ps = m.getGenericParameterTypes();
-                    for (int i = 0; i < ps.length; i++) {
-                        if (i > 0) {
-                            sb.append(", ");
-                        }
-                        sb.append(ps[i].getTypeName());
-                    }
-                    sb.append(')');
-                    System.out.println("PROBE: " + className.substring(className.lastIndexOf('.') + 1)
-                            + " :: " + sb);
+    void reportTeamColour() {
+        String name = "net.minecraft.world.scores.TeamColor";
+        try {
+            Class<?> c = Class.forName(name, false, getClass().getClassLoader());
+            System.out.println("PROBE: TeamColor isEnum=" + c.isEnum()
+                    + " super=" + (c.getSuperclass() == null ? "-" : c.getSuperclass().getSimpleName()));
+
+            List<String> fields = new ArrayList<>();
+            for (Field f : c.getFields()) {
+                if (Modifier.isStatic(f.getModifiers())) {
+                    fields.add(f.getName() + ":" + f.getType().getSimpleName());
                 }
-            } catch (Throwable t) {
-                System.out.println("PROBE: " + className + " -> FEHLT " + t);
             }
+            System.out.println("PROBE: TeamColor Felder -> " + String.join(" | ", fields));
+
+            List<String> methods = new ArrayList<>();
+            for (Method m : c.getMethods()) {
+                if (m.getDeclaringClass() == Object.class) {
+                    continue;
+                }
+                StringBuilder sb = new StringBuilder(m.getName()).append('(');
+                Class<?>[] ps = m.getParameterTypes();
+                for (int i = 0; i < ps.length; i++) {
+                    if (i > 0) {
+                        sb.append(',');
+                    }
+                    sb.append(ps[i].getSimpleName());
+                }
+                methods.add(sb.append("):").append(m.getReturnType().getSimpleName()).toString());
+            }
+            java.util.Collections.sort(methods);
+            System.out.println("PROBE: TeamColor Methoden -> " + String.join(" | ", methods));
+        } catch (Throwable t) {
+            System.out.println("PROBE: TeamColor -> FEHLT " + t);
         }
     }
 }
