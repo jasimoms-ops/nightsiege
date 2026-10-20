@@ -15,6 +15,7 @@ import java.util.Map;
  */
 public class SiegeSave {
     public List<CoreRecord> cores = new ArrayList<>();
+    public List<TrapRecord> traps = new ArrayList<>();
     /** True once the free starter core has been handed out in this world. */
     public boolean starterCoreGiven;
     /** Uuids of players who already received the guide book. */

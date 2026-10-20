@@ -5,7 +5,8 @@ package com.mki.nightsiege.core;
  *
  * <p>Player effects carry Minecraft's own default as their base; the mod adds
  * its bonus on top. Siege effects shift the parameters of the night. Arrow
- * effects are applied to the arrows a player looses.</p>
+ * effects are applied to the arrows a player looses. Trap effects unlock and
+ * upgrade the engineer's traps.</p>
  */
 public enum SkillEffect {
     MAX_HEALTH(20.0, Target.PLAYER),
@@ -26,9 +27,12 @@ public enum SkillEffect {
     /** Flat extra damage on arrows from a bow. */
     ARROW_DAMAGE(0.0, Target.ARROW),
     /** A charged shot on a cooldown that hits far harder. */
-    POWER_SHOT(0.0, Target.ARROW);
+    POWER_SHOT(0.0, Target.ARROW),
 
-    public enum Target { PLAYER, SIEGE, ARROW }
+    /** Unlocks a trap; every further level is one tier stronger. */
+    TRAP(0.0, Target.TRAP);
+
+    public enum Target { PLAYER, SIEGE, ARROW, TRAP }
 
     private final double playerBase;
     private final Target target;

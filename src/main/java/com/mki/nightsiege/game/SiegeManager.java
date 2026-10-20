@@ -8,6 +8,7 @@ import com.mki.nightsiege.core.EventPicker;
 import com.mki.nightsiege.core.MobPool;
 import com.mki.nightsiege.core.SkillEffect;
 import com.mki.nightsiege.core.PlayerSkills;
+import com.mki.nightsiege.core.TrapKind;
 import com.mki.nightsiege.core.SkillClass;
 import com.mki.nightsiege.core.SiegeConfig;
 import com.mki.nightsiege.core.SiegeEvent;
@@ -31,6 +32,7 @@ import net.minecraft.server.level.ServerBossEvent;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.BossEvent;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -84,6 +86,10 @@ public final class SiegeManager {
 
     private SiegeConfig config = new SiegeConfig();
     private SiegeSave save = new SiegeSave();
+    private final TrapService traps = new TrapService(() -> save, skillTree);
+    /** Trap wear is saved in batches, not on every spike hit. */
+    private boolean trapsDirty;
+    private int trapSaveCounter;
     private final SiegeScheduler scheduler = new SiegeScheduler();
     private final SkillTree skillTree = new SkillTree();
     private final Digger digger = new Digger();
@@ -168,7 +174,7 @@ public final class SiegeManager {
         PlayerBlockBreakEvents.AFTER.register(
                 (level, player, pos, state, blockEntity) -> onBlockBroken(level, pos));
         UseBlockCallback.EVENT.register(
-                (player, level, hand, hitResult) -> onUseBlock(player, level, hitResult));
+                (player, level, hand, hitResult) -> onUseBlock(player, level, hand, hitResult));
         CommandRegistrationCallback.EVENT.register(
                 (dispatcher, access, environment) -> SiegeCommands.register(dispatcher));
     }
@@ -217,6 +223,12 @@ public final class SiegeManager {
 
     private void onEndTick(MinecraftServer server) {
         tickModCheck(server);
+        trapsDirty |= traps.tick(server);
+        if (trapsDirty && ++trapSaveCounter >= 200) {
+            trapSaveCounter = 0;
+            trapsDirty = false;
+            persist();
+        }
 
         long gameTime = server.overworld().getGameTime();
         lastKnownDay = SiegeMath.dayOf(gameTime);
@@ -310,6 +322,7 @@ public final class SiegeManager {
             ServerPlayer player = server.getPlayerList().getPlayer(id);
             if (player != null) {
                 SkillService.apply(player, save.skillsOf(player.getUUID().toString()), skillTree);
+                traps.giveFreeTraps(player);
             }
         }
 
@@ -390,6 +403,7 @@ public final class SiegeManager {
             if (!fallen.contains(player.getUUID())) {
                 if (participants.add(player.getUUID())) {
                     SkillService.apply(player, save.skillsOf(player.getUUID().toString()), skillTree);
+                    traps.giveFreeTraps(player);
                 }
             }
         }
@@ -771,6 +785,12 @@ public final class SiegeManager {
     }
 
     /** Called from the block itself when a core is put down. */
+    /** Called by {@link TrapBlock} once a trap is set down. */
+    public void onTrapPlaced(ServerLevel level, BlockPos pos, LivingEntity placer, TrapKind kind) {
+        traps.onPlaced(level, pos, placer, kind);
+        persist();
+    }
+
     public void onCorePlaced(ServerLevel level, BlockPos pos, LivingEntity placer) {
         String dimension = dimensionName(level);
         if (save.findCore(dimension, pos.getX(), pos.getY(), pos.getZ()) != null) {
@@ -793,6 +813,10 @@ public final class SiegeManager {
         if (!(levelObject instanceof ServerLevel brokenWorld)) {
             return;
         }
+        if (traps.onBroken(brokenWorld, pos)) {
+            persist();
+            return;
+        }
         String dimension = dimensionName(brokenWorld);
         if (save.findCore(dimension, pos.getX(), pos.getY(), pos.getZ()) == null) {
             return;
@@ -810,13 +834,25 @@ public final class SiegeManager {
     }
 
     /** Right clicking the core opens the status and skill menu. */
-    private InteractionResult onUseBlock(Object playerObject, Object levelObject, Object hitObject) {
+    private InteractionResult onUseBlock(Object playerObject, Object levelObject, Object handObject, Object hitObject) {
         if (!(levelObject instanceof ServerLevel serverLevel)
                 || !(playerObject instanceof ServerPlayer player)
                 || !(hitObject instanceof BlockHitResult hit)) {
             return InteractionResult.PASS;
         }
         BlockPos pos = hit.getBlockPos();
+        ItemStack held = handObject instanceof InteractionHand hand ? player.getItemInHand(hand) : ItemStack.EMPTY;
+        if (traps.onUse(serverLevel, pos, player, held)) {
+            trapsDirty = true;
+            return InteractionResult.SUCCESS;
+        }
+        TrapKind placing = ModContent.trapOf(held);
+        if (placing != null && !traps.mayPlace(player, placing)) {
+            player.connection.send(new net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket(
+                    Component.translatable("nightsiege.msg.trap_locked",
+                            Component.translatable("nightsiege.skill." + placing.id()))));
+            return InteractionResult.FAIL;
+        }
         if (!ModContent.isCore(serverLevel.getBlockState(pos))) {
             return InteractionResult.PASS;
         }

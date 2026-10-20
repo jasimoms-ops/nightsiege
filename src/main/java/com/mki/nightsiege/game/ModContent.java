@@ -1,6 +1,7 @@
 package com.mki.nightsiege.game;
 
 import com.mki.nightsiege.NightSiegeMod;
+import com.mki.nightsiege.core.TrapKind;
 import net.fabricmc.fabric.api.creativetab.v1.FabricCreativeModeTab;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -16,7 +17,10 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 
-/** Registers the siege core block and its item. */
+import java.util.EnumMap;
+import java.util.Map;
+
+/** Registers the siege core, the engineer's traps, their items and the creative tab. */
 public final class ModContent {
 
     public static final String CORE_NAME = "siege_core";
@@ -24,6 +28,8 @@ public final class ModContent {
     public static Block SIEGE_CORE;
     public static Item SIEGE_CORE_ITEM;
     public static CreativeModeTab TAB;
+    public static final Map<TrapKind, Block> TRAP_BLOCKS = new EnumMap<>(TrapKind.class);
+    public static final Map<TrapKind, Item> TRAP_ITEMS = new EnumMap<>(TrapKind.class);
 
     private ModContent() {
     }
@@ -49,6 +55,10 @@ public final class ModContent {
                 .useBlockDescriptionPrefix());
         Registry.register(BuiltInRegistries.ITEM, itemKey, SIEGE_CORE_ITEM);
 
+        for (TrapKind kind : TrapKind.values()) {
+            registerTrap(kind);
+        }
+
         // Everything the mod adds lives on its own creative page.
         ResourceKey<CreativeModeTab> tabKey = ResourceKey.create(Registries.CREATIVE_MODE_TAB, id("general"));
         TAB = FabricCreativeModeTab.builder()
@@ -57,6 +67,9 @@ public final class ModContent {
                 .displayItems((params, output) -> {
                     output.accept(SIEGE_CORE_ITEM);
                     output.accept(GuideBook.create());
+                    for (TrapKind kind : TrapKind.values()) {
+                        output.accept(TRAP_ITEMS.get(kind));
+                    }
                 })
                 .build();
         Registry.register(BuiltInRegistries.CREATIVE_MODE_TAB, tabKey, TAB);
@@ -64,5 +77,43 @@ public final class ModContent {
 
     public static boolean isCore(net.minecraft.world.level.block.state.BlockState state) {
         return state != null && SIEGE_CORE != null && state.getBlock() == SIEGE_CORE;
+    }
+
+    private static void registerTrap(TrapKind kind) {
+        Identifier id = id(kind.id());
+        ResourceKey<Block> blockKey = ResourceKey.create(Registries.BLOCK, id);
+        boolean turret = kind == TrapKind.TURRET;
+        Block block = new TrapBlock(kind, BlockBehaviour.Properties.of()
+                .setId(blockKey)
+                .strength(turret ? 3.5f : 2.0f, 6.0f)
+                .sound(SoundType.METAL));
+        Registry.register(BuiltInRegistries.BLOCK, blockKey, block);
+
+        ResourceKey<Item> itemKey = ResourceKey.create(Registries.ITEM, id);
+        Item item = new BlockItem(block, new Item.Properties()
+                .setId(itemKey)
+                .useBlockDescriptionPrefix());
+        Registry.register(BuiltInRegistries.ITEM, itemKey, item);
+
+        TRAP_BLOCKS.put(kind, block);
+        TRAP_ITEMS.put(kind, item);
+    }
+
+    /** The trap a block state belongs to, or null. */
+    public static TrapKind trapOf(net.minecraft.world.level.block.state.BlockState state) {
+        return state != null && state.getBlock() instanceof TrapBlock trap ? trap.kind() : null;
+    }
+
+    /** The trap an item places, or null. */
+    public static TrapKind trapOf(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) {
+            return null;
+        }
+        for (Map.Entry<TrapKind, Item> entry : TRAP_ITEMS.entrySet()) {
+            if (stack.is(entry.getValue())) {
+                return entry.getKey();
+            }
+        }
+        return null;
     }
 }

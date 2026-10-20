@@ -66,8 +66,16 @@ public final class SkillTree {
         list.add(new SkillNode("toughness", SkillClass.GUARDIAN, "", SkillEffect.ARMOR,
                 10, 3, 1, 0.25, "vitality", 3, "minecraft:iron_chestplate", 1));
 
-        list.add(new SkillNode("agility", SkillClass.ENGINEER, "", SkillEffect.MOVEMENT_SPEED,
-                8, 4, 2, 0.002, null, 0, "minecraft:feather", 0));
+        // ---------------- Engineer: one chain of four traps ----------------
+        // Each node unlocks its trap; the next trap needs the one before at tier 2.
+        list.add(new SkillNode(TrapKind.SPIKE.id(), SkillClass.ENGINEER, "", SkillEffect.TRAP,
+                TrapKind.MAX_TIER, 3, 2, 1.0, null, 0, "nightsiege:spike_trap", 0));
+        list.add(new SkillNode(TrapKind.SNARE.id(), SkillClass.ENGINEER, "", SkillEffect.TRAP,
+                TrapKind.MAX_TIER, 5, 3, 1.0, TrapKind.SPIKE.id(), 2, "nightsiege:snare_trap", 1));
+        list.add(new SkillNode(TrapKind.MINE.id(), SkillClass.ENGINEER, "", SkillEffect.TRAP,
+                TrapKind.MAX_TIER, 8, 4, 1.0, TrapKind.SNARE.id(), 2, "nightsiege:blast_mine", 2));
+        list.add(new SkillNode(TrapKind.TURRET.id(), SkillClass.ENGINEER, "", SkillEffect.TRAP,
+                TrapKind.MAX_TIER, 15, 8, 1.0, TrapKind.MINE.id(), 2, "nightsiege:arrow_turret", 3));
 
         // ---------------- Core: shared, paid by donations ----------------
         list.add(new SkillNode("watchtower", SkillClass.CORE, "", SkillEffect.SPAWN_DISTANCE,
@@ -154,5 +162,13 @@ public final class SkillTree {
             }
         }
         return sum;
+    }
+
+    /** The tier a player has a trap at, or 0 when it is not theirs to use. */
+    public int trapTier(TrapKind kind, PlayerSkills skills) {
+        if (kind == null || skills == null || skills.clazz() != SkillClass.ENGINEER) {
+            return 0;
+        }
+        return Math.min(TrapKind.MAX_TIER, skills.levelOf(kind.id()));
     }
 }

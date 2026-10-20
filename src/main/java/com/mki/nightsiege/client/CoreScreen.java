@@ -9,6 +9,7 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.resources.language.I18n;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
@@ -27,7 +28,7 @@ import java.util.Locale;
 public class CoreScreen extends Screen {
 
     private static final int PANEL_W = 340;
-    private static final int PANEL_H = 214;
+    private static final int PANEL_H = 236;
 
     // Minecraft's own tooltip look: near black fill with a violet double edge.
     private static final int BG = 0xF0100010;
@@ -150,8 +151,10 @@ public class CoreScreen extends Screen {
                 if (!name.equals(node.clazz)) {
                     continue;
                 }
-                int x = centerX - 13;
-                int y = top + 86 + node.row * 32;
+                // The two paths of a class sit side by side below their shared trunk.
+                int offset = "swift".equals(node.path) ? -22 : "heavy".equals(node.path) ? 22 : 0;
+                int x = centerX - 13 + offset;
+                int y = top + 86 + node.row * 30;
                 nodeButtons.add(new NodeButton(node, x, y));
                 addRenderableWidget(Button.builder(Component.literal(""), b -> send("buy:" + node.id))
                         .bounds(x, y, 26, 26).build());
@@ -248,11 +251,16 @@ public class CoreScreen extends Screen {
                 if (!parent.node().id.equals(button.node().requires)) {
                     continue;
                 }
-                int x = button.x() + 13;
+                int px = parent.x() + 13;
+                int cx = button.x() + 13;
                 int fromY = parent.y() + 26;
                 int toY = button.y();
-                boolean unlocked = parent.node().level >= button.node().requiresLevel;
-                gui.fill(x - 1, fromY, x + 1, toY, unlocked ? 0xFF6FD66F : 0xFF46414F);
+                int midY = (fromY + toY) / 2;
+                int color = parent.node().level >= button.node().requiresLevel ? 0xFF6FD66F : 0xFF46414F;
+                // Down, across, down: straight for a chain, an elbow where the paths split.
+                gui.fill(px - 1, fromY, px + 1, midY + 1, color);
+                gui.fill(Math.min(px, cx) - 1, midY - 1, Math.max(px, cx) + 1, midY + 1, color);
+                gui.fill(cx - 1, midY, cx + 1, toY, color);
             }
         }
     }
@@ -302,6 +310,12 @@ public class CoreScreen extends Screen {
     private void drawTooltip(GuiGraphicsExtractor gui, Font font, CoreStats.NodeLine node, int mouseX, int mouseY) {
         List<String> lines = new ArrayList<>();
         lines.add(Component.translatable("nightsiege.skill." + node.id).getString());
+        String descKey = "nightsiege.skill." + node.id + ".desc";
+        if (I18n.exists(descKey)) {
+            for (String part : I18n.get(descKey).split("\n")) {
+                lines.add(part);
+            }
+        }
         lines.add(Component.translatable("nightsiege.ui.node_level", node.level, node.maxLevel).getString());
         if (node.level < node.maxLevel) {
             lines.add(Component.translatable("nightsiege.ui.node_cost", node.cost).getString());
@@ -315,7 +329,7 @@ public class CoreScreen extends Screen {
 
         int width = 0;
         for (String line : lines) {
-            width = Math.max(width, line.length() * 6);
+            width = Math.max(width, font.width(line));
         }
         int boxW = width + 10;
         int boxH = lines.size() * 11 + 6;

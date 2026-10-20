@@ -424,4 +424,64 @@ class SiegeCoreTest {
         assertEquals(SkillEffect.Target.ARROW, SkillEffect.POWER_SHOT.target());
         assertEquals(20.0, SkillEffect.MAX_HEALTH.playerBase(), 1e-9);
     }
+
+    // ------------------------------------------------------------------
+    // engineer traps
+    // ------------------------------------------------------------------
+
+    @Test
+    void everyTrapHasItsOwnEngineerNode() {
+        SkillTree tree = new SkillTree();
+        for (TrapKind kind : TrapKind.values()) {
+            SkillNode node = tree.get(kind.id());
+            assertNotNull(node, "no node for " + kind);
+            assertEquals(SkillClass.ENGINEER, node.clazz());
+            assertEquals(SkillEffect.TRAP, node.effect());
+            assertEquals(TrapKind.MAX_TIER, node.maxLevel());
+            assertEquals(kind, TrapKind.byId(kind.id()));
+        }
+    }
+
+    @Test
+    void trapsUnlockOneAfterTheOther() {
+        SkillTree tree = new SkillTree();
+        PlayerSkills engineer = new PlayerSkills();
+        engineer.chosenClass = SkillClass.ENGINEER.name();
+        engineer.award(500);
+
+        assertEquals("locked", tree.blockedReason(TrapKind.SNARE.id(), engineer));
+        assertTrue(tree.unlock(TrapKind.SPIKE.id(), engineer));
+        assertEquals(1, tree.trapTier(TrapKind.SPIKE, engineer));
+        assertEquals("locked", tree.blockedReason(TrapKind.SNARE.id(), engineer));
+        assertTrue(tree.unlock(TrapKind.SPIKE.id(), engineer));
+        assertTrue(tree.unlock(TrapKind.SNARE.id(), engineer));
+        assertEquals("locked", tree.blockedReason(TrapKind.TURRET.id(), engineer));
+    }
+
+    @Test
+    void onlyEngineersGetTrapTiers() {
+        SkillTree tree = new SkillTree();
+        PlayerSkills archer = new PlayerSkills();
+        archer.chosenClass = SkillClass.ARCHER.name();
+        archer.setLevel(TrapKind.SPIKE.id(), 3);
+        assertEquals(0, tree.trapTier(TrapKind.SPIKE, archer));
+        assertEquals("class", tree.blockedReason(TrapKind.SPIKE.id(), archer));
+    }
+
+    @Test
+    void higherTiersAreNeverWeaker() {
+        for (TrapKind kind : TrapKind.values()) {
+            for (int tier = 1; tier < TrapKind.MAX_TIER; tier++) {
+                assertTrue(kind.damage(tier + 1) >= kind.damage(tier), kind + " damage");
+                assertTrue(kind.uses(tier + 1) >= kind.uses(tier), kind + " uses");
+                assertTrue(kind.radius(tier + 1) >= kind.radius(tier), kind + " radius");
+                assertTrue(kind.cooldownTicks(tier + 1) <= kind.cooldownTicks(tier), kind + " cooldown");
+                assertTrue(kind.freePerSiege(tier + 1) >= kind.freePerSiege(tier), kind + " free");
+            }
+            assertEquals(0, kind.freePerSiege(0), kind + " is free before it is unlocked");
+        }
+        assertEquals(1, TrapKind.MINE.uses(3));
+        assertTrue(TrapKind.TURRET.startAmmo(1) <= TrapKind.TURRET.maxAmmo(1));
+        assertEquals(TrapKind.SPIKE.damage(TrapKind.MAX_TIER), TrapKind.SPIKE.damage(99), 1e-9);
+    }
 }
