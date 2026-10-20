@@ -366,7 +366,8 @@ public final class TrapService {
         int amp = TrapKind.POISON.amplifier(tier);
         for (LivingEntity victim : around(level, center, r)) {
             // Poison heals the undead, so they wither instead.
-            boolean undead = victim.getType().is(net.minecraft.tags.EntityTypeTags.UNDEAD);
+            boolean undead = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE
+                    .wrapAsHolder(victim.getType()).is(net.minecraft.tags.EntityTypeTags.UNDEAD);
             victim.addEffect(new MobEffectInstance(undead ? MobEffects.WITHER : MobEffects.POISON, ticks, amp));
             victim.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, ticks, 0));
             victim.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, ticks / 2, 0));
