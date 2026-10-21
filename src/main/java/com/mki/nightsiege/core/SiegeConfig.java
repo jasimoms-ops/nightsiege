@@ -114,6 +114,8 @@ public class SiegeConfig {
     public boolean particlesEnabled = true;
     /** Colour the attackers' glow red on a blood moon night. */
     public boolean bloodMoonGlow = true;
+    /** Show players with the mod a red blood moon sky: big glowing moon, crimson sky, red haze. */
+    public boolean bloodMoonSky = true;
     /** How many mobs of one batch make a spawn sound. The rest spawn quietly. */
     public int audibleSpawnsPerBatch = 3;
 

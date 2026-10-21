@@ -5,7 +5,10 @@ import com.mki.nightsiege.core.UltState;
 import com.mki.nightsiege.game.CoreNetworking;
 import com.mki.nightsiege.game.Json;
 import com.mki.nightsiege.game.ModContent;
+import com.mki.nightsiege.NightSiegeMod;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -19,6 +22,8 @@ import net.minecraft.network.chat.Component;
 import java.util.List;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.SkyRenderer;
+import net.minecraft.world.attribute.EnvironmentAttributeProbe;
 import org.lwjgl.glfw.GLFW;
 
 /** Client side: the core window and the key for the ultimate. */
@@ -71,6 +76,15 @@ public class NightSiegeClient implements ClientModInitializer {
                     UltState state = Json.fromJson(payload.json(), UltState.class);
                     context.client().execute(() -> UltHud.update(state));
                 });
+        ClientPlayNetworking.registerGlobalReceiver(CoreNetworking.BloodMoonPayload.TYPE,
+                (payload, context) -> context.client().execute(() -> BloodMoonSky.onServerState(payload.active())));
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> BloodMoonSky.reset());
+        ClientLifecycleEvents.CLIENT_STARTED.register(client -> {
+            boolean moon = BloodMoonSkyMarker.class.isAssignableFrom(SkyRenderer.class);
+            boolean colors = BloodMoonSkyMarker.class.isAssignableFrom(EnvironmentAttributeProbe.class);
+            NightSiegeMod.LOGGER.info("[Night Siege] Blutmond-Himmel: Mond {}, Farben {}",
+                    moon ? "ok" : "FEHLT", colors ? "ok" : "FEHLT");
+        });
         HudElementRegistry.attachElementAfter(VanillaHudElements.HOTBAR, ModContent.id("ultimate"),
                 (gui, delta) -> UltHud.draw(gui, ultimateKey));
 
@@ -96,6 +110,7 @@ public class NightSiegeClient implements ClientModInitializer {
             lines.add(Component.translatable("nightsiege.tooltip.class_item_hint").withStyle(ChatFormatting.GRAY));
         });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            BloodMoonSky.tick(client);
             while (guideKey.consumeClick()) {
                 Minecraft.getInstance().setScreenAndShow(new GuideScreen());
             }

@@ -46,6 +46,25 @@ public final class CoreNetworking {
     }
 
     /**
+     * Server to client, every two seconds while a siege runs: whether this player
+     * is under a blood moon. The client fades the red sky in and out on its own
+     * and lets it set if the messages stop.
+     */
+    public record BloodMoonPayload(boolean active) implements CustomPacketPayload {
+
+        public static final CustomPacketPayload.Type<BloodMoonPayload> TYPE =
+                new CustomPacketPayload.Type<>(ModContent.id("blood_moon"));
+
+        public static final StreamCodec<RegistryFriendlyByteBuf, BloodMoonPayload> CODEC =
+                StreamCodec.composite(ByteBufCodecs.BOOL, BloodMoonPayload::active, BloodMoonPayload::new);
+
+        @Override
+        public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    /**
      * Client to server: one action from the window.
      *
      * <p>The action is a short string such as {@code buy:double_shot},
@@ -99,7 +118,7 @@ public final class CoreNetworking {
         typesRegistered = true;
         PayloadTypeRegistry.clientboundPlay().register(CoreUiPayload.TYPE, CoreUiPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(UltHudPayload.TYPE, UltHudPayload.CODEC);
-        PayloadTypeRegistry.clientboundPlay().register(DungeonUiPayload.TYPE, DungeonUiPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(BloodMoonPayload.TYPE, BloodMoonPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(CoreActionPayload.TYPE, CoreActionPayload.CODEC);
     }
 

@@ -472,6 +472,10 @@ public final class SiegeManager {
         broadcast(server, Component.translatable("nightsiege.msg.start", siegeLevel)
                 .withStyle(ChatFormatting.RED));
         Fx.siegeStart(server, config, currentEvent == SiegeEvent.BLOOD_MOON);
+        if (currentEvent == SiegeEvent.BLOOD_MOON) {
+            // The sky starts turning with the horn, not up to two seconds later.
+            sendBloodMoon(server, config.bloodMoonSky);
+        }
         if (currentEvent == SiegeEvent.ELITE) {
             spawnElite(server);
         }
@@ -530,6 +534,27 @@ public final class SiegeManager {
         }
     }
 
+    /**
+     * Every two seconds on a blood moon night: tells each player with the mod
+     * whether the blood moon hangs over them. The client draws the red sky and
+     * lets it set by itself once these messages stop.
+     */
+    private void tickBloodMoonSky(MinecraftServer server) {
+        if (ticksLeft % 40 == 0 && currentEvent == SiegeEvent.BLOOD_MOON) {
+            sendBloodMoon(server, config.bloodMoonSky);
+        }
+    }
+
+    /** Only players in the besieged world see it; anyone in the Nether gets a normal sky. */
+    private void sendBloodMoon(MinecraftServer server, boolean show) {
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            if (ServerPlayNetworking.canSend(player, CoreNetworking.BloodMoonPayload.TYPE)) {
+                ServerPlayNetworking.send(player,
+                        new CoreNetworking.BloodMoonPayload(show && player.level() == world));
+            }
+        }
+    }
+
     private Component bossBarTitle() {
         return Component.translatable("nightsiege.bar.title", siegeLevel, secondsLeft());
     }
@@ -578,6 +603,7 @@ public final class SiegeManager {
         }
 
         tickAtmosphere(server);
+        tickBloodMoonSky(server);
 
         digAccumulator++;
         if (digAccumulator >= DIG_INTERVAL) {
@@ -704,6 +730,9 @@ public final class SiegeManager {
             return;
         }
         active = false;
+        if (currentEvent == SiegeEvent.BLOOD_MOON) {
+            sendBloodMoon(server, false);
+        }
         clearSkillsFromParticipants(server);
         SiegeTeams.cleanUp(server);
         if (world != null && anchor != null) {
@@ -777,6 +806,9 @@ public final class SiegeManager {
             return;
         }
         active = false;
+        if (currentEvent == SiegeEvent.BLOOD_MOON) {
+            sendBloodMoon(server, false);
+        }
         clearSkillsFromParticipants(server);
         SiegeTeams.cleanUp(server);
         if (bossBar != null) {

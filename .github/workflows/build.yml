@@ -143,6 +143,69 @@ jobs:
               print("::warning title=SERVER-TAIL::" + "%0A".join(text.splitlines()[-40:]))
           PY
 
+      # Client-Mixins (Himmel, Blutmond) greifen nur im echten Client. Er startet
+      # hier ohne Bildschirm mit Software-OpenGL bis zum Titelbild; die Mod meldet
+      # dabei im Log, ob ihre Eingriffe ins Rendering angekommen sind.
+      - name: Client-Probelauf
+        if: steps.build.outcome == 'success'
+        continue-on-error: true
+        run: |
+          sudo apt-get update -qq > /dev/null 2>&1 || true
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0 libegl1 > /dev/null 2>&1 || true
+          mkdir -p run
+          export LIBGL_ALWAYS_SOFTWARE=1
+          ( xvfb-run -a -s "-screen 0 1280x720x24" gradle runClient --no-daemon > client-output.txt 2>&1 ) &
+          PID=$!
+          for i in $(seq 1 120); do
+            sleep 5
+            if grep -q -E "Blutmond-Himmel|Minecraft has crashed|Game crashed|BUILD FAILED" client-output.txt 2>/dev/null; then
+              sleep 10
+              break
+            fi
+          done
+          pkill -f "net.fabricmc.devlaunchinjector" || true
+          pkill -f "KnotClient" || true
+          pkill -f "xvfb-run" || true
+          kill $PID 2>/dev/null || true
+          python3 - <<'PY'
+          import re
+          text = open("client-output.txt", encoding="utf-8", errors="replace").read()
+          pat = re.compile(r"(ERROR|Exception|Caused by|[Mm]ixin|Night Siege|nightsiege|Backend library|OpenGL|GL_|crash|FAILED)")
+          lines = [l.rstrip()[:400] for l in text.splitlines() if pat.search(l)]
+          ok = any("Blutmond-Himmel: Mond ok, Farben ok" in l for l in lines)
+          print("::notice title=CLIENTSTART::%s" % ("Mixins ok" if ok else "Mixins NICHT bestaetigt"))
+          chunk, size, part = [], 0, 1
+          for line in lines[:150]:
+              if size + len(line) > 3800:
+                  print("::warning title=CLIENT%d::" % part + "%0A".join(chunk))
+                  chunk, size, part = [], 0, part + 1
+              chunk.append(line)
+              size += len(line) + 1
+          if chunk:
+              print("::warning title=CLIENT%d::" % part + "%0A".join(chunk))
+          if not lines:
+              print("::warning title=CLIENT-TAIL::" + "%0A".join(text.splitlines()[-40:]))
+          PY
+
+      # Das vollstaendige Client-Protokoll wandert in den Branch "probe-client".
+      - name: Client-Protokoll bereitstellen
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          if [ ! -s client-output.txt ]; then echo "kein Client-Protokoll"; exit 0; fi
+          DIR=$(mktemp -d)
+          tail -c 3000000 client-output.txt > "$DIR/client.txt"
+          if ls run/screenshots/*.png > /dev/null 2>&1; then mkdir -p "$DIR/screenshots"; cp run/screenshots/*.png "$DIR/screenshots/"; fi
+          cd "$DIR"
+          git init -q -b probe-client
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Client-Protokoll von ${GITHUB_SHA}"
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" probe-client:probe-client
+
       - name: Jar hochladen
         if: always()
         uses: actions/upload-artifact@v4
