@@ -69,8 +69,9 @@ public final class ArcherEffects {
             return;
         }
         ItemStack weapon = arrow.getWeaponItem();
-        boolean bow = weapon != null && weapon.is(Items.BOW);
-        boolean crossbow = weapon != null && weapon.is(Items.CROSSBOW);
+        // Any bow or crossbow counts, the infernite ones included.
+        boolean bow = weapon != null && weapon.getItem() instanceof net.minecraft.world.item.BowItem;
+        boolean crossbow = weapon != null && weapon.getItem() instanceof net.minecraft.world.item.CrossbowItem;
         if (!bow && !crossbow) {
             return;   // Dispensers and thrown arrows stay vanilla.
         }

@@ -68,11 +68,73 @@ public final class SiegeManager {
     PlayerSkills liveSkillsFor(ServerPlayer player) {
         boolean defending = active && participants.contains(player.getUUID())
                 && !fallen.contains(player.getUUID());
-        PlayerSkills own = save.skillsOf(player.getUUID().toString());
+        PlayerSkills own = effectiveSkills(player);
         if (!defending && !player.getAbilities().instabuild && !ClassGear.carries(player, own, skillTree)) {
             return null;
         }
         return own;
+    }
+
+    /** Creative only: which of a class item's paths is being tried out, per player. */
+    private final Map<UUID, Integer> testPathIndex = new HashMap<>();
+    /** Fully levelled stand-in skill sets, one per path, for trying paths out. */
+    private final Map<String, PlayerSkills> testProfiles = new HashMap<>();
+
+    /**
+     * The skills that count for this player. Normally their own; in creative,
+     * holding an infernite class item of another path lends them that path,
+     * fully levelled, so every ultimate can be tried out.
+     */
+    PlayerSkills effectiveSkills(ServerPlayer player) {
+        PlayerSkills own = save.skillsOf(player.getUUID().toString());
+        String path = testPath(player, own);
+        return path == null ? own : testProfile(path);
+    }
+
+    private String testPath(ServerPlayer player, PlayerSkills own) {
+        if (!player.getAbilities().instabuild) {
+            return null;
+        }
+        List<String> paths = ClassGear.heldPaths(player);
+        if (paths.isEmpty() || paths.contains(own.pathTaken(skillTree))) {
+            return null;
+        }
+        int index = testPathIndex.getOrDefault(player.getUUID(), 0);
+        return paths.get(Math.floorMod(index, paths.size()));
+    }
+
+    private PlayerSkills testProfile(String path) {
+        return testProfiles.computeIfAbsent(path, p -> {
+            PlayerSkills profile = new PlayerSkills();
+            for (com.mki.nightsiege.core.SkillNode node : skillTree.all()) {
+                if (p.equals(node.path())) {
+                    profile.chosenClass = node.clazz().name();
+                }
+            }
+            for (com.mki.nightsiege.core.SkillNode node : skillTree.all()) {
+                if (node.clazz().name().equals(profile.chosenClass) && (node.onTrunk() || p.equals(node.path()))) {
+                    profile.setLevel(node.id(), node.maxLevel());
+                }
+            }
+            return profile;
+        });
+    }
+
+    /** Ultimate key: fires the ultimate; in creative, sneaking switches the path being tried. */
+    private void onUltimateKey(ServerPlayer player) {
+        List<String> paths = ClassGear.heldPaths(player);
+        if (player.getAbilities().instabuild && player.isShiftKeyDown() && paths.size() > 1) {
+            int next = testPathIndex.getOrDefault(player.getUUID(), 0) + 1;
+            testPathIndex.put(player.getUUID(), next);
+            String path = paths.get(Math.floorMod(next, paths.size()));
+            com.mki.nightsiege.core.SkillNode ult = skillTree.ultimateOf(testProfile(path));
+            player.connection.send(new net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket(
+                    Component.translatable("nightsiege.msg.test_path",
+                            Component.translatable("nightsiege.ui.path_" + path),
+                            ult == null ? Component.literal("-") : Component.translatable("nightsiege.skill." + ult.id()))));
+            return;
+        }
+        combat.triggerUltimate(player);
     }
 
     private static final String CONFIG_FILE = "nightsiege.json";
@@ -843,7 +905,7 @@ public final class SiegeManager {
                 gearBoosted.remove(id);   // the siege looks after these
                 continue;
             }
-            PlayerSkills own = save.skillsOf(id.toString());
+            PlayerSkills own = effectiveSkills(player);
             if (ClassGear.carries(player, own, skillTree)) {
                 SkillService.apply(player, own, skillTree);
                 gearBoosted.add(id);
@@ -860,7 +922,7 @@ public final class SiegeManager {
             if (!ServerPlayNetworking.canSend(player, CoreNetworking.UltHudPayload.TYPE)) {
                 continue;
             }
-            PlayerSkills own = save.skillsOf(player.getUUID().toString());
+            PlayerSkills own = effectiveSkills(player);
             com.mki.nightsiege.core.SkillNode node = skillTree.ultimateOf(own);
             com.mki.nightsiege.core.UltState state = new com.mki.nightsiege.core.UltState();
             if (node != null) {
@@ -868,7 +930,7 @@ public final class SiegeManager {
                 state.has = true;
                 state.node = node.id();
                 state.icon = node.icon();
-                state.totalTicks = CombatEffects.cooldownFor(rank);
+                state.totalTicks = combat.cooldownTotal(player.getUUID(), CombatEffects.cooldownFor(rank));
                 state.cooldownTicks = combat.cooldownLeft(player.getUUID(), now);
                 state.live = liveSkillsFor(player) != null;
             }
@@ -1024,7 +1086,7 @@ public final class SiegeManager {
             case "class" -> onChooseClass(player, argument);
             case "donate" -> onDonate(player, parseAmount(argument));
             case "dev" -> onDevAction(player, argument);
-            case "ult" -> combat.triggerUltimate(player);
+            case "ult" -> onUltimateKey(player);
             default -> openCoreWindow(player);
         }
     }

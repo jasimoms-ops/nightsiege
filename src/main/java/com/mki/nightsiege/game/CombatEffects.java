@@ -63,6 +63,8 @@ public final class CombatEffects {
     private final Random random = new Random();
 
     private final Map<UUID, Long> ultReadyAt = new HashMap<>();
+    /** Length of the cooldown last started, for the shading in the hotbar slot. */
+    private final Map<UUID, Integer> ultTotal = new HashMap<>();
     /** Guardians whose angel has already saved someone this night. */
     private final Set<UUID> angelUsed = new HashSet<>();
     /** Monsters taking extra damage: mark from a hunter, cracks from an axe. */
@@ -143,7 +145,10 @@ public final class CombatEffects {
             default -> false;
         };
         if (fired) {
-            ultReadyAt.put(player.getUUID(), now + cooldownFor(rank));
+            // In creative the ultimate is for trying out: only a short pause.
+            int cooldown = player.getAbilities().instabuild ? 40 : cooldownFor(rank);
+            ultReadyAt.put(player.getUUID(), now + cooldown);
+            ultTotal.put(player.getUUID(), cooldown);
             actionBar(player, Component.translatable("nightsiege.msg.ult_fired",
                     Component.translatable("nightsiege.skill." + node.id())));
         }
@@ -503,7 +508,7 @@ public final class CombatEffects {
         }
         ItemStack weapon = arrow.getWeaponItem();
         double shrapnel = tree.totalBonus(SkillEffect.SHRAPNEL, skills);
-        if (shrapnel > 0 && weapon != null && weapon.is(Items.CROSSBOW)) {
+        if (shrapnel > 0 && weapon != null && weapon.getItem() instanceof net.minecraft.world.item.CrossbowItem) {
             Vec3 at = victim.position();
             DamageSource source = level.damageSources().playerAttack(player);
             for (LivingEntity near : enemies(level, at, 2.5, 1.5)) {
@@ -627,6 +632,11 @@ public final class CombatEffects {
     public int cooldownLeft(UUID player, long now) {
         long readyAt = ultReadyAt.getOrDefault(player, 0L);
         return (int) Math.max(0L, readyAt - now);
+    }
+
+    /** Length of the cooldown currently running, or the given default. */
+    public int cooldownTotal(UUID player, int fallback) {
+        return ultTotal.getOrDefault(player, fallback);
     }
 
     /** Full cooldown at this rank. */

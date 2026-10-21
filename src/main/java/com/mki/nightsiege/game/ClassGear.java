@@ -15,7 +15,7 @@ import java.util.Map;
  */
 public final class ClassGear {
 
-    private static final Map<String, String> BY_PATH = Map.ofEntries(
+    private static final Map<String, String> BY_PATH = ordered(
             Map.entry(SkillTree.PATH_SWIFT, "infernite_bow"),
             Map.entry(SkillTree.PATH_HEAVY, "infernite_bow"),
             Map.entry(SkillTree.PATH_HUNTER, "infernite_bow"),
@@ -34,6 +34,42 @@ public final class ClassGear {
             Map.entry(SkillTree.PATH_ELECTRICIAN, "infernite_pickaxe"));
 
     private ClassGear() {
+    }
+
+    @SafeVarargs
+    private static Map<String, String> ordered(Map.Entry<String, String>... entries) {
+        Map<String, String> map = new java.util.LinkedHashMap<>();
+        for (Map.Entry<String, String> entry : entries) {
+            map.put(entry.getKey(), entry.getValue());
+        }
+        return map;
+    }
+
+    /** Every path this item belongs to, in tree order. */
+    public static java.util.List<String> pathsFor(Item item) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        if (item == null) {
+            return out;
+        }
+        for (Map.Entry<String, String> entry : BY_PATH.entrySet()) {
+            if (InferniteContent.gear(entry.getValue()) == item) {
+                out.add(entry.getKey());
+            }
+        }
+        return out;
+    }
+
+    /** The paths of the first class item the player holds or wears; empty when none. */
+    public static java.util.List<String> heldPaths(ServerPlayer player) {
+        for (net.minecraft.world.item.ItemStack stack : new net.minecraft.world.item.ItemStack[]{
+                player.getMainHandItem(), player.getOffhandItem(),
+                player.getItemBySlot(EquipmentSlot.HEAD), player.getItemBySlot(EquipmentSlot.CHEST)}) {
+            java.util.List<String> paths = pathsFor(stack.getItem());
+            if (!paths.isEmpty()) {
+                return paths;
+            }
+        }
+        return java.util.List.of();
     }
 
     /** The infernite item of a path, or null. */
