@@ -70,7 +70,7 @@ jobs:
               f = [x for x in versions[0]["files"] if x.get("primary")] or versions[0]["files"]
               open("run-mods/" + f[0]["filename"], "wb").write(get(f[0]["url"]))
               print("::notice title=SHADERTEST::%s %s" % (slug, versions[0]["version_number"]))
-          for query in ("complementary reimagined",):
+          for query in ("photon shader", "complementary reimagined"):
               hits = json.loads(get("https://api.modrinth.com/v2/search?" + urllib.parse.urlencode(
                   {"query": query, "facets": json.dumps([["project_type:shader"]]), "limit": 3})))["hits"]
               if not hits:
@@ -222,6 +222,10 @@ jobs:
           cp "$JAR" "$TMP/nightsiege.jar"
           mkdir -p "$TMP/shots"
           cp shots/*.png "$TMP/shots/" 2>/dev/null || true
+          # Shader-Protokoll (ohne Mixin-Audit) fuer die Fehlersuche
+          if [ -f client-shader-output.txt ]; then
+            grep -v "Force-loading class\|ALSA\|narrator" client-shader-output.txt | tail -c 2000000 > "$TMP/client-shader-log.txt" || true
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout --orphan dist-tmp
@@ -230,6 +234,7 @@ jobs:
           cp "$TMP/nightsiege.jar" dist/nightsiege.jar
           git add -f dist/nightsiege.jar
           if ls "$TMP/shots/"*.png > /dev/null 2>&1; then mkdir -p dist/shots; cp "$TMP/shots/"*.png dist/shots/; git add -f dist/shots; fi
+          if [ -f "$TMP/client-shader-log.txt" ]; then cp "$TMP/client-shader-log.txt" dist/; git add -f dist/client-shader-log.txt; fi
           git commit -m "Build von ${GITHUB_SHA}"
           git push -f origin dist-tmp:dist
 
