@@ -163,6 +163,7 @@ jobs:
         if: steps.build.outcome == 'success'
         continue-on-error: true
         run: |
+          set +e
           sudo apt-get update -qq > /dev/null
           sudo apt-get install -y -qq xvfb libgl1-mesa-dri > /dev/null
           export LIBGL_ALWAYS_SOFTWARE=1
