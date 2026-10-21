@@ -1,22 +1,25 @@
 package com.mki.nightsiege;
 
 import org.junit.jupiter.api.Test;
+import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.ClassVisitor;
+import org.objectweb.asm.FieldVisitor;
+import org.objectweb.asm.MethodVisitor;
+import org.objectweb.asm.Opcodes;
 
 import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.net.JarURLConnection;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Enumeration;
 import java.util.List;
-import java.util.jar.JarEntry;
-import java.util.jar.JarFile;
-import java.util.regex.Pattern;
+import java.util.function.Predicate;
 
-/** Temporary: sky, moon, fog and cloud rendering API for the blood moon look. */
+/**
+ * Temporary: sky, moon, fog and environment attribute API for the blood moon look.
+ * Prints full signatures and a compact outline of the calls inside the methods a
+ * mixin would hook, so the targets are not guessed.
+ */
 class SkyProbeTest {
 
     private static Class<?> load(String n) {
@@ -27,156 +30,171 @@ class SkyProbeTest {
         }
     }
 
-    private static String sig(Method m) {
-        StringBuilder sb = new StringBuilder();
-        int mod = m.getModifiers();
-        if (Modifier.isStatic(mod)) sb.append("s:");
-        if (Modifier.isPrivate(mod)) sb.append("p:");
-        sb.append(m.getName()).append('(');
-        for (Class<?> p : m.getParameterTypes()) sb.append(p.getSimpleName()).append(',');
-        return sb.append(')').append(m.getReturnType().getSimpleName()).toString();
-    }
-
-    private static void emit(String head, List<String> parts) {
-        StringBuilder sb = new StringBuilder();
-        int n = 0;
-        for (String p : parts) {
-            if (sb.length() + p.length() > 1500) {
-                System.out.println("PROBE: " + head + (n++ == 0 ? "" : "+") + " " + sb);
-                sb.setLength(0);
-            }
-            sb.append(p).append(' ');
-        }
-        System.out.println("PROBE: " + head + (n == 0 ? "" : "+") + " " + sb);
-    }
-
-    /** Declared methods (private too), optionally filtered by name parts. */
-    private static void methods(String n, String... parts) {
+    private static void sigs(String n, Predicate<String> filter) {
         Class<?> c = load(n);
         if (c == null) {
             System.out.println("PROBE: missing " + n);
             return;
         }
-        List<String> out = new ArrayList<>();
+        System.out.println("PROBE: CLASS " + c.getName() + " ext " + (c.getSuperclass() == null ? "-" : c.getSuperclass().getName())
+                + " iface " + java.util.Arrays.toString(c.getInterfaces()) + (c.isInterface() ? " INTERFACE" : "") + (c.isRecord() ? " RECORD" : ""));
         try {
             for (var ct : c.getDeclaredConstructors()) {
-                if (parts.length > 0) break;
-                StringBuilder sb = new StringBuilder("<init>(");
-                for (Class<?> p : ct.getParameterTypes()) sb.append(p.getSimpleName()).append(',');
-                out.add(sb.append(')').toString());
+                System.out.println("PROBE:   ctor " + ct.toGenericString());
             }
             for (Method m : c.getDeclaredMethods()) {
-                if (m.isSynthetic()) continue;
-                boolean hit = parts.length == 0;
-                for (String x : parts) hit |= m.getName().toLowerCase().contains(x.toLowerCase());
-                if (hit) out.add(sig(m));
+                if (filter.test(m.getName())) System.out.println("PROBE:   m " + m.toGenericString());
             }
-        } catch (Throwable t) {
-            out.add("ERR " + t);
-        }
-        String sup = c.getSuperclass() == null ? "" : c.getSuperclass().getSimpleName();
-        emit("M " + c.getName().substring(c.getName().lastIndexOf('.') + 1) + " ext " + sup, out);
-    }
-
-    private static void fields(String n, String... parts) {
-        Class<?> c = load(n);
-        if (c == null) {
-            System.out.println("PROBE: missing " + n);
-            return;
-        }
-        List<String> out = new ArrayList<>();
-        try {
             for (Field f : c.getDeclaredFields()) {
-                if (f.isSynthetic()) continue;
-                boolean hit = parts.length == 0;
-                for (String x : parts) hit |= f.getName().toLowerCase().contains(x.toLowerCase());
-                if (!hit) continue;
                 String v = "";
-                if (Modifier.isStatic(f.getModifiers()) && (f.getType() == String.class || f.getType().getSimpleName().equals("Identifier"))) {
+                if (Modifier.isStatic(f.getModifiers()) && (f.getType().isPrimitive() || f.getType() == String.class)) {
                     try {
                         f.setAccessible(true);
-                        v = "=" + f.get(null);
+                        v = " = " + f.get(null);
                     } catch (Throwable ignored) {
-                        // static init needs the game
+                        v = " = ?";
                     }
                 }
-                out.add((Modifier.isStatic(f.getModifiers()) ? "s:" : "") + f.getName() + ":" + f.getType().getSimpleName() + v);
+                System.out.println("PROBE:   f " + f.toGenericString() + v);
             }
         } catch (Throwable t) {
-            out.add("ERR " + t);
+            System.out.println("PROBE:   ERR " + t);
         }
-        emit("F " + c.getSimpleName(), out);
     }
 
-    private static JarFile gameJar() throws Exception {
-        URL url = SkyProbeTest.class.getClassLoader().getResource("net/minecraft/client/Minecraft.class");
-        System.out.println("PROBE: jar " + url);
-        if (url == null || !"jar".equals(url.getProtocol())) return null;
-        return ((JarURLConnection) url.openConnection()).getJarFile();
+    /** One line per method: the calls, field accesses and constants inside it. */
+    private static void outline(String n, Predicate<String> filter) {
+        String path = n.replace('.', '/') + ".class";
+        try (InputStream in = SkyProbeTest.class.getClassLoader().getResourceAsStream(path)) {
+            if (in == null) {
+                System.out.println("PROBE: nobytes " + n);
+                return;
+            }
+            ClassReader reader = new ClassReader(in);
+            reader.accept(new ClassVisitor(Opcodes.ASM9) {
+                @Override
+                public FieldVisitor visitField(int access, String name, String desc, String sig, Object value) {
+                    if (value != null) System.out.println("PROBE: const " + n.substring(n.lastIndexOf('.') + 1) + "." + name + " = " + value);
+                    return null;
+                }
+
+                @Override
+                public MethodVisitor visitMethod(int access, String name, String desc, String sig, String[] ex) {
+                    if (!filter.test(name)) return null;
+                    String head = n.substring(n.lastIndexOf('.') + 1) + "." + name + desc;
+                    List<String> ops = new ArrayList<>();
+                    return new MethodVisitor(Opcodes.ASM9) {
+                        @Override
+                        public void visitMethodInsn(int op, String owner, String mname, String mdesc, boolean itf) {
+                            ops.add(op(op) + " " + owner.substring(owner.lastIndexOf('/') + 1) + "." + mname + mdesc);
+                        }
+
+                        @Override
+                        public void visitFieldInsn(int op, String owner, String fname, String fdesc) {
+                            ops.add(op(op) + " " + owner.substring(owner.lastIndexOf('/') + 1) + "." + fname + ":" + fdesc);
+                        }
+
+                        @Override
+                        public void visitLdcInsn(Object value) {
+                            ops.add("ldc " + value + (value instanceof Float ? "f" : ""));
+                        }
+
+                        @Override
+                        public void visitInsn(int op) {
+                            if (op >= 2 && op <= 8) ops.add("iconst " + (op - 3));
+                            else if (op >= 11 && op <= 13) ops.add("fconst " + (op - 11));
+                            else if (op >= 172 && op <= 177) ops.add("return");
+                        }
+
+                        @Override
+                        public void visitIntInsn(int op, int operand) {
+                            ops.add((op == 16 ? "bipush " : op == 17 ? "sipush " : "int" + op + " ") + operand);
+                        }
+
+                        @Override
+                        public void visitTypeInsn(int op, String type) {
+                            if (op == Opcodes.NEW) ops.add("new " + type.substring(type.lastIndexOf('/') + 1));
+                        }
+
+                        @Override
+                        public void visitInvokeDynamicInsn(String iname, String idesc, org.objectweb.asm.Handle bsm, Object... args) {
+                            StringBuilder sb = new StringBuilder("indy " + iname);
+                            for (Object a : args) if (a instanceof org.objectweb.asm.Handle h) sb.append(" ->").append(h.getName());
+                            ops.add(sb.toString());
+                        }
+
+                        @Override
+                        public void visitEnd() {
+                            System.out.println("PROBE: OUT " + head + " :: " + String.join(" | ", ops));
+                        }
+                    };
+                }
+            }, 0);
+        } catch (Throwable t) {
+            System.out.println("PROBE: ERR outline " + n + " " + t);
+        }
     }
 
-    private static void text(JarFile jar, String path) throws Exception {
-        JarEntry e = jar.getJarEntry(path);
-        if (e == null) {
-            System.out.println("PROBE: nofile " + path);
-            return;
-        }
-        try (InputStream in = jar.getInputStream(e)) {
-            String s = new String(in.readAllBytes(), StandardCharsets.UTF_8).replaceAll("\\s+", " ");
-            System.out.println("PROBE: file " + path + " " + (s.length() > 1500 ? s.substring(0, 1500) : s));
-        }
+    private static String op(int op) {
+        return switch (op) {
+            case 182 -> "iv";
+            case 183 -> "isp";
+            case 184 -> "ist";
+            case 185 -> "iif";
+            case 178 -> "gets";
+            case 179 -> "puts";
+            case 180 -> "getf";
+            case 181 -> "putf";
+            default -> "op" + op;
+        };
+    }
+
+    private static Predicate<String> any() {
+        return s -> true;
+    }
+
+    private static Predicate<String> has(String... parts) {
+        return s -> {
+            for (String p : parts) if (s.toLowerCase().contains(p.toLowerCase())) return true;
+            return false;
+        };
     }
 
     @Test
-    void probe() throws Exception {
-        JarFile jar = gameJar();
-        if (jar != null) {
-            Pattern cls = Pattern.compile("net/minecraft/(client/renderer/[^$]*(Sky|Fog|Moon|Celestial|Star|Cloud|Weather|Lightmap|LightTexture|DimensionSpecial|Environment)[^$]*"
-                    + "|client/renderer/(fog|sky|state)/[^$]*|world/attribute/[^$]*|world/timeline/[^$]*|world/level/MoonPhase|client/renderer/texture/atlas/[^$]*Atlas[^$]*)\\.class");
-            Pattern res = Pattern.compile("assets/minecraft/(atlases/.*|textures/environment/.*|shaders/core/(sky|stars|position_tex|celestial)[^/]*)");
-            List<String> classes = new ArrayList<>();
-            List<String> assets = new ArrayList<>();
-            for (Enumeration<JarEntry> en = jar.entries(); en.hasMoreElements(); ) {
-                String name = en.nextElement().getName();
-                if (cls.matcher(name).matches()) classes.add(name.substring("net/minecraft/".length(), name.length() - 6));
-                if (res.matcher(name).matches()) assets.add(name.substring("assets/minecraft/".length()));
-            }
-            emit("CLASSES", classes);
-            emit("ASSETS", assets);
-            text(jar, "assets/minecraft/atlases/celestials.json");
-            text(jar, "assets/minecraft/atlases/celestial.json");
-            text(jar, "assets/minecraft/atlases/environment.json");
-        }
+    void probe() {
+        sigs("net.minecraft.client.renderer.SkyRenderer", any());
+        outline("net.minecraft.client.renderer.SkyRenderer", any());
 
-        methods("net.minecraft.client.renderer.SkyRenderer");
-        fields("net.minecraft.client.renderer.SkyRenderer");
-        methods("net.minecraft.client.renderer.LevelRenderer", "sky", "fog", "cloud", "weather", "addMainPass", "renderLevel", "star", "moon", "sun");
-        methods("net.minecraft.client.renderer.fog.FogRenderer");
-        fields("net.minecraft.client.renderer.fog.FogRenderer");
-        methods("net.minecraft.client.renderer.CloudRenderer", "render", "color", "build");
-        methods("net.minecraft.client.renderer.LightTexture");
-        methods("net.minecraft.client.renderer.Lightmap");
-        methods("net.minecraft.client.multiplayer.ClientLevel", "sky", "cloud", "star", "moon", "sun", "fog", "time", "dayTime", "environment", "attribute");
-        methods("net.minecraft.client.Camera", "attribute", "environment", "fog", "probe");
-        methods("net.minecraft.client.renderer.DimensionSpecialEffects");
-        methods("net.minecraft.world.attribute.EnvironmentAttributeProbe");
-        methods("net.minecraft.world.attribute.EnvironmentAttributeSystem");
-        fields("net.minecraft.world.attribute.EnvironmentAttributes");
-        methods("net.minecraft.world.attribute.EnvironmentAttribute");
-        fields("net.minecraft.world.level.MoonPhase");
-        methods("net.minecraft.world.level.MoonPhase");
-        methods("net.minecraft.client.renderer.state.SkyRenderState");
-        fields("net.minecraft.client.renderer.state.SkyRenderState");
-        methods("net.minecraft.client.renderer.GameRenderer", "render", "fog", "lightmap", "lightTexture");
-        methods("net.minecraft.client.renderer.texture.TextureAtlas", "getSprite", "location");
-        methods("net.minecraft.client.resources.model.AtlasManager");
-        methods("net.minecraft.client.renderer.texture.atlas.SpriteSource");
-        fields("net.minecraft.data.AtlasIds");
-        fields("net.minecraft.client.resources.model.AtlasIds");
-        fields("net.minecraft.client.renderer.texture.TextureAtlas", "LOCATION");
-        methods("net.fabricmc.fabric.api.client.rendering.v1.DimensionRenderingRegistry");
-        methods("net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents");
-        fields("net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents");
-        fields("net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents");
+        sigs("net.minecraft.client.renderer.fog.FogRenderer", any());
+        outline("net.minecraft.client.renderer.fog.FogRenderer", has("computeFogColor", "setupFog"));
+        sigs("net.minecraft.client.renderer.fog.FogData", any());
+        sigs("net.minecraft.client.renderer.fog.environment.AtmosphericFogEnvironment", any());
+        outline("net.minecraft.client.renderer.fog.environment.AtmosphericFogEnvironment", any());
+
+        sigs("net.minecraft.world.attribute.EnvironmentAttributeProbe", any());
+        outline("net.minecraft.world.attribute.EnvironmentAttributeProbe", any());
+        sigs("net.minecraft.world.attribute.EnvironmentAttributeSystem", any());
+        sigs("net.minecraft.world.attribute.EnvironmentAttributeReader", any());
+        sigs("net.minecraft.world.attribute.EnvironmentAttributes", has("register", "builder"));
+
+        sigs("net.minecraft.client.Camera", has("attribute", "environment", "probe", "fog"));
+        sigs("net.minecraft.client.multiplayer.ClientLevel", has("attribute", "environment", "skycolor", "cloudcolor", "starbrightness", "dimension"));
+        sigs("net.minecraft.world.level.Level", has("environmentattributes", "attribute"));
+
+        sigs("net.minecraft.client.renderer.LevelRenderer", has("addSkyPass"));
+        outline("net.minecraft.client.renderer.LevelRenderer", has("addSkyPass", "extractSky", "extractLevel"));
+        sigs("net.minecraft.client.renderer.LightmapRenderStateExtractor", any());
+        outline("net.minecraft.client.renderer.LightmapRenderStateExtractor", any());
+
+        sigs("net.minecraft.client.renderer.RenderPipelines", has("celestial", "stars", "sky"));
+        sigs("com.mojang.blaze3d.vertex.PoseStack", has("scale", "pushPose", "popPose", "translate", "last", "mulPose"));
+        sigs("com.mojang.blaze3d.buffers.GpuBuffer", has("close", "size"));
+        sigs("net.minecraft.client.renderer.texture.TextureAtlasSprite", has("getU", "getV", "contents"));
+
+        System.out.println("PROBE: mixinextras " + (load("com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation") != null)
+                + " modifyreturn " + (load("com.llamalad7.mixinextras.injector.ModifyReturnValue") != null)
+                + " mixin " + (load("org.spongepowered.asm.mixin.Mixin") != null));
+        System.out.println("PROBE: fabric-sky " + (load("net.fabricmc.fabric.api.client.rendering.v1.DimensionRenderingRegistry") != null)
+                + " connEvents " + (load("net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents") != null));
     }
 }
