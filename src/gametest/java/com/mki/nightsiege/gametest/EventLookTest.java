@@ -130,7 +130,6 @@ public class EventLookTest implements FabricClientGameTest {
         });
         context.waitTicks(40);
         context.takeScreenshot("ui_warrior_blade");
-        context.getInput().pressKey(org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE);
         context.waitTicks(5);
     }
 
