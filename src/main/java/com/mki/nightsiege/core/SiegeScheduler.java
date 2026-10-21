@@ -80,17 +80,22 @@ public final class SiegeScheduler {
      * @param siegeActive whether a siege is already running
      */
     public Decision evaluate(long gameTime, boolean siegeActive, SiegeConfig cfg) {
+        return evaluate(gameTime, siegeActive, cfg.warningDayTime, cfg.startDayTime);
+    }
+
+    /** Same, with the warning and start time given, e.g. noon for an eclipse. */
+    public Decision evaluate(long gameTime, boolean siegeActive, int warningTime, int startTime) {
         if (siegeActive || !armed()) {
             return Decision.NONE;
         }
         long day = SiegeMath.dayOf(gameTime);
         int time = SiegeMath.timeOfDay(gameTime);
 
-        if (warnedForDay != day && time >= cfg.warningDayTime && time < cfg.startDayTime) {
+        if (warnedForDay != day && time >= warningTime && time < startTime) {
             warnedForDay = day;
             return Decision.WARN;
         }
-        if (warnedForDay == day && startedForDay != day && time >= cfg.startDayTime) {
+        if (warnedForDay == day && startedForDay != day && time >= startTime) {
             startedForDay = day;
             return Decision.START;
         }

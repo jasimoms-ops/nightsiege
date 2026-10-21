@@ -208,7 +208,7 @@ public final class MobFactory {
     }
 
     /** Looks for open ground in a ring around the anchor. */
-    private static BlockPos findSpawnSpot(ServerLevel world, BlockPos anchor, SiegeConfig cfg,
+    public static BlockPos findSpawnSpot(ServerLevel world, BlockPos anchor, SiegeConfig cfg,
                                           Random random, double distanceBonus) {
         for (int attempt = 0; attempt < 24; attempt++) {
             double angle = random.nextDouble() * Math.PI * 2.0;

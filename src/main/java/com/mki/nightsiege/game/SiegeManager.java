@@ -181,6 +181,8 @@ public final class SiegeManager {
     private final Digger digger = new Digger();
     private final DungeonService dungeons = new DungeonService(() -> save, () -> config);
     private final PerkService perks = new PerkService(() -> save, () -> config);
+    private final EventEffects events = new EventEffects();
+    private final BonusEvents bonus = new BonusEvents(() -> save, () -> config, perks);
     private final Random random = new Random();
     private MobPool pool = new MobPool(SiegeConfig.defaultMobs());
     private final Set<String> unavailableMobs = new HashSet<>();
@@ -226,6 +228,10 @@ public final class SiegeManager {
         return perks;
     }
 
+    public BonusEvents bonus() {
+        return bonus;
+    }
+
     public SkillTree skillTree() {
         return skillTree;
     }
@@ -256,9 +262,14 @@ public final class SiegeManager {
         CoreNetworking.registerServerReceivers();
         combat.setCooldownScale(perks::cooldownScale);
         combat.setArrowBonus(perks::arrowBonus);
+        traps.setTeslaBoost(() -> active && currentEvent == SiegeEvent.THUNDER ? config.thunderTeslaMultiplier : 1.0);
         ServerLifecycleEvents.SERVER_STARTED.register(server -> onServerStarted(server));
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
             dungeons.abortAll();
+            if (active) {
+                events.end(server, world, currentEvent);
+            }
+            EventAtmosphere.resetServer();
             syncSchedulerToSave();
             persist();
         });
@@ -286,6 +297,7 @@ public final class SiegeManager {
     }
 
     private void onServerStarted(MinecraftServer server) {
+        EventAtmosphere.resetServer();
         savePath = server.getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT)
                 .resolve(SAVE_FILE).normalize();
         migrateSharedSave();
@@ -337,8 +349,16 @@ public final class SiegeManager {
         trapsDirty |= traps.tick(server);
         combat.tick(server);
         perks.tick(server);
+        EventAtmosphere.tickServer();
         if (dungeons.tick(server)) {
             persist();
+        }
+        if (DEBUG_SCENE && !debugSceneDone) {
+            debugScene(server);
+        }
+        if (server.overworld().getGameTime() % 20 == 0) {
+            events.syncClients(server);
+            bonus.tick(server, active, scheduler.armed());
         }
         if (server.overworld().getGameTime() % 20 == 0) {
             sendUltHud(server);
@@ -369,29 +389,109 @@ public final class SiegeManager {
             }
         }
 
-        SiegeScheduler.Decision decision = scheduler.evaluate(gameTime, false, config);
+        // The event of the coming siege is rolled as soon as the countdown is done:
+        // an eclipse comes at noon instead of at night.
+        long clock = server.overworld().getOverworldClockTime();
+        SiegeEvent pending = pendingEvent();
+        if (scheduler.armed() && pending == null) {
+            pending = EventPicker.pick(currentLevel(), random, config);
+            save.pendingEvent = pending.name();
+            persist();
+        }
+        boolean eclipse = pending == SiegeEvent.ECLIPSE;
+        SiegeScheduler.Decision decision = eclipse
+                ? scheduler.evaluate(clock, false, config.eclipseWarningDayTime, config.eclipseStartDayTime)
+                : scheduler.evaluate(clock, false, config);
         if (decision == SiegeScheduler.Decision.WARN) {
             if (target != null) {
-                broadcast(server, Component.translatable("nightsiege.msg.warning", currentLevel())
-                        .withStyle(ChatFormatting.GOLD));
+                broadcast(server, Component.translatable(eclipse ? "nightsiege.msg.eclipse_warning" : "nightsiege.msg.warning",
+                        currentLevel()).withStyle(eclipse ? ChatFormatting.LIGHT_PURPLE : ChatFormatting.GOLD));
                 Fx.warning(server, config);
+                if (eclipse) {
+                    EventAtmosphere.setServer(target.anchor().dimension(), EventAtmosphere.ECLIPSE,
+                            EventAtmosphere.fadeTicks(EventAtmosphere.ECLIPSE));
+                    events.syncClients(server);
+                }
             }
         } else if (decision == SiegeScheduler.Decision.START) {
-            tryStart(server, target);
+            boolean started = tryStart(server, target, pending);
+            if (started) {
+                save.pendingEvent = null;
+                persist();
+            } else if (eclipse && target != null) {
+                EventAtmosphere.setServer(target.anchor().dimension(), "", 200);
+                events.syncClients(server);
+            }
         }
     }
 
-    private void tryStart(MinecraftServer server, AnchorPicker.Result target) {
-        if (target == null) {
+    /** Only for the automatic client test: a few monsters to look at, facing the morning sun. */
+    private static final boolean DEBUG_SCENE = System.getenv("NIGHTSIEGE_DEBUG_SKY") != null;
+    private boolean debugSceneDone;
+
+    private void debugScene(MinecraftServer server) {
+        List<ServerPlayer> players = server.getPlayerList().getPlayers();
+        if (players.isEmpty() || players.get(0).tickCount < 100) {
             return;
+        }
+        debugSceneDone = true;
+        ServerPlayer player = players.get(0);
+        ServerLevel level = player.level();
+        server.getCommands().performPrefixedCommand(server.createCommandSourceStack(), "time set 1500");
+        player.teleportTo(level, player.getX(), player.getY(), player.getZ(), java.util.Set.of(), -90.0f, -18.0f, true);
+        String[] mobs = {"zombie", "skeleton", "creeper", "spider"};
+        for (int i = 0; i < mobs.length; i++) {
+            var type = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getValue(
+                    net.minecraft.resources.Identifier.withDefaultNamespace(mobs[i]));
+            Entity entity = type == null ? null : type.create(level, net.minecraft.world.entity.EntitySpawnReason.COMMAND);
+            if (entity instanceof Mob mob) {
+                double z = player.getZ() - 3.0 + i * 2.0;
+                double x = player.getX() + 6.0;
+                int y = level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
+                        (int) Math.floor(x), (int) Math.floor(z));
+                mob.snapTo(x, y, z, 90.0f, 0.0f);
+                mob.setNoAi(true);
+                mob.setInvulnerable(true);
+                mob.setPersistenceRequired();
+                level.addFreshEntity(mob);
+            }
+        }
+        NightSiegeMod.LOGGER.info("[Night Siege] Testszene aufgebaut");
+    }
+
+    private SiegeEvent pendingEvent() {
+        if (save.pendingEvent == null || save.pendingEvent.isBlank()) {
+            return null;
+        }
+        try {
+            return SiegeEvent.valueOf(save.pendingEvent);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    private boolean tryStart(MinecraftServer server, AnchorPicker.Result target, SiegeEvent event) {
+        if (target == null) {
+            return false;
         }
         ServerLevel targetWorld = levelByName(server, target.anchor().dimension());
         if (targetWorld == null) {
-            return;
+            return false;
         }
         BlockPos pos = new BlockPos((int) target.anchor().x(), (int) target.anchor().y(),
                 (int) target.anchor().z());
-        start(server, targetWorld, pos);
+        return start(server, targetWorld, pos, 0, event);
+    }
+
+    /** Picks an event for a siege started now; an eclipse only by day. */
+    private SiegeEvent pickEventNow(MinecraftServer server) {
+        int time = (int) Math.floorMod(server.overworld().getOverworldClockTime(), 24000L);
+        boolean day = time < 12000;
+        SiegeEvent event = EventPicker.pick(siegeLevel, random, config);
+        for (int i = 0; i < 8 && event == SiegeEvent.ECLIPSE && !day; i++) {
+            event = EventPicker.pick(siegeLevel, random, config);
+        }
+        return !day && event == SiegeEvent.ECLIPSE ? SiegeEvent.NONE : event;
     }
 
     /** Starts a siege at the given core. Also used by the start command. */
@@ -440,7 +540,7 @@ public final class SiegeManager {
             participants.add(player.getUUID());
         }
 
-        currentEvent = testRun && forcedEvent != null ? forcedEvent : EventPicker.pick(siegeLevel, random, config);
+        currentEvent = forcedEvent != null ? forcedEvent : pickEventNow(server);
         themeMobId = null;
         eliteId = null;
         elitePenaltyApplied = false;
@@ -454,13 +554,17 @@ public final class SiegeManager {
         // The event is never named. A blood moon only shows as a red bar.
         bossBar = new ServerBossEvent(UUID.randomUUID(),
                 bossBarTitle(),
-                currentEvent == SiegeEvent.BLOOD_MOON
+                currentEvent == SiegeEvent.BLOOD_MOON || currentEvent == SiegeEvent.NETHER_RIFT
                         ? BossEvent.BossBarColor.RED
+                        : currentEvent == SiegeEvent.FROST ? BossEvent.BossBarColor.BLUE
+                        : currentEvent == SiegeEvent.ECLIPSE ? BossEvent.BossBarColor.WHITE
                         : BossEvent.BossBarColor.PURPLE,
                 BossEvent.BossBarOverlay.PROGRESS);
         bossBar.setProgress(1.0f);
         active = true;
         combat.newSiege();
+        bonus.endAurora(server);
+        events.begin(server, world, anchor, currentEvent, config);
         for (UUID id : participants) {
             ServerPlayer player = server.getPlayerList().getPlayer(id);
             if (player != null) {
@@ -578,6 +682,7 @@ public final class SiegeManager {
         }
 
         tickAtmosphere(server);
+        events.tick(server, world, anchor, currentEvent, participants, fallen, liveMobs, config, world.getGameTime());
 
         digAccumulator++;
         if (digAccumulator >= DIG_INTERVAL) {
@@ -620,15 +725,20 @@ public final class SiegeManager {
             if (entityId == null) {
                 return;
             }
+            entityId = events.substitute(currentEvent, entityId, config);
+            BlockPos rift = events.riftForLast();
             if (MobFactory.isUnavailable(entityId)) {
                 if (unavailableMobs.add(entityId)) {
                     NightSiegeMod.LOGGER.warn("[Night Siege] Mob {} nicht gefunden, wird uebersprungen", entityId);
                 }
                 continue;
             }
-            Mob mob = MobFactory.spawn(world, anchor, entityId, siegeLevel,
+            Mob mob = rift != null
+                    ? MobFactory.spawnAt(world, rift, entityId, siegeLevel, config, random, currentEvent, false)
+                    : MobFactory.spawn(world, anchor, entityId, siegeLevel,
                     config, random, currentEvent, false, spawnDistanceBonus());
             if (mob != null) {
+                events.onSpawned(currentEvent, mob, world);
                 liveMobs.add(mob.getUUID());
                 for (Entity rider : mob.getPassengers()) {
                     liveMobs.add(rider.getUUID());
@@ -791,6 +901,9 @@ public final class SiegeManager {
     }
 
     private void clearSiegeState() {
+        if (world != null) {
+            events.end(world.getServer(), world, currentEvent);
+        }
         world = null;
         anchor = null;
         currentEvent = SiegeEvent.NONE;
@@ -909,6 +1022,7 @@ public final class SiegeManager {
         if (!(entity instanceof ServerPlayer player)) {
             return;
         }
+        events.forget(player.getUUID());
         // Skills gelten nur waehrend einer Belagerung. Beim Betreten werden
         // daher Reste entfernt, etwa nach einem Absturz mitten in der Nacht.
         if (active && participants.contains(player.getUUID()) && !fallen.contains(player.getUUID())) {

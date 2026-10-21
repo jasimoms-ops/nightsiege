@@ -68,6 +68,38 @@ public class SiegeConfig {
     public int bloodMoonWeight = 10;
     public int eliteWeight = 8;
     public int themeWaveWeight = 7;
+    public int eclipseWeight = 7;
+    public int fogWeight = 7;
+    public int thunderWeight = 7;
+    public int netherRiftWeight = 7;
+    public int frostWeight = 7;
+
+    /** Clock time when the sun starts to go dark before an eclipse siege. */
+    public int eclipseWarningDayTime = 5400;
+    /** Clock time when the eclipse siege starts (noon). */
+    public int eclipseStartDayTime = 6000;
+    public double eclipseMobMultiplier = 1.2;
+    /** Share of the eclipse attackers that are phantoms. */
+    public double eclipsePhantomShare = 0.15;
+    /** Share of a fog night's attackers swapped for spiders and creepers. */
+    public double fogSneakerShare = 0.35;
+    /** Seconds between lightning strikes on the attackers in a thunder night (at random up to twice as long). */
+    public int thunderStrikeSeconds = 4;
+    public double thunderStrikeDamage = 8.0;
+    /** Tesla coils hit this much harder in a thunder night. */
+    public double thunderTeslaMultiplier = 1.5;
+    /** Share of a rift night's attackers that come from the Nether. */
+    public double netherRiftShare = 0.5;
+    public int netherRiftCount = 3;
+
+    // --- bonus events -----------------------------------------------------
+    /** Chance of an aurora in a quiet night (no siege due). */
+    public double auroraChance = 0.125;
+    /** Seconds between the free experience points under the aurora. */
+    public int auroraPointSeconds = 60;
+    /** Chance each morning that the trader caravan comes, once enough days have passed. */
+    public double caravanChance = 0.35;
+    public int caravanMinDays = 3;
 
     public double bloodMoonMobMultiplier = 1.5;
     public double bloodMoonHealthMultiplier = 1.3;
@@ -238,6 +270,25 @@ public class SiegeConfig {
         bloodMoonWeight = Math.max(0, bloodMoonWeight);
         eliteWeight = Math.max(0, eliteWeight);
         themeWaveWeight = Math.max(0, themeWaveWeight);
+        eclipseWeight = Math.max(0, eclipseWeight);
+        fogWeight = Math.max(0, fogWeight);
+        thunderWeight = Math.max(0, thunderWeight);
+        netherRiftWeight = Math.max(0, netherRiftWeight);
+        frostWeight = Math.max(0, frostWeight);
+        eclipseWarningDayTime = clamp(eclipseWarningDayTime, 0, 11000);
+        eclipseStartDayTime = clamp(eclipseStartDayTime, eclipseWarningDayTime + 100, 11500);
+        eclipseMobMultiplier = clampDouble(eclipseMobMultiplier, 0.5, 4.0);
+        eclipsePhantomShare = clampDouble(eclipsePhantomShare, 0.0, 1.0);
+        fogSneakerShare = clampDouble(fogSneakerShare, 0.0, 1.0);
+        thunderStrikeSeconds = clamp(thunderStrikeSeconds, 1, 120);
+        thunderStrikeDamage = clampDouble(thunderStrikeDamage, 0.0, 100.0);
+        thunderTeslaMultiplier = clampDouble(thunderTeslaMultiplier, 1.0, 5.0);
+        netherRiftShare = clampDouble(netherRiftShare, 0.0, 1.0);
+        netherRiftCount = clamp(netherRiftCount, 1, 8);
+        auroraChance = clampDouble(auroraChance, 0.0, 1.0);
+        auroraPointSeconds = clamp(auroraPointSeconds, 5, 3600);
+        caravanChance = clampDouble(caravanChance, 0.0, 1.0);
+        caravanMinDays = clamp(caravanMinDays, 1, 100);
         bloodMoonMobMultiplier = Math.max(1.0, bloodMoonMobMultiplier);
         bloodMoonHealthMultiplier = Math.max(1.0, bloodMoonHealthMultiplier);
         bloodMoonDamageMultiplier = Math.max(1.0, bloodMoonDamageMultiplier);

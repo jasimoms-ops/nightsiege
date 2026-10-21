@@ -3,19 +3,28 @@
   "id": "nightsiege",
   "version": "${version}",
   "name": "Night Siege",
-  "description": "Belagerungen greifen deine Basis an, sobald du dort zweimal geschlafen hast. Nur Vanilla-Mobs, keine Belohnungen, harte Strafe bei Niederlage.",
-  "authors": ["MKI96"],
+  "description": "Belagerungen greifen deine Basis an: Klassen und Skills, Fallen, Ereignisse wie Sonnenfinsternis und Blutmond, Dungeons in den Strukturen deines Modpacks.",
+  "authors": [
+    "MKI96"
+  ],
   "contact": {},
   "license": "MIT",
   "environment": "*",
   "entrypoints": {
-    "main": ["com.mki.nightsiege.NightSiegeMod"],
-    "client": ["com.mki.nightsiege.client.NightSiegeClient"]
+    "main": [
+      "com.mki.nightsiege.NightSiegeMod"
+    ],
+    "client": [
+      "com.mki.nightsiege.client.NightSiegeClient"
+    ]
   },
   "depends": {
     "fabricloader": ">=0.19.3",
     "minecraft": "~26.2",
     "java": ">=25",
     "fabric-api": "*"
-  }
+  },
+  "mixins": [
+    "nightsiege.mixins.json"
+  ]
 }

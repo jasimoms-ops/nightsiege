@@ -22,6 +22,10 @@ public class SiegeSave {
     public List<String> forcedDungeons = new ArrayList<>();
     /** Core fragments inserted into the main core, per perk id. */
     public Map<String, Integer> perkFragments = new HashMap<>();
+    /** Event already rolled for the next siege (an eclipse comes at noon), or null. */
+    public String pendingEvent;
+    /** Clock day the trader caravan last came. */
+    public long lastCaravanDay = -1000L;
     /** True once the free starter core has been handed out in this world. */
     public boolean starterCoreGiven;
     /** Uuids of players who already received the guide book. */

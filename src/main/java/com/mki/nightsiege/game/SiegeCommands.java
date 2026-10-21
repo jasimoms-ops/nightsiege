@@ -49,7 +49,28 @@ public final class SiegeCommands {
                                 .then(Commands.literal("normal").executes(ctx -> test(ctx, SiegeEvent.NONE)))
                                 .then(Commands.literal("blutmond").executes(ctx -> test(ctx, SiegeEvent.BLOOD_MOON)))
                                 .then(Commands.literal("champion").executes(ctx -> test(ctx, SiegeEvent.ELITE)))
-                                .then(Commands.literal("thema").executes(ctx -> test(ctx, SiegeEvent.THEME_WAVE)))))
+                                .then(Commands.literal("thema").executes(ctx -> test(ctx, SiegeEvent.THEME_WAVE)))
+                                .then(Commands.literal("finsternis").executes(ctx -> test(ctx, SiegeEvent.ECLIPSE)))
+                                .then(Commands.literal("nebel").executes(ctx -> test(ctx, SiegeEvent.FOG)))
+                                .then(Commands.literal("gewitter").executes(ctx -> test(ctx, SiegeEvent.THUNDER)))
+                                .then(Commands.literal("netherriss").executes(ctx -> test(ctx, SiegeEvent.NETHER_RIFT)))
+                                .then(Commands.literal("frost").executes(ctx -> test(ctx, SiegeEvent.FROST)))))
+                .then(Commands.literal("ereignis").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                        .then(Commands.literal("polarlicht").executes(ctx -> {
+                            SiegeManager.get().bonus().startAurora(ctx.getSource().getServer(), true);
+                            return 1;
+                        }))
+                        .then(Commands.literal("polarlicht_ende").executes(ctx -> {
+                            SiegeManager.get().bonus().endAurora(ctx.getSource().getServer());
+                            return 1;
+                        }))
+                        .then(Commands.literal("karawane").executes(ctx -> {
+                            if (SiegeManager.get().bonus().spawnCaravan(ctx.getSource().getServer()) == null) {
+                                fail(ctx.getSource(), Component.translatable("nightsiege.cmd.caravan_failed"));
+                                return 0;
+                            }
+                            return 1;
+                        })))
                 .then(Commands.literal("stop").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                         .executes(SiegeCommands::stop))
                 .then(Commands.literal("reload").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))

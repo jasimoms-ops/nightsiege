@@ -666,4 +666,55 @@ class SiegeCoreTest {
         assertEquals(SiegeConfig.CURRENT_DUNGEON_LIST, old.dungeonListVersion);
         assertFalse(old.dungeons.isEmpty());
     }
+
+    @Test
+    void everyEventCanComeUp() {
+        SiegeConfig c = new SiegeConfig();
+        c.eventChance = 1.0;
+        Set<SiegeEvent> seen = new HashSet<>();
+        Random random = new Random(3);
+        for (int i = 0; i < 4000; i++) {
+            seen.add(EventPicker.pick(10, random, c));
+        }
+        for (SiegeEvent event : SiegeEvent.values()) {
+            if (event != SiegeEvent.NONE) {
+                assertTrue(seen.contains(event), "never picked: " + event);
+            }
+        }
+        assertFalse(seen.contains(SiegeEvent.NONE));
+    }
+
+    @Test
+    void anEventWithoutWeightNeverComes() {
+        SiegeConfig c = new SiegeConfig();
+        c.eventChance = 1.0;
+        c.eclipseWeight = 0;
+        Random random = new Random(5);
+        for (int i = 0; i < 2000; i++) {
+            assertNotEquals(SiegeEvent.ECLIPSE, EventPicker.pick(10, random, c));
+        }
+    }
+
+    @Test
+    void anEclipseWarnsAndStartsAroundNoon() {
+        SiegeConfig c = new SiegeConfig();
+        SiegeScheduler s = new SiegeScheduler();
+        s.setRequiredTicks(24000);
+        s.setReadyTicks(24000);
+        long day = 24000L * 5;
+        int warn = c.eclipseWarningDayTime;
+        int start = c.eclipseStartDayTime;
+        assertEquals(SiegeScheduler.Decision.NONE, s.evaluate(day + 3000, false, warn, start));
+        assertEquals(SiegeScheduler.Decision.WARN, s.evaluate(day + warn, false, warn, start));
+        assertEquals(SiegeScheduler.Decision.START, s.evaluate(day + start, false, warn, start));
+        assertEquals(SiegeScheduler.Decision.NONE, s.evaluate(day + start + 100, false, warn, start));
+    }
+
+    @Test
+    void onlyEventsWithASkyHaveAnAtmosphere() {
+        assertEquals("", SiegeEvent.NONE.atmosphere());
+        assertEquals("", SiegeEvent.ELITE.atmosphere());
+        assertEquals("ECLIPSE", SiegeEvent.ECLIPSE.atmosphere());
+        assertEquals("FROST", SiegeEvent.FROST.atmosphere());
+    }
 }

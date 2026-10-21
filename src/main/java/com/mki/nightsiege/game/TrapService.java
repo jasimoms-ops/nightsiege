@@ -43,6 +43,14 @@ import java.util.function.Supplier;
  */
 public final class TrapService {
 
+    /** Extra Tesla damage, e.g. in a thunder night. */
+    private java.util.function.DoubleSupplier teslaBoost = () -> 1.0;
+
+    public void setTeslaBoost(java.util.function.DoubleSupplier boost) {
+        this.teslaBoost = boost;
+    }
+
+
     /** Traps are checked every this many ticks. */
     private static final int TICK_INTERVAL = 5;
 
@@ -445,7 +453,7 @@ public final class TrapService {
             return;
         }
         DamageSource source = sourceFor(level, record);
-        float damage = (float) TrapKind.TESLA.damage(tier);
+        float damage = (float) (TrapKind.TESLA.damage(tier) * teslaBoost.getAsDouble());
         List<LivingEntity> hit = new ArrayList<>();
         LivingEntity current = first;
         Vec3 start = from;

@@ -123,6 +123,62 @@ jobs:
               print("::warning title=SERVER-TAIL::" + "%0A".join(text.splitlines()[-40:]))
           PY
 
+      # Ein Client-Start mit Software-Grafik prueft die Mixins in Himmel und
+      # Monster-Darstellung. Bilder davon wandern mit der Jar in den dist-Branch.
+      - name: Client-Probelauf
+        if: steps.build.outcome == 'success'
+        continue-on-error: true
+        run: |
+          sudo apt-get update -qq > /dev/null
+          sudo apt-get install -y -qq xvfb imagemagick libgl1-mesa-dri mesa-utils > /dev/null
+          mkdir -p run/saves shots
+          if [ -d run/world ]; then rm -rf run/saves/world; cp -r run/world run/saves/world; rm -f run/saves/world/session.lock; fi
+          export LIBGL_ALWAYS_SOFTWARE=1
+          export NIGHTSIEGE_DEBUG_SKY=CYCLE
+          Xvfb :99 -screen 0 960x540x24 > /dev/null 2>&1 &
+          export DISPLAY=:99
+          sleep 2
+          (timeout 900 gradle runClient --no-daemon --args="--quickPlaySingleplayer world" > client-output.txt 2>&1) &
+          CLIENT=$!
+          JOINED=0
+          for i in $(seq 1 120); do
+            if grep -q "Testszene aufgebaut" client-output.txt 2>/dev/null; then JOINED=1; break; fi
+            if ! kill -0 $CLIENT 2>/dev/null; then break; fi
+            sleep 5
+          done
+          echo "joined=$JOINED"
+          if [ $JOINED = 1 ]; then
+            sleep 12
+            for n in 1 2 3 4 5 6 7; do
+              import -window root "shots/sky_$n.png" || true
+              sleep 30
+            done
+          else
+            import -window root shots/start.png || true
+          fi
+          kill $CLIENT 2>/dev/null || true
+          pkill -f runClient || true
+          sleep 3
+          python3 - <<'PY'
+          import re
+          text = open("client-output.txt", encoding="utf-8", errors="replace").read()
+          pat = re.compile(r"(ERROR|Exception|Caused by|Mixin|mixin|Failed|nightsiege|Night Siege|OpenGL|GL_|Backend|joined|Testszene|crash)", re.I)
+          lines = [l.rstrip()[:400] for l in text.splitlines() if pat.search(l)]
+          started = any("Testszene" in l for l in lines)
+          print("::notice title=CLIENTSTART::%s" % ("Welt geladen" if started else "NICHT bis in die Welt"))
+          chunk, size, part = [], 0, 1
+          for line in lines[:160]:
+              if size + len(line) > 7000:
+                  print("::warning title=CLIENT%d::" % part + "%0A".join(chunk))
+                  chunk, size, part = [], 0, part + 1
+              chunk.append(line)
+              size += len(line) + 1
+          if chunk:
+              print("::warning title=CLIENT%d::" % part + "%0A".join(chunk))
+          if not lines:
+              print("::warning title=CLIENT-TAIL::" + "%0A".join(text.splitlines()[-40:]))
+          PY
+
       - name: Jar hochladen
         if: always()
         uses: actions/upload-artifact@v4
@@ -142,6 +198,8 @@ jobs:
           echo "gefunden: $JAR"
           TMP=$(mktemp -d)
           cp "$JAR" "$TMP/nightsiege.jar"
+          mkdir -p "$TMP/shots"
+          cp shots/*.png "$TMP/shots/" 2>/dev/null || true
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout --orphan dist-tmp
@@ -149,6 +207,7 @@ jobs:
           mkdir -p dist
           cp "$TMP/nightsiege.jar" dist/nightsiege.jar
           git add -f dist/nightsiege.jar
+          if ls "$TMP/shots/"*.png > /dev/null 2>&1; then mkdir -p dist/shots; cp "$TMP/shots/"*.png dist/shots/; git add -f dist/shots; fi
           git commit -m "Build von ${GITHUB_SHA}"
           git push -f origin dist-tmp:dist
 

@@ -46,6 +46,7 @@ public class GuideScreen extends Screen {
             new Chapter("core", "minecraft:respawn_anchor"),
             new Chapter("siege", "minecraft:zombie_head"),
             new Chapter("events", "minecraft:redstone"),
+            new Chapter("bonus", "minecraft:emerald"),
             new Chapter("classes", "minecraft:nether_star"),
             new Chapter("ult", "minecraft:blaze_powder"),
             new Chapter("archer", "minecraft:bow"),
@@ -96,7 +97,7 @@ public class GuideScreen extends Screen {
                 chapter = index;
                 page = 0;
                 rebuildWidgets();
-            }).bounds(sidebarX(), rowY(i), SIDEBAR - 4, 12).build();
+            }).bounds(sidebarX(), rowY(i), SIDEBAR - 4, 11).build();
             button.setAlpha(0f);
             addRenderableWidget(button);
         }
@@ -145,7 +146,7 @@ public class GuideScreen extends Screen {
     }
 
     private int rowY(int index) {
-        return innerY() + 3 + index * 12;
+        return innerY() + 3 + index * 11;
     }
 
     private int contentX() {
@@ -287,20 +288,20 @@ public class GuideScreen extends Screen {
         for (int i = 0; i < CHAPTERS.size(); i++) {
             int y = rowY(i);
             boolean active = i == chapter;
-            boolean hover = mouseX >= x && mouseX < x + SIDEBAR - 4 && mouseY >= y && mouseY < y + 12;
+            boolean hover = mouseX >= x && mouseX < x + SIDEBAR - 4 && mouseY >= y && mouseY < y + 11;
             if (active) {
-                gui.fill(x, y, x + SIDEBAR - 6, y + 12, 0x60FFC94A);
-                gui.fill(x, y, x + 2, y + 12, GOLD);
+                gui.fill(x, y, x + SIDEBAR - 6, y + 11, 0x60FFC94A);
+                gui.fill(x, y, x + 2, y + 11, GOLD);
             } else if (hover) {
-                gui.fill(x, y, x + SIDEBAR - 6, y + 12, 0x30FFFFFF);
+                gui.fill(x, y, x + SIDEBAR - 6, y + 11, 0x30FFFFFF);
             }
             gui.pose().pushMatrix();
             gui.pose().translate(x + 4, y + 0.5f);
-            gui.pose().scale(0.7f, 0.7f);
+            gui.pose().scale(0.65f, 0.65f);
             gui.item(iconOf(CHAPTERS.get(i).icon()), 0, 0);
             gui.pose().popMatrix();
             String name = Component.translatable("nightsiege.guide." + CHAPTERS.get(i).id() + ".title").getString();
-            gui.text(font, name, x + 18, y + 2, active ? 0xFFFFFFFF : hover ? 0xFFE0DCE8 : MUTED, true);
+            gui.text(font, name, x + 16, y + 2, active ? 0xFFFFFFFF : hover ? 0xFFE0DCE8 : MUTED, true);
         }
     }
 

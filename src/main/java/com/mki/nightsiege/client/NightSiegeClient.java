@@ -26,6 +26,7 @@ public class NightSiegeClient implements ClientModInitializer {
 
     /** Fires the ultimate of the player's path. R by default; rebindable under Controls. */
     private static KeyMapping ultimateKey;
+    private static int debugTicks;
     /** Opens the handbook. H by default. */
     private static KeyMapping guideKey;
 
@@ -66,6 +67,26 @@ public class NightSiegeClient implements ClientModInitializer {
                         }
                     });
                 });
+        ClientPlayNetworking.registerGlobalReceiver(CoreNetworking.EventSkyPayload.TYPE,
+                (payload, context) -> context.client().execute(() ->
+                        com.mki.nightsiege.game.EventAtmosphere.setClient(payload.event(), payload.fade())));
+        // Only for the automatic client test: shows every event's sky in turn.
+        String debugSky = System.getenv("NIGHTSIEGE_DEBUG_SKY");
+        ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            if (client.level == null) {
+                com.mki.nightsiege.game.EventAtmosphere.resetClient();
+                debugTicks = 0;
+                return;
+            }
+            if (debugSky != null && !debugSky.isBlank()) {
+                debugTicks++;
+                String[] cycle = {"ECLIPSE", "FROST", "NETHER_RIFT", "BLOOD_MOON", "FOG", "AURORA", "THUNDER"};
+                String event = "CYCLE".equals(debugSky)
+                        ? cycle[(debugTicks / 600) % cycle.length] : debugSky;
+                com.mki.nightsiege.game.EventAtmosphere.setClient(debugTicks < 200 ? "" : event, 20);
+            }
+            com.mki.nightsiege.game.EventAtmosphere.tickClient();
+        });
         ClientPlayNetworking.registerGlobalReceiver(CoreNetworking.UltHudPayload.TYPE,
                 (payload, context) -> {
                     UltState state = Json.fromJson(payload.json(), UltState.class);

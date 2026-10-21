@@ -52,6 +52,22 @@ public final class CoreNetworking {
      * {@code class:ARCHER}, {@code donate:10} or {@code dev:grant}. One message
      * type covers every button, so a new button never means new network code.</p>
      */
+    /** Server to client: which event the sky of the player's dimension shows ("" for none). */
+    public record EventSkyPayload(String event, int fade) implements CustomPacketPayload {
+
+        public static final CustomPacketPayload.Type<EventSkyPayload> TYPE =
+                new CustomPacketPayload.Type<>(ModContent.id("event_sky"));
+
+        public static final StreamCodec<RegistryFriendlyByteBuf, EventSkyPayload> CODEC =
+                StreamCodec.composite(ByteBufCodecs.STRING_UTF8, EventSkyPayload::event,
+                        ByteBufCodecs.VAR_INT, EventSkyPayload::fade, EventSkyPayload::new);
+
+        @Override
+        public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
     /** Server to client: the dungeon test tool window as JSON. */
     public record DungeonUiPayload(String json) implements CustomPacketPayload {
 
@@ -100,6 +116,7 @@ public final class CoreNetworking {
         PayloadTypeRegistry.clientboundPlay().register(CoreUiPayload.TYPE, CoreUiPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(UltHudPayload.TYPE, UltHudPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(DungeonUiPayload.TYPE, DungeonUiPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(EventSkyPayload.TYPE, EventSkyPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(CoreActionPayload.TYPE, CoreActionPayload.CODEC);
     }
 
