@@ -167,7 +167,9 @@ public class EventLookTest implements FabricClientGameTest {
             try {
                 java.lang.reflect.Field tab = com.mki.nightsiege.client.CoreScreen.class.getDeclaredField("activeTab");
                 tab.setAccessible(true);
-                tab.set(null, null);
+                @SuppressWarnings({"unchecked", "rawtypes"})
+                Object archer = Enum.valueOf((Class) tab.getType(), "ARCHER");
+                tab.set(null, archer);
             } catch (ReflectiveOperationException e) {
                 System.out.println("[Night Siege test] could not reset the tab: " + e);
             }

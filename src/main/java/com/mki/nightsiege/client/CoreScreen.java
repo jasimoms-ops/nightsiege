@@ -293,7 +293,11 @@ public class CoreScreen extends Screen {
     private static final int G_SLOT = 28;
     private static final int G_TIER = 62;
     private static final int G_HALF = 20;
-    private static final int PANEL_W = 156;
+    /** Width of the info panel: narrower on small screens. */
+    private int PANEL_W = 156;
+    /** Set once per window, so the tree opens at the player's progress. */
+    private boolean panPlaced;
+    private static String panFor = "";
     private static final int LABEL_BAND = 24;
     private static double panX;
     private static double panY;
@@ -404,6 +408,23 @@ public class CoreScreen extends Screen {
         gridMaxRow = Math.max(1, maxRow);
         canvasW = gridMaxRow * G_TIER + G_SLOT;
         canvasH = 6 * G_HALF + G_SLOT + 14;
+        PANEL_W = Math.max(118, Math.min(156, innerW() * 3 / 10));
+        // Open at the player's frontier: the last tier with something learned.
+        String placeKey = clazz + "/" + shownWay;
+        if (!panPlaced || !placeKey.equals(panFor)) {
+            panPlaced = true;
+            panFor = placeKey;
+            int frontier = 0;
+            for (CoreStats.NodeLine node : stats.nodes) {
+                boolean visible = clazz.equals(node.clazz)
+                        && (node.path == null || node.path.isBlank() || node.path.equals(shownWay));
+                if (visible && node.level > 0) {
+                    frontier = Math.max(frontier, node.row + 1);
+                }
+            }
+            panX = -(Math.min(frontier, gridMaxRow) * G_TIER + G_SLOT / 2.0 - viewW() / 2.0);
+            panY = 0;
+        }
         clampPan();
 
         // The way buttons, at the right of the banner.
@@ -758,10 +779,6 @@ public class CoreScreen extends Screen {
         }
         gui.disableScissor();
 
-        // Hint at the bottom of the view.
-        String hint = Component.translatable("nightsiege.ui.grid_hint").getString();
-        gui.text(font, font.plainSubstrByWidth(hint, vw - 8), vx + 4, vy + vh - 10, 0x90FFFFFF, false);
-
         drawInfoPanel(gui, font, hovered);
         return hovered;
     }
@@ -806,7 +823,9 @@ public class CoreScreen extends Screen {
         if (g == null) {
             gui.text(font, Component.translatable("nightsiege.ui.panel_title").getString(), tx, y, 0xFFFFD86B, true);
             y += 14;
-            for (String line : wrap(font, Component.translatable("nightsiege.ui.panel_help").getString(), tw)) {
+            String help = Component.translatable("nightsiege.ui.panel_help").getString() + "\n"
+                    + Component.translatable("nightsiege.ui.grid_hint").getString();
+            for (String line : wrap(font, help, tw)) {
                 gui.text(font, line, tx, y, 0xFFB8B0C8, false);
                 y += 10;
             }
@@ -1016,6 +1035,9 @@ public class CoreScreen extends Screen {
     @Override
     public void extractRenderState(GuiGraphicsExtractor gui, int mouseX, int mouseY, float delta) {
         Font font = Minecraft.getInstance().font;
+        if (activeTab == null) {
+            activeTab = Tab.STATS;
+        }
 
         // Everything decorative first, so the real buttons drawn by super sit on top.
         drawTabs(gui, false);
