@@ -12,6 +12,8 @@ import net.minecraft.client.renderer.texture.TextureManager;
 import net.minecraft.client.resources.model.sprite.AtlasManager;
 import net.minecraft.world.level.MoonPhase;
 import org.joml.Vector4f;
+
+import java.util.Map;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -30,7 +32,8 @@ public abstract class SkyRendererMixin {
     @Shadow @Final private RenderSystem.AutoStorageIndexBuffer quadIndices;
 
     @Unique private GpuBuffer nightsiege$eclipse;
-    @Unique private GpuBuffer nightsiege$bloodMoon;
+    /** Event moons, by event: blood moon, frost, rift and fog. */
+    @Unique private final java.util.Map<String, GpuBuffer> nightsiege$moons = new java.util.HashMap<>();
     @Unique private GpuBuffer nightsiege$aurora;
 
     @Inject(method = "<init>", at = @At("TAIL"))
@@ -38,12 +41,13 @@ public abstract class SkyRendererMixin {
                                   CallbackInfo ci) {
         try {
             nightsiege$eclipse = SkyFx.quad("Night Siege eclipse", celestialsAtlas.getSprite(SkyFx.ECLIPSE_SUN));
-            nightsiege$bloodMoon = SkyFx.quad("Night Siege blood moon", celestialsAtlas.getSprite(SkyFx.BLOOD_MOON));
+            for (Map.Entry<String, net.minecraft.resources.Identifier> moon : SkyFx.MOONS.entrySet()) {
+                nightsiege$moons.put(moon.getKey(), SkyFx.quad("Night Siege moon", celestialsAtlas.getSprite(moon.getValue())));
+            }
             nightsiege$aurora = SkyFx.aurora(celestialsAtlas.getSprite(SkyFx.AURORA));
         } catch (RuntimeException e) {
             // Without the extra buffers the sky simply stays vanilla.
             nightsiege$eclipse = null;
-            nightsiege$bloodMoon = null;
             nightsiege$aurora = null;
         }
     }
@@ -53,9 +57,10 @@ public abstract class SkyRendererMixin {
         if (nightsiege$eclipse != null) {
             nightsiege$eclipse.close();
         }
-        if (nightsiege$bloodMoon != null) {
-            nightsiege$bloodMoon.close();
+        for (GpuBuffer moon : nightsiege$moons.values()) {
+            moon.close();
         }
+        nightsiege$moons.clear();
         if (nightsiege$aurora != null) {
             nightsiege$aurora.close();
         }
@@ -79,20 +84,23 @@ public abstract class SkyRendererMixin {
         }
     }
 
-    /** The normal moon fades out under a blood moon. */
+    /** The normal moon fades out under an event moon. */
     @ModifyArg(method = "renderMoon", at = @At(value = "INVOKE",
             target = "Lnet/minecraft/client/renderer/DynamicUniforms;writeTransform(Lorg/joml/Matrix4f;Lorg/joml/Vector4f;)Lcom/mojang/blaze3d/buffers/GpuBufferSlice;"),
             index = 1)
     private Vector4f nightsiege$dimMoon(Vector4f color) {
-        float s = EventAtmosphere.clientStrength(EventAtmosphere.BLOOD_MOON);
+        EventAtmosphere.State state = EventAtmosphere.client();
+        float s = nightsiege$moons.containsKey(state.shown()) ? Math.min(1f, state.strength()) : 0f;
         return s <= 0f ? color : new Vector4f(color.x, color.y, color.z, color.w * (1f - s));
     }
 
     @Inject(method = "renderMoon", at = @At("TAIL"))
-    private void nightsiege$bloodMoon(MoonPhase moonPhase, float rainBrightness, PoseStack poseStack, CallbackInfo ci) {
-        float s = EventAtmosphere.clientStrength(EventAtmosphere.BLOOD_MOON);
-        if (s > 0.01f && nightsiege$bloodMoon != null) {
-            SkyFx.draw("Night Siege blood moon", nightsiege$bloodMoon, 1, poseStack, 100.0F, 24.0F,
+    private void nightsiege$eventMoon(MoonPhase moonPhase, float rainBrightness, PoseStack poseStack, CallbackInfo ci) {
+        EventAtmosphere.State state = EventAtmosphere.client();
+        GpuBuffer moon = nightsiege$moons.get(state.shown());
+        float s = Math.min(1f, state.strength());
+        if (s > 0.01f && moon != null) {
+            SkyFx.draw("Night Siege moon", moon, 1, poseStack, 100.0F, 24.0F,
                     new Vector4f(1f, 1f, 1f, s), celestialsAtlas, renderTarget, quadIndices);
         }
     }

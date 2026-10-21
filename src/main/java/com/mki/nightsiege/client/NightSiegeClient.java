@@ -81,6 +81,9 @@ public class NightSiegeClient implements ClientModInitializer {
                     UltState state = Json.fromJson(payload.json(), UltState.class);
                     context.client().execute(() -> UltHud.update(state));
                 });
+        // Event colours on top of the picture, for shader packs that draw their own sky.
+        HudElementRegistry.attachElementBefore(VanillaHudElements.MISC_OVERLAYS, ModContent.id("event_overlay"),
+                EventOverlay::draw);
         HudElementRegistry.attachElementAfter(VanillaHudElements.HOTBAR, ModContent.id("ultimate"),
                 (gui, delta) -> UltHud.draw(gui, ultimateKey));
 

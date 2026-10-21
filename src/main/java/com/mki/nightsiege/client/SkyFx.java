@@ -33,6 +33,12 @@ public final class SkyFx {
     public static final Identifier ECLIPSE_SUN = Identifier.fromNamespaceAndPath("nightsiege", "eclipse_sun");
     public static final Identifier BLOOD_MOON = Identifier.fromNamespaceAndPath("nightsiege", "blood_moon");
     public static final Identifier AURORA = Identifier.fromNamespaceAndPath("nightsiege", "aurora");
+    /** The moon each event night shows instead of the normal one. */
+    public static final java.util.Map<String, Identifier> MOONS = java.util.Map.of(
+            com.mki.nightsiege.game.EventAtmosphere.BLOOD_MOON, BLOOD_MOON,
+            com.mki.nightsiege.game.EventAtmosphere.FROST, Identifier.fromNamespaceAndPath("nightsiege", "frost_moon"),
+            com.mki.nightsiege.game.EventAtmosphere.NETHER_RIFT, Identifier.fromNamespaceAndPath("nightsiege", "rift_moon"),
+            com.mki.nightsiege.game.EventAtmosphere.FOG, Identifier.fromNamespaceAndPath("nightsiege", "fog_moon"));
 
     /** Curtain pieces of the aurora. */
     public static final int AURORA_QUADS = 48;

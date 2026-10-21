@@ -56,6 +56,23 @@ public class EventLookTest implements FabricClientGameTest {
             context.runOnClient(client -> EventAtmosphere.setClient("", 1));
             context.waitTicks(30);
             context.takeScreenshot("event_99_night_normal");
+
+            // The same once more with the layer meant for shader packs.
+            System.setProperty("nightsiege.overlay", "true");
+            game.getServer().runCommand("time set 1500");
+            context.getInput().lookAt(-90.0f, -12.0f);
+            for (int i = 0; i < EVENTS.length; i++) {
+                String event = EVENTS[i];
+                boolean night = EventAtmosphere.BLOOD_MOON.equals(event) || EventAtmosphere.AURORA.equals(event);
+                if (night) {
+                    game.getServer().runCommand("time set 14600");
+                    context.getInput().lookAt(EventAtmosphere.AURORA.equals(event) ? -150.0f : -90.0f, -22.0f);
+                }
+                context.runOnClient(client -> EventAtmosphere.setClient(event, 1));
+                context.waitTicks(30);
+                context.takeScreenshot("overlay_%02d_%s".formatted(i + 1, event.toLowerCase(java.util.Locale.ROOT)));
+            }
+            System.setProperty("nightsiege.overlay", "false");
         }
     }
 }
