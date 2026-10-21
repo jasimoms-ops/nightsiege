@@ -123,55 +123,31 @@ jobs:
               print("::warning title=SERVER-TAIL::" + "%0A".join(text.splitlines()[-40:]))
           PY
 
-      # Ein Client-Start mit Software-Grafik prueft die Mixins in Himmel und
-      # Monster-Darstellung. Bilder davon wandern mit der Jar in den dist-Branch.
-      - name: Client-Probelauf
+      # Ein echter Client-Start (Fabric Client-Gametest, Software-Grafik) laedt
+      # eine Welt, prueft alle Mixins und fotografiert jedes Ereignis. Die Bilder
+      # wandern mit der Jar in den dist-Branch.
+      - name: Client-Test
         if: steps.build.outcome == 'success'
         continue-on-error: true
         run: |
           sudo apt-get update -qq > /dev/null
-          sudo apt-get install -y -qq xvfb imagemagick libgl1-mesa-dri mesa-utils > /dev/null
-          mkdir -p run/saves shots
-          if [ -d run/world ]; then rm -rf run/saves/world; cp -r run/world run/saves/world; rm -f run/saves/world/session.lock; fi
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri > /dev/null
           export LIBGL_ALWAYS_SOFTWARE=1
-          export NIGHTSIEGE_DEBUG_SKY=CYCLE
-          Xvfb :99 -screen 0 960x540x24 > /dev/null 2>&1 &
-          export DISPLAY=:99
-          sleep 2
-          (timeout 900 gradle runClient --no-daemon --args="--quickPlaySingleplayer world" > client-output.txt 2>&1) &
-          CLIENT=$!
-          JOINED=0
-          for i in $(seq 1 120); do
-            if grep -q "Testszene aufgebaut" client-output.txt 2>/dev/null; then JOINED=1; break; fi
-            if ! kill -0 $CLIENT 2>/dev/null; then break; fi
-            if [ $((i % 12)) = 0 ]; then import -window root "shots/wait_$i.png" || true; fi
-            sleep 5
-          done
-          echo "joined=$JOINED"
-          if [ $JOINED = 1 ]; then
-            sleep 12
-            for n in 1 2 3 4 5 6 7; do
-              import -window root "shots/sky_$n.png" || true
-              sleep 30
-            done
-          else
-            import -window root shots/start.png || true
-          fi
-          kill $CLIENT 2>/dev/null || true
-          pkill -f runClient || true
-          sleep 3
+          timeout 1200 xvfb-run -a -s "-screen 0 1280x720x24" gradle runClientGameTest --no-daemon --stacktrace > client-output.txt 2>&1
+          echo "exit=$?" >> client-output.txt
+          mkdir -p shots
+          find . -path ./shots -prune -o -name "*.png" -path "*screenshot*" -newer build.gradle -print | while read f; do cp "$f" shots/; done
+          ls shots
           python3 - <<'PY'
           import re
           text = open("client-output.txt", encoding="utf-8", errors="replace").read()
-          pat = re.compile(r"(ERROR|Exception|Caused by|Mixin|mixin|Failed|nightsiege|Night Siege|OpenGL|Backend|joined|Testszene|crash|quickplay|Preparing|Starting integrated|Loaded|Created|Stopping)", re.I)
-          noise = re.compile(r"(ALSA|flite|narrator|Narrator|Suppressed|Realms|SignedJWT|libflite|resource path)")
+          noise = re.compile(r"(ALSA|flite|narrator|Narrator|Suppressed|Realms|SignedJWT|resource path|OpenAL|SoundSystem)")
+          pat = re.compile(r"(ERROR|Exception|Caused by|Mixin|mixin|Failed|FAILED|nightsiege|Night Siege|gametest|GameTest|screenshot|passed|exit=|BUILD)", re.I)
           lines = [l.rstrip()[:300] for l in text.splitlines() if pat.search(l) and not noise.search(l)]
-          tail = [l.rstrip()[:300] for l in text.splitlines() if not noise.search(l)][-45:]
-          print("::warning title=CLIENT-TAIL::" + "%0A".join(tail))
-          started = any("Testszene" in l for l in lines)
-          print("::notice title=CLIENTSTART::%s" % ("Welt geladen" if started else "NICHT bis in die Welt"))
+          ok = "exit=0" in text
+          print("::notice title=CLIENTTEST::%s" % ("bestanden" if ok else "FEHLGESCHLAGEN"))
           chunk, size, part = [], 0, 1
-          for line in lines[:160]:
+          for line in lines[:200]:
               if size + len(line) > 7000:
                   print("::warning title=CLIENT%d::" % part + "%0A".join(chunk))
                   chunk, size, part = [], 0, part + 1
@@ -179,8 +155,8 @@ jobs:
               size += len(line) + 1
           if chunk:
               print("::warning title=CLIENT%d::" % part + "%0A".join(chunk))
-          if not lines:
-              print("::warning title=CLIENT-TAIL::" + "%0A".join(text.splitlines()[-40:]))
+          tail = [l.rstrip()[:300] for l in text.splitlines() if not noise.search(l)][-40:]
+          print("::warning title=CLIENT-TAIL::" + "%0A".join(tail))
           PY
 
       - name: Jar hochladen

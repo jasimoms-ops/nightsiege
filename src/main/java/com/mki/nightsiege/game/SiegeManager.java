@@ -353,9 +353,6 @@ public final class SiegeManager {
         if (dungeons.tick(server)) {
             persist();
         }
-        if (DEBUG_SCENE && !debugSceneDone) {
-            debugScene(server);
-        }
         if (server.overworld().getGameTime() % 20 == 0) {
             events.syncClients(server);
             bonus.tick(server, active, scheduler.armed());
@@ -423,40 +420,6 @@ public final class SiegeManager {
                 events.syncClients(server);
             }
         }
-    }
-
-    /** Only for the automatic client test: a few monsters to look at, facing the morning sun. */
-    private static final boolean DEBUG_SCENE = System.getenv("NIGHTSIEGE_DEBUG_SKY") != null;
-    private boolean debugSceneDone;
-
-    private void debugScene(MinecraftServer server) {
-        List<ServerPlayer> players = server.getPlayerList().getPlayers();
-        if (players.isEmpty() || players.get(0).tickCount < 100) {
-            return;
-        }
-        debugSceneDone = true;
-        ServerPlayer player = players.get(0);
-        ServerLevel level = player.level();
-        server.getCommands().performPrefixedCommand(server.createCommandSourceStack(), "time set 1500");
-        player.teleportTo(level, player.getX(), player.getY(), player.getZ(), java.util.Set.of(), -90.0f, -18.0f, true);
-        String[] mobs = {"zombie", "skeleton", "creeper", "spider"};
-        for (int i = 0; i < mobs.length; i++) {
-            var type = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getValue(
-                    net.minecraft.resources.Identifier.withDefaultNamespace(mobs[i]));
-            Entity entity = type == null ? null : type.create(level, net.minecraft.world.entity.EntitySpawnReason.COMMAND);
-            if (entity instanceof Mob mob) {
-                double z = player.getZ() - 3.0 + i * 2.0;
-                double x = player.getX() + 6.0;
-                int y = level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
-                        (int) Math.floor(x), (int) Math.floor(z));
-                mob.snapTo(x, y, z, 90.0f, 0.0f);
-                mob.setNoAi(true);
-                mob.setInvulnerable(true);
-                mob.setPersistenceRequired();
-                level.addFreshEntity(mob);
-            }
-        }
-        NightSiegeMod.LOGGER.info("[Night Siege] Testszene aufgebaut");
     }
 
     private SiegeEvent pendingEvent() {

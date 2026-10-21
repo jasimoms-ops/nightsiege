@@ -28,6 +28,18 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
+// Automatic client test: starts the real game, loads a world and takes
+// screenshots of every event look (task runClientGameTest).
+fabricApi {
+    configureTests {
+        createSourceSet = true
+        modId = "nightsiege-test"
+        enableGameTests = false
+        enableClientGameTests = true
+        eula = true
+    }
+}
+
 processResources {
     inputs.property "version", project.version
     filesMatching("fabric.mod.json") {
