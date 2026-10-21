@@ -6,6 +6,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.Item;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -15,31 +16,28 @@ import java.util.Map;
  */
 public final class ClassGear {
 
-    private static final Map<String, String> BY_PATH = ordered(
-            Map.entry(SkillTree.PATH_SWIFT, "infernite_bow"),
-            Map.entry(SkillTree.PATH_HEAVY, "infernite_bow"),
-            Map.entry(SkillTree.PATH_HUNTER, "infernite_bow"),
-            Map.entry(SkillTree.PATH_CROSSBOW, "infernite_crossbow"),
-            Map.entry(SkillTree.PATH_BERSERKER, "infernite_sword"),
-            Map.entry(SkillTree.PATH_BLADE, "infernite_sword"),
-            Map.entry(SkillTree.PATH_SPEAR, "infernite_spear"),
-            Map.entry(SkillTree.PATH_AXE, "infernite_axe"),
-            Map.entry(SkillTree.PATH_BULWARK, "infernite_chestplate"),
-            Map.entry(SkillTree.PATH_MEDIC, "infernite_helmet"),
-            Map.entry(SkillTree.PATH_SHIELD, "infernite_shield"),
-            Map.entry(SkillTree.PATH_PALADIN, "infernite_mace"),
-            Map.entry(SkillTree.PATH_DEMOLITION, "infernite_pickaxe"),
-            Map.entry(SkillTree.PATH_GUNNER, "infernite_pickaxe"),
-            Map.entry(SkillTree.PATH_ALCHEMIST, "infernite_pickaxe"),
-            Map.entry(SkillTree.PATH_ELECTRICIAN, "infernite_pickaxe"));
+    private static final Map<String, List<String>> BY_PATH = ordered(
+            Map.entry(SkillTree.PATH_SWIFT, List.of("infernite_bow")),
+            Map.entry(SkillTree.PATH_HEAVY, List.of("infernite_bow")),
+            Map.entry(SkillTree.PATH_HUNTER, List.of("infernite_bow")),
+            Map.entry(SkillTree.PATH_CROSSBOW, List.of("infernite_crossbow")),
+            Map.entry(SkillTree.WAY_BLADE, List.of("infernite_sword")),
+            Map.entry(SkillTree.WAY_MIGHT, List.of("infernite_axe", "infernite_mace")),
+            Map.entry(SkillTree.PATH_BULWARK, List.of("infernite_chestplate")),
+            Map.entry(SkillTree.PATH_MEDIC, List.of("infernite_helmet")),
+            Map.entry(SkillTree.PATH_SHIELD, List.of("infernite_shield")),
+            Map.entry(SkillTree.PATH_DEMOLITION, List.of("infernite_pickaxe")),
+            Map.entry(SkillTree.PATH_GUNNER, List.of("infernite_pickaxe")),
+            Map.entry(SkillTree.PATH_ALCHEMIST, List.of("infernite_pickaxe")),
+            Map.entry(SkillTree.PATH_ELECTRICIAN, List.of("infernite_pickaxe")));
 
     private ClassGear() {
     }
 
     @SafeVarargs
-    private static Map<String, String> ordered(Map.Entry<String, String>... entries) {
-        Map<String, String> map = new java.util.LinkedHashMap<>();
-        for (Map.Entry<String, String> entry : entries) {
+    private static Map<String, List<String>> ordered(Map.Entry<String, List<String>>... entries) {
+        Map<String, List<String>> map = new java.util.LinkedHashMap<>();
+        for (Map.Entry<String, List<String>> entry : entries) {
             map.put(entry.getKey(), entry.getValue());
         }
         return map;
@@ -51,9 +49,12 @@ public final class ClassGear {
         if (item == null) {
             return out;
         }
-        for (Map.Entry<String, String> entry : BY_PATH.entrySet()) {
-            if (InferniteContent.gear(entry.getValue()) == item) {
-                out.add(entry.getKey());
+        for (Map.Entry<String, List<String>> entry : BY_PATH.entrySet()) {
+            for (String id : entry.getValue()) {
+                if (InferniteContent.gear(id) == item) {
+                    out.add(entry.getKey());
+                    break;
+                }
             }
         }
         return out;
@@ -72,23 +73,33 @@ public final class ClassGear {
         return java.util.List.of();
     }
 
-    /** The infernite item of a path, or null. */
-    public static Item forPath(String path) {
-        String id = path == null ? null : BY_PATH.get(path);
-        return id == null ? null : InferniteContent.gear(id);
+    /** The infernite items of a path (one, or two for the way of might). */
+    public static java.util.List<Item> forPath(String path) {
+        java.util.List<Item> out = new java.util.ArrayList<>();
+        java.util.List<String> ids = path == null ? null : BY_PATH.get(path);
+        if (ids != null) {
+            for (String id : ids) {
+                Item item = InferniteContent.gear(id);
+                if (item != null) {
+                    out.add(item);
+                }
+            }
+        }
+        return out;
     }
 
-    /** True when the player holds or wears the infernite item of their own path. */
+    /** True when the player holds or wears an infernite item of their own path. */
     public static boolean carries(ServerPlayer player, PlayerSkills skills, SkillTree tree) {
         if (skills == null || !skills.hasClass()) {
             return false;
         }
-        Item item = forPath(skills.pathTaken(tree));
-        if (item == null) {
-            return false;
+        for (Item item : forPath(skills.pathTaken(tree))) {
+            if (player.getMainHandItem().is(item) || player.getOffhandItem().is(item)
+                    || player.getItemBySlot(EquipmentSlot.HEAD).is(item)
+                    || player.getItemBySlot(EquipmentSlot.CHEST).is(item)) {
+                return true;
+            }
         }
-        return player.getMainHandItem().is(item) || player.getOffhandItem().is(item)
-                || player.getItemBySlot(EquipmentSlot.HEAD).is(item)
-                || player.getItemBySlot(EquipmentSlot.CHEST).is(item);
+        return false;
     }
 }

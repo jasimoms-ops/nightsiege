@@ -111,10 +111,20 @@ public final class SiegeManager {
                     profile.chosenClass = node.clazz().name();
                 }
             }
+            // Everything of the path at full level; of each choice only the first that fits.
+            java.util.Set<String> groups = new java.util.HashSet<>();
             for (com.mki.nightsiege.core.SkillNode node : skillTree.all()) {
-                if (node.clazz().name().equals(profile.chosenClass) && (node.onTrunk() || p.equals(node.path()))) {
-                    profile.setLevel(node.id(), node.maxLevel());
+                if (!node.clazz().name().equals(profile.chosenClass) || !(node.onTrunk() || p.equals(node.path()))) {
+                    continue;
                 }
+                if ((node.inGroup() && groups.contains(node.group())) || !skillTree.needsMet(node, profile)
+                        || skillTree.lockedOut(node, profile)) {
+                    continue;
+                }
+                if (node.inGroup()) {
+                    groups.add(node.group());
+                }
+                profile.setLevel(node.id(), node.maxLevel());
             }
             return profile;
         });
@@ -284,6 +294,7 @@ public final class SiegeManager {
             perks.afterDamage(entity, taken);
         });
         ServerLivingEntityEvents.ALLOW_DEATH.register((entity, source, amount) -> combat.allowDeath(entity));
+        ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) -> combat.allowDamage(entity, source, amount));
         ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> {
             archer.onEntityLoad(entity, world, skillTree, this::liveSkillsFor);
             dungeons.onEntityLoad(entity);
@@ -318,6 +329,11 @@ public final class SiegeManager {
         save = loadedSave == null ? new SiegeSave() : loadedSave;
         if (save.cores == null) {
             save.cores = new ArrayList<>();
+        }
+        int respec = save.migrateSkills();
+        if (respec > 0) {
+            NightSiegeMod.LOGGER.info("[Night Siege] Neuer Krieger-Baum: {} Spieler bekommen ihre Punkte zurück", respec);
+            persist();
         }
         scheduler.setReadyTicks(save.readyTicks);
         scheduler.setRequiredTicks(save.requiredTicks);
@@ -1196,6 +1212,7 @@ public final class SiegeManager {
         if (!(killerObject instanceof ServerPlayer player) || !(killedObject instanceof Entity killed)) {
             return;
         }
+        combat.onKill(player, killed);
         if (!killed.entityTags().contains(MobFactory.TAG)) {
             return;
         }

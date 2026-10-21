@@ -1,6 +1,7 @@
 package com.mki.nightsiege.game;
 
 import com.mki.nightsiege.core.PlayerSkills;
+import com.mki.nightsiege.core.SkillClass;
 import com.mki.nightsiege.core.SkillEffect;
 import com.mki.nightsiege.core.SkillNode;
 import com.mki.nightsiege.core.SkillTree;
@@ -17,7 +18,12 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.tags.EntityTypeTags;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.effect.MobEffectCategory;
 import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.entity.ai.attributes.AttributeInstance;
+import net.minecraft.world.entity.ai.attributes.AttributeModifier;
+import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.item.MaceItem;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -78,6 +84,18 @@ public final class CombatEffects {
     private int healCounter;
 
     private record Mark(double bonus, long until) {
+    }
+
+    /** Warrior: hit streaks (stacks, last hit), the strong hit after a kill, the divine shield. */
+    private final Map<UUID, long[]> combos = new HashMap<>();
+    private final Map<UUID, Long> momentumUntil = new HashMap<>();
+    private final Map<UUID, Long> divineReadyAt = new HashMap<>();
+    /** Things an ultimate does a moment later (second slam, further whirlwind turns). */
+    private final List<Delayed> delayed = new ArrayList<>();
+    private int tickCounter;
+    private static final net.minecraft.resources.Identifier WARRIOR_SPEED = ModContent.id("warrior_speed");
+
+    private record Delayed(long due, Runnable action) {
     }
 
     public CombatEffects(SkillTree tree, Function<ServerPlayer, PlayerSkills> skillsFor,
@@ -190,13 +208,32 @@ public final class CombatEffects {
     // --- warrior
 
     private boolean whirlwind(ServerLevel level, ServerPlayer player, int rank) {
+        PlayerSkills skills = skillsFor.apply(player);
+        whirlPulse(level, player, rank, skills);
+        if (SkillTree.has(skills, "w_bladestorm")) {
+            long now = level.getGameTime();
+            delayed.add(new Delayed(now + 10, () -> whirlPulse(level, player, rank, skills)));
+            delayed.add(new Delayed(now + 20, () -> whirlPulse(level, player, rank, skills)));
+        }
+        return true;
+    }
+
+    private void whirlPulse(ServerLevel level, ServerPlayer player, int rank, PlayerSkills skills) {
+        if (!player.isAlive()) {
+            return;
+        }
         double r = 3.5 + 0.5 * rank;
         float damage = 4f + 3f * rank;   // 7 / 10 / 13
         Vec3 center = player.position();
         DamageSource source = level.damageSources().playerAttack(player);
+        int hits = 0;
         for (LivingEntity victim : enemies(level, center, r, 1.5)) {
             bonusHit(level, victim, source, damage);
             pushAway(victim, center, 0.8, 0.3);
+            hits++;
+        }
+        if (hits > 0 && SkillTree.has(skills, "w_bloodstorm")) {
+            player.heal(Math.min(8, hits));
         }
         for (int i = 0; i < 12; i++) {
             double a = Math.PI * 2 * i / 12;
@@ -204,7 +241,6 @@ public final class CombatEffects {
                     center.z + Math.sin(a) * r * 0.6, 1, 0, 0, 0, 0);
         }
         play(level, player, SoundEvents.PLAYER_ATTACK_SWEEP, 1.0f, 0.7f);
-        return true;
     }
 
     private boolean execute(ServerLevel level, ServerPlayer player, int rank) {
@@ -224,6 +260,24 @@ public final class CombatEffects {
                 30, 0.4, 0.5, 0.4, 0.3);
         play(level, player, SoundEvents.PLAYER_ATTACK_CRIT, 1.0f, 0.6f);
         play(level, player, SoundEvents.ANVIL_LAND, 0.4f, 0.5f);
+        PlayerSkills skills = skillsFor.apply(player);
+        if (SkillTree.has(skills, "w_chain_execute")) {
+            // The blade jumps on to up to two more weakened monsters nearby.
+            Vec3 at = target.position();
+            int jumps = 0;
+            for (LivingEntity next : enemies(level, at, 5.0, 2.0)) {
+                if (jumps >= 2 || !next.isAlive() || next.getHealth() > next.getMaxHealth() * threshold) {
+                    continue;
+                }
+                TrapService.spark(level, at.add(0, 1, 0), next.position().add(0, 1, 0));
+                bonusHit(level, next, level.damageSources().playerAttack(player), next.getHealth() + 1000f);
+                jumps++;
+            }
+        }
+        if (SkillTree.has(skills, "w_bloody_execute")) {
+            player.heal(6f);
+            player.addEffect(new MobEffectInstance(MobEffects.REGENERATION, 100, 0));
+        }
         return true;
     }
 
@@ -255,18 +309,35 @@ public final class CombatEffects {
 
     /** Axe: the ground shakes, everything around is thrown up and staggered. */
     private boolean groundSlam(ServerLevel level, ServerPlayer player, int rank) {
+        PlayerSkills skills = skillsFor.apply(player);
+        slam(level, player, rank, 1.0f, SkillTree.has(skills, "w_crater"));
+        if (SkillTree.has(skills, "w_aftershock")) {
+            delayed.add(new Delayed(level.getGameTime() + 20, () -> slam(level, player, rank, 0.6f, false)));
+        }
+        return true;
+    }
+
+    private void slam(ServerLevel level, ServerPlayer player, int rank, float scale, boolean crater) {
+        if (!player.isAlive()) {
+            return;
+        }
         double r = 4.0 + rank;
-        float damage = 5f + 3f * rank;   // 8 / 11 / 14
+        float damage = (5f + 3f * rank) * scale;   // 8 / 11 / 14
         Vec3 center = player.position();
         DamageSource source = level.damageSources().playerAttack(player);
         for (LivingEntity victim : enemies(level, center, r, 2.0)) {
             bonusHit(level, victim, source, damage);
-            victim.push(0, 0.7, 0);
-            victim.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 60, 2));
+            if (crater) {
+                // The ground caves in: everything slides towards the warrior and sticks.
+                pushAway(victim, center, -0.9, 0.2);
+                victim.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 60, 3));
+            } else {
+                victim.push(0, 0.7, 0);
+                victim.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 60, 2));
+            }
         }
         level.sendParticles(ParticleTypes.EXPLOSION, center.x, center.y + 0.2, center.z, 6, r * 0.4, 0.1, r * 0.4, 0.0);
-        play(level, player, SoundEvents.MACE_SMASH_GROUND_HEAVY, 1.0f, 0.8f);
-        return true;
+        play(level, player, SoundEvents.MACE_SMASH_GROUND_HEAVY, 1.0f, scale < 1f ? 1.1f : 0.8f);
     }
 
     // --- guardian
@@ -336,17 +407,31 @@ public final class CombatEffects {
         double r = 8.0 + 2.0 * rank;
         Vec3 center = player.position();
         DamageSource source = level.damageSources().playerAttack(player);
+        PlayerSkills skills = skillsFor.apply(player);
+        boolean sunfire = SkillTree.has(skills, "w_sunfire");
+        boolean redemption = SkillTree.has(skills, "w_redemption");
         for (LivingEntity victim : enemies(level, center, r, 3.0)) {
             if (isUndead(victim)) {
-                bonusHit(level, victim, source, 10f + 5f * rank);
-                victim.igniteForSeconds(5f);
+                bonusHit(level, victim, source, (10f + 5f * rank) * (sunfire ? 1.5f : 1f));
+                victim.igniteForSeconds(sunfire ? 10f : 5f);
             } else {
                 bonusHit(level, victim, source, 3f + 2f * rank);
+                if (sunfire) {
+                    victim.igniteForSeconds(3f);
+                }
             }
         }
         for (ServerPlayer mate : level.players()) {
             if (mate.distanceToSqr(player) <= r * r) {
-                mate.heal(4f);
+                mate.heal(redemption ? 4f + 4f * rank : 4f);
+                if (redemption) {
+                    for (MobEffectInstance effect : new ArrayList<>(mate.getActiveEffects())) {
+                        if (effect.getEffect().value().getCategory() == MobEffectCategory.HARMFUL) {
+                            mate.removeEffect(effect.getEffect());
+                        }
+                    }
+                    mate.addEffect(new MobEffectInstance(MobEffects.REGENERATION, 100, 1));
+                }
             }
         }
         level.sendParticles(ParticleTypes.END_ROD, center.x, center.y + 1.0, center.z, 80, r * 0.4, 1.0, r * 0.4, 0.05);
@@ -468,6 +553,10 @@ public final class CombatEffects {
     /** Returns the extra damage of a melee hit; side effects are applied here. */
     private double meleeHit(ServerLevel level, ServerPlayer player, PlayerSkills skills,
                             LivingEntity victim, float taken, long now) {
+        // A warrior's skills only work with the weapon of their way.
+        if (skills.clazz() == SkillClass.WARRIOR && !holdsWayWeapon(player, skills)) {
+            return 0.0;
+        }
         double bonus = 0.0;
         double rage = tree.totalBonus(SkillEffect.RAGE, skills);
         if (rage > 0) {
@@ -475,7 +564,7 @@ public final class CombatEffects {
         }
         boolean crit = random.nextDouble() < tree.totalBonus(SkillEffect.CRIT_CHANCE, skills);
         if (crit) {
-            bonus += 0.5;
+            bonus += 0.5 + tree.totalBonus(SkillEffect.CRIT_POWER, skills);
             level.sendParticles(ParticleTypes.CRIT, victim.getX(), victim.getY(0.6), victim.getZ(),
                     12, 0.3, 0.4, 0.3, 0.2);
             play(level, player, SoundEvents.PLAYER_ATTACK_CRIT, 0.8f, 1.2f);
@@ -483,27 +572,101 @@ public final class CombatEffects {
         if (isChampion.test(victim)) {
             bonus += tree.totalBonus(SkillEffect.CHAMPION_BANE, skills);
         }
-        if (isUndead(victim)) {
+        boolean undead = isUndead(victim);
+        if (undead) {
             bonus += tree.totalBonus(SkillEffect.SMITE, skills);
+        }
+        double combo = tree.totalBonus(SkillEffect.COMBO, skills);
+        if (combo > 0) {
+            long[] streak = combos.computeIfAbsent(player.getUUID(), u -> new long[2]);
+            if (now - streak[1] > 40) {
+                streak[0] = 0;
+            }
+            bonus += combo * streak[0];
+            streak[0] = Math.min(5, streak[0] + 1);
+            streak[1] = now;
+        }
+        double headhunter = tree.totalBonus(SkillEffect.HEADHUNTER, skills);
+        if (headhunter > 0 && victim.getHealth() + taken > victim.getMaxHealth() * 0.7f) {
+            bonus += headhunter;
+        }
+        double price = tree.totalBonus(SkillEffect.BLOOD_PRICE, skills);
+        if (price > 0) {
+            bonus += price;
+            if (player.getHealth() > 6f) {
+                player.setHealth(player.getHealth() - 0.5f);
+            }
+        }
+        Long momentum = momentumUntil.remove(player.getUUID());
+        if (momentum != null && now <= momentum) {
+            bonus += tree.totalBonus(SkillEffect.MOMENTUM, skills);
+            level.sendParticles(ParticleTypes.SWEEP_ATTACK, victim.getX(), victim.getY(0.6), victim.getZ(), 1, 0, 0, 0, 0);
+        }
+        double shock = tree.totalBonus(SkillEffect.EARTHSHOCK, skills);
+        boolean falling = shock > 0 && player.fallDistance > 1.5;
+        if (falling) {
+            bonus += shock;
+        }
+        if (SkillTree.has(skills, "w_glass_cannon")) {
+            bonus += 0.3;
         }
         double extra = taken * bonus;
 
-        ItemStack weapon = player.getMainHandItem();
-        if (weapon.is(ItemTags.AXES)) {
-            double sunder = tree.totalBonus(SkillEffect.SUNDER, skills);
-            if (sunder > 0) {
-                mark(victim, sunder, now + 100, false);
+        double sunder = tree.totalBonus(SkillEffect.SUNDER, skills);
+        if (sunder > 0) {
+            mark(victim, sunder, now + 100, false);
+        }
+        double heavy = tree.totalBonus(SkillEffect.HEAVY_BLOW, skills);
+        if (heavy > 0) {
+            extra += heavy;
+            victim.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 20, 1));
+        }
+        if (crit) {
+            double headsman = tree.totalBonus(SkillEffect.HEADSMAN, skills);
+            if (headsman > 0) {
+                extra += headsman;
+                victim.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 20, 2));
             }
-            double heavy = tree.totalBonus(SkillEffect.HEAVY_BLOW, skills);
-            if (heavy > 0) {
-                extra += heavy;
-                victim.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 20, 1));
+            if (undead && SkillTree.has(skills, "w_holy_strike")) {
+                victim.igniteForSeconds(4f);
+                player.heal(1f);
+            }
+            if (SkillTree.has(skills, "w_bladefrenzy")) {
+                player.addEffect(new MobEffectInstance(MobEffects.STRENGTH, 60, 0));
             }
         }
+        ItemStack weapon = player.getMainHandItem();
         if (weapon.is(ItemTags.SPEARS)) {
             double impale = tree.totalBonus(SkillEffect.IMPALE, skills);
             if (impale > 0) {
                 impaleBehind(level, player, victim, (float) (taken * impale));
+            }
+        }
+
+        double cleave = tree.totalBonus(SkillEffect.CLEAVE, skills);
+        if (cleave > 0 || falling) {
+            boolean crusader = SkillTree.has(skills, "w_crusader");
+            DamageSource source = level.damageSources().playerAttack(player);
+            float splash = (float) ((taken + extra) * Math.max(cleave, falling ? 0.5 : 0.0));
+            int healed = 0;
+            for (LivingEntity near : enemies(level, victim.position(), 2.5, 1.5)) {
+                if (near == victim) {
+                    continue;
+                }
+                bonusHit(level, near, source, splash);
+                if (crusader && cleave > 0) {
+                    if (isUndead(near)) {
+                        near.igniteForSeconds(3f);
+                    }
+                    if (healed < 6) {
+                        player.heal(0.5f);
+                        healed++;
+                    }
+                }
+            }
+            if (falling) {
+                level.sendParticles(ParticleTypes.EXPLOSION, victim.getX(), victim.getY(), victim.getZ(), 2, 0.6, 0.1, 0.6, 0.0);
+                play(level, player, SoundEvents.MACE_SMASH_GROUND, 0.8f, 1.0f);
             }
         }
 
@@ -512,6 +675,78 @@ public final class CombatEffects {
             player.heal((float) ((taken + extra) * steal));
         }
         return extra;
+    }
+
+    /** True when the player holds the weapon of their warrior way (or is no warrior). */
+    private boolean holdsWayWeapon(ServerPlayer player, PlayerSkills skills) {
+        if (skills == null || skills.clazz() != SkillClass.WARRIOR) {
+            return true;
+        }
+        ItemStack weapon = player.getMainHandItem();
+        String way = skills.pathTaken(tree);
+        if (SkillTree.WAY_BLADE.equals(way)) {
+            return weapon.is(ItemTags.SWORDS);
+        }
+        if (SkillTree.WAY_MIGHT.equals(way)) {
+            return weapon.is(ItemTags.AXES) || weapon.getItem() instanceof MaceItem;
+        }
+        return true;
+    }
+
+    /** A kill readies the strong next hit of the momentum talent. */
+    public void onKill(ServerPlayer player, Entity killed) {
+        if (!(killed instanceof Enemy) || !(player.level() instanceof ServerLevel level)) {
+            return;
+        }
+        PlayerSkills skills = skillsFor.apply(player);
+        if (skills != null && tree.totalBonus(SkillEffect.MOMENTUM, skills) > 0) {
+            momentumUntil.put(player.getUUID(), level.getGameTime() + 60);
+        }
+    }
+
+    /**
+     * Returns false when a warrior avoids a monster's damage completely: a dodge,
+     * a parry (with a strike back) or the divine shield.
+     */
+    public boolean allowDamage(LivingEntity entity, DamageSource source, float amount) {
+        if (dealingBonus || !(entity instanceof ServerPlayer player) || !(player.level() instanceof ServerLevel level)
+                || !(source.getEntity() instanceof LivingEntity attacker) || !(attacker instanceof Enemy) || amount <= 0) {
+            return true;
+        }
+        PlayerSkills skills = skillsFor.apply(player);
+        if (skills == null || skills.clazz() != SkillClass.WARRIOR) {
+            return true;
+        }
+        long now = level.getGameTime();
+        double dodge = tree.totalBonus(SkillEffect.DODGE, skills);
+        if (dodge > 0 && random.nextDouble() < dodge) {
+            level.sendParticles(ParticleTypes.CLOUD, player.getX(), player.getY(0.5), player.getZ(), 6, 0.3, 0.3, 0.3, 0.02);
+            player.addEffect(new MobEffectInstance(MobEffects.SPEED, 30, 0));
+            play(level, player, SoundEvents.PLAYER_ATTACK_NODAMAGE, 0.8f, 1.6f);
+            return false;
+        }
+        double parry = tree.totalBonus(SkillEffect.PARRY, skills);
+        boolean melee = source.getDirectEntity() == attacker;
+        if (parry > 0 && melee && holdsWayWeapon(player, skills) && random.nextDouble() < parry) {
+            bonusHit(level, attacker, level.damageSources().playerAttack(player), 4f);
+            pushAway(attacker, player.position(), 0.7, 0.2);
+            double heal = tree.totalBonus(SkillEffect.PARRY_HEAL, skills);
+            if (heal > 0) {
+                player.heal((float) heal);
+            }
+            level.sendParticles(ParticleTypes.ENCHANTED_HIT, player.getX(), player.getY(0.6), player.getZ(), 8, 0.4, 0.3, 0.4, 0.1);
+            play(level, player, SoundEvents.SHIELD_BLOCK.value(), 0.9f, 1.5f);
+            return false;
+        }
+        if (amount >= 4f && SkillTree.has(skills, "w_divine_shield")
+                && now >= divineReadyAt.getOrDefault(player.getUUID(), 0L)) {
+            divineReadyAt.put(player.getUUID(), now + 600);
+            level.sendParticles(ParticleTypes.END_ROD, player.getX(), player.getY(0.6), player.getZ(), 20, 0.5, 0.6, 0.5, 0.05);
+            play(level, player, SoundEvents.BEACON_DEACTIVATE, 1.0f, 1.8f);
+            actionBar(player, Component.translatable("nightsiege.msg.divine_shield"));
+            return false;
+        }
+        return true;
     }
 
     private void arrowHit(ServerLevel level, ServerPlayer player, PlayerSkills skills,
@@ -619,24 +854,93 @@ public final class CombatEffects {
     }
 
     public void tick(MinecraftServer server) {
+        long now = server.overworld().getGameTime();
+        if (!delayed.isEmpty()) {
+            List<Delayed> due = new ArrayList<>();
+            delayed.removeIf(d -> {
+                if (d.due() <= now) {
+                    due.add(d);
+                    return true;
+                }
+                return false;
+            });
+            for (Delayed d : due) {
+                d.action().run();
+            }
+        }
+        tickCounter++;
+        if (tickCounter % 10 == 0) {
+            for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+                warriorTick(player, tickCounter);
+            }
+        }
         if (++healCounter < HEAL_INTERVAL) {
             return;
         }
         healCounter = 0;
-        long now = server.overworld().getGameTime();
         marks.values().removeIf(m -> m.until() < now);
         for (ServerPlayer medic : server.getPlayerList().getPlayers()) {
             PlayerSkills skills = skillsFor.apply(medic);
             double heal = skills == null ? 0 : tree.totalBonus(SkillEffect.HEAL_AURA, skills);
-            if (heal <= 0 || !(medic.level() instanceof ServerLevel level)) {
+            boolean martyr = SkillTree.has(skills, "w_martyr");
+            if ((heal <= 0 && !martyr) || !(medic.level() instanceof ServerLevel level)) {
                 continue;
             }
             for (ServerPlayer mate : level.players()) {
-                if (mate.isAlive() && mate.distanceToSqr(medic) <= HEAL_RADIUS * HEAL_RADIUS
-                        && mate.getHealth() < mate.getMaxHealth()) {
-                    mate.heal((float) heal);
+                if (!mate.isAlive() || mate.distanceToSqr(medic) > HEAL_RADIUS * HEAL_RADIUS
+                        || mate.getHealth() >= mate.getMaxHealth()) {
+                    continue;
+                }
+                float amount = (float) heal + (martyr && mate != medic ? 1.5f : 0f);
+                if (amount > 0) {
+                    mate.heal(amount);
                     level.sendParticles(ParticleTypes.HEART, mate.getX(), mate.getY() + 2.0, mate.getZ(),
                             1, 0.2, 0.1, 0.2, 0.0);
+                }
+            }
+        }
+    }
+
+    /** Every half second: the warrior's attack speed, war cry, vow and the unstoppable keystone. */
+    private void warriorTick(ServerPlayer player, int counter) {
+        AttributeInstance speed = player.getAttribute(Attributes.ATTACK_SPEED);
+        PlayerSkills skills = skillsFor.apply(player);
+        boolean warrior = skills != null && skills.clazz() == SkillClass.WARRIOR && player.isAlive();
+        double bonus = 0.0;
+        if (warrior && holdsWayWeapon(player, skills)) {
+            String way = skills.pathTaken(tree);
+            // Axes and swords feel slow in Minecraft: the way itself already helps a little.
+            bonus += SkillTree.WAY_MIGHT.equals(way) ? 0.3 : SkillTree.WAY_BLADE.equals(way) ? 0.2 : 0.0;
+            bonus += tree.totalBonus(SkillEffect.WEAPON_SPEED, skills);
+            double frenzy = tree.totalBonus(SkillEffect.FRENZY, skills);
+            bonus += frenzy * (1.0 - player.getHealth() / Math.max(1f, player.getMaxHealth()));
+        }
+        if (speed != null) {
+            if (bonus > 0.001) {
+                speed.addOrUpdateTransientModifier(new AttributeModifier(WARRIOR_SPEED, bonus,
+                        AttributeModifier.Operation.ADD_VALUE));
+            } else if (speed.getModifier(WARRIOR_SPEED) != null) {
+                speed.removeModifier(WARRIOR_SPEED);
+            }
+        }
+        if (!warrior || !(player.level() instanceof ServerLevel level)) {
+            return;
+        }
+        if (SkillTree.has(skills, "w_unstoppable")) {
+            player.removeEffect(MobEffects.SLOWNESS);
+        }
+        if (counter % 40 != 0) {
+            return;
+        }
+        if (tree.totalBonus(SkillEffect.WARCRY, skills) > 0) {
+            for (LivingEntity victim : enemies(level, player.position(), 5.0, 2.0)) {
+                victim.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, 60, 0));
+            }
+        }
+        if (tree.totalBonus(SkillEffect.VOW, skills) > 0) {
+            for (ServerPlayer mate : level.players()) {
+                if (mate.isAlive() && mate.distanceToSqr(player) <= 36.0) {
+                    mate.addEffect(new MobEffectInstance(MobEffects.RESISTANCE, 60, 0, true, false, true));
                 }
             }
         }
@@ -668,6 +972,9 @@ public final class CombatEffects {
 
     public void forget(UUID player) {
         ultReadyAt.remove(player);
+        combos.remove(player);
+        momentumUntil.remove(player);
+        divineReadyAt.remove(player);
     }
 
     // ------------------------------------------------------------------

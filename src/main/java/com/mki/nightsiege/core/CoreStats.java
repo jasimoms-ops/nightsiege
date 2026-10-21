@@ -45,6 +45,10 @@ public class CoreStats {
         public int requiresLevel;
         public String blocked;
         public boolean live;
+        /** Choice group (one node per group), place from the top, nodes it closes. */
+        public String group = "";
+        public int col = -1;
+        public List<String> locks = new ArrayList<>();
     }
 
     /** One perk of the main core. */
@@ -98,6 +102,8 @@ public class CoreStats {
     public int earned;
     public int donated;
     public String pathTaken = "";
+    /** Warrior subclass (blademaster, berserker, axe, paladin), or empty. */
+    public String subclass = "";
     public boolean creative;
     public boolean skillsEnabled;
 

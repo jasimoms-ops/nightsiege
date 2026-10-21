@@ -36,35 +36,33 @@ public final class SkillService {
             AttributeInstance instance = player.getAttribute(attribute);
             if (instance != null) {
                 double bonus = tree.totalBonus(effect, skills);
-                if (effect == SkillEffect.ATTACK_SPEED) {
-                    bonus += weaponPathSpeed(skills, tree);
-                }
+                bonus += keystone(effect, skills);
                 instance.setBaseValue(effect.playerBase() + bonus);
             }
         }
         capHealth(player);
     }
 
-    /**
-     * Melee paths swing their weapon faster: axe, sword and spear feel slow in
-     * Minecraft. Grows with the first node of the path.
-     */
-    private static double weaponPathSpeed(PlayerSkills skills, SkillTree tree) {
-        String path = skills.pathTaken(tree);
-        String first;
-        double full;
-        switch (path) {
-            case SkillTree.PATH_AXE -> { first = "sunder"; full = 0.6; }
-            case SkillTree.PATH_BLADE -> { first = "keen_edge"; full = 0.4; }
-            case SkillTree.PATH_BERSERKER -> { first = "bloodlust"; full = 0.3; }
-            case SkillTree.PATH_SPEAR -> { first = "long_reach"; full = 0.5; }
-            default -> { return 0.0; }
+    /** The warrior's keystones change several values at once. */
+    private static double keystone(SkillEffect effect, PlayerSkills skills) {
+        double v = 0.0;
+        switch (effect) {
+            case MAX_HEALTH -> {
+                if (SkillTree.has(skills, "w_glass_cannon")) v -= 8.0;
+                if (SkillTree.has(skills, "w_colossus")) v += 12.0;
+                if (SkillTree.has(skills, "w_martyr")) v -= 4.0;
+            }
+            case MOVEMENT_SPEED -> {
+                if (SkillTree.has(skills, "w_unstoppable")) v -= 0.01;
+                if (SkillTree.has(skills, "w_colossus")) v -= 0.01;
+            }
+            case KNOCKBACK_RESIST -> {
+                if (SkillTree.has(skills, "w_unstoppable")) v += 1.0;
+            }
+            default -> {
+            }
         }
-        com.mki.nightsiege.core.SkillNode node = tree.get(first);
-        if (node == null) {
-            return 0.0;
-        }
-        return full * Math.min(1.0, skills.levelOf(first) / (double) node.maxLevel());
+        return v;
     }
 
     /** Puts every attribute back to Minecraft's default. */

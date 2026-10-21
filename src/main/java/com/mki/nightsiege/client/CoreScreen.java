@@ -99,6 +99,15 @@ public class CoreScreen extends Screen {
     private final java.util.Map<String, Integer> pathRows = new java.util.HashMap<>();
     private int treeLeft;
     private int treeRight;
+    /** Grid trees (the warrior): one way is shown at a time, picked with two buttons. */
+    private static String viewWay;
+    private boolean gridMode;
+    private String shownWay = "";
+    private final List<String> ways = new ArrayList<>();
+    private int gridTop;
+    private int gridSpacing;
+    private int gridMaxRow;
+    private static final int HALF = 18;
     private int left;
     private int top;
 
@@ -163,6 +172,7 @@ public class CoreScreen extends Screen {
         top = (this.height - H - TAB_H + 4) / 2 + TAB_H - 4;
         nodeButtons.clear();
         pathRows.clear();
+        gridMode = false;
         if (activeTab == null) {
             Tab own = ownTab();
             activeTab = own != null ? own : Tab.STATS;
@@ -258,8 +268,86 @@ public class CoreScreen extends Screen {
         return H - 6 - BANNER - 30;
     }
 
+    /** True when the nodes of this class carry fixed places (the warrior's grid). */
+    private boolean isGrid(String clazz) {
+        for (CoreStats.NodeLine node : stats.nodes) {
+            if (clazz.equals(node.clazz) && node.col >= 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The warrior's tree: tiers from left to right, the choices of a tier one
+     * above the other. The trunk is always shown, of the two ways only one.
+     */
+    private void layoutGrid(String clazz, boolean buyable) {
+        ways.clear();
+        int maxRow = 0;
+        for (CoreStats.NodeLine node : stats.nodes) {
+            if (!clazz.equals(node.clazz)) {
+                continue;
+            }
+            maxRow = Math.max(maxRow, node.row);
+            if (node.path != null && !node.path.isBlank() && !ways.contains(node.path)) {
+                ways.add(node.path);
+            }
+        }
+        boolean own = activeTab == ownTab();
+        String taken = own && stats.pathTaken != null ? stats.pathTaken : "";
+        if (viewWay == null || !ways.contains(viewWay)) {
+            viewWay = !taken.isBlank() && ways.contains(taken) ? taken : ways.isEmpty() ? "" : ways.get(0);
+        }
+        shownWay = viewWay;
+        gridMaxRow = Math.max(1, maxRow);
+        gridSpacing = Math.min(48, (innerW() - 16 - SLOT) / gridMaxRow);
+        int x0 = innerX() + 8 + (innerW() - 16 - SLOT - gridSpacing * gridMaxRow) / 2;
+        treeLeft = x0;
+        treeRight = x0 + gridSpacing * gridMaxRow + SLOT;
+        gridTop = innerY() + 30;
+
+        // The two way buttons, top right of the tree area.
+        int bx = innerX() + innerW() - 6;
+        for (int i = ways.size() - 1; i >= 0; i--) {
+            String way = ways.get(i);
+            Component label = Component.translatable("nightsiege.path." + way);
+            int w = Math.max(44, Minecraft.getInstance().font.width(label) + 12);
+            bx -= w;
+            Button button = Button.builder(label, b -> {
+                viewWay = way;
+                rebuildWidgets();
+            }).bounds(bx, innerY() + 3, w, 14).build();
+            button.active = !way.equals(shownWay);
+            addRenderableWidget(button);
+            bx -= 3;
+        }
+
+        for (CoreStats.NodeLine node : stats.nodes) {
+            if (!clazz.equals(node.clazz)) {
+                continue;
+            }
+            boolean trunk = node.path == null || node.path.isBlank();
+            if (!trunk && !node.path.equals(shownWay)) {
+                continue;
+            }
+            int x = x0 + node.row * gridSpacing;
+            int y = gridTop + Math.max(0, node.col) * HALF;
+            nodeButtons.add(new NodeButton(node, x, y));
+            if (buyable) {
+                invisible(Button.builder(Component.empty(), b -> send("buy:" + node.id))
+                        .bounds(x, y, SLOT, SLOT).build());
+            }
+        }
+    }
+
     /** The tree from left to right: trunk on the left, one row per path. */
     private void layoutNodes(String clazz, boolean buyable) {
+        gridMode = isGrid(clazz);
+        if (gridMode) {
+            layoutGrid(clazz, buyable);
+            return;
+        }
         List<String> paths = new ArrayList<>();
         int maxColumn = 0;
         for (CoreStats.NodeLine node : stats.nodes) {
@@ -494,8 +582,14 @@ public class CoreScreen extends Screen {
         if (activeTab == Tab.CORE) {
             line = Component.translatable("nightsiege.ui.core_pot", stats.corePoints, stats.donated).getString();
         } else if (activeTab == ownTab()) {
-            line = Component.translatable("nightsiege.ui.my_class", Component.translatable(activeTab.clazz.translationKey())).getString()
-                    + "   " + Component.translatable("nightsiege.ui.points", stats.points, stats.earned).getString();
+            line = Component.translatable("nightsiege.ui.my_class", Component.translatable(activeTab.clazz.translationKey())).getString();
+            if (gridMode && stats.pathTaken != null && !stats.pathTaken.isBlank()) {
+                line += " · " + Component.translatable("nightsiege.path." + stats.pathTaken).getString();
+                if (stats.subclass != null && !stats.subclass.isBlank()) {
+                    line += " · " + Component.translatable("nightsiege.subclass." + stats.subclass).getString();
+                }
+            }
+            line += "   " + Component.translatable("nightsiege.ui.points", stats.points, stats.earned).getString();
         } else if (!hasClass()) {
             line = Component.translatable("nightsiege.ui.preview_free").getString();
         } else {
@@ -507,6 +601,10 @@ public class CoreScreen extends Screen {
 
     /** A soft band in the class colour behind the path the player took. */
     private void drawPathBand(GuiGraphicsExtractor gui, Font font) {
+        if (gridMode) {
+            drawGridDecor(gui, font);
+            return;
+        }
         if (activeTab != ownTab() || stats.pathTaken == null || stats.pathTaken.isBlank()) {
             return;
         }
@@ -521,8 +619,108 @@ public class CoreScreen extends Screen {
         gui.fill(x1, y - 4, x1 + 2, y + SLOT + 12, 0xC0000000 | rgb);
     }
 
+    /** Grid trees: tier names above the columns and the subclass names beside their halves. */
+    private void drawGridDecor(GuiGraphicsExtractor gui, Font font) {
+        int rgb = activeTab.color & 0xFFFFFF;
+        // A soft band behind the shown way's tiers.
+        int wayX = treeLeft + 2 * gridSpacing - 5;
+        gui.fill(wayX, gridTop - 12, treeRight + 5, gridTop + 6 * HALF + SLOT + 11, 0x24000000 | rgb);
+        gui.fill(wayX, gridTop - 12, wayX + 1, gridTop + 6 * HALF + SLOT + 11, 0x90000000 | rgb);
+        for (int row = 0; row <= gridMaxRow; row++) {
+            String key = "nightsiege.ui.tier." + row;
+            if (!Language.getInstance().has(key)) {
+                continue;
+            }
+            String label = Component.translatable(key).getString();
+            int cx = treeLeft + row * gridSpacing + SLOT / 2;
+            gui.pose().pushMatrix();
+            gui.pose().translate(cx, gridTop - 10);
+            gui.pose().scale(0.5f, 0.5f);
+            gui.text(font, label, -font.width(label) / 2, 0, 0xFFE8E0C8, true);
+            gui.pose().popMatrix();
+        }
+    }
+
+    /** The nodes a grid node needs, as alternatives that must all be met. */
+    private static List<List<String[]>> needsOf(CoreStats.NodeLine node) {
+        List<List<String[]>> all = new ArrayList<>();
+        if (node.requires == null || node.requires.isBlank()) {
+            return all;
+        }
+        for (String term : node.requires.split(",")) {
+            List<String[]> any = new ArrayList<>();
+            for (String option : term.split("\\|")) {
+                String o = option.trim();
+                if (o.isEmpty()) {
+                    continue;
+                }
+                int colon = o.indexOf(':');
+                any.add(colon > 0 ? new String[]{o.substring(0, colon), o.substring(colon + 1)}
+                        : new String[]{o, String.valueOf(Math.max(1, node.requiresLevel))});
+            }
+            all.add(any);
+        }
+        return all;
+    }
+
+    private NodeButton buttonOf(String id) {
+        for (NodeButton button : nodeButtons) {
+            if (button.node().id.equals(id)) {
+                return button;
+            }
+        }
+        return null;
+    }
+
+    private static int parseInt(String s) {
+        try {
+            return Integer.parseInt(s.trim());
+        } catch (NumberFormatException e) {
+            return 1;
+        }
+    }
+
+    /** Grid lines: from what a node needs; once a choice is made, only from the taken node. */
+    private void drawGridConnections(GuiGraphicsExtractor gui) {
+        for (int pass = 0; pass < 2; pass++) {
+            for (NodeButton child : nodeButtons) {
+                for (List<String[]> any : needsOf(child.node())) {
+                    List<NodeButton> parents = new ArrayList<>();
+                    List<NodeButton> met = new ArrayList<>();
+                    for (String[] need : any) {
+                        NodeButton parent = buttonOf(need[0]);
+                        if (parent == null) {
+                            continue;
+                        }
+                        parents.add(parent);
+                        if (parent.node().level >= parseInt(need[1])) {
+                            met.add(parent);
+                        }
+                    }
+                    boolean open = !met.isEmpty();
+                    for (NodeButton parent : open ? met : parents) {
+                        int color = pass == 0 ? 0xFF000000 : open ? WHITE : 0xFF5A5A5A;
+                        int thick = pass == 0 ? 2 : 1;
+                        int x1 = parent.x() + SLOT;
+                        int y1 = parent.y() + SLOT / 2;
+                        int x2 = child.x();
+                        int y2 = child.y() + SLOT / 2;
+                        int mid = x2 - Math.max(3, (x2 - x1) / 2);
+                        gui.fill(x1, y1 - thick, mid + thick, y1 + thick, color);
+                        gui.fill(mid - thick, Math.min(y1, y2) - thick, mid + thick, Math.max(y1, y2) + thick, color);
+                        gui.fill(mid - thick, y2 - thick, x2, y2 + thick, color);
+                    }
+                }
+            }
+        }
+    }
+
     /** Lines like the advancement screen: a black outline with a white core. */
     private void drawConnections(GuiGraphicsExtractor gui) {
+        if (gridMode) {
+            drawGridConnections(gui);
+            return;
+        }
         for (int pass = 0; pass < 2; pass++) {
             for (NodeButton child : nodeButtons) {
                 if (child.node().requires == null) {
@@ -573,6 +771,18 @@ public class CoreScreen extends Screen {
             gui.fill(x + 1, y + SLOT - 2, x + SLOT - 1, y + SLOT - 1, 0x60000000);
             gui.fill(x + SLOT - 2, y + 1, x + SLOT - 1, y + SLOT - 1, 0x60000000);
             gui.item(iconOf(node.icon), x + 5, y + 5);
+            boolean closed = "choice".equals(node.blocked) || "lockedby".equals(node.blocked)
+                    || ("path".equals(node.blocked) && gridMode);
+            if (closed && node.level == 0) {
+                gui.fill(x + 1, y + 1, x + SLOT - 1, y + SLOT - 1, 0xA0101010);
+                for (int i = 4; i < SLOT - 4; i++) {
+                    gui.fill(x + i, y + i, x + i + 1, y + i + 1, 0xFFE04040);
+                    gui.fill(x + SLOT - 1 - i, y + i, x + SLOT - i, y + i + 1, 0xFFE04040);
+                }
+            }
+            if (gridMode && (node.id.startsWith("e_cross_") || node.id.startsWith("m_cross_"))) {
+                gui.text(font, "↔", x + SLOT - 7, y - 2, 0xFF80D0FF, true);
+            }
 
             String level = node.level + "/" + node.maxLevel;
             int color = maxed ? GOLD : node.level > 0 ? GREEN : node.blocked == null ? YELLOW : GRAY;
@@ -838,6 +1048,28 @@ public class CoreScreen extends Screen {
         }
         if (node.path != null && !node.path.isBlank()) {
             lines.add(Component.translatable("nightsiege.ui.path_" + node.path).getString());
+        }
+        if (gridMode) {
+            String sub = Component.translatable("nightsiege.subclass_node." + node.id).getString();
+            if (!sub.equals("nightsiege.subclass_node." + node.id)) {
+                lines.add("§6" + sub);
+            }
+            if (node.id.startsWith("e_cross_") || node.id.startsWith("m_cross_")) {
+                lines.add("§b" + Component.translatable("nightsiege.ui.cross").getString());
+            }
+            if (node.group != null && !node.group.isBlank()) {
+                lines.add("§8" + Component.translatable("nightsiege.ui.choice_hint").getString());
+            }
+            if (node.locks != null && !node.locks.isEmpty()) {
+                StringBuilder names = new StringBuilder();
+                for (String id : node.locks) {
+                    if (names.length() > 0) {
+                        names.append(", ");
+                    }
+                    names.append(Component.translatable("nightsiege.skill." + id).getString());
+                }
+                lines.add("§c" + Component.translatable("nightsiege.ui.locks", names.toString()).getString());
+            }
         }
         tooltip(gui, font, lines, mouseX, mouseY);
     }

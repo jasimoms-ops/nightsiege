@@ -401,17 +401,18 @@ class SiegeCoreTest {
     }
 
     @Test
-    void everyClassHasFourPaths() {
+    void everyClassHasItsPaths() {
         SkillTree tree = new SkillTree();
-        for (SkillClass clazz : new SkillClass[]{SkillClass.ARCHER, SkillClass.WARRIOR,
-                SkillClass.GUARDIAN, SkillClass.ENGINEER}) {
+        java.util.Map<SkillClass, Integer> expected = java.util.Map.of(SkillClass.ARCHER, 4, SkillClass.WARRIOR, 2,
+                SkillClass.GUARDIAN, 3, SkillClass.ENGINEER, 4);
+        for (java.util.Map.Entry<SkillClass, Integer> entry : expected.entrySet()) {
             Set<String> paths = new HashSet<>();
-            for (SkillNode node : tree.ofClass(clazz)) {
+            for (SkillNode node : tree.ofClass(entry.getKey())) {
                 if (!node.onTrunk()) {
                     paths.add(node.path());
                 }
             }
-            assertEquals(4, paths.size(), clazz + " paths " + paths);
+            assertEquals(entry.getValue(), paths.size(), entry.getKey() + " paths " + paths);
         }
         for (SkillNode node : tree.ofClass(SkillClass.CORE)) {
             assertEquals(SkillEffect.Target.SIEGE, node.effect().target(),
@@ -493,29 +494,68 @@ class SiegeCoreTest {
     // ------------------------------------------------------------------
 
     @Test
-    void theWarriorPicksOneOfFourPaths() {
+    void theWarriorWalksOneWayWithChoices() {
         SkillTree tree = new SkillTree();
         PlayerSkills warrior = new PlayerSkills();
         warrior.chosenClass = SkillClass.WARRIOR.name();
-        warrior.award(1000);
+        warrior.award(5000);
         assertTrue(tree.unlock("warrior_drill", warrior));
-        assertTrue(tree.unlock("long_reach", warrior));
-        assertEquals(SkillTree.PATH_SPEAR, warrior.pathTaken(tree));
-        for (String other : new String[]{"bloodlust", "keen_edge", "sunder"}) {
-            assertEquals("path", tree.blockedReason(other, warrior), other);
-        }
+        // Trunk choice: endurance closes footwork.
+        assertTrue(tree.unlock("w_endurance", warrior));
+        assertEquals("choice", tree.blockedReason("w_footwork", warrior));
+        // The shared node of the blade way; the way of might closes.
+        assertTrue(tree.unlock("champion_bane", warrior));
+        assertEquals(SkillTree.WAY_BLADE, warrior.pathTaken(tree));
+        assertEquals("path", tree.blockedReason("sunder", warrior));
+        // Subclass.
+        assertTrue(tree.unlock("keen_edge", warrior));
+        assertEquals("choice", tree.blockedReason("bloodlust", warrior));
+        assertEquals(SkillTree.SUB_BLADEMASTER, tree.subclassOf(warrior));
+        assertEquals("locked", tree.blockedReason("w_combo", warrior));
+        assertTrue(tree.unlock("keen_edge", warrior));
+        assertTrue(tree.unlock("w_combo", warrior));
+        assertEquals("choice", tree.blockedReason("blood_drinker", warrior));
+        // A cross talent closes a hybrid and a mastery.
+        assertTrue(tree.unlock("e_cross_heavy", warrior));
+        assertEquals("lockedby", tree.blockedReason("w_bladestorm", warrior));
+        assertEquals("choice", tree.blockedReason("w_frenzy", warrior));
+        assertTrue(tree.unlock("w_evasion", warrior));
+        assertTrue(tree.unlock("whirlwind", warrior));
+        assertEquals("choice", tree.blockedReason("execute", warrior));
+        assertNull(tree.blockedReason("w_glass_cannon", warrior));
+        assertEquals(tree.get("whirlwind"), tree.ultimateOf(warrior));
         assertEquals("class", tree.blockedReason("iron_guard", warrior));
     }
 
     @Test
-    void theGuardianPicksOneOfFourPaths() {
+    void oldWarriorsGetTheirPointsBack() {
+        com.mki.nightsiege.game.SiegeSave save = new com.mki.nightsiege.game.SiegeSave();
+        PlayerSkills warrior = save.skillsOf("a");
+        warrior.chosenClass = SkillClass.WARRIOR.name();
+        warrior.award(100);
+        warrior.spend(40);
+        warrior.setLevel("long_reach", 3);
+        PlayerSkills archer = save.skillsOf("b");
+        archer.chosenClass = SkillClass.ARCHER.name();
+        archer.award(50);
+        archer.spend(10);
+        archer.setLevel("archer_focus", 2);
+        assertEquals(1, save.migrateSkills());
+        assertEquals(100, warrior.points());
+        assertEquals(0, warrior.levelOf("long_reach"));
+        assertEquals(40, archer.points());
+        assertEquals(0, save.migrateSkills());
+    }
+
+    @Test
+    void theGuardianPicksOneOfThreePaths() {
         SkillTree tree = new SkillTree();
         PlayerSkills guardian = new PlayerSkills();
         guardian.chosenClass = SkillClass.GUARDIAN.name();
         guardian.award(1000);
         assertTrue(tree.unlock("vitality", guardian));
         assertTrue(tree.unlock("iron_guard", guardian));
-        for (String other : new String[]{"toughness", "field_dressing", "smite"}) {
+        for (String other : new String[]{"toughness", "field_dressing"}) {
             assertEquals("path", tree.blockedReason(other, guardian), other);
         }
         assertEquals("locked", tree.blockedReason("shield_charge", guardian));
@@ -531,8 +571,9 @@ class SiegeCoreTest {
             }
             ultimates.merge(node.path(), node.effect().target() == SkillEffect.Target.ULTIMATE ? 1 : 0, Integer::sum);
         }
-        assertEquals(16, ultimates.size());
-        ultimates.forEach((path, count) -> assertEquals(1, count, path));
+        assertEquals(13, ultimates.size());
+        ultimates.forEach((path, count) -> assertEquals(
+                path.equals(SkillTree.WAY_BLADE) || path.equals(SkillTree.WAY_MIGHT) ? 2 : 1, count, path));
     }
 
     @Test

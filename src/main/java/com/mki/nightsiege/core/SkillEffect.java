@@ -64,6 +64,60 @@ public enum SkillEffect {
     /** Once a night a falling teammate is caught. Fires by itself. */
     GUARDIAN_ANGEL(0.0, Target.COMBAT),
 
+    // Warrior (melee boni only count with the weapon of the player's way)
+    /** Extra attack speed while holding the weapon of the way. */
+    WEAPON_SPEED(0.0, Target.COMBAT),
+    /** Hits in quick succession: each one this much stronger, up to five. */
+    COMBO(0.0, Target.COMBAT),
+    /** Critical hits deal this much more on top. */
+    CRIT_POWER(0.0, Target.COMBAT),
+    /** Monsters close by are weakened again and again. */
+    WARCRY(0.0, Target.COMBAT),
+    /** Chance to catch a monster's blow and strike back. */
+    PARRY(0.0, Target.COMBAT),
+    /** Attack speed that grows the lower the fighter's health: amount at zero health. */
+    FRENZY(0.0, Target.COMBAT),
+    /** Critical hits give a short burst of strength. */
+    CRIT_RAGE(0.0, Target.COMBAT),
+    /** A parry heals this much. */
+    PARRY_HEAL(0.0, Target.COMBAT),
+    /** Chance to avoid a monster's damage altogether. */
+    DODGE(0.0, Target.COMBAT),
+    /** Melee hits are this much stronger but cost a little health. */
+    BLOOD_PRICE(0.0, Target.COMBAT),
+    /** Share of a hit that also strikes the monsters next to the target. */
+    CLEAVE(0.0, Target.COMBAT),
+    /** Extra damage against monsters that are still mostly healthy. */
+    HEADHUNTER(0.0, Target.COMBAT),
+    /** Players close by take less damage. */
+    VOW(0.0, Target.COMBAT),
+    /** After a kill the next hit is this much stronger. */
+    MOMENTUM(0.0, Target.COMBAT),
+    /** Cleave hits heal the fighter and set the undead on fire. */
+    CRUSADER(0.0, Target.COMBAT),
+    /** Critical hits stagger and deal this much more. */
+    HEADSMAN(0.0, Target.COMBAT),
+    /** Critical hits on the undead set them on fire and heal. */
+    HOLY_STRIKE(0.0, Target.COMBAT),
+    /** Hits while falling are this much stronger and shake the ground. */
+    EARTHSHOCK(0.0, Target.COMBAT),
+    /** Now and then a heavy blow is caught completely. */
+    DIVINE_SHIELD(0.0, Target.COMBAT),
+    // Masteries: change the ultimate
+    CHAIN_EXECUTE(0.0, Target.COMBAT),
+    BLOODY_EXECUTE(0.0, Target.COMBAT),
+    BLADESTORM(0.0, Target.COMBAT),
+    BLOODSTORM(0.0, Target.COMBAT),
+    AFTERSHOCK(0.0, Target.COMBAT),
+    CRATER(0.0, Target.COMBAT),
+    SUNFIRE(0.0, Target.COMBAT),
+    REDEMPTION(0.0, Target.COMBAT),
+    // Keystones: a big rule with a price
+    GLASS_CANNON(0.0, Target.COMBAT),
+    UNSTOPPABLE(0.0, Target.COMBAT),
+    COLOSSUS(0.0, Target.COMBAT),
+    MARTYR(0.0, Target.COMBAT),
+
     // Ultimates: one per path, fired with the ultimate key. The level is the rank.
     ARROW_STORM(0.0, Target.ULTIMATE),
     POWER_SHOT(0.0, Target.ULTIMATE),

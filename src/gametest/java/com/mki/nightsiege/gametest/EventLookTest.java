@@ -48,6 +48,7 @@ public class EventLookTest implements FabricClientGameTest {
                 context.runOnClient(client -> EventAtmosphere.setClient("", 1));
                 context.waitTicks(30);
                 context.takeScreenshot("event_99_night_normal");
+                warriorWindow(context, game);
                 return;
             }
 
@@ -109,6 +110,25 @@ public class EventLookTest implements FabricClientGameTest {
             context.waitTicks(prefix.startsWith("shader") ? 200 : misty ? 140 : 30);
             context.takeScreenshot("%s_%02d_%s".formatted(prefix, i + 1, event.toLowerCase(Locale.ROOT)));
         }
+    }
+
+    /** The new warrior tree: picks a few nodes and photographs the window. */
+    private static void warriorWindow(ClientGameTestContext context, TestSingleplayerContext game) {
+        game.getServer().runOnServer(server -> {
+            net.minecraft.server.level.ServerPlayer player = server.getPlayerList().getPlayers().get(0);
+            com.mki.nightsiege.game.SiegeManager manager = com.mki.nightsiege.game.SiegeManager.get();
+            manager.onCoreAction(player, "class:WARRIOR");
+            manager.onCoreAction(player, "dev:400");
+            for (String id : new String[]{"warrior_drill", "w_endurance", "champion_bane", "keen_edge", "keen_edge",
+                    "w_combo", "w_frenzy", "w_bladefrenzy", "w_evasion", "execute", "w_chain_execute"}) {
+                manager.onBuySkill(player, id);
+            }
+            manager.onCoreAction(player, "open");
+        });
+        context.waitTicks(40);
+        context.takeScreenshot("ui_warrior_blade");
+        context.runOnClient(client -> client.setScreen(null));
+        context.waitTicks(5);
     }
 
     /**

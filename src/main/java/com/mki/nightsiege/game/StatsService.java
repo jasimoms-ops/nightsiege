@@ -57,6 +57,7 @@ public final class StatsService {
         stats.earned = skills.earned;
         stats.donated = skills.donated;
         stats.pathTaken = skills.pathTaken(tree);
+        stats.subclass = tree.subclassOf(skills);
         stats.creative = viewer.getAbilities().instabuild;
         for (com.mki.nightsiege.core.PerkKind kind : com.mki.nightsiege.core.PerkKind.values()) {
             CoreStats.PerkLine line = new CoreStats.PerkLine();
@@ -105,6 +106,9 @@ public final class StatsService {
             line.requiresLevel = node.requiresLevel();
             line.blocked = tree.blockedReason(node.id(), shared ? save.coreSkills() : skills);
             line.live = node.effect().isLive();
+            line.group = node.group() == null ? "" : node.group();
+            line.col = node.col();
+            line.locks = new java.util.ArrayList<>(node.locksList());
             stats.nodes.add(line);
         }
         return stats;

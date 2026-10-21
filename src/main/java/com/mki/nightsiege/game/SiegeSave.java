@@ -99,6 +99,46 @@ public class SiegeSave {
         return stats;
     }
 
+    /** Version of the skill trees the levels below were learned in. */
+    public int skillTreeVersion;
+    public static final int SKILL_TREE_VERSION = 2;
+
+    /**
+     * Version 2 rebuilt the warrior (two ways instead of four paths; the paladin
+     * moved over from the guardian, the spear path left). Every warrior, and every
+     * guardian who had taken the paladin path, gets all points back to choose anew.
+     * Returns how many players were reset.
+     */
+    public int migrateSkills() {
+        if (skillTreeVersion >= SKILL_TREE_VERSION) {
+            return 0;
+        }
+        java.util.Set<String> moved = java.util.Set.of("smite", "holy_vigor", "holy_light",
+                "long_reach", "impale", "lance_thrust");
+        int reset = 0;
+        if (skills != null) {
+            for (PlayerSkills own : skills.values()) {
+                if (own == null || own.levels == null) {
+                    continue;
+                }
+                boolean touched = false;
+                for (String id : moved) {
+                    if (own.levelOf(id) > 0) {
+                        touched = true;
+                        break;
+                    }
+                }
+                if (own.clazz() == com.mki.nightsiege.core.SkillClass.WARRIOR || touched) {
+                    own.points = Math.max(0, own.earned - own.donated);
+                    own.levels.clear();
+                    reset++;
+                }
+            }
+        }
+        skillTreeVersion = SKILL_TREE_VERSION;
+        return reset;
+    }
+
     public PlayerSkills skillsOf(String playerUuid) {
         if (skills == null) {
             skills = new HashMap<>();
