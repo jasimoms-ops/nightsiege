@@ -105,7 +105,10 @@ public class EventLookTest implements FabricClientGameTest {
                 context.getInput().lookAt(EventAtmosphere.AURORA.equals(event) ? -150.0f : -90.0f, -22.0f);
             }
             context.runOnClient(client -> EventAtmosphere.setClient(event, 1));
-            context.waitTicks(30);
+            // The mist wisps need a few seconds to drift in.
+            boolean misty = EventAtmosphere.FOG.equals(event) || EventAtmosphere.FROST.equals(event)
+                    || EventAtmosphere.NETHER_RIFT.equals(event);
+            context.waitTicks(misty ? 140 : 30);
             context.takeScreenshot("%s_%02d_%s".formatted(prefix, i + 1, event.toLowerCase(Locale.ROOT)));
         }
     }
