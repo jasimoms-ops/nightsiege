@@ -4,7 +4,6 @@ import net.fabricmc.fabric.api.biome.v1.BiomeModifications;
 import net.fabricmc.fabric.api.biome.v1.BiomeSelectors;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.Registry;
-import net.minecraft.core.component.TypedDataComponent;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
@@ -14,11 +13,20 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.TagKey;
+import net.minecraft.tags.DamageTypeTags;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.AxeItem;
+import net.minecraft.world.item.BowItem;
+import net.minecraft.world.item.CrossbowItem;
+import net.minecraft.world.item.MaceItem;
+import net.minecraft.world.item.ShieldItem;
+import net.minecraft.world.item.component.BlocksAttacks;
+import net.minecraft.world.item.component.ChargedProjectiles;
+import net.minecraft.world.item.component.Weapon;
+import net.minecraft.world.level.block.entity.BannerPatternLayers;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.HoeItem;
 import net.minecraft.world.item.Item;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.item.Rarity;
 import net.minecraft.world.item.ShovelItem;
 import net.minecraft.world.item.SmithingTemplateItem;
@@ -38,7 +46,7 @@ import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.Optional;
 
 /**
  * Infernite: the tier after netherite.
@@ -106,15 +114,34 @@ public final class InferniteContent {
         gear("infernite_axe", p -> new AxeItem(TOOLS, 5.0f, -3.0f, p));
         gear("infernite_shovel", p -> new ShovelItem(TOOLS, 1.5f, -3.0f, p));
         gear("infernite_hoe", p -> new HoeItem(TOOLS, -4.0f, 0.0f, p));
-        upgradeOf("infernite_spear", Items.NETHERITE_SPEAR, 2531);
+        // Built exactly like vanilla's netherite spear, on the infernite material.
+        gear("infernite_spear", p -> new Item(p.spear(TOOLS, 1.15f, 1.2f, 0.4f, 2.5f, 9.0f, 5.5f, 5.1f, 8.75f, 4.6f)
+                .repairable(TOOL_MATERIALS)));
         gear("infernite_helmet", p -> new Item(p.humanoidArmor(ARMOR, ArmorType.HELMET)));
         gear("infernite_chestplate", p -> new Item(p.humanoidArmor(ARMOR, ArmorType.CHESTPLATE)));
         gear("infernite_leggings", p -> new Item(p.humanoidArmor(ARMOR, ArmorType.LEGGINGS)));
         gear("infernite_boots", p -> new Item(p.humanoidArmor(ARMOR, ArmorType.BOOTS)));
-        upgradeOf("infernite_bow", Items.BOW, 640);
-        upgradeOf("infernite_crossbow", Items.CROSSBOW, 720);
-        upgradeOf("infernite_shield", Items.SHIELD, 560);
-        upgradeOf("infernite_mace", Items.MACE, 800);
+        // Bow, crossbow, shield and mace: vanilla's own recipe, sturdier.
+        gear("infernite_bow", p -> new BowItem(p.durability(640).enchantable(1).repairable(TOOL_MATERIALS)));
+        gear("infernite_crossbow", p -> new CrossbowItem(p.stacksTo(1).durability(720)
+                .component(DataComponents.CHARGED_PROJECTILES, ChargedProjectiles.EMPTY)
+                .enchantable(1).repairable(TOOL_MATERIALS)));
+        gear("infernite_shield", p -> new ShieldItem(p.durability(560)
+                .component(DataComponents.BANNER_PATTERNS, BannerPatternLayers.EMPTY)
+                .repairable(TOOL_MATERIALS)
+                .equippableUnswappable(EquipmentSlot.OFFHAND)
+                .delayedComponent(DataComponents.BLOCKS_ATTACKS, registries -> new BlocksAttacks(0.25f, 1.0f,
+                        List.of(new BlocksAttacks.DamageReduction(90.0f, Optional.empty(), 0.0f, 1.0f)),
+                        new BlocksAttacks.ItemDamageFunction(3.0f, 1.0f, 1.0f),
+                        Optional.of(registries.getOrThrow(DamageTypeTags.BYPASSES_SHIELD)),
+                        Optional.of(SoundEvents.SHIELD_BLOCK), Optional.of(SoundEvents.SHIELD_BREAK)))
+                .component(DataComponents.BREAK_SOUND, SoundEvents.SHIELD_BREAK)));
+        gear("infernite_mace", p -> new MaceItem(p.durability(750)
+                .component(DataComponents.TOOL, MaceItem.createToolProperties())
+                .repairable(TOOL_MATERIALS)
+                .attributes(MaceItem.createAttributes())
+                .enchantable(18)
+                .component(DataComponents.WEAPON, new Weapon(1))));
 
         // As rare as ancient debris: one hidden vein attempt per Nether chunk.
         BiomeModifications.addFeature(BiomeSelectors.foundInTheNether(),
@@ -160,34 +187,6 @@ public final class InferniteContent {
     private static void gear(String name, java.util.function.Function<Item.Properties, Item> factory) {
         Item.Properties properties = new Item.Properties().fireResistant().rarity(Rarity.EPIC);
         GEAR.put(name, item(name, properties, factory));
-    }
-
-    /** Components that belong to the item's own identity and must not be copied. */
-    private static final Set<Object> OWN = Set.of(DataComponents.ITEM_MODEL, DataComponents.ITEM_NAME,
-            DataComponents.MAX_DAMAGE, DataComponents.REPAIRABLE, DataComponents.RARITY);
-
-    /**
-     * A sturdier copy of a vanilla item: same class and behaviour, all of its
-     * components, but more durability, fire proof and repaired with infernite.
-     */
-    private static void upgradeOf(String name, Item vanilla, int durability) {
-        gear(name, properties -> {
-            for (TypedDataComponent<?> component : vanilla.components()) {
-                if (!OWN.contains(component.type())) {
-                    copy(properties, component);
-                }
-            }
-            properties.durability(durability).repairable(TOOL_MATERIALS);
-            try {
-                return vanilla.getClass().getConstructor(Item.Properties.class).newInstance(properties);
-            } catch (ReflectiveOperationException e) {
-                return new Item(properties);
-            }
-        });
-    }
-
-    private static <T> void copy(Item.Properties properties, TypedDataComponent<T> component) {
-        properties.component(component.type(), component.value());
     }
 
     private static Item template(Item.Properties properties) {
