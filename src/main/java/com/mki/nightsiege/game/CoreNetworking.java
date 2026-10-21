@@ -118,6 +118,7 @@ public final class CoreNetworking {
         typesRegistered = true;
         PayloadTypeRegistry.clientboundPlay().register(CoreUiPayload.TYPE, CoreUiPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(UltHudPayload.TYPE, UltHudPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(DungeonUiPayload.TYPE, DungeonUiPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(BloodMoonPayload.TYPE, BloodMoonPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(CoreActionPayload.TYPE, CoreActionPayload.CODEC);
     }
