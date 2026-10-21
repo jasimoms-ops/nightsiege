@@ -51,10 +51,14 @@ public final class SkillService {
                 if (SkillTree.has(skills, "w_glass_cannon")) v -= 8.0;
                 if (SkillTree.has(skills, "w_colossus")) v += 12.0;
                 if (SkillTree.has(skills, "w_martyr")) v -= 4.0;
+                if (SkillTree.has(skills, "a_deadeye")) v -= 8.0;
+                if (SkillTree.has(skills, "a_watchful")) v -= 4.0;
             }
             case MOVEMENT_SPEED -> {
                 if (SkillTree.has(skills, "w_unstoppable")) v -= 0.01;
                 if (SkillTree.has(skills, "w_colossus")) v -= 0.01;
+                if (SkillTree.has(skills, "a_skirmisher")) v += 0.015;
+                if (SkillTree.has(skills, "a_siegeengine")) v -= 0.015;
             }
             case KNOCKBACK_RESIST -> {
                 if (SkillTree.has(skills, "w_unstoppable")) v += 1.0;

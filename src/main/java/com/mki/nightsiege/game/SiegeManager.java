@@ -332,7 +332,7 @@ public final class SiegeManager {
         }
         int respec = save.migrateSkills();
         if (respec > 0) {
-            NightSiegeMod.LOGGER.info("[Night Siege] Neuer Krieger-Baum: {} Spieler bekommen ihre Punkte zurück", respec);
+            NightSiegeMod.LOGGER.info("[Night Siege] Neue Klassen-Bäume: {} Spieler bekommen ihre Punkte zurück", respec);
             persist();
         }
         scheduler.setReadyTicks(save.readyTicks);

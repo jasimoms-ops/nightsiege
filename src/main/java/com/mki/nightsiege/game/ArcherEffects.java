@@ -42,6 +42,10 @@ public final class ArcherEffects {
 
     /** Power shot armed by the ultimate key: game time it runs out, and its rank. */
     private final Map<UUID, long[]> powerArmed = new HashMap<>();
+    /** Shots fired, for the volley's every fourth. */
+    private final Map<UUID, Integer> volleyCount = new HashMap<>();
+    /** Power shot of the sniper: goes through everything in its way. */
+    public static final String SNIPER_TAG = "nightsiege_sniper";
     /** Arrow storm running: game time it ends. */
     private final Map<UUID, Long> stormUntil = new HashMap<>();
 
@@ -79,9 +83,14 @@ public final class ArcherEffects {
         if (skills == null || skills.clazz() != SkillClass.ARCHER) {
             return;
         }
+        // The skills of a way only work with its weapon.
+        String way = skills.pathTaken(tree);
+        if ((SkillTree.WAY_BOW.equals(way) && !bow) || (SkillTree.WAY_CROSSBOW.equals(way) && !crossbow)) {
+            return;
+        }
         long now = level.getGameTime();
 
-        // Swift path: a short bow draw is pulled towards full force.
+        // A short bow draw is pulled towards full force.
         double assist = Math.min(1.0, tree.totalBonus(SkillEffect.DRAW_ASSIST, skills));
         if (bow && assist > 0 && !arrow.isCritArrow()) {
             Vec3 motion = arrow.getDeltaMovement();
@@ -100,28 +109,72 @@ public final class ArcherEffects {
         if (crossbow) {
             damage += tree.totalBonus(SkillEffect.CROSSBOW_DAMAGE, skills);
         }
+        if (SkillTree.has(skills, "a_deadeye")) {
+            damage *= 1.35;
+        }
+        if (SkillTree.has(skills, "a_skirmisher")) {
+            damage *= 0.9;
+        }
+        if (crossbow && SkillTree.has(skills, "a_siegeengine")) {
+            damage *= 1.4;
+        }
         arrow.setBaseDamage(damage);
+        if (tree.totalBonus(SkillEffect.FIRE_ARROWS, skills) > 0) {
+            arrow.igniteForSeconds(100f);
+        }
 
-        if (bow && SkillTree.PATH_HEAVY.equals(skills.pathTaken(tree))) {
+        // The heavy bow trades speed for weight: a short pause after every shot.
+        if (bow && SkillTree.has(skills, "heavy_draw")) {
             player.getCooldowns().addCooldown(weapon, HEAVY_COOLDOWN_TICKS);
+        }
+
+        // Quiver: now and then the arrow comes back.
+        double quiver = tree.totalBonus(SkillEffect.QUIVER, skills);
+        if (quiver > 0 && !player.getAbilities().instabuild && arrow.pickup == AbstractArrow.Pickup.ALLOWED
+                && level.getRandom().nextDouble() < quiver) {
+            ItemStack back = arrow.getPickupItemStackOrigin().copyWithCount(1);
+            if (!back.isEmpty() && player.getInventory().add(back)) {
+                arrow.pickup = AbstractArrow.Pickup.CREATIVE_ONLY;
+            }
         }
 
         long[] armed = powerArmed.get(player.getUUID());
         if (armed != null) {
             powerArmed.remove(player.getUUID());
             if (now <= armed[0]) {
-                firePowerShot(arrow, level, player, damage, (int) armed[1]);
+                firePowerShot(arrow, level, player, damage, (int) armed[1], SkillTree.has(skills, "a_sniper"));
             }
         }
 
+        boolean fireVolley = tree.totalBonus(SkillEffect.FIRE_VOLLEY, skills) > 0;
+        double extraDamage = fireVolley ? damage * 1.5 : damage;
         if (tree.totalBonus(SkillEffect.DOUBLE_SHOT, skills) >= 1.0) {
-            spawnTwin(arrow, level, player, weapon, damage, 4.0f);
+            spawnTwin(arrow, level, player, weapon, extraDamage, 4.0f, fireVolley);
+        }
+        if (crossbow && tree.totalBonus(SkillEffect.MULTI_BOLT, skills) > 0) {
+            spawnTwin(arrow, level, player, weapon, damage, 7.0f, false);
+            spawnTwin(arrow, level, player, weapon, damage, -7.0f, false);
+        }
+        if (tree.totalBonus(SkillEffect.VOLLEY, skills) > 0) {
+            int shots = volleyCount.merge(player.getUUID(), 1, Integer::sum);
+            if (shots % 4 == 0) {
+                spawnTwin(arrow, level, player, weapon, extraDamage, 8.0f, fireVolley);
+                spawnTwin(arrow, level, player, weapon, extraDamage, -8.0f, fireVolley);
+            }
         }
         Long storm = stormUntil.get(player.getUUID());
         if (storm != null) {
             if (now <= storm) {
-                spawnTwin(arrow, level, player, weapon, damage, 8.0f);
-                spawnTwin(arrow, level, player, weapon, damage, -8.0f);
+                boolean burning = SkillTree.has(skills, "a_firestorm");
+                spawnTwin(arrow, level, player, weapon, damage, 8.0f, burning);
+                spawnTwin(arrow, level, player, weapon, damage, -8.0f, burning);
+                if (SkillTree.has(skills, "a_tempest")) {
+                    spawnTwin(arrow, level, player, weapon, damage, 16.0f, burning);
+                    spawnTwin(arrow, level, player, weapon, damage, -16.0f, burning);
+                }
+                if (burning) {
+                    arrow.igniteForSeconds(100f);
+                }
                 level.sendParticles(ParticleTypes.FLAME, arrow.getX(), arrow.getY(), arrow.getZ(),
                         6, 0.2, 0.2, 0.2, 0.02);
             } else {
@@ -130,10 +183,13 @@ public final class ArcherEffects {
         }
     }
 
-    /** Rank 1: x3, rank 3: x4.5 damage, and a faster flight. */
+    /** Rank 1: x3, rank 3: x4.5 damage, and a faster flight. The sniper's shot hits half again as hard and pierces. */
     private static void firePowerShot(AbstractArrow arrow, ServerLevel level, ServerPlayer player,
-                                      double damage, int rank) {
-        arrow.setBaseDamage(damage * (2.25 + 0.75 * rank));
+                                      double damage, int rank, boolean sniper) {
+        arrow.setBaseDamage(damage * (2.25 + 0.75 * rank) * (sniper ? 1.5 : 1.0));
+        if (sniper) {
+            arrow.entityTags().add(SNIPER_TAG);
+        }
         arrow.setDeltaMovement(arrow.getDeltaMovement().scale(1.25));
         arrow.setCritArrow(true);
         level.playSound(null, player.getX(), player.getY(), player.getZ(),
@@ -146,7 +202,7 @@ public final class ArcherEffects {
 
     /** A second arrow beside the first, turned by the given angle. It cannot be picked up. */
     private static void spawnTwin(AbstractArrow original, ServerLevel level, ServerPlayer player,
-                                  ItemStack weapon, double damage, float degrees) {
+                                  ItemStack weapon, double damage, float degrees, boolean burning) {
         Arrow twin = new Arrow(level, player, new ItemStack(Items.ARROW), weapon.copy());
         twin.entityTags().add(HANDLED);
         twin.pickup = AbstractArrow.Pickup.CREATIVE_ONLY;
@@ -158,6 +214,9 @@ public final class ArcherEffects {
         Vec3 motion = original.getDeltaMovement().yRot((float) Math.toRadians(degrees));
         twin.setPos(original.getX(), original.getY(), original.getZ());
         twin.setDeltaMovement(motion);
+        if (burning) {
+            twin.igniteForSeconds(100f);
+        }
         level.addFreshEntity(twin);
     }
 
@@ -165,5 +224,6 @@ public final class ArcherEffects {
     public void forget(UUID player) {
         powerArmed.remove(player);
         stormUntil.remove(player);
+        volleyCount.remove(player);
     }
 }

@@ -14,11 +14,13 @@ import java.util.Map;
  */
 public final class SkillTree {
 
-    // Archer
-    public static final String PATH_SWIFT = "swift";
-    public static final String PATH_HEAVY = "heavy";
-    public static final String PATH_CROSSBOW = "crossbow";
-    public static final String PATH_HUNTER = "hunter";
+    // Archer: two ways, each with two subclasses
+    public static final String WAY_BOW = "bow";
+    public static final String WAY_CROSSBOW = "xbow";
+    public static final String SUB_SWIFT = "swift";
+    public static final String SUB_HEAVY = "heavy";
+    public static final String SUB_BOLTER = "bolter";
+    public static final String SUB_TRAPPER = "trapper";
     // Warrior: two ways, each with two subclasses
     public static final String WAY_BLADE = "edge";
     public static final String WAY_MIGHT = "might";
@@ -62,23 +64,9 @@ public final class SkillTree {
         // A point in one path closes the other three for good.
 
         // ---------------- Archer ----------------
-        add(list, "archer_focus", SkillClass.ARCHER, "", SkillEffect.ARROW_DAMAGE, 3, 2, 1, 0.5, null, 0, "minecraft:bow", 0);
-        // Swift: short draws hit like full ones, a second arrow, then a storm.
-        add(list, "swift_draw", SkillClass.ARCHER, PATH_SWIFT, SkillEffect.DRAW_ASSIST, 4, 3, 2, 0.2, "archer_focus", 1, "minecraft:feather", 1);
-        add(list, "double_shot", SkillClass.ARCHER, PATH_SWIFT, SkillEffect.DOUBLE_SHOT, 1, 15, 0, 1.0, "swift_draw", 4, "minecraft:arrow", 2);
-        add(list, "arrow_storm", SkillClass.ARCHER, PATH_SWIFT, SkillEffect.ARROW_STORM, 3, 25, 10, 1.0, "double_shot", 1, "minecraft:blaze_rod", 3);
-        // Heavy: slow bow, hard arrows, a crushing shot.
-        add(list, "heavy_draw", SkillClass.ARCHER, PATH_HEAVY, SkillEffect.ARROW_DAMAGE, 5, 3, 2, 1.0, "archer_focus", 1, "minecraft:iron_ingot", 1);
-        add(list, "piercing", SkillClass.ARCHER, PATH_HEAVY, SkillEffect.ARROW_DAMAGE, 4, 5, 3, 1.5, "heavy_draw", 4, "minecraft:spectral_arrow", 2);
-        add(list, "power_shot", SkillClass.ARCHER, PATH_HEAVY, SkillEffect.POWER_SHOT, 3, 25, 10, 1.0, "piercing", 4, "minecraft:dragon_breath", 3);
-        // Crossbow: heavy bolts that burst on impact, then a fan of bolts.
-        add(list, "heavy_bolts", SkillClass.ARCHER, PATH_CROSSBOW, SkillEffect.CROSSBOW_DAMAGE, 4, 3, 2, 2.0, "archer_focus", 1, "minecraft:crossbow", 1);
-        add(list, "shrapnel", SkillClass.ARCHER, PATH_CROSSBOW, SkillEffect.SHRAPNEL, 4, 5, 3, 0.2, "heavy_bolts", 4, "minecraft:firework_star", 2);
-        add(list, "bolt_volley", SkillClass.ARCHER, PATH_CROSSBOW, SkillEffect.BOLT_VOLLEY, 3, 25, 10, 1.0, "shrapnel", 4, "minecraft:firework_rocket", 3);
-        // Hunter: marks prey, moves fast, marks a whole pack.
-        add(list, "tracker", SkillClass.ARCHER, PATH_HUNTER, SkillEffect.MARK, 4, 3, 2, 0.15, "archer_focus", 1, "minecraft:spyglass", 1);
-        add(list, "fleet_foot", SkillClass.ARCHER, PATH_HUNTER, SkillEffect.MOVEMENT_SPEED, 4, 5, 3, 0.008, "tracker", 4, "minecraft:rabbit_foot", 2);
-        add(list, "hunt", SkillClass.ARCHER, PATH_HUNTER, SkillEffect.HUNTERS_MARK, 3, 25, 10, 1.0, "fleet_foot", 4, "minecraft:ender_eye", 3);
+        // Trunk, then bow or crossbow. Marking and the hunt (the old hunter)
+        // come up as extra choices in both ways.
+        archer(list);
 
         // ---------------- Warrior ----------------
         // Trunk, then one of two ways (blade or might). Every tier of a way is a
@@ -134,10 +122,89 @@ public final class SkillTree {
 
     /** The subclass node of each way and the subclass it stands for. */
     private static final Map<String, String> SUBCLASS_NODES = Map.of(
+            "swift_draw", SUB_SWIFT,
+            "heavy_draw", SUB_HEAVY,
+            "shrapnel", SUB_BOLTER,
+            "a_netbolt", SUB_TRAPPER,
             "keen_edge", SUB_BLADEMASTER,
             "bloodlust", SUB_BERSERKER,
             "heavy_blow", SUB_AXE,
             "smite", SUB_PALADIN);
+
+    private static void archer(List<SkillNode> list) {
+        SkillClass c = SkillClass.ARCHER;
+        node(list, "archer_focus", c, "", SkillEffect.ARROW_DAMAGE, 3, 2, 1, 0.5, null, "", "minecraft:bow", 0, 3);
+        node(list, "a_lightfoot", c, "", SkillEffect.MOVEMENT_SPEED, 3, 3, 2, 0.005, "archer_focus", "a_stem", "minecraft:leather_boots", 1, 2);
+        node(list, "a_quiver", c, "", SkillEffect.QUIVER, 3, 3, 2, 0.15, "archer_focus", "a_stem", "minecraft:bundle", 1, 4);
+
+        // ----- Way of the bow
+        String b = WAY_BOW;
+        node(list, "a_steady", c, b, SkillEffect.DRAW_ASSIST, 3, 3, 2, 0.1, "archer_focus", "b1", "minecraft:string", 2, 1);
+        node(list, "a_pierce", c, b, SkillEffect.PIERCE, 2, 3, 2, 1.0, "archer_focus", "", "minecraft:spectral_arrow", 2, 3);
+        node(list, "a_longshot", c, b, SkillEffect.LONGSHOT, 3, 3, 2, 0.1, "archer_focus", "b1", "minecraft:spyglass", 2, 5);
+        node(list, "swift_draw", c, b, SkillEffect.DRAW_ASSIST, 4, 4, 2, 0.2, "a_pierce", "b_sub", "minecraft:feather", 3, 1);
+        node(list, "heavy_draw", c, b, SkillEffect.ARROW_DAMAGE, 4, 4, 2, 1.0, "a_pierce", "b_sub", "minecraft:iron_ingot", 3, 5);
+        node(list, "double_shot", c, b, SkillEffect.DOUBLE_SHOT, 1, 10, 0, 1.0, "swift_draw:2", "b3", "minecraft:arrow", 4, 0);
+        node(list, "a_volley", c, b, SkillEffect.VOLLEY, 1, 10, 0, 1.0, "swift_draw:2", "b3", "minecraft:tipped_arrow", 4, 2);
+        node(list, "piercing", c, b, SkillEffect.PIERCE, 1, 10, 0, 2.0, "heavy_draw:2", "b3", "minecraft:trident", 4, 4);
+        node(list, "a_knockarrow", c, b, SkillEffect.ARROW_KNOCKBACK, 1, 10, 0, 1.0, "heavy_draw:2", "b3", "minecraft:piston", 4, 6);
+        String b3 = "double_shot|a_volley|piercing|a_knockarrow";
+        node(list, "a_fire", c, b, SkillEffect.FIRE_ARROWS, 1, 12, 0, 1.0, b3, "b4", "minecraft:blaze_powder", 5, 1);
+        node(list, "a_poison", c, b, SkillEffect.POISON_ARROWS, 1, 12, 0, 1.0, b3, "b4", "minecraft:spider_eye", 5, 3);
+        node(list, "b_mark", c, b, SkillEffect.MARK, 1, 12, 0, 0.25, b3, "b4", "minecraft:ender_eye", 5, 5);
+        node(list, "a_firevolley", c, b, SkillEffect.FIRE_VOLLEY, 1, 15, 0, 1.0, "double_shot|a_volley,a_fire", "b5", "minecraft:fire_charge", 6, 1);
+        node(list, "a_deathmark", c, b, SkillEffect.DEATH_MARK, 1, 15, 0, 0.3, "heavy_draw,b_mark", "b5", "minecraft:wither_skeleton_skull", 6, 3);
+        node(list, "a_venomburst", c, b, SkillEffect.VENOM_BURST, 1, 15, 0, 1.0, "piercing|a_knockarrow,a_poison", "b5", "minecraft:fermented_spider_eye", 6, 5);
+        String b4 = "a_fire|a_poison|b_mark";
+        node(list, "a_eagle", c, b, SkillEffect.ARROW_CRIT, 1, 18, 0, 0.2, b4, "b6", "minecraft:feather", 7, 1);
+        node(list, "a_retreat", c, b, SkillEffect.RETREAT, 1, 18, 0, 1.0, b4, "b6", "minecraft:rabbit_foot", 7, 3);
+        node(list, "b_cross_shrapnel", c, b, SkillEffect.SHRAPNEL, 1, 18, 0, 0.3, b4, "b6", "minecraft:firework_star", 7, 5,
+                "a_firevolley", "a_firestorm");
+        String b6 = "a_eagle|a_retreat|b_cross_shrapnel";
+        node(list, "arrow_storm", c, b, SkillEffect.ARROW_STORM, 3, 20, 10, 1.0, b6, "b_ult", "minecraft:blaze_rod", 8, 1);
+        node(list, "power_shot", c, b, SkillEffect.POWER_SHOT, 3, 20, 10, 1.0, b6, "b_ult", "minecraft:dragon_breath", 8, 3);
+        node(list, "b_hunt", c, b, SkillEffect.HUNTERS_MARK, 3, 20, 10, 1.0, b6, "b_ult", "minecraft:compass", 8, 5);
+        node(list, "a_tempest", c, b, SkillEffect.TEMPEST, 1, 25, 0, 1.0, "arrow_storm,swift_draw", "b_mastery", "minecraft:wind_charge", 9, 0);
+        node(list, "a_firestorm", c, b, SkillEffect.FIRESTORM, 1, 25, 0, 1.0, "arrow_storm,a_fire|a_firevolley", "b_mastery", "minecraft:magma_cream", 9, 2);
+        node(list, "a_sniper", c, b, SkillEffect.SNIPER, 1, 25, 0, 1.0, "power_shot,heavy_draw", "b_mastery", "minecraft:crossbow", 9, 4);
+        node(list, "b_pack", c, b, SkillEffect.PACK, 1, 25, 0, 1.0, "b_hunt,b_mark", "b_mastery", "minecraft:bone", 9, 6);
+        node(list, "a_deadeye", c, b, SkillEffect.DEADEYE, 1, 30, 0, 1.0, "arrow_storm|power_shot|b_hunt", "b_key", "minecraft:target", 10, 2);
+        node(list, "a_skirmisher", c, b, SkillEffect.SKIRMISHER, 1, 30, 0, 1.0, "arrow_storm|power_shot|b_hunt", "b_key", "minecraft:golden_boots", 10, 4);
+
+        // ----- Way of the crossbow
+        String x = WAY_CROSSBOW;
+        node(list, "a_lightxbow", c, x, SkillEffect.XBOW_SPEED, 3, 3, 2, 0.006, "archer_focus", "x1", "minecraft:leather", 2, 1);
+        node(list, "heavy_bolts", c, x, SkillEffect.CROSSBOW_DAMAGE, 3, 3, 2, 1.5, "archer_focus", "", "minecraft:crossbow", 2, 3);
+        node(list, "a_steelbolts", c, x, SkillEffect.BOLT_SUNDER, 3, 3, 2, 0.06, "archer_focus", "x1", "minecraft:iron_nugget", 2, 5);
+        node(list, "shrapnel", c, x, SkillEffect.SHRAPNEL, 4, 4, 2, 0.12, "heavy_bolts", "x_sub", "minecraft:firework_star", 3, 1);
+        node(list, "a_netbolt", c, x, SkillEffect.NET_BOLT, 4, 4, 2, 1.0, "heavy_bolts", "x_sub", "minecraft:cobweb", 3, 5);
+        node(list, "a_explosive", c, x, SkillEffect.EXPLOSIVE, 1, 10, 0, 4.0, "shrapnel:2", "x3", "minecraft:tnt", 4, 0);
+        node(list, "a_multiload", c, x, SkillEffect.MULTI_BOLT, 1, 10, 0, 1.0, "shrapnel:2", "x3", "minecraft:arrow", 4, 2);
+        node(list, "a_snarefield", c, x, SkillEffect.NET_FIELD, 1, 10, 0, 1.0, "a_netbolt:2", "x3", "minecraft:string", 4, 4);
+        node(list, "a_shackle", c, x, SkillEffect.SHACKLE, 1, 10, 0, 1.0, "a_netbolt:2", "x3", "minecraft:slime_ball", 4, 6);
+        String x3 = "a_explosive|a_multiload|a_snarefield|a_shackle";
+        node(list, "a_punch", c, x, SkillEffect.PIERCE, 1, 12, 0, 2.0, x3, "x4", "minecraft:spectral_arrow", 5, 1);
+        node(list, "a_tripwire", c, x, SkillEffect.TRIPWIRE, 1, 12, 0, 1.0, x3, "x4", "minecraft:tripwire_hook", 5, 3);
+        node(list, "x_mark", c, x, SkillEffect.MARK, 1, 12, 0, 0.25, x3, "x4", "minecraft:ender_eye", 5, 5);
+        node(list, "a_clusterbolt", c, x, SkillEffect.CLUSTER, 1, 15, 0, 1.0, "a_explosive|a_multiload,a_punch", "x5", "minecraft:firework_rocket", 6, 1);
+        node(list, "a_hunternet", c, x, SkillEffect.HUNTER_NET, 1, 15, 0, 0.25, "a_snarefield|a_shackle,x_mark", "x5", "minecraft:lead", 6, 3);
+        node(list, "a_trapmaster", c, x, SkillEffect.TRAPMASTER, 1, 15, 0, 4.0, "a_netbolt,a_tripwire", "x5", "minecraft:iron_bars", 6, 5);
+        String x4 = "a_punch|a_tripwire|x_mark";
+        node(list, "a_bracing", c, x, SkillEffect.BRACE, 1, 18, 0, 0.4, x4, "x6", "minecraft:anvil", 7, 1);
+        node(list, "a_reloadrush", c, x, SkillEffect.RELOAD_RUSH, 1, 18, 0, 1.0, x4, "x6", "minecraft:sugar", 7, 3);
+        node(list, "x_cross_double", c, x, SkillEffect.DOUBLE_SHOT, 1, 18, 0, 1.0, x4, "x6", "minecraft:bow", 7, 5,
+                "a_multiload", "a_barrage");
+        String x6 = "a_bracing|a_reloadrush|x_cross_double";
+        node(list, "bolt_volley", c, x, SkillEffect.BOLT_VOLLEY, 3, 20, 10, 1.0, x6, "x_ult", "minecraft:firework_rocket", 8, 1);
+        node(list, "a_netrain", c, x, SkillEffect.NET_RAIN, 3, 20, 10, 1.0, x6, "x_ult", "minecraft:cobweb", 8, 3);
+        node(list, "x_hunt", c, x, SkillEffect.HUNTERS_MARK, 3, 20, 10, 1.0, x6, "x_ult", "minecraft:compass", 8, 5);
+        node(list, "a_barrage", c, x, SkillEffect.BARRAGE, 1, 25, 0, 1.0, "bolt_volley,shrapnel", "x_mastery", "minecraft:tnt_minecart", 9, 0);
+        node(list, "a_widenet", c, x, SkillEffect.WIDE_NET, 1, 25, 0, 1.0, "bolt_volley,a_netbolt", "x_mastery", "minecraft:string", 9, 2);
+        node(list, "a_deathtrap", c, x, SkillEffect.DEATHTRAP, 1, 25, 0, 0.5, "a_netrain,a_netbolt|a_hunternet", "x_mastery", "minecraft:wither_rose", 9, 4);
+        node(list, "x_pack", c, x, SkillEffect.PACK, 1, 25, 0, 1.0, "x_hunt,x_mark", "x_mastery", "minecraft:bone", 9, 6);
+        node(list, "a_siegeengine", c, x, SkillEffect.SIEGE_ENGINE, 1, 30, 0, 1.0, "bolt_volley|a_netrain|x_hunt", "x_key", "minecraft:dispenser", 10, 2);
+        node(list, "a_watchful", c, x, SkillEffect.WATCHFUL, 1, 30, 0, 0.15, "bolt_volley|a_netrain|x_hunt", "x_key", "minecraft:observer", 10, 4);
+    }
 
     private static void warrior(List<SkillNode> list) {
         SkillClass c = SkillClass.WARRIOR;

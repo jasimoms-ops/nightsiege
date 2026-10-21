@@ -330,39 +330,43 @@ class SiegeCoreTest {
     }
 
     @Test
-    void thetwoArcherPathsLockEachOtherOut() {
+    void theArcherPicksBowOrCrossbow() {
         SkillTree tree = new SkillTree();
         PlayerSkills skills = new PlayerSkills();
         skills.chosenClass = SkillClass.ARCHER.name();
         skills.award(500);
 
         assertTrue(tree.unlock("archer_focus", skills));
-        assertNull(tree.blockedReason("swift_draw", skills));
-        assertNull(tree.blockedReason("heavy_draw", skills));
-
+        assertNull(tree.blockedReason("a_pierce", skills));
+        assertNull(tree.blockedReason("heavy_bolts", skills));
+        assertTrue(tree.unlock("a_pierce", skills));
+        assertEquals(SkillTree.WAY_BOW, skills.pathTaken(tree));
+        assertEquals("path", tree.blockedReason("heavy_bolts", skills));
         assertTrue(tree.unlock("swift_draw", skills));
-        assertEquals(SkillTree.PATH_SWIFT, skills.pathTaken(tree));
-        // Once one path is started the other is shut for good.
-        assertEquals("path", tree.blockedReason("heavy_draw", skills));
-        assertEquals("path", tree.blockedReason("power_shot", skills));
+        assertEquals("choice", tree.blockedReason("heavy_draw", skills));
+        assertEquals(SkillTree.SUB_SWIFT, tree.subclassOf(skills));
     }
 
     @Test
-    void theFinalArcherNodesSitBehindTheirPath() {
+    void theArcherReachesTheHuntInBothWays() {
         SkillTree tree = new SkillTree();
         PlayerSkills skills = new PlayerSkills();
         skills.chosenClass = SkillClass.ARCHER.name();
-        skills.award(1000);
+        skills.award(2000);
         tree.unlock("archer_focus", skills);
-        assertEquals("locked", tree.blockedReason("double_shot", skills));
-        for (int i = 0; i < 4; i++) {
-            assertTrue(tree.unlock("swift_draw", skills), "swift_draw " + i);
-        }
-        assertTrue(tree.unlock("double_shot", skills));
-        assertEquals("maxed", tree.blockedReason("double_shot", skills));
-        assertNull(tree.blockedReason("arrow_storm", skills));
-        assertTrue(tree.unlock("arrow_storm", skills));
-        assertEquals("arrow_storm", tree.ultimateOf(skills).id());
+        tree.unlock("heavy_bolts", skills);
+        assertEquals("locked", tree.blockedReason("a_explosive", skills));
+        assertTrue(tree.unlock("a_netbolt", skills));
+        assertTrue(tree.unlock("a_netbolt", skills));
+        assertTrue(tree.unlock("a_shackle", skills));
+        assertTrue(tree.unlock("x_mark", skills));
+        assertTrue(tree.unlock("a_hunternet", skills));
+        assertTrue(tree.unlock("x_cross_double", skills));
+        assertEquals("lockedby", tree.blockedReason("a_barrage", skills));
+        assertTrue(tree.unlock("x_hunt", skills));
+        assertEquals("choice", tree.blockedReason("bolt_volley", skills));
+        assertTrue(tree.unlock("x_pack", skills));
+        assertEquals("x_hunt", tree.ultimateOf(skills).id());
     }
 
     @Test
@@ -403,7 +407,7 @@ class SiegeCoreTest {
     @Test
     void everyClassHasItsPaths() {
         SkillTree tree = new SkillTree();
-        java.util.Map<SkillClass, Integer> expected = java.util.Map.of(SkillClass.ARCHER, 4, SkillClass.WARRIOR, 2,
+        java.util.Map<SkillClass, Integer> expected = java.util.Map.of(SkillClass.ARCHER, 2, SkillClass.WARRIOR, 2,
                 SkillClass.GUARDIAN, 3, SkillClass.ENGINEER, 4);
         for (java.util.Map.Entry<SkillClass, Integer> entry : expected.entrySet()) {
             Set<String> paths = new HashSet<>();
@@ -540,10 +544,16 @@ class SiegeCoreTest {
         archer.award(50);
         archer.spend(10);
         archer.setLevel("archer_focus", 2);
-        assertEquals(1, save.migrateSkills());
+        PlayerSkills engineer = save.skillsOf("c");
+        engineer.chosenClass = SkillClass.ENGINEER.name();
+        engineer.award(30);
+        engineer.spend(5);
+        assertEquals(2, save.migrateSkills());
         assertEquals(100, warrior.points());
         assertEquals(0, warrior.levelOf("long_reach"));
-        assertEquals(40, archer.points());
+        assertEquals(50, archer.points());
+        assertEquals(0, archer.levelOf("archer_focus"));
+        assertEquals(25, engineer.points());
         assertEquals(0, save.migrateSkills());
     }
 
@@ -571,9 +581,10 @@ class SiegeCoreTest {
             }
             ultimates.merge(node.path(), node.effect().target() == SkillEffect.Target.ULTIMATE ? 1 : 0, Integer::sum);
         }
-        assertEquals(13, ultimates.size());
-        ultimates.forEach((path, count) -> assertEquals(
-                path.equals(SkillTree.WAY_BLADE) || path.equals(SkillTree.WAY_MIGHT) ? 2 : 1, count, path));
+        assertEquals(11, ultimates.size());
+        java.util.Map<String, Integer> expected = java.util.Map.of(SkillTree.WAY_BLADE, 2, SkillTree.WAY_MIGHT, 2,
+                SkillTree.WAY_BOW, 3, SkillTree.WAY_CROSSBOW, 3);
+        ultimates.forEach((path, count) -> assertEquals(expected.getOrDefault(path, 1), count, path));
     }
 
     @Test

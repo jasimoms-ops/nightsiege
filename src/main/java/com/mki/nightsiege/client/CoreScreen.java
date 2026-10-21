@@ -663,6 +663,12 @@ public class CoreScreen extends Screen {
         return all;
     }
 
+    /** Marking and the hunt: the old hunter's skills, open to both archer ways. */
+    private static boolean isHunterNode(String id) {
+        return id.equals("b_mark") || id.equals("x_mark") || id.equals("b_hunt") || id.equals("x_hunt")
+                || id.equals("b_pack") || id.equals("x_pack");
+    }
+
     private NodeButton buttonOf(String id) {
         for (NodeButton button : nodeButtons) {
             if (button.node().id.equals(id)) {
@@ -780,8 +786,11 @@ public class CoreScreen extends Screen {
                     gui.fill(x + SLOT - 1 - i, y + i, x + SLOT - i, y + i + 1, 0xFFE04040);
                 }
             }
-            if (gridMode && (node.id.startsWith("e_cross_") || node.id.startsWith("m_cross_"))) {
+            if (gridMode && (node.id.contains("_cross_"))) {
                 gui.text(font, "↔", x + SLOT - 7, y - 2, 0xFF80D0FF, true);
+            }
+            if (gridMode && isHunterNode(node.id)) {
+                gui.text(font, "◎", x + SLOT - 7, y - 2, 0xFF7CFF7C, true);
             }
 
             String level = node.level + "/" + node.maxLevel;
@@ -1054,8 +1063,11 @@ public class CoreScreen extends Screen {
             if (!sub.equals("nightsiege.subclass_node." + node.id)) {
                 lines.add("§6" + sub);
             }
-            if (node.id.startsWith("e_cross_") || node.id.startsWith("m_cross_")) {
+            if (node.id.contains("_cross_")) {
                 lines.add("§b" + Component.translatable("nightsiege.ui.cross").getString());
+            }
+            if (isHunterNode(node.id)) {
+                lines.add("§a" + Component.translatable("nightsiege.ui.hunter").getString());
             }
             if (node.group != null && !node.group.isBlank()) {
                 lines.add("§8" + Component.translatable("nightsiege.ui.choice_hint").getString());

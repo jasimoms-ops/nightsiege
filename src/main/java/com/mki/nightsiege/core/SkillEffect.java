@@ -103,6 +103,69 @@ public enum SkillEffect {
     EARTHSHOCK(0.0, Target.COMBAT),
     /** Now and then a heavy blow is caught completely. */
     DIVINE_SHIELD(0.0, Target.COMBAT),
+    // Archer (only with the weapon of the way)
+    /** Chance that a shot does not use up the arrow. */
+    QUIVER(0.0, Target.COMBAT),
+    /** Arrows go on into this many more monsters behind the target. */
+    PIERCE(0.0, Target.COMBAT),
+    /** Extra damage per level on hits from more than 15 blocks away. */
+    LONGSHOT(0.0, Target.COMBAT),
+    /** Every fourth shot is a fan of three. */
+    VOLLEY(0.0, Target.ARROW),
+    /** Arrows throw monsters back. */
+    ARROW_KNOCKBACK(0.0, Target.COMBAT),
+    FIRE_ARROWS(0.0, Target.ARROW),
+    POISON_ARROWS(0.0, Target.COMBAT),
+    /** The extra arrows burn and hit harder. */
+    FIRE_VOLLEY(0.0, Target.ARROW),
+    /** Marked monsters take this much more again. */
+    DEATH_MARK(0.0, Target.COMBAT),
+    /** Poisoned monsters hit again spread the poison. */
+    VENOM_BURST(0.0, Target.COMBAT),
+    /** Chance of a critical arrow hit. */
+    ARROW_CRIT(0.0, Target.COMBAT),
+    /** A hit gives a moment of speed. */
+    RETREAT(0.0, Target.COMBAT),
+    /** Movement speed while holding a crossbow. */
+    XBOW_SPEED(0.0, Target.COMBAT),
+    /** Bolts crack armour: the target takes more damage for a while. */
+    BOLT_SUNDER(0.0, Target.COMBAT),
+    /** Bolts slow the target; seconds per level. */
+    NET_BOLT(0.0, Target.COMBAT),
+    /** Bolts burst; damage around the target. */
+    EXPLOSIVE(0.0, Target.COMBAT),
+    /** Crossbow shots fire two more bolts. */
+    MULTI_BOLT(0.0, Target.ARROW),
+    /** Bolts throw a net: everything around is slowed. */
+    NET_FIELD(0.0, Target.COMBAT),
+    /** Bolts hold the target in place for a moment. */
+    SHACKLE(0.0, Target.COMBAT),
+    /** Monsters coming close trip and are slowed. */
+    TRIPWIRE(0.0, Target.COMBAT),
+    /** Every bolt bursts, and bursts are bigger. */
+    CLUSTER(0.0, Target.COMBAT),
+    /** Netted or shackled monsters are marked. */
+    HUNTER_NET(0.0, Target.COMBAT),
+    /** The tripwire holds fast and hurts. */
+    TRAPMASTER(0.0, Target.COMBAT),
+    /** Sneaking: bolts hit this much harder. */
+    BRACE(0.0, Target.COMBAT),
+    /** A kill gives a burst of speed. */
+    RELOAD_RUSH(0.0, Target.COMBAT),
+    /** Ultimate of the trapper: a rain of nets. */
+    NET_RAIN(0.0, Target.ULTIMATE),
+    TEMPEST(0.0, Target.COMBAT),
+    FIRESTORM(0.0, Target.COMBAT),
+    SNIPER(0.0, Target.COMBAT),
+    PACK(0.0, Target.COMBAT),
+    BARRAGE(0.0, Target.COMBAT),
+    WIDE_NET(0.0, Target.COMBAT),
+    DEATHTRAP(0.0, Target.COMBAT),
+    DEADEYE(0.0, Target.COMBAT),
+    SKIRMISHER(0.0, Target.COMBAT),
+    SIEGE_ENGINE(0.0, Target.COMBAT),
+    WATCHFUL(0.0, Target.COMBAT),
+
     // Masteries: change the ultimate
     CHAIN_EXECUTE(0.0, Target.COMBAT),
     BLOODY_EXECUTE(0.0, Target.COMBAT),

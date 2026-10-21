@@ -98,6 +98,12 @@ public final class CombatEffects {
     private record Delayed(long due, Runnable action) {
     }
 
+    /** Archer: tags on the bolts of the volley masteries, the tripwire's pause, crossbow speed. */
+    private static final String TAG_BARRAGE = "nightsiege_barrage";
+    private static final String TAG_NET = "nightsiege_net";
+    private final Map<UUID, Long> tripReadyAt = new HashMap<>();
+    private static final net.minecraft.resources.Identifier XBOW_SPEED = ModContent.id("xbow_speed");
+
     public CombatEffects(SkillTree tree, Function<ServerPlayer, PlayerSkills> skillsFor,
                          Predicate<Entity> isChampion, ArcherEffects archer, TrapService traps) {
         this.tree = tree;
@@ -137,7 +143,7 @@ public final class CombatEffects {
         }
         boolean fired = switch (node.effect()) {
             case ARROW_STORM -> {
-                archer.startStorm(player, now + 60 + 40L * rank);
+                archer.startStorm(player, now + 60 + 40L * rank + (SkillTree.has(skills, "a_tempest") ? 40 : 0));
                 play(level, player, SoundEvents.BLAZE_SHOOT, 1.0f, 1.4f);
                 yield true;
             }
@@ -147,6 +153,7 @@ public final class CombatEffects {
                 yield true;
             }
             case BOLT_VOLLEY -> boltVolley(level, player, rank);
+            case NET_RAIN -> netRain(level, player, rank, now);
             case HUNTERS_MARK -> huntersMark(level, player, rank, now);
             case WHIRLWIND -> whirlwind(level, player, rank);
             case EXECUTE -> execute(level, player, rank);
@@ -180,6 +187,7 @@ public final class CombatEffects {
     // --- archer
 
     private boolean boltVolley(ServerLevel level, ServerPlayer player, int rank) {
+        PlayerSkills skills = skillsFor.apply(player);
         int count = 5 + 2 * rank;   // 7 / 9 / 11 bolts
         float spread = 50f;
         for (int i = 0; i < count; i++) {
@@ -188,6 +196,12 @@ public final class CombatEffects {
             bolt.entityTags().add(ArcherEffects.HANDLED);
             bolt.pickup = AbstractArrow.Pickup.DISALLOWED;
             bolt.setBaseDamage(4.0 + 2.0 * rank);
+            if (SkillTree.has(skills, "a_barrage")) {
+                bolt.entityTags().add(TAG_BARRAGE);
+            }
+            if (SkillTree.has(skills, "a_widenet")) {
+                bolt.entityTags().add(TAG_NET);
+            }
             bolt.shootFromRotation(player, player.getXRot(), yaw, 0f, 3.2f, 1.0f);
             level.addFreshEntity(bolt);
         }
@@ -195,11 +209,46 @@ public final class CombatEffects {
         return true;
     }
 
+    /** Trapper: nets rain on every monster around; they stick, take damage and, with the death trap, more of it. */
+    private boolean netRain(ServerLevel level, ServerPlayer player, int rank, long now) {
+        List<LivingEntity> near = enemies(level, player.position(), 10.0 + 2.0 * rank, 6.0);
+        if (near.isEmpty()) {
+            actionBar(player, Component.translatable("nightsiege.msg.ult_no_target"));
+            return false;
+        }
+        double trap = tree.totalBonus(SkillEffect.DEATHTRAP, skillsFor.apply(player));
+        DamageSource source = level.damageSources().playerAttack(player);
+        for (LivingEntity victim : near) {
+            victim.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 60 + 20 * rank, 9));
+            bonusHit(level, victim, source, 4f + 2f * rank);
+            if (trap > 0) {
+                mark(victim, trap, now + 60 + 20L * rank, true);
+            }
+            level.sendParticles(ParticleTypes.ITEM_COBWEB, victim.getX(), victim.getY(0.8), victim.getZ(),
+                    12, 0.4, 0.4, 0.4, 0.0);
+        }
+        play(level, player, SoundEvents.CROSSBOW_SHOOT, 1.0f, 0.5f);
+        play(level, player, SoundEvents.WOOL_PLACE, 1.0f, 0.7f);
+        return true;
+    }
+
     private boolean huntersMark(ServerLevel level, ServerPlayer player, int rank, long now) {
-        double r = 16.0 + 8.0 * rank;
+        boolean pack = tree.totalBonus(SkillEffect.PACK, skillsFor.apply(player)) > 0;
+        double r = (16.0 + 8.0 * rank) * (pack ? 1.5 : 1.0);
         double bonus = 0.3 + 0.1 * rank;
+        if (pack) {
+            // The pack hunts together: everyone close by runs faster.
+            for (ServerPlayer mate : level.players()) {
+                if (mate.isAlive() && mate.distanceToSqr(player) <= 400.0) {
+                    mate.addEffect(new MobEffectInstance(MobEffects.SPEED, 200, 0));
+                }
+            }
+        }
         for (LivingEntity victim : enemies(level, player.position(), r, 6.0)) {
             mark(victim, bonus, now + 300, true);
+            if (pack) {
+                victim.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 200, 0));
+            }
         }
         play(level, player, SoundEvents.EVOKER_CAST_SPELL, 1.0f, 1.4f);
         return true;
@@ -527,7 +576,7 @@ public final class CombatEffects {
                 if (source.getDirectEntity() == player) {
                     extra += meleeHit(level, player, skills, victim, taken, now);
                 } else if (source.getDirectEntity() instanceof AbstractArrow arrow) {
-                    arrowHit(level, player, skills, victim, arrow, taken, now);
+                    extra += arrowHit(level, player, skills, victim, arrow, taken, now);
                 }
             }
             if (source.getDirectEntity() instanceof AbstractArrow) {
@@ -702,6 +751,9 @@ public final class CombatEffects {
         if (skills != null && tree.totalBonus(SkillEffect.MOMENTUM, skills) > 0) {
             momentumUntil.put(player.getUUID(), level.getGameTime() + 60);
         }
+        if (skills != null && tree.totalBonus(SkillEffect.RELOAD_RUSH, skills) > 0) {
+            player.addEffect(new MobEffectInstance(MobEffects.SPEED, 60, 1));
+        }
     }
 
     /**
@@ -749,23 +801,173 @@ public final class CombatEffects {
         return true;
     }
 
-    private void arrowHit(ServerLevel level, ServerPlayer player, PlayerSkills skills,
-                          LivingEntity victim, AbstractArrow arrow, float taken, long now) {
+    /** Returns the extra damage of an arrow or bolt hit; side effects are applied here. */
+    private double arrowHit(ServerLevel level, ServerPlayer player, PlayerSkills skills,
+                            LivingEntity victim, AbstractArrow arrow, float taken, long now) {
+        ItemStack weapon = arrow.getWeaponItem();
+        boolean crossbow = weapon != null && weapon.getItem() instanceof net.minecraft.world.item.CrossbowItem;
+        boolean bow = weapon != null && weapon.getItem() instanceof net.minecraft.world.item.BowItem;
+        DamageSource source = level.damageSources().playerAttack(player);
+        double extra = 0.0;
+
+        // Bolts of the ultimates carry their own effect.
+        if (arrow.entityTags().contains(TAG_BARRAGE)) {
+            burst(level, player, victim.position(), 3.0, 6f);
+        }
+        if (arrow.entityTags().contains(TAG_NET)) {
+            victim.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 80, 2));
+        }
+        if (arrow.entityTags().contains(ArcherEffects.SNIPER_TAG)) {
+            pierceBehind(level, player, victim, arrow, taken * 0.8f, 6);
+        }
+
+        if (skills.clazz() == SkillClass.ARCHER) {
+            String way = skills.pathTaken(tree);
+            if ((SkillTree.WAY_BOW.equals(way) && !bow) || (SkillTree.WAY_CROSSBOW.equals(way) && !crossbow)) {
+                return 0.0;   // the skills of a way only work with its weapon
+            }
+        }
+
+        Mark before = marks.get(victim.getUUID());
+        boolean wasMarked = before != null && now <= before.until();
         double markBonus = tree.totalBonus(SkillEffect.MARK, skills);
+        if (SkillTree.has(skills, "a_watchful") && crossbow) {
+            markBonus = Math.max(markBonus, 0.15);
+        }
         if (markBonus > 0) {
             mark(victim, markBonus, now + 120, true);
         }
-        ItemStack weapon = arrow.getWeaponItem();
+        double deathMark = tree.totalBonus(SkillEffect.DEATH_MARK, skills);
+        if (wasMarked && deathMark > 0) {
+            extra += taken * deathMark;
+        }
+        double longshot = tree.totalBonus(SkillEffect.LONGSHOT, skills);
+        if (longshot > 0 && player.distanceToSqr(victim) > 225.0) {
+            extra += taken * longshot;
+        }
+        double crit = tree.totalBonus(SkillEffect.ARROW_CRIT, skills);
+        if (crit > 0 && random.nextDouble() < crit) {
+            extra += taken * 0.5;
+            level.sendParticles(ParticleTypes.CRIT, victim.getX(), victim.getY(0.6), victim.getZ(), 10, 0.3, 0.4, 0.3, 0.2);
+        }
+        double brace = tree.totalBonus(SkillEffect.BRACE, skills);
+        if (brace > 0 && crossbow && player.isShiftKeyDown()) {
+            extra += taken * brace;
+        }
+        if (tree.totalBonus(SkillEffect.RETREAT, skills) > 0) {
+            player.addEffect(new MobEffectInstance(MobEffects.SPEED, 40, 0, true, false, true));
+        }
+        if (tree.totalBonus(SkillEffect.ARROW_KNOCKBACK, skills) > 0) {
+            pushAway(victim, player.position(), 1.0, 0.25);
+        }
+        double sunder = tree.totalBonus(SkillEffect.BOLT_SUNDER, skills);
+        if (sunder > 0 && crossbow) {
+            mark(victim, sunder, now + 100, false);
+        }
+        double poison = tree.totalBonus(SkillEffect.POISON_ARROWS, skills);
+        if (poison > 0) {
+            boolean already = victim.hasEffect(MobEffects.POISON) || victim.hasEffect(MobEffects.WITHER);
+            victim.addEffect(new MobEffectInstance(isUndead(victim) ? MobEffects.WITHER : MobEffects.POISON, 80, 1));
+            if (already && tree.totalBonus(SkillEffect.VENOM_BURST, skills) > 0) {
+                for (LivingEntity near : enemies(level, victim.position(), 3.0, 1.5)) {
+                    near.addEffect(new MobEffectInstance(isUndead(near) ? MobEffects.WITHER : MobEffects.POISON, 80, 1));
+                }
+                level.sendParticles(TrapService.POISON_DUST, victim.getX(), victim.getY(0.5), victim.getZ(),
+                        40, 1.2, 0.5, 1.2, 0.0);
+            }
+        }
+
+        // Crossbow: nets, shackles, bursts.
+        if (crossbow) {
+            double net = tree.totalBonus(SkillEffect.NET_BOLT, skills);
+            boolean netted = false;
+            if (net > 0) {
+                victim.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, (int) Math.round(20 * net), 1));
+                netted = true;
+            }
+            if (tree.totalBonus(SkillEffect.NET_FIELD, skills) > 0) {
+                for (LivingEntity near : enemies(level, victim.position(), 3.0, 1.5)) {
+                    near.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 60, 2));
+                }
+                level.sendParticles(ParticleTypes.ITEM_COBWEB, victim.getX(), victim.getY(0.3), victim.getZ(),
+                        20, 1.2, 0.2, 1.2, 0.0);
+                netted = true;
+            }
+            if (tree.totalBonus(SkillEffect.SHACKLE, skills) > 0) {
+                victim.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 40, 9));
+                netted = true;
+            }
+            double hunterNet = tree.totalBonus(SkillEffect.HUNTER_NET, skills);
+            if (netted && hunterNet > 0) {
+                mark(victim, hunterNet, now + 120, true);
+            }
+            double explosive = tree.totalBonus(SkillEffect.EXPLOSIVE, skills);
+            boolean cluster = tree.totalBonus(SkillEffect.CLUSTER, skills) > 0;
+            if (explosive > 0 || cluster) {
+                burst(level, player, victim.position(), cluster ? 4.0 : 2.5,
+                        (float) (Math.max(explosive, 3.0) + (cluster ? 4.0 : 0.0)));
+            }
+        }
+
         double shrapnel = tree.totalBonus(SkillEffect.SHRAPNEL, skills);
-        if (shrapnel > 0 && weapon != null && weapon.getItem() instanceof net.minecraft.world.item.CrossbowItem) {
+        if (shrapnel > 0) {
             Vec3 at = victim.position();
-            DamageSource source = level.damageSources().playerAttack(player);
             for (LivingEntity near : enemies(level, at, 2.5, 1.5)) {
                 if (near != victim) {
                     bonusHit(level, near, source, (float) (taken * shrapnel));
                 }
             }
             level.sendParticles(ParticleTypes.CRIT, at.x, at.y + 1.0, at.z, 10, 0.6, 0.4, 0.6, 0.2);
+        }
+        int pierce = (int) Math.round(tree.totalBonus(SkillEffect.PIERCE, skills));
+        if (pierce > 0) {
+            pierceBehind(level, player, victim, arrow, taken * 0.7f, pierce);
+        }
+        return extra;
+    }
+
+    /** A small blast that hurts monsters only: no blocks, no players. */
+    private void burst(ServerLevel level, ServerPlayer player, Vec3 at, double radius, float damage) {
+        DamageSource source = level.damageSources().playerAttack(player);
+        for (LivingEntity near : enemies(level, at, radius, 1.5)) {
+            bonusHit(level, near, source, damage);
+            pushAway(near, at, 0.4, 0.3);
+        }
+        level.sendParticles(ParticleTypes.EXPLOSION, at.x, at.y + 0.5, at.z, 1, 0, 0, 0, 0);
+        level.playSound(null, at.x, at.y, at.z, SoundEvents.GENERIC_EXPLODE.value(), SoundSource.PLAYERS, 0.5f, 1.4f);
+    }
+
+    /** The arrow goes on: up to {@code count} monsters behind the target in its line of flight. */
+    private void pierceBehind(ServerLevel level, ServerPlayer player, LivingEntity victim, AbstractArrow arrow,
+                              float amount, int count) {
+        Vec3 motion = arrow.getDeltaMovement();
+        Vec3 dir = new Vec3(motion.x, 0, motion.z);
+        if (dir.lengthSqr() < 1.0e-4 || amount <= 0) {
+            dir = flatLook(player);
+        } else {
+            dir = dir.normalize();
+        }
+        if (dir == null) {
+            return;
+        }
+        Vec3 from = victim.position();
+        Vec3 d = dir;
+        List<LivingEntity> line = new ArrayList<>(enemies(level, from, 8.5, 2.0).stream()
+                .filter(e -> e != victim)
+                .filter(e -> {
+                    Vec3 to = e.position().subtract(from);
+                    double along = to.x * d.x + to.z * d.z;
+                    double side = Math.abs(to.x * d.z - to.z * d.x);
+                    return along > 0 && along <= 8.0 && side <= 1.0;
+                })
+                .sorted(Comparator.comparingDouble(e -> e.distanceToSqr(from)))
+                .toList());
+        DamageSource source = level.damageSources().playerAttack(player);
+        for (int i = 0; i < Math.min(count, line.size()); i++) {
+            LivingEntity behind = line.get(i);
+            bonusHit(level, behind, source, amount);
+            level.sendParticles(ParticleTypes.ENCHANTED_HIT, behind.getX(), behind.getY(0.6), behind.getZ(),
+                    6, 0.2, 0.3, 0.2, 0.1);
         }
     }
 
@@ -872,6 +1074,7 @@ public final class CombatEffects {
         if (tickCounter % 10 == 0) {
             for (ServerPlayer player : server.getPlayerList().getPlayers()) {
                 warriorTick(player, tickCounter);
+                archerTick(player, now);
             }
         }
         if (++healCounter < HEAL_INTERVAL) {
@@ -899,6 +1102,46 @@ public final class CombatEffects {
                 }
             }
         }
+    }
+
+    /** Every half second: crossbow speed and the tripwire. */
+    private void archerTick(ServerPlayer player, long now) {
+        AttributeInstance move = player.getAttribute(Attributes.MOVEMENT_SPEED);
+        PlayerSkills skills = skillsFor.apply(player);
+        boolean archer = skills != null && skills.clazz() == SkillClass.ARCHER && player.isAlive();
+        double speed = 0.0;
+        if (archer && player.getMainHandItem().getItem() instanceof net.minecraft.world.item.CrossbowItem) {
+            speed = tree.totalBonus(SkillEffect.XBOW_SPEED, skills);
+        }
+        if (move != null) {
+            if (speed > 0.0001) {
+                move.addOrUpdateTransientModifier(new AttributeModifier(XBOW_SPEED, speed,
+                        AttributeModifier.Operation.ADD_VALUE));
+            } else if (move.getModifier(XBOW_SPEED) != null) {
+                move.removeModifier(XBOW_SPEED);
+            }
+        }
+        if (!archer || !(player.level() instanceof ServerLevel level)
+                || tree.totalBonus(SkillEffect.TRIPWIRE, skills) <= 0
+                || now < tripReadyAt.getOrDefault(player.getUUID(), 0L)) {
+            return;
+        }
+        List<LivingEntity> close = enemies(level, player.position(), 3.0, 1.5);
+        if (close.isEmpty()) {
+            return;
+        }
+        double master = tree.totalBonus(SkillEffect.TRAPMASTER, skills);
+        DamageSource source = level.damageSources().playerAttack(player);
+        for (LivingEntity victim : close) {
+            victim.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 40, master > 0 ? 9 : 1));
+            pushAway(victim, player.position(), 0.6, 0.1);
+            if (master > 0) {
+                bonusHit(level, victim, source, (float) master);
+            }
+        }
+        level.sendParticles(ParticleTypes.CRIT, player.getX(), player.getY() + 0.2, player.getZ(), 16, 1.5, 0.1, 1.5, 0.05);
+        play(level, player, SoundEvents.TRIPWIRE_CLICK_ON, 1.0f, 1.0f);
+        tripReadyAt.put(player.getUUID(), now + 100);
     }
 
     /** Every half second: the warrior's attack speed, war cry, vow and the unstoppable keystone. */
@@ -975,6 +1218,7 @@ public final class CombatEffects {
         combos.remove(player);
         momentumUntil.remove(player);
         divineReadyAt.remove(player);
+        tripReadyAt.remove(player);
     }
 
     // ------------------------------------------------------------------

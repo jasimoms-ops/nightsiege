@@ -17,10 +17,8 @@ import java.util.Map;
 public final class ClassGear {
 
     private static final Map<String, List<String>> BY_PATH = ordered(
-            Map.entry(SkillTree.PATH_SWIFT, List.of("infernite_bow")),
-            Map.entry(SkillTree.PATH_HEAVY, List.of("infernite_bow")),
-            Map.entry(SkillTree.PATH_HUNTER, List.of("infernite_bow")),
-            Map.entry(SkillTree.PATH_CROSSBOW, List.of("infernite_crossbow")),
+            Map.entry(SkillTree.WAY_BOW, List.of("infernite_bow")),
+            Map.entry(SkillTree.WAY_CROSSBOW, List.of("infernite_crossbow")),
             Map.entry(SkillTree.WAY_BLADE, List.of("infernite_sword")),
             Map.entry(SkillTree.WAY_MIGHT, List.of("infernite_axe", "infernite_mace")),
             Map.entry(SkillTree.PATH_BULWARK, List.of("infernite_chestplate")),
