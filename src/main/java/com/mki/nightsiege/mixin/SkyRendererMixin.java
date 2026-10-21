@@ -73,6 +73,7 @@ public abstract class SkyRendererMixin implements BloodMoonSkyMarker {
             target = "Lnet/minecraft/client/renderer/SkyRenderer;renderMoon(Lnet/minecraft/world/level/MoonPhase;FLcom/mojang/blaze3d/vertex/PoseStack;)V"))
     private void nightsiege$renderBloodMoon(SkyRenderer self, MoonPhase phase, float alpha, PoseStack pose,
                                            Operation<Void> original) {
+        BloodMoonSky.moonHookSeen = true;
         float level = BloodMoonSky.intensity();
         GpuBuffer blood = nightsiege$bloodMoon;
         if (level <= 0f || blood == null) {

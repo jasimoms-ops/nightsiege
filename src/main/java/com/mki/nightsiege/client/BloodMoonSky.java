@@ -43,6 +43,12 @@ public final class BloodMoonSky {
     private static final float FOG_START = 18f;
     private static final float FOG_END = 176f;
 
+    /** Set by the mixins when they actually run; another mod may have taken the spot. */
+    public static boolean moonHookSeen;
+    public static boolean colorHookSeen;
+    private static int fullTicks;
+    private static boolean warned;
+
     private static boolean announced;
     private static long heardAt = Long.MIN_VALUE;
     private static float level;
@@ -67,6 +73,13 @@ public final class BloodMoonSky {
         }
         float step = 1f / FADE_TICKS;
         level = show ? Math.min(1f, level + step) : Math.max(0f, level - step);
+        fullTicks = level >= 1f ? fullTicks + 1 : 0;
+        if (!warned && fullTicks > 200 && (!moonHookSeen || !colorHookSeen)) {
+            warned = true;
+            com.mki.nightsiege.NightSiegeMod.LOGGER.warn(
+                    "[Night Siege] Blutmond-Himmel greift nur teilweise (Mond {}, Farben {}); vermutlich ueberschreibt eine andere Mod den Himmel",
+                    moonHookSeen ? "ok" : "fehlt", colorHookSeen ? "ok" : "fehlt");
+        }
     }
 
     /** Leaving a world drops everything at once. */
@@ -120,6 +133,7 @@ public final class BloodMoonSky {
 
     /** Runs one environment value of the camera through the blood moon look. */
     public static Object adjust(EnvironmentAttribute<?> attribute, Object value) {
+        colorHookSeen = true;
         float i = intensity();
         if (i <= 0f || value == null) {
             return value;
