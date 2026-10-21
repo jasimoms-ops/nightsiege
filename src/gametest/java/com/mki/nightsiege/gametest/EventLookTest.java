@@ -112,6 +112,20 @@ public class EventLookTest implements FabricClientGameTest {
         }
     }
 
+    /** Selects a node in the open core window (as a click would) and waits a moment. */
+    private static void selectNode(ClientGameTestContext context, String id) {
+        context.runOnClient(client -> {
+            try {
+                java.lang.reflect.Field field = com.mki.nightsiege.client.CoreScreen.class.getDeclaredField("selectedId");
+                field.setAccessible(true);
+                field.set(null, id);
+            } catch (ReflectiveOperationException e) {
+                System.out.println("[Night Siege test] could not select " + id + ": " + e);
+            }
+        });
+        context.waitTicks(10);
+    }
+
     /** The new warrior tree: picks a few nodes and photographs the window. */
     private static void warriorWindow(ClientGameTestContext context, TestSingleplayerContext game) {
         context.runOnClient(client -> {
@@ -130,6 +144,8 @@ public class EventLookTest implements FabricClientGameTest {
         });
         context.waitTicks(40);
         context.takeScreenshot("ui_warrior_blade");
+        selectNode(context, "w_bladefrenzy");
+        context.takeScreenshot("ui_warrior_selected");
         context.runOnClient(client -> {
             net.minecraft.server.MinecraftServer server = client.getSingleplayerServer();
             server.execute(() -> {
@@ -145,7 +161,24 @@ public class EventLookTest implements FabricClientGameTest {
                 manager.onCoreAction(player, "open");
             });
         });
+        context.waitTicks(20);
+        context.runOnClient(client -> {
+            // Show the player's own (new) class tab when the window refreshes.
+            try {
+                java.lang.reflect.Field tab = com.mki.nightsiege.client.CoreScreen.class.getDeclaredField("activeTab");
+                tab.setAccessible(true);
+                tab.set(null, null);
+            } catch (ReflectiveOperationException e) {
+                System.out.println("[Night Siege test] could not reset the tab: " + e);
+            }
+        });
+        context.runOnClient(client -> {
+            net.minecraft.server.MinecraftServer server = client.getSingleplayerServer();
+            server.execute(() -> com.mki.nightsiege.game.SiegeManager.get().onCoreAction(
+                    server.getPlayerList().getPlayers().get(0), "open"));
+        });
         context.waitTicks(40);
+        selectNode(context, "a_hunternet");
         context.takeScreenshot("ui_archer_crossbow");
         context.waitTicks(5);
     }
