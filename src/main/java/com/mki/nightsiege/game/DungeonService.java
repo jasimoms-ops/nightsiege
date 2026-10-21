@@ -229,7 +229,7 @@ public final class DungeonService {
             return;
         }
         // A core that went missing (and was not beaten) comes back.
-        if (!record.beaten() && !level.getBlockState(core).getBlock() == DungeonContent.CORE && !fights.containsKey(key(record))) {
+        if (!record.beaten() && level.getBlockState(core).getBlock() != DungeonContent.CORE && !fights.containsKey(key(record))) {
             level.setBlockAndUpdate(core, DungeonContent.CORE.defaultBlockState());
         }
         if (record.beaten()) {
@@ -665,7 +665,7 @@ public final class DungeonService {
             return;
         }
         BlockPos target = found.getFirst();
-        ChunkPos chunk = new ChunkPos(target);
+        ChunkPos chunk = ChunkPos.containing(target);
         String mark = SiegeManager.dimensionName(level) + "|" + chunk.x() + "|" + chunk.z();
         if (!forced().contains(mark)) {
             forced().add(mark);
@@ -742,7 +742,7 @@ public final class DungeonService {
             return Component.translatable("nightsiege.dungeon.tp_none", typeName(type.key));
         }
         BlockPos target = found.getFirst();
-        ChunkPos chunk = new ChunkPos(target);
+        ChunkPos chunk = ChunkPos.containing(target);
         String mark = SiegeManager.dimensionName(level) + "|" + chunk.x() + "|" + chunk.z();
         if (!forced().contains(mark)) {
             forced().add(mark);
