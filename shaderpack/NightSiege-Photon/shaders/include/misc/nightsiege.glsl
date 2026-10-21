@@ -42,7 +42,7 @@ vec3 ns_light_tint(bool moon) {
     if (ns_event == NS_ECLIPSE) {
         tint = moon ? vec3(1.0) : vec3(0.030, 0.028, 0.040);
     } else if (ns_event == NS_BLOOD_MOON) {
-        tint = vec3(1.55, 0.24, 0.17);
+        tint = vec3(1.40, 0.21, 0.15);
     } else if (ns_event == NS_NETHER_RIFT) {
         tint = vec3(1.45, 0.62, 0.36);
     } else if (ns_event == NS_FROST) {

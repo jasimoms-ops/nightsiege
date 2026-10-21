@@ -4,6 +4,7 @@
 #include "/include/sky/clouds/constants.glsl"
 #include "/include/sky/clouds/parameters.glsl"
 #include "/include/weather/core.glsl"
+#include "/include/misc/nightsiege.glsl"
 
 float clouds_cumulus_congestus_blend(Weather weather, vec2 l0_coverage) {
     float temperature_weight = linear_step(0.5, 1.0, weather.temperature);
@@ -139,6 +140,15 @@ CloudsParameters get_clouds_parameters(Weather weather) {
     params.cirrus_amount = clouds_cirrus_amount(weather);
     params.cirrocumulus_amount = clouds_cirrocumulus_amount(weather);
     params.noctilucent_amount = clouds_noctilucent_amount();
+
+    // Night Siege: clear skies on aurora and blood moon nights, so the aurora
+    // and the moon show
+    float ns_clear
+        = max(ns_amount(NS_AURORA), 0.85 * ns_amount(NS_BLOOD_MOON));
+    params.l0_coverage *= 1.0 - 0.8 * ns_clear;
+    params.l1_coverage *= 1.0 - 0.8 * ns_clear;
+    params.cirrus_amount *= 1.0 - 0.7 * ns_clear;
+    params.cirrocumulus_amount *= 1.0 - ns_clear;
 
     params.cumulus_congestus_blend
         = clouds_cumulus_congestus_blend(weather, params.l0_coverage);

@@ -88,13 +88,14 @@ public class EventLookTest implements FabricClientGameTest {
         context.takeScreenshot("event_00_normal_day");
     }
 
-    /** Every event in turn: by day facing the sun, the moon events at night facing the moon. */
+    /** Every event in turn: the eclipse by day facing the sun, the others at night facing the moon. */
     private static void series(ClientGameTestContext context, TestSingleplayerContext game, String prefix) {
         game.getServer().runCommand("time set 1500");
         context.getInput().lookAt(-90.0f, -12.0f);
         for (int i = 0; i < EVENTS.length; i++) {
             String event = EVENTS[i];
-            boolean night = EventAtmosphere.BLOOD_MOON.equals(event) || EventAtmosphere.AURORA.equals(event);
+            // Sieges come at night; only the eclipse is shot by day.
+            boolean night = !EventAtmosphere.ECLIPSE.equals(event);
             if (night) {
                 game.getServer().runCommand("time set 14600");
                 context.getInput().lookAt(EventAtmosphere.AURORA.equals(event) ? -150.0f : -90.0f,
