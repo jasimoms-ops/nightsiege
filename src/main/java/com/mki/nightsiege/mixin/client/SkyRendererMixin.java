@@ -71,6 +71,9 @@ public abstract class SkyRendererMixin {
             target = "Lnet/minecraft/client/renderer/DynamicUniforms;writeTransform(Lorg/joml/Matrix4f;Lorg/joml/Vector4f;)Lcom/mojang/blaze3d/buffers/GpuBufferSlice;"),
             index = 1)
     private Vector4f nightsiege$dimSun(Vector4f color) {
+        if (EventAtmosphere.clientShaders) {
+            return color;
+        }
         float s = EventAtmosphere.clientStrength(EventAtmosphere.ECLIPSE);
         return s <= 0f ? color : new Vector4f(color.x, color.y, color.z, color.w * (1f - s));
     }
@@ -78,7 +81,7 @@ public abstract class SkyRendererMixin {
     @Inject(method = "renderSun", at = @At("TAIL"))
     private void nightsiege$eclipseSun(float rainBrightness, PoseStack poseStack, CallbackInfo ci) {
         float s = EventAtmosphere.clientStrength(EventAtmosphere.ECLIPSE);
-        if (s > 0.01f && nightsiege$eclipse != null) {
+        if (s > 0.01f && nightsiege$eclipse != null && !EventAtmosphere.clientShaders) {
             SkyFx.draw("Night Siege eclipse", nightsiege$eclipse, 1, poseStack, 100.0F, 34.0F,
                     new Vector4f(1f, 1f, 1f, s), celestialsAtlas, renderTarget, quadIndices);
         }
@@ -89,6 +92,9 @@ public abstract class SkyRendererMixin {
             target = "Lnet/minecraft/client/renderer/DynamicUniforms;writeTransform(Lorg/joml/Matrix4f;Lorg/joml/Vector4f;)Lcom/mojang/blaze3d/buffers/GpuBufferSlice;"),
             index = 1)
     private Vector4f nightsiege$dimMoon(Vector4f color) {
+        if (EventAtmosphere.clientShaders) {
+            return color;
+        }
         EventAtmosphere.State state = EventAtmosphere.client();
         float s = nightsiege$moons.containsKey(state.shown()) ? Math.min(1f, state.strength()) : 0f;
         return s <= 0f ? color : new Vector4f(color.x, color.y, color.z, color.w * (1f - s));
@@ -99,7 +105,7 @@ public abstract class SkyRendererMixin {
         EventAtmosphere.State state = EventAtmosphere.client();
         GpuBuffer moon = nightsiege$moons.get(state.shown());
         float s = Math.min(1f, state.strength());
-        if (s > 0.01f && moon != null) {
+        if (s > 0.01f && moon != null && !EventAtmosphere.clientShaders) {
             SkyFx.draw("Night Siege moon", moon, 1, poseStack, 100.0F, 24.0F,
                     new Vector4f(1f, 1f, 1f, s), celestialsAtlas, renderTarget, quadIndices);
         }
@@ -109,20 +115,28 @@ public abstract class SkyRendererMixin {
     private void nightsiege$aurora(PoseStack poseStack, float sunAngle, float moonAngle, float starAngle,
                                    MoonPhase moonPhase, float rainBrightness, float starBrightness, CallbackInfo ci) {
         float s = EventAtmosphere.clientStrength(EventAtmosphere.AURORA);
-        if (s <= 0.01f || nightsiege$aurora == null) {
+        if (s <= 0.01f || nightsiege$aurora == null || EventAtmosphere.clientShaders) {
             return;
         }
-        // Two layers breathing against each other make the curtain shimmer.
-        double t = (System.currentTimeMillis() % 600000L) / 1000.0;
-        float a = (float) (0.55 + 0.25 * Math.sin(t * 0.7)) * s * rainBrightness;
-        float b = (float) (0.45 + 0.25 * Math.sin(t * 0.43 + 2.0)) * s * rainBrightness;
-        SkyFx.draw("Night Siege aurora", nightsiege$aurora, SkyFx.AURORA_QUADS, poseStack, 0.0F, 1.0F,
-                new Vector4f(1f, 1f, 1f, a), celestialsAtlas, renderTarget, quadIndices);
-        poseStack.pushPose();
-        poseStack.mulPose(com.mojang.math.Axis.YP.rotationDegrees(14.0F));
-        poseStack.scale(1.06F, 1.12F, 1.06F);
-        SkyFx.draw("Night Siege aurora", nightsiege$aurora, SkyFx.AURORA_QUADS, poseStack, 0.0F, 1.0F,
-                new Vector4f(0.8f, 0.9f, 1f, b), celestialsAtlas, renderTarget, quadIndices);
-        poseStack.popPose();
+        // Three layers drifting and breathing against each other make the curtain move.
+        double t = (System.currentTimeMillis() % 3600000L) / 1000.0;
+        float[][] layers = {
+                {0f, 1.00f, 1.00f, 0.7f, 0.0f},
+                {14f, 1.06f, 1.12f, 0.43f, 2.0f},
+                {-11f, 0.97f, 0.90f, 0.31f, 4.0f}};
+        for (int i = 0; i < layers.length; i++) {
+            float[] l = layers[i];
+            float sway = (float) (Math.sin(t * 0.05 + l[4]) * 5.0);
+            float stretch = (float) (1.0 + 0.08 * Math.sin(t * 0.27 + l[4]));
+            float alpha = (float) (0.42 + 0.28 * Math.sin(t * l[3] + l[4])) * s * rainBrightness * (i == 2 ? 0.7f : 1f);
+            poseStack.pushPose();
+            poseStack.mulPose(com.mojang.math.Axis.YP.rotationDegrees(l[0] + sway));
+            poseStack.scale(l[1], l[2] * stretch, l[1]);
+            SkyFx.draw("Night Siege aurora", nightsiege$aurora, SkyFx.AURORA_QUADS, poseStack, 0.0F, 1.0F,
+                    i == 0 ? new Vector4f(1f, 1f, 1f, alpha) : i == 1 ? new Vector4f(0.8f, 0.9f, 1f, alpha)
+                            : new Vector4f(1f, 0.75f, 1f, alpha),
+                    celestialsAtlas, renderTarget, quadIndices);
+            poseStack.popPose();
+        }
     }
 }

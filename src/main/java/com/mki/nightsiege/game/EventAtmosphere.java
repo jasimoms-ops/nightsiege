@@ -108,8 +108,8 @@ public final class EventAtmosphere {
                 .modify(EnvironmentAttributes.FOG_END_DISTANCE, FloatModifier.MINIMUM, 22.0f)
                 .modify(EnvironmentAttributes.SKY_FOG_END_DISTANCE, FloatModifier.MINIMUM, 26.0f)
                 .modify(EnvironmentAttributes.CLOUD_FOG_END_DISTANCE, FloatModifier.MINIMUM, 40.0f)
-                .modify(EnvironmentAttributes.FOG_COLOR, ColorModifier.ALPHA_BLEND, ARGB.color(190, 0x3A, 0x3E, 0x42))
-                .modify(EnvironmentAttributes.SKY_COLOR, ColorModifier.ALPHA_BLEND, ARGB.color(200, 0x34, 0x38, 0x3C))
+                .modify(EnvironmentAttributes.FOG_COLOR, ColorModifier.ALPHA_BLEND, ARGB.color(180, 0x2C, 0x30, 0x34))
+                .modify(EnvironmentAttributes.SKY_COLOR, ColorModifier.ALPHA_BLEND, ARGB.color(190, 0x28, 0x2C, 0x30))
                 .modify(EnvironmentAttributes.STAR_BRIGHTNESS, FloatModifier.MULTIPLY, 0.0f)
                 .build());
         LOOKS.put(THUNDER, EnvironmentAttributeMap.builder()
@@ -121,7 +121,7 @@ public final class EventAtmosphere {
                 .modify(EnvironmentAttributes.FOG_COLOR, ColorModifier.ALPHA_BLEND, ARGB.color(190, 0x4C, 0x12, 0x16))
                 .modify(EnvironmentAttributes.FOG_END_DISTANCE, FloatModifier.MINIMUM, 96.0f)
                 .modify(EnvironmentAttributes.CLOUD_COLOR, ColorModifier.ALPHA_BLEND, ARGB.color(170, 0x60, 0x1C, 0x20))
-                .modify(EnvironmentAttributes.SKY_LIGHT_COLOR, ColorModifier.ALPHA_BLEND, ARGB.color(130, 0xFF, 0x70, 0x48))
+                .modify(EnvironmentAttributes.SKY_LIGHT_COLOR, ColorModifier.MULTIPLY_RGB, rgb(0xFF9070))
                 .modify(EnvironmentAttributes.STAR_BRIGHTNESS, FloatModifier.MULTIPLY, 0.0f)
                 .set(EnvironmentAttributes.AMBIENT_PARTICLES, List.of(
                         new AmbientParticle(ParticleTypes.ASH, 0.12f),
@@ -131,10 +131,10 @@ public final class EventAtmosphere {
         LOOKS.put(FROST, EnvironmentAttributeMap.builder()
                 .modify(EnvironmentAttributes.FOG_START_DISTANCE, FloatModifier.MINIMUM, 4.0f)
                 .modify(EnvironmentAttributes.FOG_END_DISTANCE, FloatModifier.MINIMUM, 52.0f)
-                .modify(EnvironmentAttributes.FOG_COLOR, ColorModifier.ALPHA_BLEND, ARGB.color(170, 0x5C, 0x6C, 0x80))
-                .modify(EnvironmentAttributes.SKY_COLOR, ColorModifier.ALPHA_BLEND, ARGB.color(170, 0x4C, 0x5C, 0x70))
-                .modify(EnvironmentAttributes.CLOUD_COLOR, ColorModifier.ALPHA_BLEND, ARGB.color(170, 0xC8, 0xD8, 0xE8))
-                .modify(EnvironmentAttributes.SKY_LIGHT_COLOR, ColorModifier.ALPHA_BLEND, ARGB.color(110, 0xB0, 0xD8, 0xFF))
+                .modify(EnvironmentAttributes.FOG_COLOR, ColorModifier.MULTIPLY_RGB, rgb(0xA4B4CC))
+                .modify(EnvironmentAttributes.SKY_COLOR, ColorModifier.MULTIPLY_RGB, rgb(0x94A4BC))
+                .modify(EnvironmentAttributes.CLOUD_COLOR, ColorModifier.MULTIPLY_ARGB, ARGB.color(255, 0xC4, 0xD0, 0xE4))
+                .modify(EnvironmentAttributes.SKY_LIGHT_COLOR, ColorModifier.MULTIPLY_RGB, rgb(0xB4C8F0))
                 .modify(EnvironmentAttributes.STAR_BRIGHTNESS, FloatModifier.MULTIPLY, 0.0f)
                 .set(EnvironmentAttributes.AMBIENT_PARTICLES, List.of(
                         new AmbientParticle(ParticleTypes.SNOWFLAKE, 0.22f)))
@@ -142,11 +142,14 @@ public final class EventAtmosphere {
         LOOKS.put(AURORA, EnvironmentAttributeMap.builder()
                 .modify(EnvironmentAttributes.SKY_COLOR, ColorModifier.ALPHA_BLEND, ARGB.color(60, 0x10, 0x40, 0x30))
                 .modify(EnvironmentAttributes.STAR_BRIGHTNESS, FloatModifier.MAXIMUM, 0.85f)
-                .modify(EnvironmentAttributes.SKY_LIGHT_COLOR, ColorModifier.ALPHA_BLEND, ARGB.color(80, 0x60, 0xFF, 0xB0))
+                .modify(EnvironmentAttributes.SKY_LIGHT_COLOR, ColorModifier.ALPHA_BLEND, ARGB.color(50, 0x60, 0xFF, 0xB0))
                 .build());
         for (EnvironmentAttributeMap map : LOOKS.values()) {
             TOUCHED.addAll(map.keySet());
         }
+        TOUCHED.add(EnvironmentAttributes.SUN_ANGLE);
+        TOUCHED.add(EnvironmentAttributes.MOON_ANGLE);
+        TOUCHED.add(EnvironmentAttributes.MOON_PHASE);
     }
 
     private EventAtmosphere() {
@@ -163,7 +166,49 @@ public final class EventAtmosphere {
         }
     }
 
+    /**
+     * True on the client while a shader pack runs. Shaders draw their own sun and
+     * moon; then the eclipse moves the shader's sun below the horizon and puts its
+     * moon where the sun was, and event nights show a new moon, so the mod's own
+     * sun and moon (drawn over the picture) are the only ones in the sky.
+     */
+    public static volatile boolean clientShaders;
+    /** Sun and moon angle before any event changed them, for drawing at the true place. */
+    public static volatile float realSunAngle;
+    public static volatile float realMoonAngle;
+
+    @SuppressWarnings("unchecked")
+    private static <V> V celestial(EnvironmentAttribute<V> attribute, V result, String shown, float strength) {
+        if (attribute == EnvironmentAttributes.SUN_ANGLE) {
+            realSunAngle = (Float) result;
+        } else if (attribute == EnvironmentAttributes.MOON_ANGLE) {
+            realMoonAngle = (Float) result;
+        }
+        if (!clientShaders || strength < 0.5f || shown.isEmpty()) {
+            return result;
+        }
+        if (ECLIPSE.equals(shown)) {
+            if (attribute == EnvironmentAttributes.SUN_ANGLE) {
+                return (V) Float.valueOf((((Float) result) + 180f) % 360f);
+            }
+            if (attribute == EnvironmentAttributes.MOON_ANGLE) {
+                return (V) Float.valueOf(realSunAngle);
+            }
+        }
+        if (attribute == EnvironmentAttributes.MOON_PHASE && (ECLIPSE.equals(shown) || BLOOD_MOON.equals(shown)
+                || FROST.equals(shown) || NETHER_RIFT.equals(shown) || FOG.equals(shown))) {
+            return (V) net.minecraft.world.level.MoonPhase.NEW_MOON;
+        }
+        return result;
+    }
+
+    private static boolean isCelestial(EnvironmentAttribute<?> attribute) {
+        return attribute == EnvironmentAttributes.SUN_ANGLE || attribute == EnvironmentAttributes.MOON_ANGLE
+                || attribute == EnvironmentAttributes.MOON_PHASE;
+    }
+
     private static <V> void addLayer(EnvironmentAttributeSystem.Builder builder, Level level, EnvironmentAttribute<V> attribute) {
+        boolean celestial = isCelestial(attribute);
         builder.addTimeBasedLayer(attribute, (result, cacheTickId) -> {
             State state = stateFor(level);
             if (state == null) {
@@ -171,6 +216,9 @@ public final class EventAtmosphere {
             }
             float strength = state.strength;
             String shown = state.shown;
+            if (celestial) {
+                return level.isClientSide() ? celestial(attribute, result, shown, strength) : result;
+            }
             if (strength <= 0.001f || shown.isEmpty()) {
                 return result;
             }

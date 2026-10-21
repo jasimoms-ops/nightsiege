@@ -39,8 +39,13 @@ public final class ModContent {
         return Identifier.fromNamespaceAndPath(NightSiegeMod.MOD_ID, path);
     }
 
+    /** Big slow mist wisps for the fog, frost and rift nights; drawn by the client. */
+    public static final net.minecraft.core.particles.SimpleParticleType FOG_WISP =
+            net.fabricmc.fabric.api.particle.v1.FabricParticleTypes.simple(true);
+
     public static void register() {
         Identifier id = id(CORE_NAME);
+        Registry.register(BuiltInRegistries.PARTICLE_TYPE, id("fog_wisp"), FOG_WISP);
 
         ResourceKey<Block> blockKey = ResourceKey.create(Registries.BLOCK, id);
         SIEGE_CORE = new SiegeCoreBlock(BlockBehaviour.Properties.of()

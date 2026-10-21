@@ -24,6 +24,11 @@ dependencies {
     // muessen nicht umgeschrieben werden.
     implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 
+    // Only for the shader test in CI: Iris and Sodium from the run-mods folder.
+    if (System.getenv("NIGHTSIEGE_WITH_IRIS") != null) {
+        runtimeOnly fileTree(dir: 'run-mods', include: '*.jar')
+    }
+
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }

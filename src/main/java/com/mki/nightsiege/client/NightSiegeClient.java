@@ -74,8 +74,12 @@ public class NightSiegeClient implements ClientModInitializer {
                 com.mki.nightsiege.game.EventAtmosphere.resetClient();
                 return;
             }
+            com.mki.nightsiege.game.EventAtmosphere.clientShaders = EventOverlay.shadersActive();
             com.mki.nightsiege.game.EventAtmosphere.tickClient();
+            FogWisps.tick(client);
         });
+        net.fabricmc.fabric.api.client.particle.v1.ParticleProviderRegistry.getInstance()
+                .register(ModContent.FOG_WISP, sprites -> new FogWisps.Provider(sprites));
         ClientPlayNetworking.registerGlobalReceiver(CoreNetworking.UltHudPayload.TYPE,
                 (payload, context) -> {
                     UltState state = Json.fromJson(payload.json(), UltState.class);

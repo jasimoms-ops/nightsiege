@@ -47,6 +47,7 @@ public final class EventEffects {
     private final List<BlockPos> rifts = new ArrayList<>();
     private final Map<UUID, String> sentToClient = new HashMap<>();
     private int nextStrike;
+    private int nextFarBolt;
 
     /** Where a rift attacker should appear, set by {@link #substitute}. */
     private BlockPos lastRift;
@@ -62,6 +63,7 @@ public final class EventEffects {
         }
         rifts.clear();
         nextStrike = 40;
+        nextFarBolt = 20;
         if (event == SiegeEvent.THUNDER) {
             server.setWeatherParameters(0, 20 * 60 * 15, true, true);
         }
@@ -137,7 +139,10 @@ public final class EventEffects {
     public void tick(MinecraftServer server, ServerLevel world, BlockPos anchor, SiegeEvent event,
                      Set<UUID> participants, Set<UUID> fallen, Set<UUID> liveMobs, SiegeConfig cfg, long now) {
         switch (event) {
-            case THUNDER -> tickThunder(world, liveMobs, cfg);
+            case THUNDER -> {
+                tickThunder(world, liveMobs, cfg);
+                tickFarLightning(world, anchor);
+            }
             case NETHER_RIFT -> tickRifts(world, now);
             case FROST -> {
                 if (now % 10 == 0) {
@@ -184,6 +189,28 @@ public final class EventEffects {
         }
     }
 
+    /** Lightning in the distance all around the base, just for the storm's look and sound. */
+    private void tickFarLightning(ServerLevel world, BlockPos anchor) {
+        if (--nextFarBolt > 0 || anchor == null) {
+            return;
+        }
+        nextFarBolt = 50 + random.nextInt(110);
+        double angle = random.nextDouble() * Math.PI * 2.0;
+        double distance = 40.0 + random.nextDouble() * 60.0;
+        int x = anchor.getX() + (int) Math.round(Math.cos(angle) * distance);
+        int z = anchor.getZ() + (int) Math.round(Math.sin(angle) * distance);
+        if (!world.hasChunk(x >> 4, z >> 4)) {
+            return;
+        }
+        int y = world.getHeight(Heightmap.Types.MOTION_BLOCKING, x, z);
+        Entity bolt = lightning(world);
+        if (bolt instanceof LightningBolt lightning) {
+            lightning.setVisualOnly(true);
+            lightning.snapTo(x + 0.5, y, z + 0.5);
+            world.addFreshEntity(lightning);
+        }
+    }
+
     private static Entity lightning(ServerLevel world) {
         EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.getValue(Identifier.withDefaultNamespace("lightning_bolt"));
         return type == null ? null : type.create(world, EntitySpawnReason.EVENT);
@@ -221,7 +248,7 @@ public final class EventEffects {
                 continue;
             }
             player.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 40, 0, true, false, true));
-            int frozen = Math.min(player.getTicksRequiredToFreeze() - 40, 90);
+            int frozen = Math.min(player.getTicksRequiredToFreeze() - 40, 50);
             if (player.getTicksFrozen() < frozen) {
                 player.setTicksFrozen(frozen);
             }
