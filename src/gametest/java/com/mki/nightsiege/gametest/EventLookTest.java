@@ -130,6 +130,23 @@ public class EventLookTest implements FabricClientGameTest {
         });
         context.waitTicks(40);
         context.takeScreenshot("ui_warrior_blade");
+        context.runOnClient(client -> {
+            net.minecraft.server.MinecraftServer server = client.getSingleplayerServer();
+            server.execute(() -> {
+                net.minecraft.server.level.ServerPlayer player = server.getPlayerList().getPlayers().get(0);
+                com.mki.nightsiege.game.SiegeManager manager = com.mki.nightsiege.game.SiegeManager.get();
+                manager.onCoreAction(player, "dev:reset");
+                manager.onCoreAction(player, "class:ARCHER");
+                manager.onCoreAction(player, "dev:400");
+                for (String id : new String[]{"archer_focus", "a_quiver", "heavy_bolts", "a_netbolt", "a_netbolt",
+                        "a_shackle", "x_mark", "a_hunternet", "a_reloadrush", "x_hunt", "x_pack"}) {
+                    manager.onBuySkill(player, id);
+                }
+                manager.onCoreAction(player, "open");
+            });
+        });
+        context.waitTicks(40);
+        context.takeScreenshot("ui_archer_crossbow");
         context.waitTicks(5);
     }
 
