@@ -69,6 +69,11 @@ public final class FogWisps {
         if (s < 0.2f) {
             return;
         }
+        if (EventAtmosphere.clientShaderMode == ShaderSupport.NIGHT_SIEGE) {
+            // The Night Siege pack draws the fog itself; the wisps only add drift.
+            perTick = Math.max(1, perTick / 2);
+            alpha *= 0.7f;
+        }
         RandomSource random = level.getRandom();
         Camera camera = mc.gameRenderer.mainCamera();
         Vec3 eye = camera.position();

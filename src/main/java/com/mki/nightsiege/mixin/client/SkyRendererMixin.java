@@ -71,7 +71,7 @@ public abstract class SkyRendererMixin {
             target = "Lnet/minecraft/client/renderer/DynamicUniforms;writeTransform(Lorg/joml/Matrix4f;Lorg/joml/Vector4f;)Lcom/mojang/blaze3d/buffers/GpuBufferSlice;"),
             index = 1)
     private Vector4f nightsiege$dimSun(Vector4f color) {
-        if (EventAtmosphere.clientShaders) {
+        if (EventAtmosphere.clientShaderMode != 0) {
             return color;
         }
         float s = EventAtmosphere.clientStrength(EventAtmosphere.ECLIPSE);
@@ -81,7 +81,7 @@ public abstract class SkyRendererMixin {
     @Inject(method = "renderSun", at = @At("TAIL"))
     private void nightsiege$eclipseSun(float rainBrightness, PoseStack poseStack, CallbackInfo ci) {
         float s = EventAtmosphere.clientStrength(EventAtmosphere.ECLIPSE);
-        if (s > 0.01f && nightsiege$eclipse != null && !EventAtmosphere.clientShaders) {
+        if (s > 0.01f && nightsiege$eclipse != null && EventAtmosphere.clientShaderMode == 0) {
             SkyFx.draw("Night Siege eclipse", nightsiege$eclipse, 1, poseStack, 100.0F, 30.0F,
                     new Vector4f(1f, 1f, 1f, s), celestialsAtlas, renderTarget, quadIndices);
         }
@@ -92,7 +92,7 @@ public abstract class SkyRendererMixin {
             target = "Lnet/minecraft/client/renderer/DynamicUniforms;writeTransform(Lorg/joml/Matrix4f;Lorg/joml/Vector4f;)Lcom/mojang/blaze3d/buffers/GpuBufferSlice;"),
             index = 1)
     private Vector4f nightsiege$dimMoon(Vector4f color) {
-        if (EventAtmosphere.clientShaders) {
+        if (EventAtmosphere.clientShaderMode != 0) {
             return color;
         }
         EventAtmosphere.State state = EventAtmosphere.client();
@@ -105,7 +105,7 @@ public abstract class SkyRendererMixin {
         EventAtmosphere.State state = EventAtmosphere.client();
         GpuBuffer moon = nightsiege$moons.get(state.shown());
         float s = Math.min(1f, state.strength());
-        if (s > 0.01f && moon != null && !EventAtmosphere.clientShaders) {
+        if (s > 0.01f && moon != null && EventAtmosphere.clientShaderMode == 0) {
             SkyFx.draw("Night Siege moon", moon, 1, poseStack, 100.0F, 24.0F,
                     new Vector4f(1f, 1f, 1f, s), celestialsAtlas, renderTarget, quadIndices);
         }
@@ -115,7 +115,7 @@ public abstract class SkyRendererMixin {
     private void nightsiege$aurora(PoseStack poseStack, float sunAngle, float moonAngle, float starAngle,
                                    MoonPhase moonPhase, float rainBrightness, float starBrightness, CallbackInfo ci) {
         float s = EventAtmosphere.clientStrength(EventAtmosphere.AURORA);
-        if (s <= 0.01f || nightsiege$aurora == null || EventAtmosphere.clientShaders) {
+        if (s <= 0.01f || nightsiege$aurora == null || EventAtmosphere.clientShaderMode != 0) {
             return;
         }
         // Three layers drifting and breathing against each other make the curtain move.

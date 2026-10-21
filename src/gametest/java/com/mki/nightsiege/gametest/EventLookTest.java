@@ -48,11 +48,6 @@ public class EventLookTest implements FabricClientGameTest {
                 context.runOnClient(client -> EventAtmosphere.setClient("", 1));
                 context.waitTicks(30);
                 context.takeScreenshot("event_99_night_normal");
-
-                // The same once more with the layer meant for shader packs.
-                System.setProperty("nightsiege.overlay", "true");
-                series(context, game, "overlay");
-                System.setProperty("nightsiege.overlay", "false");
                 return;
             }
 
@@ -113,16 +108,23 @@ public class EventLookTest implements FabricClientGameTest {
         }
     }
 
-    /** Copies a shader pack into the game folder and switches Iris to it. */
+    /**
+     * Switches Iris to a shader pack. A bare file name means a pack that is
+     * already in the shaderpacks folder (the mod puts its own pack there);
+     * a path is copied there first.
+     */
     private static boolean activate(ClientGameTestContext context, Path pack) {
         try {
-            if (!Files.exists(pack)) {
-                return false;
-            }
             Path dir = FabricLoader.getInstance().getGameDir().resolve("shaderpacks");
             Files.createDirectories(dir);
             Path target = dir.resolve(pack.getFileName().toString());
-            Files.copy(pack, target, StandardCopyOption.REPLACE_EXISTING);
+            if (pack.getParent() != null || !Files.exists(target)) {
+                if (!Files.exists(pack)) {
+                    System.out.println("[Night Siege test] shader pack missing: " + pack);
+                    return false;
+                }
+                Files.copy(pack, target, StandardCopyOption.REPLACE_EXISTING);
+            }
             String name = target.getFileName().toString();
             context.<Exception>runOnClient(client -> {
                 Class<?> iris = Class.forName("net.irisshaders.iris.Iris");
@@ -132,7 +134,8 @@ public class EventLookTest implements FabricClientGameTest {
                 config.getClass().getMethod("save").invoke(config);
                 iris.getMethod("reload").invoke(null);
             });
-            System.out.println("[Night Siege test] shader pack active: " + name);
+            System.out.println("[Night Siege test] shader pack active: " + name + " mode "
+                    + context.computeOnClient(client -> com.mki.nightsiege.client.ShaderSupport.mode()));
             return true;
         } catch (Exception e) {
             System.out.println("[Night Siege test] shader pack failed: " + pack + " " + e);

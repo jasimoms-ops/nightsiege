@@ -14,6 +14,14 @@ repositories {
     mavenCentral()
 }
 
+// Stand-ins for the few Iris classes the uniform mixin names. They are only
+// used to compile and are never packaged; at run time Iris brings the real ones.
+sourceSets {
+    irisstubs {
+        java.srcDir 'src/irisstubs/java'
+    }
+}
+
 dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     // Ab Minecraft 26.x ist das Spiel nicht mehr obfuskiert. Es gibt weder
@@ -23,6 +31,7 @@ dependencies {
     // Ohne Obfuskierung gibt es kein modImplementation mehr, Mod-Abhaengigkeiten
     // muessen nicht umgeschrieben werden.
     implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+    compileOnly sourceSets.irisstubs.output
 
     // Only for the shader test in CI: Iris and Sodium from the run-mods folder.
     if (System.getenv("NIGHTSIEGE_WITH_IRIS") != null) {
@@ -45,10 +54,23 @@ fabricApi {
     }
 }
 
+// The Night Siege shader pack (a changed Photon, see shaderpack/) is zipped
+// into the jar; the mod copies it into the shaderpacks folder on start.
+def zipShaderPack = tasks.register('zipShaderPack', Zip) {
+    from 'shaderpack/NightSiege-Photon'
+    archiveFileName.set('NightSiege-Photon.zip')
+    destinationDirectory.set(layout.buildDirectory.dir('shaderpack'))
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+}
+
 processResources {
     inputs.property "version", project.version
     filesMatching("fabric.mod.json") {
         expand "version": project.version
+    }
+    from(zipShaderPack) {
+        into 'assets/nightsiege/shaderpacks'
     }
 }
 

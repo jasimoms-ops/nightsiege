@@ -167,13 +167,13 @@ public final class EventAtmosphere {
     }
 
     /**
-     * True on the client while a shader pack runs. Shaders draw their own sun and
-     * moon; then the eclipse moves the shader's sun below the horizon and puts its
-     * moon where the sun was, and event nights show a new moon, so the mod's own
-     * sun and moon (drawn over the picture) are the only ones in the sky.
+     * Shader state on the client: 0 none, 1 another pack, 2 the Night Siege pack
+     * (see ShaderSupport). The Night Siege pack draws every event itself. Other
+     * packs keep their own sky; only the eclipse is shown there, by moving the
+     * pack's sun below the horizon and its new moon in front of where it was.
      */
-    public static volatile boolean clientShaders;
-    /** Sun and moon angle before any event changed them, for drawing at the true place. */
+    public static volatile int clientShaderMode;
+    /** Sun and moon angle before any event changed them. */
     public static volatile float realSunAngle;
     public static volatile float realMoonAngle;
 
@@ -184,19 +184,16 @@ public final class EventAtmosphere {
         } else if (attribute == EnvironmentAttributes.MOON_ANGLE) {
             realMoonAngle = (Float) result;
         }
-        if (!clientShaders || strength < 0.5f || shown.isEmpty()) {
+        if (clientShaderMode != 1 || strength < 0.5f || !ECLIPSE.equals(shown)) {
             return result;
         }
-        if (ECLIPSE.equals(shown)) {
-            if (attribute == EnvironmentAttributes.SUN_ANGLE) {
-                return (V) Float.valueOf((((Float) result) + 180f) % 360f);
-            }
-            if (attribute == EnvironmentAttributes.MOON_ANGLE) {
-                return (V) Float.valueOf(realSunAngle);
-            }
+        if (attribute == EnvironmentAttributes.SUN_ANGLE) {
+            return (V) Float.valueOf((((Float) result) + 180f) % 360f);
         }
-        if (attribute == EnvironmentAttributes.MOON_PHASE && (ECLIPSE.equals(shown) || BLOOD_MOON.equals(shown)
-                || FROST.equals(shown) || NETHER_RIFT.equals(shown) || FOG.equals(shown))) {
+        if (attribute == EnvironmentAttributes.MOON_ANGLE) {
+            return (V) Float.valueOf(realSunAngle);
+        }
+        if (attribute == EnvironmentAttributes.MOON_PHASE) {
             return (V) net.minecraft.world.level.MoonPhase.NEW_MOON;
         }
         return result;

@@ -49,7 +49,8 @@ jobs:
           print("::notice title=GEWAEHLT::mc=%s api=%s loader=%s" % (mc, api[-1], loader))
           PY
 
-      # Fuer den Shader-Test: Iris, Sodium und zwei Shader-Packs von Modrinth.
+      # Fuer den Shader-Test: Iris, Sodium und ein fremdes Shader-Pack von Modrinth
+      # (das eigene Night-Siege-Pack legt die Mod selbst in den shaderpacks-Ordner).
       - name: Shader-Testmaterial laden
         continue-on-error: true
         run: |
@@ -69,7 +70,7 @@ jobs:
               f = [x for x in versions[0]["files"] if x.get("primary")] or versions[0]["files"]
               open("run-mods/" + f[0]["filename"], "wb").write(get(f[0]["url"]))
               print("::notice title=SHADERTEST::%s %s" % (slug, versions[0]["version_number"]))
-          for query in ("complementary reimagined", "reverie"):
+          for query in ("complementary reimagined",):
               hits = json.loads(get("https://api.modrinth.com/v2/search?" + urllib.parse.urlencode(
                   {"query": query, "facets": json.dumps([["project_type:shader"]]), "limit": 3})))["hits"]
               if not hits:
@@ -169,11 +170,11 @@ jobs:
           echo "exit=$?" >> client-output.txt
           mkdir -p shots
           find . -path ./shots -prune -o -name "*.png" -path "*screenshot*" -newer build.gradle -print | while read f; do cp "$f" shots/; done
-          # Zweiter Lauf mit Iris, Sodium und Shader-Packs
-          if ls run-mods/*.jar > /dev/null 2>&1 && ls run-shaderpacks/* > /dev/null 2>&1; then
+          # Zweiter Lauf mit Iris und Sodium: zuerst das eigene Pack, dann ein fremdes
+          if ls run-mods/*.jar > /dev/null 2>&1; then
             export NIGHTSIEGE_WITH_IRIS=1
-            export NIGHTSIEGE_SHADERPACKS="$(ls -d $PWD/run-shaderpacks/* | tr '\n' ';')"
-            timeout 1800 xvfb-run -a -s "-screen 0 1280x720x24" gradle runClientGameTest --no-daemon --stacktrace > client-shader-output.txt 2>&1
+            export NIGHTSIEGE_SHADERPACKS="NightSiege-Photon.zip;$(ls -d $PWD/run-shaderpacks/* 2>/dev/null | tr '\n' ';')"
+            timeout 2400 xvfb-run -a -s "-screen 0 1280x720x24" gradle runClientGameTest --no-daemon --stacktrace > client-shader-output.txt 2>&1
             echo "exit=$?" >> client-shader-output.txt
             cat client-shader-output.txt >> client-output.txt
             find . -path ./shots -prune -o -name "*shader_*.png" -path "*screenshot*" -print | while read f; do cp "$f" shots/; done

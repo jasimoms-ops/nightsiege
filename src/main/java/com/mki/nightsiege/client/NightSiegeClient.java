@@ -31,6 +31,8 @@ public class NightSiegeClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        // The Night Siege shader pack (based on Photon) goes into the shaderpacks folder.
+        ShaderPackInstaller.install();
         // The message types are registered by the main entrypoint, which also runs here.
         ClientPlayNetworking.registerGlobalReceiver(CoreNetworking.CoreUiPayload.TYPE,
                 (payload, context) -> {
@@ -74,7 +76,7 @@ public class NightSiegeClient implements ClientModInitializer {
                 com.mki.nightsiege.game.EventAtmosphere.resetClient();
                 return;
             }
-            com.mki.nightsiege.game.EventAtmosphere.clientShaders = EventOverlay.shadersActive();
+            com.mki.nightsiege.game.EventAtmosphere.clientShaderMode = ShaderSupport.mode();
             com.mki.nightsiege.game.EventAtmosphere.tickClient();
             FogWisps.tick(client);
         });
@@ -85,9 +87,6 @@ public class NightSiegeClient implements ClientModInitializer {
                     UltState state = Json.fromJson(payload.json(), UltState.class);
                     context.client().execute(() -> UltHud.update(state));
                 });
-        // Event colours on top of the picture, for shader packs that draw their own sky.
-        HudElementRegistry.attachElementBefore(VanillaHudElements.MISC_OVERLAYS, ModContent.id("event_overlay"),
-                EventOverlay::draw);
         HudElementRegistry.attachElementAfter(VanillaHudElements.HOTBAR, ModContent.id("ultimate"),
                 (gui, delta) -> UltHud.draw(gui, ultimateKey));
 
