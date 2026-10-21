@@ -66,38 +66,21 @@ class DungeonProbeTest {
 
     @Test
     void probe() {
-        methods("net.minecraft.world.level.StructureManager", "getAllStructuresAt", "getStructureAt", "getStructureWithPieceAt", "startsForStructure", "getStructureWithPieceAt");
-        methods("net.minecraft.server.level.ServerLevel", "structureManager", "findNearestMapStructure", "getChunkSource", "getSeed", "getHeight", "registryAccess", "setBlockAndUpdate", "dimension");
-        methods("net.minecraft.world.level.chunk.ChunkGenerator", "findNearestMapStructure");
-        methods("net.minecraft.world.level.levelgen.structure.StructureStart", "getBoundingBox", "getChunkPos", "isValid", "getStructure");
-        methods("net.minecraft.world.level.levelgen.structure.BoundingBox", "minX", "maxX", "minY", "maxY", "minZ", "maxZ", "getCenter", "isInside", "inflatedBy");
-        methods("net.minecraft.core.RegistryAccess", "lookupOrThrow", "lookup");
-        methods("net.minecraft.core.Registry", "getKey", "listElements", "entrySet", "getValue", "get", "wrapAsHolder", "keySet");
-        methods("net.minecraft.core.HolderSet", "direct");
-        methods("net.minecraft.world.item.MapItem", "create", "renderBiomePreviewMap");
-        methods("net.minecraft.world.level.saveddata.maps.MapItemSavedData", "addTargetDecoration");
-        fields("net.minecraft.world.level.saveddata.maps.MapDecorationTypes");
-        methods("net.fabricmc.fabric.api.object.builder.v1.trade.TradeOfferHelper");
-        methods("net.fabricmc.fabric.api.object.builder.v1.trade.TradeOfferHelper$WanderingTraderOffersBuilder");
-        ctors("net.minecraft.world.item.trading.MerchantOffer");
-        ctors("net.minecraft.world.item.trading.ItemCost");
-        fields("net.minecraft.world.entity.npc.villager.VillagerProfession", "CARTOGRAPHER");
-        fields("net.minecraft.world.entity.npc.VillagerProfession", "CARTOGRAPHER");
-        methods("net.minecraft.world.entity.npc.villager.VillagerTrades$ItemListing");
-        methods("net.minecraft.world.entity.npc.VillagerTrades$ItemListing");
         methods("net.fabricmc.fabric.api.loot.v3.LootTableEvents$Modify");
         fields("net.fabricmc.fabric.api.loot.v3.LootTableEvents");
         ctors("net.minecraft.world.entity.ai.attributes.AttributeModifier");
         methods("net.minecraft.world.entity.ai.attributes.AttributeInstance", "addOrUpdateTransientModifier", "removeModifier", "addTransientModifier", "hasModifier");
         fields("net.minecraft.world.entity.ai.attributes.AttributeModifier$Operation");
         methods("net.minecraft.world.entity.Entity", "teleportTo");
-        methods("net.minecraft.server.level.ServerPlayer", "teleportTo");
         ctors("net.minecraft.server.level.ServerBossEvent");
-        fields("net.minecraft.world.level.storage.loot.BuiltInLootTables", "SIMPLE_DUNGEON", "PILLAGER_OUTPOST", "SHIPWRECK_MAP", "BASTION_TREASURE", "UNDERWATER_RUIN_BIG", "RUINED_PORTAL", "WOODLAND_MANSION");
+        fields("net.minecraft.world.level.storage.loot.BuiltInLootTables", "SIMPLE_DUNGEON", "PILLAGER_OUTPOST", "SHIPWRECK_MAP", "BASTION_TREASURE", "UNDERWATER_RUIN_BIG", "RUINED_PORTAL");
         methods("net.minecraft.world.level.storage.loot.LootPool", "lootPool");
-        methods("net.minecraft.world.level.storage.loot.LootTable$Builder", "withPool", "pool");
+        methods("net.minecraft.world.level.storage.loot.LootTable$Builder", "withPool");
         methods("net.minecraft.world.level.storage.loot.entries.LootItem", "lootTableItem");
         methods("net.minecraft.world.level.storage.loot.predicates.LootItemRandomChanceCondition", "randomChance");
-        methods("net.minecraft.world.level.block.Block", "getDrops");
+        methods("net.minecraft.world.level.storage.loot.LootPool$Builder", "add", "when", "setRolls");
+        methods("net.minecraft.world.level.ServerLevelAccessor", "getLevel");
+        methods("net.minecraft.world.level.Level", "getChunk");
+        methods("net.minecraft.core.component.DataComponentMap", "get");
     }
 }
