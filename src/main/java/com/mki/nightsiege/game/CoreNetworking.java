@@ -22,7 +22,7 @@ public final class CoreNetworking {
                 new CustomPacketPayload.Type<>(ModContent.id("core_ui"));
 
         public static final StreamCodec<RegistryFriendlyByteBuf, CoreUiPayload> CODEC =
-                StreamCodec.composite(ByteBufCodecs.STRING_UTF8, CoreUiPayload::json, CoreUiPayload::new);
+                StreamCodec.composite(ByteBufCodecs.stringUtf8(262144), CoreUiPayload::json, CoreUiPayload::new);
 
         @Override
         public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
@@ -75,7 +75,7 @@ public final class CoreNetworking {
                 new CustomPacketPayload.Type<>(ModContent.id("dungeon_ui"));
 
         public static final StreamCodec<RegistryFriendlyByteBuf, DungeonUiPayload> CODEC =
-                StreamCodec.composite(ByteBufCodecs.STRING_UTF8, DungeonUiPayload::json, DungeonUiPayload::new);
+                StreamCodec.composite(ByteBufCodecs.stringUtf8(262144), DungeonUiPayload::json, DungeonUiPayload::new);
 
         @Override
         public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
