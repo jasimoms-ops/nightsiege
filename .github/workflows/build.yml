@@ -92,6 +92,37 @@ jobs:
               print("::error title=BUILD%d::" % part + "%0A".join(chunk))
           PY
 
+      # Ein echter Serverstart deckt Fehler auf, die der Compiler nicht sieht:
+      # Registrierung, Rezepte, Tags, Weltgenerierung. Nach einigen Minuten
+      # wird der Server einfach beendet.
+      - name: Server-Probelauf
+        if: steps.build.outcome == 'success'
+        continue-on-error: true
+        run: |
+          mkdir -p run
+          echo "eula=true" > run/eula.txt
+          printf "level-seed=nightsiege\nonline-mode=false\n" > run/server.properties
+          timeout 420 gradle runServer --no-daemon --args=nogui > server-output.txt 2>&1 || true
+          python3 - <<'PY'
+          import re
+          text = open("server-output.txt", encoding="utf-8", errors="replace").read()
+          pat = re.compile(r"(ERROR|Exception|Caused by|Failed|Couldn't|Unknown|Night Siege|Done \(|Missing|Invalid|nightsiege)", re.I)
+          lines = [l.rstrip()[:400] for l in text.splitlines() if pat.search(l)]
+          started = any("Done (" in l for l in lines)
+          print("::notice title=SERVERSTART::%s" % ("ok" if started else "NICHT gestartet"))
+          chunk, size, part = [], 0, 1
+          for line in lines[:120]:
+              if size + len(line) > 7000:
+                  print("::warning title=SERVER%d::" % part + "%0A".join(chunk))
+                  chunk, size, part = [], 0, part + 1
+              chunk.append(line)
+              size += len(line) + 1
+          if chunk:
+              print("::warning title=SERVER%d::" % part + "%0A".join(chunk))
+          if not lines:
+              print("::warning title=SERVER-TAIL::" + "%0A".join(text.splitlines()[-40:]))
+          PY
+
       - name: Jar hochladen
         if: always()
         uses: actions/upload-artifact@v4
