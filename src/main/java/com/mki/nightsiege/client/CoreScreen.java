@@ -639,9 +639,9 @@ public class CoreScreen extends Screen {
             if (row % 2 == 0) {
                 gui.fill(x, vy, x + G_TIER, vy + vh, 0x0CFFFFFF);
             }
-            String key = "nightsiege.ui.tier." + row;
-            if (Language.getInstance().has(key)) {
-                String label = Component.translatable(key).getString();
+            {
+                // Steps are just numbered; only the ultimate's step says so.
+                String label = row == 8 ? "Ult" : roman(row + 1);
                 int cx = ox + row * G_TIER + G_SLOT / 2;
                 gui.pose().pushMatrix();
                 gui.pose().translate(cx, vy + 6);
@@ -781,6 +781,12 @@ public class CoreScreen extends Screen {
 
         drawInfoPanel(gui, font, hovered);
         return hovered;
+    }
+
+    private static String roman(int n) {
+        String[] ones = {"", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX"};
+        String[] tens = {"", "X", "XX"};
+        return tens[Math.min(2, n / 10)] + ones[n % 10];
     }
 
     private static List<String> wrap(Font font, String text, int width) {
