@@ -32,10 +32,11 @@ public final class BloodMoonSky {
     /** The server repeats its message every two seconds; after six in game time without one, the moon sets. */
     private static final long STALE_TICKS = 120L;
 
-    // Night colours. The tint keeps the brightness of the vanilla colour, so a
-    // blood moon running into dawn turns the sky orange-red instead of black.
-    private static final float[] SKY_BASE = {0.20f, 0.012f, 0.022f};
-    private static final float[] FOG_BASE = {0.34f, 0.030f, 0.036f};
+    // Night colours: a dark crimson overhead that glows redder towards the
+    // horizon. The tint keeps the brightness of the vanilla colour, so a blood
+    // moon running into dawn turns the sky orange-red instead of black.
+    private static final float[] SKY_BASE = {0.10f, 0.006f, 0.012f};
+    private static final float[] FOG_BASE = {0.27f, 0.022f, 0.028f};
     private static final float TINT_GAIN = 1.4f;
 
     /** Fog starts and ends this close at full strength: a red haze, the view stays usable. */
