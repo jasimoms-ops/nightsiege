@@ -160,15 +160,52 @@ class SkyProbeTest {
         };
     }
 
+    /** All string constants in classes under a package prefix that contain a word. */
+    private static void strings(String anchorClass, String prefix, String word) {
+        try {
+            java.net.URL url = SkyProbeTest.class.getClassLoader().getResource(anchorClass.replace('.', '/') + ".class");
+            System.out.println("PROBE: anchor " + url);
+            if (url == null || !"jar".equals(url.getProtocol())) return;
+            java.util.jar.JarFile jar = ((java.net.JarURLConnection) url.openConnection()).getJarFile();
+            java.util.TreeSet<String> found = new java.util.TreeSet<>();
+            List<String> classes = new ArrayList<>();
+            for (var en = jar.entries(); en.hasMoreElements(); ) {
+                String name = en.nextElement().getName();
+                if (!name.startsWith(prefix) || !name.endsWith(".class")) continue;
+                classes.add(name);
+                try (InputStream in = jar.getInputStream(jar.getJarEntry(name))) {
+                    String cls = name;
+                    new ClassReader(in).accept(new ClassVisitor(Opcodes.ASM9) {
+                        @Override
+                        public MethodVisitor visitMethod(int a, String n, String d, String sg, String[] ex) {
+                            return new MethodVisitor(Opcodes.ASM9) {
+                                @Override
+                                public void visitLdcInsn(Object v) {
+                                    if (v instanceof String str && str.toLowerCase().contains(word)) found.add(str + "  @" + cls.substring(cls.lastIndexOf('/') + 1));
+                                }
+                            };
+                        }
+                    }, 0);
+                }
+            }
+            System.out.println("PROBE: classes " + classes);
+            for (String f : found) System.out.println("PROBE: str " + f);
+        } catch (Throwable t) {
+            System.out.println("PROBE: ERR strings " + t);
+        }
+    }
+
     @Test
     void probe() {
-        sigs("org.spongepowered.asm.mixin.MixinEnvironment$CompatibilityLevel", has("JAVA"));
-        sigs("net.minecraft.client.renderer.texture.SpriteContents", has("name", "width", "height"));
-        sigs("net.minecraft.client.Screenshot", any());
-        sigs("net.minecraft.client.Minecraft", has("screenshot", "getMainRenderTarget", "isPaused", "getWindow", "createWorldOpenFlows", "gameRenderer", "player", "getConnection", "isSameThread"));
-        sigs("net.minecraft.world.entity.Entity", has("setXRot", "setYRot", "snapTo"));
-        sigs("net.minecraft.client.gui.screens.worldselection.WorldOpenFlows", any());
-        sigs("net.minecraft.client.main.GameConfig$QuickPlayData", any());
-        sigs("net.minecraft.client.quickplay.QuickPlay", has("connect", "join"));
+        String base = "net.fabricmc.fabric.api.client.gametest.v1.";
+        for (String c : new String[]{"FabricClientGameTest", "context.ClientGameTestContext", "context.TestSingleplayerContext",
+                "context.TestServerContext", "context.TestClientWorldContext", "world.TestWorldBuilder", "world.TestWorldSave",
+                "screenshot.TestScreenshotOptions", "TestInput", "input.TestInput", "context.TestClientLevelContext",
+                "world.TestClientWorldContext", "world.TestSingleplayerContext", "context.TestServerConnection"}) {
+            sigs(base + c, any());
+        }
+        strings(base + "FabricClientGameTest", "net/fabricmc/fabric/", "gametest");
+        strings(base + "FabricClientGameTest", "net/fabricmc/fabric/", "screenshot");
+        sigs("net.minecraft.world.level.gamerules.GameRules", has("advance", "daylight", "weather"));
     }
 }
