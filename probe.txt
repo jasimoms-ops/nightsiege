@@ -1,0 +1,16 @@
+    PROBE: LootTableEvents$Modify modifyLootTable(ResourceKey,Builder,LootTableSource,Provider,)void 
+    PROBE: F LootTableEvents REPLACE:Event MODIFY:Event ALL_LOADED:Event MODIFY_DROPS:Event 
+    PROBE: C AttributeModifier <init>net.minecraft.world.entity.ai.attributes.AttributeModifier(Identifier,double,Operation,) 
+    PROBE: AttributeInstance addOrUpdateTransientModifier(AttributeModifier,)void removeModifier(AttributeModifier,)void removeModifier(Identifier,)boolean addTransientModifier(AttributeModifier,)void hasModifier(Identifier,)boolean 
+    PROBE: F Operation ADD_VALUE:Operation ADD_MULTIPLIED_BASE:Operation ADD_MULTIPLIED_TOTAL:Operation BY_ID:IntFunction STREAM_CODEC:StreamCodec CODEC:Codec PRE_BUILT_MAP_THRESHOLD:int 
+    PROBE: Entity teleportTo(ServerLevel,double,double,double,Set,float,float,boolean,)boolean teleportTo(double,double,double,)void 
+    PROBE: C ServerBossEvent <init>net.minecraft.server.level.ServerBossEvent(UUID,Component,BossBarColor,BossBarOverlay,) 
+    PROBE: F BuiltInLootTables SIMPLE_DUNGEON:ResourceKey UNDERWATER_RUIN_BIG:ResourceKey SHIPWRECK_MAP:ResourceKey PILLAGER_OUTPOST:ResourceKey BASTION_TREASURE:ResourceKey RUINED_PORTAL:ResourceKey 
+    PROBE: LootPool s:lootPool()Builder 
+    PROBE: LootTable$Builder withPool(Builder,)Builder 
+    PROBE: LootItem s:lootTableItem(ItemLike,)Builder 
+    PROBE: LootItemRandomChanceCondition s:randomChance(float,)Builder s:randomChance(NumberProvider,)Builder 
+    PROBE: LootPool$Builder add(Builder,)Builder when(Builder,)ConditionUserBuilder when(Builder,)Builder setRolls(NumberProvider,)Builder when(Iterable,Function,)ConditionUserBuilder add(LootPoolEntryContainer,)Builder add(Collection,)Builder when(Collection,)Builder when(LootItemCondition,)Builder 
+    PROBE: ServerLevelAccessor getLevel()ServerLevel 
+    PROBE: Level getChunk(int,int,)LevelChunk getChunk(int,int,)ChunkAccess getChunk(int,int,ChunkStatus,boolean,)ChunkAccess getChunk(BlockPos,)ChunkAccess getChunk(int,int,ChunkStatus,)ChunkAccess 
+    PROBE: DataComponentMap get(DataComponentType,)Object 
