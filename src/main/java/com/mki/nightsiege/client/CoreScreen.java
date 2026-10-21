@@ -307,8 +307,8 @@ public class CoreScreen extends Screen {
         treeRight = x0 + gridSpacing * gridMaxRow + SLOT;
         gridTop = innerY() + 30;
 
-        // The two way buttons, top right of the tree area.
-        int bx = innerX() + innerW() - 6;
+        // The two way buttons, at the right of the banner.
+        int bx = left + W - 10;
         for (int i = ways.size() - 1; i >= 0; i--) {
             String way = ways.get(i);
             Component label = Component.translatable("nightsiege.path." + way);
@@ -317,7 +317,7 @@ public class CoreScreen extends Screen {
             Button button = Button.builder(label, b -> {
                 viewWay = way;
                 rebuildWidgets();
-            }).bounds(bx, innerY() + 3, w, 14).build();
+            }).bounds(bx, top + 10, w, 14).build();
             button.active = !way.equals(shownWay);
             addRenderableWidget(button);
             bx -= 3;
@@ -540,7 +540,7 @@ public class CoreScreen extends Screen {
         } else if (activeTab == Tab.CORE) {
             badge = Component.translatable("nightsiege.ui.banner_pot", stats.corePoints).getString();
         }
-        if (badge != null) {
+        if (badge != null && !gridMode) {
             gui.text(font, badge, x2 - 8 - font.width(badge), y1 + 9, 0xFFFFD86B, true);
         }
     }
