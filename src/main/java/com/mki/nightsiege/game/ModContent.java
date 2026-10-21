@@ -59,6 +59,8 @@ public final class ModContent {
             registerTrap(kind);
         }
 
+        InferniteContent.register();
+
         // Everything the mod adds lives on its own creative page.
         ResourceKey<CreativeModeTab> tabKey = ResourceKey.create(Registries.CREATIVE_MODE_TAB, id("general"));
         TAB = FabricCreativeModeTab.builder()
@@ -69,6 +71,9 @@ public final class ModContent {
                     output.accept(GuideBook.create());
                     for (TrapKind kind : TrapKind.values()) {
                         output.accept(TRAP_ITEMS.get(kind));
+                    }
+                    for (Item item : InferniteContent.creativeItems()) {
+                        output.accept(item);
                     }
                 })
                 .build();

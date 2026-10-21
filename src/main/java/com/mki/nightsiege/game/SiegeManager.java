@@ -68,10 +68,11 @@ public final class SiegeManager {
     PlayerSkills liveSkillsFor(ServerPlayer player) {
         boolean defending = active && participants.contains(player.getUUID())
                 && !fallen.contains(player.getUUID());
-        if (!defending && !player.getAbilities().instabuild) {
+        PlayerSkills own = save.skillsOf(player.getUUID().toString());
+        if (!defending && !player.getAbilities().instabuild && !ClassGear.carries(player, own, skillTree)) {
             return null;
         }
-        return save.skillsOf(player.getUUID().toString());
+        return own;
     }
 
     private static final String CONFIG_FILE = "nightsiege.json";
@@ -232,6 +233,7 @@ public final class SiegeManager {
         combat.tick(server);
         if (server.overworld().getGameTime() % 20 == 0) {
             sendUltHud(server);
+            tickClassGear(server);
         }
         if (trapsDirty && ++trapSaveCounter >= 200) {
             trapSaveCounter = 0;
@@ -829,6 +831,28 @@ public final class SiegeManager {
     }
 
     /** Called from the block itself when a core is put down. */
+    /** Players whose skills hold outside a siege because they carry their class item. */
+    private final Set<UUID> gearBoosted = new HashSet<>();
+
+    /** Applies or lifts the attribute skills of players who carry their class item. */
+    private void tickClassGear(MinecraftServer server) {
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            UUID id = player.getUUID();
+            boolean defending = active && participants.contains(id) && !fallen.contains(id);
+            if (defending) {
+                gearBoosted.remove(id);   // the siege looks after these
+                continue;
+            }
+            PlayerSkills own = save.skillsOf(id.toString());
+            if (ClassGear.carries(player, own, skillTree)) {
+                SkillService.apply(player, own, skillTree);
+                gearBoosted.add(id);
+            } else if (gearBoosted.remove(id)) {
+                SkillService.clear(player);
+            }
+        }
+    }
+
     /** Tells every player with the mod what their ultimate slot shows. */
     private void sendUltHud(MinecraftServer server) {
         long now = server.overworld().getGameTime();
@@ -1043,6 +1067,7 @@ public final class SiegeManager {
                 persist();
             }
         } else if (skillTree.unlock(nodeId, own)) {
+            rewardMaxedUltimate(player, own, node);
             persist();
             // Skills only hold during a siege, so apply at once only if one runs.
             if (active && participants.contains(player.getUUID()) && !fallen.contains(player.getUUID())) {
@@ -1050,6 +1075,19 @@ public final class SiegeManager {
             }
         }
         openCoreWindow(player);
+    }
+
+    /** Maxing the ultimate of one's path pays out the infernite upgrade template, once. */
+    private void rewardMaxedUltimate(ServerPlayer player, PlayerSkills own, com.mki.nightsiege.core.SkillNode node) {
+        if (node.effect().target() != SkillEffect.Target.ULTIMATE || own.templateGiven
+                || own.levelOf(node.id()) < node.maxLevel()) {
+            return;
+        }
+        own.templateGiven = true;
+        player.getInventory().placeItemBackInInventory(new ItemStack(InferniteContent.TEMPLATE));
+        player.sendSystemMessage(Component.translatable("nightsiege.msg.template_earned")
+                .withStyle(ChatFormatting.GOLD));
+        Fx.pointsEarned(player.level().getServer(), config);
     }
 
     /** Commits a player to a class. Only possible while they have none. */

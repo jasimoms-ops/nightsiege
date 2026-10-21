@@ -9,6 +9,8 @@ public class PlayerSkills {
     /** Empty until the player commits to a class. */
     public String chosenClass = "";
     public int points;
+    /** True once maxing the ultimate has paid out the infernite upgrade template. */
+    public boolean templateGiven;
     public int earned;
     /** Points this player has put into the shared core tree. */
     public int donated;
@@ -71,6 +73,7 @@ public class PlayerSkills {
     }
 
     public void reset() {
+        templateGiven = false;
         points = 0;
         earned = 0;
         donated = 0;
