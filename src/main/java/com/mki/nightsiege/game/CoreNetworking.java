@@ -52,6 +52,21 @@ public final class CoreNetworking {
      * {@code class:ARCHER}, {@code donate:10} or {@code dev:grant}. One message
      * type covers every button, so a new button never means new network code.</p>
      */
+    /** Server to client: the dungeon test tool window as JSON. */
+    public record DungeonUiPayload(String json) implements CustomPacketPayload {
+
+        public static final CustomPacketPayload.Type<DungeonUiPayload> TYPE =
+                new CustomPacketPayload.Type<>(ModContent.id("dungeon_ui"));
+
+        public static final StreamCodec<RegistryFriendlyByteBuf, DungeonUiPayload> CODEC =
+                StreamCodec.composite(ByteBufCodecs.STRING_UTF8, DungeonUiPayload::json, DungeonUiPayload::new);
+
+        @Override
+        public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
     public record CoreActionPayload(String action) implements CustomPacketPayload {
 
         public static final CustomPacketPayload.Type<CoreActionPayload> TYPE =
@@ -84,6 +99,7 @@ public final class CoreNetworking {
         typesRegistered = true;
         PayloadTypeRegistry.clientboundPlay().register(CoreUiPayload.TYPE, CoreUiPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(UltHudPayload.TYPE, UltHudPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(DungeonUiPayload.TYPE, DungeonUiPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(CoreActionPayload.TYPE, CoreActionPayload.CODEC);
     }
 

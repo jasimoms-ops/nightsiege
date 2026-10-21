@@ -75,11 +75,20 @@ public final class MobFactory {
         if (isUnavailable(entityId)) {
             return null;
         }
-        String[] parts = entityId.split("\\+");
         BlockPos spot = findSpawnSpot(world, anchor, cfg, random, distanceBonus);
         if (spot == null) {
             return null;
         }
+        return spawnAt(world, spot, entityId, siegeLevel, cfg, random, event, elite);
+    }
+
+    /** Spawns one mob (and its rider, if any) on a spot already chosen. */
+    public static Mob spawnAt(ServerLevel world, BlockPos spot, String entityId, int siegeLevel,
+                              SiegeConfig cfg, Random random, SiegeEvent event, boolean elite) {
+        if (isUnavailable(entityId)) {
+            return null;
+        }
+        String[] parts = entityId.split("\\+");
         Mob mob = create(world, parts[0].trim(), spot, random);
         if (mob == null) {
             return null;

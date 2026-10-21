@@ -47,6 +47,22 @@ public class CoreStats {
         public boolean live;
     }
 
+    /** One perk of the main core. */
+    public static class PerkLine {
+        public String id = "";
+        public int fragments;
+        public int stage;
+        /** Fragments in total for the next stage; 0 at the top stage. */
+        public int nextAt;
+        /** Fragments in total for the current stage. */
+        public int stageAt;
+    }
+
+    // --- perks of the main core
+    public List<PerkLine> perks = new ArrayList<>();
+    public int perkRadius;
+    public boolean perkInRange;
+
     // --- siege state
     public boolean siegeActive;
     public int level;

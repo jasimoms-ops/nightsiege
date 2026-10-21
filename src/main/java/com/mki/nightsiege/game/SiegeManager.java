@@ -179,6 +179,8 @@ public final class SiegeManager {
     private final CombatEffects combat = new CombatEffects(skillTree, this::liveSkillsFor,
             entity -> this.eliteId != null && this.eliteId.equals(entity.getUUID()), archer, traps);
     private final Digger digger = new Digger();
+    private final DungeonService dungeons = new DungeonService(() -> save, () -> config);
+    private final PerkService perks = new PerkService(() -> save, () -> config);
     private final Random random = new Random();
     private MobPool pool = new MobPool(SiegeConfig.defaultMobs());
     private final Set<String> unavailableMobs = new HashSet<>();
@@ -216,6 +218,14 @@ public final class SiegeManager {
         return save;
     }
 
+    public DungeonService dungeons() {
+        return dungeons;
+    }
+
+    public PerkService perks() {
+        return perks;
+    }
+
     public SkillTree skillTree() {
         return skillTree;
     }
@@ -244,8 +254,11 @@ public final class SiegeManager {
         ModContent.register();
         CoreNetworking.registerTypes();
         CoreNetworking.registerServerReceivers();
+        combat.setCooldownScale(perks::cooldownScale);
+        combat.setArrowBonus(perks::arrowBonus);
         ServerLifecycleEvents.SERVER_STARTED.register(server -> onServerStarted(server));
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
+            dungeons.abortAll();
             syncSchedulerToSave();
             persist();
         });
@@ -255,11 +268,15 @@ public final class SiegeManager {
         ServerEntityCombatEvents.AFTER_KILLED_OTHER_ENTITY.register(
                 (killWorld, killer, killed, killSource) -> onKill(killer, killed));
         ServerPlayerEvents.JOIN.register(player -> onJoin(player));
-        ServerLivingEntityEvents.AFTER_DAMAGE.register((entity, source, baseDamage, taken, blocked) ->
-                combat.afterDamage(entity, source, taken, blocked));
+        ServerLivingEntityEvents.AFTER_DAMAGE.register((entity, source, baseDamage, taken, blocked) -> {
+            combat.afterDamage(entity, source, taken, blocked);
+            perks.afterDamage(entity, taken);
+        });
         ServerLivingEntityEvents.ALLOW_DEATH.register((entity, source, amount) -> combat.allowDeath(entity));
-        ServerEntityEvents.ENTITY_LOAD.register((entity, world) ->
-                archer.onEntityLoad(entity, world, skillTree, this::liveSkillsFor));
+        ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> {
+            archer.onEntityLoad(entity, world, skillTree, this::liveSkillsFor);
+            dungeons.onEntityLoad(entity);
+        });
         PlayerBlockBreakEvents.AFTER.register(
                 (level, player, pos, state, blockEntity) -> onBlockBroken(level, pos));
         UseBlockCallback.EVENT.register(
@@ -319,6 +336,10 @@ public final class SiegeManager {
         tickModCheck(server);
         trapsDirty |= traps.tick(server);
         combat.tick(server);
+        perks.tick(server);
+        if (dungeons.tick(server)) {
+            persist();
+        }
         if (server.overworld().getGameTime() % 20 == 0) {
             sendUltHud(server);
             tickClassGear(server);
@@ -714,6 +735,7 @@ public final class SiegeManager {
             save.currentStreak++;
             save.bestStreak = Math.max(save.bestStreak, save.currentStreak);
             awardSkillPoints(server);
+            rewardDungeonMaps(server);
             int next = SiegeMath.level(save.siegesWon, lastKnownDay, config);
             broadcast(server, Component.translatable("nightsiege.msg.won", next)
                     .withStyle(ChatFormatting.GREEN));
@@ -735,6 +757,18 @@ public final class SiegeManager {
         syncSchedulerToSave();
         persist();
         clearSiegeState();
+    }
+
+    /** After a won siege every defender has a one in three chance of a dungeon map. */
+    private void rewardDungeonMaps(MinecraftServer server) {
+        for (UUID id : participants) {
+            ServerPlayer player = server.getPlayerList().getPlayer(id);
+            if (player != null && random.nextInt(3) == 0) {
+                player.getInventory().placeItemBackInInventory(new ItemStack(DungeonContent.MAP));
+                player.sendSystemMessage(Component.translatable("nightsiege.dungeon.map_reward")
+                        .withStyle(ChatFormatting.AQUA));
+            }
+        }
     }
 
     /** Ends the siege with no winner and no punishment. */
@@ -820,6 +854,7 @@ public final class SiegeManager {
         if (!(entity instanceof ServerPlayer player)) {
             return;
         }
+        dungeons.onPlayerDeath(player);
         UUID id = player.getUUID();
         if (!active || !participants.contains(id)) {
             return;
@@ -1031,8 +1066,15 @@ public final class SiegeManager {
             player.connection.send(new net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket(blocked));
             return InteractionResult.FAIL;
         }
+        if (handObject == InteractionHand.MAIN_HAND && dungeons.onUse(serverLevel, pos, player)) {
+            return InteractionResult.SUCCESS;
+        }
         if (!ModContent.isCore(serverLevel.getBlockState(pos))) {
             return InteractionResult.PASS;
+        }
+        if (perks.insert(player, held, pos)) {
+            persist();
+            return InteractionResult.SUCCESS;
         }
         openCoreWindow(player);
         return InteractionResult.SUCCESS;
@@ -1092,9 +1134,9 @@ public final class SiegeManager {
             save.totalChampionKills++;
         }
         if (config.skillsEnabled && config.skillPointsPerKill > 0) {
-            save.skillsOf(player.getUUID().toString()).award(champion
+            save.skillsOf(player.getUUID().toString()).award(perks.experience(player, champion
                     ? config.skillPointsPerKill * config.championPointMultiplier
-                    : config.skillPointsPerKill);
+                    : config.skillPointsPerKill));
         }
     }
 
@@ -1112,6 +1154,7 @@ public final class SiegeManager {
             case "donate" -> onDonate(player, parseAmount(argument));
             case "dev" -> onDevAction(player, argument);
             case "ult" -> onUltimateKey(player);
+            case "dungeon" -> dungeons.onToolAction(player, argument);
             default -> openCoreWindow(player);
         }
     }

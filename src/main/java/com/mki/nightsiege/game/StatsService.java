@@ -58,6 +58,18 @@ public final class StatsService {
         stats.donated = skills.donated;
         stats.pathTaken = skills.pathTaken(tree);
         stats.creative = viewer.getAbilities().instabuild;
+        for (com.mki.nightsiege.core.PerkKind kind : com.mki.nightsiege.core.PerkKind.values()) {
+            CoreStats.PerkLine line = new CoreStats.PerkLine();
+            line.id = kind.id();
+            line.fragments = manager.perks().fragments(kind);
+            line.stage = com.mki.nightsiege.core.PerkKind.stageFor(line.fragments);
+            line.stageAt = com.mki.nightsiege.core.PerkKind.fragmentsFor(line.stage);
+            line.nextAt = line.stage >= com.mki.nightsiege.core.PerkKind.MAX_STAGE ? 0
+                    : com.mki.nightsiege.core.PerkKind.fragmentsFor(line.stage + 1);
+            stats.perks.add(line);
+        }
+        stats.perkRadius = (int) Math.round(manager.config().perkRadius);
+        stats.perkInRange = manager.perks().inRange(viewer);
         stats.skillsEnabled = cfg.skillsEnabled;
         stats.corePoints = save.coreSkills().points();
         stats.coreEarned = save.coreSkills().earned;

@@ -604,4 +604,66 @@ class SiegeCoreTest {
             }
         }
     }
+
+    // ------------------------------------------------------------------
+    // dungeons
+    // ------------------------------------------------------------------
+
+    @Test
+    void perkStagesCostOneMoreFragmentEachTime() {
+        assertEquals(0, PerkKind.stageFor(0));
+        assertEquals(1, PerkKind.stageFor(1));
+        assertEquals(1, PerkKind.stageFor(2));
+        assertEquals(2, PerkKind.stageFor(3));
+        assertEquals(4, PerkKind.stageFor(14));
+        assertEquals(5, PerkKind.stageFor(15));
+        assertEquals(5, PerkKind.stageFor(99));
+        assertEquals(15, PerkKind.fragmentsFor(5));
+    }
+
+    @Test
+    void roughlyTwoInFiveStructuresHideACore() {
+        int hits = 0;
+        for (int i = 0; i < 5000; i++) {
+            if (DungeonMath.isDungeon(12345L, "mvs:castle_ruins", i, i * 7)) {
+                hits++;
+            }
+        }
+        assertTrue(hits > 1700 && hits < 2300, "hits " + hits);
+        // Asking twice gives the same answer.
+        assertEquals(DungeonMath.isDungeon(9L, "a:b", 3, 4), DungeonMath.isDungeon(9L, "a:b", 3, 4));
+    }
+
+    @Test
+    void dungeonDifficultyFollowsTierAndProgress() {
+        assertEquals(DungeonTier.EASY.baseLevel(), DungeonMath.level(DungeonTier.EASY, 0));
+        assertEquals(DungeonTier.EASY.baseLevel() + 2, DungeonMath.level(DungeonTier.EASY, 50));
+        assertEquals(DungeonTier.NETHER.baseLevel() + DungeonMath.MAX_PROGRESS_LEVELS,
+                DungeonMath.level(DungeonTier.NETHER, 10000));
+        assertTrue(DungeonMath.mobsPerWave(DungeonTier.HARD, 3) > DungeonMath.mobsPerWave(DungeonTier.HARD, 1));
+        assertEquals(1, DungeonTier.EASY.waves());
+        assertEquals(3, DungeonTier.NETHER.waves());
+    }
+
+    @Test
+    void dungeonKindsMatchTheirStructures() {
+        List<DungeonType> types = DungeonType.defaults();
+        assertEquals("outpost", DungeonType.find(types, "towns_and_towers:pillager_outpost_savanna").key);
+        assertEquals("nether_arena", DungeonType.find(types, "structures:nether_arena").key);
+        assertNull(DungeonType.find(types, "minecraft:village_plains"));
+        Set<String> keys = new HashSet<>();
+        for (DungeonType type : types) {
+            assertTrue(keys.add(type.key), "duplicate " + type.key);
+        }
+        assertEquals(20, types.size());
+    }
+
+    @Test
+    void anOldConfigGetsTheDungeonList() {
+        SiegeConfig old = new SiegeConfig();
+        old.dungeons = null;
+        old.sanitize();
+        assertEquals(SiegeConfig.CURRENT_DUNGEON_LIST, old.dungeonListVersion);
+        assertFalse(old.dungeons.isEmpty());
+    }
 }

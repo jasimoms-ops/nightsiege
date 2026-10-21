@@ -68,7 +68,8 @@ public class CoreScreen extends Screen {
         WARRIOR(SkillClass.WARRIOR, "minecraft:iron_sword", "minecraft:textures/block/stone_bricks.png", 0xFFFF6B4A, "warrior"),
         GUARDIAN(SkillClass.GUARDIAN, "minecraft:shield", "minecraft:textures/block/polished_andesite.png", 0xFF6FA8FF, "guardian"),
         ENGINEER(SkillClass.ENGINEER, "nightsiege:arrow_turret", "minecraft:textures/block/cut_copper.png", 0xFFF0A040, "engineer"),
-        CORE(SkillClass.CORE, "nightsiege:siege_core", "minecraft:textures/block/obsidian.png", 0xFFC88CFF, "core");
+        CORE(SkillClass.CORE, "nightsiege:siege_core", "minecraft:textures/block/obsidian.png", 0xFFC88CFF, "core"),
+        PERKS(null, "nightsiege:core_fragment_vigilance", "minecraft:textures/block/amethyst_block.png", 0xFFE0A0FF, "perks");
 
         final SkillClass clazz;
         final String icon;
@@ -318,6 +319,8 @@ public class CoreScreen extends Screen {
         CoreStats.NodeLine hovered = null;
         if (activeTab == Tab.STATS) {
             drawStats(gui, font);
+        } else if (activeTab == Tab.PERKS) {
+            drawPerks(gui, font);
         } else if (!stats.skillsEnabled) {
             gui.text(font, Component.translatable("nightsiege.ui.skills_off"), innerX() + 8, innerY() + 8, GRAY, true);
         } else {
@@ -361,6 +364,9 @@ public class CoreScreen extends Screen {
     private String tabName(Tab tab) {
         if (tab == Tab.STATS) {
             return Component.translatable("nightsiege.ui.tab_stats").getString();
+        }
+        if (tab == Tab.PERKS) {
+            return Component.translatable("nightsiege.ui.banner_title.perks").getString();
         }
         return Component.translatable(tab.clazz.translationKey()).getString();
     }
@@ -454,6 +460,9 @@ public class CoreScreen extends Screen {
     private String bannerName(Tab tab) {
         if (tab == Tab.STATS) {
             return Component.translatable("nightsiege.ui.banner_title.stats").getString();
+        }
+        if (tab == Tab.PERKS) {
+            return Component.translatable("nightsiege.ui.banner_title.perks").getString();
         }
         return Component.translatable(tab.clazz.translationKey()).getString();
     }
@@ -577,6 +586,10 @@ public class CoreScreen extends Screen {
     }
 
     private void drawFooter(GuiGraphicsExtractor gui, Font font) {
+        if (activeTab == Tab.PERKS) {
+            gui.text(font, Component.translatable("nightsiege.ui.footer_perks").getString(), left + 10, top + H - 19, TITLE, false);
+            return;
+        }
         if (activeTab == Tab.STATS || stats.creative) {
             return;
         }
@@ -610,6 +623,72 @@ public class CoreScreen extends Screen {
 
     private static void centered(GuiGraphicsExtractor gui, Font font, String text, int cx, int y, int color) {
         gui.text(font, text, cx - font.width(text) / 2, y, color, false);
+    }
+
+    private static final java.util.Map<String, Integer> PERK_COLORS = java.util.Map.of(
+            "vitality", 0xFFFF5A64, "bulwark", 0xFFC0C8DC, "tides", 0xFF4FD6E6,
+            "flame", 0xFFFF9A3C, "vigilance", 0xFFFFD84A);
+
+    /** The five perks of the main core: stage, fragments to the next one and what they do now. */
+    private void drawPerks(GuiGraphicsExtractor gui, Font font) {
+        int x = innerX() + 6;
+        int y = innerY() + 5;
+        String head = Component.translatable(stats.perkInRange ? "nightsiege.ui.perks_in_range" : "nightsiege.ui.perks_out_of_range",
+                stats.perkRadius).getString();
+        gui.text(font, head, x, y, stats.perkInRange ? GREEN : GOLD, true);
+        int rowH = 30;
+        int rowY = innerY() + 18;
+        int w = innerW() - 12;
+        for (CoreStats.PerkLine perk : stats.perks) {
+            int color = PERK_COLORS.getOrDefault(perk.id, WHITE);
+            gui.fill(x, rowY, x + w, rowY + rowH - 3, 0xC0121116);
+            gui.fill(x, rowY, x + 2, rowY + rowH - 3, color);
+            gui.fill(x, rowY, x + w, rowY + 1, 0x40FFFFFF);
+            gui.item(iconOf("nightsiege:core_fragment_" + perk.id), x + 6, rowY + 5);
+            String name = Component.translatable("nightsiege.perk." + perk.id).getString();
+            gui.text(font, name, x + 28, rowY + 4, color, true);
+            // Five pips for the five stages.
+            for (int i = 0; i < 5; i++) {
+                int px = x + 28 + i * 11;
+                int py = rowY + 15;
+                gui.fill(px, py, px + 9, py + 6, 0xFF000000);
+                gui.fill(px + 1, py + 1, px + 8, py + 5, i < perk.stage ? color : 0xFF3A3940);
+            }
+            String now = perk.stage <= 0 ? Component.translatable("nightsiege.ui.perk_none").getString()
+                    : perkEffect(perk.id, perk.stage);
+            gui.text(font, now, x + 100, rowY + 4, perk.stage > 0 ? WHITE : GRAY, true);
+            String next;
+            if (perk.nextAt <= 0) {
+                next = Component.translatable("nightsiege.ui.perk_max").getString();
+            } else {
+                next = Component.translatable("nightsiege.ui.perk_next", perk.fragments - perk.stageAt,
+                        perk.nextAt - perk.stageAt, perkEffect(perk.id, perk.stage + 1)).getString();
+            }
+            gui.text(font, next, x + 100, rowY + 15, GRAY, true);
+            // Bar to the next stage on the right.
+            int barW = 60;
+            int bx = x + w - barW - 8;
+            int by = rowY + 6;
+            gui.fill(bx, by, bx + barW, by + 5, 0xFF000000);
+            int span = Math.max(1, perk.nextAt - perk.stageAt);
+            int filled = perk.nextAt <= 0 ? barW - 2 : (barW - 2) * (perk.fragments - perk.stageAt) / span;
+            gui.fill(bx + 1, by + 1, bx + 1 + filled, by + 4, color);
+            String count = perk.fragments + "/15";
+            gui.text(font, count, bx + barW - font.width(count), by + 9, GRAY, true);
+            rowY += rowH;
+        }
+    }
+
+    private static String perkEffect(String id, int stage) {
+        return switch (id) {
+            case "vitality" -> Component.translatable("nightsiege.perk.vitality.now", 2 * stage).getString();
+            case "bulwark" -> Component.translatable("nightsiege.perk.bulwark.now", stage, 5 * stage).getString();
+            case "tides" -> Component.translatable(stage >= 3 ? "nightsiege.perk.tides.now2" : "nightsiege.perk.tides.now1").getString();
+            case "flame" -> Component.translatable(stage >= 3 ? "nightsiege.perk.flame.now_fire" : "nightsiege.perk.flame.now",
+                    10 * stage).getString();
+            case "vigilance" -> Component.translatable("nightsiege.perk.vigilance.now", 10 * stage, 10 * stage).getString();
+            default -> "";
+        };
     }
 
     /** The tally as four cards: next siege, wave strength, record and ranking. */
@@ -792,7 +871,7 @@ public class CoreScreen extends Screen {
         return String.format(Locale.ROOT, "%.2f", value);
     }
 
-    private static ItemStack iconOf(String itemId) {
+    static ItemStack iconOf(String itemId) {
         Identifier id = Identifier.tryParse(itemId == null ? "" : itemId);
         if (id == null || !BuiltInRegistries.ITEM.containsKey(id)) {
             return ItemStack.EMPTY;

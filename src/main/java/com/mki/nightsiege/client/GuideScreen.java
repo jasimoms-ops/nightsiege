@@ -30,7 +30,7 @@ import java.util.List;
 public class GuideScreen extends Screen {
 
     private static final int W = 404;
-    private static final int H = 244;
+    private static final int H = 248;
     private static final int BANNER = 26;
     private static final int SIDEBAR = 122;
     private static final int GOLD = 0xFFFFC94A;
@@ -54,6 +54,8 @@ public class GuideScreen extends Screen {
             new Chapter("engineer", "nightsiege:arrow_turret"),
             new Chapter("traps", "nightsiege:spike_trap"),
             new Chapter("infernite", "nightsiege:infernite_ingot"),
+            new Chapter("dungeons", "nightsiege:dungeon_map"),
+            new Chapter("perks", "nightsiege:core_fragment_vigilance"),
             new Chapter("commands", "minecraft:command_block"));
 
     /** One drawn line of a chapter. */
@@ -94,7 +96,7 @@ public class GuideScreen extends Screen {
                 chapter = index;
                 page = 0;
                 rebuildWidgets();
-            }).bounds(sidebarX(), rowY(i), SIDEBAR - 4, 13).build();
+            }).bounds(sidebarX(), rowY(i), SIDEBAR - 4, 12).build();
             button.setAlpha(0f);
             addRenderableWidget(button);
         }
@@ -143,7 +145,7 @@ public class GuideScreen extends Screen {
     }
 
     private int rowY(int index) {
-        return innerY() + 3 + index * 13;
+        return innerY() + 3 + index * 12;
     }
 
     private int contentX() {
@@ -285,20 +287,20 @@ public class GuideScreen extends Screen {
         for (int i = 0; i < CHAPTERS.size(); i++) {
             int y = rowY(i);
             boolean active = i == chapter;
-            boolean hover = mouseX >= x && mouseX < x + SIDEBAR - 4 && mouseY >= y && mouseY < y + 13;
+            boolean hover = mouseX >= x && mouseX < x + SIDEBAR - 4 && mouseY >= y && mouseY < y + 12;
             if (active) {
-                gui.fill(x, y, x + SIDEBAR - 6, y + 13, 0x60FFC94A);
-                gui.fill(x, y, x + 2, y + 13, GOLD);
+                gui.fill(x, y, x + SIDEBAR - 6, y + 12, 0x60FFC94A);
+                gui.fill(x, y, x + 2, y + 12, GOLD);
             } else if (hover) {
-                gui.fill(x, y, x + SIDEBAR - 6, y + 13, 0x30FFFFFF);
+                gui.fill(x, y, x + SIDEBAR - 6, y + 12, 0x30FFFFFF);
             }
             gui.pose().pushMatrix();
-            gui.pose().translate(x + 4, y + 1);
+            gui.pose().translate(x + 4, y + 0.5f);
             gui.pose().scale(0.7f, 0.7f);
             gui.item(iconOf(CHAPTERS.get(i).icon()), 0, 0);
             gui.pose().popMatrix();
             String name = Component.translatable("nightsiege.guide." + CHAPTERS.get(i).id() + ".title").getString();
-            gui.text(font, name, x + 18, y + 3, active ? 0xFFFFFFFF : hover ? 0xFFE0DCE8 : MUTED, true);
+            gui.text(font, name, x + 18, y + 2, active ? 0xFFFFFFFF : hover ? 0xFFE0DCE8 : MUTED, true);
         }
     }
 

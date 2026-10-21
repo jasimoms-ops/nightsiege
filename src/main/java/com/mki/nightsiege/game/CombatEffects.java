@@ -62,6 +62,10 @@ public final class CombatEffects {
     private final TrapService traps;
     private final Random random = new Random();
 
+    /** Multiplier on the ultimate cooldown, set by the vigilance perk. */
+    private java.util.function.ToDoubleFunction<ServerPlayer> cooldownScale = player -> 1.0;
+    /** Extra share of arrow damage, set by the flame perk. */
+    private java.util.function.ToDoubleFunction<ServerPlayer> arrowBonus = player -> 0.0;
     private final Map<UUID, Long> ultReadyAt = new HashMap<>();
     /** Length of the cooldown last started, for the shading in the hotbar slot. */
     private final Map<UUID, Integer> ultTotal = new HashMap<>();
@@ -146,7 +150,8 @@ public final class CombatEffects {
         };
         if (fired) {
             // In creative the ultimate is for trying out: only a short pause.
-            int cooldown = player.getAbilities().instabuild ? 40 : cooldownFor(rank);
+            int cooldown = player.getAbilities().instabuild ? 40
+                    : (int) Math.round(cooldownFor(rank) * cooldownScale.applyAsDouble(player));
             ultReadyAt.put(player.getUUID(), now + cooldown);
             ultTotal.put(player.getUUID(), cooldown);
             actionBar(player, Component.translatable("nightsiege.msg.ult_fired",
@@ -434,6 +439,9 @@ public final class CombatEffects {
                     arrowHit(level, player, skills, victim, arrow, taken, now);
                 }
             }
+            if (source.getDirectEntity() instanceof AbstractArrow) {
+                extra += taken * arrowBonus.applyAsDouble(player);
+            }
             if (extra > 0.05 && victim.isAlive()) {
                 bonusHit(level, victim, level.damageSources().playerAttack(player), (float) extra);
             }
@@ -642,6 +650,14 @@ public final class CombatEffects {
     /** Full cooldown at this rank. */
     public static int cooldownFor(int rank) {
         return 600 - 100 * Math.max(1, rank);
+    }
+
+    public void setArrowBonus(java.util.function.ToDoubleFunction<ServerPlayer> bonus) {
+        this.arrowBonus = bonus;
+    }
+
+    public void setCooldownScale(java.util.function.ToDoubleFunction<ServerPlayer> scale) {
+        this.cooldownScale = scale;
     }
 
     public void forget(UUID player) {

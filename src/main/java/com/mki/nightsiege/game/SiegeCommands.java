@@ -6,6 +6,8 @@ import com.mki.nightsiege.core.AnchorPicker;
 import com.mki.nightsiege.core.MobEntry;
 import com.mki.nightsiege.core.PlayerSkills;
 import com.mki.nightsiege.core.SkillNode;
+import com.mki.nightsiege.core.DungeonType;
+import com.mki.nightsiege.core.PerkKind;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
@@ -52,6 +54,35 @@ public final class SiegeCommands {
                         .executes(SiegeCommands::stop))
                 .then(Commands.literal("reload").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                         .executes(SiegeCommands::reload))
+                .then(Commands.literal("dungeon").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                        .then(Commands.literal("list").executes(SiegeCommands::dungeonList))
+                        .then(Commands.literal("tp")
+                                .then(Commands.argument("art", StringArgumentType.word()).suggests(SiegeCommands::suggestDungeons)
+                                        .executes(SiegeCommands::dungeonTp)))
+                        .then(Commands.literal("start")
+                                .then(Commands.argument("art", StringArgumentType.word()).suggests(SiegeCommands::suggestDungeons)
+                                        .executes(ctx -> dungeonStart(ctx, -1, null))
+                                        .then(Commands.argument("wellen", IntegerArgumentType.integer(1, 9))
+                                                .executes(ctx -> dungeonStart(ctx, IntegerArgumentType.getInteger(ctx, "wellen"), null))
+                                                .then(Commands.argument("stufe", StringArgumentType.word())
+                                                        .suggests((c, b) -> net.minecraft.commands.SharedSuggestionProvider.suggest(
+                                                                java.util.List.of("easy", "medium", "hard", "nether"), b))
+                                                        .executes(ctx -> dungeonStart(ctx, IntegerArgumentType.getInteger(ctx, "wellen"),
+                                                                StringArgumentType.getString(ctx, "stufe")))))))
+                        .then(Commands.literal("reset").executes(ctx -> dungeonReset(ctx, null))
+                                .then(Commands.argument("art", StringArgumentType.word()).suggests(SiegeCommands::suggestDungeons)
+                                        .executes(ctx -> dungeonReset(ctx, StringArgumentType.getString(ctx, "art")))))
+                        .then(Commands.literal("perk")
+                                .then(Commands.argument("perk", StringArgumentType.word())
+                                        .suggests((c, b) -> {
+                                            java.util.List<String> ids = new java.util.ArrayList<>();
+                                            for (PerkKind kind : PerkKind.values()) {
+                                                ids.add(kind.id());
+                                            }
+                                            return net.minecraft.commands.SharedSuggestionProvider.suggest(ids, b);
+                                        })
+                                        .then(Commands.argument("stufe", IntegerArgumentType.integer(0, PerkKind.MAX_STAGE))
+                                                .executes(SiegeCommands::perkSet)))))
                 .then(Commands.literal("dev")
                         .then(Commands.literal("reset").executes(SiegeCommands::devReset))
                         .then(Commands.argument("punkte", IntegerArgumentType.integer(1, 100000))
@@ -264,6 +295,116 @@ public final class SiegeCommands {
         }
         SiegeManager.get().devResetClass(player);
         reply(source, Component.translatable("nightsiege.cmd.dev_reset"));
+        return 1;
+    }
+
+    private static java.util.concurrent.CompletableFuture<com.mojang.brigadier.suggestion.Suggestions> suggestDungeons(
+            CommandContext<CommandSourceStack> ctx, com.mojang.brigadier.suggestion.SuggestionsBuilder builder) {
+        java.util.List<String> keys = new java.util.ArrayList<>();
+        for (DungeonType type : SiegeManager.get().config().dungeons) {
+            keys.add(type.key);
+        }
+        return net.minecraft.commands.SharedSuggestionProvider.suggest(keys, builder);
+    }
+
+    private static DungeonType dungeonArg(CommandContext<CommandSourceStack> ctx) {
+        String key = StringArgumentType.getString(ctx, "art");
+        DungeonType type = DungeonType.byKey(SiegeManager.get().config().dungeons, key);
+        if (type == null) {
+            fail(ctx.getSource(), Component.translatable("nightsiege.cmd.dungeon_unknown", key));
+        }
+        return type;
+    }
+
+    private static int dungeonList(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        SiegeManager manager = SiegeManager.get();
+        DungeonToolState state = manager.dungeons().toolState(source.getLevel());
+        for (DungeonToolState.Entry entry : state.entries) {
+            Component line = Component.literal(entry.installed ? "● " : "○ ")
+                    .withStyle(entry.installed ? net.minecraft.ChatFormatting.GREEN : net.minecraft.ChatFormatting.DARK_GRAY)
+                    .append(Component.literal(entry.key + " ").withStyle(net.minecraft.ChatFormatting.WHITE))
+                    .append(Component.literal("[" + entry.tier.toLowerCase(java.util.Locale.ROOT) + ", "
+                            + entry.theme.toLowerCase(java.util.Locale.ROOT) + "] ").withStyle(net.minecraft.ChatFormatting.GRAY))
+                    .append(Component.translatable("nightsiege.cmd.dungeon_line", entry.found, entry.beaten)
+                            .withStyle(net.minecraft.ChatFormatting.DARK_AQUA));
+            reply(source, line);
+        }
+        StringBuilder perks = new StringBuilder();
+        for (PerkKind kind : PerkKind.values()) {
+            perks.append(kind.id()).append(' ').append(PerkService.roman(manager.perks().stage(kind)))
+                    .append(" (").append(manager.perks().fragments(kind)).append(")  ");
+        }
+        reply(source, Component.literal(perks.toString().trim()).withStyle(net.minecraft.ChatFormatting.LIGHT_PURPLE));
+        return 1;
+    }
+
+    private static int dungeonTp(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        ServerPlayer player = source.getPlayer();
+        DungeonType type = dungeonArg(ctx);
+        if (player == null || type == null) {
+            if (player == null) {
+                fail(source, Component.translatable("nightsiege.cmd.player_only"));
+            }
+            return 0;
+        }
+        reply(source, SiegeManager.get().dungeons().travel(player, type));
+        SiegeManager.get().persist();
+        return 1;
+    }
+
+    private static int dungeonStart(CommandContext<CommandSourceStack> ctx, int waves, String tierName) {
+        CommandSourceStack source = ctx.getSource();
+        ServerPlayer player = source.getPlayer();
+        DungeonType type = dungeonArg(ctx);
+        if (player == null || type == null) {
+            if (player == null) {
+                fail(source, Component.translatable("nightsiege.cmd.player_only"));
+            }
+            return 0;
+        }
+        com.mki.nightsiege.core.DungeonTier tier = tierName == null ? type.tier()
+                : com.mki.nightsiege.core.DungeonTier.byName(tierName);
+        if (tier == null) {
+            tier = type.tier();
+        }
+        SiegeManager.get().dungeons().startTest(player, type, waves < 1 ? tier.waves() : waves, tier, 0, true,
+                type.theme(), null);
+        return 1;
+    }
+
+    private static int dungeonReset(CommandContext<CommandSourceStack> ctx, String key) {
+        CommandSourceStack source = ctx.getSource();
+        DungeonType type = null;
+        if (key != null) {
+            type = DungeonType.byKey(SiegeManager.get().config().dungeons, key);
+            if (type == null) {
+                fail(source, Component.translatable("nightsiege.cmd.dungeon_unknown", key));
+                return 0;
+            }
+        }
+        int count = SiegeManager.get().dungeons().reset(source.getServer(), type);
+        SiegeManager.get().persist();
+        reply(source, Component.translatable("nightsiege.dungeon.reset_done", count));
+        return 1;
+    }
+
+    private static int perkSet(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        PerkKind kind = PerkKind.byId(StringArgumentType.getString(ctx, "perk"));
+        if (kind == null) {
+            fail(source, Component.translatable("nightsiege.cmd.perk_unknown"));
+            return 0;
+        }
+        int stage = IntegerArgumentType.getInteger(ctx, "stufe");
+        SiegeSave save = SiegeManager.get().save();
+        if (save.perkFragments == null) {
+            save.perkFragments = new java.util.HashMap<>();
+        }
+        save.perkFragments.put(kind.id(), PerkKind.fragmentsFor(stage));
+        SiegeManager.get().persist();
+        reply(source, Component.translatable("nightsiege.cmd.perk_set", PerkService.perkName(kind), PerkService.roman(stage)));
         return 1;
     }
 

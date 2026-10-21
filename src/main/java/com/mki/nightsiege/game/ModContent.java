@@ -66,6 +66,7 @@ public final class ModContent {
         Registry.register(BuiltInRegistries.ITEM, guideKey, GUIDE);
 
         InferniteContent.register();
+        DungeonContent.register();
 
         // Everything the mod adds lives on its own creative page.
         ResourceKey<CreativeModeTab> tabKey = ResourceKey.create(Registries.CREATIVE_MODE_TAB, id("general"));
@@ -79,6 +80,9 @@ public final class ModContent {
                         output.accept(TRAP_ITEMS.get(kind));
                     }
                     for (Item item : InferniteContent.creativeItems()) {
+                        output.accept(item);
+                    }
+                    for (Item item : DungeonContent.creativeItems()) {
                         output.accept(item);
                     }
                 })

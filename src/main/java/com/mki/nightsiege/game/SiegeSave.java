@@ -16,6 +16,12 @@ import java.util.Map;
 public class SiegeSave {
     public List<CoreRecord> cores = new ArrayList<>();
     public List<TrapRecord> traps = new ArrayList<>();
+    /** Dungeon cores placed in structures so far. */
+    public List<DungeonRecord> dungeons = new ArrayList<>();
+    /** Structures a dungeon map pointed at: these always hold a core. Entries are "dimension|chunkX|chunkZ". */
+    public List<String> forcedDungeons = new ArrayList<>();
+    /** Core fragments inserted into the main core, per perk id. */
+    public Map<String, Integer> perkFragments = new HashMap<>();
     /** True once the free starter core has been handed out in this world. */
     public boolean starterCoreGiven;
     /** Uuids of players who already received the guide book. */

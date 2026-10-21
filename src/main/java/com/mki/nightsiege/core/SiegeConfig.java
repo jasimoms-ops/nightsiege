@@ -135,6 +135,16 @@ public class SiegeConfig {
     // --- mobs -------------------------------------------------------------
     public List<MobEntry> mobs = defaultMobs();
 
+    /** Dungeon cores hidden in structures of other mods. */
+    public boolean dungeonsEnabled = true;
+    /** Version of the dungeon list in this file. Older lists are replaced on load. */
+    public int dungeonListVersion = 0;
+    public static final int CURRENT_DUNGEON_LIST = 1;
+    /** Which structures hold dungeons, how hard they are and what lives there. */
+    public List<DungeonType> dungeons = DungeonType.defaults();
+    /** Perks from core fragments work within this many blocks of the main core. */
+    public double perkRadius = 64.0;
+
     /** Raised whenever the default mob list changes, so old config files get the new list. */
     public static final int CURRENT_MOB_LIST = 2;
     /** Version of the mob list in this file. Older lists are replaced on load. */
@@ -263,6 +273,12 @@ public class SiegeConfig {
         if (mobs == null || mobs.isEmpty()) {
             mobs = defaultMobs();
         }
+        if (dungeons == null || dungeonListVersion < CURRENT_DUNGEON_LIST) {
+            dungeons = DungeonType.defaults();
+            dungeonListVersion = CURRENT_DUNGEON_LIST;
+        }
+        dungeons.removeIf(d -> d == null || d.key == null || d.key.isBlank() || d.structure == null);
+        perkRadius = clampDouble(perkRadius, 8.0, 512.0);
         if (mobListVersion < CURRENT_MOB_LIST) {
             mobs = defaultMobs();
             mobListVersion = CURRENT_MOB_LIST;
