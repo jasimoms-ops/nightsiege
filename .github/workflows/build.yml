@@ -144,6 +144,7 @@ jobs:
           for i in $(seq 1 120); do
             if grep -q "Testszene aufgebaut" client-output.txt 2>/dev/null; then JOINED=1; break; fi
             if ! kill -0 $CLIENT 2>/dev/null; then break; fi
+            if [ $((i % 12)) = 0 ]; then import -window root "shots/wait_$i.png" || true; fi
             sleep 5
           done
           echo "joined=$JOINED"
@@ -162,8 +163,11 @@ jobs:
           python3 - <<'PY'
           import re
           text = open("client-output.txt", encoding="utf-8", errors="replace").read()
-          pat = re.compile(r"(ERROR|Exception|Caused by|Mixin|mixin|Failed|nightsiege|Night Siege|OpenGL|GL_|Backend|joined|Testszene|crash)", re.I)
-          lines = [l.rstrip()[:400] for l in text.splitlines() if pat.search(l)]
+          pat = re.compile(r"(ERROR|Exception|Caused by|Mixin|mixin|Failed|nightsiege|Night Siege|OpenGL|Backend|joined|Testszene|crash|quickplay|Preparing|Starting integrated|Loaded|Created|Stopping)", re.I)
+          noise = re.compile(r"(ALSA|flite|narrator|Narrator|Suppressed|Realms|SignedJWT|libflite|resource path)")
+          lines = [l.rstrip()[:300] for l in text.splitlines() if pat.search(l) and not noise.search(l)]
+          tail = [l.rstrip()[:300] for l in text.splitlines() if not noise.search(l)][-45:]
+          print("::warning title=CLIENT-TAIL::" + "%0A".join(tail))
           started = any("Testszene" in l for l in lines)
           print("::notice title=CLIENTSTART::%s" % ("Welt geladen" if started else "NICHT bis in die Welt"))
           chunk, size, part = [], 0, 1
