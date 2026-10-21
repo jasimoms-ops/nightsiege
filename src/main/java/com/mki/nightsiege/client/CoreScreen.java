@@ -33,7 +33,9 @@ import java.util.Locale;
 public class CoreScreen extends Screen {
 
     private static final int W = 404;
-    private static final int H = 232;
+    private static final int H = 244;
+    /** Height of the dark banner with the big title. */
+    private static final int BANNER = 26;
     private static final int TAB_W = 28;
     private static final int TAB_H = 26;
     private static final int SLOT = 26;
@@ -61,21 +63,25 @@ public class CoreScreen extends Screen {
     private static final int EDGE_BOTTOM = 0x5028007F;
 
     private enum Tab {
-        STATS(null, "minecraft:clock", "minecraft:textures/block/deepslate_tiles.png"),
-        ARCHER(SkillClass.ARCHER, "minecraft:bow", "minecraft:textures/block/spruce_planks.png"),
-        WARRIOR(SkillClass.WARRIOR, "minecraft:iron_sword", "minecraft:textures/block/stone_bricks.png"),
-        GUARDIAN(SkillClass.GUARDIAN, "minecraft:shield", "minecraft:textures/block/polished_andesite.png"),
-        ENGINEER(SkillClass.ENGINEER, "nightsiege:arrow_turret", "minecraft:textures/block/cut_copper.png"),
-        CORE(SkillClass.CORE, "nightsiege:siege_core", "minecraft:textures/block/obsidian.png");
+        STATS(null, "minecraft:clock", "minecraft:textures/block/deepslate_tiles.png", 0xFFFFC94A, "stats"),
+        ARCHER(SkillClass.ARCHER, "minecraft:bow", "minecraft:textures/block/spruce_planks.png", 0xFF8BD45C, "archer"),
+        WARRIOR(SkillClass.WARRIOR, "minecraft:iron_sword", "minecraft:textures/block/stone_bricks.png", 0xFFFF6B4A, "warrior"),
+        GUARDIAN(SkillClass.GUARDIAN, "minecraft:shield", "minecraft:textures/block/polished_andesite.png", 0xFF6FA8FF, "guardian"),
+        ENGINEER(SkillClass.ENGINEER, "nightsiege:arrow_turret", "minecraft:textures/block/cut_copper.png", 0xFFF0A040, "engineer"),
+        CORE(SkillClass.CORE, "nightsiege:siege_core", "minecraft:textures/block/obsidian.png", 0xFFC88CFF, "core");
 
         final SkillClass clazz;
         final String icon;
         final Identifier backdrop;
+        final int color;
+        final String key;
 
-        Tab(SkillClass clazz, String icon, String backdrop) {
+        Tab(SkillClass clazz, String icon, String backdrop, int color, String key) {
             this.clazz = clazz;
             this.icon = icon;
             this.backdrop = Identifier.parse(backdrop);
+            this.color = color;
+            this.key = key;
         }
     }
 
@@ -88,6 +94,10 @@ public class CoreScreen extends Screen {
     /** Class waiting for the player to confirm the choice; null when no dialog is open. */
     private SkillClass confirming;
     private final List<NodeButton> nodeButtons = new ArrayList<>();
+    /** Top edge of each path's row, for the highlight behind the player's own path. */
+    private final java.util.Map<String, Integer> pathRows = new java.util.HashMap<>();
+    private int treeLeft;
+    private int treeRight;
     private int left;
     private int top;
 
@@ -151,6 +161,7 @@ public class CoreScreen extends Screen {
         left = (this.width - W) / 2;
         top = (this.height - H - TAB_H + 4) / 2 + TAB_H - 4;
         nodeButtons.clear();
+        pathRows.clear();
         if (activeTab == null) {
             Tab own = ownTab();
             activeTab = own != null ? own : Tab.STATS;
@@ -224,7 +235,7 @@ public class CoreScreen extends Screen {
     }
 
     private int innerY() {
-        return top + 18;
+        return top + 6 + BANNER;
     }
 
     private int innerW() {
@@ -232,7 +243,7 @@ public class CoreScreen extends Screen {
     }
 
     private int innerH() {
-        return H - 18 - 30;
+        return H - 6 - BANNER - 30;
     }
 
     /** The tree from left to right: trunk on the left, one row per path. */
@@ -252,6 +263,8 @@ public class CoreScreen extends Screen {
         int spacing = maxColumn == 0 ? 0 : Math.min(92, (innerW() - 60 - SLOT) / maxColumn);
         int treeW = maxColumn * spacing + SLOT;
         int x0 = innerX() + (innerW() - treeW) / 2;
+        treeLeft = x0;
+        treeRight = x0 + treeW;
         int areaTop = innerY() + 20;
         int areaH = innerH() - 24;
         int rowsTop = areaTop + (areaH - rows * ROW_H) / 2;
@@ -265,6 +278,9 @@ public class CoreScreen extends Screen {
             int x = x0 + node.row * spacing;
             int y = rowsTop + (int) Math.round(row * ROW_H) + (ROW_H - SLOT) / 2 - 4;
             nodeButtons.add(new NodeButton(node, x, y));
+            if (index >= 0) {
+                pathRows.putIfAbsent(node.path, y);
+            }
             if (buyable) {
                 invisible(Button.builder(Component.empty(), b -> send("buy:" + node.id))
                         .bounds(x, y, SLOT, SLOT).build());
@@ -295,6 +311,7 @@ public class CoreScreen extends Screen {
             gui.text(font, Component.translatable("nightsiege.ui.skills_off"), innerX() + 8, innerY() + 8, GRAY, true);
         } else {
             drawTreeHeader(gui, font);
+            drawPathBand(gui, font);
             drawConnections(gui);
             hovered = drawNodes(gui, font, mouseX, mouseY);
         }
@@ -366,8 +383,56 @@ public class CoreScreen extends Screen {
         gui.fill(left + 1, top + 1, left + 3, y2 - 1, FRAME_LIGHT);
         gui.fill(left + 1, y2 - 3, x2 - 1, y2 - 1, FRAME_SHADOW);
         gui.fill(x2 - 3, top + 1, x2 - 1, y2 - 1, FRAME_SHADOW);
-        String title = Component.translatable("nightsiege.ui.title").getString() + " - " + tabName(activeTab);
-        gui.text(font, title, left + 9, top + 6, TITLE, false);
+        drawBanner(gui, font);
+    }
+
+    /** A dark strip across the top: the tab's icon, its name large in the tab's colour, a tagline. */
+    private void drawBanner(GuiGraphicsExtractor gui, Font font) {
+        int x1 = left + 4;
+        int x2 = left + W - 4;
+        int y1 = top + 4;
+        int y2 = y1 + BANNER;
+        gui.fill(x1, y1, x2, y2, 0xFF17161B);
+        // The tab's colour glows in from the left and fades out.
+        int rgb = activeTab.color & 0xFFFFFF;
+        int strips = 48;
+        int span = (x2 - x1) * 2 / 3;
+        for (int i = 0; i < strips; i++) {
+            int alpha = (int) (0x58 * (1.0 - i / (double) strips));
+            int sx = x1 + span * i / strips;
+            int ex = x1 + span * (i + 1) / strips;
+            gui.fill(sx, y1, ex, y2, (alpha << 24) | rgb);
+        }
+        gui.fill(x1, y2 - 1, x2, y2, 0xFF000000 | rgb);
+        gui.fill(x1, y1, x2, y1 + 1, 0x40FFFFFF);
+
+        gui.item(iconOf(activeTab.icon), x1 + 6, y1 + 5);
+        String name = bannerName(activeTab);
+        gui.pose().pushMatrix();
+        gui.pose().translate(x1 + 28, y1 + 5);
+        gui.pose().scale(2.0f, 2.0f);
+        gui.text(font, name, 0, 0, activeTab.color, true);
+        gui.pose().popMatrix();
+        String tagline = Component.translatable("nightsiege.ui.banner_sub." + activeTab.key).getString();
+        int tx = x1 + 28 + font.width(name) * 2 + 10;
+        gui.text(font, tagline, tx, y1 + 12, 0xFFB8B4C0, true);
+
+        String badge = null;
+        if (activeTab.clazz != null && activeTab == ownTab()) {
+            badge = Component.translatable("nightsiege.ui.your_class").getString();
+        } else if (activeTab == Tab.CORE) {
+            badge = Component.translatable("nightsiege.ui.banner_pot", stats.corePoints).getString();
+        }
+        if (badge != null) {
+            gui.text(font, badge, x2 - 8 - font.width(badge), y1 + 9, 0xFFFFD86B, true);
+        }
+    }
+
+    private String bannerName(Tab tab) {
+        if (tab == Tab.STATS) {
+            return Component.translatable("nightsiege.ui.banner_title.stats").getString();
+        }
+        return Component.translatable(tab.clazz.translationKey()).getString();
     }
 
     /** The tab's own block texture, tiled like the advancement backgrounds. */
@@ -406,6 +471,22 @@ public class CoreScreen extends Screen {
                     Component.translatable("nightsiege.class." + stats.myClass.toLowerCase(Locale.ROOT))).getString();
         }
         gui.text(font, line, x, y, activeTab == Tab.CORE || activeTab == ownTab() ? GOLD : GRAY, true);
+    }
+
+    /** A soft band in the class colour behind the path the player took. */
+    private void drawPathBand(GuiGraphicsExtractor gui, Font font) {
+        if (activeTab != ownTab() || stats.pathTaken == null || stats.pathTaken.isBlank()) {
+            return;
+        }
+        Integer y = pathRows.get(stats.pathTaken);
+        if (y == null) {
+            return;
+        }
+        int rgb = activeTab.color & 0xFFFFFF;
+        int x1 = treeLeft + 92 - 12;
+        int x2 = Math.min(innerX() + innerW() - 2, treeRight + 12);
+        gui.fill(x1, y - 4, x2, y + SLOT + 12, 0x38000000 | rgb);
+        gui.fill(x1, y - 4, x1 + 2, y + SLOT + 12, 0xC0000000 | rgb);
     }
 
     /** Lines like the advancement screen: a black outline with a white core. */
@@ -508,50 +589,130 @@ public class CoreScreen extends Screen {
         gui.text(font, text, cx - font.width(text) / 2, y, color, false);
     }
 
+    /** The tally as four cards: next siege, wave strength, record and ranking. */
     private void drawStats(GuiGraphicsExtractor gui, Font font) {
-        int x = innerX() + 8;
-        int y = innerY() + 8;
+        int gap = 6;
+        int colW = (innerW() - 3 * gap) / 2;
+        int cardH = (innerH() - 3 * gap) / 2;
+        int xL = innerX() + gap;
+        int xR = xL + colW + gap;
+        int yT = innerY() + gap;
+        int yB = yT + cardH + gap;
+        drawNextSiege(gui, font, xL, yT, colW, cardH);
+        drawWaveStrength(gui, font, xL, yB, colW, cardH);
+        drawRecord(gui, font, xR, yT, colW, cardH);
+        drawRanking(gui, font, xR, yB, colW, cardH);
+    }
 
+    /** A dark translucent card with a coloured title strip. */
+    private int card(GuiGraphicsExtractor gui, Font font, int x, int y, int w, int h, String titleKey, int color) {
+        gui.fill(x, y, x + w, y + h, 0xC0121116);
+        gui.fill(x, y, x + w, y + 1, 0x60FFFFFF);
+        gui.fill(x, y + h - 1, x + w, y + h, 0x80000000);
+        gui.fill(x, y + 1, x + 2, y + h - 1, color);
+        gui.text(font, Component.translatable(titleKey).getString(), x + 7, y + 4, color, true);
+        gui.fill(x + 7, y + 14, x + w - 7, y + 15, 0x30FFFFFF);
+        return y + 19;
+    }
+
+    private void drawNextSiege(GuiGraphicsExtractor gui, Font font, int x, int y, int w, int h) {
+        int cy = card(gui, font, x, y, w, h, "nightsiege.ui.card_next", Tab.STATS.color);
+        gui.pose().pushMatrix();
+        gui.pose().translate(x + 8, cy);
+        gui.pose().scale(1.5f, 1.5f);
+        String level = Component.translatable("nightsiege.ui.stat_level", stats.level).getString();
+        gui.text(font, level, 0, 0, stats.siegeActive ? RED : WHITE, true);
+        gui.pose().popMatrix();
+        cy += 17;
         if (stats.siegeActive) {
-            y = line(gui, font, x, y, Component.translatable("nightsiege.ui.active",
-                    stats.level, stats.secondsLeft).getString(), RED);
-        } else {
-            y = line(gui, font, x, y, Component.translatable("nightsiege.ui.countdown",
-                    stats.countdownPercent, stats.countdownMinutesLeft).getString(),
-                    stats.clockRunning ? GREEN : GRAY);
-            y = line(gui, font, x, y, Component.translatable(
-                    stats.clockRunning ? "nightsiege.ui.clock_running" : "nightsiege.ui.clock_paused",
-                    stats.playersNear, stats.playersRequired, stats.coreRadius).getString(),
-                    stats.clockRunning ? GREEN : RED);
+            gui.text(font, Component.translatable("nightsiege.ui.stat_active").getString(), x + 8, cy, RED, true);
+            gui.text(font, Component.translatable("nightsiege.ui.stat_time_left", clock(stats.secondsLeft)).getString(),
+                    x + 8, cy + 12, GRAY, true);
+            return;
         }
-        y += 4;
-        y = line(gui, font, x, y, Component.translatable("nightsiege.ui.wave",
-                stats.level, stats.mobsPerWave, stats.maxLiveMobs).getString(), WHITE);
-        y = line(gui, font, x, y, Component.translatable("nightsiege.ui.strength",
-                fmt(stats.healthMultiplier), fmt(stats.damageMultiplier)).getString(), GRAY);
-        y += 4;
-        y = line(gui, font, x, y, Component.translatable("nightsiege.ui.record",
-                stats.siegesWon, stats.siegesLost, stats.currentStreak, stats.bestStreak).getString(), WHITE);
-        y = line(gui, font, x, y, Component.translatable("nightsiege.ui.totals",
-                stats.totalKills, stats.totalChampionKills, stats.highestLevelReached).getString(), GRAY);
+        // Countdown bar.
+        int barX = x + 8;
+        int barW = w - 16;
+        gui.fill(barX - 1, cy - 1, barX + barW + 1, cy + 7, 0xFF000000);
+        gui.fill(barX, cy, barX + barW, cy + 6, 0xFF2A2830);
+        int filled = barW * Math.max(0, Math.min(100, stats.countdownPercent)) / 100;
+        gui.fill(barX, cy, barX + filled, cy + 6, stats.clockRunning ? 0xFF4FC24F : 0xFF8A6A2A);
+        gui.fill(barX, cy, barX + filled, cy + 1, 0x60FFFFFF);
+        cy += 10;
+        gui.text(font, Component.translatable("nightsiege.ui.stat_countdown",
+                stats.countdownPercent, stats.countdownMinutesLeft).getString(), x + 8, cy, GRAY, true);
+        cy += 12;
+        int dot = stats.clockRunning ? 0xFF55FF55 : 0xFFFF5555;
+        gui.fill(x + 8, cy + 2, x + 13, cy + 7, dot);
+        gui.text(font, Component.translatable("nightsiege.ui.stat_players",
+                stats.playersNear, stats.playersRequired).getString(), x + 17, cy, WHITE, true);
+        cy += 11;
+        gui.text(font, Component.translatable(stats.clockRunning ? "nightsiege.ui.stat_clock_on" : "nightsiege.ui.stat_clock_off",
+                stats.coreRadius).getString(), x + 17, cy, stats.clockRunning ? GREEN : GRAY, true);
+    }
 
-        y += 6;
-        gui.text(font, Component.translatable("nightsiege.ui.ranking").getString(), x, y, GOLD, true);
-        y += 12;
+    private void drawWaveStrength(GuiGraphicsExtractor gui, Font font, int x, int y, int w, int h) {
+        int cy = card(gui, font, x, y, w, h, "nightsiege.ui.card_waves", 0xFFFF6B4A);
+        String[][] rows = {
+                {"minecraft:zombie_head", "nightsiege.ui.wave_mobs", String.valueOf(stats.mobsPerWave)},
+                {"minecraft:golden_apple", "nightsiege.ui.wave_health", "x" + fmt(stats.healthMultiplier)},
+                {"minecraft:iron_sword", "nightsiege.ui.wave_damage", "x" + fmt(stats.damageMultiplier)},
+                {"minecraft:spawner", "nightsiege.ui.wave_max", String.valueOf(stats.maxLiveMobs)}};
+        for (String[] row : rows) {
+            gui.item(iconOf(row[0]), x + 6, cy - 3);
+            gui.text(font, Component.translatable(row[1]).getString(), x + 26, cy + 1, GRAY, true);
+            gui.text(font, row[2], x + w - 8 - font.width(row[2]), cy + 1, WHITE, true);
+            cy += 16;
+        }
+    }
+
+    private void drawRecord(GuiGraphicsExtractor gui, Font font, int x, int y, int w, int h) {
+        int cy = card(gui, font, x, y, w, h, "nightsiege.ui.card_record", 0xFF6FA8FF);
+        String[][] cells = {
+                {"nightsiege.ui.rec_won", String.valueOf(stats.siegesWon), "FF55FF55"},
+                {"nightsiege.ui.rec_lost", String.valueOf(stats.siegesLost), "FFFF5555"},
+                {"nightsiege.ui.rec_streak", stats.currentStreak + " (" + stats.bestStreak + ")", "FFFFFFFF"},
+                {"nightsiege.ui.rec_highest", String.valueOf(stats.highestLevelReached), "FFFFC94A"},
+                {"nightsiege.ui.rec_kills", String.valueOf(stats.totalKills), "FFFFFFFF"},
+                {"nightsiege.ui.rec_champs", String.valueOf(stats.totalChampionKills), "FFFFAA00"}};
+        int cellW = (w - 16) / 2;
+        for (int i = 0; i < cells.length; i++) {
+            int cx = x + 8 + (i % 2) * cellW;
+            int ry = cy + (i / 2) * 21;
+            gui.text(font, Component.translatable(cells[i][0]).getString(), cx, ry, 0xFF8C8894, true);
+            gui.text(font, cells[i][1], cx, ry + 10, (int) Long.parseLong(cells[i][2], 16), true);
+        }
+    }
+
+    private void drawRanking(GuiGraphicsExtractor gui, Font font, int x, int y, int w, int h) {
+        int cy = card(gui, font, x, y, w, h, "nightsiege.ui.card_ranking", 0xFFFFAA00);
+        int[] medal = {0xFFFFD700, 0xFFD0D0D8, 0xFFCD7F32};
         int shown = 0;
         for (CoreStats.PlayerLine player : stats.players) {
-            if (shown >= 6) {
+            if (shown >= 5) {
                 break;
             }
-            String row = Component.translatable("nightsiege.ui.player_row",
-                    player.name, player.kills, player.championKills, player.fallen).getString();
-            gui.text(font, row, x + 4, y, player.online ? WHITE : GRAY, true);
-            y += 11;
+            int color = shown < 3 ? medal[shown] : GRAY;
+            String rank = (shown + 1) + ".";
+            gui.text(font, rank, x + 8, cy, color, true);
+            String name = player.name;
+            int maxName = w - 100;
+            while (font.width(name) > maxName && name.length() > 3) {
+                name = name.substring(0, name.length() - 1);
+            }
+            gui.text(font, name, x + 22, cy, player.online ? WHITE : GRAY, true);
+            String score = Component.translatable("nightsiege.ui.rank_row", player.kills, player.championKills).getString();
+            gui.text(font, score, x + w - 8 - font.width(score), cy, color, true);
+            cy += 12;
             shown++;
         }
         if (shown == 0) {
-            gui.text(font, Component.translatable("nightsiege.ui.no_kills").getString(), x + 4, y, GRAY, true);
+            gui.text(font, Component.translatable("nightsiege.ui.rank_empty").getString(), x + 8, cy, GRAY, true);
         }
+    }
+
+    private static String clock(int seconds) {
+        return String.format(Locale.ROOT, "%d:%02d", seconds / 60, seconds % 60);
     }
 
     private void drawNodeTooltip(GuiGraphicsExtractor gui, Font font, CoreStats.NodeLine node, int mouseX, int mouseY) {
@@ -603,10 +764,6 @@ public class CoreScreen extends Screen {
         }
     }
 
-    private int line(GuiGraphicsExtractor gui, Font font, int x, int y, String text, int color) {
-        gui.text(font, text, x, y, color, true);
-        return y + 11;
-    }
 
     private static String fmt(double value) {
         return String.format(Locale.ROOT, "%.2f", value);
