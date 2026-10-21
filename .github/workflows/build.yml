@@ -70,7 +70,7 @@ jobs:
               f = [x for x in versions[0]["files"] if x.get("primary")] or versions[0]["files"]
               open("run-mods/" + f[0]["filename"], "wb").write(get(f[0]["url"]))
               print("::notice title=SHADERTEST::%s %s" % (slug, versions[0]["version_number"]))
-          for query in ("photon shader", "complementary reimagined"):
+          for query in ("complementary reimagined",):
               hits = json.loads(get("https://api.modrinth.com/v2/search?" + urllib.parse.urlencode(
                   {"query": query, "facets": json.dumps([["project_type:shader"]]), "limit": 3})))["hits"]
               if not hits:

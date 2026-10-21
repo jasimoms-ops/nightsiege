@@ -35,7 +35,9 @@ uniform sampler2D colortex4;
 // crash and die on Intel.
 shared vec3 shared_memory[32][9];
 #else
-shared vec3 shared_memory[256][9];
+// Night Siege: half the samples per slot, so the workgroup stays within the
+// 32 KiB of shared memory that OpenGL guarantees (36 KiB failed on some drivers)
+shared vec3 shared_memory[128][9];
 #endif
 
 uniform int worldTime;
@@ -134,9 +136,21 @@ void main() {
         }
     }
 #else
-    for (uint band = 0u; band < 9u; ++band) {
-        shared_memory[i][band] = radiance * coeff[band / 3u][band % 3u]
-            * (tau / float(sample_count));
+    // Night Siege: the lower half writes, then the upper half adds on top
+    if (i < 128u) {
+        for (uint band = 0u; band < 9u; ++band) {
+            shared_memory[i][band] = radiance * coeff[band / 3u][band % 3u]
+                * (tau / float(sample_count));
+        }
+    }
+
+    barrier();
+
+    if (i >= 128u) {
+        for (uint band = 0u; band < 9u; ++band) {
+            shared_memory[i - 128u][band] += radiance
+                * coeff[band / 3u][band % 3u] * (tau / float(sample_count));
+        }
     }
 
     barrier();
@@ -165,7 +179,6 @@ void main() {
     } \
     barrier();
 
-    PARALLEL_REDUCTION_ITER(128u)
     PARALLEL_REDUCTION_ITER(64u)
     PARALLEL_REDUCTION_ITER(32u)
     PARALLEL_REDUCTION_ITER(16u)
