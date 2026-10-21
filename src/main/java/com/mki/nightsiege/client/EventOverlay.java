@@ -39,11 +39,11 @@ public final class EventOverlay {
     static {
         // Dark, see-through tints: they colour the picture without lifting it.
         // Only the blood moon and the eclipse keep a thin dark edge.
-        LOOKS.put(EventAtmosphere.BLOOD_MOON, new Look(0x40700810, 0x70300004, tex("blood_moon"), false, 0.26f));
-        LOOKS.put(EventAtmosphere.ECLIPSE, new Look(0x30100818, 0x80000000, tex("eclipse_sun"), true, 0.34f));
+        LOOKS.put(EventAtmosphere.BLOOD_MOON, new Look(0x40700810, 0x70300004, tex("blood_moon"), false, 0.24f));
+        LOOKS.put(EventAtmosphere.ECLIPSE, new Look(0x30100818, 0x80000000, tex("eclipse_sun"), true, 0.30f));
         LOOKS.put(EventAtmosphere.FOG, new Look(0x30303438, 0, tex("fog_moon"), false, 0.24f));
         LOOKS.put(EventAtmosphere.FROST, new Look(0x1E10203A, 0, tex("frost_moon"), false, 0.24f));
-        LOOKS.put(EventAtmosphere.NETHER_RIFT, new Look(0x34501008, 0, tex("rift_moon"), false, 0.26f));
+        LOOKS.put(EventAtmosphere.NETHER_RIFT, new Look(0x34501008, 0, tex("rift_moon"), false, 0.24f));
         LOOKS.put(EventAtmosphere.THUNDER, new Look(0x24182030, 0, null, false, 0f));
         LOOKS.put(EventAtmosphere.AURORA, new Look(0x0C103828, 0, null, false, 0f));
     }

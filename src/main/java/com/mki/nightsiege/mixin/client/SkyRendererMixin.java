@@ -82,7 +82,7 @@ public abstract class SkyRendererMixin {
     private void nightsiege$eclipseSun(float rainBrightness, PoseStack poseStack, CallbackInfo ci) {
         float s = EventAtmosphere.clientStrength(EventAtmosphere.ECLIPSE);
         if (s > 0.01f && nightsiege$eclipse != null && !EventAtmosphere.clientShaders) {
-            SkyFx.draw("Night Siege eclipse", nightsiege$eclipse, 1, poseStack, 100.0F, 34.0F,
+            SkyFx.draw("Night Siege eclipse", nightsiege$eclipse, 1, poseStack, 100.0F, 30.0F,
                     new Vector4f(1f, 1f, 1f, s), celestialsAtlas, renderTarget, quadIndices);
         }
     }
