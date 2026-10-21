@@ -92,6 +92,26 @@ jobs:
               print("::error title=BUILD%d::" % part + "%0A".join(chunk))
           PY
 
+      # Probe-Ausgaben (Zeilen mit PROBE:) sind oft laenger als eine Annotation
+      # fasst. Sie wandern deshalb vollstaendig als Datei in den Branch "probe".
+      - name: Probe-Ausgabe bereitstellen
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          grep -h "PROBE:" build-output.txt > "$RUNNER_TEMP/probe.txt" 2>/dev/null || true
+          if [ ! -s "$RUNNER_TEMP/probe.txt" ]; then echo "keine Probe-Ausgabe"; exit 0; fi
+          DIR=$(mktemp -d)
+          cp "$RUNNER_TEMP/probe.txt" "$DIR/probe.txt"
+          cd "$DIR"
+          git init -q -b probe
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add probe.txt
+          git commit -q -m "Probe von ${GITHUB_SHA}"
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" probe:probe
+
       # Ein echter Serverstart deckt Fehler auf, die der Compiler nicht sieht:
       # Registrierung, Rezepte, Tags, Weltgenerierung. Nach einigen Minuten
       # wird der Server einfach beendet.
