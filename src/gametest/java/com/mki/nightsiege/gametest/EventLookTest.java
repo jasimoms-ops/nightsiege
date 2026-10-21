@@ -97,13 +97,15 @@ public class EventLookTest implements FabricClientGameTest {
             boolean night = EventAtmosphere.BLOOD_MOON.equals(event) || EventAtmosphere.AURORA.equals(event);
             if (night) {
                 game.getServer().runCommand("time set 14600");
-                context.getInput().lookAt(EventAtmosphere.AURORA.equals(event) ? -150.0f : -90.0f, -22.0f);
+                context.getInput().lookAt(EventAtmosphere.AURORA.equals(event) ? -150.0f : -90.0f,
+                        EventAtmosphere.AURORA.equals(event) ? -40.0f : -22.0f);
             }
             context.runOnClient(client -> EventAtmosphere.setClient(event, 1));
-            // The mist wisps need a few seconds to drift in.
+            // The mist wisps need a few seconds to drift in; shader packs
+            // build clouds and sky over many frames (few frames per second here).
             boolean misty = EventAtmosphere.FOG.equals(event) || EventAtmosphere.FROST.equals(event)
                     || EventAtmosphere.NETHER_RIFT.equals(event);
-            context.waitTicks(misty ? 140 : 30);
+            context.waitTicks(prefix.startsWith("shader") ? 200 : misty ? 140 : 30);
             context.takeScreenshot("%s_%02d_%s".formatted(prefix, i + 1, event.toLowerCase(Locale.ROOT)));
         }
     }

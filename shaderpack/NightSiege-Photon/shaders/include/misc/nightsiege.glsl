@@ -42,11 +42,11 @@ vec3 ns_light_tint(bool moon) {
     if (ns_event == NS_ECLIPSE) {
         tint = moon ? vec3(1.0) : vec3(0.030, 0.028, 0.040);
     } else if (ns_event == NS_BLOOD_MOON) {
-        tint = vec3(2.30, 0.30, 0.20);
+        tint = vec3(1.55, 0.24, 0.17);
     } else if (ns_event == NS_NETHER_RIFT) {
-        tint = vec3(2.00, 0.60, 0.28);
+        tint = vec3(1.45, 0.62, 0.36);
     } else if (ns_event == NS_FROST) {
-        tint = vec3(0.68, 0.88, 1.32);
+        tint = vec3(0.72, 0.88, 1.25);
     } else if (ns_event == NS_FOG) {
         tint = vec3(0.66, 0.68, 0.70);
     } else if (ns_event == NS_THUNDER) {
@@ -61,8 +61,8 @@ vec3 ns_light_tint(bool moon) {
 vec4 ns_fog_look() {
     if (ns_event == NS_FOG)         return vec4(0.110, 0.80, 0.82, 0.84);
     if (ns_event == NS_FROST)       return vec4(0.034, 0.80, 0.90, 1.00);
-    if (ns_event == NS_NETHER_RIFT) return vec4(0.040, 0.95, 0.36, 0.20);
-    if (ns_event == NS_BLOOD_MOON)  return vec4(0.016, 0.95, 0.28, 0.20);
+    if (ns_event == NS_NETHER_RIFT) return vec4(0.040, 0.90, 0.46, 0.30);
+    if (ns_event == NS_BLOOD_MOON)  return vec4(0.016, 0.90, 0.32, 0.26);
     if (ns_event == NS_ECLIPSE)     return vec4(0.010, 0.70, 0.70, 0.78);
     return vec4(0.0);
 }

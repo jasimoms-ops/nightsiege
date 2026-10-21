@@ -5,6 +5,7 @@
 #include "/include/utility/fast_math.glsl"
 #include "/include/utility/geometry.glsl"
 #include "/include/utility/phase_functions.glsl"
+#include "/include/misc/nightsiege.glsl"
 
 float aurora_shape(vec3 pos, float altitude_fraction) {
     const vec2 wind_0 = 0.005 * vec2(0.7, 0.1);
@@ -19,7 +20,10 @@ float aurora_shape(vec3 pos, float altitude_fraction) {
     float worley_1
         = texture(noisetex, pos.xz * frequency + wind_1 * frameTimeCounter).y;
 
-    return linear_step(1.0, 2.0, worley_0 + worley_1) * height_fade;
+    // Night Siege: on aurora nights the curtains cover more of the sky
+    float coverage = 1.0 - 0.3 * ns_amount(NS_AURORA);
+
+    return linear_step(coverage, 2.0, worley_0 + worley_1) * height_fade;
 }
 
 vec3 aurora_color(vec3 pos, float altitude_fraction) {

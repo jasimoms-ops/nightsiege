@@ -76,13 +76,13 @@ vec3 ns_draw_eclipse(vec3 ray_dir) {
                    ).x;
     streak = 0.45 + 0.9 * streak * streak;
 
-    float corona = exp(-3.2 * x) * streak + 0.35 * exp(-1.2 * x);
-    float rim = exp(-60.0 * x);
+    float corona = exp(-3.0 * x) * streak + 0.35 * exp(-1.1 * x);
+    float rim = exp(-35.0 * x);
 
     const vec3 corona_color = vec3(1.00, 0.86, 0.66);
     const vec3 rim_color = vec3(1.00, 0.62, 0.30);
 
-    return corona_color * (3.5 * corona) + rim_color * (45.0 * rim);
+    return corona_color * (8.0 * corona) + rim_color * (120.0 * rim);
 }
 
 vec3 draw_sun(vec3 ray_dir) {
@@ -97,7 +97,7 @@ vec3 draw_sun(vec3 ray_dir) {
 // Night Siege: the event moon, a pixel picture with stepped glow rings.
 // Opaque pixels (alpha 1) are the disc, the others glow on top of the sky.
 vec4 ns_draw_moon(vec3 ray_dir, int index) {
-    const float disc_radius = moon_angular_radius * 1.15;
+    const float disc_radius = moon_angular_radius * 1.6;
     const float half_size = disc_radius * 32.0 / 16.8; // disc: 16.8 of 32 px
 
     float MoV = dot(ray_dir, moon_dir);
