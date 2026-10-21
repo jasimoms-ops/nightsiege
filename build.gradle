@@ -28,6 +28,18 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
+// Nur fuer den Bildtest in CI (-Pskytest): der Client laeuft mit den
+// Fabric-Client-Gametests, legt eine Welt an und macht Bildschirmfotos.
+if (project.hasProperty('skytest')) {
+    loom {
+        runs {
+            client {
+                vmArg '-Dfabric.client.gametest'
+            }
+        }
+    }
+}
+
 processResources {
     inputs.property "version", project.version
     filesMatching("fabric.mod.json") {

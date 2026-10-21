@@ -144,8 +144,9 @@ jobs:
           PY
 
       # Client-Mixins (Himmel, Blutmond) greifen nur im echten Client. Er startet
-      # hier ohne Bildschirm mit Software-OpenGL bis zum Titelbild; die Mod meldet
-      # dabei im Log, ob ihre Eingriffe ins Rendering angekommen sind.
+      # hier ohne Bildschirm mit Software-OpenGL; die Mod meldet im Log, ob ihre
+      # Eingriffe ins Rendering angekommen sind. Mit -Pskytest laufen dazu die
+      # Fabric-Client-Gametests, die eine Welt anlegen und Bildschirmfotos machen.
       - name: Client-Probelauf
         if: steps.build.outcome == 'success'
         continue-on-error: true
@@ -154,19 +155,8 @@ jobs:
           sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0 libegl1 > /dev/null 2>&1 || true
           mkdir -p run
           export LIBGL_ALWAYS_SOFTWARE=1
-          ( xvfb-run -a -s "-screen 0 1280x720x24" gradle runClient --no-daemon > client-output.txt 2>&1 ) &
-          PID=$!
-          for i in $(seq 1 120); do
-            sleep 5
-            if grep -q -E "Blutmond-Himmel|Minecraft has crashed|Game crashed|BUILD FAILED" client-output.txt 2>/dev/null; then
-              sleep 10
-              break
-            fi
-          done
-          pkill -f "net.fabricmc.devlaunchinjector" || true
-          pkill -f "KnotClient" || true
-          pkill -f "xvfb-run" || true
-          kill $PID 2>/dev/null || true
+          timeout 900 xvfb-run -a -s "-screen 0 1280x720x24" gradle runClient -Pskytest --no-daemon > client-output.txt 2>&1 || true
+          ls -la run/screenshots 2>/dev/null || echo "keine Bildschirmfotos"
           python3 - <<'PY'
           import re
           text = open("client-output.txt", encoding="utf-8", errors="replace").read()
