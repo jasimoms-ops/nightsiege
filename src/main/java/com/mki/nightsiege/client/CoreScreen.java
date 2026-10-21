@@ -32,8 +32,9 @@ import java.util.Locale;
  */
 public class CoreScreen extends Screen {
 
-    private static final int W = 404;
-    private static final int H = 244;
+    /** Window size: the grid trees (warrior, archer) get a bigger one. */
+    private int W = 404;
+    private int H = 244;
     /** Height of the dark banner with the big title. */
     private static final int BANNER = 26;
     private static final int TAB_W = 28;
@@ -168,6 +169,13 @@ public class CoreScreen extends Screen {
     @Override
     protected void init() {
         showing = this;
+        if (activeTab == null) {
+            Tab own = ownTab();
+            activeTab = own != null ? own : Tab.STATS;
+        }
+        boolean big = activeTab.clazz != null && stats.skillsEnabled && isGrid(activeTab.clazz.name());
+        W = big ? Math.max(404, Math.min(this.width - 16, 700)) : 404;
+        H = big ? Math.max(244, Math.min(this.height - 34, 360)) : 244;
         left = (this.width - W) / 2;
         top = (this.height - H - TAB_H + 4) / 2 + TAB_H - 4;
         nodeButtons.clear();
@@ -278,12 +286,105 @@ public class CoreScreen extends Screen {
         return false;
     }
 
-    /**
-     * The warrior's tree: tiers from left to right, the choices of a tier one
-     * above the other. The trunk is always shown, of the two ways only one.
-     */
+    // ------------------------------------------------------------------
+    // grid trees (warrior, archer): big, draggable, with an info panel
+    // ------------------------------------------------------------------
+
+    private static final int G_SLOT = 28;
+    private static final int G_TIER = 62;
+    private static final int G_HALF = 20;
+    private static final int PANEL_W = 156;
+    private static final int LABEL_BAND = 24;
+    private static double panX;
+    private static double panY;
+    /** The node shown in the info panel. */
+    private static String selectedId;
+    private boolean dragging;
+    private final List<GridNode> gridNodes = new ArrayList<>();
+    private int canvasW;
+    private int canvasH;
+
+    private record GridNode(CoreStats.NodeLine node, int cx, int cy) {
+    }
+
+    private record Edge(List<GridNode> parents, List<Integer> levels, GridNode child) {
+    }
+
+    /** The two subclasses of each way: top lane, bottom lane. */
+    private static final java.util.Map<String, String[]> LANES = java.util.Map.of(
+            "edge", new String[]{"blademaster", "berserker"},
+            "might", new String[]{"axe", "paladin"},
+            "bow", new String[]{"swift", "heavy"},
+            "xbow", new String[]{"bolter", "trapper"});
+    private static final java.util.Map<String, Integer> LANE_COLORS = java.util.Map.of(
+            "blademaster", 0x6FA0FF, "berserker", 0xE04848, "axe", 0xD8913A, "paladin", 0xF2D46A,
+            "swift", 0x5FD0E8, "heavy", 0xC88A3A, "bolter", 0xE87A30, "trapper", 0x6CC46C);
+
+    private int viewX() {
+        return innerX();
+    }
+
+    private int viewY() {
+        return innerY() + 14;
+    }
+
+    private int viewW() {
+        return innerW() - PANEL_W - 4;
+    }
+
+    private int viewH() {
+        return innerH() - 14;
+    }
+
+    private int originX() {
+        return viewX() + 14 + (int) panX;
+    }
+
+    private int originY() {
+        return viewY() + LABEL_BAND + 8 + (int) panY;
+    }
+
+    private int panelX() {
+        return innerX() + innerW() - PANEL_W;
+    }
+
+    private void clampPan() {
+        double minX = Math.min(0, viewW() - canvasW - 28);
+        double minY = Math.min(0, viewH() - canvasH - LABEL_BAND - 16);
+        panX = Math.max(minX, Math.min(0, panX));
+        panY = Math.max(minY, Math.min(0, panY));
+    }
+
+    private boolean inView(double x, double y) {
+        return x >= viewX() && x < viewX() + viewW() && y >= viewY() && y < viewY() + viewH();
+    }
+
+    private GridNode gridAt(double x, double y) {
+        if (!inView(x, y)) {
+            return null;
+        }
+        for (GridNode g : gridNodes) {
+            int sx = originX() + g.cx();
+            int sy = originY() + g.cy();
+            if (x >= sx && x < sx + G_SLOT && y >= sy && y < sy + G_SLOT) {
+                return g;
+            }
+        }
+        return null;
+    }
+
+    private GridNode gridOf(String id) {
+        for (GridNode g : gridNodes) {
+            if (g.node().id.equals(id)) {
+                return g;
+            }
+        }
+        return null;
+    }
+
     private void layoutGrid(String clazz, boolean buyable) {
         ways.clear();
+        gridNodes.clear();
         int maxRow = 0;
         for (CoreStats.NodeLine node : stats.nodes) {
             if (!clazz.equals(node.clazz)) {
@@ -301,21 +402,20 @@ public class CoreScreen extends Screen {
         }
         shownWay = viewWay;
         gridMaxRow = Math.max(1, maxRow);
-        gridSpacing = Math.min(48, (innerW() - 16 - SLOT) / gridMaxRow);
-        int x0 = innerX() + 8 + (innerW() - 16 - SLOT - gridSpacing * gridMaxRow) / 2;
-        treeLeft = x0;
-        treeRight = x0 + gridSpacing * gridMaxRow + SLOT;
-        gridTop = innerY() + 30;
+        canvasW = gridMaxRow * G_TIER + G_SLOT;
+        canvasH = 6 * G_HALF + G_SLOT + 14;
+        clampPan();
 
-        // The two way buttons, at the right of the banner.
+        // The way buttons, at the right of the banner.
         int bx = left + W - 10;
         for (int i = ways.size() - 1; i >= 0; i--) {
             String way = ways.get(i);
             Component label = Component.translatable("nightsiege.path." + way);
-            int w = Math.max(44, Minecraft.getInstance().font.width(label) + 12);
+            int w = Math.max(48, Minecraft.getInstance().font.width(label) + 14);
             bx -= w;
             Button button = Button.builder(label, b -> {
                 viewWay = way;
+                selectedId = null;
                 rebuildWidgets();
             }).bounds(bx, top + 10, w, 14).build();
             button.active = !way.equals(shownWay);
@@ -331,14 +431,531 @@ public class CoreScreen extends Screen {
             if (!trunk && !node.path.equals(shownWay)) {
                 continue;
             }
-            int x = x0 + node.row * gridSpacing;
-            int y = gridTop + Math.max(0, node.col) * HALF;
-            nodeButtons.add(new NodeButton(node, x, y));
-            if (buyable) {
-                invisible(Button.builder(Component.empty(), b -> send("buy:" + node.id))
-                        .bounds(x, y, SLOT, SLOT).build());
+            gridNodes.add(new GridNode(node, node.row * G_TIER, Math.max(0, node.col) * G_HALF));
+        }
+
+        // The learn button at the foot of the info panel.
+        GridNode chosen = selectedId == null ? null : gridOf(selectedId);
+        if (chosen != null && buyable && chosen.node().level < chosen.node().maxLevel) {
+            CoreStats.NodeLine n = chosen.node();
+            Button learn = Button.builder(Component.translatable("nightsiege.ui.learn", n.cost),
+                    b -> send("buy:" + n.id)).bounds(panelX() + 8, innerY() + innerH() - 26, PANEL_W - 16, 18).build();
+            learn.active = n.blocked == null;
+            addRenderableWidget(learn);
+        }
+    }
+
+    /** Edges: one per requirement term; a term naming several nodes of one tier hangs on a bracket. */
+    private List<Edge> gridEdges() {
+        List<Edge> edges = new ArrayList<>();
+        for (GridNode child : gridNodes) {
+            for (List<String[]> any : needsOf(child.node())) {
+                List<GridNode> parents = new ArrayList<>();
+                List<Integer> levels = new ArrayList<>();
+                for (String[] need : any) {
+                    GridNode parent = gridOf(need[0]);
+                    if (parent != null) {
+                        parents.add(parent);
+                        levels.add(parseInt(need[1]));
+                    }
+                }
+                if (!parents.isEmpty()) {
+                    edges.add(new Edge(parents, levels, child));
+                }
             }
         }
+        return edges;
+    }
+
+    /** The focused node, everything that leads to it and what it leads on to. */
+    private java.util.Set<String> focusSet(String id, List<Edge> edges) {
+        java.util.Set<String> set = new java.util.HashSet<>();
+        if (id == null || gridOf(id) == null) {
+            return set;
+        }
+        java.util.ArrayDeque<String> up = new java.util.ArrayDeque<>();
+        up.add(id);
+        set.add(id);
+        while (!up.isEmpty()) {
+            String current = up.poll();
+            for (Edge edge : edges) {
+                if (!edge.child().node().id.equals(current)) {
+                    continue;
+                }
+                for (GridNode parent : edge.parents()) {
+                    if (set.add(parent.node().id)) {
+                        up.add(parent.node().id);
+                    }
+                }
+            }
+        }
+        java.util.Set<String> next = new java.util.HashSet<>(java.util.List.of(id));
+        for (int depth = 0; depth < 2; depth++) {
+            java.util.Set<String> found = new java.util.HashSet<>();
+            for (Edge edge : edges) {
+                for (GridNode parent : edge.parents()) {
+                    if (next.contains(parent.node().id) && !isClosed(edge.child().node())) {
+                        found.add(edge.child().node().id);
+                    }
+                }
+            }
+            set.addAll(found);
+            next = found;
+        }
+        return set;
+    }
+
+    private static boolean isClosed(CoreStats.NodeLine n) {
+        return n.level == 0 && ("choice".equals(n.blocked) || "lockedby".equals(n.blocked) || "path".equals(n.blocked));
+    }
+
+    private static boolean satisfied(Edge edge, int i) {
+        return edge.parents().get(i).node().level >= edge.levels().get(i);
+    }
+
+    private static int dim(int color) {
+        return (color & 0x00FFFFFF) | 0x50000000;
+    }
+
+    private void hline(GuiGraphicsExtractor gui, int x1, int x2, int y, int thick, int color) {
+        gui.fill(Math.min(x1, x2), y - thick / 2, Math.max(x1, x2) + 1, y - thick / 2 + thick, color);
+    }
+
+    private void vline(GuiGraphicsExtractor gui, int x, int y1, int y2, int thick, int color) {
+        gui.fill(x - thick / 2, Math.min(y1, y2), x - thick / 2 + thick, Math.max(y1, y2) + 1, color);
+    }
+
+    /** One edge: stubs from the parents (over a bracket when there are several) into the child. */
+    private void drawEdge(GuiGraphicsExtractor gui, Edge edge, int color, int bright, int thick) {
+        int ox = originX();
+        int oy = originY();
+        GridNode child = edge.child();
+        int cx = ox + child.cx();
+        int cy = oy + child.cy() + G_SLOT / 2;
+        boolean oneTier = true;
+        for (GridNode p : edge.parents()) {
+            oneTier &= p.node().row == edge.parents().get(0).node().row;
+        }
+        if (edge.parents().size() == 1 || !oneTier) {
+            for (int i = 0; i < edge.parents().size(); i++) {
+                GridNode p = edge.parents().get(i);
+                int c = satisfied(edge, i) ? bright : color;
+                int px = ox + p.cx() + G_SLOT;
+                int py = oy + p.cy() + G_SLOT / 2;
+                int bus = cx - 9;
+                hline(gui, px, bus, py, thick, c);
+                vline(gui, bus, py, cy, thick, c);
+                hline(gui, bus, cx, cy, thick, c);
+            }
+            return;
+        }
+        // Several nodes of one tier: a bracket behind them, then one line on.
+        int minY = Integer.MAX_VALUE;
+        int maxY = Integer.MIN_VALUE;
+        int bx = ox + edge.parents().get(0).cx() + G_SLOT + 8;
+        boolean any = false;
+        for (int i = 0; i < edge.parents().size(); i++) {
+            GridNode p = edge.parents().get(i);
+            int py = oy + p.cy() + G_SLOT / 2;
+            minY = Math.min(minY, py);
+            maxY = Math.max(maxY, py);
+            boolean met = satisfied(edge, i);
+            any |= met;
+            hline(gui, ox + p.cx() + G_SLOT, bx, py, thick, met ? bright : color);
+        }
+        int mainColor = any ? bright : color;
+        vline(gui, bx, minY, maxY, thick, color);
+        int join = Math.max(minY, Math.min(maxY, cy));
+        if (any) {
+            // Light the bracket only from the learned node to the line that leaves.
+            for (int i = 0; i < edge.parents().size(); i++) {
+                if (satisfied(edge, i)) {
+                    vline(gui, bx, oy + edge.parents().get(i).cy() + G_SLOT / 2, join, thick, bright);
+                }
+            }
+        }
+        int bus = cx - 9;
+        hline(gui, bx, bus, join, thick, mainColor);
+        vline(gui, bus, join, cy, thick, mainColor);
+        hline(gui, bus, cx, cy, thick, mainColor);
+    }
+
+    private GridNode drawGrid(GuiGraphicsExtractor gui, Font font, int mouseX, int mouseY) {
+        int rgb = activeTab.color & 0xFFFFFF;
+        int vx = viewX();
+        int vy = viewY();
+        int vw = viewW();
+        int vh = viewH();
+
+        // Header line above the tree.
+        String line;
+        if (activeTab == ownTab()) {
+            line = Component.translatable(activeTab.clazz.translationKey()).getString();
+            if (stats.pathTaken != null && !stats.pathTaken.isBlank()) {
+                line += " · " + Component.translatable("nightsiege.path." + stats.pathTaken).getString();
+                if (stats.subclass != null && !stats.subclass.isBlank()) {
+                    line += " · " + Component.translatable("nightsiege.subclass." + stats.subclass).getString();
+                }
+            }
+            line += "   " + Component.translatable("nightsiege.ui.points_short", stats.points).getString();
+        } else if (!hasClass()) {
+            line = Component.translatable("nightsiege.ui.preview_free").getString();
+        } else {
+            line = Component.translatable("nightsiege.ui.preview_other",
+                    Component.translatable("nightsiege.class." + stats.myClass.toLowerCase(Locale.ROOT))).getString();
+        }
+        gui.text(font, font.plainSubstrByWidth(line, vw - 4), vx + 4, innerY() + 3,
+                activeTab == ownTab() ? GOLD : GRAY, true);
+
+        gui.enableScissor(vx, vy, vx + vw, vy + vh);
+        int ox = originX();
+        int oy = originY();
+        String[] lanes = LANES.get(shownWay);
+
+        // Tier columns: faint stripes and their names.
+        for (int row = 0; row <= gridMaxRow; row++) {
+            int x = ox + row * G_TIER - 8;
+            if (row % 2 == 0) {
+                gui.fill(x, vy, x + G_TIER, vy + vh, 0x0CFFFFFF);
+            }
+            String key = "nightsiege.ui.tier." + row;
+            if (Language.getInstance().has(key)) {
+                String label = Component.translatable(key).getString();
+                int cx = ox + row * G_TIER + G_SLOT / 2;
+                gui.pose().pushMatrix();
+                gui.pose().translate(cx, vy + 6);
+                gui.pose().scale(0.75f, 0.75f);
+                gui.text(font, label, -font.width(label) / 2, 0, row == 8 ? 0xFFFFD86B : 0xFFD8CFB8, true);
+                gui.pose().popMatrix();
+            }
+        }
+        gui.fill(vx, vy + LABEL_BAND - 6, vx + vw, vy + LABEL_BAND - 5, 0x40FFFFFF);
+
+        // The two subclass lanes.
+        if (lanes != null) {
+            int x1 = ox + 3 * G_TIER - 10;
+            int x2 = ox + gridMaxRow * G_TIER + G_SLOT + 10;
+            int[][] spans = {{oy - 6, oy + 2 * G_HALF + G_SLOT + 7}, {oy + 4 * G_HALF - 7, oy + 6 * G_HALF + G_SLOT + 10}};
+            for (int i = 0; i < 2; i++) {
+                int color = LANE_COLORS.getOrDefault(lanes[i], rgb);
+                boolean mine = lanes[i].equals(stats.subclass) && activeTab == ownTab();
+                gui.fill(x1, spans[i][0], x2, spans[i][1], (mine ? 0x34000000 : 0x1C000000) | color);
+                gui.fill(x1, spans[i][0], x2, spans[i][0] + 1, 0x90000000 | color);
+                gui.fill(x1, spans[i][0], x1 + 2, spans[i][1], 0xC0000000 | color);
+                String name = Component.translatable("nightsiege.subclass." + lanes[i]).getString().toUpperCase(Locale.ROOT);
+                int ty = i == 0 ? oy + G_SLOT / 2 - 12 : oy + 5 * G_HALF + G_SLOT + 2;
+                gui.pose().pushMatrix();
+                gui.pose().translate(ox + 3 * G_TIER + G_SLOT / 2, ty);
+                gui.pose().scale(0.75f, 0.75f);
+                gui.text(font, name, -font.width(name) / 2, 0, 0xFF000000 | color, true);
+                gui.pose().popMatrix();
+            }
+        }
+
+        // Lines: dim everything, then the routes of the focused node in gold.
+        List<Edge> edges = gridEdges();
+        GridNode hovered = gridAt(mouseX, mouseY);
+        String focusId = hovered != null ? hovered.node().id : selectedId;
+        java.util.Set<String> focus = focusSet(focusId, edges);
+        boolean focusing = !focus.isEmpty();
+        for (int pass = 0; pass < 2; pass++) {
+            for (Edge edge : edges) {
+                boolean closed = isClosed(edge.child().node());
+                boolean learned = edge.child().node().level > 0;
+                int later = closed ? 0xFF332E3C : 0xFF77707F;
+                int bright = learned ? 0xFF000000 | rgb : closed ? 0xFF4A4452 : 0xFFF0ECF6;
+                if (focusing && !focus.contains(edge.child().node().id)) {
+                    later = dim(later);
+                    bright = dim(bright);
+                }
+                boolean onRoute = focusing && focus.contains(edge.child().node().id);
+                if (onRoute) {
+                    boolean parentIn = false;
+                    for (GridNode p : edge.parents()) {
+                        parentIn |= focus.contains(p.node().id);
+                    }
+                    onRoute = parentIn;
+                }
+                if (pass == 0) {
+                    drawEdge(gui, edge, 0xFF000000, 0xFF000000, onRoute ? 5 : 4);
+                } else if (onRoute) {
+                    drawEdge(gui, edge, 0xFFB08A2E, 0xFFFFD86B, 3);
+                } else {
+                    drawEdge(gui, edge, later, bright, 2);
+                }
+            }
+        }
+
+        // Nodes.
+        long pulse = System.currentTimeMillis() / 40 % 50;
+        for (GridNode g : gridNodes) {
+            CoreStats.NodeLine n = g.node();
+            int x = ox + g.cx();
+            int y = oy + g.cy();
+            boolean maxed = n.level >= n.maxLevel;
+            boolean closed = isClosed(n);
+            boolean ult = n.row == 8;
+            boolean key = n.row == gridMaxRow;
+            int border;
+            if (maxed) {
+                border = 0xFFE8B84A;
+            } else if (n.level > 0) {
+                border = 0xFF000000 | rgb;
+            } else if (n.blocked == null && activeTab == ownTab()) {
+                int a = 0x90 + (int) (Math.abs(25 - pulse) * 4);
+                border = (a << 24) | 0xF4F0FA;
+            } else if (closed) {
+                border = 0xFF3A2C30;
+            } else {
+                border = 0xFF5A5466;
+            }
+            if (ult || key) {
+                gui.fill(x - 3, y - 3, x + G_SLOT + 3, y + G_SLOT + 3, 0xFF000000);
+                gui.fill(x - 2, y - 2, x + G_SLOT + 2, y + G_SLOT + 2, maxed || n.level > 0 ? 0xFFE8B84A : 0xFF7A6430);
+            }
+            gui.fill(x, y, x + G_SLOT, y + G_SLOT, 0xFF000000);
+            gui.fill(x + 1, y + 1, x + G_SLOT - 1, y + G_SLOT - 1, border);
+            gui.fill(x + 3, y + 3, x + G_SLOT - 3, y + G_SLOT - 3, n.level > 0 ? 0xFF2C2638 : 0xFF1A1720);
+            if (n.level > 0) {
+                gui.fill(x + 3, y + 3, x + G_SLOT - 3, y + 4, 0x50FFFFFF);
+            }
+            gui.item(iconOf(n.icon), x + 6, y + 6);
+            if (closed) {
+                gui.fill(x + 3, y + 3, x + G_SLOT - 3, y + G_SLOT - 3, 0xA0101010);
+                for (int i = 5; i < G_SLOT - 5; i++) {
+                    gui.fill(x + i, y + i, x + i + 1, y + i + 1, 0xFFE04040);
+                    gui.fill(x + G_SLOT - 1 - i, y + i, x + G_SLOT - i, y + i + 1, 0xFFE04040);
+                }
+            } else if (n.level == 0 && n.blocked != null && !"points".equals(n.blocked)) {
+                gui.fill(x + 3, y + 3, x + G_SLOT - 3, y + G_SLOT - 3, 0x70000000);
+            }
+            if (focusing && !focus.contains(n.id)) {
+                gui.fill(x - 3, y - 3, x + G_SLOT + 3, y + G_SLOT + 3, 0x80000000);
+            }
+            if (n.id.equals(selectedId)) {
+                int c = 0xFFFFD86B;
+                gui.fill(x - 2, y - 2, x + G_SLOT + 2, y - 1, c);
+                gui.fill(x - 2, y + G_SLOT + 1, x + G_SLOT + 2, y + G_SLOT + 2, c);
+                gui.fill(x - 2, y - 2, x - 1, y + G_SLOT + 2, c);
+                gui.fill(x + G_SLOT + 1, y - 2, x + G_SLOT + 2, y + G_SLOT + 2, c);
+            }
+            // Level pips under the slot.
+            int pips = Math.max(1, n.maxLevel);
+            int pw = 4;
+            int startX = x + G_SLOT / 2 - (pips * (pw + 1) - 1) / 2;
+            for (int i = 0; i < pips; i++) {
+                int px = startX + i * (pw + 1);
+                gui.fill(px, y + G_SLOT + 2, px + pw, y + G_SLOT + 5, 0xFF000000);
+                int fill = i < n.level ? (maxed ? 0xFFE8B84A : 0xFF000000 | rgb) : 0xFF3A3644;
+                gui.fill(px, y + G_SLOT + 2, px + pw, y + G_SLOT + 4, fill);
+            }
+            if (n.id.contains("_cross_")) {
+                gui.text(font, "↔", x + G_SLOT - 6, y - 4, 0xFF80D0FF, true);
+            }
+            if (isHunterNode(n.id)) {
+                gui.text(font, "◎", x + G_SLOT - 6, y - 4, 0xFF7CFF7C, true);
+            }
+        }
+        gui.disableScissor();
+
+        // Hint at the bottom of the view.
+        String hint = Component.translatable("nightsiege.ui.grid_hint").getString();
+        gui.text(font, font.plainSubstrByWidth(hint, vw - 8), vx + 4, vy + vh - 10, 0x90FFFFFF, false);
+
+        drawInfoPanel(gui, font, hovered);
+        return hovered;
+    }
+
+    private static List<String> wrap(Font font, String text, int width) {
+        List<String> out = new ArrayList<>();
+        for (String paragraph : text.split("\n")) {
+            StringBuilder current = new StringBuilder();
+            String prefix = "";
+            for (String word : paragraph.split(" ")) {
+                String tryLine = current.length() == 0 ? word : current + " " + word;
+                if (font.width(prefix + tryLine) > width && current.length() > 0) {
+                    out.add(prefix + current);
+                    current = new StringBuilder(word);
+                } else {
+                    current = new StringBuilder(tryLine);
+                }
+            }
+            out.add(prefix + current);
+        }
+        return out;
+    }
+
+    private String nameOf(String id) {
+        return Component.translatable("nightsiege.skill." + id).getString();
+    }
+
+    /** Right-hand panel: everything about the selected (or hovered) node, or a small legend. */
+    private void drawInfoPanel(GuiGraphicsExtractor gui, Font font, GridNode hovered) {
+        int rgb = activeTab.color & 0xFFFFFF;
+        int px = panelX();
+        int py = innerY();
+        int pw = PANEL_W;
+        int ph = innerH();
+        gui.fill(px, py, px + pw, py + ph, 0xF0100D16);
+        gui.fill(px, py, px + 1, py + ph, 0xC0000000 | rgb);
+        gui.fill(px, py, px + pw, py + 1, 0x60000000 | rgb);
+        int tx = px + 8;
+        int tw = pw - 14;
+        int y = py + 6;
+        GridNode g = hovered != null ? hovered : selectedId == null ? null : gridOf(selectedId);
+        if (g == null) {
+            gui.text(font, Component.translatable("nightsiege.ui.panel_title").getString(), tx, y, 0xFFFFD86B, true);
+            y += 14;
+            for (String line : wrap(font, Component.translatable("nightsiege.ui.panel_help").getString(), tw)) {
+                gui.text(font, line, tx, y, 0xFFB8B0C8, false);
+                y += 10;
+            }
+            y += 6;
+            int[][] legend = {{0xE8B84A, 0}, {rgb, 1}, {0xF4F0FA, 2}, {0x5A5466, 3}, {0xE04040, 4}, {0xFFD86B, 5}};
+            for (int[] entry : legend) {
+                gui.fill(tx, y + 1, tx + 8, y + 8, 0xFF000000 | entry[0]);
+                gui.text(font, Component.translatable("nightsiege.ui.legend." + entry[1]).getString(), tx + 12, y, 0xFFD0C8DC, false);
+                y += 11;
+            }
+            return;
+        }
+        CoreStats.NodeLine n = g.node();
+        gui.fill(tx - 1, y - 1, tx + 19, y + 19, 0xFF000000 | rgb);
+        gui.fill(tx, y, tx + 18, y + 18, 0xFF1A1720);
+        gui.item(iconOf(n.icon), tx + 1, y + 1);
+        List<String> title = wrap(font, nameOf(n.id), tw - 24);
+        for (int i = 0; i < title.size(); i++) {
+            gui.text(font, title.get(i), tx + 24, y + (title.size() == 1 ? 5 : i * 10), 0xFFFFFFFF, true);
+        }
+        y += Math.max(22, title.size() * 10 + 4);
+        List<String> lines = new ArrayList<>();
+        String sub = Component.translatable("nightsiege.subclass_node." + n.id).getString();
+        if (!sub.equals("nightsiege.subclass_node." + n.id)) {
+            lines.add("§6" + sub);
+        }
+        if (n.id.contains("_cross_")) {
+            lines.add("§b" + Component.translatable("nightsiege.ui.cross").getString());
+        }
+        if (isHunterNode(n.id)) {
+            lines.add("§a" + Component.translatable("nightsiege.ui.hunter").getString());
+        }
+        String descKey = "nightsiege.skill." + n.id + ".desc";
+        if (Language.getInstance().has(descKey)) {
+            lines.add("§7" + Language.getInstance().getOrDefault(descKey).replace("\n", " "));
+        }
+        lines.add("§f" + Component.translatable("nightsiege.ui.node_level", n.level, n.maxLevel).getString()
+                + (n.level < n.maxLevel ? "  §e" + Component.translatable("nightsiege.ui.node_cost", n.cost).getString() : ""));
+        // What it needs, term by term.
+        List<List<String[]>> needs = needsOf(n);
+        if (!needs.isEmpty()) {
+            lines.add("§8" + Component.translatable("nightsiege.ui.needs").getString());
+            for (List<String[]> any : needs) {
+                StringBuilder sb = new StringBuilder();
+                boolean met = false;
+                for (String[] need : any) {
+                    GridNode p = gridOf(need[0]);
+                    int lvl = parseInt(need[1]);
+                    if (p != null && p.node().level >= lvl) {
+                        met = true;
+                    }
+                    if (sb.length() > 0) {
+                        sb.append(Component.translatable("nightsiege.ui.or").getString());
+                    }
+                    sb.append(nameOf(need[0])).append(lvl > 1 ? " " + lvl : "");
+                }
+                lines.add((met ? "§a✔ " : "§c✘ ") + sb);
+            }
+        }
+        // What it opens.
+        List<String> opens = new ArrayList<>();
+        for (Edge edge : gridEdges()) {
+            for (GridNode p : edge.parents()) {
+                if (p.node().id.equals(n.id) && !opens.contains(nameOf(edge.child().node().id))) {
+                    opens.add(nameOf(edge.child().node().id));
+                }
+            }
+        }
+        if (!opens.isEmpty()) {
+            lines.add("§8" + Component.translatable("nightsiege.ui.opens").getString());
+            lines.add("§b→ " + String.join(", ", opens));
+        }
+        if (n.locks != null && !n.locks.isEmpty()) {
+            List<String> names = new ArrayList<>();
+            for (String id : n.locks) {
+                names.add(nameOf(id));
+            }
+            lines.add("§c" + Component.translatable("nightsiege.ui.locks", String.join(", ", names)).getString());
+        }
+        if (n.group != null && !n.group.isBlank()) {
+            lines.add("§8" + Component.translatable("nightsiege.ui.choice_hint").getString());
+        }
+        if (activeTab != ownTab()) {
+            lines.add("§8" + Component.translatable("nightsiege.ui.view_only").getString());
+        } else if (n.blocked != null && n.level < n.maxLevel) {
+            lines.add("§c" + Component.translatable("nightsiege.menu.blocked_" + n.blocked, n.cost).getString());
+        }
+        int bottom = py + ph - (activeTab == ownTab() ? 32 : 6);
+        for (String raw : lines) {
+            String color = raw.startsWith("§") ? raw.substring(0, 2) : "";
+            String text = raw.startsWith("§") ? raw.substring(2) : raw;
+            for (String part : wrap(font, text, tw)) {
+                if (y + 9 > bottom) {
+                    return;
+                }
+                gui.text(font, color + part, tx, y, 0xFFFFFFFF, false);
+                y += 10;
+            }
+            y += 1;
+        }
+    }
+
+    @Override
+    public boolean mouseClicked(net.minecraft.client.input.MouseButtonEvent event, boolean doubleClick) {
+        if (super.mouseClicked(event, doubleClick)) {
+            return true;
+        }
+        if (!gridMode || confirming != null || !inView(event.x(), event.y())) {
+            return false;
+        }
+        GridNode hit = gridAt(event.x(), event.y());
+        if (hit != null) {
+            boolean again = hit.node().id.equals(selectedId);
+            selectedId = hit.node().id;
+            if (doubleClick && again && activeTab == ownTab() && hit.node().blocked == null) {
+                send("buy:" + hit.node().id);
+            }
+            rebuildWidgets();
+            return true;
+        }
+        dragging = true;
+        return true;
+    }
+
+    @Override
+    public boolean mouseReleased(net.minecraft.client.input.MouseButtonEvent event) {
+        dragging = false;
+        return super.mouseReleased(event);
+    }
+
+    @Override
+    public boolean mouseDragged(net.minecraft.client.input.MouseButtonEvent event, double dx, double dy) {
+        if (dragging && gridMode) {
+            panX += dx;
+            panY += dy;
+            clampPan();
+            return true;
+        }
+        return super.mouseDragged(event, dx, dy);
+    }
+
+    @Override
+    public boolean mouseScrolled(double x, double y, double scrollX, double scrollY) {
+        if (gridMode && inView(x, y)) {
+            panX += (scrollY + scrollX) * 30;
+            clampPan();
+            return true;
+        }
+        return super.mouseScrolled(x, y, scrollX, scrollY);
     }
 
     /** The tree from left to right: trunk on the left, one row per path. */
@@ -411,6 +1028,8 @@ public class CoreScreen extends Screen {
             drawPerks(gui, font);
         } else if (!stats.skillsEnabled) {
             gui.text(font, Component.translatable("nightsiege.ui.skills_off"), innerX() + 8, innerY() + 8, GRAY, true);
+        } else if (gridMode) {
+            drawGrid(gui, font, mouseX, mouseY);
         } else {
             drawTreeHeader(gui, font);
             drawPathBand(gui, font);
@@ -564,6 +1183,17 @@ public class CoreScreen extends Screen {
         gui.fill(x - 1, y - 1, x + w + 1, y + h + 1, FRAME_DARK);
         gui.fill(x, y + h, x + w + 1, y + h + 1, FRAME_LIGHT);
         gui.fill(x + w, y, x + w + 1, y + h + 1, FRAME_LIGHT);
+        if (gridMode) {
+            // Dark fantasy: deep night with the class colour glowing in from the edges.
+            int rgb = activeTab.color & 0xFFFFFF;
+            gui.fill(x, y, x + w, y + h, 0xFF0E0C14);
+            for (int i = 0; i < 12; i++) {
+                int a = 0x16 - i;
+                gui.fill(x, y + i, x + w, y + i + 1, (a << 24) | rgb);
+                gui.fill(x, y + h - 1 - i, x + w, y + h - i, (a << 24) | rgb);
+            }
+            return;
+        }
         gui.enableScissor(x, y, x + w, y + h);
         for (int ty = y; ty < y + h; ty += 16) {
             for (int tx = x; tx < x + w; tx += 16) {
@@ -601,10 +1231,6 @@ public class CoreScreen extends Screen {
 
     /** A soft band in the class colour behind the path the player took. */
     private void drawPathBand(GuiGraphicsExtractor gui, Font font) {
-        if (gridMode) {
-            drawGridDecor(gui, font);
-            return;
-        }
         if (activeTab != ownTab() || stats.pathTaken == null || stats.pathTaken.isBlank()) {
             return;
         }
@@ -617,28 +1243,6 @@ public class CoreScreen extends Screen {
         int x2 = Math.min(innerX() + innerW() - 2, treeRight + 12);
         gui.fill(x1, y - 4, x2, y + SLOT + 12, 0x38000000 | rgb);
         gui.fill(x1, y - 4, x1 + 2, y + SLOT + 12, 0xC0000000 | rgb);
-    }
-
-    /** Grid trees: tier names above the columns and the subclass names beside their halves. */
-    private void drawGridDecor(GuiGraphicsExtractor gui, Font font) {
-        int rgb = activeTab.color & 0xFFFFFF;
-        // A soft band behind the shown way's tiers.
-        int wayX = treeLeft + 2 * gridSpacing - 5;
-        gui.fill(wayX, gridTop - 12, treeRight + 5, gridTop + 6 * HALF + SLOT + 11, 0x24000000 | rgb);
-        gui.fill(wayX, gridTop - 12, wayX + 1, gridTop + 6 * HALF + SLOT + 11, 0x90000000 | rgb);
-        for (int row = 0; row <= gridMaxRow; row++) {
-            String key = "nightsiege.ui.tier." + row;
-            if (!Language.getInstance().has(key)) {
-                continue;
-            }
-            String label = Component.translatable(key).getString();
-            int cx = treeLeft + row * gridSpacing + SLOT / 2;
-            gui.pose().pushMatrix();
-            gui.pose().translate(cx, gridTop - 10);
-            gui.pose().scale(0.5f, 0.5f);
-            gui.text(font, label, -font.width(label) / 2, 0, 0xFFE8E0C8, true);
-            gui.pose().popMatrix();
-        }
     }
 
     /** The nodes a grid node needs, as alternatives that must all be met. */
@@ -686,47 +1290,8 @@ public class CoreScreen extends Screen {
         }
     }
 
-    /** Grid lines: from what a node needs; once a choice is made, only from the taken node. */
-    private void drawGridConnections(GuiGraphicsExtractor gui) {
-        for (int pass = 0; pass < 2; pass++) {
-            for (NodeButton child : nodeButtons) {
-                for (List<String[]> any : needsOf(child.node())) {
-                    List<NodeButton> parents = new ArrayList<>();
-                    List<NodeButton> met = new ArrayList<>();
-                    for (String[] need : any) {
-                        NodeButton parent = buttonOf(need[0]);
-                        if (parent == null) {
-                            continue;
-                        }
-                        parents.add(parent);
-                        if (parent.node().level >= parseInt(need[1])) {
-                            met.add(parent);
-                        }
-                    }
-                    boolean open = !met.isEmpty();
-                    for (NodeButton parent : open ? met : parents) {
-                        int color = pass == 0 ? 0xFF000000 : open ? WHITE : 0xFF5A5A5A;
-                        int thick = pass == 0 ? 2 : 1;
-                        int x1 = parent.x() + SLOT;
-                        int y1 = parent.y() + SLOT / 2;
-                        int x2 = child.x();
-                        int y2 = child.y() + SLOT / 2;
-                        int mid = x2 - Math.max(3, (x2 - x1) / 2);
-                        gui.fill(x1, y1 - thick, mid + thick, y1 + thick, color);
-                        gui.fill(mid - thick, Math.min(y1, y2) - thick, mid + thick, Math.max(y1, y2) + thick, color);
-                        gui.fill(mid - thick, y2 - thick, x2, y2 + thick, color);
-                    }
-                }
-            }
-        }
-    }
-
     /** Lines like the advancement screen: a black outline with a white core. */
     private void drawConnections(GuiGraphicsExtractor gui) {
-        if (gridMode) {
-            drawGridConnections(gui);
-            return;
-        }
         for (int pass = 0; pass < 2; pass++) {
             for (NodeButton child : nodeButtons) {
                 if (child.node().requires == null) {
