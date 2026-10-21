@@ -162,39 +162,13 @@ class SkyProbeTest {
 
     @Test
     void probe() {
-        sigs("net.minecraft.client.renderer.SkyRenderer", any());
-        outline("net.minecraft.client.renderer.SkyRenderer", any());
-
-        sigs("net.minecraft.client.renderer.fog.FogRenderer", any());
-        outline("net.minecraft.client.renderer.fog.FogRenderer", has("computeFogColor", "setupFog"));
-        sigs("net.minecraft.client.renderer.fog.FogData", any());
-        sigs("net.minecraft.client.renderer.fog.environment.AtmosphericFogEnvironment", any());
-        outline("net.minecraft.client.renderer.fog.environment.AtmosphericFogEnvironment", any());
-
-        sigs("net.minecraft.world.attribute.EnvironmentAttributeProbe", any());
-        outline("net.minecraft.world.attribute.EnvironmentAttributeProbe", any());
-        sigs("net.minecraft.world.attribute.EnvironmentAttributeSystem", any());
-        sigs("net.minecraft.world.attribute.EnvironmentAttributeReader", any());
-        sigs("net.minecraft.world.attribute.EnvironmentAttributes", has("register", "builder"));
-
-        sigs("net.minecraft.client.Camera", has("attribute", "environment", "probe", "fog"));
-        sigs("net.minecraft.client.multiplayer.ClientLevel", has("attribute", "environment", "skycolor", "cloudcolor", "starbrightness", "dimension"));
-        sigs("net.minecraft.world.level.Level", has("environmentattributes", "attribute"));
-
-        sigs("net.minecraft.client.renderer.LevelRenderer", has("addSkyPass"));
-        outline("net.minecraft.client.renderer.LevelRenderer", has("addSkyPass", "extractSky", "extractLevel"));
-        sigs("net.minecraft.client.renderer.LightmapRenderStateExtractor", any());
-        outline("net.minecraft.client.renderer.LightmapRenderStateExtractor", any());
-
-        sigs("net.minecraft.client.renderer.RenderPipelines", has("celestial", "stars", "sky"));
-        sigs("com.mojang.blaze3d.vertex.PoseStack", has("scale", "pushPose", "popPose", "translate", "last", "mulPose"));
-        sigs("com.mojang.blaze3d.buffers.GpuBuffer", has("close", "size"));
-        sigs("net.minecraft.client.renderer.texture.TextureAtlasSprite", has("getU", "getV", "contents"));
-
-        System.out.println("PROBE: mixinextras " + (load("com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation") != null)
-                + " modifyreturn " + (load("com.llamalad7.mixinextras.injector.ModifyReturnValue") != null)
-                + " mixin " + (load("org.spongepowered.asm.mixin.Mixin") != null));
-        System.out.println("PROBE: fabric-sky " + (load("net.fabricmc.fabric.api.client.rendering.v1.DimensionRenderingRegistry") != null)
-                + " connEvents " + (load("net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents") != null));
+        sigs("org.spongepowered.asm.mixin.MixinEnvironment$CompatibilityLevel", has("JAVA"));
+        sigs("net.minecraft.client.renderer.texture.SpriteContents", has("name", "width", "height"));
+        sigs("net.minecraft.client.Screenshot", any());
+        sigs("net.minecraft.client.Minecraft", has("screenshot", "getMainRenderTarget", "isPaused", "getWindow", "createWorldOpenFlows", "gameRenderer", "player", "getConnection", "isSameThread"));
+        sigs("net.minecraft.world.entity.Entity", has("setXRot", "setYRot", "snapTo"));
+        sigs("net.minecraft.client.gui.screens.worldselection.WorldOpenFlows", any());
+        sigs("net.minecraft.client.main.GameConfig$QuickPlayData", any());
+        sigs("net.minecraft.client.quickplay.QuickPlay", has("connect", "join"));
     }
 }
