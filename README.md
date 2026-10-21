@@ -169,8 +169,26 @@ Die wichtigsten Schalter:
 | `digTicksPerBlock` | 40 | wie lange ein Block hält, 20 Ticks = 1 Sekunde |
 | `protectedBlockKeywords` | Liste | Blöcke, deren ID eines dieser Wörter enthält, bleiben heil |
 | `maxLiveMobs` | 40 | Obergrenze gleichzeitiger Mobs |
+| `bloodMoonSky` | true | Blutmond-Himmel für Spieler mit der Mod (siehe unten) |
 
 ---
+
+## Blutmond-Himmel
+
+In einer Blutmond-Nacht sehen Spieler mit der Mod einen eigenen Himmel: ein
+großer, tiefroter Mond mit dunklen Kratern und glühendem Strahlenkranz, ein
+blutroter Himmel mit rötlichen Sternen und roter Dunst zum Horizont hin. Die
+Sicht bleibt dabei fast normal. Alles blendet in etwa acht Sekunden ein und
+nach der Belagerung wieder aus.
+
+Das ist kein Ressourcenpaket: Der Server meldet dem Client alle zwei Sekunden,
+dass ein Blutmond über ihm steht, und der Client färbt Himmel, Nebel und Sterne
+selbst um (`client/BloodMoonSky.java`, Mixins in `mixin/`). Die Mondtextur liegt
+in `textures/environment/celestial/blood_moon.png` und landet automatisch im
+Himmelskörper-Atlas des Spiels. Spieler im Nether sehen einen normalen Himmel.
+
+Ausprobieren: `/nightsiege test 1 blutmond` bei Nacht. Abschalten für alle:
+`bloodMoonSky` in der Konfiguration auf `false`.
 
 ## Bekannte Einschränkungen
 
