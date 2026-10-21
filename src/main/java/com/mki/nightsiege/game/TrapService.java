@@ -64,11 +64,36 @@ public final class TrapService {
     // ------------------------------------------------------------------
 
     /** True when this player may set down this trap: the engineer who unlocked it, or anyone in creative. */
-    public boolean mayPlace(ServerPlayer player, TrapKind kind) {
+    /**
+     * Why this player may not set down this trap right now, or null when they may.
+     * Creative players may always, so traps can be tried out freely.
+     */
+    public Component placeBlocked(ServerPlayer player, TrapKind kind) {
         if (player.getAbilities().instabuild) {
-            return true;
+            return null;
         }
-        return tree.trapTier(kind, save.get().skillsOf(player.getUUID().toString())) > 0;
+        int tier = tree.trapTier(kind, save.get().skillsOf(player.getUUID().toString()));
+        if (tier <= 0) {
+            return Component.translatable("nightsiege.msg.trap_locked",
+                    Component.translatable("nightsiege.skill." + kind.id()));
+        }
+        int max = kind.maxPlaced(tier);
+        if (placedBy(player.getUUID().toString(), kind) >= max) {
+            return Component.translatable("nightsiege.msg.trap_cap", max,
+                    Component.translatable("block.nightsiege." + kind.id()));
+        }
+        return null;
+    }
+
+    /** Traps of this kind an engineer currently has in the world. */
+    public int placedBy(String owner, TrapKind kind) {
+        int count = 0;
+        for (TrapRecord record : traps()) {
+            if (kind.id().equals(record.kind) && owner.equals(record.owner)) {
+                count++;
+            }
+        }
+        return count;
     }
 
     public void onPlaced(ServerLevel level, BlockPos pos, LivingEntity placer, TrapKind kind) {
@@ -137,7 +162,20 @@ public final class TrapService {
         PlayerSkills skills = save.get().skillsOf(player.getUUID().toString());
         int total = 0;
         for (TrapKind kind : TrapKind.values()) {
-            int count = kind.freePerSiege(tree.trapTier(kind, skills));
+            int tier = tree.trapTier(kind, skills);
+            int count = kind.freePerSiege(tier);
+            if (count > 0) {
+                // Only top up to the cap: placed traps and those in the pack both count.
+                net.minecraft.world.item.Item item = ModContent.TRAP_ITEMS.get(kind);
+                int have = placedBy(player.getUUID().toString(), kind);
+                for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+                    ItemStack stack = player.getInventory().getItem(i);
+                    if (stack.is(item)) {
+                        have += stack.getCount();
+                    }
+                }
+                count = Math.min(count, Math.max(0, kind.maxPlaced(tier) - have));
+            }
             if (count > 0) {
                 player.getInventory().placeItemBackInInventory(new ItemStack(ModContent.TRAP_ITEMS.get(kind), count));
                 total += count;

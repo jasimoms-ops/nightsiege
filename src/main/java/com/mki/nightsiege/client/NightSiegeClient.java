@@ -11,6 +11,12 @@ import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
+import com.mki.nightsiege.game.ClassGear;
+import com.mki.nightsiege.game.GuideItem;
+import net.fabricmc.fabric.api.client.item.v1.ItemTooltipCallback;
+import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.Component;
+import java.util.List;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import org.lwjgl.glfw.GLFW;
@@ -20,6 +26,8 @@ public class NightSiegeClient implements ClientModInitializer {
 
     /** Fires the ultimate of the player's path. R by default; rebindable under Controls. */
     private static KeyMapping ultimateKey;
+    /** Opens the handbook. H by default. */
+    private static KeyMapping guideKey;
 
     @Override
     public void onInitializeClient() {
@@ -53,7 +61,28 @@ public class NightSiegeClient implements ClientModInitializer {
         KeyMapping.Category category = KeyMapping.Category.register(ModContent.id("main"));
         ultimateKey = KeyMappingHelper.registerKeyMapping(
                 new KeyMapping("key.nightsiege.ultimate", GLFW.GLFW_KEY_R, category));
+        guideKey = KeyMappingHelper.registerKeyMapping(
+                new KeyMapping("key.nightsiege.guide", GLFW.GLFW_KEY_H, category));
+        GuideItem.opener = () -> Minecraft.getInstance().setScreenAndShow(new GuideScreen());
+        ItemTooltipCallback.EVENT.register((stack, context, type, lines) -> {
+            List<String> paths = ClassGear.pathsFor(stack.getItem());
+            if (paths.isEmpty()) {
+                return;
+            }
+            Component names = Component.empty();
+            for (int i = 0; i < paths.size(); i++) {
+                if (i > 0) {
+                    names = names.copy().append(", ");
+                }
+                names = names.copy().append(Component.translatable("nightsiege.path." + paths.get(i)));
+            }
+            lines.add(Component.translatable("nightsiege.tooltip.class_item", names).withStyle(ChatFormatting.GOLD));
+            lines.add(Component.translatable("nightsiege.tooltip.class_item_hint").withStyle(ChatFormatting.GRAY));
+        });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            while (guideKey.consumeClick()) {
+                Minecraft.getInstance().setScreenAndShow(new GuideScreen());
+            }
             while (ultimateKey.consumeClick()) {
                 if (ClientPlayNetworking.canSend(CoreNetworking.CoreActionPayload.TYPE)) {
                     ClientPlayNetworking.send(new CoreNetworking.CoreActionPayload("ult"));

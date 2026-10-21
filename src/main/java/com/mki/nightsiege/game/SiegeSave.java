@@ -10,8 +10,8 @@ import java.util.Map;
 /**
  * Everything the mod remembers between restarts.
  *
- * <p>Note: this lives in the config folder, so it is shared by all worlds of one
- * installation.</p>
+ * <p>It lives in the world folder as {@code nightsiege-state.json}, so every
+ * world keeps its own cores, levels, skills and traps.</p>
  */
 public class SiegeSave {
     public List<CoreRecord> cores = new ArrayList<>();
@@ -20,6 +20,8 @@ public class SiegeSave {
     public boolean starterCoreGiven;
     /** Uuids of players who already received the guide book. */
     public List<String> guideGiven = new ArrayList<>();
+    /** Uuids of players who already received the handbook item (replaces the old book). */
+    public List<String> handbookGiven = new ArrayList<>();
 
     public int siegesWon;
     public int siegesLost;
@@ -59,20 +61,20 @@ public class SiegeSave {
         }
     }
 
-    /** True when the book still has to be handed out to this player. */
+    /** True when the handbook still has to be handed out to this player. */
     public boolean needsGuide(String playerUuid) {
-        if (guideGiven == null) {
-            guideGiven = new ArrayList<>();
+        if (handbookGiven == null) {
+            handbookGiven = new ArrayList<>();
         }
-        return playerUuid != null && !guideGiven.contains(playerUuid);
+        return playerUuid != null && !handbookGiven.contains(playerUuid);
     }
 
     public void markGuideGiven(String playerUuid) {
-        if (guideGiven == null) {
-            guideGiven = new ArrayList<>();
+        if (handbookGiven == null) {
+            handbookGiven = new ArrayList<>();
         }
-        if (playerUuid != null && !guideGiven.contains(playerUuid)) {
-            guideGiven.add(playerUuid);
+        if (playerUuid != null && !handbookGiven.contains(playerUuid)) {
+            handbookGiven.add(playerUuid);
         }
     }
 

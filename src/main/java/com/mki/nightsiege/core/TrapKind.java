@@ -145,6 +145,19 @@ public enum TrapKind {
         };
     }
 
+    /** Most traps of this kind one engineer may have set at once. Grows with the tier. */
+    public int maxPlaced(int tier) {
+        int t = clamp(tier);
+        return switch (this) {
+            case SPIKE -> 8 + 2 * t;             // 10 ... 18
+            case SNARE -> 3 + t;                 // 4 ... 8
+            case MINE -> 4 + 2 * t;              // 6 ... 14
+            case TURRET -> 1 + t;                // 2 ... 6
+            case FLAME, POISON -> 2 + t;         // 3 ... 7
+            case TESLA -> (t + 3) / 2;           // 2, 2, 3, 3, 4
+        };
+    }
+
     /** Monsters one tesla discharge jumps between. */
     public int chainTargets(int tier) {
         return this == TESLA ? 1 + clamp(tier) : 0;   // 2 / 3 / 4

@@ -139,6 +139,27 @@ public final class SiegeManager {
 
     private static final String CONFIG_FILE = "nightsiege.json";
     private static final String SAVE_FILE = "nightsiege-state.json";
+    /** Where this world keeps its siege state: inside the world folder, so every world has its own. */
+    private Path savePath;
+
+    /**
+     * Older versions kept the state in the config folder, shared by every world.
+     * The first world started with this version takes it over; the old file is
+     * renamed so no other world inherits it.
+     */
+    private void migrateSharedSave() {
+        Path legacy = Json.configFile(SAVE_FILE);
+        try {
+            if (savePath != null && !java.nio.file.Files.exists(savePath) && java.nio.file.Files.exists(legacy)) {
+                java.nio.file.Files.copy(legacy, savePath);
+                java.nio.file.Files.move(legacy, legacy.resolveSibling("nightsiege-state.migrated.json"),
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                NightSiegeMod.LOGGER.info("[Night Siege] Alter gemeinsamer Spielstand in diese Welt uebernommen");
+            }
+        } catch (java.io.IOException e) {
+            NightSiegeMod.LOGGER.warn("[Night Siege] Spielstand konnte nicht uebernommen werden: {}", e.toString());
+        }
+    }
     private static final int DIG_INTERVAL = 10;
     /** Write the countdown to disk once a minute rather than every tick. */
     private static final int PERSIST_INTERVAL = 1200;
@@ -248,6 +269,9 @@ public final class SiegeManager {
     }
 
     private void onServerStarted(MinecraftServer server) {
+        savePath = server.getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT)
+                .resolve(SAVE_FILE).normalize();
+        migrateSharedSave();
         reload();
         NightSiegeMod.LOGGER.info("[Night Siege] {} Cores bekannt, {} Belagerungen bestanden",
                 save.cores == null ? 0 : save.cores.size(), save.siegesWon);
@@ -261,7 +285,7 @@ public final class SiegeManager {
         config.sanitize();
         Json.write(configPath, config);
 
-        SiegeSave loadedSave = Json.read(Json.configFile(SAVE_FILE), SiegeSave.class);
+        SiegeSave loadedSave = savePath == null ? null : Json.read(savePath, SiegeSave.class);
         save = loadedSave == null ? new SiegeSave() : loadedSave;
         if (save.cores == null) {
             save.cores = new ArrayList<>();
@@ -282,7 +306,9 @@ public final class SiegeManager {
     }
 
     public void persist() {
-        Json.write(Json.configFile(SAVE_FILE), save);
+        if (savePath != null) {
+            Json.write(savePath, save);
+        }
     }
 
     // ------------------------------------------------------------------
@@ -1000,10 +1026,9 @@ public final class SiegeManager {
             return InteractionResult.SUCCESS;
         }
         TrapKind placing = ModContent.trapOf(held);
-        if (placing != null && !traps.mayPlace(player, placing)) {
-            player.connection.send(new net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket(
-                    Component.translatable("nightsiege.msg.trap_locked",
-                            Component.translatable("nightsiege.skill." + placing.id()))));
+        Component blocked = placing == null ? null : traps.placeBlocked(player, placing);
+        if (blocked != null) {
+            player.connection.send(new net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket(blocked));
             return InteractionResult.FAIL;
         }
         if (!ModContent.isCore(serverLevel.getBlockState(pos))) {

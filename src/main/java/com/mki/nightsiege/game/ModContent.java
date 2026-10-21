@@ -28,6 +28,7 @@ public final class ModContent {
     public static Block SIEGE_CORE;
     public static Item SIEGE_CORE_ITEM;
     public static CreativeModeTab TAB;
+    public static Item GUIDE;
     public static final Map<TrapKind, Block> TRAP_BLOCKS = new EnumMap<>(TrapKind.class);
     public static final Map<TrapKind, Item> TRAP_ITEMS = new EnumMap<>(TrapKind.class);
 
@@ -58,6 +59,11 @@ public final class ModContent {
         for (TrapKind kind : TrapKind.values()) {
             registerTrap(kind);
         }
+
+        ResourceKey<Item> guideKey = ResourceKey.create(Registries.ITEM, id("siege_guide"));
+        GUIDE = new GuideItem(new Item.Properties().setId(guideKey).stacksTo(1)
+                .rarity(net.minecraft.world.item.Rarity.UNCOMMON));
+        Registry.register(BuiltInRegistries.ITEM, guideKey, GUIDE);
 
         InferniteContent.register();
 

@@ -594,4 +594,14 @@ class SiegeCoreTest {
         assertEquals(SiegeConfig.CURRENT_MOB_LIST, old.mobListVersion);
         assertTrue(old.mobs.size() > 20);
     }
+
+    @Test
+    void trapCapsGrowWithTheTierAndStayPositive() {
+        for (TrapKind kind : TrapKind.values()) {
+            for (int tier = 1; tier < TrapKind.MAX_TIER; tier++) {
+                assertTrue(kind.maxPlaced(tier) >= 1, kind + " cap");
+                assertTrue(kind.maxPlaced(tier + 1) >= kind.maxPlaced(tier), kind + " cap grows");
+            }
+        }
+    }
 }

@@ -182,6 +182,13 @@ public class CoreScreen extends Screen {
             return;
         }
 
+        // The handbook, as one more tab at the far right of the row.
+        Button guide = Button.builder(Component.empty(),
+                b -> Minecraft.getInstance().setScreenAndShow(new GuideScreen()))
+                .bounds(guideTabX(), top - TAB_H + 2, TAB_W, TAB_H - 2).build();
+        guide.setAlpha(0f);
+        addRenderableWidget(guide);
+
         // Tabs: invisible buttons below the drawn tabs.
         Tab[] tabs = Tab.values();
         for (int i = 0; i < tabs.length; i++) {
@@ -224,6 +231,10 @@ public class CoreScreen extends Screen {
     private void invisible(Button button) {
         button.setAlpha(0f);
         addRenderableWidget(button);
+    }
+
+    private int guideTabX() {
+        return left + W - 4 - TAB_W;
     }
 
     private int tabX(int index) {
@@ -326,7 +337,9 @@ public class CoreScreen extends Screen {
 
         if (confirming == null) {
             Tab hoveredTab = tabAt(mouseX, mouseY);
-            if (hoveredTab != null) {
+            if (mouseX >= guideTabX() && mouseX < guideTabX() + TAB_W && mouseY >= top - TAB_H + 2 && mouseY < top) {
+                tooltip(gui, font, List.of(Component.translatable("nightsiege.guide.title").getString()), mouseX, mouseY);
+            } else if (hoveredTab != null) {
                 tooltip(gui, font, List.of(tabName(hoveredTab)), mouseX, mouseY);
             } else if (hovered != null) {
                 drawNodeTooltip(gui, font, hovered, mouseX, mouseY);
@@ -354,6 +367,16 @@ public class CoreScreen extends Screen {
 
     /** Idle tabs sit behind the window; the active one is drawn in front and joins it. */
     private void drawTabs(GuiGraphicsExtractor gui, boolean activeOnly) {
+        if (!activeOnly) {
+            int x = guideTabX();
+            int y = top - TAB_H + 3;
+            int h = TAB_H - 3;
+            gui.fill(x, y, x + TAB_W, y + h, 0xFF000000);
+            gui.fill(x + 1, y + 1, x + TAB_W - 1, y + h, 0xFF9C8A5A);
+            gui.fill(x + 1, y + 1, x + TAB_W - 1, y + 2, FRAME_LIGHT);
+            gui.fill(x + 1, y + 1, x + 2, y + h, FRAME_LIGHT);
+            gui.item(iconOf("nightsiege:siege_guide"), x + 6, y + 5);
+        }
         Tab[] tabs = Tab.values();
         for (int i = 0; i < tabs.length; i++) {
             Tab tab = tabs[i];
