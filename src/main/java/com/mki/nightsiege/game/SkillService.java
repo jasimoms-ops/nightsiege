@@ -35,10 +35,36 @@ public final class SkillService {
             }
             AttributeInstance instance = player.getAttribute(attribute);
             if (instance != null) {
-                instance.setBaseValue(effect.playerBase() + tree.totalBonus(effect, skills));
+                double bonus = tree.totalBonus(effect, skills);
+                if (effect == SkillEffect.ATTACK_SPEED) {
+                    bonus += weaponPathSpeed(skills, tree);
+                }
+                instance.setBaseValue(effect.playerBase() + bonus);
             }
         }
         capHealth(player);
+    }
+
+    /**
+     * Melee paths swing their weapon faster: axe, sword and spear feel slow in
+     * Minecraft. Grows with the first node of the path.
+     */
+    private static double weaponPathSpeed(PlayerSkills skills, SkillTree tree) {
+        String path = skills.pathTaken(tree);
+        String first;
+        double full;
+        switch (path) {
+            case SkillTree.PATH_AXE -> { first = "sunder"; full = 0.6; }
+            case SkillTree.PATH_BLADE -> { first = "keen_edge"; full = 0.4; }
+            case SkillTree.PATH_BERSERKER -> { first = "bloodlust"; full = 0.3; }
+            case SkillTree.PATH_SPEAR -> { first = "long_reach"; full = 0.5; }
+            default -> { return 0.0; }
+        }
+        com.mki.nightsiege.core.SkillNode node = tree.get(first);
+        if (node == null) {
+            return 0.0;
+        }
+        return full * Math.min(1.0, skills.levelOf(first) / (double) node.maxLevel());
     }
 
     /** Puts every attribute back to Minecraft's default. */

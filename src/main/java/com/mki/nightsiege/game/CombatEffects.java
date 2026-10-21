@@ -179,9 +179,9 @@ public final class CombatEffects {
 
     private boolean huntersMark(ServerLevel level, ServerPlayer player, int rank, long now) {
         double r = 16.0 + 8.0 * rank;
-        double bonus = 0.15 + 0.05 * rank;
+        double bonus = 0.3 + 0.1 * rank;
         for (LivingEntity victim : enemies(level, player.position(), r, 6.0)) {
-            mark(victim, bonus, now + 200, true);
+            mark(victim, bonus, now + 300, true);
         }
         play(level, player, SoundEvents.EVOKER_CAST_SPELL, 1.0f, 1.4f);
         return true;
@@ -281,6 +281,12 @@ public final class CombatEffects {
             }
         }
         player.addEffect(new MobEffectInstance(MobEffects.RESISTANCE, 60 + 20 * rank, 1));
+        // The guardian holds the line: a shield of extra hearts for the team around.
+        for (ServerPlayer mate : level.players()) {
+            if (mate.isAlive() && mate.distanceToSqr(player) <= r * r) {
+                mate.addEffect(new MobEffectInstance(MobEffects.ABSORPTION, 200, rank));
+            }
+        }
         play(level, player, SoundEvents.RAVAGER_ROAR, 1.0f, 1.2f);
         return true;
     }

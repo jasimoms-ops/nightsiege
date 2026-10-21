@@ -63,20 +63,20 @@ public final class SkillTree {
         // ---------------- Archer ----------------
         add(list, "archer_focus", SkillClass.ARCHER, "", SkillEffect.ARROW_DAMAGE, 3, 2, 1, 0.5, null, 0, "minecraft:bow", 0);
         // Swift: short draws hit like full ones, a second arrow, then a storm.
-        add(list, "swift_draw", SkillClass.ARCHER, PATH_SWIFT, SkillEffect.DRAW_ASSIST, 4, 3, 2, 0.25, "archer_focus", 1, "minecraft:feather", 1);
+        add(list, "swift_draw", SkillClass.ARCHER, PATH_SWIFT, SkillEffect.DRAW_ASSIST, 4, 3, 2, 0.2, "archer_focus", 1, "minecraft:feather", 1);
         add(list, "double_shot", SkillClass.ARCHER, PATH_SWIFT, SkillEffect.DOUBLE_SHOT, 1, 15, 0, 1.0, "swift_draw", 4, "minecraft:arrow", 2);
         add(list, "arrow_storm", SkillClass.ARCHER, PATH_SWIFT, SkillEffect.ARROW_STORM, 3, 25, 10, 1.0, "double_shot", 1, "minecraft:blaze_rod", 3);
         // Heavy: slow bow, hard arrows, a crushing shot.
-        add(list, "heavy_draw", SkillClass.ARCHER, PATH_HEAVY, SkillEffect.ARROW_DAMAGE, 5, 3, 2, 1.2, "archer_focus", 1, "minecraft:iron_ingot", 1);
-        add(list, "piercing", SkillClass.ARCHER, PATH_HEAVY, SkillEffect.ARROW_DAMAGE, 4, 5, 3, 2.0, "heavy_draw", 4, "minecraft:spectral_arrow", 2);
+        add(list, "heavy_draw", SkillClass.ARCHER, PATH_HEAVY, SkillEffect.ARROW_DAMAGE, 5, 3, 2, 1.0, "archer_focus", 1, "minecraft:iron_ingot", 1);
+        add(list, "piercing", SkillClass.ARCHER, PATH_HEAVY, SkillEffect.ARROW_DAMAGE, 4, 5, 3, 1.5, "heavy_draw", 4, "minecraft:spectral_arrow", 2);
         add(list, "power_shot", SkillClass.ARCHER, PATH_HEAVY, SkillEffect.POWER_SHOT, 3, 25, 10, 1.0, "piercing", 4, "minecraft:dragon_breath", 3);
         // Crossbow: heavy bolts that burst on impact, then a fan of bolts.
-        add(list, "heavy_bolts", SkillClass.ARCHER, PATH_CROSSBOW, SkillEffect.CROSSBOW_DAMAGE, 4, 3, 2, 1.5, "archer_focus", 1, "minecraft:crossbow", 1);
-        add(list, "shrapnel", SkillClass.ARCHER, PATH_CROSSBOW, SkillEffect.SHRAPNEL, 4, 5, 3, 0.15, "heavy_bolts", 4, "minecraft:firework_star", 2);
+        add(list, "heavy_bolts", SkillClass.ARCHER, PATH_CROSSBOW, SkillEffect.CROSSBOW_DAMAGE, 4, 3, 2, 2.0, "archer_focus", 1, "minecraft:crossbow", 1);
+        add(list, "shrapnel", SkillClass.ARCHER, PATH_CROSSBOW, SkillEffect.SHRAPNEL, 4, 5, 3, 0.2, "heavy_bolts", 4, "minecraft:firework_star", 2);
         add(list, "bolt_volley", SkillClass.ARCHER, PATH_CROSSBOW, SkillEffect.BOLT_VOLLEY, 3, 25, 10, 1.0, "shrapnel", 4, "minecraft:firework_rocket", 3);
         // Hunter: marks prey, moves fast, marks a whole pack.
-        add(list, "tracker", SkillClass.ARCHER, PATH_HUNTER, SkillEffect.MARK, 4, 3, 2, 0.08, "archer_focus", 1, "minecraft:spyglass", 1);
-        add(list, "fleet_foot", SkillClass.ARCHER, PATH_HUNTER, SkillEffect.MOVEMENT_SPEED, 4, 5, 3, 0.006, "tracker", 4, "minecraft:rabbit_foot", 2);
+        add(list, "tracker", SkillClass.ARCHER, PATH_HUNTER, SkillEffect.MARK, 4, 3, 2, 0.15, "archer_focus", 1, "minecraft:spyglass", 1);
+        add(list, "fleet_foot", SkillClass.ARCHER, PATH_HUNTER, SkillEffect.MOVEMENT_SPEED, 4, 5, 3, 0.008, "tracker", 4, "minecraft:rabbit_foot", 2);
         add(list, "hunt", SkillClass.ARCHER, PATH_HUNTER, SkillEffect.HUNTERS_MARK, 3, 25, 10, 1.0, "fleet_foot", 4, "minecraft:ender_eye", 3);
 
         // ---------------- Warrior ----------------
@@ -89,26 +89,26 @@ public final class SkillTree {
         add(list, "execute", SkillClass.WARRIOR, PATH_BLADE, SkillEffect.EXECUTE, 3, 25, 10, 1.0, "champion_bane", 4, "minecraft:diamond_sword", 3);
         // Spear: longer reach, hits pass through, a thrust down a whole line.
         add(list, "long_reach", SkillClass.WARRIOR, PATH_SPEAR, SkillEffect.REACH, 4, 3, 2, 0.4, "warrior_drill", 1, "minecraft:iron_spear", 1);
-        add(list, "impale", SkillClass.WARRIOR, PATH_SPEAR, SkillEffect.IMPALE, 4, 5, 3, 0.2, "long_reach", 4, "minecraft:diamond_spear", 2);
+        add(list, "impale", SkillClass.WARRIOR, PATH_SPEAR, SkillEffect.IMPALE, 4, 5, 3, 0.3, "long_reach", 4, "minecraft:diamond_spear", 2);
         add(list, "lance_thrust", SkillClass.WARRIOR, PATH_SPEAR, SkillEffect.LANCE_THRUST, 3, 25, 10, 1.0, "impale", 4, "minecraft:netherite_spear", 3);
         // Axe: cracks armour, heavy blows, smashes the ground.
         add(list, "sunder", SkillClass.WARRIOR, PATH_AXE, SkillEffect.SUNDER, 4, 3, 2, 0.08, "warrior_drill", 1, "minecraft:iron_axe", 1);
-        add(list, "heavy_blow", SkillClass.WARRIOR, PATH_AXE, SkillEffect.HEAVY_BLOW, 4, 5, 3, 1.0, "sunder", 4, "minecraft:diamond_axe", 2);
+        add(list, "heavy_blow", SkillClass.WARRIOR, PATH_AXE, SkillEffect.HEAVY_BLOW, 4, 5, 3, 1.5, "sunder", 4, "minecraft:diamond_axe", 2);
         add(list, "ground_slam", SkillClass.WARRIOR, PATH_AXE, SkillEffect.GROUND_SLAM, 3, 25, 10, 1.0, "heavy_blow", 4, "minecraft:mace", 3);
 
         // ---------------- Guardian ----------------
         add(list, "vitality", SkillClass.GUARDIAN, "", SkillEffect.MAX_HEALTH, 4, 2, 1, 2.0, null, 0, "minecraft:golden_apple", 0);
-        add(list, "toughness", SkillClass.GUARDIAN, PATH_BULWARK, SkillEffect.ARMOR, 4, 3, 2, 1.5, "vitality", 1, "minecraft:iron_chestplate", 1);
+        add(list, "toughness", SkillClass.GUARDIAN, PATH_BULWARK, SkillEffect.ARMOR, 4, 3, 2, 2.0, "vitality", 1, "minecraft:iron_chestplate", 1);
         add(list, "steadfast", SkillClass.GUARDIAN, PATH_BULWARK, SkillEffect.KNOCKBACK_RESIST, 4, 5, 3, 0.15, "toughness", 4, "minecraft:netherite_ingot", 2);
         add(list, "taunt", SkillClass.GUARDIAN, PATH_BULWARK, SkillEffect.TAUNT, 3, 25, 10, 1.0, "steadfast", 4, "minecraft:goat_horn", 3);
-        add(list, "field_dressing", SkillClass.GUARDIAN, PATH_MEDIC, SkillEffect.HEAL_AURA, 4, 3, 2, 0.5, "vitality", 1, "minecraft:glistering_melon_slice", 1);
+        add(list, "field_dressing", SkillClass.GUARDIAN, PATH_MEDIC, SkillEffect.HEAL_AURA, 4, 3, 2, 0.75, "vitality", 1, "minecraft:glistering_melon_slice", 1);
         add(list, "guardian_angel", SkillClass.GUARDIAN, PATH_MEDIC, SkillEffect.GUARDIAN_ANGEL, 3, 5, 3, 1.0, "field_dressing", 4, "minecraft:totem_of_undying", 2);
         add(list, "mass_heal", SkillClass.GUARDIAN, PATH_MEDIC, SkillEffect.MASS_HEAL, 3, 25, 10, 1.0, "guardian_angel", 1, "minecraft:enchanted_golden_apple", 3);
         add(list, "iron_guard", SkillClass.GUARDIAN, PATH_SHIELD, SkillEffect.ARMOR, 4, 3, 2, 1.5, "vitality", 1, "minecraft:shield", 1);
-        add(list, "riposte", SkillClass.GUARDIAN, PATH_SHIELD, SkillEffect.COUNTER, 4, 5, 3, 1.5, "iron_guard", 4, "minecraft:iron_ingot", 2);
+        add(list, "riposte", SkillClass.GUARDIAN, PATH_SHIELD, SkillEffect.COUNTER, 4, 5, 3, 2.5, "iron_guard", 4, "minecraft:iron_ingot", 2);
         add(list, "shield_charge", SkillClass.GUARDIAN, PATH_SHIELD, SkillEffect.SHIELD_CHARGE, 3, 25, 10, 1.0, "riposte", 4, "minecraft:anvil", 3);
-        add(list, "smite", SkillClass.GUARDIAN, PATH_PALADIN, SkillEffect.SMITE, 4, 3, 2, 0.15, "vitality", 1, "minecraft:golden_sword", 1);
-        add(list, "holy_vigor", SkillClass.GUARDIAN, PATH_PALADIN, SkillEffect.LIFESTEAL, 4, 5, 3, 0.04, "smite", 4, "minecraft:glow_berries", 2);
+        add(list, "smite", SkillClass.GUARDIAN, PATH_PALADIN, SkillEffect.SMITE, 4, 3, 2, 0.1, "vitality", 1, "minecraft:golden_sword", 1);
+        add(list, "holy_vigor", SkillClass.GUARDIAN, PATH_PALADIN, SkillEffect.LIFESTEAL, 4, 5, 3, 0.03, "smite", 4, "minecraft:glow_berries", 2);
         add(list, "holy_light", SkillClass.GUARDIAN, PATH_PALADIN, SkillEffect.HOLY_LIGHT, 3, 25, 10, 1.0, "holy_vigor", 4, "minecraft:beacon", 3);
 
         // ---------------- Engineer ----------------
