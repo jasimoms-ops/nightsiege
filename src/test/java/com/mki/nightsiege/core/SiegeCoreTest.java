@@ -794,6 +794,36 @@ class SiegeCoreTest {
     }
 
     @Test
+    void anOldConfigSwitchesTheDungeonsOffOnce() {
+        SiegeConfig old = new SiegeConfig();
+        old.dungeonsEnabled = true;
+        old.settingsVersion = 0;
+        old.sanitize();
+        assertFalse(old.dungeonsEnabled);
+        assertEquals(1, old.settingsVersion);
+        // Switched back on by hand, it stays on.
+        old.dungeonsEnabled = true;
+        old.sanitize();
+        assertTrue(old.dungeonsEnabled);
+    }
+
+    @Test
+    void theClassChangeGivesEveryPointBackOnce() {
+        SkillTree tree = new SkillTree();
+        PlayerSkills skills = new PlayerSkills();
+        skills.chosenClass = SkillClass.GUARDIAN.name();
+        skills.award(40);
+        skills.donated = 5;
+        skills.spend(5);
+        assertTrue(tree.unlock("vitality", skills));
+        skills.changeClass();
+        assertFalse(skills.hasClass());
+        assertEquals(35, skills.points());
+        assertEquals(0, skills.levelOf("vitality"));
+        assertTrue(skills.classResetUsed);
+    }
+
+    @Test
     void trapCapsGrowWithTheTierAndStayPositive() {
         for (TrapKind kind : TrapKind.values()) {
             for (int tier = 1; tier < TrapKind.MAX_TIER; tier++) {

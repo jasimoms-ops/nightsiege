@@ -63,10 +63,23 @@ public final class DungeonContent {
             "chests/ruined_portal", 0.15f,
             "chests/bastion_treasure", 0.4f);
 
+    /** Whether the dungeons are on; set from the config when the siege loads it. */
+    public static volatile boolean active;
+
+    /** Loot is built before the siege reads its config, so the file is read here directly. */
+    private static boolean enabledInFile() {
+        com.mki.nightsiege.core.SiegeConfig config = Json.read(Json.configFile("nightsiege.json"),
+                com.mki.nightsiege.core.SiegeConfig.class);
+        return config != null && config.settingsVersion >= 1 && config.dungeonsEnabled;
+    }
+
     private static void registerLoot() {
         LootTableEvents.MODIFY.register((key, tableBuilder, source, registries) -> {
             if (!source.isBuiltin() || !"minecraft".equals(key.identifier().getNamespace())) {
                 return;
+            }
+            if (!enabledInFile()) {
+                return;   // dungeons are off: no maps in chests
             }
             Float chance = MAP_LOOT.get(key.identifier().getPath());
             if (chance == null) {

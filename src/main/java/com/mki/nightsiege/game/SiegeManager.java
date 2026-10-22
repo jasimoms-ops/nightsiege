@@ -331,6 +331,7 @@ public final class SiegeManager {
         config = loaded == null ? new SiegeConfig() : loaded;
         config.sanitize();
         Json.write(configPath, config);
+        DungeonContent.active = config.dungeonsEnabled;
 
         SiegeSave loadedSave = savePath == null ? null : Json.read(savePath, SiegeSave.class);
         save = loadedSave == null ? new SiegeSave() : loadedSave;
@@ -375,6 +376,9 @@ public final class SiegeManager {
         EventAtmosphere.tickServer();
         if (dungeons.tick(server)) {
             persist();
+        }
+        if (server.overworld().getGameTime() % 100 == 0) {
+            refreshClassTags(server);
         }
         if (server.overworld().getGameTime() % 20 == 0) {
             events.syncClients(server);
@@ -831,7 +835,9 @@ public final class SiegeManager {
             save.currentStreak++;
             save.bestStreak = Math.max(save.bestStreak, save.currentStreak);
             awardSkillPoints(server);
-            rewardDungeonMaps(server);
+            if (config.dungeonsEnabled) {
+                rewardDungeonMaps(server);
+            }
             int next = SiegeMath.level(save.siegesWon, lastKnownDay, config);
             broadcast(server, Component.translatable("nightsiege.msg.won", next)
                     .withStyle(ChatFormatting.GREEN));
@@ -1207,10 +1213,22 @@ public final class SiegeManager {
 
     /** Sends the window state, or falls back to chat for a client without it. */
     public void openCoreWindow(ServerPlayer player) {
+        if (player.level() instanceof ServerLevel here) {
+            PlayerSkills own = save.skillsOf(player.getUUID().toString());
+            ClassTags.update(here.getServer(), player, own, skillTree.subclassOf(own));
+        }
         if (ServerPlayNetworking.canSend(player, CoreNetworking.CoreUiPayload.TYPE)) {
             StatsService.sendTo(player, this);
         } else {
             player.sendSystemMessage(Component.translatable("nightsiege.msg.mod_required"));
+        }
+    }
+
+    /** Puts every player's subclass (or class) after their name. */
+    private void refreshClassTags(MinecraftServer server) {
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            PlayerSkills own = save.skillsOf(player.getUUID().toString());
+            ClassTags.update(server, player, own, skillTree.subclassOf(own));
         }
     }
 
@@ -1276,6 +1294,7 @@ public final class SiegeManager {
         switch (verb) {
             case "buy" -> onBuySkill(player, argument);
             case "class" -> onChooseClass(player, argument);
+            case "classreset" -> onClassReset(player);
             case "donate" -> onDonate(player, parseAmount(argument));
             case "dev" -> onDevAction(player, argument);
             case "ult" -> onUltimateKey(player);
@@ -1363,6 +1382,30 @@ public final class SiegeManager {
             player.sendSystemMessage(Component.translatable("nightsiege.msg.class_chosen",
                     Component.translatable(chosen.translationKey())).withStyle(ChatFormatting.GREEN));
         }
+        openCoreWindow(player);
+    }
+
+    /** The one free class change at the core: class open again, all points back. */
+    public void onClassReset(ServerPlayer player) {
+        if (player == null) {
+            return;
+        }
+        PlayerSkills own = save.skillsOf(player.getUUID().toString());
+        if (!own.hasClass()) {
+            openCoreWindow(player);
+            return;
+        }
+        if (own.classResetUsed) {
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.class_reset_used")
+                    .withStyle(ChatFormatting.RED));
+            openCoreWindow(player);
+            return;
+        }
+        own.changeClass();
+        SkillService.clear(player);
+        persist();
+        player.sendSystemMessage(Component.translatable("nightsiege.msg.class_reset_done", own.points())
+                .withStyle(ChatFormatting.GREEN));
         openCoreWindow(player);
     }
 

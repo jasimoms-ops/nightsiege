@@ -15,6 +15,8 @@ public class PlayerSkills {
     /** Points this player has put into the shared core tree. */
     public int donated;
     public Map<String, Integer> levels = new HashMap<>();
+    /** True once the player has used their one free class change at the core. */
+    public boolean classResetUsed;
 
     public SkillClass clazz() {
         return SkillClass.byName(chosenClass);
@@ -70,6 +72,19 @@ public class PlayerSkills {
             }
         }
         return "";
+    }
+
+    /**
+     * The one free class change: the class is open again and every point earned
+     * comes back (minus what went into the core). Learned levels are gone.
+     */
+    public void changeClass() {
+        points = Math.max(0, earned - donated);
+        chosenClass = "";
+        classResetUsed = true;
+        if (levels != null) {
+            levels.clear();
+        }
     }
 
     public void reset() {

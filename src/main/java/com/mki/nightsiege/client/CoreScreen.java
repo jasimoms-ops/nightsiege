@@ -95,6 +95,8 @@ public class CoreScreen extends Screen {
     private CoreStats stats;
     /** Class waiting for the player to confirm the choice; null when no dialog is open. */
     private SkillClass confirming;
+    /** The dialog for the one free class change is open. */
+    private boolean confirmingReset;
     private final List<NodeButton> nodeButtons = new ArrayList<>();
     /** Top edge of each path's row, for the highlight behind the player's own path. */
     private final java.util.Map<String, Integer> pathRows = new java.util.HashMap<>();
@@ -188,6 +190,20 @@ public class CoreScreen extends Screen {
             activeTab = own != null ? own : Tab.STATS;
         }
 
+        if (confirmingReset) {
+            int dx = left + W / 2;
+            int dy = top + H / 2;
+            addRenderableWidget(Button.builder(Component.translatable("nightsiege.ui.confirm"), b -> {
+                send("classreset");
+                confirmingReset = false;
+                rebuildWidgets();
+            }).bounds(dx - 104, dy + 18, 100, 20).build());
+            addRenderableWidget(Button.builder(Component.translatable("gui.cancel"), b -> {
+                confirmingReset = false;
+                rebuildWidgets();
+            }).bounds(dx + 4, dy + 18, 100, 20).build());
+            return;
+        }
         if (confirming != null) {
             int dx = left + W / 2;
             int dy = top + H / 2;
@@ -241,11 +257,20 @@ public class CoreScreen extends Screen {
                 rebuildWidgets();
             }).bounds(left + W - 200, footerY, 134, 18).build());
         }
+        int footerX = left + 8;
         if (stats.creative && activeTab != Tab.CORE) {
             addRenderableWidget(Button.builder(Component.translatable("nightsiege.ui.dev_grant"),
-                    b -> send("dev:50")).bounds(left + 8, footerY, 70, 18).build());
+                    b -> send("dev:50")).bounds(footerX, footerY, 70, 18).build());
             addRenderableWidget(Button.builder(Component.translatable("nightsiege.ui.dev_reset"),
-                    b -> send("dev:reset")).bounds(left + 82, footerY, 56, 18).build());
+                    b -> send("dev:reset")).bounds(footerX + 74, footerY, 56, 18).build());
+            footerX += 134;
+        }
+        if (stats.classResetAvailable && activeTab == ownTab()) {
+            Component label = Component.translatable("nightsiege.ui.class_reset");
+            addRenderableWidget(Button.builder(label, b -> {
+                confirmingReset = true;
+                rebuildWidgets();
+            }).bounds(footerX, footerY, Math.max(90, font.width(label) + 12), 18).build());
         }
     }
 
@@ -958,7 +983,7 @@ public class CoreScreen extends Screen {
         if (super.mouseClicked(event, doubleClick)) {
             return true;
         }
-        if (!gridMode || confirming != null || !inView(event.x(), event.y())) {
+        if (!gridMode || confirming != null || confirmingReset || !inView(event.x(), event.y())) {
             return false;
         }
         GridNode hit = gridAt(event.x(), event.y());
@@ -1088,11 +1113,14 @@ public class CoreScreen extends Screen {
         if (confirming != null) {
             gui.fill(0, 0, this.width, this.height, 0x90000000);
             drawConfirm(gui, font);
+        } else if (confirmingReset) {
+            gui.fill(0, 0, this.width, this.height, 0x90000000);
+            drawResetConfirm(gui, font);
         }
 
         super.extractRenderState(gui, mouseX, mouseY, delta);
 
-        if (confirming == null) {
+        if (confirming == null && !confirmingReset) {
             Tab hoveredTab = tabAt(mouseX, mouseY);
             if (mouseX >= guideTabX() && mouseX < guideTabX() + TAB_W && mouseY >= top - TAB_H + 2 && mouseY < top) {
                 tooltip(gui, font, List.of(Component.translatable("nightsiege.guide.title").getString()), mouseX, mouseY);
@@ -1450,6 +1478,21 @@ public class CoreScreen extends Screen {
         centered(gui, font, Component.translatable("nightsiege.ui.confirm_title", name).getString(), x + w / 2, y + 10, TITLE);
         centered(gui, font, Component.translatable("nightsiege.ui.confirm_warn1").getString(), x + w / 2, y + 26, 0xFFAA0000);
         centered(gui, font, Component.translatable("nightsiege.ui.confirm_warn2").getString(), x + w / 2, y + 38, TITLE);
+    }
+
+    private void drawResetConfirm(GuiGraphicsExtractor gui, Font font) {
+        int w = 260;
+        int h = 84;
+        int x = left + (W - w) / 2;
+        int y = top + (H - h) / 2 - 8;
+        gui.fill(x, y, x + w, y + h, 0xFF000000);
+        gui.fill(x + 1, y + 1, x + w - 1, y + h - 1, FRAME_FILL);
+        gui.fill(x + 1, y + 1, x + w - 1, y + 3, FRAME_LIGHT);
+        gui.fill(x + 1, y + h - 3, x + w - 1, y + h - 1, FRAME_SHADOW);
+        centered(gui, font, Component.translatable("nightsiege.ui.class_reset_title").getString(), x + w / 2, y + 10, TITLE);
+        centered(gui, font, Component.translatable("nightsiege.ui.class_reset_warn1", stats.earned - stats.donated).getString(),
+                x + w / 2, y + 26, TITLE);
+        centered(gui, font, Component.translatable("nightsiege.ui.class_reset_warn2").getString(), x + w / 2, y + 38, 0xFFAA0000);
     }
 
     private static void centered(GuiGraphicsExtractor gui, Font font, String text, int cx, int y, int color) {

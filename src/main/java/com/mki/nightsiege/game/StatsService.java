@@ -59,6 +59,7 @@ public final class StatsService {
         stats.pathTaken = skills.pathTaken(tree);
         stats.subclass = tree.subclassOf(skills);
         stats.creative = viewer.getAbilities().instabuild;
+        stats.classResetAvailable = skills.hasClass() && !skills.classResetUsed;
         for (com.mki.nightsiege.core.PerkKind kind : com.mki.nightsiege.core.PerkKind.values()) {
             CoreStats.PerkLine line = new CoreStats.PerkLine();
             line.id = kind.id();

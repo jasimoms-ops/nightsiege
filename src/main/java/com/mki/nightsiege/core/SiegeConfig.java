@@ -170,7 +170,13 @@ public class SiegeConfig {
     public List<MobEntry> mobs = defaultMobs();
 
     /** Dungeon cores hidden in structures of other mods. */
-    public boolean dungeonsEnabled = true;
+    public boolean dungeonsEnabled = false;
+    /**
+     * Version of the general settings in this file. Version 1 switched the
+     * dungeons off (they wait for better structures); set dungeonsEnabled back
+     * to true to have them again.
+     */
+    public int settingsVersion = 0;
     /** Version of the dungeon list in this file. Older lists are replaced on load. */
     public int dungeonListVersion = 0;
     public static final int CURRENT_DUNGEON_LIST = 1;
@@ -304,6 +310,10 @@ public class SiegeConfig {
         audibleSpawnsPerBatch = Math.max(0, audibleSpawnsPerBatch);
         skillPointsLevelStep = Math.max(1, skillPointsLevelStep);
         tankDamagePerPoint = Math.max(1, tankDamagePerPoint);
+        if (settingsVersion < 1) {
+            dungeonsEnabled = false;
+            settingsVersion = 1;
+        }
 
         toolEquipChance = clampDouble(toolEquipChance, 0.0, 1.0);
         if (!allowShovelDigging) {

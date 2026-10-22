@@ -222,7 +222,9 @@ public final class BonusEvents {
                 offers.add(offer(trapPrice(kind), new ItemStack(item, 2), 4));
             }
         }
-        offers.add(offer(10, new ItemStack(DungeonContent.MAP), 2));
+        if (DungeonContent.active) {
+            offers.add(offer(10, new ItemStack(DungeonContent.MAP), 2));
+        }
 
         List<MerchantOffer> goods = new ArrayList<>();
         addGood(goods, "golden_apple", 2, 8, 3);

@@ -105,6 +105,8 @@ public class CoreStats {
     /** Warrior subclass (blademaster, berserker, axe, paladin), or empty. */
     public String subclass = "";
     public boolean creative;
+    /** The viewer may still change their class once at the core. */
+    public boolean classResetAvailable;
     public boolean skillsEnabled;
 
     /** The shared core tree. */

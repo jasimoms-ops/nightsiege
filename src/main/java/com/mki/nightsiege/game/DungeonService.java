@@ -276,6 +276,10 @@ public final class DungeonService {
         if (state.getBlock() != DungeonContent.CORE) {
             return false;
         }
+        if (!config.get().dungeonsEnabled) {
+            player.connection.send(new ClientboundSetActionBarTextPacket(Component.translatable("nightsiege.dungeon.off")));
+            return true;
+        }
         String dim = SiegeManager.dimensionName(level);
         DungeonRecord record = null;
         for (DungeonRecord r : records()) {
@@ -659,6 +663,10 @@ public final class DungeonService {
 
     /** A blank dungeon map was used: it becomes a map to the nearest dungeon in unexplored land. */
     public void useMap(ServerLevel level, ServerPlayer player, InteractionHand hand) {
+        if (!config.get().dungeonsEnabled) {
+            player.connection.send(new ClientboundSetActionBarTextPacket(Component.translatable("nightsiege.dungeon.off")));
+            return;
+        }
         Pair<BlockPos, Holder<Structure>> found = nearest(level, player.blockPosition(), null, true);
         if (found == null) {
             player.connection.send(new ClientboundSetActionBarTextPacket(Component.translatable("nightsiege.dungeon.map_none")));
