@@ -33,6 +33,8 @@ dependencies {
     implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
     compileOnly sourceSets.irisstubs.output
 
+    // Dungeons and Taverns (the dungeon structures), when CI has put it into dungeon-mods.
+    runtimeOnly fileTree(dir: 'dungeon-mods', include: '*.jar')
     // Only for the shader test in CI: Iris and Sodium from the run-mods folder.
     if (System.getenv("NIGHTSIEGE_WITH_IRIS") != null) {
         runtimeOnly fileTree(dir: 'run-mods', include: '*.jar')
