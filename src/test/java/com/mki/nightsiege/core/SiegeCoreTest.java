@@ -21,12 +21,14 @@ class SiegeCoreTest {
     // --- difficulty ---------------------------------------------------
 
     @Test
-    void levelRisesWithWinsAndDays() {
+    void levelRisesWithWinsOnly() {
         SiegeConfig c = cfg();
         assertEquals(1, SiegeMath.level(0, 0, c));
         assertEquals(4, SiegeMath.level(3, 0, c));
-        assertEquals(3, SiegeMath.level(0, 16, c));
+        assertEquals(1, SiegeMath.level(0, 16, c));   // time alone no longer raises it
         assertEquals(c.maxLevel, SiegeMath.level(999, 9999, c));
+        c.daysPerLevel = 8;   // still possible by config
+        assertEquals(3, SiegeMath.level(0, 16, c));
     }
 
     @Test
@@ -34,7 +36,9 @@ class SiegeCoreTest {
         SiegeConfig c = cfg();
         assertEquals(240, SiegeMath.durationSeconds(1, c));
         assertEquals(600, SiegeMath.durationSeconds(99, c));
-        assertEquals(6, SiegeMath.mobsPerBatch(1, 1, c));
+        assertEquals(4, SiegeMath.mobsPerBatch(1, 1, c));
+        assertEquals(10, SiegeMath.mobsPerBatch(7, 1, c));   // night 7 alone: 10, not 18
+        assertEquals(22, SiegeMath.mobsPerBatch(7, 3, c));   // +60 % per extra player
         assertTrue(SiegeMath.mobsPerBatch(20, 10, c) <= c.maxLiveMobs);
     }
 
@@ -808,6 +812,55 @@ class SiegeCoreTest {
     }
 
     @Test
+    void twoSurvivedWavesMakeAPoint() {
+        PlayerSkills p = new PlayerSkills();
+        assertEquals(0, WaveXp.survive(p, 1, 2));
+        assertEquals(1, p.waveCredit);
+        assertEquals(1, WaveXp.survive(p, 1, 2));
+        assertEquals(1, p.points());
+        assertEquals(0, p.waveCredit);
+        // A catch-up night: three waves' worth at once.
+        assertEquals(1, WaveXp.survive(p, 3, 2));
+        assertEquals(1, p.waveCredit);
+    }
+
+    @Test
+    void missedNightsAreMadeUp() {
+        assertEquals(1, WaveXp.catchUp(5, 4, 4));    // was there last night
+        assertEquals(3, WaveXp.catchUp(5, 2, 4));    // missed two
+        assertEquals(4, WaveXp.catchUp(20, 2, 4));   // capped
+        assertEquals(1, WaveXp.catchUp(0, -1, 4));   // the very first night
+        assertEquals(4, WaveXp.catchUp(9, -1, 4));   // new on the server
+    }
+
+    @Test
+    void aLostNightTakesTheNewestSkills() {
+        SkillTree tree = new SkillTree();
+        PlayerSkills p = new PlayerSkills();
+        p.chosenClass = SkillClass.GUARDIAN.name();
+        p.award(100);
+        assertTrue(tree.unlock("vitality", p));
+        assertTrue(tree.unlock("vitality", p));
+        assertTrue(tree.unlock("g_challenger", p));
+        int before = p.points();
+        List<String> gone = tree.loseLast(p, 2);
+        assertEquals(List.of("g_challenger", "vitality"), gone);
+        assertEquals(0, p.levelOf("g_challenger"));
+        assertEquals(1, p.levelOf("vitality"));
+        assertEquals(before, p.points());            // the points do not come back
+        assertTrue(p.lost > 0);
+        // Without a history (old saves) the deepest free level goes.
+        p.history.clear();
+        assertTrue(tree.unlock("toughness", p) || p.levelOf("toughness") == 0);
+        p.history.clear();
+        List<String> old = tree.loseLast(p, 1);
+        assertEquals(1, old.size());
+        // The class change no longer gives lost points back.
+        p.changeClass();
+        assertEquals(p.earned - p.donated - p.lost, p.points());
+    }
+
+    @Test
     void anOldConfigTurnsTheDungeonsBackOnOnce() {
         SiegeConfig old = new SiegeConfig();
         old.dungeonsEnabled = false;
@@ -816,7 +869,7 @@ class SiegeCoreTest {
         old.sanitize();
         assertTrue(old.dungeonsEnabled);
         assertFalse(old.bloodMoonGlow);
-        assertEquals(3, old.settingsVersion);
+        assertEquals(4, old.settingsVersion);
         assertEquals(SiegeConfig.CURRENT_DUNGEON_LIST, old.dungeonListVersion);
         assertTrue(old.dungeons.stream().allMatch(t -> t.structure.startsWith("nova_structures:")));
         // Switched off again by hand, it stays off.

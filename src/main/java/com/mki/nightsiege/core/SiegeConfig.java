@@ -32,22 +32,23 @@ public class SiegeConfig {
     // --- difficulty -------------------------------------------------------
     public int maxLevel = 20;
     /** Every N in-game days the level rises by one. */
-    public int daysPerLevel = 8;
+    /** Extra level every this many in-game days; 0 = the level only rises with won nights. */
+    public int daysPerLevel = 0;
 
     public int baseDurationSeconds = 240;
     public int durationSecondsPerLevel = 20;
     public int maxDurationSeconds = 600;
 
-    public int baseMobsPerBatch = 6;
-    public double mobsPerLevel = 2.0;
+    public int baseMobsPerBatch = 4;
+    public double mobsPerLevel = 1.0;
     /** Each additional player multiplies the batch size by this much. */
-    public double playerScaling = 0.5;
+    public double playerScaling = 0.6;
     public int maxLiveMobs = 40;
     public int batchIntervalSeconds = 38;
 
-    public double healthPerLevel = 0.08;
+    public double healthPerLevel = 0.06;
     public double maxHealthMultiplier = 2.5;
-    public double damagePerLevel = 0.06;
+    public double damagePerLevel = 0.04;
     public double maxDamageMultiplier = 2.0;
 
     public double spawnMinDistance = 20.0;
@@ -96,7 +97,7 @@ public class SiegeConfig {
     /** Chance of an aurora in a quiet night (no siege due). */
     public double auroraChance = 0.125;
     /** Seconds between the free experience points under the aurora. */
-    public int auroraPointSeconds = 60;
+    public int auroraPointSeconds = 180;
     /** Chance each morning that the trader caravan comes, once enough days have passed. */
     public double caravanChance = 0.35;
     public int caravanMinDays = 3;
@@ -156,9 +157,17 @@ public class SiegeConfig {
     /** Hand every player the written guide the first time they join. */
     public boolean giveGuideBook = true;
     /** Points every surviving defender gets for a cleared siege. */
-    public int skillPointsPerSiege = 1;
+    public int skillPointsPerSiege = 0;
     /** Experience for every attacker a player kills. */
-    public int skillPointsPerKill = 1;
+    public int skillPointsPerKill = 0;
+    /** Survived waves that make one experience point (sieges give experience only this way). */
+    public int wavesPerPoint = 2;
+    /** Players who missed nights: waves count (missed + 1) times in their next night, at most this often. */
+    public int catchUpMax = 4;
+    /** Defenders who die in a siege keep their inventory. */
+    public boolean keepInventoryInSiege = true;
+    /** Learned levels each defender loses when a night is lost (the level stays, the night comes again). */
+    public int defeatSkillLoss = 2;
     /** A champion is worth this many times a normal kill. */
     public int championPointMultiplier = 10;
     /** One extra point for every this many siege levels. */
@@ -254,7 +263,7 @@ public class SiegeConfig {
         participantRadius = Math.max(16.0, participantRadius);
 
         maxLevel = clamp(maxLevel, 1, 1000);
-        daysPerLevel = Math.max(1, daysPerLevel);
+        daysPerLevel = Math.max(0, daysPerLevel);
 
         baseDurationSeconds = Math.max(30, baseDurationSeconds);
         durationSecondsPerLevel = Math.max(0, durationSecondsPerLevel);
@@ -329,6 +338,23 @@ public class SiegeConfig {
             dungeonsEnabled = true;   // back on, in the structures of Dungeons and Taverns
             settingsVersion = 3;
         }
+        if (settingsVersion < 4) {
+            // The balancing of October 2026: experience only from survived waves, a flatter climb.
+            SiegeConfig fresh = new SiegeConfig();
+            daysPerLevel = fresh.daysPerLevel;
+            baseMobsPerBatch = fresh.baseMobsPerBatch;
+            mobsPerLevel = fresh.mobsPerLevel;
+            playerScaling = fresh.playerScaling;
+            healthPerLevel = fresh.healthPerLevel;
+            damagePerLevel = fresh.damagePerLevel;
+            auroraPointSeconds = fresh.auroraPointSeconds;
+            skillPointsPerSiege = fresh.skillPointsPerSiege;
+            skillPointsPerKill = fresh.skillPointsPerKill;
+            settingsVersion = 4;
+        }
+        wavesPerPoint = clamp(wavesPerPoint, 1, 20);
+        catchUpMax = clamp(catchUpMax, 1, 10);
+        defeatSkillLoss = clamp(defeatSkillLoss, 0, 20);
 
         toolEquipChance = clampDouble(toolEquipChance, 0.0, 1.0);
         if (!allowShovelDigging) {

@@ -103,6 +103,38 @@ public class SiegeSave {
         return stats;
     }
 
+    /** Siege nights held so far (real ones, won or lost): numbers the nights for catching up. */
+    public int nightsHeld;
+    /** Version of the balancing the points below were earned under. */
+    public int balanceVersion;
+    public static final int BALANCE_VERSION = 1;
+
+    /**
+     * Version 1 (October 2026): experience only from survived waves. Points earned
+     * the old way (one per kill) are far too many, so everyone starts again:
+     * classes stay, levels and points (and the shared core tree) go.
+     * Returns how many players started again.
+     */
+    public int migrateBalance() {
+        if (balanceVersion >= BALANCE_VERSION) {
+            return 0;
+        }
+        int count = 0;
+        if (skills != null) {
+            for (PlayerSkills own : skills.values()) {
+                if (own != null) {
+                    own.restartProgress();
+                    count++;
+                }
+            }
+        }
+        if (coreSkills != null) {
+            coreSkills.restartProgress();
+        }
+        balanceVersion = BALANCE_VERSION;
+        return count;
+    }
+
     /** Version of the skill trees the levels below were learned in. */
     public int skillTreeVersion;
     public static final int SKILL_TREE_VERSION = 5;

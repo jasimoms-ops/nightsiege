@@ -16,6 +16,7 @@ import com.mki.nightsiege.core.SiegeEvent;
 import com.mki.nightsiege.core.SiegeMath;
 import com.mki.nightsiege.core.SiegeScheduler;
 import com.mki.nightsiege.core.SkillTree;
+import com.mki.nightsiege.core.WaveXp;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.entity.event.v1.ServerEntityCombatEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
@@ -294,6 +295,15 @@ public final class SiegeManager {
         ServerEntityCombatEvents.AFTER_KILLED_OTHER_ENTITY.register(
                 (killWorld, killer, killed, killSource) -> onKill(killer, killed));
         ServerPlayerEvents.JOIN.register(player -> onJoin(player));
+        ServerPlayerEvents.COPY_FROM.register((oldPlayer, newPlayer, alive) -> {
+            if (!alive && keptInventory.remove(oldPlayer.getUUID())) {
+                net.minecraft.world.entity.player.Inventory from = oldPlayer.getInventory();
+                net.minecraft.world.entity.player.Inventory to = newPlayer.getInventory();
+                for (int i = 0; i < from.getContainerSize(); i++) {
+                    to.setItem(i, from.getItem(i).copy());
+                }
+            }
+        });
         ServerLivingEntityEvents.AFTER_DAMAGE.register((entity, source, baseDamage, taken, blocked) -> {
             combat.afterDamage(entity, source, baseDamage, taken, blocked);
             perks.afterDamage(entity, taken);
@@ -350,6 +360,12 @@ public final class SiegeManager {
         int respec = save.migrateSkills();
         if (respec > 0) {
             NightSiegeMod.LOGGER.info("[Night Siege] Neue Klassen-Bäume: {} Spieler bekommen ihre Punkte zurück", respec);
+            persist();
+        }
+        boolean oldBalance = save.balanceVersion < SiegeSave.BALANCE_VERSION;
+        int restarted = save.migrateBalance();
+        if (oldBalance) {
+            NightSiegeMod.LOGGER.info("[Night Siege] Neues Balancing: {} Spieler starten mit 0 Punkten neu", restarted);
             persist();
         }
         scheduler.setReadyTicks(save.readyTicks);
@@ -505,6 +521,15 @@ public final class SiegeManager {
         return start(server, targetWorld, targetAnchor, 0, null);
     }
 
+    /** Waves started in the running siege. */
+    private int wavesStarted;
+    /** How often a survived wave counts for each defender this night (catching up on missed nights). */
+    private final Map<UUID, Integer> waveWeight = new HashMap<>();
+    /** Number of the running siege night, for catching up; -1 in tests. */
+    private int nightNumber = -1;
+    /** Defenders who died this night with their inventory kept: it comes back when they respawn. */
+    private final Set<UUID> keptInventory = new HashSet<>();
+
     /** True while a test siege runs: nothing it does is counted, won or lost. */
     private boolean testRun;
     private int levelOverride;
@@ -544,6 +569,12 @@ public final class SiegeManager {
         digger.reset();
         for (ServerPlayer player : nearby) {
             participants.add(player.getUUID());
+        }
+        wavesStarted = 0;
+        waveWeight.clear();
+        nightNumber = testRun ? -1 : save.nightsHeld++;
+        for (ServerPlayer player : nearby) {
+            joinNight(player);
         }
 
         currentEvent = forcedEvent != null ? forcedEvent : pickEventNow(server);
@@ -676,6 +707,7 @@ public final class SiegeManager {
                 if (participants.add(player.getUUID())) {
                     SkillService.apply(player, save.skillsOf(player.getUUID().toString()), skillTree);
                     traps.giveFreeTraps(player);
+                    joinNight(player);
                 }
             }
         }
@@ -734,7 +766,58 @@ public final class SiegeManager {
         }
     }
 
+    /** A defender joins this night: missed nights make every wave count more for them. */
+    private void joinNight(ServerPlayer player) {
+        if (testRun || nightNumber < 0) {
+            return;
+        }
+        PlayerSkills skills = save.skillsOf(player.getUUID().toString());
+        int weight = WaveXp.catchUp(nightNumber, skills.lastNight, config.catchUpMax);
+        skills.lastNight = nightNumber;
+        waveWeight.put(player.getUUID(), weight);
+        if (weight > 1) {
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.catch_up", weight - 1, weight)
+                    .withStyle(ChatFormatting.AQUA));
+        }
+    }
+
+    /** A wave is over: everyone still standing near the core has survived it. */
+    private void waveSurvived(MinecraftServer server) {
+        if (testRun || !config.skillsEnabled || world == null || anchor == null) {
+            return;
+        }
+        double reach = config.participantRadius * 1.5;
+        for (UUID id : participants) {
+            if (fallen.contains(id)) {
+                continue;
+            }
+            ServerPlayer player = server.getPlayerList().getPlayer(id);
+            if (player == null || player.level() != world
+                    || player.distanceToSqr(anchor.getX() + 0.5, anchor.getY(), anchor.getZ() + 0.5) > reach * reach) {
+                continue;
+            }
+            int weight = waveWeight.getOrDefault(id, 1) * (save.specialNight ? config.specialNightXpMultiplier : 1);
+            int points = WaveXp.survive(save.skillsOf(id.toString()), weight, config.wavesPerPoint);
+            player.connection.send(new net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket(points > 0
+                    ? Component.translatable("nightsiege.msg.wave_point", wavesStarted, points).withStyle(ChatFormatting.AQUA)
+                    : Component.translatable("nightsiege.msg.wave_held", wavesStarted).withStyle(ChatFormatting.GRAY)));
+        }
+    }
+
+    /** Whether a defender dying now keeps the inventory (and is noted to get it back on respawn). */
+    public boolean keepsInventory(ServerPlayer player) {
+        if (!active || !config.keepInventoryInSiege || !participants.contains(player.getUUID())) {
+            return false;
+        }
+        keptInventory.add(player.getUUID());
+        return true;
+    }
+
     private void spawnBatch(MinecraftServer server) {
+        if (wavesStarted > 0) {
+            waveSurvived(server);
+        }
+        wavesStarted++;
         int wanted = (int) Math.round(SiegeMath.mobsPerBatch(siegeLevel, participants.size(), config)
                 * currentEvent.mobCountMultiplier(config) * (save.specialNight ? config.specialNightMobMultiplier : 1.0));
         int room = config.maxLiveMobs - liveMobs.size();
@@ -869,6 +952,7 @@ public final class SiegeManager {
             save.siegesWon++;
             save.currentStreak++;
             save.bestStreak = Math.max(save.bestStreak, save.currentStreak);
+            waveSurvived(server);
             awardSkillPoints(server);
             if (config.dungeonsEnabled) {
                 rewardDungeonMaps(server);
@@ -887,11 +971,11 @@ public final class SiegeManager {
             if (world != null && anchor != null) {
                 destroyed = Demolition.blast(world, anchor, config);
             }
-            resetProgress(server);
             broadcast(server, Component.translatable("nightsiege.msg.lost", destroyed)
                     .withStyle(ChatFormatting.DARK_RED));
-            broadcast(server, Component.translatable("nightsiege.msg.core_reset")
-                    .withStyle(ChatFormatting.DARK_RED));
+            loseSkills(server);
+            broadcast(server, Component.translatable("nightsiege.msg.night_again", siegeLevel)
+                    .withStyle(ChatFormatting.RED));
         }
 
         save.specialNight = false;
@@ -945,6 +1029,30 @@ public final class SiegeManager {
         participants.clear();
         fallen.clear();
         liveMobs.clear();
+    }
+
+    /** A lost night: every defender loses the newest learned skills, the points spent on them with them. */
+    private void loseSkills(MinecraftServer server) {
+        if (config.defeatSkillLoss <= 0) {
+            return;
+        }
+        for (UUID id : participants) {
+            PlayerSkills skills = save.skillsOf(id.toString());
+            List<String> gone = skillTree.loseLast(skills, config.defeatSkillLoss);
+            ServerPlayer player = server.getPlayerList().getPlayer(id);
+            if (player == null || gone.isEmpty()) {
+                continue;
+            }
+            net.minecraft.network.chat.MutableComponent names = Component.empty();
+            for (int i = 0; i < gone.size(); i++) {
+                if (i > 0) {
+                    names.append(", ");
+                }
+                names.append(Component.translatable("nightsiege.skill." + gone.get(i)));
+            }
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.skills_lost", names)
+                    .withStyle(ChatFormatting.RED));
+        }
     }
 
     /** A lost siege sets the core back to the start: progress and skills are gone. */

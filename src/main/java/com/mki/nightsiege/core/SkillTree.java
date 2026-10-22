@@ -637,7 +637,59 @@ public final class SkillTree {
         int level = skills.levelOf(nodeId);
         skills.spend(node.costFor(level));
         skills.setLevel(nodeId, level + 1);
+        skills.remember(nodeId);
         return true;
+    }
+
+    /**
+     * A lost night: the player's newest learned levels go, and the points spent on
+     * them with them. Saves from before the history was kept lose the deepest
+     * level that nothing else learned depends on. Returns one id per level lost.
+     */
+    public List<String> loseLast(PlayerSkills skills, int count) {
+        List<String> taken = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            String id = skills.takeLast();
+            if (id == null) {
+                id = deepestLeaf(skills);
+            }
+            if (id == null) {
+                break;
+            }
+            int level = skills.levelOf(id);
+            skills.setLevel(id, level - 1);
+            SkillNode node = get(id);
+            if (node != null) {
+                skills.lost += node.costFor(level - 1);
+            }
+            taken.add(id);
+        }
+        return taken;
+    }
+
+    private String deepestLeaf(PlayerSkills skills) {
+        String best = null;
+        int bestRow = -1;
+        for (SkillNode node : nodes.values()) {
+            int level = skills.levelOf(node.id());
+            if (level <= 0 || node.clazz() != skills.clazz()) {
+                continue;
+            }
+            skills.setLevel(node.id(), level - 1);
+            boolean free = true;
+            for (SkillNode other : nodes.values()) {
+                if (other != node && skills.levelOf(other.id()) > 0 && !needsMet(other, skills)) {
+                    free = false;
+                    break;
+                }
+            }
+            skills.setLevel(node.id(), level);
+            if (free && node.row() > bestRow) {
+                bestRow = node.row();
+                best = node.id();
+            }
+        }
+        return best;
     }
 
     /** Total bonus across all nodes of one effect. */
