@@ -50,6 +50,7 @@ public class EventLookTest implements FabricClientGameTest {
                 context.takeScreenshot("event_99_night_normal");
                 warriorWindow(context, game);
                 guardianScene(context);
+                engineerScene(context);
                 return;
             }
 
@@ -280,6 +281,58 @@ public class EventLookTest implements FabricClientGameTest {
         context.waitTicks(30);
         context.takeScreenshot("guardian_sanctuary");
         context.waitTicks(5);
+    }
+
+    /** The engineer: both ways in the window, then the remote on a turret, a monster and a mine. */
+    private static void engineerScene(ClientGameTestContext context) {
+        openTree(context, "ENGINEER", "spike_trap", "spike_trap", "e_battery", "snare_trap", "e_circuit",
+                "arrow_turret", "arrow_turret", "e_ammobelt", "e_overvolt", "e_charged", "e_watchtower",
+                "overcharge", "e_sustained");
+        selectNode(context, "e_charged");
+        context.takeScreenshot("ui_engineer_mech");
+        openTree(context, "ENGINEER", "spike_trap", "spike_trap", "e_finemech", "snare_trap", "e_detonator",
+                "blast_mine", "blast_mine", "e_shrapnel_mine", "e_chain_reaction", "e_blastpower", "bombardment",
+                "e_carpet");
+        selectNode(context, "e_chain_reaction");
+        context.takeScreenshot("ui_engineer_chem");
+        closeScreen(context);
+        context.getInput().lookAt(-90.0f, 8.0f);
+        context.waitTicks(10);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            net.minecraft.core.BlockPos at = player.blockPosition();
+            player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND,
+                    new net.minecraft.world.item.ItemStack(com.mki.nightsiege.game.ModContent.REMOTE));
+            net.minecraft.core.BlockPos turret = at.offset(2, 0, 3);
+            net.minecraft.core.BlockPos mine = at.offset(4, 0, 0);
+            net.minecraft.core.BlockPos mine2 = at.offset(4, 0, 2);
+            place(level, manager, player, turret, com.mki.nightsiege.core.TrapKind.TURRET);
+            place(level, manager, player, mine, com.mki.nightsiege.core.TrapKind.MINE);
+            place(level, manager, player, mine2, com.mki.nightsiege.core.TrapKind.MINE);
+            com.mki.nightsiege.game.RemoteItem.handler.use(player, turret);   // overcharge
+            com.mki.nightsiege.game.RemoteItem.handler.use(player, null);     // mark what is in sight
+        });
+        context.waitTicks(6);
+        context.takeScreenshot("engineer_remote");
+        onServer(context, (player, manager) -> {
+            player.setShiftKeyDown(true);
+            com.mki.nightsiege.game.RemoteItem.handler.use(player, player.blockPosition().offset(4, 0, 0));
+            player.setShiftKeyDown(false);
+        });
+        context.waitTicks(4);
+        context.takeScreenshot("engineer_detonate");
+        context.waitTicks(20);
+        onServer(context, (player, manager) -> manager.onCoreAction(player, "ult"));
+        context.waitTicks(6);
+        context.takeScreenshot("engineer_bombardment");
+        context.waitTicks(5);
+    }
+
+    private static void place(net.minecraft.server.level.ServerLevel level, com.mki.nightsiege.game.SiegeManager manager,
+                              net.minecraft.server.level.ServerPlayer player, net.minecraft.core.BlockPos pos,
+                              com.mki.nightsiege.core.TrapKind kind) {
+        level.setBlock(pos, com.mki.nightsiege.game.ModContent.TRAP_BLOCKS.get(kind).defaultBlockState(), 3);
+        manager.onTrapPlaced(level, pos, player, kind);
     }
 
     /**
