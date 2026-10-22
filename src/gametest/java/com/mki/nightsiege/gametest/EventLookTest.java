@@ -50,6 +50,8 @@ public class EventLookTest implements FabricClientGameTest {
                 context.waitTicks(30);
                 context.takeScreenshot("event_99_night_normal");
                 warriorWindow(context, game);
+                doomScene(context);
+                baseScene(context, game);
                 guardianScene(context);
                 engineerScene(context);
                 return;
@@ -208,6 +210,91 @@ public class EventLookTest implements FabricClientGameTest {
         selectNode(context, "a_hunternet");
         context.takeScreenshot("ui_archer_crossbow");
         context.waitTicks(5);
+    }
+
+    /** Hovering a node marks with a red cross what learning it would shut. */
+    private static void doomScene(ClientGameTestContext context) {
+        openTree(context, "WARRIOR", "warrior_drill");
+        selectNode(context, "w_bladedance");
+        context.takeScreenshot("ui_doom_way");
+        openTree(context, "WARRIOR", "warrior_drill", "champion_bane");
+        zoomTo(context, "WARRIOR", -150.0, -40.0, 0.6);
+        selectNode(context, "keen_edge");
+        context.takeScreenshot("ui_doom_subclass");
+        selectNode(context, null);
+        closeScreen(context);
+    }
+
+    /**
+     * A small walled yard with a door and a core: the scan finds the door as the
+     * gap; with the door bricked up the yard is closed and the monsters of a test
+     * night spawn outside the walls.
+     */
+    private static void baseScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        int cx = pos.getX() - 22;
+        int cy = pos.getY();
+        int cz = pos.getZ();
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:grass_block"
+                .formatted(cx - 12, cy - 1, cz - 12, cx + 12, cy - 1, cz + 12));
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air"
+                .formatted(cx - 12, cy, cz - 12, cx + 12, cy + 8, cz + 12));
+        int r = 6;
+        String wall = "fill %d %d %d %d %d %d minecraft:stone_bricks";
+        game.getServer().runCommand(wall.formatted(cx - r, cy, cz - r, cx + r, cy + 2, cz - r));
+        game.getServer().runCommand(wall.formatted(cx - r, cy, cz + r, cx + r, cy + 2, cz + r));
+        game.getServer().runCommand(wall.formatted(cx - r, cy, cz - r, cx - r, cy + 2, cz + r));
+        game.getServer().runCommand(wall.formatted(cx + r, cy, cz - r, cx + r, cy + 2, cz + r));
+        game.getServer().runCommand("setblock %d %d %d minecraft:oak_door[half=lower,facing=east]".formatted(cx + r, cy, cz));
+        game.getServer().runCommand("setblock %d %d %d minecraft:oak_door[half=upper,facing=east]".formatted(cx + r, cy + 1, cz));
+        context.waitTicks(5);
+        net.minecraft.core.BlockPos core = new net.minecraft.core.BlockPos(cx, cy, cz);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            level.setBlock(core, com.mki.nightsiege.game.ModContent.SIEGE_CORE.defaultBlockState(), 3);
+            manager.onCorePlaced(level, core, player);
+            com.mki.nightsiege.game.BaseDefense.forgetScans();
+            com.mki.nightsiege.game.BaseScan scan = com.mki.nightsiege.game.BaseDefense.scanFor(level, core, manager.config());
+            System.out.println("[Night Siege test] base with door: closed=" + scan.closed + " gap=" + scan.gap
+                    + " size=" + scan.width() + "x" + scan.depth());
+        });
+        context.waitTicks(5);
+        showTab(context, "CORE");
+        context.takeScreenshot("ui_core_base_door");
+        closeScreen(context);
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:stone_bricks"
+                .formatted(cx + r, cy, cz, cx + r, cy + 1, cz));
+        context.waitTicks(5);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            com.mki.nightsiege.game.BaseDefense.forgetScans();
+            com.mki.nightsiege.game.BaseScan scan = com.mki.nightsiege.game.BaseDefense.scanFor(level, core, manager.config());
+            System.out.println("[Night Siege test] base closed up: closed=" + scan.closed + " gap=" + scan.gap
+                    + " size=" + scan.width() + "x" + scan.depth());
+            manager.startTest(level.getServer(), level, core, 3, com.mki.nightsiege.core.SiegeEvent.NONE);
+        });
+        context.waitTicks(30);
+        showTab(context, "CORE");
+        context.takeScreenshot("ui_core_base_closed");
+        closeScreen(context);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            com.mki.nightsiege.game.BaseScan scan = com.mki.nightsiege.game.BaseDefense.scanFor(level, core, manager.config());
+            int inside = 0;
+            int outside = 0;
+            for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                if (e.entityTags().contains(com.mki.nightsiege.game.MobFactory.TAG)) {
+                    if (scan.contains(e.getBlockX(), e.getBlockZ())) {
+                        inside++;
+                    } else {
+                        outside++;
+                    }
+                }
+            }
+            System.out.println("[Night Siege test] siege mobs inside=" + inside + " outside=" + outside);
+            manager.abort(level.getServer());
+        });
+        context.waitTicks(10);
     }
 
     /** Something to do on the integrated server with the test player and the siege manager. */
