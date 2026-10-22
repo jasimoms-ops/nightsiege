@@ -45,6 +45,7 @@ public class EventLookTest implements FabricClientGameTest {
 
             if (!shaderRun) {
                 series(context, game, "event");
+                mobLineup(context, game);
                 context.runOnClient(client -> EventAtmosphere.setClient("", 1));
                 context.waitTicks(30);
                 context.takeScreenshot("event_99_night_normal");
@@ -112,6 +113,25 @@ public class EventLookTest implements FabricClientGameTest {
             context.waitTicks(prefix.startsWith("shader") ? 200 : misty ? 140 : 30);
             context.takeScreenshot("%s_%02d_%s".formatted(prefix, i + 1, event.toLowerCase(Locale.ROOT)));
         }
+    }
+
+    /** The event monsters up close by day, so their textures, clothes and eyes can be checked. */
+    private static void mobLineup(ClientGameTestContext context, TestSingleplayerContext game) {
+        BlockPos home = context.computeOnClient(client -> client.player.blockPosition());
+        game.getServer().runCommand("time set 6000");
+        game.getServer().runCommand("tp @a %d.5 %d %d.5 -90 6".formatted(home.getX() + 2, home.getY(), home.getZ()));
+        context.waitTicks(20);
+        for (String event : EVENTS) {
+            if (EventAtmosphere.AURORA.equals(event)) {
+                continue;
+            }
+            context.runOnClient(client -> EventAtmosphere.setClient(event, 1));
+            context.waitTicks(30);
+            context.takeScreenshot("mobs_" + event.toLowerCase(Locale.ROOT));
+        }
+        game.getServer().runCommand("tp @a %d.5 %d %d.5 -90 -12".formatted(home.getX(), home.getY(), home.getZ()));
+        game.getServer().runCommand("time set 14600");
+        context.waitTicks(20);
     }
 
     /** Selects a node in the open core window (as a click would) and waits a moment. */

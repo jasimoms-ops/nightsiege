@@ -8,8 +8,10 @@ import java.util.Map;
 
 /**
  * Event looks of the common monsters. While an event is shown, zombies,
- * skeletons, creepers and spiders wear its texture: shadowy with glowing eyes
- * in the eclipse, iced over in the frost night, charred at a rift.
+ * skeletons, creepers and spiders wear its texture, zombies and skeletons also
+ * its clothes: blood-cursed at the blood moon, shadow walkers in the eclipse,
+ * fog ghosts, storm-charged, charred at a rift, ice-bound in the frost night.
+ * The eyes glow in every event (the "_e" files).
  */
 public final class EventTextures {
 
@@ -41,8 +43,10 @@ public final class EventTextures {
     private EventTextures() {
     }
 
-    /** Events whose zombies and skeletons also wear a layer of clothes. */
-    private static final java.util.Set<String> CLOTHED = java.util.Set.of(EventAtmosphere.BLOOD_MOON);
+    /** Events whose zombies and skeletons also wear a layer of clothes (hoods, capes, rags). */
+    private static final java.util.Set<String> CLOTHED = java.util.Set.of(EventAtmosphere.BLOOD_MOON,
+            EventAtmosphere.ECLIPSE, EventAtmosphere.FOG, EventAtmosphere.THUNDER,
+            EventAtmosphere.NETHER_RIFT, EventAtmosphere.FROST);
 
     /** The clothes of a mob ("zombie", "skeleton") in the event shown now, or null. */
     public static Identifier clothing(String mob) {
