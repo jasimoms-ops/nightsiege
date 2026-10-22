@@ -20,8 +20,14 @@ public enum SkillEffect {
 
     /** Extra seconds between two waves. */
     WAVE_DELAY(0.0, Target.SIEGE),
-    /** Extra blocks the attackers have to cross. */
-    SPAWN_DISTANCE(0.0, Target.SIEGE),
+    /** Digging monsters take this share longer for every block. */
+    MASONRY(0.0, Target.SIEGE),
+    /** Defenders on the wall: this share more ranged damage and this share less damage taken. */
+    BATTLEMENTS(0.0, Target.SIEGE),
+    /** Monsters outside the walls glow. */
+    BEACON_FIRE(0.0, Target.SIEGE),
+    /** After each night the base is repaired: level 1, 2, 3 mend 40, 70, 100 percent. */
+    REBUILD(0.0, Target.SIEGE),
 
     /** Pulls a half drawn shot towards full power. */
     DRAW_ASSIST(0.0, Target.ARROW),

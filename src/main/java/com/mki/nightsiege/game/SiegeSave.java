@@ -137,9 +137,11 @@ public class SiegeSave {
 
     /** Version of the skill trees the levels below were learned in. */
     public int skillTreeVersion;
-    public static final int SKILL_TREE_VERSION = 5;
+    public static final int SKILL_TREE_VERSION = 6;
 
     /**
+     * Version 6 rebuilt the shared core tree (masonry, battlements, rebuilding,
+     * beacon fire instead of the watchtower); the core gets all its points back.
      * Version 5 rebuilt the engineer (mechanics or chemistry, the remote); every engineer gets all points back.
      * Version 4 rebuilt the guardian (shield or blessing); every guardian gets all points back.
      * Version 3 rebuilt the archer (bow or crossbow); every archer gets all points back.
@@ -180,6 +182,13 @@ public class SiegeSave {
                     own.levels.clear();
                     reset++;
                 }
+            }
+        }
+        if (skillTreeVersion < 6 && coreSkills != null && coreSkills.levels != null) {
+            coreSkills.points = Math.max(0, coreSkills.earned - coreSkills.donated - coreSkills.lost);
+            coreSkills.levels.clear();
+            if (coreSkills.history != null) {
+                coreSkills.history.clear();
             }
         }
         skillTreeVersion = SKILL_TREE_VERSION;

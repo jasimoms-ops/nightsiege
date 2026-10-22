@@ -53,6 +53,8 @@ public class SiegeConfig {
 
     public double spawnMinDistance = 20.0;
     public double spawnMaxDistance = 40.0;
+    /** How far from the core the base scan looks for walls (set with /nightsiege base radius). */
+    public int baseRadius = 64;
 
     // --- punishment -------------------------------------------------------
     /** Radius of the destruction when a siege is lost. */
@@ -286,6 +288,7 @@ public class SiegeConfig {
         failureBlastRadius = clamp(failureBlastRadius, 0, 64);
 
         digTicksPerBlock = clamp(digTicksPerBlock, 1, 2000);
+        baseRadius = clamp(baseRadius <= 0 ? 64 : baseRadius, 16, 192);
 
         eventChance = clampDouble(eventChance, 0.0, 1.0);
         eventMinLevel = Math.max(1, eventMinLevel);

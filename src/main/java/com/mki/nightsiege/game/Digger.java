@@ -36,6 +36,12 @@ public final class Digger {
     }
 
     private final Map<UUID, Progress> progress = new HashMap<>();
+    /** Masonry of the core: every block takes this many times as long. */
+    private double slowdown = 1.0;
+
+    public void setSlowdown(double slowdown) {
+        this.slowdown = Math.max(1.0, slowdown);
+    }
 
     public void reset() {
         progress.clear();
@@ -85,7 +91,7 @@ public final class Digger {
                 state.ticks = 0;
             }
             state.ticks += elapsedTicks;
-            if (state.ticks >= cfg.digTicksPerBlock) {
+            if (state.ticks >= cfg.digTicksPerBlock * slowdown) {
                 world.destroyBlock(target, false);
                 state.target = null;
                 state.ticks = 0;

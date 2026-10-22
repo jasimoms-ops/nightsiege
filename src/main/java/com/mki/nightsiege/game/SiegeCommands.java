@@ -104,6 +104,15 @@ public final class SiegeCommands {
                                         })
                                         .then(Commands.argument("stufe", IntegerArgumentType.integer(0, PerkKind.MAX_STAGE))
                                                 .executes(SiegeCommands::perkSet)))))
+                .then(Commands.literal("base").executes(SiegeCommands::baseInfo)
+                        .then(Commands.literal("radius").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                                .executes(ctx -> {
+                                    reply(ctx.getSource(), Component.translatable("nightsiege.cmd.base_radius",
+                                            SiegeManager.get().config().baseRadius));
+                                    return 1;
+                                })
+                                .then(Commands.argument("bloecke", IntegerArgumentType.integer(16, 192))
+                                        .executes(SiegeCommands::baseRadius))))
                 .then(Commands.literal("dev")
                         .then(Commands.literal("reset").executes(SiegeCommands::devReset))
                         .then(Commands.argument("punkte", IntegerArgumentType.integer(1, 100000))
@@ -433,6 +442,54 @@ public final class SiegeCommands {
         CommandSourceStack source = ctx.getSource();
         SiegeManager.get().reload();
         reply(source, Component.translatable("nightsiege.cmd.reloaded"));
+        return 1;
+    }
+
+    /** Scans the base around the nearest core and tells what it found. */
+    private static int baseInfo(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        ServerPlayer player = source.getPlayer();
+        if (player == null || !(player.level() instanceof ServerLevel level)) {
+            fail(source, Component.translatable("nightsiege.cmd.player_only"));
+            return 0;
+        }
+        SiegeManager manager = SiegeManager.get();
+        com.mki.nightsiege.core.CoreStats stats = new com.mki.nightsiege.core.CoreStats();
+        BaseDefense.forgetScans();
+        CoreRecord best = null;
+        double bestDistance = Double.MAX_VALUE;
+        String dimension = SiegeManager.dimensionName(level);
+        for (CoreRecord core : manager.save().cores) {
+            if (core != null && dimension.equals(core.dimension)) {
+                double d = player.distanceToSqr(core.x + 0.5, core.y + 0.5, core.z + 0.5);
+                if (d < bestDistance) {
+                    bestDistance = d;
+                    best = core;
+                }
+            }
+        }
+        if (best == null) {
+            fail(source, Component.translatable("nightsiege.cmd.base_none"));
+            return 0;
+        }
+        BaseScan scan = BaseDefense.scanFor(level, new BlockPos(best.x, best.y, best.z), manager.config());
+        int radius = manager.config().baseRadius;
+        if (scan.closed) {
+            reply(source, Component.translatable("nightsiege.cmd.base_closed", scan.width(), scan.depth(), radius));
+        } else if (scan.gap != null) {
+            reply(source, Component.translatable("nightsiege.cmd.base_gap",
+                    scan.gap.getX() + " " + scan.gap.getY() + " " + scan.gap.getZ(), scan.width(), scan.depth(), radius));
+            BaseDefense.highlight(player, scan.gap);
+        } else {
+            reply(source, Component.translatable("nightsiege.cmd.base_open", scan.width(), scan.depth(), radius));
+        }
+        return 1;
+    }
+
+    private static int baseRadius(CommandContext<CommandSourceStack> ctx) {
+        int radius = IntegerArgumentType.getInteger(ctx, "bloecke");
+        SiegeManager.get().setBaseRadius(radius);
+        reply(ctx.getSource(), Component.translatable("nightsiege.cmd.base_radius_set", radius));
         return 1;
     }
 

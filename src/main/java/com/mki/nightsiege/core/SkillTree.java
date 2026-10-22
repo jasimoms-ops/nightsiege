@@ -94,10 +94,17 @@ public final class SkillTree {
         engineer(list);
 
         // ---------------- Core: shared, paid by donations ----------------
-        list.add(new SkillNode("watchtower", SkillClass.CORE, "", SkillEffect.SPAWN_DISTANCE,
-                8, 3, 1, 1.0, null, 0, "minecraft:spyglass", 0));
-        list.add(new SkillNode("fortified", SkillClass.CORE, "", SkillEffect.WAVE_DELAY,
-                8, 4, 2, 0.5, "watchtower", 3, "minecraft:obsidian", 1));
+        // Masonry first, then the wall (battlements, rebuilding) or the watch (time, beacon fire).
+        list.add(new SkillNode("masonry", SkillClass.CORE, "", SkillEffect.MASONRY,
+                3, 3, 2, 0.3, null, 0, "minecraft:stone_bricks", 0));
+        list.add(new SkillNode("battlements", SkillClass.CORE, "wall", SkillEffect.BATTLEMENTS,
+                3, 4, 2, 0.1, "masonry", 1, "minecraft:cobblestone_wall", 1));
+        list.add(new SkillNode("rebuild", SkillClass.CORE, "wall", SkillEffect.REBUILD,
+                3, 6, 3, 1.0, "battlements", 1, "minecraft:brick", 2));
+        list.add(new SkillNode("fortified", SkillClass.CORE, "watch", SkillEffect.WAVE_DELAY,
+                8, 4, 2, 0.5, "masonry", 1, "minecraft:obsidian", 1));
+        list.add(new SkillNode("beacon_fire", SkillClass.CORE, "watch", SkillEffect.BEACON_FIRE,
+                1, 6, 0, 1.0, "fortified", 1, "minecraft:campfire", 2));
         return list;
     }
 
@@ -498,7 +505,8 @@ public final class SkillTree {
         if (level >= node.maxLevel()) {
             return "maxed";
         }
-        if (!node.onTrunk()) {
+        // The shared core tree has two branches, but both stay open.
+        if (!node.onTrunk() && !node.clazz().isShared()) {
             String taken = skills.pathTaken(this);
             if (!taken.isEmpty() && !taken.equals(node.path())) {
                 return "path";

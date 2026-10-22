@@ -1235,8 +1235,9 @@ public class CoreScreen extends Screen {
         int x0 = innerX() + (innerW() - treeW) / 2;
         treeLeft = x0;
         treeRight = x0 + treeW;
-        int areaTop = innerY() + 20;
-        int areaH = innerH() - 24;
+        // The core tab keeps a line for the base under its header.
+        int areaTop = innerY() + (activeTab == Tab.CORE ? 32 : 20);
+        int areaH = innerH() - (activeTab == Tab.CORE ? 36 : 24);
         int rowsTop = areaTop + (areaH - rows * ROW_H) / 2;
 
         for (CoreStats.NodeLine node : stats.nodes) {
@@ -1486,6 +1487,21 @@ public class CoreScreen extends Screen {
                     Component.translatable("nightsiege.class." + stats.myClass.toLowerCase(Locale.ROOT))).getString();
         }
         gui.text(font, line, x, y, activeTab == Tab.CORE || activeTab == ownTab() ? GOLD : GRAY, true);
+        if (activeTab == Tab.CORE && stats.baseKnown) {
+            String base;
+            int color;
+            if (stats.baseClosed) {
+                base = Component.translatable("nightsiege.ui.base_closed", stats.baseWidth, stats.baseDepth).getString();
+                color = GREEN;
+            } else if (stats.baseGap != null && !stats.baseGap.isBlank()) {
+                base = Component.translatable("nightsiege.ui.base_gap", stats.baseGap).getString();
+                color = RED;
+            } else {
+                base = Component.translatable("nightsiege.ui.base_open", stats.baseWidth, stats.baseDepth).getString();
+                color = RED;
+            }
+            gui.text(font, base, x, y + 12, color, true);
+        }
     }
 
     /** A soft band in the class colour behind the path the player took. */

@@ -329,8 +329,14 @@ class SiegeCoreTest {
         SkillTree tree = new SkillTree();
         PlayerSkills pot = new PlayerSkills();
         pot.award(100);
-        assertNull(tree.blockedReason("watchtower", pot));
-        assertTrue(tree.unlock("watchtower", pot));
+        assertNull(tree.blockedReason("masonry", pot));
+        assertTrue(tree.unlock("masonry", pot));
+        // Battlements and rebuilding follow the masonry, the beacon fire the fortified ground.
+        assertNull(tree.blockedReason("battlements", pot));
+        assertNotNull(tree.blockedReason("rebuild", pot));
+        assertNotNull(tree.blockedReason("beacon_fire", pot));
+        assertTrue(tree.unlock("fortified", pot));
+        assertTrue(tree.unlock("beacon_fire", pot));
     }
 
     @Test
@@ -431,7 +437,7 @@ class SiegeCoreTest {
     @Test
     void everyEffectKnowsWhatItActsOn() {
         assertEquals(SkillEffect.Target.PLAYER, SkillEffect.MAX_HEALTH.target());
-        assertEquals(SkillEffect.Target.SIEGE, SkillEffect.SPAWN_DISTANCE.target());
+        assertEquals(SkillEffect.Target.SIEGE, SkillEffect.MASONRY.target());
         assertEquals(SkillEffect.Target.ARROW, SkillEffect.DOUBLE_SHOT.target());
         assertEquals(SkillEffect.Target.ULTIMATE, SkillEffect.POWER_SHOT.target());
         assertEquals(20.0, SkillEffect.MAX_HEALTH.playerBase(), 1e-9);

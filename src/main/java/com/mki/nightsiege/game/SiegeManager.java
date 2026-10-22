@@ -197,6 +197,7 @@ public final class SiegeManager {
     private final Digger digger = new Digger();
     private final DungeonService dungeons = new DungeonService(() -> save, () -> config);
     private final PerkService perks = new PerkService(() -> save, () -> config);
+    private final BaseDefense defense = new BaseDefense();
     private final EventEffects events = new EventEffects();
     private final BonusEvents bonus = new BonusEvents(() -> save, () -> config, perks);
     private final Random random = new Random();
@@ -277,7 +278,7 @@ public final class SiegeManager {
         CoreNetworking.registerTypes();
         CoreNetworking.registerServerReceivers();
         combat.setCooldownScale(perks::cooldownScale);
-        combat.setArrowBonus(perks::arrowBonus);
+        combat.setArrowBonus(p -> perks.arrowBonus(p) + defense.arrowBonus(p));
         traps.setTeslaBoost(() -> active && currentEvent == SiegeEvent.THUNDER ? config.thunderTeslaMultiplier : 1.0);
         ServerLifecycleEvents.SERVER_STARTED.register(server -> onServerStarted(server));
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
@@ -343,6 +344,13 @@ public final class SiegeManager {
         }
     }
 
+    /** How far the base scan looks for walls; kept in the config file. */
+    public void setBaseRadius(int radius) {
+        config.baseRadius = Math.max(16, Math.min(192, radius));
+        Json.write(Json.configFile(CONFIG_FILE), config);
+        BaseDefense.forgetScans();
+    }
+
     /** Reads config and saved state from disk. Also used by the reload command. */
     public void reload() {
         Path configPath = Json.configFile(CONFIG_FILE);
@@ -399,6 +407,7 @@ public final class SiegeManager {
         combat.tick(server);
         perks.tick(server);
         EventAtmosphere.tickServer();
+        BaseDefense.tickHighlights(server);
         if (dungeons.tick(server)) {
             persist();
         }
@@ -611,6 +620,7 @@ public final class SiegeManager {
         bossBar.setProgress(1.0f);
         active = true;
         combat.newSiege();
+        defense.begin(world, anchor, config, save.coreSkills(), skillTree, digger);
         bonus.endAurora(server);
         events.begin(server, world, anchor, currentEvent, config);
         for (UUID id : participants) {
@@ -650,8 +660,7 @@ public final class SiegeManager {
         if (entityId == null) {
             return;
         }
-        Mob champion = MobFactory.spawn(world, anchor, entityId, siegeLevel,
-                config, random, currentEvent, true, spawnDistanceBonus());
+        Mob champion = spawnMob(entityId, true);
         if (champion != null) {
             eliteId = champion.getUUID();
             liveMobs.add(eliteId);
@@ -739,6 +748,7 @@ public final class SiegeManager {
         }
 
         tickAtmosphere(server);
+        defense.tick(liveMobs, world.getGameTime());
         events.tick(server, world, anchor, currentEvent, participants, fallen, liveMobs, config, world.getGameTime());
 
         digAccumulator++;
@@ -843,8 +853,7 @@ public final class SiegeManager {
             }
             Mob mob = rift != null
                     ? MobFactory.spawnAt(world, rift, entityId, siegeLevel, config, random, currentEvent, false)
-                    : MobFactory.spawn(world, anchor, entityId, siegeLevel,
-                    config, random, currentEvent, false, spawnDistanceBonus());
+                    : spawnMob(entityId, false);
             if (mob != null) {
                 events.onSpawned(currentEvent, mob, world);
                 liveMobs.add(mob.getUUID());
@@ -899,9 +908,28 @@ public final class SiegeManager {
     // ending
     // ------------------------------------------------------------------
 
-    /** Extra blocks the Basis branch pushes the attackers back by. */
-    private double spawnDistanceBonus() {
-        return skillTree.totalBonus(SkillEffect.SPAWN_DISTANCE, save.coreSkills());
+    /** Spawns a monster outside the walls of the base, or in the old ring if none was found. */
+    private Mob spawnMob(String entityId, boolean elite) {
+        if (MobFactory.isUnavailable(entityId)) {
+            return null;
+        }
+        BlockPos spot = defense.spawnSpot(config, random);
+        if (spot == null) {
+            spot = MobFactory.findSpawnSpot(world, anchor, config, random, 0.0);
+        }
+        return spot == null ? null
+                : MobFactory.spawnAt(world, spot, entityId, siegeLevel, config, random, currentEvent, elite);
+    }
+
+    /** The rebuilding of the core tree mends the base; then the night's base is forgotten. */
+    private void mendBase(MinecraftServer server) {
+        int repaired = defense.restore(random);
+        if (repaired > 0) {
+            broadcast(server, Component.translatable("nightsiege.msg.rebuilt", repaired)
+                    .withStyle(ChatFormatting.GREEN));
+        }
+        defense.end();
+        BaseDefense.forgetScans();
     }
 
     /** Skills only hold for the night, so everyone goes back to normal values. */
@@ -938,6 +966,7 @@ public final class SiegeManager {
         }
         clearRemainingMobs();
         digger.reset();
+        mendBase(server);
 
         if (testRun) {
             testRun = false;
@@ -1011,6 +1040,7 @@ public final class SiegeManager {
         }
         clearRemainingMobs();
         digger.reset();
+        mendBase(server);
         testRun = false;
         broadcast(server, Component.translatable("nightsiege.msg.aborted").withStyle(ChatFormatting.GRAY));
         clearSiegeState();

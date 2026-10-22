@@ -18,6 +18,39 @@ public final class StatsService {
     private StatsService() {
     }
 
+    /** The base around the core next to the viewer: closed or open, how big, where the gap is. */
+    private static void describeBase(CoreStats stats, SiegeSave save, SiegeConfig cfg, ServerPlayer viewer) {
+        stats.baseRadius = cfg.baseRadius;
+        if (!(viewer.level() instanceof net.minecraft.server.level.ServerLevel here) || save.cores == null) {
+            return;
+        }
+        String dimension = SiegeManager.dimensionName(here);
+        CoreRecord best = null;
+        double bestDistance = 48.0 * 48.0;
+        for (CoreRecord core : save.cores) {
+            if (core == null || !dimension.equals(core.dimension)) {
+                continue;
+            }
+            double d = viewer.distanceToSqr(core.x + 0.5, core.y + 0.5, core.z + 0.5);
+            if (d < bestDistance) {
+                bestDistance = d;
+                best = core;
+            }
+        }
+        if (best == null) {
+            return;
+        }
+        BaseScan scan = BaseDefense.scanFor(here, new net.minecraft.core.BlockPos(best.x, best.y, best.z), cfg);
+        stats.baseKnown = true;
+        stats.baseClosed = scan.closed;
+        stats.baseWidth = scan.width();
+        stats.baseDepth = scan.depth();
+        if (!scan.closed && scan.gap != null) {
+            stats.baseGap = scan.gap.getX() + " " + scan.gap.getY() + " " + scan.gap.getZ();
+            BaseDefense.highlight(viewer, scan.gap);
+        }
+    }
+
     public static CoreStats build(MinecraftServer server, SiegeManager manager, ServerPlayer viewer) {
         SiegeConfig cfg = manager.config();
         SiegeSave save = manager.save();
@@ -74,6 +107,7 @@ public final class StatsService {
         stats.perkRadius = (int) Math.round(manager.config().perkRadius);
         stats.perkInRange = manager.perks().inRange(viewer);
         stats.skillsEnabled = cfg.skillsEnabled;
+        describeBase(stats, save, cfg, viewer);
         stats.corePoints = save.coreSkills().points();
         stats.coreEarned = save.coreSkills().earned;
 

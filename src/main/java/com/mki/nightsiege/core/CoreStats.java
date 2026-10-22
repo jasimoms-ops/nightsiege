@@ -64,6 +64,15 @@ public class CoreStats {
         public int stageAt;
     }
 
+    // --- the base around the core, as the scan found it
+    public boolean baseKnown;
+    public boolean baseClosed;
+    public int baseWidth;
+    public int baseDepth;
+    public int baseRadius;
+    /** Where the way in leaves an open base ("x y z"), or empty. */
+    public String baseGap = "";
+
     // --- night fragment set into the core (name of a NightFragment), or null
     public String nightFragment;
 

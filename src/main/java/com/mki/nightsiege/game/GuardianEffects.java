@@ -151,6 +151,7 @@ public final class GuardianEffects {
             }
         }
         if (fromMonster) {
+            factor *= BaseDefense.guardFactor(player);   // battlements of the core
             double sign = 0.0;
             for (ServerPlayer guardian : level.players()) {
                 if (guardian.isAlive() && guardian.distanceToSqr(player) <= 36.0) {
