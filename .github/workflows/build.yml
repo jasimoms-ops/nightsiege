@@ -133,6 +133,41 @@ jobs:
           set -o pipefail
           gradle build --no-daemon --stacktrace 2>&1 | tee build-output.txt
 
+      # Signaturen ausgewaehlter Minecraft-Klassen (javap) fuer die Entwicklung:
+      # die Entwicklungsumgebung hat keine Minecraft-Quellen.
+      - name: API-Auszug
+        if: always()
+        continue-on-error: true
+        run: |
+          python3 - <<'PY'
+          import glob, os, subprocess, zipfile
+          want = [l.strip() for l in open("tools/api-classes.txt") if l.strip() and not l.startswith("#")] if os.path.exists("tools/api-classes.txt") else []
+          jars = [j for j in glob.glob(os.path.expanduser("~/.gradle/caches/**/*.jar"), recursive=True) + glob.glob(".gradle/**/*.jar", recursive=True)
+                  if "minecraft" in os.path.basename(j).lower()]
+          found = None
+          for j in jars:
+              try:
+                  if "net/minecraft/world/level/levelgen/structure/StructureStart.class" in zipfile.ZipFile(j).namelist():
+                      found = j; break
+              except Exception:
+                  pass
+          out = open("api.txt", "w")
+          out.write("jar: %s\n" % found)
+          if found:
+              names = zipfile.ZipFile(found).namelist()
+              for w in want:
+                  if w.endswith("*"):
+                      hits = [n[:-6].replace("/", ".") for n in names if n.endswith(".class") and n.startswith(w[:-1].replace(".", "/")) and "$" not in n]
+                  else:
+                      hits = [w]
+                  for cls in hits[:40]:
+                      r = subprocess.run(["javap", "-p", "-cp", found, cls], capture_output=True, text=True)
+                      out.write(r.stdout or r.stderr)
+                      out.write("\n")
+          out.close()
+          print("::notice title=API::%s" % found)
+          PY
+
       # Die Rohprotokolle liegen auf einem Speicher, den die Entwicklungsumgebung
       # nicht erreicht. Die wichtigen Zeilen gehen daher als Annotation raus.
       - name: Fehler als Annotation melden
@@ -258,6 +293,7 @@ jobs:
           echo "gefunden: $JAR"
           TMP=$(mktemp -d)
           cp "$JAR" "$TMP/nightsiege.jar"
+          cp api.txt "$TMP/api.txt" 2>/dev/null || true
           mkdir -p "$TMP/dungeon-mods"
           cp dungeon-mods/*.jar "$TMP/dungeon-mods/" 2>/dev/null || true
           mkdir -p "$TMP/shots"
@@ -273,6 +309,7 @@ jobs:
           mkdir -p dist
           cp "$TMP/nightsiege.jar" dist/nightsiege.jar
           git add -f dist/nightsiege.jar
+          if [ -f "$TMP/api.txt" ]; then cp "$TMP/api.txt" dist/; git add -f dist/api.txt; fi
           if ls "$TMP/dungeon-mods/"*.jar > /dev/null 2>&1; then mkdir -p dist/dungeon-mods; cp "$TMP/dungeon-mods/"*.jar dist/dungeon-mods/; git add -f dist/dungeon-mods; fi
           if ls "$TMP/shots/"*.png > /dev/null 2>&1; then mkdir -p dist/shots; cp "$TMP/shots/"*.png dist/shots/; git add -f dist/shots; fi
           if [ -f "$TMP/client-shader-log.txt" ]; then cp "$TMP/client-shader-log.txt" dist/; git add -f dist/client-shader-log.txt; fi
