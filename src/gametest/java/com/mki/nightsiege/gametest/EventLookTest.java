@@ -228,9 +228,8 @@ public class EventLookTest implements FabricClientGameTest {
 
     private static void closeScreen(ClientGameTestContext context) {
         context.runOnClient(client -> {
-            net.minecraft.client.gui.screens.Screen open = client.screen();
-            if (open != null) {
-                open.onClose();
+            if (client.gui.screen() != null) {
+                client.gui.setScreen(null);
             }
         });
         context.waitTicks(10);
