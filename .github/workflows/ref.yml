@@ -93,6 +93,19 @@ jobs:
           open("log.txt", "w").write("\n".join(log) + "\n")
           print("\n".join(log))
           PY
+      - name: Vorschauvideo in Bilder zerlegen
+        continue-on-error: true
+        run: |
+          cd out
+          UA="Mozilla/5.0 (X11; Linux x86_64) nightsiege-ref"
+          curl -sSL -A "$UA" -o thumb.jpg https://www.9minecraft.net/wp-content/uploads/2026/07/Clothing-of-the-Lowlands-Mod-Thumbnail.jpg || true
+          curl -sSL -A "$UA" -o poster.jpg https://video3.9minecraft.net/2026/07/936640/poster.jpg || true
+          curl -sSL -A "$UA" -o video.mp4 https://video3.9minecraft.net/2026/07/936640/video-720p.mp4 || true
+          ls -la
+          mkdir -p frames
+          ffmpeg -loglevel error -i video.mp4 -vf "fps=1/2,scale=960:-1" -q:v 3 frames/f_%03d.jpg || true
+          rm -f video.mp4
+          ls frames | wc -l
       - name: In den ref-cotl-Branch legen
         run: |
           cd out
