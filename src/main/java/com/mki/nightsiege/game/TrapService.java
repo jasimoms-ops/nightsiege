@@ -770,7 +770,14 @@ public final class TrapService {
 
     public double energyOf(ServerPlayer player) {
         PlayerSkills skills = save.get().skillsOf(player.getUUID().toString());
-        return energy.computeIfAbsent(player.getUUID(), k -> maxEnergy(skills));
+        double max = maxEnergy(skills);
+        double now = energy.computeIfAbsent(player.getUUID(), k -> max);
+        if (now > max) {
+            // The battery was unlearned (a reset): never more than the remote holds.
+            energy.put(player.getUUID(), max);
+            return max;
+        }
+        return now;
     }
 
     private double maxEnergy(PlayerSkills skills) {
