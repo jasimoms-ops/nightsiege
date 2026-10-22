@@ -28,10 +28,13 @@ public final class SkillTree {
     public static final String SUB_BERSERKER = "berserker";
     public static final String SUB_AXE = "axe";
     public static final String SUB_PALADIN = "paladin";
-    // Guardian
-    public static final String PATH_BULWARK = "bulwark";
-    public static final String PATH_MEDIC = "medic";
-    public static final String PATH_SHIELD = "shield";
+    // Guardian: two ways, each with two subclasses
+    public static final String WAY_SHIELD = "shield";
+    public static final String WAY_BLESSING = "bless";
+    public static final String SUB_SHIELDFIGHTER = "shieldfighter";
+    public static final String SUB_BULWARK = "bulwark";
+    public static final String SUB_MEDIC = "medic";
+    public static final String SUB_WARDEN = "warden";
     // Engineer
     public static final String PATH_DEMOLITION = "demolition";
     public static final String PATH_GUNNER = "gunner";
@@ -75,16 +78,8 @@ public final class SkillTree {
         warrior(list);
 
         // ---------------- Guardian ----------------
-        add(list, "vitality", SkillClass.GUARDIAN, "", SkillEffect.MAX_HEALTH, 4, 2, 1, 2.0, null, 0, "minecraft:golden_apple", 0);
-        add(list, "toughness", SkillClass.GUARDIAN, PATH_BULWARK, SkillEffect.ARMOR, 4, 3, 2, 2.0, "vitality", 1, "minecraft:iron_chestplate", 1);
-        add(list, "steadfast", SkillClass.GUARDIAN, PATH_BULWARK, SkillEffect.KNOCKBACK_RESIST, 4, 5, 3, 0.15, "toughness", 4, "minecraft:netherite_ingot", 2);
-        add(list, "taunt", SkillClass.GUARDIAN, PATH_BULWARK, SkillEffect.TAUNT, 3, 25, 10, 1.0, "steadfast", 4, "minecraft:goat_horn", 3);
-        add(list, "field_dressing", SkillClass.GUARDIAN, PATH_MEDIC, SkillEffect.HEAL_AURA, 4, 3, 2, 0.75, "vitality", 1, "minecraft:glistering_melon_slice", 1);
-        add(list, "guardian_angel", SkillClass.GUARDIAN, PATH_MEDIC, SkillEffect.GUARDIAN_ANGEL, 3, 5, 3, 1.0, "field_dressing", 4, "minecraft:totem_of_undying", 2);
-        add(list, "mass_heal", SkillClass.GUARDIAN, PATH_MEDIC, SkillEffect.MASS_HEAL, 3, 25, 10, 1.0, "guardian_angel", 1, "minecraft:enchanted_golden_apple", 3);
-        add(list, "iron_guard", SkillClass.GUARDIAN, PATH_SHIELD, SkillEffect.ARMOR, 4, 3, 2, 1.5, "vitality", 1, "minecraft:shield", 1);
-        add(list, "riposte", SkillClass.GUARDIAN, PATH_SHIELD, SkillEffect.COUNTER, 4, 5, 3, 2.5, "iron_guard", 4, "minecraft:iron_ingot", 2);
-        add(list, "shield_charge", SkillClass.GUARDIAN, PATH_SHIELD, SkillEffect.SHIELD_CHARGE, 3, 25, 10, 1.0, "riposte", 4, "minecraft:anvil", 3);
+        // Trunk, then shield or blessing; every guardian draws the monsters' anger.
+        guardian(list);
 
         // ---------------- Engineer ----------------
         // Trunk: the two basic traps everyone builds; then one speciality.
@@ -121,15 +116,19 @@ public final class SkillTree {
     // ------------------------------------------------------------------
 
     /** The subclass node of each way and the subclass it stands for. */
-    private static final Map<String, String> SUBCLASS_NODES = Map.of(
-            "swift_draw", SUB_SWIFT,
-            "heavy_draw", SUB_HEAVY,
-            "shrapnel", SUB_BOLTER,
-            "a_netbolt", SUB_TRAPPER,
-            "keen_edge", SUB_BLADEMASTER,
-            "bloodlust", SUB_BERSERKER,
-            "heavy_blow", SUB_AXE,
-            "smite", SUB_PALADIN);
+    private static final Map<String, String> SUBCLASS_NODES = Map.ofEntries(
+            Map.entry("swift_draw", SUB_SWIFT),
+            Map.entry("heavy_draw", SUB_HEAVY),
+            Map.entry("shrapnel", SUB_BOLTER),
+            Map.entry("a_netbolt", SUB_TRAPPER),
+            Map.entry("keen_edge", SUB_BLADEMASTER),
+            Map.entry("bloodlust", SUB_BERSERKER),
+            Map.entry("heavy_blow", SUB_AXE),
+            Map.entry("smite", SUB_PALADIN),
+            Map.entry("riposte", SUB_SHIELDFIGHTER),
+            Map.entry("g_bastion", SUB_BULWARK),
+            Map.entry("g_healing_hand", SUB_MEDIC),
+            Map.entry("g_ward", SUB_WARDEN));
 
     private static void archer(List<SkillNode> list) {
         SkillClass c = SkillClass.ARCHER;
@@ -276,6 +275,85 @@ public final class SkillTree {
         node(list, "w_redemption", c, m, SkillEffect.REDEMPTION, 1, 25, 0, 1.0, "holy_light,w_blessing|w_vow|holy_vigor", "m_mastery", "minecraft:enchanted_golden_apple", 9, 6);
         node(list, "w_colossus", c, m, SkillEffect.COLOSSUS, 1, 30, 0, 1.0, "ground_slam|holy_light", "m_key", "minecraft:iron_block", 10, 2);
         node(list, "w_martyr", c, m, SkillEffect.MARTYR, 1, 30, 0, 1.0, "ground_slam|holy_light", "m_key", "minecraft:totem_of_undying", 10, 4);
+    }
+
+    // ------------------------------------------------------------------
+    // guardian
+    // ------------------------------------------------------------------
+
+    private static void guardian(List<SkillNode> list) {
+        SkillClass c = SkillClass.GUARDIAN;
+        node(list, "vitality", c, "", SkillEffect.MAX_HEALTH, 4, 2, 1, 2.0, null, "", "minecraft:golden_apple", 0, 3);
+        node(list, "g_challenger", c, "", SkillEffect.AGGRO, 3, 3, 2, 2.0, "vitality", "g_stem", "minecraft:bell", 1, 2);
+        node(list, "toughness", c, "", SkillEffect.ARMOR, 3, 3, 2, 1.5, "vitality", "g_stem", "minecraft:iron_chestplate", 1, 4);
+
+        // ----- Way of the shield (boni only with a shield at hand)
+        String s = WAY_SHIELD;
+        node(list, "g_ironward", c, s, SkillEffect.ARMOR, 3, 3, 2, 1.5, "vitality", "s1", "minecraft:iron_ingot", 2, 1);
+        node(list, "g_shieldwall", c, s, SkillEffect.SHIELD_WALL, 3, 3, 2, 1.0, "vitality", "", "minecraft:shield", 2, 3);
+        node(list, "steadfast", c, s, SkillEffect.KNOCKBACK_RESIST, 3, 3, 2, 0.25, "vitality", "s1", "minecraft:netherite_ingot", 2, 5);
+        node(list, "riposte", c, s, SkillEffect.COUNTER, 4, 4, 2, 1.5, "g_shieldwall", "s_sub", "minecraft:iron_sword", 3, 1);
+        node(list, "g_bastion", c, s, SkillEffect.BASTION, 4, 4, 2, 0.02, "g_shieldwall", "s_sub", "minecraft:cobblestone_wall", 3, 5);
+        node(list, "g_shieldthrow", c, s, SkillEffect.SHIELD_THROW, 1, 10, 0, 6.0, "riposte:2", "s3", "minecraft:trident", 4, 0);
+        node(list, "g_shieldbash", c, s, SkillEffect.SHIELD_BASH, 1, 10, 0, 5.0, "riposte:2", "s3", "minecraft:piston", 4, 2);
+        node(list, "g_ironhide", c, s, SkillEffect.IRONHIDE, 1, 10, 0, 2.0, "g_bastion:2", "s3", "minecraft:chainmail_chestplate", 4, 4);
+        node(list, "g_anchor", c, s, SkillEffect.ANCHOR, 1, 10, 0, 0.4, "g_bastion:2", "s3", "minecraft:anvil", 4, 6);
+        String s3 = "g_shieldthrow|g_shieldbash|g_ironhide|g_anchor";
+        node(list, "g_counterstrike", c, s, SkillEffect.COUNTERSTRIKE, 1, 12, 0, 1.0, s3, "s4", "minecraft:golden_sword", 5, 1);
+        node(list, "g_thorns", c, s, SkillEffect.THORNS, 1, 12, 0, 2.0, s3, "s4", "minecraft:sweet_berries", 5, 3);
+        node(list, "s_cross_dressing", c, s, SkillEffect.HEAL_AURA, 1, 12, 0, 0.75, s3, "s4", "minecraft:glistering_melon_slice", 5, 5,
+                "g_hedgehog", "g_rampart");
+        node(list, "g_boomerang", c, s, SkillEffect.BOOMERANG, 1, 15, 0, 1.0, "g_shieldthrow,g_counterstrike|g_thorns", "s5", "minecraft:fishing_rod", 6, 1);
+        node(list, "g_vengeance", c, s, SkillEffect.VENGEANCE, 1, 15, 0, 6.0, "g_ironhide|g_shieldbash,g_counterstrike", "s5", "minecraft:fire_charge", 6, 3);
+        node(list, "g_hedgehog", c, s, SkillEffect.HEDGEHOG, 1, 15, 0, 1.0, "g_anchor,g_thorns", "s5", "minecraft:cactus", 6, 5);
+        String s4 = "g_counterstrike|g_thorns|s_cross_dressing";
+        node(list, "g_laststand", c, s, SkillEffect.LAST_STAND, 1, 18, 0, 1.0, s4, "s6", "minecraft:shulker_shell", 7, 1);
+        node(list, "g_revenge", c, s, SkillEffect.REVENGE, 1, 18, 0, 0.5, s4, "s6", "minecraft:redstone", 7, 3);
+        node(list, "s_cross_ward", c, s, SkillEffect.WARD, 1, 18, 0, 2.0, s4, "s6", "minecraft:amethyst_shard", 7, 5,
+                "shield_charge");
+        String s6 = "g_laststand|g_revenge|s_cross_ward";
+        node(list, "shield_charge", c, s, SkillEffect.SHIELD_CHARGE, 3, 20, 10, 1.0, s6, "s_ult", "minecraft:iron_horse_armor", 8, 2);
+        node(list, "taunt", c, s, SkillEffect.TAUNT, 3, 20, 10, 1.0, s6, "s_ult", "minecraft:goat_horn", 8, 4);
+        node(list, "g_debris", c, s, SkillEffect.DEBRIS, 1, 25, 0, 1.0, "shield_charge,riposte", "s_mastery", "minecraft:gravel", 9, 0);
+        node(list, "g_rampart", c, s, SkillEffect.RAMPART, 1, 25, 0, 1.0, "shield_charge,g_bastion", "s_mastery", "minecraft:iron_block", 9, 2);
+        node(list, "g_iron_will", c, s, SkillEffect.IRON_WILL, 1, 25, 0, 1.0, "taunt,g_bastion", "s_mastery", "minecraft:netherite_chestplate", 9, 4);
+        node(list, "g_shared_burden", c, s, SkillEffect.SHARED_BURDEN, 1, 25, 0, 1.0, "taunt,riposte", "s_mastery", "minecraft:lead", 9, 6);
+        node(list, "g_living_wall", c, s, SkillEffect.LIVING_WALL, 1, 30, 0, 1.0, "shield_charge|taunt", "s_key", "minecraft:obsidian", 10, 2);
+        node(list, "g_bladeshield", c, s, SkillEffect.BLADESHIELD, 1, 30, 0, 1.0, "shield_charge|taunt", "s_key", "minecraft:netherite_sword", 10, 4);
+
+        // ----- Way of blessing (healing and barriers)
+        String b = WAY_BLESSING;
+        node(list, "g_prayer", c, b, SkillEffect.HEAL_POWER, 3, 3, 2, 0.08, "vitality", "gb1", "minecraft:book", 2, 1);
+        node(list, "field_dressing", c, b, SkillEffect.HEAL_AURA, 3, 3, 2, 0.5, "vitality", "", "minecraft:glistering_melon_slice", 2, 3);
+        node(list, "g_wardsign", c, b, SkillEffect.WARD_SIGN, 3, 3, 2, 0.04, "vitality", "gb1", "minecraft:white_banner", 2, 5);
+        node(list, "g_healing_hand", c, b, SkillEffect.HEALING_HAND, 4, 4, 2, 1.0, "field_dressing", "gb_sub", "minecraft:honey_bottle", 3, 1);
+        node(list, "g_ward", c, b, SkillEffect.WARD, 4, 4, 2, 1.0, "field_dressing", "gb_sub", "minecraft:amethyst_shard", 3, 5);
+        node(list, "guardian_angel", c, b, SkillEffect.GUARDIAN_ANGEL, 1, 10, 0, 2.0, "g_healing_hand:2", "gb3", "minecraft:totem_of_undying", 4, 0);
+        node(list, "g_triage", c, b, SkillEffect.TRIAGE, 1, 10, 0, 1.0, "g_healing_hand:2", "gb3", "minecraft:apple", 4, 2);
+        node(list, "g_dome", c, b, SkillEffect.DOME, 1, 10, 0, 1.0, "g_ward:2", "gb3", "minecraft:glass", 4, 4);
+        node(list, "g_cleanse", c, b, SkillEffect.CLEANSE, 1, 10, 0, 1.0, "g_ward:2", "gb3", "minecraft:milk_bucket", 4, 6);
+        String b3 = "guardian_angel|g_triage|g_dome|g_cleanse";
+        node(list, "g_lightbringer", c, b, SkillEffect.AURA_RANGE, 1, 12, 0, 4.0, b3, "gb4", "minecraft:lantern", 5, 1);
+        node(list, "g_selfless", c, b, SkillEffect.SELFLESS, 1, 12, 0, 0.3, b3, "gb4", "minecraft:poppy", 5, 3);
+        node(list, "b_cross_riposte", c, b, SkillEffect.COUNTER, 1, 12, 0, 3.0, b3, "gb4", "minecraft:iron_sword", 5, 5,
+                "g_wellspring", "g_lifespring");
+        node(list, "g_lifebond", c, b, SkillEffect.LIFEBOND, 1, 15, 0, 3.0, "g_dome|g_cleanse,g_selfless", "gb5", "minecraft:heart_of_the_sea", 6, 1);
+        node(list, "g_wellspring", c, b, SkillEffect.WELLSPRING, 1, 15, 0, 1.0, "g_dome,g_lightbringer", "gb5", "minecraft:water_bucket", 6, 3);
+        node(list, "g_miracle", c, b, SkillEffect.MIRACLE, 1, 15, 0, 4.0, "guardian_angel|g_triage,g_lightbringer|g_selfless", "gb5", "minecraft:nether_star", 6, 5);
+        String b4 = "g_lightbringer|g_selfless|b_cross_riposte";
+        node(list, "g_overflow", c, b, SkillEffect.OVERFLOW, 1, 18, 0, 6.0, b4, "gb6", "minecraft:experience_bottle", 7, 1);
+        node(list, "g_grace", c, b, SkillEffect.GRACE, 1, 18, 0, 1.0, b4, "gb6", "minecraft:feather", 7, 3);
+        node(list, "b_cross_bastion", c, b, SkillEffect.BASTION, 1, 18, 0, 0.06, b4, "gb6", "minecraft:cobblestone_wall", 7, 5,
+                "mass_heal");
+        String b6 = "g_overflow|g_grace|b_cross_bastion";
+        node(list, "mass_heal", c, b, SkillEffect.MASS_HEAL, 3, 20, 10, 1.0, b6, "gb_ult", "minecraft:enchanted_golden_apple", 8, 2);
+        node(list, "g_sanctuary", c, b, SkillEffect.SANCTUARY, 3, 20, 10, 1.0, b6, "gb_ult", "minecraft:end_crystal", 8, 4);
+        node(list, "g_rebirth", c, b, SkillEffect.REBIRTH, 1, 25, 0, 1.0, "mass_heal,g_healing_hand", "gb_mastery", "minecraft:blaze_powder", 9, 0);
+        node(list, "g_lifespring", c, b, SkillEffect.LIFESPRING, 1, 25, 0, 1.0, "mass_heal,g_ward", "gb_mastery", "minecraft:glow_berries", 9, 2);
+        node(list, "g_lightcircle", c, b, SkillEffect.LIGHT_CIRCLE, 1, 25, 0, 1.0, "g_sanctuary,g_healing_hand", "gb_mastery", "minecraft:sunflower", 9, 4);
+        node(list, "g_eternal_watch", c, b, SkillEffect.ETERNAL_WATCH, 1, 25, 0, 1.0, "g_sanctuary,g_ward", "gb_mastery", "minecraft:clock", 9, 6);
+        node(list, "g_saint", c, b, SkillEffect.SAINT, 1, 30, 0, 0.4, "mass_heal|g_sanctuary", "gb_key", "minecraft:enchanted_book", 10, 2);
+        node(list, "g_patron", c, b, SkillEffect.PATRON, 1, 30, 0, 0.5, "mass_heal|g_sanctuary", "gb_key", "minecraft:diamond_chestplate", 10, 4);
     }
 
     private static void node(List<SkillNode> list, String id, SkillClass clazz, String path, SkillEffect effect,

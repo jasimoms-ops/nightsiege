@@ -43,7 +43,7 @@ public final class SkillService {
         capHealth(player);
     }
 
-    /** The warrior's keystones change several values at once. */
+    /** Keystones change several values at once. */
     private static double keystone(SkillEffect effect, PlayerSkills skills) {
         double v = 0.0;
         switch (effect) {
@@ -53,12 +53,16 @@ public final class SkillService {
                 if (SkillTree.has(skills, "w_martyr")) v -= 4.0;
                 if (SkillTree.has(skills, "a_deadeye")) v -= 8.0;
                 if (SkillTree.has(skills, "a_watchful")) v -= 4.0;
+                if (SkillTree.has(skills, "g_living_wall")) v += 12.0;
+                if (SkillTree.has(skills, "g_bladeshield")) v -= 8.0;
+                if (SkillTree.has(skills, "g_patron")) v -= 4.0;
             }
             case MOVEMENT_SPEED -> {
                 if (SkillTree.has(skills, "w_unstoppable")) v -= 0.01;
                 if (SkillTree.has(skills, "w_colossus")) v -= 0.01;
                 if (SkillTree.has(skills, "a_skirmisher")) v += 0.015;
                 if (SkillTree.has(skills, "a_siegeengine")) v -= 0.015;
+                if (SkillTree.has(skills, "g_living_wall")) v -= 0.01;
             }
             case KNOCKBACK_RESIST -> {
                 if (SkillTree.has(skills, "w_unstoppable")) v += 1.0;

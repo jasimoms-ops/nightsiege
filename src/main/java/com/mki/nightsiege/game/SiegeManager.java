@@ -290,11 +290,16 @@ public final class SiegeManager {
                 (killWorld, killer, killed, killSource) -> onKill(killer, killed));
         ServerPlayerEvents.JOIN.register(player -> onJoin(player));
         ServerLivingEntityEvents.AFTER_DAMAGE.register((entity, source, baseDamage, taken, blocked) -> {
-            combat.afterDamage(entity, source, taken, blocked);
+            combat.afterDamage(entity, source, baseDamage, taken, blocked);
             perks.afterDamage(entity, taken);
         });
         ServerLivingEntityEvents.ALLOW_DEATH.register((entity, source, amount) -> combat.allowDeath(entity));
         ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) -> combat.allowDamage(entity, source, amount));
+        combat.guardian().setCredit(this::creditTank);
+        net.fabricmc.fabric.api.event.player.UseEntityCallback.EVENT.register((player, world, hand, entity, hit) ->
+                !world.isClientSide() && player instanceof ServerPlayer server
+                        && combat.guardian().onUseEntity(server, entity, hand)
+                        ? net.minecraft.world.InteractionResult.SUCCESS : net.minecraft.world.InteractionResult.PASS);
         ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> {
             archer.onEntityLoad(entity, world, skillTree, this::liveSkillsFor);
             dungeons.onEntityLoad(entity);
@@ -1207,6 +1212,30 @@ public final class SiegeManager {
         }
     }
 
+    /** Damage a guardian caught and healing given, until it adds up to a point. */
+    private final Map<UUID, Double> tankPool = new HashMap<>();
+
+    /**
+     * A guardian caught damage from an attacker (or healed a teammate, from null):
+     * every so much of it is worth one kill. Only during a real siege, and only
+     * the siege's own monsters count.
+     */
+    private void creditTank(ServerPlayer player, double amount, Entity from) {
+        if (!active || testRun || !config.skillsEnabled || config.skillPointsPerKill <= 0 || amount <= 0) {
+            return;
+        }
+        if (from != null && !from.entityTags().contains(MobFactory.TAG)) {
+            return;
+        }
+        double pool = tankPool.merge(player.getUUID(), amount, Double::sum);
+        int per = Math.max(1, config.tankDamagePerPoint);
+        if (pool >= per) {
+            int points = (int) (pool / per);
+            tankPool.put(player.getUUID(), pool - points * per);
+            save.skillsOf(player.getUUID().toString()).award(perks.experience(player, points * config.skillPointsPerKill));
+        }
+    }
+
     /** Counts a kill and turns it into skill experience. */
     private void onKill(Object killerObject, Object killedObject) {
         if (!(killerObject instanceof ServerPlayer player) || !(killedObject instanceof Entity killed)) {
@@ -1248,6 +1277,7 @@ public final class SiegeManager {
             case "donate" -> onDonate(player, parseAmount(argument));
             case "dev" -> onDevAction(player, argument);
             case "ult" -> onUltimateKey(player);
+            case "shield" -> combat.guardian().onShieldAction(player);
             case "dungeon" -> dungeons.onToolAction(player, argument);
             default -> openCoreWindow(player);
         }

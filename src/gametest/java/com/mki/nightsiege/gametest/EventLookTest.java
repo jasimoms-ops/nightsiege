@@ -49,6 +49,7 @@ public class EventLookTest implements FabricClientGameTest {
                 context.waitTicks(30);
                 context.takeScreenshot("event_99_night_normal");
                 warriorWindow(context, game);
+                guardianScene(context);
                 return;
             }
 
@@ -182,6 +183,103 @@ public class EventLookTest implements FabricClientGameTest {
         context.waitTicks(40);
         selectNode(context, "a_hunternet");
         context.takeScreenshot("ui_archer_crossbow");
+        context.waitTicks(5);
+    }
+
+    /** Something to do on the integrated server with the test player and the siege manager. */
+    private interface OnServer {
+        void run(net.minecraft.server.level.ServerPlayer player, com.mki.nightsiege.game.SiegeManager manager);
+    }
+
+    private static void onServer(ClientGameTestContext context, OnServer action) {
+        context.runOnClient(client -> {
+            net.minecraft.server.MinecraftServer server = client.getSingleplayerServer();
+            server.execute(() -> action.run(server.getPlayerList().getPlayers().get(0),
+                    com.mki.nightsiege.game.SiegeManager.get()));
+        });
+    }
+
+    /** Picks a class and some nodes, then opens the window on that class's tab. */
+    private static void openTree(ClientGameTestContext context, String clazz, String... nodes) {
+        onServer(context, (player, manager) -> {
+            manager.onCoreAction(player, "dev:reset");
+            manager.onCoreAction(player, "class:" + clazz);
+            manager.onCoreAction(player, "dev:600");
+            for (String id : nodes) {
+                manager.onBuySkill(player, id);
+            }
+            manager.onCoreAction(player, "open");
+        });
+        context.waitTicks(20);
+        context.runOnClient(client -> {
+            try {
+                java.lang.reflect.Field tab = com.mki.nightsiege.client.CoreScreen.class.getDeclaredField("activeTab");
+                tab.setAccessible(true);
+                @SuppressWarnings({"unchecked", "rawtypes"})
+                Object value = Enum.valueOf((Class) tab.getType(), clazz);
+                tab.set(null, value);
+            } catch (ReflectiveOperationException e) {
+                System.out.println("[Night Siege test] could not set the tab: " + e);
+            }
+        });
+        onServer(context, (player, manager) -> manager.onCoreAction(player, "open"));
+        context.waitTicks(40);
+    }
+
+    private static void closeScreen(ClientGameTestContext context) {
+        context.runOnClient(client -> {
+            net.minecraft.client.gui.screens.Screen open = client.screen();
+            if (open != null) {
+                open.onClose();
+            }
+        });
+        context.waitTicks(10);
+    }
+
+    /** Raises a shield on the server and fires the shield action (as a left click while blocking would). */
+    private static void shieldAction(ClientGameTestContext context) {
+        onServer(context, (player, manager) -> {
+            player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.OFFHAND,
+                    new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.SHIELD));
+            player.startUsingItem(net.minecraft.world.InteractionHand.OFF_HAND);
+            manager.onCoreAction(player, "shield");
+        });
+    }
+
+    /** The guardian: both ways in the window, then the shield throw, the dome and the sanctuary in the world. */
+    private static void guardianScene(ClientGameTestContext context) {
+        openTree(context, "GUARDIAN", "vitality", "g_challenger", "g_shieldwall", "riposte", "riposte",
+                "g_shieldthrow", "g_thorns", "g_boomerang", "g_laststand", "shield_charge", "g_debris");
+        selectNode(context, "g_boomerang");
+        context.takeScreenshot("ui_guardian_shield");
+        closeScreen(context);
+        context.getInput().lookAt(-90.0f, 4.0f);
+        context.waitTicks(10);
+        shieldAction(context);
+        context.waitTicks(5);
+        context.takeScreenshot("guardian_throw");
+        context.waitTicks(20);
+        onServer(context, (player, manager) -> manager.onCoreAction(player, "ult"));
+        context.waitTicks(8);
+        context.takeScreenshot("guardian_charge");
+        context.waitTicks(20);
+
+        openTree(context, "GUARDIAN", "vitality", "toughness", "field_dressing", "g_ward", "g_ward", "g_dome",
+                "g_lightbringer", "g_wellspring", "g_grace", "g_sanctuary", "g_lightcircle");
+        selectNode(context, "g_wellspring");
+        context.takeScreenshot("ui_guardian_blessing");
+        closeScreen(context);
+        context.getInput().lookAt(-90.0f, 20.0f);
+        shieldAction(context);
+        context.waitTicks(12);
+        context.takeScreenshot("guardian_dome");
+        context.waitTicks(10);
+        onServer(context, (player, manager) -> {
+            player.stopUsingItem();
+            manager.onCoreAction(player, "ult");
+        });
+        context.waitTicks(30);
+        context.takeScreenshot("guardian_sanctuary");
         context.waitTicks(5);
     }
 

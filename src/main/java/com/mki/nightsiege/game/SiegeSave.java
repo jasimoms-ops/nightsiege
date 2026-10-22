@@ -101,9 +101,10 @@ public class SiegeSave {
 
     /** Version of the skill trees the levels below were learned in. */
     public int skillTreeVersion;
-    public static final int SKILL_TREE_VERSION = 3;
+    public static final int SKILL_TREE_VERSION = 4;
 
     /**
+     * Version 4 rebuilt the guardian (shield or blessing); every guardian gets all points back.
      * Version 3 rebuilt the archer (bow or crossbow); every archer gets all points back.
      * Version 2 rebuilt the warrior (two ways instead of four paths; the paladin
      * moved over from the guardian, the spear path left). Every warrior, and every
@@ -118,6 +119,7 @@ public class SiegeSave {
                 "long_reach", "impale", "lance_thrust");
         // Version 3 rebuilt the archer the same way (bow or crossbow).
         boolean archers = skillTreeVersion < 3;
+        boolean guardians = skillTreeVersion < 4;
         boolean warriors = skillTreeVersion < 2;
         int reset = 0;
         if (skills != null) {
@@ -133,7 +135,8 @@ public class SiegeSave {
                     }
                 }
                 if ((warriors && (own.clazz() == com.mki.nightsiege.core.SkillClass.WARRIOR || touched))
-                        || (archers && own.clazz() == com.mki.nightsiege.core.SkillClass.ARCHER)) {
+                        || (archers && own.clazz() == com.mki.nightsiege.core.SkillClass.ARCHER)
+                        || (guardians && own.clazz() == com.mki.nightsiege.core.SkillClass.GUARDIAN)) {
                     own.points = Math.max(0, own.earned - own.donated);
                     own.levels.clear();
                     reset++;

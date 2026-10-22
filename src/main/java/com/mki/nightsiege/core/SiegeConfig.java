@@ -163,6 +163,8 @@ public class SiegeConfig {
     public int championPointMultiplier = 10;
     /** One extra point for every this many siege levels. */
     public int skillPointsLevelStep = 5;
+    /** A guardian earns one kill's worth for every this much damage caught or healing given. */
+    public int tankDamagePerPoint = 20;
 
     // --- mobs -------------------------------------------------------------
     public List<MobEntry> mobs = defaultMobs();
@@ -301,6 +303,7 @@ public class SiegeConfig {
         championPointMultiplier = Math.max(1, championPointMultiplier);
         audibleSpawnsPerBatch = Math.max(0, audibleSpawnsPerBatch);
         skillPointsLevelStep = Math.max(1, skillPointsLevelStep);
+        tankDamagePerPoint = Math.max(1, tankDamagePerPoint);
 
         toolEquipChance = clampDouble(toolEquipChance, 0.0, 1.0);
         if (!allowShovelDigging) {

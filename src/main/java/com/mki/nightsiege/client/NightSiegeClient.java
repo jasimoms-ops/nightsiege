@@ -111,6 +111,21 @@ public class NightSiegeClient implements ClientModInitializer {
             lines.add(Component.translatable("nightsiege.tooltip.class_item", names).withStyle(ChatFormatting.GOLD));
             lines.add(Component.translatable("nightsiege.tooltip.class_item_hint").withStyle(ChatFormatting.GRAY));
         });
+        // Guardian: a left click while blocking is the shield action. Minecraft drops
+        // attack clicks while an item is in use, so they are taken here first.
+        ClientTickEvents.START_CLIENT_TICK.register(client -> {
+            if (client.player == null || !client.player.isUsingItem()
+                    || !client.player.getUseItem().has(net.minecraft.core.component.DataComponents.BLOCKS_ATTACKS)) {
+                return;
+            }
+            boolean pressed = false;
+            while (client.options.keyAttack.consumeClick()) {
+                pressed = true;
+            }
+            if (pressed && ClientPlayNetworking.canSend(CoreNetworking.CoreActionPayload.TYPE)) {
+                ClientPlayNetworking.send(new CoreNetworking.CoreActionPayload("shield"));
+            }
+        });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (guideKey.consumeClick()) {
                 Minecraft.getInstance().setScreenAndShow(new GuideScreen());

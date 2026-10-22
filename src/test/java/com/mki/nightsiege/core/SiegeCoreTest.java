@@ -408,7 +408,7 @@ class SiegeCoreTest {
     void everyClassHasItsPaths() {
         SkillTree tree = new SkillTree();
         java.util.Map<SkillClass, Integer> expected = java.util.Map.of(SkillClass.ARCHER, 2, SkillClass.WARRIOR, 2,
-                SkillClass.GUARDIAN, 3, SkillClass.ENGINEER, 4);
+                SkillClass.GUARDIAN, 2, SkillClass.ENGINEER, 4);
         for (java.util.Map.Entry<SkillClass, Integer> entry : expected.entrySet()) {
             Set<String> paths = new HashSet<>();
             for (SkillNode node : tree.ofClass(entry.getKey())) {
@@ -528,7 +528,7 @@ class SiegeCoreTest {
         assertEquals("choice", tree.blockedReason("execute", warrior));
         assertNull(tree.blockedReason("w_glass_cannon", warrior));
         assertEquals(tree.get("whirlwind"), tree.ultimateOf(warrior));
-        assertEquals("class", tree.blockedReason("iron_guard", warrior));
+        assertEquals("class", tree.blockedReason("g_ironward", warrior));
     }
 
     @Test
@@ -548,7 +548,14 @@ class SiegeCoreTest {
         engineer.chosenClass = SkillClass.ENGINEER.name();
         engineer.award(30);
         engineer.spend(5);
-        assertEquals(2, save.migrateSkills());
+        PlayerSkills guardian = save.skillsOf("d");
+        guardian.chosenClass = SkillClass.GUARDIAN.name();
+        guardian.award(40);
+        guardian.spend(12);
+        guardian.setLevel("iron_guard", 2);
+        assertEquals(3, save.migrateSkills());
+        assertEquals(40, guardian.points());
+        assertEquals(0, guardian.levelOf("iron_guard"));
         assertEquals(100, warrior.points());
         assertEquals(0, warrior.levelOf("long_reach"));
         assertEquals(50, archer.points());
@@ -558,17 +565,91 @@ class SiegeCoreTest {
     }
 
     @Test
-    void theGuardianPicksOneOfThreePaths() {
+    void theGuardianPicksShieldOrBlessing() {
         SkillTree tree = new SkillTree();
         PlayerSkills guardian = new PlayerSkills();
         guardian.chosenClass = SkillClass.GUARDIAN.name();
-        guardian.award(1000);
+        guardian.award(5000);
         assertTrue(tree.unlock("vitality", guardian));
-        assertTrue(tree.unlock("iron_guard", guardian));
-        for (String other : new String[]{"toughness", "field_dressing"}) {
-            assertEquals("path", tree.blockedReason(other, guardian), other);
+        assertTrue(tree.unlock("g_challenger", guardian));
+        assertEquals("choice", tree.blockedReason("toughness", guardian));
+        assertTrue(tree.unlock("g_shieldwall", guardian));
+        assertEquals(SkillTree.WAY_SHIELD, guardian.pathTaken(tree));
+        assertEquals("path", tree.blockedReason("field_dressing", guardian));
+        assertTrue(tree.unlock("g_bastion", guardian));
+        assertEquals(SkillTree.SUB_BULWARK, tree.subclassOf(guardian));
+        assertEquals("choice", tree.blockedReason("riposte", guardian));
+        assertEquals("locked", tree.blockedReason("g_ironhide", guardian));
+        assertTrue(tree.unlock("g_bastion", guardian));
+        assertTrue(tree.unlock("g_anchor", guardian));
+        assertTrue(tree.unlock("g_thorns", guardian));
+        assertTrue(tree.unlock("g_hedgehog", guardian));
+        // The ward from the other way closes the shield charge.
+        assertTrue(tree.unlock("s_cross_ward", guardian));
+        assertEquals("lockedby", tree.blockedReason("shield_charge", guardian));
+        assertTrue(tree.unlock("taunt", guardian));
+        assertTrue(tree.unlock("g_iron_will", guardian));
+        assertEquals("choice", tree.blockedReason("g_shared_burden", guardian));
+        assertTrue(tree.unlock("g_living_wall", guardian));
+        assertEquals("taunt", tree.ultimateOf(guardian).id());
+        assertEquals("class", tree.blockedReason("warrior_drill", guardian));
+    }
+
+    @Test
+    void theGuardianReachesEveryHybridSlot() {
+        SkillTree tree = new SkillTree();
+        String[][] routes = {
+                {"g_shieldwall", "riposte", "riposte", "g_shieldthrow", "g_thorns", "g_boomerang"},
+                {"g_shieldwall", "g_bastion", "g_bastion", "g_ironhide", "g_counterstrike", "g_vengeance"},
+                {"g_shieldwall", "riposte", "riposte", "g_shieldbash", "g_counterstrike", "g_vengeance"},
+                {"field_dressing", "g_ward", "g_ward", "g_dome", "g_selfless", "g_lifebond"},
+                {"field_dressing", "g_ward", "g_ward", "g_dome", "g_lightbringer", "g_wellspring"},
+                {"field_dressing", "g_healing_hand", "g_healing_hand", "g_triage", "g_selfless", "g_miracle"},
+                {"field_dressing", "g_ward", "g_ward", "g_cleanse", "b_cross_riposte", "g_overflow", "g_sanctuary",
+                        "g_eternal_watch", "g_patron"},
+        };
+        for (String[] route : routes) {
+            PlayerSkills guardian = new PlayerSkills();
+            guardian.chosenClass = SkillClass.GUARDIAN.name();
+            guardian.award(5000);
+            assertTrue(tree.unlock("vitality", guardian));
+            for (String id : route) {
+                assertTrue(tree.unlock(id, guardian), id + " " + tree.blockedReason(id, guardian));
+            }
         }
-        assertEquals("locked", tree.blockedReason("shield_charge", guardian));
+        // The other way's riposte closes the healing spring and the life spring.
+        PlayerSkills cross = new PlayerSkills();
+        cross.chosenClass = SkillClass.GUARDIAN.name();
+        cross.award(5000);
+        for (String id : new String[]{"vitality", "field_dressing", "g_ward", "g_ward", "g_dome", "b_cross_riposte"}) {
+            assertTrue(tree.unlock(id, cross), id);
+        }
+        assertEquals("lockedby", tree.blockedReason("g_wellspring", cross));
+        assertEquals("lockedby", tree.blockedReason("g_lifespring", cross));
+        assertEquals(SkillTree.SUB_WARDEN, tree.subclassOf(cross));
+    }
+
+    @Test
+    void everyRequirementAndLockPointsAtARealNode() {
+        SkillTree tree = new SkillTree();
+        Set<String> places = new HashSet<>();
+        for (SkillNode node : tree.all()) {
+            for (List<SkillNode.Need> any : node.needs()) {
+                for (SkillNode.Need need : any) {
+                    SkillNode other = tree.get(need.id());
+                    assertTrue(other != null, node.id() + " needs unknown " + need.id());
+                    assertEquals(node.clazz(), other.clazz(), node.id() + " needs " + need.id());
+                    assertTrue(other.onTrunk() || other.path().equals(node.path()), node.id() + " needs " + need.id());
+                }
+            }
+            for (String locked : node.locksList()) {
+                assertTrue(tree.get(locked) != null, node.id() + " locks unknown " + locked);
+            }
+            if (node.col() >= 0) {
+                String place = node.clazz() + "/" + (node.onTrunk() ? "" : node.path()) + "/" + node.row() + "/" + node.col();
+                assertTrue(places.add(place), "two nodes on " + place);
+            }
+        }
     }
 
     @Test
@@ -581,9 +662,9 @@ class SiegeCoreTest {
             }
             ultimates.merge(node.path(), node.effect().target() == SkillEffect.Target.ULTIMATE ? 1 : 0, Integer::sum);
         }
-        assertEquals(11, ultimates.size());
+        assertEquals(10, ultimates.size());
         java.util.Map<String, Integer> expected = java.util.Map.of(SkillTree.WAY_BLADE, 2, SkillTree.WAY_MIGHT, 2,
-                SkillTree.WAY_BOW, 3, SkillTree.WAY_CROSSBOW, 3);
+                SkillTree.WAY_BOW, 3, SkillTree.WAY_CROSSBOW, 3, SkillTree.WAY_SHIELD, 2, SkillTree.WAY_BLESSING, 2);
         ultimates.forEach((path, count) -> assertEquals(expected.getOrDefault(path, 1), count, path));
     }
 

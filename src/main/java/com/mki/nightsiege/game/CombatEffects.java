@@ -66,6 +66,7 @@ public final class CombatEffects {
     private final Predicate<Entity> isChampion;
     private final ArcherEffects archer;
     private final TrapService traps;
+    private final GuardianEffects guardian;
     private final Random random = new Random();
 
     /** Multiplier on the ultimate cooldown, set by the vigilance perk. */
@@ -93,6 +94,7 @@ public final class CombatEffects {
     /** Things an ultimate does a moment later (second slam, further whirlwind turns). */
     private final List<Delayed> delayed = new ArrayList<>();
     private int tickCounter;
+    private long currentTime;
     private static final net.minecraft.resources.Identifier WARRIOR_SPEED = ModContent.id("warrior_speed");
 
     private record Delayed(long due, Runnable action) {
@@ -111,6 +113,21 @@ public final class CombatEffects {
         this.isChampion = isChampion;
         this.archer = archer;
         this.traps = traps;
+        this.guardian = new GuardianEffects(tree, skillsFor, this);
+    }
+
+    public GuardianEffects guardian() {
+        return guardian;
+    }
+
+    /** Runs an action a few ticks later (the bounces of a thrown shield, the debris of a charge). */
+    void schedule(int ticks, Runnable action) {
+        delayed.add(new Delayed(currentTime + Math.max(1, ticks), action));
+    }
+
+    /** Rebirth: the guardian's angel may save someone again this night. */
+    void readyAngel(UUID player) {
+        angelUsed.remove(player);
     }
 
     /** A new night: every guardian angel is ready again. */
@@ -159,9 +176,10 @@ public final class CombatEffects {
             case EXECUTE -> execute(level, player, rank);
             case LANCE_THRUST -> lanceThrust(level, player, rank);
             case GROUND_SLAM -> groundSlam(level, player, rank);
-            case TAUNT -> taunt(level, player, rank);
-            case MASS_HEAL -> massHeal(level, player, rank);
-            case SHIELD_CHARGE -> shieldCharge(level, player, rank);
+            case TAUNT -> guardian.taunt(level, player, rank);
+            case MASS_HEAL -> guardian.massHeal(level, player, rank);
+            case SHIELD_CHARGE -> guardian.shieldCharge(level, player, rank);
+            case SANCTUARY -> guardian.sanctuary(level, player, rank);
             case HOLY_LIGHT -> holyLight(level, player, rank);
             case BOMBARDMENT -> bombardment(level, player, rank);
             case OVERCHARGE -> {
@@ -391,66 +409,6 @@ public final class CombatEffects {
 
     // --- guardian
 
-    private boolean taunt(ServerLevel level, ServerPlayer player, int rank) {
-        double r = 7.0 + 3.0 * rank;   // 10 / 13 / 16
-        for (LivingEntity victim : enemies(level, player.position(), r, 4.0)) {
-            if (victim instanceof Mob mob) {
-                mob.setTarget(player);
-                level.sendParticles(ParticleTypes.ANGRY_VILLAGER, victim.getX(), victim.getY() + victim.getBbHeight() + 0.3,
-                        victim.getZ(), 2, 0.2, 0.1, 0.2, 0.0);
-            }
-        }
-        player.addEffect(new MobEffectInstance(MobEffects.RESISTANCE, 60 + 20 * rank, 1));
-        // The guardian holds the line: a shield of extra hearts for the team around.
-        for (ServerPlayer mate : level.players()) {
-            if (mate.isAlive() && mate.distanceToSqr(player) <= r * r) {
-                mate.addEffect(new MobEffectInstance(MobEffects.ABSORPTION, 200, rank));
-            }
-        }
-        play(level, player, SoundEvents.RAVAGER_ROAR, 1.0f, 1.2f);
-        return true;
-    }
-
-    private boolean massHeal(ServerLevel level, ServerPlayer player, int rank) {
-        for (ServerPlayer mate : level.players()) {
-            if (mate.isAlive() && mate.distanceToSqr(player) <= 144.0) {
-                mate.heal(6f + 4f * rank);
-                mate.addEffect(new MobEffectInstance(MobEffects.REGENERATION, 100, 1));
-                level.sendParticles(ParticleTypes.HEART, mate.getX(), mate.getY() + 1.8, mate.getZ(),
-                        6, 0.4, 0.3, 0.4, 0.0);
-            }
-        }
-        play(level, player, SoundEvents.BEACON_ACTIVATE, 1.0f, 1.4f);
-        return true;
-    }
-
-    private boolean shieldCharge(ServerLevel level, ServerPlayer player, int rank) {
-        Vec3 flat = flatLook(player);
-        if (flat == null) {
-            return false;
-        }
-        float damage = 3f + 3f * rank;   // 6 / 9 / 12
-        Vec3 eye = player.position();
-        DamageSource source = level.damageSources().playerAttack(player);
-        for (LivingEntity victim : enemies(level, eye, 6.0, 2.0)) {
-            Vec3 to = victim.position().subtract(eye);
-            Vec3 dir = new Vec3(to.x, 0, to.z);
-            if (dir.lengthSqr() < 1.0e-4 || dir.normalize().dot(flat) < 0.5) {
-                continue;   // only a cone of about 60 degrees to each side
-            }
-            bonusHit(level, victim, source, damage);
-            victim.push(flat.x * 1.4, 0.35, flat.z * 1.4);
-            victim.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 40, 2));
-        }
-        for (int i = 1; i <= 6; i++) {
-            Vec3 p = eye.add(flat.scale(i)).add(0, 1.0, 0);
-            level.sendParticles(ParticleTypes.CLOUD, p.x, p.y, p.z, 3, 0.3, 0.3, 0.3, 0.02);
-        }
-        play(level, player, SoundEvents.SHIELD_BLOCK.value(), 1.0f, 0.6f);
-        play(level, player, SoundEvents.IRON_GOLEM_ATTACK, 1.0f, 0.8f);
-        return true;
-    }
-
     /** Paladin: the undead burn in the light, everyone else is only stung; allies are mended. */
     private boolean holyLight(ServerLevel level, ServerPlayer player, int rank) {
         double r = 8.0 + 2.0 * rank;
@@ -560,10 +518,11 @@ public final class CombatEffects {
     // passive combat skills
     // ------------------------------------------------------------------
 
-    public void afterDamage(LivingEntity victim, DamageSource source, float taken, boolean blocked) {
+    public void afterDamage(LivingEntity victim, DamageSource source, float base, float taken, boolean blocked) {
         if (dealingBonus || !(victim.level() instanceof ServerLevel level)) {
             return;
         }
+        guardian.afterDamage(victim, source, base, taken, blocked);
         long now = level.getGameTime();
         if (victim instanceof Enemy && taken > 0 && source.getEntity() instanceof ServerPlayer player) {
             PlayerSkills skills = skillsFor.apply(player);
@@ -584,17 +543,6 @@ public final class CombatEffects {
             }
             if (extra > 0.05 && victim.isAlive()) {
                 bonusHit(level, victim, level.damageSources().playerAttack(player), (float) extra);
-            }
-        }
-        // A shield catching a monster's blow.
-        if (blocked && victim instanceof ServerPlayer player
-                && source.getEntity() instanceof LivingEntity attacker && attacker instanceof Enemy) {
-            PlayerSkills skills = skillsFor.apply(player);
-            double counter = skills == null ? 0 : tree.totalBonus(SkillEffect.COUNTER, skills);
-            if (counter > 0) {
-                bonusHit(level, attacker, level.damageSources().playerAttack(player), (float) counter);
-                pushAway(attacker, player.position(), 0.9, 0.3);
-                play(level, player, SoundEvents.SHIELD_BLOCK.value(), 0.8f, 1.4f);
             }
         }
     }
@@ -719,6 +667,7 @@ public final class CombatEffects {
             }
         }
 
+        extra += guardian.meleeExtra(level, player, skills, victim, taken, now);
         double steal = tree.totalBonus(SkillEffect.LIFESTEAL, skills);
         if (steal > 0) {
             player.heal((float) ((taken + extra) * steal));
@@ -1007,7 +956,7 @@ public final class CombatEffects {
     }
 
     /** Deals damage the mod adds on top, through the hit cooldown, without boosting it again. */
-    private void bonusHit(ServerLevel level, LivingEntity victim, DamageSource source, float amount) {
+    void bonusHit(ServerLevel level, LivingEntity victim, DamageSource source, float amount) {
         dealingBonus = true;
         try {
             victim.invulnerableTime = 0;
@@ -1057,6 +1006,7 @@ public final class CombatEffects {
 
     public void tick(MinecraftServer server) {
         long now = server.overworld().getGameTime();
+        currentTime = now;
         if (!delayed.isEmpty()) {
             List<Delayed> due = new ArrayList<>();
             delayed.removeIf(d -> {
@@ -1071,6 +1021,7 @@ public final class CombatEffects {
             }
         }
         tickCounter++;
+        guardian.tick(server);
         if (tickCounter % 10 == 0) {
             for (ServerPlayer player : server.getPlayerList().getPlayers()) {
                 warriorTick(player, tickCounter);
@@ -1089,14 +1040,13 @@ public final class CombatEffects {
             if ((heal <= 0 && !martyr) || !(medic.level() instanceof ServerLevel level)) {
                 continue;
             }
+            double radius = HEAL_RADIUS + guardian.auraRange(skills);
             for (ServerPlayer mate : level.players()) {
-                if (!mate.isAlive() || mate.distanceToSqr(medic) > HEAL_RADIUS * HEAL_RADIUS
-                        || mate.getHealth() >= mate.getMaxHealth()) {
+                if (!mate.isAlive() || mate.distanceToSqr(medic) > radius * radius) {
                     continue;
                 }
                 float amount = (float) heal + (martyr && mate != medic ? 1.5f : 0f);
-                if (amount > 0) {
-                    mate.heal(amount);
+                if (amount > 0 && guardian.heal(medic, mate, amount) > 0) {
                     level.sendParticles(ParticleTypes.HEART, mate.getX(), mate.getY() + 2.0, mate.getZ(),
                             1, 0.2, 0.1, 0.2, 0.0);
                 }
@@ -1219,16 +1169,17 @@ public final class CombatEffects {
         momentumUntil.remove(player);
         divineReadyAt.remove(player);
         tripReadyAt.remove(player);
+        guardian.forget(player);
     }
 
     // ------------------------------------------------------------------
 
-    private static boolean isUndead(LivingEntity e) {
+    static boolean isUndead(LivingEntity e) {
         return BuiltInRegistries.ENTITY_TYPE.wrapAsHolder(e.getType()).is(EntityTypeTags.UNDEAD);
     }
 
     /** Monsters within a horizontal radius and a vertical band around a point. */
-    private static List<LivingEntity> enemies(ServerLevel level, Vec3 center, double r, double up) {
+    static List<LivingEntity> enemies(ServerLevel level, Vec3 center, double r, double up) {
         List<LivingEntity> out = new ArrayList<>();
         for (LivingEntity e : TrapService.enemies(level, new AABB(center, center).inflate(r, up, r))) {
             double dx = e.getX() - center.x;
@@ -1241,7 +1192,7 @@ public final class CombatEffects {
     }
 
     /** The monster the player is looking at, within reach. */
-    private static LivingEntity lookTarget(ServerLevel level, ServerPlayer player, double reach) {
+    static LivingEntity lookTarget(ServerLevel level, ServerPlayer player, double reach) {
         Vec3 eye = player.getEyePosition();
         Vec3 look = player.getLookAngle();
         LivingEntity best = null;
@@ -1261,13 +1212,13 @@ public final class CombatEffects {
         return best;
     }
 
-    private static Vec3 flatLook(ServerPlayer player) {
+    static Vec3 flatLook(ServerPlayer player) {
         Vec3 look = player.getLookAngle();
         Vec3 flat = new Vec3(look.x, 0, look.z);
         return flat.lengthSqr() < 1.0e-4 ? null : flat.normalize();
     }
 
-    private static void pushAway(LivingEntity victim, Vec3 from, double strength, double lift) {
+    static void pushAway(LivingEntity victim, Vec3 from, double strength, double lift) {
         Vec3 away = victim.position().subtract(from);
         Vec3 flat = new Vec3(away.x, 0, away.z);
         if (flat.lengthSqr() > 1.0e-4) {
@@ -1280,7 +1231,7 @@ public final class CombatEffects {
         level.playSound(null, at.getX(), at.getY(), at.getZ(), sound, SoundSource.PLAYERS, volume, pitch);
     }
 
-    private static void actionBar(ServerPlayer player, Component text) {
+    static void actionBar(ServerPlayer player, Component text) {
         player.connection.send(new ClientboundSetActionBarTextPacket(text));
     }
 }

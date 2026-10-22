@@ -21,9 +21,8 @@ public final class ClassGear {
             Map.entry(SkillTree.WAY_CROSSBOW, List.of("infernite_crossbow")),
             Map.entry(SkillTree.WAY_BLADE, List.of("infernite_sword")),
             Map.entry(SkillTree.WAY_MIGHT, List.of("infernite_axe", "infernite_mace")),
-            Map.entry(SkillTree.PATH_BULWARK, List.of("infernite_chestplate")),
-            Map.entry(SkillTree.PATH_MEDIC, List.of("infernite_helmet")),
-            Map.entry(SkillTree.PATH_SHIELD, List.of("infernite_shield")),
+            Map.entry(SkillTree.WAY_SHIELD, List.of("infernite_shield", "infernite_chestplate")),
+            Map.entry(SkillTree.WAY_BLESSING, List.of("infernite_helmet")),
             Map.entry(SkillTree.PATH_DEMOLITION, List.of("infernite_pickaxe")),
             Map.entry(SkillTree.PATH_GUNNER, List.of("infernite_pickaxe")),
             Map.entry(SkillTree.PATH_ALCHEMIST, List.of("infernite_pickaxe")),
@@ -71,7 +70,7 @@ public final class ClassGear {
         return java.util.List.of();
     }
 
-    /** The infernite items of a path (one, or two for the way of might). */
+    /** The infernite items of a path (one, or two for the ways of might and of the shield). */
     public static java.util.List<Item> forPath(String path) {
         java.util.List<Item> out = new java.util.ArrayList<>();
         java.util.List<String> ids = path == null ? null : BY_PATH.get(path);

@@ -166,6 +166,65 @@ public enum SkillEffect {
     SIEGE_ENGINE(0.0, Target.COMBAT),
     WATCHFUL(0.0, Target.COMBAT),
 
+    // Guardian
+    /** Extra blocks of the radius in which monsters turn on the guardian. */
+    AGGRO(0.0, Target.COMBAT),
+    /** Blocked hits give a little absorption; the riposte may block longer. */
+    SHIELD_WALL(0.0, Target.COMBAT),
+    /** Less damage for every monster attacking the guardian (share per monster). */
+    BASTION(0.0, Target.COMBAT),
+    /** The shield action throws the shield: it bounces between monsters. */
+    SHIELD_THROW(0.0, Target.COMBAT),
+    /** A perfect block throws back everything in front. */
+    SHIELD_BASH(0.0, Target.COMBAT),
+    /** Absorption for every monster close by. */
+    IRONHIDE(0.0, Target.COMBAT),
+    /** Sneaking and blocking: much less damage from all sides, no knockback. */
+    ANCHOR(0.0, Target.COMBAT),
+    /** After a perfect block the next hit is much stronger. */
+    COUNTERSTRIKE(0.0, Target.COMBAT),
+    /** Monsters hitting the guardian in melee hurt themselves. */
+    THORNS(0.0, Target.COMBAT),
+    BOOMERANG(0.0, Target.COMBAT),
+    VENGEANCE(0.0, Target.COMBAT),
+    HEDGEHOG(0.0, Target.COMBAT),
+    /** Low on health: a moment of strong resistance. */
+    LAST_STAND(0.0, Target.COMBAT),
+    /** Damage caught charges the next hit. */
+    REVENGE(0.0, Target.COMBAT),
+    /** Now and then the weakest player close by gets a barrier. */
+    WARD(0.0, Target.COMBAT),
+    /** Share more healing. */
+    HEAL_POWER(0.0, Target.COMBAT),
+    /** Players close by take less damage. */
+    WARD_SIGN(0.0, Target.COMBAT),
+    /** The shield action or a right click heals a teammate. */
+    HEALING_HAND(0.0, Target.COMBAT),
+    TRIAGE(0.0, Target.COMBAT),
+    /** The shield action raises a dome monsters cannot enter. */
+    DOME(0.0, Target.COMBAT),
+    CLEANSE(0.0, Target.COMBAT),
+    /** Extra blocks of the heal aura. */
+    AURA_RANGE(0.0, Target.COMBAT),
+    SELFLESS(0.0, Target.COMBAT),
+    LIFEBOND(0.0, Target.COMBAT),
+    WELLSPRING(0.0, Target.COMBAT),
+    MIRACLE(0.0, Target.COMBAT),
+    OVERFLOW(0.0, Target.COMBAT),
+    GRACE(0.0, Target.COMBAT),
+    DEBRIS(0.0, Target.COMBAT),
+    RAMPART(0.0, Target.COMBAT),
+    IRON_WILL(0.0, Target.COMBAT),
+    SHARED_BURDEN(0.0, Target.COMBAT),
+    REBIRTH(0.0, Target.COMBAT),
+    LIFESPRING(0.0, Target.COMBAT),
+    LIGHT_CIRCLE(0.0, Target.COMBAT),
+    ETERNAL_WATCH(0.0, Target.COMBAT),
+    LIVING_WALL(0.0, Target.COMBAT),
+    BLADESHIELD(0.0, Target.COMBAT),
+    SAINT(0.0, Target.COMBAT),
+    PATRON(0.0, Target.COMBAT),
+
     // Masteries: change the ultimate
     CHAIN_EXECUTE(0.0, Target.COMBAT),
     BLOODY_EXECUTE(0.0, Target.COMBAT),
@@ -193,6 +252,7 @@ public enum SkillEffect {
     TAUNT(0.0, Target.ULTIMATE),
     MASS_HEAL(0.0, Target.ULTIMATE),
     SHIELD_CHARGE(0.0, Target.ULTIMATE),
+    SANCTUARY(0.0, Target.ULTIMATE),
     HOLY_LIGHT(0.0, Target.ULTIMATE),
     BOMBARDMENT(0.0, Target.ULTIMATE),
     OVERCHARGE(0.0, Target.ULTIMATE),
