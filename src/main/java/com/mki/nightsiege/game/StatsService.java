@@ -110,6 +110,7 @@ public final class StatsService {
             line.group = node.group() == null ? "" : node.group();
             line.col = node.col();
             line.locks = new java.util.ArrayList<>(node.locksList());
+            line.lane = tree.laneOf(node.id());
             stats.nodes.add(line);
         }
         return stats;

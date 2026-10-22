@@ -49,6 +49,8 @@ public class CoreStats {
         public String group = "";
         public int col = -1;
         public List<String> locks = new ArrayList<>();
+        /** The subclass this node belongs to, or empty for nodes shared by the way. */
+        public String lane = "";
     }
 
     /** One perk of the main core. */

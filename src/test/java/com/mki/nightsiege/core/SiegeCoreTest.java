@@ -794,6 +794,20 @@ class SiegeCoreTest {
     }
 
     @Test
+    void nodesKnowTheirSubclass() {
+        SkillTree tree = new SkillTree();
+        assertEquals(SkillTree.SUB_BLADEMASTER, tree.laneOf("keen_edge"));
+        assertEquals(SkillTree.SUB_BLADEMASTER, tree.laneOf("w_combo"));
+        assertEquals(SkillTree.SUB_BLADEMASTER, tree.laneOf("w_chain_execute"));
+        assertEquals("", tree.laneOf("w_parry"));
+        assertEquals("", tree.laneOf("champion_bane"));
+        assertEquals("", tree.laneOf("g_vengeance"));
+        assertEquals(SkillTree.SUB_GUNNER, tree.laneOf("e_charged"));
+        assertEquals(SkillTree.SUB_WARDEN, tree.laneOf("g_dome"));
+        assertEquals("", tree.laneOf("vitality"));
+    }
+
+    @Test
     void anOldConfigSwitchesTheDungeonsOffOnce() {
         SiegeConfig old = new SiegeConfig();
         old.dungeonsEnabled = true;

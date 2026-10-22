@@ -571,6 +571,54 @@ public final class SkillTree {
         return "";
     }
 
+    /**
+     * The subclass a node belongs to: a subclass node itself, or a node whose
+     * requirement names only nodes of that subclass. Shared nodes and hybrids
+     * that need both subclasses give an empty string.
+     */
+    public String laneOf(String id) {
+        return laneOf(id, new java.util.HashMap<>());
+    }
+
+    private String laneOf(String id, Map<String, String> memo) {
+        String known = memo.get(id);
+        if (known != null) {
+            return known;
+        }
+        memo.put(id, "");
+        SkillNode node = nodes.get(id);
+        String lane = "";
+        if (node != null && SUBCLASS_NODES.containsKey(id) && node.clazz() != SkillClass.CORE) {
+            lane = SUBCLASS_NODES.get(id);
+        } else if (node != null) {
+            boolean conflict = false;
+            for (List<SkillNode.Need> any : node.needs()) {
+                String term = null;
+                boolean same = true;
+                for (SkillNode.Need need : any) {
+                    String l = laneOf(need.id(), memo);
+                    if (term == null) {
+                        term = l;
+                    } else if (!term.equals(l)) {
+                        same = false;
+                    }
+                }
+                if (same && term != null && !term.isEmpty()) {
+                    if (lane.isEmpty()) {
+                        lane = term;
+                    } else if (!lane.equals(term)) {
+                        conflict = true;
+                    }
+                }
+            }
+            if (conflict) {
+                lane = "";
+            }
+        }
+        memo.put(id, lane);
+        return lane;
+    }
+
     /** True when the player has learned this node. */
     public static boolean has(PlayerSkills skills, String id) {
         return skills != null && skills.levelOf(id) > 0;

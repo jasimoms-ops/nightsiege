@@ -202,6 +202,15 @@ public class EventLookTest implements FabricClientGameTest {
 
     /** Picks a class and some nodes, then opens the window on that class's tab. */
     private static void openTree(ClientGameTestContext context, String clazz, String... nodes) {
+        context.runOnClient(client -> {
+            try {
+                java.lang.reflect.Field field = com.mki.nightsiege.client.CoreScreen.class.getDeclaredField("VIEWS");
+                field.setAccessible(true);
+                ((java.util.Map<?, ?>) field.get(null)).remove(clazz);   // start at the overview
+            } catch (ReflectiveOperationException e) {
+                System.out.println("[Night Siege test] could not reset the view: " + e);
+            }
+        });
         onServer(context, (player, manager) -> {
             manager.onCoreAction(player, "dev:reset");
             manager.onCoreAction(player, "class:" + clazz);
@@ -225,6 +234,23 @@ public class EventLookTest implements FabricClientGameTest {
         });
         onServer(context, (player, manager) -> manager.onCoreAction(player, "open"));
         context.waitTicks(40);
+    }
+
+    /** Sets where the window looks (as the mouse wheel would) and redraws it. */
+    private static void zoomTo(ClientGameTestContext context, String clazz, double x, double y, double zoom) {
+        context.runOnClient(client -> {
+            try {
+                java.lang.reflect.Field field = com.mki.nightsiege.client.CoreScreen.class.getDeclaredField("VIEWS");
+                field.setAccessible(true);
+                @SuppressWarnings("unchecked")
+                java.util.Map<String, double[]> views = (java.util.Map<String, double[]>) field.get(null);
+                views.put(clazz, new double[]{x, y, zoom});
+            } catch (ReflectiveOperationException e) {
+                System.out.println("[Night Siege test] could not zoom: " + e);
+            }
+        });
+        onServer(context, (player, manager) -> manager.onCoreAction(player, "open"));
+        context.waitTicks(30);
     }
 
     private static void closeScreen(ClientGameTestContext context) {
@@ -252,6 +278,8 @@ public class EventLookTest implements FabricClientGameTest {
                 "g_shieldthrow", "g_thorns", "g_boomerang", "g_laststand", "shield_charge", "g_debris");
         selectNode(context, "g_boomerang");
         context.takeScreenshot("ui_guardian_shield");
+        zoomTo(context, "GUARDIAN", -230.0, -40.0, 1.0);
+        context.takeScreenshot("ui_guardian_zoom");
         closeScreen(context);
         context.getInput().lookAt(-90.0f, 4.0f);
         context.waitTicks(10);
