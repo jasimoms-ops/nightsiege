@@ -636,6 +636,13 @@ public class CoreScreen extends Screen {
         gui.pose().popMatrix();
     }
 
+    /** Half one colour, half the other. */
+    private static int mix(int a, int b) {
+        return (((a >> 16 & 0xFF) + (b >> 16 & 0xFF)) / 2) << 16
+                | (((a >> 8 & 0xFF) + (b >> 8 & 0xFF)) / 2) << 8
+                | ((a & 0xFF) + (b & 0xFF)) / 2;
+    }
+
     /** A rectangle given by its centre and half sizes in tree units. */
     private static void box(GuiGraphicsExtractor gui, double cx, double cy, double hw, double hh, int color) {
         gui.fill((int) Math.round(cx - hw), (int) Math.round(cy - hh), (int) Math.round(cx + hw), (int) Math.round(cy + hh), color);
@@ -664,10 +671,10 @@ public class CoreScreen extends Screen {
             core = 0xFF4A2A30;
             arm = 1.5 * px;
         } else {
-            core = 0xFF000000 | ((lane >> 1) & 0x7F7F7F);
+            core = 0xFF000000 | mix(lane, 0x9C96AA);   // not reachable yet: a quiet grey-tinted star
         }
         if (faded || aside) {
-            core = (core & 0x00FFFFFF) | (faded ? 0x50000000 : 0x78000000);
+            core = (core & 0x00FFFFFF) | (faded ? 0x90000000 : 0x88000000);
             glow = 0;
         }
         if (glow != 0) {
