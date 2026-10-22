@@ -814,7 +814,8 @@ class SiegeCoreTest {
         old.settingsVersion = 0;
         old.sanitize();
         assertFalse(old.dungeonsEnabled);
-        assertEquals(1, old.settingsVersion);
+        assertFalse(old.bloodMoonGlow);
+        assertEquals(2, old.settingsVersion);
         // Switched back on by hand, it stays on.
         old.dungeonsEnabled = true;
         old.sanitize();
