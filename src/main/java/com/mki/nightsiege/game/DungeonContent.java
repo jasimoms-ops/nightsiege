@@ -52,6 +52,7 @@ public final class DungeonContent {
         MAP = item("dungeon_map", p -> new DungeonMapItem(p.stacksTo(16).rarity(Rarity.UNCOMMON)));
         COMPASS = item("dungeon_compass", p -> new DungeonCompassItem(p.stacksTo(1).rarity(Rarity.EPIC)));
         registerLoot();
+        net.fabricmc.fabric.api.resource.conditions.v1.ResourceConditions.register(DUNGEONS_ON);
     }
 
     /** Blank dungeon maps now and then in the chests of vanilla structures. */
@@ -71,6 +72,24 @@ public final class DungeonContent {
         com.mki.nightsiege.core.SiegeConfig config = Json.read(Json.configFile("nightsiege.json"),
                 com.mki.nightsiege.core.SiegeConfig.class);
         return config != null && config.settingsVersion >= 1 && config.dungeonsEnabled;
+    }
+
+    /** Data files with this load condition only load while the dungeons are on (the cartographer's map trade). */
+    private static final net.fabricmc.fabric.api.resource.conditions.v1.ResourceConditionType<DungeonsOn> DUNGEONS_ON =
+            net.fabricmc.fabric.api.resource.conditions.v1.ResourceConditionType.create(
+                    net.minecraft.resources.Identifier.fromNamespaceAndPath("nightsiege", "dungeons_enabled"),
+                    com.mojang.serialization.MapCodec.unit(new DungeonsOn()));
+
+    private record DungeonsOn() implements net.fabricmc.fabric.api.resource.conditions.v1.ResourceCondition {
+        @Override
+        public net.fabricmc.fabric.api.resource.conditions.v1.ResourceConditionType<?> getType() {
+            return DUNGEONS_ON;
+        }
+
+        @Override
+        public boolean test(net.minecraft.resources.RegistryOps.RegistryInfoLookup registryInfo) {
+            return enabledInFile();
+        }
     }
 
     private static void registerLoot() {
