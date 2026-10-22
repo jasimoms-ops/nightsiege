@@ -53,10 +53,14 @@ public final class DungeonMath {
         return Math.min(20, tier.baseLevel() + extra);
     }
 
-    /** Guards in the rooms of a dungeon: a bit more than one wave, more with more players. */
-    public static int guards(DungeonTier tier, int players) {
+    /**
+     * Guards in the rooms of a dungeon: a bit more than one wave, more in big
+     * structures (one per eight pieces, at most twenty more) and with more players.
+     */
+    public static int guards(DungeonTier tier, int players, int pieces) {
         double scale = 1.0 + 0.4 * Math.max(0, players - 1);
-        return Math.max(2, (int) Math.round((tier.mobsPerWave() + 2) * scale));
+        int base = tier.mobsPerWave() + 2 + Math.min(20, Math.max(0, pieces) / 8);
+        return Math.max(2, (int) Math.round(base * scale));
     }
 
     /** Mobs in one wave: the tier's size, half again for every extra player. */

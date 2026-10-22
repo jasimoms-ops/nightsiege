@@ -906,6 +906,8 @@ class SiegeCoreTest {
         assertEquals(DungeonTier.NETHER.baseLevel() + DungeonMath.MAX_PROGRESS_LEVELS,
                 DungeonMath.level(DungeonTier.NETHER, 10000));
         assertTrue(DungeonMath.mobsPerWave(DungeonTier.HARD, 3) > DungeonMath.mobsPerWave(DungeonTier.HARD, 1));
+        assertTrue(DungeonMath.guards(DungeonTier.EASY, 1, 200) > DungeonMath.guards(DungeonTier.EASY, 1, 2));
+        assertEquals(DungeonTier.EASY.mobsPerWave() + 2 + 20, DungeonMath.guards(DungeonTier.EASY, 1, 10000));
         assertEquals(1, DungeonTier.EASY.waves());
         assertEquals(3, DungeonTier.NETHER.waves());
     }

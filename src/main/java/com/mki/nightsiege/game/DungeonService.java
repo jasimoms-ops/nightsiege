@@ -441,7 +441,9 @@ public final class DungeonService {
             }
             long t0 = System.nanoTime();
             try {
-                Pair<BlockPos, Holder<Structure>> found = nearest(level, BlockPos.ZERO, type, false);
+                List<Holder<Structure>> list = holders(level, type);
+                Pair<BlockPos, Holder<Structure>> found = list.isEmpty() ? null : level.getChunkSource().getGenerator()
+                        .findNearestMapStructure(level, HolderSet.direct(list), BlockPos.ZERO, 40, false);
                 if (found == null) {
                     com.mki.nightsiege.NightSiegeMod.LOGGER.info("[Night Siege] PROBE {}: none found", kind[0]);
                     continue;
@@ -516,7 +518,7 @@ public final class DungeonService {
         }
         players = Math.max(1, players);
         int mobLevel = DungeonMath.level(type.tier(), spent / players);
-        int count = DungeonMath.guards(type.tier(), players);
+        int count = DungeonMath.guards(type.tier(), players, start.getPieces().size());
         List<String> pool = new ArrayList<>();
         for (String id : type.theme().mobs()) {
             if (!MobFactory.isUnavailable(id)) {
@@ -570,6 +572,11 @@ public final class DungeonService {
         if (record.beaten()) {
             return;
         }
+        if (!record.guarded) {
+            record.guarded = true;
+            dirty = true;
+            setGuards(level, record, player);
+        }
         double distance = Math.sqrt(player.distanceToSqr(Vec3.atCenterOf(core)));
         if (distance > DungeonMath.WAKE_RADIUS) {
             return;
@@ -577,10 +584,6 @@ public final class DungeonService {
         if (DungeonRecord.DORMANT.equals(record.state)) {
             record.state = DungeonRecord.AWAKE;
             dirty = true;
-            if (!record.guarded) {
-                record.guarded = true;
-                setGuards(level, record, player);
-            }
             level.playSound(null, core, SoundEvents.BEACON_ACTIVATE, SoundSource.BLOCKS, 1.2f, 0.6f);
             level.playSound(null, core, SoundEvents.BELL_BLOCK, SoundSource.BLOCKS, 1.0f, 0.5f);
             for (ServerPlayer near : level.players()) {
