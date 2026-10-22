@@ -604,6 +604,84 @@ public class CoreScreen extends Screen {
         return set;
     }
 
+    /**
+     * Every node that learning this one would shut for good: the other nodes of
+     * its choice, the nodes it locks (or that lock it), the other way when it is
+     * the first step on a way, and everything that can then only be reached
+     * through one of those.
+     */
+    private java.util.Set<String> wouldClose(CoreStats.NodeLine h, String taken) {
+        java.util.Set<String> closed = new java.util.HashSet<>();
+        if (h == null || h.level > 0 || isClosed(h)) {
+            return closed;
+        }
+        java.util.Map<String, CoreStats.NodeLine> same = new java.util.HashMap<>();
+        for (CoreStats.NodeLine n : stats.nodes) {
+            if (h.clazz.equals(n.clazz)) {
+                same.put(n.id, n);
+            }
+        }
+        boolean picksWay = h.path != null && !h.path.isBlank() && (taken == null || taken.isBlank());
+        for (CoreStats.NodeLine n : same.values()) {
+            if (n == h || n.level > 0 || isClosed(n)) {
+                continue;
+            }
+            boolean shut = h.group != null && !h.group.isBlank() && h.group.equals(n.group);
+            shut |= h.locks != null && h.locks.contains(n.id);
+            shut |= n.locks != null && n.locks.contains(h.id);
+            shut |= picksWay && n.path != null && !n.path.isBlank() && !n.path.equals(h.path);
+            if (shut) {
+                closed.add(n.id);
+            }
+        }
+        boolean changed = true;
+        while (changed) {
+            changed = false;
+            for (CoreStats.NodeLine n : same.values()) {
+                if (n == h || n.level > 0 || closed.contains(n.id) || isClosed(n)) {
+                    continue;
+                }
+                for (List<String[]> any : needsOf(n)) {
+                    boolean open = false;
+                    boolean byThis = false;
+                    for (String[] need : any) {
+                        CoreStats.NodeLine other = same.get(need[0]);
+                        int wanted = parseLevel(need[1]);
+                        if (other != null && other.level >= wanted) {
+                            open = true;
+                        } else if (closed.contains(need[0])) {
+                            byThis = true;
+                        } else if (other != null && !isClosed(other)) {
+                            open = true;
+                        }
+                    }
+                    if (!open && byThis) {
+                        closed.add(n.id);
+                        changed = true;
+                        break;
+                    }
+                }
+            }
+        }
+        return closed;
+    }
+
+    private static int parseLevel(String text) {
+        try {
+            return Integer.parseInt(text.trim());
+        } catch (RuntimeException e) {
+            return 1;
+        }
+    }
+
+    /** A red cross in tree units over a node that the focused node would shut. */
+    private void doomCross(GuiGraphicsExtractor gui, double cx, double cy, double half, double thick) {
+        line(gui, cx - half, cy - half, cx + half, cy + half, thick + 2, 0xC0000000);
+        line(gui, cx - half, cy + half, cx + half, cy - half, thick + 2, 0xC0000000);
+        line(gui, cx - half, cy - half, cx + half, cy + half, thick, 0xFFFF3B30);
+        line(gui, cx - half, cy + half, cx + half, cy - half, thick, 0xFFFF3B30);
+    }
+
     private static boolean isClosed(CoreStats.NodeLine n) {
         return n.level == 0 && ("choice".equals(n.blocked) || "lockedby".equals(n.blocked) || "path".equals(n.blocked));
     }
@@ -761,6 +839,8 @@ public class CoreScreen extends Screen {
         List<Edge> edges = gridEdges();
         java.util.Set<String> focus = focusSet(focusId, edges);
         boolean focusing = !focus.isEmpty();
+        GridNode doomer = focusId == null ? null : gridOf(focusId);
+        java.util.Set<String> doomed = wouldClose(doomer == null ? null : doomer.node(), taken);
         long pulse = System.currentTimeMillis() / 40 % 50;
 
         gui.pose().pushMatrix();
@@ -831,6 +911,9 @@ public class CoreScreen extends Screen {
             int lane = laneColor(n, rgb);
             if (stars) {
                 drawStar(gui, g, px, big, own, lane, faded, focusing && !focus.contains(n.id), pulse);
+                if (doomed.contains(n.id)) {
+                    doomCross(gui, g.cx(), g.cy(), 5 * px, Math.max(1.5, 1.6 * px));
+                }
                 continue;
             }
             // A soft glow in the subclass colour behind lane nodes.
@@ -874,6 +957,10 @@ public class CoreScreen extends Screen {
             }
             if (faded || (focusing && !focus.contains(n.id))) {
                 gui.fill(x - 4, y - 4, x + N_SLOT + 4, y + N_SLOT + 4, faded ? 0xA0000000 : 0x80000000);
+            }
+            if (doomed.contains(n.id)) {
+                // What the node under the mouse would shut: a bright red cross on top of everything.
+                doomCross(gui, g.cx(), g.cy(), N_SLOT / 2.0 - 2, Math.max(2.0, 2 * px));
             }
             if (n.id.equals(selectedId)) {
                 int c = 0xFFFFD86B;
@@ -1059,6 +1146,10 @@ public class CoreScreen extends Screen {
         }
         if (n.id.contains("_cross_")) {
             lines.add("§b" + Component.translatable("nightsiege.ui.cross").getString());
+        }
+        int shuts = wouldClose(n, activeTab == ownTab() && stats.pathTaken != null ? stats.pathTaken : "").size();
+        if (shuts > 0) {
+            lines.add("§c" + Component.translatable("nightsiege.ui.would_close", shuts).getString());
         }
         if (isHunterNode(n.id)) {
             lines.add("§a" + Component.translatable("nightsiege.ui.hunter").getString());
