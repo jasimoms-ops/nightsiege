@@ -186,6 +186,13 @@ public class CoreScreen extends Screen {
             activeTab = own != null ? own : Tab.STATS;
         }
 
+        if ((confirmingReset || confirming != null) && activeTab.clazz != null && stats.skillsEnabled
+                && isGrid(activeTab.clazz.name())) {
+            // The map stays visible behind the question, but cannot be used.
+            quiet = true;
+            layoutNodes(activeTab.clazz.name(), false);
+            quiet = false;
+        }
         if (confirmingReset) {
             int dx = left + W / 2;
             int dy = top + H / 2;
@@ -255,11 +262,13 @@ public class CoreScreen extends Screen {
         }
         int footerX = left + 8;
         if (stats.creative && activeTab != Tab.CORE) {
-            addRenderableWidget(Button.builder(Component.translatable("nightsiege.ui.dev_grant"),
-                    b -> send("dev:50")).bounds(footerX, footerY, 70, 18).build());
-            addRenderableWidget(Button.builder(Component.translatable("nightsiege.ui.dev_reset"),
-                    b -> send("dev:reset")).bounds(footerX + 74, footerY, 56, 18).build());
-            footerX += 134;
+            Component grant = Component.translatable("nightsiege.ui.dev_grant");
+            Component wipe = Component.translatable("nightsiege.ui.dev_reset");
+            int gw = Math.max(56, font.width(grant) + 12);
+            int rw = Math.max(56, font.width(wipe) + 12);
+            addRenderableWidget(Button.builder(grant, b -> send("dev:50")).bounds(footerX, footerY, gw, 18).build());
+            addRenderableWidget(Button.builder(wipe, b -> send("dev:reset")).bounds(footerX + gw + 4, footerY, rw, 18).build());
+            footerX += gw + rw + 8;
         }
         if (stats.classResetAvailable && activeTab == ownTab()) {
             Component label = Component.translatable("nightsiege.ui.class_reset");
@@ -318,10 +327,10 @@ public class CoreScreen extends Screen {
     /** Size of a node in tree units (one unit is one pixel at full zoom). */
     private static final int N_SLOT = 24;
     /** Radius of the first ring of a way, and the distance between rings. */
-    private static final double RING0 = 96;
-    private static final double RING = 40;
+    private static final double RING0 = 104;
+    private static final double RING = 46;
     /** Half the angle of a way's fan; its seven columns split it evenly. */
-    private static final double FAN = Math.toRadians(45);
+    private static final double FAN = Math.toRadians(40);
     private static final double COL_STEP = FAN / 3;
     /** Below this zoom the tree is drawn as a constellation of small stars. */
     private static final double STAR_ZOOM = 0.42;
@@ -413,7 +422,7 @@ public class CoreScreen extends Screen {
     private double[] place(CoreStats.NodeLine n) {
         int col = n.col < 0 ? 3 : n.col;
         if (n.path == null || n.path.isBlank()) {
-            return new double[]{(col - 3) * 20.0, (n.row - 0.5) * 38.0};
+            return new double[]{(col - 3) * 24.0, (n.row - 0.5) * 42.0};
         }
         double r = ringRadius(n.row);
         double a = angleOf(Math.max(0, ways.indexOf(n.path)), col);
@@ -475,6 +484,8 @@ public class CoreScreen extends Screen {
     }
 
     private String shownClass = "";
+    /** Set while the map is laid out only to be drawn behind a question. */
+    private boolean quiet;
 
     private void layoutGrid(String clazz, boolean buyable) {
         ways.clear();
@@ -527,6 +538,9 @@ public class CoreScreen extends Screen {
         clampCam();
 
         // The learn button at the foot of the info panel.
+        if (quiet) {
+            return;   // only drawn behind a question: no buttons
+        }
         GridNode chosen = selectedId == null ? null : gridOf(selectedId);
         if (chosen != null && buyable && chosen.node().level < chosen.node().maxLevel) {
             CoreStats.NodeLine n = chosen.node();
@@ -568,40 +582,24 @@ public class CoreScreen extends Screen {
         return edges;
     }
 
-    /** The focused node, everything that leads to it and what it leads on to. */
+    /** The focused node, what it needs directly and what it opens directly. */
     private java.util.Set<String> focusSet(String id, List<Edge> edges) {
         java.util.Set<String> set = new java.util.HashSet<>();
         if (id == null || gridOf(id) == null) {
             return set;
         }
-        java.util.ArrayDeque<String> up = new java.util.ArrayDeque<>();
-        up.add(id);
         set.add(id);
-        while (!up.isEmpty()) {
-            String current = up.poll();
-            for (Edge edge : edges) {
-                if (!edge.child().node().id.equals(current)) {
-                    continue;
-                }
+        for (Edge edge : edges) {
+            if (edge.child().node().id.equals(id)) {
                 for (GridNode parent : edge.parents()) {
-                    if (set.add(parent.node().id)) {
-                        up.add(parent.node().id);
-                    }
+                    set.add(parent.node().id);
                 }
             }
-        }
-        java.util.Set<String> next = new java.util.HashSet<>(java.util.List.of(id));
-        for (int depth = 0; depth < 1; depth++) {
-            java.util.Set<String> found = new java.util.HashSet<>();
-            for (Edge edge : edges) {
-                for (GridNode parent : edge.parents()) {
-                    if (next.contains(parent.node().id) && !isClosed(edge.child().node())) {
-                        found.add(edge.child().node().id);
-                    }
+            for (GridNode parent : edge.parents()) {
+                if (parent.node().id.equals(id) && !isClosed(edge.child().node())) {
+                    set.add(edge.child().node().id);
                 }
             }
-            set.addAll(found);
-            next = found;
         }
         return set;
     }
@@ -636,71 +634,6 @@ public class CoreScreen extends Screen {
         int t = Math.max(1, (int) Math.round(thick));
         gui.fill(0, -t / 2, (int) Math.round(len), -t / 2 + t, color);
         gui.pose().popMatrix();
-    }
-
-    /** The colour of a line: lit when met, dark when shut, faint when the eye is elsewhere. */
-    private int edgeColor(CoreStats.NodeLine child, boolean met, boolean closed, int rgb, boolean dimmed, boolean stars) {
-        int color = met ? 0xFF000000 | laneColor(child, rgb)
-                : closed ? 0xFF3A3442 : (stars ? 0x80000000 : 0xC0000000) | laneColor(child, 0xD8D0E6);
-        return dimmed ? dim(color) : color;
-    }
-
-    /**
-     * "One of these" whose parents sit side by side on one ring of the child's way: drawn as
-     * that piece of the ring plus one line to the child, instead of one line per parent.
-     */
-    private boolean isBus(Edge edge) {
-        if (edge.parents().size() < 2) {
-            return false;
-        }
-        CoreStats.NodeLine child = edge.child().node();
-        if (child.path == null || child.path.isBlank()) {
-            return false;
-        }
-        int row = edge.parents().get(0).node().row;
-        double lo = Double.MAX_VALUE;
-        double hi = -Double.MAX_VALUE;
-        for (GridNode p : edge.parents()) {
-            if (p.node().row != row || row < 2 || row >= child.row || !child.path.equals(p.node().path)) {
-                return false;
-            }
-            lo = Math.min(lo, angleOf(p));
-            hi = Math.max(hi, angleOf(p));
-        }
-        // No stranger may sit on the piece of ring between them.
-        for (GridNode g : gridNodes) {
-            CoreStats.NodeLine n = g.node();
-            if (n.row == row && child.path.equals(n.path) && !edge.parents().contains(g)) {
-                double a = angleOf(g);
-                if (a > lo && a < hi) {
-                    return false;
-                }
-            }
-        }
-        return true;
-    }
-
-    private void drawBus(GuiGraphicsExtractor gui, Edge edge, double thick, int color) {
-        double r = ringRadius(edge.parents().get(0).node().row);
-        double lo = Double.MAX_VALUE;
-        double hi = -Double.MAX_VALUE;
-        for (GridNode p : edge.parents()) {
-            lo = Math.min(lo, angleOf(p));
-            hi = Math.max(hi, angleOf(p));
-        }
-        int steps = Math.max(1, (int) Math.ceil((hi - lo) * r / 10));
-        double lastX = r * Math.cos(lo);
-        double lastY = r * Math.sin(lo);
-        for (int i = 1; i <= steps; i++) {
-            double a = lo + (hi - lo) * i / steps;
-            double x = r * Math.cos(a);
-            double y = r * Math.sin(a);
-            line(gui, lastX, lastY, x, y, thick, color);
-            lastX = x;
-            lastY = y;
-        }
-        double a = Math.max(lo, Math.min(hi, angleOf(edge.child())));
-        line(gui, r * Math.cos(a), r * Math.sin(a), edge.child().cx(), edge.child().cy(), thick, color);
     }
 
     /** A rectangle given by its centre and half sizes in tree units. */
@@ -848,44 +781,29 @@ public class CoreScreen extends Screen {
             }
         }
 
-        // Lines: dark outline first (only close up), then colour; the focused route in gold.
-        // "One of these" between neighbours on a ring is drawn as a piece of that ring.
-        double thin = stars ? px : Math.max(2.0, 1.4 * px);
-        for (int pass = stars ? 1 : 0; pass < 2; pass++) {
-            for (Edge edge : edges) {
-                CoreStats.NodeLine child = edge.child().node();
-                boolean closed = isClosed(child);
-                boolean faded = !taken.isBlank() && child.path != null && !child.path.isBlank()
-                        && !taken.equals(child.path);
-                if (isBus(edge)) {
-                    boolean met = false;
-                    boolean onRoute = false;
+        // Lines only for the node under the mouse (or the chosen one): what it needs and what it opens.
+        double thin = stars ? Math.max(1.0, 1.2 * px) : Math.max(2.0, 1.4 * px);
+        GridNode focusNode = focusId == null ? null : gridOf(focusId);
+        if (focusNode != null) {
+            for (int pass = 0; pass < 2; pass++) {
+                for (Edge edge : edges) {
+                    boolean in = edge.child() == focusNode;
+                    boolean termMet = false;   // "one of these": one is enough, the others turn grey
                     for (int i = 0; i < edge.parents().size(); i++) {
-                        met |= satisfied(edge, i);
-                        onRoute |= focusing && focus.contains(child.id) && focus.contains(edge.parents().get(i).node().id);
+                        termMet |= satisfied(edge, i);
                     }
-                    int color = edgeColor(child, met, closed, rgb, (focusing && !onRoute) || faded, stars);
-                    if (pass == 0) {
-                        if (!faded) {
-                            drawBus(gui, edge, thin + 2 * px, 0x90000000);
+                    for (int i = 0; i < edge.parents().size(); i++) {
+                        GridNode p = edge.parents().get(i);
+                        boolean out = p == focusNode && !isClosed(edge.child().node());
+                        if (!in && !out) {
+                            continue;
                         }
-                    } else {
-                        drawBus(gui, edge, onRoute ? thin + px : thin, onRoute ? 0xFFFFD86B : color);
-                    }
-                    continue;
-                }
-                for (int i = 0; i < edge.parents().size(); i++) {
-                    GridNode p = edge.parents().get(i);
-                    boolean onRoute = focusing && focus.contains(child.id) && focus.contains(p.node().id);
-                    int color = edgeColor(child, satisfied(edge, i), closed, rgb, (focusing && !onRoute) || faded, stars);
-                    if (pass == 0) {
-                        if (!faded) {
-                            line(gui, p.cx(), p.cy(), edge.child().cx(), edge.child().cy(), thin + 2 * px, 0x90000000);
+                        int color = !in ? 0xFF7FC8FF : satisfied(edge, i) ? 0xFF6FE07A : termMet ? 0x90A8A0B4 : 0xFFFF6A5A;
+                        if (pass == 0) {
+                            line(gui, p.cx(), p.cy(), edge.child().cx(), edge.child().cy(), thin + 2 * px, 0xB0000000);
+                        } else {
+                            line(gui, p.cx(), p.cy(), edge.child().cx(), edge.child().cy(), thin, color);
                         }
-                    } else if (onRoute) {
-                        line(gui, p.cx(), p.cy(), edge.child().cx(), edge.child().cy(), thin + px, 0xFFFFD86B);
-                    } else {
-                        line(gui, p.cx(), p.cy(), edge.child().cx(), edge.child().cy(), thin, color);
                     }
                 }
             }
@@ -979,14 +897,13 @@ public class CoreScreen extends Screen {
             boolean faded = !taken.isBlank() && !taken.equals(way);
             // The way's name in its top corner of the view: left way left, right way right.
             String name = Component.translatable("nightsiege.path." + way).getString().toUpperCase(Locale.ROOT);
-            int color = faded ? 0xFF6A6474 : 0xFF000000 | rgb;
+            if (way.equals(taken)) {
+                name = "★ " + name;   // the player's own way
+            }
+            int color = faded ? 0xFF6A6474 : way.equals(taken) ? 0xFFFFD86B : 0xFF000000 | rgb;
             int nx = w == 0 ? vx + 6 : vx + vw - 6 - font.width(name);
             gui.fill(nx - 3, vy + 3, nx + font.width(name) + 3, vy + 15, 0x70000000);
             gui.text(font, name, nx, vy + 5, color, true);
-            if (way.equals(taken)) {
-                String mine = Component.translatable("nightsiege.ui.your_way").getString();
-                gui.text(font, mine, w == 0 ? vx + 6 : vx + vw - 6 - font.width(mine), vy + 17, 0xFFFFD86B, true);
-            }
             // The subclasses just outside the fan: the upper one above it, the lower one below it.
             String[] lanes = LANES.get(way);
             if (lanes == null) {
@@ -1069,9 +986,37 @@ public class CoreScreen extends Screen {
         gui.fill(px, py, px + 1, py + ph, 0xC0000000 | rgb);
         gui.fill(px, py, px + pw, py + 1, 0x60000000 | rgb);
         int tx = px + 8;
-        int tw = pw - 14;
-        int y = py + 6;
+        int tw = pw - 16;
         GridNode g = hovered != null ? hovered : selectedId == null ? null : gridOf(selectedId);
+        // Long texts scroll with the mouse wheel; a new node starts at the top again.
+        String shown = g == null ? "" : g.node().id;
+        if (!shown.equals(panelFor)) {
+            panelFor = shown;
+            panelScroll = 0;
+        }
+        int top0 = py + 6;
+        int bottom = py + ph - (g != null && activeTab == ownTab() ? 32 : 4);
+        panelTop = py + 1;
+        panelBottom = bottom;
+        int y = top0 - panelScroll;
+        gui.enableScissor(px + 1, py + 1, px + pw, bottom);
+        y = panelText(gui, font, g, rgb, tx, tw, y);
+        gui.disableScissor();
+        int content = y + panelScroll - top0;
+        int visible = bottom - top0;
+        panelMax = Math.max(0, content - visible);
+        panelScroll = Math.max(0, Math.min(panelMax, panelScroll));
+        if (panelMax > 0) {
+            // A thin scroll bar on the right edge.
+            int barH = Math.max(12, visible * visible / content);
+            int barY = top0 + (visible - barH) * panelScroll / panelMax;
+            gui.fill(px + pw - 4, top0, px + pw - 2, bottom, 0x40FFFFFF);
+            gui.fill(px + pw - 4, barY, px + pw - 2, barY + barH, 0xC0000000 | rgb);
+        }
+    }
+
+    /** Draws the panel's text from y on and returns where it ended (it may run past the bottom). */
+    private int panelText(GuiGraphicsExtractor gui, Font font, GridNode g, int rgb, int tx, int tw, int y) {
         if (g == null) {
             gui.text(font, Component.translatable("nightsiege.ui.panel_title").getString(), tx, y, 0xFFFFD86B, true);
             y += 14;
@@ -1082,13 +1027,13 @@ public class CoreScreen extends Screen {
                 y += 10;
             }
             y += 6;
-            int[][] legend = {{0xE8B84A, 0}, {rgb, 1}, {0xF4F0FA, 2}, {0x5A5466, 3}, {0xE04040, 4}, {0xFFD86B, 5}};
+            int[][] legend = {{0xE8B84A, 0}, {rgb, 1}, {0xF4F0FA, 2}, {0x5A5466, 3}, {0xE04040, 4}};
             for (int[] entry : legend) {
                 gui.fill(tx, y + 1, tx + 8, y + 8, 0xFF000000 | entry[0]);
                 gui.text(font, Component.translatable("nightsiege.ui.legend." + entry[1]).getString(), tx + 12, y, 0xFFD0C8DC, false);
                 y += 11;
             }
-            return;
+            return y;
         }
         CoreStats.NodeLine n = g.node();
         gui.fill(tx - 1, y - 1, tx + 19, y + 19, 0xFF000000 | rgb);
@@ -1166,20 +1111,24 @@ public class CoreScreen extends Screen {
         } else if (n.blocked != null && n.level < n.maxLevel) {
             lines.add("§c" + Component.translatable("nightsiege.menu.blocked_" + n.blocked, n.cost).getString());
         }
-        int bottom = py + ph - (activeTab == ownTab() ? 32 : 6);
         for (String raw : lines) {
             String color = raw.startsWith("§") ? raw.substring(0, 2) : "";
             String text = raw.startsWith("§") ? raw.substring(2) : raw;
             for (String part : wrap(font, text, tw)) {
-                if (y + 9 > bottom) {
-                    return;
-                }
                 gui.text(font, color + part, tx, y, 0xFFFFFFFF, false);
                 y += 10;
             }
             y += 1;
         }
+        return y + 4;
     }
+
+    /** How far the info panel is scrolled, and for which node. */
+    private static int panelScroll;
+    private static String panelFor = "";
+    private int panelMax;
+    private int panelTop;
+    private int panelBottom;
 
     @Override
     public boolean mouseClicked(net.minecraft.client.input.MouseButtonEvent event, boolean doubleClick) {
@@ -1189,6 +1138,8 @@ public class CoreScreen extends Screen {
         if (!gridMode || confirming != null || confirmingReset || !inView(event.x(), event.y())) {
             return false;
         }
+        panning = true;
+        panned = 0;
         GridNode hit = gridAt(event.x(), event.y());
         if (hit != null) {
             boolean again = hit.node().id.equals(selectedId);
@@ -1197,18 +1148,48 @@ public class CoreScreen extends Screen {
                 send("buy:" + hit.node().id);
             }
             rebuildWidgets();
-            return true;
-        }
-        if (selectedId != null) {
-            selectedId = null;   // a click into the empty sky clears the panel
-            rebuildWidgets();
         }
         return true;
+    }
+
+    /** Set while a mouse button went down inside the map: the map follows the mouse. */
+    private boolean panning;
+    private double panned;
+
+    @Override
+    public boolean mouseDragged(net.minecraft.client.input.MouseButtonEvent event, double dx, double dy) {
+        if (panning && gridMode) {
+            camX -= dx / zoom;
+            camY -= dy / zoom;
+            clampCam();
+            panned += Math.abs(dx) + Math.abs(dy);
+            saveView(shownClass);
+            return true;
+        }
+        return super.mouseDragged(event, dx, dy);
+    }
+
+    @Override
+    public boolean mouseReleased(net.minecraft.client.input.MouseButtonEvent event) {
+        if (panning) {
+            panning = false;
+            if (panned < 3 && selectedId != null && gridAt(event.x(), event.y()) == null) {
+                selectedId = null;   // a click into the empty sky clears the panel
+                rebuildWidgets();
+            }
+            return true;
+        }
+        return super.mouseReleased(event);
     }
 
     /** The mouse wheel zooms in and out, around the point under the mouse. */
     @Override
     public boolean mouseScrolled(double x, double y, double scrollX, double scrollY) {
+        if (gridMode && confirming == null && !confirmingReset && x >= panelX() && x < panelX() + PANEL_W
+                && y >= panelTop && y < panelBottom + 32) {
+            panelScroll = (int) Math.max(0, Math.min(panelMax, panelScroll - scrollY * 12));
+            return true;
+        }
         if (gridMode && inView(x, y) && confirming == null && !confirmingReset) {
             double wx = worldX(x);
             double wy = worldY(y);
@@ -1662,37 +1643,36 @@ public class CoreScreen extends Screen {
     }
 
     private void drawConfirm(GuiGraphicsExtractor gui, Font font) {
-        int w = 240;
-        int h = 84;
-        int x = left + (W - w) / 2;
-        int y = top + (H - h) / 2 - 8;
-        gui.fill(x, y, x + w, y + h, 0xFF000000);
-        gui.fill(x + 1, y + 1, x + w - 1, y + h - 1, FRAME_FILL);
-        gui.fill(x + 1, y + 1, x + w - 1, y + 3, FRAME_LIGHT);
-        gui.fill(x + 1, y + h - 3, x + w - 1, y + h - 1, FRAME_SHADOW);
         Component name = Component.translatable(confirming.translationKey());
-        centered(gui, font, Component.translatable("nightsiege.ui.confirm_title", name).getString(), x + w / 2, y + 10, TITLE);
-        centered(gui, font, Component.translatable("nightsiege.ui.confirm_warn1").getString(), x + w / 2, y + 26, 0xFFAA0000);
-        centered(gui, font, Component.translatable("nightsiege.ui.confirm_warn2").getString(), x + w / 2, y + 38, TITLE);
+        drawDialog(gui, font, Component.translatable("nightsiege.ui.confirm_title", name).getString(),
+                Component.translatable("nightsiege.ui.confirm_warn1").getString(), 0xFFFF6A5A,
+                Component.translatable("nightsiege.ui.confirm_warn2").getString(), 0xFFD0C8DC);
     }
 
     private void drawResetConfirm(GuiGraphicsExtractor gui, Font font) {
-        int w = 260;
-        int h = 84;
-        int x = left + (W - w) / 2;
-        int y = top + (H - h) / 2 - 8;
-        gui.fill(x, y, x + w, y + h, 0xFF000000);
-        gui.fill(x + 1, y + 1, x + w - 1, y + h - 1, FRAME_FILL);
-        gui.fill(x + 1, y + 1, x + w - 1, y + 3, FRAME_LIGHT);
-        gui.fill(x + 1, y + h - 3, x + w - 1, y + h - 1, FRAME_SHADOW);
-        centered(gui, font, Component.translatable("nightsiege.ui.class_reset_title").getString(), x + w / 2, y + 10, TITLE);
-        centered(gui, font, Component.translatable("nightsiege.ui.class_reset_warn1", stats.earned - stats.donated).getString(),
-                x + w / 2, y + 26, TITLE);
-        centered(gui, font, Component.translatable("nightsiege.ui.class_reset_warn2").getString(), x + w / 2, y + 38, 0xFFAA0000);
+        drawDialog(gui, font, Component.translatable("nightsiege.ui.class_reset_title").getString(),
+                Component.translatable("nightsiege.ui.class_reset_warn1", stats.earned - stats.donated).getString(), 0xFFD0C8DC,
+                Component.translatable("nightsiege.ui.class_reset_warn2").getString(), 0xFFFF6A5A);
     }
 
-    private static void centered(GuiGraphicsExtractor gui, Font font, String text, int cx, int y, int color) {
-        gui.text(font, text, cx - font.width(text) / 2, y, color, false);
+    /** A dark question box over the dimmed map, edged in the colour of the class. */
+    private void drawDialog(GuiGraphicsExtractor gui, Font font, String title, String first, int firstColor,
+                            String second, int secondColor) {
+        int rgb = activeTab.color & 0xFFFFFF;
+        int w = Math.max(240, Math.max(font.width(title), Math.max(font.width(first), font.width(second))) + 28);
+        int h = 92;
+        int x = left + (W - w) / 2;
+        int y = top + H / 2 - 50;
+        gui.fill(x - 1, y - 1, x + w + 1, y + h + 1, 0xFF000000);
+        gui.fill(x, y, x + w, y + h, 0xF8100D16);
+        gui.fill(x, y, x + w, y + 1, 0xFF000000 | rgb);
+        gui.fill(x, y + h - 1, x + w, y + h, 0x80000000 | rgb);
+        gui.fill(x, y, x + 1, y + h, 0x80000000 | rgb);
+        gui.fill(x + w - 1, y, x + w, y + h, 0x80000000 | rgb);
+        int cx = x + w / 2;
+        gui.text(font, title, cx - font.width(title) / 2, y + 10, 0xFF000000 | rgb, true);
+        gui.text(font, first, cx - font.width(first) / 2, y + 28, firstColor, true);
+        gui.text(font, second, cx - font.width(second) / 2, y + 40, secondColor, true);
     }
 
     private static final java.util.Map<String, Integer> PERK_COLORS = java.util.Map.of(

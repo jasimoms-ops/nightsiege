@@ -253,6 +253,27 @@ public class EventLookTest implements FabricClientGameTest {
         context.waitTicks(30);
     }
 
+    /** Opens (or closes) the "change class once" question in the open window. */
+    private static void askClassReset(ClientGameTestContext context, boolean open) {
+        context.runOnClient(client -> {
+            Object screen = client.gui.screen();
+            if (!(screen instanceof com.mki.nightsiege.client.CoreScreen)) {
+                return;
+            }
+            try {
+                java.lang.reflect.Field field = com.mki.nightsiege.client.CoreScreen.class.getDeclaredField("confirmingReset");
+                field.setAccessible(true);
+                field.set(screen, open);
+                java.lang.reflect.Method rebuild = net.minecraft.client.gui.screens.Screen.class.getDeclaredMethod("rebuildWidgets");
+                rebuild.setAccessible(true);
+                rebuild.invoke(screen);
+            } catch (ReflectiveOperationException e) {
+                System.out.println("[Night Siege test] could not open the question: " + e);
+            }
+        });
+        context.waitTicks(10);
+    }
+
     private static void closeScreen(ClientGameTestContext context) {
         context.runOnClient(client -> {
             if (client.gui.screen() != null) {
@@ -282,6 +303,9 @@ public class EventLookTest implements FabricClientGameTest {
         context.takeScreenshot("ui_guardian_mid");
         zoomTo(context, "GUARDIAN", -230.0, -40.0, 1.0);
         context.takeScreenshot("ui_guardian_zoom");
+        askClassReset(context, true);
+        context.takeScreenshot("ui_class_reset_dialog");
+        askClassReset(context, false);
         closeScreen(context);
         context.getInput().lookAt(-90.0f, 4.0f);
         context.waitTicks(10);
