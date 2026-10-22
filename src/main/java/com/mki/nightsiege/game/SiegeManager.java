@@ -532,6 +532,12 @@ public final class SiegeManager {
 
     /** Waves started in the running siege. */
     private int wavesStarted;
+    /** Siege monsters killed this night, spawned this night, and the kills the night asks for. */
+    private int nightKills;
+    private int spawnedTotal;
+    private int killQuota;
+    /** The night fragment this night used up (given back when the night has to be played again). */
+    private String usedFragment;
     /** How often a survived wave counts for each defender this night (catching up on missed nights). */
     private final Map<UUID, Integer> waveWeight = new HashMap<>();
     /** Number of the running siege night, for catching up; -1 in tests. */
@@ -588,6 +594,7 @@ public final class SiegeManager {
 
         currentEvent = forcedEvent != null ? forcedEvent : pickEventNow(server);
         save.specialNight = false;
+        usedFragment = null;
         NightFragment fragment = testRun ? null : NightFragment.byName(save.nightFragment);
         if (fragment != null) {
             int time = (int) Math.floorMod(server.overworld().getOverworldClockTime(), 24000L);
@@ -595,6 +602,7 @@ public final class SiegeManager {
             if (fragment.event() != SiegeEvent.ECLIPSE || time < 12000) {
                 currentEvent = fragment.event();
                 save.specialNight = true;
+                usedFragment = save.nightFragment;
                 save.nightFragment = null;
             }
         }
@@ -621,6 +629,9 @@ public final class SiegeManager {
         active = true;
         combat.newSiege();
         defense.begin(world, anchor, config, save.coreSkills(), skillTree, digger);
+        nightKills = 0;
+        spawnedTotal = 0;
+        killQuota = SiegeMath.killQuota(config.killQuotaShare, plannedWaves(), wantedPerWave());
         bonus.endAurora(server);
         events.begin(server, world, anchor, currentEvent, config);
         for (UUID id : participants) {
@@ -664,6 +675,7 @@ public final class SiegeManager {
         if (champion != null) {
             eliteId = champion.getUUID();
             liveMobs.add(eliteId);
+            spawnedTotal++;
             aimAtDefender(server, champion);
             Fx.championSpawned(world, config, champion);
             SiegeTeams.mark(server, champion, SiegeTeams.CHAMPION, TeamColor.GOLD);
@@ -692,10 +704,16 @@ public final class SiegeManager {
     }
 
     private Component bossBarTitle() {
-        if (save.specialNight) {
-            return Component.translatable("nightsiege.bar.title_special", siegeLevel, secondsLeft());
+        Component title = save.specialNight
+                ? Component.translatable("nightsiege.bar.title_special", siegeLevel, secondsLeft())
+                : Component.translatable("nightsiege.bar.title", siegeLevel, secondsLeft());
+        int required = killsRequired();
+        if (required <= 0) {
+            return title;
         }
-        return Component.translatable("nightsiege.bar.title", siegeLevel, secondsLeft());
+        return Component.empty().append(title).append(Component.literal("  ·  "))
+                .append(Component.translatable("nightsiege.bar.kills", nightKills, required)
+                        .withStyle(nightKills >= required ? ChatFormatting.GREEN : ChatFormatting.YELLOW));
     }
 
     /** Experience is worth more in a special night. */
@@ -823,13 +841,40 @@ public final class SiegeManager {
         return true;
     }
 
+    /** Monsters one wave brings with the defenders there now. */
+    private int wantedPerWave() {
+        return (int) Math.round(SiegeMath.mobsPerBatch(siegeLevel, Math.max(1, participants.size()), config)
+                * currentEvent.mobCountMultiplier(config) * (save.specialNight ? config.specialNightMobMultiplier : 1.0));
+    }
+
+    /** Waves the whole night brings: one at the start, then one per interval. */
+    private int plannedWaves() {
+        double extraDelay = skillTree.totalBonus(SkillEffect.WAVE_DELAY, save.coreSkills());
+        // A wave starts the tick after its cooldown has run out, so waves lie one tick more apart.
+        int interval = Math.max(20, (int) Math.round((config.batchIntervalSeconds + extraDelay) * 20.0)) + 1;
+        return Math.max(1, (totalTicks - 1) / interval + 1);
+    }
+
+    /**
+     * Kills the night asks for: the share of its monsters set in the config, never
+     * more than that share of what can still come (a full field of monsters keeps
+     * waves small, and then fewer kills are needed).
+     */
+    public int killsRequired() {
+        return SiegeMath.killsRequired(config.killQuotaShare, killQuota, spawnedTotal,
+                plannedWaves() - wavesStarted, wantedPerWave());
+    }
+
+    public int nightKills() {
+        return nightKills;
+    }
+
     private void spawnBatch(MinecraftServer server) {
         if (wavesStarted > 0) {
             waveSurvived(server);
         }
         wavesStarted++;
-        int wanted = (int) Math.round(SiegeMath.mobsPerBatch(siegeLevel, participants.size(), config)
-                * currentEvent.mobCountMultiplier(config) * (save.specialNight ? config.specialNightMobMultiplier : 1.0));
+        int wanted = wantedPerWave();
         int room = config.maxLiveMobs - liveMobs.size();
         int count = Math.min(wanted, Math.max(0, room));
         if (count > 0) {
@@ -857,8 +902,10 @@ public final class SiegeManager {
             if (mob != null) {
                 events.onSpawned(currentEvent, mob, world);
                 liveMobs.add(mob.getUUID());
+                spawnedTotal++;
                 for (Entity rider : mob.getPassengers()) {
                     liveMobs.add(rider.getUUID());
+                    spawnedTotal++;
                 }
                 aimAtDefender(server, mob);
                 Fx.mobSpawned(world, config, mob, spawned < config.audibleSpawnsPerBatch);
@@ -968,16 +1015,31 @@ public final class SiegeManager {
         digger.reset();
         mendBase(server);
 
+        int required = killsRequired();
+        boolean quotaMet = nightKills >= required;
         if (testRun) {
             testRun = false;
             broadcast(server, Component.translatable(won ? "nightsiege.msg.test_won" : "nightsiege.msg.test_lost")
                     .withStyle(ChatFormatting.GRAY));
+            if (won && required > 0) {
+                broadcast(server, Component.translatable(quotaMet ? "nightsiege.msg.quota_met" : "nightsiege.msg.quota_missed_test",
+                        nightKills, required).withStyle(ChatFormatting.GRAY));
+            }
             clearSiegeState();
             return;
         }
 
         save.highestLevel = Math.max(save.highestLevel, siegeLevel);
-        if (won) {
+        if (won && !quotaMet) {
+            // Held, but too few monsters fell: the night comes again at the same level.
+            save.currentStreak = 0;
+            waveSurvived(server);
+            if (save.specialNight && usedFragment != null) {
+                save.nightFragment = usedFragment;   // the special night comes again too
+            }
+            broadcast(server, Component.translatable("nightsiege.msg.quota_missed", nightKills, required, siegeLevel)
+                    .withStyle(ChatFormatting.RED));
+        } else if (won) {
             save.siegesWon++;
             save.currentStreak++;
             save.bestStreak = Math.max(save.bestStreak, save.currentStreak);
@@ -991,6 +1053,10 @@ public final class SiegeManager {
                 broadcast(server, Component.translatable("nightsiege.msg.special_loot").withStyle(ChatFormatting.LIGHT_PURPLE));
             }
             int next = SiegeMath.level(save.siegesWon, lastKnownDay, config);
+            if (required > 0) {
+                broadcast(server, Component.translatable("nightsiege.msg.quota_met", nightKills, required)
+                        .withStyle(ChatFormatting.GREEN));
+            }
             broadcast(server, Component.translatable("nightsiege.msg.won", next)
                     .withStyle(ChatFormatting.GREEN));
         } else {
@@ -1130,6 +1196,9 @@ public final class SiegeManager {
 
     /** Takes Object so the handler keeps compiling across Fabric API versions. */
     private void onDeath(Object entity) {
+        if (active && entity instanceof Mob killed && liveMobs.contains(killed.getUUID())) {
+            nightKills++;
+        }
         if (active && entity instanceof Mob mob && mob.getUUID().equals(eliteId)) {
             onEliteKilled(mob);
             return;

@@ -1045,4 +1045,17 @@ class SiegeCoreTest {
         assertEquals("ECLIPSE", SiegeEvent.ECLIPSE.atmosphere());
         assertEquals("FROST", SiegeEvent.FROST.atmosphere());
     }
+
+    @Test
+    void theKillGoalIsSixtyPercentOfWhatComes() {
+        // 8 waves of 10: 48 kills.
+        assertEquals(48, SiegeMath.killQuota(0.6, 8, 10));
+        // Halfway, all waves full so far: still 48.
+        assertEquals(48, SiegeMath.killsRequired(0.6, 48, 40, 4, 10));
+        // A crowded field kept the waves small: 60 % of what really came.
+        assertEquals(30, SiegeMath.killsRequired(0.6, 48, 50, 0, 10));
+        // Turned off.
+        assertEquals(0, SiegeMath.killsRequired(0.0, 48, 50, 0, 10));
+        assertEquals(0.6, new SiegeConfig().killQuotaShare, 1e-9);
+    }
 }

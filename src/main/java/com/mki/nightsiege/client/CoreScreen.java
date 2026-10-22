@@ -1885,6 +1885,10 @@ public class CoreScreen extends Screen {
             gui.text(font, Component.translatable("nightsiege.ui.stat_active").getString(), x + 8, cy, RED, true);
             gui.text(font, Component.translatable("nightsiege.ui.stat_time_left", clock(stats.secondsLeft)).getString(),
                     x + 8, cy + 12, GRAY, true);
+            if (stats.killsRequired > 0) {
+                gui.text(font, Component.translatable("nightsiege.ui.stat_kills", stats.nightKills, stats.killsRequired).getString(),
+                        x + 8, cy + 24, stats.nightKills >= stats.killsRequired ? GREEN : GOLD, true);
+            }
             return;
         }
         // Countdown bar.

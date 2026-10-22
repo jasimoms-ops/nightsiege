@@ -323,6 +323,7 @@ public class EventLookTest implements FabricClientGameTest {
             }
             context.waitTicks(20);
             context.getInput().lookAt(90.0f, 8.0f);
+            context.runOnClient(client -> client.gui.getChat().clearMessages(false));
             context.waitTicks(10);
             context.takeScreenshot("armor_row_" + (r + 1));
         }
@@ -337,6 +338,7 @@ public class EventLookTest implements FabricClientGameTest {
         }
         context.waitTicks(20);
         context.getInput().lookAt(90.0f, 14.0f);
+        context.runOnClient(client -> client.gui.getChat().clearMessages(false));
         context.waitTicks(10);
         context.takeScreenshot("armor_warriors_close");
         game.getServer().runCommand("kill @e[type=minecraft:armor_stand]");
@@ -358,6 +360,8 @@ public class EventLookTest implements FabricClientGameTest {
         }
         context.runOnClient(client -> client.options.setCameraType(net.minecraft.client.CameraType.THIRD_PERSON_FRONT));
         context.waitTicks(20);
+        context.runOnClient(client -> client.gui.getChat().clearMessages(false));
+        context.waitTicks(2);
         context.takeScreenshot("armor_player_berserker");
         context.runOnClient(client -> client.options.setCameraType(net.minecraft.client.CameraType.FIRST_PERSON));
         for (String slot : new String[]{"head", "chest", "legs", "feet"}) {

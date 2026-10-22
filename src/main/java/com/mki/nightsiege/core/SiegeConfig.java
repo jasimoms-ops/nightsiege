@@ -184,6 +184,8 @@ public class SiegeConfig {
     public boolean dungeonsEnabled = true;
     /** A special night (night fragment set into the core): more monsters, more experience. */
     public double specialNightMobMultiplier = 1.3;
+    /** Share of the night's monsters the defenders must kill; a held night below it comes again. 0 turns it off. */
+    public double killQuotaShare = 0.6;
     public int specialNightXpMultiplier = 2;
     /** Old core perks (from the first dungeons); off, the fragments now make special nights. */
     public boolean perksEnabled = false;
@@ -328,6 +330,7 @@ public class SiegeConfig {
         skillPointsLevelStep = Math.max(1, skillPointsLevelStep);
         tankDamagePerPoint = Math.max(1, tankDamagePerPoint);
         specialNightMobMultiplier = clampDouble(specialNightMobMultiplier, 1.0, 5.0);
+        killQuotaShare = clampDouble(killQuotaShare, 0.0, 1.0);
         specialNightXpMultiplier = clamp(specialNightXpMultiplier, 1, 10);
         if (settingsVersion < 1) {
             dungeonsEnabled = false;

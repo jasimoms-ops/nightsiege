@@ -52,4 +52,21 @@ public final class SiegeMath {
     public static int timeOfDay(long gameTime) {
         return (int) (Math.max(0L, gameTime) % 24000L);
     }
+
+    /**
+     * Kills a night asks for: the share of its monsters, but never more than
+     * that share of what has come and can still come.
+     */
+    public static int killsRequired(double share, int quota, int spawned, int wavesLeft, int perWave) {
+        if (share <= 0) {
+            return 0;
+        }
+        int possible = spawned + Math.max(0, wavesLeft) * Math.max(0, perWave);
+        return (int) Math.min(quota, Math.ceil(share * possible));
+    }
+
+    /** The kill goal set at the start of a night. */
+    public static int killQuota(double share, int waves, int perWave) {
+        return (int) Math.ceil(Math.max(0, share) * Math.max(0, waves) * Math.max(0, perWave));
+    }
 }

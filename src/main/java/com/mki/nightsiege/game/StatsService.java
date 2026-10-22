@@ -61,6 +61,10 @@ public final class StatsService {
         int level = manager.currentLevel();
 
         stats.siegeActive = manager.isActive();
+        if (stats.siegeActive) {
+            stats.nightKills = manager.nightKills();
+            stats.killsRequired = manager.killsRequired();
+        }
         stats.level = level;
         stats.secondsLeft = manager.secondsLeft();
         stats.eventKey = manager.currentEventKey();
