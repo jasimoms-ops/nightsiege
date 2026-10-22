@@ -1,6 +1,6 @@
 name: ref
 
-# Loads reference pictures of another mod (only to look at, never shipped) into the ref-cotl branch.
+# Loads reference pictures of another mod (only to look at, never shipped) into a ref-cotl-N branch.
 on: workflow_dispatch
 
 permissions:
@@ -46,6 +46,50 @@ jobs:
                   log.append("jar %s (%s) files %d" % (f[0]["filename"], vers[0]["version_number"], len(names)))
           except Exception as e:
               log.append("modrinth error %r" % e)
+          # CurseForge, through the site's own API.
+          try:
+              cf = "https://www.curseforge.com/api/v1/mods"
+              res = json.loads(get(cf + "/search?" + urllib.parse.urlencode(
+                  {"gameId": 432, "classId": 6, "filterText": "clothing of the lowlands", "pageSize": 5, "index": 0})))
+              mods = res.get("data", [])
+              for m in mods:
+                  log.append("cf %s | %s | %s" % (m.get("id"), m.get("slug"), m.get("name")))
+              mod = [m for m in mods if "lowland" in (m.get("name") or "").lower()]
+              if mod:
+                  mid = mod[0]["id"]
+                  try:
+                      detail = get(cf + "/%s" % mid)
+                      open("cf_mod.json", "wb").write(detail)
+                  except Exception as e:
+                      log.append("cf detail error %r" % e)
+                  for key in ("screenshots",):
+                      pass
+                  try:
+                      d = json.loads(open("cf_mod.json").read()).get("data", {})
+                      shots = d.get("screenshots") or []
+                      for i, sh in enumerate(shots):
+                          url = sh.get("url") or sh.get("imageUrl")
+                          if url:
+                              open("cf_shot_%02d.%s" % (i, url.rsplit(".", 1)[-1][:4]), "wb").write(get(url))
+                              log.append("shot %d %s" % (i, sh.get("title")))
+                  except Exception as e:
+                      log.append("cf shots error %r" % e)
+                  files = json.loads(get(cf + "/%s/files?pageIndex=0&pageSize=10&sort=dateCreated&sortDescending=true" % mid))
+                  open("cf_files.json", "w").write(json.dumps(files)[:20000])
+                  fl = files.get("data", [])
+                  if fl:
+                      fid = fl[0]["id"]
+                      data = get(cf + "/%s/files/%s/download" % (mid, fid))
+                      z = zipfile.ZipFile(io.BytesIO(data))
+                      names = z.namelist()
+                      open("cf_jar_files.txt", "w").write("\n".join(names))
+                      os.makedirs("jar", exist_ok=True)
+                      for n in names:
+                          if n.endswith(".png") and "/textures/" in n and "/gui/" not in n:
+                              open("jar/" + n.replace("/", "__"), "wb").write(z.read(n))
+                      log.append("cf jar %s files %d" % (fl[0].get("fileName"), len(names)))
+          except Exception as e:
+              log.append("curseforge error %r" % e)
           open("log.txt", "w").write("\n".join(log) + "\n")
           print("\n".join(log))
           PY
@@ -55,7 +99,7 @@ jobs:
           git init -q
           git config user.name ci
           git config user.email ci@users.noreply.github.com
-          git checkout -q -b ref-cotl
+          git checkout -q -b ref-cotl-${{ github.run_number }}
           git add .
           git commit -qm "reference pictures"
-          git push -q "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" ref-cotl
+          git push -q "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" ref-cotl-${{ github.run_number }}
