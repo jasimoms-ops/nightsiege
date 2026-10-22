@@ -115,10 +115,12 @@ public class EventLookTest implements FabricClientGameTest {
         }
     }
 
-    /** The event monsters up close by day, so their textures, clothes and eyes can be checked. */
+    /** The event monsters up close, so their textures, clothes and eyes can be checked. */
     private static void mobLineup(ClientGameTestContext context, TestSingleplayerContext game) {
         BlockPos home = context.computeOnClient(client -> client.player.blockPosition());
-        game.getServer().runCommand("time set 6000");
+        // At night (undead burn by day), seen with night vision so the textures show.
+        game.getServer().runCommand("time set 18000");
+        game.getServer().runCommand("effect give @a minecraft:night_vision 600 0 true");
         game.getServer().runCommand("tp @a %d.5 %d %d.5 -90 6".formatted(home.getX() + 2, home.getY(), home.getZ()));
         context.waitTicks(20);
         for (String event : EVENTS) {
@@ -129,6 +131,7 @@ public class EventLookTest implements FabricClientGameTest {
             context.waitTicks(30);
             context.takeScreenshot("mobs_" + event.toLowerCase(Locale.ROOT));
         }
+        game.getServer().runCommand("effect clear @a minecraft:night_vision");
         game.getServer().runCommand("tp @a %d.5 %d %d.5 -90 -12".formatted(home.getX(), home.getY(), home.getZ()));
         game.getServer().runCommand("time set 14600");
         context.waitTicks(20);
