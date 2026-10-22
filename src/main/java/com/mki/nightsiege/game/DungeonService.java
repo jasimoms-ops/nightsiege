@@ -294,8 +294,9 @@ public final class DungeonService {
 
     /** The template a piece was built from, or "" for pieces that are not from a template pool. */
     private static String template(net.minecraft.world.level.levelgen.structure.StructurePiece piece) {
-        if (piece instanceof net.minecraft.world.level.levelgen.structure.PoolElementStructurePiece pool) {
-            return String.valueOf(pool.getTemplateLocation());
+        if (piece instanceof net.minecraft.world.level.levelgen.structure.PoolElementStructurePiece pool
+                && pool.getElement() instanceof net.minecraft.world.level.levelgen.structure.pools.SinglePoolElement single) {
+            return String.valueOf(single.getTemplateLocation());
         }
         return "";
     }
