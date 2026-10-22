@@ -52,6 +52,7 @@ public class EventLookTest implements FabricClientGameTest {
                 warriorWindow(context, game);
                 doomScene(context);
                 baseScene(context, game);
+                armorScene(context, game);
                 guardianScene(context);
                 engineerScene(context);
                 return;
@@ -294,6 +295,76 @@ public class EventLookTest implements FabricClientGameTest {
             System.out.println("[Night Siege test] siege mobs inside=" + inside + " outside=" + outside);
             manager.abort(level.getServer());
         });
+        context.waitTicks(10);
+    }
+
+    /** The sixteen class outfits on armour stands named after the subclasses, then on the player. */
+    private static void armorScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        int x = pos.getX();
+        int y = pos.getY();
+        int z = pos.getZ();
+        game.getServer().runCommand("time set 6000");
+        game.getServer().runCommand("weather clear");
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:grass_block".formatted(x - 12, y - 1, z - 7, x + 1, y - 1, z + 7));
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(x - 12, y, z - 7, x + 1, y + 4, z + 7));
+        String[][] rows = {
+                {"berserker", "blademaster", "axe", "paladin", "swift", "heavy", "bolter", "trapper"},
+                {"shieldfighter", "bulwark", "medic", "warden", "gunner", "electrician", "demolition", "alchemist"}};
+        game.getServer().runCommand("tp @p %d %d %d 90 8".formatted(x - 1, y, z));
+        for (int r = 0; r < rows.length; r++) {
+            game.getServer().runCommand("kill @e[type=minecraft:armor_stand]");
+            for (int i = 0; i < rows[r].length; i++) {
+                game.getServer().runCommand(String.format(java.util.Locale.ROOT,
+                        "summon minecraft:armor_stand %d %d %.1f {CustomName:\"%s\",ShowArms:1b,Rotation:[-90f,0f],"
+                        + "equipment:{head:{id:\"minecraft:iron_helmet\"},chest:{id:\"minecraft:iron_chestplate\"},"
+                        + "legs:{id:\"minecraft:iron_leggings\"},feet:{id:\"minecraft:iron_boots\"}}}",
+                        x - 6, y, z - 3.5 + i, rows[r][i]));
+            }
+            context.waitTicks(20);
+            context.getInput().lookAt(90.0f, 8.0f);
+            context.waitTicks(10);
+            context.takeScreenshot("armor_row_" + (r + 1));
+        }
+        // A closer look at the first four.
+        game.getServer().runCommand("kill @e[type=minecraft:armor_stand]");
+        for (int i = 0; i < 4; i++) {
+            game.getServer().runCommand(String.format(java.util.Locale.ROOT,
+                    "summon minecraft:armor_stand %d %d %.1f {CustomName:\"%s\",ShowArms:1b,Rotation:[-90f,0f],"
+                    + "equipment:{head:{id:\"minecraft:diamond_helmet\"},chest:{id:\"minecraft:leather_chestplate\"},"
+                    + "legs:{id:\"minecraft:golden_leggings\"},feet:{id:\"minecraft:netherite_boots\"}}}",
+                    x - 4, y, z - 1.5 + i, rows[0][i]));
+        }
+        context.waitTicks(20);
+        context.getInput().lookAt(90.0f, 14.0f);
+        context.waitTicks(10);
+        context.takeScreenshot("armor_warriors_close");
+        game.getServer().runCommand("kill @e[type=minecraft:armor_stand]");
+        // The player as a berserker, seen from the front.
+        onServer(context, (player, manager) -> {
+            manager.onCoreAction(player, "dev:reset");
+            manager.onCoreAction(player, "class:WARRIOR");
+            manager.onCoreAction(player, "dev:600");
+            for (String id : new String[]{"warrior_drill", "champion_bane", "bloodlust"}) {
+                manager.onBuySkill(player, id);
+            }
+            manager.onCoreAction(player, "open");
+        });
+        context.waitTicks(10);
+        closeScreen(context);
+        for (String slot : new String[]{"head:iron_helmet", "chest:iron_chestplate", "legs:iron_leggings", "feet:iron_boots"}) {
+            String[] p = slot.split(":");
+            game.getServer().runCommand("item replace entity @p armor.%s with minecraft:%s".formatted(p[0], p[1]));
+        }
+        context.runOnClient(client -> client.options.setCameraType(net.minecraft.client.CameraType.THIRD_PERSON_FRONT));
+        context.waitTicks(20);
+        context.takeScreenshot("armor_player_berserker");
+        context.runOnClient(client -> client.options.setCameraType(net.minecraft.client.CameraType.FIRST_PERSON));
+        for (String slot : new String[]{"head", "chest", "legs", "feet"}) {
+            game.getServer().runCommand("item replace entity @p armor.%s with minecraft:air".formatted(slot));
+        }
+        game.getServer().runCommand("tp @p %d %d %d -90 0".formatted(x, y, z));
+        game.getServer().runCommand("time set 1500");
         context.waitTicks(10);
     }
 
