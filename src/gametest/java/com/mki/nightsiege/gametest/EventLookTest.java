@@ -279,7 +279,6 @@ public class EventLookTest implements FabricClientGameTest {
         context.takeScreenshot("ui_core_base_closed");
         closeScreen(context);
         // The siege bar with the kill goal.
-        context.runOnClient(client -> client.gui.getChat().clearMessages(false));
         context.waitTicks(25);
         context.takeScreenshot("siege_bar_kills");
         onServer(context, (player, manager) -> {
@@ -308,6 +307,9 @@ public class EventLookTest implements FabricClientGameTest {
         int x = pos.getX();
         int y = pos.getY();
         int z = pos.getZ();
+        // Command echoes would cover the pictures.
+        game.getServer().runCommand("gamerule sendCommandFeedback false");
+        game.getServer().runCommand("gamerule send_command_feedback false");
         game.getServer().runCommand("time set 6000");
         game.getServer().runCommand("weather clear");
         game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:grass_block".formatted(x - 12, y - 1, z - 7, x + 1, y - 1, z + 7));
@@ -327,8 +329,7 @@ public class EventLookTest implements FabricClientGameTest {
             }
             context.waitTicks(20);
             context.getInput().lookAt(90.0f, 8.0f);
-            context.runOnClient(client -> client.gui.getChat().clearMessages(false));
-            context.waitTicks(10);
+                context.waitTicks(10);
             context.takeScreenshot("armor_row_" + (r + 1));
         }
         // A closer look at the first four.
@@ -342,7 +343,6 @@ public class EventLookTest implements FabricClientGameTest {
         }
         context.waitTicks(20);
         context.getInput().lookAt(90.0f, 14.0f);
-        context.runOnClient(client -> client.gui.getChat().clearMessages(false));
         context.waitTicks(10);
         context.takeScreenshot("armor_warriors_close");
         game.getServer().runCommand("kill @e[type=minecraft:armor_stand]");
@@ -364,7 +364,6 @@ public class EventLookTest implements FabricClientGameTest {
         }
         context.runOnClient(client -> client.options.setCameraType(net.minecraft.client.CameraType.THIRD_PERSON_FRONT));
         context.waitTicks(20);
-        context.runOnClient(client -> client.gui.getChat().clearMessages(false));
         context.waitTicks(2);
         context.takeScreenshot("armor_player_berserker");
         context.runOnClient(client -> client.options.setCameraType(net.minecraft.client.CameraType.FIRST_PERSON));
@@ -373,6 +372,8 @@ public class EventLookTest implements FabricClientGameTest {
         }
         game.getServer().runCommand("tp @p %d %d %d -90 0".formatted(x, y, z));
         game.getServer().runCommand("time set 1500");
+        game.getServer().runCommand("gamerule sendCommandFeedback true");
+        game.getServer().runCommand("gamerule send_command_feedback true");
         context.waitTicks(10);
     }
 
