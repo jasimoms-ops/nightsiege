@@ -19,7 +19,16 @@ public enum DungeonTheme {
             List.of("minecraft:drowned")),
     NETHER(PerkKind.FLAME, List.of("minecraft:blaze", "minecraft:wither_skeleton", "minecraft:piglin_brute",
             "minecraft:magma_cube", "minecraft:blaze"),
-            List.of("friendsandfoes:wildfire", "minecraft:blaze"));
+            List.of("friendsandfoes:wildfire", "minecraft:blaze")),
+    FROST(PerkKind.VITALITY, List.of("minecraft:stray", "minecraft:stray", "minecraft:skeleton",
+            "variantsandventures:gelid", "minecraft:zombie"),
+            List.of("friendsandfoes:iceologer", "minecraft:stray")),
+    SWAMP(PerkKind.TIDES, List.of("minecraft:witch", "minecraft:bogged", "minecraft:spider", "minecraft:cave_spider",
+            "minecraft:slime", "variantsandventures:murk"),
+            List.of("minecraft:witch")),
+    END(PerkKind.VIGILANCE, List.of("minecraft:enderman", "minecraft:endermite", "minecraft:enderman",
+            "minecraft:phantom"),
+            List.of("minecraft:enderman"));
 
     private final PerkKind fragment;
     private final List<String> mobs;

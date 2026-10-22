@@ -78,6 +78,12 @@ public final class PerkService {
         if (kind == null) {
             return false;
         }
+        if (!config.get().perksEnabled) {
+            // The old perks are gone; these fragments are keepsakes now.
+            player.connection.send(new ClientboundSetActionBarTextPacket(Component.translatable("nightsiege.perk.retired")
+                    .withStyle(ChatFormatting.GRAY)));
+            return true;
+        }
         int have = fragments(kind);
         int cap = PerkKind.fragmentsFor(PerkKind.MAX_STAGE);
         if (have >= cap) {
@@ -119,8 +125,9 @@ public final class PerkService {
         if (server.overworld().getGameTime() % 40 != 0) {
             return;
         }
+        boolean on = config.get().perksEnabled;
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            boolean near = player.isAlive() && !player.isSpectator() && nearCore(player);
+            boolean near = on && player.isAlive() && !player.isSpectator() && nearCore(player);
             inRange.put(player.getUUID(), near);
             apply(player, near);
         }

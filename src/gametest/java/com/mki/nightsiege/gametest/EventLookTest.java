@@ -276,6 +276,23 @@ public class EventLookTest implements FabricClientGameTest {
         context.waitTicks(30);
     }
 
+    /** Switches the core window to a tab (by its enum name) and opens it again. */
+    private static void showTab(ClientGameTestContext context, String tab) {
+        context.runOnClient(client -> {
+            try {
+                java.lang.reflect.Field field = com.mki.nightsiege.client.CoreScreen.class.getDeclaredField("activeTab");
+                field.setAccessible(true);
+                @SuppressWarnings({"unchecked", "rawtypes"})
+                Object value = Enum.valueOf((Class) field.getType(), tab);
+                field.set(null, value);
+            } catch (ReflectiveOperationException e) {
+                System.out.println("[Night Siege test] could not set the tab: " + e);
+            }
+        });
+        onServer(context, (player, manager) -> manager.onCoreAction(player, "open"));
+        context.waitTicks(30);
+    }
+
     /** Opens (or closes) the "change class once" question in the open window. */
     private static void askClassReset(ClientGameTestContext context, boolean open) {
         context.runOnClient(client -> {
@@ -329,6 +346,11 @@ public class EventLookTest implements FabricClientGameTest {
         askClassReset(context, true);
         context.takeScreenshot("ui_class_reset_dialog");
         askClassReset(context, false);
+        // The night fragments tab, with a blood fragment set into the core.
+        onServer(context, (player, manager) -> manager.save().nightFragment = "BLOOD");
+        showTab(context, "PERKS");
+        context.takeScreenshot("ui_fragments");
+        onServer(context, (player, manager) -> manager.save().nightFragment = null);
         closeScreen(context);
         context.getInput().lookAt(-90.0f, 4.0f);
         context.waitTicks(10);

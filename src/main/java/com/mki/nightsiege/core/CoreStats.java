@@ -64,6 +64,9 @@ public class CoreStats {
         public int stageAt;
     }
 
+    // --- night fragment set into the core (name of a NightFragment), or null
+    public String nightFragment;
+
     // --- perks of the main core
     public List<PerkLine> perks = new ArrayList<>();
     public int perkRadius;

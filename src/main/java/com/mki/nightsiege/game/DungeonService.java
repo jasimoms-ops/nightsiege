@@ -4,7 +4,7 @@ import com.mki.nightsiege.core.DungeonMath;
 import com.mki.nightsiege.core.DungeonTheme;
 import com.mki.nightsiege.core.DungeonTier;
 import com.mki.nightsiege.core.DungeonType;
-import com.mki.nightsiege.core.PerkKind;
+import com.mki.nightsiege.core.NightFragment;
 import com.mki.nightsiege.core.PlayerSkills;
 import com.mki.nightsiege.core.SiegeConfig;
 import com.mki.nightsiege.core.SiegeEvent;
@@ -68,6 +68,10 @@ import java.util.function.Supplier;
 public final class DungeonService {
 
     private static final String TAG = "nightsiege_dungeon";
+    /** The guards set into a dungeon's rooms; they stay until killed or the fight starts. */
+    private static final String GUARD_TAG = "nightsiege_dungeon_guard";
+    /** First time the placement of a structure's core was tried, to give up waiting for chunks after a while. */
+    private final Map<String, Long> firstTry = new HashMap<>();
 
     private final Supplier<SiegeSave> save;
     private final Supplier<SiegeConfig> config;
@@ -160,10 +164,32 @@ public final class DungeonService {
             }
         }
         boolean forced = forced().contains(dim + "|" + chunk.x() + "|" + chunk.z());
-        if (!forced && !DungeonMath.isDungeon(level.getSeed(), structureId, chunk.x(), chunk.z())) {
+        if (!forced && !DungeonMath.isDungeon(level.getSeed(), structureId, chunk.x(), chunk.z(), type.chance)) {
             return null;
         }
-        BlockPos spot = coreSpot(level, start.getBoundingBox());
+        // The whole structure has to be there before its rooms can be judged; after
+        // half a minute of waiting the loaded part has to do.
+        List<BoundingBox> boxes = DungeonPlaces.boxes(start);
+        String mark = dim + "|" + chunk.x() + "|" + chunk.z();
+        long now = level.getGameTime();
+        long first = firstTry.computeIfAbsent(mark, k -> now);
+        if (!DungeonPlaces.loaded(level, boxes)) {
+            if (now - first < 600) {
+                return null;
+            }
+            boxes.removeIf(b -> !DungeonPlaces.loaded(level, List.of(b)));
+            if (boxes.isEmpty()) {
+                return null;
+            }
+        }
+        firstTry.remove(mark);
+        BlockPos spot = ruleSpot(level, start, type);
+        if (spot == null) {
+            spot = DungeonPlaces.coreSpot(level, boxes);
+        }
+        if (spot == null) {
+            spot = coreSpot(level, start.getBoundingBox());
+        }
         if (spot == null || !level.isLoaded(spot)) {
             return null;
         }
@@ -176,6 +202,13 @@ public final class DungeonService {
         record.x = spot.getX();
         record.y = spot.getY();
         record.z = spot.getZ();
+        BoundingBox all = start.getBoundingBox();
+        record.minX = all.minX();
+        record.minY = all.minY();
+        record.minZ = all.minZ();
+        record.maxX = all.maxX();
+        record.maxY = all.maxY();
+        record.maxZ = all.maxZ();
         level.setBlockAndUpdate(spot, DungeonContent.CORE.defaultBlockState());
         records().add(record);
         dirty = true;
@@ -222,6 +255,307 @@ public final class DungeonService {
         return !level.getBlockState(pos).getCollisionShape(level, pos).isEmpty();
     }
 
+    // ------------------------------------------------------------------
+    // core places set by hand: kept inside the start piece, before it is turned
+    // ------------------------------------------------------------------
+
+    private static BlockPos origin(net.minecraft.world.level.levelgen.structure.StructurePiece piece) {
+        if (piece instanceof net.minecraft.world.level.levelgen.structure.PoolElementStructurePiece pool) {
+            return pool.getPosition();
+        }
+        BoundingBox box = piece.getBoundingBox();
+        return new BlockPos(box.minX(), box.minY(), box.minZ());
+    }
+
+    /** A template's x/z turned the way the piece was placed (pivot at the piece's origin). */
+    private static int[] turn(int x, int z, net.minecraft.world.level.block.Rotation rotation) {
+        if (rotation == null) {
+            return new int[]{x, z};
+        }
+        return switch (rotation) {
+            case CLOCKWISE_90 -> new int[]{-z, x};
+            case CLOCKWISE_180 -> new int[]{-x, -z};
+            case COUNTERCLOCKWISE_90 -> new int[]{z, -x};
+            default -> new int[]{x, z};
+        };
+    }
+
+    private static int[] unturn(int x, int z, net.minecraft.world.level.block.Rotation rotation) {
+        if (rotation == null) {
+            return new int[]{x, z};
+        }
+        return switch (rotation) {
+            case CLOCKWISE_90 -> new int[]{z, -x};
+            case CLOCKWISE_180 -> new int[]{-x, -z};
+            case COUNTERCLOCKWISE_90 -> new int[]{-z, x};
+            default -> new int[]{x, z};
+        };
+    }
+
+    /** The template a piece was built from, or "" for pieces that are not from a template pool. */
+    private static String template(net.minecraft.world.level.levelgen.structure.StructurePiece piece) {
+        if (piece instanceof net.minecraft.world.level.levelgen.structure.PoolElementStructurePiece pool) {
+            return String.valueOf(pool.getTemplateLocation());
+        }
+        return "";
+    }
+
+    /** The hand-set place of the kind in this structure, if it has one and there is room. */
+    private static BlockPos ruleSpot(ServerLevel level, StructureStart start, DungeonType type) {
+        if (type.core == null || type.core.size() != 3 || start.getPieces().isEmpty()) {
+            return null;
+        }
+        BlockPos best = null;
+        for (net.minecraft.world.level.levelgen.structure.StructurePiece piece : start.getPieces()) {
+            boolean match = type.coreTemplate == null || type.coreTemplate.isBlank()
+                    ? piece == start.getPieces().get(0)
+                    : type.coreTemplate.equals(template(piece));
+            if (!match) {
+                continue;
+            }
+            int[] xz = turn(type.core.get(0), type.core.get(2), piece.getRotation());
+            BlockPos at = origin(piece).offset(xz[0], type.core.get(1), xz[1]);
+            if (level.isLoaded(at) && DungeonPlaces.standable(level, at, 2) && (best == null || at.getY() < best.getY())) {
+                best = at;
+            }
+        }
+        return best;
+    }
+
+    /** Creative tool: the core of the dungeon the player stands in moves to the player; the place counts for its kind. */
+    public void moveCoreHere(ServerPlayer player) {
+        ServerLevel level = player.level();
+        String dim = SiegeManager.dimensionName(level);
+        BlockPos here = player.blockPosition();
+        DungeonRecord record = null;
+        double best = Double.MAX_VALUE;
+        for (DungeonRecord r : records()) {
+            if (!dim.equals(r.dimension)) {
+                continue;
+            }
+            boolean inside = r.hasBox() && here.getX() >= r.minX - 2 && here.getX() <= r.maxX + 2
+                    && here.getZ() >= r.minZ - 2 && here.getZ() <= r.maxZ + 2
+                    && here.getY() >= r.minY - 2 && here.getY() <= r.maxY + 2;
+            double d = here.distSqr(new BlockPos(r.x, r.y, r.z));
+            if ((inside || d < 48 * 48) && (inside ? d - 1e9 : d) < best) {
+                best = inside ? d - 1e9 : d;
+                record = r;
+            }
+        }
+        if (record == null) {
+            player.sendSystemMessage(Component.translatable("nightsiege.dungeon.core_not_here").withStyle(ChatFormatting.RED));
+            return;
+        }
+        if (record.beaten()) {
+            player.sendSystemMessage(Component.translatable("nightsiege.dungeon.core_beaten").withStyle(ChatFormatting.RED));
+            return;
+        }
+        if (!DungeonPlaces.standable(level, here, 2)) {
+            player.sendSystemMessage(Component.translatable("nightsiege.dungeon.core_blocked").withStyle(ChatFormatting.RED));
+            return;
+        }
+        BlockPos old = new BlockPos(record.x, record.y, record.z);
+        if (level.getBlockState(old).getBlock() == DungeonContent.CORE) {
+            level.setBlockAndUpdate(old, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
+        }
+        level.setBlockAndUpdate(here, DungeonContent.CORE.defaultBlockState());
+        record.x = here.getX();
+        record.y = here.getY();
+        record.z = here.getZ();
+        dirty = true;
+        // The place, kept inside the start piece, counts for every dungeon of the kind.
+        DungeonType type = DungeonType.byKey(config.get().dungeons, record.type);
+        StructureStart start = startOf(level, record);
+        if (type != null && start != null && !start.getPieces().isEmpty()) {
+            // The smallest piece around the player: the room the core now stands in.
+            net.minecraft.world.level.levelgen.structure.StructurePiece piece = start.getPieces().get(0);
+            long smallest = Long.MAX_VALUE;
+            for (net.minecraft.world.level.levelgen.structure.StructurePiece p : start.getPieces()) {
+                BoundingBox b = p.getBoundingBox();
+                long size = (long) b.getXSpan() * b.getYSpan() * b.getZSpan();
+                if (b.isInside(here) && !template(p).isEmpty() && size < smallest) {
+                    smallest = size;
+                    piece = p;
+                }
+            }
+            BlockPos origin = origin(piece);
+            int[] xz = unturn(here.getX() - origin.getX(), here.getZ() - origin.getZ(), piece.getRotation());
+            type.core = new ArrayList<>(List.of(xz[0], here.getY() - origin.getY(), xz[1]));
+            type.coreTemplate = template(piece);
+            Json.write(Json.configFile("nightsiege.json"), config.get());
+            com.mki.nightsiege.NightSiegeMod.LOGGER.info("[Night Siege] core place of {}: {} in {}", type.key, type.core,
+                    type.coreTemplate);
+        }
+        player.sendSystemMessage(Component.translatable("nightsiege.dungeon.core_moved", here.getX(), here.getY(), here.getZ(),
+                typeName(record.type)).withStyle(ChatFormatting.GREEN));
+    }
+
+    /** Creative tool: to the core of the nearest known dungeon of a kind (or to the nearest such structure first). */
+    public Component toCore(ServerPlayer player, DungeonType type) {
+        ServerLevel level = player.level();
+        String dim = SiegeManager.dimensionName(level);
+        DungeonRecord nearest = null;
+        double best = Double.MAX_VALUE;
+        for (DungeonRecord r : records()) {
+            if (r.type.equals(type.key) && dim.equals(r.dimension)) {
+                double d = player.blockPosition().distSqr(new BlockPos(r.x, r.y, r.z));
+                if (d < best) {
+                    best = d;
+                    nearest = r;
+                }
+            }
+        }
+        if (nearest == null) {
+            travel(player, type);
+            return Component.translatable("nightsiege.dungeon.core_none", typeName(type.key));
+        }
+        BlockPos core = new BlockPos(nearest.x, nearest.y, nearest.z);
+        level.getChunk(core.getX() >> 4, core.getZ() >> 4);
+        BlockPos land = core.above();
+        int[][] around = {{2, 0}, {-2, 0}, {0, 2}, {0, -2}, {1, 1}, {-1, -1}};
+        for (int[] d : around) {
+            BlockPos at = core.offset(d[0], 0, d[1]);
+            if (DungeonPlaces.standable(level, at, 2)) {
+                land = at;
+                break;
+            }
+        }
+        player.teleportTo(land.getX() + 0.5, land.getY(), land.getZ() + 0.5);
+        return Component.translatable("nightsiege.dungeon.core_tp", typeName(type.key), core.getX(), core.getY(), core.getZ());
+    }
+
+    /**
+     * Test aid for CI: finds the nearest dungeon of some kinds, generates it and
+     * logs where its core would stand and what that place is like.
+     */
+    public void probe(MinecraftServer server) {
+        String[][] kinds = {{"undead_crypt", "o"}, {"creeping_crypt", "o"}, {"catacomb", "o"}, {"illager_manor", "o"},
+                {"toxic_lair", "o"}, {"witch_villa", "o"}, {"combat_shrine_3", "o"}, {"stray_fort", "o"},
+                {"jungle_ruins", "o"}, {"desert_ruins", "o"}, {"illager_hideout", "o"}, {"nether_keep", "n"}};
+        for (String[] kind : kinds) {
+            DungeonType type = DungeonType.byKey(config.get().dungeons, kind[0]);
+            ServerLevel level = "n".equals(kind[1]) ? server.getLevel(net.minecraft.world.level.Level.NETHER) : server.overworld();
+            if (type == null || level == null) {
+                continue;
+            }
+            long t0 = System.nanoTime();
+            try {
+                Pair<BlockPos, Holder<Structure>> found = nearest(level, BlockPos.ZERO, type, false);
+                if (found == null) {
+                    com.mki.nightsiege.NightSiegeMod.LOGGER.info("[Night Siege] PROBE {}: none found", kind[0]);
+                    continue;
+                }
+                ChunkPos chunk = ChunkPos.containing(found.getFirst());
+                level.getChunk(chunk.x(), chunk.z());
+                StructureStart start = null;
+                for (StructureStart s : level.structureManager().startsForStructure(chunk, st -> true)) {
+                    if (s.isValid()) {
+                        start = s;
+                        break;
+                    }
+                }
+                if (start == null) {
+                    com.mki.nightsiege.NightSiegeMod.LOGGER.info("[Night Siege] PROBE {}: no start at {}", kind[0], chunk);
+                    continue;
+                }
+                List<BoundingBox> boxes = DungeonPlaces.boxes(start);
+                for (BoundingBox box : boxes) {
+                    for (int cx = box.minX() >> 4; cx <= box.maxX() >> 4; cx++) {
+                        for (int cz = box.minZ() >> 4; cz <= box.maxZ() >> 4; cz++) {
+                            level.getChunk(cx, cz);
+                        }
+                    }
+                }
+                long t1 = System.nanoTime();
+                BlockPos spot = DungeonPlaces.coreSpot(level, boxes);
+                long t2 = System.nanoTime();
+                BoundingBox all = start.getBoundingBox();
+                String where = spot == null ? "NONE" : spot.toShortString() + " (" + (spot.getY() - all.minY()) + " over the bottom, "
+                        + (all.maxY() - spot.getY()) + " under the top, sky " + level.canSeeSky(spot.above(2)) + ")";
+                com.mki.nightsiege.NightSiegeMod.LOGGER.info("[Night Siege] PROBE {}: {} pieces, box {}, core {} - gen {} ms, search {} ms",
+                        kind[0], start.getPieces().size(), all, where, (t1 - t0) / 1_000_000, (t2 - t1) / 1_000_000);
+            } catch (RuntimeException e) {
+                com.mki.nightsiege.NightSiegeMod.LOGGER.info("[Night Siege] PROBE {}: failed {}", kind[0], e.toString());
+            }
+        }
+    }
+
+    /** The structure a record belongs to, if it is still there. */
+    private StructureStart startOf(ServerLevel level, DungeonRecord record) {
+        Registry<Structure> registry = level.registryAccess().lookupOrThrow(Registries.STRUCTURE);
+        for (StructureStart start : level.structureManager().startsForStructure(new ChunkPos(record.chunkX, record.chunkZ),
+                s -> record.structure.equals(String.valueOf(registry.getKey(s))))) {
+            if (start.isValid()) {
+                return start;
+            }
+        }
+        return null;
+    }
+
+    /** Monsters of the dungeon's theme in its rooms: on the way to the core they have to be fought. */
+    private void setGuards(ServerLevel level, DungeonRecord record, ServerPlayer waker) {
+        DungeonType type = DungeonType.byKey(config.get().dungeons, record.type);
+        StructureStart start = startOf(level, record);
+        if (type == null || start == null) {
+            return;
+        }
+        List<BoundingBox> boxes = DungeonPlaces.boxes(start);
+        boxes.removeIf(b -> !DungeonPlaces.loaded(level, List.of(b)));
+        if (boxes.isEmpty()) {
+            return;
+        }
+        int players = 0;
+        int spent = 0;
+        for (ServerPlayer near : level.players()) {
+            if (!near.isSpectator() && near.distanceToSqr(waker) <= DungeonMath.FIGHT_RADIUS * DungeonMath.FIGHT_RADIUS) {
+                players++;
+                PlayerSkills skills = save.get().skillsOf(near.getUUID().toString());
+                spent += Math.max(0, skills.earned - skills.points() - skills.donated);
+            }
+        }
+        players = Math.max(1, players);
+        int mobLevel = DungeonMath.level(type.tier(), spent / players);
+        int count = DungeonMath.guards(type.tier(), players);
+        List<String> pool = new ArrayList<>();
+        for (String id : type.theme().mobs()) {
+            if (!MobFactory.isUnavailable(id)) {
+                pool.add(id);
+            }
+        }
+        if (pool.isEmpty()) {
+            pool.add("minecraft:zombie");
+        }
+        for (BlockPos spot : DungeonPlaces.guardSpots(level, boxes, count, waker.blockPosition(), random)) {
+            Mob mob = MobFactory.spawnAt(level, spot, pool.get(random.nextInt(pool.size())), mobLevel,
+                    config.get(), random, SiegeEvent.NONE, false);
+            if (mob != null) {
+                mob.addTag(GUARD_TAG);
+                mob.setPersistenceRequired();
+            }
+        }
+    }
+
+    /**
+     * Before the fight: everything that would join in on its own is sent away. Iron
+     * and snow golems (some structures have dozens), the guards and every other
+     * monster in or near the structure. Villagers and animals stay.
+     */
+    private void clearHelpers(ServerLevel level, DungeonRecord record, BlockPos anchor) {
+        net.minecraft.world.phys.AABB area = record != null && record.hasBox()
+                ? new net.minecraft.world.phys.AABB(record.minX, record.minY, record.minZ,
+                        record.maxX + 1, record.maxY + 1, record.maxZ + 1).inflate(16)
+                : new net.minecraft.world.phys.AABB(anchor).inflate(48);
+        for (Mob mob : level.getEntitiesOfClass(Mob.class, area, m -> true)) {
+            String id = String.valueOf(net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(mob.getType()));
+            boolean golem = id.endsWith("_golem");
+            boolean monster = mob instanceof net.minecraft.world.entity.monster.Enemy;
+            if ((golem || monster) && !mob.entityTags().contains(TAG)) {
+                level.sendParticles(ParticleTypes.POOF, mob.getX(), mob.getY(0.5), mob.getZ(), 6, 0.3, 0.4, 0.3, 0.02);
+                mob.discard();
+            }
+        }
+    }
+
     /** Wakes a dormant core when a player comes close, and keeps an awake one glowing. */
     private void watch(ServerLevel level, ServerPlayer player, DungeonRecord record) {
         BlockPos core = new BlockPos(record.x, record.y, record.z);
@@ -242,6 +576,10 @@ public final class DungeonService {
         if (DungeonRecord.DORMANT.equals(record.state)) {
             record.state = DungeonRecord.AWAKE;
             dirty = true;
+            if (!record.guarded) {
+                record.guarded = true;
+                setGuards(level, record, player);
+            }
             level.playSound(null, core, SoundEvents.BEACON_ACTIVATE, SoundSource.BLOCKS, 1.2f, 0.6f);
             level.playSound(null, core, SoundEvents.BELL_BLOCK, SoundSource.BLOCKS, 1.0f, 0.5f);
             for (ServerPlayer near : level.players()) {
@@ -322,6 +660,7 @@ public final class DungeonService {
         fight.anchor = pos;
         fight.waves = type.tier().waves();
         fight.boss = true;
+        clearHelpers(level, record, pos);
         begin(fight, type.tier(), -1);
         return true;
     }
@@ -606,19 +945,16 @@ public final class DungeonService {
             }
             dirty = true;
         }
-        PerkKind kind = fight.theme.fragment();
+        NightFragment kind = fight.type.fragment();
         for (UUID id : fight.participants) {
             ServerPlayer p = server.getPlayerList().getPlayer(id);
             if (p == null) {
                 continue;
             }
-            give(p, new ItemStack(DungeonContent.FRAGMENTS.get(kind)));
-            if (fight.boss) {
-                give(p, new ItemStack(DungeonContent.FRAGMENTS.get(PerkKind.VIGILANCE)));
-            }
+            give(p, new ItemStack(DungeonContent.NIGHT_FRAGMENTS.get(kind)));
             give(p, new ItemStack(DungeonContent.MAP));
             p.sendSystemMessage(Component.translatable("nightsiege.dungeon.won", typeName(fight.type.key),
-                    Component.translatable("item.nightsiege.core_fragment_" + kind.id())).withStyle(ChatFormatting.GREEN));
+                    Component.translatable("item.nightsiege.night_fragment_" + kind.id())).withStyle(ChatFormatting.GREEN));
         }
     }
 
@@ -723,6 +1059,8 @@ public final class DungeonService {
             entry.tier = type.tier().name();
             entry.theme = type.theme().name();
             entry.mod = type.namespace();
+            entry.fragment = type.fragment().id();
+            entry.coreSet = type.core != null;
             for (Identifier id : registry.keySet()) {
                 if (type.matches(id.toString())) {
                     entry.installed = true;
@@ -848,6 +1186,12 @@ public final class DungeonService {
                     player.sendSystemMessage(travel(player, type));
                 }
             }
+            case "core" -> {
+                if (type != null) {
+                    player.sendSystemMessage(toCore(player, type));
+                }
+            }
+            case "setcore" -> moveCoreHere(player);
             case "test" -> {
                 if (type == null) {
                     return;
@@ -886,7 +1230,7 @@ public final class DungeonService {
 
     /** Mobs of a fight that no longer runs (the server was restarted) are cleared away when they load. */
     public void onEntityLoad(Entity entity) {
-        if (!entity.entityTags().contains(TAG)) {
+        if (!entity.entityTags().contains(TAG) || entity.entityTags().contains(GUARD_TAG)) {
             return;
         }
         for (Fight fight : fights.values()) {

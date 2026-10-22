@@ -808,18 +808,40 @@ class SiegeCoreTest {
     }
 
     @Test
-    void anOldConfigSwitchesTheDungeonsOffOnce() {
+    void anOldConfigTurnsTheDungeonsBackOnOnce() {
         SiegeConfig old = new SiegeConfig();
-        old.dungeonsEnabled = true;
-        old.settingsVersion = 0;
-        old.sanitize();
-        assertFalse(old.dungeonsEnabled);
-        assertFalse(old.bloodMoonGlow);
-        assertEquals(2, old.settingsVersion);
-        // Switched back on by hand, it stays on.
-        old.dungeonsEnabled = true;
+        old.dungeonsEnabled = false;
+        old.settingsVersion = 2;
+        old.dungeonListVersion = 1;
         old.sanitize();
         assertTrue(old.dungeonsEnabled);
+        assertFalse(old.bloodMoonGlow);
+        assertEquals(3, old.settingsVersion);
+        assertEquals(SiegeConfig.CURRENT_DUNGEON_LIST, old.dungeonListVersion);
+        assertTrue(old.dungeons.stream().allMatch(t -> t.structure.startsWith("nova_structures:")));
+        // Switched off again by hand, it stays off.
+        old.dungeonsEnabled = false;
+        old.sanitize();
+        assertFalse(old.dungeonsEnabled);
+    }
+
+    @Test
+    void everyDungeonHasAFragmentAndEveryFragmentADungeon() {
+        java.util.Set<NightFragment> seen = java.util.EnumSet.noneOf(NightFragment.class);
+        java.util.Set<String> keys = new java.util.HashSet<>();
+        for (DungeonType type : DungeonType.defaults()) {
+            assertTrue(keys.add(type.key), "twice: " + type.key);
+            assertNotNull(NightFragment.byName(type.fragment), type.key);
+            assertNotNull(DungeonTheme.byName(type.theme), type.key);
+            assertEquals(1.0, type.chance);
+            seen.add(type.fragment());
+        }
+        assertEquals(NightFragment.values().length, seen.size());
+        for (NightFragment fragment : NightFragment.values()) {
+            assertNotEquals(SiegeEvent.NONE, fragment.event());
+        }
+        assertTrue(DungeonMath.isDungeon(42L, "nova_structures:undead_crypt", 3, 4, 1.0));
+        assertFalse(DungeonMath.isDungeon(42L, "nova_structures:undead_crypt", 3, 4, 0.0));
     }
 
     @Test
@@ -891,14 +913,16 @@ class SiegeCoreTest {
     @Test
     void dungeonKindsMatchTheirStructures() {
         List<DungeonType> types = DungeonType.defaults();
-        assertEquals("outpost", DungeonType.find(types, "towns_and_towers:pillager_outpost_savanna").key);
-        assertEquals("nether_arena", DungeonType.find(types, "structures:nether_arena").key);
+        assertEquals("undead_crypt", DungeonType.find(types, "nova_structures:undead_crypt").key);
+        assertEquals("combat_shrine_6", DungeonType.find(types, "nova_structures:shrine_combat_tier_6").key);
+        assertEquals("trident_monument", DungeonType.find(types, "nova_structures:trident_trial_monument").key);
+        assertNull(DungeonType.find(types, "nova_structures:tavern_oak"));
         assertNull(DungeonType.find(types, "minecraft:village_plains"));
         Set<String> keys = new HashSet<>();
         for (DungeonType type : types) {
             assertTrue(keys.add(type.key), "duplicate " + type.key);
         }
-        assertEquals(20, types.size());
+        assertEquals(30, types.size());
     }
 
     @Test

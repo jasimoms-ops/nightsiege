@@ -22,7 +22,7 @@ import net.minecraft.resources.Identifier;
 public class DungeonToolScreen extends Screen {
 
     private static final int W = 384;
-    private static final int H = 232;
+    private static final int H = 256;
     private static final int ROW = 17;
     private static final int ROWS = 10;
     private static final int LIST_W = 178;
@@ -173,6 +173,16 @@ public class DungeonToolScreen extends Screen {
         }).bounds(rx, by, half, 18).build();
         travel.active = entry.installed;
         addRenderableWidget(travel);
+        Button toCore = Button.builder(Component.translatable("nightsiege.tool.to_core"), b -> {
+            send("core:" + key);
+            onClose();
+        }).bounds(rx, by - 22, half, 18).build();
+        toCore.active = entry.installed;
+        addRenderableWidget(toCore);
+        addRenderableWidget(Button.builder(Component.translatable("nightsiege.tool.set_core"), b -> {
+            send("setcore");
+            onClose();
+        }).bounds(rx + half + 4, by - 22, half, 18).build());
         addRenderableWidget(Button.builder(Component.translatable("nightsiege.tool.test"), b -> {
             send("test:" + key + ":" + waves + ":" + tier.name() + ":" + progress + ":" + (boss ? 1 : 0) + ":" + theme.name());
             onClose();
@@ -317,8 +327,15 @@ public class DungeonToolScreen extends Screen {
         DungeonTier t = DungeonTier.byName(entry.tier);
         gui.text(font, Component.translatable("nightsiege.dungeon.type." + entry.key).getString(), x, y, GOLD, true);
         y += 11;
-        gui.text(font, entry.mod + (entry.installed ? "" : "  " + Component.translatable("nightsiege.tool.missing").getString()),
-                x, y, entry.installed ? GRAY : 0xFFFF5555, true);
+        if (!entry.installed) {
+            gui.text(font, entry.mod + "  " + Component.translatable("nightsiege.tool.missing").getString(), x, y, 0xFFFF5555, true);
+        } else {
+            com.mki.nightsiege.core.NightFragment fragment = com.mki.nightsiege.core.NightFragment.byName(entry.fragment);
+            String line = Component.translatable("nightsiege.tool.fragment",
+                    Component.translatable("item.nightsiege.night_fragment_" + (fragment == null ? "blood" : fragment.id()))).getString()
+                    + (entry.coreSet ? "  " + Component.translatable("nightsiege.tool.core_set").getString() : "");
+            gui.text(font, line, x, y, fragment == null ? GRAY : fragment.color(), true);
+        }
         y += 12;
         gui.text(font, Component.translatable("nightsiege.tool.kind",
                 Component.translatable("nightsiege.dungeon.tier." + entry.tier.toLowerCase(java.util.Locale.ROOT)),

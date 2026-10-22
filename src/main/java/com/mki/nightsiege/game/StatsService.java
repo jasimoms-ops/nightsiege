@@ -70,6 +70,7 @@ public final class StatsService {
                     : com.mki.nightsiege.core.PerkKind.fragmentsFor(line.stage + 1);
             stats.perks.add(line);
         }
+        stats.nightFragment = save.nightFragment;
         stats.perkRadius = (int) Math.round(manager.config().perkRadius);
         stats.perkInRange = manager.perks().inRange(viewer);
         stats.skillsEnabled = cfg.skillsEnabled;

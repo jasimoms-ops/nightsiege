@@ -70,7 +70,7 @@ public class CoreScreen extends Screen {
         GUARDIAN(SkillClass.GUARDIAN, "minecraft:shield", "minecraft:textures/block/polished_andesite.png", 0xFF6FA8FF, "guardian"),
         ENGINEER(SkillClass.ENGINEER, "nightsiege:arrow_turret", "minecraft:textures/block/cut_copper.png", 0xFFF0A040, "engineer"),
         CORE(SkillClass.CORE, "nightsiege:siege_core", "minecraft:textures/block/obsidian.png", 0xFFC88CFF, "core"),
-        PERKS(null, "nightsiege:core_fragment_vigilance", "minecraft:textures/block/amethyst_block.png", 0xFFE0A0FF, "perks");
+        PERKS(null, "nightsiege:night_fragment_blood", "minecraft:textures/block/amethyst_block.png", 0xFFE0A0FF, "perks");
 
         final SkillClass clazz;
         final String icon;
@@ -1687,51 +1687,42 @@ public class CoreScreen extends Screen {
             "flame", 0xFFFF9A3C, "vigilance", 0xFFFFD84A);
 
     /** The five perks of the main core: stage, fragments to the next one and what they do now. */
+    /** The night fragments: which one sits in the core, and what each one does. */
     private void drawPerks(GuiGraphicsExtractor gui, Font font) {
         int x = innerX() + 6;
         int y = innerY() + 5;
-        String head = Component.translatable(stats.perkInRange ? "nightsiege.ui.perks_in_range" : "nightsiege.ui.perks_out_of_range",
-                stats.perkRadius).getString();
-        gui.text(font, head, x, y, stats.perkInRange ? GREEN : GOLD, true);
-        int rowH = 30;
-        int rowY = innerY() + 18;
+        com.mki.nightsiege.core.NightFragment set = com.mki.nightsiege.core.NightFragment.byName(stats.nightFragment);
+        String head = set == null
+                ? Component.translatable("nightsiege.ui.fragment_none").getString()
+                : Component.translatable("nightsiege.ui.fragment_set",
+                        Component.translatable("item.nightsiege.night_fragment_" + set.id()),
+                        Component.translatable("nightsiege.event." + set.event().name().toLowerCase(Locale.ROOT))).getString();
+        for (String line : wrap(font, head, innerW() - 12)) {
+            gui.text(font, line, x, y, set == null ? GRAY : 0xFFE0A0FF, true);
+            y += 10;
+        }
+        int rowY = y + 4;
         int w = innerW() - 12;
-        for (CoreStats.PerkLine perk : stats.perks) {
-            int color = PERK_COLORS.getOrDefault(perk.id, WHITE);
-            gui.fill(x, rowY, x + w, rowY + rowH - 3, 0xC0121116);
+        int rowH = Math.max(20, Math.min(30, (innerY() + innerH() - 4 - rowY) / 6));
+        for (com.mki.nightsiege.core.NightFragment fragment : com.mki.nightsiege.core.NightFragment.values()) {
+            int color = fragment.color();
+            boolean chosen = fragment == set;
+            gui.fill(x, rowY, x + w, rowY + rowH - 3, chosen ? 0xE0241C30 : 0xC0121116);
             gui.fill(x, rowY, x + 2, rowY + rowH - 3, color);
-            gui.fill(x, rowY, x + w, rowY + 1, 0x40FFFFFF);
-            gui.item(iconOf("nightsiege:core_fragment_" + perk.id), x + 6, rowY + 5);
-            String name = Component.translatable("nightsiege.perk." + perk.id).getString();
-            gui.text(font, name, x + 28, rowY + 4, color, true);
-            // Five pips for the five stages.
-            for (int i = 0; i < 5; i++) {
-                int px = x + 28 + i * 11;
-                int py = rowY + 15;
-                gui.fill(px, py, px + 9, py + 6, 0xFF000000);
-                gui.fill(px + 1, py + 1, px + 8, py + 5, i < perk.stage ? color : 0xFF3A3940);
+            gui.fill(x, rowY, x + w, rowY + 1, chosen ? color : 0x40FFFFFF);
+            gui.item(iconOf("nightsiege:night_fragment_" + fragment.id()), x + 6, rowY + (rowH - 3 - 16) / 2);
+            String name = Component.translatable("item.nightsiege.night_fragment_" + fragment.id()).getString();
+            gui.text(font, name, x + 28, rowY + 3, color, true);
+            String event = "→ " + Component.translatable("nightsiege.event." + fragment.event().name().toLowerCase(Locale.ROOT)).getString();
+            gui.text(font, event, x + 28 + Math.max(90, font.width(name) + 8), rowY + 3, WHITE, true);
+            if (rowH >= 24) {
+                String where = Component.translatable("nightsiege.ui.fragment_where." + fragment.id()).getString();
+                gui.text(font, font.plainSubstrByWidth(where, w - 34), x + 28, rowY + 13, GRAY, true);
             }
-            String now = perk.stage <= 0 ? Component.translatable("nightsiege.ui.perk_none").getString()
-                    : perkEffect(perk.id, perk.stage);
-            gui.text(font, now, x + 100, rowY + 4, perk.stage > 0 ? WHITE : GRAY, true);
-            String next;
-            if (perk.nextAt <= 0) {
-                next = Component.translatable("nightsiege.ui.perk_max").getString();
-            } else {
-                next = Component.translatable("nightsiege.ui.perk_next", perk.fragments - perk.stageAt,
-                        perk.nextAt - perk.stageAt, perkEffect(perk.id, perk.stage + 1)).getString();
+            if (chosen) {
+                String mark = "★";
+                gui.text(font, mark, x + w - 10 - font.width(mark), rowY + 3, 0xFFFFD86B, true);
             }
-            gui.text(font, next, x + 100, rowY + 15, GRAY, true);
-            // Bar to the next stage on the right.
-            int barW = 60;
-            int bx = x + w - barW - 8;
-            int by = rowY + 6;
-            gui.fill(bx, by, bx + barW, by + 5, 0xFF000000);
-            int span = Math.max(1, perk.nextAt - perk.stageAt);
-            int filled = perk.nextAt <= 0 ? barW - 2 : (barW - 2) * (perk.fragments - perk.stageAt) / span;
-            gui.fill(bx + 1, by + 1, bx + 1 + filled, by + 4, color);
-            String count = perk.fragments + "/15";
-            gui.text(font, count, bx + barW - font.width(count), by + 9, GRAY, true);
             rowY += rowH;
         }
     }

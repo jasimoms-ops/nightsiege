@@ -21,6 +21,15 @@ public class DungeonRecord {
     public String state = DORMANT;
     /** Game time from which a new attempt may start after a failed one. */
     public long retryAt;
+    /** The structure's whole box: helpers inside it are sent away when the fight starts. */
+    public int minX;
+    public int minY;
+    public int minZ;
+    public int maxX;
+    public int maxY;
+    public int maxZ;
+    /** Whether its guards have been set into the rooms (once, when it first woke). */
+    public boolean guarded;
 
     public DungeonRecord() {
     }
@@ -31,6 +40,11 @@ public class DungeonRecord {
 
     public boolean at(String dim, int bx, int by, int bz) {
         return x == bx && y == by && z == bz && dimension != null && dimension.equals(dim);
+    }
+
+    /** Whether the box was saved (records from before it was kept have none). */
+    public boolean hasBox() {
+        return maxX > minX || maxZ > minZ;
     }
 
     public boolean beaten() {

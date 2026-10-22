@@ -33,7 +33,11 @@ public final class DungeonContent {
     public static Item SPENT_CORE_ITEM;
     public static Item MAP;
     public static Item COMPASS;
+    /** The old perk fragments of the first dungeons; still registered so old worlds keep them. */
     public static final Map<PerkKind, Item> FRAGMENTS = new EnumMap<>(PerkKind.class);
+    /** Night fragments: set into the main core, they make the next siege a special night. */
+    public static final Map<com.mki.nightsiege.core.NightFragment, Item> NIGHT_FRAGMENTS =
+            new EnumMap<>(com.mki.nightsiege.core.NightFragment.class);
 
     private DungeonContent() {
     }
@@ -48,6 +52,9 @@ public final class DungeonContent {
         for (PerkKind kind : PerkKind.values()) {
             FRAGMENTS.put(kind, item("core_fragment_" + kind.id(),
                     p -> new Item(p.stacksTo(16).rarity(kind == PerkKind.VIGILANCE ? Rarity.EPIC : Rarity.RARE))));
+        }
+        for (com.mki.nightsiege.core.NightFragment kind : com.mki.nightsiege.core.NightFragment.values()) {
+            NIGHT_FRAGMENTS.put(kind, item("night_fragment_" + kind.id(), p -> new Item(p.stacksTo(16).rarity(Rarity.EPIC))));
         }
         MAP = item("dungeon_map", p -> new DungeonMapItem(p.stacksTo(16).rarity(Rarity.UNCOMMON)));
         COMPASS = item("dungeon_compass", p -> new DungeonCompassItem(p.stacksTo(1).rarity(Rarity.EPIC)));
@@ -114,10 +121,20 @@ public final class DungeonContent {
         List<Item> out = new ArrayList<>();
         out.add(COMPASS);
         out.add(MAP);
-        out.addAll(FRAGMENTS.values());
+        out.addAll(NIGHT_FRAGMENTS.values());
         out.add(CORE_ITEM);
         out.add(SPENT_CORE_ITEM);
         return out;
+    }
+
+    /** The night fragment an item is, or null. */
+    public static com.mki.nightsiege.core.NightFragment nightFragmentKind(Item item) {
+        for (Map.Entry<com.mki.nightsiege.core.NightFragment, Item> entry : NIGHT_FRAGMENTS.entrySet()) {
+            if (entry.getValue() == item) {
+                return entry.getKey();
+            }
+        }
+        return null;
     }
 
     /** The perk a fragment item feeds, or null. */

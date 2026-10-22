@@ -13,6 +13,10 @@ public final class DungeonToolState {
         public String tier;
         public String theme;
         public String mod;
+        /** Night fragment its dungeons pay out. */
+        public String fragment;
+        /** A core place was set by hand for the kind. */
+        public boolean coreSet;
         /** The structure's mod is in the game. */
         public boolean installed;
         public int found;

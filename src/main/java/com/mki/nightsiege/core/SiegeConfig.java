@@ -169,8 +169,13 @@ public class SiegeConfig {
     // --- mobs -------------------------------------------------------------
     public List<MobEntry> mobs = defaultMobs();
 
-    /** Dungeon cores hidden in structures of other mods. */
-    public boolean dungeonsEnabled = false;
+    /** Dungeon cores hidden in the structures of Dungeons and Taverns. */
+    public boolean dungeonsEnabled = true;
+    /** A special night (night fragment set into the core): more monsters, more experience. */
+    public double specialNightMobMultiplier = 1.3;
+    public int specialNightXpMultiplier = 2;
+    /** Old core perks (from the first dungeons); off, the fragments now make special nights. */
+    public boolean perksEnabled = false;
     /**
      * Version of the general settings in this file. Version 1 switched the
      * dungeons off (they wait for better structures); set dungeonsEnabled back
@@ -179,7 +184,7 @@ public class SiegeConfig {
     public int settingsVersion = 0;
     /** Version of the dungeon list in this file. Older lists are replaced on load. */
     public int dungeonListVersion = 0;
-    public static final int CURRENT_DUNGEON_LIST = 1;
+    public static final int CURRENT_DUNGEON_LIST = 2;
     /** Which structures hold dungeons, how hard they are and what lives there. */
     public List<DungeonType> dungeons = DungeonType.defaults();
     /** Perks from core fragments work within this many blocks of the main core. */
@@ -310,6 +315,8 @@ public class SiegeConfig {
         audibleSpawnsPerBatch = Math.max(0, audibleSpawnsPerBatch);
         skillPointsLevelStep = Math.max(1, skillPointsLevelStep);
         tankDamagePerPoint = Math.max(1, tankDamagePerPoint);
+        specialNightMobMultiplier = clampDouble(specialNightMobMultiplier, 1.0, 5.0);
+        specialNightXpMultiplier = clamp(specialNightXpMultiplier, 1, 10);
         if (settingsVersion < 1) {
             dungeonsEnabled = false;
             settingsVersion = 1;
@@ -317,6 +324,10 @@ public class SiegeConfig {
         if (settingsVersion < 2) {
             bloodMoonGlow = false;   // the blood moon mobs have their own look now
             settingsVersion = 2;
+        }
+        if (settingsVersion < 3) {
+            dungeonsEnabled = true;   // back on, in the structures of Dungeons and Taverns
+            settingsVersion = 3;
         }
 
         toolEquipChance = clampDouble(toolEquipChance, 0.0, 1.0);

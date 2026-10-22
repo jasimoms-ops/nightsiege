@@ -24,6 +24,10 @@ public class SiegeSave {
     public Map<String, Integer> perkFragments = new HashMap<>();
     /** Event already rolled for the next siege (an eclipse comes at noon), or null. */
     public String pendingEvent;
+    /** A night fragment set into the core: the next siege is a special night of its event. */
+    public String nightFragment;
+    /** The siege running (or the one just rolled) is a special night. */
+    public boolean specialNight;
     /** Clock day the trader caravan last came. */
     public long lastCaravanDay = -1000L;
     /** True once the free starter core has been handed out in this world. */

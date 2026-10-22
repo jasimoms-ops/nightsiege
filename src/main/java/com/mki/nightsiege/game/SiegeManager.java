@@ -6,6 +6,7 @@ import com.mki.nightsiege.NightSiegeMod;
 import com.mki.nightsiege.core.AnchorPicker;
 import com.mki.nightsiege.core.EventPicker;
 import com.mki.nightsiege.core.MobPool;
+import com.mki.nightsiege.core.NightFragment;
 import com.mki.nightsiege.core.SkillEffect;
 import com.mki.nightsiege.core.PlayerSkills;
 import com.mki.nightsiege.core.TrapKind;
@@ -26,6 +27,9 @@ import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerBossEvent;
@@ -51,6 +55,7 @@ import java.util.Iterator;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
+import java.util.Locale;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
@@ -322,6 +327,10 @@ public final class SiegeManager {
         reload();
         NightSiegeMod.LOGGER.info("[Night Siege] {} Cores bekannt, {} Belagerungen bestanden",
                 save.cores == null ? 0 : save.cores.size(), save.siegesWon);
+        // CI only: where the cores of real dungeons would stand.
+        if (System.getenv("NIGHTSIEGE_DUNGEON_PROBE") != null) {
+            dungeons.probe(server);
+        }
     }
 
     /** Reads config and saved state from disk. Also used by the reload command. */
@@ -418,7 +427,8 @@ public final class SiegeManager {
         long clock = server.overworld().getOverworldClockTime();
         SiegeEvent pending = pendingEvent();
         if (scheduler.armed() && pending == null) {
-            pending = EventPicker.pick(currentLevel(), random, config);
+            NightFragment fragment = NightFragment.byName(save.nightFragment);
+            pending = fragment != null ? fragment.event() : EventPicker.pick(currentLevel(), random, config);
             save.pendingEvent = pending.name();
             persist();
         }
@@ -430,6 +440,12 @@ public final class SiegeManager {
             if (target != null) {
                 broadcast(server, Component.translatable(eclipse ? "nightsiege.msg.eclipse_warning" : "nightsiege.msg.warning",
                         currentLevel()).withStyle(eclipse ? ChatFormatting.LIGHT_PURPLE : ChatFormatting.GOLD));
+                NightFragment fragment = NightFragment.byName(save.nightFragment);
+                if (fragment != null) {
+                    broadcast(server, Component.translatable("nightsiege.msg.special_warning",
+                            Component.translatable("nightsiege.event." + fragment.event().name().toLowerCase(Locale.ROOT)),
+                            config.specialNightXpMultiplier).withStyle(ChatFormatting.LIGHT_PURPLE));
+                }
                 Fx.warning(server, config);
                 if (eclipse) {
                     EventAtmosphere.setServer(target.anchor().dimension(), EventAtmosphere.ECLIPSE,
@@ -531,6 +547,17 @@ public final class SiegeManager {
         }
 
         currentEvent = forcedEvent != null ? forcedEvent : pickEventNow(server);
+        save.specialNight = false;
+        NightFragment fragment = testRun ? null : NightFragment.byName(save.nightFragment);
+        if (fragment != null) {
+            int time = (int) Math.floorMod(server.overworld().getOverworldClockTime(), 24000L);
+            // A shadow fragment waits for a siege by day: an eclipse needs the sun.
+            if (fragment.event() != SiegeEvent.ECLIPSE || time < 12000) {
+                currentEvent = fragment.event();
+                save.specialNight = true;
+                save.nightFragment = null;
+            }
+        }
         themeMobId = null;
         eliteId = null;
         elitePenaltyApplied = false;
@@ -625,7 +652,15 @@ public final class SiegeManager {
     }
 
     private Component bossBarTitle() {
+        if (save.specialNight) {
+            return Component.translatable("nightsiege.bar.title_special", siegeLevel, secondsLeft());
+        }
         return Component.translatable("nightsiege.bar.title", siegeLevel, secondsLeft());
+    }
+
+    /** Experience is worth more in a special night. */
+    private int nightPoints(int amount) {
+        return save.specialNight ? amount * config.specialNightXpMultiplier : amount;
     }
 
     private void tickSiege(MinecraftServer server) {
@@ -701,7 +736,7 @@ public final class SiegeManager {
 
     private void spawnBatch(MinecraftServer server) {
         int wanted = (int) Math.round(SiegeMath.mobsPerBatch(siegeLevel, participants.size(), config)
-                * currentEvent.mobCountMultiplier(config));
+                * currentEvent.mobCountMultiplier(config) * (save.specialNight ? config.specialNightMobMultiplier : 1.0));
         int room = config.maxLiveMobs - liveMobs.size();
         int count = Math.min(wanted, Math.max(0, room));
         if (count > 0) {
@@ -838,6 +873,10 @@ public final class SiegeManager {
             if (config.dungeonsEnabled) {
                 rewardDungeonMaps(server);
             }
+            if (save.specialNight && world != null && anchor != null) {
+                SpecialNight.lootChest(world, anchor, random);
+                broadcast(server, Component.translatable("nightsiege.msg.special_loot").withStyle(ChatFormatting.LIGHT_PURPLE));
+            }
             int next = SiegeMath.level(save.siegesWon, lastKnownDay, config);
             broadcast(server, Component.translatable("nightsiege.msg.won", next)
                     .withStyle(ChatFormatting.GREEN));
@@ -855,6 +894,7 @@ public final class SiegeManager {
                     .withStyle(ChatFormatting.DARK_RED));
         }
 
+        save.specialNight = false;
         scheduler.markSiegeFinished(random, config);
         syncSchedulerToSave();
         persist();
@@ -920,7 +960,7 @@ public final class SiegeManager {
         if (!config.skillsEnabled || config.skillPointsPerSiege <= 0) {
             return;
         }
-        int amount = config.skillPointsPerSiege + siegeLevel / Math.max(1, config.skillPointsLevelStep);
+        int amount = nightPoints(config.skillPointsPerSiege + siegeLevel / Math.max(1, config.skillPointsLevelStep));
         // Everyone who was still standing earns it for themselves.
         for (UUID id : participants) {
             if (fallen.contains(id)) {
@@ -1178,12 +1218,59 @@ public final class SiegeManager {
         if (!ModContent.isCore(serverLevel.getBlockState(pos))) {
             return InteractionResult.PASS;
         }
+        if (insertNightFragment(player, held, pos)) {
+            persist();
+            return InteractionResult.SUCCESS;
+        }
         if (perks.insert(player, held, pos)) {
             persist();
             return InteractionResult.SUCCESS;
         }
         openCoreWindow(player);
         return InteractionResult.SUCCESS;
+    }
+
+    /**
+     * A night fragment in hand on the main core: the next siege becomes a special
+     * night of its event. One at a time; returns true when the click is handled.
+     */
+    private boolean insertNightFragment(ServerPlayer player, ItemStack held, BlockPos pos) {
+        NightFragment kind = held.isEmpty() ? null : DungeonContent.nightFragmentKind(held.getItem());
+        if (kind == null) {
+            return false;
+        }
+        NightFragment set = NightFragment.byName(save.nightFragment);
+        if (active) {
+            player.connection.send(new net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket(
+                    Component.translatable("nightsiege.fragment.busy").withStyle(ChatFormatting.YELLOW)));
+            return true;
+        }
+        if (set != null) {
+            player.connection.send(new net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket(
+                    Component.translatable("nightsiege.fragment.already",
+                            Component.translatable("item.nightsiege.night_fragment_" + set.id())).withStyle(ChatFormatting.YELLOW)));
+            return true;
+        }
+        save.nightFragment = kind.name();
+        // An event already rolled for the coming siege gives way to the fragment.
+        if (save.pendingEvent != null) {
+            save.pendingEvent = kind.event().name();
+        }
+        if (!player.getAbilities().instabuild) {
+            held.shrink(1);
+        }
+        ServerLevel level = player.level();
+        level.sendParticles(ParticleTypes.END_ROD, pos.getX() + 0.5, pos.getY() + 1.2, pos.getZ() + 0.5, 40, 0.4, 0.6, 0.4, 0.08);
+        level.sendParticles(ParticleTypes.ENCHANT, pos.getX() + 0.5, pos.getY() + 1.2, pos.getZ() + 0.5, 40, 0.5, 0.5, 0.5, 0.8);
+        level.playSound(null, pos, SoundEvents.BEACON_POWER_SELECT, SoundSource.BLOCKS, 1.0f, 0.7f);
+        Component text = Component.translatable("nightsiege.fragment.set", player.getDisplayName(),
+                Component.translatable("item.nightsiege.night_fragment_" + kind.id()),
+                Component.translatable("nightsiege.event." + kind.event().name().toLowerCase(Locale.ROOT)))
+                .withStyle(ChatFormatting.LIGHT_PURPLE);
+        for (ServerPlayer p : level.getServer().getPlayerList().getPlayers()) {
+            p.sendSystemMessage(text);
+        }
+        return true;
     }
 
     /** Disconnects players whose client does not have the mod. */
@@ -1252,7 +1339,7 @@ public final class SiegeManager {
         if (pool >= per) {
             int points = (int) (pool / per);
             tankPool.put(player.getUUID(), pool - points * per);
-            save.skillsOf(player.getUUID().toString()).award(perks.experience(player, points * config.skillPointsPerKill));
+            save.skillsOf(player.getUUID().toString()).award(nightPoints(perks.experience(player, points * config.skillPointsPerKill)));
         }
     }
 
@@ -1277,9 +1364,9 @@ public final class SiegeManager {
             save.totalChampionKills++;
         }
         if (config.skillsEnabled && config.skillPointsPerKill > 0) {
-            save.skillsOf(player.getUUID().toString()).award(perks.experience(player, champion
+            save.skillsOf(player.getUUID().toString()).award(nightPoints(perks.experience(player, champion
                     ? config.skillPointsPerKill * config.championPointMultiplier
-                    : config.skillPointsPerKill));
+                    : config.skillPointsPerKill)));
         }
     }
 
