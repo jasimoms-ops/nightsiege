@@ -1,0 +1,61 @@
+name: ref
+
+# Loads reference pictures of another mod (only to look at, never shipped) into the ref-cotl branch.
+on: workflow_dispatch
+
+permissions:
+  contents: write
+
+jobs:
+  ref:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Referenzbilder laden
+        run: |
+          mkdir -p out && cd out
+          python3 - <<'PY'
+          import json, urllib.request, urllib.parse, zipfile, io, os
+          def get(url):
+              req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 nightsiege-ref"})
+              return urllib.request.urlopen(req, timeout=90).read()
+          log = []
+          try:
+              res = json.loads(get("https://api.modrinth.com/v2/search?" + urllib.parse.urlencode(
+                  {"query": "clothing of the lowlands", "limit": 8})))
+              for h in res["hits"]:
+                  log.append("hit %s | %s" % (h["slug"], h["title"]))
+              hit = [h for h in res["hits"] if "lowland" in h["title"].lower()]
+              if hit:
+                  slug = hit[0]["slug"]
+                  proj = json.loads(get("https://api.modrinth.com/v2/project/" + slug))
+                  log.append("desc: " + proj.get("description", ""))
+                  open("body.md", "w").write(proj.get("body", ""))
+                  for i, g in enumerate(proj.get("gallery", [])):
+                      ext = g["url"].rsplit(".", 1)[-1][:4]
+                      open("gallery_%02d.%s" % (i, ext), "wb").write(get(g["url"]))
+                      log.append("gallery %d %s" % (i, g.get("title")))
+                  vers = json.loads(get("https://api.modrinth.com/v2/project/%s/version" % slug))
+                  f = [x for x in vers[0]["files"] if x.get("primary")] or vers[0]["files"]
+                  z = zipfile.ZipFile(io.BytesIO(get(f[0]["url"])))
+                  os.makedirs("jar", exist_ok=True)
+                  names = z.namelist()
+                  open("jar_files.txt", "w").write("\n".join(names))
+                  for n in names:
+                      if n.endswith(".png") and "/textures/" in n and "/gui/" not in n:
+                          open("jar/" + n.replace("/", "__"), "wb").write(z.read(n))
+                  log.append("jar %s (%s) files %d" % (f[0]["filename"], vers[0]["version_number"], len(names)))
+          except Exception as e:
+              log.append("modrinth error %r" % e)
+          open("log.txt", "w").write("\n".join(log) + "\n")
+          print("\n".join(log))
+          PY
+      - name: In den ref-cotl-Branch legen
+        run: |
+          cd out
+          git init -q
+          git config user.name ci
+          git config user.email ci@users.noreply.github.com
+          git checkout -q -b ref-cotl
+          git add .
+          git commit -qm "reference pictures"
+          git push -q "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" ref-cotl
