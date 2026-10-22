@@ -936,7 +936,8 @@ public final class GuardianEffects {
         Vec3 c = zone.center();
         switch (zone.kind()) {
             case DOME -> {
-                for (int i = 0; i < 14; i++) {
+                ring(level, c.add(0, 0.15, 0), zone.radius(), ParticleTypes.END_ROD, 20);
+                for (int i = 0; i < 30; i++) {
                     double yaw = random.nextDouble() * Math.PI * 2;
                     double pitch = random.nextDouble() * Math.PI * 0.5;
                     double x = Math.cos(yaw) * Math.cos(pitch) * zone.radius();
@@ -1047,9 +1048,13 @@ public final class GuardianEffects {
     }
 
     private static void trail(ServerLevel level, Vec3 from, Vec3 to, ParticleOptions particle, int steps) {
-        for (int i = 0; i <= steps; i++) {
-            Vec3 p = from.lerp(to, i / (double) steps);
-            level.sendParticles(particle, p.x, p.y, p.z, 1, 0.02, 0.02, 0.02, 0.0);
+        int n = Math.max(steps, (int) (from.distanceTo(to) * 3));
+        for (int i = 0; i <= n; i++) {
+            Vec3 p = from.lerp(to, i / (double) n);
+            level.sendParticles(particle, p.x, p.y, p.z, 2, 0.04, 0.04, 0.04, 0.0);
+            if (i % 2 == 0) {
+                level.sendParticles(ParticleTypes.CRIT, p.x, p.y, p.z, 1, 0.02, 0.02, 0.02, 0.0);
+            }
         }
     }
 

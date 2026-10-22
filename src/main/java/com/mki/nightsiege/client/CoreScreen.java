@@ -102,6 +102,8 @@ public class CoreScreen extends Screen {
     private int treeRight;
     /** Grid trees (the warrior): one way is shown at a time, picked with two buttons. */
     private static String viewWay;
+    /** The way the player had taken when the window last looked; a change switches the view. */
+    private static String lastTaken = "";
     private boolean gridMode;
     private String shownWay = "";
     private final List<String> ways = new ArrayList<>();
@@ -409,6 +411,13 @@ public class CoreScreen extends Screen {
         String taken = own && stats.pathTaken != null ? stats.pathTaken : "";
         if (viewWay == null || !ways.contains(viewWay)) {
             viewWay = !taken.isBlank() && ways.contains(taken) ? taken : ways.isEmpty() ? "" : ways.get(0);
+        }
+        // A way newly taken (or taken anew after a reset) is shown at once.
+        if (own && !taken.equals(lastTaken)) {
+            if (!taken.isBlank() && ways.contains(taken)) {
+                viewWay = taken;
+            }
+            lastTaken = taken;
         }
         shownWay = viewWay;
         gridMaxRow = Math.max(1, maxRow);

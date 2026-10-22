@@ -255,7 +255,7 @@ public class EventLookTest implements FabricClientGameTest {
         context.getInput().lookAt(-90.0f, 4.0f);
         context.waitTicks(10);
         shieldAction(context);
-        context.waitTicks(5);
+        context.waitTicks(3);
         context.takeScreenshot("guardian_throw");
         context.waitTicks(20);
         onServer(context, (player, manager) -> manager.onCoreAction(player, "ult"));
