@@ -278,6 +278,8 @@ public class EventLookTest implements FabricClientGameTest {
                 "g_shieldthrow", "g_thorns", "g_boomerang", "g_laststand", "shield_charge", "g_debris");
         selectNode(context, "g_boomerang");
         context.takeScreenshot("ui_guardian_shield");
+        zoomTo(context, "GUARDIAN", -200.0, -60.0, 0.55);
+        context.takeScreenshot("ui_guardian_mid");
         zoomTo(context, "GUARDIAN", -230.0, -40.0, 1.0);
         context.takeScreenshot("ui_guardian_zoom");
         closeScreen(context);

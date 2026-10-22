@@ -317,9 +317,14 @@ public class CoreScreen extends Screen {
 
     /** Size of a node in tree units (one unit is one pixel at full zoom). */
     private static final int N_SLOT = 24;
-    /** Radius of the first ring of a way (its tier I), and the distance between rings. */
-    private static final double RING0 = 92;
-    private static final double RING = 54;
+    /** Radius of the first ring of a way, and the distance between rings. */
+    private static final double RING0 = 96;
+    private static final double RING = 40;
+    /** Half the angle of a way's fan; its seven columns split it evenly. */
+    private static final double FAN = Math.toRadians(45);
+    private static final double COL_STEP = FAN / 3;
+    /** Below this zoom the tree is drawn as a constellation of small stars. */
+    private static final double STAR_ZOOM = 0.42;
     private static final double MAX_ZOOM = 1.6;
     /** Width of the info panel: narrower on small screens. */
     private int PANEL_W = 156;
@@ -408,16 +413,25 @@ public class CoreScreen extends Screen {
     private double[] place(CoreStats.NodeLine n) {
         int col = n.col < 0 ? 3 : n.col;
         if (n.path == null || n.path.isBlank()) {
-            return new double[]{(col - 3) * 32.0, (n.row - 0.5) * 38.0};
+            return new double[]{(col - 3) * 20.0, (n.row - 0.5) * 38.0};
         }
-        int way = Math.max(0, ways.indexOf(n.path));
-        double r = RING0 + Math.max(0, n.row - 2) * RING;
-        double step = Math.min(0.40, 34.0 / r + 0.07);
-        double a = way == 0 ? Math.PI - (col - 3) * step : (col - 3) * step;
+        double r = ringRadius(n.row);
+        double a = angleOf(Math.max(0, ways.indexOf(n.path)), col);
         return new double[]{r * Math.cos(a), r * Math.sin(a)};
     }
 
-    private int ringRadius(int row) {
+    /** The angle of a column: way 0 fans out to the left, way 1 to the right; column 0 is on top. */
+    private static double angleOf(int way, int col) {
+        double a = (col - 3) * COL_STEP;
+        return way == 0 ? Math.PI - a : a;
+    }
+
+    private double angleOf(GridNode g) {
+        CoreStats.NodeLine n = g.node();
+        return angleOf(Math.max(0, ways.indexOf(n.path)), n.col < 0 ? 3 : n.col);
+    }
+
+    private static int ringRadius(int row) {
         return (int) Math.round(RING0 + Math.max(0, row - 2) * RING);
     }
 
@@ -495,9 +509,9 @@ public class CoreScreen extends Screen {
         if (gridNodes.isEmpty()) {
             minX = maxX = minY = maxY = 0;
         }
-        // Room for the way names beyond the last ring.
-        double spanX = maxX - minX + 2 * (N_SLOT + 70);
-        double spanY = maxY - minY + 2 * (N_SLOT + 24);
+        // A little room around the outer ring; the way names sit in the corners of the view.
+        double spanX = maxX - minX + 2 * (N_SLOT + 14);
+        double spanY = maxY - minY + 2 * (N_SLOT + 10);
         fitZoom = Math.min(viewW() / spanX, viewH() / spanY);
         shownClass = clazz;
         double[] view = VIEWS.get(clazz);
@@ -577,7 +591,7 @@ public class CoreScreen extends Screen {
             }
         }
         java.util.Set<String> next = new java.util.HashSet<>(java.util.List.of(id));
-        for (int depth = 0; depth < 2; depth++) {
+        for (int depth = 0; depth < 1; depth++) {
             java.util.Set<String> found = new java.util.HashSet<>();
             for (Edge edge : edges) {
                 for (GridNode parent : edge.parents()) {
@@ -624,6 +638,125 @@ public class CoreScreen extends Screen {
         gui.pose().popMatrix();
     }
 
+    /** The colour of a line: lit when met, dark when shut, faint when the eye is elsewhere. */
+    private int edgeColor(CoreStats.NodeLine child, boolean met, boolean closed, int rgb, boolean dimmed, boolean stars) {
+        int color = met ? 0xFF000000 | laneColor(child, rgb)
+                : closed ? 0xFF3A3442 : (stars ? 0x80000000 : 0xC0000000) | laneColor(child, 0xD8D0E6);
+        return dimmed ? dim(color) : color;
+    }
+
+    /**
+     * "One of these" whose parents sit side by side on one ring of the child's way: drawn as
+     * that piece of the ring plus one line to the child, instead of one line per parent.
+     */
+    private boolean isBus(Edge edge) {
+        if (edge.parents().size() < 2) {
+            return false;
+        }
+        CoreStats.NodeLine child = edge.child().node();
+        if (child.path == null || child.path.isBlank()) {
+            return false;
+        }
+        int row = edge.parents().get(0).node().row;
+        double lo = Double.MAX_VALUE;
+        double hi = -Double.MAX_VALUE;
+        for (GridNode p : edge.parents()) {
+            if (p.node().row != row || row < 2 || row >= child.row || !child.path.equals(p.node().path)) {
+                return false;
+            }
+            lo = Math.min(lo, angleOf(p));
+            hi = Math.max(hi, angleOf(p));
+        }
+        // No stranger may sit on the piece of ring between them.
+        for (GridNode g : gridNodes) {
+            CoreStats.NodeLine n = g.node();
+            if (n.row == row && child.path.equals(n.path) && !edge.parents().contains(g)) {
+                double a = angleOf(g);
+                if (a > lo && a < hi) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    private void drawBus(GuiGraphicsExtractor gui, Edge edge, double thick, int color) {
+        double r = ringRadius(edge.parents().get(0).node().row);
+        double lo = Double.MAX_VALUE;
+        double hi = -Double.MAX_VALUE;
+        for (GridNode p : edge.parents()) {
+            lo = Math.min(lo, angleOf(p));
+            hi = Math.max(hi, angleOf(p));
+        }
+        int steps = Math.max(1, (int) Math.ceil((hi - lo) * r / 10));
+        double lastX = r * Math.cos(lo);
+        double lastY = r * Math.sin(lo);
+        for (int i = 1; i <= steps; i++) {
+            double a = lo + (hi - lo) * i / steps;
+            double x = r * Math.cos(a);
+            double y = r * Math.sin(a);
+            line(gui, lastX, lastY, x, y, thick, color);
+            lastX = x;
+            lastY = y;
+        }
+        double a = Math.max(lo, Math.min(hi, angleOf(edge.child())));
+        line(gui, r * Math.cos(a), r * Math.sin(a), edge.child().cx(), edge.child().cy(), thick, color);
+    }
+
+    /** A rectangle given by its centre and half sizes in tree units. */
+    private static void box(GuiGraphicsExtractor gui, double cx, double cy, double hw, double hh, int color) {
+        gui.fill((int) Math.round(cx - hw), (int) Math.round(cy - hh), (int) Math.round(cx + hw), (int) Math.round(cy + hh), color);
+    }
+
+    /** A node seen from far away: a small star, bright when learned, twinkling when it can be learned. */
+    private void drawStar(GuiGraphicsExtractor gui, GridNode g, double px, boolean big, boolean own, int lane,
+                          boolean faded, boolean aside, long pulse) {
+        CoreStats.NodeLine n = g.node();
+        double cx = g.cx();
+        double cy = g.cy();
+        boolean maxed = n.level >= n.maxLevel;
+        double arm = (big ? 3.5 : 2.5) * px;
+        int core;
+        int glow = 0;
+        if (maxed) {
+            core = 0xFFFFE08A;
+            glow = 0x55E8B84A;
+        } else if (n.level > 0) {
+            core = 0xFF000000 | lane;
+            glow = 0x48000000 | lane;
+        } else if (n.blocked == null && own) {
+            core = ((0xA0 + (int) (Math.abs(25 - pulse) * 3)) << 24) | 0xF4F0FA;
+            glow = 0x30FFFFFF;
+        } else if (isClosed(n)) {
+            core = 0xFF4A2A30;
+            arm = 1.5 * px;
+        } else {
+            core = 0xFF000000 | ((lane >> 1) & 0x7F7F7F);
+        }
+        if (faded || aside) {
+            core = (core & 0x00FFFFFF) | (faded ? 0x50000000 : 0x78000000);
+            glow = 0;
+        }
+        if (glow != 0) {
+            box(gui, cx, cy, arm + 1.5 * px, arm + 1.5 * px, glow);
+            box(gui, cx, cy, arm, arm, glow);
+        }
+        box(gui, cx, cy, arm + 0.5 * px, 0.5 * px, core);
+        box(gui, cx, cy, 0.5 * px, arm + 0.5 * px, core);
+        box(gui, cx, cy, 1.0 * px, 1.0 * px, core);
+        if (n.level > 0 && !faded) {
+            box(gui, cx, cy, 0.5 * px, 0.5 * px, 0xFFFFFFFF);
+        }
+        if (n.id.equals(selectedId)) {
+            double s = arm + 3 * px;
+            int c = 0xFFFFD86B;
+            box(gui, cx, cy - s, s, 0.5 * px, c);
+            box(gui, cx, cy + s, s, 0.5 * px, c);
+            box(gui, cx - s, cy, 0.5 * px, s, c);
+            box(gui, cx + s, cy, 0.5 * px, s, c);
+        }
+    }
+
     /** The class's own night scene behind the tree; it drifts a little with the view. */
     private void drawScene(GuiGraphicsExtractor gui, int vx, int vy, int vw, int vh) {
         Identifier scene = Identifier.fromNamespaceAndPath("nightsiege",
@@ -641,6 +774,7 @@ public class CoreScreen extends Screen {
         float u = (float) Math.max(0, Math.min(texW - regionW, (texW - regionW) / 2.0 + driftX * 0.5));
         float v = (float) Math.max(0, Math.min(texH - regionH, (texH - regionH) / 2.0 + driftY * 0.5));
         gui.blit(RenderPipelines.GUI_TEXTURED, scene, vx, vy, u, v, vw, vh, regionW, regionH, texW, texH);
+        gui.fill(vx, vy, vx + vw, vy + vh, 0x30000000);   // a touch darker, so the stars stand out
         // A soft dark edge so the tree stands out.
         for (int i = 0; i < 10; i++) {
             int a = (10 - i) * 6;
@@ -694,16 +828,17 @@ public class CoreScreen extends Screen {
         gui.pose().scale((float) zoom, (float) zoom);
         double px = 1.0 / zoom;   // one screen pixel in tree units
 
-        // Rings: one faint dotted arc per tier and way.
+        boolean stars = zoom < STAR_ZOOM;   // far out: the tree as a constellation
+
+        // Rings: one faint dotted arc per ring and way.
+        int dot = (int) Math.max(1, Math.round(px));
         for (int w = 0; w < ways.size(); w++) {
             boolean faded = !taken.isBlank() && !taken.equals(ways.get(w));
             for (int row = 2; row <= gridMaxRow; row++) {
                 double r = ringRadius(row);
-                double step = Math.min(0.40, 34.0 / r + 0.07);
-                double span = 3.6 * step;
-                int dots = Math.max(8, (int) (r * span * 2 / 14));
-                int color = row == 8 ? 0x60FFD86B : faded ? 0x18FFFFFF : 0x30FFFFFF;
-                int dot = (int) Math.max(2, Math.round(1.5 * px));
+                double span = FAN + 0.07;
+                int dots = Math.max(8, (int) (r * span * 2 / 12));
+                int color = row == 8 ? 0x48FFD86B : faded ? 0x12FFFFFF : 0x24FFFFFF;
                 for (int i = 0; i <= dots; i++) {
                     double a = -span + 2 * span * i / dots + (w == 0 ? Math.PI : 0);
                     int x = (int) Math.round(r * Math.cos(a));
@@ -713,23 +848,36 @@ public class CoreScreen extends Screen {
             }
         }
 
-        // Lines: dark outline first, then colour; the focused route in gold.
-        double thin = Math.max(2.0, 1.4 * px);
-        for (int pass = 0; pass < 2; pass++) {
+        // Lines: dark outline first (only close up), then colour; the focused route in gold.
+        // "One of these" between neighbours on a ring is drawn as a piece of that ring.
+        double thin = stars ? px : Math.max(2.0, 1.4 * px);
+        for (int pass = stars ? 1 : 0; pass < 2; pass++) {
             for (Edge edge : edges) {
                 CoreStats.NodeLine child = edge.child().node();
                 boolean closed = isClosed(child);
                 boolean faded = !taken.isBlank() && child.path != null && !child.path.isBlank()
                         && !taken.equals(child.path);
+                if (isBus(edge)) {
+                    boolean met = false;
+                    boolean onRoute = false;
+                    for (int i = 0; i < edge.parents().size(); i++) {
+                        met |= satisfied(edge, i);
+                        onRoute |= focusing && focus.contains(child.id) && focus.contains(edge.parents().get(i).node().id);
+                    }
+                    int color = edgeColor(child, met, closed, rgb, (focusing && !onRoute) || faded, stars);
+                    if (pass == 0) {
+                        if (!faded) {
+                            drawBus(gui, edge, thin + 2 * px, 0x90000000);
+                        }
+                    } else {
+                        drawBus(gui, edge, onRoute ? thin + px : thin, onRoute ? 0xFFFFD86B : color);
+                    }
+                    continue;
+                }
                 for (int i = 0; i < edge.parents().size(); i++) {
                     GridNode p = edge.parents().get(i);
-                    boolean met = satisfied(edge, i);
                     boolean onRoute = focusing && focus.contains(child.id) && focus.contains(p.node().id);
-                    int lane = laneColor(child, 0xD8D0E6);
-                    int color = met ? 0xFF000000 | laneColor(child, rgb) : closed ? 0xFF3A3442 : 0xC0000000 | lane;
-                    if ((focusing && !onRoute) || faded) {
-                        color = dim(color);
-                    }
+                    int color = edgeColor(child, satisfied(edge, i), closed, rgb, (focusing && !onRoute) || faded, stars);
                     if (pass == 0) {
                         if (!faded) {
                             line(gui, p.cx(), p.cy(), edge.child().cx(), edge.child().cy(), thin + 2 * px, 0x90000000);
@@ -756,6 +904,10 @@ public class CoreScreen extends Screen {
                     && n.id.equals(laneRoot(n.lane)));
             boolean faded = !taken.isBlank() && n.path != null && !n.path.isBlank() && !taken.equals(n.path);
             int lane = laneColor(n, rgb);
+            if (stars) {
+                drawStar(gui, g, px, big, own, lane, faded, focusing && !focus.contains(n.id), pulse);
+                continue;
+            }
             // A soft glow in the subclass colour behind lane nodes.
             if (n.lane != null && !n.lane.isBlank() && !faded) {
                 gui.fill(x - 4, y - 4, x + N_SLOT + 4, y + N_SLOT + 4, 0x28000000 | lane);
@@ -821,48 +973,38 @@ public class CoreScreen extends Screen {
         gui.pose().popMatrix();
 
         // Labels in screen size, so they stay readable at any zoom.
+        double midR = (ringRadius(2) + ringRadius(gridMaxRow)) / 2.0;
         for (int w = 0; w < ways.size(); w++) {
             String way = ways.get(w);
             boolean faded = !taken.isBlank() && !taken.equals(way);
-            int r = ringRadius(gridMaxRow) + N_SLOT + 10;
-            double wx = w == 0 ? -r : r;
+            // The way's name in its top corner of the view: left way left, right way right.
             String name = Component.translatable("nightsiege.path." + way).getString().toUpperCase(Locale.ROOT);
-            int sx = (int) screenX(wx);
-            int sy = (int) screenY(0) - 4;
-            int tw = font.width(name);
             int color = faded ? 0xFF6A6474 : 0xFF000000 | rgb;
-            gui.pose().pushMatrix();
-            gui.pose().translate(w == 0 ? sx - tw * 1.5f : sx, sy);
-            gui.pose().scale(1.5f, 1.5f);
-            gui.text(font, name, 0, 0, color, true);
-            gui.pose().popMatrix();
+            int nx = w == 0 ? vx + 6 : vx + vw - 6 - font.width(name);
+            gui.fill(nx - 3, vy + 3, nx + font.width(name) + 3, vy + 15, 0x70000000);
+            gui.text(font, name, nx, vy + 5, color, true);
             if (way.equals(taken)) {
                 String mine = Component.translatable("nightsiege.ui.your_way").getString();
-                gui.text(font, mine, w == 0 ? sx - font.width(mine) : sx, sy + 14, 0xFFFFD86B, true);
+                gui.text(font, mine, w == 0 ? vx + 6 : vx + vw - 6 - font.width(mine), vy + 17, 0xFFFFD86B, true);
             }
-            // The subclasses beside their first node.
+            // The subclasses just outside the fan: the upper one above it, the lower one below it.
             String[] lanes = LANES.get(way);
-            if (lanes != null && zoom >= fitZoom * 0.95) {
-                for (int i = 0; i < 2; i++) {
-                    GridNode root = gridOf(laneRoot(lanes[i]));
-                    if (root == null) {
-                        continue;
-                    }
-                    String label = Component.translatable("nightsiege.subclass." + lanes[i]).getString();
-                    int lx = (int) screenX(root.cx()) - font.width(label) / 2;
-                    int ly = (int) (i == 0 ? screenY(root.cy() - h) - 12 : screenY(root.cy() + h) + 6);
-                    int lc = faded ? 0xFF6A6474 : 0xFF000000 | LANE_COLORS.getOrDefault(lanes[i], rgb);
-                    gui.text(font, label, lx, ly, lc, true);
-                }
+            if (lanes == null) {
+                continue;
             }
-        }
-        // Tier numbers at the top of each ring, between the two ways.
-        for (int row = 2; row <= gridMaxRow; row++) {
-            String label = row == 8 ? "Ult" : roman(row < 8 ? row - 1 : row - 2);
-            int sx = (int) screenX(0);
-            int sy = (int) screenY(-ringRadius(row));
-            if (sy > vy + 2 && sy < vy + vh - 8) {
-                gui.text(font, label, sx - font.width(label) / 2, sy - 4, row == 8 ? 0xFFFFD86B : 0xC0D8CFB8, true);
+            for (int i = 0; i < 2; i++) {
+                double a = angleOf(w, i == 0 ? 0 : 6) + (i == 0 ? -1 : 1) * (w == 0 ? -1 : 1) * Math.toRadians(11);
+                int cx = (int) screenX(midR * Math.cos(a));
+                int cy = (int) screenY(midR * Math.sin(a)) - 4;
+                String label = Component.translatable("nightsiege.subclass." + lanes[i]).getString();
+                int lw = font.width(label);
+                int axis = (int) screenX(0);
+                int lx = w == 0 ? Math.min(cx - lw / 2, axis - 6 - lw) : Math.max(cx - lw / 2, axis + 6);
+                if (cy < vy + 2 || cy > vy + vh - 10 || lx + lw < vx || lx > vx + vw) {
+                    continue;
+                }
+                int lc = faded ? 0xFF6A6474 : 0xFF000000 | LANE_COLORS.getOrDefault(lanes[i], rgb);
+                gui.text(font, label, lx, cy, lc, true);
             }
         }
         gui.disableScissor();
@@ -879,6 +1021,12 @@ public class CoreScreen extends Screen {
             }
         }
         return "";
+    }
+
+    /** "Ring III · Talent": which ring of its way a node sits on (the trunk has no ring). */
+    private static String ringName(int row) {
+        String kind = Component.translatable("nightsiege.ui.tier." + row).getString();
+        return row < 2 ? kind : Component.translatable("nightsiege.ui.ring", roman(row - 1), kind).getString();
     }
 
     private static String roman(int n) {
@@ -952,6 +1100,7 @@ public class CoreScreen extends Screen {
         }
         y += Math.max(22, title.size() * 10 + 4);
         List<String> lines = new ArrayList<>();
+        lines.add("§8" + ringName(n.row));
         String sub = Component.translatable("nightsiege.subclass_node." + n.id).getString();
         if (!sub.equals("nightsiege.subclass_node." + n.id)) {
             lines.add("§6" + sub);
