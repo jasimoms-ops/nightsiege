@@ -114,13 +114,13 @@ public class NightSiegeClient implements ClientModInitializer {
         // Event clothes: hoods and rags over zombies and skeletons on some nights.
         net.fabricmc.fabric.api.client.rendering.v1.LivingEntityRenderLayerRegistrationCallback.EVENT.register(
                 (type, renderer, helper, context) -> {
-                    if (type == net.minecraft.world.entity.EntityType.ZOMBIE
+                    if (type == net.minecraft.world.entity.EntityTypes.ZOMBIE
                             && renderer instanceof net.minecraft.client.renderer.entity.ZombieRenderer zombie) {
                         net.minecraft.client.model.monster.zombie.DrownedModel clothes =
                                 new net.minecraft.client.model.monster.zombie.DrownedModel(context.bakeLayer(
                                         net.minecraft.client.model.geom.ModelLayers.DROWNED_OUTER_LAYER));
                         helper.register(new EventClothingLayer<>(zombie, clothes, "zombie", state -> !state.isBaby));
-                    } else if (type == net.minecraft.world.entity.EntityType.SKELETON
+                    } else if (type == net.minecraft.world.entity.EntityTypes.SKELETON
                             && renderer instanceof net.minecraft.client.renderer.entity.SkeletonRenderer skeleton) {
                         net.minecraft.client.model.monster.skeleton.SkeletonModel<net.minecraft.client.renderer.entity.state.SkeletonRenderState> clothes =
                                 new net.minecraft.client.model.monster.skeleton.SkeletonModel<>(context.bakeLayer(
