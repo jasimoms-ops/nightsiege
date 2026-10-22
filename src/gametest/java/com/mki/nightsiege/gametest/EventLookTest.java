@@ -278,6 +278,10 @@ public class EventLookTest implements FabricClientGameTest {
         showTab(context, "CORE");
         context.takeScreenshot("ui_core_base_closed");
         closeScreen(context);
+        // The siege bar with the kill goal.
+        context.runOnClient(client -> client.gui.getChat().clearMessages(false));
+        context.waitTicks(25);
+        context.takeScreenshot("siege_bar_kills");
         onServer(context, (player, manager) -> {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
             com.mki.nightsiege.game.BaseScan scan = com.mki.nightsiege.game.BaseDefense.scanFor(level, core, manager.config());
