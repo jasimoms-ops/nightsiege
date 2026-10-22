@@ -2022,15 +2022,29 @@ public class CoreScreen extends Screen {
         tooltip(gui, font, lines, mouseX, mouseY);
     }
 
-    private void tooltip(GuiGraphicsExtractor gui, Font font, List<String> lines, int mouseX, int mouseY) {
+    private void tooltip(GuiGraphicsExtractor gui, Font font, List<String> raw, int mouseX, int mouseY) {
+        // Long lines are wrapped, so the box always fits on the screen; a colour code carries over.
+        int maxW = Math.max(120, Math.min(230, this.width - 24));
+        List<String> lines = new ArrayList<>();
+        for (int i = 0; i < raw.size(); i++) {
+            String line = raw.get(i);
+            String code = line.length() >= 2 && line.charAt(0) == '\u00a7' ? line.substring(0, 2) : "";
+            List<String> parts = wrap(font, code.isEmpty() ? line : line.substring(2), maxW);
+            for (int j = 0; j < parts.size(); j++) {
+                lines.add(code + parts.get(j));
+            }
+            if (i == 0 && parts.size() > 1) {
+                firstLines = parts.size();
+            }
+        }
         int width = 0;
         for (String line : lines) {
             width = Math.max(width, font.width(line));
         }
         int boxW = width + 10;
         int boxH = lines.size() * 11 + 6;
-        int boxX = Math.min(mouseX + 10, this.width - boxW - 2);
-        int boxY = Math.min(mouseY + 8, this.height - boxH - 2);
+        int boxX = Math.max(2, Math.min(mouseX + 10, this.width - boxW - 2));
+        int boxY = Math.max(2, Math.min(mouseY + 8, this.height - boxH - 2));
         int x2 = boxX + boxW;
         int y2 = boxY + boxH;
         gui.fill(boxX + 1, boxY, x2 - 1, y2, BG);
@@ -2041,10 +2055,14 @@ public class CoreScreen extends Screen {
         gui.fill(x2 - 2, boxY + 2, x2 - 1, y2 - 2, EDGE_TOP);
         int y = boxY + 4;
         for (int i = 0; i < lines.size(); i++) {
-            gui.text(font, lines.get(i), boxX + 5, y, i == 0 ? WHITE : GRAY, false);
+            gui.text(font, lines.get(i), boxX + 5, y, i < firstLines ? WHITE : GRAY, false);
             y += 11;
         }
+        firstLines = 1;
     }
+
+    /** How many lines the title of the current tooltip took after wrapping. */
+    private int firstLines = 1;
 
 
     private static String fmt(double value) {
