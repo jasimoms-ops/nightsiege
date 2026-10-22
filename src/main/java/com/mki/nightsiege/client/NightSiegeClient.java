@@ -111,6 +111,23 @@ public class NightSiegeClient implements ClientModInitializer {
             lines.add(Component.translatable("nightsiege.tooltip.class_item", names).withStyle(ChatFormatting.GOLD));
             lines.add(Component.translatable("nightsiege.tooltip.class_item_hint").withStyle(ChatFormatting.GRAY));
         });
+        // Event clothes: hoods and rags over zombies and skeletons on some nights.
+        net.fabricmc.fabric.api.client.rendering.v1.LivingEntityRenderLayerRegistrationCallback.EVENT.register(
+                (type, renderer, helper, context) -> {
+                    if (type == net.minecraft.world.entity.EntityType.ZOMBIE
+                            && renderer instanceof net.minecraft.client.renderer.entity.ZombieRenderer zombie) {
+                        net.minecraft.client.model.monster.zombie.DrownedModel clothes =
+                                new net.minecraft.client.model.monster.zombie.DrownedModel(context.bakeLayer(
+                                        net.minecraft.client.model.geom.ModelLayers.DROWNED_OUTER_LAYER));
+                        helper.register(new EventClothingLayer<>(zombie, clothes, "zombie", state -> !state.isBaby));
+                    } else if (type == net.minecraft.world.entity.EntityType.SKELETON
+                            && renderer instanceof net.minecraft.client.renderer.entity.SkeletonRenderer skeleton) {
+                        net.minecraft.client.model.monster.skeleton.SkeletonModel<net.minecraft.client.renderer.entity.state.SkeletonRenderState> clothes =
+                                new net.minecraft.client.model.monster.skeleton.SkeletonModel<>(context.bakeLayer(
+                                        net.minecraft.client.model.geom.ModelLayers.STRAY_OUTER_LAYER));
+                        helper.register(new EventClothingLayer<>(skeleton, clothes, "skeleton", state -> true));
+                    }
+                });
         // Guardian: a left click while blocking is the shield action. Minecraft drops
         // attack clicks while an item is in use, so they are taken here first.
         ClientTickEvents.START_CLIENT_TICK.register(client -> {

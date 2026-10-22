@@ -41,6 +41,19 @@ public final class EventTextures {
     private EventTextures() {
     }
 
+    /** Events whose zombies and skeletons also wear a layer of clothes. */
+    private static final java.util.Set<String> CLOTHED = java.util.Set.of(EventAtmosphere.BLOOD_MOON);
+
+    /** The clothes of a mob ("zombie", "skeleton") in the event shown now, or null. */
+    public static Identifier clothing(String mob) {
+        EventAtmosphere.State state = EventAtmosphere.client();
+        if (state.strength() < 0.5f || !CLOTHED.contains(state.shown())) {
+            return null;
+        }
+        return Identifier.fromNamespaceAndPath("nightsiege", "textures/entity/event/"
+                + state.shown().toLowerCase(java.util.Locale.ROOT) + "/" + mob + "_outer.png");
+    }
+
     public static Identifier swap(Identifier texture) {
         EventAtmosphere.State state = EventAtmosphere.client();
         if (state.strength() < 0.5f) {

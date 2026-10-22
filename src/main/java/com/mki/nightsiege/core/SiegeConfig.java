@@ -144,8 +144,8 @@ public class SiegeConfig {
     // --- sound and visuals -------------------------------------------------
     public boolean soundsEnabled = true;
     public boolean particlesEnabled = true;
-    /** Colour the attackers' glow red on a blood moon night. */
-    public boolean bloodMoonGlow = true;
+    /** Colour the attackers' glow red on a blood moon night (off since their own look came in). */
+    public boolean bloodMoonGlow = false;
     /** How many mobs of one batch make a spawn sound. The rest spawn quietly. */
     public int audibleSpawnsPerBatch = 3;
 
@@ -313,6 +313,10 @@ public class SiegeConfig {
         if (settingsVersion < 1) {
             dungeonsEnabled = false;
             settingsVersion = 1;
+        }
+        if (settingsVersion < 2) {
+            bloodMoonGlow = false;   // the blood moon mobs have their own look now
+            settingsVersion = 2;
         }
 
         toolEquipChance = clampDouble(toolEquipChance, 0.0, 1.0);
