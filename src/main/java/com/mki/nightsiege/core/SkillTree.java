@@ -35,17 +35,25 @@ public final class SkillTree {
     public static final String SUB_BULWARK = "bulwark";
     public static final String SUB_MEDIC = "medic";
     public static final String SUB_WARDEN = "warden";
-    // Engineer
-    public static final String PATH_DEMOLITION = "demolition";
-    public static final String PATH_GUNNER = "gunner";
-    public static final String PATH_ALCHEMIST = "alchemist";
-    public static final String PATH_ELECTRICIAN = "electrician";
+    // Engineer: two ways, each with two subclasses
+    public static final String WAY_MECHANICS = "mech";
+    public static final String WAY_CHEMISTRY = "chem";
+    public static final String SUB_GUNNER = "gunner";
+    public static final String SUB_ELECTRICIAN = "electrician";
+    public static final String SUB_DEMOLITION = "demolition";
+    public static final String SUB_ALCHEMIST = "alchemist";
 
     /** Nodes that push one trap above its own three tiers. */
     private static final Map<TrapKind, String> TRAP_BOOSTS = Map.of(
             TrapKind.TURRET, "turret_tuning",
             TrapKind.POISON, "toxic_brew",
             TrapKind.TESLA, "capacitor");
+    /** Cross talents that lend a trap of the other way at tier 2. */
+    private static final Map<TrapKind, String> CROSS_TRAPS = Map.of(
+            TrapKind.MINE, "m_cross_mine",
+            TrapKind.POISON, "m_cross_poison",
+            TrapKind.TURRET, "c_cross_turret",
+            TrapKind.TESLA, "c_cross_tesla");
 
     private final Map<String, SkillNode> nodes = new LinkedHashMap<>();
 
@@ -82,26 +90,8 @@ public final class SkillTree {
         guardian(list);
 
         // ---------------- Engineer ----------------
-        // Trunk: the two basic traps everyone builds; then one speciality.
-        int t = TrapKind.NODE_LEVELS;
-        add(list, TrapKind.SPIKE.id(), SkillClass.ENGINEER, "", SkillEffect.TRAP, t, 3, 2, 1.0, null, 0, "nightsiege:spike_trap", 0);
-        add(list, TrapKind.SNARE.id(), SkillClass.ENGINEER, "", SkillEffect.TRAP, t, 5, 3, 1.0, TrapKind.SPIKE.id(), 2, "nightsiege:snare_trap", 1);
-        // Demolition: mine, flames, bombardment.
-        add(list, TrapKind.MINE.id(), SkillClass.ENGINEER, PATH_DEMOLITION, SkillEffect.TRAP, t, 8, 4, 1.0, TrapKind.SNARE.id(), 2, "nightsiege:blast_mine", 2);
-        add(list, TrapKind.FLAME.id(), SkillClass.ENGINEER, PATH_DEMOLITION, SkillEffect.TRAP, t, 12, 6, 1.0, TrapKind.MINE.id(), 2, "nightsiege:flame_trap", 3);
-        add(list, "bombardment", SkillClass.ENGINEER, PATH_DEMOLITION, SkillEffect.BOMBARDMENT, 3, 25, 10, 1.0, TrapKind.FLAME.id(), 2, "minecraft:tnt", 4);
-        // Gunner: the arrow turret, tuned, then overcharged.
-        add(list, TrapKind.TURRET.id(), SkillClass.ENGINEER, PATH_GUNNER, SkillEffect.TRAP, t, 8, 4, 1.0, TrapKind.SNARE.id(), 2, "nightsiege:arrow_turret", 2);
-        add(list, "turret_tuning", SkillClass.ENGINEER, PATH_GUNNER, SkillEffect.TRAP_BOOST, 2, 15, 10, 1.0, TrapKind.TURRET.id(), 3, "minecraft:redstone", 3);
-        add(list, "overcharge", SkillClass.ENGINEER, PATH_GUNNER, SkillEffect.OVERCHARGE, 3, 25, 10, 1.0, "turret_tuning", 1, "minecraft:redstone_block", 4);
-        // Alchemist: poison trap, stronger brew, a cloud at will.
-        add(list, TrapKind.POISON.id(), SkillClass.ENGINEER, PATH_ALCHEMIST, SkillEffect.TRAP, t, 8, 4, 1.0, TrapKind.SNARE.id(), 2, "nightsiege:poison_trap", 2);
-        add(list, "toxic_brew", SkillClass.ENGINEER, PATH_ALCHEMIST, SkillEffect.TRAP_BOOST, 2, 15, 10, 1.0, TrapKind.POISON.id(), 3, "minecraft:fermented_spider_eye", 3);
-        add(list, "toxic_cloud", SkillClass.ENGINEER, PATH_ALCHEMIST, SkillEffect.TOXIC_CLOUD, 3, 25, 10, 1.0, "toxic_brew", 1, "minecraft:lingering_potion", 4);
-        // Electrician: tesla coil, capacitors, a storm.
-        add(list, TrapKind.TESLA.id(), SkillClass.ENGINEER, PATH_ELECTRICIAN, SkillEffect.TRAP, t, 10, 5, 1.0, TrapKind.SNARE.id(), 2, "nightsiege:tesla_coil", 2);
-        add(list, "capacitor", SkillClass.ENGINEER, PATH_ELECTRICIAN, SkillEffect.TRAP_BOOST, 2, 15, 10, 1.0, TrapKind.TESLA.id(), 3, "minecraft:copper_block", 3);
-        add(list, "thunderstorm", SkillClass.ENGINEER, PATH_ELECTRICIAN, SkillEffect.THUNDERSTORM, 3, 25, 10, 1.0, "capacitor", 1, "minecraft:lightning_rod", 4);
+        // Trunk traps, then mechanics or chemistry; the remote steers the traps.
+        engineer(list);
 
         // ---------------- Core: shared, paid by donations ----------------
         list.add(new SkillNode("watchtower", SkillClass.CORE, "", SkillEffect.SPAWN_DISTANCE,
@@ -128,7 +118,11 @@ public final class SkillTree {
             Map.entry("riposte", SUB_SHIELDFIGHTER),
             Map.entry("g_bastion", SUB_BULWARK),
             Map.entry("g_healing_hand", SUB_MEDIC),
-            Map.entry("g_ward", SUB_WARDEN));
+            Map.entry("g_ward", SUB_WARDEN),
+            Map.entry(TrapKind.TURRET.id(), SUB_GUNNER),
+            Map.entry(TrapKind.TESLA.id(), SUB_ELECTRICIAN),
+            Map.entry(TrapKind.MINE.id(), SUB_DEMOLITION),
+            Map.entry(TrapKind.POISON.id(), SUB_ALCHEMIST));
 
     private static void archer(List<SkillNode> list) {
         SkillClass c = SkillClass.ARCHER;
@@ -275,6 +269,92 @@ public final class SkillTree {
         node(list, "w_redemption", c, m, SkillEffect.REDEMPTION, 1, 25, 0, 1.0, "holy_light,w_blessing|w_vow|holy_vigor", "m_mastery", "minecraft:enchanted_golden_apple", 9, 6);
         node(list, "w_colossus", c, m, SkillEffect.COLOSSUS, 1, 30, 0, 1.0, "ground_slam|holy_light", "m_key", "minecraft:iron_block", 10, 2);
         node(list, "w_martyr", c, m, SkillEffect.MARTYR, 1, 30, 0, 1.0, "ground_slam|holy_light", "m_key", "minecraft:totem_of_undying", 10, 4);
+    }
+
+    // ------------------------------------------------------------------
+    // engineer
+    // ------------------------------------------------------------------
+
+    private static void engineer(List<SkillNode> list) {
+        SkillClass c = SkillClass.ENGINEER;
+        String spike = TrapKind.SPIKE.id();
+        String snare = TrapKind.SNARE.id();
+        node(list, spike, c, "", SkillEffect.TRAP, 3, 3, 2, 1.0, null, "", "nightsiege:spike_trap", 0, 3);
+        node(list, "e_battery", c, "", SkillEffect.REMOTE_ENERGY, 3, 3, 2, 10.0, spike, "e_stem", "minecraft:copper_ingot", 1, 1);
+        node(list, snare, c, "", SkillEffect.TRAP, 3, 3, 2, 1.0, spike + ":2", "", "nightsiege:snare_trap", 1, 3);
+        node(list, "e_finemech", c, "", SkillEffect.TRAP_DURABILITY, 3, 3, 2, 0.17, spike, "e_stem", "minecraft:clock", 1, 5);
+
+        // ----- Way of mechanics: turrets and current
+        String m = WAY_MECHANICS;
+        String turret = TrapKind.TURRET.id();
+        String tesla = TrapKind.TESLA.id();
+        node(list, "e_longrange", c, m, SkillEffect.REMOTE_RANGE, 3, 3, 2, 5.0, snare, "em1", "minecraft:spyglass", 2, 1);
+        node(list, "e_circuit", c, m, SkillEffect.OVERCHARGE_TIME, 3, 3, 2, 20.0, snare, "", "minecraft:repeater", 2, 3);
+        node(list, "e_fastcharge", c, m, SkillEffect.RECHARGE, 3, 3, 2, 0.17, snare, "em1", "minecraft:redstone_torch", 2, 5);
+        node(list, turret, c, m, SkillEffect.TRAP, 3, 4, 3, 1.0, "e_circuit", "em_sub", "nightsiege:arrow_turret", 3, 1);
+        node(list, tesla, c, m, SkillEffect.TRAP, 3, 4, 3, 1.0, "e_circuit", "em_sub", "nightsiege:tesla_coil", 3, 5);
+        node(list, "turret_tuning", c, m, SkillEffect.TRAP_BOOST, 1, 10, 0, 2.0, turret + ":2", "em3", "minecraft:redstone", 4, 0);
+        node(list, "e_ammobelt", c, m, SkillEffect.AMMO_BELT, 1, 10, 0, 1.0, turret + ":2", "em3", "minecraft:arrow", 4, 2);
+        node(list, "capacitor", c, m, SkillEffect.TRAP_BOOST, 1, 10, 0, 2.0, tesla + ":2", "em3", "minecraft:copper_block", 4, 4);
+        node(list, "e_chainbolt", c, m, SkillEffect.CHAIN_LIGHTNING, 1, 10, 0, 2.0, tesla + ":2", "em3", "minecraft:lightning_rod", 4, 6);
+        String m3 = "turret_tuning|e_ammobelt|capacitor|e_chainbolt";
+        node(list, "e_seeker", c, m, SkillEffect.SEEKER, 1, 12, 0, 0.3, m3, "em4", "minecraft:target", 5, 1);
+        node(list, "e_overvolt", c, m, SkillEffect.OVERVOLT, 1, 12, 0, 1.0, m3, "em4", "minecraft:glowstone_dust", 5, 3);
+        node(list, "m_cross_mine", c, m, SkillEffect.TRAP, 1, 12, 0, 1.0, m3, "em4", "nightsiege:blast_mine", 5, 5,
+                "e_network", "e_ball_lightning");
+        node(list, "e_charged", c, m, SkillEffect.CHARGED_ARROWS, 1, 15, 0, 0.5, turret + ",e_overvolt|e_seeker", "em5", "minecraft:spectral_arrow", 6, 1);
+        node(list, "e_beacon", c, m, SkillEffect.GUIDING_BEAM, 1, 15, 0, 1.0, tesla + ",e_seeker", "em5", "minecraft:end_rod", 6, 3);
+        node(list, "e_network", c, m, SkillEffect.NETWORK, 1, 15, 0, 1.0, m3 + ",e_overvolt", "em5", "minecraft:comparator", 6, 5);
+        String m4 = "e_seeker|e_overvolt|m_cross_mine";
+        node(list, "e_backup", c, m, SkillEffect.BACKUP_POWER, 1, 18, 0, 1.0, m4, "em6", "minecraft:redstone_lamp", 7, 1);
+        node(list, "e_watchtower", c, m, SkillEffect.TOWER_RANGE, 1, 18, 0, 4.0, m4, "em6", "minecraft:observer", 7, 3);
+        node(list, "m_cross_poison", c, m, SkillEffect.TRAP, 1, 18, 0, 1.0, m4, "em6", "nightsiege:poison_trap", 7, 5,
+                "thunderstorm");
+        String m6 = "e_backup|e_watchtower|m_cross_poison";
+        node(list, "overcharge", c, m, SkillEffect.OVERCHARGE, 3, 20, 10, 1.0, m6, "em_ult", "minecraft:redstone_block", 8, 2);
+        node(list, "thunderstorm", c, m, SkillEffect.THUNDERSTORM, 3, 20, 10, 1.0, m6, "em_ult", "minecraft:trident", 8, 4);
+        node(list, "e_sustained", c, m, SkillEffect.SUSTAINED_FIRE, 1, 25, 0, 1.0, "overcharge," + turret, "em_mastery", "minecraft:dispenser", 9, 0);
+        node(list, "e_piercer", c, m, SkillEffect.ARMOR_PIERCER, 1, 25, 0, 0.5, "overcharge," + tesla, "em_mastery", "minecraft:netherite_scrap", 9, 2);
+        node(list, "e_ball_lightning", c, m, SkillEffect.BALL_LIGHTNING, 1, 25, 0, 1.0, "thunderstorm," + tesla, "em_mastery", "minecraft:fire_charge", 9, 4);
+        node(list, "e_superconductor", c, m, SkillEffect.SUPERCONDUCTOR, 1, 25, 0, 1.0, "thunderstorm," + turret, "em_mastery", "minecraft:copper_bulb", 9, 6);
+        node(list, "e_fortress", c, m, SkillEffect.FORTRESS, 1, 30, 0, 1.0, "overcharge|thunderstorm", "em_key", "minecraft:iron_bars", 10, 2);
+        node(list, "e_fieldtech", c, m, SkillEffect.FIELD_TECH, 1, 30, 0, 1.0, "overcharge|thunderstorm", "em_key", "minecraft:crafter", 10, 4);
+
+        // ----- Way of chemistry: mines, flames and poison
+        String ch = WAY_CHEMISTRY;
+        String mine = TrapKind.MINE.id();
+        String poison = TrapKind.POISON.id();
+        node(list, "e_stockpile", c, ch, SkillEffect.FREE_TRAPS, 3, 3, 2, 1.0, snare, "ec1", "minecraft:chest", 2, 1);
+        node(list, "e_detonator", c, ch, SkillEffect.DETONATOR, 3, 3, 2, 1.0, snare, "", "minecraft:lever", 2, 3);
+        node(list, "e_durable", c, ch, SkillEffect.TRAP_DURABILITY, 3, 3, 2, 0.17, snare, "ec1", "minecraft:iron_ingot", 2, 5);
+        node(list, mine, c, ch, SkillEffect.TRAP, 3, 4, 3, 1.0, "e_detonator", "ec_sub", "nightsiege:blast_mine", 3, 1);
+        node(list, poison, c, ch, SkillEffect.TRAP, 3, 4, 3, 1.0, "e_detonator", "ec_sub", "nightsiege:poison_trap", 3, 5);
+        node(list, TrapKind.FLAME.id(), c, ch, SkillEffect.TRAP, 3, 10, 5, 1.0, mine + ":2", "ec3", "nightsiege:flame_trap", 4, 0);
+        node(list, "e_shrapnel_mine", c, ch, SkillEffect.SHRAPNEL_MINE, 1, 10, 0, 4.0, mine + ":2", "ec3", "minecraft:flint", 4, 2);
+        node(list, "toxic_brew", c, ch, SkillEffect.TRAP_BOOST, 1, 10, 0, 2.0, poison + ":2", "ec3", "minecraft:fermented_spider_eye", 4, 4);
+        node(list, "e_acid", c, ch, SkillEffect.ACID, 1, 10, 0, 0.2, poison + ":2", "ec3", "minecraft:slime_ball", 4, 6);
+        String c3 = TrapKind.FLAME.id() + "|e_shrapnel_mine|toxic_brew|e_acid";
+        node(list, "e_chain_reaction", c, ch, SkillEffect.CHAIN_REACTION, 1, 12, 0, 1.0, c3, "ec4", "minecraft:tnt", 5, 1);
+        node(list, "e_accelerant", c, ch, SkillEffect.ACCELERANT, 1, 12, 0, 0.5, c3, "ec4", "minecraft:blaze_powder", 5, 3);
+        node(list, "c_cross_turret", c, ch, SkillEffect.TRAP, 1, 12, 0, 1.0, c3, "ec4", "nightsiege:arrow_turret", 5, 5,
+                "e_napalm", "e_carpet");
+        node(list, "e_napalm", c, ch, SkillEffect.NAPALM, 1, 15, 0, 1.0, TrapKind.FLAME.id() + ",e_accelerant", "ec5", "minecraft:magma_cream", 6, 1);
+        node(list, "e_plague_mine", c, ch, SkillEffect.PLAGUE_MINE, 1, 15, 0, 8.0, poison + ",e_chain_reaction", "ec5", "minecraft:spider_eye", 6, 3);
+        node(list, "e_targetblast", c, ch, SkillEffect.TARGET_BLAST, 1, 15, 0, 4.0, "c_cross_turret,e_detonator", "ec5", "minecraft:firework_star", 6, 5);
+        String c4 = "e_chain_reaction|e_accelerant|c_cross_turret";
+        node(list, "e_blastpower", c, ch, SkillEffect.BLAST_POWER, 1, 18, 0, 0.5, c4, "ec6", "minecraft:gunpowder", 7, 1);
+        node(list, "e_slowpoison", c, ch, SkillEffect.SLOW_POISON, 1, 18, 0, 0.5, c4, "ec6", "minecraft:pufferfish", 7, 3);
+        node(list, "c_cross_tesla", c, ch, SkillEffect.TRAP, 1, 18, 0, 1.0, c4, "ec6", "nightsiege:tesla_coil", 7, 5,
+                "toxic_cloud");
+        String c6 = "e_blastpower|e_slowpoison|c_cross_tesla";
+        node(list, "bombardment", c, ch, SkillEffect.BOMBARDMENT, 3, 20, 10, 1.0, c6, "ec_ult", "minecraft:tnt_minecart", 8, 2);
+        node(list, "toxic_cloud", c, ch, SkillEffect.TOXIC_CLOUD, 3, 20, 10, 1.0, c6, "ec_ult", "minecraft:lingering_potion", 8, 4);
+        node(list, "e_carpet", c, ch, SkillEffect.CARPET_BOMB, 1, 25, 0, 4.0, "bombardment," + mine, "ec_mastery", "minecraft:tnt", 9, 0);
+        node(list, "e_firebombs", c, ch, SkillEffect.FIRE_BOMBS, 1, 25, 0, 1.0, "bombardment," + poison, "ec_mastery", "minecraft:fire_charge", 9, 2);
+        node(list, "e_plague", c, ch, SkillEffect.PLAGUE, 1, 25, 0, 1.0, "toxic_cloud," + poison, "ec_mastery", "minecraft:wither_rose", 9, 4);
+        node(list, "e_acid_fog", c, ch, SkillEffect.ACID_FOG, 1, 25, 0, 0.25, "toxic_cloud," + mine, "ec_mastery", "minecraft:bone_meal", 9, 6);
+        node(list, "e_pyro", c, ch, SkillEffect.PYROMANIAC, 1, 30, 0, 0.4, "bombardment|toxic_cloud", "ec_key", "minecraft:flint_and_steel", 10, 2);
+        node(list, "e_plague_doctor", c, ch, SkillEffect.PLAGUE_DOCTOR, 1, 30, 0, 1.0, "bombardment|toxic_cloud", "ec_key", "minecraft:carved_pumpkin", 10, 4);
     }
 
     // ------------------------------------------------------------------
@@ -529,11 +609,16 @@ public final class SkillTree {
             return 0;
         }
         int own = skills.levelOf(kind.id());
+        String cross = CROSS_TRAPS.get(kind);
+        if (cross != null && skills.levelOf(cross) > 0) {
+            own = Math.max(own, 2);   // borrowed from the other way, at tier 2
+        }
         if (own <= 0) {
             return 0;
         }
         String boost = TRAP_BOOSTS.get(kind);
-        int extra = boost == null ? 0 : skills.levelOf(boost);
+        SkillNode boostNode = boost == null ? null : nodes.get(boost);
+        int extra = boostNode == null ? 0 : (int) Math.round(boostNode.bonusAt(skills.levelOf(boost)));
         return Math.min(TrapKind.MAX_TIER, own + extra);
     }
 }

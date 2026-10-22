@@ -296,6 +296,8 @@ public final class SiegeManager {
         ServerLivingEntityEvents.ALLOW_DEATH.register((entity, source, amount) -> combat.allowDeath(entity));
         ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) -> combat.allowDamage(entity, source, amount));
         combat.guardian().setCredit(this::creditTank);
+        traps.setMarker(combat::remoteMark);
+        RemoteItem.handler = traps::useRemote;
         net.fabricmc.fabric.api.event.player.UseEntityCallback.EVENT.register((player, world, hand, entity, hit) ->
                 !world.isClientSide() && player instanceof ServerPlayer server
                         && combat.guardian().onUseEntity(server, entity, hand)
@@ -1357,6 +1359,7 @@ public final class SiegeManager {
         } else {
             own.chosenClass = chosen.name();
             persist();
+            traps.giveRemote(player, own);
             player.sendSystemMessage(Component.translatable("nightsiege.msg.class_chosen",
                     Component.translatable(chosen.translationKey())).withStyle(ChatFormatting.GREEN));
         }

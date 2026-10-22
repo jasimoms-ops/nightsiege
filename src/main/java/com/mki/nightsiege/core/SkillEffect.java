@@ -225,6 +225,56 @@ public enum SkillEffect {
     SAINT(0.0, Target.COMBAT),
     PATRON(0.0, Target.COMBAT),
 
+    // Engineer
+    /** Extra energy of the remote. */
+    REMOTE_ENERGY(0.0, Target.TRAP),
+    /** Traps hold this share longer before they wear out. */
+    TRAP_DURABILITY(0.0, Target.TRAP),
+    /** Extra blocks of reach of the remote. */
+    REMOTE_RANGE(0.0, Target.TRAP),
+    /** Extra ticks a remote overcharge lasts. */
+    OVERCHARGE_TIME(0.0, Target.TRAP),
+    /** The remote's energy comes back this much faster. */
+    RECHARGE(0.0, Target.TRAP),
+    AMMO_BELT(0.0, Target.TRAP),
+    /** Extra jumps of the tesla coil. */
+    CHAIN_LIGHTNING(0.0, Target.TRAP),
+    /** Marks of the remote count this much more. */
+    SEEKER(0.0, Target.TRAP),
+    /** Overcharge triples instead of doubles. */
+    OVERVOLT(0.0, Target.TRAP),
+    CHARGED_ARROWS(0.0, Target.TRAP),
+    GUIDING_BEAM(0.0, Target.TRAP),
+    NETWORK(0.0, Target.TRAP),
+    BACKUP_POWER(0.0, Target.TRAP),
+    /** Extra blocks of range of turrets and tesla coils. */
+    TOWER_RANGE(0.0, Target.TRAP),
+    SUSTAINED_FIRE(0.0, Target.TRAP),
+    ARMOR_PIERCER(0.0, Target.TRAP),
+    BALL_LIGHTNING(0.0, Target.TRAP),
+    SUPERCONDUCTOR(0.0, Target.TRAP),
+    FORTRESS(0.0, Target.TRAP),
+    FIELD_TECH(0.0, Target.TRAP),
+    /** More free traps every night. */
+    FREE_TRAPS(0.0, Target.TRAP),
+    /** Fired from afar, traps cost less and hit harder. */
+    DETONATOR(0.0, Target.TRAP),
+    SHRAPNEL_MINE(0.0, Target.TRAP),
+    ACID(0.0, Target.TRAP),
+    CHAIN_REACTION(0.0, Target.TRAP),
+    ACCELERANT(0.0, Target.TRAP),
+    NAPALM(0.0, Target.TRAP),
+    PLAGUE_MINE(0.0, Target.TRAP),
+    TARGET_BLAST(0.0, Target.TRAP),
+    BLAST_POWER(0.0, Target.TRAP),
+    SLOW_POISON(0.0, Target.TRAP),
+    CARPET_BOMB(0.0, Target.TRAP),
+    FIRE_BOMBS(0.0, Target.TRAP),
+    PLAGUE(0.0, Target.TRAP),
+    ACID_FOG(0.0, Target.TRAP),
+    PYROMANIAC(0.0, Target.TRAP),
+    PLAGUE_DOCTOR(0.0, Target.TRAP),
+
     // Masteries: change the ultimate
     CHAIN_EXECUTE(0.0, Target.COMBAT),
     BLOODY_EXECUTE(0.0, Target.COMBAT),

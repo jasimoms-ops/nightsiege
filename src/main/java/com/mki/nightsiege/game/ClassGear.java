@@ -23,10 +23,8 @@ public final class ClassGear {
             Map.entry(SkillTree.WAY_MIGHT, List.of("infernite_axe", "infernite_mace")),
             Map.entry(SkillTree.WAY_SHIELD, List.of("infernite_shield", "infernite_chestplate")),
             Map.entry(SkillTree.WAY_BLESSING, List.of("infernite_helmet")),
-            Map.entry(SkillTree.PATH_DEMOLITION, List.of("infernite_pickaxe")),
-            Map.entry(SkillTree.PATH_GUNNER, List.of("infernite_pickaxe")),
-            Map.entry(SkillTree.PATH_ALCHEMIST, List.of("infernite_pickaxe")),
-            Map.entry(SkillTree.PATH_ELECTRICIAN, List.of("infernite_pickaxe")));
+            Map.entry(SkillTree.WAY_MECHANICS, List.of("infernite_pickaxe")),
+            Map.entry(SkillTree.WAY_CHEMISTRY, List.of("infernite_pickaxe")));
 
     private ClassGear() {
     }

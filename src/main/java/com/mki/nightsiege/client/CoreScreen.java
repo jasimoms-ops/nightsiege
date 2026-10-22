@@ -323,14 +323,18 @@ public class CoreScreen extends Screen {
             "bow", new String[]{"swift", "heavy"},
             "xbow", new String[]{"bolter", "trapper"},
             "shield", new String[]{"shieldfighter", "bulwark"},
-            "bless", new String[]{"medic", "warden"});
+            "bless", new String[]{"medic", "warden"},
+            "mech", new String[]{"gunner", "electrician"},
+            "chem", new String[]{"demolition", "alchemist"});
     private static final java.util.Map<String, Integer> LANE_COLORS = java.util.Map.ofEntries(
             java.util.Map.entry("blademaster", 0x6FA0FF), java.util.Map.entry("berserker", 0xE04848),
             java.util.Map.entry("axe", 0xD8913A), java.util.Map.entry("paladin", 0xF2D46A),
             java.util.Map.entry("swift", 0x5FD0E8), java.util.Map.entry("heavy", 0xC88A3A),
             java.util.Map.entry("bolter", 0xE87A30), java.util.Map.entry("trapper", 0x6CC46C),
             java.util.Map.entry("shieldfighter", 0x8FB4FF), java.util.Map.entry("bulwark", 0xB0B8C8),
-            java.util.Map.entry("medic", 0x7FE08A), java.util.Map.entry("warden", 0xC59BFF));
+            java.util.Map.entry("medic", 0x7FE08A), java.util.Map.entry("warden", 0xC59BFF),
+            java.util.Map.entry("gunner", 0xE0B050), java.util.Map.entry("electrician", 0x6FD8FF),
+            java.util.Map.entry("demolition", 0xF07040), java.util.Map.entry("alchemist", 0x8BD35A));
 
     private int viewX() {
         return innerX();

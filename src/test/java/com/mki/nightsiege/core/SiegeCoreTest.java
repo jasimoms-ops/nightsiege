@@ -408,7 +408,7 @@ class SiegeCoreTest {
     void everyClassHasItsPaths() {
         SkillTree tree = new SkillTree();
         java.util.Map<SkillClass, Integer> expected = java.util.Map.of(SkillClass.ARCHER, 2, SkillClass.WARRIOR, 2,
-                SkillClass.GUARDIAN, 2, SkillClass.ENGINEER, 4);
+                SkillClass.GUARDIAN, 2, SkillClass.ENGINEER, 2);
         for (java.util.Map.Entry<SkillClass, Integer> entry : expected.entrySet()) {
             Set<String> paths = new HashSet<>();
             for (SkillNode node : tree.ofClass(entry.getKey())) {
@@ -553,14 +553,14 @@ class SiegeCoreTest {
         guardian.award(40);
         guardian.spend(12);
         guardian.setLevel("iron_guard", 2);
-        assertEquals(3, save.migrateSkills());
+        assertEquals(4, save.migrateSkills());
         assertEquals(40, guardian.points());
         assertEquals(0, guardian.levelOf("iron_guard"));
         assertEquals(100, warrior.points());
         assertEquals(0, warrior.levelOf("long_reach"));
         assertEquals(50, archer.points());
         assertEquals(0, archer.levelOf("archer_focus"));
-        assertEquals(25, engineer.points());
+        assertEquals(30, engineer.points());
         assertEquals(0, save.migrateSkills());
     }
 
@@ -662,19 +662,84 @@ class SiegeCoreTest {
             }
             ultimates.merge(node.path(), node.effect().target() == SkillEffect.Target.ULTIMATE ? 1 : 0, Integer::sum);
         }
-        assertEquals(10, ultimates.size());
+        assertEquals(8, ultimates.size());
         java.util.Map<String, Integer> expected = java.util.Map.of(SkillTree.WAY_BLADE, 2, SkillTree.WAY_MIGHT, 2,
-                SkillTree.WAY_BOW, 3, SkillTree.WAY_CROSSBOW, 3, SkillTree.WAY_SHIELD, 2, SkillTree.WAY_BLESSING, 2);
+                SkillTree.WAY_BOW, 3, SkillTree.WAY_CROSSBOW, 3, SkillTree.WAY_SHIELD, 2, SkillTree.WAY_BLESSING, 2,
+                SkillTree.WAY_MECHANICS, 2, SkillTree.WAY_CHEMISTRY, 2);
         ultimates.forEach((path, count) -> assertEquals(expected.getOrDefault(path, 1), count, path));
     }
 
     @Test
-    void engineerSpecialitiesShareTheTrunkTraps() {
+    void engineerWaysShareTheTrunkTraps() {
         SkillTree tree = new SkillTree();
-        assertEquals(14, tree.ofClass(SkillClass.ENGINEER).size());
-        assertEquals(TrapKind.SNARE.id(), tree.get(TrapKind.TESLA.id()).requires());
+        assertEquals("e_circuit", tree.get(TrapKind.TESLA.id()).requires());
+        assertEquals("e_detonator", tree.get(TrapKind.MINE.id()).requires());
         assertTrue(tree.get(TrapKind.SPIKE.id()).onTrunk());
         assertTrue(tree.get(TrapKind.SNARE.id()).onTrunk());
+        assertEquals(SkillTree.WAY_MECHANICS, tree.get(TrapKind.TURRET.id()).path());
+        assertEquals(SkillTree.WAY_CHEMISTRY, tree.get(TrapKind.POISON.id()).path());
+    }
+
+    @Test
+    void theEngineerPicksMechanicsOrChemistry() {
+        SkillTree tree = new SkillTree();
+        PlayerSkills engineer = new PlayerSkills();
+        engineer.chosenClass = SkillClass.ENGINEER.name();
+        engineer.award(5000);
+        for (String id : new String[]{"spike_trap", "spike_trap", "e_battery", "snare_trap", "e_circuit"}) {
+            assertTrue(tree.unlock(id, engineer), id);
+        }
+        assertEquals("choice", tree.blockedReason("e_finemech", engineer));
+        assertEquals(SkillTree.WAY_MECHANICS, engineer.pathTaken(tree));
+        assertEquals("path", tree.blockedReason("e_detonator", engineer));
+        assertTrue(tree.unlock("tesla_coil", engineer));
+        assertEquals(SkillTree.SUB_ELECTRICIAN, tree.subclassOf(engineer));
+        assertEquals("choice", tree.blockedReason("arrow_turret", engineer));
+        assertEquals(0, tree.trapTier(TrapKind.MINE, engineer));
+        assertTrue(tree.unlock("tesla_coil", engineer));
+        assertTrue(tree.unlock("capacitor", engineer));
+        assertEquals(4, tree.trapTier(TrapKind.TESLA, engineer));
+        // The mine from the other way, at tier 2, closes the network and the ball lightning.
+        assertTrue(tree.unlock("m_cross_mine", engineer));
+        assertEquals(2, tree.trapTier(TrapKind.MINE, engineer));
+        assertEquals("lockedby", tree.blockedReason("e_network", engineer));
+        assertTrue(tree.unlock("e_watchtower", engineer));
+        assertTrue(tree.unlock("thunderstorm", engineer));
+        assertEquals("lockedby", tree.blockedReason("e_ball_lightning", engineer));
+        assertEquals("locked", tree.blockedReason("e_superconductor", engineer));
+        assertTrue(tree.unlock("e_fieldtech", engineer));
+        assertEquals("thunderstorm", tree.ultimateOf(engineer).id());
+    }
+
+    @Test
+    void theEngineerReachesEveryHybridSlot() {
+        SkillTree tree = new SkillTree();
+        String[][] routes = {
+                {"e_circuit", "arrow_turret", "arrow_turret", "e_ammobelt", "e_overvolt", "e_charged"},
+                {"e_circuit", "tesla_coil", "tesla_coil", "e_chainbolt", "e_seeker", "e_beacon"},
+                {"e_circuit", "arrow_turret", "arrow_turret", "turret_tuning", "e_overvolt", "e_network"},
+                {"e_detonator", "blast_mine", "blast_mine", "flame_trap", "e_accelerant", "e_napalm"},
+                {"e_detonator", "poison_trap", "poison_trap", "e_acid", "e_chain_reaction", "e_plague_mine"},
+                {"e_detonator", "blast_mine", "blast_mine", "e_shrapnel_mine", "c_cross_turret", "e_targetblast",
+                        "e_blastpower", "bombardment", "e_firebombs"},
+        };
+        for (String[] route : routes) {
+            PlayerSkills engineer = new PlayerSkills();
+            engineer.chosenClass = SkillClass.ENGINEER.name();
+            engineer.award(5000);
+            assertTrue(tree.unlock("spike_trap", engineer));
+            assertTrue(tree.unlock("spike_trap", engineer));
+            assertTrue(tree.unlock("snare_trap", engineer));
+            for (String id : route) {
+                boolean ok = tree.unlock(id, engineer);
+                if (id.equals("e_firebombs")) {
+                    // Fire bombs need the alchemist's poison trap: closed on the mine route.
+                    assertFalse(ok);
+                    continue;
+                }
+                assertTrue(ok, id + " " + tree.blockedReason(id, engineer));
+            }
+        }
     }
 
     @Test

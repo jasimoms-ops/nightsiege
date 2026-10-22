@@ -183,7 +183,7 @@ public final class CombatEffects {
             case HOLY_LIGHT -> holyLight(level, player, rank);
             case BOMBARDMENT -> bombardment(level, player, rank);
             case OVERCHARGE -> {
-                traps.overcharge(player, now + 160 + 40L * rank);
+                traps.overcharge(player, now + 160 + 40L * rank + (SkillTree.has(skills, "e_sustained") ? 80 : 0));
                 play(level, player, SoundEvents.BEACON_ACTIVATE, 1.0f, 1.6f);
                 yield true;
             }
@@ -457,13 +457,22 @@ public final class CombatEffects {
         }
         targets.sort(Comparator.comparingDouble(e -> e.distanceToSqr(player)));
         DamageSource source = level.damageSources().playerAttack(player);
-        float damage = 8f + 4f * rank;
-        int blasts = Math.min(targets.size(), 3 + 2 * rank);
+        PlayerSkills skills = skillsFor.apply(player);
+        float damage = (8f + 4f * rank) * (float) engineerBlast(skills);
+        boolean firebombs = SkillTree.has(skills, "e_firebombs");
+        int carpet = (int) Math.round(tree.totalBonus(SkillEffect.CARPET_BOMB, skills));
+        int blasts = Math.min(targets.size() + carpet, 3 + 2 * rank + carpet);
         for (int i = 0; i < blasts; i++) {
-            Vec3 at = targets.get(i).position();
+            LivingEntity aim = targets.get(i % targets.size());
+            Vec3 at = i < targets.size() ? aim.position()
+                    : aim.position().add(random.nextDouble() * 4 - 2, 0, random.nextDouble() * 4 - 2);
             for (LivingEntity victim : enemies(level, at, 2.5, 1.5)) {
                 bonusHit(level, victim, source, damage);
                 pushAway(victim, at, 0.5, 0.4);
+                if (firebombs) {
+                    victim.igniteForSeconds(5f);
+                    victim.addEffect(new MobEffectInstance(isUndead(victim) ? MobEffects.WITHER : MobEffects.POISON, 100, 0));
+                }
             }
             level.sendParticles(ParticleTypes.EXPLOSION_EMITTER, at.x, at.y + 0.5, at.z, 1, 0, 0, 0, 0);
             level.playSound(null, at.x, at.y, at.z, SoundEvents.GENERIC_EXPLODE.value(), SoundSource.PLAYERS, 0.8f, 1.1f);
@@ -472,12 +481,26 @@ public final class CombatEffects {
     }
 
     private boolean toxicCloud(ServerLevel level, ServerPlayer player, int rank) {
-        double r = 6.0 + rank;
-        int ticks = 120 + 40 * rank;
-        for (LivingEntity victim : enemies(level, player.position(), r, 3.0)) {
+        PlayerSkills skills = skillsFor.apply(player);
+        boolean plague = SkillTree.has(skills, "e_plague");
+        double acid = tree.totalBonus(SkillEffect.ACID_FOG, skills);
+        double r = 6.0 + rank + (plague ? 3.0 : 0.0);
+        int ticks = (int) Math.round((120 + 40 * rank) * (SkillTree.has(skills, "e_plague_doctor") ? 2.0 : 1.0));
+        long until = level.getGameTime() + ticks;
+        Set<LivingEntity> sick = new HashSet<>(enemies(level, player.position(), r, 3.0));
+        if (plague) {
+            // The plague jumps on to whatever stands next to the sick.
+            for (LivingEntity victim : new ArrayList<>(sick)) {
+                sick.addAll(enemies(level, victim.position(), 3.0, 2.0));
+            }
+        }
+        for (LivingEntity victim : sick) {
             victim.addEffect(new MobEffectInstance(isUndead(victim) ? MobEffects.WITHER : MobEffects.POISON, ticks, 1));
             victim.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, ticks, 1));
             victim.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, ticks / 2, 1));
+            if (acid > 0) {
+                mark(victim, acid, until, false);
+            }
         }
         Vec3 c = player.position();
         level.sendParticles(TrapService.POISON_DUST, c.x, c.y + 1.0, c.z, 150, r * 0.5, 1.0, r * 0.5, 0.0);
@@ -493,8 +516,14 @@ public final class CombatEffects {
             return false;
         }
         DamageSource source = level.damageSources().playerAttack(player);
-        float damage = 6f + 2f * rank;
-        int jumps = 4 + 2 * rank;
+        PlayerSkills skills = skillsFor.apply(player);
+        boolean ball = SkillTree.has(skills, "e_ball_lightning");
+        float damage = 6f + 2f * rank + (ball ? 2f : 0f);
+        int jumps = 4 + 2 * rank + (ball ? 4 : 0);
+        if (SkillTree.has(skills, "e_superconductor")) {
+            traps.fillRemote(player);
+            traps.overcharge(player, level.getGameTime() + 80);
+        }
         List<LivingEntity> hit = new ArrayList<>();
         Vec3 from = player.position().add(0, 1.5, 0);
         LivingEntity current = near.stream().min(Comparator.comparingDouble(e -> e.distanceToSqr(player))).orElse(null);
@@ -536,6 +565,15 @@ public final class CombatEffects {
                     extra += meleeHit(level, player, skills, victim, taken, now);
                 } else if (source.getDirectEntity() instanceof AbstractArrow arrow) {
                     extra += arrowHit(level, player, skills, victim, arrow, taken, now);
+                }
+            }
+            if (source.getDirectEntity() instanceof AbstractArrow shot
+                    && (shot.entityTags().contains(TrapService.TAG_CHARGED) || shot.entityTags().contains(TrapService.TAG_BLAST))) {
+                dealingBonus = true;
+                try {
+                    traps.onTurretArrowHit(level, victim, shot, player, taken);
+                } finally {
+                    dealingBonus = false;
                 }
             }
             if (source.getDirectEntity() instanceof AbstractArrow) {
@@ -953,6 +991,23 @@ public final class CombatEffects {
         if (glow) {
             victim.addEffect(new MobEffectInstance(MobEffects.GLOWING, (int) Math.max(20, until - victim.level().getGameTime()), 0));
         }
+    }
+
+    /** Blasts of an engineer: stronger for the pyromaniac, weaker for the plague doctor. */
+    private double engineerBlast(PlayerSkills skills) {
+        double scale = 1.0;
+        if (SkillTree.has(skills, "e_pyro")) {
+            scale *= 1.0 + tree.totalBonus(SkillEffect.PYROMANIAC, skills);
+        }
+        if (SkillTree.has(skills, "e_plague_doctor")) {
+            scale *= 0.7;
+        }
+        return scale;
+    }
+
+    /** The engineer's remote marks a monster: it glows and takes more damage. */
+    public void remoteMark(LivingEntity victim, double bonus, long until, boolean glow) {
+        mark(victim, bonus, until, glow);
     }
 
     /** Deals damage the mod adds on top, through the hit cooldown, without boosting it again. */

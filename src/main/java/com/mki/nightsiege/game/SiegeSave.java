@@ -101,9 +101,10 @@ public class SiegeSave {
 
     /** Version of the skill trees the levels below were learned in. */
     public int skillTreeVersion;
-    public static final int SKILL_TREE_VERSION = 4;
+    public static final int SKILL_TREE_VERSION = 5;
 
     /**
+     * Version 5 rebuilt the engineer (mechanics or chemistry, the remote); every engineer gets all points back.
      * Version 4 rebuilt the guardian (shield or blessing); every guardian gets all points back.
      * Version 3 rebuilt the archer (bow or crossbow); every archer gets all points back.
      * Version 2 rebuilt the warrior (two ways instead of four paths; the paladin
@@ -120,6 +121,7 @@ public class SiegeSave {
         // Version 3 rebuilt the archer the same way (bow or crossbow).
         boolean archers = skillTreeVersion < 3;
         boolean guardians = skillTreeVersion < 4;
+        boolean engineers = skillTreeVersion < 5;
         boolean warriors = skillTreeVersion < 2;
         int reset = 0;
         if (skills != null) {
@@ -136,7 +138,8 @@ public class SiegeSave {
                 }
                 if ((warriors && (own.clazz() == com.mki.nightsiege.core.SkillClass.WARRIOR || touched))
                         || (archers && own.clazz() == com.mki.nightsiege.core.SkillClass.ARCHER)
-                        || (guardians && own.clazz() == com.mki.nightsiege.core.SkillClass.GUARDIAN)) {
+                        || (guardians && own.clazz() == com.mki.nightsiege.core.SkillClass.GUARDIAN)
+                        || (engineers && own.clazz() == com.mki.nightsiege.core.SkillClass.ENGINEER)) {
                     own.points = Math.max(0, own.earned - own.donated);
                     own.levels.clear();
                     reset++;

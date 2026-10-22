@@ -29,6 +29,8 @@ public final class ModContent {
     public static Item SIEGE_CORE_ITEM;
     public static CreativeModeTab TAB;
     public static Item GUIDE;
+    /** The engineer's remote. */
+    public static Item REMOTE;
     public static final Map<TrapKind, Block> TRAP_BLOCKS = new EnumMap<>(TrapKind.class);
     public static final Map<TrapKind, Item> TRAP_ITEMS = new EnumMap<>(TrapKind.class);
 
@@ -70,6 +72,11 @@ public final class ModContent {
                 .rarity(net.minecraft.world.item.Rarity.UNCOMMON));
         Registry.register(BuiltInRegistries.ITEM, guideKey, GUIDE);
 
+        ResourceKey<Item> remoteKey = ResourceKey.create(Registries.ITEM, id("remote_control"));
+        REMOTE = new RemoteItem(new Item.Properties().setId(remoteKey).durability(100)
+                .rarity(net.minecraft.world.item.Rarity.UNCOMMON));
+        Registry.register(BuiltInRegistries.ITEM, remoteKey, REMOTE);
+
         InferniteContent.register();
         DungeonContent.register();
 
@@ -81,6 +88,7 @@ public final class ModContent {
                 .displayItems((params, output) -> {
                     output.accept(SIEGE_CORE_ITEM);
                     output.accept(GuideBook.create());
+                    output.accept(REMOTE);
                     for (TrapKind kind : TrapKind.values()) {
                         output.accept(TRAP_ITEMS.get(kind));
                     }
