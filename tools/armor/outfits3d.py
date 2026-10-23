@@ -246,3 +246,313 @@ def paladin(k, L1, L2):
     toe = k.box('feet', 'leg', 'toe', (-2.5, 10.6, -4.7), (5, 2, 2))
     all_faces(L1, toe, metal(steel))
     L1.strip(toe, lambda c: mul(steel, 0.6) if c.r == 1 else None)
+
+
+# ---------------------------------------------------------------------- shared 3D pieces
+
+def hood_box(k, L1, name, mat, rim, opening=(1, 2, 9, 9)):
+    """A cloth hood around the head, open in front for the face."""
+    h = k.box('head', 'head', name, (-5.6, -9.8, -5.6), (11, 11, 11))
+    all_faces(L1, h, mat)
+    x1, y1, x2, y2 = opening
+    L1.strip(h, 'clear', faces=('front',), where=lambda c: x1 <= c.fx <= x2 and y1 <= c.fy <= y2)
+    L1.strip(h, rim, faces=('front',), where=lambda c: (c.fx in (x1 - 1, x2 + 1) and c.fy >= y1 - 1) or (c.fy == y1 - 1 and x1 - 1 <= c.fx <= x2 + 1))
+    L1.cap(h, 'clear', face='bottom')
+    return h
+
+
+def cloak_box(k, L1, mat, trim=None, length=18, width=11):
+    c0 = k.box('chest', 'body', 'cloak', (-width / 2.0, 0, 0), (width, length, 1), pivot=(0, -1, 3.4), cape=True)
+    all_faces(L1, c0, mat)
+    if trim is not None:
+        L1.strip(c0, lambda c: trim if c.r == length - 1 or (c.face in ('front', 'back') and c.fx in (0, c.fw - 1)) else None)
+    return c0
+
+
+def skirt_box(k, tex, slot, mat, top=10.4, h=4, grow=0.3):
+    s = k.box(slot, 'body', 'skirt', (-5, top, -3), (10, h, 6), grow=grow)
+    all_faces(tex, s, mat)
+    tex.cap(s, 'clear')
+    tex.cap(s, 'clear', face='bottom')
+    return s
+
+
+def lenses(k, L1, frame, glass, glint, y=-8.2):
+    g = k.box('head', 'head', 'lens', (-4.2, y, -6.0), (3, 3, 1), sym=True)
+    all_faces(L1, g, frame)
+    L1.art(g, 'front', ['fff', 'fgf', 'fff'], {'f': frame, 'g': glass})
+    L1.art(g, 'front', ['...', '.G.'], {'G': glint})
+    return g
+
+
+# ---------------------------------------------------------------------- archers
+
+@design('swift')
+def swift(k, L1, L2):
+    green, green_d = hexc('#3e6a36'), hexc('#26421f')
+    G = shaded(green, 1.08, 0.85)
+    leather_c = hexc('#6b4a2c')
+    clear_hat(L1)
+    hood_box(k, L1, 'hood', G, lambda c: green_d)
+    tip = k.box('head', 'head', 'tip', (-1.5, 0, -1.5), (3, 5, 3), pivot=(0, -8, 5.8), rot=(0.7, 0, 0))
+    all_faces(L1, tip, G)
+    cape = k.box('chest', 'body', 'capelet', (-5.5, -1.6, -3.6), (11, 5, 7))
+    all_faces(L1, cape, G)
+    ragged_bottom(L1, cape, 1)
+    L1.cap(cape, 'clear', face='bottom')
+    q = k.box('chest', 'body', 'quiver', (-1.5, -5, -1.5), (3, 10, 3), pivot=(2.5, 4.5, 4.6), rot=(0, 0, 0.4))
+    all_faces(L1, q, lambda c: hexc('#a07c50') if c.r in (0, 9) else leather(hexc('#5a3a22'))(c))
+    arrows = k.box('chest', 'body', 'arrows', (-1, -8, -1), (2, 3, 2), pivot=(2.5, 4.5, 4.6), rot=(0, 0, 0.4))
+    all_faces(L1, arrows, lambda c: hexc('#e8e2d0') if (c.s + c.r) % 2 else hexc('#b03028'))
+    bracer = k.box('chest', 'arm', 'bracer', (-4, 6.5, -3), (6, 4, 6), grow=0.25)
+    all_faces(L1, bracer, lambda c: hexc('#d9c9a0') if c.r in (1, 3) and c.s % 3 == 0 else leather(leather_c)(c))
+    cuff = k.box('feet', 'leg', 'cuff', (-3.5, 6.4, -3.5), (7, 2, 7))
+    all_faces(L1, cuff, leather(hexc('#a07c50')))
+    L1.cap(cuff, hexc('#3a2a1a'))
+
+
+@design('heavy')
+def heavy(k, L1, L2):
+    steel = hexc('#9aa0a8')
+    red, white = hexc('#9a2a24'), hexc('#e6dfcf')
+    jack = hexc('#a07a44')
+    S = metal(steel)
+    clear_hat(L1)
+    cap = k.box('head', 'head', 'cap', (-5, -10.6, -5), (10, 2, 10))
+    all_faces(L1, cap, S)
+    brim = k.box('head', 'head', 'brim', (-6.5, -9.1, -6.5), (13, 1, 13))
+    all_faces(L1, brim, lambda c: mul(steel, 0.75) if c.s % 3 == 0 else S(c))
+    L1.cap(brim, lambda c: mul(steel, 0.85))
+    collar = k.box('chest', 'body', 'collar', (-5, -2.2, -3.5), (10, 2, 7))
+    all_faces(L1, collar, quilt(jack))
+    skirt = skirt_box(k, L1, 'chest', lambda c: cloth(white)(c) if (c.face == 'front' and c.fx < 5) or (c.face == 'back' and c.fx >= 5) or c.face == 'right' else cloth(red)(c))
+    L1.strip(skirt, lambda c: hexc('#d4ae38') if c.r == 3 and c.s % 2 == 0 else None)
+    bag = k.box('chest', 'body', 'bag', (4.2, 8, -1.5), (2, 6, 3))
+    all_faces(L1, bag, cloth(hexc('#c9bfa6')))
+    shafts = k.box('chest', 'body', 'shafts', (4.5, 4.5, -1), (1, 4, 2))
+    all_faces(L1, shafts, lambda c: hexc('#e8e2d0') if c.r == 0 else hexc('#7a5634'))
+    bracer = k.box('chest', 'arm', 'bracer', (-4, 7, -3), (6, 3, 6), grow=0.25)
+    all_faces(L1, bracer, leather(hexc('#5a3a22')))
+
+
+@design('bolter')
+def bolter(k, L1, L2):
+    orange, black, cream = hexc('#c0622a'), hexc('#2a2424'), hexc('#e8dcc0')
+    felt = hexc('#3a2e2a')
+    clear_hat(L1)
+    hat = k.box('head', 'head', 'hat', (-6.5, -2, -6.5), (13, 2, 13), pivot=(0, -9, 0), rot=(0, 0, 0.18))
+    all_faces(L1, hat, cloth(felt))
+    L1.cap(hat, lambda c: mul(felt, 1.15) if 3 <= c.fx <= 9 and 3 <= c.fy <= 9 else cloth(felt)(c))
+    for i, (piv, rot, size, col) in enumerate([((-5, -10, 0), (0.6, 0, -0.55), (2, 10, 3), cream),
+                                               ((-5.5, -10, 1.5), (0.9, 0, -0.75), (2, 8, 2), hexc('#c23a32'))]):
+        p = k.box('head', 'head', 'plume%d' % i, (-1, -size[1], -1), size, pivot=piv, rot=rot)
+        all_faces(L1, p, lambda c, col=col: col if (c.s + c.r) % 3 else mul(col, 0.8))
+    puff = k.box('chest', 'arm', 'puff', (-4.6, -2.2, -3.6), (7, 5, 7))
+    all_faces(L1, puff, lambda c: (orange if (c.s // 2) % 2 == 0 else black) if c.r % 4 != 2 else cream)
+    puff2 = k.box('chest', 'arm', 'puff2', (-4.3, 4.6, -3.3), (6, 3, 6))
+    all_faces(L1, puff2, lambda c: orange if c.s % 2 == 0 else cream)
+    quiver = k.box('chest', 'body', 'quiver', (4.2, 8, -2), (2, 6, 3))
+    all_faces(L1, quiver, leather(hexc('#5a3a22')))
+    bolts = k.box('chest', 'body', 'bolts', (4.6, 5.5, -1.5), (1, 3, 2))
+    all_faces(L1, bolts, lambda c: hexc('#c8c0a8') if c.r == 0 else hexc('#6b4a2c'))
+    knee = k.box('legs', 'leg', 'kneepuff', (-3, 3, -3), (6, 3, 6))
+    all_faces(L2, knee, lambda c: orange if c.s % 2 == 0 else black)
+    toe = k.box('feet', 'leg', 'toe', (-3.3, 10.6, -4.6), (7, 2, 3))
+    all_faces(L1, toe, leather(hexc('#2e2420')))
+
+
+@design('trapper')
+def trapper(k, L1, L2):
+    F = fur(hexc('#6e5a44'), hexc('#8e7a60'), hexc('#3e3226'), hexc('#c8b896'))
+    hide, hide_l, hide_d = hexc('#7a5634'), hexc('#9a7046'), hexc('#4e3420')
+    clear_hat(L1)
+    cap = k.box('head', 'head', 'cap', (-5.4, -10.8, -5.4), (11, 4, 11))
+    all_faces(L1, cap, F)
+    L1.cap(cap, 'clear', face='bottom')
+    ragged_bottom(L1, cap, 1)
+    tail = k.box('head', 'head', 'tail', (-1, 0, -1), (2, 9, 2), pivot=(2, -8, 5.8), rot=(0.25, 0, -0.15))
+    all_faces(L1, tail, lambda c: hexc('#2e241c') if c.r % 3 == 2 else hexc('#9a8668'))
+    L1.strip(tail, lambda c: hexc('#1e1814') if c.r == 8 else None)
+    collar = k.box('chest', 'body', 'collar', (-5.5, -2.2, -3.6), (11, 3, 7))
+    all_faces(L1, collar, F)
+    ragged_bottom(L1, collar, 1)
+    coat = skirt_box(k, L1, 'chest', leather(hide), top=10.2, h=5)
+    L1.strip(coat, 'clear', where=lambda c: c.r == 4 and c.s % 2 == 1)
+    rope = k.box('chest', 'body', 'rope', (-5.4, -0.6, -3.4), (10, 1, 6), grow=0.45, pivot=(0, 4, 0), rot=(0, 0, 0.62))
+    all_faces(L1, rope, lambda c: hexc('#c9b48a') if (c.s + c.r) % 2 else hexc('#8a7454'))
+    pouch = k.box('chest', 'body', 'pouch', (-4.6, 9.2, -4.1), (3, 3, 1), sym=True)
+    all_faces(L1, pouch, leather(hide_d))
+    L1.art(pouch, 'front', ['LLL', 'l.l', 'lll'], {'L': hide_l, 'l': hide_d})
+    cuff = k.box('feet', 'leg', 'cuff', (-3.5, 6.2, -3.5), (7, 2, 7))
+    all_faces(L1, cuff, F)
+    ragged_top(L1, cuff)
+
+
+# ---------------------------------------------------------------------- guardians
+
+@design('shieldfighter')
+def shieldfighter(k, L1, L2):
+    steel = hexc('#9aa0a8')
+    blue, gold = hexc('#2f4f8a'), hexc('#d4ae38')
+    S = metal(steel)
+    clear_hat(L1)
+    dome = k.box('head', 'head', 'dome', (-5, -10.6, -5), (10, 2, 10))
+    all_faces(L1, dome, S)
+    brim = k.box('head', 'head', 'brim', (-7, -9.1, -7), (14, 1, 14))
+    all_faces(L1, brim, lambda c: mul(steel, 0.7) if c.s % 4 == 0 else S(c))
+    L1.cap(brim, lambda c: mul(steel, 0.65) if c.fx in (0, 13) or c.fy in (0, 13) else S(c))
+    spaul = k.box('chest', 'arm', 'spaulder', (-4.6, -3.2, -3.6), (6, 3, 7), rot=(0, 0, -0.15))
+    all_faces(L1, spaul, S)
+    L1.strip(spaul, lambda c: mul(steel, 0.6) if c.r == 2 else None)
+    for name, z in (('tabard', -3.6), ('tabardb', 2.6)):
+        t = k.box('chest', 'body', name, (-4, 9, z), (8, 7, 1))
+        all_faces(L1, t, lambda c: cloth(blue)(c) if (c.fx < 4) == (c.face == 'front') else cloth(gold)(c))
+        L1.strip(t, lambda c: hexc('#1f3560') if c.r == 6 else None)
+    shield = k.box('chest', 'body', 'shield', (-3.5, -0.5, 3.4), (7, 9, 1))
+    all_faces(L1, shield, lambda c: cloth(blue)(c) if c.fx < 4 else cloth(gold)(c))
+    L1.art(shield, 'back', ['sssssss', 's.....s', 's..w..s', 's.wWw.s', 's..w..s', 's.....s', '.s...s.', '..s.s..', '...s...'],
+           {'s': mul(steel, 0.8), 'w': hexc('#efe9da'), 'W': hexc('#c9c2b0')})
+    L1.strip(shield, 'clear', faces=('back', 'front'), where=lambda c: (c.fy == 8 and c.fx != 3) or (c.fy == 7 and c.fx in (0, 6)))
+
+
+@design('bulwark')
+def bulwark(k, L1, L2):
+    steel = hexc('#a7adb6')
+    brass = hexc('#c9a43a')
+    S = metal(steel)
+    visor = k.box('head', 'head', 'visor', (-3, -7.2, -7.6), (6, 5, 3))
+    all_faces(L1, visor, S)
+    L1.art(visor, 'front', ['dddddd', 'kkkkkk', 'dddddd', '.o..o.', '..oo..'], {'d': mul(steel, 0.75), 'k': hexc('#0e0e12'), 'o': hexc('#1a1a1e')})
+    crest = k.box('head', 'head', 'crest', (-0.5, -10.4, -4.5), (1, 2, 9))
+    all_faces(L1, crest, lambda c: brass if c.r == 0 else S(c))
+    gorget = k.box('chest', 'body', 'gorget', (-5, -2.6, -3.5), (10, 2, 7))
+    all_faces(L1, gorget, S)
+    for i, (y, h) in enumerate(((-3.6, 4), (0.2, 2))):
+        p = k.box('chest', 'arm', 'paul%d' % i, (-5, y, -3.8), (7, h, 8), rot=(0, 0, -0.25))
+        all_faces(L1, p, S)
+        L1.strip(p, lambda c: mul(steel, 0.55) if c.r == h - 1 else (brass if c.r == 0 and c.s % 4 == 0 else None))
+    fauld = skirt_box(k, L1, 'chest', S, top=10, h=4, grow=0.5)
+    L1.strip(fauld, lambda c: mul(steel, 0.55) if c.r in (1, 3) else None)
+    poleyn = k.box('legs', 'leg', 'poleyn', (-2.6, 4, -3.6), (5, 3, 2))
+    all_faces(L2, poleyn, S)
+    L2.art(poleyn, 'front', ['.ddd.', 'dbbbd', '.ddd.'], {'d': mul(steel, 0.65), 'b': brass})
+    toe = k.box('feet', 'leg', 'toe', (-2.6, 10.6, -4.7), (5, 2, 2))
+    all_faces(L1, toe, S)
+
+
+@design('medic')
+def medic(k, L1, L2):
+    white, white_d = hexc('#ece6d8'), hexc('#c4bdac')
+    robe = hexc('#5f6e5c')
+    green, green_d = hexc('#3a9a4a'), hexc('#246a30')
+    cap = k.box('head', 'head', 'cap', (-5, -10.6, -5), (10, 2, 10))
+    all_faces(L1, cap, cloth(white))
+    L1.art(cap, 'front', ['...gg.....', '..gggg....'], {'g': green})
+    apron = k.box('chest', 'body', 'apron', (-3.5, 8, -3.6), (7, 9, 1))
+    all_faces(L1, apron, shaded(white, 1.02, 0.9))
+    L1.art(apron, 'front', ['.......', '...g...', '..gGg..', '...g...'], {'g': green, 'G': green_d}, y=2)
+    satchel = k.box('chest', 'body', 'satchel', (-6.8, 7.5, -2), (2, 4, 4))
+    all_faces(L1, satchel, leather(hexc('#7a5634')))
+    L1.art(satchel, 'right', ['....', '.gg.', '.gg.', '....'], {'g': green})
+    roll = k.box('chest', 'arm', 'roll', (-4.3, 4, -3.3), (6, 2, 6))
+    all_faces(L1, roll, lambda c: mul(robe, 0.9) if c.r == 1 else robe)
+    flask = k.box('chest', 'body', 'flask', (4.3, 8.5, -1), (2, 3, 2))
+    all_faces(L1, flask, lambda c: hexc('#7fe08a') if c.r > 0 else hexc('#7a5634'))
+
+
+@design('warden')
+def warden(k, L1, L2):
+    violet, violet_d = hexc('#3e2a5a'), hexc('#26183a')
+    silver, glow = hexc('#c9d0de'), hexc('#b48cff')
+    V = shaded(violet, 1.06, 0.8)
+    clear_hat(L1)
+    hood_box(k, L1, 'hood', V, lambda c: silver if c.r % 2 == 0 else violet_d)
+    tip = k.box('head', 'head', 'tip', (-1.5, 0, -1.5), (3, 6, 3), pivot=(0, -8.5, 5.8), rot=(0.9, 0, 0))
+    all_faces(L1, tip, V)
+    mantle = k.box('chest', 'body', 'mantle', (-5.6, -2.2, -3.6), (11, 5, 7))
+    all_faces(L1, mantle, lambda c: silver if c.r == 4 and c.s % 2 == 0 else (glow if c.r == 4 else shaded(violet_d)(c)))
+    L1.cap(mantle, 'clear', face='bottom')
+    cloak_box(k, L1, V, silver, length=19)
+    for i, x in enumerate((-2.5, 1.5)):
+        st = k.box('chest', 'body', 'rune%d' % i, (x, 9.5, -4.2), (1, 2, 1))
+        all_faces(L1, st, lambda c: glow if c.r == 0 else hexc('#5a4a7a'))
+
+
+# ---------------------------------------------------------------------- engineers
+
+@design('gunner')
+def gunner(k, L1, L2):
+    steel = hexc('#a0a6ae')
+    brass = hexc('#c09a40')
+    coat = hexc('#5e3e26')
+    S = metal(steel)
+    clear_hat(L1)
+    dome = k.box('head', 'head', 'dome', (-5, -10.6, -5), (10, 2, 10))
+    all_faces(L1, dome, S)
+    crest = k.box('head', 'head', 'crest', (-0.5, -13, -5), (1, 3, 10))
+    all_faces(L1, crest, lambda c: mul(steel, 1.2) if c.r == 0 else S(c))
+    brim = k.box('head', 'head', 'brim', (-6.5, -9, -6.5), (13, 1, 13))
+    all_faces(L1, brim, lambda c: brass if c.s % 3 == 0 else S(c))
+    for i, (x, y) in enumerate(((-4, 1.5), (-2, 3.5), (0, 5.5))):
+        fl = k.box('chest', 'body', 'flask%d' % i, (x, y, -4.1), (2, 2, 1))
+        all_faces(L1, fl, lambda c: brass if c.r == 0 else hexc('#3a2a1e'))
+    tails = skirt_box(k, L1, 'chest', shaded(coat), top=10, h=7, grow=0.35)
+    L1.strip(tails, 'clear', faces=('front',), where=lambda c: c.fx in (4, 5))
+    cuff = k.box('feet', 'leg', 'cuff', (-3.6, 4.6, -3.6), (7, 2, 7))
+    all_faces(L1, cuff, leather(hexc('#4a3a2c')))
+    L1.cap(cuff, hexc('#1a1412'))
+
+
+@design('electrician')
+def electrician(k, L1, L2):
+    copper, copper_l = hexc('#b8693a'), hexc('#e09a5e')
+    spark = hexc('#7fe8ff')
+    steel = hexc('#8a9098')
+    lenses(k, L1, hexc('#b08a3a'), spark, hexc('#e8ffff'))
+    coil = k.box('chest', 'arm', 'coil', (-3, -6.5, -1.5), (3, 4, 3))
+    all_faces(L1, coil, lambda c: copper_l if c.r % 2 == 0 else copper)
+    ball = k.box('chest', 'arm', 'ball', (-2.5, -8.3, -1), (2, 2, 2))
+    all_faces(L1, ball, spark)
+    pack = k.box('chest', 'body', 'pack', (-3.5, 0, 3.2), (7, 8, 3))
+    all_faces(L1, pack, metal(steel))
+    L1.art(pack, 'back', ['ccccccc', 'c.....c', 'c.s.s.c', 'c.....c', 'ccccccc', '.......', '.k.k.k.', '.......'],
+           {'c': copper, 's': spark, 'k': copper_l})
+    tool = k.box('chest', 'body', 'wrench', (4.6, 8, -1), (1, 5, 1))
+    all_faces(L1, tool, lambda c: mul(steel, 1.2) if c.r in (0, 4) else steel)
+
+
+@design('demolition')
+def demolition(k, L1, L2):
+    pad = hexc('#4a4038')
+    lenses(k, L1, hexc('#2a2220'), hexc('#d98a20'), hexc('#ffd070'))
+    flap = k.box('head', 'head', 'flap', (-5.4, -4.5, 4.2), (11, 6, 1))
+    all_faces(L1, flap, leather(hexc('#4e3a2a')))
+    shoulder = k.box('chest', 'arm', 'pad', (-4.6, -3.2, -3.6), (6, 3, 7))
+    all_faces(L1, shoulder, quilt(pad, 0.7))
+    apron = k.box('chest', 'body', 'apron', (-4.5, 1, -3.7), (9, 15, 1))
+    all_faces(L1, apron, quilt(hexc('#3a322c'), 0.7))
+    L1.strip(apron, lambda c: hexc('#141210') if c.rnd.random() < 0.12 else None)
+    for i, (x, y) in enumerate(((-4, 1.2), (-1, 3.4), (2, 5.6))):
+        b = k.box('chest', 'body', 'bomb%d' % i, (x, y, -5.3), (2, 2, 2))
+        all_faces(L1, b, lambda c: hexc('#1e1c1c') if c.rnd.random() > 0.15 else hexc('#3a3636'))
+        L1.cap(b, lambda c: hexc('#ffb040') if (c.fx, c.fy) == (1, 0) else hexc('#1e1c1c'))
+    toe = k.box('feet', 'leg', 'toe', (-2.6, 10.6, -4.7), (5, 2, 2))
+    all_faces(L1, toe, metal(hexc('#7a7e86')))
+
+
+@design('alchemist')
+def alchemist(k, L1, L2):
+    robe = hexc('#5a4632')
+    apron_c = hexc('#3e5a32')
+    clear_hat(L1)
+    hood_box(k, L1, 'hood', shaded(robe, 1.05, 0.82), lambda c: mul(robe, 0.7))
+    lenses(k, L1, hexc('#b08a3a'), hexc('#cfe8d0'), hexc('#ffffff'), y=-9.4)
+    apron = k.box('chest', 'body', 'apron', (-3.5, 9, -3.6), (7, 8, 1))
+    all_faces(L1, apron, cloth(apron_c))
+    L1.strip(apron, lambda c: hexc('#8ad35a') if c.rnd.random() < 0.08 else None)
+    colours = [hexc('#9cf06a'), hexc('#d080ff'), hexc('#7ad0ff'), hexc('#ffb050')]
+    for i, x in enumerate((-4.5, -2.5, 1.5, 3.5)):
+        v = k.box('chest', 'body', 'vial%d' % i, (x, 6.6, -4.1), (1, 2, 1))
+        all_faces(L1, v, lambda c, col=colours[i]: hexc('#c9b48a') if c.r == 0 else col)
+    flask = k.box('chest', 'body', 'flask', (4.4, 8.5, -1), (2, 3, 2))
+    all_faces(L1, flask, lambda c: hexc('#b08a3a') if c.r == 0 else hexc('#9cf06a'))
