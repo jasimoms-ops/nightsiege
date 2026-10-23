@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      quick:
+        description: 'Nur bauen und API-Auszug, ohne Server- und Client-Test'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -199,7 +204,7 @@ jobs:
       # Registrierung, Rezepte, Tags, Weltgenerierung. Nach einigen Minuten
       # wird der Server einfach beendet.
       - name: Server-Probelauf
-        if: steps.build.outcome == 'success'
+        if: steps.build.outcome == 'success' && !inputs.quick
         continue-on-error: true
         run: |
           mkdir -p run
@@ -230,7 +235,7 @@ jobs:
       # eine Welt, prueft alle Mixins und fotografiert jedes Ereignis. Die Bilder
       # wandern mit der Jar in den dist-Branch.
       - name: Client-Test
-        if: steps.build.outcome == 'success'
+        if: steps.build.outcome == 'success' && !inputs.quick
         continue-on-error: true
         env:
           COMMIT_MSG: ${{ github.event.head_commit.message }}
