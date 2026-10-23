@@ -172,6 +172,7 @@ public class EventLookTest implements FabricClientGameTest {
         });
         context.waitTicks(40);
         context.takeScreenshot("ui_warrior_blade");
+        zoomShots(context, "WARRIOR", "warrior");
         selectNode(context, "w_bladefrenzy");
         context.takeScreenshot("ui_warrior_selected");
         context.runOnClient(client -> {
@@ -210,6 +211,7 @@ public class EventLookTest implements FabricClientGameTest {
         context.waitTicks(40);
         selectNode(context, "a_hunternet");
         context.takeScreenshot("ui_archer_crossbow");
+        zoomShots(context, "ARCHER", "archer");
         context.waitTicks(5);
     }
 
@@ -480,6 +482,17 @@ public class EventLookTest implements FabricClientGameTest {
     }
 
     /** Sets where the window looks (as the mouse wheel would) and redraws it. */
+    /** Close-ups of a class tree so the icons can be seen: both ways, upper and lower half. */
+    private static void zoomShots(ClientGameTestContext context, String clazz, String name) {
+        double[][] spots = {{-200, -60}, {-200, 110}, {200, -60}, {200, 110}};
+        String[] names = {"left_top", "left_bottom", "right_top", "right_bottom"};
+        for (int i = 0; i < spots.length; i++) {
+            zoomTo(context, clazz, spots[i][0], spots[i][1], 0.6);
+            context.takeScreenshot("tree_" + name + "_" + names[i]);
+        }
+        zoomTo(context, clazz, 0.0, 0.0, 0.0);
+    }
+
     private static void zoomTo(ClientGameTestContext context, String clazz, double x, double y, double zoom) {
         context.runOnClient(client -> {
             try {
@@ -487,7 +500,11 @@ public class EventLookTest implements FabricClientGameTest {
                 field.setAccessible(true);
                 @SuppressWarnings("unchecked")
                 java.util.Map<String, double[]> views = (java.util.Map<String, double[]>) field.get(null);
-                views.put(clazz, new double[]{x, y, zoom});
+                if (zoom <= 0) {
+                    views.remove(clazz);   // back to the whole tree
+                } else {
+                    views.put(clazz, new double[]{x, y, zoom});
+                }
             } catch (ReflectiveOperationException e) {
                 System.out.println("[Night Siege test] could not zoom: " + e);
             }
@@ -587,6 +604,7 @@ public class EventLookTest implements FabricClientGameTest {
                 "g_lightbringer", "g_wellspring", "g_grace", "g_sanctuary", "g_lightcircle");
         selectNode(context, "g_wellspring");
         context.takeScreenshot("ui_guardian_blessing");
+        zoomShots(context, "GUARDIAN", "guardian");
         closeScreen(context);
         context.getInput().lookAt(-90.0f, 20.0f);
         shieldAction(context);
@@ -614,6 +632,7 @@ public class EventLookTest implements FabricClientGameTest {
                 "e_carpet");
         selectNode(context, "e_chain_reaction");
         context.takeScreenshot("ui_engineer_chem");
+        zoomShots(context, "ENGINEER", "engineer");
         closeScreen(context);
         context.getInput().lookAt(-90.0f, 8.0f);
         context.waitTicks(10);
