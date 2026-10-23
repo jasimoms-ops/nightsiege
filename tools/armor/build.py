@@ -11,6 +11,8 @@ sys.path.insert(0, os.path.dirname(__file__))
 from paint import Tex, finish  # noqa: E402
 from outfits import OUTFITS  # noqa: E402
 from outfits3d import DESIGNS  # noqa: E402
+import outfits_epic12  # noqa: E402,F401
+import outfits_shape  # noqa: E402,F401
 import shapes  # noqa: E402
 import preview  # noqa: E402
 import render3d  # noqa: E402
@@ -21,7 +23,7 @@ LAYER1 = os.path.join(ASSETS, 'textures', 'entity', 'equipment', 'humanoid')
 LAYER2 = os.path.join(ASSETS, 'textures', 'entity', 'equipment', 'humanoid_leggings')
 EQUIPMENT = os.path.join(ASSETS, 'equipment')
 # Outfits that get the final grade (deeper colours, shading, outlines).
-GRADED = {'berserker', 'blademaster', 'axe', 'paladin'}
+GRADED = set(OUTFITS)
 JAVA = os.path.join(ROOT, 'src', 'main', 'java', 'com', 'mki', 'nightsiege', 'client', 'ClassArmorShapes.java')
 
 

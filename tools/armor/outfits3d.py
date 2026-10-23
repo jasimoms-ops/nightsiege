@@ -250,14 +250,36 @@ def paladin(k, L1, L2):
 
 # ---------------------------------------------------------------------- shared 3D pieces
 
-def hood_box(k, L1, name, mat, rim, opening=(1, 2, 9, 9)):
-    """A cloth hood around the head, open in front for the face."""
-    h = k.box('head', 'head', name, (-5.6, -9.8, -5.6), (11, 11, 11))
+def hood_box(k, L1, name, mat, rim, opening=(1, 1, 9, 6)):
+    """A hood shaped in layers: a rounded crown, the hood itself open for the face,
+    a peak over the brow, a wider lower part falling to the neck, a cowl on the
+    shoulders and a tail that falls down the back in three bends."""
+    top = k.box('head', 'head', name + '_crown', (-4.5, -11.2, -4), (9, 2, 9))
+    all_faces(L1, top, mat)
+    top2 = k.box('head', 'head', name + '_crown2', (-3, -12, -2.5), (6, 1, 6))
+    all_faces(L1, top2, mat)
+    h = k.box('head', 'head', name, (-5.6, -9.8, -5.6), (11, 6, 11))
     all_faces(L1, h, mat)
     x1, y1, x2, y2 = opening
     L1.strip(h, 'clear', faces=('front',), where=lambda c: x1 <= c.fx <= x2 and y1 <= c.fy <= y2)
     L1.strip(h, rim, faces=('front',), where=lambda c: (c.fx in (x1 - 1, x2 + 1) and c.fy >= y1 - 1) or (c.fy == y1 - 1 and x1 - 1 <= c.fx <= x2 + 1))
     L1.cap(h, 'clear', face='bottom')
+    low = k.box('head', 'head', name + '_low', (-6.2, -4, -5.4), (12, 5, 12))
+    all_faces(L1, low, mat)
+    L1.strip(low, 'clear', faces=('front',), where=lambda c: 1 <= c.fx <= 10 and c.fy <= 3)
+    L1.strip(low, rim, faces=('front',), where=lambda c: c.fx in (0, 11) or (c.fy == 4 and 2 <= c.fx <= 9))
+    L1.cap(low, 'clear', face='bottom')
+    L1.cap(low, 'clear', where=lambda c: 1 <= c.fx <= 10 and 1 <= c.fy <= 10)
+    peak = k.box('head', 'head', name + '_peak', (-4.5, -10.4, -6.6), (9, 1, 1))
+    all_faces(L1, peak, rim)
+    cowl = k.box('chest', 'body', name + '_cowl', (-6, -2.2, -4), (12, 3, 8))
+    all_faces(L1, cowl, mat)
+    L1.strip(cowl, 'clear', faces=('front',), where=lambda c: (c.fy == 0 and 3 <= c.fx <= 8) or (c.fy == 1 and 4 <= c.fx <= 7))
+    L1.cap(cowl, 'clear', where=lambda c: 1 <= c.fx <= 10 and 1 <= c.fy <= 6)
+    L1.cap(cowl, 'clear', face='bottom')
+    for i, (piv, rot, size) in enumerate((((0, -10, 5.2), 0.45, (5, 3, 3)), ((0, -7.6, 6.6), 0.85, (4, 3, 2)), ((0, -5.4, 7.9), 1.2, (2, 4, 1)))):
+        t = k.box('head', 'head', '%s_tail%d' % (name, i), (-size[0] / 2.0, 0, -size[2] / 2.0), size, pivot=piv, rot=(rot, 0, 0))
+        all_faces(L1, t, mat)
     return h
 
 
@@ -294,8 +316,6 @@ def swift(k, L1, L2):
     leather_c = hexc('#6b4a2c')
     clear_hat(L1)
     hood_box(k, L1, 'hood', G, lambda c: green_d)
-    tip = k.box('head', 'head', 'tip', (-1.5, 0, -1.5), (3, 5, 3), pivot=(0, -8, 5.8), rot=(0.7, 0, 0))
-    all_faces(L1, tip, G)
     cape = k.box('chest', 'body', 'capelet', (-5.5, -1.6, -3.6), (11, 5, 7))
     all_faces(L1, cape, G)
     ragged_bottom(L1, cape, 1)
@@ -467,8 +487,6 @@ def warden(k, L1, L2):
     V = shaded(violet, 1.06, 0.8)
     clear_hat(L1)
     hood_box(k, L1, 'hood', V, lambda c: silver if c.r % 2 == 0 else violet_d)
-    tip = k.box('head', 'head', 'tip', (-1.5, 0, -1.5), (3, 6, 3), pivot=(0, -8.5, 5.8), rot=(0.9, 0, 0))
-    all_faces(L1, tip, V)
     mantle = k.box('chest', 'body', 'mantle', (-5.6, -2.2, -3.6), (11, 5, 7))
     all_faces(L1, mantle, lambda c: silver if c.r == 4 and c.s % 2 == 0 else (glow if c.r == 4 else shaded(violet_d)(c)))
     L1.cap(mantle, 'clear', face='bottom')
