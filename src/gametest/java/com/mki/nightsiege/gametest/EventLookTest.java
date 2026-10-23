@@ -316,7 +316,7 @@ public class EventLookTest implements FabricClientGameTest {
                         net.minecraft.world.entity.EquipmentSlot.HEAD, net.minecraft.world.entity.EquipmentSlot.CHEST,
                         net.minecraft.world.entity.EquipmentSlot.LEGS, net.minecraft.world.entity.EquipmentSlot.FEET}) {
                     net.minecraft.world.item.ItemStack st = player.getItemBySlot(slot);
-                    worn.append(st.getItem()).append(st.isEnchanted() ? "*" : "").append(' ');
+                    worn.append(st.getItem()).append(st.isEnchanted() ? "*" : "").append(st.hasFoil() ? "(glint)" : "").append(' ');
                 }
                 System.out.println("[Night Siege test] kit " + lv + ": " + worn + "points="
                         + manager.save().skillsOf(player.getUUID().toString()).earned);
@@ -393,7 +393,9 @@ public class EventLookTest implements FabricClientGameTest {
         closeScreen(context);
         for (String slot : new String[]{"head:iron_helmet", "chest:iron_chestplate", "legs:iron_leggings", "feet:iron_boots"}) {
             String[] p = slot.split(":");
-            game.getServer().runCommand("item replace entity @p armor.%s with minecraft:%s".formatted(p[0], p[1]));
+            // Enchanted on purpose: the outfit must not show the glint.
+            game.getServer().runCommand("item replace entity @p armor.%s with minecraft:%s[minecraft:enchantments={\"minecraft:protection\":2}]"
+                    .formatted(p[0], p[1]));
         }
         context.runOnClient(client -> client.options.setCameraType(net.minecraft.client.CameraType.THIRD_PERSON_FRONT));
         context.waitTicks(20);

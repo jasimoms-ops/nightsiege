@@ -25,7 +25,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
  * Draws a worn armour piece as the outfit of its wearer's subclass: the outfit's
- * own model (with its hats, cloaks and the like) and its textures.
+ * own model (with its hats, cloaks and the like) and its textures, without trim
+ * and enchantment glint.
  */
 @Mixin(HumanoidArmorLayer.class)
 public abstract class HumanoidArmorLayerMixin {
@@ -50,7 +51,7 @@ public abstract class HumanoidArmorLayerMixin {
         if (outfit == null) {
             original.call(renderer, type, asset, model, state, stack, pose, collector, light, outline);
         } else {
-            original.call(renderer, type, ClassLooks.asset(look), outfit, state, ClassLooks.withoutTrim(stack),
+            original.call(renderer, type, ClassLooks.asset(look), outfit, state, ClassLooks.forOutfit(stack),
                     pose, collector, light, outline);
         }
     }
@@ -66,7 +67,7 @@ public abstract class HumanoidArmorLayerMixin {
         if (outfit == null) {
             original.call(renderer, type, asset, model, state, stack, pose, collector, light, texture, outline, order);
         } else {
-            original.call(renderer, type, ClassLooks.asset(look), outfit, state, ClassLooks.withoutTrim(stack),
+            original.call(renderer, type, ClassLooks.asset(look), outfit, state, ClassLooks.forOutfit(stack),
                     pose, collector, light, texture, outline, order);
         }
     }

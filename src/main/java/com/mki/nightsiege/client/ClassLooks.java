@@ -100,13 +100,17 @@ public final class ClassLooks {
         return look == null ? null : ASSETS.get(look);
     }
 
-    /** The outfit has no trim patterns of its own, so a trimmed piece is drawn without its trim. */
-    public static ItemStack withoutTrim(ItemStack stack) {
-        if (stack == null || !stack.has(DataComponents.TRIM)) {
+    /**
+     * The piece as an outfit draws it: without trim patterns (the outfit has none of
+     * its own) and without the enchantment glint, which would shimmer over the cloth.
+     */
+    public static ItemStack forOutfit(ItemStack stack) {
+        if (stack == null || (!stack.has(DataComponents.TRIM) && !stack.hasFoil())) {
             return stack;
         }
         ItemStack copy = stack.copy();
         copy.remove(DataComponents.TRIM);
+        copy.set(DataComponents.ENCHANTMENT_GLINT_OVERRIDE, false);
         return copy;
     }
 }

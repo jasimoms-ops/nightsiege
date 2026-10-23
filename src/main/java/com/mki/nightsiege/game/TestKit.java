@@ -18,7 +18,8 @@ import java.util.Random;
  * Kits for playtests: armour, a weapon for the class and food that fit the
  * level of a test night, and the skill points a defender would have earned by
  * then. Up to level 5 iron and diamond mixed with one or two enchantments,
- * from 6 diamond, above 10 netherite. Weapons stay unenchanted.
+ * from 6 diamond, above 10 netherite, all without enchantment glint. Weapons stay
+ * unenchanted.
  */
 public final class TestKit {
 
@@ -117,7 +118,8 @@ public final class TestKit {
         for (int i = 0; i < extra && !pool.isEmpty(); i++) {
             list.add(pool.remove(random.nextInt(pool.size())));
         }
-        return "[minecraft:enchantments={" + String.join(",", list) + "}]";
+        // No glint: it would shimmer over the class outfits.
+        return "[minecraft:enchantments={" + String.join(",", list) + "},minecraft:enchantment_glint_override=false]";
     }
 
     /** The class's weapons in the given material, unenchanted. */
