@@ -83,15 +83,21 @@ public final class ClassLooks {
         return found.isEmpty() ? null : found;
     }
 
-    /** The equipment asset to draw instead of the armour's own, or null to keep it. */
-    public static ResourceKey<EquipmentAsset> assetFor(Object renderState) {
+    /** The outfit a render state shows, or null. Baby models keep their plain armour. */
+    public static String lookFor(Object renderState) {
         if (renderState instanceof ClassLookState state) {
-            String look = state.nightsiege$look();
-            if (look != null) {
-                return ASSETS.get(look);
+            if (renderState instanceof net.minecraft.client.renderer.entity.state.LivingEntityRenderState living
+                    && living.isBaby) {
+                return null;
             }
+            return state.nightsiege$look();
         }
         return null;
+    }
+
+    /** The equipment asset of an outfit (its textures). */
+    public static ResourceKey<EquipmentAsset> asset(String look) {
+        return look == null ? null : ASSETS.get(look);
     }
 
     /** The outfit has no trim patterns of its own, so a trimmed piece is drawn without its trim. */

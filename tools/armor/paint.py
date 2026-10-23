@@ -44,13 +44,15 @@ class Ctx:
 
 
 class Tex:
-    def __init__(self, seed):
-        self.img = Image.new('RGBA', (64, 32), (0, 0, 0, 0))
+    def __init__(self, seed, size=(64, 32)):
+        self.img = Image.new('RGBA', size, (0, 0, 0, 0))
         self.px = self.img.load()
         self.rnd = random.Random(seed)
+        self.parts = dict(PARTS)
+        self.w, self.h = size
 
     def set(self, x, y, c):
-        if 0 <= x < 64 and 0 <= y < 32:
+        if 0 <= x < self.w and 0 <= y < self.h:
             self.px[x, y] = c
 
     def get(self, x, y):
@@ -59,7 +61,7 @@ class Tex:
     # ------------------------------------------------------------------ faces
 
     def face_rect(self, part, face):
-        u, v, w, h, d = PARTS[part]
+        u, v, w, h, d = self.parts[part]
         return {
             'top': (u + d, v, w, d),
             'bottom': (u + d + w, v, w, d),
@@ -85,7 +87,7 @@ class Tex:
 
     def strip(self, part, mat, rows=None, faces=SIDES, where=None):
         """Paints the four sides of a box; rows are counted from its top."""
-        u, v, w, h, d = PARTS[part]
+        u, v, w, h, d = self.parts[part]
         widths = {'right': d, 'front': w, 'left': d, 'back': w}
         sw = 2 * (w + d)
         s0 = 0
@@ -264,7 +266,7 @@ def jagged(c, base_row, rnd_amp=1):
 
 def outline_hem(tex, part, row, k=0.7, faces=SIDES):
     """Darkens one row of the strip, as a hem or the edge of a garment."""
-    u, v, w, h, d = PARTS[part]
+    u, v, w, h, d = tex.parts[part]
     widths = {'right': d, 'front': w, 'left': d, 'back': w}
     for face in faces:
         x0, y0, fw, fh = tex.face_rect(part, face)
