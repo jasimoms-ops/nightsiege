@@ -188,6 +188,8 @@ public class SiegeConfig {
     public double killQuotaShare = 0.6;
     /** Balancing targets for /nightsiege balance: share of nights won, of held nights with the kill goal, deaths per night, allowed spread of subclass damage. */
     public double targetWinRate = 0.75;
+    /** /nightsiege test hands out kits and tops up skill points to what the level would have given (playtests). */
+    public boolean testKits = true;
     public double targetGoalRate = 0.8;
     public double targetDeathsPerNight = 1.0;
     public double targetClassSpread = 0.25;

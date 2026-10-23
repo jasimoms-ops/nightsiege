@@ -303,11 +303,23 @@ public class EventLookTest implements FabricClientGameTest {
                         System.out.println("[Night Siege test] " + file + ": " + l);
                     }
                 }
-                for (net.minecraft.network.chat.Component c : com.mki.nightsiege.game.BalanceReport.build(manager.config())) {
+                for (net.minecraft.network.chat.Component c : com.mki.nightsiege.game.BalanceReport.build(manager.config(), true)) {
                     System.out.println("[Night Siege test] balance: " + c.getString());
                 }
             } catch (java.io.IOException e) {
                 System.out.println("[Night Siege test] no protocol: " + e);
+            }
+            for (int lv : new int[]{3, 7, 12}) {
+                manager.giveKits(level.getServer(), level, player.blockPosition(), lv);
+                StringBuilder worn = new StringBuilder();
+                for (net.minecraft.world.entity.EquipmentSlot slot : new net.minecraft.world.entity.EquipmentSlot[]{
+                        net.minecraft.world.entity.EquipmentSlot.HEAD, net.minecraft.world.entity.EquipmentSlot.CHEST,
+                        net.minecraft.world.entity.EquipmentSlot.LEGS, net.minecraft.world.entity.EquipmentSlot.FEET}) {
+                    net.minecraft.world.item.ItemStack st = player.getItemBySlot(slot);
+                    worn.append(st.getItem()).append(st.isEnchanted() ? "*" : "").append(' ');
+                }
+                System.out.println("[Night Siege test] kit " + lv + ": " + worn + "points="
+                        + manager.save().skillsOf(player.getUUID().toString()).earned);
             }
         });
         context.waitTicks(10);

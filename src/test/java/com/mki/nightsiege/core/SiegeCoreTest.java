@@ -1058,4 +1058,14 @@ class SiegeCoreTest {
         assertEquals(0, SiegeMath.killsRequired(0.0, 48, 50, 0, 10));
         assertEquals(0.6, new SiegeConfig().killQuotaShare, 1e-9);
     }
+
+    @Test
+    void testKitPointsGrowWithTheLevel() {
+        SiegeConfig cfg = new SiegeConfig();
+        assertEquals(0, com.mki.nightsiege.game.TestKit.pointsBefore(1, cfg));
+        int five = com.mki.nightsiege.game.TestKit.pointsBefore(5, cfg);
+        int ten = com.mki.nightsiege.game.TestKit.pointsBefore(10, cfg);
+        assertTrue(five > 0);
+        assertTrue(ten > five);
+    }
 }

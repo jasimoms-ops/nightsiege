@@ -25,7 +25,7 @@ public final class BalanceReport {
     private BalanceReport() {
     }
 
-    public static List<Component> build(SiegeConfig cfg) {
+    public static List<Component> build(SiegeConfig cfg, boolean tests) {
         List<Component> out = new ArrayList<>();
         List<String[]> nights = read(Json.configFile(NightLog.NIGHT_FILE));
         List<String[]> players = read(Json.configFile(NightLog.PLAYER_FILE));
@@ -38,12 +38,12 @@ public final class BalanceReport {
         int closestCount = 0;
         Map<Integer, int[]> byLevel = new TreeMap<>();
         for (String[] n : nights) {
-            if (n.length < 20 || "ja".equals(n[3]) || "abgebrochen".equals(n[15])) {
+            if (n.length < 20 || (!tests && "ja".equals(n[3])) || "abgebrochen".equals(n[15])) {
                 continue;
             }
             count++;
-            boolean win = "gewonnen".equals(n[15]);
-            boolean survived = win || "ziel_verfehlt".equals(n[15]);
+            boolean win = "gewonnen".equals(n[15]) || ("test_gehalten".equals(n[15]) && "ja".equals(n[13]));
+            boolean survived = win || "ziel_verfehlt".equals(n[15]) || "test_gehalten".equals(n[15]);
             if (win) {
                 won++;
             }
@@ -64,7 +64,7 @@ public final class BalanceReport {
                 lv[1]++;
             }
         }
-        out.add(Component.translatable("nightsiege.balance.header", count).withStyle(ChatFormatting.GOLD));
+        out.add(Component.translatable(tests ? "nightsiege.balance.header_tests" : "nightsiege.balance.header", count).withStyle(ChatFormatting.GOLD));
         if (count == 0) {
             out.add(Component.translatable("nightsiege.balance.empty").withStyle(ChatFormatting.GRAY));
             return out;
@@ -90,7 +90,7 @@ public final class BalanceReport {
         // Damage per defender and night, by subclass (or class).
         Map<String, double[]> damage = new LinkedHashMap<>();
         for (String[] p : players) {
-            if (p.length < 13 || "ja".equals(p[3]) || "abgebrochen".equals(p[12])) {
+            if (p.length < 13 || (!tests && "ja".equals(p[3])) || "abgebrochen".equals(p[12])) {
                 continue;
             }
             String key = p[6].isBlank() ? p[5] : p[6];

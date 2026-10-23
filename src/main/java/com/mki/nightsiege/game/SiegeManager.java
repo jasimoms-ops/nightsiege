@@ -988,6 +988,17 @@ public final class SiegeManager {
                 : MobFactory.spawnAt(world, spot, entityId, siegeLevel, config, random, currentEvent, elite);
     }
 
+    /** Playtest kits for every player around a spot. Returns how many got one. */
+    public int giveKits(MinecraftServer server, ServerLevel level, BlockPos center, int siegeLevelWanted) {
+        int count = 0;
+        for (ServerPlayer player : playersNear(server, level, center, config.participantRadius)) {
+            TestKit.give(server, player, siegeLevelWanted, save.skillsOf(player.getUUID().toString()), skillTree, config, random);
+            count++;
+        }
+        persist();
+        return count;
+    }
+
     /** Notes a defender in the night's protocol, with class and subclass. */
     private void logPlayer(ServerPlayer player) {
         NightLog.Line line = nightLog.of(player.getUUID(), player.getScoreboardName());

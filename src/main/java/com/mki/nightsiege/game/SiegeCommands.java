@@ -105,11 +105,28 @@ public final class SiegeCommands {
                                         .then(Commands.argument("stufe", IntegerArgumentType.integer(0, PerkKind.MAX_STAGE))
                                                 .executes(SiegeCommands::perkSet)))))
                 .then(Commands.literal("balance").executes(ctx -> {
-                    for (Component line : BalanceReport.build(SiegeManager.get().config())) {
+                    for (Component line : BalanceReport.build(SiegeManager.get().config(), false)) {
                         reply(ctx.getSource(), line);
                     }
                     return 1;
-                }))
+                }).then(Commands.literal("test").executes(ctx -> {
+                    for (Component line : BalanceReport.build(SiegeManager.get().config(), true)) {
+                        reply(ctx.getSource(), line);
+                    }
+                    return 1;
+                })))
+                .then(Commands.literal("kit").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                        .then(Commands.argument("stufe", IntegerArgumentType.integer(1, 1000)).executes(ctx -> {
+                            ServerPlayer player = ctx.getSource().getPlayer();
+                            if (player == null) {
+                                fail(ctx.getSource(), Component.translatable("nightsiege.cmd.player_only"));
+                                return 0;
+                            }
+                            int n = SiegeManager.get().giveKits(ctx.getSource().getServer(), player.level(), player.blockPosition(),
+                                    IntegerArgumentType.getInteger(ctx, "stufe"));
+                            reply(ctx.getSource(), Component.translatable("nightsiege.cmd.kits", n));
+                            return 1;
+                        })))
                 .then(Commands.literal("base").executes(SiegeCommands::baseInfo)
                         .then(Commands.literal("radius").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                                 .executes(ctx -> {
@@ -240,6 +257,9 @@ public final class SiegeCommands {
         }
         int level = IntegerArgumentType.getInteger(ctx, "level");
         MinecraftServer server = source.getLevel().getServer();
+        if (manager.config().testKits) {
+            manager.giveKits(server, player.level(), player.blockPosition(), level);
+        }
         if (!manager.startTest(server, player.level(), player.blockPosition(), level, event)) {
             fail(source, Component.translatable("nightsiege.cmd.no_target"));
             return 0;
