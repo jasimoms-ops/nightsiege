@@ -11,7 +11,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
  * During a thunder night only the mod's own lightning strikes, and only
- * monsters: natural bolts could set the base on fire.
+ * monsters: natural bolts could set the base on fire. During a siege no
+ * phantoms or patrols come.
  */
 @Mixin(ServerLevel.class)
 public abstract class ServerLevelMixin {
@@ -20,6 +21,14 @@ public abstract class ServerLevelMixin {
     private void nightsiege$noNaturalLightning(LevelChunk chunk, CallbackInfo ci) {
         ServerLevel self = (ServerLevel) (Object) this;
         if (EventAtmosphere.THUNDER.equals(EventAtmosphere.serverEvent(SiegeManager.dimensionName(self)))) {
+            ci.cancel();
+        }
+    }
+
+    /** No phantoms, patrols and the like while natural monster spawns are held back for a siege. */
+    @Inject(method = "tickCustomSpawners", at = @At("HEAD"), cancellable = true, require = 0)
+    private void nightsiege$noCustomSpawnsInSiege(boolean spawnEnemies, CallbackInfo ci) {
+        if (SiegeManager.blocksNaturalSpawns((ServerLevel) (Object) this)) {
             ci.cancel();
         }
     }

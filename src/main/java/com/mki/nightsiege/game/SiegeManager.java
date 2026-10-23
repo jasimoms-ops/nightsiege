@@ -222,6 +222,9 @@ public final class SiegeManager {
     private ServerBossEvent bossBar;
     /** When each defender last got the free traps (game time): at the warning, in a test's preparation or at the start. */
     private final Map<UUID, Long> trapsHanded = new HashMap<>();
+    /** From the warning until the night is over no natural monsters spawn in this world (dimension name). */
+    private String spawnBlockWorld;
+    private long spawnBlockUntil;
     /** A test night that waits for its preparation time to run out, and its bar. */
     private PendingTest pendingTest;
     private ServerBossEvent prepBar;
@@ -630,6 +633,29 @@ public final class SiegeManager {
         return true;
     }
 
+    /**
+     * Whether natural monster spawns (and phantoms, patrols) are held back in this
+     * world: during a siege, a test's preparation and from the warning on.
+     */
+    public static boolean blocksNaturalSpawns(ServerLevel level) {
+        return INSTANCE.blocksSpawnsIn(level);
+    }
+
+    private boolean blocksSpawnsIn(ServerLevel level) {
+        if (config == null || !config.blockNaturalSpawnsInSiege || level == null) {
+            return false;
+        }
+        if (active && world == level) {
+            return true;
+        }
+        PendingTest prep = pendingTest;
+        if (prep != null && prep.world == level) {
+            return true;
+        }
+        String blocked = spawnBlockWorld;
+        return blocked != null && blocked.equals(dimensionName(level)) && level.getGameTime() < spawnBlockUntil;
+    }
+
     /** True while a test night waits for its preparation time. */
     public boolean isPreparing() {
         return pendingTest != null;
@@ -698,6 +724,10 @@ public final class SiegeManager {
         if (targetWorld == null) {
             return;
         }
+        // Natural monsters stop with the warning; if the night does not come, they start again a minute after its time.
+        spawnBlockWorld = dimensionName(targetWorld);
+        long gap = Math.max(config.startDayTime - config.warningDayTime, config.eclipseStartDayTime - config.eclipseWarningDayTime);
+        spawnBlockUntil = targetWorld.getGameTime() + Math.max(0L, gap) + 1200L;
         BlockPos pos = new BlockPos((int) target.anchor().x(), (int) target.anchor().y(), (int) target.anchor().z());
         trapsHanded.clear();
         for (ServerPlayer player : playersNear(server, targetWorld, pos, config.participantRadius)) {
@@ -987,7 +1017,8 @@ public final class SiegeManager {
                 continue;
             }
             int weight = waveWeight.getOrDefault(id, 1) * (save.specialNight ? config.specialNightXpMultiplier : 1);
-            int points = WaveXp.survive(save.skillsOf(id.toString()), weight, config.wavesPerPoint);
+            int points = WaveXp.survive(save.skillsOf(id.toString()), weight, config.wavesPerPoint,
+                    config.pointGainMultiplier);
             player.connection.send(new net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket(points > 0
                     ? Component.translatable("nightsiege.msg.wave_point", wavesStarted, points).withStyle(ChatFormatting.AQUA)
                     : Component.translatable("nightsiege.msg.wave_held", wavesStarted).withStyle(ChatFormatting.GRAY)));
@@ -1050,7 +1081,7 @@ public final class SiegeManager {
             if (entityId == null) {
                 return;
             }
-            entityId = events.substitute(currentEvent, entityId, config);
+            entityId = config.withoutEffects(events.substitute(currentEvent, entityId, config));
             BlockPos rift = events.riftForLast();
             if (MobFactory.isUnavailable(entityId)) {
                 if (unavailableMobs.add(entityId)) {
@@ -1119,6 +1150,7 @@ public final class SiegeManager {
 
     /** Spawns a monster outside the walls of the base, or in the old ring if none was found. */
     private Mob spawnMob(String entityId, boolean elite) {
+        entityId = config.withoutEffects(entityId);
         if (MobFactory.isUnavailable(entityId)) {
             return null;
         }
@@ -1326,6 +1358,7 @@ public final class SiegeManager {
 
     private void clearSiegeState() {
         trapsHanded.clear();
+        spawnBlockWorld = null;
         if (world != null) {
             events.end(world.getServer(), world, currentEvent);
         }

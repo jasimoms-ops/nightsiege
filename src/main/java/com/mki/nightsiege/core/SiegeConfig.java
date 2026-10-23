@@ -167,6 +167,8 @@ public class SiegeConfig {
     public int skillPointsPerKill = 0;
     /** Survived waves that make one experience point (sieges give experience only this way). */
     public int wavesPerPoint = 2;
+    /** Factor on the points from survived waves (1.5 = half as much again); the test kits count with it too. */
+    public double pointGainMultiplier = 1.5;
     /** Players who missed nights: waves count (missed + 1) times in their next night, at most this often. */
     public int catchUpMax = 4;
     /** Defenders who die in a siege keep their inventory. */
@@ -182,6 +184,47 @@ public class SiegeConfig {
 
     // --- mobs -------------------------------------------------------------
     public List<MobEntry> mobs = defaultMobs();
+    /**
+     * Siege monsters that put effects on defenders (hunger, poison, slowness,
+     * freezing, wither, weakness, blindness) come as a plain monster of the night instead.
+     */
+    public boolean replaceEffectMobs = true;
+    /** Which monster comes instead of which. Mounts ("a+b") are replaced part by part. */
+    public Map<String, String> effectMobReplacements = defaultEffectMobReplacements();
+    /** No natural monsters, phantoms or patrols in the siege's world from the warning until the night is over. */
+    public boolean blockNaturalSpawnsInSiege = true;
+
+    public static Map<String, String> defaultEffectMobReplacements() {
+        Map<String, String> map = new LinkedHashMap<>();
+        map.put("minecraft:husk", "minecraft:zombie");
+        map.put("minecraft:stray", "minecraft:skeleton");
+        map.put("minecraft:bogged", "minecraft:skeleton");
+        map.put("minecraft:parched", "minecraft:skeleton");
+        map.put("minecraft:cave_spider", "minecraft:spider");
+        map.put("minecraft:witch", "minecraft:pillager");
+        map.put("minecraft:wither_skeleton", "minecraft:vindicator");
+        map.put("variantsandventures:thicket", "minecraft:zombie");
+        map.put("variantsandventures:gelid", "minecraft:zombie");
+        map.put("variantsandventures:verdant", "minecraft:skeleton");
+        map.put("friendsandfoes:iceologer", "minecraft:vindicator");
+        map.put("friendsandfoes:illusioner", "minecraft:pillager");
+        return map;
+    }
+
+    /** The monster that really comes for a picked one, without effect monsters when they are switched off. */
+    public String withoutEffects(String id) {
+        if (!replaceEffectMobs || id == null || effectMobReplacements == null || effectMobReplacements.isEmpty()) {
+            return id;
+        }
+        String[] parts = id.split("\\+");
+        for (int i = 0; i < parts.length; i++) {
+            String instead = effectMobReplacements.get(parts[i].trim());
+            if (instead != null && !instead.isBlank()) {
+                parts[i] = instead.trim();
+            }
+        }
+        return String.join("+", parts);
+    }
 
     /** Dungeon cores hidden in the structures of Dungeons and Taverns. */
     public boolean dungeonsEnabled = true;
@@ -438,6 +481,13 @@ public class SiegeConfig {
             settingsVersion = 4;
         }
         wavesPerPoint = clamp(wavesPerPoint, 1, 20);
+        if (Double.isNaN(pointGainMultiplier) || pointGainMultiplier <= 0) {
+            pointGainMultiplier = 1.0;
+        }
+        pointGainMultiplier = Math.min(10.0, Math.max(0.1, pointGainMultiplier));
+        if (effectMobReplacements == null) {
+            effectMobReplacements = defaultEffectMobReplacements();
+        }
         catchUpMax = clamp(catchUpMax, 1, 10);
         defeatSkillLoss = clamp(defeatSkillLoss, 0, 20);
 

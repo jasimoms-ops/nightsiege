@@ -831,6 +831,44 @@ class SiegeCoreTest {
     }
 
     @Test
+    void pointFactorKeepsTheFraction() {
+        PlayerSkills p = new PlayerSkills();
+        // 1.5 points per two waves: 1, then 2 (the half points add up).
+        assertEquals(1, WaveXp.survive(p, 2, 2, 1.5));
+        assertEquals(2, WaveXp.survive(p, 2, 2, 1.5));
+        assertEquals(3, p.points());
+        assertEquals(0.0, p.pointFraction, 1e-9);
+        // The kit counts the same way: before night 16 that is half as much again.
+        SiegeConfig cfg = new SiegeConfig();
+        cfg.pointGainMultiplier = 1.0;
+        int plain = com.mki.nightsiege.game.TestKit.pointsBefore(16, cfg);
+        cfg.pointGainMultiplier = 1.5;
+        assertEquals(Math.floor(plain * 1.5), com.mki.nightsiege.game.TestKit.pointsBefore(16, cfg), 1.0);
+    }
+
+    @Test
+    void effectMonstersComeAsPlainOnes() {
+        SiegeConfig cfg = new SiegeConfig();
+        assertEquals("minecraft:zombie", cfg.withoutEffects("minecraft:husk"));
+        assertEquals("minecraft:camel_husk+minecraft:zombie", cfg.withoutEffects("minecraft:camel_husk+minecraft:husk"));
+        assertEquals("minecraft:skeleton", cfg.withoutEffects("minecraft:stray"));
+        assertEquals("minecraft:creeper", cfg.withoutEffects("minecraft:creeper"));
+        // Every replacement is a monster of the normal list, none gives an effect itself.
+        java.util.Set<String> listed = new java.util.HashSet<>();
+        for (MobEntry e : SiegeConfig.defaultMobs()) {
+            for (String part : e.id.split("\\+")) {
+                listed.add(part);
+            }
+        }
+        for (String instead : cfg.effectMobReplacements.values()) {
+            assertTrue(listed.contains(instead), instead);
+            assertFalse(cfg.effectMobReplacements.containsKey(instead), instead);
+        }
+        cfg.replaceEffectMobs = false;
+        assertEquals("minecraft:husk", cfg.withoutEffects("minecraft:husk"));
+    }
+
+    @Test
     void missedNightsAreMadeUp() {
         assertEquals(1, WaveXp.catchUp(5, 4, 4));    // was there last night
         assertEquals(3, WaveXp.catchUp(5, 2, 4));    // missed two

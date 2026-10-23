@@ -25,6 +25,8 @@ public class PlayerSkills {
     public int lost;
     /** Survived waves not yet turned into a point (see {@link WaveXp}). */
     public int waveCredit;
+    /** Part of a point left over when the point factor is not a whole number. */
+    public double pointFraction;
     /** Number of the last siege night this player stood in, or -1 for none. */
     public int lastNight = -1;
 
@@ -129,6 +131,7 @@ public class PlayerSkills {
         donated = 0;
         lost = 0;
         waveCredit = 0;
+        pointFraction = 0;
         templateGiven = false;
         if (levels != null) {
             levels.clear();
@@ -145,6 +148,7 @@ public class PlayerSkills {
         donated = 0;
         lost = 0;
         waveCredit = 0;
+        pointFraction = 0;
         chosenClass = "";
         if (levels != null) {
             levels.clear();

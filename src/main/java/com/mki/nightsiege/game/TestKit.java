@@ -38,7 +38,8 @@ public final class TestKit {
             int ticks = SiegeMath.durationSeconds(night, cfg) * 20;
             waves += Math.max(1, (ticks - 1) / interval + 1);
         }
-        total = (int) Math.floor(waves / Math.max(1, cfg.wavesPerPoint));
+        // The same sums as the nights: full sets of waves, each worth the point factor.
+        total = (int) Math.floor(Math.floor(waves / Math.max(1, cfg.wavesPerPoint)) * cfg.pointGainMultiplier + 1e-9);
         return total;
     }
 
