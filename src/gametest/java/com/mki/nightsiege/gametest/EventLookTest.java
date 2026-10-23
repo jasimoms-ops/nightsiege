@@ -359,6 +359,9 @@ public class EventLookTest implements FabricClientGameTest {
         // Every outfit up close, four at a time, from the front and from the back.
         String[] all = {"berserker", "blademaster", "axe", "paladin", "swift", "heavy", "bolter", "trapper",
                 "shieldfighter", "bulwark", "medic", "warden", "gunner", "electrician", "demolition", "alchemist"};
+        // Chat lines and toasts fade after ten seconds; wait so the pictures stay clear.
+        game.getServer().runCommand("kill @e[type=minecraft:armor_stand]");
+        context.waitTicks(230);
         for (int g = 0; g < 4; g++) {
             for (int side = 0; side < 2; side++) {
                 game.getServer().runCommand("kill @e[type=minecraft:armor_stand]");
@@ -367,10 +370,10 @@ public class EventLookTest implements FabricClientGameTest {
                             "summon minecraft:armor_stand %d %d %.1f {CustomName:\"%s\",ShowArms:1b,Rotation:[%df,0f],"
                             + "equipment:{head:{id:\"minecraft:iron_helmet\"},chest:{id:\"minecraft:iron_chestplate\"},"
                             + "legs:{id:\"minecraft:iron_leggings\"},feet:{id:\"minecraft:iron_boots\"}}}",
-                            x - 4, y, z - 2.1 + i * 1.4, all[g * 4 + i], side == 0 ? -90 : 90));
+                            x - 5, y, z - 2.25 + i * 1.5, all[g * 4 + i], side == 0 ? -90 : 90));
                 }
                 context.waitTicks(15);
-                context.getInput().lookAt(90.0f, 14.0f);
+                context.getInput().lookAt(90.0f, 12.0f);
                 context.waitTicks(5);
                 context.takeScreenshot("armor_close_%d_%s".formatted(g + 1, side == 0 ? "front" : "back"));
             }
