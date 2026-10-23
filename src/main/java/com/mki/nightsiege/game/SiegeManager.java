@@ -360,6 +360,10 @@ public final class SiegeManager {
         SiegeConfig loaded = Json.read(configPath, SiegeConfig.class);
         config = loaded == null ? new SiegeConfig() : loaded;
         config.sanitize();
+        int tweaked = skillTree.applyTweaks(config.skillTweaks);
+        if (tweaked > 0) {
+            NightSiegeMod.LOGGER.info("[Night Siege] {} Skills mit Server-Werten", tweaked);
+        }
         Json.write(configPath, config);
         DungeonContent.active = config.dungeonsEnabled;
 
@@ -998,6 +1002,18 @@ public final class SiegeManager {
         }
         persist();
         return count;
+    }
+
+    /** Server balancing: factor on the damage this player deals to monsters. */
+    public float damageFactor(ServerPlayer player) {
+        PlayerSkills skills = save.skillsOf(player.getUUID().toString());
+        return (float) config.damageFactor(skills.chosenClass, skillTree.subclassOf(skills));
+    }
+
+    /** Server balancing: factor on the damage this player takes from monsters. */
+    public float damageTakenFactor(ServerPlayer player) {
+        PlayerSkills skills = save.skillsOf(player.getUUID().toString());
+        return (float) config.damageTakenFactor(skills.chosenClass, skillTree.subclassOf(skills));
     }
 
     /** Notes a defender in the night's protocol, with class and subclass. */

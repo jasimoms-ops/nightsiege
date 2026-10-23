@@ -61,12 +61,40 @@ public final class SkillTree {
         this(defaultNodes());
     }
 
+    /** The built-in nodes, so server tweaks can always be laid over them anew. */
+    private final List<SkillNode> builtIn = new ArrayList<>();
+
     public SkillTree(List<SkillNode> list) {
         for (SkillNode node : list) {
             if (node != null && node.id() != null && !node.id().isBlank()) {
                 nodes.put(node.id(), node);
+                builtIn.add(node);
             }
         }
+    }
+
+    /**
+     * Lays the server's skill tweaks over the built-in values (amount per level,
+     * costs, highest level). Returns how many skills were changed.
+     */
+    public int applyTweaks(Map<String, SiegeConfig.SkillTweak> tweaks) {
+        nodes.clear();
+        int changed = 0;
+        for (SkillNode n : builtIn) {
+            SiegeConfig.SkillTweak t = tweaks == null ? null : tweaks.get(n.id());
+            if (t == null) {
+                nodes.put(n.id(), n);
+                continue;
+            }
+            changed++;
+            nodes.put(n.id(), new SkillNode(n.id(), n.clazz(), n.path(), n.effect(),
+                    t.maxLevel != null ? Math.max(1, t.maxLevel) : n.maxLevel(),
+                    t.cost != null ? Math.max(0, t.cost) : n.baseCost(),
+                    t.costStep != null ? Math.max(0, t.costStep) : n.costStep(),
+                    t.amount != null ? t.amount : n.amountPerLevel(),
+                    n.requires(), n.requiresLevel(), n.icon(), n.row(), n.group(), n.locks(), n.col()));
+        }
+        return changed;
     }
 
     public static List<SkillNode> defaultNodes() {

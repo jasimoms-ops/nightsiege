@@ -1,5 +1,8 @@
 package com.mki.nightsiege.core;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -188,6 +191,58 @@ public class SiegeConfig {
     public double killQuotaShare = 0.6;
     /** Balancing targets for /nightsiege balance: share of nights won, of held nights with the kill goal, deaths per night, allowed spread of subclass damage. */
     public double targetWinRate = 0.75;
+    // ---------------- Balancing on the server (no new client needed) ----------------
+    /** Short guide written into the config file. */
+    public String tuningHelp = "classDamage/subclassDamage: Faktor auf den Schaden, den Spieler dieser Klasse/Unterklasse an Monstern machen. "
+            + "classDamageTaken/subclassDamageTaken: Faktor auf den Schaden, den sie von Monstern bekommen. "
+            + "skillTweaks: je Skill-ID amount (Wert je Stufe), cost (Grundkosten), costStep (Aufschlag je Stufe), maxLevel. "
+            + "Aendern, speichern, dann /nightsiege reload - gilt sofort, ohne neue Mod-Version.";
+    public Map<String, Double> classDamage = new LinkedHashMap<>();
+    public Map<String, Double> classDamageTaken = new LinkedHashMap<>();
+    public Map<String, Double> subclassDamage = new LinkedHashMap<>();
+    public Map<String, Double> subclassDamageTaken = new LinkedHashMap<>();
+    /** Per skill id: new values for its amount per level, base cost, cost step or highest level. */
+    public Map<String, SkillTweak> skillTweaks = new LinkedHashMap<>();
+
+    /** One skill changed on the server; empty fields keep the built-in value. */
+    public static class SkillTweak {
+        public Double amount;
+        public Integer cost;
+        public Integer costStep;
+        public Integer maxLevel;
+    }
+
+    public static final String[] CLASS_KEYS = {"warrior", "archer", "guardian", "engineer"};
+    public static final String[] SUBCLASS_KEYS = {"blademaster", "berserker", "axe", "paladin", "swift", "heavy", "bolter",
+            "trapper", "shieldfighter", "bulwark", "medic", "warden", "gunner", "electrician", "demolition", "alchemist"};
+
+    /** Factor on the damage a player of this class and subclass deals to monsters. */
+    public double damageFactor(String clazz, String subclass) {
+        return factor(classDamage, clazz) * factor(subclassDamage, subclass);
+    }
+
+    /** Factor on the damage a player of this class and subclass takes from monsters. */
+    public double damageTakenFactor(String clazz, String subclass) {
+        return factor(classDamageTaken, clazz) * factor(subclassDamageTaken, subclass);
+    }
+
+    private static double factor(Map<String, Double> map, String key) {
+        if (map == null || key == null || key.isBlank()) {
+            return 1.0;
+        }
+        Double v = map.get(key.toLowerCase(java.util.Locale.ROOT));
+        return v == null ? 1.0 : v;
+    }
+
+    private static Map<String, Double> filled(Map<String, Double> map, String[] keys) {
+        Map<String, Double> out = new LinkedHashMap<>();
+        for (String key : keys) {
+            Double v = map == null ? null : map.get(key);
+            out.put(key, v == null || v.isNaN() ? 1.0 : Math.max(0.1, Math.min(5.0, v)));
+        }
+        return out;
+    }
+
     /** /nightsiege test hands out kits and tops up skill points to what the level would have given (playtests). */
     public boolean testKits = true;
     public double targetGoalRate = 0.8;
@@ -338,6 +393,13 @@ public class SiegeConfig {
         tankDamagePerPoint = Math.max(1, tankDamagePerPoint);
         specialNightMobMultiplier = clampDouble(specialNightMobMultiplier, 1.0, 5.0);
         killQuotaShare = clampDouble(killQuotaShare, 0.0, 1.0);
+        classDamage = filled(classDamage, CLASS_KEYS);
+        classDamageTaken = filled(classDamageTaken, CLASS_KEYS);
+        subclassDamage = filled(subclassDamage, SUBCLASS_KEYS);
+        subclassDamageTaken = filled(subclassDamageTaken, SUBCLASS_KEYS);
+        if (skillTweaks == null) {
+            skillTweaks = new LinkedHashMap<>();
+        }
         targetWinRate = clampDouble(targetWinRate <= 0 ? 0.75 : targetWinRate, 0.05, 1.0);
         targetGoalRate = clampDouble(targetGoalRate <= 0 ? 0.8 : targetGoalRate, 0.05, 1.0);
         targetDeathsPerNight = clampDouble(targetDeathsPerNight <= 0 ? 1.0 : targetDeathsPerNight, 0.1, 20.0);

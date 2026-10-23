@@ -356,19 +356,25 @@ public class EventLookTest implements FabricClientGameTest {
                 context.waitTicks(10);
             context.takeScreenshot("armor_row_" + (r + 1));
         }
-        // A closer look at the first four.
-        game.getServer().runCommand("kill @e[type=minecraft:armor_stand]");
-        for (int i = 0; i < 4; i++) {
-            game.getServer().runCommand(String.format(java.util.Locale.ROOT,
-                    "summon minecraft:armor_stand %d %d %.1f {CustomName:\"%s\",ShowArms:1b,Rotation:[-90f,0f],"
-                    + "equipment:{head:{id:\"minecraft:diamond_helmet\"},chest:{id:\"minecraft:leather_chestplate\"},"
-                    + "legs:{id:\"minecraft:golden_leggings\"},feet:{id:\"minecraft:netherite_boots\"}}}",
-                    x - 4, y, z - 1.5 + i, rows[0][i]));
+        // Every outfit up close, four at a time, from the front and from the back.
+        String[] all = {"berserker", "blademaster", "axe", "paladin", "swift", "heavy", "bolter", "trapper",
+                "shieldfighter", "bulwark", "medic", "warden", "gunner", "electrician", "demolition", "alchemist"};
+        for (int g = 0; g < 4; g++) {
+            for (int side = 0; side < 2; side++) {
+                game.getServer().runCommand("kill @e[type=minecraft:armor_stand]");
+                for (int i = 0; i < 4; i++) {
+                    game.getServer().runCommand(String.format(java.util.Locale.ROOT,
+                            "summon minecraft:armor_stand %d %d %.1f {CustomName:\"%s\",ShowArms:1b,Rotation:[%df,0f],"
+                            + "equipment:{head:{id:\"minecraft:iron_helmet\"},chest:{id:\"minecraft:iron_chestplate\"},"
+                            + "legs:{id:\"minecraft:iron_leggings\"},feet:{id:\"minecraft:iron_boots\"}}}",
+                            x - 4, y, z - 2.1 + i * 1.4, all[g * 4 + i], side == 0 ? -90 : 90));
+                }
+                context.waitTicks(15);
+                context.getInput().lookAt(90.0f, 14.0f);
+                context.waitTicks(5);
+                context.takeScreenshot("armor_close_%d_%s".formatted(g + 1, side == 0 ? "front" : "back"));
+            }
         }
-        context.waitTicks(20);
-        context.getInput().lookAt(90.0f, 14.0f);
-        context.waitTicks(10);
-        context.takeScreenshot("armor_warriors_close");
         game.getServer().runCommand("kill @e[type=minecraft:armor_stand]");
         // The player as a berserker, seen from the front.
         onServer(context, (player, manager) -> {

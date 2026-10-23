@@ -1068,4 +1068,23 @@ class SiegeCoreTest {
         assertTrue(five > 0);
         assertTrue(ten > five);
     }
+
+    @Test
+    void serverTweaksChangeSkillsAndDamage() {
+        SiegeConfig cfg = new SiegeConfig();
+        cfg.sanitize();
+        assertEquals(1.0, cfg.damageFactor("warrior", "berserker"), 1e-9);
+        cfg.classDamage.put("warrior", 1.2);
+        cfg.subclassDamage.put("berserker", 0.5);
+        assertEquals(0.6, cfg.damageFactor("WARRIOR", "berserker"), 1e-9);
+        SkillTree tree = new SkillTree();
+        int before = tree.get("masonry").baseCost();
+        SiegeConfig.SkillTweak t = new SiegeConfig.SkillTweak();
+        t.cost = before + 5;
+        cfg.skillTweaks.put("masonry", t);
+        assertEquals(1, tree.applyTweaks(cfg.skillTweaks));
+        assertEquals(before + 5, tree.get("masonry").baseCost());
+        tree.applyTweaks(new java.util.HashMap<>());
+        assertEquals(before, tree.get("masonry").baseCost());
+    }
 }

@@ -135,6 +135,13 @@ public final class GuardianEffects {
 
     private float scaleDamage(LivingEntity victim, ServerLevel level, DamageSource source, float amount) {
         float factor = 1f;
+        SiegeManager tuning = SiegeManager.get();
+        if (tuning != null && source.getEntity() instanceof ServerPlayer hitter && victim instanceof Enemy) {
+            factor *= tuning.damageFactor(hitter);   // server balancing per class and subclass
+        }
+        if (tuning != null && victim instanceof ServerPlayer hurt && source.getEntity() instanceof Enemy) {
+            factor *= tuning.damageTakenFactor(hurt);
+        }
         if (source.getEntity() instanceof ServerPlayer attacker && victim instanceof Enemy
                 && SkillTree.has(skillsFor.apply(attacker), "g_saint")) {
             factor *= 0.7f;   // the saint heals, but hits softer
