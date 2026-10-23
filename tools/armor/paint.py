@@ -274,3 +274,44 @@ def outline_hem(tex, part, row, k=0.7, faces=SIDES):
             c = tex.get(x0 + fx, y0 + row)
             if c[3] > 0:
                 tex.set(x0 + fx, y0 + row, mul(c, k))
+
+
+def finish(tex, darken=0.78, saturate=1.15):
+    """The final grade, in the manner of hand-shaded clothing packs: deeper colours,
+    a gradient down every side, dark lower edges and seams, and an outline where
+    a part meets the air."""
+    src = tex.img.copy()
+    sp = src.load()
+    for part in tex.parts:
+        for face in ('top', 'bottom', 'right', 'front', 'left', 'back'):
+            x0, y0, fw, fh = tex.face_rect(part, face)
+            for fy in range(fh):
+                for fx in range(fw):
+                    x, y = x0 + fx, y0 + fy
+                    if not (0 <= x < tex.w and 0 <= y < tex.h):
+                        continue
+                    c = sp[x, y]
+                    if c[3] == 0:
+                        continue
+                    lum = 0.3 * c[0] + 0.59 * c[1] + 0.11 * c[2]
+                    rgb = [lum + (c[i] - lum) * saturate for i in range(3)]
+                    k = darken
+                    if face in ('right', 'front', 'left', 'back') and fh > 1:
+                        k *= 1.07 - 0.17 * fy / (fh - 1)
+                        if fy == fh - 1:
+                            k *= 0.82
+                        elif fy == 0:
+                            k *= 1.06
+                        if fx in (0, fw - 1) and fw > 2:
+                            k *= 0.9
+                    elif face == 'bottom':
+                        k *= 0.7
+                    # Next to a gap or the edge of a shape: a soft dark line.
+                    edge = False
+                    for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                        nx, ny = fx + dx, fy + dy
+                        if 0 <= nx < fw and 0 <= ny < fh and sp[x0 + nx, y0 + ny][3] == 0:
+                            edge = True
+                    if edge:
+                        k *= 0.8
+                    tex.set(x, y, tuple(clamp(v * k) for v in rgb) + (c[3],))

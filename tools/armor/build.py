@@ -8,7 +8,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
-from paint import Tex  # noqa: E402
+from paint import Tex, finish  # noqa: E402
 from outfits import OUTFITS  # noqa: E402
 from outfits3d import DESIGNS  # noqa: E402
 import shapes  # noqa: E402
@@ -20,6 +20,8 @@ ASSETS = os.path.join(ROOT, 'src', 'main', 'resources', 'assets', 'nightsiege')
 LAYER1 = os.path.join(ASSETS, 'textures', 'entity', 'equipment', 'humanoid')
 LAYER2 = os.path.join(ASSETS, 'textures', 'entity', 'equipment', 'humanoid_leggings')
 EQUIPMENT = os.path.join(ASSETS, 'equipment')
+# Outfits that get the final grade (deeper colours, shading, outlines).
+GRADED = {'berserker', 'blademaster', 'axe', 'paladin'}
 JAVA = os.path.join(ROOT, 'src', 'main', 'java', 'com', 'mki', 'nightsiege', 'client', 'ClassArmorShapes.java')
 
 
@@ -39,6 +41,9 @@ def main():
         if name in DESIGNS:
             DESIGNS[name](kit, l1, l2)
         all_shapes[name] = kit.boxes
+        if name in GRADED:
+            finish(l1)
+            finish(l2)
         l1.save(os.path.join(LAYER1, 'class_' + name + '.png'))
         l2.save(os.path.join(LAYER2, 'class_' + name + '.png'))
         with open(os.path.join(EQUIPMENT, 'class_' + name + '.json'), 'w') as f:

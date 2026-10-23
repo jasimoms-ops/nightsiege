@@ -556,3 +556,99 @@ def alchemist(k, L1, L2):
         all_faces(L1, v, lambda c, col=colours[i]: hexc('#c9b48a') if c.r == 0 else col)
     flask = k.box('chest', 'body', 'flask', (4.4, 8.5, -1), (2, 3, 2))
     all_faces(L1, flask, lambda c: hexc('#b08a3a') if c.r == 0 else hexc('#9cf06a'))
+
+
+# ---------------------------------------------------------------------- the epic pass (details)
+
+def _then(name, extra):
+    base = DESIGNS[name]
+
+    def both(k, L1, L2):
+        base(k, L1, L2)
+        extra(k, L1, L2)
+    DESIGNS[name] = both
+
+
+def _berserker_more(k, L1, L2):
+    iron = hexc('#6e7278')
+    fang, fang_d = hexc('#efe6cf'), hexc('#a89c80')
+    blood = hexc('#7a1a14')
+    # A necklace of fangs on a thong over the chest.
+    neck = k.box('chest', 'body', 'fangs', (-3.5, 0.2, -3.8), (7, 3, 1))
+    all_faces(L1, neck, 'clear')
+    L1.art(neck, 'front', ['ttttttt', 'f.F.f.F', 'F...F..'], {'t': hexc('#4a3020'), 'f': fang, 'F': fang_d})
+    # War paint: red claw marks on the skull, iron rings on the horns and the belt.
+    L1.art('skull', 'top', ['..........', '..........', '.r..r..r..', '..r..r..r.', '...r..r..r'], {'r': blood})
+    for horn in ('horn1', 'horn2'):
+        L1.strip(horn, lambda c: iron if c.r == 0 else None)
+    L1.strip('belt', lambda c: mul(iron, 1.3) if c.r == 0 and c.s % 4 == 0 else None)
+    L1.strip('bracer', lambda c: mul(iron, 1.25) if c.r in (0, 3) and c.s % 3 == 0 else None)
+    # A torn wolf tail hanging from the belt.
+    tail = k.box('chest', 'body', 'wolftail', (3.5, 9.5, -1.5), (2, 7, 2))
+    all_faces(L1, tail, fur(hexc('#4a4038'), hexc('#6a5c4e'), hexc('#2c2520'), hexc('#8e7e68')))
+    ragged_bottom(L1, tail, 1)
+
+
+def _blademaster_more(k, L1, L2):
+    gold, gold_d = hexc('#c9a03a'), hexc('#7a5e1c')
+    silver = hexc('#cfd5de')
+    # Embroidered gold scrolls along the edges of the cape and the puffs.
+    L1.strip('cape', lambda c: (gold if (c.s + c.r) % 3 == 0 else gold_d) if c.r in (6, 7) else None)
+    L1.art('cape', 'back', ['..........', '....gg....', '...g..g...', '....gg....'], {'g': gold}, y=1)
+    L1.strip('puff', lambda c: gold if c.r == 0 and c.s % 2 == 0 else None)
+    L1.strip('beret', lambda c: gold if c.r == 1 and c.s % 3 == 0 else None)
+    # A swept rapier hilt at the left hip.
+    cup = k.box('chest', 'body', 'hilt', (4.6, 7.4, -2.6), (2, 2, 2))
+    all_faces(L1, cup, lambda c: silver if (c.s + c.r) % 2 else mul(silver, 0.7))
+    grip = k.box('chest', 'body', 'grip', (5.1, 4.6, -2.1), (1, 3, 1))
+    all_faces(L1, grip, lambda c: hexc('#2a1c14') if c.r else silver)
+    scab = k.box('chest', 'body', 'scabbard', (5.1, 9.4, -1.6), (1, 9, 1), rot=(0.35, 0, 0))
+    all_faces(L1, scab, lambda c: silver if c.r in (0, 8) else hexc('#1e1614'))
+    L1.strip('knot', lambda c: gold if c.r == c.fh - 1 and c.s % 2 == 0 else None)
+
+
+def _axe_more(k, L1, L2):
+    F = fur(hexc('#4c4238'), hexc('#6e6050'), hexc('#2e2620'), hexc('#9a8a70'))
+    iron = hexc('#7a7f86')
+    # A fur collar over the lamellar, rivets on the plates, knotwork on the belt.
+    collar = k.box('chest', 'body', 'collar', (-5.6, -2.4, -3.7), (11, 3, 7))
+    all_faces(L1, collar, F)
+    ragged_bottom(L1, collar, 1)
+    L1.strip('pauldron', lambda c: mul(iron, 1.3) if c.r % 2 == 0 and c.s % 3 == 1 else None)
+    L1.strip('vest', lambda c: mul(iron, 1.25) if c.r % 3 == 0 and c.s % 4 == 2 else None)
+    L1.strip('belt', lambda c: hexc('#9a7a44') if (c.s + c.r) % 3 == 0 else None)
+    for i in range(3):
+        L1.strip('helm%d' % i, lambda c: hexc('#d8b860') if c.r == 0 and c.s % 4 == 1 else None)
+    # Braided leather ties on the arms.
+    tie = k.box('chest', 'arm', 'tie', (-4.2, 6.5, -3.2), (6, 2, 6), grow=0.2)
+    all_faces(L1, tie, lambda c: hexc('#5a3a22') if (c.s + c.r) % 2 else hexc('#8a6238'))
+
+
+def _paladin_more(k, L1, L2):
+    gold, gold_l, gold_d = hexc('#c9a032'), hexc('#ead27a'), hexc('#7a5c18')
+    # A golden sun embroidered on the back of the cloak.
+    L1.art('cloak', 'back', [
+        '.....g.....',
+        '..g..g..g..',
+        '...g.g.g...',
+        '....GGG....',
+        'gggGGdGGggg',
+        '....GGG....',
+        '...g.g.g...',
+        '..g..g..g..',
+        '.....g.....',
+    ], {'g': gold, 'G': gold_l, 'd': gold_d}, y=3)
+    # Filigree on the shoulder pieces, a zigzag border on the surcoat.
+    L1.strip('pauldron', lambda c: gold_l if c.r == 0 and c.s % 2 == 0 else None)
+    L1.cap('pauldron', lambda c: gold if (c.fx + c.fy) % 3 == 0 else None)
+    L1.strip('tabard', lambda c: (gold if (c.fx + c.r) % 2 == 0 else gold_d) if c.face == 'front' and c.r >= 13 else None)
+    # A holy book on a chain at the hip.
+    book = k.box('chest', 'body', 'book', (4.5, 8.4, -2), (2, 3, 3))
+    all_faces(L1, book, lambda c: hexc('#4a1c14') if c.face not in ('top',) else hexc('#e8e0c8'))
+    L1.art(book, 'right', ['ggg', 'g.g', 'ggg'], {'g': gold})
+
+
+_then('berserker', _berserker_more)
+_then('blademaster', _blademaster_more)
+_then('axe', _axe_more)
+_then('paladin', _paladin_more)
