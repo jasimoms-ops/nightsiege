@@ -297,6 +297,18 @@ public class EventLookTest implements FabricClientGameTest {
             }
             System.out.println("[Night Siege test] siege mobs inside=" + inside + " outside=" + outside);
             manager.abort(level.getServer());
+            try {
+                for (String file : new String[]{com.mki.nightsiege.game.NightLog.NIGHT_FILE, com.mki.nightsiege.game.NightLog.PLAYER_FILE}) {
+                    for (String l : java.nio.file.Files.readAllLines(com.mki.nightsiege.game.Json.configFile(file))) {
+                        System.out.println("[Night Siege test] " + file + ": " + l);
+                    }
+                }
+                for (net.minecraft.network.chat.Component c : com.mki.nightsiege.game.BalanceReport.build(manager.config())) {
+                    System.out.println("[Night Siege test] balance: " + c.getString());
+                }
+            } catch (java.io.IOException e) {
+                System.out.println("[Night Siege test] no protocol: " + e);
+            }
         });
         context.waitTicks(10);
     }

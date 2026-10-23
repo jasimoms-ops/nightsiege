@@ -198,6 +198,8 @@ public final class SiegeManager {
     private final DungeonService dungeons = new DungeonService(() -> save, () -> config);
     private final PerkService perks = new PerkService(() -> save, () -> config);
     private final BaseDefense defense = new BaseDefense();
+    /** The night's protocol for balancing (config/nightsiege-stats*.csv). */
+    private final NightLog nightLog = new NightLog();
     private final EventEffects events = new EventEffects();
     private final BonusEvents bonus = new BonusEvents(() -> save, () -> config, perks);
     private final Random random = new Random();
@@ -306,6 +308,7 @@ public final class SiegeManager {
             }
         });
         ServerLivingEntityEvents.AFTER_DAMAGE.register((entity, source, baseDamage, taken, blocked) -> {
+            logDamage(entity, source, taken);
             combat.afterDamage(entity, source, baseDamage, taken, blocked);
             perks.afterDamage(entity, taken);
         });
@@ -631,6 +634,14 @@ public final class SiegeManager {
         defense.begin(world, anchor, config, save.coreSkills(), skillTree, digger);
         nightKills = 0;
         spawnedTotal = 0;
+        nightLog.begin(world.getGameTime());
+        digger.takeBroken();
+        for (UUID id : participants) {
+            ServerPlayer player = server.getPlayerList().getPlayer(id);
+            if (player != null) {
+                logPlayer(player);
+            }
+        }
         killQuota = SiegeMath.killQuota(config.killQuotaShare, plannedWaves(), wantedPerWave());
         bonus.endAurora(server);
         events.begin(server, world, anchor, currentEvent, config);
@@ -732,6 +743,7 @@ public final class SiegeManager {
         for (ServerPlayer player : playersNear(server, world, anchor, config.participantRadius)) {
             if (!fallen.contains(player.getUUID())) {
                 if (participants.add(player.getUUID())) {
+                    logPlayer(player);
                     SkillService.apply(player, save.skillsOf(player.getUUID().toString()), skillTree);
                     traps.giveFreeTraps(player);
                     joinNight(player);
@@ -767,6 +779,14 @@ public final class SiegeManager {
 
         tickAtmosphere(server);
         defense.tick(liveMobs, world.getGameTime());
+        if (world.getGameTime() % 20 == 0) {
+            for (UUID id : liveMobs) {
+                Entity mob = world.getEntity(id);
+                if (mob != null) {
+                    nightLog.near(Math.sqrt(mob.distanceToSqr(anchor.getX() + 0.5, anchor.getY(), anchor.getZ() + 0.5)));
+                }
+            }
+        }
         events.tick(server, world, anchor, currentEvent, participants, fallen, liveMobs, config, world.getGameTime());
 
         digAccumulator++;
@@ -968,6 +988,26 @@ public final class SiegeManager {
                 : MobFactory.spawnAt(world, spot, entityId, siegeLevel, config, random, currentEvent, elite);
     }
 
+    /** Notes a defender in the night's protocol, with class and subclass. */
+    private void logPlayer(ServerPlayer player) {
+        NightLog.Line line = nightLog.of(player.getUUID(), player.getScoreboardName());
+        PlayerSkills skills = save.skillsOf(player.getUUID().toString());
+        line.clazz = skills.chosenClass == null ? "" : skills.chosenClass.toLowerCase(java.util.Locale.ROOT);
+        line.subclass = skillTree.subclassOf(skills);
+    }
+
+    /** Writes the night's protocol lines. */
+    private void logNight(String result, int blasted, int required) {
+        try {
+            nightLog.dug += digger.takeBroken();
+            nightLog.write(new NightLog.Night(nightNumber, siegeLevel, testRun, currentEvent.name().toLowerCase(java.util.Locale.ROOT),
+                    save.specialNight, wavesStarted, spawnedTotal, nightKills, required, fallen.size(), result,
+                    world == null ? 0L : world.getGameTime(), blasted));
+        } catch (RuntimeException e) {
+            NightSiegeMod.LOGGER.warn("[Night Siege] Nacht-Protokoll fehlgeschlagen: {}", e.toString());
+        }
+    }
+
     /** The rebuilding of the core tree mends the base; then the night's base is forgotten. */
     private void mendBase(MinecraftServer server) {
         int repaired = defense.restore(random);
@@ -1018,6 +1058,7 @@ public final class SiegeManager {
         int required = killsRequired();
         boolean quotaMet = nightKills >= required;
         if (testRun) {
+            logNight(won ? "test_gehalten" : "test_verloren", 0, required);
             testRun = false;
             broadcast(server, Component.translatable(won ? "nightsiege.msg.test_won" : "nightsiege.msg.test_lost")
                     .withStyle(ChatFormatting.GRAY));
@@ -1030,6 +1071,8 @@ public final class SiegeManager {
         }
 
         save.highestLevel = Math.max(save.highestLevel, siegeLevel);
+        String result = won ? (quotaMet ? "gewonnen" : "ziel_verfehlt") : "verloren";
+        int blasted = 0;
         if (won && !quotaMet) {
             // Held, but too few monsters fell: the night comes again at the same level.
             save.currentStreak = 0;
@@ -1066,6 +1109,7 @@ public final class SiegeManager {
             if (world != null && anchor != null) {
                 destroyed = Demolition.blast(world, anchor, config);
             }
+            blasted = destroyed;
             broadcast(server, Component.translatable("nightsiege.msg.lost", destroyed)
                     .withStyle(ChatFormatting.DARK_RED));
             loseSkills(server);
@@ -1073,6 +1117,7 @@ public final class SiegeManager {
                     .withStyle(ChatFormatting.RED));
         }
 
+        logNight(result, blasted, required);
         save.specialNight = false;
         scheduler.markSiegeFinished(random, config);
         syncSchedulerToSave();
@@ -1107,6 +1152,7 @@ public final class SiegeManager {
         clearRemainingMobs();
         digger.reset();
         mendBase(server);
+        logNight("abgebrochen", 0, killsRequired());
         testRun = false;
         broadcast(server, Component.translatable("nightsiege.msg.aborted").withStyle(ChatFormatting.GRAY));
         clearSiegeState();
@@ -1212,6 +1258,7 @@ public final class SiegeManager {
             return;
         }
         fallen.add(id);
+        nightLog.of(id, player.getScoreboardName()).deaths++;
         save.statsOf(id.toString(), player.getScoreboardName()).fallen++;
         MinecraftServer server = player.level().getServer();
         broadcast(server, Component.translatable("nightsiege.msg.defender_down",
@@ -1534,7 +1581,23 @@ public final class SiegeManager {
      * every so much of it is worth one kill. Only during a real siege, and only
      * the siege's own monsters count.
      */
+    /** Damage for the night's protocol: dealt to siege monsters, taken by defenders. */
+    private void logDamage(Entity entity, net.minecraft.world.damagesource.DamageSource source, float taken) {
+        if (!active || taken <= 0) {
+            return;
+        }
+        if (source.getEntity() instanceof ServerPlayer attacker && entity.entityTags().contains(MobFactory.TAG)) {
+            nightLog.of(attacker.getUUID(), attacker.getScoreboardName()).dealt += taken;
+        }
+        if (entity instanceof ServerPlayer victim && participants.contains(victim.getUUID())) {
+            nightLog.of(victim.getUUID(), victim.getScoreboardName()).taken += taken;
+        }
+    }
+
     private void creditTank(ServerPlayer player, double amount, Entity from) {
+        if (active && from == null && amount > 0) {
+            nightLog.of(player.getUUID(), player.getScoreboardName()).healed += amount;
+        }
         if (!active || testRun || !config.skillsEnabled || config.skillPointsPerKill <= 0 || amount <= 0) {
             return;
         }
@@ -1558,6 +1621,10 @@ public final class SiegeManager {
         combat.onKill(player, killed);
         if (!killed.entityTags().contains(MobFactory.TAG)) {
             return;
+        }
+        if (active) {
+            nightLog.playerKills++;
+            nightLog.of(player.getUUID(), player.getScoreboardName()).kills++;
         }
         if (testRun) {
             return;   // Test sieges count for nothing.

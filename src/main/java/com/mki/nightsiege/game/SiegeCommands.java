@@ -104,6 +104,12 @@ public final class SiegeCommands {
                                         })
                                         .then(Commands.argument("stufe", IntegerArgumentType.integer(0, PerkKind.MAX_STAGE))
                                                 .executes(SiegeCommands::perkSet)))))
+                .then(Commands.literal("balance").executes(ctx -> {
+                    for (Component line : BalanceReport.build(SiegeManager.get().config())) {
+                        reply(ctx.getSource(), line);
+                    }
+                    return 1;
+                }))
                 .then(Commands.literal("base").executes(SiegeCommands::baseInfo)
                         .then(Commands.literal("radius").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                                 .executes(ctx -> {

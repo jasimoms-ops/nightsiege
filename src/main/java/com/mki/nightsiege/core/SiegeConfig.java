@@ -186,6 +186,11 @@ public class SiegeConfig {
     public double specialNightMobMultiplier = 1.3;
     /** Share of the night's monsters the defenders must kill; a held night below it comes again. 0 turns it off. */
     public double killQuotaShare = 0.6;
+    /** Balancing targets for /nightsiege balance: share of nights won, of held nights with the kill goal, deaths per night, allowed spread of subclass damage. */
+    public double targetWinRate = 0.75;
+    public double targetGoalRate = 0.8;
+    public double targetDeathsPerNight = 1.0;
+    public double targetClassSpread = 0.25;
     public int specialNightXpMultiplier = 2;
     /** Old core perks (from the first dungeons); off, the fragments now make special nights. */
     public boolean perksEnabled = false;
@@ -331,6 +336,10 @@ public class SiegeConfig {
         tankDamagePerPoint = Math.max(1, tankDamagePerPoint);
         specialNightMobMultiplier = clampDouble(specialNightMobMultiplier, 1.0, 5.0);
         killQuotaShare = clampDouble(killQuotaShare, 0.0, 1.0);
+        targetWinRate = clampDouble(targetWinRate <= 0 ? 0.75 : targetWinRate, 0.05, 1.0);
+        targetGoalRate = clampDouble(targetGoalRate <= 0 ? 0.8 : targetGoalRate, 0.05, 1.0);
+        targetDeathsPerNight = clampDouble(targetDeathsPerNight <= 0 ? 1.0 : targetDeathsPerNight, 0.1, 20.0);
+        targetClassSpread = clampDouble(targetClassSpread <= 0 ? 0.25 : targetClassSpread, 0.05, 2.0);
         specialNightXpMultiplier = clamp(specialNightXpMultiplier, 1, 10);
         if (settingsVersion < 1) {
             dungeonsEnabled = false;
