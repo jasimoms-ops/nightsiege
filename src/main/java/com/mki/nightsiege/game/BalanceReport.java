@@ -172,4 +172,41 @@ public final class BalanceReport {
     private static String num(double v) {
         return String.format(Locale.GERMANY, "%.1f", v);
     }
+
+    /** Writes the evaluation as text next to the protocol; returns the file name or null. */
+    public static String writeFile(List<Component> lines) {
+        Path path = Json.configFile("nightsiege-auswertung.txt");
+        List<String> text = new ArrayList<>();
+        text.add("Night Siege - Auswertung vom " + java.time.LocalDateTime.now()
+                .format(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm")));
+        for (Component line : lines) {
+            text.add(line.getString());
+        }
+        try {
+            Files.write(path, text, StandardCharsets.UTF_8);
+            return path.getFileName().toString();
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    /** Starts a fresh protocol: the old files get the date in their name. Returns how many were moved. */
+    public static int newSession() {
+        String stamp = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm"));
+        int moved = 0;
+        for (String name : new String[]{NightLog.NIGHT_FILE, NightLog.PLAYER_FILE, "nightsiege-auswertung.txt"}) {
+            Path path = Json.configFile(name);
+            if (Files.exists(path)) {
+                int dot = name.lastIndexOf('.');
+                Path target = Json.configFile(name.substring(0, dot) + "-" + stamp + name.substring(dot));
+                try {
+                    Files.move(path, target);
+                    moved++;
+                } catch (IOException e) {
+                    // Then the old lines simply stay in the file.
+                }
+            }
+        }
+        return moved;
+    }
 }

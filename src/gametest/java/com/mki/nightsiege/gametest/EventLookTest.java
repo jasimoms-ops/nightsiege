@@ -310,7 +310,7 @@ public class EventLookTest implements FabricClientGameTest {
                 System.out.println("[Night Siege test] no protocol: " + e);
             }
             for (int lv : new int[]{3, 7, 12}) {
-                manager.giveKits(level.getServer(), level, player.blockPosition(), lv);
+                manager.giveKits(level.getServer(), level, player.blockPosition(), lv, true);
                 StringBuilder worn = new StringBuilder();
                 for (net.minecraft.world.entity.EquipmentSlot slot : new net.minecraft.world.entity.EquipmentSlot[]{
                         net.minecraft.world.entity.EquipmentSlot.HEAD, net.minecraft.world.entity.EquipmentSlot.CHEST,

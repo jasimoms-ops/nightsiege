@@ -20,6 +20,8 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 
+import java.util.List;
+
 /**
  * Admin commands.
  *
@@ -104,17 +106,14 @@ public final class SiegeCommands {
                                         })
                                         .then(Commands.argument("stufe", IntegerArgumentType.integer(0, PerkKind.MAX_STAGE))
                                                 .executes(SiegeCommands::perkSet)))))
-                .then(Commands.literal("balance").executes(ctx -> {
-                    for (Component line : BalanceReport.build(SiegeManager.get().config(), false)) {
-                        reply(ctx.getSource(), line);
-                    }
-                    return 1;
-                }).then(Commands.literal("test").executes(ctx -> {
-                    for (Component line : BalanceReport.build(SiegeManager.get().config(), true)) {
-                        reply(ctx.getSource(), line);
-                    }
-                    return 1;
-                })))
+                .then(Commands.literal("balance").executes(ctx -> balance(ctx, false))
+                        .then(Commands.literal("test").executes(ctx -> balance(ctx, true))))
+                .then(Commands.literal("session").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                        .then(Commands.literal("start").executes(ctx -> {
+                            int moved = BalanceReport.newSession();
+                            reply(ctx.getSource(), Component.translatable("nightsiege.cmd.session_start", moved));
+                            return 1;
+                        })))
                 .then(Commands.literal("kit").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                         .then(Commands.argument("stufe", IntegerArgumentType.integer(1, 1000)).executes(ctx -> {
                             ServerPlayer player = ctx.getSource().getPlayer();
@@ -123,7 +122,7 @@ public final class SiegeCommands {
                                 return 0;
                             }
                             int n = SiegeManager.get().giveKits(ctx.getSource().getServer(), player.level(), player.blockPosition(),
-                                    IntegerArgumentType.getInteger(ctx, "stufe"));
+                                    IntegerArgumentType.getInteger(ctx, "stufe"), false);
                             reply(ctx.getSource(), Component.translatable("nightsiege.cmd.kits", n));
                             return 1;
                         })))
@@ -258,7 +257,7 @@ public final class SiegeCommands {
         int level = IntegerArgumentType.getInteger(ctx, "level");
         MinecraftServer server = source.getLevel().getServer();
         if (manager.config().testKits) {
-            manager.giveKits(server, player.level(), player.blockPosition(), level);
+            manager.giveKits(server, player.level(), player.blockPosition(), level, true);
         }
         if (!manager.startTest(server, player.level(), player.blockPosition(), level, event)) {
             fail(source, Component.translatable("nightsiege.cmd.no_target"));
@@ -508,6 +507,19 @@ public final class SiegeCommands {
             BaseDefense.highlight(player, scan.gap);
         } else {
             reply(source, Component.translatable("nightsiege.cmd.base_open", scan.width(), scan.depth(), radius));
+        }
+        return 1;
+    }
+
+    /** Shows the evaluation and writes it to config/nightsiege-auswertung.txt. */
+    private static int balance(CommandContext<CommandSourceStack> ctx, boolean tests) {
+        List<Component> lines = BalanceReport.build(SiegeManager.get().config(), tests);
+        for (Component line : lines) {
+            reply(ctx.getSource(), line);
+        }
+        String file = BalanceReport.writeFile(lines);
+        if (file != null) {
+            reply(ctx.getSource(), Component.translatable("nightsiege.cmd.balance_file", file));
         }
         return 1;
     }

@@ -989,10 +989,11 @@ public final class SiegeManager {
     }
 
     /** Playtest kits for every player around a spot. Returns how many got one. */
-    public int giveKits(MinecraftServer server, ServerLevel level, BlockPos center, int siegeLevelWanted) {
+    public int giveKits(MinecraftServer server, ServerLevel level, BlockPos center, int siegeLevelWanted, boolean nightStarts) {
         int count = 0;
         for (ServerPlayer player : playersNear(server, level, center, config.participantRadius)) {
-            TestKit.give(server, player, siegeLevelWanted, save.skillsOf(player.getUUID().toString()), skillTree, config, random);
+            TestKit.give(server, player, siegeLevelWanted, save.skillsOf(player.getUUID().toString()), skillTree, config, random,
+                    nightStarts);
             count++;
         }
         persist();

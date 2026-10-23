@@ -43,7 +43,7 @@ public final class TestKit {
 
     /** Gives one player the kit and tops up their points. Returns the points added. */
     public static int give(MinecraftServer server, ServerPlayer player, int level, PlayerSkills skills, SkillTree tree,
-                           SiegeConfig cfg, Random random) {
+                           SiegeConfig cfg, Random random, boolean nightStarts) {
         String name = player.getScoreboardName();
         List<String> commands = new ArrayList<>();
         String tier = level > 10 ? "netherite" : level >= 6 ? "diamond" : null;
@@ -57,10 +57,19 @@ public final class TestKit {
                     + PIECES[i] + enchantments(i, level, random));
         }
         String weapon = level > 10 ? "netherite" : level >= 6 ? "diamond" : "iron";
-        for (String item : weapons(skills, tree, weapon)) {
-            commands.add("give " + name + " " + item);
+        // Weapons only when the night starts: by then everyone has chosen class and way.
+        if (nightStarts) {
+            for (String item : weapons(skills, tree, weapon)) {
+                String id = item.split(" ")[0];
+                if (!has(player, id)) {
+                    commands.add("give " + name + " " + item);
+                }
+            }
         }
-        commands.add("give " + name + " " + (level > 10 ? "minecraft:golden_carrot 32" : level >= 6 ? "minecraft:cooked_beef 32" : "minecraft:bread 32"));
+        String food = level > 10 ? "minecraft:golden_carrot" : level >= 6 ? "minecraft:cooked_beef" : "minecraft:bread";
+        if (!has(player, food)) {
+            commands.add("give " + name + " " + food + " 32");
+        }
         CommandSourceStack source = server.createCommandSourceStack().withSuppressedOutput();
         for (String command : commands) {
             try {
@@ -74,9 +83,23 @@ public final class TestKit {
         if (add > 0) {
             skills.award(add);
         }
-        player.sendSystemMessage(Component.translatable("nightsiege.kit.given", level, target, skills.points())
-                .withStyle(net.minecraft.ChatFormatting.AQUA));
+        player.sendSystemMessage(Component.translatable(nightStarts ? "nightsiege.kit.given_night" : "nightsiege.kit.given",
+                level, target, skills.points()).withStyle(net.minecraft.ChatFormatting.AQUA));
         return add;
+    }
+
+    private static boolean has(ServerPlayer player, String itemId) {
+        net.minecraft.resources.Identifier id = net.minecraft.resources.Identifier.tryParse(itemId);
+        if (id == null) {
+            return false;
+        }
+        net.minecraft.world.item.Item item = net.minecraft.core.registries.BuiltInRegistries.ITEM.getValue(id);
+        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+            if (player.getInventory().getItem(i).is(item)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** One or two enchantments up to level 5, two from 6, three above 10. */
