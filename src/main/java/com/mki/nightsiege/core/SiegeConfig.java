@@ -245,6 +245,11 @@ public class SiegeConfig {
 
     /** /nightsiege test hands out kits and tops up skill points to what the level would have given (playtests). */
     public boolean testKits = true;
+    /**
+     * Seconds between /nightsiege test and the first wave: weapons and traps come
+     * at once, so traps can be set and positions taken. 0 = the night starts at once.
+     */
+    public int testPrepSeconds = 60;
     public double targetGoalRate = 0.8;
     public double targetDeathsPerNight = 1.0;
     public double targetClassSpread = 0.25;
@@ -365,6 +370,7 @@ public class SiegeConfig {
         netherRiftWeight = Math.max(0, netherRiftWeight);
         frostWeight = Math.max(0, frostWeight);
         eclipseWarningDayTime = clamp(eclipseWarningDayTime, 0, 11000);
+        testPrepSeconds = clamp(testPrepSeconds, 0, 600);
         eclipseStartDayTime = clamp(eclipseStartDayTime, eclipseWarningDayTime + 100, 11500);
         eclipseMobMultiplier = clampDouble(eclipseMobMultiplier, 0.5, 4.0);
         eclipsePhantomShare = clampDouble(eclipsePhantomShare, 0.0, 1.0);

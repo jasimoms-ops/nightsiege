@@ -323,6 +323,24 @@ public class EventLookTest implements FabricClientGameTest {
             }
         });
         context.waitTicks(10);
+        // A test night starts after its preparation: traps first, then the first wave.
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            manager.config().testPrepSeconds = 3;
+            boolean ok = manager.prepareTest(level.getServer(), level, core, 3, com.mki.nightsiege.core.SiegeEvent.NONE);
+            System.out.println("[Night Siege test] prep: ok=" + ok + " preparing=" + manager.isPreparing()
+                    + " active=" + manager.isActive());
+        });
+        context.waitTicks(20);
+        context.takeScreenshot("test_prep_bar");
+        context.waitTicks(60);
+        onServer(context, (player, manager) -> {
+            System.out.println("[Night Siege test] prep done: preparing=" + manager.isPreparing()
+                    + " active=" + manager.isActive());
+            manager.abort(((net.minecraft.server.level.ServerLevel) player.level()).getServer());
+            manager.config().testPrepSeconds = 60;
+        });
+        context.waitTicks(10);
     }
 
     /** The sixteen class outfits on armour stands named after the subclasses, then on the player. */

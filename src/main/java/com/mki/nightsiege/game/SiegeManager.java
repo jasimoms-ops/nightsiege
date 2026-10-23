@@ -220,6 +220,29 @@ public final class SiegeManager {
     /** Players waiting for the client-mod check, with the tick it is due. */
     private final Map<UUID, Integer> pendingModCheck = new HashMap<>();
     private ServerBossEvent bossBar;
+    /** When each defender last got the free traps (game time): at the warning, in a test's preparation or at the start. */
+    private final Map<UUID, Long> trapsHanded = new HashMap<>();
+    /** A test night that waits for its preparation time to run out, and its bar. */
+    private PendingTest pendingTest;
+    private ServerBossEvent prepBar;
+
+    private static final class PendingTest {
+        final ServerLevel world;
+        final BlockPos anchor;
+        final int level;
+        final SiegeEvent event;
+        final int totalTicks;
+        int ticksLeft;
+
+        PendingTest(ServerLevel world, BlockPos anchor, int level, SiegeEvent event, int ticks) {
+            this.world = world;
+            this.anchor = anchor;
+            this.level = level;
+            this.event = event;
+            this.totalTicks = ticks;
+            this.ticksLeft = ticks;
+        }
+    }
     private SiegeEvent currentEvent = SiegeEvent.NONE;
     private String themeMobId;
     private UUID eliteId;
@@ -442,6 +465,10 @@ public final class SiegeManager {
             tickSiege(server);
             return;
         }
+        if (pendingTest != null) {
+            tickPreparation(server);
+            return;
+        }
 
         // The countdown only moves while enough defenders are gathered.
         AnchorPicker.Result target = findTarget(server);
@@ -479,6 +506,7 @@ public final class SiegeManager {
                             config.specialNightXpMultiplier).withStyle(ChatFormatting.LIGHT_PURPLE));
                 }
                 Fx.warning(server, config);
+                handOutAtWarning(server, target);
                 if (eclipse) {
                     EventAtmosphere.setServer(target.anchor().dimension(), EventAtmosphere.ECLIPSE,
                             EventAtmosphere.fadeTicks(EventAtmosphere.ECLIPSE));
@@ -567,6 +595,116 @@ public final class SiegeManager {
         return start(server, targetWorld, targetAnchor, level, event);
     }
 
+    /**
+     * /nightsiege test: the defenders get their free traps at once, the night
+     * itself starts after the preparation time (config testPrepSeconds), so
+     * traps can be set and positions taken before the first wave.
+     */
+    public boolean prepareTest(MinecraftServer server, ServerLevel targetWorld, BlockPos targetAnchor,
+                               int level, SiegeEvent event) {
+        if (active || pendingTest != null) {
+            return false;
+        }
+        List<ServerPlayer> nearby = playersNear(server, targetWorld, targetAnchor, config.participantRadius);
+        if (nearby.isEmpty()) {
+            return false;
+        }
+        if (config.testPrepSeconds <= 0) {
+            return startTest(server, targetWorld, targetAnchor, level, event);
+        }
+        trapsHanded.clear();
+        for (ServerPlayer player : nearby) {
+            handOutTraps(player);
+        }
+        int shownLevel = Math.min(config.maxLevel, level);
+        pendingTest = new PendingTest(targetWorld, targetAnchor, level, event, config.testPrepSeconds * 20);
+        prepBar = new ServerBossEvent(UUID.randomUUID(),
+                Component.translatable("nightsiege.bar.prep", shownLevel, config.testPrepSeconds),
+                BossEvent.BossBarColor.YELLOW, BossEvent.BossBarOverlay.PROGRESS);
+        prepBar.setProgress(1.0f);
+        for (ServerPlayer player : nearby) {
+            prepBar.addPlayer(player);
+        }
+        broadcast(server, Component.translatable("nightsiege.msg.prep_start", shownLevel, config.testPrepSeconds)
+                .withStyle(ChatFormatting.GOLD));
+        return true;
+    }
+
+    /** True while a test night waits for its preparation time. */
+    public boolean isPreparing() {
+        return pendingTest != null;
+    }
+
+    /** Ends a test's preparation without a night. Returns false when none was running. */
+    public boolean cancelPreparation() {
+        if (pendingTest == null) {
+            return false;
+        }
+        pendingTest = null;
+        trapsHanded.clear();
+        if (prepBar != null) {
+            prepBar.removeAllPlayers();
+            prepBar = null;
+        }
+        return true;
+    }
+
+    private void tickPreparation(MinecraftServer server) {
+        PendingTest prep = pendingTest;
+        prep.ticksLeft--;
+        if (prep.ticksLeft > 0) {
+            if (prep.ticksLeft % 20 == 0 && prepBar != null) {
+                int seconds = prep.ticksLeft / 20;
+                prepBar.setName(Component.translatable("nightsiege.bar.prep", Math.min(config.maxLevel, prep.level), seconds));
+                prepBar.setProgress(Math.max(0f, Math.min(1f, prep.ticksLeft / (float) prep.totalTicks)));
+                prepBar.setColor(seconds <= 10 ? BossEvent.BossBarColor.RED : BossEvent.BossBarColor.YELLOW);
+                for (ServerPlayer player : playersNear(server, prep.world, prep.anchor, config.participantRadius)) {
+                    prepBar.addPlayer(player);
+                    // Whoever comes along in the preparation gets their traps too.
+                    handOutTraps(player);
+                }
+            }
+            return;
+        }
+        pendingTest = null;
+        if (prepBar != null) {
+            prepBar.removeAllPlayers();
+            prepBar = null;
+        }
+        if (!startTest(server, prep.world, prep.anchor, prep.level, prep.event)) {
+            trapsHanded.clear();
+            broadcast(server, Component.translatable("nightsiege.cmd.no_target").withStyle(ChatFormatting.GRAY));
+        }
+    }
+
+    /**
+     * Free traps once per night: whoever got them at the warning or in a test's
+     * preparation does not get them again when the night starts.
+     */
+    private void handOutTraps(ServerPlayer player) {
+        long now = player.level().getGameTime();
+        Long last = trapsHanded.get(player.getUUID());
+        long window = Math.max(config.startDayTime - config.warningDayTime, config.testPrepSeconds * 20L) + 2400L;
+        if (last != null && now >= last && now - last < window) {
+            return;
+        }
+        trapsHanded.put(player.getUUID(), now);
+        traps.giveFreeTraps(player);
+    }
+
+    /** At the warning the defenders near the core get their free traps, to set them before the first wave. */
+    private void handOutAtWarning(MinecraftServer server, AnchorPicker.Result target) {
+        ServerLevel targetWorld = levelByName(server, target.anchor().dimension());
+        if (targetWorld == null) {
+            return;
+        }
+        BlockPos pos = new BlockPos((int) target.anchor().x(), (int) target.anchor().y(), (int) target.anchor().z());
+        trapsHanded.clear();
+        for (ServerPlayer player : playersNear(server, targetWorld, pos, config.participantRadius)) {
+            handOutTraps(player);
+        }
+    }
+
     private boolean start(MinecraftServer server, ServerLevel targetWorld, BlockPos targetAnchor,
                           int forcedLevel, SiegeEvent forcedEvent) {
         if (active) {
@@ -653,7 +791,7 @@ public final class SiegeManager {
             ServerPlayer player = server.getPlayerList().getPlayer(id);
             if (player != null) {
                 SkillService.apply(player, save.skillsOf(player.getUUID().toString()), skillTree);
-                traps.giveFreeTraps(player);
+                handOutTraps(player);
             }
         }
 
@@ -749,7 +887,7 @@ public final class SiegeManager {
                 if (participants.add(player.getUUID())) {
                     logPlayer(player);
                     SkillService.apply(player, save.skillsOf(player.getUUID().toString()), skillTree);
-                    traps.giveFreeTraps(player);
+                    handOutTraps(player);
                     joinNight(player);
                 }
             }
@@ -1187,6 +1325,7 @@ public final class SiegeManager {
     }
 
     private void clearSiegeState() {
+        trapsHanded.clear();
         if (world != null) {
             events.end(world.getServer(), world, currentEvent);
         }

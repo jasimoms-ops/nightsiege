@@ -243,7 +243,7 @@ public final class SiegeCommands {
     private static int test(CommandContext<CommandSourceStack> ctx, SiegeEvent event) {
         CommandSourceStack source = ctx.getSource();
         SiegeManager manager = SiegeManager.get();
-        if (manager.isActive()) {
+        if (manager.isActive() || manager.isPreparing()) {
             fail(source, Component.translatable("nightsiege.cmd.already_active"));
             return 0;
         }
@@ -259,11 +259,17 @@ public final class SiegeCommands {
         if (manager.config().testKits) {
             manager.giveKits(server, player.level(), player.blockPosition(), level, true);
         }
-        if (!manager.startTest(server, player.level(), player.blockPosition(), level, event)) {
+        // Weapons and traps now, the first wave after the preparation time.
+        if (!manager.prepareTest(server, player.level(), player.blockPosition(), level, event)) {
             fail(source, Component.translatable("nightsiege.cmd.no_target"));
             return 0;
         }
-        reply(source, Component.translatable("nightsiege.cmd.test_started", manager.currentLevel()));
+        if (manager.isPreparing()) {
+            reply(source, Component.translatable("nightsiege.cmd.test_prepared",
+                    Math.min(manager.config().maxLevel, level), manager.config().testPrepSeconds));
+        } else {
+            reply(source, Component.translatable("nightsiege.cmd.test_started", manager.currentLevel()));
+        }
         return 1;
     }
 
@@ -304,6 +310,10 @@ public final class SiegeCommands {
     private static int stop(CommandContext<CommandSourceStack> ctx) {
         CommandSourceStack source = ctx.getSource();
         SiegeManager manager = SiegeManager.get();
+        if (manager.cancelPreparation()) {
+            reply(source, Component.translatable("nightsiege.cmd.prep_cancelled"));
+            return 1;
+        }
         if (!manager.isActive()) {
             fail(source, Component.translatable("nightsiege.cmd.not_active"));
             return 0;
