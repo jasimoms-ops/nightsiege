@@ -273,24 +273,20 @@ jobs:
           lines = [l.rstrip()[:300] for l in text.splitlines() if pat.search(l) and not noise.search(l)]
           ok = text.count("exit=0") >= 1
           print("::notice title=CLIENTTEST::%s" % ("bestanden" if ok else "FEHLGESCHLAGEN"))
-          chunk, size, part = [], 0, 1
-          for line in lines[:200]:
-              if size + len(line) > 3800:
-                  print("::warning title=CLIENT%d::" % part + "%0A".join(chunk))
-                  chunk, size, part = [], 0, part + 1
-              chunk.append(line)
-              size += len(line) + 1
-          if chunk:
-              print("::warning title=CLIENT%d::" % part + "%0A".join(chunk))
+          # GitHub shows at most 10 warnings per step: the focused ones (LADDER, SIM) come first,
+          # the general client lines get what is left (and CLIENT-TAIL the last one).
+          budget = 9
           ladder, seen = [], set()
           for l in text.splitlines():
               if "[Night Siege test] ladder" in l or "besiegers" in l or "Sprengcreeper" in l or "[Night Siege test] tower" in l:
-                  body = l[l.index("[Night Siege"):].strip()[:170]
+                  body = l[l.index("[Night Siege"):].strip()[:200]
                   if body not in seen:
                       seen.add(body)
                       ladder.append(body)
           for n in range(0, len(ladder), 20):
-              print("::warning title=LADDER%d::" % (n // 20 + 1) + "%0A".join(ladder[n:n + 20]))
+              if budget > 1:
+                  print("::warning title=LADDER%d::" % (n // 20 + 1) + "%0A".join(ladder[n:n + 20]))
+                  budget -= 1
           sim, seen = [], set()
           for l in text.splitlines():
               if "[Night Siege sim]" not in l or "running" in l:
@@ -300,7 +296,21 @@ jobs:
                   seen.add(body)
                   sim.append(body)
           for n in range(0, len(sim), 20):
-              print("::warning title=SIM%d::" % (n // 20 + 1) + "%0A".join(sim[n:n + 20]))
+              if budget > 1:
+                  print("::warning title=SIM%d::" % (n // 20 + 1) + "%0A".join(sim[n:n + 20]))
+                  budget -= 1
+          chunk, size, part = [], 0, 1
+          for line in lines[:200]:
+              if size + len(line) > 3800:
+                  if budget > 0:
+                      print("::warning title=CLIENT%d::" % part + "%0A".join(chunk))
+                      budget -= 1
+                  chunk, size, part = [], 0, part + 1
+              chunk.append(line)
+              size += len(line) + 1
+          if chunk and budget > 0:
+              print("::warning title=CLIENT%d::" % part + "%0A".join(chunk))
+              budget -= 1
           tail = [l.rstrip()[:300] for l in text.splitlines() if not noise.search(l)][-40:]
           print("::warning title=CLIENT-TAIL::" + "%0A".join(tail))
           PY

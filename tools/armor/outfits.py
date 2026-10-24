@@ -540,21 +540,19 @@ def bulwark(L1, L2):
     L1.strip('arm', lambda c: mul(steel, 0.55), rows=(9, 9))
     L1.cap('arm', S)
     hand(L1, mul(steel, 0.7))
-    # Bascinet with a closed visor: a dark slit for the eyes, breathing holes below.
+    # Great helm: a brow band, a dark eye slit; the face plate and the ridge are 3D (outfits3d).
     L1.strip('head', S)
     L1.cap('head', S)
     L1.art('head', 'front', [
         '........',
-        '...hh...',
-        '.dddddd.',
-        '.D____D.',
-        '.dddddd.',
-        '..o..o..',
-        '...oo...',
-        'm......m',
-    ], {'h': mul(steel, 1.3), 'd': mul(steel, 0.75), 'D': mul(steel, 0.5), 'o': hexc('#1a1a1e'),
-        'm': mail(hexc('#8a9098'))})
-    L1.art('head', 'front', ['........', '........', '........', '.kkkkkk.'], {'k': hexc('#0e0e12')})
+        '.hhhhhh.',
+        'dddddddd',
+        'kkkkkkkk',
+        'D......D',
+        '........',
+        '........',
+        'D......D',
+    ], {'h': mul(steel, 1.2), 'd': mul(steel, 0.7), 'D': mul(steel, 0.5), 'k': hexc('#0e0e12')})
     L1.strip('head', mail(hexc('#8a9098')), rows=(6, 7), faces=('right', 'left', 'back'))
     L1.strip('hat', lambda c: mul(steel, 1.2), rows=(0, 0), faces=('front',), where=lambda c: c.fx in (3, 4))
     # Leggings: mail with steel knee cops; plate sabatons.
@@ -758,31 +756,47 @@ def demolition(L1, L2):
 
 @outfit('alchemist')
 def alchemist(L1, L2):
-    """An alchemist: brown hooded robe, a stained green apron, a belt of glowing vials, spectacles on the brow."""
-    robe = hexc('#5a4632')
-    apron, apron_d = hexc('#3e5a32'), hexc('#2a3e22')
-    R = shaded(robe)
-    L1.strip('body', R)
-    L1.cap('body', R)
-    L1.strip('body', cloth(apron), rows=(2, 11), faces=('front',), where=lambda c: 1 <= c.fx <= 6)
-    L1.strip('body', lambda c: apron_d if c.face == 'front' and 1 <= c.fx <= 6 and c.rnd.random() < 0.18 else None, rows=(3, 11))
-    L1.strip('body', lambda c: hexc('#8ad35a') if c.face == 'front' and (c.fx, c.fy) in ((2, 5), (5, 9), (4, 6)) else None)
-    belt(L1, 7, leather(hexc('#3a2616')), hexc('#b08a3a'))
-    L1.art('body', 'front', ['g.p..b.o', 'G.P..B.O'], {'g': hexc('#9cf06a'), 'G': hexc('#4a8a2a'), 'p': hexc('#d080ff'), 'P': hexc('#7a3aa0'),
-                                                      'b': hexc('#7ad0ff'), 'B': hexc('#2a6aa0'), 'o': hexc('#ffb050'), 'O': hexc('#a0602a')}, y=8)
-    L1.strip('arm', R, rows=(0, 8))
-    L1.strip('arm', lambda c: mul(robe, 0.75) if c.r == 8 else None, rows=(8, 8))
-    L1.strip('arm', leather(hexc('#3a2a1e')), rows=(9, 11))
-    L1.strip('arm', lambda c: hexc('#8ad35a') if c.face == 'front' and c.r == 10 and c.fx == 1 else None, rows=(10, 10))
-    L1.cap('arm', R)
-    hand(L1, leather(hexc('#2e2218')))
-    # Hood with round spectacles pushed up on the brow.
-    hood(L1, shaded(robe, 1.05, 0.82), rim=lambda c: mul(robe, 0.7), open_rows=(2, 7), open_cols=(1, 6))
-    L1.art('head', 'front', ['........', '........', '.oOo.oOo', '.o_o.o_o'], {'o': hexc('#b08a3a'), 'O': hexc('#e0c070')}, x=-1)
-    L1.art('head', 'front', ['........', '........', '......._', '......._'], {})
-    # Robe to the knee; dark trousers; worn boots.
-    L2.strip('leg', cloth(hexc('#2e2820')))
-    L2.strip('leg', R, rows=(0, 5))
-    L2.strip('leg', lambda c: cloth(apron)(c) if c.face == 'front' else None, rows=(0, 5))
-    L2.strip('body', R, rows=(6, 11))
-    plain_boots(L1, 9, leather(hexc('#3a2a1e')), hexc('#1a120c'))
+    """The plague doctor (Simon, 24 October 2026): a long black waxed coat with brass buttons,
+    a leather hood under the beaked mask, gloves, a belt of glowing vials."""
+    coat, coat_l, coat_d = hexc('#342d2a'), hexc('#5a4c44'), hexc('#1a1514')
+    brass, brass_l = hexc('#b08a3a'), hexc('#e0c070')
+    bone, bone_d = hexc('#d9cdb0'), hexc('#a8987a')
+    glove = hexc('#3a2a1e')
+    C = shaded(coat, 1.15, 0.8)
+    L1.strip('body', C)
+    L1.cap('body', C)
+    # Buttoned down the front, a waxed sheen beside the buttons.
+    L1.strip('body', lambda c: coat_d if c.face == 'front' and c.fx == 4 else None)
+    L1.strip('body', lambda c: (brass_l if c.fy % 4 == 1 else brass) if c.face == 'front' and c.fx == 3 and c.fy % 2 == 1 and c.fy < 7 else None)
+    L1.strip('body', lambda c: coat_l if c.face == 'front' and c.fx == 1 and 1 <= c.fy <= 6 else None)
+    L1.strip('body', lambda c: coat_l if c.r == 0 else None, rows=(0, 0))
+    strap_diag(L1, leather(hexc('#5a3a22')), hexc('#8a6238'), y=0)
+    belt(L1, 7, leather(hexc('#4a3020')), brass, brass_l)
+    L1.strip('body', lambda c: coat_d if c.face == 'back' and c.fx in (3, 4) and c.fy >= 8 else None)
+    # Sleeves of the coat, long leather gloves with a turned cuff.
+    L1.strip('arm', C, rows=(0, 7))
+    L1.strip('arm', lambda c: coat_l if c.r == 0 else None, rows=(0, 0))
+    L1.strip('arm', leather(glove), rows=(8, 11))
+    L1.strip('arm', lambda c: mul(glove, 1.35) if c.r == 8 else None, rows=(8, 8))
+    L1.cap('arm', C)
+    hand(L1, leather(mul(glove, 0.8)))
+    # A black leather hood; the face hidden by the ivory mask (beak and lenses are 3D).
+    L1.strip('head', leather(coat_d))
+    L1.cap('head', leather(coat_d))
+    mask = lambda c: bone_d if c.rnd.random() < 0.18 else bone
+    L1.art('head', 'front', [
+        'kkkkkkkk',
+        'kmmmmmmk',
+        'kmmmmmmk',
+        'kmmmmmmk',
+        'kmmsmmmk',
+        'kmmsmmmk',
+        'kkmmmmkk',
+        'kkkmmkkk',
+    ], {'k': leather(coat_d), 'm': mask, 's': mul(bone, 0.6)})
+    # The coat falls to the shins over dark breeches; tall boots.
+    L2.strip('leg', cloth(hexc('#221e1e')))
+    L2.strip('leg', C, rows=(0, 6), faces=('right', 'back', 'left'))
+    L2.strip('leg', lambda c: coat_d if c.r == 6 else None, rows=(6, 6), faces=('right', 'back', 'left'))
+    L2.strip('body', C, rows=(6, 11))
+    plain_boots(L1, 7, leather(hexc('#241c18')), hexc('#0e0a08'), cuff=leather(hexc('#3a2c22')))

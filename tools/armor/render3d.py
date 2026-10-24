@@ -132,10 +132,12 @@ class Scene:
         return img
 
 
-def player_scene(skin, l1, l2, boxes, slots=('head', 'chest', 'legs', 'feet'), cape_lean=6.0):
-    """Builds the scene: skin, layer 2 (leggings), layer 1, extra boxes."""
+def player_scene(skin, l1, l2, boxes, slots=('head', 'chest', 'legs', 'feet'), cape_lean=6.0, head=(0, 0, 0)):
+    """Builds the scene: skin, layer 2 (leggings), layer 1, extra boxes. {@code head} turns
+    the head (pitch, yaw in degrees; pitch > 0 looks down) to show where pieces cut into each other."""
     sc = Scene()
     parts = {name: Xf().then_local(LIMB_PIVOT.get(name, (0, 0, 0)), (0, 0, 0)) for name in LIMB_PIVOT}
+    parts['head'] = Xf().then_local((0, 0, 0), (math.radians(head[0]), math.radians(head[1]), 0))
     parts['hat'] = parts['head']
     for name in ('head', 'body', 'right_arm', 'left_arm', 'right_leg', 'left_leg'):
         pos, size, uv = BASE[name]
@@ -173,12 +175,22 @@ def sheet(title, skin, l1, l2, boxes, out, scale=11):
     views.append(full.render(-28, 12, scale))
     views.append(full.render(152, 12, scale))
     views.append(full.render(90, 8, scale))
+    # The head turned and bent: pieces of head and body must not cut into each other.
+    turned = []
+    for head, yaw, pitch in (((25, 45), -20, 10), ((40, 0), 90, 5), ((-25, -45), -20, 10), ((10, 60), 160, 10)):
+        turned.append(player_scene(skin, l1, l2, boxes, head=head).render(yaw, pitch, scale * 0.75))
     w = sum(v.width for v in views) + 20 * (len(views) + 1)
-    h = max(v.height for v in views) + 40
+    w = max(w, sum(v.width for v in turned) + 20 * (len(turned) + 1))
+    h = max(v.height for v in views) + 40 + max(v.height for v in turned) + 10
     img = Image.new('RGBA', (w, h), (43, 47, 56, 255))
     x = 20
     for v in views:
         img.alpha_composite(v, (x, 30))
+        x += v.width + 20
+    x = 20
+    y2 = 30 + max(v.height for v in views) + 10
+    for v in turned:
+        img.alpha_composite(v, (x, y2))
         x += v.width + 20
     D.Draw(img).text((20, 8), title, fill=(235, 225, 200, 255))
     img.save(out)

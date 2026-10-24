@@ -63,9 +63,7 @@ public class EventLookTest implements FabricClientGameTest {
                 guardianScene(context);
                 engineerScene(context);
                 ladderScene(context, game);
-                ladderTargetScene(context, game, false);
-                ladderTargetScene(context, game, true);
-                towerScene(context, game);
+                // ladderTargetScene and towerScene are done (ladders fine, towers 2 volleys); kept for later checks.
                 besiegerScene(context, game);
                 versionBScene(context, game);
                 versionB2Scene(context, game);
@@ -411,6 +409,20 @@ public class EventLookTest implements FabricClientGameTest {
                 context.waitTicks(5);
                 context.takeScreenshot("armor_close_%d_%s".formatted(g + 1, side == 0 ? "front" : "back"));
             }
+            // The same four with the head turned and bent: collars must not cut into the head.
+            game.getServer().runCommand("kill @e[type=minecraft:armor_stand]");
+            for (int i = 0; i < 4; i++) {
+                game.getServer().runCommand(String.format(java.util.Locale.ROOT,
+                        "summon minecraft:armor_stand %d %d %.1f {CustomName:\"%s\",ShowArms:1b,Rotation:[-90f,0f],"
+                        + "Pose:{Head:[%df,%df,0f]},"
+                        + "equipment:{head:{id:\"minecraft:iron_helmet\"},chest:{id:\"minecraft:iron_chestplate\"},"
+                        + "legs:{id:\"minecraft:iron_leggings\"},feet:{id:\"minecraft:iron_boots\"}}}",
+                        x - 5, y, z - 2.25 + i * 1.5, all[g * 4 + i], i % 2 == 0 ? 30 : -20, i < 2 ? 45 : -45));
+            }
+            context.waitTicks(15);
+            context.getInput().lookAt(90.0f, 12.0f);
+            context.waitTicks(5);
+            context.takeScreenshot("armor_close_%d_turned".formatted(g + 1));
         }
         game.getServer().runCommand("kill @e[type=minecraft:armor_stand]");
         // The player as a berserker, seen from the front.
@@ -779,6 +791,9 @@ public class EventLookTest implements FabricClientGameTest {
                     com.mki.nightsiege.core.SiegeEvent.NONE);
             System.out.println("[Night Siege test] besiegers prep ok=" + ok);
         });
+        // The class window opens with every night; it would cover the pictures.
+        context.waitTicks(10);
+        closeScreen(context);
         for (int i = 0; i < 45; i++) {
             final int step = i;
             context.waitTicks(20);
@@ -787,21 +802,28 @@ public class EventLookTest implements FabricClientGameTest {
                 int ladders = com.mki.nightsiege.game.TempBlocks.all(level, net.minecraft.world.level.block.Blocks.LADDER).size();
                 int carriers = 0;
                 int sappers = 0;
+                double carrierNear = 999;
+                double sapperNear = 999;
                 for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                    double d = Math.sqrt(e.distanceToSqr(cx + 0.5, e.getY(), cz + 0.5));
                     if (e.entityTags().contains(com.mki.nightsiege.game.Besiegers.CARRIER)) {
                         carriers++;
+                        carrierNear = Math.min(carrierNear, d);
                     }
                     if (e.entityTags().contains(com.mki.nightsiege.game.Besiegers.SAPPER)) {
                         sappers++;
+                        sapperNear = Math.min(sapperNear, d);
                     }
                 }
                 if (step % 5 == 4) {
-                    System.out.println("[Night Siege test] besiegers t=" + (step + 1) + "s active=" + manager.isActive()
-                            + " ladders=" + ladders + " carriers=" + carriers + " sappers=" + sappers
-                            + " holes=" + manager.besiegerBreaches());
+                    System.out.println(String.format(java.util.Locale.ROOT,
+                            "[Night Siege test] besiegers t=%ds active=%s ladders=%d carriers=%d (nearest %.1f) sappers=%d (nearest %.1f) holes=%d",
+                            step + 1, manager.isActive(), ladders, carriers, carrierNear, sappers, sapperNear,
+                            manager.besiegerBreaches()));
                 }
             });
             if (i == 20 || i == 40) {
+                closeScreen(context);
                 context.takeScreenshot("besiegers_" + i);
             }
         }

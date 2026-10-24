@@ -7,10 +7,7 @@ from outfits3d import DESIGNS, _then, all_faces, ragged_bottom
 
 
 def _swift(k, L1, L2):
-    gold = hexc('#b89a4a')
-    # Leaf-shaped clasp at the throat, fletching stripes on the quiver, a hunting knife.
-    clasp = k.box('chest', 'body', 'clasp', (-1, -0.6, -3.9), (2, 2, 1))
-    all_faces(L1, clasp, gold)
+    # Fletching stripes on the quiver, a hunting knife (the clasp went with the front of the cape).
     L1.strip('quiver', lambda c: hexc('#c9a060') if c.r in (2, 6) else None)
     knife = k.box('chest', 'body', 'knife', (-5.6, 8.4, -1), (1, 5, 2))
     all_faces(L1, knife, lambda c: hexc('#3a2a1a') if c.r < 2 else hexc('#5a3a22'))
@@ -114,11 +111,13 @@ def _demolition(k, L1, L2):
 
 
 def _alchemist(k, L1, L2):
-    # A bubbling flask with a glowing liquid, a small grimoire, stained gloves.
+    # A small grimoire at the hip, a posy in the hat.
     tome = k.box('chest', 'body', 'tome', (-6.4, 8.4, -1.5), (2, 3, 3))
     all_faces(L1, tome, lambda c: hexc('#2a3a22') if c.face != 'top' else hexc('#e8e0c8'))
     L1.art(tome, 'right', ['...', '.g.', '...'], {'g': hexc('#9cf06a')})
-    L1.strip('hood', lambda c: hexc('#3e5a32') if c.r == 0 and c.s % 3 == 0 else None)
+    # A sprig of herbs in the band of the hat (the plague doctor's posy).
+    herbs = k.box('head', 'head', 'herbs', (2.5, -3.6, -5.2), (2, 3, 1), pivot=(0, -9, 0), rot=(0.06, 0, 0.3))
+    all_faces(L1, herbs, lambda c: hexc('#5a9a3a') if (c.s + c.r) % 2 else hexc('#c84a8a'))
 
 
 for name, fn in (('swift', _swift), ('heavy', _heavy), ('bolter', _bolter), ('trapper', _trapper),

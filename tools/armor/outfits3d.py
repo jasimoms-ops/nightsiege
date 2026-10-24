@@ -75,7 +75,7 @@ def berserker(k, L1, L2):
     ragged_bottom(L1, pelt, 2)
 
     # Shoulders and back: a fur mantle, fur pads on the arms, a pelt cloak that swings.
-    mantle = k.box('chest', 'body', 'mantle', (-5.5, -2.5, -3.5), (11, 4, 7))
+    mantle = k.box('chest', 'body', 'mantle', (-5.5, -2.5, -1.5), (11, 4, 5))
     all_faces(L1, mantle, F)
     ragged_bottom(L1, mantle, 1)
     pad = k.box('chest', 'arm', 'pad', (-4.6, -3.6, -3.5), (6, 4, 7))
@@ -132,7 +132,7 @@ def blademaster(k, L1, L2):
     L1.art(brooch, 'front', ['gY', 'Yg'], {'g': gold, 'Y': hexc('#f6e7a0')})
 
     # A pleated ruff, puffed and slashed sleeves, a short cape, the knot of the sash.
-    ruff = k.box('chest', 'body', 'ruff', (-5, -2.8, -3.6), (10, 2, 7))
+    ruff = k.box('chest', 'body', 'ruff', (-5.5, -2.8, -1.6), (11, 2, 5))
     all_faces(L1, ruff, lambda c: white if c.s % 2 == 0 else hexc('#c9c2b0'))
     puff = k.box('chest', 'arm', 'puff', (-4.6, -2.2, -3.6), (7, 5, 7))
     all_faces(L1, puff, lambda c: mul(blue_l, 1.0 - 0.04 * c.r) if c.s % 3 == 0 else mul(white, 1.03 - 0.04 * c.r))
@@ -252,8 +252,9 @@ def paladin(k, L1, L2):
 
 def hood_box(k, L1, name, mat, rim, opening=(1, 1, 9, 6)):
     """A hood shaped in layers: a rounded crown, the hood itself open for the face,
-    a peak over the brow, a wider lower part falling to the neck, a cowl on the
-    shoulders and a tail that falls down the back in three bends."""
+    a peak over the brow, a wider lower part falling to the neck and a tail that
+    falls down the back in three bends. No cowl on the shoulders: a body piece
+    there cuts into the hood whenever the head turns (Simon, 24 October 2026)."""
     top = k.box('head', 'head', name + '_crown', (-4.5, -11.2, -4), (9, 2, 9))
     all_faces(L1, top, mat)
     top2 = k.box('head', 'head', name + '_crown2', (-3, -12, -2.5), (6, 1, 6))
@@ -264,19 +265,15 @@ def hood_box(k, L1, name, mat, rim, opening=(1, 1, 9, 6)):
     L1.strip(h, 'clear', faces=('front',), where=lambda c: x1 <= c.fx <= x2 and y1 <= c.fy <= y2)
     L1.strip(h, rim, faces=('front',), where=lambda c: (c.fx in (x1 - 1, x2 + 1) and c.fy >= y1 - 1) or (c.fy == y1 - 1 and x1 - 1 <= c.fx <= x2 + 1))
     L1.cap(h, 'clear', face='bottom')
-    low = k.box('head', 'head', name + '_low', (-6.2, -4, -5.4), (12, 5, 12))
+    # The lower part ends above the shoulders, so it never cuts into them when the head turns.
+    low = k.box('head', 'head', name + '_low', (-6.2, -4, -5.4), (12, 3, 12))
     all_faces(L1, low, mat)
-    L1.strip(low, 'clear', faces=('front',), where=lambda c: 1 <= c.fx <= 10 and c.fy <= 3)
-    L1.strip(low, rim, faces=('front',), where=lambda c: c.fx in (0, 11) or (c.fy == 4 and 2 <= c.fx <= 9))
+    L1.strip(low, 'clear', faces=('front',), where=lambda c: 1 <= c.fx <= 10)
+    L1.strip(low, rim, faces=('front',), where=lambda c: c.fx in (0, 11))
     L1.cap(low, 'clear', face='bottom')
     L1.cap(low, 'clear', where=lambda c: 1 <= c.fx <= 10 and 1 <= c.fy <= 10)
     peak = k.box('head', 'head', name + '_peak', (-4.5, -10.4, -6.6), (9, 1, 1))
     all_faces(L1, peak, rim)
-    cowl = k.box('chest', 'body', name + '_cowl', (-6, -2.2, -4), (12, 3, 8))
-    all_faces(L1, cowl, mat)
-    L1.strip(cowl, 'clear', faces=('front',), where=lambda c: (c.fy == 0 and 3 <= c.fx <= 8) or (c.fy == 1 and 4 <= c.fx <= 7))
-    L1.cap(cowl, 'clear', where=lambda c: 1 <= c.fx <= 10 and 1 <= c.fy <= 6)
-    L1.cap(cowl, 'clear', face='bottom')
     for i, (piv, rot, size) in enumerate((((0, -10, 5.2), 0.45, (5, 3, 3)), ((0, -7.6, 6.6), 0.85, (4, 3, 2)), ((0, -5.4, 7.9), 1.2, (2, 4, 1)))):
         t = k.box('head', 'head', '%s_tail%d' % (name, i), (-size[0] / 2.0, 0, -size[2] / 2.0), size, pivot=piv, rot=(rot, 0, 0))
         all_faces(L1, t, mat)
@@ -316,7 +313,7 @@ def swift(k, L1, L2):
     leather_c = hexc('#6b4a2c')
     clear_hat(L1)
     hood_box(k, L1, 'hood', G, lambda c: green_d)
-    cape = k.box('chest', 'body', 'capelet', (-5.5, -1.6, -3.6), (11, 5, 7))
+    cape = k.box('chest', 'body', 'capelet', (-5.5, -1.2, -1.6), (11, 5, 5))
     all_faces(L1, cape, G)
     ragged_bottom(L1, cape, 1)
     L1.cap(cape, 'clear', face='bottom')
@@ -343,7 +340,7 @@ def heavy(k, L1, L2):
     brim = k.box('head', 'head', 'brim', (-6.5, -9.1, -6.5), (13, 1, 13))
     all_faces(L1, brim, lambda c: mul(steel, 0.75) if c.s % 3 == 0 else S(c))
     L1.cap(brim, lambda c: mul(steel, 0.85))
-    collar = k.box('chest', 'body', 'collar', (-5, -2.2, -3.5), (10, 2, 7))
+    collar = k.box('chest', 'body', 'collar', (-5.5, -2.2, -1.5), (11, 2, 5))
     all_faces(L1, collar, quilt(jack))
     skirt = skirt_box(k, L1, 'chest', lambda c: cloth(white)(c) if (c.face == 'front' and c.fx < 5) or (c.face == 'back' and c.fx >= 5) or c.face == 'right' else cloth(red)(c))
     L1.strip(skirt, lambda c: hexc('#d4ae38') if c.r == 3 and c.s % 2 == 0 else None)
@@ -393,7 +390,7 @@ def trapper(k, L1, L2):
     tail = k.box('head', 'head', 'tail', (-1, 0, -1), (2, 9, 2), pivot=(2, -8, 5.8), rot=(0.25, 0, -0.15))
     all_faces(L1, tail, lambda c: hexc('#2e241c') if c.r % 3 == 2 else hexc('#9a8668'))
     L1.strip(tail, lambda c: hexc('#1e1814') if c.r == 8 else None)
-    collar = k.box('chest', 'body', 'collar', (-5.5, -2.2, -3.6), (11, 3, 7))
+    collar = k.box('chest', 'body', 'collar', (-5.5, -2.2, -1.6), (11, 3, 5))
     all_faces(L1, collar, F)
     ragged_bottom(L1, collar, 1)
     coat = skirt_box(k, L1, 'chest', leather(hide), top=10.2, h=5)
@@ -440,12 +437,19 @@ def bulwark(k, L1, L2):
     steel = hexc('#a7adb6')
     brass = hexc('#c9a43a')
     S = metal(steel)
-    visor = k.box('head', 'head', 'visor', (-3, -7.2, -7.6), (6, 5, 3))
-    all_faces(L1, visor, S)
-    L1.art(visor, 'front', ['dddddd', 'kkkkkk', 'dddddd', '.o..o.', '..oo..'], {'d': mul(steel, 0.75), 'k': hexc('#0e0e12'), 'o': hexc('#1a1a1e')})
+    # A great helm: under the dark eye slit a face plate with breathing holes in crosses,
+    # a brass ridge down the middle splits the slit in two (the old snout visor looked
+    # like a strange face, Simon 24 October 2026).
+    plate = k.box('head', 'head', 'faceplate', (-5.5, -4, -5.7), (11, 5, 3))
+    all_faces(L1, plate, S)
+    L1.art(plate, 'front', ['DDDDDDDDDDD', '.......o...', '......ooo..', '.......o...', 'ddddddddddd'],
+           {'D': mul(steel, 0.45), 'd': mul(steel, 0.7), 'o': hexc('#141418')})
+    L1.strip(plate, lambda c: mul(steel, 0.45) if c.r == 0 else (mul(steel, 0.7) if c.r == 4 else None), faces=('right', 'left'))
+    ridge = k.box('head', 'head', 'ridge', (-0.5, -9, -6.2), (1, 10, 1))
+    all_faces(L1, ridge, lambda c: mul(brass, 1.15) if c.face == 'front' and c.r % 3 == 0 else brass)
     crest = k.box('head', 'head', 'crest', (-0.5, -10.4, -4.5), (1, 2, 9))
     all_faces(L1, crest, lambda c: brass if c.r == 0 else S(c))
-    gorget = k.box('chest', 'body', 'gorget', (-5, -2.6, -3.5), (10, 2, 7))
+    gorget = k.box('chest', 'body', 'gorget', (-5.5, -2.6, -1.5), (11, 2, 5))
     all_faces(L1, gorget, S)
     for i, (y, h) in enumerate(((-3.6, 4), (0.2, 2))):
         p = k.box('chest', 'arm', 'paul%d' % i, (-5, y, -3.8), (7, h, 8), rot=(0, 0, -0.25))
@@ -487,7 +491,7 @@ def warden(k, L1, L2):
     V = shaded(violet, 1.06, 0.8)
     clear_hat(L1)
     hood_box(k, L1, 'hood', V, lambda c: silver if c.r % 2 == 0 else violet_d)
-    mantle = k.box('chest', 'body', 'mantle', (-5.6, -2.2, -3.6), (11, 5, 7))
+    mantle = k.box('chest', 'body', 'mantle', (-5.6, -1.2, -1.6), (11, 4, 5))
     all_faces(L1, mantle, lambda c: silver if c.r == 4 and c.s % 2 == 0 else (glow if c.r == 4 else shaded(violet_d)(c)))
     L1.cap(mantle, 'clear', face='bottom')
     cloak_box(k, L1, V, silver, length=19)
@@ -560,20 +564,59 @@ def demolition(k, L1, L2):
 
 @design('alchemist')
 def alchemist(k, L1, L2):
-    robe = hexc('#5a4632')
-    apron_c = hexc('#3e5a32')
+    """The plague doctor: wide-brimmed hat, beaked mask with glowing green lenses,
+    a short shoulder cape (back and sides only), the long coat, vials on the belt."""
+    coat, coat_d = hexc('#342d2a'), hexc('#1a1514')
+    hat_c = hexc('#221d1c')
+    band = hexc('#4a3424')
+    brass = hexc('#b08a3a')
+    bone, bone_d, bone_l = hexc('#d9cdb0'), hexc('#a8987a'), hexc('#ece2c8')
+    glow = hexc('#9cf06a')
+    H = shaded(hat_c, 1.2, 0.85)
+    C = shaded(coat, 1.15, 0.8)
     clear_hat(L1)
-    hood_box(k, L1, 'hood', shaded(robe, 1.05, 0.82), lambda c: mul(robe, 0.7))
-    lenses(k, L1, hexc('#b08a3a'), hexc('#cfe8d0'), hexc('#ffffff'), y=-9.4)
-    apron = k.box('chest', 'body', 'apron', (-3.5, 9, -3.6), (7, 8, 1))
-    all_faces(L1, apron, cloth(apron_c))
-    L1.strip(apron, lambda c: hexc('#8ad35a') if c.rnd.random() < 0.08 else None)
+    # The hat: a broad brim, a tall flat crown with a leather band and a brass buckle.
+    brim = k.box('head', 'head', 'brim', (-7.5, -0.6, -7.5), (15, 1, 15), pivot=(0, -9, 0), rot=(0.06, 0, 0))
+    all_faces(L1, brim, H)
+    L1.cap(brim, lambda c: mul(hat_c, 1.5) if c.fx in (0, 14) or c.fy in (0, 14) else None)
+    crown = k.box('head', 'head', 'crown', (-4.5, -4.4, -4.5), (9, 4, 9), pivot=(0, -9, 0), rot=(0.06, 0, 0))
+    all_faces(L1, crown, H)
+    L1.strip(crown, lambda c: leather(band)(c) if c.r == 3 else None)
+    L1.art(crown, 'front', ['.........', '.........', '.........', '...dhd...'], {'h': brass, 'd': mul(brass, 0.6)})
+    top = k.box('head', 'head', 'crowntop', (-4, -5.2, -4), (8, 1, 8), pivot=(0, -9, 0), rot=(0.06, 0, 0))
+    all_faces(L1, top, H)
+    # Round glass eyes in brass rims, glowing like the brew.
+    lens = k.box('head', 'head', 'lens', (-4.6, -6.6, -5.9), (3, 3, 1), sym=True)
+    all_faces(L1, lens, brass)
+    L1.art(lens, 'front', ['dbd', 'bgb', 'dbd'], {'b': brass, 'd': mul(brass, 0.65), 'g': glow})
+    # The beak in three bends, curving down, stitched along the top.
+    for i, (pos, size, rot) in enumerate((((-1.5, -1.5, -3), (3, 3, 3), 0.16),
+                                          ((-1.5, -1, -6), (3, 2, 3), 0.3),
+                                          ((-1, -0.6, -8.5), (2, 1, 3), 0.46))):
+        b = k.box('head', 'head', 'beak%d' % i, pos, size, pivot=(0, -3.2, -5), rot=(rot, 0, 0))
+        all_faces(L1, b, lambda c: bone_d if c.rnd.random() < 0.15 else bone)
+        L1.cap(b, lambda c: mul(bone, 0.6) if c.fx == c.fw // 2 and c.fy % 2 == 0 else bone_l)
+        L1.cap(b, bone_d, face='bottom')
+    # A short shoulder cape, open in front (nothing in front of the neck: the head turns freely).
+    cape = k.box('chest', 'body', 'mantle', (-5.6, -1.2, -1.6), (11, 4, 5))
+    all_faces(L1, cape, C)
+    L1.strip(cape, lambda c: coat_d if c.r == 3 else (hexc('#5a4c44') if c.r == 0 else None))
+    L1.cap(cape, 'clear', face='bottom')
+    # The skirt of the long coat, split in front.
+    tails = skirt_box(k, L1, 'chest', C, top=10, h=6, grow=0.35)
+    L1.strip(tails, 'clear', faces=('front',), where=lambda c: c.fx in (4, 5))
+    L1.strip(tails, lambda c: coat_d if c.r == 5 else None)
+    # Flared glove cuffs.
+    cuff = k.box('chest', 'arm', 'glovecuff', (-4.3, 7.4, -3.3), (6, 2, 6))
+    all_faces(L1, cuff, leather(hexc('#4a3424')))
+    L1.cap(cuff, 'clear', face='bottom')
+    # Glowing vials on the belt, a flask at the hip.
     colours = [hexc('#9cf06a'), hexc('#d080ff'), hexc('#7ad0ff'), hexc('#ffb050')]
     for i, x in enumerate((-4.5, -2.5, 1.5, 3.5)):
-        v = k.box('chest', 'body', 'vial%d' % i, (x, 6.6, -4.1), (1, 2, 1))
+        v = k.box('chest', 'body', 'vial%d' % i, (x, 5.6, -4.1), (1, 2, 1))
         all_faces(L1, v, lambda c, col=colours[i]: hexc('#c9b48a') if c.r == 0 else col)
     flask = k.box('chest', 'body', 'flask', (4.4, 8.5, -1), (2, 3, 2))
-    all_faces(L1, flask, lambda c: hexc('#b08a3a') if c.r == 0 else hexc('#9cf06a'))
+    all_faces(L1, flask, lambda c: brass if c.r == 0 else glow)
 
 
 # ---------------------------------------------------------------------- the epic pass (details)
@@ -629,7 +672,7 @@ def _axe_more(k, L1, L2):
     F = fur(hexc('#4c4238'), hexc('#6e6050'), hexc('#2e2620'), hexc('#9a8a70'))
     iron = hexc('#7a7f86')
     # A fur collar over the lamellar, rivets on the plates, knotwork on the belt.
-    collar = k.box('chest', 'body', 'collar', (-5.6, -2.4, -3.7), (11, 3, 7))
+    collar = k.box('chest', 'body', 'collar', (-5.6, -2.4, -1.7), (11, 3, 5))
     all_faces(L1, collar, F)
     ragged_bottom(L1, collar, 1)
     L1.strip('pauldron', lambda c: mul(iron, 1.3) if c.r % 2 == 0 and c.s % 3 == 1 else None)
