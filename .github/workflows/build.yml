@@ -246,9 +246,10 @@ jobs:
           export LIBGL_ALWAYS_SOFTWARE=1
           CLIENT_TIMEOUT=1200
           # [sim] in the commit message: only the melee balance simulation, with more time.
-          if [[ "$COMMIT_MSG" == *"[sim]"* ]]; then
-            export NIGHTSIEGE_SIM=1
-            CLIENT_TIMEOUT=3000
+          if [[ "$COMMIT_MSG" == *"[sim"* ]]; then
+            SIMARG=$(printf '%s' "$COMMIT_MSG" | grep -o '\[sim[^]]*\]' | head -1 | sed 's/^\[sim//; s/\]$//')
+            export NIGHTSIEGE_SIM="1 $SIMARG"
+            CLIENT_TIMEOUT=4800
           fi
           timeout $CLIENT_TIMEOUT xvfb-run -a -s "-screen 0 1280x720x24" gradle runClientGameTest --no-daemon --stacktrace > client-output.txt 2>&1
           echo "exit=$?" >> client-output.txt
@@ -281,9 +282,16 @@ jobs:
               size += len(line) + 1
           if chunk:
               print("::warning title=CLIENT%d::" % part + "%0A".join(chunk))
-          sim = [l.rstrip()[:300] for l in text.splitlines() if "[Night Siege sim]" in l]
-          if sim:
-              print("::warning title=SIM::" + "%0A".join(sim[-60:]))
+          sim, seen = [], set()
+          for l in text.splitlines():
+              if "[Night Siege sim]" not in l or "running" in l:
+                  continue
+              body = l[l.index("[Night Siege sim]") + 17:].strip()[:200]
+              if body and body not in seen:
+                  seen.add(body)
+                  sim.append(body)
+          for n in range(0, len(sim), 20):
+              print("::warning title=SIM%d::" % (n // 20 + 1) + "%0A".join(sim[n:n + 20]))
           tail = [l.rstrip()[:300] for l in text.splitlines() if not noise.search(l)][-40:]
           print("::warning title=CLIENT-TAIL::" + "%0A".join(tail))
           PY

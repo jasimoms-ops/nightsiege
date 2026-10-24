@@ -105,6 +105,13 @@ public final class MeleeSim {
 
     /** Starts the simulation for this player at the main core. Returns null or an error key. */
     public static String start(ServerPlayer player, int level, int seconds) {
+        return start(player, level, seconds, List.of());
+    }
+
+    /**
+     * As above, only for some classes or subclasses (e.g. "GUARDIAN", "bulwark"); empty = all.
+     */
+    public static String start(ServerPlayer player, int level, int seconds, List<String> only) {
         SiegeManager m = SiegeManager.get();
         if (m == null || running()) {
             return "nightsiege.sim.busy";
@@ -122,6 +129,9 @@ public final class MeleeSim {
         maxTicks = seconds * 20;
         queue = new ArrayList<>();
         for (String[] sub : SUBCLASSES) {
+            if (!only.isEmpty() && !only.contains(sub[0]) && !only.contains(sub[2])) {
+                continue;
+            }
             queue.add(new Run(sub, "alt"));
             queue.add(new Run(sub, "neu"));
         }

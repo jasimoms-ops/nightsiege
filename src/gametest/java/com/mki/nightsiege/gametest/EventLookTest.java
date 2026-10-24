@@ -722,19 +722,36 @@ public class EventLookTest implements FabricClientGameTest {
         game.getServer().runCommand("gamerule doDaylightCycle false");
         game.getServer().runCommand("time set 18000");
         context.waitTicks(20);
+        // Less work for the (software-rendered) client, so the server has the machine.
+        context.runOnClient(client -> {
+            client.options.renderDistance().set(2);
+            client.options.simulationDistance().set(5);
+            client.options.framerateLimit().set(10);
+        });
+        // NIGHTSIEGE_SIM: classes or subclasses to simulate and the seconds per night, e.g. "GUARDIAN 240".
+        java.util.List<String> only = new java.util.ArrayList<>();
+        int seconds = 150;
+        for (String token : System.getenv("NIGHTSIEGE_SIM").trim().split("\\s+")) {
+            if (token.matches("\\d+")) {
+                seconds = Integer.parseInt(token);
+            } else if (!token.isBlank() && !token.equals("1")) {
+                only.add(token);
+            }
+        }
+        final int simSeconds = seconds;
         net.minecraft.core.BlockPos core = new net.minecraft.core.BlockPos(cx, cy, cz);
         onServer(context, (player, manager) -> {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
             level.setBlock(core, com.mki.nightsiege.game.ModContent.SIEGE_CORE.defaultBlockState(), 3);
             manager.onCorePlaced(level, core, player);
             manager.save().register(player.getUUID().toString());
-            String problem = com.mki.nightsiege.game.MeleeSim.start(player, 10, 150);
+            String problem = com.mki.nightsiege.game.MeleeSim.start(player, 10, simSeconds, only);
             System.out.println("[Night Siege sim] start: " + (problem == null ? "ok" : problem));
         });
         context.waitTicks(40);
         game.getServer().runCommand("tick sprint 2000000");
         boolean shot = false;
-        for (int i = 0; i < 400; i++) {
+        for (int i = 0; i < 1300; i++) {
             context.waitTicks(60);
             boolean done = context.computeOnClient(client -> com.mki.nightsiege.game.MeleeSim.done());
             if (!shot && i == 3) {
