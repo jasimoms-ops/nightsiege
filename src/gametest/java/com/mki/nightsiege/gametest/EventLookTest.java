@@ -445,6 +445,25 @@ public class EventLookTest implements FabricClientGameTest {
         onServer(context, (player, manager) -> manager.onCoreAction(player, "open"));
         context.waitTicks(10);
         context.takeScreenshot("chat_register_offer");
+        // A right click on the core signs up and opens the menu at once (hotfix 24.10.).
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.game.CoreRecord c = manager.save().cores.get(0);
+            net.minecraft.core.BlockPos pos = new net.minecraft.core.BlockPos(c.x, c.y, c.z);
+            try {
+                java.lang.reflect.Method use = com.mki.nightsiege.game.SiegeManager.class.getDeclaredMethod(
+                        "onUseBlock", Object.class, Object.class, Object.class, Object.class);
+                use.setAccessible(true);
+                Object result = use.invoke(manager, player, player.level(), net.minecraft.world.InteractionHand.MAIN_HAND,
+                        new net.minecraft.world.phys.BlockHitResult(net.minecraft.world.phys.Vec3.atCenterOf(pos),
+                                net.minecraft.core.Direction.UP, pos, false));
+                System.out.println("[Night Siege test] core right click: " + result + " registered=" + manager.isRegistered(player));
+            } catch (ReflectiveOperationException e) {
+                System.out.println("[Night Siege test] core right click failed: " + e);
+            }
+        });
+        context.waitTicks(15);
+        context.takeScreenshot("core_rightclick_signup");
+        closeScreen(context);
         onServer(context, (player, manager) -> {
             manager.save().register(player.getUUID().toString());
             System.out.println("[Night Siege test] registered=" + manager.isRegistered(player));

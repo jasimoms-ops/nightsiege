@@ -2233,8 +2233,11 @@ public final class SiegeManager {
             return InteractionResult.PASS;
         }
         if (!isRegistered(player)) {
+            // A right click on the core signs the player up and opens the menu at once
+            // (the chat button alone was easy to miss, and then the core seemed dead).
             if (handObject == InteractionHand.MAIN_HAND) {
-                offerRegistration(player);
+                signUp(player);
+                openCoreWindow(player);
             }
             return InteractionResult.SUCCESS;
         }
@@ -2795,6 +2798,14 @@ public final class SiegeManager {
         if (!dimensionName(player.level()).equals(core.dimension)
                 || player.distanceToSqr(core.x + 0.5, core.y + 0.5, core.z + 0.5) > r * r) {
             player.sendSystemMessage(Component.translatable("nightsiege.msg.register_at_core").withStyle(ChatFormatting.RED));
+            return;
+        }
+        signUp(player);
+    }
+
+    /** Puts the player on the roster (no checks: the caller made sure they stand at the core). */
+    private void signUp(ServerPlayer player) {
+        if (isRegistered(player)) {
             return;
         }
         save.register(player.getUUID().toString());
