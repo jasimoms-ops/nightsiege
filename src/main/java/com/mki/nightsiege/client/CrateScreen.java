@@ -30,7 +30,7 @@ public class CrateScreen extends Screen {
 
     /** Window size: as wide as the screen allows, up to 460. */
     private int W = 460;
-    private static final int H = 250;
+    private int H = 250;
     private static final int CARD = 64;
     private static final int GAP = 6;
     private static final int STEP = CARD + GAP;
@@ -62,6 +62,7 @@ public class CrateScreen extends Screen {
     protected void init() {
         W = Math.max(300, Math.min(460, this.width - 10));
         VIEW_W = W - 40;
+        H = Math.max(214, Math.min(250, this.height - 8));
         left = (this.width - W) / 2;
         top = (this.height - H) / 2;
         addRenderableWidget(Button.builder(Component.translatable("gui.done"), b -> onClose())
@@ -227,8 +228,8 @@ public class CrateScreen extends Screen {
         gui.text(font, count, tx, ty + 13, 0xFFB8B0C8, false);
         if (roll.infernite) {
             String inf = Component.translatable("nightsiege.crate.infernite_short").getString();
-            gui.item(new ItemStack(item("nightsiege:infernite_ingot")), left + W - 100, top + H - 52);
-            gui.text(font, inf, left + W - 82, top + H - 48, 0xFFFF8A3A, true);
+            gui.item(new ItemStack(item("nightsiege:infernite_ingot")), left + 14, top + H - 24);
+            gui.text(font, inf, left + 32, top + H - 20, 0xFFFF8A3A, true);
         }
     }
 
