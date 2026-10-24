@@ -519,6 +519,12 @@ public final class GainGear {
                 level.sendParticles(ParticleTypes.SQUID_INK, spot.x, spot.y + 0.2, spot.z, 40, 1.5, 0.1, 1.5, 0.02);
             }
             case KitProjectile.LURE -> lure(level, at, thrower);
+            case KitProjectile.SHELL, KitProjectile.BREW -> {
+                SiegeManager m = SiegeManager.get();
+                if (m != null) {
+                    m.kits().traps().onTowerShot(level, projectile, hit, at);
+                }
+            }
             default -> {
             }
         }

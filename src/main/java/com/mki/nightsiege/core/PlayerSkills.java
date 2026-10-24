@@ -121,6 +121,29 @@ public class PlayerSkills {
         classLevels.putIfAbsent(c.name(), new HashMap<>());
     }
 
+    /** Moves learned levels to new node ids, in every class (all at once, so two nodes can swap). */
+    public void renameNodes(Map<String, String> renames) {
+        levels = renamed(levels, renames);
+        if (classLevels != null) {
+            for (Map.Entry<String, Map<String, Integer>> e : classLevels.entrySet()) {
+                e.setValue(renamed(e.getValue(), renames));
+            }
+        }
+        if (history != null) {
+            history.replaceAll(id -> renames.getOrDefault(id, id));
+        }
+    }
+
+    private static Map<String, Integer> renamed(Map<String, Integer> map, Map<String, String> renames) {
+        Map<String, Integer> out = new HashMap<>();
+        if (map != null) {
+            for (Map.Entry<String, Integer> e : map.entrySet()) {
+                out.put(renames.getOrDefault(e.getKey(), e.getKey()), e.getValue());
+            }
+        }
+        return out;
+    }
+
     /** The stage of a crate gain in one class's kit (0 = not drawn yet). */
     public int gainStage(SkillClass c, String gainId) {
         if (c == null || gains == null) {

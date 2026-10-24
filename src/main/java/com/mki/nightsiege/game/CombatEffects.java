@@ -716,6 +716,7 @@ public final class CombatEffects {
     /**
      * Every warrior and the shield fighter heal a little from their melee hits, so they hold
      * out without a healer (config meleeLifesteal). Not the berserker: he has his own steal.
+     * Not the blademaster either: he heals only from kills in a combo (see {@link #onKill}).
      */
     private double baseLifesteal(PlayerSkills skills) {
         SiegeManager m = SiegeManager.get();
@@ -724,6 +725,7 @@ public final class CombatEffects {
         }
         String sub = tree.subclassOf(skills);
         boolean melee = skills.clazz() == SkillClass.WARRIOR && !SkillTree.SUB_BERSERKER.equals(sub)
+                && !SkillTree.SUB_BLADEMASTER.equals(sub)
                 || skills.clazz() == SkillClass.GUARDIAN && SkillTree.SUB_SHIELDFIGHTER.equals(sub);
         return melee ? m.config().meleeLifesteal : 0.0;
     }
@@ -755,6 +757,19 @@ public final class CombatEffects {
         }
         if (skills != null && tree.totalBonus(SkillEffect.RELOAD_RUSH, skills) > 0) {
             player.addEffect(new MobEffectInstance(MobEffects.SPEED, 60, 1));
+        }
+        // The blademaster's life steal: only a kill in the middle of a combo heals (Simon, 24 Oct 2026).
+        if (skills != null && SkillTree.SUB_BLADEMASTER.equals(tree.subclassOf(skills)) && killed instanceof LivingEntity dead) {
+            long[] streak = combos.get(player.getUUID());
+            long now = level.getGameTime();
+            SiegeManager m = SiegeManager.get();
+            if (streak != null && streak[0] >= 2 && now - streak[1] <= 40 && m != null) {
+                float heal = (float) (dead.getMaxHealth() * m.config().comboKillLifesteal);
+                if (heal > 0) {
+                    player.heal(heal);
+                    level.sendParticles(ParticleTypes.HEART, player.getX(), player.getY(1.1), player.getZ(), 2, 0.3, 0.2, 0.3, 0.0);
+                }
+            }
         }
     }
 

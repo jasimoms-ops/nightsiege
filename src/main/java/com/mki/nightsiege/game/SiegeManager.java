@@ -1382,6 +1382,11 @@ public final class SiegeManager {
         }
         GainGear.tick(world, upright);
         SecondUlts.tick(world);
+        if (world.getGameTime() % 5 == 0) {
+            for (ServerPlayer p : upright) {
+                Combo.tick(p, SkillTree.has(save.skillsOf(p.getUUID().toString()), "w_combo"));
+            }
+        }
         if (world.getGameTime() % 20 == 0) {
             tickSpectators(server);
             CrateEffects.tick(world, upright);
@@ -1625,6 +1630,13 @@ public final class SiegeManager {
     }
 
     /** Server balancing: factor on the damage this player takes from monsters. */
+    /** How much tougher tonight's monsters are than plain ones (level and event); 1 outside a night uses the kit level. */
+    public double mobHealthFactor() {
+        int level = active ? siegeLevel : levelForKit();
+        SiegeEvent event = active && currentEvent != null ? currentEvent : SiegeEvent.NONE;
+        return com.mki.nightsiege.core.SiegeMath.healthMultiplier(level, config) * event.healthMultiplier(config);
+    }
+
     /** Factor on the damage this monster deals to players (config monsterDamage / monsterDamageByType). */
     public float monsterDamageFactor(Entity attacker) {
         if (attacker == null) {

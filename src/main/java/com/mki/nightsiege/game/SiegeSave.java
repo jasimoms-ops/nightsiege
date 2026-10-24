@@ -223,9 +223,12 @@ public class SiegeSave {
 
     /** Version of the skill trees the levels below were learned in. */
     public int skillTreeVersion;
-    public static final int SKILL_TREE_VERSION = 6;
+    public static final int SKILL_TREE_VERSION = 7;
 
     /**
+     * Version 7 (24 October 2026): the chemistry mine and poison trap became the mortar and the
+     * brewer tower (learned levels move over), and the blademaster's combo and keen edge swapped
+     * places (combo is the subclass node now, its levels are those of the old keen edge).
      * Version 6 rebuilt the shared core tree (masonry, battlements, rebuilding,
      * beacon fire instead of the watchtower); the core gets all its points back.
      * Version 5 rebuilt the engineer (mechanics or chemistry, the remote); every engineer gets all points back.
@@ -275,6 +278,15 @@ public class SiegeSave {
             coreSkills.levels.clear();
             if (coreSkills.history != null) {
                 coreSkills.history.clear();
+            }
+        }
+        if (skillTreeVersion < 7 && skills != null) {
+            Map<String, String> renames = Map.of("blast_mine", "mortar_tower", "poison_trap", "potion_tower",
+                    "keen_edge", "w_combo", "w_combo", "keen_edge");
+            for (PlayerSkills own : skills.values()) {
+                if (own != null) {
+                    own.renameNodes(renames);
+                }
             }
         }
         skillTreeVersion = SKILL_TREE_VERSION;

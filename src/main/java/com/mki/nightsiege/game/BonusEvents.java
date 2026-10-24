@@ -286,9 +286,8 @@ public final class BonusEvents {
     private static int trapPrice(TrapKind kind) {
         return switch (kind) {
             case SPIKE, SNARE -> 3;
-            case MINE -> 4;
-            case FLAME, POISON -> 5;
-            case TURRET, TESLA -> 8;
+            case FLAME -> 5;
+            case TURRET, TESLA, MORTAR, BREWER -> 8;
         };
     }
 }

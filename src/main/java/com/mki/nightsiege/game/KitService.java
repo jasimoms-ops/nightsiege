@@ -287,9 +287,10 @@ public final class KitService {
         // Traps and the remote, as before (topped up to the free amount).
         if (clazz == SkillClass.ENGINEER) {
             traps.giveFreeTraps(player);
-            if (gainLevel(skills, clazz, "notfallmine") > 0 && ModContent.TRAP_ITEMS.get(TrapKind.MINE) != null
-                    && tree.trapTier(TrapKind.MINE, skills) > 0) {
-                inv.placeItemBackInInventory(new ItemStack(ModContent.TRAP_ITEMS.get(TrapKind.MINE), 1));
+            // Crate gain "Notfall-Mörser" (once the emergency mine): one more mortar tower tonight.
+            if (gainLevel(skills, clazz, "notfallmine") > 0 && ModContent.TRAP_ITEMS.get(TrapKind.MORTAR) != null
+                    && tree.trapTier(TrapKind.MORTAR, skills) > 0) {
+                inv.placeItemBackInInventory(new ItemStack(ModContent.TRAP_ITEMS.get(TrapKind.MORTAR), 1));
             }
         } else {
             traps.giveRemote(player, skills);
@@ -382,7 +383,9 @@ public final class KitService {
             boolean might = way.isEmpty() || way.equals(SkillTree.WAY_MIGHT);
             boolean spare = gainLevel(skills, clazz, "ersatzwaffe_w") > 0;
             if (blade || spare) {
-                hotbar.add(warriorWeapon(skills, clazz, ench, item(weapon, "sword"), sharp, true));
+                // The blademaster's combo (no cooldown) comes with an iron sword at most.
+                NightKit.Material swordMaterial = SkillTree.has(skills, "w_combo") ? NightKit.Material.IRON : weapon;
+                hotbar.add(warriorWeapon(skills, clazz, ench, item(swordMaterial, "sword"), sharp, true));
             }
             if (might || spare) {
                 hotbar.add(warriorWeapon(skills, clazz, ench, item(weapon, "axe"), sharp, false));

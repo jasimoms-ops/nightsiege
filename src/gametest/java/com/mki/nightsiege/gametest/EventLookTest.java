@@ -65,6 +65,7 @@ public class EventLookTest implements FabricClientGameTest {
                 ladderScene(context, game);
                 ladderTargetScene(context, game, false);
                 ladderTargetScene(context, game, true);
+                towerScene(context, game);
                 versionBScene(context, game);
                 versionB2Scene(context, game);
                 return;
@@ -175,8 +176,8 @@ public class EventLookTest implements FabricClientGameTest {
                 com.mki.nightsiege.game.SiegeManager manager = com.mki.nightsiege.game.SiegeManager.get();
                 manager.onCoreAction(player, "class:WARRIOR");
                 manager.onCoreAction(player, "dev:400");
-                for (String id : new String[]{"warrior_drill", "w_endurance", "champion_bane", "keen_edge", "keen_edge",
-                        "w_combo", "w_frenzy", "w_bladefrenzy", "w_evasion", "execute", "w_chain_execute"}) {
+                for (String id : new String[]{"warrior_drill", "w_endurance", "champion_bane", "w_combo", "w_combo",
+                        "keen_edge", "w_frenzy", "w_bladefrenzy", "w_evasion", "execute", "w_chain_execute"}) {
                     manager.onBuySkill(player, id);
                 }
                 manager.onCoreAction(player, "open");
@@ -234,7 +235,7 @@ public class EventLookTest implements FabricClientGameTest {
         context.takeScreenshot("ui_doom_way");
         openTree(context, "WARRIOR", "warrior_drill", "champion_bane");
         zoomTo(context, "WARRIOR", -150.0, -40.0, 0.6);
-        selectNode(context, "keen_edge");
+        selectNode(context, "w_combo");
         context.takeScreenshot("ui_doom_subclass");
         selectNode(context, null);
         closeScreen(context);
@@ -662,6 +663,70 @@ public class EventLookTest implements FabricClientGameTest {
         com.mki.nightsiege.game.LadderClimb.holdGoals = true;
         game.getServer().runCommand("effect clear @p");
         game.getServer().runCommand("gamemode creative @p");
+        context.waitTicks(5);
+    }
+
+    /**
+     * The chemistry towers: a mortar shells a group of husks, a potion thrower poisons another.
+     * Logs their health, so the rule "two hits per zombie" can be checked.
+     */
+    private static void towerScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        int gx = pos.getX() + 60;
+        int gz = pos.getZ() - 40;
+        int gy = context.computeOnClient(client -> client.level.getHeight(
+                net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, gx, gz));
+        game.getServer().runCommand("time set 6000");
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:grass_block".formatted(gx - 4, gy - 1, gz - 6, gx + 22, gy - 1, gz + 38));
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(gx - 4, gy, gz - 6, gx + 22, gy + 10, gz + 38));
+        // A wall between the mortar and its targets: the shells go over it.
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:stone_bricks".formatted(gx + 8, gy, gz - 3, gx + 8, gy + 4, gz + 3));
+        game.getServer().runCommand(("summon minecraft:husk %d %d %d {NoAI:1b,PersistenceRequired:1b,Tags:[\"ns_tower_a\"]}").formatted(gx + 16, gy, gz));
+        game.getServer().runCommand(("summon minecraft:husk %d %d %d {NoAI:1b,PersistenceRequired:1b,Tags:[\"ns_tower_a\"]}").formatted(gx + 16, gy, gz + 1));
+        game.getServer().runCommand(("summon minecraft:husk %d %d %d {NoAI:1b,PersistenceRequired:1b,Tags:[\"ns_tower_b\"]}").formatted(gx + 10, gy, gz + 32));
+        game.getServer().runCommand(("summon minecraft:husk %d %d %d {NoAI:1b,PersistenceRequired:1b,Tags:[\"ns_tower_b\"]}").formatted(gx + 10, gy, gz + 33));
+        game.getServer().runCommand("tp @p %d.5 %d %d.5 -60 25".formatted(gx + 2, gy + 6, gz - 5));
+        context.waitTicks(10);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
+            own.unlockClass(com.mki.nightsiege.core.SkillClass.ENGINEER);
+            own.switchTo(com.mki.nightsiege.core.SkillClass.ENGINEER);
+            own.levels.put("mortar_tower", 1);
+            own.levels.put("potion_tower", 1);
+            place(level, manager, player, new BlockPos(gx, gy, gz), com.mki.nightsiege.core.TrapKind.MORTAR);
+            place(level, manager, player, new BlockPos(gx, gy, gz + 32), com.mki.nightsiege.core.TrapKind.BREWER);
+            System.out.println("[Night Siege test] tower hit=" + com.mki.nightsiege.game.SiegeManager.get().mobHealthFactor() * 10.0);
+        });
+        for (int i = 0; i < 24; i++) {
+            final int step = i;
+            context.waitTicks(10);
+            onServer(context, (player, manager) -> {
+                net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                StringBuilder line = new StringBuilder("[Night Siege test] towers t=" + (step + 1) * 10 + ":");
+                for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                    if (e instanceof net.minecraft.world.entity.LivingEntity l
+                            && (e.entityTags().contains("ns_tower_a") || e.entityTags().contains("ns_tower_b"))) {
+                        line.append(' ').append(e.entityTags().contains("ns_tower_a") ? "A" : "B")
+                                .append(String.format(java.util.Locale.ROOT, "%.1f", l.getHealth()));
+                    }
+                }
+                System.out.println(line);
+            });
+            if (i == 4) {
+                context.takeScreenshot("tower_mortar");
+            }
+        }
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            level.setBlock(new BlockPos(gx, gy, gz), net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
+            level.setBlock(new BlockPos(gx, gy, gz + 32), net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
+            for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                if (e.entityTags().contains("ns_tower_a") || e.entityTags().contains("ns_tower_b")) {
+                    e.discard();
+                }
+            }
+        });
         context.waitTicks(5);
     }
 
@@ -1288,7 +1353,7 @@ public class EventLookTest implements FabricClientGameTest {
         selectNode(context, "e_charged");
         context.takeScreenshot("ui_engineer_mech");
         openTree(context, "ENGINEER", "spike_trap", "spike_trap", "e_finemech", "snare_trap", "e_detonator",
-                "blast_mine", "blast_mine", "e_shrapnel_mine", "e_chain_reaction", "e_blastpower", "bombardment",
+                "mortar_tower", "mortar_tower", "e_shrapnel_mine", "e_chain_reaction", "e_blastpower", "bombardment",
                 "e_carpet");
         selectNode(context, "e_chain_reaction");
         context.takeScreenshot("ui_engineer_chem");
@@ -1305,8 +1370,8 @@ public class EventLookTest implements FabricClientGameTest {
             net.minecraft.core.BlockPos mine = at.offset(4, 0, 0);
             net.minecraft.core.BlockPos mine2 = at.offset(4, 0, 2);
             place(level, manager, player, turret, com.mki.nightsiege.core.TrapKind.TURRET);
-            place(level, manager, player, mine, com.mki.nightsiege.core.TrapKind.MINE);
-            place(level, manager, player, mine2, com.mki.nightsiege.core.TrapKind.MINE);
+            place(level, manager, player, mine, com.mki.nightsiege.core.TrapKind.MORTAR);
+            place(level, manager, player, mine2, com.mki.nightsiege.core.TrapKind.MORTAR);
             com.mki.nightsiege.game.RemoteItem.handler.use(player, turret);   // overcharge
             com.mki.nightsiege.game.RemoteItem.handler.use(player, null);     // mark what is in sight
         });

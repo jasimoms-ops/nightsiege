@@ -18,6 +18,7 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.monster.Enemy;
@@ -25,13 +26,17 @@ import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
 import net.minecraft.world.entity.projectile.arrow.Arrow;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.alchemy.PotionContents;
+import net.minecraft.world.item.alchemy.Potions;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.function.Supplier;
 
@@ -269,7 +274,8 @@ public final class TrapService {
 
     /** How much longer monsters need to dig through a block: steel turrets (crate gain) hold twice as long. */
     public double digFactor(ServerLevel level, BlockPos pos) {
-        if (ModContent.trapOf(level.getBlockState(pos)) != TrapKind.TURRET) {
+        TrapKind here = ModContent.trapOf(level.getBlockState(pos));
+        if (here == null || !here.isTower()) {
             return 1.0;
         }
         TrapRecord record = find(level, pos);
@@ -288,9 +294,6 @@ public final class TrapService {
         for (TrapKind kind : TrapKind.values()) {
             int tier = tree.trapTier(kind, skills);
             int count = kind.freePerSiege(tier);
-            if (count == 0 && tier > 0 && tree.grantedTower(kind, skills)) {
-                count = 1;
-            }
             if (count > 0) {
                 count += (int) Math.round(tree.totalBonus(SkillEffect.FREE_TRAPS, skills));
                 out.put(kind, Math.min(count, maxFor(kind, tier, skills)));
@@ -305,9 +308,6 @@ public final class TrapService {
         for (TrapKind kind : TrapKind.values()) {
             int tier = tree.trapTier(kind, skills);
             int count = kind.freePerSiege(tier);
-            if (count == 0 && tier > 0 && tree.grantedTower(kind, skills)) {
-                count = 1;   // the alchemist's tesla coil comes at tier 1 too
-            }
             if (count > 0) {
                 count += (int) Math.round(tree.totalBonus(SkillEffect.FREE_TRAPS, skills));
                 // Only top up to the cap: placed traps and those in the pack both count.
@@ -343,6 +343,9 @@ public final class TrapService {
         }
         tickCounter = 0;
         rechargeRemotes(server);
+        if (++dotTick % 2 == 0) {
+            tickDots(server);
+        }
         List<TrapRecord> list = traps();
         if (list.isEmpty()) {
             return takeDirty();
@@ -377,10 +380,10 @@ public final class TrapService {
             switch (kind) {
                 case SPIKE -> tickSpike(level, pos, record, tier, now);
                 case SNARE -> tickSnare(level, pos, record, tier, now);
-                case MINE -> tickMine(level, pos, record, tier);
+                case MORTAR -> tickMortar(level, pos, record, tier, now);
                 case TURRET -> tickTurret(level, pos, record, tier, now);
                 case FLAME -> tickFlame(level, pos, record, tier, now);
-                case POISON -> tickPoison(level, pos, record, tier, now);
+                case BREWER -> tickBrewer(level, pos, record, tier, now);
                 case TESLA -> tickTesla(level, pos, record, tier, now);
             }
         }
@@ -442,59 +445,303 @@ public final class TrapService {
         dirty = true;
     }
 
-    private void tickMine(ServerLevel level, BlockPos pos, TrapRecord record, int tier) {
-        if (enemies(level, new AABB(pos.getX() - 0.2, pos.getY() + 1, pos.getZ() - 0.2,
-                pos.getX() + 1.2, pos.getY() + 2.2, pos.getZ() + 1.2)).isEmpty()) {
-            return;
-        }
-        blowMine(level, pos, record, tier, 1.0, 1.0, 0);
+    // ------------------------------------------------------------------
+    // the chemistry towers: mortar and brewer (24 October 2026, instead of mine and poison trap)
+    // ------------------------------------------------------------------
+
+    /** One direct hit of a chemistry tower: half a normal zombie of tonight (Simon: two shots per zombie). */
+    static double towerHit() {
+        SiegeManager m = SiegeManager.get();
+        return 10.0 * (m == null ? 1.0 : m.mobHealthFactor());
     }
 
-    /** The mine goes off: hurts every monster around, then is gone. Neighbours may follow. */
-    private void blowMine(ServerLevel level, BlockPos pos, TrapRecord record, int tier,
-                          double damageScale, double radiusScale, int depth) {
-        long now = level.getGameTime();
-        Vec3 center = Vec3.atCenterOf(pos).add(0, 0.6, 0);
-        double shrapnel = bonus(record, SkillEffect.SHRAPNEL_MINE);
-        double r = TrapKind.MINE.radius(tier) * (shrapnel > 0 ? 1.5 : 1.0) * radiusScale;
-        double damage = (TrapKind.MINE.damage(tier) + shrapnel) * power(record, now) * blastScale(record) * damageScale;
-        DamageSource source = sourceFor(level, record);
+    /** Crate gains that make traps stronger; the overcharge makes the towers faster instead. */
+    private double towerPower(TrapRecord record) {
+        double gain = 1.0 + 0.1 * gainOf(record, "verstaerkt");
+        if (record.ambushNight != GainGear.nightId() && gainOf(record, "tarnfallen") > 0) {
+            record.ambushNight = GainGear.nightId();
+            gain *= 1.5;
+        }
+        return gain;
+    }
 
-        level.removeBlock(pos, false);
-        traps().remove(record);
-        boostedUntil.remove(key(record));
-        dirty = true;
-
-        for (LivingEntity victim : enemies(level, new AABB(center, center).inflate(r))) {
-            double distance = Math.sqrt(victim.distanceToSqr(center));
-            if (distance > r) {
+    /** The monster with the most others around it within reach (marked ones first), or null. */
+    private LivingEntity bestGroup(ServerLevel level, TrapRecord record, Vec3 from, double range, double splash, long now,
+                                   java.util.Set<LivingEntity> skip) {
+        List<LivingEntity> all = enemies(level, new AABB(from, from).inflate(range, 14.0, range));
+        LivingEntity best = null;
+        double bestScore = -1;
+        for (LivingEntity e : all) {
+            if (skip != null && skip.contains(e)) {
                 continue;
             }
-            // Full force at the centre, half at the edge.
-            double falloff = 1.0 - 0.5 * (distance / r);
-            victim.hurtServer(level, source, (float) (damage * falloff));
-            Vec3 away = victim.position().subtract(center);
-            Vec3 push = away.lengthSqr() < 1.0e-4 ? new Vec3(0, 0.6, 0)
-                    : away.normalize().scale(0.9 * falloff).add(0, 0.35, 0);
+            double dx = e.getX() - from.x;
+            double dz = e.getZ() - from.z;
+            double flat = dx * dx + dz * dz;
+            if (flat > range * range || flat < 4.0) {
+                continue;   // too far, or right at the tower's foot
+            }
+            int around = 0;
+            for (LivingEntity o : all) {
+                if (o.distanceToSqr(e) <= splash * splash) {
+                    around++;
+                }
+            }
+            double score = around * 10.0 + (markedBy(record, e, now) ? 25.0 : 0.0) - Math.sqrt(flat) * 0.1;
+            if (score > bestScore) {
+                bestScore = score;
+                best = e;
+            }
+        }
+        return best;
+    }
+
+    private void tickMortar(ServerLevel level, BlockPos pos, TrapRecord record, int tier, long now) {
+        Vec3 muzzle = Vec3.atCenterOf(pos).add(0, 0.9, 0);
+        double range = TrapKind.MORTAR.radius(tier) + bonus(record, SkillEffect.TOWER_RANGE);
+        LivingEntity target = bestGroup(level, record, muzzle, range, TrapKind.MORTAR.splash(tier), now, null);
+        if (target == null) {
+            return;
+        }
+        lob(level, record, muzzle, target.position(), KitProjectile.SHELL, tier, 1.0, 1.0);
+        record.readyAt = now + quicker(record, now, TrapKind.MORTAR.cooldownTicks(tier));
+        dirty = true;
+    }
+
+    private void tickBrewer(ServerLevel level, BlockPos pos, TrapRecord record, int tier, long now) {
+        Vec3 muzzle = Vec3.atCenterOf(pos).add(0, 0.9, 0);
+        double range = TrapKind.BREWER.radius(tier) + bonus(record, SkillEffect.TOWER_RANGE);
+        LivingEntity target = bestGroup(level, record, muzzle, range, TrapKind.BREWER.splash(tier), now, null);
+        if (target == null) {
+            return;
+        }
+        lob(level, record, muzzle, target.position(), KitProjectile.BREW, tier, 1.0, 1.0);
+        record.readyAt = now + quicker(record, now, TrapKind.BREWER.cooldownTicks(tier));
+        dirty = true;
+    }
+
+    /** Fires a shell or a potion in a high arc (over walls) onto a spot. */
+    private void lob(ServerLevel level, TrapRecord record, Vec3 from, Vec3 to, String kind, int tier,
+                     double damageScale, double radiusScale) {
+        boolean shell = KitProjectile.SHELL.equals(kind);
+        ItemStack look = shell ? new ItemStack(Items.FIRE_CHARGE)
+                : PotionContents.createItemStack(Items.SPLASH_POTION, Potions.POISON);
+        KitProjectile shot = new KitProjectile(level, from.x, from.y, from.z, look, kind);
+        shot.setData(String.join("|", record.kind, record.dimension, String.valueOf(record.x), String.valueOf(record.y),
+                String.valueOf(record.z), record.owner == null ? "" : record.owner, String.valueOf(tier),
+                String.valueOf(damageScale), String.valueOf(radiusScale)));
+        double dx = to.x - from.x;
+        double dy = to.y - from.y;
+        double dz = to.z - from.z;
+        int flight = (int) Math.round(20 + Math.sqrt(dx * dx + dz * dz));
+        shot.setDeltaMovement(ballistic(dx, dy, dz, flight, 0.03));
+        level.addFreshEntity(shot);
+        BlockPos pos = new BlockPos(record.x, record.y, record.z);
+        if (shell) {
+            playAt(level, pos, SoundEvents.GENERIC_EXPLODE.value(), 0.5f, 1.8f);
+            level.sendParticles(ParticleTypes.LARGE_SMOKE, from.x, from.y + 0.2, from.z, 6, 0.15, 0.1, 0.15, 0.03);
+        } else {
+            playAt(level, pos, SoundEvents.SPLASH_POTION_THROW, 0.9f, 0.8f);
+            level.sendParticles(POISON_DUST, from.x, from.y + 0.2, from.z, 8, 0.2, 0.1, 0.2, 0.0);
+        }
+    }
+
+    /**
+     * Start velocity that lands a thrown projectile {@code t} ticks later at the offset, with
+     * the per-tick rule of Minecraft's throwables (gravity first, then 1 % drag, then the move).
+     */
+    static Vec3 ballistic(double dx, double dy, double dz, int t, double g) {
+        double sum = 0;
+        double f = 0.99;
+        for (int k = 0; k < t; k++) {
+            sum += f;
+            f *= 0.99;
+        }
+        double lo = -3;
+        double hi = 6;
+        for (int i = 0; i < 40; i++) {
+            double mid = (lo + hi) / 2;
+            if (rise(mid, t, g) < dy) {
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+        }
+        return new Vec3(dx / sum, (lo + hi) / 2, dz / sum);
+    }
+
+    static double rise(double vy, int t, double g) {
+        double y = 0;
+        for (int k = 0; k < t; k++) {
+            vy = (vy - g) * 0.99;
+            y += vy;
+        }
+        return y;
+    }
+
+    /** A tower shot landed (called by the projectile). */
+    public void onTowerShot(ServerLevel level, KitProjectile shot, Entity direct, Vec3 at) {
+        String[] d = shot.data().split("\\|", -1);
+        if (d.length < 9) {
+            return;
+        }
+        TrapRecord record = null;
+        try {
+            int x = Integer.parseInt(d[2]);
+            int y = Integer.parseInt(d[3]);
+            int z = Integer.parseInt(d[4]);
+            for (TrapRecord r : traps()) {
+                if (r.matches(d[1], x, y, z)) {
+                    record = r;
+                    break;
+                }
+            }
+            if (record == null) {
+                record = new TrapRecord(d[0], d[1], x, y, z, d[5]);   // the tower is gone, its shot still counts
+            }
+            int tier = Integer.parseInt(d[6]);
+            double damageScale = Double.parseDouble(d[7]);
+            double radiusScale = Double.parseDouble(d[8]);
+            if (KitProjectile.SHELL.equals(shot.kind())) {
+                shellBurst(level, record, at, direct, tier, damageScale, radiusScale, false);
+            } else {
+                brewBurst(level, record, at, direct, tier, damageScale, radiusScale, damageScale > 1.0 || radiusScale > 1.0);
+            }
+        } catch (NumberFormatException e) {
+            // a broken shot does nothing
+        }
+    }
+
+    /** Full damage within a block of the impact (and on the monster it hit), half at the edge. */
+    private static double falloff(LivingEntity victim, Vec3 at, Entity direct, double r) {
+        if (victim == direct) {
+            return 1.0;
+        }
+        double dx = victim.getX() - at.x;
+        double dz = victim.getZ() - at.z;
+        double d = Math.sqrt(dx * dx + dz * dz);
+        return d <= 1.0 ? 1.0 : 1.0 - 0.5 * Math.min(1.0, (d - 1.0) / Math.max(0.5, r - 1.0));
+    }
+
+    private void shellBurst(ServerLevel level, TrapRecord record, Vec3 at, Entity direct, int tier,
+                            double damageScale, double radiusScale, boolean small) {
+        double shrapnel = bonus(record, SkillEffect.SHRAPNEL_MINE);
+        double r = TrapKind.MORTAR.splash(tier) * (1.0 + shrapnel) * radiusScale * (small ? 0.6 : 1.0);
+        double damage = towerHit() * towerPower(record) * blastScale(record) * damageScale * (small ? 1.0 / 3.0 : 1.0);
+        DamageSource source = sourceFor(level, record);
+        for (LivingEntity victim : around(level, at, r)) {
+            double f = falloff(victim, at, direct, r);
+            victim.invulnerableTime = 0;
+            victim.hurtServer(level, source, (float) (damage * f));
+            Vec3 away = victim.position().subtract(at);
+            Vec3 push = away.lengthSqr() < 1.0e-4 ? new Vec3(0, 0.3, 0) : away.normalize().scale(0.4 * f).add(0, 0.2, 0);
             victim.push(push.x, push.y, push.z);
         }
-        level.sendParticles(ParticleTypes.EXPLOSION_EMITTER, center.x, center.y, center.z, 1, 0, 0, 0, 0);
-        level.sendParticles(ParticleTypes.SMOKE, center.x, center.y, center.z, 40, r * 0.4, 0.4, r * 0.4, 0.05);
-        if (shrapnel > 0) {
-            level.sendParticles(ParticleTypes.CRIT, center.x, center.y, center.z, 30, r * 0.4, 0.3, r * 0.4, 0.4);
+        level.sendParticles(small ? ParticleTypes.SMOKE : ParticleTypes.EXPLOSION, at.x, at.y + 0.3, at.z, small ? 8 : 2,
+                r * 0.3, 0.2, r * 0.3, 0.02);
+        level.sendParticles(ParticleTypes.LARGE_SMOKE, at.x, at.y + 0.3, at.z, small ? 4 : 14, r * 0.35, 0.3, r * 0.35, 0.03);
+        if (shrapnel > 0 && !small) {
+            level.sendParticles(ParticleTypes.CRIT, at.x, at.y + 0.3, at.z, 24, r * 0.4, 0.3, r * 0.4, 0.4);
         }
-        level.playSound(null, pos, SoundEvents.GENERIC_EXPLODE.value(), SoundSource.BLOCKS, 1.2f, 1.1f);
-        // Chain reaction: the engineer's other mines close by go off too.
-        if (depth < 6 && has(record, "e_chain_reaction")) {
-            for (TrapRecord other : new ArrayList<>(traps())) {
-                if (TrapKind.MINE.id().equals(other.kind) && record.owner.equals(other.owner)
-                        && record.dimension.equals(other.dimension)
-                        && Vec3.atCenterOf(new BlockPos(other.x, other.y, other.z)).distanceToSqr(center) <= 25.0) {
-                    BlockPos at = new BlockPos(other.x, other.y, other.z);
-                    if (ModContent.trapOf(level.getBlockState(at)) == TrapKind.MINE) {
-                        blowMine(level, at, other, tierOf(other), damageScale, radiusScale, depth + 1);
-                    }
-                }
+        level.playSound(null, BlockPos.containing(at), SoundEvents.GENERIC_EXPLODE.value(), SoundSource.BLOCKS,
+                small ? 0.5f : 0.9f, small ? 1.6f : 1.2f);
+        // Scatter fire: the shell bursts into three small ones around the impact.
+        if (!small && has(record, "e_chain_reaction")) {
+            for (int i = 0; i < 3; i++) {
+                double angle = Math.PI * 2 * i / 3 + level.getRandom().nextDouble();
+                Vec3 spot = at.add(Math.cos(angle) * 2.2, 0, Math.sin(angle) * 2.2);
+                shellBurst(level, record, spot, null, tier, damageScale, radiusScale, true);
+            }
+        }
+    }
+
+    /** Poison over time of the brewer, per monster: what is still to come, in hits of half a second. */
+    private static final class Dot {
+        final String owner;
+        final String dimension;
+        final double perHit;
+        int hitsLeft;
+
+        Dot(String owner, String dimension, double perHit, int hitsLeft) {
+            this.owner = owner;
+            this.dimension = dimension;
+            this.perHit = perHit;
+            this.hitsLeft = hitsLeft;
+        }
+    }
+
+    private final Map<UUID, List<Dot>> dots = new HashMap<>();
+    private int dotTick;
+
+    /** True while the brewer's poison eats at this monster. */
+    public boolean poisoned(LivingEntity e) {
+        List<Dot> list = dots.get(e.getUUID());
+        return list != null && !list.isEmpty();
+    }
+
+    private void brewBurst(ServerLevel level, TrapRecord record, Vec3 at, Entity direct, int tier,
+                           double damageScale, double radiusScale, boolean big) {
+        long now = level.getGameTime();
+        double r = TrapKind.BREWER.splash(tier) * radiusScale;
+        int ticks = (int) Math.round(TrapKind.BREWER.holdTicks(tier) * poisonScale(record));
+        int hits = Math.max(1, ticks / 10);
+        double total = towerHit() * towerPower(record) * damageScale * poisonScale(record);
+        double acid = bonus(record, SkillEffect.ACID);
+        int amp = TrapKind.BREWER.amplifier(tier) + (acid > 0 ? 1 : 0);
+        for (LivingEntity victim : around(level, at, r)) {
+            double f = falloff(victim, at, direct, r);
+            dots.computeIfAbsent(victim.getUUID(), k -> new ArrayList<>())
+                    .add(new Dot(record.owner, record.dimension, total * f / hits, hits));
+            victim.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, ticks, amp));
+            victim.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, ticks, 0));
+            if (acid > 0) {
+                marker.mark(victim, acid, now + ticks, false);
+            }
+        }
+        level.sendParticles(POISON_DUST, at.x, at.y + 0.4, at.z, 50, r * 0.45, 0.4, r * 0.45, 0.0);
+        level.sendParticles(ParticleTypes.SPLASH, at.x, at.y + 0.3, at.z, 20, r * 0.3, 0.1, r * 0.3, 0.1);
+        level.playSound(null, BlockPos.containing(at), SoundEvents.SPLASH_POTION_BREAK, SoundSource.BLOCKS, 1.0f, 0.8f);
+        // The plague throw (remote, with the skill): the big potion also bursts.
+        double plague = bonus(record, SkillEffect.PLAGUE_MINE);
+        if (big && plague > 0) {
+            DamageSource source = sourceFor(level, record);
+            for (LivingEntity victim : around(level, at, r)) {
+                victim.invulnerableTime = 0;
+                victim.hurtServer(level, source, (float) (plague * damageScale));
+            }
+            level.sendParticles(ParticleTypes.EXPLOSION, at.x, at.y + 0.3, at.z, 2, 0.5, 0.2, 0.5, 0.0);
+        }
+    }
+
+    /** Every half second: the brewer's poison bites. */
+    private void tickDots(MinecraftServer server) {
+        if (dots.isEmpty()) {
+            return;
+        }
+        java.util.Iterator<Map.Entry<UUID, List<Dot>>> it = dots.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<UUID, List<Dot>> entry = it.next();
+            List<Dot> list = entry.getValue();
+            Dot first = list.isEmpty() ? null : list.get(0);
+            ServerLevel level = first == null ? null : SiegeManager.levelByName(server, first.dimension);
+            Entity entity = level == null ? null : level.getEntity(entry.getKey());
+            if (!(entity instanceof LivingEntity victim) || !victim.isAlive()) {
+                it.remove();
+                continue;
+            }
+            double sum = 0;
+            String owner = first.owner;
+            for (Dot dot : list) {
+                sum += dot.perHit;
+                dot.hitsLeft--;
+            }
+            list.removeIf(dot -> dot.hitsLeft <= 0);
+            TrapRecord who = new TrapRecord(TrapKind.BREWER.id(), first.dimension, 0, 0, 0, owner);
+            victim.invulnerableTime = 0;
+            victim.hurtServer(level, sourceFor(level, who), (float) sum);
+            level.sendParticles(POISON_DUST, victim.getX(), victim.getY(0.6), victim.getZ(), 4, 0.25, 0.3, 0.25, 0.0);
+            if (list.isEmpty()) {
+                it.remove();
             }
         }
     }
@@ -581,7 +828,7 @@ public final class TrapService {
         double damage = TrapKind.FLAME.damage(tier) * power(record, now) * blastScale(record) * damageScale;
         for (LivingEntity victim : around(level, center, r)) {
             victim.igniteForSeconds(seconds);
-            boolean poisoned = victim.hasEffect(MobEffects.POISON) || victim.hasEffect(MobEffects.WITHER);
+            boolean poisoned = victim.hasEffect(MobEffects.POISON) || victim.hasEffect(MobEffects.WITHER) || poisoned(victim);
             victim.hurtServer(level, source, (float) (damage * (poisoned ? 1.0 + accelerant : 1.0)));
         }
         // Only particles: the trap never places fire blocks.
@@ -601,40 +848,6 @@ public final class TrapService {
 
     static final net.minecraft.core.particles.DustParticleOptions POISON_DUST =
             new net.minecraft.core.particles.DustParticleOptions(0x6FB33A, 1.5f);
-
-    private void tickPoison(ServerLevel level, BlockPos pos, TrapRecord record, int tier, long now) {
-        if (onTop(level, pos).isEmpty()) {
-            return;
-        }
-        releasePoison(level, pos, record, tier, now, 1.0);
-    }
-
-    private void releasePoison(ServerLevel level, BlockPos pos, TrapRecord record, int tier, long now, double radiusScale) {
-        Vec3 center = Vec3.atCenterOf(pos).add(0, 0.8, 0);
-        double r = TrapKind.POISON.radius(tier) * radiusScale;
-        int ticks = (int) Math.round(TrapKind.POISON.holdTicks(tier) * poisonScale(record));
-        int amp = TrapKind.POISON.amplifier(tier) + (boosted(record, now) ? 1 : 0);
-        double acid = bonus(record, SkillEffect.ACID);
-        for (LivingEntity victim : around(level, center, r)) {
-            // Poison heals the undead, so they wither instead.
-            boolean undead = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE
-                    .wrapAsHolder(victim.getType()).is(net.minecraft.tags.EntityTypeTags.UNDEAD);
-            victim.addEffect(new MobEffectInstance(undead ? MobEffects.WITHER : MobEffects.POISON, ticks, amp));
-            victim.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, ticks, 0));
-            victim.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, ticks / 2, acid > 0 ? 1 : 0));
-            if (acid > 0) {
-                marker.mark(victim, acid, now + ticks, false);
-            }
-        }
-        level.sendParticles(POISON_DUST, center.x, center.y, center.z, 60, r * 0.5, 0.5, r * 0.5, 0.0);
-        playAt(level, pos, SoundEvents.BREWING_STAND_BREW, 1.0f, 0.6f);
-        record.uses--;
-        record.readyAt = now + quicker(record, now, TrapKind.POISON.cooldownTicks(tier));
-        if (record.uses <= 0) {
-            wearOut(level, pos, record);
-        }
-        dirty = true;
-    }
 
     private void tickTesla(ServerLevel level, BlockPos pos, TrapRecord record, int tier, long now) {
         Vec3 from = Vec3.atCenterOf(pos).add(0, 0.8, 0);
@@ -726,7 +939,7 @@ public final class TrapService {
                 return;
             }
             TrapKind kind = TrapKind.byId(record.kind);
-            if (sneak && (kind == TrapKind.MINE || kind == TrapKind.FLAME || kind == TrapKind.POISON)) {
+            if (sneak && (kind == TrapKind.MORTAR || kind == TrapKind.FLAME || kind == TrapKind.BREWER)) {
                 double cost = cost(skills, COST_DETONATE - 4.0 * tree.totalBonus(SkillEffect.DETONATOR, skills));
                 if (pay(player, skills, cost)) {
                     detonate(level, trapPos, record, kind, skills);
@@ -789,20 +1002,28 @@ public final class TrapService {
         double damage = 1.0 + 0.15 * tree.totalBonus(SkillEffect.DETONATOR, skills);
         double radius = 1.0 + tree.totalBonus(SkillEffect.BLAST_POWER, skills);
         switch (kind) {
-            case MINE -> blowMine(level, pos, record, tier, damage, radius, 0);
-            case FLAME -> fireFlame(level, pos, record, tier, now, damage, radius);
-            case POISON -> {
-                releasePoison(level, pos, record, tier, now, radius);
-                double plague = tree.totalBonus(SkillEffect.PLAGUE_MINE, skills);
-                if (plague > 0) {
-                    Vec3 c = Vec3.atCenterOf(pos).add(0, 0.6, 0);
-                    DamageSource source = sourceFor(level, record);
-                    double r = TrapKind.POISON.radius(tier) * radius;
-                    for (LivingEntity victim : around(level, c, r)) {
-                        victim.hurtServer(level, source, (float) (plague * damage));
+            case MORTAR -> {
+                // The salvo: three shells at once onto the three thickest groups.
+                Vec3 muzzle = Vec3.atCenterOf(pos).add(0, 0.9, 0);
+                double range = TrapKind.MORTAR.radius(tier) + bonus(record, SkillEffect.TOWER_RANGE);
+                java.util.Set<LivingEntity> taken = new java.util.HashSet<>();
+                for (int i = 0; i < 3; i++) {
+                    LivingEntity target = bestGroup(level, record, muzzle, range, TrapKind.MORTAR.splash(tier), now, taken);
+                    if (target == null) {
+                        break;
                     }
-                    level.sendParticles(ParticleTypes.EXPLOSION, c.x, c.y, c.z, 2, 0.5, 0.2, 0.5, 0.0);
-                    playAt(level, pos, SoundEvents.GENERIC_EXPLODE.value(), 0.8f, 1.4f);
+                    taken.add(target);
+                    lob(level, record, muzzle, target.position(), KitProjectile.SHELL, tier, damage, radius);
+                }
+            }
+            case FLAME -> fireFlame(level, pos, record, tier, now, damage, radius);
+            case BREWER -> {
+                // The big throw: half as wide again (and with the plague skill it bursts).
+                Vec3 muzzle = Vec3.atCenterOf(pos).add(0, 0.9, 0);
+                double range = TrapKind.BREWER.radius(tier) + bonus(record, SkillEffect.TOWER_RANGE);
+                LivingEntity target = bestGroup(level, record, muzzle, range, TrapKind.BREWER.splash(tier), now, null);
+                if (target != null) {
+                    lob(level, record, muzzle, target.position(), KitProjectile.BREW, tier, damage, radius * 1.5);
                 }
             }
             default -> {
@@ -814,7 +1035,7 @@ public final class TrapService {
         if (kind == TrapKind.TURRET) {
             return record.ammo < maxAmmo(record);
         }
-        return kind != TrapKind.TESLA && kind != TrapKind.MINE && record.uses < fullUses(kind, tierOf(record), record);
+        return kind.isFloorPlate() && record.uses < fullUses(kind, tierOf(record), record);
     }
 
     /** Fills a trap up again; a turret takes the arrows from the engineer's pack. */
@@ -1111,9 +1332,6 @@ public final class TrapService {
     /** Most traps of a kind: the fortress builder has one tower more, the field technician one fewer. */
     public int maxFor(TrapKind kind, int tier, PlayerSkills skills) {
         int max = kind.maxPlaced(tier);
-        if (tree.grantedTower(kind, skills) && tree.trapTier(kind, skills) <= 1) {
-            max = 1;   // the subclass's own tower: one of it
-        }
         SiegeManager m = SiegeManager.get();
         if (m != null && skills != null
                 && m.kits().gainLevel(skills, com.mki.nightsiege.core.SkillClass.ENGINEER, "ueberkapazitaet") > 0) {

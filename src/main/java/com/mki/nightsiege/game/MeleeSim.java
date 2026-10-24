@@ -51,7 +51,7 @@ public final class MeleeSim {
 
     /** Class, subclass node, subclass key. */
     public static final String[][] SUBCLASSES = {
-            {"WARRIOR", "keen_edge", "blademaster"},
+            {"WARRIOR", "w_combo", "blademaster"},
             {"WARRIOR", "bloodlust", "berserker"},
             {"WARRIOR", "heavy_blow", "axe"},
             {"WARRIOR", "smite", "paladin"},

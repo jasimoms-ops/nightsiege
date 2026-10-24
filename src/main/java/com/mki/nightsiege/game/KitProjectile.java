@@ -33,8 +33,13 @@ public class KitProjectile extends ThrowableItemProjectile {
     public static final String FLASH = "flash";
     public static final String OIL = "oil";
     public static final String LURE = "lure";
+    /** The demolition expert's mortar shell and the alchemist's potion (fired by a tower). */
+    public static final String SHELL = "shell";
+    public static final String BREW = "brew";
 
     private String kind = "";
+    /** For tower shots: which tower, whose, tier and scales (see TrapService). */
+    private String data = "";
 
     public KitProjectile(EntityType<? extends KitProjectile> type, Level level) {
         super(type, level);
@@ -43,6 +48,20 @@ public class KitProjectile extends ThrowableItemProjectile {
     public KitProjectile(Level level, LivingEntity owner, ItemStack item, String kind) {
         super(TYPE, owner, level, item);
         this.kind = kind;
+    }
+
+    /** A shot without a thrower (from a tower). */
+    public KitProjectile(Level level, double x, double y, double z, ItemStack item, String kind) {
+        super(TYPE, x, y, z, level, item);
+        this.kind = kind;
+    }
+
+    public String data() {
+        return data;
+    }
+
+    public void setData(String data) {
+        this.data = data == null ? "" : data;
     }
 
     public static void register() {
@@ -98,11 +117,13 @@ public class KitProjectile extends ThrowableItemProjectile {
     protected void addAdditionalSaveData(ValueOutput out) {
         super.addAdditionalSaveData(out);
         out.putString("ns_kind", kind);
+        out.putString("ns_data", data);
     }
 
     @Override
     protected void readAdditionalSaveData(ValueInput in) {
         super.readAdditionalSaveData(in);
         kind = in.getStringOr("ns_kind", "");
+        data = in.getStringOr("ns_data", "");
     }
 }

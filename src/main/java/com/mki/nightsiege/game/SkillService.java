@@ -78,6 +78,7 @@ public final class SkillService {
         if (player == null) {
             return;
         }
+        Combo.clear(player);
         for (SkillEffect effect : SkillEffect.values()) {
             if (effect.target() != SkillEffect.Target.PLAYER) {
                 continue;

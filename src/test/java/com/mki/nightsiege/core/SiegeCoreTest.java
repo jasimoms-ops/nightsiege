@@ -186,7 +186,7 @@ class SiegeCoreTest {
         p.chosenClass = SkillClass.WARRIOR.name();
         learnWay(tree, p, SkillClass.WARRIOR, SkillTree.WAY_BLADE);
         p.award(500);
-        String other = p.levelOf("keen_edge") > 0 ? "bloodlust" : "keen_edge";
+        String other = p.levelOf("w_combo") > 0 ? "bloodlust" : "w_combo";
         String why = tree.blockedReason(other, p);
         assertTrue("choice".equals(why) || "lockedby".equals(why), other + " is shut: " + why);
         assertTrue(tree.isComplete(p, SkillClass.WARRIOR));
@@ -852,31 +852,41 @@ class SiegeCoreTest {
     }
 
     @Test
-    void theChemistrySubclassesBringATower() {
+    void theChemistrySubclassesBuildTowersNow() {
         SkillTree tree = new SkillTree();
         PlayerSkills demolition = new PlayerSkills();
         demolition.chosenClass = SkillClass.ENGINEER.name();
-        demolition.levels.put(TrapKind.MINE.id(), 1);
+        demolition.levels.put(TrapKind.MORTAR.id(), 1);
         assertEquals("demolition", tree.subclassOf(demolition));
-        assertEquals(1, tree.trapTier(TrapKind.TURRET, demolition));
-        assertEquals(0, tree.trapTier(TrapKind.TESLA, demolition));
-        assertTrue(tree.grantedTower(TrapKind.TURRET, demolition));
-
+        assertEquals(1, tree.trapTier(TrapKind.MORTAR, demolition));
+        assertEquals(0, tree.trapTier(TrapKind.TURRET, demolition));
         PlayerSkills alchemist = new PlayerSkills();
         alchemist.chosenClass = SkillClass.ENGINEER.name();
-        alchemist.levels.put(TrapKind.POISON.id(), 1);
-        assertEquals(1, tree.trapTier(TrapKind.TESLA, alchemist));
-        assertEquals(0, tree.trapTier(TrapKind.TURRET, alchemist));
-        // The cross talent still lends the turret at tier 2.
-        alchemist.levels.put("c_cross_turret", 1);
-        assertEquals(2, tree.trapTier(TrapKind.TURRET, alchemist));
-
-        // The mechanics way keeps its own towers and gets nothing extra.
-        PlayerSkills gunner = new PlayerSkills();
-        gunner.chosenClass = SkillClass.ENGINEER.name();
-        gunner.levels.put(TrapKind.TURRET.id(), 2);
-        assertFalse(tree.grantedTower(TrapKind.TURRET, gunner));
-        assertEquals(0, tree.trapTier(TrapKind.TESLA, gunner));
+        alchemist.levels.put(TrapKind.BREWER.id(), 1);
+        assertEquals("alchemist", tree.subclassOf(alchemist));
+        alchemist.levels.put("toxic_brew", 1);
+        assertEquals(3, tree.trapTier(TrapKind.BREWER, alchemist));
+        // Towers, no floor plates; they shoot further and faster with the tier, never weaker.
+        for (TrapKind kind : new TrapKind[]{TrapKind.MORTAR, TrapKind.BREWER}) {
+            assertTrue(kind.isTower());
+            assertFalse(kind.isFloorPlate());
+            assertTrue(kind.splash(3) > kind.splash(1));
+            assertEquals(1, kind.freePerSiege(1));
+        }
+        assertTrue(TrapKind.MORTAR.radius(1) >= 20);
+        // Old saves: learned levels move over, the blademaster's two nodes swap.
+        PlayerSkills old = new PlayerSkills();
+        old.chosenClass = SkillClass.ENGINEER.name();
+        old.levels.put("blast_mine", 2);
+        old.classLevels.put("WARRIOR", new java.util.HashMap<>(java.util.Map.of("keen_edge", 3, "w_combo", 1)));
+        old.history.add("blast_mine");
+        old.renameNodes(java.util.Map.of("blast_mine", "mortar_tower", "poison_trap", "potion_tower",
+                "keen_edge", "w_combo", "w_combo", "keen_edge"));
+        assertEquals(2, old.levelOf("mortar_tower"));
+        assertEquals(0, old.levelOf("blast_mine"));
+        assertEquals(3, old.classLevels.get("WARRIOR").get("w_combo"));
+        assertEquals(1, old.classLevels.get("WARRIOR").get("keen_edge"));
+        assertEquals("mortar_tower", old.history.get(0));
     }
 
     @Test
@@ -901,7 +911,7 @@ class SiegeCoreTest {
             }
             assertEquals(0, kind.freePerSiege(0), kind + " is free before it is unlocked");
         }
-        assertEquals(1, TrapKind.MINE.uses(3));
+        assertEquals(Integer.MAX_VALUE, TrapKind.MORTAR.uses(3));
         assertTrue(TrapKind.TURRET.startAmmo(1) <= TrapKind.TURRET.maxAmmo(1));
         assertEquals(TrapKind.SPIKE.damage(TrapKind.MAX_TIER), TrapKind.SPIKE.damage(99), 1e-9);
     }
@@ -925,12 +935,12 @@ class SiegeCoreTest {
         assertEquals(SkillTree.WAY_BLADE, warrior.pathTaken(tree));
         assertEquals("path", tree.blockedReason("sunder", warrior));
         // Subclass.
-        assertTrue(tree.unlock("keen_edge", warrior));
+        assertTrue(tree.unlock("w_combo", warrior));
         assertEquals("choice", tree.blockedReason("bloodlust", warrior));
         assertEquals(SkillTree.SUB_BLADEMASTER, tree.subclassOf(warrior));
-        assertEquals("locked", tree.blockedReason("w_combo", warrior));
-        assertTrue(tree.unlock("keen_edge", warrior));
+        assertEquals("locked", tree.blockedReason("keen_edge", warrior));
         assertTrue(tree.unlock("w_combo", warrior));
+        assertTrue(tree.unlock("keen_edge", warrior));
         assertEquals("choice", tree.blockedReason("blood_drinker", warrior));
         // A cross talent closes a hybrid and a mastery.
         assertTrue(tree.unlock("e_cross_heavy", warrior));
@@ -1086,11 +1096,11 @@ class SiegeCoreTest {
     void engineerWaysShareTheTrunkTraps() {
         SkillTree tree = new SkillTree();
         assertEquals("e_circuit", tree.get(TrapKind.TESLA.id()).requires());
-        assertEquals("e_detonator", tree.get(TrapKind.MINE.id()).requires());
+        assertEquals("e_detonator", tree.get(TrapKind.MORTAR.id()).requires());
         assertTrue(tree.get(TrapKind.SPIKE.id()).onTrunk());
         assertTrue(tree.get(TrapKind.SNARE.id()).onTrunk());
         assertEquals(SkillTree.WAY_MECHANICS, tree.get(TrapKind.TURRET.id()).path());
-        assertEquals(SkillTree.WAY_CHEMISTRY, tree.get(TrapKind.POISON.id()).path());
+        assertEquals(SkillTree.WAY_CHEMISTRY, tree.get(TrapKind.BREWER.id()).path());
     }
 
     @Test
@@ -1108,13 +1118,13 @@ class SiegeCoreTest {
         assertTrue(tree.unlock("tesla_coil", engineer));
         assertEquals(SkillTree.SUB_ELECTRICIAN, tree.subclassOf(engineer));
         assertEquals("choice", tree.blockedReason("arrow_turret", engineer));
-        assertEquals(0, tree.trapTier(TrapKind.MINE, engineer));
+        assertEquals(0, tree.trapTier(TrapKind.MORTAR, engineer));
         assertTrue(tree.unlock("tesla_coil", engineer));
         assertTrue(tree.unlock("capacitor", engineer));
         assertEquals(4, tree.trapTier(TrapKind.TESLA, engineer));
-        // The mine from the other way, at tier 2, closes the network and the ball lightning.
+        // The mortar from the other way, at tier 2, closes the network and the ball lightning.
         assertTrue(tree.unlock("m_cross_mine", engineer));
-        assertEquals(2, tree.trapTier(TrapKind.MINE, engineer));
+        assertEquals(2, tree.trapTier(TrapKind.MORTAR, engineer));
         assertEquals("lockedby", tree.blockedReason("e_network", engineer));
         assertTrue(tree.unlock("e_watchtower", engineer));
         assertTrue(tree.unlock("thunderstorm", engineer));
@@ -1131,9 +1141,9 @@ class SiegeCoreTest {
                 {"e_circuit", "arrow_turret", "arrow_turret", "e_ammobelt", "e_overvolt", "e_charged"},
                 {"e_circuit", "tesla_coil", "tesla_coil", "e_chainbolt", "e_seeker", "e_beacon"},
                 {"e_circuit", "arrow_turret", "arrow_turret", "turret_tuning", "e_overvolt", "e_network"},
-                {"e_detonator", "blast_mine", "blast_mine", "flame_trap", "e_accelerant", "e_napalm"},
-                {"e_detonator", "poison_trap", "poison_trap", "e_acid", "e_chain_reaction", "e_plague_mine"},
-                {"e_detonator", "blast_mine", "blast_mine", "e_shrapnel_mine", "c_cross_turret", "e_targetblast",
+                {"e_detonator", "mortar_tower", "mortar_tower", "flame_trap", "e_accelerant", "e_napalm"},
+                {"e_detonator", "potion_tower", "potion_tower", "e_acid", "e_chain_reaction", "e_plague_mine"},
+                {"e_detonator", "mortar_tower", "mortar_tower", "e_shrapnel_mine", "c_cross_turret", "e_targetblast",
                         "e_blastpower", "bombardment", "e_firebombs"},
         };
         for (String[] route : routes) {

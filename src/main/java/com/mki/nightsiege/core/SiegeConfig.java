@@ -234,6 +234,11 @@ public class SiegeConfig {
      * fighter get from the start (share of the melee damage dealt). 0 switches it off.
      */
     public double meleeLifesteal = 0.08;
+    /**
+     * The blademaster has no life steal on his hits; a kill in the middle of a combo heals him by
+     * this share of the monster's maximum life instead.
+     */
+    public double comboKillLifesteal = 0.15;
     /** The most damage any player's skills can take away together (0.70 = at most -70 %). */
     public double maxDamageReduction = 0.70;
     /**
@@ -625,6 +630,10 @@ public class SiegeConfig {
             meleeLifesteal = 0.08;
         }
         meleeLifesteal = Math.min(1.0, Math.max(0.0, meleeLifesteal));
+        if (Double.isNaN(comboKillLifesteal)) {
+            comboKillLifesteal = 0.15;
+        }
+        comboKillLifesteal = Math.min(1.0, Math.max(0.0, comboKillLifesteal));
         if (Double.isNaN(maxDamageReduction) || maxDamageReduction <= 0) {
             maxDamageReduction = 0.70;
         }
