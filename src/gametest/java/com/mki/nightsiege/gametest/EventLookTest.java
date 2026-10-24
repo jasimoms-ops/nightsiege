@@ -695,6 +695,19 @@ public class EventLookTest implements FabricClientGameTest {
         });
         context.waitTicks(20);
         context.takeScreenshot("b_class_pick");
+        // The same window at a smaller GUI scale (more room: the kit with its labels).
+        int scaleBefore = context.computeOnClient(client -> client.options.guiScale().get());
+        context.runOnClient(client -> {
+            client.options.guiScale().set(2);
+            client.resizeGui();
+        });
+        context.waitTicks(3);
+        context.takeScreenshot("b_class_pick_gui2");
+        context.runOnClient(client -> {
+            client.options.guiScale().set(scaleBefore);
+            client.resizeGui();
+        });
+        context.waitTicks(3);
         onServer(context, (player, manager) -> manager.onPlayClass(player, "GUARDIAN"));
         closeScreen(context);
         context.runOnClient(client -> client.setScreenAndShow(
