@@ -59,6 +59,7 @@ public class EventLookTest implements FabricClientGameTest {
                 guardianScene(context);
                 engineerScene(context);
                 ladderScene(context, game);
+                versionBScene(context, game);
                 return;
             }
 
@@ -572,6 +573,122 @@ public class EventLookTest implements FabricClientGameTest {
             }
         });
         context.waitTicks(5);
+    }
+
+    /**
+     * Version B: the class window before a test night, the night kit in the
+     * inventory, a defender who falls and watches, the own inventory coming back,
+     * a reward crate spinning and the collection tab.
+     */
+    private static void versionBScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        int[] core = context.computeOnClient(client -> {
+            com.mki.nightsiege.game.CoreRecord c = com.mki.nightsiege.game.SiegeManager.get().save().cores.get(0);
+            return new int[]{c.x, c.y, c.z};
+        });
+        game.getServer().runCommand("time set 6000");
+        game.getServer().runCommand("tp @p %d.5 %d %d.5 -90 10".formatted(core[0] + 2, core[1], core[2] + 2));
+        context.waitTicks(10);
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
+            own.unlockClass(com.mki.nightsiege.core.SkillClass.WARRIOR);
+            own.unlockClass(com.mki.nightsiege.core.SkillClass.GUARDIAN);
+            player.getInventory().clearContent();
+            player.getInventory().placeItemBackInInventory(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIRT, 32));
+            player.getInventory().placeItemBackInInventory(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GOLDEN_SWORD));
+            player.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
+            manager.config().testPrepSeconds = 8;
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            boolean ok = manager.prepareTest(level.getServer(), level, new net.minecraft.core.BlockPos(core[0], core[1], core[2]), 14,
+                    com.mki.nightsiege.core.SiegeEvent.NONE);
+            System.out.println("[Night Siege test] B prep: ok=" + ok + " stash=" + manager.kits().hasStash(player)
+                    + " unlocked=" + own.unlockedClasses());
+        });
+        context.waitTicks(20);
+        context.takeScreenshot("b_class_pick");
+        onServer(context, (player, manager) -> manager.onPlayClass(player, "GUARDIAN"));
+        closeScreen(context);
+        context.runOnClient(client -> client.setScreen(
+                new net.minecraft.client.gui.screens.inventory.InventoryScreen(client.player)));
+        context.waitTicks(15);
+        context.takeScreenshot("b_kit_inventory");
+        closeScreen(context);
+        onServer(context, (player, manager) -> {
+            StringBuilder items = new StringBuilder();
+            for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+                net.minecraft.world.item.ItemStack st = player.getInventory().getItem(i);
+                if (!st.isEmpty()) {
+                    items.append(st.getCount()).append('x').append(st.getItem()).append(com.mki.nightsiege.game.KitService.isKit(st) ? "*" : "").append(' ');
+                }
+            }
+            System.out.println("[Night Siege test] B kit: " + items);
+        });
+        context.waitTicks(150);   // the night starts after the preparation
+        onServer(context, (player, manager) -> {
+            System.out.println("[Night Siege test] B night: active=" + manager.isActive());
+            player.hurtServer((net.minecraft.server.level.ServerLevel) player.level(),
+                    player.damageSources().genericKill(), 1000f);
+            System.out.println("[Night Siege test] B fallen: spectator=" + player.isSpectator() + " alive=" + player.isAlive());
+        });
+        context.waitTicks(20);
+        context.takeScreenshot("b_spectator");
+        onServer(context, (player, manager) -> {
+            manager.abort(((net.minecraft.server.level.ServerLevel) player.level()).getServer());
+            StringBuilder items = new StringBuilder();
+            for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+                net.minecraft.world.item.ItemStack st = player.getInventory().getItem(i);
+                if (!st.isEmpty()) {
+                    items.append(st.getCount()).append('x').append(st.getItem()).append(' ');
+                }
+            }
+            System.out.println("[Night Siege test] B restored: mode=" + player.gameMode() + " stash="
+                    + manager.kits().hasStash(player) + " items=" + items);
+            manager.config().testPrepSeconds = 60;
+        });
+        context.waitTicks(10);
+        context.runOnClient(client -> client.setScreen(
+                new net.minecraft.client.gui.screens.inventory.InventoryScreen(client.player)));
+        context.waitTicks(15);
+        context.takeScreenshot("b_kit_restored");
+        closeScreen(context);
+        game.getServer().runCommand("gamemode creative @p");
+        // Reward crates: one spins, the next ones are opened to fill the collection.
+        for (int i = 0; i < 8; i++) {
+            final int n = i;
+            onServer(context, (player, manager) -> {
+                player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND,
+                        com.mki.nightsiege.game.CrateService.crate(com.mki.nightsiege.core.SkillClass.GUARDIAN,
+                                n == 0 ? com.mki.nightsiege.core.CrateKind.FRAGMENT : com.mki.nightsiege.core.CrateKind.EVENT, 20));
+                manager.crates().open(player, net.minecraft.world.InteractionHand.MAIN_HAND);
+            });
+            context.waitTicks(n == 0 ? 30 : 10);
+            if (n == 0) {
+                context.takeScreenshot("b_crate_spin");
+            }
+            context.runOnClient(client -> {
+                if (client.gui.screen() instanceof com.mki.nightsiege.client.CrateScreen crate) {
+                    crate.finishNow();
+                }
+            });
+            context.waitTicks(10);
+            if (n == 0) {
+                context.takeScreenshot("b_crate_result");
+            }
+            closeScreen(context);
+        }
+        context.runOnClient(client -> {
+            try {
+                java.lang.reflect.Field field = com.mki.nightsiege.client.CoreScreen.class.getDeclaredField("collectionClass");
+                field.setAccessible(true);
+                field.set(null, "GUARDIAN");
+            } catch (ReflectiveOperationException e) {
+                System.out.println("[Night Siege test] could not pick the collection class: " + e);
+            }
+        });
+        showTab(context, "COLLECTION");
+        context.takeScreenshot("b_collection");
+        closeScreen(context);
+        onServer(context, (player, manager) -> System.out.println("[Night Siege test] B gains: "
+                + manager.save().skillsOf(player.getUUID().toString()).gains));
     }
 
     /** Something to do on the integrated server with the test player and the siege manager. */

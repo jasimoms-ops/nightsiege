@@ -68,6 +68,23 @@ public class NightSiegeClient implements ClientModInitializer {
                         }
                     });
                 });
+        ClientPlayNetworking.registerGlobalReceiver(CoreNetworking.ScreenPayload.TYPE,
+                (payload, context) -> context.client().execute(() -> {
+                    Minecraft client = Minecraft.getInstance();
+                    if ("classpick".equals(payload.kind())) {
+                        com.mki.nightsiege.core.ClassPickData data =
+                                Json.fromJson(payload.json(), com.mki.nightsiege.core.ClassPickData.class);
+                        if (data != null) {
+                            client.setScreenAndShow(new ClassPickScreen(data));
+                        }
+                    } else if ("crate".equals(payload.kind())) {
+                        com.mki.nightsiege.core.CrateRoll roll =
+                                Json.fromJson(payload.json(), com.mki.nightsiege.core.CrateRoll.class);
+                        if (roll != null) {
+                            client.setScreenAndShow(new CrateScreen(roll));
+                        }
+                    }
+                }));
         ClientPlayNetworking.registerGlobalReceiver(CoreNetworking.EventSkyPayload.TYPE,
                 (payload, context) -> context.client().execute(() ->
                         com.mki.nightsiege.game.EventAtmosphere.setClient(payload.event(), payload.fade())));

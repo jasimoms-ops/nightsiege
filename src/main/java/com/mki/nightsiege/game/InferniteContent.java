@@ -1,7 +1,5 @@
 package com.mki.nightsiege.game;
 
-import net.fabricmc.fabric.api.biome.v1.BiomeModifications;
-import net.fabricmc.fabric.api.biome.v1.BiomeSelectors;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.Registry;
 import net.minecraft.core.component.DataComponents;
@@ -38,7 +36,6 @@ import net.minecraft.world.item.equipment.EquipmentAssets;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
-import net.minecraft.world.level.levelgen.GenerationStep;
 import net.minecraft.world.level.levelgen.placement.PlacedFeature;
 
 import java.util.ArrayList;
@@ -143,10 +140,8 @@ public final class InferniteContent {
                 .enchantable(18)
                 .component(DataComponents.WEAPON, new Weapon(1))));
 
-        // As rare as ancient debris: one hidden vein attempt per Nether chunk.
-        BiomeModifications.addFeature(BiomeSelectors.foundInTheNether(),
-                GenerationStep.Decoration.UNDERGROUND_DECORATION,
-                ResourceKey.create(Registries.PLACED_FEATURE, ModContent.id("infernite_ore")));
+        // Version B: the ore no longer grows in the world. Infernite ingots come only
+        // from the reward crates from night 20 on (the ore block stays for old worlds).
     }
 
     /** Everything for the creative tab, in a sensible order. */

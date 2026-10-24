@@ -29,9 +29,116 @@ public class PlayerSkills {
     public double pointFraction;
     /** Number of the last siege night this player stood in, or -1 for none. */
     public int lastNight = -1;
+    /**
+     * Learned levels of the player's other unlocked classes. The class being
+     * played keeps its levels in {@link #levels}, so every skill effect only
+     * ever sees the class of the night.
+     */
+    public Map<String, Map<String, Integer>> classLevels = new HashMap<>();
+    /** Unlocked classes in the order they were opened; new points go to the last one. */
+    public List<String> unlocked = new ArrayList<>();
+    /** Crate gains per class: gain id to the stage reached (see the reward crates). */
+    public Map<String, Map<String, Integer>> gains = new HashMap<>();
 
     public SkillClass clazz() {
         return SkillClass.byName(chosenClass);
+    }
+
+    /** The unlocked classes, oldest first (older saves: just the chosen class). */
+    public List<String> unlockedClasses() {
+        if (unlocked == null) {
+            unlocked = new ArrayList<>();
+        }
+        if (unlocked.isEmpty() && hasClass()) {
+            unlocked.add(clazz().name());
+        }
+        return unlocked;
+    }
+
+    public boolean hasUnlocked(SkillClass c) {
+        return c != null && unlockedClasses().contains(c.name());
+    }
+
+    /** The class new points go to: the newest unlocked one. */
+    public SkillClass levelingClass() {
+        List<String> list = unlockedClasses();
+        return list.isEmpty() ? clazz() : SkillClass.byName(list.get(list.size() - 1));
+    }
+
+    /** A learned level in any class, played or not. */
+    public int levelIn(SkillClass c, String nodeId) {
+        if (c == null || c == clazz()) {
+            return levelOf(nodeId);
+        }
+        Map<String, Integer> other = classLevels == null ? null : classLevels.get(c.name());
+        Integer value = other == null ? null : other.get(nodeId);
+        return value == null ? 0 : Math.max(0, value);
+    }
+
+    /** Makes an unlocked class the one played; its levels move into {@link #levels}. */
+    public boolean switchTo(SkillClass c) {
+        if (c == null || c.isShared() || !hasUnlocked(c)) {
+            return false;
+        }
+        SkillClass current = clazz();
+        if (current == c) {
+            return true;
+        }
+        if (classLevels == null) {
+            classLevels = new HashMap<>();
+        }
+        if (current != null) {
+            classLevels.put(current.name(), levels == null ? new HashMap<>() : levels);
+        }
+        Map<String, Integer> next = classLevels.remove(c.name());
+        levels = next == null ? new HashMap<>() : next;
+        chosenClass = c.name();
+        return true;
+    }
+
+    /** Runs something with another unlocked class in place (to buy or show its nodes), then switches back. */
+    public <T> T as(SkillClass c, java.util.function.Supplier<T> action) {
+        SkillClass before = clazz();
+        if (c == null || c == before || !switchTo(c)) {
+            return action.get();
+        }
+        try {
+            return action.get();
+        } finally {
+            switchTo(before);
+        }
+    }
+
+    /** Opens the next class: new points go there from now on. */
+    public void unlockClass(SkillClass c) {
+        if (c == null || c.isShared() || hasUnlocked(c)) {
+            return;
+        }
+        unlockedClasses().add(c.name());
+        if (classLevels == null) {
+            classLevels = new HashMap<>();
+        }
+        classLevels.putIfAbsent(c.name(), new HashMap<>());
+    }
+
+    /** The stage of a crate gain in one class's kit (0 = not drawn yet). */
+    public int gainStage(SkillClass c, String gainId) {
+        if (c == null || gains == null) {
+            return 0;
+        }
+        Map<String, Integer> map = gains.get(c.name());
+        Integer value = map == null ? null : map.get(gainId);
+        return value == null ? 0 : Math.max(0, value);
+    }
+
+    public void setGainStage(SkillClass c, String gainId, int stage) {
+        if (c == null) {
+            return;
+        }
+        if (gains == null) {
+            gains = new HashMap<>();
+        }
+        gains.computeIfAbsent(c.name(), k -> new HashMap<>()).put(gainId, Math.max(0, stage));
     }
 
     public boolean hasClass() {
@@ -98,7 +205,7 @@ public class PlayerSkills {
                 continue;
             }
             SkillNode node = tree.get(entry.getKey());
-            if (node != null && !node.onTrunk()) {
+            if (node != null && !node.onTrunk() && node.clazz() == clazz()) {
                 return node.path();
             }
         }
@@ -113,6 +220,12 @@ public class PlayerSkills {
         points = Math.max(0, earned - donated - lost);
         chosenClass = "";
         classResetUsed = true;
+        if (unlocked != null) {
+            unlocked.clear();
+        }
+        if (classLevels != null) {
+            classLevels.clear();
+        }
         if (levels != null) {
             levels.clear();
         }
@@ -139,6 +252,12 @@ public class PlayerSkills {
         if (history != null) {
             history.clear();
         }
+        if (classLevels != null) {
+            classLevels.clear();
+        }
+        if (unlocked != null) {
+            unlocked.clear();
+        }
     }
 
     public void reset() {
@@ -155,6 +274,12 @@ public class PlayerSkills {
         }
         if (history != null) {
             history.clear();
+        }
+        if (unlocked != null) {
+            unlocked.clear();
+        }
+        if (classLevels != null) {
+            classLevels.clear();
         }
     }
 }

@@ -562,6 +562,80 @@ public final class SkillTree {
         return null;
     }
 
+    /**
+     * True when a class is fully learned: every node that can still be reached
+     * (not shut by a choice, a lock or the other way) is at its top level.
+     */
+    public boolean isComplete(PlayerSkills skills, SkillClass clazz) {
+        if (skills == null || clazz == null || clazz.isShared() || !skills.hasUnlocked(clazz)) {
+            return false;
+        }
+        return skills.as(clazz, () -> {
+            List<SkillNode> own = ofClass(clazz);
+            if (own.isEmpty()) {
+                return false;
+            }
+            java.util.Set<String> reachable = new java.util.HashSet<>();
+            boolean changed = true;
+            while (changed) {
+                changed = false;
+                for (SkillNode node : own) {
+                    if (reachable.contains(node.id())) {
+                        continue;
+                    }
+                    if (skills.levelOf(node.id()) > 0) {
+                        reachable.add(node.id());
+                        changed = true;
+                        continue;
+                    }
+                    String why = blockedReason(node.id(), skills);
+                    if ("choice".equals(why) || "lockedby".equals(why) || "path".equals(why) || "class".equals(why)) {
+                        continue;   // shut for good
+                    }
+                    boolean open = true;
+                    for (List<SkillNode.Need> any : node.needs()) {
+                        boolean term = false;
+                        for (SkillNode.Need need : any) {
+                            SkillNode other = get(need.id());
+                            if (skills.levelOf(need.id()) >= need.level()
+                                    || (other != null && reachable.contains(need.id()) && other.maxLevel() >= need.level())) {
+                                term = true;
+                                break;
+                            }
+                        }
+                        if (!term) {
+                            open = false;
+                            break;
+                        }
+                    }
+                    if (open) {
+                        reachable.add(node.id());
+                        changed = true;
+                    }
+                }
+            }
+            for (String id : reachable) {
+                SkillNode node = get(id);
+                if (node != null && skills.levelOf(id) < node.maxLevel()) {
+                    return false;
+                }
+            }
+            return true;
+        });
+    }
+
+    /** Points put into one class (its levels must be the played ones, see {@link PlayerSkills#as}). */
+    public int pointsSpent(PlayerSkills skills, SkillClass clazz) {
+        int sum = 0;
+        for (SkillNode node : ofClass(clazz)) {
+            int level = skills.levelOf(node.id());
+            for (int l = 0; l < level; l++) {
+                sum += node.costFor(l);
+            }
+        }
+        return sum;
+    }
+
     /** True when a taken node closes this one, or this one would close a taken node. */
     public boolean lockedOut(SkillNode node, PlayerSkills skills) {
         for (String locked : node.locksList()) {

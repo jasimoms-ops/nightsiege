@@ -211,6 +211,53 @@ public class SiegeConfig {
     /** Share of effect monsters that stay real, per level from effectMobsFromLevel on (0.1 = 10 %, 20 %, ...). */
     public double effectMobShareStep = 0.1;
 
+    // ---------------- Version B: night kits and reward crates ----------------
+
+    /** Defenders hand in their own inventory for the night and get the kit of their class. */
+    public boolean nightKits = true;
+    /** Rarity weights of a crate (common, uncommon, rare, epic, legendary) for a normal night. */
+    public int[] crateOddsNormal = {60, 25, 10, 4, 1};
+    /** The same for an event night. */
+    public int[] crateOddsEvent = {45, 30, 16, 7, 2};
+    /** The same for a fragment night. */
+    public int[] crateOddsFragment = {30, 30, 22, 13, 5};
+    /** Share of class gains against general gains in a crate. */
+    public double crateClassShare = 0.7;
+    /** Extra roll of every crate from this level on: an infernite ingot. */
+    public int infernitCrateLevel = 20;
+    /** Chance of that extra roll (0.05 = 5 %). */
+    public double infernitCrateChance = 0.05;
+    /** How far a fallen defender may watch from the core. */
+    public double spectatorRadius = 80.0;
+    /** Items picked up in the night that are kept afterwards (besides armour and weapons of diamond or better). */
+    public List<String> valuableDrops = new ArrayList<>(List.of(
+            "minecraft:ender_pearl", "minecraft:totem_of_undying", "minecraft:emerald", "minecraft:diamond"));
+    /** Armour and weapons of diamond or better that monsters drop are kept as well. */
+    public boolean keepDiamondGear = true;
+
+    /** Five non-negative weights with at least one above zero, else the defaults. */
+    private static int[] odds(int[] given, int[] fallback) {
+        if (given == null || given.length != 5) {
+            return fallback;
+        }
+        int total = 0;
+        int[] out = new int[5];
+        for (int i = 0; i < 5; i++) {
+            out[i] = Math.max(0, Math.min(10000, given[i]));
+            total += out[i];
+        }
+        return total <= 0 ? fallback : out;
+    }
+
+    /** The rarity weights of a crate kind. */
+    public int[] crateOdds(CrateKind kind) {
+        return switch (kind) {
+            case EVENT -> crateOddsEvent;
+            case FRAGMENT -> crateOddsFragment;
+            default -> crateOddsNormal;
+        };
+    }
+
     public static Map<String, String> defaultEffectMobReplacements() {
         Map<String, String> map = new LinkedHashMap<>();
         map.put("minecraft:husk", "minecraft:zombie");
@@ -528,6 +575,25 @@ public class SiegeConfig {
             failureBlast = false;
             defeatSkillLoss = 0;
             settingsVersion = 5;
+        }
+        crateOddsNormal = odds(crateOddsNormal, new int[]{60, 25, 10, 4, 1});
+        crateOddsEvent = odds(crateOddsEvent, new int[]{45, 30, 16, 7, 2});
+        crateOddsFragment = odds(crateOddsFragment, new int[]{30, 30, 22, 13, 5});
+        if (Double.isNaN(crateClassShare)) {
+            crateClassShare = 0.7;
+        }
+        crateClassShare = Math.min(1.0, Math.max(0.0, crateClassShare));
+        infernitCrateLevel = clamp(infernitCrateLevel, 1, 1000);
+        if (Double.isNaN(infernitCrateChance)) {
+            infernitCrateChance = 0.05;
+        }
+        infernitCrateChance = Math.min(1.0, Math.max(0.0, infernitCrateChance));
+        if (Double.isNaN(spectatorRadius) || spectatorRadius < 16) {
+            spectatorRadius = 80.0;
+        }
+        if (valuableDrops == null) {
+            valuableDrops = new ArrayList<>(List.of(
+                    "minecraft:ender_pearl", "minecraft:totem_of_undying", "minecraft:emerald", "minecraft:diamond"));
         }
         wavesPerPoint = clamp(wavesPerPoint, 1, 20);
         if (Double.isNaN(pointGainMultiplier) || pointGainMultiplier <= 0) {

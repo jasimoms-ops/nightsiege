@@ -142,6 +142,7 @@ public final class GuardianEffects {
         if (tuning != null && victim instanceof ServerPlayer hurt && source.getEntity() instanceof Enemy) {
             factor *= tuning.damageTakenFactor(hurt);
         }
+        factor *= CrateEffects.factor(victim, source);   // crate gains of the night kit
         if (source.getEntity() instanceof ServerPlayer attacker && victim instanceof Enemy
                 && SkillTree.has(skillsFor.apply(attacker), "g_saint")) {
             factor *= 0.7f;   // the saint heals, but hits softer

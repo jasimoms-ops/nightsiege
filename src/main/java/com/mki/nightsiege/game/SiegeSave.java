@@ -59,6 +59,23 @@ public class SiegeSave {
     public long voteDay = -1L;
     public List<String> accepted = new ArrayList<>();
     public List<String> declined = new ArrayList<>();
+    /**
+     * The own inventories of defenders while they wear their night kit, by player uuid.
+     * Kept in the save, so a crash or restart in the night loses nothing.
+     */
+    public Map<String, KitStash> kitStashes = new HashMap<>();
+    /** Reward crates won while offline, by player uuid: "CLASS|KIND|LEVEL" each. */
+    public Map<String, List<String>> pendingCrates = new HashMap<>();
+
+    /** One defender's handed-in inventory. */
+    public static class KitStash {
+        /** One entry per inventory slot: the item as JSON, or "" for an empty slot. */
+        public List<String> items = new ArrayList<>();
+        /** The game mode before the night turned the player into a spectator, or "" if unchanged. */
+        public String gameMode = "";
+        /** Items that could not be read back (kept, so they are not lost). */
+        public List<String> broken = new ArrayList<>();
+    }
 
     public boolean isRegistered(String uuid) {
         return uuid != null && registered != null && registered.contains(uuid);

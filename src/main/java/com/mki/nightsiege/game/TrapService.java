@@ -904,10 +904,21 @@ public final class TrapService {
 
     /** Damage factor: doubled while overcharged by the remote, tripled with overvolt. */
     private double power(TrapRecord record, long now) {
+        double gain = 1.0 + 0.1 * gainOf(record, "verstaerkt");   // crate gain: stronger traps in the night
         if (!boosted(record, now)) {
-            return 1.0;
+            return gain;
         }
-        return bonus(record, SkillEffect.OVERVOLT) > 0 ? 3.0 : 2.0;
+        return (bonus(record, SkillEffect.OVERVOLT) > 0 ? 3.0 : 2.0) * gain;
+    }
+
+    /** A crate gain of the trap's owner, only while a night runs. */
+    private int gainOf(TrapRecord record, String gainId) {
+        SiegeManager m = SiegeManager.get();
+        if (m == null || !m.isActive()) {
+            return 0;
+        }
+        PlayerSkills skills = ownerSkills(record);
+        return skills == null ? 0 : m.kits().gainLevel(skills, com.mki.nightsiege.core.SkillClass.ENGINEER, gainId);
     }
 
     /** Cooldowns halve while overcharged. */
@@ -962,6 +973,11 @@ public final class TrapService {
     /** Most traps of a kind: the fortress builder has one tower more, the field technician one fewer. */
     public int maxFor(TrapKind kind, int tier, PlayerSkills skills) {
         int max = kind.maxPlaced(tier);
+        SiegeManager m = SiegeManager.get();
+        if (m != null && skills != null
+                && m.kits().gainLevel(skills, com.mki.nightsiege.core.SkillClass.ENGINEER, "ueberkapazitaet") > 0) {
+            max += 1;   // crate gain: one more of every kind
+        }
         if (kind == TrapKind.TURRET || kind == TrapKind.TESLA) {
             if (SkillTree.has(skills, "e_fortress")) {
                 max += 1;

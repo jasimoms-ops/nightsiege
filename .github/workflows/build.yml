@@ -2,7 +2,7 @@ name: build
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'version-*']
   workflow_dispatch:
     inputs:
       quick:
@@ -319,7 +319,11 @@ jobs:
           if ls "$TMP/shots/"*.png > /dev/null 2>&1; then mkdir -p dist/shots; cp "$TMP/shots/"*.png dist/shots/; git add -f dist/shots; fi
           if [ -f "$TMP/client-shader-log.txt" ]; then cp "$TMP/client-shader-log.txt" dist/; git add -f dist/client-shader-log.txt; fi
           git commit -m "Build von ${GITHUB_SHA}"
-          git push -f origin dist-tmp:dist
+          # main fills "dist"; a work branch (version-b, ...) its own "dist-<branch>",
+          # so the jar of main stays untouched until the branch is merged.
+          BRANCH="${GITHUB_REF_NAME}"
+          if [ "$BRANCH" = "main" ]; then TARGET=dist; else TARGET="dist-${BRANCH}"; fi
+          git push -f origin dist-tmp:$TARGET
 
       - name: Ergebnis weiterreichen
         if: steps.build.outcome == 'failure'

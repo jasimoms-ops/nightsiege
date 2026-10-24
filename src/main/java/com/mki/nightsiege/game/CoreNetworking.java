@@ -83,6 +83,22 @@ public final class CoreNetworking {
         }
     }
 
+    /** Server to client: opens a window by kind ("classpick", "crate") with its state as JSON. */
+    public record ScreenPayload(String kind, String json) implements CustomPacketPayload {
+
+        public static final CustomPacketPayload.Type<ScreenPayload> TYPE =
+                new CustomPacketPayload.Type<>(ModContent.id("screen"));
+
+        public static final StreamCodec<RegistryFriendlyByteBuf, ScreenPayload> CODEC =
+                StreamCodec.composite(ByteBufCodecs.STRING_UTF8, ScreenPayload::kind,
+                        ByteBufCodecs.stringUtf8(262144), ScreenPayload::json, ScreenPayload::new);
+
+        @Override
+        public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
     public record CoreActionPayload(String action) implements CustomPacketPayload {
 
         public static final CustomPacketPayload.Type<CoreActionPayload> TYPE =
@@ -117,6 +133,7 @@ public final class CoreNetworking {
         PayloadTypeRegistry.clientboundPlay().register(UltHudPayload.TYPE, UltHudPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(DungeonUiPayload.TYPE, DungeonUiPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(EventSkyPayload.TYPE, EventSkyPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(ScreenPayload.TYPE, ScreenPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(CoreActionPayload.TYPE, CoreActionPayload.CODEC);
     }
 

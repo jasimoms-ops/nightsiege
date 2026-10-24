@@ -135,6 +135,150 @@ class SiegeCoreTest {
         assertTrue(kept > 450 && kept < 750, "about 30 % stay real at level 12, got " + kept);
     }
 
+    // --- Version B: several classes, night kit, reward crates ----------
+
+    /** Learns a whole way of a class to the top (first fitting node of every choice), like the test profiles. */
+    private static void learnWay(SkillTree tree, PlayerSkills p, SkillClass clazz, String way) {
+        java.util.Set<String> groups = new java.util.HashSet<>();
+        boolean changed = true;
+        while (changed) {
+            changed = false;
+            for (SkillNode node : tree.ofClass(clazz)) {
+                if (!(node.onTrunk() || way.equals(node.path())) || p.levelOf(node.id()) >= node.maxLevel()) {
+                    continue;
+                }
+                if ((node.inGroup() && groups.contains(node.group()) && p.levelOf(node.id()) == 0)
+                        || !tree.needsMet(node, p) || tree.lockedOut(node, p)) {
+                    continue;
+                }
+                if (node.inGroup()) {
+                    groups.add(node.group());
+                }
+                p.setLevel(node.id(), node.maxLevel());
+                changed = true;
+            }
+        }
+    }
+
+    @Test
+    void aClassIsCompleteOnlyWhenNothingIsLeftToLearn() {
+        SkillTree tree = new SkillTree();
+        PlayerSkills p = new PlayerSkills();
+        p.chosenClass = SkillClass.WARRIOR.name();
+        assertFalse(tree.isComplete(p, SkillClass.WARRIOR));
+        learnWay(tree, p, SkillClass.WARRIOR, SkillTree.WAY_BLADE);
+        assertTrue(tree.isComplete(p, SkillClass.WARRIOR), "a full blade way is a complete warrior");
+        assertTrue(tree.pointsSpent(p, SkillClass.WARRIOR) > 0);
+        // One level less somewhere and it is not complete any more.
+        for (SkillNode node : tree.ofClass(SkillClass.WARRIOR)) {
+            if (p.levelOf(node.id()) > 1) {
+                p.setLevel(node.id(), p.levelOf(node.id()) - 1);
+                break;
+            }
+        }
+        assertFalse(tree.isComplete(p, SkillClass.WARRIOR));
+    }
+
+    @Test
+    void severalClassesKeepTheirOwnLevels() {
+        SkillTree tree = new SkillTree();
+        PlayerSkills p = new PlayerSkills();
+        p.chosenClass = SkillClass.WARRIOR.name();
+        learnWay(tree, p, SkillClass.WARRIOR, SkillTree.WAY_BLADE);
+        assertEquals(List.of("WARRIOR"), p.unlockedClasses());
+        p.unlockClass(SkillClass.GUARDIAN);
+        assertEquals(SkillClass.GUARDIAN, p.levelingClass());
+        assertEquals(SkillClass.WARRIOR, p.clazz(), "unlocking does not switch the played class");
+        p.award(100);
+        // Buying for the guardian while playing the warrior.
+        String first = tree.ofClass(SkillClass.GUARDIAN).stream().filter(SkillNode::onTrunk)
+                .filter(n -> n.needs().isEmpty()).findFirst().orElseThrow().id();
+        assertTrue(p.as(SkillClass.GUARDIAN, () -> tree.unlock(first, p)));
+        assertEquals(1, p.levelIn(SkillClass.GUARDIAN, first));
+        assertEquals(0, p.levelOf(first), "the played warrior does not see guardian nodes");
+        // Switching: the guardian's levels are the played ones now, the warrior's are kept apart.
+        String warriorNode = tree.ofClass(SkillClass.WARRIOR).get(0).id();
+        int warriorLevel = p.levelOf(warriorNode);
+        assertTrue(p.switchTo(SkillClass.GUARDIAN));
+        assertEquals(1, p.levelOf(first));
+        assertEquals(0, p.levelOf(warriorNode));
+        assertEquals(warriorLevel, p.levelIn(SkillClass.WARRIOR, warriorNode));
+        assertTrue(p.switchTo(SkillClass.WARRIOR));
+        assertEquals(warriorLevel, p.levelOf(warriorNode));
+        assertFalse(p.switchTo(SkillClass.ARCHER), "a locked class cannot be played");
+    }
+
+    @Test
+    void everyCrateGainHasAnIconAndOnlyReadyOnesAreDrawn() {
+        Random random = new Random(3);
+        for (CrateGains.Gain gain : CrateGains.all()) {
+            assertNotEquals("minecraft:chest", CrateGains.icon(gain.id()), gain.id());
+        }
+        int[] weights = new SiegeConfig().crateOddsFragment;
+        for (SkillClass c : new SkillClass[]{SkillClass.WARRIOR, SkillClass.ARCHER, SkillClass.GUARDIAN, SkillClass.ENGINEER}) {
+            assertEquals(31, CrateGains.forCollection(c).size(), c + " has 15 gains and 16 general ones");
+            for (int i = 0; i < 400; i++) {
+                CrateGains.Gain g = CrateGains.roll(c, "", weights, 0.7, random);
+                assertNotNull(g);
+                assertTrue(g.ready(), g.id());
+                assertTrue(g.clazz() == null || g.clazz() == c, g.id());
+            }
+        }
+        // A way-bound gain never comes to the other way.
+        for (int i = 0; i < 400; i++) {
+            CrateGains.Gain g = CrateGains.roll(SkillClass.ARCHER, SkillTree.WAY_CROSSBOW, weights, 1.0, random);
+            assertNotEquals("staerke", g.id());
+        }
+    }
+
+    @Test
+    void crateOddsFollowTheTable() {
+        Random random = new Random(9);
+        int[] counts = new int[5];
+        int[] weights = {60, 25, 10, 4, 1};
+        for (int i = 0; i < 20000; i++) {
+            counts[CrateGains.rollRarity(weights, random).ordinal()]++;
+        }
+        assertTrue(counts[0] > 11500 && counts[0] < 12500, "common about 60 %: " + counts[0]);
+        assertTrue(counts[4] > 120 && counts[4] < 290, "legendary about 1 %: " + counts[4]);
+        assertEquals(CrateKind.FRAGMENT, CrateKind.EVENT.better());
+        assertEquals(CrateKind.FRAGMENT, CrateKind.FRAGMENT.better());
+    }
+
+    @Test
+    void twoPullGainsWorkOnTheSecondDraw() {
+        CrateGains.Gain sharp = CrateGains.get("schaerfe");
+        assertTrue(sharp.twoPulls());
+        assertEquals(2, sharp.topStage());
+        assertEquals(0, sharp.level(1));
+        assertEquals(1, sharp.level(2));
+        CrateGains.Gain quiver = CrateGains.get("koecherfuellung");
+        assertEquals(4, quiver.topStage());
+        assertEquals(3, quiver.level(3));
+    }
+
+    @Test
+    void nightKitClimbsWithTheLevel() {
+        assertEquals(NightKit.Material.IRON, NightKit.armor(1, 0));
+        assertEquals(NightKit.Material.DIAMOND, NightKit.armor(3, 0));
+        assertEquals(NightKit.Material.IRON, NightKit.armor(3, 3));
+        assertEquals(NightKit.Material.DIAMOND, NightKit.armor(10, 3));
+        assertEquals(NightKit.Material.NETHERITE, NightKit.armor(11, 2));
+        assertEquals(NightKit.Material.NETHERITE, NightKit.armor(19, 2));
+        assertEquals(NightKit.Material.INFERNITE, NightKit.armor(20, 0));
+        assertEquals(4, NightKit.protection(11));
+        assertEquals(5, NightKit.plusOne(NightKit.protection(11), 1, 4));
+        assertEquals(5, NightKit.plusOne(NightKit.protection(11), 3, 4), "at most one above vanilla");
+        assertEquals(4, NightKit.sharpness(10));
+        assertEquals(5, NightKit.sharpness(14));
+        assertEquals(2, NightKit.foodTier(11, 0));
+        assertEquals(3, NightKit.foodTier(11, 4));
+        assertEquals(0, NightKit.provisionApples(11, 0));
+        assertTrue(NightKit.provisionApples(11, 4) > 2);
+        assertEquals(64, NightKit.archerArrows(1));
+        assertEquals(128, NightKit.archerArrows(20));
+    }
+
     @Test
     void defeatHasNoPenaltyByDefault() {
         SiegeConfig c = cfg();

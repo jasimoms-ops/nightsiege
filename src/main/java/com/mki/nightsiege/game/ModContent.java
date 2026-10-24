@@ -80,6 +80,7 @@ public final class ModContent {
 
         InferniteContent.register();
         DungeonContent.register();
+        CrateService.registerItem();
 
         // Everything the mod adds lives on its own creative page.
         ResourceKey<CreativeModeTab> tabKey = ResourceKey.create(Registries.CREATIVE_MODE_TAB, id("general"));
@@ -98,6 +99,11 @@ public final class ModContent {
                     }
                     for (Item item : DungeonContent.creativeItems()) {
                         output.accept(item);
+                    }
+                    for (com.mki.nightsiege.core.SkillClass c : com.mki.nightsiege.core.SkillClass.values()) {
+                        if (!c.isShared()) {
+                            output.accept(CrateService.crate(c, com.mki.nightsiege.core.CrateKind.NORMAL, 10));
+                        }
                     }
                 })
                 .build();

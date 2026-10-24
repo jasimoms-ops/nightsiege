@@ -134,6 +134,16 @@ public class CoreStats {
     public boolean creative;
     /** The viewer may still change their class once at the core. */
     public boolean classResetAvailable;
+    /** The class the player plays tonight (may differ from {@link #myClass}, the one being levelled). */
+    public String playClass = "";
+    /** Unlocked classes, oldest first. */
+    public java.util.List<String> unlocked = new java.util.ArrayList<>();
+    /** Unlocked classes that are fully learned. */
+    public java.util.List<String> completeClasses = new java.util.ArrayList<>();
+    /** True when the levelled class is full and the next one may be opened. */
+    public boolean nextClassOpen;
+    /** Crate gains per class: gain id to stage. */
+    public java.util.Map<String, java.util.Map<String, Integer>> gains = new java.util.HashMap<>();
     public boolean skillsEnabled;
 
     /** The shared core tree. */

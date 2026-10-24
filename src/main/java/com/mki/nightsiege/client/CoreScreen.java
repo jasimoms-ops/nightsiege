@@ -70,6 +70,7 @@ public class CoreScreen extends Screen {
         GUARDIAN(SkillClass.GUARDIAN, "minecraft:shield", "minecraft:textures/block/polished_andesite.png", 0xFF6FA8FF, "guardian"),
         ENGINEER(SkillClass.ENGINEER, "nightsiege:arrow_turret", "minecraft:textures/block/cut_copper.png", 0xFFF0A040, "engineer"),
         CORE(SkillClass.CORE, "nightsiege:siege_core", "minecraft:textures/block/obsidian.png", 0xFFC88CFF, "core"),
+        COLLECTION(null, "nightsiege:reward_crate", "minecraft:textures/block/dark_oak_planks.png", 0xFFB565FF, "collection"),
         PERKS(null, "nightsiege:night_fragment_blood", "minecraft:textures/block/amethyst_block.png", 0xFFE0A0FF, "perks");
 
         final SkillClass clazz;
@@ -140,7 +141,7 @@ public class CoreScreen extends Screen {
     /** New numbers from the server, e.g. after buying a skill. Keeps the window open. */
     public void update(CoreStats fresh) {
         this.stats = fresh;
-        if (confirming != null && hasClass()) {
+        if (confirming != null && fresh.unlocked != null && fresh.unlocked.contains(confirming.name())) {
             confirming = null;
         }
         rebuildWidgets();
@@ -274,6 +275,25 @@ public class CoreScreen extends Screen {
             }
         }
 
+        if (activeTab == Tab.COLLECTION) {
+            // One small button per class: whose kit the collection shows.
+            int bx = innerX() + 4;
+            for (SkillClass c : SkillClass.values()) {
+                if (c.isShared()) {
+                    continue;
+                }
+                Component label = Component.translatable(c.translationKey());
+                int bw = font.width(label) + 12;
+                Button b = Button.builder(label, btn -> {
+                    collectionClass = c.name();
+                    rebuildWidgets();
+                }).bounds(bx, innerY() + 3, bw, 16).build();
+                b.active = !c.name().equals(collectionClass());
+                addRenderableWidget(b);
+                bx += bw + 3;
+            }
+            return;
+        }
         if (activeTab.clazz == null || !stats.skillsEnabled) {
             return;
         }
@@ -283,13 +303,24 @@ public class CoreScreen extends Screen {
         if (activeTab == Tab.CORE) {
             addRenderableWidget(Button.builder(Component.translatable("nightsiege.ui.donate"),
                     b -> send("donate:5")).bounds(left + W - 130, footerY, 64, 18).build());
-        } else if (!hasClass()) {
+        } else if (!hasClass() || (stats.nextClassOpen && !stats.unlocked.contains(activeTab.clazz.name()))) {
+            // The first class, or the next one once the class being levelled is full.
             SkillClass pick = activeTab.clazz;
-            addRenderableWidget(Button.builder(Component.translatable("nightsiege.ui.choose_class",
-                    Component.translatable(pick.translationKey())), b -> {
+            Component label = Component.translatable(hasClass() ? "nightsiege.ui.next_class" : "nightsiege.ui.choose_class",
+                    Component.translatable(pick.translationKey()));
+            int bw = Math.max(134, font.width(label) + 12);
+            addRenderableWidget(Button.builder(label, b -> {
                 confirming = pick;
                 rebuildWidgets();
-            }).bounds(left + W - 200, footerY, 134, 18).build());
+            }).bounds(left + W - 66 - bw, footerY, bw, 18).build());
+        } else if (stats.unlocked.contains(activeTab.clazz.name()) && !activeTab.clazz.name().equals(stats.playClass)
+                && !stats.siegeActive) {
+            // Another unlocked class: play it from now on.
+            SkillClass pick = activeTab.clazz;
+            Component label = Component.translatable("nightsiege.ui.play_class", Component.translatable(pick.translationKey()));
+            int bw = Math.max(110, font.width(label) + 12);
+            addRenderableWidget(Button.builder(label, b -> send("play:" + pick.name()))
+                    .bounds(left + W - 66 - bw, footerY, bw, 18).build());
         }
         int footerX = left + 8;
         if (stats.creative && activeTab != Tab.CORE) {
@@ -866,6 +897,15 @@ public class CoreScreen extends Screen {
                 }
             }
             head += "   " + Component.translatable("nightsiege.ui.points_short", stats.points).getString();
+            if (stats.playClass != null && !stats.playClass.isBlank() && !stats.playClass.equals(stats.myClass)) {
+                head += "   " + Component.translatable("nightsiege.ui.playing",
+                        Component.translatable("nightsiege.class." + stats.playClass.toLowerCase(Locale.ROOT))).getString();
+            }
+        } else if (stats.completeClasses.contains(activeTab.clazz.name())) {
+            head = Component.translatable(activeTab.clazz.translationKey()).getString() + " · "
+                    + Component.translatable("nightsiege.ui.class_done").getString()
+                    + (activeTab.clazz.name().equals(stats.playClass)
+                    ? "   " + Component.translatable("nightsiege.ui.playing_now").getString() : "");
         } else if (!hasClass()) {
             head = Component.translatable("nightsiege.ui.preview_free").getString();
         } else {
@@ -1444,6 +1484,8 @@ public class CoreScreen extends Screen {
             drawStats(gui, font);
         } else if (activeTab == Tab.PERKS) {
             drawPerks(gui, font);
+        } else if (activeTab == Tab.COLLECTION) {
+            hoveredGain = drawCollection(gui, font, mouseX, mouseY);
         } else if (!stats.skillsEnabled) {
             gui.text(font, Component.translatable("nightsiege.ui.skills_off"), innerX() + 8, innerY() + 8, GRAY, true);
         } else if (gridMode) {
@@ -1474,6 +1516,8 @@ public class CoreScreen extends Screen {
                 tooltip(gui, font, List.of(tabName(hoveredTab)), mouseX, mouseY);
             } else if (hovered != null) {
                 drawNodeTooltip(gui, font, hovered, mouseX, mouseY);
+            } else if (hoveredGain != null && activeTab == Tab.COLLECTION) {
+                gainTooltip(gui, font, hoveredGain, mouseX, mouseY);
             }
         }
     }
@@ -1492,6 +1536,9 @@ public class CoreScreen extends Screen {
     private String tabName(Tab tab) {
         if (tab == Tab.STATS) {
             return Component.translatable("nightsiege.ui.tab_stats").getString();
+        }
+        if (tab == Tab.COLLECTION) {
+            return Component.translatable("nightsiege.ui.banner_title.collection").getString();
         }
         if (tab == Tab.PERKS) {
             return Component.translatable("nightsiege.ui.banner_title.perks").getString();
@@ -1588,6 +1635,9 @@ public class CoreScreen extends Screen {
     private String bannerName(Tab tab) {
         if (tab == Tab.STATS) {
             return Component.translatable("nightsiege.ui.banner_title.stats").getString();
+        }
+        if (tab == Tab.COLLECTION) {
+            return Component.translatable("nightsiege.ui.banner_title.collection").getString();
         }
         if (tab == Tab.PERKS) {
             return Component.translatable("nightsiege.ui.banner_title.perks").getString();
@@ -1810,6 +1860,9 @@ public class CoreScreen extends Screen {
             gui.text(font, Component.translatable("nightsiege.ui.footer_perks").getString(), left + 10, top + H - 19, TITLE, false);
             return;
         }
+        if (activeTab == Tab.COLLECTION) {
+            return;
+        }
         if (activeTab == Tab.STATS || stats.creative) {
             return;
         }
@@ -1828,6 +1881,13 @@ public class CoreScreen extends Screen {
 
     private void drawConfirm(GuiGraphicsExtractor gui, Font font) {
         Component name = Component.translatable(confirming.translationKey());
+        if (hasClass()) {
+            // Opening the next class: new points go there from now on.
+            drawDialog(gui, font, Component.translatable("nightsiege.ui.next_title", name).getString(),
+                    Component.translatable("nightsiege.ui.next_warn1").getString(), 0xFFFFD86B,
+                    Component.translatable("nightsiege.ui.next_warn2").getString(), 0xFFD0C8DC);
+            return;
+        }
         drawDialog(gui, font, Component.translatable("nightsiege.ui.confirm_title", name).getString(),
                 Component.translatable("nightsiege.ui.confirm_warn1").getString(), 0xFFFF6A5A,
                 Component.translatable("nightsiege.ui.confirm_warn2").getString(), 0xFFD0C8DC);
@@ -1865,6 +1925,117 @@ public class CoreScreen extends Screen {
 
     /** The five perks of the main core: stage, fragments to the next one and what they do now. */
     /** The night fragments: which one sits in the core, and what each one does. */
+    /** Which class the collection tab shows (kept while the game runs). */
+    private static String collectionClass;
+    private com.mki.nightsiege.core.CrateGains.Gain hoveredGain;
+
+    private String collectionClass() {
+        if (collectionClass == null || SkillClass.byName(collectionClass) == null) {
+            collectionClass = stats.playClass != null && !stats.playClass.isBlank() ? stats.playClass
+                    : stats.myClass != null && !stats.myClass.isBlank() ? stats.myClass : SkillClass.WARRIOR.name();
+        }
+        return collectionClass;
+    }
+
+    private int gainStage(String clazz, String gain) {
+        java.util.Map<String, Integer> map = stats.gains == null ? null : stats.gains.get(clazz);
+        Integer v = map == null ? null : map.get(gain);
+        return v == null ? 0 : v;
+    }
+
+    /** The collection: every crate gain of one class's kit, by rarity; owned, half or missing. */
+    private com.mki.nightsiege.core.CrateGains.Gain drawCollection(GuiGraphicsExtractor gui, Font font, int mouseX, int mouseY) {
+        String clazz = collectionClass();
+        SkillClass c = SkillClass.byName(clazz);
+        java.util.List<com.mki.nightsiege.core.CrateGains.Gain> gains = com.mki.nightsiege.core.CrateGains.forCollection(c);
+        int owned = 0;
+        for (com.mki.nightsiege.core.CrateGains.Gain g : gains) {
+            if (g.level(gainStage(clazz, g.id())) > 0 || (g.consumable() && gainStage(clazz, g.id()) > 0)) {
+                owned++;
+            }
+        }
+        int x = innerX() + 4;
+        int y = innerY() + 23;
+        String head = Component.translatable("nightsiege.ui.collection_head",
+                Component.translatable(c.translationKey()), owned, gains.size()).getString();
+        gui.text(font, head, x, y, GOLD, true);
+        y += 12;
+        int labelW = 64;
+        int tileW = Math.max(30, (innerW() - 8 - labelW) / 8);
+        int tileH = 20;
+        com.mki.nightsiege.core.CrateGains.Gain hovered = null;
+        for (com.mki.nightsiege.core.CrateRarity rarity : com.mki.nightsiege.core.CrateRarity.values()) {
+            int color = 0xFF000000 | rarity.color();
+            gui.fill(x, y, x + 2, y + tileH, color);
+            gui.text(font, font.plainSubstrByWidth(Component.translatable(rarity.translationKey()).getString(), labelW - 6),
+                    x + 5, y + 6, color, true);
+            int tx = x + labelW;
+            for (com.mki.nightsiege.core.CrateGains.Gain g : gains) {
+                if (g.rarity() != rarity) {
+                    continue;
+                }
+                int stage = gainStage(clazz, g.id());
+                boolean have = g.level(stage) > 0 || (g.consumable() && stage > 0);
+                boolean half = !have && stage > 0;
+                int bg = have ? 0xFF1B1624 : 0xFF110E17;
+                int border = have ? color : half ? 0xFF8A7A50 : 0xFF2A2236;
+                gui.fill(tx, y, tx + tileW - 2, y + tileH, border);
+                gui.fill(tx + 1, y + 1, tx + tileW - 3, y + tileH - 1, bg);
+                gui.item(iconOf(com.mki.nightsiege.core.CrateGains.icon(g.id())), tx + 2, y + 2);
+                if (!have && !half) {
+                    gui.fill(tx + 2, y + 2, tx + 18, y + 18, 0xB0110E17);   // missing: the icon fades
+                }
+                String mark = !g.ready() ? "…" : have ? (g.topStage() > 1 && !g.twoPulls() ? stage + "/" + g.topStage() : "✔")
+                        : half ? "½" : "";
+                int markColor = !g.ready() ? 0xFF6A6474 : have ? color : 0xFFFFC46B;
+                gui.text(font, mark, tx + 20, y + 6, markColor, true);
+                if (mouseX >= tx && mouseX < tx + tileW - 2 && mouseY >= y && mouseY < y + tileH) {
+                    hovered = g;
+                }
+                tx += tileW;
+                if (tx + tileW > innerX() + innerW()) {
+                    tx = x + labelW;
+                    y += tileH + 2;
+                }
+            }
+            y += tileH + 3;
+        }
+        String foot = Component.translatable("nightsiege.ui.collection_foot").getString();
+        gui.text(font, font.plainSubstrByWidth(foot, innerW() - 8), x, innerY() + innerH() - 10, GRAY, false);
+        return hovered;
+    }
+
+    private void gainTooltip(GuiGraphicsExtractor gui, Font font, com.mki.nightsiege.core.CrateGains.Gain g, int mouseX, int mouseY) {
+        java.util.List<String> lines = new ArrayList<>();
+        lines.add(Component.translatable("nightsiege.gain." + g.id()).getString());
+        lines.add("§8" + Component.translatable(g.rarity().translationKey()).getString()
+                + (g.general() ? " · " + Component.translatable("nightsiege.ui.collection_general").getString() : ""));
+        String descKey = "nightsiege.gain." + g.id() + ".desc";
+        if (Language.getInstance().has(descKey)) {
+            for (String part : wrap(font, Language.getInstance().getOrDefault(descKey), 200)) {
+                lines.add("§7" + part);
+            }
+        }
+        int stage = gainStage(collectionClass(), g.id());
+        if (!g.ready()) {
+            lines.add("§8" + Component.translatable("nightsiege.ui.collection_soon").getString());
+        } else if (g.twoPulls()) {
+            lines.add(stage >= 2 ? "§a" + Component.translatable("nightsiege.ui.collection_have").getString()
+                    : stage == 1 ? "§6" + Component.translatable("nightsiege.ui.collection_half").getString()
+                    : "§8" + Component.translatable("nightsiege.ui.collection_missing").getString());
+        } else if (g.topStage() > 1) {
+            lines.add((stage > 0 ? "§a" : "§8") + Component.translatable("nightsiege.ui.collection_stage", stage, g.topStage()).getString());
+        } else {
+            lines.add(stage > 0 ? "§a" + Component.translatable("nightsiege.ui.collection_have").getString()
+                    : "§8" + Component.translatable("nightsiege.ui.collection_missing").getString());
+        }
+        if (!g.way().isEmpty()) {
+            lines.add("§8" + Component.translatable("nightsiege.ui.collection_way",
+                    Component.translatable("nightsiege.path." + g.way())).getString());
+        }
+        tooltip(gui, font, lines, mouseX, mouseY);
+    }
+
     private void drawPerks(GuiGraphicsExtractor gui, Font font) {
         int x = innerX() + 6;
         int y = innerY() + 5;

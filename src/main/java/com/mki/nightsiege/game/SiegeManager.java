@@ -15,6 +15,7 @@ import com.mki.nightsiege.core.SiegeConfig;
 import com.mki.nightsiege.core.SiegeEvent;
 import com.mki.nightsiege.core.SiegeMath;
 import com.mki.nightsiege.core.SiegeScheduler;
+import com.mki.nightsiege.core.CrateKind;
 import com.mki.nightsiege.core.SiegeRhythm;
 import com.mki.nightsiege.core.SkillTree;
 import com.mki.nightsiege.core.WaveXp;
@@ -194,6 +195,8 @@ public final class SiegeManager {
     private final SiegeScheduler scheduler = new SiegeScheduler();
     private final SkillTree skillTree = new SkillTree();
     private final TrapService traps = new TrapService(() -> save, skillTree);
+    private final KitService kits = new KitService(() -> save, () -> config, skillTree, traps, this::persist);
+    private final CrateService crates = new CrateService(() -> save, () -> config, skillTree, this::persist);
     private final CombatEffects combat = new CombatEffects(skillTree, this::liveSkillsFor,
             entity -> this.eliteId != null && this.eliteId.equals(entity.getUUID()), archer, traps);
     private final Digger digger = new Digger();
@@ -341,10 +344,13 @@ public final class SiegeManager {
             logDamage(entity, source, taken);
             combat.afterDamage(entity, source, baseDamage, taken, blocked);
             perks.afterDamage(entity, taken);
+            CrateEffects.afterDamage(entity, source);
         });
-        ServerLivingEntityEvents.ALLOW_DEATH.register((entity, source, amount) -> combat.allowDeath(entity));
+        ServerLivingEntityEvents.ALLOW_DEATH.register((entity, source, amount) ->
+                combat.allowDeath(entity) && allowNightDeath(entity));
         ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) ->
-                allowModDamage(entity, source.getEntity()) && combat.allowDamage(entity, source, amount));
+                allowModDamage(entity, source.getEntity()) && combat.allowDamage(entity, source, amount)
+                        && CrateEffects.allowDamage(entity, source));
         combat.guardian().setCredit(this::creditTank);
         traps.setMarker(combat::remoteMark);
         RemoteItem.handler = traps::useRemote;
@@ -353,7 +359,12 @@ public final class SiegeManager {
                         && combat.guardian().onUseEntity(server, entity, hand)
                         ? net.minecraft.world.InteractionResult.SUCCESS : net.minecraft.world.InteractionResult.PASS);
         ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> {
+            if (entity instanceof net.minecraft.world.entity.item.ItemEntity drop && KitService.isKit(drop.getItem())) {
+                drop.discard();   // a dropped kit item is gone; the kit comes again next night
+                return;
+            }
             archer.onEntityLoad(entity, world, skillTree, this::liveSkillsFor);
+            CrateEffects.onArrow(entity);
             dungeons.onEntityLoad(entity);
         });
         PlayerBlockBreakEvents.BEFORE.register(
@@ -489,6 +500,96 @@ public final class SiegeManager {
         }
 
         tickRhythm(server);
+        if (server.overworld().getGameTime() % 20 == 0) {
+            tickComingNight(server);
+        }
+    }
+
+    /**
+     * Between the horn and the start: defenders who accepted and come to the core
+     * get their kit and the class window.
+     */
+    private void tickComingNight(MinecraftServer server) {
+        if (!nightComing(server)) {
+            return;
+        }
+        CoreRecord core = mainCore();
+        ServerLevel level = core == null ? null : levelByName(server, core.dimension);
+        if (level == null) {
+            return;
+        }
+        for (ServerPlayer player : defendersNear(server, level, new BlockPos(core.x, core.y, core.z), false)) {
+            if (config.nightKits && !kits.hasStash(player)) {
+                equipKit(player);
+                sendClassPick(player, secondsToStart(server));
+            }
+        }
+    }
+
+    /** Seconds until tonight's siege starts (0 when it is not coming). */
+    private int secondsToStart(MinecraftServer server) {
+        if (pendingTest != null) {
+            return Math.max(0, pendingTest.ticksLeft / 20);
+        }
+        if (!nightComing(server)) {
+            return 0;
+        }
+        return Math.max(0, (startTime() - clockTime(server)) / 20);
+    }
+
+    /** At the horn: everyone who accepted gets the class window (wherever they are). */
+    private void offerClassPick(MinecraftServer server) {
+        int seconds = secondsToStart(server);
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            String id = player.getUUID().toString();
+            boolean coming = isRegistered(player) && (openNight || (save.accepted != null && save.accepted.contains(id)));
+            if (coming) {
+                sendClassPick(player, seconds);
+            }
+        }
+    }
+
+    /** Opens the class window for one defender (if they have more than one class to choose from). */
+    private void sendClassPick(ServerPlayer player, int seconds) {
+        PlayerSkills own = save.skillsOf(player.getUUID().toString());
+        if (!own.hasClass() || own.unlockedClasses().size() < 2
+                || !ServerPlayNetworking.canSend(player, CoreNetworking.ScreenPayload.TYPE)) {
+            return;
+        }
+        com.mki.nightsiege.core.ClassPickData data = new com.mki.nightsiege.core.ClassPickData();
+        data.play = own.chosenClass;
+        data.seconds = seconds;
+        data.level = levelForKit();
+        for (SkillClass c : SkillClass.values()) {
+            if (c.isShared()) {
+                continue;
+            }
+            com.mki.nightsiege.core.ClassPickData.Entry entry = new com.mki.nightsiege.core.ClassPickData.Entry();
+            entry.id = c.name();
+            entry.unlocked = own.hasUnlocked(c);
+            entry.leveling = c == own.levelingClass();
+            entry.complete = skillTree.isComplete(own, c);
+            if (entry.unlocked) {
+                entry.way = own.as(c, () -> own.pathTaken(skillTree));
+                entry.subclass = own.as(c, () -> skillTree.subclassOf(own));
+                entry.spent = own.as(c, () -> skillTree.pointsSpent(own, c));
+            }
+            data.classes.add(entry);
+        }
+        int level = data.level;
+        data.armor = com.mki.nightsiege.core.NightKit.armor(level, 1).name();
+        data.protection = com.mki.nightsiege.core.NightKit.protection(level);
+        data.sharpness = com.mki.nightsiege.core.NightKit.sharpness(level);
+        for (ServerPlayer other : player.level().getServer().getPlayerList().getPlayers()) {
+            String oid = other.getUUID().toString();
+            if (isRegistered(other) && (openNight || (save.accepted != null && save.accepted.contains(oid)))) {
+                PlayerSkills os = save.skillsOf(oid);
+                data.team.add(new com.mki.nightsiege.core.ClassPickData.Mate(other.getScoreboardName(),
+                        os.chosenClass == null ? "" : os.chosenClass));
+            }
+        }
+        classPicking.add(player.getUUID());
+        ServerPlayNetworking.send(player, new CoreNetworking.ScreenPayload("classpick", Json.toJson(data)));
     }
 
     // ------------------------------------------------------------------
@@ -681,6 +782,7 @@ public final class SiegeManager {
         save.clearVotes();
         warnedDay = day;
         startedDay = day;
+        endKits(server);
         persist();
     }
 
@@ -800,11 +902,12 @@ public final class SiegeManager {
             return startTest(server, targetWorld, targetAnchor, level, event);
         }
         trapsHanded.clear();
-        for (ServerPlayer player : nearby) {
-            handOutTraps(player);
-        }
         int shownLevel = Math.min(config.maxLevel, level);
         pendingTest = new PendingTest(targetWorld, targetAnchor, level, event, config.testPrepSeconds * 20);
+        for (ServerPlayer player : nearby) {
+            equipKit(player);
+            sendClassPick(player, config.testPrepSeconds);
+        }
         prepBar = new ServerBossEvent(UUID.randomUUID(),
                 Component.translatable("nightsiege.bar.prep", shownLevel, config.testPrepSeconds),
                 BossEvent.BossBarColor.YELLOW, BossEvent.BossBarOverlay.PROGRESS);
@@ -870,11 +973,15 @@ public final class SiegeManager {
         if (pendingTest == null) {
             return false;
         }
+        PendingTest prep = pendingTest;
         pendingTest = null;
         trapsHanded.clear();
         if (prepBar != null) {
             prepBar.removeAllPlayers();
             prepBar = null;
+        }
+        if (prep != null && prep.world != null) {
+            endKits(prep.world.getServer());
         }
         return true;
     }
@@ -890,8 +997,8 @@ public final class SiegeManager {
                 prepBar.setColor(seconds <= 10 ? BossEvent.BossBarColor.RED : BossEvent.BossBarColor.YELLOW);
                 for (ServerPlayer player : defendersNear(server, prep.world, prep.anchor, true)) {
                     prepBar.addPlayer(player);
-                    // Whoever comes along in the preparation gets their traps too.
-                    handOutTraps(player);
+                    // Whoever comes along in the preparation gets their kit too.
+                    equipKit(player);
                 }
             }
             return;
@@ -905,6 +1012,41 @@ public final class SiegeManager {
             trapsHanded.clear();
             broadcast(server, Component.translatable("nightsiege.cmd.no_target").withStyle(ChatFormatting.GRAY));
         }
+    }
+
+    /**
+     * The night kit (with traps for engineers) for a defender: given once, at the
+     * horn, in a test's preparation or when joining the night. Without kits only
+     * the free traps are handed out, as before.
+     */
+    private void equipKit(ServerPlayer player) {
+        if (!config.nightKits) {
+            handOutTraps(player);
+            return;
+        }
+        if (!kits.hasStash(player)) {
+            kits.equip(player, levelForKit());
+        }
+    }
+
+    /** The level the kit is built for: the running night, the test in preparation or the coming night. */
+    private int levelForKit() {
+        if (active) {
+            return siegeLevel;
+        }
+        PendingTest prep = pendingTest;
+        if (prep != null) {
+            return Math.min(config.maxLevel, prep.level);
+        }
+        return currentLevel();
+    }
+
+    public KitService kits() {
+        return kits;
+    }
+
+    public CrateService crates() {
+        return crates;
     }
 
     /**
@@ -936,8 +1078,9 @@ public final class SiegeManager {
         spawnBlockCenter = pos;
         trapsHanded.clear();
         for (ServerPlayer player : defendersNear(server, targetWorld, pos, false)) {
-            handOutTraps(player);
+            equipKit(player);
         }
+        offerClassPick(server);
     }
 
     private boolean start(MinecraftServer server, ServerLevel targetWorld, BlockPos targetAnchor,
@@ -969,6 +1112,7 @@ public final class SiegeManager {
         }
         wavesStarted = 0;
         waveWeight.clear();
+        CrateEffects.reset();
         nightNumber = testRun ? -1 : save.nightsHeld++;
         for (ServerPlayer player : nearby) {
             joinNight(player);
@@ -1027,8 +1171,8 @@ public final class SiegeManager {
         for (UUID id : participants) {
             ServerPlayer player = server.getPlayerList().getPlayer(id);
             if (player != null) {
+                equipKit(player);
                 SkillService.apply(player, save.skillsOf(player.getUUID().toString()), skillTree);
-                handOutTraps(player);
             }
         }
 
@@ -1124,8 +1268,8 @@ public final class SiegeManager {
             if (!fallen.contains(player.getUUID())) {
                 if (participants.add(player.getUUID())) {
                     logPlayer(player);
+                    equipKit(player);
                     SkillService.apply(player, save.skillsOf(player.getUUID().toString()), skillTree);
-                    handOutTraps(player);
                     joinNight(player);
                 }
             }
@@ -1158,6 +1302,17 @@ public final class SiegeManager {
         }
 
         tickAtmosphere(server);
+        if (world.getGameTime() % 20 == 0) {
+            tickSpectators(server);
+            List<ServerPlayer> standing = new ArrayList<>();
+            for (UUID id : participants) {
+                ServerPlayer p = server.getPlayerList().getPlayer(id);
+                if (p != null && !fallen.contains(id)) {
+                    standing.add(p);
+                }
+            }
+            CrateEffects.tick(world, standing);
+        }
         defense.tick(liveMobs, world.getGameTime());
         if (world.getGameTime() % 20 == 0) {
             for (UUID id : liveMobs) {
@@ -1234,7 +1389,7 @@ public final class SiegeManager {
             }
             int weight = waveWeight.getOrDefault(id, 1) * (save.specialNight ? config.specialNightXpMultiplier : 1);
             int points = WaveXp.survive(save.skillsOf(id.toString()), weight, config.wavesPerPoint,
-                    config.pointGainMultiplier);
+                    config.pointGainMultiplier * CrateEffects.pointFactor(player));
             player.connection.send(new net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket(points > 0
                     ? Component.translatable("nightsiege.msg.wave_point", wavesStarted, points).withStyle(ChatFormatting.AQUA)
                     : Component.translatable("nightsiege.msg.wave_held", wavesStarted).withStyle(ChatFormatting.GRAY)));
@@ -1469,6 +1624,7 @@ public final class SiegeManager {
         digger.reset();
         ladders.reset();
         mendBase(server);
+        endKits(server);
 
         int required = killsRequired();
         boolean quotaMet = nightKills >= required;
@@ -1503,10 +1659,10 @@ public final class SiegeManager {
             save.bestStreak = Math.max(save.bestStreak, save.currentStreak);
             waveSurvived(server);
             awardSkillPoints(server);
-            if (save.specialNight && world != null && anchor != null) {
-                SpecialNight.lootChest(world, anchor, random);
-                broadcast(server, Component.translatable("nightsiege.msg.special_loot").withStyle(ChatFormatting.LIGHT_PURPLE));
-            }
+            // The reward of a won night: a crate for every defender (better odds in event and fragment nights).
+            CrateKind kind = save.specialNight ? CrateKind.FRAGMENT
+                    : currentEvent != SiegeEvent.NONE ? CrateKind.EVENT : CrateKind.NORMAL;
+            crates.award(server, participants, kind, siegeLevel);
             int next = SiegeMath.level(save.siegesWon, lastKnownDay, config);
             if (required > 0) {
                 broadcast(server, Component.translatable("nightsiege.msg.quota_met", nightKills, required)
@@ -1565,6 +1721,7 @@ public final class SiegeManager {
         digger.reset();
         ladders.reset();
         mendBase(server);
+        endKits(server);
         logNight("abgebrochen", 0, killsRequired());
         if (!testRun) {
             scheduleNextAfterNight(server);
@@ -1573,6 +1730,125 @@ public final class SiegeManager {
         testRun = false;
         broadcast(server, Component.translatable("nightsiege.msg.aborted").withStyle(ChatFormatting.GRAY));
         clearSiegeState();
+    }
+
+    /** The night is over (or did not come): every kit goes back, fallen defenders return to the core. */
+    private void endKits(MinecraftServer server) {
+        if (server == null) {
+            return;
+        }
+        for (ServerPlayer player : new ArrayList<>(server.getPlayerList().getPlayers())) {
+            endNightFor(player);
+        }
+        secondChance.clear();
+        secondChanceUsed.clear();
+    }
+
+    /** One defender after the night: own inventory back; a spectator stands at the core again. */
+    private void endNightFor(ServerPlayer player) {
+        boolean watching = player.isSpectator() && fallen.contains(player.getUUID());
+        if (kits.hasStash(player)) {
+            kits.restore(player);
+        }
+        if (watching || player.isSpectator() && fallen.contains(player.getUUID())) {
+            if (player.isSpectator()) {
+                player.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
+            }
+            toCore(player);
+        }
+        if (watching) {
+            player.setHealth(player.getMaxHealth());
+            player.getFoodData().setFoodLevel(20);
+        }
+    }
+
+    /** Puts a player on top of the core (or leaves them where they are without one). */
+    private void toCore(ServerPlayer player) {
+        ServerLevel level = world;
+        BlockPos at = anchor;
+        if (level == null || at == null) {
+            CoreRecord core = mainCore();
+            MinecraftServer server = player.level().getServer();
+            if (core == null || server == null) {
+                return;
+            }
+            level = levelByName(server, core.dimension);
+            at = new BlockPos(core.x, core.y, core.z);
+        }
+        if (level == null) {
+            return;
+        }
+        player.teleportTo(level, at.getX() + 0.5, at.getY() + 1.0, at.getZ() + 0.5, java.util.Set.of(),
+                player.getYRot(), player.getXRot(), true);
+    }
+
+    /**
+     * A defender takes fatal damage in the night: instead of dying they watch the
+     * rest of it as a spectator near the core. Returns false to cancel the death.
+     */
+    private boolean allowNightDeath(Object entity) {
+        if (!(entity instanceof ServerPlayer player) || !active || !config.nightKits
+                || !participants.contains(player.getUUID()) || fallen.contains(player.getUUID())) {
+            return true;
+        }
+        kits.rememberGameMode(player);
+        player.setHealth(player.getMaxHealth());
+        player.removeAllEffects();
+        player.clearFire();
+        SkillService.clear(player);
+        player.setGameMode(net.minecraft.world.level.GameType.SPECTATOR);
+        markFallen(player);
+        PlayerSkills own = save.skillsOf(player.getUUID().toString());
+        if (kits.gainLevel(own, own.clazz(), "zweite_chance") > 0 && secondChanceUsed.add(player.getUUID())) {
+            // The second chance: back at the core after 20 seconds, once a night.
+            secondChance.put(player.getUUID(), world == null ? 0L : world.getGameTime() + 400L);
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.second_chance").withStyle(ChatFormatting.GOLD));
+        } else {
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.spectating").withStyle(ChatFormatting.GRAY));
+        }
+        return false;
+    }
+
+    /** Defenders waiting for their second chance, with the tick it comes. */
+    private final Map<UUID, Long> secondChance = new HashMap<>();
+    /** Defenders who used their second chance tonight. */
+    private final Set<UUID> secondChanceUsed = new HashSet<>();
+
+    /** Once a second: spectators stay near the core; a second chance brings a defender back. */
+    private void tickSpectators(MinecraftServer server) {
+        if (world == null || anchor == null) {
+            return;
+        }
+        double r = config.spectatorRadius;
+        long now = world.getGameTime();
+        for (UUID id : new ArrayList<>(fallen)) {
+            ServerPlayer player = server.getPlayerList().getPlayer(id);
+            if (player == null || !player.isSpectator()) {
+                continue;
+            }
+            Long back = secondChance.get(id);
+            if (back != null && now >= back) {
+                secondChance.remove(id);
+                fallen.remove(id);
+                SiegeSave.KitStash stash = save.kitStashes == null ? null : save.kitStashes.get(id.toString());
+                String mode = stash == null || stash.gameMode == null || stash.gameMode.isEmpty() ? "survival" : stash.gameMode;
+                player.setGameMode(net.minecraft.world.level.GameType.byName(mode, net.minecraft.world.level.GameType.SURVIVAL));
+                if (stash != null) {
+                    stash.gameMode = "";
+                }
+                toCore(player);
+                player.setHealth(player.getMaxHealth());
+                SkillService.apply(player, save.skillsOf(id.toString()), skillTree);
+                broadcast(server, Component.translatable("nightsiege.msg.second_chance_back",
+                        player.getScoreboardName()).withStyle(ChatFormatting.GREEN));
+                continue;
+            }
+            if (player.level() != world || player.distanceToSqr(anchor.getX() + 0.5, anchor.getY(), anchor.getZ() + 0.5) > r * r) {
+                toCore(player);
+                player.sendSystemMessage(Component.translatable("nightsiege.msg.spectator_range", (int) r)
+                        .withStyle(ChatFormatting.GRAY));
+            }
+        }
     }
 
     private void clearSiegeState() {
@@ -1677,6 +1953,12 @@ public final class SiegeManager {
         if (!active || !participants.contains(id)) {
             return;
         }
+        markFallen(player);
+    }
+
+    /** A defender is out for the night (dead, or watching as a spectator). */
+    private void markFallen(ServerPlayer player) {
+        UUID id = player.getUUID();
         fallen.add(id);
         nightLog.of(id, player.getScoreboardName()).deaths++;
         save.statsOf(id.toString(), player.getScoreboardName()).fallen++;
@@ -1729,6 +2011,21 @@ public final class SiegeManager {
             return;
         }
         events.forget(player.getUUID());
+        MinecraftServer joinServer = player.level().getServer();
+        boolean stillTonight = (active && participants.contains(player.getUUID())) || pendingTest != null
+                || (joinServer != null && nightComing(joinServer));
+        if (kits.hasStash(player) && !stillTonight) {
+            // The night ended while they were away: their own things come back now.
+            boolean watching = player.isSpectator();
+            kits.restore(player);
+            if (watching) {
+                if (player.isSpectator()) {
+                    player.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
+                }
+                toCore(player);
+            }
+        }
+        crates.deliverPending(player);
         // Skills gelten nur waehrend einer Belagerung. Beim Betreten werden
         // daher Reste entfernt, etwa nach einem Absturz mitten in der Nacht.
         if (active && participants.contains(player.getUUID()) && !fallen.contains(player.getUUID())) {
@@ -2091,6 +2388,9 @@ public final class SiegeManager {
             return;
         }
         combat.onKill(player, killed);
+        if (killed instanceof LivingEntity livingKilled) {
+            CrateEffects.onKill(player, livingKilled);
+        }
         if (!killed.entityTags().contains(MobFactory.TAG)) {
             return;
         }
@@ -2139,6 +2439,7 @@ public final class SiegeManager {
             }
             case "buy" -> onBuySkill(player, argument);
             case "class" -> onChooseClass(player, argument);
+            case "play" -> onPlayClass(player, argument);
             case "classreset" -> onClassReset(player);
             case "donate" -> onDonate(player, parseAmount(argument));
             case "dev" -> onDevAction(player, argument);
@@ -2186,21 +2487,56 @@ public final class SiegeManager {
             if (skillTree.unlock(nodeId, save.coreSkills())) {
                 persist();
             }
-        } else if (skillTree.unlock(nodeId, own)) {
-            rewardMaxedUltimate(player, own, node);
-            persist();
-            // Skills only hold during a siege, so apply at once only if one runs.
-            if (active && participants.contains(player.getUUID()) && !fallen.contains(player.getUUID())) {
-                SkillService.apply(player, own, skillTree);
+        } else if (node.clazz() == own.levelingClass() || node.clazz() == own.clazz()) {
+            // New points go to the class being levelled, even while another one is played.
+            boolean wasComplete = skillTree.isComplete(own, node.clazz());
+            boolean bought = own.as(node.clazz(), () -> skillTree.unlock(nodeId, own));
+            if (bought) {
+                rewardMaxedUltimate(player, own, node);
+                persist();
+                // Skills only hold during a siege, so apply at once only if one runs.
+                if (node.clazz() == own.clazz() && active && participants.contains(player.getUUID())
+                        && !fallen.contains(player.getUUID())) {
+                    SkillService.apply(player, own, skillTree);
+                }
+                if (!wasComplete && skillTree.isComplete(own, node.clazz()) && nextClassFree(own)) {
+                    player.sendSystemMessage(Component.translatable("nightsiege.msg.class_complete",
+                            Component.translatable(node.clazz().translationKey())).withStyle(ChatFormatting.GOLD));
+                    Fx.pointsEarned(player.level().getServer(), config);
+                }
             }
+        } else {
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.class_not_leveling")
+                    .withStyle(ChatFormatting.RED));
         }
         openCoreWindow(player);
+    }
+
+    /** True when there is still a class left to unlock. */
+    private static boolean nextClassFree(PlayerSkills own) {
+        for (SkillClass c : SkillClass.values()) {
+            if (!c.isShared() && !own.hasUnlocked(c)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** True when the player has filled the class they level and may open the next one. */
+    public boolean mayOpenNextClass(PlayerSkills own) {
+        return own.hasClass() && skillTree.isComplete(own, own.levelingClass()) && nextClassFree(own);
+    }
+
+    /** The reset at the core is there until the first class is complete. */
+    public boolean classResetAvailable(PlayerSkills own) {
+        return own.hasClass() && !own.classResetUsed && own.unlockedClasses().size() <= 1
+                && !skillTree.isComplete(own, own.levelingClass());
     }
 
     /** Maxing the ultimate of one's path pays out the infernite upgrade template, once. */
     private void rewardMaxedUltimate(ServerPlayer player, PlayerSkills own, com.mki.nightsiege.core.SkillNode node) {
         if (node.effect().target() != SkillEffect.Target.ULTIMATE || own.templateGiven
-                || own.levelOf(node.id()) < node.maxLevel()) {
+                || own.levelIn(node.clazz(), node.id()) < node.maxLevel()) {
             return;
         }
         own.templateGiven = true;
@@ -2217,7 +2553,13 @@ public final class SiegeManager {
             return;
         }
         PlayerSkills own = save.skillsOf(player.getUUID().toString());
-        if (own.hasClass()) {
+        if (own.hasClass() && !own.hasUnlocked(chosen) && mayOpenNextClass(own)) {
+            // The class being levelled is full: the next one opens, new points go there.
+            own.unlockClass(chosen);
+            persist();
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.class_next",
+                    Component.translatable(chosen.translationKey())).withStyle(ChatFormatting.GREEN));
+        } else if (own.hasClass()) {
             player.sendSystemMessage(Component.translatable("nightsiege.msg.class_locked")
                     .withStyle(ChatFormatting.RED));
         } else {
@@ -2230,6 +2572,45 @@ public final class SiegeManager {
         openCoreWindow(player);
     }
 
+    /** Picks which of the unlocked classes the player plays (the next night, or from now on). */
+    public void onPlayClass(ServerPlayer player, String className) {
+        SkillClass chosen = SkillClass.byName(className);
+        if (player == null || chosen == null || chosen.isShared()) {
+            return;
+        }
+        PlayerSkills own = save.skillsOf(player.getUUID().toString());
+        if (active && participants.contains(player.getUUID())) {
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.play_not_now").withStyle(ChatFormatting.RED));
+            return;
+        }
+        if (!own.hasUnlocked(chosen)) {
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.class_locked").withStyle(ChatFormatting.RED));
+            return;
+        }
+        if (own.clazz() != chosen) {
+            own.switchTo(chosen);
+            persist();
+            SkillService.clear(player);
+            gearBoosted.remove(player.getUUID());
+            if (kits.hasStash(player)) {
+                kits.refit(player, levelForKit());   // the kit of the new class for tonight
+            } else {
+                traps.giveRemote(player, own);
+            }
+        }
+        player.sendSystemMessage(Component.translatable("nightsiege.msg.play_class",
+                Component.translatable(chosen.translationKey())).withStyle(ChatFormatting.GREEN));
+        if (classPicking.remove(player.getUUID())) {
+            // Chosen in the window before the night: no core window on top, just the new name tag.
+            ClassTags.update(player.level().getServer(), player, own, skillTree.subclassOf(own));
+            return;
+        }
+        openCoreWindow(player);
+    }
+
+    /** Defenders who still have the class window of tonight open. */
+    private final Set<UUID> classPicking = new HashSet<>();
+
     /** The one free class change at the core: class open again, all points back. */
     public void onClassReset(ServerPlayer player) {
         if (player == null) {
@@ -2240,9 +2621,9 @@ public final class SiegeManager {
             openCoreWindow(player);
             return;
         }
-        if (own.classResetUsed) {
-            player.sendSystemMessage(Component.translatable("nightsiege.msg.class_reset_used")
-                    .withStyle(ChatFormatting.RED));
+        if (!classResetAvailable(own)) {
+            player.sendSystemMessage(Component.translatable(own.classResetUsed ? "nightsiege.msg.class_reset_used"
+                    : "nightsiege.msg.class_reset_closed").withStyle(ChatFormatting.RED));
             openCoreWindow(player);
             return;
         }

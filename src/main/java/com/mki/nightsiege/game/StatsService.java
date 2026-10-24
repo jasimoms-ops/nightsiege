@@ -102,14 +102,29 @@ public final class StatsService {
         stats.totalChampionKills = save.totalChampionKills;
         stats.highestLevelReached = Math.max(save.highestLevel, level);
 
-        stats.myClass = skills.chosenClass == null ? "" : skills.chosenClass;
+        // The window's own class is the one being levelled: that is where points go.
+        com.mki.nightsiege.core.SkillClass leveling = skills.levelingClass();
+        stats.myClass = leveling == null ? "" : leveling.name();
+        stats.playClass = skills.chosenClass == null ? "" : skills.chosenClass;
+        stats.unlocked = new java.util.ArrayList<>(skills.unlockedClasses());
+        for (String name : stats.unlocked) {
+            if (tree.isComplete(skills, com.mki.nightsiege.core.SkillClass.byName(name))) {
+                stats.completeClasses.add(name);
+            }
+        }
+        stats.nextClassOpen = manager.mayOpenNextClass(skills);
+        if (skills.gains != null) {
+            for (Map.Entry<String, Map<String, Integer>> entry : skills.gains.entrySet()) {
+                stats.gains.put(entry.getKey(), new java.util.HashMap<>(entry.getValue()));
+            }
+        }
         stats.points = skills.points();
         stats.earned = skills.earned;
         stats.donated = skills.donated;
-        stats.pathTaken = skills.pathTaken(tree);
-        stats.subclass = tree.subclassOf(skills);
+        stats.pathTaken = skills.as(leveling, () -> skills.pathTaken(tree));
+        stats.subclass = skills.as(leveling, () -> tree.subclassOf(skills));
         stats.creative = viewer.getAbilities().instabuild;
-        stats.classResetAvailable = skills.hasClass() && !skills.classResetUsed;
+        stats.classResetAvailable = manager.classResetAvailable(skills);
         for (com.mki.nightsiege.core.PerkKind kind : com.mki.nightsiege.core.PerkKind.values()) {
             CoreStats.PerkLine line = new CoreStats.PerkLine();
             line.id = kind.id();
@@ -152,12 +167,15 @@ public final class StatsService {
             line.icon = node.icon();
             line.row = node.row();
             boolean shared = node.clazz().isShared();
-            line.level = shared ? save.coreSkills().levelOf(node.id()) : skills.levelOf(node.id());
+            line.level = shared ? save.coreSkills().levelOf(node.id()) : skills.levelIn(node.clazz(), node.id());
             line.maxLevel = node.maxLevel();
             line.cost = node.costFor(line.level);
             line.requires = node.requires();
             line.requiresLevel = node.requiresLevel();
-            line.blocked = tree.blockedReason(node.id(), shared ? save.coreSkills() : skills);
+            line.blocked = shared ? tree.blockedReason(node.id(), save.coreSkills())
+                    : skills.hasUnlocked(node.clazz())
+                    ? skills.as(node.clazz(), () -> tree.blockedReason(node.id(), skills))
+                    : tree.blockedReason(node.id(), skills);
             line.live = node.effect().isLive();
             line.group = node.group() == null ? "" : node.group();
             line.col = node.col();
