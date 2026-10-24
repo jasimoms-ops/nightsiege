@@ -882,21 +882,67 @@ public class EventLookTest implements FabricClientGameTest {
             game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:grass_block".formatted(cx - out, cy - 1, z1, cx + out, cy - 1, z2));
             game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(cx - out, cy, z1, cx + out, cy + 8, z2));
         }
-        game.getServer().runCommand("time set 13000");
-        game.getServer().runCommand("tp @p %d.5 %d %d.5 180 20".formatted(cx, cy, cz + 4));
-        // The summoner with the tamer's way: pack call, two more wolves, the alpha, the howl, the wild hunt.
+        game.getServer().runCommand("time set 18000");
+        game.getServer().runCommand("tp @p %d.5 %d %d.5 180 15".formatted(cx, cy, cz + 4));
+        // The player becomes a summoner of the tamer's way for the scene (the old progress comes back after).
+        final String[] backup = new String[1];
         onServer(context, (player, manager) -> {
+            var own = manager.save().skillsOf(player.getUUID().toString());
+            backup[0] = com.mki.nightsiege.game.Json.toJson(own);
             manager.config().summonerForEveryone = true;
-            manager.onCoreAction(player, "dev:reset");
-            manager.onCoreAction(player, "class:SUMMONER");
-            manager.onCoreAction(player, "dev:600");
+            own.reset();
+            own.chosenClass = com.mki.nightsiege.core.SkillClass.SUMMONER.name();
+            own.unlockClass(com.mki.nightsiege.core.SkillClass.SUMMONER);
+            own.award(600);
             for (String id : new String[]{"s_soulbond", "s_command", "s_packcall", "s_tamer", "s_tamer", "s_alpha", "s_howl",
                     "s_wildness", "s_wild_hunt"}) {
                 manager.onBuySkill(player, id);
             }
-            var own = manager.save().skillsOf(player.getUUID().toString());
             System.out.println("[Night Siege test] summoner class=" + own.chosenClass + " tamer=" + own.levelOf("s_tamer")
                     + " hunt=" + own.levelOf("s_wild_hunt") + " admin=" + manager.maySummon(player));
+            // In creative the staff also calls outside a night (for trying it out).
+            com.mki.nightsiege.game.Companions c = com.mki.nightsiege.game.Companions.get();
+            net.minecraft.world.item.ItemStack staff = new net.minecraft.world.item.ItemStack(com.mki.nightsiege.game.ModContent.STAFF);
+            for (int i = 0; i < 5; i++) {
+                c.resetPause(player.getUUID());
+                c.useStaff(player, staff);
+            }
+            System.out.println("[Night Siege test] summoner test wolves=" + com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "wolf")
+                    + " (4 places)");
+        });
+        closeScreen(context);
+        context.waitTicks(30);
+        context.runOnClient(client -> client.options.setCameraType(net.minecraft.client.CameraType.THIRD_PERSON_FRONT));
+        context.waitTicks(10);
+        context.takeScreenshot("summoner_pack");
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            com.mki.nightsiege.game.Companions.get().wildHunt(level, player, 3);
+            System.out.println("[Night Siege test] summoner hunt spirits="
+                    + com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "spirit"));
+        });
+        context.waitTicks(12);
+        context.takeScreenshot("summoner_wild_hunt");
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            com.mki.nightsiege.game.Companions c = com.mki.nightsiege.game.Companions.get();
+            c.dismissAll(level.getServer());
+            c.titan(level, player, 2);
+            c.testCall(player, "golem");
+            c.testCall(player, "snow");
+            c.testCall(player, "snow");
+            c.testCall(player, "skeleton");
+            System.out.println("[Night Siege test] summoner titan=" + com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "titan")
+                    + " golem=" + com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "golem")
+                    + " snow=" + com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "snow")
+                    + " skeleton=" + com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "skeleton"));
+        });
+        context.waitTicks(20);
+        context.takeScreenshot("summoner_titan");
+        context.runOnClient(client -> client.options.setCameraType(net.minecraft.client.CameraType.FIRST_PERSON));
+        // Now a test night: the kit brings the staff, the pack fights.
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.game.Companions.get().dismissAll(player.level().getServer());
             manager.config().testPrepSeconds = 2;
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
             boolean ok = manager.prepareTest(level.getServer(), level, new BlockPos(cx, cy, cz - 8), 4,
@@ -909,78 +955,64 @@ public class EventLookTest implements FabricClientGameTest {
         game.getServer().runCommand("effect give @p minecraft:saturation 200 10 true");
         context.waitTicks(80);
         closeScreen(context);
-        // Four calls with the staff (the pause is skipped for the test).
         onServer(context, (player, manager) -> {
             net.minecraft.world.item.ItemStack staff = net.minecraft.world.item.ItemStack.EMPTY;
             for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
-                if (com.mki.nightsiege.game.ModContent.STAFF != null
-                        && player.getInventory().getItem(i).is(com.mki.nightsiege.game.ModContent.STAFF)) {
+                if (player.getInventory().getItem(i).is(com.mki.nightsiege.game.ModContent.STAFF)) {
                     staff = player.getInventory().getItem(i);
                 }
             }
-            System.out.println("[Night Siege test] summoner active=" + manager.isActive() + " staff=" + !staff.isEmpty());
+            System.out.println("[Night Siege test] summoner night active=" + manager.isActive() + " staff in kit=" + !staff.isEmpty());
             com.mki.nightsiege.game.Companions c = com.mki.nightsiege.game.Companions.get();
             for (int i = 0; i < 5; i++) {
                 c.resetPause(player.getUUID());
                 c.useStaff(player, staff.isEmpty() ? new net.minecraft.world.item.ItemStack(com.mki.nightsiege.game.ModContent.STAFF) : staff);
             }
-            System.out.println("[Night Siege test] summoner wolves=" + com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "wolf")
-                    + " (4 places) all=" + com.mki.nightsiege.game.Companions.countOf(player.getUUID()));
+            System.out.println("[Night Siege test] summoner night wolves=" + com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "wolf"));
         });
-        for (int i = 1; i <= 3; i++) {
+        for (int i = 1; i <= 4; i++) {
             context.waitTicks(100);
             final int step = i;
             onServer(context, (player, manager) -> {
                 net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
                 int fighting = 0;
+                double hp = 0;
                 for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
-                    if (com.mki.nightsiege.game.Companions.isCompanion(e) && e instanceof net.minecraft.world.entity.Mob m
-                            && m.getTarget() != null) {
-                        fighting++;
+                    if (com.mki.nightsiege.game.Companions.isCompanion(e) && e instanceof net.minecraft.world.entity.Mob m) {
+                        hp = Math.max(hp, m.getMaxHealth());
+                        if (m.getTarget() != null) {
+                            fighting++;
+                        }
                     }
                 }
-                System.out.println("[Night Siege test] summoner t=" + (step * 5) + "s wolves="
-                        + com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "wolf") + " fighting=" + fighting
-                        + " kills=" + manager.nightKills());
+                System.out.println(String.format(java.util.Locale.ROOT,
+                        "[Night Siege test] summoner night t=%ds wolves=%d fighting=%d maxhp=%.0f kills=%d", step * 5,
+                        com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "wolf"), fighting, hp, manager.nightKills()));
             });
+            if (i == 2) {
+                context.takeScreenshot("summoner_night");
+            }
         }
-        context.takeScreenshot("summoner_pack");
-        onServer(context, (player, manager) -> {
-            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
-            com.mki.nightsiege.game.Companions.get().wildHunt(level, player, 3);
-            System.out.println("[Night Siege test] summoner hunt spirits="
-                    + com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "spirit"));
-        });
-        context.waitTicks(30);
-        context.takeScreenshot("summoner_wild_hunt");
-        onServer(context, (player, manager) -> {
-            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
-            com.mki.nightsiege.game.Companions.get().titan(level, player, 2);
-            com.mki.nightsiege.game.Companions.get().testCall(player, "golem");
-            com.mki.nightsiege.game.Companions.get().testCall(player, "snow");
-            com.mki.nightsiege.game.Companions.get().testCall(player, "skeleton");
-            System.out.println("[Night Siege test] summoner titan=" + com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "titan")
-                    + " golem=" + com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "golem")
-                    + " skeleton=" + com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "skeleton"));
-        });
-        context.waitTicks(60);
-        context.takeScreenshot("summoner_titan");
-        context.waitTicks(200);
-        onServer(context, (player, manager) -> {
-            System.out.println("[Night Siege test] summoner after 13s spirits="
-                    + com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "spirit")
-                    + " titan=" + com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "titan")
-                    + " skeleton target=" + com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "skeleton")
-                    + " kills=" + manager.nightKills());
-            manager.abort(player.level().getServer());
-        });
+        onServer(context, (player, manager) -> manager.abort(player.level().getServer()));
         context.waitTicks(20);
         game.getServer().runCommand("gamemode creative @p");
         context.waitTicks(5);
         onServer(context, (player, manager) -> {
             System.out.println("[Night Siege test] summoner after the night companions=" + com.mki.nightsiege.game.Companions.countOf(player.getUUID()));
             manager.config().summonerForEveryone = false;
-            manager.onCoreAction(player, "dev:reset");
+            // The old progress back (field by field, the save keeps its object).
+            var own = manager.save().skillsOf(player.getUUID().toString());
+            var old = com.mki.nightsiege.game.Json.fromJson(backup[0], com.mki.nightsiege.core.PlayerSkills.class);
+            for (java.lang.reflect.Field f : com.mki.nightsiege.core.PlayerSkills.class.getFields()) {
+                try {
+                    if (!java.lang.reflect.Modifier.isStatic(f.getModifiers())) {
+                        f.set(own, f.get(old));
+                    }
+                } catch (IllegalAccessException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            System.out.println("[Night Siege test] summoner restored class=" + own.chosenClass + " unlocked=" + own.unlockedClasses());
         });
         game.getServer().runCommand("forceload remove all");
         game.getServer().runCommand("time set 6000");
