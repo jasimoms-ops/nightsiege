@@ -391,11 +391,12 @@ public class EventLookTest implements FabricClientGameTest {
         }
         // Every outfit up close, four at a time, from the front and from the back.
         String[] all = {"berserker", "blademaster", "axe", "paladin", "swift", "heavy", "bolter", "trapper",
-                "shieldfighter", "bulwark", "medic", "warden", "gunner", "electrician", "demolition", "alchemist"};
+                "shieldfighter", "bulwark", "medic", "warden", "gunner", "electrician", "demolition", "alchemist",
+                "tamer", "golemsmith", "alchemist", "bulwark"};
         // Chat lines and toasts fade after ten seconds; wait so the pictures stay clear.
         game.getServer().runCommand("kill @e[type=minecraft:armor_stand]");
         context.waitTicks(230);
-        for (int g = 0; g < 4; g++) {
+        for (int g = 0; g < 5; g++) {
             for (int side = 0; side < 2; side++) {
                 game.getServer().runCommand("kill @e[type=minecraft:armor_stand]");
                 for (int i = 0; i < 4; i++) {

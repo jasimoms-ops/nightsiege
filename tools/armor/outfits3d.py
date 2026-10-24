@@ -713,3 +713,102 @@ _then('berserker', _berserker_more)
 _then('blademaster', _blademaster_more)
 _then('axe', _axe_more)
 _then('paladin', _paladin_more)
+
+
+# ---------------------------------------------------------------------- summoners (25 October 2026)
+# No collar in front of the neck: every shoulder piece ends behind it (Simon, 24 October 2026).
+
+@design('tamer')
+def tamer(k, L1, L2):
+    F = fur(hexc('#7d7873'), hexc('#a7a19a'), hexc('#4d4945'), hexc('#d2cdc5'))
+    Fd = fur(hexc('#5f5a55'), hexc('#7d7873'), hexc('#3e3a36'), hexc('#a7a19a'))
+    bone, bone_d = hexc('#e4dac1'), hexc('#a89c80')
+    eye = hexc('#ffb63a')
+    teal = hexc('#5fd8b8')
+    clear_hat(L1)
+    # The wolf's head on top of the hood: crown, snout with teeth, ears, amber eyes.
+    grey, grey_l, grey_d = hexc('#8a857f'), hexc('#c8c2ba'), hexc('#4d4945')
+    Fh = fur(grey, hexc('#9c968f'), hexc('#6e6a64'), grey_l)   # calmer fur for the face
+    head = k.box('head', 'head', 'wolfhead', (-4.5, -11.4, -5.2), (9, 3, 9))
+    all_faces(L1, head, Fh)
+    L1.art(head, 'front', ['ggggggggg', 'gdeggedgg', 'ggLLLLLgg'], {'g': grey, 'd': grey_d, 'e': eye, 'L': grey_l})
+    L1.art(head, 'top', ['.........', '....d....', '...ddd...'], {'d': grey_d})
+    snout = k.box('head', 'head', 'wsnout', (-2, -10.2, -9.6), (4, 2, 5))
+    all_faces(L1, snout, lambda c: grey_l if c.face in ('top', 'front') else Fh(c))
+    L1.art(snout, 'front', ['LnnL', 'tLLt'], {'L': grey_l, 'n': hexc('#1a1614'), 't': bone})
+    L1.cap(snout, lambda c: hexc('#1a1614') if c.fy == 0 and c.fx in (1, 2) else (grey if c.fy >= 3 else grey_l))
+    L1.strip(snout, lambda c: bone if c.r == 1 and c.s % 2 == 0 else None, faces=('right', 'left'))
+    ear = k.box('head', 'head', 'wear', (-4.2, -14.4, -3.6), (2, 3, 1), sym=True)
+    all_faces(L1, ear, lambda c: hexc('#5a3e36') if c.face == 'front' and c.r > 0 else grey_d)
+    pelt = k.box('head', 'head', 'wpelt', (-4.8, -9.6, 4.3), (10, 9, 1))
+    all_faces(L1, pelt, F)
+    ragged_bottom(L1, pelt, 1)
+    # Fur over the shoulders and down the back, a pelt cloak that swings.
+    mantle = k.box('chest', 'body', 'mantle', (-5.6, -1.2, -1.6), (11, 4, 5))
+    all_faces(L1, mantle, F)
+    ragged_bottom(L1, mantle, 1)
+    L1.cap(mantle, 'clear', face='bottom')
+    cloak = k.box('chest', 'body', 'cloak', (-5, 0, 0), (10, 13, 1), pivot=(0, -1, 3.3), cape=True)
+    all_faces(L1, cloak, F)
+    ragged_bottom(L1, cloak, 2)
+    # A cord of claws and teeth across the chest.
+    claws = k.box('chest', 'body', 'claws', (-3.5, 0.6, -3.8), (7, 3, 1))
+    all_faces(L1, claws, 'clear')
+    L1.art(claws, 'front', ['ccccccc', 'b.B.b.B', '.b...b.'], {'c': hexc('#4a3020'), 'b': bone, 'B': bone_d})
+    # Fur pads on the shoulders, laced bracers with a fur cuff.
+    pad = k.box('chest', 'arm', 'pad', (-4.4, -3.0, -3.3), (5, 3, 6))
+    all_faces(L1, pad, F)
+    ragged_bottom(L1, pad, 1)
+    bracer = k.box('chest', 'arm', 'bracer', (-4, 6.5, -3), (6, 4, 6), grow=0.25)
+    all_faces(L1, bracer, lambda c: F(c) if c.r == 0 else (hexc('#d9c9a0') if c.r in (1, 3) and c.s % 3 == 0 else leather(hexc('#4a3220'))(c)))
+    # A bone whistle and a pouch at the belt, a teal charm.
+    whistle = k.box('chest', 'body', 'whistle', (4.4, 8.6, -1), (1, 4, 1))
+    all_faces(L1, whistle, lambda c: bone_d if c.r == 0 else bone)
+    pouch = k.box('chest', 'body', 'pouch', (-4.6, 9.2, -4.1), (3, 3, 1))
+    all_faces(L1, pouch, leather(hexc('#5e4029')))
+    L1.art(pouch, 'front', ['...', '.t.', '...'], {'t': teal})
+    # Fur wraps on the boots.
+    wrap = k.box('feet', 'leg', 'wrap', (-3.5, 6, -3.5), (7, 4, 7))
+    all_faces(L1, wrap, F)
+    ragged_bottom(L1, wrap, 1)
+    L1.strip(wrap, lambda c: hexc('#b9a68a') if c.r == 2 and c.s % 3 == 0 else None)
+    L1.cap(wrap, 'clear', face='bottom')
+
+
+@design('golemsmith')
+def golemsmith(k, L1, L2):
+    iron, iron_d = hexc('#a7adb6'), hexc('#5a5e66')
+    S = metal(iron)
+    leather_c, leather_d = hexc('#5a3a22'), hexc('#3a2616')
+    teal, teal_l = hexc('#5fd8b8'), hexc('#c8fff0')
+    clear_hat(L1)
+    lenses(k, L1, hexc('#6a6e76'), teal, teal_l, y=-9.4)
+    # Iron shoulder plates with glowing runes.
+    for i, (y, h) in enumerate(((-3.0, 3), (-0.2, 1))):
+        p = k.box('chest', 'arm', 'rune%d' % i, (-4.8, y, -3.6), (6, h, 7), rot=(0, 0, -0.18))
+        all_faces(L1, p, S)
+        L1.strip(p, lambda c: iron_d if c.r == h - 1 else None)
+    L1.cap('rune0', lambda c: teal if (c.fx, c.fy) in ((2, 2), (3, 3), (2, 4), (3, 1)) else None)
+    L1.art('rune0', 'right', ['.......', '.t.t.t.', '.......'], {'t': teal})
+    # The leather apron from the waist down, burnt here and there, a rune at its hem.
+    apron = k.box('chest', 'body', 'apron', (-4, 5, -3.7), (8, 11, 1))
+    all_faces(L1, apron, leather(leather_c))
+    L1.strip(apron, lambda c: hexc('#2a1c14') if c.rnd.random() < 0.04 else None)
+    L1.strip(apron, lambda c: mul(leather_c, 0.7) if c.r == 10 or (c.face == 'front' and c.fx in (0, 7)) else None)
+    L1.art(apron, 'front', ['........', '...t....', '...tt...', '...t.t..', '...t....'], {'t': teal}, y=4)
+    # A golem's heart on the back: a glowing rune plate in an iron frame.
+    heart = k.box('chest', 'body', 'heart', (-2, 1.5, 3.2), (4, 4, 1))
+    all_faces(L1, heart, S)
+    L1.art(heart, 'back', ['iiii', 'itTi', 'iTti', 'iiii'], {'i': iron_d, 't': teal, 'T': teal_l})
+    # The hammer at the hip.
+    haft = k.box('chest', 'body', 'haft', (5.2, 7.6, -0.5), (1, 7, 1))
+    all_faces(L1, haft, lambda c: hexc('#6b4a2c') if c.r > 0 else iron)
+    hhead = k.box('chest', 'body', 'hammer', (4.8, 6.4, -2), (2, 2, 4))
+    all_faces(L1, hhead, S)
+    L1.strip(hhead, lambda c: teal if c.face == 'right' and c.r == 0 and c.s % 2 == 0 else None)
+    # Heavy glove cuffs and iron toe caps.
+    cuff = k.box('chest', 'arm', 'cuff', (-4.3, 6.4, -3.3), (6, 2, 6))
+    all_faces(L1, cuff, leather(hexc('#6b4a2c')))
+    L1.cap(cuff, 'clear', face='bottom')
+    toe = k.box('feet', 'leg', 'toe', (-2.6, 10.6, -4.7), (5, 2, 2))
+    all_faces(L1, toe, S)

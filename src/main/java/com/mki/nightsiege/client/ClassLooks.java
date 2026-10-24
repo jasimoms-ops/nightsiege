@@ -18,7 +18,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * The clothes of the sixteen subclasses. Whoever has chosen a subclass shows its
+ * The clothes of the subclasses. Whoever has chosen a subclass shows its
  * outfit on every armour piece they wear, whatever the armour is made of: only
  * the look changes, never the protection. The subclass comes from the name tag
  * team the server puts every player in, so everybody sees everybody's outfit.
@@ -30,7 +30,8 @@ public final class ClassLooks {
             "berserker", "blademaster", "axe", "paladin",
             "swift", "heavy", "bolter", "trapper",
             "shieldfighter", "bulwark", "medic", "warden",
-            "gunner", "electrician", "demolition", "alchemist");
+            "gunner", "electrician", "demolition", "alchemist",
+            "tamer", "golemsmith");
 
     private static final String TEAM_PREFIX = "ns_c_";
     private static final Map<String, ResourceKey<EquipmentAsset>> ASSETS = new LinkedHashMap<>();

@@ -800,3 +800,72 @@ def alchemist(L1, L2):
     L2.strip('leg', lambda c: coat_d if c.r == 6 else None, rows=(6, 6), faces=('right', 'back', 'left'))
     L2.strip('body', C, rows=(6, 11))
     plain_boots(L1, 7, leather(hexc('#241c18')), hexc('#0e0a08'), cuff=leather(hexc('#3a2c22')))
+
+
+# ---------------------------------------------------------------------- summoners
+
+@outfit('tamer')
+def tamer(L1, L2):
+    """The beast tamer: a wolf pelt for a hood, a leather jerkin with fur on the shoulders,
+    a cord of claws and teeth, laced bracers, fur-wrapped boots."""
+    F = fur(hexc('#7d7873'), hexc('#a7a19a'), hexc('#4d4945'), hexc('#d2cdc5'))
+    jerk, jerk_l = hexc('#5e4029'), hexc('#7e5836')
+    bone = hexc('#e4dac1')
+    teal = hexc('#5fd8b8')
+    L1.strip('body', leather(jerk))
+    L1.cap('body', F)
+    L1.strip('body', F, rows=(0, 1))
+    L1.strip('body', lambda c: F(c) if c.r <= 1 + (c.s * 3) % 2 else None, rows=(2, 2))
+    L1.strip('body', lambda c: F(c) if c.r <= 10 + (c.s * 5 % 3) else None, faces=('back',))
+    L1.strip('body', lambda c: mul(jerk, 0.7) if c.face == 'front' and c.fx in (3, 4) and c.r >= 3 else None)
+    L1.strip('body', lambda c: bone if c.face == 'front' and c.fx in (3, 4) and c.r in (4, 6) else None)
+    belt(L1, 8, leather(hexc('#3a2616')), bone, bone)
+    L1.art('body', 'front', ['t.......'], {'t': teal}, y=9)
+    L1.strip('arm', F, rows=(0, 2))
+    L1.strip('arm', leather(jerk_l), rows=(3, 7))
+    L1.strip('arm', lambda c: hexc('#d9c9a0') if c.face == 'front' and c.r % 2 == 0 else leather(hexc('#4a3220'))(c), rows=(8, 11))
+    L1.cap('arm', F)
+    hand(L1, leather(hexc('#3a2616')))
+    # The wolf's hide over the head, open for the face (its head sits on top, in 3D).
+    hood(L1, F, rim=lambda c: mul(hexc('#4d4945'), 0.9), open_rows=(2, 7), open_cols=(1, 6), point=False)
+    # Leggings: hide trousers; boots wrapped in fur and bound with cord.
+    L2.strip('leg', leather(hexc('#4a3426')))
+    L2.strip('leg', lambda c: hexc('#b9a68a') if (c.s + c.r) % 3 == 0 else None, rows=(6, 6))
+    L2.strip('body', leather(hexc('#4a3426')), rows=(6, 11))
+    L1.strip('leg', lambda c: F(c) if c.r >= 7 else None, rows=(7, 10))
+    L1.strip('leg', lambda c: hexc('#b9a68a') if (c.s + c.r) % 4 == 0 else None, rows=(8, 10))
+    sole(L1, hexc('#2e2218'))
+
+
+@outfit('golemsmith')
+def golemsmith(L1, L2):
+    """The golemsmith: a slate work shirt under leather braces, a leather cap with goggles,
+    heavy gloves, iron-capped boots; the runes glow like the staff."""
+    shirt = hexc('#3e4654')
+    leather_c, leather_d = hexc('#5a3a22'), hexc('#3a2616')
+    iron = hexc('#a7adb6')
+    teal = hexc('#5fd8b8')
+    S = shaded(shirt, 1.1, 0.85)
+    L1.strip('body', S)
+    L1.cap('body', S)
+    # Braces over the shoulders, a leather harness with a rune plate on the back.
+    L1.strip('body', lambda c: leather(leather_c)(c) if c.face in ('front', 'back') and c.fx in (1, 6) else None, rows=(0, 7))
+    L1.strip('body', lambda c: iron if c.face == 'front' and c.fx in (1, 6) and c.r == 2 else None)
+    L1.strip('body', lambda c: leather(leather_d)(c) if c.face == 'back' and c.r == 3 else None, rows=(3, 3))
+    belt(L1, 8, leather(leather_d), iron, mul(iron, 1.2), wide=1)
+    L1.strip('arm', S, rows=(0, 5))
+    L1.strip('arm', lambda c: mul(shirt, 0.8) if c.r == 5 else None, rows=(5, 5))
+    L1.strip('arm', leather(hexc('#6b4a2c')), rows=(6, 11))
+    L1.strip('arm', lambda c: mul(hexc('#6b4a2c'), 1.25) if c.r == 6 else None, rows=(6, 6))
+    L1.cap('arm', S)
+    hand(L1, leather(hexc('#4a3220')))
+    # A leather cap: only the top rows, the face stays free (goggles in 3D).
+    L1.strip('head', lambda c: leather(leather_c)(c) if c.r <= 1 else None)
+    L1.strip('head', lambda c: mul(leather_c, 0.7) if c.r == 2 else None, faces=('back', 'right', 'left'))
+    L1.cap('head', leather(leather_c))
+    L1.art('head', 'top', ['........', '........', '...tt...', '...tt...'], {'t': teal}, y=2)
+    # Leggings: dark work trousers with leather knee pads; boots with iron caps.
+    L2.strip('leg', cloth(hexc('#2e3038')))
+    L2.strip('leg', lambda c: leather(leather_c)(c) if c.face == 'front' else None, rows=(5, 7))
+    L2.strip('body', cloth(hexc('#2e3038')), rows=(6, 11))
+    plain_boots(L1, 8, leather(hexc('#3a2a1e')), hexc('#141210'), cuff=leather(hexc('#5a3a22')))
