@@ -2545,9 +2545,34 @@ public final class SiegeManager {
         }
         if (argument.startsWith("reset")) {
             devResetClass(player);
+        } else if (argument.startsWith("gains")) {
+            devResetGains(player, argument.length() > 6 ? argument.substring(6) : "");
         } else {
             devGrant(player, Math.max(1, parseAmount(argument)));
         }
+    }
+
+    /** Creative: the crate gains of one class (or of every class) start over, for testing the crates. */
+    private void devResetGains(ServerPlayer player, String className) {
+        PlayerSkills own = save.skillsOf(player.getUUID().toString());
+        com.mki.nightsiege.core.SkillClass clazz = com.mki.nightsiege.core.SkillClass.byName(className);
+        int removed = 0;
+        if (own.gains != null) {
+            if (clazz == null) {
+                for (java.util.Map<String, Integer> byClass : own.gains.values()) {
+                    removed += byClass == null ? 0 : byClass.size();
+                }
+                own.gains.clear();
+            } else {
+                java.util.Map<String, Integer> byClass = own.gains.remove(clazz.name());
+                removed = byClass == null ? 0 : byClass.size();
+            }
+        }
+        persist();
+        player.sendSystemMessage(Component.translatable("nightsiege.msg.dev_gains_reset", removed,
+                clazz == null ? Component.translatable("nightsiege.ui.all_classes") : Component.translatable(clazz.translationKey()))
+                .withStyle(ChatFormatting.YELLOW));
+        openCoreWindow(player);
     }
 
     /** A player clicked a node in the window. */

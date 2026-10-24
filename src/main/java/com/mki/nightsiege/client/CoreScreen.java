@@ -331,6 +331,14 @@ public class CoreScreen extends Screen {
             addRenderableWidget(Button.builder(grant, b -> send("dev:50")).bounds(footerX, footerY, gw, 18).build());
             addRenderableWidget(Button.builder(wipe, b -> send("dev:reset")).bounds(footerX + gw + 4, footerY, rw, 18).build());
             footerX += gw + rw + 8;
+            if (activeTab == Tab.COLLECTION) {
+                // Creative: start the collection of the shown class over (crate gains for testing).
+                Component gains = Component.translatable("nightsiege.ui.dev_gains");
+                int kw = Math.max(70, font.width(gains) + 12);
+                String clazz = collectionClass();
+                addRenderableWidget(Button.builder(gains, b -> send("dev:gains:" + clazz)).bounds(footerX, footerY, kw, 18).build());
+                footerX += kw + 4;
+            }
         }
         if (stats.classResetAvailable && activeTab == ownTab()) {
             Component label = Component.translatable("nightsiege.ui.class_reset");
