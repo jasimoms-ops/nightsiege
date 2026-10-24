@@ -70,8 +70,8 @@ public class CoreScreen extends Screen {
         GUARDIAN(SkillClass.GUARDIAN, "minecraft:shield", "minecraft:textures/block/polished_andesite.png", 0xFF6FA8FF, "guardian"),
         ENGINEER(SkillClass.ENGINEER, "nightsiege:arrow_turret", "minecraft:textures/block/cut_copper.png", 0xFFF0A040, "engineer"),
         CORE(SkillClass.CORE, "nightsiege:siege_core", "minecraft:textures/block/obsidian.png", 0xFFC88CFF, "core"),
-        COLLECTION(null, "nightsiege:reward_crate", "minecraft:textures/block/dark_oak_planks.png", 0xFFB565FF, "collection"),
-        PERKS(null, "nightsiege:night_fragment_blood", "minecraft:textures/block/amethyst_block.png", 0xFFE0A0FF, "perks");
+        COLLECTION(null, "nightsiege:reward_crate", "minecraft:textures/block/polished_blackstone_bricks.png", 0xFFB565FF, "collection"),
+        PERKS(null, "nightsiege:night_fragment_blood", "minecraft:textures/block/polished_blackstone.png", 0xFFE0A0FF, "perks");
 
         final SkillClass clazz;
         final String icon;
@@ -1677,6 +1677,29 @@ public class CoreScreen extends Screen {
             }
             return;
         }
+        if (activeTab == Tab.COLLECTION || activeTab == Tab.PERKS) {
+            // Vault and altar: dark stone, a warm (gold) or violet glow from the edge.
+            gui.enableScissor(x, y, x + w, y + h);
+            for (int ty = y; ty < y + h; ty += 16) {
+                for (int tx = x; tx < x + w; tx += 16) {
+                    gui.blit(RenderPipelines.GUI_TEXTURED, activeTab.backdrop, tx, ty, 0f, 0f, 16, 16, 16, 16);
+                }
+            }
+            gui.disableScissor();
+            gui.fill(x, y, x + w, y + h, 0xA8000000);
+            int rgb = activeTab == Tab.COLLECTION ? 0xE8B84A : 0x9A5CFF;
+            for (int i = 0; i < 16; i++) {
+                int a = Math.max(0, 0x20 - i * 2);
+                if (activeTab == Tab.COLLECTION) {
+                    gui.fill(x, y + i, x + w, y + i + 1, (a << 24) | rgb);
+                } else {
+                    gui.fill(x, y + h - 1 - i, x + w, y + h - i, (a << 24) | rgb);
+                }
+                gui.fill(x + i, y, x + i + 1, y + h, ((a / 2) << 24) | rgb);
+                gui.fill(x + w - 1 - i, y, x + w - i, y + h, ((a / 2) << 24) | rgb);
+            }
+            return;
+        }
         gui.enableScissor(x, y, x + w, y + h);
         for (int ty = y; ty < y + h; ty += 16) {
             for (int tx = x; tx < x + w; tx += 16) {
@@ -1957,6 +1980,8 @@ public class CoreScreen extends Screen {
 
     /** The collection: every crate gain of one class's kit, by rarity; owned, half or missing. */
     private com.mki.nightsiege.core.CrateGains.Gain drawCollection(GuiGraphicsExtractor gui, Font font, int mouseX, int mouseY) {
+        // The treasure vault: every rarity a shelf, every gain a little showcase that lights
+        // up in its rarity's colour once it is drawn.
         String clazz = collectionClass();
         SkillClass c = SkillClass.byName(clazz);
         java.util.List<com.mki.nightsiege.core.CrateGains.Gain> gains = com.mki.nightsiege.core.CrateGains.forCollection(c);
@@ -1966,55 +1991,120 @@ public class CoreScreen extends Screen {
                 owned++;
             }
         }
-        int x = innerX() + 4;
+        int x = innerX() + 6;
+        int right = innerX() + innerW() - 6;
         int y = innerY() + 23;
         String head = Component.translatable("nightsiege.ui.collection_head",
                 Component.translatable(c.translationKey()), owned, gains.size()).getString();
-        gui.text(font, head, x, y, GOLD, true);
-        y += 12;
-        int labelW = 64;
-        int tileW = Math.max(30, (innerW() - 8 - labelW) / 8);
-        int tileH = 20;
+        gui.text(font, head, x, y, 0xFFFFD86B, true);
+        // Overall progress, a golden bar right of the heading.
+        int barX = x + font.width(head) + 10;
+        if (barX < right - 40) {
+            gui.fill(barX, y + 2, right, y + 7, 0xFF2A2018);
+            gui.fill(barX + 1, y + 3, right - 1, y + 6, 0xFF120E0A);
+            int fill = (right - 2 - barX) * owned / Math.max(1, gains.size());
+            gui.fill(barX + 1, y + 3, barX + 1 + fill, y + 6, 0xFFE8B84A);
+        }
+        y += 13;
+        int labelW = 70;
+        int perRow = 8;
+        int tileW = Math.max(24, (right - x - labelW) / perRow);
+        int box = Math.min(tileW - 3, 24);
+        int shelfH = box + 6;
+        int bottom = innerY() + innerH() - 13;
+        int rows = com.mki.nightsiege.core.CrateRarity.values().length;
+        int step = Math.max(shelfH + 1, Math.min(shelfH + 6, (bottom - y) / rows));
         com.mki.nightsiege.core.CrateGains.Gain hovered = null;
+        long now = System.currentTimeMillis();
         for (com.mki.nightsiege.core.CrateRarity rarity : com.mki.nightsiege.core.CrateRarity.values()) {
-            int color = 0xFF000000 | rarity.color();
-            gui.fill(x, y, x + 2, y + tileH, color);
-            gui.text(font, font.plainSubstrByWidth(Component.translatable(rarity.translationKey()).getString(), labelW - 6),
-                    x + 5, y + 6, color, true);
-            int tx = x + labelW;
+            int rgb = rarity.color() & 0xFFFFFF;
+            int color = 0xFF000000 | rgb;
+            int have = 0;
+            int all = 0;
+            for (com.mki.nightsiege.core.CrateGains.Gain g : gains) {
+                if (g.rarity() == rarity) {
+                    all++;
+                    int st = gainStage(clazz, g.id());
+                    if (g.level(st) > 0 || (g.consumable() && st > 0)) {
+                        have++;
+                    }
+                }
+            }
+            // The plaque on the left.
+            gui.fill(x, y, x + labelW - 6, y + box, 0xC0100C0A);
+            gui.fill(x, y, x + 2, y + box, color);
+            gui.text(font, font.plainSubstrByWidth(Component.translatable(rarity.translationKey()).getString(), labelW - 12),
+                    x + 5, y + 3, color, true);
+            String count = have + "/" + all;
+            smallText(gui, font, count, x + 5, y + box - 8, 0xFFB0A898, 0.7f);
+            int pb = x + 5 + (int) (font.width(count) * 0.7f) + 3;
+            if (pb < x + labelW - 9) {
+                gui.fill(pb, y + box - 6, x + labelW - 9, y + box - 4, 0xFF2A2420);
+                gui.fill(pb, y + box - 6, pb + (x + labelW - 9 - pb) * have / Math.max(1, all), y + box - 4, color);
+            }
+            // The shelf.
+            int sx = x + labelW;
+            gui.fill(sx - 2, y + box + 1, right, y + box + 3, 0xFF5A4028);
+            gui.fill(sx - 2, y + box + 3, right, y + box + 5, 0xFF3B2A1A);
+            gui.fill(sx - 2, y + box + 5, right, y + box + 6, 0x80000000);
+            int tx = sx;
             for (com.mki.nightsiege.core.CrateGains.Gain g : gains) {
                 if (g.rarity() != rarity) {
                     continue;
                 }
-                int stage = gainStage(clazz, g.id());
-                boolean have = g.level(stage) > 0 || (g.consumable() && stage > 0);
-                boolean half = !have && stage > 0;
-                int bg = have ? 0xFF1B1624 : 0xFF110E17;
-                int border = have ? color : half ? 0xFF8A7A50 : 0xFF2A2236;
-                gui.fill(tx, y, tx + tileW - 2, y + tileH, border);
-                gui.fill(tx + 1, y + 1, tx + tileW - 3, y + tileH - 1, bg);
-                gui.item(iconOf(com.mki.nightsiege.core.CrateGains.icon(g.id())), tx + 2, y + 2);
-                if (!have && !half) {
-                    gui.fill(tx + 2, y + 2, tx + 18, y + 18, 0xB0110E17);   // missing: the icon fades
+                if (tx + box > right) {
+                    break;
                 }
-                String mark = !g.ready() ? "…" : have ? (g.topStage() > 1 && !g.twoPulls() ? stage + "/" + g.topStage() : "✔")
-                        : half ? "½" : "";
-                int markColor = !g.ready() ? 0xFF6A6474 : have ? color : 0xFFFFC46B;
-                gui.text(font, mark, tx + 20, y + 6, markColor, true);
-                if (mouseX >= tx && mouseX < tx + tileW - 2 && mouseY >= y && mouseY < y + tileH) {
+                int stage = gainStage(clazz, g.id());
+                boolean got = g.level(stage) > 0 || (g.consumable() && stage > 0);
+                boolean half = !got && stage > 0;
+                boolean over = mouseX >= tx && mouseX < tx + box && mouseY >= y && mouseY < y + box;
+                // The showcase: glass edges, a glow in the rarity colour when drawn.
+                int edge = got ? color : half ? 0xFFC9963A : 0xFF3A3430;
+                if (over) {
+                    edge = 0xFFFFFFFF;
+                }
+                gui.fill(tx, y, tx + box, y + box, edge);
+                gui.fill(tx + 1, y + 1, tx + box - 1, y + box - 1, 0xFF0C0A0E);
+                if (got) {
+                    int pulse = rarity.ordinal() >= 3 ? (int) (24 + 16 * Math.sin(now / 400.0 + tx)) : 28;
+                    gui.fill(tx + 1, y + 1, tx + box - 1, y + box - 1, (pulse << 24) | rgb);
+                    gui.fill(tx + 1, y + 1, tx + box - 1, y + 2, 0x60FFFFFF);
+                }
+                int ix = tx + (box - 16) / 2;
+                int iy = y + (box - 16) / 2;
+                gui.item(iconOf(com.mki.nightsiege.core.CrateGains.icon(g.id())), ix, iy);
+                if (!got && !half) {
+                    gui.fill(tx + 1, y + 1, tx + box - 1, y + box - 1, 0xB80C0A0E);   // not drawn yet: in the dark
+                }
+                if (!g.ready()) {
+                    smallText(gui, font, "…", tx + box - 6, y + 1, 0xFF6A6474, 0.8f);
+                } else if (got && g.topStage() > 1 && !g.twoPulls()) {
+                    String st = stage + "/" + g.topStage();
+                    smallText(gui, font, st, tx + box - 1 - (int) (font.width(st) * 0.6f), y + box - 6, 0xFFFFFFFF, 0.6f);
+                } else if (got) {
+                    smallText(gui, font, "✔", tx + box - 6, y + 1, color, 0.7f);
+                } else if (half) {
+                    smallText(gui, font, "½", tx + box - 6, y + 1, 0xFFFFC46B, 0.7f);
+                }
+                if (over) {
                     hovered = g;
                 }
                 tx += tileW;
-                if (tx + tileW > innerX() + innerW()) {
-                    tx = x + labelW;
-                    y += tileH + 2;
-                }
             }
-            y += tileH + 3;
+            y += step;
         }
         String foot = Component.translatable("nightsiege.ui.collection_foot").getString();
-        gui.text(font, font.plainSubstrByWidth(foot, innerW() - 8), x, innerY() + innerH() - 10, GRAY, false);
+        gui.text(font, font.plainSubstrByWidth(foot, innerW() - 12), x, innerY() + innerH() - 10, 0xFFB0A898, false);
         return hovered;
+    }
+
+    private static void smallText(GuiGraphicsExtractor gui, Font font, String text, int x, int y, int color, float scale) {
+        gui.pose().pushMatrix();
+        gui.pose().translate(x, y);
+        gui.pose().scale(scale, scale);
+        gui.text(font, text, 0, 0, color, true);
+        gui.pose().popMatrix();
     }
 
     private void gainTooltip(GuiGraphicsExtractor gui, Font font, com.mki.nightsiege.core.CrateGains.Gain g, int mouseX, int mouseY) {
@@ -2053,41 +2143,81 @@ public class CoreScreen extends Screen {
     }
 
     private void drawPerks(GuiGraphicsExtractor gui, Font font) {
-        int x = innerX() + 6;
-        int y = innerY() + 5;
+        // The ritual altar: an inscription on top, the six fragments as rune tablets,
+        // the one in the core glowing in its colour.
         com.mki.nightsiege.core.NightFragment set = com.mki.nightsiege.core.NightFragment.byName(stats.nightFragment);
+        int x = innerX() + 8;
+        int w = innerW() - 16;
+        int y = innerY() + 6;
         String head = set == null
                 ? Component.translatable("nightsiege.ui.fragment_none").getString()
                 : Component.translatable("nightsiege.ui.fragment_set",
                         Component.translatable("item.nightsiege.night_fragment_" + set.id()),
                         Component.translatable("nightsiege.event." + set.event().name().toLowerCase(Locale.ROOT))).getString();
-        for (String line : wrap(font, head, innerW() - 12)) {
-            gui.text(font, line, x, y, set == null ? GRAY : 0xFFE0A0FF, true);
-            y += 10;
+        List<String> headLines = wrap(font, head, w - 16);
+        int plateH = headLines.size() * 10 + 8;
+        int accent = set == null ? 0xFF8A70B8 : set.color();
+        gui.fill(x, y, x + w, y + plateH, 0xD0100C16);
+        gui.fill(x, y, x + w, y + 1, accent);
+        gui.fill(x, y + plateH - 1, x + w, y + plateH, 0x60000000);
+        int ty = y + 5;
+        for (String line : headLines) {
+            gui.text(font, line, x + 8, ty, set == null ? 0xFFC8BCD8 : 0xFFF0E0FF, true);
+            ty += 10;
         }
-        int rowY = y + 4;
-        int w = innerW() - 12;
-        int rowH = Math.max(20, Math.min(30, (innerY() + innerH() - 4 - rowY) / 6));
-        for (com.mki.nightsiege.core.NightFragment fragment : com.mki.nightsiege.core.NightFragment.values()) {
-            int color = fragment.color();
+        int gridY = y + plateH + 6;
+        int cols = 3;
+        int gap = 6;
+        int tabW = (w - (cols - 1) * gap) / cols;
+        int tabH = Math.max(40, (innerY() + innerH() - 4 - gridY - gap) / 2);
+        long now = System.currentTimeMillis();
+        com.mki.nightsiege.core.NightFragment[] all = com.mki.nightsiege.core.NightFragment.values();
+        for (int i = 0; i < all.length; i++) {
+            com.mki.nightsiege.core.NightFragment fragment = all[i];
+            int tx = x + (i % cols) * (tabW + gap);
+            int tyy = gridY + (i / cols) * (tabH + gap);
+            int color = fragment.color() | 0xFF000000;
+            int rgb = color & 0xFFFFFF;
             boolean chosen = fragment == set;
-            gui.fill(x, rowY, x + w, rowY + rowH - 3, chosen ? 0xE0241C30 : 0xC0121116);
-            gui.fill(x, rowY, x + 2, rowY + rowH - 3, color);
-            gui.fill(x, rowY, x + w, rowY + 1, chosen ? color : 0x40FFFFFF);
-            gui.item(iconOf("nightsiege:night_fragment_" + fragment.id()), x + 6, rowY + (rowH - 3 - 16) / 2);
+            if (chosen) {
+                int glow = (int) (60 + 40 * Math.sin(now / 350.0));
+                gui.fill(tx - 2, tyy - 2, tx + tabW + 2, tyy + tabH + 2, (glow << 24) | rgb);
+            }
+            // The stone tablet with its rune edge.
+            gui.fill(tx, tyy, tx + tabW, tyy + tabH, chosen ? color : 0xFF2A2533);
+            gui.fill(tx + 1, tyy + 1, tx + tabW - 1, tyy + tabH - 1, 0xF0141119);
+            gui.fill(tx + 1, tyy + 1, tx + tabW - 1, tyy + 3, (0x90 << 24) | rgb);
+            for (int k = 0; k < 6; k++) {
+                gui.fill(tx + 1, tyy + 3 + k, tx + tabW - 1, tyy + 4 + k, ((0x22 - k * 5) << 24) | rgb);
+            }
+            // The socket with the fragment.
+            int sx = tx + 6;
+            int sy = tyy + 8;
+            gui.fill(sx + 1, sy, sx + 21, sy + 22, 0xFF0A080E);
+            gui.fill(sx, sy + 1, sx + 22, sy + 21, 0xFF0A080E);
+            gui.fill(sx + 2, sy + 2, sx + 20, sy + 20, (0x30 << 24) | rgb);
+            gui.item(iconOf("nightsiege:night_fragment_" + fragment.id()), sx + 3, sy + 3);
+            int textX = sx + 26;
+            int textW = tx + tabW - 4 - textX;
             String name = Component.translatable("item.nightsiege.night_fragment_" + fragment.id()).getString();
-            gui.text(font, name, x + 28, rowY + 3, color, true);
+            gui.text(font, font.plainSubstrByWidth(name, textW), textX, sy + 1, color, true);
             String event = "→ " + Component.translatable("nightsiege.event." + fragment.event().name().toLowerCase(Locale.ROOT)).getString();
-            gui.text(font, event, x + 28 + Math.max(90, font.width(name) + 8), rowY + 3, WHITE, true);
-            if (rowH >= 24) {
-                String where = Component.translatable("nightsiege.ui.fragment_where." + fragment.id()).getString();
-                gui.text(font, font.plainSubstrByWidth(where, w - 34), x + 28, rowY + 13, GRAY, true);
+            gui.text(font, font.plainSubstrByWidth(event, textW), textX, sy + 12, WHITE, true);
+            String where = Component.translatable("nightsiege.ui.fragment_where." + fragment.id()).getString();
+            int wy = sy + 26;
+            for (String line : wrap(font, where, (int) ((tabW - 12) / 0.7f))) {
+                if (wy + 7 > tyy + tabH - 3) {
+                    break;
+                }
+                smallText(gui, font, line, tx + 6, wy, 0xFF9A90AA, 0.7f);
+                wy += 7;
             }
             if (chosen) {
-                String mark = "★";
-                gui.text(font, mark, x + w - 10 - font.width(mark), rowY + 3, 0xFFFFD86B, true);
+                String mark = "★ " + Component.translatable("nightsiege.ui.fragment_in_core").getString();
+                int mw = (int) (font.width(mark) * 0.7f);
+                gui.fill(tx + tabW - mw - 8, tyy + 4, tx + tabW - 2, tyy + 13, 0xE0100C16);
+                smallText(gui, font, mark, tx + tabW - mw - 5, tyy + 6, 0xFFFFD86B, 0.7f);
             }
-            rowY += rowH;
         }
     }
 

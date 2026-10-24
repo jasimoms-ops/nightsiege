@@ -625,6 +625,39 @@ public final class SkillTree {
         });
     }
 
+    /**
+     * Points a class costs in all, on the way the player has started (or the first one):
+     * the tree is filled up on a copy of their levels and the cost added up.
+     */
+    public int pointsToComplete(PlayerSkills skills, SkillClass clazz) {
+        if (skills == null || clazz == null || clazz.isShared()) {
+            return 0;
+        }
+        PlayerSkills copy = new PlayerSkills();
+        copy.chosenClass = clazz.name();
+        for (SkillNode node : ofClass(clazz)) {
+            int level = skills.levelIn(clazz, node.id());
+            if (level > 0) {
+                copy.levels.put(node.id(), level);
+            }
+        }
+        copy.award(1_000_000);
+        List<SkillNode> own = ofClass(clazz);
+        for (int guard = 0; guard < 2000 && !isComplete(copy, clazz); guard++) {
+            boolean any = false;
+            for (SkillNode node : own) {
+                if (copy.levelOf(node.id()) < node.maxLevel() && unlock(node.id(), copy)) {
+                    any = true;
+                    break;
+                }
+            }
+            if (!any) {
+                break;
+            }
+        }
+        return pointsSpent(copy, clazz);
+    }
+
     /** Points put into one class (its levels must be the played ones, see {@link PlayerSkills#as}). */
     public int pointsSpent(PlayerSkills skills, SkillClass clazz) {
         int sum = 0;

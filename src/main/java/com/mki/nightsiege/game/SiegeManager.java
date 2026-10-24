@@ -576,17 +576,31 @@ public final class SiegeManager {
         }
     }
 
-    /** Opens the class window for one defender (if they have more than one class to choose from). */
+    /**
+     * Opens the class window for one defender: always, also with only one class (then it
+     * shows the kit, the team and what the other classes still need).
+     */
     private void sendClassPick(ServerPlayer player, int seconds) {
+        sendClassPick(player, seconds, "classpick");
+    }
+
+    /** Sends the window ("classpick" opens it, "classpick_update" only refreshes an open one). */
+    private void sendClassPick(ServerPlayer player, int seconds, String kind) {
         PlayerSkills own = save.skillsOf(player.getUUID().toString());
-        if (!own.hasClass() || own.unlockedClasses().size() < 2
-                || !ServerPlayNetworking.canSend(player, CoreNetworking.ScreenPayload.TYPE)) {
+        if (!own.hasClass() || !ServerPlayNetworking.canSend(player, CoreNetworking.ScreenPayload.TYPE)) {
             return;
         }
         com.mki.nightsiege.core.ClassPickData data = new com.mki.nightsiege.core.ClassPickData();
         data.play = own.chosenClass;
         data.seconds = seconds;
         data.level = levelForKit();
+        data.test = pendingTest != null;
+        SiegeEvent tonight = pendingTest != null ? pendingTest.event : pendingEvent();
+        data.event = tonight == null || tonight == SiegeEvent.NONE ? "" : tonight.name();
+        data.accepts = acceptedCount();
+        data.required = config.requiredAccepts;
+        data.leveling = own.levelingClass() == null ? "" : own.levelingClass().name();
+        data.nextOpen = mayOpenNextClass(own);
         for (SkillClass c : SkillClass.values()) {
             if (c.isShared()) {
                 continue;
@@ -600,6 +614,14 @@ public final class SiegeManager {
                 entry.way = own.as(c, () -> own.pathTaken(skillTree));
                 entry.subclass = own.as(c, () -> skillTree.subclassOf(own));
                 entry.spent = own.as(c, () -> skillTree.pointsSpent(own, c));
+                entry.total = skillTree.pointsToComplete(own, c);
+                if (config.nightKits) {
+                    try {
+                        entry.kit = own.as(c, () -> kits.preview(player, own, data.level));
+                    } catch (RuntimeException e) {
+                        NightSiegeMod.LOGGER.warn("[Night Siege] Kit-Vorschau {} fehlgeschlagen: {}", c, e.toString());
+                    }
+                }
             }
             data.classes.add(entry);
         }
@@ -612,12 +634,31 @@ public final class SiegeManager {
             if (isRegistered(other) && (openNight || pendingTest != null
                     || (save.accepted != null && save.accepted.contains(oid)))) {
                 PlayerSkills os = save.skillsOf(oid);
-                data.team.add(new com.mki.nightsiege.core.ClassPickData.Mate(other.getScoreboardName(),
-                        os.chosenClass == null ? "" : os.chosenClass));
+                com.mki.nightsiege.core.ClassPickData.Mate mate = new com.mki.nightsiege.core.ClassPickData.Mate(
+                        other.getScoreboardName(), os.chosenClass == null ? "" : os.chosenClass);
+                mate.self = other == player;
+                mate.ready = !classPicking.contains(other.getUUID()) && !mate.self;
+                data.team.add(mate);
             }
         }
-        classPicking.add(player.getUUID());
-        ServerPlayNetworking.send(player, new CoreNetworking.ScreenPayload("classpick", Json.toJson(data)));
+        if ("classpick".equals(kind)) {
+            classPicking.add(player.getUUID());
+        }
+        ServerPlayNetworking.send(player, new CoreNetworking.ScreenPayload(kind, Json.toJson(data)));
+    }
+
+    /** Someone confirmed a class: the others with the window open see it at once. */
+    private void refreshClassPicks(MinecraftServer server) {
+        if (server == null) {
+            return;
+        }
+        int seconds = secondsToStart(server);
+        for (UUID id : new ArrayList<>(classPicking)) {
+            ServerPlayer other = server.getPlayerList().getPlayer(id);
+            if (other != null) {
+                sendClassPick(other, seconds, "classpick_update");
+            }
+        }
     }
 
     // ------------------------------------------------------------------
@@ -2734,6 +2775,7 @@ public final class SiegeManager {
         if (classPicking.remove(player.getUUID())) {
             // Chosen in the window before the night: no core window on top, just the new name tag.
             ClassTags.update(player.level().getServer(), player, own, skillTree.subclassOf(own));
+            refreshClassPicks(player.level().getServer());
             return;
         }
         openCoreWindow(player);

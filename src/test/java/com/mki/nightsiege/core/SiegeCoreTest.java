@@ -785,6 +785,32 @@ class SiegeCoreTest {
     }
 
     @Test
+    void theClassWindowKnowsWhatAClassCostsInAll() {
+        SkillTree tree = new SkillTree();
+        PlayerSkills fresh = new PlayerSkills();
+        fresh.chosenClass = SkillClass.GUARDIAN.name();
+        int total = tree.pointsToComplete(fresh, SkillClass.GUARDIAN);
+        assertTrue(total > 50, "total " + total);
+        // Filling the tree for real costs exactly that.
+        fresh.award(total);
+        for (int guard = 0; guard < 2000 && !tree.isComplete(fresh, SkillClass.GUARDIAN); guard++) {
+            boolean any = false;
+            for (SkillNode node : tree.ofClass(SkillClass.GUARDIAN)) {
+                if (fresh.levelOf(node.id()) < node.maxLevel() && tree.unlock(node.id(), fresh)) {
+                    any = true;
+                    break;
+                }
+            }
+            if (!any) {
+                break;
+            }
+        }
+        assertTrue(tree.isComplete(fresh, SkillClass.GUARDIAN));
+        assertEquals(total, tree.pointsSpent(fresh, SkillClass.GUARDIAN));
+        assertEquals(total, tree.pointsToComplete(fresh, SkillClass.GUARDIAN));
+    }
+
+    @Test
     void everythingWithAKeySaysWhichOne() {
         SkillTree tree = new SkillTree();
         int ults = 0;

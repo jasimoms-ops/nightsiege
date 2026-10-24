@@ -263,19 +263,99 @@ public final class KitService {
     // the kit itself
     // ------------------------------------------------------------------
 
+    /** The pieces of one kit: armour (head to feet), the off hand (or empty) and everything else. */
+    public record Kit(ItemStack[] armor, ItemStack offhand, List<ItemStack> items) {
+    }
+
     /** Hands out the kit of the class the player plays, at the night's level, with the crate gains. */
     private void give(ServerPlayer player, int level) {
         PlayerSkills skills = save.get().skillsOf(player.getUUID().toString());
         SkillClass clazz = skills.clazz();
+        Inventory inv = player.getInventory();
+        Kit kit = build(player, skills, level);
+        EquipmentSlot[] slots = {EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET};
+        for (int i = 0; i < 4; i++) {
+            player.setItemSlot(slots[i], mark(kit.armor()[i]));
+        }
+        if (!kit.offhand().isEmpty()) {
+            player.setItemSlot(EquipmentSlot.OFFHAND, mark(kit.offhand()));
+        }
+        for (ItemStack stack : kit.items()) {
+            inv.placeItemBackInInventory(mark(stack));
+        }
+
+        // Traps and the remote, as before (topped up to the free amount).
+        if (clazz == SkillClass.ENGINEER) {
+            traps.giveFreeTraps(player);
+            if (gainLevel(skills, clazz, "notfallmine") > 0 && ModContent.TRAP_ITEMS.get(TrapKind.MINE) != null
+                    && tree.trapTier(TrapKind.MINE, skills) > 0) {
+                inv.placeItemBackInInventory(new ItemStack(ModContent.TRAP_ITEMS.get(TrapKind.MINE), 1));
+            }
+        } else {
+            traps.giveRemote(player, skills);
+        }
+    }
+
+    /**
+     * The kit a player would get tonight with the class they play (see {@link PlayerSkills#as}),
+     * for the class window: every item as JSON, the engineer's traps and remote included.
+     */
+    public List<String> preview(ServerPlayer player, PlayerSkills skills, int level) {
+        List<ItemStack> all = new ArrayList<>();
+        Kit kit = build(player, skills, level);
+        all.addAll(java.util.Arrays.asList(kit.armor()));
+        if (!kit.offhand().isEmpty()) {
+            all.add(kit.offhand());
+        }
+        all.addAll(kit.items());
+        if (skills.clazz() == SkillClass.ENGINEER) {
+            for (java.util.Map.Entry<TrapKind, Integer> e : traps.freeTrapCounts(skills).entrySet()) {
+                Item trap = ModContent.TRAP_ITEMS.get(e.getKey());
+                if (trap != null && e.getValue() > 0) {
+                    all.add(new ItemStack(trap, e.getValue()));
+                }
+            }
+            if (ModContent.REMOTE != null) {
+                all.add(new ItemStack(ModContent.REMOTE));
+            }
+        }
+        // Same items stack together (the potions, arrows in several stacks).
+        List<ItemStack> merged = new ArrayList<>();
+        for (ItemStack stack : all) {
+            boolean joined = false;
+            for (ItemStack have : merged) {
+                if (ItemStack.isSameItemSameComponents(have, stack)) {
+                    have.grow(stack.getCount());
+                    joined = true;
+                    break;
+                }
+            }
+            if (!joined) {
+                merged.add(stack.copy());
+            }
+        }
+        List<String> out = new ArrayList<>();
+        for (ItemStack stack : merged) {
+            String json = encode(mark(stack), player.level().registryAccess());
+            if (!json.isEmpty()) {
+                out.add(json);
+            }
+        }
+        return out;
+    }
+
+    /** Builds the kit of the class the player plays, without handing anything out. */
+    private Kit build(ServerPlayer player, PlayerSkills skills, int level) {
+        SkillClass clazz = skills.clazz();
         String way = skills.pathTaken(tree);
         HolderLookup.RegistryLookup<Enchantment> ench = player.level().registryAccess().lookupOrThrow(Registries.ENCHANTMENT);
-        Inventory inv = player.getInventory();
+        ItemStack[] armor = new ItemStack[4];
+        ItemStack offhand = ItemStack.EMPTY;
 
         // Armour.
         int protection = NightKit.plusOne(NightKit.protection(level), gainLevel(skills, clazz, "schutz"), 4);
         int projectile = gainLevel(skills, clazz, "projektilschutz") > 0 ? protection : 0;
         boolean belt = gainLevel(skills, clazz, "kriegsgurt") > 0;
-        EquipmentSlot[] slots = {EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET};
         String[] pieces = {"helmet", "chestplate", "leggings", "boots"};
         for (int i = 0; i < 4; i++) {
             ItemStack piece = new ItemStack(item(NightKit.armor(level, i), pieces[i]));
@@ -291,7 +371,7 @@ public final class KitService {
             if (i == 3 && gainLevel(skills, clazz, "sprungstiefel") > 0) {
                 Gadgets.setFlag(piece, Gadgets.DOUBLE_JUMP);   // jump boots: a second jump in the air
             }
-            player.setItemSlot(slots[i], mark(piece));
+            armor[i] = piece;
         }
 
         NightKit.Material weapon = NightKit.weapon(level);
@@ -344,7 +424,7 @@ public final class KitService {
             hotbar.add(sword(ench, weapon, sharp));
             ItemStack shield = new ItemStack(weapon == NightKit.Material.INFERNITE ? gear("infernite_shield", Items.SHIELD) : Items.SHIELD);
             GainGear.decorateShield(shield, gainLevel(skills, clazz, "turmschild") > 0, gainLevel(skills, clazz, "leichtschild") > 0);
-            player.setItemSlot(EquipmentSlot.OFFHAND, mark(shield));
+            offhand = shield;
             int potions = (way.equals(SkillTree.WAY_BLESSING) ? 2 : 0) + gainLevel(skills, clazz, "verbandskasten");
             for (int i = 0; i < potions; i++) {
                 hotbar.add(PotionContents.createItemStack(Items.POTION, Potions.STRONG_HEALING));
@@ -384,20 +464,7 @@ public final class KitService {
             hotbar.add(new ItemStack(Items.LADDER, 8));
         }
         GainGear.addKitItems(this, skills, clazz, way, hotbar);
-        for (ItemStack stack : hotbar) {
-            inv.placeItemBackInInventory(mark(stack));
-        }
-
-        // Traps and the remote, as before (topped up to the free amount).
-        if (clazz == SkillClass.ENGINEER) {
-            traps.giveFreeTraps(player);
-            if (gainLevel(skills, clazz, "notfallmine") > 0 && ModContent.TRAP_ITEMS.get(TrapKind.MINE) != null
-                    && tree.trapTier(TrapKind.MINE, skills) > 0) {
-                inv.placeItemBackInInventory(new ItemStack(ModContent.TRAP_ITEMS.get(TrapKind.MINE), 1));
-            }
-        } else {
-            traps.giveRemote(player, skills);
-        }
+        return new Kit(armor, offhand, hotbar);
     }
 
     private ItemStack warriorWeapon(PlayerSkills skills, SkillClass clazz, HolderLookup.RegistryLookup<Enchantment> ench,
@@ -488,7 +555,7 @@ public final class KitService {
     // item <-> text
     // ------------------------------------------------------------------
 
-    static String encode(ItemStack stack, HolderLookup.Provider regs) {
+    public static String encode(ItemStack stack, HolderLookup.Provider regs) {
         if (stack == null || stack.isEmpty()) {
             return "";
         }
@@ -501,7 +568,7 @@ public final class KitService {
         }
     }
 
-    static ItemStack decode(String json, HolderLookup.Provider regs) {
+    public static ItemStack decode(String json, HolderLookup.Provider regs) {
         if (json == null || json.isEmpty()) {
             return ItemStack.EMPTY;
         }

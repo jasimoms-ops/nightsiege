@@ -81,6 +81,12 @@ public class NightSiegeClient implements ClientModInitializer {
                         if (data != null) {
                             client.setScreenAndShow(new ClassPickScreen(data));
                         }
+                    } else if ("classpick_update".equals(payload.kind())) {
+                        com.mki.nightsiege.core.ClassPickData data =
+                                Json.fromJson(payload.json(), com.mki.nightsiege.core.ClassPickData.class);
+                        if (data != null && client.gui.screen() instanceof ClassPickScreen open) {
+                            open.update(data);
+                        }
                     } else if ("crate".equals(payload.kind())) {
                         com.mki.nightsiege.core.CrateRoll roll =
                                 Json.fromJson(payload.json(), com.mki.nightsiege.core.CrateRoll.class);

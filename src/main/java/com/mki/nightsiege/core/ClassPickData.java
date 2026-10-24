@@ -15,12 +15,20 @@ public class ClassPickData {
         public String way = "";
         public String subclass = "";
         public int spent;
+        /** Points the whole class costs on the way taken (0 = unknown). */
+        public int total;
+        /** The kit tonight with this class: every item as JSON (empty for locked classes). */
+        public List<String> kit = new ArrayList<>();
     }
 
     /** A fellow defender and the class they play. */
     public static class Mate {
         public String name = "";
         public String play = "";
+        /** Has confirmed a class in the window (or never had to). */
+        public boolean ready;
+        /** The player looking at the window. */
+        public boolean self;
 
         public Mate() {
         }
@@ -34,6 +42,16 @@ public class ClassPickData {
     public String play = "";
     public int seconds;
     public int level;
+    /** Tonight's event (SiegeEvent name), empty when unknown or none. */
+    public String event = "";
+    /** A test night (no invitations). */
+    public boolean test;
+    /** Accepted invitations and how many are needed (real nights). */
+    public int accepts;
+    public int required;
+    /** The class being levelled (for the text on locked cards) and whether the next one may open. */
+    public String leveling = "";
+    public boolean nextOpen;
     /** Armour material of the kit tonight (IRON, DIAMOND, NETHERITE, INFERNITE). */
     public String armor = "";
     public int protection;

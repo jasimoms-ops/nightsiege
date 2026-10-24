@@ -282,6 +282,23 @@ public final class TrapService {
     }
 
     /** Hands an engineer their free traps for the night. */
+    /** The free traps of one night for these skills (without looking at what the player already has). */
+    public java.util.Map<TrapKind, Integer> freeTrapCounts(PlayerSkills skills) {
+        java.util.Map<TrapKind, Integer> out = new java.util.EnumMap<>(TrapKind.class);
+        for (TrapKind kind : TrapKind.values()) {
+            int tier = tree.trapTier(kind, skills);
+            int count = kind.freePerSiege(tier);
+            if (count == 0 && tier > 0 && tree.grantedTower(kind, skills)) {
+                count = 1;
+            }
+            if (count > 0) {
+                count += (int) Math.round(tree.totalBonus(SkillEffect.FREE_TRAPS, skills));
+                out.put(kind, Math.min(count, maxFor(kind, tier, skills)));
+            }
+        }
+        return out;
+    }
+
     public void giveFreeTraps(ServerPlayer player) {
         PlayerSkills skills = save.get().skillsOf(player.getUUID().toString());
         int total = 0;
