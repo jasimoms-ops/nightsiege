@@ -753,6 +753,9 @@ public class EventLookTest implements FabricClientGameTest {
         int cz = pos.getZ() + 120;
         // On the server, with the chunk loaded: the client does not know chunks this far away
         // (its height there was the bottom of the world, so the yard was buried).
+        // Fill and setblock only work in loaded chunks: keep the whole yard loaded for the scene.
+        game.getServer().runCommand("forceload add %d %d %d %d".formatted(cx - 40, cz - 40, cx + 40, cz + 40));
+        context.waitTicks(40);
         final int[] ground = new int[1];
         onServer(context, (player, manager) -> {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
@@ -846,6 +849,7 @@ public class EventLookTest implements FabricClientGameTest {
             manager.config().sapperFromLevel = beforeInt[0];
             manager.config().batchIntervalSeconds = beforeInt[1];
         });
+        game.getServer().runCommand("forceload remove all");
         game.getServer().runCommand("time set 6000");
         game.getServer().runCommand("effect clear @p");
         game.getServer().runCommand("gamemode creative @p");
