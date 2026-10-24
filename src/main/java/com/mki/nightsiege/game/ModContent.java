@@ -81,6 +81,7 @@ public final class ModContent {
         InferniteContent.register();
         DungeonContent.register();
         CrateService.registerItem();
+        KitProjectile.register();
 
         // Everything the mod adds lives on its own creative page.
         ResourceKey<CreativeModeTab> tabKey = ResourceKey.create(Registries.CREATIVE_MODE_TAB, id("general"));

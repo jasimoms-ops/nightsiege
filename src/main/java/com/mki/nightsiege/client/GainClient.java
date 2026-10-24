@@ -1,0 +1,74 @@
+package com.mki.nightsiege.client;
+
+import com.mki.nightsiege.game.CoreNetworking;
+import com.mki.nightsiege.game.Gadgets;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.phys.Vec3;
+import org.lwjgl.glfw.GLFW;
+
+/**
+ * The client side of the crate gains: the second-ult key (X), the quiver key (G)
+ * and the double jump of the jump boots. The scope lives in a mixin.
+ */
+public final class GainClient {
+
+    private static KeyMapping secondUltKey;
+    private static KeyMapping quiverKey;
+    private static boolean jumpWasDown;
+    private static boolean doubleJumpUsed;
+
+    private GainClient() {
+    }
+
+    public static void init(KeyMapping.Category category) {
+        secondUltKey = KeyMappingHelper.registerKeyMapping(
+                new KeyMapping("key.nightsiege.second_ult", GLFW.GLFW_KEY_X, category));
+        quiverKey = KeyMappingHelper.registerKeyMapping(
+                new KeyMapping("key.nightsiege.quiver", GLFW.GLFW_KEY_G, category));
+        ClientTickEvents.END_CLIENT_TICK.register(GainClient::tick);
+    }
+
+    private static void send(String action) {
+        if (ClientPlayNetworking.canSend(CoreNetworking.CoreActionPayload.TYPE)) {
+            ClientPlayNetworking.send(new CoreNetworking.CoreActionPayload(action));
+        }
+    }
+
+    private static void tick(Minecraft client) {
+        while (secondUltKey.consumeClick()) {
+            send("ult2");
+        }
+        while (quiverKey.consumeClick()) {
+            send("quiver");
+        }
+        LocalPlayer player = client.player;
+        if (player == null) {
+            jumpWasDown = false;
+            return;
+        }
+        boolean down = client.options.keyJump.isDown();
+        if (player.onGround() || player.isInWater() || player.onClimbable() || player.getAbilities().flying
+                || player.isPassenger()) {
+            doubleJumpUsed = false;
+        } else if (down && !jumpWasDown && !doubleJumpUsed && client.gui.screen() == null
+                && Gadgets.flag(player.getItemBySlot(EquipmentSlot.FEET), Gadgets.DOUBLE_JUMP)) {
+            doubleJumpUsed = true;
+            Vec3 v = player.getDeltaMovement();
+            player.setDeltaMovement(v.x * 1.1, 0.55, v.z * 1.1);
+            player.resetFallDistance();
+            for (int i = 0; i < 8; i++) {
+                player.level().addParticle(ParticleTypes.CLOUD, player.getX() + (Math.random() - 0.5) * 0.6,
+                        player.getY(), player.getZ() + (Math.random() - 0.5) * 0.6, 0, -0.05, 0);
+            }
+            send("jump");
+        }
+        jumpWasDown = down;
+    }
+}

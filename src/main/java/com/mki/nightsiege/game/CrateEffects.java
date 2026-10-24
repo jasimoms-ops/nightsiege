@@ -62,6 +62,11 @@ public final class CrateEffects {
         return m.kits().gainLevel(own, own.clazz(), gain) > 0;
     }
 
+    /** The working level of a crate gain for a defender of the running night (0 otherwise). */
+    public static int gainLevel(ServerPlayer player, String gain) {
+        return level(player, gain);
+    }
+
     private static int level(ServerPlayer player, String gain) {
         SiegeManager m = SiegeManager.get();
         if (m == null || player == null || !m.isDefending(player)) {
@@ -73,6 +78,9 @@ public final class CrateEffects {
 
     /** Feather fall: no fall damage in the night. Returns false to cancel the damage. */
     public static boolean allowDamage(LivingEntity victim, DamageSource source) {
+        if (!SecondUlts.allowDamage(victim, source)) {
+            return false;   // the mirror shield turns projectiles
+        }
         return !(victim instanceof ServerPlayer player && source.is(DamageTypeTags.IS_FALL) && has(player, "federleicht"));
     }
 
@@ -92,7 +100,7 @@ public final class CrateEffects {
                 factor *= 0.5f;
             }
         }
-        return factor;
+        return factor * GainGear.damageFactor(victim, source);
     }
 
     /** True when a blocking guardian with the cover gain stands between the attacker and the player. */

@@ -27,6 +27,9 @@ import java.util.UUID;
  */
 public final class Digger {
 
+    /** Extra dig time for some blocks (steel turrets from the crates hold twice as long). */
+    public static java.util.function.ToDoubleBiFunction<ServerLevel, BlockPos> hardness = (level, pos) -> 1.0;
+
     /** How far from the anchor a mob stops digging, because it has arrived. */
     private static final double ARRIVED_DISTANCE_SQ = 9.0;
 
@@ -99,7 +102,7 @@ public final class Digger {
                 state.ticks = 0;
             }
             state.ticks += elapsedTicks;
-            if (state.ticks >= cfg.digTicksPerBlock * slowdown) {
+            if (state.ticks >= cfg.digTicksPerBlock * slowdown * hardness.applyAsDouble(world, target)) {
                 world.destroyBlock(target, false);
                 broken++;
                 state.target = null;

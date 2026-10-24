@@ -55,87 +55,87 @@ public final class CrateGains {
         add("baukiste", null, CrateRarity.UNCOMMON, 1, false, "", true);
         add("heiltrank", null, CrateRarity.UNCOMMON, 2, false, "", true);
         add("wurfperlen", null, CrateRarity.UNCOMMON, 1, false, "", true);
-        add("wurfspeere", null, CrateRarity.UNCOMMON, 1, false, "", false);
-        add("sprungstiefel", null, CrateRarity.RARE, 1, false, "", false);
+        add("wurfspeere", null, CrateRarity.UNCOMMON, 1, false, "", true);
+        add("sprungstiefel", null, CrateRarity.RARE, 1, false, "", true);
         add("amulett", null, CrateRarity.RARE, 1, false, "", true);
         addConsumable("glueck", null, CrateRarity.RARE);
         add("totem", null, CrateRarity.EPIC, 1, false, "", true);
-        add("kletterhaken", null, CrateRarity.EPIC, 1, false, "", false);
+        add("kletterhaken", null, CrateRarity.EPIC, 1, false, "", true);
         add("federleicht", null, CrateRarity.EPIC, 1, false, "", true);
         add("zweite_chance", null, CrateRarity.EPIC, 1, false, "", true);
-        add("kriegsbanner", null, CrateRarity.LEGENDARY, 1, false, "", false);
+        add("kriegsbanner", null, CrateRarity.LEGENDARY, 1, false, "", true);
 
         // ---- warrior ----
         SkillClass w = SkillClass.WARRIOR;
         add("schaerfe", w, CrateRarity.COMMON, 1, true, "", true);
-        add("wurfbeile", w, CrateRarity.COMMON, 3, false, "", false);
+        add("wurfbeile", w, CrateRarity.COMMON, 3, false, "", true);
         add("gestaehlt", w, CrateRarity.COMMON, 1, false, "", true);
         add("pluenderung", w, CrateRarity.UNCOMMON, 1, true, "", true);
         add("schwung", w, CrateRarity.UNCOMMON, 1, true, "", true);
         add("kriegsgurt", w, CrateRarity.UNCOMMON, 1, false, "", true);
         add("feuerklinge", w, CrateRarity.RARE, 1, false, "", true);
         add("blitzklinge", w, CrateRarity.RARE, 1, false, "", true);
-        add("kampfhorn", w, CrateRarity.RARE, 1, false, "", false);
+        add("kampfhorn", w, CrateRarity.RARE, 1, false, "", true);
         add("ersatzwaffe_w", w, CrateRarity.RARE, 1, false, "", true);
         add("zweihaender", w, CrateRarity.EPIC, 1, false, "", true);
         add("hinrichter", w, CrateRarity.EPIC, 1, false, "", true);
         add("kampfrausch", w, CrateRarity.EPIC, 1, false, "", true);
-        add("schlachtentrance", w, CrateRarity.LEGENDARY, 1, false, "", false);
-        add("wegtausch_w", w, CrateRarity.LEGENDARY, 1, false, "", false);
+        add("schlachtentrance", w, CrateRarity.LEGENDARY, 1, false, "", true);
+        add("wegtausch_w", w, CrateRarity.LEGENDARY, 1, false, "", true);
 
         // ---- archer ----
         SkillClass a = SkillClass.ARCHER;
         add("koecherfuellung", a, CrateRarity.COMMON, 4, false, "", true);
         add("staerke", a, CrateRarity.COMMON, 1, true, SkillTree.WAY_BOW, true);
         add("schnellladen", a, CrateRarity.COMMON, 1, true, SkillTree.WAY_CROSSBOW, true);
-        add("lichtpfeile", a, CrateRarity.UNCOMMON, 1, false, "", false);
+        add("lichtpfeile", a, CrateRarity.UNCOMMON, 1, false, "", true);
         add("spektralpfeile", a, CrateRarity.UNCOMMON, 1, false, "", true);
-        add("zielfernrohr", a, CrateRarity.UNCOMMON, 1, false, "", false);
-        add("kletterpfeile", a, CrateRarity.RARE, 1, false, "", false);
-        add("sturmpfeile", a, CrateRarity.RARE, 1, false, "", false);
+        add("zielfernrohr", a, CrateRarity.UNCOMMON, 1, false, "", true);
+        add("kletterpfeile", a, CrateRarity.RARE, 1, false, "", true);
+        add("sturmpfeile", a, CrateRarity.RARE, 1, false, "", true);
         add("ersatzwaffe_a", a, CrateRarity.RARE, 1, false, "", true);
-        add("tarnumhang", a, CrateRarity.RARE, 1, false, "", false);
-        add("koecher", a, CrateRarity.EPIC, 1, false, "", false);
+        add("tarnumhang", a, CrateRarity.RARE, 1, false, "", true);
+        add("koecher", a, CrateRarity.EPIC, 1, false, "", true);
         add("adlerfeder", a, CrateRarity.EPIC, 1, false, "", true);
-        add("lenkpfeile", a, CrateRarity.EPIC, 1, false, "", false);
-        add("lockpfeil", a, CrateRarity.LEGENDARY, 1, false, "", false);
-        add("wegtausch_a", a, CrateRarity.LEGENDARY, 1, false, "", false);
+        add("lenkpfeile", a, CrateRarity.EPIC, 1, false, "", true);
+        add("lockpfeil", a, CrateRarity.LEGENDARY, 1, false, "", true);
+        add("wegtausch_a", a, CrateRarity.LEGENDARY, 1, false, "", true);
 
         // ---- guardian ----
         SkillClass g = SkillClass.GUARDIAN;
         add("fester_griff", g, CrateRarity.COMMON, 1, false, "", true);
         add("projektilschutz", g, CrateRarity.COMMON, 1, true, "", true);
         add("verbandskasten", g, CrateRarity.COMMON, 1, false, "", true);
-        add("turmschild", g, CrateRarity.UNCOMMON, 1, false, "", false);
-        add("barrikaden", g, CrateRarity.UNCOMMON, 1, false, "", false);
-        add("signalhorn", g, CrateRarity.UNCOMMON, 1, false, "", false);
-        add("mauerkelle", g, CrateRarity.RARE, 1, false, "", false);
+        add("turmschild", g, CrateRarity.UNCOMMON, 1, false, "", true);
+        add("barrikaden", g, CrateRarity.UNCOMMON, 1, false, "", true);
+        add("signalhorn", g, CrateRarity.UNCOMMON, 1, false, "", true);
+        add("mauerkelle", g, CrateRarity.RARE, 1, false, "", true);
         add("leuchtschild", g, CrateRarity.RARE, 1, false, "", true);
         add("bombenfest", g, CrateRarity.RARE, 1, false, "", true);
-        add("schildlaterne", g, CrateRarity.RARE, 1, false, "", false);
+        add("schildlaterne", g, CrateRarity.RARE, 1, false, "", true);
         add("deckung", g, CrateRarity.EPIC, 1, false, "", true);
-        add("leibwaechter", g, CrateRarity.EPIC, 1, false, "", false);
-        add("leichtschild", g, CrateRarity.EPIC, 1, false, "", false);
-        add("spiegelschild", g, CrateRarity.LEGENDARY, 1, false, "", false);
-        add("wegtausch_g", g, CrateRarity.LEGENDARY, 1, false, "", false);
+        add("leibwaechter", g, CrateRarity.EPIC, 1, false, "", true);
+        add("leichtschild", g, CrateRarity.EPIC, 1, false, "", true);
+        add("spiegelschild", g, CrateRarity.LEGENDARY, 1, false, "", true);
+        add("wegtausch_g", g, CrateRarity.LEGENDARY, 1, false, "", true);
 
         // ---- engineer ----
         SkillClass e = SkillClass.ENGINEER;
-        add("blendgranaten", e, CrateRarity.COMMON, 3, false, "", false);
+        add("blendgranaten", e, CrateRarity.COMMON, 3, false, "", true);
         add("pfeilkiste", e, CrateRarity.COMMON, 1, false, SkillTree.WAY_MECHANICS, true);
-        add("werkzeugtasche", e, CrateRarity.COMMON, 1, false, "", false);
+        add("werkzeugtasche", e, CrateRarity.COMMON, 1, false, "", true);
         add("verstaerkt", e, CrateRarity.UNCOMMON, 3, false, "", true);
-        add("ersatzbatterie", e, CrateRarity.UNCOMMON, 1, false, "", false);
+        add("ersatzbatterie", e, CrateRarity.UNCOMMON, 1, false, "", true);
         add("notfallmine", e, CrateRarity.UNCOMMON, 1, false, SkillTree.WAY_CHEMISTRY, true);
-        add("stahlturm", e, CrateRarity.RARE, 1, false, SkillTree.WAY_MECHANICS, false);
-        add("zweite_ladung", e, CrateRarity.RARE, 1, false, "", false);
-        add("oelfass", e, CrateRarity.RARE, 1, false, SkillTree.WAY_CHEMISTRY, false);
-        add("recycling", e, CrateRarity.RARE, 1, false, "", false);
+        add("stahlturm", e, CrateRarity.RARE, 1, false, SkillTree.WAY_MECHANICS, true);
+        add("zweite_ladung", e, CrateRarity.RARE, 1, false, "", true);
+        add("oelfass", e, CrateRarity.RARE, 1, false, SkillTree.WAY_CHEMISTRY, true);
+        add("recycling", e, CrateRarity.RARE, 1, false, "", true);
         add("ueberkapazitaet", e, CrateRarity.EPIC, 1, false, "", true);
-        add("tarnfallen", e, CrateRarity.EPIC, 1, false, "", false);
-        add("kupfergolem", e, CrateRarity.EPIC, 1, false, SkillTree.WAY_MECHANICS, false);
-        add("magnetfeld", e, CrateRarity.LEGENDARY, 1, false, "", false);
-        add("wegtausch_e", e, CrateRarity.LEGENDARY, 1, false, "", false);
+        add("tarnfallen", e, CrateRarity.EPIC, 1, false, "", true);
+        add("kupfergolem", e, CrateRarity.EPIC, 1, false, SkillTree.WAY_MECHANICS, true);
+        add("magnetfeld", e, CrateRarity.LEGENDARY, 1, false, "", true);
+        add("wegtausch_e", e, CrateRarity.LEGENDARY, 1, false, "", true);
     }
 
     private static final Map<String, String> ICONS = Map.ofEntries(

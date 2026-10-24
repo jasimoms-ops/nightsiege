@@ -190,6 +190,89 @@ public final class TrapService {
         return true;
     }
 
+    /** Traps destroyed tonight whose engineer has trap recycling. */
+    private final List<TrapRecord> recycled = new ArrayList<>();
+
+    /** After the night: recycled traps stand where they stood (if the spot is free). */
+    public void recycle(MinecraftServer server) {
+        if (server == null || recycled.isEmpty()) {
+            recycled.clear();
+            return;
+        }
+        for (TrapRecord old : recycled) {
+            TrapKind kind = TrapKind.byId(old.kind);
+            ServerLevel level = SiegeManager.levelByName(server, old.dimension);
+            net.minecraft.world.level.block.Block block = kind == null ? null : ModContent.TRAP_BLOCKS.get(kind);
+            if (level == null || block == null) {
+                continue;
+            }
+            BlockPos pos = new BlockPos(old.x, old.y, old.z);
+            BlockState there = level.getBlockState(pos);
+            if (!(there.isAir() || there.canBeReplaced())) {
+                continue;
+            }
+            level.setBlock(pos, block.defaultBlockState(), net.minecraft.world.level.block.Block.UPDATE_ALL);
+            String dimension = SiegeManager.dimensionName(level);
+            traps().removeIf(t -> t.matches(dimension, pos.getX(), pos.getY(), pos.getZ()));
+            TrapRecord record = new TrapRecord(kind.id(), dimension, pos.getX(), pos.getY(), pos.getZ(), old.owner);
+            int tier = tierOf(record);
+            record.uses = fullUses(kind, tier, record);
+            record.ammo = kind.startAmmo(tier);
+            traps().add(record);
+            level.sendParticles(ParticleTypes.WAX_ON, pos.getX() + 0.5, pos.getY() + 0.8, pos.getZ() + 0.5, 8, 0.3, 0.2, 0.3, 0);
+        }
+        recycled.clear();
+        dirty = true;
+    }
+
+    /** The owner's turret nearest a spot that still has room for arrows (the copper golem's errand). */
+    public BlockPos emptiestTurret(ServerLevel level, String owner, Vec3 near, double radius) {
+        String dimension = SiegeManager.dimensionName(level);
+        BlockPos best = null;
+        double bestScore = Double.MAX_VALUE;
+        for (TrapRecord record : traps()) {
+            if (!TrapKind.TURRET.id().equals(record.kind) || !owner.equals(record.owner) || !dimension.equals(record.dimension)) {
+                continue;
+            }
+            int max = maxAmmo(record);
+            if (record.ammo >= max) {
+                continue;
+            }
+            BlockPos pos = new BlockPos(record.x, record.y, record.z);
+            double d = near.distanceToSqr(Vec3.atCenterOf(pos));
+            if (d > radius * radius) {
+                continue;
+            }
+            double score = record.ammo * 4.0 + Math.sqrt(d);
+            if (score < bestScore) {
+                bestScore = score;
+                best = pos;
+            }
+        }
+        return best;
+    }
+
+    /** Loads arrows into a turret; returns how many went in. */
+    public int addAmmo(ServerLevel level, BlockPos pos, int arrows) {
+        TrapRecord record = find(level, pos);
+        if (record == null || !TrapKind.TURRET.id().equals(record.kind)) {
+            return 0;
+        }
+        int load = Math.max(0, Math.min(arrows, maxAmmo(record) - record.ammo));
+        record.ammo += load;
+        dirty |= load > 0;
+        return load;
+    }
+
+    /** How much longer monsters need to dig through a block: steel turrets (crate gain) hold twice as long. */
+    public double digFactor(ServerLevel level, BlockPos pos) {
+        if (ModContent.trapOf(level.getBlockState(pos)) != TrapKind.TURRET) {
+            return 1.0;
+        }
+        TrapRecord record = find(level, pos);
+        return record != null && gainOf(record, "stahlturm") > 0 ? 2.0 : 1.0;
+    }
+
     /** Gunner ultimate: this engineer's turrets fire three times as fast until the given time. */
     public void overcharge(ServerPlayer owner, long until) {
         overchargedUntil.put(owner.getUUID().toString(), until);
@@ -258,6 +341,9 @@ public final class TrapService {
                 // Gone by some way the break event did not see, e.g. an explosion.
                 list.remove(record);
                 dirty = true;
+                if (gainOf(record, "recycling") > 0) {
+                    recycled.add(record);   // trap recycling: it stands again after the night
+                }
                 continue;
             }
             long now = level.getGameTime();
@@ -781,7 +867,13 @@ public final class TrapService {
     }
 
     private double maxEnergy(PlayerSkills skills) {
-        return REMOTE_ENERGY + (skills == null ? 0 : tree.totalBonus(SkillEffect.REMOTE_ENERGY, skills));
+        double max = REMOTE_ENERGY + (skills == null ? 0 : tree.totalBonus(SkillEffect.REMOTE_ENERGY, skills));
+        SiegeManager m = SiegeManager.get();
+        if (skills != null && m != null
+                && m.kits().gainLevel(skills, com.mki.nightsiege.core.SkillClass.ENGINEER, "zweite_ladung") > 0) {
+            max *= 1.5;   // crate gain: a second charge in the remote
+        }
+        return max;
     }
 
     private double cost(PlayerSkills skills, double base) {
@@ -905,6 +997,10 @@ public final class TrapService {
     /** Damage factor: doubled while overcharged by the remote, tripled with overvolt. */
     private double power(TrapRecord record, long now) {
         double gain = 1.0 + 0.1 * gainOf(record, "verstaerkt");   // crate gain: stronger traps in the night
+        if (record.ambushNight != GainGear.nightId() && gainOf(record, "tarnfallen") > 0) {
+            record.ambushNight = GainGear.nightId();   // hidden traps: the first strike of the night hits harder
+            gain *= 1.5;
+        }
         if (!boosted(record, now)) {
             return gain;
         }
@@ -923,6 +1019,9 @@ public final class TrapService {
 
     /** Cooldowns halve while overcharged. */
     private int quicker(TrapRecord record, long now, int ticks) {
+        if (gainOf(record, "werkzeugtasche") > 0) {
+            ticks = Math.max(3, (int) Math.round(ticks * 0.7));   // tool bag: traps re-arm sooner
+        }
         return boosted(record, now) ? Math.max(3, ticks / 2) : ticks;
     }
 

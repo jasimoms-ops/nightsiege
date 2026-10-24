@@ -15,6 +15,8 @@ public class TrapRecord {
     public int ammo;
     /** Game time from which it may fire again. Not worth saving across restarts. */
     public transient long readyAt;
+    /** The night in which this trap already sprang its ambush (hidden traps gain). */
+    public transient int ambushNight = -1;
 
     public TrapRecord() {
     }

@@ -112,6 +112,9 @@ public class NightSiegeClient implements ClientModInitializer {
                 new KeyMapping("key.nightsiege.ultimate", GLFW.GLFW_KEY_R, category));
         guideKey = KeyMappingHelper.registerKeyMapping(
                 new KeyMapping("key.nightsiege.guide", GLFW.GLFW_KEY_H, category));
+        GainClient.init(category);
+        net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry.register(
+                com.mki.nightsiege.game.KitProjectile.TYPE, net.minecraft.client.renderer.entity.ThrownItemRenderer::new);
         GuideItem.opener = () -> Minecraft.getInstance().setScreenAndShow(new GuideScreen());
         ItemTooltipCallback.EVENT.register((stack, context, type, lines) -> {
             List<String> paths = ClassGear.pathsFor(stack.getItem());

@@ -345,6 +345,7 @@ public final class SiegeManager {
             combat.afterDamage(entity, source, baseDamage, taken, blocked);
             perks.afterDamage(entity, taken);
             CrateEffects.afterDamage(entity, source);
+            GainGear.afterDamage(entity, source, taken);
         });
         ServerLivingEntityEvents.ALLOW_DEATH.register((entity, source, amount) ->
                 combat.allowDeath(entity) && allowNightDeath(entity));
@@ -353,7 +354,13 @@ public final class SiegeManager {
                         && CrateEffects.allowDamage(entity, source));
         combat.guardian().setCredit(this::creditTank);
         traps.setMarker(combat::remoteMark);
+        Digger.hardness = traps::digFactor;
         RemoteItem.handler = traps::useRemote;
+        // Crate gadgets (B2): thrown, blown, placed or tied to an ally.
+        net.fabricmc.fabric.api.event.player.UseItemCallback.EVENT.register(GainGear::onUseItem);
+        net.fabricmc.fabric.api.event.player.UseBlockCallback.EVENT.register(GainGear::onUseBlock);
+        net.fabricmc.fabric.api.event.player.UseEntityCallback.EVENT.register((player, world, hand, entity, hit) ->
+                GainGear.onUseEntity(player, world, hand, entity));
         net.fabricmc.fabric.api.event.player.UseEntityCallback.EVENT.register((player, world, hand, entity, hit) ->
                 !world.isClientSide() && player instanceof ServerPlayer server
                         && combat.guardian().onUseEntity(server, entity, hand)
@@ -365,10 +372,20 @@ public final class SiegeManager {
             }
             archer.onEntityLoad(entity, world, skillTree, this::liveSkillsFor);
             CrateEffects.onArrow(entity);
+            GainGear.onArrowLoad(entity);
+            CopperHelper.onLoad(entity);
             dungeons.onEntityLoad(entity);
         });
         PlayerBlockBreakEvents.BEFORE.register(
                 (level, player, pos, state, blockEntity) -> allowBreak(player, state));
+        // Night-only blocks (barricades, the war banner, ladders, light) go without drops.
+        PlayerBlockBreakEvents.BEFORE.register((level, player, pos, state, blockEntity) -> {
+            if (level instanceof ServerLevel serverLevel && TempBlocks.isTemp(serverLevel, pos)) {
+                TempBlocks.remove(serverLevel, pos);
+                return false;
+            }
+            return true;
+        });
         PlayerBlockBreakEvents.AFTER.register(
                 (level, player, pos, state, blockEntity) -> {
                     if (ModContent.isCore(state) && player instanceof ServerPlayer breaker) {
@@ -391,6 +408,13 @@ public final class SiegeManager {
                 .resolve(SAVE_FILE).normalize();
         migrateSharedSave();
         reload();
+        TempBlocks.init(() -> save, this::persist);
+        if (!active) {
+            int left = TempBlocks.clearAll(server);
+            if (left > 0) {
+                NightSiegeMod.LOGGER.info("[Night Siege] {} Nacht-Blöcke von einem Absturz aufgeräumt", left);
+            }
+        }
         NightSiegeMod.LOGGER.info("[Night Siege] {} Cores bekannt, {} Belagerungen bestanden",
                 save.cores == null ? 0 : save.cores.size(), save.siegesWon);
         // CI only: where the cores of real dungeons would stand.
@@ -1114,6 +1138,8 @@ public final class SiegeManager {
         wavesStarted = 0;
         waveWeight.clear();
         CrateEffects.reset();
+        GainGear.reset();
+        SecondUlts.reset();
         nightNumber = testRun ? -1 : save.nightsHeld++;
         for (ServerPlayer player : nearby) {
             joinNight(player);
@@ -1155,7 +1181,7 @@ public final class SiegeManager {
         bossBar.setProgress(1.0f);
         active = true;
         combat.newSiege();
-        defense.begin(world, anchor, config, save.coreSkills(), skillTree, digger);
+        defense.begin(world, anchor, config, save.coreSkills(), skillTree, digger, anyoneHas("mauerkelle"));
         nightKills = 0;
         spawnedTotal = 0;
         nightLog.begin(world.getGameTime());
@@ -1303,15 +1329,17 @@ public final class SiegeManager {
         }
 
         tickAtmosphere(server);
+        List<ServerPlayer> upright = new ArrayList<>();
+        for (UUID id : participants) {
+            ServerPlayer p = server.getPlayerList().getPlayer(id);
+            if (p != null && !fallen.contains(id)) {
+                upright.add(p);
+            }
+        }
+        GainGear.tick(world, upright);
+        SecondUlts.tick(world);
         if (world.getGameTime() % 20 == 0) {
             tickSpectators(server);
-            List<ServerPlayer> upright = new ArrayList<>();
-            for (UUID id : participants) {
-                ServerPlayer p = server.getPlayerList().getPlayer(id);
-                if (p != null && !fallen.contains(id)) {
-                    upright.add(p);
-                }
-            }
             CrateEffects.tick(world, upright);
         }
         defense.tick(liveMobs, world.getGameTime());
@@ -1743,6 +1771,44 @@ public final class SiegeManager {
         }
         secondChance.clear();
         secondChanceUsed.clear();
+        GainGear.endNight(server);
+        traps.recycle(server);
+    }
+
+    /** True when some signed-up player owns this crate gain (in any class): the night then prepares for it. */
+    private boolean anyoneHas(String gainId) {
+        if (save.skills == null) {
+            return false;
+        }
+        for (com.mki.nightsiege.core.PlayerSkills skills : save.skills.values()) {
+            if (skills != null && skills.gains != null) {
+                for (java.util.Map<String, Integer> byClass : skills.gains.values()) {
+                    if (byClass != null && byClass.getOrDefault(gainId, 0) > 0) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /** The trowel: broken base blocks near a spot come back now. */
+    public int restoreBaseNear(BlockPos center, double radius) {
+        return defense.restoreNear(center, radius);
+    }
+
+    /** A message to every defender of the running night. */
+    public void broadcastDefenders(Component message) {
+        MinecraftServer server = world == null ? null : world.getServer();
+        if (server == null) {
+            return;
+        }
+        for (UUID id : participants) {
+            ServerPlayer player = server.getPlayerList().getPlayer(id);
+            if (player != null) {
+                player.sendSystemMessage(message);
+            }
+        }
     }
 
     /** One defender after the night: own inventory back; a spectator stands at the core again. */
@@ -2430,7 +2496,8 @@ public final class SiegeManager {
         String argument = parts.length > 1 ? parts[1] : "";
         if (!isRegistered(player) && !verb.equals("dungeon")) {
             // Not signed up: the mod stays out of the way (keys do nothing, the core only offers the sign-up).
-            if (!verb.equals("ult") && !verb.equals("shield")) {
+            if (!verb.equals("ult") && !verb.equals("shield") && !verb.equals("ult2") && !verb.equals("quiver")
+                    && !verb.equals("jump")) {
                 offerRegistration(player);
             }
             return;
@@ -2448,6 +2515,9 @@ public final class SiegeManager {
             case "donate" -> onDonate(player, parseAmount(argument));
             case "dev" -> onDevAction(player, argument);
             case "ult" -> onUltimateKey(player);
+            case "ult2" -> SecondUlts.fire(player);
+            case "quiver" -> GainGear.cycleQuiver(player);
+            case "jump" -> GainGear.onDoubleJump(player);
             case "shield" -> combat.guardian().onShieldAction(player);
             case "dungeon" -> dungeons.onToolAction(player, argument);
             default -> openCoreWindow(player);
@@ -2744,6 +2814,9 @@ public final class SiegeManager {
 
     /** Called before a monster picks a target: the mod's monsters never pick players outside it. */
     public static boolean mayTarget(Mob mob, LivingEntity target) {
+        if (!GainGear.mayTarget(mob, target)) {
+            return false;
+        }
         return !(target instanceof net.minecraft.world.entity.player.Player player) || INSTANCE.mayFight(mob, player);
     }
 

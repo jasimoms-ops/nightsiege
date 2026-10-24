@@ -66,6 +66,11 @@ public class SiegeSave {
     public Map<String, KitStash> kitStashes = new HashMap<>();
     /** Reward crates won while offline, by player uuid: "CLASS|KIND|LEVEL" each. */
     public Map<String, List<String>> pendingCrates = new HashMap<>();
+    /**
+     * Blocks the crate gains set down for one night only (barricades, banners, ladders,
+     * light): "dimension|x|y|z|block id" each. Kept so a crash cannot leave them standing.
+     */
+    public List<String> tempBlocks = new ArrayList<>();
 
     /** One defender's handed-in inventory. */
     public static class KitStash {

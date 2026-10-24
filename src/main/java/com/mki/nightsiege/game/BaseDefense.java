@@ -58,6 +58,12 @@ public final class BaseDefense {
     /** Scans the base and reads the core tree at the start of a night. */
     public void begin(ServerLevel world, BlockPos anchor, SiegeConfig cfg, PlayerSkills core, SkillTree tree,
                       Digger digger) {
+        begin(world, anchor, cfg, core, tree, digger, false);
+    }
+
+    /** As above; {@code keepSnapshot} also remembers the base when only the trowel (a crate gain) needs it. */
+    public void begin(ServerLevel world, BlockPos anchor, SiegeConfig cfg, PlayerSkills core, SkillTree tree,
+                      Digger digger, boolean keepSnapshot) {
         this.world = world;
         this.anchor = anchor;
         this.base = scanFresh(world, anchor, cfg);
@@ -67,7 +73,7 @@ public final class BaseDefense {
         digger.setSlowdown(1.0 + tree.totalBonus(SkillEffect.MASONRY, core));
         savedPos.clear();
         savedState.clear();
-        if (rebuild > 0) {
+        if (rebuild > 0 || keepSnapshot) {
             snapshot();
         }
         activeDefense = this;
@@ -245,6 +251,40 @@ public final class BaseDefense {
         if (put > 0 && anchor != null) {
             world.sendParticles(ParticleTypes.HAPPY_VILLAGER, anchor.getX() + 0.5, anchor.getY() + 1.5,
                     anchor.getZ() + 0.5, 30, 1.5, 1.0, 1.5, 0.0);
+        }
+        return put;
+    }
+
+    /**
+     * The trowel (a guardian's crate gain): every block of the base that the night broke
+     * within {@code radius} of a spot comes back at once. Returns the number put back.
+     */
+    public int restoreNear(BlockPos center, double radius) {
+        if (world == null || savedPos.isEmpty() || center == null) {
+            return 0;
+        }
+        double r2 = radius * radius;
+        List<Integer> missing = new ArrayList<>();
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+        for (int i = 0; i < savedPos.size(); i++) {
+            pos.set(BlockPos.of(savedPos.getLong(i)));
+            if (pos.distSqr(center) > r2 || !world.hasChunk(pos.getX() >> 4, pos.getZ() >> 4)) {
+                continue;
+            }
+            BlockState now = world.getBlockState(pos);
+            if (now != savedState.get(i) && (now.isAir() || now.canBeReplaced())) {
+                missing.add(i);
+            }
+        }
+        missing.sort((a, b) -> Integer.compare(BlockPos.getY(savedPos.getLong(a)), BlockPos.getY(savedPos.getLong(b))));
+        int put = 0;
+        for (int i : missing) {
+            BlockPos at = BlockPos.of(savedPos.getLong(i));
+            if (world.getEntitiesOfClass(net.minecraft.world.entity.LivingEntity.class, new net.minecraft.world.phys.AABB(at)).isEmpty()
+                    && world.setBlock(at, savedState.get(i), Block.UPDATE_CLIENTS)) {
+                put++;
+                world.sendParticles(ParticleTypes.WAX_ON, at.getX() + 0.5, at.getY() + 0.5, at.getZ() + 0.5, 3, 0.3, 0.3, 0.3, 0);
+            }
         }
         return put;
     }

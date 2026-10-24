@@ -286,6 +286,9 @@ public final class KitService {
                         new EquipmentSlotGroup[]{EquipmentSlotGroup.HEAD, EquipmentSlotGroup.CHEST,
                                 EquipmentSlotGroup.LEGS, EquipmentSlotGroup.FEET}[i]);
             }
+            if (i == 3 && gainLevel(skills, clazz, "sprungstiefel") > 0) {
+                Gadgets.setFlag(piece, Gadgets.DOUBLE_JUMP);   // jump boots: a second jump in the air
+            }
             player.setItemSlot(slots[i], mark(piece));
         }
 
@@ -309,6 +312,9 @@ public final class KitService {
                 ItemStack bow = new ItemStack(weapon == NightKit.Material.INFERNITE ? gear("infernite_bow", Items.BOW) : Items.BOW);
                 enchant(bow, ench, Enchantments.POWER, NightKit.plusOne(NightKit.sharpness(level),
                         gainLevel(skills, clazz, "staerke"), 5));
+                if (gainLevel(skills, clazz, "zielfernrohr") > 0) {
+                    Gadgets.setFlag(bow, Gadgets.SCOPE);
+                }
                 hotbar.add(bow);
             }
             if (crossbow || way.isEmpty() || spare) {
@@ -317,6 +323,9 @@ public final class KitService {
                 int quick = NightKit.plusOne(NightKit.quickCharge(level), gainLevel(skills, clazz, "schnellladen"), 3);
                 if (quick > 0) {
                     enchant(xbow, ench, Enchantments.QUICK_CHARGE, quick);
+                }
+                if (gainLevel(skills, clazz, "zielfernrohr") > 0) {
+                    Gadgets.setFlag(xbow, Gadgets.SCOPE);
                 }
                 hotbar.add(xbow);
             }
@@ -329,6 +338,7 @@ public final class KitService {
         } else if (clazz == SkillClass.GUARDIAN) {
             hotbar.add(sword(ench, weapon, sharp));
             ItemStack shield = new ItemStack(weapon == NightKit.Material.INFERNITE ? gear("infernite_shield", Items.SHIELD) : Items.SHIELD);
+            GainGear.decorateShield(shield, gainLevel(skills, clazz, "turmschild") > 0, gainLevel(skills, clazz, "leichtschild") > 0);
             player.setItemSlot(EquipmentSlot.OFFHAND, mark(shield));
             int potions = (way.equals(SkillTree.WAY_BLESSING) ? 2 : 0) + gainLevel(skills, clazz, "verbandskasten");
             for (int i = 0; i < potions; i++) {
@@ -365,6 +375,7 @@ public final class KitService {
             hotbar.add(new ItemStack(Items.COBBLESTONE, 32));
             hotbar.add(new ItemStack(Items.LADDER, 8));
         }
+        GainGear.addKitItems(this, skills, clazz, way, hotbar);
         for (ItemStack stack : hotbar) {
             inv.placeItemBackInInventory(mark(stack));
         }
@@ -418,6 +429,10 @@ public final class KitService {
             count -= n;
         }
         return out;
+    }
+
+    public TrapService traps() {
+        return traps;
     }
 
     /** The working level of a crate gain in this class's kit. */

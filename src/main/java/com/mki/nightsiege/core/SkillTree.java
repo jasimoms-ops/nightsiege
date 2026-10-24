@@ -542,7 +542,8 @@ public final class SkillTree {
                 return "path";
             }
         }
-        if (node.inGroup()) {
+        boolean swap = waySwap(node, skills);
+        if (node.inGroup() && !swap) {
             for (SkillNode other : nodes.values()) {
                 if (other != node && other.clazz() == node.clazz() && node.group().equals(other.group())
                         && skills.levelOf(other.id()) > 0) {
@@ -550,7 +551,7 @@ public final class SkillTree {
                 }
             }
         }
-        if (lockedOut(node, skills)) {
+        if (!swap && lockedOut(node, skills)) {
             return "lockedby";
         }
         if (!needsMet(node, skills)) {
@@ -650,6 +651,34 @@ public final class SkillTree {
             }
         }
         return false;
+    }
+
+    /** The legendary crate gain "way swap" of each class. */
+    public static String waySwapGain(SkillClass clazz) {
+        if (clazz == null) {
+            return null;
+        }
+        return switch (clazz) {
+            case WARRIOR -> "wegtausch_w";
+            case ARCHER -> "wegtausch_a";
+            case GUARDIAN -> "wegtausch_g";
+            case ENGINEER -> "wegtausch_e";
+            default -> null;
+        };
+    }
+
+    /**
+     * Way swap (legendary crate gain): inside the way a player took, nodes shut by the
+     * choice of the other subclass may be learned after all. Ultimates stay one per player.
+     */
+    public boolean waySwap(SkillNode node, PlayerSkills skills) {
+        String gain = waySwapGain(node.clazz());
+        if (gain == null || skills == null || skills.gainStage(node.clazz(), gain) <= 0
+                || node.effect().target() == SkillEffect.Target.ULTIMATE || node.onTrunk()) {
+            return false;
+        }
+        String taken = skills.pathTaken(this);
+        return !taken.isEmpty() && taken.equals(node.path());
     }
 
     /** Whether every requirement of a node is met. */
