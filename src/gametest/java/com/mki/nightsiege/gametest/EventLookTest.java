@@ -695,10 +695,10 @@ public class EventLookTest implements FabricClientGameTest {
         });
         context.waitTicks(20);
         context.takeScreenshot("b_class_pick");
-        // The same window at a smaller GUI scale (more room: the kit with its labels).
+        // The same window at GUI scale 1 (much more room: the kit with its labels).
         int scaleBefore = context.computeOnClient(client -> client.options.guiScale().get());
         context.runOnClient(client -> {
-            client.options.guiScale().set(2);
+            client.options.guiScale().set(1);
             client.resizeGui();
         });
         context.waitTicks(3);
