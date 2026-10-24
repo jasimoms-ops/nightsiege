@@ -174,7 +174,7 @@ public final class CrateGains {
             Map.entry("verstaerkt", "minecraft:iron_block"), Map.entry("ersatzbatterie", "minecraft:redstone"),
             Map.entry("notfallmine", "minecraft:tnt_minecart"), Map.entry("stahlturm", "minecraft:dispenser"),
             Map.entry("zweite_ladung", "minecraft:repeater"), Map.entry("oelfass", "minecraft:lava_bucket"),
-            Map.entry("recycling", "minecraft:hopper"), Map.entry("ueberkapazitaet", "minecraft:chest"),
+            Map.entry("recycling", "minecraft:hopper"), Map.entry("ueberkapazitaet", "minecraft:ender_chest"),
             Map.entry("tarnfallen", "minecraft:tinted_glass"), Map.entry("kupfergolem", "minecraft:copper_block"),
             Map.entry("magnetfeld", "minecraft:lodestone"), Map.entry("wegtausch_e", "minecraft:compass"));
 
