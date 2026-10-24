@@ -130,6 +130,8 @@ public class NightSiegeClient implements ClientModInitializer {
         ItemTooltipCallback.EVENT.register((stack, context, type, lines) -> {
             com.mki.nightsiege.core.KeyHint hint = stack.is(ModContent.REMOTE)
                     ? com.mki.nightsiege.core.KeyHint.REMOTE
+                    : ModContent.STAFF != null && stack.is(ModContent.STAFF)
+                    ? com.mki.nightsiege.core.KeyHint.STAFF
                     : com.mki.nightsiege.core.KeyHint.forGadget(com.mki.nightsiege.game.Gadgets.of(stack));
             Component line = KeyHints.line(hint);
             if (line != null) {

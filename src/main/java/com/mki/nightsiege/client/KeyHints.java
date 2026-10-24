@@ -40,7 +40,7 @@ public final class KeyHints {
             case USE, USE_BLOCK, USE_MATE, DRAW -> new KeyMapping[]{o.keyUse};
             case USE_MATE_OR_SHIELD, SHIELD_ACTION -> new KeyMapping[]{o.keyUse, o.keyAttack};
             case SNEAK -> new KeyMapping[]{o.keyShift};
-            case SNEAK_BLOCK, SNEAK_USE, REMOTE -> new KeyMapping[]{o.keyShift, o.keyUse};
+            case SNEAK_BLOCK, SNEAK_USE, REMOTE, STAFF -> new KeyMapping[]{o.keyShift, o.keyUse};
             default -> new KeyMapping[0];
         };
         Object[] names = new Object[used.length];

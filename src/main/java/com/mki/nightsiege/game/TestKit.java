@@ -150,6 +150,9 @@ public final class TestKit {
         } else if (clazz == SkillClass.GUARDIAN) {
             out.add(sword);
             out.add("minecraft:shield");
+        } else if (clazz == SkillClass.SUMMONER) {
+            out.add("nightsiege:summoning_staff");
+            out.add(sword);
         } else {
             out.add(sword);
             out.add("minecraft:bow");

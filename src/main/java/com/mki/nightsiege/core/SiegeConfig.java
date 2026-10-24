@@ -246,6 +246,10 @@ public class SiegeConfig {
      * class, reset the crate gains, take a crate) without creative mode. Off on normal servers.
      */
     public boolean testToolsForEveryone = false;
+    /** The summoner can be chosen by everyone, not only by admins (Simon: admins first). */
+    public boolean summonerForEveryone = false;
+    /** Companions grow with the night like the monsters: this share of the monsters' extra health and damage. */
+    public double companionScaling = 0.8;
     /** Share of every wave (taken from its zombies) that carry ladders and build one up the wall. 0 = off. */
     public double ladderCarrierShare = 0.07;
     /** From this level one sapper creeper per wave blows a 3x3 hole into the wall, at most one per side and night. 0 = off. */
@@ -361,9 +365,10 @@ public class SiegeConfig {
         public Integer maxLevel;
     }
 
-    public static final String[] CLASS_KEYS = {"warrior", "archer", "guardian", "engineer"};
+    public static final String[] CLASS_KEYS = {"warrior", "archer", "guardian", "engineer", "summoner"};
     public static final String[] SUBCLASS_KEYS = {"blademaster", "berserker", "axe", "paladin", "swift", "heavy", "bolter",
-            "trapper", "shieldfighter", "bulwark", "medic", "warden", "gunner", "electrician", "demolition", "alchemist"};
+            "trapper", "shieldfighter", "bulwark", "medic", "warden", "gunner", "electrician", "demolition", "alchemist",
+            "tamer", "golemsmith"};
 
     /** Factor on the damage a player of this class and subclass deals to monsters. */
     public double damageFactor(String clazz, String subclass) {
@@ -647,6 +652,10 @@ public class SiegeConfig {
         }
         ladderCarrierShare = Math.min(1.0, Math.max(0.0, ladderCarrierShare));
         sapperFromLevel = Math.max(0, sapperFromLevel);
+        if (Double.isNaN(companionScaling)) {
+            companionScaling = 0.8;
+        }
+        companionScaling = Math.min(2.0, Math.max(0.0, companionScaling));
         if (Double.isNaN(monsterDamage)) {
             monsterDamage = 1.2;
         }

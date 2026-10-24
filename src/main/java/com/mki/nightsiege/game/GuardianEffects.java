@@ -146,6 +146,7 @@ public final class GuardianEffects {
             factor *= tuning.damageTakenFactor(hurt);
         }
         factor *= CrateEffects.factor(victim, source);   // crate gains of the night kit
+        factor *= Companions.damageFactor(victim, source);   // the summoner's companions
         if (source.getEntity() instanceof ServerPlayer attacker && victim instanceof Enemy
                 && SkillTree.has(skillsFor.apply(attacker), "g_saint")) {
             factor *= 0.7f;   // the saint heals, but hits softer

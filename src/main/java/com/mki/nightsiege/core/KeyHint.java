@@ -37,7 +37,9 @@ public enum KeyHint {
     /** Sneak and right click (the remote's second order). */
     SNEAK_USE,
     /** The remote: right click, or sneak and right click. */
-    REMOTE;
+    REMOTE,
+    /** The summoner's staff: right click calls, sneak and right click at a monster sends the pack. */
+    STAFF;
 
     /** Skills whose effect is fired by a key; every ultimate uses the ult key on top. */
     private static final Map<String, KeyHint> NODES = Map.of(
@@ -47,7 +49,9 @@ public enum KeyHint {
             "g_anchor", SNEAK_BLOCK,
             "a_bracing", SNEAK,
             "e_detonator", SNEAK_USE,
-            "arrow_turret", USE_BLOCK);
+            "arrow_turret", USE_BLOCK,
+            "s_packcall", STAFF,
+            "s_golemsmith", STAFF);
 
     private static final Set<String> SECOND_ULTS = Set.of("schlachtentrance", "lockpfeil", "magnetfeld", "spiegelschild");
 

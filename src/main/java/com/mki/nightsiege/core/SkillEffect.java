@@ -296,6 +296,43 @@ public enum SkillEffect {
     COLOSSUS(0.0, Target.COMBAT),
     MARTYR(0.0, Target.COMBAT),
 
+    // Summoner (companions): the call, their strength and how they fight
+    /** Companions get this share more health. */
+    SUMMON_HEALTH(0.0, Target.COMBAT),
+    /** Companions follow and fight this many blocks further away. */
+    CALL_RANGE(0.0, Target.COMBAT),
+    /** Companions deal this share more damage. */
+    SUMMON_DAMAGE(0.0, Target.COMBAT),
+    /** The staff calls a wolf; every level shortens the pause. */
+    PACK_CALL(0.0, Target.COMBAT),
+    /** Companions take this share less damage. */
+    SUMMON_TOUGHNESS(0.0, Target.COMBAT),
+    /** Companions run this share faster. */
+    SUMMON_SPEED(0.0, Target.COMBAT),
+    /** One more wolf per level (tamer). */
+    PACK_SLOTS(0.0, Target.COMBAT),
+    /** The staff calls an iron golem instead of wolves (golemsmith); golems grow stronger per level. */
+    GOLEM_CALL(0.0, Target.COMBAT),
+    ALPHA_WOLF(0.0, Target.COMBAT),
+    PACK_HUNT(0.0, Target.COMBAT),
+    SNOW_GUARD(0.0, Target.COMBAT),
+    HARD_GOLEM(0.0, Target.COMBAT),
+    HOWL(0.0, Target.COMBAT),
+    WARD_BOND(0.0, Target.COMBAT),
+    BONE_GUARD(0.0, Target.COMBAT),
+    PACK_LEADER(0.0, Target.COMBAT),
+    GOLEM_WORK(0.0, Target.COMBAT),
+    MIXED_PACK(0.0, Target.COMBAT),
+    WILDNESS(0.0, Target.COMBAT),
+    CARE(0.0, Target.COMBAT),
+    SOUL_HARVEST(0.0, Target.COMBAT),
+    ENDLESS_HUNT(0.0, Target.COMBAT),
+    MOON_PACK(0.0, Target.COMBAT),
+    TITAN_FIST(0.0, Target.COMBAT),
+    ORE_CORE(0.0, Target.COMBAT),
+    BEAST_LORD(0.0, Target.COMBAT),
+    SHEPHERD(0.0, Target.COMBAT),
+
     // Ultimates: one per path, fired with the ultimate key. The level is the rank.
     ARROW_STORM(0.0, Target.ULTIMATE),
     POWER_SHOT(0.0, Target.ULTIMATE),
@@ -313,7 +350,9 @@ public enum SkillEffect {
     BOMBARDMENT(0.0, Target.ULTIMATE),
     OVERCHARGE(0.0, Target.ULTIMATE),
     TOXIC_CLOUD(0.0, Target.ULTIMATE),
-    THUNDERSTORM(0.0, Target.ULTIMATE);
+    THUNDERSTORM(0.0, Target.ULTIMATE),
+    WILD_HUNT(0.0, Target.ULTIMATE),
+    TITAN(0.0, Target.ULTIMATE);
 
     public enum Target { PLAYER, SIEGE, ARROW, TRAP, COMBAT, ULTIMATE }
 

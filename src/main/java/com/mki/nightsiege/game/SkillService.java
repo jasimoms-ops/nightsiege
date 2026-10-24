@@ -56,6 +56,7 @@ public final class SkillService {
                 if (SkillTree.has(skills, "g_living_wall")) v += 12.0;
                 if (SkillTree.has(skills, "g_bladeshield")) v -= 8.0;
                 if (SkillTree.has(skills, "g_patron")) v -= 4.0;
+                if (SkillTree.has(skills, "s_beastlord")) v -= 6.0;
             }
             case MOVEMENT_SPEED -> {
                 if (SkillTree.has(skills, "w_unstoppable")) v -= 0.01;

@@ -41,6 +41,21 @@ public class GuideScreen extends Screen {
     private record Chapter(String id, String icon) {
     }
 
+    /** Set from the core window: the summoner's chapter only for those who may choose it (admins for now). */
+    public static boolean summonerVisible;
+
+    private static final Chapter SUMMONER = new Chapter("summoner", "nightsiege:summoning_staff");
+
+    /** The chapters this player sees. */
+    private static List<Chapter> chapters() {
+        if (!summonerVisible) {
+            return CHAPTERS;
+        }
+        List<Chapter> all = new java.util.ArrayList<>(CHAPTERS);
+        all.add(all.indexOf(new Chapter("engineer", "nightsiege:arrow_turret")) + 1, SUMMONER);
+        return all;
+    }
+
     private static final List<Chapter> CHAPTERS = List.of(
             new Chapter("intro", "nightsiege:siege_core"),
             new Chapter("core", "minecraft:respawn_anchor"),
@@ -91,7 +106,7 @@ public class GuideScreen extends Screen {
         top = (this.height - H) / 2;
         layoutChapter();
 
-        for (int i = 0; i < CHAPTERS.size(); i++) {
+        for (int i = 0; i < chapters().size(); i++) {
             int index = i;
             Button button = Button.builder(Component.empty(), b -> {
                 chapter = index;
@@ -162,7 +177,7 @@ public class GuideScreen extends Screen {
         pages.clear();
         Font font = Minecraft.getInstance().font;
         int width = contentW() - 16;
-        Chapter open = CHAPTERS.get(Math.max(0, Math.min(CHAPTERS.size() - 1, chapter)));
+        Chapter open = chapters().get(Math.max(0, Math.min(chapters().size() - 1, chapter)));
         String key = "nightsiege.guide." + open.id() + ".body";
         String body = Language.getInstance().has(key) ? Language.getInstance().getOrDefault(key) : key;
 
@@ -285,7 +300,7 @@ public class GuideScreen extends Screen {
     private void drawSidebar(GuiGraphicsExtractor gui, Font font, int mouseX, int mouseY) {
         int x = sidebarX();
         gui.fill(x - 3, innerY(), x + SIDEBAR - 3, innerY() + innerH(), 0x90000000);
-        for (int i = 0; i < CHAPTERS.size(); i++) {
+        for (int i = 0; i < chapters().size(); i++) {
             int y = rowY(i);
             boolean active = i == chapter;
             boolean hover = mouseX >= x && mouseX < x + SIDEBAR - 4 && mouseY >= y && mouseY < y + 11;
@@ -298,9 +313,9 @@ public class GuideScreen extends Screen {
             gui.pose().pushMatrix();
             gui.pose().translate(x + 4, y + 0.5f);
             gui.pose().scale(0.65f, 0.65f);
-            gui.item(iconOf(CHAPTERS.get(i).icon()), 0, 0);
+            gui.item(iconOf(chapters().get(i).icon()), 0, 0);
             gui.pose().popMatrix();
-            String name = Component.translatable("nightsiege.guide." + CHAPTERS.get(i).id() + ".title").getString();
+            String name = Component.translatable("nightsiege.guide." + chapters().get(i).id() + ".title").getString();
             gui.text(font, name, x + 16, y + 2, active ? 0xFFFFFFFF : hover ? 0xFFE0DCE8 : MUTED, true);
         }
     }
@@ -309,7 +324,7 @@ public class GuideScreen extends Screen {
         int x = contentX();
         int y = innerY() + 4;
         int w = contentW() - 3;
-        Chapter open = CHAPTERS.get(Math.max(0, Math.min(CHAPTERS.size() - 1, chapter)));
+        Chapter open = chapters().get(Math.max(0, Math.min(chapters().size() - 1, chapter)));
 
         gui.pose().pushMatrix();
         gui.pose().translate(x + 6, y + 2);

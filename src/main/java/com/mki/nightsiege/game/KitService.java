@@ -432,6 +432,17 @@ public final class KitService {
             for (int i = 0; i < potions; i++) {
                 hotbar.add(PotionContents.createItemStack(Items.POTION, Potions.STRONG_HEALING));
             }
+        } else if (clazz == SkillClass.SUMMONER) {
+            // The staff first, a sword for when the pack is down; food for the wolves or iron for the golems.
+            if (ModContent.STAFF != null) {
+                hotbar.add(new ItemStack(ModContent.STAFF));
+            }
+            hotbar.add(sword(ench, weapon, Math.max(1, sharp - 1)));
+            if (SkillTree.has(skills, "s_golemsmith")) {
+                hotbar.add(new ItemStack(Items.IRON_INGOT, 16));   // a golem mends with iron
+            } else {
+                hotbar.add(new ItemStack(Items.BEEF, 8));   // a wolf heals from meat
+            }
         } else {
             // Engineer (and the fallback for a player without a class).
             hotbar.add(sword(ench, weapon, Math.max(1, sharp - 1)));

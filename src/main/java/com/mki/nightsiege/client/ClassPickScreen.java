@@ -119,7 +119,8 @@ public class ClassPickScreen extends Screen {
         cardsX = left + 8;
         cardsY = top + 36;
         int area = teamX - 6 - cardsX;
-        cardW = (area - 3 * 5) / 4;
+        int cards = cardCount();
+        cardW = (area - (cards - 1) * 5) / cards;
         iconBox = cardW >= 86 ? 26 : 22;
         // The kit row takes what its items need (with the labels of the design if there is room),
         // the cards the rest.
@@ -147,7 +148,7 @@ public class ClassPickScreen extends Screen {
         }
         cardH = Math.max(96, cardH);
 
-        for (int i = 0; i < data.classes.size() && i < 4; i++) {
+        for (int i = 0; i < data.classes.size() && i < cardCount(); i++) {
             ClassPickData.Entry entry = data.classes.get(i);
             Button card = Button.builder(Component.empty(), b -> {
                 chosen = entry.id;
@@ -189,7 +190,7 @@ public class ClassPickScreen extends Screen {
         gui.fill(left, top, x2, top + 1, 0xFF4A4266);
 
         drawHeader(gui, font);
-        for (int i = 0; i < data.classes.size() && i < 4; i++) {
+        for (int i = 0; i < data.classes.size() && i < cardCount(); i++) {
             drawCard(gui, font, data.classes.get(i), cardX(i), cardsY, mouseX, mouseY);
         }
         ItemStack hovered = drawKit(gui, font, mouseX, mouseY);
@@ -547,6 +548,11 @@ public class ClassPickScreen extends Screen {
         gui.fill(x + 5, y + 9, x + 7, y + 13, 0xFF1A1622);
     }
 
+    /** Four classes, five for admins with the summoner. */
+    private int cardCount() {
+        return Math.max(1, Math.min(5, data.classes.size()));
+    }
+
     private static String icon(SkillClass clazz) {
         if (clazz == null) {
             return "minecraft:barrier";
@@ -555,6 +561,7 @@ public class ClassPickScreen extends Screen {
             case WARRIOR -> "minecraft:iron_sword";
             case ARCHER -> "minecraft:bow";
             case GUARDIAN -> "minecraft:shield";
+            case SUMMONER -> "nightsiege:summoning_staff";
             default -> "nightsiege:arrow_turret";
         };
     }

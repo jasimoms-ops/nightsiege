@@ -1396,7 +1396,8 @@ public final class TrapService {
     }
 
     static List<LivingEntity> enemies(ServerLevel level, AABB box) {
-        return level.getEntitiesOfClass(LivingEntity.class, box, e -> e instanceof Enemy && e.isAlive());
+        return level.getEntitiesOfClass(LivingEntity.class, box, e -> e instanceof Enemy && e.isAlive()
+                && !Companions.isCompanion(e));   // the summoner's skeleton is no foe
     }
 
     /** Walks the line in half block steps; anything solid in between blocks the shot. */

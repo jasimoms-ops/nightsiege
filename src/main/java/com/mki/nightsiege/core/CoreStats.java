@@ -144,6 +144,8 @@ public class CoreStats {
     public java.util.List<String> completeClasses = new java.util.ArrayList<>();
     /** True when the levelled class is full and the next one may be opened. */
     public boolean nextClassOpen;
+    /** The viewer may see and choose the summoner (admins, or everyone by config). */
+    public boolean summoner;
     /** Crate gains per class: gain id to stage. */
     public java.util.Map<String, java.util.Map<String, Integer>> gains = new java.util.HashMap<>();
     public boolean skillsEnabled;

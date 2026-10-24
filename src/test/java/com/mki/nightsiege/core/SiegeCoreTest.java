@@ -726,7 +726,7 @@ class SiegeCoreTest {
     void everyClassHasItsPaths() {
         SkillTree tree = new SkillTree();
         java.util.Map<SkillClass, Integer> expected = java.util.Map.of(SkillClass.ARCHER, 2, SkillClass.WARRIOR, 2,
-                SkillClass.GUARDIAN, 2, SkillClass.ENGINEER, 2);
+                SkillClass.GUARDIAN, 2, SkillClass.ENGINEER, 2, SkillClass.SUMMONER, 1);
         for (java.util.Map.Entry<SkillClass, Integer> entry : expected.entrySet()) {
             Set<String> paths = new HashSet<>();
             for (SkillNode node : tree.ofClass(entry.getKey())) {
@@ -1085,10 +1085,10 @@ class SiegeCoreTest {
             }
             ultimates.merge(node.path(), node.effect().target() == SkillEffect.Target.ULTIMATE ? 1 : 0, Integer::sum);
         }
-        assertEquals(8, ultimates.size());
+        assertEquals(9, ultimates.size());
         java.util.Map<String, Integer> expected = java.util.Map.of(SkillTree.WAY_BLADE, 2, SkillTree.WAY_MIGHT, 2,
                 SkillTree.WAY_BOW, 3, SkillTree.WAY_CROSSBOW, 3, SkillTree.WAY_SHIELD, 2, SkillTree.WAY_BLESSING, 2,
-                SkillTree.WAY_MECHANICS, 2, SkillTree.WAY_CHEMISTRY, 2);
+                SkillTree.WAY_MECHANICS, 2, SkillTree.WAY_CHEMISTRY, 2, SkillTree.WAY_WILD, 2);
         ultimates.forEach((path, count) -> assertEquals(expected.getOrDefault(path, 1), count, path));
     }
 
@@ -1537,5 +1537,52 @@ class SiegeCoreTest {
         assertEquals(before + 5, tree.get("masonry").baseCost());
         tree.applyTweaks(new java.util.HashMap<>());
         assertEquals(before, tree.get("masonry").baseCost());
+    }
+
+    @Test
+    void theSummonerCallsTheWildAndIsForAdminsFirst() {
+        SkillTree tree = new SkillTree();
+        assertTrue(SkillClass.SUMMONER.adminOnly());
+        assertFalse(SkillClass.WARRIOR.adminOnly());
+        assertFalse(new SiegeConfig().summonerForEveryone, "admins only by default");
+        // Both subclasses of the way of the wild can be learned to the end.
+        for (String sub : new String[]{"s_tamer", "s_golemsmith"}) {
+            PlayerSkills p = new PlayerSkills();
+            p.chosenClass = SkillClass.SUMMONER.name();
+            p.unlockClass(SkillClass.SUMMONER);
+            p.award(100_000);
+            assertTrue(tree.unlock("s_soulbond", p));
+            assertTrue(tree.unlock("s_packcall", p));
+            assertTrue(tree.unlock(sub, p));
+            assertTrue(tree.unlock(sub, p));
+            assertEquals(SkillTree.WAY_WILD, p.pathTaken(tree));
+            assertEquals(sub.equals("s_tamer") ? SkillTree.SUB_TAMER : SkillTree.SUB_GOLEMSMITH, tree.subclassOf(p));
+            for (int guard = 0; guard < 500 && !tree.isComplete(p, SkillClass.SUMMONER); guard++) {
+                boolean any = false;
+                for (SkillNode node : tree.ofClass(SkillClass.SUMMONER)) {
+                    if (p.levelOf(node.id()) < node.maxLevel() && tree.unlock(node.id(), p)) {
+                        any = true;
+                        break;
+                    }
+                }
+                assertTrue(any, "stuck in " + sub);
+            }
+            assertTrue(tree.isComplete(p, SkillClass.SUMMONER), sub);
+            assertNotNull(tree.ultimateOf(p), sub);
+            // Only one subclass, one ultimate, one mastery, one keystone.
+            assertEquals(0, p.levelOf(sub.equals("s_tamer") ? "s_golemsmith" : "s_tamer"));
+            int ults = 0;
+            for (SkillNode node : tree.ofClass(SkillClass.SUMMONER)) {
+                if (node.effect().target() == SkillEffect.Target.ULTIMATE && p.levelOf(node.id()) > 0) {
+                    ults++;
+                }
+            }
+            assertEquals(1, ults, sub);
+        }
+        assertTrue(tree.pointsToComplete(new PlayerSkills(), SkillClass.SUMMONER) > 250, "about as much as the other classes");
+        // The tamer's wolves and the golemsmith's golems are lanes of their own.
+        assertEquals(SkillTree.SUB_TAMER, tree.laneOf("s_alpha"));
+        assertEquals(SkillTree.SUB_GOLEMSMITH, tree.laneOf("s_hardgolem"));
+        assertEquals(KeyHint.STAFF, KeyHint.forNode("s_packcall", false));
     }
 }

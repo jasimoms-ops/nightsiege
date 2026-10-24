@@ -112,7 +112,8 @@ public final class StatsService {
                 stats.completeClasses.add(name);
             }
         }
-        stats.nextClassOpen = manager.mayOpenNextClass(skills);
+        stats.nextClassOpen = manager.mayOpenNextClass(viewer, skills);
+        stats.summoner = manager.maySummon(viewer);
         if (skills.gains != null) {
             for (Map.Entry<String, Map<String, Integer>> entry : skills.gains.entrySet()) {
                 stats.gains.put(entry.getKey(), new java.util.HashMap<>(entry.getValue()));

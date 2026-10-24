@@ -69,6 +69,7 @@ public class CoreScreen extends Screen {
         WARRIOR(SkillClass.WARRIOR, "minecraft:iron_sword", "minecraft:textures/block/stone_bricks.png", 0xFFFF6B4A, "warrior"),
         GUARDIAN(SkillClass.GUARDIAN, "minecraft:shield", "minecraft:textures/block/polished_andesite.png", 0xFF6FA8FF, "guardian"),
         ENGINEER(SkillClass.ENGINEER, "nightsiege:arrow_turret", "minecraft:textures/block/cut_copper.png", 0xFFF0A040, "engineer"),
+        SUMMONER(SkillClass.SUMMONER, "nightsiege:summoning_staff", "minecraft:textures/block/mossy_stone_bricks.png", 0xFF5FD8B8, "summoner"),
         CORE(SkillClass.CORE, "nightsiege:siege_core", "minecraft:textures/block/obsidian.png", 0xFFC88CFF, "core"),
         COLLECTION(null, "nightsiege:reward_crate", "minecraft:textures/block/polished_blackstone_bricks.png", 0xFFB565FF, "collection"),
         PERKS(null, "nightsiege:night_fragment_blood", "minecraft:textures/block/polished_blackstone.png", 0xFFE0A0FF, "perks");
@@ -119,6 +120,7 @@ public class CoreScreen extends Screen {
     public CoreScreen(CoreStats stats) {
         super(Component.translatable("nightsiege.ui.title"));
         this.stats = stats;
+        GuideScreen.summonerVisible = stats != null && stats.summoner;
     }
 
     public static CoreScreen openInstance() {
@@ -141,6 +143,7 @@ public class CoreScreen extends Screen {
     /** New numbers from the server, e.g. after buying a skill. Keeps the window open. */
     public void update(CoreStats fresh) {
         this.stats = fresh;
+        GuideScreen.summonerVisible = fresh != null && fresh.summoner;
         if (confirming != null && fresh.unlocked != null && fresh.unlocked.contains(confirming.name())) {
             confirming = null;
         }
@@ -154,6 +157,17 @@ public class CoreScreen extends Screen {
     /** True when this tab's tree is the player's to learn: their class, or the shared core. */
     private boolean ownsTree() {
         return activeTab == Tab.CORE || (activeTab != null && activeTab == ownTab());
+    }
+
+    /** The tabs this viewer gets: the summoner only for admins (or everyone, by config). */
+    private Tab[] visibleTabs() {
+        List<Tab> out = new ArrayList<>();
+        for (Tab tab : Tab.values()) {
+            if (tab != Tab.SUMMONER || stats.summoner) {
+                out.add(tab);
+            }
+        }
+        return out.toArray(new Tab[0]);
     }
 
     private Tab ownTab() {
@@ -175,6 +189,9 @@ public class CoreScreen extends Screen {
     @Override
     protected void init() {
         showing = this;
+        if (activeTab == Tab.SUMMONER && !stats.summoner) {
+            activeTab = null;
+        }
         if (activeTab == null) {
             Tab own = ownTab();
             activeTab = own != null ? own : Tab.STATS;
@@ -236,7 +253,7 @@ public class CoreScreen extends Screen {
         addRenderableWidget(guide);
 
         // Tabs: invisible buttons below the drawn tabs.
-        Tab[] tabs = Tab.values();
+        Tab[] tabs = visibleTabs();
         for (int i = 0; i < tabs.length; i++) {
             Tab tab = tabs[i];
             invisible(Button.builder(Component.empty(), b -> {
@@ -279,7 +296,7 @@ public class CoreScreen extends Screen {
             // One small button per class: whose kit the collection shows.
             int bx = innerX() + 4;
             for (SkillClass c : SkillClass.values()) {
-                if (c.isShared()) {
+                if (c.isShared() || (c.adminOnly() && !stats.summoner)) {
                     continue;
                 }
                 Component label = Component.translatable(c.translationKey());
@@ -441,7 +458,9 @@ public class CoreScreen extends Screen {
             "shield", new String[]{"shieldfighter", "bulwark"},
             "bless", new String[]{"medic", "warden"},
             "mech", new String[]{"gunner", "electrician"},
-            "chem", new String[]{"demolition", "alchemist"});
+            "chem", new String[]{"demolition", "alchemist"},
+            "wild", new String[]{"tamer", "golemsmith"},
+            "dead", new String[]{"necromancer", "soulcatcher"});
     private static final java.util.Map<String, Integer> LANE_COLORS = java.util.Map.ofEntries(
             java.util.Map.entry("blademaster", 0x6FA0FF), java.util.Map.entry("berserker", 0xE04848),
             java.util.Map.entry("axe", 0xD8913A), java.util.Map.entry("paladin", 0xF2D46A),
@@ -450,7 +469,9 @@ public class CoreScreen extends Screen {
             java.util.Map.entry("shieldfighter", 0x8FB4FF), java.util.Map.entry("bulwark", 0xB0B8C8),
             java.util.Map.entry("medic", 0x7FE08A), java.util.Map.entry("warden", 0xC59BFF),
             java.util.Map.entry("gunner", 0xE0B050), java.util.Map.entry("electrician", 0x6FD8FF),
-            java.util.Map.entry("demolition", 0xF07040), java.util.Map.entry("alchemist", 0x8BD35A));
+            java.util.Map.entry("demolition", 0xF07040), java.util.Map.entry("alchemist", 0x8BD35A),
+            java.util.Map.entry("tamer", 0xD9A066), java.util.Map.entry("golemsmith", 0xC8D0D8),
+            java.util.Map.entry("necromancer", 0x9A7AE0), java.util.Map.entry("soulcatcher", 0x6FE0D0));
 
     private int viewX() {
         return innerX();
@@ -1535,7 +1556,7 @@ public class CoreScreen extends Screen {
     }
 
     private Tab tabAt(int mouseX, int mouseY) {
-        Tab[] tabs = Tab.values();
+        Tab[] tabs = visibleTabs();
         for (int i = 0; i < tabs.length; i++) {
             int x = tabX(i);
             if (mouseX >= x && mouseX < x + TAB_W && mouseY >= top - TAB_H + 2 && mouseY < top) {
@@ -1570,7 +1591,7 @@ public class CoreScreen extends Screen {
             gui.fill(x + 1, y + 1, x + 2, y + h, FRAME_LIGHT);
             gui.item(iconOf("nightsiege:siege_guide"), x + 6, y + 5);
         }
-        Tab[] tabs = Tab.values();
+        Tab[] tabs = visibleTabs();
         for (int i = 0; i < tabs.length; i++) {
             Tab tab = tabs[i];
             boolean active = tab == activeTab;

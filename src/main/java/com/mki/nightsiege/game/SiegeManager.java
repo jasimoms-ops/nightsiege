@@ -197,6 +197,8 @@ public final class SiegeManager {
     private final TrapService traps = new TrapService(() -> save, skillTree);
     private final KitService kits = new KitService(() -> save, () -> config, skillTree, traps, this::persist);
     private final CrateService crates = new CrateService(() -> save, () -> config, skillTree, this::persist);
+    /** The summoner's wolves, golems and spirits. */
+    private final Companions companions = new Companions(skillTree, this::liveSkillsFor, () -> config);
     private final CombatEffects combat = new CombatEffects(skillTree, this::liveSkillsFor,
             entity -> this.eliteId != null && this.eliteId.equals(entity.getUUID()), archer, traps);
     private final Digger digger = new Digger();
@@ -349,16 +351,18 @@ public final class SiegeManager {
             CrateEffects.afterDamage(entity, source);
             GainGear.afterDamage(entity, source, taken);
             MeleeSim.onDamage(entity, source, taken);
+            companions.afterDamage(entity, source, taken);
         });
         ServerLivingEntityEvents.ALLOW_DEATH.register((entity, source, amount) ->
                 combat.allowDeath(entity) && allowNightDeath(entity));
         ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) ->
                 allowModDamage(entity, source.getEntity()) && combat.allowDamage(entity, source, amount)
-                        && CrateEffects.allowDamage(entity, source));
+                        && CrateEffects.allowDamage(entity, source) && Companions.allowDamage(entity, source));
         combat.guardian().setCredit(this::creditTank);
         traps.setMarker(combat::remoteMark);
         Digger.hardness = traps::digFactor;
         RemoteItem.handler = traps::useRemote;
+        SummonStaffItem.handler = companions::useStaff;
         // Crate gadgets (B2): thrown, blown, placed or tied to an ally.
         net.fabricmc.fabric.api.event.player.UseItemCallback.EVENT.register(GainGear::onUseItem);
         net.fabricmc.fabric.api.event.player.UseBlockCallback.EVENT.register(GainGear::onUseBlock);
@@ -377,6 +381,7 @@ public final class SiegeManager {
             CrateEffects.onArrow(entity);
             GainGear.onArrowLoad(entity);
             CopperHelper.onLoad(entity);
+            Companions.onEntityLoad(entity);
             dungeons.onEntityLoad(entity);
         });
         PlayerBlockBreakEvents.BEFORE.register(
@@ -493,6 +498,8 @@ public final class SiegeManager {
         MeleeSim.tick(server);
         trapsDirty |= traps.tick(server);
         combat.tick(server);
+        // Companions stay with summoners who defend the night (or try them out in creative).
+        companions.tick(server, p -> isDefending(p) || p.getAbilities().instabuild);
         perks.tick(server);
         EventAtmosphere.tickServer();
         BaseDefense.tickHighlights(server);
@@ -602,9 +609,9 @@ public final class SiegeManager {
         data.accepts = acceptedCount();
         data.required = config.requiredAccepts;
         data.leveling = own.levelingClass() == null ? "" : own.levelingClass().name();
-        data.nextOpen = mayOpenNextClass(own);
+        data.nextOpen = mayOpenNextClass(player, own);
         for (SkillClass c : SkillClass.values()) {
-            if (c.isShared()) {
+            if (c.isShared() || !mayChoose(player, c)) {
                 continue;
             }
             com.mki.nightsiege.core.ClassPickData.Entry entry = new com.mki.nightsiege.core.ClassPickData.Entry();
@@ -1646,6 +1653,13 @@ public final class SiegeManager {
         return com.mki.nightsiege.core.SiegeMath.healthMultiplier(level, config) * event.healthMultiplier(config);
     }
 
+    /** How much harder tonight's monsters hit than plain ones (level and event). */
+    public double mobDamageFactor() {
+        int level = active ? siegeLevel : levelForKit();
+        SiegeEvent event = active && currentEvent != null ? currentEvent : SiegeEvent.NONE;
+        return com.mki.nightsiege.core.SiegeMath.damageMultiplier(level, config) * event.damageMultiplier(config);
+    }
+
     /** Factor on the damage this monster deals to players (config monsterDamage / monsterDamageByType). */
     public float monsterDamageFactor(Entity attacker) {
         if (attacker == null) {
@@ -1727,6 +1741,7 @@ public final class SiegeManager {
         digger.reset();
         ladders.reset();
         besiegers.reset();
+        companions.dismissAll(server);
         mendBase(server);
         endKits(server);
 
@@ -1825,6 +1840,7 @@ public final class SiegeManager {
         digger.reset();
         ladders.reset();
         besiegers.reset();
+        companions.dismissAll(server);
         mendBase(server);
         endKits(server);
         logNight("abgebrochen", 0, killsRequired());
@@ -2103,6 +2119,7 @@ public final class SiegeManager {
     private void markFallen(ServerPlayer player) {
         UUID id = player.getUUID();
         fallen.add(id);
+        companions.dismiss(player);
         nightLog.of(id, player.getScoreboardName()).deaths++;
         save.statsOf(id.toString(), player.getScoreboardName()).fallen++;
         MinecraftServer server = player.level().getServer();
@@ -2501,7 +2518,8 @@ public final class SiegeManager {
         if (!active || taken <= 0) {
             return;
         }
-        if (source.getEntity() instanceof ServerPlayer attacker && entity.entityTags().contains(MobFactory.TAG)) {
+        Entity hitter = Companions.isCompanion(source.getEntity()) ? Companions.ownerPlayer(source.getEntity()) : source.getEntity();
+        if (hitter instanceof ServerPlayer attacker && entity.entityTags().contains(MobFactory.TAG)) {
             nightLog.of(attacker.getUUID(), attacker.getScoreboardName()).dealt += taken;
         }
         if (entity instanceof ServerPlayer victim && participants.contains(victim.getUUID())) {
@@ -2530,6 +2548,12 @@ public final class SiegeManager {
 
     /** Counts a kill and turns it into skill experience. */
     private void onKill(Object killerObject, Object killedObject) {
+        if (killerObject instanceof Entity killerEntity && Companions.isCompanion(killerEntity)
+                && killedObject instanceof Entity victim) {
+            // A companion's kill is its summoner's.
+            companions.onKill(killerEntity, victim);
+            killerObject = Companions.ownerPlayer(killerEntity);
+        }
         if (!(killerObject instanceof ServerPlayer player) || !(killedObject instanceof Entity killed)) {
             return;
         }
@@ -2694,7 +2718,7 @@ public final class SiegeManager {
                         && !fallen.contains(player.getUUID())) {
                     SkillService.apply(player, own, skillTree);
                 }
-                if (!wasComplete && skillTree.isComplete(own, node.clazz()) && nextClassFree(own)) {
+                if (!wasComplete && skillTree.isComplete(own, node.clazz()) && nextClassFree(player, own)) {
                     player.sendSystemMessage(Component.translatable("nightsiege.msg.class_complete",
                             Component.translatable(node.clazz().translationKey())).withStyle(ChatFormatting.GOLD));
                     Fx.pointsEarned(player.level().getServer(), config);
@@ -2707,10 +2731,10 @@ public final class SiegeManager {
         openCoreWindow(player);
     }
 
-    /** True when there is still a class left to unlock. */
-    private static boolean nextClassFree(PlayerSkills own) {
+    /** True when there is still a class left this player may unlock. */
+    private boolean nextClassFree(ServerPlayer player, PlayerSkills own) {
         for (SkillClass c : SkillClass.values()) {
-            if (!c.isShared() && !own.hasUnlocked(c)) {
+            if (!c.isShared() && !own.hasUnlocked(c) && mayChoose(player, c)) {
                 return true;
             }
         }
@@ -2718,8 +2742,19 @@ public final class SiegeManager {
     }
 
     /** True when the player has filled the class they level and may open the next one. */
-    public boolean mayOpenNextClass(PlayerSkills own) {
-        return own.hasClass() && skillTree.isComplete(own, own.levelingClass()) && nextClassFree(own);
+    public boolean mayOpenNextClass(ServerPlayer player, PlayerSkills own) {
+        return own.hasClass() && skillTree.isComplete(own, own.levelingClass()) && nextClassFree(player, own);
+    }
+
+    /** The summoner is for admins only until the config opens it for everyone (Simon, 25 October 2026). */
+    public boolean maySummon(ServerPlayer player) {
+        return config.summonerForEveryone || (player != null
+                && net.minecraft.commands.Commands.LEVEL_GAMEMASTERS.check(player.permissions()));
+    }
+
+    /** Whether this player may see and choose a class. */
+    public boolean mayChoose(ServerPlayer player, SkillClass c) {
+        return c != null && !c.isShared() && (!c.adminOnly() || maySummon(player));
     }
 
     /** The reset at the core is there until the first class is complete. */
@@ -2748,7 +2783,12 @@ public final class SiegeManager {
             return;
         }
         PlayerSkills own = save.skillsOf(player.getUUID().toString());
-        if (own.hasClass() && !own.hasUnlocked(chosen) && mayOpenNextClass(own)) {
+        if (!mayChoose(player, chosen)) {
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.class_admin_only")
+                    .withStyle(ChatFormatting.RED));
+            return;
+        }
+        if (own.hasClass() && !own.hasUnlocked(chosen) && mayOpenNextClass(player, own)) {
             // The class being levelled is full: the next one opens, new points go there.
             own.unlockClass(chosen);
             persist();
@@ -2941,6 +2981,9 @@ public final class SiegeManager {
 
     /** Called before a monster picks a target: the mod's monsters never pick players outside it. */
     public static boolean mayTarget(Mob mob, LivingEntity target) {
+        if (!Companions.mayTarget(mob, target)) {
+            return false;   // companions pick no players and no other companions
+        }
         if (!GainGear.mayTarget(mob, target)) {
             return false;
         }

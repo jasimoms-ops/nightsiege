@@ -42,6 +42,11 @@ public final class SkillTree {
     public static final String SUB_ELECTRICIAN = "electrician";
     public static final String SUB_DEMOLITION = "demolition";
     public static final String SUB_ALCHEMIST = "alchemist";
+    // Summoner (admins only for now): the call of the wild (wolves, golems), later the call of the dead
+    public static final String WAY_WILD = "wild";
+    public static final String WAY_DEAD = "dead";
+    public static final String SUB_TAMER = "tamer";
+    public static final String SUB_GOLEMSMITH = "golemsmith";
 
     /** Nodes that push one trap above its own three tiers. */
     private static final Map<TrapKind, String> TRAP_BOOSTS = Map.of(
@@ -121,6 +126,10 @@ public final class SkillTree {
         // Trunk traps, then mechanics or chemistry; the remote steers the traps.
         engineer(list);
 
+        // ---------------- Summoner ----------------
+        // Trunk, then the call of the wild (wolves and golems); the call of the dead comes next.
+        summoner(list);
+
         // ---------------- Core: shared, paid by donations ----------------
         // Masonry first, then the wall (battlements, rebuilding) or the watch (time, beacon fire).
         // Fixed places give the core its own star map: masonry in the middle, the wall
@@ -159,7 +168,9 @@ public final class SkillTree {
             Map.entry(TrapKind.TURRET.id(), SUB_GUNNER),
             Map.entry(TrapKind.TESLA.id(), SUB_ELECTRICIAN),
             Map.entry(TrapKind.MORTAR.id(), SUB_DEMOLITION),
-            Map.entry(TrapKind.BREWER.id(), SUB_ALCHEMIST));
+            Map.entry(TrapKind.BREWER.id(), SUB_ALCHEMIST),
+            Map.entry("s_tamer", SUB_TAMER),
+            Map.entry("s_golemsmith", SUB_GOLEMSMITH));
 
     private static void archer(List<SkillNode> list) {
         SkillClass c = SkillClass.ARCHER;
@@ -393,6 +404,56 @@ public final class SkillTree {
         node(list, "e_acid_fog", c, ch, SkillEffect.ACID_FOG, 1, 25, 0, 0.25, "toxic_cloud," + mine, "ec_mastery", "minecraft:bone_meal", 9, 6);
         node(list, "e_pyro", c, ch, SkillEffect.PYROMANIAC, 1, 30, 0, 0.4, "bombardment|toxic_cloud", "ec_key", "minecraft:flint_and_steel", 10, 2);
         node(list, "e_plague_doctor", c, ch, SkillEffect.PLAGUE_DOCTOR, 1, 30, 0, 1.0, "bombardment|toxic_cloud", "ec_key", "minecraft:carved_pumpkin", 10, 4);
+    }
+
+    // ------------------------------------------------------------------
+    // summoner
+    // ------------------------------------------------------------------
+
+    /**
+     * The summoner (concept of 24 October 2026, built from 25 October): companions that
+     * follow, fight and vanish after the night. Way of the wild first: wolves (tamer) or
+     * golems (golemsmith).
+     */
+    private static void summoner(List<SkillNode> list) {
+        SkillClass c = SkillClass.SUMMONER;
+        node(list, "s_soulbond", c, "", SkillEffect.SUMMON_HEALTH, 3, 2, 1, 0.1, null, "", "minecraft:lead", 0, 3);
+        node(list, "s_callrange", c, "", SkillEffect.CALL_RANGE, 3, 3, 2, 3.0, "s_soulbond", "s_stem", "minecraft:compass", 1, 2);
+        node(list, "s_command", c, "", SkillEffect.SUMMON_DAMAGE, 3, 3, 2, 0.1, "s_soulbond", "s_stem", "minecraft:name_tag", 1, 4);
+
+        // ----- Way of the wild: wolves and golems answer the call
+        String w = WAY_WILD;
+        node(list, "s_loyalty", c, w, SkillEffect.SUMMON_TOUGHNESS, 3, 3, 2, 0.05, "s_soulbond", "l1", "minecraft:leather_chestplate", 2, 1);
+        node(list, "s_packcall", c, w, SkillEffect.PACK_CALL, 3, 3, 2, 3.0, "s_soulbond", "", "minecraft:wolf_spawn_egg", 2, 3);
+        node(list, "s_trail", c, w, SkillEffect.SUMMON_SPEED, 3, 3, 2, 0.07, "s_soulbond", "l1", "minecraft:rabbit_foot", 2, 5);
+        node(list, "s_tamer", c, w, SkillEffect.PACK_SLOTS, 4, 4, 2, 1.0, "s_packcall", "l_sub", "minecraft:bone", 3, 1);
+        node(list, "s_golemsmith", c, w, SkillEffect.GOLEM_CALL, 4, 4, 2, 0.15, "s_packcall", "l_sub", "minecraft:iron_golem_spawn_egg", 3, 5);
+        node(list, "s_alpha", c, w, SkillEffect.ALPHA_WOLF, 1, 10, 0, 1.0, "s_tamer:2", "l3", "minecraft:wolf_armor", 4, 0);
+        node(list, "s_packhunt", c, w, SkillEffect.PACK_HUNT, 1, 10, 0, 0.2, "s_tamer:2", "l3", "minecraft:beef", 4, 2);
+        node(list, "s_snowguard", c, w, SkillEffect.SNOW_GUARD, 1, 10, 0, 2.0, "s_golemsmith:2", "l3", "minecraft:snowball", 4, 4);
+        node(list, "s_hardgolem", c, w, SkillEffect.HARD_GOLEM, 1, 10, 0, 0.5, "s_golemsmith:2", "l3", "minecraft:anvil", 4, 6);
+        String l3 = "s_alpha|s_packhunt|s_snowguard|s_hardgolem";
+        node(list, "s_howl", c, w, SkillEffect.HOWL, 1, 12, 0, 0.3, l3, "l4", "minecraft:goat_horn", 5, 1);
+        node(list, "s_wardbond", c, w, SkillEffect.WARD_BOND, 1, 12, 0, 1.0, l3, "l4", "minecraft:shield", 5, 3);
+        node(list, "l_cross_bones", c, w, SkillEffect.BONE_GUARD, 1, 12, 0, 1.0, l3, "l4", "minecraft:skeleton_skull", 5, 5,
+                "s_moonpack");
+        node(list, "s_packleader", c, w, SkillEffect.PACK_LEADER, 1, 15, 0, 2.0, "s_alpha,s_howl", "l5", "minecraft:glistering_melon_slice", 6, 1);
+        node(list, "s_golemwork", c, w, SkillEffect.GOLEM_WORK, 1, 15, 0, 2.0, "s_hardgolem,s_wardbond", "l5", "minecraft:piston", 6, 3);
+        node(list, "s_mixedpack", c, w, SkillEffect.MIXED_PACK, 1, 15, 0, 0.15, "s_packhunt,l_cross_bones", "l5", "minecraft:bone_meal", 6, 5);
+        String l4 = "s_howl|s_wardbond|l_cross_bones";
+        node(list, "s_wildness", c, w, SkillEffect.WILDNESS, 1, 18, 0, 0.25, l4, "l6", "minecraft:redstone", 7, 1);
+        node(list, "s_care", c, w, SkillEffect.CARE, 1, 18, 0, 2.0, l4, "l6", "minecraft:sweet_berries", 7, 3);
+        node(list, "l_cross_harvest", c, w, SkillEffect.SOUL_HARVEST, 1, 18, 0, 3.0, l4, "l6", "minecraft:soul_lantern", 7, 5,
+                "s_titan");
+        String l6 = "s_wildness|s_care|l_cross_harvest";
+        node(list, "s_wild_hunt", c, w, SkillEffect.WILD_HUNT, 3, 20, 10, 1.0, l6, "l_ult", "minecraft:echo_shard", 8, 2);
+        node(list, "s_titan", c, w, SkillEffect.TITAN, 3, 20, 10, 1.0, l6, "l_ult", "minecraft:iron_block", 8, 4);
+        node(list, "s_endless_hunt", c, w, SkillEffect.ENDLESS_HUNT, 1, 25, 0, 5.0, "s_wild_hunt,s_tamer", "l_mastery", "minecraft:clock", 9, 0);
+        node(list, "s_moonpack", c, w, SkillEffect.MOON_PACK, 1, 25, 0, 1.0, "s_wild_hunt,s_golemsmith", "l_mastery", "minecraft:glow_berries", 9, 2);
+        node(list, "s_titanfist", c, w, SkillEffect.TITAN_FIST, 1, 25, 0, 1.0, "s_titan,s_tamer", "l_mastery", "minecraft:mace", 9, 4);
+        node(list, "s_orecore", c, w, SkillEffect.ORE_CORE, 1, 25, 0, 1.0, "s_titan,s_golemsmith", "l_mastery", "minecraft:raw_iron_block", 9, 6);
+        node(list, "s_beastlord", c, w, SkillEffect.BEAST_LORD, 1, 30, 0, 1.0, "s_wild_hunt|s_titan", "l_key", "minecraft:dragon_head", 10, 2);
+        node(list, "s_shepherd", c, w, SkillEffect.SHEPHERD, 1, 30, 0, 1.0, "s_wild_hunt|s_titan", "l_key", "minecraft:lantern", 10, 4);
     }
 
     // ------------------------------------------------------------------
@@ -697,6 +758,7 @@ public final class SkillTree {
             case ARCHER -> "wegtausch_a";
             case GUARDIAN -> "wegtausch_g";
             case ENGINEER -> "wegtausch_e";
+            case SUMMONER -> "wegtausch_s";
             default -> null;
         };
     }

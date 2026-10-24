@@ -26,7 +26,8 @@ public final class ClassTags {
             SkillClass.ARCHER, 0x8BD45C,
             SkillClass.WARRIOR, 0xFF6B4A,
             SkillClass.GUARDIAN, 0x6FA8FF,
-            SkillClass.ENGINEER, 0xF0A040);
+            SkillClass.ENGINEER, 0xF0A040,
+            SkillClass.SUMMONER, 0x5FD8B8);
 
     private ClassTags() {
     }

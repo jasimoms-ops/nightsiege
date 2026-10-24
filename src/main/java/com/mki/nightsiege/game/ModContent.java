@@ -31,6 +31,8 @@ public final class ModContent {
     public static Item GUIDE;
     /** The engineer's remote. */
     public static Item REMOTE;
+    /** The summoner's staff. */
+    public static Item STAFF;
     public static final Map<TrapKind, Block> TRAP_BLOCKS = new EnumMap<>(TrapKind.class);
     public static final Map<TrapKind, Item> TRAP_ITEMS = new EnumMap<>(TrapKind.class);
 
@@ -78,6 +80,11 @@ public final class ModContent {
                 .rarity(net.minecraft.world.item.Rarity.UNCOMMON));
         Registry.register(BuiltInRegistries.ITEM, remoteKey, REMOTE);
 
+        ResourceKey<Item> staffKey = ResourceKey.create(Registries.ITEM, id("summoning_staff"));
+        STAFF = new SummonStaffItem(new Item.Properties().setId(staffKey).stacksTo(1)
+                .rarity(net.minecraft.world.item.Rarity.UNCOMMON));
+        Registry.register(BuiltInRegistries.ITEM, staffKey, STAFF);
+
         InferniteContent.register();
         DungeonContent.register();
         CrateService.registerItem();
@@ -92,6 +99,7 @@ public final class ModContent {
                     output.accept(SIEGE_CORE_ITEM);
                     output.accept(GuideBook.create());
                     output.accept(REMOTE);
+                    output.accept(STAFF);
                     for (TrapKind kind : TrapKind.values()) {
                         output.accept(TRAP_ITEMS.get(kind));
                     }
