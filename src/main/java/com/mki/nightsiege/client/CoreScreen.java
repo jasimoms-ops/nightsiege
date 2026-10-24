@@ -2008,11 +2008,12 @@ public class CoreScreen extends Screen {
         y += 13;
         int labelW = 70;
         int perRow = 8;
-        int tileW = Math.max(24, (right - x - labelW) / perRow);
-        int box = Math.min(tileW - 3, 24);
-        int shelfH = box + 6;
+        int tileW = Math.max(22, (right - x - labelW) / perRow);
         int bottom = innerY() + innerH() - 13;
         int rows = com.mki.nightsiege.core.CrateRarity.values().length;
+        // The shelves share the height: showcases between 18 and 24 pixels.
+        int box = Math.max(18, Math.min(Math.min(tileW - 3, 24), (bottom - y) / rows - 7));
+        int shelfH = box + 6;
         int step = Math.max(shelfH + 1, Math.min(shelfH + 6, (bottom - y) / rows));
         com.mki.nightsiege.core.CrateGains.Gain hovered = null;
         long now = System.currentTimeMillis();
@@ -2200,23 +2201,31 @@ public class CoreScreen extends Screen {
             int textX = sx + 26;
             int textW = tx + tabW - 4 - textX;
             String name = Component.translatable("item.nightsiege.night_fragment_" + fragment.id()).getString();
-            gui.text(font, font.plainSubstrByWidth(name, textW), textX, sy + 1, color, true);
+            if (font.width(name) <= textW) {
+                gui.text(font, name, textX, sy + 1, color, true);
+            } else {
+                float sc = Math.max(0.7f, (float) textW / font.width(name));
+                smallText(gui, font, font.plainSubstrByWidth(name, (int) (textW / sc)), textX, sy + 2, color, sc);
+            }
             String event = "→ " + Component.translatable("nightsiege.event." + fragment.event().name().toLowerCase(Locale.ROOT)).getString();
             gui.text(font, font.plainSubstrByWidth(event, textW), textX, sy + 12, WHITE, true);
             String where = Component.translatable("nightsiege.ui.fragment_where." + fragment.id()).getString();
             int wy = sy + 26;
             for (String line : wrap(font, where, (int) ((tabW - 12) / 0.7f))) {
-                if (wy + 7 > tyy + tabH - 3) {
+                if (wy + 7 > tyy + tabH - (chosen ? 13 : 3)) {
                     break;
                 }
                 smallText(gui, font, line, tx + 6, wy, 0xFF9A90AA, 0.7f);
                 wy += 7;
             }
             if (chosen) {
+                // "In the core": a little gold plate on the tablet's lower edge.
                 String mark = "★ " + Component.translatable("nightsiege.ui.fragment_in_core").getString();
                 int mw = (int) (font.width(mark) * 0.7f);
-                gui.fill(tx + tabW - mw - 8, tyy + 4, tx + tabW - 2, tyy + 13, 0xE0100C16);
-                smallText(gui, font, mark, tx + tabW - mw - 5, tyy + 6, 0xFFFFD86B, 0.7f);
+                int my = tyy + tabH - 11;
+                gui.fill(tx + tabW - mw - 10, my, tx + tabW - 3, my + 9, 0xF0302408);
+                gui.fill(tx + tabW - mw - 10, my, tx + tabW - 3, my + 1, 0xFFFFD86B);
+                smallText(gui, font, mark, tx + tabW - mw - 6, my + 2, 0xFFFFD86B, 0.7f);
             }
         }
     }
