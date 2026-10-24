@@ -43,6 +43,10 @@ public class EventLookTest implements FabricClientGameTest {
             }
             setUpScene(context, game);
             registrationScene(context);
+            if (System.getenv("NIGHTSIEGE_SIM") != null) {
+                simScene(context, game);
+                return;
+            }
 
             if (!shaderRun) {
                 series(context, game, "event");
@@ -699,6 +703,57 @@ public class EventLookTest implements FabricClientGameTest {
             }
         });
         context.waitTicks(5);
+    }
+
+    /**
+     * Melee balance simulation: an open field with a core, then /nightsiege sim runs every
+     * melee subclass through test nights (old and new values). The server sprints meanwhile.
+     */
+    private static void simScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        int cx = pos.getX() + 30;
+        int cy = pos.getY();
+        int cz = pos.getZ();
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:grass_block"
+                .formatted(cx - 24, cy - 1, cz - 24, cx + 24, cy - 1, cz + 24));
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air"
+                .formatted(cx - 24, cy, cz - 24, cx + 24, cy + 12, cz + 24));
+        game.getServer().runCommand("tp @p %d.5 %d %d.5 -90 10".formatted(cx + 2, cy, cz));
+        game.getServer().runCommand("gamerule doDaylightCycle false");
+        game.getServer().runCommand("time set 18000");
+        context.waitTicks(20);
+        net.minecraft.core.BlockPos core = new net.minecraft.core.BlockPos(cx, cy, cz);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            level.setBlock(core, com.mki.nightsiege.game.ModContent.SIEGE_CORE.defaultBlockState(), 3);
+            manager.onCorePlaced(level, core, player);
+            manager.save().register(player.getUUID().toString());
+            String problem = com.mki.nightsiege.game.MeleeSim.start(player, 10, 150);
+            System.out.println("[Night Siege sim] start: " + (problem == null ? "ok" : problem));
+        });
+        context.waitTicks(40);
+        game.getServer().runCommand("tick sprint 2000000");
+        boolean shot = false;
+        for (int i = 0; i < 400; i++) {
+            context.waitTicks(60);
+            boolean done = context.computeOnClient(client -> com.mki.nightsiege.game.MeleeSim.done());
+            if (!shot && i == 3) {
+                context.takeScreenshot("sim_fight");
+                shot = true;
+            }
+            if (done) {
+                break;
+            }
+            if (i % 10 == 0) {
+                int n = context.computeOnClient(client -> com.mki.nightsiege.game.MeleeSim.results().size());
+                System.out.println("[Night Siege sim] running, finished runs: " + n);
+            }
+        }
+        game.getServer().runCommand("tick sprint stop");
+        context.waitTicks(20);
+        for (String line : context.computeOnClient(client -> com.mki.nightsiege.game.MeleeSim.report())) {
+            System.out.println(line);
+        }
     }
 
     /** Gives every B2 gain to every class, so the kits and gadgets can be tried. */

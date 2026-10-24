@@ -706,11 +706,25 @@ public final class CombatEffects {
         }
 
         extra += guardian.meleeExtra(level, player, skills, victim, taken, now);
-        double steal = tree.totalBonus(SkillEffect.LIFESTEAL, skills);
+        double steal = tree.totalBonus(SkillEffect.LIFESTEAL, skills) + baseLifesteal(skills);
         if (steal > 0) {
             player.heal((float) ((taken + extra) * steal));
         }
         return extra;
+    }
+
+    /**
+     * Every warrior and the shield fighter heal a little from their melee hits, so they hold
+     * out without a healer (config meleeLifesteal; the berserker's own steal adds to it).
+     */
+    private double baseLifesteal(PlayerSkills skills) {
+        SiegeManager m = SiegeManager.get();
+        if (m == null || skills == null) {
+            return 0.0;
+        }
+        boolean melee = skills.clazz() == SkillClass.WARRIOR
+                || skills.clazz() == SkillClass.GUARDIAN && SkillTree.SUB_SHIELDFIGHTER.equals(tree.subclassOf(skills));
+        return melee ? m.config().meleeLifesteal : 0.0;
     }
 
     /** True when the player holds the weapon of their warrior way (or is no warrior). */

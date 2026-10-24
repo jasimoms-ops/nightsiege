@@ -185,7 +185,9 @@ public final class GuardianEffects {
                 factor *= (float) (1.0 - anchor);
             }
         }
-        return amount * Math.max(0.15f, factor);
+        // Skills can take away at most maxDamageReduction together (the bulwark was nearly immortal).
+        float floor = tuning == null ? 0.30f : (float) (1.0 - tuning.config().maxDamageReduction);
+        return amount * Math.max(floor, factor);
     }
 
     // ------------------------------------------------------------------

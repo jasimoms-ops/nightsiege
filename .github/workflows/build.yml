@@ -244,7 +244,13 @@ jobs:
           sudo apt-get update -qq > /dev/null
           sudo apt-get install -y -qq xvfb libgl1-mesa-dri > /dev/null
           export LIBGL_ALWAYS_SOFTWARE=1
-          timeout 1200 xvfb-run -a -s "-screen 0 1280x720x24" gradle runClientGameTest --no-daemon --stacktrace > client-output.txt 2>&1
+          CLIENT_TIMEOUT=1200
+          # [sim] in the commit message: only the melee balance simulation, with more time.
+          if [[ "$COMMIT_MSG" == *"[sim]"* ]]; then
+            export NIGHTSIEGE_SIM=1
+            CLIENT_TIMEOUT=3000
+          fi
+          timeout $CLIENT_TIMEOUT xvfb-run -a -s "-screen 0 1280x720x24" gradle runClientGameTest --no-daemon --stacktrace > client-output.txt 2>&1
           echo "exit=$?" >> client-output.txt
           mkdir -p shots
           find . -path ./shots -prune -o -name "*.png" -path "*screenshot*" -newer build.gradle -print | while read f; do cp "$f" shots/; done
@@ -275,6 +281,9 @@ jobs:
               size += len(line) + 1
           if chunk:
               print("::warning title=CLIENT%d::" % part + "%0A".join(chunk))
+          sim = [l.rstrip()[:300] for l in text.splitlines() if "[Night Siege sim]" in l]
+          if sim:
+              print("::warning title=SIM::" + "%0A".join(sim[-60:]))
           tail = [l.rstrip()[:300] for l in text.splitlines() if not noise.search(l)][-40:]
           print("::warning title=CLIENT-TAIL::" + "%0A".join(tail))
           PY

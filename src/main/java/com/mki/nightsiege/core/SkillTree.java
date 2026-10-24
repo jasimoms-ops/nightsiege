@@ -414,7 +414,7 @@ public final class SkillTree {
         node(list, "g_shieldthrow", c, s, SkillEffect.SHIELD_THROW, 1, 10, 0, 10.0, "riposte:2", "s3", "minecraft:trident", 4, 0);
         node(list, "g_shieldbash", c, s, SkillEffect.SHIELD_BASH, 1, 10, 0, 8.0, "riposte:2", "s3", "minecraft:piston", 4, 2);
         node(list, "g_ironhide", c, s, SkillEffect.IRONHIDE, 1, 10, 0, 2.0, "g_bastion:2", "s3", "minecraft:chainmail_chestplate", 4, 4);
-        node(list, "g_anchor", c, s, SkillEffect.ANCHOR, 1, 10, 0, 0.4, "g_bastion:2", "s3", "minecraft:anvil", 4, 6);
+        node(list, "g_anchor", c, s, SkillEffect.ANCHOR, 1, 10, 0, 0.3, "g_bastion:2", "s3", "minecraft:anvil", 4, 6);
         String s3 = "g_shieldthrow|g_shieldbash|g_ironhide|g_anchor";
         node(list, "g_counterstrike", c, s, SkillEffect.COUNTERSTRIKE, 1, 12, 0, 1.0, s3, "s4", "minecraft:golden_sword", 5, 1);
         node(list, "g_thorns", c, s, SkillEffect.THORNS, 1, 12, 0, 4.0, s3, "s4", "minecraft:sweet_berries", 5, 3);

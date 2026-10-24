@@ -106,6 +106,13 @@ public final class SiegeCommands {
                                         })
                                         .then(Commands.argument("stufe", IntegerArgumentType.integer(0, PerkKind.MAX_STAGE))
                                                 .executes(SiegeCommands::perkSet)))))
+                .then(Commands.literal("sim").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                        .executes(ctx -> sim(ctx, 10, 150))
+                        .then(Commands.argument("stufe", IntegerArgumentType.integer(1, 1000))
+                                .executes(ctx -> sim(ctx, IntegerArgumentType.getInteger(ctx, "stufe"), 150))
+                                .then(Commands.argument("sekunden", IntegerArgumentType.integer(20, 900))
+                                        .executes(ctx -> sim(ctx, IntegerArgumentType.getInteger(ctx, "stufe"),
+                                                IntegerArgumentType.getInteger(ctx, "sekunden"))))))
                 .then(Commands.literal("eintragen").executes(ctx -> asPlayer(ctx, p -> SiegeManager.get().register(p))))
                 .then(Commands.literal("austragen").executes(ctx -> asPlayer(ctx, p -> SiegeManager.get().unregister(p))))
                 .then(Commands.literal("zusagen").executes(ctx -> asPlayer(ctx, p -> SiegeManager.get().vote(p, true))))
@@ -274,6 +281,25 @@ public final class SiegeCommands {
         } else {
             reply(source, Component.translatable("nightsiege.cmd.test_started", manager.currentLevel()));
         }
+        return 1;
+    }
+
+    /** Melee balance simulation: every melee subclass fights test nights, old against new values. */
+    private static int sim(CommandContext<CommandSourceStack> ctx, int level, int seconds) {
+        CommandSourceStack source = ctx.getSource();
+        ServerPlayer player;
+        try {
+            player = source.getPlayerOrException();
+        } catch (Exception e) {
+            fail(source, Component.translatable("nightsiege.cmd.player_only"));
+            return 0;
+        }
+        String problem = MeleeSim.start(player, level, seconds);
+        if (problem != null) {
+            fail(source, Component.translatable(problem));
+            return 0;
+        }
+        reply(source, Component.translatable("nightsiege.sim.started", MeleeSim.SUBCLASSES.length * 2, level, seconds));
         return 1;
     }
 

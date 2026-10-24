@@ -346,6 +346,7 @@ public final class SiegeManager {
             perks.afterDamage(entity, taken);
             CrateEffects.afterDamage(entity, source);
             GainGear.afterDamage(entity, source, taken);
+            MeleeSim.onDamage(entity, source, taken);
         });
         ServerLivingEntityEvents.ALLOW_DEATH.register((entity, source, amount) ->
                 combat.allowDeath(entity) && allowNightDeath(entity));
@@ -487,6 +488,7 @@ public final class SiegeManager {
 
     private void onEndTick(MinecraftServer server) {
         tickModCheck(server);
+        MeleeSim.tick(server);
         trapsDirty |= traps.tick(server);
         combat.tick(server);
         perks.tick(server);
@@ -2459,6 +2461,7 @@ public final class SiegeManager {
             return;
         }
         combat.onKill(player, killed);
+        MeleeSim.onKill(player);
         if (killed instanceof LivingEntity livingKilled) {
             CrateEffects.onKill(player, livingKilled);
         }

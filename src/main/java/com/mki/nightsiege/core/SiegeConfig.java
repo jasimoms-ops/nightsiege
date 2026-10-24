@@ -229,6 +229,13 @@ public class SiegeConfig {
     public double infernitCrateChance = 0.05;
     /** How far a fallen defender may watch from the core. */
     public double spectatorRadius = 80.0;
+    /**
+     * Melee life steal every warrior and the shield fighter get from the start (share of the
+     * melee damage dealt). The berserker's own life steal comes on top. 0 switches it off.
+     */
+    public double meleeLifesteal = 0.08;
+    /** The most damage any player's skills can take away together (0.70 = at most -70 %). */
+    public double maxDamageReduction = 0.70;
     /** Items picked up in the night that are kept afterwards (besides armour and weapons of diamond or better). */
     public List<String> valuableDrops = new ArrayList<>(List.of(
             "minecraft:ender_pearl", "minecraft:totem_of_undying", "minecraft:emerald", "minecraft:diamond"));
@@ -586,6 +593,21 @@ public class SiegeConfig {
             }
             settingsVersion = 6;
         }
+        if (settingsVersion < 7) {
+            // 24 October 2026, after the melee simulation: warriors take 15 % less from monsters.
+            if (classDamageTaken.getOrDefault("warrior", 1.0) == 1.0) {
+                classDamageTaken.put("warrior", 0.85);
+            }
+            settingsVersion = 7;
+        }
+        if (Double.isNaN(meleeLifesteal)) {
+            meleeLifesteal = 0.08;
+        }
+        meleeLifesteal = Math.min(1.0, Math.max(0.0, meleeLifesteal));
+        if (Double.isNaN(maxDamageReduction) || maxDamageReduction <= 0) {
+            maxDamageReduction = 0.70;
+        }
+        maxDamageReduction = Math.min(0.95, Math.max(0.1, maxDamageReduction));
         crateOddsNormal = odds(crateOddsNormal, new int[]{60, 25, 10, 4, 1});
         crateOddsEvent = odds(crateOddsEvent, new int[]{45, 30, 16, 7, 2});
         crateOddsFragment = odds(crateOddsFragment, new int[]{30, 30, 22, 13, 5});
