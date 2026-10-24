@@ -47,6 +47,8 @@ public final class SkillTree {
     public static final String WAY_DEAD = "dead";
     public static final String SUB_TAMER = "tamer";
     public static final String SUB_GOLEMSMITH = "golemsmith";
+    public static final String SUB_NECROMANCER = "necromancer";
+    public static final String SUB_SOULCATCHER = "soulcatcher";
 
     /** Nodes that push one trap above its own three tiers. */
     private static final Map<TrapKind, String> TRAP_BOOSTS = Map.of(
@@ -127,7 +129,7 @@ public final class SkillTree {
         engineer(list);
 
         // ---------------- Summoner ----------------
-        // Trunk, then the call of the wild (wolves and golems); the call of the dead comes next.
+        // Trunk, then the call of the wild (wolves and golems) or the call of the dead (raised monsters, ghosts).
         summoner(list);
 
         // ---------------- Core: shared, paid by donations ----------------
@@ -170,7 +172,9 @@ public final class SkillTree {
             Map.entry(TrapKind.MORTAR.id(), SUB_DEMOLITION),
             Map.entry(TrapKind.BREWER.id(), SUB_ALCHEMIST),
             Map.entry("s_tamer", SUB_TAMER),
-            Map.entry("s_golemsmith", SUB_GOLEMSMITH));
+            Map.entry("s_golemsmith", SUB_GOLEMSMITH),
+            Map.entry("d_necro", SUB_NECROMANCER),
+            Map.entry("d_soulcatcher", SUB_SOULCATCHER));
 
     private static void archer(List<SkillNode> list) {
         SkillClass c = SkillClass.ARCHER;
@@ -411,9 +415,10 @@ public final class SkillTree {
     // ------------------------------------------------------------------
 
     /**
-     * The summoner (concept of 24 October 2026, built from 25 October): companions that
-     * follow, fight and vanish after the night. Way of the wild first: wolves (tamer) or
-     * golems (golemsmith).
+     * The summoner (concept of 24 October 2026, built 25 October): companions that follow,
+     * fight and vanish after the night. Way of the wild: wolves (tamer) or golems
+     * (golemsmith). Way of the dead: fallen monsters rise again for souls (necromancer) or
+     * ghosts come along (soulcatcher).
      */
     private static void summoner(List<SkillNode> list) {
         SkillClass c = SkillClass.SUMMONER;
@@ -454,6 +459,40 @@ public final class SkillTree {
         node(list, "s_orecore", c, w, SkillEffect.ORE_CORE, 1, 25, 0, 1.0, "s_titan,s_golemsmith", "l_mastery", "minecraft:raw_iron_block", 9, 6);
         node(list, "s_beastlord", c, w, SkillEffect.BEAST_LORD, 1, 30, 0, 1.0, "s_wild_hunt|s_titan", "l_key", "minecraft:dragon_head", 10, 2);
         node(list, "s_shepherd", c, w, SkillEffect.SHEPHERD, 1, 30, 0, 1.0, "s_wild_hunt|s_titan", "l_key", "minecraft:lantern", 10, 4);
+
+        // ----- Way of the dead: fallen monsters rise again (weakened) for souls; ghosts
+        String d = WAY_DEAD;
+        node(list, "d_greed", c, d, SkillEffect.SOUL_GREED, 3, 3, 2, 0.1, "s_soulbond", "d1", "minecraft:soul_sand", 2, 1);
+        node(list, "d_raise", c, d, SkillEffect.RAISE_DEAD, 3, 3, 2, 10.0, "s_soulbond", "", "minecraft:zombie_head", 2, 3);
+        node(list, "d_bindrune", c, d, SkillEffect.BIND_RUNE, 3, 3, 2, 0.17, "s_soulbond", "d1", "minecraft:enchanted_book", 2, 5);
+        node(list, "d_necro", c, d, SkillEffect.NECRO_POWER, 4, 4, 2, 0.15, "d_raise", "d_sub", "minecraft:wither_skeleton_skull", 3, 1);
+        node(list, "d_soulcatcher", c, d, SkillEffect.SOUL_CATCHER, 4, 4, 2, 0.15, "d_raise", "d_sub", "minecraft:soul_lantern", 3, 5);
+        node(list, "d_archers", c, d, SkillEffect.SKELETON_ARCHERS, 1, 10, 0, 0.5, "d_necro:2", "d3", "minecraft:bow", 4, 0);
+        node(list, "d_ghoul", c, d, SkillEffect.GHOUL_HUNGER, 1, 10, 0, 0.3, "d_necro:2", "d3", "minecraft:rotten_flesh", 4, 2);
+        node(list, "d_swarm", c, d, SkillEffect.GHOST_SWARM, 1, 10, 0, 1.0, "d_soulcatcher:2", "d3", "minecraft:phantom_membrane", 4, 4);
+        node(list, "d_soulshield", c, d, SkillEffect.SOUL_SHIELD, 1, 10, 0, 8.0, "d_soulcatcher:2", "d3", "minecraft:totem_of_undying", 4, 6);
+        String d3 = "d_archers|d_ghoul|d_swarm|d_soulshield";
+        node(list, "d_rot", c, d, SkillEffect.ROT, 1, 12, 0, 1.0, d3, "d4", "minecraft:fermented_spider_eye", 5, 1);
+        node(list, "d_corpse", c, d, SkillEffect.CORPSE_BLAST, 1, 12, 0, 6.0, d3, "d4", "minecraft:tnt", 5, 3);
+        node(list, "d_cross_wolf", c, d, SkillEffect.PACK_CALL, 1, 12, 0, 0.0, d3, "d4", "minecraft:wolf_spawn_egg", 5, 5,
+                "d_champion");
+        node(list, "d_legion", c, d, SkillEffect.BONE_LEGION, 1, 15, 0, 1.0, "d_archers,d_rot", "d5", "minecraft:arrow", 6, 1);
+        node(list, "d_soulburn", c, d, SkillEffect.SOUL_BURN, 1, 15, 0, 2.0, "d_swarm,d_corpse", "d5", "minecraft:soul_campfire", 6, 3);
+        node(list, "d_dance", c, d, SkillEffect.DEATH_DANCE, 1, 15, 0, 2.0, "d_ghoul,d_cross_wolf", "d5", "minecraft:bone", 6, 5);
+        String d4 = "d_rot|d_corpse|d_cross_wolf";
+        node(list, "d_unholy", c, d, SkillEffect.UNHOLY_MIGHT, 1, 18, 0, 0.05, d4, "d6", "minecraft:wither_rose", 7, 1);
+        node(list, "d_pact", c, d, SkillEffect.SOUL_PACT, 1, 18, 0, 2.0, d4, "d6", "minecraft:ghast_tear", 7, 3);
+        node(list, "d_cross_loyalty", c, d, SkillEffect.SUMMON_TOUGHNESS, 1, 18, 0, 0.15, d4, "d6", "minecraft:leather_chestplate", 7, 5,
+                "d_soulstorm");
+        String d6 = "d_unholy|d_pact|d_cross_loyalty";
+        node(list, "d_army", c, d, SkillEffect.ARMY_OF_THE_DEAD, 3, 20, 10, 1.0, d6, "d_ult", "minecraft:skeleton_skull", 8, 2);
+        node(list, "d_soulstorm", c, d, SkillEffect.SOUL_STORM, 3, 20, 10, 1.0, d6, "d_ult", "minecraft:sculk_catalyst", 8, 4);
+        node(list, "d_eternal", c, d, SkillEffect.ETERNAL_LEGION, 1, 25, 0, 5.0, "d_army,d_necro", "d_mastery", "minecraft:clock", 9, 0);
+        node(list, "d_champion", c, d, SkillEffect.CHAMPION_OF_THE_DEAD, 1, 25, 0, 1.0, "d_army,d_soulcatcher", "d_mastery", "minecraft:golden_helmet", 9, 2);
+        node(list, "d_soulflood", c, d, SkillEffect.SOUL_FLOOD, 1, 25, 0, 0.5, "d_soulstorm,d_soulcatcher", "d_mastery", "minecraft:soul_torch", 9, 4);
+        node(list, "d_echo", c, d, SkillEffect.ECHO, 1, 25, 0, 0.5, "d_soulstorm,d_necro", "d_mastery", "minecraft:echo_shard", 9, 6);
+        node(list, "d_lich", c, d, SkillEffect.LICH, 1, 30, 0, 0.5, "d_army|d_soulstorm", "d_key", "minecraft:dragon_breath", 10, 2);
+        node(list, "d_soulkeeper", c, d, SkillEffect.SOUL_KEEPER, 1, 30, 0, 20.0, "d_army|d_soulstorm", "d_key", "minecraft:respawn_anchor", 10, 4);
     }
 
     // ------------------------------------------------------------------

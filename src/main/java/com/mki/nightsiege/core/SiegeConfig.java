@@ -368,7 +368,7 @@ public class SiegeConfig {
     public static final String[] CLASS_KEYS = {"warrior", "archer", "guardian", "engineer", "summoner"};
     public static final String[] SUBCLASS_KEYS = {"blademaster", "berserker", "axe", "paladin", "swift", "heavy", "bolter",
             "trapper", "shieldfighter", "bulwark", "medic", "warden", "gunner", "electrician", "demolition", "alchemist",
-            "tamer", "golemsmith"};
+            "tamer", "golemsmith", "necromancer", "soulcatcher"};
 
     /** Factor on the damage a player of this class and subclass deals to monsters. */
     public double damageFactor(String clazz, String subclass) {

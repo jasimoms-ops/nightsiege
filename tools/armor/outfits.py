@@ -869,3 +869,64 @@ def golemsmith(L1, L2):
     L2.strip('leg', lambda c: leather(leather_c)(c) if c.face == 'front' else None, rows=(5, 7))
     L2.strip('body', cloth(hexc('#2e3038')), rows=(6, 11))
     plain_boots(L1, 8, leather(hexc('#3a2a1e')), hexc('#141210'), cuff=leather(hexc('#5a3a22')))
+
+
+@outfit('necromancer')
+def necromancer(L1, L2):
+    """The necromancer: a black robe with violet runes, bone at the shoulders and on the chest,
+    a deep hood; the dead obey him."""
+    robe, robe_l, robe_d = hexc('#231c2e'), hexc('#3a2e4a'), hexc('#140f1c')
+    violet, glow = hexc('#7a4ab8'), hexc('#b48cff')
+    bone = hexc('#e4dac1')
+    R = shaded(robe, 1.18, 0.8)
+    L1.strip('body', R)
+    L1.cap('body', R)
+    # A violet rune band down the front, little bone toggles.
+    L1.strip('body', lambda c: (glow if c.fy % 3 == 1 else violet) if c.face == 'front' and c.fx in (3, 4) else None)
+    L1.strip('body', lambda c: bone if c.face == 'front' and c.fx in (2, 5) and c.fy in (2, 5, 8) else None)
+    L1.strip('body', lambda c: robe_l if c.r == 0 else None, rows=(0, 0))
+    belt(L1, 8, leather(hexc('#1e1612')), bone, bone)
+    L1.strip('arm', R, rows=(0, 9))
+    L1.strip('arm', lambda c: violet if c.r == 9 else None, rows=(9, 9))
+    L1.strip('arm', lambda c: robe_d if c.r >= 10 else None, rows=(10, 11))
+    L1.cap('arm', R)
+    hand(L1, leather(hexc('#2a2026')))
+    hood(L1, shaded(robe, 1.15, 0.82), rim=lambda c: violet, open_rows=(2, 7), open_cols=(1, 6), point=False)
+    # The robe to the ankles; dark wraps.
+    L2.strip('leg', cloth(hexc('#1a1520')))
+    L2.strip('leg', R, rows=(0, 8), faces=('right', 'back', 'left'))
+    L2.strip('leg', lambda c: violet if c.r == 8 else None, rows=(8, 8), faces=('right', 'back', 'left'))
+    L2.strip('body', R, rows=(6, 11))
+    plain_boots(L1, 8, leather(hexc('#1e1612')), hexc('#0a080c'))
+
+
+@outfit('soulcatcher')
+def soulcatcher(L1, L2):
+    """The soulcatcher: a grey-blue hunting coat with chains, a hood and a cloth mask,
+    soul jars and a soul lantern at the belt; the souls glow teal."""
+    coat, coat_l, coat_d = hexc('#3b4a55'), hexc('#56697a'), hexc('#24303a')
+    teal, teal_l = hexc('#6fe0d0'), hexc('#c8fff6')
+    chain = hexc('#8a8e94')
+    C = shaded(coat, 1.15, 0.82)
+    L1.strip('body', C)
+    L1.cap('body', C)
+    L1.strip('body', lambda c: coat_d if c.face == 'front' and c.fx == 4 else None)
+    # A chain across the chest from the left shoulder.
+    L1.art('body', 'front', ['c.......', '.c......', '..c.....', '...c....', '....c...', '.....c..', '......c.', '.......c'],
+           {'c': chain}, y=0)
+    L1.strip('body', lambda c: coat_l if c.r == 0 else None, rows=(0, 0))
+    belt(L1, 8, leather(hexc('#2a2420')), chain, mul(chain, 1.3))
+    L1.strip('arm', C, rows=(0, 8))
+    L1.strip('arm', lambda c: teal if c.face == 'front' and c.r == 7 and c.s % 2 == 0 else None, rows=(7, 7))
+    L1.strip('arm', leather(hexc('#2a2420')), rows=(9, 11))
+    L1.cap('arm', C)
+    hand(L1, leather(hexc('#1e1a18')))
+    hood(L1, shaded(coat, 1.12, 0.84), rim=lambda c: coat_d, open_rows=(2, 7), open_cols=(1, 6), point=True)
+    # A dark cloth mask over mouth and nose, only the eyes stay free.
+    L1.art('head', 'front', ['........', '........', '........', '........', '........', '.mmmmmm.', '.mmmmmm.', '..mmmm..'],
+           {'m': cloth(hexc('#1c2228'))})
+    # Leggings: dark trousers, high boots.
+    L2.strip('leg', cloth(hexc('#232a30')))
+    L2.strip('leg', C, rows=(0, 4), faces=('right', 'back', 'left'))
+    L2.strip('body', C, rows=(6, 11))
+    plain_boots(L1, 6, leather(hexc('#2a2420')), hexc('#0e0c0a'), cuff=leather(hexc('#3a322c')))

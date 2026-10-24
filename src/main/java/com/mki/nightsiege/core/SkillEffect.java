@@ -332,6 +332,34 @@ public enum SkillEffect {
     ORE_CORE(0.0, Target.COMBAT),
     BEAST_LORD(0.0, Target.COMBAT),
     SHEPHERD(0.0, Target.COMBAT),
+    // Summoner, way of the dead: souls, the raised dead and ghosts
+    /** Chance for one more soul when a monster falls nearby. */
+    SOUL_GREED(0.0, Target.COMBAT),
+    /** The staff raises the last fallen monster (for souls); every level lets it stay longer. */
+    RAISE_DEAD(0.0, Target.COMBAT),
+    /** The raised dead stay this share longer. */
+    BIND_RUNE(0.0, Target.COMBAT),
+    /** The raised dead get this share more health and damage (necromancer). */
+    NECRO_POWER(0.0, Target.COMBAT),
+    /** Every raising also calls a ghost (soulcatcher); ghosts grow stronger per level. */
+    SOUL_CATCHER(0.0, Target.COMBAT),
+    SKELETON_ARCHERS(0.0, Target.COMBAT),
+    GHOUL_HUNGER(0.0, Target.COMBAT),
+    GHOST_SWARM(0.0, Target.COMBAT),
+    SOUL_SHIELD(0.0, Target.COMBAT),
+    ROT(0.0, Target.COMBAT),
+    CORPSE_BLAST(0.0, Target.COMBAT),
+    BONE_LEGION(0.0, Target.COMBAT),
+    SOUL_BURN(0.0, Target.COMBAT),
+    DEATH_DANCE(0.0, Target.COMBAT),
+    UNHOLY_MIGHT(0.0, Target.COMBAT),
+    SOUL_PACT(0.0, Target.COMBAT),
+    ETERNAL_LEGION(0.0, Target.COMBAT),
+    CHAMPION_OF_THE_DEAD(0.0, Target.COMBAT),
+    SOUL_FLOOD(0.0, Target.COMBAT),
+    ECHO(0.0, Target.COMBAT),
+    LICH(0.0, Target.COMBAT),
+    SOUL_KEEPER(0.0, Target.COMBAT),
 
     // Ultimates: one per path, fired with the ultimate key. The level is the rank.
     ARROW_STORM(0.0, Target.ULTIMATE),
@@ -352,7 +380,9 @@ public enum SkillEffect {
     TOXIC_CLOUD(0.0, Target.ULTIMATE),
     THUNDERSTORM(0.0, Target.ULTIMATE),
     WILD_HUNT(0.0, Target.ULTIMATE),
-    TITAN(0.0, Target.ULTIMATE);
+    TITAN(0.0, Target.ULTIMATE),
+    ARMY_OF_THE_DEAD(0.0, Target.ULTIMATE),
+    SOUL_STORM(0.0, Target.ULTIMATE);
 
     public enum Target { PLAYER, SIEGE, ARROW, TRAP, COMBAT, ULTIMATE }
 

@@ -31,7 +31,7 @@ public final class ClassLooks {
             "swift", "heavy", "bolter", "trapper",
             "shieldfighter", "bulwark", "medic", "warden",
             "gunner", "electrician", "demolition", "alchemist",
-            "tamer", "golemsmith");
+            "tamer", "golemsmith", "necromancer", "soulcatcher");
 
     private static final String TEAM_PREFIX = "ns_c_";
     private static final Map<String, ResourceKey<EquipmentAsset>> ASSETS = new LinkedHashMap<>();

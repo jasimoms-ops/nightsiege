@@ -726,7 +726,7 @@ class SiegeCoreTest {
     void everyClassHasItsPaths() {
         SkillTree tree = new SkillTree();
         java.util.Map<SkillClass, Integer> expected = java.util.Map.of(SkillClass.ARCHER, 2, SkillClass.WARRIOR, 2,
-                SkillClass.GUARDIAN, 2, SkillClass.ENGINEER, 2, SkillClass.SUMMONER, 1);
+                SkillClass.GUARDIAN, 2, SkillClass.ENGINEER, 2, SkillClass.SUMMONER, 2);
         for (java.util.Map.Entry<SkillClass, Integer> entry : expected.entrySet()) {
             Set<String> paths = new HashSet<>();
             for (SkillNode node : tree.ofClass(entry.getKey())) {
@@ -1085,10 +1085,10 @@ class SiegeCoreTest {
             }
             ultimates.merge(node.path(), node.effect().target() == SkillEffect.Target.ULTIMATE ? 1 : 0, Integer::sum);
         }
-        assertEquals(9, ultimates.size());
+        assertEquals(10, ultimates.size());
         java.util.Map<String, Integer> expected = java.util.Map.of(SkillTree.WAY_BLADE, 2, SkillTree.WAY_MIGHT, 2,
                 SkillTree.WAY_BOW, 3, SkillTree.WAY_CROSSBOW, 3, SkillTree.WAY_SHIELD, 2, SkillTree.WAY_BLESSING, 2,
-                SkillTree.WAY_MECHANICS, 2, SkillTree.WAY_CHEMISTRY, 2, SkillTree.WAY_WILD, 2);
+                SkillTree.WAY_MECHANICS, 2, SkillTree.WAY_CHEMISTRY, 2, SkillTree.WAY_WILD, 2, SkillTree.WAY_DEAD, 2);
         ultimates.forEach((path, count) -> assertEquals(expected.getOrDefault(path, 1), count, path));
     }
 
@@ -1546,17 +1546,20 @@ class SiegeCoreTest {
         assertFalse(SkillClass.WARRIOR.adminOnly());
         assertFalse(new SiegeConfig().summonerForEveryone, "admins only by default");
         // Both subclasses of the way of the wild can be learned to the end.
-        for (String sub : new String[]{"s_tamer", "s_golemsmith"}) {
+        java.util.Map<String, String> subs = java.util.Map.of("s_tamer", SkillTree.SUB_TAMER, "s_golemsmith", SkillTree.SUB_GOLEMSMITH,
+                "d_necro", SkillTree.SUB_NECROMANCER, "d_soulcatcher", SkillTree.SUB_SOULCATCHER);
+        for (String sub : subs.keySet()) {
+            boolean dead = sub.startsWith("d_");
             PlayerSkills p = new PlayerSkills();
             p.chosenClass = SkillClass.SUMMONER.name();
             p.unlockClass(SkillClass.SUMMONER);
             p.award(100_000);
             assertTrue(tree.unlock("s_soulbond", p));
-            assertTrue(tree.unlock("s_packcall", p));
+            assertTrue(tree.unlock(dead ? "d_raise" : "s_packcall", p));
             assertTrue(tree.unlock(sub, p));
             assertTrue(tree.unlock(sub, p));
-            assertEquals(SkillTree.WAY_WILD, p.pathTaken(tree));
-            assertEquals(sub.equals("s_tamer") ? SkillTree.SUB_TAMER : SkillTree.SUB_GOLEMSMITH, tree.subclassOf(p));
+            assertEquals(dead ? SkillTree.WAY_DEAD : SkillTree.WAY_WILD, p.pathTaken(tree));
+            assertEquals(subs.get(sub), tree.subclassOf(p));
             for (int guard = 0; guard < 500 && !tree.isComplete(p, SkillClass.SUMMONER); guard++) {
                 boolean any = false;
                 for (SkillNode node : tree.ofClass(SkillClass.SUMMONER)) {
@@ -1570,7 +1573,11 @@ class SiegeCoreTest {
             assertTrue(tree.isComplete(p, SkillClass.SUMMONER), sub);
             assertNotNull(tree.ultimateOf(p), sub);
             // Only one subclass, one ultimate, one mastery, one keystone.
-            assertEquals(0, p.levelOf(sub.equals("s_tamer") ? "s_golemsmith" : "s_tamer"));
+            for (String other : subs.keySet()) {
+                if (!other.equals(sub)) {
+                    assertEquals(0, p.levelOf(other), sub + " also learned " + other);
+                }
+            }
             int ults = 0;
             for (SkillNode node : tree.ofClass(SkillClass.SUMMONER)) {
                 if (node.effect().target() == SkillEffect.Target.ULTIMATE && p.levelOf(node.id()) > 0) {
@@ -1584,5 +1591,9 @@ class SiegeCoreTest {
         assertEquals(SkillTree.SUB_TAMER, tree.laneOf("s_alpha"));
         assertEquals(SkillTree.SUB_GOLEMSMITH, tree.laneOf("s_hardgolem"));
         assertEquals(KeyHint.STAFF, KeyHint.forNode("s_packcall", false));
+        assertEquals(KeyHint.STAFF, KeyHint.forNode("d_raise", false));
+        assertEquals(SkillTree.SUB_NECROMANCER, tree.laneOf("d_ghoul"));
+        assertEquals(SkillTree.SUB_SOULCATCHER, tree.laneOf("d_swarm"));
+        assertTrue(tree.pointsToComplete(new PlayerSkills(), SkillClass.SUMMONER) > 250);
     }
 }

@@ -2099,6 +2099,8 @@ public final class SiegeManager {
     private void onDeath(Object entity) {
         if (active && entity instanceof Mob killed && liveMobs.contains(killed.getUUID())) {
             nightKills++;
+            // A monster of the night can be raised by a summoner of the dead; souls for those near.
+            companions.onMonsterDeath(killed, killed.entityTags().contains(MobFactory.TAG_ELITE));
         }
         if (active && entity instanceof Mob mob && mob.getUUID().equals(eliteId)) {
             onEliteKilled(mob);

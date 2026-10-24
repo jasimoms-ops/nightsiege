@@ -42,16 +42,19 @@ public enum KeyHint {
     STAFF;
 
     /** Skills whose effect is fired by a key; every ultimate uses the ult key on top. */
-    private static final Map<String, KeyHint> NODES = Map.of(
-            "g_shieldthrow", SHIELD_ACTION,
-            "g_dome", SHIELD_ACTION,
-            "g_healing_hand", USE_MATE_OR_SHIELD,
-            "g_anchor", SNEAK_BLOCK,
-            "a_bracing", SNEAK,
-            "e_detonator", SNEAK_USE,
-            "arrow_turret", USE_BLOCK,
-            "s_packcall", STAFF,
-            "s_golemsmith", STAFF);
+    private static final Map<String, KeyHint> NODES = Map.ofEntries(
+            Map.entry("g_shieldthrow", SHIELD_ACTION),
+            Map.entry("g_dome", SHIELD_ACTION),
+            Map.entry("g_healing_hand", USE_MATE_OR_SHIELD),
+            Map.entry("g_anchor", SNEAK_BLOCK),
+            Map.entry("a_bracing", SNEAK),
+            Map.entry("e_detonator", SNEAK_USE),
+            Map.entry("arrow_turret", USE_BLOCK),
+            Map.entry("s_packcall", STAFF),
+            Map.entry("s_golemsmith", STAFF),
+            Map.entry("d_raise", STAFF),
+            Map.entry("d_corpse", SNEAK_USE),
+            Map.entry("d_soulshield", SNEAK_USE));
 
     private static final Set<String> SECOND_ULTS = Set.of("schlachtentrance", "lockpfeil", "magnetfeld", "spiegelschild");
 

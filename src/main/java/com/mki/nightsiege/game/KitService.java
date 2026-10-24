@@ -435,12 +435,22 @@ public final class KitService {
         } else if (clazz == SkillClass.SUMMONER) {
             // The staff first, a sword for when the pack is down; food for the wolves or iron for the golems.
             if (ModContent.STAFF != null) {
-                hotbar.add(new ItemStack(ModContent.STAFF));
+                ItemStack staff = new ItemStack(ModContent.STAFF);
+                if (way.equals(SkillTree.WAY_DEAD)) {
+                    // The way of the dead starts the night with three souls (the bar of the staff).
+                    int cap = SkillTree.has(skills, "d_soulkeeper") ? 20 : 10;
+                    net.minecraft.world.item.component.CustomData.update(net.minecraft.core.component.DataComponents.CUSTOM_DATA,
+                            staff, tag -> {
+                                tag.putInt(SummonStaffItem.SOULS, 3);
+                                tag.putInt(SummonStaffItem.SOUL_CAP, cap);
+                            });
+                }
+                hotbar.add(staff);
             }
             hotbar.add(sword(ench, weapon, Math.max(1, sharp - 1)));
             if (SkillTree.has(skills, "s_golemsmith")) {
                 hotbar.add(new ItemStack(Items.IRON_INGOT, 16));   // a golem mends with iron
-            } else {
+            } else if (!way.equals(SkillTree.WAY_DEAD) || SkillTree.has(skills, "d_cross_wolf")) {
                 hotbar.add(new ItemStack(Items.BEEF, 8));   // a wolf heals from meat
             }
         } else {

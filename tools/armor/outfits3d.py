@@ -812,3 +812,79 @@ def golemsmith(k, L1, L2):
     L1.cap(cuff, 'clear', face='bottom')
     toe = k.box('feet', 'leg', 'toe', (-2.6, 10.6, -4.7), (5, 2, 2))
     all_faces(L1, toe, S)
+
+
+@design('necromancer')
+def necromancer(k, L1, L2):
+    robe, robe_d = hexc('#231c2e'), hexc('#140f1c')
+    violet, glow = hexc('#7a4ab8'), hexc('#b48cff')
+    bone, bone_d = hexc('#e4dac1'), hexc('#a89c80')
+    socket = hexc('#120e16')
+    R = shaded(robe, 1.18, 0.8)
+    B = lambda c: bone_d if c.rnd.random() < 0.14 else bone
+    clear_hat(L1)
+    hood_box(k, L1, 'hood', shaded(robe, 1.15, 0.82), lambda c: violet)
+    # A crown of finger bones on the hood.
+    circ = k.box('head', 'head', 'boneband', (-5.8, -10.9, -5.9), (11, 1, 11))
+    all_faces(L1, circ, B)
+    L1.cap(circ, 'clear', where=lambda c: 1 <= c.fx <= 9 and 1 <= c.fy <= 9)
+    for i, x in enumerate((-3.5, -0.5, 2.5)):
+        spike = k.box('head', 'head', 'bonespike%d' % i, (x, -12.9 if i == 1 else -12.2, -6.2), (1, 3 if i == 1 else 2, 1))
+        all_faces(L1, spike, B)
+    gem = k.box('head', 'head', 'soulgem', (-1, -10.6, -6.4), (2, 1, 1))
+    all_faces(L1, gem, glow)
+    # Skull pauldrons.
+    skull = k.box('chest', 'arm', 'skullpad', (-4.6, -3.0, -3.4), (5, 3, 6))
+    all_faces(L1, skull, B)
+    L1.art(skull, 'right', ['......', '.ss.ss', '..tt..'], {'s': socket, 't': bone_d})
+    L1.cap(skull, lambda c: glow if (c.fx, c.fy) in ((2, 2), (2, 3)) else None)
+    # A rib cage over the stomach, a spine down the back.
+    ribs = k.box('chest', 'body', 'ribs', (-3.5, 2.4, -3.8), (7, 5, 1))
+    all_faces(L1, ribs, 'clear')
+    L1.art(ribs, 'front', ['bbb.bbb', '...b...', 'bb.b.bb', '...b...', '.b.b.b.'], {'b': bone})
+    spine = k.box('chest', 'body', 'spine', (-0.5, 0.2, 3.2), (1, 10, 1))
+    all_faces(L1, spine, lambda c: bone if c.r % 2 == 0 else bone_d)
+    # The robe to the ankles, split in front, torn at the hem.
+    tails = skirt_box(k, L1, 'chest', R, top=10, h=6, grow=0.35)
+    L1.strip(tails, 'clear', faces=('front',), where=lambda c: c.fx in (4, 5))
+    L1.strip(tails, lambda c: violet if c.r == 4 else None)
+    ragged_bottom(L1, tails, 1)
+    # A small skull at the belt and a violet rune shard.
+    hip = k.box('chest', 'body', 'hipskull', (4.3, 8.4, -1.5), (2, 2, 2))
+    all_faces(L1, hip, B)
+    L1.art(hip, 'right', ['ss', 'tt'], {'s': socket, 't': bone_d})
+    shard = k.box('chest', 'body', 'shard', (-5.6, 8.6, -1), (1, 3, 1))
+    all_faces(L1, shard, lambda c: glow if c.r == 1 else violet)
+
+
+@design('soulcatcher')
+def soulcatcher(k, L1, L2):
+    coat, coat_d = hexc('#3b4a55'), hexc('#24303a')
+    teal, teal_l = hexc('#6fe0d0'), hexc('#c8fff6')
+    iron, chain = hexc('#4a4e54'), hexc('#8a8e94')
+    C = shaded(coat, 1.15, 0.82)
+    clear_hat(L1)
+    hood_box(k, L1, 'hood', shaded(coat, 1.12, 0.84), lambda c: coat_d)
+    # Chains over the shoulders, behind the neck only.
+    mantle = k.box('chest', 'body', 'mantle', (-5.6, -1.2, -1.6), (11, 3, 5))
+    all_faces(L1, mantle, C)
+    L1.strip(mantle, lambda c: chain if c.r == 2 and c.s % 2 == 0 else (iron if c.r == 2 else None))
+    L1.cap(mantle, 'clear', face='bottom')
+    # A torn spectral cape with teal runes.
+    cloak = cloak_box(k, L1, C, None, length=17)
+    ragged_bottom(L1, cloak, 2)
+    L1.art(cloak, 'back', ['.....t.....', '....t.t....', '...t...t...', '....t.t....', '.....t.....', '.....t.....',
+                           '...ttTtt...', '.....t.....'], {'t': teal, 'T': teal_l}, y=3)
+    # The soul lantern at the hip: iron frame, teal flame.
+    lan = k.box('chest', 'body', 'lantern', (4.5, 8.2, -1.5), (3, 4, 3))
+    all_faces(L1, lan, lambda c: iron if c.r in (0, 3) or c.s % 3 == 0 else teal)
+    L1.cap(lan, iron)
+    hook = k.box('chest', 'body', 'lanternhook', (5.5, 6.8, -0.5), (1, 2, 1))
+    all_faces(L1, hook, chain)
+    # Soul jars on the belt.
+    for i, x in enumerate((-4.5, -2.5, 1.5)):
+        jar = k.box('chest', 'body', 'jar%d' % i, (x, 6.4, -4.2), (1, 2, 1))
+        all_faces(L1, jar, lambda c: hexc('#c9b48a') if c.r == 0 else (teal_l if i == 1 else teal))
+    # Bracers with a chain.
+    bracer = k.box('chest', 'arm', 'bracer', (-4, 6.5, -3), (6, 3, 6), grow=0.25)
+    all_faces(L1, bracer, lambda c: chain if c.r == 1 and c.s % 2 == 0 else leather(hexc('#2a2420'))(c))

@@ -191,6 +191,8 @@ public final class CombatEffects {
             case THUNDERSTORM -> thunderstorm(level, player, rank);
             case WILD_HUNT -> Companions.get() != null && Companions.get().wildHunt(level, player, rank);
             case TITAN -> Companions.get() != null && Companions.get().titan(level, player, rank);
+            case ARMY_OF_THE_DEAD -> Companions.get() != null && Companions.get().armyOfTheDead(level, player, rank);
+            case SOUL_STORM -> Companions.get() != null && Companions.get().soulStorm(level, player, rank);
             default -> false;
         };
         if (fired) {

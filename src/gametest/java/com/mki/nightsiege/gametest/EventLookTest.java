@@ -392,7 +392,7 @@ public class EventLookTest implements FabricClientGameTest {
         // Every outfit up close, four at a time, from the front and from the back.
         String[] all = {"berserker", "blademaster", "axe", "paladin", "swift", "heavy", "bolter", "trapper",
                 "shieldfighter", "bulwark", "medic", "warden", "gunner", "electrician", "demolition", "alchemist",
-                "tamer", "golemsmith", "alchemist", "bulwark"};
+                "tamer", "golemsmith", "necromancer", "soulcatcher"};
         // Chat lines and toasts fade after ten seconds; wait so the pictures stay clear.
         game.getServer().runCommand("kill @e[type=minecraft:armor_stand]");
         context.waitTicks(230);
@@ -994,6 +994,58 @@ public class EventLookTest implements FabricClientGameTest {
                 context.takeScreenshot("summoner_night");
             }
         }
+        // The way of the dead in the same night: souls from the fallen, the soulcatcher raises with ghosts.
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.game.Companions.get().dismissAll(player.level().getServer());
+            var own = manager.save().skillsOf(player.getUUID().toString());
+            own.reset();
+            own.chosenClass = com.mki.nightsiege.core.SkillClass.SUMMONER.name();
+            own.unlockClass(com.mki.nightsiege.core.SkillClass.SUMMONER);
+            own.award(800);
+            for (String id : new String[]{"s_soulbond", "d_raise", "d_soulcatcher", "d_soulcatcher", "d_swarm", "d_corpse",
+                    "d_soulburn", "d_unholy", "d_army"}) {
+                manager.onBuySkill(player, id);
+            }
+            System.out.println("[Night Siege test] summoner dead way=" + own.pathTaken(new com.mki.nightsiege.core.SkillTree())
+                    + " catcher=" + own.levelOf("d_soulcatcher") + " army=" + own.levelOf("d_army"));
+        });
+        game.getServer().runCommand("tp @e[tag=nightsiege] %d.5 %d %d.5".formatted(cx, cy, cz - 2));
+        context.waitTicks(5);
+        game.getServer().runCommand("kill @e[tag=nightsiege,distance=..40]");
+        context.waitTicks(10);
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.game.Companions c = com.mki.nightsiege.game.Companions.get();
+            int before = c.soulsOf(player.getUUID());
+            net.minecraft.world.item.ItemStack staff = new net.minecraft.world.item.ItemStack(com.mki.nightsiege.game.ModContent.STAFF);
+            c.useStaff(player, staff);
+            System.out.println("[Night Siege test] summoner dead souls before=" + before + " after=" + c.soulsOf(player.getUUID())
+                    + " minions=" + com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "minion")
+                    + " ghosts=" + com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "ghost"));
+        });
+        context.waitTicks(10);
+        context.runOnClient(client -> client.options.setCameraType(net.minecraft.client.CameraType.THIRD_PERSON_FRONT));
+        context.waitTicks(10);
+        context.takeScreenshot("summoner_dead");
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            boolean fired = com.mki.nightsiege.game.Companions.get().armyOfTheDead(level, player, 2);
+            System.out.println("[Night Siege test] summoner army fired=" + fired + " minions="
+                    + com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "minion"));
+        });
+        context.waitTicks(20);
+        context.takeScreenshot("summoner_army");
+        context.runOnClient(client -> client.options.setCameraType(net.minecraft.client.CameraType.FIRST_PERSON));
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            com.mki.nightsiege.game.Companions c = com.mki.nightsiege.game.Companions.get();
+            int before = c.soulsOf(player.getUUID());
+            boolean fired = c.soulStorm(level, player, 2);
+            System.out.println("[Night Siege test] summoner storm fired=" + fired + " souls " + before + " -> " + c.soulsOf(player.getUUID()));
+        });
+        context.waitTicks(100);
+        onServer(context, (player, manager) -> System.out.println("[Night Siege test] summoner dead after 5s minions="
+                + com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "minion")
+                + " ghosts=" + com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "ghost") + " kills=" + manager.nightKills()));
         onServer(context, (player, manager) -> manager.abort(player.level().getServer()));
         context.waitTicks(20);
         game.getServer().runCommand("gamemode creative @p");
