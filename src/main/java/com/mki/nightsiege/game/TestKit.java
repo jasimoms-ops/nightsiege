@@ -120,7 +120,7 @@ public final class TestKit {
             list.add(pool.remove(random.nextInt(pool.size())));
         }
         // No glint: it would shimmer over the class outfits.
-        return "[minecraft:enchantments={" + String.join(",", list) + "},minecraft:enchantment_glint_override=false]";
+        return "[minecraft:enchantments={" + String.join(",", list) + "},minecraft:enchantment_glint_override=false,minecraft:unbreakable={}]";
     }
 
     /** The class's weapons in the given material, unenchanted. */

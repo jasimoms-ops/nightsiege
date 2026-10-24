@@ -409,19 +409,19 @@ public final class SkillTree {
         node(list, "g_ironward", c, s, SkillEffect.ARMOR, 3, 3, 2, 1.5, "vitality", "s1", "minecraft:iron_ingot", 2, 1);
         node(list, "g_shieldwall", c, s, SkillEffect.SHIELD_WALL, 3, 3, 2, 1.0, "vitality", "", "minecraft:shield", 2, 3);
         node(list, "steadfast", c, s, SkillEffect.KNOCKBACK_RESIST, 3, 3, 2, 0.25, "vitality", "s1", "minecraft:netherite_ingot", 2, 5);
-        node(list, "riposte", c, s, SkillEffect.COUNTER, 4, 4, 2, 1.5, "g_shieldwall", "s_sub", "minecraft:iron_sword", 3, 1);
+        node(list, "riposte", c, s, SkillEffect.COUNTER, 4, 4, 2, 2.5, "g_shieldwall", "s_sub", "minecraft:iron_sword", 3, 1);
         node(list, "g_bastion", c, s, SkillEffect.BASTION, 4, 4, 2, 0.02, "g_shieldwall", "s_sub", "minecraft:cobblestone_wall", 3, 5);
-        node(list, "g_shieldthrow", c, s, SkillEffect.SHIELD_THROW, 1, 10, 0, 6.0, "riposte:2", "s3", "minecraft:trident", 4, 0);
-        node(list, "g_shieldbash", c, s, SkillEffect.SHIELD_BASH, 1, 10, 0, 5.0, "riposte:2", "s3", "minecraft:piston", 4, 2);
+        node(list, "g_shieldthrow", c, s, SkillEffect.SHIELD_THROW, 1, 10, 0, 10.0, "riposte:2", "s3", "minecraft:trident", 4, 0);
+        node(list, "g_shieldbash", c, s, SkillEffect.SHIELD_BASH, 1, 10, 0, 8.0, "riposte:2", "s3", "minecraft:piston", 4, 2);
         node(list, "g_ironhide", c, s, SkillEffect.IRONHIDE, 1, 10, 0, 2.0, "g_bastion:2", "s3", "minecraft:chainmail_chestplate", 4, 4);
         node(list, "g_anchor", c, s, SkillEffect.ANCHOR, 1, 10, 0, 0.4, "g_bastion:2", "s3", "minecraft:anvil", 4, 6);
         String s3 = "g_shieldthrow|g_shieldbash|g_ironhide|g_anchor";
         node(list, "g_counterstrike", c, s, SkillEffect.COUNTERSTRIKE, 1, 12, 0, 1.0, s3, "s4", "minecraft:golden_sword", 5, 1);
-        node(list, "g_thorns", c, s, SkillEffect.THORNS, 1, 12, 0, 2.0, s3, "s4", "minecraft:sweet_berries", 5, 3);
+        node(list, "g_thorns", c, s, SkillEffect.THORNS, 1, 12, 0, 4.0, s3, "s4", "minecraft:sweet_berries", 5, 3);
         node(list, "s_cross_dressing", c, s, SkillEffect.HEAL_AURA, 1, 12, 0, 0.75, s3, "s4", "minecraft:glistering_melon_slice", 5, 5,
                 "g_hedgehog", "g_rampart");
         node(list, "g_boomerang", c, s, SkillEffect.BOOMERANG, 1, 15, 0, 1.0, "g_shieldthrow,g_counterstrike|g_thorns", "s5", "minecraft:fishing_rod", 6, 1);
-        node(list, "g_vengeance", c, s, SkillEffect.VENGEANCE, 1, 15, 0, 6.0, "g_ironhide|g_shieldbash,g_counterstrike", "s5", "minecraft:fire_charge", 6, 3);
+        node(list, "g_vengeance", c, s, SkillEffect.VENGEANCE, 1, 15, 0, 9.0, "g_ironhide|g_shieldbash,g_counterstrike", "s5", "minecraft:fire_charge", 6, 3);
         node(list, "g_hedgehog", c, s, SkillEffect.HEDGEHOG, 1, 15, 0, 1.0, "g_anchor,g_thorns", "s5", "minecraft:cactus", 6, 5);
         String s4 = "g_counterstrike|g_thorns|s_cross_dressing";
         node(list, "g_laststand", c, s, SkillEffect.LAST_STAND, 1, 18, 0, 1.0, s4, "s6", "minecraft:shulker_shell", 7, 1);

@@ -208,6 +208,21 @@ class SiegeCoreTest {
     }
 
     @Test
+    void theShieldFighterGotStronger() {
+        SiegeConfig fresh = new SiegeConfig();
+        fresh.sanitize();
+        assertEquals(1.25, fresh.subclassDamage.get("shieldfighter"), 1e-9);
+        assertEquals(0.8, fresh.subclassDamageTaken.get("shieldfighter"), 1e-9);
+        // A server that tuned the shield fighter itself keeps its own value.
+        SiegeConfig tuned = new SiegeConfig();
+        tuned.settingsVersion = 5;
+        tuned.subclassDamage.put("shieldfighter", 1.5);
+        tuned.sanitize();
+        assertEquals(1.5, tuned.subclassDamage.get("shieldfighter"), 1e-9);
+        assertEquals(2.5, new SkillTree().get("riposte").amountPerLevel(), 1e-9);
+    }
+
+    @Test
     void everyGainIsBuiltInVersionB2() {
         for (CrateGains.Gain gain : CrateGains.all()) {
             assertTrue(gain.ready(), gain.id());
@@ -1193,7 +1208,7 @@ class SiegeCoreTest {
         old.sanitize();
         assertTrue(old.dungeonsEnabled);
         assertFalse(old.bloodMoonGlow);
-        assertEquals(5, old.settingsVersion);
+        assertEquals(6, old.settingsVersion);
         assertEquals(SiegeConfig.CURRENT_DUNGEON_LIST, old.dungeonListVersion);
         assertTrue(old.dungeons.stream().allMatch(t -> t.structure.startsWith("nova_structures:")));
         // Switched off again by hand, it stays off.

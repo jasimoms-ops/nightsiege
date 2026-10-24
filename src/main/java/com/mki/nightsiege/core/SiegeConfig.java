@@ -576,6 +576,16 @@ public class SiegeConfig {
             defeatSkillLoss = 0;
             settingsVersion = 5;
         }
+        if (settingsVersion < 6) {
+            // Version B2 (24 October 2026): the shield fighter was far too weak (Simon's test).
+            if (subclassDamage.getOrDefault("shieldfighter", 1.0) == 1.0) {
+                subclassDamage.put("shieldfighter", 1.25);
+            }
+            if (subclassDamageTaken.getOrDefault("shieldfighter", 1.0) == 1.0) {
+                subclassDamageTaken.put("shieldfighter", 0.8);
+            }
+            settingsVersion = 6;
+        }
         crateOddsNormal = odds(crateOddsNormal, new int[]{60, 25, 10, 4, 1});
         crateOddsEvent = odds(crateOddsEvent, new int[]{45, 30, 16, 7, 2});
         crateOddsFragment = odds(crateOddsFragment, new int[]{30, 30, 22, 13, 5});

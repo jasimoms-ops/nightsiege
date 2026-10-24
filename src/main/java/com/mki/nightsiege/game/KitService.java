@@ -121,8 +121,10 @@ public final class KitService {
                 String json = encode(stack, regs);
                 if (!stack.isEmpty() && json.isEmpty()) {
                     // Something the save cannot hold: better no kit than a lost item.
-                    player.sendSystemMessage(Component.translatable("nightsiege.kit.failed")
+                    player.sendSystemMessage(Component.translatable("nightsiege.kit.failed_item", stack.getHoverName())
                             .withStyle(net.minecraft.ChatFormatting.RED));
+                    NightSiegeMod.LOGGER.warn("[Night Siege] Kit fuer {} nicht angelegt: {} laesst sich nicht speichern",
+                            player.getScoreboardName(), BuiltInRegistries.ITEM.getKey(stack.getItem()));
                     return;
                 }
                 stash.items.add(json);
