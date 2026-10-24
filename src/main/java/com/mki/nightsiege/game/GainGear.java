@@ -717,6 +717,9 @@ public final class GainGear {
         if (now % 20 == 0) {
             tickChains(level);
         }
+        if (now % 200 == 0) {
+            TempBlocks.flush();
+        }
     }
 
     private static void tickHoming(ServerLevel level, long now) {

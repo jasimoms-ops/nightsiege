@@ -29,6 +29,8 @@ public final class TempBlocks {
     private static Runnable persist = () -> { };
     /** "dimension|x|y|z" of every standing temporary block, for quick lookups. */
     private static final Set<String> INDEX = new HashSet<>();
+    /** The save list changed and should be written (done every few seconds, not on every lantern step). */
+    private static boolean dirty;
 
     private TempBlocks() {
     }
@@ -84,7 +86,7 @@ public final class TempBlocks {
         s.tempBlocks.removeIf(e -> e.startsWith(key + "|"));
         s.tempBlocks.add(key + "|" + BuiltInRegistries.BLOCK.getKey(state.getBlock()));
         INDEX.add(key);
-        persist.run();
+        dirty = true;
     }
 
     public static boolean isTemp(Level level, BlockPos pos) {
@@ -108,7 +110,7 @@ public final class TempBlocks {
         if (blockId != null && matches(level.getBlockState(pos), blockId)) {
             level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
         }
-        persist.run();
+        dirty = true;
     }
 
     /** Forgets a temporary block that is already gone. */
@@ -150,8 +152,17 @@ public final class TempBlocks {
         }
         s.tempBlocks.clear();
         INDEX.clear();
+        dirty = false;
         persist.run();
         return removed;
+    }
+
+    /** Writes the save if temporary blocks changed since the last write. */
+    public static void flush() {
+        if (dirty) {
+            dirty = false;
+            persist.run();
+        }
     }
 
     private static boolean matches(BlockState state, String blockId) {

@@ -467,6 +467,7 @@ public final class SiegeManager {
 
         pool = new MobPool(config.mobs);
         unavailableMobs.clear();
+        TempBlocks.rebuildIndex();
     }
 
     private void syncSchedulerToSave() {
