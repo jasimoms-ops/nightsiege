@@ -150,6 +150,11 @@ public class CoreScreen extends Screen {
         return stats.myClass != null && !stats.myClass.isBlank();
     }
 
+    /** True when this tab's tree is the player's to learn: their class, or the shared core. */
+    private boolean ownsTree() {
+        return activeTab == Tab.CORE || (activeTab != null && activeTab == ownTab());
+    }
+
     private Tab ownTab() {
         if (!hasClass()) {
             return null;
@@ -448,7 +453,7 @@ public class CoreScreen extends Screen {
     private double[] place(CoreStats.NodeLine n) {
         int col = n.col < 0 ? 3 : n.col;
         if (n.path == null || n.path.isBlank()) {
-            return new double[]{(col - 3) * 24.0, (n.row - 0.5) * 42.0};
+            return new double[]{(col - 3) * 24.0, trunkNodes == 1 ? 0.0 : (n.row - 0.5) * 42.0};
         }
         double r = ringRadius(n.row);
         double a = angleOf(Math.max(0, ways.indexOf(n.path)), col);
@@ -510,6 +515,8 @@ public class CoreScreen extends Screen {
     }
 
     private String shownClass = "";
+    /** Nodes on the trunk of the shown tree (the core has a single one, drawn in the middle). */
+    private int trunkNodes;
     /** Set while the map is laid out only to be drawn behind a question. */
     private boolean quiet;
 
@@ -527,6 +534,12 @@ public class CoreScreen extends Screen {
             }
         }
         gridMaxRow = Math.max(1, maxRow);
+        trunkNodes = 0;
+        for (CoreStats.NodeLine node : stats.nodes) {
+            if (clazz.equals(node.clazz) && (node.path == null || node.path.isBlank())) {
+                trunkNodes++;
+            }
+        }
         PANEL_W = Math.max(124, Math.min(170, innerW() * 3 / 10));
         minX = Double.MAX_VALUE;
         maxX = -Double.MAX_VALUE;
@@ -647,7 +660,8 @@ public class CoreScreen extends Screen {
                 same.put(n.id, n);
             }
         }
-        boolean picksWay = h.path != null && !h.path.isBlank() && (taken == null || taken.isBlank());
+        boolean picksWay = h.path != null && !h.path.isBlank() && (taken == null || taken.isBlank())
+                && !"CORE".equals(h.clazz);
         for (CoreStats.NodeLine n : same.values()) {
             if (n == h || n.level > 0 || isClosed(n)) {
                 continue;
@@ -835,12 +849,15 @@ public class CoreScreen extends Screen {
         int vy = viewY();
         int vw = viewW();
         int vh = viewH();
-        boolean own = activeTab == ownTab();
-        String taken = own && stats.pathTaken != null ? stats.pathTaken : "";
+        boolean core = activeTab == Tab.CORE;
+        boolean own = ownsTree();
+        String taken = own && !core && stats.pathTaken != null ? stats.pathTaken : "";
 
         // Header line above the tree.
         String head;
-        if (own) {
+        if (core) {
+            head = Component.translatable("nightsiege.ui.core_pot", stats.corePoints, stats.donated).getString();
+        } else if (own) {
             head = Component.translatable(activeTab.clazz.translationKey()).getString();
             if (!taken.isBlank()) {
                 head += " · " + Component.translatable("nightsiege.path." + taken).getString();
@@ -1044,6 +1061,24 @@ public class CoreScreen extends Screen {
                 gui.text(font, label, lx, cy, lc, true);
             }
         }
+        if (core && stats.baseKnown) {
+            // How the base around the core stands: closed, or where the wall is open.
+            String base;
+            int color;
+            if (stats.baseClosed) {
+                base = Component.translatable("nightsiege.ui.base_closed", stats.baseWidth, stats.baseDepth).getString();
+                color = GREEN;
+            } else if (stats.baseGap != null && !stats.baseGap.isBlank()) {
+                base = Component.translatable("nightsiege.ui.base_gap", stats.baseGap).getString();
+                color = RED;
+            } else {
+                base = Component.translatable("nightsiege.ui.base_open", stats.baseWidth, stats.baseDepth).getString();
+                color = RED;
+            }
+            base = font.plainSubstrByWidth(base, vw - 40);
+            gui.fill(vx + 3, vy + vh - 16, vx + 9 + font.width(base), vy + vh - 3, 0x90000000);
+            gui.text(font, base, vx + 6, vy + vh - 14, color, true);
+        }
         gui.disableScissor();
 
         drawInfoPanel(gui, font, hovered);
@@ -1064,6 +1099,15 @@ public class CoreScreen extends Screen {
     private static String ringName(int row) {
         String kind = Component.translatable("nightsiege.ui.tier." + row).getString();
         return row < 2 ? kind : Component.translatable("nightsiege.ui.ring", roman(row - 1), kind).getString();
+    }
+
+    /** The core's rings: the foundation in the middle, then the extensions of each way. */
+    private static String coreRingName(int row) {
+        if (row < 2) {
+            return Component.translatable("nightsiege.ui.core_tier.base").getString();
+        }
+        return Component.translatable("nightsiege.ui.ring", roman(row - 1),
+                Component.translatable("nightsiege.ui.core_tier.ring")).getString();
     }
 
     private static String roman(int n) {
@@ -1115,7 +1159,7 @@ public class CoreScreen extends Screen {
             panelScroll = 0;
         }
         int top0 = py + 6;
-        int bottom = py + ph - (g != null && activeTab == ownTab() ? 32 : 4);
+        int bottom = py + ph - (g != null && ownsTree() ? 32 : 4);
         panelTop = py + 1;
         panelBottom = bottom;
         int y = top0 - panelScroll;
@@ -1165,7 +1209,7 @@ public class CoreScreen extends Screen {
         }
         y += Math.max(22, title.size() * 10 + 4);
         List<String> lines = new ArrayList<>();
-        lines.add("§8" + ringName(n.row));
+        lines.add("§8" + (activeTab == Tab.CORE ? coreRingName(n.row) : ringName(n.row)));
         String sub = Component.translatable("nightsiege.subclass_node." + n.id).getString();
         if (!sub.equals("nightsiege.subclass_node." + n.id)) {
             lines.add("§6" + sub);
@@ -1230,7 +1274,7 @@ public class CoreScreen extends Screen {
         if (n.group != null && !n.group.isBlank()) {
             lines.add("§8" + Component.translatable("nightsiege.ui.choice_hint").getString());
         }
-        if (activeTab != ownTab()) {
+        if (!ownsTree()) {
             lines.add("§8" + Component.translatable("nightsiege.ui.view_only").getString());
         } else if (n.blocked != null && n.level < n.maxLevel) {
             lines.add("§c" + Component.translatable("nightsiege.menu.blocked_" + n.blocked, n.cost).getString());
@@ -1268,7 +1312,7 @@ public class CoreScreen extends Screen {
         if (hit != null) {
             boolean again = hit.node().id.equals(selectedId);
             selectedId = hit.node().id;
-            if (doubleClick && again && activeTab == ownTab() && hit.node().blocked == null) {
+            if (doubleClick && again && ownsTree() && hit.node().blocked == null) {
                 send("buy:" + hit.node().id);
             }
             rebuildWidgets();

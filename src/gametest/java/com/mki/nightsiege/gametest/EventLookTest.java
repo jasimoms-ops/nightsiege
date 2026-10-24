@@ -42,6 +42,7 @@ public class EventLookTest implements FabricClientGameTest {
                 MixinEnvironment.getCurrentEnvironment().audit();
             }
             setUpScene(context, game);
+            registrationScene(context);
 
             if (!shaderRun) {
                 series(context, game, "event");
@@ -52,9 +53,12 @@ public class EventLookTest implements FabricClientGameTest {
                 warriorWindow(context, game);
                 doomScene(context);
                 baseScene(context, game);
+                inviteScene(context, game);
+                coreTreeScene(context);
                 armorScene(context, game);
                 guardianScene(context);
                 engineerScene(context);
+                ladderScene(context, game);
                 return;
             }
 
@@ -430,6 +434,144 @@ public class EventLookTest implements FabricClientGameTest {
         game.getServer().runCommand("gamerule sendCommandFeedback true");
         game.getServer().runCommand("gamerule send_command_feedback true");
         context.waitTicks(10);
+    }
+
+    /**
+     * Not signed up, the mod leaves the player alone: the core only offers the sign-up.
+     * Then the player signs up (straight in the save: there is no core yet).
+     */
+    private static void registrationScene(ClientGameTestContext context) {
+        onServer(context, (player, manager) -> manager.onCoreAction(player, "open"));
+        context.waitTicks(10);
+        context.takeScreenshot("chat_register_offer");
+        onServer(context, (player, manager) -> {
+            manager.save().register(player.getUUID().toString());
+            System.out.println("[Night Siege test] registered=" + manager.isRegistered(player));
+        });
+        context.waitTicks(5);
+    }
+
+    /** The morning invitation with its buttons, an accept, and the situation tab during the vote. */
+    private static void inviteScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        game.getServer().runCommand("time set 2000");
+        context.waitTicks(5);
+        onServer(context, (player, manager) -> {
+            long day = com.mki.nightsiege.core.SiegeMath.dayOf(
+                    player.level().getServer().overworld().getOverworldClockTime());
+            manager.save().nextSiegeDay = day;
+            manager.save().voteDay = day;
+            manager.save().clearVotes();
+            manager.sendInvitation(player);
+        });
+        context.waitTicks(10);
+        context.takeScreenshot("chat_invitation");
+        onServer(context, (player, manager) -> manager.vote(player, true));
+        context.waitTicks(10);
+        context.takeScreenshot("chat_vote_yes");
+        showTab(context, "STATS");
+        context.takeScreenshot("ui_rhythm_vote");
+        closeScreen(context);
+        onServer(context, (player, manager) -> {
+            long day = com.mki.nightsiege.core.SiegeMath.dayOf(
+                    player.level().getServer().overworld().getOverworldClockTime());
+            System.out.println("[Night Siege test] vote: open=" + manager.voteOpen(player.level().getServer())
+                    + " accepted=" + manager.acceptedCount());
+            manager.save().nextSiegeDay = day + 3;
+            manager.save().voteDay = -1;
+            manager.save().clearVotes();
+        });
+        context.waitTicks(5);
+        showTab(context, "STATS");
+        context.takeScreenshot("ui_rhythm_days");
+        closeScreen(context);
+    }
+
+    /** The shared core tree as a star map, with a few nodes bought from the pot. */
+    private static void coreTreeScene(ClientGameTestContext context) {
+        context.runOnClient(client -> {
+            try {
+                java.lang.reflect.Field field = com.mki.nightsiege.client.CoreScreen.class.getDeclaredField("VIEWS");
+                field.setAccessible(true);
+                ((java.util.Map<?, ?>) field.get(null)).remove("CORE");
+            } catch (ReflectiveOperationException e) {
+                System.out.println("[Night Siege test] could not reset the view: " + e);
+            }
+        });
+        onServer(context, (player, manager) -> {
+            manager.onCoreAction(player, "dev:80");
+            for (String id : new String[]{"masonry", "masonry", "battlements", "fortified", "fortified"}) {
+                manager.onBuySkill(player, id);
+            }
+        });
+        context.waitTicks(10);
+        selectNode(context, "rebuild");
+        showTab(context, "CORE");
+        context.takeScreenshot("ui_core_tree");
+        selectNode(context, null);
+        context.waitTicks(10);
+        context.takeScreenshot("ui_core_tree_overview");
+        closeScreen(context);
+    }
+
+    /**
+     * A closed yard with a ladder on the outside of its wall: a husk outside wants to the
+     * middle of the yard, finds the ladder, climbs it and drops in on the other side.
+     */
+    private static void ladderScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        int gx = pos.getX() + 4;
+        int gy = pos.getY();
+        int gz = pos.getZ() + 26;
+        game.getServer().runCommand("time set 6000");
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:grass_block".formatted(gx - 14, gy - 1, gz - 8, gx + 6, gy - 1, gz + 8));
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(gx - 14, gy, gz - 8, gx + 6, gy + 8, gz + 8));
+        String wall = "fill %d %d %d %d %d %d minecraft:stone_bricks";
+        int r = 3;
+        game.getServer().runCommand(wall.formatted(gx - r, gy, gz - r, gx + r, gy + 3, gz - r));
+        game.getServer().runCommand(wall.formatted(gx - r, gy, gz + r, gx + r, gy + 3, gz + r));
+        game.getServer().runCommand(wall.formatted(gx - r, gy, gz - r, gx - r, gy + 3, gz + r));
+        game.getServer().runCommand(wall.formatted(gx + r, gy, gz - r, gx + r, gy + 3, gz + r));
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:ladder[facing=west]"
+                .formatted(gx - r - 1, gy, gz, gx - r - 1, gy + 3, gz));
+        game.getServer().runCommand(("summon minecraft:husk %d %d %d {PersistenceRequired:1b,Tags:[\"ns_ladder\"],"
+                + "CustomName:\"Kletterer\",CustomNameVisible:1b}").formatted(gx - 10, gy, gz + 2));
+        // Watch from the side, a little above.
+        game.getServer().runCommand("setblock %d %d %d minecraft:barrier".formatted(gx - 4, gy + 3, gz - 12));
+        game.getServer().runCommand("tp @p %d.5 %d %d.5 0 22".formatted(gx - 4, gy + 4, gz - 12));
+        context.waitTicks(20);
+        final net.minecraft.core.BlockPos goal = new net.minecraft.core.BlockPos(gx, gy, gz);
+        final com.mki.nightsiege.game.LadderClimb ladders = new com.mki.nightsiege.game.LadderClimb();
+        for (int i = 0; i < 160; i++) {
+            final int step = i;
+            onServer(context, (player, manager) -> {
+                net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                    if (e.entityTags().contains("ns_ladder")) {
+                        ladders.tick(level, java.util.List.of(e.getUUID()), goal, level.getGameTime());
+                        if (step % 20 == 0) {
+                            System.out.println("[Night Siege test] ladder " + step + ": at " + e.blockPosition()
+                                    + " climbing=" + ((net.minecraft.world.entity.LivingEntity) e).onClimbable());
+                        }
+                    }
+                }
+            });
+            context.waitTicks(2);
+            if (i == 30 || i == 60 || i == 100) {
+                context.takeScreenshot("ladder_climb_" + (i / 30));
+            }
+        }
+        context.takeScreenshot("ladder_climb_end");
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                if (e.entityTags().contains("ns_ladder")) {
+                    boolean inside = Math.abs(e.getBlockX() - goal.getX()) < 3 && Math.abs(e.getBlockZ() - goal.getZ()) < 3;
+                    System.out.println("[Night Siege test] ladder result: at " + e.blockPosition() + " inside=" + inside);
+                    e.discard();
+                }
+            }
+        });
+        context.waitTicks(5);
     }
 
     /** Something to do on the integrated server with the test player and the siege manager. */

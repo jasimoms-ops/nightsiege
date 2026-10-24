@@ -123,16 +123,18 @@ public final class SkillTree {
 
         // ---------------- Core: shared, paid by donations ----------------
         // Masonry first, then the wall (battlements, rebuilding) or the watch (time, beacon fire).
+        // Fixed places give the core its own star map: masonry in the middle, the wall
+        // to the left, the watch to the right, each way two rings out.
         list.add(new SkillNode("masonry", SkillClass.CORE, "", SkillEffect.MASONRY,
-                3, 3, 2, 0.3, null, 0, "minecraft:stone_bricks", 0));
+                3, 3, 2, 0.3, null, 0, "minecraft:stone_bricks", 0, "", List.of(), 3));
         list.add(new SkillNode("battlements", SkillClass.CORE, "wall", SkillEffect.BATTLEMENTS,
-                3, 4, 2, 0.1, "masonry", 1, "minecraft:cobblestone_wall", 1));
+                3, 4, 2, 0.1, "masonry", 1, "minecraft:cobblestone_wall", 2, "", List.of(), 2));
         list.add(new SkillNode("rebuild", SkillClass.CORE, "wall", SkillEffect.REBUILD,
-                3, 6, 3, 1.0, "battlements", 1, "minecraft:brick", 2));
+                3, 6, 3, 1.0, "battlements", 1, "minecraft:brick", 3, "", List.of(), 4));
         list.add(new SkillNode("fortified", SkillClass.CORE, "watch", SkillEffect.WAVE_DELAY,
-                8, 4, 2, 0.5, "masonry", 1, "minecraft:obsidian", 1));
+                8, 4, 2, 0.5, "masonry", 1, "minecraft:obsidian", 2, "", List.of(), 2));
         list.add(new SkillNode("beacon_fire", SkillClass.CORE, "watch", SkillEffect.BEACON_FIRE,
-                1, 6, 0, 1.0, "fortified", 1, "minecraft:campfire", 2));
+                1, 6, 0, 1.0, "fortified", 1, "minecraft:campfire", 3, "", List.of(), 4));
         return list;
     }
 

@@ -38,17 +38,23 @@ public final class LadderClimb {
     private final Map<UUID, BlockPos> goals = new HashMap<>();
     private final Map<UUID, Long> goalSince = new HashMap<>();
     private final Map<UUID, Long> lastSearch = new HashMap<>();
+    /** When a monster last stood on a ladder: for a moment after, it goes on over the wall. */
+    private final Map<UUID, Long> climbedAt = new HashMap<>();
+    /** Ticks after the climb in which the monster heads on to its goal instead of looking for ladders. */
+    private static final int OVER_THE_TOP = 60;
 
     public void reset() {
         goals.clear();
         goalSince.clear();
         lastSearch.clear();
+        climbedAt.clear();
     }
 
     public void forget(UUID id) {
         goals.remove(id);
         goalSince.remove(id);
         lastSearch.remove(id);
+        climbedAt.remove(id);
     }
 
     /** Called every other tick for the night's monsters. */
@@ -64,7 +70,15 @@ public final class LadderClimb {
                 // On the way up: the walk to the ladder is over.
                 goals.remove(id);
                 goalSince.remove(id);
+                climbedAt.put(id, now);
                 climb(world, mob, anchor);
+                continue;
+            }
+            LivingEntity target = mob.getTarget();
+            BlockPos goal = target != null ? target.blockPosition() : anchor;
+            Long climbed = climbedAt.get(id);
+            if (climbed != null && now - climbed < OVER_THE_TOP) {
+                overTheTop(mob, goal);
                 continue;
             }
             BlockPos foot = goals.get(id);
@@ -75,8 +89,6 @@ public final class LadderClimb {
                 foot = null;
             }
             if (foot == null) {
-                LivingEntity target = mob.getTarget();
-                BlockPos goal = target != null ? target.blockPosition() : anchor;
                 if (!stuck(mob, goal)) {
                     continue;
                 }
@@ -107,6 +119,27 @@ public final class LadderClimb {
                 mob.getNavigation().moveTo(fx, foot.getY(), fz, 1.0);
             }
         }
+    }
+
+    /** Up on the wall: on towards the goal, and if no path leads there, simply off the edge. */
+    private static void overTheTop(Mob mob, BlockPos goal) {
+        PathNavigation nav = mob.getNavigation();
+        Path path = nav.getPath();
+        if (path != null && path.canReach() && !nav.isDone()) {
+            return;
+        }
+        double dx = goal.getX() + 0.5 - mob.getX();
+        double dz = goal.getZ() + 0.5 - mob.getZ();
+        double len = Math.sqrt(dx * dx + dz * dz);
+        if (len < 1.0) {
+            return;
+        }
+        if (nav.moveTo(goal.getX() + 0.5, goal.getY(), goal.getZ() + 0.5, 1.0)
+                && nav.getPath() != null && nav.getPath().canReach()) {
+            return;
+        }
+        nav.stop();
+        mob.getMoveControl().setWantedPosition(mob.getX() + dx / len * 2.0, mob.getY(), mob.getZ() + dz / len * 2.0, 1.0);
     }
 
     /** True when the monster's path does not reach its goal (a wall is in the way). */
