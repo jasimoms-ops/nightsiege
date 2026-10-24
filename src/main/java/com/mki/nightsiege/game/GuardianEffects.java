@@ -136,6 +136,9 @@ public final class GuardianEffects {
     private float scaleDamage(LivingEntity victim, ServerLevel level, DamageSource source, float amount) {
         float factor = 1f;
         SiegeManager tuning = SiegeManager.get();
+        // Monster strength per type: outside the skill floor, so it also reaches the bulwark.
+        float monster = tuning != null && victim instanceof ServerPlayer && source.getEntity() instanceof Enemy
+                ? tuning.monsterDamageFactor(source.getEntity()) : 1f;
         if (tuning != null && source.getEntity() instanceof ServerPlayer hitter && victim instanceof Enemy) {
             factor *= tuning.damageFactor(hitter);   // server balancing per class and subclass
         }
@@ -187,7 +190,7 @@ public final class GuardianEffects {
         }
         // Skills can take away at most maxDamageReduction together (the bulwark was nearly immortal).
         float floor = tuning == null ? 0.30f : (float) (1.0 - tuning.config().maxDamageReduction);
-        return amount * Math.max(floor, factor);
+        return amount * monster * Math.max(floor, factor);
     }
 
     // ------------------------------------------------------------------

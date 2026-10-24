@@ -63,6 +63,8 @@ public class EventLookTest implements FabricClientGameTest {
                 guardianScene(context);
                 engineerScene(context);
                 ladderScene(context, game);
+                ladderTargetScene(context, game, false);
+                ladderTargetScene(context, game, true);
                 versionBScene(context, game);
                 versionB2Scene(context, game);
                 return;
@@ -577,6 +579,89 @@ public class EventLookTest implements FabricClientGameTest {
                 }
             }
         });
+        context.waitTicks(5);
+    }
+
+    /**
+     * A real night situation: a player inside a walled yard is the target of two husks
+     * outside, a ladder hangs on the outside of the wall, away from where the husks
+     * bump into it. Once with the old behaviour (the attack goal steers too) and once
+     * with the hold goal.
+     */
+    private static void ladderTargetScene(ClientGameTestContext context, TestSingleplayerContext game, boolean hold) {
+        BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        int gx = pos.getX() + 40 + (hold ? 40 : 0);
+        int gz = pos.getZ();
+        int gy = context.computeOnClient(client -> client.level.getHeight(
+                net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, gx, gz));
+        com.mki.nightsiege.game.LadderClimb.holdGoals = hold;
+        game.getServer().runCommand("time set 6000");
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:grass_block".formatted(gx - 20, gy - 1, gz - 12, gx + 8, gy - 1, gz + 12));
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(gx - 20, gy, gz - 12, gx + 8, gy + 8, gz + 12));
+        String wall = "fill %d %d %d %d %d %d minecraft:stone_bricks";
+        int r = 5;
+        game.getServer().runCommand(wall.formatted(gx - r, gy, gz - r, gx + r, gy + 3, gz - r));
+        game.getServer().runCommand(wall.formatted(gx - r, gy, gz + r, gx + r, gy + 3, gz + r));
+        game.getServer().runCommand(wall.formatted(gx - r, gy, gz - r, gx - r, gy + 3, gz + r));
+        game.getServer().runCommand(wall.formatted(gx + r, gy, gz - r, gx + r, gy + 3, gz + r));
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:ladder[facing=west]"
+                .formatted(gx - r - 1, gy, gz + 3, gx - r - 1, gy + 3, gz + 3));
+        // The player stands inside, in survival, so the husks really want him.
+        game.getServer().runCommand("gamemode survival @p");
+        game.getServer().runCommand("effect give @p minecraft:resistance 60 255 true");
+        game.getServer().runCommand("effect give @p minecraft:regeneration 60 5 true");
+        game.getServer().runCommand("tp @p %d.5 %d %d.5 90 -15".formatted(gx + 3, gy, gz));
+        String tag = hold ? "ns_ladder_hold" : "ns_ladder_old";
+        game.getServer().runCommand(("summon minecraft:husk %d %d %d {PersistenceRequired:1b,Tags:[\"" + tag + "\"]}")
+                .formatted(gx - 12, gy, gz - 3));
+        game.getServer().runCommand(("summon minecraft:husk %d %d %d {PersistenceRequired:1b,Tags:[\"" + tag + "\"]}")
+                .formatted(gx - 11, gy, gz - 7));
+        context.waitTicks(20);
+        final com.mki.nightsiege.game.LadderClimb ladders = new com.mki.nightsiege.game.LadderClimb();
+        final net.minecraft.core.BlockPos anchor = new net.minecraft.core.BlockPos(gx, gy, gz);
+        for (int i = 0; i < 300; i++) {
+            final int step = i;
+            onServer(context, (player, manager) -> {
+                net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                java.util.List<java.util.UUID> ids = new java.util.ArrayList<>();
+                for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                    if (e.entityTags().contains(tag) && e instanceof net.minecraft.world.entity.Mob mob) {
+                        if (mob.getTarget() == null) {
+                            mob.setTarget(player);
+                        }
+                        ids.add(e.getUUID());
+                        if (step % 50 == 0) {
+                            System.out.println("[Night Siege test] ladder target " + (hold ? "neu" : "alt") + " " + step
+                                    + ": at " + e.blockPosition() + " climbing=" + mob.onClimbable()
+                                    + " busy=" + ladders.busy(e.getUUID()) + " target=" + (mob.getTarget() != null));
+                        }
+                    }
+                }
+                ladders.tick(level, ids, anchor, level.getGameTime());
+            });
+            context.waitTicks(2);
+            if (i == 60 || i == 150) {
+                context.takeScreenshot("ladder_target_" + (hold ? "neu_" : "alt_") + (i / 60));
+            }
+        }
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            int inside = 0;
+            int total = 0;
+            for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                if (e.entityTags().contains(tag)) {
+                    total++;
+                    if (Math.abs(e.getBlockX() - anchor.getX()) < r && Math.abs(e.getBlockZ() - anchor.getZ()) < r) {
+                        inside++;
+                    }
+                    e.discard();
+                }
+            }
+            System.out.println("[Night Siege test] ladder target " + (hold ? "neu" : "alt") + " result: " + inside + "/" + total + " inside");
+        });
+        com.mki.nightsiege.game.LadderClimb.holdGoals = true;
+        game.getServer().runCommand("effect clear @p");
+        game.getServer().runCommand("gamemode creative @p");
         context.waitTicks(5);
     }
 

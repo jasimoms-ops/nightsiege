@@ -8,6 +8,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.MoverType;
+import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.ai.navigation.PathNavigation;
 import net.minecraft.world.entity.ai.navigation.WallClimberNavigation;
 import net.minecraft.world.level.block.LadderBlock;
@@ -16,8 +17,11 @@ import net.minecraft.world.level.pathfinder.Path;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -25,11 +29,19 @@ import java.util.UUID;
  * own path finding never plans a way up a ladder, so a monster that cannot reach
  * its target looks for a climbable column nearby, walks to its foot and climbs.
  * Spiders climb anyway and big monsters do not fit.
+ *
+ * <p>While a monster is on its way to a ladder, on it, or just over the wall, a goal
+ * of the highest priority holds its movement: otherwise its attack goal keeps
+ * re-planning the (blocked) way to its target and drags it away from the ladder.
  */
 public final class LadderClimb {
 
     /** How far around a stuck monster a ladder is looked for. */
-    private static final int SEARCH = 12;
+    private static final int SEARCH = 20;
+    /** How far up or down from the monster the foot of a ladder may be. */
+    private static final int SEARCH_UP = 4;
+    /** Off only for the gametest that shows the old behaviour. */
+    public static boolean holdGoals = true;
     /** Ticks between two searches of the same monster. */
     private static final int SEARCH_EVERY = 40;
 
@@ -43,12 +55,18 @@ public final class LadderClimb {
     private final Map<UUID, Long> climbedAt = new HashMap<>();
     /** Ticks after the climb in which the monster heads on to its goal instead of looking for ladders. */
     private static final int OVER_THE_TOP = 60;
+    /** Monsters this class steers right now (the hold goal lets them be). */
+    private final Set<UUID> holding = new HashSet<>();
+    /** Monsters that already carry the hold goal. */
+    private final Set<UUID> equipped = new HashSet<>();
 
     public void reset() {
         goals.clear();
         goalSince.clear();
         lastSearch.clear();
         climbedAt.clear();
+        holding.clear();
+        equipped.clear();
     }
 
     public void forget(UUID id) {
@@ -56,6 +74,53 @@ public final class LadderClimb {
         goalSince.remove(id);
         lastSearch.remove(id);
         climbedAt.remove(id);
+        holding.remove(id);
+        equipped.remove(id);
+    }
+
+    /** True while the monster is on its way up a ladder (for the gametest). */
+    public boolean busy(UUID id) {
+        return holding.contains(id);
+    }
+
+    /** Gives the monster the goal that holds its movement while it climbs, once. */
+    private void equip(Mob mob) {
+        if (!holdGoals || !equipped.add(mob.getUUID())) {
+            return;
+        }
+        for (var wrapped : mob.getGoalSelector().getAvailableGoals()) {
+            if (wrapped.getGoal() instanceof HoldGoal) {
+                return;
+            }
+        }
+        mob.getGoalSelector().addGoal(0, new HoldGoal(this, mob.getUUID()));
+    }
+
+    /** Takes the movement away from the monster's other goals while this class steers it. */
+    private static final class HoldGoal extends Goal {
+        private final LadderClimb owner;
+        private final UUID id;
+
+        HoldGoal(LadderClimb owner, UUID id) {
+            this.owner = owner;
+            this.id = id;
+            setFlags(EnumSet.of(Goal.Flag.MOVE));
+        }
+
+        @Override
+        public boolean canUse() {
+            return holdGoals && owner.holding.contains(id);
+        }
+
+        @Override
+        public boolean canContinueToUse() {
+            return canUse();
+        }
+
+        @Override
+        public boolean isInterruptable() {
+            return false;
+        }
     }
 
     /** Called every other tick for the night's monsters. */
@@ -67,7 +132,10 @@ public final class LadderClimb {
                     || mob.isNoGravity()) {
                 continue;
             }
+            equip(mob);
+            holding.remove(id);
             if (mob.onClimbable()) {
+                holding.add(id);
                 // On the way up: the walk to the ladder is over.
                 goals.remove(id);
                 goalSince.remove(id);
@@ -77,20 +145,24 @@ public final class LadderClimb {
             }
             LivingEntity target = mob.getTarget();
             BlockPos goal = target != null ? target.blockPosition() : anchor;
+            // The target came into reach after all (no wall in between): let the monster fight.
+            boolean inReach = target != null && mob.distanceToSqr(target) < 16.0
+                    && Math.abs(mob.getY() - target.getY()) < 2.0 && mob.getSensing().hasLineOfSight(target);
             Long climbed = climbedAt.get(id);
-            if (climbed != null && now - climbed < OVER_THE_TOP) {
+            if (climbed != null && now - climbed < OVER_THE_TOP && !inReach) {
+                holding.add(id);
                 overTheTop(mob, goal);
                 continue;
             }
             BlockPos foot = goals.get(id);
-            if (foot != null && (!isClimbable(world.getBlockState(foot))
+            if (foot != null && (!isClimbable(world.getBlockState(foot)) || inReach
                     || now - goalSince.getOrDefault(id, now) > GIVE_UP)) {
                 goals.remove(id);
                 goalSince.remove(id);
                 foot = null;
             }
             if (foot == null) {
-                if (!stuck(mob, goal)) {
+                if (inReach || !stuck(mob, goal)) {
                     continue;
                 }
                 long last = lastSearch.getOrDefault(id, Long.MIN_VALUE / 2);
@@ -105,6 +177,7 @@ public final class LadderClimb {
                 goals.put(id, foot);
                 goalSince.put(id, now);
             }
+            holding.add(id);
             double fx = foot.getX() + 0.5;
             double fz = foot.getZ() + 0.5;
             double dx = fx - mob.getX();
@@ -201,7 +274,7 @@ public final class LadderClimb {
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
         for (int dx = -SEARCH; dx <= SEARCH; dx++) {
             for (int dz = -SEARCH; dz <= SEARCH; dz++) {
-                for (int dy = -3; dy <= 3; dy++) {
+                for (int dy = -SEARCH_UP; dy <= SEARCH_UP; dy++) {
                     pos.set(from.getX() + dx, from.getY() + dy, from.getZ() + dz);
                     if (!isClimbable(world.getBlockState(pos)) || isClimbable(world.getBlockState(pos.below()))) {
                         continue;   // only the foot of a column

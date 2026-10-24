@@ -1584,6 +1584,15 @@ public final class SiegeManager {
     }
 
     /** Server balancing: factor on the damage this player takes from monsters. */
+    /** Factor on the damage this monster deals to players (config monsterDamage / monsterDamageByType). */
+    public float monsterDamageFactor(Entity attacker) {
+        if (attacker == null) {
+            return 1f;
+        }
+        return (float) config.monsterDamageFactor(
+                net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(attacker.getType()).toString());
+    }
+
     public float damageTakenFactor(ServerPlayer player) {
         PlayerSkills skills = save.skillsOf(player.getUUID().toString());
         return (float) config.damageTakenFactor(skills.chosenClass, skillTree.subclassOf(skills));

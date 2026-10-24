@@ -236,6 +236,10 @@ public class SiegeConfig {
     public double meleeLifesteal = 0.08;
     /** The most damage any player's skills can take away together (0.70 = at most -70 %). */
     public double maxDamageReduction = 0.70;
+    /** Factor on the damage monsters deal to players (1.2 = +20 %, Simon 24 October 2026). */
+    public double monsterDamage = 1.2;
+    /** Per monster type (entity id), instead of monsterDamage: pillagers stay as they were. */
+    public Map<String, Double> monsterDamageByType = new LinkedHashMap<>(Map.of("minecraft:pillager", 1.0));
     /** Items picked up in the night that are kept afterwards (besides armour and weapons of diamond or better). */
     public List<String> valuableDrops = new ArrayList<>(List.of(
             "minecraft:ender_pearl", "minecraft:totem_of_undying", "minecraft:emerald", "minecraft:diamond"));
@@ -355,6 +359,18 @@ public class SiegeConfig {
     /** Factor on the damage a player of this class and subclass takes from monsters. */
     public double damageTakenFactor(String clazz, String subclass) {
         return factor(classDamageTaken, clazz) * factor(subclassDamageTaken, subclass);
+    }
+
+    /** Factor on the damage a monster of this type (e.g. "minecraft:zombie") deals to players. */
+    public double monsterDamageFactor(String entityId) {
+        Double v = null;
+        if (monsterDamageByType != null && entityId != null) {
+            v = monsterDamageByType.get(entityId);
+            if (v == null && entityId.startsWith("minecraft:")) {
+                v = monsterDamageByType.get(entityId.substring("minecraft:".length()));
+            }
+        }
+        return v != null ? v : monsterDamage;
     }
 
     private static double factor(Map<String, Double> map, String key) {
@@ -608,6 +624,19 @@ public class SiegeConfig {
             maxDamageReduction = 0.70;
         }
         maxDamageReduction = Math.min(0.95, Math.max(0.1, maxDamageReduction));
+        if (Double.isNaN(monsterDamage)) {
+            monsterDamage = 1.2;
+        }
+        monsterDamage = Math.min(5.0, Math.max(0.1, monsterDamage));
+        Map<String, Double> byType = new LinkedHashMap<>();
+        if (monsterDamageByType != null) {
+            for (Map.Entry<String, Double> e : monsterDamageByType.entrySet()) {
+                if (e.getKey() != null && e.getValue() != null && !e.getValue().isNaN()) {
+                    byType.put(e.getKey().trim().toLowerCase(java.util.Locale.ROOT), Math.min(5.0, Math.max(0.1, e.getValue())));
+                }
+            }
+        }
+        monsterDamageByType = byType;
         crateOddsNormal = odds(crateOddsNormal, new int[]{60, 25, 10, 4, 1});
         crateOddsEvent = odds(crateOddsEvent, new int[]{45, 30, 16, 7, 2});
         crateOddsFragment = odds(crateOddsFragment, new int[]{30, 30, 22, 13, 5});

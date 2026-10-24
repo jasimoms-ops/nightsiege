@@ -223,6 +223,19 @@ class SiegeCoreTest {
     }
 
     @Test
+    void monstersHitHarderButPillagersDoNot() {
+        SiegeConfig fresh = new SiegeConfig();
+        fresh.sanitize();
+        assertEquals(1.2, fresh.monsterDamageFactor("minecraft:zombie"), 1e-9);
+        assertEquals(1.0, fresh.monsterDamageFactor("minecraft:pillager"), 1e-9);
+        fresh.monsterDamageByType.put("vindicator", 0.9);
+        assertEquals(0.9, fresh.monsterDamageFactor("minecraft:vindicator"), 1e-9);
+        fresh.monsterDamage = 99;
+        fresh.sanitize();
+        assertEquals(5.0, fresh.monsterDamageFactor("minecraft:husk"), 1e-9);
+    }
+
+    @Test
     void everyGainIsBuiltInVersionB2() {
         for (CrateGains.Gain gain : CrateGains.all()) {
             assertTrue(gain.ready(), gain.id());
