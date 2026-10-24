@@ -11,7 +11,6 @@ import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LightningBolt;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.monster.Enemy;
@@ -131,7 +130,7 @@ public final class CrateEffects {
         if (source.getEntity() instanceof ServerPlayer attacker && source.getDirectEntity() == attacker
                 && victim instanceof Enemy && victim.isAlive() && RANDOM.nextDouble() < 0.1
                 && has(attacker, "blitzklinge") && victim.level() instanceof ServerLevel level) {
-            LightningBolt bolt = EntityType.LIGHTNING_BOLT.create(level, net.minecraft.world.entity.EntitySpawnReason.TRIGGERED);
+            LightningBolt bolt = net.minecraft.world.entity.EntityTypes.LIGHTNING_BOLT.create(level, net.minecraft.world.entity.EntitySpawnReason.TRIGGERED);
             if (bolt != null) {
                 bolt.setPos(victim.getX(), victim.getY(), victim.getZ());
                 bolt.setVisualOnly(true);

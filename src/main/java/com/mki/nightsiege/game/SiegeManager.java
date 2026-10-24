@@ -1304,14 +1304,14 @@ public final class SiegeManager {
         tickAtmosphere(server);
         if (world.getGameTime() % 20 == 0) {
             tickSpectators(server);
-            List<ServerPlayer> standing = new ArrayList<>();
+            List<ServerPlayer> upright = new ArrayList<>();
             for (UUID id : participants) {
                 ServerPlayer p = server.getPlayerList().getPlayer(id);
                 if (p != null && !fallen.contains(id)) {
-                    standing.add(p);
+                    upright.add(p);
                 }
             }
-            CrateEffects.tick(world, standing);
+            CrateEffects.tick(world, upright);
         }
         defense.tick(liveMobs, world.getGameTime());
         if (world.getGameTime() % 20 == 0) {
