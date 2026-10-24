@@ -230,8 +230,8 @@ public class SiegeConfig {
     /** How far a fallen defender may watch from the core. */
     public double spectatorRadius = 80.0;
     /**
-     * Melee life steal every warrior and the shield fighter get from the start (share of the
-     * melee damage dealt). The berserker's own life steal comes on top. 0 switches it off.
+     * Melee life steal every warrior (but the berserker, who has his own) and the shield
+     * fighter get from the start (share of the melee damage dealt). 0 switches it off.
      */
     public double meleeLifesteal = 0.08;
     /** The most damage any player's skills can take away together (0.70 = at most -70 %). */
