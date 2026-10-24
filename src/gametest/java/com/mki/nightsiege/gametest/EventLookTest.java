@@ -548,7 +548,7 @@ public class EventLookTest implements FabricClientGameTest {
                 for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
                     if (e.entityTags().contains("ns_ladder")) {
                         ladders.tick(level, java.util.List.of(e.getUUID()), goal, level.getGameTime());
-                        if (step % 20 == 0) {
+                        if (step % 40 == 0) {
                             System.out.println("[Night Siege test] ladder " + step + ": at " + e.blockPosition()
                                     + " climbing=" + ((net.minecraft.world.entity.LivingEntity) e).onClimbable());
                         }

@@ -261,7 +261,7 @@ jobs:
           python3 - <<'PY'
           import re
           text = open("client-output.txt", encoding="utf-8", errors="replace").read()
-          noise = re.compile(r"(ALSA|flite|narrator|Narrator|Suppressed|Realms|SignedJWT|resource path|OpenAL|SoundSystem)")
+          noise = re.compile(r"(ALSA|flite|narrator|Narrator|Suppressed|Realms|SignedJWT|resource path|OpenAL|SoundSystem|Block-attached entity)")
           pat = re.compile(r"(ERROR|Exception|Caused by|Mixin|mixin|Failed|FAILED|nightsiege|Night Siege|gametest|GameTest|screenshot|passed|exit=|BUILD|Iris|Sodium|shader)", re.I)
           lines = [l.rstrip()[:300] for l in text.splitlines() if pat.search(l) and not noise.search(l)]
           ok = text.count("exit=0") >= 1

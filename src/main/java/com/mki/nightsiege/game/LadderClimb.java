@@ -7,6 +7,7 @@ import net.minecraft.tags.BlockTags;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.entity.ai.navigation.PathNavigation;
 import net.minecraft.world.entity.ai.navigation.WallClimberNavigation;
 import net.minecraft.world.level.block.LadderBlock;
@@ -108,12 +109,18 @@ public final class LadderClimb {
             double fz = foot.getZ() + 0.5;
             double dx = fx - mob.getX();
             double dz = fz - mob.getZ();
-            if (dx * dx + dz * dz <= 1.5 && Math.abs(mob.getY() - foot.getY()) < 1.5) {
-                // At the foot: step into the ladder, the climb takes over from there.
+            double d2 = dx * dx + dz * dz;
+            if (d2 <= 6.25 && Math.abs(mob.getY() - foot.getY()) < 1.5) {
+                // Close to the foot: walk straight into the ladder (the path finder
+                // stops in front of it), the climb takes over from there.
                 mob.getNavigation().stop();
+                double d = Math.sqrt(d2);
+                if (d > 0.05) {
+                    double step = Math.min(0.24, d);
+                    mob.move(MoverType.SELF, new Vec3(dx / d * step, 0.0, dz / d * step));
+                }
                 mob.getMoveControl().setWantedPosition(fx, foot.getY(), fz, 1.0);
-                Vec3 v = mob.getDeltaMovement();
-                mob.setDeltaMovement(v.x * 0.5 + dx * 0.2, Math.max(v.y, 0.2), v.z * 0.5 + dz * 0.2);
+                mob.getLookControl().setLookAt(fx, foot.getY() + 1.5, fz);
             } else if (!foot.equals(mob.getNavigation().getTargetPos()) || mob.getNavigation().isDone()) {
                 // The monster's own AI keeps steering to its target, so steer back.
                 mob.getNavigation().moveTo(fx, foot.getY(), fz, 1.0);
