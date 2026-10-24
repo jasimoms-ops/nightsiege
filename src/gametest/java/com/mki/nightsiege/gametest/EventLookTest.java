@@ -755,7 +755,14 @@ public class EventLookTest implements FabricClientGameTest {
         game.getServer().runCommand(wall.formatted(cx - r, cy, cz + r, cx + r, cy + 4, cz + r));
         game.getServer().runCommand(wall.formatted(cx - r, cy, cz - r, cx - r, cy + 4, cz + r));
         game.getServer().runCommand(wall.formatted(cx + r, cy, cz - r, cx + r, cy + 4, cz + r));
-        game.getServer().runCommand("tp @p %d.5 %d %d.5 0 -5".formatted(cx, cy, cz - 4));
+        // Watch from above the north side, outside the wall (ladders lean on the outside).
+        game.getServer().runCommand("setblock %d %d %d minecraft:barrier".formatted(cx, cy + 12, cz - 20));
+        game.getServer().runCommand("tp @p %d.5 %d %d.5 0 35".formatted(cx, cy + 13, cz - 20));
+        // A real defender (survival), who cannot fall.
+        game.getServer().runCommand("gamemode survival @p");
+        game.getServer().runCommand("effect give @p minecraft:resistance 120 255 true");
+        game.getServer().runCommand("effect give @p minecraft:regeneration 120 10 true");
+        game.getServer().runCommand("effect give @p minecraft:saturation 120 10 true");
         context.waitTicks(20);
         final double[] before = new double[2];
         final int[] beforeInt = new int[2];
@@ -805,6 +812,8 @@ public class EventLookTest implements FabricClientGameTest {
             manager.config().batchIntervalSeconds = beforeInt[1];
         });
         game.getServer().runCommand("time set 6000");
+        game.getServer().runCommand("effect clear @p");
+        game.getServer().runCommand("gamemode creative @p");
         context.waitTicks(10);
     }
 

@@ -284,8 +284,8 @@ jobs:
               print("::warning title=CLIENT%d::" % part + "%0A".join(chunk))
           ladder, seen = [], set()
           for l in text.splitlines():
-              if "[Night Siege test] ladder" in l:
-                  body = l[l.index("ladder"):].strip()[:160]
+              if "[Night Siege test] ladder" in l or "besiegers" in l or "Sprengcreeper" in l or "[Night Siege test] tower" in l:
+                  body = l[l.index("[Night Siege"):].strip()[:170]
                   if body not in seen:
                       seen.add(body)
                       ladder.append(body)
