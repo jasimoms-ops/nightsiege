@@ -607,7 +607,7 @@ public class EventLookTest implements FabricClientGameTest {
         context.takeScreenshot("b_class_pick");
         onServer(context, (player, manager) -> manager.onPlayClass(player, "GUARDIAN"));
         closeScreen(context);
-        context.runOnClient(client -> client.setScreen(
+        context.runOnClient(client -> client.setScreenAndShow(
                 new net.minecraft.client.gui.screens.inventory.InventoryScreen(client.player)));
         context.waitTicks(15);
         context.takeScreenshot("b_kit_inventory");
@@ -645,7 +645,7 @@ public class EventLookTest implements FabricClientGameTest {
             manager.config().testPrepSeconds = 60;
         });
         context.waitTicks(10);
-        context.runOnClient(client -> client.setScreen(
+        context.runOnClient(client -> client.setScreenAndShow(
                 new net.minecraft.client.gui.screens.inventory.InventoryScreen(client.player)));
         context.waitTicks(15);
         context.takeScreenshot("b_kit_restored");
