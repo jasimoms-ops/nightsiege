@@ -751,8 +751,17 @@ public class EventLookTest implements FabricClientGameTest {
         BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
         int cx = pos.getX() - 120;
         int cz = pos.getZ() + 120;
-        int cy = context.computeOnClient(client -> client.level.getHeight(
-                net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, cx, cz));
+        // On the server, with the chunk loaded: the client does not know chunks this far away
+        // (its height there was the bottom of the world, so the yard was buried).
+        final int[] ground = new int[1];
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            level.getChunk(cx >> 4, cz >> 4);
+            ground[0] = level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, cx, cz);
+        });
+        context.waitTicks(10);   // onServer runs on the next server tick
+        int cy = ground[0];
+        System.out.println("[Night Siege test] besiegers yard at " + cx + " " + cy + " " + cz);
         int r = 10;
         int out = 38;
         game.getServer().runCommand("time set 13000");
@@ -814,6 +823,10 @@ public class EventLookTest implements FabricClientGameTest {
                         sappers++;
                         sapperNear = Math.min(sapperNear, d);
                     }
+                }
+                if (step == 0) {
+                    System.out.println("[Night Siege test] besiegers wall=" + level.getBlockState(new BlockPos(cx + r, cy + 2, cz)).getBlock()
+                            + " player=" + player.blockPosition());
                 }
                 if (step % 5 == 4) {
                     System.out.println(String.format(java.util.Locale.ROOT,
