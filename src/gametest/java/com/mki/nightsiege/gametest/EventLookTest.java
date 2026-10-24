@@ -446,25 +446,6 @@ public class EventLookTest implements FabricClientGameTest {
         onServer(context, (player, manager) -> manager.onCoreAction(player, "open"));
         context.waitTicks(10);
         context.takeScreenshot("chat_register_offer");
-        // A right click on the core signs up and opens the menu at once (hotfix 24.10.).
-        onServer(context, (player, manager) -> {
-            com.mki.nightsiege.game.CoreRecord c = manager.save().cores.get(0);
-            net.minecraft.core.BlockPos pos = new net.minecraft.core.BlockPos(c.x, c.y, c.z);
-            try {
-                java.lang.reflect.Method use = com.mki.nightsiege.game.SiegeManager.class.getDeclaredMethod(
-                        "onUseBlock", Object.class, Object.class, Object.class, Object.class);
-                use.setAccessible(true);
-                Object result = use.invoke(manager, player, player.level(), net.minecraft.world.InteractionHand.MAIN_HAND,
-                        new net.minecraft.world.phys.BlockHitResult(net.minecraft.world.phys.Vec3.atCenterOf(pos),
-                                net.minecraft.core.Direction.UP, pos, false));
-                System.out.println("[Night Siege test] core right click: " + result + " registered=" + manager.isRegistered(player));
-            } catch (ReflectiveOperationException e) {
-                System.out.println("[Night Siege test] core right click failed: " + e);
-            }
-        });
-        context.waitTicks(15);
-        context.takeScreenshot("core_rightclick_signup");
-        closeScreen(context);
         onServer(context, (player, manager) -> {
             manager.save().register(player.getUUID().toString());
             System.out.println("[Night Siege test] registered=" + manager.isRegistered(player));
@@ -783,6 +764,26 @@ public class EventLookTest implements FabricClientGameTest {
             com.mki.nightsiege.game.CoreRecord c = com.mki.nightsiege.game.SiegeManager.get().save().cores.get(0);
             return new int[]{c.x, c.y, c.z};
         });
+        // A right click on the core signs up and opens the menu at once (hotfix 24.10.).
+        onServer(context, (player, manager) -> {
+            manager.save().unregister(player.getUUID().toString());
+            com.mki.nightsiege.game.CoreRecord c = manager.save().cores.get(0);
+            net.minecraft.core.BlockPos pos = new net.minecraft.core.BlockPos(c.x, c.y, c.z);
+            try {
+                java.lang.reflect.Method use = com.mki.nightsiege.game.SiegeManager.class.getDeclaredMethod(
+                        "onUseBlock", Object.class, Object.class, Object.class, Object.class);
+                use.setAccessible(true);
+                Object result = use.invoke(manager, player, player.level(), net.minecraft.world.InteractionHand.MAIN_HAND,
+                        new net.minecraft.world.phys.BlockHitResult(net.minecraft.world.phys.Vec3.atCenterOf(pos),
+                                net.minecraft.core.Direction.UP, pos, false));
+                System.out.println("[Night Siege test] core right click: " + result + " registered=" + manager.isRegistered(player));
+            } catch (ReflectiveOperationException e) {
+                System.out.println("[Night Siege test] core right click failed: " + e);
+            }
+        });
+        context.waitTicks(15);
+        context.takeScreenshot("core_rightclick_signup");
+        closeScreen(context);
         game.getServer().runCommand("gamemode creative @p");
         game.getServer().runCommand("time set 18000");
         game.getServer().runCommand("effect give @p minecraft:night_vision 900 0 true");
@@ -850,13 +851,19 @@ public class EventLookTest implements FabricClientGameTest {
                 arrow.setPos(px + 1.5, py + 3.5, pz - 1.5 + i * 1.5);
                 arrow.shoot(1, 0.0, 0, 2.5f, 0f);
                 level.addFreshEntity(arrow);
+                System.out.println("[Night Siege test] B2 arrow " + kinds[i] + ": " + com.mki.nightsiege.game.GainGear.debugArrow(arrow));
             }
             com.mki.nightsiege.game.GainGear.cycleQuiver(player);
             System.out.println("[Night Siege test] B2 quiver: offhand=" + player.getOffhandItem().getHoverName().getString());
         });
         context.waitTicks(30);
-        onServer(context, (player, manager) -> System.out.println("[Night Siege test] B2 archer: temp="
-                + manager.save().tempBlocks));
+        onServer(context, (player, manager) -> {
+            System.out.println("[Night Siege test] B2 archer: temp=" + manager.save().tempBlocks);
+            for (net.minecraft.world.entity.projectile.arrow.AbstractArrow a : player.level().getEntitiesOfClass(
+                    net.minecraft.world.entity.projectile.arrow.AbstractArrow.class, player.getBoundingBox().inflate(16))) {
+                System.out.println("[Night Siege test] B2 arrow later: " + a.position() + " " + com.mki.nightsiege.game.GainGear.debugArrow(a));
+            }
+        });
         game.getServer().runCommand("tp @p %d.5 %d %d.5 -90 -5".formatted(px, py, pz));
         context.waitTicks(10);
         context.takeScreenshot("b2_archer_arrows");

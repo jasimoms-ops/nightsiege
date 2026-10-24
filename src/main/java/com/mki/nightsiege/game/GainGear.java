@@ -576,13 +576,13 @@ public final class GainGear {
         if (!(arrow.level() instanceof ServerLevel level)) {
             return;
         }
-        Set<String> tags = arrow.entityTags();
-        if (tags.contains("ns_arrow_light")) {
+        String kind = kindOf(arrow);
+        if (kind.equals("light")) {
             BlockPos pos = hit.getBlockPos().relative(hit.getDirection());
             TempBlocks.place(level, pos, Blocks.LIGHT.defaultBlockState().setValue(LightBlock.LEVEL, 15));
             level.sendParticles(ParticleTypes.GLOW, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, 12, 0.3, 0.3, 0.3, 0.02);
             arrow.discard();
-        } else if (tags.contains("ns_arrow_climb")) {
+        } else if (kind.equals("climb")) {
             Direction face = hit.getDirection();
             if (face.getAxis().isHorizontal()) {
                 BlockPos start = hit.getBlockPos().relative(face);
@@ -600,10 +600,29 @@ public final class GainGear {
                     arrow.discard();
                 }
             }
-        } else if (tags.contains("ns_arrow_storm")) {
+        } else if (kind.equals("storm")) {
             storm(level, hit.getLocation(), arrow.getOwner());
             arrow.discard();
         }
+    }
+
+    /** The kind of a player's special arrow (light, climb, storm), read from its tag or its item. */
+    private static String kindOf(AbstractArrow arrow) {
+        for (String k : new String[]{"light", "climb", "storm"}) {
+            if (arrow.entityTags().contains("ns_arrow_" + k)) {
+                return k;
+            }
+        }
+        if (!(arrow.getOwner() instanceof Player)) {
+            return "";
+        }
+        return Gadgets.arrowKind(arrow.getPickupItemStackOrigin());
+    }
+
+    /** For the gametest. */
+    public static String debugArrow(AbstractArrow arrow) {
+        return "tags=" + arrow.entityTags() + " kind=" + kindOf(arrow) + " owner=" + arrow.getOwner()
+                + " item=" + arrow.getPickupItemStackOrigin() + " ground=" + ((com.mki.nightsiege.mixin.ArrowAccessor) arrow).nightsiege$isInGround();
     }
 
     /** Storm arrow: monsters within 3 blocks whirl up. */
@@ -636,7 +655,7 @@ public final class GainGear {
 
     /** After damage: storm arrows burst on the monster, the bodyguard takes his share. */
     public static void afterDamage(LivingEntity victim, DamageSource source, float taken) {
-        if (source.getDirectEntity() instanceof AbstractArrow arrow && arrow.entityTags().contains("ns_arrow_storm")
+        if (source.getDirectEntity() instanceof AbstractArrow arrow && kindOf(arrow).equals("storm")
                 && victim.level() instanceof ServerLevel level) {
             storm(level, victim.position(), arrow.getOwner());
         }
