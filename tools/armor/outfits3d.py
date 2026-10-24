@@ -437,13 +437,13 @@ def bulwark(k, L1, L2):
     steel = hexc('#a7adb6')
     brass = hexc('#c9a43a')
     S = metal(steel)
-    # A great helm: under the dark eye slit a face plate with breathing holes in crosses,
+    # A great helm: under the dark eye slit a plain face plate (no breathing holes, Simon),
     # a brass ridge down the middle splits the slit in two (the old snout visor looked
     # like a strange face, Simon 24 October 2026).
     plate = k.box('head', 'head', 'faceplate', (-5.5, -4, -5.7), (11, 5, 3))
     all_faces(L1, plate, S)
-    L1.art(plate, 'front', ['DDDDDDDDDDD', '.......o...', '......ooo..', '.......o...', 'ddddddddddd'],
-           {'D': mul(steel, 0.45), 'd': mul(steel, 0.7), 'o': hexc('#141418')})
+    L1.art(plate, 'front', ['DDDDDDDDDDD', '...........', '...........', '...........', 'ddddddddddd'],
+           {'D': mul(steel, 0.45), 'd': mul(steel, 0.7)})
     L1.strip(plate, lambda c: mul(steel, 0.45) if c.r == 0 else (mul(steel, 0.7) if c.r == 4 else None), faces=('right', 'left'))
     ridge = k.box('head', 'head', 'ridge', (-0.5, -9, -6.2), (1, 10, 1))
     all_faces(L1, ridge, lambda c: mul(brass, 1.15) if c.face == 'front' and c.r % 3 == 0 else brass)
