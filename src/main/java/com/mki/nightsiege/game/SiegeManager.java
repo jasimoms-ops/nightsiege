@@ -351,7 +351,7 @@ public final class SiegeManager {
             CrateEffects.afterDamage(entity, source);
             GainGear.afterDamage(entity, source, taken);
             MeleeSim.onDamage(entity, source, taken);
-            companions.afterDamage(entity, source, taken);
+            safe("Begleiter-Treffer", () -> companions.afterDamage(entity, source, taken));
         });
         ServerLivingEntityEvents.ALLOW_DEATH.register((entity, source, amount) ->
                 combat.allowDeath(entity) && allowNightDeath(entity));
@@ -499,7 +499,7 @@ public final class SiegeManager {
         trapsDirty |= traps.tick(server);
         combat.tick(server);
         // Companions stay with summoners who defend the night (or try them out in creative).
-        companions.tick(server, p -> isDefending(p) || p.getAbilities().instabuild);
+        safe("Begleiter", () -> companions.tick(server, p -> isDefending(p) || p.getAbilities().instabuild));
         perks.tick(server);
         EventAtmosphere.tickServer();
         BaseDefense.tickHighlights(server);
@@ -1653,6 +1653,20 @@ public final class SiegeManager {
         return com.mki.nightsiege.core.SiegeMath.healthMultiplier(level, config) * event.healthMultiplier(config);
     }
 
+    /** Messages already logged by {@link #safe}: one line per kind of failure, not one per tick. */
+    private final java.util.Set<String> failures = new java.util.HashSet<>();
+
+    /** Runs a part of the night that must never take the server down (the summoner's companions are new). */
+    private void safe(String what, Runnable action) {
+        try {
+            action.run();
+        } catch (RuntimeException e) {
+            if (failures.add(what + e)) {
+                NightSiegeMod.LOGGER.error("[Night Siege] Fehler bei {}: {}", what, e.toString(), e);
+            }
+        }
+    }
+
     /** How much harder tonight's monsters hit than plain ones (level and event). */
     public double mobDamageFactor() {
         int level = active ? siegeLevel : levelForKit();
@@ -2100,7 +2114,7 @@ public final class SiegeManager {
         if (active && entity instanceof Mob killed && liveMobs.contains(killed.getUUID())) {
             nightKills++;
             // A monster of the night can be raised by a summoner of the dead; souls for those near.
-            companions.onMonsterDeath(killed, killed.entityTags().contains(MobFactory.TAG_ELITE));
+            safe("Seelen", () -> companions.onMonsterDeath(killed, killed.entityTags().contains(MobFactory.TAG_ELITE)));
         }
         if (active && entity instanceof Mob mob && mob.getUUID().equals(eliteId)) {
             onEliteKilled(mob);
@@ -2553,7 +2567,7 @@ public final class SiegeManager {
         if (killerObject instanceof Entity killerEntity && Companions.isCompanion(killerEntity)
                 && killedObject instanceof Entity victim) {
             // A companion's kill is its summoner's.
-            companions.onKill(killerEntity, victim);
+            safe("Begleiter-Kill", () -> companions.onKill(killerEntity, victim));
             killerObject = Companions.ownerPlayer(killerEntity);
         }
         if (!(killerObject instanceof ServerPlayer player) || !(killedObject instanceof Entity killed)) {

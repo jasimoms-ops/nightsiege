@@ -171,6 +171,14 @@ public final class Companions {
 
     /** Players and companions never hurt companions; companions never hurt players. Snowballs of the snow guard slow. */
     public static boolean allowDamage(LivingEntity victim, DamageSource source) {
+        try {
+            return allowDamageUnsafe(victim, source);
+        } catch (RuntimeException e) {
+            return true;   // never let the companions break a hit
+        }
+    }
+
+    private static boolean allowDamageUnsafe(LivingEntity victim, DamageSource source) {
         Entity attacker = source.getEntity();
         if (isCompanion(victim)) {
             if (attacker instanceof Player || isCompanion(attacker)) {
