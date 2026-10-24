@@ -13,13 +13,16 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * The blademaster's combo (Simon, 24 October 2026): with a sword in hand the attack has no
- * cooldown, like Minecraft's old combat, every click hits fully and there is no sweep.
+ * The blademaster's combo (Simon, 24 October 2026): with a sword in hand the attack cooldown
+ * is nearly gone, like Minecraft's old combat, but at most {@link #HITS_PER_SECOND} full hits a
+ * second, on whatever targets (the attack speed is set to exactly that); no sweep.
  * Only during a night (skills only hold then); the kit sword is iron at most.
  */
 public final class Combo {
 
     private static final Identifier SPEED = ModContent.id("combo_speed");
+    /** Full hits a second with the combo (Simon: four, whatever the targets). */
+    public static final double HITS_PER_SECOND = 4.0;
     /** Players whose sword fights the old way right now (the sweep mixin asks). */
     private static final Set<UUID> ACTIVE = ConcurrentHashMap.newKeySet();
 
@@ -37,10 +40,18 @@ public final class Combo {
         if (speed == null) {
             return;
         }
-        boolean has = speed.getModifier(SPEED) != null;
-        if (on && !has) {
-            speed.addTransientModifier(new AttributeModifier(SPEED, 1000.0, AttributeModifier.Operation.ADD_VALUE));
-        } else if (!on && has) {
+        AttributeModifier have = speed.getModifier(SPEED);
+        if (on) {
+            // Exactly HITS_PER_SECOND, whatever the sword and the other bonuses give.
+            double without = speed.getValue() - (have == null ? 0.0 : have.amount());
+            double want = Math.max(0.0, HITS_PER_SECOND - without);
+            if (have == null || Math.abs(have.amount() - want) > 1.0e-3) {
+                if (have != null) {
+                    speed.removeModifier(SPEED);
+                }
+                speed.addTransientModifier(new AttributeModifier(SPEED, want, AttributeModifier.Operation.ADD_VALUE));
+            }
+        } else if (have != null) {
             speed.removeModifier(SPEED);
         }
         if (on) {
