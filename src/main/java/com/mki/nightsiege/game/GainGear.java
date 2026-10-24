@@ -975,6 +975,27 @@ public final class GainGear {
         player.connection.send(new ClientboundSetActionBarTextPacket(text));
     }
 
+    /** For the gametest: uses the gadget with this id from the player's inventory, as a right click would. */
+    public static boolean testUse(ServerPlayer player, String gadgetId) {
+        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+            ItemStack stack = player.getInventory().getItem(i);
+            if (gadgetId.equals(Gadgets.of(stack)) && player.level() instanceof ServerLevel level) {
+                use(player, level, stack, gadgetId);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** For the gametest: sets a placed gadget (banner, barricade) on top of a block. */
+    public static boolean testPlace(ServerPlayer player, String gadgetId, BlockPos on) {
+        if (!(player.level() instanceof ServerLevel level)) {
+            return false;
+        }
+        BlockHitResult hit = new BlockHitResult(Vec3.atCenterOf(on).add(0, 0.5, 0), Direction.UP, on, false);
+        return gadgetId.equals("kriegsbanner") ? placeBanner(player, level, hit) : placeBarricade(player, level, hit);
+    }
+
     /** For the gametest: how many war banners and oil puddles stand. */
     public static String debugState() {
         return "banners=" + BANNERS.size() + " oil=" + OIL.size() + " calm=" + CALM.size() + " lured=" + LURED.size()

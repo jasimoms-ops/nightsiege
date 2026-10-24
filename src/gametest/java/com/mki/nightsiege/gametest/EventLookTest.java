@@ -60,6 +60,7 @@ public class EventLookTest implements FabricClientGameTest {
                 engineerScene(context);
                 ladderScene(context, game);
                 versionBScene(context, game);
+                versionB2Scene(context, game);
                 return;
             }
 
@@ -717,6 +718,198 @@ public class EventLookTest implements FabricClientGameTest {
             }
         });
         context.waitTicks(5);
+    }
+
+    /** Gives every B2 gain to every class, so the kits and gadgets can be tried. */
+    private static void giveB2Gains(com.mki.nightsiege.core.PlayerSkills own) {
+        String[][] byClass = {
+                {"WARRIOR", "wurfbeile:3", "kampfhorn:1", "schlachtentrance:1", "wurfspeere:1", "kletterhaken:1",
+                        "kriegsbanner:1", "sprungstiefel:1"},
+                {"ARCHER", "lichtpfeile:1", "kletterpfeile:1", "sturmpfeile:1", "tarnumhang:1", "koecher:1",
+                        "zielfernrohr:1", "lenkpfeile:1", "lockpfeil:1", "spektralpfeile:1"},
+                {"GUARDIAN", "barrikaden:1", "signalhorn:1", "mauerkelle:1", "leibwaechter:1", "turmschild:1",
+                        "leichtschild:1", "schildlaterne:1", "spiegelschild:1"},
+                {"ENGINEER", "blendgranaten:3", "ersatzbatterie:1", "oelfass:1", "kupfergolem:1", "magnetfeld:1",
+                        "werkzeugtasche:1", "zweite_ladung:1", "stahlturm:1", "recycling:1", "tarnfallen:1"}};
+        for (String[] row : byClass) {
+            com.mki.nightsiege.core.SkillClass c = com.mki.nightsiege.core.SkillClass.valueOf(row[0]);
+            own.unlockClass(c);
+            for (int i = 1; i < row.length; i++) {
+                String[] kv = row[i].split(":");
+                own.setGainStage(c, kv[0], Integer.parseInt(kv[1]));
+            }
+        }
+    }
+
+    /** Starts a short test night with one class and waits until it runs. */
+    private static void b2Night(ClientGameTestContext context, int[] core, String clazz) {
+        onServer(context, (player, manager) -> {
+            manager.onPlayClass(player, clazz);
+            manager.config().testPrepSeconds = 3;
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            boolean ok = manager.prepareTest(level.getServer(), level, new net.minecraft.core.BlockPos(core[0], core[1], core[2]), 14,
+                    com.mki.nightsiege.core.SiegeEvent.NONE);
+            System.out.println("[Night Siege test] B2 " + clazz + " prep ok=" + ok);
+        });
+        context.waitTicks(20);
+        closeScreen(context);
+        context.waitTicks(60);
+        onServer(context, (player, manager) -> {
+            StringBuilder items = new StringBuilder();
+            for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+                net.minecraft.world.item.ItemStack st = player.getInventory().getItem(i);
+                String g = com.mki.nightsiege.game.Gadgets.of(st);
+                String a = com.mki.nightsiege.game.Gadgets.arrowKind(st);
+                if (!g.isEmpty() || !a.isEmpty()) {
+                    items.append(st.getCount()).append('x').append(g.isEmpty() ? a : g).append(' ');
+                }
+            }
+            System.out.println("[Night Siege test] B2 " + clazz + " night active=" + manager.isActive()
+                    + " defending=" + manager.isDefending(player) + " gadgets=" + items);
+        });
+    }
+
+    private static void inventoryShot(ClientGameTestContext context, String name) {
+        context.runOnClient(client -> client.setScreenAndShow(
+                new net.minecraft.client.gui.screens.inventory.InventoryScreen(client.player)));
+        context.waitTicks(15);
+        context.takeScreenshot(name);
+        closeScreen(context);
+    }
+
+    /** Version B2: the gadgets of every class in a short test night each. */
+    private static void versionB2Scene(ClientGameTestContext context, TestSingleplayerContext game) {
+        int[] core = context.computeOnClient(client -> {
+            com.mki.nightsiege.game.CoreRecord c = com.mki.nightsiege.game.SiegeManager.get().save().cores.get(0);
+            return new int[]{c.x, c.y, c.z};
+        });
+        game.getServer().runCommand("gamemode creative @p");
+        game.getServer().runCommand("time set 18000");
+        game.getServer().runCommand("effect give @p minecraft:night_vision 900 0 true");
+        int px = core[0] + 3;
+        int py = core[1];
+        int pz = core[2] + 3;
+        game.getServer().runCommand("tp @p %d.5 %d %d.5 -90 15".formatted(px, py, pz));
+        // A wall to shoot at, eight blocks to the east, and a floor in front of it.
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:stone_bricks".formatted(px + 8, py, pz - 3, px + 8, py + 6, pz + 3));
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:stone".formatted(px + 1, py - 1, pz - 3, px + 7, py - 1, pz + 3));
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(px + 1, py, pz - 3, px + 7, py + 5, pz + 3));
+        onServer(context, (player, manager) -> {
+            giveB2Gains(manager.save().skillsOf(player.getUUID().toString()));
+            manager.abort(((net.minecraft.server.level.ServerLevel) player.level()).getServer());
+        });
+        context.waitTicks(10);
+
+        // ---- warrior: thrown axes, the war horn, banner and battle trance ----
+        b2Night(context, core, "WARRIOR");
+        inventoryShot(context, "b2_kit_warrior");
+        for (int i = 0; i < 4; i++) {
+            game.getServer().runCommand("summon minecraft:zombie %d %d %d {NoAI:1b,PersistenceRequired:1b,Rotation:[90f,0f]}"
+                    .formatted(px + 5, py, pz - 2 + i));
+        }
+        context.waitTicks(10);
+        onServer(context, (player, manager) -> {
+            player.setYRot(-90f);
+            player.setXRot(10f);
+            boolean axe = com.mki.nightsiege.game.GainGear.testUse(player, "wurfbeil");
+            boolean banner = com.mki.nightsiege.game.GainGear.testPlace(player, "kriegsbanner",
+                    new net.minecraft.core.BlockPos(px + 2, py - 1, pz + 2));
+            boolean barricade = com.mki.nightsiege.game.GainGear.testPlace(player, "barrikade",
+                    new net.minecraft.core.BlockPos(px + 3, py - 1, pz));
+            com.mki.nightsiege.game.SecondUlts.fire(player);
+            boolean horn = com.mki.nightsiege.game.GainGear.testUse(player, "kampfhorn");
+            System.out.println("[Night Siege test] B2 warrior: axe=" + axe + " banner=" + banner + " barricade=" + barricade
+                    + " horn=" + horn + " state=" + com.mki.nightsiege.game.GainGear.debugState());
+        });
+        context.waitTicks(25);
+        context.takeScreenshot("b2_warrior_gadgets");
+        onServer(context, (player, manager) -> {
+            StringBuilder hp = new StringBuilder();
+            for (net.minecraft.world.entity.monster.zombie.Zombie z : player.level().getEntitiesOfClass(
+                    net.minecraft.world.entity.monster.zombie.Zombie.class, player.getBoundingBox().inflate(12))) {
+                hp.append((int) z.getHealth()).append(z.hasEffect(net.minecraft.world.effect.MobEffects.SLOWNESS) ? "s " : " ");
+            }
+            System.out.println("[Night Siege test] B2 zombies: " + hp);
+            manager.abort(((net.minecraft.server.level.ServerLevel) player.level()).getServer());
+            System.out.println("[Night Siege test] B2 after night: temp=" + manager.save().tempBlocks.size()
+                    + " fence=" + player.level().getBlockState(new net.minecraft.core.BlockPos(px + 3, py, pz)));
+        });
+        game.getServer().runCommand("kill @e[type=minecraft:zombie]");
+        context.waitTicks(10);
+
+        // ---- archer: light, climbing and storm arrows, the quiver ----
+        b2Night(context, core, "ARCHER");
+        inventoryShot(context, "b2_kit_archer");
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            String[] kinds = {"light", "climb", "storm"};
+            for (int i = 0; i < kinds.length; i++) {
+                net.minecraft.world.item.ItemStack ammo = com.mki.nightsiege.game.Gadgets.arrows(kinds[i], 0xFFFFFF, 1);
+                net.minecraft.world.entity.projectile.arrow.Arrow arrow = new net.minecraft.world.entity.projectile.arrow.Arrow(
+                        level, player, ammo, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.BOW));
+                arrow.setPos(px + 1.5, py + 3.5, pz - 1.5 + i * 1.5);
+                arrow.shoot(1, 0.0, 0, 2.5f, 0f);
+                level.addFreshEntity(arrow);
+            }
+            com.mki.nightsiege.game.GainGear.cycleQuiver(player);
+            System.out.println("[Night Siege test] B2 quiver: offhand=" + player.getOffhandItem().getHoverName().getString());
+        });
+        context.waitTicks(30);
+        onServer(context, (player, manager) -> System.out.println("[Night Siege test] B2 archer: temp="
+                + manager.save().tempBlocks));
+        game.getServer().runCommand("tp @p %d.5 %d %d.5 -90 -5".formatted(px, py, pz));
+        context.waitTicks(10);
+        context.takeScreenshot("b2_archer_arrows");
+        onServer(context, (player, manager) -> manager.abort(((net.minecraft.server.level.ServerLevel) player.level()).getServer()));
+        context.waitTicks(10);
+
+        // ---- engineer: copper golem, oil, magnetic field ----
+        b2Night(context, core, "ENGINEER");
+        inventoryShot(context, "b2_kit_engineer");
+        context.waitTicks(30);
+        for (int i = 0; i < 3; i++) {
+            game.getServer().runCommand("summon minecraft:zombie %d %d %d {PersistenceRequired:1b}"
+                    .formatted(px + 6, py, pz - 2 + 2 * i));
+        }
+        onServer(context, (player, manager) -> {
+            player.setYRot(-90f);
+            player.setXRot(20f);
+            com.mki.nightsiege.game.SecondUlts.fire(player);
+            boolean oil = com.mki.nightsiege.game.GainGear.testUse(player, "oelfass");
+            boolean flash = com.mki.nightsiege.game.GainGear.testUse(player, "blendgranate");
+            System.out.println("[Night Siege test] B2 engineer: golems=" + com.mki.nightsiege.game.CopperHelper.count()
+                    + " oil=" + oil + " flash=" + flash);
+        });
+        context.waitTicks(30);
+        context.takeScreenshot("b2_engineer");
+        onServer(context, (player, manager) -> {
+            System.out.println("[Night Siege test] B2 engineer later: " + com.mki.nightsiege.game.GainGear.debugState());
+            manager.abort(((net.minecraft.server.level.ServerLevel) player.level()).getServer());
+        });
+        game.getServer().runCommand("kill @e[type=minecraft:zombie]");
+        context.waitTicks(10);
+
+        // ---- guardian: tower shield, mirror, chain ----
+        b2Night(context, core, "GUARDIAN");
+        inventoryShot(context, "b2_kit_guardian");
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.game.SecondUlts.fire(player);
+            boolean signal = com.mki.nightsiege.game.GainGear.testUse(player, "signalhorn");
+            boolean trowel = com.mki.nightsiege.game.GainGear.testUse(player, "mauerkelle");
+            net.minecraft.world.item.ItemStack shield = player.getOffhandItem();
+            System.out.println("[Night Siege test] B2 guardian: mirror=" + com.mki.nightsiege.game.SecondUlts.mirrorUp(player)
+                    + " signal=" + signal + " trowel=" + trowel
+                    + " shield=" + shield.get(net.minecraft.core.component.DataComponents.BLOCKS_ATTACKS)
+                    + " use=" + shield.get(net.minecraft.core.component.DataComponents.USE_EFFECTS));
+        });
+        context.waitTicks(20);
+        onServer(context, (player, manager) -> {
+            manager.abort(((net.minecraft.server.level.ServerLevel) player.level()).getServer());
+            manager.config().testPrepSeconds = 60;
+            System.out.println("[Night Siege test] B2 done: temp=" + manager.save().tempBlocks.size()
+                    + " golems=" + com.mki.nightsiege.game.CopperHelper.count());
+        });
+        context.waitTicks(10);
     }
 
     /** Something to do on the integrated server with the test player and the siege manager. */

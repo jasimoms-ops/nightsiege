@@ -180,6 +180,49 @@ class SiegeCoreTest {
     }
 
     @Test
+    void waySwapOpensTheOtherSubclassButNotASecondUlt() {
+        SkillTree tree = new SkillTree();
+        PlayerSkills p = new PlayerSkills();
+        p.chosenClass = SkillClass.WARRIOR.name();
+        learnWay(tree, p, SkillClass.WARRIOR, SkillTree.WAY_BLADE);
+        p.award(500);
+        String other = p.levelOf("keen_edge") > 0 ? "bloodlust" : "keen_edge";
+        String why = tree.blockedReason(other, p);
+        assertTrue("choice".equals(why) || "lockedby".equals(why), other + " is shut: " + why);
+        assertTrue(tree.isComplete(p, SkillClass.WARRIOR));
+        p.setGainStage(SkillClass.WARRIOR, "wegtausch_w", 1);
+        assertNull(tree.blockedReason(other, p), "way swap opens " + other);
+        assertFalse(tree.isComplete(p, SkillClass.WARRIOR), "with way swap there is more to learn");
+        for (SkillNode node : tree.ofClass(SkillClass.WARRIOR)) {
+            if (node.effect().target() == SkillEffect.Target.ULTIMATE && p.levelOf(node.id()) == 0
+                    && SkillTree.WAY_BLADE.equals(node.path())) {
+                assertNotNull(tree.blockedReason(node.id(), p), "the ult stays one: " + node.id());
+            }
+        }
+        // The other way stays closed.
+        for (SkillNode node : tree.ofClass(SkillClass.WARRIOR)) {
+            if (SkillTree.WAY_MIGHT.equals(node.path())) {
+                assertNotNull(tree.blockedReason(node.id(), p), node.id());
+            }
+        }
+    }
+
+    @Test
+    void everyGainIsBuiltInVersionB2() {
+        for (CrateGains.Gain gain : CrateGains.all()) {
+            assertTrue(gain.ready(), gain.id());
+        }
+        // A legendary pull now really is legendary.
+        Random random = new Random(5);
+        boolean legendary = false;
+        for (int i = 0; i < 3000 && !legendary; i++) {
+            CrateGains.Gain g = CrateGains.roll(SkillClass.GUARDIAN, "", new int[]{0, 0, 0, 0, 1}, 0.7, random);
+            legendary = g.rarity() == CrateRarity.LEGENDARY;
+        }
+        assertTrue(legendary);
+    }
+
+    @Test
     void severalClassesKeepTheirOwnLevels() {
         SkillTree tree = new SkillTree();
         PlayerSkills p = new PlayerSkills();
