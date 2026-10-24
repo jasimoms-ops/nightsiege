@@ -167,7 +167,7 @@ public final class CrateGains {
             Map.entry("barrikaden", "minecraft:oak_fence"), Map.entry("signalhorn", "minecraft:bell"),
             Map.entry("mauerkelle", "minecraft:bricks"), Map.entry("leuchtschild", "minecraft:glow_ink_sac"),
             Map.entry("bombenfest", "minecraft:tnt"), Map.entry("schildlaterne", "minecraft:lantern"),
-            Map.entry("deckung", "minecraft:iron_bars"), Map.entry("leibwaechter", "minecraft:chain"),
+            Map.entry("deckung", "minecraft:iron_bars"), Map.entry("leibwaechter", "minecraft:iron_chain"),
             Map.entry("leichtschild", "minecraft:rabbit_hide"), Map.entry("spiegelschild", "minecraft:amethyst_shard"),
             Map.entry("wegtausch_g", "minecraft:compass"), Map.entry("blendgranaten", "minecraft:snowball"),
             Map.entry("pfeilkiste", "minecraft:barrel"), Map.entry("werkzeugtasche", "minecraft:smithing_table"),

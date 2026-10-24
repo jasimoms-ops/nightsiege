@@ -687,8 +687,17 @@ public class EventLookTest implements FabricClientGameTest {
         showTab(context, "COLLECTION");
         context.takeScreenshot("b_collection");
         closeScreen(context);
-        onServer(context, (player, manager) -> System.out.println("[Night Siege test] B gains: "
-                + manager.save().skillsOf(player.getUUID().toString()).gains));
+        onServer(context, (player, manager) -> {
+            System.out.println("[Night Siege test] B gains: " + manager.save().skillsOf(player.getUUID().toString()).gains);
+            for (com.mki.nightsiege.core.CrateGains.Gain g : com.mki.nightsiege.core.CrateGains.all()) {
+                net.minecraft.resources.Identifier icon = net.minecraft.resources.Identifier.tryParse(
+                        com.mki.nightsiege.core.CrateGains.icon(g.id()));
+                if (icon == null || !net.minecraft.core.registries.BuiltInRegistries.ITEM.containsKey(icon)) {
+                    System.out.println("[Night Siege test] B missing icon: " + g.id());
+                }
+            }
+        });
+        context.waitTicks(5);
     }
 
     /** Something to do on the integrated server with the test player and the siege manager. */
@@ -699,8 +708,11 @@ public class EventLookTest implements FabricClientGameTest {
     private static void onServer(ClientGameTestContext context, OnServer action) {
         context.runOnClient(client -> {
             net.minecraft.server.MinecraftServer server = client.getSingleplayerServer();
-            server.execute(() -> action.run(server.getPlayerList().getPlayers().get(0),
-                    com.mki.nightsiege.game.SiegeManager.get()));
+            server.execute(() -> {
+                if (!server.getPlayerList().getPlayers().isEmpty()) {
+                    action.run(server.getPlayerList().getPlayers().get(0), com.mki.nightsiege.game.SiegeManager.get());
+                }
+            });
         });
     }
 

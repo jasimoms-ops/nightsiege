@@ -582,7 +582,8 @@ public final class SiegeManager {
         data.sharpness = com.mki.nightsiege.core.NightKit.sharpness(level);
         for (ServerPlayer other : player.level().getServer().getPlayerList().getPlayers()) {
             String oid = other.getUUID().toString();
-            if (isRegistered(other) && (openNight || (save.accepted != null && save.accepted.contains(oid)))) {
+            if (isRegistered(other) && (openNight || pendingTest != null
+                    || (save.accepted != null && save.accepted.contains(oid)))) {
                 PlayerSkills os = save.skillsOf(oid);
                 data.team.add(new com.mki.nightsiege.core.ClassPickData.Mate(other.getScoreboardName(),
                         os.chosenClass == null ? "" : os.chosenClass));

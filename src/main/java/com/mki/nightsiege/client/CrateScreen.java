@@ -28,12 +28,13 @@ import java.util.List;
  */
 public class CrateScreen extends Screen {
 
-    private static final int W = 460;
+    /** Window size: as wide as the screen allows, up to 460. */
+    private int W = 460;
     private static final int H = 250;
     private static final int CARD = 64;
     private static final int GAP = 6;
     private static final int STEP = CARD + GAP;
-    private static final int VIEW_W = 420;
+    private int VIEW_W = 420;
     private static final int VIEW_H = 92;
     /** Milliseconds the band spins. */
     private static final long SPIN = 5200L;
@@ -59,6 +60,8 @@ public class CrateScreen extends Screen {
 
     @Override
     protected void init() {
+        W = Math.max(300, Math.min(460, this.width - 10));
+        VIEW_W = W - 40;
         left = (this.width - W) / 2;
         top = (this.height - H) / 2;
         addRenderableWidget(Button.builder(Component.translatable("gui.done"), b -> onClose())

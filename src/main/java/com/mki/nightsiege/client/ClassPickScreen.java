@@ -23,9 +23,11 @@ import java.util.Locale;
  */
 public class ClassPickScreen extends Screen {
 
-    private static final int W = 470;
+    private int W = 470;
     private static final int H = 236;
-    private static final int CARD_W = 82;
+    /** Card width: four cards and the team column share the window. */
+    private int CARD_W = 82;
+    private static final int TEAM_W = 74;
     private static final int CARD_H = 122;
 
     private final ClassPickData data;
@@ -47,6 +49,8 @@ public class ClassPickScreen extends Screen {
 
     @Override
     protected void init() {
+        W = Math.max(330, Math.min(470, this.width - 10));
+        CARD_W = Math.max(56, (W - 24 - TEAM_W - 4 * 6) / 4);
         left = (this.width - W) / 2;
         top = (this.height - H) / 2;
         for (int i = 0; i < data.classes.size(); i++) {
