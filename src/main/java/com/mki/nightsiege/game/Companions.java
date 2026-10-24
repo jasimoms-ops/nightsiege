@@ -540,7 +540,10 @@ public final class Companions {
         Map<UUID, ServerPlayer> owners = new HashMap<>();
         for (Companion c : new ArrayList<>(ALL.values())) {
             ServerPlayer owner = owners.computeIfAbsent(c.owner, id -> server.getPlayerList().getPlayer(id));
-            Entity entity = owner == null ? null : ((ServerLevel) owner.level()).getEntity(c.id);
+            Entity entity = owner == null ? find(server, c.id) : ((ServerLevel) owner.level()).getEntity(c.id);
+            if (entity == null && owner != null) {
+                entity = find(server, c.id);   // left behind in another dimension
+            }
             // In a night while the summoner defends; outside it only for a creative test, and not for long.
             boolean defending = owner != null && SiegeManager.get() != null && SiegeManager.get().isDefending(owner);
             boolean keep = owner != null && owner.isAlive() && mayKeep.test(owner)
@@ -754,13 +757,7 @@ public final class Companions {
     /** End of the night: every companion goes. */
     public void dismissAll(MinecraftServer server) {
         for (Companion c : new ArrayList<>(ALL.values())) {
-            Entity entity = null;
-            for (ServerLevel level : server.getAllLevels()) {
-                entity = level.getEntity(c.id);
-                if (entity != null) {
-                    break;
-                }
-            }
+            Entity entity = find(server, c.id);
             if (entity != null && entity.level() instanceof ServerLevel level) {
                 level.sendParticles(ParticleTypes.POOF, entity.getX(), entity.getY() + 0.5, entity.getZ(), 8, 0.3, 0.3, 0.3, 0.02);
             }
@@ -773,6 +770,16 @@ public final class Companions {
         nextHowl.clear();
     }
 
+    private static Entity find(MinecraftServer server, UUID id) {
+        for (ServerLevel level : server.getAllLevels()) {
+            Entity entity = level.getEntity(id);
+            if (entity != null) {
+                return entity;
+            }
+        }
+        return null;
+    }
+
     /** One summoner's companions go (they fell or left the night). */
     public void dismiss(ServerPlayer owner) {
         if (owner == null || !(owner.level() instanceof ServerLevel level)) {
@@ -780,7 +787,7 @@ public final class Companions {
         }
         for (Companion c : new ArrayList<>(ALL.values())) {
             if (c.owner.equals(owner.getUUID())) {
-                remove(level.getServer(), c, level.getEntity(c.id));
+                remove(level.getServer(), c, find(level.getServer(), c.id));
             }
         }
     }
