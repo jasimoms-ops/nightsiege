@@ -99,13 +99,16 @@ public final class DungeonContent {
         }
     }
 
+    /** Dungeon maps in chests (off: since October 2026 only the trader caravan sells them). */
+    private static final boolean MAPS_IN_CHESTS = false;
+
     private static void registerLoot() {
         LootTableEvents.MODIFY.register((key, tableBuilder, source, registries) -> {
             if (!source.isBuiltin() || !"minecraft".equals(key.identifier().getNamespace())) {
                 return;
             }
-            if (!enabledInFile()) {
-                return;   // dungeons are off: no maps in chests
+            if (!enabledInFile() || !MAPS_IN_CHESTS) {
+                return;   // maps only come from the trader caravan now
             }
             Float chance = MAP_LOOT.get(key.identifier().getPath());
             if (chance == null) {

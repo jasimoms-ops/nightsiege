@@ -43,11 +43,104 @@ class SiegeCoreTest {
     }
 
     @Test
-    void multipliersAreCapped() {
+    void growthSlowsAboveTwenty() {
         SiegeConfig c = cfg();
         assertEquals(1.0, SiegeMath.healthMultiplier(1, c), 1e-9);
-        assertEquals(c.maxHealthMultiplier, SiegeMath.healthMultiplier(999, c), 1e-9);
-        assertEquals(c.maxDamageMultiplier, SiegeMath.damageMultiplier(999, c), 1e-9);
+        assertEquals(2.14, SiegeMath.healthMultiplier(20, c), 1e-9);
+        assertEquals(1.76, SiegeMath.damageMultiplier(20, c), 1e-9);
+        assertEquals(23, SiegeMath.mobsPerBatch(20, 1, c));
+        // Four levels above 20 count like one level below it.
+        assertEquals(2.20, SiegeMath.healthMultiplier(24, c), 1e-9);
+        assertEquals(1.80, SiegeMath.damageMultiplier(24, c), 1e-9);
+        assertEquals(24, SiegeMath.mobsPerBatch(24, 1, c));
+        // No end: it keeps rising, but slowly.
+        assertTrue(SiegeMath.healthMultiplier(60, c) > SiegeMath.healthMultiplier(40, c));
+        assertTrue(SiegeMath.healthMultiplier(60, c) < 1.0 + c.healthPerLevel * 59);
+    }
+
+    // --- rhythm with invitations --------------------------------------
+
+    private SiegeRhythm.Step rhythm(long day, int time, long siegeDay, long voted, long warned, long started,
+                                    int accepts, SiegeConfig c) {
+        return SiegeRhythm.decide(day, time, siegeDay, voted, warned, started, accepts, c,
+                c.warningDayTime, c.startDayTime);
+    }
+
+    @Test
+    void rhythmInvitesInTheMorningOfEveryThirdDay() {
+        SiegeConfig c = cfg();
+        assertEquals(3, c.daysBetweenSieges);
+        assertEquals(SiegeRhythm.Step.SCHEDULE, rhythm(5, 100, -1, -1, -1, -1, 0, c));
+        assertEquals(8, SiegeRhythm.nextAfter(5, c));
+        assertEquals(SiegeRhythm.Step.NONE, rhythm(6, 3000, 8, -1, -1, -1, 0, c));
+        assertEquals(SiegeRhythm.Step.NONE, rhythm(8, 500, 8, -1, -1, -1, 0, c));     // before the morning
+        assertEquals(SiegeRhythm.Step.INVITE, rhythm(8, c.inviteDayTime, 8, -1, -1, -1, 0, c));
+        assertEquals(SiegeRhythm.Step.NONE, rhythm(8, 6000, 8, 8, -1, -1, 1, c));       // vote still open
+    }
+
+    @Test
+    void rhythmPlaysWithEnoughAcceptsAndSkipsOtherwise() {
+        SiegeConfig c = cfg();
+        assertEquals(SiegeRhythm.Step.CANCEL, rhythm(8, c.warningDayTime, 8, 8, -1, -1, 2, c));
+        assertEquals(SiegeRhythm.Step.WARN, rhythm(8, c.warningDayTime, 8, 8, -1, -1, 3, c));
+        assertEquals(SiegeRhythm.Step.NONE, rhythm(8, c.warningDayTime + 100, 8, 8, 8, -1, 3, c));
+        assertEquals(SiegeRhythm.Step.START, rhythm(8, c.startDayTime, 8, 8, 8, -1, 3, c));
+        assertEquals(SiegeRhythm.Step.NONE, rhythm(8, c.startDayTime + 100, 8, 8, 8, 8, 3, c));
+        // A restart in the night: the horn was missed, the night still starts.
+        assertEquals(SiegeRhythm.Step.START, rhythm(8, c.startDayTime + 500, 8, 8, -1, -1, 4, c));
+        // Server was off in the morning and only came back after sunset: the day is lost.
+        assertEquals(SiegeRhythm.Step.CANCEL, rhythm(8, c.warningDayTime + 10, 8, -1, -1, -1, 0, c));
+    }
+
+    @Test
+    void rhythmFindsANewDayAfterAMissedOne() {
+        SiegeConfig c = cfg();
+        assertEquals(SiegeRhythm.Step.MISSED, rhythm(11, 200, 8, -1, -1, -1, 0, c));
+        assertEquals(11, SiegeRhythm.afterMissed(11, 200, c));    // morning still to come: today
+        assertEquals(14, SiegeRhythm.afterMissed(11, 9000, c));   // too late today: three days on
+        assertEquals(0.0, SiegeRhythm.progress(5, c.warningDayTime, 8, c), 1e-9);
+        assertEquals(1.0, SiegeRhythm.progress(8, c.warningDayTime, 8, c), 1e-9);
+        assertEquals(24000L, SiegeRhythm.ticksUntilWarning(7, c.warningDayTime, 8, c));
+    }
+
+    @Test
+    void eclipseVoteClosesBeforeNoon() {
+        SiegeConfig c = cfg();
+        int close = c.eclipseWarningDayTime;
+        assertEquals(SiegeRhythm.Step.INVITE, SiegeRhythm.decide(8, c.inviteDayTime, 8, -1, -1, -1, 0, c,
+                close, c.eclipseStartDayTime));
+        assertEquals(SiegeRhythm.Step.WARN, SiegeRhythm.decide(8, close, 8, 8, -1, -1, 3, c,
+                close, c.eclipseStartDayTime));
+    }
+
+    // --- effect monsters ----------------------------------------------
+
+    @Test
+    void effectMonstersComeBackSlowlyFromLevelTen() {
+        SiegeConfig c = cfg();
+        assertEquals(0.0, c.effectMobShare(9), 1e-9);
+        assertEquals(0.1, c.effectMobShare(10), 1e-9);
+        assertEquals(0.5, c.effectMobShare(14), 1e-9);
+        assertEquals(1.0, c.effectMobShare(19), 1e-9);
+        assertEquals(1.0, c.effectMobShare(40), 1e-9);
+        Random random = new Random(7);
+        assertEquals("minecraft:zombie", c.withoutEffects("minecraft:husk", 5, random));
+        assertEquals("minecraft:husk", c.withoutEffects("minecraft:husk", 19, random));
+        int kept = 0;
+        for (int i = 0; i < 2000; i++) {
+            if (c.withoutEffects("minecraft:stray", 12, random).equals("minecraft:stray")) {
+                kept++;
+            }
+        }
+        assertTrue(kept > 450 && kept < 750, "about 30 % stay real at level 12, got " + kept);
+    }
+
+    @Test
+    void defeatHasNoPenaltyByDefault() {
+        SiegeConfig c = cfg();
+        assertFalse(c.failureBlast);
+        assertEquals(0, c.defeatSkillLoss);
+        assertTrue(c.maxLevel > 20);
     }
 
     // --- mob pool -----------------------------------------------------

@@ -243,6 +243,32 @@ public class CoreScreen extends Screen {
         addRenderableWidget(Button.builder(Component.translatable("gui.done"), b -> onClose())
                 .bounds(left + W - 62, footerY, 54, 18).build());
 
+        if (activeTab == Tab.STATS) {
+            // Answer today's invitation, or sign off.
+            int bx = left + 8;
+            if (stats.voteOpen) {
+                Component yes = Component.translatable("nightsiege.ui.vote_yes");
+                Component no = Component.translatable("nightsiege.ui.vote_no");
+                int yw = Math.max(60, font.width(yes) + 12);
+                int nw = Math.max(60, font.width(no) + 12);
+                Button yb = Button.builder(yes, b -> send("vote:yes")).bounds(bx, footerY, yw, 18).build();
+                yb.active = !stats.myVote.equals("yes");
+                addRenderableWidget(yb);
+                Button nb = Button.builder(no, b -> send("vote:no")).bounds(bx + yw + 4, footerY, nw, 18).build();
+                nb.active = !stats.myVote.equals("no");
+                addRenderableWidget(nb);
+                bx += yw + nw + 8;
+            }
+            if (!stats.siegeActive && !stats.nightComing) {
+                Component leave = Component.translatable("nightsiege.ui.unregister");
+                int lw = Math.max(70, font.width(leave) + 12);
+                addRenderableWidget(Button.builder(leave, b -> {
+                    send("roster:leave");
+                    onClose();
+                }).bounds(left + W - 70 - lw, footerY, lw, 18).build());
+            }
+        }
+
         if (activeTab.clazz == null || !stats.skillsEnabled) {
             return;
         }
@@ -1900,16 +1926,35 @@ public class CoreScreen extends Screen {
         gui.fill(barX, cy, barX + filled, cy + 6, stats.clockRunning ? 0xFF4FC24F : 0xFF8A6A2A);
         gui.fill(barX, cy, barX + filled, cy + 1, 0x60FFFFFF);
         cy += 10;
-        gui.text(font, Component.translatable("nightsiege.ui.stat_countdown",
-                stats.countdownPercent, stats.countdownMinutesLeft).getString(), x + 8, cy, GRAY, true);
+        // When the next night comes: in days, or today with the vote.
+        String when;
+        if (stats.nightComing) {
+            when = Component.translatable("nightsiege.ui.rhythm_tonight").getString();
+        } else if (stats.voteOpen) {
+            when = Component.translatable("nightsiege.ui.rhythm_vote").getString();
+        } else if (stats.daysUntilSiege == 0) {
+            when = Component.translatable("nightsiege.ui.rhythm_today").getString();
+        } else if (stats.daysUntilSiege > 0) {
+            when = Component.translatable("nightsiege.ui.rhythm_days", stats.daysUntilSiege).getString();
+        } else {
+            when = Component.translatable("nightsiege.ui.rhythm_none").getString();
+        }
+        gui.text(font, when, x + 8, cy, stats.voteOpen || stats.nightComing ? GOLD : GRAY, true);
         cy += 12;
-        int dot = stats.clockRunning ? 0xFF55FF55 : 0xFFFF5555;
+        boolean enough = stats.accepted >= stats.acceptsRequired;
+        int dot = stats.voteOpen || stats.nightComing ? (enough ? 0xFF55FF55 : 0xFFFFAA00) : 0xFF8C8894;
         gui.fill(x + 8, cy + 2, x + 13, cy + 7, dot);
-        gui.text(font, Component.translatable("nightsiege.ui.stat_players",
-                stats.playersNear, stats.playersRequired).getString(), x + 17, cy, WHITE, true);
+        String line = stats.voteOpen || stats.nightComing
+                ? Component.translatable("nightsiege.ui.rhythm_accepts", stats.accepted, stats.acceptsRequired).getString()
+                : Component.translatable("nightsiege.ui.rhythm_registered", stats.registeredCount).getString();
+        gui.text(font, line, x + 17, cy, WHITE, true);
         cy += 11;
-        gui.text(font, Component.translatable(stats.clockRunning ? "nightsiege.ui.stat_clock_on" : "nightsiege.ui.stat_clock_off",
-                stats.coreRadius).getString(), x + 17, cy, stats.clockRunning ? GREEN : GRAY, true);
+        if (stats.voteOpen || stats.nightComing) {
+            String mine = stats.myVote.equals("yes") ? "nightsiege.ui.rhythm_me_yes"
+                    : stats.myVote.equals("no") ? "nightsiege.ui.rhythm_me_no" : "nightsiege.ui.rhythm_me_open";
+            gui.text(font, Component.translatable(mine).getString(), x + 17, cy,
+                    stats.myVote.equals("yes") ? GREEN : stats.myVote.equals("no") ? RED : GOLD, true);
+        }
     }
 
     private void drawWaveStrength(GuiGraphicsExtractor gui, Font font, int x, int y, int w, int h) {

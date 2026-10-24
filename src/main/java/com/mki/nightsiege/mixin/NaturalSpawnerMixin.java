@@ -11,8 +11,9 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * During a siege (from the warning on) no natural monsters spawn in its world:
- * only the siege's own attackers come. Animals and the rest spawn as usual.
+ * During a siege (from the warning on) no natural monsters spawn around the
+ * core: only the siege's own attackers come. Animals and the rest spawn as
+ * usual, and far from the core nothing changes.
  */
 @Mixin(NaturalSpawner.class)
 public abstract class NaturalSpawnerMixin {
@@ -21,7 +22,8 @@ public abstract class NaturalSpawnerMixin {
     private static void nightsiege$noMonstersInSiege(MobCategory category, ServerLevel level, LevelChunk chunk,
                                                      NaturalSpawner.SpawnPredicate predicate,
                                                      NaturalSpawner.AfterSpawnCallback callback, CallbackInfo ci) {
-        if (category == MobCategory.MONSTER && SiegeManager.blocksNaturalSpawns(level)) {
+        if (category == MobCategory.MONSTER && SiegeManager.blocksNaturalSpawns(level,
+                chunk.getPos().getMiddleBlockX(), chunk.getPos().getMiddleBlockZ())) {
             ci.cancel();
         }
     }

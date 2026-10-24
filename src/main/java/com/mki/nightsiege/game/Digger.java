@@ -141,8 +141,8 @@ public final class Digger {
         if (!state.getFluidState().isEmpty()) {
             return false;
         }
-        if (BlockGuard.isProtected(Demolition.blockId(state), cfg)) {
-            return false;
+        if (BlockGuard.isProtected(Demolition.blockId(state), cfg) || ModContent.isCore(state)) {
+            return false;   // the core stands against everything but an admin
         }
         return matchesTool(state, cfg, tool);
     }

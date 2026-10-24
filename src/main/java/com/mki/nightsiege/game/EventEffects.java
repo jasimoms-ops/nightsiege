@@ -262,7 +262,9 @@ public final class EventEffects {
     /** Tells every player which event their dimension shows, when it changed. */
     public void syncClients(MinecraftServer server) {
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            String event = EventAtmosphere.serverEvent(SiegeManager.dimensionName(player.level()));
+            // Players outside Night Siege keep their normal sky.
+            String event = SiegeManager.get().isRegistered(player)
+                    ? EventAtmosphere.serverEvent(SiegeManager.dimensionName(player.level())) : "";
             String sent = sentToClient.get(player.getUUID());
             if (event.equals(sent)) {
                 continue;

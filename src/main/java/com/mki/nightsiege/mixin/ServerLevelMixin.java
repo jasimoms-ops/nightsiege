@@ -28,7 +28,7 @@ public abstract class ServerLevelMixin {
     /** No phantoms, patrols and the like while natural monster spawns are held back for a siege. */
     @Inject(method = "tickCustomSpawners", at = @At("HEAD"), cancellable = true, require = 0)
     private void nightsiege$noCustomSpawnsInSiege(boolean spawnEnemies, CallbackInfo ci) {
-        if (SiegeManager.blocksNaturalSpawns((ServerLevel) (Object) this)) {
+        if (SiegeManager.holdsCustomSpawns((ServerLevel) (Object) this)) {
             ci.cancel();
         }
     }

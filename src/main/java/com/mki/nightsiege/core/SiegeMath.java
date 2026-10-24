@@ -23,9 +23,25 @@ public final class SiegeMath {
         return (int) Math.min(cfg.maxDurationSeconds, raw);
     }
 
+    /**
+     * Steps of growth a level brings above level 1: the full step up to the soft
+     * cap (20), then only growthAboveSoftCap of a step per level, without end.
+     */
+    public static double growthSteps(int level, SiegeConfig cfg) {
+        int soft = Math.max(1, cfg.softCapLevel);
+        int below = Math.min(Math.max(1, level), soft) - 1;
+        int above = Math.max(0, level - soft);
+        return below + above * Math.max(0.0, cfg.growthAboveSoftCap);
+    }
+
+    /** Levels above the soft cap, weighted with growthAboveSoftCap (0 up to the soft cap). */
+    private static double stepsAboveCap(int level, SiegeConfig cfg) {
+        return Math.max(0, level - Math.max(1, cfg.softCapLevel)) * Math.max(0.0, cfg.growthAboveSoftCap);
+    }
+
     /** How many mobs one batch spawns. */
     public static int mobsPerBatch(int level, int playerCount, SiegeConfig cfg) {
-        double raw = cfg.baseMobsPerBatch + cfg.mobsPerLevel * Math.max(0, level - 1);
+        double raw = cfg.baseMobsPerBatch + cfg.mobsPerLevel * growthSteps(level, cfg);
         double players = 1.0 + cfg.playerScaling * Math.max(0, playerCount - 1);
         int result = (int) Math.round(raw * players);
         return Math.max(1, Math.min(cfg.maxLiveMobs, result));
@@ -33,14 +49,17 @@ public final class SiegeMath {
 
     /** Health multiplier applied to every siege mob. */
     public static double healthMultiplier(int level, SiegeConfig cfg) {
-        double raw = 1.0 + cfg.healthPerLevel * Math.max(0, level - 1);
-        return Math.min(cfg.maxHealthMultiplier, raw);
+        int capped = Math.min(Math.max(1, level), Math.max(1, cfg.softCapLevel));
+        double raw = Math.min(cfg.maxHealthMultiplier, 1.0 + cfg.healthPerLevel * (capped - 1));
+        // Above the soft cap it keeps growing slowly, past the old ceiling.
+        return raw + cfg.healthPerLevel * stepsAboveCap(level, cfg);
     }
 
     /** Attack damage multiplier applied to every siege mob. */
     public static double damageMultiplier(int level, SiegeConfig cfg) {
-        double raw = 1.0 + cfg.damagePerLevel * Math.max(0, level - 1);
-        return Math.min(cfg.maxDamageMultiplier, raw);
+        int capped = Math.min(Math.max(1, level), Math.max(1, cfg.softCapLevel));
+        double raw = Math.min(cfg.maxDamageMultiplier, 1.0 + cfg.damagePerLevel * (capped - 1));
+        return raw + cfg.damagePerLevel * stepsAboveCap(level, cfg);
     }
 
     /** In-game day for a given total world time. */

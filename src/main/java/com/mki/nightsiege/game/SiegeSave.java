@@ -51,6 +51,70 @@ public class SiegeSave {
     public long readyTicks;
     public long requiredTicks;
 
+    /** Players who signed up at the core (uuids). Everyone else is left alone by the mod. */
+    public List<String> registered = new ArrayList<>();
+    /** Day of the next siege night (in-game day), or -1 if none is set yet. */
+    public long nextSiegeDay = -1L;
+    /** Day the invitations for a siege last went out, with the answers. */
+    public long voteDay = -1L;
+    public List<String> accepted = new ArrayList<>();
+    public List<String> declined = new ArrayList<>();
+
+    public boolean isRegistered(String uuid) {
+        return uuid != null && registered != null && registered.contains(uuid);
+    }
+
+    public boolean register(String uuid) {
+        if (registered == null) {
+            registered = new ArrayList<>();
+        }
+        if (uuid == null || registered.contains(uuid)) {
+            return false;
+        }
+        registered.add(uuid);
+        return true;
+    }
+
+    public boolean unregister(String uuid) {
+        if (registered == null || uuid == null) {
+            return false;
+        }
+        if (accepted != null) {
+            accepted.remove(uuid);
+        }
+        if (declined != null) {
+            declined.remove(uuid);
+        }
+        return registered.remove(uuid);
+    }
+
+    /** Answers an invitation: true = accept. Returns false if nothing changed. */
+    public boolean vote(String uuid, boolean yes) {
+        if (accepted == null) {
+            accepted = new ArrayList<>();
+        }
+        if (declined == null) {
+            declined = new ArrayList<>();
+        }
+        List<String> into = yes ? accepted : declined;
+        List<String> other = yes ? declined : accepted;
+        other.remove(uuid);
+        if (into.contains(uuid)) {
+            return false;
+        }
+        into.add(uuid);
+        return true;
+    }
+
+    public void clearVotes() {
+        if (accepted != null) {
+            accepted.clear();
+        }
+        if (declined != null) {
+            declined.clear();
+        }
+    }
+
 
     /** Every player keeps their own class, experience and levels. */
     public Map<String, PlayerSkills> skills = new HashMap<>();

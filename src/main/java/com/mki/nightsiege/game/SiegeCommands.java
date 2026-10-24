@@ -106,6 +106,10 @@ public final class SiegeCommands {
                                         })
                                         .then(Commands.argument("stufe", IntegerArgumentType.integer(0, PerkKind.MAX_STAGE))
                                                 .executes(SiegeCommands::perkSet)))))
+                .then(Commands.literal("eintragen").executes(ctx -> asPlayer(ctx, p -> SiegeManager.get().register(p))))
+                .then(Commands.literal("austragen").executes(ctx -> asPlayer(ctx, p -> SiegeManager.get().unregister(p))))
+                .then(Commands.literal("zusagen").executes(ctx -> asPlayer(ctx, p -> SiegeManager.get().vote(p, true))))
+                .then(Commands.literal("absagen").executes(ctx -> asPlayer(ctx, p -> SiegeManager.get().vote(p, false))))
                 .then(Commands.literal("balance").executes(ctx -> balance(ctx, false))
                         .then(Commands.literal("test").executes(ctx -> balance(ctx, true))))
                 .then(Commands.literal("session").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
@@ -304,6 +308,17 @@ public final class SiegeCommands {
             return 0;
         }
         reply(source, Component.translatable("nightsiege.cmd.started"));
+        return 1;
+    }
+
+    /** Runs something for the player who typed (or clicked) the command. */
+    private static int asPlayer(CommandContext<CommandSourceStack> ctx, java.util.function.Consumer<ServerPlayer> action) {
+        ServerPlayer player = ctx.getSource().getPlayer();
+        if (player == null) {
+            fail(ctx.getSource(), Component.translatable("nightsiege.cmd.player_only"));
+            return 0;
+        }
+        action.accept(player);
         return 1;
     }
 

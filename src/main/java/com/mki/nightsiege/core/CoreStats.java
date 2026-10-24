@@ -97,6 +97,16 @@ public class CoreStats {
     public int playersRequired;
     public int coreRadius;
     public boolean clockRunning;
+    /** The rhythm: days until the next siege day (0 = today), the vote of today and the viewer's answer. */
+    public int daysUntilSiege = -1;
+    public boolean voteOpen;
+    public int accepted;
+    public int acceptsRequired;
+    public int registeredCount;
+    /** "yes", "no" or "" when the viewer has not answered today's invitation. */
+    public String myVote = "";
+    /** The horn has sounded today: the night is coming. */
+    public boolean nightComing;
 
     // --- wave strength
     public int mobsPerWave;

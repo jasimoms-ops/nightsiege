@@ -42,6 +42,9 @@ public final class Fx {
             return;
         }
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            if (!SiegeManager.get().isRegistered(player)) {
+                continue;   // players outside Night Siege hear nothing of it
+            }
             play(player, SoundEvents.RAID_HORN.value(), 1.0f, 1.0f);
             play(player, SoundEvents.LIGHTNING_BOLT_THUNDER, 0.35f, 0.6f);
         }
@@ -53,6 +56,9 @@ public final class Fx {
             return;
         }
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            if (!SiegeManager.get().isRegistered(player)) {
+                continue;   // players outside Night Siege hear nothing of it
+            }
             play(player, SoundEvents.WITHER_SPAWN, 0.8f, bloodMoon ? 0.6f : 0.9f);
             if (bloodMoon) {
                 // A dragon's growl under the horn makes a blood moon unmistakable.
@@ -80,6 +86,9 @@ public final class Fx {
             return;
         }
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            if (!SiegeManager.get().isRegistered(player)) {
+                continue;   // players outside Night Siege hear nothing of it
+            }
             play(player, SoundEvents.BEACON_ACTIVATE, 1.0f, 1.2f);
             play(player, SoundEvents.PORTAL_TRIGGER, 0.4f, 1.6f);
         }
@@ -90,6 +99,9 @@ public final class Fx {
             return;
         }
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            if (!SiegeManager.get().isRegistered(player)) {
+                continue;   // players outside Night Siege hear nothing of it
+            }
             play(player, SoundEvents.WITHER_DEATH, 0.9f, 0.5f);
             play(player, SoundEvents.BEACON_DEACTIVATE, 0.8f, 0.6f);
         }
@@ -114,6 +126,9 @@ public final class Fx {
             return;
         }
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            if (!SiegeManager.get().isRegistered(player)) {
+                continue;   // players outside Night Siege hear nothing of it
+            }
             play(player, SoundEvents.BEACON_POWER_SELECT, 0.8f, 1.4f);
             if (player.level() instanceof ServerLevel level) {
                 particles(level, ParticleTypes.HAPPY_VILLAGER,

@@ -15,6 +15,7 @@ import com.mki.nightsiege.core.SiegeConfig;
 import com.mki.nightsiege.core.SiegeEvent;
 import com.mki.nightsiege.core.SiegeMath;
 import com.mki.nightsiege.core.SiegeScheduler;
+import com.mki.nightsiege.core.SiegeRhythm;
 import com.mki.nightsiege.core.SkillTree;
 import com.mki.nightsiege.core.WaveXp;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
@@ -32,6 +33,7 @@ import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerBossEvent;
 import net.minecraft.server.level.ServerLevel;
@@ -195,6 +197,7 @@ public final class SiegeManager {
     private final CombatEffects combat = new CombatEffects(skillTree, this::liveSkillsFor,
             entity -> this.eliteId != null && this.eliteId.equals(entity.getUUID()), archer, traps);
     private final Digger digger = new Digger();
+    private final LadderClimb ladders = new LadderClimb();
     private final DungeonService dungeons = new DungeonService(() -> save, () -> config);
     private final PerkService perks = new PerkService(() -> save, () -> config);
     private final BaseDefense defense = new BaseDefense();
@@ -225,6 +228,7 @@ public final class SiegeManager {
     /** From the warning until the night is over no natural monsters spawn in this world (dimension name). */
     private String spawnBlockWorld;
     private long spawnBlockUntil;
+    private BlockPos spawnBlockCenter;
     /** A test night that waits for its preparation time to run out, and its bar. */
     private PendingTest pendingTest;
     private ServerBossEvent prepBar;
@@ -339,7 +343,8 @@ public final class SiegeManager {
             perks.afterDamage(entity, taken);
         });
         ServerLivingEntityEvents.ALLOW_DEATH.register((entity, source, amount) -> combat.allowDeath(entity));
-        ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) -> combat.allowDamage(entity, source, amount));
+        ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) ->
+                allowModDamage(entity, source.getEntity()) && combat.allowDamage(entity, source, amount));
         combat.guardian().setCredit(this::creditTank);
         traps.setMarker(combat::remoteMark);
         RemoteItem.handler = traps::useRemote;
@@ -351,8 +356,18 @@ public final class SiegeManager {
             archer.onEntityLoad(entity, world, skillTree, this::liveSkillsFor);
             dungeons.onEntityLoad(entity);
         });
+        PlayerBlockBreakEvents.BEFORE.register(
+                (level, player, pos, state, blockEntity) -> allowBreak(player, state));
         PlayerBlockBreakEvents.AFTER.register(
-                (level, player, pos, state, blockEntity) -> onBlockBroken(level, pos));
+                (level, player, pos, state, blockEntity) -> {
+                    if (ModContent.isCore(state) && player instanceof ServerPlayer breaker) {
+                        // The core goes into the admin's hand with all its progress (it lives in the save).
+                        breaker.getInventory().placeItemBackInInventory(new ItemStack(ModContent.SIEGE_CORE_ITEM));
+                        breaker.sendSystemMessage(Component.translatable("nightsiege.msg.core_taken")
+                                .withStyle(ChatFormatting.GOLD));
+                    }
+                    onBlockBroken(level, pos);
+                });
         UseBlockCallback.EVENT.register(
                 (player, level, hand, hitResult) -> onUseBlock(player, level, hand, hitResult));
         CommandRegistrationCallback.EVENT.register(
@@ -449,7 +464,7 @@ public final class SiegeManager {
         }
         if (server.overworld().getGameTime() % 20 == 0) {
             events.syncClients(server);
-            bonus.tick(server, active, scheduler.armed());
+            bonus.tick(server, active, siegeDueToday(server));
         }
         if (server.overworld().getGameTime() % 20 == 0) {
             sendUltHud(server);
@@ -473,58 +488,229 @@ public final class SiegeManager {
             return;
         }
 
-        // The countdown only moves while enough defenders are gathered.
-        AnchorPicker.Result target = findTarget(server);
-        if (target != null && target.playerCount() >= config.requiredPlayers) {
-            scheduler.addQualifyingTicks(1L);
-            if (++persistCounter >= PERSIST_INTERVAL) {
-                persistCounter = 0;
-                syncSchedulerToSave();
-                persist();
-            }
-        }
+        tickRhythm(server);
+    }
 
-        // The event of the coming siege is rolled as soon as the countdown is done:
-        // an eclipse comes at noon instead of at night.
-        long clock = server.overworld().getOverworldClockTime();
-        SiegeEvent pending = pendingEvent();
-        if (scheduler.armed() && pending == null) {
-            NightFragment fragment = NightFragment.byName(save.nightFragment);
-            pending = fragment != null ? fragment.event() : EventPicker.pick(currentLevel(), random, config);
-            save.pendingEvent = pending.name();
-            persist();
+    // ------------------------------------------------------------------
+    // rhythm: invitation in the morning, vote, horn, night
+    // ------------------------------------------------------------------
+
+    /** Day the horn last sounded and a siege last started (memory only). */
+    private long warnedDay = -1L;
+    private long startedDay = -1L;
+    /** Day of the running (or last) real siege, for the next siege day. */
+    private long siegeDay = -1L;
+
+    /** The one core of the server, or null. */
+    public CoreRecord mainCore() {
+        if (save.cores == null) {
+            return null;
         }
-        boolean eclipse = pending == SiegeEvent.ECLIPSE;
-        SiegeScheduler.Decision decision = eclipse
-                ? scheduler.evaluate(clock, false, config.eclipseWarningDayTime, config.eclipseStartDayTime)
-                : scheduler.evaluate(clock, false, config);
-        if (decision == SiegeScheduler.Decision.WARN) {
-            if (target != null) {
-                broadcast(server, Component.translatable(eclipse ? "nightsiege.msg.eclipse_warning" : "nightsiege.msg.warning",
-                        currentLevel()).withStyle(eclipse ? ChatFormatting.LIGHT_PURPLE : ChatFormatting.GOLD));
-                NightFragment fragment = NightFragment.byName(save.nightFragment);
-                if (fragment != null) {
-                    broadcast(server, Component.translatable("nightsiege.msg.special_warning",
-                            Component.translatable("nightsiege.event." + fragment.event().name().toLowerCase(Locale.ROOT)),
-                            config.specialNightXpMultiplier).withStyle(ChatFormatting.LIGHT_PURPLE));
-                }
-                Fx.warning(server, config);
-                handOutAtWarning(server, target);
-                if (eclipse) {
-                    EventAtmosphere.setServer(target.anchor().dimension(), EventAtmosphere.ECLIPSE,
-                            EventAtmosphere.fadeTicks(EventAtmosphere.ECLIPSE));
-                    events.syncClients(server);
+        for (CoreRecord core : save.cores) {
+            if (core != null) {
+                return core;
+            }
+        }
+        return null;
+    }
+
+    private long clockDay(MinecraftServer server) {
+        return SiegeMath.dayOf(server.overworld().getOverworldClockTime());
+    }
+
+    private int clockTime(MinecraftServer server) {
+        return SiegeMath.timeOfDay(server.overworld().getOverworldClockTime());
+    }
+
+    /** True on the day of a siege night, from the invitation on (the aurora stays away then). */
+    public boolean siegeDueToday(MinecraftServer server) {
+        return mainCore() != null && save.nextSiegeDay >= 0 && save.nextSiegeDay <= clockDay(server);
+    }
+
+    /** True while the vote of today runs: invited, not yet decided. */
+    public boolean voteOpen(MinecraftServer server) {
+        long day = clockDay(server);
+        return !active && save.voteDay == day && save.nextSiegeDay == day && warnedDay != day
+                && clockTime(server) < closeTime();
+    }
+
+    private int closeTime() {
+        return pendingEvent() == SiegeEvent.ECLIPSE ? config.eclipseWarningDayTime : config.warningDayTime;
+    }
+
+    private int startTime() {
+        return pendingEvent() == SiegeEvent.ECLIPSE ? config.eclipseStartDayTime : config.startDayTime;
+    }
+
+    /** The horn has sounded today and the night has not begun yet. */
+    public boolean nightComing(MinecraftServer server) {
+        long day = clockDay(server);
+        return !active && warnedDay == day && startedDay != day;
+    }
+
+    /** Accepted invitations of players still signed up. */
+    public int acceptedCount() {
+        int count = 0;
+        if (save.accepted != null) {
+            for (String id : save.accepted) {
+                if (save.isRegistered(id)) {
+                    count++;
                 }
             }
-        } else if (decision == SiegeScheduler.Decision.START) {
-            boolean started = tryStart(server, target, pending);
-            if (started) {
-                save.pendingEvent = null;
+        }
+        return count;
+    }
+
+    private void tickRhythm(MinecraftServer server) {
+        CoreRecord core = mainCore();
+        if (core == null) {
+            return;
+        }
+        long day = clockDay(server);
+        int time = clockTime(server);
+        SiegeRhythm.Step step = SiegeRhythm.decide(day, time, save.nextSiegeDay, save.voteDay, warnedDay, startedDay,
+                acceptedCount(), config, closeTime(), startTime());
+        switch (step) {
+            case SCHEDULE -> {
+                save.nextSiegeDay = SiegeRhythm.nextAfter(day, config);
                 persist();
-            } else if (eclipse && target != null) {
-                EventAtmosphere.setServer(target.anchor().dimension(), "", 200);
+            }
+            case MISSED -> {
+                save.nextSiegeDay = SiegeRhythm.afterMissed(day, time, config);
+                save.clearVotes();
+                persist();
+            }
+            case INVITE -> sendInvitations(server, day);
+            case CANCEL -> cancelNight(server, day, "nightsiege.msg.vote_failed");
+            case WARN -> soundHorn(server, day, core);
+            case START -> startNight(server, day, core);
+            default -> {
+            }
+        }
+    }
+
+    /** Morning of a siege day: every signed-up player is asked whether they take part. */
+    private void sendInvitations(MinecraftServer server, long day) {
+        save.voteDay = day;
+        save.clearVotes();
+        // The event is rolled now: an eclipse comes at noon, so the vote must know it.
+        NightFragment fragment = NightFragment.byName(save.nightFragment);
+        SiegeEvent pending = fragment != null ? fragment.event() : EventPicker.pick(currentLevel(), random, config);
+        save.pendingEvent = pending.name();
+        persist();
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            if (isRegistered(player)) {
+                sendInvitation(player);
+            }
+        }
+    }
+
+    /** The invitation with its two buttons. */
+    public void sendInvitation(ServerPlayer player) {
+        boolean eclipse = pendingEvent() == SiegeEvent.ECLIPSE;
+        MutableComponent text = Component.empty()
+                .append(Component.translatable(eclipse ? "nightsiege.msg.invite_noon" : "nightsiege.msg.invite",
+                        currentLevel()).withStyle(ChatFormatting.GOLD))
+                .append(Component.literal(" "))
+                .append(button("nightsiege.msg.vote_yes", "/nightsiege zusagen", ChatFormatting.GREEN))
+                .append(Component.literal(" "))
+                .append(button("nightsiege.msg.vote_no", "/nightsiege absagen", ChatFormatting.RED));
+        player.sendSystemMessage(text);
+        NightFragment fragment = NightFragment.byName(save.nightFragment);
+        if (fragment != null) {
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.special_warning",
+                    Component.translatable("nightsiege.event." + fragment.event().name().toLowerCase(Locale.ROOT)),
+                    config.specialNightXpMultiplier).withStyle(ChatFormatting.LIGHT_PURPLE));
+        }
+        player.sendSystemMessage(Component.translatable("nightsiege.msg.vote_need", acceptedCount(),
+                config.requiredAccepts).withStyle(ChatFormatting.GRAY));
+    }
+
+    /** A clickable chat button that runs a command. */
+    public static MutableComponent button(String key, String command, ChatFormatting color) {
+        return Component.translatable(key).withStyle(style -> style.withColor(color).withBold(true)
+                .withClickEvent(new net.minecraft.network.chat.ClickEvent.RunCommand(command))
+                .withHoverEvent(new net.minecraft.network.chat.HoverEvent.ShowText(Component.literal(command))));
+    }
+
+    /** A signed-up player answers today's invitation. */
+    public void vote(ServerPlayer player, boolean yes) {
+        MinecraftServer server = player.level().getServer();
+        if (!isRegistered(player)) {
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.not_registered").withStyle(ChatFormatting.GRAY));
+            return;
+        }
+        if (server == null || !voteOpen(server)) {
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.vote_closed").withStyle(ChatFormatting.GRAY));
+            return;
+        }
+        boolean wasEnough = acceptedCount() >= config.requiredAccepts;
+        if (!save.vote(player.getUUID().toString(), yes)) {
+            player.sendSystemMessage(Component.translatable(yes ? "nightsiege.msg.vote_already_yes" : "nightsiege.msg.vote_already_no")
+                    .withStyle(ChatFormatting.GRAY));
+            return;
+        }
+        persist();
+        int accepts = acceptedCount();
+        broadcast(server, Component.translatable(yes ? "nightsiege.msg.voted_yes" : "nightsiege.msg.voted_no",
+                player.getDisplayName(), accepts, config.requiredAccepts)
+                .withStyle(yes ? ChatFormatting.GREEN : ChatFormatting.GRAY));
+        if (!wasEnough && accepts >= config.requiredAccepts) {
+            broadcast(server, Component.translatable(pendingEvent() == SiegeEvent.ECLIPSE
+                    ? "nightsiege.msg.vote_enough_noon" : "nightsiege.msg.vote_enough").withStyle(ChatFormatting.GOLD));
+        }
+    }
+
+    /** Too few accepts or nobody at the core: the night is skipped, the next invitation comes a few days later. */
+    private void cancelNight(MinecraftServer server, long day, String key) {
+        long next = SiegeRhythm.nextAfter(day, config);
+        int days = (int) (next - day);
+        if (save.voteDay == day) {
+            broadcast(server, Component.translatable(key, acceptedCount(), config.requiredAccepts, days)
+                    .withStyle(ChatFormatting.GRAY));
+        }
+        if (pendingEvent() == SiegeEvent.ECLIPSE) {
+            CoreRecord core = mainCore();
+            if (core != null) {
+                EventAtmosphere.setServer(core.dimension, "", 200);
                 events.syncClients(server);
             }
+        }
+        save.nextSiegeDay = next;
+        save.pendingEvent = null;
+        save.clearVotes();
+        warnedDay = day;
+        startedDay = day;
+        persist();
+    }
+
+    /** Sunset (or noon for an eclipse): the horn sounds for the night that was agreed on. */
+    private void soundHorn(MinecraftServer server, long day, CoreRecord core) {
+        warnedDay = day;
+        boolean eclipse = pendingEvent() == SiegeEvent.ECLIPSE;
+        broadcast(server, Component.translatable(eclipse ? "nightsiege.msg.eclipse_warning" : "nightsiege.msg.warning",
+                currentLevel()).withStyle(eclipse ? ChatFormatting.LIGHT_PURPLE : ChatFormatting.GOLD));
+        Fx.warning(server, config);
+        handOutAtWarning(server, core);
+        if (eclipse) {
+            EventAtmosphere.setServer(core.dimension, EventAtmosphere.ECLIPSE,
+                    EventAtmosphere.fadeTicks(EventAtmosphere.ECLIPSE));
+            events.syncClients(server);
+        }
+    }
+
+    /** Start time: the siege begins with the players who accepted and stand at the core. */
+    private void startNight(MinecraftServer server, long day, CoreRecord core) {
+        startedDay = day;
+        ServerLevel targetWorld = levelByName(server, core.dimension);
+        boolean started = targetWorld != null
+                && start(server, targetWorld, new BlockPos(core.x, core.y, core.z), 0, pendingEvent());
+        if (started) {
+            siegeDay = day;
+            save.pendingEvent = null;
+            persist();
+        } else {
+            cancelNight(server, day, "nightsiege.msg.nobody_at_core");
         }
     }
 
@@ -537,19 +723,6 @@ public final class SiegeManager {
         } catch (IllegalArgumentException e) {
             return null;
         }
-    }
-
-    private boolean tryStart(MinecraftServer server, AnchorPicker.Result target, SiegeEvent event) {
-        if (target == null) {
-            return false;
-        }
-        ServerLevel targetWorld = levelByName(server, target.anchor().dimension());
-        if (targetWorld == null) {
-            return false;
-        }
-        BlockPos pos = new BlockPos((int) target.anchor().x(), (int) target.anchor().y(),
-                (int) target.anchor().z());
-        return start(server, targetWorld, pos, 0, event);
     }
 
     /** Picks an event for a siege started now; an eclipse only by day. */
@@ -565,8 +738,19 @@ public final class SiegeManager {
 
     /** Starts a siege at the given core. Also used by the start command. */
     public boolean start(MinecraftServer server, ServerLevel targetWorld, BlockPos targetAnchor) {
-        return start(server, targetWorld, targetAnchor, 0, null);
+        // Started by an admin without a vote: every signed-up player nearby defends.
+        openNight = true;
+        boolean started = start(server, targetWorld, targetAnchor, 0, null);
+        if (started) {
+            siegeDay = clockDay(server);
+        } else {
+            openNight = false;
+        }
+        return started;
     }
+
+    /** A real night started by command: not only those who accepted defend, but every signed-up player. */
+    private boolean openNight;
 
     /** Waves started in the running siege. */
     private int wavesStarted;
@@ -608,7 +792,7 @@ public final class SiegeManager {
         if (active || pendingTest != null) {
             return false;
         }
-        List<ServerPlayer> nearby = playersNear(server, targetWorld, targetAnchor, config.participantRadius);
+        List<ServerPlayer> nearby = defendersNear(server, targetWorld, targetAnchor, true);
         if (nearby.isEmpty()) {
             return false;
         }
@@ -637,23 +821,43 @@ public final class SiegeManager {
      * Whether natural monster spawns (and phantoms, patrols) are held back in this
      * world: during a siege, a test's preparation and from the warning on.
      */
-    public static boolean blocksNaturalSpawns(ServerLevel level) {
-        return INSTANCE.blocksSpawnsIn(level);
+    public static boolean blocksNaturalSpawns(ServerLevel level, double x, double z) {
+        return INSTANCE.blocksSpawnsIn(level, x, z);
     }
 
-    private boolean blocksSpawnsIn(ServerLevel level) {
+    /** Phantoms and patrols wait while a siege night runs in this world (only for those few minutes). */
+    public static boolean holdsCustomSpawns(ServerLevel level) {
+        SiegeManager m = INSTANCE;
+        if (m.config == null || !m.config.blockNaturalSpawnsInSiege) {
+            return false;
+        }
+        return (m.active && m.world == level) || (m.pendingTest != null && m.pendingTest.world == level);
+    }
+
+    /** Natural monsters are held back only around the core, so players elsewhere notice nothing. */
+    private boolean blocksSpawnsIn(ServerLevel level, double x, double z) {
         if (config == null || !config.blockNaturalSpawnsInSiege || level == null) {
             return false;
         }
+        BlockPos center = null;
         if (active && world == level) {
-            return true;
+            center = anchor;
         }
         PendingTest prep = pendingTest;
-        if (prep != null && prep.world == level) {
-            return true;
+        if (center == null && prep != null && prep.world == level) {
+            center = prep.anchor;
         }
         String blocked = spawnBlockWorld;
-        return blocked != null && blocked.equals(dimensionName(level)) && level.getGameTime() < spawnBlockUntil;
+        if (center == null && blocked != null && blocked.equals(dimensionName(level)) && level.getGameTime() < spawnBlockUntil) {
+            center = spawnBlockCenter;
+        }
+        if (center == null) {
+            return false;
+        }
+        double dx = x - (center.getX() + 0.5);
+        double dz = z - (center.getZ() + 0.5);
+        double r = config.naturalSpawnBlockRadius;
+        return dx * dx + dz * dz <= r * r;
     }
 
     /** True while a test night waits for its preparation time. */
@@ -684,7 +888,7 @@ public final class SiegeManager {
                 prepBar.setName(Component.translatable("nightsiege.bar.prep", Math.min(config.maxLevel, prep.level), seconds));
                 prepBar.setProgress(Math.max(0f, Math.min(1f, prep.ticksLeft / (float) prep.totalTicks)));
                 prepBar.setColor(seconds <= 10 ? BossEvent.BossBarColor.RED : BossEvent.BossBarColor.YELLOW);
-                for (ServerPlayer player : playersNear(server, prep.world, prep.anchor, config.participantRadius)) {
+                for (ServerPlayer player : defendersNear(server, prep.world, prep.anchor, true)) {
                     prepBar.addPlayer(player);
                     // Whoever comes along in the preparation gets their traps too.
                     handOutTraps(player);
@@ -719,8 +923,8 @@ public final class SiegeManager {
     }
 
     /** At the warning the defenders near the core get their free traps, to set them before the first wave. */
-    private void handOutAtWarning(MinecraftServer server, AnchorPicker.Result target) {
-        ServerLevel targetWorld = levelByName(server, target.anchor().dimension());
+    private void handOutAtWarning(MinecraftServer server, CoreRecord core) {
+        ServerLevel targetWorld = levelByName(server, core.dimension);
         if (targetWorld == null) {
             return;
         }
@@ -728,9 +932,10 @@ public final class SiegeManager {
         spawnBlockWorld = dimensionName(targetWorld);
         long gap = Math.max(config.startDayTime - config.warningDayTime, config.eclipseStartDayTime - config.eclipseWarningDayTime);
         spawnBlockUntil = targetWorld.getGameTime() + Math.max(0L, gap) + 1200L;
-        BlockPos pos = new BlockPos((int) target.anchor().x(), (int) target.anchor().y(), (int) target.anchor().z());
+        BlockPos pos = new BlockPos(core.x, core.y, core.z);
+        spawnBlockCenter = pos;
         trapsHanded.clear();
-        for (ServerPlayer player : playersNear(server, targetWorld, pos, config.participantRadius)) {
+        for (ServerPlayer player : defendersNear(server, targetWorld, pos, false)) {
             handOutTraps(player);
         }
     }
@@ -740,13 +945,14 @@ public final class SiegeManager {
         if (active) {
             return false;
         }
-        List<ServerPlayer> nearby = playersNear(server, targetWorld, targetAnchor, config.participantRadius);
+        boolean test = forcedLevel > 0;
+        List<ServerPlayer> nearby = defendersNear(server, targetWorld, targetAnchor, test);
         if (nearby.isEmpty()) {
             return false;
         }
         world = targetWorld;
         anchor = targetAnchor;
-        testRun = forcedLevel > 0;
+        testRun = test;
         siegeLevel = testRun ? Math.min(config.maxLevel, forcedLevel)
                 : SiegeMath.level(save.siegesWon, SiegeMath.dayOf(server.overworld().getGameTime()), config);
         totalTicks = SiegeMath.durationSeconds(siegeLevel, config) * 20;
@@ -757,6 +963,7 @@ public final class SiegeManager {
         fallen.clear();
         liveMobs.clear();
         digger.reset();
+        ladders.reset();
         for (ServerPlayer player : nearby) {
             participants.add(player.getUUID());
         }
@@ -854,6 +1061,7 @@ public final class SiegeManager {
         if (entityId == null) {
             return;
         }
+        entityId = config.withoutEffects(entityId, siegeLevel, random);
         Mob champion = spawnMob(entityId, true);
         if (champion != null) {
             eliteId = champion.getUUID();
@@ -912,7 +1120,7 @@ public final class SiegeManager {
         pruneMobs();
         refreshBossBar(server);
 
-        for (ServerPlayer player : playersNear(server, world, anchor, config.participantRadius)) {
+        for (ServerPlayer player : defendersNear(server, world, anchor, testRun)) {
             if (!fallen.contains(player.getUUID())) {
                 if (participants.add(player.getUUID())) {
                     logPlayer(player);
@@ -961,6 +1169,10 @@ public final class SiegeManager {
         }
         events.tick(server, world, anchor, currentEvent, participants, fallen, liveMobs, config, world.getGameTime());
 
+        if (world.getGameTime() % 2 == 0) {
+            ladders.tick(world, liveMobs, anchor, world.getGameTime());
+        }
+
         digAccumulator++;
         if (digAccumulator >= DIG_INTERVAL) {
             digger.tick(world, new ArrayList<>(liveMobs), anchor, config, digAccumulator);
@@ -981,7 +1193,11 @@ public final class SiegeManager {
         if (ticksLeft % 20 == 0) {
             bossBar.setName(bossBarTitle());
             for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-                bossBar.addPlayer(player);
+                if (participants.contains(player.getUUID())) {
+                    bossBar.addPlayer(player);
+                } else {
+                    bossBar.removePlayer(player);
+                }
             }
         }
     }
@@ -1081,7 +1297,7 @@ public final class SiegeManager {
             if (entityId == null) {
                 return;
             }
-            entityId = config.withoutEffects(events.substitute(currentEvent, entityId, config));
+            entityId = config.withoutEffects(events.substitute(currentEvent, entityId, config), siegeLevel, random);
             BlockPos rift = events.riftForLast();
             if (MobFactory.isUnavailable(entityId)) {
                 if (unavailableMobs.add(entityId)) {
@@ -1139,6 +1355,7 @@ public final class SiegeManager {
             Entity entity = world.getEntity(id);
             if (!(entity instanceof Mob mob) || !mob.isAlive()) {
                 digger.forget(id);
+                ladders.forget(id);
                 it.remove();
             }
         }
@@ -1150,7 +1367,6 @@ public final class SiegeManager {
 
     /** Spawns a monster outside the walls of the base, or in the old ring if none was found. */
     private Mob spawnMob(String entityId, boolean elite) {
-        entityId = config.withoutEffects(entityId);
         if (MobFactory.isUnavailable(entityId)) {
             return null;
         }
@@ -1165,7 +1381,7 @@ public final class SiegeManager {
     /** Playtest kits for every player around a spot. Returns how many got one. */
     public int giveKits(MinecraftServer server, ServerLevel level, BlockPos center, int siegeLevelWanted, boolean nightStarts) {
         int count = 0;
-        for (ServerPlayer player : playersNear(server, level, center, config.participantRadius)) {
+        for (ServerPlayer player : defendersNear(server, level, center, true)) {
             TestKit.give(server, player, siegeLevelWanted, save.skillsOf(player.getUUID().toString()), skillTree, config, random,
                     nightStarts);
             count++;
@@ -1251,6 +1467,7 @@ public final class SiegeManager {
         }
         clearRemainingMobs();
         digger.reset();
+        ladders.reset();
         mendBase(server);
 
         int required = killsRequired();
@@ -1286,9 +1503,6 @@ public final class SiegeManager {
             save.bestStreak = Math.max(save.bestStreak, save.currentStreak);
             waveSurvived(server);
             awardSkillPoints(server);
-            if (config.dungeonsEnabled) {
-                rewardDungeonMaps(server);
-            }
             if (save.specialNight && world != null && anchor != null) {
                 SpecialNight.lootChest(world, anchor, random);
                 broadcast(server, Component.translatable("nightsiege.msg.special_loot").withStyle(ChatFormatting.LIGHT_PURPLE));
@@ -1304,35 +1518,35 @@ public final class SiegeManager {
             save.siegesLost++;
             save.currentStreak = 0;
             int destroyed = 0;
-            if (world != null && anchor != null) {
+            if (config.failureBlast && world != null && anchor != null) {
                 destroyed = Demolition.blast(world, anchor, config);
+                broadcast(server, Component.translatable("nightsiege.msg.lost", destroyed)
+                        .withStyle(ChatFormatting.DARK_RED));
+            } else {
+                broadcast(server, Component.translatable("nightsiege.msg.lost_no_penalty")
+                        .withStyle(ChatFormatting.DARK_RED));
             }
             blasted = destroyed;
-            broadcast(server, Component.translatable("nightsiege.msg.lost", destroyed)
-                    .withStyle(ChatFormatting.DARK_RED));
-            loseSkills(server);
+            if (config.defeatSkillLoss > 0) {
+                loseSkills(server);
+            }
             broadcast(server, Component.translatable("nightsiege.msg.night_again", siegeLevel)
                     .withStyle(ChatFormatting.RED));
         }
 
         logNight(result, blasted, required);
         save.specialNight = false;
-        scheduler.markSiegeFinished(random, config);
-        syncSchedulerToSave();
+        scheduleNextAfterNight(server);
         persist();
         clearSiegeState();
     }
 
-    /** After a won siege every defender has a one in three chance of a dungeon map. */
-    private void rewardDungeonMaps(MinecraftServer server) {
-        for (UUID id : participants) {
-            ServerPlayer player = server.getPlayerList().getPlayer(id);
-            if (player != null && random.nextInt(3) == 0) {
-                player.getInventory().placeItemBackInInventory(new ItemStack(DungeonContent.MAP));
-                player.sendSystemMessage(Component.translatable("nightsiege.dungeon.map_reward")
-                        .withStyle(ChatFormatting.AQUA));
-            }
-        }
+    /** After a real night (won, lost or broken off) the next invitation comes a few days later. */
+    private void scheduleNextAfterNight(MinecraftServer server) {
+        long day = siegeDay >= 0 ? siegeDay : clockDay(server);
+        save.nextSiegeDay = SiegeRhythm.nextAfter(day, config);
+        save.clearVotes();
+        siegeDay = -1L;
     }
 
     /** Ends the siege with no winner and no punishment. */
@@ -1349,14 +1563,20 @@ public final class SiegeManager {
         }
         clearRemainingMobs();
         digger.reset();
+        ladders.reset();
         mendBase(server);
         logNight("abgebrochen", 0, killsRequired());
+        if (!testRun) {
+            scheduleNextAfterNight(server);
+            persist();
+        }
         testRun = false;
         broadcast(server, Component.translatable("nightsiege.msg.aborted").withStyle(ChatFormatting.GRAY));
         clearSiegeState();
     }
 
     private void clearSiegeState() {
+        openNight = false;
         trapsHanded.clear();
         spawnBlockWorld = null;
         if (world != null) {
@@ -1517,7 +1737,16 @@ public final class SiegeManager {
             SkillService.clear(player);
         }
         giveStarterCore(player);
-        giveGuideBook(player);
+        if (isRegistered(player)) {
+            giveGuideBook(player);
+            MinecraftServer server = player.level().getServer();
+            String id = player.getUUID().toString();
+            boolean answered = (save.accepted != null && save.accepted.contains(id))
+                    || (save.declined != null && save.declined.contains(id));
+            if (server != null && voteOpen(server) && !answered) {
+                sendInvitation(player);
+            }
+        }
         if (config.requireClientMod) {
             // The client registers its channels a moment after joining, so the
             // check waits three seconds rather than kicking an honest player.
@@ -1567,7 +1796,7 @@ public final class SiegeManager {
                 continue;
             }
             PlayerSkills own = effectiveSkills(player);
-            if (ClassGear.carries(player, own, skillTree)) {
+            if (isRegistered(player) && ClassGear.carries(player, own, skillTree)) {
                 SkillService.apply(player, own, skillTree);
                 gearBoosted.add(id);
             } else if (gearBoosted.remove(id)) {
@@ -1584,7 +1813,7 @@ public final class SiegeManager {
                 continue;
             }
             PlayerSkills own = effectiveSkills(player);
-            com.mki.nightsiege.core.SkillNode node = skillTree.ultimateOf(own);
+            com.mki.nightsiege.core.SkillNode node = isRegistered(player) ? skillTree.ultimateOf(own) : null;
             com.mki.nightsiege.core.UltState state = new com.mki.nightsiege.core.UltState();
             if (node != null) {
                 int rank = Math.max(1, own.levelOf(node.id()));
@@ -1610,6 +1839,19 @@ public final class SiegeManager {
         if (save.findCore(dimension, pos.getX(), pos.getY(), pos.getZ()) != null) {
             return;
         }
+        CoreRecord existing = mainCore();
+        if (existing != null) {
+            // There is only one core: a second one goes back into the hand.
+            level.removeBlock(pos, false);
+            if (placer instanceof ServerPlayer player) {
+                if (!player.getAbilities().instabuild) {
+                    player.getInventory().placeItemBackInInventory(new ItemStack(ModContent.SIEGE_CORE_ITEM));
+                }
+                player.sendSystemMessage(Component.translatable("nightsiege.msg.one_core",
+                        existing.x, existing.y, existing.z).withStyle(ChatFormatting.RED));
+            }
+            return;
+        }
         save.cores.add(new CoreRecord(dimension, pos.getX(), pos.getY(), pos.getZ()));
         if (scheduler.requiredTicks() <= 0L) {
             scheduler.rollInterval(random, config);
@@ -1620,6 +1862,26 @@ public final class SiegeManager {
             player.sendSystemMessage(Component.translatable("nightsiege.msg.core_placed",
                     config.requiredPlayers, (int) config.coreRadius).withStyle(ChatFormatting.GOLD));
         }
+    }
+
+    /** Only admins may take the core away, and never while a night is announced or running. */
+    private boolean allowBreak(Object playerObject, Object stateObject) {
+        if (!(stateObject instanceof net.minecraft.world.level.block.state.BlockState state) || !ModContent.isCore(state)
+                || !(playerObject instanceof ServerPlayer player)) {
+            return true;
+        }
+        if (!net.minecraft.commands.Commands.LEVEL_GAMEMASTERS.check(player.permissions())) {
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.core_admin_only").withStyle(ChatFormatting.RED));
+            return false;
+        }
+        MinecraftServer server = player.level().getServer();
+        boolean night = active || pendingTest != null
+                || (server != null && warnedDay == clockDay(server) && startedDay != clockDay(server));
+        if (night) {
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.core_not_now").withStyle(ChatFormatting.RED));
+            return false;
+        }
+        return true;
     }
 
     /** Takes Object so the handler keeps compiling across Fabric API versions. */
@@ -1671,6 +1933,12 @@ public final class SiegeManager {
         }
         if (!ModContent.isCore(serverLevel.getBlockState(pos))) {
             return InteractionResult.PASS;
+        }
+        if (!isRegistered(player)) {
+            if (handObject == InteractionHand.MAIN_HAND) {
+                offerRegistration(player);
+            }
+            return InteractionResult.SUCCESS;
         }
         if (insertNightFragment(player, held, pos)) {
             persist();
@@ -1768,6 +2036,10 @@ public final class SiegeManager {
     /** Puts every player's subclass (or class) after their name. */
     private void refreshClassTags(MinecraftServer server) {
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            if (!isRegistered(player)) {
+                ClassTags.update(server, player, null, null);
+                continue;
+            }
             PlayerSkills own = save.skillsOf(player.getUUID().toString());
             ClassTags.update(server, player, own, skillTree.subclassOf(own));
         }
@@ -1852,7 +2124,19 @@ public final class SiegeManager {
         String[] parts = action.split(":", 2);
         String verb = parts[0];
         String argument = parts.length > 1 ? parts[1] : "";
+        if (!isRegistered(player) && !verb.equals("dungeon")) {
+            // Not signed up: the mod stays out of the way (keys do nothing, the core only offers the sign-up).
+            if (!verb.equals("ult") && !verb.equals("shield")) {
+                offerRegistration(player);
+            }
+            return;
+        }
         switch (verb) {
+            case "roster" -> unregister(player);
+            case "vote" -> {
+                vote(player, argument.equals("yes"));
+                openCoreWindow(player);
+            }
             case "buy" -> onBuySkill(player, argument);
             case "class" -> onChooseClass(player, argument);
             case "classreset" -> onClassReset(player);
@@ -2038,6 +2322,135 @@ public final class SiegeManager {
         return target == null ? 0 : target.playerCount();
     }
 
+    // ------------------------------------------------------------------
+    // roster: who signed up at the core
+    // ------------------------------------------------------------------
+
+    /** True for players who signed up at the core. The mod leaves everyone else alone. */
+    public boolean isRegistered(net.minecraft.world.entity.player.Player player) {
+        return player != null && save.isRegistered(player.getUUID().toString());
+    }
+
+    /**
+     * The mod's monsters and players who are not part of it leave each other
+     * alone: siege monsters only fight the night's defenders, dungeon monsters
+     * only signed-up players.
+     */
+    public boolean allowModDamage(Entity victim, Entity attacker) {
+        if (victim instanceof net.minecraft.world.entity.player.Player player && attacker != null) {
+            return mayFight(attacker, player);
+        }
+        if (attacker instanceof net.minecraft.world.entity.player.Player player && victim != null) {
+            return mayFight(victim, player);
+        }
+        return true;
+    }
+
+    /** Whether this monster of the mod and this player may fight; any other monster always may. */
+    public boolean mayFight(Entity mob, net.minecraft.world.entity.player.Player player) {
+        if (mob.entityTags().contains(MobFactory.TAG)) {
+            return isDefending(player);
+        }
+        if (DungeonService.isDungeonMob(mob)) {
+            return isRegistered(player);
+        }
+        return true;
+    }
+
+    /** Called before a monster picks a target: the mod's monsters never pick players outside it. */
+    public static boolean mayTarget(Mob mob, LivingEntity target) {
+        return !(target instanceof net.minecraft.world.entity.player.Player player) || INSTANCE.mayFight(mob, player);
+    }
+
+    /** True while this player defends the running night. */
+    public boolean isDefending(net.minecraft.world.entity.player.Player player) {
+        return player != null && active && participants.contains(player.getUUID()) && !fallen.contains(player.getUUID());
+    }
+
+    /**
+     * Players near a spot who may defend: in a real night those who accepted
+     * today's invitation, in a test the signed-up players (or everyone near, if
+     * none of them is there, so an admin can test alone).
+     */
+    private List<ServerPlayer> defendersNear(MinecraftServer server, ServerLevel targetWorld, BlockPos center, boolean test) {
+        List<ServerPlayer> near = playersNear(server, targetWorld, center, config.participantRadius);
+        List<ServerPlayer> out = new ArrayList<>();
+        for (ServerPlayer player : near) {
+            String id = player.getUUID().toString();
+            boolean ok = test || openNight ? save.isRegistered(id)
+                    : save.isRegistered(id) && save.accepted != null && save.accepted.contains(id);
+            if (ok) {
+                out.add(player);
+            }
+        }
+        if (test && out.isEmpty()) {
+            return near;
+        }
+        return out;
+    }
+
+    /** Right click on the core without being signed up: the offer to sign up. */
+    private void offerRegistration(ServerPlayer player) {
+        player.sendSystemMessage(Component.translatable("nightsiege.msg.register_offer").withStyle(ChatFormatting.GOLD));
+        player.sendSystemMessage(Component.empty()
+                .append(button("nightsiege.msg.register_button", "/nightsiege eintragen", ChatFormatting.GREEN))
+                .append(Component.literal("  "))
+                .append(Component.translatable("nightsiege.msg.register_hint").withStyle(ChatFormatting.GRAY)));
+    }
+
+    /** Signs a player up (they must stand at the core). */
+    public void register(ServerPlayer player) {
+        CoreRecord core = mainCore();
+        if (core == null) {
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.no_core").withStyle(ChatFormatting.RED));
+            return;
+        }
+        if (isRegistered(player)) {
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.already_registered").withStyle(ChatFormatting.GRAY));
+            return;
+        }
+        double r = 16.0;
+        if (!dimensionName(player.level()).equals(core.dimension)
+                || player.distanceToSqr(core.x + 0.5, core.y + 0.5, core.z + 0.5) > r * r) {
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.register_at_core").withStyle(ChatFormatting.RED));
+            return;
+        }
+        save.register(player.getUUID().toString());
+        persist();
+        player.sendSystemMessage(Component.translatable("nightsiege.msg.registered", config.daysBetweenSieges,
+                config.requiredAccepts).withStyle(ChatFormatting.GREEN));
+        giveGuideBook(player);
+        events.forget(player.getUUID());
+        PlayerSkills own = save.skillsOf(player.getUUID().toString());
+        ClassTags.update(player.level().getServer(), player, own, skillTree.subclassOf(own));
+        MinecraftServer server = player.level().getServer();
+        if (server != null && voteOpen(server)) {
+            sendInvitation(player);
+        }
+    }
+
+    /** Signs a player off: from now on the mod leaves them alone (their progress stays saved). */
+    public void unregister(ServerPlayer player) {
+        if (!isRegistered(player)) {
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.not_registered").withStyle(ChatFormatting.GRAY));
+            return;
+        }
+        MinecraftServer server = player.level().getServer();
+        String id = player.getUUID().toString();
+        boolean tonight = server != null && warnedDay == clockDay(server) && save.accepted != null && save.accepted.contains(id);
+        if (isDefending(player) || (pendingTest != null && isRegistered(player)) || tonight) {
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.unregister_blocked").withStyle(ChatFormatting.RED));
+            return;
+        }
+        save.unregister(id);
+        persist();
+        SkillService.clear(player);
+        gearBoosted.remove(player.getUUID());
+        ClassTags.update(server, player, null, null);
+        events.forget(player.getUUID());
+        player.sendSystemMessage(Component.translatable("nightsiege.msg.unregistered").withStyle(ChatFormatting.GRAY));
+    }
+
     private List<ServerPlayer> playersNear(MinecraftServer server, ServerLevel targetWorld,
                                            BlockPos center, double radius) {
         List<ServerPlayer> out = new ArrayList<>();
@@ -2071,7 +2484,9 @@ public final class SiegeManager {
             return;
         }
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            player.sendSystemMessage(message);
+            if (isRegistered(player)) {
+                player.sendSystemMessage(message);
+            }
         }
     }
 }

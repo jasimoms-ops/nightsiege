@@ -69,14 +69,27 @@ public final class StatsService {
         stats.secondsLeft = manager.secondsLeft();
         stats.eventKey = manager.currentEventKey();
 
-        stats.countdownPercent = (int) Math.round(manager.scheduler().progress() * 100.0);
-        stats.countdownMinutesLeft = (int) (manager.scheduler().remainingTicks() / 20L / 60L);
-        stats.playersNear = manager.playersAtCore(server);
-        stats.playersRequired = cfg.requiredPlayers;
+        long clock = server.overworld().getOverworldClockTime();
+        long day = SiegeMath.dayOf(clock);
+        int time = SiegeMath.timeOfDay(clock);
+        long siegeDay = save.nextSiegeDay;
+        stats.countdownPercent = (int) Math.round(com.mki.nightsiege.core.SiegeRhythm.progress(day, time, siegeDay, cfg) * 100.0);
+        stats.countdownMinutesLeft = (int) (com.mki.nightsiege.core.SiegeRhythm.ticksUntilWarning(day, time, siegeDay, cfg) / 20L / 60L);
+        stats.daysUntilSiege = siegeDay < 0 ? -1 : (int) Math.max(0, siegeDay - day);
+        stats.voteOpen = manager.voteOpen(server);
+        stats.accepted = manager.acceptedCount();
+        stats.acceptsRequired = cfg.requiredAccepts;
+        stats.registeredCount = save.registered == null ? 0 : save.registered.size();
+        String me = viewer.getUUID().toString();
+        stats.myVote = save.accepted != null && save.accepted.contains(me) ? "yes"
+                : save.declined != null && save.declined.contains(me) ? "no" : "";
+        stats.nightComing = manager.nightComing(server);
+        stats.playersNear = stats.accepted;
+        stats.playersRequired = cfg.requiredAccepts;
         stats.coreRadius = (int) cfg.coreRadius;
-        stats.clockRunning = stats.playersNear >= cfg.requiredPlayers;
+        stats.clockRunning = stats.voteOpen || stats.nightComing;
 
-        stats.mobsPerWave = SiegeMath.mobsPerBatch(level, Math.max(1, stats.playersNear), cfg);
+        stats.mobsPerWave = SiegeMath.mobsPerBatch(level, Math.max(1, Math.max(stats.accepted, manager.playersAtCore(server))), cfg);
         stats.healthMultiplier = SiegeMath.healthMultiplier(level, cfg);
         stats.damageMultiplier = SiegeMath.damageMultiplier(level, cfg);
         stats.maxLiveMobs = cfg.maxLiveMobs;

@@ -70,6 +70,19 @@ public final class DungeonService {
     private static final String TAG = "nightsiege_dungeon";
     /** The guards set into a dungeon's rooms; they stay until killed or the fight starts. */
     private static final String GUARD_TAG = "nightsiege_dungeon_guard";
+
+    /** True for monsters of a dungeon (guards, fight waves, the boss). */
+    public static boolean isDungeonMob(Entity entity) {
+        if (entity == null) {
+            return false;
+        }
+        for (String tag : entity.entityTags()) {
+            if (tag.startsWith(TAG)) {
+                return true;
+            }
+        }
+        return false;
+    }
     /** First time the placement of a structure's core was tried, to give up waiting for chunks after a while. */
     private final Map<String, Long> firstTry = new HashMap<>();
 
@@ -120,7 +133,8 @@ public final class DungeonService {
         if (++scanCounter >= 20) {
             scanCounter = 0;
             for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-                if (!player.isSpectator()) {
+                // Dungeons only wake for players who signed up at the core.
+                if (!player.isSpectator() && SiegeManager.get().isRegistered(player)) {
                     scan(player);
                 }
             }
@@ -510,7 +524,8 @@ public final class DungeonService {
         int players = 0;
         int spent = 0;
         for (ServerPlayer near : level.players()) {
-            if (!near.isSpectator() && near.distanceToSqr(waker) <= DungeonMath.FIGHT_RADIUS * DungeonMath.FIGHT_RADIUS) {
+            if (!near.isSpectator() && SiegeManager.get().isRegistered(near)
+                    && near.distanceToSqr(waker) <= DungeonMath.FIGHT_RADIUS * DungeonMath.FIGHT_RADIUS) {
                 players++;
                 PlayerSkills skills = save.get().skillsOf(near.getUUID().toString());
                 spent += Math.max(0, skills.earned - skills.points() - skills.donated);
@@ -587,7 +602,8 @@ public final class DungeonService {
             level.playSound(null, core, SoundEvents.BEACON_ACTIVATE, SoundSource.BLOCKS, 1.2f, 0.6f);
             level.playSound(null, core, SoundEvents.BELL_BLOCK, SoundSource.BLOCKS, 1.0f, 0.5f);
             for (ServerPlayer near : level.players()) {
-                if (near.distanceToSqr(Vec3.atCenterOf(core)) <= DungeonMath.FIGHT_RADIUS * DungeonMath.FIGHT_RADIUS) {
+                if (SiegeManager.get().isRegistered(near)
+                        && near.distanceToSqr(Vec3.atCenterOf(core)) <= DungeonMath.FIGHT_RADIUS * DungeonMath.FIGHT_RADIUS) {
                     near.sendSystemMessage(Component.translatable("nightsiege.dungeon.awake",
                             typeName(record.type)).withStyle(ChatFormatting.LIGHT_PURPLE));
                 }
@@ -693,7 +709,8 @@ public final class DungeonService {
         Vec3 center = Vec3.atCenterOf(fight.anchor);
         int spent = 0;
         for (ServerPlayer near : level.players()) {
-            if (!near.isSpectator() && near.distanceToSqr(center) <= DungeonMath.FIGHT_RADIUS * DungeonMath.FIGHT_RADIUS) {
+            if (!near.isSpectator() && SiegeManager.get().isRegistered(near)
+                    && near.distanceToSqr(center) <= DungeonMath.FIGHT_RADIUS * DungeonMath.FIGHT_RADIUS) {
                 fight.participants.add(near.getUUID());
                 PlayerSkills skills = save.get().skillsOf(near.getUUID().toString());
                 spent += Math.max(0, skills.earned - skills.points() - skills.donated);
@@ -956,7 +973,6 @@ public final class DungeonService {
                 continue;
             }
             give(p, new ItemStack(DungeonContent.NIGHT_FRAGMENTS.get(kind)));
-            give(p, new ItemStack(DungeonContent.MAP));
             p.sendSystemMessage(Component.translatable("nightsiege.dungeon.won", typeName(fight.type.key),
                     Component.translatable("item.nightsiege.night_fragment_" + kind.id())).withStyle(ChatFormatting.GREEN));
         }

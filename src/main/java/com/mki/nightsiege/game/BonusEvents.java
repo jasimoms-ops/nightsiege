@@ -113,6 +113,9 @@ public final class BonusEvents {
         ServerLevel overworld = server.overworld();
         EventAtmosphere.setServer(SiegeManager.dimensionName(overworld), EventAtmosphere.AURORA, 400);
         for (ServerPlayer player : overworld.players()) {
+            if (!SiegeManager.get().isRegistered(player)) {
+                continue;
+            }
             player.sendSystemMessage(Component.translatable("nightsiege.bonus.aurora_start")
                     .withStyle(ChatFormatting.GREEN));
             player.level().playSound(null, player.blockPosition(), SoundEvents.AMETHYST_BLOCK_RESONATE,
@@ -140,6 +143,9 @@ public final class BonusEvents {
             return;
         }
         for (ServerPlayer player : server.overworld().players()) {
+            if (!SiegeManager.get().isRegistered(player)) {
+                continue;
+            }
             if (!player.isAlive() || player.isSpectator() || !perks.inRange(player)) {
                 continue;
             }
@@ -185,7 +191,10 @@ public final class BonusEvents {
         trader.setDespawnDelay(24000);
         trader.setCustomName(Component.translatable("nightsiege.bonus.caravan_name").withStyle(ChatFormatting.GOLD));
         trader.setCustomNameVisible(true);
-        trader.overrideOffers(offers(world));
+        // overrideOffers does nothing on the server: replace the trades in place instead.
+        net.minecraft.world.item.trading.MerchantOffers own = trader.getOffers();
+        own.clear();
+        own.addAll(offers(world));
         world.addFreshEntity(trader);
         for (int i = 0; i < 2; i++) {
             Entity llamaEntity = create(world, "trader_llama");
@@ -201,6 +210,9 @@ public final class BonusEvents {
         world.playSound(null, spot, SoundEvents.WANDERING_TRADER_REAPPEARED, SoundSource.NEUTRAL, 1.0f, 1.0f);
         Component text = Component.translatable("nightsiege.bonus.caravan_arrived").withStyle(ChatFormatting.GOLD);
         for (ServerPlayer player : world.players()) {
+            if (!SiegeManager.get().isRegistered(player)) {
+                continue;
+            }
             player.sendSystemMessage(text);
         }
         return trader;
@@ -223,7 +235,8 @@ public final class BonusEvents {
             }
         }
         if (DungeonContent.active) {
-            offers.add(offer(10, new ItemStack(DungeonContent.MAP), 2));
+            // The only place to get dungeon maps: two, ten emeralds each.
+            offers.add(0, offer(10, new ItemStack(DungeonContent.MAP), 2));
         }
 
         List<MerchantOffer> goods = new ArrayList<>();

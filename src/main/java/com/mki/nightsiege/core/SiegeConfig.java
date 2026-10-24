@@ -13,10 +13,15 @@ import java.util.List;
 public class SiegeConfig {
 
     // --- scheduling -------------------------------------------------------
-    /** Shortest gap between two sieges, in in-game days of qualifying time. */
+    /** Old random gap (no longer used: sieges come every daysBetweenSieges days after a vote). */
     public int minDaysBetweenSieges = 2;
-    /** Longest gap. The actual gap is rolled anew after every siege. */
     public int maxDaysBetweenSieges = 5;
+    /** A siege night is offered every this many in-game days. */
+    public int daysBetweenSieges = 3;
+    /** Day time of the invitation on a siege day (1000 = early morning). */
+    public int inviteDayTime = 1000;
+    /** Accepted invitations needed for the night to be played. */
+    public int requiredAccepts = 3;
     /** Day time at which the warning is sent (12000 = sunset). */
     public int warningDayTime = 12000;
     /** Day time at which the siege starts (15000 = full night). */
@@ -33,7 +38,11 @@ public class SiegeConfig {
     public boolean giveStarterCore = true;
 
     // --- difficulty -------------------------------------------------------
-    public int maxLevel = 20;
+    public int maxLevel = 1000;
+    /** Up to this level the nights grow at the full rate, above it only by growthAboveSoftCap. */
+    public int softCapLevel = 20;
+    /** Share of the usual growth per level above softCapLevel (0.25 = a quarter). */
+    public double growthAboveSoftCap = 0.25;
     /** Every N in-game days the level rises by one. */
     /** Extra level every this many in-game days; 0 = the level only rises with won nights. */
     public int daysPerLevel = 0;
@@ -60,6 +69,8 @@ public class SiegeConfig {
     public int baseRadius = 64;
 
     // --- punishment -------------------------------------------------------
+    /** A lost night blows up the area around the core (off: a defeat has no punishment). */
+    public boolean failureBlast = false;
     /** Radius of the destruction when a siege is lost. */
     public int failureBlastRadius = 12;
     /** Keep chests and other containers intact in the blast, so no items are lost. */
@@ -174,7 +185,7 @@ public class SiegeConfig {
     /** Defenders who die in a siege keep their inventory. */
     public boolean keepInventoryInSiege = true;
     /** Learned levels each defender loses when a night is lost (the level stays, the night comes again). */
-    public int defeatSkillLoss = 2;
+    public int defeatSkillLoss = 0;
     /** A champion is worth this many times a normal kill. */
     public int championPointMultiplier = 10;
     /** One extra point for every this many siege levels. */
@@ -191,8 +202,14 @@ public class SiegeConfig {
     public boolean replaceEffectMobs = true;
     /** Which monster comes instead of which. Mounts ("a+b") are replaced part by part. */
     public Map<String, String> effectMobReplacements = defaultEffectMobReplacements();
-    /** No natural monsters, phantoms or patrols in the siege's world from the warning until the night is over. */
+    /** No natural monsters, phantoms or patrols around the core from the warning until the night is over. */
     public boolean blockNaturalSpawnsInSiege = true;
+    /** How far around the core natural spawns are held back. */
+    public double naturalSpawnBlockRadius = 160.0;
+    /** From this level on the effect monsters slowly come back (below it they are always replaced). */
+    public int effectMobsFromLevel = 10;
+    /** Share of effect monsters that stay real, per level from effectMobsFromLevel on (0.1 = 10 %, 20 %, ...). */
+    public double effectMobShareStep = 0.1;
 
     public static Map<String, String> defaultEffectMobReplacements() {
         Map<String, String> map = new LinkedHashMap<>();
@@ -209,6 +226,23 @@ public class SiegeConfig {
         map.put("friendsandfoes:iceologer", "minecraft:vindicator");
         map.put("friendsandfoes:illusioner", "minecraft:pillager");
         return map;
+    }
+
+    /** Share of effect monsters that stay real at this level: 0 below effectMobsFromLevel, then step by step up to 1. */
+    public double effectMobShare(int level) {
+        if (level < effectMobsFromLevel) {
+            return 0.0;
+        }
+        return Math.min(1.0, (level - effectMobsFromLevel + 1) * Math.max(0.0, effectMobShareStep));
+    }
+
+    /** Like {@link #withoutEffects(String)}, but from effectMobsFromLevel on some effect monsters stay real. */
+    public String withoutEffects(String id, int level, java.util.Random random) {
+        double keep = effectMobShare(level);
+        if (keep >= 1.0 || (keep > 0.0 && random != null && random.nextDouble() < keep)) {
+            return id;
+        }
+        return withoutEffects(id);
     }
 
     /** The monster that really comes for a picked one, without effect monsters when they are switched off. */
@@ -369,6 +403,14 @@ public class SiegeConfig {
     /** Clamps nonsense values so a hand-edited config can never break the mod. */
     public void sanitize() {
         minDaysBetweenSieges = Math.max(1, minDaysBetweenSieges);
+        daysBetweenSieges = clamp(daysBetweenSieges, 1, 100);
+        inviteDayTime = clamp(inviteDayTime, 0, 11000);
+        requiredAccepts = clamp(requiredAccepts, 1, 100);
+        softCapLevel = clamp(softCapLevel, 1, 1000);
+        growthAboveSoftCap = clampDouble(growthAboveSoftCap, 0.0, 1.0);
+        naturalSpawnBlockRadius = clampDouble(naturalSpawnBlockRadius, 16.0, 1024.0);
+        effectMobsFromLevel = clamp(effectMobsFromLevel, 1, 1000);
+        effectMobShareStep = clampDouble(effectMobShareStep, 0.0, 1.0);
         maxDaysBetweenSieges = Math.max(minDaysBetweenSieges, maxDaysBetweenSieges);
         warningDayTime = clamp(warningDayTime, 0, 23999);
         startDayTime = clamp(startDayTime, 0, 23999);
@@ -479,6 +521,13 @@ public class SiegeConfig {
             skillPointsPerSiege = fresh.skillPointsPerSiege;
             skillPointsPerKill = fresh.skillPointsPerKill;
             settingsVersion = 4;
+        }
+        if (settingsVersion < 5) {
+            // Version A (October 2026): no cap at level 20, a defeat has no punishment.
+            maxLevel = 1000;
+            failureBlast = false;
+            defeatSkillLoss = 0;
+            settingsVersion = 5;
         }
         wavesPerPoint = clamp(wavesPerPoint, 1, 20);
         if (Double.isNaN(pointGainMultiplier) || pointGainMultiplier <= 0) {

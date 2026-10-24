@@ -53,7 +53,8 @@ public final class ModContent {
         SIEGE_CORE = new SiegeCoreBlock(BlockBehaviour.Properties.of()
                 .setId(blockKey)
                 // Tough enough that it is a deliberate build, not a throwaway.
-                .strength(25.0f, 1200.0f)
+                .strength(25.0f, 3600000.0f)
+                .pushReaction(net.minecraft.world.level.material.PushReaction.BLOCK)
                 .sound(SoundType.METAL));
         Registry.register(BuiltInRegistries.BLOCK, blockKey, SIEGE_CORE);
 
