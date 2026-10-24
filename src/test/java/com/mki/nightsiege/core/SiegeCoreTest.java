@@ -785,6 +785,75 @@ class SiegeCoreTest {
     }
 
     @Test
+    void everythingWithAKeySaysWhichOne() {
+        SkillTree tree = new SkillTree();
+        int ults = 0;
+        for (SkillNode node : tree.all()) {
+            if (node.effect().target() == SkillEffect.Target.ULTIMATE) {
+                assertEquals(KeyHint.ULT, KeyHint.forNode(node.id(), true));
+                ults++;
+            }
+        }
+        assertTrue(ults >= 16, "ults: " + ults);
+        assertEquals(KeyHint.SHIELD_ACTION, KeyHint.forNode("g_shieldthrow", false));
+        assertEquals(KeyHint.NONE, KeyHint.forNode("archer_focus", false));
+        assertEquals(KeyHint.ULT2, KeyHint.forGain("spiegelschild"));
+        assertEquals(KeyHint.QUIVER, KeyHint.forGain("koecher"));
+        assertEquals(KeyHint.USE, KeyHint.forGadget("wurfbeil"));
+        // Every gain with a key exists.
+        java.util.Set<String> ids = new java.util.HashSet<>();
+        for (CrateGains.Gain g : CrateGains.all()) {
+            ids.add(g.id());
+        }
+        for (String id : new String[]{"koecher", "sprungstiefel", "zielfernrohr", "wurfspeere", "wurfbeile", "blendgranaten",
+                "oelfass", "kletterhaken", "kampfhorn", "tarnumhang", "signalhorn", "mauerkelle", "ersatzbatterie",
+                "kriegsbanner", "barrikaden", "leibwaechter", "schlachtentrance", "lockpfeil", "magnetfeld", "spiegelschild"}) {
+            assertTrue(ids.contains(id), id);
+            assertNotEquals(KeyHint.NONE, KeyHint.forGain(id), id);
+        }
+    }
+
+    @Test
+    void kitBowsGetMoreEnchantmentsWithTheLevel() {
+        assertEquals(0, NightKit.bowPunch(4));
+        assertEquals(1, NightKit.bowPunch(5));
+        assertEquals(0, NightKit.bowFlame(9));
+        assertEquals(1, NightKit.bowFlame(10));
+        assertEquals(0, NightKit.crossbowPiercing(4));
+        assertEquals(1, NightKit.crossbowPiercing(5));
+        assertEquals(2, NightKit.crossbowPiercing(12));
+        assertEquals(3, NightKit.crossbowPiercing(30));
+    }
+
+    @Test
+    void theChemistrySubclassesBringATower() {
+        SkillTree tree = new SkillTree();
+        PlayerSkills demolition = new PlayerSkills();
+        demolition.chosenClass = SkillClass.ENGINEER.name();
+        demolition.levels.put(TrapKind.MINE.id(), 1);
+        assertEquals("demolition", tree.subclassOf(demolition));
+        assertEquals(1, tree.trapTier(TrapKind.TURRET, demolition));
+        assertEquals(0, tree.trapTier(TrapKind.TESLA, demolition));
+        assertTrue(tree.grantedTower(TrapKind.TURRET, demolition));
+
+        PlayerSkills alchemist = new PlayerSkills();
+        alchemist.chosenClass = SkillClass.ENGINEER.name();
+        alchemist.levels.put(TrapKind.POISON.id(), 1);
+        assertEquals(1, tree.trapTier(TrapKind.TESLA, alchemist));
+        assertEquals(0, tree.trapTier(TrapKind.TURRET, alchemist));
+        // The cross talent still lends the turret at tier 2.
+        alchemist.levels.put("c_cross_turret", 1);
+        assertEquals(2, tree.trapTier(TrapKind.TURRET, alchemist));
+
+        // The mechanics way keeps its own towers and gets nothing extra.
+        PlayerSkills gunner = new PlayerSkills();
+        gunner.chosenClass = SkillClass.ENGINEER.name();
+        gunner.levels.put(TrapKind.TURRET.id(), 2);
+        assertFalse(tree.grantedTower(TrapKind.TURRET, gunner));
+        assertEquals(0, tree.trapTier(TrapKind.TESLA, gunner));
+    }
+
+    @Test
     void onlyEngineersGetTrapTiers() {
         SkillTree tree = new SkillTree();
         PlayerSkills archer = new PlayerSkills();

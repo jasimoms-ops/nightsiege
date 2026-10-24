@@ -123,7 +123,7 @@ public final class StatsService {
         stats.donated = skills.donated;
         stats.pathTaken = skills.as(leveling, () -> skills.pathTaken(tree));
         stats.subclass = skills.as(leveling, () -> tree.subclassOf(skills));
-        stats.creative = viewer.getAbilities().instabuild;
+        stats.creative = viewer.getAbilities().instabuild || manager.config().testToolsForEveryone;
         stats.classResetAvailable = manager.classResetAvailable(skills);
         for (com.mki.nightsiege.core.PerkKind kind : com.mki.nightsiege.core.PerkKind.values()) {
             CoreStats.PerkLine line = new CoreStats.PerkLine();
@@ -166,6 +166,9 @@ public final class StatsService {
             line.path = node.path() == null ? "" : node.path();
             line.icon = node.icon();
             line.row = node.row();
+            com.mki.nightsiege.core.KeyHint hint = com.mki.nightsiege.core.KeyHint.forNode(node.id(),
+                    node.effect().target() == com.mki.nightsiege.core.SkillEffect.Target.ULTIMATE);
+            line.key = hint == com.mki.nightsiege.core.KeyHint.NONE ? "" : hint.name();
             boolean shared = node.clazz().isShared();
             line.level = shared ? save.coreSkills().levelOf(node.id()) : skills.levelIn(node.clazz(), node.id());
             line.maxLevel = node.maxLevel();

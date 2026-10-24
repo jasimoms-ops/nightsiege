@@ -29,6 +29,10 @@ public class NightSiegeClient implements ClientModInitializer {
     /** Opens the handbook. H by default. */
     private static KeyMapping guideKey;
 
+    public static KeyMapping ultimateKey() {
+        return ultimateKey;
+    }
+
     @Override
     public void onInitializeClient() {
         // The Night Siege shader pack (based on Photon) goes into the shaderpacks folder.
@@ -116,6 +120,16 @@ public class NightSiegeClient implements ClientModInitializer {
         net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry.register(
                 com.mki.nightsiege.game.KitProjectile.TYPE, net.minecraft.client.renderer.entity.ThrownItemRenderer::new);
         GuideItem.opener = () -> Minecraft.getInstance().setScreenAndShow(new GuideScreen());
+        // Kit gadgets and the remote: which key they need, with the player's own bindings.
+        ItemTooltipCallback.EVENT.register((stack, context, type, lines) -> {
+            com.mki.nightsiege.core.KeyHint hint = stack.is(ModContent.REMOTE)
+                    ? com.mki.nightsiege.core.KeyHint.REMOTE
+                    : com.mki.nightsiege.core.KeyHint.forGadget(com.mki.nightsiege.game.Gadgets.of(stack));
+            Component line = KeyHints.line(hint);
+            if (line != null) {
+                lines.add(line);
+            }
+        });
         ItemTooltipCallback.EVENT.register((stack, context, type, lines) -> {
             List<String> paths = ClassGear.pathsFor(stack.getItem());
             if (paths.isEmpty()) {

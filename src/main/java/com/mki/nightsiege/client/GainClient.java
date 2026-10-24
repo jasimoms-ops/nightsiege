@@ -27,6 +27,14 @@ public final class GainClient {
     private GainClient() {
     }
 
+    public static KeyMapping secondUltKey() {
+        return secondUltKey;
+    }
+
+    public static KeyMapping quiverKey() {
+        return quiverKey;
+    }
+
     public static void init(KeyMapping.Category category) {
         secondUltKey = KeyMappingHelper.registerKeyMapping(
                 new KeyMapping("key.nightsiege.second_ult", GLFW.GLFW_KEY_X, category));

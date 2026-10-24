@@ -338,6 +338,10 @@ public class CoreScreen extends Screen {
                 String clazz = collectionClass();
                 addRenderableWidget(Button.builder(gains, b -> send("dev:gains:" + clazz)).bounds(footerX, footerY, kw, 18).build());
                 footerX += kw + 4;
+                Component take = Component.translatable("nightsiege.ui.dev_crate");
+                int cw = Math.max(60, font.width(take) + 12);
+                addRenderableWidget(Button.builder(take, b -> send("dev:crate:" + clazz)).bounds(footerX, footerY, cw, 18).build());
+                footerX += cw + 4;
             }
         }
         if (stats.classResetAvailable && activeTab == ownTab()) {
@@ -2024,6 +2028,10 @@ public class CoreScreen extends Screen {
                 lines.add("§7" + part);
             }
         }
+        Component keyLine = KeyHints.line(com.mki.nightsiege.core.KeyHint.forGain(g.id()));
+        if (keyLine != null) {
+            lines.add("§b" + keyLine.getString());
+        }
         int stage = gainStage(collectionClass(), g.id());
         if (!g.ready()) {
             lines.add("§8" + Component.translatable("nightsiege.ui.collection_soon").getString());
@@ -2252,6 +2260,10 @@ public class CoreScreen extends Screen {
             for (String part : Language.getInstance().getOrDefault(descKey).split("\n")) {
                 lines.add("§7" + part);
             }
+        }
+        Component keyLine = KeyHints.line(com.mki.nightsiege.core.KeyHint.byName(node.key));
+        if (keyLine != null) {
+            lines.add("§b" + keyLine.getString());
         }
         lines.add(Component.translatable("nightsiege.ui.node_level", node.level, node.maxLevel).getString());
         if (node.level < node.maxLevel) {

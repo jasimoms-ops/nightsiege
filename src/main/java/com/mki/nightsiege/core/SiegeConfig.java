@@ -236,6 +236,11 @@ public class SiegeConfig {
     public double meleeLifesteal = 0.08;
     /** The most damage any player's skills can take away together (0.70 = at most -70 %). */
     public double maxDamageReduction = 0.70;
+    /**
+     * Playtest: every player gets the test buttons of the core window (+50 points, reset the
+     * class, reset the crate gains, take a crate) without creative mode. Off on normal servers.
+     */
+    public boolean testToolsForEveryone = false;
     /** Factor on the damage monsters deal to players (1.2 = +20 %, Simon 24 October 2026). */
     public double monsterDamage = 1.2;
     /** Per monster type (entity id), instead of monsterDamage: pillagers stay as they were. */

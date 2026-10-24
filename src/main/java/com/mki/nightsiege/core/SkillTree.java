@@ -845,11 +845,28 @@ public final class SkillTree {
     }
 
     /** The tier a player has a trap at, or 0 when it is not theirs to use. */
+    /**
+     * The chemistry subclasses bring a tower of their own (Simon, 24 October 2026): the
+     * alchemist a tesla coil, the demolition expert an arrow turret, at tier 1. True only
+     * while the trap's own node is not learned.
+     */
+    public boolean grantedTower(TrapKind kind, PlayerSkills skills) {
+        if (skills == null || skills.clazz() != SkillClass.ENGINEER || skills.levelOf(kind.id()) > 0) {
+            return false;
+        }
+        String sub = subclassOf(skills);
+        return kind == TrapKind.TESLA && SUB_ALCHEMIST.equals(sub)
+                || kind == TrapKind.TURRET && SUB_DEMOLITION.equals(sub);
+    }
+
     public int trapTier(TrapKind kind, PlayerSkills skills) {
         if (kind == null || skills == null || skills.clazz() != SkillClass.ENGINEER) {
             return 0;
         }
         int own = skills.levelOf(kind.id());
+        if (own <= 0 && grantedTower(kind, skills)) {
+            own = 1;
+        }
         String cross = CROSS_TRAPS.get(kind);
         if (cross != null && skills.levelOf(cross) > 0) {
             own = Math.max(own, 2);   // borrowed from the other way, at tier 2

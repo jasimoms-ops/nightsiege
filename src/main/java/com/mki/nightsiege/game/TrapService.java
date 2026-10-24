@@ -87,6 +87,9 @@ public final class TrapService {
     /** Base energy of the remote and what each order costs. */
     public static final double REMOTE_ENERGY = 100.0;
     public static final double COST_OVERCHARGE = 30.0;
+    /** Overcharging a tesla coil takes the whole remote, an arrow turret 70 % (shares of the maximum). */
+    public static final double OVERCHARGE_TESLA_SHARE = 1.0;
+    public static final double OVERCHARGE_TURRET_SHARE = 0.7;
     public static final double COST_MARK = 10.0;
     public static final double COST_DETONATE = 20.0;
     public static final double COST_RELOAD = 40.0;
@@ -285,6 +288,9 @@ public final class TrapService {
         for (TrapKind kind : TrapKind.values()) {
             int tier = tree.trapTier(kind, skills);
             int count = kind.freePerSiege(tier);
+            if (count == 0 && tier > 0 && tree.grantedTower(kind, skills)) {
+                count = 1;   // the alchemist's tesla coil comes at tier 1 too
+            }
             if (count > 0) {
                 count += (int) Math.round(tree.totalBonus(SkillEffect.FREE_TRAPS, skills));
                 // Only top up to the cap: placed traps and those in the pack both count.
@@ -718,7 +724,7 @@ public final class TrapService {
                     reload(level, trapPos, record, kind, player);
                     report(player, skills, "nightsiege.msg.remote_reloaded");
                 }
-            } else if (pay(player, skills, cost(skills, COST_OVERCHARGE))) {
+            } else if (pay(player, skills, overchargeCost(skills, kind))) {
                 boost(level, record, skills, now, 1.0);
                 if (tree.totalBonus(SkillEffect.NETWORK, skills) > 0) {
                     Vec3 c = Vec3.atCenterOf(trapPos);
@@ -877,6 +883,21 @@ public final class TrapService {
         return max;
     }
 
+    /**
+     * What overcharging this trap costs: a share of the full remote for the tesla coil and
+     * the arrow turret (field technician and fortress builder still count, never more than
+     * the remote holds), the old flat price for every other trap.
+     */
+    public double overchargeCost(PlayerSkills skills, TrapKind kind) {
+        double share = kind == TrapKind.TESLA ? OVERCHARGE_TESLA_SHARE
+                : kind == TrapKind.TURRET ? OVERCHARGE_TURRET_SHARE : 0.0;
+        if (share <= 0) {
+            return cost(skills, COST_OVERCHARGE);
+        }
+        double max = maxEnergy(skills);
+        return Math.min(max, cost(skills, share * max));
+    }
+
     private double cost(PlayerSkills skills, double base) {
         double scale = 1.0;
         if (SkillTree.has(skills, "e_fortress")) {
@@ -893,12 +914,12 @@ public final class TrapService {
         if (player.getAbilities().instabuild) {
             return true;
         }
-        if (have < cost) {
+        if (have + 1e-6 < cost) {
             actionBar(player, Component.translatable("nightsiege.msg.remote_low",
                     (int) Math.floor(have), (int) Math.ceil(cost)));
             return false;
         }
-        energy.put(player.getUUID(), have - cost);
+        energy.put(player.getUUID(), Math.max(0.0, have - cost));
         showEnergy(player);
         return true;
     }
@@ -1073,6 +1094,9 @@ public final class TrapService {
     /** Most traps of a kind: the fortress builder has one tower more, the field technician one fewer. */
     public int maxFor(TrapKind kind, int tier, PlayerSkills skills) {
         int max = kind.maxPlaced(tier);
+        if (tree.grantedTower(kind, skills) && tree.trapTier(kind, skills) <= 1) {
+            max = 1;   // the subclass's own tower: one of it
+        }
         SiegeManager m = SiegeManager.get();
         if (m != null && skills != null
                 && m.kits().gainLevel(skills, com.mki.nightsiege.core.SkillClass.ENGINEER, "ueberkapazitaet") > 0) {

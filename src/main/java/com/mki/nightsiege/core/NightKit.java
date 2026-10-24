@@ -62,6 +62,21 @@ public final class NightKit {
     }
 
     /** Quick charge of the crossbow: none at first, III from 20. */
+    /** Punch on the archer's kit bow from level 5. */
+    public static int bowPunch(int level) {
+        return level >= 5 ? 1 : 0;
+    }
+
+    /** Flame on the archer's kit bow from level 10. */
+    public static int bowFlame(int level) {
+        return level >= 10 ? 1 : 0;
+    }
+
+    /** Piercing on the kit crossbow: I from level 5, II from 10, III from 15. */
+    public static int crossbowPiercing(int level) {
+        return level >= 15 ? 3 : level >= 10 ? 2 : level >= 5 ? 1 : 0;
+    }
+
     public static int quickCharge(int level) {
         return level >= 20 ? 3 : level >= 13 ? 2 : level >= 7 ? 1 : 0;
     }

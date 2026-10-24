@@ -314,6 +314,8 @@ public final class KitService {
                 ItemStack bow = new ItemStack(weapon == NightKit.Material.INFERNITE ? gear("infernite_bow", Items.BOW) : Items.BOW);
                 enchant(bow, ench, Enchantments.POWER, NightKit.plusOne(NightKit.sharpness(level),
                         gainLevel(skills, clazz, "staerke"), 5));
+                enchant(bow, ench, Enchantments.PUNCH, NightKit.bowPunch(level));
+                enchant(bow, ench, Enchantments.FLAME, NightKit.bowFlame(level));
                 if (gainLevel(skills, clazz, "zielfernrohr") > 0) {
                     Gadgets.setFlag(bow, Gadgets.SCOPE);
                 }
@@ -326,6 +328,7 @@ public final class KitService {
                 if (quick > 0) {
                     enchant(xbow, ench, Enchantments.QUICK_CHARGE, quick);
                 }
+                enchant(xbow, ench, Enchantments.PIERCING, NightKit.crossbowPiercing(level));
                 if (gainLevel(skills, clazz, "zielfernrohr") > 0) {
                     Gadgets.setFlag(xbow, Gadgets.SCOPE);
                 }
@@ -349,8 +352,11 @@ public final class KitService {
         } else {
             // Engineer (and the fallback for a player without a class).
             hotbar.add(sword(ench, weapon, Math.max(1, sharp - 1)));
-            hotbar.add(new ItemStack(Items.BOW));
-            boolean mech = way.equals(SkillTree.WAY_MECHANICS);
+            ItemStack bow = new ItemStack(Items.BOW);
+            enchant(bow, ench, Enchantments.POWER, Math.max(1, NightKit.sharpness(level) - 1));
+            hotbar.add(bow);
+            // Turret arrows for everyone with an arrow turret (mechanics, demolition expert, cross talent).
+            boolean mech = way.equals(SkillTree.WAY_MECHANICS) || tree.trapTier(TrapKind.TURRET, skills) > 0;
             int arrows = NightKit.engineerArrows(level, mech) + (gainLevel(skills, clazz, "pfeilkiste") > 0 ? 32 : 0);
             hotbar.addAll(stacks(Items.ARROW, arrows));
         }

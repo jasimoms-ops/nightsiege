@@ -51,6 +51,8 @@ public class CoreStats {
         public List<String> locks = new ArrayList<>();
         /** The subclass this node belongs to, or empty for nodes shared by the way. */
         public String lane = "";
+        /** The key this skill needs ({@link KeyHint} name), or empty. */
+        public String key = "";
     }
 
     /** One perk of the main core. */

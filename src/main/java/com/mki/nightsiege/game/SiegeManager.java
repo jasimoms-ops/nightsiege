@@ -2547,7 +2547,7 @@ public final class SiegeManager {
 
     /** Creative shortcuts, so classes can be tried out without grinding. */
     private void onDevAction(ServerPlayer player, String argument) {
-        if (!player.getAbilities().instabuild) {
+        if (!player.getAbilities().instabuild && !config.testToolsForEveryone) {
             player.sendSystemMessage(Component.translatable("nightsiege.msg.creative_only")
                     .withStyle(ChatFormatting.RED));
             return;
@@ -2556,9 +2556,28 @@ public final class SiegeManager {
             devResetClass(player);
         } else if (argument.startsWith("gains")) {
             devResetGains(player, argument.length() > 6 ? argument.substring(6) : "");
+        } else if (argument.startsWith("crate")) {
+            devCrate(player, argument.length() > 6 ? argument.substring(6) : "");
         } else {
             devGrant(player, Math.max(1, parseAmount(argument)));
         }
+    }
+
+    /** Test tool: a reward crate of the shown class (or the own one), as after a won night. */
+    private void devCrate(ServerPlayer player, String className) {
+        PlayerSkills own = save.skillsOf(player.getUUID().toString());
+        com.mki.nightsiege.core.SkillClass clazz = com.mki.nightsiege.core.SkillClass.byName(className);
+        if (clazz == null || clazz.isShared()) {
+            clazz = own.clazz();
+        }
+        if (clazz == null) {
+            return;
+        }
+        ItemStack crate = CrateService.crate(clazz, com.mki.nightsiege.core.CrateKind.NORMAL, levelForKit());
+        if (!player.getInventory().add(crate)) {
+            player.drop(crate, false);
+        }
+        NightSiegeMod.LOGGER.info("[Night Siege] Test-Kiste für {}: {}", player.getScoreboardName(), clazz.name());
     }
 
     /** Creative: the crate gains of one class (or of every class) start over, for testing the crates. */
