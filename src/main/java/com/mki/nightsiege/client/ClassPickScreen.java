@@ -213,21 +213,33 @@ public class ClassPickScreen extends Screen {
         gui.fill(x + 1, y + 1, x + cardW - 1, y + cardH - 1, bg);
 
         SkillClass clazz = SkillClass.byName(entry.id);
-        // Icon box.
-        gui.fill(x + 5, y + 5, x + 27, y + 27, LINE);
-        gui.fill(x + 6, y + 6, x + 26, y + 26, BOX_DARK);
+        // Icon box top left, the badge top right (as in the design).
+        gui.fill(x + 5, y + 5, x + 31, y + 31, LINE);
+        gui.fill(x + 6, y + 6, x + 30, y + 30, BOX_DARK);
         if (entry.unlocked) {
-            gui.item(new ItemStack(item(icon(clazz))), x + 8, y + 8);
+            gui.pose().pushMatrix();
+            gui.pose().translate(x + 8, y + 8);
+            gui.pose().scale(1.25f, 1.25f);
+            gui.item(new ItemStack(item(icon(clazz))), 0, 0);
+            gui.pose().popMatrix();
         } else {
-            padlock(gui, x + 10, y + 9, 0xFF5A5468);
+            padlock(gui, x + 12, y + 10, 0xFF5A5468);
         }
-        String name = clazz == null ? entry.id : Component.translatable(clazz.translationKey()).getString();
-        int textX = x + 31;
-        int textW = x + cardW - 4 - textX;
-        gui.text(font, font.plainSubstrByWidth(name, textW), textX, y + 7, entry.unlocked ? WHITE : GREY, true);
-        badge(gui, font, entry, textX, y + 18);
+        badge(gui, font, entry, x + cardW - 5, y + 6, x + 34);
 
-        int ty = y + 31;
+        // The name, large, under the icon.
+        String name = clazz == null ? entry.id : Component.translatable(clazz.translationKey()).getString();
+        Component title = Component.literal(name).withStyle(net.minecraft.ChatFormatting.BOLD);
+        float nameScale = font.width(title) * 1.15f <= cardW - 10 ? 1.15f : 1.0f;
+        gui.pose().pushMatrix();
+        gui.pose().translate(x + 5, y + 35);
+        gui.pose().scale(nameScale, nameScale);
+        gui.text(font, font.width(title) * nameScale <= cardW - 10 ? title
+                : Component.literal(font.plainSubstrByWidth(name, (int) ((cardW - 10) / nameScale))), 0, 0,
+                entry.unlocked ? WHITE : GREY, true);
+        gui.pose().popMatrix();
+
+        int ty = y + 48;
         String way;
         if (!entry.unlocked) {
             way = Component.translatable("nightsiege.pick.noway").getString();
@@ -280,7 +292,8 @@ public class ClassPickScreen extends Screen {
         return Component.translatable("nightsiege.pick.desc_open", lev).getString();
     }
 
-    private void badge(GuiGraphicsExtractor gui, Font font, ClassPickData.Entry entry, int x, int y) {
+    /** The status badge, right-aligned at {@code right}, never further left than {@code minX}. */
+    private void badge(GuiGraphicsExtractor gui, Font font, ClassPickData.Entry entry, int right, int y, int minX) {
         String key;
         int fg;
         int bg;
@@ -302,9 +315,18 @@ public class ClassPickScreen extends Screen {
             bg = 0xFF162236;
         }
         String text = Component.translatable(key).getString();
-        int tw = (int) Math.ceil(font.width(text) * 0.7f);
-        gui.fill(x, y, x + tw + 6, y + 9, bg);
-        small(gui, font, text, x + 3, y + 2, fg, 0.7f);
+        float scale = 0.7f;
+        if (right - minX < font.width(text) * scale + 6) {
+            scale = 0.6f;
+        }
+        if (right - minX < font.width(text) * scale + 6) {
+            text = font.plainSubstrByWidth(text, (int) ((right - minX - 6) / scale));
+        }
+        int tw = (int) Math.ceil(font.width(text) * scale);
+        int x = right - tw - 6;
+        gui.fill(x, y, right, y + 10, bg);
+        gui.fill(x, y, right, y + 1, (fg & 0x00FFFFFF) | 0x60000000);
+        small(gui, font, text, x + 3, y + 3, fg, scale);
     }
 
     /** The kit of the chosen class: real items, counts and their tooltips. Returns the hovered one. */
@@ -329,17 +351,24 @@ public class ClassPickScreen extends Screen {
             small(gui, font, Component.translatable("nightsiege.pick.kit_none").getString(), x + 7, y + 22, GREY, 0.75f);
             return ItemStack.EMPTY;
         }
-        int slot = 20;
-        int gap = 3;
-        int perRow = Math.max(1, (x2 - x - 12 + gap) / (slot + gap));
+        // As in the design: the real items in slots, two short lines under each.
+        int slot = 22;
         int sx = x + 7;
         int sy = y + 19;
+        int width = x2 - x - 14;
+        int labelPitch = 44;
+        int rowsWithLabels = (y2 - 4 - sy + 2) / (slot + 18);
+        int perRowLabels = Math.max(1, (width + labelPitch - slot) / labelPitch);
+        boolean labels = rowsWithLabels * perRowLabels >= items.size();
+        int pitchX = labels ? Math.max(slot + 4, Math.min(labelPitch + 8, width / Math.max(1, Math.min(items.size(), perRowLabels)))) : slot + 3;
+        int pitchY = labels ? slot + 18 : slot + 3;
+        int perRow = labels ? perRowLabels : Math.max(1, (width + 3) / (slot + 3));
         ItemStack hovered = ItemStack.EMPTY;
         for (int i = 0; i < items.size(); i++) {
             int col = i % perRow;
             int row = i / perRow;
-            int px = sx + col * (slot + gap);
-            int py = sy + row * (slot + gap);
+            int px = sx + col * pitchX + (labels ? (pitchX - slot) / 2 : 0);
+            int py = sy + row * pitchY;
             if (py + slot > y2 - 4) {
                 break;
             }
@@ -347,8 +376,16 @@ public class ClassPickScreen extends Screen {
             gui.fill(px, py, px + slot, py + slot, over ? 0xFF6A5F80 : LINE);
             gui.fill(px + 1, py + 1, px + slot - 1, py + slot - 1, over ? 0xFF2A2338 : BOX);
             ItemStack stack = items.get(i);
-            gui.item(stack, px + 2, py + 2);
-            gui.itemDecorations(font, stack, px + 2, py + 2);
+            gui.item(stack, px + 3, py + 3);
+            gui.itemDecorations(font, stack, px + 3, py + 3);
+            if (labels) {
+                String[] lines = labelOf(stack);
+                for (int k = 0; k < lines.length; k++) {
+                    String t = font.plainSubstrByWidth(lines[k], (int) ((pitchX - 2) / 0.6f));
+                    int tw = (int) (font.width(t) * 0.6f);
+                    small(gui, font, t, px + slot / 2 - tw / 2, py + slot + 2 + k * 7, k == 0 ? LIGHT : GREY, 0.6f);
+                }
+            }
             if (over) {
                 hovered = stack;
             }
@@ -412,6 +449,28 @@ public class ClassPickScreen extends Screen {
     // ------------------------------------------------------------------
     // helpers
     // ------------------------------------------------------------------
+
+    /** Two short lines for a kit item: what it is ("Helm") and its main enchantment ("Schutz V"). */
+    private static String[] labelOf(ItemStack stack) {
+        String name;
+        net.minecraft.world.item.equipment.Equippable eq = stack.get(net.minecraft.core.component.DataComponents.EQUIPPABLE);
+        net.minecraft.world.entity.EquipmentSlot slot = eq == null ? null : eq.slot();
+        if (slot != null && slot.getType() == net.minecraft.world.entity.EquipmentSlot.Type.HUMANOID_ARMOR) {
+            name = Component.translatable("nightsiege.pick.short." + slot.getName()).getString();
+        } else {
+            name = stack.getHoverName().getString();
+        }
+        String second = "";
+        net.minecraft.world.item.enchantment.ItemEnchantments ench = stack.get(net.minecraft.core.component.DataComponents.ENCHANTMENTS);
+        if (ench != null && !ench.isEmpty()) {
+            var first = ench.keySet().iterator().next();
+            second = net.minecraft.world.item.enchantment.Enchantment.getFullname(first, ench.getLevel(first)).getString();
+            if (ench.size() > 1) {
+                second += " +" + (ench.size() - 1);
+            }
+        }
+        return second.isEmpty() ? new String[]{name} : new String[]{name, second};
+    }
 
     private static void small(GuiGraphicsExtractor gui, Font font, String text, int x, int y, int color, float scale) {
         gui.pose().pushMatrix();
