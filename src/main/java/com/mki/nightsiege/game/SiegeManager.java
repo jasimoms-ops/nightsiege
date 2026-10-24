@@ -201,6 +201,8 @@ public final class SiegeManager {
             entity -> this.eliteId != null && this.eliteId.equals(entity.getUUID()), archer, traps);
     private final Digger digger = new Digger();
     private final LadderClimb ladders = new LadderClimb();
+    /** Ladder carriers and sapper creepers. */
+    private final Besiegers besiegers = new Besiegers();
     private final DungeonService dungeons = new DungeonService(() -> save, () -> config);
     private final PerkService perks = new PerkService(() -> save, () -> config);
     private final BaseDefense defense = new BaseDefense();
@@ -1176,6 +1178,7 @@ public final class SiegeManager {
         liveMobs.clear();
         digger.reset();
         ladders.reset();
+        besiegers.reset();
         for (ServerPlayer player : nearby) {
             participants.add(player.getUUID());
         }
@@ -1404,6 +1407,7 @@ public final class SiegeManager {
 
         if (world.getGameTime() % 2 == 0) {
             ladders.tick(world, liveMobs, anchor, world.getGameTime());
+            besiegers.tick(world, liveMobs, anchor, world.getGameTime());
         }
 
         digAccumulator++;
@@ -1523,12 +1527,13 @@ public final class SiegeManager {
             Fx.waveIncoming(server, config, participants);
         }
         int spawned = 0;
+        List<Mob> wave = new ArrayList<>();
         for (int i = 0; i < count; i++) {
             String entityId = themeMobId != null
                     ? themeMobId
                     : pool.pick(siegeLevel, random, unavailableMobs);
             if (entityId == null) {
-                return;
+                break;
             }
             entityId = config.withoutEffects(events.substitute(currentEvent, entityId, config), siegeLevel, random);
             BlockPos rift = events.riftForLast();
@@ -1554,9 +1559,13 @@ public final class SiegeManager {
                 if (currentEvent == SiegeEvent.BLOOD_MOON && config.bloodMoonGlow) {
                     SiegeTeams.mark(server, mob, SiegeTeams.BLOOD_MOON, TeamColor.DARK_RED);
                 }
+                wave.add(mob);
                 spawned++;
             }
         }
+        // Some of them carry ladders; a sapper creeper may come along (it does not count for the kill goal).
+        besiegers.afterWave(world, anchor, defense.base(), wave, siegeLevel, config, random, currentEvent,
+                sapper -> liveMobs.add(sapper.getUUID()));
     }
 
     private void aimAtDefender(MinecraftServer server, Mob mob) {
@@ -1717,6 +1726,7 @@ public final class SiegeManager {
         clearRemainingMobs();
         digger.reset();
         ladders.reset();
+        besiegers.reset();
         mendBase(server);
         endKits(server);
 
@@ -1814,6 +1824,7 @@ public final class SiegeManager {
         clearRemainingMobs();
         digger.reset();
         ladders.reset();
+        besiegers.reset();
         mendBase(server);
         endKits(server);
         logNight("abgebrochen", 0, killsRequired());
@@ -2793,6 +2804,11 @@ public final class SiegeManager {
         openCoreWindow(player);
     }
 
+    /** Holes the sapper creepers blew tonight (for the test). */
+    public int besiegerBreaches() {
+        return besiegers.breaches();
+    }
+
     /** Defenders who still have the class window of tonight open. */
     private final Set<UUID> classPicking = new HashSet<>();
 
@@ -2927,6 +2943,9 @@ public final class SiegeManager {
     public static boolean mayTarget(Mob mob, LivingEntity target) {
         if (!GainGear.mayTarget(mob, target)) {
             return false;
+        }
+        if (Besiegers.busy(mob)) {
+            return false;   // a ladder carrier or sapper at its job picks no fights
         }
         return !(target instanceof net.minecraft.world.entity.player.Player player) || INSTANCE.mayFight(mob, player);
     }

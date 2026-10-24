@@ -66,6 +66,7 @@ public class EventLookTest implements FabricClientGameTest {
                 ladderTargetScene(context, game, false);
                 ladderTargetScene(context, game, true);
                 towerScene(context, game);
+                besiegerScene(context, game);
                 versionBScene(context, game);
                 versionB2Scene(context, game);
                 return;
@@ -728,6 +729,83 @@ public class EventLookTest implements FabricClientGameTest {
             }
         });
         context.waitTicks(5);
+    }
+
+    /**
+     * A closed yard in a test night (level 6): every zombie carries a ladder, sapper creepers come
+     * from the start. Logs ladders built and holes blown (at most one per side).
+     */
+    private static void besiegerScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        int cx = pos.getX() - 120;
+        int cz = pos.getZ() + 120;
+        int cy = context.computeOnClient(client -> client.level.getHeight(
+                net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, cx, cz));
+        int r = 10;
+        int out = 38;
+        game.getServer().runCommand("time set 13000");
+        for (int part = -out; part <= out; part += 19) {
+            int z1 = cz + part;
+            int z2 = Math.min(cz + out, z1 + 18);
+            game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:grass_block".formatted(cx - out, cy - 1, z1, cx + out, cy - 1, z2));
+            game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(cx - out, cy, z1, cx + out, cy + 9, z2));
+        }
+        String wall = "fill %d %d %d %d %d %d minecraft:stone_bricks";
+        game.getServer().runCommand(wall.formatted(cx - r, cy, cz - r, cx + r, cy + 4, cz - r));
+        game.getServer().runCommand(wall.formatted(cx - r, cy, cz + r, cx + r, cy + 4, cz + r));
+        game.getServer().runCommand(wall.formatted(cx - r, cy, cz - r, cx - r, cy + 4, cz + r));
+        game.getServer().runCommand(wall.formatted(cx + r, cy, cz - r, cx + r, cy + 4, cz + r));
+        game.getServer().runCommand("tp @p %d.5 %d %d.5 0 -5".formatted(cx, cy, cz - 4));
+        context.waitTicks(20);
+        final double[] before = new double[2];
+        final int[] beforeInt = new int[2];
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            before[0] = manager.config().ladderCarrierShare;
+            beforeInt[0] = manager.config().sapperFromLevel;
+            beforeInt[1] = manager.config().batchIntervalSeconds;
+            manager.config().ladderCarrierShare = 1.0;
+            manager.config().sapperFromLevel = 1;
+            manager.config().batchIntervalSeconds = 12;
+            manager.config().testPrepSeconds = 2;
+            boolean ok = manager.prepareTest(level.getServer(), level, new BlockPos(cx, cy, cz), 6,
+                    com.mki.nightsiege.core.SiegeEvent.NONE);
+            System.out.println("[Night Siege test] besiegers prep ok=" + ok);
+        });
+        for (int i = 0; i < 45; i++) {
+            final int step = i;
+            context.waitTicks(20);
+            onServer(context, (player, manager) -> {
+                net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                int ladders = com.mki.nightsiege.game.TempBlocks.all(level, net.minecraft.world.level.block.Blocks.LADDER).size();
+                int carriers = 0;
+                int sappers = 0;
+                for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                    if (e.entityTags().contains(com.mki.nightsiege.game.Besiegers.CARRIER)) {
+                        carriers++;
+                    }
+                    if (e.entityTags().contains(com.mki.nightsiege.game.Besiegers.SAPPER)) {
+                        sappers++;
+                    }
+                }
+                if (step % 5 == 4) {
+                    System.out.println("[Night Siege test] besiegers t=" + (step + 1) + "s active=" + manager.isActive()
+                            + " ladders=" + ladders + " carriers=" + carriers + " sappers=" + sappers
+                            + " holes=" + manager.besiegerBreaches());
+                }
+            });
+            if (i == 20 || i == 40) {
+                context.takeScreenshot("besiegers_" + i);
+            }
+        }
+        onServer(context, (player, manager) -> {
+            manager.abort(player.level().getServer());
+            manager.config().ladderCarrierShare = before[0];
+            manager.config().sapperFromLevel = beforeInt[0];
+            manager.config().batchIntervalSeconds = beforeInt[1];
+        });
+        game.getServer().runCommand("time set 6000");
+        context.waitTicks(10);
     }
 
     /**

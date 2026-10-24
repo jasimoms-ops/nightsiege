@@ -246,6 +246,10 @@ public class SiegeConfig {
      * class, reset the crate gains, take a crate) without creative mode. Off on normal servers.
      */
     public boolean testToolsForEveryone = false;
+    /** Share of every wave (taken from its zombies) that carry ladders and build one up the wall. 0 = off. */
+    public double ladderCarrierShare = 0.07;
+    /** From this level one sapper creeper per wave blows a 3x3 hole into the wall, at most one per side and night. 0 = off. */
+    public int sapperFromLevel = 5;
     /** Factor on the damage monsters deal to players (1.2 = +20 %, Simon 24 October 2026). */
     public double monsterDamage = 1.2;
     /** Per monster type (entity id), instead of monsterDamage: pillagers stay as they were. */
@@ -638,6 +642,11 @@ public class SiegeConfig {
             maxDamageReduction = 0.70;
         }
         maxDamageReduction = Math.min(0.95, Math.max(0.1, maxDamageReduction));
+        if (Double.isNaN(ladderCarrierShare)) {
+            ladderCarrierShare = 0.07;
+        }
+        ladderCarrierShare = Math.min(1.0, Math.max(0.0, ladderCarrierShare));
+        sapperFromLevel = Math.max(0, sapperFromLevel);
         if (Double.isNaN(monsterDamage)) {
             monsterDamage = 1.2;
         }
