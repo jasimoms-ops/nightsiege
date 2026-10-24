@@ -158,7 +158,7 @@ public final class CrateEffects {
     /** Eagle feather: the archer's arrows fly twice as fast and straight. */
     public static void onArrow(Entity entity) {
         if (!(entity instanceof AbstractArrow arrow) || !(arrow.getOwner() instanceof ServerPlayer player)
-                || arrow.entityTags().contains("nightsiege_arrow") || !has(player, "adlerfeder")) {
+                || arrow.entityTags().contains("nightsiege_turret") || !has(player, "adlerfeder")) {
             return;
         }
         arrow.setNoGravity(true);

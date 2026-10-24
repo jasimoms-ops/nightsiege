@@ -559,7 +559,7 @@ public final class GainGear {
     /** An arrow came into the world: special arrows get their tag, homing arrows start steering. */
     public static void onArrowLoad(Entity entity) {
         if (!(entity instanceof AbstractArrow arrow) || !(arrow.getOwner() instanceof ServerPlayer player)
-                || arrow.entityTags().contains("nightsiege_arrow")) {
+                || arrow.entityTags().contains("nightsiege_turret")) {
             return;
         }
         String kind = Gadgets.arrowKind(arrow.getPickupItemStackOrigin());

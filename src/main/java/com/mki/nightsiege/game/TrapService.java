@@ -492,6 +492,7 @@ public final class TrapService {
         }
         Arrow arrow = new Arrow(level, muzzle.x, muzzle.y, muzzle.z, new ItemStack(Items.ARROW), null);
         arrow.entityTags().add("nightsiege_arrow");   // keeps the archer skills off it
+        arrow.entityTags().add("nightsiege_turret");  // and the crate gains (the archer tag is on every arrow)
         arrow.pickup = AbstractArrow.Pickup.DISALLOWED;
         arrow.setBaseDamage(TrapKind.TURRET.damage(tier) * power(record, now) * piercing(record, now));
         if (bonus(record, SkillEffect.CHARGED_ARROWS) > 0) {
