@@ -134,7 +134,9 @@ public class EventLookTest implements FabricClientGameTest {
     /** The event monsters up close, so their textures, clothes and eyes can be checked. */
     private static void mobLineup(ClientGameTestContext context, TestSingleplayerContext game) {
         BlockPos home = context.computeOnClient(client -> client.player.blockPosition());
-        // At night (undead burn by day), seen with night vision so the textures show.
+        // At night (undead burn by day), seen with night vision so the textures show; no command echo in the chat.
+        game.getServer().runCommand("gamerule log_admin_commands false");
+        game.getServer().runCommand("gamerule send_command_feedback false");
         game.getServer().runCommand("time set 18000");
         game.getServer().runCommand("effect give @a minecraft:night_vision 600 0 true");
         game.getServer().runCommand("tp @a %d.5 %d %d.5 -90 6".formatted(home.getX() + 2, home.getY(), home.getZ()));
@@ -157,7 +159,7 @@ public class EventLookTest implements FabricClientGameTest {
             context.runOnClient(client -> EventAtmosphere.setClient(event, 1));
             context.waitTicks(30);
             context.takeScreenshot("mobs_" + event.toLowerCase(Locale.ROOT));
-            game.getServer().runCommand("tp @a %d.5 %d %d.5 -90 8".formatted(home.getX() + 1, home.getY(), vz));
+            game.getServer().runCommand("tp @a %d.5 %d %d.5 -90 8".formatted(home.getX() + 3, home.getY(), vz));
             context.waitTicks(10);
             context.takeScreenshot("mobs2_" + event.toLowerCase(Locale.ROOT));
             // Without night vision: what glows in the dark.
@@ -170,6 +172,8 @@ public class EventLookTest implements FabricClientGameTest {
         }
         game.getServer().runCommand("kill @e[type=!player,x=%d,y=%d,z=%d,distance=..12]".formatted(home.getX() + 8, home.getY(), vz));
         game.getServer().runCommand("effect clear @a minecraft:night_vision");
+        game.getServer().runCommand("gamerule log_admin_commands true");
+        game.getServer().runCommand("gamerule send_command_feedback true");
         game.getServer().runCommand("tp @a %d.5 %d %d.5 -90 -12".formatted(home.getX(), home.getY(), home.getZ()));
         game.getServer().runCommand("time set 14600");
         context.waitTicks(20);
