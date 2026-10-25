@@ -11,47 +11,70 @@ import java.util.Map;
  * creepers and spiders wear its textures (and their overlays and the spider's eyes take its
  * colours), zombies and skeletons also its clothes: blood-cursed at the blood moon, shadow
  * walkers in the eclipse, fog ghosts, storm-charged, charred at a rift, ice-bound in the
- * frost night. The eyes and the event's details glow (the "_e" files). The 3D gear on top
- * comes from {@link EventGear}.
+ * frost night. The eyes and the event's details glow (the "_glow" files, drawn by
+ * {@link EventGear.Glow} so they shine with or without Entity Texture Features). The 3D gear
+ * on top comes from {@link EventGear}. Which textures each event changes is written by the
+ * generator into {@link EventGearShapes#TEXTURES}.
  */
 public final class EventTextures {
 
-    private static final String[][] MOBS = {
-            {"textures/entity/zombie/zombie.png", "zombie"},
-            {"textures/entity/zombie/zombie_baby.png", "zombie_baby"},
-            {"textures/entity/zombie/husk.png", "husk"},
-            {"textures/entity/zombie/husk_baby.png", "husk_baby"},
-            {"textures/entity/zombie/drowned.png", "drowned"},
-            {"textures/entity/zombie/drowned_baby.png", "drowned_baby"},
-            {"textures/entity/zombie/drowned_outer_layer.png", "drowned_outer_layer"},
-            {"textures/entity/zombie/drowned_outer_layer_baby.png", "drowned_outer_layer_baby"},
-            {"textures/entity/skeleton/skeleton.png", "skeleton"},
-            {"textures/entity/skeleton/stray.png", "stray"},
-            {"textures/entity/skeleton/stray_overlay.png", "stray_overlay"},
-            {"textures/entity/skeleton/bogged.png", "bogged"},
-            {"textures/entity/skeleton/bogged_overlay.png", "bogged_overlay"},
-            {"textures/entity/skeleton/parched.png", "parched"},
-            {"textures/entity/skeleton/wither_skeleton.png", "wither_skeleton"},
-            {"textures/entity/creeper/creeper.png", "creeper"},
-            {"textures/entity/spider/spider.png", "spider"},
-            {"textures/entity/spider/cave_spider.png", "cave_spider"},
-            {"textures/entity/spider/spider_eyes.png", "spider_eyes"},
-    };
     private static final String[] EVENTS = {
             EventAtmosphere.ECLIPSE, EventAtmosphere.FROST, EventAtmosphere.NETHER_RIFT,
             EventAtmosphere.THUNDER, EventAtmosphere.FOG, EventAtmosphere.BLOOD_MOON,
     };
     private static final Map<String, Map<Identifier, Identifier>> SWAPS = new HashMap<>();
+    /** Our event texture → its glow map, where there is one. */
+    private static final Map<Identifier, Identifier> GLOWS = new HashMap<>();
 
     static {
         for (String event : EVENTS) {
             Map<Identifier, Identifier> map = new HashMap<>();
             String folder = event.toLowerCase(java.util.Locale.ROOT);
-            for (String[] mob : MOBS) {
-                map.put(Identifier.withDefaultNamespace(mob[0]), texture(folder, mob[1]));
+            for (String entry : EventGearShapes.TEXTURES.getOrDefault(folder, java.util.List.of())) {
+                int eq = entry.indexOf('=');
+                String name = entry.substring(eq + 1);
+                Identifier ours = texture(folder, name);
+                map.put(Identifier.withDefaultNamespace("textures/entity/" + entry.substring(0, eq)), ours);
+                if (EventGearShapes.GLOWS.contains(folder + "/" + name)) {
+                    GLOWS.put(ours, texture(folder, name + "_glow"));
+                }
             }
             SWAPS.put(event, map);
         }
+    }
+
+    /** Monsters of other mods that wear the event's tint and gear (their textures stay theirs). */
+    private static final java.util.Set<String> MOD_NAMESPACES = java.util.Set.of("variantsandventures", "takesapillage", "friendsandfoes");
+
+    /** True for a monster of one of the mods whose monsters join the event look. */
+    public static boolean fromEventMod(net.minecraft.world.entity.EntityType<?> type) {
+        if (type == null) {
+            return false;
+        }
+        net.minecraft.resources.Identifier key = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(type);
+        return key != null && MOD_NAMESPACES.contains(key.getNamespace());
+    }
+
+    /** The glow map of one of our event textures, or null. */
+    public static Identifier glowOf(Identifier eventTexture) {
+        return GLOWS.get(eventTexture);
+    }
+
+    /** A colour the mod monsters are tinted with in the event shown now (ARGB), or -1. */
+    public static int modTint() {
+        String event = shownEvent();
+        if (event == null) {
+            return -1;
+        }
+        return switch (event) {
+            case "blood_moon" -> 0xFFD08C88;
+            case "eclipse" -> 0xFF8A7AA8;
+            case "fog" -> 0xFFC4CCC8;
+            case "thunder" -> 0xFF98A8C4;
+            case "nether_rift" -> 0xFFB07858;
+            case "frost" -> 0xFFB4D2F0;
+            default -> -1;
+        };
     }
 
     private EventTextures() {

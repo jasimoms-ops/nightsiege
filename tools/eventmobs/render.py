@@ -94,13 +94,17 @@ def mob_scene(family, skin, skin_glow=None, outer=None, gear=(), gear_tex=None, 
     fam = FAMILIES[family]
     sc = Scene()
     parts = {}
-    for name, (pivot, rot, cubes) in fam['bones'].items():
+    for name, spec in fam['bones'].items():
+        pivot, rot, cubes = spec[:3]
+        parent = parts[spec[3]] if len(spec) > 3 else Xf()
         r = fam['pose'].get(name, rot)
-        parts[name] = Xf().then(pivot, r)
-    parts['hat'] = parts.get('head')
-    for name, (pivot, rot, cubes) in fam['bones'].items():
-        for pos, size, uv, mir in cubes:
-            sc.cube(skin, skin_glow, parts[name], pos, size, uv, 0.0, mir)
+        parts[name] = parent.then(pivot, r)
+    parts.setdefault('hat', parts.get('head'))
+    for name, spec in fam['bones'].items():
+        for cube in spec[2]:
+            pos, size, uv, mir = cube[:4]
+            grow = cube[4] if len(cube) > 4 else 0.0
+            sc.cube(skin, skin_glow, parts[name], pos, size, uv, grow, mir)
     if outer is not None:
         for name, cubes in OUTER.get(family, {}).items():
             for pos, size, uv, grow in cubes:

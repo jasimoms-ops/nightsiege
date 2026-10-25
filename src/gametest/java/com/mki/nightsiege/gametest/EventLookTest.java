@@ -151,6 +151,21 @@ public class EventLookTest implements FabricClientGameTest {
             game.getServer().runCommand("summon minecraft:%s %d %d %d {NoAI:1b,PersistenceRequired:1b,Invulnerable:1b,Rotation:[90f,0f]}"
                     .formatted(more[i], home.getX() + 8, home.getY(), vz - 6 + i * 2));
         }
+        // Illagers, the witch, ravager and breeze; and the rift's nether monsters and the eclipse's phantom.
+        String[] third = {"pillager", "vindicator", "evoker", "witch", "ravager", "breeze"};
+        String[] fourth = {"blaze", "piglin_brute", "zombified_piglin", "hoglin", "magma_cube", "phantom"};
+        int[] rows = {home.getZ() + 34, home.getZ() + 52};
+        String[][] rowMobs = {third, fourth};
+        for (int r = 0; r < 2; r++) {
+            game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:grass_block"
+                    .formatted(home.getX() + 4, home.getY() - 1, rows[r] - 9, home.getX() + 12, home.getY() - 1, rows[r] + 9));
+            game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air"
+                    .formatted(home.getX() + 4, home.getY(), rows[r] - 9, home.getX() + 12, home.getY() + 5, rows[r] + 9));
+            for (int i = 0; i < rowMobs[r].length; i++) {
+                game.getServer().runCommand("summon minecraft:%s %d %d %d {NoAI:1b,PersistenceRequired:1b,Invulnerable:1b,Rotation:[90f,0f],Size:1}"
+                        .formatted(rowMobs[r][i], home.getX() + 9, home.getY() + (rowMobs[r][i].equals("phantom") ? 1 : 0), rows[r] - 7 + i * 3));
+            }
+        }
         context.waitTicks(20);
         for (String event : EVENTS) {
             if (EventAtmosphere.AURORA.equals(event)) {
@@ -167,8 +182,19 @@ public class EventLookTest implements FabricClientGameTest {
             context.waitTicks(10);
             context.takeScreenshot("mobs2_" + event.toLowerCase(Locale.ROOT) + "_dark");
             game.getServer().runCommand("effect give @a minecraft:night_vision 600 0 true");
+            game.getServer().runCommand("tp @a %d.5 %d %d.5 -90 8".formatted(home.getX() + 2, home.getY(), rows[0]));
+            context.waitTicks(10);
+            context.takeScreenshot("mobs3_" + event.toLowerCase(Locale.ROOT));
+            if (EventAtmosphere.NETHER_RIFT.equals(event) || EventAtmosphere.ECLIPSE.equals(event)) {
+                game.getServer().runCommand("tp @a %d.5 %d %d.5 -90 8".formatted(home.getX() + 2, home.getY(), rows[1]));
+                context.waitTicks(10);
+                context.takeScreenshot("mobs4_" + event.toLowerCase(Locale.ROOT));
+            }
             game.getServer().runCommand("tp @a %d.5 %d %d.5 -90 6".formatted(home.getX() + 2, home.getY(), home.getZ()));
             context.waitTicks(5);
+        }
+        for (int z : rows) {
+            game.getServer().runCommand("kill @e[type=!player,x=%d,y=%d,z=%d,distance=..14]".formatted(home.getX() + 9, home.getY(), z));
         }
         game.getServer().runCommand("kill @e[type=!player,x=%d,y=%d,z=%d,distance=..12]".formatted(home.getX() + 8, home.getY(), vz));
         game.getServer().runCommand("effect clear @a minecraft:night_vision");

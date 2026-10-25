@@ -52,7 +52,8 @@ EVENTS = {
 
 # Where the eyes sit (from the old glow maps; they stay the same).
 EYES = {'humanoid': [(9, 12), (10, 12), (13, 12), (14, 12)], 'skeleton': [(9, 12), (10, 12), (13, 12), (14, 12)],
-        'creeper': [(9, 10), (10, 10), (13, 10), (14, 10), (9, 11), (10, 11), (13, 11), (14, 11)]}
+        'creeper': [(9, 10), (10, 10), (13, 10), (14, 10), (9, 11), (10, 11), (13, 11), (14, 11)],
+        'illager': [(9, 14), (10, 14), (13, 14), (14, 14)], 'witch': [(9, 14), (10, 14), (13, 14), (14, 14)]}
 
 
 def hsv(c):
@@ -116,6 +117,24 @@ def classify(mob):
             return 'dark'
         return 'bone'
 
+    def upright(x, y, c):
+        """Illagers and the witch: head and hands are skin, the legs trousers, the rest clothes."""
+        h, s_, v = hsv(c)
+        if mob == 'witch' and y >= 64:
+            return 'pants'   # the hat
+        near = dist(c, SKIN_REF[0]) < 38
+        if (x < 32 and y < 18) or (24 <= x < 32 and y < 6):
+            return 'dark' if v < 0.25 else 'skin'
+        if near:
+            return 'skin'
+        if x < 16 and 22 <= y < 38:
+            return 'pants'
+        return 'cloth'
+
+    if mob in ('pillager', 'vindicator', 'evoker', 'illusioner', 'witch'):
+        return upright
+    if mob in WHOLE:
+        return lambda x, y, c: 'dark' if hsv(c)[2] < 0.08 else 'beast'
     if mob.startswith('zombie'):
         return zombie
     if mob.startswith('husk'):
@@ -131,10 +150,23 @@ def classify(mob):
     raise KeyError(mob)
 
 
+WHOLE = ('ravager', 'breeze', 'breeze_wind', 'phantom', 'blaze', 'piglin_brute', 'zombified_piglin', 'zombified_piglin_baby',
+         'magmacube', 'hoglin', 'hoglin_baby', 'camel_husk')
+SKIN_REF = [(149, 155, 155)]
+
+
+def dist(a, b):
+    return sum((a[k] - b[k]) ** 2 for k in range(3)) ** 0.5
+
+
 def recolor(img, mob, ev):
-    pal = EVENTS[ev]
+    pal = dict(EVENTS[ev])
+    pal['beast'] = pal['creeper']
     cls = classify(mob)
     px = img.load()
+    if mob in ('pillager', 'vindicator', 'evoker', 'illusioner', 'witch'):
+        cs = sorted(px[x, y][:3] for x in range(9, 15) for y in range(9, 12) if px[x, y][3] > 0)
+        SKIN_REF[0] = cs[len(cs) // 2]
     seen = {}
     for y in range(img.height):
         for x in range(img.width):
@@ -153,8 +185,8 @@ def recolor(img, mob, ev):
                 continue
             k = cls(x, y, c)
             if k == 'dark':
-                base = pal['skin' if mob.startswith(('zombie', 'husk', 'drowned')) else
-                           'creeper' if mob == 'creeper' else 'bone']
+                base = pal['skin' if mob.startswith(('zombie', 'husk', 'drowned')) or mob in ('pillager', 'vindicator', 'evoker',
+                           'illusioner', 'witch') else 'creeper' if mob in ('creeper',) + WHOLE else 'bone']
                 op[x, y] = mul(base[0][1], 0.5) + (c[3],)
                 continue
             lo, hi = ranges[k]
@@ -183,6 +215,12 @@ def faces_of(family):
         f['leg'] = rects(0, 16, 2, 12, 2)
     if family == 'creeper':
         f['leg'] = rects(0, 16, 4, 6, 4)
+    if family in ('illager', 'witch'):
+        f['head'] = rects(0, 0, 8, 10, 8)
+        f['body'] = rects(16, 20, 8, 12, 6)
+        f['robe'] = rects(0, 38, 8, 20, 6)
+        f['leg'] = rects(0, 22, 4, 12, 4)
+        f['arm'] = rects(44, 22, 4, 8, 4)
     if family == 'spider':
         f['head'] = rects(32, 4, 8, 8, 8)
         f['neck'] = rects(0, 0, 6, 6, 6)
@@ -268,6 +306,20 @@ class Painter:
                     if self.rng.random() < chance:
                         self.put(x, v + (row if row >= 0 else h + row), col, glow, k)
 
+    def anywhere(self, count, length, col, glow=None, k=1.0, dirs=((0, 1), (1, 0), (-1, 0), (1, 1), (-1, 1), (0, -1))):
+        """Lines anywhere on the texture (for models whose layout is not known here)."""
+        opaque = [(x, y) for y in range(self.img.height) for x in range(self.img.width) if self.px[x, y][3] > 0]
+        if not opaque:
+            return
+        for _ in range(count):
+            x, y = self.rng.choice(opaque)
+            for _ in range(length):
+                if not self.ok(x, y):
+                    break
+                self.put(x, y, col, glow, k)
+                dx, dy = self.rng.choice(dirs)
+                x, y = x + dx, y + dy
+
     def eyes(self):
         for x, y in EYES.get(self.family, []):
             if 0 <= x < self.img.width and self.px[x, y][3] > 0:
@@ -282,7 +334,7 @@ def details(img, family, ev, seed=1, baby=False):
     glow = Image.new('RGBA', img.size, (0, 0, 0, 0))
     p = Painter(img, glow, family, ev, seed)
     pal = EVENTS[ev]
-    if not baby and family != 'spider':
+    if not baby and family not in ('spider', 'whole'):
         if ev == 'blood_moon':
             p.lines(['head', 'arm', 'body'], SIDES, 1, 7, hexc('7a0a10'), glow=hexc('6a0a10'), k=0.85)
             p.lines(['leg'], ('front', 'back'), 1, 5, hexc('5e0a0e'), k=0.7)
@@ -324,6 +376,21 @@ def details(img, family, ev, seed=1, baby=False):
             p.edge(['head', 'body', 'arm'], SIDES, 0, pal['detail'], chance=0.7)
             p.lines(['head', 'body', 'arm', 'leg'], SIDES, 1, 6, hexc('a8deff'), glow=hexc('3f8fcf'), k=0.9)
             p.spots(['body', 'leg', 'arm'], SIDES, 3, hexc('f2fbff'), k=0.8)
+    if family == 'whole':
+        n = max(4, img.width * img.height // 260)
+        if ev == 'blood_moon':
+            p.anywhere(n, 6, hexc('7a0a10'), glow=hexc('6a0a10'), k=0.85)
+        elif ev == 'eclipse':
+            p.anywhere(n // 2, 3, pal['detail'], glow=pal['glow'])
+        elif ev == 'fog':
+            p.anywhere(n, 3, pal['detail'], k=0.8)
+        elif ev == 'thunder':
+            p.anywhere(n // 2, 6, pal['detail'], glow=pal['glow'], dirs=((1, 1), (-1, 1), (0, 1)))
+        elif ev == 'nether_rift':
+            p.anywhere(n, 7, hexc('ff8a1f'), glow=hexc('e8620e'))
+        elif ev == 'frost':
+            p.anywhere(n // 2, 5, hexc('a8deff'), glow=hexc('3f8fcf'), k=0.9)
+            p.anywhere(n, 1, hexc('f2fbff'), k=0.8)
     if family == 'spider':
         if ev == 'blood_moon':
             rect = p.faces['body']['top']

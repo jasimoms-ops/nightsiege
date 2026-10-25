@@ -184,47 +184,57 @@ public class NightSiegeClient implements ClientModInitializer {
         });
     }
 
-    /** Clothes and gear layers of the event monsters (zombie and skeleton families, creepers, spiders). */
+    /** The vanilla monsters with an event look (texture, glow, and gear where the model allows). */
+    private static final java.util.Set<net.minecraft.world.entity.EntityType<?>> EVENT_MOBS = java.util.Set.of(
+            net.minecraft.world.entity.EntityTypes.ZOMBIE, net.minecraft.world.entity.EntityTypes.HUSK,
+            net.minecraft.world.entity.EntityTypes.DROWNED, net.minecraft.world.entity.EntityTypes.SKELETON,
+            net.minecraft.world.entity.EntityTypes.STRAY, net.minecraft.world.entity.EntityTypes.BOGGED,
+            net.minecraft.world.entity.EntityTypes.PARCHED, net.minecraft.world.entity.EntityTypes.WITHER_SKELETON,
+            net.minecraft.world.entity.EntityTypes.CREEPER, net.minecraft.world.entity.EntityTypes.SPIDER,
+            net.minecraft.world.entity.EntityTypes.CAVE_SPIDER, net.minecraft.world.entity.EntityTypes.PILLAGER,
+            net.minecraft.world.entity.EntityTypes.VINDICATOR, net.minecraft.world.entity.EntityTypes.EVOKER,
+            net.minecraft.world.entity.EntityTypes.ILLUSIONER, net.minecraft.world.entity.EntityTypes.WITCH,
+            net.minecraft.world.entity.EntityTypes.RAVAGER, net.minecraft.world.entity.EntityTypes.BREEZE,
+            net.minecraft.world.entity.EntityTypes.PHANTOM, net.minecraft.world.entity.EntityTypes.BLAZE,
+            net.minecraft.world.entity.EntityTypes.PIGLIN_BRUTE, net.minecraft.world.entity.EntityTypes.ZOMBIFIED_PIGLIN,
+            net.minecraft.world.entity.EntityTypes.MAGMA_CUBE, net.minecraft.world.entity.EntityTypes.HOGLIN,
+            net.minecraft.world.entity.EntityTypes.CAMEL_HUSK);
+
+    /** True for every monster that takes part in the event looks (for the particle aura too). */
+    public static boolean eventMob(net.minecraft.world.entity.EntityType<?> type) {
+        return EVENT_MOBS.contains(type) || EventTextures.fromEventMod(type);
+    }
+
+    /** Clothes, glow and gear layers of the event monsters. */
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static void eventLayers(net.minecraft.world.entity.EntityType<?> type,
                                     net.minecraft.client.renderer.entity.LivingEntityRenderer<?, ?, ?> renderer,
                                     net.fabricmc.fabric.api.client.rendering.v1.LivingEntityRenderLayerRegistrationCallback.RegistrationHelper helper,
                                     net.minecraft.client.renderer.entity.EntityRendererProvider.Context context) {
-        EventGear.Kind kind = null;
-        String clothes = null;
-        if (type == net.minecraft.world.entity.EntityTypes.ZOMBIE || type == net.minecraft.world.entity.EntityTypes.HUSK) {
-            kind = EventGear.Kind.ZOMBIE;
-            clothes = "zombie";
-        } else if (type == net.minecraft.world.entity.EntityTypes.DROWNED) {
-            kind = EventGear.Kind.DROWNED;
-        } else if (type == net.minecraft.world.entity.EntityTypes.SKELETON || type == net.minecraft.world.entity.EntityTypes.WITHER_SKELETON
-                || type == net.minecraft.world.entity.EntityTypes.PARCHED) {
-            kind = EventGear.Kind.SKELETON;
-            clothes = "skeleton";
-        } else if (type == net.minecraft.world.entity.EntityTypes.STRAY || type == net.minecraft.world.entity.EntityTypes.BOGGED) {
-            kind = EventGear.Kind.SKELETON;   // they wear their own overlay, in the event's colours
-        } else if (type == net.minecraft.world.entity.EntityTypes.CREEPER) {
-            kind = EventGear.Kind.CREEPER;
-        } else if (type == net.minecraft.world.entity.EntityTypes.SPIDER || type == net.minecraft.world.entity.EntityTypes.CAVE_SPIDER) {
-            kind = EventGear.Kind.SPIDER;
-        }
-        if (kind == null) {
+        if (!eventMob(type)) {
             return;
         }
         net.minecraft.client.renderer.entity.RenderLayerParent parent = (net.minecraft.client.renderer.entity.RenderLayerParent) renderer;
         try {
-            if ("zombie".equals(clothes)) {
+            if (type == net.minecraft.world.entity.EntityTypes.ZOMBIE || type == net.minecraft.world.entity.EntityTypes.HUSK) {
                 net.minecraft.client.model.monster.zombie.DrownedModel model = new net.minecraft.client.model.monster.zombie.DrownedModel(
                         context.bakeLayer(net.minecraft.client.model.geom.ModelLayers.DROWNED_OUTER_LAYER));
                 java.util.function.Predicate<net.minecraft.client.renderer.entity.state.LivingEntityRenderState> adult = state -> !state.isBaby;
                 helper.register(new EventClothingLayer(parent, model, "zombie", adult));
-            } else if ("skeleton".equals(clothes)) {
+            } else if (type == net.minecraft.world.entity.EntityTypes.SKELETON || type == net.minecraft.world.entity.EntityTypes.WITHER_SKELETON
+                    || type == net.minecraft.world.entity.EntityTypes.PARCHED) {
                 net.minecraft.client.model.monster.skeleton.SkeletonModel model = new net.minecraft.client.model.monster.skeleton.SkeletonModel(
                         context.bakeLayer(net.minecraft.client.model.geom.ModelLayers.STRAY_OUTER_LAYER));
                 java.util.function.Predicate<net.minecraft.client.renderer.entity.state.LivingEntityRenderState> any = state -> true;
                 helper.register(new EventClothingLayer(parent, model, "skeleton", any));
             }
-            helper.register(new EventGear.Layer(parent, kind));
+            if (EVENT_MOBS.contains(type)) {
+                helper.register(new EventGear.Glow(renderer));
+            }
+            EventGear.Kind kind = EventGear.kindOf(renderer.getModel());
+            if (kind != null) {
+                helper.register(new EventGear.Layer(parent, kind));
+            }
         } catch (RuntimeException e) {
             com.mki.nightsiege.NightSiegeMod.LOGGER.warn("[Night Siege] Event-Ebenen fuer {} nicht angelegt: {}", type, e.toString());
         }

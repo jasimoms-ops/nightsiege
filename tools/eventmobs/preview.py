@@ -10,20 +10,20 @@ RES = os.path.join(os.path.dirname(__file__), '../../src/main/resources/assets/n
 VAN = os.environ.get('VANILLA', '')
 
 SKINS = {'humanoid': ('zombie', 'zombie_outer'), 'skeleton': ('skeleton', 'skeleton_outer'),
-         'creeper': ('creeper', None), 'spider': ('spider', None)}
+         'creeper': ('creeper', None), 'spider': ('spider', None), 'illager': ('vindicator', None), 'witch': ('witch', None)}
 
 
 def load(path):
     return Image.open(path).convert('RGBA') if path and os.path.exists(path) else None
 
 
-def event_sheet(event, out, tex_dir=None, gear_dir=None, scale=7):
+def event_sheet(event, out, tex_dir=None, gear_dir=None, scale=7, families=None):
     tex_dir = tex_dir or os.path.join(RES, event)
     tiles = []
-    for fam in designs.FAMILY_NAMES:
+    for fam in (families or designs.FAMILY_NAMES):
         base, outer = SKINS[fam]
         skin = load(os.path.join(tex_dir, base + '.png'))
-        glow = load(os.path.join(tex_dir, base + '_e.png'))
+        glow = load(os.path.join(tex_dir, base + '_glow.png'))
         if fam == 'spider':
             eyes = load(os.path.join(tex_dir, 'spider_eyes.png'))
             if eyes is not None:
@@ -44,6 +44,8 @@ def event_sheet(event, out, tex_dir=None, gear_dir=None, scale=7):
         kw = dict(size=(44, 30), origin=(0.5, 0.05)) if big else dict(size=(34, 40), origin=(0.5, 0.33))
         if fam == 'creeper':
             kw = dict(size=(30, 34), origin=(0.5, 0.42))
+        if fam in ('illager', 'witch'):
+            kw = dict(size=(34, 44), origin=(0.5, 0.42))
         tiles.append((fam, [sc.render(-30, 14, scale, **kw), sc.render(150, 14, scale, **kw),
                             sc.render(-30, 14, scale, night=True, **kw)]))
     w = max(sum(t.width for t in ims) + 15 * 4 for _, ims in tiles)

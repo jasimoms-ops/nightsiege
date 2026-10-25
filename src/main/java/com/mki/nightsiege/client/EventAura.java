@@ -6,13 +6,10 @@ import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.util.RandomSource;
-import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
 
-import java.util.Set;
 
 /**
  * A light aura around the event monsters near the player: blood drips at the blood moon,
@@ -22,9 +19,6 @@ import java.util.Set;
  */
 public final class EventAura {
 
-    private static final Set<EntityType<?>> DRESSED = Set.of(EntityTypes.ZOMBIE, EntityTypes.HUSK, EntityTypes.DROWNED,
-            EntityTypes.SKELETON, EntityTypes.STRAY, EntityTypes.BOGGED, EntityTypes.PARCHED, EntityTypes.WITHER_SKELETON,
-            EntityTypes.CREEPER, EntityTypes.SPIDER, EntityTypes.CAVE_SPIDER);
     private static final int BUDGET = 12;
     private static final DustParticleOptions BLOOD = new DustParticleOptions(0x8A0A10, 0.8f);
     private static final DustParticleOptions GOLD = new DustParticleOptions(0xE8B53A, 0.6f);
@@ -44,7 +38,7 @@ public final class EventAura {
         RandomSource r = mc.level.getRandom();
         AABB box = mc.player.getBoundingBox().inflate(24.0);
         int left = BUDGET;
-        for (LivingEntity e : mc.level.getEntitiesOfClass(LivingEntity.class, box, e -> DRESSED.contains(e.getType()) && e.isAlive())) {
+        for (LivingEntity e : mc.level.getEntitiesOfClass(LivingEntity.class, box, e -> NightSiegeClient.eventMob(e.getType()) && e.isAlive())) {
             if (left <= 0) {
                 break;
             }

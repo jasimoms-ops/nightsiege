@@ -163,8 +163,65 @@ def frost(f):
 
 
 EVENTS = {'blood_moon': blood, 'eclipse': eclipse, 'fog': fog, 'thunder': thunder, 'nether_rift': nether, 'frost': frost}
-FAMILY_NAMES = ('humanoid', 'skeleton', 'creeper', 'spider')
+FAMILY_NAMES = ('humanoid', 'skeleton', 'creeper', 'spider', 'illager', 'witch')
+
+
+def _shift(b, dx=0.0, dy=0.0, dz=0.0):
+    from dataclasses import replace
+    if b.pivot == (0, 0, 0):
+        return replace(b, pos=(b.pos[0] + dx, b.pos[1] + dy, b.pos[2] + dz))
+    return replace(b, pivot=(b.pivot[0] + dx, b.pivot[1] + dy, b.pivot[2] + dz))
+
+
+def _upright(boxes, witch=False):
+    """The humanoid gear on an illager or the witch: their heads are 10 high, their bodies 6 deep,
+    their arms crossed (no arm gear). The witch keeps only the halo on her head (the hat is in the way)."""
+    out = []
+    for b in boxes:
+        if b.bone in ('right_arm', 'left_arm'):
+            continue
+        if b.bone == 'head':
+            if witch and not b.key.startswith('halo'):
+                continue
+            b = _shift(b, dy=-2.0)
+        elif b.bone == 'body':
+            z = b.pivot[2] if b.pivot != (0, 0, 0) else b.pos[2]
+            if z >= 1.5:
+                b = _shift(b, dz=1.0)
+            elif z <= -2.5:
+                b = _shift(b, dz=-1.0)
+        out.append(b)
+    return out
+
+
+def _hat(event):
+    """What hangs on the witch's hat brim (head space: brim x and z -5..5, y -10..-8)."""
+    out = []
+    if event == 'blood_moon':
+        out += [block('head', (-4.5, -8, -5.3), (1, 3, 1), 'bone', key='charm'), block('head', (3.5, -8, -5.3), (1, 2, 1), 'blood_crystal', key='drop'),
+                block('head', (-5.3, -8, 2), (1, 3, 1), 'bone', key='charm')]
+    elif event == 'eclipse':
+        out.append(block('head', (-3.6, -11.2, -3.4), (8, 1, 8), 'gold', key='band'))
+    elif event == 'fog':
+        out.append(block('head', (-5.4, -10.6, -5.4), (11, 1, 11), 'moss', key='brim'))
+        for k, (x, z, h) in enumerate(((-5.2, -5.2, 4), (2, -5.3, 3), (4.4, 1, 5), (-5.3, 3, 3))):
+            out.append(block('head', (x, -8.2, z), (1, h, 1), 'moss', key=f'str{h}'))
+    elif event == 'thunder':
+        out += zigzag('head', (2.2, -18.5, 3.5), (-0.3, 0, 0.4), [(1, 3, 1), (1, 3, 1), (1, 2, 1)], 'bolt', angle=0.75, name='hb')
+    elif event == 'nether_rift':
+        out += cluster('head', (-3.5, -10, -3.5), (-0.2, 0, -0.2), 'magma', sizes=((1, 3, 1), (1, 2, 1)), name='hm')
+        out += cluster('head', (3.5, -10, 2.5), (0.2, 0, 0.2), 'magma', sizes=((1, 3, 1),), name='hn')
+    elif event == 'frost':
+        for k, x in enumerate((-4.5, -2.5, -0.5, 1.5, 3.5)):
+            out.append(block('head', (x, -8.03, -5.3), (1, 2 + (k % 2), 1), 'icicle', key=f'ic{k % 2}'))
+        for k, z in enumerate((-3, 0, 3)):
+            out += sym([block('head', (-5.3, -8.03, z), (1, 2 + (k % 2), 1), 'icicle', key=f'ic{k % 2}')])
+    return out
 
 
 def design(event, family):
+    if family == 'illager':
+        return _upright(EVENTS[event]('humanoid'))
+    if family == 'witch':
+        return _upright(EVENTS[event]('humanoid'), witch=True) + _hat(event)
     return EVENTS[event](family)

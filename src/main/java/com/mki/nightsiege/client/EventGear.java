@@ -45,7 +45,8 @@ public final class EventGear {
 
     /** How the gear model is made: the model class the monster uses, on the gear of a family. */
     public enum Kind {
-        ZOMBIE("humanoid"), DROWNED("humanoid"), SKELETON("skeleton"), CREEPER("creeper"), SPIDER("spider");
+        ZOMBIE("humanoid"), DROWNED("humanoid"), SKELETON("skeleton"), CREEPER("creeper"), SPIDER("spider"),
+        ILLAGER("illager"), WITCH("witch");
 
         final String family;
 
@@ -95,6 +96,8 @@ public final class EventGear {
             case SKELETON -> mesh(SkeletonModel.createBodyLayer());
             case CREEPER -> mesh(CreeperModel.createBodyLayer(CubeDeformation.NONE));
             case SPIDER -> mesh(SpiderModel.createSpiderBodyLayer());
+            case ILLAGER -> mesh(net.minecraft.client.model.monster.illager.IllagerModel.createBodyLayer());
+            case WITCH -> mesh(net.minecraft.client.model.monster.witch.WitchModel.createBodyLayer());
         };
         PartDefinition root = mesh.getRoot();
         List<EventGearShapes.Box> boxes = set.boxes();
@@ -122,11 +125,66 @@ public final class EventGear {
             case SKELETON -> new SkeletonModel<>(baked);
             case CREEPER -> new CreeperModel(baked);
             case SPIDER -> new SpiderModel(baked);
+            case ILLAGER -> new net.minecraft.client.model.monster.illager.IllagerModel<>(baked);
+            case WITCH -> new net.minecraft.client.model.monster.witch.WitchModel(baked);
         };
     }
 
     private static MeshDefinition mesh(LayerDefinition layer) {
         return ((LayerDefinitionAccessor) layer).nightsiege$mesh();
+    }
+
+    /** The kind of gear a renderer's model can carry, or null. */
+    public static Kind kindOf(EntityModel<?> model) {
+        if (model instanceof DrownedModel) {
+            return Kind.DROWNED;
+        }
+        if (model instanceof ZombieModel<?>) {
+            return Kind.ZOMBIE;
+        }
+        if (model instanceof SkeletonModel<?>) {
+            return Kind.SKELETON;
+        }
+        if (model instanceof CreeperModel) {
+            return Kind.CREEPER;
+        }
+        if (model instanceof SpiderModel) {
+            return Kind.SPIDER;
+        }
+        if (model instanceof net.minecraft.client.model.monster.illager.IllagerModel<?>) {
+            return Kind.ILLAGER;
+        }
+        if (model instanceof net.minecraft.client.model.monster.witch.WitchModel) {
+            return Kind.WITCH;
+        }
+        return null;
+    }
+
+    /**
+     * The glow of the event textures (eyes, veins, runes, cracks): the monster's own model
+     * drawn again full bright with the glow map, like the spider's eyes.
+     */
+    public static class Glow<S extends LivingEntityRenderState, M extends EntityModel<S>> extends RenderLayer<S, M> {
+
+        private final net.minecraft.client.renderer.entity.LivingEntityRenderer<?, S, M> renderer;
+
+        public Glow(net.minecraft.client.renderer.entity.LivingEntityRenderer<?, S, M> renderer) {
+            super(renderer);
+            this.renderer = renderer;
+        }
+
+        @Override
+        public void submit(PoseStack poseStack, SubmitNodeCollector collector, int lightCoords, S state, float yRot, float xRot) {
+            if (state.isInvisible || EventTextures.shownEvent() == null) {
+                return;
+            }
+            net.minecraft.resources.Identifier glow = EventTextures.glowOf(EventTextures.swap(renderer.getTextureLocation(state)));
+            if (glow == null) {
+                return;
+            }
+            collector.order(1).submitModel(getParentModel(), state, poseStack, GLOW.computeIfAbsent(glow, RenderTypes::eyes),
+                    lightCoords, OverlayTexture.NO_OVERLAY, state.outlineColor, null);
+        }
     }
 
     /** The layer that draws the gear of the event shown now. */
