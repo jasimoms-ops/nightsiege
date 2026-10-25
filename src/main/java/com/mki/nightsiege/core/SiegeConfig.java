@@ -243,6 +243,13 @@ public class SiegeConfig {
     public double berserkerLifesteal = 0.12;
     /** Zombies (husks, drowned …) and spiders hit warriors and guardians this many times harder (Simon, 25 October 2026). */
     public double zombieSpiderVsMelee = 2.0;
+    /** Klaffende Wunden (anti-heal, Simon 25 October 2026): these monsters halve all healing of the player they hit. */
+    public java.util.List<String> antiHealMobs = new java.util.ArrayList<>(java.util.List.of(
+            "minecraft:spider", "minecraft:cave_spider", "minecraft:witch"));
+    /** Share of healing the wounds take away, for how many seconds after a hit, from which level on. */
+    public double antiHealShare = 0.5;
+    public double antiHealSeconds = 4.0;
+    public int antiHealFromLevel = 5;
     /** The most damage any player's skills can take away together (0.70 = at most -70 %). */
     public double maxDamageReduction = 0.70;
     /**
@@ -688,6 +695,12 @@ public class SiegeConfig {
             meleeLifesteal = 0.08;
         }
         meleeLifesteal = Math.min(1.0, Math.max(0.0, meleeLifesteal));
+        if (antiHealMobs == null) {
+            antiHealMobs = new java.util.ArrayList<>(java.util.List.of("minecraft:spider", "minecraft:cave_spider", "minecraft:witch"));
+        }
+        antiHealShare = Double.isNaN(antiHealShare) ? 0.5 : Math.min(1.0, Math.max(0.0, antiHealShare));
+        antiHealSeconds = Double.isNaN(antiHealSeconds) || antiHealSeconds <= 0 ? 4.0 : Math.min(30.0, antiHealSeconds);
+        antiHealFromLevel = Math.max(1, antiHealFromLevel);
         if (Double.isNaN(zombieSpiderVsMelee) || zombieSpiderVsMelee <= 0) {
             zombieSpiderVsMelee = 2.0;
         }

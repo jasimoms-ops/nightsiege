@@ -349,6 +349,7 @@ public final class SiegeManager {
             combat.afterDamage(entity, source, baseDamage, taken, blocked);
             perks.afterDamage(entity, taken);
             CrateEffects.afterDamage(entity, source);
+            Wounds.afterDamage(entity, source, taken);
             GainGear.afterDamage(entity, source, taken);
             MeleeSim.onDamage(entity, source, taken);
             safe("Begleiter-Treffer", () -> companions.afterDamage(entity, source, taken));
@@ -2094,6 +2095,7 @@ public final class SiegeManager {
     }
 
     private void clearSiegeState() {
+        Wounds.clear();
         openNight = false;
         trapsHanded.clear();
         spawnBlockWorld = null;
