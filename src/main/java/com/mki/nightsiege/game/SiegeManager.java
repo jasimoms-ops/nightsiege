@@ -1702,6 +1702,14 @@ public final class SiegeManager {
                 net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(attacker.getType()).toString());
     }
 
+    /** Zombies and spiders against warriors and guardians (config zombieSpiderVsMelee, Simon 25 October 2026). */
+    public float zombieSpiderFactor(ServerPlayer player) {
+        PlayerSkills skills = save.skillsOf(player.getUUID().toString());
+        com.mki.nightsiege.core.SkillClass clazz = skills.clazz();
+        return clazz == com.mki.nightsiege.core.SkillClass.WARRIOR || clazz == com.mki.nightsiege.core.SkillClass.GUARDIAN
+                ? (float) config.zombieSpiderVsMelee : 1f;
+    }
+
     public float damageTakenFactor(ServerPlayer player) {
         PlayerSkills skills = save.skillsOf(player.getUUID().toString());
         return (float) config.damageTakenFactor(skills.chosenClass, skillTree.subclassOf(skills));

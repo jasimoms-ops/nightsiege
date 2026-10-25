@@ -144,6 +144,10 @@ public final class GuardianEffects {
         }
         if (tuning != null && victim instanceof ServerPlayer hurt && source.getEntity() instanceof Enemy) {
             factor *= tuning.damageTakenFactor(hurt);
+            if (source.getEntity() instanceof net.minecraft.world.entity.monster.zombie.Zombie
+                    || source.getEntity() instanceof net.minecraft.world.entity.monster.spider.Spider) {
+                factor *= tuning.zombieSpiderFactor(hurt);   // zombies and spiders hit the melee classes harder
+            }
         }
         factor *= CrateEffects.factor(victim, source);   // crate gains of the night kit
         factor *= Companions.damageFactor(victim, source);   // the summoner's companions
