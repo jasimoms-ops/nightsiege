@@ -23,6 +23,8 @@ public final class GainClient {
     private static KeyMapping quiverKey;
     private static boolean jumpWasDown;
     private static boolean doubleJumpUsed;
+    /** Ticks in the air since the feet left the ground. */
+    private static int airTicks;
 
     private GainClient() {
     }
@@ -65,8 +67,12 @@ public final class GainClient {
         if (player.onGround() || player.isInWater() || player.onClimbable() || player.getAbilities().flying
                 || player.isPassenger()) {
             doubleJumpUsed = false;
-        } else if (down && !jumpWasDown && !doubleJumpUsed && client.gui.screen() == null
+            airTicks = 0;
+        } else if (++airTicks >= 2 && down && !jumpWasDown && !doubleJumpUsed && client.gui.screen() == null
                 && Gadgets.flag(player.getItemBySlot(EquipmentSlot.FEET), Gadgets.DOUBLE_JUMP)) {
+            // Not in the tick of the normal jump: at the end of that tick the feet have already
+            // left the ground, so the press of the first jump used up the second one at once
+            // (Simon's playtest, 25 October 2026: "the jump boots do not work").
             doubleJumpUsed = true;
             Vec3 v = player.getDeltaMovement();
             player.setDeltaMovement(v.x * 1.1, 0.55, v.z * 1.1);
