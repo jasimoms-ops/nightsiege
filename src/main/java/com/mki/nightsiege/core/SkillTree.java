@@ -268,7 +268,7 @@ public final class SkillTree {
         node(list, "bloodlust", c, e, SkillEffect.RAGE, 4, 4, 2, 0.15, "champion_bane", "e_sub", "minecraft:redstone", 3, 5);
         node(list, "keen_edge", c, e, SkillEffect.CRIT_CHANCE, 1, 10, 0, 0.2, "w_combo:2", "e3", "minecraft:flint", 4, 0);
         node(list, "w_precision", c, e, SkillEffect.CRIT_POWER, 1, 10, 0, 0.5, "w_combo:2", "e3", "minecraft:target", 4, 2);
-        node(list, "blood_drinker", c, e, SkillEffect.LIFESTEAL, 1, 10, 0, 0.12, "bloodlust:2", "e3", "minecraft:ghast_tear", 4, 4);
+        node(list, "blood_drinker", c, e, SkillEffect.MAX_HEALTH, 1, 10, 0, 4.0, "bloodlust:2", "e3", "minecraft:ghast_tear", 4, 4);
         node(list, "w_warcry", c, e, SkillEffect.WARCRY, 1, 10, 0, 1.0, "bloodlust:2", "e3", "minecraft:goat_horn", 4, 6);
         String e3 = "keen_edge|w_precision|blood_drinker|w_warcry";
         node(list, "w_parry", c, e, SkillEffect.PARRY, 1, 12, 0, 0.15, e3, "e4", "minecraft:iron_sword", 5, 1);
@@ -300,7 +300,7 @@ public final class SkillTree {
         node(list, "smite", c, m, SkillEffect.SMITE, 4, 4, 2, 0.12, "sunder", "m_sub", "minecraft:golden_sword", 3, 5);
         node(list, "w_cleave", c, m, SkillEffect.CLEAVE, 1, 10, 0, 0.4, "heavy_blow:2", "m3", "minecraft:stone_axe", 4, 0);
         node(list, "w_headhunter", c, m, SkillEffect.HEADHUNTER, 1, 10, 0, 0.4, "heavy_blow:2", "m3", "minecraft:skeleton_skull", 4, 2);
-        node(list, "holy_vigor", c, m, SkillEffect.LIFESTEAL, 1, 10, 0, 0.10, "smite:2", "m3", "minecraft:glow_berries", 4, 4);
+        node(list, "holy_vigor", c, m, SkillEffect.MAX_HEALTH, 1, 10, 0, 4.0, "smite:2", "m3", "minecraft:glow_berries", 4, 4);
         node(list, "w_vow", c, m, SkillEffect.VOW, 1, 10, 0, 1.0, "smite:2", "m3", "minecraft:bell", 4, 6);
         String m3 = "w_cleave|w_headhunter|holy_vigor|w_vow";
         node(list, "w_momentum", c, m, SkillEffect.MOMENTUM, 1, 12, 0, 1.0, m3, "m4", "minecraft:rabbit_foot", 5, 1);

@@ -239,6 +239,8 @@ public class SiegeConfig {
      * this share of the monster's maximum life instead.
      */
     public double comboKillLifesteal = 0.15;
+    /** The berserker's life steal on every hit while he is below half his life (Simon, 25 October 2026). */
+    public double berserkerLifesteal = 0.12;
     /** The most damage any player's skills can take away together (0.70 = at most -70 %). */
     public double maxDamageReduction = 0.70;
     /**
@@ -684,6 +686,10 @@ public class SiegeConfig {
             meleeLifesteal = 0.08;
         }
         meleeLifesteal = Math.min(1.0, Math.max(0.0, meleeLifesteal));
+        if (Double.isNaN(berserkerLifesteal)) {
+            berserkerLifesteal = 0.12;
+        }
+        berserkerLifesteal = Math.min(1.0, Math.max(0.0, berserkerLifesteal));
         if (Double.isNaN(comboKillLifesteal)) {
             comboKillLifesteal = 0.15;
         }

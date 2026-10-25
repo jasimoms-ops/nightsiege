@@ -710,9 +710,15 @@ public final class CombatEffects {
         }
 
         extra += guardian.meleeExtra(level, player, skills, victim, taken, now);
-        double steal = tree.totalBonus(SkillEffect.LIFESTEAL, skills) + baseLifesteal(skills);
-        if (steal > 0) {
-            player.heal((float) ((taken + extra) * steal));
+        // Life steal on hits only for the berserker below half his life (Simon, 25 October 2026);
+        // the other warriors and the shield fighter heal from kills (see onKill).
+        if (skills.clazz() == SkillClass.WARRIOR && SkillTree.SUB_BERSERKER.equals(tree.subclassOf(skills))
+                && player.getHealth() < player.getMaxHealth() * 0.5f) {
+            SiegeManager m = SiegeManager.get();
+            double steal = m == null ? 0.0 : m.config().berserkerLifesteal;
+            if (steal > 0) {
+                player.heal((float) ((taken + extra) * steal));
+            }
         }
         return extra;
     }
@@ -761,6 +767,14 @@ public final class CombatEffects {
         }
         if (skills != null && tree.totalBonus(SkillEffect.RELOAD_RUSH, skills) > 0) {
             player.addEffect(new MobEffectInstance(MobEffects.SPEED, 60, 1));
+        }
+        // Warriors (not berserker and blademaster) and the shield fighter heal from kills only:
+        // a share of the slain monster's life (config meleeLifesteal, Simon 25 October 2026).
+        if (skills != null && killed instanceof LivingEntity slain) {
+            double share = baseLifesteal(skills);
+            if (share > 0) {
+                player.heal((float) (slain.getMaxHealth() * share));
+            }
         }
         // The blademaster's life steal: only a kill in the middle of a combo heals (Simon, 24 Oct 2026).
         if (skills != null && SkillTree.SUB_BLADEMASTER.equals(tree.subclassOf(skills)) && killed instanceof LivingEntity dead) {
