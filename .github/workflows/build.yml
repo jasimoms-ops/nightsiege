@@ -249,7 +249,7 @@ jobs:
           if [[ "$COMMIT_MSG" == *"[sim"* ]]; then
             SIMARG=$(printf '%s' "$COMMIT_MSG" | grep -o '\[sim[^]]*\]' | head -1 | sed 's/^\[sim//; s/\]$//')
             export NIGHTSIEGE_SIM="1 $SIMARG"
-            CLIENT_TIMEOUT=4800
+            CLIENT_TIMEOUT=12000
           fi
           timeout $CLIENT_TIMEOUT xvfb-run -a -s "-screen 0 1280x720x24" gradle runClientGameTest --no-daemon --stacktrace > client-output.txt 2>&1
           echo "exit=$?" >> client-output.txt

@@ -284,7 +284,7 @@ public final class SiegeCommands {
         return 1;
     }
 
-    /** Melee balance simulation: every melee subclass fights test nights, old against new values. */
+    /** Class simulation: every subclass defends a test night alone, fully skilled. */
     private static int sim(CommandContext<CommandSourceStack> ctx, int level, int seconds) {
         CommandSourceStack source = ctx.getSource();
         ServerPlayer player;
@@ -299,7 +299,7 @@ public final class SiegeCommands {
             fail(source, Component.translatable(problem));
             return 0;
         }
-        reply(source, Component.translatable("nightsiege.sim.started", MeleeSim.SUBCLASSES.length * 2, level, seconds));
+        reply(source, Component.translatable("nightsiege.sim.started", MeleeSim.SUBCLASSES.length, level, seconds));
         return 1;
     }
 

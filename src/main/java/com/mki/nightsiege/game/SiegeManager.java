@@ -2311,6 +2311,11 @@ public final class SiegeManager {
     }
 
     /** Called by {@link TrapBlock} once a trap is set down. */
+    /** The traps and towers (for the class simulation). */
+    public TrapService trapService() {
+        return traps;
+    }
+
     public void onTrapPlaced(ServerLevel level, BlockPos pos, LivingEntity placer, TrapKind kind) {
         traps.onPlaced(level, pos, placer, kind);
         persist();
