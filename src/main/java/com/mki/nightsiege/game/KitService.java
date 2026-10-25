@@ -405,6 +405,9 @@ public final class KitService {
                 if (SkillTree.SUB_HEAVY.equals(sub)) {
                     power = Math.min(6, power + 1);
                 }
+                if (SkillTree.SUB_SWIFT.equals(sub)) {
+                    power = 0;   // the quick shot: no power on the bow (Simon, 25 October 2026)
+                }
                 enchant(bow, ench, Enchantments.POWER, power);
                 if (SkillTree.SUB_SWIFT.equals(sub)) {
                     enchant(bow, ench, Enchantments.INFINITY, 1);
