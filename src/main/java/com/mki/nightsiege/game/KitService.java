@@ -377,12 +377,6 @@ public final class KitService {
             }
             armor[i] = piece;
         }
-        // Playtest 25 October 2026 (Simon): the shield fighter tanks a lot but is boxed around
-        // by the monsters and gets nothing done; chestplate and leggings hold him in place.
-        if (clazz == SkillClass.GUARDIAN && SkillTree.SUB_SHIELDFIGHTER.equals(tree.subclassOf(skills))) {
-            addAttribute(armor[1], Attributes.KNOCKBACK_RESISTANCE, "kit_steady_chest", 0.5, EquipmentSlotGroup.CHEST);
-            addAttribute(armor[2], Attributes.KNOCKBACK_RESISTANCE, "kit_steady_legs", 0.5, EquipmentSlotGroup.LEGS);
-        }
 
         NightKit.Material weapon = NightKit.weapon(level);
         int sharp = NightKit.plusOne(NightKit.sharpness(level), gainLevel(skills, clazz, "schaerfe"), 5);
