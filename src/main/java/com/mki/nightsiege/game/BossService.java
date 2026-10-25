@@ -334,10 +334,15 @@ public final class BossService {
                     SoundSource.HOSTILE, 0.7f, 1.2f);
             return true;
         }
+        Part broken = null;
         for (Part part : parts) {
-            if (part.hitbox.equals(id) && brain != null) {
-                brain.partBroken((ServerLevel) mob.level(), part, mob);
+            if (part.hitbox.equals(id)) {
+                broken = part;
+                break;
             }
+        }
+        if (broken != null && brain != null) {
+            brain.partBroken((ServerLevel) mob.level(), broken, mob);   // removes it from the list
         }
         return false;
     }
