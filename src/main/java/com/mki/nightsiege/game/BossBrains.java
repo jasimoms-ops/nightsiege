@@ -6,7 +6,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.BlockParticleOption;
 import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
@@ -863,13 +862,9 @@ final class BossBrains {
             ServerLevel level = host.world();
             Mob rider = service.rider(level);
             if (rider != null) {
+                // His war banner is part of his look (on his back); the helmet stays free.
                 rider.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_AXE));
-                try {
-                    rider.setItemSlot(EquipmentSlot.HEAD, net.minecraft.world.entity.raid.Raid.getOminousBannerInstance(
-                            level.registryAccess().lookupOrThrow(Registries.BANNER_PATTERN)));
-                } catch (RuntimeException e) {
-                    // no banner then
-                }
+                rider.setItemSlot(EquipmentSlot.HEAD, ItemStack.EMPTY);
             }
         }
 
