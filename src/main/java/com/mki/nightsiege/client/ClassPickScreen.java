@@ -264,9 +264,10 @@ public class ClassPickScreen extends Screen {
         // The name, large, under the icon.
         String name = clazz == null ? entry.id : Component.translatable(clazz.translationKey()).getString();
         Component title = Component.literal(name).withStyle(net.minecraft.ChatFormatting.BOLD);
-        float nameScale = font.width(title) * 1.15f <= cardW - 10 ? 1.15f : 1.0f;
+        // Long names (five cards on a narrow screen): smaller rather than cut off.
+        float nameScale = Math.min(1.15f, Math.max(0.7f, (cardW - 10f) / Math.max(1, font.width(title))));
         gui.pose().pushMatrix();
-        gui.pose().translate(x + 5, y + 9 + ib);
+        gui.pose().translate(x + 5, y + 9 + ib + (int) ((1.15f - nameScale) * 4));
         gui.pose().scale(nameScale, nameScale);
         gui.text(font, font.width(title) * nameScale <= cardW - 10 ? title
                 : Component.literal(font.plainSubstrByWidth(name, (int) ((cardW - 10) / nameScale))), 0, 0,
@@ -293,7 +294,8 @@ public class ClassPickScreen extends Screen {
             String points = entry.total > 0
                     ? Component.translatable("nightsiege.pick.points_of", entry.spent, entry.total).getString()
                     : Component.translatable("nightsiege.pick.points", entry.spent).getString();
-            small(gui, font, points, x + 5, ty + 1, GREY, 0.7f);
+            float ps = Math.min(0.7f, Math.max(0.5f, (cardW - 10f) / Math.max(1, font.width(points))));
+            small(gui, font, points, x + 5, ty + 1, GREY, ps);
         }
         int barY = ty + 9;
         gui.fill(x + 5, barY, x + cardW - 5, barY + 5, LINE);
