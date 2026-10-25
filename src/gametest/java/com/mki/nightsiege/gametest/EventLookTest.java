@@ -1434,6 +1434,11 @@ public class EventLookTest implements FabricClientGameTest {
                 }
             } else if (token.matches("[Ll]\\d+")) {
                 simLevels.add(Integer.parseInt(token.substring(1)));
+            } else if (token.matches("[a-z]+=[0-9.]+")) {
+                // "engineer=0.7": try a class damage factor (classDamage) in the simulation.
+                String[] kv = token.split("=");
+                onServer(context, (player, manager) -> manager.config().classDamage.put(kv[0], Double.parseDouble(kv[1])));
+                System.out.println("[Night Siege sim] classDamage " + kv[0] + " = " + kv[1]);
             } else if (!token.isBlank()) {
                 only.add(token);
             }

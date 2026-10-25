@@ -292,11 +292,22 @@ public final class MeleeSim {
         boolean inReach = close != null && player.distanceTo(close) <= reach + 0.3;
 
         // The summoner uses the staff whenever it is ready (call, raise; the item says no when it can't).
-        if (clazz == SkillClass.SUMMONER && now >= nextStaff && !inReach) {
+        // (Also with monsters in reach: a real summoner calls first and fights after.)
+        if (clazz == SkillClass.SUMMONER && now >= nextStaff) {
             nextStaff = now + 20;
             if (hold(player, s -> s.is(ModContent.STAFF))) {
+                player.setShiftKeyDown(false);
                 player.getMainHandItem().use(level, player, InteractionHand.MAIN_HAND);
             }
+        }
+        if (clazz == SkillClass.SUMMONER && (now - fightStart) % 200 == 0) {
+            System.out.println(String.format(Locale.ROOT,
+                    "[Night Siege sim] Begleiter t=%ds: alle=%d Wolf=%d Golem=%d Diener=%d Seelen=%d Leben=%.0f/%.0f Monster=%d",
+                    (now - fightStart) / 20, Companions.countOf(player.getUUID()), Companions.countOf(player.getUUID(), "wolf"),
+                    Companions.countOf(player.getUUID(), "golem"), Companions.countOf(player.getUUID(), "minion"),
+                    Companions.get().soulsOf(player.getUUID()), player.getHealth(), player.getMaxHealth(),
+                    level.getEntitiesOfClass(Mob.class, player.getBoundingBox().inflate(16),
+                            e -> e instanceof Enemy && !Companions.isCompanion(e)).size()));
         }
         // The engineer overcharges a tower now and then.
         if (clazz == SkillClass.ENGINEER && now >= nextRemote && !TOWERS.isEmpty()) {
