@@ -785,13 +785,17 @@ public final class TrapService {
         double range = TrapKind.TURRET.radius(tier) + bonus(record, SkillEffect.TOWER_RANGE);
         LivingEntity target = enemies(level, new AABB(muzzle, muzzle).inflate(range)).stream()
                 .filter(e -> e.distanceToSqr(muzzle) <= range * range)
-                .filter(e -> clearShot(level, muzzle, e.getEyePosition(), pos))
+                .filter(e -> clearShot(level, port(muzzle, e), e.getEyePosition(), pos)
+                        || clearShot(level, port(muzzle, e), e.position().add(0, e.getBbHeight() * 0.5, 0), pos))
                 .min(Comparator.comparingDouble(e -> (markedBy(record, e, now) ? 0.0 : 10000.0) + e.distanceToSqr(muzzle)))
                 .orElse(null);
         if (target == null) {
             return;
         }
-        Arrow arrow = new Arrow(level, muzzle.x, muzzle.y, muzzle.z, new ItemStack(Items.ARROW), null);
+        // The arrow leaves at the side facing the target, so it also hits monsters right below
+        // a turret on a wall (Simon's playtest, 25 October 2026: it could not shoot downwards).
+        Vec3 out = port(muzzle, target);
+        Arrow arrow = new Arrow(level, out.x, out.y, out.z, new ItemStack(Items.ARROW), null);
         arrow.entityTags().add("nightsiege_arrow");   // keeps the archer skills off it
         arrow.entityTags().add("nightsiege_turret");  // and the crate gains (the archer tag is on every arrow)
         arrow.pickup = AbstractArrow.Pickup.DISALLOWED;
@@ -808,7 +812,9 @@ public final class TrapService {
         }
         double dx = target.getX() - muzzle.x;
         double dz = target.getZ() - muzzle.z;
-        double dy = target.getY(0.5) - muzzle.y;
+        dx = target.getX() - out.x;
+        dz = target.getZ() - out.z;
+        double dy = target.getY(0.5) - out.y;
         double flat = Math.sqrt(dx * dx + dz * dz);
         arrow.shoot(dx, dy + flat * 0.12, dz, 2.4f, 1.5f);
         level.addFreshEntity(arrow);
@@ -1522,6 +1528,18 @@ public final class TrapService {
     static List<LivingEntity> enemies(ServerLevel level, AABB box) {
         return level.getEntitiesOfClass(LivingEntity.class, box, e -> e instanceof Enemy && e.isAlive()
                 && !Companions.isCompanion(e));   // the summoner's skeleton is no foe
+    }
+
+    /** The turret's opening towards a monster: just outside its block, on the side facing it. */
+    private static Vec3 port(Vec3 muzzle, LivingEntity e) {
+        double dx = e.getX() - muzzle.x;
+        double dz = e.getZ() - muzzle.z;
+        double len = Math.sqrt(dx * dx + dz * dz);
+        if (len < 1.0e-3) {
+            return muzzle;
+        }
+        double k = 0.75 / Math.max(Math.abs(dx), Math.abs(dz)) ;   // to the edge of the block (square), a bit beyond
+        return new Vec3(muzzle.x + dx * Math.min(k, 0.75 / len * 1.42), muzzle.y - 0.25, muzzle.z + dz * Math.min(k, 0.75 / len * 1.42));
     }
 
     /** True when the tower sees the monster: its eyes or the middle of its body. */
