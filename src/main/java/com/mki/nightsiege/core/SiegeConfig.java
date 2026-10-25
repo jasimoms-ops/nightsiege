@@ -246,8 +246,8 @@ public class SiegeConfig {
      * class, reset the crate gains, take a crate) without creative mode. Off on normal servers.
      */
     public boolean testToolsForEveryone = false;
-    /** The summoner can be chosen by everyone, not only by admins (Simon: admins first). */
-    public boolean summonerForEveryone = false;
+    /** The summoner can be chosen by everyone (Simon, 25 October 2026: open for all); false = admins only. */
+    public boolean summonerForEveryone = true;
     /** Companions grow with the night like the monsters: this share of the monsters' extra health and damage. */
     public double companionScaling = 0.8;
     /** Share of every wave (taken from its zombies) that carry ladders and build one up the wall. 0 = off. */
@@ -634,6 +634,11 @@ public class SiegeConfig {
                 classDamageTaken.put("warrior", 0.85);
             }
             settingsVersion = 7;
+        }
+        if (settingsVersion < 8) {
+            // 25 October 2026: the summoner is finished and open for everyone (Simon).
+            summonerForEveryone = true;
+            settingsVersion = 8;
         }
         if (Double.isNaN(meleeLifesteal)) {
             meleeLifesteal = 0.08;

@@ -939,9 +939,11 @@ public class EventLookTest implements FabricClientGameTest {
         game.getServer().runCommand("tp @p %d.5 %d %d.5 180 15".formatted(cx, cy, cz + 4));
         // The player becomes a summoner of the tamer's way for the scene (the old progress comes back after).
         final String[] backup = new String[1];
+        final boolean[] openBefore = new boolean[1];
         onServer(context, (player, manager) -> {
             var own = manager.save().skillsOf(player.getUUID().toString());
             backup[0] = com.mki.nightsiege.game.Json.toJson(own);
+            openBefore[0] = manager.config().summonerForEveryone;
             manager.config().summonerForEveryone = true;
             own.reset();
             own.chosenClass = com.mki.nightsiege.core.SkillClass.SUMMONER.name();
@@ -1203,7 +1205,7 @@ public class EventLookTest implements FabricClientGameTest {
         context.waitTicks(5);
         onServer(context, (player, manager) -> {
             System.out.println("[Night Siege test] summoner after the night companions=" + com.mki.nightsiege.game.Companions.countOf(player.getUUID()));
-            manager.config().summonerForEveryone = false;
+            manager.config().summonerForEveryone = openBefore[0];
             // The old progress back (field by field, the save keeps its object).
             var own = manager.save().skillsOf(player.getUUID().toString());
             var old = com.mki.nightsiege.game.Json.fromJson(backup[0], com.mki.nightsiege.core.PlayerSkills.class);
@@ -1237,6 +1239,29 @@ public class EventLookTest implements FabricClientGameTest {
         game.getServer().runCommand("time set 6000");
         game.getServer().runCommand("tp @p %d.5 %d %d.5 -90 10".formatted(core[0] + 2, core[1], core[2] + 2));
         context.waitTicks(10);
+        // With only one class the window comes too, and the summoner (open for everyone) is on it.
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
+            manager.config().testPrepSeconds = 30;
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            boolean ok = manager.prepareTest(level.getServer(), level, new net.minecraft.core.BlockPos(core[0], core[1], core[2]), 5,
+                    com.mki.nightsiege.core.SiegeEvent.NONE);
+            System.out.println("[Night Siege test] one-class pick: prep=" + ok + " unlocked=" + own.unlockedClasses()
+                    + " summonerForEveryone=" + manager.config().summonerForEveryone
+                    + " mayChoose=" + manager.mayChoose(player, com.mki.nightsiege.core.SkillClass.SUMMONER));
+        });
+        context.waitTicks(20);
+        String oneClass = context.computeOnClient(client -> {
+            if (!(client.gui.screen() instanceof com.mki.nightsiege.client.ClassPickScreen)) {
+                return "screen=" + (client.gui.screen() == null ? "none" : client.gui.screen().getClass().getSimpleName());
+            }
+            return "screen=ClassPickScreen";
+        });
+        System.out.println("[Night Siege test] one-class pick " + oneClass);
+        context.takeScreenshot("b_class_pick_one_class");
+        onServer(context, (player, manager) -> System.out.println("[Night Siege test] one-class pick cancelled="
+                + manager.cancelPreparation() + " stash=" + manager.kits().hasStash(player)));
+        closeScreen(context);
         onServer(context, (player, manager) -> {
             com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
             own.unlockClass(com.mki.nightsiege.core.SkillClass.WARRIOR);

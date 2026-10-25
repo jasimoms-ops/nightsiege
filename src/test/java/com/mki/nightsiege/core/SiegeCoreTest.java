@@ -1334,7 +1334,7 @@ class SiegeCoreTest {
         old.sanitize();
         assertTrue(old.dungeonsEnabled);
         assertFalse(old.bloodMoonGlow);
-        assertEquals(7, old.settingsVersion);
+        assertEquals(8, old.settingsVersion);
         assertEquals(SiegeConfig.CURRENT_DUNGEON_LIST, old.dungeonListVersion);
         assertTrue(old.dungeons.stream().allMatch(t -> t.structure.startsWith("nova_structures:")));
         // Switched off again by hand, it stays off.
@@ -1552,7 +1552,13 @@ class SiegeCoreTest {
         SkillTree tree = new SkillTree();
         assertTrue(SkillClass.SUMMONER.adminOnly());
         assertFalse(SkillClass.WARRIOR.adminOnly());
-        assertFalse(new SiegeConfig().summonerForEveryone, "admins only by default");
+        assertTrue(new SiegeConfig().summonerForEveryone, "open for everyone since 25 October 2026");
+        SiegeConfig old = new SiegeConfig();
+        old.summonerForEveryone = false;
+        old.settingsVersion = 7;
+        old.sanitize();
+        assertTrue(old.summonerForEveryone, "older configs open it once");
+        assertEquals(8, old.settingsVersion);
         // Both subclasses of the way of the wild can be learned to the end.
         java.util.Map<String, String> subs = java.util.Map.of("s_tamer", SkillTree.SUB_TAMER, "s_golemsmith", SkillTree.SUB_GOLEMSMITH,
                 "d_necro", SkillTree.SUB_NECROMANCER, "d_soulcatcher", SkillTree.SUB_SOULCATCHER);

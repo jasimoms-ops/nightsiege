@@ -4,8 +4,8 @@ import java.util.Locale;
 
 /**
  * The trees. A player commits to one of the player classes at a time; the core
- * tree is shared and paid for by donations from everyone. The summoner is only
- * for admins for now (config {@code summonerForEveryone}).
+ * tree is shared and paid for by donations from everyone. The summoner is open for
+ * everyone; the config {@code summonerForEveryone} can make it admins-only again.
  */
 public enum SkillClass {
     ARCHER,
