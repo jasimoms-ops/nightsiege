@@ -136,6 +136,8 @@ public class CoreStats {
     public boolean creative;
     /** The viewer may still change their class once at the core. */
     public boolean classResetAvailable;
+    /** Playtest: the class change is not used up (testToolsForEveryone). */
+    public boolean classResetUnlimited;
     /** The class the player plays tonight (may differ from {@link #myClass}, the one being levelled). */
     public String playClass = "";
     /** Unlocked classes, oldest first. */

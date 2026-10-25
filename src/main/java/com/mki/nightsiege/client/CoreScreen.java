@@ -362,7 +362,8 @@ public class CoreScreen extends Screen {
             }
         }
         if (stats.classResetAvailable && activeTab == ownTab()) {
-            Component label = Component.translatable("nightsiege.ui.class_reset");
+            Component label = Component.translatable(stats.classResetUnlimited ? "nightsiege.ui.class_reset_test"
+                    : "nightsiege.ui.class_reset");
             addRenderableWidget(Button.builder(label, b -> {
                 confirmingReset = true;
                 rebuildWidgets();
@@ -1950,9 +1951,11 @@ public class CoreScreen extends Screen {
     }
 
     private void drawResetConfirm(GuiGraphicsExtractor gui, Font font) {
-        drawDialog(gui, font, Component.translatable("nightsiege.ui.class_reset_title").getString(),
+        drawDialog(gui, font, Component.translatable(stats.classResetUnlimited ? "nightsiege.ui.class_reset_title_test"
+                        : "nightsiege.ui.class_reset_title").getString(),
                 Component.translatable("nightsiege.ui.class_reset_warn1", stats.earned - stats.donated).getString(), 0xFFD0C8DC,
-                Component.translatable("nightsiege.ui.class_reset_warn2").getString(), 0xFFFF6A5A);
+                Component.translatable(stats.classResetUnlimited ? "nightsiege.ui.class_reset_warn2_test"
+                        : "nightsiege.ui.class_reset_warn2").getString(), 0xFFFF6A5A);
     }
 
     /** A dark question box over the dimmed map, edged in the colour of the class. */

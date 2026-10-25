@@ -146,6 +146,13 @@ public final class SiegeCommands {
                                 })
                                 .then(Commands.argument("bloecke", IntegerArgumentType.integer(16, 192))
                                         .executes(SiegeCommands::baseRadius))))
+                .then(Commands.literal("wipe").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                        .then(Commands.literal("spieler")
+                                .executes(ctx -> {
+                                    reply(ctx.getSource(), Component.translatable("nightsiege.cmd.wipe_warn"));
+                                    return 1;
+                                })
+                                .then(Commands.literal("bestaetigen").executes(SiegeCommands::wipePlayers))))
                 .then(Commands.literal("dev")
                         .then(Commands.literal("reset").executes(SiegeCommands::devReset))
                         .then(Commands.argument("punkte", IntegerArgumentType.integer(1, 100000))
@@ -579,6 +586,16 @@ public final class SiegeCommands {
         int radius = IntegerArgumentType.getInteger(ctx, "bloecke");
         SiegeManager.get().setBaseRadius(radius);
         reply(ctx.getSource(), Component.translatable("nightsiege.cmd.base_radius_set", radius));
+        return 1;
+    }
+
+    private static int wipePlayers(CommandContext<CommandSourceStack> ctx) {
+        int wiped = SiegeManager.get().wipePlayers(ctx.getSource().getServer());
+        if (wiped < 0) {
+            fail(ctx.getSource(), Component.translatable("nightsiege.cmd.wipe_night"));
+            return 0;
+        }
+        reply(ctx.getSource(), Component.translatable("nightsiege.cmd.wipe_done", wiped));
         return 1;
     }
 

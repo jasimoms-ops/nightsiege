@@ -124,7 +124,9 @@ public final class StatsService {
         stats.donated = skills.donated;
         stats.pathTaken = skills.as(leveling, () -> skills.pathTaken(tree));
         stats.subclass = skills.as(leveling, () -> tree.subclassOf(skills));
-        stats.creative = viewer.getAbilities().instabuild || manager.config().testToolsForEveryone;
+        // Test buttons (+50, reset, crates): creative, or admins while the playtest switch is on.
+        stats.creative = viewer.getAbilities().instabuild || (manager.config().testToolsForEveryone && manager.isAdmin(viewer));
+        stats.classResetUnlimited = manager.config().testToolsForEveryone;
         stats.classResetAvailable = manager.classResetAvailable(skills);
         for (com.mki.nightsiege.core.PerkKind kind : com.mki.nightsiege.core.PerkKind.values()) {
             CoreStats.PerkLine line = new CoreStats.PerkLine();

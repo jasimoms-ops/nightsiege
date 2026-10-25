@@ -2665,7 +2665,7 @@ public final class SiegeManager {
 
     /** Creative shortcuts, so classes can be tried out without grinding. */
     private void onDevAction(ServerPlayer player, String argument) {
-        if (!player.getAbilities().instabuild && !config.testToolsForEveryone) {
+        if (!player.getAbilities().instabuild && !(config.testToolsForEveryone && isAdmin(player))) {
             player.sendSystemMessage(Component.translatable("nightsiege.msg.creative_only")
                     .withStyle(ChatFormatting.RED));
             return;
@@ -2787,10 +2787,44 @@ public final class SiegeManager {
         return c != null && !c.isShared() && (!c.adminOnly() || maySummon(player));
     }
 
-    /** The reset at the core is there until the first class is complete. */
+    /**
+     * The reset at the core is there until the first class is complete. In a playtest
+     * (testToolsForEveryone) every player may change the class as often as they like.
+     */
     public boolean classResetAvailable(PlayerSkills own) {
+        if (config.testToolsForEveryone) {
+            return own.hasClass();
+        }
         return own.hasClass() && !own.classResetUsed && own.unlockedClasses().size() <= 1
                 && !skillTree.isComplete(own, own.levelingClass());
+    }
+
+    /** Server operators (permission level 2). */
+    public boolean isAdmin(ServerPlayer player) {
+        return player != null && net.minecraft.commands.Commands.LEVEL_GAMEMASTERS.check(player.permissions());
+    }
+
+    /**
+     * Everyone back to nothing: points, levels, classes, crate gains and crates still waiting
+     * are gone; the class change is free again. The shared core tree, the night statistics and
+     * the crates in inventories stay. Not during a night.
+     */
+    public int wipePlayers(MinecraftServer server) {
+        if (active || save.skills == null) {
+            return -1;
+        }
+        int wiped = save.skills.size();
+        save.skills.clear();
+        if (save.pendingCrates != null) {
+            save.pendingCrates.clear();
+        }
+        persist();
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            SkillService.clear(player);
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.progress_wiped").withStyle(ChatFormatting.GOLD));
+        }
+        NightSiegeMod.LOGGER.info("[Night Siege] Fortschritt aller Spieler zurueckgesetzt ({} Eintraege)", wiped);
+        return wiped;
     }
 
     /** Maxing the ultimate of one's path pays out the infernite upgrade template, once. */
@@ -2898,7 +2932,11 @@ public final class SiegeManager {
             openCoreWindow(player);
             return;
         }
+        boolean wasUsed = own.classResetUsed;
         own.changeClass();
+        if (config.testToolsForEveryone) {
+            own.classResetUsed = wasUsed;   // the playtest change does not use up the real one
+        }
         SkillService.clear(player);
         persist();
         player.sendSystemMessage(Component.translatable("nightsiege.msg.class_reset_done", own.points())
