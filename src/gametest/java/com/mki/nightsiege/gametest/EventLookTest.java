@@ -663,8 +663,7 @@ public class EventLookTest implements FabricClientGameTest {
         BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
         int gx = pos.getX() + 160;
         int gz = pos.getZ();
-        int gy = context.computeOnClient(client -> client.level.getHeight(
-                net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, gx, gz));
+        int gy = groundAt(context, gx, gz);
         game.getServer().runCommand("time set 6000");
         game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:grass_block".formatted(gx - 20, gy - 1, gz - 12, gx + 8, gy - 1, gz + 12));
         game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(gx - 20, gy, gz - 12, gx + 8, gy + 8, gz + 12));
@@ -682,7 +681,7 @@ public class EventLookTest implements FabricClientGameTest {
         game.getServer().runCommand("tp @p %d.5 %d %d.5 90 -15".formatted(gx + 3, gy, gz));
         game.getServer().runCommand("summon minecraft:husk %d %d %d {PersistenceRequired:1b,Tags:[\"ns_inner\"]}"
                 .formatted(gx - 12, gy, gz + 1));
-        context.waitTicks(20);
+        context.waitTicks(40);
         final com.mki.nightsiege.game.LadderClimb ladders = new com.mki.nightsiege.game.LadderClimb();
         final net.minecraft.core.BlockPos anchor = new net.minecraft.core.BlockPos(gx, gy, gz);
         final net.minecraft.core.BlockPos inner = new net.minecraft.core.BlockPos(gx - r + 1, gy, gz);
@@ -883,8 +882,7 @@ public class EventLookTest implements FabricClientGameTest {
         BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
         int gx = pos.getX() + 60;
         int gz = pos.getZ() + 60;
-        int gy = context.computeOnClient(client -> client.level.getHeight(
-                net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, gx, gz));
+        int gy = groundAt(context, gx, gz);
         game.getServer().runCommand("time set 6000");
         game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:grass_block".formatted(gx - 4, gy - 1, gz - 16, gx + 24, gy - 1, gz + 16));
         game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(gx - 4, gy, gz - 16, gx + 24, gy + 10, gz + 16));
@@ -896,7 +894,8 @@ public class EventLookTest implements FabricClientGameTest {
                 + "attributes:[{id:\"minecraft:max_health\",base:200d}]}";
         game.getServer().runCommand(husk.formatted(gx + 12, gy + 1, gz, "ns_mortar_hidden"));
         game.getServer().runCommand("tp @p %d.5 %d %d.5 -90 25".formatted(gx - 3, gy + 8, gz));
-        context.waitTicks(10);
+        game.getServer().runCommand("setblock %d %d %d minecraft:barrier".formatted(gx - 3, gy + 7, gz));
+        context.waitTicks(40);
         onServer(context, (player, manager) -> {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
             com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
@@ -962,6 +961,27 @@ public class EventLookTest implements FabricClientGameTest {
             }
         });
         context.waitTicks(5);
+    }
+
+    /**
+     * The ground height far from the player: the chunks there are loaded on the server first
+     * (the client does not know them, its height there would be the bottom of the world).
+     */
+    private static int groundAt(ClientGameTestContext context, int x, int z) {
+        final int[] ground = {Integer.MIN_VALUE};
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            for (int cx = (x - 32) >> 4; cx <= (x + 32) >> 4; cx++) {
+                for (int cz = (z - 32) >> 4; cz <= (z + 32) >> 4; cz++) {
+                    level.setChunkForced(cx, cz, true);
+                    level.getChunk(cx, cz);
+                }
+            }
+            ground[0] = level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+        });
+        context.waitTicks(20);
+        System.out.println("[Night Siege test] ground at " + x + "," + z + " = " + ground[0]);
+        return ground[0];
     }
 
     private static void countShells(net.minecraft.server.level.ServerPlayer player, java.util.Set<java.util.UUID> shells) {
