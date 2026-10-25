@@ -39,6 +39,14 @@ public class SiegeSave {
 
     public int siegesWon;
     public int siegesLost;
+    /** Sieges since the last boss fell (-1: not counted yet, set from the sieges played). */
+    public int siegesSinceBoss = -1;
+    /** The bosses still to come before the bag is filled again (ids, see BossKind). */
+    public java.util.List<String> bossBag = new java.util.ArrayList<>();
+    /** The boss of the last boss night, so the next bag does not start with it. */
+    public String lastBoss;
+    /** The boss waiting for the coming boss night (drawn once, kept when the night is lost). */
+    public String nextBoss;
     public int currentStreak;
     public int bestStreak;
     public int totalKills;

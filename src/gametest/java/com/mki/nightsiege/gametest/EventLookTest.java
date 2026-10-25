@@ -49,6 +49,7 @@ public class EventLookTest implements FabricClientGameTest {
             }
 
             if (!shaderRun) {
+                bossScene(context, game);
                 series(context, game, "event");
                 mobLineup(context, game);
                 context.runOnClient(client -> EventAtmosphere.setClient("", 1));
@@ -1144,6 +1145,186 @@ public class EventLookTest implements FabricClientGameTest {
             manager.config().sapperFromLevel = beforeInt[0];
             manager.config().batchIntervalSeconds = beforeInt[1];
         });
+        game.getServer().runCommand("forceload remove all");
+        game.getServer().runCommand("time set 6000");
+        game.getServer().runCommand("effect clear @p");
+        game.getServer().runCommand("gamemode creative @p");
+        context.waitTicks(10);
+    }
+
+    /**
+     * The boss nights (Simon, 25 October 2026): each of the four bosses in a walled yard,
+     * photographed, left to fight for a while (its abilities logged), then brought down.
+     * The lich's soul shield must hold until its crystals are broken; the warlord's beast
+     * falls first, then the warlord. The boss's fall wins the night.
+     */
+    private static void bossScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        int cx = pos.getX() - 160;
+        int cz = pos.getZ() + 160;
+        game.getServer().runCommand("forceload add %d %d %d %d".formatted(cx - 48, cz - 48, cx + 48, cz + 48));
+        context.waitTicks(40);
+        final int[] ground = new int[1];
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            level.getChunk(cx >> 4, cz >> 4);
+            ground[0] = level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, cx, cz);
+        });
+        context.waitTicks(10);
+        int cy = ground[0];
+        int r = 9;
+        int out = 40;
+        for (int part = -out; part <= out; part += 20) {
+            int z1 = cz + part;
+            int z2 = Math.min(cz + out, z1 + 19);
+            game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:grass_block".formatted(cx - out, cy - 1, z1, cx + out, cy - 1, z2));
+            game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(cx - out, cy, z1, cx + out, cy + 12, z2));
+        }
+        String wall = "fill %d %d %d %d %d %d minecraft:stone_bricks";
+        game.getServer().runCommand(wall.formatted(cx - r, cy, cz - r, cx + r, cy + 3, cz - r));
+        game.getServer().runCommand(wall.formatted(cx - r, cy, cz + r, cx + r, cy + 3, cz + r));
+        game.getServer().runCommand(wall.formatted(cx - r, cy, cz - r, cx - r, cy + 3, cz + r));
+        game.getServer().runCommand(wall.formatted(cx + r, cy, cz - r, cx + r, cy + 3, cz + r));
+        game.getServer().runCommand("time set 18000");
+        game.getServer().runCommand("weather clear");
+        game.getServer().runCommand("tp @p %d.5 %d %d.5 0 10".formatted(cx, cy, cz));
+        game.getServer().runCommand("gamemode survival @p");
+        game.getServer().runCommand("effect give @p minecraft:resistance 600 255 true");
+        game.getServer().runCommand("effect give @p minecraft:regeneration 600 10 true");
+        game.getServer().runCommand("effect give @p minecraft:saturation 600 10 true");
+        context.waitTicks(20);
+        final int[] prep = new int[1];
+        onServer(context, (player, manager) -> {
+            prep[0] = manager.config().testPrepSeconds;
+            manager.config().testPrepSeconds = 1;
+        });
+        context.waitTicks(5);
+        for (com.mki.nightsiege.core.BossKind kind : com.mki.nightsiege.core.BossKind.values()) {
+            String id = kind.id();
+            game.getServer().runCommand("tp @p %d.5 %d %d.5 0 10".formatted(cx, cy, cz));
+            context.waitTicks(5);
+            onServer(context, (player, manager) -> {
+                net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                boolean ok = manager.prepareTest(level.getServer(), level, new BlockPos(cx, cy, cz), 8,
+                        com.mki.nightsiege.core.SiegeEvent.NONE, kind);
+                System.out.println("[Night Siege test] boss " + id + " prep ok=" + ok);
+            });
+            context.waitTicks(40);
+            closeScreen(context);
+            onServer(context, (player, manager) -> {
+                boolean now = manager.bossNow(player.level().getServer());
+                net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                net.minecraft.world.entity.Mob boss = manager.bosses().boss(level);
+                System.out.println("[Night Siege test] boss " + id + " night=" + manager.isActive() + " planned="
+                        + manager.bosses().kind() + " spawned=" + now + " boss=" + (boss == null ? "-" : boss.getType().toShortString()
+                        + " hp=" + Math.round(boss.getHealth()) + " scale=" + boss.getScale()));
+                if (boss != null) {
+                    // Hold the boss still for the photo, close to the camera.
+                    boss.setNoAi(true);
+                    boss.teleportTo(cx + 0.5, cy, cz - 4.5);
+                    boss.setYRot(0f);
+                    boss.setYHeadRot(0f);
+                    boss.yBodyRot = 0f;
+                    net.minecraft.world.entity.Mob rider = manager.bosses().riderOf(level);
+                    if (rider != null) {
+                        rider.setNoAi(true);
+                    }
+                }
+            });
+            context.waitTicks(10);
+            double back = kind == com.mki.nightsiege.core.BossKind.WARLORD || kind == com.mki.nightsiege.core.BossKind.GRAVE_KING ? 8.5 : 7.0;
+            game.getServer().runCommand("tp @p %d.5 %d %.1f 180 12".formatted(cx, cy + 1, cz - 4.5 + back));
+            context.waitTicks(30);
+            closeScreen(context);
+            context.takeScreenshot("boss_" + id);
+            // Let it fight for a while, then look at what it did.
+            onServer(context, (player, manager) -> {
+                net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                net.minecraft.world.entity.Mob boss = manager.bosses().boss(level);
+                if (boss != null) {
+                    boss.setNoAi(false);
+                }
+                net.minecraft.world.entity.Mob rider = manager.bosses().riderOf(level);
+                if (rider != null) {
+                    rider.setNoAi(false);
+                }
+            });
+            game.getServer().runCommand("tp @p %d.5 %d %d.5 180 10".formatted(cx, cy, cz + 3));
+            for (int t = 0; t < 12; t++) {
+                context.waitTicks(20);
+                final int sec = t + 1;
+                onServer(context, (player, manager) -> {
+                    net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                    net.minecraft.world.entity.Mob boss = manager.bosses().boss(level);
+                    int mobs = 0;
+                    for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                        if (e != null && e.entityTags().contains(com.mki.nightsiege.game.MobFactory.TAG)
+                                && !com.mki.nightsiege.game.BossService.isBossOrPart(e)) {
+                            mobs++;
+                        }
+                    }
+                    if (sec % 3 == 0) {
+                        System.out.println(String.format(java.util.Locale.ROOT,
+                                "[Night Siege test] boss %s t=%ds hp=%s pos=%s parts=%d monsters=%d player=%.1f/%.1f speed=%.2f",
+                                id, sec, boss == null ? "-" : String.valueOf(Math.round(boss.getHealth())),
+                                boss == null ? "-" : boss.blockPosition().toShortString(), manager.bosses().partHitboxes().size(), mobs,
+                                player.getHealth(), player.getMaxHealth(),
+                                player.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED)));
+                    }
+                });
+                if (t == 6) {
+                    closeScreen(context);
+                    context.takeScreenshot("boss_" + id + "_fight");
+                }
+            }
+            // Down with it: the lich's shield must hold until its crystals are gone.
+            onServer(context, (player, manager) -> {
+                net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                net.minecraft.world.entity.Mob boss = manager.bosses().boss(level);
+                if (boss == null) {
+                    System.out.println("[Night Siege test] boss " + id + " gone before the end");
+                    return;
+                }
+                float before = boss.getHealth();
+                boss.invulnerableTime = 0;
+                boss.hurtServer(level, level.damageSources().playerAttack(player), 20f);
+                System.out.println("[Night Siege test] boss " + id + " hit 20: " + Math.round(before) + " -> " + Math.round(boss.getHealth())
+                        + " parts=" + manager.bosses().partHitboxes().size());
+                for (java.util.UUID part : manager.bosses().partHitboxes()) {
+                    net.minecraft.world.entity.Entity e = level.getEntity(part);
+                    if (e instanceof net.minecraft.world.entity.LivingEntity l) {
+                        l.invulnerableTime = 0;
+                        l.hurtServer(level, level.damageSources().playerAttack(player), 10000f);
+                    }
+                }
+            });
+            context.waitTicks(10);
+            onServer(context, (player, manager) -> {
+                net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                for (int k = 0; k < 2; k++) {
+                    net.minecraft.world.entity.Mob boss = manager.bosses().boss(level);
+                    if (boss == null) {
+                        break;
+                    }
+                    float before = boss.getHealth();
+                    boss.invulnerableTime = 0;
+                    boss.hurtServer(level, level.damageSources().playerAttack(player), 100000f);
+                    System.out.println("[Night Siege test] boss " + id + " big hit " + k + ": " + Math.round(before) + " -> "
+                            + (boss.isAlive() ? String.valueOf(Math.round(boss.getHealth())) : "dead") + " fallen=" + manager.bosses().fallen());
+                }
+            });
+            context.waitTicks(80);
+            onServer(context, (player, manager) -> {
+                System.out.println("[Night Siege test] boss " + id + " after the fall: night active=" + manager.isActive()
+                        + " speed=" + player.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED));
+                if (manager.isActive()) {
+                    manager.abort(player.level().getServer());
+                }
+            });
+            context.waitTicks(20);
+            closeScreen(context);
+        }
+        onServer(context, (player, manager) -> manager.config().testPrepSeconds = prep[0]);
         game.getServer().runCommand("forceload remove all");
         game.getServer().runCommand("time set 6000");
         game.getServer().runCommand("effect clear @p");

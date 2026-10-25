@@ -31,6 +31,10 @@ public final class EventGearShapes {
         thunder();
         nether_rift();
         frost();
+        boss_grave_king();
+        boss_spider_queen();
+        boss_bone_lich();
+        boss_warlord();
     }
 
     private static void blood_moon() {
@@ -767,6 +771,128 @@ public final class EventGearShapes {
                 new Box("head", 4.300f, -8.030f, 3.000f, 1, 2, 1, 60, 0, true, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f))));
     }
 
+    private static void boss_grave_king() {
+        SETS.put("boss_grave_king/humanoid", new Set(64, 32, List.of(
+                new Box("head", -4.600f, -9.600f, -4.600f, 9, 2, 1, 38, 16, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -4.600f, -9.600f, 3.600f, 9, 2, 1, 38, 16, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -4.600f, -9.600f, -3.600f, 1, 2, 7, 20, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", 3.600f, -9.600f, -3.600f, 1, 2, 7, 20, 0, true, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -1.000f, -13.600f, -4.600f, 2, 4, 1, 20, 16, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -4.600f, -11.600f, -4.600f, 1, 2, 1, 58, 16, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", 3.600f, -11.600f, -4.600f, 1, 2, 1, 58, 16, true, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -4.600f, -11.600f, 3.600f, 1, 2, 1, 58, 16, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", 3.600f, -11.600f, 3.600f, 1, 2, 1, 58, 16, true, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -0.500f, -11.600f, 3.600f, 1, 2, 1, 58, 16, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -0.500f, -12.600f, -4.900f, 1, 1, 1, 4, 23, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -3.000f, -9.100f, -5.000f, 1, 1, 1, 4, 23, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", 2.000f, -9.100f, -5.000f, 1, 1, 1, 4, 23, true, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", -6.800f, -1.400f, -2.800f, 4, 2, 6, 36, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", 2.800f, -1.400f, -2.800f, 4, 2, 6, 36, 0, true, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", -0.500f, -3.000f, -0.500f, 1, 3, 1, 26, 16, false, -5.200f, -1.200f, 0.000f, 0.000f, -0.000f, -0.500f),
+                new Box("body", -0.500f, -3.000f, -0.500f, 1, 3, 1, 26, 16, true, 5.200f, -1.200f, 0.000f, 0.000f, 0.000f, 0.500f),
+                new Box("body", -4.500f, 0.200f, 2.150f, 9, 15, 1, 0, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("right_arm", -3.500f, 6.000f, -2.500f, 5, 2, 5, 0, 16, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("left_arm", -1.500f, 6.000f, -2.500f, 5, 2, 5, 0, 16, true, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", -1.000f, -2.000f, -1.000f, 2, 2, 2, 30, 16, false, -2.000f, 3.500f, -2.200f, 0.900f, -0.000f, 0.000f),
+                new Box("body", -0.500f, -2.000f, -0.500f, 1, 2, 1, 0, 23, false, -2.825f, 3.942f, -2.551f, 0.611f, -0.288f, 0.237f))));
+    }
+
+    private static void boss_spider_queen() {
+        SETS.put("boss_spider_queen/spider", new Set(64, 32, List.of(
+                new Box("head", -3.500f, -5.000f, -7.500f, 7, 1, 6, 0, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -3.500f, -7.000f, -7.500f, 1, 2, 1, 46, 7, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -1.500f, -8.000f, -7.500f, 1, 3, 1, 22, 7, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", 0.500f, -8.000f, -7.500f, 1, 3, 1, 22, 7, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", 2.500f, -7.000f, -7.500f, 1, 2, 1, 46, 7, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -0.500f, -5.600f, -8.100f, 1, 1, 1, 54, 7, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body1", -1.000f, -3.000f, -1.000f, 2, 3, 2, 56, 0, false, -3.500f, -4.000f, -4.000f, -0.250f, -0.000f, -0.550f),
+                new Box("body1", -0.500f, -3.000f, -0.500f, 1, 3, 1, 26, 7, false, -4.715f, -5.982f, -3.406f, -0.250f, -0.000f, -0.550f),
+                new Box("body1", -1.000f, -3.000f, -1.000f, 2, 3, 2, 56, 0, true, 3.500f, -4.000f, -4.000f, -0.250f, 0.000f, 0.550f),
+                new Box("body1", -0.500f, -3.000f, -0.500f, 1, 3, 1, 26, 7, true, 4.715f, -5.982f, -3.406f, -0.250f, 0.000f, 0.550f),
+                new Box("body1", -1.000f, -4.000f, -1.000f, 2, 4, 2, 34, 0, false, -3.500f, -4.000f, -0.500f, -0.250f, -0.000f, -0.550f),
+                new Box("body1", -0.500f, -3.000f, -0.500f, 1, 3, 1, 30, 7, false, -5.222f, -6.808f, 0.341f, -0.250f, -0.000f, -0.550f),
+                new Box("body1", -1.000f, -4.000f, -1.000f, 2, 4, 2, 34, 0, true, 3.500f, -4.000f, -0.500f, -0.250f, 0.000f, 0.550f),
+                new Box("body1", -0.500f, -3.000f, -0.500f, 1, 3, 1, 30, 7, true, 5.222f, -6.808f, 0.341f, -0.250f, 0.000f, 0.550f),
+                new Box("body1", -1.000f, -3.000f, -1.000f, 2, 3, 2, 0, 7, false, -3.500f, -4.000f, 3.000f, -0.250f, -0.000f, -0.550f),
+                new Box("body1", -0.500f, -3.000f, -0.500f, 1, 3, 1, 34, 7, false, -4.715f, -5.982f, 3.594f, -0.250f, -0.000f, -0.550f),
+                new Box("body1", -1.000f, -3.000f, -1.000f, 2, 3, 2, 0, 7, true, 3.500f, -4.000f, 3.000f, -0.250f, 0.000f, 0.550f),
+                new Box("body1", -0.500f, -3.000f, -0.500f, 1, 3, 1, 34, 7, true, 4.715f, -5.982f, 3.594f, -0.250f, 0.000f, 0.550f),
+                new Box("body1", -1.000f, -5.000f, -1.000f, 2, 5, 2, 26, 0, false, 0.000f, -4.000f, -1.000f, -0.200f, -0.000f, 0.000f),
+                new Box("body1", -0.500f, -3.000f, -0.500f, 1, 3, 1, 38, 7, false, -1.082f, -3.897f, -0.491f, 0.011f, 0.079f, 0.399f),
+                new Box("body1", -0.500f, -4.000f, -0.500f, 1, 4, 1, 8, 7, false, 0.092f, -4.238f, -2.173f, -0.649f, -0.007f, -0.034f),
+                new Box("body1", -2.500f, -1.500f, 6.000f, 5, 4, 2, 42, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body1", -3.500f, 1.500f, 5.600f, 3, 3, 2, 12, 7, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body1", 1.000f, 1.000f, 5.600f, 3, 3, 2, 12, 7, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body1", -3.000f, -2.200f, 6.400f, 6, 1, 1, 0, 12, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -0.500f, -3.000f, -0.500f, 1, 3, 1, 42, 7, false, -1.500f, 3.000f, -7.500f, 2.827f, -0.000f, 0.100f),
+                new Box("head", -0.500f, -2.000f, -0.500f, 1, 2, 1, 50, 7, false, -1.728f, 5.271f, -8.242f, 2.427f, -0.000f, 0.100f),
+                new Box("head", -0.500f, -3.000f, -0.500f, 1, 3, 1, 42, 7, true, 1.500f, 3.000f, -7.500f, 2.827f, 0.000f, -0.100f),
+                new Box("head", -0.500f, -2.000f, -0.500f, 1, 2, 1, 50, 7, true, 1.728f, 5.271f, -8.242f, 2.427f, 0.000f, -0.100f))));
+    }
+
+    private static void boss_bone_lich() {
+        SETS.put("boss_bone_lich/skeleton", new Set(64, 32, List.of(
+                new Box("head", -1.500f, -0.500f, -0.500f, 3, 1, 1, 0, 6, false, 6.200f, -5.000f, 5.600f, 0.000f, 0.000f, 1.571f),
+                new Box("head", -0.500f, -3.000f, -0.500f, 1, 3, 1, 32, 0, false, 6.800f, -5.000f, 5.600f, 0.000f, 0.000f, 1.571f),
+                new Box("head", -1.500f, -0.500f, -0.500f, 3, 1, 1, 0, 6, false, 5.586f, -2.310f, 5.600f, 0.000f, 0.000f, 2.020f),
+                new Box("head", -1.500f, -0.500f, -0.500f, 3, 1, 1, 0, 6, false, 3.866f, -0.153f, 5.600f, 0.000f, 0.000f, 2.468f),
+                new Box("head", -0.500f, -3.000f, -0.500f, 1, 3, 1, 32, 0, false, 4.240f, 0.316f, 5.600f, 0.000f, 0.000f, 2.468f),
+                new Box("head", -1.500f, -0.500f, -0.500f, 3, 1, 1, 0, 6, false, 1.380f, 1.045f, 5.600f, 0.000f, 0.000f, 2.917f),
+                new Box("head", -1.500f, -0.500f, -0.500f, 3, 1, 1, 0, 6, false, -1.380f, 1.045f, 5.600f, 0.000f, 0.000f, 3.366f),
+                new Box("head", -0.500f, -3.000f, -0.500f, 1, 3, 1, 32, 0, false, -1.513f, 1.630f, 5.600f, 0.000f, 0.000f, 3.366f),
+                new Box("head", -1.500f, -0.500f, -0.500f, 3, 1, 1, 0, 6, false, -3.866f, -0.153f, 5.600f, 0.000f, 0.000f, 3.815f),
+                new Box("head", -1.500f, -0.500f, -0.500f, 3, 1, 1, 0, 6, false, -5.586f, -2.310f, 5.600f, 0.000f, 0.000f, 4.264f),
+                new Box("head", -0.500f, -3.000f, -0.500f, 1, 3, 1, 32, 0, false, -6.127f, -2.050f, 5.600f, 0.000f, 0.000f, 4.264f),
+                new Box("head", -1.500f, -0.500f, -0.500f, 3, 1, 1, 0, 6, false, -6.200f, -5.000f, 5.600f, 0.000f, 0.000f, 4.712f),
+                new Box("head", -1.500f, -0.500f, -0.500f, 3, 1, 1, 0, 6, false, -5.586f, -7.690f, 5.600f, 0.000f, 0.000f, 5.161f),
+                new Box("head", -0.500f, -3.000f, -0.500f, 1, 3, 1, 32, 0, false, -6.127f, -7.950f, 5.600f, 0.000f, 0.000f, 5.161f),
+                new Box("head", -1.500f, -0.500f, -0.500f, 3, 1, 1, 0, 6, false, -3.866f, -9.847f, 5.600f, 0.000f, 0.000f, 5.610f),
+                new Box("head", -1.500f, -0.500f, -0.500f, 3, 1, 1, 0, 6, false, -1.380f, -11.045f, 5.600f, 0.000f, 0.000f, 6.059f),
+                new Box("head", -0.500f, -3.000f, -0.500f, 1, 3, 1, 32, 0, false, -1.513f, -11.630f, 5.600f, 0.000f, 0.000f, 6.059f),
+                new Box("head", -1.500f, -0.500f, -0.500f, 3, 1, 1, 0, 6, false, 1.380f, -11.045f, 5.600f, 0.000f, 0.000f, 6.508f),
+                new Box("head", -1.500f, -0.500f, -0.500f, 3, 1, 1, 0, 6, false, 3.866f, -9.847f, 5.600f, 0.000f, 0.000f, 6.956f),
+                new Box("head", -0.500f, -3.000f, -0.500f, 1, 3, 1, 32, 0, false, 4.240f, -10.316f, 5.600f, 0.000f, 0.000f, 6.956f),
+                new Box("head", -1.500f, -0.500f, -0.500f, 3, 1, 1, 0, 6, false, 5.586f, -7.690f, 5.600f, 0.000f, 0.000f, 7.405f),
+                new Box("head", -0.500f, -3.000f, -0.500f, 1, 3, 1, 36, 0, false, -3.500f, -8.000f, -3.200f, 0.000f, -0.000f, -0.300f),
+                new Box("head", -0.500f, -4.000f, -0.500f, 1, 4, 1, 8, 0, false, -1.200f, -8.000f, -3.200f, 0.000f, -0.000f, -0.100f),
+                new Box("head", -0.500f, -4.000f, -0.500f, 1, 4, 1, 12, 0, false, 1.200f, -8.000f, -3.200f, 0.000f, -0.000f, 0.100f),
+                new Box("head", -0.500f, -3.000f, -0.500f, 1, 3, 1, 40, 0, false, 3.500f, -8.000f, -3.200f, 0.000f, -0.000f, 0.300f),
+                new Box("head", -1.000f, -3.000f, -1.000f, 2, 3, 2, 16, 0, false, -3.600f, -7.600f, 0.500f, -0.200f, -0.000f, -0.900f),
+                new Box("head", -0.500f, -3.000f, -0.500f, 1, 3, 1, 44, 0, false, -5.443f, -9.062f, 0.977f, -0.376f, 0.095f, -0.408f),
+                new Box("head", -1.000f, -3.000f, -1.000f, 2, 3, 2, 16, 0, true, 3.600f, -7.600f, 0.500f, -0.200f, 0.000f, 0.900f),
+                new Box("head", -0.500f, -3.000f, -0.500f, 1, 3, 1, 44, 0, true, 5.443f, -9.062f, 0.977f, -0.376f, -0.095f, 0.408f),
+                new Box("body", -1.000f, -4.000f, -1.000f, 2, 4, 2, 0, 0, false, -5.500f, 0.500f, 0.000f, 0.100f, -0.000f, -0.700f),
+                new Box("body", -0.500f, -3.000f, -0.500f, 1, 3, 1, 48, 0, false, -7.679f, -2.087f, -0.339f, 0.100f, -0.000f, -0.700f),
+                new Box("body", -1.000f, -4.000f, -1.000f, 2, 4, 2, 0, 0, true, 5.500f, 0.500f, 0.000f, 0.100f, 0.000f, 0.700f),
+                new Box("body", -0.500f, -3.000f, -0.500f, 1, 3, 1, 48, 0, true, 7.679f, -2.087f, -0.339f, 0.100f, 0.000f, 0.700f),
+                new Box("body", -1.000f, -3.000f, -1.000f, 2, 3, 2, 24, 0, false, 0.000f, 3.500f, -2.200f, 0.900f, -0.000f, 0.000f),
+                new Box("body", -0.500f, -2.000f, -0.500f, 1, 2, 1, 52, 0, false, -0.992f, 3.127f, -1.904f, 1.053f, -0.314f, 0.261f),
+                new Box("body", -0.500f, -2.000f, -0.500f, 1, 2, 1, 56, 0, false, 0.084f, 4.359f, -2.882f, 0.451f, 0.027f, -0.021f),
+                new Box("body", -3.500f, 10.200f, -2.600f, 2, 1, 1, 8, 6, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", -1.000f, 10.200f, -2.600f, 2, 1, 1, 8, 6, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", 1.500f, 10.200f, -2.600f, 2, 1, 1, 8, 6, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f))));
+    }
+
+    private static void boss_warlord() {
+        SETS.put("boss_warlord/illager", new Set(64, 64, List.of(
+                new Box("head", -4.600f, -10.800f, -4.600f, 9, 4, 9, 4, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -0.500f, -6.800f, -4.900f, 1, 3, 1, 38, 31, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -1.000f, -3.000f, -1.000f, 2, 3, 2, 22, 31, false, -4.400f, -9.400f, -0.500f, -0.100f, -0.000f, -1.300f),
+                new Box("head", -1.000f, -3.000f, -1.000f, 2, 3, 2, 30, 31, false, -6.701f, -10.039f, -0.260f, -0.335f, 0.052f, -0.752f),
+                new Box("head", -0.500f, -3.000f, -0.500f, 1, 3, 1, 42, 31, false, -8.219f, -11.722f, 0.528f, -0.512f, 0.218f, -0.222f),
+                new Box("head", -1.000f, -3.000f, -1.000f, 2, 3, 2, 22, 31, true, 4.400f, -9.400f, -0.500f, -0.100f, 0.000f, 1.300f),
+                new Box("head", -1.000f, -3.000f, -1.000f, 2, 3, 2, 30, 31, true, 6.701f, -10.039f, -0.260f, -0.335f, -0.052f, 0.752f),
+                new Box("head", -0.500f, -3.000f, -0.500f, 1, 3, 1, 42, 31, true, 8.219f, -11.722f, 0.528f, -0.512f, -0.218f, 0.222f),
+                new Box("body", -6.800f, -1.200f, -3.400f, 4, 3, 7, 0, 31, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", 2.800f, -1.200f, -3.400f, 4, 3, 7, 0, 31, true, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", -0.500f, -3.000f, -0.500f, 1, 3, 1, 46, 31, false, -5.400f, -1.000f, 0.000f, 0.000f, -0.000f, -0.600f),
+                new Box("body", -0.500f, -3.000f, -0.500f, 1, 3, 1, 46, 31, true, 5.400f, -1.000f, 0.000f, 0.000f, 0.000f, 0.600f),
+                new Box("body", -0.500f, -21.000f, 4.400f, 1, 30, 1, 0, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", 0.500f, -20.500f, 4.400f, 8, 10, 1, 40, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", -1.000f, -22.000f, 3.900f, 2, 1, 2, 0, 41, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", -2.000f, 2.000f, 3.000f, 4, 2, 2, 50, 31, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f))));
+    }
+
     /** The textures each event changes: vanilla path (under textures/entity/) = event file name. */
     public static final Map<String, List<String>> TEXTURES = Map.ofEntries(
             Map.entry("blood_moon", List.of("zombie/zombie.png=zombie", "zombie/zombie_baby.png=zombie_baby", "zombie/husk.png=husk", "zombie/husk_baby.png=husk_baby", "zombie/drowned.png=drowned", "zombie/drowned_baby.png=drowned_baby", "zombie/drowned_outer_layer.png=drowned_outer_layer", "zombie/drowned_outer_layer_baby.png=drowned_outer_layer_baby", "skeleton/skeleton.png=skeleton", "skeleton/stray.png=stray", "skeleton/stray_overlay.png=stray_overlay", "skeleton/bogged.png=bogged", "skeleton/bogged_overlay.png=bogged_overlay", "skeleton/parched.png=parched", "skeleton/wither_skeleton.png=wither_skeleton", "creeper/creeper.png=creeper", "spider/spider.png=spider", "spider/cave_spider.png=cave_spider", "illager/pillager.png=pillager", "illager/vindicator.png=vindicator", "illager/evoker.png=evoker", "illager/illusioner.png=illusioner", "witch/witch.png=witch", "illager/ravager.png=ravager", "breeze/breeze.png=breeze", "breeze/breeze_wind.png=breeze_wind", "camel/camel_husk.png=camel_husk", "spider/spider_eyes.png=spider_eyes")),
@@ -774,7 +900,11 @@ public final class EventGearShapes {
             Map.entry("fog", List.of("zombie/zombie.png=zombie", "zombie/zombie_baby.png=zombie_baby", "zombie/husk.png=husk", "zombie/husk_baby.png=husk_baby", "zombie/drowned.png=drowned", "zombie/drowned_baby.png=drowned_baby", "zombie/drowned_outer_layer.png=drowned_outer_layer", "zombie/drowned_outer_layer_baby.png=drowned_outer_layer_baby", "skeleton/skeleton.png=skeleton", "skeleton/stray.png=stray", "skeleton/stray_overlay.png=stray_overlay", "skeleton/bogged.png=bogged", "skeleton/bogged_overlay.png=bogged_overlay", "skeleton/parched.png=parched", "skeleton/wither_skeleton.png=wither_skeleton", "creeper/creeper.png=creeper", "spider/spider.png=spider", "spider/cave_spider.png=cave_spider", "illager/pillager.png=pillager", "illager/vindicator.png=vindicator", "illager/evoker.png=evoker", "illager/illusioner.png=illusioner", "witch/witch.png=witch", "illager/ravager.png=ravager", "breeze/breeze.png=breeze", "breeze/breeze_wind.png=breeze_wind", "camel/camel_husk.png=camel_husk", "spider/spider_eyes.png=spider_eyes")),
             Map.entry("thunder", List.of("zombie/zombie.png=zombie", "zombie/zombie_baby.png=zombie_baby", "zombie/husk.png=husk", "zombie/husk_baby.png=husk_baby", "zombie/drowned.png=drowned", "zombie/drowned_baby.png=drowned_baby", "zombie/drowned_outer_layer.png=drowned_outer_layer", "zombie/drowned_outer_layer_baby.png=drowned_outer_layer_baby", "skeleton/skeleton.png=skeleton", "skeleton/stray.png=stray", "skeleton/stray_overlay.png=stray_overlay", "skeleton/bogged.png=bogged", "skeleton/bogged_overlay.png=bogged_overlay", "skeleton/parched.png=parched", "skeleton/wither_skeleton.png=wither_skeleton", "creeper/creeper.png=creeper", "spider/spider.png=spider", "spider/cave_spider.png=cave_spider", "illager/pillager.png=pillager", "illager/vindicator.png=vindicator", "illager/evoker.png=evoker", "illager/illusioner.png=illusioner", "witch/witch.png=witch", "illager/ravager.png=ravager", "breeze/breeze.png=breeze", "breeze/breeze_wind.png=breeze_wind", "camel/camel_husk.png=camel_husk", "spider/spider_eyes.png=spider_eyes")),
             Map.entry("nether_rift", List.of("zombie/zombie.png=zombie", "zombie/zombie_baby.png=zombie_baby", "zombie/husk.png=husk", "zombie/husk_baby.png=husk_baby", "zombie/drowned.png=drowned", "zombie/drowned_baby.png=drowned_baby", "zombie/drowned_outer_layer.png=drowned_outer_layer", "zombie/drowned_outer_layer_baby.png=drowned_outer_layer_baby", "skeleton/skeleton.png=skeleton", "skeleton/stray.png=stray", "skeleton/stray_overlay.png=stray_overlay", "skeleton/bogged.png=bogged", "skeleton/bogged_overlay.png=bogged_overlay", "skeleton/parched.png=parched", "skeleton/wither_skeleton.png=wither_skeleton", "creeper/creeper.png=creeper", "spider/spider.png=spider", "spider/cave_spider.png=cave_spider", "illager/pillager.png=pillager", "illager/vindicator.png=vindicator", "illager/evoker.png=evoker", "illager/illusioner.png=illusioner", "witch/witch.png=witch", "illager/ravager.png=ravager", "breeze/breeze.png=breeze", "breeze/breeze_wind.png=breeze_wind", "camel/camel_husk.png=camel_husk", "blaze/blaze.png=blaze", "piglin/piglin_brute.png=piglin_brute", "piglin/zombified_piglin.png=zombified_piglin", "piglin/zombified_piglin_baby.png=zombified_piglin_baby", "slime/magmacube.png=magmacube", "hoglin/hoglin.png=hoglin", "hoglin/hoglin_baby.png=hoglin_baby", "spider/spider_eyes.png=spider_eyes")),
-            Map.entry("frost", List.of("zombie/zombie.png=zombie", "zombie/zombie_baby.png=zombie_baby", "zombie/husk.png=husk", "zombie/husk_baby.png=husk_baby", "zombie/drowned.png=drowned", "zombie/drowned_baby.png=drowned_baby", "zombie/drowned_outer_layer.png=drowned_outer_layer", "zombie/drowned_outer_layer_baby.png=drowned_outer_layer_baby", "skeleton/skeleton.png=skeleton", "skeleton/stray.png=stray", "skeleton/stray_overlay.png=stray_overlay", "skeleton/bogged.png=bogged", "skeleton/bogged_overlay.png=bogged_overlay", "skeleton/parched.png=parched", "skeleton/wither_skeleton.png=wither_skeleton", "creeper/creeper.png=creeper", "spider/spider.png=spider", "spider/cave_spider.png=cave_spider", "illager/pillager.png=pillager", "illager/vindicator.png=vindicator", "illager/evoker.png=evoker", "illager/illusioner.png=illusioner", "witch/witch.png=witch", "illager/ravager.png=ravager", "breeze/breeze.png=breeze", "breeze/breeze_wind.png=breeze_wind", "camel/camel_husk.png=camel_husk", "spider/spider_eyes.png=spider_eyes")));
+            Map.entry("frost", List.of("zombie/zombie.png=zombie", "zombie/zombie_baby.png=zombie_baby", "zombie/husk.png=husk", "zombie/husk_baby.png=husk_baby", "zombie/drowned.png=drowned", "zombie/drowned_baby.png=drowned_baby", "zombie/drowned_outer_layer.png=drowned_outer_layer", "zombie/drowned_outer_layer_baby.png=drowned_outer_layer_baby", "skeleton/skeleton.png=skeleton", "skeleton/stray.png=stray", "skeleton/stray_overlay.png=stray_overlay", "skeleton/bogged.png=bogged", "skeleton/bogged_overlay.png=bogged_overlay", "skeleton/parched.png=parched", "skeleton/wither_skeleton.png=wither_skeleton", "creeper/creeper.png=creeper", "spider/spider.png=spider", "spider/cave_spider.png=cave_spider", "illager/pillager.png=pillager", "illager/vindicator.png=vindicator", "illager/evoker.png=evoker", "illager/illusioner.png=illusioner", "witch/witch.png=witch", "illager/ravager.png=ravager", "breeze/breeze.png=breeze", "breeze/breeze_wind.png=breeze_wind", "camel/camel_husk.png=camel_husk", "spider/spider_eyes.png=spider_eyes")),
+            Map.entry("boss_grave_king", List.of("zombie/zombie.png=zombie")),
+            Map.entry("boss_spider_queen", List.of("spider/spider.png=spider", "spider/spider_eyes.png=spider_eyes")),
+            Map.entry("boss_bone_lich", List.of("skeleton/skeleton.png=skeleton")),
+            Map.entry("boss_warlord", List.of("illager/vindicator.png=vindicator", "illager/ravager.png=ravager")));
 
     /** Event textures with a glow map ("<event>/<name>", file <name>_glow.png). */
     public static final java.util.Set<String> GLOWS = java.util.Set.of(
@@ -783,5 +913,9 @@ public final class EventGearShapes {
             "fog/zombie", "fog/zombie_baby", "fog/husk", "fog/husk_baby", "fog/drowned", "fog/drowned_baby", "fog/skeleton", "fog/stray", "fog/bogged", "fog/parched", "fog/wither_skeleton", "fog/creeper", "fog/pillager", "fog/vindicator", "fog/evoker", "fog/illusioner", "fog/witch",
             "thunder/zombie", "thunder/zombie_baby", "thunder/husk", "thunder/husk_baby", "thunder/drowned", "thunder/drowned_baby", "thunder/skeleton", "thunder/stray", "thunder/bogged", "thunder/parched", "thunder/wither_skeleton", "thunder/creeper", "thunder/spider", "thunder/cave_spider", "thunder/pillager", "thunder/vindicator", "thunder/evoker", "thunder/illusioner", "thunder/witch", "thunder/ravager", "thunder/breeze", "thunder/camel_husk",
             "nether_rift/zombie", "nether_rift/zombie_baby", "nether_rift/husk", "nether_rift/husk_baby", "nether_rift/drowned", "nether_rift/drowned_baby", "nether_rift/skeleton", "nether_rift/stray", "nether_rift/bogged", "nether_rift/parched", "nether_rift/wither_skeleton", "nether_rift/creeper", "nether_rift/spider", "nether_rift/cave_spider", "nether_rift/pillager", "nether_rift/vindicator", "nether_rift/evoker", "nether_rift/illusioner", "nether_rift/witch", "nether_rift/ravager", "nether_rift/breeze", "nether_rift/camel_husk", "nether_rift/blaze", "nether_rift/piglin_brute", "nether_rift/zombified_piglin", "nether_rift/zombified_piglin_baby", "nether_rift/magmacube", "nether_rift/hoglin", "nether_rift/hoglin_baby",
-            "frost/zombie", "frost/zombie_baby", "frost/husk", "frost/husk_baby", "frost/drowned", "frost/drowned_baby", "frost/skeleton", "frost/stray", "frost/bogged", "frost/parched", "frost/wither_skeleton", "frost/creeper", "frost/spider", "frost/cave_spider", "frost/pillager", "frost/vindicator", "frost/evoker", "frost/illusioner", "frost/witch", "frost/ravager", "frost/breeze", "frost/camel_husk");
+            "frost/zombie", "frost/zombie_baby", "frost/husk", "frost/husk_baby", "frost/drowned", "frost/drowned_baby", "frost/skeleton", "frost/stray", "frost/bogged", "frost/parched", "frost/wither_skeleton", "frost/creeper", "frost/spider", "frost/cave_spider", "frost/pillager", "frost/vindicator", "frost/evoker", "frost/illusioner", "frost/witch", "frost/ravager", "frost/breeze", "frost/camel_husk",
+            "boss_grave_king/zombie",
+            "boss_spider_queen/spider",
+            "boss_bone_lich/skeleton",
+            "boss_warlord/vindicator", "boss_warlord/ravager");
 }

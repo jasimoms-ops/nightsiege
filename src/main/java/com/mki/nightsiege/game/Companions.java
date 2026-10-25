@@ -114,6 +114,8 @@ public final class Companions {
     /** Way of the dead: souls per summoner (3 at the start of a night). */
     private final Map<UUID, Integer> souls = new HashMap<>();
     private final java.util.ArrayDeque<Corpse> corpses = new java.util.ArrayDeque<>();
+    /** How many dead each summoner raised tonight (every 4th is a champion with the mastery). */
+    private final Map<UUID, Integer> raisedCount = new HashMap<>();
     /** Owner → game time the wolf of the cross talent may come again. */
     private final Map<UUID, Long> nextWolf = new HashMap<>();
     /** Owner → game time the staff may raise again (a short pause against double clicks). */
@@ -1004,6 +1006,7 @@ public final class Companions {
         nextHowl.clear();
         souls.clear();
         corpses.clear();
+        raisedCount.clear();
         nextWolf.clear();
         nextRaise.clear();
         pending.clear();
@@ -1273,9 +1276,20 @@ public final class Companions {
         // At least 30 health before the night and the skills (Simon, 25 October 2026): the raised
         // dead were gone at the first hit.
         double life = Math.max(30.0, mob.getMaxHealth() * strength) * night * (1.0 + bonus(SkillEffect.SUMMON_HEALTH, skills)) * own;
+        // Champion der Toten (since the champion night is gone, 25 October 2026): every 4th of
+        // the raised dead rises as a champion, twice as strong and bigger.
+        boolean champion = false;
+        if (SkillTree.has(skills, "d_champion")) {
+            int n = raisedCount.merge(owner.getUUID(), 1, Integer::sum);
+            champion = n % 4 == 0;
+        }
+        if (champion) {
+            life *= 2.0;
+            set(mob, Attributes.SCALE, 1.3);
+        }
         set(mob, Attributes.MAX_HEALTH, Math.max(4.0, life));
         mob.setHealth(mob.getMaxHealth());
-        c.damageMul = nightDamage * strength * (1.0 + bonus(SkillEffect.SUMMON_DAMAGE, skills)) * own;
+        c.damageMul = nightDamage * strength * (1.0 + bonus(SkillEffect.SUMMON_DAMAGE, skills)) * own * (champion ? 2.0 : 1.0);
         if (SkillTree.has(skills, "d_archers")) {
             set(mob, Attributes.FOLLOW_RANGE, 32.0);
         }

@@ -1,5 +1,7 @@
 package com.mki.nightsiege.mixin.client;
 
+import com.mki.nightsiege.client.BossLookState;
+import com.mki.nightsiege.client.BossLooks;
 import com.mki.nightsiege.client.ClassLookState;
 import com.mki.nightsiege.client.ClassLooks;
 import com.mki.nightsiege.client.EventTextures;
@@ -44,5 +46,25 @@ public abstract class LivingEntityRendererMixin {
         if (state instanceof ClassLookState look) {
             look.nightsiege$setLook(ClassLooks.lookOf(entity));
         }
+        if (state instanceof BossLookState boss) {
+            boss.nightsiege$setBoss(BossLooks.of(entity.getId()));
+        }
+    }
+
+    /** A boss wears its own look: while it is drawn, the textures come from its folder. */
+    @Inject(method = "submit(Lnet/minecraft/client/renderer/entity/state/LivingEntityRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;Lnet/minecraft/client/renderer/state/level/CameraRenderState;)V",
+            at = @At("HEAD"))
+    private void nightsiege$bossLookOn(LivingEntityRenderState state, com.mojang.blaze3d.vertex.PoseStack poseStack,
+                                       net.minecraft.client.renderer.SubmitNodeCollector collector,
+                                       net.minecraft.client.renderer.state.level.CameraRenderState camera, CallbackInfo ci) {
+        EventTextures.renderingBoss(state instanceof BossLookState boss ? boss.nightsiege$boss() : null);
+    }
+
+    @Inject(method = "submit(Lnet/minecraft/client/renderer/entity/state/LivingEntityRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;Lnet/minecraft/client/renderer/state/level/CameraRenderState;)V",
+            at = @At("RETURN"))
+    private void nightsiege$bossLookOff(LivingEntityRenderState state, com.mojang.blaze3d.vertex.PoseStack poseStack,
+                                        net.minecraft.client.renderer.SubmitNodeCollector collector,
+                                        net.minecraft.client.renderer.state.level.CameraRenderState camera, CallbackInfo ci) {
+        EventTextures.renderingBoss(null);
     }
 }

@@ -144,8 +144,9 @@ public final class GuardianEffects {
         }
         if (tuning != null && victim instanceof ServerPlayer hurt && source.getEntity() instanceof Enemy) {
             factor *= tuning.damageTakenFactor(hurt);
-            if (source.getEntity() instanceof net.minecraft.world.entity.monster.zombie.Zombie
-                    || source.getEntity() instanceof net.minecraft.world.entity.monster.spider.Spider) {
+            if ((source.getEntity() instanceof net.minecraft.world.entity.monster.zombie.Zombie
+                    || source.getEntity() instanceof net.minecraft.world.entity.monster.spider.Spider)
+                    && !BossService.isBoss(source.getEntity())) {   // the grave king and the queen hit everyone alike
                 factor *= tuning.zombieSpiderFactor(hurt);   // zombies and spiders hit the melee classes harder
             }
         }

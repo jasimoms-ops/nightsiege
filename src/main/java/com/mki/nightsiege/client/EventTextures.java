@@ -23,6 +23,12 @@ public final class EventTextures {
             EventAtmosphere.THUNDER, EventAtmosphere.FOG, EventAtmosphere.BLOOD_MOON,
     };
     private static final Map<String, Map<Identifier, Identifier>> SWAPS = new HashMap<>();
+    /** The boss folders (boss_grave_king …): their swaps, by folder. */
+    private static final Map<String, Map<Identifier, Identifier>> BOSS_SWAPS = new HashMap<>();
+    /** Boss folders whose zombie or skeleton also wears clothes. */
+    private static final java.util.Set<String> BOSS_CLOTHED = java.util.Set.of("boss_grave_king", "boss_bone_lich");
+    /** The folder of the boss being drawn right now, or null (set around each monster's submit). */
+    private static String bossFolder;
     /** Our event texture → its glow map, where there is one. */
     private static final Map<Identifier, Identifier> GLOWS = new HashMap<>();
 
@@ -41,6 +47,29 @@ public final class EventTextures {
             }
             SWAPS.put(event, map);
         }
+        for (Map.Entry<String, java.util.List<String>> e : EventGearShapes.TEXTURES.entrySet()) {
+            String folder = e.getKey();
+            if (!folder.startsWith("boss_")) {
+                continue;
+            }
+            Map<Identifier, Identifier> map = new HashMap<>();
+            for (String entry : e.getValue()) {
+                int eq = entry.indexOf('=');
+                String name = entry.substring(eq + 1);
+                Identifier ours = texture(folder, name);
+                map.put(Identifier.withDefaultNamespace("textures/entity/" + entry.substring(0, eq)), ours);
+                if (EventGearShapes.GLOWS.contains(folder + "/" + name)) {
+                    GLOWS.put(ours, texture(folder, name + "_glow"));
+                }
+            }
+            BOSS_SWAPS.put(folder, map);
+        }
+    }
+
+    /** The monster drawn next wears this boss look ("grave_king" …), or none (null). */
+    public static void renderingBoss(String look) {
+        String folder = look == null ? null : "boss_" + (look.equals("warlord_rider") ? "warlord" : look);
+        bossFolder = folder != null && BOSS_SWAPS.containsKey(folder) ? folder : null;
     }
 
     /** Monsters of other mods that wear the event's tint and gear (their textures stay theirs). */
@@ -62,6 +91,9 @@ public final class EventTextures {
 
     /** A colour the mod monsters are tinted with in the event shown now (ARGB), or -1. */
     public static int modTint() {
+        if (bossFolder != null) {
+            return -1;
+        }
         String event = shownEvent();
         if (event == null) {
             return -1;
@@ -91,6 +123,9 @@ public final class EventTextures {
 
     /** The folder of the event shown now (blood_moon, eclipse ...), or null when none has a monster look. */
     public static String shownEvent() {
+        if (bossFolder != null) {
+            return bossFolder;
+        }
         EventAtmosphere.State state = EventAtmosphere.client();
         if (state.strength() < 0.5f || !SWAPS.containsKey(state.shown())) {
             return null;
@@ -100,6 +135,9 @@ public final class EventTextures {
 
     /** The clothes of a mob ("zombie", "skeleton") in the event shown now, or null. */
     public static Identifier clothing(String mob) {
+        if (bossFolder != null) {
+            return BOSS_CLOTHED.contains(bossFolder) ? texture(bossFolder, mob + "_outer") : null;
+        }
         EventAtmosphere.State state = EventAtmosphere.client();
         if (state.strength() < 0.5f || !CLOTHED.contains(state.shown())) {
             return null;
@@ -113,6 +151,10 @@ public final class EventTextures {
     }
 
     public static Identifier swap(Identifier texture) {
+        if (bossFolder != null) {
+            Identifier swapped = BOSS_SWAPS.get(bossFolder).get(texture);
+            return swapped == null ? texture : swapped;
+        }
         EventAtmosphere.State state = EventAtmosphere.client();
         if (state.strength() < 0.5f) {
             return texture;

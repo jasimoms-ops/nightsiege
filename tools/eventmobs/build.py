@@ -150,6 +150,13 @@ if __name__ == '__main__':
     for ev in designs.EVENTS:
         all_shapes[ev], all_textures[ev], all_glows[ev] = build_event(van, ev)
         print('built', ev)
+    # the bosses of the boss nights (Simon, 25 October 2026)
+    import bosses
+    b_shapes, b_textures, b_glows = bosses.build(van, OUT, atlas)
+    all_shapes.update(b_shapes)
+    all_textures.update(b_textures)
+    all_glows.update(b_glows)
+    print('built', ', '.join(b_shapes))
     java(all_shapes, all_textures, all_glows)
     if prev:
         import preview

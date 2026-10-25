@@ -83,7 +83,6 @@ public class SiegeConfig {
     /** No events below this siege level, so the first nights stay plain. */
     public int eventMinLevel = 3;
     public int bloodMoonWeight = 10;
-    public int eliteWeight = 8;
     public int themeWaveWeight = 7;
     public int eclipseWeight = 7;
     public int fogWeight = 7;
@@ -122,10 +121,24 @@ public class SiegeConfig {
     public double bloodMoonHealthMultiplier = 1.3;
     public double bloodMoonDamageMultiplier = 1.15;
 
+    /** The champion of a dungeon: this much tougher and harder hitting than its kind. */
     public double eliteHealthMultiplier = 6.0;
     public double eliteDamageMultiplier = 1.8;
-    /** Damage the rest of the wave loses once the champion is dead. */
-    public double eliteDeathDamagePenalty = 0.25;
+
+    // --- boss nights (Simon, 25 October 2026; the champion night is gone) ---
+    public boolean bossesEnabled = true;
+    /** Every this many sieges is a boss night (a lost one comes again until the boss falls). */
+    public int bossEvery = 6;
+    /** Seconds before the end of the night at which the boss comes, with a last big wave (at most half the night). */
+    public int bossFinaleSeconds = 180;
+    /** Size of the last wave that comes with the boss, as a share of a normal wave. */
+    public double bossFinaleWave = 1.5;
+    /** Factor on the health of every boss. */
+    public double bossHealthMultiplier = 1.0;
+    /** Extra boss health for every defender beyond the first (0.5 = +50 %). */
+    public double bossHealthPerExtraPlayer = 0.5;
+    /** Factor on the damage of every boss (blows and abilities). */
+    public double bossDamageMultiplier = 1.0;
 
     // --- tools ------------------------------------------------------------
     /** Only mobs carrying a fitting tool can break blocks. */
@@ -186,7 +199,7 @@ public class SiegeConfig {
     public boolean keepInventoryInSiege = true;
     /** Learned levels each defender loses when a night is lost (the level stays, the night comes again). */
     public int defeatSkillLoss = 0;
-    /** A champion is worth this many times a normal kill. */
+    /** The killing blow on a boss is worth this many times a normal kill. */
     public int championPointMultiplier = 10;
     /** One extra point for every this many siege levels. */
     public int skillPointsLevelStep = 5;
@@ -562,7 +575,6 @@ public class SiegeConfig {
         eventChance = clampDouble(eventChance, 0.0, 1.0);
         eventMinLevel = Math.max(1, eventMinLevel);
         bloodMoonWeight = Math.max(0, bloodMoonWeight);
-        eliteWeight = Math.max(0, eliteWeight);
         themeWaveWeight = Math.max(0, themeWaveWeight);
         eclipseWeight = Math.max(0, eclipseWeight);
         fogWeight = Math.max(0, fogWeight);
@@ -589,7 +601,12 @@ public class SiegeConfig {
         bloodMoonDamageMultiplier = Math.max(1.0, bloodMoonDamageMultiplier);
         eliteHealthMultiplier = Math.max(1.0, eliteHealthMultiplier);
         eliteDamageMultiplier = Math.max(1.0, eliteDamageMultiplier);
-        eliteDeathDamagePenalty = clampDouble(eliteDeathDamagePenalty, 0.0, 0.9);
+        bossEvery = clamp(bossEvery <= 0 ? 6 : bossEvery, 1, 100);
+        bossFinaleSeconds = clamp(bossFinaleSeconds <= 0 ? 180 : bossFinaleSeconds, 30, 1200);
+        bossFinaleWave = clampDouble(bossFinaleWave, 0.0, 5.0);
+        bossHealthMultiplier = clampDouble(bossHealthMultiplier <= 0 ? 1.0 : bossHealthMultiplier, 0.1, 20.0);
+        bossHealthPerExtraPlayer = clampDouble(bossHealthPerExtraPlayer, 0.0, 3.0);
+        bossDamageMultiplier = clampDouble(bossDamageMultiplier <= 0 ? 1.0 : bossDamageMultiplier, 0.1, 10.0);
 
         skillPointsPerSiege = Math.max(0, skillPointsPerSiege);
         skillPointsPerKill = Math.max(0, skillPointsPerKill);

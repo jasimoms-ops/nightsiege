@@ -6,8 +6,6 @@ public enum SiegeEvent {
     NONE,
     /** More mobs, tougher and harder hitting. */
     BLOOD_MOON,
-    /** One named champion leads the attack. */
-    ELITE,
     /** The whole night is made of a single mob type. */
     THEME_WAVE,
     /** At noon the sun goes dark and the siege comes by day; the undead do not burn. */

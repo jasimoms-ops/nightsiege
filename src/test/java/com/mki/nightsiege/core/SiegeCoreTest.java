@@ -529,7 +529,7 @@ class SiegeCoreTest {
     void onlyBloodMoonChangesWaveStrength() {
         SiegeConfig c = cfg();
         assertEquals(1.0, SiegeEvent.NONE.mobCountMultiplier(c), 1e-9);
-        assertEquals(1.0, SiegeEvent.ELITE.healthMultiplier(c), 1e-9);
+        assertEquals(1.0, SiegeEvent.THEME_WAVE.healthMultiplier(c), 1e-9);
         assertTrue(SiegeEvent.BLOOD_MOON.mobCountMultiplier(c) > 1.0);
     }
 
@@ -1500,7 +1500,7 @@ class SiegeCoreTest {
     @Test
     void onlyEventsWithASkyHaveAnAtmosphere() {
         assertEquals("", SiegeEvent.NONE.atmosphere());
-        assertEquals("", SiegeEvent.ELITE.atmosphere());
+        assertEquals("", SiegeEvent.THEME_WAVE.atmosphere());
         assertEquals("ECLIPSE", SiegeEvent.ECLIPSE.atmosphere());
         assertEquals("FROST", SiegeEvent.FROST.atmosphere());
     }
@@ -1657,5 +1657,79 @@ class SiegeCoreTest {
         b.deaths = 4;
         assertEquals(0, NightStatsData.mvpOf(rows));
         assertEquals(-1, NightStatsData.mvpOf(java.util.List.of(c)));
+    }
+
+    @Test
+    void bossNightEverySixthSiege() {
+        SiegeConfig c = new SiegeConfig();
+        c.sanitize();
+        assertEquals(6, c.bossEvery);
+        // 5 sieges since the last boss: the 6th is a boss night
+        assertFalse(BossPlan.isBossNight(4, c));
+        assertTrue(BossPlan.isBossNight(5, c));
+        // a lost boss night: the counter stays, the boss comes again
+        assertTrue(BossPlan.isBossNight(7, c));
+        c.bossesEnabled = false;
+        assertFalse(BossPlan.isBossNight(5, c));
+        c.bossesEnabled = true;
+        // an old save counts the sieges played so far
+        assertEquals(2, BossPlan.startCount(10, 4, c));
+        assertEquals(0, BossPlan.startCount(0, 0, c));
+    }
+
+    @Test
+    void bossBagGivesEveryBossOnceBeforeRepeating() {
+        List<String> bag = new java.util.ArrayList<>();
+        Random random = new Random(5);
+        Set<BossKind> seen = new HashSet<>();
+        BossKind last = null;
+        for (int i = 0; i < BossKind.values().length; i++) {
+            BossKind k = BossPlan.draw(bag, last == null ? null : last.id(), random);
+            assertNotNull(k);
+            assertTrue(seen.add(k), "no boss twice in one round");
+            last = k;
+        }
+        assertEquals(BossKind.values().length, seen.size());
+        // the new round does not start with the boss that just came
+        for (int round = 0; round < 20; round++) {
+            BossKind first = BossPlan.draw(bag, last.id(), random);
+            assertNotEquals(last, first);
+            for (int i = 1; i < BossKind.values().length; i++) {
+                last = BossPlan.draw(bag, null, random);
+            }
+        }
+        assertEquals(BossKind.GRAVE_KING, BossKind.byId("grave_king"));
+        assertEquals(BossKind.WARLORD, BossKind.byId("WARLORD"));
+        assertNull(BossKind.byId("champion"));
+    }
+
+    @Test
+    void bossHealthGrowsWithLevelAndPlayers() {
+        SiegeConfig c = new SiegeConfig();
+        c.sanitize();
+        double one = BossPlan.health(300, 6, 1, c);
+        double four = BossPlan.health(300, 6, 4, c);
+        assertEquals(one * 2.5, four, 1e-6);   // +50 % for each further defender
+        assertTrue(BossPlan.health(300, 12, 1, c) > one);
+        assertEquals(300 * SiegeMath.healthMultiplier(6, c), one, 1e-6);
+        // the finale: 3 minutes before dawn, at most half the night
+        assertEquals(3600, BossPlan.finaleTicks(20000, c));
+        assertEquals(2000, BossPlan.finaleTicks(4000, c));
+    }
+
+    @Test
+    void championNightIsGone() {
+        SiegeConfig c = new SiegeConfig();
+        c.sanitize();
+        c.eventChance = 1.0;
+        c.eventMinLevel = 1;
+        Random random = new Random(3);
+        for (int i = 0; i < 400; i++) {
+            SiegeEvent e = EventPicker.pick(10, random, c);
+            assertNotEquals("ELITE", e.name());
+        }
+        for (SiegeEvent e : SiegeEvent.values()) {
+            assertNotEquals("ELITE", e.name());
+        }
     }
 }

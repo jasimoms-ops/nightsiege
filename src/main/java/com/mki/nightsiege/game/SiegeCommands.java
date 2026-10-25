@@ -46,12 +46,30 @@ public final class SiegeCommands {
                 .then(Commands.literal("mobs").executes(SiegeCommands::mobs))
                 .then(Commands.literal("start").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                         .executes(SiegeCommands::start))
+                .then(Commands.literal("bossjetzt").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                        .executes(ctx -> {
+                            boolean ok = SiegeManager.get().bossNow(ctx.getSource().getServer());
+                            if (ok) {
+                                reply(ctx.getSource(), Component.translatable("nightsiege.cmd.boss_now"));
+                            } else {
+                                fail(ctx.getSource(), Component.translatable("nightsiege.cmd.no_boss_now"));
+                            }
+                            return ok ? 1 : 0;
+                        }))
                 .then(Commands.literal("test").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                         .then(Commands.argument("level", IntegerArgumentType.integer(1, 1000))
                                 .executes(ctx -> test(ctx, null))
                                 .then(Commands.literal("normal").executes(ctx -> test(ctx, SiegeEvent.NONE)))
                                 .then(Commands.literal("blutmond").executes(ctx -> test(ctx, SiegeEvent.BLOOD_MOON)))
-                                .then(Commands.literal("champion").executes(ctx -> test(ctx, SiegeEvent.ELITE)))
+                                .then(Commands.literal("boss").executes(ctx -> testBoss(ctx, null))
+                                        .then(Commands.argument("name", StringArgumentType.word())
+                                                .suggests((c, b) -> {
+                                                    for (String n : BOSS_NAMES) {
+                                                        b.suggest(n);
+                                                    }
+                                                    return b.buildFuture();
+                                                })
+                                                .executes(ctx -> testBoss(ctx, StringArgumentType.getString(ctx, "name")))))
                                 .then(Commands.literal("thema").executes(ctx -> test(ctx, SiegeEvent.THEME_WAVE)))
                                 .then(Commands.literal("finsternis").executes(ctx -> test(ctx, SiegeEvent.ECLIPSE)))
                                 .then(Commands.literal("nebel").executes(ctx -> test(ctx, SiegeEvent.FOG)))
@@ -270,7 +288,41 @@ public final class SiegeCommands {
      * A test siege at any level, around the caller: shows what that level looks
      * like without touching the record, the points or the base.
      */
+    /** German names of the bosses for the test command (the ids work too). */
+    private static final String[] BOSS_NAMES = {"grabkoenig", "spinnenkoenigin", "knochenlich", "kriegsherr"};
+
+    private static com.mki.nightsiege.core.BossKind bossByName(String name) {
+        if (name == null) {
+            return null;
+        }
+        String n = name.toLowerCase(java.util.Locale.ROOT).replace("ö", "oe");
+        return switch (n) {
+            case "grabkoenig" -> com.mki.nightsiege.core.BossKind.GRAVE_KING;
+            case "spinnenkoenigin", "koenigin" -> com.mki.nightsiege.core.BossKind.SPIDER_QUEEN;
+            case "knochenlich", "lich" -> com.mki.nightsiege.core.BossKind.BONE_LICH;
+            case "kriegsherr", "illager" -> com.mki.nightsiege.core.BossKind.WARLORD;
+            default -> com.mki.nightsiege.core.BossKind.byId(n);
+        };
+    }
+
+    /** /nightsiege test <level> boss [name]: a test night that ends with a boss (it comes 15 s in). */
+    private static int testBoss(CommandContext<CommandSourceStack> ctx, String name) {
+        CommandSourceStack source = ctx.getSource();
+        com.mki.nightsiege.core.BossKind kind = name == null
+                ? com.mki.nightsiege.core.BossKind.values()[new java.util.Random().nextInt(com.mki.nightsiege.core.BossKind.values().length)]
+                : bossByName(name);
+        if (kind == null) {
+            fail(source, Component.translatable("nightsiege.cmd.no_boss", String.join(", ", BOSS_NAMES)));
+            return 0;
+        }
+        return test(ctx, SiegeEvent.NONE, kind);
+    }
+
     private static int test(CommandContext<CommandSourceStack> ctx, SiegeEvent event) {
+        return test(ctx, event, null);
+    }
+
+    private static int test(CommandContext<CommandSourceStack> ctx, SiegeEvent event, com.mki.nightsiege.core.BossKind boss) {
         CommandSourceStack source = ctx.getSource();
         SiegeManager manager = SiegeManager.get();
         if (manager.isActive() || manager.isPreparing()) {
@@ -290,7 +342,7 @@ public final class SiegeCommands {
             manager.giveKits(server, player.level(), player.blockPosition(), level, true);
         }
         // Weapons and traps now, the first wave after the preparation time.
-        if (!manager.prepareTest(server, player.level(), player.blockPosition(), level, event)) {
+        if (!manager.prepareTest(server, player.level(), player.blockPosition(), level, event, boss)) {
             fail(source, Component.translatable("nightsiege.cmd.no_target"));
             return 0;
         }

@@ -200,7 +200,9 @@ public final class SiegeManager {
     /** The summoner's wolves, golems and spirits. */
     private final Companions companions = new Companions(skillTree, this::liveSkillsFor, () -> config);
     private final CombatEffects combat = new CombatEffects(skillTree, this::liveSkillsFor,
-            entity -> this.eliteId != null && this.eliteId.equals(entity.getUUID()), archer, traps);
+            BossService::isBoss, archer, traps);
+    /** The boss of a boss night (every 6th siege, Simon 25 October 2026; the champion night is gone). */
+    private final BossService bosses = new BossService();
     private final Digger digger = new Digger();
     private final LadderClimb ladders = new LadderClimb();
     /** Ladder carriers and sapper creepers. */
@@ -247,6 +249,7 @@ public final class SiegeManager {
         final SiegeEvent event;
         final int totalTicks;
         int ticksLeft;
+        com.mki.nightsiege.core.BossKind boss;
 
         PendingTest(ServerLevel world, BlockPos anchor, int level, SiegeEvent event, int ticks) {
             this.world = world;
@@ -259,8 +262,12 @@ public final class SiegeManager {
     }
     private SiegeEvent currentEvent = SiegeEvent.NONE;
     private String themeMobId;
-    private UUID eliteId;
-    private boolean elitePenaltyApplied;
+    /** Tick at which a boss night won by the boss's fall ends (a few seconds of triumph), or -1. */
+    private long bossVictoryAt = -1L;
+    /** "boss_<id>" for the night's protocol and statistics window of a boss night, else null. */
+    private String bossLabel;
+    /** The boss a test night brings (set by /nightsiege test <level> boss, taken at its start). */
+    private com.mki.nightsiege.core.BossKind testBoss;
     private final Set<UUID> participants = new HashSet<>();
     private final Set<UUID> fallen = new HashSet<>();
     private final Set<UUID> liveMobs = new HashSet<>();
@@ -331,7 +338,7 @@ public final class SiegeManager {
         });
         ServerTickEvents.END_SERVER_TICK.register(server -> onEndTick(server));
         // Object parameters keep these handlers compiling across Fabric versions.
-        ServerLivingEntityEvents.AFTER_DEATH.register((entity, source) -> onDeath(entity));
+        ServerLivingEntityEvents.AFTER_DEATH.register((entity, source) -> onDeath(entity, source));
         ServerEntityCombatEvents.AFTER_KILLED_OTHER_ENTITY.register(
                 (killWorld, killer, killed, killSource) -> onKill(killer, killed));
         ServerPlayerEvents.JOIN.register(player -> onJoin(player));
@@ -350,6 +357,7 @@ public final class SiegeManager {
             perks.afterDamage(entity, taken);
             CrateEffects.afterDamage(entity, source);
             Wounds.afterDamage(entity, source, taken);
+            safe("Boss-Treffer", () -> bosses.afterHit(entity, source));
             GainGear.afterDamage(entity, source, taken);
             MeleeSim.onDamage(entity, source, taken);
             safe("Begleiter-Treffer", () -> companions.afterDamage(entity, source, taken));
@@ -358,7 +366,8 @@ public final class SiegeManager {
                 combat.allowDeath(entity) && allowNightDeath(entity));
         ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) ->
                 !infighting(source.getEntity(), entity) && allowModDamage(entity, source.getEntity()) && combat.allowDamage(entity, source, amount)
-                        && CrateEffects.allowDamage(entity, source) && Companions.allowDamage(entity, source));
+                        && CrateEffects.allowDamage(entity, source) && Companions.allowDamage(entity, source)
+                        && bosses.allowDamage(entity, source, amount));
         combat.guardian().setCredit(this::creditTank);
         traps.setMarker(combat::remoteMark);
         Digger.hardness = traps::digFactor;
@@ -376,6 +385,10 @@ public final class SiegeManager {
         ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> {
             if (entity instanceof net.minecraft.world.entity.item.ItemEntity drop && KitService.isKit(drop.getItem())) {
                 drop.discard();   // a dropped kit item is gone; the kit comes again next night
+                return;
+            }
+            if (BossService.isBossOrPart(entity) && !bosses.planned()) {
+                entity.discard();   // left from a night that ended without us (a crash)
                 return;
             }
             archer.onEntityLoad(entity, world, skillTree, this::liveSkillsFor);
@@ -777,6 +790,9 @@ public final class SiegeManager {
         // The event is rolled now: an eclipse comes at noon, so the vote must know it.
         NightFragment fragment = NightFragment.byName(save.nightFragment);
         SiegeEvent pending = fragment != null ? fragment.event() : EventPicker.pick(currentLevel(), random, config);
+        if (upcomingBoss() != null) {
+            pending = SiegeEvent.NONE;   // a boss night comes by night and has no event
+        }
         save.pendingEvent = pending.name();
         persist();
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
@@ -798,7 +814,11 @@ public final class SiegeManager {
                 .append(button("nightsiege.msg.vote_no", "/nightsiege absagen", ChatFormatting.RED));
         player.sendSystemMessage(text);
         NightFragment fragment = NightFragment.byName(save.nightFragment);
-        if (fragment != null) {
+        com.mki.nightsiege.core.BossKind boss = upcomingBoss();
+        if (boss != null) {
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.boss_warning",
+                    Component.translatable("nightsiege.boss." + boss.id())).withStyle(ChatFormatting.DARK_RED, ChatFormatting.BOLD));
+        } else if (fragment != null) {
             player.sendSystemMessage(Component.translatable("nightsiege.msg.special_warning",
                     Component.translatable("nightsiege.event." + fragment.event().name().toLowerCase(Locale.ROOT)),
                     config.specialNightXpMultiplier).withStyle(ChatFormatting.LIGHT_PURPLE));
@@ -971,19 +991,28 @@ public final class SiegeManager {
      */
     public boolean prepareTest(MinecraftServer server, ServerLevel targetWorld, BlockPos targetAnchor,
                                int level, SiegeEvent event) {
+        return prepareTest(server, targetWorld, targetAnchor, level, event, null);
+    }
+
+    /** /nightsiege test <level> boss <name>: a test night that ends with this boss (it comes 15 s in). */
+    public boolean prepareTest(MinecraftServer server, ServerLevel targetWorld, BlockPos targetAnchor,
+                               int level, SiegeEvent event, com.mki.nightsiege.core.BossKind boss) {
         if (active || pendingTest != null) {
             return false;
         }
+        testBoss = null;
         List<ServerPlayer> nearby = defendersNear(server, targetWorld, targetAnchor, true);
         if (nearby.isEmpty()) {
             return false;
         }
         if (config.testPrepSeconds <= 0) {
+            testBoss = boss;
             return startTest(server, targetWorld, targetAnchor, level, event);
         }
         trapsHanded.clear();
         int shownLevel = Math.min(config.maxLevel, level);
         pendingTest = new PendingTest(targetWorld, targetAnchor, level, event, config.testPrepSeconds * 20);
+        pendingTest.boss = boss;
         for (ServerPlayer player : nearby) {
             equipKit(player);
             sendClassPick(player, config.testPrepSeconds);
@@ -1088,6 +1117,7 @@ public final class SiegeManager {
             prepBar.removeAllPlayers();
             prepBar = null;
         }
+        testBoss = prep.boss;
         if (!startTest(server, prep.world, prep.anchor, prep.level, prep.event)) {
             trapsHanded.clear();
             broadcast(server, Component.translatable("nightsiege.cmd.no_target").withStyle(ChatFormatting.GRAY));
@@ -1201,10 +1231,18 @@ public final class SiegeManager {
             joinNight(player);
         }
 
-        currentEvent = forcedEvent != null ? forcedEvent : pickEventNow(server);
+        // A boss night (every 6th siege) has no event; a fragment waits for the night after.
+        com.mki.nightsiege.core.BossKind tonightBoss = testRun ? testBoss : upcomingBoss();
+        testBoss = null;
+        bossVictoryAt = -1L;
+        bosses.reset(server);
+        if (tonightBoss != null) {
+            bosses.plan(tonightBoss);
+        }
+        currentEvent = tonightBoss != null ? SiegeEvent.NONE : forcedEvent != null ? forcedEvent : pickEventNow(server);
         save.specialNight = false;
         usedFragment = null;
-        NightFragment fragment = testRun ? null : NightFragment.byName(save.nightFragment);
+        NightFragment fragment = testRun || tonightBoss != null ? null : NightFragment.byName(save.nightFragment);
         if (fragment != null) {
             int time = (int) Math.floorMod(server.overworld().getOverworldClockTime(), 24000L);
             // A shadow fragment waits for a siege by day: an eclipse needs the sun.
@@ -1216,8 +1254,6 @@ public final class SiegeManager {
             }
         }
         themeMobId = null;
-        eliteId = null;
-        elitePenaltyApplied = false;
         if (currentEvent == SiegeEvent.THEME_WAVE) {
             themeMobId = pickAvailableMob();
             if (themeMobId == null) {
@@ -1263,8 +1299,9 @@ public final class SiegeManager {
         broadcast(server, Component.translatable("nightsiege.msg.start", siegeLevel)
                 .withStyle(ChatFormatting.RED));
         Fx.siegeStart(server, config, currentEvent == SiegeEvent.BLOOD_MOON);
-        if (currentEvent == SiegeEvent.ELITE) {
-            spawnElite(server);
+        if (tonightBoss != null) {
+            broadcast(server, Component.translatable("nightsiege.msg.boss_night",
+                    Component.translatable("nightsiege.boss." + tonightBoss.id())).withStyle(ChatFormatting.DARK_RED, ChatFormatting.BOLD));
         }
         return true;
     }
@@ -1284,33 +1321,10 @@ public final class SiegeManager {
         return null;
     }
 
-    private void spawnElite(MinecraftServer server) {
-        String entityId = pickAvailableMob();
-        if (entityId == null) {
-            return;
-        }
-        entityId = config.withoutEffects(entityId, siegeLevel, random);
-        Mob champion = spawnMob(entityId, true);
-        if (champion != null) {
-            eliteId = champion.getUUID();
-            liveMobs.add(eliteId);
-            spawnedTotal++;
-            aimAtDefender(server, champion);
-            Fx.championSpawned(world, config, champion);
-            SiegeTeams.mark(server, champion, SiegeTeams.CHAMPION, TeamColor.GOLD);
-        }
-    }
-
-    /** Champion aura and blood moon haze, on a slow beat so they stay cheap. */
+    /** Blood moon haze, on a slow beat so it stays cheap. */
     private void tickAtmosphere(MinecraftServer server) {
         if (!config.particlesEnabled || world == null) {
             return;
-        }
-        if (ticksLeft % 10 == 0 && eliteId != null) {
-            Entity champion = world.getEntity(eliteId);
-            if (champion instanceof Mob championMob && championMob.isAlive()) {
-                Fx.championAura(world, config, championMob);
-            }
         }
         if (ticksLeft % 40 == 0 && currentEvent == SiegeEvent.BLOOD_MOON) {
             for (UUID id : participants) {
@@ -1326,6 +1340,12 @@ public final class SiegeManager {
         Component title = save.specialNight
                 ? Component.translatable("nightsiege.bar.title_special", siegeLevel, secondsLeft())
                 : Component.translatable("nightsiege.bar.title", siegeLevel, secondsLeft());
+        if (bosses.planned()) {
+            // A boss night: no kill goal, the boss is the goal.
+            return Component.empty().append(title).append(Component.literal("  ·  "))
+                    .append(Component.translatable(bosses.spawned() ? "nightsiege.bar.boss_here" : "nightsiege.bar.boss_coming",
+                            Component.translatable("nightsiege.boss." + bosses.kind().id())).withStyle(ChatFormatting.RED));
+        }
         int required = killsRequired();
         if (required <= 0) {
             return title;
@@ -1370,6 +1390,10 @@ public final class SiegeManager {
             }
         }
         if (standing == 0) {
+            if (bossVictoryAt > 0) {
+                finish(server, true);   // the boss fell first
+                return;
+            }
             if (fallenCount > 0) {
                 finish(server, false);
             } else {
@@ -1378,12 +1402,25 @@ public final class SiegeManager {
             return;
         }
 
-        if (batchCooldown <= 0) {
-            spawnBatch(server);
-            double extraDelay = skillTree.totalBonus(SkillEffect.WAVE_DELAY, save.coreSkills());
-            batchCooldown = (int) Math.round((config.batchIntervalSeconds + extraDelay) * 20.0);
-        } else {
-            batchCooldown--;
+        // The boss night's finale: the boss and a last big wave; after that no more waves.
+        if (bosses.planned() && !bosses.spawned() && ticksLeft <= bossFinaleTicks() && world.getGameTime() % 20 == 0) {
+            if (bosses.spawn(bossHost)) {
+                spawnBatch(server, config.bossFinaleWave);
+            }
+        }
+        if (!bosses.spawned()) {
+            if (batchCooldown <= 0) {
+                spawnBatch(server);
+                double extraDelay = skillTree.totalBonus(SkillEffect.WAVE_DELAY, save.coreSkills());
+                batchCooldown = (int) Math.round((config.batchIntervalSeconds + extraDelay) * 20.0);
+            } else {
+                batchCooldown--;
+            }
+        }
+        safe("Boss", () -> bosses.tick(bossHost, world.getGameTime()));
+        if (bossVictoryAt > 0 && world.getGameTime() >= bossVictoryAt) {
+            finish(server, true);
+            return;
         }
 
         tickAtmosphere(server);
@@ -1428,11 +1465,163 @@ public final class SiegeManager {
             digAccumulator = 0;
         }
 
+        if (bossVictoryAt > 0) {
+            return;   // the boss is down: the night ends in a moment, the clock stands
+        }
         ticksLeft--;
         if (ticksLeft <= 0) {
-            finish(server, true);
+            if (bosses.spawned() && !bosses.fallen()) {
+                // Dawn and the boss still stands: the night is lost.
+                broadcast(server, Component.translatable("nightsiege.msg.boss_survived",
+                        Component.translatable("nightsiege.boss." + bosses.kind().id())).withStyle(ChatFormatting.DARK_RED));
+                finish(server, false);
+            } else {
+                finish(server, true);
+            }
         }
     }
+
+    /** Ticks before the end of the night at which the boss comes (a test night: 15 s after the start). */
+    private int bossFinaleTicks() {
+        if (testRun) {
+            return Math.max(20, totalTicks - 300);
+        }
+        return com.mki.nightsiege.core.BossPlan.finaleTicks(totalTicks, config);
+    }
+
+    /** Sieges since the last boss fell (counted from the sieges played for an old save). */
+    private int siegesSinceBoss() {
+        if (save.siegesSinceBoss < 0) {
+            save.siegesSinceBoss = com.mki.nightsiege.core.BossPlan.startCount(save.siegesWon, save.siegesLost, config);
+        }
+        return save.siegesSinceBoss;
+    }
+
+    /** The boss of the coming siege, or null when it is no boss night (drawn once and kept until it falls). */
+    private com.mki.nightsiege.core.BossKind upcomingBoss() {
+        if (!com.mki.nightsiege.core.BossPlan.isBossNight(siegesSinceBoss(), config)) {
+            return null;
+        }
+        com.mki.nightsiege.core.BossKind kind = com.mki.nightsiege.core.BossKind.byId(save.nextBoss);
+        if (kind == null) {
+            if (save.bossBag == null) {
+                save.bossBag = new ArrayList<>();
+            }
+            kind = com.mki.nightsiege.core.BossPlan.draw(save.bossBag, save.lastBoss, random);
+            save.nextBoss = kind == null ? null : kind.id();
+        }
+        return kind;
+    }
+
+    public BossService bosses() {
+        return bosses;
+    }
+
+    /** Admin and tests: the boss planned for this night comes now, with its last wave. */
+    public boolean bossNow(MinecraftServer server) {
+        if (!active || !bosses.planned() || bosses.spawned()) {
+            return false;
+        }
+        if (bosses.spawn(bossHost)) {
+            spawnBatch(server, config.bossFinaleWave);
+            return true;
+        }
+        return false;
+    }
+
+    /** What the night lends its boss. */
+    private final BossService.Host bossHost = new BossService.Host() {
+        @Override
+        public ServerLevel world() {
+            return world;
+        }
+
+        @Override
+        public BlockPos anchor() {
+            return anchor;
+        }
+
+        @Override
+        public int level() {
+            return siegeLevel;
+        }
+
+        @Override
+        public com.mki.nightsiege.core.SiegeConfig config() {
+            return config;
+        }
+
+        @Override
+        public Random random() {
+            return random;
+        }
+
+        @Override
+        public List<ServerPlayer> defenders() {
+            List<ServerPlayer> list = new ArrayList<>();
+            if (world == null) {
+                return list;
+            }
+            for (UUID id : participants) {
+                ServerPlayer p = world.getServer().getPlayerList().getPlayer(id);
+                if (p != null && !fallen.contains(id) && p.isAlive() && !p.isSpectator() && p.level() == world) {
+                    list.add(p);
+                }
+            }
+            return list;
+        }
+
+        @Override
+        public List<ServerPlayer> watchers() {
+            List<ServerPlayer> list = new ArrayList<>();
+            if (world == null) {
+                return list;
+            }
+            for (UUID id : participants) {
+                ServerPlayer p = world.getServer().getPlayerList().getPlayer(id);
+                if (p != null) {
+                    list.add(p);
+                }
+            }
+            return list;
+        }
+
+        @Override
+        public Mob spawnAdd(String entityId, BlockPos spot) {
+            if (world == null || liveMobs.size() >= config.maxLiveMobs || MobFactory.isUnavailable(entityId)) {
+                return null;
+            }
+            Mob mob = MobFactory.spawnAt(world, spot, entityId, siegeLevel, config, random, currentEvent, false);
+            if (mob == null) {
+                return null;
+            }
+            liveMobs.add(mob.getUUID());
+            spawnedTotal++;
+            aimAtDefender(world.getServer(), mob);
+            return mob;
+        }
+
+        @Override
+        public BlockPos spawnSpot() {
+            if (world == null || anchor == null) {
+                return null;
+            }
+            BlockPos spot = defense.spawnSpot(config, random);
+            return spot != null ? spot : MobFactory.findSpawnSpot(world, anchor, config, random, 0.0);
+        }
+
+        @Override
+        public double baseEdge(double x, double z) {
+            BaseScan base = defense.base();
+            return base == null ? 0.0 : base.edgeTowards(x, z);
+        }
+
+        @Override
+        public boolean insideBase(double x, double z) {
+            BaseScan base = defense.base();
+            return base != null && base.contains((int) Math.floor(x), (int) Math.floor(z));
+        }
+    };
 
     private void refreshBossBar(MinecraftServer server) {
         if (bossBar == null) {
@@ -1535,11 +1724,16 @@ public final class SiegeManager {
     }
 
     private void spawnBatch(MinecraftServer server) {
+        spawnBatch(server, 1.0);
+    }
+
+    /** One wave, {@code size} times the normal count (the boss's last wave is bigger). */
+    private void spawnBatch(MinecraftServer server, double size) {
         if (wavesStarted > 0) {
             waveSurvived(server);
         }
         wavesStarted++;
-        int wanted = wantedPerWave();
+        int wanted = (int) Math.round(wantedPerWave() * size);
         int room = config.maxLiveMobs - liveMobs.size();
         int count = Math.min(wanted, Math.max(0, room));
         if (count > 0) {
@@ -1699,8 +1893,9 @@ public final class SiegeManager {
         if (attacker == null) {
             return 1f;
         }
-        return (float) config.monsterDamageFactor(
-                net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(attacker.getType()).toString());
+        return (float) (config.monsterDamageFactor(
+                net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(attacker.getType()).toString())
+                * bosses.damageFactor(attacker));   // the warlord's banner
     }
 
     /** Zombies and spiders against warriors and guardians (config zombieSpiderVsMelee, Simon 25 October 2026). */
@@ -1728,7 +1923,9 @@ public final class SiegeManager {
     private void logNight(String result, int blasted, int required) {
         try {
             nightLog.dug += digger.takeBroken();
-            NightLog.Night night = new NightLog.Night(nightNumber, siegeLevel, testRun, currentEvent.name().toLowerCase(java.util.Locale.ROOT),
+            String eventName = bossLabel != null ? bossLabel : currentEvent.name().toLowerCase(java.util.Locale.ROOT);
+            bossLabel = null;
+            NightLog.Night night = new NightLog.Night(nightNumber, siegeLevel, testRun, eventName,
                     save.specialNight, wavesStarted, spawnedTotal, nightKills, required, fallen.size(), result,
                     world == null ? 0L : world.getGameTime(), blasted);
             nightLog.write(night);
@@ -1821,6 +2018,12 @@ public final class SiegeManager {
             bossBar.removeAllPlayers();
             bossBar = null;
         }
+        boolean bossNight = bosses.planned();
+        boolean bossDown = bosses.fallen();
+        com.mki.nightsiege.core.BossKind bossKind = bosses.kind();
+        bossLabel = bossKind == null ? null : "boss_" + bossKind.id();
+        bosses.reset(server);
+        bossVictoryAt = -1L;
         clearRemainingMobs();
         digger.reset();
         ladders.reset();
@@ -1829,7 +2032,8 @@ public final class SiegeManager {
         mendBase(server);
         endKits(server);
 
-        int required = killsRequired();
+        // A boss night is won by the boss's fall alone, the kill goal does not count.
+        int required = bossNight ? 0 : killsRequired();
         boolean quotaMet = nightKills >= required;
         if (testRun) {
             logNight(won ? "test_gehalten" : "test_verloren", 0, required);
@@ -1845,6 +2049,13 @@ public final class SiegeManager {
         }
 
         save.highestLevel = Math.max(save.highestLevel, siegeLevel);
+        if (bossNight && bossDown && won) {
+            save.siegesSinceBoss = 0;
+            save.lastBoss = bossKind == null ? null : bossKind.id();
+            save.nextBoss = null;
+        } else if (!bossNight) {
+            save.siegesSinceBoss = siegesSinceBoss() + 1;
+        }   // a lost boss night comes again: the counter stays
         String result = won ? (quotaMet ? "gewonnen" : "ziel_verfehlt") : "verloren";
         int blasted = 0;
         if (won && !quotaMet) {
@@ -1863,7 +2074,8 @@ public final class SiegeManager {
             waveSurvived(server);
             awardSkillPoints(server);
             // The reward of a won night: a crate for every defender (better odds in event and fragment nights).
-            CrateKind kind = save.specialNight ? CrateKind.FRAGMENT
+            // The boss's crate is as good as a fragment night's (Simon, 25 October 2026).
+            CrateKind kind = save.specialNight || (bossNight && bossDown) ? CrateKind.FRAGMENT
                     : currentEvent != SiegeEvent.NONE ? CrateKind.EVENT : CrateKind.NORMAL;
             crates.award(server, participants, kind, siegeLevel);
             int next = SiegeMath.level(save.siegesWon, lastKnownDay, config);
@@ -1920,6 +2132,9 @@ public final class SiegeManager {
             bossBar.removeAllPlayers();
             bossBar = null;
         }
+        bossLabel = bosses.kind() == null ? null : "boss_" + bosses.kind().id();
+        bosses.reset(server);
+        bossVictoryAt = -1L;
         clearRemainingMobs();
         digger.reset();
         ladders.reset();
@@ -2106,8 +2321,6 @@ public final class SiegeManager {
         anchor = null;
         currentEvent = SiegeEvent.NONE;
         themeMobId = null;
-        eliteId = null;
-        elitePenaltyApplied = false;
         participants.clear();
         fallen.clear();
         liveMobs.clear();
@@ -2181,14 +2394,16 @@ public final class SiegeManager {
     // ------------------------------------------------------------------
 
     /** Takes Object so the handler keeps compiling across Fabric API versions. */
-    private void onDeath(Object entity) {
+    private void onDeath(Object entity, net.minecraft.world.damagesource.DamageSource source) {
         if (active && entity instanceof Mob killed && liveMobs.contains(killed.getUUID())) {
             nightKills++;
             // A monster of the night can be raised by a summoner of the dead; souls for those near.
-            safe("Seelen", () -> companions.onMonsterDeath(killed, killed.entityTags().contains(MobFactory.TAG_ELITE)));
+            safe("Seelen", () -> companions.onMonsterDeath(killed, false));
         }
-        if (active && entity instanceof Mob mob && mob.getUUID().equals(eliteId)) {
-            onEliteKilled(mob);
+        if (active && entity instanceof Mob mob && BossService.isBossOrPart(mob)) {
+            if (bosses.onDeath(mob, source) && world != null && bossVictoryAt < 0) {
+                onBossDown(world.getServer(), mob);
+            }
             return;
         }
         if (!(entity instanceof ServerPlayer player)) {
@@ -2215,31 +2430,23 @@ public final class SiegeManager {
         Fx.defenderDown(server, config, participants);
     }
 
-    private void onEliteKilled(Mob champion) {
-        if (elitePenaltyApplied) {
-            return;
-        }
-        elitePenaltyApplied = true;
-        eliteId = null;
-        double keep = 1.0 - config.eliteDeathDamagePenalty;
-        int weakened = 0;
-        for (UUID id : liveMobs) {
-            Entity other = world == null ? null : world.getEntity(id);
-            if (!(other instanceof Mob otherMob) || !otherMob.isAlive()) {
-                continue;
-            }
-            AttributeInstance damage = otherMob.getAttribute(Attributes.ATTACK_DAMAGE);
-            if (damage != null) {
-                damage.setBaseValue(damage.getBaseValue() * keep);
-                weakened++;
+    /** The boss has fallen: the night is won; the monsters left flee, the night ends in three seconds. */
+    private void onBossDown(MinecraftServer server, Mob boss) {
+        bossVictoryAt = world.getGameTime() + 60L;
+        for (UUID id : new ArrayList<>(liveMobs)) {
+            Entity other = world.getEntity(id);
+            if (other instanceof Mob mob && mob.isAlive()) {
+                world.sendParticles(net.minecraft.core.particles.ParticleTypes.POOF, mob.getX(), mob.getY() + 0.8, mob.getZ(),
+                        8, 0.3, 0.5, 0.3, 0.02);
+                mob.discard();
             }
         }
-        if (world != null) {
-            Fx.championDown(world, config, champion);
-        }
-        broadcast(champion.level().getServer(),
-                Component.translatable("nightsiege.msg.elite_down", weakened)
-                        .withStyle(ChatFormatting.GREEN));
+        liveMobs.clear();
+        UUID killer = bosses.killer();
+        ServerPlayer hero = killer == null ? null : server.getPlayerList().getPlayer(killer);
+        broadcast(server, Component.translatable(hero != null ? "nightsiege.msg.boss_down_by" : "nightsiege.msg.boss_down",
+                Component.translatable("nightsiege.boss." + bosses.kind().id()),
+                hero == null ? "" : hero.getScoreboardName()).withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD));
     }
 
     private int countStanding() {
@@ -2258,6 +2465,9 @@ public final class SiegeManager {
             return;
         }
         events.forget(player.getUUID());
+        if (bosses.spawned()) {
+            bosses.syncTo(player);
+        }
         MinecraftServer joinServer = player.level().getServer();
         boolean stillTonight = (active && participants.contains(player.getUUID())) || pendingTest != null
                 || (joinServer != null && nightComing(joinServer));
@@ -2664,7 +2874,11 @@ public final class SiegeManager {
         if (testRun) {
             return;   // Test sieges count for nothing.
         }
-        boolean champion = killed.entityTags().contains(MobFactory.TAG_ELITE);
+        if (killed.entityTags().contains(BossService.TAG_PART)) {
+            return;   // a soul crystal or an egg sac is no monster
+        }
+        // The killing blow on a boss counts like the champion's did (the warlord's beast does not).
+        boolean champion = BossService.isBoss(killed) && !(killed instanceof net.minecraft.world.entity.monster.Ravager);
         PlayerStats stats = save.statsOf(player.getUUID().toString(), player.getScoreboardName());
         stats.kills++;
         save.totalKills++;

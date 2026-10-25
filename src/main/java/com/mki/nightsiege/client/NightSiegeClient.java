@@ -72,6 +72,9 @@ public class NightSiegeClient implements ClientModInitializer {
                         }
                     });
                 });
+        // Network ids of boss monsters only hold for one connection.
+        net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents.DISCONNECT.register(
+                (handler, client) -> BossLooks.clear());
         ClientPlayNetworking.registerGlobalReceiver(CoreNetworking.ScreenPayload.TYPE,
                 (payload, context) -> context.client().execute(() -> {
                     Minecraft client = Minecraft.getInstance();
@@ -97,6 +100,8 @@ public class NightSiegeClient implements ClientModInitializer {
                                 NightStatsScreen.queue(stats);
                             }
                         }
+                    } else if ("bosses".equals(payload.kind())) {
+                        BossLooks.set(payload.json());
                     } else if ("crate".equals(payload.kind())) {
                         com.mki.nightsiege.core.CrateRoll roll =
                                 Json.fromJson(payload.json(), com.mki.nightsiege.core.CrateRoll.class);

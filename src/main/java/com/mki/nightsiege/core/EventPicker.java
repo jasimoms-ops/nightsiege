@@ -15,9 +15,9 @@ public final class EventPicker {
         if (random.nextDouble() >= Math.min(1.0, Math.max(0.0, cfg.eventChance))) {
             return SiegeEvent.NONE;
         }
-        SiegeEvent[] events = {SiegeEvent.BLOOD_MOON, SiegeEvent.ELITE, SiegeEvent.THEME_WAVE, SiegeEvent.ECLIPSE,
+        SiegeEvent[] events = {SiegeEvent.BLOOD_MOON, SiegeEvent.THEME_WAVE, SiegeEvent.ECLIPSE,
                 SiegeEvent.FOG, SiegeEvent.THUNDER, SiegeEvent.NETHER_RIFT, SiegeEvent.FROST};
-        int[] weights = {cfg.bloodMoonWeight, cfg.eliteWeight, cfg.themeWaveWeight, cfg.eclipseWeight,
+        int[] weights = {cfg.bloodMoonWeight, cfg.themeWaveWeight, cfg.eclipseWeight,
                 cfg.fogWeight, cfg.thunderWeight, cfg.netherRiftWeight, cfg.frostWeight};
         int total = 0;
         for (int w : weights) {
