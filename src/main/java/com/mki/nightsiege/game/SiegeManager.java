@@ -501,6 +501,7 @@ public final class SiegeManager {
         // Companions stay with summoners who defend the night (or try them out in creative).
         safe("Begleiter", () -> companions.tick(server, p -> isDefending(p) || p.getAbilities().instabuild));
         perks.tick(server);
+        safe("Kisten-Effekt", () -> CrateFx.tick(server));
         EventAtmosphere.tickServer();
         BaseDefense.tickHighlights(server);
         if (dungeons.tick(server)) {
@@ -1392,6 +1393,7 @@ public final class SiegeManager {
         }
         GainGear.tick(world, upright);
         SecondUlts.tick(world);
+        safe("Begleiter-Gewinne", () -> companions.nightTick(world, upright));
         if (world.getGameTime() % 5 == 0) {
             for (ServerPlayer p : upright) {
                 Combo.tick(p, SkillTree.has(save.skillsOf(p.getUUID().toString()), "w_combo"));
@@ -1520,6 +1522,13 @@ public final class SiegeManager {
 
     public int nightKills() {
         return nightKills;
+    }
+
+    /** For the tests: the next wave of the running night comes at once. */
+    public void testWave(MinecraftServer server) {
+        if (active && world != null) {
+            spawnBatch(server);
+        }
     }
 
     private void spawnBatch(MinecraftServer server) {

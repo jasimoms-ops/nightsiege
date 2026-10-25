@@ -283,6 +283,9 @@ public final class KitService {
         for (ItemStack stack : kit.items()) {
             inv.placeItemBackInInventory(mark(stack));
         }
+        if (clazz == SkillClass.SUMMONER && Companions.get() != null) {
+            Companions.get().beginNight(player, skills);   // the souls the staff shows are the ones the night starts with
+        }
 
         // Traps and the remote, as before (topped up to the free amount).
         if (clazz == SkillClass.ENGINEER) {
@@ -437,21 +440,24 @@ public final class KitService {
             if (ModContent.STAFF != null) {
                 ItemStack staff = new ItemStack(ModContent.STAFF);
                 if (way.equals(SkillTree.WAY_DEAD)) {
-                    // The way of the dead starts the night with three souls (the bar of the staff).
-                    int cap = SkillTree.has(skills, "d_soulkeeper") ? 20 : 10;
+                    // The way of the dead starts the night with three souls (the bar of the staff),
+                    // more with bone dust and what the soul vessel kept from the last night.
+                    int cap = Companions.soulCapOf(skills);
+                    int start = Companions.startSouls(skills);
                     net.minecraft.world.item.component.CustomData.update(net.minecraft.core.component.DataComponents.CUSTOM_DATA,
                             staff, tag -> {
-                                tag.putInt(SummonStaffItem.SOULS, 3);
+                                tag.putInt(SummonStaffItem.SOULS, start);
                                 tag.putInt(SummonStaffItem.SOUL_CAP, cap);
                             });
                 }
                 hotbar.add(staff);
             }
             hotbar.add(sword(ench, weapon, Math.max(1, sharp - 1)));
+            int bag = 8 * gainLevel(skills, clazz, "futterbeutel");   // Futterbeutel: more to heal with
             if (SkillTree.has(skills, "s_golemsmith")) {
-                hotbar.add(new ItemStack(Items.IRON_INGOT, 16));   // a golem mends with iron
+                hotbar.add(new ItemStack(Items.IRON_INGOT, 16 + bag));   // a golem mends with iron
             } else if (!way.equals(SkillTree.WAY_DEAD) || SkillTree.has(skills, "d_cross_wolf")) {
-                hotbar.add(new ItemStack(Items.BEEF, 8));   // a wolf heals from meat
+                hotbar.add(new ItemStack(Items.BEEF, 8 + bag));   // a wolf heals from meat
             }
         } else {
             // Engineer (and the fallback for a player without a class).

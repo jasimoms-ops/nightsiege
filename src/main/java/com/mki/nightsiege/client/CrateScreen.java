@@ -44,8 +44,15 @@ public class CrateScreen extends Screen {
     private final double jitter;
     private int lastCard = -1;
     private boolean revealed;
+    /** When the band stopped (ms), for the light and the sparks of the gain. */
+    private long revealedAt;
+    private final List<Spark> sparks = new ArrayList<>();
     private int left;
     private int top;
+
+    /** One spark of the burst: start, speed (pixels per second), life, colour, size and delay (s). */
+    private record Spark(float x, float y, float vx, float vy, float life, int color, int size, float delay) {
+    }
 
     public CrateScreen(CrateRoll roll) {
         super(Component.translatable("nightsiege.crate.title"));
@@ -143,21 +150,7 @@ public class CrateScreen extends Screen {
             if (cx + CARD < vx || cx > vx + VIEW_W) {
                 continue;
             }
-            CrateRoll.Slot slot = roll.band.get(i);
-            int color = 0xFF000000 | CrateRarity.byName(slot.rarity).color();
-            boolean win = done() && i == roll.winIndex;
-            int cy = vy + 6;
-            gui.fill(cx, cy, cx + CARD, cy + CARD + 14, win ? color : 0xFF2A2236);
-            gui.fill(cx + 1, cy + 1, cx + CARD - 1, cy + CARD + 13, 0xFF1B1624);
-            gui.fill(cx + 1, cy + 1, cx + CARD - 1, cy + 3, (color & 0x00FFFFFF) | 0x90000000);
-            gui.fill(cx, cy + CARD + 8, cx + CARD, cy + CARD + 14, color);
-            gui.pose().pushMatrix();
-            gui.pose().translate(cx + CARD / 2f - 16, cy + 10);
-            gui.pose().scale(2f, 2f);
-            gui.item(new ItemStack(item(slot.icon)), 0, 0);
-            gui.pose().popMatrix();
-            String name = font.plainSubstrByWidth(Component.translatable("nightsiege.gain." + slot.gain).getString(), CARD - 4);
-            gui.text(font, name, cx + (CARD - font.width(name)) / 2, cy + CARD - 14, 0xFFE8E2F0, false);
+            drawCard(gui, font, roll.band.get(i), cx, vy + 6, done() && i == roll.winIndex);
         }
         gui.disableScissor();
         // The marker.
@@ -168,17 +161,144 @@ public class CrateScreen extends Screen {
 
         // The result.
         if (done()) {
+            int winX = (int) Math.round(vx + roll.winIndex * STEP - finalOffset);
+            int winY = vy + 6;
             if (!revealed) {
                 revealed = true;
+                revealedAt = System.currentTimeMillis();
+                burst(winX + CARD / 2f, winY + (CARD + 14) / 2f);
                 Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(
                         roll.duplicate ? SoundEvents.EXPERIENCE_ORB_PICKUP : SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, 1.0f));
+                int tier = CrateRarity.byName(roll.rarity).ordinal();
+                if (tier >= CrateRarity.RARE.ordinal()) {
+                    Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.AMETHYST_BLOCK_CHIME, 1.3f, 1.0f));
+                }
+                if (tier == CrateRarity.LEGENDARY.ordinal()) {
+                    Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.PLAYER_LEVELUP, 0.8f, 0.7f));
+                }
             }
+            drawGlory(gui, font, vx, vy, winX, winY);
             drawResult(gui, font, vy + VIEW_H + 10);
         } else {
             String hint = Component.translatable("nightsiege.crate.spinning").getString();
             gui.text(font, hint, left + (W - font.width(hint)) / 2, vy + VIEW_H + 24, 0xFF8F879F, false);
         }
         super.extractRenderState(gui, mouseX, mouseY, delta);
+    }
+
+    /** One card of the band. */
+    private void drawCard(GuiGraphicsExtractor gui, Font font, CrateRoll.Slot slot, int cx, int cy, boolean win) {
+        int color = 0xFF000000 | CrateRarity.byName(slot.rarity).color();
+        gui.fill(cx, cy, cx + CARD, cy + CARD + 14, win ? color : 0xFF2A2236);
+        gui.fill(cx + 1, cy + 1, cx + CARD - 1, cy + CARD + 13, 0xFF1B1624);
+        gui.fill(cx + 1, cy + 1, cx + CARD - 1, cy + 3, (color & 0x00FFFFFF) | 0x90000000);
+        gui.fill(cx, cy + CARD + 8, cx + CARD, cy + CARD + 14, color);
+        gui.pose().pushMatrix();
+        gui.pose().translate(cx + CARD / 2f - 16, cy + 10);
+        gui.pose().scale(2f, 2f);
+        gui.item(new ItemStack(item(slot.icon)), 0, 0);
+        gui.pose().popMatrix();
+        String name = font.plainSubstrByWidth(Component.translatable("nightsiege.gain." + slot.gain).getString(), CARD - 4);
+        gui.text(font, name, cx + (CARD - font.width(name)) / 2, cy + CARD - 14, 0xFFE8E2F0, false);
+    }
+
+    /** The sparks of the won card: more, faster and longer the rarer it is; legendary bursts twice. */
+    private void burst(float x, float y) {
+        CrateRarity rarity = CrateRarity.byName(roll.rarity);
+        int tier = rarity.ordinal();
+        java.util.Random r = new java.util.Random();
+        int waves = rarity == CrateRarity.LEGENDARY ? 2 : 1;
+        for (int w = 0; w < waves; w++) {
+            int n = 14 + 16 * tier;
+            for (int i = 0; i < n; i++) {
+                double a = r.nextDouble() * Math.PI * 2;
+                double speed = 45 + r.nextDouble() * (60 + 35 * tier);
+                int color = r.nextInt(3) == 0 ? 0xFFFFFF : (w == 1 ? 0xFFF1C2 : rarity.color());
+                sparks.add(new Spark(x, y, (float) (Math.cos(a) * speed), (float) (Math.sin(a) * speed - 35),
+                        0.55f + r.nextFloat() * (0.5f + 0.2f * tier), color, r.nextInt(4) == 0 ? 2 : 1, w * 0.35f));
+            }
+        }
+    }
+
+    /**
+     * The moment of the gain: a flash over the window, light rays behind the won card (from rare
+     * on; they stay for epic and legendary), the card pulses and pops, sparks fly.
+     */
+    private void drawGlory(GuiGraphicsExtractor gui, Font font, int vx, int vy, int winX, int winY) {
+        CrateRarity rarity = CrateRarity.byName(roll.rarity);
+        int tier = rarity.ordinal();
+        int rgb = rarity.color();
+        float t = (System.currentTimeMillis() - revealedAt) / 1000f;
+        float cx = winX + CARD / 2f;
+        float cy = winY + (CARD + 14) / 2f;
+        // Flash.
+        if (t < 0.35f) {
+            int alpha = (int) ((0x30 + 0x18 * tier) * (1f - t / 0.35f));
+            gui.fill(left, top, left + W, top + H, (alpha << 24) | rgb);
+        }
+        // Rays.
+        if (tier >= CrateRarity.RARE.ordinal()) {
+            float strength = t < 0.25f ? t / 0.25f : (tier >= CrateRarity.EPIC.ordinal()
+                    ? Math.max(0.45f, 1f - (t - 0.25f) / 1.5f) : Math.max(0f, 1f - (t - 0.25f) / 1.4f));
+            if (strength > 0f) {
+                int rays = 6 + 2 * tier;
+                int len = 110 + 25 * tier;
+                gui.enableScissor(left + 1, top + 1, left + W - 1, top + H - 1);
+                drawRays(gui, cx, cy, rays, len, 12, (int) (0x55 * strength), rgb, t * 0.5f);
+                if (rarity == CrateRarity.LEGENDARY) {
+                    drawRays(gui, cx, cy, rays, len - 30, 6, (int) (0x60 * strength), 0xFFF1C2, -t * 0.8f);
+                }
+                gui.disableScissor();
+            }
+        }
+        // The won card again over the light, with a pulsing glow and a short pop.
+        float pulse = (float) (Math.sin(t * 5.0) + 1.0) / 2f;
+        for (int k = 1; k <= 3; k++) {
+            int alpha = (int) ((0x70 - k * 0x18) * (0.45f + 0.55f * pulse));
+            ring(gui, winX - k, winY - k, winX + CARD + k, winY + CARD + 14 + k, (Math.max(0, alpha) << 24) | rgb);
+        }
+        float pop = t < 0.3f ? 1f + 0.14f * (float) Math.sin(Math.PI * t / 0.3f) : 1f;
+        gui.enableScissor(vx, vy, vx + VIEW_W, vy + VIEW_H);
+        gui.pose().pushMatrix();
+        gui.pose().translate(cx, cy);
+        gui.pose().scale(pop, pop);
+        gui.pose().translate(-cx, -cy);
+        drawCard(gui, font, roll.band.get(roll.winIndex), winX, winY, true);
+        gui.pose().popMatrix();
+        gui.disableScissor();
+        // Sparks.
+        for (Spark sp : sparks) {
+            float st = t - sp.delay();
+            if (st < 0f || st > sp.life()) {
+                continue;
+            }
+            int px = Math.round(sp.x() + sp.vx() * st);
+            int py = Math.round(sp.y() + sp.vy() * st + 0.5f * 130f * st * st);
+            int alpha = (int) (255 * (1f - st / sp.life()));
+            gui.fill(px, py, px + sp.size(), py + sp.size(), (alpha << 24) | sp.color());
+        }
+    }
+
+    private static void drawRays(GuiGraphicsExtractor gui, float cx, float cy, int rays, int len, int width, int alpha,
+                                 int rgb, float turn) {
+        if (alpha <= 0) {
+            return;
+        }
+        for (int i = 0; i < rays; i++) {
+            gui.pose().pushMatrix();
+            gui.pose().translate(cx, cy);
+            gui.pose().rotate((float) (turn + i * Math.PI * 2 / rays));
+            gui.fillGradient(-width / 2, 0, width / 2, len, (alpha << 24) | rgb, rgb);
+            gui.fillGradient(-1, 0, 1, len * 3 / 4, (Math.min(255, alpha * 2) << 24) | 0xFFFFFF, 0xFFFFFF);
+            gui.pose().popMatrix();
+        }
+    }
+
+    private static void ring(GuiGraphicsExtractor gui, int x1, int y1, int x2, int y2, int color) {
+        gui.fill(x1, y1, x2, y1 + 1, color);
+        gui.fill(x1, y2 - 1, x2, y2, color);
+        gui.fill(x1, y1 + 1, x1 + 1, y2 - 1, color);
+        gui.fill(x2 - 1, y1 + 1, x2, y2 - 1, color);
     }
 
     private void drawResult(GuiGraphicsExtractor gui, Font font, int y) {

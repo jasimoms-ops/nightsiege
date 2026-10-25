@@ -286,7 +286,8 @@ class SiegeCoreTest {
             assertNotEquals("minecraft:chest", CrateGains.icon(gain.id()), gain.id());
         }
         int[] weights = new SiegeConfig().crateOddsFragment;
-        for (SkillClass c : new SkillClass[]{SkillClass.WARRIOR, SkillClass.ARCHER, SkillClass.GUARDIAN, SkillClass.ENGINEER}) {
+        for (SkillClass c : new SkillClass[]{SkillClass.WARRIOR, SkillClass.ARCHER, SkillClass.GUARDIAN, SkillClass.ENGINEER,
+                SkillClass.SUMMONER}) {
             assertEquals(31, CrateGains.forCollection(c).size(), c + " has 15 gains and 16 general ones");
             for (int i = 0; i < 400; i++) {
                 CrateGains.Gain g = CrateGains.roll(c, "", weights, 0.7, random);
@@ -299,7 +300,13 @@ class SiegeCoreTest {
         for (int i = 0; i < 400; i++) {
             CrateGains.Gain g = CrateGains.roll(SkillClass.ARCHER, SkillTree.WAY_CROSSBOW, weights, 1.0, random);
             assertNotEquals("staerke", g.id());
+            CrateGains.Gain dead = CrateGains.roll(SkillClass.SUMMONER, SkillTree.WAY_DEAD, weights, 1.0, random);
+            assertNotEquals(SkillTree.WAY_WILD, dead.way(), dead.id());
+            CrateGains.Gain wild = CrateGains.roll(SkillClass.SUMMONER, SkillTree.WAY_WILD, weights, 1.0, random);
+            assertNotEquals(SkillTree.WAY_DEAD, wild.way(), wild.id());
         }
+        assertEquals("wegtausch_s", SkillTree.waySwapGain(SkillClass.SUMMONER));
+        assertNotNull(CrateGains.get("wegtausch_s"));
     }
 
     @Test
@@ -833,7 +840,8 @@ class SiegeCoreTest {
         }
         for (String id : new String[]{"koecher", "sprungstiefel", "zielfernrohr", "wurfspeere", "wurfbeile", "blendgranaten",
                 "oelfass", "kletterhaken", "kampfhorn", "tarnumhang", "signalhorn", "mauerkelle", "ersatzbatterie",
-                "kriegsbanner", "barrikaden", "leibwaechter", "schlachtentrance", "lockpfeil", "magnetfeld", "spiegelschild"}) {
+                "kriegsbanner", "barrikaden", "leibwaechter", "schlachtentrance", "lockpfeil", "magnetfeld", "spiegelschild",
+                "rueckrufpfeife", "geisterross", "futternapf", "totenglocke", "seelentausch"}) {
             assertTrue(ids.contains(id), id);
             assertNotEquals(KeyHint.NONE, KeyHint.forGain(id), id);
         }

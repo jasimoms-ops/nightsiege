@@ -39,6 +39,8 @@ public class PlayerSkills {
     public List<String> unlocked = new ArrayList<>();
     /** Crate gains per class: gain id to the stage reached (see the reward crates). */
     public Map<String, Map<String, Integer>> gains = new HashMap<>();
+    /** Souls the summoner's soul vessel (crate gain) carries into the next night. */
+    public int keptSouls;
 
     public SkillClass clazz() {
         return SkillClass.byName(chosenClass);
@@ -269,6 +271,7 @@ public class PlayerSkills {
         waveCredit = 0;
         pointFraction = 0;
         templateGiven = false;
+        keptSouls = 0;
         if (levels != null) {
             levels.clear();
         }
@@ -291,6 +294,7 @@ public class PlayerSkills {
         lost = 0;
         waveCredit = 0;
         pointFraction = 0;
+        keptSouls = 0;
         chosenClass = "";
         if (levels != null) {
             levels.clear();

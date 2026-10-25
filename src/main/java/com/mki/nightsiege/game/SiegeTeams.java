@@ -12,14 +12,16 @@ import java.util.Optional;
  * Colours the glow of siege mobs.
  *
  * <p>Minecraft takes the glow colour from the entity's scoreboard team, so the
- * mod keeps two throwaway teams: one deep red for blood moon nights and one
- * gold for the champion. Both are recreated on demand and never touch teams the
+ * mod keeps throwaway teams: deep red for blood moon nights, gold for the
+ * champion and purple for the summoner's raised dead. Both are recreated on demand and never touch teams the
  * players made themselves.</p>
  */
 public final class SiegeTeams {
 
     public static final String BLOOD_MOON = "nightsiege_blood";
     public static final String CHAMPION = "nightsiege_champ";
+    /** The summoner's raised dead with the grave candles (crate gain): purple. */
+    public static final String GRAVE = "nightsiege_grave";
 
     private SiegeTeams() {
     }
@@ -56,7 +58,7 @@ public final class SiegeTeams {
         }
         try {
             Scoreboard scoreboard = server.getScoreboard();
-            for (String name : new String[]{BLOOD_MOON, CHAMPION}) {
+            for (String name : new String[]{BLOOD_MOON, CHAMPION, GRAVE}) {
                 PlayerTeam team = scoreboard.getPlayerTeam(name);
                 if (team != null) {
                     scoreboard.removePlayerTeam(team);

@@ -944,6 +944,12 @@ public class EventLookTest implements FabricClientGameTest {
         // Now a test night: the kit brings the staff, the pack fights.
         onServer(context, (player, manager) -> {
             com.mki.nightsiege.game.Companions.get().dismissAll(player.level().getServer());
+            // The summoner's crate gains of the way of the wild (and both ways).
+            var own = manager.save().skillsOf(player.getUUID().toString());
+            for (String gain : new String[]{"futterbeutel", "rueckrufpfeife", "wolfspanzer", "golemplatten", "geisterross",
+                    "futternapf", "doppelstab", "spaehfalke", "seelentausch"}) {
+                own.setGainStage(com.mki.nightsiege.core.SkillClass.SUMMONER, gain, 1);
+            }
             manager.config().testPrepSeconds = 2;
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
             boolean ok = manager.prepareTest(level.getServer(), level, new BlockPos(cx, cy, cz - 8), 4,
@@ -964,7 +970,31 @@ public class EventLookTest implements FabricClientGameTest {
                 }
             }
             System.out.println("[Night Siege test] summoner night active=" + manager.isActive() + " staff in kit=" + !staff.isEmpty());
+            StringBuilder kit = new StringBuilder();
+            for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+                String g = com.mki.nightsiege.game.Gadgets.of(player.getInventory().getItem(i));
+                if (!g.isEmpty()) {
+                    kit.append(g).append(' ');
+                }
+                if (player.getInventory().getItem(i).is(net.minecraft.world.item.Items.BEEF)) {
+                    kit.append("beef=").append(player.getInventory().getItem(i).getCount()).append(' ');
+                }
+            }
+            System.out.println("[Night Siege test] summoner gain kit: " + kit);
             com.mki.nightsiege.game.Companions c = com.mki.nightsiege.game.Companions.get();
+            // Doppelstab: two calls in a row, the third waits.
+            if (!staff.isEmpty()) {
+                c.resetPause(player.getUUID());
+                player.getCooldowns().removeCooldown(player.getCooldowns().getCooldownGroup(staff));
+                c.useStaff(player, staff);
+                int one = com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "wolf");
+                c.useStaff(player, staff);
+                int two = com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "wolf");
+                c.useStaff(player, staff);
+                int three = com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "wolf");
+                System.out.println("[Night Siege test] summoner double staff wolves " + one + " -> " + two + " -> " + three
+                        + " (want 1, 2, 2) staff cooldown=" + player.getCooldowns().isOnCooldown(staff));
+            }
             for (int i = 0; i < 5; i++) {
                 c.resetPause(player.getUUID());
                 c.useStaff(player, staff.isEmpty() ? new net.minecraft.world.item.ItemStack(com.mki.nightsiege.game.ModContent.STAFF) : staff);
@@ -994,9 +1024,48 @@ public class EventLookTest implements FabricClientGameTest {
                 context.takeScreenshot("summoner_night");
             }
         }
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            com.mki.nightsiege.game.Companions c = com.mki.nightsiege.game.Companions.get();
+            String armour = "";
+            for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                if (com.mki.nightsiege.game.Companions.isCompanion(e) && e instanceof net.minecraft.world.entity.animal.wolf.Wolf w) {
+                    armour = w.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.BODY).toString();
+                }
+            }
+            c.useGadget(player, level, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.LEAD), "rueckrufpfeife");
+            c.useGadget(player, level, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.SADDLE), "geisterross");
+            c.useGadget(player, level, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.BOWL), "futternapf");
+            System.out.println("[Night Siege test] summoner gains hawk=" + com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "hawk")
+                    + " mount=" + com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "mount") + " wolf armour=" + armour);
+            // Seelentausch: look at a wolf, fire the second ult.
+            net.minecraft.world.entity.Entity wolf = null;
+            for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                if (com.mki.nightsiege.game.Companions.isCompanion(e) && e instanceof net.minecraft.world.entity.animal.wolf.Wolf
+                        && e.distanceTo(player) > 2.0) {
+                    wolf = e;
+                }
+            }
+            if (wolf != null) {
+                net.minecraft.world.phys.Vec3 before = player.position();
+                net.minecraft.world.phys.Vec3 target = wolf.position();
+                player.lookAt(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.EYES,
+                        wolf.position().add(0, wolf.getBbHeight() * 0.5, 0));
+                com.mki.nightsiege.game.SecondUlts.fire(player);
+                System.out.println(String.format(java.util.Locale.ROOT,
+                        "[Night Siege test] summoner soul swap moved %.1f blocks (wolf was %.1f away)",
+                        player.position().distanceTo(before), target.distanceTo(before)));
+            }
+        });
+        context.waitTicks(20);
+        context.runOnClient(client -> client.options.setCameraType(net.minecraft.client.CameraType.THIRD_PERSON_FRONT));
+        context.waitTicks(10);
+        context.takeScreenshot("summoner_gains");
+        context.runOnClient(client -> client.options.setCameraType(net.minecraft.client.CameraType.FIRST_PERSON));
         // The way of the dead in the same night: souls from the fallen, the soulcatcher raises with ghosts.
         onServer(context, (player, manager) -> {
-            com.mki.nightsiege.game.Companions.get().dismissAll(player.level().getServer());
+            // Only this summoner's pack goes: the fallen of the night stay to be raised.
+            com.mki.nightsiege.game.Companions.get().dismiss(player);
             var own = manager.save().skillsOf(player.getUUID().toString());
             own.reset();
             own.chosenClass = com.mki.nightsiege.core.SkillClass.SUMMONER.name();
@@ -1006,9 +1075,18 @@ public class EventLookTest implements FabricClientGameTest {
                     "d_soulburn", "d_unholy", "d_army"}) {
                 manager.onBuySkill(player, id);
             }
+            for (String gain : new String[]{"knochenstaub", "grabkerzen", "grabruestung", "totenglocke", "seelengefaess"}) {
+                own.setGainStage(com.mki.nightsiege.core.SkillClass.SUMMONER, gain, 1);
+            }
+            System.out.println("[Night Siege test] summoner dead start souls=" + com.mki.nightsiege.game.Companions.startSouls(own)
+                    + " (want 5)");
             System.out.println("[Night Siege test] summoner dead way=" + own.pathTaken(new com.mki.nightsiege.core.SkillTree())
                     + " catcher=" + own.levelOf("d_soulcatcher") + " army=" + own.levelOf("d_army"));
         });
+        closeScreen(context);   // buying skills opened the class window
+        // A fresh wave falls right in front of the summoner: souls and corpses.
+        onServer(context, (player, manager) -> manager.testWave(player.level().getServer()));
+        context.waitTicks(40);
         game.getServer().runCommand("tp @e[tag=nightsiege] %d.5 %d %d.5".formatted(cx, cy, cz - 2));
         context.waitTicks(5);
         game.getServer().runCommand("kill @e[tag=nightsiege,distance=..40]");
@@ -1019,8 +1097,18 @@ public class EventLookTest implements FabricClientGameTest {
             net.minecraft.world.item.ItemStack staff = new net.minecraft.world.item.ItemStack(com.mki.nightsiege.game.ModContent.STAFF);
             c.useStaff(player, staff);
             System.out.println("[Night Siege test] summoner dead souls before=" + before + " after=" + c.soulsOf(player.getUUID())
-                    + " minions=" + com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "minion")
+                    + " (twin staff: 2) minions=" + com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "minion")
                     + " ghosts=" + com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "ghost"));
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                if (com.mki.nightsiege.game.Companions.isCompanion(e) && e instanceof net.minecraft.world.entity.Mob m
+                        && !(e instanceof net.minecraft.world.entity.monster.Vex) && !(e instanceof net.minecraft.world.entity.animal.wolf.Wolf)) {
+                    System.out.println("[Night Siege test] summoner minion " + m.getType().getDescriptionId() + " glowing=" + m.hasGlowingTag()
+                            + " team=" + (m.getTeam() == null ? "-" : m.getTeam().getName())
+                            + " chest=" + m.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.CHEST));
+                }
+            }
+            c.useGadget(player, level, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.BELL), "totenglocke");
         });
         context.waitTicks(10);
         context.runOnClient(client -> client.options.setCameraType(net.minecraft.client.CameraType.THIRD_PERSON_FRONT));
@@ -1048,6 +1136,8 @@ public class EventLookTest implements FabricClientGameTest {
                 + " ghosts=" + com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "ghost") + " kills=" + manager.nightKills()));
         onServer(context, (player, manager) -> manager.abort(player.level().getServer()));
         context.waitTicks(20);
+        onServer(context, (player, manager) -> System.out.println("[Night Siege test] summoner soul vessel kept="
+                + manager.save().skillsOf(player.getUUID().toString()).keptSouls));
         game.getServer().runCommand("gamemode creative @p");
         context.waitTicks(5);
         onServer(context, (player, manager) -> {
@@ -1180,12 +1270,24 @@ public class EventLookTest implements FabricClientGameTest {
                     crate.finishNow();
                 }
             });
-            context.waitTicks(10);
             if (n == 0) {
+                context.waitTicks(3);
+                context.takeScreenshot("b_crate_glory");
+                context.waitTicks(7);
                 context.takeScreenshot("b_crate_result");
+            } else {
+                context.waitTicks(10);
             }
             closeScreen(context);
         }
+        // The world effect of a legendary gain: ring, spiral, three bursts above the player.
+        onServer(context, (player, manager) -> {
+            player.setXRot(-35f);
+            com.mki.nightsiege.game.CrateFx.schedule(player, com.mki.nightsiege.core.CrateRarity.LEGENDARY, "kriegsbanner", 0);
+        });
+        game.getServer().runCommand("tp @p ~ ~ ~ ~ -35");
+        context.waitTicks(16);
+        context.takeScreenshot("b_crate_fx_world");
         context.runOnClient(client -> {
             try {
                 java.lang.reflect.Field field = com.mki.nightsiege.client.CoreScreen.class.getDeclaredField("collectionClass");

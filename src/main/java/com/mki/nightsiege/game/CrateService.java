@@ -189,9 +189,13 @@ public final class CrateService {
             player.getInventory().placeItemBackInInventory(new ItemStack(InferniteContent.INGOT));
         }
         persist.run();
-        if (ServerPlayNetworking.canSend(player, CoreNetworking.ScreenPayload.TYPE)) {
+        boolean window = ServerPlayNetworking.canSend(player, CoreNetworking.ScreenPayload.TYPE);
+        if (window) {
             ServerPlayNetworking.send(player, new CoreNetworking.ScreenPayload("crate", Json.toJson(roll)));
         }
+        // Light, sparks and (from epic on) a firework when the band stops.
+        CrateFx.schedule(player, com.mki.nightsiege.core.CrateRarity.byName(roll.rarity), roll.gain,
+                window ? CrateFx.SPIN_TICKS : 0);
         // The chat keeps a short note of it (after the window, it is still there to read).
         player.sendSystemMessage(Component.translatable(roll.duplicate ? "nightsiege.crate.result_dup" : "nightsiege.crate.result",
                 Component.translatable("nightsiege.gain." + roll.gain), Component.translatable(clazz.translationKey()),

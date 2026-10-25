@@ -214,6 +214,19 @@ public final class GainGear {
             if (lvl(kits, skills, clazz, "oelfass") > 0) {
                 out.add(Gadgets.make(Items.INK_SAC, "oelfass", 2));
             }
+        } else if (clazz == SkillClass.SUMMONER) {
+            if (lvl(kits, skills, clazz, "rueckrufpfeife") > 0) {
+                out.add(Gadgets.make(Items.LEAD, "rueckrufpfeife", 1));
+            }
+            if (lvl(kits, skills, clazz, "geisterross") > 0) {
+                out.add(Gadgets.make(Items.SADDLE, "geisterross", 1));
+            }
+            if (lvl(kits, skills, clazz, "futternapf") > 0 && !way.equals(SkillTree.WAY_DEAD)) {
+                out.add(Gadgets.make(Items.BOWL, "futternapf", 1));
+            }
+            if (lvl(kits, skills, clazz, "totenglocke") > 0 && way.equals(SkillTree.WAY_DEAD)) {
+                out.add(Gadgets.make(Items.BELL, "totenglocke", 1));
+            }
         }
     }
 
@@ -242,7 +255,10 @@ public final class GainGear {
 
     /** Gadgets that do their thing on a right click in the air (or on a block). */
     private static final Set<String> USE_ANYWHERE = Set.of("wurfspeer", "wurfbeil", "blendgranate", "oelfass",
-            "kletterhaken", "kampfhorn", "tarnumhang", "signalhorn", "mauerkelle", "ersatzbatterie", "leibwaechter");
+            "kletterhaken", "kampfhorn", "tarnumhang", "signalhorn", "mauerkelle", "ersatzbatterie", "leibwaechter",
+            "rueckrufpfeife", "geisterross", "futternapf", "totenglocke");
+    /** The summoner's gadgets (their work is in {@link Companions#useGadget}). */
+    private static final Set<String> SUMMONER_GADGETS = Set.of("rueckrufpfeife", "geisterross", "futternapf", "totenglocke");
     /** Gadgets that are set down on a block. */
     private static final Set<String> PLACE_ON_BLOCK = Set.of("kriegsbanner", "barrikade");
 
@@ -288,7 +304,15 @@ public final class GainGear {
     /** Right click on an entity: the bodyguard chain ties the guardian to an ally. */
     public static InteractionResult onUseEntity(Player player, Level level, InteractionHand hand, Entity target) {
         ItemStack stack = player.getItemInHand(hand);
-        if (!"leibwaechter".equals(Gadgets.of(stack))) {
+        String gadget = Gadgets.of(stack);
+        if (SUMMONER_GADGETS.contains(gadget)) {
+            // The lead and the saddle must not leash or saddle the companion clicked: they work as in the air.
+            if (player instanceof ServerPlayer server && level instanceof ServerLevel world) {
+                use(server, world, stack, gadget);
+            }
+            return InteractionResult.SUCCESS;
+        }
+        if (!"leibwaechter".equals(gadget)) {
             return InteractionResult.PASS;
         }
         if (player instanceof ServerPlayer guard && level instanceof ServerLevel world) {
@@ -338,6 +362,11 @@ public final class GainGear {
             case "mauerkelle" -> trowel(player, level);
             case "ersatzbatterie" -> battery(player, level, stack, creative);
             case "leibwaechter" -> bar(player, Component.translatable("nightsiege.gadget.leibwaechter.hint"));
+            case "rueckrufpfeife", "geisterross", "futternapf", "totenglocke" -> {
+                if (Companions.get() != null) {
+                    Companions.get().useGadget(player, level, stack, id);
+                }
+            }
             default -> {
             }
         }
@@ -982,7 +1011,7 @@ public final class GainGear {
     static List<Mob> enemies(ServerLevel level, Vec3 center, double radius) {
         AABB box = new AABB(center, center).inflate(radius);
         List<Mob> out = new ArrayList<>();
-        for (Mob mob : level.getEntitiesOfClass(Mob.class, box, m -> m instanceof Enemy && m.isAlive())) {
+        for (Mob mob : level.getEntitiesOfClass(Mob.class, box, m -> m instanceof Enemy && m.isAlive() && !Companions.isCompanion(m))) {
             if (mob.position().distanceToSqr(center) <= radius * radius) {
                 out.add(mob);
             }

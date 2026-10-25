@@ -1,5 +1,6 @@
 package com.mki.nightsiege.game;
 
+import com.mki.nightsiege.core.CrateGains;
 import com.mki.nightsiege.core.PlayerSkills;
 import com.mki.nightsiege.core.SiegeConfig;
 import com.mki.nightsiege.core.SkillEffect;
@@ -60,7 +61,7 @@ public final class Companions {
     public static final String TAG = "nightsiege_companion";
 
     /** What a companion is (decides its slot, its stats and its skills). */
-    enum Kind { WOLF, GOLEM, SNOW, SKELETON, SPIRIT, TITAN, MINION, GHOST }
+    enum Kind { WOLF, GOLEM, SNOW, SKELETON, SPIRIT, TITAN, MINION, GHOST, MOUNT, HAWK }
 
     static final class Companion {
         final UUID id;
@@ -185,8 +186,8 @@ public final class Companions {
                 return false;
             }
             Companion c = ALL.get(victim.getUUID());
-            if (c != null && c.kind == Kind.SPIRIT) {
-                return false;   // spirits cannot be hurt
+            if (c != null && (c.kind == Kind.SPIRIT || c.kind == Kind.HAWK)) {
+                return false;   // spirits and the scouting hawk cannot be hurt
             }
         }
         if (isCompanion(attacker) && (victim instanceof Player || isCompanion(victim))) {
@@ -312,9 +313,16 @@ public final class Companions {
             CombatEffects.actionBar(player, Component.translatable("nightsiege.msg.staff_nothing"));
             return;
         }
+        int pause = golems ? 60 * 20 : (int) Math.round((23.0 - bonus(SkillEffect.PACK_CALL, skills)) * 20.0);
+        if (player.getAbilities().instabuild) {
+            pause = 20;
+        }
+        // Doppelstab: the staff holds two calls; nextCall is the time both are back.
+        int charges = gain(skills, "doppelstab") > 0 ? 2 : 1;
         long ready = nextCall.getOrDefault(player.getUUID(), 0L);
-        if (now < ready && !player.getAbilities().instabuild) {
-            CombatEffects.actionBar(player, Component.translatable("nightsiege.msg.staff_wait", (ready - now + 19) / 20));
+        long blocked = ready - (long) (charges - 1) * pause;
+        if (now < blocked && !player.getAbilities().instabuild) {
+            CombatEffects.actionBar(player, Component.translatable("nightsiege.msg.staff_wait", (blocked - now + 19) / 20));
             return;
         }
         int slots = slots(skills);
@@ -337,12 +345,12 @@ public final class Companions {
                 && now >= nextBones.getOrDefault(player.getUUID(), 0L)) {
             spawn(level, player, skills, Kind.SKELETON);
         }
-        int pause = golems ? 60 * 20 : (int) Math.round((23.0 - bonus(SkillEffect.PACK_CALL, skills)) * 20.0);
-        if (player.getAbilities().instabuild) {
-            pause = 20;
+        long full = Math.max(ready, now) + pause;
+        nextCall.put(player.getUUID(), full);
+        long wait = full - (long) (charges - 1) * pause - now;
+        if (wait > 0) {
+            player.getCooldowns().addCooldown(stack, (int) wait);
         }
-        nextCall.put(player.getUUID(), now + pause);
-        player.getCooldowns().addCooldown(stack, pause);
         level.playSound(null, player.blockPosition(), SoundEvents.EVOKER_PREPARE_SUMMON, SoundSource.PLAYERS, 0.8f, golems ? 0.7f : 1.3f);
         CombatEffects.actionBar(player, Component.translatable("nightsiege.msg.staff_called",
                 Component.translatable(golems ? "nightsiege.companion.golem" : "nightsiege.companion.wolf"), used + 1, slots));
@@ -423,12 +431,14 @@ public final class Companions {
             case SNOW -> EntityTypes.SNOW_GOLEM.create(level, EntitySpawnReason.MOB_SUMMONED);
             case SKELETON -> EntityTypes.SKELETON.create(level, EntitySpawnReason.MOB_SUMMONED);
             case GHOST -> EntityTypes.VEX.create(level, EntitySpawnReason.MOB_SUMMONED);
+            case MOUNT -> EntityTypes.SKELETON_HORSE.create(level, EntitySpawnReason.MOB_SUMMONED);
+            case HAWK -> EntityTypes.PARROT.create(level, EntitySpawnReason.MOB_SUMMONED);
             case MINION -> null;   // the raised dead come from raise()
         };
         if (mob == null) {
             return null;
         }
-        Vec3 at = spot(level, owner);
+        Vec3 at = kind == Kind.HAWK ? owner.position().add(0, 4.5, 0) : spot(level, owner);
         mob.snapTo(at.x, at.y, at.z, owner.getYRot(), 0f);
         if (kind == Kind.SKELETON) {
             try {
@@ -449,6 +459,25 @@ public final class Companions {
             wolf.setTame(true, true);
             wolf.setOwner(owner);
             wolf.setOrderedToSit(false);
+            if (kind == Kind.WOLF && gain(skills, "wolfspanzer") > 0) {
+                // Wolfspanzer: the pack runs in armour (it takes the hits until it breaks).
+                wolf.setItemSlot(net.minecraft.world.entity.EquipmentSlot.BODY, new ItemStack(net.minecraft.world.item.Items.WOLF_ARMOR));
+                wolf.setDropChance(net.minecraft.world.entity.EquipmentSlot.BODY, 0f);
+            }
+        }
+        if (mob instanceof net.minecraft.world.entity.animal.equine.AbstractHorse horse) {
+            // Geisterross: tame and saddled, for the summoner to ride.
+            horse.setTamed(true);
+            horse.setOwner(owner);
+            horse.setItemSlot(net.minecraft.world.entity.EquipmentSlot.SADDLE, new ItemStack(net.minecraft.world.item.Items.SADDLE));
+            horse.setDropChance(net.minecraft.world.entity.EquipmentSlot.SADDLE, 0f);
+        }
+        if (kind == Kind.HAWK) {
+            // Spähfalke: no mind of its own; it circles above its summoner (see nightTick).
+            mob.setNoAi(true);
+            mob.setNoGravity(true);
+            mob.setSilent(true);
+            mob.setInvulnerable(true);
         }
         if (mob instanceof IronGolem golem) {
             golem.setPlayerCreated(true);
@@ -460,7 +489,8 @@ public final class Companions {
                 && count(level, owner.getUUID(), k -> k == Kind.WOLF) == 0) {
             c.alpha = true;   // the first wolf of the pack leads it
         }
-        if (kind == Kind.SKELETON || kind == Kind.SNOW || kind == Kind.SPIRIT || kind == Kind.TITAN || kind == Kind.GHOST || c.alpha) {
+        if (kind == Kind.SKELETON || kind == Kind.SNOW || kind == Kind.SPIRIT || kind == Kind.TITAN || kind == Kind.GHOST
+                || kind == Kind.MOUNT || kind == Kind.HAWK || c.alpha) {
             mob.setCustomName(Component.translatable("nightsiege.companion." + (c.alpha ? "alpha" : kind.name().toLowerCase(java.util.Locale.ROOT)),
                     owner.getDisplayName()));
         }
@@ -475,7 +505,7 @@ public final class Companions {
             ALL.remove(mob.getUUID());
             return null;
         }
-        level.sendParticles(kind == Kind.SPIRIT ? ParticleTypes.SOUL : ParticleTypes.POOF,
+        level.sendParticles(kind == Kind.SPIRIT || kind == Kind.MOUNT ? ParticleTypes.SOUL : ParticleTypes.POOF,
                 at.x, at.y + 0.6, at.z, 12, 0.4, 0.4, 0.4, 0.02);
         return mob;
     }
@@ -496,6 +526,16 @@ public final class Companions {
 
     /** Health, damage, speed and size from the skills and the night. */
     private void applyStats(Mob mob, Companion c, PlayerSkills skills) {
+        if (c.kind == Kind.MOUNT) {
+            set(mob, Attributes.MAX_HEALTH, 40.0 * nightScale(false));
+            mob.setHealth(mob.getMaxHealth());
+            set(mob, Attributes.MOVEMENT_SPEED, 0.32);
+            set(mob, Attributes.JUMP_STRENGTH, 0.8);
+            return;
+        }
+        if (c.kind == Kind.HAWK) {
+            return;
+        }
         double health = switch (c.kind) {
             case WOLF, SPIRIT -> 40.0;
             case GOLEM -> 100.0;
@@ -503,6 +543,7 @@ public final class Companions {
             case SKELETON -> 30.0;
             case TITAN -> 300.0;
             case MINION, GHOST -> 14.0;
+            case MOUNT, HAWK -> 20.0;
         };
         double damage = switch (c.kind) {
             case WOLF -> 4.0;
@@ -528,6 +569,12 @@ public final class Companions {
         }
         if (c.kind == Kind.TITAN || c.kind == Kind.GOLEM) {
             set(mob, Attributes.KNOCKBACK_RESISTANCE, 1.0);
+            if (gain(skills, "golemplatten") > 0) {
+                AttributeInstance armor = mob.getAttribute(Attributes.ARMOR);
+                if (armor != null) {
+                    armor.setBaseValue(armor.getBaseValue() + 4.0);   // Golemplatten
+                }
+            }
         }
     }
 
@@ -582,6 +629,12 @@ public final class Companions {
 
     private double bonus(SkillEffect effect, PlayerSkills skills) {
         return skills == null ? 0.0 : tree.totalBonus(effect, skills);
+    }
+
+    /** The working level of one of the summoner's crate gains. */
+    static int gain(PlayerSkills skills, String id) {
+        CrateGains.Gain g = CrateGains.get(id);
+        return g == null || skills == null ? 0 : g.level(skills.gainStage(com.mki.nightsiege.core.SkillClass.SUMMONER, id));
     }
 
     private PlayerSkills skillsOf(UUID owner, Entity near) {
@@ -664,6 +717,19 @@ public final class Companions {
     }
 
     private void work(ServerLevel level, ServerPlayer owner, PlayerSkills skills, Companion c, Mob mob, long now) {
+        if (c.kind == Kind.HAWK) {
+            return;   // it flies its circle in nightTick
+        }
+        if (c.kind == Kind.MOUNT) {
+            if (now % 10 == 0) {
+                level.sendParticles(ParticleTypes.SOUL_FIRE_FLAME, mob.getX(), mob.getY() + 0.2, mob.getZ(), 2, 0.3, 0.1, 0.3, 0.0);
+            }
+            if (!mob.isVehicle() && (mob.distanceToSqr(owner) > TELEPORT * TELEPORT || mob.level() != owner.level())) {
+                Vec3 at = spot(level, owner);
+                mob.teleportTo(at.x, at.y, at.z);
+            }
+            return;
+        }
         double range = FIGHT + bonus(SkillEffect.CALL_RANGE, skills);
         double toOwner = Math.sqrt(mob.distanceToSqr(owner));
         if (toOwner > TELEPORT || mob.level() != owner.level()) {
@@ -759,6 +825,9 @@ public final class Companions {
 
     private void remove(MinecraftServer server, Companion c, Entity entity) {
         ALL.remove(c.id);
+        if (c.kind == Kind.MINION && server != null) {
+            leaveCandles(server, c.id);
+        }
         if (entity != null && entity.isAlive()) {
             entity.discard();
         }
@@ -871,6 +940,7 @@ public final class Companions {
             remove(server, c, entity);
         }
         ALL.clear();
+        keepSouls(server);
         nextCall.clear();
         nextBones.clear();
         howlUntil.clear();
@@ -941,7 +1011,39 @@ public final class Companions {
     }
 
     int soulCap(PlayerSkills skills) {
+        return soulCapOf(skills);
+    }
+
+    /** Most souls a summoner of the dead can hold (the soul keeper twice as many). */
+    public static int soulCapOf(PlayerSkills skills) {
         return SkillTree.has(skills, "d_soulkeeper") ? 20 : 10;
+    }
+
+    /** Souls a night starts with: three, two more per stage of bone dust, and what the soul vessel kept. */
+    public static int startSouls(PlayerSkills skills) {
+        int kept = skills != null && gain(skills, "seelengefaess") > 0 ? Math.max(0, Math.min(5, skills.keptSouls)) : 0;
+        return Math.min(soulCapOf(skills), 3 + 2 * gain(skills, "knochenstaub") + kept);
+    }
+
+    /** The kit of the night was handed out: the souls start where the staff shows them. */
+    public void beginNight(ServerPlayer player, PlayerSkills skills) {
+        if (player != null && skills != null) {
+            souls.putIfAbsent(player.getUUID(), startSouls(skills));
+        }
+    }
+
+    /** Seelengefäß: at the end of the night up to five souls stay for the next one. */
+    private void keepSouls(MinecraftServer server) {
+        SiegeManager m = SiegeManager.get();
+        if (m == null || server == null) {
+            return;
+        }
+        for (Map.Entry<UUID, Integer> e : souls.entrySet()) {
+            PlayerSkills saved = m.save().skillsOf(e.getKey().toString());
+            if (saved != null && gain(saved, "seelengefaess") > 0 && SkillTree.WAY_DEAD.equals(saved.pathTaken(tree))) {
+                saved.keptSouls = Math.max(0, Math.min(5, e.getValue()));
+            }
+        }
     }
 
     private void addSouls(ServerPlayer player, PlayerSkills skills, int amount) {
@@ -985,8 +1087,9 @@ public final class Companions {
             return;
         }
         int have = soulsOf(player.getUUID());
-        if (have < 3 && !player.getAbilities().instabuild) {
-            CombatEffects.actionBar(player, Component.translatable("nightsiege.msg.souls_short", have, 3));
+        int cost = gain(skills, "doppelstab") > 0 ? 2 : 3;   // Doppelstab: the dead rise for two souls
+        if (have < cost && !player.getAbilities().instabuild) {
+            CombatEffects.actionBar(player, Component.translatable("nightsiege.msg.souls_short", have, cost));
             return;
         }
         int slots = minionSlots(skills);
@@ -1005,8 +1108,8 @@ public final class Companions {
         if (raised == null) {
             return;
         }
-        souls.put(player.getUUID(), have - 3);
-        showSouls(player, Math.max(0, have - 3), soulCap(skills));
+        souls.put(player.getUUID(), Math.max(0, have - cost));
+        showSouls(player, Math.max(0, have - cost), soulCap(skills));
         nextRaise.put(player.getUUID(), now + 20);
         player.getCooldowns().addCooldown(stack, 20);
         // Seelenfänger: a ghost (with the swarm two) comes along for fifteen seconds.
@@ -1059,6 +1162,9 @@ public final class Companions {
         } catch (RuntimeException e) {
             // a monster from another mod that cannot set itself up here still rises bare
         }
+        if (gain(skills, "grabruestung") > 0) {
+            graveArmour(mob);
+        }
         for (net.minecraft.world.entity.EquipmentSlot slot : net.minecraft.world.entity.EquipmentSlot.values()) {
             mob.setDropChance(slot, 0f);
         }
@@ -1082,6 +1188,10 @@ public final class Companions {
         mob.setCustomName(Component.translatable("nightsiege.companion.minion", owner.getDisplayName())
                 .withStyle(net.minecraft.ChatFormatting.DARK_PURPLE));
         mob.setCustomNameVisible(true);
+        if (gain(skills, "grabkerzen") > 0) {
+            // Grabkerzen: the raised dead shine purple through walls.
+            SiegeTeams.mark(level.getServer(), mob, SiegeTeams.GRAVE, net.minecraft.world.scores.TeamColor.DARK_PURPLE);
+        }
         ALL.put(mob.getUUID(), c);
         if (!level.addFreshEntity(mob)) {
             ALL.remove(mob.getUUID());
@@ -1212,10 +1322,14 @@ public final class Companions {
 
     /** The own companion the summoner looks at, or null. */
     private static Mob lookOwn(ServerLevel level, ServerPlayer player, double reach) {
+        return lookOwn(level, player, reach, 0.95);
+    }
+
+    private static Mob lookOwn(ServerLevel level, ServerPlayer player, double reach, double cone) {
         Vec3 eye = player.getEyePosition();
         Vec3 look = player.getLookAngle();
         Mob best = null;
-        double bestDot = 0.95;
+        double bestDot = cone;
         for (Mob mob : mobsOf(level, player.getUUID())) {
             Vec3 to = mob.position().add(0, mob.getBbHeight() * 0.5, 0).subtract(eye);
             double dist = to.length();
@@ -1240,13 +1354,210 @@ public final class Companions {
     }
 
     // ------------------------------------------------------------------
+    // crate gains: gadgets, the steed, the hawk, grave candles, soul swap
+    // ------------------------------------------------------------------
+
+    /** A right click with one of the summoner's kit gadgets (whistle, steed, bowl, bell). */
+    public void useGadget(ServerPlayer player, ServerLevel level, ItemStack stack, String id) {
+        PlayerSkills skills = skillsFor.apply(player);
+        if (skills == null || skills.clazz() != com.mki.nightsiege.core.SkillClass.SUMMONER) {
+            CombatEffects.actionBar(player, Component.translatable("nightsiege.msg.staff_summoner_only"));
+            return;
+        }
+        switch (id) {
+            case "rueckrufpfeife" -> recall(level, player, stack);
+            case "geisterross" -> steed(level, player, skills, stack);
+            case "futternapf" -> feedingBowl(level, player, stack);
+            case "totenglocke" -> deathBell(level, player, stack);
+            default -> {
+            }
+        }
+    }
+
+    /** Rückrufpfeife: every companion is at the summoner's side at once. 10 s pause. */
+    private void recall(ServerLevel level, ServerPlayer player, ItemStack stack) {
+        int came = 0;
+        for (Companion c : new ArrayList<>(ALL.values())) {
+            if (!c.owner.equals(player.getUUID()) || c.kind == Kind.HAWK || !(level.getEntity(c.id) instanceof Mob mob)
+                    || !mob.isAlive() || mob.isVehicle()) {
+                continue;
+            }
+            Vec3 at = spot(level, player);
+            mob.teleportTo(at.x, at.y, at.z);
+            mob.getNavigation().stop();
+            mob.setTarget(null);
+            level.sendParticles(ParticleTypes.POOF, at.x, at.y + 0.5, at.z, 6, 0.3, 0.3, 0.3, 0.02);
+            came++;
+        }
+        level.playSound(null, player.blockPosition(), SoundEvents.NOTE_BLOCK_FLUTE.value(), SoundSource.PLAYERS, 1.2f, 1.8f);
+        player.getCooldowns().addCooldown(stack, 200);
+        CombatEffects.actionBar(player, Component.translatable("nightsiege.gadget.rueckrufpfeife.done", came));
+    }
+
+    /** Geisterross: a saddled skeleton horse for the night; if it stands already, it comes. */
+    private void steed(ServerLevel level, ServerPlayer player, PlayerSkills skills, ItemStack stack) {
+        for (Companion c : ALL.values()) {
+            if (c.owner.equals(player.getUUID()) && c.kind == Kind.MOUNT && level.getEntity(c.id) instanceof Mob horse && horse.isAlive()) {
+                Vec3 at = spot(level, player);
+                horse.teleportTo(at.x, at.y, at.z);
+                level.playSound(null, horse.blockPosition(), SoundEvents.SKELETON_HORSE_AMBIENT, SoundSource.NEUTRAL, 1f, 1f);
+                player.getCooldowns().addCooldown(stack, 60);
+                CombatEffects.actionBar(player, Component.translatable("nightsiege.gadget.geisterross.comes"));
+                return;
+            }
+        }
+        Mob horse = spawn(level, player, skills, Kind.MOUNT);
+        if (horse == null) {
+            return;
+        }
+        level.playSound(null, horse.blockPosition(), SoundEvents.SKELETON_HORSE_AMBIENT, SoundSource.NEUTRAL, 1.2f, 0.8f);
+        player.getCooldowns().addCooldown(stack, 100);
+        CombatEffects.actionBar(player, Component.translatable("nightsiege.gadget.geisterross.called"));
+    }
+
+    /** Futternapf: companions within five blocks heal for thirty seconds. 90 s pause. */
+    private void feedingBowl(ServerLevel level, ServerPlayer player, ItemStack stack) {
+        int fed = 0;
+        for (Mob mob : mobsOf(level, player.getUUID())) {
+            if (mob.distanceToSqr(player) <= 25.0) {
+                mob.addEffect(new MobEffectInstance(MobEffects.REGENERATION, 600, 1, false, true));
+                level.sendParticles(ParticleTypes.HEART, mob.getX(), mob.getY() + mob.getBbHeight(), mob.getZ(), 3, 0.3, 0.2, 0.3, 0.0);
+                fed++;
+            }
+        }
+        if (fed == 0) {
+            CombatEffects.actionBar(player, Component.translatable("nightsiege.gadget.futternapf.none"));
+            return;
+        }
+        level.playSound(null, player.blockPosition(), SoundEvents.GENERIC_EAT.value(), SoundSource.PLAYERS, 1f, 0.9f);
+        player.getCooldowns().addCooldown(stack, 1800);
+        CombatEffects.actionBar(player, Component.translatable("nightsiege.gadget.futternapf.done", fed));
+    }
+
+    /** Totenglocke: the raised dead and the ghosts come to the summoner and heal a quarter. 60 s pause. */
+    private void deathBell(ServerLevel level, ServerPlayer player, ItemStack stack) {
+        int came = 0;
+        for (Companion c : new ArrayList<>(ALL.values())) {
+            if (!c.owner.equals(player.getUUID()) || (c.kind != Kind.MINION && c.kind != Kind.GHOST)
+                    || !(level.getEntity(c.id) instanceof Mob mob) || !mob.isAlive()) {
+                continue;
+            }
+            Vec3 at = spot(level, player);
+            mob.teleportTo(at.x, at.y, at.z);
+            mob.getNavigation().stop();
+            mob.setTarget(null);
+            mob.heal(mob.getMaxHealth() * 0.25f);
+            level.sendParticles(ParticleTypes.SOUL, at.x, at.y + 0.6, at.z, 8, 0.3, 0.4, 0.3, 0.02);
+            came++;
+        }
+        level.playSound(null, player.blockPosition(), SoundEvents.BELL_BLOCK, SoundSource.PLAYERS, 1.6f, 0.6f);
+        player.getCooldowns().addCooldown(stack, 1200);
+        CombatEffects.actionBar(player, Component.translatable("nightsiege.gadget.totenglocke.done", came));
+    }
+
+    /** Grabrüstung: the raised dead wear iron where they wear nothing. */
+    private static void graveArmour(Mob mob) {
+        net.minecraft.world.entity.EquipmentSlot[] slots = {net.minecraft.world.entity.EquipmentSlot.HEAD,
+                net.minecraft.world.entity.EquipmentSlot.CHEST, net.minecraft.world.entity.EquipmentSlot.LEGS,
+                net.minecraft.world.entity.EquipmentSlot.FEET};
+        net.minecraft.world.item.Item[] iron = {net.minecraft.world.item.Items.IRON_HELMET, net.minecraft.world.item.Items.IRON_CHESTPLATE,
+                net.minecraft.world.item.Items.IRON_LEGGINGS, net.minecraft.world.item.Items.IRON_BOOTS};
+        for (int i = 0; i < slots.length; i++) {
+            if (mob.getItemBySlot(slots[i]).isEmpty()) {
+                mob.setItemSlot(slots[i], new ItemStack(iron[i]));
+            }
+        }
+    }
+
+    private static void leaveCandles(MinecraftServer server, UUID id) {
+        try {
+            net.minecraft.world.scores.Scoreboard board = server.getScoreboard();
+            net.minecraft.world.scores.PlayerTeam team = board.getPlayerTeam(SiegeTeams.GRAVE);
+            if (team != null && team.getPlayers().contains(id.toString())) {
+                board.removePlayerFromTeam(id.toString(), team);
+            }
+        } catch (RuntimeException e) {
+            // the team is only colour
+        }
+    }
+
+    /**
+     * Every tick of a running night: the scouting hawks fly their circle; once a second every
+     * summoner with the Spähfalke gets theirs and the monsters within 30 blocks light up.
+     */
+    public void nightTick(ServerLevel level, List<ServerPlayer> upright) {
+        long now = level.getGameTime();
+        for (Companion c : ALL.values()) {
+            if (c.kind != Kind.HAWK || !(level.getEntity(c.id) instanceof Mob hawk)) {
+                continue;
+            }
+            ServerPlayer owner = level.getServer().getPlayerList().getPlayer(c.owner);
+            if (owner == null || owner.level() != level) {
+                continue;
+            }
+            double a = (now % 120) / 120.0 * Math.PI * 2;
+            double x = owner.getX() + Math.cos(a) * 3.5;
+            double z = owner.getZ() + Math.sin(a) * 3.5;
+            float yaw = (float) Math.toDegrees(a);   // flying along the circle
+            hawk.setPos(x, owner.getY() + 4.5, z);
+            hawk.setYRot(yaw);
+            hawk.setYHeadRot(yaw);
+            hawk.setYBodyRot(yaw);
+        }
+        if (now % 20 != 0) {
+            return;
+        }
+        for (ServerPlayer player : upright) {
+            if (player.level() != level) {
+                continue;
+            }
+            PlayerSkills skills = skillsFor.apply(player);
+            if (skills == null || skills.clazz() != com.mki.nightsiege.core.SkillClass.SUMMONER
+                    || gain(skills, "spaehfalke") <= 0 || SkillTree.WAY_DEAD.equals(skills.pathTaken(tree))) {
+                continue;
+            }
+            if (count(level, player.getUUID(), k -> k == Kind.HAWK) == 0) {
+                spawn(level, player, skills, Kind.HAWK);
+            }
+            for (Mob mob : GainGear.enemies(level, player.position(), 30.0)) {
+                mob.addEffect(new MobEffectInstance(MobEffects.GLOWING, 40, 0, false, false));
+            }
+        }
+    }
+
+    /** Seelentausch (second ult): the summoner and the companion looked at swap places. */
+    public boolean soulSwap(ServerLevel level, ServerPlayer player) {
+        Mob partner = lookOwn(level, player, 48.0, 0.9);
+        if (partner == null) {
+            CombatEffects.actionBar(player, Component.translatable("nightsiege.msg.swap_none"));
+            return false;
+        }
+        if (player.isPassenger()) {
+            player.stopRiding();
+        }
+        Vec3 me = player.position();
+        Vec3 it = partner.position();
+        level.sendParticles(ParticleTypes.REVERSE_PORTAL, me.x, me.y + 1, me.z, 30, 0.4, 0.8, 0.4, 0.05);
+        level.sendParticles(ParticleTypes.REVERSE_PORTAL, it.x, it.y + 1, it.z, 30, 0.4, 0.8, 0.4, 0.05);
+        partner.teleportTo(me.x, me.y, me.z);
+        partner.getNavigation().stop();
+        player.teleportTo(it.x, it.y, it.z);
+        player.resetFallDistance();
+        level.playSound(null, BlockPos.containing(me), SoundEvents.ENDERMAN_TELEPORT, SoundSource.PLAYERS, 1f, 0.8f);
+        level.playSound(null, BlockPos.containing(it), SoundEvents.ENDERMAN_TELEPORT, SoundSource.PLAYERS, 1f, 1.2f);
+        return true;
+    }
+
+    // ------------------------------------------------------------------
     // helpers
     // ------------------------------------------------------------------
 
+    /** A summoner's fighting companions (the steed and the hawk do not fight). */
     private static List<Mob> mobsOf(ServerLevel level, UUID owner) {
         List<Mob> out = new ArrayList<>();
         for (Companion c : ALL.values()) {
-            if (c.owner.equals(owner) && level.getEntity(c.id) instanceof Mob mob && mob.isAlive()) {
+            if (c.owner.equals(owner) && c.kind != Kind.MOUNT && c.kind != Kind.HAWK
+                    && level.getEntity(c.id) instanceof Mob mob && mob.isAlive()) {
                 out.add(mob);
             }
         }

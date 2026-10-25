@@ -136,6 +136,24 @@ public final class CrateGains {
         add("kupfergolem", e, CrateRarity.EPIC, 1, false, SkillTree.WAY_MECHANICS, true);
         add("magnetfeld", e, CrateRarity.LEGENDARY, 1, false, "", true);
         add("wegtausch_e", e, CrateRarity.LEGENDARY, 1, false, "", true);
+
+        // ---- summoner ----
+        SkillClass s = SkillClass.SUMMONER;
+        add("futterbeutel", s, CrateRarity.COMMON, 3, false, SkillTree.WAY_WILD, true);
+        add("knochenstaub", s, CrateRarity.COMMON, 2, false, SkillTree.WAY_DEAD, true);
+        add("rueckrufpfeife", s, CrateRarity.COMMON, 1, false, "", true);
+        add("wolfspanzer", s, CrateRarity.UNCOMMON, 1, false, SkillTree.WAY_WILD, true);
+        add("golemplatten", s, CrateRarity.UNCOMMON, 1, false, SkillTree.WAY_WILD, true);
+        add("grabkerzen", s, CrateRarity.UNCOMMON, 1, false, SkillTree.WAY_DEAD, true);
+        add("geisterross", s, CrateRarity.RARE, 1, false, "", true);
+        add("futternapf", s, CrateRarity.RARE, 1, false, SkillTree.WAY_WILD, true);
+        add("totenglocke", s, CrateRarity.RARE, 1, false, SkillTree.WAY_DEAD, true);
+        add("grabruestung", s, CrateRarity.RARE, 1, false, SkillTree.WAY_DEAD, true);
+        add("doppelstab", s, CrateRarity.EPIC, 1, false, "", true);
+        add("spaehfalke", s, CrateRarity.EPIC, 1, false, SkillTree.WAY_WILD, true);
+        add("seelengefaess", s, CrateRarity.EPIC, 1, false, SkillTree.WAY_DEAD, true);
+        add("seelentausch", s, CrateRarity.LEGENDARY, 1, false, "", true);
+        add("wegtausch_s", s, CrateRarity.LEGENDARY, 1, false, "", true);
     }
 
     private static final Map<String, String> ICONS = Map.ofEntries(
@@ -176,7 +194,15 @@ public final class CrateGains {
             Map.entry("zweite_ladung", "minecraft:repeater"), Map.entry("oelfass", "minecraft:lava_bucket"),
             Map.entry("recycling", "minecraft:hopper"), Map.entry("ueberkapazitaet", "minecraft:ender_chest"),
             Map.entry("tarnfallen", "minecraft:tinted_glass"), Map.entry("kupfergolem", "minecraft:copper_block"),
-            Map.entry("magnetfeld", "minecraft:lodestone"), Map.entry("wegtausch_e", "minecraft:compass"));
+            Map.entry("magnetfeld", "minecraft:lodestone"), Map.entry("wegtausch_e", "minecraft:compass"),
+            Map.entry("futterbeutel", "minecraft:beef"), Map.entry("knochenstaub", "minecraft:bone_meal"),
+            Map.entry("rueckrufpfeife", "minecraft:lead"), Map.entry("wolfspanzer", "minecraft:wolf_armor"),
+            Map.entry("golemplatten", "minecraft:heavy_weighted_pressure_plate"), Map.entry("grabkerzen", "minecraft:purple_candle"),
+            Map.entry("geisterross", "minecraft:saddle"), Map.entry("futternapf", "minecraft:bowl"),
+            Map.entry("totenglocke", "minecraft:bell"), Map.entry("grabruestung", "minecraft:iron_helmet"),
+            Map.entry("doppelstab", "nightsiege:summoning_staff"), Map.entry("spaehfalke", "minecraft:parrot_spawn_egg"),
+            Map.entry("seelengefaess", "minecraft:soul_lantern"), Map.entry("seelentausch", "minecraft:chorus_fruit"),
+            Map.entry("wegtausch_s", "minecraft:compass"));
 
     private CrateGains() {
     }

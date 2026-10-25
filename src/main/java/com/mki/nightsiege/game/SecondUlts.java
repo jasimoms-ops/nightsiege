@@ -69,6 +69,7 @@ public final class SecondUlts {
             case ARCHER -> "lockpfeil";
             case GUARDIAN -> "spiegelschild";
             case ENGINEER -> "magnetfeld";
+            case SUMMONER -> "seelentausch";
             default -> null;
         };
     }
@@ -94,6 +95,9 @@ public final class SecondUlts {
         if (ready != null && now < ready) {
             GainGear.bar(player, Component.translatable("nightsiege.ult2.wait", (int) Math.ceil((ready - now) / 20.0)));
             return;
+        }
+        if (gain.equals("seelentausch") && (Companions.get() == null || !Companions.get().soulSwap(level, player))) {
+            return;   // nobody to swap with: the pause does not start
         }
         READY.put(player.getUUID(), now + COOLDOWN_TICKS);
         switch (gain) {

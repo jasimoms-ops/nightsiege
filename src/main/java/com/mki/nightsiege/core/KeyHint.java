@@ -56,7 +56,8 @@ public enum KeyHint {
             Map.entry("d_corpse", SNEAK_USE),
             Map.entry("d_soulshield", SNEAK_USE));
 
-    private static final Set<String> SECOND_ULTS = Set.of("schlachtentrance", "lockpfeil", "magnetfeld", "spiegelschild");
+    private static final Set<String> SECOND_ULTS = Set.of("schlachtentrance", "lockpfeil", "magnetfeld", "spiegelschild",
+            "seelentausch");
 
     private static final Map<String, KeyHint> GAINS = Map.ofEntries(
             Map.entry("koecher", QUIVER),
@@ -74,7 +75,11 @@ public enum KeyHint {
             Map.entry("ersatzbatterie", USE),
             Map.entry("kriegsbanner", USE_BLOCK),
             Map.entry("barrikaden", USE_BLOCK),
-            Map.entry("leibwaechter", USE_MATE));
+            Map.entry("leibwaechter", USE_MATE),
+            Map.entry("rueckrufpfeife", USE),
+            Map.entry("geisterross", USE),
+            Map.entry("futternapf", USE),
+            Map.entry("totenglocke", USE));
 
     /** Kit gadgets (by their item id in the custom data). */
     private static final Map<String, KeyHint> GADGETS = Map.ofEntries(
@@ -90,7 +95,11 @@ public enum KeyHint {
             Map.entry("ersatzbatterie", USE),
             Map.entry("kriegsbanner", USE_BLOCK),
             Map.entry("barrikade", USE_BLOCK),
-            Map.entry("leibwaechter", USE_MATE));
+            Map.entry("leibwaechter", USE_MATE),
+            Map.entry("rueckrufpfeife", USE),
+            Map.entry("geisterross", USE),
+            Map.entry("futternapf", USE),
+            Map.entry("totenglocke", USE));
 
     /** The key a skill needs; ultimates always use the ult key. */
     public static KeyHint forNode(String id, boolean ultimate) {
