@@ -356,7 +356,7 @@ public final class SiegeManager {
         ServerLivingEntityEvents.ALLOW_DEATH.register((entity, source, amount) ->
                 combat.allowDeath(entity) && allowNightDeath(entity));
         ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) ->
-                allowModDamage(entity, source.getEntity()) && combat.allowDamage(entity, source, amount)
+                !infighting(source.getEntity(), entity) && allowModDamage(entity, source.getEntity()) && combat.allowDamage(entity, source, amount)
                         && CrateEffects.allowDamage(entity, source) && Companions.allowDamage(entity, source));
         combat.guardian().setCredit(this::creditTank);
         traps.setMarker(combat::remoteMark);
@@ -3119,7 +3119,19 @@ public final class SiegeManager {
         if (Besiegers.busy(mob)) {
             return false;   // a ladder carrier or sapper at its job picks no fights
         }
+        if (infighting(mob, target)) {
+            return false;   // monsters do not turn on each other (Simon, 25 October 2026)
+        }
         return !(target instanceof net.minecraft.world.entity.player.Player player) || INSTANCE.mayFight(mob, player);
+    }
+
+    /**
+     * True for a monster against another monster, the summoner's companions aside: a zombie
+     * hit by a skeleton's arrow does not go for the skeleton, and the arrow does it no harm.
+     */
+    public static boolean infighting(Entity attacker, Entity victim) {
+        return attacker instanceof net.minecraft.world.entity.monster.Enemy && victim instanceof net.minecraft.world.entity.monster.Enemy
+                && attacker != victim && !Companions.isCompanion(attacker) && !Companions.isCompanion(victim);
     }
 
     /** True while this player defends the running night. */
