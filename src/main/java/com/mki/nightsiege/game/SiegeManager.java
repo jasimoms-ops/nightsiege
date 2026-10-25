@@ -2806,8 +2806,8 @@ public final class SiegeManager {
 
     /**
      * Everyone back to nothing: points, levels, classes, crate gains and crates still waiting
-     * are gone; the class change is free again. The shared core tree, the night statistics and
-     * the crates in inventories stay. Not during a night.
+     * are gone, the class change is free again, and the shared core tree starts empty too.
+     * The night statistics and the crates in inventories stay. Not during a night.
      */
     public int wipePlayers(MinecraftServer server) {
         if (active || save.skills == null) {
@@ -2818,6 +2818,7 @@ public final class SiegeManager {
         if (save.pendingCrates != null) {
             save.pendingCrates.clear();
         }
+        save.coreSkills = new PlayerSkills();
         persist();
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             SkillService.clear(player);
