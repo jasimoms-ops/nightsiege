@@ -542,7 +542,7 @@ public final class Companions {
         }
         double health = switch (c.kind) {
             case WOLF, SPIRIT -> 40.0;
-            case GOLEM -> 100.0;
+            case GOLEM -> 80.0;   // was 100: the golem way was far too strong (Simon, 25 October 2026)
             case SNOW -> 20.0;
             case SKELETON -> 30.0;
             case TITAN -> 300.0;
@@ -551,9 +551,9 @@ public final class Companions {
             case MOUNT, HAWK -> 20.0;
         };
         double damage = switch (c.kind) {
-            case WOLF -> 4.0;
+            case WOLF -> 3.0;   // was 4 (wolves in armour too strong, Simon 25 October 2026)
             case SPIRIT -> 4.0 * (1.5 + 0.25 * c.rank);
-            case GOLEM -> 15.0;
+            case GOLEM -> 10.0;   // was 15
             case TITAN -> 22.0;
             default -> -1.0;
         };
@@ -568,7 +568,8 @@ public final class Companions {
             double factor = 1.0 + bonus(SkillEffect.SUMMON_SPEED, skills) + (c.kind == Kind.SPIRIT ? 0.3 : 0.0);
             speed.setBaseValue(speed.getBaseValue() * factor);
         }
-        double size = c.alpha ? 1.35 : c.kind == Kind.TITAN ? 2.0 : 1.0;
+        // Ghosts a little bigger, so they are seen at all (Simon never saw them).
+        double size = c.alpha ? 1.35 : c.kind == Kind.TITAN ? 2.0 : c.kind == Kind.GHOST ? 1.6 : 1.0;
         if (size != 1.0) {
             set(mob, Attributes.SCALE, size);
         }
@@ -1093,7 +1094,7 @@ public final class Companions {
         }
         if (SkillTree.WAY_DEAD.equals(skills.pathTaken(tree))) {
             if (SkillTree.has(skills, "d_raise")) {
-                long until = level.getGameTime() + 600;
+                long until = level.getGameTime() + 1200;   // the start ghosts fly for a minute
                 for (int i = count(level, player.getUUID(), k -> k == Kind.GHOST); i < 2; i++) {
                     ghost(level, player, skills, until);
                 }
@@ -1184,8 +1185,9 @@ public final class Companions {
             CombatEffects.actionBar(player, Component.translatable("nightsiege.msg.no_corpse"));
             return;
         }
-        long life = Math.round((20.0 + bonus(SkillEffect.RAISE_DEAD, skills)) * 20.0 * (1.0 + bonus(SkillEffect.BIND_RUNE, skills)));
-        Mob raised = raise(level, player, skills, corpse, 0.4, now + life, false);
+        long life = Math.round((30.0 + bonus(SkillEffect.RAISE_DEAD, skills)) * 20.0 * (1.0 + bonus(SkillEffect.BIND_RUNE, skills)));
+        // Full strength of tonight's monster (was 40 %: "they do next to nothing", Simon 25 October 2026).
+        Mob raised = raise(level, player, skills, corpse, 1.0, now + life, false);
         if (raised == null) {
             return;
         }
@@ -1347,7 +1349,7 @@ public final class Companions {
         int raised = 0;
         Corpse corpse;
         while (raised < 24 && (corpse = takeCorpse(level, player.position(), 20.0, SkillTree.has(skills, "d_champion"))) != null) {
-            if (raise(level, player, skills, corpse, 0.4 + 0.1 * rank, until, true) != null) {
+            if (raise(level, player, skills, corpse, 0.8 + 0.1 * rank, until, true) != null) {
                 raised++;
             }
         }
