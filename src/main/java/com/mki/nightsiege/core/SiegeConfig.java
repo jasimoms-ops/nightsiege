@@ -256,6 +256,13 @@ public class SiegeConfig {
     public boolean trapDamageFollowsLevel = true;
     /** Factor on all trap and tower damage (server balancing of the engineer). */
     public double trapDamage = 0.75;
+    /** Factor on all damage the summoner's companions deal to monsters (Simon, 25 October 2026: +50 %). */
+    public double companionDamage = 1.5;
+    /**
+     * Monsters within this many blocks of a summoner that go for him switch to one of his
+     * companions (like the guardian's challenger). 0 = off.
+     */
+    public double companionTauntRadius = 6.0;
     /** Companions grow with the night like the monsters: this share of the monsters' extra health and damage. */
     public double companionScaling = 0.8;
     /** Share of every wave (taken from its zombies) that carry ladders and build one up the wall. 0 = off. */

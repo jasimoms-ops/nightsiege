@@ -215,6 +215,10 @@ public final class Companions {
         Companion hitter = attacker == null ? null : ALL.get(attacker.getUUID());
         if (hitter != null && attacker instanceof LivingEntity living) {
             PlayerSkills skills = self.skillsOf(hitter.owner, attacker);
+            SiegeConfig cfg = self.config.get();
+            if (cfg != null && victim instanceof Enemy) {
+                factor *= (float) Math.max(0.1, cfg.companionDamage);
+            }
             // Wildheit: wounded companions bite harder.
             if (SkillTree.has(skills, "s_wildness") && living.getHealth() < living.getMaxHealth() * 0.5f) {
                 factor *= 1.25f;
@@ -698,6 +702,7 @@ public final class Companions {
             if (owner == null) {
                 continue;
             }
+            taunt(owner);
             PlayerSkills skills = skillsFor.apply(owner);
             if (SkillTree.has(skills, "s_howl") && now >= nextHowl.getOrDefault(owner.getUUID(), 0L)
                     && count((ServerLevel) owner.level(), owner.getUUID(), k -> k == Kind.WOLF) > 0) {
@@ -712,6 +717,47 @@ public final class Companions {
                             healPack((ServerLevel) owner.level(), owner, wolf, 4.0f);   // Rudelführer: the alpha heals the pack
                         }
                     }
+                }
+            }
+        }
+    }
+
+    /**
+     * Monsters near the summoner that go for him turn to one of his companions instead
+     * (config companionTauntRadius), so the companions take the blows, not the summoner.
+     */
+    private void taunt(ServerPlayer owner) {
+        SiegeConfig cfg = config.get();
+        double radius = cfg == null ? 0.0 : cfg.companionTauntRadius;
+        if (radius <= 0 || !(owner.level() instanceof ServerLevel level) || !owner.isAlive()) {
+            return;
+        }
+        List<Mob> guards = new ArrayList<>();
+        for (Mob mob : mobsOf(level, owner.getUUID())) {
+            Companion c = ALL.get(mob.getUUID());
+            if (c != null && c.kind != Kind.SPIRIT && c.kind != Kind.HAWK && c.kind != Kind.MOUNT && mob.isAlive()
+                    && mob.distanceToSqr(owner) < 24.0 * 24.0) {
+                guards.add(mob);
+            }
+        }
+        if (guards.isEmpty()) {
+            return;
+        }
+        for (Mob foe : level.getEntitiesOfClass(Mob.class, owner.getBoundingBox().inflate(radius),
+                e -> e instanceof Enemy && e.isAlive() && !isCompanion(e) && e.getTarget() == owner)) {
+            Mob best = null;
+            double bestD = Double.MAX_VALUE;
+            for (Mob guard : guards) {
+                double d = guard.distanceToSqr(foe);
+                if (d < bestD) {
+                    bestD = d;
+                    best = guard;
+                }
+            }
+            if (best != null) {
+                foe.setTarget(best);
+                if (best.getTarget() == null || !best.getTarget().isAlive()) {
+                    best.setTarget(foe);
                 }
             }
         }
