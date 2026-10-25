@@ -2708,7 +2708,7 @@ public final class SiegeManager {
             case "donate" -> onDonate(player, parseAmount(argument));
             case "dev" -> onDevAction(player, argument);
             case "ult" -> onUltimateKey(player);
-            case "ult2" -> SecondUlts.fire(player);
+            case "ult2" -> onSecondKey(player);
             case "quiver" -> GainGear.cycleQuiver(player);
             case "jump" -> GainGear.onDoubleJump(player);
             case "shield" -> combat.guardian().onShieldAction(player);
@@ -3134,6 +3134,54 @@ public final class SiegeManager {
     public static boolean infighting(Entity attacker, Entity victim) {
         return attacker instanceof net.minecraft.world.entity.monster.Enemy && victim instanceof net.minecraft.world.entity.monster.Enemy
                 && attacker != victim && !Companions.isCompanion(attacker) && !Companions.isCompanion(victim);
+    }
+
+    /**
+     * The X key: with the remote in hand its second order, with the summoner's staff its
+     * command, otherwise the second ultimate (Simon, 25 October 2026: no more sneak + right click).
+     */
+    private void onSecondKey(ServerPlayer player) {
+        ItemStack held = player.getMainHandItem();
+        if (ModContent.REMOTE != null && held.is(ModContent.REMOTE)) {
+            traps.useRemote(player, null, true);
+            return;
+        }
+        if (held.getItem() instanceof SummonStaffItem) {
+            companions.useStaff(player, held, true);
+            return;
+        }
+        SecondUlts.fire(player);
+    }
+
+    /**
+     * Monsters go less for bow and crossbow archers (Simon, 25 October 2026): a monster that
+     * takes aim at an archer turns to another defender who is not much further away.
+     */
+    public static net.minecraft.world.entity.LivingEntity retarget(Mob mob, net.minecraft.world.entity.LivingEntity target) {
+        SiegeManager m = INSTANCE;
+        if (m == null || !m.active || !(target instanceof ServerPlayer archer) || !m.isDefending(archer)) {
+            return target;
+        }
+        PlayerSkills skills = m.save.skillsOf(archer.getUUID().toString());
+        if (skills.clazz() != com.mki.nightsiege.core.SkillClass.ARCHER || archer.level().getServer() == null) {
+            return target;
+        }
+        double limit = Math.sqrt(mob.distanceToSqr(archer)) + 8.0;
+        ServerPlayer best = null;
+        double bestDistance = limit * limit;
+        for (UUID id : m.participants) {
+            ServerPlayer other = archer.level().getServer().getPlayerList().getPlayer(id);
+            if (other == null || other == archer || other.level() != mob.level() || !m.isDefending(other)
+                    || m.save.skillsOf(id.toString()).clazz() == com.mki.nightsiege.core.SkillClass.ARCHER) {
+                continue;
+            }
+            double d = mob.distanceToSqr(other);
+            if (d < bestDistance) {
+                bestDistance = d;
+                best = other;
+            }
+        }
+        return best == null ? target : best;
     }
 
     /** True while this player defends the running night. */

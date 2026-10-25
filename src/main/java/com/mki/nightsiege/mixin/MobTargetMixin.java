@@ -20,6 +20,14 @@ public abstract class MobTargetMixin {
         Mob self = (Mob) (Object) this;
         if (target != null && !self.level().isClientSide() && !SiegeManager.mayTarget(self, target)) {
             ci.cancel();
+            return;
+        }
+        if (target != null && !self.level().isClientSide()) {
+            LivingEntity other = SiegeManager.retarget(self, target);
+            if (other != target) {
+                ci.cancel();
+                self.setTarget(other);   // archers are focused less: another defender close by instead
+            }
         }
     }
 }

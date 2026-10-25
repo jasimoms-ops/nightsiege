@@ -362,7 +362,11 @@ public final class KitService {
         boolean belt = gainLevel(skills, clazz, "kriegsgurt") > 0;
         String[] pieces = {"helmet", "chestplate", "leggings", "boots"};
         for (int i = 0; i < 4; i++) {
-            ItemStack piece = new ItemStack(item(NightKit.armor(level, i), pieces[i]));
+            NightKit.Material material = NightKit.armor(level, i);
+            if (clazz == SkillClass.ENGINEER && material.ordinal() > NightKit.Material.DIAMOND.ordinal()) {
+                material = NightKit.Material.DIAMOND;   // the engineer wears diamond at most (Simon, 25 October 2026)
+            }
+            ItemStack piece = new ItemStack(item(material, pieces[i]));
             enchant(piece, ench, Enchantments.PROTECTION, protection);
             if (projectile > 0) {
                 enchant(piece, ench, Enchantments.PROJECTILE_PROTECTION, projectile);

@@ -40,7 +40,9 @@ public final class KeyHints {
             case USE, USE_BLOCK, USE_MATE, DRAW -> new KeyMapping[]{o.keyUse};
             case USE_MATE_OR_SHIELD, SHIELD_ACTION -> new KeyMapping[]{o.keyUse, o.keyAttack};
             case SNEAK -> new KeyMapping[]{o.keyShift};
-            case SNEAK_BLOCK, SNEAK_USE, REMOTE, STAFF -> new KeyMapping[]{o.keyShift, o.keyUse};
+            case SNEAK_BLOCK -> new KeyMapping[]{o.keyShift, o.keyUse};
+            // the X key does what sneak + right click did with the remote and the staff (25 October 2026)
+            case SNEAK_USE, REMOTE, STAFF -> new KeyMapping[]{GainClient.secondUltKey(), o.keyUse};
             default -> new KeyMapping[0];
         };
         Object[] names = new Object[used.length];

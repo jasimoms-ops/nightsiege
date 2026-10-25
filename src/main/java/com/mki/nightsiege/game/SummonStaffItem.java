@@ -35,8 +35,8 @@ public class SummonStaffItem extends Item {
     public InteractionResult use(Level level, Player player, InteractionHand hand) {
         if (!level.isClientSide() && player instanceof ServerPlayer server) {
             ItemStack stack = player.getItemInHand(hand);
-            // Commands (sneaking) work even while the call is cooling down.
-            if (!player.isShiftKeyDown() && player.getCooldowns().isOnCooldown(stack)) {
+            // Commands (X key) go elsewhere; the call waits for its cooldown.
+            if (player.getCooldowns().isOnCooldown(stack)) {
                 return InteractionResult.FAIL;
             }
             handler.use(server, stack);

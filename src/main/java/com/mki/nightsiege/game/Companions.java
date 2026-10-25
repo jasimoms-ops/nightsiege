@@ -269,6 +269,15 @@ public final class Companions {
      * and the snow golems come along). Sneaking at a monster sends every companion at it.
      */
     public void useStaff(ServerPlayer player, ItemStack stack) {
+        useStaff(player, stack, false);
+    }
+
+    /**
+     * The staff. {@code command}: the X key while the staff is in hand (it was sneak + right
+     * click until 25 October 2026): all companions at the monster looked at, or corpse blast
+     * and soul shield on the way of the dead.
+     */
+    public void useStaff(ServerPlayer player, ItemStack stack, boolean command) {
         if (!(player.level() instanceof ServerLevel level)) {
             return;
         }
@@ -280,7 +289,7 @@ public final class Companions {
         }
         long now = level.getGameTime();
         boolean dead = SkillTree.WAY_DEAD.equals(skills.pathTaken(tree));
-        if (player.isShiftKeyDown()) {
+        if (command) {
             LivingEntity prey = CombatEffects.lookTarget(level, player, 32.0);
             if (prey == null && dead) {
                 Mob own = lookOwn(level, player, 16.0);

@@ -901,7 +901,8 @@ public final class TrapService {
         DamageSource source = sourceFor(level, record);
         float damage = (float) (TrapKind.TESLA.damage(tier) * teslaBoost.getAsDouble() * power(record, now)
                 * piercing(record, now) * levelScale());
-        int jumps = TrapKind.TESLA.chainTargets(tier) + (int) Math.round(bonus(record, SkillEffect.CHAIN_LIGHTNING));
+        // At most four monsters per discharge (Simon, 25 October 2026).
+        int jumps = Math.min(4, TrapKind.TESLA.chainTargets(tier) + (int) Math.round(bonus(record, SkillEffect.CHAIN_LIGHTNING)));
         List<LivingEntity> hit = new ArrayList<>();
         LivingEntity current = first;
         Vec3 start = from;
@@ -919,7 +920,13 @@ public final class TrapService {
                     .orElse(null);
         }
         playAt(level, pos, SoundEvents.LIGHTNING_BOLT_IMPACT, 0.6f, 1.8f);
-        record.readyAt = now + quicker(record, now, TrapKind.TESLA.cooldownTicks(tier));
+        // Five times slower than at first; with its engineer within six blocks only three times.
+        int cooldown = TrapKind.TESLA.cooldownTicks(tier);
+        ServerPlayer owner = ownerOf(level, record);
+        if (owner != null && owner.distanceToSqr(Vec3.atCenterOf(pos)) <= 36.0) {
+            cooldown = cooldown * 3 / 5;
+        }
+        record.readyAt = now + quicker(record, now, cooldown);
     }
 
     /** A crackling line of sparks between two points. */
@@ -941,6 +948,15 @@ public final class TrapService {
 
     /** The engineer's remote was used, pointing at a block (null: at whatever is in sight). */
     public void useRemote(ServerPlayer player, BlockPos clicked) {
+        useRemote(player, clicked, false);
+    }
+
+    /**
+     * The remote's orders. {@code second}: the second order, given with the X key while the
+     * remote is in hand (it was sneak + right click until 25 October 2026): detonate, the
+     * mortar's salvo, reload, and aiming a mortar at a block.
+     */
+    public void useRemote(ServerPlayer player, BlockPos clicked, boolean second) {
         if (!(player.level() instanceof ServerLevel level)) {
             return;
         }
@@ -967,7 +983,7 @@ public final class TrapService {
             }
         }
         LivingEntity monster = CombatEffects.lookTarget(level, player, range);
-        boolean sneak = player.isShiftKeyDown();
+        boolean sneak = second;
         if (trapPos != null && (monster == null
                 || player.getEyePosition().distanceToSqr(Vec3.atCenterOf(trapPos)) <= monster.distanceToSqr(player))) {
             TrapRecord record = find(level, trapPos);
@@ -1474,6 +1490,12 @@ public final class TrapService {
             if (SkillTree.has(skills, "e_fieldtech")) {
                 max -= 1;
             }
+        }
+        // Hard caps (Simon, 25 October 2026): mortar and tesla two, arrow and poison tower three.
+        if (kind == TrapKind.MORTAR || kind == TrapKind.TESLA) {
+            max = Math.min(max, 2);
+        } else if (kind == TrapKind.TURRET || kind == TrapKind.BREWER) {
+            max = Math.min(max, 3);
         }
         return Math.max(1, max);
     }
