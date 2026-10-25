@@ -398,8 +398,17 @@ public final class KitService {
             boolean spare = gainLevel(skills, clazz, "ersatzwaffe_a") > 0;
             if (!crossbow || way.isEmpty() || spare) {
                 ItemStack bow = new ItemStack(weapon == NightKit.Material.INFERNITE ? gear("infernite_bow", Items.BOW) : Items.BOW);
-                enchant(bow, ench, Enchantments.POWER, NightKit.plusOne(NightKit.sharpness(level),
-                        gainLevel(skills, clazz, "staerke"), 5));
+                String sub = tree.subclassOf(skills);
+                // Playtest 25 October 2026 (Simon): the heavy shot gets one more power level,
+                // the quick shot never runs out of arrows.
+                int power = NightKit.plusOne(NightKit.sharpness(level), gainLevel(skills, clazz, "staerke"), 5);
+                if (SkillTree.SUB_HEAVY.equals(sub)) {
+                    power = Math.min(6, power + 1);
+                }
+                enchant(bow, ench, Enchantments.POWER, power);
+                if (SkillTree.SUB_SWIFT.equals(sub)) {
+                    enchant(bow, ench, Enchantments.INFINITY, 1);
+                }
                 enchant(bow, ench, Enchantments.PUNCH, NightKit.bowPunch(level));
                 enchant(bow, ench, Enchantments.FLAME, NightKit.bowFlame(level));
                 if (gainLevel(skills, clazz, "zielfernrohr") > 0) {

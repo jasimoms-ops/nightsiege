@@ -99,7 +99,8 @@ public enum TrapKind {
             case TURRET -> Math.max(12, 36 - 6 * t);   // 1.5 s / 1.2 s / 0.9 s / 0.6 s
             case FLAME -> 120 - 20 * t;          // 5 s / 4 s / 3 s
             case BREWER -> Math.max(40, 90 - 10 * t);   // 4 s / 3.5 s / 3 s
-            case TESLA -> Math.max(20, 60 - 10 * t);   // 2.5 s / 2 s / 1.5 s / 1 s
+            // Five times slower than at first (Simon's playtest, 25 October 2026): 15 s / 12.5 s / 10 s / 7.5 s.
+            case TESLA -> 5 * Math.max(20, 60 - 10 * t);
         };
     }
 

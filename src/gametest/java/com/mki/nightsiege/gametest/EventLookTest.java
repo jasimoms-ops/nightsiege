@@ -913,10 +913,14 @@ public class EventLookTest implements FabricClientGameTest {
         // The box goes; now three husks walk across in front of the tower, 14 blocks away.
         game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(gx + 11, gy, gz - 1, gx + 13, gy + 3, gz + 1));
         com.mki.nightsiege.game.TrapService.shotLog = line -> System.out.println("[Night Siege test] " + line);
+        // The engineer sets the spot (sneak + right click with the remote): the middle of the husks' path.
+        onServer(context, (player, manager) -> System.out.println("[Night Siege test] mortar aimed="
+                + manager.kits().traps().setAim((net.minecraft.server.level.ServerLevel) player.level(),
+                new BlockPos(gx, gy, gz), new BlockPos(gx + 15, gy - 1, gz))));
         onServer(context, (player, manager) -> {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
             for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
-                if (e.entityTags().contains("ns_mortar_hidden")) {
+                if (e != null && e.entityTags().contains("ns_mortar_hidden")) {
                     e.discard();
                 }
             }

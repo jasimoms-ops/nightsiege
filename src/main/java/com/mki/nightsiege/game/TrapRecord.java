@@ -15,6 +15,13 @@ public class TrapRecord {
     public int ammo;
     /** Game time from which it may fire again. Not worth saving across restarts. */
     public transient long readyAt;
+    /** The mortar's target spot, set with the remote (Simon, 25 October 2026); without one it does nothing. */
+    public boolean aimed;
+    public int aimX;
+    public int aimY;
+    public int aimZ;
+    /** When the target spot was last set (it can be changed every 10 s). */
+    public transient long aimedAt = Long.MIN_VALUE / 2;
     /** The night in which this trap already sprang its ambush (hidden traps gain). */
     public transient int ambushNight = -1;
 

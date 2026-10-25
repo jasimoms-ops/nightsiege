@@ -513,20 +513,22 @@ public final class TrapService {
         return best;
     }
 
+    /**
+     * The mortar fires steadily onto the spot its engineer set with the remote (sneak + right
+     * click on a block); without a spot it stays quiet (Simon's playtest, 25 October 2026).
+     */
     private void tickMortar(ServerLevel level, BlockPos pos, TrapRecord record, int tier, long now) {
-        Vec3 muzzle = Vec3.atCenterOf(pos).add(0, 0.9, 0);
-        double range = TrapKind.MORTAR.radius(tier) + bonus(record, SkillEffect.TOWER_RANGE);
-        LivingEntity target = bestGroup(level, record, muzzle, range, TrapKind.MORTAR.splash(tier), now, null);
-        if (target == null) {
-            record.readyAt = now + 10;   // nothing in sight: look again in half a second
+        if (!record.aimed) {
+            record.readyAt = now + 20;
             return;
         }
-        Vec3 aim = lead(muzzle, target);
+        Vec3 muzzle = Vec3.atCenterOf(pos).add(0, 0.9, 0);
+        Vec3 aim = aimSpot(level, record);
         if (shotLog != null) {
-            shotLog.accept(String.format(java.util.Locale.ROOT, "mortar fires at %.1f %.1f %.1f (target at %.1f %.1f, step %.2f %.2f)",
-                    aim.x, aim.y, aim.z, target.getX(), target.getZ(), target.getX() - target.xo, target.getZ() - target.zo));
+            shotLog.accept(String.format(java.util.Locale.ROOT, "mortar fires at %.1f %.1f %.1f", aim.x, aim.y, aim.z));
         }
         lob(level, record, muzzle, aim, KitProjectile.SHELL, tier, 1.0, 1.0);
+        level.sendParticles(ParticleTypes.SMOKE, aim.x, aim.y + 0.1, aim.z, 6, 0.4, 0.02, 0.4, 0.0);
         record.readyAt = now + quicker(record, now, TrapKind.MORTAR.cooldownTicks(tier));
         dirty = true;
     }
@@ -998,6 +1000,9 @@ public final class TrapService {
             }
             return;
         }
+        if (sneak && aimMortar(level, player, range, now)) {
+            return;
+        }
         if (monster != null && !sneak) {
             if (pay(player, skills, cost(skills, COST_MARK))) {
                 double bonus = 0.15 + tree.totalBonus(SkillEffect.SEEKER, skills);
@@ -1012,6 +1017,97 @@ public final class TrapService {
             return;
         }
         actionBar(player, Component.translatable("nightsiege.msg.remote_no_target"));
+    }
+
+    /** Seconds between two changes of a mortar's target spot. */
+    public static final int AIM_PAUSE_TICKS = 200;
+
+    /** Sets a mortar's target spot directly (for the gametest). */
+    public boolean setAim(ServerLevel level, BlockPos tower, BlockPos spot) {
+        TrapRecord record = find(level, tower);
+        if (record == null) {
+            return false;
+        }
+        record.aimed = true;
+        record.aimX = spot.getX();
+        record.aimY = spot.getY();
+        record.aimZ = spot.getZ();
+        record.aimedAt = level.getGameTime();
+        record.readyAt = level.getGameTime();
+        return true;
+    }
+
+    /** Where a set mortar's shells land: on top of the chosen block. */
+    private static Vec3 aimSpot(ServerLevel level, TrapRecord record) {
+        return new Vec3(record.aimX + 0.5, record.aimY + 1.0, record.aimZ + 0.5);
+    }
+
+    /**
+     * Sneak + right click with the remote on a block (not a trap): the nearest own mortar that
+     * reaches it fires there from now on. Each mortar can be set again only after 10 s.
+     * Returns true when the click was about aiming (set, too early or nothing in reach).
+     */
+    private boolean aimMortar(ServerLevel level, ServerPlayer player, double range, long now) {
+        net.minecraft.world.phys.HitResult hit = player.pick(Math.max(range, 64.0), 0f, false);
+        if (!(hit instanceof net.minecraft.world.phys.BlockHitResult block)
+                || hit.getType() != net.minecraft.world.phys.HitResult.Type.BLOCK) {
+            return false;
+        }
+        BlockPos spot = block.getBlockPos();
+        Vec3 target = Vec3.atBottomCenterOf(spot.above());
+        String owner = player.getUUID().toString();
+        String dim = SiegeManager.dimensionName(level);
+        TrapRecord best = null;
+        TrapRecord waiting = null;
+        boolean any = false;
+        for (TrapRecord r : traps()) {
+            if (!TrapKind.MORTAR.id().equals(r.kind) || !r.dimension.equals(dim)
+                    || (!r.owner.equals(owner) && !player.getAbilities().instabuild)) {
+                continue;
+            }
+            any = true;
+            Vec3 at = Vec3.atCenterOf(new BlockPos(r.x, r.y, r.z));
+            double reach = TrapKind.MORTAR.radius(tierOf(r)) + bonus(r, SkillEffect.TOWER_RANGE);
+            double dx = at.x - target.x;
+            double dz = at.z - target.z;
+            if (dx * dx + dz * dz > reach * reach) {
+                continue;
+            }
+            if (now - r.aimedAt < AIM_PAUSE_TICKS) {
+                if (waiting == null || r.aimedAt < waiting.aimedAt) {
+                    waiting = r;
+                }
+                continue;
+            }
+            double d = at.distanceToSqr(player.position());
+            if (best == null || d < Vec3.atCenterOf(new BlockPos(best.x, best.y, best.z)).distanceToSqr(player.position())) {
+                best = r;
+            }
+        }
+        if (!any) {
+            return false;   // no mortar: the remote does what it did before
+        }
+        if (best == null) {
+            if (waiting != null) {
+                long left = (AIM_PAUSE_TICKS - (now - waiting.aimedAt) + 19) / 20;
+                actionBar(player, Component.translatable("nightsiege.msg.mortar_aim_wait", left));
+            } else {
+                actionBar(player, Component.translatable("nightsiege.msg.mortar_aim_far"));
+            }
+            return true;
+        }
+        best.aimed = true;
+        best.aimX = spot.getX();
+        best.aimY = spot.getY();
+        best.aimZ = spot.getZ();
+        best.aimedAt = now;
+        best.readyAt = Math.min(best.readyAt, now + 20);
+        dirty = true;
+        level.sendParticles(ParticleTypes.FLAME, target.x, target.y + 0.1, target.z, 24, 1.2, 0.05, 1.2, 0.01);
+        spark(level, player.getEyePosition().subtract(0, 0.2, 0), target);
+        level.playSound(null, spot, SoundEvents.NOTE_BLOCK_BASEDRUM.value(), SoundSource.PLAYERS, 0.9f, 0.8f);
+        actionBar(player, Component.translatable("nightsiege.msg.mortar_aimed", spot.getX(), spot.getY(), spot.getZ()));
+        return true;
     }
 
     private void boost(ServerLevel level, TrapRecord record, PlayerSkills skills, long now, double share) {
@@ -1032,17 +1128,16 @@ public final class TrapService {
         double radius = 1.0 + tree.totalBonus(SkillEffect.BLAST_POWER, skills);
         switch (kind) {
             case MORTAR -> {
-                // The salvo: three shells at once onto the three thickest groups.
+                // The salvo: three shells at once onto the set spot, a little spread.
+                if (!record.aimed) {
+                    break;
+                }
                 Vec3 muzzle = Vec3.atCenterOf(pos).add(0, 0.9, 0);
-                double range = TrapKind.MORTAR.radius(tier) + bonus(record, SkillEffect.TOWER_RANGE);
-                java.util.Set<LivingEntity> taken = new java.util.HashSet<>();
+                Vec3 aim = aimSpot(level, record);
                 for (int i = 0; i < 3; i++) {
-                    LivingEntity target = bestGroup(level, record, muzzle, range, TrapKind.MORTAR.splash(tier), now, taken);
-                    if (target == null) {
-                        break;
-                    }
-                    taken.add(target);
-                    lob(level, record, muzzle, lead(muzzle, target), KitProjectile.SHELL, tier, damage, radius);
+                    double a = Math.PI * 2 * i / 3;
+                    Vec3 spot = i == 0 ? aim : aim.add(Math.cos(a) * 1.8, 0, Math.sin(a) * 1.8);
+                    lob(level, record, muzzle, spot, KitProjectile.SHELL, tier, damage, radius);
                 }
             }
             case FLAME -> fireFlame(level, pos, record, tier, now, damage, radius);
