@@ -489,8 +489,11 @@ public final class KitService {
         if (gainLevel(skills, clazz, "wurfperlen") > 0) {
             hotbar.add(new ItemStack(Items.ENDER_PEARL, 2));
         }
-        if (gainLevel(skills, clazz, "baukiste") > 0) {
-            hotbar.add(new ItemStack(Items.COBBLESTONE, 32));
+        // Building blocks for everyone to patch the walls (Simon, 25 October 2026); the building
+        // box doubles them and adds ladders.
+        boolean box = gainLevel(skills, clazz, "baukiste") > 0;
+        hotbar.add(new ItemStack(Items.COBBLESTONE, box ? 64 : 32));
+        if (box) {
             hotbar.add(new ItemStack(Items.LADDER, 8));
         }
         GainGear.addKitItems(this, skills, clazz, way, hotbar);

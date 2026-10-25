@@ -87,6 +87,16 @@ public class NightSiegeClient implements ClientModInitializer {
                         if (data != null && client.gui.screen() instanceof ClassPickScreen open) {
                             open.update(data);
                         }
+                    } else if ("nightstats".equals(payload.kind()) || "nightstats_now".equals(payload.kind())) {
+                        com.mki.nightsiege.core.NightStatsData stats =
+                                Json.fromJson(payload.json(), com.mki.nightsiege.core.NightStatsData.class);
+                        if (stats != null) {
+                            if ("nightstats_now".equals(payload.kind())) {
+                                client.setScreenAndShow(new NightStatsScreen(stats));
+                            } else {
+                                NightStatsScreen.queue(stats);
+                            }
+                        }
                     } else if ("crate".equals(payload.kind())) {
                         com.mki.nightsiege.core.CrateRoll roll =
                                 Json.fromJson(payload.json(), com.mki.nightsiege.core.CrateRoll.class);
@@ -124,6 +134,7 @@ public class NightSiegeClient implements ClientModInitializer {
         guideKey = KeyMappingHelper.registerKeyMapping(
                 new KeyMapping("key.nightsiege.guide", GLFW.GLFW_KEY_H, category));
         GainClient.init(category);
+        net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents.END_CLIENT_TICK.register(NightStatsScreen::tick);
         net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry.register(
                 com.mki.nightsiege.game.KitProjectile.TYPE, net.minecraft.client.renderer.entity.ThrownItemRenderer::new);
         GuideItem.opener = () -> Minecraft.getInstance().setScreenAndShow(new GuideScreen());

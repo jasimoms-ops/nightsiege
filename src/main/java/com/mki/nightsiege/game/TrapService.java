@@ -477,10 +477,15 @@ public final class TrapService {
         return gain;
     }
 
-    /** The monster with the most others around it within reach (marked ones first), or null. */
+    /**
+     * The monster with the most others around it within reach (marked ones first), or null.
+     * Only monsters the tower can see count: none behind walls, in caves or below hills
+     * (Simon's playtest: the mortars kept firing at monsters they could not reach).
+     */
     private LivingEntity bestGroup(ServerLevel level, TrapRecord record, Vec3 from, double range, double splash, long now,
                                    java.util.Set<LivingEntity> skip) {
         List<LivingEntity> all = enemies(level, new AABB(from, from).inflate(range, 14.0, range));
+        BlockPos self = BlockPos.containing(from.x, from.y - 1.0, from.z);
         LivingEntity best = null;
         double bestScore = -1;
         for (LivingEntity e : all) {
@@ -500,7 +505,7 @@ public final class TrapService {
                 }
             }
             double score = around * 10.0 + (markedBy(record, e, now) ? 25.0 : 0.0) - Math.sqrt(flat) * 0.1;
-            if (score > bestScore) {
+            if (score > bestScore && sees(level, from, e, self)) {
                 bestScore = score;
                 best = e;
             }
@@ -513,9 +518,10 @@ public final class TrapService {
         double range = TrapKind.MORTAR.radius(tier) + bonus(record, SkillEffect.TOWER_RANGE);
         LivingEntity target = bestGroup(level, record, muzzle, range, TrapKind.MORTAR.splash(tier), now, null);
         if (target == null) {
+            record.readyAt = now + 10;   // nothing in sight: look again in half a second
             return;
         }
-        lob(level, record, muzzle, target.position(), KitProjectile.SHELL, tier, 1.0, 1.0);
+        lob(level, record, muzzle, lead(muzzle, target), KitProjectile.SHELL, tier, 1.0, 1.0);
         record.readyAt = now + quicker(record, now, TrapKind.MORTAR.cooldownTicks(tier));
         dirty = true;
     }
@@ -525,9 +531,10 @@ public final class TrapService {
         double range = TrapKind.BREWER.radius(tier) + bonus(record, SkillEffect.TOWER_RANGE);
         LivingEntity target = bestGroup(level, record, muzzle, range, TrapKind.BREWER.splash(tier), now, null);
         if (target == null) {
+            record.readyAt = now + 10;   // nothing in sight: look again in half a second
             return;
         }
-        lob(level, record, muzzle, target.position(), KitProjectile.BREW, tier, 1.0, 1.0);
+        lob(level, record, muzzle, lead(muzzle, target), KitProjectile.BREW, tier, 1.0, 1.0);
         record.readyAt = now + quicker(record, now, TrapKind.BREWER.cooldownTicks(tier));
         dirty = true;
     }
@@ -545,7 +552,7 @@ public final class TrapService {
         double dx = to.x - from.x;
         double dy = to.y - from.y;
         double dz = to.z - from.z;
-        int flight = (int) Math.round(20 + Math.sqrt(dx * dx + dz * dz));
+        int flight = flightTicks(Math.sqrt(dx * dx + dz * dz));
         shot.setDeltaMovement(ballistic(dx, dy, dz, flight, 0.03));
         level.addFreshEntity(shot);
         BlockPos pos = new BlockPos(record.x, record.y, record.z);
@@ -1025,7 +1032,7 @@ public final class TrapService {
                         break;
                     }
                     taken.add(target);
-                    lob(level, record, muzzle, target.position(), KitProjectile.SHELL, tier, damage, radius);
+                    lob(level, record, muzzle, lead(muzzle, target), KitProjectile.SHELL, tier, damage, radius);
                 }
             }
             case FLAME -> fireFlame(level, pos, record, tier, now, damage, radius);
@@ -1035,7 +1042,7 @@ public final class TrapService {
                 double range = TrapKind.BREWER.radius(tier) + bonus(record, SkillEffect.TOWER_RANGE);
                 LivingEntity target = bestGroup(level, record, muzzle, range, TrapKind.BREWER.splash(tier), now, null);
                 if (target != null) {
-                    lob(level, record, muzzle, target.position(), KitProjectile.BREW, tier, damage, radius * 1.5);
+                    lob(level, record, muzzle, lead(muzzle, target), KitProjectile.BREW, tier, damage, radius * 1.5);
                 }
             }
             default -> {
@@ -1410,6 +1417,34 @@ public final class TrapService {
     static List<LivingEntity> enemies(ServerLevel level, AABB box) {
         return level.getEntitiesOfClass(LivingEntity.class, box, e -> e instanceof Enemy && e.isAlive()
                 && !Companions.isCompanion(e));   // the summoner's skeleton is no foe
+    }
+
+    /** True when the tower sees the monster: its eyes or the middle of its body. */
+    private static boolean sees(ServerLevel level, Vec3 from, LivingEntity e, BlockPos self) {
+        return clearShot(level, from, e.getEyePosition(), self)
+                || clearShot(level, from, e.position().add(0, e.getBbHeight() * 0.5, 0), self);
+    }
+
+    /** Ticks a lobbed shell or potion flies over this flat distance. */
+    static int flightTicks(double flat) {
+        return (int) Math.round(14 + 0.8 * flat);
+    }
+
+    /**
+     * Where a lobbed shot must land to meet the monster: where it walks to during the
+     * flight (its last step per tick, a little short because monsters turn and stop).
+     */
+    static Vec3 lead(Vec3 from, LivingEntity target) {
+        double vx = Math.max(-0.4, Math.min(0.4, target.getX() - target.xo));
+        double vz = Math.max(-0.4, Math.min(0.4, target.getZ() - target.zo));
+        Vec3 at = target.position();
+        for (int i = 0; i < 2; i++) {
+            double dx = at.x - from.x;
+            double dz = at.z - from.z;
+            int t = flightTicks(Math.sqrt(dx * dx + dz * dz));
+            at = target.position().add(vx * t * 0.85, 0, vz * t * 0.85);
+        }
+        return at;
     }
 
     /** Walks the line in half block steps; anything solid in between blocks the shot. */

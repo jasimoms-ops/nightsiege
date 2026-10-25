@@ -310,11 +310,11 @@ public class SiegeConfig {
         map.put("minecraft:parched", "minecraft:skeleton");
         map.put("minecraft:cave_spider", "minecraft:spider");
         map.put("minecraft:witch", "minecraft:pillager");
-        map.put("minecraft:wither_skeleton", "minecraft:vindicator");
+        map.put("minecraft:wither_skeleton", "minecraft:skeleton");
         map.put("variantsandventures:thicket", "minecraft:zombie");
         map.put("variantsandventures:gelid", "minecraft:zombie");
         map.put("variantsandventures:verdant", "minecraft:skeleton");
-        map.put("friendsandfoes:iceologer", "minecraft:vindicator");
+        map.put("friendsandfoes:iceologer", "minecraft:pillager");
         map.put("friendsandfoes:illusioner", "minecraft:pillager");
         return map;
     }
@@ -479,7 +479,7 @@ public class SiegeConfig {
         list.add(new MobEntry(vv + "gelid", 3, 6, 0.1));
         list.add(new MobEntry("minecraft:stray", 4, 6, 0.1));
         list.add(new MobEntry("minecraft:bogged", 4, 6, 0.1));
-        list.add(new MobEntry(tap + "skirmisher", 4, 6, 0.3));
+        list.add(new MobEntry(tap + "skirmisher", 4, 1, 0.05));   // axe illager: strong, so only a few
         // Level 5-7: the illagers arrive, first riders.
         list.add(new MobEntry("minecraft:pillager", 5, 8, 0.4));
         list.add(new MobEntry(tap + "archer", 5, 6, 0.4));
@@ -487,7 +487,7 @@ public class SiegeConfig {
         list.add(new MobEntry("minecraft:camel_husk+minecraft:husk", 5, 3, 0.2));
         list.add(new MobEntry("minecraft:cave_spider", 6, 4, 0.0));
         list.add(new MobEntry("minecraft:spider+minecraft:skeleton", 6, 3, 0.2));
-        list.add(new MobEntry("minecraft:vindicator", 6, 6, 0.5));
+        list.add(new MobEntry("minecraft:vindicator", 6, 1, 0.05));   // axe illager: strong, so only a few
         list.add(new MobEntry(tap + "legioner", 6, 5, 0.5));
         list.add(new MobEntry("minecraft:witch", 7, 4, 0.2));
         list.add(new MobEntry("minecraft:breeze", 7, 3, 0.3));
@@ -500,7 +500,7 @@ public class SiegeConfig {
         // Level 11+: ravagers with riders and the wildfire.
         list.add(new MobEntry("minecraft:ravager+minecraft:pillager", 11, 1, 0.4));
         list.add(new MobEntry(faf + "wildfire", 13, 1, 0.3));
-        list.add(new MobEntry("minecraft:ravager+minecraft:vindicator", 14, 1, 0.3));
+        list.add(new MobEntry("minecraft:ravager+minecraft:vindicator", 14, 1, 0.1));
         return list;
     }
 
@@ -654,6 +654,31 @@ public class SiegeConfig {
             // 25 October 2026: the summoner is finished and open for everyone (Simon).
             summonerForEveryone = true;
             settingsVersion = 8;
+        }
+        if (settingsVersion < 9) {
+            // 25 October 2026, playtest (Simon): the axe illagers (vindicator, skirmisher) are far
+            // too strong, so only very few of them come; the heavy archer was too weak.
+            if (subclassDamage.getOrDefault("heavy", 1.0) == 1.0) {
+                subclassDamage.put("heavy", 1.25);
+            }
+            if (effectMobReplacements != null) {
+                effectMobReplacements.replace("minecraft:wither_skeleton", "minecraft:vindicator", "minecraft:skeleton");
+                effectMobReplacements.replace("friendsandfoes:iceologer", "minecraft:vindicator", "minecraft:pillager");
+            }
+            if (mobs != null) {
+                for (MobEntry entry : mobs) {
+                    if (entry == null || entry.id == null) {
+                        continue;
+                    }
+                    if (entry.id.equals("minecraft:vindicator") || entry.id.equals("takesapillage:skirmisher")) {
+                        entry.weight = Math.min(entry.weight, 1);
+                        entry.weightPerLevel = Math.min(entry.weightPerLevel, 0.05);
+                    } else if (entry.id.equals("minecraft:ravager+minecraft:vindicator")) {
+                        entry.weightPerLevel = Math.min(entry.weightPerLevel, 0.1);
+                    }
+                }
+            }
+            settingsVersion = 9;
         }
         if (Double.isNaN(meleeLifesteal)) {
             meleeLifesteal = 0.08;

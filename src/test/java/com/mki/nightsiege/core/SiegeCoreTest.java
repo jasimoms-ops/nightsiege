@@ -1334,7 +1334,7 @@ class SiegeCoreTest {
         old.sanitize();
         assertTrue(old.dungeonsEnabled);
         assertFalse(old.bloodMoonGlow);
-        assertEquals(8, old.settingsVersion);
+        assertEquals(9, old.settingsVersion);
         assertEquals(SiegeConfig.CURRENT_DUNGEON_LIST, old.dungeonListVersion);
         assertTrue(old.dungeons.stream().allMatch(t -> t.structure.startsWith("nova_structures:")));
         // Switched off again by hand, it stays off.
@@ -1558,7 +1558,7 @@ class SiegeCoreTest {
         old.settingsVersion = 7;
         old.sanitize();
         assertTrue(old.summonerForEveryone, "older configs open it once");
-        assertEquals(8, old.settingsVersion);
+        assertEquals(9, old.settingsVersion);
         // Both subclasses of the way of the wild can be learned to the end.
         java.util.Map<String, String> subs = java.util.Map.of("s_tamer", SkillTree.SUB_TAMER, "s_golemsmith", SkillTree.SUB_GOLEMSMITH,
                 "d_necro", SkillTree.SUB_NECROMANCER, "d_soulcatcher", SkillTree.SUB_SOULCATCHER);
@@ -1609,5 +1609,53 @@ class SiegeCoreTest {
         assertEquals(SkillTree.SUB_NECROMANCER, tree.laneOf("d_ghoul"));
         assertEquals(SkillTree.SUB_SOULCATCHER, tree.laneOf("d_swarm"));
         assertTrue(tree.pointsToComplete(new PlayerSkills(), SkillClass.SUMMONER) > 250);
+    }
+
+    @Test
+    void thePlaytestOfOctoberTheTwentyFifthMakesTheAxeIllagersRare() {
+        SiegeConfig old = new SiegeConfig();
+        old.settingsVersion = 8;
+        old.mobListVersion = SiegeConfig.CURRENT_MOB_LIST;
+        old.mobs = new java.util.ArrayList<>(java.util.List.of(new MobEntry("minecraft:vindicator", 6, 6, 0.5),
+                new MobEntry("takesapillage:skirmisher", 4, 6, 0.3), new MobEntry("minecraft:zombie", 1, 20, -1.0)));
+        old.effectMobReplacements.put("minecraft:wither_skeleton", "minecraft:vindicator");
+        old.effectMobReplacements.put("friendsandfoes:iceologer", "minecraft:vindicator");
+        old.sanitize();
+        assertEquals(9, old.settingsVersion);
+        assertEquals(1.25, old.subclassDamage.get("heavy"), 1e-9);
+        assertEquals("minecraft:skeleton", old.effectMobReplacements.get("minecraft:wither_skeleton"));
+        assertEquals("minecraft:pillager", old.effectMobReplacements.get("friendsandfoes:iceologer"));
+        for (MobEntry e : old.mobs) {
+            if (e.id.equals("minecraft:zombie")) {
+                assertEquals(20, e.weight);
+            } else {
+                assertEquals(1, e.weight);
+                assertEquals(0.05, e.weightPerLevel, 1e-9);
+            }
+        }
+        // A fresh config has the same.
+        SiegeConfig fresh = new SiegeConfig();
+        fresh.sanitize();
+        assertTrue(fresh.mobs.stream().filter(e -> e.id.endsWith("vindicator") || e.id.endsWith("skirmisher"))
+                .allMatch(e -> e.weight == 1));
+    }
+
+    @Test
+    void theNightsMvpIsTheOneWhoDidMost() {
+        java.util.List<NightStatsData.Row> rows = new java.util.ArrayList<>();
+        NightStatsData.Row a = new NightStatsData.Row();
+        a.dealt = 120;
+        a.kills = 8;
+        NightStatsData.Row b = new NightStatsData.Row();
+        b.healed = 260;
+        b.kills = 1;
+        NightStatsData.Row c = new NightStatsData.Row();
+        rows.add(a);
+        rows.add(b);
+        rows.add(c);
+        assertEquals(1, NightStatsData.mvpOf(rows));
+        b.deaths = 4;
+        assertEquals(0, NightStatsData.mvpOf(rows));
+        assertEquals(-1, NightStatsData.mvpOf(java.util.List.of(c)));
     }
 }

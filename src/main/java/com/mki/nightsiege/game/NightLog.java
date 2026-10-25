@@ -103,6 +103,38 @@ public final class NightLog {
         append(Json.configFile(PLAYER_FILE), PLAYER_HEADER, playerLines);
     }
 
+    /** The night for the statistics window: how it went and one row per defender. */
+    public com.mki.nightsiege.core.NightStatsData summary(Night night) {
+        com.mki.nightsiege.core.NightStatsData data = new com.mki.nightsiege.core.NightStatsData();
+        data.level = night.level();
+        data.event = night.event();
+        data.test = night.test();
+        data.result = night.result();
+        data.kills = night.kills();
+        data.required = night.required();
+        data.waves = night.waves();
+        data.seconds = (int) Math.max(0, (night.endTime() - startedAt) / 20);
+        for (Line line : players.values()) {
+            com.mki.nightsiege.core.NightStatsData.Row row = new com.mki.nightsiege.core.NightStatsData.Row();
+            row.name = line.name;
+            row.clazz = line.clazz;
+            row.subclass = line.subclass;
+            row.dealt = line.dealt;
+            row.taken = line.taken;
+            row.healed = line.healed;
+            row.kills = line.kills;
+            row.deaths = line.deaths;
+            data.rows.add(row);
+        }
+        data.mvp = com.mki.nightsiege.core.NightStatsData.mvpOf(data.rows);
+        return data;
+    }
+
+    /** The defenders of this night. */
+    public java.util.Set<UUID> ids() {
+        return players.keySet();
+    }
+
     private static String num(double value) {
         return String.format(Locale.GERMANY, "%.1f", value);
     }

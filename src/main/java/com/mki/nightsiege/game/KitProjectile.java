@@ -89,6 +89,35 @@ public class KitProjectile extends ThrowableItemProjectile {
         };
     }
 
+    /**
+     * Tower shells and potions burst as soon as they come down next to a monster (a proximity
+     * fuse), so a shot that would just miss a head or land a step behind still hits.
+     */
+    @Override
+    public void tick() {
+        super.tick();
+        if (isRemoved() || !(SHELL.equals(kind) || BREW.equals(kind)) || getDeltaMovement().y >= 0
+                || !(level() instanceof ServerLevel server)) {
+            return;
+        }
+        LivingEntity near = null;
+        double best = FUSE * FUSE;
+        for (LivingEntity e : TrapService.enemies(server, getBoundingBox().inflate(FUSE))) {
+            double d = e.distanceToSqr(getX(), Math.max(e.getY(), Math.min(getY(), e.getY() + e.getBbHeight())), getZ());
+            if (d <= best) {
+                best = d;
+                near = e;
+            }
+        }
+        if (near != null) {
+            GainGear.onProjectileHit(server, this, near, position(), null);
+            discard();
+        }
+    }
+
+    /** Reach of the proximity fuse in blocks. */
+    private static final double FUSE = 1.2;
+
     @Override
     protected void onHitEntity(EntityHitResult hit) {
         super.onHitEntity(hit);

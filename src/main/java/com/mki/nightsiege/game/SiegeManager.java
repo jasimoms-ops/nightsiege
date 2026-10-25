@@ -1711,12 +1711,54 @@ public final class SiegeManager {
     private void logNight(String result, int blasted, int required) {
         try {
             nightLog.dug += digger.takeBroken();
-            nightLog.write(new NightLog.Night(nightNumber, siegeLevel, testRun, currentEvent.name().toLowerCase(java.util.Locale.ROOT),
+            NightLog.Night night = new NightLog.Night(nightNumber, siegeLevel, testRun, currentEvent.name().toLowerCase(java.util.Locale.ROOT),
                     save.specialNight, wavesStarted, spawnedTotal, nightKills, required, fallen.size(), result,
-                    world == null ? 0L : world.getGameTime(), blasted));
+                    world == null ? 0L : world.getGameTime(), blasted);
+            nightLog.write(night);
+            if (!"abgebrochen".equals(result) && world != null) {
+                showNightStats(world.getServer(), nightLog.summary(night));
+            }
         } catch (RuntimeException e) {
             NightSiegeMod.LOGGER.warn("[Night Siege] Nacht-Protokoll fehlgeschlagen: {}", e.toString());
         }
+    }
+
+    /** The statistics of the last night, for /nightsiege statistik. */
+    private com.mki.nightsiege.core.NightStatsData lastNightStats;
+    private final Set<UUID> lastNightDefenders = new HashSet<>();
+
+    /** Opens the statistics window for everyone who defended tonight. */
+    private void showNightStats(MinecraftServer server, com.mki.nightsiege.core.NightStatsData data) {
+        if (server == null || data == null || data.rows.isEmpty()) {
+            return;
+        }
+        lastNightStats = data;
+        lastNightDefenders.clear();
+        lastNightDefenders.addAll(nightLog.ids());
+        lastNightDefenders.addAll(participants);
+        String json = Json.toJson(data);
+        for (UUID id : lastNightDefenders) {
+            ServerPlayer player = server.getPlayerList().getPlayer(id);
+            if (player == null) {
+                continue;
+            }
+            if (ServerPlayNetworking.canSend(player, CoreNetworking.ScreenPayload.TYPE)) {
+                ServerPlayNetworking.send(player, new CoreNetworking.ScreenPayload("nightstats", json));
+            }
+            player.sendSystemMessage(Component.translatable("nightsiege.stats.chat")
+                    .withStyle(style -> style.withColor(ChatFormatting.AQUA).withUnderlined(true)
+                            .withClickEvent(new net.minecraft.network.chat.ClickEvent.RunCommand("/nightsiege statistik"))));
+        }
+    }
+
+    /** /nightsiege statistik: the window of the last night again. Returns false when there is none. */
+    public boolean resendNightStats(ServerPlayer player) {
+        if (lastNightStats == null || player == null
+                || !ServerPlayNetworking.canSend(player, CoreNetworking.ScreenPayload.TYPE)) {
+            return false;
+        }
+        ServerPlayNetworking.send(player, new CoreNetworking.ScreenPayload("nightstats_now", Json.toJson(lastNightStats)));
+        return true;
     }
 
     /** The rebuilding of the core tree mends the base; then the night's base is forgotten. */

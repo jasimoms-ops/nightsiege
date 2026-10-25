@@ -33,6 +33,11 @@ import java.util.UUID;
  * <p>While a monster is on its way to a ladder, on it, or just over the wall, a goal
  * of the highest priority holds its movement: otherwise its attack goal keeps
  * re-planning the (blocked) way to its target and drags it away from the ladder.
+ *
+ * <p>Only a monster that really finds no way to its goal looks for a ladder, and only
+ * for one whose foot it can walk to. Before (Simon's playtest, 25 October 2026)
+ * monsters were pulled to any ladder close by, also to the ladders on the inner side
+ * of the walls, and pressed against the wall in front of them.
  */
 public final class LadderClimb {
 
@@ -59,6 +64,8 @@ public final class LadderClimb {
     private final Set<UUID> holding = new HashSet<>();
     /** Monsters that already carry the hold goal. */
     private final Set<UUID> equipped = new HashSet<>();
+    /** The ladder a monster last gave up on: it does not pick it again straight away. */
+    private final Map<UUID, BlockPos> gaveUp = new HashMap<>();
 
     public void reset() {
         goals.clear();
@@ -67,6 +74,7 @@ public final class LadderClimb {
         climbedAt.clear();
         holding.clear();
         equipped.clear();
+        gaveUp.clear();
     }
 
     public void forget(UUID id) {
@@ -76,6 +84,7 @@ public final class LadderClimb {
         climbedAt.remove(id);
         holding.remove(id);
         equipped.remove(id);
+        gaveUp.remove(id);
     }
 
     /** True while the monster is on its way up a ladder (for the gametest). */
@@ -157,6 +166,9 @@ public final class LadderClimb {
             BlockPos foot = goals.get(id);
             if (foot != null && (!isClimbable(world.getBlockState(foot)) || inReach
                     || now - goalSince.getOrDefault(id, now) > GIVE_UP)) {
+                if (now - goalSince.getOrDefault(id, now) > GIVE_UP) {
+                    gaveUp.put(id, foot);
+                }
                 goals.remove(id);
                 goalSince.remove(id);
                 foot = null;
@@ -170,7 +182,10 @@ public final class LadderClimb {
                     continue;
                 }
                 lastSearch.put(id, now);
-                foot = findLadder(world, mob.blockPosition(), goal);
+                if (canWalkTo(mob, goal)) {
+                    continue;   // there is a way after all: no ladder needed
+                }
+                foot = findLadder(world, mob, goal, gaveUp.get(id));
                 if (foot == null) {
                     continue;
                 }
@@ -183,7 +198,7 @@ public final class LadderClimb {
             double dx = fx - mob.getX();
             double dz = fz - mob.getZ();
             double d2 = dx * dx + dz * dz;
-            if (d2 <= 6.25 && Math.abs(mob.getY() - foot.getY()) < 1.5) {
+            if (d2 <= 6.25 && Math.abs(mob.getY() - foot.getY()) < 1.5 && clearWalk(world, mob, foot)) {
                 // Close to the foot: walk straight into the ladder (the path finder
                 // stops in front of it), the climb takes over from there.
                 mob.getNavigation().stop();
@@ -264,13 +279,39 @@ public final class LadderClimb {
         return state.is(BlockTags.CLIMBABLE);
     }
 
+    /** True when the monster's path finding finds a full way to the spot. */
+    private static boolean canWalkTo(Mob mob, BlockPos spot) {
+        Path path = mob.getNavigation().createPath(spot, 0);
+        return path != null && path.canReach();
+    }
+
+    /** True when nothing solid stands between the monster's feet and the ladder's foot. */
+    private static boolean clearWalk(ServerLevel world, Mob mob, BlockPos foot) {
+        Vec3 from = mob.position().add(0, 0.5, 0);
+        Vec3 to = Vec3.atBottomCenterOf(foot).add(0, 0.5, 0);
+        Vec3 step = to.subtract(from);
+        int steps = (int) Math.ceil(step.length() * 3.0);
+        for (int i = 1; i < steps; i++) {
+            BlockPos at = BlockPos.containing(from.add(step.scale(i / (double) steps)));
+            if (at.equals(foot)) {
+                continue;
+            }
+            if (!world.getBlockState(at).getCollisionShape(world, at).isEmpty()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /**
-     * The foot of a climbable column (at least two blocks high) near the monster,
-     * the one that lies best on the way to the goal.
+     * The foot of a climbable column (at least two blocks high) near the monster that it
+     * can walk to, the one that lies best on the way to the goal. Ladders behind a wall
+     * (on its inner side, in a tower) do not count.
      */
-    static BlockPos findLadder(ServerLevel world, BlockPos from, BlockPos goal) {
-        BlockPos best = null;
-        double bestScore = Double.MAX_VALUE;
+    static BlockPos findLadder(ServerLevel world, Mob mob, BlockPos goal, BlockPos skip) {
+        BlockPos from = mob.blockPosition();
+        java.util.List<BlockPos> feet = new java.util.ArrayList<>();
+        java.util.List<Double> scores = new java.util.ArrayList<>();
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
         for (int dx = -SEARCH; dx <= SEARCH; dx++) {
             for (int dz = -SEARCH; dz <= SEARCH; dz++) {
@@ -285,14 +326,26 @@ public final class LadderClimb {
                     if (!isClimbable(world.getBlockState(pos.above()))) {
                         continue;   // a single rung does not lead anywhere
                     }
-                    double score = Math.sqrt(pos.distSqr(from)) + Math.sqrt(pos.distSqr(goal));
-                    if (score < bestScore) {
-                        bestScore = score;
-                        best = pos.immutable();
+                    if (pos.equals(skip)) {
+                        continue;   // given up on a moment ago
                     }
+                    feet.add(pos.immutable());
+                    scores.add(Math.sqrt(pos.distSqr(from)) + Math.sqrt(pos.distSqr(goal)));
                 }
             }
         }
-        return best;
+        // The best few by the way they lie; the first one the monster can walk to wins.
+        Integer[] order = new Integer[feet.size()];
+        for (int i = 0; i < order.length; i++) {
+            order[i] = i;
+        }
+        java.util.Arrays.sort(order, java.util.Comparator.comparingDouble(scores::get));
+        for (int i = 0; i < Math.min(4, order.length); i++) {
+            BlockPos foot = feet.get(order[i]);
+            if (canWalkTo(mob, foot)) {
+                return foot;
+            }
+        }
+        return null;
     }
 }

@@ -63,6 +63,10 @@ public class EventLookTest implements FabricClientGameTest {
                 guardianScene(context);
                 engineerScene(context);
                 ladderScene(context, game);
+                ladderTargetScene(context, game, true);
+                innerLadderScene(context, game);
+                mortarScene(context, game);
+                nightStatsScene(context);
                 // ladderTargetScene and towerScene are done (ladders fine, towers 2 volleys); kept for later checks.
                 // besiegerScene is done (ladders up, one hole per side); kept for later checks.
                 summonerScene(context, game);
@@ -651,6 +655,79 @@ public class EventLookTest implements FabricClientGameTest {
     }
 
     /**
+     * Simon's playtest (25 October 2026): monsters were pulled to the ladders on the inner
+     * side of the walls and pressed against the wall in front of them. A husk outside a
+     * yard, a ladder only inside: it must not hang at the wall in front of that ladder.
+     */
+    private static void innerLadderScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        int gx = pos.getX() + 160;
+        int gz = pos.getZ();
+        int gy = context.computeOnClient(client -> client.level.getHeight(
+                net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, gx, gz));
+        game.getServer().runCommand("time set 6000");
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:grass_block".formatted(gx - 20, gy - 1, gz - 12, gx + 8, gy - 1, gz + 12));
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(gx - 20, gy, gz - 12, gx + 8, gy + 8, gz + 12));
+        String wall = "fill %d %d %d %d %d %d minecraft:stone_bricks";
+        int r = 5;
+        game.getServer().runCommand(wall.formatted(gx - r, gy, gz - r, gx + r, gy + 3, gz - r));
+        game.getServer().runCommand(wall.formatted(gx - r, gy, gz + r, gx + r, gy + 3, gz + r));
+        game.getServer().runCommand(wall.formatted(gx - r, gy, gz - r, gx - r, gy + 3, gz + r));
+        game.getServer().runCommand(wall.formatted(gx + r, gy, gz - r, gx + r, gy + 3, gz + r));
+        // The ladder hangs on the inner side of the west wall.
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:ladder[facing=east]"
+                .formatted(gx - r + 1, gy, gz, gx - r + 1, gy + 3, gz));
+        game.getServer().runCommand("gamemode survival @p");
+        game.getServer().runCommand("effect give @p minecraft:resistance 60 255 true");
+        game.getServer().runCommand("tp @p %d.5 %d %d.5 90 -15".formatted(gx + 3, gy, gz));
+        game.getServer().runCommand("summon minecraft:husk %d %d %d {PersistenceRequired:1b,Tags:[\"ns_inner\"]}"
+                .formatted(gx - 12, gy, gz + 1));
+        context.waitTicks(20);
+        final com.mki.nightsiege.game.LadderClimb ladders = new com.mki.nightsiege.game.LadderClimb();
+        final net.minecraft.core.BlockPos anchor = new net.minecraft.core.BlockPos(gx, gy, gz);
+        final net.minecraft.core.BlockPos inner = new net.minecraft.core.BlockPos(gx - r + 1, gy, gz);
+        final int[] busy = {0};
+        final int[] atWall = {0};
+        for (int i = 0; i < 200; i++) {
+            onServer(context, (player, manager) -> {
+                net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                java.util.List<java.util.UUID> ids = new java.util.ArrayList<>();
+                for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                    if (e.entityTags().contains("ns_inner") && e instanceof net.minecraft.world.entity.Mob mob) {
+                        if (mob.getTarget() == null) {
+                            mob.setTarget(player);
+                        }
+                        ids.add(e.getUUID());
+                        if (ladders.busy(e.getUUID())) {
+                            busy[0]++;
+                        }
+                        double dx = e.getX() - (inner.getX() - 1.5);
+                        double dz = e.getZ() - (inner.getZ() + 0.5);
+                        if (dx * dx + dz * dz < 2.25) {
+                            atWall[0]++;   // right in front of the wall where the inner ladder hangs
+                        }
+                    }
+                }
+                ladders.tick(level, ids, anchor, level.getGameTime());
+            });
+            context.waitTicks(2);
+        }
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                if (e.entityTags().contains("ns_inner")) {
+                    e.discard();
+                }
+            }
+        });
+        System.out.println("[Night Siege test] inner ladder: steered " + busy[0] + " of 200 steps, at the wall " + atWall[0]
+                + " (both should be 0)");
+        game.getServer().runCommand("effect clear @p");
+        game.getServer().runCommand("gamemode creative @p");
+        context.waitTicks(5);
+    }
+
+    /**
      * A real night situation: a player inside a walled yard is the target of two husks
      * outside, a ladder hangs on the outside of the wall, away from where the husks
      * bump into it. Once with the old behaviour (the attack goal steers too) and once
@@ -794,6 +871,143 @@ public class EventLookTest implements FabricClientGameTest {
                 }
             }
         });
+        context.waitTicks(5);
+    }
+
+    /**
+     * Simon's playtest (25 October 2026): the mortars fired all the time at monsters they
+     * could not see and hit nothing. First a husk shut in a stone box (no shell may fly),
+     * then three husks walking across in front of the tower (the shells must hit).
+     */
+    private static void mortarScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        int gx = pos.getX() + 60;
+        int gz = pos.getZ() + 60;
+        int gy = context.computeOnClient(client -> client.level.getHeight(
+                net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, gx, gz));
+        game.getServer().runCommand("time set 6000");
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:grass_block".formatted(gx - 4, gy - 1, gz - 16, gx + 24, gy - 1, gz + 16));
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(gx - 4, gy, gz - 16, gx + 24, gy + 10, gz + 16));
+        // The hidden husk: in a closed stone box 12 blocks away.
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:stone".formatted(gx + 11, gy, gz - 1, gx + 13, gy + 3, gz + 1));
+        game.getServer().runCommand("setblock %d %d %d minecraft:air".formatted(gx + 12, gy + 1, gz));
+        game.getServer().runCommand("setblock %d %d %d minecraft:air".formatted(gx + 12, gy + 2, gz));
+        String husk = "summon minecraft:husk %d %d %d {PersistenceRequired:1b,Tags:[\"%s\"],Health:200f,"
+                + "attributes:[{id:\"minecraft:max_health\",base:200d}]}";
+        game.getServer().runCommand(husk.formatted(gx + 12, gy + 1, gz, "ns_mortar_hidden"));
+        game.getServer().runCommand("tp @p %d.5 %d %d.5 -90 25".formatted(gx - 3, gy + 8, gz));
+        context.waitTicks(10);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
+            own.unlockClass(com.mki.nightsiege.core.SkillClass.ENGINEER);
+            own.switchTo(com.mki.nightsiege.core.SkillClass.ENGINEER);
+            own.levels.put("mortar_tower", 1);
+            place(level, manager, player, new BlockPos(gx, gy, gz), com.mki.nightsiege.core.TrapKind.MORTAR);
+        });
+        final java.util.Set<java.util.UUID> shells = new java.util.HashSet<>();
+        for (int i = 0; i < 60; i++) {
+            context.waitTicks(2);
+            onServer(context, (player, manager) -> countShells(player, shells));
+        }
+        int hiddenShells = shells.size();
+        // Now three husks walk across in front of the tower, 14 blocks away.
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                if (e.entityTags().contains("ns_mortar_hidden")) {
+                    e.discard();
+                }
+            }
+        });
+        for (int k = 0; k < 3; k++) {
+            game.getServer().runCommand(husk.formatted(gx + 14 + k, gy, gz - 12 + k, "ns_mortar_walk"));
+        }
+        context.waitTicks(5);
+        shells.clear();
+        final float[] lost = {0f};
+        for (int i = 0; i < 120; i++) {
+            final int step = i;
+            context.waitTicks(2);
+            onServer(context, (player, manager) -> {
+                net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                countShells(player, shells);
+                for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                    if (e.entityTags().contains("ns_mortar_walk") && e instanceof net.minecraft.world.entity.Mob mob) {
+                        mob.setTarget(null);
+                        // Back and forth across the field (12 blocks each way).
+                        boolean north = (step / 40) % 2 == 0;
+                        if (step % 10 == 0) {
+                            mob.getNavigation().moveTo(mob.getX(), gy, gz + (north ? 12 : -12), 1.0);
+                        }
+                        if (step == 119) {
+                            lost[0] += mob.getMaxHealth() - mob.getHealth();
+                        }
+                    }
+                }
+            });
+            if (i == 40) {
+                context.takeScreenshot("mortar_moving");
+            }
+        }
+        System.out.println("[Night Siege test] mortar hidden: " + hiddenShells + " shells (should be 0); walking: "
+                + shells.size() + " shells, " + String.format(java.util.Locale.ROOT, "%.1f", lost[0]) + " damage on 3 husks");
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            level.setBlock(new BlockPos(gx, gy, gz), net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
+            for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                if (e.entityTags().contains("ns_mortar_walk") || e.entityTags().contains("ns_mortar_hidden")) {
+                    e.discard();
+                }
+            }
+        });
+        context.waitTicks(5);
+    }
+
+    private static void countShells(net.minecraft.server.level.ServerPlayer player, java.util.Set<java.util.UUID> shells) {
+        net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+        for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+            if (e instanceof com.mki.nightsiege.game.KitProjectile shot
+                    && com.mki.nightsiege.game.KitProjectile.SHELL.equals(shot.kind())) {
+                shells.add(e.getUUID());
+            }
+        }
+    }
+
+    /** The statistics window after a night, with four defenders. */
+    private static void nightStatsScene(ClientGameTestContext context) {
+        context.runOnClient(client -> {
+            com.mki.nightsiege.core.NightStatsData data = new com.mki.nightsiege.core.NightStatsData();
+            data.level = 10;
+            data.event = "blood_moon";
+            data.test = true;
+            data.result = "test_gehalten";
+            data.kills = 131;
+            data.required = 125;
+            data.waves = 9;
+            data.seconds = 265;
+            String[][] rows = {{"OpaSimoms", "warrior", "berserker", "412", "180", "0", "52", "0"},
+                    {"Quxo", "engineer", "alchemist", "355", "64", "0", "41", "1"},
+                    {"peachkosderechte", "guardian", "medic", "120", "142", "260", "17", "0"},
+                    {client.player.getScoreboardName(), "archer", "heavy", "290", "96", "0", "21", "2"}};
+            for (String[] r : rows) {
+                com.mki.nightsiege.core.NightStatsData.Row row = new com.mki.nightsiege.core.NightStatsData.Row();
+                row.name = r[0];
+                row.clazz = r[1];
+                row.subclass = r[2];
+                row.dealt = Double.parseDouble(r[3]);
+                row.taken = Double.parseDouble(r[4]);
+                row.healed = Double.parseDouble(r[5]);
+                row.kills = Integer.parseInt(r[6]);
+                row.deaths = Integer.parseInt(r[7]);
+                data.rows.add(row);
+            }
+            data.mvp = com.mki.nightsiege.core.NightStatsData.mvpOf(data.rows);
+            client.setScreenAndShow(new com.mki.nightsiege.client.NightStatsScreen(data));
+        });
+        context.waitTicks(10);
+        context.takeScreenshot("night_stats");
+        context.runOnClient(client -> client.setScreenAndShow(null));
         context.waitTicks(5);
     }
 

@@ -48,6 +48,27 @@ public final class TestKit {
                            SiegeConfig cfg, Random random, boolean nightStarts) {
         String name = player.getScoreboardName();
         List<String> commands = new ArrayList<>();
+        if (cfg.nightKits) {
+            // With night kits the night brings armour, weapons and food itself; the test kit
+            // only gives the skill points (and food for the day, not when the night starts).
+            // Before, its armour and weapons went into the own inventory and came back after
+            // the night, so everybody had a second kit (Simon's playtest, 25 October 2026).
+            if (!nightStarts) {
+                String food = level > 10 ? "minecraft:golden_carrot" : level >= 6 ? "minecraft:cooked_beef" : "minecraft:bread";
+                if (!has(player, food)) {
+                    commands.add("give " + name + " " + food + " 32");
+                }
+            }
+            run(server, commands);
+            int target = pointsBefore(level, cfg);
+            int add = Math.max(0, target - skills.earned);
+            if (add > 0) {
+                skills.award(add);
+            }
+            player.sendSystemMessage(Component.translatable(nightStarts ? "nightsiege.kit.points_night" : "nightsiege.kit.points",
+                    level, target, skills.points()).withStyle(net.minecraft.ChatFormatting.AQUA));
+            return add;
+        }
         String tier = level > 10 ? "netherite" : level >= 6 ? "diamond" : null;
         int diamonds = Math.min(4, Math.max(0, level - 1));
         for (int i = 0; i < 4; i++) {
@@ -72,14 +93,7 @@ public final class TestKit {
         if (!has(player, food)) {
             commands.add("give " + name + " " + food + " 32");
         }
-        CommandSourceStack source = server.createCommandSourceStack().withSuppressedOutput();
-        for (String command : commands) {
-            try {
-                server.getCommands().performPrefixedCommand(source, command);
-            } catch (RuntimeException e) {
-                // A single item that does not exist must not stop the rest.
-            }
-        }
+        run(server, commands);
         int target = pointsBefore(level, cfg);
         int add = Math.max(0, target - skills.earned);
         if (add > 0) {
@@ -90,7 +104,18 @@ public final class TestKit {
         return add;
     }
 
-    private static boolean has(ServerPlayer player, String itemId) {
+    private static void run(MinecraftServer server, List<String> commands) {
+        CommandSourceStack source = server.createCommandSourceStack().withSuppressedOutput();
+        for (String command : commands) {
+            try {
+                server.getCommands().performPrefixedCommand(source, command);
+            } catch (RuntimeException e) {
+                // A single item that does not exist must not stop the rest.
+            }
+        }
+    }
+
+        private static boolean has(ServerPlayer player, String itemId) {
         net.minecraft.resources.Identifier id = net.minecraft.resources.Identifier.tryParse(itemId);
         if (id == null) {
             return false;

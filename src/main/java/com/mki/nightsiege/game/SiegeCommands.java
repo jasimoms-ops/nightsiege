@@ -37,6 +37,7 @@ public final class SiegeCommands {
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("nightsiege")
                 .then(Commands.literal("info").executes(SiegeCommands::info))
+                .then(Commands.literal("statistik").executes(SiegeCommands::nightStats))
                 .then(Commands.literal("cores").executes(SiegeCommands::cores))
                 .then(Commands.literal("skills").executes(SiegeCommands::skills))
                 .then(Commands.literal("skill")
@@ -170,6 +171,17 @@ public final class SiegeCommands {
                     manager.currentLevel(),
                     manager.save().siegesWon,
                     manager.save().siegesLost));
+        }
+        return 1;
+    }
+
+    /** The statistics window of the last night again. */
+    private static int nightStats(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        if (!(source.getEntity() instanceof net.minecraft.server.level.ServerPlayer player)
+                || !SiegeManager.get().resendNightStats(player)) {
+            reply(source, Component.translatable("nightsiege.stats.none"));
+            return 0;
         }
         return 1;
     }
