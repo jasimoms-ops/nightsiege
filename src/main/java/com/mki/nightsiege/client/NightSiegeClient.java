@@ -106,6 +106,7 @@ public class NightSiegeClient implements ClientModInitializer {
             com.mki.nightsiege.game.EventAtmosphere.clientShaderMode = ShaderSupport.mode();
             com.mki.nightsiege.game.EventAtmosphere.tickClient();
             FogWisps.tick(client);
+            EventAura.tick(client);
         });
         net.fabricmc.fabric.api.client.particle.v1.ParticleProviderRegistry.getInstance()
                 .register(ModContent.FOG_WISP, sprites -> new FogWisps.Provider(sprites));
@@ -153,23 +154,9 @@ public class NightSiegeClient implements ClientModInitializer {
             lines.add(Component.translatable("nightsiege.tooltip.class_item", names).withStyle(ChatFormatting.GOLD));
             lines.add(Component.translatable("nightsiege.tooltip.class_item_hint").withStyle(ChatFormatting.GRAY));
         });
-        // Event clothes: hoods and rags over zombies and skeletons on some nights.
+        // Event looks: hoods and rags over zombies and skeletons, the 3D gear on every event monster.
         net.fabricmc.fabric.api.client.rendering.v1.LivingEntityRenderLayerRegistrationCallback.EVENT.register(
-                (type, renderer, helper, context) -> {
-                    if (type == net.minecraft.world.entity.EntityTypes.ZOMBIE
-                            && renderer instanceof net.minecraft.client.renderer.entity.ZombieRenderer zombie) {
-                        net.minecraft.client.model.monster.zombie.DrownedModel clothes =
-                                new net.minecraft.client.model.monster.zombie.DrownedModel(context.bakeLayer(
-                                        net.minecraft.client.model.geom.ModelLayers.DROWNED_OUTER_LAYER));
-                        helper.register(new EventClothingLayer<>(zombie, clothes, "zombie", state -> !state.isBaby));
-                    } else if (type == net.minecraft.world.entity.EntityTypes.SKELETON
-                            && renderer instanceof net.minecraft.client.renderer.entity.SkeletonRenderer skeleton) {
-                        net.minecraft.client.model.monster.skeleton.SkeletonModel<net.minecraft.client.renderer.entity.state.SkeletonRenderState> clothes =
-                                new net.minecraft.client.model.monster.skeleton.SkeletonModel<>(context.bakeLayer(
-                                        net.minecraft.client.model.geom.ModelLayers.STRAY_OUTER_LAYER));
-                        helper.register(new EventClothingLayer<>(skeleton, clothes, "skeleton", state -> true));
-                    }
-                });
+                NightSiegeClient::eventLayers);
         // Guardian: a left click while blocking is the shield action. Minecraft drops
         // attack clicks while an item is in use, so they are taken here first.
         ClientTickEvents.START_CLIENT_TICK.register(client -> {
@@ -195,5 +182,51 @@ public class NightSiegeClient implements ClientModInitializer {
                 }
             }
         });
+    }
+
+    /** Clothes and gear layers of the event monsters (zombie and skeleton families, creepers, spiders). */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static void eventLayers(net.minecraft.world.entity.EntityType<?> type,
+                                    net.minecraft.client.renderer.entity.LivingEntityRenderer<?, ?, ?> renderer,
+                                    net.fabricmc.fabric.api.client.rendering.v1.LivingEntityRenderLayerRegistrationCallback.RegistrationHelper helper,
+                                    net.minecraft.client.renderer.entity.EntityRendererProvider.Context context) {
+        EventGear.Kind kind = null;
+        String clothes = null;
+        if (type == net.minecraft.world.entity.EntityTypes.ZOMBIE || type == net.minecraft.world.entity.EntityTypes.HUSK) {
+            kind = EventGear.Kind.ZOMBIE;
+            clothes = "zombie";
+        } else if (type == net.minecraft.world.entity.EntityTypes.DROWNED) {
+            kind = EventGear.Kind.DROWNED;
+        } else if (type == net.minecraft.world.entity.EntityTypes.SKELETON || type == net.minecraft.world.entity.EntityTypes.WITHER_SKELETON
+                || type == net.minecraft.world.entity.EntityTypes.PARCHED) {
+            kind = EventGear.Kind.SKELETON;
+            clothes = "skeleton";
+        } else if (type == net.minecraft.world.entity.EntityTypes.STRAY || type == net.minecraft.world.entity.EntityTypes.BOGGED) {
+            kind = EventGear.Kind.SKELETON;   // they wear their own overlay, in the event's colours
+        } else if (type == net.minecraft.world.entity.EntityTypes.CREEPER) {
+            kind = EventGear.Kind.CREEPER;
+        } else if (type == net.minecraft.world.entity.EntityTypes.SPIDER || type == net.minecraft.world.entity.EntityTypes.CAVE_SPIDER) {
+            kind = EventGear.Kind.SPIDER;
+        }
+        if (kind == null) {
+            return;
+        }
+        net.minecraft.client.renderer.entity.RenderLayerParent parent = (net.minecraft.client.renderer.entity.RenderLayerParent) renderer;
+        try {
+            if ("zombie".equals(clothes)) {
+                net.minecraft.client.model.monster.zombie.DrownedModel model = new net.minecraft.client.model.monster.zombie.DrownedModel(
+                        context.bakeLayer(net.minecraft.client.model.geom.ModelLayers.DROWNED_OUTER_LAYER));
+                java.util.function.Predicate<net.minecraft.client.renderer.entity.state.LivingEntityRenderState> adult = state -> !state.isBaby;
+                helper.register(new EventClothingLayer(parent, model, "zombie", adult));
+            } else if ("skeleton".equals(clothes)) {
+                net.minecraft.client.model.monster.skeleton.SkeletonModel model = new net.minecraft.client.model.monster.skeleton.SkeletonModel(
+                        context.bakeLayer(net.minecraft.client.model.geom.ModelLayers.STRAY_OUTER_LAYER));
+                java.util.function.Predicate<net.minecraft.client.renderer.entity.state.LivingEntityRenderState> any = state -> true;
+                helper.register(new EventClothingLayer(parent, model, "skeleton", any));
+            }
+            helper.register(new EventGear.Layer(parent, kind));
+        } catch (RuntimeException e) {
+            com.mki.nightsiege.NightSiegeMod.LOGGER.warn("[Night Siege] Event-Ebenen fuer {} nicht angelegt: {}", type, e.toString());
+        }
     }
 }

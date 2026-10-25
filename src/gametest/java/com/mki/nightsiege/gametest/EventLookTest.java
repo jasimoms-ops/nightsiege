@@ -138,6 +138,17 @@ public class EventLookTest implements FabricClientGameTest {
         game.getServer().runCommand("time set 18000");
         game.getServer().runCommand("effect give @a minecraft:night_vision 600 0 true");
         game.getServer().runCommand("tp @a %d.5 %d %d.5 -90 6".formatted(home.getX() + 2, home.getY(), home.getZ()));
+        // The other kinds with event looks, in a second row to the side.
+        String[] more = {"husk", "drowned", "stray", "bogged", "wither_skeleton", "parched", "cave_spider"};
+        int vz = home.getZ() + 16;
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:grass_block"
+                .formatted(home.getX() + 4, home.getY() - 1, vz - 8, home.getX() + 10, home.getY() - 1, vz + 8));
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air"
+                .formatted(home.getX() + 4, home.getY(), vz - 8, home.getX() + 10, home.getY() + 4, vz + 8));
+        for (int i = 0; i < more.length; i++) {
+            game.getServer().runCommand("summon minecraft:%s %d %d %d {NoAI:1b,PersistenceRequired:1b,Invulnerable:1b,Rotation:[90f,0f]}"
+                    .formatted(more[i], home.getX() + 8, home.getY(), vz - 6 + i * 2));
+        }
         context.waitTicks(20);
         for (String event : EVENTS) {
             if (EventAtmosphere.AURORA.equals(event)) {
@@ -146,7 +157,18 @@ public class EventLookTest implements FabricClientGameTest {
             context.runOnClient(client -> EventAtmosphere.setClient(event, 1));
             context.waitTicks(30);
             context.takeScreenshot("mobs_" + event.toLowerCase(Locale.ROOT));
+            game.getServer().runCommand("tp @a %d.5 %d %d.5 -90 8".formatted(home.getX() + 1, home.getY(), vz));
+            context.waitTicks(10);
+            context.takeScreenshot("mobs2_" + event.toLowerCase(Locale.ROOT));
+            // Without night vision: what glows in the dark.
+            game.getServer().runCommand("effect clear @a minecraft:night_vision");
+            context.waitTicks(10);
+            context.takeScreenshot("mobs2_" + event.toLowerCase(Locale.ROOT) + "_dark");
+            game.getServer().runCommand("effect give @a minecraft:night_vision 600 0 true");
+            game.getServer().runCommand("tp @a %d.5 %d %d.5 -90 6".formatted(home.getX() + 2, home.getY(), home.getZ()));
+            context.waitTicks(5);
         }
+        game.getServer().runCommand("kill @e[type=!player,x=%d,y=%d,z=%d,distance=..12]".formatted(home.getX() + 8, home.getY(), vz));
         game.getServer().runCommand("effect clear @a minecraft:night_vision");
         game.getServer().runCommand("tp @a %d.5 %d %d.5 -90 -12".formatted(home.getX(), home.getY(), home.getZ()));
         game.getServer().runCommand("time set 14600");
@@ -1089,7 +1111,7 @@ public class EventLookTest implements FabricClientGameTest {
         context.waitTicks(40);
         game.getServer().runCommand("tp @e[tag=nightsiege] %d.5 %d %d.5".formatted(cx, cy, cz - 2));
         context.waitTicks(5);
-        game.getServer().runCommand("kill @e[tag=nightsiege,distance=..40]");
+        game.getServer().runCommand("kill @e[tag=nightsiege]");   // the server's own position is far away: no distance
         context.waitTicks(10);
         onServer(context, (player, manager) -> {
             com.mki.nightsiege.game.Companions c = com.mki.nightsiege.game.Companions.get();
@@ -1134,6 +1156,15 @@ public class EventLookTest implements FabricClientGameTest {
         onServer(context, (player, manager) -> System.out.println("[Night Siege test] summoner dead after 5s minions="
                 + com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "minion")
                 + " ghosts=" + com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "ghost") + " kills=" + manager.nightKills()));
+        // Souls again from a second wave, for the soul vessel at the end of the night.
+        onServer(context, (player, manager) -> manager.testWave(player.level().getServer()));
+        context.waitTicks(40);
+        game.getServer().runCommand("tp @e[tag=nightsiege] %d.5 %d %d.5".formatted(cx, cy, cz - 2));
+        context.waitTicks(5);
+        game.getServer().runCommand("kill @e[tag=nightsiege]");
+        context.waitTicks(5);
+        onServer(context, (player, manager) -> System.out.println("[Night Siege test] summoner souls before the end="
+                + com.mki.nightsiege.game.Companions.get().soulsOf(player.getUUID())));
         onServer(context, (player, manager) -> manager.abort(player.level().getServer()));
         context.waitTicks(20);
         onServer(context, (player, manager) -> System.out.println("[Night Siege test] summoner soul vessel kept="
