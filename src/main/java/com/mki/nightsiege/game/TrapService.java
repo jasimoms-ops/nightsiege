@@ -521,7 +521,12 @@ public final class TrapService {
             record.readyAt = now + 10;   // nothing in sight: look again in half a second
             return;
         }
-        lob(level, record, muzzle, lead(muzzle, target), KitProjectile.SHELL, tier, 1.0, 1.0);
+        Vec3 aim = lead(muzzle, target);
+        if (shotLog != null) {
+            shotLog.accept(String.format(java.util.Locale.ROOT, "mortar fires at %.1f %.1f %.1f (target at %.1f %.1f, step %.2f %.2f)",
+                    aim.x, aim.y, aim.z, target.getX(), target.getZ(), target.getX() - target.xo, target.getZ() - target.zo));
+        }
+        lob(level, record, muzzle, aim, KitProjectile.SHELL, tier, 1.0, 1.0);
         record.readyAt = now + quicker(record, now, TrapKind.MORTAR.cooldownTicks(tier));
         dirty = true;
     }
@@ -648,6 +653,11 @@ public final class TrapService {
         double r = TrapKind.MORTAR.splash(tier) * (1.0 + shrapnel) * radiusScale * (small ? 0.6 : 1.0);
         double damage = towerHit() * towerPower(record) * blastScale(record) * damageScale * (small ? 1.0 / 3.0 : 1.0);
         DamageSource source = sourceFor(level, record);
+        if (shotLog != null) {
+            List<LivingEntity> hit = around(level, at, r);
+            shotLog.accept(String.format(java.util.Locale.ROOT, "shell burst at %.1f %.1f %.1f r=%.2f dmg=%.1f direct=%s victims=%d",
+                    at.x, at.y, at.z, r, damage, direct == null ? "-" : direct.getType().toShortString(), hit.size()));
+        }
         for (LivingEntity victim : around(level, at, r)) {
             double f = falloff(victim, at, direct, r);
             victim.invulnerableTime = 0;
@@ -1424,6 +1434,9 @@ public final class TrapService {
         return clearShot(level, from, e.getEyePosition(), self)
                 || clearShot(level, from, e.position().add(0, e.getBbHeight() * 0.5, 0), self);
     }
+
+    /** For the gametest: every shell burst is written here when set. */
+    public static java.util.function.Consumer<String> shotLog;
 
     /** Ticks a lobbed shell or potion flies over this flat distance. */
     static int flightTicks(double flat) {

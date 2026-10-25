@@ -910,7 +910,9 @@ public class EventLookTest implements FabricClientGameTest {
             onServer(context, (player, manager) -> countShells(player, shells));
         }
         int hiddenShells = shells.size();
-        // Now three husks walk across in front of the tower, 14 blocks away.
+        // The box goes; now three husks walk across in front of the tower, 14 blocks away.
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(gx + 11, gy, gz - 1, gx + 13, gy + 3, gz + 1));
+        com.mki.nightsiege.game.TrapService.shotLog = line -> System.out.println("[Night Siege test] " + line);
         onServer(context, (player, manager) -> {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
             for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
@@ -949,6 +951,7 @@ public class EventLookTest implements FabricClientGameTest {
                 context.takeScreenshot("mortar_moving");
             }
         }
+        com.mki.nightsiege.game.TrapService.shotLog = null;
         System.out.println("[Night Siege test] mortar hidden: " + hiddenShells + " shells (should be 0); walking: "
                 + shells.size() + " shells, " + String.format(java.util.Locale.ROOT, "%.1f", lost[0]) + " damage on 3 husks");
         onServer(context, (player, manager) -> {
