@@ -1232,11 +1232,44 @@ public class EventLookTest implements FabricClientGameTest {
                 }
             });
             context.waitTicks(10);
-            double back = kind == com.mki.nightsiege.core.BossKind.WARLORD || kind == com.mki.nightsiege.core.BossKind.GRAVE_KING ? 8.5 : 7.0;
-            game.getServer().runCommand("tp @p %d.5 %d %.1f 180 12".formatted(cx, cy + 1, cz - 4.5 + back));
-            context.waitTicks(30);
+            // Photos without the HUD: by day (to see the look) and by night.
+            double back = kind == com.mki.nightsiege.core.BossKind.SPIDER_QUEEN ? 8.0 : 9.5;
+            double eyeAt = kind == com.mki.nightsiege.core.BossKind.SPIDER_QUEEN ? 1.0 : 2.4;
+            game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %d.5 %d %.1f facing %d.5 %.1f %.1f",
+                    cx - 3, cy, cz - 4.5 + back, cx, cy + eyeAt, cz - 4.5));
+            game.getServer().runCommand("time set 6000");
             closeScreen(context);
+            context.runOnClient(client -> hud(client, false));
+            context.waitTicks(40);
+            context.takeScreenshot("boss_" + id + "_day");
+            game.getServer().runCommand("time set 18000");
+            context.waitTicks(20);
             context.takeScreenshot("boss_" + id);
+            context.runOnClient(client -> hud(client, true));
+            if (kind == com.mki.nightsiege.core.BossKind.BONE_LICH) {
+                // A soul crystal of the shield, up close.
+                final double[] at = new double[3];
+                onServer(context, (player, manager) -> {
+                    net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                    for (java.util.UUID part : manager.bosses().partHitboxes()) {
+                        net.minecraft.world.entity.Entity e = level.getEntity(part);
+                        if (e != null) {
+                            at[0] = e.getX();
+                            at[1] = e.getY();
+                            at[2] = e.getZ();
+                            break;
+                        }
+                    }
+                    System.out.println("[Night Siege test] boss bone_lich crystal at " + Math.round(at[0]) + " " + Math.round(at[1]) + " " + Math.round(at[2]));
+                });
+                context.waitTicks(5);
+                game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %.1f %.1f %.1f facing %.1f %.1f %.1f",
+                        at[0] + 3.0, at[1], at[2] + 3.0, at[0], at[1] + 1.0, at[2]));
+                context.runOnClient(client -> hud(client, false));
+                context.waitTicks(20);
+                context.takeScreenshot("boss_bone_lich_crystal");
+                context.runOnClient(client -> hud(client, true));
+            }
             // Let it fight for a while, then look at what it did.
             onServer(context, (player, manager) -> {
                 net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
@@ -1275,6 +1308,30 @@ public class EventLookTest implements FabricClientGameTest {
                 if (t == 6) {
                     closeScreen(context);
                     context.takeScreenshot("boss_" + id + "_fight");
+                }
+                if (t == 10 && kind == com.mki.nightsiege.core.BossKind.SPIDER_QUEEN) {
+                    final double[] at = new double[3];
+                    onServer(context, (player, manager) -> {
+                        net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                        for (java.util.UUID part : manager.bosses().partHitboxes()) {
+                            net.minecraft.world.entity.Entity e = level.getEntity(part);
+                            if (e != null) {
+                                at[0] = e.getX();
+                                at[1] = e.getY();
+                                at[2] = e.getZ();
+                                break;
+                            }
+                        }
+                    });
+                    context.waitTicks(5);
+                    if (at[0] != 0 || at[2] != 0) {
+                        game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %.1f %.1f %.1f facing %.1f %.1f %.1f",
+                                at[0] + 2.5, at[1] + 0.5, at[2] + 2.5, at[0], at[1] + 0.5, at[2]));
+                        context.runOnClient(client -> hud(client, false));
+                        context.waitTicks(10);
+                        context.takeScreenshot("boss_spider_queen_egg");
+                        context.runOnClient(client -> hud(client, true));
+                    }
                 }
             }
             // Down with it: the lich's shield must hold until its crystals are gone.
@@ -2139,6 +2196,13 @@ public class EventLookTest implements FabricClientGameTest {
     /** Something to do on the integrated server with the test player and the siege manager. */
     private interface OnServer {
         void run(net.minecraft.server.level.ServerPlayer player, com.mki.nightsiege.game.SiegeManager manager);
+    }
+
+    /** Shows or hides the HUD (for clean photos). */
+    private static void hud(net.minecraft.client.Minecraft client, boolean shown) {
+        if (client.gui.hud.isHidden() == shown) {
+            client.gui.hud.toggle();
+        }
     }
 
     private static void onServer(ClientGameTestContext context, OnServer action) {
