@@ -1434,11 +1434,29 @@ public class EventLookTest implements FabricClientGameTest {
                 }
             } else if (token.matches("[Ll]\\d+")) {
                 simLevels.add(Integer.parseInt(token.substring(1)));
-            } else if (token.matches("[a-z]+=[0-9.]+")) {
-                // "engineer=0.7": try a class damage factor (classDamage) in the simulation.
+            } else if (token.matches("[A-Za-z]+=[0-9.a-z]+")) {
+                // "engineer=0.7": a class damage factor; "trapDamage=0.6": any number or switch of the config.
                 String[] kv = token.split("=");
-                onServer(context, (player, manager) -> manager.config().classDamage.put(kv[0], Double.parseDouble(kv[1])));
-                System.out.println("[Night Siege sim] classDamage " + kv[0] + " = " + kv[1]);
+                onServer(context, (player, manager) -> {
+                    var cfg = manager.config();
+                    if (java.util.List.of("warrior", "archer", "guardian", "engineer", "summoner").contains(kv[0])) {
+                        cfg.classDamage.put(kv[0], Double.parseDouble(kv[1]));
+                        return;
+                    }
+                    try {
+                        java.lang.reflect.Field f = cfg.getClass().getField(kv[0]);
+                        if (f.getType() == double.class) {
+                            f.setDouble(cfg, Double.parseDouble(kv[1]));
+                        } else if (f.getType() == int.class) {
+                            f.setInt(cfg, (int) Double.parseDouble(kv[1]));
+                        } else if (f.getType() == boolean.class) {
+                            f.setBoolean(cfg, Boolean.parseBoolean(kv[1]));
+                        }
+                    } catch (ReflectiveOperationException e) {
+                        System.out.println("[Night Siege sim] unbekannter Wert " + kv[0]);
+                    }
+                });
+                System.out.println("[Night Siege sim] Einstellung " + kv[0] + " = " + kv[1]);
             } else if (!token.isBlank()) {
                 only.add(token);
             }

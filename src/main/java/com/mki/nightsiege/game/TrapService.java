@@ -399,7 +399,7 @@ public final class TrapService {
         DamageSource source = sourceFor(level, record);
         double power = power(record, now);
         for (LivingEntity victim : victims) {
-            victim.hurtServer(level, source, (float) (TrapKind.SPIKE.damage(tier) * power));
+            victim.hurtServer(level, source, (float) (TrapKind.SPIKE.damage(tier) * power * levelScale()));
             victim.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, TrapKind.SPIKE.holdTicks(tier), 1));
             record.uses--;
         }
@@ -451,8 +451,20 @@ public final class TrapService {
 
     /** One direct hit of a chemistry tower: half a normal zombie of tonight (Simon: two shots per zombie). */
     static double towerHit() {
+        return 10.0 * levelScale();
+    }
+
+    /**
+     * Traps and towers grow with the level like the monsters' health (config
+     * trapDamageFollowsLevel), times the server's factor trapDamage.
+     */
+    static double levelScale() {
         SiegeManager m = SiegeManager.get();
-        return 10.0 * (m == null ? 1.0 : m.mobHealthFactor());
+        if (m == null || m.config() == null) {
+            return 1.0;
+        }
+        double level = m.config().trapDamageFollowsLevel ? m.mobHealthFactor() : 1.0;
+        return level * Math.max(0.05, m.config().trapDamage);
     }
 
     /** Crate gains that make traps stronger; the overcharge makes the towers faster instead. */
@@ -764,7 +776,7 @@ public final class TrapService {
         arrow.entityTags().add("nightsiege_arrow");   // keeps the archer skills off it
         arrow.entityTags().add("nightsiege_turret");  // and the crate gains (the archer tag is on every arrow)
         arrow.pickup = AbstractArrow.Pickup.DISALLOWED;
-        arrow.setBaseDamage(TrapKind.TURRET.damage(tier) * power(record, now) * piercing(record, now));
+        arrow.setBaseDamage(TrapKind.TURRET.damage(tier) * power(record, now) * piercing(record, now) * levelScale());
         if (bonus(record, SkillEffect.CHARGED_ARROWS) > 0) {
             arrow.entityTags().add(TAG_CHARGED);
         }
@@ -825,7 +837,7 @@ public final class TrapService {
         double accelerant = bonus(record, SkillEffect.ACCELERANT);
         float seconds = TrapKind.FLAME.holdTicks(tier) / 20f * (napalm ? 2f : 1f);
         double r = (TrapKind.FLAME.radius(tier) + (napalm ? 1.0 : 0.0)) * radiusScale;
-        double damage = TrapKind.FLAME.damage(tier) * power(record, now) * blastScale(record) * damageScale;
+        double damage = TrapKind.FLAME.damage(tier) * power(record, now) * blastScale(record) * damageScale * levelScale();
         for (LivingEntity victim : around(level, center, r)) {
             victim.igniteForSeconds(seconds);
             boolean poisoned = victim.hasEffect(MobEffects.POISON) || victim.hasEffect(MobEffects.WITHER) || poisoned(victim);
@@ -863,7 +875,7 @@ public final class TrapService {
         }
         DamageSource source = sourceFor(level, record);
         float damage = (float) (TrapKind.TESLA.damage(tier) * teslaBoost.getAsDouble() * power(record, now)
-                * piercing(record, now));
+                * piercing(record, now) * levelScale());
         int jumps = TrapKind.TESLA.chainTargets(tier) + (int) Math.round(bonus(record, SkillEffect.CHAIN_LIGHTNING));
         List<LivingEntity> hit = new ArrayList<>();
         LivingEntity current = first;

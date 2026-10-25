@@ -248,6 +248,14 @@ public class SiegeConfig {
     public boolean testToolsForEveryone = false;
     /** The summoner can be chosen by everyone (Simon, 25 October 2026: open for all); false = admins only. */
     public boolean summonerForEveryone = true;
+    /**
+     * Traps and towers grow with the level like the monsters' health (Simon, 25 October 2026):
+     * on level 1 they hit with their skill values, on higher levels as much harder as the
+     * monsters are tougher. false = fixed values (only mortar and potion tower grew before).
+     */
+    public boolean trapDamageFollowsLevel = true;
+    /** Factor on all trap and tower damage (server balancing of the engineer). */
+    public double trapDamage = 0.75;
     /** Companions grow with the night like the monsters: this share of the monsters' extra health and damage. */
     public double companionScaling = 0.8;
     /** Share of every wave (taken from its zombies) that carry ladders and build one up the wall. 0 = off. */

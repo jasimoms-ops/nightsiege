@@ -542,7 +542,8 @@ public final class Companions {
             case SNOW -> 20.0;
             case SKELETON -> 30.0;
             case TITAN -> 300.0;
-            case MINION, GHOST -> 14.0;
+            case MINION -> 14.0;
+            case GHOST -> 30.0;   // was 14 (Simon, 25 October 2026)
             case MOUNT, HAWK -> 20.0;
         };
         double damage = switch (c.kind) {
@@ -1032,6 +1033,40 @@ public final class Companions {
         }
     }
 
+    /**
+     * The night begins: the summoner's first companions are already there (Simon, 25 October
+     * 2026) – two wolves, one golem for the golemsmith, two ghosts (30 s) on the way of the dead.
+     */
+    public void startNight(ServerPlayer player) {
+        if (player == null || !(player.level() instanceof ServerLevel level)) {
+            return;
+        }
+        PlayerSkills skills = skillsFor.apply(player);
+        if (skills == null || skills.clazz() != com.mki.nightsiege.core.SkillClass.SUMMONER) {
+            return;
+        }
+        if (SkillTree.WAY_DEAD.equals(skills.pathTaken(tree))) {
+            if (SkillTree.has(skills, "d_raise")) {
+                long until = level.getGameTime() + 600;
+                for (int i = count(level, player.getUUID(), k -> k == Kind.GHOST); i < 2; i++) {
+                    ghost(level, player, skills, until);
+                }
+            }
+            return;
+        }
+        int used = count(level, player.getUUID(), k -> k == Kind.WOLF || k == Kind.GOLEM);
+        int room = slots(skills) - used;
+        if (SkillTree.has(skills, "s_golemsmith")) {
+            if (room > 0 && count(level, player.getUUID(), k -> k == Kind.GOLEM) == 0) {
+                spawn(level, player, skills, Kind.GOLEM);
+            }
+        } else if (SkillTree.has(skills, "s_packcall")) {
+            for (int i = 0; i < Math.min(2, room); i++) {
+                spawn(level, player, skills, Kind.WOLF);
+            }
+        }
+    }
+
     /** Seelengefäß: at the end of the night up to five souls stay for the next one. */
     private void keepSouls(MinecraftServer server) {
         SiegeManager m = SiegeManager.get();
@@ -1178,7 +1213,9 @@ public final class Companions {
         double night = m == null ? 1.0 : m.mobHealthFactor();
         double nightDamage = m == null ? 1.0 : m.mobDamageFactor();
         double own = (1.0 + bonus(SkillEffect.NECRO_POWER, skills)) * (SkillTree.has(skills, "d_lich") ? 1.5 : 1.0);
-        double life = mob.getMaxHealth() * night * strength * (1.0 + bonus(SkillEffect.SUMMON_HEALTH, skills)) * own;
+        // At least 30 health before the night and the skills (Simon, 25 October 2026): the raised
+        // dead were gone at the first hit.
+        double life = Math.max(30.0, mob.getMaxHealth() * strength) * night * (1.0 + bonus(SkillEffect.SUMMON_HEALTH, skills)) * own;
         set(mob, Attributes.MAX_HEALTH, Math.max(4.0, life));
         mob.setHealth(mob.getMaxHealth());
         c.damageMul = nightDamage * strength * (1.0 + bonus(SkillEffect.SUMMON_DAMAGE, skills)) * own;

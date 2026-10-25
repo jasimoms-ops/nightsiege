@@ -423,8 +423,10 @@ public final class SkillTree {
     private static void summoner(List<SkillNode> list) {
         SkillClass c = SkillClass.SUMMONER;
         node(list, "s_soulbond", c, "", SkillEffect.SUMMON_HEALTH, 3, 2, 1, 0.1, null, "", "minecraft:lead", 0, 3);
-        node(list, "s_callrange", c, "", SkillEffect.CALL_RANGE, 3, 3, 2, 3.0, "s_soulbond", "s_stem", "minecraft:compass", 1, 2);
-        node(list, "s_command", c, "", SkillEffect.SUMMON_DAMAGE, 3, 3, 2, 0.1, "s_soulbond", "s_stem", "minecraft:name_tag", 1, 4);
+        node(list, "s_callrange", c, "", SkillEffect.CALL_RANGE, 3, 3, 2, 3.0, "s_soulbond", "s_stem", "minecraft:compass", 1, 1);
+        // Lebensband (Simon, 25 October 2026): the summoner had no hearts in the tree at all.
+        node(list, "s_lifebond", c, "", SkillEffect.MAX_HEALTH, 3, 3, 2, 4.0, "s_soulbond", "", "minecraft:golden_apple", 1, 3);
+        node(list, "s_command", c, "", SkillEffect.SUMMON_DAMAGE, 3, 3, 2, 0.1, "s_soulbond", "s_stem", "minecraft:name_tag", 1, 5);
 
         // ----- Way of the wild: wolves and golems answer the call
         String w = WAY_WILD;

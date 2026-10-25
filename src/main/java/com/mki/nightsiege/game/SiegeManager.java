@@ -1255,6 +1255,7 @@ public final class SiegeManager {
             if (player != null) {
                 equipKit(player);
                 SkillService.apply(player, save.skillsOf(player.getUUID().toString()), skillTree);
+                safe("Startbegleiter", () -> companions.startNight(player));
             }
         }
 
@@ -1353,6 +1354,7 @@ public final class SiegeManager {
                     equipKit(player);
                     SkillService.apply(player, save.skillsOf(player.getUUID().toString()), skillTree);
                     joinNight(player);
+                    safe("Startbegleiter", () -> companions.startNight(player));
                 }
             }
         }
