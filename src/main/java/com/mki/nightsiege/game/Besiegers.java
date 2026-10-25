@@ -118,7 +118,9 @@ public final class Besiegers {
         }
         long now = world.getGameTime();
         // Ladder carriers: a share of the wave (random rounding), taken from its zombies.
-        if (cfg.ladderCarrierShare > 0 && base != null && base.closed) {
+        // Also in a base with a gate (a door or gate makes it count as open), as long as there are
+        // walls around it; before, a single door kept every ladder carrier away (Simon, 25 October 2026).
+        if (cfg.ladderCarrierShare > 0 && base != null && (base.closed || base.reach() > 6.0)) {
             double want = wave.size() * cfg.ladderCarrierShare;
             int count = (int) Math.floor(want) + (random.nextDouble() < want - Math.floor(want) ? 1 : 0);
             for (Mob mob : wave) {
