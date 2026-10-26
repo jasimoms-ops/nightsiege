@@ -89,10 +89,10 @@ public enum TrapKind {
     /** The built-in table of {@link #uses}. */
     int baseUses(int t) {
         return switch (this) {
-            case SPIKE -> 24 + 12 * (t - 1);     // 24 / 36 / 48 hits
-            case SNARE -> 8 + 4 * (t - 1);       // 8 / 12 / 16 catches
+            case SPIKE -> 12 + 6 * (t - 1);      // 12 / 18 / 24 hits (halved 26 Oct 2026: none wore out in the playtest)
+            case SNARE -> 4 + 2 * (t - 1);       // 4 / 6 / 8 catches
             case TURRET, TESLA, MORTAR, BREWER -> Integer.MAX_VALUE;
-            case FLAME -> 10 + 5 * (t - 1);      // 10 / 15 / 20
+            case FLAME -> 5 + 3 * (t - 1);       // 5 / 8 / 11
         };
     }
 
