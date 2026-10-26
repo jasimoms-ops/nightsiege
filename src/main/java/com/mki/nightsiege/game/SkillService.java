@@ -54,9 +54,9 @@ public final class SkillService {
                 if (SkillTree.has(skills, "w_martyr")) v -= SkillValues.get("w_martyr", "hp", 4.0);
                 if (SkillTree.has(skills, "a_deadeye")) v -= SkillValues.get("a_deadeye", "health", 8.0);
                 if (SkillTree.has(skills, "a_watchful")) v -= SkillValues.get("a_watchful", "health", 4.0);
-                if (SkillTree.has(skills, "g_living_wall")) v += 12.0;
-                if (SkillTree.has(skills, "g_bladeshield")) v -= 8.0;
-                if (SkillTree.has(skills, "g_patron")) v -= 4.0;
+                if (SkillTree.has(skills, "g_living_wall")) v += SkillValues.get("g_living_wall", "hp", 12.0);
+                if (SkillTree.has(skills, "g_bladeshield")) v -= SkillValues.get("g_bladeshield", "hp", 8.0);
+                if (SkillTree.has(skills, "g_patron")) v -= SkillValues.get("g_patron", "hp", 4.0);
                 if (SkillTree.has(skills, "s_beastlord")) v -= SkillValues.get("s_beastlord", "cost", 6.0);
                 if (SkillTree.has(skills, "d_lich")) v -= SkillValues.get("d_lich", "cost", 8.0);
             }

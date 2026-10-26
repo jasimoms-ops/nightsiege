@@ -4,6 +4,7 @@ import com.mki.nightsiege.core.PlayerSkills;
 import com.mki.nightsiege.core.SkillClass;
 import com.mki.nightsiege.core.SkillEffect;
 import com.mki.nightsiege.core.SkillTree;
+import com.mki.nightsiege.core.SkillValues;
 import net.minecraft.core.Holder;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.particles.ItemParticleOption;
@@ -41,9 +42,11 @@ import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 
@@ -62,15 +65,10 @@ public final class GuardianEffects {
 
     /** Ticks after the shield is up in which a block counts as perfect. */
     static final int PERFECT_WINDOW = 10;
-    /** How long a guardian with the riposte may block at a stretch, and the pause after. */
-    static final int BLOCK_LIMIT = 60;
-    static final int BLOCK_PAUSE = 40;
-    /** Radius in which monsters that attack a teammate turn on the guardian. */
-    static final double AGGRO_RADIUS = 6.0;
-    private static final int THROW_COOLDOWN = 160;
-    private static final int DOME_COOLDOWN = 500;
-    private static final int HAND_COOLDOWN = 120;
+    // Every other number of a guardian node sits in SkillValuesGuardian (shown in the skill texts).
     private static final Identifier ANCHOR_KB = ModContent.id("guardian_anchor");
+    private static final Identifier IRONWARD_ARMOR = ModContent.id("guardian_ironward");
+    private static final Identifier IRONWARD_TOUGHNESS = ModContent.id("guardian_ironward_toughness");
     private static final Identifier BARRIER_CAP = ModContent.id("guardian_barrier");
 
     /** Hands caught damage and healing to the siege, which turns it into skill points. */
@@ -96,6 +94,8 @@ public final class GuardianEffects {
     private final Map<UUID, UUID> barrierFrom = new HashMap<>();
     /** A player's absorption just before a hit, to see a barrier break. */
     private final Map<UUID, Float> absorbBefore = new HashMap<>();
+    /** Guardians who carry absorption of their own iron hide: vengeance fires when it breaks. */
+    private final Set<UUID> ironhideUp = new HashSet<>();
     private final List<Zone> zones = new ArrayList<>();
     private int counter;
 
@@ -135,20 +135,23 @@ public final class GuardianEffects {
 
     private float scaleDamage(LivingEntity victim, ServerLevel level, DamageSource source, float amount) {
         float factor = 1f;
+        // Server balancing per class and subclass (and zombies/spiders against the melee classes) is
+        // no skill: it sits outside the skill floor below, like the monster strength.
+        float outside = 1f;
         SiegeManager tuning = SiegeManager.get();
         // Monster strength per type: outside the skill floor, so it also reaches the bulwark.
         float monster = tuning != null && victim instanceof ServerPlayer && source.getEntity() instanceof Enemy
                 ? tuning.monsterDamageFactor(source.getEntity()) : 1f;
         if (tuning != null && source.getEntity() instanceof ServerPlayer hitter && victim instanceof Enemy
                 && !CombatEffects.inFollowUp()) {   // a follow-up hit already carries the factor
-            factor *= tuning.damageFactor(hitter);   // server balancing per class and subclass
+            outside *= tuning.damageFactor(hitter);   // server balancing per class and subclass
         }
         if (tuning != null && victim instanceof ServerPlayer hurt && source.getEntity() instanceof Enemy) {
-            factor *= tuning.damageTakenFactor(hurt);
+            outside *= tuning.damageTakenFactor(hurt);
             if ((source.getEntity() instanceof net.minecraft.world.entity.monster.zombie.Zombie
                     || source.getEntity() instanceof net.minecraft.world.entity.monster.spider.Spider)
                     && !BossService.isBoss(source.getEntity())) {   // the grave king and the queen hit everyone alike
-                factor *= tuning.zombieSpiderFactor(hurt);   // zombies and spiders hit the melee classes harder
+                outside *= tuning.zombieSpiderFactor(hurt);   // zombies and spiders hit the melee classes harder
             }
         }
         boolean followUp = CombatEffects.inFollowUp() && victim instanceof Enemy;   // its hit already had these
@@ -158,16 +161,16 @@ public final class GuardianEffects {
         factor *= Companions.damageFactor(victim, source);   // the summoner's companions
         if (!followUp && source.getEntity() instanceof ServerPlayer attacker && victim instanceof Enemy
                 && SkillTree.has(skillsFor.apply(attacker), "g_saint")) {
-            factor *= 0.7f;   // the saint heals, but hits softer
+            factor *= (float) SkillValues.get("g_saint", "dmg", 0.7);   // the saint heals, but hits softer
         }
         if (!(victim instanceof ServerPlayer player) || source.is(DamageTypeTags.BYPASSES_INVULNERABILITY)) {
-            return amount * factor;
+            return amount * outside * factor;
         }
         absorbBefore.put(player.getUUID(), player.getAbsorptionAmount());
         boolean fromMonster = source.getEntity() instanceof Enemy;
         for (Zone zone : zones) {
             if (zone.kind() == ZoneKind.SANCTUARY && zone.level() == level && inside(zone, player)) {
-                factor *= 0.4f;
+                factor *= (float) SkillValues.get("g_sanctuary", "factor", 0.4);
                 break;
             }
         }
@@ -175,7 +178,8 @@ public final class GuardianEffects {
             factor *= BaseDefense.guardFactor(player);   // battlements of the core
             double sign = 0.0;
             for (ServerPlayer guardian : level.players()) {
-                if (guardian.isAlive() && guardian.distanceToSqr(player) <= 36.0) {
+                double signRadius = SkillValues.get("g_wardsign", "radius", 6.0);
+                if (guardian.isAlive() && guardian.distanceToSqr(player) <= signRadius * signRadius) {
                     PlayerSkills gs = skillsFor.apply(guardian);
                     if (isGuardian(gs)) {
                         sign = Math.max(sign, tree.totalBonus(SkillEffect.WARD_SIGN, gs));
@@ -189,8 +193,11 @@ public final class GuardianEffects {
             double bastion = tree.totalBonus(SkillEffect.BASTION, skills);
             if (bastion > 0 && fromMonster) {
                 long now = level.getGameTime();
-                int count = now <= tauntUntil.getOrDefault(player.getUUID(), 0L)
-                        && SkillTree.has(skills, "g_iron_will") ? 4 : Math.min(4, attackers(level, player));
+                String node = bastionNode(skills);
+                int most = (int) Math.round(SkillValues.get(node, "count", 4.0));
+                int count = now <= tauntUntil.getOrDefault(player.getUUID(), 0L) && SkillTree.has(skills, "g_iron_will")
+                        ? (int) Math.round(SkillValues.get("g_iron_will", "count", 4.0))
+                        : Math.min(most, attackers(level, player, SkillValues.get(node, "radius", 8.0)));
                 factor *= (float) (1.0 - bastion * count);
             }
             double anchor = tree.totalBonus(SkillEffect.ANCHOR, skills);
@@ -200,7 +207,7 @@ public final class GuardianEffects {
         }
         // Skills can take away at most maxDamageReduction together (the bulwark was nearly immortal).
         float floor = tuning == null ? 0.30f : (float) (1.0 - tuning.config().maxDamageReduction);
-        return amount * monster * Math.max(floor, factor);
+        return amount * monster * outside * Math.max(floor, factor);
     }
 
     // ------------------------------------------------------------------
@@ -230,7 +237,8 @@ public final class GuardianEffects {
         boolean active = shieldWay(player, skills);
         double rev = tree.totalBonus(SkillEffect.REVENGE, skills);
         if (active && rev > 0) {
-            revenge.merge(id, base * rev, (a, b) -> Math.min(8.0, a + b));
+            double cap = SkillValues.get("g_revenge", "cap", 8.0);
+            revenge.merge(id, base * rev, (a, b) -> Math.min(cap, a + b));
         }
         if (blocked) {
             onBlocked(level, player, skills, attacker, now);
@@ -238,12 +246,18 @@ public final class GuardianEffects {
         if (active && source.getDirectEntity() == attacker) {
             double thorns = tree.totalBonus(SkillEffect.THORNS, skills);
             boolean anchored = anchored(player) && tree.totalBonus(SkillEffect.ANCHOR, skills) > 0;
+            boolean hedgehog = anchored && tree.totalBonus(SkillEffect.HEDGEHOG, skills) > 0;
+            if (hedgehog && thorns <= 0) {
+                thorns = SkillValues.get("g_hedgehog", "dmg", 4.0);   // the hedgehog brings its own spines
+            }
             if (thorns > 0) {
-                float hurt = (float) (thorns * (SkillTree.has(skills, "g_bladeshield") ? 2 : 1));
+                float hurt = (float) (thorns * bladeshield(skills));
                 DamageSource own = level.damageSources().playerAttack(player);
-                if (anchored && SkillTree.has(skills, "g_hedgehog")) {
-                    for (LivingEntity near : CombatEffects.enemies(level, player.position(), 2.5, 1.5)) {
-                        combat.bonusHit(level, near, own, hurt * 3f);
+                if (hedgehog) {
+                    float mult = (float) SkillValues.get("g_hedgehog", "mult", 3.0);
+                    double reach = SkillValues.get("g_hedgehog", "radius", 2.5);
+                    for (LivingEntity near : CombatEffects.enemies(level, player.position(), reach, 1.5)) {
+                        combat.bonusHit(level, near, own, hurt * mult);
                     }
                     level.sendParticles(ParticleTypes.CRIT, player.getX(), player.getY(0.5), player.getZ(),
                             16, 1.0, 0.4, 1.0, 0.2);
@@ -256,10 +270,11 @@ public final class GuardianEffects {
             }
         }
         if (active && tree.totalBonus(SkillEffect.LAST_STAND, skills) > 0
-                && player.getHealth() < player.getMaxHealth() * 0.3f
+                && player.getHealth() < player.getMaxHealth() * (float) SkillValues.get("g_laststand", "below", 0.3)
                 && now >= lastStandReadyAt.getOrDefault(id, 0L)) {
-            lastStandReadyAt.put(id, now + 600);
-            player.addEffect(new MobEffectInstance(MobEffects.RESISTANCE, 80, 1));
+            lastStandReadyAt.put(id, now + Math.round(SkillValues.get("g_laststand", "cd", 600.0)));
+            player.addEffect(new MobEffectInstance(MobEffects.RESISTANCE,
+                    (int) Math.round(SkillValues.get("g_laststand", "time", 80.0)), 1));
             level.sendParticles(ParticleTypes.TOTEM_OF_UNDYING, player.getX(), player.getY(1.0), player.getZ(),
                     20, 0.4, 0.6, 0.4, 0.2);
             play(level, player, SoundEvents.BEACON_POWER_SELECT, 1.0f, 0.7f);
@@ -275,7 +290,8 @@ public final class GuardianEffects {
         boolean perfect = player.isUsingItem() && player.getTicksUsingItem() <= delay + PERFECT_WINDOW;
         double wall = tree.totalBonus(SkillEffect.SHIELD_WALL, skills);
         if (wall > 0) {
-            addAbsorption(player, (float) (0.5 * wall), 4f);
+            addAbsorption(player, (float) (SkillValues.get("g_shieldwall", "absorb", 0.5) * wall),
+                    (float) SkillValues.get("g_shieldwall", "cap", 4.0));
         }
         if (perfect) {
             // Stunned: the monster stands still for a second.
@@ -287,18 +303,20 @@ public final class GuardianEffects {
             level.sendParticles(ParticleTypes.CRIT, player.getX(), player.getY(0.8), player.getZ(), 10, 0.4, 0.3, 0.4, 0.3);
             play(level, player, SoundEvents.ANVIL_LAND, 0.35f, 1.9f);
             if (tree.totalBonus(SkillEffect.COUNTERSTRIKE, skills) > 0) {
-                counterUntil.put(id, now + 60);
+                counterUntil.put(id, now + Math.round(SkillValues.get("g_counterstrike", "window", 60.0)));
             }
             if (tree.totalBonus(SkillEffect.SHIELD_BASH, skills) > 0) {
                 bash(level, player, skills);
             }
-            if (SkillTree.has(skills, "g_vengeance") && SkillTree.has(skills, "g_shieldbash")) {
+            if (SkillTree.has(skills, "g_vengeance") && SkillTree.has(skills, "g_shieldbash")
+                    && shieldWay(player, skills)) {
                 shockwave(level, player, (float) tree.totalBonus(SkillEffect.VENGEANCE, skills));
             }
         }
         double counter = tree.totalBonus(SkillEffect.COUNTER, skills);
         if (counter > 0 && shieldWay(player, skills)) {
-            float hurt = (float) (counter * (perfect ? 2 : 1) * (SkillTree.has(skills, "g_bladeshield") ? 2 : 1));
+            String node = skills.levelOf("riposte") > 0 ? "riposte" : "b_cross_riposte";
+            float hurt = (float) (counter * (perfect ? SkillValues.get(node, "perfect", 2.0) : 1.0) * bladeshield(skills));
             combat.bonusHit(level, attacker, level.damageSources().playerAttack(player), hurt);
             CombatEffects.pushAway(attacker, player.position(), 0.9, 0.3);
             play(level, player, SoundEvents.SHIELD_BLOCK.value(), 0.8f, 1.4f);
@@ -313,7 +331,7 @@ public final class GuardianEffects {
         }
         float hurt = (float) tree.totalBonus(SkillEffect.SHIELD_BASH, skills);
         DamageSource own = level.damageSources().playerAttack(player);
-        for (LivingEntity victim : CombatEffects.enemies(level, player.position(), 4.0, 2.0)) {
+        for (LivingEntity victim : CombatEffects.enemies(level, player.position(), SkillValues.get("g_shieldbash", "range", 4.0), 2.0)) {
             Vec3 to = victim.position().subtract(player.position());
             Vec3 dir = new Vec3(to.x, 0, to.z);
             if (dir.lengthSqr() > 1.0e-4 && dir.normalize().dot(flat) < 0.2) {
@@ -321,7 +339,7 @@ public final class GuardianEffects {
             }
             combat.bonusHit(level, victim, own, hurt);
             victim.push(flat.x * 1.2, 0.3, flat.z * 1.2);
-            victim.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 40, 2));
+            victim.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, (int) Math.round(SkillValues.get("g_shieldbash", "slow", 40.0)), 2));
         }
         Vec3 p = player.position().add(flat.scale(1.5)).add(0, 1.0, 0);
         level.sendParticles(ParticleTypes.SWEEP_ATTACK, p.x, p.y, p.z, 3, 0.6, 0.3, 0.6, 0.0);
@@ -331,7 +349,7 @@ public final class GuardianEffects {
     /** Vengeance: a ring of force around the guardian. */
     private void shockwave(ServerLevel level, ServerPlayer player, float hurt) {
         DamageSource own = level.damageSources().playerAttack(player);
-        for (LivingEntity victim : CombatEffects.enemies(level, player.position(), 3.5, 1.5)) {
+        for (LivingEntity victim : CombatEffects.enemies(level, player.position(), SkillValues.get("g_vengeance", "radius", 3.5), 1.5)) {
             combat.bonusHit(level, victim, own, hurt);
             CombatEffects.pushAway(victim, player.position(), 0.8, 0.35);
         }
@@ -340,17 +358,20 @@ public final class GuardianEffects {
     }
 
     private void barrierBroken(ServerLevel level, ServerPlayer player, PlayerSkills skills) {
+        boolean ownIronhide = ironhideUp.remove(player.getUUID());
         UUID from = barrierFrom.remove(player.getUUID());
         if (from != null) {
             ServerPlayer warden = level.getServer().getPlayerList().getPlayer(from);
             PlayerSkills ws = warden == null ? null : skillsFor.apply(warden);
             if (warden != null && SkillTree.has(ws, "g_lifebond")) {
-                heal(warden, player, (float) tree.totalBonus(SkillEffect.LIFEBOND, ws));
+                heal(warden, player, (float) (tree.totalBonus(SkillEffect.LIFEBOND, ws) * patron(ws)));
                 level.sendParticles(ParticleTypes.HEART, player.getX(), player.getY() + 1.8, player.getZ(),
                         3, 0.3, 0.2, 0.3, 0.0);
             }
         }
-        if (isGuardian(skills) && SkillTree.has(skills, "g_vengeance") && SkillTree.has(skills, "g_ironhide")) {
+        // Vengeance only when the guardian's own iron hide breaks, not any absorption (shield wall, a ward, taunt).
+        if (ownIronhide && isGuardian(skills) && SkillTree.has(skills, "g_vengeance") && SkillTree.has(skills, "g_ironhide")
+                && shieldWay(player, skills)) {
             shockwave(level, player, (float) tree.totalBonus(SkillEffect.VENGEANCE, skills));
         }
     }
@@ -391,22 +412,30 @@ public final class GuardianEffects {
             boolean guardian = isGuardian(skills) && player.isAlive() && !player.isSpectator();
             anchorModifier(player, guardian && tree.totalBonus(SkillEffect.ANCHOR, skills) > 0
                     && shieldWay(player, skills) && anchored(player));
+            ironwardModifier(player, guardian ? skills : null);
             if (counter % 20 == 0) {
                 dropBarrierCap(player);
+                if (player.getAbsorptionAmount() <= 0.01f) {
+                    ironhideUp.remove(id);
+                }
             }
             if (!guardian || !(player.level() instanceof ServerLevel level)) {
                 blockStart.remove(id);
+                ironhideUp.remove(id);
                 continue;
             }
             blockLimit(level, player, skills, now);
             if (counter % 20 == 0) {
                 aggro(level, player, skills);
             }
-            if (counter % 100 == 0) {
+            if (counter % every("g_ironhide", "interval", 100.0) == 0) {
                 ironhide(level, player, skills);
             }
-            if (counter % 160 == 0) {
+            if (counter % every(wardNode(skills), "interval", 160.0) == 0) {
                 ward(level, player, skills);
+            }
+            if (counter % every(auraNode(skills), "interval", 60.0) == 0) {
+                aura(level, player, skills);
             }
         }
     }
@@ -420,11 +449,13 @@ public final class GuardianEffects {
             return;
         }
         long start = blockStart.computeIfAbsent(id, k -> now);
-        int limit = BLOCK_LIMIT + (int) Math.round(10 * tree.totalBonus(SkillEffect.SHIELD_WALL, skills));
+        String node = skills.levelOf("riposte") > 0 ? "riposte" : "b_cross_riposte";
+        int limit = (int) Math.round(SkillValues.get(node, "block", 60.0)
+                + SkillValues.get("g_shieldwall", "block", 10.0) * tree.totalBonus(SkillEffect.SHIELD_WALL, skills));
         if (now - start >= limit) {
             ItemStack stack = player.getUseItem();
             player.stopUsingItem();
-            player.getCooldowns().addCooldown(stack, BLOCK_PAUSE);
+            player.getCooldowns().addCooldown(stack, (int) Math.round(SkillValues.get(node, "pause", 40.0)));
             blockStart.remove(id);
             play(level, player, SoundEvents.SHIELD_BREAK.value(), 0.5f, 1.5f);
             CombatEffects.actionBar(player, Component.translatable("nightsiege.msg.shield_tired"));
@@ -437,7 +468,7 @@ public final class GuardianEffects {
             return;
         }
         double extra = tree.totalBonus(SkillEffect.AGGRO, skills);
-        double radius = AGGRO_RADIUS + extra;
+        double radius = SkillValues.get("g_challenger", "radius", 6.0) + extra;
         for (LivingEntity e : CombatEffects.enemies(level, player.position(), radius, 3.0)) {
             if (!(e instanceof Mob mob) || !(mob.getTarget() instanceof Player other) || other == player) {
                 continue;
@@ -445,7 +476,7 @@ public final class GuardianEffects {
             if (other instanceof ServerPlayer mate && isGuardian(skillsFor.apply(mate))) {
                 continue;   // another tank already holds it
             }
-            if (extra > 0 || random.nextDouble() < 0.6) {
+            if (extra > 0 || random.nextDouble() < SkillValues.get("g_challenger", "chance", 0.6)) {
                 mob.setTarget(player);
                 level.sendParticles(ParticleTypes.ANGRY_VILLAGER, mob.getX(), mob.getY() + mob.getBbHeight() + 0.3,
                         mob.getZ(), 1, 0.1, 0.1, 0.1, 0.0);
@@ -458,9 +489,13 @@ public final class GuardianEffects {
         if (per <= 0 || !shieldWay(player, skills)) {
             return;
         }
-        int near = Math.min(4, CombatEffects.enemies(level, player.position(), 5.0, 2.0).size());
+        int most = (int) Math.round(SkillValues.get("g_ironhide", "count", 4.0));
+        int near = Math.min(most, CombatEffects.enemies(level, player.position(), SkillValues.get("g_ironhide", "radius", 5.0), 2.0).size());
         if (near > 0) {
-            addAbsorption(player, (float) (per * near), 8f);
+            addAbsorption(player, (float) (per * near), (float) SkillValues.get("g_ironhide", "cap", 8.0));
+            if (player.getAbsorptionAmount() > 0.01f) {
+                ironhideUp.add(player.getUUID());
+            }
             level.sendParticles(ParticleTypes.WAX_ON, player.getX(), player.getY(0.6), player.getZ(), 6, 0.4, 0.5, 0.4, 0.0);
         }
     }
@@ -471,10 +506,12 @@ public final class GuardianEffects {
         if (ward <= 0) {
             return;
         }
+        String node = wardNode(skills);
+        double reach = SkillValues.get(node, "radius", 12.0);
         ServerPlayer weakest = null;
         double lowest = Double.MAX_VALUE;
         for (ServerPlayer mate : level.players()) {
-            if (!mate.isAlive() || mate.isSpectator() || mate.distanceToSqr(player) > 144.0) {
+            if (!mate.isAlive() || mate.isSpectator() || mate.distanceToSqr(player) > reach * reach) {
                 continue;
             }
             double max = Math.max(1f, mate.getMaxHealth());
@@ -487,19 +524,32 @@ public final class GuardianEffects {
         if (weakest == null) {
             return;
         }
-        float amount = (float) ((2.0 + ward) * (SkillTree.has(skills, "g_patron") ? 1.5 : 1.0));
+        float amount = (float) ((SkillValues.get(node, "base", 2.0) + ward) * barrierPower(skills));
         if (weakest.getAbsorptionAmount() < amount) {
-            float gained = amount - Math.max(0f, weakest.getAbsorptionAmount());
-            addAbsorption(weakest, amount, amount);
-            barrierFrom.put(weakest.getUUID(), player.getUUID());
-            if (weakest != player) {
-                credit.accept(player, gained, null);
-            }
+            giveBarrier(player, weakest, amount, amount);
             ring(level, weakest.position().add(0, 1.0, 0), 0.8, ParticleTypes.END_ROD, 12);
             play(level, weakest, SoundEvents.AMETHYST_BLOCK_CHIME, 1.0f, 1.2f);
         }
         if (SkillTree.has(skills, "g_cleanse")) {
             cleanse(weakest);
+        }
+    }
+
+    /** The heal aura (field dressing): every few seconds the players close by heal a little. */
+    private void aura(ServerLevel level, ServerPlayer player, PlayerSkills skills) {
+        double amount = tree.totalBonus(SkillEffect.HEAL_AURA, skills);
+        if (amount <= 0) {
+            return;
+        }
+        double radius = SkillValues.get(auraNode(skills), "radius", 8.0) + auraRange(skills);
+        for (ServerPlayer mate : level.players()) {
+            if (!mate.isAlive() || mate.distanceToSqr(player) > radius * radius) {
+                continue;
+            }
+            if (heal(player, mate, (float) amount) > 0) {
+                level.sendParticles(ParticleTypes.HEART, mate.getX(), mate.getY() + 2.0, mate.getZ(),
+                        1, 0.2, 0.1, 0.2, 0.0);
+            }
         }
     }
 
@@ -540,7 +590,7 @@ public final class GuardianEffects {
         boolean hand = tree.totalBonus(SkillEffect.HEALING_HAND, skills) > 0;
         if (!toss && !dome) {
             if (hand) {
-                ServerPlayer mate = lookMate(level, player, 16.0);
+                ServerPlayer mate = lookMate(level, player, SkillValues.get("g_healing_hand", "range", 16.0));
                 handHeal(level, player, skills, mate == null ? player : mate, now);
             } else {
                 CombatEffects.actionBar(player, Component.translatable("nightsiege.msg.shield_action_none"));
@@ -554,7 +604,8 @@ public final class GuardianEffects {
         }
         boolean done = toss ? throwShield(level, player, skills) : raiseDome(level, player, now);
         if (done) {
-            int cooldown = player.getAbilities().instabuild ? 20 : toss ? THROW_COOLDOWN : DOME_COOLDOWN;
+            int cooldown = player.getAbilities().instabuild ? 20
+                    : (int) Math.round(toss ? SkillValues.get("g_shieldthrow", "cd", 160.0) : SkillValues.get("g_dome", "cd", 500.0));
             actionReadyAt.put(player.getUUID(), now + cooldown);
         }
     }
@@ -580,12 +631,12 @@ public final class GuardianEffects {
             return;
         }
         boolean self = target == player;
-        float amount = (float) (2.0 + tree.totalBonus(SkillEffect.HEALING_HAND, skills)) * (self ? 0.5f : 1f);
+        float amount = (float) ((SkillValues.get("g_healing_hand", "base", 2.0) + tree.totalBonus(SkillEffect.HEALING_HAND, skills))
+                * (self ? SkillValues.get("g_healing_hand", "self", 0.5) : 1.0));
         heal(player, target, amount);
         if (SkillTree.has(skills, "g_miracle")) {
-            float barrier = (float) tree.totalBonus(SkillEffect.MIRACLE, skills);
-            addAbsorption(target, barrier, barrier);
-            barrierFrom.put(target.getUUID(), player.getUUID());
+            float barrier = (float) (tree.totalBonus(SkillEffect.MIRACLE, skills) * barrierPower(skills));
+            giveBarrier(player, target, barrier, barrier);
         }
         if (!self) {
             trail(level, player.getEyePosition().subtract(0, 0.3, 0), target.position().add(0, 1.0, 0),
@@ -593,25 +644,28 @@ public final class GuardianEffects {
         }
         level.sendParticles(ParticleTypes.HEART, target.getX(), target.getY() + 1.9, target.getZ(), 4, 0.3, 0.2, 0.3, 0.0);
         play(level, target, SoundEvents.AMETHYST_BLOCK_RESONATE, 1.0f, 1.6f);
-        handReadyAt.put(player.getUUID(), now + (player.getAbilities().instabuild ? 10 : HAND_COOLDOWN));
+        handReadyAt.put(player.getUUID(), now + (player.getAbilities().instabuild ? 10
+                : Math.round(SkillValues.get("g_healing_hand", "cd", 120.0))));
     }
 
     /** The shield flies, bounces from monster to monster and comes back. */
     private boolean throwShield(ServerLevel level, ServerPlayer player, PlayerSkills skills) {
-        LivingEntity first = CombatEffects.lookTarget(level, player, 14.0);
+        LivingEntity first = CombatEffects.lookTarget(level, player, SkillValues.get("g_shieldthrow", "range", 14.0));
         if (first == null) {
             CombatEffects.actionBar(player, Component.translatable("nightsiege.msg.ult_no_target"));
             return false;
         }
         boolean boomerang = SkillTree.has(skills, "g_boomerang");
-        int count = boomerang ? 4 : 3;
+        int count = (int) Math.round(boomerang ? SkillValues.get("g_boomerang", "targets", 4.0)
+                : SkillValues.get("g_shieldthrow", "targets", 3.0));
+        double hop = SkillValues.get("g_shieldthrow", "chain", 6.0);
         List<LivingEntity> chain = new ArrayList<>();
         chain.add(first);
         LivingEntity last = first;
         while (chain.size() < count) {
             LivingEntity next = null;
-            double best = 36.0;
-            for (LivingEntity e : CombatEffects.enemies(level, last.position(), 6.0, 2.0)) {
+            double best = hop * hop;
+            for (LivingEntity e : CombatEffects.enemies(level, last.position(), hop, 2.0)) {
                 double d = e.distanceToSqr(last);
                 if (!chain.contains(e) && d < best) {
                     best = d;
@@ -624,8 +678,7 @@ public final class GuardianEffects {
             chain.add(next);
             last = next;
         }
-        float hurt = (float) (tree.totalBonus(SkillEffect.SHIELD_THROW, skills)
-                * (SkillTree.has(skills, "g_bladeshield") ? 2 : 1));
+        float hurt = (float) (tree.totalBonus(SkillEffect.SHIELD_THROW, skills) * bladeshield(skills));
         ItemStack stack = player.getUseItem();
         Item item = stack.getItem();
         player.stopUsingItem();
@@ -668,7 +721,8 @@ public final class GuardianEffects {
     }
 
     private boolean raiseDome(ServerLevel level, ServerPlayer player, long now) {
-        zones.add(new Zone(ZoneKind.DOME, player.getUUID(), level, player.position(), 4.0, now + 100));
+        zones.add(new Zone(ZoneKind.DOME, player.getUUID(), level, player.position(), SkillValues.get("g_dome", "radius", 4.0),
+                now + Math.round(SkillValues.get("g_dome", "time", 100.0))));
         play(level, player, SoundEvents.BEACON_POWER_SELECT, 1.0f, 1.4f);
         play(level, player, SoundEvents.AMETHYST_BLOCK_CHIME, 1.0f, 0.8f);
         return true;
@@ -695,8 +749,9 @@ public final class GuardianEffects {
             if (SkillTree.has(skills, "g_saint")) {
                 power += tree.totalBonus(SkillEffect.SAINT, skills);
             }
-            if (tree.totalBonus(SkillEffect.TRIAGE, skills) > 0 && target.getHealth() < target.getMaxHealth() * 0.4f) {
-                power *= 2.0;
+            if (tree.totalBonus(SkillEffect.TRIAGE, skills) > 0
+                    && target.getHealth() < target.getMaxHealth() * (float) SkillValues.get("g_triage", "below", 0.4)) {
+                power *= SkillValues.get("g_triage", "mult", 2.0);
             }
         }
         float amount = (float) (base * power);
@@ -709,10 +764,12 @@ public final class GuardianEffects {
         }
         double overflow = tree.totalBonus(SkillEffect.OVERFLOW, skills);
         if (overflow > 0 && amount > real + 0.01f) {
-            addAbsorption(target, amount - real, (float) overflow);
+            float cap = (float) (overflow * patron(skills));
+            giveBarrier(healer, target, (float) ((amount - real) * patron(skills)), cap);
         }
         if (real > 0 && tree.totalBonus(SkillEffect.GRACE, skills) > 0) {
-            target.addEffect(new MobEffectInstance(MobEffects.SPEED, 60, 0, true, false, true));
+            target.addEffect(new MobEffectInstance(MobEffects.SPEED,
+                    (int) Math.round(SkillValues.get("g_grace", "time", 60.0)), 0, true, false, true));
         }
         if (target != healer && real > 0) {
             double selfless = tree.totalBonus(SkillEffect.SELFLESS, skills);
@@ -736,7 +793,7 @@ public final class GuardianEffects {
     boolean taunt(ServerLevel level, ServerPlayer player, int rank) {
         PlayerSkills skills = skillsFor.apply(player);
         long now = level.getGameTime();
-        double r = 7.0 + 3.0 * rank;   // 10 / 13 / 16
+        double r = SkillValues.get("taunt", "radius" + rank, 7.0 + 3.0 * rank);   // 10 / 13 / 16
         for (LivingEntity victim : CombatEffects.enemies(level, player.position(), r, 4.0)) {
             if (victim instanceof Mob mob) {
                 mob.setTarget(player);
@@ -744,9 +801,10 @@ public final class GuardianEffects {
                         victim.getZ(), 2, 0.2, 0.1, 0.2, 0.0);
             }
         }
-        int length = 60 + 20 * rank;
+        int length = (int) Math.round(SkillValues.get("taunt", "res" + rank, 60.0 + 20.0 * rank));
         tauntUntil.put(player.getUUID(), now + length);
         player.addEffect(new MobEffectInstance(MobEffects.RESISTANCE, length, 1));
+        int absorbTime = (int) Math.round(SkillValues.get("taunt", "absorbtime", 200.0));
         boolean ironWill = SkillTree.has(skills, "g_iron_will");
         boolean shared = SkillTree.has(skills, "g_shared_burden");
         // The guardian holds the line: a shield of extra hearts for the team around.
@@ -754,11 +812,21 @@ public final class GuardianEffects {
             if (!mate.isAlive() || mate.distanceToSqr(player) > r * r) {
                 continue;
             }
-            int amp = mate == player && ironWill ? rank * 2 + 1 : rank;
-            mate.addEffect(new MobEffectInstance(MobEffects.ABSORPTION, 200, amp));
+            // Absorption II/III/IV (4 health per amplifier step); iron will doubles the guardian's own.
+            float wall = (float) (SkillValues.get("taunt", "absorb" + rank, 4.0 * (rank + 1))
+                    * (mate == player && ironWill ? 2.0 : 1.0));
+            int amp = Math.max(0, Math.round(wall / 4f) - 1);
+            float before = Math.max(0f, mate.getAbsorptionAmount());
+            mate.addEffect(new MobEffectInstance(MobEffects.ABSORPTION, absorbTime, amp));
+            if (mate != player) {
+                credit.accept(player, Math.max(0f, mate.getAbsorptionAmount() - before), null);
+            }
             if (shared && mate != player) {
-                mate.addEffect(new MobEffectInstance(MobEffects.RESISTANCE, 200, 0));
-                addAbsorption(mate, 4f, 4f);
+                mate.addEffect(new MobEffectInstance(MobEffects.RESISTANCE,
+                        (int) Math.round(SkillValues.get("g_shared_burden", "res", 200.0)), 0));
+                // On top of the taunt's absorption (with the cap at 4 it was swallowed by it and did nothing).
+                float barrier = (float) SkillValues.get("g_shared_burden", "barrier", 4.0);
+                giveBarrier(player, mate, barrier, Math.max(0f, mate.getAbsorptionAmount()) + barrier);
             }
         }
         play(level, player, SoundEvents.RAVAGER_ROAR, 1.0f, 1.2f);
@@ -773,10 +841,12 @@ public final class GuardianEffects {
         PlayerSkills skills = skillsFor.apply(player);
         boolean rampart = SkillTree.has(skills, "g_rampart");
         boolean debris = SkillTree.has(skills, "g_debris");
-        float damage = 3f + 3f * rank;   // 6 / 9 / 12
+        float damage = (float) SkillValues.get("shield_charge", "dmg" + rank, 3.0 + 3.0 * rank);   // 6 / 9 / 12
         Vec3 start = player.position();
         DamageSource own = level.damageSources().playerAttack(player);
-        for (LivingEntity victim : CombatEffects.enemies(level, start, 6.0, 2.0)) {
+        double reach = SkillValues.get("shield_charge", "range", 6.0);
+        int slow = (int) Math.round(rampart ? SkillValues.get("g_rampart", "slow", 40.0) : SkillValues.get("shield_charge", "slow", 40.0));
+        for (LivingEntity victim : CombatEffects.enemies(level, start, reach, 2.0)) {
             Vec3 to = victim.position().subtract(start);
             Vec3 dir = new Vec3(to.x, 0, to.z);
             if (dir.lengthSqr() < 1.0e-4 || dir.normalize().dot(flat) < 0.5) {
@@ -785,7 +855,7 @@ public final class GuardianEffects {
             combat.bonusHit(level, victim, own, damage);
             double force = rampart ? 2.6 : 1.4;
             victim.push(flat.x * force, rampart ? 0.6 : 0.35, flat.z * force);
-            victim.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 40, rampart ? 9 : 2));
+            victim.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, slow, rampart ? 9 : 2));
         }
         // The guardian goes with the charge.
         player.push(flat.x * 1.2, 0.1, flat.z * 1.2);
@@ -795,11 +865,14 @@ public final class GuardianEffects {
             level.sendParticles(ParticleTypes.CLOUD, p.x, p.y, p.z, 3, 0.3, 0.3, 0.3, 0.02);
         }
         if (debris) {
-            for (int i = 1; i <= 3; i++) {
+            int hits = (int) Math.round(SkillValues.get("g_debris", "hits", 3.0));
+            float hit = (float) SkillValues.get("g_debris", "dmg", 4.0);
+            double blast = SkillValues.get("g_debris", "radius", 2.0);
+            for (int i = 1; i <= hits; i++) {
                 Vec3 at = start.add(flat.scale(2.0 * i));
                 combat.schedule(3 * i, () -> {
-                    for (LivingEntity victim : CombatEffects.enemies(level, at, 2.0, 1.5)) {
-                        combat.bonusHit(level, victim, own, 4f);
+                    for (LivingEntity victim : CombatEffects.enemies(level, at, blast, 1.5)) {
+                        combat.bonusHit(level, victim, own, hit);
                         victim.push(0, 0.4, 0);
                     }
                     level.sendParticles(ParticleTypes.EXPLOSION, at.x, at.y + 0.3, at.z, 1, 0, 0, 0, 0);
@@ -815,10 +888,13 @@ public final class GuardianEffects {
     boolean massHeal(ServerLevel level, ServerPlayer player, int rank) {
         PlayerSkills skills = skillsFor.apply(player);
         boolean rebirth = SkillTree.has(skills, "g_rebirth");
+        double reach = SkillValues.get("mass_heal", "radius", 12.0);
+        float amount = (float) SkillValues.get("mass_heal", "heal" + rank, 6.0 + 4.0 * rank);
+        int regen = (int) Math.round(SkillValues.get("mass_heal", "regen", 100.0));
         for (ServerPlayer mate : level.players()) {
-            if (mate.isAlive() && mate.distanceToSqr(player) <= 144.0) {
-                heal(player, mate, 6f + 4f * rank);
-                mate.addEffect(new MobEffectInstance(MobEffects.REGENERATION, 100, 1));
+            if (mate.isAlive() && mate.distanceToSqr(player) <= reach * reach) {
+                heal(player, mate, amount);
+                mate.addEffect(new MobEffectInstance(MobEffects.REGENERATION, regen, 1));
                 if (rebirth) {
                     removeHarmful(mate);
                 }
@@ -828,10 +904,12 @@ public final class GuardianEffects {
         }
         if (rebirth) {
             combat.readyAngel(player.getUUID());
+            handReadyAt.remove(player.getUUID());   // the healing hand is ready again at once
         }
         if (SkillTree.has(skills, "g_lifespring")) {
-            zones.add(new Zone(ZoneKind.LIFESPRING, player.getUUID(), level, player.position(), 6.0,
-                    level.getGameTime() + 120));
+            zones.add(new Zone(ZoneKind.LIFESPRING, player.getUUID(), level, player.position(),
+                    SkillValues.get("g_lifespring", "radius", 6.0),
+                    level.getGameTime() + Math.round(SkillValues.get("g_lifespring", "time", 120.0))));
         }
         play(level, player, SoundEvents.BEACON_ACTIVATE, 1.0f, 1.4f);
         return true;
@@ -839,10 +917,12 @@ public final class GuardianEffects {
 
     boolean sanctuary(ServerLevel level, ServerPlayer player, int rank) {
         PlayerSkills skills = skillsFor.apply(player);
-        long length = 100 + 20L * rank + (SkillTree.has(skills, "g_eternal_watch") ? 60 : 0);
-        zones.add(new Zone(ZoneKind.SANCTUARY, player.getUUID(), level, player.position(), 8.0,
+        long length = Math.round(SkillValues.get("g_sanctuary", "time" + rank, 100.0 + 20.0 * rank)
+                + (SkillTree.has(skills, "g_eternal_watch") ? SkillValues.get("g_eternal_watch", "time", 60.0) : 0.0));
+        double radius = SkillValues.get("g_sanctuary", "radius", 8.0);
+        zones.add(new Zone(ZoneKind.SANCTUARY, player.getUUID(), level, player.position(), radius,
                 level.getGameTime() + length));
-        ring(level, player.position().add(0, 0.2, 0), 8.0, ParticleTypes.END_ROD, 60);
+        ring(level, player.position().add(0, 0.2, 0), radius, ParticleTypes.END_ROD, 60);
         play(level, player, SoundEvents.BEACON_ACTIVATE, 1.0f, 1.0f);
         play(level, player, SoundEvents.BELL_RESONATE, 1.0f, 1.2f);
         return true;
@@ -888,12 +968,14 @@ public final class GuardianEffects {
             }
             boolean second = (zone.until() - now) % 20 == 0;
             if (second && owner != null) {
-                boolean heals = zone.kind() == ZoneKind.LIFESPRING
-                        || (zone.kind() == ZoneKind.DOME && SkillTree.has(skills, "g_wellspring"))
-                        || (zone.kind() == ZoneKind.SANCTUARY && SkillTree.has(skills, "g_lightcircle"));
-                if (heals) {
+                double perSecond = switch (zone.kind()) {
+                    case LIFESPRING -> SkillValues.get("g_lifespring", "heal", 1.5);
+                    case DOME -> SkillTree.has(skills, "g_wellspring") ? SkillValues.get("g_wellspring", "heal", 1.5) : 0.0;
+                    case SANCTUARY -> SkillTree.has(skills, "g_lightcircle") ? SkillValues.get("g_lightcircle", "heal", 1.5) : 0.0;
+                };
+                if (perSecond > 0) {
                     for (ServerPlayer mate : level.players()) {
-                        if (mate.isAlive() && inside(zone, mate) && heal(owner, mate, 1.5f) > 0) {
+                        if (mate.isAlive() && inside(zone, mate) && heal(owner, mate, (float) perSecond) > 0) {
                             level.sendParticles(ParticleTypes.HEART, mate.getX(), mate.getY() + 1.9, mate.getZ(),
                                     1, 0.2, 0.1, 0.2, 0.0);
                         }
@@ -902,9 +984,9 @@ public final class GuardianEffects {
                 if (zone.kind() == ZoneKind.SANCTUARY && SkillTree.has(skills, "g_lightcircle")) {
                     DamageSource own = level.damageSources().playerAttack(owner);
                     for (LivingEntity e : CombatEffects.enemies(level, zone.center(), zone.radius() + 1.5, 3.0)) {
-                        e.igniteForSeconds(3f);
+                        e.igniteForSeconds((float) SkillValues.get("g_lightcircle", "burn", 3.0));
                         if (CombatEffects.isUndead(e)) {
-                            combat.bonusHit(level, e, own, 3f);
+                            combat.bonusHit(level, e, own, (float) SkillValues.get("g_lightcircle", "undead", 3.0));
                         }
                     }
                 }
@@ -947,10 +1029,12 @@ public final class GuardianEffects {
     private void zoneEnded(Zone zone) {
         ServerLevel level = zone.level();
         ServerPlayer owner = level.getServer().getPlayerList().getPlayer(zone.owner());
-        if (zone.kind() == ZoneKind.SANCTUARY && owner != null && SkillTree.has(skillsFor.apply(owner), "g_eternal_watch")) {
+        PlayerSkills skills = owner == null ? null : skillsFor.apply(owner);
+        if (zone.kind() == ZoneKind.SANCTUARY && owner != null && SkillTree.has(skills, "g_eternal_watch")) {
+            float barrier = (float) (SkillValues.get("g_eternal_watch", "barrier", 4.0) * barrierPower(skills));
             for (ServerPlayer mate : level.players()) {
                 if (mate.isAlive() && inside(zone, mate)) {
-                    addAbsorption(mate, 4f, 4f);
+                    giveBarrier(owner, mate, barrier, barrier);
                 }
             }
         }
@@ -1008,14 +1092,105 @@ public final class GuardianEffects {
                 || player.getOffhandItem().has(DataComponents.BLOCKS_ATTACKS);
     }
 
+    /** Which node's numbers the bastion uses: the shield's own or the blessing's cross node. */
+    private static String bastionNode(PlayerSkills skills) {
+        return skills.levelOf("g_bastion") > 0 ? "g_bastion" : "b_cross_bastion";
+    }
+
+    private static String wardNode(PlayerSkills skills) {
+        return skills != null && skills.levelOf("g_ward") > 0 ? "g_ward" : "s_cross_ward";
+    }
+
+    private static String auraNode(PlayerSkills skills) {
+        return skills != null && skills.levelOf("field_dressing") > 0 ? "field_dressing" : "s_cross_dressing";
+    }
+
+    /** A pulse every so many ticks, read from the skill values (at least every tick). */
+    private static int every(String node, String key, double fallback) {
+        return Math.max(1, (int) Math.round(SkillValues.get(node, key, fallback)));
+    }
+
+    /** The blade shield doubles riposte, thorns and the shield throw. */
+    private static double bladeshield(PlayerSkills skills) {
+        return SkillTree.has(skills, "g_bladeshield") ? SkillValues.get("g_bladeshield", "mult", 2.0) : 1.0;
+    }
+
+    /** The patron makes every barrier of the guardian stronger. */
+    private double patron(PlayerSkills skills) {
+        double extra = SkillTree.has(skills, "g_patron") ? tree.totalBonus(SkillEffect.PATRON, skills) : 0.0;
+        return 1.0 + Math.max(0.0, extra);
+    }
+
+    /** Strength of a new barrier: prayer and the saint work on barriers as on healing, the patron on top. */
+    private double barrierPower(PlayerSkills skills) {
+        if (!isGuardian(skills)) {
+            return 1.0;
+        }
+        double power = 1.0 + tree.totalBonus(SkillEffect.HEAL_POWER, skills);
+        if (SkillTree.has(skills, "g_saint")) {
+            power += tree.totalBonus(SkillEffect.SAINT, skills);
+        }
+        return power * patron(skills);
+    }
+
+    /**
+     * A barrier from this guardian: the life bond knows who gave it, and what it really
+     * adds on a teammate counts as healing (night stats and skill points).
+     */
+    private void giveBarrier(ServerPlayer giver, ServerPlayer target, float amount, float cap) {
+        float before = Math.max(0f, target.getAbsorptionAmount());
+        addAbsorption(target, amount, cap);
+        float gained = Math.max(0f, target.getAbsorptionAmount()) - before;
+        if (gained <= 0.01f) {
+            return;
+        }
+        if (giver != null) {
+            barrierFrom.put(target.getUUID(), giver.getUUID());
+            if (target != giver) {
+                credit.accept(giver, gained, null);
+            }
+        }
+    }
+
+    /**
+     * Iron ward: with a shield at hand the guardian gets armour and armour toughness
+     * (only then, unlike toughness from the trunk, which always holds).
+     */
+    private void ironwardModifier(ServerPlayer player, PlayerSkills skills) {
+        double armor = skills == null ? 0.0 : tree.totalBonus(SkillEffect.IRONWARD, skills);
+        boolean shield = player.getMainHandItem().has(DataComponents.BLOCKS_ATTACKS)
+                || player.getOffhandItem().has(DataComponents.BLOCKS_ATTACKS);
+        double steps = skills == null ? 0.0 : skills.levelOf("g_ironward");
+        boolean on = armor > 0 && shield;
+        modifier(player, Attributes.ARMOR, IRONWARD_ARMOR, on ? armor : 0.0);
+        modifier(player, Attributes.ARMOR_TOUGHNESS, IRONWARD_TOUGHNESS,
+                on ? steps * SkillValues.get("g_ironward", "toughness", 1.0) : 0.0);
+    }
+
+    private static void modifier(ServerPlayer player, Holder<net.minecraft.world.entity.ai.attributes.Attribute> attribute,
+                                 Identifier id, double value) {
+        AttributeInstance instance = player.getAttribute(attribute);
+        if (instance == null) {
+            return;
+        }
+        if (value > 0) {
+            AttributeModifier have = instance.getModifier(id);
+            if (have == null || Math.abs(have.amount() - value) > 1.0e-6) {
+                instance.addOrUpdateTransientModifier(new AttributeModifier(id, value, AttributeModifier.Operation.ADD_VALUE));
+            }
+        } else if (instance.getModifier(id) != null) {
+            instance.removeModifier(id);
+        }
+    }
+
     private static boolean anchored(ServerPlayer player) {
         return player.isShiftKeyDown() && player.isBlocking();
     }
 
     /** Monsters close by that are after this player. */
-    private static int attackers(ServerLevel level, ServerPlayer player) {
+    private static int attackers(ServerLevel level, ServerPlayer player, double radius) {
         int n = 0;
-        for (LivingEntity e : CombatEffects.enemies(level, player.position(), 8.0, 3.0)) {
+        for (LivingEntity e : CombatEffects.enemies(level, player.position(), radius, 3.0)) {
             if (e instanceof Mob mob && mob.getTarget() == player) {
                 n++;
             }
@@ -1103,5 +1278,6 @@ public final class GuardianEffects {
         tauntUntil.remove(player);
         barrierFrom.remove(player);
         absorbBefore.remove(player);
+        ironhideUp.remove(player);
     }
 }

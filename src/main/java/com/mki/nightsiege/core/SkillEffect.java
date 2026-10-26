@@ -175,6 +175,8 @@ public enum SkillEffect {
     // Guardian
     /** Extra blocks of the radius in which monsters turn on the guardian. */
     AGGRO(0.0, Target.COMBAT),
+    /** Armour and armour toughness while a shield is at hand (iron ward). */
+    IRONWARD(0.0, Target.COMBAT),
     /** Blocked hits give a little absorption; the riposte may block longer. */
     SHIELD_WALL(0.0, Target.COMBAT),
     /** Less damage for every monster attacking the guardian (share per monster). */

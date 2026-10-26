@@ -1095,6 +1095,14 @@ class SiegeCoreTest {
                 {"field_dressing", "g_healing_hand", "g_healing_hand", "g_triage", "g_selfless", "g_miracle"},
                 {"field_dressing", "g_ward", "g_ward", "g_cleanse", "b_cross_riposte", "g_overflow", "g_sanctuary",
                         "g_eternal_watch", "g_patron"},
+                // Balance update 26 October 2026: every subclass lane reaches a ring-V node and a mastery.
+                {"g_shieldwall", "riposte", "riposte", "g_shieldbash", "g_thorns", "g_vengeance"},
+                {"g_shieldwall", "riposte", "riposte", "g_shieldthrow", "s_cross_dressing", "g_boomerang"},
+                {"g_shieldwall", "g_bastion", "g_bastion", "g_ironhide", "g_thorns", "g_vengeance"},
+                {"g_shieldwall", "g_bastion", "g_bastion", "g_anchor", "g_counterstrike", "g_hedgehog"},
+                {"field_dressing", "g_ward", "g_ward", "g_cleanse", "g_lightbringer", "g_lifebond"},
+                {"field_dressing", "g_healing_hand", "g_healing_hand", "g_triage", "b_cross_riposte", "g_miracle",
+                        "g_grace", "mass_heal", "g_rebirth"},
         };
         for (String[] route : routes) {
             PlayerSkills guardian = new PlayerSkills();
