@@ -416,6 +416,13 @@ public final class MeleeSim {
         if (!weapon.is(Items.BOW) && !weapon.is(Items.CROSSBOW)) {
             return;
         }
+        if (player.getCooldowns().isOnCooldown(weapon)) {
+            // The heavy shooter's pause after a shot: drawing now only wasted the shot (it measured 0 damage).
+            if (player.isUsingItem()) {
+                player.stopUsingItem();
+            }
+            return;
+        }
         double dist = player.distanceTo(target);
         Vec3 aim = target.getEyePosition().add(0, dist * (crossbow ? 0.03 : 0.05), 0);
         player.lookAt(EntityAnchorArgument.Anchor.EYES, aim);
@@ -427,7 +434,7 @@ public final class MeleeSim {
                 }
                 weapon.use(level, player, InteractionHand.MAIN_HAND);
             } else if (!player.isUsingItem()) {
-                player.startUsingItem(InteractionHand.MAIN_HAND);
+                weapon.use(level, player, InteractionHand.MAIN_HAND);   // loads like a player would (ammo, cooldown)
             } else if (player.getTicksUsingItem() >= 30) {
                 player.releaseUsingItem();
             }
@@ -437,7 +444,7 @@ public final class MeleeSim {
             if (player.isUsingItem()) {
                 player.stopUsingItem();
             }
-            player.startUsingItem(InteractionHand.MAIN_HAND);
+            weapon.use(level, player, InteractionHand.MAIN_HAND);   // draws like a player would (ammo, cooldown)
         } else if (player.getTicksUsingItem() >= 21) {
             player.releaseUsingItem();
         }
@@ -588,7 +595,7 @@ public final class MeleeSim {
         int d = switch (clazz) {
             case ARCHER -> 10;
             case ENGINEER -> 7;
-            case SUMMONER -> 5;
+            // The summoner fights along (his kills give the souls of the way of the dead).
             default -> 2;
         };
         return standPos().offset(d, 0, 0);
@@ -615,6 +622,9 @@ public final class MeleeSim {
             DUMMIES.clear();
             DUMMY_SPOTS.clear();
             RESPAWN.clear();
+            // Night on the bench: training zombies burning in the sun died without a hit and counted as
+            // kills (balance update, 26 October 2026: 10 kills for classes that dealt no damage at all).
+            level.setDayTime(18000L);
             // Half health, so heals can land; no food regeneration on the bench.
             player.setHealth(player.getMaxHealth() * 0.5f);
             player.getFoodData().setFoodLevel(10);
