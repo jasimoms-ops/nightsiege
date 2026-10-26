@@ -116,7 +116,7 @@ public final class Drones {
         }
         player.addEffect(new MobEffectInstance(MobEffects.INVISIBILITY, MobEffectInstance.INFINITE_DURATION, 0, false, false));
         Drone drone = new Drone(player.getUUID());
-        drone.rig = Rigs.spawn(level, player.position(), player.position(), RIG, player.getYRot(), player);
+        drone.rig = Rigs.spawn(level, rigBase(player), rigBase(player), RIG, player.getYRot(), null);
         drone.readyAt = level.getGameTime() + 20;
         DRONES.put(player.getUUID(), drone);
         player.setDeltaMovement(0, 0.35, 0);
@@ -209,9 +209,7 @@ public final class Drones {
             if (now % 20 == 0) {
                 if (!Rigs.complete(level, drone.rig)) {
                     Rigs.remove(level, drone.rig);
-                    drone.rig = Rigs.spawn(level, player.position(), player.position(), RIG, player.getYRot(), player);
-                } else {
-                    Rigs.remount(level, drone.rig, player);
+                    drone.rig = Rigs.spawn(level, rigBase(player), rigBase(player), RIG, player.getYRot(), null);
                 }
                 if (!player.getAbilities().flying) {
                     player.getAbilities().flying = true;
@@ -219,6 +217,8 @@ public final class Drones {
                     player.onUpdateAbilities();
                 }
             }
+            // The rig follows the player (block displays smooth the steps on the client).
+            Rigs.moveTo(level, drone.rig, rigBase(player));
             Rigs.turn(level, drone.rig, player.getYRot(), 0f);
             drone.spin = (drone.spin + 47f) % 360f;
             Rigs.spin(level, drone.rig, drone.spin);
@@ -230,6 +230,11 @@ public final class Drones {
                 fire(level, player, drone, now);
             }
         }
+    }
+
+    /** The rig's origin: just above the shrunken player's eye. */
+    private static Vec3 rigBase(ServerPlayer player) {
+        return player.position().add(0, player.getBbHeight(), 0);
     }
 
     /** One crossbow bolt where the drone looks: half a crossbow's damage, growing with the night. */

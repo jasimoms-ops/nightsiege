@@ -156,6 +156,16 @@ public final class Rigs {
         }
     }
 
+    /** Moves the whole rig to a new base (the drone follows its player this way, smoothed on the client). */
+    public static void moveTo(ServerLevel level, Rig rig, Vec3 base) {
+        for (UUID id : rig.all()) {
+            Entity e = level.getEntity(id);
+            if (e != null) {
+                e.setPos(base.x, base.y, base.z);
+            }
+        }
+    }
+
     /** Puts every piece back on the entity it rides (a teleport can throw them off). */
     public static void remount(ServerLevel level, Rig rig, Entity vehicle) {
         for (UUID id : rig.all()) {
