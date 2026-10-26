@@ -331,6 +331,7 @@ public final class SiegeManager {
         ServerLifecycleEvents.SERVER_STARTED.register(server -> onServerStarted(server));
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
             dungeons.abortAll();
+            traps.releaseAll(server);   // gunners out of the towers, the seats go
             if (active) {
                 events.end(server, world, currentEvent);
             }
@@ -391,6 +392,10 @@ public final class SiegeManager {
                         && combat.guardian().onUseEntity(server, entity, hand)
                         ? net.minecraft.world.InteractionResult.SUCCESS : net.minecraft.world.InteractionResult.PASS);
         ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> {
+            if (entity.entityTags().contains(TrapService.SEAT_TAG) && !traps.isLiveSeat(entity)) {
+                entity.discard();   // the seat of a manned tower from before a restart
+                return;
+            }
             if (NightDrops.isLoot(entity)) {
                 entity.discard();   // loot of a siege monster
                 return;
@@ -2329,6 +2334,7 @@ public final class SiegeManager {
         }
         secondChance.clear();
         secondChanceUsed.clear();
+        traps.resetZones();
         GainGear.endNight(server);
         traps.recycle(server);
     }
@@ -2844,6 +2850,10 @@ public final class SiegeManager {
         }
         BlockPos pos = hit.getBlockPos();
         ItemStack held = handObject instanceof InteractionHand hand ? player.getItemInHand(hand) : ItemStack.EMPTY;
+        // Manned towers (Simon, 26 October 2026): a right click on an arrow turret or tesla coil sits down in it.
+        if (handObject == InteractionHand.MAIN_HAND && traps.tryMount(serverLevel, pos, player, held)) {
+            return InteractionResult.SUCCESS;
+        }
         if (traps.onUse(serverLevel, pos, player, held)) {
             trapsDirty = true;
             return InteractionResult.SUCCESS;
@@ -3076,7 +3086,7 @@ public final class SiegeManager {
         if (!isRegistered(player) && !verb.equals("dungeon")) {
             // Not signed up: the mod stays out of the way (keys do nothing, the core only offers the sign-up).
             if (!verb.equals("ult") && !verb.equals("shield") && !verb.equals("ult2") && !verb.equals("quiver")
-                    && !verb.equals("jump")) {
+                    && !verb.equals("jump") && !verb.equals("man")) {
                 offerRegistration(player);
             }
             return;
@@ -3105,6 +3115,10 @@ public final class SiegeManager {
                 }
             }
             case "jump" -> GainGear.onDoubleJump(player);
+            // A manned tower: the attack button pressed (1) or let go (0).
+            case "man" -> traps.onManAction(player, "1".equals(argument));
+            // The alchemist's potion menu: the potion picked.
+            case "brew" -> traps.onBrewChoice(player, argument);
             case "shield" -> combat.guardian().onShieldAction(player);
             case "dungeon" -> dungeons.onToolAction(player, argument);
             default -> openCoreWindow(player);

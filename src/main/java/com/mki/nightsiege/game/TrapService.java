@@ -1,5 +1,6 @@
 package com.mki.nightsiege.game;
 
+import com.mki.nightsiege.core.BrewKind;
 import com.mki.nightsiege.core.PlayerSkills;
 import com.mki.nightsiege.core.SkillClass;
 import com.mki.nightsiege.core.SkillEffect;
@@ -7,6 +8,7 @@ import com.mki.nightsiege.core.SkillTree;
 import com.mki.nightsiege.core.SkillValues;
 import com.mki.nightsiege.core.TrapKind;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Rotations;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket;
@@ -20,8 +22,10 @@ import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
 import net.minecraft.world.entity.projectile.arrow.Arrow;
@@ -378,6 +382,9 @@ public final class TrapService {
 
     /** Returns true when the save changed and should be written. */
     public boolean tick(MinecraftServer server) {
+        // The manned towers and the alchemist's clouds want every tick (aim and pulses).
+        tickSeats(server);
+        AlchemyZones.tick(server);
         if (++tickCounter < TICK_INTERVAL) {
             return takeDirty();
         }
@@ -413,6 +420,9 @@ public final class TrapService {
                 continue;
             }
             long now = level.getGameTime();
+            if (state.getBlock() instanceof TowerBlock && state.getValue(TowerBlock.MANNED) && !mannedTower(record)) {
+                setLook(level, pos, false);   // a manned look left over from a crash or a restart
+            }
             if (record.broken) {
                 // A broken trap does nothing; red smoke marks it every second until it is repaired.
                 if (now % 20 == 0) {
@@ -858,6 +868,10 @@ public final class TrapService {
     }
 
     private void tickTurret(ServerLevel level, BlockPos pos, TrapRecord record, int tier, long now) {
+        if (mannedTower(record)) {
+            record.readyAt = now + 5;   // its gunner fires it (Simon, 26 October 2026)
+            return;
+        }
         // Endless arrows since 26 October 2026 (Simon): no ammo check, nothing to reload.
         Vec3 muzzle = Vec3.atCenterOf(pos).add(0, 0.75, 0);
         double range = TrapKind.TURRET.radius(tier) + bonus(record, SkillEffect.TOWER_RANGE);
@@ -877,7 +891,8 @@ public final class TrapService {
         arrow.entityTags().add("nightsiege_arrow");   // keeps the archer skills off it
         arrow.entityTags().add("nightsiege_turret");  // and the crate gains (the archer tag is on every arrow)
         arrow.pickup = AbstractArrow.Pickup.DISALLOWED;
-        arrow.setBaseDamage(TrapKind.TURRET.damage(tier) * power(record, now) * piercing(record, now) * levelScale());
+        // Alone it shoots at 60 % (Simon, 26 October 2026): a gunner in the seat does better.
+        arrow.setBaseDamage(turretDamage(record, tier, now) * unmanned(TrapKind.TURRET));
         if (bonus(record, SkillEffect.CHARGED_ARROWS) > 0) {
             arrow.entityTags().add(TAG_CHARGED);
         }
@@ -897,7 +912,20 @@ public final class TrapService {
         arrow.shoot(dx, dy + flat * 0.12, dz, 2.4f, 1.5f);
         level.addFreshEntity(arrow);
         playAt(level, pos, SoundEvents.DISPENSER_LAUNCH, 0.8f, 1.3f);
+        if (ultOvercharged(record, now)) {
+            level.sendParticles(ParticleTypes.ELECTRIC_SPARK, muzzle.x, muzzle.y, muzzle.z, 3, 0.2, 0.2, 0.2, 0.05);
+        }
+        record.readyAt = now + turretCooldown(record, tier, now);
+        dirty = true;
+    }
 
+    /** Damage of one turret arrow, before the manned or unmanned factor. */
+    private double turretDamage(TrapRecord record, int tier, long now) {
+        return TrapKind.TURRET.damage(tier) * power(record, now) * piercing(record, now) * levelScale();
+    }
+
+    /** Ticks between two turret arrows, manned or not. */
+    private int turretCooldown(TrapRecord record, int tier, long now) {
         int cooldown = quicker(record, now, slowed(TrapKind.TURRET, TrapKind.TURRET.cooldownTicks(tier)));
         if (bonus(record, SkillEffect.AMMO_BELT) > 0) {
             // Munitionsband: the turret shoots faster (it held more arrows until 26 October 2026).
@@ -905,10 +933,8 @@ public final class TrapService {
         }
         if (ultOvercharged(record, now)) {
             cooldown = Math.max(3, (int) (cooldown / ultSpeed()));
-            level.sendParticles(ParticleTypes.ELECTRIC_SPARK, muzzle.x, muzzle.y, muzzle.z, 3, 0.2, 0.2, 0.2, 0.05);
         }
-        record.readyAt = now + cooldown;
-        dirty = true;
+        return cooldown;
     }
 
     /** Monsters standing right on top of a floor plate. */
@@ -973,9 +999,12 @@ public final class TrapService {
             new net.minecraft.core.particles.DustParticleOptions(0x6FB33A, 1.5f);
 
     private void tickTesla(ServerLevel level, BlockPos pos, TrapRecord record, int tier, long now) {
+        if (mannedTower(record)) {
+            record.readyAt = now + 5;   // its gunner holds the beam (Simon, 26 October 2026)
+            return;
+        }
         Vec3 from = Vec3.atCenterOf(pos).add(0, 0.8, 0);
         double range = TrapKind.TESLA.radius(tier) + bonus(record, SkillEffect.TOWER_RANGE);
-        boolean beam = bonus(record, SkillEffect.GUIDING_BEAM) > 0;
         LivingEntity first = enemies(level, new AABB(from, from).inflate(range)).stream()
                 .filter(e -> e.distanceToSqr(from) <= range * range)
                 .filter(e -> clearShot(level, from, e.getEyePosition(), pos))
@@ -984,9 +1013,27 @@ public final class TrapService {
         if (first == null) {
             return;
         }
+        // Alone it strikes at 60 % (Simon, 26 October 2026): a gunner in the seat does better.
+        float damage = (float) (teslaDamage(record, tier, now) * unmanned(TrapKind.TESLA));
+        discharge(level, record, tier, now, first, from, damage);
+        playAt(level, pos, SoundEvents.LIGHTNING_BOLT_IMPACT, 0.6f, 1.8f);
+        record.readyAt = now + teslaCooldown(level, pos, record, tier, now);
+    }
+
+    /** Damage of one discharge on each monster it reaches, before the manned or unmanned factor. */
+    private double teslaDamage(TrapRecord record, int tier, long now) {
+        return TrapKind.TESLA.damage(tier) * teslaBoost.getAsDouble() * power(record, now)
+                * piercing(record, now) * levelScale();
+    }
+
+    /**
+     * One discharge: the monster given first, then jumps to the nearest monsters not hit yet.
+     * Returns the monsters it struck.
+     */
+    private List<LivingEntity> discharge(ServerLevel level, TrapRecord record, int tier, long now, LivingEntity first,
+                                         Vec3 from, float damage) {
         DamageSource source = sourceFor(level, record);
-        float damage = (float) (TrapKind.TESLA.damage(tier) * teslaBoost.getAsDouble() * power(record, now)
-                * piercing(record, now) * levelScale());
+        boolean beam = bonus(record, SkillEffect.GUIDING_BEAM) > 0;
         // At most four monsters per discharge (Simon, 25 October 2026); the chain bolt lifts that
         // limit by its own jumps, or it would do nothing at tier 3 (balance update, 26 October 2026).
         int chain = (int) Math.round(bonus(record, SkillEffect.CHAIN_LIGHTNING));
@@ -1009,7 +1056,11 @@ public final class TrapService {
                     .min(Comparator.comparingDouble(e -> (beam && markedBy(record, e, now) ? 0.0 : 100.0) + e.distanceToSqr(at)))
                     .orElse(null);
         }
-        playAt(level, pos, SoundEvents.LIGHTNING_BOLT_IMPACT, 0.6f, 1.8f);
+        return hit;
+    }
+
+    /** Ticks between two discharges of this coil (its engineer close by, the ultimate, the tool bag). */
+    private int teslaCooldown(ServerLevel level, BlockPos pos, TrapRecord record, int tier, long now) {
         // Five times slower than at first; with its engineer within six blocks only three times.
         int cooldown = TrapKind.TESLA.cooldownTicks(tier);
         ServerPlayer owner = ownerOf(level, record);
@@ -1021,7 +1072,7 @@ public final class TrapService {
         if (ultOvercharged(record, now)) {
             cooldown = Math.max(3, (int) (cooldown / ultSpeed()));
         }
-        record.readyAt = now + quicker(record, now, cooldown);
+        return quicker(record, now, cooldown);
     }
 
     /** A crackling line of sparks between two points. */
@@ -1032,6 +1083,501 @@ public final class TrapService {
             Vec3 p = a.add(step.scale(i / (double) n));
             level.sendParticles(ParticleTypes.ELECTRIC_SPARK, p.x, p.y, p.z, 1, 0.05, 0.05, 0.05, 0.0);
         }
+    }
+
+    // ------------------------------------------------------------------
+    // manned towers (Simon, 26 October 2026)
+    // ------------------------------------------------------------------
+
+    /*
+     * An engineer climbs into his arrow turret or tesla coil with a right click (not with the
+     * remote, a block or a gadget in hand) and sneaks to climb out. Nobody in it: the tower
+     * fights on its own at 60 %. Someone in it: the tower only fires when he does, where he
+     * looks, at 140 %. The turret alternates its two crossbows and a head hit counts double;
+     * the tesla coil holds a beam while the attack button is down, paid with remote energy.
+     */
+
+    /** Tag of the invisible armour stand a gunner sits on. */
+    public static final String SEAT_TAG = "nightsiege_seat";
+    /** Tag of a manned turret's arrows (a head hit counts double). */
+    static final String TAG_MANNED = "nightsiege_manned";
+    /** Base damage of the manned turret's arrows in flight, for the head hit. */
+    private static final Map<UUID, Double> MANNED_ARROWS = new HashMap<>();
+
+    /** Someone sitting in a tower. */
+    private static final class Seat {
+        final String trap;
+        final String dimension;
+        final BlockPos pos;
+        final TrapKind kind;
+        final UUID player;
+        final UUID stand;
+        /** The attack button is held (the client says when it changes). */
+        boolean holding;
+        long readyAt;
+        /** Which crossbow fires next. */
+        boolean left;
+        long lowNoticeAt;
+        float lastPitch = Float.NaN;
+
+        Seat(String trap, String dimension, BlockPos pos, TrapKind kind, UUID player, UUID stand) {
+            this.trap = trap;
+            this.dimension = dimension;
+            this.pos = pos;
+            this.kind = kind;
+            this.player = player;
+            this.stand = stand;
+        }
+    }
+
+    /** Trap key → the seat on that tower. */
+    private final Map<String, Seat> seats = new HashMap<>();
+    /** Player → the seat they are in. */
+    private final Map<UUID, Seat> seatOf = new HashMap<>();
+
+    /** True while someone sits in this tower (then it does not fire on its own). */
+    private boolean mannedTower(TrapRecord record) {
+        return !seats.isEmpty() && seats.containsKey(key(record));
+    }
+
+    /** Damage factor of a tower nobody sits in. */
+    static double unmanned(TrapKind kind) {
+        return SkillValues.get(kind.id(), "unmanned", 0.6);
+    }
+
+    /** Damage factor of a tower fired by its gunner. */
+    static double manned(TrapKind kind) {
+        return SkillValues.get(kind.id(), "manned", 1.4);
+    }
+
+    /** True while the player sits in a tower. */
+    public boolean isSeated(ServerPlayer player) {
+        return seatOf.containsKey(player.getUUID());
+    }
+
+    /** True for a seat stand that belongs to a gunner right now (stray ones are removed). */
+    public boolean isLiveSeat(Entity entity) {
+        for (Seat seat : seats.values()) {
+            if (seat.stand.equals(entity.getUUID())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * A right click on an arrow turret or tesla coil: the engineer sits down in it. Returns
+     * true when the click was about manning (seated, or told why not).
+     */
+    public boolean tryMount(ServerLevel level, BlockPos pos, ServerPlayer player, ItemStack held) {
+        TrapKind kind = ModContent.trapOf(level.getBlockState(pos));
+        if (!TowerBlock.mannable(kind) || player.isShiftKeyDown()) {
+            return false;
+        }
+        if (held != null && !held.isEmpty() && (held.is(ModContent.REMOTE)
+                || held.getItem() instanceof net.minecraft.world.item.BlockItem
+                || !Gadgets.of(held).isEmpty() || (ModContent.STAFF != null && held.is(ModContent.STAFF)))) {
+            return false;   // the remote overcharges, blocks build on it, gadgets work as always
+        }
+        PlayerSkills skills = save.get().skillsOf(player.getUUID().toString());
+        if (skills.clazz() != SkillClass.ENGINEER && !player.getAbilities().instabuild) {
+            actionBar(player, Component.translatable("nightsiege.msg.tower_engineer_only"));
+            return true;
+        }
+        TrapRecord record = find(level, pos);
+        if (record == null) {
+            // Placed before the mod tracked it, or the save was lost: adopt it.
+            onPlaced(level, pos, player, kind);
+            record = find(level, pos);
+            if (record == null) {
+                return false;
+            }
+        }
+        Seat taken = seats.get(key(record));
+        if (taken != null) {
+            if (!taken.player.equals(player.getUUID())) {
+                actionBar(player, Component.translatable("nightsiege.msg.tower_taken"));
+            }
+            return true;
+        }
+        if (record.broken) {
+            actionBar(player, Component.translatable("nightsiege.msg.tower_broken"));
+            return true;
+        }
+        BlockPos above = pos.above();
+        if (!level.getBlockState(above).getCollisionShape(level, above).isEmpty()
+                || !level.getBlockState(above.above()).getCollisionShape(level, above.above()).isEmpty()) {
+            actionBar(player, Component.translatable("nightsiege.msg.tower_no_room"));
+            return true;
+        }
+        Seat old = seatOf.get(player.getUUID());
+        if (old != null) {
+            release(level.getServer(), old);
+        }
+        if (player.isPassenger()) {
+            player.stopRiding();
+        }
+        ArmorStand stand = new ArmorStand(level, pos.getX() + 0.5, pos.getY() + 1.0, pos.getZ() + 0.5);
+        dressSeat(stand, kind);
+        stand.setYRot(player.getYRot());
+        stand.setYBodyRot(player.getYRot());
+        level.addFreshEntity(stand);
+        if (!player.startRiding(stand, true, true)) {
+            stand.discard();
+            actionBar(player, Component.translatable("nightsiege.msg.tower_no_room"));
+            return true;
+        }
+        Seat seat = new Seat(key(record), record.dimension, pos.immutable(), kind, player.getUUID(), stand.getUUID());
+        seat.readyAt = level.getGameTime() + 5;
+        seats.put(seat.trap, seat);
+        seatOf.put(seat.player, seat);
+        setLook(level, pos, true);
+        playAt(level, pos, SoundEvents.CHAIN_PLACE, 1.0f, 1.2f);
+        actionBar(player, Component.translatable(kind == TrapKind.TESLA
+                ? "nightsiege.msg.tower_manned_tesla" : "nightsiege.msg.tower_manned_turret"));
+        return true;
+    }
+
+    /** The seat: a small invisible marker armour stand with the tower's two weapons in its hands. */
+    private static void dressSeat(ArmorStand stand, TrapKind kind) {
+        stand.setInvisible(true);
+        stand.setNoGravity(true);
+        stand.setInvulnerable(true);
+        stand.setSilent(true);
+        stand.setShowArms(true);
+        stand.setNoBasePlate(true);
+        ((com.mki.nightsiege.mixin.ArmorStandAccessor) stand).nightsiege$setSmall(true);
+        ((com.mki.nightsiege.mixin.ArmorStandAccessor) stand).nightsiege$setMarker(true);
+        stand.addTag(SEAT_TAG);
+        ItemStack hand;
+        if (kind == TrapKind.TESLA) {
+            hand = new ItemStack(Items.LIGHTNING_ROD);
+        } else {
+            // Two loaded crossbows: the twin ballista.
+            hand = new ItemStack(Items.CROSSBOW);
+            hand.set(net.minecraft.core.component.DataComponents.CHARGED_PROJECTILES,
+                    net.minecraft.world.item.component.ChargedProjectiles.of(new ItemStack(Items.ARROW)));
+        }
+        stand.setItemSlot(EquipmentSlot.MAINHAND, hand.copy());
+        stand.setItemSlot(EquipmentSlot.OFFHAND, hand.copy());
+        Rotations forward = new Rotations(-90f, 0f, 0f);
+        stand.setRightArmPose(forward);
+        stand.setLeftArmPose(forward);
+    }
+
+    /** Shows or hides a tower's manned look (seat, plates, banner or twin coils). */
+    private static void setLook(ServerLevel level, BlockPos pos, boolean manned) {
+        BlockState state = level.getBlockState(pos);
+        if (state.getBlock() instanceof TowerBlock && state.getValue(TowerBlock.MANNED) != manned) {
+            level.setBlock(pos, state.setValue(TowerBlock.MANNED, manned), 3);
+        }
+    }
+
+    /** The player pressed or let go of the attack button while sitting in a tower. */
+    public void onManAction(ServerPlayer player, boolean hold) {
+        Seat seat = seatOf.get(player.getUUID());
+        if (seat != null) {
+            seat.holding = hold;
+        }
+    }
+
+    /** Everybody out of the towers (end of the night, server stop). */
+    public void releaseAll(MinecraftServer server) {
+        for (Seat seat : new ArrayList<>(seats.values())) {
+            release(server, seat);
+        }
+        MANNED_ARROWS.clear();
+    }
+
+    private void release(MinecraftServer server, Seat seat) {
+        seats.remove(seat.trap);
+        seatOf.remove(seat.player);
+        ServerLevel level = server == null ? null : SiegeManager.levelByName(server, seat.dimension);
+        if (level == null) {
+            return;
+        }
+        Entity stand = level.getEntity(seat.stand);
+        ServerPlayer player = server.getPlayerList().getPlayer(seat.player);
+        if (player != null && stand != null && player.getVehicle() == stand) {
+            player.stopRiding();
+        }
+        if (stand != null) {
+            stand.discard();
+        }
+        setLook(level, seat.pos, false);
+        playAt(level, seat.pos, SoundEvents.CHAIN_PLACE, 0.7f, 0.7f);
+    }
+
+    /** Every tick: who still sits where, the weapons turn with the gunner, and the shots. */
+    private void tickSeats(MinecraftServer server) {
+        if (seats.isEmpty()) {
+            if (MANNED_ARROWS.size() > 256) {
+                MANNED_ARROWS.clear();   // arrows that stuck in walls never reported back
+            }
+            return;
+        }
+        for (Seat seat : new ArrayList<>(seats.values())) {
+            ServerLevel level = SiegeManager.levelByName(server, seat.dimension);
+            ServerPlayer player = server.getPlayerList().getPlayer(seat.player);
+            Entity stand = level == null ? null : level.getEntity(seat.stand);
+            TrapRecord record = level == null ? null : find(level, seat.pos);
+            if (level == null || player == null || stand == null || !player.isAlive() || player.getVehicle() != stand
+                    || record == null || record.broken || ModContent.trapOf(level.getBlockState(seat.pos)) != seat.kind) {
+                release(server, seat);
+                continue;
+            }
+            float yaw = player.getYRot();
+            stand.setYRot(yaw);
+            if (stand instanceof ArmorStand armor) {
+                armor.setYBodyRot(yaw);
+                armor.setYHeadRot(yaw);
+                float pitch = player.getXRot();
+                if (Float.isNaN(seat.lastPitch) || Math.abs(pitch - seat.lastPitch) > 3f) {
+                    seat.lastPitch = pitch;
+                    Rotations aim = new Rotations(-90f + pitch, 0f, 0f);
+                    armor.setRightArmPose(aim);
+                    armor.setLeftArmPose(aim);
+                }
+            }
+            long now = level.getGameTime();
+            if (seat.holding && now >= seat.readyAt) {
+                int tier = tierOf(record);
+                if (seat.kind == TrapKind.TURRET) {
+                    fireManned(level, seat, record, player, tier, now);
+                } else {
+                    beamPulse(level, seat, record, player, tier, now);
+                }
+            }
+        }
+    }
+
+    /** The manned turret: one arrow where the gunner looks, the two crossbows in turn. */
+    private void fireManned(ServerLevel level, Seat seat, TrapRecord record, ServerPlayer gunner, int tier, long now) {
+        Vec3 look = gunner.getLookAngle();
+        Vec3 eye = gunner.getEyePosition();
+        Vec3 flat = new Vec3(-look.z, 0, look.x);
+        Vec3 side = flat.lengthSqr() < 1.0e-4 ? Vec3.ZERO : flat.normalize().scale(seat.left ? -0.4 : 0.4);
+        seat.left = !seat.left;
+        Vec3 out = eye.add(look.scale(0.8)).add(side).subtract(0, 0.45, 0);
+        // Both crossbows meet where the gunner looks, 32 blocks out.
+        Vec3 aim = eye.add(look.scale(32.0)).subtract(out);
+        Arrow arrow = new Arrow(level, out.x, out.y, out.z, new ItemStack(Items.ARROW), null);
+        arrow.entityTags().add("nightsiege_arrow");   // keeps the archer skills off it
+        arrow.entityTags().add("nightsiege_turret");  // and the crate gains
+        arrow.entityTags().add(TAG_MANNED);
+        arrow.pickup = AbstractArrow.Pickup.DISALLOWED;
+        double base = turretDamage(record, tier, now) * manned(TrapKind.TURRET);
+        arrow.setBaseDamage(base);
+        if (bonus(record, SkillEffect.CHARGED_ARROWS) > 0) {
+            arrow.entityTags().add(TAG_CHARGED);
+        }
+        if (bonus(record, SkillEffect.TARGET_BLAST) > 0) {
+            arrow.entityTags().add(TAG_BLAST);
+        }
+        arrow.setOwner(gunner);
+        arrow.shoot(aim.x, aim.y, aim.z, 3.2f, 0.5f);
+        level.addFreshEntity(arrow);
+        MANNED_ARROWS.put(arrow.getUUID(), base);
+        level.playSound(null, seat.pos, SoundEvents.ARROW_SHOOT, SoundSource.PLAYERS, 0.9f, 0.7f);
+        level.sendParticles(ParticleTypes.CRIT, out.x, out.y, out.z, 3, 0.05, 0.05, 0.05, 0.05);
+        if (ultOvercharged(record, now)) {
+            level.sendParticles(ParticleTypes.ELECTRIC_SPARK, out.x, out.y, out.z, 3, 0.2, 0.2, 0.2, 0.05);
+        }
+        seat.readyAt = now + turretCooldown(record, tier, now);
+        dirty = true;
+    }
+
+    /**
+     * The manned tesla coil: while the button is held, a beam strikes the first monster on the
+     * gunner's line of sight every few ticks and jumps on like a discharge. Over time it deals
+     * the coil's own damage per second times the manned factor; each pulse that hits costs energy.
+     */
+    private void beamPulse(ServerLevel level, Seat seat, TrapRecord record, ServerPlayer gunner, int tier, long now) {
+        int pulse = (int) Math.max(2, Math.round(SkillValues.get("tesla_coil", "beampulse", 5)));
+        seat.readyAt = now + pulse;
+        Vec3 look = gunner.getLookAngle();
+        Vec3 eye = gunner.getEyePosition();
+        double range = TrapKind.TESLA.radius(tier) + bonus(record, SkillEffect.TOWER_RANGE)
+                + SkillValues.get("tesla_coil", "beamrange", 4.0);
+        Vec3 end = eye.add(look.scale(range));
+        Vec3 from = eye.add(look.scale(0.6)).subtract(0, 0.5, 0);
+        LivingEntity first = null;
+        double best = Double.MAX_VALUE;
+        for (LivingEntity e : enemies(level, new AABB(eye, end).inflate(1.0))) {
+            java.util.Optional<Vec3> at = e.getBoundingBox().inflate(0.35).clip(eye, end);
+            if (at.isEmpty()) {
+                continue;
+            }
+            double d = at.get().distanceToSqr(eye);
+            if (d < best && clearShot(level, eye, at.get(), seat.pos)) {
+                best = d;
+                first = e;
+            }
+        }
+        if (first == null) {
+            spark(level, from, eye.add(look.scale(3.0)));   // the beam crackles into the air
+            return;
+        }
+        PlayerSkills skills = save.get().skillsOf(gunner.getUUID().toString());
+        double cost = cost(skills, SkillValues.get("tesla_coil", "beamcost", 2.5));
+        if (!payQuiet(gunner, cost)) {
+            if (now >= seat.lowNoticeAt) {
+                seat.lowNoticeAt = now + 20;
+                actionBar(gunner, Component.translatable("nightsiege.msg.beam_empty"));
+            }
+            return;
+        }
+        double share = pulse / (double) Math.max(1, teslaCooldown(level, seat.pos, record, tier, now));
+        float damage = (float) (teslaDamage(record, tier, now) * manned(TrapKind.TESLA) * share);
+        discharge(level, record, tier, now, first, from, damage);
+        level.sendParticles(ParticleTypes.ELECTRIC_SPARK, first.getX(), first.getY(0.5), first.getZ(), 6, 0.3, 0.4, 0.3, 0.1);
+        if ((now / pulse) % 2 == 0) {
+            playAt(level, seat.pos, SoundEvents.LIGHTNING_BOLT_IMPACT, 0.3f, 2.0f);
+        }
+    }
+
+    /** Takes energy without the "too little" line (the beam says it its own way). */
+    private boolean payQuiet(ServerPlayer player, double cost) {
+        if (player.getAbilities().instabuild) {
+            return true;
+        }
+        double have = energyOf(player);
+        if (have + 1e-6 < cost) {
+            return false;
+        }
+        energy.put(player.getUUID(), Math.max(0.0, have - cost));
+        showEnergy(player);
+        return true;
+    }
+
+    /** An arrow of a manned turret struck a creature: on the head it counts double. */
+    public static void onMannedArrowHit(AbstractArrow arrow, net.minecraft.world.phys.EntityHitResult hit) {
+        if (!arrow.entityTags().contains(TAG_MANNED)) {
+            return;
+        }
+        Double base = MANNED_ARROWS.remove(arrow.getUUID());
+        if (base == null || !(hit.getEntity() instanceof LivingEntity target) || !(arrow.level() instanceof ServerLevel level)) {
+            return;
+        }
+        double head = target.getY() + target.getBbHeight() * SkillValues.get("arrow_turret", "headline", 0.75);
+        if (hit.getLocation().y < head) {
+            return;
+        }
+        arrow.setBaseDamage(base * SkillValues.get("arrow_turret", "headshot", 2.0));
+        level.sendParticles(ParticleTypes.CRIT, target.getX(), target.getEyeY(), target.getZ(), 12, 0.25, 0.2, 0.25, 0.3);
+        if (arrow.getOwner() instanceof ServerPlayer gunner) {
+            level.playSound(null, gunner.blockPosition(), SoundEvents.ARROW_HIT_PLAYER, SoundSource.PLAYERS, 0.6f, 1.4f);
+            actionBar(gunner, Component.translatable("nightsiege.msg.headshot"));
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // the alchemist's potion zones (Simon, 26 October 2026)
+    // ------------------------------------------------------------------
+
+    /** The potion each alchemist picked in the menu. */
+    private final Map<UUID, BrewKind> brewChoice = new HashMap<>();
+    /** When each alchemist may throw the next zone potion. */
+    private final Map<UUID, Long> zoneReady = new HashMap<>();
+
+    /** The potion the alchemist throws: his pick while it is open, else the first open one. */
+    private BrewKind brewOf(ServerPlayer player, PlayerSkills skills) {
+        BrewKind picked = brewChoice.get(player.getUUID());
+        return picked != null && picked.unlocked(skills) ? picked : BrewKind.firstUnlocked(skills);
+    }
+
+    /** Sneak + right click with the remote: the alchemist's potion menu. */
+    public void openBrewMenu(ServerPlayer player, PlayerSkills skills) {
+        com.mki.nightsiege.core.BrewMenuData data = new com.mki.nightsiege.core.BrewMenuData();
+        BrewKind current = brewOf(player, skills);
+        data.selected = current == null ? "" : current.id();
+        Long ready = zoneReady.get(player.getUUID());
+        long now = player.level().getGameTime();
+        data.cooldown = ready == null || ready <= now ? 0 : (int) ((ready - now + 19) / 20);
+        data.zoneSeconds = (int) Math.round(SkillValues.get("potion_tower", "zonetime", 160) / 20.0);
+        data.pauseSeconds = (int) Math.round(SkillValues.get("potion_tower", "zonepause", 400) / 20.0);
+        data.reach = (int) Math.round(SkillValues.get("potion_tower", "zonerange", 10));
+        for (BrewKind kind : BrewKind.values()) {
+            com.mki.nightsiege.core.BrewMenuData.Entry entry = new com.mki.nightsiege.core.BrewMenuData.Entry();
+            entry.id = kind.id();
+            entry.open = kind.unlocked(skills);
+            entry.need = kind.requirement();
+            data.brews.add(entry);
+        }
+        net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(player,
+                new CoreNetworking.ScreenPayload("brewmenu", Json.toJson(data)));
+    }
+
+    /** A pick in the potion menu. */
+    public void onBrewChoice(ServerPlayer player, String id) {
+        BrewKind kind = BrewKind.byId(id);
+        PlayerSkills skills = save.get().skillsOf(player.getUUID().toString());
+        if (kind == null || !kind.unlocked(skills)) {
+            actionBar(player, Component.translatable("nightsiege.msg.brew_locked"));
+            return;
+        }
+        brewChoice.put(player.getUUID(), kind);
+        actionBar(player, Component.translatable("nightsiege.msg.brew_chosen",
+                Component.translatable("nightsiege.brew." + kind.id())));
+    }
+
+    /**
+     * Right click with the remote (alchemist): the picked potion flies onto the block or
+     * monster looked at, up to 10 blocks away, and leaves a cloud there; then a 20 s pause.
+     */
+    private void throwZone(ServerLevel level, ServerPlayer player, PlayerSkills skills, long now) {
+        boolean creative = player.getAbilities().instabuild;
+        SiegeManager m = SiegeManager.get();
+        if (!creative && (m == null || !m.isDefending(player))) {
+            actionBar(player, Component.translatable("nightsiege.msg.zone_night_only"));
+            return;
+        }
+        BrewKind brew = brewOf(player, skills);
+        if (brew == null) {
+            actionBar(player, Component.translatable("nightsiege.msg.zone_none"));
+            return;
+        }
+        Long ready = zoneReady.get(player.getUUID());
+        if (ready != null && now < ready && !creative) {
+            actionBar(player, Component.translatable("nightsiege.msg.zone_wait", (ready - now + 19) / 20));
+            return;
+        }
+        double reach = SkillValues.get("potion_tower", "zonerange", 10);
+        Vec3 eye = player.getEyePosition();
+        Vec3 spot = null;
+        net.minecraft.world.phys.HitResult hit = player.pick(reach, 0f, false);
+        if (hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK) {
+            spot = hit.getLocation();
+        }
+        LivingEntity target = CombatEffects.lookTarget(level, player, reach);
+        if (target != null && (spot == null || target.distanceToSqr(eye) < spot.distanceToSqr(eye))) {
+            spot = target.position();
+        }
+        if (spot == null) {
+            actionBar(player, Component.translatable("nightsiege.msg.zone_far", (int) Math.round(reach)));
+            return;
+        }
+        ItemStack look = new ItemStack(Items.LINGERING_POTION);
+        look.set(net.minecraft.core.component.DataComponents.POTION_CONTENTS, new PotionContents(
+                java.util.Optional.empty(), java.util.Optional.of(brew.color()), List.of(), java.util.Optional.empty()));
+        KitProjectile shot = new KitProjectile(level, player, look, KitProjectile.ZONE);
+        shot.setData(brew.id());
+        Vec3 from = shot.position();
+        double dx = spot.x - from.x;
+        double dy = spot.y - from.y;
+        double dz = spot.z - from.z;
+        int flight = Math.max(6, flightTicks(Math.sqrt(dx * dx + dz * dz)) / 2);
+        shot.setDeltaMovement(ballistic(dx, dy, dz, flight, 0.03));
+        level.addFreshEntity(shot);
+        zoneReady.put(player.getUUID(), now + Math.round(SkillValues.get("potion_tower", "zonepause", 400)));
+        level.playSound(null, player.blockPosition(), SoundEvents.SPLASH_POTION_THROW, SoundSource.PLAYERS, 1.0f, 0.8f);
+        actionBar(player, Component.translatable("nightsiege.msg.zone_thrown",
+                Component.translatable("nightsiege.brew." + brew.id())));
+    }
+
+    /** End of the night: the zone pauses start fresh. */
+    public void resetZones() {
+        zoneReady.clear();
     }
 
     // ------------------------------------------------------------------
@@ -1062,6 +1608,13 @@ public final class TrapService {
             return;
         }
         long now = level.getGameTime();
+        // The alchemist (Simon, 26 October 2026): sneak + right click opens the potion menu,
+        // a right click throws the potion zone, X on a monster marks it.
+        boolean alchemist = SkillTree.SUB_ALCHEMIST.equals(tree.subclassOf(skills));
+        if (alchemist && !second && player.isShiftKeyDown()) {
+            openBrewMenu(player, skills);
+            return;
+        }
         double range = SkillValues.get("e_longrange", "base", REMOTE_RANGE) + tree.totalBonus(SkillEffect.REMOTE_RANGE, skills);
         BlockPos trapPos = clicked;
         if (trapPos == null || ModContent.trapOf(level.getBlockState(trapPos)) == null) {
@@ -1135,7 +1688,11 @@ public final class TrapService {
         if (sneak && aimMortar(level, player, range, now)) {
             return;
         }
-        if (monster != null && !sneak) {
+        if (alchemist && !sneak) {
+            throwZone(level, player, skills, now);
+            return;
+        }
+        if (monster != null && (alchemist ? sneak : !sneak)) {
             if (pay(player, skills, cost(skills, SkillValues.get("e_seeker", "mark", COST_MARK)))) {
                 double bonus = SkillValues.get("e_seeker", "base", 0.15) + tree.totalBonus(SkillEffect.SEEKER, skills);
                 long until = now + Math.round(SkillValues.get("e_seeker", "time", 160));

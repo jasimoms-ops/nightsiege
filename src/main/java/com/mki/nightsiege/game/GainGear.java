@@ -3,6 +3,7 @@ package com.mki.nightsiege.game;
 import com.mki.nightsiege.core.PlayerSkills;
 import com.mki.nightsiege.core.SkillClass;
 import com.mki.nightsiege.core.SkillTree;
+import com.mki.nightsiege.core.SkillValues;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -140,6 +141,7 @@ public final class GainGear {
         LANTERN.clear();
         HOMING.clear();
         BANNERS.clear();
+        AlchemyZones.reset();
     }
 
     /** End of the night: the night's blocks go, the copper golems go home. */
@@ -214,6 +216,11 @@ public final class GainGear {
             if (lvl(kits, skills, clazz, "oelfass") > 0) {
                 out.add(Gadgets.make(Items.INK_SAC, "oelfass", 2));
             }
+            // The alchemist's own flash grenade (Simon, 26 October 2026): one, it comes back after 15 s.
+            SiegeManager m = SiegeManager.get();
+            if (m != null && SkillTree.SUB_ALCHEMIST.equals(m.skillTree().subclassOf(skills))) {
+                out.add(Gadgets.make(Items.FIREWORK_STAR, "alchemie_blende", 1));
+            }
         } else if (clazz == SkillClass.SUMMONER) {
             if (lvl(kits, skills, clazz, "rueckrufpfeife") > 0) {
                 out.add(Gadgets.make(Items.LEAD, "rueckrufpfeife", 1));
@@ -254,7 +261,7 @@ public final class GainGear {
     // ------------------------------------------------------------------
 
     /** Gadgets that do their thing on a right click in the air (or on a block). */
-    private static final Set<String> USE_ANYWHERE = Set.of("wurfspeer", "wurfbeil", "blendgranate", "oelfass",
+    private static final Set<String> USE_ANYWHERE = Set.of("wurfspeer", "wurfbeil", "blendgranate", "alchemie_blende", "oelfass",
             "kletterhaken", "kampfhorn", "tarnumhang", "signalhorn", "mauerkelle", "ersatzbatterie", "leibwaechter",
             "rueckrufpfeife", "geisterross", "futternapf", "totenglocke");
     /** The summoner's gadgets (their work is in {@link Companions#useGadget}). */
@@ -354,6 +361,7 @@ public final class GainGear {
             case "wurfspeer" -> throwIt(player, level, stack, KitProjectile.SPEAR, 1.9f, creative);
             case "wurfbeil" -> throwIt(player, level, stack, KitProjectile.AXE, 1.6f, creative);
             case "blendgranate" -> throwIt(player, level, stack, KitProjectile.FLASH, 1.4f, creative);
+            case "alchemie_blende" -> throwAlchemistFlash(player, level, stack);
             case "oelfass" -> throwIt(player, level, stack, KitProjectile.OIL, 1.0f, creative);
             case "kletterhaken" -> grapple(player, level, stack);
             case "kampfhorn" -> warHorn(player, level, stack);
@@ -385,6 +393,15 @@ public final class GainGear {
         if (!creative) {
             stack.shrink(1);
         }
+    }
+
+    /** The alchemist's flash grenade: thrown like the other, but never used up (15 s pause). */
+    private static void throwAlchemistFlash(ServerPlayer player, ServerLevel level, ItemStack stack) {
+        KitProjectile projectile = new KitProjectile(level, player, stack.copyWithCount(1), KitProjectile.FLASH_ALCHEMIST);
+        projectile.shootFromRotation(player, player.getXRot(), player.getYRot(), 0f, 1.4f, 0.8f);
+        level.addFreshEntity(projectile);
+        level.playSound(null, player.blockPosition(), SoundEvents.SNOWBALL_THROW, SoundSource.PLAYERS, 0.8f, 0.6f);
+        player.getCooldowns().addCooldown(stack, (int) Math.round(SkillValues.get("potion_tower", "flashpause", 300)));
     }
 
     /** Grappling hook: pulls the player to the block they look at, 20 s pause. */
@@ -541,6 +558,9 @@ public final class GainGear {
                 }
             }
             case KitProjectile.FLASH -> flash(level, at);
+            case KitProjectile.FLASH_ALCHEMIST -> flashAlchemist(level, at);
+            case KitProjectile.ZONE -> AlchemyZones.land(level, projectile,
+                    block != null ? new Vec3(at.x, block.getBlockPos().relative(block.getDirection()).getY(), at.z) : at);
             case KitProjectile.OIL -> {
                 Vec3 spot = block != null ? Vec3.atBottomCenterOf(block.getBlockPos().relative(block.getDirection())) : at;
                 OIL.add(new Oil(spot, level.getGameTime() + 1200));
@@ -571,6 +591,26 @@ public final class GainGear {
         level.sendParticles(ParticleTypes.END_ROD, at.x, at.y + 0.3, at.z, 60, 0.6, 0.6, 0.6, 0.25);
         level.sendParticles(ParticleTypes.WHITE_SMOKE, at.x, at.y + 0.3, at.z, 30, 1.2, 0.5, 1.2, 0.02);
         level.playSound(null, BlockPos.containing(at), SoundEvents.FIREWORK_ROCKET_BLAST, SoundSource.PLAYERS, 1.5f, 1.4f);
+    }
+
+    /**
+     * The alchemist's flash grenade (Simon, 26 October 2026): monsters within 5 blocks are
+     * blinded for 4 s and lose their target, and may not pick a new one meanwhile.
+     */
+    private static void flashAlchemist(ServerLevel level, Vec3 at) {
+        double radius = SkillValues.get("potion_tower", "flashradius", 5.0);
+        int ticks = (int) Math.round(SkillValues.get("potion_tower", "flashtime", 80));
+        long until = level.getGameTime() + ticks;
+        for (Mob mob : enemies(level, at, radius)) {
+            mob.setTarget(null);
+            mob.getNavigation().stop();
+            CALM.put(mob.getUUID(), until);
+            mob.addEffect(new MobEffectInstance(MobEffects.BLINDNESS, ticks, 0, false, true));
+            mob.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, ticks, 1, false, false));
+        }
+        level.sendParticles(ParticleTypes.END_ROD, at.x, at.y + 0.3, at.z, 80, 0.8, 0.8, 0.8, 0.3);
+        level.sendParticles(ParticleTypes.WHITE_SMOKE, at.x, at.y + 0.3, at.z, 40, radius * 0.35, 0.5, radius * 0.35, 0.02);
+        level.playSound(null, BlockPos.containing(at), SoundEvents.FIREWORK_ROCKET_BLAST, SoundSource.PLAYERS, 1.8f, 1.6f);
     }
 
     /** Lure arrow (archer's second ult): monsters within 8 blocks go for the spot for 5 s. */

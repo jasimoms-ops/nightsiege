@@ -36,6 +36,10 @@ public class KitProjectile extends ThrowableItemProjectile {
     /** The demolition expert's mortar shell and the alchemist's potion (fired by a tower). */
     public static final String SHELL = "shell";
     public static final String BREW = "brew";
+    /** The alchemist's zone potion, thrown with the remote (data: the potion's id). */
+    public static final String ZONE = "zone";
+    /** The alchemist's flash grenade: wider and blinding, comes back after its pause. */
+    public static final String FLASH_ALCHEMIST = "flash_alchemist";
 
     private String kind = "";
     /** For tower shots: which tower, whose, tier and scales (see TrapService). */

@@ -67,6 +67,8 @@ public class EventLookTest implements FabricClientGameTest {
                 ladderTargetScene(context, game, true);
                 innerLadderScene(context, game);
                 mortarScene(context, game);
+                mannedScene(context, game);
+                alchemistScene(context, game);
                 nightStatsScene(context);
                 // ladderTargetScene and towerScene are done (ladders fine, towers 2 volleys); kept for later checks.
                 // besiegerScene is done (ladders up, one hole per side); kept for later checks.
@@ -2626,6 +2628,142 @@ public class EventLookTest implements FabricClientGameTest {
         onServer(context, (player, manager) -> manager.onCoreAction(player, "ult"));
         context.waitTicks(6);
         context.takeScreenshot("engineer_bombardment");
+        context.waitTicks(5);
+    }
+
+    /**
+     * Manned towers (Simon, 26 October 2026): the player sits in an arrow turret and a tesla
+     * coil, holds the button and the husks in front lose life; climbing out restores the look.
+     */
+    private static void mannedScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        int gx = pos.getX() - 50;
+        int gz = pos.getZ() + 50;
+        int gy = groundAt(context, gx, gz);
+        game.getServer().runCommand("time set 6000");
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:grass_block".formatted(gx - 6, gy - 1, gz - 6, gx + 20, gy - 1, gz + 12));
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(gx - 6, gy, gz - 6, gx + 20, gy + 8, gz + 12));
+        for (int i = 0; i < 3; i++) {
+            game.getServer().runCommand(("summon minecraft:husk %d %d %d {NoAI:1b,PersistenceRequired:1b,Tags:[\"ns_manned\"]}")
+                    .formatted(gx + 12, gy, gz + i * 2));
+        }
+        game.getServer().runCommand("tp @p %d.5 %d %d.5 -90 10".formatted(gx, gy + 1, gz - 2));
+        context.waitTicks(10);
+        BlockPos turret = new BlockPos(gx, gy, gz);
+        BlockPos tesla = new BlockPos(gx, gy, gz + 4);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
+            own.unlockClass(com.mki.nightsiege.core.SkillClass.ENGINEER);
+            own.switchTo(com.mki.nightsiege.core.SkillClass.ENGINEER);
+            own.levels.put("arrow_turret", 1);
+            own.levels.put("tesla_coil", 1);
+            place(level, manager, player, turret, com.mki.nightsiege.core.TrapKind.TURRET);
+            place(level, manager, player, tesla, com.mki.nightsiege.core.TrapKind.TESLA);
+            player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, net.minecraft.world.item.ItemStack.EMPTY);
+            boolean ok = manager.kits().traps().tryMount(level, turret, player, net.minecraft.world.item.ItemStack.EMPTY);
+            System.out.println("[Night Siege test] tower mount=" + ok + " seated=" + manager.kits().traps().isSeated(player)
+                    + " look=" + level.getBlockState(turret).getValue(com.mki.nightsiege.game.TowerBlock.MANNED));
+        });
+        context.waitTicks(10);
+        context.getInput().lookAt(-90.0f, 4.0f);
+        context.waitTicks(6);
+        context.runOnClient(client -> System.out.println("[Night Siege test] tower client seated="
+                + com.mki.nightsiege.client.MannedClient.seated()));
+        context.takeScreenshot("manned_turret_first");
+        context.runOnClient(client -> client.options.setCameraType(net.minecraft.client.CameraType.THIRD_PERSON_BACK));
+        context.waitTicks(6);
+        context.takeScreenshot("manned_turret_back");
+        context.runOnClient(client -> client.options.setCameraType(net.minecraft.client.CameraType.THIRD_PERSON_FRONT));
+        context.waitTicks(6);
+        context.takeScreenshot("manned_turret_front");
+        context.runOnClient(client -> client.options.setCameraType(net.minecraft.client.CameraType.FIRST_PERSON));
+        logManned(context, "turret before");
+        onServer(context, (player, manager) -> manager.kits().traps().onManAction(player, true));
+        context.waitTicks(40);
+        context.takeScreenshot("manned_turret_fire");
+        onServer(context, (player, manager) -> manager.kits().traps().onManAction(player, false));
+        logManned(context, "turret after 2s");
+        // Climb out: the look goes back to the plain turret.
+        onServer(context, (player, manager) -> player.stopRiding());
+        context.waitTicks(4);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            System.out.println("[Night Siege test] tower out seated=" + manager.kits().traps().isSeated(player)
+                    + " look=" + level.getBlockState(turret).getValue(com.mki.nightsiege.game.TowerBlock.MANNED));
+            boolean ok = manager.kits().traps().tryMount(level, tesla, player, net.minecraft.world.item.ItemStack.EMPTY);
+            System.out.println("[Night Siege test] tower tesla mount=" + ok);
+        });
+        context.waitTicks(8);
+        context.getInput().lookAt(-80.0f, 4.0f);
+        context.runOnClient(client -> client.options.setCameraType(net.minecraft.client.CameraType.THIRD_PERSON_BACK));
+        onServer(context, (player, manager) -> manager.kits().traps().onManAction(player, true));
+        context.waitTicks(12);
+        context.takeScreenshot("manned_tesla_beam");
+        context.waitTicks(28);
+        onServer(context, (player, manager) -> manager.kits().traps().onManAction(player, false));
+        logManned(context, "tesla after 2s");
+        context.runOnClient(client -> client.options.setCameraType(net.minecraft.client.CameraType.THIRD_PERSON_FRONT));
+        context.waitTicks(6);
+        context.takeScreenshot("manned_tesla_front");
+        context.runOnClient(client -> client.options.setCameraType(net.minecraft.client.CameraType.FIRST_PERSON));
+        onServer(context, (player, manager) -> {
+            player.stopRiding();
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            level.setBlock(turret, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
+            level.setBlock(tesla, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
+            for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                if (e.entityTags().contains("ns_manned")) {
+                    e.discard();
+                }
+            }
+        });
+        context.waitTicks(5);
+    }
+
+    private static void logManned(ClientGameTestContext context, String label) {
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            StringBuilder line = new StringBuilder("[Night Siege test] tower " + label + ":");
+            for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                if (e instanceof net.minecraft.world.entity.LivingEntity l && e.entityTags().contains("ns_manned")) {
+                    line.append(String.format(java.util.Locale.ROOT, " %.1f", l.getHealth()));
+                }
+            }
+            System.out.println(line);
+        });
+        context.waitTicks(2);
+    }
+
+    /** The alchemist (Simon, 26 October 2026): the potion menu, then a healing zone on the ground. */
+    private static void alchemistScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
+            own.unlockClass(com.mki.nightsiege.core.SkillClass.ENGINEER);
+            own.switchTo(com.mki.nightsiege.core.SkillClass.ENGINEER);
+            own.levels.clear();
+            own.levels.put("potion_tower", 3);
+            own.levels.put("e_acid", 1);
+            player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND,
+                    new net.minecraft.world.item.ItemStack(com.mki.nightsiege.game.ModContent.REMOTE));
+            System.out.println("[Night Siege test] alchemist sub=" + manager.skillTree().subclassOf(own));
+            player.setShiftKeyDown(true);
+            com.mki.nightsiege.game.RemoteItem.handler.use(player, null);
+            player.setShiftKeyDown(false);
+        });
+        context.waitTicks(15);
+        context.runOnClient(client -> System.out.println("[Night Siege test] alchemist menu="
+                + (client.gui.screen() instanceof com.mki.nightsiege.client.BrewMenuScreen)));
+        context.takeScreenshot("alchemist_menu");
+        closeScreen(context);
+        onServer(context, (player, manager) -> manager.onCoreAction(player, "brew:slow"));
+        context.getInput().lookAt(-90.0f, 45.0f);
+        context.waitTicks(4);
+        onServer(context, (player, manager) -> com.mki.nightsiege.game.RemoteItem.handler.use(player, null));
+        context.waitTicks(30);
+        context.runOnClient(client -> System.out.println("[Night Siege test] alchemist zones="
+                + com.mki.nightsiege.game.AlchemyZones.count()));
+        context.takeScreenshot("alchemist_zone");
         context.waitTicks(5);
     }
 
