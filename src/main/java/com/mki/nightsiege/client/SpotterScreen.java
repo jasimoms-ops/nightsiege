@@ -15,7 +15,6 @@ import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.ClipContext;
@@ -30,8 +29,8 @@ import org.lwjgl.glfw.GLFW;
  * it, the mouse wheel zooms, a click calls the picked fire onto the block under the cursor.
  * The player's body stays where it stood, unguarded. Sneak or Esc leaves the view.
  *
- * <p>The camera is a client-side armour stand that is never added to the world; while the
- * screen is open, Minecraft looks through it.</p>
+ * <p>While the screen is open, CameraMixin puts Minecraft's camera at {@link #cameraAt}
+ * (detached, so the player's body shows and the hand does not).</p>
  */
 public class SpotterScreen extends Screen {
 
@@ -46,9 +45,13 @@ public class SpotterScreen extends Screen {
 
     private final SpotterData data;
     private final long[] readyAt;
-    private ArmorStand eye;
+    /** The view open right now, for the camera. */
+    private static SpotterScreen active;
     private double camX;
     private double camZ;
+    private double oldX;
+    private double oldY;
+    private double oldZ;
     private double zoomH = 26;
     private int selected;
     /** First spot of a barrage line, null when none is set. */
@@ -75,25 +78,31 @@ public class SpotterScreen extends Screen {
 
     @Override
     protected void init() {
-        Minecraft client = Minecraft.getInstance();
-        if (eye == null && client.level != null) {
-            eye = new ArmorStand(client.level, camX, camY(), camZ);
-            eye.setInvisible(true);
-            eye.setYRot(180f);
-            eye.setXRot(90f);
-            eye.setOldPosAndRot();
-            client.setCameraEntity(eye);
+        if (active != this) {
+            oldX = camX;
+            oldY = camY();
+            oldZ = camZ;
         }
+        active = this;
     }
 
     @Override
     public void removed() {
-        Minecraft client = Minecraft.getInstance();
-        if (client.player != null) {
-            client.setCameraEntity(client.player);
+        if (active == this) {
+            active = null;
         }
-        eye = null;
         super.removed();
+    }
+
+    /** Where the camera hangs this frame (between the last tick and this one), or null. */
+    public static double[] cameraAt(float partialTick) {
+        SpotterScreen view = active;
+        if (view == null) {
+            return null;
+        }
+        double t = Math.max(0.0, Math.min(1.0, partialTick));
+        return new double[]{view.oldX + (view.camX - view.oldX) * t, view.oldY + (view.camY() - view.oldY) * t,
+                view.oldZ + (view.camZ - view.oldZ) * t};
     }
 
     /** No blur and no dark backdrop: the world is the view. */
@@ -112,11 +121,14 @@ public class SpotterScreen extends Screen {
     @Override
     public void tick() {
         Minecraft client = Minecraft.getInstance();
-        if (client.player == null || client.level == null || eye == null) {
+        if (client.player == null || client.level == null) {
             onClose();
             return;
         }
         ticks++;
+        oldX = camX;
+        oldY = camY();
+        oldZ = camZ;
         if (down(client, client.options.keyShift)) {
             onClose();
             return;
@@ -142,10 +154,6 @@ public class SpotterScreen extends Screen {
             camX = data.centerX + dx * data.radius / d;
             camZ = data.centerZ + dz * data.radius / d;
         }
-        eye.setOldPosAndRot();
-        eye.setPos(camX, camY(), camZ);
-        eye.setYRot(180f);
-        eye.setXRot(90f);
         preview(client);
     }
 

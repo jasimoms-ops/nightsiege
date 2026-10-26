@@ -2646,10 +2646,10 @@ public class EventLookTest implements FabricClientGameTest {
         game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(gx - 6, gy, gz - 6, gx + 20, gy + 8, gz + 12));
         for (int i = 0; i < 3; i++) {
             game.getServer().runCommand(("summon minecraft:husk %d %d %d {NoAI:1b,PersistenceRequired:1b,Tags:[\"ns_manned\"]}")
-                    .formatted(gx + 12, gy, gz + i * 2));
+                    .formatted(gx + 8, gy, gz + i * 2));
         }
         game.getServer().runCommand("tp @p %d.5 %d %d.5 -90 10".formatted(gx, gy + 1, gz - 2));
-        context.waitTicks(10);
+        context.waitTicks(220);   // the chat lines of the commands fade, so the towers can be seen
         BlockPos turret = new BlockPos(gx, gy, gz);
         BlockPos tesla = new BlockPos(gx, gy, gz + 4);
         onServer(context, (player, manager) -> {
@@ -2696,7 +2696,7 @@ public class EventLookTest implements FabricClientGameTest {
             System.out.println("[Night Siege test] tower tesla mount=" + ok);
         });
         context.waitTicks(8);
-        context.getInput().lookAt(-80.0f, 4.0f);
+        context.getInput().lookAt(-90.0f, 6.0f);
         context.runOnClient(client -> client.options.setCameraType(net.minecraft.client.CameraType.THIRD_PERSON_BACK));
         onServer(context, (player, manager) -> manager.kits().traps().onManAction(player, true));
         context.waitTicks(12);
@@ -2785,7 +2785,7 @@ public class EventLookTest implements FabricClientGameTest {
                     .formatted(gx + 8, gy, gz - 3 + i * 2));
         }
         game.getServer().runCommand("tp @p %d.5 %d %d.5 0 20".formatted(gx - 6, gy, gz));
-        context.waitTicks(10);
+        context.waitTicks(220);
         onServer(context, (player, manager) -> {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
             com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
@@ -2798,6 +2798,14 @@ public class EventLookTest implements FabricClientGameTest {
             place(level, manager, player, new BlockPos(gx - 4, gy, gz - 2), com.mki.nightsiege.core.TrapKind.MORTAR);
             place(level, manager, player, new BlockPos(gx - 4, gy, gz + 2), com.mki.nightsiege.core.TrapKind.MORTAR);
             System.out.println("[Night Siege test] spotter sub=" + manager.skillTree().subclassOf(own));
+            com.mki.nightsiege.core.SiegeConfig.SkillTweak wide = new com.mki.nightsiege.core.SiegeConfig.SkillTweak();
+            wide.values = new java.util.HashMap<>(java.util.Map.of("spotradius", 5000.0));
+            java.util.Map<String, com.mki.nightsiege.core.SiegeConfig.SkillTweak> tweaks = new java.util.HashMap<>();
+            if (manager.config().skillTweaks != null) {
+                tweaks.putAll(manager.config().skillTweaks);
+            }
+            tweaks.put("mortar_tower", wide);
+            com.mki.nightsiege.core.SkillValues.apply(tweaks);
             manager.kits().traps().openSpotter(player);
         });
         context.waitTicks(20);
@@ -2836,8 +2844,9 @@ public class EventLookTest implements FabricClientGameTest {
             System.out.println(line);
         });
         closeScreen(context);
-        context.runOnClient(client -> System.out.println("[Night Siege test] spotter camera back="
-                + (client.getCameraEntity() == client.player)));
+        context.runOnClient(client -> System.out.println("[Night Siege test] spotter closed camera="
+                + (com.mki.nightsiege.client.SpotterScreen.cameraAt(0f) == null)));
+        onServer(context, (player, manager) -> com.mki.nightsiege.core.SkillValues.apply(manager.config().skillTweaks));
         onServer(context, (player, manager) -> {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
             level.setBlock(new BlockPos(gx - 4, gy, gz - 2), net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
