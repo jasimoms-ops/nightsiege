@@ -70,6 +70,7 @@ public class EventLookTest implements FabricClientGameTest {
                 mannedScene(context, game);
                 alchemistScene(context, game);
                 spotterScene(context, game);
+                droneScene(context, game);
                 nightStatsScene(context);
                 // ladderTargetScene and towerScene are done (ladders fine, towers 2 volleys); kept for later checks.
                 // besiegerScene is done (ladders up, one hole per side); kept for later checks.
@@ -2853,6 +2854,93 @@ public class EventLookTest implements FabricClientGameTest {
             level.setBlock(new BlockPos(gx - 4, gy, gz + 2), net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
             for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
                 if (e.entityTags().contains("ns_spot")) {
+                    e.discard();
+                }
+            }
+        });
+        context.waitTicks(5);
+    }
+
+    /**
+     * The drone of a fallen defender (Simon, 26 October 2026): it flies forward with W, turns
+     * with D, climbs with Shift, and its crossbow hits a husk in front of it.
+     */
+    private static void droneScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        int gx = pos.getX() - 50;
+        int gz = pos.getZ() - 50;
+        int gy = groundAt(context, gx, gz);
+        game.getServer().runCommand("time set 6000");
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:grass_block".formatted(gx - 12, gy - 1, gz - 12, gx + 12, gy - 1, gz + 12));
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(gx - 12, gy, gz - 12, gx + 12, gy + 10, gz + 12));
+        game.getServer().runCommand(("summon minecraft:husk %d %d %d {NoAI:1b,PersistenceRequired:1b,Tags:[\"ns_drone\"]}")
+                .formatted(gx, gy, gz + 6));
+        game.getServer().runCommand("tp @p %d.5 %d %d.5 0 10".formatted(gx, gy + 2, gz));
+        context.waitTicks(220);
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.game.Drones.start(player);
+            System.out.println("[Night Siege test] drone start drone=" + com.mki.nightsiege.game.Drones.isDrone(player)
+                    + " flying=" + player.getAbilities().flying + " height=" + String.format(java.util.Locale.ROOT, "%.2f", player.getBbHeight()));
+        });
+        context.waitTicks(20);
+        context.getInput().lookAt(0.0f, 8.0f);
+        context.waitTicks(5);
+        context.runOnClient(client -> System.out.println("[Night Siege test] drone client=" + com.mki.nightsiege.client.DroneClient.localDrone()));
+        context.takeScreenshot("drone_first");
+        context.runOnClient(client -> client.options.setCameraType(net.minecraft.client.CameraType.THIRD_PERSON_FRONT));
+        context.waitTicks(6);
+        context.takeScreenshot("drone_front");
+        context.runOnClient(client -> client.options.setCameraType(net.minecraft.client.CameraType.THIRD_PERSON_BACK));
+        context.waitTicks(6);
+        context.takeScreenshot("drone_back");
+        context.runOnClient(client -> client.options.setCameraType(net.minecraft.client.CameraType.FIRST_PERSON));
+        // The crossbow: two seconds of fire at the husk ahead.
+        onServer(context, (player, manager) -> com.mki.nightsiege.game.Drones.onFireButton(player, true));
+        context.waitTicks(40);
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.game.Drones.onFireButton(player, false);
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                if (e instanceof net.minecraft.world.entity.LivingEntity l && e.entityTags().contains("ns_drone")) {
+                    System.out.println("[Night Siege test] drone husk=" + String.format(java.util.Locale.ROOT, "%.1f", l.getHealth()));
+                }
+            }
+        });
+        // Steering: W forward, D turns, Shift climbs (the keys as if held).
+        final double[] start = new double[4];
+        context.runOnClient(client -> {
+            start[0] = client.player.getX();
+            start[1] = client.player.getY();
+            start[2] = client.player.getZ();
+            start[3] = client.player.getYRot();
+            client.options.keyUp.setDown(true);
+        });
+        context.waitTicks(20);
+        context.runOnClient(client -> {
+            client.options.keyUp.setDown(false);
+            client.options.keyRight.setDown(true);
+        });
+        context.waitTicks(10);
+        context.runOnClient(client -> {
+            client.options.keyRight.setDown(false);
+            client.options.keyShift.setDown(true);
+        });
+        context.waitTicks(10);
+        context.runOnClient(client -> {
+            client.options.keyShift.setDown(false);
+            System.out.println(String.format(java.util.Locale.ROOT,
+                    "[Night Siege test] drone moved dz=%.2f dy=%.2f turned=%.1f",
+                    client.player.getZ() - start[2], client.player.getY() - start[1], client.player.getYRot() - start[3]));
+        });
+        context.takeScreenshot("drone_after");
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.game.Drones.stop(player);
+            player.setGameMode(net.minecraft.world.level.GameType.CREATIVE);
+            System.out.println("[Night Siege test] drone stop drone=" + com.mki.nightsiege.game.Drones.isDrone(player)
+                    + " height=" + String.format(java.util.Locale.ROOT, "%.2f", player.getBbHeight()));
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                if (e.entityTags().contains("ns_drone")) {
                     e.discard();
                 }
             }
