@@ -28,7 +28,7 @@ public final class ClassStands {
 
     /** The outfit shown for a class without a subclass: its first one. */
     public static String firstOf(SkillClass clazz) {
-        List<SkillTree.SubclassInfo> subs = SkillTree.subclassesOf(clazz);
+        List<SkillTree.SubclassInfo> subs = SkillTree.subclassInfosOf(clazz);
         return subs.isEmpty() ? "" : subs.get(0).key();
     }
 

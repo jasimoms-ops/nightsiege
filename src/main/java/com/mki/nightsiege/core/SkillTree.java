@@ -181,7 +181,7 @@ public final class SkillTree {
             new SubclassInfo(SkillClass.SUMMONER, WAY_DEAD, "d_soulcatcher", SUB_SOULCATCHER));
 
     /** The four subclasses of a class, first way first. */
-    public static List<SubclassInfo> subclassesOf(SkillClass clazz) {
+    public static List<SubclassInfo> subclassInfosOf(SkillClass clazz) {
         List<SubclassInfo> out = new ArrayList<>();
         for (SubclassInfo info : SUBCLASSES) {
             if (info.clazz() == clazz) {

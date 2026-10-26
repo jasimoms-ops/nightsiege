@@ -63,7 +63,7 @@ public class SubclassPickScreen extends Screen {
         this.mode = mode;
         this.back = back;
         this.lockedWay = lockedWay == null ? "" : lockedWay;
-        this.subs = SkillTree.subclassesOf(clazz);
+        this.subs = SkillTree.subclassInfosOf(clazz);
         this.picked = 0;
         for (int i = 0; i < subs.size(); i++) {
             if (choosable(i)) {

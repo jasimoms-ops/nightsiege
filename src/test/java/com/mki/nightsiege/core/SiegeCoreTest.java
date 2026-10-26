@@ -1900,7 +1900,7 @@ class SiegeCoreTest {
         assertEquals(0, p.levelOf("bloodlust"), "the other subclass of the way stays shut");
         assertEquals(0, p.levelOf("heavy_blow"));
         assertTrue(tree.ultimateMaxed(p, SkillClass.WARRIOR), "an ultimate reaches level 3");
-        assertEquals(4, SkillTree.subclassesOf(SkillClass.SUMMONER).size());
+        assertEquals(4, SkillTree.subclassInfosOf(SkillClass.SUMMONER).size());
         assertEquals(20, SkillTree.SUBCLASSES.size());
         for (SkillTree.SubclassInfo info : SkillTree.SUBCLASSES) {
             SkillNode node = tree.get(info.node());
