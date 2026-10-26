@@ -419,6 +419,11 @@ public final class SkillTree {
      * fight and vanish after the night. Way of the wild: wolves (tamer) or golems
      * (golemsmith). Way of the dead: fallen monsters rise again for souls (necromancer) or
      * ghosts come along (soulcatcher).
+     *
+     * <p>Balance update (26 October 2026): the masteries of an ultimate are open to both
+     * subclasses where a cross lock or the theme asked for it (Endlose Jagd, Mondrudel,
+     * Titanenfaust, Ewige Legion, Champion der Toten), so no way ends without a mastery;
+     * Erzkern stays the golemsmith's, Seelenflut the soulcatcher's, Nachhall the necromancer's.</p>
      */
     private static void summoner(List<SkillNode> list) {
         SkillClass c = SkillClass.SUMMONER;
@@ -440,13 +445,17 @@ public final class SkillTree {
         node(list, "s_snowguard", c, w, SkillEffect.SNOW_GUARD, 1, 10, 0, 2.0, "s_golemsmith:2", "l3", "minecraft:snowball", 4, 4);
         node(list, "s_hardgolem", c, w, SkillEffect.HARD_GOLEM, 1, 10, 0, 0.5, "s_golemsmith:2", "l3", "minecraft:anvil", 4, 6);
         String l3 = "s_alpha|s_packhunt|s_snowguard|s_hardgolem";
+        // Balance update (26 October 2026): every pick of ring III and IV leads to a ring V node –
+        // the wolf nodes for the tamer, Golemwerk for the golemsmith, Mischrudel with the skeleton.
+        String l3tamer = "s_alpha|s_packhunt";
+        String l3golem = "s_snowguard|s_hardgolem";
         node(list, "s_howl", c, w, SkillEffect.HOWL, 1, 12, 0, 0.3, l3, "l4", "minecraft:goat_horn", 5, 1);
         node(list, "s_wardbond", c, w, SkillEffect.WARD_BOND, 1, 12, 0, 1.0, l3, "l4", "minecraft:shield", 5, 3);
         node(list, "l_cross_bones", c, w, SkillEffect.BONE_GUARD, 1, 12, 0, 1.0, l3, "l4", "minecraft:skeleton_skull", 5, 5,
                 "s_moonpack");
-        node(list, "s_packleader", c, w, SkillEffect.PACK_LEADER, 1, 15, 0, 2.0, "s_alpha,s_howl", "l5", "minecraft:glistering_melon_slice", 6, 1);
-        node(list, "s_golemwork", c, w, SkillEffect.GOLEM_WORK, 1, 15, 0, 2.0, "s_hardgolem,s_wardbond", "l5", "minecraft:piston", 6, 3);
-        node(list, "s_mixedpack", c, w, SkillEffect.MIXED_PACK, 1, 15, 0, 0.15, "s_packhunt,l_cross_bones", "l5", "minecraft:bone_meal", 6, 5);
+        node(list, "s_packleader", c, w, SkillEffect.PACK_LEADER, 1, 15, 0, 2.0, l3tamer + ",s_howl|s_wardbond|l_cross_bones", "l5", "minecraft:glistering_melon_slice", 6, 1);
+        node(list, "s_golemwork", c, w, SkillEffect.GOLEM_WORK, 1, 15, 0, 2.0, l3golem + ",s_howl|s_wardbond|l_cross_bones", "l5", "minecraft:piston", 6, 3);
+        node(list, "s_mixedpack", c, w, SkillEffect.MIXED_PACK, 1, 15, 0, 0.15, l3tamer + ",l_cross_bones", "l5", "minecraft:bone_meal", 6, 5);
         String l4 = "s_howl|s_wardbond|l_cross_bones";
         node(list, "s_wildness", c, w, SkillEffect.WILDNESS, 1, 18, 0, 0.25, l4, "l6", "minecraft:redstone", 7, 1);
         node(list, "s_care", c, w, SkillEffect.CARE, 1, 18, 0, 2.0, l4, "l6", "minecraft:sweet_berries", 7, 3);
@@ -455,9 +464,9 @@ public final class SkillTree {
         String l6 = "s_wildness|s_care|l_cross_harvest";
         node(list, "s_wild_hunt", c, w, SkillEffect.WILD_HUNT, 3, 20, 10, 1.0, l6, "l_ult", "minecraft:echo_shard", 8, 2);
         node(list, "s_titan", c, w, SkillEffect.TITAN, 3, 20, 10, 1.0, l6, "l_ult", "minecraft:iron_block", 8, 4);
-        node(list, "s_endless_hunt", c, w, SkillEffect.ENDLESS_HUNT, 1, 25, 0, 5.0, "s_wild_hunt,s_tamer", "l_mastery", "minecraft:clock", 9, 0);
-        node(list, "s_moonpack", c, w, SkillEffect.MOON_PACK, 1, 25, 0, 1.0, "s_wild_hunt,s_golemsmith", "l_mastery", "minecraft:glow_berries", 9, 2);
-        node(list, "s_titanfist", c, w, SkillEffect.TITAN_FIST, 1, 25, 0, 1.0, "s_titan,s_tamer", "l_mastery", "minecraft:mace", 9, 4);
+        node(list, "s_endless_hunt", c, w, SkillEffect.ENDLESS_HUNT, 1, 25, 0, 5.0, "s_wild_hunt", "l_mastery", "minecraft:clock", 9, 0);
+        node(list, "s_moonpack", c, w, SkillEffect.MOON_PACK, 1, 25, 0, 1.0, "s_wild_hunt", "l_mastery", "minecraft:glow_berries", 9, 2);
+        node(list, "s_titanfist", c, w, SkillEffect.TITAN_FIST, 1, 25, 0, 1.0, "s_titan", "l_mastery", "minecraft:mace", 9, 4);
         node(list, "s_orecore", c, w, SkillEffect.ORE_CORE, 1, 25, 0, 1.0, "s_titan,s_golemsmith", "l_mastery", "minecraft:raw_iron_block", 9, 6);
         node(list, "s_beastlord", c, w, SkillEffect.BEAST_LORD, 1, 30, 0, 1.0, "s_wild_hunt|s_titan", "l_key", "minecraft:dragon_head", 10, 2);
         node(list, "s_shepherd", c, w, SkillEffect.SHEPHERD, 1, 30, 0, 1.0, "s_wild_hunt|s_titan", "l_key", "minecraft:lantern", 10, 4);
@@ -474,13 +483,15 @@ public final class SkillTree {
         node(list, "d_swarm", c, d, SkillEffect.GHOST_SWARM, 1, 10, 0, 1.0, "d_soulcatcher:2", "d3", "minecraft:phantom_membrane", 4, 4);
         node(list, "d_soulshield", c, d, SkillEffect.SOUL_SHIELD, 1, 10, 0, 8.0, "d_soulcatcher:2", "d3", "minecraft:totem_of_undying", 4, 6);
         String d3 = "d_archers|d_ghoul|d_swarm|d_soulshield";
+        // Balance update (26 October 2026): ring V follows the ring IV pick (Fäulnis, Leichensprengung,
+        // the wolf), so every pick of ring III and IV leads to one.
         node(list, "d_rot", c, d, SkillEffect.ROT, 1, 12, 0, 1.0, d3, "d4", "minecraft:fermented_spider_eye", 5, 1);
         node(list, "d_corpse", c, d, SkillEffect.CORPSE_BLAST, 1, 12, 0, 6.0, d3, "d4", "minecraft:tnt", 5, 3);
         node(list, "d_cross_wolf", c, d, SkillEffect.PACK_CALL, 1, 12, 0, 0.0, d3, "d4", "minecraft:wolf_spawn_egg", 5, 5,
                 "d_champion");
-        node(list, "d_legion", c, d, SkillEffect.BONE_LEGION, 1, 15, 0, 1.0, "d_archers,d_rot", "d5", "minecraft:arrow", 6, 1);
-        node(list, "d_soulburn", c, d, SkillEffect.SOUL_BURN, 1, 15, 0, 2.0, "d_swarm,d_corpse", "d5", "minecraft:soul_campfire", 6, 3);
-        node(list, "d_dance", c, d, SkillEffect.DEATH_DANCE, 1, 15, 0, 2.0, "d_ghoul,d_cross_wolf", "d5", "minecraft:bone", 6, 5);
+        node(list, "d_legion", c, d, SkillEffect.BONE_LEGION, 1, 15, 0, 1.0, "d_rot", "d5", "minecraft:arrow", 6, 1);
+        node(list, "d_soulburn", c, d, SkillEffect.SOUL_BURN, 1, 15, 0, 2.0, "d_corpse", "d5", "minecraft:soul_campfire", 6, 3);
+        node(list, "d_dance", c, d, SkillEffect.DEATH_DANCE, 1, 15, 0, 2.0, "d_cross_wolf", "d5", "minecraft:bone", 6, 5);
         String d4 = "d_rot|d_corpse|d_cross_wolf";
         node(list, "d_unholy", c, d, SkillEffect.UNHOLY_MIGHT, 1, 18, 0, 0.05, d4, "d6", "minecraft:wither_rose", 7, 1);
         node(list, "d_pact", c, d, SkillEffect.SOUL_PACT, 1, 18, 0, 2.0, d4, "d6", "minecraft:ghast_tear", 7, 3);
@@ -489,8 +500,8 @@ public final class SkillTree {
         String d6 = "d_unholy|d_pact|d_cross_loyalty";
         node(list, "d_army", c, d, SkillEffect.ARMY_OF_THE_DEAD, 3, 20, 10, 1.0, d6, "d_ult", "minecraft:skeleton_skull", 8, 2);
         node(list, "d_soulstorm", c, d, SkillEffect.SOUL_STORM, 3, 20, 10, 1.0, d6, "d_ult", "minecraft:sculk_catalyst", 8, 4);
-        node(list, "d_eternal", c, d, SkillEffect.ETERNAL_LEGION, 1, 25, 0, 5.0, "d_army,d_necro", "d_mastery", "minecraft:clock", 9, 0);
-        node(list, "d_champion", c, d, SkillEffect.CHAMPION_OF_THE_DEAD, 1, 25, 0, 1.0, "d_army,d_soulcatcher", "d_mastery", "minecraft:golden_helmet", 9, 2);
+        node(list, "d_eternal", c, d, SkillEffect.ETERNAL_LEGION, 1, 25, 0, 5.0, "d_army", "d_mastery", "minecraft:clock", 9, 0);
+        node(list, "d_champion", c, d, SkillEffect.CHAMPION_OF_THE_DEAD, 1, 25, 0, 1.0, "d_army", "d_mastery", "minecraft:golden_helmet", 9, 2);
         node(list, "d_soulflood", c, d, SkillEffect.SOUL_FLOOD, 1, 25, 0, 0.5, "d_soulstorm,d_soulcatcher", "d_mastery", "minecraft:soul_torch", 9, 4);
         node(list, "d_echo", c, d, SkillEffect.ECHO, 1, 25, 0, 0.5, "d_soulstorm,d_necro", "d_mastery", "minecraft:echo_shard", 9, 6);
         node(list, "d_lich", c, d, SkillEffect.LICH, 1, 30, 0, 0.5, "d_army|d_soulstorm", "d_key", "minecraft:dragon_breath", 10, 2);

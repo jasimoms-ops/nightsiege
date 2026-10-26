@@ -10,7 +10,7 @@ import net.minecraft.world.level.Level;
 
 /**
  * The summoner's staff: right click calls a companion (a wolf, or a golem for the
- * golemsmith), sneaking and right clicking at a monster sends every companion at it.
+ * golemsmith), the X key at a monster sends every companion at it.
  * The pause until the next call shows on the item.
  */
 public class SummonStaffItem extends Item {
