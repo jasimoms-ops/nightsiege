@@ -1249,15 +1249,8 @@ public final class TrapService {
         ((com.mki.nightsiege.mixin.ArmorStandAccessor) stand).nightsiege$setSmall(true);
         ((com.mki.nightsiege.mixin.ArmorStandAccessor) stand).nightsiege$setMarker(true);
         stand.addTag(SEAT_TAG);
-        ItemStack hand;
-        if (kind == TrapKind.TESLA) {
-            hand = new ItemStack(Items.LIGHTNING_ROD);
-        } else {
-            // Two loaded crossbows: the twin ballista.
-            hand = new ItemStack(Items.CROSSBOW);
-            hand.set(net.minecraft.core.component.DataComponents.CHARGED_PROJECTILES,
-                    net.minecraft.world.item.component.ChargedProjectiles.of(new ItemStack(Items.ARROW)));
-        }
+        // Two crossbows (the twin ballista), or two glowing electrodes for the coil.
+        ItemStack hand = new ItemStack(kind == TrapKind.TESLA ? Items.END_ROD : Items.CROSSBOW);
         stand.setItemSlot(EquipmentSlot.MAINHAND, hand.copy());
         stand.setItemSlot(EquipmentSlot.OFFHAND, hand.copy());
         Rotations forward = new Rotations(-90f, 0f, 0f);
