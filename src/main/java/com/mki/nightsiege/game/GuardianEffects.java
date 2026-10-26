@@ -582,7 +582,7 @@ public final class GuardianEffects {
         ServerPlayer weakest = null;
         double lowest = Double.MAX_VALUE;
         for (ServerPlayer mate : mates(level)) {
-            if (!mate.isAlive() || mate.isSpectator() || mate.distanceToSqr(player) > reach * reach) {
+            if (!mate.isAlive() || mate.isSpectator() || Drones.isDrone(mate) || mate.distanceToSqr(player) > reach * reach) {
                 continue;
             }
             double max = Math.max(1f, mate.getMaxHealth());
@@ -1299,7 +1299,7 @@ public final class GuardianEffects {
         ServerPlayer best = null;
         double bestDot = 0.95;
         for (ServerPlayer mate : mates(level)) {
-            if (mate == player || !mate.isAlive() || mate.isSpectator()) {
+            if (mate == player || !mate.isAlive() || mate.isSpectator() || Drones.isDrone(mate)) {
                 continue;
             }
             Vec3 to = mate.position().add(0, 1.0, 0).subtract(eye);

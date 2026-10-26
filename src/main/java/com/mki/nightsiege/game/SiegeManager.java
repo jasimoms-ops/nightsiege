@@ -332,6 +332,7 @@ public final class SiegeManager {
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
             dungeons.abortAll();
             traps.releaseAll(server);   // gunners out of the towers, the seats go
+            Drones.stopAll(server);
             if (active) {
                 events.end(server, world, currentEvent);
             }
@@ -382,6 +383,17 @@ public final class SiegeManager {
         Digger.hardness = traps::digFactor;
         RemoteItem.handler = traps::useRemote;
         SummonStaffItem.handler = companions::useStaff;
+        // A drone uses nothing, places nothing and hits nothing; its crossbow is the attack button.
+        net.fabricmc.fabric.api.event.player.UseItemCallback.EVENT.register((player, world, hand) ->
+                Drones.isDrone(player) ? InteractionResult.FAIL : InteractionResult.PASS);
+        net.fabricmc.fabric.api.event.player.UseBlockCallback.EVENT.register((player, world, hand, hit) ->
+                Drones.isDrone(player) ? InteractionResult.FAIL : InteractionResult.PASS);
+        net.fabricmc.fabric.api.event.player.UseEntityCallback.EVENT.register((player, world, hand, entity, hit) ->
+                Drones.isDrone(player) ? InteractionResult.FAIL : InteractionResult.PASS);
+        net.fabricmc.fabric.api.event.player.AttackEntityCallback.EVENT.register((player, world, hand, entity, hit) ->
+                Drones.isDrone(player) ? InteractionResult.FAIL : InteractionResult.PASS);
+        net.fabricmc.fabric.api.event.player.AttackBlockCallback.EVENT.register((player, world, hand, pos, dir) ->
+                Drones.isDrone(player) ? InteractionResult.FAIL : InteractionResult.PASS);
         // Crate gadgets (B2): thrown, blown, placed or tied to an ally.
         net.fabricmc.fabric.api.event.player.UseItemCallback.EVENT.register(GainGear::onUseItem);
         net.fabricmc.fabric.api.event.player.UseBlockCallback.EVENT.register(GainGear::onUseBlock);
@@ -392,6 +404,10 @@ public final class SiegeManager {
                         && combat.guardian().onUseEntity(server, entity, hand)
                         ? net.minecraft.world.InteractionResult.SUCCESS : net.minecraft.world.InteractionResult.PASS);
         ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> {
+            if (entity.entityTags().contains(Rigs.TAG) && !Rigs.isLive(entity)) {
+                entity.discard();   // a piece of a tower rig or a drone from before a restart
+                return;
+            }
             if (entity.entityTags().contains(TrapService.SEAT_TAG) && !traps.isLiveSeat(entity)) {
                 entity.discard();   // the seat of a manned tower from before a restart
                 return;
@@ -546,6 +562,7 @@ public final class SiegeManager {
         tickModCheck(server);
         MeleeSim.tick(server);
         trapsDirty |= traps.tick(server);
+        safe("Drohnen", () -> Drones.tick(server));
         combat.tick(server);
         // Companions stay with summoners who defend the night (or try them out in creative).
         safe("Begleiter", () -> companions.tick(server, p -> isDefending(p) || p.getAbilities().instabuild));
@@ -2333,6 +2350,7 @@ public final class SiegeManager {
         for (ServerPlayer player : new ArrayList<>(server.getPlayerList().getPlayers())) {
             endNightFor(player);
         }
+        Drones.stopAll(server);
         secondChance.clear();
         secondChanceUsed.clear();
         traps.resetZones();
@@ -2379,12 +2397,19 @@ public final class SiegeManager {
 
     /** One defender after the night: own inventory back; a spectator stands at the core again. */
     private void endNightFor(ServerPlayer player) {
-        boolean watching = player.isSpectator() && fallen.contains(player.getUUID());
+        boolean drone = Drones.isDrone(player);
+        boolean watching = (player.isSpectator() || drone) && fallen.contains(player.getUUID());
+        if (drone) {
+            Drones.stop(player);
+            if (player.gameMode() == net.minecraft.world.level.GameType.ADVENTURE) {
+                player.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
+            }
+        }
         if (kits.hasStash(player)) {
             kits.restore(player);
         }
         if (watching || player.isSpectator() && fallen.contains(player.getUUID())) {
-            if (player.isSpectator()) {
+            if (player.isSpectator() || drone && player.gameMode() == net.minecraft.world.level.GameType.ADVENTURE) {
                 player.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
             }
             toCore(player);
@@ -2429,7 +2454,8 @@ public final class SiegeManager {
         player.removeAllEffects();
         player.clearFire();
         SkillService.clear(player);
-        player.setGameMode(net.minecraft.world.level.GameType.SPECTATOR);
+        // A small steampunk drone instead of a spectator (Simon, 26 October 2026).
+        Drones.start(player);
         markFallen(player);
         PlayerSkills own = save.skillsOf(player.getUUID().toString());
         if (kits.gainLevel(own, own.clazz(), "zweite_chance") > 0 && secondChanceUsed.add(player.getUUID())) {
@@ -2437,7 +2463,7 @@ public final class SiegeManager {
             secondChance.put(player.getUUID(), world == null ? 0L : world.getGameTime() + 400L);
             player.sendSystemMessage(Component.translatable("nightsiege.msg.second_chance").withStyle(ChatFormatting.GOLD));
         } else {
-            player.sendSystemMessage(Component.translatable("nightsiege.msg.spectating").withStyle(ChatFormatting.GRAY));
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.drone_start").withStyle(ChatFormatting.GRAY));
         }
         return false;
     }
@@ -2456,13 +2482,14 @@ public final class SiegeManager {
         long now = world.getGameTime();
         for (UUID id : new ArrayList<>(fallen)) {
             ServerPlayer player = server.getPlayerList().getPlayer(id);
-            if (player == null || !player.isSpectator()) {
+            if (player == null || !player.isSpectator() && !Drones.isDrone(player)) {
                 continue;
             }
             Long back = secondChance.get(id);
             if (back != null && now >= back) {
                 secondChance.remove(id);
                 fallen.remove(id);
+                Drones.stop(player);
                 SiegeSave.KitStash stash = save.kitStashes == null ? null : save.kitStashes.get(id.toString());
                 String mode = stash == null || stash.gameMode == null || stash.gameMode.isEmpty() ? "survival" : stash.gameMode;
                 player.setGameMode(net.minecraft.world.level.GameType.byName(mode, net.minecraft.world.level.GameType.SURVIVAL));
@@ -2641,6 +2668,8 @@ public final class SiegeManager {
         }
         events.forget(player.getUUID());
         HealthView.forget(player.getUUID());
+        Drones.cleanup(player);
+        Drones.sendTo(player);
         if (bosses.spawned()) {
             bosses.syncTo(player);
         }
@@ -2657,6 +2686,10 @@ public final class SiegeManager {
                 }
                 toCore(player);
             }
+        }
+        if (active && config.nightKits && participants.contains(player.getUUID()) && fallen.contains(player.getUUID())
+                && !player.isSpectator()) {
+            Drones.start(player);   // fallen before they left: back up as a drone
         }
         crates.deliverPending(player);
         // Skills gelten nur waehrend einer Belagerung. Beim Betreten werden
@@ -3089,7 +3122,7 @@ public final class SiegeManager {
         if (!isRegistered(player) && !verb.equals("dungeon")) {
             // Not signed up: the mod stays out of the way (keys do nothing, the core only offers the sign-up).
             if (!verb.equals("ult") && !verb.equals("shield") && !verb.equals("ult2") && !verb.equals("quiver")
-                    && !verb.equals("jump") && !verb.equals("man")) {
+                    && !verb.equals("jump") && !verb.equals("man") && !verb.equals("drone")) {
                 offerRegistration(player);
             }
             return;
@@ -3120,6 +3153,8 @@ public final class SiegeManager {
             case "jump" -> GainGear.onDoubleJump(player);
             // A manned tower: the attack button pressed (1) or let go (0).
             case "man" -> traps.onManAction(player, "1".equals(argument));
+            // A drone's crossbow: the attack button pressed (1) or let go (0).
+            case "drone" -> Drones.onFireButton(player, "1".equals(argument));
             // The alchemist's potion menu: the potion picked.
             case "brew" -> traps.onBrewChoice(player, argument);
             // The demolition expert's bird's-eye view: a fire called on a spot.
@@ -3687,6 +3722,9 @@ public final class SiegeManager {
 
     /** Called before a monster picks a target: the mod's monsters never pick players outside it. */
     public static boolean mayTarget(Mob mob, LivingEntity target) {
+        if (target instanceof net.minecraft.world.entity.player.Player p && Drones.isDrone(p)) {
+            return false;   // the drones of the fallen are left alone
+        }
         if (!Companions.mayTarget(mob, target)) {
             return false;   // companions pick no players and no other companions
         }

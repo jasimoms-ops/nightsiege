@@ -239,7 +239,7 @@ public final class EventEffects {
         for (UUID id : participants) {
             ServerPlayer player = server.getPlayerList().getPlayer(id);
             if (player == null || player.level() != world || fallen.contains(id) || player.isCreative()
-                    || player.isSpectator() || !player.canFreeze()) {
+                    || player.isSpectator() || Drones.isDrone(player) || !player.canFreeze()) {
                 continue;
             }
             BlockPos pos = player.blockPosition();

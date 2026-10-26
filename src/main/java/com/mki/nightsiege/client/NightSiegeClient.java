@@ -78,6 +78,7 @@ public class NightSiegeClient implements ClientModInitializer {
                     BossLooks.clear();
                     MannedClient.reset();
                     HealthViewClient.clear();
+                    DroneClient.clear();
                 });
         ClientPlayNetworking.registerGlobalReceiver(CoreNetworking.ScreenPayload.TYPE,
                 (payload, context) -> context.client().execute(() -> {
@@ -110,6 +111,8 @@ public class NightSiegeClient implements ClientModInitializer {
                         if (data != null && client.player != null) {
                             client.setScreenAndShow(new SpotterScreen(data));
                         }
+                    } else if ("drones".equals(payload.kind())) {
+                        DroneClient.set(payload.json());
                     } else if ("healthview".equals(payload.kind())) {
                         HealthViewClient.set(payload.json());
                     } else if ("brewmenu".equals(payload.kind())) {
@@ -200,6 +203,10 @@ public class NightSiegeClient implements ClientModInitializer {
                 NightSiegeClient::eventLayers);
         // Manned towers (Simon, 26 October 2026): the attack button fires the tower.
         ClientTickEvents.START_CLIENT_TICK.register(MannedClient::tick);
+        // The drone of a fallen defender (Simon, 26 October 2026): own steering and a brass frame.
+        ClientTickEvents.START_CLIENT_TICK.register(DroneClient::tick);
+        HudElementRegistry.attachElementAfter(VanillaHudElements.HOTBAR, ModContent.id("drone"),
+                (gui, delta) -> DroneClient.draw(gui));
         // Guardian: a left click while blocking is the shield action. Minecraft drops
         // attack clicks while an item is in use, so they are taken here first.
         ClientTickEvents.START_CLIENT_TICK.register(client -> {

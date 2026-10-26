@@ -84,6 +84,7 @@ public class SpotterScreen extends Screen {
             oldZ = camZ;
         }
         active = this;
+        cursor(false);   // the red X is the pointer (Simon, 26 October 2026)
     }
 
     @Override
@@ -91,7 +92,23 @@ public class SpotterScreen extends Screen {
         if (active == this) {
             active = null;
         }
+        cursor(true);
         super.removed();
+    }
+
+    /** True while the bird's-eye view is open (the HUD leaves out its own crosshair then). */
+    public static boolean isOpen() {
+        return active != null;
+    }
+
+    /** Shows or hides the system's mouse pointer over the game window. */
+    private static void cursor(boolean visible) {
+        try {
+            GLFW.glfwSetInputMode(Minecraft.getInstance().getWindow().handle(), GLFW.GLFW_CURSOR,
+                    visible ? GLFW.GLFW_CURSOR_NORMAL : GLFW.GLFW_CURSOR_HIDDEN);
+        } catch (RuntimeException ignored) {
+            // no window (tests without a display): nothing to hide
+        }
     }
 
     /** Where the camera hangs this frame (between the last tick and this one), or null. */
@@ -376,7 +393,8 @@ public class SpotterScreen extends Screen {
         gui.fill(this.width - iw - 14, 6, this.width - 6, 18, PANEL);
         small(gui, font, info, this.width - iw - 10, 9, LIGHT, 0.75f);
 
-        // Crosshair on the cursor and the spot under it.
+        // The red X on the cursor, and the spot under it.
+        redX(gui, mouseX, mouseY, readyAt[selected] > ticks);
         if (hover != null) {
             String at = hover.getX() + " / " + hover.getY() + " / " + hover.getZ();
             small(gui, font, at, mouseX + 8, mouseY + 8, LIGHT, 0.7f);
@@ -420,6 +438,20 @@ public class SpotterScreen extends Screen {
         int fw = (int) (font.width(foot) * 0.7f);
         small(gui, font, foot, (this.width - fw) / 2, top + SLOT_H + 6, GREY, 0.7f);
         super.extractRenderState(gui, mouseX, mouseY, delta);
+    }
+
+    /** A red X of 2-pixel strokes; dimmed while the picked fire still waits. */
+    private static void redX(GuiGraphicsExtractor gui, int x, int y, boolean waiting) {
+        int color = waiting ? 0x90E05050 : 0xFFFF2A2A;
+        int shadow = 0x80000000;
+        for (int i = -6; i <= 6; i++) {
+            gui.fill(x + i - 1 + 1, y + i - 1 + 1, x + i + 1 + 1, y + i + 1 + 1, shadow);
+            gui.fill(x + i - 1 + 1, y - i - 1 + 1, x + i + 1 + 1, y - i + 1 + 1, shadow);
+        }
+        for (int i = -6; i <= 6; i++) {
+            gui.fill(x + i - 1, y + i - 1, x + i + 1, y + i + 1, color);
+            gui.fill(x + i - 1, y - i - 1, x + i + 1, y - i + 1, color);
+        }
     }
 
     private static void small(GuiGraphicsExtractor gui, Font font, String text, int x, int y, int color, float scale) {

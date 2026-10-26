@@ -8,7 +8,6 @@ import com.mki.nightsiege.core.SkillTree;
 import com.mki.nightsiege.core.SkillValues;
 import com.mki.nightsiege.core.TrapKind;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Rotations;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket;
@@ -22,7 +21,6 @@ import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.decoration.ArmorStand;
@@ -1131,6 +1129,8 @@ public final class TrapService {
         boolean left;
         long lowNoticeAt;
         float lastPitch = Float.NaN;
+        /** The tower's rig: platform, shields and the ballista or the coils and emitter. */
+        Rigs.Rig rig;
 
         Seat(String trap, String dimension, BlockPos pos, TrapKind kind, UUID player, UUID stand) {
             this.trap = trap;
@@ -1141,6 +1141,59 @@ public final class TrapService {
             this.stand = stand;
         }
     }
+
+    /**
+     * The manned arrow turret (Simon, 26 October 2026): a swivel platform with shields and a
+     * banner, and in front of the gunner a ballista that follows his aim. Rig space: +Z is
+     * where the gunner looks; the platform stands on the block, the ballista turns about a
+     * point at his chest.
+     */
+    private static final List<Rigs.Piece> TURRET_RIG = List.of(
+            Rigs.Piece.yaw("spruce_planks", -0.65, 0.0, -0.65, 1.3, 0.1, 1.3),
+            Rigs.Piece.yaw("red_wool", -0.22, 0.1, -0.3, 0.44, 0.08, 0.44),
+            Rigs.Piece.yaw("spruce_planks", -0.66, 0.1, -0.2, 0.08, 0.42, 0.75),
+            Rigs.Piece.yaw("spruce_planks", 0.58, 0.1, -0.2, 0.08, 0.42, 0.75),
+            Rigs.Piece.yaw("iron_block", -0.67, 0.5, -0.21, 0.1, 0.05, 0.77),
+            Rigs.Piece.yaw("iron_block", 0.57, 0.5, -0.21, 0.1, 0.05, 0.77),
+            Rigs.Piece.yaw("dark_oak_log", -0.6, 0.1, -0.62, 0.07, 1.25, 0.07),
+            Rigs.Piece.yaw("red_wool", -0.585, 0.88, -1.0, 0.03, 0.42, 0.38),
+            Rigs.Piece.yaw("gold_block", -0.59, 0.84, -1.0, 0.04, 0.05, 0.38),
+            Rigs.Piece.aim("stripped_dark_oak_log", -0.06, -0.08, 0.2, 0.12, 0.12, 1.15),
+            Rigs.Piece.aim("dark_oak_planks", -0.5, -0.06, 1.12, 0.44, 0.08, 0.08),
+            Rigs.Piece.aim("dark_oak_planks", 0.06, -0.06, 1.12, 0.44, 0.08, 0.08),
+            Rigs.Piece.aim("dark_oak_planks", -0.78, -0.055, 0.98, 0.3, 0.07, 0.07),
+            Rigs.Piece.aim("dark_oak_planks", 0.48, -0.055, 0.98, 0.3, 0.07, 0.07),
+            Rigs.Piece.aim("white_wool", -0.78, -0.03, 0.97, 1.56, 0.015, 0.015),
+            Rigs.Piece.aim("iron_block", -0.025, 0.04, 0.55, 0.05, 0.05, 0.75),
+            Rigs.Piece.aim("iron_block", -0.05, 0.015, 1.28, 0.1, 0.1, 0.1),
+            Rigs.Piece.aim("iron_block", -0.3, -0.38, 0.62, 0.6, 0.26, 0.04),
+            Rigs.Piece.aim("iron_block", -0.08, -0.3, 0.2, 0.16, 0.22, 0.12));
+
+    /**
+     * The manned tesla coil: a copper platform, two coils behind the gunner with glowing tips
+     * that crackle at each other, and a copper emitter in front that follows his aim.
+     */
+    private static final List<Rigs.Piece> TESLA_RIG = List.of(
+            Rigs.Piece.yaw("cut_copper", -0.6, 0.0, -0.6, 1.2, 0.1, 1.2),
+            Rigs.Piece.yaw("light_blue_wool", -0.22, 0.1, -0.3, 0.44, 0.08, 0.44),
+            Rigs.Piece.yaw("copper_block", -0.58, 0.1, -0.55, 0.18, 0.95, 0.18),
+            Rigs.Piece.yaw("copper_block", 0.40, 0.1, -0.55, 0.18, 0.95, 0.18),
+            Rigs.Piece.yaw("gold_block", -0.62, 0.3, -0.59, 0.26, 0.04, 0.26),
+            Rigs.Piece.yaw("gold_block", -0.62, 0.55, -0.59, 0.26, 0.04, 0.26),
+            Rigs.Piece.yaw("gold_block", -0.62, 0.8, -0.59, 0.26, 0.04, 0.26),
+            Rigs.Piece.yaw("gold_block", 0.36, 0.3, -0.59, 0.26, 0.04, 0.26),
+            Rigs.Piece.yaw("gold_block", 0.36, 0.55, -0.59, 0.26, 0.04, 0.26),
+            Rigs.Piece.yaw("gold_block", 0.36, 0.8, -0.59, 0.26, 0.04, 0.26),
+            Rigs.Piece.yaw("sea_lantern", -0.61, 1.05, -0.58, 0.24, 0.24, 0.24),
+            Rigs.Piece.yaw("sea_lantern", 0.37, 1.05, -0.58, 0.24, 0.24, 0.24),
+            Rigs.Piece.aim("cut_copper", -0.07, -0.14, 0.3, 0.14, 0.14, 0.65),
+            Rigs.Piece.aim("gold_block", -0.1, -0.17, 0.5, 0.2, 0.2, 0.05),
+            Rigs.Piece.aim("gold_block", -0.1, -0.17, 0.72, 0.2, 0.2, 0.05),
+            Rigs.Piece.aim("sea_lantern", -0.09, -0.16, 0.95, 0.18, 0.18, 0.18),
+            Rigs.Piece.aim("iron_block", -0.08, -0.3, 0.2, 0.16, 0.22, 0.12));
+
+    /** Height of the ballista's or emitter's pivot above the tower's top. */
+    private static final double AIM_HEIGHT = 0.55;
 
     /** Trap key → the seat on that tower. */
     private final Map<String, Seat> seats = new HashMap<>();
@@ -1243,6 +1296,9 @@ public final class TrapService {
         }
         Seat seat = new Seat(key(record), record.dimension, pos.immutable(), kind, player.getUUID(), stand.getUUID());
         seat.readyAt = level.getGameTime() + 5;
+        Vec3 top = new Vec3(pos.getX() + 0.5, pos.getY() + 1.0, pos.getZ() + 0.5);
+        seat.rig = Rigs.spawn(level, top, top.add(0, AIM_HEIGHT, 0), kind == TrapKind.TESLA ? TESLA_RIG : TURRET_RIG,
+                player.getYRot(), null);
         seats.put(seat.trap, seat);
         seatOf.put(seat.player, seat);
         setLook(level, pos, true);
@@ -1262,13 +1318,7 @@ public final class TrapService {
         stand.setNoBasePlate(true);
         ((com.mki.nightsiege.mixin.ArmorStandAccessor) stand).nightsiege$setSmall(true);
         ((com.mki.nightsiege.mixin.ArmorStandAccessor) stand).nightsiege$setMarker(true);
-        // Two crossbows (the twin ballista), or two glowing electrodes for the coil.
-        ItemStack hand = new ItemStack(kind == TrapKind.TESLA ? Items.END_ROD : Items.CROSSBOW);
-        stand.setItemSlot(EquipmentSlot.MAINHAND, hand.copy());
-        stand.setItemSlot(EquipmentSlot.OFFHAND, hand.copy());
-        Rotations forward = new Rotations(-90f, 0f, 0f);
-        stand.setRightArmPose(forward);
-        stand.setLeftArmPose(forward);
+        // The weapons are the tower's rig (block displays), the stand is only the seat.
     }
 
     /** Shows or hides a tower's manned look (seat, plates, banner or twin coils). */
@@ -1310,6 +1360,7 @@ public final class TrapService {
         if (stand != null) {
             stand.discard();
         }
+        Rigs.remove(level, seat.rig);
         setLook(level, seat.pos, false);
         playAt(level, seat.pos, SoundEvents.CHAIN_PLACE, 0.7f, 0.7f);
     }
@@ -1333,19 +1384,17 @@ public final class TrapService {
                 continue;
             }
             float yaw = player.getYRot();
+            float pitch = Math.max(-45f, Math.min(45f, player.getXRot()));
             stand.setYRot(yaw);
-            if (stand instanceof ArmorStand armor) {
-                armor.setYBodyRot(yaw);
-                armor.setYHeadRot(yaw);
-                float pitch = player.getXRot();
-                if (Float.isNaN(seat.lastPitch) || Math.abs(pitch - seat.lastPitch) > 3f) {
-                    seat.lastPitch = pitch;
-                    Rotations aim = new Rotations(-90f + pitch, 0f, 0f);
-                    armor.setRightArmPose(aim);
-                    armor.setLeftArmPose(aim);
+            long now = level.getGameTime();
+            if (seat.rig != null) {
+                Rigs.turn(level, seat.rig, yaw, pitch);
+                if (seat.kind == TrapKind.TESLA && now % 8 == 0) {
+                    // The coil tips crackle at each other while someone sits in the coil.
+                    Vec3 top = new Vec3(seat.pos.getX() + 0.5, seat.pos.getY() + 1.0, seat.pos.getZ() + 0.5);
+                    spark(level, Rigs.world(top, yaw, -0.49, 1.17, -0.46), Rigs.world(top, yaw, 0.49, 1.17, -0.46));
                 }
             }
-            long now = level.getGameTime();
             if (seat.holding && now >= seat.readyAt) {
                 int tier = tierOf(record);
                 if (seat.kind == TrapKind.TURRET) {
@@ -1361,11 +1410,9 @@ public final class TrapService {
     private void fireManned(ServerLevel level, Seat seat, TrapRecord record, ServerPlayer gunner, int tier, long now) {
         Vec3 look = gunner.getLookAngle();
         Vec3 eye = gunner.getEyePosition();
-        Vec3 flat = new Vec3(-look.z, 0, look.x);
-        Vec3 side = flat.lengthSqr() < 1.0e-4 ? Vec3.ZERO : flat.normalize().scale(seat.left ? -0.4 : 0.4);
-        seat.left = !seat.left;
-        Vec3 out = eye.add(look.scale(0.8)).add(side).subtract(0, 0.45, 0);
-        // Both crossbows meet where the gunner looks, 32 blocks out.
+        // The bolt leaves the ballista's head and meets the gunner's line of sight 32 blocks out.
+        Vec3 pivot = new Vec3(seat.pos.getX() + 0.5, seat.pos.getY() + 1.0 + AIM_HEIGHT, seat.pos.getZ() + 0.5);
+        Vec3 out = pivot.add(look.scale(1.45));
         Vec3 aim = eye.add(look.scale(32.0)).subtract(out);
         Arrow arrow = new Arrow(level, out.x, out.y, out.z, new ItemStack(Items.ARROW), null);
         arrow.entityTags().add("nightsiege_arrow");   // keeps the archer skills off it
@@ -1406,7 +1453,8 @@ public final class TrapService {
         double range = TrapKind.TESLA.radius(tier) + bonus(record, SkillEffect.TOWER_RANGE)
                 + SkillValues.get("tesla_coil", "beamrange", 4.0);
         Vec3 end = eye.add(look.scale(range));
-        Vec3 from = eye.add(look.scale(0.6)).subtract(0, 0.5, 0);
+        // The beam leaves the emitter's glowing tip.
+        Vec3 from = new Vec3(seat.pos.getX() + 0.5, seat.pos.getY() + 1.0 + AIM_HEIGHT, seat.pos.getZ() + 0.5).add(look.scale(1.05));
         LivingEntity first = null;
         double best = Double.MAX_VALUE;
         for (LivingEntity e : enemies(level, new AABB(eye, end).inflate(1.0))) {

@@ -38,7 +38,7 @@ public final class SkyHunters {
             ServerPlayer best = null;
             double bestDistance = range * range;
             for (ServerPlayer player : defenders) {
-                if (player.level() != world || !player.isAlive() || player.isSpectator()) {
+                if (player.level() != world || !player.isAlive() || player.isSpectator() || Drones.isDrone(player)) {
                     continue;
                 }
                 double d = mob.distanceToSqr(player);
