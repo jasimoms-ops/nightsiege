@@ -1682,18 +1682,21 @@ public class EventLookTest implements FabricClientGameTest {
                 + com.mki.nightsiege.game.Companions.ghostReport((net.minecraft.server.level.ServerLevel) player.level(), player)));
         context.runOnClient(client -> {
             int vexes = 0;
-            int glowing = 0;
-            if (client.level != null) {
-                for (net.minecraft.world.entity.Entity e : client.level.entitiesForRendering()) {
-                    if (e instanceof net.minecraft.world.entity.monster.Vex) {
-                        vexes++;
-                        if (e.isCurrentlyGlowing()) {
-                            glowing++;
-                        }
+            int aqua = 0;
+            int named = 0;
+            if (client.level != null && client.player != null) {
+                for (net.minecraft.world.entity.monster.Vex e : client.level.getEntitiesOfClass(net.minecraft.world.entity.monster.Vex.class,
+                        client.player.getBoundingBox().inflate(48.0))) {
+                    vexes++;
+                    if (e.getTeam() != null && "nightsiege_ghost".equals(e.getTeam().getName())) {
+                        aqua++;
+                    }
+                    if (e.isCustomNameVisible()) {
+                        named++;
                     }
                 }
             }
-            System.out.println("[Night Siege test] summoner ghosts on the client vex=" + vexes + " glowing=" + glowing);
+            System.out.println("[Night Siege test] summoner ghosts on the client vex=" + vexes + " aqua team=" + aqua + " name shown=" + named);
         });
         context.takeScreenshot("summoner_dead");
         context.waitTicks(60);
