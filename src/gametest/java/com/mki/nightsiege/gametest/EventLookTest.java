@@ -1722,6 +1722,16 @@ public class EventLookTest implements FabricClientGameTest {
         onServer(context, (player, manager) -> System.out.println("[Night Siege test] summoner dead after 5s minions="
                 + com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "minion")
                 + " ghosts=" + com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "ghost") + " kills=" + manager.nightKills()));
+        // The kill goal drops when a wave cannot come (field full): the bar says why (Simon, 26 October 2026).
+        onServer(context, (player, manager) -> {
+            String before = manager.bossBarText();
+            int keep = manager.config().maxLiveMobs;
+            manager.config().maxLiveMobs = 0;
+            manager.testWave(player.level().getServer());
+            String after = manager.bossBarText();
+            manager.config().maxLiveMobs = keep;
+            System.out.println("[Night Siege test] summoner goal bar before=" + before + " | after=" + after);
+        });
         // Souls again from a second wave, for the soul vessel at the end of the night.
         onServer(context, (player, manager) -> manager.testWave(player.level().getServer()));
         context.waitTicks(40);

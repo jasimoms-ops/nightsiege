@@ -961,6 +961,16 @@ public final class SiegeManager {
     private int nightKills;
     private int spawnedTotal;
     private int killQuota;
+    /**
+     * The kill goal moves with what can still come (Simon, 26 October 2026: keep the sum, but
+     * show why it changes): the goal the bar showed last, the reasons noted since, and the note
+     * the bar carries for five seconds after a change.
+     */
+    private int shownRequired = -1;
+    private Component goalDown;
+    private Component goalUp;
+    private Component goalNote;
+    private int goalNoteUntil;
     /** The night fragment this night used up (given back when the night has to be played again). */
     private String usedFragment;
     /** How often a survived wave counts for each defender this night (catching up on missed nights). */
@@ -1277,6 +1287,10 @@ public final class SiegeManager {
         defense.begin(world, anchor, config, save.coreSkills(), skillTree, digger, anyoneHas("mauerkelle"));
         nightKills = 0;
         spawnedTotal = 0;
+        shownRequired = -1;
+        goalDown = null;
+        goalUp = null;
+        goalNote = null;
         nightLog.begin(world.getGameTime());
         digger.takeBroken();
         for (UUID id : participants) {
@@ -1348,12 +1362,39 @@ public final class SiegeManager {
                             Component.translatable("nightsiege.boss." + bosses.kind().id())).withStyle(ChatFormatting.RED));
         }
         int required = killsRequired();
+        noteGoalChange(required);
         if (required <= 0) {
             return title;
         }
-        return Component.empty().append(title).append(Component.literal("  ·  "))
+        MutableComponent bar = Component.empty().append(title).append(Component.literal("  ·  "))
                 .append(Component.translatable("nightsiege.bar.kills", nightKills, required)
                         .withStyle(nightKills >= required ? ChatFormatting.GREEN : ChatFormatting.YELLOW));
+        if (goalNote != null && ticksLeft > goalNoteUntil) {
+            bar.append(Component.literal(" ")).append(goalNote);
+        }
+        return bar;
+    }
+
+    /** The goal moved since the bar last showed it: the bar says why for five seconds. */
+    private void noteGoalChange(int required) {
+        if (shownRequired >= 0 && required != shownRequired) {
+            boolean down = required < shownRequired;
+            Component why = down ? goalDown : goalUp;
+            if (why == null) {
+                why = Component.translatable(down ? "nightsiege.bar.goal_fewer" : "nightsiege.bar.goal_more");
+            }
+            goalNote = Component.translatable(down ? "nightsiege.bar.goal_down" : "nightsiege.bar.goal_up", why)
+                    .withStyle(down ? ChatFormatting.AQUA : ChatFormatting.GOLD);
+            goalNoteUntil = ticksLeft - 100;
+            goalDown = null;
+            goalUp = null;
+        }
+        shownRequired = required;
+    }
+
+    /** For the tests: the boss bar's text right now. */
+    public String bossBarText() {
+        return bossBar == null ? "" : bossBarTitle().getString();
     }
 
     /** Experience is worth more in a special night. */
@@ -1372,6 +1413,8 @@ public final class SiegeManager {
         for (ServerPlayer player : defendersNear(server, world, anchor, testRun)) {
             if (!fallen.contains(player.getUUID())) {
                 if (participants.add(player.getUUID())) {
+                    // More defenders, bigger waves: the goal can rise (up to where it started).
+                    goalUp = Component.translatable("nightsiege.bar.goal_joined", player.getScoreboardName());
                     logPlayer(player);
                     equipKit(player);
                     SkillService.apply(player, save.skillsOf(player.getUUID().toString()), skillTree);
@@ -1598,6 +1641,7 @@ public final class SiegeManager {
             }
             liveMobs.add(mob.getUUID());
             spawnedTotal++;
+            goalUp = Component.translatable("nightsiege.bar.goal_extra");
             aimAtDefender(world.getServer(), mob);
             return mob;
         }
@@ -1767,6 +1811,7 @@ public final class SiegeManager {
                 for (Entity rider : mob.getPassengers()) {
                     liveMobs.add(rider.getUUID());
                     spawnedTotal++;
+                    goalUp = Component.translatable("nightsiege.bar.goal_extra");
                 }
                 aimAtDefender(server, mob);
                 Fx.mobSpawned(world, config, mob, spawned < config.audibleSpawnsPerBatch);
@@ -1776,6 +1821,11 @@ public final class SiegeManager {
                 wave.add(mob);
                 spawned++;
             }
+        }
+        if (count < wanted) {
+            goalDown = Component.translatable("nightsiege.bar.goal_full");   // the field is full
+        } else if (spawned < count) {
+            goalDown = Component.translatable("nightsiege.bar.goal_no_room");   // no spot for some of them
         }
         // Some of them carry ladders; a sapper creeper may come along (it does not count for the kill goal).
         besiegers.afterWave(world, anchor, defense.base(), wave, siegeLevel, config, random, currentEvent,
