@@ -1906,6 +1906,7 @@ public class EventLookTest implements FabricClientGameTest {
         java.util.List<String> only = new java.util.ArrayList<>();
         java.util.List<Integer> simLevels = new java.util.ArrayList<>();
         int seconds = 150;
+        boolean benchRun = false;
         for (String token : System.getenv("NIGHTSIEGE_SIM").trim().split("\\s+")) {
             if (token.matches("\\d+")) {
                 if (!token.equals("1")) {
@@ -1913,6 +1914,23 @@ public class EventLookTest implements FabricClientGameTest {
                 }
             } else if (token.matches("[Ll]\\d+")) {
                 simLevels.add(Integer.parseInt(token.substring(1)));
+            } else if (token.equals("bench")) {
+                benchRun = true;
+            } else if (token.matches("[A-Za-z]+\\.[A-Za-z:_]+=[0-9.]+")) {
+                // "classDamageTaken.engineer=1.5": one entry of a map of the config.
+                String[] kv = token.split("=");
+                String[] path = kv[0].split("\\.", 2);
+                onServer(context, (player, manager) -> {
+                    try {
+                        java.lang.reflect.Field f = manager.config().getClass().getField(path[0]);
+                        @SuppressWarnings("unchecked")
+                        java.util.Map<String, Double> map = (java.util.Map<String, Double>) f.get(manager.config());
+                        map.put(path[1], Double.parseDouble(kv[1]));
+                    } catch (ReflectiveOperationException | ClassCastException e) {
+                        System.out.println("[Night Siege sim] unbekannter Wert " + kv[0]);
+                    }
+                });
+                System.out.println("[Night Siege sim] Einstellung " + kv[0] + " = " + kv[1]);
             } else if (token.matches("[A-Za-z]+=[0-9.a-z]+")) {
                 // "engineer=0.7": a class damage factor; "trapDamage=0.6": any number or switch of the config.
                 String[] kv = token.split("=");
@@ -1941,13 +1959,14 @@ public class EventLookTest implements FabricClientGameTest {
             }
         }
         final int simSeconds = seconds;
+        final boolean simBench = benchRun;
         net.minecraft.core.BlockPos core = new net.minecraft.core.BlockPos(cx, cy, cz);
         onServer(context, (player, manager) -> {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
             level.setBlock(core, com.mki.nightsiege.game.ModContent.SIEGE_CORE.defaultBlockState(), 3);
             manager.onCorePlaced(level, core, player);
             manager.save().register(player.getUUID().toString());
-            String problem = com.mki.nightsiege.game.MeleeSim.start(player, simLevels, simSeconds, only);
+            String problem = com.mki.nightsiege.game.MeleeSim.start(player, simLevels, simSeconds, only, simBench);
             System.out.println("[Night Siege sim] start: " + (problem == null ? "ok" : problem));
         });
         context.waitTicks(40);
