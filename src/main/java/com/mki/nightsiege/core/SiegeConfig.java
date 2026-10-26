@@ -260,6 +260,10 @@ public class SiegeConfig {
     public double armorBreakShare = 0.3;
     /** … for this many seconds; another hit starts the time again (no stacking). 0 turns it off. */
     public double armorBreakSeconds = 3.0;
+    /** Vexes and phantoms go first for defenders who stand this many blocks above the ground around them … */
+    public int skyHunterHeight = 3;
+    /** … within this many blocks (0 turns it off). */
+    public double skyHunterRange = 24.0;
     /** Klaffende Wunden (anti-heal, Simon 25 October 2026): these monsters halve all healing of the player they hit. */
     public java.util.List<String> antiHealMobs = new java.util.ArrayList<>(java.util.List.of(
             "minecraft:spider", "minecraft:cave_spider", "minecraft:witch"));
@@ -504,6 +508,9 @@ public class SiegeConfig {
         list.add(new MobEntry(vv + "thicket", 2, 6, 0.0));
         list.add(new MobEntry(vv + "verdant", 2, 6, 0.0));
         list.add(new MobEntry("minecraft:creeper", 3, 6, 0.2));
+        // Flyers in every night (Simon, 26 October 2026): vexes without an evoker, phantoms; both go for the walls.
+        list.add(new MobEntry("minecraft:vex", 3, 2, 0.15));
+        list.add(new MobEntry("minecraft:phantom", 3, 2, 0.15));
         list.add(new MobEntry("minecraft:husk", 3, 8, 0.0));
         list.add(new MobEntry(vv + "murk", 3, 6, 0.1));
         list.add(new MobEntry(vv + "gelid", 3, 6, 0.1));

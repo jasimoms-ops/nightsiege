@@ -271,6 +271,8 @@ public final class SiegeManager {
     private final Set<UUID> participants = new HashSet<>();
     private final Set<UUID> fallen = new HashSet<>();
     private final Set<UUID> liveMobs = new HashSet<>();
+    /** Vexes and phantoms: high-standing defenders first (Simon, 26 October 2026). */
+    private final SkyHunters skyHunters = new SkyHunters();
 
     private SiegeManager() {
     }
@@ -1455,6 +1457,16 @@ public final class SiegeManager {
         }
         events.tick(server, world, anchor, currentEvent, participants, fallen, liveMobs, config, world.getGameTime());
 
+        if (world.getGameTime() % 20 == 0) {
+            java.util.List<ServerPlayer> standing = new java.util.ArrayList<>();
+            for (UUID id : participants) {
+                ServerPlayer p = fallen.contains(id) ? null : server.getPlayerList().getPlayer(id);
+                if (p != null) {
+                    standing.add(p);
+                }
+            }
+            skyHunters.tick(world, liveMobs, standing, config, world.getGameTime());   // vexes and phantoms go for the walls
+        }
         if (world.getGameTime() % 2 == 0) {
             ladders.tick(world, liveMobs, anchor, world.getGameTime());
             besiegers.tick(world, liveMobs, anchor, world.getGameTime());
