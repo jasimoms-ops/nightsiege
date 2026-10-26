@@ -44,7 +44,8 @@ public final class Combo {
         if (on) {
             // Exactly HITS_PER_SECOND, whatever the sword and the other bonuses give.
             double without = speed.getValue() - (have == null ? 0.0 : have.amount());
-            double want = Math.max(0.0, HITS_PER_SECOND - without);
+            double hits = com.mki.nightsiege.core.SkillValues.get("w_combo", "hits", HITS_PER_SECOND);
+            double want = Math.max(0.0, hits - without);
             if (have == null || Math.abs(have.amount() - want) > 1.0e-3) {
                 if (have != null) {
                     speed.removeModifier(SPEED);

@@ -3,6 +3,7 @@ package com.mki.nightsiege.game;
 import com.mki.nightsiege.core.PlayerSkills;
 import com.mki.nightsiege.core.SkillEffect;
 import com.mki.nightsiege.core.SkillTree;
+import com.mki.nightsiege.core.SkillValues;
 import net.minecraft.core.Holder;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.ai.attributes.Attribute;
@@ -48,9 +49,9 @@ public final class SkillService {
         double v = 0.0;
         switch (effect) {
             case MAX_HEALTH -> {
-                if (SkillTree.has(skills, "w_glass_cannon")) v -= 8.0;
-                if (SkillTree.has(skills, "w_colossus")) v += 12.0;
-                if (SkillTree.has(skills, "w_martyr")) v -= 4.0;
+                if (SkillTree.has(skills, "w_glass_cannon")) v -= SkillValues.get("w_glass_cannon", "hp", 8.0);
+                if (SkillTree.has(skills, "w_colossus")) v += SkillValues.get("w_colossus", "hp", 12.0);
+                if (SkillTree.has(skills, "w_martyr")) v -= SkillValues.get("w_martyr", "hp", 4.0);
                 if (SkillTree.has(skills, "a_deadeye")) v -= 8.0;
                 if (SkillTree.has(skills, "a_watchful")) v -= 4.0;
                 if (SkillTree.has(skills, "g_living_wall")) v += 12.0;
@@ -60,8 +61,9 @@ public final class SkillService {
                 if (SkillTree.has(skills, "d_lich")) v -= 8.0;
             }
             case MOVEMENT_SPEED -> {
-                if (SkillTree.has(skills, "w_unstoppable")) v -= 0.01;
-                if (SkillTree.has(skills, "w_colossus")) v -= 0.01;
+                // The slow is a share of the base walking speed (0.1).
+                if (SkillTree.has(skills, "w_unstoppable")) v -= 0.1 * SkillValues.get("w_unstoppable", "slow", 0.10);
+                if (SkillTree.has(skills, "w_colossus")) v -= 0.1 * SkillValues.get("w_colossus", "slow", 0.10);
                 if (SkillTree.has(skills, "a_skirmisher")) v += 0.015;
                 if (SkillTree.has(skills, "a_siegeengine")) v -= 0.015;
                 if (SkillTree.has(skills, "g_living_wall")) v -= 0.01;

@@ -273,10 +273,11 @@ public final class SkillTree {
         String e3 = "keen_edge|w_precision|blood_drinker|w_warcry";
         node(list, "w_parry", c, e, SkillEffect.PARRY, 1, 12, 0, 0.15, e3, "e4", "minecraft:iron_sword", 5, 1);
         node(list, "w_frenzy", c, e, SkillEffect.FRENZY, 1, 12, 0, 1.0, e3, "e4", "minecraft:blaze_powder", 5, 3);
-        node(list, "e_cross_heavy", c, e, SkillEffect.HEAVY_BLOW, 1, 12, 0, 3.0, e3, "e4", "minecraft:iron_axe", 5, 5,
-                "w_bladefrenzy", "w_bladestorm");
-        node(list, "w_bladefrenzy", c, e, SkillEffect.CRIT_RAGE, 1, 15, 0, 1.0, "keen_edge|w_precision,w_frenzy", "e5", "minecraft:netherite_sword", 6, 2);
-        node(list, "w_bloodblade", c, e, SkillEffect.PARRY_HEAL, 1, 15, 0, 4.0, "blood_drinker|w_warcry,w_parry", "e5", "minecraft:red_dye", 6, 4);
+        // Balance update 26 Oct 2026: the cross blow closes nothing any more (it closed the blade storm,
+        // so a blademaster with both cross nodes had no mastery); ring V asks only for the subclass's ring III.
+        node(list, "e_cross_heavy", c, e, SkillEffect.HEAVY_BLOW, 1, 12, 0, 3.0, e3, "e4", "minecraft:iron_axe", 5, 5);
+        node(list, "w_bladefrenzy", c, e, SkillEffect.CRIT_RAGE, 1, 15, 0, 1.0, "keen_edge|w_precision", "e5", "minecraft:netherite_sword", 6, 2);
+        node(list, "w_bloodblade", c, e, SkillEffect.PARRY_HEAL, 1, 15, 0, 4.0, "blood_drinker|w_warcry", "e5", "minecraft:red_dye", 6, 4);
         String e4 = "w_parry|w_frenzy|e_cross_heavy";
         node(list, "w_evasion", c, e, SkillEffect.DODGE, 1, 18, 0, 0.10, e4, "e6", "minecraft:phantom_membrane", 7, 1);
         node(list, "w_bloodprice", c, e, SkillEffect.BLOOD_PRICE, 1, 18, 0, 0.3, e4, "e6", "minecraft:redstone_block", 7, 3);
@@ -305,10 +306,14 @@ public final class SkillTree {
         String m3 = "w_cleave|w_headhunter|holy_vigor|w_vow";
         node(list, "w_momentum", c, m, SkillEffect.MOMENTUM, 1, 12, 0, 1.0, m3, "m4", "minecraft:rabbit_foot", 5, 1);
         node(list, "w_blessing", c, m, SkillEffect.HEAL_AURA, 1, 12, 0, 1.0, m3, "m4", "minecraft:glistering_melon_slice", 5, 3);
-        node(list, "m_cross_keen", c, m, SkillEffect.CRIT_CHANCE, 1, 12, 0, 0.2, m3, "m4", "minecraft:flint", 5, 5, "w_aftershock");
-        node(list, "w_crusader", c, m, SkillEffect.CRUSADER, 1, 15, 0, 1.0, "w_cleave,w_blessing", "m5", "minecraft:golden_axe", 6, 1);
-        node(list, "w_headsman", c, m, SkillEffect.HEADSMAN, 1, 15, 0, 4.0, "w_headhunter,m_cross_keen", "m5", "minecraft:netherite_axe", 6, 3);
-        node(list, "w_holy_strike", c, m, SkillEffect.HOLY_STRIKE, 1, 15, 0, 1.0, "smite,m_cross_keen", "m5", "minecraft:blaze_rod", 6, 5);
+        // Balance update 26 Oct 2026: the cross crit no longer closes the aftershock (an axe fighter kept
+        // no mastery), and ring V asks only for the subclass's ring III (headsman and holy strike bring
+        // a small crit chance of their own when nothing else gives one). Redemption needs only the light,
+        // so an axe fighter with holy light keeps a mastery too.
+        node(list, "m_cross_keen", c, m, SkillEffect.CRIT_CHANCE, 1, 12, 0, 0.2, m3, "m4", "minecraft:flint", 5, 5);
+        node(list, "w_crusader", c, m, SkillEffect.CRUSADER, 1, 15, 0, 1.0, "w_cleave", "m5", "minecraft:golden_axe", 6, 1);
+        node(list, "w_headsman", c, m, SkillEffect.HEADSMAN, 1, 15, 0, 4.0, "w_headhunter", "m5", "minecraft:netherite_axe", 6, 3);
+        node(list, "w_holy_strike", c, m, SkillEffect.HOLY_STRIKE, 1, 15, 0, 1.0, "holy_vigor|w_vow", "m5", "minecraft:blaze_rod", 6, 5);
         String m4 = "w_momentum|w_blessing|m_cross_keen";
         node(list, "w_earthshock", c, m, SkillEffect.EARTHSHOCK, 1, 18, 0, 0.6, m4, "m6", "minecraft:mace", 7, 1);
         node(list, "w_divine_shield", c, m, SkillEffect.DIVINE_SHIELD, 1, 18, 0, 1.0, m4, "m6", "minecraft:shield", 7, 3);
@@ -319,7 +324,7 @@ public final class SkillTree {
         node(list, "w_aftershock", c, m, SkillEffect.AFTERSHOCK, 1, 25, 0, 1.0, "ground_slam,heavy_blow", "m_mastery", "minecraft:tnt", 9, 0);
         node(list, "w_crater", c, m, SkillEffect.CRATER, 1, 25, 0, 1.0, "ground_slam,smite", "m_mastery", "minecraft:cobweb", 9, 2);
         node(list, "w_sunfire", c, m, SkillEffect.SUNFIRE, 1, 25, 0, 1.0, "holy_light,smite", "m_mastery", "minecraft:fire_charge", 9, 4);
-        node(list, "w_redemption", c, m, SkillEffect.REDEMPTION, 1, 25, 0, 1.0, "holy_light,w_blessing|w_vow|holy_vigor", "m_mastery", "minecraft:enchanted_golden_apple", 9, 6);
+        node(list, "w_redemption", c, m, SkillEffect.REDEMPTION, 1, 25, 0, 1.0, "holy_light", "m_mastery", "minecraft:enchanted_golden_apple", 9, 6);
         node(list, "w_colossus", c, m, SkillEffect.COLOSSUS, 1, 30, 0, 1.0, "ground_slam|holy_light", "m_key", "minecraft:iron_block", 10, 2);
         node(list, "w_martyr", c, m, SkillEffect.MARTYR, 1, 30, 0, 1.0, "ground_slam|holy_light", "m_key", "minecraft:totem_of_undying", 10, 4);
     }

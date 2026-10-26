@@ -975,9 +975,9 @@ class SiegeCoreTest {
         assertTrue(tree.unlock("w_combo", warrior));
         assertTrue(tree.unlock("keen_edge", warrior));
         assertEquals("choice", tree.blockedReason("blood_drinker", warrior));
-        // A cross talent closes a hybrid and a mastery.
+        // A cross talent takes the place of an own one; ring V needs only the subclass's ring III.
         assertTrue(tree.unlock("e_cross_heavy", warrior));
-        assertEquals("lockedby", tree.blockedReason("w_bladestorm", warrior));
+        assertNull(tree.blockedReason("w_bladefrenzy", warrior), "ring V needs only the subclass's ring III");
         assertEquals("choice", tree.blockedReason("w_frenzy", warrior));
         assertTrue(tree.unlock("w_evasion", warrior));
         assertTrue(tree.unlock("whirlwind", warrior));
