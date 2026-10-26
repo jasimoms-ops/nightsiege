@@ -21,7 +21,7 @@ final class SkillValuesWarrior {
         def("w_combo", "window", 40);          // ticks between two hits of a streak
         def("w_combo", "killstreak", 2);       // streak needed for the kill heal
         def("w_combo", "killheal", 0.15);      // share of the slain monster's life (was config comboKillLifesteal)
-        def("bloodlust", "below", 0.5);        // life share below which hits heal
+        def("bloodlust", "below", 1.01);       // life share below which hits heal (always since 26 October 2026, Simon)
         def("bloodlust", "steal", 0.12);       // share of the damage healed (was config berserkerLifesteal)
         def("keen_edge", "crit", 0.5);         // extra damage of a critical hit
         def("w_precision", "chance", 0.10);    // own crit chance (Präzision and Scharfe Klinge are one choice)
