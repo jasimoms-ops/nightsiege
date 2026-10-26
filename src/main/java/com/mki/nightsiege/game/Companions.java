@@ -809,7 +809,16 @@ public final class Companions {
             target = nearestFoe(level, owner, mob, range);
             mob.setTarget(target);
         }
-        if (target == null && toOwner > FOLLOW && !(mob instanceof Wolf)) {
+        if (c.kind == Kind.GHOST && target == null) {
+            // An idle vex drifts through walls and into the ground (seen 5 blocks under the
+            // player in the test): without prey the ghost hovers at head height beside its summoner.
+            double dy = mob.getY() - owner.getY();
+            if (toOwner > 3.0 || dy < 0.5 || dy > 3.0) {
+                double a = (mob.getId() % 8) * Math.PI / 4.0;
+                mob.getMoveControl().setWantedPosition(owner.getX() + Math.cos(a) * 1.8, owner.getY() + 1.8,
+                        owner.getZ() + Math.sin(a) * 1.8, 1.0);
+            }
+        } else if (target == null && toOwner > FOLLOW && !(mob instanceof Wolf)) {
             mob.getNavigation().moveTo(owner, c.kind == Kind.TITAN ? 1.0 : 1.15);
         }
         if (c.kind == Kind.SPIRIT && now % 10 == 0) {
