@@ -213,8 +213,7 @@ public final class StatsService {
             line.path = node.path() == null ? "" : node.path();
             line.icon = node.icon();
             line.row = node.row();
-            com.mki.nightsiege.core.KeyHint hint = com.mki.nightsiege.core.KeyHint.forNode(node.id(),
-                    node.effect().target() == com.mki.nightsiege.core.SkillEffect.Target.ULTIMATE);
+            com.mki.nightsiege.core.KeyHint hint = com.mki.nightsiege.core.KeyHint.forNode(tree, node);
             line.key = hint == com.mki.nightsiege.core.KeyHint.NONE ? "" : hint.name();
             boolean shared = node.clazz().isShared();
             line.level = shared ? save.coreSkills().levelOf(node.id()) : skills.levelIn(node.clazz(), node.id());

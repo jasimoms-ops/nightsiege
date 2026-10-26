@@ -313,8 +313,10 @@ public final class Companions {
                     corpseBlast(level, player, skills, own);
                     return;
                 }
+                // The soul shield moved to sneak + X (26 October 2026): X into the air cost five souls by accident.
                 if (SkillTree.has(skills, "d_soulshield")) {
-                    soulShield(player, skills);
+                    CombatEffects.actionBar(player, Component.translatable("nightsiege.msg.staff_soulshield_hint",
+                            Component.keybind("key.nightsiege.second_ult")));
                     return;
                 }
             }
@@ -1547,6 +1549,29 @@ public final class Companions {
     }
 
     /** Seelenschild: five souls become four hearts of absorption. */
+    /**
+     * Sneak + X with the staff in hand (26 October 2026). Looking at an own companion with
+     * the soul swap won: false, so the second ult swaps. Otherwise the soul shield on the way
+     * of the dead (true). False when neither applies: the second ult fires as without the staff.
+     */
+    public boolean sneakStaff(ServerPlayer player) {
+        if (!(player.level() instanceof ServerLevel level)) {
+            return false;
+        }
+        PlayerSkills skills = skillsFor.apply(player);
+        if (skills == null || skills.clazz() != com.mki.nightsiege.core.SkillClass.SUMMONER) {
+            return false;
+        }
+        if (gain(skills, "seelentausch") > 0 && lookOwn(level, player, 48.0, 0.9) != null) {
+            return false;
+        }
+        if (SkillTree.WAY_DEAD.equals(skills.pathTaken(tree)) && SkillTree.has(skills, "d_soulshield")) {
+            soulShield(player, skills);
+            return true;
+        }
+        return false;
+    }
+
     private void soulShield(ServerPlayer player, PlayerSkills skills) {
         int have = soulsOf(player.getUUID());
         int cost = (int) Math.round(v("d_soulshield", "souls", 5));

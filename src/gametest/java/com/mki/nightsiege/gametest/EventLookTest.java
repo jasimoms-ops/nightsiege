@@ -245,6 +245,11 @@ public class EventLookTest implements FabricClientGameTest {
         zoomShots(context, "WARRIOR", "warrior");
         selectNode(context, "w_bladefrenzy");
         context.takeScreenshot("ui_warrior_selected");
+        // The key line in the info panel (26 October 2026): an ult with a target, an ult upgrade.
+        selectNode(context, "execute");
+        context.takeScreenshot("ui_key_execute");
+        selectNode(context, "w_chain_execute");
+        context.takeScreenshot("ui_key_mastery");
         context.runOnClient(client -> {
             net.minecraft.server.MinecraftServer server = client.getSingleplayerServer();
             server.execute(() -> {

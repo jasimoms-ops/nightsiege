@@ -328,6 +328,12 @@ public class CrateScreen extends Screen {
             gui.text(font, line, tx, ty, 0xFFCFC7DD, false);
             ty += 10;
         }
+        // Which key the gain needs, or that it needs none (Simon, 26 October 2026).
+        String keyLine = KeyHints.always(com.mki.nightsiege.core.KeyHint.forGain(roll.gain));
+        for (String line : wrap(font, keyLine.substring(2), W - 170)) {
+            gui.text(font, keyLine.substring(0, 2) + line, tx, ty, 0xFFFFFFFF, false);
+            ty += 10;
+        }
         String state;
         int stateColor;
         if (roll.duplicate) {
@@ -348,8 +354,10 @@ public class CrateScreen extends Screen {
         gui.text(font, count, tx, ty + 13, 0xFFB8B0C8, false);
         if (roll.infernite) {
             String inf = Component.translatable("nightsiege.crate.infernite_short").getString();
-            gui.item(new ItemStack(item("nightsiege:infernite_ingot")), left + 14, top + H - 24);
-            gui.text(font, inf, left + 32, top + H - 20, 0xFFFF8A3A, true);
+            // Next to the collection count: the key line pushed the text down onto it (26 October 2026).
+            int ix = tx + font.width(count) + 12;
+            gui.item(new ItemStack(item("nightsiege:infernite_ingot")), ix, ty + 9);
+            gui.text(font, inf, ix + 18, ty + 13, 0xFFFF8A3A, true);
         }
     }
 
