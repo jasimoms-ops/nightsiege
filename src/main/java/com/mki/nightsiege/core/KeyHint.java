@@ -38,7 +38,7 @@ public enum KeyHint {
     SNEAK_USE,
     /** The remote: right click, or the X key for the second order. */
     REMOTE,
-    /** The summoner's staff: right click calls, sneak and right click at a monster sends the pack. */
+    /** The summoner's staff: right click calls, the X key at a monster sends the pack. */
     STAFF;
 
     /** Skills whose effect is fired by a key; every ultimate uses the ult key on top. */
