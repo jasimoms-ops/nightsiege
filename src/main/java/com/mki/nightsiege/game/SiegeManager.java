@@ -364,8 +364,13 @@ public final class SiegeManager {
             MeleeSim.onDamage(entity, source, taken);
             safe("Begleiter-Treffer", () -> companions.afterDamage(entity, source, taken));
         });
-        ServerLivingEntityEvents.ALLOW_DEATH.register((entity, source, amount) ->
-                combat.allowDeath(entity) && allowNightDeath(entity));
+        ServerLivingEntityEvents.ALLOW_DEATH.register((entity, source, amount) -> {
+            boolean dies = combat.allowDeath(entity) && allowNightDeath(entity);
+            if (dies && !config.siegeMobDrops) {
+                NightDrops.onDeath(entity);   // siege monsters drop nothing (Simon, 26 October 2026)
+            }
+            return dies;
+        });
         ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) ->
                 !infighting(source.getEntity(), entity) && allowModDamage(entity, source.getEntity()) && combat.allowDamage(entity, source, amount)
                         && CrateEffects.allowDamage(entity, source) && Companions.allowDamage(entity, source)
@@ -385,6 +390,10 @@ public final class SiegeManager {
                         && combat.guardian().onUseEntity(server, entity, hand)
                         ? net.minecraft.world.InteractionResult.SUCCESS : net.minecraft.world.InteractionResult.PASS);
         ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> {
+            if (NightDrops.isLoot(entity)) {
+                entity.discard();   // loot of a siege monster
+                return;
+            }
             if (entity instanceof net.minecraft.world.entity.item.ItemEntity drop && KitService.isKit(drop.getItem())) {
                 drop.discard();   // a dropped kit item is gone; the kit comes again next night
                 return;
@@ -1458,14 +1467,14 @@ public final class SiegeManager {
         events.tick(server, world, anchor, currentEvent, participants, fallen, liveMobs, config, world.getGameTime());
 
         if (world.getGameTime() % 20 == 0) {
-            java.util.List<ServerPlayer> standing = new java.util.ArrayList<>();
+            java.util.List<ServerPlayer> skyTargets = new java.util.ArrayList<>();
             for (UUID id : participants) {
                 ServerPlayer p = fallen.contains(id) ? null : server.getPlayerList().getPlayer(id);
                 if (p != null) {
-                    standing.add(p);
+                    skyTargets.add(p);
                 }
             }
-            skyHunters.tick(world, liveMobs, standing, config, world.getGameTime());   // vexes and phantoms go for the walls
+            skyHunters.tick(world, liveMobs, skyTargets, config, world.getGameTime());   // vexes and phantoms go for the walls
         }
         if (world.getGameTime() % 2 == 0) {
             ladders.tick(world, liveMobs, anchor, world.getGameTime());

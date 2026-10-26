@@ -264,6 +264,8 @@ public class SiegeConfig {
     public int skyHunterHeight = 3;
     /** … within this many blocks (0 turns it off). */
     public double skyHunterRange = 24.0;
+    /** Siege monsters drop items and experience (false since Simon's call of 26 October 2026: they drop nothing). */
+    public boolean siegeMobDrops = false;
     /** Klaffende Wunden (anti-heal, Simon 25 October 2026): these monsters halve all healing of the player they hit. */
     public java.util.List<String> antiHealMobs = new java.util.ArrayList<>(java.util.List.of(
             "minecraft:spider", "minecraft:cave_spider", "minecraft:witch"));
