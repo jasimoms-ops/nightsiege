@@ -2894,7 +2894,9 @@ public class EventLookTest implements FabricClientGameTest {
         context.waitTicks(6);
         context.takeScreenshot("drone_back");
         context.runOnClient(client -> client.options.setCameraType(net.minecraft.client.CameraType.FIRST_PERSON));
-        // The crossbow: two seconds of fire at the husk ahead.
+        // The crossbow: two seconds of fire at the husk ahead (the drone hovers above it, so it aims down).
+        context.getInput().lookAt(0.0f, 24.0f);
+        context.waitTicks(3);
         onServer(context, (player, manager) -> com.mki.nightsiege.game.Drones.onFireButton(player, true));
         context.waitTicks(40);
         onServer(context, (player, manager) -> {
