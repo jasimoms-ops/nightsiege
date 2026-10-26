@@ -1234,6 +1234,8 @@ public final class TrapService {
         stand.setYRot(player.getYRot());
         stand.setYBodyRot(player.getYRot());
         level.addFreshEntity(stand);
+        // Tagged only now: the load event removes every tagged seat it does not know (strays).
+        stand.addTag(SEAT_TAG);
         if (!player.startRiding(stand, true, true)) {
             stand.discard();
             actionBar(player, Component.translatable("nightsiege.msg.tower_no_room"));
@@ -1260,7 +1262,6 @@ public final class TrapService {
         stand.setNoBasePlate(true);
         ((com.mki.nightsiege.mixin.ArmorStandAccessor) stand).nightsiege$setSmall(true);
         ((com.mki.nightsiege.mixin.ArmorStandAccessor) stand).nightsiege$setMarker(true);
-        stand.addTag(SEAT_TAG);
         // Two crossbows (the twin ballista), or two glowing electrodes for the coil.
         ItemStack hand = new ItemStack(kind == TrapKind.TESLA ? Items.END_ROD : Items.CROSSBOW);
         stand.setItemSlot(EquipmentSlot.MAINHAND, hand.copy());

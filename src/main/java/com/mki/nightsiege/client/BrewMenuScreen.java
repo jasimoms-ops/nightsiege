@@ -72,13 +72,13 @@ public class BrewMenuScreen extends Screen {
     @Override
     protected void init() {
         w = Math.max(320, Math.min(460, this.width - 8));
-        h = Math.max(200, Math.min(250, this.height - 8));
+        h = Math.max(210, Math.min(262, this.height - 8));
         left = (this.width - w) / 2;
         top = (this.height - h) / 2;
         int gap = 5;
         cardW = (w - 16 - 3 * gap) / 4;
-        cardH = Math.max(52, (h - 80) / 2);
-        rowHelp = top + 44;
+        cardH = Math.max(52, (h - 92) / 2);
+        rowHelp = top + 54;
         rowHarm = rowHelp + cardH + 16;
         addCards(help, rowHelp, gap);
         addCards(harm, rowHarm, gap);
