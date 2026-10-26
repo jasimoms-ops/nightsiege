@@ -2275,10 +2275,17 @@ public class CoreScreen extends Screen {
             // The plaque on the left.
             gui.fill(x, y, x + labelW - 6, y + box, 0xC0100C0A);
             gui.fill(x, y, x + 2, y + box, color);
-            gui.text(font, font.plainSubstrByWidth(Component.translatable(rarity.translationKey()).getString(), labelW - 12),
-                    x + 5, y + 3, color, true);
             String count = have + "/" + all;
-            smallText(gui, font, count, x + 5, y + box - 8, 0xFFB0A898, 0.7f);
+            if (box < 18) {
+                // Low shelves (compact window): smaller name and count, so they do not overlap.
+                smallText(gui, font, font.plainSubstrByWidth(Component.translatable(rarity.translationKey()).getString(),
+                        (int) ((labelW - 12) / 0.75f)), x + 5, y + 2, color, 0.75f);
+                smallText(gui, font, count, x + 5, y + box - 6, 0xFFB0A898, 0.6f);
+            } else {
+                gui.text(font, font.plainSubstrByWidth(Component.translatable(rarity.translationKey()).getString(), labelW - 12),
+                        x + 5, y + 3, color, true);
+                smallText(gui, font, count, x + 5, y + box - 8, 0xFFB0A898, 0.7f);
+            }
             int pb = x + 5 + (int) (font.width(count) * 0.7f) + 3;
             if (pb < x + labelW - 9) {
                 gui.fill(pb, y + box - 6, x + labelW - 9, y + box - 4, 0xFF2A2420);
