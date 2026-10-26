@@ -33,13 +33,13 @@ final class SkillValuesEngineer {
             def("flame_trap", "cd" + t, TrapKind.FLAME.baseCooldown(t));
         }
         tower(TrapKind.TURRET, CAP_TURRET);
-        def("arrow_turret", "overcharge", 0.7);                          // share of the full remote
+        def("arrow_turret", "overcharge", 0.9);                          // share of the full remote (Simon, 26 Oct: all shooting towers 90 %)
         tower(TrapKind.TESLA, CAP_TESLA);
         for (int t = 1; t <= 3; t++) {
             def("tesla_coil", "targets" + t, TrapKind.TESLA.baseChainTargets(t));
         }
         def("tesla_coil", "maxtargets", 4);                              // monsters per discharge at most
-        def("tesla_coil", "overcharge", 1.0);                            // the whole remote
+        def("tesla_coil", "overcharge", 0.9);                            // share of the full remote
         def("tesla_coil", "near", 0.6);                                  // cooldown factor with its engineer close by
         def("tesla_coil", "nearrange", 6);                               // blocks
         def("tesla_coil", "jump", 4);                                    // blocks from monster to monster
@@ -53,7 +53,7 @@ final class SkillValuesEngineer {
         def("mortar_tower", "zombie", 0.375);
         def("mortar_tower", "aimpause", 200);                            // ticks between two new target spots
         def("mortar_tower", "salvo", 3);                                 // shells of the X salvo
-        def("mortar_tower", "overcharge", 30);
+        def("mortar_tower", "overcharge", 0.9);                          // share of the full remote
         tower(TrapKind.BREWER, CAP_BREWER);
         for (int t = 1; t <= 3; t++) {
             def("potion_tower", "splash" + t, TrapKind.BREWER.baseSplash(t));
@@ -62,7 +62,7 @@ final class SkillValuesEngineer {
         def("potion_tower", "zombie", 0.375);
         def("potion_tower", "poison", TrapKind.BREWER.baseHold(1));    // ticks the poison eats
         def("potion_tower", "big", 1.5);                                 // area of the big throw (X)
-        def("potion_tower", "overcharge", 30);
+        def("potion_tower", "overcharge", 0.9);                          // share of the full remote
         def("spike_trap", "overcharge", 30);
         def("snare_trap", "overcharge", 30);
         def("flame_trap", "overcharge", 30);
@@ -78,9 +78,8 @@ final class SkillValuesEngineer {
         for (String cross : new String[]{"m_cross_mine", "m_cross_poison", "c_cross_turret", "c_cross_tesla"}) {
             def(cross, "tier", 2);
         }
-        def("e_ammobelt", "ammo", 2.0);
-        def("e_ammobelt", "reload", 40);                                 // energy of a reload with X
-        def("e_ammobelt", "cost", 0.5);                                  // share of it with the ammo belt
+        def("e_ammobelt", "speed", 0.2);                                 // turrets shoot this much faster (since 26 Oct: endless arrows)
+        def("e_ammobelt", "reload", 40);                                 // energy of a repair with X (name kept for server tweaks)
         def("e_seeker", "base", 0.15);                                   // extra damage of a mark without the skill
         def("e_seeker", "time", 160);                                    // ticks a mark lasts
         def("e_seeker", "mark", 10);                                     // energy of a mark

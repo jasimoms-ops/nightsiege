@@ -116,6 +116,13 @@ public final class ArcherEffects {
         if (bow && steady > 0 && arrow.isCritArrow()) {
             damage *= 1.0 + steady * SkillValues.get("a_steady", "full", 0.05);
         }
+        // Köcherfüllung (crate gain): +4 % arrow damage per stage (was +16 arrows until 26 October 2026,
+        // when every kit bow and crossbow got Infinity).
+        com.mki.nightsiege.core.CrateGains.Gain fill = com.mki.nightsiege.core.CrateGains.get("koecherfuellung");
+        int fillStage = fill == null ? 0 : fill.level(skills.gainStage(SkillClass.ARCHER, "koecherfuellung"));
+        if (fillStage > 0) {
+            damage *= 1.0 + fillStage * SkillValues.get("koecherfuellung", "dmg", 0.04);
+        }
         if (SkillTree.has(skills, "a_deadeye")) {
             damage *= SkillValues.get("a_deadeye", "mult", 1.35);
         }
