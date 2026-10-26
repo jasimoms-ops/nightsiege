@@ -815,6 +815,11 @@ public final class Companions {
         if (c.kind == Kind.SPIRIT && now % 10 == 0) {
             level.sendParticles(ParticleTypes.SOUL_FIRE_FLAME, mob.getX(), mob.getY() + 0.5, mob.getZ(), 2, 0.2, 0.2, 0.2, 0.0);
         }
+        if (c.kind == Kind.GHOST && now % 10 == 0) {
+            // A trail of soul fire, so the ghost is seen among the monsters.
+            level.sendParticles(ParticleTypes.SOUL_FIRE_FLAME, mob.getX(), mob.getY() + mob.getBbHeight() * 0.5, mob.getZ(),
+                    3, 0.2, 0.3, 0.2, 0.0);
+        }
         if (c.kind == Kind.TITAN && now >= c.nextSlam) {
             c.nextSlam = now + 60;
             slam(level, owner, skills, c, mob);
@@ -1107,8 +1112,14 @@ public final class Companions {
         if (SkillTree.WAY_DEAD.equals(skills.pathTaken(tree))) {
             if (SkillTree.has(skills, "d_raise")) {
                 long until = level.getGameTime() + 1200;   // the start ghosts fly for a minute
+                int came = 0;
                 for (int i = count(level, player.getUUID(), k -> k == Kind.GHOST); i < 2; i++) {
-                    ghost(level, player, skills, until);
+                    if (ghost(level, player, skills, until)) {
+                        came++;
+                    }
+                }
+                if (came > 0) {
+                    CombatEffects.actionBar(player, Component.translatable("nightsiege.msg.ghosts_start", came, 60));
                 }
             }
             return;
@@ -1208,10 +1219,13 @@ public final class Companions {
         nextRaise.put(player.getUUID(), now + 20);
         player.getCooldowns().addCooldown(stack, 20);
         // Seelenfänger: a ghost (with the swarm two) comes along for fifteen seconds.
+        int ghosts = 0;
         if (SkillTree.has(skills, "d_soulcatcher")) {
-            int ghosts = SkillTree.has(skills, "d_swarm") ? 2 : 1;
-            for (int i = 0; i < ghosts; i++) {
-                ghost(level, player, skills, now + 300);
+            int want = SkillTree.has(skills, "d_swarm") ? 2 : 1;
+            for (int i = 0; i < want; i++) {
+                if (ghost(level, player, skills, now + 300)) {
+                    ghosts++;
+                }
             }
         }
         // ↔ Rudelruf: one wolf runs with the dead.
@@ -1219,8 +1233,10 @@ public final class Companions {
                 && now >= nextWolf.getOrDefault(player.getUUID(), 0L)) {
             spawn(level, player, skills, Kind.WOLF);
         }
-        CombatEffects.actionBar(player, Component.translatable("nightsiege.msg.raised", raised.getType().getDescription(),
-                used + 1, slots));
+        CombatEffects.actionBar(player, ghosts == 0
+                ? Component.translatable("nightsiege.msg.raised", raised.getType().getDescription(), used + 1, slots)
+                : Component.translatable(ghosts == 1 ? "nightsiege.msg.raised_ghost" : "nightsiege.msg.raised_ghosts",
+                        raised.getType().getDescription(), used + 1, slots, ghosts));
     }
 
     /** The newest corpse near a spot (the champion only with the mastery), taken off the list. */
@@ -1311,14 +1327,26 @@ public final class Companions {
         return mob;
     }
 
-    /** A ghost of the soulcatcher: flies through walls, fights for a while. */
-    private void ghost(ServerLevel level, ServerPlayer owner, PlayerSkills skills, long until) {
+    /**
+     * A ghost of the soulcatcher: flies through walls, fights for a while. The server logs of
+     * 25 and 26 October show the ghosts there and fighting, yet nobody saw them (Simon: "es
+     * passiert gar nichts"): a small grey vex among the evokers' vexes. Now they glow aqua,
+     * carry their name, trail soul fire and arrive with a burst and a sound.
+     */
+    private boolean ghost(ServerLevel level, ServerPlayer owner, PlayerSkills skills, long until) {
         Mob ghost = spawn(level, owner, skills, Kind.GHOST);
         Companion c = ghost == null ? null : ALL.get(ghost.getUUID());
         if (c == null) {
-            return;
+            NightSiegeModLog.warn("Geist fuer " + owner.getScoreboardName() + " konnte nicht erscheinen");
+            return false;
         }
         c.until = until;
+        SiegeTeams.mark(level.getServer(), ghost, SiegeTeams.GHOST, net.minecraft.world.scores.TeamColor.AQUA);
+        ghost.setCustomNameVisible(true);
+        level.sendParticles(ParticleTypes.SOUL, ghost.getX(), ghost.getY() + 0.8, ghost.getZ(), 24, 0.5, 0.7, 0.5, 0.04);
+        level.sendParticles(ParticleTypes.SOUL_FIRE_FLAME, ghost.getX(), ghost.getY() + 0.8, ghost.getZ(), 10, 0.3, 0.5, 0.3, 0.02);
+        level.playSound(null, ghost.blockPosition(), SoundEvents.SOUL_ESCAPE.value(), SoundSource.PLAYERS, 1.2f, 0.8f);
+        level.playSound(null, ghost.blockPosition(), SoundEvents.VEX_CHARGE, SoundSource.PLAYERS, 0.8f, 0.7f);
         SiegeManager m = SiegeManager.get();
         double nightDamage = m == null ? 1.0 : m.mobDamageFactor();
         c.damageMul = nightDamage * 0.6 * (1.0 + bonus(SkillEffect.SOUL_CATCHER, skills)) * (1.0 + bonus(SkillEffect.SUMMON_DAMAGE, skills))
@@ -1326,6 +1354,7 @@ public final class Companions {
         if (ghost instanceof net.minecraft.world.entity.monster.Vex vex) {
             vex.setLimitedLife((int) Math.max(20, until - level.getGameTime() + 40));
         }
+        return true;
     }
 
     /** Leichensprengung: one of the raised dead bursts; with Seelenbrand souls come back. */
@@ -1739,6 +1768,28 @@ public final class Companions {
             }
         }
         return n;
+    }
+
+    /** Where a summoner's ghosts are and how they fare, for the tests. */
+    public static String ghostReport(ServerLevel level, ServerPlayer owner) {
+        StringBuilder out = new StringBuilder();
+        for (Companion c : ALL.values()) {
+            if (!c.owner.equals(owner.getUUID()) || c.kind != Kind.GHOST) {
+                continue;
+            }
+            Entity e = level.getEntity(c.id);
+            if (!(e instanceof Mob mob)) {
+                out.append(" [gone]");
+                continue;
+            }
+            LivingEntity target = mob.getTarget();
+            out.append(String.format(java.util.Locale.ROOT, " [hp=%.0f/%.0f d=%.1f dy=%.1f glow=%s name=%s target=%s left=%ds]",
+                    mob.getHealth(), mob.getMaxHealth(), Math.sqrt(mob.distanceToSqr(owner)), mob.getY() - owner.getY(),
+                    mob.hasGlowingTag(), mob.isCustomNameVisible(),
+                    target == null ? "-" : net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(target.getType()).getPath(),
+                    c.until < 0 ? -1 : (c.until - level.getGameTime()) / 20));
+        }
+        return out.length() == 0 ? " none" : out.toString();
     }
 
     private static SoundEvent sound(String path) {

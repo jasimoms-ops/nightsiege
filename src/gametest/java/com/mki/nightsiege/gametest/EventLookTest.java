@@ -854,6 +854,22 @@ public class EventLookTest implements FabricClientGameTest {
             place(level, manager, player, new BlockPos(gx, gy, gz), com.mki.nightsiege.core.TrapKind.MORTAR);
             place(level, manager, player, new BlockPos(gx, gy, gz + 32), com.mki.nightsiege.core.TrapKind.BREWER);
             System.out.println("[Night Siege test] tower hit=" + com.mki.nightsiege.game.SiegeManager.get().mobHealthFactor() * 10.0);
+            // The crate gains lift the tower caps (Simon, 26 October 2026).
+            com.mki.nightsiege.game.TrapService ts = manager.trapService();
+            com.mki.nightsiege.core.SkillClass eng = com.mki.nightsiege.core.SkillClass.ENGINEER;
+            com.mki.nightsiege.core.TrapKind mortar = com.mki.nightsiege.core.TrapKind.MORTAR;
+            com.mki.nightsiege.core.TrapKind tesla = com.mki.nightsiege.core.TrapKind.TESLA;
+            int plain = ts.maxFor(mortar, 5, own);
+            own.setGainStage(eng, "notfallmine", 1);
+            int mine = ts.maxFor(mortar, 5, own);
+            int teslaMine = ts.maxFor(tesla, 5, own);
+            own.setGainStage(eng, "ueberkapazitaet", 1);
+            int both = ts.maxFor(mortar, 5, own);
+            int teslaOver = ts.maxFor(tesla, 5, own);
+            own.setGainStage(eng, "notfallmine", 0);
+            own.setGainStage(eng, "ueberkapazitaet", 0);
+            System.out.println("[Night Siege test] tower caps mortar=" + plain + " +notfallmine=" + mine + " +both=" + both
+                    + " tesla +notfallmine=" + teslaMine + " +ueberkapazitaet=" + teslaOver + " (want 2, 3, 4, 2, 3)");
         });
         for (int i = 0; i < 24; i++) {
             final int step = i;
@@ -1654,12 +1670,35 @@ public class EventLookTest implements FabricClientGameTest {
                             + " chest=" + m.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.CHEST));
                 }
             }
+            System.out.println("[Night Siege test] summoner ghosts t=0s" + com.mki.nightsiege.game.Companions.ghostReport(level, player));
             c.useGadget(player, level, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.BELL), "totenglocke");
         });
-        context.waitTicks(10);
+        // The ghosts as players see them (no window in front: an earlier step left the core window open).
+        closeScreen(context);
         context.runOnClient(client -> client.options.setCameraType(net.minecraft.client.CameraType.THIRD_PERSON_FRONT));
-        context.waitTicks(10);
+        context.waitTicks(20);
+        closeScreen(context);
+        onServer(context, (player, manager) -> System.out.println("[Night Siege test] summoner ghosts t=2s"
+                + com.mki.nightsiege.game.Companions.ghostReport((net.minecraft.server.level.ServerLevel) player.level(), player)));
+        context.runOnClient(client -> {
+            int vexes = 0;
+            int glowing = 0;
+            if (client.level != null) {
+                for (net.minecraft.world.entity.Entity e : client.level.entitiesForRendering()) {
+                    if (e instanceof net.minecraft.world.entity.monster.Vex) {
+                        vexes++;
+                        if (e.isCurrentlyGlowing()) {
+                            glowing++;
+                        }
+                    }
+                }
+            }
+            System.out.println("[Night Siege test] summoner ghosts on the client vex=" + vexes + " glowing=" + glowing);
+        });
         context.takeScreenshot("summoner_dead");
+        context.waitTicks(60);
+        onServer(context, (player, manager) -> System.out.println("[Night Siege test] summoner ghosts t=5s"
+                + com.mki.nightsiege.game.Companions.ghostReport((net.minecraft.server.level.ServerLevel) player.level(), player)));
         onServer(context, (player, manager) -> {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
             boolean fired = com.mki.nightsiege.game.Companions.get().armyOfTheDead(level, player, 2);

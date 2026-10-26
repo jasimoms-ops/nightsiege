@@ -1475,14 +1475,13 @@ public final class TrapService {
         return bonus(record, SkillEffect.AMMO_BELT) > 0 ? max * 2 : max;
     }
 
-    /** Most traps of a kind: the fortress builder has one tower more, the field technician one fewer. */
+    /**
+     * Most traps of a kind: the fortress builder has one tower more, the field technician one fewer.
+     * The crate gains lift the hard caps themselves (Simon, 26 October 2026: "der Gewinn hebt die
+     * Grenze um 1" – before, the caps swallowed them).
+     */
     public int maxFor(TrapKind kind, int tier, PlayerSkills skills) {
         int max = kind.maxPlaced(tier);
-        SiegeManager m = SiegeManager.get();
-        if (m != null && skills != null
-                && m.kits().gainLevel(skills, com.mki.nightsiege.core.SkillClass.ENGINEER, "ueberkapazitaet") > 0) {
-            max += 1;   // crate gain: one more of every kind
-        }
         if (kind == TrapKind.TURRET || kind == TrapKind.TESLA) {
             if (SkillTree.has(skills, "e_fortress")) {
                 max += 1;
@@ -1496,6 +1495,16 @@ public final class TrapService {
             max = Math.min(max, 2);
         } else if (kind == TrapKind.TURRET || kind == TrapKind.BREWER) {
             max = Math.min(max, 3);
+        }
+        SiegeManager m = SiegeManager.get();
+        if (m != null && skills != null) {
+            com.mki.nightsiege.core.SkillClass engineer = com.mki.nightsiege.core.SkillClass.ENGINEER;
+            if (m.kits().gainLevel(skills, engineer, "ueberkapazitaet") > 0) {
+                max += 1;   // Überkapazität: one more of every kind, above the cap too
+            }
+            if (kind == TrapKind.MORTAR && m.kits().gainLevel(skills, engineer, "notfallmine") > 0) {
+                max += 1;   // Notfall-Mörser: the extra mortar of the kit has its place
+            }
         }
         return Math.max(1, max);
     }
