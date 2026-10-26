@@ -26,6 +26,10 @@ public enum KeyHint {
     ULT_UPGRADE,
     /** The second-ult key (X). */
     ULT2,
+    /** The second ult of the engineer: X, with the remote in hand sneak + X. */
+    ULT2_REMOTE,
+    /** The second ult of the summoner: X at a companion, with the staff in hand sneak + X. */
+    ULT2_STAFF,
     /** The quiver key (G). */
     QUIVER,
     /** Special arrows: the quiver key picks them, then shoot. */
@@ -76,8 +80,8 @@ public enum KeyHint {
     STAFF_CALL,
     /** The staff: the X key looking at an own minion. */
     STAFF_X_MINION,
-    /** The staff: the X key without a monster in sight. */
-    STAFF_X_FREE;
+    /** The staff: sneak and the X key (the soul shield, since 26 October 2026). */
+    STAFF_SNEAK_X;
 
     /** Skills by id: they win over the effect (a few share an effect with a passive skill). */
     private static final Map<String, KeyHint> NODES = Map.ofEntries(
@@ -105,7 +109,7 @@ public enum KeyHint {
             Map.entry(SkillEffect.GOLEM_CALL, STAFF_CALL),
             Map.entry(SkillEffect.RAISE_DEAD, STAFF_CALL),
             Map.entry(SkillEffect.CORPSE_BLAST, STAFF_X_MINION),
-            Map.entry(SkillEffect.SOUL_SHIELD, STAFF_X_FREE),
+            Map.entry(SkillEffect.SOUL_SHIELD, STAFF_SNEAK_X),
             Map.entry(SkillEffect.DETONATOR, REMOTE_DETONATE),
             Map.entry(SkillEffect.AMMO_BELT, REMOTE_RELOAD),
             Map.entry(SkillEffect.OVERCHARGE_TIME, REMOTE_BOOST),
@@ -218,6 +222,12 @@ public enum KeyHint {
     public static KeyHint forGain(String id) {
         if (id == null) {
             return NONE;
+        }
+        if (id.equals("magnetfeld")) {
+            return ULT2_REMOTE;
+        }
+        if (id.equals("seelentausch")) {
+            return ULT2_STAFF;
         }
         if (SECOND_ULTS.contains(id)) {
             return ULT2;

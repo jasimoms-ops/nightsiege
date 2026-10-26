@@ -49,6 +49,7 @@ public final class KeyHints {
             case ULT, ULT_LOOK, ULT_UPGRADE -> new KeyMapping[]{NightSiegeClient.ultimateKey()};
             case ULT_SHOT -> new KeyMapping[]{NightSiegeClient.ultimateKey(), o.keyUse};
             case ULT2 -> new KeyMapping[]{GainClient.secondUltKey()};
+            case ULT2_REMOTE, ULT2_STAFF, STAFF_SNEAK_X -> new KeyMapping[]{GainClient.secondUltKey(), o.keyShift};
             case QUIVER -> new KeyMapping[]{GainClient.quiverKey()};
             case QUIVER_SHOT -> new KeyMapping[]{GainClient.quiverKey(), o.keyUse};
             case AIR_JUMP -> new KeyMapping[]{o.keyJump};
@@ -58,10 +59,10 @@ public final class KeyHints {
             case USE_MATE_OR_SHIELD, SHIELD_ACTION -> new KeyMapping[]{o.keyUse, o.keyAttack};
             case SNEAK, SNEAK_SHOOT -> new KeyMapping[]{o.keyShift};
             case SNEAK_BLOCK -> new KeyMapping[]{o.keyShift, o.keyUse};
-            case SNEAK_USE, REMOTE_RELOAD, REMOTE_DETONATE, STAFF_X_MINION, STAFF_X_FREE ->
+            case SNEAK_USE, REMOTE_RELOAD, REMOTE_DETONATE, STAFF_X_MINION ->
                     new KeyMapping[]{GainClient.secondUltKey()};
             // the X key does what sneak + right click did with the remote and the staff (25 October 2026)
-            case REMOTE, STAFF -> new KeyMapping[]{GainClient.secondUltKey(), o.keyUse};
+            case REMOTE, STAFF -> new KeyMapping[]{GainClient.secondUltKey(), o.keyUse, o.keyShift};
             default -> new KeyMapping[0];
         };
         Object[] names = new Object[used.length];

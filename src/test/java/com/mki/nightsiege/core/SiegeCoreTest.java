@@ -901,7 +901,9 @@ class SiegeCoreTest {
         assertEquals(KeyHint.SNEAK_SHOOT, KeyHint.forNode(tree, "a_bracing"));
         assertEquals(KeyHint.REMOTE_DETONATE, KeyHint.forNode(tree, "e_detonator"));
         assertEquals(KeyHint.STAFF_X_MINION, KeyHint.forNode(tree, "d_corpse"));
-        assertEquals(KeyHint.STAFF_X_FREE, KeyHint.forNode(tree, "d_soulshield"));
+        assertEquals(KeyHint.STAFF_SNEAK_X, KeyHint.forNode(tree, "d_soulshield"));
+        assertEquals(KeyHint.ULT2_REMOTE, KeyHint.forGain("magnetfeld"));
+        assertEquals(KeyHint.ULT2_STAFF, KeyHint.forGain("seelentausch"));
         assertEquals(KeyHint.QUIVER_SHOT, KeyHint.forGain("sturmpfeile"));
         assertEquals(KeyHint.NONE, KeyHint.forGain("totem"));
         assertEquals(KeyHint.ULT2, KeyHint.forGain("spiegelschild"));

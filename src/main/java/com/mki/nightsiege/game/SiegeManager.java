@@ -3484,13 +3484,22 @@ public final class SiegeManager {
      */
     private void onSecondKey(ServerPlayer player) {
         ItemStack held = player.getMainHandItem();
-        if (ModContent.REMOTE != null && held.is(ModContent.REMOTE)) {
+        // Sneak + X (Simon, 26 October 2026): with the remote or the staff in hand the second
+        // ult used to be out of reach; now X gives their order and sneak + X the second ult
+        // (with the staff the soul shield, unless a companion is looked at for the soul swap).
+        boolean sneak = player.isShiftKeyDown();
+        if (ModContent.REMOTE != null && held.is(ModContent.REMOTE) && !sneak) {
             traps.useRemote(player, null, true);
             return;
         }
         if (held.getItem() instanceof SummonStaffItem) {
-            companions.useStaff(player, held, true);
-            return;
+            if (!sneak) {
+                companions.useStaff(player, held, true);
+                return;
+            }
+            if (companions.sneakStaff(player)) {
+                return;
+            }
         }
         SecondUlts.fire(player);
     }
