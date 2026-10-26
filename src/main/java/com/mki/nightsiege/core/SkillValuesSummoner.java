@@ -55,7 +55,7 @@ final class SkillValuesSummoner {
         def("s_titanfist", "push", 1.6);
         def("s_titanfist", "lift", 0.9);
         def("s_orecore", "heal", 1.0);            // share healed when no place is free
-        def("s_beastlord", "cost", 6.0);          // health the keystone takes (read in SkillService, fixed there)
+        def("s_beastlord", "cost", 6.0);          // health the keystone takes (read in SkillService)
         def("s_shepherd", "slots", 1);            // places for wolves and golems
         def("s_shepherd", "health", 2.0);         // factor (not on top of the alpha's)
         def("s_shepherd", "damage", 2.0);
@@ -95,7 +95,7 @@ final class SkillValuesSummoner {
         def("d_soulstorm", "radius", 10.0);       // blocks
         def("d_echo", "delay", 20);               // ticks
         def("d_army", "age", 600);                // ticks a fallen monster can still rise
-        def("d_lich", "cost", 8.0);               // health the keystone takes (read in SkillService, fixed there)
+        def("d_lich", "cost", 8.0);               // health the keystone takes (read in SkillService)
         def("d_soulkeeper", "cap", 20);           // most souls
         def("d_champion", "every", 4);
         def("d_champion", "health", 2.0);
