@@ -9,9 +9,9 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 
 /**
- * The summoner's staff: right click calls a companion (a wolf, or a golem for the
- * golemsmith), the X key at a monster sends every companion at it.
- * The pause until the next call shows on the item.
+ * The summoner's staff (26 October 2026): right click is the summoner's own attack (call
+ * strike or soul bolt), sneak + right click the order, the call or the chosen spell; the X
+ * key gives the order. The way of the dead shows its souls as the bar.
  */
 public class SummonStaffItem extends Item {
 
@@ -34,12 +34,8 @@ public class SummonStaffItem extends Item {
     @Override
     public InteractionResult use(Level level, Player player, InteractionHand hand) {
         if (!level.isClientSide() && player instanceof ServerPlayer server) {
-            ItemStack stack = player.getItemInHand(hand);
-            // Commands (X key) go elsewhere; the call waits for its cooldown.
-            if (player.getCooldowns().isOnCooldown(stack)) {
-                return InteractionResult.FAIL;
-            }
-            handler.use(server, stack);
+            // The pauses live in Companions: an item cooldown would also block the sneak actions.
+            handler.use(server, player.getItemInHand(hand));
         }
         return InteractionResult.SUCCESS;
     }

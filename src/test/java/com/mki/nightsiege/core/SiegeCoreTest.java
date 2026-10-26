@@ -1081,8 +1081,9 @@ class SiegeCoreTest {
         assertEquals(KeyHint.JUMP_ATTACK, KeyHint.forNode(tree, "w_earthshock"));
         assertEquals(KeyHint.SNEAK_SHOOT, KeyHint.forNode(tree, "a_bracing"));
         assertEquals(KeyHint.REMOTE_DETONATE, KeyHint.forNode(tree, "e_detonator"));
-        assertEquals(KeyHint.STAFF_X_MINION, KeyHint.forNode(tree, "d_corpse"));
-        assertEquals(KeyHint.STAFF_SNEAK_X, KeyHint.forNode(tree, "d_soulshield"));
+        // The summoner's spells (26 October 2026): G picks, sneak + right click with the staff casts.
+        assertEquals(KeyHint.STAFF_SPELL, KeyHint.forNode(tree, "d_corpse"));
+        assertEquals(KeyHint.STAFF_SPELL, KeyHint.forNode(tree, "d_soulshield"));
         assertEquals(KeyHint.ULT2_REMOTE, KeyHint.forGain("magnetfeld"));
         assertEquals(KeyHint.ULT2_STAFF, KeyHint.forGain("seelentausch"));
         assertEquals(KeyHint.QUIVER_SHOT, KeyHint.forGain("sturmpfeile"));
@@ -1937,10 +1938,109 @@ class SiegeCoreTest {
         assertEquals(SkillTree.SUB_TAMER, tree.laneOf("s_alpha"));
         assertEquals(SkillTree.SUB_GOLEMSMITH, tree.laneOf("s_hardgolem"));
         assertEquals(KeyHint.STAFF_CALL, KeyHint.forNode(tree, "s_packcall"));
-        assertEquals(KeyHint.STAFF_CALL, KeyHint.forNode(tree, "d_raise"));
+        assertEquals(KeyHint.STAFF_ATTACK, KeyHint.forNode(tree, "d_raise"));
+        assertEquals(KeyHint.STAFF, KeyHint.forNode(tree, "s_callrange"));
+        assertEquals(KeyHint.STAFF_SPELL, KeyHint.forNode(tree, "d_necro"));
+        assertEquals(KeyHint.NONE, KeyHint.forNode(tree, "d_cross_wolf"));
         assertEquals(SkillTree.SUB_NECROMANCER, tree.laneOf("d_ghoul"));
         assertEquals(SkillTree.SUB_SOULCATCHER, tree.laneOf("d_swarm"));
         assertTrue(tree.pointsToComplete(new PlayerSkills(), SkillClass.SUMMONER) > 250);
+    }
+
+    @Test
+    void everySummonerRouteKeepsARingFiveNodeAndAMastery() {
+        // Simon 26.10.: the summoner rebuild keeps rings, groups, ids and ults; every choice of
+        // both ways still reaches ring V and a mastery.
+        SkillTree tree = new SkillTree();
+        String[][][] ways = {
+                {{"s_tamer", "s_golemsmith"}, {"s_alpha", "s_packhunt", "s_snowguard", "s_hardgolem"},
+                        {"s_howl", "s_wardbond", "l_cross_bones"}, {"s_wildness", "s_care", "l_cross_harvest"},
+                        {"s_wild_hunt", "s_titan"}},
+                {{"d_necro", "d_soulcatcher"}, {"d_archers", "d_ghoul", "d_swarm", "d_soulshield"},
+                        {"d_rot", "d_corpse", "d_cross_wolf"}, {"d_unholy", "d_pact", "d_cross_loyalty"},
+                        {"d_army", "d_soulstorm"}}};
+        String[] stem = {"s_packcall", "d_raise"};
+        String[][] ringFive = {{"s_packleader", "s_golemwork", "s_mixedpack"}, {"d_legion", "d_soulburn", "d_dance"}};
+        String[][] masteries = {{"s_endless_hunt", "s_moonpack", "s_titanfist", "s_orecore"},
+                {"d_eternal", "d_champion", "d_soulflood", "d_echo"}};
+        int routes = 0;
+        for (int w = 0; w < ways.length; w++) {
+            String[][] rows = ways[w];
+            int[] pick = new int[rows.length];
+            while (true) {
+                PlayerSkills p = new PlayerSkills();
+                p.chosenClass = SkillClass.SUMMONER.name();
+                p.unlockClass(SkillClass.SUMMONER);
+                p.award(100_000);
+                List<String> chosen = new java.util.ArrayList<>(List.of("s_soulbond", stem[w]));
+                for (int r = 0; r < rows.length; r++) {
+                    chosen.add(rows[r][pick[r]]);
+                    if (r == 0) {
+                        chosen.add(rows[0][pick[0]]);   // the subclass at tier 2 for the talents
+                    }
+                }
+                List<String> ringFiveBefore = new java.util.ArrayList<>(chosen);
+                ringFiveBefore.remove(ringFiveBefore.size() - 1);   // ring V comes before the ult
+                boolean possible = true;
+                for (String id : ringFiveBefore) {
+                    if (!tree.unlock(id, p) && p.levelOf(id) == 0) {
+                        possible = false;   // a talent of the other subclass
+                        break;
+                    }
+                }
+                if (possible) {
+                    final PlayerSkills skills = p;
+                    assertTrue(java.util.Arrays.stream(ringFive[w]).anyMatch(id -> tree.canUnlock(id, skills)), "ring V: " + chosen);
+                    String ult = chosen.get(chosen.size() - 1);
+                    if (tree.unlock(ult, p)) {
+                        routes++;
+                        assertTrue(java.util.Arrays.stream(masteries[w]).anyMatch(id -> tree.canUnlock(id, skills)), "mastery: " + chosen);
+                    } else {
+                        // A cross talent locked this ult: the other one must stay open.
+                        String other = rows[rows.length - 1][1 - pick[rows.length - 1]];
+                        assertTrue(tree.canUnlock(other, p), "no ult: " + chosen);
+                    }
+                }
+                int k = rows.length - 1;
+                while (k >= 0 && ++pick[k] >= rows[k].length) {
+                    pick[k] = 0;
+                    k--;
+                }
+                if (k < 0) {
+                    break;
+                }
+            }
+        }
+        assertTrue(routes > 40, "routes " + routes);
+    }
+
+    @Test
+    void theSummonersCompanionsDrawLittleAnger() {
+        // Simon 26.10.: monsters turn on a companion only within 3 blocks and for 3 s.
+        SiegeConfig fresh = new SiegeConfig();
+        assertEquals(3.0, fresh.companionTauntRadius, 1e-9);
+        assertEquals(3.0, fresh.companionTauntSeconds, 1e-9);
+        SiegeConfig old = new SiegeConfig();
+        old.companionTauntRadius = 6.0;
+        old.companionSettingsVersion = 0;
+        old.sanitize();
+        assertEquals(3.0, old.companionTauntRadius, 1e-9, "the old default goes to 3 once");
+        assertEquals(1, old.companionSettingsVersion);
+        old.companionTauntRadius = 6.0;
+        old.sanitize();
+        assertEquals(6.0, old.companionTauntRadius, 1e-9, "a server that sets 6 again keeps it");
+        // The spells and the call strike take their numbers from the skill values.
+        assertEquals(4.0, SkillValues.get("s_tamer", "max", 0), 1e-9);
+        assertEquals(2.0, SkillValues.get("d_necro", "raisecost", 0), 1e-9);
+        assertEquals(3.0, SkillValues.get("d_soulcatcher", "chaincost", 0), 1e-9);
+        assertEquals(4.0, SkillValues.get("d_army", "max", 0), 1e-9);
+        assertEquals(160.0, SkillValues.get("d_army", "duration", 0), 1e-9);
+        // The tamer reaches four wolves with every level, not more: 2 + 4 × 0.5.
+        SkillTree tree = new SkillTree();
+        PlayerSkills tamer = new PlayerSkills();
+        tamer.chosenClass = SkillClass.SUMMONER.name();
+        tamer.setLevel("s_tamer", 4);
+        assertEquals(2.0, tree.totalBonus(SkillEffect.PACK_SLOTS, tamer), 1e-9);
     }
 
     @Test
