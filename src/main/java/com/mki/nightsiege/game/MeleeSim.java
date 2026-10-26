@@ -91,7 +91,7 @@ public final class MeleeSim {
      */
     public record Bench(String subclass, int level, double dpsSingle, double dpsGroup, int killsSingle, int killsGroup,
                         double healPerSecond, double teamHealPerSecond, double maxHealth, double axeRaw, double axeLost,
-                        double zombieRaw, double zombieLost) {
+                        double zombieRaw, double zombieLost, double dpsSelf, double dpsCompanions) {
     }
 
     private static List<Run> queue = new ArrayList<>();
@@ -138,6 +138,16 @@ public final class MeleeSim {
     private static double hpSingle;
     private static double hpGroup;
     private static final java.util.Map<UUID, Float> LAST_HP = new java.util.HashMap<>();
+    /**
+     * Damage to the training zombies of both target stages, split (Simon 26.10.: the summoner
+     * should deal about half himself): the bot's own hits and shots, and its companions and
+     * spells. Each hit counts only the health it really took.
+     */
+    private static double dealtSelf;
+    private static double dealtCompanions;
+    private static final java.util.Map<UUID, Float> SPLIT_HP = new java.util.HashMap<>();
+    /** The summoner bot's turn with the staff (attack, order or call, spell in turn). */
+    private static int staffTurn;
     /** Hits of each kind on the bench's last stage. */
     private static final int BLOWS = 8;
     /** Seconds per stage of the bench. */
@@ -371,13 +381,29 @@ public final class MeleeSim {
         double reach = player.getAttributeValue(Attributes.ENTITY_INTERACTION_RANGE);
         boolean inReach = close != null && player.distanceTo(close) <= reach + 0.3;
 
-        // The summoner uses the staff whenever it is ready (call, raise; the item says no when it can't).
-        // (Also with monsters in reach: a real summoner calls first and fights after.)
+        // The summoner (26 October 2026) uses the staff once a second like a player: right click at the
+        // monster (call strike / soul bolt); every few turns the way of the light gives the order (sneak +
+        // right click at it; the golem taunts and slams) or calls with G, the way of the dead casts its
+        // chosen spell (sneak + right click) and picks the next one with G, so all spells come in turn.
         if (clazz == SkillClass.SUMMONER && now >= nextStaff) {
             nextStaff = now + 20;
+            Mob aim = close != null ? close : far;
+            boolean dead = SkillTree.WAY_DEAD.equals(skills.pathTaken(m.skillTree()));
             if (hold(player, s -> s.is(ModContent.STAFF))) {
-                player.setShiftKeyDown(false);
+                if (aim != null) {
+                    player.lookAt(EntityAnchorArgument.Anchor.EYES, aim.position().add(0, aim.getBbHeight() * 0.5, 0));
+                }
+                staffTurn++;
+                boolean sneak = dead ? staffTurn % 3 == 0 : staffTurn % 5 == 3 && aim != null;
+                if (!dead && staffTurn % 5 == 1) {
+                    m.onCoreAction(player, "quiver");   // G: call when a place is free
+                }
+                player.setShiftKeyDown(sneak);
                 player.getMainHandItem().use(level, player, InteractionHand.MAIN_HAND);
+                player.setShiftKeyDown(false);
+                if (dead && sneak) {
+                    m.onCoreAction(player, "quiver");   // G: the next spell for the next cast
+                }
             }
         }
         if (clazz == SkillClass.SUMMONER && (now - fightStart) % 200 == 0) {
@@ -715,6 +741,10 @@ public final class MeleeSim {
             hpSingle = 0;
             hpGroup = 0;
             LAST_HP.clear();
+            dealtSelf = 0;
+            dealtCompanions = 0;
+            SPLIT_HP.clear();
+            staffTurn = 0;
             clearMonsters(level);
             DUMMIES.clear();
             DUMMY_SPOTS.clear();
@@ -785,6 +815,7 @@ public final class MeleeSim {
                     }
                 }
                 LAST_HP.put(id, hp);
+                SPLIT_HP.put(id, hp);
             }
             // The way of the dead lives on corpses: on the bench one comes every 3 s, as the team's kills would bring.
             if (now % 60 == 0 && (run.sub()[2].equals("necromancer") || run.sub()[2].equals("soulcatcher"))) {
@@ -923,13 +954,16 @@ public final class MeleeSim {
     private static void record(SiegeManager m, ServerPlayer player, Run run, ServerLevel level) {
         Bench b = new Bench(run.sub()[2], run.level(), hpSingle / BENCH_SECONDS, hpGroup / BENCH_SECONDS, killsSingle,
                 killsGroup, healed / (2.0 * BENCH_SECONDS), teamHealed / (2.0 * BENCH_SECONDS), player.getMaxHealth(),
-                HITS[0] / BLOWS, HITS[1] / BLOWS, HITS[2] / BLOWS, HITS[3] / BLOWS);
+                HITS[0] / BLOWS, HITS[1] / BLOWS, HITS[2] / BLOWS, HITS[3] / BLOWS,
+                dealtSelf / (2.0 * BENCH_SECONDS), dealtCompanions / (2.0 * BENCH_SECONDS));
         BENCH.add(b);
         String line = String.format(Locale.ROOT,
                 "[Night Siege sim] Prüfstand Stufe %2d %-13s DPS 1 Ziel %6.1f  6 Ziele %6.1f  Kills %2d/%2d  Heilung %4.2f/s"
-                        + "  Team %4.2f/s  Leben %4.0f  Axt %4.1f -> %4.1f  Zombie %4.1f -> %4.1f",
+                        + "  Team %4.2f/s  Leben %4.0f  Axt %4.1f -> %4.1f  Zombie %4.1f -> %4.1f"
+                        + "  DPS selbst %5.1f / Begleiter+Zauber %5.1f (%s)",
                 b.level(), b.subclass(), b.dpsSingle(), b.dpsGroup(), b.killsSingle(), b.killsGroup(), b.healPerSecond(),
-                b.teamHealPerSecond(), b.maxHealth(), b.axeRaw(), b.axeLost(), b.zombieRaw(), b.zombieLost());
+                b.teamHealPerSecond(), b.maxHealth(), b.axeRaw(), b.axeLost(), b.zombieRaw(), b.zombieLost(),
+                b.dpsSelf(), b.dpsCompanions(), share(b));
         System.out.println(line);
         NightSiegeMod.LOGGER.info(line);
         StringBuilder diag = new StringBuilder(String.format(Locale.ROOT,
@@ -953,13 +987,22 @@ public final class MeleeSim {
         out.add("[Night Siege sim] Prüfstand: allein, voll geskillt, ohne Kisten-Gewinne; Trainings-Zombies der Stufe stehen still");
         out.add("[Night Siege sim] Mitspieler: ein verletzter Testkamerad neben dem Bot, alle 2 s zurück auf halbes Leben;"
                 + " heilung_team = Heilung + neue Barrieren an ihm pro Sekunde");
-        out.add("[Night Siege sim] BENCH;stufe;unterklasse;dps_1;dps_6;kills_1;kills_6;heilung_s;heilung_team;leben;axt_roh;axt_verlust;zombie_roh;zombie_verlust");
+        out.add("[Night Siege sim] dps_selbst / dps_begleiter: Schaden beider Ziel-Stufen pro Sekunde, eigene Treffer und Geschosse"
+                + " gegen Begleiter und Zauber (Beschwörer: Ziel etwa 50/50)");
+        out.add("[Night Siege sim] BENCH;stufe;unterklasse;dps_1;dps_6;kills_1;kills_6;heilung_s;heilung_team;leben;axt_roh;axt_verlust;zombie_roh;zombie_verlust;dps_selbst;dps_begleiter");
         for (Bench b : BENCH) {
-            out.add(String.format(Locale.ROOT, "[Night Siege sim] BENCH;%d;%s;%.1f;%.1f;%d;%d;%.2f;%.2f;%.0f;%.1f;%.2f;%.1f;%.2f",
+            out.add(String.format(Locale.ROOT, "[Night Siege sim] BENCH;%d;%s;%.1f;%.1f;%d;%d;%.2f;%.2f;%.0f;%.1f;%.2f;%.1f;%.2f;%.1f;%.1f",
                     b.level(), b.subclass(), b.dpsSingle(), b.dpsGroup(), b.killsSingle(), b.killsGroup(), b.healPerSecond(),
-                    b.teamHealPerSecond(), b.maxHealth(), b.axeRaw(), b.axeLost(), b.zombieRaw(), b.zombieLost()));
+                    b.teamHealPerSecond(), b.maxHealth(), b.axeRaw(), b.axeLost(), b.zombieRaw(), b.zombieLost(),
+                    b.dpsSelf(), b.dpsCompanions()));
         }
         return out;
+    }
+
+    /** The bot's own share of the damage, as "selbst 48 %" (or "-" without any damage). */
+    private static String share(Bench b) {
+        double all = b.dpsSelf() + b.dpsCompanions();
+        return all <= 0 ? "-" : String.format(Locale.ROOT, "selbst %.0f %%", 100.0 * b.dpsSelf() / all);
     }
 
     // ------------------------------------------------------------------
@@ -1017,6 +1060,17 @@ public final class MeleeSim {
             String key = source.getMsgId() + ":" + (by == null ? "-" : by == source.getDirectEntity() ? by.getType().toShortString()
                     : by.getType().toShortString() + "/" + (source.getDirectEntity() == null ? "-" : source.getDirectEntity().getType().toShortString()));
             BY_SOURCE.merge(key, (double) amount, Double::sum);
+            // Self or companions and spells: only the health this hit really took.
+            float after = Math.max(0f, victim.getHealth());
+            Float known = SPLIT_HP.get(victim.getUUID());
+            float before = known != null ? known : after + amount;
+            float real = Math.max(0f, Math.min(amount, before - after));
+            SPLIT_HP.put(victim.getUUID(), after);
+            if (by != null && by.getUUID().equals(playerId) && !Companions.spellHit()) {
+                dealtSelf += real;
+            } else if (by != null && (by.getUUID().equals(playerId) || playerId.equals(Companions.ownerOf(by)))) {
+                dealtCompanions += real;
+            }
         }
         if (by != null && (by.getUUID().equals(playerId) || playerId.equals(Companions.ownerOf(by)))) {
             dealt += amount;

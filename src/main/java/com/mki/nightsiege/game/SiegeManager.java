@@ -376,6 +376,7 @@ public final class SiegeManager {
                         && CrateEffects.allowDamage(entity, source) && Companions.allowDamage(entity, source)
                         && bosses.allowDamage(entity, source, amount));
         combat.guardian().setCredit(this::creditTank);
+        companions.setCredit(this::creditTank);   // the soul shield counts as healing
         traps.setMarker(combat::remoteMark);
         Digger.hardness = traps::digFactor;
         RemoteItem.handler = traps::useRemote;
@@ -2986,9 +2987,14 @@ public final class SiegeManager {
         if (!active || taken <= 0) {
             return;
         }
-        Entity hitter = Companions.isCompanion(source.getEntity()) ? Companions.ownerPlayer(source.getEntity()) : source.getEntity();
+        boolean companion = Companions.isCompanion(source.getEntity());
+        Entity hitter = companion ? Companions.ownerPlayer(source.getEntity()) : source.getEntity();
         if (hitter instanceof ServerPlayer attacker && entity.entityTags().contains(MobFactory.TAG)) {
-            nightLog.of(attacker.getUUID(), attacker.getScoreboardName()).dealt += taken;
+            NightLog.Line line = nightLog.of(attacker.getUUID(), attacker.getScoreboardName());
+            line.dealt += taken;
+            if (companion || Companions.spellHit()) {
+                line.dealtCompanions += taken;   // the summoner's companions and spells (Simon 26.10.: the 50/50 split)
+            }
         }
         if (entity instanceof ServerPlayer victim && participants.contains(victim.getUUID())) {
             nightLog.of(victim.getUUID(), victim.getScoreboardName()).taken += taken;
@@ -3092,7 +3098,12 @@ public final class SiegeManager {
             case "wipegains" -> wipeAllGains(player);
             case "ult" -> onUltimateKey(player);
             case "ult2" -> onSecondKey(player);
-            case "quiver" -> GainGear.cycleQuiver(player);
+            case "quiver" -> {
+                // G: the archer's quiver; the summoner picks his spell (way of the dead) or calls (way of the light).
+                if (!companions.selectKey(player)) {
+                    GainGear.cycleQuiver(player);
+                }
+            }
             case "jump" -> GainGear.onDoubleJump(player);
             case "shield" -> combat.guardian().onShieldAction(player);
             case "dungeon" -> dungeons.onToolAction(player, argument);
@@ -3683,26 +3694,20 @@ public final class SiegeManager {
 
     /**
      * The X key: with the remote in hand its second order, with the summoner's staff its
-     * command, otherwise the second ultimate (Simon, 25 October 2026: no more sneak + right click).
+     * order (attack the monster or hold the block looked at), otherwise the second ultimate.
      */
     private void onSecondKey(ServerPlayer player) {
         ItemStack held = player.getMainHandItem();
-        // Sneak + X (Simon, 26 October 2026): with the remote or the staff in hand the second
-        // ult used to be out of reach; now X gives their order and sneak + X the second ult
-        // (with the staff the soul shield, unless a companion is looked at for the soul swap).
+        // Sneak + X (Simon, 26 October 2026): with the remote or the staff in hand X gives
+        // their order and sneak + X the second ult (the soul shield is a spell now).
         boolean sneak = player.isShiftKeyDown();
         if (ModContent.REMOTE != null && held.is(ModContent.REMOTE) && !sneak) {
             traps.useRemote(player, null, true);
             return;
         }
-        if (held.getItem() instanceof SummonStaffItem) {
-            if (!sneak) {
-                companions.useStaff(player, held, true);
-                return;
-            }
-            if (companions.sneakStaff(player)) {
-                return;
-            }
+        if (held.getItem() instanceof SummonStaffItem && !sneak) {
+            companions.command(player);
+            return;
         }
         SecondUlts.fire(player);
     }

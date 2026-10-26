@@ -30,7 +30,7 @@ public final class NightLog {
             + "monster_gespawnt;kills_gesamt;kills_spieler;kill_ziel;ziel_erreicht;tode;ergebnis;dauer_s;"
             + "naechster_monster_abstand;bloecke_gegraben;bloecke_explosion";
     private static final String PLAYER_HEADER = "datum;nacht;stufe;test;spieler;klasse;unterklasse;schaden_ausgeteilt;"
-            + "schaden_eingesteckt;geheilt;kills;tode;ergebnis";
+            + "schaden_eingesteckt;geheilt;kills;tode;ergebnis;schaden_begleiter";
 
     /** One defender's night. */
     public static final class Line {
@@ -38,6 +38,8 @@ public final class NightLog {
         public String clazz = "";
         public String subclass = "";
         public double dealt;
+        /** Of {@link #dealt}: what the summoner's companions and spells dealt (Simon 26.10.). */
+        public double dealtCompanions;
         public double taken;
         public double healed;
         public int kills;
@@ -97,7 +99,8 @@ public final class NightLog {
         for (Line line : players.values()) {
             playerLines.add(String.join(";", date, String.valueOf(night.number()), String.valueOf(night.level()),
                     night.test() ? "ja" : "nein", line.name, line.clazz, line.subclass, num(line.dealt), num(line.taken),
-                    num(line.healed), String.valueOf(line.kills), String.valueOf(line.deaths), night.result()));
+                    num(line.healed), String.valueOf(line.kills), String.valueOf(line.deaths), night.result(),
+                    num(line.dealtCompanions)));
         }
         append(Json.configFile(NIGHT_FILE), NIGHT_HEADER, List.of(nightLine));
         append(Json.configFile(PLAYER_FILE), PLAYER_HEADER, playerLines);

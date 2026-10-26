@@ -1457,10 +1457,10 @@ public class EventLookTest implements FabricClientGameTest {
             net.minecraft.world.item.ItemStack staff = new net.minecraft.world.item.ItemStack(com.mki.nightsiege.game.ModContent.STAFF);
             for (int i = 0; i < 5; i++) {
                 c.resetPause(player.getUUID());
-                c.useStaff(player, staff);
+                c.callWithStaff(player);   // the call (sneak + right click into the air, or G) since 26 October 2026
             }
             System.out.println("[Night Siege test] summoner test wolves=" + com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "wolf")
-                    + " (4 places)");
+                    + " (3 places: tamer 2)");
         });
         closeScreen(context);
         context.waitTicks(30);
@@ -1533,22 +1533,16 @@ public class EventLookTest implements FabricClientGameTest {
             }
             System.out.println("[Night Siege test] summoner gain kit: " + kit);
             com.mki.nightsiege.game.Companions c = com.mki.nightsiege.game.Companions.get();
-            // Doppelstab: two calls in a row, the third waits.
-            if (!staff.isEmpty()) {
-                c.resetPause(player.getUUID());
-                player.getCooldowns().removeCooldown(player.getCooldowns().getCooldownGroup(staff));
-                c.useStaff(player, staff);
-                int one = com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "wolf");
-                c.useStaff(player, staff);
-                int two = com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "wolf");
-                c.useStaff(player, staff);
-                int three = com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "wolf");
-                System.out.println("[Night Siege test] summoner double staff wolves " + one + " -> " + two + " -> " + three
-                        + " (want 1, 2, 2) staff cooldown=" + player.getCooldowns().isOnCooldown(staff));
-            }
+            // The call waits for its pause (Doppelstab gives the staff's attack two charges since 26 October 2026).
+            c.resetPause(player.getUUID());
+            c.callWithStaff(player);
+            int one = com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "wolf");
+            c.callWithStaff(player);
+            int two = com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "wolf");
+            System.out.println("[Night Siege test] summoner call wolves " + one + " -> " + two + " (the second call waits)");
             for (int i = 0; i < 5; i++) {
                 c.resetPause(player.getUUID());
-                c.useStaff(player, staff.isEmpty() ? new net.minecraft.world.item.ItemStack(com.mki.nightsiege.game.ModContent.STAFF) : staff);
+                c.callWithStaff(player);
             }
             System.out.println("[Night Siege test] summoner night wolves=" + com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "wolf"));
         });
@@ -1661,11 +1655,10 @@ public class EventLookTest implements FabricClientGameTest {
         onServer(context, (player, manager) -> {
             com.mki.nightsiege.game.Companions c = com.mki.nightsiege.game.Companions.get();
             int before = c.soulsOf(player.getUUID());
-            net.minecraft.world.item.ItemStack staff = new net.minecraft.world.item.ItemStack(com.mki.nightsiege.game.ModContent.STAFF);
-            c.useStaff(player, staff);
+            boolean shield = c.castSpell(player, "shield");   // the soulcatcher's spells since 26 October 2026
             System.out.println("[Night Siege test] summoner dead souls before=" + before + " after=" + c.soulsOf(player.getUUID())
-                    + " (twin staff: 2) minions=" + com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "minion")
-                    + " ghosts=" + com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "ghost"));
+                    + " (soul shield: 2) cast=" + shield + " absorption=" + player.getAbsorptionAmount()
+                    + " minions=" + com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "minion"));
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
             for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
                 if (com.mki.nightsiege.game.Companions.isCompanion(e) && e instanceof net.minecraft.world.entity.Mob m

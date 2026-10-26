@@ -312,10 +312,15 @@ public class SiegeConfig {
     /** Factor on all damage the summoner's companions deal to monsters (Simon, 25 October 2026: +50 %). */
     public double companionDamage = 1.5;
     /**
-     * Monsters within this many blocks of a summoner that go for him switch to one of his
-     * companions (like the guardian's challenger). 0 = off.
+     * Monsters turn on a summoner's companion only within this many blocks of it (when it
+     * hits them, or when they go for its summoner right next to it). 0 = never.
+     * Simon 26.10.: 3 (was 6, the companions drew all the anger).
      */
-    public double companionTauntRadius = 6.0;
+    public double companionTauntRadius = 3.0;
+    /** ...and only for this many seconds; then they go back to whom they had before. */
+    public double companionTauntSeconds = 3.0;
+    /** Version of the companion settings in this file (1: the shared mind of 26 October 2026). */
+    public int companionSettingsVersion = 0;
     /** Companions grow with the night like the monsters: this share of the monsters' extra health and damage. */
     public double companionScaling = 0.8;
     /** Share of every wave (taken from its zombies) that carry ladders and build one up the wall. 0 = off. */
@@ -800,6 +805,16 @@ public class SiegeConfig {
         }
         ladderCarrierShare = Math.min(1.0, Math.max(0.0, ladderCarrierShare));
         sapperFromLevel = Math.max(0, sapperFromLevel);
+        if (companionSettingsVersion < 1) {
+            // Simon 26.10.: monsters turn on companions only within 3 blocks and for 3 s.
+            if (companionTauntRadius == 6.0) {
+                companionTauntRadius = 3.0;
+            }
+            companionSettingsVersion = 1;
+        }
+        companionTauntRadius = Double.isNaN(companionTauntRadius) ? 3.0 : Math.min(16.0, Math.max(0.0, companionTauntRadius));
+        companionTauntSeconds = Double.isNaN(companionTauntSeconds) || companionTauntSeconds <= 0 ? 3.0
+                : Math.min(30.0, companionTauntSeconds);
         if (Double.isNaN(companionScaling)) {
             companionScaling = 0.8;
         }

@@ -54,15 +54,19 @@ public final class KeyHints {
             case QUIVER_SHOT -> new KeyMapping[]{GainClient.quiverKey(), o.keyUse};
             case AIR_JUMP -> new KeyMapping[]{o.keyJump};
             case JUMP_ATTACK -> new KeyMapping[]{o.keyJump, o.keyAttack};
-            case USE, USE_BLOCK, PLACE_TRAP, USE_MATE, DRAW, BLOCK, PERFECT_BLOCK, STAFF_CALL,
+            case USE, USE_BLOCK, PLACE_TRAP, USE_MATE, DRAW, BLOCK, PERFECT_BLOCK, STAFF_ATTACK,
                  REMOTE_BOOST, REMOTE_MARK -> new KeyMapping[]{o.keyUse};
+            // the summoner's staff (26 October 2026): the call, the spells
+            case STAFF_CALL -> new KeyMapping[]{o.keyUse, o.keyShift, GainClient.quiverKey()};
+            case STAFF_SPELL -> new KeyMapping[]{GainClient.quiverKey(), o.keyShift, o.keyUse};
             case USE_MATE_OR_SHIELD, SHIELD_ACTION -> new KeyMapping[]{o.keyUse, o.keyAttack};
             case SNEAK, SNEAK_SHOOT -> new KeyMapping[]{o.keyShift};
             case SNEAK_BLOCK -> new KeyMapping[]{o.keyShift, o.keyUse};
             case SNEAK_USE, REMOTE_RELOAD, REMOTE_DETONATE, STAFF_X_MINION ->
                     new KeyMapping[]{GainClient.secondUltKey()};
             // the X key does what sneak + right click did with the remote and the staff (25 October 2026)
-            case REMOTE, STAFF -> new KeyMapping[]{GainClient.secondUltKey(), o.keyUse, o.keyShift};
+            case REMOTE -> new KeyMapping[]{GainClient.secondUltKey(), o.keyUse, o.keyShift};
+            case STAFF -> new KeyMapping[]{GainClient.secondUltKey(), o.keyUse, o.keyShift, GainClient.quiverKey()};
             default -> new KeyMapping[0];
         };
         Object[] names = new Object[used.length];

@@ -74,13 +74,20 @@ public enum KeyHint {
     REMOTE_RELOAD,
     /** The remote: the X key on a mortar, flame trap or potion tower (detonate). */
     REMOTE_DETONATE,
-    /** The summoner's staff: right click calls, the X key at a monster sends the pack. */
+    /**
+     * The summoner's staff as a whole (26 October 2026): right click attacks, sneak + right
+     * click orders, calls or casts, G calls or picks the spell, X orders.
+     */
     STAFF,
-    /** The staff: right click (call or raise). */
+    /** The staff's call (way of the light): sneak + right click into the air, or the G key. */
     STAFF_CALL,
-    /** The staff: the X key looking at an own minion. */
+    /** The staff's own attack: right click at a monster (call strike, soul bolt). */
+    STAFF_ATTACK,
+    /** A spell of the way of the dead: G picks it, sneak + right click with the staff casts it. */
+    STAFF_SPELL,
+    /** The staff: the X key looking at an own minion (until 26 October 2026, kept for old names). */
     STAFF_X_MINION,
-    /** The staff: sneak and the X key (the soul shield, since 26 October 2026). */
+    /** The staff: sneak and the X key (the soul shield until the spells, kept for old names). */
     STAFF_SNEAK_X;
 
     /** Skills by id: they win over the effect (a few share an effect with a passive skill). */
@@ -88,7 +95,9 @@ public enum KeyHint {
             Map.entry("g_hedgehog", SNEAK_BLOCK),
             Map.entry("g_wellspring", SHIELD_ACTION),
             Map.entry("g_boomerang", SHIELD_ACTION),
-            Map.entry("g_miracle", USE_MATE_OR_SHIELD));
+            Map.entry("g_miracle", USE_MATE_OR_SHIELD),
+            // The wolf of the way of the dead comes by itself (its effect is the call's).
+            Map.entry("d_cross_wolf", NONE));
 
     /** Skills by what they do. */
     private static final Map<SkillEffect, KeyHint> EFFECTS = Map.ofEntries(
@@ -105,11 +114,22 @@ public enum KeyHint {
             Map.entry(SkillEffect.SHIELD_WALL, BLOCK),
             Map.entry(SkillEffect.EARTHSHOCK, JUMP_ATTACK),
             Map.entry(SkillEffect.BRACE, SNEAK_SHOOT),
+            // The summoner's staff (rebuilt 26 October 2026).
+            Map.entry(SkillEffect.CALL_RANGE, STAFF),
             Map.entry(SkillEffect.PACK_CALL, STAFF_CALL),
             Map.entry(SkillEffect.GOLEM_CALL, STAFF_CALL),
-            Map.entry(SkillEffect.RAISE_DEAD, STAFF_CALL),
-            Map.entry(SkillEffect.CORPSE_BLAST, STAFF_X_MINION),
-            Map.entry(SkillEffect.SOUL_SHIELD, STAFF_SNEAK_X),
+            Map.entry(SkillEffect.PACK_SLOTS, STAFF_CALL),
+            Map.entry(SkillEffect.RAISE_DEAD, STAFF_ATTACK),
+            Map.entry(SkillEffect.SKELETON_ARCHERS, STAFF_ATTACK),
+            Map.entry(SkillEffect.GHOUL_HUNGER, STAFF_ATTACK),
+            Map.entry(SkillEffect.NECRO_POWER, STAFF_SPELL),
+            Map.entry(SkillEffect.SOUL_CATCHER, STAFF_SPELL),
+            Map.entry(SkillEffect.GHOST_SWARM, STAFF_SPELL),
+            Map.entry(SkillEffect.SOUL_SHIELD, STAFF_SPELL),
+            Map.entry(SkillEffect.ROT, STAFF_SPELL),
+            Map.entry(SkillEffect.CORPSE_BLAST, STAFF_SPELL),
+            Map.entry(SkillEffect.BONE_LEGION, STAFF_SPELL),
+            Map.entry(SkillEffect.SOUL_BURN, STAFF_SPELL),
             Map.entry(SkillEffect.DETONATOR, REMOTE_DETONATE),
             Map.entry(SkillEffect.OVERCHARGE_TIME, REMOTE_BOOST),
             Map.entry(SkillEffect.NETWORK, REMOTE_BOOST),
@@ -155,7 +175,7 @@ public enum KeyHint {
             Map.entry("turmschild", BLOCK),
             Map.entry("leichtschild", BLOCK),
             Map.entry("deckung", BLOCK),
-            Map.entry("doppelstab", STAFF_CALL),
+            Map.entry("doppelstab", STAFF_ATTACK),
             Map.entry("rueckrufpfeife", USE),
             Map.entry("geisterross", USE),
             Map.entry("futternapf", USE),

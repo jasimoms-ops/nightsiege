@@ -455,7 +455,8 @@ public final class KitService {
                 hotbar.add(PotionContents.createItemStack(Items.POTION, Potions.STRONG_HEALING));
             }
         } else if (clazz == SkillClass.SUMMONER) {
-            // The staff first, a sword for when the pack is down; food for the wolves or iron for the golems.
+            // The staff first (the summoner's own attack, orders, calls and spells), a sword for close
+            // quarters; food for the wolves or iron for the golem. Nothing here adds a companion.
             if (ModContent.STAFF != null) {
                 ItemStack staff = new ItemStack(ModContent.STAFF);
                 if (way.equals(SkillTree.WAY_DEAD)) {
