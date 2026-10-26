@@ -854,22 +854,6 @@ public class EventLookTest implements FabricClientGameTest {
             place(level, manager, player, new BlockPos(gx, gy, gz), com.mki.nightsiege.core.TrapKind.MORTAR);
             place(level, manager, player, new BlockPos(gx, gy, gz + 32), com.mki.nightsiege.core.TrapKind.BREWER);
             System.out.println("[Night Siege test] tower hit=" + com.mki.nightsiege.game.SiegeManager.get().mobHealthFactor() * 10.0);
-            // The crate gains lift the tower caps (Simon, 26 October 2026).
-            com.mki.nightsiege.game.TrapService ts = manager.trapService();
-            com.mki.nightsiege.core.SkillClass eng = com.mki.nightsiege.core.SkillClass.ENGINEER;
-            com.mki.nightsiege.core.TrapKind mortar = com.mki.nightsiege.core.TrapKind.MORTAR;
-            com.mki.nightsiege.core.TrapKind tesla = com.mki.nightsiege.core.TrapKind.TESLA;
-            int plain = ts.maxFor(mortar, 5, own);
-            own.setGainStage(eng, "notfallmine", 1);
-            int mine = ts.maxFor(mortar, 5, own);
-            int teslaMine = ts.maxFor(tesla, 5, own);
-            own.setGainStage(eng, "ueberkapazitaet", 1);
-            int both = ts.maxFor(mortar, 5, own);
-            int teslaOver = ts.maxFor(tesla, 5, own);
-            own.setGainStage(eng, "notfallmine", 0);
-            own.setGainStage(eng, "ueberkapazitaet", 0);
-            System.out.println("[Night Siege test] tower caps mortar=" + plain + " +notfallmine=" + mine + " +both=" + both
-                    + " tesla +notfallmine=" + teslaMine + " +ueberkapazitaet=" + teslaOver + " (want 2, 3, 4, 2, 3)");
         });
         for (int i = 0; i < 24; i++) {
             final int step = i;
@@ -1644,6 +1628,22 @@ public class EventLookTest implements FabricClientGameTest {
                     + " (want 5)");
             System.out.println("[Night Siege test] summoner dead way=" + own.pathTaken(new com.mki.nightsiege.core.SkillTree())
                     + " catcher=" + own.levelOf("d_soulcatcher") + " army=" + own.levelOf("d_army"));
+            // The crate gains lift the tower caps (Simon, 26 October 2026).
+            com.mki.nightsiege.game.TrapService ts = manager.trapService();
+            com.mki.nightsiege.core.SkillClass eng = com.mki.nightsiege.core.SkillClass.ENGINEER;
+            com.mki.nightsiege.core.TrapKind mortar = com.mki.nightsiege.core.TrapKind.MORTAR;
+            com.mki.nightsiege.core.TrapKind tesla = com.mki.nightsiege.core.TrapKind.TESLA;
+            int plain = ts.maxFor(mortar, 5, own);
+            own.setGainStage(eng, "notfallmine", 1);
+            int mine = ts.maxFor(mortar, 5, own);
+            int teslaMine = ts.maxFor(tesla, 5, own);
+            own.setGainStage(eng, "ueberkapazitaet", 1);
+            int both = ts.maxFor(mortar, 5, own);
+            int teslaOver = ts.maxFor(tesla, 5, own);
+            own.setGainStage(eng, "notfallmine", 0);
+            own.setGainStage(eng, "ueberkapazitaet", 0);
+            System.out.println("[Night Siege test] tower caps mortar=" + plain + " +notfallmine=" + mine + " +both=" + both
+                    + " tesla +notfallmine=" + teslaMine + " +ueberkapazitaet=" + teslaOver + " (want 2, 3, 4, 2, 3)");
         });
         closeScreen(context);   // buying skills opened the class window
         // A fresh wave falls right in front of the summoner: souls and corpses.
