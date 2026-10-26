@@ -333,7 +333,7 @@ public class SpotterScreen extends Screen {
     }
 
     private int barTop() {
-        return this.height - SLOT_H - 30;
+        return this.height - SLOT_H - 56;   // above the hotbar
     }
 
     private int barIndexAt(double x, double y) {
@@ -432,7 +432,9 @@ public class SpotterScreen extends Screen {
 
     /** For the test: aim the view and click a fire there, as a player would. */
     public void testFire(int modeIndex, BlockPos spot) {
-        pick(modeIndex);
+        if (selected != modeIndex) {
+            pick(modeIndex);
+        }
         fire(spot);
     }
 
