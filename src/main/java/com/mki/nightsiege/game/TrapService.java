@@ -1674,6 +1674,10 @@ public final class TrapService {
                 && m.kits().gainLevel(skills, com.mki.nightsiege.core.SkillClass.ENGINEER, "pfeilkiste") > 0) {
             ueber += 1;   // Pfeilkiste: one more arrow turret (since 26 October 2026, turrets need no arrows)
         }
+        if (kind == TrapKind.MORTAR && m != null && skills != null
+                && m.kits().gainLevel(skills, com.mki.nightsiege.core.SkillClass.ENGINEER, "notfallmine") > 0) {
+            ueber += 1;   // Notfall-Mörser: the extra mortar of the kit has its place (26 October 2026)
+        }
         return maxFor(kind, tier, SkillTree.has(skills, "e_fortress"), SkillTree.has(skills, "e_fieldtech"), ueber);
     }
 

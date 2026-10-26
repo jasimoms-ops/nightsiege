@@ -673,6 +673,7 @@ public final class SiegeManager {
             com.mki.nightsiege.core.SkillNode ult = skillTree.ultimateOfProfile(own, key);
             entry.ult = ult == null ? 0 : own.levelInProfile(key, ult.id());
             entry.ultMax = ult == null ? 3 : ult.maxLevel();
+            entry.ultDone = ult != null && entry.ult >= entry.ultMax;
             if (config.nightKits) {
                 try {
                     entry.kit = own.asProfile(key, () -> kits.preview(player, own, data.level));
@@ -1063,6 +1064,16 @@ public final class SiegeManager {
     private int nightKills;
     private int spawnedTotal;
     private int killQuota;
+    /**
+     * The kill goal moves with what can still come (Simon, 26 October 2026: keep the sum, but
+     * show why it changes): the goal the bar showed last, the reasons noted since, and the note
+     * the bar carries for five seconds after a change.
+     */
+    private int shownRequired = -1;
+    private Component goalDown;
+    private Component goalUp;
+    private Component goalNote;
+    private int goalNoteUntil;
     /** The night fragment this night used up (given back when the night has to be played again). */
     private String usedFragment;
     /** How often a survived wave counts for each defender this night (catching up on missed nights). */
@@ -1379,6 +1390,10 @@ public final class SiegeManager {
         defense.begin(world, anchor, config, save.coreSkills(), skillTree, digger, anyoneHas("mauerkelle"));
         nightKills = 0;
         spawnedTotal = 0;
+        shownRequired = -1;
+        goalDown = null;
+        goalUp = null;
+        goalNote = null;
         nightLog.begin(world.getGameTime());
         digger.takeBroken();
         for (UUID id : participants) {
@@ -1450,12 +1465,39 @@ public final class SiegeManager {
                             Component.translatable("nightsiege.boss." + bosses.kind().id())).withStyle(ChatFormatting.RED));
         }
         int required = killsRequired();
+        noteGoalChange(required);
         if (required <= 0) {
             return title;
         }
-        return Component.empty().append(title).append(Component.literal("  ·  "))
+        MutableComponent bar = Component.empty().append(title).append(Component.literal("  ·  "))
                 .append(Component.translatable("nightsiege.bar.kills", nightKills, required)
                         .withStyle(nightKills >= required ? ChatFormatting.GREEN : ChatFormatting.YELLOW));
+        if (goalNote != null && ticksLeft > goalNoteUntil) {
+            bar.append(Component.literal(" ")).append(goalNote);
+        }
+        return bar;
+    }
+
+    /** The goal moved since the bar last showed it: the bar says why for five seconds. */
+    private void noteGoalChange(int required) {
+        if (shownRequired >= 0 && required != shownRequired) {
+            boolean down = required < shownRequired;
+            Component why = down ? goalDown : goalUp;
+            if (why == null) {
+                why = Component.translatable(down ? "nightsiege.bar.goal_fewer" : "nightsiege.bar.goal_more");
+            }
+            goalNote = Component.translatable(down ? "nightsiege.bar.goal_down" : "nightsiege.bar.goal_up", why)
+                    .withStyle(down ? ChatFormatting.AQUA : ChatFormatting.GOLD);
+            goalNoteUntil = ticksLeft - 100;
+            goalDown = null;
+            goalUp = null;
+        }
+        shownRequired = required;
+    }
+
+    /** For the tests: the boss bar's text right now. */
+    public String bossBarText() {
+        return bossBar == null ? "" : bossBarTitle().getString();
     }
 
     /** Experience is worth more in a special night. */
@@ -1474,6 +1516,8 @@ public final class SiegeManager {
         for (ServerPlayer player : defendersNear(server, world, anchor, testRun)) {
             if (!fallen.contains(player.getUUID())) {
                 if (participants.add(player.getUUID())) {
+                    // More defenders, bigger waves: the goal can rise (up to where it started).
+                    goalUp = Component.translatable("nightsiege.bar.goal_joined", player.getScoreboardName());
                     logPlayer(player);
                     equipKit(player);
                     SkillService.apply(player, save.skillsOf(player.getUUID().toString()), skillTree);
@@ -1710,6 +1754,7 @@ public final class SiegeManager {
             }
             liveMobs.add(mob.getUUID());
             spawnedTotal++;
+            goalUp = Component.translatable("nightsiege.bar.goal_extra");
             aimAtDefender(world.getServer(), mob);
             return mob;
         }
@@ -1879,6 +1924,7 @@ public final class SiegeManager {
                 for (Entity rider : mob.getPassengers()) {
                     liveMobs.add(rider.getUUID());
                     spawnedTotal++;
+                    goalUp = Component.translatable("nightsiege.bar.goal_extra");
                 }
                 aimAtDefender(server, mob);
                 Fx.mobSpawned(world, config, mob, spawned < config.audibleSpawnsPerBatch);
@@ -1888,6 +1934,11 @@ public final class SiegeManager {
                 wave.add(mob);
                 spawned++;
             }
+        }
+        if (count < wanted) {
+            goalDown = Component.translatable("nightsiege.bar.goal_full");   // the field is full
+        } else if (spawned < count) {
+            goalDown = Component.translatable("nightsiege.bar.goal_no_room");   // no spot for some of them
         }
         // Some of them carry ladders; a sapper creeper may come along (it does not count for the kill goal).
         besiegers.afterWave(world, anchor, defense.base(), wave, siegeLevel, config, random, currentEvent,
@@ -3033,6 +3084,7 @@ public final class SiegeManager {
             }
             case "buy" -> onBuySkill(player, argument);
             case "class" -> onChooseClass(player, argument);
+            case "sub" -> onFixSubclass(player, argument);
             case "play" -> onPlayClass(player, argument);
             case "classreset" -> onClassReset(player);
             case "donate" -> onDonate(player, parseAmount(argument));
@@ -3339,6 +3391,11 @@ public final class SiegeManager {
         if (player == null || chosen == null || chosen.isShared()) {
             return;
         }
+        // The armour stand window sends the subclass node ("CLASS:w_combo"), the unlock dialog its key.
+        SkillTree.SubclassInfo byNode = SkillTree.subclassByNode(subclass);
+        if (byNode != null) {
+            subclass = byNode.clazz() == chosen ? byNode.key() : "";
+        }
         PlayerSkills own = save.skillsOf(player.getUUID().toString());
         if (!mayChoose(player, chosen)) {
             player.sendSystemMessage(Component.translatable("nightsiege.msg.class_admin_only")
@@ -3347,8 +3404,10 @@ public final class SiegeManager {
         }
         if (!own.hasClass()) {
             own.chosenClass = chosen.name();
-            own.unlockClass(chosen);
+            // The first class: its profile is opened for the subclass picked at the armour stands.
+            own.addProfile(chosen, skillTree.subclassesOf(chosen).contains(subclass) ? subclass : "");
             persist();
+            ClassTags.update(player.level().getServer(), player, own, skillTree.chosenSubclass(own, own.clazz()));
             traps.giveRemote(player, own);
             player.sendSystemMessage(Component.translatable("nightsiege.msg.class_chosen",
                     Component.translatable(chosen.translationKey())).withStyle(ChatFormatting.GREEN));
@@ -3382,6 +3441,40 @@ public final class SiegeManager {
         persist();
         player.sendSystemMessage(Component.translatable("nightsiege.msg.profile_new",
                 profileName(own, key)).withStyle(ChatFormatting.GREEN));
+        openCoreWindow(player);
+    }
+
+    /**
+     * Fixes the subclass of an unlocked class that has none yet (classes chosen before the
+     * armour stand window): only while nothing of the other way or subclass is learned.
+     */
+    public void onFixSubclass(ServerPlayer player, String argument) {
+        String[] parts = argument == null ? new String[0] : argument.split(":", 2);
+        SkillClass clazz = parts.length == 0 ? null : SkillClass.byName(parts[0]);
+        SkillTree.SubclassInfo sub = parts.length > 1 ? SkillTree.subclassByNode(parts[1]) : null;
+        if (player == null || clazz == null || sub == null || sub.clazz() != clazz) {
+            return;
+        }
+        PlayerSkills own = save.skillsOf(player.getUUID().toString());
+        if (!own.hasUnlocked(clazz) || !own.fixedSubOf(clazz).isEmpty()) {
+            openCoreWindow(player);
+            return;
+        }
+        String learned = skillTree.chosenSubclass(own, clazz);
+        String way = own.as(clazz, () -> own.pathTaken(skillTree));
+        if ((!learned.isEmpty() && !learned.equals(sub.key())) || (!way.isEmpty() && !way.equals(sub.way()))) {
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.sub_conflict")
+                    .withStyle(ChatFormatting.RED));
+            openCoreWindow(player);
+            return;
+        }
+        own.fixSub(clazz, sub.node());
+        persist();
+        if (clazz == own.clazz()) {
+            ClassTags.update(player.level().getServer(), player, own, skillTree.chosenSubclass(own, own.clazz()));
+        }
+        player.sendSystemMessage(Component.translatable("nightsiege.msg.sub_fixed",
+                Component.translatable("nightsiege.subclass." + sub.key())).withStyle(ChatFormatting.GREEN));
         openCoreWindow(player);
     }
 
