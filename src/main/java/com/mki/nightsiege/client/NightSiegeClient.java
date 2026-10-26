@@ -104,6 +104,12 @@ public class NightSiegeClient implements ClientModInitializer {
                                 NightStatsScreen.queue(stats);
                             }
                         }
+                    } else if ("spotter".equals(payload.kind())) {
+                        com.mki.nightsiege.core.SpotterData data =
+                                Json.fromJson(payload.json(), com.mki.nightsiege.core.SpotterData.class);
+                        if (data != null && client.player != null) {
+                            client.setScreenAndShow(new SpotterScreen(data));
+                        }
                     } else if ("healthview".equals(payload.kind())) {
                         HealthViewClient.set(payload.json());
                     } else if ("brewmenu".equals(payload.kind())) {

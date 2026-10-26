@@ -221,6 +221,10 @@ public final class GainGear {
             if (m != null && SkillTree.SUB_ALCHEMIST.equals(m.skillTree().subclassOf(skills))) {
                 out.add(Gadgets.make(Items.FIREWORK_STAR, "alchemie_blende", 1));
             }
+            // The demolition expert's spyglass: the bird's-eye view (Simon, 26 October 2026).
+            if (m != null && SkillTree.SUB_DEMOLITION.equals(m.skillTree().subclassOf(skills))) {
+                out.add(Gadgets.make(Items.SPYGLASS, "feldstecher", 1));
+            }
         } else if (clazz == SkillClass.SUMMONER) {
             if (lvl(kits, skills, clazz, "rueckrufpfeife") > 0) {
                 out.add(Gadgets.make(Items.LEAD, "rueckrufpfeife", 1));
@@ -261,7 +265,7 @@ public final class GainGear {
     // ------------------------------------------------------------------
 
     /** Gadgets that do their thing on a right click in the air (or on a block). */
-    private static final Set<String> USE_ANYWHERE = Set.of("wurfspeer", "wurfbeil", "blendgranate", "alchemie_blende", "oelfass",
+    private static final Set<String> USE_ANYWHERE = Set.of("wurfspeer", "wurfbeil", "blendgranate", "alchemie_blende", "feldstecher", "oelfass",
             "kletterhaken", "kampfhorn", "tarnumhang", "signalhorn", "mauerkelle", "ersatzbatterie", "leibwaechter",
             "rueckrufpfeife", "geisterross", "futternapf", "totenglocke");
     /** The summoner's gadgets (their work is in {@link Companions#useGadget}). */
@@ -362,6 +366,12 @@ public final class GainGear {
             case "wurfbeil" -> throwIt(player, level, stack, KitProjectile.AXE, 1.6f, creative);
             case "blendgranate" -> throwIt(player, level, stack, KitProjectile.FLASH, 1.4f, creative);
             case "alchemie_blende" -> throwAlchemistFlash(player, level, stack);
+            case "feldstecher" -> {
+                SiegeManager m = SiegeManager.get();
+                if (m != null) {
+                    m.kits().traps().openSpotter(player);
+                }
+            }
             case "oelfass" -> throwIt(player, level, stack, KitProjectile.OIL, 1.0f, creative);
             case "kletterhaken" -> grapple(player, level, stack);
             case "kampfhorn" -> warHorn(player, level, stack);
@@ -600,17 +610,36 @@ public final class GainGear {
     private static void flashAlchemist(ServerLevel level, Vec3 at) {
         double radius = SkillValues.get("potion_tower", "flashradius", 5.0);
         int ticks = (int) Math.round(SkillValues.get("potion_tower", "flashtime", 80));
+        blind(level, at, radius, ticks, true);
+        level.sendParticles(ParticleTypes.END_ROD, at.x, at.y + 0.3, at.z, 80, 0.8, 0.8, 0.8, 0.3);
+        level.sendParticles(ParticleTypes.WHITE_SMOKE, at.x, at.y + 0.3, at.z, 40, radius * 0.35, 0.5, radius * 0.35, 0.02);
+        level.playSound(null, BlockPos.containing(at), SoundEvents.FIREWORK_ROCKET_BLAST, SoundSource.PLAYERS, 1.8f, 1.6f);
+    }
+
+    /**
+     * Monsters around a spot lose their target and may not pick a new one for a while
+     * (the alchemist's flash grenade, the demolition expert's smoke shells).
+     */
+    public static void blind(ServerLevel level, Vec3 at, double radius, int ticks, boolean blindness) {
         long until = level.getGameTime() + ticks;
         for (Mob mob : enemies(level, at, radius)) {
             mob.setTarget(null);
             mob.getNavigation().stop();
             CALM.put(mob.getUUID(), until);
-            mob.addEffect(new MobEffectInstance(MobEffects.BLINDNESS, ticks, 0, false, true));
+            if (blindness) {
+                mob.addEffect(new MobEffectInstance(MobEffects.BLINDNESS, ticks, 0, false, true));
+            }
             mob.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, ticks, 1, false, false));
         }
-        level.sendParticles(ParticleTypes.END_ROD, at.x, at.y + 0.3, at.z, 80, 0.8, 0.8, 0.8, 0.3);
-        level.sendParticles(ParticleTypes.WHITE_SMOKE, at.x, at.y + 0.3, at.z, 40, radius * 0.35, 0.5, radius * 0.35, 0.02);
-        level.playSound(null, BlockPos.containing(at), SoundEvents.FIREWORK_ROCKET_BLAST, SoundSource.PLAYERS, 1.8f, 1.6f);
+    }
+
+    /** A patch of burning ground (the fire salvo): monsters in it catch fire until it goes out. */
+    public static void burnPatch(ServerLevel level, Vec3 center, long ticks) {
+        long now = level.getGameTime();
+        Oil oil = new Oil(center, now + ticks);
+        oil.burnUntil = now + ticks;
+        OIL.add(oil);
+        level.playSound(null, BlockPos.containing(center), SoundEvents.FIRECHARGE_USE, SoundSource.BLOCKS, 1.2f, 0.7f);
     }
 
     /** Lure arrow (archer's second ult): monsters within 8 blocks go for the spot for 5 s. */

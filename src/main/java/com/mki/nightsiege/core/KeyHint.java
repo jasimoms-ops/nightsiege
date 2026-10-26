@@ -187,6 +187,7 @@ public enum KeyHint {
             Map.entry("wurfbeil", USE),
             Map.entry("blendgranate", USE),
             Map.entry("alchemie_blende", USE),
+            Map.entry("feldstecher", USE),
             Map.entry("oelfass", USE),
             Map.entry("kletterhaken", USE),
             Map.entry("kampfhorn", USE),

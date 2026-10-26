@@ -2336,6 +2336,7 @@ public final class SiegeManager {
         secondChance.clear();
         secondChanceUsed.clear();
         traps.resetZones();
+        traps.resetSpotter();
         GainGear.endNight(server);
         traps.recycle(server);
     }
@@ -3121,6 +3122,8 @@ public final class SiegeManager {
             case "man" -> traps.onManAction(player, "1".equals(argument));
             // The alchemist's potion menu: the potion picked.
             case "brew" -> traps.onBrewChoice(player, argument);
+            // The demolition expert's bird's-eye view: a fire called on a spot.
+            case "spot" -> traps.onSpotAction(player, argument);
             case "shield" -> combat.guardian().onShieldAction(player);
             case "dungeon" -> dungeons.onToolAction(player, argument);
             default -> openCoreWindow(player);

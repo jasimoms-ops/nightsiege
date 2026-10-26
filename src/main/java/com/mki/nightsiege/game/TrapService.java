@@ -620,13 +620,19 @@ public final class TrapService {
     /** Fires a shell or a potion in a high arc (over walls) onto a spot. */
     private void lob(ServerLevel level, TrapRecord record, Vec3 from, Vec3 to, String kind, int tier,
                      double damageScale, double radiusScale) {
+        lob(level, record, from, to, kind, tier, damageScale, radiusScale, "");
+    }
+
+    /** A lobbed shot with a special fire from the bird's-eye view ("fire", "smoke", or ""). */
+    private void lob(ServerLevel level, TrapRecord record, Vec3 from, Vec3 to, String kind, int tier,
+                     double damageScale, double radiusScale, String mode) {
         boolean shell = KitProjectile.SHELL.equals(kind);
-        ItemStack look = shell ? new ItemStack(Items.FIRE_CHARGE)
+        ItemStack look = shell ? new ItemStack("smoke".equals(mode) ? Items.FIREWORK_STAR : Items.FIRE_CHARGE)
                 : PotionContents.createItemStack(Items.SPLASH_POTION, Potions.POISON);
         KitProjectile shot = new KitProjectile(level, from.x, from.y, from.z, look, kind);
         shot.setData(String.join("|", record.kind, record.dimension, String.valueOf(record.x), String.valueOf(record.y),
                 String.valueOf(record.z), record.owner == null ? "" : record.owner, String.valueOf(tier),
-                String.valueOf(damageScale), String.valueOf(radiusScale)));
+                String.valueOf(damageScale), String.valueOf(radiusScale), mode == null ? "" : mode));
         double dx = to.x - from.x;
         double dy = to.y - from.y;
         double dz = to.z - from.z;
@@ -699,8 +705,14 @@ public final class TrapService {
             int tier = Integer.parseInt(d[6]);
             double damageScale = Double.parseDouble(d[7]);
             double radiusScale = Double.parseDouble(d[8]);
-            if (KitProjectile.SHELL.equals(shot.kind())) {
+            String mode = d.length > 9 ? d[9] : "";
+            if (KitProjectile.SHELL.equals(shot.kind()) && "smoke".equals(mode)) {
+                smokeBurst(level, at);
+            } else if (KitProjectile.SHELL.equals(shot.kind())) {
                 shellBurst(level, record, at, direct, tier, damageScale, radiusScale, false);
+                if ("fire".equals(mode)) {
+                    GainGear.burnPatch(level, at, Math.round(SkillValues.get("e_fire_salvo", "burn", 100)));
+                }
             } else {
                 brewBurst(level, record, at, direct, tier, damageScale, radiusScale, damageScale > 1.0 || radiusScale > 1.0);
             }
@@ -1571,6 +1583,269 @@ public final class TrapService {
     /** End of the night: the zone pauses start fresh. */
     public void resetZones() {
         zoneReady.clear();
+    }
+
+    // ------------------------------------------------------------------
+    // the demolition expert's bird's-eye view (Simon, 26 October 2026)
+    // ------------------------------------------------------------------
+
+    /** When each player may use each fire again: player → mode id → game time. */
+    private final Map<UUID, Map<String, Long>> spotReady = new HashMap<>();
+
+    /** The spyglass of the kit: the bird's-eye view opens on the client. */
+    public void openSpotter(ServerPlayer player) {
+        if (!(player.level() instanceof ServerLevel level)) {
+            return;
+        }
+        PlayerSkills skills = save.get().skillsOf(player.getUUID().toString());
+        boolean creative = player.getAbilities().instabuild;
+        if (!creative && !SkillTree.SUB_DEMOLITION.equals(tree.subclassOf(skills))) {
+            actionBar(player, Component.translatable("nightsiege.msg.spotter_demolition_only"));
+            return;
+        }
+        SiegeManager m = SiegeManager.get();
+        if (!creative && (m == null || !m.isDefending(player))) {
+            actionBar(player, Component.translatable("nightsiege.msg.spotter_night_only"));
+            return;
+        }
+        com.mki.nightsiege.core.SpotterData data = new com.mki.nightsiege.core.SpotterData();
+        BlockPos center = spotCenter(level, player);
+        data.centerX = center.getX();
+        data.centerY = center.getY();
+        data.centerZ = center.getZ();
+        data.radius = (int) Math.round(SkillValues.get(TrapKind.MORTAR.id(), "spotradius", 48));
+        double dx = player.getX() - center.getX();
+        double dz = player.getZ() - center.getZ();
+        double d = Math.sqrt(dx * dx + dz * dz);
+        double scale = d > data.radius ? data.radius / d : 1.0;
+        data.startX = center.getX() + dx * scale;
+        data.startZ = center.getZ() + dz * scale;
+        data.mortars = ownMortars(level, player).size();
+        long now = level.getGameTime();
+        Map<String, Long> ready = spotReady.getOrDefault(player.getUUID(), Map.of());
+        for (com.mki.nightsiege.core.MortarMode mode : com.mki.nightsiege.core.MortarMode.values()) {
+            com.mki.nightsiege.core.SpotterData.Mode entry = new com.mki.nightsiege.core.SpotterData.Mode();
+            entry.id = mode.id();
+            entry.open = mode.unlocked(skills) || creative;
+            long at = ready.getOrDefault(mode.id(), 0L);
+            entry.wait = at > now ? (int) ((at - now + 19) / 20) : 0;
+            entry.pause = mode.pauseTicks() / 20;
+            entry.spread = switch (mode) {
+                case POINT -> TrapKind.MORTAR.splash(1);
+                case BARRAGE -> 1.5;
+                case AREA -> SkillValues.get("e_area_fire", "radius", 5);
+                case SMOKE -> SkillValues.get("e_smoke_salvo", "radius", 5);
+                case FIRE -> 2.5;
+            };
+            data.modes.add(entry);
+        }
+        net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(player,
+                new CoreNetworking.ScreenPayload("spotter", Json.toJson(data)));
+    }
+
+    /** The middle of the view: the core in the player's world, else where the player stands. */
+    private static BlockPos spotCenter(ServerLevel level, ServerPlayer player) {
+        SiegeManager m = SiegeManager.get();
+        CoreRecord core = m == null ? null : m.mainCore();
+        if (core != null && SiegeManager.dimensionName(level).equals(core.dimension)) {
+            return new BlockPos(core.x, core.y, core.z);
+        }
+        return player.blockPosition();
+    }
+
+    private List<TrapRecord> ownMortars(ServerLevel level, ServerPlayer player) {
+        String owner = player.getUUID().toString();
+        String dim = SiegeManager.dimensionName(level);
+        List<TrapRecord> out = new ArrayList<>();
+        for (TrapRecord r : traps()) {
+            if (TrapKind.MORTAR.id().equals(r.kind) && r.dimension.equals(dim) && !r.broken
+                    && (r.owner.equals(owner) || player.getAbilities().instabuild)) {
+                out.add(r);
+            }
+        }
+        return out;
+    }
+
+    /** True when this mortar's shells reach the spot. */
+    private boolean reaches(TrapRecord r, Vec3 spot) {
+        Vec3 at = Vec3.atCenterOf(new BlockPos(r.x, r.y, r.z));
+        double reach = TrapKind.MORTAR.radius(tierOf(r)) + bonus(r, SkillEffect.TOWER_RANGE);
+        double dx = at.x - spot.x;
+        double dz = at.z - spot.z;
+        return dx * dx + dz * dz <= reach * reach;
+    }
+
+    /**
+     * A click in the bird's-eye view: "mode:x:y:z", for the barrage "barrage:x:y:z:x2:y2:z2"
+     * (the spots are the blocks clicked; the shells land on top of them).
+     */
+    public void onSpotAction(ServerPlayer player, String argument) {
+        if (!(player.level() instanceof ServerLevel level)) {
+            return;
+        }
+        String[] parts = argument.split(":");
+        com.mki.nightsiege.core.MortarMode mode = parts.length == 0 ? null : com.mki.nightsiege.core.MortarMode.byId(parts[0]);
+        if (mode == null || parts.length < 4 || (mode == com.mki.nightsiege.core.MortarMode.BARRAGE && parts.length < 7)) {
+            return;
+        }
+        Vec3 a;
+        Vec3 b;
+        try {
+            a = new Vec3(Integer.parseInt(parts[1]) + 0.5, Integer.parseInt(parts[2]) + 1.0, Integer.parseInt(parts[3]) + 0.5);
+            b = parts.length >= 7
+                    ? new Vec3(Integer.parseInt(parts[4]) + 0.5, Integer.parseInt(parts[5]) + 1.0, Integer.parseInt(parts[6]) + 0.5)
+                    : a;
+        } catch (NumberFormatException e) {
+            return;
+        }
+        PlayerSkills skills = save.get().skillsOf(player.getUUID().toString());
+        boolean creative = player.getAbilities().instabuild;
+        if (!creative && !SkillTree.SUB_DEMOLITION.equals(tree.subclassOf(skills))) {
+            return;
+        }
+        SiegeManager m = SiegeManager.get();
+        if (!creative && (m == null || !m.isDefending(player))) {
+            actionBar(player, Component.translatable("nightsiege.msg.spotter_night_only"));
+            return;
+        }
+        if (!creative && !mode.unlocked(skills)) {
+            actionBar(player, Component.translatable("nightsiege.msg.spotter_locked"));
+            return;
+        }
+        BlockPos center = spotCenter(level, player);
+        double radius = SkillValues.get(TrapKind.MORTAR.id(), "spotradius", 48) + 2.0;
+        for (Vec3 p : new Vec3[] {a, b}) {
+            double dx = p.x - center.getX();
+            double dz = p.z - center.getZ();
+            if (dx * dx + dz * dz > radius * radius) {
+                actionBar(player, Component.translatable("nightsiege.msg.spotter_far"));
+                return;
+            }
+        }
+        long now = level.getGameTime();
+        Map<String, Long> ready = spotReady.computeIfAbsent(player.getUUID(), k -> new HashMap<>());
+        long at = ready.getOrDefault(mode.id(), 0L);
+        if (mode.pauseTicks() > 0 && now < at && !creative) {
+            actionBar(player, Component.translatable("nightsiege.msg.spotter_wait", (at - now + 19) / 20));
+            return;
+        }
+        List<TrapRecord> mortars = ownMortars(level, player);
+        if (mortars.isEmpty()) {
+            actionBar(player, Component.translatable("nightsiege.msg.spotter_no_mortar"));
+            return;
+        }
+        int fired = switch (mode) {
+            case POINT -> pointFire(level, mortars, a, now);
+            case BARRAGE -> barrage(level, mortars, a, b);
+            case AREA -> scatter(level, mortars, a, (int) Math.round(SkillValues.get("e_area_fire", "shells", 8)),
+                    SkillValues.get("e_area_fire", "radius", 5), SkillValues.get("e_area_fire", "dmg", 0.8), "");
+            case SMOKE -> scatter(level, mortars, a, (int) Math.round(SkillValues.get("e_smoke_salvo", "shells", 2)),
+                    1.5, 0.0, "smoke");
+            case FIRE -> scatter(level, mortars, a, (int) Math.round(SkillValues.get("e_fire_salvo", "shells", 3)),
+                    1.5, SkillValues.get("e_fire_salvo", "dmg", 0.6), "fire");
+        };
+        if (fired <= 0) {
+            actionBar(player, Component.translatable("nightsiege.msg.mortar_aim_far"));
+            return;
+        }
+        if (mode.pauseTicks() > 0) {
+            ready.put(mode.id(), now + mode.pauseTicks());
+        }
+        dirty = true;
+        level.playSound(null, BlockPos.containing(a), SoundEvents.NOTE_BLOCK_BASEDRUM.value(), SoundSource.PLAYERS, 1.0f, 0.7f);
+        actionBar(player, Component.translatable("nightsiege.msg.spotter_fired",
+                Component.translatable("nightsiege.mortarmode." + mode.id()), fired));
+    }
+
+    /** Point fire: every own mortar that reaches the spot fires there from now on (no 10 s wait). */
+    private int pointFire(ServerLevel level, List<TrapRecord> mortars, Vec3 spot, long now) {
+        int n = 0;
+        BlockPos block = BlockPos.containing(spot.x, spot.y - 1.0, spot.z);
+        for (TrapRecord r : mortars) {
+            if (!reaches(r, spot)) {
+                continue;
+            }
+            r.aimed = true;
+            r.aimX = block.getX();
+            r.aimY = block.getY();
+            r.aimZ = block.getZ();
+            r.aimedAt = now;
+            r.readyAt = Math.min(r.readyAt, now + 20);
+            spark(level, Vec3.atCenterOf(new BlockPos(r.x, r.y, r.z)).add(0, 0.9, 0), spot);
+            n++;
+        }
+        if (n > 0) {
+            level.sendParticles(ParticleTypes.FLAME, spot.x, spot.y + 0.1, spot.z, 24, 1.2, 0.05, 1.2, 0.01);
+        }
+        return n;
+    }
+
+    /** Sperrfeuer: shells evenly along the line, the mortars that reach a spot taking turns. */
+    private int barrage(ServerLevel level, List<TrapRecord> mortars, Vec3 a, Vec3 b) {
+        int shells = (int) Math.round(SkillValues.get("e_barrage", "shells", 6));
+        double longest = SkillValues.get("e_barrage", "length", 16);
+        Vec3 line = b.subtract(a);
+        if (line.length() > longest) {
+            b = a.add(line.normalize().scale(longest));
+        }
+        int fired = 0;
+        for (int i = 0; i < shells; i++) {
+            Vec3 spot = shells == 1 ? a : a.add(b.subtract(a).scale(i / (double) (shells - 1)));
+            if (fireOne(level, mortars, spot, fired, 1.0, "")) {
+                fired++;
+            }
+        }
+        return fired;
+    }
+
+    /** Shells scattered in a circle around the spot (area, smoke and fire salvo). */
+    private int scatter(ServerLevel level, List<TrapRecord> mortars, Vec3 center, int shells, double radius,
+                        double damage, String mode) {
+        int fired = 0;
+        for (int i = 0; i < shells; i++) {
+            Vec3 spot = center;
+            if (i > 0 || shells > 1) {
+                double ang = level.getRandom().nextDouble() * Math.PI * 2;
+                double dist = Math.sqrt(level.getRandom().nextDouble()) * radius;
+                spot = center.add(Math.cos(ang) * dist, 0, Math.sin(ang) * dist);
+            }
+            if (fireOne(level, mortars, spot, fired, damage, mode)) {
+                fired++;
+            }
+        }
+        return fired;
+    }
+
+    /** One shell from the next mortar (in turn) that reaches the spot. */
+    private boolean fireOne(ServerLevel level, List<TrapRecord> mortars, Vec3 spot, int turn, double damage, String mode) {
+        List<TrapRecord> able = new ArrayList<>();
+        for (TrapRecord r : mortars) {
+            if (reaches(r, spot)) {
+                able.add(r);
+            }
+        }
+        if (able.isEmpty()) {
+            return false;
+        }
+        TrapRecord r = able.get(turn % able.size());
+        Vec3 muzzle = Vec3.atCenterOf(new BlockPos(r.x, r.y, r.z)).add(0, 0.9, 0);
+        lob(level, r, muzzle, spot, KitProjectile.SHELL, tierOf(r), damage, 1.0, mode);
+        return true;
+    }
+
+    /** A smoke shell: no blast, monsters in the cloud lose their target for a while. */
+    private void smokeBurst(ServerLevel level, Vec3 at) {
+        double radius = SkillValues.get("e_smoke_salvo", "radius", 5);
+        int ticks = (int) Math.round(SkillValues.get("e_smoke_salvo", "time", 80));
+        GainGear.blind(level, at, radius, ticks, false);
+        level.sendParticles(ParticleTypes.CAMPFIRE_COSY_SMOKE, at.x, at.y + 0.5, at.z, 40, radius * 0.4, 0.6, radius * 0.4, 0.01);
+        level.sendParticles(ParticleTypes.LARGE_SMOKE, at.x, at.y + 0.5, at.z, 30, radius * 0.4, 0.4, radius * 0.4, 0.02);
+        level.playSound(null, BlockPos.containing(at), SoundEvents.FIRE_EXTINGUISH, SoundSource.BLOCKS, 1.2f, 0.6f);
+    }
+
+    /** End of the night: the fire pauses start fresh. */
+    public void resetSpotter() {
+        spotReady.clear();
     }
 
     // ------------------------------------------------------------------

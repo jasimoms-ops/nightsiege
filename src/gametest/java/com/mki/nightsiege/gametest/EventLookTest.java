@@ -69,6 +69,7 @@ public class EventLookTest implements FabricClientGameTest {
                 mortarScene(context, game);
                 mannedScene(context, game);
                 alchemistScene(context, game);
+                spotterScene(context, game);
                 nightStatsScene(context);
                 // ladderTargetScene and towerScene are done (ladders fine, towers 2 volleys); kept for later checks.
                 // besiegerScene is done (ladders up, one hole per side); kept for later checks.
@@ -2764,6 +2765,89 @@ public class EventLookTest implements FabricClientGameTest {
         context.runOnClient(client -> System.out.println("[Night Siege test] alchemist zones="
                 + com.mki.nightsiege.game.AlchemyZones.count()));
         context.takeScreenshot("alchemist_zone");
+        context.waitTicks(5);
+    }
+
+    /**
+     * The demolition expert's bird's-eye view (Simon, 26 October 2026): the view opens above
+     * the base, point fire and a barrage line are called from it.
+     */
+    private static void spotterScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        int gx = pos.getX() + 50;
+        int gz = pos.getZ() - 60;
+        int gy = groundAt(context, gx, gz);
+        game.getServer().runCommand("time set 6000");
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:grass_block".formatted(gx - 20, gy - 1, gz - 20, gx + 20, gy - 1, gz + 20));
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(gx - 20, gy, gz - 20, gx + 20, gy + 10, gz + 20));
+        for (int i = 0; i < 4; i++) {
+            game.getServer().runCommand(("summon minecraft:husk %d %d %d {NoAI:1b,PersistenceRequired:1b,Tags:[\"ns_spot\"]}")
+                    .formatted(gx + 8, gy, gz - 3 + i * 2));
+        }
+        game.getServer().runCommand("tp @p %d.5 %d %d.5 0 20".formatted(gx - 6, gy, gz));
+        context.waitTicks(10);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
+            own.unlockClass(com.mki.nightsiege.core.SkillClass.ENGINEER);
+            own.switchTo(com.mki.nightsiege.core.SkillClass.ENGINEER);
+            own.levels.clear();
+            own.levels.put("mortar_tower", 3);
+            own.levels.put("e_barrage", 1);
+            own.levels.put("e_smoke_salvo", 1);
+            place(level, manager, player, new BlockPos(gx - 4, gy, gz - 2), com.mki.nightsiege.core.TrapKind.MORTAR);
+            place(level, manager, player, new BlockPos(gx - 4, gy, gz + 2), com.mki.nightsiege.core.TrapKind.MORTAR);
+            System.out.println("[Night Siege test] spotter sub=" + manager.skillTree().subclassOf(own));
+            manager.kits().traps().openSpotter(player);
+        });
+        context.waitTicks(20);
+        context.runOnClient(client -> {
+            boolean open = client.gui.screen() instanceof com.mki.nightsiege.client.SpotterScreen;
+            System.out.println("[Night Siege test] spotter open=" + open);
+            if (client.gui.screen() instanceof com.mki.nightsiege.client.SpotterScreen spot) {
+                spot.testMove(gx + 2, gz, 24);
+            }
+        });
+        context.waitTicks(10);
+        context.takeScreenshot("spotter_view");
+        context.runOnClient(client -> {
+            if (client.gui.screen() instanceof com.mki.nightsiege.client.SpotterScreen spot) {
+                spot.testFire(0, new BlockPos(gx + 8, gy - 1, gz));
+            }
+        });
+        context.waitTicks(50);
+        context.takeScreenshot("spotter_point");
+        context.runOnClient(client -> {
+            if (client.gui.screen() instanceof com.mki.nightsiege.client.SpotterScreen spot) {
+                spot.testFire(1, new BlockPos(gx + 6, gy - 1, gz - 6));
+                spot.testFire(1, new BlockPos(gx + 6, gy - 1, gz + 6));
+            }
+        });
+        context.waitTicks(30);
+        context.takeScreenshot("spotter_barrage");
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            StringBuilder line = new StringBuilder("[Night Siege test] spotter husks:");
+            for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                if (e instanceof net.minecraft.world.entity.LivingEntity l && e.entityTags().contains("ns_spot")) {
+                    line.append(String.format(java.util.Locale.ROOT, " %.1f", l.getHealth()));
+                }
+            }
+            System.out.println(line);
+        });
+        closeScreen(context);
+        context.runOnClient(client -> System.out.println("[Night Siege test] spotter camera back="
+                + (client.getCameraEntity() == client.player)));
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            level.setBlock(new BlockPos(gx - 4, gy, gz - 2), net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
+            level.setBlock(new BlockPos(gx - 4, gy, gz + 2), net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
+            for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                if (e.entityTags().contains("ns_spot")) {
+                    e.discard();
+                }
+            }
+        });
         context.waitTicks(5);
     }
 
