@@ -25,6 +25,9 @@ public final class DroneClient {
     private static boolean sentDown;
     /** Ticks since the crossbow last fired (for the reload bar; the server decides). */
     private static int sinceShot = 100;
+    /** Ticks of take-off left (the drone rises a little when it starts). */
+    private static int lift;
+    private static boolean wasDrone;
 
     /** Blocks per tick: slow, it is a little machine. */
     private static final double SPEED = 0.17;
@@ -68,6 +71,7 @@ public final class DroneClient {
     public static void tick(Minecraft client) {
         LocalPlayer p = client.player;
         if (p == null || !isDrone(p.getUUID())) {
+            wasDrone = false;
             if (sentDown && ClientPlayNetworking.canSend(CoreNetworking.CoreActionPayload.TYPE)) {
                 ClientPlayNetworking.send(new CoreNetworking.CoreActionPayload("drone:0"));
             }
@@ -75,6 +79,10 @@ public final class DroneClient {
             return;
         }
         sinceShot++;
+        if (!wasDrone) {
+            wasDrone = true;
+            lift = 10;   // take-off: up from where the defender fell
+        }
         boolean free = client.gui.screen() == null;
         boolean forward = free && client.options.keyUp.isDown();
         boolean back = free && client.options.keyDown.isDown();
@@ -88,6 +96,10 @@ public final class DroneClient {
         double yaw = Math.toRadians(p.getYRot());
         double move = (forward ? SPEED : 0) - (back ? SPEED : 0);
         double rise = (up ? CLIMB : 0) - (down ? CLIMB : 0);
+        if (lift > 0) {
+            lift--;
+            rise = Math.max(rise, CLIMB);
+        }
         p.setDeltaMovement(new Vec3(-Math.sin(yaw) * move, rise, Math.cos(yaw) * move));
 
         boolean fire = free && client.options.keyAttack.isDown();

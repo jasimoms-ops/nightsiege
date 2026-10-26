@@ -2895,10 +2895,27 @@ public class EventLookTest implements FabricClientGameTest {
         context.takeScreenshot("drone_back");
         context.runOnClient(client -> client.options.setCameraType(net.minecraft.client.CameraType.FIRST_PERSON));
         // The crossbow: two seconds of fire at the husk ahead (the drone hovers above it, so it aims down).
-        context.getInput().lookAt(0.0f, 24.0f);
+        context.getInput().lookAt(0.0f, 6.0f);
         context.waitTicks(3);
         onServer(context, (player, manager) -> com.mki.nightsiege.game.Drones.onFireButton(player, true));
-        context.waitTicks(40);
+        context.waitTicks(30);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            StringBuilder line = new StringBuilder(String.format(java.util.Locale.ROOT,
+                    "[Night Siege test] drone shots=%d eye=%.2f/%.2f/%.2f look=%.2f/%.2f/%.2f arrows:",
+                    com.mki.nightsiege.game.Drones.shots, player.getEyePosition().x, player.getEyePosition().y, player.getEyePosition().z,
+                    player.getLookAngle().x, player.getLookAngle().y, player.getLookAngle().z));
+            for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                if (e instanceof net.minecraft.world.entity.projectile.arrow.AbstractArrow a && a.getOwner() == player) {
+                    line.append(String.format(java.util.Locale.ROOT, " %.1f/%.1f/%.1f", e.getX(), e.getY(), e.getZ()));
+                }
+                if (e.entityTags().contains("ns_drone")) {
+                    line.append(String.format(java.util.Locale.ROOT, " husk@%.1f/%.1f/%.1f", e.getX(), e.getY(), e.getZ()));
+                }
+            }
+            System.out.println(line);
+        });
+        context.waitTicks(10);
         onServer(context, (player, manager) -> {
             com.mki.nightsiege.game.Drones.onFireButton(player, false);
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
