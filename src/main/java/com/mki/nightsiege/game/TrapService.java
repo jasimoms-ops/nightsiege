@@ -269,7 +269,7 @@ public final class TrapService {
             if (d > radius * radius) {
                 continue;
             }
-            double left = record.uses / (double) Math.max(1, fullUses(kind, tierOf(record), record));
+            double left = record.broken ? -1.0 : record.uses / (double) Math.max(1, fullUses(kind, tierOf(record), record));
             double score = left * 100.0 + Math.sqrt(d);
             if (score < bestScore) {
                 bestScore = score;
@@ -287,6 +287,7 @@ public final class TrapService {
             return false;
         }
         record.uses = fullUses(kind, tierOf(record), record);
+        record.broken = false;
         dirty = true;
         return true;
     }
@@ -412,6 +413,16 @@ public final class TrapService {
                 continue;
             }
             long now = level.getGameTime();
+            if (record.broken) {
+                // A broken trap does nothing; red smoke marks it every second until it is repaired.
+                if (now % 20 == 0) {
+                    Vec3 c = Vec3.atCenterOf(pos);
+                    level.sendParticles(ParticleTypes.LARGE_SMOKE, c.x, c.y + 0.6, c.z, 4, 0.2, 0.3, 0.2, 0.01);
+                    level.sendParticles(new net.minecraft.core.particles.DustParticleOptions(0xFF2020, 1.5f),
+                            c.x, c.y + 1.2, c.z, 6, 0.15, 0.4, 0.15, 0.0);
+                }
+                continue;
+            }
             if (now < record.readyAt) {
                 continue;
             }
@@ -448,6 +459,8 @@ public final class TrapService {
         record.readyAt = now + quicker(record, now, TrapKind.SPIKE.cooldownTicks(tier));
         if (record.uses <= 0) {
             wearOut(level, pos, record);
+        } else {
+            maybeBreak(level, pos, record, TrapKind.SPIKE);
         }
         dirty = true;
     }
@@ -480,6 +493,8 @@ public final class TrapService {
         record.readyAt = now + quicker(record, now, TrapKind.SNARE.cooldownTicks(tier));
         if (record.uses <= 0) {
             wearOut(level, pos, record);
+        } else {
+            maybeBreak(level, pos, record, TrapKind.SNARE);
         }
         dirty = true;
     }
@@ -943,6 +958,8 @@ public final class TrapService {
         record.readyAt = now + quicker(record, now, TrapKind.FLAME.cooldownTicks(tier));
         if (record.uses <= 0) {
             wearOut(level, pos, record);
+        } else {
+            maybeBreak(level, pos, record, TrapKind.FLAME);
         }
         dirty = true;
     }
@@ -1297,6 +1314,9 @@ public final class TrapService {
     }
 
     private boolean canReload(TrapRecord record, TrapKind kind) {
+        if (record.broken) {
+            return true;
+        }
         return kind.isFloorPlate() && record.uses < fullUses(kind, tierOf(record), record);
     }
 
@@ -1320,6 +1340,7 @@ public final class TrapService {
         } else {
             record.uses = fullUses(kind, tierOf(record), record);
         }
+        record.broken = false;
         dirty = true;
         Vec3 c = Vec3.atCenterOf(pos).add(0, 0.6, 0);
         level.sendParticles(ParticleTypes.WAX_ON, c.x, c.y, c.z, 12, 0.4, 0.3, 0.4, 0.0);
@@ -1757,6 +1778,28 @@ public final class TrapService {
             }
         }
         return true;
+    }
+
+    /**
+     * A floor trap that just sprang breaks with a small chance (Simon, 26 October 2026: 5 %).
+     * It stays in place, marked with red smoke, and does nothing until the engineer repairs it
+     * (X with the remote, or the copper golem). The owner is told where it is.
+     */
+    private void maybeBreak(ServerLevel level, BlockPos pos, TrapRecord record, TrapKind kind) {
+        if (record.broken || record.uses <= 0 || level.getRandom().nextDouble() >= SkillValues.get(kind.id(), "breakchance", 0.05)) {
+            return;
+        }
+        record.broken = true;
+        dirty = true;
+        level.sendParticles(ParticleTypes.LARGE_SMOKE, pos.getX() + 0.5, pos.getY() + 0.8, pos.getZ() + 0.5, 12, 0.3, 0.2, 0.3, 0.02);
+        playAt(level, pos, SoundEvents.ANVIL_BREAK, 0.6f, 1.4f);
+        ServerPlayer owner = ownerOf(level, record);
+        if (owner != null) {
+            owner.sendSystemMessage(Component.translatable("nightsiege.msg.trap_broken",
+                    Component.translatable("block.nightsiege." + kind.id()), pos.getX(), pos.getY(), pos.getZ())
+                    .withStyle(net.minecraft.ChatFormatting.RED));
+            owner.level().playSound(null, owner.blockPosition(), SoundEvents.ANVIL_BREAK, SoundSource.PLAYERS, 0.5f, 1.6f);
+        }
     }
 
     private void wearOut(ServerLevel level, BlockPos pos, TrapRecord record) {

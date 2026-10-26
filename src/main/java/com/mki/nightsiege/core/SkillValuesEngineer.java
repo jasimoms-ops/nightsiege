@@ -66,6 +66,9 @@ final class SkillValuesEngineer {
         def("spike_trap", "overcharge", 30);
         def("snare_trap", "overcharge", 30);
         def("flame_trap", "overcharge", 30);
+        def("spike_trap", "breakchance", 0.05);                         // chance to break when it springs (Simon, 26 Oct)
+        def("snare_trap", "breakchance", 0.05);
+        def("flame_trap", "breakchance", 0.05);
 
         // ----- trunk
         def("e_battery", "base", 100);                                   // energy of the remote without skills

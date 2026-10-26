@@ -11,6 +11,8 @@ public class TrapRecord {
     public String owner = "";
     /** Activations left before it is used up. */
     public int uses;
+    /** Broken by chance when it sprang (Simon, 26 October 2026): does nothing until repaired. */
+    public boolean broken;
     /** Arrows loaded, turret only. */
     public int ammo;
     /** Game time from which it may fire again. Not worth saving across restarts. */
