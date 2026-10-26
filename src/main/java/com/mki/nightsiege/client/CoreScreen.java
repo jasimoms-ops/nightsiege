@@ -2126,14 +2126,6 @@ public class CoreScreen extends Screen {
         }
     }
 
-    private static void smallText(GuiGraphicsExtractor gui, Font font, String text, int x, int y, int color, float scale) {
-        gui.pose().pushMatrix();
-        gui.pose().translate(x, y);
-        gui.pose().scale(scale, scale);
-        gui.text(font, text, 0, 0, color, false);
-        gui.pose().popMatrix();
-    }
-
     private void drawFooter(GuiGraphicsExtractor gui, Font font) {
         if (activeTab == Tab.PERKS) {
             gui.text(font, Component.translatable("nightsiege.ui.footer_perks").getString(), left + 10, top + H - 19, TITLE, false);
