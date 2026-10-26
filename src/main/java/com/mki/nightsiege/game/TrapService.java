@@ -4,6 +4,7 @@ import com.mki.nightsiege.core.PlayerSkills;
 import com.mki.nightsiege.core.SkillClass;
 import com.mki.nightsiege.core.SkillEffect;
 import com.mki.nightsiege.core.SkillTree;
+import com.mki.nightsiege.core.SkillValues;
 import com.mki.nightsiege.core.TrapKind;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
@@ -272,17 +273,25 @@ public final class TrapService {
         return load;
     }
 
-    /** How much longer monsters need to dig through a block: steel turrets (crate gain) hold twice as long. */
+    /**
+     * How much longer monsters need to dig through a block: every tower of an engineer with
+     * steel turrets (crate gain) holds twice as long, and the skill e_durable adds its share
+     * on top (balance update, 26 October 2026: it was a copy of fine mechanics).
+     */
     public double digFactor(ServerLevel level, BlockPos pos) {
         TrapKind here = ModContent.trapOf(level.getBlockState(pos));
         if (here == null || !here.isTower()) {
             return 1.0;
         }
         TrapRecord record = find(level, pos);
-        return record != null && gainOf(record, "stahlturm") > 0 ? 2.0 : 1.0;
+        if (record == null) {
+            return 1.0;
+        }
+        double factor = gainOf(record, "stahlturm") > 0 ? 2.0 : 1.0;
+        return factor * (1.0 + bonus(record, SkillEffect.TOWER_TOUGHNESS));
     }
 
-    /** Gunner ultimate: this engineer's turrets fire three times as fast until the given time. */
+    /** Ultimate overcharge: this engineer's arrow turrets and tesla coils fire three times as fast until the given time. */
     public void overcharge(ServerPlayer owner, long until) {
         overchargedUntil.put(owner.getUUID().toString(), until);
     }
@@ -449,9 +458,12 @@ public final class TrapService {
     // the chemistry towers: mortar and brewer (24 October 2026, instead of mine and poison trap)
     // ------------------------------------------------------------------
 
-    /** One direct hit of a chemistry tower: half a normal zombie of tonight (Simon: two shots per zombie). */
-    static double towerHit() {
-        return 10.0 * levelScale();
+    /**
+     * One direct hit of a chemistry tower: 10 life points of tonight's level times trapDamage,
+     * so 37.5 % of a zombie with the default trapDamage 0.75 (it was meant as half a zombie).
+     */
+    static double towerHit(TrapKind kind) {
+        return SkillValues.get(kind.id(), "hit", 10.0) * levelScale();
     }
 
     /**
@@ -467,14 +479,18 @@ public final class TrapService {
         return level * Math.max(0.05, m.config().trapDamage);
     }
 
-    /** Crate gains that make traps stronger; the overcharge makes the towers faster instead. */
-    private double towerPower(TrapRecord record) {
+    /**
+     * Crate gains that make a chemistry tower's shot stronger, and the remote's overcharge
+     * (double, triple with overvolt) like on every other trap (balance update, 26 October 2026:
+     * mortar and potion thrower only got faster before).
+     */
+    private double towerPower(TrapRecord record, long now) {
         double gain = 1.0 + 0.1 * gainOf(record, "verstaerkt");
         if (record.ambushNight != GainGear.nightId() && gainOf(record, "tarnfallen") > 0) {
             record.ambushNight = GainGear.nightId();
             gain *= 1.5;
         }
-        return gain;
+        return gain * overcharged(record, now);
     }
 
     /**
@@ -514,8 +530,8 @@ public final class TrapService {
     }
 
     /**
-     * The mortar fires steadily onto the spot its engineer set with the remote (sneak + right
-     * click on a block); without a spot it stays quiet (Simon's playtest, 25 October 2026).
+     * The mortar fires steadily onto the spot its engineer set with the remote (X key while
+     * looking at a block); without a spot it stays quiet (Simon's playtest, 25 October 2026).
      */
     private void tickMortar(ServerLevel level, BlockPos pos, TrapRecord record, int tier, long now) {
         if (!record.aimed) {
@@ -652,9 +668,13 @@ public final class TrapService {
     private void shellBurst(ServerLevel level, TrapRecord record, Vec3 at, Entity direct, int tier,
                             double damageScale, double radiusScale, boolean small) {
         double shrapnel = bonus(record, SkillEffect.SHRAPNEL_MINE);
-        double r = TrapKind.MORTAR.splash(tier) * (1.0 + shrapnel) * radiusScale * (small ? 0.6 : 1.0);
-        double damage = towerHit() * towerPower(record) * blastScale(record) * damageScale * (small ? 1.0 / 3.0 : 1.0);
+        double r = TrapKind.MORTAR.splash(tier) * (1.0 + shrapnel) * radiusScale
+                * (small ? SkillValues.get("e_chain_reaction", "radius", 0.6) : 1.0);
+        double damage = towerHit(TrapKind.MORTAR) * towerPower(record, level.getGameTime()) * blastScale(record) * damageScale
+                * (small ? SkillValues.get("e_chain_reaction", "dmg", 1.0 / 3.0) : 1.0);
         DamageSource source = sourceFor(level, record);
+        boolean napalm = has(record, "e_napalm");
+        double accelerant = bonus(record, SkillEffect.ACCELERANT);
         if (shotLog != null) {
             List<LivingEntity> hit = around(level, at, r);
             shotLog.accept(String.format(java.util.Locale.ROOT, "shell burst at %.1f %.1f %.1f r=%.2f dmg=%.1f direct=%s victims=%d",
@@ -663,7 +683,12 @@ public final class TrapService {
         for (LivingEntity victim : around(level, at, r)) {
             double f = falloff(victim, at, direct, r);
             victim.invulnerableTime = 0;
-            victim.hurtServer(level, source, (float) (damage * f));
+            // The accelerant: blasts and flames hit poisoned monsters harder.
+            double fire = accelerant > 0 && isPoisoned(victim) ? 1.0 + accelerant : 1.0;
+            victim.hurtServer(level, source, (float) (damage * f * fire));
+            if (napalm) {
+                victim.igniteForSeconds((float) (SkillValues.get("e_napalm", "shellburn", 60) / 20.0));
+            }
             Vec3 away = victim.position().subtract(at);
             Vec3 push = away.lengthSqr() < 1.0e-4 ? new Vec3(0, 0.3, 0) : away.normalize().scale(0.4 * f).add(0, 0.2, 0);
             victim.push(push.x, push.y, push.z);
@@ -678,8 +703,9 @@ public final class TrapService {
                 small ? 0.5f : 0.9f, small ? 1.6f : 1.2f);
         // Scatter fire: the shell bursts into three small ones around the impact.
         if (!small && has(record, "e_chain_reaction")) {
-            for (int i = 0; i < 3; i++) {
-                double angle = Math.PI * 2 * i / 3 + level.getRandom().nextDouble();
+            int count = (int) Math.round(SkillValues.get("e_chain_reaction", "count", 3));
+            for (int i = 0; i < count; i++) {
+                double angle = Math.PI * 2 * i / count + level.getRandom().nextDouble();
                 Vec3 spot = at.add(Math.cos(angle) * 2.2, 0, Math.sin(angle) * 2.2);
                 shellBurst(level, record, spot, null, tier, damageScale, radiusScale, true);
             }
@@ -716,10 +742,15 @@ public final class TrapService {
         double r = TrapKind.BREWER.splash(tier) * radiusScale;
         int ticks = (int) Math.round(TrapKind.BREWER.holdTicks(tier) * poisonScale(record));
         int hits = Math.max(1, ticks / 10);
-        double total = towerHit() * towerPower(record) * damageScale * poisonScale(record);
+        double total = towerHit(TrapKind.BREWER) * towerPower(record, now) * damageScale * poisonScale(record);
         double acid = bonus(record, SkillEffect.ACID);
-        int amp = TrapKind.BREWER.amplifier(tier) + (acid > 0 ? 1 : 0);
+        int amp = TrapKind.BREWER.amplifier(tier) + (acid > 0 ? (int) Math.round(SkillValues.get("e_acid", "slow", 1)) : 0);
+        boolean accelerant = bonus(record, SkillEffect.ACCELERANT) > 0;
         for (LivingEntity victim : around(level, at, r)) {
+            if (accelerant) {
+                // The accelerant: the potion sets them alight, and the poison eats burning monsters faster.
+                victim.igniteForSeconds((float) (SkillValues.get("e_accelerant", "burn", 40) / 20.0));
+            }
             double f = falloff(victim, at, direct, r);
             dots.computeIfAbsent(victim.getUUID(), k -> new ArrayList<>())
                     .add(new Dot(record.owner, record.dimension, total * f / hits, hits));
@@ -738,7 +769,7 @@ public final class TrapService {
             DamageSource source = sourceFor(level, record);
             for (LivingEntity victim : around(level, at, r)) {
                 victim.invulnerableTime = 0;
-                victim.hurtServer(level, source, (float) (plague * damageScale));
+                victim.hurtServer(level, source, (float) (plague * damageScale * overcharged(record, now)));
             }
             level.sendParticles(ParticleTypes.EXPLOSION, at.x, at.y + 0.3, at.z, 2, 0.5, 0.2, 0.5, 0.0);
         }
@@ -768,6 +799,10 @@ public final class TrapService {
             }
             list.removeIf(dot -> dot.hitsLeft <= 0);
             TrapRecord who = new TrapRecord(TrapKind.BREWER.id(), first.dimension, 0, 0, 0, owner);
+            double accelerant = bonus(who, SkillEffect.ACCELERANT);
+            if (accelerant > 0 && victim.isOnFire()) {
+                sum *= 1.0 + accelerant;
+            }
             victim.invulnerableTime = 0;
             victim.hurtServer(level, sourceFor(level, who), (float) sum);
             level.sendParticles(POISON_DUST, victim.getX(), victim.getY(0.6), victim.getZ(), 4, 0.25, 0.3, 0.25, 0.0);
@@ -822,9 +857,8 @@ public final class TrapService {
 
         record.ammo--;
         int cooldown = quicker(record, now, TrapKind.TURRET.cooldownTicks(tier));
-        Long boosted = overchargedUntil.get(record.owner);
-        if (boosted != null && now <= boosted) {
-            cooldown = Math.max(3, cooldown / 3);
+        if (ultOvercharged(record, now)) {
+            cooldown = Math.max(3, (int) (cooldown / ultSpeed()));
             level.sendParticles(ParticleTypes.ELECTRIC_SPARK, muzzle.x, muzzle.y, muzzle.z, 3, 0.2, 0.2, 0.2, 0.05);
         }
         record.readyAt = now + cooldown;
@@ -860,13 +894,12 @@ public final class TrapService {
         DamageSource source = sourceFor(level, record);
         boolean napalm = has(record, "e_napalm");
         double accelerant = bonus(record, SkillEffect.ACCELERANT);
-        float seconds = TrapKind.FLAME.holdTicks(tier) / 20f * (napalm ? 2f : 1f);
-        double r = (TrapKind.FLAME.radius(tier) + (napalm ? 1.0 : 0.0)) * radiusScale;
+        float seconds = TrapKind.FLAME.holdTicks(tier) / 20f * (napalm ? (float) SkillValues.get("e_napalm", "burn", 2.0) : 1f);
+        double r = (TrapKind.FLAME.radius(tier) + (napalm ? SkillValues.get("e_napalm", "radius", 1.0) : 0.0)) * radiusScale;
         double damage = TrapKind.FLAME.damage(tier) * power(record, now) * blastScale(record) * damageScale * levelScale();
         for (LivingEntity victim : around(level, center, r)) {
             victim.igniteForSeconds(seconds);
-            boolean poisoned = victim.hasEffect(MobEffects.POISON) || victim.hasEffect(MobEffects.WITHER) || poisoned(victim);
-            victim.hurtServer(level, source, (float) (damage * (poisoned ? 1.0 + accelerant : 1.0)));
+            victim.hurtServer(level, source, (float) (damage * (isPoisoned(victim) ? 1.0 + accelerant : 1.0)));
         }
         // Only particles: the trap never places fire blocks.
         level.sendParticles(ParticleTypes.FLAME, center.x, center.y, center.z, 40, r * 0.5, 0.4, r * 0.5, 0.03);
@@ -881,6 +914,11 @@ public final class TrapService {
             wearOut(level, pos, record);
         }
         dirty = true;
+    }
+
+    /** Poisoned by anything: a potion effect or the brewer's own poison. */
+    private boolean isPoisoned(LivingEntity victim) {
+        return victim.hasEffect(MobEffects.POISON) || victim.hasEffect(MobEffects.WITHER) || poisoned(victim);
     }
 
     static final net.minecraft.core.particles.DustParticleOptions POISON_DUST =
@@ -901,8 +939,12 @@ public final class TrapService {
         DamageSource source = sourceFor(level, record);
         float damage = (float) (TrapKind.TESLA.damage(tier) * teslaBoost.getAsDouble() * power(record, now)
                 * piercing(record, now) * levelScale());
-        // At most four monsters per discharge (Simon, 25 October 2026).
-        int jumps = Math.min(4, TrapKind.TESLA.chainTargets(tier) + (int) Math.round(bonus(record, SkillEffect.CHAIN_LIGHTNING)));
+        // At most four monsters per discharge (Simon, 25 October 2026); the chain bolt lifts that
+        // limit by its own jumps, or it would do nothing at tier 3 (balance update, 26 October 2026).
+        int chain = (int) Math.round(bonus(record, SkillEffect.CHAIN_LIGHTNING));
+        int most = (int) Math.round(SkillValues.get("tesla_coil", "maxtargets", 4)) + chain;
+        int jumps = Math.min(most, TrapKind.TESLA.chainTargets(tier) + chain);
+        double jumpRange = SkillValues.get("tesla_coil", "jump", 4.0);
         List<LivingEntity> hit = new ArrayList<>();
         LivingEntity current = first;
         Vec3 start = from;
@@ -914,7 +956,7 @@ public final class TrapService {
             start = end;
             // Jump to the nearest monster within four blocks not hit yet.
             Vec3 at = end;
-            current = enemies(level, new AABB(at, at).inflate(4.0)).stream()
+            current = enemies(level, new AABB(at, at).inflate(jumpRange)).stream()
                     .filter(e -> !hit.contains(e))
                     .min(Comparator.comparingDouble(e -> (beam && markedBy(record, e, now) ? 0.0 : 100.0) + e.distanceToSqr(at)))
                     .orElse(null);
@@ -923,8 +965,13 @@ public final class TrapService {
         // Five times slower than at first; with its engineer within six blocks only three times.
         int cooldown = TrapKind.TESLA.cooldownTicks(tier);
         ServerPlayer owner = ownerOf(level, record);
-        if (owner != null && owner.distanceToSqr(Vec3.atCenterOf(pos)) <= 36.0) {
-            cooldown = cooldown * 3 / 5;
+        double near = SkillValues.get("tesla_coil", "nearrange", 6.0);
+        if (owner != null && owner.distanceToSqr(Vec3.atCenterOf(pos)) <= near * near) {
+            cooldown = (int) Math.round(cooldown * SkillValues.get("tesla_coil", "near", 0.6));
+        }
+        // The ultimate overcharge drives the tesla coils too (balance update, 26 October 2026).
+        if (ultOvercharged(record, now)) {
+            cooldown = Math.max(3, (int) (cooldown / ultSpeed()));
         }
         record.readyAt = now + quicker(record, now, cooldown);
     }
@@ -967,7 +1014,7 @@ public final class TrapService {
             return;
         }
         long now = level.getGameTime();
-        double range = REMOTE_RANGE + tree.totalBonus(SkillEffect.REMOTE_RANGE, skills);
+        double range = SkillValues.get("e_longrange", "base", REMOTE_RANGE) + tree.totalBonus(SkillEffect.REMOTE_RANGE, skills);
         BlockPos trapPos = clicked;
         if (trapPos == null || ModContent.trapOf(level.getBlockState(trapPos)) == null) {
             trapPos = null;
@@ -993,14 +1040,25 @@ public final class TrapService {
             }
             TrapKind kind = TrapKind.byId(record.kind);
             if (sneak && (kind == TrapKind.MORTAR || kind == TrapKind.FLAME || kind == TrapKind.BREWER)) {
-                double cost = cost(skills, COST_DETONATE - 4.0 * tree.totalBonus(SkillEffect.DETONATOR, skills));
+                // Nothing to fire at: no energy and no "detonated" (balance update, 26 October 2026).
+                String why = detonateBlocked(level, trapPos, record, kind);
+                if (why != null) {
+                    actionBar(player, Component.translatable(why));
+                    return;
+                }
+                double cost = cost(skills, SkillValues.get("e_detonator", "cost", COST_DETONATE)
+                        - SkillValues.get("e_detonator", "save", 4.0) * tree.totalBonus(SkillEffect.DETONATOR, skills));
                 if (pay(player, skills, cost)) {
                     detonate(level, trapPos, record, kind, skills);
                     report(player, skills, "nightsiege.msg.remote_detonated");
                 }
+            } else if (sneak && kind == TrapKind.TESLA) {
+                // The tesla coil has no second order; it was told "still full" before.
+                actionBar(player, Component.translatable("nightsiege.msg.remote_tesla_x"));
             } else if (sneak) {
+                double reload = SkillValues.get("e_ammobelt", "reload", COST_RELOAD);
                 double cost = cost(skills, kind == TrapKind.TURRET && tree.totalBonus(SkillEffect.AMMO_BELT, skills) > 0
-                        ? COST_RELOAD / 2 : COST_RELOAD);
+                        ? reload * SkillValues.get("e_ammobelt", "cost", 0.5) : reload);
                 if (!canReload(record, kind)) {
                     actionBar(player, Component.translatable("nightsiege.msg.remote_full"));
                 } else if (pay(player, skills, cost)) {
@@ -1011,10 +1069,12 @@ public final class TrapService {
                 boost(level, record, skills, now, 1.0);
                 if (tree.totalBonus(SkillEffect.NETWORK, skills) > 0) {
                     Vec3 c = Vec3.atCenterOf(trapPos);
+                    double reach = SkillValues.get("e_network", "radius", 6.0);
+                    double share = SkillValues.get("e_network", "share", 0.5);
                     for (TrapRecord other : traps()) {
                         if (other != record && other.owner.equals(record.owner) && other.dimension.equals(record.dimension)
-                                && Vec3.atCenterOf(new BlockPos(other.x, other.y, other.z)).distanceToSqr(c) <= 36.0) {
-                            boost(level, other, skills, now, 0.5);
+                                && Vec3.atCenterOf(new BlockPos(other.x, other.y, other.z)).distanceToSqr(c) <= reach * reach) {
+                            boost(level, other, skills, now, share);
                         }
                     }
                 }
@@ -1026,9 +1086,9 @@ public final class TrapService {
             return;
         }
         if (monster != null && !sneak) {
-            if (pay(player, skills, cost(skills, COST_MARK))) {
-                double bonus = 0.15 + tree.totalBonus(SkillEffect.SEEKER, skills);
-                long until = now + 160;
+            if (pay(player, skills, cost(skills, SkillValues.get("e_seeker", "mark", COST_MARK)))) {
+                double bonus = SkillValues.get("e_seeker", "base", 0.15) + tree.totalBonus(SkillEffect.SEEKER, skills);
+                long until = now + Math.round(SkillValues.get("e_seeker", "time", 160));
                 remoteMarks.put(monster.getUUID(), new RemoteMark(player.getUUID().toString(), until));
                 marker.mark(monster, bonus, until, true);
                 spark(level, player.getEyePosition().subtract(0, 0.2, 0), monster.position().add(0, monster.getBbHeight() * 0.6, 0));
@@ -1041,8 +1101,12 @@ public final class TrapService {
         actionBar(player, Component.translatable("nightsiege.msg.remote_no_target"));
     }
 
-    /** Seconds between two changes of a mortar's target spot. */
+    /** Ticks between two changes of a mortar's target spot (built-in; the skill value mortar_tower.aimpause wins). */
     public static final int AIM_PAUSE_TICKS = 200;
+
+    private static long aimPause() {
+        return Math.round(SkillValues.get(TrapKind.MORTAR.id(), "aimpause", AIM_PAUSE_TICKS));
+    }
 
     /** Sets a mortar's target spot directly (for the gametest). */
     public boolean setAim(ServerLevel level, BlockPos tower, BlockPos spot) {
@@ -1065,7 +1129,7 @@ public final class TrapService {
     }
 
     /**
-     * Sneak + right click with the remote on a block (not a trap): the nearest own mortar that
+     * The X key with the remote, looking at a block (not a trap): the nearest own mortar that
      * reaches it fires there from now on. Each mortar can be set again only after 10 s.
      * Returns true when the click was about aiming (set, too early or nothing in reach).
      */
@@ -1095,7 +1159,7 @@ public final class TrapService {
             if (dx * dx + dz * dz > reach * reach) {
                 continue;
             }
-            if (now - r.aimedAt < AIM_PAUSE_TICKS) {
+            if (now - r.aimedAt < aimPause()) {
                 if (waiting == null || r.aimedAt < waiting.aimedAt) {
                     waiting = r;
                 }
@@ -1111,7 +1175,7 @@ public final class TrapService {
         }
         if (best == null) {
             if (waiting != null) {
-                long left = (AIM_PAUSE_TICKS - (now - waiting.aimedAt) + 19) / 20;
+                long left = (aimPause() - (now - waiting.aimedAt) + 19) / 20;
                 actionBar(player, Component.translatable("nightsiege.msg.mortar_aim_wait", left));
             } else {
                 actionBar(player, Component.translatable("nightsiege.msg.mortar_aim_far"));
@@ -1133,7 +1197,7 @@ public final class TrapService {
     }
 
     private void boost(ServerLevel level, TrapRecord record, PlayerSkills skills, long now, double share) {
-        long length = Math.round((100 + tree.totalBonus(SkillEffect.OVERCHARGE_TIME, skills)) * share);
+        long length = Math.round((SkillValues.get("e_circuit", "base", 100) + tree.totalBonus(SkillEffect.OVERCHARGE_TIME, skills)) * share);
         boostedUntil.merge(key(record), now + length, Math::max);
         record.readyAt = Math.min(record.readyAt, now);
         BlockPos pos = new BlockPos(record.x, record.y, record.z);
@@ -1142,11 +1206,30 @@ public final class TrapService {
         playAt(level, pos, SoundEvents.BEACON_POWER_SELECT, 0.7f, 1.8f);
     }
 
+    /** Why an X order on this trap would fire at nothing (a language key), or null when it can go. */
+    private String detonateBlocked(ServerLevel level, BlockPos pos, TrapRecord record, TrapKind kind) {
+        if (kind == TrapKind.MORTAR && !record.aimed) {
+            return "nightsiege.msg.remote_no_aim";
+        }
+        if (kind == TrapKind.BREWER && brewerTarget(level, pos, record) == null) {
+            return "nightsiege.msg.remote_no_group";
+        }
+        return null;
+    }
+
+    /** The group the potion thrower's big throw would go for, or null. */
+    private LivingEntity brewerTarget(ServerLevel level, BlockPos pos, TrapRecord record) {
+        int tier = tierOf(record);
+        Vec3 muzzle = Vec3.atCenterOf(pos).add(0, 0.9, 0);
+        double range = TrapKind.BREWER.radius(tier) + bonus(record, SkillEffect.TOWER_RANGE);
+        return bestGroup(level, record, muzzle, range, TrapKind.BREWER.splash(tier), level.getGameTime(), null);
+    }
+
     /** Sets a floor trap off from afar, stronger with the detonator. */
     private void detonate(ServerLevel level, BlockPos pos, TrapRecord record, TrapKind kind, PlayerSkills skills) {
         int tier = tierOf(record);
         long now = level.getGameTime();
-        double damage = 1.0 + 0.15 * tree.totalBonus(SkillEffect.DETONATOR, skills);
+        double damage = 1.0 + SkillValues.get("e_detonator", "dmg", 0.15) * tree.totalBonus(SkillEffect.DETONATOR, skills);
         double radius = 1.0 + tree.totalBonus(SkillEffect.BLAST_POWER, skills);
         switch (kind) {
             case MORTAR -> {
@@ -1156,8 +1239,9 @@ public final class TrapService {
                 }
                 Vec3 muzzle = Vec3.atCenterOf(pos).add(0, 0.9, 0);
                 Vec3 aim = aimSpot(level, record);
-                for (int i = 0; i < 3; i++) {
-                    double a = Math.PI * 2 * i / 3;
+                int salvo = (int) Math.round(SkillValues.get(TrapKind.MORTAR.id(), "salvo", 3));
+                for (int i = 0; i < salvo; i++) {
+                    double a = Math.PI * 2 * i / salvo;
                     Vec3 spot = i == 0 ? aim : aim.add(Math.cos(a) * 1.8, 0, Math.sin(a) * 1.8);
                     lob(level, record, muzzle, spot, KitProjectile.SHELL, tier, damage, radius);
                 }
@@ -1166,10 +1250,10 @@ public final class TrapService {
             case BREWER -> {
                 // The big throw: half as wide again (and with the plague skill it bursts).
                 Vec3 muzzle = Vec3.atCenterOf(pos).add(0, 0.9, 0);
-                double range = TrapKind.BREWER.radius(tier) + bonus(record, SkillEffect.TOWER_RANGE);
-                LivingEntity target = bestGroup(level, record, muzzle, range, TrapKind.BREWER.splash(tier), now, null);
+                LivingEntity target = brewerTarget(level, pos, record);
                 if (target != null) {
-                    lob(level, record, muzzle, lead(muzzle, target), KitProjectile.BREW, tier, damage, radius * 1.5);
+                    lob(level, record, muzzle, lead(muzzle, target), KitProjectile.BREW, tier, damage,
+                            radius * SkillValues.get(TrapKind.BREWER.id(), "big", 1.5));
                 }
             }
             default -> {
@@ -1216,7 +1300,7 @@ public final class TrapService {
         PlayerSkills skills = save.get().skillsOf(owner.getUUID().toString());
         if (arrow.entityTags().contains(TAG_CHARGED)) {
             Vec3 at = victim.position().add(0, victim.getBbHeight() * 0.5, 0);
-            LivingEntity next = enemies(level, new AABB(at, at).inflate(4.0)).stream()
+            LivingEntity next = enemies(level, new AABB(at, at).inflate(SkillValues.get("e_charged", "jump", 4.0))).stream()
                     .filter(e -> e != victim)
                     .min(Comparator.comparingDouble(e -> e.distanceToSqr(at)))
                     .orElse(null);
@@ -1230,7 +1314,8 @@ public final class TrapService {
         if (arrow.entityTags().contains(TAG_BLAST) && mark != null && level.getGameTime() <= mark.until()) {
             Vec3 at = victim.position();
             float damage = (float) tree.totalBonus(SkillEffect.TARGET_BLAST, skills);
-            for (LivingEntity near : enemies(level, new AABB(at, at).inflate(2.0, 1.5, 2.0))) {
+            double r = SkillValues.get("e_targetblast", "radius", 2.0);
+            for (LivingEntity near : enemies(level, new AABB(at, at).inflate(r, 1.5, r))) {
                 near.invulnerableTime = 0;
                 near.hurtServer(level, source, damage);
             }
@@ -1258,7 +1343,8 @@ public final class TrapService {
     }
 
     private double maxEnergy(PlayerSkills skills) {
-        double max = REMOTE_ENERGY + (skills == null ? 0 : tree.totalBonus(SkillEffect.REMOTE_ENERGY, skills));
+        double max = SkillValues.get("e_battery", "base", REMOTE_ENERGY)
+                + (skills == null ? 0 : tree.totalBonus(SkillEffect.REMOTE_ENERGY, skills));
         SiegeManager m = SiegeManager.get();
         if (skills != null && m != null
                 && m.kits().gainLevel(skills, com.mki.nightsiege.core.SkillClass.ENGINEER, "zweite_ladung") > 0) {
@@ -1273,10 +1359,10 @@ public final class TrapService {
      * the remote holds), the old flat price for every other trap.
      */
     public double overchargeCost(PlayerSkills skills, TrapKind kind) {
-        double share = kind == TrapKind.TESLA ? OVERCHARGE_TESLA_SHARE
-                : kind == TrapKind.TURRET ? OVERCHARGE_TURRET_SHARE : 0.0;
+        double share = kind == TrapKind.TESLA ? SkillValues.get(kind.id(), "overcharge", OVERCHARGE_TESLA_SHARE)
+                : kind == TrapKind.TURRET ? SkillValues.get(kind.id(), "overcharge", OVERCHARGE_TURRET_SHARE) : 0.0;
         if (share <= 0) {
-            return cost(skills, COST_OVERCHARGE);
+            return cost(skills, kind == null ? COST_OVERCHARGE : SkillValues.get(kind.id(), "overcharge", COST_OVERCHARGE));
         }
         double max = maxEnergy(skills);
         return Math.min(max, cost(skills, share * max));
@@ -1285,10 +1371,10 @@ public final class TrapService {
     private double cost(PlayerSkills skills, double base) {
         double scale = 1.0;
         if (SkillTree.has(skills, "e_fortress")) {
-            scale *= 1.3;
+            scale *= 1.0 + SkillValues.get("e_fortress", "cost", 0.3);
         }
         if (SkillTree.has(skills, "e_fieldtech")) {
-            scale *= 0.6;
+            scale *= 1.0 - SkillValues.get("e_fieldtech", "cost", 0.4);
         }
         return Math.max(1.0, base * scale);
     }
@@ -1324,9 +1410,10 @@ public final class TrapService {
             double max = maxEnergy(skills);
             double now = energyOf(player);
             if (now < max) {
-                double rate = 1.25 * (1.0 + tree.totalBonus(SkillEffect.RECHARGE, skills));
-                if (now < max * 0.3 && tree.totalBonus(SkillEffect.BACKUP_POWER, skills) > 0) {
-                    rate *= 2.0;
+                // Energy per second, handed out every five ticks.
+                double rate = SkillValues.get("e_fastcharge", "rate", 5.0) / 4.0 * (1.0 + tree.totalBonus(SkillEffect.RECHARGE, skills));
+                if (now < max * SkillValues.get("e_backup", "below", 0.3) && tree.totalBonus(SkillEffect.BACKUP_POWER, skills) > 0) {
+                    rate *= SkillValues.get("e_backup", "speed", 2.0);
                 }
                 energy.put(player.getUUID(), Math.min(max, now + rate));
             }
@@ -1407,10 +1494,26 @@ public final class TrapService {
             record.ambushNight = GainGear.nightId();   // hidden traps: the first strike of the night hits harder
             gain *= 1.5;
         }
+        return overcharged(record, now) * gain;
+    }
+
+    /** The remote's overcharge on one trap: ×2, with overvolt ×3; 1 when it is not overcharged. */
+    private double overcharged(TrapRecord record, long now) {
         if (!boosted(record, now)) {
-            return gain;
+            return 1.0;
         }
-        return (bonus(record, SkillEffect.OVERVOLT) > 0 ? 3.0 : 2.0) * gain;
+        return bonus(record, SkillEffect.OVERVOLT) > 0 ? SkillValues.get("e_overvolt", "power", 3.0)
+                : SkillValues.get("e_overvolt", "base", 2.0);
+    }
+
+    /** True while the owner's ultimate overcharge runs (arrow turrets and tesla coils fire faster). */
+    private boolean ultOvercharged(TrapRecord record, long now) {
+        Long until = overchargedUntil.get(record.owner);
+        return until != null && now <= until;
+    }
+
+    private static double ultSpeed() {
+        return Math.max(1.0, SkillValues.get("overcharge", "speed", 3.0));
     }
 
     /** A crate gain of the trap's owner, only while a night runs. */
@@ -1433,8 +1536,7 @@ public final class TrapService {
 
     /** The armour piercer: turret and tesla hit harder while the ultimate overcharge runs. */
     private double piercing(TrapRecord record, long now) {
-        Long until = overchargedUntil.get(record.owner);
-        return until != null && now <= until ? 1.0 + bonus(record, SkillEffect.ARMOR_PIERCER) : 1.0;
+        return ultOvercharged(record, now) ? 1.0 + bonus(record, SkillEffect.ARMOR_PIERCER) : 1.0;
     }
 
     /** Fire and blasts: stronger for the pyromaniac, weaker for the plague doctor. */
@@ -1444,13 +1546,14 @@ public final class TrapService {
             scale *= 1.0 + bonus(record, SkillEffect.PYROMANIAC);
         }
         if (has(record, "e_plague_doctor")) {
-            scale *= 0.7;
+            scale *= 1.0 - SkillValues.get("e_plague_doctor", "blast", 0.3);
         }
         return scale;
     }
 
     private double poisonScale(TrapRecord record) {
-        return (1.0 + bonus(record, SkillEffect.SLOW_POISON)) * (has(record, "e_plague_doctor") ? 2.0 : 1.0);
+        return (1.0 + bonus(record, SkillEffect.SLOW_POISON))
+                * (has(record, "e_plague_doctor") ? SkillValues.get("e_plague_doctor", "poison", 2.0) : 1.0);
     }
 
     private boolean markedBy(TrapRecord record, LivingEntity e, long now) {
@@ -1465,37 +1568,46 @@ public final class TrapService {
         }
         double scale = 1.0 + bonus(record, SkillEffect.TRAP_DURABILITY);
         if (has(record, "e_pyro")) {
-            scale *= 0.7;
+            scale *= 1.0 - SkillValues.get("e_pyro", "wear", 0.3);
         }
         return Math.max(1, (int) Math.round(base * scale));
     }
 
     private int maxAmmo(TrapRecord record) {
         int max = TrapKind.TURRET.maxAmmo(tierOf(record));
-        return bonus(record, SkillEffect.AMMO_BELT) > 0 ? max * 2 : max;
+        return bonus(record, SkillEffect.AMMO_BELT) > 0 ? (int) Math.round(max * SkillValues.get("e_ammobelt", "ammo", 2.0)) : max;
     }
 
-    /** Most traps of a kind: the fortress builder has one tower more, the field technician one fewer. */
+    /**
+     * Most traps of a kind. The towers' hard caps (Simon, 25 October 2026: mortar and tesla
+     * two, arrow turret and potion thrower three) are the base; the fortress builder and the
+     * crate gain overcapacity put one more on top, the field technician takes one away
+     * (balance update, 26 October 2026: the caps used to swallow all three).
+     */
     public int maxFor(TrapKind kind, int tier, PlayerSkills skills) {
-        int max = kind.maxPlaced(tier);
+        int ueber = 0;
         SiegeManager m = SiegeManager.get();
         if (m != null && skills != null
                 && m.kits().gainLevel(skills, com.mki.nightsiege.core.SkillClass.ENGINEER, "ueberkapazitaet") > 0) {
-            max += 1;   // crate gain: one more of every kind
+            ueber = 1;   // crate gain: one more of every kind
         }
+        return maxFor(kind, tier, SkillTree.has(skills, "e_fortress"), SkillTree.has(skills, "e_fieldtech"), ueber);
+    }
+
+    /** The cap without the save: for tests and the window. */
+    public static int maxFor(TrapKind kind, int tier, boolean fortress, boolean fieldtech, int extra) {
+        int max = kind.maxPlaced(tier);
+        if (kind.isTower()) {
+            max = Math.min(max, (int) Math.round(SkillValues.get(kind.id(), "cap", kind == TrapKind.MORTAR || kind == TrapKind.TESLA ? 2 : 3)));
+        }
+        max += extra;
         if (kind == TrapKind.TURRET || kind == TrapKind.TESLA) {
-            if (SkillTree.has(skills, "e_fortress")) {
-                max += 1;
+            if (fortress) {
+                max += (int) Math.round(SkillValues.get("e_fortress", "slots", 1));
             }
-            if (SkillTree.has(skills, "e_fieldtech")) {
-                max -= 1;
+            if (fieldtech) {
+                max -= (int) Math.round(SkillValues.get("e_fieldtech", "slots", 1));
             }
-        }
-        // Hard caps (Simon, 25 October 2026): mortar and tesla two, arrow and poison tower three.
-        if (kind == TrapKind.MORTAR || kind == TrapKind.TESLA) {
-            max = Math.min(max, 2);
-        } else if (kind == TrapKind.TURRET || kind == TrapKind.BREWER) {
-            max = Math.min(max, 3);
         }
         return Math.max(1, max);
     }

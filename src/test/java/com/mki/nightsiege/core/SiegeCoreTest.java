@@ -1162,7 +1162,8 @@ class SiegeCoreTest {
         assertTrue(tree.unlock("e_watchtower", engineer));
         assertTrue(tree.unlock("thunderstorm", engineer));
         assertEquals("lockedby", tree.blockedReason("e_ball_lightning", engineer));
-        assertEquals("locked", tree.blockedReason("e_superconductor", engineer));
+        // The superconductor needs only the thunderstorm, so the electrician keeps a mastery (balance update).
+        assertNull(tree.blockedReason("e_superconductor", engineer));
         assertTrue(tree.unlock("e_fieldtech", engineer));
         assertEquals("thunderstorm", tree.ultimateOf(engineer).id());
     }
@@ -1178,6 +1179,9 @@ class SiegeCoreTest {
                 {"e_detonator", "potion_tower", "potion_tower", "e_acid", "e_chain_reaction", "e_plague_mine"},
                 {"e_detonator", "mortar_tower", "mortar_tower", "e_shrapnel_mine", "c_cross_turret", "e_targetblast",
                         "e_blastpower", "bombardment", "e_firebombs"},
+                {"e_detonator", "mortar_tower", "mortar_tower", "e_shrapnel_mine", "e_chain_reaction", "e_napalm"},
+                {"e_detonator", "potion_tower", "potion_tower", "e_acid", "e_accelerant", "e_plague_mine"},
+                {"e_circuit", "tesla_coil", "tesla_coil", "capacitor", "m_cross_mine", "e_beacon"},
         };
         for (String[] route : routes) {
             PlayerSkills engineer = new PlayerSkills();
@@ -1188,14 +1192,77 @@ class SiegeCoreTest {
             assertTrue(tree.unlock("snare_trap", engineer));
             for (String id : route) {
                 boolean ok = tree.unlock(id, engineer);
-                if (id.equals("e_firebombs")) {
-                    // Fire bombs need the alchemist's poison trap: closed on the mine route.
-                    assertFalse(ok);
-                    continue;
-                }
                 assertTrue(ok, id + " " + tree.blockedReason(id, engineer));
             }
         }
+    }
+
+    @Test
+    void everyEngineerRouteKeepsARingFiveNodeAndAMastery() {
+        // Balance update (26 October 2026): no choice of the engineer runs into a dead end.
+        SkillTree tree = new SkillTree();
+        String[][][] ways = {
+                {{"arrow_turret", "tesla_coil"}, {"turret_tuning", "e_ammobelt", "capacitor", "e_chainbolt"},
+                        {"e_seeker", "e_overvolt", "m_cross_mine"}, {"e_backup", "e_watchtower", "m_cross_poison"},
+                        {"overcharge", "thunderstorm"}},
+                {{"mortar_tower", "potion_tower"}, {"flame_trap", "e_shrapnel_mine", "toxic_brew", "e_acid"},
+                        {"e_chain_reaction", "e_accelerant", "c_cross_turret"}, {"e_blastpower", "e_slowpoison", "c_cross_tesla"},
+                        {"bombardment", "toxic_cloud"}}};
+        String[][] firstOf = {{"e_circuit"}, {"e_detonator"}};
+        String[][] ringFive = {{"e_charged", "e_beacon", "e_network"}, {"e_napalm", "e_plague_mine", "e_targetblast"}};
+        String[][] masteries = {{"e_sustained", "e_piercer", "e_ball_lightning", "e_superconductor"},
+                {"e_carpet", "e_firebombs", "e_plague", "e_acid_fog"}};
+        int routes = 0;
+        for (int w = 0; w < ways.length; w++) {
+            String[][] rows = ways[w];
+            int[] pick = new int[rows.length];
+            while (true) {
+                PlayerSkills p = new PlayerSkills();
+                p.chosenClass = SkillClass.ENGINEER.name();
+                p.award(100_000);
+                List<String> chosen = new java.util.ArrayList<>(List.of("spike_trap", "spike_trap", "snare_trap", firstOf[w][0]));
+                for (int r = 0; r < rows.length; r++) {
+                    chosen.add(rows[r][pick[r]]);
+                    if (r == 0) {
+                        chosen.add(rows[0][pick[0]]);   // the subclass at tier 2 for the talents
+                    }
+                }
+                boolean possible = true;
+                for (String id : chosen) {
+                    if (!tree.unlock(id, p) && p.levelOf(id) == 0) {
+                        possible = false;   // e.g. a talent of the other subclass, or a locked ultimate
+                        break;
+                    }
+                }
+                if (possible) {
+                    routes++;
+                    final PlayerSkills skills = p;
+                    assertTrue(java.util.Arrays.stream(ringFive[w]).anyMatch(id -> tree.canUnlock(id, skills)), "ring V: " + chosen);
+                    assertTrue(java.util.Arrays.stream(masteries[w]).anyMatch(id -> tree.canUnlock(id, skills)), "mastery: " + chosen);
+                }
+                int k = rows.length - 1;
+                while (k >= 0 && ++pick[k] >= rows[k].length) {
+                    pick[k] = 0;
+                    k--;
+                }
+                if (k < 0) {
+                    break;
+                }
+            }
+        }
+        assertTrue(routes > 40, "routes " + routes);
+    }
+
+    @Test
+    void theTeslaTablesKeepTheirNumbers() {
+        // The skill values hold the numbers now; the game uses the same ones as before.
+        assertEquals(250, TrapKind.TESLA.cooldownTicks(1));
+        assertEquals(100, TrapKind.TESLA.cooldownTicks(4));
+        assertEquals(4, TrapKind.TESLA.chainTargets(3));
+        assertEquals(2, TrapKind.MORTAR.maxPlaced(1));
+        assertEquals(2.75, TrapKind.MORTAR.splash(3), 1e-9);
+        assertEquals(80, TrapKind.BREWER.holdTicks(1));
+        assertEquals(2.0, SkillValues.get("m_cross_mine", "tier", 0), 1e-9);
     }
 
     @Test

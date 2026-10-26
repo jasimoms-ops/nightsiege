@@ -184,7 +184,9 @@ public final class CombatEffects {
             case HOLY_LIGHT -> holyLight(level, player, rank);
             case BOMBARDMENT -> bombardment(level, player, rank);
             case OVERCHARGE -> {
-                traps.overcharge(player, now + 160 + 40L * rank + (SkillTree.has(skills, "e_sustained") ? 80 : 0));
+                // Arrow turrets and tesla coils fire faster (the tesla too since the balance update, 26 October 2026).
+                traps.overcharge(player, now + Math.round(SkillValues.get("overcharge", "time" + rank, 160 + 40 * rank))
+                        + (SkillTree.has(skills, "e_sustained") ? Math.round(SkillValues.get("e_sustained", "time", 80)) : 0));
                 play(level, player, SoundEvents.BEACON_ACTIVATE, 1.0f, 1.6f);
                 yield true;
             }
@@ -467,7 +469,8 @@ public final class CombatEffects {
 
     /** Demolition: blasts land on the nearest monsters. Blocks and players are spared. */
     private boolean bombardment(ServerLevel level, ServerPlayer player, int rank) {
-        List<LivingEntity> targets = new ArrayList<>(enemies(level, player.position(), 20.0, 8.0));
+        List<LivingEntity> targets = new ArrayList<>(enemies(level, player.position(),
+                SkillValues.get("bombardment", "reach", 20.0), 8.0));
         if (targets.isEmpty()) {
             actionBar(player, Component.translatable("nightsiege.msg.ult_no_target"));
             return false;
@@ -475,20 +478,23 @@ public final class CombatEffects {
         targets.sort(Comparator.comparingDouble(e -> e.distanceToSqr(player)));
         DamageSource source = level.damageSources().playerAttack(player);
         PlayerSkills skills = skillsFor.apply(player);
-        float damage = (8f + 4f * rank) * (float) engineerBlast(skills);
+        float damage = (float) (SkillValues.get("bombardment", "dmg" + rank, 8 + 4 * rank) * engineerBlast(skills));
         boolean firebombs = SkillTree.has(skills, "e_firebombs");
+        int burn = (int) Math.round(SkillValues.get("e_firebombs", "burn", 100));
+        double radius = SkillValues.get("bombardment", "radius", 2.5);
         int carpet = (int) Math.round(tree.totalBonus(SkillEffect.CARPET_BOMB, skills));
-        int blasts = Math.min(targets.size() + carpet, 3 + 2 * rank + carpet);
+        int blasts = Math.min(targets.size() + carpet,
+                (int) Math.round(SkillValues.get("bombardment", "blasts" + rank, 3 + 2 * rank)) + carpet);
         for (int i = 0; i < blasts; i++) {
             LivingEntity aim = targets.get(i % targets.size());
             Vec3 at = i < targets.size() ? aim.position()
                     : aim.position().add(random.nextDouble() * 4 - 2, 0, random.nextDouble() * 4 - 2);
-            for (LivingEntity victim : enemies(level, at, 2.5, 1.5)) {
+            for (LivingEntity victim : enemies(level, at, radius, 1.5)) {
                 bonusHit(level, victim, source, damage);
                 pushAway(victim, at, 0.5, 0.4);
                 if (firebombs) {
-                    victim.igniteForSeconds(5f);
-                    victim.addEffect(new MobEffectInstance(isUndead(victim) ? MobEffects.WITHER : MobEffects.POISON, 100, 0));
+                    victim.igniteForSeconds(burn / 20f);
+                    victim.addEffect(new MobEffectInstance(isUndead(victim) ? MobEffects.WITHER : MobEffects.POISON, burn, 0));
                 }
             }
             level.sendParticles(ParticleTypes.EXPLOSION_EMITTER, at.x, at.y + 0.5, at.z, 1, 0, 0, 0, 0);
@@ -501,14 +507,16 @@ public final class CombatEffects {
         PlayerSkills skills = skillsFor.apply(player);
         boolean plague = SkillTree.has(skills, "e_plague");
         double acid = tree.totalBonus(SkillEffect.ACID_FOG, skills);
-        double r = 6.0 + rank + (plague ? 3.0 : 0.0);
-        int ticks = (int) Math.round((120 + 40 * rank) * (SkillTree.has(skills, "e_plague_doctor") ? 2.0 : 1.0));
+        double r = SkillValues.get("toxic_cloud", "radius" + rank, 6 + rank) + (plague ? SkillValues.get("e_plague", "radius", 3.0) : 0.0);
+        int ticks = (int) Math.round(SkillValues.get("toxic_cloud", "time" + rank, 120 + 40 * rank)
+                * (SkillTree.has(skills, "e_plague_doctor") ? SkillValues.get("e_plague_doctor", "poison", 2.0) : 1.0));
         long until = level.getGameTime() + ticks;
         Set<LivingEntity> sick = new HashSet<>(enemies(level, player.position(), r, 3.0));
         if (plague) {
             // The plague jumps on to whatever stands next to the sick.
+            double spread = SkillValues.get("e_plague", "spread", 3.0);
             for (LivingEntity victim : new ArrayList<>(sick)) {
-                sick.addAll(enemies(level, victim.position(), 3.0, 2.0));
+                sick.addAll(enemies(level, victim.position(), spread, 2.0));
             }
         }
         for (LivingEntity victim : sick) {
@@ -527,7 +535,7 @@ public final class CombatEffects {
     }
 
     private boolean thunderstorm(ServerLevel level, ServerPlayer player, int rank) {
-        List<LivingEntity> near = enemies(level, player.position(), 16.0, 6.0);
+        List<LivingEntity> near = enemies(level, player.position(), SkillValues.get("thunderstorm", "range", 16.0), 6.0);
         if (near.isEmpty()) {
             actionBar(player, Component.translatable("nightsiege.msg.ult_no_target"));
             return false;
@@ -535,11 +543,14 @@ public final class CombatEffects {
         DamageSource source = level.damageSources().playerAttack(player);
         PlayerSkills skills = skillsFor.apply(player);
         boolean ball = SkillTree.has(skills, "e_ball_lightning");
-        float damage = 6f + 2f * rank + (ball ? 2f : 0f);
-        int jumps = 4 + 2 * rank + (ball ? 4 : 0);
+        float damage = (float) (SkillValues.get("thunderstorm", "dmg" + rank, 6 + 2 * rank)
+                + (ball ? SkillValues.get("e_ball_lightning", "dmg", 2.0) : 0.0));
+        int jumps = (int) Math.round(SkillValues.get("thunderstorm", "jumps" + rank, 4 + 2 * rank)
+                + (ball ? SkillValues.get("e_ball_lightning", "jumps", 4.0) : 0.0));
+        double jump = SkillValues.get("thunderstorm", "jump", 6.0);
         if (SkillTree.has(skills, "e_superconductor")) {
             traps.fillRemote(player);
-            traps.overcharge(player, level.getGameTime() + 80);
+            traps.overcharge(player, level.getGameTime() + Math.round(SkillValues.get("e_superconductor", "time", 80)));
         }
         List<LivingEntity> hit = new ArrayList<>();
         Vec3 from = player.position().add(0, 1.5, 0);
@@ -551,7 +562,7 @@ public final class CombatEffects {
             bonusHit(level, current, source, damage);
             from = to;
             Vec3 at = to;
-            current = enemies(level, at, 6.0, 3.0).stream()
+            current = enemies(level, at, jump, 3.0).stream()
                     .filter(e -> !hit.contains(e))
                     .min(Comparator.comparingDouble(e -> e.distanceToSqr(at)))
                     .orElse(null);
@@ -1102,7 +1113,7 @@ public final class CombatEffects {
             scale *= 1.0 + tree.totalBonus(SkillEffect.PYROMANIAC, skills);
         }
         if (SkillTree.has(skills, "e_plague_doctor")) {
-            scale *= 0.7;
+            scale *= 1.0 - SkillValues.get("e_plague_doctor", "blast", 0.3);
         }
         return scale;
     }

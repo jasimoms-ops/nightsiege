@@ -34,9 +34,9 @@ public enum KeyHint {
     SNEAK_BLOCK,
     /** Draw the bow or crossbow. */
     DRAW,
-    /** Sneak and right click (the remote's second order). */
+    /** The remote's second order (the X key since 25 October 2026; it was sneak and right click). */
     SNEAK_USE,
-    /** The remote: right click, or sneak and right click. */
+    /** The remote: right click, or the X key for the second order. */
     REMOTE,
     /** The summoner's staff: right click calls, sneak and right click at a monster sends the pack. */
     STAFF;

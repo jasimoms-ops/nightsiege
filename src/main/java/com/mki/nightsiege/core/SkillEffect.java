@@ -236,6 +236,8 @@ public enum SkillEffect {
     REMOTE_ENERGY(0.0, Target.TRAP),
     /** Traps hold this share longer before they wear out. */
     TRAP_DURABILITY(0.0, Target.TRAP),
+    /** Monsters need this share longer to break the engineer's towers (e_durable). */
+    TOWER_TOUGHNESS(0.0, Target.TRAP),
     /** Extra blocks of reach of the remote. */
     REMOTE_RANGE(0.0, Target.TRAP),
     /** Extra ticks a remote overcharge lasts. */

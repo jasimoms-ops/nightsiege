@@ -12,7 +12,8 @@ import net.minecraft.world.level.Level;
 
 /**
  * The engineer's remote: right click on an own trap overcharges it, on a
- * monster marks it; sneaking sets floor traps off or reloads them. The bar
+ * monster marks it; the X key (second order) sets traps off, fires the towers'
+ * salvo or big throw, reloads, and aims a mortar at the block looked at. The bar
  * on the item is its energy.
  */
 public class RemoteItem extends Item {
