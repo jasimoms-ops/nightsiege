@@ -8,7 +8,154 @@ final class SkillValuesEngineer {
     private SkillValuesEngineer() {
     }
 
+    /** Hard caps of the towers (Simon, 25 October 2026); skills and crate gains count on top. */
+    static final double CAP_MORTAR = 2;
+    static final double CAP_TESLA = 2;
+    static final double CAP_TURRET = 3;
+    static final double CAP_BREWER = 3;
+
+    // The tier tables are read through TrapKind's built-in tables (base…), never through
+    // SkillValues itself, so registering cannot run into the values it is filling.
     static void register() {
-        // def("node_id", "key", value);
+        // ----- the traps and towers: their tier tables live in TrapKind, shown here per tier
+        floorPlate(TrapKind.SPIKE);
+        def("spike_trap", "slow", TrapKind.SPIKE.baseHold(1));          // ticks of slowness per hit
+        floorPlate(TrapKind.SNARE);
+        for (int t = 1; t <= 3; t++) {
+            def("snare_trap", "radius" + t, TrapKind.SNARE.baseRadius(t));
+            def("snare_trap", "hold" + t, TrapKind.SNARE.baseHold(t));
+            def("snare_trap", "cd" + t, TrapKind.SNARE.baseCooldown(t));
+        }
+        floorPlate(TrapKind.FLAME);
+        for (int t = 1; t <= 3; t++) {
+            def("flame_trap", "burn" + t, TrapKind.FLAME.baseHold(t));
+            def("flame_trap", "radius" + t, TrapKind.FLAME.baseRadius(t));
+            def("flame_trap", "cd" + t, TrapKind.FLAME.baseCooldown(t));
+        }
+        tower(TrapKind.TURRET, CAP_TURRET);
+        def("arrow_turret", "overcharge", 0.7);                          // share of the full remote
+        tower(TrapKind.TESLA, CAP_TESLA);
+        for (int t = 1; t <= 3; t++) {
+            def("tesla_coil", "targets" + t, TrapKind.TESLA.baseChainTargets(t));
+        }
+        def("tesla_coil", "maxtargets", 4);                              // monsters per discharge at most
+        def("tesla_coil", "overcharge", 1.0);                            // the whole remote
+        def("tesla_coil", "near", 0.6);                                  // cooldown factor with its engineer close by
+        def("tesla_coil", "nearrange", 6);                               // blocks
+        def("tesla_coil", "jump", 4);                                    // blocks from monster to monster
+        tower(TrapKind.MORTAR, CAP_MORTAR);
+        for (int t = 1; t <= 3; t++) {
+            def("mortar_tower", "splash" + t, TrapKind.MORTAR.baseSplash(t));
+        }
+        def("mortar_tower", "hit", 10);                                  // one direct hit, times trapDamage and the level
+        // Shown in the texts only: a direct hit against a zombie's 20 life points with the
+        // default trapDamage 0.75 (10 × 0.75 / 20); both grow alike with the level.
+        def("mortar_tower", "zombie", 0.375);
+        def("mortar_tower", "aimpause", 200);                            // ticks between two new target spots
+        def("mortar_tower", "salvo", 3);                                 // shells of the X salvo
+        def("mortar_tower", "overcharge", 30);
+        tower(TrapKind.BREWER, CAP_BREWER);
+        for (int t = 1; t <= 3; t++) {
+            def("potion_tower", "splash" + t, TrapKind.BREWER.baseSplash(t));
+        }
+        def("potion_tower", "hit", 10);
+        def("potion_tower", "zombie", 0.375);
+        def("potion_tower", "poison", TrapKind.BREWER.baseHold(1));    // ticks the poison eats
+        def("potion_tower", "big", 1.5);                                 // area of the big throw (X)
+        def("potion_tower", "overcharge", 30);
+        def("spike_trap", "overcharge", 30);
+        def("snare_trap", "overcharge", 30);
+        def("flame_trap", "overcharge", 30);
+
+        // ----- trunk
+        def("e_battery", "base", 100);                                   // energy of the remote without skills
+        def("e_fastcharge", "rate", 5);                                  // energy per second without skills (1.25 every 5 ticks)
+
+        // ----- mechanics
+        def("e_longrange", "base", 24);                                  // blocks the remote reaches
+        def("e_circuit", "base", 100);                                   // ticks an overcharge lasts
+        // Cross talents lend a trap of the other way at this tier.
+        for (String cross : new String[]{"m_cross_mine", "m_cross_poison", "c_cross_turret", "c_cross_tesla"}) {
+            def(cross, "tier", 2);
+        }
+        def("e_ammobelt", "ammo", 2.0);
+        def("e_ammobelt", "reload", 40);                                 // energy of a reload with X
+        def("e_ammobelt", "cost", 0.5);                                  // share of it with the ammo belt
+        def("e_seeker", "base", 0.15);                                   // extra damage of a mark without the skill
+        def("e_seeker", "time", 160);                                    // ticks a mark lasts
+        def("e_seeker", "mark", 10);                                     // energy of a mark
+        def("e_overvolt", "base", 2.0);                                  // damage factor while overcharged
+        def("e_overvolt", "power", 3.0);                                 // with overvolt
+        def("e_charged", "jump", 4);                                     // blocks
+        def("e_network", "share", 0.5);
+        def("e_network", "radius", 6);
+        def("e_backup", "below", 0.3);
+        def("e_backup", "speed", 2.0);
+        def("e_fortress", "cost", 0.3);                                  // remote costs this share more
+        def("e_fortress", "slots", 1);
+        def("e_fieldtech", "cost", 0.4);                                 // remote costs this share less
+        def("e_fieldtech", "slots", 1);
+        for (int r = 1; r <= 3; r++) {
+            def("overcharge", "time" + r, 160 + 40 * r);                 // ticks
+            def("thunderstorm", "dmg" + r, 6 + 2 * r);
+            def("thunderstorm", "jumps" + r, 4 + 2 * r);
+            def("bombardment", "dmg" + r, 8 + 4 * r);
+            def("bombardment", "blasts" + r, 3 + 2 * r);
+            def("toxic_cloud", "radius" + r, 6 + r);
+            def("toxic_cloud", "time" + r, 120 + 40 * r);               // ticks
+        }
+        def("overcharge", "speed", 3);                                   // fire rate factor
+        def("thunderstorm", "range", 16);
+        def("thunderstorm", "jump", 6);
+        def("e_sustained", "time", 80);
+        def("e_ball_lightning", "jumps", 4);
+        def("e_ball_lightning", "dmg", 2);
+        def("e_superconductor", "time", 80);
+
+        // ----- chemistry
+        def("e_detonator", "cost", 20);                                  // energy of an X order without the skill
+        def("e_detonator", "save", 4);                                   // less energy per level
+        def("e_detonator", "dmg", 0.15);                                 // harder per level
+        def("e_acid", "slow", 1);                                        // extra slowness levels
+        def("e_chain_reaction", "count", 3);
+        def("e_chain_reaction", "dmg", 1.0 / 3.0);
+        def("e_chain_reaction", "radius", 0.6);
+        def("e_accelerant", "burn", 40);                                 // ticks a potion throw sets alight
+        def("e_napalm", "burn", 2.0);                                    // flames burn this many times as long
+        def("e_napalm", "radius", 1);
+        def("e_napalm", "shellburn", 60);                                // ticks a mortar shell sets alight
+        def("e_targetblast", "radius", 2);
+        def("bombardment", "radius", 2.5);
+        def("bombardment", "reach", 20);
+        def("e_firebombs", "burn", 100);                                 // ticks of fire and poison
+        def("e_plague", "radius", 3);
+        def("e_plague", "spread", 3);
+        def("e_pyro", "wear", 0.3);                                      // floor traps wear out this share sooner
+        def("e_plague_doctor", "poison", 2.0);
+        def("e_plague_doctor", "blast", 0.3);                            // less fire and blast damage
+    }
+
+    /** Uses, cap and (for the spike) nothing else per tier of a floor plate. */
+    private static void floorPlate(TrapKind kind) {
+        for (int t = 1; t <= 3; t++) {
+            if (kind.baseDamage(t) > 0) {
+                def(kind.id(), "dmg" + t, kind.baseDamage(t));
+            }
+            def(kind.id(), "uses" + t, kind.baseUses(t));
+            def(kind.id(), "max" + t, kind.baseMaxPlaced(t));
+        }
+    }
+
+    /** Range, cooldown, how many may stand and the hard cap of a tower. */
+    private static void tower(TrapKind kind, double cap) {
+        def(kind.id(), "cap", cap);
+        for (int t = 1; t <= 3; t++) {
+            if (kind.baseDamage(t) > 0) {
+                def(kind.id(), "dmg" + t, kind.baseDamage(t));
+            }
+            def(kind.id(), "max" + t, Math.min(cap, kind.baseMaxPlaced(t)));
+            def(kind.id(), "range" + t, kind.baseRadius(t));
+            def(kind.id(), "cd" + t, kind.baseCooldown(t));
+        }
     }
 }

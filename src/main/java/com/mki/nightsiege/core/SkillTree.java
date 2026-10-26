@@ -355,8 +355,8 @@ public final class SkillTree {
         node(list, "e_overvolt", c, m, SkillEffect.OVERVOLT, 1, 12, 0, 1.0, m3, "em4", "minecraft:glowstone_dust", 5, 3);
         node(list, "m_cross_mine", c, m, SkillEffect.TRAP, 1, 12, 0, 1.0, m3, "em4", "nightsiege:mortar_tower", 5, 5,
                 "e_network", "e_ball_lightning");
-        node(list, "e_charged", c, m, SkillEffect.CHARGED_ARROWS, 1, 15, 0, 0.5, turret + ",e_overvolt|e_seeker", "em5", "minecraft:spectral_arrow", 6, 1);
-        node(list, "e_beacon", c, m, SkillEffect.GUIDING_BEAM, 1, 15, 0, 1.0, tesla + ",e_seeker", "em5", "minecraft:end_rod", 6, 3);
+        node(list, "e_charged", c, m, SkillEffect.CHARGED_ARROWS, 1, 15, 0, 0.5, turret + ",e_overvolt|e_seeker|m_cross_mine", "em5", "minecraft:spectral_arrow", 6, 1);
+        node(list, "e_beacon", c, m, SkillEffect.GUIDING_BEAM, 1, 15, 0, 1.0, tesla + ",e_seeker|m_cross_mine", "em5", "minecraft:end_rod", 6, 3);
         node(list, "e_network", c, m, SkillEffect.NETWORK, 1, 15, 0, 1.0, m3 + ",e_overvolt", "em5", "minecraft:comparator", 6, 5);
         String m4 = "e_seeker|e_overvolt|m_cross_mine";
         node(list, "e_backup", c, m, SkillEffect.BACKUP_POWER, 1, 18, 0, 1.0, m4, "em6", "minecraft:redstone_lamp", 7, 1);
@@ -369,9 +369,14 @@ public final class SkillTree {
         node(list, "e_sustained", c, m, SkillEffect.SUSTAINED_FIRE, 1, 25, 0, 1.0, "overcharge," + turret, "em_mastery", "minecraft:dispenser", 9, 0);
         node(list, "e_piercer", c, m, SkillEffect.ARMOR_PIERCER, 1, 25, 0, 0.5, "overcharge," + tesla, "em_mastery", "minecraft:netherite_scrap", 9, 2);
         node(list, "e_ball_lightning", c, m, SkillEffect.BALL_LIGHTNING, 1, 25, 0, 1.0, "thunderstorm," + tesla, "em_mastery", "minecraft:fire_charge", 9, 4);
-        node(list, "e_superconductor", c, m, SkillEffect.SUPERCONDUCTOR, 1, 25, 0, 1.0, "thunderstorm," + turret, "em_mastery", "minecraft:copper_bulb", 9, 6);
+        node(list, "e_superconductor", c, m, SkillEffect.SUPERCONDUCTOR, 1, 25, 0, 1.0, "thunderstorm", "em_mastery", "minecraft:copper_bulb", 9, 6);
         node(list, "e_fortress", c, m, SkillEffect.FORTRESS, 1, 30, 0, 1.0, "overcharge|thunderstorm", "em_key", "minecraft:iron_bars", 10, 2);
         node(list, "e_fieldtech", c, m, SkillEffect.FIELD_TECH, 1, 30, 0, 1.0, "overcharge|thunderstorm", "em_key", "minecraft:crafter", 10, 4);
+
+        // Balance update (26 October 2026): every choice of ring IV leaves a node on ring V and every
+        // ultimate a mastery: the borrowed mortar opens the charged arrows and the guiding beam, the
+        // superconductor and the fire bombs need only their ultimate, napalm and plague throw take
+        // either ring IV talent of their subclass.
 
         // ----- Way of chemistry: mortar, flames and poison (the mine and the poison trap became towers, 24 Oct 2026)
         String ch = WAY_CHEMISTRY;
@@ -379,7 +384,7 @@ public final class SkillTree {
         String poison = TrapKind.BREWER.id();
         node(list, "e_stockpile", c, ch, SkillEffect.FREE_TRAPS, 3, 3, 2, 1.0, snare, "ec1", "minecraft:chest", 2, 1);
         node(list, "e_detonator", c, ch, SkillEffect.DETONATOR, 3, 3, 2, 1.0, snare, "", "minecraft:lever", 2, 3);
-        node(list, "e_durable", c, ch, SkillEffect.TRAP_DURABILITY, 3, 3, 2, 0.17, snare, "ec1", "minecraft:iron_ingot", 2, 5);
+        node(list, "e_durable", c, ch, SkillEffect.TOWER_TOUGHNESS, 3, 3, 2, 0.17, snare, "ec1", "minecraft:iron_ingot", 2, 5);
         node(list, mine, c, ch, SkillEffect.TRAP, 3, 4, 3, 1.0, "e_detonator", "ec_sub", "nightsiege:mortar_tower", 3, 1);
         node(list, poison, c, ch, SkillEffect.TRAP, 3, 4, 3, 1.0, "e_detonator", "ec_sub", "nightsiege:potion_tower", 3, 5);
         node(list, TrapKind.FLAME.id(), c, ch, SkillEffect.TRAP, 3, 10, 5, 1.0, mine + ":2", "ec3", "nightsiege:flame_trap", 4, 0);
@@ -391,8 +396,8 @@ public final class SkillTree {
         node(list, "e_accelerant", c, ch, SkillEffect.ACCELERANT, 1, 12, 0, 0.5, c3, "ec4", "minecraft:blaze_powder", 5, 3);
         node(list, "c_cross_turret", c, ch, SkillEffect.TRAP, 1, 12, 0, 1.0, c3, "ec4", "nightsiege:arrow_turret", 5, 5,
                 "e_napalm", "e_carpet");
-        node(list, "e_napalm", c, ch, SkillEffect.NAPALM, 1, 15, 0, 1.0, TrapKind.FLAME.id() + ",e_accelerant", "ec5", "minecraft:magma_cream", 6, 1);
-        node(list, "e_plague_mine", c, ch, SkillEffect.PLAGUE_MINE, 1, 15, 0, 8.0, poison + ",e_chain_reaction", "ec5", "minecraft:spider_eye", 6, 3);
+        node(list, "e_napalm", c, ch, SkillEffect.NAPALM, 1, 15, 0, 1.0, mine + ",e_accelerant|e_chain_reaction", "ec5", "minecraft:magma_cream", 6, 1);
+        node(list, "e_plague_mine", c, ch, SkillEffect.PLAGUE_MINE, 1, 15, 0, 8.0, poison + ",e_chain_reaction|e_accelerant", "ec5", "minecraft:spider_eye", 6, 3);
         node(list, "e_targetblast", c, ch, SkillEffect.TARGET_BLAST, 1, 15, 0, 4.0, "c_cross_turret,e_detonator", "ec5", "minecraft:firework_star", 6, 5);
         String c4 = "e_chain_reaction|e_accelerant|c_cross_turret";
         node(list, "e_blastpower", c, ch, SkillEffect.BLAST_POWER, 1, 18, 0, 0.5, c4, "ec6", "minecraft:gunpowder", 7, 1);
@@ -403,7 +408,7 @@ public final class SkillTree {
         node(list, "bombardment", c, ch, SkillEffect.BOMBARDMENT, 3, 20, 10, 1.0, c6, "ec_ult", "minecraft:tnt_minecart", 8, 2);
         node(list, "toxic_cloud", c, ch, SkillEffect.TOXIC_CLOUD, 3, 20, 10, 1.0, c6, "ec_ult", "minecraft:lingering_potion", 8, 4);
         node(list, "e_carpet", c, ch, SkillEffect.CARPET_BOMB, 1, 25, 0, 4.0, "bombardment," + mine, "ec_mastery", "minecraft:tnt", 9, 0);
-        node(list, "e_firebombs", c, ch, SkillEffect.FIRE_BOMBS, 1, 25, 0, 1.0, "bombardment," + poison, "ec_mastery", "minecraft:fire_charge", 9, 2);
+        node(list, "e_firebombs", c, ch, SkillEffect.FIRE_BOMBS, 1, 25, 0, 1.0, "bombardment", "ec_mastery", "minecraft:fire_charge", 9, 2);
         node(list, "e_plague", c, ch, SkillEffect.PLAGUE, 1, 25, 0, 1.0, "toxic_cloud," + poison, "ec_mastery", "minecraft:wither_rose", 9, 4);
         node(list, "e_acid_fog", c, ch, SkillEffect.ACID_FOG, 1, 25, 0, 0.25, "toxic_cloud," + mine, "ec_mastery", "minecraft:bone_meal", 9, 6);
         node(list, "e_pyro", c, ch, SkillEffect.PYROMANIAC, 1, 30, 0, 0.4, "bombardment|toxic_cloud", "ec_key", "minecraft:flint_and_steel", 10, 2);
@@ -959,7 +964,8 @@ public final class SkillTree {
         int own = skills.levelOf(kind.id());
         String cross = CROSS_TRAPS.get(kind);
         if (cross != null && skills.levelOf(cross) > 0) {
-            own = Math.max(own, 2);   // borrowed from the other way, at tier 2
+            // borrowed from the other way, at tier 2
+            own = Math.max(own, (int) Math.round(SkillValues.get(cross, "tier", 2)));
         }
         if (own <= 0) {
             return 0;

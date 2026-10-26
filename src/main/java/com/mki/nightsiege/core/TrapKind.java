@@ -51,13 +51,28 @@ public enum TrapKind {
         return Math.max(1, Math.min(MAX_TIER, tier));
     }
 
+    /**
+     * A number of tiers 1 to 3 as the skill values hold it ({@link SkillValues}, key plus
+     * tier, e.g. {@code cd2}), so the skill texts show what the traps use and the server can
+     * change it; tiers 4 and 5 (boosters) keep the table.
+     */
+    private double tuned(String key, int t, double table) {
+        return t <= NODE_LEVELS ? SkillValues.get(id, key + t, table) : table;
+    }
+
     /** Damage of one hit: a spike, the blast at its centre, or one turret arrow. */
     public double damage(int tier) {
         int t = clamp(tier);
+        double table = baseDamage(t);
+        return table > 0 ? tuned("dmg", t, table) : table;
+    }
+
+    /** The built-in table of {@link #damage}. */
+    double baseDamage(int t) {
         return switch (this) {
             case SPIKE -> 3.0 + 1.5 * (t - 1);   // 3 / 4.5 / 6
             case SNARE -> 0.0;
-            case MORTAR, BREWER -> 0.0;          // half a zombie of the night, see TrapService
+            case MORTAR, BREWER -> 0.0;          // a direct hit is set in TrapService.towerHit
             case TURRET -> 3.0 + (t - 1);        // 3 / 4 / 5
             case FLAME -> 2.0 + (t - 1);         // contact burn 2 / 3 / 4
             case TESLA -> 4.0 + (t - 1);         // 4 / 5 / 6 per jump
@@ -67,6 +82,12 @@ public enum TrapKind {
     /** How often the trap can fire before it is used up. The turret counts arrows instead. */
     public int uses(int tier) {
         int t = clamp(tier);
+        int table = baseUses(t);
+        return table == Integer.MAX_VALUE || isTower() ? table : (int) Math.round(tuned("uses", t, table));
+    }
+
+    /** The built-in table of {@link #uses}. */
+    int baseUses(int t) {
         return switch (this) {
             case SPIKE -> 24 + 12 * (t - 1);     // 24 / 36 / 48 hits
             case SNARE -> 8 + 4 * (t - 1);       // 8 / 12 / 16 catches
@@ -78,6 +99,11 @@ public enum TrapKind {
     /** Blocks around the trap it reaches (for the towers: how far they shoot). */
     public double radius(int tier) {
         int t = clamp(tier);
+        return this == SPIKE ? 0.0 : tuned(isTower() ? "range" : "radius", t, baseRadius(t));
+    }
+
+    /** The built-in table of {@link #radius}. */
+    double baseRadius(int t) {
         return switch (this) {
             case SPIKE -> 0.0;                   // only what stands on it
             case SNARE -> 2.0 + 0.5 * t;         // 2.5 / 3 / 3.5
@@ -92,6 +118,11 @@ public enum TrapKind {
     /** Ticks between two activations. */
     public int cooldownTicks(int tier) {
         int t = clamp(tier);
+        return this == SPIKE ? baseCooldown(t) : (int) Math.round(tuned("cd", t, baseCooldown(t)));
+    }
+
+    /** The built-in table of {@link #cooldownTicks}. */
+    int baseCooldown(int t) {
         return switch (this) {
             case SPIKE -> 10;
             case SNARE -> 240 - 40 * t;          // 10 s / 8 s / 6 s
@@ -99,7 +130,7 @@ public enum TrapKind {
             case TURRET -> Math.max(12, 36 - 6 * t);   // 1.5 s / 1.2 s / 0.9 s / 0.6 s
             case FLAME -> 120 - 20 * t;          // 5 s / 4 s / 3 s
             case BREWER -> Math.max(40, 90 - 10 * t);   // 4 s / 3.5 s / 3 s
-            // Five times slower than at first (Simon's playtest, 25 October 2026): 15 s / 12.5 s / 10 s / 7.5 s.
+            // Five times slower than at first (Simon's playtest, 25 October 2026): 12.5 s / 10 s / 7.5 s / 5 s / 5 s.
             case TESLA -> 5 * Math.max(20, 60 - 10 * t);
         };
     }
@@ -107,6 +138,18 @@ public enum TrapKind {
     /** Ticks a monster stays slowed (spike) or rooted (snare). */
     public int holdTicks(int tier) {
         int t = clamp(tier);
+        int table = baseHold(t);
+        return switch (this) {
+            case SPIKE -> (int) Math.round(SkillValues.get(id, "slow", table));
+            case SNARE -> (int) Math.round(tuned("hold", t, table));
+            case FLAME -> (int) Math.round(tuned("burn", t, table));
+            case BREWER -> (int) Math.round(SkillValues.get(id, "poison", table));
+            default -> table;
+        };
+    }
+
+    /** The built-in table of {@link #holdTicks}. */
+    int baseHold(int t) {
         return switch (this) {
             case SPIKE -> 30;
             case SNARE -> 40 + 20 * t;           // 3 s / 4 s / 5 s
@@ -146,6 +189,11 @@ public enum TrapKind {
     /** Most traps of this kind one engineer may have set at once. Grows with the tier. */
     public int maxPlaced(int tier) {
         int t = clamp(tier);
+        return (int) Math.round(tuned("max", t, baseMaxPlaced(t)));
+    }
+
+    /** The built-in table of {@link #maxPlaced} (the towers' hard caps come on top, see TrapService). */
+    int baseMaxPlaced(int t) {
         return switch (this) {
             case SPIKE -> 8 + 2 * t;             // 10 ... 18
             case SNARE -> 3 + t;                 // 4 ... 8
@@ -158,7 +206,13 @@ public enum TrapKind {
 
     /** Monsters one tesla discharge jumps between. */
     public int chainTargets(int tier) {
-        return this == TESLA ? 1 + clamp(tier) : 0;   // 2 / 3 / 4
+        int t = clamp(tier);
+        return this == TESLA ? (int) Math.round(tuned("targets", t, baseChainTargets(t))) : 0;
+    }
+
+    /** The built-in table of {@link #chainTargets}. */
+    int baseChainTargets(int t) {
+        return this == TESLA ? 1 + t : 0;   // 2 / 3 / 4 (the tesla stops at 4 monsters, see TrapService)
     }
 
     /** Strength of the brewer's slowness, 0 being level I. */
@@ -173,6 +227,11 @@ public enum TrapKind {
     /** Blocks around the impact a tower's shell or potion reaches. */
     public double splash(int tier) {
         int t = clamp(tier);
+        return this == MORTAR || this == BREWER ? tuned("splash", t, baseSplash(t)) : 0.0;
+    }
+
+    /** The built-in table of {@link #splash}. */
+    double baseSplash(int t) {
         return switch (this) {
             case MORTAR -> 2.0 + 0.25 * t;       // 2.25 / 2.5 / 2.75
             case BREWER -> 2.5 + 0.25 * t;       // 2.75 / 3 / 3.25
