@@ -110,6 +110,12 @@ public final class MeleeSim {
     private static double healed;
     private static final List<UUID> DUMMIES = new ArrayList<>();
     private static final java.util.Map<UUID, BlockPos> DUMMY_SPOTS = new java.util.HashMap<>();
+    /**
+     * Health of each training zombie at the end of the last tick. A killing blow fires no
+     * after-damage event, so the health it took is added when the zombie is found dead (the bench
+     * counted 0 damage for shooters that kill with one arrow).
+     */
+    private static final java.util.Map<UUID, Float> DUMMY_HEALTH = new java.util.HashMap<>();
     private static final java.util.Map<BlockPos, Long> RESPAWN = new java.util.HashMap<>();
     private static final double[] HITS = new double[4];
     private static int hitCount;
@@ -411,9 +417,13 @@ public final class MeleeSim {
 
     /** Bow: draw fully and let go. Crossbow: load, then fire. Aimed a little above the target. */
     private static void shoot(ServerPlayer player, ServerLevel level, Mob target) {
-        boolean crossbow = !hold(player, s -> s.is(Items.BOW)) && hold(player, s -> s.is(Items.CROSSBOW));
+        // Any bow or crossbow item: the kit gives the subclass bows and from night 20 infernite ones,
+        // which are not the vanilla items (the bench measured 0 damage for heavy shooters and crossbows).
+        boolean crossbow = !hold(player, s -> s.getItem() instanceof net.minecraft.world.item.BowItem)
+                && hold(player, s -> s.getItem() instanceof net.minecraft.world.item.CrossbowItem);
         ItemStack weapon = player.getMainHandItem();
-        if (!weapon.is(Items.BOW) && !weapon.is(Items.CROSSBOW)) {
+        if (!(weapon.getItem() instanceof net.minecraft.world.item.BowItem)
+                && !(weapon.getItem() instanceof net.minecraft.world.item.CrossbowItem)) {
             return;
         }
         if (player.getCooldowns().isOnCooldown(weapon)) {
@@ -621,6 +631,7 @@ public final class MeleeSim {
             clearMonsters(level);
             DUMMIES.clear();
             DUMMY_SPOTS.clear();
+            DUMMY_HEALTH.clear();
             RESPAWN.clear();
             // Night on the bench: training zombies burning in the sun died without a hit and counted as
             // kills (balance update, 26 October 2026: 10 kills for classes that dealt no damage at all).
@@ -642,6 +653,7 @@ public final class MeleeSim {
             clearMonsters(level);
             DUMMIES.clear();
             DUMMY_SPOTS.clear();
+            DUMMY_HEALTH.clear();
             RESPAWN.clear();
             BlockPos c = dummySpot(clazz);
             for (int[] o : new int[][]{{0, 0}, {0, 1}, {0, -1}, {1, 0}, {1, 1}, {1, -1}}) {
@@ -655,6 +667,7 @@ public final class MeleeSim {
             clearMonsters(level);
             DUMMIES.clear();
             DUMMY_SPOTS.clear();
+            DUMMY_HEALTH.clear();
             RESPAWN.clear();
             if (player.isUsingItem()) {
                 player.stopUsingItem();
@@ -671,14 +684,22 @@ public final class MeleeSim {
                 if (e == null || !e.isAlive()) {
                     it.remove();
                     BlockPos spot = DUMMY_SPOTS.remove(id);
+                    Float left = DUMMY_HEALTH.remove(id);
                     if (benchStage == 0) {
                         killsSingle++;
+                        dealtSingle += left == null ? 0f : left;
                     } else {
                         killsGroup++;
+                        dealtGroup += left == null ? 0f : left;
                     }
                     if (spot != null) {
                         RESPAWN.put(spot, now + 10);
                     }
+                }
+            }
+            for (UUID id : DUMMIES) {
+                if (level.getEntity(id) instanceof LivingEntity alive) {
+                    DUMMY_HEALTH.put(id, alive.getHealth());
                 }
             }
             java.util.Iterator<java.util.Map.Entry<BlockPos, Long>> rs = RESPAWN.entrySet().iterator();
