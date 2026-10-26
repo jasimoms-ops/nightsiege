@@ -413,9 +413,8 @@ public final class KitService {
                     power = 0;   // the quick shot: no power on the bow (Simon, 25 October 2026)
                 }
                 enchant(bow, ench, Enchantments.POWER, power);
-                if (SkillTree.SUB_SWIFT.equals(sub)) {
-                    enchant(bow, ench, Enchantments.INFINITY, 1);
-                }
+                // Every archer bow never runs out of arrows (Simon, 26 October 2026; was the quick shot only).
+                enchant(bow, ench, Enchantments.INFINITY, 1);
                 enchant(bow, ench, Enchantments.PUNCH, NightKit.bowPunch(level));
                 enchant(bow, ench, Enchantments.FLAME, NightKit.bowFlame(level));
                 if (gainLevel(skills, clazz, "zielfernrohr") > 0) {
@@ -431,13 +430,16 @@ public final class KitService {
                     enchant(xbow, ench, Enchantments.QUICK_CHARGE, quick);
                 }
                 enchant(xbow, ench, Enchantments.PIERCING, NightKit.crossbowPiercing(level));
+                // The crossbow too (Simon, 26 October 2026): Infinity works on any weapon that loads arrows.
+                enchant(xbow, ench, Enchantments.INFINITY, 1);
                 if (gainLevel(skills, clazz, "zielfernrohr") > 0) {
                     Gadgets.setFlag(xbow, Gadgets.SCOPE);
                 }
                 hotbar.add(xbow);
             }
             hotbar.add(sword(ench, weapon, Math.max(1, sharp - 2)));
-            int arrows = NightKit.archerArrows(level) + 16 * gainLevel(skills, clazz, "koecherfuellung");
+            // Köcherfüllung gives arrow damage since every bow has Infinity (26 October 2026).
+            int arrows = NightKit.archerArrows(level);
             hotbar.addAll(stacks(Items.ARROW, arrows));
             if (gainLevel(skills, clazz, "spektralpfeile") > 0) {
                 hotbar.add(new ItemStack(Items.SPECTRAL_ARROW, 16));

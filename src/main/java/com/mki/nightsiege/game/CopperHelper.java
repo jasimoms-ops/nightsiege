@@ -29,7 +29,7 @@ import java.util.UUID;
 
 /**
  * The engineer's copper golem (mechanics way, epic crate gain): a small helper that
- * picks up arrows lying around the base and carries them to the engineer's turrets.
+ * repairs the engineer's worn floor traps (it carried arrows to the turrets until 26 October 2026).
  * It has no AI of its own (so it never sorts anyone's chests); this class walks it.
  */
 public final class CopperHelper {
@@ -110,54 +110,41 @@ public final class CopperHelper {
         level.playSound(null, golem.blockPosition(), SoundEvents.COPPER_GOLEM_SPAWN, SoundSource.NEUTRAL, 1f, 1.2f);
     }
 
-    /** One step: pick up arrows, or bring them to the emptiest turret, or follow the engineer. */
+    /**
+     * One step: walk to the engineer's most worn floor trap close by and repair it, or follow
+     * the engineer (Simon, 26 October 2026: turrets have endless arrows, so the golem repairs
+     * traps instead of carrying arrows). One repair, then a pause ({@link #REPAIR_PAUSE}).
+     */
     private static void work(ServerLevel level, Mob golem, ServerPlayer owner) {
         UUID id = golem.getUUID();
-        int carry = CARRY.getOrDefault(id, 0);
         long now = level.getGameTime();
-        // Every 10 s the golem finds a few arrows of its own, so the turrets never run quite dry.
-        if (now - FOUND.getOrDefault(id, now) >= 200 && carry < CARRY_MAX) {
-            carry = Math.min(CARRY_MAX, carry + 2);
-            FOUND.put(id, now);
-        }
         Vec3 goal = null;
-        if (carry < CARRY_MAX) {
-            Entity arrow = nearestArrow(level, golem.position(), 12.0);
-            if (arrow != null) {
-                if (arrow.distanceToSqr(golem) < 2.5) {
-                    carry += arrow instanceof ItemEntity item ? item.getItem().getCount() : 1;
-                    carry = Math.min(CARRY_MAX, carry);
-                    arrow.discard();
-                    level.playSound(null, golem.blockPosition(), SoundEvents.ITEM_PICKUP, SoundSource.NEUTRAL, 0.4f, 1.5f);
-                } else {
-                    goal = arrow.position();
-                }
-            }
-        }
-        if (goal == null && carry > 0 && owner != null) {
-            BlockPos turret = SiegeManager.get().kits().traps().emptiestTurret(level, owner.getUUID().toString(), golem.position(), 24.0);
-            if (turret != null) {
-                if (golem.position().distanceToSqr(Vec3.atBottomCenterOf(turret)) < 4.0) {
-                    int loaded = SiegeManager.get().kits().traps().addAmmo(level, turret, carry);
-                    carry -= loaded;
-                    if (loaded > 0) {
-                        level.sendParticles(ParticleTypes.WAX_ON, turret.getX() + 0.5, turret.getY() + 1.1, turret.getZ() + 0.5,
+        if (owner != null && now - FOUND.getOrDefault(id, 0L) >= REPAIR_PAUSE) {
+            TrapService traps = SiegeManager.get().kits().traps();
+            BlockPos worn = traps.mostWornTrap(level, owner.getUUID().toString(), golem.position(), 24.0);
+            if (worn != null) {
+                if (golem.position().distanceToSqr(Vec3.atBottomCenterOf(worn)) < 4.0) {
+                    if (traps.repairByGolem(level, worn)) {
+                        FOUND.put(id, now);
+                        level.sendParticles(ParticleTypes.WAX_ON, worn.getX() + 0.5, worn.getY() + 0.6, worn.getZ() + 0.5,
                                 8, 0.3, 0.2, 0.3, 0);
-                        level.playSound(null, turret, SoundEvents.CHAIN_PLACE, SoundSource.BLOCKS, 0.8f, 1.3f);
+                        level.playSound(null, worn, SoundEvents.ANVIL_USE, SoundSource.BLOCKS, 0.8f, 1.3f);
                     }
                 } else {
-                    goal = Vec3.atBottomCenterOf(turret);
+                    goal = Vec3.atBottomCenterOf(worn);
                 }
             }
         }
         if (goal == null && owner != null && golem.distanceToSqr(owner) > 9.0) {
             goal = owner.position();
         }
-        CARRY.put(id, carry);
         if (goal != null) {
             walk(level, golem, goal, owner);
         }
     }
+
+    /** Ticks between two repairs of the golem. */
+    private static final long REPAIR_PAUSE = 300;
 
     private static Entity nearestArrow(ServerLevel level, Vec3 at, double radius) {
         AABB box = new AABB(at, at).inflate(radius, 4.0, radius);

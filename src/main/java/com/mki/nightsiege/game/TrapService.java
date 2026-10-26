@@ -185,17 +185,7 @@ public final class TrapService {
                 return false;
             }
         }
-        int max = maxAmmo(record);
-        if (held != null && held.is(Items.ARROW) && record.ammo < max) {
-            int load = Math.min(held.getCount(), max - record.ammo);
-            record.ammo += load;
-            if (!player.getAbilities().instabuild) {
-                held.shrink(load);
-            }
-            dirty = true;
-            level.playSound(null, pos, SoundEvents.CHAIN_PLACE, SoundSource.BLOCKS, 0.8f, 1.2f);
-        }
-        actionBar(player, Component.translatable("nightsiege.msg.turret_ammo", record.ammo, max));
+        actionBar(player, Component.translatable("nightsiege.msg.turret_endless"));
         return true;
     }
 
@@ -236,6 +226,9 @@ public final class TrapService {
 
     /** The owner's turret nearest a spot that still has room for arrows (the copper golem's errand). */
     public BlockPos emptiestTurret(ServerLevel level, String owner, Vec3 near, double radius) {
+        if (true) {
+            return null;   // endless arrows since 26 October 2026; the copper golem repairs floor traps now
+        }
         String dimension = SiegeManager.dimensionName(level);
         BlockPos best = null;
         double bestScore = Double.MAX_VALUE;
@@ -259,6 +252,43 @@ public final class TrapService {
             }
         }
         return best;
+    }
+
+    /** The owner's most worn floor trap near a spot, or null (the copper golem's errand). */
+    public BlockPos mostWornTrap(ServerLevel level, String owner, Vec3 near, double radius) {
+        String dimension = SiegeManager.dimensionName(level);
+        BlockPos best = null;
+        double bestScore = Double.MAX_VALUE;
+        for (TrapRecord record : traps()) {
+            TrapKind kind = TrapKind.byId(record.kind);
+            if (kind == null || !owner.equals(record.owner) || !dimension.equals(record.dimension) || !canReload(record, kind)) {
+                continue;
+            }
+            BlockPos pos = new BlockPos(record.x, record.y, record.z);
+            double d = near.distanceToSqr(Vec3.atCenterOf(pos));
+            if (d > radius * radius) {
+                continue;
+            }
+            double left = record.uses / (double) Math.max(1, fullUses(kind, tierOf(record), record));
+            double score = left * 100.0 + Math.sqrt(d);
+            if (score < bestScore) {
+                bestScore = score;
+                best = pos;
+            }
+        }
+        return best;
+    }
+
+    /** The copper golem repairs a floor trap fully; true when it was worn. */
+    public boolean repairByGolem(ServerLevel level, BlockPos pos) {
+        TrapRecord record = find(level, pos);
+        TrapKind kind = record == null ? null : TrapKind.byId(record.kind);
+        if (kind == null || !canReload(record, kind)) {
+            return false;
+        }
+        record.uses = fullUses(kind, tierOf(record), record);
+        dirty = true;
+        return true;
     }
 
     /** Loads arrows into a turret; returns how many went in. */
@@ -813,9 +843,7 @@ public final class TrapService {
     }
 
     private void tickTurret(ServerLevel level, BlockPos pos, TrapRecord record, int tier, long now) {
-        if (record.ammo <= 0) {
-            return;
-        }
+        // Endless arrows since 26 October 2026 (Simon): no ammo check, nothing to reload.
         Vec3 muzzle = Vec3.atCenterOf(pos).add(0, 0.75, 0);
         double range = TrapKind.TURRET.radius(tier) + bonus(record, SkillEffect.TOWER_RANGE);
         LivingEntity target = enemies(level, new AABB(muzzle, muzzle).inflate(range)).stream()
@@ -855,8 +883,11 @@ public final class TrapService {
         level.addFreshEntity(arrow);
         playAt(level, pos, SoundEvents.DISPENSER_LAUNCH, 0.8f, 1.3f);
 
-        record.ammo--;
         int cooldown = quicker(record, now, TrapKind.TURRET.cooldownTicks(tier));
+        if (bonus(record, SkillEffect.AMMO_BELT) > 0) {
+            // Munitionsband: the turret shoots faster (it held more arrows until 26 October 2026).
+            cooldown = Math.max(3, (int) Math.round(cooldown * (1.0 - SkillValues.get("e_ammobelt", "speed", 0.2))));
+        }
         if (ultOvercharged(record, now)) {
             cooldown = Math.max(3, (int) (cooldown / ultSpeed()));
             level.sendParticles(ParticleTypes.ELECTRIC_SPARK, muzzle.x, muzzle.y, muzzle.z, 3, 0.2, 0.2, 0.2, 0.05);
@@ -1055,15 +1086,17 @@ public final class TrapService {
             } else if (sneak && kind == TrapKind.TESLA) {
                 // The tesla coil has no second order; it was told "still full" before.
                 actionBar(player, Component.translatable("nightsiege.msg.remote_tesla_x"));
+            } else if (sneak && kind == TrapKind.TURRET) {
+                // Endless arrows since 26 October 2026: nothing to reload.
+                actionBar(player, Component.translatable("nightsiege.msg.turret_endless"));
             } else if (sneak) {
-                double reload = SkillValues.get("e_ammobelt", "reload", COST_RELOAD);
-                double cost = cost(skills, kind == TrapKind.TURRET && tree.totalBonus(SkillEffect.AMMO_BELT, skills) > 0
-                        ? reload * SkillValues.get("e_ammobelt", "cost", 0.5) : reload);
+                // X on a worn floor trap repairs it (Simon, 26 October 2026: only repairing, no reloading).
+                double cost = cost(skills, SkillValues.get("e_ammobelt", "reload", COST_RELOAD));
                 if (!canReload(record, kind)) {
                     actionBar(player, Component.translatable("nightsiege.msg.remote_full"));
                 } else if (pay(player, skills, cost)) {
                     reload(level, trapPos, record, kind, player);
-                    report(player, skills, "nightsiege.msg.remote_reloaded");
+                    report(player, skills, "nightsiege.msg.remote_repaired");
                 }
             } else if (pay(player, skills, overchargeCost(skills, kind))) {
                 boost(level, record, skills, now, 1.0);
@@ -1143,7 +1176,9 @@ public final class TrapService {
         Vec3 target = Vec3.atBottomCenterOf(spot.above());
         String owner = player.getUUID().toString();
         String dim = SiegeManager.dimensionName(level);
-        TrapRecord best = null;
+        // Every own mortar that reaches the spot aims there (Simon, 26 October 2026: with several
+        // mortars it was unclear which one the nearest-mortar rule picked).
+        List<TrapRecord> aiming = new ArrayList<>();
         TrapRecord waiting = null;
         boolean any = false;
         for (TrapRecord r : traps()) {
@@ -1165,15 +1200,12 @@ public final class TrapService {
                 }
                 continue;
             }
-            double d = at.distanceToSqr(player.position());
-            if (best == null || d < Vec3.atCenterOf(new BlockPos(best.x, best.y, best.z)).distanceToSqr(player.position())) {
-                best = r;
-            }
+            aiming.add(r);
         }
         if (!any) {
             return false;   // no mortar: the remote does what it did before
         }
-        if (best == null) {
+        if (aiming.isEmpty()) {
             if (waiting != null) {
                 long left = (aimPause() - (now - waiting.aimedAt) + 19) / 20;
                 actionBar(player, Component.translatable("nightsiege.msg.mortar_aim_wait", left));
@@ -1182,17 +1214,20 @@ public final class TrapService {
             }
             return true;
         }
-        best.aimed = true;
-        best.aimX = spot.getX();
-        best.aimY = spot.getY();
-        best.aimZ = spot.getZ();
-        best.aimedAt = now;
-        best.readyAt = Math.min(best.readyAt, now + 20);
+        for (TrapRecord r : aiming) {
+            r.aimed = true;
+            r.aimX = spot.getX();
+            r.aimY = spot.getY();
+            r.aimZ = spot.getZ();
+            r.aimedAt = now;
+            r.readyAt = Math.min(r.readyAt, now + 20);
+            // A line of sparks from each mortar to the spot shows which ones took the order.
+            spark(level, Vec3.atCenterOf(new BlockPos(r.x, r.y, r.z)).add(0, 0.9, 0), target);
+        }
         dirty = true;
         level.sendParticles(ParticleTypes.FLAME, target.x, target.y + 0.1, target.z, 24, 1.2, 0.05, 1.2, 0.01);
-        spark(level, player.getEyePosition().subtract(0, 0.2, 0), target);
         level.playSound(null, spot, SoundEvents.NOTE_BLOCK_BASEDRUM.value(), SoundSource.PLAYERS, 0.9f, 0.8f);
-        actionBar(player, Component.translatable("nightsiege.msg.mortar_aimed", spot.getX(), spot.getY(), spot.getZ()));
+        actionBar(player, Component.translatable("nightsiege.msg.mortar_aimed_n", aiming.size(), spot.getX(), spot.getY(), spot.getZ()));
         return true;
     }
 
@@ -1262,9 +1297,6 @@ public final class TrapService {
     }
 
     private boolean canReload(TrapRecord record, TrapKind kind) {
-        if (kind == TrapKind.TURRET) {
-            return record.ammo < maxAmmo(record);
-        }
         return kind.isFloorPlate() && record.uses < fullUses(kind, tierOf(record), record);
     }
 
@@ -1359,8 +1391,8 @@ public final class TrapService {
      * the remote holds), the old flat price for every other trap.
      */
     public double overchargeCost(PlayerSkills skills, TrapKind kind) {
-        double share = kind == TrapKind.TESLA ? SkillValues.get(kind.id(), "overcharge", OVERCHARGE_TESLA_SHARE)
-                : kind == TrapKind.TURRET ? SkillValues.get(kind.id(), "overcharge", OVERCHARGE_TURRET_SHARE) : 0.0;
+        // Every shooting tower costs a share of the full remote (Simon, 26 October 2026: 90 %).
+        double share = kind != null && kind.isTower() ? SkillValues.get(kind.id(), "overcharge", 0.9) : 0.0;
         if (share <= 0) {
             return cost(skills, kind == null ? COST_OVERCHARGE : SkillValues.get(kind.id(), "overcharge", COST_OVERCHARGE));
         }
@@ -1590,6 +1622,10 @@ public final class TrapService {
         if (m != null && skills != null
                 && m.kits().gainLevel(skills, com.mki.nightsiege.core.SkillClass.ENGINEER, "ueberkapazitaet") > 0) {
             ueber = 1;   // crate gain: one more of every kind
+        }
+        if (kind == TrapKind.TURRET && m != null && skills != null
+                && m.kits().gainLevel(skills, com.mki.nightsiege.core.SkillClass.ENGINEER, "pfeilkiste") > 0) {
+            ueber += 1;   // Pfeilkiste: one more arrow turret (since 26 October 2026, turrets need no arrows)
         }
         return maxFor(kind, tier, SkillTree.has(skills, "e_fortress"), SkillTree.has(skills, "e_fieldtech"), ueber);
     }

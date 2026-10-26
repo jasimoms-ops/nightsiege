@@ -111,7 +111,6 @@ public enum KeyHint {
             Map.entry(SkillEffect.CORPSE_BLAST, STAFF_X_MINION),
             Map.entry(SkillEffect.SOUL_SHIELD, STAFF_SNEAK_X),
             Map.entry(SkillEffect.DETONATOR, REMOTE_DETONATE),
-            Map.entry(SkillEffect.AMMO_BELT, REMOTE_RELOAD),
             Map.entry(SkillEffect.OVERCHARGE_TIME, REMOTE_BOOST),
             Map.entry(SkillEffect.NETWORK, REMOTE_BOOST),
             Map.entry(SkillEffect.SEEKER, REMOTE_MARK),
