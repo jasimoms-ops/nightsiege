@@ -116,6 +116,11 @@ public final class MeleeSim {
     private static int liveBackup;
     private static int sapperBackup;
     private static double carrierBackup;
+    /** Diagnostics of a bench run: shots let go, training zombies dead or gone, damage to them by source. */
+    private static int shots;
+    private static int dummiesDead;
+    private static int dummiesGone;
+    private static final java.util.Map<String, Double> BY_SOURCE = new java.util.TreeMap<>();
     /** Seconds per stage of the bench. */
     private static final int BENCH_SECONDS = 20;
     private static List<Integer> levels = new ArrayList<>();
@@ -431,6 +436,9 @@ public final class MeleeSim {
             } else if (player.getTicksUsingItem() >= 30) {
                 player.releaseUsingItem();
             }
+            if (loaded != null && !loaded.isEmpty()) {
+                shots++;
+            }
             return;
         }
         if (!player.isUsingItem() || player.getUsedItemHand() != InteractionHand.MAIN_HAND) {
@@ -440,6 +448,7 @@ public final class MeleeSim {
             player.startUsingItem(InteractionHand.MAIN_HAND);
         } else if (player.getTicksUsingItem() >= 21) {
             player.releaseUsingItem();
+            shots++;
         }
     }
 
@@ -611,6 +620,10 @@ public final class MeleeSim {
             healed = 0;
             hitCount = 0;
             java.util.Arrays.fill(HITS, 0);
+            shots = 0;
+            dummiesDead = 0;
+            dummiesGone = 0;
+            BY_SOURCE.clear();
             clearMonsters(level);
             DUMMIES.clear();
             DUMMY_SPOTS.clear();
@@ -655,6 +668,11 @@ public final class MeleeSim {
                 UUID id = it.next();
                 Entity e = level.getEntity(id);
                 if (e == null || !e.isAlive()) {
+                    if (e == null || (e.getRemovalReason() != null && e.getRemovalReason() != Entity.RemovalReason.KILLED)) {
+                        dummiesGone++;
+                    } else {
+                        dummiesDead++;
+                    }
                     it.remove();
                     BlockPos spot = DUMMY_SPOTS.remove(id);
                     if (benchStage == 0) {
@@ -770,6 +788,14 @@ public final class MeleeSim {
                 b.maxHealth(), b.axeRaw(), b.axeLost(), b.zombieRaw(), b.zombieLost());
         System.out.println(line);
         NightSiegeMod.LOGGER.info(line);
+        StringBuilder diag = new StringBuilder(String.format(Locale.ROOT,
+                "[Night Siege sim] Prüfstand-Detail Stufe %2d %-13s Schüsse %d, Zombies tot %d / weg %d, Schaden nach Quelle:",
+                b.level(), b.subclass(), shots, dummiesDead, dummiesGone));
+        for (java.util.Map.Entry<String, Double> e : BY_SOURCE.entrySet()) {
+            diag.append(String.format(Locale.ROOT, " %s=%.0f", e.getKey(), e.getValue()));
+        }
+        System.out.println(diag);
+        NightSiegeMod.LOGGER.info(diag.toString());
         m.abort(level.getServer());
         clearMonsters(level);
         phase = Phase.PAUSE;
@@ -841,6 +867,11 @@ public final class MeleeSim {
             return;
         }
         Entity by = source.getEntity();
+        if (bench && benchStage < 2 && DUMMY_SPOTS.containsKey(victim.getUUID())) {
+            String key = source.getMsgId() + ":" + (by == null ? "-" : by == source.getDirectEntity() ? by.getType().toShortString()
+                    : by.getType().toShortString() + "/" + (source.getDirectEntity() == null ? "-" : source.getDirectEntity().getType().toShortString()));
+            BY_SOURCE.merge(key, (double) amount, Double::sum);
+        }
         if (by != null && (by.getUUID().equals(playerId) || playerId.equals(Companions.ownerOf(by)))) {
             dealt += amount;
             if (bench && benchStage == 0) {
