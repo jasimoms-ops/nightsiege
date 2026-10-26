@@ -407,7 +407,7 @@ public final class KitService {
                 // the quick shot never runs out of arrows.
                 int power = NightKit.plusOne(NightKit.sharpness(level), gainLevel(skills, clazz, "staerke"), 5);
                 if (SkillTree.SUB_HEAVY.equals(sub)) {
-                    power = Math.min(6, power + 1);
+                    power = Math.min(6, power + (int) com.mki.nightsiege.core.SkillValues.get("heavy_draw", "power", 1));
                 }
                 if (SkillTree.SUB_SWIFT.equals(sub)) {
                     power = 0;   // the quick shot: no power on the bow (Simon, 25 October 2026)

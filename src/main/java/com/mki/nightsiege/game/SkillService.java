@@ -51,8 +51,8 @@ public final class SkillService {
                 if (SkillTree.has(skills, "w_glass_cannon")) v -= 8.0;
                 if (SkillTree.has(skills, "w_colossus")) v += 12.0;
                 if (SkillTree.has(skills, "w_martyr")) v -= 4.0;
-                if (SkillTree.has(skills, "a_deadeye")) v -= 8.0;
-                if (SkillTree.has(skills, "a_watchful")) v -= 4.0;
+                if (SkillTree.has(skills, "a_deadeye")) v -= com.mki.nightsiege.core.SkillValues.get("a_deadeye", "health", 8.0);
+                if (SkillTree.has(skills, "a_watchful")) v -= com.mki.nightsiege.core.SkillValues.get("a_watchful", "health", 4.0);
                 if (SkillTree.has(skills, "g_living_wall")) v += 12.0;
                 if (SkillTree.has(skills, "g_bladeshield")) v -= 8.0;
                 if (SkillTree.has(skills, "g_patron")) v -= 4.0;
@@ -62,8 +62,8 @@ public final class SkillService {
             case MOVEMENT_SPEED -> {
                 if (SkillTree.has(skills, "w_unstoppable")) v -= 0.01;
                 if (SkillTree.has(skills, "w_colossus")) v -= 0.01;
-                if (SkillTree.has(skills, "a_skirmisher")) v += 0.015;
-                if (SkillTree.has(skills, "a_siegeengine")) v -= 0.015;
+                if (SkillTree.has(skills, "a_skirmisher")) v += 0.1 * com.mki.nightsiege.core.SkillValues.get("a_skirmisher", "speed", 0.15);
+                if (SkillTree.has(skills, "a_siegeengine")) v -= 0.1 * com.mki.nightsiege.core.SkillValues.get("a_siegeengine", "speed", 0.15);
                 if (SkillTree.has(skills, "g_living_wall")) v -= 0.01;
             }
             case KNOCKBACK_RESIST -> {

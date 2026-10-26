@@ -183,6 +183,8 @@ public final class SkillTree {
         node(list, "a_quiver", c, "", SkillEffect.QUIVER, 3, 3, 2, 0.15, "archer_focus", "a_stem", "minecraft:bundle", 1, 4);
 
         // ----- Way of the bow
+        // Balance update, 26 October 2026: every subclass and talent choice reaches a node on ring V and
+        // a mastery for every ultimate (looser needs on rings V and the masteries, no node removed).
         String b = WAY_BOW;
         node(list, "a_steady", c, b, SkillEffect.DRAW_ASSIST, 3, 3, 2, 0.1, "archer_focus", "b1", "minecraft:string", 2, 1);
         node(list, "a_pierce", c, b, SkillEffect.PIERCE, 2, 3, 2, 1.0, "archer_focus", "", "minecraft:spectral_arrow", 2, 3);
@@ -197,9 +199,9 @@ public final class SkillTree {
         node(list, "a_fire", c, b, SkillEffect.FIRE_ARROWS, 1, 12, 0, 1.0, b3, "b4", "minecraft:blaze_powder", 5, 1);
         node(list, "a_poison", c, b, SkillEffect.POISON_ARROWS, 1, 12, 0, 1.0, b3, "b4", "minecraft:spider_eye", 5, 3);
         node(list, "b_mark", c, b, SkillEffect.MARK, 1, 12, 0, 0.25, b3, "b4", "minecraft:ender_eye", 5, 5);
-        node(list, "a_firevolley", c, b, SkillEffect.FIRE_VOLLEY, 1, 15, 0, 1.0, "double_shot|a_volley,a_fire", "b5", "minecraft:fire_charge", 6, 1);
-        node(list, "a_deathmark", c, b, SkillEffect.DEATH_MARK, 1, 15, 0, 0.3, "heavy_draw,b_mark", "b5", "minecraft:wither_skeleton_skull", 6, 3);
-        node(list, "a_venomburst", c, b, SkillEffect.VENOM_BURST, 1, 15, 0, 1.0, "piercing|a_knockarrow,a_poison", "b5", "minecraft:fermented_spider_eye", 6, 5);
+        node(list, "a_firevolley", c, b, SkillEffect.FIRE_VOLLEY, 1, 15, 0, 1.0, "a_fire", "b5", "minecraft:fire_charge", 6, 1);
+        node(list, "a_deathmark", c, b, SkillEffect.DEATH_MARK, 1, 15, 0, 0.3, "b_mark", "b5", "minecraft:wither_skeleton_skull", 6, 3);
+        node(list, "a_venomburst", c, b, SkillEffect.VENOM_BURST, 1, 15, 0, 1.0, "a_poison", "b5", "minecraft:fermented_spider_eye", 6, 5);
         String b4 = "a_fire|a_poison|b_mark";
         node(list, "a_eagle", c, b, SkillEffect.ARROW_CRIT, 1, 18, 0, 0.2, b4, "b6", "minecraft:feather", 7, 1);
         node(list, "a_retreat", c, b, SkillEffect.RETREAT, 1, 18, 0, 1.0, b4, "b6", "minecraft:rabbit_foot", 7, 3);
@@ -209,10 +211,10 @@ public final class SkillTree {
         node(list, "arrow_storm", c, b, SkillEffect.ARROW_STORM, 3, 20, 10, 1.0, b6, "b_ult", "minecraft:blaze_rod", 8, 1);
         node(list, "power_shot", c, b, SkillEffect.POWER_SHOT, 3, 20, 10, 1.0, b6, "b_ult", "minecraft:dragon_breath", 8, 3);
         node(list, "b_hunt", c, b, SkillEffect.HUNTERS_MARK, 3, 20, 10, 1.0, b6, "b_ult", "minecraft:compass", 8, 5);
-        node(list, "a_tempest", c, b, SkillEffect.TEMPEST, 1, 25, 0, 1.0, "arrow_storm,swift_draw", "b_mastery", "minecraft:wind_charge", 9, 0);
+        node(list, "a_tempest", c, b, SkillEffect.TEMPEST, 1, 25, 0, 1.0, "arrow_storm", "b_mastery", "minecraft:wind_charge", 9, 0);
         node(list, "a_firestorm", c, b, SkillEffect.FIRESTORM, 1, 25, 0, 1.0, "arrow_storm,a_fire|a_firevolley", "b_mastery", "minecraft:magma_cream", 9, 2);
-        node(list, "a_sniper", c, b, SkillEffect.SNIPER, 1, 25, 0, 1.0, "power_shot,heavy_draw", "b_mastery", "minecraft:crossbow", 9, 4);
-        node(list, "b_pack", c, b, SkillEffect.PACK, 1, 25, 0, 1.0, "b_hunt,b_mark", "b_mastery", "minecraft:bone", 9, 6);
+        node(list, "a_sniper", c, b, SkillEffect.SNIPER, 1, 25, 0, 1.0, "power_shot", "b_mastery", "minecraft:crossbow", 9, 4);
+        node(list, "b_pack", c, b, SkillEffect.PACK, 1, 25, 0, 1.0, "b_hunt", "b_mastery", "minecraft:bone", 9, 6);
         node(list, "a_deadeye", c, b, SkillEffect.DEADEYE, 1, 30, 0, 1.0, "arrow_storm|power_shot|b_hunt", "b_key", "minecraft:target", 10, 2);
         node(list, "a_skirmisher", c, b, SkillEffect.SKIRMISHER, 1, 30, 0, 1.0, "arrow_storm|power_shot|b_hunt", "b_key", "minecraft:golden_boots", 10, 4);
 
@@ -232,8 +234,8 @@ public final class SkillTree {
         node(list, "a_tripwire", c, x, SkillEffect.TRIPWIRE, 1, 12, 0, 1.0, x3, "x4", "minecraft:tripwire_hook", 5, 3);
         node(list, "x_mark", c, x, SkillEffect.MARK, 1, 12, 0, 0.25, x3, "x4", "minecraft:ender_eye", 5, 5);
         node(list, "a_clusterbolt", c, x, SkillEffect.CLUSTER, 1, 15, 0, 1.0, "a_explosive|a_multiload,a_punch", "x5", "minecraft:firework_rocket", 6, 1);
-        node(list, "a_hunternet", c, x, SkillEffect.HUNTER_NET, 1, 15, 0, 0.25, "a_snarefield|a_shackle,x_mark", "x5", "minecraft:lead", 6, 3);
-        node(list, "a_trapmaster", c, x, SkillEffect.TRAPMASTER, 1, 15, 0, 4.0, "a_netbolt,a_tripwire", "x5", "minecraft:iron_bars", 6, 5);
+        node(list, "a_hunternet", c, x, SkillEffect.HUNTER_NET, 1, 15, 0, 0.25, "a_snarefield|a_shackle|x_mark", "x5", "minecraft:lead", 6, 3);
+        node(list, "a_trapmaster", c, x, SkillEffect.TRAPMASTER, 1, 15, 0, 4.0, "a_tripwire", "x5", "minecraft:iron_bars", 6, 5);
         String x4 = "a_punch|a_tripwire|x_mark";
         node(list, "a_bracing", c, x, SkillEffect.BRACE, 1, 18, 0, 0.4, x4, "x6", "minecraft:anvil", 7, 1);
         node(list, "a_reloadrush", c, x, SkillEffect.RELOAD_RUSH, 1, 18, 0, 1.0, x4, "x6", "minecraft:sugar", 7, 3);
@@ -244,9 +246,9 @@ public final class SkillTree {
         node(list, "a_netrain", c, x, SkillEffect.NET_RAIN, 3, 20, 10, 1.0, x6, "x_ult", "minecraft:cobweb", 8, 3);
         node(list, "x_hunt", c, x, SkillEffect.HUNTERS_MARK, 3, 20, 10, 1.0, x6, "x_ult", "minecraft:compass", 8, 5);
         node(list, "a_barrage", c, x, SkillEffect.BARRAGE, 1, 25, 0, 1.0, "bolt_volley,shrapnel", "x_mastery", "minecraft:tnt_minecart", 9, 0);
-        node(list, "a_widenet", c, x, SkillEffect.WIDE_NET, 1, 25, 0, 1.0, "bolt_volley,a_netbolt", "x_mastery", "minecraft:string", 9, 2);
-        node(list, "a_deathtrap", c, x, SkillEffect.DEATHTRAP, 1, 25, 0, 0.5, "a_netrain,a_netbolt|a_hunternet", "x_mastery", "minecraft:wither_rose", 9, 4);
-        node(list, "x_pack", c, x, SkillEffect.PACK, 1, 25, 0, 1.0, "x_hunt,x_mark", "x_mastery", "minecraft:bone", 9, 6);
+        node(list, "a_widenet", c, x, SkillEffect.WIDE_NET, 1, 25, 0, 1.0, "bolt_volley", "x_mastery", "minecraft:string", 9, 2);
+        node(list, "a_deathtrap", c, x, SkillEffect.DEATHTRAP, 1, 25, 0, 0.5, "a_netrain", "x_mastery", "minecraft:wither_rose", 9, 4);
+        node(list, "x_pack", c, x, SkillEffect.PACK, 1, 25, 0, 1.0, "x_hunt", "x_mastery", "minecraft:bone", 9, 6);
         node(list, "a_siegeengine", c, x, SkillEffect.SIEGE_ENGINE, 1, 30, 0, 1.0, "bolt_volley|a_netrain|x_hunt", "x_key", "minecraft:dispenser", 10, 2);
         node(list, "a_watchful", c, x, SkillEffect.WATCHFUL, 1, 30, 0, 0.15, "bolt_volley|a_netrain|x_hunt", "x_key", "minecraft:observer", 10, 4);
     }

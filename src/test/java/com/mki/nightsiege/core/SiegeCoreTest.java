@@ -666,6 +666,38 @@ class SiegeCoreTest {
     }
 
     @Test
+    void everyArcherBuildReachesRingFiveAndAMastery() {
+        // Balance update, 26 October 2026: heavy shot with fire arrows and quick shot with the power shot were dead ends.
+        SkillTree tree = new SkillTree();
+        PlayerSkills heavy = new PlayerSkills();
+        heavy.chosenClass = SkillClass.ARCHER.name();
+        heavy.award(5000);
+        for (String id : new String[]{"archer_focus", "a_pierce", "heavy_draw", "heavy_draw", "piercing", "a_fire"}) {
+            assertTrue(tree.unlock(id, heavy), id);
+        }
+        assertNull(tree.blockedReason("a_firevolley", heavy));
+
+        PlayerSkills swift = new PlayerSkills();
+        swift.chosenClass = SkillClass.ARCHER.name();
+        swift.award(5000);
+        for (String id : new String[]{"archer_focus", "a_pierce", "swift_draw", "swift_draw", "double_shot", "b_mark",
+                "a_deathmark", "a_eagle", "power_shot"}) {
+            assertTrue(tree.unlock(id, swift), id);
+        }
+        assertNull(tree.blockedReason("a_sniper", swift));
+
+        PlayerSkills trapper = new PlayerSkills();
+        trapper.chosenClass = SkillClass.ARCHER.name();
+        trapper.award(5000);
+        for (String id : new String[]{"archer_focus", "heavy_bolts", "a_netbolt", "a_netbolt", "a_snarefield", "a_punch",
+                "a_reloadrush", "bolt_volley"}) {
+            assertTrue(tree.unlock(id, trapper), id);
+        }
+        assertNull(tree.blockedReason("a_hunternet", trapper));
+        assertNull(tree.blockedReason("a_widenet", trapper));
+    }
+
+    @Test
     void everyPlayerKeepsTheirOwnProgress() {
         SkillTree tree = new SkillTree();
         PlayerSkills one = new PlayerSkills();
