@@ -354,8 +354,10 @@ public class CrateScreen extends Screen {
         gui.text(font, count, tx, ty + 13, 0xFFB8B0C8, false);
         if (roll.infernite) {
             String inf = Component.translatable("nightsiege.crate.infernite_short").getString();
-            gui.item(new ItemStack(item("nightsiege:infernite_ingot")), left + 14, top + H - 24);
-            gui.text(font, inf, left + 32, top + H - 20, 0xFFFF8A3A, true);
+            // Next to the collection count: the key line pushed the text down onto it (26 October 2026).
+            int ix = tx + font.width(count) + 12;
+            gui.item(new ItemStack(item("nightsiege:infernite_ingot")), ix, ty + 9);
+            gui.text(font, inf, ix + 18, ty + 13, 0xFFFF8A3A, true);
         }
     }
 
