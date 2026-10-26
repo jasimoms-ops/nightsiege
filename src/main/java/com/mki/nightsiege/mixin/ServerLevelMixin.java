@@ -8,6 +8,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
  * During a thunder night only the mod's own lightning strikes, and only
@@ -30,6 +31,23 @@ public abstract class ServerLevelMixin {
     private void nightsiege$noCustomSpawnsInSiege(boolean spawnEnemies, CallbackInfo ci) {
         if (SiegeManager.holdsCustomSpawns((ServerLevel) (Object) this)) {
             ci.cancel();
+        }
+    }
+
+    /**
+     * Spawn protection must not lock players without operator rights out of the core
+     * (playtest 25 October 2026: the core stood near the world spawn, and only operators
+     * could open it). Building and breaking there stays protected.
+     */
+    @Inject(method = "mayInteract", at = @At("RETURN"), cancellable = true, require = 0)
+    private void nightsiege$coreBeatsSpawnProtection(net.minecraft.world.entity.Entity entity,
+                                                     net.minecraft.core.BlockPos pos,
+                                                     CallbackInfoReturnable<Boolean> cir) {
+        if (!cir.getReturnValueZ() && entity instanceof net.minecraft.server.level.ServerPlayer
+                && com.mki.nightsiege.game.ModContent.SIEGE_CORE != null
+                && ((ServerLevel) (Object) this).getBlockState(pos).is(com.mki.nightsiege.game.ModContent.SIEGE_CORE)
+                && ((ServerLevel) (Object) this).getWorldBorder().isWithinBounds(pos)) {
+            cir.setReturnValue(true);
         }
     }
 }
