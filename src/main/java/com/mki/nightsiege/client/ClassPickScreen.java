@@ -535,6 +535,39 @@ public class ClassPickScreen extends Screen {
     private static int wrapped(GuiGraphicsExtractor gui, Font font, String text, int x, int y, int width, int color,
                                float scale, int maxLines) {
         List<FormattedCharSequence> lines = font.split(FormattedText.of(text), (int) (width / scale));
+        if (lines.size() > maxLines && maxLines > 0) {
+            // Cut text ends with "…" instead of stopping mid-sentence: plain word wrap, last line shortened.
+            int max = (int) (width / scale);
+            List<String> plain = new java.util.ArrayList<>();
+            StringBuilder cur = new StringBuilder();
+            for (String word : text.split(" ")) {
+                String tryLine = cur.length() == 0 ? word : cur + " " + word;
+                if (font.width(tryLine) <= max || cur.length() == 0) {
+                    cur.setLength(0);
+                    cur.append(tryLine);
+                } else {
+                    plain.add(cur.toString());
+                    cur.setLength(0);
+                    cur.append(word);
+                }
+            }
+            if (cur.length() > 0) {
+                plain.add(cur.toString());
+            }
+            int lineH = (int) Math.ceil(9 * scale) + 1;
+            for (int n = 0; n < maxLines && n < plain.size(); n++) {
+                String line = plain.get(n);
+                if (n == maxLines - 1 && plain.size() > maxLines) {
+                    line = font.plainSubstrByWidth(line, max - font.width("…")).trim() + "…";
+                }
+                gui.pose().pushMatrix();
+                gui.pose().translate(x, y + n * lineH);
+                gui.pose().scale(scale, scale);
+                gui.text(font, line, 0, 0, color, false);
+                gui.pose().popMatrix();
+            }
+            return y + maxLines * lineH;
+        }
         int lineH = (int) Math.ceil(9 * scale) + 1;
         int n = 0;
         for (FormattedCharSequence line : lines) {
