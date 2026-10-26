@@ -26,6 +26,19 @@ public final class KeyHints {
         return Component.translatable("nightsiege.keyhint.prefix", keys).withStyle(ChatFormatting.AQUA);
     }
 
+    /**
+     * The line for a skill or crate gain: always there (Simon, 26 October 2026), the key
+     * in aqua, or a gray "no key of its own" when it works by itself. Starts with its
+     * colour code, for the screens that build their text from § strings.
+     */
+    public static String always(KeyHint hint) {
+        Component keys = line(hint);
+        if (keys != null) {
+            return "§b" + keys.getString();
+        }
+        return "§8" + Component.translatable("nightsiege.keyhint.none_line").getString();
+    }
+
     /** Only the key part ("R", "Sneak + Right Button"), or null. */
     public static Component keys(KeyHint hint) {
         if (hint == null || hint == KeyHint.NONE) {
@@ -33,16 +46,22 @@ public final class KeyHints {
         }
         Options o = Minecraft.getInstance().options;
         KeyMapping[] used = switch (hint) {
-            case ULT -> new KeyMapping[]{NightSiegeClient.ultimateKey()};
+            case ULT, ULT_LOOK, ULT_UPGRADE -> new KeyMapping[]{NightSiegeClient.ultimateKey()};
+            case ULT_SHOT -> new KeyMapping[]{NightSiegeClient.ultimateKey(), o.keyUse};
             case ULT2 -> new KeyMapping[]{GainClient.secondUltKey()};
             case QUIVER -> new KeyMapping[]{GainClient.quiverKey()};
+            case QUIVER_SHOT -> new KeyMapping[]{GainClient.quiverKey(), o.keyUse};
             case AIR_JUMP -> new KeyMapping[]{o.keyJump};
-            case USE, USE_BLOCK, USE_MATE, DRAW -> new KeyMapping[]{o.keyUse};
+            case JUMP_ATTACK -> new KeyMapping[]{o.keyJump, o.keyAttack};
+            case USE, USE_BLOCK, PLACE_TRAP, USE_MATE, DRAW, BLOCK, PERFECT_BLOCK, STAFF_CALL,
+                 REMOTE_BOOST, REMOTE_MARK -> new KeyMapping[]{o.keyUse};
             case USE_MATE_OR_SHIELD, SHIELD_ACTION -> new KeyMapping[]{o.keyUse, o.keyAttack};
-            case SNEAK -> new KeyMapping[]{o.keyShift};
+            case SNEAK, SNEAK_SHOOT -> new KeyMapping[]{o.keyShift};
             case SNEAK_BLOCK -> new KeyMapping[]{o.keyShift, o.keyUse};
+            case SNEAK_USE, REMOTE_RELOAD, REMOTE_DETONATE, STAFF_X_MINION, STAFF_X_FREE ->
+                    new KeyMapping[]{GainClient.secondUltKey()};
             // the X key does what sneak + right click did with the remote and the staff (25 October 2026)
-            case SNEAK_USE, REMOTE, STAFF -> new KeyMapping[]{GainClient.secondUltKey(), o.keyUse};
+            case REMOTE, STAFF -> new KeyMapping[]{GainClient.secondUltKey(), o.keyUse};
             default -> new KeyMapping[0];
         };
         Object[] names = new Object[used.length];

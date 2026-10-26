@@ -328,6 +328,12 @@ public class CrateScreen extends Screen {
             gui.text(font, line, tx, ty, 0xFFCFC7DD, false);
             ty += 10;
         }
+        // Which key the gain needs, or that it needs none (Simon, 26 October 2026).
+        String keyLine = KeyHints.always(com.mki.nightsiege.core.KeyHint.forGain(roll.gain));
+        for (String line : wrap(font, keyLine.substring(2), W - 170)) {
+            gui.text(font, keyLine.substring(0, 2) + line, tx, ty, 0xFFFFFFFF, false);
+            ty += 10;
+        }
         String state;
         int stateColor;
         if (roll.duplicate) {

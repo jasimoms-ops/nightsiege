@@ -878,15 +878,32 @@ class SiegeCoreTest {
     void everythingWithAKeySaysWhichOne() {
         SkillTree tree = new SkillTree();
         int ults = 0;
+        java.util.Set<KeyHint> ultKeys = java.util.EnumSet.of(KeyHint.ULT, KeyHint.ULT_LOOK, KeyHint.ULT_SHOT);
         for (SkillNode node : tree.all()) {
             if (node.effect().target() == SkillEffect.Target.ULTIMATE) {
-                assertEquals(KeyHint.ULT, KeyHint.forNode(node.id(), true));
+                assertTrue(ultKeys.contains(KeyHint.forNode(tree, node)), node.id());
                 ults++;
             }
         }
         assertTrue(ults >= 16, "ults: " + ults);
-        assertEquals(KeyHint.SHIELD_ACTION, KeyHint.forNode("g_shieldthrow", false));
-        assertEquals(KeyHint.NONE, KeyHint.forNode("archer_focus", false));
+        assertEquals(KeyHint.SHIELD_ACTION, KeyHint.forNode(tree, "g_shieldthrow"));
+        assertEquals(KeyHint.NONE, KeyHint.forNode(tree, "archer_focus"));
+        // Since 26 October 2026 the key is written next to every skill.
+        assertEquals(KeyHint.ULT_LOOK, KeyHint.forNode(tree, "execute"));
+        assertEquals(KeyHint.ULT_SHOT, KeyHint.forNode(tree, "power_shot"));
+        assertEquals(KeyHint.ULT_UPGRADE, KeyHint.forNode(tree, "w_chain_execute"));
+        assertEquals(KeyHint.ULT_UPGRADE, KeyHint.forNode(tree, "s_titanfist"));
+        assertEquals(KeyHint.PLACE_TRAP, KeyHint.forNode(tree, TrapKind.SPIKE.id()));
+        assertEquals(KeyHint.PLACE_TRAP, KeyHint.forNode(tree, "m_cross_mine"));
+        assertEquals(KeyHint.PERFECT_BLOCK, KeyHint.forNode(tree, "g_shieldbash"));
+        assertEquals(KeyHint.SNEAK_BLOCK, KeyHint.forNode(tree, "g_hedgehog"));
+        assertEquals(KeyHint.JUMP_ATTACK, KeyHint.forNode(tree, "w_earthshock"));
+        assertEquals(KeyHint.SNEAK_SHOOT, KeyHint.forNode(tree, "a_bracing"));
+        assertEquals(KeyHint.REMOTE_DETONATE, KeyHint.forNode(tree, "e_detonator"));
+        assertEquals(KeyHint.STAFF_X_MINION, KeyHint.forNode(tree, "d_corpse"));
+        assertEquals(KeyHint.STAFF_X_FREE, KeyHint.forNode(tree, "d_soulshield"));
+        assertEquals(KeyHint.QUIVER_SHOT, KeyHint.forGain("sturmpfeile"));
+        assertEquals(KeyHint.NONE, KeyHint.forGain("totem"));
         assertEquals(KeyHint.ULT2, KeyHint.forGain("spiegelschild"));
         assertEquals(KeyHint.QUIVER, KeyHint.forGain("koecher"));
         assertEquals(KeyHint.USE, KeyHint.forGadget("wurfbeil"));
@@ -1736,8 +1753,8 @@ class SiegeCoreTest {
         // The tamer's wolves and the golemsmith's golems are lanes of their own.
         assertEquals(SkillTree.SUB_TAMER, tree.laneOf("s_alpha"));
         assertEquals(SkillTree.SUB_GOLEMSMITH, tree.laneOf("s_hardgolem"));
-        assertEquals(KeyHint.STAFF, KeyHint.forNode("s_packcall", false));
-        assertEquals(KeyHint.STAFF, KeyHint.forNode("d_raise", false));
+        assertEquals(KeyHint.STAFF_CALL, KeyHint.forNode(tree, "s_packcall"));
+        assertEquals(KeyHint.STAFF_CALL, KeyHint.forNode(tree, "d_raise"));
         assertEquals(SkillTree.SUB_NECROMANCER, tree.laneOf("d_ghoul"));
         assertEquals(SkillTree.SUB_SOULCATCHER, tree.laneOf("d_swarm"));
         assertTrue(tree.pointsToComplete(new PlayerSkills(), SkillClass.SUMMONER) > 250);

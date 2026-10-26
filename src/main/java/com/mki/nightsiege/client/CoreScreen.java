@@ -1334,6 +1334,10 @@ public class CoreScreen extends Screen {
         if (Language.getInstance().has(descKey)) {
             lines.add("§7" + SkillText.fill(Language.getInstance().getOrDefault(descKey), n).replace("\n", " "));
         }
+        // Which key the skill needs, or that it needs none (Simon, 26 October 2026).
+        if (activeTab != Tab.CORE) {
+            lines.add(KeyHints.always(com.mki.nightsiege.core.KeyHint.byName(n.key)));
+        }
         lines.add("§f" + Component.translatable("nightsiege.ui.node_level", n.level, n.maxLevel).getString()
                 + (n.level < n.maxLevel ? "  §e" + Component.translatable("nightsiege.ui.node_cost", n.cost).getString() : ""));
         // What it needs, term by term.
@@ -2182,10 +2186,7 @@ public class CoreScreen extends Screen {
                 lines.add("§7" + part);
             }
         }
-        Component keyLine = KeyHints.line(com.mki.nightsiege.core.KeyHint.forGain(g.id()));
-        if (keyLine != null) {
-            lines.add("§b" + keyLine.getString());
-        }
+        lines.add(KeyHints.always(com.mki.nightsiege.core.KeyHint.forGain(g.id())));
         int stage = gainStage(collectionClass(), g.id());
         if (!g.ready()) {
             lines.add("§8" + Component.translatable("nightsiege.ui.collection_soon").getString());
@@ -2475,9 +2476,8 @@ public class CoreScreen extends Screen {
                 lines.add("§7" + part);
             }
         }
-        Component keyLine = KeyHints.line(com.mki.nightsiege.core.KeyHint.byName(node.key));
-        if (keyLine != null) {
-            lines.add("§b" + keyLine.getString());
+        if (activeTab != Tab.CORE) {
+            lines.add(KeyHints.always(com.mki.nightsiege.core.KeyHint.byName(node.key)));
         }
         lines.add(Component.translatable("nightsiege.ui.node_level", node.level, node.maxLevel).getString());
         if (node.level < node.maxLevel) {
