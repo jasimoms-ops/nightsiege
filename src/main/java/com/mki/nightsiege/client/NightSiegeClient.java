@@ -77,6 +77,7 @@ public class NightSiegeClient implements ClientModInitializer {
                 (handler, client) -> {
                     BossLooks.clear();
                     MannedClient.reset();
+                    HealthViewClient.clear();
                 });
         ClientPlayNetworking.registerGlobalReceiver(CoreNetworking.ScreenPayload.TYPE,
                 (payload, context) -> context.client().execute(() -> {
@@ -103,6 +104,8 @@ public class NightSiegeClient implements ClientModInitializer {
                                 NightStatsScreen.queue(stats);
                             }
                         }
+                    } else if ("healthview".equals(payload.kind())) {
+                        HealthViewClient.set(payload.json());
                     } else if ("brewmenu".equals(payload.kind())) {
                         com.mki.nightsiege.core.BrewMenuData data =
                                 Json.fromJson(payload.json(), com.mki.nightsiege.core.BrewMenuData.class);

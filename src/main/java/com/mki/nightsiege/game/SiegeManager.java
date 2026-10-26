@@ -566,6 +566,7 @@ public final class SiegeManager {
         if (server.overworld().getGameTime() % 20 == 0) {
             sendUltHud(server);
             tickClassGear(server);
+            safe("Lebensanzeige", () -> HealthView.tick(server, this));
         }
         if (trapsDirty && ++trapSaveCounter >= 200) {
             trapSaveCounter = 0;
@@ -2638,6 +2639,7 @@ public final class SiegeManager {
             return;
         }
         events.forget(player.getUUID());
+        HealthView.forget(player.getUUID());
         if (bosses.spawned()) {
             bosses.syncTo(player);
         }
