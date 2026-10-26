@@ -6,9 +6,15 @@ import java.util.List;
 /** What the class window before a night shows; travels as JSON. */
 public class ClassPickData {
 
-    /** One class card. */
+    /** One profile card ("Krieger – Berserker"). */
     public static class Entry {
+        /** Profile key ("WARRIOR", "WARRIOR#2"); what "play:" sends back. */
         public String id = "";
+        /** The profile's class. */
+        public String clazz = "";
+        /** Level of the profile's ultimate and its top level. */
+        public int ult;
+        public int ultMax = 3;
         public boolean unlocked;
         public boolean leveling;
         public boolean complete;
@@ -25,6 +31,8 @@ public class ClassPickData {
     public static class Mate {
         public String name = "";
         public String play = "";
+        /** The subclass of the profile they play, or empty. */
+        public String subclass = "";
         /** Has confirmed a class in the window (or never had to). */
         public boolean ready;
         /** The player looking at the window. */
@@ -39,6 +47,7 @@ public class ClassPickData {
         }
     }
 
+    /** The played profile's key. */
     public String play = "";
     public int seconds;
     public int level;
@@ -49,8 +58,8 @@ public class ClassPickData {
     /** Accepted invitations and how many are needed (real nights). */
     public int accepts;
     public int required;
-    /** The class being levelled (for the text on locked cards) and whether the next one may open. */
-    public String leveling = "";
+    /** Unlocks not used yet and whether one may be used now (in the core window). */
+    public int unlocksFree;
     public boolean nextOpen;
     /** Armour material of the kit tonight (IRON, DIAMOND, NETHERITE, INFERNITE). */
     public String armor = "";
