@@ -4,6 +4,7 @@
   "package": "com.mki.nightsiege.mixin",
   "compatibilityLevel": "JAVA_25",
   "mixins": [
+    "ArmorStandAccessor",
     "ArrowAccessor",
     "ArrowHitMixin",
     "AttributeLayersMixin",
@@ -22,12 +23,16 @@
     "ServerLevelMixin"
   ],
   "client": [
+    "client.AvatarRendererMixin",
+    "client.CameraMixin",
+    "client.HandInSpotterMixin",
     "client.HumanoidArmorLayerMixin",
     "client.HumanoidRenderStateMixin",
     "client.IrisUniformsMixin",
     "client.LayerDefinitionAccessor",
     "client.LivingEntityRenderStateMixin",
     "client.LivingEntityRendererMixin",
+    "client.MinecraftAttackMixin",
     "client.PhantomEyesLayerMixin",
     "client.RenderLayerTextureMixin",
     "client.ScopeFovMixin",

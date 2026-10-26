@@ -467,6 +467,12 @@ public final class SkillTree {
         node(list, "e_napalm", c, ch, SkillEffect.NAPALM, 1, 15, 0, 1.0, mine + ",e_accelerant|e_chain_reaction", "ec5", "minecraft:magma_cream", 6, 1);
         node(list, "e_plague_mine", c, ch, SkillEffect.PLAGUE_MINE, 1, 15, 0, 8.0, poison + ",e_chain_reaction|e_accelerant", "ec5", "minecraft:spider_eye", 6, 3);
         node(list, "e_targetblast", c, ch, SkillEffect.TARGET_BLAST, 1, 15, 0, 4.0, "c_cross_turret,e_detonator", "ec5", "minecraft:firework_star", 6, 5);
+        // The bird's-eye view's fire (Simon, 26 October 2026): each one a skill of its own on the
+        // outer edge of the demolition fan, open in any order once the mortar is learned.
+        node(list, "e_barrage", c, ch, SkillEffect.BARRAGE_FIRE, 1, 8, 0, 1.0, mine, "", "minecraft:iron_bars", 4, 1);
+        node(list, "e_area_fire", c, ch, SkillEffect.AREA_FIRE, 1, 10, 0, 1.0, mine + ":2", "", "minecraft:tnt", 5, 0);
+        node(list, "e_smoke_salvo", c, ch, SkillEffect.SMOKE_SALVO, 1, 12, 0, 1.0, mine + ":2", "", "minecraft:campfire", 6, 0);
+        node(list, "e_fire_salvo", c, ch, SkillEffect.FIRE_SALVO, 1, 14, 0, 1.0, mine + ":3", "", "minecraft:fire_charge", 7, 0);
         String c4 = "e_chain_reaction|e_accelerant|c_cross_turret";
         node(list, "e_blastpower", c, ch, SkillEffect.BLAST_POWER, 1, 18, 0, 0.5, c4, "ec6", "minecraft:gunpowder", 7, 1);
         node(list, "e_slowpoison", c, ch, SkillEffect.SLOW_POISON, 1, 18, 0, 0.5, c4, "ec6", "minecraft:pufferfish", 7, 3);

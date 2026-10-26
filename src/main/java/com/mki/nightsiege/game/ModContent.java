@@ -128,10 +128,12 @@ public final class ModContent {
         Identifier id = id(kind.id());
         ResourceKey<Block> blockKey = ResourceKey.create(Registries.BLOCK, id);
         boolean turret = !kind.isFloorPlate();
-        Block block = new TrapBlock(kind, BlockBehaviour.Properties.of()
+        BlockBehaviour.Properties properties = BlockBehaviour.Properties.of()
                 .setId(blockKey)
                 .strength(turret ? 3.5f : 2.0f, 6.0f)
-                .sound(SoundType.METAL));
+                .sound(SoundType.METAL);
+        // Arrow turret and tesla coil can be manned (Simon, 26 October 2026): they carry the look.
+        Block block = TowerBlock.mannable(kind) ? new TowerBlock(kind, properties) : new TrapBlock(kind, properties);
         Registry.register(BuiltInRegistries.BLOCK, blockKey, block);
 
         ResourceKey<Item> itemKey = ResourceKey.create(Registries.ITEM, id);

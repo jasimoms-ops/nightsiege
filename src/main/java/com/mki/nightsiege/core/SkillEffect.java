@@ -281,6 +281,14 @@ public enum SkillEffect {
     BLAST_POWER(0.0, Target.TRAP),
     SLOW_POISON(0.0, Target.TRAP),
     CARPET_BOMB(0.0, Target.TRAP),
+    /** Bird's-eye view: a line of shells (Sperrfeuer, Simon 26 October 2026). */
+    BARRAGE_FIRE(0.0, Target.TRAP),
+    /** Bird's-eye view: shells scattered over a circle (Flächenfeuer). */
+    AREA_FIRE(0.0, Target.TRAP),
+    /** Bird's-eye view: smoke shells, monsters lose their target (Rauchsalve). */
+    SMOKE_SALVO(0.0, Target.TRAP),
+    /** Bird's-eye view: fire shells, the ground burns (Brandsalve). */
+    FIRE_SALVO(0.0, Target.TRAP),
     FIRE_BOMBS(0.0, Target.TRAP),
     PLAGUE(0.0, Target.TRAP),
     ACID_FOG(0.0, Target.TRAP),

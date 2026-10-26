@@ -74,7 +74,11 @@ public class NightSiegeClient implements ClientModInitializer {
                 });
         // Network ids of boss monsters only hold for one connection.
         net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents.DISCONNECT.register(
-                (handler, client) -> BossLooks.clear());
+                (handler, client) -> {
+                    BossLooks.clear();
+                    MannedClient.reset();
+                    HealthViewClient.clear();
+                });
         ClientPlayNetworking.registerGlobalReceiver(CoreNetworking.ScreenPayload.TYPE,
                 (payload, context) -> context.client().execute(() -> {
                     Minecraft client = Minecraft.getInstance();
@@ -99,6 +103,20 @@ public class NightSiegeClient implements ClientModInitializer {
                             } else {
                                 NightStatsScreen.queue(stats);
                             }
+                        }
+                    } else if ("spotter".equals(payload.kind())) {
+                        com.mki.nightsiege.core.SpotterData data =
+                                Json.fromJson(payload.json(), com.mki.nightsiege.core.SpotterData.class);
+                        if (data != null && client.player != null) {
+                            client.setScreenAndShow(new SpotterScreen(data));
+                        }
+                    } else if ("healthview".equals(payload.kind())) {
+                        HealthViewClient.set(payload.json());
+                    } else if ("brewmenu".equals(payload.kind())) {
+                        com.mki.nightsiege.core.BrewMenuData data =
+                                Json.fromJson(payload.json(), com.mki.nightsiege.core.BrewMenuData.class);
+                        if (data != null) {
+                            client.setScreenAndShow(new BrewMenuScreen(data));
                         }
                     } else if ("bosses".equals(payload.kind())) {
                         BossLooks.set(payload.json());
@@ -180,6 +198,8 @@ public class NightSiegeClient implements ClientModInitializer {
         // Event looks: hoods and rags over zombies and skeletons, the 3D gear on every event monster.
         net.fabricmc.fabric.api.client.rendering.v1.LivingEntityRenderLayerRegistrationCallback.EVENT.register(
                 NightSiegeClient::eventLayers);
+        // Manned towers (Simon, 26 October 2026): the attack button fires the tower.
+        ClientTickEvents.START_CLIENT_TICK.register(MannedClient::tick);
         // Guardian: a left click while blocking is the shield action. Minecraft drops
         // attack clicks while an item is in use, so they are taken here first.
         ClientTickEvents.START_CLIENT_TICK.register(client -> {

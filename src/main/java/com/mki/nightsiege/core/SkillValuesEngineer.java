@@ -39,6 +39,10 @@ final class SkillValuesEngineer {
         def("arrow_turret", "slowhigh", 1.0 / 0.7);
         def("mortar_tower", "slow", 2.0);
         def("arrow_turret", "overcharge", 0.9);                          // share of the full remote (Simon, 26 Oct: all shooting towers 90 %)
+        def("arrow_turret", "unmanned", 0.6);                            // alone (Simon, 26 Oct)
+        def("arrow_turret", "manned", 1.4);                              // with a gunner in the seat
+        def("arrow_turret", "headshot", 2.0);                            // a manned arrow on the head
+        def("arrow_turret", "headline", 0.75);                           // share of the height from where the head starts
         tower(TrapKind.TESLA, CAP_TESLA);
         for (int t = 1; t <= 3; t++) {
             def("tesla_coil", "targets" + t, TrapKind.TESLA.baseChainTargets(t));
@@ -48,6 +52,12 @@ final class SkillValuesEngineer {
         def("tesla_coil", "near", 0.6);                                  // cooldown factor with its engineer close by
         def("tesla_coil", "nearrange", 6);                               // blocks
         def("tesla_coil", "jump", 4);                                    // blocks from monster to monster
+        // Manned towers (Simon, 26 October 2026): alone 60 %, with a gunner in the seat 140 %.
+        def("tesla_coil", "unmanned", 0.6);
+        def("tesla_coil", "manned", 1.4);
+        def("tesla_coil", "beampulse", 5);                               // ticks between two beam strikes
+        def("tesla_coil", "beamcost", 2.5);                              // energy per beam strike that hits
+        def("tesla_coil", "beamrange", 4);                               // blocks more than the coil's own reach
         tower(TrapKind.MORTAR, CAP_MORTAR);
         for (int t = 1; t <= 3; t++) {
             def("mortar_tower", "splash" + t, TrapKind.MORTAR.baseSplash(t));
@@ -58,6 +68,23 @@ final class SkillValuesEngineer {
         def("mortar_tower", "zombie", 0.375);
         def("mortar_tower", "aimpause", 200);                            // ticks between two new target spots
         def("mortar_tower", "salvo", 3);                                 // shells of the X salvo
+        // The bird's-eye view (Simon, 26 October 2026).
+        def("mortar_tower", "spotradius", 48);                           // blocks around the core the view may go
+        def("e_barrage", "pause", 200);                                  // ticks after a use (10 s)
+        def("e_barrage", "shells", 6);
+        def("e_barrage", "length", 16);                                  // longest line in blocks
+        def("e_area_fire", "pause", 200);
+        def("e_area_fire", "shells", 8);
+        def("e_area_fire", "radius", 5);                                 // blocks
+        def("e_area_fire", "dmg", 0.8);                                  // damage of each shell
+        def("e_smoke_salvo", "pause", 200);
+        def("e_smoke_salvo", "shells", 2);
+        def("e_smoke_salvo", "radius", 5);                               // blocks of smoke per shell
+        def("e_smoke_salvo", "time", 80);                                // ticks without a target
+        def("e_fire_salvo", "pause", 200);
+        def("e_fire_salvo", "shells", 3);
+        def("e_fire_salvo", "burn", 100);                                // ticks the ground burns
+        def("e_fire_salvo", "dmg", 0.6);                                 // damage of each shell
         def("mortar_tower", "overcharge", 0.9);                          // share of the full remote
         tower(TrapKind.BREWER, CAP_BREWER);
         for (int t = 1; t <= 3; t++) {
@@ -68,6 +95,15 @@ final class SkillValuesEngineer {
         def("potion_tower", "poison", TrapKind.BREWER.baseHold(1));    // ticks the poison eats
         def("potion_tower", "big", 1.5);                                 // area of the big throw (X)
         def("potion_tower", "overcharge", 0.9);                          // share of the full remote
+        // The alchemist's zones and flash grenade (Simon, 26 October 2026).
+        def("potion_tower", "zonerange", 10);                            // blocks to the spot looked at
+        def("potion_tower", "zonetime", 160);                            // ticks a cloud stays
+        def("potion_tower", "zonepause", 400);                           // ticks between two zone potions
+        def("potion_tower", "zoneradius", 3.5);                          // blocks
+        def("potion_tower", "zoneheal", 2.0);                            // life points per second in the healing cloud
+        def("potion_tower", "flashradius", 5);                           // blocks
+        def("potion_tower", "flashtime", 80);                            // ticks blind and without a target
+        def("potion_tower", "flashpause", 300);                          // ticks until the grenade is back
         def("spike_trap", "overcharge", 30);
         def("snare_trap", "overcharge", 30);
         def("flame_trap", "overcharge", 30);
