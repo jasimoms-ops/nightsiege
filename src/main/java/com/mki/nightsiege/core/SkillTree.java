@@ -340,7 +340,7 @@ public final class SkillTree {
         // so a blademaster with both cross nodes had no mastery); ring V asks only for the subclass's ring III.
         node(list, "e_cross_heavy", c, e, SkillEffect.HEAVY_BLOW, 1, 12, 0, 3.0, e3, "e4", "minecraft:iron_axe", 5, 5);
         node(list, "w_bladefrenzy", c, e, SkillEffect.CRIT_RAGE, 1, 15, 0, 1.0, "keen_edge|w_precision", "e5", "minecraft:netherite_sword", 6, 2);
-        node(list, "w_bloodblade", c, e, SkillEffect.PARRY_HEAL, 1, 15, 0, 4.0, "blood_drinker|w_warcry", "e5", "minecraft:red_dye", 6, 4);
+        node(list, "w_bloodblade", c, e, SkillEffect.BLOOD_BLADE, 1, 15, 0, 1.0, "blood_drinker|w_warcry", "e5", "minecraft:red_dye", 6, 4);
         String e4 = "w_parry|w_frenzy|e_cross_heavy";
         node(list, "w_evasion", c, e, SkillEffect.DODGE, 1, 18, 0, 0.10, e4, "e6", "minecraft:phantom_membrane", 7, 1);
         node(list, "w_bloodprice", c, e, SkillEffect.BLOOD_PRICE, 1, 18, 0, 0.3, e4, "e6", "minecraft:redstone_block", 7, 3);

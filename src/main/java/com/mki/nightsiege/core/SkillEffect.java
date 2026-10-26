@@ -87,6 +87,8 @@ public enum SkillEffect {
     CRIT_RAGE(0.0, Target.COMBAT),
     /** A parry heals this much. */
     PARRY_HEAL(0.0, Target.COMBAT),
+    /** Blutklinge: more life steal while in the bloodlust (berserker, Simon 26.10.). */
+    BLOOD_BLADE(0.0, Target.COMBAT),
     /** Chance to avoid a monster's damage altogether. */
     DODGE(0.0, Target.COMBAT),
     /** Melee hits are this much stronger but cost a little health. */

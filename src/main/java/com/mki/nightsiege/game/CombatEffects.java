@@ -817,7 +817,9 @@ public final class CombatEffects {
         // The share is the skill value bloodlust.steal (no longer the config's berserkerLifesteal).
         if (skills.clazz() == SkillClass.WARRIOR && SkillTree.SUB_BERSERKER.equals(tree.subclassOf(skills))
                 && player.getHealth() < player.getMaxHealth() * SkillValues.get("bloodlust", "below", 0.5)) {
-            double steal = SkillValues.get("bloodlust", "steal", 0.12);
+            // Blutklinge (Simon 26.10.): +5 % life steal in the bloodlust (no longer tied to Parade).
+            double steal = SkillValues.get("bloodlust", "steal", 0.12)
+                    + (SkillTree.has(skills, "w_bloodblade") ? SkillValues.get("w_bloodblade", "steal", 0.05) : 0.0);
             if (steal > 0) {
                 player.heal((float) ((taken + extra) * steal));
             }
@@ -898,9 +900,6 @@ public final class CombatEffects {
             player.addEffect(new MobEffectInstance(MobEffects.SPEED, (int) SkillValues.get("a_reloadrush", "dur", 60), 1));
         }
         // Blutklinge without Parade: every kill heals a little instead of every parry.
-        if (skills != null && SkillTree.has(skills, "w_bloodblade") && !SkillTree.has(skills, "w_parry")) {
-            player.heal((float) SkillValues.get("w_bloodblade", "kill", 2));
-        }
         // Warriors (not berserker and blademaster) and the shield fighter heal from kills only:
         // a share of the slain monster's life (config meleeLifesteal, Simon 25 October 2026).
         if (skills != null && killed instanceof LivingEntity slain) {

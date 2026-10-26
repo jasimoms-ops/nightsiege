@@ -36,7 +36,7 @@ final class SkillValuesWarrior {
         def("w_frenzy", "combo", 0.4);         // with Kombo: damage at 0 life instead of speed
         def("e_cross_heavy", "slow", 20);      // Slowness II, ticks
         def("w_bladefrenzy", "time", 60);      // Strength I, ticks
-        def("w_bloodblade", "kill", 2);        // without Parade: life healed per kill
+        def("w_bloodblade", "steal", 0.05);    // extra life steal in the bloodlust (Simon 26.10.)
         def("w_evasion", "speed", 30);         // Speed I after a dodge, ticks
         def("w_bloodprice", "cost", 1.0);      // life per hit (half a heart)
         def("w_bloodprice", "floor", 6.0);     // only above this life
