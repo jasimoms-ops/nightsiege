@@ -1063,7 +1063,7 @@ public final class Companions {
         ServerPlayer best = null;
         double bestDot = 0.95;
         for (ServerPlayer mate : GuardianEffects.mates(level)) {
-            if (mate == player || !mate.isAlive() || mate.isSpectator()) {
+            if (mate == player || !mate.isAlive() || mate.isSpectator() || Drones.isDrone(mate)) {
                 continue;
             }
             Vec3 to = mate.position().add(0, 1.0, 0).subtract(eye);

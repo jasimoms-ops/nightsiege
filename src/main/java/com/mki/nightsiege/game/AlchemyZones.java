@@ -116,7 +116,7 @@ public final class AlchemyZones {
         AABB box = new AABB(zone.center, zone.center).inflate(r, 2.5, r);
         if (zone.kind.forPlayers()) {
             for (ServerPlayer p : level.getEntitiesOfClass(ServerPlayer.class, box,
-                    p -> p.isAlive() && !p.isSpectator() && inside(p, zone, r))) {
+                    p -> p.isAlive() && !p.isSpectator() && !Drones.isDrone(p) && inside(p, zone, r))) {
                 switch (zone.kind) {
                     case HEAL -> {
                         p.heal((float) SkillValues.get("potion_tower", "zoneheal", 2.0));

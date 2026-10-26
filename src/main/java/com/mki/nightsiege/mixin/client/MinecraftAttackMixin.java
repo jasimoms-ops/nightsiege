@@ -17,14 +17,14 @@ public abstract class MinecraftAttackMixin {
 
     @Inject(method = "startAttack", at = @At("HEAD"), cancellable = true)
     private void nightsiege$noAttackInTower(CallbackInfoReturnable<Boolean> cir) {
-        if (MannedClient.seated()) {
+        if (MannedClient.seated() || com.mki.nightsiege.client.DroneClient.localDrone()) {
             cir.setReturnValue(false);
         }
     }
 
     @Inject(method = "continueAttack", at = @At("HEAD"), cancellable = true)
     private void nightsiege$noMiningInTower(boolean down, CallbackInfo ci) {
-        if (MannedClient.seated()) {
+        if (MannedClient.seated() || com.mki.nightsiege.client.DroneClient.localDrone()) {
             ci.cancel();
         }
     }

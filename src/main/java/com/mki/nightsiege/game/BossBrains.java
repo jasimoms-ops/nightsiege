@@ -443,7 +443,7 @@ final class BossBrains {
                     it.remove();
                     continue;
                 }
-                if (now >= e.getValue() || !p.isAlive() || p.isSpectator()) {
+                if (now >= e.getValue() || !p.isAlive() || p.isSpectator() || Drones.isDrone(p)) {
                     root(p, false);
                     it.remove();
                 } else if (now % 4 == 0) {
