@@ -4,6 +4,7 @@ import com.mki.nightsiege.core.PlayerSkills;
 import com.mki.nightsiege.core.SkillClass;
 import com.mki.nightsiege.core.SkillEffect;
 import com.mki.nightsiege.core.SkillTree;
+import com.mki.nightsiege.core.SkillValues;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket;
@@ -37,8 +38,6 @@ public final class ArcherEffects {
     private static final double FULL_SPEED = 3.0;
     /** Vanilla base damage of an arrow. */
     private static final double BASE_DAMAGE = 2.0;
-    /** The heavy path trades speed for weight: a short pause after every bow shot. */
-    private static final int HEAVY_COOLDOWN_TICKS = 12;
 
     /** Power shot armed by the ultimate key: game time it runs out, and its rank. */
     private final Map<UUID, long[]> powerArmed = new HashMap<>();
@@ -51,7 +50,7 @@ public final class ArcherEffects {
 
     /** Ultimate of the heavy path: the next shot within ten seconds is a power shot. */
     public void armPowerShot(ServerPlayer player, long now, int rank) {
-        powerArmed.put(player.getUUID(), new long[]{now + 200, rank});
+        powerArmed.put(player.getUUID(), new long[]{now + (long) SkillValues.get("power_shot", "armed", 200), rank});
     }
 
     /** Ultimate of the swift path: for a few seconds every shot fans out into three. */
@@ -109,14 +108,20 @@ public final class ArcherEffects {
         if (crossbow) {
             damage += tree.totalBonus(SkillEffect.CROSSBOW_DAMAGE, skills);
         }
+        // Steady hand (balance update, 26 October 2026): a fully drawn bow shot hits a little harder,
+        // so the node still counts next to the quick draw, which already pulls every shot to full.
+        int steady = skills.levelOf("a_steady");
+        if (bow && steady > 0 && arrow.isCritArrow()) {
+            damage *= 1.0 + steady * SkillValues.get("a_steady", "full", 0.05);
+        }
         if (SkillTree.has(skills, "a_deadeye")) {
-            damage *= 1.35;
+            damage *= SkillValues.get("a_deadeye", "mult", 1.35);
         }
         if (SkillTree.has(skills, "a_skirmisher")) {
-            damage *= 0.9;
+            damage *= SkillValues.get("a_skirmisher", "mult", 0.9);
         }
         if (crossbow && SkillTree.has(skills, "a_siegeengine")) {
-            damage *= 1.4;
+            damage *= SkillValues.get("a_siegeengine", "mult", 1.4);
         }
         arrow.setBaseDamage(damage);
         if (tree.totalBonus(SkillEffect.FIRE_ARROWS, skills) > 0) {
@@ -125,16 +130,20 @@ public final class ArcherEffects {
 
         // The heavy bow trades speed for weight: a short pause after every shot.
         if (bow && SkillTree.has(skills, "heavy_draw")) {
-            player.getCooldowns().addCooldown(weapon, HEAVY_COOLDOWN_TICKS);
+            player.getCooldowns().addCooldown(weapon, (int) SkillValues.get("heavy_draw", "pause", 12));
         }
 
-        // Quiver: now and then the arrow comes back.
+        // Quiver: now and then the arrow comes back. A bow with Infinity uses up no arrows,
+        // so there the quiver hands over a free extra arrow instead (balance update, 26 October 2026).
         double quiver = tree.totalBonus(SkillEffect.QUIVER, skills);
-        if (quiver > 0 && !player.getAbilities().instabuild && arrow.pickup == AbstractArrow.Pickup.ALLOWED
-                && level.getRandom().nextDouble() < quiver) {
-            ItemStack back = arrow.getPickupItemStackOrigin().copyWithCount(1);
-            if (!back.isEmpty() && player.getInventory().add(back)) {
-                arrow.pickup = AbstractArrow.Pickup.CREATIVE_ONLY;
+        if (quiver > 0 && !player.getAbilities().instabuild && level.getRandom().nextDouble() < quiver) {
+            if (arrow.pickup == AbstractArrow.Pickup.ALLOWED) {
+                ItemStack back = arrow.getPickupItemStackOrigin().copyWithCount(1);
+                if (!back.isEmpty() && player.getInventory().add(back)) {
+                    arrow.pickup = AbstractArrow.Pickup.CREATIVE_ONLY;
+                }
+            } else if (bow && arrow.pickup == AbstractArrow.Pickup.CREATIVE_ONLY) {
+                spawnTwin(arrow, level, player, weapon, damage * SkillValues.get("a_quiver", "extra", 0.5), 2.0f, false);
             }
         }
 
@@ -147,30 +156,32 @@ public final class ArcherEffects {
         }
 
         boolean fireVolley = tree.totalBonus(SkillEffect.FIRE_VOLLEY, skills) > 0;
-        double extraDamage = fireVolley ? damage * 1.5 : damage;
+        double extraDamage = fireVolley ? damage * SkillValues.get("a_firevolley", "mult", 1.5) : damage;
         if (tree.totalBonus(SkillEffect.DOUBLE_SHOT, skills) >= 1.0) {
-            spawnTwin(arrow, level, player, weapon, extraDamage, 4.0f, fireVolley);
+            String twinNode = crossbow ? "x_cross_double" : "double_shot";
+            float side = (float) SkillValues.get(twinNode, "angle", 4.0);
+            spawnTwin(arrow, level, player, weapon, extraDamage, level.getRandom().nextBoolean() ? side : -side, fireVolley);
         }
         if (crossbow && tree.totalBonus(SkillEffect.MULTI_BOLT, skills) > 0) {
-            spawnTwin(arrow, level, player, weapon, damage, 7.0f, false);
-            spawnTwin(arrow, level, player, weapon, damage, -7.0f, false);
+            spawnFan(arrow, level, player, weapon, damage, (int) SkillValues.get("a_multiload", "arrows", 2),
+                    (float) SkillValues.get("a_multiload", "angle", 7.0), false);
         }
         if (tree.totalBonus(SkillEffect.VOLLEY, skills) > 0) {
             int shots = volleyCount.merge(player.getUUID(), 1, Integer::sum);
-            if (shots % 4 == 0) {
-                spawnTwin(arrow, level, player, weapon, extraDamage, 8.0f, fireVolley);
-                spawnTwin(arrow, level, player, weapon, extraDamage, -8.0f, fireVolley);
+            if (shots % Math.max(1, (int) SkillValues.get("a_volley", "every", 4)) == 0) {
+                spawnFan(arrow, level, player, weapon, extraDamage, (int) SkillValues.get("a_volley", "arrows", 2),
+                        (float) SkillValues.get("a_volley", "angle", 8.0), fireVolley);
             }
         }
         Long storm = stormUntil.get(player.getUUID());
         if (storm != null) {
             if (now <= storm) {
                 boolean burning = SkillTree.has(skills, "a_firestorm");
-                spawnTwin(arrow, level, player, weapon, damage, 8.0f, burning);
-                spawnTwin(arrow, level, player, weapon, damage, -8.0f, burning);
+                spawnFan(arrow, level, player, weapon, damage, (int) SkillValues.get("arrow_storm", "arrows", 2),
+                        (float) SkillValues.get("arrow_storm", "angle", 8.0), burning);
                 if (SkillTree.has(skills, "a_tempest")) {
-                    spawnTwin(arrow, level, player, weapon, damage, 16.0f, burning);
-                    spawnTwin(arrow, level, player, weapon, damage, -16.0f, burning);
+                    spawnFan(arrow, level, player, weapon, damage, (int) SkillValues.get("a_tempest", "arrows", 2),
+                            (float) SkillValues.get("a_tempest", "angle", 16.0), burning);
                 }
                 if (burning) {
                     arrow.igniteForSeconds(100f);
@@ -186,11 +197,12 @@ public final class ArcherEffects {
     /** Rank 1: x3, rank 3: x4.5 damage, and a faster flight. The sniper's shot hits half again as hard and pierces. */
     private static void firePowerShot(AbstractArrow arrow, ServerLevel level, ServerPlayer player,
                                       double damage, int rank, boolean sniper) {
-        arrow.setBaseDamage(damage * (2.25 + 0.75 * rank) * (sniper ? 1.5 : 1.0));
+        double mult = SkillValues.get("power_shot", "mult" + rank, 2.25 + 0.75 * rank);
+        arrow.setBaseDamage(damage * mult * (sniper ? SkillValues.get("a_sniper", "mult", 1.5) : 1.0));
         if (sniper) {
             arrow.entityTags().add(SNIPER_TAG);
         }
-        arrow.setDeltaMovement(arrow.getDeltaMovement().scale(1.25));
+        arrow.setDeltaMovement(arrow.getDeltaMovement().scale(SkillValues.get("power_shot", "speed", 1.25)));
         arrow.setCritArrow(true);
         level.playSound(null, player.getX(), player.getY(), player.getZ(),
                 SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.PLAYERS, 0.5f, 1.9f);
@@ -198,6 +210,15 @@ public final class ArcherEffects {
                 14, 0.25, 0.25, 0.25, 0.08);
         player.connection.send(new ClientboundSetActionBarTextPacket(
                 Component.translatable("nightsiege.msg.power_fired")));
+    }
+
+    /** {@code count} extra arrows in pairs to the right and left, each pair one {@code step} further out. */
+    private static void spawnFan(AbstractArrow original, ServerLevel level, ServerPlayer player,
+                                 ItemStack weapon, double damage, int count, float step, boolean burning) {
+        for (int i = 0; i < count; i++) {
+            float angle = step * (i / 2 + 1) * (i % 2 == 0 ? 1f : -1f);
+            spawnTwin(original, level, player, weapon, damage, angle, burning);
+        }
     }
 
     /** A second arrow beside the first, turned by the given angle. It cannot be picked up. */
@@ -208,9 +229,6 @@ public final class ArcherEffects {
         twin.pickup = AbstractArrow.Pickup.CREATIVE_ONLY;
         twin.setBaseDamage(damage);
         twin.setCritArrow(original.isCritArrow());
-        if (degrees == 4.0f && level.getRandom().nextBoolean()) {
-            degrees = -degrees;
-        }
         Vec3 motion = original.getDeltaMovement().yRot((float) Math.toRadians(degrees));
         twin.setPos(original.getX(), original.getY(), original.getZ());
         twin.setDeltaMovement(motion);
