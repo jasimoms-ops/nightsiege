@@ -136,11 +136,11 @@ public final class StatsService {
             stats.profiles.add(line);
             CoreStats.ProfileNodes nodes = new CoreStats.ProfileNodes();
             for (SkillNode node : tree.ofClass(c)) {
-                int level = skills.levelInProfile(key, node.id());
-                if (level > 0) {
-                    nodes.levels.put(node.id(), level);
+                int lvl = skills.levelInProfile(key, node.id());
+                if (lvl > 0) {
+                    nodes.levels.put(node.id(), lvl);
                 }
-                nodes.costs.put(node.id(), node.costFor(level));
+                nodes.costs.put(node.id(), node.costFor(lvl));
                 String why = skills.asProfile(key, () -> tree.blockedReason(node.id(), skills));
                 if (why != null) {
                     nodes.blocked.put(node.id(), why);
