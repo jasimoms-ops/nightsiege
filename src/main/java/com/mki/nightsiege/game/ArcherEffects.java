@@ -170,7 +170,11 @@ public final class ArcherEffects {
         }
 
         boolean fireVolley = tree.totalBonus(SkillEffect.FIRE_VOLLEY, skills) > 0;
-        double extraDamage = fireVolley ? damage * SkillValues.get("a_firevolley", "mult", 1.5) : damage;
+        // Simon 26.10.: the quick shot's extra arrows (double shot, volley, arrow storm) hit softer,
+        // about 10 % less on groups; the main arrow stays as it is.
+        double extraScale = SkillTree.SUB_SWIFT.equals(tree.subclassOf(skills))
+                ? SkillValues.get("swift_draw", "extra", 0.85) : 1.0;
+        double extraDamage = (fireVolley ? damage * SkillValues.get("a_firevolley", "mult", 1.5) : damage) * extraScale;
         if (tree.totalBonus(SkillEffect.DOUBLE_SHOT, skills) >= 1.0) {
             String twinNode = crossbow ? "x_cross_double" : "double_shot";
             float side = (float) SkillValues.get(twinNode, "angle", 4.0);
@@ -191,10 +195,10 @@ public final class ArcherEffects {
         if (storm != null) {
             if (now <= storm) {
                 boolean burning = SkillTree.has(skills, "a_firestorm");
-                spawnFan(arrow, level, player, weapon, damage, (int) SkillValues.get("arrow_storm", "arrows", 2),
+                spawnFan(arrow, level, player, weapon, damage * extraScale, (int) SkillValues.get("arrow_storm", "arrows", 2),
                         (float) SkillValues.get("arrow_storm", "angle", 8.0), burning);
                 if (SkillTree.has(skills, "a_tempest")) {
-                    spawnFan(arrow, level, player, weapon, damage, (int) SkillValues.get("a_tempest", "arrows", 2),
+                    spawnFan(arrow, level, player, weapon, damage * extraScale, (int) SkillValues.get("a_tempest", "arrows", 2),
                             (float) SkillValues.get("a_tempest", "angle", 16.0), burning);
                 }
                 if (burning) {

@@ -155,6 +155,13 @@ public class NightSiegeClient implements ClientModInitializer {
                 lines.add(line);
             }
         });
+        // Shield energy (Simon 26.10.): a short line on every kit shield.
+        ItemTooltipCallback.EVENT.register((stack, context, type, lines) -> {
+            if (stack.has(net.minecraft.core.component.DataComponents.BLOCKS_ATTACKS)
+                    && com.mki.nightsiege.game.KitService.isKit(stack)) {
+                lines.add(Component.translatable("nightsiege.tooltip.shield_energy").withStyle(ChatFormatting.AQUA));
+            }
+        });
         ItemTooltipCallback.EVENT.register((stack, context, type, lines) -> {
             List<String> paths = ClassGear.pathsFor(stack.getItem());
             if (paths.isEmpty()) {

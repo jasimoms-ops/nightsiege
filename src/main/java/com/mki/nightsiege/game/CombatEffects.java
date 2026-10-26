@@ -138,6 +138,7 @@ public final class CombatEffects {
     /** A new night: every guardian angel is ready again. */
     public void newSiege() {
         angelUsed.clear();
+        guardian.newNight();   // full shield energy
     }
 
     // ------------------------------------------------------------------
@@ -462,7 +463,7 @@ public final class CombatEffects {
                 }
             }
         }
-        for (ServerPlayer mate : level.players()) {
+        for (ServerPlayer mate : GuardianEffects.mates(level)) {
             if (mate.distanceToSqr(player) <= r * r) {
                 mate.heal((float) (redemption ? SkillValues.get("w_redemption", "heal" + rank, 4f + 4f * rank)
                         : SkillValues.get("holy_light", "heal", 4)));
@@ -760,7 +761,11 @@ public final class CombatEffects {
         if (cleave > 0 || falling) {
             boolean crusader = SkillTree.has(skills, "w_crusader");
             DamageSource source = level.damageSources().playerAttack(player);
-            float splash = (float) ((taken + extra) * Math.max(cleave, falling ? SkillValues.get("w_earthshock", "splash", 0.5) : 0.0));
+            double cleaveShare = cleave;
+            if (cleave > 0 && SkillTree.SUB_AXE.equals(tree.subclassOf(skills))) {
+                cleaveShare *= axeCleaveScale(nightLevel());   // Simon 26.10.
+            }
+            float splash = (float) ((taken + extra) * Math.max(cleaveShare, falling ? SkillValues.get("w_earthshock", "splash", 0.5) : 0.0));
             double splashRadius = cleave > 0 ? SkillValues.get("w_cleave", "radius", 2.5) : 0.0;
             if (falling) {
                 splashRadius = Math.max(splashRadius, SkillValues.get("w_earthshock", "radius", 2.5));
@@ -786,6 +791,23 @@ public final class CombatEffects {
             if (falling) {
                 level.sendParticles(ParticleTypes.EXPLOSION, victim.getX(), victim.getY(), victim.getZ(), 2, 0.6, 0.1, 0.6, 0.0);
                 play(level, player, SoundEvents.MACE_SMASH_GROUND, 0.8f, 1.0f);
+            }
+        }
+
+        // Simon 26.10.: the berserker's bloodlust splinters onto the monsters around the target,
+        // 15 % of the hit plus up to 15 % more the less life he has.
+        if (skills.clazz() == SkillClass.WARRIOR && SkillTree.SUB_BERSERKER.equals(tree.subclassOf(skills))) {
+            double lost = 1.0 - player.getHealth() / Math.max(1f, player.getMaxHealth());
+            double share = SkillValues.get("bloodlust", "splash", 0.15)
+                    + SkillValues.get("bloodlust", "splashlow", 0.15) * Math.max(0.0, Math.min(1.0, lost));
+            float shard = (float) ((taken + extra) * share);
+            if (shard > 0.05f) {
+                DamageSource source = level.damageSources().playerAttack(player);
+                for (LivingEntity near : enemies(level, victim.position(), SkillValues.get("bloodlust", "radius", 2.5), 1.5)) {
+                    if (near != victim) {
+                        followUpHit(level, near, source, shard);
+                    }
+                }
             }
         }
 
@@ -817,7 +839,34 @@ public final class CombatEffects {
         boolean melee = skills.clazz() == SkillClass.WARRIOR && !SkillTree.SUB_BERSERKER.equals(sub)
                 && !SkillTree.SUB_BLADEMASTER.equals(sub)
                 || skills.clazz() == SkillClass.GUARDIAN && SkillTree.SUB_SHIELDFIGHTER.equals(sub);
-        return melee ? m.config().meleeLifesteal : 0.0;
+        if (!melee) {
+            return 0.0;
+        }
+        // Simon 26.10.: the axe fighter heals half as much from kills.
+        return m.config().meleeLifesteal * (SkillTree.SUB_AXE.equals(sub) ? SkillValues.get("heavy_blow", "lifesteal", 0.5) : 1.0);
+    }
+
+    /**
+     * Simon 26.10.: the axe fighter's cleave does 20 % less up to world level 10, then grows back
+     * in a line to its full strength at level 20.
+     */
+    static double axeCleaveScale(int level) {
+        double cut = SkillValues.get("heavy_blow", "groupcut", 0.2);
+        double from = SkillValues.get("heavy_blow", "groupfull1", 10);
+        double to = SkillValues.get("heavy_blow", "groupfull2", 20);
+        if (level <= from) {
+            return 1.0 - cut;
+        }
+        if (level >= to || to <= from) {
+            return 1.0;
+        }
+        return 1.0 - cut * (to - level) / (to - from);
+    }
+
+    /** The world level of the running night (the coming one outside a night). */
+    private static int nightLevel() {
+        SiegeManager m = SiegeManager.get();
+        return m == null ? 1 : m.currentLevel();
     }
 
     /** True when the player holds the weapon of their warrior way (or is no warrior). */
@@ -1310,7 +1359,7 @@ public final class CombatEffects {
                 continue;
             }
             double radius = HEAL_RADIUS + guardian.auraRange(skills);
-            for (ServerPlayer mate : level.players()) {
+            for (ServerPlayer mate : GuardianEffects.mates(level)) {
                 if (!mate.isAlive() || mate.distanceToSqr(medic) > radius * radius) {
                     continue;
                 }

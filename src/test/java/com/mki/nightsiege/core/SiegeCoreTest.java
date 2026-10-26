@@ -238,7 +238,11 @@ class SiegeCoreTest {
         SiegeConfig fresh = new SiegeConfig();
         fresh.sanitize();
         assertEquals(1.25, fresh.subclassDamage.get("shieldfighter"), 1e-9);
-        assertEquals(0.8, fresh.subclassDamageTaken.get("shieldfighter"), 1e-9);
+        // Simon 26.10.: the shield fighter takes as much as anyone, the bulwark 35 % less, the alchemist hits 15 % harder.
+        assertEquals(1.0, fresh.subclassDamageTaken.get("shieldfighter"), 1e-9);
+        assertEquals(0.65, fresh.subclassDamageTaken.get("bulwark"), 1e-9);
+        assertEquals(1.15, fresh.subclassDamage.get("alchemist"), 1e-9);
+        assertTrue(fresh.damageTakenFactor("guardian", "shieldfighter") >= fresh.damageTakenFactor("guardian", "bulwark") / 0.7 - 1e-9);
         // A server that tuned the shield fighter itself keeps its own value.
         SiegeConfig tuned = new SiegeConfig();
         tuned.settingsVersion = 5;
@@ -489,7 +493,9 @@ class SiegeCoreTest {
         int[] weights = new SiegeConfig().crateOddsFragment;
         for (SkillClass c : new SkillClass[]{SkillClass.WARRIOR, SkillClass.ARCHER, SkillClass.GUARDIAN, SkillClass.ENGINEER,
                 SkillClass.SUMMONER}) {
-            assertEquals(30, CrateGains.forCollection(c).size(), c + " has 14 gains and 16 general ones");
+            // The archer's spare weapon left the crates (Simon 26.10.): 13 own gains for him.
+            int own = c == SkillClass.ARCHER ? 13 : 14;
+            assertEquals(own + 16, CrateGains.forCollection(c).size(), c + " has " + own + " gains and 16 general ones");
             for (int i = 0; i < 400; i++) {
                 CrateGains.Gain g = CrateGains.roll(c, "", weights, 0.7, random);
                 assertNotNull(g);
@@ -1660,7 +1666,7 @@ class SiegeCoreTest {
         old.sanitize();
         assertTrue(old.dungeonsEnabled);
         assertFalse(old.bloodMoonGlow);
-        assertEquals(9, old.settingsVersion);
+        assertEquals(10, old.settingsVersion);
         assertEquals(SiegeConfig.CURRENT_DUNGEON_LIST, old.dungeonListVersion);
         assertTrue(old.dungeons.stream().allMatch(t -> t.structure.startsWith("nova_structures:")));
         // Switched off again by hand, it stays off.
@@ -1884,7 +1890,7 @@ class SiegeCoreTest {
         old.settingsVersion = 7;
         old.sanitize();
         assertTrue(old.summonerForEveryone, "older configs open it once");
-        assertEquals(9, old.settingsVersion);
+        assertEquals(10, old.settingsVersion);
         // Both subclasses of the way of the wild can be learned to the end.
         java.util.Map<String, String> subs = java.util.Map.of("s_tamer", SkillTree.SUB_TAMER, "s_golemsmith", SkillTree.SUB_GOLEMSMITH,
                 "d_necro", SkillTree.SUB_NECROMANCER, "d_soulcatcher", SkillTree.SUB_SOULCATCHER);
@@ -1947,7 +1953,7 @@ class SiegeCoreTest {
         old.effectMobReplacements.put("minecraft:wither_skeleton", "minecraft:vindicator");
         old.effectMobReplacements.put("friendsandfoes:iceologer", "minecraft:vindicator");
         old.sanitize();
-        assertEquals(9, old.settingsVersion);
+        assertEquals(10, old.settingsVersion);
         assertEquals(1.25, old.subclassDamage.get("heavy"), 1e-9);
         assertEquals("minecraft:skeleton", old.effectMobReplacements.get("minecraft:wither_skeleton"));
         assertEquals("minecraft:pillager", old.effectMobReplacements.get("friendsandfoes:iceologer"));

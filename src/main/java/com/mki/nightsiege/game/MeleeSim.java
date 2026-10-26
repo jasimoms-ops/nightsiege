@@ -90,8 +90,8 @@ public final class MeleeSim {
      * healing per second, health, and what one blow of a monster of the level costs.
      */
     public record Bench(String subclass, int level, double dpsSingle, double dpsGroup, int killsSingle, int killsGroup,
-                        double healPerSecond, double maxHealth, double axeRaw, double axeLost, double zombieRaw,
-                        double zombieLost) {
+                        double healPerSecond, double teamHealPerSecond, double maxHealth, double axeRaw, double axeLost,
+                        double zombieRaw, double zombieLost) {
     }
 
     private static List<Run> queue = new ArrayList<>();
@@ -108,6 +108,13 @@ public final class MeleeSim {
     private static int killsSingle;
     private static int killsGroup;
     private static double healed;
+    /** Healing and new barriers on the wounded teammate of the bench (Simon 26.10.). */
+    private static double teamHealed;
+    /**
+     * The wounded teammate: a Fabric fake player next to the bot, not in the level's player
+     * list, so the heal skills reach it through {@link #benchMates}. Kept at half health.
+     */
+    private static ServerPlayer mate;
     private static final List<UUID> DUMMIES = new ArrayList<>();
     private static final java.util.Map<UUID, BlockPos> DUMMY_SPOTS = new java.util.HashMap<>();
     /**
@@ -616,6 +623,61 @@ public final class MeleeSim {
         }
     }
 
+    /** Puts the wounded teammate next to the bot, at half health without barriers. */
+    private static void placeMate(ServerLevel level) {
+        try {
+            mate = net.fabricmc.fabric.api.entity.FakePlayer.get(level);
+        } catch (RuntimeException e) {
+            NightSiegeMod.LOGGER.warn("[Night Siege sim] Kein Testkamerad: {}", e.toString());
+            mate = null;
+            return;
+        }
+        BlockPos p = standPos().offset(0, 0, 2);
+        mate.setPos(p.getX() + 0.5, p.getY(), p.getZ() + 0.5);
+        mate.removeAllEffects();
+        mate.setAbsorptionAmount(0f);
+        mate.setHealth(mate.getMaxHealth() * 0.5f);
+    }
+
+    /**
+     * Every two seconds: counts what the teammate got (health above half and barriers) and
+     * puts it back to half health without barriers.
+     */
+    private static void tendMate() {
+        ServerPlayer m = mate;
+        if (m == null) {
+            return;
+        }
+        float half = m.getMaxHealth() * 0.5f;
+        teamHealed += Math.max(0f, m.getHealth() - half) + Math.max(0f, m.getAbsorptionAmount());
+        m.removeEffect(net.minecraft.world.effect.MobEffects.ABSORPTION);
+        m.removeEffect(net.minecraft.world.effect.MobEffects.REGENERATION);
+        m.setAbsorptionAmount(0f);
+        m.setHealth(half);
+    }
+
+    /**
+     * Extra players the heal skills reach in this level: the bench's wounded teammate while the
+     * bench runs its first two stages (empty otherwise).
+     */
+    public static List<ServerPlayer> benchMates(ServerLevel level) {
+        ServerPlayer m = mate;
+        if (m == null || !bench || !running() || phase != Phase.FIGHT || benchStage >= 2 || m.level() != level) {
+            return List.of();
+        }
+        return List.of(m);
+    }
+
+    /** The teammate the bot's healing hand goes to on the bench (null outside it). */
+    public static ServerPlayer benchMate(ServerPlayer healer) {
+        if (healer == null || playerId == null || !healer.getUUID().equals(playerId)
+                || !(healer.level() instanceof ServerLevel level)) {
+            return null;
+        }
+        List<ServerPlayer> mates = benchMates(level);
+        return mates.isEmpty() ? null : mates.get(0);
+    }
+
     /** Where the training zombies stand: in reach of melee, further out for bows and towers. */
     private static BlockPos dummySpot(SkillClass clazz) {
         int d = switch (clazz) {
@@ -642,6 +704,8 @@ public final class MeleeSim {
             killsSingle = 0;
             killsGroup = 0;
             healed = 0;
+            teamHealed = 0;
+            placeMate(level);
             hitCount = 0;
             java.util.Arrays.fill(HITS, 0);
             shots = 0;
@@ -663,8 +727,8 @@ public final class MeleeSim {
                 server.getCommands().performPrefixedCommand(server.createCommandSourceStack().withSuppressedOutput(),
                         "time set midnight");
             }
-            // Half health, so heals can land; no food regeneration on the bench.
-            player.setHealth(player.getMaxHealth() * 0.5f);
+            // 40 % health, so heals and the berserker's life steal can land; no food regeneration on the bench.
+            player.setHealth(player.getMaxHealth() * 0.4f);
             player.getFoodData().setFoodLevel(10);
             player.getFoodData().setSaturation(0f);
             dummy(m, level, dummySpot(clazz), run.level());
@@ -686,6 +750,8 @@ public final class MeleeSim {
             return;
         }
         if (t == 40L * BENCH_SECONDS) {
+            tendMate();
+            mate = null;
             benchStage = 2;
             clearMonsters(level);
             DUMMIES.clear();
@@ -697,6 +763,9 @@ public final class MeleeSim {
             }
             player.setHealth(player.getMaxHealth());
             return;
+        }
+        if (benchStage < 2 && t % 40 == 0) {
+            tendMate();
         }
         if (benchStage < 2) {
             // What the training zombies lost since the last tick (a fallen one: all it had left).
@@ -853,14 +922,14 @@ public final class MeleeSim {
 
     private static void record(SiegeManager m, ServerPlayer player, Run run, ServerLevel level) {
         Bench b = new Bench(run.sub()[2], run.level(), hpSingle / BENCH_SECONDS, hpGroup / BENCH_SECONDS, killsSingle,
-                killsGroup, healed / (2.0 * BENCH_SECONDS), player.getMaxHealth(), HITS[0] / BLOWS, HITS[1] / BLOWS,
-                HITS[2] / BLOWS, HITS[3] / BLOWS);
+                killsGroup, healed / (2.0 * BENCH_SECONDS), teamHealed / (2.0 * BENCH_SECONDS), player.getMaxHealth(),
+                HITS[0] / BLOWS, HITS[1] / BLOWS, HITS[2] / BLOWS, HITS[3] / BLOWS);
         BENCH.add(b);
         String line = String.format(Locale.ROOT,
-                "[Night Siege sim] Prüfstand Stufe %2d %-13s DPS 1 Ziel %6.1f  6 Ziele %6.1f  Kills %2d/%2d  Heilung %4.2f/s  Leben %4.0f"
-                        + "  Axt %4.1f -> %4.1f  Zombie %4.1f -> %4.1f",
+                "[Night Siege sim] Prüfstand Stufe %2d %-13s DPS 1 Ziel %6.1f  6 Ziele %6.1f  Kills %2d/%2d  Heilung %4.2f/s"
+                        + "  Team %4.2f/s  Leben %4.0f  Axt %4.1f -> %4.1f  Zombie %4.1f -> %4.1f",
                 b.level(), b.subclass(), b.dpsSingle(), b.dpsGroup(), b.killsSingle(), b.killsGroup(), b.healPerSecond(),
-                b.maxHealth(), b.axeRaw(), b.axeLost(), b.zombieRaw(), b.zombieLost());
+                b.teamHealPerSecond(), b.maxHealth(), b.axeRaw(), b.axeLost(), b.zombieRaw(), b.zombieLost());
         System.out.println(line);
         NightSiegeMod.LOGGER.info(line);
         StringBuilder diag = new StringBuilder(String.format(Locale.ROOT,
@@ -882,11 +951,13 @@ public final class MeleeSim {
     public static List<String> benchReport() {
         List<String> out = new ArrayList<>();
         out.add("[Night Siege sim] Prüfstand: allein, voll geskillt, ohne Kisten-Gewinne; Trainings-Zombies der Stufe stehen still");
-        out.add("[Night Siege sim] BENCH;stufe;unterklasse;dps_1;dps_6;kills_1;kills_6;heilung_s;leben;axt_roh;axt_verlust;zombie_roh;zombie_verlust");
+        out.add("[Night Siege sim] Mitspieler: ein verletzter Testkamerad neben dem Bot, alle 2 s zurück auf halbes Leben;"
+                + " heilung_team = Heilung + neue Barrieren an ihm pro Sekunde");
+        out.add("[Night Siege sim] BENCH;stufe;unterklasse;dps_1;dps_6;kills_1;kills_6;heilung_s;heilung_team;leben;axt_roh;axt_verlust;zombie_roh;zombie_verlust");
         for (Bench b : BENCH) {
-            out.add(String.format(Locale.ROOT, "[Night Siege sim] BENCH;%d;%s;%.1f;%.1f;%d;%d;%.2f;%.0f;%.1f;%.2f;%.1f;%.2f",
+            out.add(String.format(Locale.ROOT, "[Night Siege sim] BENCH;%d;%s;%.1f;%.1f;%d;%d;%.2f;%.2f;%.0f;%.1f;%.2f;%.1f;%.2f",
                     b.level(), b.subclass(), b.dpsSingle(), b.dpsGroup(), b.killsSingle(), b.killsGroup(), b.healPerSecond(),
-                    b.maxHealth(), b.axeRaw(), b.axeLost(), b.zombieRaw(), b.zombieLost()));
+                    b.teamHealPerSecond(), b.maxHealth(), b.axeRaw(), b.axeLost(), b.zombieRaw(), b.zombieLost()));
         }
         return out;
     }
@@ -986,6 +1057,7 @@ public final class MeleeSim {
             m.persist();
         }
         phase = Phase.DONE;
+        mate = null;
         List<String> lines = bench ? benchReport() : report();
         if (problem != null) {
             lines.add(0, "[Night Siege sim] abgebrochen: " + problem);
