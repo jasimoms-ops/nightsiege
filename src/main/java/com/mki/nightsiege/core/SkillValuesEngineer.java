@@ -33,6 +33,11 @@ final class SkillValuesEngineer {
             def("flame_trap", "cd" + t, TrapKind.FLAME.baseCooldown(t));
         }
         tower(TrapKind.TURRET, CAP_TURRET);
+        // Simon 26.10.: the arrow turret's cooldown x2 up to level 14, /0.7 from level 15; the mortar's x2.
+        def("arrow_turret", "slowlow", 2.0);
+        def("arrow_turret", "slowuntil", 15);                            // first level with the smaller factor
+        def("arrow_turret", "slowhigh", 1.0 / 0.7);
+        def("mortar_tower", "slow", 2.0);
         def("arrow_turret", "overcharge", 0.9);                          // share of the full remote (Simon, 26 Oct: all shooting towers 90 %)
         tower(TrapKind.TESLA, CAP_TESLA);
         for (int t = 1; t <= 3; t++) {

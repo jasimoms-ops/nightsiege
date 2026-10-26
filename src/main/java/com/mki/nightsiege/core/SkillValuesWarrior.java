@@ -20,9 +20,12 @@ final class SkillValuesWarrior {
         def("w_combo", "stacks", 5);           // streak hits that count
         def("w_combo", "window", 40);          // ticks between two hits of a streak
         def("w_combo", "killstreak", 2);       // streak needed for the kill heal
-        def("w_combo", "killheal", 0.15);      // share of the slain monster's life (was config comboKillLifesteal)
+        def("w_combo", "killheal", 0.06);      // share of the slain monster's life (Simon 26.10.: was 0.15, -60 %)
         def("bloodlust", "below", 1.01);       // life share below which hits heal (always since 26 October 2026, Simon)
         def("bloodlust", "steal", 0.12);       // share of the damage healed (was config berserkerLifesteal)
+        def("bloodlust", "splash", 0.15);      // Simon 26.10.: share of the hit on monsters around the target ...
+        def("bloodlust", "splashlow", 0.15);   // ... plus up to this much more at 0 life (linear with the life lost)
+        def("bloodlust", "radius", 2.5);       // blocks around the target
         def("keen_edge", "crit", 0.5);         // extra damage of a critical hit
         def("w_precision", "chance", 0.10);    // own crit chance (Präzision and Scharfe Klinge are one choice)
         def("w_precision", "crit", 0.5);       // extra damage of its critical hits, before its amount
@@ -69,6 +72,12 @@ final class SkillValuesWarrior {
         def("sunder", "time", 100);            // ticks
         def("w_heavyswing", "way", 0.3);       // attack speed the might way itself gives
         def("heavy_blow", "slow", 20);         // Slowness II, ticks
+        def("heavy_blow", "lifesteal", 0.5);   // Simon 26.10.: factor on the axe fighter's kill heal (meleeLifesteal), -50 %
+        def("heavy_blow", "hp", -10);          // Simon 26.10.: life of the axe fighter (SkillService)
+        def("heavy_blow", "groupcut", 0.2);    // Simon 26.10.: cleave -20 % up to world level "groupfull1" ...
+        def("heavy_blow", "groupfull1", 10);   // ... then back to +-0 in a line ...
+        def("heavy_blow", "groupfull2", 20);   // ... at this level and above
+        def("smite", "hp", -5);                // Simon 26.10.: life of the paladin (SkillService)
         def("w_cleave", "radius", 2.5);
         def("w_headhunter", "above", 0.7);
         def("w_vow", "radius", 6);

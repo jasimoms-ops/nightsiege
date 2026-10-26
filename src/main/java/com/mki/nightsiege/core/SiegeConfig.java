@@ -289,6 +289,9 @@ public class SiegeConfig {
     public double antiHealShare = 0.5;
     public double antiHealSeconds = 4.0;
     public int antiHealFromLevel = 5;
+    /** Shield energy (Simon 26.10.): seconds of blocking at a stretch, and seconds charged per second when not blocking. */
+    public double shieldEnergySeconds = 6.0;
+    public double shieldRechargePerSecond = 1.0;
     /** The most damage any player's skills can take away together (0.70 = at most -70 %). */
     public double maxDamageReduction = 0.70;
     /**
@@ -741,6 +744,21 @@ public class SiegeConfig {
             }
             settingsVersion = 9;
         }
+        if (settingsVersion < 10) {
+            // Simon 26.10.: the shield fighter takes as much as anyone, the bulwark 35 % less (it was
+            // the other way round on the test bench); the alchemist deals 15 % more.
+            double shield = subclassDamageTaken.getOrDefault("shieldfighter", 1.0);
+            if (Math.abs(shield - 0.8) < 1e-9 || Math.abs(shield - 1.0) < 1e-9) {
+                subclassDamageTaken.put("shieldfighter", 1.0);
+            }
+            if (subclassDamageTaken.getOrDefault("bulwark", 1.0) == 1.0) {
+                subclassDamageTaken.put("bulwark", 0.65);
+            }
+            if (subclassDamage.getOrDefault("alchemist", 1.0) == 1.0) {
+                subclassDamage.put("alchemist", 1.15);
+            }
+            settingsVersion = 10;
+        }
         if (Double.isNaN(meleeLifesteal)) {
             meleeLifesteal = 0.08;
         }
@@ -765,6 +783,14 @@ public class SiegeConfig {
             comboKillLifesteal = 0.15;
         }
         comboKillLifesteal = Math.min(1.0, Math.max(0.0, comboKillLifesteal));
+        if (Double.isNaN(shieldEnergySeconds) || shieldEnergySeconds <= 0) {
+            shieldEnergySeconds = 6.0;
+        }
+        shieldEnergySeconds = Math.min(60.0, Math.max(1.0, shieldEnergySeconds));
+        if (Double.isNaN(shieldRechargePerSecond) || shieldRechargePerSecond <= 0) {
+            shieldRechargePerSecond = 1.0;
+        }
+        shieldRechargePerSecond = Math.min(20.0, Math.max(0.1, shieldRechargePerSecond));
         if (Double.isNaN(maxDamageReduction) || maxDamageReduction <= 0) {
             maxDamageReduction = 0.70;
         }

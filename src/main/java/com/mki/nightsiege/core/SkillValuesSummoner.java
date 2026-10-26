@@ -68,6 +68,9 @@ final class SkillValuesSummoner {
         def("d_raise", "range", 16.0);            // blocks for souls and corpses
         def("d_raise", "slots", 2);
         def("d_raise", "minhealth", 30.0);
+        def("d_raise", "power", 2.0);             // Simon 26.10.: damage factor of the raised dead and the ghosts
+        def("d_raise", "splash", 0.3);            // Simon 26.10.: share of their melee hit on monsters around the target
+        def("d_raise", "splashradius", 2.0);      // blocks around the target
         def("d_raise", "startghosts", 2);
         def("d_raise", "startlife", 1200);        // ticks the start ghosts fly
         def("d_necro", "slotlevel", 3);           // level that gives one place more

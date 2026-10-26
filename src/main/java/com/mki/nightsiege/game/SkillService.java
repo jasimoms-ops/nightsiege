@@ -38,10 +38,31 @@ public final class SkillService {
             if (instance != null) {
                 double bonus = tree.totalBonus(effect, skills);
                 bonus += keystone(effect, skills);
+                if (effect == SkillEffect.MAX_HEALTH) {
+                    bonus += subclassHealth(tree, skills);
+                }
                 instance.setBaseValue(effect.playerBase() + bonus);
             }
         }
         capHealth(player);
+    }
+
+    /**
+     * Simon 26.10.: life of the subclass on top of the skills: the axe fighter 10 less, the
+     * paladin 5 less, every archer subclass 4 more (two hearts). The number sits on the subclass
+     * node as SkillValue "hp".
+     */
+    static double subclassHealth(SkillTree tree, PlayerSkills skills) {
+        String node = switch (tree.subclassOf(skills)) {
+            case SkillTree.SUB_AXE -> "heavy_blow";
+            case SkillTree.SUB_PALADIN -> "smite";
+            case SkillTree.SUB_SWIFT -> "swift_draw";
+            case SkillTree.SUB_HEAVY -> "heavy_draw";
+            case SkillTree.SUB_BOLTER -> "shrapnel";
+            case SkillTree.SUB_TRAPPER -> "a_netbolt";
+            default -> null;
+        };
+        return node == null ? 0.0 : SkillValues.get(node, "hp", 0.0);
     }
 
     /** Keystones change several values at once. */

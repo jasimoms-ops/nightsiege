@@ -89,7 +89,8 @@ public final class KitService {
             return stack;
         }
         CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> tag.putBoolean(KIT_TAG, true));
-        if (stack.isDamageableItem()) {
+        // Shields keep their bar: it shows the shield energy (Simon 26.10.); kit items never wear anyway.
+        if (stack.isDamageableItem() && !stack.has(DataComponents.BLOCKS_ATTACKS)) {
             stack.set(DataComponents.UNBREAKABLE, Unit.INSTANCE);
         }
         if (stack.isEnchanted()) {
@@ -399,8 +400,8 @@ public final class KitService {
             }
         } else if (clazz == SkillClass.ARCHER) {
             boolean crossbow = way.equals(SkillTree.WAY_CROSSBOW);
-            boolean spare = gainLevel(skills, clazz, "ersatzwaffe_a") > 0;
-            if (!crossbow || way.isEmpty() || spare) {
+            // The archer's spare weapon (bow and crossbow) left the crates (Simon 26.10.).
+            if (!crossbow || way.isEmpty()) {
                 ItemStack bow = new ItemStack(weapon == NightKit.Material.INFERNITE ? gear("infernite_bow", Items.BOW) : Items.BOW);
                 String sub = tree.subclassOf(skills);
                 // Playtest 25 October 2026 (Simon): the heavy shot gets one more power level,
@@ -422,7 +423,7 @@ public final class KitService {
                 }
                 hotbar.add(bow);
             }
-            if (crossbow || way.isEmpty() || spare) {
+            if (crossbow || way.isEmpty()) {
                 ItemStack xbow = new ItemStack(weapon == NightKit.Material.INFERNITE
                         ? gear("infernite_crossbow", Items.CROSSBOW) : Items.CROSSBOW);
                 int quick = NightKit.plusOne(NightKit.quickCharge(level), gainLevel(skills, clazz, "schnellladen"), 3);

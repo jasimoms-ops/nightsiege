@@ -92,7 +92,7 @@ public final class CrateGains {
         add("zielfernrohr", a, CrateRarity.UNCOMMON, 1, false, "", true);
         add("kletterpfeile", a, CrateRarity.RARE, 1, false, "", true);
         add("sturmpfeile", a, CrateRarity.RARE, 1, false, "", true);
-        add("ersatzwaffe_a", a, CrateRarity.RARE, 1, false, "", true);
+        // "ersatzwaffe_a" (second ranged weapon) left the crates (Simon 26.10.).
         add("tarnumhang", a, CrateRarity.RARE, 1, false, "", true);
         add("koecher", a, CrateRarity.EPIC, 1, false, "", true);
         add("adlerfeder", a, CrateRarity.EPIC, 1, false, "", true);
@@ -171,7 +171,7 @@ public final class CrateGains {
             Map.entry("staerke", "minecraft:bow"), Map.entry("schnellladen", "minecraft:crossbow"),
             Map.entry("lichtpfeile", "minecraft:glowstone_dust"), Map.entry("spektralpfeile", "minecraft:spectral_arrow"),
             Map.entry("zielfernrohr", "minecraft:spyglass"), Map.entry("kletterpfeile", "minecraft:ladder"),
-            Map.entry("sturmpfeile", "minecraft:wind_charge"), Map.entry("ersatzwaffe_a", "minecraft:crossbow"),
+            Map.entry("sturmpfeile", "minecraft:wind_charge"),
             Map.entry("tarnumhang", "minecraft:phantom_membrane"), Map.entry("koecher", "minecraft:bundle"),
             Map.entry("adlerfeder", "minecraft:elytra"), Map.entry("lenkpfeile", "minecraft:ender_eye"),
             Map.entry("lockpfeil", "minecraft:target"),

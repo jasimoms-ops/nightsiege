@@ -575,7 +575,7 @@ public final class TrapService {
         }
         lob(level, record, muzzle, aim, KitProjectile.SHELL, tier, 1.0, 1.0);
         level.sendParticles(ParticleTypes.SMOKE, aim.x, aim.y + 0.1, aim.z, 6, 0.4, 0.02, 0.4, 0.0);
-        record.readyAt = now + quicker(record, now, TrapKind.MORTAR.cooldownTicks(tier));
+        record.readyAt = now + quicker(record, now, slowed(TrapKind.MORTAR, TrapKind.MORTAR.cooldownTicks(tier)));
         dirty = true;
     }
 
@@ -883,7 +883,7 @@ public final class TrapService {
         level.addFreshEntity(arrow);
         playAt(level, pos, SoundEvents.DISPENSER_LAUNCH, 0.8f, 1.3f);
 
-        int cooldown = quicker(record, now, TrapKind.TURRET.cooldownTicks(tier));
+        int cooldown = quicker(record, now, slowed(TrapKind.TURRET, TrapKind.TURRET.cooldownTicks(tier)));
         if (bonus(record, SkillEffect.AMMO_BELT) > 0) {
             // Munitionsband: the turret shoots faster (it held more arrows until 26 October 2026).
             cooldown = Math.max(3, (int) Math.round(cooldown * (1.0 - SkillValues.get("e_ammobelt", "speed", 0.2))));
@@ -1559,6 +1559,32 @@ public final class TrapService {
     }
 
     /** Cooldowns halve while overcharged. */
+    /**
+     * Simon 26.10.: the arrow turret shoots half as fast up to world level 14 and 30 % slower from
+     * level 15; the mortar half as fast on every level. The night's level counts.
+     */
+    static int slowed(TrapKind kind, int ticks) {
+        return (int) Math.round(ticks * slowFactor(kind, nightLevel()));
+    }
+
+    /** Factor on a tower's cooldown on this world level (1 for every other trap). */
+    public static double slowFactor(TrapKind kind, int level) {
+        if (kind == TrapKind.TURRET) {
+            return level < (int) Math.round(SkillValues.get(kind.id(), "slowuntil", 15))
+                    ? SkillValues.get(kind.id(), "slowlow", 2.0) : SkillValues.get(kind.id(), "slowhigh", 1.0 / 0.7);
+        }
+        if (kind == TrapKind.MORTAR) {
+            return SkillValues.get(kind.id(), "slow", 2.0);
+        }
+        return 1.0;
+    }
+
+    /** The level of the running night (or the coming one). */
+    private static int nightLevel() {
+        SiegeManager m = SiegeManager.get();
+        return m == null ? 1 : m.currentLevel();
+    }
+
     private int quicker(TrapRecord record, long now, int ticks) {
         if (gainOf(record, "werkzeugtasche") > 0) {
             ticks = Math.max(3, (int) Math.round(ticks * 0.7));   // tool bag: traps re-arm sooner

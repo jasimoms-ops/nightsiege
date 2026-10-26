@@ -222,7 +222,8 @@ public final class Companions {
         }
         Entity attacker = source.getEntity();
         Companion hitter = attacker == null ? null : ALL.get(attacker.getUUID());
-        if (hitter != null && attacker instanceof LivingEntity living) {
+        // A splash of the dead (see afterDamage) comes from a hit that already had these factors.
+        if (hitter != null && attacker instanceof LivingEntity living && !splashing) {
             PlayerSkills skills = self.skillsOf(hitter.owner, attacker);
             SiegeConfig cfg = self.config.get();
             if (cfg != null && victim instanceof Enemy) {
@@ -1076,6 +1077,9 @@ public final class Companions {
     // events
     // ------------------------------------------------------------------
 
+    /** True while the splash of a raised dead's hit is dealt (no second splash, no second factor). */
+    private static boolean splashing;
+
     /**
      * After a hit: the summoner is credited with what the companions deal; with
      * Hüterbindung whoever hits the summoner is attacked by all of them; spirit wolves of
@@ -1089,6 +1093,26 @@ public final class Companions {
             ServerPlayer owner = deadLevel.getServer().getPlayerList().getPlayer(hitter.owner);
             PlayerSkills skills = owner == null ? null : skillsFor.apply(owner);
             boolean melee = source.getDirectEntity() == attacker;
+            if (hitter.kind != Kind.WOLF && melee && !splashing && attacker instanceof LivingEntity dead) {
+                // Simon 26.10.: the melee hits of the raised dead and the ghosts splash onto the
+                // monsters around the target (the splash carries the hit's factors already).
+                float share = (float) (taken * v("d_raise", "splash", 0.3));
+                double reach = v("d_raise", "splashradius", 2.0);
+                if (share > 0.05f) {
+                    splashing = true;
+                    try {
+                        DamageSource splash = deadLevel.damageSources().mobAttack(dead);
+                        for (LivingEntity near : CombatEffects.enemies(deadLevel, victim.position(), reach, 1.5)) {
+                            if (near != victim && near != attacker && !isCompanion(near)) {
+                                near.invulnerableTime = 0;
+                                near.hurtServer(deadLevel, splash, share);
+                            }
+                        }
+                    } finally {
+                        splashing = false;
+                    }
+                }
+            }
             if (hitter.kind != Kind.WOLF) {
                 // Fäulnis (and with the bone legion their arrows too): the hit monster grows weak.
                 if (SkillTree.has(skills, "d_rot") && (melee || SkillTree.has(skills, "d_legion"))) {
@@ -1486,7 +1510,8 @@ public final class Companions {
         }
         set(mob, Attributes.MAX_HEALTH, Math.max(4.0, life));
         mob.setHealth(mob.getMaxHealth());
-        c.damageMul = nightDamage * strength * (1.0 + bonus(SkillEffect.SUMMON_DAMAGE, skills)) * own * (champion ? v("d_champion", "damage", 2.0) : 1.0);
+        c.damageMul = nightDamage * strength * (1.0 + bonus(SkillEffect.SUMMON_DAMAGE, skills)) * own * (champion ? v("d_champion", "damage", 2.0) : 1.0)
+                * v("d_raise", "power", 2.0);   // Simon 26.10.: the raised dead hit twice as hard
         if (SkillTree.has(skills, "d_archers")) {
             set(mob, Attributes.FOLLOW_RANGE, 32.0);
         }
@@ -1519,7 +1544,8 @@ public final class Companions {
         SiegeManager m = SiegeManager.get();
         double nightDamage = m == null ? 1.0 : m.mobDamageFactor();
         c.damageMul = nightDamage * v("d_soulcatcher", "strength", 0.6) * (1.0 + bonus(SkillEffect.SOUL_CATCHER, skills))
-                * (1.0 + bonus(SkillEffect.SUMMON_DAMAGE, skills)) * (1.0 + bonus(SkillEffect.LICH, skills));
+                * (1.0 + bonus(SkillEffect.SUMMON_DAMAGE, skills)) * (1.0 + bonus(SkillEffect.LICH, skills))
+                * v("d_raise", "power", 2.0);   // Simon 26.10.: the ghosts too
         if (ghost instanceof net.minecraft.world.entity.monster.Vex vex) {
             vex.setLimitedLife((int) Math.max(20, until - level.getGameTime() + 40));
         }

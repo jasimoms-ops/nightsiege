@@ -257,7 +257,7 @@ public final class GuardianEffects {
                     float mult = (float) SkillValues.get("g_hedgehog", "mult", 3.0);
                     double reach = SkillValues.get("g_hedgehog", "radius", 2.5);
                     for (LivingEntity near : CombatEffects.enemies(level, player.position(), reach, 1.5)) {
-                        combat.bonusHit(level, near, own, hurt * mult);
+                        combat.bonusHit(level, near, own, (float) (hurt * mult * group(skills)));
                     }
                     level.sendParticles(ParticleTypes.CRIT, player.getX(), player.getY(0.5), player.getZ(),
                             16, 1.0, 0.4, 1.0, 0.2);
@@ -348,6 +348,7 @@ public final class GuardianEffects {
 
     /** Vengeance: a ring of force around the guardian. */
     private void shockwave(ServerLevel level, ServerPlayer player, float hurt) {
+        hurt = (float) (hurt * group(skillsFor.apply(player)));
         DamageSource own = level.damageSources().playerAttack(player);
         for (LivingEntity victim : CombatEffects.enemies(level, player.position(), SkillValues.get("g_vengeance", "radius", 3.5), 1.5)) {
             combat.bonusHit(level, victim, own, hurt);
@@ -419,12 +420,12 @@ public final class GuardianEffects {
                     ironhideUp.remove(id);
                 }
             }
+            shieldEnergy(player, skills, counter);   // every player with a shield in the night, not only guardians
             if (!guardian || !(player.level() instanceof ServerLevel level)) {
                 blockStart.remove(id);
                 ironhideUp.remove(id);
                 continue;
             }
-            blockLimit(level, player, skills, now);
             if (counter % 20 == 0) {
                 aggro(level, player, skills);
             }
@@ -440,25 +441,95 @@ public final class GuardianEffects {
         }
     }
 
-    /** With the riposte a guardian may block three seconds at a stretch, then the shield rests two. */
-    private void blockLimit(ServerLevel level, ServerPlayer player, PlayerSkills skills, long now) {
+    /** Shield energy of each player in ticks of blocking left (Simon 26.10.). */
+    private final Map<UUID, Double> shieldEnergy = new HashMap<>();
+    /** Players whose shield ran dry: locked until one second is charged again (the firm grip lifts cooldowns). */
+    private final Set<UUID> shieldLocked = new HashSet<>();
+
+    /** A new night: every shield is full again. */
+    public void newNight() {
+        shieldEnergy.clear();
+        shieldLocked.clear();
+    }
+
+    /** Ticks of blocking a full shield holds: config shieldEnergySeconds, more with the shield wall. */
+    private double shieldCapacity(PlayerSkills skills) {
+        SiegeManager m = SiegeManager.get();
+        double seconds = m == null ? 6.0 : m.config().shieldEnergySeconds;
+        double wall = skills == null ? 0.0 : tree.totalBonus(SkillEffect.SHIELD_WALL, skills);
+        return seconds * 20.0 + SkillValues.get("g_shieldwall", "block", 10.0) * wall;
+    }
+
+    /**
+     * Shield energy (Simon 26.10., replaces the riposte's block limit): in the night every shield
+     * holds at most shieldEnergySeconds of blocking at a stretch. Blocking drains one second per
+     * second, lowering the shield charges shieldRechargePerSecond per second. When it runs dry the
+     * block ends and the shield is locked until one second is charged again. The bar on the kit
+     * shield shows the energy while it is not full.
+     */
+    private void shieldEnergy(ServerPlayer player, PlayerSkills skills, int tick) {
+        SiegeManager m = SiegeManager.get();
         UUID id = player.getUUID();
-        if (tree.totalBonus(SkillEffect.COUNTER, skills) <= 0 || !player.isUsingItem()
-                || !player.getUseItem().has(DataComponents.BLOCKS_ATTACKS)) {
-            blockStart.remove(id);
+        if (m == null || !m.isDefending(player) || !player.isAlive()) {
+            shieldLocked.remove(id);
+            if (shieldEnergy.remove(id) != null) {
+                showShieldEnergy(player, 1.0);   // the bar goes away with the night
+            }
             return;
         }
-        long start = blockStart.computeIfAbsent(id, k -> now);
-        String node = skills.levelOf("riposte") > 0 ? "riposte" : "b_cross_riposte";
-        int limit = (int) Math.round(SkillValues.get(node, "block", 60.0)
-                + SkillValues.get("g_shieldwall", "block", 10.0) * tree.totalBonus(SkillEffect.SHIELD_WALL, skills));
-        if (now - start >= limit) {
-            ItemStack stack = player.getUseItem();
-            player.stopUsingItem();
-            player.getCooldowns().addCooldown(stack, (int) Math.round(SkillValues.get(node, "pause", 40.0)));
-            blockStart.remove(id);
-            play(level, player, SoundEvents.SHIELD_BREAK.value(), 0.5f, 1.5f);
-            CombatEffects.actionBar(player, Component.translatable("nightsiege.msg.shield_tired"));
+        double max = shieldCapacity(skills);
+        double recharge = Math.max(0.05, m.config().shieldRechargePerSecond);
+        double left = Math.min(max, shieldEnergy.getOrDefault(id, max));
+        boolean blocking = player.isUsingItem() && player.getUseItem().has(DataComponents.BLOCKS_ATTACKS);
+        if (shieldLocked.contains(id)) {
+            if (left >= 20.0) {
+                shieldLocked.remove(id);
+            } else if (blocking) {
+                player.stopUsingItem();
+                blocking = false;
+            }
+        }
+        if (blocking) {
+            left -= 1.0;
+            if (left <= 0.0) {
+                left = 0.0;
+                shieldLocked.add(id);
+                ItemStack stack = player.getUseItem();
+                player.stopUsingItem();
+                // Locked until one second of blocking is charged again.
+                player.getCooldowns().addCooldown(stack, (int) Math.ceil(20.0 / recharge));
+                if (player.level() instanceof ServerLevel level) {
+                    play(level, player, SoundEvents.SHIELD_BREAK.value(), 0.5f, 1.5f);
+                }
+                CombatEffects.actionBar(player, Component.translatable("nightsiege.msg.shield_tired"));
+            }
+        } else {
+            left = Math.min(max, left + recharge);
+        }
+        shieldEnergy.put(id, left);
+        if (tick % 5 == 0) {
+            showShieldEnergy(player, left / max);
+        }
+    }
+
+    /** The energy as the bar of the kit shields: hidden when full, like durability. */
+    private static void showShieldEnergy(ServerPlayer player, double share) {
+        for (ItemStack stack : new ItemStack[]{player.getOffhandItem(), player.getMainHandItem()}) {
+            if (stack.isEmpty() || !stack.has(DataComponents.BLOCKS_ATTACKS) || !KitService.isKit(stack)
+                    || !stack.has(DataComponents.MAX_DAMAGE)) {
+                continue;
+            }
+            if (stack.has(DataComponents.UNBREAKABLE)) {
+                // Kit items never wear out anyway (ItemDurabilityMixin); without the flag the bar shows.
+                stack.remove(DataComponents.UNBREAKABLE);
+            }
+            int maxDamage = stack.getMaxDamage();
+            // In 20 steps, so the slot is not sent to the client every tick.
+            double step = Math.ceil(Math.max(0.0, Math.min(1.0, share)) * 20.0) / 20.0;
+            int damage = Math.min(maxDamage - 1, (int) Math.round(maxDamage * (1.0 - step)));
+            if (stack.getDamageValue() != damage) {
+                stack.setDamageValue(damage);
+            }
         }
     }
 
@@ -510,7 +581,7 @@ public final class GuardianEffects {
         double reach = SkillValues.get(node, "radius", 12.0);
         ServerPlayer weakest = null;
         double lowest = Double.MAX_VALUE;
-        for (ServerPlayer mate : level.players()) {
+        for (ServerPlayer mate : mates(level)) {
             if (!mate.isAlive() || mate.isSpectator() || mate.distanceToSqr(player) > reach * reach) {
                 continue;
             }
@@ -542,7 +613,7 @@ public final class GuardianEffects {
             return;
         }
         double radius = SkillValues.get(auraNode(skills), "radius", 8.0) + auraRange(skills);
-        for (ServerPlayer mate : level.players()) {
+        for (ServerPlayer mate : mates(level)) {
             if (!mate.isAlive() || mate.distanceToSqr(player) > radius * radius) {
                 continue;
             }
@@ -591,6 +662,9 @@ public final class GuardianEffects {
         if (!toss && !dome) {
             if (hand) {
                 ServerPlayer mate = lookMate(level, player, SkillValues.get("g_healing_hand", "range", 16.0));
+                if (mate == null) {
+                    mate = MeleeSim.benchMate(player);   // the test bench's wounded teammate
+                }
                 handHeal(level, player, skills, mate == null ? player : mate, now);
             } else {
                 CombatEffects.actionBar(player, Component.translatable("nightsiege.msg.shield_action_none"));
@@ -808,7 +882,7 @@ public final class GuardianEffects {
         boolean ironWill = SkillTree.has(skills, "g_iron_will");
         boolean shared = SkillTree.has(skills, "g_shared_burden");
         // The guardian holds the line: a shield of extra hearts for the team around.
-        for (ServerPlayer mate : level.players()) {
+        for (ServerPlayer mate : mates(level)) {
             if (!mate.isAlive() || mate.distanceToSqr(player) > r * r) {
                 continue;
             }
@@ -841,7 +915,8 @@ public final class GuardianEffects {
         PlayerSkills skills = skillsFor.apply(player);
         boolean rampart = SkillTree.has(skills, "g_rampart");
         boolean debris = SkillTree.has(skills, "g_debris");
-        float damage = (float) SkillValues.get("shield_charge", "dmg" + rank, 3.0 + 3.0 * rank);   // 6 / 9 / 12
+        float damage = (float) (SkillValues.get("shield_charge", "dmg" + rank, 3.0 + 3.0 * rank)   // 6 / 9 / 12
+                * group(skills));
         Vec3 start = player.position();
         DamageSource own = level.damageSources().playerAttack(player);
         double reach = SkillValues.get("shield_charge", "range", 6.0);
@@ -866,7 +941,7 @@ public final class GuardianEffects {
         }
         if (debris) {
             int hits = (int) Math.round(SkillValues.get("g_debris", "hits", 3.0));
-            float hit = (float) SkillValues.get("g_debris", "dmg", 4.0);
+            float hit = (float) (SkillValues.get("g_debris", "dmg", 4.0) * group(skills));
             double blast = SkillValues.get("g_debris", "radius", 2.0);
             for (int i = 1; i <= hits; i++) {
                 Vec3 at = start.add(flat.scale(2.0 * i));
@@ -891,7 +966,7 @@ public final class GuardianEffects {
         double reach = SkillValues.get("mass_heal", "radius", 12.0);
         float amount = (float) SkillValues.get("mass_heal", "heal" + rank, 6.0 + 4.0 * rank);
         int regen = (int) Math.round(SkillValues.get("mass_heal", "regen", 100.0));
-        for (ServerPlayer mate : level.players()) {
+        for (ServerPlayer mate : mates(level)) {
             if (mate.isAlive() && mate.distanceToSqr(player) <= reach * reach) {
                 heal(player, mate, amount);
                 mate.addEffect(new MobEffectInstance(MobEffects.REGENERATION, regen, 1));
@@ -974,7 +1049,7 @@ public final class GuardianEffects {
                     case SANCTUARY -> SkillTree.has(skills, "g_lightcircle") ? SkillValues.get("g_lightcircle", "heal", 1.5) : 0.0;
                 };
                 if (perSecond > 0) {
-                    for (ServerPlayer mate : level.players()) {
+                    for (ServerPlayer mate : mates(level)) {
                         if (mate.isAlive() && inside(zone, mate) && heal(owner, mate, (float) perSecond) > 0) {
                             level.sendParticles(ParticleTypes.HEART, mate.getX(), mate.getY() + 1.9, mate.getZ(),
                                     1, 0.2, 0.1, 0.2, 0.0);
@@ -1032,7 +1107,7 @@ public final class GuardianEffects {
         PlayerSkills skills = owner == null ? null : skillsFor.apply(owner);
         if (zone.kind() == ZoneKind.SANCTUARY && owner != null && SkillTree.has(skills, "g_eternal_watch")) {
             float barrier = (float) (SkillValues.get("g_eternal_watch", "barrier", 4.0) * barrierPower(skills));
-            for (ServerPlayer mate : level.players()) {
+            for (ServerPlayer mate : mates(level)) {
                 if (mate.isAlive() && inside(zone, mate)) {
                     giveBarrier(owner, mate, barrier, barrier);
                 }
@@ -1079,6 +1154,17 @@ public final class GuardianEffects {
     // helpers
     // ------------------------------------------------------------------
 
+    /** The players a heal or barrier can reach: everyone in the level, and on the test bench its wounded teammate. */
+    static List<ServerPlayer> mates(ServerLevel level) {
+        List<ServerPlayer> extra = MeleeSim.benchMates(level);
+        if (extra.isEmpty()) {
+            return level.players();
+        }
+        List<ServerPlayer> all = new ArrayList<>(level.players());
+        all.addAll(extra);
+        return all;
+    }
+
     public static boolean isGuardian(PlayerSkills skills) {
         return skills != null && skills.clazz() == SkillClass.GUARDIAN;
     }
@@ -1108,6 +1194,14 @@ public final class GuardianEffects {
     /** A pulse every so many ticks, read from the skill values (at least every tick). */
     private static int every(String node, String key, double fallback) {
         return Math.max(1, (int) Math.round(SkillValues.get(node, key, fallback)));
+    }
+
+    /**
+     * Simon 26.10.: the bulwark's damage on groups (hedgehog, vengeance, shield charge, debris)
+     * is 25 % lower; one target stays as it was.
+     */
+    private double group(PlayerSkills skills) {
+        return SkillTree.SUB_BULWARK.equals(tree.subclassOf(skills)) ? SkillValues.get("g_bastion", "group", 0.75) : 1.0;
     }
 
     /** The blade shield doubles riposte, thorns and the shield throw. */
@@ -1204,7 +1298,7 @@ public final class GuardianEffects {
         Vec3 look = player.getLookAngle();
         ServerPlayer best = null;
         double bestDot = 0.95;
-        for (ServerPlayer mate : level.players()) {
+        for (ServerPlayer mate : mates(level)) {
             if (mate == player || !mate.isAlive() || mate.isSpectator()) {
                 continue;
             }

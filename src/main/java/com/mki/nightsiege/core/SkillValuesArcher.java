@@ -21,6 +21,12 @@ final class SkillValuesArcher {
         def("a_pierce", "share", 0.7);              // damage of each monster behind the target
         def("a_pierce", "range", 8.0);              // blocks behind the target
         def("a_longshot", "range", 15.0);           // farther than this many blocks
+        def("swift_draw", "extra", 0.85);           // damage of the quick shot's extra arrows (Simon 26.10.)
+        // Simon 26.10.: every archer subclass has 4 more life (two hearts) and always a night totem.
+        def("swift_draw", "hp", 4);
+        def("heavy_draw", "hp", 4);
+        def("shrapnel", "hp", 4);
+        def("a_netbolt", "hp", 4);
         def("heavy_draw", "pause", 12);             // bow cooldown after every shot
         def("heavy_draw", "power", 1);              // extra Power level on the kit bow (KitService)
         def("double_shot", "angle", 4.0);

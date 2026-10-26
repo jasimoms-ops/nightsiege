@@ -21,11 +21,9 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Random;
-import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -39,8 +37,8 @@ import java.util.UUID;
 public final class CrateEffects {
 
     private static final Random RANDOM = new Random();
-    /** Defenders whose night totem was used up tonight. */
-    private static final Set<UUID> TOTEM_USED = new HashSet<>();
+    /** How often each defender's night totem saved them tonight. */
+    private static final Map<UUID, Integer> TOTEM_USED = new HashMap<>();
     /** Eagle-feather arrows and the tick they vanish (they fly straight, so they do not fall). */
     private static final Map<UUID, Long> STRAIGHT_ARROWS = new HashMap<>();
 
@@ -124,9 +122,9 @@ public final class CrateEffects {
     /** After damage: the night totem saves a defender once, the lightning blade strikes. */
     public static void afterDamage(LivingEntity victim, DamageSource source) {
         if (victim instanceof ServerPlayer player && player.isAlive()
-                && player.getHealth() < player.getMaxHealth() * 0.2f && !TOTEM_USED.contains(player.getUUID())
-                && has(player, "totem")) {
-            TOTEM_USED.add(player.getUUID());
+                && player.getHealth() < player.getMaxHealth() * 0.2f
+                && TOTEM_USED.getOrDefault(player.getUUID(), 0) < totems(player)) {
+            TOTEM_USED.merge(player.getUUID(), 1, Integer::sum);
             player.setHealth(player.getMaxHealth());
             if (player.level() instanceof ServerLevel level) {
                 level.sendParticles(ParticleTypes.TOTEM_OF_UNDYING, player.getX(), player.getY(1.0), player.getZ(),
@@ -146,6 +144,30 @@ public final class CrateEffects {
             }
             victim.hurtServer(level, level.damageSources().lightningBolt(), 6.0f);
         }
+    }
+
+    /**
+     * Night totems of a defender tonight: one from the crate gain, and (Simon 26.10.) one that
+     * every archer subclass always has, so an archer with the gain is saved twice.
+     */
+    public static int totems(ServerPlayer player) {
+        int n = has(player, "totem") ? 1 : 0;
+        SiegeManager m = SiegeManager.get();
+        if (m != null && player != null && m.isDefending(player)) {
+            PlayerSkills own = m.save().skillsOf(player.getUUID().toString());
+            if (archerTotem(m.skillTree().subclassOf(own))) {
+                n++;
+            }
+        }
+        return n;
+    }
+
+    /** True for the subclasses that always carry a night totem (all four archer subclasses). */
+    public static boolean archerTotem(String subclass) {
+        return com.mki.nightsiege.core.SkillTree.SUB_SWIFT.equals(subclass)
+                || com.mki.nightsiege.core.SkillTree.SUB_HEAVY.equals(subclass)
+                || com.mki.nightsiege.core.SkillTree.SUB_BOLTER.equals(subclass)
+                || com.mki.nightsiege.core.SkillTree.SUB_TRAPPER.equals(subclass);
     }
 
     /** Battle rush: a kill gives three seconds of speed. */

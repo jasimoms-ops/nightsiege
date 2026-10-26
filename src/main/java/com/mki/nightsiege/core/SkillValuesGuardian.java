@@ -17,15 +17,13 @@ final class SkillValuesGuardian {
         def("g_ironward", "toughness", 1.0);       // armour toughness per level, only with a shield at hand
         def("g_shieldwall", "absorb", 0.5);        // absorption per level and blocked hit (health)
         def("g_shieldwall", "cap", 4.0);           // at most this much absorption from the wall (health)
-        def("g_shieldwall", "block", 10.0);        // with a riposte: ticks of extra blocking per level
+        def("g_shieldwall", "block", 10.0);        // ticks of extra shield energy per level (Simon 26.10.: was riposte only)
+        // The riposte's block limit (3 s, 2 s rest) gave way to the shield energy of every shield (Simon 26.10.).
         def("riposte", "perfect", 2.0);            // perfect blocks throw back this many times as much
-        def("riposte", "block", 60.0);             // ticks of blocking at a stretch
-        def("riposte", "pause", 40.0);             // ticks the shield rests after
         def("b_cross_riposte", "perfect", 2.0);
-        def("b_cross_riposte", "block", 60.0);
-        def("b_cross_riposte", "pause", 40.0);
         def("g_bastion", "count", 4.0);            // monsters counted at most
         def("g_bastion", "radius", 8.0);
+        def("g_bastion", "group", 0.75);           // Simon 26.10.: the bulwark's damage on groups (hedgehog, vengeance, charge, debris)
         def("b_cross_bastion", "count", 4.0);
         def("b_cross_bastion", "radius", 8.0);
         def("g_shieldthrow", "targets", 3.0);
