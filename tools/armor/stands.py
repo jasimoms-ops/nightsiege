@@ -137,8 +137,9 @@ if __name__ == '__main__':
         img = render(look)
         assert img.getbbox()[1] > 0 and img.getbbox()[3] < FRAME_H, look + ' does not fit the frame'
         img.save(out + look + '.png')
-        shadow = Image.new('RGBA', img.size, (0, 0, 0, 0))
-        alpha = img.split()[3].point(lambda a: 110 if a > 0 else 0)
+        # A slate silhouette: readable on the windows' near-black panels.
+        shadow = Image.new('RGBA', img.size, (66, 60, 88, 0))
+        alpha = img.split()[3].point(lambda a: 210 if a > 0 else 0)
         shadow.putalpha(alpha)
         shadow.save(out + look + '_shadow.png')
     print('stands:', len(looks))

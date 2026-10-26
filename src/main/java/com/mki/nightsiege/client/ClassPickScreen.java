@@ -260,7 +260,7 @@ public class ClassPickScreen extends Screen {
             padlock(gui, x + cardW / 2 - 6, sy + standH / 2 - 8, 0xFF5A5468);
         }
         badge(gui, font, entry, x + cardW - 6, sy + 3, sx + 3);
-        int ib = standH - 14;
+        int ib = standH - 2;
 
         // The name, large, under the stand.
         String name = clazz == null ? entry.id : Component.translatable(clazz.translationKey()).getString();
@@ -279,7 +279,8 @@ public class ClassPickScreen extends Screen {
         String way;
         if (!entry.unlocked) {
             way = Component.translatable("nightsiege.pick.noway").getString();
-        } else if ((entry.way == null || entry.way.isBlank()) && ClassStands.has(entry.subclass)) {
+        } else if (ClassStands.has(entry.subclass)) {
+            // The subclass says it all (its way is fixed with it).
             way = Component.translatable("nightsiege.subclass." + entry.subclass).getString();
         } else if (entry.way == null || entry.way.isBlank()) {
             way = Component.translatable("nightsiege.pick.noway").getString();

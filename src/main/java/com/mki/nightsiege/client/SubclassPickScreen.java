@@ -250,6 +250,9 @@ public class SubclassPickScreen extends Screen {
         ty = wrapped(gui, font, Component.translatable("nightsiege.subpick.role." + sub.key()).getString(),
                 x + 5, ty, cardW - 10, open ? 0xFFB8B0C8 : 0xFF6F687E, 0.65f, Math.min(4, roleLines));
         String skill = Component.translatable("nightsiege.skill." + sub.node()).getString();
+        if (skill.equals(name)) {
+            return;   // the summoner's subclass nodes carry the subclass's own name
+        }
         int chipY = y + cardsH - 12;
         int chipW = (int) (font.width(skill) * 0.6f) + 6;
         gui.fill(x + 5, chipY, Math.min(x + cardW - 5, x + 5 + chipW), chipY + 9, 0xFF1E1A2A);
