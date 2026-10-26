@@ -256,6 +256,10 @@ public class SiegeConfig {
     public double berserkerLifesteal = 0.12;
     /** Zombies (husks, drowned …) and spiders hit warriors and guardians this many times harder (Simon, 25 October 2026). */
     public double zombieSpiderVsMelee = 2.0;
+    /** Rüstungsbruch (Simon, 26 October 2026): a zombie hit or creeper blast takes this share of a player's armour … */
+    public double armorBreakShare = 0.3;
+    /** … for this many seconds; another hit starts the time again (no stacking). 0 turns it off. */
+    public double armorBreakSeconds = 3.0;
     /** Klaffende Wunden (anti-heal, Simon 25 October 2026): these monsters halve all healing of the player they hit. */
     public java.util.List<String> antiHealMobs = new java.util.ArrayList<>(java.util.List.of(
             "minecraft:spider", "minecraft:cave_spider", "minecraft:witch"));
@@ -724,6 +728,8 @@ public class SiegeConfig {
             zombieSpiderVsMelee = 2.0;
         }
         zombieSpiderVsMelee = Math.min(5.0, Math.max(0.1, zombieSpiderVsMelee));
+        armorBreakShare = Double.isNaN(armorBreakShare) ? 0.3 : Math.min(1.0, Math.max(0.0, armorBreakShare));
+        armorBreakSeconds = Double.isNaN(armorBreakSeconds) ? 3.0 : Math.min(30.0, Math.max(0.0, armorBreakSeconds));
         if (Double.isNaN(berserkerLifesteal)) {
             berserkerLifesteal = 0.12;
         }

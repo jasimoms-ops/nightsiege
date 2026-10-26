@@ -556,6 +556,12 @@ public final class CombatEffects {
             return;
         }
         guardian.afterDamage(victim, source, base, taken, blocked);
+        if (victim instanceof ServerPlayer hurt && !blocked) {
+            SiegeManager tuning = SiegeManager.get();
+            if (tuning != null) {
+                ArmorBreak.afterHit(hurt, source, taken, tuning.config());   // zombies and creepers crack the armour
+            }
+        }
         long now = level.getGameTime();
         if (victim instanceof Enemy && taken > 0 && source.getEntity() instanceof ServerPlayer player) {
             PlayerSkills skills = skillsFor.apply(player);

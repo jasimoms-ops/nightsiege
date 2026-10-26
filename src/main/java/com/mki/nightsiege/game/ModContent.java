@@ -50,6 +50,7 @@ public final class ModContent {
     public static void register() {
         Identifier id = id(CORE_NAME);
         Registry.register(BuiltInRegistries.PARTICLE_TYPE, id("fog_wisp"), FOG_WISP);
+        ArmorBreak.register();
 
         ResourceKey<Block> blockKey = ResourceKey.create(Registries.BLOCK, id);
         SIEGE_CORE = new SiegeCoreBlock(BlockBehaviour.Properties.of()
