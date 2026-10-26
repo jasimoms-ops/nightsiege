@@ -152,8 +152,9 @@ public class ClassPickScreen extends Screen {
 
     @Override
     protected void init() {
-        w = Math.max(380, Math.min(540, this.width - 8));
-        h = Math.max(220, Math.min(300, this.height - 8));
+        // Larger on big screens (GUI scale 1-2): room for the armour stands.
+        w = Math.max(380, Math.min(720, this.width - 8));
+        h = Math.max(220, Math.min(400, this.height - 8));
         left = (this.width - w) / 2;
         top = (this.height - h) / 2;
         teamW = Math.max(100, Math.min(132, w / 4));
@@ -183,7 +184,7 @@ public class ClassPickScreen extends Screen {
             labelLines = lines;
             kitPerRow = perRow;
             kitPitch = lines > 0 ? Math.min(46, kitW / Math.min(perRow, maxItems)) : pitch;
-            cardH = Math.min(124, room);
+            cardH = Math.min(176, room);
             if (cardH >= 100) {
                 break;
             }
@@ -301,23 +302,23 @@ public class ClassPickScreen extends Screen {
         gui.fill(x + 1, y + 1, x + cardW - 1, y + cardH - 1, bg);
 
         SkillClass clazz = classOf(entry);
-        // Icon box top left, the badge top right (as in the design).
-        int ib = iconBox;
-        gui.fill(x + 5, y + 5, x + 5 + ib, y + 5 + ib, LINE);
-        gui.fill(x + 6, y + 6, x + 4 + ib, y + 4 + ib, BOX_DARK);
-        if (entry.unlocked) {
-            float sc = ib >= 26 ? 1.25f : 1.0f;
-            gui.pose().pushMatrix();
-            gui.pose().translate(x + 5 + (ib - 16 * sc) / 2f, y + 5 + (ib - 16 * sc) / 2f);
-            gui.pose().scale(sc, sc);
-            gui.item(new ItemStack(item(icon(clazz))), 0, 0);
-            gui.pose().popMatrix();
-        } else {
-            padlock(gui, x + 5 + (ib - 12) / 2, y + 5 + (ib - 15) / 2, 0xFF5A5468);
+        // The armour stand of the own subclass of this class (Simon, 26 October 2026); a shadow
+        // while the class is locked or has no subclass yet. The badge sits on it, top right.
+        int standH = Math.max(30, cardH - 62);
+        int sx = x + 4;
+        int sy = y + 4;
+        gui.fill(sx, sy, x + cardW - 4, sy + standH, LINE);
+        gui.fill(sx + 1, sy + 1, x + cardW - 5, sy + standH - 1, BOX_DARK);
+        boolean ownLook = entry.unlocked && ClassStands.has(entry.subclass);
+        ClassStands.draw(gui, ownLook ? entry.subclass : ClassStands.firstOf(clazz), !ownLook,
+                sx + 2, sy + 3, cardW - 12, standH - 5);
+        if (!entry.unlocked) {
+            padlock(gui, x + cardW / 2 - 6, sy + standH / 2 - 8, 0xFF5A5468);
         }
-        badge(gui, font, entry, x + cardW - 4, y + 6, x + 8 + ib);
+        badge(gui, font, entry, x + cardW - 6, sy + 3, sx + 3);
+        int ib = standH - 2;
 
-        // The class, large, under the icon; the subclass goes in the line below.
+        // The name, large, under the stand.
         String name = clazz == null ? entry.id : Component.translatable(clazz.translationKey()).getString();
         Component title = Component.literal(name).withStyle(net.minecraft.ChatFormatting.BOLD);
         // Long names (five cards on a narrow screen): smaller rather than cut off.
@@ -334,6 +335,9 @@ public class ClassPickScreen extends Screen {
         String way;
         if (!entry.unlocked) {
             way = Component.translatable("nightsiege.pick.noway").getString();
+        } else if (ClassStands.has(entry.subclass)) {
+            // The subclass says it all (its way is fixed with it).
+            way = Component.translatable("nightsiege.subclass." + entry.subclass).getString();
         } else if (entry.way == null || entry.way.isBlank()) {
             way = Component.translatable("nightsiege.pick.noway").getString();
         } else {
@@ -342,7 +346,7 @@ public class ClassPickScreen extends Screen {
         if (entry.subclass != null && !entry.subclass.isBlank()) {
             way = Component.translatable("nightsiege.subclass." + entry.subclass).getString() + " · " + way;
         }
-        ty = wrapped(gui, font, way, x + 5, ty, cardW - 10, entry.unlocked ? LIGHT : GREY, 0.7f, 2);
+        ty = wrapped(gui, font, way, x + 5, ty, cardW - 10, entry.unlocked ? LIGHT : GREY, 0.7f, 1);
 
         // Points, the ult and the bar.
         int barColor = entry.complete ? GOLD : entry.leveling ? 0xFF4CC35A : 0xFF6FA8FF;
@@ -373,7 +377,7 @@ public class ClassPickScreen extends Screen {
         if (entry.complete) {
             return Component.translatable("nightsiege.pick.desc_done").getString();
         }
-        if (entry.ult >= entry.ultMax) {
+        if (entry.ultDone) {
             return Component.translatable("nightsiege.pick.desc_ult").getString();
         }
         if (entry.leveling) {
@@ -393,6 +397,10 @@ public class ClassPickScreen extends Screen {
             bg = 0xFF24222A;
         } else if (entry.complete) {
             key = "nightsiege.pick.done";
+            fg = GOLD;
+            bg = 0xFF3A3010;
+        } else if (entry.ultDone) {
+            key = "nightsiege.pick.ult3";
             fg = GOLD;
             bg = 0xFF3A3010;
         } else if (entry.leveling) {
@@ -585,6 +593,39 @@ public class ClassPickScreen extends Screen {
     private static int wrapped(GuiGraphicsExtractor gui, Font font, String text, int x, int y, int width, int color,
                                float scale, int maxLines) {
         List<FormattedCharSequence> lines = font.split(FormattedText.of(text), (int) (width / scale));
+        if (lines.size() > maxLines && maxLines > 0) {
+            // Cut text ends with "…" instead of stopping mid-sentence: plain word wrap, last line shortened.
+            int max = (int) (width / scale);
+            List<String> plain = new java.util.ArrayList<>();
+            StringBuilder cur = new StringBuilder();
+            for (String word : text.split(" ")) {
+                String tryLine = cur.length() == 0 ? word : cur + " " + word;
+                if (font.width(tryLine) <= max || cur.length() == 0) {
+                    cur.setLength(0);
+                    cur.append(tryLine);
+                } else {
+                    plain.add(cur.toString());
+                    cur.setLength(0);
+                    cur.append(word);
+                }
+            }
+            if (cur.length() > 0) {
+                plain.add(cur.toString());
+            }
+            int lineH = (int) Math.ceil(9 * scale) + 1;
+            for (int n = 0; n < maxLines && n < plain.size(); n++) {
+                String line = plain.get(n);
+                if (n == maxLines - 1 && plain.size() > maxLines) {
+                    line = font.plainSubstrByWidth(line, max - font.width("…")).trim() + "…";
+                }
+                gui.pose().pushMatrix();
+                gui.pose().translate(x, y + n * lineH);
+                gui.pose().scale(scale, scale);
+                gui.text(font, line, 0, 0, color, false);
+                gui.pose().popMatrix();
+            }
+            return y + maxLines * lineH;
+        }
         int lineH = (int) Math.ceil(9 * scale) + 1;
         int n = 0;
         for (FormattedCharSequence line : lines) {

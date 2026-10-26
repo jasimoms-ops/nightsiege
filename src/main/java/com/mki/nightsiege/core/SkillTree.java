@@ -153,6 +153,67 @@ public final class SkillTree {
     // warrior
     // ------------------------------------------------------------------
 
+    /** One subclass: its class, its way, the node that chooses it and its key (outfit, texts). */
+    public record SubclassInfo(SkillClass clazz, String way, String node, String key) {
+    }
+
+    /** Every subclass, per class the first way first (both sides of the client may read it). */
+    public static final List<SubclassInfo> SUBCLASSES = List.of(
+            new SubclassInfo(SkillClass.WARRIOR, WAY_BLADE, "w_combo", SUB_BLADEMASTER),
+            new SubclassInfo(SkillClass.WARRIOR, WAY_BLADE, "bloodlust", SUB_BERSERKER),
+            new SubclassInfo(SkillClass.WARRIOR, WAY_MIGHT, "heavy_blow", SUB_AXE),
+            new SubclassInfo(SkillClass.WARRIOR, WAY_MIGHT, "smite", SUB_PALADIN),
+            new SubclassInfo(SkillClass.GUARDIAN, WAY_SHIELD, "riposte", SUB_SHIELDFIGHTER),
+            new SubclassInfo(SkillClass.GUARDIAN, WAY_SHIELD, "g_bastion", SUB_BULWARK),
+            new SubclassInfo(SkillClass.GUARDIAN, WAY_BLESSING, "g_healing_hand", SUB_MEDIC),
+            new SubclassInfo(SkillClass.GUARDIAN, WAY_BLESSING, "g_ward", SUB_WARDEN),
+            new SubclassInfo(SkillClass.ARCHER, WAY_BOW, "swift_draw", SUB_SWIFT),
+            new SubclassInfo(SkillClass.ARCHER, WAY_BOW, "heavy_draw", SUB_HEAVY),
+            new SubclassInfo(SkillClass.ARCHER, WAY_CROSSBOW, "shrapnel", SUB_BOLTER),
+            new SubclassInfo(SkillClass.ARCHER, WAY_CROSSBOW, "a_netbolt", SUB_TRAPPER),
+            new SubclassInfo(SkillClass.ENGINEER, WAY_MECHANICS, TrapKind.TURRET.id(), SUB_GUNNER),
+            new SubclassInfo(SkillClass.ENGINEER, WAY_MECHANICS, TrapKind.TESLA.id(), SUB_ELECTRICIAN),
+            new SubclassInfo(SkillClass.ENGINEER, WAY_CHEMISTRY, TrapKind.MORTAR.id(), SUB_DEMOLITION),
+            new SubclassInfo(SkillClass.ENGINEER, WAY_CHEMISTRY, TrapKind.BREWER.id(), SUB_ALCHEMIST),
+            new SubclassInfo(SkillClass.SUMMONER, WAY_WILD, "s_tamer", SUB_TAMER),
+            new SubclassInfo(SkillClass.SUMMONER, WAY_WILD, "s_golemsmith", SUB_GOLEMSMITH),
+            new SubclassInfo(SkillClass.SUMMONER, WAY_DEAD, "d_necro", SUB_NECROMANCER),
+            new SubclassInfo(SkillClass.SUMMONER, WAY_DEAD, "d_soulcatcher", SUB_SOULCATCHER));
+
+    /** The four subclasses of a class, first way first. */
+    public static List<SubclassInfo> subclassesOf(SkillClass clazz) {
+        List<SubclassInfo> out = new ArrayList<>();
+        for (SubclassInfo info : SUBCLASSES) {
+            if (info.clazz() == clazz) {
+                out.add(info);
+            }
+        }
+        return out;
+    }
+
+    /** The subclass of a class by its key (e.g. "berserker"), or null. */
+    public static SubclassInfo subclassByKey(SkillClass clazz, String key) {
+        if (key == null || key.isBlank()) {
+            return null;
+        }
+        for (SubclassInfo info : SUBCLASSES) {
+            if (info.key().equals(key) && (clazz == null || info.clazz() == clazz)) {
+                return info;
+            }
+        }
+        return null;
+    }
+
+    /** The subclass a node chooses, or null. */
+    public static SubclassInfo subclassByNode(String nodeId) {
+        for (SubclassInfo info : SUBCLASSES) {
+            if (info.node().equals(nodeId)) {
+                return info;
+            }
+        }
+        return null;
+    }
+
     /** The subclass node of each way and the subclass it stands for. */
     private static final Map<String, String> SUBCLASS_NODES = Map.ofEntries(
             Map.entry("swift_draw", SUB_SWIFT),
@@ -669,6 +730,8 @@ public final class SkillTree {
             if (!taken.isEmpty() && !taken.equals(node.path())) {
                 return "path";
             }
+            // The subclass fixed with the class (armour stand window) is the profile's planned
+            // subclass: subclassBlocked shuts the other way and the other subclasses.
         }
         if (node.inGroup()) {
             for (SkillNode other : nodes.values()) {
@@ -1013,6 +1076,28 @@ public final class SkillTree {
             }
         }
         return true;
+    }
+
+    /** The subclass of a class: the learned one, else the one fixed with the class, or empty. */
+    public String chosenSubclass(PlayerSkills skills, SkillClass clazz) {
+        if (skills == null || clazz == null || clazz.isShared() || !skills.hasUnlocked(clazz)) {
+            return "";
+        }
+        return subclassOfProfile(skills, skills.profileFor(clazz));
+    }
+
+    /** True when an ultimate of the class is at its top level (3): the next class may open. */
+    public boolean ultimateMaxed(PlayerSkills skills, SkillClass clazz) {
+        if (skills == null || clazz == null || clazz.isShared()) {
+            return false;
+        }
+        for (SkillNode node : ofClass(clazz)) {
+            if (node.effect().target() == SkillEffect.Target.ULTIMATE
+                    && skills.levelIn(clazz, node.id()) >= node.maxLevel()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** The warrior subclass a player has chosen (blademaster, berserker, axe, paladin), or empty. */

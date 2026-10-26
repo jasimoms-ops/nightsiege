@@ -38,7 +38,11 @@ public class CoreScreen extends Screen {
     private int W = 404;
     private int H = 244;
     /** Height of the dark banner with the big title. */
-    private static final int BANNER = 26;
+    private static final int BANNER_FULL = 26;
+    /** Banner height: smaller in the compact window (small screens, high GUI scale). */
+    private int BANNER = BANNER_FULL;
+    /** The window had to shrink to fit the screen: tighter rows everywhere. */
+    private boolean compact;
     private static final int TAB_W = 28;
     private static final int TAB_H = 26;
     private static final int SLOT = 26;
@@ -67,6 +71,8 @@ public class CoreScreen extends Screen {
 
     private enum Tab {
         STATS(null, "minecraft:clock", "minecraft:textures/block/deepslate_tiles.png", 0xFFFFC94A, "stats"),
+        // The class overview (Simon, 26 October 2026): replaces the five class tabs.
+        CLASSES(null, "minecraft:armor_stand", "minecraft:textures/block/dark_oak_planks.png", 0xFFFFD86B, "classes"),
         ARCHER(SkillClass.ARCHER, "minecraft:bow", "minecraft:textures/block/spruce_planks.png", 0xFF8BD45C, "archer"),
         WARRIOR(SkillClass.WARRIOR, "minecraft:iron_sword", "minecraft:textures/block/stone_bricks.png", 0xFFFF6B4A, "warrior"),
         GUARDIAN(SkillClass.GUARDIAN, "minecraft:shield", "minecraft:textures/block/polished_andesite.png", 0xFF6FA8FF, "guardian"),
@@ -272,13 +278,39 @@ public class CoreScreen extends Screen {
     private Tab[] visibleTabs() {
         List<Tab> out = new ArrayList<>();
         for (Tab tab : Tab.values()) {
-            if (tab != Tab.SUMMONER || stats.summoner) {
+            // The class trees have no tab of their own any more: the overview leads to them.
+            if (tab.clazz == null || tab.clazz.isShared()) {
                 out.add(tab);
             }
         }
         return out.toArray(new Tab[0]);
     }
 
+    /** A class's own tree (reached from the overview). */
+    private static boolean isClassTree(Tab tab) {
+        return tab != null && tab.clazz != null && !tab.clazz.isShared();
+    }
+
+    private static Tab tabOf(SkillClass clazz) {
+        for (Tab tab : Tab.values()) {
+            if (tab.clazz == clazz) {
+                return tab;
+            }
+        }
+        return Tab.CLASSES;
+    }
+
+    private Tab ownTab() {
+        if (!hasClass()) {
+            return null;
+        }
+        for (Tab tab : Tab.values()) {
+            if (tab.clazz != null && tab.clazz.name().equals(stats.myClass)) {
+                return tab;
+            }
+        }
+        return null;
+    }
 
     // ------------------------------------------------------------------
     // widgets
@@ -291,22 +323,27 @@ public class CoreScreen extends Screen {
             activeTab = null;
         }
         if (activeTab == null) {
-            // The start page lists the profiles; a click there opens a profile's tree.
-            activeTab = Tab.STATS;
+            activeTab = Tab.CLASSES;
         }
         applyShownProfile();
-        boolean big = activeTab.clazz != null && stats.skillsEnabled && isGrid(activeTab.clazz.name());
+        boolean big = activeTab == Tab.CLASSES
+                || (activeTab.clazz != null && stats.skillsEnabled && isGrid(activeTab.clazz.name()));
         // The start page gets room for the profile list next to its cards.
         boolean wideStats = activeTab == Tab.STATS && hasClass();
         W = big ? Math.max(404, Math.min(this.width - 16, 760)) : wideStats ? Math.max(404, Math.min(this.width - 16, 600)) : 404;
-        H = big ? Math.max(244, Math.min(this.height - 34, 440)) : wideStats ? Math.max(244, Math.min(this.height - 34, 300)) : 244;
+        H = big ? Math.min(this.height - 34, 440) : wideStats ? Math.max(244, Math.min(this.height - 34, 300)) : 244;
+        // Small screens (high GUI scale): the window shrinks, so the tabs and buttons stay visible.
+        H = Math.max(196, Math.min(H, this.height - TAB_H - 4));
+        W = Math.min(W, this.width - 4);
+        compact = H < 240;
+        BANNER = compact ? 18 : BANNER_FULL;
         left = (this.width - W) / 2;
         top = (this.height - H - TAB_H + 4) / 2 + TAB_H - 4;
         nodeButtons.clear();
         pathRows.clear();
         gridMode = false;
         if (activeTab == null) {
-            activeTab = Tab.STATS;
+            activeTab = Tab.CLASSES;
         }
 
         if ((confirmingReset || confirming != null || choosingUnlock) && activeTab.clazz != null && stats.skillsEnabled
@@ -429,6 +466,10 @@ public class CoreScreen extends Screen {
             }
             return;
         }
+        if (activeTab == Tab.CLASSES) {
+            layoutClasses();
+            return;
+        }
         if (activeTab.clazz == null || !stats.skillsEnabled) {
             return;
         }
@@ -447,10 +488,9 @@ public class CoreScreen extends Screen {
             SkillClass pick = activeTab.clazz;
             Component label = Component.translatable("nightsiege.ui.choose_class", Component.translatable(pick.translationKey()));
             int bw = Math.max(134, font.width(label) + 12);
-            addRenderableWidget(Button.builder(label, b -> {
-                confirming = pick;
-                rebuildWidgets();
-            }).bounds(left + W - 66 - bw, footerY, bw, 18).build());
+            // The subclass is chosen with the class, at the armour stands (26 October 2026).
+            addRenderableWidget(Button.builder(label, b -> openSubclassPick(pick))
+                    .bounds(left + W - 66 - bw, footerY, bw, 18).build());
         } else if (page != null && !page.playing && !stats.siegeActive) {
             // Another own profile: play it from now on.
             String key = page.key;
@@ -467,7 +507,18 @@ public class CoreScreen extends Screen {
                 rebuildWidgets();
             }).bounds(left + W - 66 - bw, footerY, bw, 18).build());
         }
+        // Choosing and playing a class happen in the overview (tab Klassen) now.
         int footerX = left + 8;
+        if (isClassTree(activeTab)) {
+            // Back to the class overview.
+            Component backLabel = Component.translatable("nightsiege.ui.back_classes");
+            int kw = Math.max(60, font.width(backLabel) + 12);
+            addRenderableWidget(Button.builder(backLabel, b -> {
+                activeTab = Tab.CLASSES;
+                rebuildWidgets();
+            }).bounds(footerX, footerY, kw, 18).build());
+            footerX += kw + 4;
+        }
         if (stats.creative && activeTab != Tab.CORE) {
             Component grant = Component.translatable("nightsiege.ui.dev_grant");
             Component wipe = Component.translatable("nightsiege.ui.dev_reset");
@@ -475,6 +526,7 @@ public class CoreScreen extends Screen {
             int rw = Math.max(56, font.width(wipe) + 12);
             addRenderableWidget(Button.builder(grant, b -> send("dev:50")).bounds(footerX, footerY, gw, 18).build());
             addRenderableWidget(Button.builder(wipe, b -> send("dev:reset")).bounds(footerX + gw + 4, footerY, rw, 18).build());
+
             footerX += gw + rw + 8;
             if (activeTab == Tab.COLLECTION) {
                 // Creative: start the collection of the shown class over (crate gains for testing).
@@ -544,7 +596,7 @@ public class CoreScreen extends Screen {
     }
 
     private int innerH() {
-        return H - 6 - BANNER - 30;
+        return H - 6 - BANNER - (compact ? 27 : 30);
     }
 
     /** True when the nodes of this class carry fixed places (the warrior's grid). */
@@ -1668,6 +1720,8 @@ public class CoreScreen extends Screen {
         CoreStats.NodeLine hovered = null;
         if (activeTab == Tab.STATS) {
             drawStats(gui, font, mouseX, mouseY);
+        } else if (activeTab == Tab.CLASSES) {
+            drawClasses(gui, font, mouseX, mouseY);
         } else if (activeTab == Tab.PERKS) {
             drawPerks(gui, font);
         } else if (activeTab == Tab.COLLECTION) {
@@ -1723,6 +1777,9 @@ public class CoreScreen extends Screen {
     }
 
     private String tabName(Tab tab) {
+        if (tab == Tab.CLASSES) {
+            return Component.translatable("nightsiege.ui.banner_title.classes").getString();
+        }
         if (tab == Tab.STATS) {
             return Component.translatable("nightsiege.ui.tab_stats").getString();
         }
@@ -1750,7 +1807,7 @@ public class CoreScreen extends Screen {
         Tab[] tabs = visibleTabs();
         for (int i = 0; i < tabs.length; i++) {
             Tab tab = tabs[i];
-            boolean active = tab == activeTab;
+            boolean active = tab == activeTab || (tab == Tab.CLASSES && isClassTree(activeTab));
             if (active != activeOnly) {
                 continue;
             }
@@ -1799,16 +1856,18 @@ public class CoreScreen extends Screen {
         gui.fill(x1, y2 - 1, x2, y2, 0xFF000000 | rgb);
         gui.fill(x1, y1, x2, y1 + 1, 0x40FFFFFF);
 
-        gui.item(iconOf(activeTab.icon), x1 + 6, y1 + 5);
+        float titleScale = compact ? 1.25f : 2.0f;
+        int iconY = compact ? y1 + 1 : y1 + 5;
+        gui.item(iconOf(activeTab.icon), x1 + 6, iconY);
         String name = bannerName(activeTab);
         gui.pose().pushMatrix();
-        gui.pose().translate(x1 + 28, y1 + 5);
-        gui.pose().scale(2.0f, 2.0f);
+        gui.pose().translate(x1 + 28, compact ? y1 + 4 : y1 + 5);
+        gui.pose().scale(titleScale, titleScale);
         gui.text(font, name, 0, 0, activeTab.color, true);
         gui.pose().popMatrix();
         String tagline = Component.translatable("nightsiege.ui.banner_sub." + activeTab.key).getString();
-        int tx = x1 + 28 + font.width(name) * 2 + 10;
-        gui.text(font, tagline, tx, y1 + 12, 0xFFB8B4C0, true);
+        int tx = x1 + 28 + (int) (font.width(name) * titleScale) + 10;
+        gui.text(font, tagline, tx, compact ? y1 + 5 : y1 + 12, 0xFFB8B4C0, true);
 
         String badge = null;
         if (ownsClassTab()) {
@@ -1817,11 +1876,14 @@ public class CoreScreen extends Screen {
             badge = Component.translatable("nightsiege.ui.banner_pot", stats.corePoints).getString();
         }
         if (badge != null && !gridMode) {
-            gui.text(font, badge, x2 - 8 - font.width(badge), y1 + 9, 0xFFFFD86B, true);
+            gui.text(font, badge, x2 - 8 - font.width(badge), compact ? y1 + 5 : y1 + 9, 0xFFFFD86B, true);
         }
     }
 
     private String bannerName(Tab tab) {
+        if (tab == Tab.CLASSES) {
+            return Component.translatable("nightsiege.ui.banner_title.classes").getString();
+        }
         if (tab == Tab.STATS) {
             return Component.translatable("nightsiege.ui.banner_title.stats").getString();
         }
@@ -1843,7 +1905,7 @@ public class CoreScreen extends Screen {
         gui.fill(x - 1, y - 1, x + w + 1, y + h + 1, FRAME_DARK);
         gui.fill(x, y + h, x + w + 1, y + h + 1, FRAME_LIGHT);
         gui.fill(x + w, y, x + w + 1, y + h + 1, FRAME_LIGHT);
-        if (gridMode) {
+        if (gridMode || activeTab == Tab.CLASSES) {
             // Dark fantasy: deep night with the class colour glowing in from the edges.
             int rgb = activeTab.color & 0xFFFFFF;
             gui.fill(x, y, x + w, y + h, 0xFF0E0C14);
@@ -2060,12 +2122,198 @@ public class CoreScreen extends Screen {
         return hovered;
     }
 
+    // ------------------------------------------------------------------
+    // the class overview (tab Klassen)
+    // ------------------------------------------------------------------
+
+    /** The cards of the overview: x, y, width, height and the height of the stand box. */
+    private record ClassCard(CoreStats.ClassLine line, SkillClass clazz, int x, int y, int w, int h, int standH) {
+    }
+
+    private final List<ClassCard> classCards = new ArrayList<>();
+
+    private List<CoreStats.ClassLine> classLines() {
+        List<CoreStats.ClassLine> out = new ArrayList<>();
+        if (stats.classLines != null) {
+            for (CoreStats.ClassLine line : stats.classLines) {
+                if (SkillClass.byName(line.id) != null) {
+                    out.add(line);
+                }
+            }
+        }
+        return out;
+    }
+
+    /** True when this class may be chosen now: the first class, or the next one after an ultimate at level 3. */
+    private boolean choosableNow(CoreStats.ClassLine line) {
+        // A new class needs a free unlock (an ult at level 3) that may open this class.
+        return !line.unlocked && !stats.siegeActive
+                && (!hasClass() || (stats.unlocksFree > 0 && stats.unlockClasses.contains(line.id)));
+    }
+
+    private void layoutClasses() {
+        classCards.clear();
+        List<CoreStats.ClassLine> lines = classLines();
+        if (lines.isEmpty()) {
+            return;
+        }
+        int gap = 5;
+        int n = lines.size();
+        int x0 = innerX() + 4;
+        int y0 = innerY() + 14;
+        int cw = (innerW() - 8 - (n - 1) * gap) / n;
+        int ch = innerY() + innerH() - 4 - y0;
+        int standH = Math.max(24, ch - 76);
+        for (int i = 0; i < n; i++) {
+            CoreStats.ClassLine line = lines.get(i);
+            SkillClass clazz = SkillClass.byName(line.id);
+            int x = x0 + i * (cw + gap);
+            ClassCard card = new ClassCard(line, clazz, x, y0, cw, ch, standH);
+            classCards.add(card);
+            int by = y0 + ch - 4 - 14;
+            int bw = cw - 8;
+            // Bottom: the tree. Above it: what can be done with the class now.
+            addRenderableWidget(Button.builder(Component.translatable("nightsiege.ui.class_tree"), b -> {
+                activeTab = tabOf(clazz);
+                rebuildWidgets();
+            }).bounds(x + 4, by, bw, 14).build());
+            Button action = null;
+            if (!line.unlocked && choosableNow(line)) {
+                Component label = Component.translatable(hasClass() ? "nightsiege.ui.class_unlock" : "nightsiege.ui.class_pick");
+                action = Button.builder(label, b -> openSubclassPick(clazz)).bounds(x + 4, by - 16, bw, 14).build();
+            } else if (line.unlocked && (line.subclass == null || line.subclass.isBlank())) {
+                action = Button.builder(Component.translatable("nightsiege.ui.class_subpick"), b ->
+                        Minecraft.getInstance().setScreenAndShow(new SubclassPickScreen(clazz, SubclassPickScreen.Mode.FIX,
+                                this, line.way))).bounds(x + 4, by - 16, bw, 14).build();
+            } else if (line.unlocked && !line.played) {
+                Button play = Button.builder(Component.translatable("nightsiege.ui.class_play"), b -> send("play:" + clazz.name()))
+                        .bounds(x + 4, by - 16, bw, 14).build();
+                play.active = !stats.siegeActive;
+                action = play;
+            }
+            if (action != null) {
+                addRenderableWidget(action);
+            }
+        }
+    }
+
+    /** Choosing a class (first or next): the subclass window decides way and subclass with it. */
+    private void openSubclassPick(SkillClass clazz) {
+        SubclassPickScreen.Mode mode = hasClass() ? SubclassPickScreen.Mode.NEXT : SubclassPickScreen.Mode.FIRST;
+        Minecraft.getInstance().setScreenAndShow(new SubclassPickScreen(clazz, mode, this, ""));
+    }
+
+    private void drawClasses(GuiGraphicsExtractor gui, Font font, int mouseX, int mouseY) {
+        // One line above the cards: where the points go.
+        SkillClass leveling = SkillClass.byName(stats.myClass);
+        String head = hasClass()
+                ? Component.translatable("nightsiege.ui.classes_head", stats.points,
+                        leveling == null ? Component.literal("?") : Component.translatable(leveling.translationKey())).getString()
+                : Component.translatable("nightsiege.ui.classes_first").getString();
+        if (hasClass() && stats.nextClassOpen) {
+            head += "  " + Component.translatable("nightsiege.ui.classes_next").getString();
+        }
+        gui.text(font, font.plainSubstrByWidth(head, innerW() - 12), innerX() + 6, innerY() + 3,
+                stats.nextClassOpen ? 0xFFFFD86B : 0xFFCFC7DD, true);
+        for (ClassCard card : classCards) {
+            drawClassCard(gui, font, card, mouseX, mouseY);
+        }
+    }
+
+    private void drawClassCard(GuiGraphicsExtractor gui, Font font, ClassCard card, int mouseX, int mouseY) {
+        CoreStats.ClassLine line = card.line();
+        int x = card.x();
+        int y = card.y();
+        int w = card.w();
+        int h = card.h();
+        boolean open = line.unlocked || choosableNow(line);
+        int classColor = CoreColors.classColor(card.clazz());
+        gui.fill(x, y, x + w, y + h, line.played ? 0xFFFFD86B : 0xFF2C2740);
+        gui.fill(x + 1, y + 1, x + w - 1, y + h - 1, line.unlocked ? 0xFF1A1622 : 0xFF131118);
+        gui.fill(x + 1, y + 1, x + w - 1, y + 3, open ? classColor : 0xFF2C2740);
+
+        // Name and status.
+        // The class played tonight carries a gold arrow.
+        String name = (line.played ? "▶ " : "") + Component.translatable(card.clazz().translationKey()).getString();
+        float ns = Math.min(1.0f, Math.max(0.6f, (w - 10f) / Math.max(1, font.width(name))));
+        gui.pose().pushMatrix();
+        gui.pose().translate(x + 5, y + 5);
+        gui.pose().scale(ns, ns);
+        gui.text(font, name, 0, 0, line.played ? 0xFFFFD86B : open ? 0xFFFFFFFF : 0xFF8F879F, true);
+        gui.pose().popMatrix();
+
+        // The armour stand of the class's subclass, a shadow while there is none.
+        int sy = y + 15;
+        int sh = card.standH();
+        gui.fill(x + 4, sy, x + w - 4, sy + sh, 0xFF2C2740);
+        gui.fill(x + 5, sy + 1, x + w - 5, sy + sh - 1, 0xFF0E0C14);
+        boolean own = line.unlocked && ClassStands.has(line.subclass);
+        ClassStands.draw(gui, own ? line.subclass : ClassStands.firstOf(card.clazz()), !own, x + 6, sy + 2, w - 12, sh - 4);
+        String badgeKey;
+        int badgeFg;
+        int badgeBg;
+        if (line.unlocked && line.complete) {
+            badgeKey = "nightsiege.pick.done";
+            badgeFg = 0xFFFFD86B;
+            badgeBg = 0xFF3A3010;
+        } else if (line.unlocked && line.ultDone) {
+            badgeKey = "nightsiege.pick.ult3";
+            badgeFg = 0xFFFFD86B;
+            badgeBg = 0xFF3A3010;
+        } else if (line.leveling) {
+            badgeKey = "nightsiege.pick.leveling";
+            badgeFg = 0xFF7FE08A;
+            badgeBg = 0xFF12301A;
+        } else if (line.unlocked) {
+            badgeKey = "nightsiege.pick.open";
+            badgeFg = 0xFF9CC4FF;
+            badgeBg = 0xFF162236;
+        } else if (choosableNow(line)) {
+            badgeKey = "nightsiege.pick.choosable";
+            badgeFg = 0xFFFFD86B;
+            badgeBg = 0xFF3A3010;
+        } else {
+            badgeKey = "nightsiege.pick.locked";
+            badgeFg = 0xFF8F879F;
+            badgeBg = 0xFF24222A;
+        }
+        String badge = Component.translatable(badgeKey).getString();
+        int bw = (int) (font.width(badge) * 0.6f) + 6;
+        gui.fill(x + w - 6 - bw, sy + 3, x + w - 6, sy + 12, badgeBg);
+        smallText(gui, font, badge, x + w - 3 - bw, sy + 5, badgeFg, 0.6f);
+
+        // Subclass, points and the bar.
+        int ty = sy + sh + 3;
+        String sub;
+        if (own) {
+            sub = Component.translatable("nightsiege.subclass." + line.subclass).getString();
+        } else if (line.unlocked) {
+            sub = Component.translatable("nightsiege.ui.class_no_sub").getString();
+        } else {
+            sub = Component.translatable(choosableNow(line) ? "nightsiege.ui.class_choose_hint" : "nightsiege.ui.class_locked_hint").getString();
+        }
+        smallText(gui, font, font.plainSubstrByWidth(sub, (int) ((w - 10) / 0.7f)), x + 5, ty, own ? 0xFFCFC7DD : 0xFF8F879F, 0.7f);
+        if (line.unlocked) {
+            String pts = line.total > 0 ? Component.translatable("nightsiege.pick.points_of", line.spent, line.total).getString()
+                    : Component.translatable("nightsiege.pick.points", line.spent).getString();
+            smallText(gui, font, font.plainSubstrByWidth(pts, (int) ((w - 10) / 0.6f)), x + 5, ty + 9, 0xFF8F879F, 0.6f);
+            int barY = ty + 17;
+            gui.fill(x + 5, barY, x + w - 5, barY + 4, 0xFF2C2740);
+            gui.fill(x + 6, barY + 1, x + w - 6, barY + 3, 0xFF0E0C14);
+            if (line.total > 0) {
+                int full = w - 12;
+                int fill = line.complete ? full : Math.min(full, full * line.spent / Math.max(1, line.total));
+                gui.fill(x + 6, barY + 1, x + 6 + fill, barY + 3, line.complete || line.ultDone ? 0xFFFFD86B : 0xFF4CC35A);
+            }
+        }
+    }
+
     private void drawFooter(GuiGraphicsExtractor gui, Font font) {
         if (activeTab == Tab.PERKS) {
             gui.text(font, Component.translatable("nightsiege.ui.footer_perks").getString(), left + 10, top + H - 19, TITLE, false);
             return;
         }
-        if (activeTab == Tab.COLLECTION) {
+        if (activeTab == Tab.COLLECTION || activeTab == Tab.CLASSES) {
             return;
         }
         if (activeTab == Tab.STATS || stats.creative) {
@@ -2177,7 +2425,7 @@ public class CoreScreen extends Screen {
         int bottom = innerY() + innerH() - 13;
         int rows = com.mki.nightsiege.core.CrateRarity.values().length;
         // The shelves share the height: showcases between 18 and 24 pixels.
-        int box = Math.max(18, Math.min(Math.min(tileW - 3, 24), (bottom - y) / rows - 7));
+        int box = Math.max(compact ? 15 : 18, Math.min(Math.min(tileW - 3, 24), (bottom - y) / rows - 7));
         int shelfH = box + 6;
         int step = Math.max(shelfH + 1, Math.min(shelfH + 6, (bottom - y) / rows));
         com.mki.nightsiege.core.CrateGains.Gain hovered = null;
@@ -2199,10 +2447,17 @@ public class CoreScreen extends Screen {
             // The plaque on the left.
             gui.fill(x, y, x + labelW - 6, y + box, 0xC0100C0A);
             gui.fill(x, y, x + 2, y + box, color);
-            gui.text(font, font.plainSubstrByWidth(Component.translatable(rarity.translationKey()).getString(), labelW - 12),
-                    x + 5, y + 3, color, true);
             String count = have + "/" + all;
-            smallText(gui, font, count, x + 5, y + box - 8, 0xFFB0A898, 0.7f);
+            if (box < 18) {
+                // Low shelves (compact window): smaller name and count, so they do not overlap.
+                smallText(gui, font, font.plainSubstrByWidth(Component.translatable(rarity.translationKey()).getString(),
+                        (int) ((labelW - 12) / 0.75f)), x + 5, y + 2, color, 0.75f);
+                smallText(gui, font, count, x + 5, y + box - 6, 0xFFB0A898, 0.6f);
+            } else {
+                gui.text(font, font.plainSubstrByWidth(Component.translatable(rarity.translationKey()).getString(), labelW - 12),
+                        x + 5, y + 3, color, true);
+                smallText(gui, font, count, x + 5, y + box - 8, 0xFFB0A898, 0.7f);
+            }
             int pb = x + 5 + (int) (font.width(count) * 0.7f) + 3;
             if (pb < x + labelW - 9) {
                 gui.fill(pb, y + box - 6, x + labelW - 9, y + box - 4, 0xFF2A2420);
@@ -2701,13 +2956,14 @@ public class CoreScreen extends Screen {
 
     private void drawNextSiege(GuiGraphicsExtractor gui, Font font, int x, int y, int w, int h) {
         int cy = card(gui, font, x, y, w, h, "nightsiege.ui.card_next", Tab.STATS.color);
+        float levelScale = compact ? 1.0f : 1.5f;
         gui.pose().pushMatrix();
         gui.pose().translate(x + 8, cy);
-        gui.pose().scale(1.5f, 1.5f);
+        gui.pose().scale(levelScale, levelScale);
         String level = Component.translatable("nightsiege.ui.stat_level", stats.level).getString();
         gui.text(font, level, 0, 0, stats.siegeActive ? RED : WHITE, true);
         gui.pose().popMatrix();
-        cy += 17;
+        cy += compact ? 11 : 17;
         if (stats.siegeActive) {
             gui.text(font, Component.translatable("nightsiege.ui.stat_active").getString(), x + 8, cy, RED, true);
             gui.text(font, Component.translatable("nightsiege.ui.stat_time_left", clock(stats.secondsLeft)).getString(),
@@ -2741,7 +2997,7 @@ public class CoreScreen extends Screen {
             when = Component.translatable("nightsiege.ui.rhythm_none").getString();
         }
         gui.text(font, when, x + 8, cy, stats.voteOpen || stats.nightComing ? GOLD : GRAY, true);
-        cy += 12;
+        cy += compact ? 10 : 12;
         boolean enough = stats.accepted >= stats.acceptsRequired;
         int dot = stats.voteOpen || stats.nightComing ? (enough ? 0xFF55FF55 : 0xFFFFAA00) : 0xFF8C8894;
         gui.fill(x + 8, cy + 2, x + 13, cy + 7, dot);
@@ -2749,7 +3005,7 @@ public class CoreScreen extends Screen {
                 ? Component.translatable("nightsiege.ui.rhythm_accepts", stats.accepted, stats.acceptsRequired).getString()
                 : Component.translatable("nightsiege.ui.rhythm_registered", stats.registeredCount).getString();
         gui.text(font, line, x + 17, cy, WHITE, true);
-        cy += 11;
+        cy += compact ? 10 : 11;
         if (stats.voteOpen || stats.nightComing) {
             String mine = stats.myVote.equals("yes") ? "nightsiege.ui.rhythm_me_yes"
                     : stats.myVote.equals("no") ? "nightsiege.ui.rhythm_me_no" : "nightsiege.ui.rhythm_me_open";
@@ -2777,11 +3033,21 @@ public class CoreScreen extends Screen {
                 {"minecraft:golden_apple", "nightsiege.ui.wave_health", "x" + fmt(stats.healthMultiplier)},
                 {"minecraft:iron_sword", "nightsiege.ui.wave_damage", "x" + fmt(stats.damageMultiplier)},
                 {"minecraft:spawner", "nightsiege.ui.wave_max", String.valueOf(stats.maxLiveMobs)}};
+        int step = Math.max(10, Math.min(16, (y + h - 2 - cy) / rows.length));
         for (String[] row : rows) {
-            gui.item(iconOf(row[0]), x + 6, cy - 3);
+            if (step >= 16) {
+                gui.item(iconOf(row[0]), x + 6, cy - 3);
+            } else {
+                // Tight card: smaller icons, so the rows do not run into each other.
+                gui.pose().pushMatrix();
+                gui.pose().translate(x + 8, cy - 1);
+                gui.pose().scale(0.625f, 0.625f);
+                gui.item(iconOf(row[0]), 0, 0);
+                gui.pose().popMatrix();
+            }
             gui.text(font, Component.translatable(row[1]).getString(), x + 26, cy + 1, GRAY, true);
             gui.text(font, row[2], x + w - 8 - font.width(row[2]), cy + 1, WHITE, true);
-            cy += 16;
+            cy += step;
         }
     }
 
@@ -2795,11 +3061,23 @@ public class CoreScreen extends Screen {
                 {"nightsiege.ui.rec_kills", String.valueOf(stats.totalKills), "FFFFFFFF"},
                 {"nightsiege.ui.rec_champs", String.valueOf(stats.totalChampionKills), "FFFFAA00"}};
         int cellW = (w - 16) / 2;
+        boolean tight = y + h - cy < 3 * 21;
         for (int i = 0; i < cells.length; i++) {
             int cx = x + 8 + (i % 2) * cellW;
-            int ry = cy + (i / 2) * 21;
-            gui.text(font, Component.translatable(cells[i][0]).getString(), cx, ry, 0xFF8C8894, true);
-            gui.text(font, cells[i][1], cx, ry + 10, (int) Long.parseLong(cells[i][2], 16), true);
+            int color = (int) Long.parseLong(cells[i][2], 16);
+            if (tight) {
+                // Label and value on one line.
+                int ry = cy + (i / 2) * 12;
+                String value = cells[i][1];
+                int vw = font.width(value);
+                String label = font.plainSubstrByWidth(Component.translatable(cells[i][0]).getString(), cellW - vw - 8);
+                gui.text(font, label, cx, ry, 0xFF8C8894, true);
+                gui.text(font, value, cx + cellW - 6 - vw, ry, color, true);
+            } else {
+                int ry = cy + (i / 2) * 21;
+                gui.text(font, Component.translatable(cells[i][0]).getString(), cx, ry, 0xFF8C8894, true);
+                gui.text(font, cells[i][1], cx, ry + 10, color, true);
+            }
         }
     }
 
@@ -2807,8 +3085,9 @@ public class CoreScreen extends Screen {
         int cy = card(gui, font, x, y, w, h, "nightsiege.ui.card_ranking", 0xFFFFAA00);
         int[] medal = {0xFFFFD700, 0xFFD0D0D8, 0xFFCD7F32};
         int shown = 0;
+        int fit = Math.max(1, Math.min(5, (y + h - 2 - cy) / 12));
         for (CoreStats.PlayerLine player : stats.players) {
-            if (shown >= 5) {
+            if (shown >= fit) {
                 break;
             }
             int color = shown < 3 ? medal[shown] : GRAY;

@@ -1880,6 +1880,37 @@ class SiegeCoreTest {
     }
 
     @Test
+    void aFixedSubclassShutsTheOtherWayAndTheOtherSubclass() {
+        SkillTree tree = new SkillTree();
+        PlayerSkills p = new PlayerSkills();
+        p.chosenClass = SkillClass.WARRIOR.name();
+        p.unlockClass(SkillClass.WARRIOR);
+        p.fixSub(SkillClass.WARRIOR, "w_combo");
+        p.award(100_000);
+        assertEquals("blademaster", tree.chosenSubclass(p, SkillClass.WARRIOR));
+        assertEquals("path", tree.blockedReason("heavy_blow", p), "the way of might is shut");
+        for (int round = 0; round < 40; round++) {
+            for (SkillNode n : tree.ofClass(SkillClass.WARRIOR)) {
+                if (tree.blockedReason(n.id(), p) == null) {
+                    tree.unlock(n.id(), p);
+                }
+            }
+        }
+        assertTrue(p.levelOf("w_combo") > 0, "the fixed subclass is learnable");
+        assertEquals(0, p.levelOf("bloodlust"), "the other subclass of the way stays shut");
+        assertEquals(0, p.levelOf("heavy_blow"));
+        assertTrue(tree.ultimateMaxed(p, SkillClass.WARRIOR), "an ultimate reaches level 3");
+        assertEquals(4, SkillTree.subclassesOf(SkillClass.SUMMONER).size());
+        assertEquals(20, SkillTree.SUBCLASSES.size());
+        for (SkillTree.SubclassInfo info : SkillTree.SUBCLASSES) {
+            SkillNode node = tree.get(info.node());
+            assertNotNull(node, info.node());
+            assertEquals(info.clazz(), node.clazz(), info.node());
+            assertEquals(info.way(), node.path(), info.node());
+        }
+    }
+
+    @Test
     void theSummonerCallsTheWildAndIsForAdminsFirst() {
         SkillTree tree = new SkillTree();
         assertTrue(SkillClass.SUMMONER.adminOnly());

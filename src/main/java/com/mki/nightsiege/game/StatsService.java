@@ -156,6 +156,32 @@ public final class StatsService {
             stats.unlockSubclasses.addAll(manager.unlockSubclasses(viewer, skills));
         }
         stats.nextClassOpen = manager.mayUnlock(viewer, skills);
+        for (com.mki.nightsiege.core.SkillClass c : com.mki.nightsiege.core.SkillClass.values()) {
+            if (c.isShared() || !manager.mayChoose(viewer, c)) {
+                continue;
+            }
+            CoreStats.ClassLine line = new CoreStats.ClassLine();
+            line.id = c.name();
+            line.unlocked = skills.hasUnlocked(c);
+            line.leveling = c == skills.clazz();   // points are one account: the played profile levels
+            line.played = c == skills.clazz();
+            line.complete = line.unlocked && tree.isComplete(skills, c);
+            line.ultDone = line.unlocked && tree.ultimateMaxed(skills, c);
+            line.subclass = tree.chosenSubclass(skills, c);
+            if (line.unlocked) {
+                String fixedWay = "";
+                com.mki.nightsiege.core.SkillTree.SubclassInfo fixed =
+                        com.mki.nightsiege.core.SkillTree.subclassByNode(skills.fixedSubOf(c));
+                if (fixed != null) {
+                    fixedWay = fixed.way();
+                }
+                String taken = skills.as(c, () -> skills.pathTaken(tree));
+                line.way = taken.isEmpty() ? fixedWay : taken;
+                line.spent = skills.as(c, () -> tree.pointsSpent(skills, c));
+                line.total = tree.pointsToComplete(skills, c);
+            }
+            stats.classLines.add(line);
+        }
         stats.summoner = manager.maySummon(viewer);
         if (skills.gains != null) {
             for (Map.Entry<String, Map<String, Integer>> entry : skills.gains.entrySet()) {

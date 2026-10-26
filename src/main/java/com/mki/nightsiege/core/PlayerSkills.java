@@ -157,6 +157,29 @@ public class PlayerSkills {
         return sub == null ? "" : sub;
     }
 
+    /**
+     * The subclass node fixed for a class with the armour stand window (26 October 2026): the
+     * planned subclass of the class's profile (see {@link #profileFor}), as its node id, or empty.
+     */
+    public String fixedSubOf(SkillClass c) {
+        String key = profileFor(c);
+        SkillTree.SubclassInfo info = SkillTree.subclassByKey(c, plannedSubclass(key));
+        return info == null ? "" : info.node();
+    }
+
+    /** Fixes the subclass of a class's profile by its node id (the armour stand window). */
+    public void fixSub(SkillClass c, String nodeId) {
+        SkillTree.SubclassInfo info = SkillTree.subclassByNode(nodeId);
+        String key = profileFor(c);
+        if (info == null || info.clazz() != c || key == null) {
+            return;
+        }
+        if (planned == null) {
+            planned = new HashMap<>();
+        }
+        planned.put(key, info.key());
+    }
+
     /** A learned level in the played profile, or in the class's profile (see {@link #profileFor}). */
     public int levelIn(SkillClass c, String nodeId) {
         if (c == null || c == clazz()) {
