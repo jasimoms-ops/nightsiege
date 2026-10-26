@@ -95,7 +95,8 @@ public enum KeyHint {
             Map.entry(SkillEffect.ANCHOR, SNEAK_BLOCK),
             Map.entry(SkillEffect.SHIELD_BASH, PERFECT_BLOCK),
             Map.entry(SkillEffect.COUNTERSTRIKE, PERFECT_BLOCK),
-            Map.entry(SkillEffect.VENGEANCE, PERFECT_BLOCK),
+            // Vergeltung is left out: it fires on a perfect block with the shield bash or by itself
+            // when the iron hide breaks; its text says both.
             Map.entry(SkillEffect.COUNTER, BLOCK),
             Map.entry(SkillEffect.SHIELD_WALL, BLOCK),
             Map.entry(SkillEffect.EARTHSHOCK, JUMP_ATTACK),

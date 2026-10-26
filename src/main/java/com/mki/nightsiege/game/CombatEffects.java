@@ -992,7 +992,7 @@ public final class CombatEffects {
             level.sendParticles(ParticleTypes.CRIT, victim.getX(), victim.getY(0.6), victim.getZ(), 10, 0.3, 0.4, 0.3, 0.2);
         }
         double brace = tree.totalBonus(SkillEffect.BRACE, skills);
-        if (brace > 0 && crossbow && player.isShiftKeyDown()) {
+        if (brace > 0 && crossbow && arrow.entityTags().contains(ArcherEffects.BRACED_TAG)) {
             extra += taken * brace;
         }
         // Fire arrows: burning monsters take more from your arrows, so the node still counts

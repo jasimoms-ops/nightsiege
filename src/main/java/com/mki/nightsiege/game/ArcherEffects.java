@@ -45,6 +45,8 @@ public final class ArcherEffects {
     private final Map<UUID, Integer> volleyCount = new HashMap<>();
     /** Power shot of the sniper: goes through everything in its way. */
     public static final String SNIPER_TAG = "nightsiege_sniper";
+    /** Standfest: the crossbow bolt was shot while sneaking (checked at the shot, not at the hit). */
+    public static final String BRACED_TAG = "nightsiege_braced";
     /** Arrow storm running: game time it ends. */
     private final Map<UUID, Long> stormUntil = new HashMap<>();
 
@@ -124,6 +126,11 @@ public final class ArcherEffects {
             damage *= SkillValues.get("a_siegeengine", "mult", 1.4);
         }
         arrow.setBaseDamage(damage);
+        // Standfest counts when the bolt leaves the crossbow while sneaking (26 October 2026: it used to
+        // check the sneak key when the bolt landed).
+        if (crossbow && player.isShiftKeyDown()) {
+            arrow.entityTags().add(BRACED_TAG);
+        }
         if (tree.totalBonus(SkillEffect.FIRE_ARROWS, skills) > 0) {
             arrow.igniteForSeconds(100f);
         }
