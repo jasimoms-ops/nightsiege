@@ -25,9 +25,10 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Before a night (at the horn, or in a test's preparation): which class the player defends
- * with tonight. Built after Simon's design: class cards with their progress, the kit of
- * the chosen class with the real items, the defenders and who is ready, a countdown.
+ * Before a night (at the horn, or in a test's preparation): which profile the player defends
+ * with tonight. Built after Simon's design: one card per profile ("Krieger – Berserker") with
+ * its progress, the kit of the chosen profile with the real items, the defenders and who is
+ * ready, a countdown. More than five profiles: the arrows page through them.
  */
 public class ClassPickScreen extends Screen {
 
@@ -67,18 +68,59 @@ public class ClassPickScreen extends Screen {
     private int kitPitch;
     /** Icon box of a card (smaller on narrow cards, so the badge fits beside it). */
     private int iconBox;
+    /** First card shown (more than five profiles are paged). */
+    private int firstCard;
 
     public ClassPickScreen(ClassPickData data) {
         super(Component.translatable("nightsiege.pick.title"));
         this.data = data;
         this.chosen = data.play == null ? "" : data.play;
         decodeKits();
+        // Start on the page with the played profile.
+        int index = indexOf(chosen);
+        if (index >= CARDS) {
+            firstCard = index - CARDS + 1;
+        }
+    }
+
+    /** At most this many cards side by side. */
+    private static final int CARDS = 5;
+
+    private int indexOf(String key) {
+        for (int i = 0; i < data.classes.size(); i++) {
+            if (data.classes.get(i).id.equals(key)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private ClassPickData.Entry entryOf(String key) {
+        int i = indexOf(key);
+        return i < 0 ? null : data.classes.get(i);
+    }
+
+    /** "Krieger – Berserker", or just the class while the profile has no subclass. */
+    private static String profileName(ClassPickData.Entry entry) {
+        if (entry == null) {
+            return "?";
+        }
+        SkillClass clazz = classOf(entry);
+        String name = clazz == null ? entry.id : Component.translatable(clazz.translationKey()).getString();
+        return entry.subclass == null || entry.subclass.isBlank() ? name
+                : name + " – " + Component.translatable("nightsiege.subclass." + entry.subclass).getString();
+    }
+
+    private static SkillClass classOf(ClassPickData.Entry entry) {
+        SkillClass c = SkillClass.byName(entry.clazz);
+        return c != null ? c : com.mki.nightsiege.core.PlayerSkills.classOfKey(entry.id);
     }
 
     /** New state from the server (someone else got ready): keeps the own choice. */
     public void update(ClassPickData fresh) {
         this.data = fresh;
         this.opened = System.currentTimeMillis();
+        firstCard = Math.max(0, Math.min(firstCard, data.classes.size() - cardCount()));
         decodeKits();
         rebuildWidgets();
     }
@@ -148,8 +190,8 @@ public class ClassPickScreen extends Screen {
         }
         cardH = Math.max(96, cardH);
 
-        for (int i = 0; i < data.classes.size() && i < cardCount(); i++) {
-            ClassPickData.Entry entry = data.classes.get(i);
+        for (int i = 0; i < cardCount() && firstCard + i < data.classes.size(); i++) {
+            ClassPickData.Entry entry = data.classes.get(firstCard + i);
             Button card = Button.builder(Component.empty(), b -> {
                 chosen = entry.id;
                 rebuildWidgets();
@@ -158,12 +200,26 @@ public class ClassPickScreen extends Screen {
             card.setAlpha(0f);
             addRenderableWidget(card);
         }
-        SkillClass pick = SkillClass.byName(chosen);
-        Component label = Component.translatable("nightsiege.pick.ready",
-                pick == null ? Component.literal("?") : Component.translatable(pick.translationKey()));
+        if (data.classes.size() > CARDS) {
+            // Page arrows beside the title.
+            Button back = Button.builder(Component.literal("‹"), b -> {
+                firstCard = Math.max(0, firstCard - 1);
+                rebuildWidgets();
+            }).bounds(teamX - 6 - 38, cardsY - 16, 18, 14).build();
+            back.active = firstCard > 0;
+            addRenderableWidget(back);
+            Button next = Button.builder(Component.literal("›"), b -> {
+                firstCard = Math.min(data.classes.size() - cardCount(), firstCard + 1);
+                rebuildWidgets();
+            }).bounds(teamX - 6 - 18, cardsY - 16, 18, 14).build();
+            next.active = firstCard + cardCount() < data.classes.size();
+            addRenderableWidget(next);
+        }
+        ClassPickData.Entry pickEntry = entryOf(chosen);
+        Component label = Component.translatable("nightsiege.pick.ready", Component.literal(profileName(pickEntry)));
         Button ready = Button.builder(label, b -> {
-            if (pick != null) {
-                ClientPlayNetworking.send(new CoreNetworking.CoreActionPayload("play:" + pick.name()));
+            if (pickEntry != null) {
+                ClientPlayNetworking.send(new CoreNetworking.CoreActionPayload("play:" + pickEntry.id));
             }
             onClose();
         }).bounds(teamX + 6, top + h - 8 - 26, teamW - 12, 20).build();
@@ -190,8 +246,8 @@ public class ClassPickScreen extends Screen {
         gui.fill(left, top, x2, top + 1, 0xFF4A4266);
 
         drawHeader(gui, font);
-        for (int i = 0; i < data.classes.size() && i < cardCount(); i++) {
-            drawCard(gui, font, data.classes.get(i), cardX(i), cardsY, mouseX, mouseY);
+        for (int i = 0; i < cardCount() && firstCard + i < data.classes.size(); i++) {
+            drawCard(gui, font, data.classes.get(firstCard + i), cardX(i), cardsY, mouseX, mouseY);
         }
         ItemStack hovered = drawKit(gui, font, mouseX, mouseY);
         drawTeam(gui, font, mouseX, mouseY);
@@ -244,7 +300,7 @@ public class ClassPickScreen extends Screen {
         int bg = selected ? 0xFF231C33 : entry.unlocked ? BOX : 0xFF131118;
         gui.fill(x + 1, y + 1, x + cardW - 1, y + cardH - 1, bg);
 
-        SkillClass clazz = SkillClass.byName(entry.id);
+        SkillClass clazz = classOf(entry);
         // Icon box top left, the badge top right (as in the design).
         int ib = iconBox;
         gui.fill(x + 5, y + 5, x + 5 + ib, y + 5 + ib, LINE);
@@ -261,7 +317,7 @@ public class ClassPickScreen extends Screen {
         }
         badge(gui, font, entry, x + cardW - 4, y + 6, x + 8 + ib);
 
-        // The name, large, under the icon.
+        // The class, large, under the icon; the subclass goes in the line below.
         String name = clazz == null ? entry.id : Component.translatable(clazz.translationKey()).getString();
         Component title = Component.literal(name).withStyle(net.minecraft.ChatFormatting.BOLD);
         // Long names (five cards on a narrow screen): smaller rather than cut off.
@@ -282,18 +338,19 @@ public class ClassPickScreen extends Screen {
             way = Component.translatable("nightsiege.pick.noway").getString();
         } else {
             way = Component.translatable("nightsiege.path." + entry.way).getString();
-            if (entry.subclass != null && !entry.subclass.isBlank()) {
-                way += " · " + Component.translatable("nightsiege.subclass." + entry.subclass).getString();
-            }
+        }
+        if (entry.subclass != null && !entry.subclass.isBlank()) {
+            way = Component.translatable("nightsiege.subclass." + entry.subclass).getString() + " · " + way;
         }
         ty = wrapped(gui, font, way, x + 5, ty, cardW - 10, entry.unlocked ? LIGHT : GREY, 0.7f, 2);
 
-        // Points and the bar.
+        // Points, the ult and the bar.
         int barColor = entry.complete ? GOLD : entry.leveling ? 0xFF4CC35A : 0xFF6FA8FF;
         if (entry.unlocked) {
-            String points = entry.total > 0
+            String points = (entry.total > 0
                     ? Component.translatable("nightsiege.pick.points_of", entry.spent, entry.total).getString()
-                    : Component.translatable("nightsiege.pick.points", entry.spent).getString();
+                    : Component.translatable("nightsiege.pick.points", entry.spent).getString())
+                    + " · " + Component.translatable("nightsiege.ui.profile_ult", entry.ult, entry.ultMax).getString();
             float ps = Math.min(0.7f, Math.max(0.5f, (cardW - 10f) / Math.max(1, font.width(points))));
             small(gui, font, points, x + 5, ty + 1, GREY, ps);
         }
@@ -313,19 +370,16 @@ public class ClassPickScreen extends Screen {
     }
 
     private String description(ClassPickData.Entry entry) {
-        SkillClass leveling = SkillClass.byName(data.leveling);
-        Component lev = leveling == null ? Component.literal("?") : Component.translatable(leveling.translationKey());
-        if (!entry.unlocked) {
-            return Component.translatable(data.nextOpen ? "nightsiege.pick.desc_locked_open" : "nightsiege.pick.desc_locked", lev)
-                    .getString();
-        }
         if (entry.complete) {
             return Component.translatable("nightsiege.pick.desc_done").getString();
+        }
+        if (entry.ult >= entry.ultMax) {
+            return Component.translatable("nightsiege.pick.desc_ult").getString();
         }
         if (entry.leveling) {
             return Component.translatable("nightsiege.pick.desc_leveling").getString();
         }
-        return Component.translatable("nightsiege.pick.desc_open", lev).getString();
+        return Component.translatable("nightsiege.pick.desc_open").getString();
     }
 
     /** The status badge, right-aligned at {@code right}, never further left than {@code minX}. */
@@ -373,9 +427,8 @@ public class ClassPickScreen extends Screen {
         int y2 = top + h - 8;
         gui.fill(x, y, x2, y2, LINE);
         gui.fill(x + 1, y + 1, x2 - 1, y2 - 1, BOX_DARK);
-        SkillClass pick = SkillClass.byName(chosen);
         String title = Component.translatable("nightsiege.pick.kit_title",
-                pick == null ? Component.literal("?") : Component.translatable(pick.translationKey())).getString();
+                Component.literal(profileName(entryOf(chosen)))).getString();
         gui.text(font, title, x + 7, y + 6, GOLD, false);
         String safe = Component.translatable("nightsiege.pick.kit_safe").getString();
         int safeW = (int) (font.width(safe) * 0.7f);
@@ -452,8 +505,16 @@ public class ClassPickScreen extends Screen {
             gui.fill(x + 6, my + 1, x2 - 6, my + 20, BOX);
             boolean ready = mate.ready;
             boolean self = mate.self;
-            SkillClass c = SkillClass.byName(self ? chosen : mate.play);
-            String cls = c == null ? "-" : Component.translatable(c.translationKey()).getString();
+            String cls;
+            if (self) {
+                ClassPickData.Entry mine = entryOf(chosen);
+                cls = mine == null ? "-" : profileName(mine);
+            } else {
+                SkillClass c = SkillClass.byName(mate.play);
+                cls = c == null ? "-" : mate.subclass != null && !mate.subclass.isBlank()
+                        ? Component.translatable("nightsiege.subclass." + mate.subclass).getString()
+                        : Component.translatable(c.translationKey()).getString();
+            }
             int dot = self || ready ? 0xFF4CC35A : ORANGE;
             gui.fill(x + 10, my + 5, x + 14, my + 9, dot);
             String name = self ? Component.translatable("nightsiege.pick.you").getString() : mate.name;
@@ -475,9 +536,8 @@ public class ClassPickScreen extends Screen {
         gui.fill(bx, by, bx + bw, by + 20, 0xFF8A6A20);
         gui.fill(bx + 1, by + 1, bx + bw - 1, by + 19, over ? 0xFFFFE48A : GOLD);
         gui.fill(bx + 1, by + 18, bx + bw - 1, by + 19, 0xFFC9A440);
-        SkillClass pick = SkillClass.byName(chosen);
         String label = Component.translatable("nightsiege.pick.ready",
-                pick == null ? Component.literal("?") : Component.translatable(pick.translationKey())).getString();
+                Component.literal(profileName(entryOf(chosen)))).getString();
         // Long class names: smaller text rather than a cut-off word.
         float sc = Math.min(1f, Math.max(0.65f, (bw - 8f) / Math.max(1, font.width(label))));
         if (font.width(label) * sc > bw - 6) {
@@ -550,9 +610,9 @@ public class ClassPickScreen extends Screen {
         gui.fill(x + 5, y + 9, x + 7, y + 13, 0xFF1A1622);
     }
 
-    /** Four classes, five for admins with the summoner. */
+    /** One card per profile, at most five side by side. */
     private int cardCount() {
-        return Math.max(1, Math.min(5, data.classes.size()));
+        return Math.max(1, Math.min(CARDS, data.classes.size()));
     }
 
     private static String icon(SkillClass clazz) {

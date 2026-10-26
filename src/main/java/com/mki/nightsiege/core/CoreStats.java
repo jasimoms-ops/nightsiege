@@ -59,6 +59,28 @@ public class CoreStats {
         public java.util.Map<String, Double> values = new java.util.LinkedHashMap<>();
     }
 
+    /** One profile of the viewer: a tree of a class with its own levels and subclass. */
+    public static class ProfileLine {
+        /** Profile key ("WARRIOR", "WARRIOR#2"). */
+        public String key = "";
+        public String clazz = "";
+        /** Learned subclass, or the one the profile was opened for, or empty. */
+        public String subclass = "";
+        public String path = "";
+        public int ult;
+        public int ultMax = 3;
+        public boolean playing;
+        public boolean complete;
+        public int spent;
+    }
+
+    /** Levels, costs and reasons of one profile's nodes (the class tab lays them over its node lines). */
+    public static class ProfileNodes {
+        public java.util.Map<String, Integer> levels = new java.util.HashMap<>();
+        public java.util.Map<String, Integer> costs = new java.util.HashMap<>();
+        public java.util.Map<String, String> blocked = new java.util.HashMap<>();
+    }
+
     /** One perk of the main core. */
     public static class PerkLine {
         public String id = "";
@@ -136,7 +158,10 @@ public class CoreStats {
     public int highestLevelReached;
 
     // --- the viewing player's own tree
+    /** The played profile's class (empty without a class); points can go into every profile. */
     public String myClass = "";
+    /** The played profile's key. */
+    public String myProfile = "";
     public int points;
     public int earned;
     public int donated;
@@ -150,14 +175,26 @@ public class CoreStats {
     public boolean classResetAvailable;
     /** Playtest: the class change is not used up (testToolsForEveryone). */
     public boolean classResetUnlimited;
-    /** The class the player plays tonight (may differ from {@link #myClass}, the one being levelled). */
+    /** The class the player plays tonight. */
     public String playClass = "";
-    /** Unlocked classes, oldest first. */
+    /** Classes with at least one profile, oldest first. */
     public java.util.List<String> unlocked = new java.util.ArrayList<>();
     /** Unlocked classes that are fully learned. */
     public java.util.List<String> completeClasses = new java.util.ArrayList<>();
-    /** True when the levelled class is full and the next one may be opened. */
+    /** True when an unlock is free and something is left to open with it. */
     public boolean nextClassOpen;
+    /** The viewer's profiles, oldest first (Simon, 26 October 2026). */
+    public java.util.List<ProfileLine> profiles = new java.util.ArrayList<>();
+    /**
+     * Node levels per profile key, for every profile: the node lines carry the levels of
+     * the played profile of their class (or the oldest one), this map those of each profile.
+     */
+    public java.util.Map<String, ProfileNodes> profileNodes = new java.util.HashMap<>();
+    /** Unlocks earned and not used yet. */
+    public int unlocksFree;
+    /** What an unlock may open now: new classes ("CLASS") and further subclasses ("CLASS:subclass"). */
+    public java.util.List<String> unlockClasses = new java.util.ArrayList<>();
+    public java.util.List<String> unlockSubclasses = new java.util.ArrayList<>();
     /** The viewer may see and choose the summoner (admins, or everyone by config). */
     public boolean summoner;
     /** Crate gains per class: gain id to stage. */

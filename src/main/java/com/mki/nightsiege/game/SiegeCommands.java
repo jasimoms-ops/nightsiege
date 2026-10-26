@@ -256,6 +256,8 @@ public final class SiegeCommands {
                     node.costFor(skills.levelOf(nodeId))));
             return 0;
         }
+        // An ultimate at its top level earns one unlock (a new class or subclass), as in the window.
+        manager.skillTree().grantUltUnlocks(skills);
         manager.persist();
         // Skills gelten nur waehrend einer Belagerung. Laeuft gerade eine, wird
         // der Kauf sofort wirksam, sonst erst in der naechsten Nacht.

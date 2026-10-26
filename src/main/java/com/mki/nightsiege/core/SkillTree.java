@@ -647,7 +647,9 @@ public final class SkillTree {
      *
      * <p>Reasons: {@code class} wrong or unchosen class, {@code path} the other
      * path of this class is already taken, {@code locked} prerequisite missing,
-     * {@code maxed}, {@code points}.</p>
+     * {@code subclass_owned} another profile of this class has (or was opened for)
+     * this subclass, {@code subclass_planned} this profile was opened for another
+     * subclass, {@code maxed}, {@code points}.</p>
      */
     public String blockedReason(String nodeId, PlayerSkills skills) {
         SkillNode node = get(nodeId);
@@ -675,6 +677,10 @@ public final class SkillTree {
                     return "choice";
                 }
             }
+        }
+        String subclassBlock = subclassBlocked(node, skills);
+        if (subclassBlock != null) {
+            return subclassBlock;
         }
         if (lockedOut(node, skills)) {
             return "lockedby";
@@ -715,7 +721,8 @@ public final class SkillTree {
                         continue;
                     }
                     String why = blockedReason(node.id(), skills);
-                    if ("choice".equals(why) || "lockedby".equals(why) || "path".equals(why) || "class".equals(why)) {
+                    if ("choice".equals(why) || "lockedby".equals(why) || "path".equals(why) || "class".equals(why)
+                            || "subclass_owned".equals(why) || "subclass_planned".equals(why)) {
                         continue;   // shut for good
                     }
                     boolean open = true;
@@ -751,6 +758,181 @@ public final class SkillTree {
     }
 
     /**
+     * Why a subclass node is closed for the played profile, or null: another profile of
+     * the same class owns this subclass (learned or opened for it), or this profile was
+     * opened for another subclass. Only the first level of a subclass node is checked.
+     */
+    private String subclassBlocked(SkillNode node, PlayerSkills skills) {
+        if (node.clazz().isShared() || skills.levelOf(node.id()) > 0) {
+            return null;
+        }
+        String planned = skills.plannedSubclass(skills.chosenClass);
+        if (!planned.isEmpty() && !node.onTrunk()) {
+            // A profile opened for a subclass keeps to the way of that subclass.
+            String way = wayOfSubclass(node.clazz(), planned);
+            if (way != null && !way.equals(node.path())) {
+                return "subclass_planned";
+            }
+        }
+        String sub = SUBCLASS_NODES.get(node.id());
+        if (sub == null) {
+            return null;
+        }
+        for (String key : skills.profilesOf(node.clazz())) {
+            if (key.equals(skills.chosenClass)) {
+                continue;
+            }
+            if (skills.levelInProfile(key, node.id()) > 0 || sub.equals(skills.plannedSubclass(key))) {
+                return "subclass_owned";
+            }
+        }
+        if (!planned.isEmpty() && !planned.equals(sub)) {
+            return "subclass_planned";
+        }
+        return null;
+    }
+
+    /** The way a subclass belongs to (the path of its subclass node), or null. */
+    public String wayOfSubclass(SkillClass clazz, String subclass) {
+        for (Map.Entry<String, String> entry : SUBCLASS_NODES.entrySet()) {
+            SkillNode node = nodes.get(entry.getKey());
+            if (node != null && node.clazz() == clazz && entry.getValue().equals(subclass)) {
+                return node.path();
+            }
+        }
+        return null;
+    }
+
+    /** The four subclasses of a class, in the order of the tree (empty for the core). */
+    public List<String> subclassesOf(SkillClass clazz) {
+        List<String> out = new ArrayList<>();
+        for (SkillNode node : nodes.values()) {
+            String sub = SUBCLASS_NODES.get(node.id());
+            if (sub != null && node.clazz() == clazz && !out.contains(sub)) {
+                out.add(sub);
+            }
+        }
+        return out;
+    }
+
+    /** The subclass a profile has learned, or the one it was opened for, or empty. */
+    public String subclassOfProfile(PlayerSkills skills, String key) {
+        if (skills == null || key == null) {
+            return "";
+        }
+        String learned = skills.asProfile(key, () -> subclassOf(skills));
+        return learned.isEmpty() ? skills.plannedSubclass(key) : learned;
+    }
+
+    /** The subclasses of a class no profile of this player has (learned or opened for). */
+    public List<String> freeSubclasses(PlayerSkills skills, SkillClass clazz) {
+        List<String> free = new ArrayList<>(subclassesOf(clazz));
+        for (String key : skills.profilesOf(clazz)) {
+            free.remove(subclassOfProfile(skills, key));
+        }
+        return free;
+    }
+
+    /** The ultimate a profile has learned (any level), or null. */
+    public SkillNode ultimateOfProfile(PlayerSkills skills, String key) {
+        SkillClass clazz = PlayerSkills.classOfKey(key);
+        for (SkillNode node : nodes.values()) {
+            if (node.clazz() == clazz && node.effect().target() == SkillEffect.Target.ULTIMATE
+                    && skills.levelInProfile(key, node.id()) > 0) {
+                return node;
+            }
+        }
+        return null;
+    }
+
+    /** True when a profile's ultimate stands at its top level (level 3). */
+    public boolean ultMaxed(PlayerSkills skills, String key) {
+        SkillNode ult = ultimateOfProfile(skills, key);
+        return ult != null && skills.levelInProfile(key, ult.id()) >= ult.maxLevel();
+    }
+
+    /**
+     * Pays out one unlock for every profile whose ultimate reached its top level and has
+     * not paid yet. Returns how many unlocks were added.
+     */
+    public int grantUltUnlocks(PlayerSkills skills) {
+        if (skills == null) {
+            return 0;
+        }
+        int added = 0;
+        for (String key : new ArrayList<>(skills.profiles())) {
+            if (!skills.ultRewardedList().contains(key) && ultMaxed(skills, key)) {
+                skills.ultRewardedList().add(key);
+                skills.unlocksFree++;
+                added++;
+            }
+        }
+        return added;
+    }
+
+    /**
+     * Old saves (before the profiles, 26 October 2026): every profile with a maxed
+     * ultimate counts as rewarded; the classes opened the old way ("class full") count
+     * as unlocks used, so only what is left over becomes free. Runs once per player.
+     */
+    public void migrateProfiles(PlayerSkills skills) {
+        if (skills == null || skills.profileVersion >= PlayerSkills.PROFILE_VERSION) {
+            return;
+        }
+        boolean fresh = skills.ultRewardedList().isEmpty() && skills.unlocksFree == 0;
+        int before = skills.unlocksFree;
+        int added = grantUltUnlocks(skills);
+        if (fresh && added > 0) {
+            int used = Math.max(0, skills.profiles().size() - 1);
+            skills.unlocksFree = Math.max(0, before + added - used);
+        }
+        skills.profileVersion = PlayerSkills.PROFILE_VERSION;
+    }
+
+    /** True when one profile is fully learned (see {@link #isComplete}). */
+    public boolean isCompleteProfile(PlayerSkills skills, String key) {
+        SkillClass clazz = PlayerSkills.classOfKey(key);
+        if (skills == null || clazz == null || clazz.isShared() || !skills.hasProfile(key)) {
+            return false;
+        }
+        return skills.asProfile(key, () -> isComplete(skills, clazz));
+    }
+
+    /** Points one profile costs in all, on its way and subclass (see {@link #pointsToComplete}). */
+    public int pointsToCompleteProfile(PlayerSkills skills, String key) {
+        SkillClass clazz = PlayerSkills.classOfKey(key);
+        if (skills == null || clazz == null || clazz.isShared()) {
+            return 0;
+        }
+        PlayerSkills copy = new PlayerSkills();
+        copy.chosenClass = clazz.name();
+        String sub = subclassOfProfile(skills, key);
+        if (!sub.isEmpty()) {
+            copy.planned.put(clazz.name(), sub);
+        }
+        for (SkillNode node : ofClass(clazz)) {
+            int level = skills.levelInProfile(key, node.id());
+            if (level > 0) {
+                copy.levels.put(node.id(), level);
+            }
+        }
+        return fillUp(copy, clazz);
+    }
+
+    /** Points spent in one profile. */
+    public int pointsSpentProfile(PlayerSkills skills, String key) {
+        SkillClass clazz = PlayerSkills.classOfKey(key);
+        int sum = 0;
+        for (SkillNode node : ofClass(clazz)) {
+            int level = skills.levelInProfile(key, node.id());
+            for (int l = 0; l < level; l++) {
+                sum += node.costFor(l);
+            }
+        }
+        return sum;
+    }
+
+    /**
      * Points a class costs in all, on the way the player has started (or the first one):
      * the tree is filled up on a copy of their levels and the cost added up.
      */
@@ -766,6 +948,11 @@ public final class SkillTree {
                 copy.levels.put(node.id(), level);
             }
         }
+        return fillUp(copy, clazz);
+    }
+
+    /** Learns a copy up to the top and returns what it cost in all. */
+    private int fillUp(PlayerSkills copy, SkillClass clazz) {
         copy.award(1_000_000);
         List<SkillNode> own = ofClass(clazz);
         for (int guard = 0; guard < 2000 && !isComplete(copy, clazz); guard++) {

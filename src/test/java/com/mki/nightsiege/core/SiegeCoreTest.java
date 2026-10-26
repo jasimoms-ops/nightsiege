@@ -284,7 +284,7 @@ class SiegeCoreTest {
         learnWay(tree, p, SkillClass.WARRIOR, SkillTree.WAY_BLADE);
         assertEquals(List.of("WARRIOR"), p.unlockedClasses());
         p.unlockClass(SkillClass.GUARDIAN);
-        assertEquals(SkillClass.GUARDIAN, p.levelingClass());
+        assertEquals(List.of("WARRIOR", "GUARDIAN"), p.profiles());
         assertEquals(SkillClass.WARRIOR, p.clazz(), "unlocking does not switch the played class");
         p.award(100);
         // Buying for the guardian while playing the warrior.
@@ -303,6 +303,181 @@ class SiegeCoreTest {
         assertTrue(p.switchTo(SkillClass.WARRIOR));
         assertEquals(warriorLevel, p.levelOf(warriorNode));
         assertFalse(p.switchTo(SkillClass.ARCHER), "a locked class cannot be played");
+    }
+
+    // --- profiles (Simon, 26 October 2026) ------------------------------
+
+    /** A warrior with the trunk and the blade way's shared node, ready to pick a subclass. */
+    private static void warriorTrunk(SkillTree tree, PlayerSkills p) {
+        assertTrue(tree.unlock("warrior_drill", p));
+        assertTrue(tree.unlock("w_endurance", p));
+        assertTrue(tree.unlock("champion_bane", p));
+    }
+
+    @Test
+    void aSecondProfileOfTheSameClassHasItsOwnTreeAndSubclass() {
+        SkillTree tree = new SkillTree();
+        PlayerSkills p = new PlayerSkills();
+        p.chosenClass = SkillClass.WARRIOR.name();
+        p.award(5000);
+        warriorTrunk(tree, p);
+        assertTrue(tree.unlock("bloodlust", p));
+        assertEquals(SkillTree.SUB_BERSERKER, tree.subclassOf(p));
+        // A further subclass: a new profile "WARRIOR#2" that starts at 0.
+        String key = p.addProfile(SkillClass.WARRIOR, SkillTree.SUB_BLADEMASTER);
+        assertEquals("WARRIOR#2", key);
+        assertEquals(SkillClass.WARRIOR, PlayerSkills.classOfKey(key));
+        assertEquals(List.of("WARRIOR", "WARRIOR#2"), p.profiles());
+        assertEquals(0, p.levelInProfile(key, "warrior_drill"));
+        assertEquals(SkillTree.SUB_BLADEMASTER, tree.subclassOfProfile(p, key), "opened for the blademaster");
+        assertEquals(SkillClass.WARRIOR, p.clazz(), "opening a profile does not switch the played one");
+        // Points are one account: spent in the new profile while the first one is played.
+        int before = p.points();
+        p.asProfile(key, () -> {
+            warriorTrunk(tree, p);
+            assertEquals("subclass_owned", tree.blockedReason("bloodlust", p), "the berserker is the first profile's");
+            assertTrue(tree.unlock("w_combo", p));
+            return null;
+        });
+        assertTrue(p.points() < before);
+        assertEquals(1, p.levelInProfile(key, "w_combo"));
+        assertEquals(0, p.levelInProfile("WARRIOR", "w_combo"), "the first profile keeps its own tree");
+        assertEquals(1, p.levelInProfile("WARRIOR", "bloodlust"));
+        assertEquals(SkillTree.SUB_BLADEMASTER, tree.subclassOfProfile(p, key));
+        assertEquals(SkillTree.SUB_BERSERKER, tree.subclassOfProfile(p, "WARRIOR"));
+        // Playing the second profile: its levels are the played ones now.
+        assertTrue(p.switchToProfile(key));
+        assertEquals(1, p.levelOf("w_combo"));
+        assertEquals(0, p.levelOf("bloodlust"));
+        assertEquals(SkillTree.SUB_BLADEMASTER, tree.subclassOf(p));
+        // The blademaster profile keeps to the blade way.
+        assertEquals("path", tree.blockedReason("heavy_blow", p));
+        assertTrue(p.switchToProfile("WARRIOR"));
+        assertEquals(1, p.levelOf("bloodlust"));
+        // The free subclasses are the two of the way of might.
+        assertEquals(List.of(SkillTree.SUB_AXE, SkillTree.SUB_PALADIN).stream().sorted().toList(),
+                tree.freeSubclasses(p, SkillClass.WARRIOR).stream().sorted().toList());
+    }
+
+    @Test
+    void aSubclassCannotBeOwnedTwice() {
+        SkillTree tree = new SkillTree();
+        PlayerSkills p = new PlayerSkills();
+        p.chosenClass = SkillClass.WARRIOR.name();
+        p.award(5000);
+        warriorTrunk(tree, p);
+        // A profile opened for the paladin keeps it for itself.
+        String paladin = p.addProfile(SkillClass.WARRIOR, SkillTree.SUB_PALADIN);
+        assertNotNull(paladin);
+        assertTrue(tree.unlock("w_combo", p));
+        // A third profile without a planned subclass may take neither the paladin nor the blademaster.
+        String third = p.addProfile(SkillClass.WARRIOR, "");
+        assertEquals("WARRIOR#3", third);
+        p.asProfile(third, () -> {
+            assertTrue(tree.unlock("warrior_drill", p));
+            assertEquals("subclass_owned", tree.blockedReason("smite", p), "the paladin belongs to WARRIOR#2");
+            assertTrue(tree.unlock("w_endurance", p));
+            assertTrue(tree.unlock("champion_bane", p));
+            assertEquals("subclass_owned", tree.blockedReason("w_combo", p));
+            assertEquals(null, tree.blockedReason("bloodlust", p));
+            return null;
+        });
+        assertFalse(tree.freeSubclasses(p, SkillClass.WARRIOR).contains(SkillTree.SUB_BLADEMASTER));
+        assertFalse(tree.freeSubclasses(p, SkillClass.WARRIOR).contains(SkillTree.SUB_PALADIN));
+        // At most four profiles of a class.
+        assertNotNull(p.addProfile(SkillClass.WARRIOR, SkillTree.SUB_AXE));
+        assertEquals(4, p.profilesOf(SkillClass.WARRIOR).size());
+        assertNull(p.addProfile(SkillClass.WARRIOR, ""));
+        assertNull(p.nextProfileKey(SkillClass.WARRIOR));
+    }
+
+    @Test
+    void anUltimateAtLevelThreeEarnsOneUnlock() {
+        SkillTree tree = new SkillTree();
+        PlayerSkills p = new PlayerSkills();
+        p.chosenClass = SkillClass.WARRIOR.name();
+        assertFalse(p.earnedUnlock());
+        learnWay(tree, p, SkillClass.WARRIOR, SkillTree.WAY_BLADE);
+        SkillNode ult = tree.ultimateOfProfile(p, "WARRIOR");
+        assertNotNull(ult);
+        assertEquals(SkillEffect.Target.ULTIMATE, ult.effect().target());
+        assertEquals(3, ult.maxLevel());
+        // One level below the top: no unlock yet.
+        p.setLevel(ult.id(), ult.maxLevel() - 1);
+        assertEquals(0, tree.grantUltUnlocks(p));
+        p.setLevel(ult.id(), ult.maxLevel());
+        assertTrue(tree.ultMaxed(p, "WARRIOR"));
+        assertEquals(1, tree.grantUltUnlocks(p));
+        assertEquals(0, tree.grantUltUnlocks(p), "only once per profile");
+        assertEquals(1, p.unlocksFree);
+        assertTrue(p.earnedUnlock());
+        assertEquals(List.of("WARRIOR"), p.ultRewarded);
+        // A profile of another class earns its own unlock.
+        p.addProfile(SkillClass.GUARDIAN, "");
+        p.asProfile("GUARDIAN", () -> {
+            learnWay(tree, p, SkillClass.GUARDIAN, SkillTree.WAY_SHIELD);
+            return null;
+        });
+        assertEquals(1, tree.grantUltUnlocks(p));
+        assertEquals(2, p.unlocksFree);
+        // The class change gives everything up, the unlocks with it.
+        p.changeClass();
+        assertEquals(0, p.unlocksFree);
+        assertFalse(p.earnedUnlock());
+        assertTrue(p.profiles().isEmpty());
+    }
+
+    @Test
+    void oldSavesGetTheirUnlocksOnce() {
+        SkillTree tree = new SkillTree();
+        // Only one class, its ult at level 3: one unlock comes on loading.
+        PlayerSkills one = new PlayerSkills();
+        one.chosenClass = SkillClass.WARRIOR.name();
+        learnWay(tree, one, SkillClass.WARRIOR, SkillTree.WAY_BLADE);
+        tree.migrateProfiles(one);
+        assertEquals(1, one.unlocksFree);
+        assertEquals(PlayerSkills.PROFILE_VERSION, one.profileVersion);
+        tree.migrateProfiles(one);
+        assertEquals(1, one.unlocksFree, "the migration runs once");
+        // A second class already opened the old way (first class full): that used up the unlock.
+        PlayerSkills two = new PlayerSkills();
+        two.chosenClass = SkillClass.WARRIOR.name();
+        learnWay(tree, two, SkillClass.WARRIOR, SkillTree.WAY_BLADE);
+        two.unlockClass(SkillClass.GUARDIAN);
+        tree.migrateProfiles(two);
+        assertEquals(0, two.unlocksFree);
+        assertEquals(List.of("WARRIOR", "GUARDIAN"), two.profiles(), "opened classes stay");
+        assertEquals(List.of("WARRIOR"), two.ultRewarded);
+        // Old keys are plain class names: the first profile of a class stays readable.
+        assertEquals(SkillClass.GUARDIAN, PlayerSkills.classOfKey("GUARDIAN"));
+        assertEquals(SkillClass.GUARDIAN, PlayerSkills.classOfKey("GUARDIAN#3"));
+        assertNull(PlayerSkills.classOfKey("NOPE#2"));
+    }
+
+    @Test
+    void pointsCanBeSpentInEveryProfile() {
+        SkillTree tree = new SkillTree();
+        PlayerSkills p = new PlayerSkills();
+        p.chosenClass = SkillClass.WARRIOR.name();
+        p.award(200);
+        p.unlockClass(SkillClass.GUARDIAN);
+        p.addProfile(SkillClass.WARRIOR, SkillTree.SUB_AXE);
+        // Bought in the oldest and in the newest profile, while the first is played.
+        assertTrue(tree.unlock("warrior_drill", p));
+        assertTrue(p.asProfile("GUARDIAN", () -> tree.unlock("vitality", p)));
+        assertTrue(p.asProfile("WARRIOR#2", () -> tree.unlock("warrior_drill", p)));
+        assertEquals(1, p.levelInProfile("WARRIOR", "warrior_drill"));
+        assertEquals(1, p.levelInProfile("WARRIOR#2", "warrior_drill"));
+        assertEquals(1, p.levelInProfile("GUARDIAN", "vitality"));
+        assertEquals(SkillClass.WARRIOR, p.clazz());
+        assertEquals("WARRIOR", p.chosenClass, "buying elsewhere does not switch the played profile");
+        int spent = tree.pointsSpentProfile(p, "WARRIOR") + tree.pointsSpentProfile(p, "WARRIOR#2")
+                + tree.pointsSpentProfile(p, "GUARDIAN");
+        assertEquals(200 - spent, p.points());
+        // A lost night takes from the played profile only; each profile keeps its own history.
+        assertTrue(p.switchToProfile("WARRIOR#2"));
+        assertEquals(List.of("warrior_drill"), tree.loseLast(p, 1));
+        assertEquals(1, p.levelInProfile("WARRIOR", "warrior_drill"));
     }
 
     @Test

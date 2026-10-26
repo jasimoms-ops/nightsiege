@@ -107,17 +107,55 @@ public final class StatsService {
         stats.totalChampionKills = save.totalChampionKills;
         stats.highestLevelReached = Math.max(save.highestLevel, level);
 
-        // The window's own class is the one being levelled: that is where points go.
-        com.mki.nightsiege.core.SkillClass leveling = skills.levelingClass();
-        stats.myClass = leveling == null ? "" : leveling.name();
-        stats.playClass = skills.chosenClass == null ? "" : skills.chosenClass;
-        stats.unlocked = new java.util.ArrayList<>(skills.unlockedClasses());
-        for (String name : stats.unlocked) {
-            if (tree.isComplete(skills, com.mki.nightsiege.core.SkillClass.byName(name))) {
-                stats.completeClasses.add(name);
+        // Profiles (Simon, 26 October 2026): points can go into every own profile.
+        stats.myClass = skills.className();
+        stats.myProfile = skills.chosenClass == null ? "" : skills.chosenClass;
+        stats.playClass = stats.myClass;
+        for (String key : skills.profiles()) {
+            com.mki.nightsiege.core.SkillClass c = PlayerSkills.classOfKey(key);
+            if (c == null) {
+                continue;
             }
+            if (!stats.unlocked.contains(c.name())) {
+                stats.unlocked.add(c.name());
+            }
+            CoreStats.ProfileLine line = new CoreStats.ProfileLine();
+            line.key = key;
+            line.clazz = c.name();
+            line.subclass = tree.subclassOfProfile(skills, key);
+            line.path = skills.asProfile(key, () -> skills.pathTaken(tree));
+            SkillNode ult = tree.ultimateOfProfile(skills, key);
+            line.ult = ult == null ? 0 : skills.levelInProfile(key, ult.id());
+            line.ultMax = ult == null ? 3 : ult.maxLevel();
+            line.playing = key.equals(skills.chosenClass);
+            line.complete = tree.isCompleteProfile(skills, key);
+            line.spent = tree.pointsSpentProfile(skills, key);
+            if (line.complete && !stats.completeClasses.contains(c.name())) {
+                stats.completeClasses.add(c.name());
+            }
+            stats.profiles.add(line);
+            CoreStats.ProfileNodes nodes = new CoreStats.ProfileNodes();
+            for (SkillNode node : tree.ofClass(c)) {
+                int level = skills.levelInProfile(key, node.id());
+                if (level > 0) {
+                    nodes.levels.put(node.id(), level);
+                }
+                nodes.costs.put(node.id(), node.costFor(level));
+                String why = skills.asProfile(key, () -> tree.blockedReason(node.id(), skills));
+                if (why != null) {
+                    nodes.blocked.put(node.id(), why);
+                }
+            }
+            stats.profileNodes.put(key, nodes);
         }
-        stats.nextClassOpen = manager.mayOpenNextClass(viewer, skills);
+        stats.unlocksFree = skills.unlocksFree;
+        if (skills.unlocksFree > 0) {
+            for (com.mki.nightsiege.core.SkillClass c : manager.unlockClasses(viewer, skills)) {
+                stats.unlockClasses.add(c.name());
+            }
+            stats.unlockSubclasses.addAll(manager.unlockSubclasses(viewer, skills));
+        }
+        stats.nextClassOpen = manager.mayUnlock(viewer, skills);
         stats.summoner = manager.maySummon(viewer);
         if (skills.gains != null) {
             for (Map.Entry<String, Map<String, Integer>> entry : skills.gains.entrySet()) {
@@ -127,8 +165,8 @@ public final class StatsService {
         stats.points = skills.points();
         stats.earned = skills.earned;
         stats.donated = skills.donated;
-        stats.pathTaken = skills.as(leveling, () -> skills.pathTaken(tree));
-        stats.subclass = skills.as(leveling, () -> tree.subclassOf(skills));
+        stats.pathTaken = skills.pathTaken(tree);
+        stats.subclass = tree.subclassOfProfile(skills, skills.chosenClass);
         // Test buttons (+50, reset, crates): creative, or admins while the playtest switch is on.
         stats.creative = viewer.getAbilities().instabuild || (manager.config().testToolsForEveryone && manager.isAdmin(viewer));
         stats.admin = manager.isAdmin(viewer);
