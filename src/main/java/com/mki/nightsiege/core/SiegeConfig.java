@@ -402,6 +402,8 @@ public class SiegeConfig {
         public Integer cost;
         public Integer costStep;
         public Integer maxLevel;
+        /** Named numbers of the skill ({@link SkillValues}): durations, radii, fixed factors. */
+        public Map<String, Double> values;
     }
 
     public static final String[] CLASS_KEYS = {"warrior", "archer", "guardian", "engineer", "summoner"};

@@ -584,7 +584,7 @@ public final class CombatEffects {
                 extra += taken * arrowBonus.applyAsDouble(player);
             }
             if (extra > 0.05 && victim.isAlive()) {
-                bonusHit(level, victim, level.damageSources().playerAttack(player), (float) extra);
+                followUpHit(level, victim, level.damageSources().playerAttack(player), (float) extra);
             }
         }
     }
@@ -692,7 +692,7 @@ public final class CombatEffects {
                 if (near == victim) {
                     continue;
                 }
-                bonusHit(level, near, source, splash);
+                followUpHit(level, near, source, splash);
                 if (crusader && cleave > 0) {
                     if (isUndead(near)) {
                         near.igniteForSeconds(3f);
@@ -949,7 +949,7 @@ public final class CombatEffects {
             Vec3 at = victim.position();
             for (LivingEntity near : enemies(level, at, 2.5, 1.5)) {
                 if (near != victim) {
-                    bonusHit(level, near, source, (float) (taken * shrapnel));
+                    followUpHit(level, near, source, (float) (taken * shrapnel));
                 }
             }
             level.sendParticles(ParticleTypes.CRIT, at.x, at.y + 1.0, at.z, 10, 0.6, 0.4, 0.6, 0.2);
@@ -1000,7 +1000,7 @@ public final class CombatEffects {
         DamageSource source = level.damageSources().playerAttack(player);
         for (int i = 0; i < Math.min(count, line.size()); i++) {
             LivingEntity behind = line.get(i);
-            bonusHit(level, behind, source, amount);
+            followUpHit(level, behind, source, amount);
             level.sendParticles(ParticleTypes.ENCHANTED_HIT, behind.getX(), behind.getY(0.6), behind.getZ(),
                     6, 0.2, 0.3, 0.2, 0.1);
         }
@@ -1024,7 +1024,7 @@ public final class CombatEffects {
                 .min(Comparator.comparingDouble(e -> e.distanceToSqr(from)))
                 .orElse(null);
         if (behind != null) {
-            bonusHit(level, behind, level.damageSources().playerAttack(player), amount);
+            followUpHit(level, behind, level.damageSources().playerAttack(player), amount);
             level.sendParticles(ParticleTypes.ENCHANTED_HIT, behind.getX(), behind.getY(0.6), behind.getZ(),
                     6, 0.2, 0.3, 0.2, 0.1);
         }
@@ -1059,6 +1059,28 @@ public final class CombatEffects {
     }
 
     /** Deals damage the mod adds on top, through the hit cooldown, without boosting it again. */
+    /**
+     * A follow-up hit whose amount comes from a hit that already went through the class and
+     * subclass factor (pierce, cleave, shrapnel, marks, crits): it must not get that factor
+     * a second time (balance update, 26 October 2026: heavy shooters hit 122 % behind the target).
+     */
+    void followUpHit(ServerLevel level, LivingEntity victim, DamageSource source, float amount) {
+        followUp = true;
+        try {
+            bonusHit(level, victim, source, amount);
+        } finally {
+            followUp = false;
+        }
+    }
+
+    /** Set during {@link #followUpHit}: the damage factor of the attacker's class is already in. */
+    private static boolean followUp;
+
+    /** True while a follow-up hit is dealt; read by the damage scaling. */
+    static boolean inFollowUp() {
+        return followUp;
+    }
+
     void bonusHit(ServerLevel level, LivingEntity victim, DamageSource source, float amount) {
         dealingBonus = true;
         try {

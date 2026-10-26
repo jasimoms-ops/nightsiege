@@ -187,6 +187,8 @@ public final class StatsService {
             line.col = node.col();
             line.locks = new java.util.ArrayList<>(node.locksList());
             line.lane = tree.laneOf(node.id());
+            line.amount = node.amountPerLevel();
+            line.values = com.mki.nightsiege.core.SkillValues.of(node.id());
             stats.nodes.add(line);
         }
         return stats;

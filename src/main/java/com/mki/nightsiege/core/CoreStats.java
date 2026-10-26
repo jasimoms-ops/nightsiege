@@ -53,6 +53,10 @@ public class CoreStats {
         public String lane = "";
         /** The key this skill needs ({@link KeyHint} name), or empty. */
         public String key = "";
+        /** Amount per level as used now (after server tweaks), for the numbers in the skill text. */
+        public double amount;
+        /** Named numbers of the skill ({@link SkillValues}), for the numbers in the skill text. */
+        public java.util.Map<String, Double> values = new java.util.LinkedHashMap<>();
     }
 
     /** One perk of the main core. */

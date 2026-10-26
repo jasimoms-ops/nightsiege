@@ -1300,7 +1300,7 @@ public class CoreScreen extends Screen {
         }
         String descKey = "nightsiege.skill." + n.id + ".desc";
         if (Language.getInstance().has(descKey)) {
-            lines.add("§7" + Language.getInstance().getOrDefault(descKey).replace("\n", " "));
+            lines.add("§7" + SkillText.fill(Language.getInstance().getOrDefault(descKey), n).replace("\n", " "));
         }
         lines.add("§f" + Component.translatable("nightsiege.ui.node_level", n.level, n.maxLevel).getString()
                 + (n.level < n.maxLevel ? "  §e" + Component.translatable("nightsiege.ui.node_cost", n.cost).getString() : ""));
@@ -2420,7 +2420,7 @@ public class CoreScreen extends Screen {
         lines.add(Component.translatable("nightsiege.skill." + node.id).getString());
         String descKey = "nightsiege.skill." + node.id + ".desc";
         if (Language.getInstance().has(descKey)) {
-            for (String part : Language.getInstance().getOrDefault(descKey).split("\n")) {
+            for (String part : SkillText.fill(Language.getInstance().getOrDefault(descKey), node).split("\n")) {
                 lines.add("§7" + part);
             }
         }

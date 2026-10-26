@@ -139,7 +139,8 @@ public final class GuardianEffects {
         // Monster strength per type: outside the skill floor, so it also reaches the bulwark.
         float monster = tuning != null && victim instanceof ServerPlayer && source.getEntity() instanceof Enemy
                 ? tuning.monsterDamageFactor(source.getEntity()) : 1f;
-        if (tuning != null && source.getEntity() instanceof ServerPlayer hitter && victim instanceof Enemy) {
+        if (tuning != null && source.getEntity() instanceof ServerPlayer hitter && victim instanceof Enemy
+                && !CombatEffects.inFollowUp()) {   // a follow-up hit already carries the factor
             factor *= tuning.damageFactor(hitter);   // server balancing per class and subclass
         }
         if (tuning != null && victim instanceof ServerPlayer hurt && source.getEntity() instanceof Enemy) {
@@ -150,9 +151,12 @@ public final class GuardianEffects {
                 factor *= tuning.zombieSpiderFactor(hurt);   // zombies and spiders hit the melee classes harder
             }
         }
-        factor *= CrateEffects.factor(victim, source);   // crate gains of the night kit
+        boolean followUp = CombatEffects.inFollowUp() && victim instanceof Enemy;   // its hit already had these
+        if (!followUp) {
+            factor *= CrateEffects.factor(victim, source);   // crate gains of the night kit
+        }
         factor *= Companions.damageFactor(victim, source);   // the summoner's companions
-        if (source.getEntity() instanceof ServerPlayer attacker && victim instanceof Enemy
+        if (!followUp && source.getEntity() instanceof ServerPlayer attacker && victim instanceof Enemy
                 && SkillTree.has(skillsFor.apply(attacker), "g_saint")) {
             factor *= 0.7f;   // the saint heals, but hits softer
         }

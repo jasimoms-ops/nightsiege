@@ -180,34 +180,6 @@ class SiegeCoreTest {
     }
 
     @Test
-    void waySwapOpensTheOtherSubclassButNotASecondUlt() {
-        SkillTree tree = new SkillTree();
-        PlayerSkills p = new PlayerSkills();
-        p.chosenClass = SkillClass.WARRIOR.name();
-        learnWay(tree, p, SkillClass.WARRIOR, SkillTree.WAY_BLADE);
-        p.award(500);
-        String other = p.levelOf("w_combo") > 0 ? "bloodlust" : "w_combo";
-        String why = tree.blockedReason(other, p);
-        assertTrue("choice".equals(why) || "lockedby".equals(why), other + " is shut: " + why);
-        assertTrue(tree.isComplete(p, SkillClass.WARRIOR));
-        p.setGainStage(SkillClass.WARRIOR, "wegtausch_w", 1);
-        assertNull(tree.blockedReason(other, p), "way swap opens " + other);
-        assertFalse(tree.isComplete(p, SkillClass.WARRIOR), "with way swap there is more to learn");
-        for (SkillNode node : tree.ofClass(SkillClass.WARRIOR)) {
-            if (node.effect().target() == SkillEffect.Target.ULTIMATE && p.levelOf(node.id()) == 0
-                    && SkillTree.WAY_BLADE.equals(node.path())) {
-                assertNotNull(tree.blockedReason(node.id(), p), "the ult stays one: " + node.id());
-            }
-        }
-        // The other way stays closed.
-        for (SkillNode node : tree.ofClass(SkillClass.WARRIOR)) {
-            if (SkillTree.WAY_MIGHT.equals(node.path())) {
-                assertNotNull(tree.blockedReason(node.id(), p), node.id());
-            }
-        }
-    }
-
-    @Test
     void theShieldFighterGotStronger() {
         SiegeConfig fresh = new SiegeConfig();
         fresh.sanitize();
@@ -288,7 +260,7 @@ class SiegeCoreTest {
         int[] weights = new SiegeConfig().crateOddsFragment;
         for (SkillClass c : new SkillClass[]{SkillClass.WARRIOR, SkillClass.ARCHER, SkillClass.GUARDIAN, SkillClass.ENGINEER,
                 SkillClass.SUMMONER}) {
-            assertEquals(31, CrateGains.forCollection(c).size(), c + " has 15 gains and 16 general ones");
+            assertEquals(30, CrateGains.forCollection(c).size(), c + " has 14 gains and 16 general ones");
             for (int i = 0; i < 400; i++) {
                 CrateGains.Gain g = CrateGains.roll(c, "", weights, 0.7, random);
                 assertNotNull(g);
@@ -305,8 +277,7 @@ class SiegeCoreTest {
             CrateGains.Gain wild = CrateGains.roll(SkillClass.SUMMONER, SkillTree.WAY_WILD, weights, 1.0, random);
             assertNotEquals(SkillTree.WAY_DEAD, wild.way(), wild.id());
         }
-        assertEquals("wegtausch_s", SkillTree.waySwapGain(SkillClass.SUMMONER));
-        assertNotNull(CrateGains.get("wegtausch_s"));
+        assertNull(CrateGains.get("wegtausch_s"), "way swap is gone (balance update)");
     }
 
     @Test

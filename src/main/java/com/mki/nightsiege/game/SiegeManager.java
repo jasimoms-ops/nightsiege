@@ -459,6 +459,7 @@ public final class SiegeManager {
         config = loaded == null ? new SiegeConfig() : loaded;
         config.sanitize();
         int tweaked = skillTree.applyTweaks(config.skillTweaks);
+        com.mki.nightsiege.core.SkillValues.apply(config.skillTweaks);
         if (tweaked > 0) {
             NightSiegeMod.LOGGER.info("[Night Siege] {} Skills mit Server-Werten", tweaked);
         }
