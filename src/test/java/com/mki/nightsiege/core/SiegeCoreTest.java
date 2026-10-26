@@ -1888,7 +1888,8 @@ class SiegeCoreTest {
         p.fixSub(SkillClass.WARRIOR, "w_combo");
         p.award(100_000);
         assertEquals("blademaster", tree.chosenSubclass(p, SkillClass.WARRIOR));
-        assertEquals("path", tree.blockedReason("heavy_blow", p), "the way of might is shut");
+        // The fixed subclass is the profile's planned subclass: the other way is shut for it.
+        assertEquals("subclass_planned", tree.blockedReason("heavy_blow", p), "the way of might is shut");
         for (int round = 0; round < 40; round++) {
             for (SkillNode n : tree.ofClass(SkillClass.WARRIOR)) {
                 if (tree.blockedReason(n.id(), p) == null) {
