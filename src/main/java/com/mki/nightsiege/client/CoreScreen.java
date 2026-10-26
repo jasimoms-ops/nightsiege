@@ -281,6 +281,19 @@ public class CoreScreen extends Screen {
                 nb.active = !stats.myVote.equals("no");
                 addRenderableWidget(nb);
                 bx += yw + nw + 8;
+            } else if (stats.extraSiegeOn) {
+                // From world level 20 on: call an extra siege for tonight (greyed out with the reason otherwise).
+                Component call = Component.translatable("nightsiege.ui.extra_call");
+                int cw = Math.max(80, font.width(call) + 12);
+                boolean free = "NONE".equals(stats.extraSiegeBlock);
+                Button cb = Button.builder(call, b -> send("extrasiege")).bounds(bx, footerY, cw, 18)
+                        .tooltip(net.minecraft.client.gui.components.Tooltip.create(free
+                                ? Component.translatable("nightsiege.ui.extra_call_hint", stats.acceptsRequired)
+                                : extraBlockText()))
+                        .build();
+                cb.active = free;
+                addRenderableWidget(cb);
+                bx += cw + 4;
             }
             if (!stats.siegeActive && !stats.nightComing) {
                 Component leave = Component.translatable("nightsiege.ui.unregister");
@@ -1513,6 +1526,13 @@ public class CoreScreen extends Screen {
         }
     }
 
+    /** The short reason why the extra siege button is greyed out. */
+    private Component extraBlockText() {
+        String block = stats.extraSiegeBlock == null || stats.extraSiegeBlock.isBlank() ? "none"
+                : stats.extraSiegeBlock.toLowerCase(java.util.Locale.ROOT);
+        return Component.translatable("nightsiege.ui.extra_block." + block, stats.extraSiegeFromLevel);
+    }
+
     private void send(String action) {
         ClientPlayNetworking.send(new CoreNetworking.CoreActionPayload(action));
     }
@@ -2367,6 +2387,18 @@ public class CoreScreen extends Screen {
                     : stats.myVote.equals("no") ? "nightsiege.ui.rhythm_me_no" : "nightsiege.ui.rhythm_me_open";
             gui.text(font, Component.translatable(mine).getString(), x + 17, cy,
                     stats.myVote.equals("yes") ? GREEN : stats.myVote.equals("no") ? RED : GOLD, true);
+        }
+        cy += 12;
+        if (cy + 9 > y + h) {
+            return;
+        }
+        // The extra siege: who called tonight's, or why the button below is greyed out.
+        if (stats.extraSiegeToday && (stats.voteOpen || stats.nightComing)) {
+            gui.text(font, font.plainSubstrByWidth(Component.translatable("nightsiege.ui.extra_today",
+                    stats.extraSiegeBy).getString(), w - 16), x + 8, cy, GOLD, true);
+        } else if (stats.extraSiegeOn && !stats.voteOpen && !"NONE".equals(stats.extraSiegeBlock)) {
+            gui.text(font, font.plainSubstrByWidth(Component.translatable("nightsiege.ui.extra_status",
+                    extraBlockText()).getString(), w - 16), x + 8, cy, GRAY, true);
         }
     }
 

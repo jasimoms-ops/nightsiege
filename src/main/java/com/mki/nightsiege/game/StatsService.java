@@ -84,6 +84,11 @@ public final class StatsService {
         stats.myVote = save.accepted != null && save.accepted.contains(me) ? "yes"
                 : save.declined != null && save.declined.contains(me) ? "no" : "";
         stats.nightComing = manager.nightComing(server);
+        stats.extraSiegeOn = cfg.extraSiegePerDay > 0;
+        stats.extraSiegeFromLevel = cfg.extraSiegeFromLevel;
+        stats.extraSiegeBlock = manager.extraSiegeBlock(server).name();
+        stats.extraSiegeToday = manager.extraSiegeToday(server);
+        stats.extraSiegeBy = stats.extraSiegeToday && save.extraCalledBy != null ? save.extraCalledBy : "";
         stats.playersNear = stats.accepted;
         stats.playersRequired = cfg.requiredAccepts;
         stats.coreRadius = (int) cfg.coreRadius;

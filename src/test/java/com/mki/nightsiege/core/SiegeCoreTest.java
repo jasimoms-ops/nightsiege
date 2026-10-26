@@ -113,6 +113,60 @@ class SiegeCoreTest {
                 close, c.eclipseStartDayTime));
     }
 
+    // --- extra siege called at the core ------------------------------
+
+    private SiegeRhythm.ExtraBlock extra(long day, int time, int level, long siegeDay, long voted,
+                                         boolean held, int calls, boolean busy, SiegeConfig c) {
+        return SiegeRhythm.extraSiegeBlock(day, time, level, siegeDay, voted, held, calls, busy, c, c.warningDayTime);
+    }
+
+    @Test
+    void extraSiegeOnlyFromLevelTwentyAndOncePerDay() {
+        SiegeConfig c = cfg();
+        assertEquals(20, c.extraSiegeFromLevel);
+        assertEquals(1, c.extraSiegePerDay);
+        assertEquals(SiegeRhythm.ExtraBlock.LEVEL, extra(9, 3000, 19, 11, 8, false, 0, false, c));
+        assertEquals(SiegeRhythm.ExtraBlock.NONE, extra(9, 3000, 20, 11, 8, false, 0, false, c));
+        assertEquals(SiegeRhythm.ExtraBlock.NONE, extra(9, 500, 25, 11, 8, false, 0, false, c));   // early morning too
+        assertEquals(SiegeRhythm.ExtraBlock.CALLED_TODAY, extra(9, 3000, 20, 11, 8, false, 1, false, c));
+        c.extraSiegePerDay = 0;
+        assertEquals(SiegeRhythm.ExtraBlock.OFF, extra(9, 3000, 30, 11, 8, false, 0, false, c));
+        c.extraSiegePerDay = 5;
+        c.sanitize();
+        assertEquals(1, c.extraSiegePerDay);   // more than one vote a day cannot fit
+    }
+
+    @Test
+    void extraSiegeNotOnASiegeDayNorInTheNightNorTooLate() {
+        SiegeConfig c = cfg();
+        // The regular siege day is today: invited, or the invitation is still to come.
+        assertEquals(SiegeRhythm.ExtraBlock.SIEGE_TODAY, extra(11, 3000, 20, 11, 11, false, 0, false, c));
+        assertEquals(SiegeRhythm.ExtraBlock.SIEGE_TODAY, extra(11, 500, 20, 11, -1, false, 0, false, c));
+        // Today's night was already decided (called off or played).
+        assertEquals(SiegeRhythm.ExtraBlock.SIEGE_TODAY, extra(9, 3000, 20, 12, 8, true, 0, false, c));
+        // A siege runs or the horn has sounded.
+        assertEquals(SiegeRhythm.ExtraBlock.NIGHT, extra(9, 16000, 20, 11, 8, false, 0, true, c));
+        // The vote would be over at once.
+        assertEquals(SiegeRhythm.ExtraBlock.TOO_LATE, extra(9, c.warningDayTime, 20, 11, 8, false, 0, false, c));
+        assertEquals(SiegeRhythm.ExtraBlock.NONE, extra(9, c.warningDayTime - 1, 20, 11, 8, false, 0, false, c));
+    }
+
+    @Test
+    void extraSiegeVotesLikeARegularDayAndKeepsTheRhythm() {
+        SiegeConfig c = cfg();
+        // Called on day 9 (regular day 11): today becomes the siege day with the vote running.
+        assertEquals(SiegeRhythm.Step.NONE, rhythm(9, 6000, 9, 9, -1, -1, 1, c));
+        assertEquals(SiegeRhythm.Step.CANCEL, rhythm(9, c.warningDayTime, 9, 9, -1, -1, 2, c));
+        assertEquals(SiegeRhythm.Step.WARN, rhythm(9, c.warningDayTime, 9, 9, -1, -1, 3, c));
+        // Afterwards the regular day stays where it was ...
+        assertEquals(11, SiegeRhythm.afterExtra(11, 9, 16000, c));
+        assertEquals(11, SiegeRhythm.afterExtra(11, 10, 2000, c));   // the night ran past midnight
+        // ... unless it went by meanwhile (server off): then as after a missed day.
+        assertEquals(12, SiegeRhythm.afterExtra(11, 12, 500, c));
+        assertEquals(15, SiegeRhythm.afterExtra(11, 12, 9000, c));
+        assertEquals(12, SiegeRhythm.afterExtra(-1, 9, 16000, c));
+    }
+
     // --- effect monsters ----------------------------------------------
 
     @Test

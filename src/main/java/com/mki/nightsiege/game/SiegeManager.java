@@ -782,7 +782,7 @@ public final class SiegeManager {
                 persist();
             }
             case MISSED -> {
-                save.nextSiegeDay = SiegeRhythm.afterMissed(day, time, config);
+                save.nextSiegeDay = extraSiegeRuns() ? endExtraSiege(day, time) : SiegeRhythm.afterMissed(day, time, config);
                 save.clearVotes();
                 persist();
             }
@@ -795,6 +795,71 @@ public final class SiegeManager {
         }
     }
 
+    // ------------------------------------------------------------------
+    // extra siege: called at the core for tonight (Simon, 26 October 2026)
+    // ------------------------------------------------------------------
+
+    /** True while an extra siege is invited or played: the regular siege day waits in the save. */
+    private boolean extraSiegeRuns() {
+        return save.extraSiegeDay >= 0;
+    }
+
+    /** True when today's night is an extra siege (for the window). */
+    public boolean extraSiegeToday(MinecraftServer server) {
+        return extraSiegeRuns() && save.extraSiegeDay == clockDay(server);
+    }
+
+    /** The extra night is over (played, called off or missed): the regular plan goes on as before. */
+    private long endExtraSiege(long day, int time) {
+        long next = SiegeRhythm.afterExtra(save.extraRegularDay, day, time, config);
+        save.extraSiegeDay = -1L;
+        save.extraRegularDay = -1L;
+        return next;
+    }
+
+    /** The next siege day after a night (or a called-off night) of this day. */
+    private long nextSiegeDayAfter(MinecraftServer server, long day) {
+        return extraSiegeRuns() ? endExtraSiege(clockDay(server), clockTime(server)) : SiegeRhythm.nextAfter(day, config);
+    }
+
+    /** Why the viewer cannot call an extra siege now (NONE: they can). */
+    public SiegeRhythm.ExtraBlock extraSiegeBlock(MinecraftServer server) {
+        long day = clockDay(server);
+        int calls = save.extraCalledDay == day ? save.extraCallsToday : 0;
+        boolean held = warnedDay == day || startedDay == day;
+        boolean busy = active || pendingTest != null || nightComing(server);
+        return SiegeRhythm.extraSiegeBlock(day, clockTime(server), currentLevel(), save.nextSiegeDay, save.voteDay,
+                held, calls, busy, config, closeTime());
+    }
+
+    /** The button at the core: invites everyone to an extra siege tonight, as on a regular siege day. */
+    private void onCallExtraSiege(ServerPlayer player) {
+        MinecraftServer server = player.level().getServer();
+        if (server == null || mainCore() == null) {
+            return;
+        }
+        SiegeRhythm.ExtraBlock block = extraSiegeBlock(server);
+        if (block != SiegeRhythm.ExtraBlock.NONE) {
+            player.sendSystemMessage(Component.translatable("nightsiege.ui.extra_block." + block.name().toLowerCase(Locale.ROOT),
+                    config.extraSiegeFromLevel).withStyle(ChatFormatting.GRAY));
+            openCoreWindow(player);
+            return;
+        }
+        long day = clockDay(server);
+        save.extraCallsToday = save.extraCalledDay == day ? save.extraCallsToday + 1 : 1;
+        save.extraCalledDay = day;
+        save.extraCalledBy = player.getScoreboardName();
+        save.extraRegularDay = save.nextSiegeDay;
+        save.extraSiegeDay = day;
+        save.nextSiegeDay = day;
+        NightSiegeMod.LOGGER.info("[Night Siege] {} ruft eine Extra-Belagerung für Tag {} aus (reguläre Belagerung an Tag {})",
+                player.getScoreboardName(), day, save.extraRegularDay);
+        broadcast(server, Component.translatable("nightsiege.msg.extra_called", player.getDisplayName())
+                .withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD));
+        sendInvitations(server, day);   // persists
+        openCoreWindow(player);
+    }
+
     /** Morning of a siege day: every signed-up player is asked whether they take part. */
     private void sendInvitations(MinecraftServer server, long day) {
         save.voteDay = day;
@@ -804,6 +869,10 @@ public final class SiegeManager {
         SiegeEvent pending = fragment != null ? fragment.event() : EventPicker.pick(currentLevel(), random, config);
         if (upcomingBoss() != null) {
             pending = SiegeEvent.NONE;   // a boss night comes by night and has no event
+        }
+        if (pending == SiegeEvent.ECLIPSE && extraSiegeRuns()
+                && clockTime(server) + 1200 > config.eclipseWarningDayTime) {
+            pending = SiegeEvent.NONE;   // an extra siege called late in the day: no time left to vote before noon
         }
         save.pendingEvent = pending.name();
         persist();
@@ -876,7 +945,7 @@ public final class SiegeManager {
 
     /** Too few accepts or nobody at the core: the night is skipped, the next invitation comes a few days later. */
     private void cancelNight(MinecraftServer server, long day, String key) {
-        long next = SiegeRhythm.nextAfter(day, config);
+        long next = nextSiegeDayAfter(server, day);
         int days = (int) (next - day);
         if (save.voteDay == day) {
             broadcast(server, Component.translatable(key, acceptedCount(), config.requiredAccepts, days)
@@ -2137,7 +2206,7 @@ public final class SiegeManager {
     /** After a real night (won, lost or broken off) the next invitation comes a few days later. */
     private void scheduleNextAfterNight(MinecraftServer server) {
         long day = siegeDay >= 0 ? siegeDay : clockDay(server);
-        save.nextSiegeDay = SiegeRhythm.nextAfter(day, config);
+        save.nextSiegeDay = nextSiegeDayAfter(server, day);
         save.clearVotes();
         siegeDay = -1L;
     }
@@ -2933,6 +3002,7 @@ public final class SiegeManager {
         }
         switch (verb) {
             case "roster" -> unregister(player);
+            case "extrasiege" -> onCallExtraSiege(player);
             case "vote" -> {
                 vote(player, argument.equals("yes"));
                 openCoreWindow(player);

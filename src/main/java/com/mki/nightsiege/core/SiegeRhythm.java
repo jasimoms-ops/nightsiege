@@ -86,6 +86,71 @@ public final class SiegeRhythm {
         return time < cfg.inviteDayTime ? day : nextAfter(day, cfg);
     }
 
+    /** Why no extra siege can be called right now (NONE: it can). */
+    public enum ExtraBlock {
+        NONE,
+        /** Switched off in the config. */
+        OFF,
+        /** The world has not reached the level yet. */
+        LEVEL,
+        /** A siege runs, a test is being prepared, or the horn has already sounded. */
+        NIGHT,
+        /** Already called today (as often as allowed). */
+        CALLED_TODAY,
+        /** A regular siege is invited, planned or already held today. */
+        SIEGE_TODAY,
+        /** Too late for a vote: the vote would end at sunset (or now). */
+        TOO_LATE
+    }
+
+    /**
+     * Whether a registered player may call an extra siege for tonight with the button at the core
+     * (Simon, 26 October 2026): from a world level on, at most once a day, never on a siege day,
+     * never during a night, and only while a vote is still possible.
+     *
+     * @param level        the siege level of the world
+     * @param siegeDay     the day of the next regular siege (negative: none set yet)
+     * @param votedDay     the day the invitations last went out
+     * @param heldToday    a siege night was already warned of, started or called off today
+     * @param callsToday   extra sieges called today so far
+     * @param busy         a siege runs, a test is prepared or tonight's horn has sounded
+     * @param closeTime    end of the vote (sunset)
+     */
+    public static ExtraBlock extraSiegeBlock(long day, int time, int level, long siegeDay, long votedDay,
+                                             boolean heldToday, int callsToday, boolean busy,
+                                             SiegeConfig cfg, int closeTime) {
+        if (cfg.extraSiegePerDay <= 0) {
+            return ExtraBlock.OFF;
+        }
+        if (level < cfg.extraSiegeFromLevel) {
+            return ExtraBlock.LEVEL;
+        }
+        if (busy) {
+            return ExtraBlock.NIGHT;
+        }
+        if (callsToday >= cfg.extraSiegePerDay) {
+            return ExtraBlock.CALLED_TODAY;
+        }
+        if ((siegeDay >= 0 && siegeDay <= day) || votedDay == day || heldToday) {
+            return ExtraBlock.SIEGE_TODAY;
+        }
+        if (time >= closeTime) {
+            return ExtraBlock.TOO_LATE;
+        }
+        return ExtraBlock.NONE;
+    }
+
+    /**
+     * After an extra night (played, called off or missed) the regular plan goes on: back to the
+     * siege day it had, or, if that went by meanwhile (server off), a new one as after a missed day.
+     */
+    public static long afterExtra(long regularDay, long day, int time, SiegeConfig cfg) {
+        if (regularDay < 0) {
+            return nextAfter(day, cfg);
+        }
+        return regularDay >= day ? regularDay : afterMissed(day, time, cfg);
+    }
+
     /** 0 to 1: how far the days towards the next siege day have run. */
     public static double progress(long day, int time, long siegeDay, SiegeConfig cfg) {
         if (siegeDay < 0) {
