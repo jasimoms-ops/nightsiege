@@ -73,6 +73,7 @@ public class EventLookTest implements FabricClientGameTest {
                 summonerScene(context, game);
                 versionBScene(context, game);
                 versionB2Scene(context, game);
+                classUiScene(context, game);
                 return;
             }
 
@@ -2052,6 +2053,116 @@ public class EventLookTest implements FabricClientGameTest {
     }
 
     /** Version B2: the gadgets of every class in a short test night each. */
+    /**
+     * The class overview in the core window, the subclass window with its armour stands and the
+     * class window before a night with the stands (Simon's design of 26 October 2026). The player's
+     * own progress comes back afterwards.
+     */
+    private static void classUiScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        closeScreen(context);
+        final String[] backup = new String[1];
+        onServer(context, (player, manager) -> {
+            var own = manager.save().skillsOf(player.getUUID().toString());
+            backup[0] = com.mki.nightsiege.game.Json.toJson(own);
+            own.reset();
+            own.chosenClass = com.mki.nightsiege.core.SkillClass.WARRIOR.name();
+            own.unlockClass(com.mki.nightsiege.core.SkillClass.WARRIOR);
+            own.fixSub(com.mki.nightsiege.core.SkillClass.WARRIOR, "w_combo");
+            own.award(2000);
+            var tree = manager.skillTree();
+            // The way of the blade with its ultimate at level 3: the next class opens.
+            for (int round = 0; round < 40; round++) {
+                for (com.mki.nightsiege.core.SkillNode n : tree.ofClass(com.mki.nightsiege.core.SkillClass.WARRIOR)) {
+                    if (tree.blockedReason(n.id(), own) == null) {
+                        tree.unlock(n.id(), own);
+                    }
+                }
+            }
+            System.out.println("[Night Siege test] classes ult3=" + tree.ultimateMaxed(own, com.mki.nightsiege.core.SkillClass.WARRIOR)
+                    + " way=" + own.pathTaken(tree) + " sub=" + tree.chosenSubclass(own, com.mki.nightsiege.core.SkillClass.WARRIOR)
+                    + " axe blocked=" + tree.blockedReason("heavy_blow", own) + " berserker blocked=" + tree.blockedReason("bloodlust", own)
+                    + " nextOpen=" + manager.mayOpenNextClass(player, own));
+            manager.onChooseClass(player, "GUARDIAN:g_bastion");
+            System.out.println("[Night Siege test] classes unlocked=" + own.unlockedClasses()
+                    + " guardian sub=" + tree.chosenSubclass(own, com.mki.nightsiege.core.SkillClass.GUARDIAN)
+                    + " medic blocked=" + own.as(com.mki.nightsiege.core.SkillClass.GUARDIAN, () -> tree.blockedReason("g_healing_hand", own)));
+        });
+        context.waitTicks(10);
+        context.runOnClient(client -> {
+            try {
+                java.lang.reflect.Field tab = com.mki.nightsiege.client.CoreScreen.class.getDeclaredField("activeTab");
+                tab.setAccessible(true);
+                for (Object t : tab.getType().getEnumConstants()) {
+                    if (t.toString().equals("CLASSES")) {
+                        tab.set(null, t);
+                    }
+                }
+            } catch (ReflectiveOperationException e) {
+                System.out.println("[Night Siege test] classes tab not set: " + e);
+            }
+        });
+        onServer(context, (player, manager) -> manager.openCoreWindow(player));
+        context.waitTicks(20);
+        context.takeScreenshot("ui_classes");
+        // The same at GUI scale 4 (a small screen): tabs and buttons must stay on it.
+        int scaleBefore = context.computeOnClient(client -> client.options.guiScale().get());
+        context.runOnClient(client -> {
+            client.options.guiScale().set(4);
+            client.resizeGui();
+        });
+        context.waitTicks(5);
+        context.takeScreenshot("ui_classes_gui4");
+        context.runOnClient(client -> {
+            client.options.guiScale().set(scaleBefore);
+            client.resizeGui();
+        });
+        context.waitTicks(5);
+        for (com.mki.nightsiege.core.SkillClass c : new com.mki.nightsiege.core.SkillClass[]{
+                com.mki.nightsiege.core.SkillClass.ARCHER, com.mki.nightsiege.core.SkillClass.SUMMONER}) {
+            context.runOnClient(client -> client.setScreenAndShow(new com.mki.nightsiege.client.SubclassPickScreen(
+                    c, com.mki.nightsiege.client.SubclassPickScreen.Mode.NEXT, client.gui.screen(), "")));
+            context.waitTicks(10);
+            context.takeScreenshot("ui_subpick_" + c.name().toLowerCase(java.util.Locale.ROOT));
+        }
+        context.runOnClient(client -> {
+            client.options.guiScale().set(1);
+            client.resizeGui();
+        });
+        context.waitTicks(5);
+        context.takeScreenshot("ui_subpick_gui1");
+        context.runOnClient(client -> {
+            client.options.guiScale().set(scaleBefore);
+            client.resizeGui();
+        });
+        closeScreen(context);
+        // The class window before a test night: stands on the cards.
+        onServer(context, (player, manager) -> {
+            manager.config().testPrepSeconds = 20;
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            com.mki.nightsiege.game.CoreRecord c = manager.save().cores.get(0);
+            boolean ok = manager.prepareTest(level.getServer(), level, new net.minecraft.core.BlockPos(c.x, c.y, c.z), 12,
+                    com.mki.nightsiege.core.SiegeEvent.NONE);
+            System.out.println("[Night Siege test] classes prep=" + ok);
+        });
+        context.waitTicks(20);
+        context.takeScreenshot("ui_class_pick_stands");
+        onServer(context, (player, manager) -> {
+            manager.cancelPreparation();
+            var own = manager.save().skillsOf(player.getUUID().toString());
+            var old = com.mki.nightsiege.game.Json.fromJson(backup[0], com.mki.nightsiege.core.PlayerSkills.class);
+            for (java.lang.reflect.Field f : com.mki.nightsiege.core.PlayerSkills.class.getFields()) {
+                try {
+                    if (!java.lang.reflect.Modifier.isStatic(f.getModifiers())) {
+                        f.set(own, f.get(old));
+                    }
+                } catch (IllegalAccessException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        });
+        closeScreen(context);
+    }
+
     private static void versionB2Scene(ClientGameTestContext context, TestSingleplayerContext game) {
         int[] core = context.computeOnClient(client -> {
             com.mki.nightsiege.game.CoreRecord c = com.mki.nightsiege.game.SiegeManager.get().save().cores.get(0);

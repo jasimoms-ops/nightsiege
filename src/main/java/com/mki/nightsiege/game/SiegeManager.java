@@ -634,9 +634,10 @@ public final class SiegeManager {
             entry.unlocked = own.hasUnlocked(c);
             entry.leveling = c == own.levelingClass();
             entry.complete = skillTree.isComplete(own, c);
+            entry.ultDone = skillTree.ultimateMaxed(own, c);
             if (entry.unlocked) {
                 entry.way = own.as(c, () -> own.pathTaken(skillTree));
-                entry.subclass = own.as(c, () -> skillTree.subclassOf(own));
+                entry.subclass = skillTree.chosenSubclass(own, c);
                 entry.spent = own.as(c, () -> skillTree.pointsSpent(own, c));
                 entry.total = skillTree.pointsToComplete(own, c);
                 if (config.nightKits) {
@@ -2786,7 +2787,7 @@ public final class SiegeManager {
     public void openCoreWindow(ServerPlayer player) {
         if (player.level() instanceof ServerLevel here) {
             PlayerSkills own = save.skillsOf(player.getUUID().toString());
-            ClassTags.update(here.getServer(), player, own, skillTree.subclassOf(own));
+            ClassTags.update(here.getServer(), player, own, skillTree.chosenSubclass(own, own.clazz()));
         }
         if (ServerPlayNetworking.canSend(player, CoreNetworking.CoreUiPayload.TYPE)) {
             StatsService.sendTo(player, this);
@@ -2803,7 +2804,7 @@ public final class SiegeManager {
                 continue;
             }
             PlayerSkills own = save.skillsOf(player.getUUID().toString());
-            ClassTags.update(server, player, own, skillTree.subclassOf(own));
+            ClassTags.update(server, player, own, skillTree.chosenSubclass(own, own.clazz()));
         }
     }
 
@@ -2917,6 +2918,7 @@ public final class SiegeManager {
             }
             case "buy" -> onBuySkill(player, argument);
             case "class" -> onChooseClass(player, argument);
+            case "sub" -> onFixSubclass(player, argument);
             case "play" -> onPlayClass(player, argument);
             case "classreset" -> onClassReset(player);
             case "donate" -> onDonate(player, parseAmount(argument));
@@ -3015,6 +3017,7 @@ public final class SiegeManager {
         } else if (node.clazz() == own.levelingClass() || node.clazz() == own.clazz()) {
             // New points go to the class being levelled, even while another one is played.
             boolean wasComplete = skillTree.isComplete(own, node.clazz());
+            boolean couldOpen = mayOpenNextClass(player, own);
             boolean bought = own.as(node.clazz(), () -> skillTree.unlock(nodeId, own));
             if (bought) {
                 rewardMaxedUltimate(player, own, node);
@@ -3024,7 +3027,12 @@ public final class SiegeManager {
                         && !fallen.contains(player.getUUID())) {
                     SkillService.apply(player, own, skillTree);
                 }
-                if (!wasComplete && skillTree.isComplete(own, node.clazz()) && nextClassFree(player, own)) {
+                if (!couldOpen && mayOpenNextClass(player, own)) {
+                    // The ultimate reached level 3: the next class may be chosen at the core.
+                    player.sendSystemMessage(Component.translatable("nightsiege.msg.class_next_open",
+                            Component.translatable(node.clazz().translationKey())).withStyle(ChatFormatting.GOLD));
+                    Fx.pointsEarned(player.level().getServer(), config);
+                } else if (!wasComplete && skillTree.isComplete(own, node.clazz()) && nextClassFree(player, own)) {
                     player.sendSystemMessage(Component.translatable("nightsiege.msg.class_complete",
                             Component.translatable(node.clazz().translationKey())).withStyle(ChatFormatting.GOLD));
                     Fx.pointsEarned(player.level().getServer(), config);
@@ -3049,7 +3057,10 @@ public final class SiegeManager {
 
     /** True when the player has filled the class they level and may open the next one. */
     public boolean mayOpenNextClass(ServerPlayer player, PlayerSkills own) {
-        return own.hasClass() && skillTree.isComplete(own, own.levelingClass()) && nextClassFree(player, own);
+        // Simon, 26 October 2026: the next class opens once the ultimate is at level 3.
+        SkillClass leveling = own.levelingClass();
+        return own.hasClass() && (skillTree.ultimateMaxed(own, leveling) || skillTree.isComplete(own, leveling))
+                && nextClassFree(player, own);
     }
 
     /** The summoner is for admins only until the config opens it for everyone (Simon, 25 October 2026). */
@@ -3118,10 +3129,16 @@ public final class SiegeManager {
     }
 
     /** Commits a player to a class. Only possible while they have none. */
-    public void onChooseClass(ServerPlayer player, String className) {
-        SkillClass chosen = SkillClass.byName(className);
+    public void onChooseClass(ServerPlayer player, String argument) {
+        String[] parts = argument == null ? new String[0] : argument.split(":", 2);
+        SkillClass chosen = parts.length == 0 ? null : SkillClass.byName(parts[0]);
         if (player == null || chosen == null || chosen.isShared()) {
             return;
+        }
+        // The subclass picked with the class (its armour stand): it settles way and subclass.
+        SkillTree.SubclassInfo sub = parts.length > 1 ? SkillTree.subclassByNode(parts[1]) : null;
+        if (sub != null && sub.clazz() != chosen) {
+            sub = null;
         }
         PlayerSkills own = save.skillsOf(player.getUUID().toString());
         if (!mayChoose(player, chosen)) {
@@ -3130,8 +3147,11 @@ public final class SiegeManager {
             return;
         }
         if (own.hasClass() && !own.hasUnlocked(chosen) && mayOpenNextClass(player, own)) {
-            // The class being levelled is full: the next one opens, new points go there.
+            // The ultimate of the class being levelled is at level 3: the next one opens, new points go there.
             own.unlockClass(chosen);
+            if (sub != null) {
+                own.fixSub(chosen, sub.node());
+            }
             persist();
             player.sendSystemMessage(Component.translatable("nightsiege.msg.class_next",
                     Component.translatable(chosen.translationKey())).withStyle(ChatFormatting.GREEN));
@@ -3140,11 +3160,49 @@ public final class SiegeManager {
                     .withStyle(ChatFormatting.RED));
         } else {
             own.chosenClass = chosen.name();
+            if (sub != null) {
+                own.fixSub(chosen, sub.node());
+            }
             persist();
+            ClassTags.update(player.level().getServer(), player, own, skillTree.chosenSubclass(own, own.clazz()));
             traps.giveRemote(player, own);
             player.sendSystemMessage(Component.translatable("nightsiege.msg.class_chosen",
                     Component.translatable(chosen.translationKey())).withStyle(ChatFormatting.GREEN));
         }
+        openCoreWindow(player);
+    }
+
+    /**
+     * Fixes the subclass of an unlocked class that has none yet (classes chosen before the
+     * armour stand window): only while nothing of the other way or subclass is learned.
+     */
+    public void onFixSubclass(ServerPlayer player, String argument) {
+        String[] parts = argument == null ? new String[0] : argument.split(":", 2);
+        SkillClass clazz = parts.length == 0 ? null : SkillClass.byName(parts[0]);
+        SkillTree.SubclassInfo sub = parts.length > 1 ? SkillTree.subclassByNode(parts[1]) : null;
+        if (player == null || clazz == null || sub == null || sub.clazz() != clazz) {
+            return;
+        }
+        PlayerSkills own = save.skillsOf(player.getUUID().toString());
+        if (!own.hasUnlocked(clazz) || !own.fixedSubOf(clazz).isEmpty()) {
+            openCoreWindow(player);
+            return;
+        }
+        String learned = skillTree.chosenSubclass(own, clazz);
+        String way = own.as(clazz, () -> own.pathTaken(skillTree));
+        if ((!learned.isEmpty() && !learned.equals(sub.key())) || (!way.isEmpty() && !way.equals(sub.way()))) {
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.sub_conflict")
+                    .withStyle(ChatFormatting.RED));
+            openCoreWindow(player);
+            return;
+        }
+        own.fixSub(clazz, sub.node());
+        persist();
+        if (clazz == own.clazz()) {
+            ClassTags.update(player.level().getServer(), player, own, skillTree.chosenSubclass(own, own.clazz()));
+        }
+        player.sendSystemMessage(Component.translatable("nightsiege.msg.sub_fixed",
+                Component.translatable("nightsiege.subclass." + sub.key())).withStyle(ChatFormatting.GREEN));
         openCoreWindow(player);
     }
 
@@ -3178,7 +3236,7 @@ public final class SiegeManager {
                 Component.translatable(chosen.translationKey())).withStyle(ChatFormatting.GREEN));
         if (classPicking.remove(player.getUUID())) {
             // Chosen in the window before the night: no core window on top, just the new name tag.
-            ClassTags.update(player.level().getServer(), player, own, skillTree.subclassOf(own));
+            ClassTags.update(player.level().getServer(), player, own, skillTree.chosenSubclass(own, own.clazz()));
             refreshClassPicks(player.level().getServer());
             return;
         }
@@ -3466,7 +3524,7 @@ public final class SiegeManager {
         giveGuideBook(player);
         events.forget(player.getUUID());
         PlayerSkills own = save.skillsOf(player.getUUID().toString());
-        ClassTags.update(player.level().getServer(), player, own, skillTree.subclassOf(own));
+        ClassTags.update(player.level().getServer(), player, own, skillTree.chosenSubclass(own, own.clazz()));
         MinecraftServer server = player.level().getServer();
         if (server != null && voteOpen(server)) {
             sendInvitation(player);

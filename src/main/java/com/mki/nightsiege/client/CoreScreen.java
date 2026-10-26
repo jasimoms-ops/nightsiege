@@ -65,6 +65,8 @@ public class CoreScreen extends Screen {
 
     private enum Tab {
         STATS(null, "minecraft:clock", "minecraft:textures/block/deepslate_tiles.png", 0xFFFFC94A, "stats"),
+        // The class overview (Simon, 26 October 2026): replaces the five class tabs.
+        CLASSES(null, "minecraft:armor_stand", "minecraft:textures/block/dark_oak_planks.png", 0xFFFFD86B, "classes"),
         ARCHER(SkillClass.ARCHER, "minecraft:bow", "minecraft:textures/block/spruce_planks.png", 0xFF8BD45C, "archer"),
         WARRIOR(SkillClass.WARRIOR, "minecraft:iron_sword", "minecraft:textures/block/stone_bricks.png", 0xFFFF6B4A, "warrior"),
         GUARDIAN(SkillClass.GUARDIAN, "minecraft:shield", "minecraft:textures/block/polished_andesite.png", 0xFF6FA8FF, "guardian"),
@@ -163,11 +165,26 @@ public class CoreScreen extends Screen {
     private Tab[] visibleTabs() {
         List<Tab> out = new ArrayList<>();
         for (Tab tab : Tab.values()) {
-            if (tab != Tab.SUMMONER || stats.summoner) {
+            // The class trees have no tab of their own any more: the overview leads to them.
+            if (tab.clazz == null || tab.clazz.isShared()) {
                 out.add(tab);
             }
         }
         return out.toArray(new Tab[0]);
+    }
+
+    /** A class's own tree (reached from the overview). */
+    private static boolean isClassTree(Tab tab) {
+        return tab != null && tab.clazz != null && !tab.clazz.isShared();
+    }
+
+    private static Tab tabOf(SkillClass clazz) {
+        for (Tab tab : Tab.values()) {
+            if (tab.clazz == clazz) {
+                return tab;
+            }
+        }
+        return Tab.CLASSES;
     }
 
     private Tab ownTab() {
@@ -193,20 +210,22 @@ public class CoreScreen extends Screen {
             activeTab = null;
         }
         if (activeTab == null) {
-            Tab own = ownTab();
-            activeTab = own != null ? own : Tab.STATS;
+            activeTab = Tab.CLASSES;
         }
-        boolean big = activeTab.clazz != null && stats.skillsEnabled && isGrid(activeTab.clazz.name());
+        boolean big = activeTab == Tab.CLASSES
+                || (activeTab.clazz != null && stats.skillsEnabled && isGrid(activeTab.clazz.name()));
         W = big ? Math.max(404, Math.min(this.width - 16, 760)) : 404;
-        H = big ? Math.max(244, Math.min(this.height - 34, 440)) : 244;
+        H = big ? Math.min(this.height - 34, 440) : 244;
+        // Small screens (high GUI scale): the window shrinks, so the tabs and buttons stay visible.
+        H = Math.max(196, Math.min(H, this.height - TAB_H - 4));
+        W = Math.min(W, this.width - 4);
         left = (this.width - W) / 2;
         top = (this.height - H - TAB_H + 4) / 2 + TAB_H - 4;
         nodeButtons.clear();
         pathRows.clear();
         gridMode = false;
         if (activeTab == null) {
-            Tab own = ownTab();
-            activeTab = own != null ? own : Tab.STATS;
+            activeTab = Tab.CLASSES;
         }
 
         if ((confirmingReset || confirming != null) && activeTab.clazz != null && stats.skillsEnabled
@@ -311,6 +330,10 @@ public class CoreScreen extends Screen {
             }
             return;
         }
+        if (activeTab == Tab.CLASSES) {
+            layoutClasses();
+            return;
+        }
         if (activeTab.clazz == null || !stats.skillsEnabled) {
             return;
         }
@@ -320,26 +343,19 @@ public class CoreScreen extends Screen {
         if (activeTab == Tab.CORE) {
             addRenderableWidget(Button.builder(Component.translatable("nightsiege.ui.donate"),
                     b -> send("donate:5")).bounds(left + W - 130, footerY, 64, 18).build());
-        } else if (!hasClass() || (stats.nextClassOpen && !stats.unlocked.contains(activeTab.clazz.name()))) {
-            // The first class, or the next one once the class being levelled is full.
-            SkillClass pick = activeTab.clazz;
-            Component label = Component.translatable(hasClass() ? "nightsiege.ui.next_class" : "nightsiege.ui.choose_class",
-                    Component.translatable(pick.translationKey()));
-            int bw = Math.max(134, font.width(label) + 12);
-            addRenderableWidget(Button.builder(label, b -> {
-                confirming = pick;
-                rebuildWidgets();
-            }).bounds(left + W - 66 - bw, footerY, bw, 18).build());
-        } else if (stats.unlocked.contains(activeTab.clazz.name()) && !activeTab.clazz.name().equals(stats.playClass)
-                && !stats.siegeActive) {
-            // Another unlocked class: play it from now on.
-            SkillClass pick = activeTab.clazz;
-            Component label = Component.translatable("nightsiege.ui.play_class", Component.translatable(pick.translationKey()));
-            int bw = Math.max(110, font.width(label) + 12);
-            addRenderableWidget(Button.builder(label, b -> send("play:" + pick.name()))
-                    .bounds(left + W - 66 - bw, footerY, bw, 18).build());
         }
+        // Choosing and playing a class happen in the overview (tab Klassen) now.
         int footerX = left + 8;
+        if (isClassTree(activeTab)) {
+            // Back to the class overview.
+            Component backLabel = Component.translatable("nightsiege.ui.back_classes");
+            int kw = Math.max(60, font.width(backLabel) + 12);
+            addRenderableWidget(Button.builder(backLabel, b -> {
+                activeTab = Tab.CLASSES;
+                rebuildWidgets();
+            }).bounds(footerX, footerY, kw, 18).build());
+            footerX += kw + 4;
+        }
         if (stats.creative && activeTab != Tab.CORE) {
             Component grant = Component.translatable("nightsiege.ui.dev_grant");
             Component wipe = Component.translatable("nightsiege.ui.dev_reset");
@@ -347,6 +363,7 @@ public class CoreScreen extends Screen {
             int rw = Math.max(56, font.width(wipe) + 12);
             addRenderableWidget(Button.builder(grant, b -> send("dev:50")).bounds(footerX, footerY, gw, 18).build());
             addRenderableWidget(Button.builder(wipe, b -> send("dev:reset")).bounds(footerX + gw + 4, footerY, rw, 18).build());
+
             footerX += gw + rw + 8;
             if (activeTab == Tab.COLLECTION) {
                 // Creative: start the collection of the shown class over (crate gains for testing).
@@ -1516,6 +1533,8 @@ public class CoreScreen extends Screen {
         CoreStats.NodeLine hovered = null;
         if (activeTab == Tab.STATS) {
             drawStats(gui, font);
+        } else if (activeTab == Tab.CLASSES) {
+            drawClasses(gui, font, mouseX, mouseY);
         } else if (activeTab == Tab.PERKS) {
             drawPerks(gui, font);
         } else if (activeTab == Tab.COLLECTION) {
@@ -1568,6 +1587,9 @@ public class CoreScreen extends Screen {
     }
 
     private String tabName(Tab tab) {
+        if (tab == Tab.CLASSES) {
+            return Component.translatable("nightsiege.ui.banner_title.classes").getString();
+        }
         if (tab == Tab.STATS) {
             return Component.translatable("nightsiege.ui.tab_stats").getString();
         }
@@ -1595,7 +1617,7 @@ public class CoreScreen extends Screen {
         Tab[] tabs = visibleTabs();
         for (int i = 0; i < tabs.length; i++) {
             Tab tab = tabs[i];
-            boolean active = tab == activeTab;
+            boolean active = tab == activeTab || (tab == Tab.CLASSES && isClassTree(activeTab));
             if (active != activeOnly) {
                 continue;
             }
@@ -1667,6 +1689,9 @@ public class CoreScreen extends Screen {
     }
 
     private String bannerName(Tab tab) {
+        if (tab == Tab.CLASSES) {
+            return Component.translatable("nightsiege.ui.banner_title.classes").getString();
+        }
         if (tab == Tab.STATS) {
             return Component.translatable("nightsiege.ui.banner_title.stats").getString();
         }
@@ -1688,7 +1713,7 @@ public class CoreScreen extends Screen {
         gui.fill(x - 1, y - 1, x + w + 1, y + h + 1, FRAME_DARK);
         gui.fill(x, y + h, x + w + 1, y + h + 1, FRAME_LIGHT);
         gui.fill(x + w, y, x + w + 1, y + h + 1, FRAME_LIGHT);
-        if (gridMode) {
+        if (gridMode || activeTab == Tab.CLASSES) {
             // Dark fantasy: deep night with the class colour glowing in from the edges.
             int rgb = activeTab.color & 0xFFFFFF;
             gui.fill(x, y, x + w, y + h, 0xFF0E0C14);
@@ -1912,12 +1937,209 @@ public class CoreScreen extends Screen {
         return hovered;
     }
 
+    // ------------------------------------------------------------------
+    // the class overview (tab Klassen)
+    // ------------------------------------------------------------------
+
+    /** The cards of the overview: x, y, width, height and the height of the stand box. */
+    private record ClassCard(CoreStats.ClassLine line, SkillClass clazz, int x, int y, int w, int h, int standH) {
+    }
+
+    private final List<ClassCard> classCards = new ArrayList<>();
+
+    private List<CoreStats.ClassLine> classLines() {
+        List<CoreStats.ClassLine> out = new ArrayList<>();
+        if (stats.classLines != null) {
+            for (CoreStats.ClassLine line : stats.classLines) {
+                if (SkillClass.byName(line.id) != null) {
+                    out.add(line);
+                }
+            }
+        }
+        return out;
+    }
+
+    /** True when this class may be chosen now: the first class, or the next one after an ultimate at level 3. */
+    private boolean choosableNow(CoreStats.ClassLine line) {
+        return !line.unlocked && !stats.siegeActive && (!hasClass() || stats.nextClassOpen);
+    }
+
+    private void layoutClasses() {
+        classCards.clear();
+        List<CoreStats.ClassLine> lines = classLines();
+        if (lines.isEmpty()) {
+            return;
+        }
+        int gap = 5;
+        int n = lines.size();
+        int x0 = innerX() + 4;
+        int y0 = innerY() + 14;
+        int cw = (innerW() - 8 - (n - 1) * gap) / n;
+        int ch = innerY() + innerH() - 4 - y0;
+        int buttons = 2 * 16 + 6;
+        int textH = 34;
+        int standH = Math.max(24, ch - buttons - textH - 16);
+        for (int i = 0; i < n; i++) {
+            CoreStats.ClassLine line = lines.get(i);
+            SkillClass clazz = SkillClass.byName(line.id);
+            int x = x0 + i * (cw + gap);
+            ClassCard card = new ClassCard(line, clazz, x, y0, cw, ch, standH);
+            classCards.add(card);
+            int by = y0 + ch - 4 - 16;
+            int bw = cw - 8;
+            // Bottom: the tree. Above it: what can be done with the class now.
+            addRenderableWidget(Button.builder(Component.translatable("nightsiege.ui.class_tree"), b -> {
+                activeTab = tabOf(clazz);
+                rebuildWidgets();
+            }).bounds(x + 4, by, bw, 16).build());
+            Button action = null;
+            if (!line.unlocked && choosableNow(line)) {
+                Component label = Component.translatable(hasClass() ? "nightsiege.ui.class_unlock" : "nightsiege.ui.class_pick");
+                action = Button.builder(label, b -> openSubclassPick(clazz)).bounds(x + 4, by - 18, bw, 16).build();
+            } else if (line.unlocked && (line.subclass == null || line.subclass.isBlank())) {
+                action = Button.builder(Component.translatable("nightsiege.ui.class_subpick"), b ->
+                        Minecraft.getInstance().setScreenAndShow(new SubclassPickScreen(clazz, SubclassPickScreen.Mode.FIX,
+                                this, line.way))).bounds(x + 4, by - 18, bw, 16).build();
+            } else if (line.unlocked && !line.played) {
+                Button play = Button.builder(Component.translatable("nightsiege.ui.class_play"), b -> send("play:" + clazz.name()))
+                        .bounds(x + 4, by - 18, bw, 16).build();
+                play.active = !stats.siegeActive;
+                action = play;
+            }
+            if (action != null) {
+                addRenderableWidget(action);
+            }
+        }
+    }
+
+    /** Choosing a class (first or next): the subclass window decides way and subclass with it. */
+    private void openSubclassPick(SkillClass clazz) {
+        SubclassPickScreen.Mode mode = hasClass() ? SubclassPickScreen.Mode.NEXT : SubclassPickScreen.Mode.FIRST;
+        Minecraft.getInstance().setScreenAndShow(new SubclassPickScreen(clazz, mode, this, ""));
+    }
+
+    private void drawClasses(GuiGraphicsExtractor gui, Font font, int mouseX, int mouseY) {
+        // One line above the cards: where the points go.
+        SkillClass leveling = SkillClass.byName(stats.myClass);
+        String head = hasClass()
+                ? Component.translatable("nightsiege.ui.classes_head", stats.points,
+                        leveling == null ? Component.literal("?") : Component.translatable(leveling.translationKey())).getString()
+                : Component.translatable("nightsiege.ui.classes_first").getString();
+        if (hasClass() && stats.nextClassOpen) {
+            head += "  " + Component.translatable("nightsiege.ui.classes_next").getString();
+        }
+        gui.text(font, font.plainSubstrByWidth(head, innerW() - 12), innerX() + 6, innerY() + 3,
+                stats.nextClassOpen ? 0xFFFFD86B : 0xFFCFC7DD, true);
+        for (ClassCard card : classCards) {
+            drawClassCard(gui, font, card, mouseX, mouseY);
+        }
+    }
+
+    private void drawClassCard(GuiGraphicsExtractor gui, Font font, ClassCard card, int mouseX, int mouseY) {
+        CoreStats.ClassLine line = card.line();
+        int x = card.x();
+        int y = card.y();
+        int w = card.w();
+        int h = card.h();
+        boolean open = line.unlocked || choosableNow(line);
+        int classColor = CoreColors.classColor(card.clazz());
+        gui.fill(x, y, x + w, y + h, line.played ? 0xFFFFD86B : 0xFF2C2740);
+        gui.fill(x + 1, y + 1, x + w - 1, y + h - 1, line.unlocked ? 0xFF1A1622 : 0xFF131118);
+        gui.fill(x + 1, y + 1, x + w - 1, y + 3, open ? classColor : 0xFF2C2740);
+
+        // Name and status.
+        String name = Component.translatable(card.clazz().translationKey()).getString();
+        float ns = Math.min(1.0f, Math.max(0.6f, (w - 10f) / Math.max(1, font.width(name))));
+        gui.pose().pushMatrix();
+        gui.pose().translate(x + 5, y + 6);
+        gui.pose().scale(ns, ns);
+        gui.text(font, name, 0, 0, open ? 0xFFFFFFFF : 0xFF8F879F, true);
+        gui.pose().popMatrix();
+
+        // The armour stand of the class's subclass, a shadow while there is none.
+        int sy = y + 17;
+        int sh = card.standH();
+        gui.fill(x + 4, sy, x + w - 4, sy + sh, 0xFF2C2740);
+        gui.fill(x + 5, sy + 1, x + w - 5, sy + sh - 1, 0xFF0E0C14);
+        boolean own = line.unlocked && ClassStands.has(line.subclass);
+        ClassStands.draw(gui, own ? line.subclass : ClassStands.firstOf(card.clazz()), !own, x + 6, sy + 2, w - 12, sh - 4);
+        String badgeKey;
+        int badgeFg;
+        int badgeBg;
+        if (line.unlocked && line.complete) {
+            badgeKey = "nightsiege.pick.done";
+            badgeFg = 0xFFFFD86B;
+            badgeBg = 0xFF3A3010;
+        } else if (line.unlocked && line.ultDone) {
+            badgeKey = "nightsiege.pick.ult3";
+            badgeFg = 0xFFFFD86B;
+            badgeBg = 0xFF3A3010;
+        } else if (line.leveling) {
+            badgeKey = "nightsiege.pick.leveling";
+            badgeFg = 0xFF7FE08A;
+            badgeBg = 0xFF12301A;
+        } else if (line.unlocked) {
+            badgeKey = "nightsiege.pick.open";
+            badgeFg = 0xFF9CC4FF;
+            badgeBg = 0xFF162236;
+        } else if (choosableNow(line)) {
+            badgeKey = "nightsiege.pick.choosable";
+            badgeFg = 0xFFFFD86B;
+            badgeBg = 0xFF3A3010;
+        } else {
+            badgeKey = "nightsiege.pick.locked";
+            badgeFg = 0xFF8F879F;
+            badgeBg = 0xFF24222A;
+        }
+        String badge = Component.translatable(badgeKey).getString();
+        int bw = (int) (font.width(badge) * 0.6f) + 6;
+        gui.fill(x + w - 6 - bw, sy + 3, x + w - 6, sy + 12, badgeBg);
+        smallText(gui, font, badge, x + w - 3 - bw, sy + 5, badgeFg, 0.6f);
+        if (line.played) {
+            String played = Component.translatable("nightsiege.ui.class_played").getString();
+            smallText(gui, font, played, x + 8, sy + 5, 0xFFFFD86B, 0.6f);
+        }
+
+        // Subclass, points and the bar.
+        int ty = sy + sh + 3;
+        String sub;
+        if (own) {
+            sub = Component.translatable("nightsiege.subclass." + line.subclass).getString();
+        } else if (line.unlocked) {
+            sub = Component.translatable("nightsiege.ui.class_no_sub").getString();
+        } else {
+            sub = Component.translatable(choosableNow(line) ? "nightsiege.ui.class_choose_hint" : "nightsiege.ui.class_locked_hint").getString();
+        }
+        smallText(gui, font, font.plainSubstrByWidth(sub, (int) ((w - 10) / 0.7f)), x + 5, ty, own ? 0xFFCFC7DD : 0xFF8F879F, 0.7f);
+        if (line.unlocked) {
+            String pts = line.total > 0 ? Component.translatable("nightsiege.pick.points_of", line.spent, line.total).getString()
+                    : Component.translatable("nightsiege.pick.points", line.spent).getString();
+            smallText(gui, font, font.plainSubstrByWidth(pts, (int) ((w - 10) / 0.6f)), x + 5, ty + 9, 0xFF8F879F, 0.6f);
+            int barY = ty + 17;
+            gui.fill(x + 5, barY, x + w - 5, barY + 4, 0xFF2C2740);
+            gui.fill(x + 6, barY + 1, x + w - 6, barY + 3, 0xFF0E0C14);
+            if (line.total > 0) {
+                int full = w - 12;
+                int fill = line.complete ? full : Math.min(full, full * line.spent / Math.max(1, line.total));
+                gui.fill(x + 6, barY + 1, x + 6 + fill, barY + 3, line.complete || line.ultDone ? 0xFFFFD86B : 0xFF4CC35A);
+            }
+        }
+    }
+
+    private static void smallText(GuiGraphicsExtractor gui, Font font, String text, int x, int y, int color, float scale) {
+        gui.pose().pushMatrix();
+        gui.pose().translate(x, y);
+        gui.pose().scale(scale, scale);
+        gui.text(font, text, 0, 0, color, false);
+        gui.pose().popMatrix();
+    }
+
     private void drawFooter(GuiGraphicsExtractor gui, Font font) {
         if (activeTab == Tab.PERKS) {
             gui.text(font, Component.translatable("nightsiege.ui.footer_perks").getString(), left + 10, top + H - 19, TITLE, false);
             return;
         }
-        if (activeTab == Tab.COLLECTION) {
+        if (activeTab == Tab.COLLECTION || activeTab == Tab.CLASSES) {
             return;
         }
         if (activeTab == Tab.STATS || stats.creative) {

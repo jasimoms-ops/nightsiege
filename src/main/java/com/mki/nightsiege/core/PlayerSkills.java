@@ -41,6 +41,30 @@ public class PlayerSkills {
     public Map<String, Map<String, Integer>> gains = new HashMap<>();
     /** Souls the summoner's soul vessel (crate gain) carries into the next night. */
     public int keptSouls;
+    /**
+     * The subclass fixed when a class was chosen (class name to subclass node id): it settles
+     * the way and the subclass at once, the other three are shut in the tree (Simon, 26 October 2026).
+     */
+    public Map<String, String> fixedSub = new HashMap<>();
+
+    /** The fixed subclass node of a class, or empty. */
+    public String fixedSubOf(SkillClass c) {
+        if (c == null || fixedSub == null) {
+            return "";
+        }
+        String id = fixedSub.get(c.name());
+        return id == null ? "" : id;
+    }
+
+    public void fixSub(SkillClass c, String nodeId) {
+        if (c == null || c.isShared() || nodeId == null || nodeId.isBlank()) {
+            return;
+        }
+        if (fixedSub == null) {
+            fixedSub = new HashMap<>();
+        }
+        fixedSub.put(c.name(), nodeId);
+    }
 
     public SkillClass clazz() {
         return SkillClass.byName(chosenClass);
@@ -245,6 +269,9 @@ public class PlayerSkills {
         points = Math.max(0, earned - donated - lost);
         chosenClass = "";
         classResetUsed = true;
+        if (fixedSub != null) {
+            fixedSub.clear();
+        }
         if (unlocked != null) {
             unlocked.clear();
         }
@@ -296,6 +323,9 @@ public class PlayerSkills {
         pointFraction = 0;
         keptSouls = 0;
         chosenClass = "";
+        if (fixedSub != null) {
+            fixedSub.clear();
+        }
         if (levels != null) {
             levels.clear();
         }

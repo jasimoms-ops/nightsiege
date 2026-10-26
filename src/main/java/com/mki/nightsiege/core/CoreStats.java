@@ -148,6 +148,22 @@ public class CoreStats {
     public boolean nextClassOpen;
     /** The viewer may see and choose the summoner (admins, or everyone by config). */
     public boolean summoner;
+    /** One card of the class overview (core window, tab Klassen). */
+    public static class ClassLine {
+        public String id = "";
+        public boolean unlocked;
+        public boolean leveling;
+        public boolean played;
+        public boolean complete;
+        /** The ultimate is at level 3. */
+        public boolean ultDone;
+        /** Subclass key (learned or fixed with the class), empty when none yet. */
+        public String subclass = "";
+        public String way = "";
+        public int spent;
+        public int total;
+    }
+    public List<ClassLine> classLines = new ArrayList<>();
     /** Crate gains per class: gain id to stage. */
     public java.util.Map<String, java.util.Map<String, Integer>> gains = new java.util.HashMap<>();
     public boolean skillsEnabled;

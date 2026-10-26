@@ -14,6 +14,8 @@ public class ClassPickData {
         public boolean complete;
         public String way = "";
         public String subclass = "";
+        /** The ultimate is at level 3 (the next class may open). */
+        public boolean ultDone;
         public int spent;
         /** Points the whole class costs on the way taken (0 = unknown). */
         public int total;
