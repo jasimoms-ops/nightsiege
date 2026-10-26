@@ -22,6 +22,16 @@ public class SiegeConfig {
     public int inviteDayTime = 1000;
     /** Accepted invitations needed for the night to be played. */
     public int requiredAccepts = 3;
+    /**
+     * From this world level on every registered player may call an extra siege for tonight with
+     * the button at the core (invitation and vote as usual, the regular rhythm stays).
+     */
+    public int extraSiegeFromLevel = 20;
+    /**
+     * Extra sieges that may be called per in-game day; 0 = the button is switched off. More than
+     * one is not possible: the vote of an extra siege runs until sunset like the regular one.
+     */
+    public int extraSiegePerDay = 1;
     /** Day time at which the warning is sent (12000 = sunset). */
     public int warningDayTime = 12000;
     /** Day time at which the siege starts (15000 = full night). */
@@ -549,6 +559,8 @@ public class SiegeConfig {
         daysBetweenSieges = clamp(daysBetweenSieges, 1, 100);
         inviteDayTime = clamp(inviteDayTime, 0, 11000);
         requiredAccepts = clamp(requiredAccepts, 1, 100);
+        extraSiegeFromLevel = clamp(extraSiegeFromLevel, 1, 1000);
+        extraSiegePerDay = clamp(extraSiegePerDay, 0, 1);
         softCapLevel = clamp(softCapLevel, 1, 1000);
         growthAboveSoftCap = clampDouble(growthAboveSoftCap, 0.0, 1.0);
         naturalSpawnBlockRadius = clampDouble(naturalSpawnBlockRadius, 16.0, 1024.0);

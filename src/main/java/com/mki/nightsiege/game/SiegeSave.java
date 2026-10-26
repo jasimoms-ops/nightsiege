@@ -67,6 +67,14 @@ public class SiegeSave {
     public long voteDay = -1L;
     public List<String> accepted = new ArrayList<>();
     public List<String> declined = new ArrayList<>();
+    /** Day an extra siege was last called at the core, and how often that day. */
+    public long extraCalledDay = -1L;
+    public int extraCallsToday;
+    /** Name of the player who called it. */
+    public String extraCalledBy;
+    /** Day of the extra siege now invited or running (-1: none), and the regular siege day to go back to. */
+    public long extraSiegeDay = -1L;
+    public long extraRegularDay = -1L;
     /**
      * The own inventories of defenders while they wear their night kit, by player uuid.
      * Kept in the save, so a crash or restart in the night loses nothing.

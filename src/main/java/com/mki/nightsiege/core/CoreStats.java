@@ -113,6 +113,12 @@ public class CoreStats {
     public String myVote = "";
     /** The horn has sounded today: the night is coming. */
     public boolean nightComing;
+    /** The button for an extra siege tonight: switched on, from which level, why not (SiegeRhythm.ExtraBlock), and whether today's night is one. */
+    public boolean extraSiegeOn;
+    public int extraSiegeFromLevel;
+    public String extraSiegeBlock = "";
+    public boolean extraSiegeToday;
+    public String extraSiegeBy = "";
 
     // --- wave strength
     public int mobsPerWave;
