@@ -1111,18 +1111,20 @@ public final class CombatEffects {
                 continue;
             }
             PlayerSkills skills = skillsFor.apply(guardian);
-            int rank = skills == null ? 0 : (int) Math.round(tree.totalBonus(SkillEffect.GUARDIAN_ANGEL, skills));
-            if (rank <= 0) {
+            if (skills == null || tree.totalBonus(SkillEffect.GUARDIAN_ANGEL, skills) <= 0) {
                 continue;
             }
-            double reach = 8.0 + 8.0 * rank;   // 16 / 24 / 32 blocks
+            // Reach and health come from the skill values (before: the amount was read as a rank).
+            double reach = com.mki.nightsiege.core.SkillValues.get("guardian_angel", "reach", 24.0);
             if (guardian != victim && guardian.distanceToSqr(victim) > reach * reach) {
                 continue;
             }
             angelUsed.add(guardian.getUUID());
-            victim.setHealth(4f + 2f * rank);
-            victim.addEffect(new MobEffectInstance(MobEffects.REGENERATION, 100, 1));
-            victim.addEffect(new MobEffectInstance(MobEffects.RESISTANCE, 60, 1));
+            victim.setHealth((float) com.mki.nightsiege.core.SkillValues.get("guardian_angel", "hp", 8.0));
+            victim.addEffect(new MobEffectInstance(MobEffects.REGENERATION,
+                    (int) Math.round(com.mki.nightsiege.core.SkillValues.get("guardian_angel", "regen", 100.0)), 1));
+            victim.addEffect(new MobEffectInstance(MobEffects.RESISTANCE,
+                    (int) Math.round(com.mki.nightsiege.core.SkillValues.get("guardian_angel", "res", 60.0)), 1));
             level.sendParticles(ParticleTypes.TOTEM_OF_UNDYING, victim.getX(), victim.getY(1.0), victim.getZ(),
                     40, 0.4, 0.6, 0.4, 0.4);
             play(level, victim, SoundEvents.TOTEM_USE, 0.8f, 1.2f);
@@ -1166,6 +1168,9 @@ public final class CombatEffects {
         marks.values().removeIf(m -> m.until() < now);
         for (ServerPlayer medic : server.getPlayerList().getPlayers()) {
             PlayerSkills skills = skillsFor.apply(medic);
+            if (GuardianEffects.isGuardian(skills)) {
+                continue;   // the guardian's field dressing pulses in GuardianEffects (its own numbers)
+            }
             double heal = skills == null ? 0 : tree.totalBonus(SkillEffect.HEAL_AURA, skills);
             boolean martyr = SkillTree.has(skills, "w_martyr");
             if ((heal <= 0 && !martyr) || !(medic.level() instanceof ServerLevel level)) {

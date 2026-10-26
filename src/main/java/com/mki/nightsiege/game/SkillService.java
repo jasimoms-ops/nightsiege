@@ -3,6 +3,7 @@ package com.mki.nightsiege.game;
 import com.mki.nightsiege.core.PlayerSkills;
 import com.mki.nightsiege.core.SkillEffect;
 import com.mki.nightsiege.core.SkillTree;
+import com.mki.nightsiege.core.SkillValues;
 import net.minecraft.core.Holder;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.ai.attributes.Attribute;
@@ -53,9 +54,9 @@ public final class SkillService {
                 if (SkillTree.has(skills, "w_martyr")) v -= 4.0;
                 if (SkillTree.has(skills, "a_deadeye")) v -= 8.0;
                 if (SkillTree.has(skills, "a_watchful")) v -= 4.0;
-                if (SkillTree.has(skills, "g_living_wall")) v += 12.0;
-                if (SkillTree.has(skills, "g_bladeshield")) v -= 8.0;
-                if (SkillTree.has(skills, "g_patron")) v -= 4.0;
+                if (SkillTree.has(skills, "g_living_wall")) v += SkillValues.get("g_living_wall", "hp", 12.0);
+                if (SkillTree.has(skills, "g_bladeshield")) v -= SkillValues.get("g_bladeshield", "hp", 8.0);
+                if (SkillTree.has(skills, "g_patron")) v -= SkillValues.get("g_patron", "hp", 4.0);
                 if (SkillTree.has(skills, "s_beastlord")) v -= 6.0;
                 if (SkillTree.has(skills, "d_lich")) v -= 8.0;
             }

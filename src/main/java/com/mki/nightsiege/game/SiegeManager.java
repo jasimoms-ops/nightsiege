@@ -1853,9 +1853,11 @@ public final class SiegeManager {
         // Bollwerk-Stand (Simon, 25 October 2026): the shield fighter on the shield-throw way
         // hits 5 % harder for every monster within 4 blocks, at most 6 (+30 %).
         if (SkillTree.SUB_SHIELDFIGHTER.equals(skillTree.subclassOf(skills)) && SkillTree.has(skills, "g_shieldthrow")) {
-            int near = player.level().getEntitiesOfClass(net.minecraft.world.entity.Mob.class, player.getBoundingBox().inflate(4.0),
+            double reach = com.mki.nightsiege.core.SkillValues.get("g_shieldthrow", "near", 4.0);
+            int near = player.level().getEntitiesOfClass(net.minecraft.world.entity.Mob.class, player.getBoundingBox().inflate(reach),
                     m -> m instanceof net.minecraft.world.entity.monster.Enemy && m.isAlive() && !Companions.isCompanion(m)).size();
-            factor *= 1.0 + 0.05 * Math.min(6, near);
+            factor *= 1.0 + Math.min(com.mki.nightsiege.core.SkillValues.get("g_shieldthrow", "bonuscap", 0.3),
+                    com.mki.nightsiege.core.SkillValues.get("g_shieldthrow", "bonus", 0.05) * near);
         }
         return (float) factor;
     }
