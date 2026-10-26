@@ -244,15 +244,21 @@ public class SiegeConfig {
     public double spectatorRadius = 80.0;
     /**
      * Melee life steal every warrior (but the berserker, who has his own) and the shield
-     * fighter get from the start (share of the melee damage dealt). 0 switches it off.
+     * fighter get from the start: share of a slain monster's maximum life healed on each kill. 0 switches it off.
      */
     public double meleeLifesteal = 0.08;
     /**
      * The blademaster has no life steal on his hits; a kill in the middle of a combo heals him by
      * this share of the monster's maximum life instead.
+     * @deprecated no longer read (balance update, 26 October 2026): use {@code skillTweaks.w_combo.values.killheal}.
      */
+    @Deprecated
     public double comboKillLifesteal = 0.15;
-    /** The berserker's life steal on every hit while he is below half his life (Simon, 25 October 2026). */
+    /**
+     * The berserker's life steal on every hit while he is below half his life (Simon, 25 October 2026).
+     * @deprecated no longer read (balance update, 26 October 2026): use {@code skillTweaks.bloodlust.values.steal}.
+     */
+    @Deprecated
     public double berserkerLifesteal = 0.12;
     /** Zombies (husks, drowned …) and spiders hit warriors and guardians this many times harder (Simon, 25 October 2026). */
     public double zombieSpiderVsMelee = 2.0;
