@@ -624,7 +624,11 @@ public final class MeleeSim {
             RESPAWN.clear();
             // Night on the bench: training zombies burning in the sun died without a hit and counted as
             // kills (balance update, 26 October 2026: 10 kills for classes that dealt no damage at all).
-            level.setDayTime(18000L);
+            net.minecraft.server.MinecraftServer server = level.getServer();
+            if (server != null) {
+                server.getCommands().performPrefixedCommand(server.createCommandSourceStack().withSuppressedOutput(),
+                        "time set midnight");
+            }
             // Half health, so heals can land; no food regeneration on the bench.
             player.setHealth(player.getMaxHealth() * 0.5f);
             player.getFoodData().setFoodLevel(10);
