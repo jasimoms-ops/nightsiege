@@ -227,6 +227,18 @@ public class EventLookTest implements FabricClientGameTest {
 
     /** The new warrior tree: picks a few nodes and photographs the window. */
     private static void warriorWindow(ClientGameTestContext context, TestSingleplayerContext game) {
+        // The window opens on the class overview now: show the warrior's tree directly.
+        context.runOnClient(client -> {
+            try {
+                java.lang.reflect.Field tab = com.mki.nightsiege.client.CoreScreen.class.getDeclaredField("activeTab");
+                tab.setAccessible(true);
+                @SuppressWarnings({"unchecked", "rawtypes"})
+                Object value = Enum.valueOf((Class) tab.getType(), "WARRIOR");
+                tab.set(null, value);
+            } catch (ReflectiveOperationException e) {
+                System.out.println("[Night Siege test] could not set the tab: " + e);
+            }
+        });
         context.runOnClient(client -> {
             net.minecraft.server.MinecraftServer server = client.getSingleplayerServer();
             server.execute(() -> {
