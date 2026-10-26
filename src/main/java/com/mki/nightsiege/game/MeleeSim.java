@@ -122,8 +122,19 @@ public final class MeleeSim {
     private static int liveBackup;
     private static int sapperBackup;
     private static double carrierBackup;
+    /** Diagnostics of a bench run: shots let go, training zombies dead or gone, damage to them by source. */
+    private static int shots;
+    private static int dummiesDead;
+    private static int dummiesGone;
+    private static final java.util.Map<String, Double> BY_SOURCE = new java.util.TreeMap<>();
+    /** Health the training zombies lost (the bench's damage: no overkill, every source of the bot's side). */
+    private static double hpSingle;
+    private static double hpGroup;
+    private static final java.util.Map<UUID, Float> LAST_HP = new java.util.HashMap<>();
+    /** Hits of each kind on the bench's last stage. */
+    private static final int BLOWS = 8;
     /** Seconds per stage of the bench. */
-    private static final int BENCH_SECONDS = 20;
+    private static final int BENCH_SECONDS = 15;
     private static List<Integer> levels = new ArrayList<>();
     private static Phase phase = Phase.DONE;
     private static int index;
@@ -252,7 +263,8 @@ public final class MeleeSim {
                     return;
                 }
                 Run run = queue.get(index);
-                m.config().testPrepSeconds = PREP_SECONDS;
+                // On the bench only the engineer needs the time to set up his traps.
+                m.config().testPrepSeconds = bench && !run.sub()[0].equals("ENGINEER") ? 3 : PREP_SECONDS;
                 PlayerSkills skills = build(m.skillTree(), SkillClass.valueOf(run.sub()[0]), run.sub()[1]);
                 m.save().skills.put(player.getUUID().toString(), skills);
                 clearMonsters(level);
@@ -448,6 +460,9 @@ public final class MeleeSim {
             } else if (player.getTicksUsingItem() >= 30) {
                 player.releaseUsingItem();
             }
+            if (loaded != null && !loaded.isEmpty()) {
+                shots++;
+            }
             return;
         }
         if (!player.isUsingItem() || player.getUsedItemHand() != InteractionHand.MAIN_HAND) {
@@ -457,6 +472,7 @@ public final class MeleeSim {
             weapon.use(level, player, InteractionHand.MAIN_HAND);   // draws like a player would (ammo, cooldown)
         } else if (player.getTicksUsingItem() >= 21) {
             player.releaseUsingItem();
+            shots++;
         }
     }
 
@@ -628,6 +644,13 @@ public final class MeleeSim {
             healed = 0;
             hitCount = 0;
             java.util.Arrays.fill(HITS, 0);
+            shots = 0;
+            dummiesDead = 0;
+            dummiesGone = 0;
+            BY_SOURCE.clear();
+            hpSingle = 0;
+            hpGroup = 0;
+            LAST_HP.clear();
             clearMonsters(level);
             DUMMIES.clear();
             DUMMY_SPOTS.clear();
@@ -676,13 +699,47 @@ public final class MeleeSim {
             return;
         }
         if (benchStage < 2) {
+            // What the training zombies lost since the last tick (a fallen one: all it had left).
+            for (UUID id : DUMMIES) {
+                Entity e = level.getEntity(id);
+                Float last = LAST_HP.get(id);
+                if (last == null) {
+                    continue;
+                }
+                float hp = e instanceof LivingEntity l && l.isAlive() ? l.getHealth() : 0f;
+                boolean gone = e == null || (e.getRemovalReason() != null && e.getRemovalReason() != Entity.RemovalReason.KILLED);
+                if (!gone && hp < last) {
+                    if (benchStage == 0) {
+                        hpSingle += last - hp;
+                    } else {
+                        hpGroup += last - hp;
+                    }
+                }
+                LAST_HP.put(id, hp);
+            }
+            // The way of the dead lives on corpses: on the bench one comes every 3 s, as the team's kills would bring.
+            if (now % 60 == 0 && (run.sub()[2].equals("necromancer") || run.sub()[2].equals("soulcatcher"))) {
+                BlockPos at = dummySpot(clazz).offset(-1, 0, 2);
+                Mob corpse = MobFactory.spawnAt(level, at, "minecraft:zombie", run.level(), m.config(), new java.util.Random(now),
+                        SiegeEvent.NONE, false);
+                if (corpse != null) {
+                    Companions.get().onMonsterDeath(corpse, false);
+                    corpse.discard();
+                }
+            }
             // Fallen training zombies come back half a second later, where they stood.
             java.util.Iterator<UUID> it = DUMMIES.iterator();
             while (it.hasNext()) {
                 UUID id = it.next();
                 Entity e = level.getEntity(id);
                 if (e == null || !e.isAlive()) {
+                    if (e == null || (e.getRemovalReason() != null && e.getRemovalReason() != Entity.RemovalReason.KILLED)) {
+                        dummiesGone++;
+                    } else {
+                        dummiesDead++;
+                    }
                     it.remove();
+                    LAST_HP.remove(id);
                     BlockPos spot = DUMMY_SPOTS.remove(id);
                     Float left = DUMMY_HEALTH.remove(id);
                     if (benchStage == 0) {
@@ -723,16 +780,16 @@ public final class MeleeSim {
         // The blows: a vindicator (axe) and a zombie of the level, four each, without a shield up.
         long k = t - 40L * BENCH_SECONDS;
         if (k % 10 != 5) {
-            if (k > 100) {
+            if (k > 20L * BLOWS + 20) {
                 record(m, player, run, level);
             }
             return;
         }
         int n = (int) (k / 10);
-        if (n >= 8) {
+        if (n >= 2 * BLOWS) {
             return;
         }
-        String type = n < 4 ? "minecraft:vindicator" : "minecraft:zombie";
+        String type = n < BLOWS ? "minecraft:vindicator" : "minecraft:zombie";
         Mob striker = MobFactory.spawnAt(level, standPos().offset(-3, 0, 0), type, run.level(), m.config(), new java.util.Random(n),
                 SiegeEvent.NONE, false);
         if (striker == null) {
@@ -742,7 +799,7 @@ public final class MeleeSim {
         if (striker instanceof net.minecraft.world.entity.monster.zombie.Zombie z) {
             z.setBaby(false);
         }
-        striker.setItemSlot(EquipmentSlot.MAINHAND, n < 4 ? new ItemStack(Items.IRON_AXE) : ItemStack.EMPTY);
+        striker.setItemSlot(EquipmentSlot.MAINHAND, n < BLOWS ? new ItemStack(Items.IRON_AXE) : ItemStack.EMPTY);
         if (player.isUsingItem()) {
             player.stopUsingItem();
         }
@@ -755,7 +812,7 @@ public final class MeleeSim {
         player.hurtServer(level, level.damageSources().mobAttack(striker), (float) raw);
         double lost = Math.max(0.0, before - (player.getHealth() + player.getAbsorptionAmount()));
         striker.discard();
-        if (n < 4) {
+        if (n < BLOWS) {
             HITS[0] += raw;
             HITS[1] += lost;
         } else {
@@ -782,6 +839,7 @@ public final class MeleeSim {
         mob.snapTo(spot.getX() + 0.5, spot.getY(), spot.getZ() + 0.5, 90f, 0f);
         DUMMIES.add(mob.getUUID());
         DUMMY_SPOTS.put(mob.getUUID(), spot);
+        LAST_HP.put(mob.getUUID(), mob.getHealth());
     }
 
     /** The demolition expert's mortars aim at the training zombies (as the player would with the remote). */
@@ -794,9 +852,9 @@ public final class MeleeSim {
     }
 
     private static void record(SiegeManager m, ServerPlayer player, Run run, ServerLevel level) {
-        Bench b = new Bench(run.sub()[2], run.level(), dealtSingle / BENCH_SECONDS, dealtGroup / BENCH_SECONDS, killsSingle,
-                killsGroup, healed / (2.0 * BENCH_SECONDS), player.getMaxHealth(), HITS[0] / 4.0, HITS[1] / 4.0,
-                HITS[2] / 4.0, HITS[3] / 4.0);
+        Bench b = new Bench(run.sub()[2], run.level(), hpSingle / BENCH_SECONDS, hpGroup / BENCH_SECONDS, killsSingle,
+                killsGroup, healed / (2.0 * BENCH_SECONDS), player.getMaxHealth(), HITS[0] / BLOWS, HITS[1] / BLOWS,
+                HITS[2] / BLOWS, HITS[3] / BLOWS);
         BENCH.add(b);
         String line = String.format(Locale.ROOT,
                 "[Night Siege sim] Prüfstand Stufe %2d %-13s DPS 1 Ziel %6.1f  6 Ziele %6.1f  Kills %2d/%2d  Heilung %4.2f/s  Leben %4.0f"
@@ -805,6 +863,14 @@ public final class MeleeSim {
                 b.maxHealth(), b.axeRaw(), b.axeLost(), b.zombieRaw(), b.zombieLost());
         System.out.println(line);
         NightSiegeMod.LOGGER.info(line);
+        StringBuilder diag = new StringBuilder(String.format(Locale.ROOT,
+                "[Night Siege sim] Prüfstand-Detail Stufe %2d %-13s Schüsse %d, Zombies tot %d / weg %d, Treffer-Summe 1/6 Ziele %.0f/%.0f, Schaden nach Quelle:",
+                b.level(), b.subclass(), shots, dummiesDead, dummiesGone, dealtSingle, dealtGroup));
+        for (java.util.Map.Entry<String, Double> e : BY_SOURCE.entrySet()) {
+            diag.append(String.format(Locale.ROOT, " %s=%.0f", e.getKey(), e.getValue()));
+        }
+        System.out.println(diag);
+        NightSiegeMod.LOGGER.info(diag.toString());
         m.abort(level.getServer());
         clearMonsters(level);
         phase = Phase.PAUSE;
@@ -876,6 +942,11 @@ public final class MeleeSim {
             return;
         }
         Entity by = source.getEntity();
+        if (bench && benchStage < 2 && DUMMY_SPOTS.containsKey(victim.getUUID())) {
+            String key = source.getMsgId() + ":" + (by == null ? "-" : by == source.getDirectEntity() ? by.getType().toShortString()
+                    : by.getType().toShortString() + "/" + (source.getDirectEntity() == null ? "-" : source.getDirectEntity().getType().toShortString()));
+            BY_SOURCE.merge(key, (double) amount, Double::sum);
+        }
         if (by != null && (by.getUUID().equals(playerId) || playerId.equals(Companions.ownerOf(by)))) {
             dealt += amount;
             if (bench && benchStage == 0) {

@@ -343,6 +343,10 @@ jobs:
           if [ -f client-shader-output.txt ]; then
             grep -v "Force-loading class\|ALSA\|narrator" client-shader-output.txt | tail -c 2000000 > "$TMP/client-shader-log.txt" || true
           fi
+          # Simulation and test-bench lines (and errors) of the client test, for the evaluation
+          if [ -f client-output.txt ] && grep -q "\[Night Siege sim\]" client-output.txt; then
+            grep "\[Night Siege sim\]\|Exception\|Caused by" client-output.txt | tail -c 2000000 > "$TMP/sim-log.txt" || true
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout --orphan dist-tmp
@@ -354,6 +358,7 @@ jobs:
           if ls "$TMP/dungeon-mods/"*.jar > /dev/null 2>&1; then mkdir -p dist/dungeon-mods; cp "$TMP/dungeon-mods/"*.jar dist/dungeon-mods/; git add -f dist/dungeon-mods; fi
           if ls "$TMP/shots/"*.png > /dev/null 2>&1; then mkdir -p dist/shots; cp "$TMP/shots/"*.png dist/shots/; git add -f dist/shots; fi
           if [ -f "$TMP/client-shader-log.txt" ]; then cp "$TMP/client-shader-log.txt" dist/; git add -f dist/client-shader-log.txt; fi
+          if [ -f "$TMP/sim-log.txt" ]; then cp "$TMP/sim-log.txt" dist/; git add -f dist/sim-log.txt; fi
           git commit -m "Build von ${GITHUB_SHA}"
           # main fills "dist"; a work branch (version-b, ...) its own "dist-<branch>",
           # so the jar of main stays untouched until the branch is merged.
