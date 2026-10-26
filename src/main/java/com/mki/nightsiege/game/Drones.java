@@ -56,6 +56,8 @@ public final class Drones {
     }
 
     private static final Map<UUID, Drone> DRONES = new HashMap<>();
+    /** Bolts fired since the server started (for the test). */
+    public static int shots;
     /** The ids last sent to the clients (who is a drone). */
     private static String sent = "";
 
@@ -252,6 +254,7 @@ public final class Drones {
         arrow.setOwner(player);
         arrow.shoot(look.x, look.y, look.z, 3.15f, 1.0f);
         level.addFreshEntity(arrow);
+        shots++;
         level.playSound(null, player.blockPosition(), SoundEvents.ARROW_SHOOT, SoundSource.PLAYERS, 0.8f, 1.3f);
         level.sendParticles(ParticleTypes.SMOKE, out.x, out.y, out.z, 3, 0.03, 0.03, 0.03, 0.01);
         drone.readyAt = now + Math.round(SkillValues.get("drone", "pause", 25));

@@ -3712,7 +3712,7 @@ public final class SiegeManager {
     /** Whether this monster of the mod and this player may fight; any other monster always may. */
     public boolean mayFight(Entity mob, net.minecraft.world.entity.player.Player player) {
         if (mob.entityTags().contains(MobFactory.TAG)) {
-            return isDefending(player);
+            return isDefending(player) || Drones.isDrone(player);   // a drone's bolts count too
         }
         if (DungeonService.isDungeonMob(mob)) {
             return isRegistered(player);
