@@ -2873,7 +2873,7 @@ public class EventLookTest implements FabricClientGameTest {
         game.getServer().runCommand("time set 6000");
         game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:grass_block".formatted(gx - 12, gy - 1, gz - 12, gx + 12, gy - 1, gz + 12));
         game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(gx - 12, gy, gz - 12, gx + 12, gy + 10, gz + 12));
-        game.getServer().runCommand(("summon minecraft:husk %d %d %d {NoAI:1b,PersistenceRequired:1b,Tags:[\"ns_drone\"]}")
+        game.getServer().runCommand(("summon minecraft:husk %d.5 %d %d.5 {NoAI:1b,PersistenceRequired:1b,Tags:[\"ns_drone\"]}")
                 .formatted(gx, gy, gz + 6));
         game.getServer().runCommand("tp @p %d.5 %d %d.5 0 10".formatted(gx, gy + 2, gz));
         context.waitTicks(220);
