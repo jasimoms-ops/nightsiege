@@ -343,7 +343,7 @@ public class ClassPickScreen extends Screen {
         } else {
             way = Component.translatable("nightsiege.path." + entry.way).getString();
         }
-        if (entry.subclass != null && !entry.subclass.isBlank()) {
+        if (entry.subclass != null && !entry.subclass.isBlank() && !ClassStands.has(entry.subclass)) {
             way = Component.translatable("nightsiege.subclass." + entry.subclass).getString() + " · " + way;
         }
         ty = wrapped(gui, font, way, x + 5, ty, cardW - 10, entry.unlocked ? LIGHT : GREY, 0.7f, 1);
