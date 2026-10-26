@@ -231,9 +231,12 @@ public class SiegeSave {
 
     /** Version of the skill trees the levels below were learned in. */
     public int skillTreeVersion;
-    public static final int SKILL_TREE_VERSION = 7;
+    public static final int SKILL_TREE_VERSION = 8;
 
     /**
+     * Version 8 (26 October 2026, big balance update): everyone starts over. Points, levels,
+     * classes, crate gains, crates still waiting and the core tree are gone (Simon: "we are
+     * only testing, reset everything").
      * Version 7 (24 October 2026): the chemistry mine and poison trap became the mortar and the
      * brewer tower (learned levels move over), and the blademaster's combo and keen edge swapped
      * places (combo is the subclass node now, its levels are those of the old keen edge).
@@ -296,6 +299,16 @@ public class SiegeSave {
                     own.renameNodes(renames);
                 }
             }
+        }
+        if (skillTreeVersion < 8) {
+            reset = skills == null ? 0 : skills.size();
+            if (skills != null) {
+                skills.clear();
+            }
+            if (pendingCrates != null) {
+                pendingCrates.clear();
+            }
+            coreSkills = new PlayerSkills();
         }
         skillTreeVersion = SKILL_TREE_VERSION;
         return reset;

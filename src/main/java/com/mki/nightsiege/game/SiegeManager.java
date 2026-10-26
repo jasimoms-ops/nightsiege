@@ -2943,6 +2943,7 @@ public final class SiegeManager {
             case "classreset" -> onClassReset(player);
             case "donate" -> onDonate(player, parseAmount(argument));
             case "dev" -> onDevAction(player, argument);
+            case "wipegains" -> wipeAllGains(player);
             case "ult" -> onUltimateKey(player);
             case "ult2" -> onSecondKey(player);
             case "quiver" -> GainGear.cycleQuiver(player);
@@ -2994,6 +2995,39 @@ public final class SiegeManager {
             player.drop(crate, false);
         }
         NightSiegeMod.LOGGER.info("[Night Siege] Test-Kiste für {}: {}", player.getScoreboardName(), clazz.name());
+    }
+
+    /** Operator button in the collection tab: every player's crate gains start over (Simon, 26 October 2026). */
+    private void wipeAllGains(ServerPlayer player) {
+        if (!isAdmin(player)) {
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.admin_only").withStyle(ChatFormatting.RED));
+            return;
+        }
+        int players = 0;
+        int removed = 0;
+        if (save.skills != null) {
+            for (PlayerSkills own : save.skills.values()) {
+                if (own == null || own.gains == null || own.gains.isEmpty()) {
+                    continue;
+                }
+                for (java.util.Map<String, Integer> byClass : own.gains.values()) {
+                    removed += byClass == null ? 0 : byClass.size();
+                }
+                own.gains.clear();
+                players++;
+            }
+        }
+        persist();
+        NightSiegeMod.LOGGER.info("[Night Siege] {} setzt alle Kisten-Gewinne zurueck ({} Spieler, {} Gewinne)",
+                player.getScoreboardName(), players, removed);
+        MinecraftServer server = player.level().getServer();
+        if (server != null) {
+            for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+                p.sendSystemMessage(Component.translatable("nightsiege.msg.gains_wiped_all", player.getDisplayName())
+                        .withStyle(ChatFormatting.GOLD));
+            }
+        }
+        openCoreWindow(player);
     }
 
     /** Creative: the crate gains of one class (or of every class) start over, for testing the crates. */

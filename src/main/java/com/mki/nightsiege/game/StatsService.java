@@ -126,6 +126,7 @@ public final class StatsService {
         stats.subclass = skills.as(leveling, () -> tree.subclassOf(skills));
         // Test buttons (+50, reset, crates): creative, or admins while the playtest switch is on.
         stats.creative = viewer.getAbilities().instabuild || (manager.config().testToolsForEveryone && manager.isAdmin(viewer));
+        stats.admin = manager.isAdmin(viewer);
         stats.classResetUnlimited = manager.config().testToolsForEveryone;
         stats.classResetAvailable = manager.classResetAvailable(skills);
         for (com.mki.nightsiege.core.PerkKind kind : com.mki.nightsiege.core.PerkKind.values()) {

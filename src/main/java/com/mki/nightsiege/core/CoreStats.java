@@ -138,6 +138,8 @@ public class CoreStats {
     /** Warrior subclass (blademaster, berserker, axe, paladin), or empty. */
     public String subclass = "";
     public boolean creative;
+    /** Server operator: may reset every player's crate gains from the collection tab. */
+    public boolean admin;
     /** The viewer may still change their class once at the core. */
     public boolean classResetAvailable;
     /** Playtest: the class change is not used up (testToolsForEveryone). */

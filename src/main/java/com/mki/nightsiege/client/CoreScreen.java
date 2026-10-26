@@ -361,6 +361,22 @@ public class CoreScreen extends Screen {
                 footerX += cw + 4;
             }
         }
+        if (stats.admin && activeTab == Tab.COLLECTION) {
+            // Operator: every player's crate gains start over; a second click confirms.
+            Component wipeAll = Component.translatable(confirmingGainWipe ? "nightsiege.ui.wipe_gains_confirm"
+                    : "nightsiege.ui.wipe_gains_all");
+            int ww = Math.max(90, font.width(wipeAll) + 12);
+            addRenderableWidget(Button.builder(wipeAll, b -> {
+                if (confirmingGainWipe) {
+                    confirmingGainWipe = false;
+                    send("wipegains:all");
+                } else {
+                    confirmingGainWipe = true;
+                    rebuildWidgets();
+                }
+            }).bounds(footerX, footerY, ww, 18).build());
+            footerX += ww + 4;
+        }
         if (stats.classResetAvailable && activeTab == ownTab()) {
             Component label = Component.translatable(stats.classResetUnlimited ? "nightsiege.ui.class_reset_test"
                     : "nightsiege.ui.class_reset");
@@ -370,6 +386,9 @@ public class CoreScreen extends Screen {
             }).bounds(footerX, footerY, Math.max(90, font.width(label) + 12), 18).build());
         }
     }
+
+    /** Set after the first click on the operator's "reset every player's gains" button. */
+    private boolean confirmingGainWipe;
 
     private void invisible(Button button) {
         button.setAlpha(0f);
