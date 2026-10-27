@@ -22,10 +22,10 @@ import java.util.Random;
 
 /**
  * The engineer's tower menu (Simon, 27 October 2026), opened with a right click of the remote:
- * every own tower and trap with its magazine, wear and state. Reloading and strengthening a
- * tower (Simon 19:15: instead of repairs – nothing breaks any more) each have a code – arrows
- * like the stratagems in Helldivers, typed with WASD or the arrow keys – and work a few seconds
- * later. With the copper golem, two towers can be given to it. Dark violet panels, gold accents.
+ * every own tower and trap with its state. A tower is strengthened with a code (Simon 19:15 and
+ * 19:51: instead of repairs and reloads – nothing breaks or runs empty any more) – arrows like
+ * the stratagems in Helldivers, typed with WASD or the arrow keys – and works harder a few
+ * seconds later. With the copper golem, two towers can be given to it. Dark violet panels, gold accents.
  */
 public class TowerMenuScreen extends Screen {
 
@@ -41,8 +41,6 @@ public class TowerMenuScreen extends Screen {
     private static final int LINE = 0xFF2C2740;
     private static final int ROW_H = 24;
     private static final int BTN_W = 50;
-    private static final String RELOAD = "reload";
-    private static final String BUFF = "buff";
     /** The copper golem's mark (looked up by id: the copper blocks are a weathering collection in 26.2). */
     private static final ItemStack COPPER = new ItemStack(net.minecraft.core.registries.BuiltInRegistries.ITEM
             .getValue(net.minecraft.resources.Identifier.withDefaultNamespace("copper_block")));
@@ -52,9 +50,8 @@ public class TowerMenuScreen extends Screen {
     private long ticks;
     private long dataAt;
     private int scroll;
-    /** The row whose code is being typed, or null, and what the code does ("reload" or "buff"). */
+    /** The row whose strengthening code is being typed, or null. */
     private TowerMenuData.Row coding;
-    private String codingAction = RELOAD;
     private int[] code = new int[0];
     private int typed;
     private long wrongUntil;
@@ -76,7 +73,7 @@ public class TowerMenuScreen extends Screen {
         if (keep != null) {
             coding = null;
             for (TowerMenuData.Row r : fresh.rows) {
-                if (key(r).equals(keep) && can(r, codingAction, 0) && r.working == 0) {
+                if (key(r).equals(keep) && can(r, 0) && r.working == 0) {
                     coding = r;
                 }
             }
@@ -134,9 +131,9 @@ public class TowerMenuScreen extends Screen {
         return Math.max(2, Math.min(8, (this.height - 12 - 100) / ROW_H));
     }
 
-    /** The reload button; the strengthen button right of it, then the golem's field. */
+    /** The strengthen button; the golem's field right of it. */
     private int buttonX() {
-        return panelX() + panelW() - 6 - 128;
+        return panelX() + panelW() - 6 - 74;
     }
 
     // ------------------------------------------------------------------
@@ -166,15 +163,11 @@ public class TowerMenuScreen extends Screen {
                 continue;
             }
             int bx = buttonX();
-            if (mx >= bx && mx < bx + BTN_W && canStart(row, RELOAD)) {
-                startCode(row, RELOAD);
+            if (mx >= bx && mx < bx + BTN_W && canStart(row)) {
+                startCode(row);
                 return true;
             }
-            if (mx >= bx + BTN_W + 4 && mx < bx + 2 * BTN_W + 4 && canStart(row, BUFF)) {
-                startCode(row, BUFF);
-                return true;
-            }
-            if (data.golem && isTower(row) && mx >= bx + 108 && mx < bx + 126) {
+            if (data.golem && isTower(row) && mx >= bx + BTN_W + 4 && mx < bx + BTN_W + 22) {
                 send("tower:golem:" + key(row));
                 return true;
             }
@@ -198,7 +191,7 @@ public class TowerMenuScreen extends Screen {
                     typed++;
                     click(1.4f + 0.1f * typed);
                     if (typed >= code.length) {
-                        send((BUFF.equals(codingAction) ? "tower:buff:" : "tower:fix:") + key(coding));
+                        send("tower:buff:" + key(coding));
                         click(2.0f);
                         coding.working = data.fixSeconds * 20;
                         coding = null;
@@ -219,39 +212,33 @@ public class TowerMenuScreen extends Screen {
                 return true;
             }
         } else if (k == GLFW.GLFW_KEY_ENTER || k == GLFW.GLFW_KEY_SPACE) {
-            // Enter: the code of the first tower that needs a reload, else the first to strengthen.
-            for (String action : new String[] {RELOAD, BUFF}) {
-                for (TowerMenuData.Row row : data.rows) {
-                    if (canStart(row, action)) {
-                        startCode(row, action);
-                        return true;
-                    }
+            // Enter: the code of the first tower that can be strengthened.
+            for (TowerMenuData.Row row : data.rows) {
+                if (canStart(row)) {
+                    startCode(row);
+                    return true;
                 }
             }
         }
         return super.keyPressed(event);
     }
 
-    private boolean canStart(TowerMenuData.Row row, String action) {
-        return row.inRange && workingLeft(row) <= 0 && can(row, action, buffLeft(row));
+    private boolean canStart(TowerMenuData.Row row) {
+        return row.inRange && workingLeft(row) <= 0 && can(row, buffLeft(row));
     }
 
-    /** Reload: the trap is not full. Strengthen: a tower with shots left, not strengthened (or in its last 5 s). */
-    private static boolean can(TowerMenuData.Row row, String action, long buffLeft) {
-        if (BUFF.equals(action)) {
-            return row.tower && !(row.mag > 0 && row.ammo <= 0) && buffLeft <= 100;
-        }
-        return !row.need.isEmpty();
+    /** A tower that is not strengthened (or in its last 5 s). */
+    private static boolean can(TowerMenuData.Row row, long buffLeft) {
+        return row.tower && buffLeft <= 100;
     }
 
     private long buffLeft(TowerMenuData.Row row) {
         return row.buffed <= 0 ? 0 : Math.max(0, row.buffed - (ticks - dataAt));
     }
 
-    private void startCode(TowerMenuData.Row row, String action) {
+    private void startCode(TowerMenuData.Row row) {
         coding = row;
-        codingAction = action;
-        int n = BUFF.equals(action) ? data.buffArrows : data.reloadArrows;
+        int n = data.buffArrows;
         code = new int[Math.max(1, n)];
         for (int i = 0; i < code.length; i++) {
             code[i] = random.nextInt(4);
@@ -323,8 +310,7 @@ public class TowerMenuScreen extends Screen {
         // The code panel, or the hint.
         int cy = top + visibleRows() * ROW_H + 8;
         if (coding != null && code.length > 0) {
-            String what = Component.translatable(BUFF.equals(codingAction) ? "nightsiege.towers.code_buff"
-                    : "nightsiege.towers.code_reload", name(coding)).getString();
+            String what = Component.translatable("nightsiege.towers.code_buff", name(coding)).getString();
             small(gui, font, what, x0 + (w - (int) (font.width(what) * 0.8f)) / 2, cy, LIGHT, 0.8f);
             int box = 22;
             int gap = 4;
@@ -347,7 +333,7 @@ public class TowerMenuScreen extends Screen {
             String keys = Component.translatable("nightsiege.towers.code_keys").getString();
             small(gui, font, keys, x0 + (w - (int) (font.width(keys) * 0.65f)) / 2, cy + 40, GREY, 0.65f);
         } else {
-            String hint = Component.translatable("nightsiege.towers.hint", data.reloadArrows, data.buffArrows,
+            String hint = Component.translatable("nightsiege.towers.hint", data.buffArrows,
                     data.buffPercent, data.buffSeconds).getString();
             centered(gui, font, hint, x0, w, cy + 2, GREY);
             centered(gui, font, Component.translatable("nightsiege.towers.hint2", data.fixSeconds).getString(), x0, w, cy + 12, GREY);
@@ -363,7 +349,7 @@ public class TowerMenuScreen extends Screen {
         boolean selected = coding != null && key(coding).equals(key(row));
         gui.fill(x, y, x + w, y + ROW_H - 2, selected ? 0xF02A2238 : over ? ROW_OVER : ROW);
         long strong = buffLeft(row);
-        int stripe = !row.need.isEmpty() ? AMBER : strong > 0 ? GOLD : GREEN;
+        int stripe = strong > 0 ? GOLD : GREEN;
         gui.fill(x, y, x + 2, y + ROW_H - 2, stripe);
         gui.item(icon(row), x + 4, y + 3);
         String name = name(row);
@@ -372,16 +358,13 @@ public class TowerMenuScreen extends Screen {
         small(gui, font, dist + (row.inRange ? "" : " · " + Component.translatable("nightsiege.towers.far").getString()),
                 x + 24, y + 13, GREY, 0.65f);
 
-        // The state in the middle: a magazine bar, the wear, broken, at work.
+        // The state in the middle: the wear of a floor trap, ready, at work.
         int sx = x + 150;
         int sw = buttonX() - sx - 8;
         long left = workingLeft(row);
         if (left > 0) {
             String t = Component.translatable("nightsiege.towers.working", (left + 19) / 20).getString();
             small(gui, font, t, sx, y + 7, LIGHT, 0.75f);
-        } else if (row.mag > 0) {
-            bar(gui, sx, y + 6, sw, row.ammo / (double) row.mag, row.ammo == 0 ? RED : row.ammo * 4 <= row.mag ? AMBER : GREEN);
-            small(gui, font, Component.translatable("nightsiege.towers.ammo", row.ammo, row.mag).getString(), sx, y + 13, LIGHT, 0.6f);
         } else if (row.fullUses > 0) {
             bar(gui, sx, y + 6, sw, row.uses / (double) row.fullUses, row.uses * 4 <= row.fullUses ? AMBER : GREEN);
             small(gui, font, Component.translatable("nightsiege.towers.wear", row.uses, row.fullUses).getString(), sx, y + 13, LIGHT, 0.6f);
@@ -389,21 +372,18 @@ public class TowerMenuScreen extends Screen {
             small(gui, font, Component.translatable("nightsiege.towers.ready").getString(), sx, y + 7, GREEN, 0.75f);
         }
 
-        // The actions on the right – reload, strengthen – and the golem's mark.
+        // The action on the right – strengthen – and the golem's mark.
         int bx = buttonX();
-        if (left <= 0 && can(row, RELOAD, strong)) {
-            button(gui, font, bx, y, Component.translatable("nightsiege.towers.reload").getString(), row.inRange, mouseX, mouseY);
-        }
-        if (left <= 0 && can(row, BUFF, strong)) {
-            button(gui, font, bx + BTN_W + 4, y, Component.translatable("nightsiege.towers.buff").getString(), row.inRange, mouseX, mouseY);
-        } else if (strong > 0) {
+        if (left <= 0 && can(row, strong)) {
+            button(gui, font, bx, y, Component.translatable("nightsiege.towers.buff").getString(), row.inRange, mouseX, mouseY);
+        } else if (strong > 0 && left <= 0) {
             // Strengthened: where its button sits, how long it still lasts.
             String b = Component.translatable("nightsiege.towers.buffed", (strong + 19) / 20).getString();
             float scale = Math.min(0.7f, (BTN_W + 4) / (float) Math.max(1, font.width(b)));
-            small(gui, font, b, bx + BTN_W + 4 + BTN_W / 2 - (int) (font.width(b) * scale) / 2, y + 8, GOLD, scale);
+            small(gui, font, b, bx + BTN_W / 2 - (int) (font.width(b) * scale) / 2, y + 8, GOLD, scale);
         }
         if (data.golem && isTower(row)) {
-            int gx = bx + 108;
+            int gx = bx + BTN_W + 4;
             boolean overG = mouseX >= gx && mouseX < gx + 18 && mouseY >= y && mouseY < y + ROW_H - 2;
             gui.fill(gx - 1, y + 2, gx + 19, y + ROW_H - 3, row.golem ? GOLD : overG ? LIGHT : LINE);
             gui.fill(gx, y + 3, gx + 18, y + ROW_H - 4, row.golem ? 0xF03A2F12 : 0xF0181424);
@@ -461,14 +441,13 @@ public class TowerMenuScreen extends Screen {
         gui.pose().popMatrix();
     }
 
-    /** For the client test: the reload code of a row, typed right. */
-    public void testFix(int rowIndex) {
-        testCode(rowIndex, RELOAD);
-    }
-
     /** For the client test: the strengthen code of a row, typed right. */
     public void testBuff(int rowIndex) {
-        testCode(rowIndex, BUFF);
+        if (rowIndex < 0 || rowIndex >= data.rows.size() || !canStart(data.rows.get(rowIndex))) {
+            return;
+        }
+        startCode(data.rows.get(rowIndex));
+        typeCode();
     }
 
     /** For the client test: the first row of this trap kind (-1: none). */
@@ -481,11 +460,7 @@ public class TowerMenuScreen extends Screen {
         return -1;
     }
 
-    private void testCode(int rowIndex, String action) {
-        if (rowIndex < 0 || rowIndex >= data.rows.size() || !canStart(data.rows.get(rowIndex), action)) {
-            return;
-        }
-        startCode(data.rows.get(rowIndex), action);
+    private void typeCode() {
         int[] all = code.clone();
         for (int dir : all) {
             int key = switch (dir) {
@@ -500,8 +475,8 @@ public class TowerMenuScreen extends Screen {
 
     /** For the client test: open a code without typing it (for the picture). */
     public void testShowCode(int rowIndex) {
-        if (rowIndex >= 0 && rowIndex < data.rows.size() && canStart(data.rows.get(rowIndex), BUFF)) {
-            startCode(data.rows.get(rowIndex), BUFF);
+        if (rowIndex >= 0 && rowIndex < data.rows.size() && canStart(data.rows.get(rowIndex))) {
+            startCode(data.rows.get(rowIndex));
             typed = Math.min(2, code.length - 1);
         }
     }
