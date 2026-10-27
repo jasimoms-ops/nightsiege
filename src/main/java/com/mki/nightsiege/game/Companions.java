@@ -874,6 +874,9 @@ public final class Companions {
         if ("fear".equals(spellId) && skills != null && SkillTree.has(skills, "d_dread")) {
             cost = Math.max(0, cost - (int) Math.round(v("d_dread", "cheaper", 1)));
         }
+        if (skills != null && cost > 1 && gain(skills, "seelenzins") > 0) {
+            cost -= 1;   // Seelenzins (crate gain, 27 October 2026)
+        }
         return cost;
     }
 
@@ -1036,7 +1039,8 @@ public final class Companions {
         PlayerSkills skills = skillsFor.apply(owner);
         boolean blast = SkillTree.has(skills, "d_corpse");
         float damage = (float) ((v("d_necro", "burst", 6.0) + (blast ? bonus(SkillEffect.CORPSE_BLAST, skills) : 0.0))
-                * spellScale(skills, SkillEffect.NECRO_POWER));
+                * spellScale(skills, SkillEffect.NECRO_POWER)
+                * (gain(skills, "grabkerzen") > 0 ? 2.0 : 1.0));   // Leichenzorn (crate gain, 27 October 2026)
         double r = v("d_necro", "burstradius", 3.0) + (blast ? v("d_corpse", "radius", 1.0) : 0.0);
         DamageSource source = level.damageSources().playerAttack(owner);
         for (LivingEntity e : CombatEffects.enemies(level, at, r, 2.0)) {
@@ -1689,10 +1693,12 @@ public final class Companions {
         }
         if (c.kind == Kind.TITAN || c.kind == Kind.GOLEM) {
             set(mob, Attributes.KNOCKBACK_RESISTANCE, 1.0);
-            if (gain(skills, "golemplatten") > 0) {
+            if (gain(skills, "golemplatten") > 0 || gain(skills, "wolfspanzer") > 0) {
                 AttributeInstance armor = mob.getAttribute(Attributes.ARMOR);
                 if (armor != null) {
-                    armor.setBaseValue(armor.getBaseValue() + 4.0);   // Golemplatten
+                    // Golemplatten +4; Wolfspanzer gives the golem +2 (27 October 2026: the golemsmith has no wolves)
+                    armor.setBaseValue(armor.getBaseValue() + (gain(skills, "golemplatten") > 0 ? 4.0 : 0.0)
+                            + (gain(skills, "wolfspanzer") > 0 ? 2.0 : 0.0));
                 }
             }
         }
@@ -2570,7 +2576,7 @@ public final class Companions {
                 .withStyle(net.minecraft.ChatFormatting.DARK_PURPLE));
         mob.setCustomNameVisible(true);
         if (gain(skills, "grabkerzen") > 0) {
-            // Grabkerzen: the raised dead shine purple through walls.
+            // Leichenzorn (id grabkerzen, 27 October 2026): the raised dead shine purple and burst twice as hard.
             SiegeTeams.mark(level.getServer(), mob, SiegeTeams.GRAVE, net.minecraft.world.scores.TeamColor.DARK_PURPLE);
         }
         ALL.put(mob.getUUID(), c);

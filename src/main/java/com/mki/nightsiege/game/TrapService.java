@@ -199,8 +199,32 @@ public final class TrapService {
     /** Traps destroyed tonight whose engineer has trap recycling. */
     private final List<TrapRecord> recycled = new ArrayList<>();
 
+    /** Owners whose spare part was used tonight (Ersatzteil, once a night). */
+    private final java.util.Set<String> spareUsed = new java.util.HashSet<>();
+
+    /** Ersatzteil: the lost trap goes back into its owner's inventory, once a night. */
+    private boolean spareBack(MinecraftServer server, TrapRecord record, TrapKind kind) {
+        if (server == null || spareUsed.contains(record.owner) || ModContent.TRAP_ITEMS.get(kind) == null) {
+            return false;
+        }
+        ServerPlayer owner;
+        try {
+            owner = server.getPlayerList().getPlayer(java.util.UUID.fromString(record.owner));
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+        if (owner == null) {
+            return false;
+        }
+        spareUsed.add(record.owner);
+        owner.getInventory().placeItemBackInInventory(new ItemStack(ModContent.TRAP_ITEMS.get(kind), 1));
+        actionBar(owner, Component.translatable("nightsiege.msg.spare_back"));
+        return true;
+    }
+
     /** After the night: recycled traps stand where they stood (if the spot is free). */
     public void recycle(MinecraftServer server) {
+        spareUsed.clear();
         if (server == null || recycled.isEmpty()) {
             recycled.clear();
             return;
@@ -420,8 +444,10 @@ public final class TrapService {
                 // Gone by some way the break event did not see, e.g. an explosion.
                 list.remove(record);
                 dirty = true;
-                if (gainOf(record, "recycling") > 0) {
-                    recycled.add(record);   // trap recycling: it stands again after the night
+                if (gainOf(record, "recycling") > 0 && spareBack(server, record, kind)) {
+                    // Ersatzteil (id recycling, 27 October 2026): back in the owner's inventory at once.
+                } else if (NightDamage.recording(level) || gainOf(record, "recycling") > 0) {
+                    recycled.add(record);   // every trap lost in the night stands again after it (27 October 2026)
                 }
                 continue;
             }
@@ -2234,6 +2260,9 @@ public final class TrapService {
         if (kind == TrapKind.TURRET && bonus(record, SkillEffect.AMMO_BELT) > 0) {
             shots *= 1.0 + SkillValues.get("e_ammobelt", "mag", 0.5);   // Munitionsband: a longer belt
         }
+        if (gainOf(record, "munitionskiste") > 0) {
+            shots *= 1.5;   // Munitionskiste (crate gain, 27 October 2026)
+        }
         return (int) Math.round(shots);
     }
 
@@ -3052,7 +3081,12 @@ public final class TrapService {
 
     private boolean markedBy(TrapRecord record, LivingEntity e, long now) {
         RemoteMark mark = remoteMarks.get(e.getUUID());
-        return mark != null && now <= mark.until() && mark.owner().equals(record.owner);
+        if (mark != null && now <= mark.until() && mark.owner().equals(record.owner)) {
+            return true;
+        }
+        // Sappeur-Alarm (crate gain, 27 October 2026): sappers and ladder carriers count as marked.
+        return gainOf(record, "sappeuralarm") > 0
+                && (e.entityTags().contains(Besiegers.SAPPER) || e.entityTags().contains(Besiegers.CARRIER));
     }
 
     private int fullUses(TrapKind kind, int tier, TrapRecord record) {
@@ -3084,9 +3118,9 @@ public final class TrapService {
                 && m.kits().gainLevel(skills, com.mki.nightsiege.core.SkillClass.ENGINEER, "ueberkapazitaet") > 0) {
             ueber = 1;   // crate gain: one more of every kind
         }
-        if (kind == TrapKind.TURRET && m != null && skills != null
+        if ((kind == TrapKind.TURRET || kind == TrapKind.TESLA) && m != null && skills != null
                 && m.kits().gainLevel(skills, com.mki.nightsiege.core.SkillClass.ENGINEER, "pfeilkiste") > 0) {
-            ueber += 1;   // Pfeilkiste: one more arrow turret (since 26 October 2026, turrets need no arrows)
+            ueber += 1;   // Zusatzturm (id pfeilkiste): one more arrow turret or tesla coil (27 October 2026: the tesla too)
         }
         if (kind == TrapKind.MORTAR && m != null && skills != null
                 && m.kits().gainLevel(skills, com.mki.nightsiege.core.SkillClass.ENGINEER, "notfallmine") > 0) {

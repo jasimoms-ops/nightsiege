@@ -513,7 +513,15 @@ class SiegeCoreTest {
                 SkillClass.SUMMONER}) {
             // The archer's spare weapon left the crates (Simon 26.10.), the warrior's too (27.10.):
             // 13 own gains each; the engineer got the turret shield (27.10.): 15.
-            int own = c == SkillClass.ARCHER || c == SkillClass.WARRIOR ? 13 : c == SkillClass.ENGINEER ? 15 : 14;
+            // 27.10. evening: the crate review – warrior 13 (Spaltaxt for Plünderung), archer 14 (Teernetz),
+            // guardian 15 (Wundsalbe), engineer 18 (Munitionskiste, Sappeur-Alarm, Langes Gebräu), summoner 15 (Seelenzins).
+            int own = switch (c) {
+                case WARRIOR -> 13;
+                case ARCHER -> 14;
+                case GUARDIAN, SUMMONER -> 15;
+                case ENGINEER -> 18;
+                default -> 0;
+            };
             assertEquals(own + 16, CrateGains.forCollection(c).size(), c + " has " + own + " gains and 16 general ones");
             for (int i = 0; i < 400; i++) {
                 CrateGains.Gain g = CrateGains.roll(c, "", weights, 0.7, random);

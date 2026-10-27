@@ -79,6 +79,11 @@ public final class Wounds {
         return until != null && player.level().getGameTime() <= until;
     }
 
+    /** Wundsalbe (crate gain, 27 October 2026): the wounds are gone. */
+    public static void cure(ServerPlayer player) {
+        UNTIL.remove(player.getUUID());
+    }
+
     /** The night ended: no wounds carry over. */
     public static void clear() {
         UNTIL.clear();

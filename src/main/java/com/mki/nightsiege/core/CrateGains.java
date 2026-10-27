@@ -70,8 +70,9 @@ public final class CrateGains {
         add("schaerfe", w, CrateRarity.COMMON, 1, true, "", true);
         add("wurfbeile", w, CrateRarity.COMMON, 3, false, "", true);
         add("gestaehlt", w, CrateRarity.COMMON, 1, false, "", true);
-        add("pluenderung", w, CrateRarity.UNCOMMON, 1, true, "", true);
-        add("schwung", w, CrateRarity.UNCOMMON, 1, true, "", true);
+        // "pluenderung" did nothing since siege monsters drop nothing; the cleaving axe instead (27.10.).
+        add("spaltaxt", w, CrateRarity.UNCOMMON, 1, false, SkillTree.WAY_MIGHT, true);
+        add("schwung", w, CrateRarity.UNCOMMON, 1, true, SkillTree.WAY_BLADE, true);   // the sword only (27.10.)
         add("kriegsgurt", w, CrateRarity.UNCOMMON, 1, false, "", true);
         add("feuerklinge", w, CrateRarity.RARE, 1, false, "", true);
         add("blitzklinge", w, CrateRarity.RARE, 1, false, "", true);
@@ -94,6 +95,7 @@ public final class CrateGains {
         add("sturmpfeile", a, CrateRarity.RARE, 1, false, "", true);
         // "ersatzwaffe_a" (second ranged weapon) left the crates (Simon 26.10.).
         add("tarnumhang", a, CrateRarity.RARE, 1, false, "", true);
+        add("teernetz", a, CrateRarity.RARE, 1, false, SkillTree.WAY_CROSSBOW, true);   // 27.10.: nets stop ladders and sappers
         add("koecher", a, CrateRarity.EPIC, 1, false, "", true);
         add("adlerfeder", a, CrateRarity.EPIC, 1, false, "", true);
         add("lenkpfeile", a, CrateRarity.EPIC, 1, false, "", true);
@@ -114,6 +116,7 @@ public final class CrateGains {
         add("deckung", g, CrateRarity.EPIC, 1, false, "", true);
         add("leibwaechter", g, CrateRarity.EPIC, 1, false, "", true);
         add("leichtschild", g, CrateRarity.EPIC, 1, false, "", true);
+        add("wundsalbe", g, CrateRarity.RARE, 1, false, SkillTree.WAY_BLESSING, true);   // 27.10.: the healers' own
         add("spiegelschild", g, CrateRarity.LEGENDARY, 1, false, "", true);
 
         // ---- engineer ----
@@ -132,6 +135,9 @@ public final class CrateGains {
         add("tarnfallen", e, CrateRarity.EPIC, 1, false, "", true);
         add("kupfergolem", e, CrateRarity.EPIC, 1, false, "", true);   // both ways since 27 October 2026: it tends two towers
         add("geschuetzschild", e, CrateRarity.RARE, 1, false, SkillTree.WAY_MECHANICS, true);   // 27 October 2026
+        add("munitionskiste", e, CrateRarity.UNCOMMON, 1, false, "", true);   // 27.10.: longer magazines
+        add("sappeuralarm", e, CrateRarity.UNCOMMON, 1, false, "", true);    // 27.10.: towers go for sappers first
+        add("doppelbrau", e, CrateRarity.RARE, 1, false, SkillTree.WAY_CHEMISTRY, true);   // 27.10.: the alchemist's own
         add("magnetfeld", e, CrateRarity.LEGENDARY, 1, false, "", true);
 
         // ---- summoner ----
@@ -150,9 +156,13 @@ public final class CrateGains {
         add("spaehfalke", s, CrateRarity.EPIC, 1, false, SkillTree.WAY_WILD, true);
         add("seelengefaess", s, CrateRarity.EPIC, 1, false, SkillTree.WAY_DEAD, true);
         add("seelentausch", s, CrateRarity.LEGENDARY, 1, false, "", true);
+        add("seelenzins", s, CrateRarity.EPIC, 1, false, SkillTree.WAY_DEAD, true);   // 27.10.: cheaper spells
     }
 
     private static final Map<String, String> ICONS = Map.ofEntries(
+            Map.entry("teernetz", "minecraft:cobweb"), Map.entry("wundsalbe", "minecraft:honeycomb"),
+            Map.entry("munitionskiste", "minecraft:chest"), Map.entry("sappeuralarm", "minecraft:sculk_sensor"),
+            Map.entry("doppelbrau", "minecraft:dragon_breath"), Map.entry("seelenzins", "minecraft:echo_shard"),
             Map.entry("proviant", "minecraft:cooked_beef"), Map.entry("schutz", "minecraft:diamond_chestplate"),
             Map.entry("fackeln", "minecraft:torch"), Map.entry("notration", "minecraft:golden_apple"),
             Map.entry("baukiste", "minecraft:cobblestone"), Map.entry("heiltrank", "minecraft:glistering_melon_slice"),
@@ -162,7 +172,7 @@ public final class CrateGains {
             Map.entry("kletterhaken", "minecraft:tripwire_hook"), Map.entry("federleicht", "minecraft:feather"),
             Map.entry("zweite_chance", "minecraft:recovery_compass"), Map.entry("kriegsbanner", "minecraft:red_banner"),
             Map.entry("schaerfe", "minecraft:iron_sword"), Map.entry("wurfbeile", "minecraft:iron_axe"),
-            Map.entry("gestaehlt", "minecraft:iron_ingot"), Map.entry("pluenderung", "minecraft:emerald"),
+            Map.entry("gestaehlt", "minecraft:iron_ingot"), Map.entry("spaltaxt", "minecraft:diamond_axe"),
             Map.entry("schwung", "minecraft:golden_sword"), Map.entry("kriegsgurt", "minecraft:iron_chestplate"),
             Map.entry("feuerklinge", "minecraft:blaze_powder"), Map.entry("blitzklinge", "minecraft:lightning_rod"),
             Map.entry("kampfhorn", "minecraft:goat_horn"),

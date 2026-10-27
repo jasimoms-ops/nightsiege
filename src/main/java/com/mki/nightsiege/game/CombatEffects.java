@@ -648,6 +648,22 @@ public final class CombatEffects {
         if (skills.clazz() == SkillClass.WARRIOR && !holdsWayWeapon(player, skills)) {
             return 0.0;
         }
+        // Spaltaxt (crate gain, 27 October 2026): an axe hit cleaves into the monster right behind.
+        if (CrateEffects.gainLevel(player, "spaltaxt") > 0
+                && BuiltInRegistries.ITEM.getKey(player.getMainHandItem().getItem()).getPath().endsWith("_axe")) {
+            Vec3 dir = victim.position().subtract(player.position());
+            dir = new Vec3(dir.x, 0, dir.z);
+            if (dir.lengthSqr() > 1.0e-4) {
+                Vec3 behind = victim.position().add(dir.normalize().scale(1.4));
+                for (LivingEntity near : enemies(level, behind, 1.3, 1.5)) {
+                    if (near != victim) {
+                        bonusHit(level, near, level.damageSources().playerAttack(player), taken * 0.5f);
+                        level.sendParticles(ParticleTypes.SWEEP_ATTACK, near.getX(), near.getY(0.6), near.getZ(), 1, 0, 0, 0, 0);
+                        break;
+                    }
+                }
+            }
+        }
         double bonus = 0.0;
         double rage = tree.totalBonus(SkillEffect.RAGE, skills);
         if (rage > 0) {
@@ -1137,6 +1153,9 @@ public final class CombatEffects {
         // Crossbow: nets, shackles, bursts.
         if (crossbow) {
             double net = tree.totalBonus(SkillEffect.NET_BOLT, skills);
+            if (net > 0 && CrateEffects.gainLevel(player, "teernetz") > 0 && victim instanceof net.minecraft.world.entity.Mob caught) {
+                Besiegers.disrupt(caught);   // Teernetz: the ladder or the fuse is dropped, it just fights
+            }
             if (net > 0) {
                 int slow = (int) Math.round(20 * net);
                 victim.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, slow, 1));

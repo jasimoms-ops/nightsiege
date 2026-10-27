@@ -200,8 +200,9 @@ public final class BaseDefense {
                     }
                     pos.set(x, y, z);
                     BlockState state = world.getBlockState(pos);
-                    if (state.isAir() || state.hasBlockEntity() || state.getBlock() instanceof LiquidBlock) {
-                        continue;
+                    if (state.isAir() || state.hasBlockEntity() || state.getBlock() instanceof LiquidBlock
+                            || ModContent.trapOf(state) != null || ModContent.isCore(state)) {
+                        continue;   // traps come back with their record (TrapService.recycle), the core never breaks
                     }
                     savedPos.add(pos.asLong());
                     savedState.add(state);

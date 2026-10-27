@@ -521,10 +521,6 @@ public final class KitService {
                                     Item item, int sharp, boolean sword) {
         ItemStack stack = new ItemStack(item);
         enchant(stack, ench, Enchantments.SHARPNESS, sharp);
-        int looting = gainLevel(skills, clazz, "pluenderung");
-        if (looting > 0) {
-            enchant(stack, ench, Enchantments.LOOTING, looting);
-        }
         if (gainLevel(skills, clazz, "feuerklinge") > 0) {
             enchant(stack, ench, Enchantments.FIRE_ASPECT, 2);
         }
@@ -534,7 +530,7 @@ public final class KitService {
         if (gainLevel(skills, clazz, "gestaehlt") > 0) {
             addAttribute(stack, Attributes.ATTACK_DAMAGE, "kit_steel", 1.0, EquipmentSlotGroup.MAINHAND);
         }
-        if (sword && gainLevel(skills, clazz, "zweihaender") > 0) {
+        if (gainLevel(skills, clazz, "zweihaender") > 0) {   // sword or axe (27 October 2026)
             addAttribute(stack, Attributes.ENTITY_INTERACTION_RANGE, "kit_greatsword", 1.5, EquipmentSlotGroup.MAINHAND);
         }
         return stack;

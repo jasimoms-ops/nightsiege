@@ -123,6 +123,14 @@ public final class ArcherEffects {
         if (fillStage > 0) {
             damage *= 1.0 + fillStage * SkillValues.get("koecherfuellung", "dmg", 0.04);
         }
+        // Stärke (crate gain) gives the quick shot's bow no Power (it has none): +5 % arrow damage per stage instead (27.10.).
+        if (bow && SkillTree.SUB_SWIFT.equals(tree.subclassOf(skills))) {
+            com.mki.nightsiege.core.CrateGains.Gain power = com.mki.nightsiege.core.CrateGains.get("staerke");
+            int powerStage = power == null ? 0 : power.level(skills.gainStage(SkillClass.ARCHER, "staerke"));
+            if (powerStage > 0) {
+                damage *= 1.0 + powerStage * 0.05;
+            }
+        }
         if (SkillTree.has(skills, "a_deadeye")) {
             damage *= SkillValues.get("a_deadeye", "mult", 1.35);
         }

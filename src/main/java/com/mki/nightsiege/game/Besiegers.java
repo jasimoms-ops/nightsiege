@@ -62,6 +62,8 @@ public final class Besiegers {
     private static final int HIGHEST_LADDER = 24;
 
     private static final Set<UUID> BUSY = new HashSet<>();
+    /** The running instance, for {@link #disrupt}. */
+    private static Besiegers current;
 
     private final Map<UUID, Job> jobs = new HashMap<>();
     /** Holes per side (0 east, 1 south, 2 west, 3 north) tonight. */
@@ -90,6 +92,22 @@ public final class Besiegers {
             this.sapper = sapper;
             this.side = side;
             this.started = started;
+        }
+    }
+
+    public Besiegers() {
+        current = this;
+    }
+
+    /** Teernetz (crate gain, 27 October 2026): a netted ladder carrier or sapper gives up its job. */
+    public static void disrupt(Mob mob) {
+        Besiegers b = current;
+        if (b == null || mob == null) {
+            return;
+        }
+        Job job = b.jobs.get(mob.getUUID());
+        if (job != null) {
+            b.finish(mob.getUUID(), job, mob);
         }
     }
 

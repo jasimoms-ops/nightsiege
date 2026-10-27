@@ -62,6 +62,9 @@ public final class AlchemyZones {
         }
         long now = level.getGameTime();
         long time = Math.round(SkillValues.get("potion_tower", "zonetime", 160));
+        if (shot.getOwner() instanceof net.minecraft.server.level.ServerPlayer thrower && CrateEffects.gainLevel(thrower, "doppelbrau") > 0) {
+            time = Math.round(time * 1.5);   // Langes Gebräu (crate gain, 27 October 2026)
+        }
         ZONES.add(new Zone(SiegeManager.dimensionName(level), at, kind, now + time, now));
         level.playSound(null, BlockPos.containing(at), SoundEvents.SPLASH_POTION_BREAK, SoundSource.PLAYERS, 1.0f, 1.0f);
         DustParticleOptions dust = new DustParticleOptions(kind.color(), 2.0f);

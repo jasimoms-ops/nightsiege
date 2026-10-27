@@ -843,7 +843,19 @@ public final class GuardianEffects {
         if (SkillTree.has(skills, "g_cleanse")) {
             cleanse(target);
         }
+        salve(player, target);
         wardSkipUntil.put(player.getUUID(), now + (player.getAbilities().instabuild ? 20 : every(node, "interval", 160.0)));
+    }
+
+    /** Wundsalbe (crate gain, 27 October 2026): the healed one loses gaping wounds and broken armour. */
+    private static void salve(ServerPlayer healer, ServerPlayer target) {
+        if (CrateEffects.gainLevel(healer, "wundsalbe") <= 0) {
+            return;
+        }
+        Wounds.cure(target);
+        if (ArmorBreak.EFFECT != null) {
+            target.removeEffect(ArmorBreak.EFFECT);
+        }
     }
 
     /** Right click on a teammate: the healing hand. Returns true when it was used. */
@@ -870,6 +882,7 @@ public final class GuardianEffects {
         float amount = (float) ((SkillValues.get("g_healing_hand", "base", 2.0) + tree.totalBonus(SkillEffect.HEALING_HAND, skills))
                 * (self ? SkillValues.get("g_healing_hand", "self", 0.5) : 1.0));
         heal(player, target, amount);
+        salve(player, target);
         if (SkillTree.has(skills, "g_miracle")) {
             float barrier = (float) (tree.totalBonus(SkillEffect.MIRACLE, skills) * barrierPower(skills));
             giveBarrier(player, target, barrier, barrier);
