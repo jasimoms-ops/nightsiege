@@ -205,6 +205,8 @@ public final class Foes {
     private static final Map<UUID, Role> ROLES = new HashMap<>();
     /** Tunnelers that came up again (from then on they fight like the others). */
     private static final Set<UUID> EMERGED = new HashSet<>();
+    /** Grapplers walking to a spot from where they see a defender on the wall (they pick no fight meanwhile). */
+    private static final Set<UUID> POSITIONING = new HashSet<>();
 
     private final List<Grave> graves = new ArrayList<>();
     private final Map<UUID, Dig> digs = new HashMap<>();
@@ -454,6 +456,7 @@ public final class Foes {
         noFallUntil.clear();
         ROLES.clear();
         EMERGED.clear();
+        POSITIONING.clear();
         treasure = null;
         treasureWave = -1;
         treasureCame = false;
@@ -885,25 +888,50 @@ public final class Foes {
             }
             return;
         }
-        if (now < hook.next) {
-            return;
-        }
+        // A defender standing high within reach (a little more: it walks into position).
         ServerPlayer best = null;
-        double bestDistance = cfg.grappleRange * cfg.grappleRange;
+        double reach = cfg.grappleRange + 8.0;
+        double bestDistance = reach * reach;
         for (ServerPlayer p : defenders) {
             if (p.isPassenger() || p.isSpectator() || Drones.isDrone(p)) {
                 continue;   // a gunner in his tower stays where he is
             }
             double d = mob.distanceToSqr(p);
-            if (d <= bestDistance && standsHigh(level, p, cfg.skyHunterHeight) && mob.hasLineOfSight(p)) {
+            if (d <= bestDistance && standsHigh(level, p, cfg.skyHunterHeight)) {
                 bestDistance = d;
                 best = p;
             }
         }
         if (best == null) {
-            hook.next = now + 20;
+            POSITIONING.remove(mob.getUUID());
+            return;   // nobody up there: it fights hand to hand like the others
+        }
+        // Right under the wall it cannot see him: it keeps 6-9 blocks off, in sight, while the hook is ready.
+        boolean ready = now >= hook.next - 40;
+        boolean seen = mob.hasLineOfSight(best);
+        double dx = mob.getX() - best.getX();
+        double dz = mob.getZ() - best.getZ();
+        double flat = Math.sqrt(dx * dx + dz * dz);
+        boolean placed = seen && flat >= 5.0 && flat <= cfg.grappleRange - 2.0;
+        if (ready && !placed) {
+            POSITIONING.add(mob.getUUID());
+            mob.setTarget(null);   // its melee goal would walk it to the wall again
+        } else {
+            POSITIONING.remove(mob.getUUID());
+        }
+        if (ready && !placed && now % 10 == 0) {
+            double want = 7.5;
+            double ux = flat < 1.0e-3 ? 1.0 : dx / flat;
+            double uz = flat < 1.0e-3 ? 0.0 : dz / flat;
+            BlockPos spot = BossService.groundNear(level, best.getX() + ux * want, mob.getY(), best.getZ() + uz * want);
+            if (spot != null) {
+                mob.getNavigation().moveTo(spot.getX() + 0.5, spot.getY(), spot.getZ() + 0.5, 1.15);
+            }
+        }
+        if (now < hook.next || !seen || mob.distanceToSqr(best) > cfg.grappleRange * cfg.grappleRange) {
             return;
         }
+        POSITIONING.remove(mob.getUUID());
         hook.target = best.getUUID();
         hook.fireAt = now + 20;
         level.playSound(null, mob.getX(), mob.getY(), mob.getZ(), SoundEvents.FISHING_BOBBER_THROW, SoundSource.HOSTILE, 1.2f, 0.6f);
@@ -928,6 +956,7 @@ public final class Foes {
         target.hurtMarked = true;
         noFallUntil.put(target.getUUID(), now + 100);
         hooksLanded++;
+        mob.setTarget(target);   // now it fights the one it pulled down
         Vec3 from = mob.position().add(0, mob.getBbHeight() * 0.7, 0);
         BossService.line(level, ParticleTypes.ENCHANTED_HIT, from, target.position().add(0, 1.0, 0), 16);
         level.playSound(null, target.getX(), target.getY(), target.getZ(), SoundEvents.CROSSBOW_SHOOT, SoundSource.HOSTILE, 1.2f, 0.6f);
@@ -1158,6 +1187,9 @@ public final class Foes {
     public static boolean mayTarget(Mob mob, LivingEntity target) {
         Role role = ROLES.get(mob.getUUID());
         if (role == Role.TREASURE_RAIDER) {
+            return false;
+        }
+        if (role == Role.GRAPPLER && POSITIONING.contains(mob.getUUID())) {
             return false;
         }
         return role != Role.TUNNELER || EMERGED.contains(mob.getUUID());
