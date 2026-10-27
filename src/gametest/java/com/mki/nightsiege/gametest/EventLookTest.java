@@ -1516,7 +1516,8 @@ public class EventLookTest implements FabricClientGameTest {
                 boolean used = manager.machines().onUse(player, box, manager.config());
                 if (level.getGameTime() % 20 < 3) {
                     System.out.println("[Night Siege test] sabotage used=" + used + " d=" + (box == null ? -1
-                            : Math.round(Math.sqrt(player.distanceToSqr(box)) * 10) / 10.0) + " standing=" + manager.machines().standing());
+                            : Math.round(Math.sqrt(player.distanceToSqr(box)) * 10) / 10.0) + " standing=" + manager.machines().standing()
+                            + " work=" + manager.machines().testSabotage() + " hp=" + player.getHealth());
                 }
             });
             context.waitTicks(3);

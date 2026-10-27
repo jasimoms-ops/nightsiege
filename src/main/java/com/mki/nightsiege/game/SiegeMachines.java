@@ -1170,6 +1170,7 @@ public final class SiegeMachines {
         }
         Machine machine = saboteurs.remove(player.getUUID());
         if (machine != null && machine.sabotage > 0 && machine.level.getGameTime() - machine.sabotageAt <= 20) {
+            NightSiegeMod.LOGGER.info("[Night Siege] Sabotage an {} durch Treffer unterbrochen ({} Schaden)", machine.kind.id(), taken);
             machine.sabotage = 0;
             machine.sabotageAt = -1L;
             actionBar(player, Component.translatable("nightsiege.machine.sabotage_hit").withStyle(ChatFormatting.RED));
@@ -1473,6 +1474,11 @@ public final class SiegeMachines {
             list.add(machine.hitbox);
         }
         return list;
+    }
+
+    /** Tests: the sabotage work on the first machine (ticks). */
+    public int testSabotage() {
+        return machines.isEmpty() ? -1 : machines.get(0).sabotage;
     }
 
     /** Tests: ropes hanging on the walls. */
