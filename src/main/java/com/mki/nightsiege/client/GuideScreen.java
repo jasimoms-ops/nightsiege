@@ -64,6 +64,7 @@ public class GuideScreen extends Screen {
             new Chapter("bonus", "minecraft:emerald"),
             new Chapter("classes", "minecraft:nether_star"),
             new Chapter("ult", "minecraft:blaze_powder"),
+            new Chapter("abilities", "minecraft:writable_book"),   // what every symbol of the ability bar is (Simon 27.10.)
             new Chapter("archer", "minecraft:bow"),
             new Chapter("warrior", "minecraft:iron_sword"),
             new Chapter("guardian", "minecraft:shield"),
