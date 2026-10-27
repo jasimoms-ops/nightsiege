@@ -19,6 +19,8 @@ public class TrapRecord {
     public boolean golem;
     /** Shots the tower shield (crate gain) still blocks for the gunner in the seat. */
     public int shield;
+    /** Damage the tower took for its gunner (Simon, 27 October 2026); 0 = whole. */
+    public float hpLost;
     /** Game time from which it may fire again. Not worth saving across restarts. */
     public transient long readyAt;
     /** The mortar's target spot, set with the remote (Simon, 25 October 2026); without one it does nothing. */

@@ -1266,6 +1266,61 @@ public final class TrapService {
         return (float) (1.0 - guard);
     }
 
+    /** A tower's health for the one sitting in it: three times the player's own (`seathealth` 3). */
+    private static float towerHealth(ServerPlayer player, TrapRecord record) {
+        double k = SkillValues.get(record.kind, "seathealth", 3.0);
+        return (float) (player.getMaxHealth() * k);
+    }
+
+    /**
+     * Damage to an engineer in a tower (Simon, 27 October 2026): the tower takes it, with three
+     * times the player's health. When it runs out the tower breaks and throws its gunner off;
+     * what is left of the hit then lands on the player. Returns the part the player takes.
+     */
+    public static float seatAbsorb(ServerPlayer player, float amount) {
+        TrapService service = current;
+        Seat seat = service == null || player == null || amount <= 0 ? null : service.seatOf.get(player.getUUID());
+        if (seat == null || !(player.level() instanceof ServerLevel level)) {
+            return amount;
+        }
+        TrapRecord record = service.find(level, seat.pos);
+        if (record == null || record.broken) {
+            return amount;
+        }
+        float max = towerHealth(player, record);
+        float left = Math.max(0f, max - record.hpLost);
+        float take = Math.min(amount, left);
+        record.hpLost += take;
+        service.dirty = true;
+        Vec3 c = Vec3.atCenterOf(seat.pos);
+        level.sendParticles(ParticleTypes.CRIT, c.x, c.y + 0.9, c.z, 4, 0.3, 0.2, 0.3, 0.05);
+        playAt(level, seat.pos, SoundEvents.ANVIL_LAND, 0.25f, 1.8f);
+        float now = Math.max(0f, max - record.hpLost);
+        if (now <= 0.01f) {
+            record.broken = true;
+            record.hpLost = max;
+            level.sendParticles(ParticleTypes.LARGE_SMOKE, c.x, c.y + 0.9, c.z, 14, 0.3, 0.2, 0.3, 0.02);
+            playAt(level, seat.pos, SoundEvents.ANVIL_BREAK, 0.8f, 1.2f);
+            service.release(level.getServer(), seat);
+            actionBar(player, Component.translatable("nightsiege.msg.tower_wrecked",
+                    Component.translatable("block.nightsiege." + record.kind)));
+        } else {
+            actionBar(player, Component.translatable("nightsiege.msg.tower_health",
+                    String.format(java.util.Locale.ROOT, "%.0f", now), String.format(java.util.Locale.ROOT, "%.0f", max)));
+        }
+        return amount - take;
+    }
+
+    /** For the client test: what is left of the seated tower's health, or -1. */
+    public float seatHealthLeft(ServerPlayer player) {
+        Seat seat = seatOf.get(player.getUUID());
+        if (seat == null || !(player.level() instanceof ServerLevel level)) {
+            return -1f;
+        }
+        TrapRecord record = find(level, seat.pos);
+        return record == null ? -1f : Math.max(0f, towerHealth(player, record) - record.hpLost);
+    }
+
     /** True for a seat stand that belongs to a gunner right now (stray ones are removed). */
     public boolean isLiveSeat(Entity entity) {
         for (Seat seat : seats.values()) {
@@ -2155,7 +2210,7 @@ public final class TrapService {
         return kind == TrapKind.TURRET || kind == TrapKind.MORTAR || kind == TrapKind.BREWER;
     }
 
-    /** Shots in a full tower: about {@code magseconds} (20) seconds of its own fire. */
+    /** Shots in a full tower: about {@code magseconds} (90) seconds of its own fire. */
     int magazine(TrapRecord record) {
         TrapKind kind = TrapKind.byId(record.kind);
         if (kind == null || !usesAmmo(kind)) {
@@ -2163,7 +2218,7 @@ public final class TrapService {
         }
         int tier = tierOf(record);
         int cd = kind == TrapKind.BREWER ? kind.cooldownTicks(tier) : slowed(kind, kind.cooldownTicks(tier));
-        double seconds = SkillValues.get(kind.id(), "magseconds", 20);
+        double seconds = SkillValues.get(kind.id(), "magseconds", 90);
         double shots = Math.max(3.0, seconds * 20.0 / Math.max(1, cd));
         if (kind == TrapKind.TURRET && bonus(record, SkillEffect.AMMO_BELT) > 0) {
             shots *= 1.0 + SkillValues.get("e_ammobelt", "mag", 0.5);   // Munitionsband: a longer belt
@@ -2183,7 +2238,7 @@ public final class TrapService {
     /** Chance of a tower to break when it fires: 5 %, less with fine mechanics. */
     private double towerBreakChance(TrapRecord record) {
         TrapKind kind = TrapKind.byId(record.kind);
-        double chance = SkillValues.get(kind == null ? "arrow_turret" : kind.id(), "breakchance", 0.05);
+        double chance = SkillValues.get(kind == null ? "arrow_turret" : kind.id(), "breakchance", 0.03);
         double fine = Math.min(0.9, bonus(record, SkillEffect.TRAP_DURABILITY));
         return chance * (1.0 - fine);
     }
@@ -2232,6 +2287,7 @@ public final class TrapService {
             }
             if (kind.isTower()) {
                 record.broken = false;
+                record.hpLost = 0f;
                 record.ammo = magazine(record);
                 record.shield = shieldMax(record);
             }
@@ -2437,6 +2493,9 @@ public final class TrapService {
                 continue;
             }
             record.broken = false;
+            if (fix.repair()) {
+                record.hpLost = 0f;   // a repair mends the tower's health as well
+            }
             if (kind.isFloorPlate()) {
                 record.uses = fullUses(kind, tierOf(record), record);
             } else {

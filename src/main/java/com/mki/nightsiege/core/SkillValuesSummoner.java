@@ -141,8 +141,11 @@ final class SkillValuesSummoner {
         def("d_archers", "range", 6.0);            // blocks to the second target of the bolt
         def("d_rot", "duration", 60);              // ticks of Weakness
         def("d_corpse", "radius", 1.0);            // blocks more for the corpse's burst
-        def("d_corpse", "ghostradius", 2.5);       // blocks of a ghost's splash
-        def("d_corpse", "ghostshare", 0.5);        // share of the amount a ghost's splash deals
+        def("d_shards", "ghostradius", 2.5);       // blocks of a ghost's burst (Seelensplitter, 27 Oct 2026)
+        def("d_fetter", "pull", 2.5);              // blocks the soul chain pulls the monsters towards its target
+        def("d_dread", "cheaper", 1);              // souls less for Schrecken
+        def("d_dread", "extra", 40);               // ticks Schrecken lasts longer
+        def("d_dread", "more", 0.25);              // share more damage frightened monsters take
         def("d_cross_wolf", "pause", 1200);        // ticks after the wolf fell
         def("d_unholy", "max", 10);                // most souls that count
         def("d_army", "duration", 160);            // ticks

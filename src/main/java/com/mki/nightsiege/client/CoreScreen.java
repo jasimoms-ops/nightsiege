@@ -1640,6 +1640,9 @@ public class CoreScreen extends Screen {
     /** The mouse wheel zooms in and out, around the point under the mouse. */
     @Override
     public boolean mouseScrolled(double x, double y, double scrollX, double scrollY) {
+        if (confirming == null && !confirmingReset && !choosingUnlock && scrollProfiles(x, y, scrollY)) {
+            return true;
+        }
         if (gridMode && confirming == null && !confirmingReset && !choosingUnlock && x >= panelX() && x < panelX() + PANEL_W
                 && y >= panelTop && y < panelBottom + 32) {
             panelScroll = (int) Math.max(0, Math.min(panelMax, panelScroll - scrollY * 12));
@@ -2173,7 +2176,15 @@ public class CoreScreen extends Screen {
         int y0 = innerY() + 14;
         int cw = (innerW() - 8 - (n - 1) * gap) / n;
         int ch = innerY() + innerH() - 4 - y0;
-        int standH = Math.max(24, ch - 76);
+        // A card with "play" and a further subclass to unlock needs one row more (27 October 2026).
+        boolean extraRow = false;
+        for (CoreStats.ClassLine line : lines) {
+            if (line.unlocked && !line.played && line.subclass != null && !line.subclass.isBlank()
+                    && !freeSubclassesOf(line.id).isEmpty()) {
+                extraRow = true;
+            }
+        }
+        int standH = Math.max(24, ch - 76 - (extraRow ? 16 : 0));
         for (int i = 0; i < n; i++) {
             CoreStats.ClassLine line = lines.get(i);
             SkillClass clazz = SkillClass.byName(line.id);
@@ -2205,7 +2216,36 @@ public class CoreScreen extends Screen {
             if (action != null) {
                 addRenderableWidget(action);
             }
+            // A further subclass of an own class with a free unlock (Simon, 27 October 2026:
+            // the own card had no unlock button).
+            if (line.unlocked && line.subclass != null && !line.subclass.isBlank() && !freeSubclassesOf(line.id).isEmpty()) {
+                int uy = action == null ? by - 16 : by - 32;
+                Button unlock = Button.builder(Component.translatable("nightsiege.ui.class_unlock"), b -> {
+                    List<String> held = new ArrayList<>();
+                    for (CoreStats.ProfileLine p : profilesOf(clazz)) {
+                        if (p.subclass != null && !p.subclass.isBlank()) {
+                            held.add(p.subclass);
+                        }
+                    }
+                    Minecraft.getInstance().setScreenAndShow(new SubclassPickScreen(clazz, SubclassPickScreen.Mode.NEXT, this, "", held));
+                }).bounds(x + 4, uy, bw, 14).build();
+                addRenderableWidget(unlock);
+            }
         }
+    }
+
+    /** Subclasses of a class still free for this player's unlock ("CLASS:sub" entries from the server). */
+    private List<String> freeSubclassesOf(String clazz) {
+        List<String> out = new ArrayList<>();
+        if (stats.unlocksFree <= 0 || stats.unlockSubclasses == null) {
+            return out;
+        }
+        for (String entry : stats.unlockSubclasses) {
+            if (entry.startsWith(clazz + ":")) {
+                out.add(entry.substring(clazz.length() + 1));
+            }
+        }
+        return out;
     }
 
     /** Choosing a class (first or next): the subclass window decides way and subclass with it. */
@@ -2730,6 +2770,49 @@ public class CoreScreen extends Screen {
     }
 
 
+    /** First row of the profile list shown (the list scrolls when it is longer than its card). */
+    private static int profileScroll;
+
+    /**
+     * The rows of the profile list (Simon, 27 October 2026: not every profile showed, and the
+     * unlock row stood above them): the played profile first, then the others by class, the
+     * unlock row last; null stands for the unlock row.
+     */
+    private List<CoreStats.ProfileLine> profileRows() {
+        List<CoreStats.ProfileLine> rows = new ArrayList<>();
+        for (CoreStats.ProfileLine p : stats.profiles) {
+            if (p.playing) {
+                rows.add(p);
+            }
+        }
+        for (SkillClass c : SkillClass.values()) {
+            for (CoreStats.ProfileLine p : stats.profiles) {
+                if (!p.playing && c.name().equals(p.clazz)) {
+                    rows.add(p);
+                }
+            }
+        }
+        for (CoreStats.ProfileLine p : stats.profiles) {
+            if (!rows.contains(p)) {
+                rows.add(p);
+            }
+        }
+        if (stats.nextClassOpen) {
+            rows.add(null);
+        }
+        return rows;
+    }
+
+    private int profileVisible(int[] box) {
+        return Math.max(1, (box[3] - 19) / PROFILE_ROW);
+    }
+
+    private int clampProfileScroll(int[] box) {
+        int max = Math.max(0, profileRows().size() - profileVisible(box));
+        profileScroll = Math.max(0, Math.min(max, profileScroll));
+        return max;
+    }
+
     /** Invisible buttons over the rows of the profile list. */
     private void layoutProfileList() {
         int[] box = profileListBox();
@@ -2740,32 +2823,48 @@ public class CoreScreen extends Screen {
         int w = box[2] - 8;
         int y = box[1] + 19;
         int bottom = box[1] + box[3];
+        clampProfileScroll(box);
+        List<CoreStats.ProfileLine> rows = profileRows();
         int row = 0;
-        if (stats.nextClassOpen) {
-            if (y + PROFILE_ROW <= bottom) {
-                invisible(Button.builder(Component.empty(), b -> {
-                    choosingUnlock = true;
-                    rebuildWidgets();
-                }).bounds(x, y, w, PROFILE_ROW - 2).build());
-            }
-            row++;
-        }
-        for (CoreStats.ProfileLine p : stats.profiles) {
+        for (int i = profileScroll; i < rows.size(); i++) {
             int ry = y + row * PROFILE_ROW;
             if (ry + PROFILE_ROW > bottom) {
                 break;
             }
-            Tab tab = tabOf(p.clazz);
-            if (tab != null && (tab != Tab.SUMMONER || stats.summoner)) {
-                String key = p.key;
+            CoreStats.ProfileLine p = rows.get(i);
+            if (p == null) {
                 invisible(Button.builder(Component.empty(), b -> {
-                    shownProfile = key;
-                    activeTab = tab;
+                    choosingUnlock = true;
                     rebuildWidgets();
                 }).bounds(x, ry, w, PROFILE_ROW - 2).build());
+            } else {
+                Tab tab = tabOf(p.clazz);
+                if (tab != null && (tab != Tab.SUMMONER || stats.summoner)) {
+                    String key = p.key;
+                    invisible(Button.builder(Component.empty(), b -> {
+                        shownProfile = key;
+                        activeTab = tab;
+                        rebuildWidgets();
+                    }).bounds(x, ry, w, PROFILE_ROW - 2).build());
+                }
             }
             row++;
         }
+    }
+
+    /** The mouse wheel over the profile list scrolls it; true when it did. */
+    private boolean scrollProfiles(double mx, double my, double scrollY) {
+        int[] box = activeTab == Tab.STATS ? profileListBox() : null;
+        if (box == null || mx < box[0] || mx >= box[0] + box[2] || my < box[1] || my >= box[1] + box[3]) {
+            return false;
+        }
+        int before = profileScroll;
+        profileScroll -= (int) Math.signum(scrollY);
+        clampProfileScroll(box);
+        if (profileScroll != before) {
+            rebuildWidgets();
+        }
+        return true;
     }
 
     /** "Your profiles": class icon, "Krieger – Berserker" in the class colour, ult level, played or not. */
@@ -2774,25 +2873,30 @@ public class CoreScreen extends Screen {
         int bottom = y + h;
         int rx = x + 4;
         int rw = w - 8;
-        if (stats.nextClassOpen) {
-            boolean over = mouseX >= rx && mouseX < rx + rw && mouseY >= cy && mouseY < cy + PROFILE_ROW - 2;
-            int pulse = (int) (System.currentTimeMillis() / 30 % 60);
-            int glow = 0x50 + (pulse < 30 ? pulse : 60 - pulse) * 3;
-            gui.fill(rx, cy, rx + rw, cy + PROFILE_ROW - 2, (glow << 24) | 0xFFD86B);
-            gui.fill(rx, cy, rx + rw, cy + 1, 0xFFFFD86B);
-            gui.fill(rx, cy + PROFILE_ROW - 3, rx + rw, cy + PROFILE_ROW - 2, 0xFFFFD86B);
-            gui.item(iconOf("minecraft:nether_star"), rx + 2, cy + 2);
-            String label = Component.translatable("nightsiege.ui.unlock_entry").getString();
-            gui.text(font, font.plainSubstrByWidth(label, rw - 24), rx + 21, cy + 2, over ? WHITE : 0xFFFFE9A8, true);
-            String sub = stats.unlocksFree > 1
-                    ? Component.translatable("nightsiege.ui.unlock_count", stats.unlocksFree).getString()
-                    : Component.translatable("nightsiege.ui.unlock_hint").getString();
-            smallText(gui, font, font.plainSubstrByWidth(sub, (int) ((rw - 24) / 0.7f)), rx + 21, cy + 12, 0xFFE8D8A0, 0.7f);
-            cy += PROFILE_ROW;
-        }
-        for (CoreStats.ProfileLine p : stats.profiles) {
+        int[] box = {x, y, w, h};
+        int max = clampProfileScroll(box);
+        List<CoreStats.ProfileLine> rows = profileRows();
+        for (int i = profileScroll; i < rows.size(); i++) {
             if (cy + PROFILE_ROW > bottom) {
                 break;
+            }
+            CoreStats.ProfileLine p = rows.get(i);
+            if (p == null) {
+                boolean over = mouseX >= rx && mouseX < rx + rw && mouseY >= cy && mouseY < cy + PROFILE_ROW - 2;
+                int pulse = (int) (System.currentTimeMillis() / 30 % 60);
+                int glow = 0x50 + (pulse < 30 ? pulse : 60 - pulse) * 3;
+                gui.fill(rx, cy, rx + rw, cy + PROFILE_ROW - 2, (glow << 24) | 0xFFD86B);
+                gui.fill(rx, cy, rx + rw, cy + 1, 0xFFFFD86B);
+                gui.fill(rx, cy + PROFILE_ROW - 3, rx + rw, cy + PROFILE_ROW - 2, 0xFFFFD86B);
+                gui.item(iconOf("minecraft:nether_star"), rx + 2, cy + 2);
+                String label = Component.translatable("nightsiege.ui.unlock_entry").getString();
+                gui.text(font, font.plainSubstrByWidth(label, rw - 24), rx + 21, cy + 2, over ? WHITE : 0xFFFFE9A8, true);
+                String sub = stats.unlocksFree > 1
+                        ? Component.translatable("nightsiege.ui.unlock_count", stats.unlocksFree).getString()
+                        : Component.translatable("nightsiege.ui.unlock_hint").getString();
+                smallText(gui, font, font.plainSubstrByWidth(sub, (int) ((rw - 24) / 0.7f)), rx + 21, cy + 12, 0xFFE8D8A0, 0.7f);
+                cy += PROFILE_ROW;
+                continue;
             }
             Tab tab = tabOf(p.clazz);
             int color = tab == null ? WHITE : tab.color;
@@ -2812,6 +2916,13 @@ public class CoreScreen extends Screen {
                 smallText(gui, font, now, rx + rw - 3 - nw, cy + 12, GREEN, 0.7f);
             }
             cy += PROFILE_ROW;
+        }
+        if (max > 0) {
+            // More rows than room: arrows in the card's title line, the mouse wheel scrolls.
+            String more = (profileScroll > 0 ? "▲ " : "") + (profileScroll < max ? "▼ " : "")
+                    + Component.translatable("nightsiege.ui.profile_more", rows.size()).getString();
+            int mw = (int) (font.width(more) * 0.65f);
+            smallText(gui, font, more, x + w - 8 - mw, y + 6, 0xFFB8B0C8, 0.65f);
         }
         if (stats.profiles.isEmpty()) {
             gui.text(font, Component.translatable("nightsiege.ui.profile_none").getString(), x + 8, cy, GRAY, true);

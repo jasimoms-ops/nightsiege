@@ -570,14 +570,24 @@ public final class SkillTree {
         String d3 = "d_archers|d_ghoul|d_swarm|d_soulshield";
         // Balance update (26 October 2026): ring V follows the ring IV pick (Fäulnis, Leichensprengung,
         // the wolf), so every pick of ring III and IV leads to one.
-        node(list, "d_rot", c, d, SkillEffect.ROT, 1, 12, 0, 1.0, d3, "d4", "minecraft:fermented_spider_eye", 5, 1);
-        node(list, "d_corpse", c, d, SkillEffect.CORPSE_BLAST, 1, 12, 0, 6.0, d3, "d4", "minecraft:tnt", 5, 3);
-        node(list, "d_cross_wolf", c, d, SkillEffect.PACK_CALL, 1, 12, 0, 0.0, d3, "d4", "minecraft:wolf_spawn_egg", 5, 5,
+        node(list, "d_rot", c, d, SkillEffect.ROT, 1, 12, 0, 1.0, d3, "d4", "minecraft:fermented_spider_eye", 5, 0);
+        // Leichensprengung only for the necromancer, who raises corpses; the soulcatcher gets
+        // Seelensplitter in its place (Simon, 27 October 2026).
+        node(list, "d_corpse", c, d, SkillEffect.CORPSE_BLAST, 1, 12, 0, 6.0, "d_necro,d_archers|d_ghoul", "d4", "minecraft:tnt", 5, 2);
+        node(list, "d_shards", c, d, SkillEffect.SOUL_SHARDS, 1, 12, 0, 0.6, "d_soulcatcher,d_swarm|d_soulshield", "d4",
+                "minecraft:amethyst_cluster", 5, 4);
+        node(list, "d_cross_wolf", c, d, SkillEffect.PACK_CALL, 1, 12, 0, 0.0, d3, "d4", "minecraft:wolf_spawn_egg", 5, 6,
                 "d_champion");
         node(list, "d_legion", c, d, SkillEffect.BONE_LEGION, 1, 15, 0, 2.0, "d_rot", "d5", "minecraft:arrow", 6, 1);
-        node(list, "d_soulburn", c, d, SkillEffect.SOUL_BURN, 1, 15, 0, 1.0, "d_corpse", "d5", "minecraft:soul_campfire", 6, 3);
+        node(list, "d_soulburn", c, d, SkillEffect.SOUL_BURN, 1, 15, 0, 1.0, "d_corpse|d_shards", "d5", "minecraft:soul_campfire", 6, 3);
         node(list, "d_dance", c, d, SkillEffect.DEATH_DANCE, 1, 15, 0, 2.0, "d_cross_wolf", "d5", "minecraft:bone", 6, 5);
-        String d4 = "d_rot|d_corpse|d_cross_wolf";
+        String d4 = "d_rot|d_corpse|d_shards|d_cross_wolf";
+        // Two more talents for the soulcatcher's spells, outside the choices (Simon, 27 October 2026:
+        // "the soulcatcher could have 2-3 skills more"): the chain pulls, the fright hurts.
+        node(list, "d_fetter", c, d, SkillEffect.SOUL_FETTER, 1, 15, 0, 3.0, "d_soulcatcher:3," + d4, "",
+                "minecraft:iron_chain", 6, 4);
+        node(list, "d_dread", c, d, SkillEffect.DREAD, 1, 18, 0, 1.0, "d_soulcatcher:4,d_fetter", "",
+                "minecraft:sculk_shrieker", 7, 4);
         node(list, "d_unholy", c, d, SkillEffect.UNHOLY_MIGHT, 1, 18, 0, 0.02, d4, "d6", "minecraft:wither_rose", 7, 1);
         node(list, "d_pact", c, d, SkillEffect.SOUL_PACT, 1, 18, 0, 2.0, d4, "d6", "minecraft:ghast_tear", 7, 3);
         node(list, "d_cross_loyalty", c, d, SkillEffect.SUMMON_TOUGHNESS, 1, 18, 0, 0.15, d4, "d6", "minecraft:leather_chestplate", 7, 5,

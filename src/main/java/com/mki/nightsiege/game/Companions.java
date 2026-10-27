@@ -121,6 +121,8 @@ public final class Companions {
     private static final Map<UUID, Long> TAUNT_PAUSE = new HashMap<>();
     /** Monsters in a curse zone (they take more damage) until this game time. */
     private static final Map<UUID, Long> CURSED = new HashMap<>();
+    /** Monsters frightened by a summoner with Grauen: monster → game time it ends. */
+    private static final Map<UUID, Long> DREADED = new HashMap<>();
     /** Above zero while this class sets a target itself (every other target change of a companion is refused). */
     private static int steering;
     /** Above zero while a spell deals its damage (the "companions and spells" share of the bench and the log). */
@@ -385,6 +387,12 @@ public final class Companions {
                 factor *= (float) (1.0 + v("d_necro", "curse", 0.25));   // Fluchzone
             }
         }
+        if (!DREADED.isEmpty() && victim instanceof Enemy) {
+            Long dreaded = DREADED.get(victim.getUUID());
+            if (dreaded != null && victim.level().getGameTime() <= dreaded) {
+                factor *= (float) (1.0 + v("d_dread", "more", 0.25));   // Grauen
+            }
+        }
         Entity attacker = source.getEntity();
         if (ALL.isEmpty() && !(attacker instanceof ServerPlayer)) {
             return factor;
@@ -567,13 +575,13 @@ public final class Companions {
                 case "curse" -> "minecraft:wither_rose";
                 case "swarm" -> "minecraft:soul_lantern";
                 case "shield" -> "minecraft:amethyst_shard";
-                case "chain" -> "minecraft:chain";
+                case "chain" -> "minecraft:iron_chain";   // "chain" is "iron_chain" since 1.21.9
                 case "fear" -> "minecraft:ghast_tear";
                 default -> "minecraft:soul_sand";
             };
             o.name = "nightsiege.spell." + id;
             o.sub = "nightsiege.wheel.souls";
-            o.subArgs.add(String.valueOf(spellCost(id)));
+            o.subArgs.add(String.valueOf(spellCost(id, skills)));
             o.subArgs.add(String.valueOf(souls));
             o.current = id.equals(picked);
             wheel.options.add(o);
@@ -858,6 +866,15 @@ public final class Companions {
         return spells.isEmpty() ? null : spells.get(Math.floorMod(spellIndex.getOrDefault(owner, 0), spells.size()));
     }
 
+    /** Souls a spell costs this summoner (Grauen makes Schrecken cheaper). */
+    static int spellCost(String spellId, PlayerSkills skills) {
+        int cost = spellCost(spellId);
+        if ("fear".equals(spellId) && skills != null && SkillTree.has(skills, "d_dread")) {
+            cost = Math.max(0, cost - (int) Math.round(v("d_dread", "cheaper", 1)));
+        }
+        return cost;
+    }
+
     /** Souls a spell costs. */
     static int spellCost(String spellId) {
         return switch (spellId) {
@@ -878,7 +895,7 @@ public final class Companions {
             return;
         }
         CombatEffects.actionBar(player, Component.translatable("nightsiege.msg.spell_hud",
-                Component.translatable("nightsiege.spell." + id), spellCost(id), soulsOf(player.getUUID()), soulCap(skills)));
+                Component.translatable("nightsiege.spell." + id), spellCost(id, skills), soulsOf(player.getUUID()), soulCap(skills)));
     }
 
     /** For the tests and the bench: casts one spell by its id (the souls are paid as with the staff). */
@@ -907,7 +924,7 @@ public final class Companions {
         if (now < nextSpell.getOrDefault(player.getUUID(), 0L)) {
             return false;
         }
-        int cost = spellCost(id);
+        int cost = spellCost(id, skills);
         int have = soulsOf(player.getUUID());
         boolean free = player.getAbilities().instabuild;
         if (have < cost && !free) {
@@ -1161,8 +1178,11 @@ public final class Companions {
         int amp = (int) Math.round(v("d_soulcatcher", "chainslow", 3));
         Vec3 from = target.position().add(0, target.getBbHeight() * 0.5, 0);
         // The chain bites too (Simon, 27 October 2026: more damage against groups).
-        float bite = (float) (v("d_soulcatcher", "chaindmg", 4.0) * spellScale(skills, SkillEffect.SOUL_CATCHER));
+        boolean fetter = SkillTree.has(skills, "d_fetter");   // Seelenfessel (27 October 2026)
+        float bite = (float) ((v("d_soulcatcher", "chaindmg", 4.0) + (fetter ? bonus(SkillEffect.SOUL_FETTER, skills) : 0.0))
+                * spellScale(skills, SkillEffect.SOUL_CATCHER));
         DamageSource source = level.damageSources().playerAttack(player);
+        double pull = fetter ? v("d_fetter", "pull", 2.5) : 0.0;
         for (LivingEntity e : CombatEffects.enemies(level, target.position(), r, 2.0)) {
             e.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, ticks, amp));
             if (bite > 0) {
@@ -1171,6 +1191,15 @@ public final class Companions {
             rot(e, skills);
             if (e != target) {
                 trail(level, from, e.position().add(0, e.getBbHeight() * 0.5, 0), ParticleTypes.SOUL_FIRE_FLAME, 6);
+                if (pull > 0 && !BossService.isBoss(e)) {
+                    Vec3 to = target.position().subtract(e.position());
+                    double len = to.horizontalDistance();
+                    if (len > 1.2) {
+                        double k = Math.min(pull, len - 1.0) / len * 0.45;
+                        e.setDeltaMovement(e.getDeltaMovement().add(to.x * k, 0.15, to.z * k));
+                        e.hurtMarked = true;
+                    }
+                }
             }
         }
         level.playSound(null, target.blockPosition(), SoundEvents.CHAIN_PLACE, SoundSource.PLAYERS, 1.2f, 0.6f);
@@ -1182,8 +1211,15 @@ public final class Companions {
         LivingEntity target = spellTarget(level, player, skills);
         Vec3 center = target != null ? target.position() : player.position();
         double r = v("d_soulcatcher", "fearradius", 5.0) + (SkillTree.has(skills, "d_rot") ? bonus(SkillEffect.ROT, skills) : 0.0);
-        int ticks = (int) spellTicks(skills, v("d_soulcatcher", "feartime", 80), true);
+        boolean dread = SkillTree.has(skills, "d_dread");   // Grauen (27 October 2026)
+        int ticks = (int) spellTicks(skills, v("d_soulcatcher", "feartime", 80) + (dread ? v("d_dread", "extra", 40) : 0), true);
         int scared = GainGear.scare(level, center, r, ticks);
+        if (dread && scared > 0) {
+            long until = level.getGameTime() + ticks;
+            for (LivingEntity e : CombatEffects.enemies(level, center, r, 2.0)) {
+                DREADED.put(e.getUUID(), until);
+            }
+        }
         if (scared == 0) {
             CombatEffects.actionBar(player, Component.translatable("nightsiege.msg.staff_no_prey"));
             return false;
@@ -1331,7 +1367,7 @@ public final class Companions {
         }
     }
 
-    /** A ghost of the swarm lands (a spell): Leichensprengung splashes, Seelenbrand gives a soul back once. */
+    /** A ghost of the swarm lands (a spell): Seelensplitter bursts, Seelenbrand gives a soul back once. */
     private void ghostHit(Missile m, ServerPlayer owner, LivingEntity target) {
         PlayerSkills skills = skillsFor.apply(owner);
         ServerLevel level = m.level;
@@ -1339,14 +1375,18 @@ public final class Companions {
         spellHurt(level, target, source, m.damage);
         rot(target, skills);
         pact(owner, skills, target);
-        if (SkillTree.has(skills, "d_corpse")) {
-            float splash = (float) (bonus(SkillEffect.CORPSE_BLAST, skills) * spellScale(skills, SkillEffect.SOUL_CATCHER)
-                    * v("d_corpse", "ghostshare", 0.5));
-            for (LivingEntity e : CombatEffects.enemies(level, target.position(), v("d_corpse", "ghostradius", 2.5), 2.0)) {
+        if (SkillTree.has(skills, "d_shards")) {
+            // Seelensplitter (27 October 2026, in place of the corpse blast): the ghost bursts.
+            float splash = (float) (m.damage * bonus(SkillEffect.SOUL_SHARDS, skills));
+            double r = v("d_shards", "ghostradius", 2.5);
+            for (LivingEntity e : CombatEffects.enemies(level, target.position(), r, 2.0)) {
                 if (e != target) {
                     spellHurt(level, e, source, splash);
+                    rot(e, skills);
                 }
             }
+            level.sendParticles(ParticleTypes.SOUL_FIRE_FLAME, target.getX(), target.getY() + target.getBbHeight() * 0.5,
+                    target.getZ(), 12, r * 0.3, 0.3, r * 0.3, 0.03);
             if (m.refund && SkillTree.has(skills, "d_soulburn")) {
                 addSouls(owner, skills, (int) Math.round(bonus(SkillEffect.SOUL_BURN, skills)));
             }
@@ -1357,6 +1397,9 @@ public final class Companions {
 
     /** Every five ticks: the curse zones mark and slow the monsters inside; old marks are forgotten. */
     private void tickZones(long now) {
+        if (!DREADED.isEmpty()) {
+            DREADED.values().removeIf(until -> until < now);
+        }
         if (!CURSED.isEmpty()) {
             CURSED.values().removeIf(until -> until < now);
         }

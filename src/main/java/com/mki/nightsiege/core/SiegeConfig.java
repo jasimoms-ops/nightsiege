@@ -282,6 +282,10 @@ public class SiegeConfig {
     public int skyHunterHeight = 3;
     /** … within this many blocks (0 turns it off). */
     public double skyHunterRange = 24.0;
+    /** Phantoms in every siege night (Simon, 27 October 2026): this many with the second wave … */
+    public int nightPhantoms = 2;
+    /** … and this many more per siege level (rounded down); 0 and 0 turn it off. */
+    public double nightPhantomsPerLevel = 0.25;
     /** Siege monsters drop items and experience (false since Simon's call of 26 October 2026: they drop nothing). */
     public boolean siegeMobDrops = false;
     /** Klaffende Wunden (anti-heal, Simon 25 October 2026): these monsters halve all healing of the player they hit. */
@@ -558,7 +562,7 @@ public class SiegeConfig {
         list.add(new MobEntry("minecraft:breeze", 7, 3, 0.3));
         list.add(new MobEntry("minecraft:drowned", 7, 5, 0.0));
         // Level 8-10: casters and wither skeletons.
-        list.add(new MobEntry(faf + "iceologer", 8, 3, 0.4));
+        list.add(new MobEntry(faf + "iceologer", 8, 1, 0.1));   // rare (Simon, 27 October 2026)
         list.add(new MobEntry(faf + "illusioner", 8, 3, 0.4));
         list.add(new MobEntry("minecraft:wither_skeleton", 8, 4, 0.5));
         list.add(new MobEntry("minecraft:evoker", 10, 2, 0.4));
@@ -765,6 +769,18 @@ public class SiegeConfig {
                 subclassDamage.put("alchemist", 1.15);
             }
             settingsVersion = 10;
+        }
+        if (settingsVersion < 11) {
+            // Simon 27.10.: the ice illager (iceologer) comes far more rarely.
+            if (mobs != null) {
+                for (MobEntry entry : mobs) {
+                    if (entry != null && "friendsandfoes:iceologer".equals(entry.id)) {
+                        entry.weight = Math.min(entry.weight, 1);
+                        entry.weightPerLevel = Math.min(entry.weightPerLevel, 0.1);
+                    }
+                }
+            }
+            settingsVersion = 11;
         }
         if (Double.isNaN(meleeLifesteal)) {
             meleeLifesteal = 0.08;

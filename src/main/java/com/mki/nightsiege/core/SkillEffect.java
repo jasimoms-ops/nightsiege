@@ -363,6 +363,12 @@ public enum SkillEffect {
     SOUL_SHIELD(0.0, Target.COMBAT),
     ROT(0.0, Target.COMBAT),
     CORPSE_BLAST(0.0, Target.COMBAT),
+    /** Seelensplitter (soulcatcher): every ghost of the swarm bursts on its target. */
+    SOUL_SHARDS(0.0, Target.COMBAT),
+    /** Seelenfessel (soulcatcher): the soul chain bites harder and pulls the monsters together. */
+    SOUL_FETTER(0.0, Target.COMBAT),
+    /** Grauen (soulcatcher): Schrecken costs less, lasts longer and frightened monsters take more damage. */
+    DREAD(0.0, Target.COMBAT),
     BONE_LEGION(0.0, Target.COMBAT),
     SOUL_BURN(0.0, Target.COMBAT),
     DEATH_DANCE(0.0, Target.COMBAT),

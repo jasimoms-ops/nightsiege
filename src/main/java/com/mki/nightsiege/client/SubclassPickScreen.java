@@ -46,6 +46,8 @@ public class SubclassPickScreen extends Screen {
     /** A way already taken (FIX for older progress): the other way's cards cannot be chosen. */
     private final String lockedWay;
     private final List<SkillTree.SubclassInfo> subs;
+    /** Subclasses the player already has a profile of (a further unlock of an own class). */
+    private final java.util.Set<String> taken = new java.util.HashSet<>();
     private int picked;
 
     private int left;
@@ -58,7 +60,15 @@ public class SubclassPickScreen extends Screen {
     private final int[] cardX = new int[4];
 
     public SubclassPickScreen(SkillClass clazz, Mode mode, Screen back, String lockedWay) {
+        this(clazz, mode, back, lockedWay, java.util.List.of());
+    }
+
+    /** A further subclass of an own class (Simon, 27 October 2026): the ones already held stay grey. */
+    public SubclassPickScreen(SkillClass clazz, Mode mode, Screen back, String lockedWay, java.util.Collection<String> taken) {
         super(Component.translatable("nightsiege.subpick.title", Component.translatable(clazz.translationKey())));
+        if (taken != null) {
+            this.taken.addAll(taken);
+        }
         this.clazz = clazz;
         this.mode = mode;
         this.back = back;
@@ -74,7 +84,8 @@ public class SubclassPickScreen extends Screen {
     }
 
     private boolean choosable(int i) {
-        return i >= 0 && i < subs.size() && (lockedWay.isEmpty() || lockedWay.equals(subs.get(i).way()));
+        return i >= 0 && i < subs.size() && (lockedWay.isEmpty() || lockedWay.equals(subs.get(i).way()))
+                && !taken.contains(subs.get(i).key());
     }
 
     @Override
@@ -229,7 +240,12 @@ public class SubclassPickScreen extends Screen {
         gui.fill(sx, sy, x + cardW - 4, sy + standH, LINE);
         gui.fill(sx + 1, sy + 1, x + cardW - 5, sy + standH - 1, BOX_DARK);
         ClassStands.draw(gui, sub.key(), !open, sx + 2, sy + 3, cardW - 12, standH - 6);
-        if (selected) {
+        if (taken.contains(sub.key())) {
+            String mark = Component.translatable("nightsiege.subpick.owned").getString();
+            int mw = (int) (font.width(mark) * 0.65f) + 6;
+            gui.fill(x + cardW - 6 - mw, sy + 3, x + cardW - 6, sy + 12, 0xFF162236);
+            small(gui, font, mark, x + cardW - 3 - mw, sy + 5, 0xFF9CC4FF, 0.65f);
+        } else if (selected) {
             String mark = Component.translatable("nightsiege.subpick.picked").getString();
             int mw = (int) (font.width(mark) * 0.65f) + 6;
             gui.fill(x + cardW - 6 - mw, sy + 3, x + cardW - 6, sy + 12, 0xFF3A3010);

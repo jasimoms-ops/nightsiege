@@ -113,12 +113,14 @@ final class SkillValuesEngineer {
         def("spike_trap", "overcharge", 30);
         def("snare_trap", "overcharge", 30);
         def("flame_trap", "overcharge", 30);
-        // Tower upkeep (Simon, 27 October 2026): magazines of about 20 s, 5 % wear per shot,
-        // reload and repair with a code in the remote's tower menu.
+        // Tower upkeep (Simon, 27 October 2026): magazines of about 90 s, 3 % wear per shot
+        // (first 20 s / 5 %, Simon 12:06: 90 s and 3 %), reload and repair with a code in the
+        // remote's tower menu.
         for (TrapKind tower : new TrapKind[] {TrapKind.TURRET, TrapKind.MORTAR, TrapKind.BREWER, TrapKind.TESLA}) {
-            def(tower.id(), "breakchance", 0.05);                          // chance to break each time it fires
+            def(tower.id(), "breakchance", 0.03);                          // chance to break each time it fires
+            def(tower.id(), "seathealth", 3.0);                            // tower health for its gunner: × the player's
             if (tower != TrapKind.TESLA) {
-                def(tower.id(), "magseconds", 20);                         // seconds of its own fire in a full magazine
+                def(tower.id(), "magseconds", 90);                         // seconds of its own fire in a full magazine
             }
         }
         def("e_longrange", "fixtime", 60);                               // ticks a reload or repair takes after the code

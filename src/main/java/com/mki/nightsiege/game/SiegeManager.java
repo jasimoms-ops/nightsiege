@@ -1965,6 +1965,23 @@ public final class SiegeManager {
         } else if (spawned < count) {
             goalDown = Component.translatable("nightsiege.bar.goal_no_room");   // no spot for some of them
         }
+        // Phantoms in every night (Simon, 27 October 2026): a few come with the second wave.
+        if (wavesStarted == 2 && themeMobId == null) {
+            int phantoms = Math.max(0, config.nightPhantoms) + (int) Math.floor(Math.max(0.0, config.nightPhantomsPerLevel) * siegeLevel);
+            for (int i = 0; i < Math.min(phantoms, 12); i++) {
+                Mob phantom = spawnMob("minecraft:phantom", false);
+                if (phantom == null) {
+                    continue;
+                }
+                phantom.setPos(phantom.getX(), phantom.getY() + 14, phantom.getZ());
+                liveMobs.add(phantom.getUUID());
+                spawnedTotal++;
+                aimAtDefender(server, phantom);
+                if (currentEvent == SiegeEvent.BLOOD_MOON && config.bloodMoonGlow) {
+                    SiegeTeams.mark(server, phantom, SiegeTeams.BLOOD_MOON, TeamColor.DARK_RED);
+                }
+            }
+        }
         // Some of them carry ladders; a sapper creeper may come along (it does not count for the kill goal).
         besiegers.afterWave(world, anchor, defense.base(), wave, siegeLevel, config, random, currentEvent,
                 sapper -> liveMobs.add(sapper.getUUID()));

@@ -131,7 +131,13 @@ public final class GuardianEffects {
             return amount;
         }
         try {
-            return self.scaleDamage(victim, level, source, amount);
+            float out = self.scaleDamage(victim, level, source, amount);
+            // An engineer in a tower: the tower takes the hit (Simon, 27 October 2026).
+            if (out > 0 && victim instanceof ServerPlayer seated
+                    && !source.is(DamageTypeTags.BYPASSES_INVULNERABILITY) && !source.is(DamageTypeTags.IS_FALL)) {
+                out = TrapService.seatAbsorb(seated, out);
+            }
+            return out;
         } catch (RuntimeException e) {
             return amount;
         }
