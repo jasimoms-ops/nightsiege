@@ -345,7 +345,7 @@ public final class SiegeMachines {
                 e.addTag(TAG_MACHINE);
             }
         }
-        Zombie box = EntityTypes.ZOMBIE.create(level, EntitySpawnReason.EVENT);
+        Zombie box = EntityTypes.HUSK.create(level, EntitySpawnReason.EVENT);   // a husk: no burning by day
         if (box == null) {
             Rigs.remove(level, machine.rig);
             return null;
@@ -1172,6 +1172,13 @@ public final class SiegeMachines {
                 remove(machine);
             }
         }
+        // The crews of machines struck down earlier in the night go too.
+        for (Map.Entry<UUID, Machine> e : new ArrayList<>(owners.entrySet())) {
+            if (!e.getValue().trial) {
+                discard(e.getValue().level, e.getKey());
+                owners.remove(e.getKey());
+            }
+        }
         shots.removeIf(shot -> {
             if (shot.machine.trial) {
                 return false;
@@ -1194,6 +1201,10 @@ public final class SiegeMachines {
         for (Machine machine : new ArrayList<>(machines)) {
             remove(machine);
         }
+        for (Map.Entry<UUID, Machine> e : new ArrayList<>(owners.entrySet())) {
+            discard(e.getValue().level, e.getKey());
+        }
+        owners.clear();
         for (Shot shot : shots) {
             discard(shot.machine.level, shot.display);
         }

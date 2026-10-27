@@ -418,7 +418,7 @@ public final class SiegeCamp {
 
     /** The siege workbench's hit box: an invisible, still monster with the workbench's life. */
     private Zombie workbench(ServerLevel level, SiegeSave.CampRecord camp) {
-        Zombie box = EntityTypes.ZOMBIE.create(level, EntitySpawnReason.EVENT);
+        Zombie box = EntityTypes.HUSK.create(level, EntitySpawnReason.EVENT);   // a husk: no burning by day
         if (box == null) {
             return null;
         }
