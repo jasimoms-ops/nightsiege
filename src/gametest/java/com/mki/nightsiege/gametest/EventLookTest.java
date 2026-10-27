@@ -2795,7 +2795,7 @@ public class EventLookTest implements FabricClientGameTest {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
             System.out.println("[Night Siege test] foes revenant risen=" + manager.foes().risenTonight + " graves=" + manager.foes().graveCount());
             for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
-                if (e.entityTags().contains(com.mki.nightsiege.game.Foes.TAG_RISEN) && e instanceof net.minecraft.world.entity.LivingEntity le) {
+                if (e != null && e.entityTags().contains(com.mki.nightsiege.game.Foes.TAG_RISEN) && e instanceof net.minecraft.world.entity.LivingEntity le) {
                     System.out.println(String.format(java.util.Locale.ROOT, "[Night Siege test] foes revenant risen hp=%.1f/%.1f", le.getHealth(), le.getMaxHealth()));
                     le.hurtServer(level, level.damageSources().playerAttack(player), 1000f);
                 }
@@ -2813,7 +2813,7 @@ public class EventLookTest implements FabricClientGameTest {
         onServer(context, (player, manager) -> {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
             for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
-                if (e.entityTags().contains(com.mki.nightsiege.game.Foes.TAG_GRAVE) && e instanceof net.minecraft.world.entity.LivingEntity box) {
+                if (e != null && e.entityTags().contains(com.mki.nightsiege.game.Foes.TAG_GRAVE) && e instanceof net.minecraft.world.entity.LivingEntity box) {
                     box.hurtServer(level, level.damageSources().playerAttack(player), 4f);
                 }
             }
@@ -2891,14 +2891,18 @@ public class EventLookTest implements FabricClientGameTest {
                     + (g == null ? "-" : net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(g.getMainHandItem().getItem()).getPath()));
         });
         final double[] lowest = {999};
-        for (int i = 0; i < 14; i++) {
+        for (int i = 0; i < 20; i++) {
             final int step = i;
             context.waitTicks(20);
             onServer(context, (player, manager) -> {
                 lowest[0] = Math.min(lowest[0], player.getY() - cy);
                 if (step % 2 == 1) {
-                    System.out.println(String.format(java.util.Locale.ROOT, "[Night Siege test] foes grappler t=%ds player=%.1f %.1f %.1f hooks=%d",
-                            step + 1, player.getX() - cx, player.getY() - cy, player.getZ() - cz, manager.foes().hooksLanded));
+                    net.minecraft.world.entity.Entity g = holder[0] == null ? null : ((net.minecraft.server.level.ServerLevel) player.level()).getEntity(holder[0]);
+                    System.out.println(String.format(java.util.Locale.ROOT, "[Night Siege test] foes grappler t=%ds player=%.1f %.1f %.1f grappler=%s hooks=%d",
+                            step + 1, player.getX() - cx, player.getY() - cy, player.getZ() - cz,
+                            g == null ? "-" : String.format(java.util.Locale.ROOT, "%.1f %.1f %.1f sees=%s", g.getX() - cx, g.getY() - cy, g.getZ() - cz,
+                                    g instanceof net.minecraft.world.entity.LivingEntity gl && gl.hasLineOfSight(player)),
+                            manager.foes().hooksLanded));
                 }
             });
             if (i == 6) {
