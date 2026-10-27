@@ -57,6 +57,10 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("machines")) {
                     machineScene(context, game);
                 }
+                if (want.contains("bar")) {
+                    alchemistScene(context, game);   // the ability bar of the alchemist and the healer
+                    summonerScene(context, game);    // ... and of the summoners
+                }
                 return;
             }
             if (System.getenv("NIGHTSIEGE_SIM") != null) {
