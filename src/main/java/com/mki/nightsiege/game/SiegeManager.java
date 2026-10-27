@@ -775,6 +775,46 @@ public final class SiegeManager {
         return SiegeMath.timeOfDay(server.overworld().getOverworldClockTime());
     }
 
+    /**
+     * Latest clock time a siege night shows (Simon, 27 October 2026: daybreak came in the middle of
+     * long sieges, from level 12 on a siege outlasts the night). Until the siege ends the clock stays
+     * here; the sun rises after it.
+     */
+    public static final int NIGHT_HOLD = 21500;
+    /** Where a test night started by day sets the clock (dusk; dark when the preparation ends). */
+    public static final int NIGHT_START = 13000;
+
+    /** Once a second during a siege: the clock does not pass {@link #NIGHT_HOLD} (not in the eclipse, a day event). */
+    private void holdNight(MinecraftServer server) {
+        if (world == null || world.getGameTime() % 20 != 0 || currentEvent == SiegeEvent.ECLIPSE) {
+            return;
+        }
+        int time = clockTime(server);
+        if (time >= NIGHT_HOLD) {
+            setClock(server, NIGHT_HOLD);
+        }
+    }
+
+    /** For a test night by day: night first (not for the eclipse, which comes by day). */
+    public void ensureNight(MinecraftServer server, SiegeEvent event) {
+        if (event == SiegeEvent.ECLIPSE) {
+            return;
+        }
+        int time = clockTime(server);
+        if (time < 12500 || time >= NIGHT_HOLD) {
+            setClock(server, NIGHT_START);
+        }
+    }
+
+    private static void setClock(MinecraftServer server, int timeOfDay) {
+        try {
+            server.getCommands().performPrefixedCommand(server.createCommandSourceStack().withSuppressedOutput(),
+                    "time set " + timeOfDay);
+        } catch (RuntimeException e) {
+            NightSiegeMod.LOGGER.warn("[Night Siege] Uhrzeit setzen fehlgeschlagen: {}", e.toString());
+        }
+    }
+
     /** True on the day of a siege night, from the invitation on (the aurora stays away then). */
     public boolean siegeDueToday(MinecraftServer server) {
         return mainCore() != null && save.nextSiegeDay >= 0 && save.nextSiegeDay <= clockDay(server);
@@ -1537,6 +1577,7 @@ public final class SiegeManager {
         }
         pruneMobs();
         refreshBossBar(server);
+        holdNight(server);
 
         for (ServerPlayer player : defendersNear(server, world, anchor, testRun)) {
             if (!fallen.contains(player.getUUID())) {

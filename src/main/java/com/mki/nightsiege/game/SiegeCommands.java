@@ -348,6 +348,8 @@ public final class SiegeCommands {
         }
         int level = IntegerArgumentType.getInteger(ctx, "level");
         MinecraftServer server = source.getLevel().getServer();
+        // A test night by day becomes night first (Simon, 27 October 2026: no more /time set night).
+        manager.ensureNight(server, boss != null ? SiegeEvent.NONE : event);
         if (manager.config().testKits) {
             manager.giveKits(server, player.level(), player.blockPosition(), level, true);
         }
