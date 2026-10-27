@@ -11,7 +11,7 @@ public class TrapRecord {
     public String owner = "";
     /** Activations left before it is used up. */
     public int uses;
-    /** Broken by chance when it sprang (Simon, 26 October 2026): does nothing until repaired. */
+    /** Old saves only: traps no longer break (Simon, 27 October 2026); cleared on the next tick. */
     public boolean broken;
     /** Shots left in the magazine: arrow turret, mortar and potion thrower (27 October 2026). */
     public int ammo;
@@ -21,6 +21,8 @@ public class TrapRecord {
     public int shield;
     /** Damage the tower took for its gunner (Simon, 27 October 2026); 0 = whole. */
     public float hpLost;
+    /** Game time until which nobody can climb into the tower after it was overrun under its gunner. */
+    public transient long seatLockedUntil;
     /** Game time from which it may fire again. Not worth saving across restarts. */
     public transient long readyAt;
     /** The mortar's target spot, set with the remote (Simon, 25 October 2026); without one it does nothing. */

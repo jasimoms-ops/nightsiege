@@ -2867,8 +2867,9 @@ public class EventLookTest implements FabricClientGameTest {
     }
 
     /**
-     * The tower menu (Simon, 27 October 2026): a mortar runs empty, the arrow turret breaks;
-     * the right click with the remote shows both, the codes are typed and 3 s later they work.
+     * The tower menu (Simon, 27 October 2026): a mortar runs empty, the arrow turret is
+     * strengthened (19:15: nothing breaks any more – an old broken turret works again); the
+     * right click with the remote shows both, the codes are typed and 3 s later they work.
      */
     private static void towerMenuScene(ClientGameTestContext context) {
         onServer(context, (player, manager) -> {
@@ -2877,7 +2878,7 @@ public class EventLookTest implements FabricClientGameTest {
             com.mki.nightsiege.game.TrapRecord turret = manager.kits().traps().recordAt(level, at.offset(2, 0, 3));
             com.mki.nightsiege.game.TrapRecord mortar = manager.kits().traps().recordAt(level, at.offset(4, 0, 0));
             if (turret != null) {
-                turret.broken = true;
+                turret.broken = true;   // as in an old save: the next tick clears it
             }
             if (mortar != null) {
                 mortar.ammo = 0;
@@ -2893,15 +2894,15 @@ public class EventLookTest implements FabricClientGameTest {
         context.takeScreenshot("tower_menu");
         context.runOnClient(client -> {
             if (client.gui.screen() instanceof com.mki.nightsiege.client.TowerMenuScreen menu) {
-                menu.testShowCode(0);
+                menu.testShowCode(menu.rowOf(com.mki.nightsiege.core.TrapKind.TURRET.id()));
             }
         });
         context.waitTicks(3);
         context.takeScreenshot("tower_code");
         context.runOnClient(client -> {
             if (client.gui.screen() instanceof com.mki.nightsiege.client.TowerMenuScreen menu) {
-                menu.testFix(0);
-                menu.testFix(1);
+                menu.testBuff(menu.rowOf(com.mki.nightsiege.core.TrapKind.TURRET.id()));
+                menu.testFix(menu.rowOf(com.mki.nightsiege.core.TrapKind.MORTAR.id()));
             }
         });
         context.waitTicks(20);
@@ -2913,8 +2914,12 @@ public class EventLookTest implements FabricClientGameTest {
             com.mki.nightsiege.game.TrapRecord turret = manager.kits().traps().recordAt(level, at.offset(2, 0, 3));
             com.mki.nightsiege.game.TrapRecord mortar = manager.kits().traps().recordAt(level, at.offset(4, 0, 0));
             System.out.println("[Night Siege test] towers after fix turret broken=" + (turret == null ? "?" : turret.broken)
+                    + " strengthened=" + (turret != null && manager.kits().traps().strengthenedForTest(turret))
                     + " ammo=" + (turret == null ? -1 : turret.ammo) + " mortar ammo=" + (mortar == null ? -1 : mortar.ammo));
+            com.mki.nightsiege.game.RemoteItem.handler.use(player, null);   // the menu again: the turret shows strengthened
         });
+        context.waitTicks(6);
+        context.takeScreenshot("tower_buffed");
         closeScreen(context);
     }
 

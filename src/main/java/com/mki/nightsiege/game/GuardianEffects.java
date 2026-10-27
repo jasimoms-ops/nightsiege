@@ -1002,6 +1002,7 @@ public final class GuardianEffects {
                     && target.getHealth() < target.getMaxHealth() * (float) SkillValues.get("g_triage", "below", 0.4)) {
                 power *= SkillValues.get("g_triage", "mult", 2.0);
             }
+            power *= subclassHealing(skills);
         }
         float amount = (float) (base * power);
         float real = Math.min(amount, Math.max(0f, target.getMaxHealth() - target.getHealth()));
@@ -1399,7 +1400,13 @@ public final class GuardianEffects {
         if (SkillTree.has(skills, "g_saint")) {
             power += tree.totalBonus(SkillEffect.SAINT, skills);
         }
-        return power * patron(skills);
+        return power * patron(skills) * subclassHealing(skills);
+    }
+
+    /** Server balancing per subclass (Simon 27.10.: the medic heals 20 % more, like the warden 3.8/s). */
+    private double subclassHealing(PlayerSkills skills) {
+        SiegeManager m = SiegeManager.get();
+        return m == null || m.config() == null ? 1.0 : m.config().healingFactor(tree.subclassOf(skills));
     }
 
     /**

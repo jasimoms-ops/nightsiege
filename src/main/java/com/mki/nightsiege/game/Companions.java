@@ -411,6 +411,11 @@ public final class Companions {
             SiegeConfig cfg = self.config.get();
             if (cfg != null && victim instanceof Enemy) {
                 factor *= (float) Math.max(0.1, cfg.companionDamage);
+                // The server balancing per class and subclass reaches the companions too
+                // (Simon 27.10.: the beast tamer +20 % – his wolves deal most of his damage).
+                if (skills != null) {
+                    factor *= (float) cfg.damageFactor(skills.className(), self.tree.subclassOf(skills));
+                }
             }
             // Wildheit: wounded companions bite harder.
             if (SkillTree.has(skills, "s_wildness")

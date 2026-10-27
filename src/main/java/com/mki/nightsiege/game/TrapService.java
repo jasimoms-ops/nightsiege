@@ -72,6 +72,8 @@ public final class TrapService {
     private final java.util.Map<String, Long> overchargedUntil = new java.util.HashMap<>();
     /** Single traps overcharged with the remote: trap key to the game time it ends. */
     private final java.util.Map<String, Long> boostedUntil = new java.util.HashMap<>();
+    /** Towers strengthened in the tower menu (Simon, 27 October 2026): trap key to the game time it ends. */
+    private final java.util.Map<String, Long> strengthenedUntil = new java.util.HashMap<>();
     /** Monsters marked with a remote: monster uuid to (owner, end). */
     private final java.util.Map<UUID, RemoteMark> remoteMarks = new java.util.HashMap<>();
     /** Energy of every engineer's remote. */
@@ -456,14 +458,9 @@ public final class TrapService {
                 setLook(level, pos, false);   // a manned look left over from a crash or a restart
             }
             if (record.broken) {
-                // A broken trap does nothing; red smoke marks it every second until it is repaired.
-                if (now % 20 == 0) {
-                    Vec3 c = Vec3.atCenterOf(pos);
-                    level.sendParticles(ParticleTypes.LARGE_SMOKE, c.x, c.y + 0.6, c.z, 4, 0.2, 0.3, 0.2, 0.01);
-                    level.sendParticles(new net.minecraft.core.particles.DustParticleOptions(0xFF2020, 1.5f),
-                            c.x, c.y + 1.2, c.z, 6, 0.15, 0.4, 0.15, 0.0);
-                }
-                continue;
+                // Traps no longer break (Simon, 27 October 2026): one broken in an old save works again.
+                record.broken = false;
+                dirty = true;
             }
             if (fixes.containsKey(key(record))) {
                 continue;   // under repair or reload: it waits
@@ -514,8 +511,6 @@ public final class TrapService {
         record.readyAt = now + quicker(record, now, TrapKind.SPIKE.cooldownTicks(tier));
         if (record.uses <= 0) {
             wearOut(level, pos, record);
-        } else {
-            maybeBreak(level, pos, record, TrapKind.SPIKE);
         }
         dirty = true;
     }
@@ -548,8 +543,6 @@ public final class TrapService {
         record.readyAt = now + quicker(record, now, TrapKind.SNARE.cooldownTicks(tier));
         if (record.uses <= 0) {
             wearOut(level, pos, record);
-        } else {
-            maybeBreak(level, pos, record, TrapKind.SNARE);
         }
         dirty = true;
     }
@@ -1053,8 +1046,6 @@ public final class TrapService {
         record.readyAt = now + quicker(record, now, TrapKind.FLAME.cooldownTicks(tier));
         if (record.uses <= 0) {
             wearOut(level, pos, record);
-        } else {
-            maybeBreak(level, pos, record, TrapKind.FLAME);
         }
         dirty = true;
     }
@@ -1323,13 +1314,16 @@ public final class TrapService {
         playAt(level, seat.pos, SoundEvents.ANVIL_LAND, 0.25f, 1.8f);
         float now = Math.max(0f, max - record.hpLost);
         if (now <= 0.01f) {
-            record.broken = true;
-            record.hpLost = max;
+            // Overrun (Simon, 27 October 2026: nothing breaks any more): the gunner falls out,
+            // the tower fights on by itself and takes nobody for 20 s, then it is whole again.
+            long lock = Math.round(SkillValues.get("e_longrange", "seatlock", 400));
+            record.hpLost = 0f;
+            record.seatLockedUntil = level.getGameTime() + lock;
             level.sendParticles(ParticleTypes.LARGE_SMOKE, c.x, c.y + 0.9, c.z, 14, 0.3, 0.2, 0.3, 0.02);
             playAt(level, seat.pos, SoundEvents.ANVIL_BREAK, 0.8f, 1.2f);
             service.release(level.getServer(), seat);
             actionBar(player, Component.translatable("nightsiege.msg.tower_wrecked",
-                    Component.translatable("block.nightsiege." + record.kind)));
+                    Component.translatable("block.nightsiege." + record.kind), lock / 20));
         } else {
             actionBar(player, Component.translatable("nightsiege.msg.tower_health",
                     String.format(java.util.Locale.ROOT, "%.0f", now), String.format(java.util.Locale.ROOT, "%.0f", max)));
@@ -1392,8 +1386,10 @@ public final class TrapService {
             }
             return true;
         }
-        if (record.broken) {
-            actionBar(player, Component.translatable("nightsiege.msg.tower_broken"));
+        long lockLeft = record.seatLockedUntil - level.getGameTime();
+        if (lockLeft > 0) {
+            actionBar(player, Component.translatable("nightsiege.msg.tower_recovering",
+                    Component.translatable("block.nightsiege." + record.kind), (lockLeft + 19) / 20));
             return true;
         }
         BlockPos above = pos.above();
@@ -1506,7 +1502,7 @@ public final class TrapService {
             Entity stand = level == null ? null : level.getEntity(seat.stand);
             TrapRecord record = level == null ? null : find(level, seat.pos);
             if (level == null || player == null || stand == null || !player.isAlive() || player.getVehicle() != stand
-                    || record == null || record.broken || ModContent.trapOf(level.getBlockState(seat.pos)) != seat.kind) {
+                    || record == null || ModContent.trapOf(level.getBlockState(seat.pos)) != seat.kind) {
                 release(server, seat);
                 continue;
             }
@@ -1524,8 +1520,7 @@ public final class TrapService {
             }
             if (seat.holding && now >= seat.readyAt && !canFire(record)) {
                 seat.readyAt = now + 20;
-                actionBar(player, Component.translatable(record.broken ? "nightsiege.msg.tower_needs_repair"
-                        : "nightsiege.msg.tower_needs_reload"));
+                actionBar(player, Component.translatable("nightsiege.msg.tower_needs_reload"));
             } else if (seat.holding && now >= seat.readyAt) {
                 int tier = tierOf(record);
                 if (seat.kind == TrapKind.TURRET) {
@@ -2141,7 +2136,7 @@ public final class TrapService {
             return;
         }
         // The right click (Simon, 27 October 2026): always the tower menu – the state of every
-        // tower and trap, reload and repair them with a code there.
+        // tower and trap, reload and strengthen them with a code there.
         if (!second) {
             openTowerMenu(player, true);
             return;
@@ -2174,10 +2169,6 @@ public final class TrapService {
                 return;
             }
             TrapKind kind = TrapKind.byId(record.kind);
-            if (record.broken) {
-                actionBar(player, Component.translatable("nightsiege.msg.tower_needs_repair"));
-                return;
-            }
             if (usesAmmo(kind) && record.ammo <= 0) {
                 actionBar(player, Component.translatable("nightsiege.msg.tower_needs_reload"));
                 return;
@@ -2266,24 +2257,16 @@ public final class TrapService {
         return (int) Math.round(shots);
     }
 
-    /** True when the tower may fire: not broken, not empty, not in the middle of a repair. */
+    /** True when the tower may fire: not empty, not in the middle of a reload or strengthening. */
     boolean canFire(TrapRecord record) {
         TrapKind kind = TrapKind.byId(record.kind);
-        if (kind == null || record.broken || fixes.containsKey(key(record))) {
+        if (kind == null || fixes.containsKey(key(record))) {
             return false;
         }
         return !usesAmmo(kind) || record.ammo > 0;
     }
 
-    /** Chance of a tower to break when it fires: 5 %, less with fine mechanics. */
-    private double towerBreakChance(TrapRecord record) {
-        TrapKind kind = TrapKind.byId(record.kind);
-        double chance = SkillValues.get(kind == null ? "arrow_turret" : kind.id(), "breakchance", 0.03);
-        double fine = Math.min(0.9, bonus(record, SkillEffect.TRAP_DURABILITY));
-        return chance * (1.0 - fine);
-    }
-
-    /** One shot of a tower: a round out of the magazine, then the chance to break. */
+    /** One shot of a tower: a round out of the magazine (towers no longer break, 27 October 2026). */
     void afterShot(ServerLevel level, BlockPos pos, TrapRecord record) {
         TrapKind kind = TrapKind.byId(record.kind);
         if (kind == null || !kind.isTower()) {
@@ -2298,12 +2281,6 @@ public final class TrapService {
                 playAt(level, pos, SoundEvents.DISPENSER_FAIL, 0.9f, 0.8f);
                 tellOwner(level, record, "nightsiege.msg.tower_empty", kind, pos);
             }
-        }
-        if (!record.broken && level.getRandom().nextDouble() < towerBreakChance(record)) {
-            record.broken = true;
-            level.sendParticles(ParticleTypes.LARGE_SMOKE, pos.getX() + 0.5, pos.getY() + 0.9, pos.getZ() + 0.5, 12, 0.3, 0.2, 0.3, 0.02);
-            playAt(level, pos, SoundEvents.ANVIL_BREAK, 0.6f, 1.4f);
-            tellOwner(level, record, "nightsiege.msg.tower_broken", kind, pos);
         }
     }
 
@@ -2333,14 +2310,15 @@ public final class TrapService {
             }
         }
         fixes.clear();
+        strengthenedUntil.clear();
         dirty = true;
     }
 
     /** A repair or reload under way: who does it, when it is done, and what. */
-    private record Fix(UUID player, long doneAt, boolean repair, boolean golem) {
+    private record Fix(UUID player, long doneAt, boolean buff, boolean golem) {
     }
 
-    /** Trap key → its repair or reload under way. */
+    /** Trap key → its reload or strengthening under way. */
     private final Map<String, Fix> fixes = new HashMap<>();
 
     /** Ticks a repair or reload takes once the code is in (3 s). */
@@ -2348,24 +2326,21 @@ public final class TrapService {
         return Math.round(SkillValues.get("e_longrange", "fixtime", 60));
     }
 
-    /** What a trap needs: "repair", "reload" or "" (nothing). */
+    /** What a trap needs: "reload" or "" (nothing). */
     private String needOf(TrapRecord record) {
         TrapKind kind = TrapKind.byId(record.kind);
         if (kind == null) {
             return "";
         }
-        if (record.broken) {
-            return "repair";
-        }
         if (kind.isFloorPlate()) {
-            return record.uses < fullUses(kind, tierOf(record), record) ? "repair" : "";
+            return record.uses < fullUses(kind, tierOf(record), record) ? "reload" : "";
         }
         return usesAmmo(kind) && record.ammo < magazine(record) ? "reload" : "";
     }
 
     /**
      * The demolition expert's bird's-eye view reaches every own tower within its radius
-     * (Simon, 27 October 2026: reload and repair from the binoculars too).
+     * (Simon, 27 October 2026: reload and strengthen from the binoculars too).
      */
     private boolean spotterReaches(ServerLevel level, ServerPlayer player, BlockPos pos) {
         if (!SpotterChunks.isOpen(player)) {
@@ -2398,7 +2373,9 @@ public final class TrapService {
         data.range = (int) Math.round(remoteRange(skills));
         data.fixSeconds = (int) Math.round(fixTicks() / 20.0);
         data.reloadArrows = (int) Math.round(SkillValues.get("e_longrange", "reloadcode", 4));
-        data.repairArrows = (int) Math.round(SkillValues.get("e_longrange", "repaircode", 6));
+        data.buffArrows = (int) Math.round(SkillValues.get("e_longrange", "buffcode", 5));
+        data.buffPercent = (int) Math.round((SkillValues.get("e_longrange", "buffpower", 1.5) - 1.0) * 100.0);
+        data.buffSeconds = (int) Math.round(SkillValues.get("e_longrange", "bufftime", 400) / 20.0);
         data.golem = CrateEffects.gainLevel(player, "kupfergolem") > 0;
         data.golemMax = (int) Math.round(SkillValues.get("e_longrange", "golemtowers", 2));
         String owner = player.getUUID().toString();
@@ -2419,7 +2396,6 @@ public final class TrapService {
             row.dist = (int) Math.round(d);
             row.inRange = d <= reach + 0.5 || player.getAbilities().instabuild
                     || spotterReaches(level, player, new BlockPos(record.x, record.y, record.z));
-            row.broken = record.broken;
             row.mag = magazine(record);
             row.ammo = Math.min(record.ammo, row.mag);
             if (kind.isFloorPlate()) {
@@ -2430,6 +2406,9 @@ public final class TrapService {
             row.working = fix == null ? 0 : (int) Math.max(1, fix.doneAt() - now);
             row.golem = record.golem;
             row.need = needOf(record);
+            row.tower = kind.isTower();
+            Long strong = strengthenedUntil.get(key(record));
+            row.buffed = strong == null ? 0 : (int) Math.max(0, strong - now);
             data.rows.add(row);
         }
         data.rows.sort(Comparator.comparingInt((com.mki.nightsiege.core.TowerMenuData.Row r) -> r.need.isEmpty() ? 1 : 0)
@@ -2438,7 +2417,10 @@ public final class TrapService {
                 new CoreNetworking.ScreenPayload("towers", Json.toJson(data)));
     }
 
-    /** From the tower menu: "fix:x:y:z" (the code was right) or "golem:x:y:z" (the golem's two towers). */
+    /**
+     * From the tower menu: "fix:x:y:z" (reload, the code was right), "buff:x:y:z" (strengthen a
+     * tower, the code was right) or "golem:x:y:z" (the golem's two towers).
+     */
     public void onTowerAction(ServerPlayer player, String argument) {
         if (!(player.level() instanceof ServerLevel level)) {
             return;
@@ -2481,32 +2463,71 @@ public final class TrapService {
             openTowerMenu(player, false);
             return;
         }
-        if (!"fix".equals(parts[0])) {
-            return;
-        }
-        String need = needOf(record);
-        double d = Math.sqrt(player.distanceToSqr(Vec3.atCenterOf(pos)));
-        boolean reached = d <= remoteRange(skills) + 0.5 || creative || spotterReaches(level, player, pos);
-        if (need.isEmpty() || fixes.containsKey(key(record)) || !reached) {
-            openTowerMenu(player, false);
+        boolean buff = "buff".equals(parts[0]);
+        if (!buff && !"fix".equals(parts[0])) {
             return;
         }
         long now = level.getGameTime();
+        double d = Math.sqrt(player.distanceToSqr(Vec3.atCenterOf(pos)));
+        boolean able = buff ? canStrengthen(record, now) : !needOf(record).isEmpty();
+        boolean reached = d <= remoteRange(skills) + 0.5 || creative || spotterReaches(level, player, pos);
+        if (!able || fixes.containsKey(key(record)) || !reached) {
+            openTowerMenu(player, false);
+            return;
+        }
         long ticks = gainOf(record, "werkzeugtasche") > 0 ? Math.round(fixTicks() * 0.6) : fixTicks();
-        fixes.put(key(record), new Fix(player.getUUID(), now + (creative ? 10 : ticks), "repair".equals(need), false));
-        playAt(level, pos, SoundEvents.SMITHING_TABLE_USE, 0.8f, 1.2f);
-        actionBar(player, Component.translatable("repair".equals(need) ? "nightsiege.msg.tower_repairing"
-                : "nightsiege.msg.tower_reloading", Component.translatable("block.nightsiege." + record.kind), ticks / 20));
+        fixes.put(key(record), new Fix(player.getUUID(), now + (creative ? 10 : ticks), buff, false));
+        playAt(level, pos, buff ? SoundEvents.BEACON_POWER_SELECT : SoundEvents.SMITHING_TABLE_USE, 0.8f, 1.2f);
+        actionBar(player, Component.translatable(buff ? "nightsiege.msg.tower_buffing" : "nightsiege.msg.tower_reloading",
+                Component.translatable("block.nightsiege." + record.kind), Math.max(1, ticks / 20)));
         openTowerMenu(player, false);
     }
 
-    /** The copper golem starts work on a tower (it stands there for the same 3 s). True when it did. */
+    /**
+     * A tower can be strengthened (Simon, 27 October 2026, instead of repairs) when it is not
+     * empty and not strengthened already; in the last 5 s of a strengthening it can be renewed.
+     */
+    private boolean canStrengthen(TrapRecord record, long now) {
+        TrapKind kind = TrapKind.byId(record.kind);
+        if (kind == null || !kind.isTower() || (usesAmmo(kind) && record.ammo <= 0)) {
+            return false;
+        }
+        Long until = strengthenedUntil.get(key(record));
+        return until == null || until - now <= 100;
+    }
+
+    /** For the tests: true while the tower is strengthened from the menu. */
+    public boolean strengthenedForTest(TrapRecord record) {
+        Long until = strengthenedUntil.get(key(record));
+        return until != null;
+    }
+
+    /** Damage factor of a tower strengthened in the menu (×1.5); 1 otherwise. */
+    private double strengthened(TrapRecord record, long now) {
+        Long until = strengthenedUntil.get(key(record));
+        if (until == null) {
+            return 1.0;
+        }
+        if (now > until) {
+            strengthenedUntil.remove(key(record));
+            return 1.0;
+        }
+        return SkillValues.get("e_longrange", "buffpower", 1.5);
+    }
+
+    /** Ticks a strengthening lasts: 20 s, longer with fine mechanics (the same share as the floor traps). */
+    private long strengthenTicks(TrapRecord record) {
+        double base = SkillValues.get("e_longrange", "bufftime", 400);
+        return Math.round(base * (1.0 + Math.max(0.0, bonus(record, SkillEffect.TRAP_DURABILITY))));
+    }
+
+    /** The copper golem starts a reload on a tower (it stands there for the same 3 s). True when it did. */
     public boolean startGolemFix(ServerLevel level, BlockPos pos, UUID golem) {
         TrapRecord record = find(level, pos);
         if (record == null || needOf(record).isEmpty() || fixes.containsKey(key(record))) {
             return false;
         }
-        fixes.put(key(record), new Fix(golem, level.getGameTime() + fixTicks(), "repair".equals(needOf(record)), true));
+        fixes.put(key(record), new Fix(golem, level.getGameTime() + fixTicks(), false, true));
         playAt(level, pos, SoundEvents.SMITHING_TABLE_USE, 0.8f, 1.4f);
         return true;
     }
@@ -2518,7 +2539,7 @@ public final class TrapService {
         for (TrapRecord record : traps()) {
             if (record.golem && owner.equals(record.owner) && dim.equals(record.dimension)
                     && !needOf(record).isEmpty() && !fixes.containsKey(key(record))
-                    && (record.broken || record.ammo <= Math.max(1, magazine(record) / 4))) {
+                    && record.ammo <= Math.max(1, magazine(record) / 4)) {
                 out.add(new BlockPos(record.x, record.y, record.z));
             }
         }
@@ -2534,6 +2555,21 @@ public final class TrapService {
 
     /** Every tick: fixes that are done; sparks on the towers under work. */
     private void tickFixes(MinecraftServer server) {
+        if (!strengthenedUntil.isEmpty() && server.overworld().getGameTime() % 10 == 0) {
+            // Strengthened towers glow with sparks while it lasts.
+            for (TrapRecord record : traps()) {
+                Long until = strengthenedUntil.get(key(record));
+                ServerLevel level = until == null ? null : SiegeManager.levelByName(server, record.dimension);
+                if (level == null) {
+                    continue;
+                }
+                if (level.getGameTime() > until) {
+                    strengthenedUntil.remove(key(record));
+                    continue;
+                }
+                level.sendParticles(ParticleTypes.ELECTRIC_SPARK, record.x + 0.5, record.y + 1.2, record.z + 0.5, 3, 0.35, 0.4, 0.35, 0.02);
+            }
+        }
         if (fixes.isEmpty()) {
             return;
         }
@@ -2549,7 +2585,8 @@ public final class TrapService {
             long now = level.getGameTime();
             BlockPos pos = new BlockPos(record.x, record.y, record.z);
             if (now % 5 == 0) {
-                level.sendParticles(ParticleTypes.WAX_ON, pos.getX() + 0.5, pos.getY() + 1.0, pos.getZ() + 0.5, 3, 0.3, 0.3, 0.3, 0.0);
+                level.sendParticles(fix.buff() ? ParticleTypes.ELECTRIC_SPARK : ParticleTypes.WAX_ON,
+                        pos.getX() + 0.5, pos.getY() + 1.0, pos.getZ() + 0.5, 3, 0.3, 0.3, 0.3, 0.0);
                 if (now % 15 == 0) {
                     playAt(level, pos, SoundEvents.ANVIL_USE, 0.35f, 1.6f);
                 }
@@ -2563,23 +2600,31 @@ public final class TrapService {
                 continue;
             }
             record.broken = false;
-            if (fix.repair()) {
-                record.hpLost = 0f;   // a repair mends the tower's health as well
-            }
-            if (kind.isFloorPlate()) {
+            if (fix.buff()) {
+                // Strengthened (Simon, 27 October 2026, instead of repairs): +50 % damage for 20 s;
+                // it also mends the tower's health for its gunner and charges the tower shield.
+                long length = strengthenTicks(record);
+                strengthenedUntil.put(key(record), now + length);
+                record.hpLost = 0f;
+                record.shield = shieldMax(record);
+            } else if (kind.isFloorPlate()) {
                 record.uses = fullUses(kind, tierOf(record), record);
             } else {
-                record.ammo = magazine(record);   // a repair fills the tower too
+                record.ammo = magazine(record);
                 record.shield = shieldMax(record);
             }
             record.readyAt = now;
             dirty = true;
-            level.sendParticles(ParticleTypes.HAPPY_VILLAGER, pos.getX() + 0.5, pos.getY() + 1.1, pos.getZ() + 0.5, 10, 0.3, 0.3, 0.3, 0.0);
-            playAt(level, pos, SoundEvents.CHAIN_PLACE, 0.9f, 1.4f);
+            level.sendParticles(fix.buff() ? ParticleTypes.ELECTRIC_SPARK : ParticleTypes.HAPPY_VILLAGER,
+                    pos.getX() + 0.5, pos.getY() + 1.1, pos.getZ() + 0.5, fix.buff() ? 24 : 10, 0.3, 0.3, 0.3, 0.0);
+            playAt(level, pos, fix.buff() ? SoundEvents.BEACON_ACTIVATE : SoundEvents.CHAIN_PLACE, 0.9f, 1.4f);
             ServerPlayer worker = server.getPlayerList().getPlayer(fix.player());
             if (worker != null) {
-                actionBar(worker, Component.translatable(fix.repair() ? "nightsiege.msg.tower_repaired" : "nightsiege.msg.tower_reloaded",
-                        Component.translatable("block.nightsiege." + kind.id())));
+                actionBar(worker, fix.buff()
+                        ? Component.translatable("nightsiege.msg.tower_buffed", Component.translatable("block.nightsiege." + kind.id()),
+                                (int) Math.round((SkillValues.get("e_longrange", "buffpower", 1.5) - 1.0) * 100.0),
+                                strengthenTicks(record) / 20)
+                        : Component.translatable("nightsiege.msg.tower_reloaded", Component.translatable("block.nightsiege." + kind.id())));
             }
             ServerPlayer owner = ownerOf(level, record);
             if (owner != null && fix.golem()) {
@@ -3024,13 +3069,17 @@ public final class TrapService {
         return overcharged(record, now) * gain;
     }
 
-    /** The remote's overcharge on one trap: ×2, with overvolt ×3; 1 when it is not overcharged. */
+    /**
+     * The remote's overcharge on one trap: ×2, with overvolt ×3; 1 when it is not overcharged.
+     * The strengthening from the tower menu (×1.5) comes on top.
+     */
     private double overcharged(TrapRecord record, long now) {
+        double menu = strengthened(record, now);
         if (!boosted(record, now)) {
-            return 1.0;
+            return menu;
         }
-        return bonus(record, SkillEffect.OVERVOLT) > 0 ? SkillValues.get("e_overvolt", "power", 3.0)
-                : SkillValues.get("e_overvolt", "base", 2.0);
+        return menu * (bonus(record, SkillEffect.OVERVOLT) > 0 ? SkillValues.get("e_overvolt", "power", 3.0)
+                : SkillValues.get("e_overvolt", "base", 2.0));
     }
 
     /** True while the owner's ultimate overcharge runs (arrow turrets and tesla coils fire faster). */
@@ -3291,28 +3340,6 @@ public final class TrapService {
             }
         }
         return true;
-    }
-
-    /**
-     * A floor trap that just sprang breaks with a small chance (Simon, 26 October 2026: 5 %).
-     * It stays in place, marked with red smoke, and does nothing until the engineer repairs it
-     * (X with the remote, or the copper golem). The owner is told where it is.
-     */
-    private void maybeBreak(ServerLevel level, BlockPos pos, TrapRecord record, TrapKind kind) {
-        if (record.broken || record.uses <= 0 || level.getRandom().nextDouble() >= SkillValues.get(kind.id(), "breakchance", 0.05)) {
-            return;
-        }
-        record.broken = true;
-        dirty = true;
-        level.sendParticles(ParticleTypes.LARGE_SMOKE, pos.getX() + 0.5, pos.getY() + 0.8, pos.getZ() + 0.5, 12, 0.3, 0.2, 0.3, 0.02);
-        playAt(level, pos, SoundEvents.ANVIL_BREAK, 0.6f, 1.4f);
-        ServerPlayer owner = ownerOf(level, record);
-        if (owner != null) {
-            owner.sendSystemMessage(Component.translatable("nightsiege.msg.trap_broken",
-                    Component.translatable("block.nightsiege." + kind.id()), pos.getX(), pos.getY(), pos.getZ())
-                    .withStyle(net.minecraft.ChatFormatting.RED));
-            owner.level().playSound(null, owner.blockPosition(), SoundEvents.ANVIL_BREAK, SoundSource.PLAYERS, 0.5f, 1.6f);
-        }
     }
 
     private void wearOut(ServerLevel level, BlockPos pos, TrapRecord record) {

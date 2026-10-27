@@ -23,8 +23,10 @@ final class SkillValuesWarrior {
         def("w_combo", "killheal", 0.12);      // share of the slain monster's life (Simon 26.10.: 0.15 -> 0.06; 27.10.: more again, 0.12)
         def("bloodlust", "below", 1.01);       // life share below which hits heal (always since 26 October 2026, Simon)
         def("bloodlust", "steal", 0.12);       // share of the damage healed (was config berserkerLifesteal)
-        def("bloodlust", "splash", 0.15);      // Simon 26.10.: share of the hit on monsters around the target ...
-        def("bloodlust", "splashlow", 0.15);   // ... plus up to this much more at 0 life (linear with the life lost)
+        // Simon 26.10.: share of the hit on monsters around the target, plus up to splashlow more at 0 life
+        // (linear with the life lost); 27.10. (DPS bench): 0.15/0.15 -> 0.11/0.11, 15 % less against groups.
+        def("bloodlust", "splash", 0.11);
+        def("bloodlust", "splashlow", 0.11);
         def("bloodlust", "radius", 2.5);       // blocks around the target
         def("keen_edge", "crit", 0.5);         // extra damage of a critical hit
         def("w_precision", "chance", 0.10);    // own crit chance (Präzision and Scharfe Klinge are one choice)

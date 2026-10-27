@@ -113,24 +113,23 @@ final class SkillValuesEngineer {
         def("spike_trap", "overcharge", 30);
         def("snare_trap", "overcharge", 30);
         def("flame_trap", "overcharge", 30);
-        // Tower upkeep (Simon, 27 October 2026): magazines of about 90 s, 3 % wear per shot
-        // (first 20 s / 5 %, Simon 12:06: 90 s and 3 %), reload and repair with a code in the
-        // remote's tower menu.
+        // Tower upkeep (Simon, 27 October 2026): magazines of about 90 s, reloaded with a code in
+        // the remote's tower menu. Towers and traps no longer break (Simon 19:15: "breaking and
+        // repairing goes"); instead the engineer strengthens his towers there with a code.
         for (TrapKind tower : new TrapKind[] {TrapKind.TURRET, TrapKind.MORTAR, TrapKind.BREWER, TrapKind.TESLA}) {
-            def(tower.id(), "breakchance", 0.03);                          // chance to break each time it fires
             def(tower.id(), "seathealth", 3.0);                            // tower health for its gunner: × the player's
             if (tower != TrapKind.TESLA) {
                 def(tower.id(), "magseconds", 90);                         // seconds of its own fire in a full magazine
             }
         }
-        def("e_longrange", "fixtime", 60);                               // ticks a reload or repair takes after the code
+        def("e_longrange", "fixtime", 60);                               // ticks a reload or strengthening takes after the code
         def("e_longrange", "reloadcode", 4);                             // arrows of a reload code
-        def("e_longrange", "repaircode", 6);                             // arrows of a repair code
+        def("e_longrange", "buffcode", 5);                               // arrows of a strengthening code
+        def("e_longrange", "buffpower", 1.5);                            // damage factor of a strengthened tower
+        def("e_longrange", "bufftime", 400);                             // ticks it stays strengthened
+        def("e_longrange", "seatlock", 400);                             // ticks a tower overrun under its gunner takes nobody
         def("e_longrange", "golemtowers", 2);                            // towers the copper golem looks after
         def("e_longrange", "shield", 20);                                // shots the tower shield (crate gain) blocks
-        def("spike_trap", "breakchance", 0.05);                         // chance to break when it springs (Simon, 26 Oct)
-        def("snare_trap", "breakchance", 0.05);
-        def("flame_trap", "breakchance", 0.05);
 
         // ----- trunk
         def("e_battery", "base", 100);                                   // energy of the remote without skills

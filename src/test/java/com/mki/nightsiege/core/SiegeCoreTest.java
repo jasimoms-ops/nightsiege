@@ -237,18 +237,26 @@ class SiegeCoreTest {
     void theShieldFighterGotStronger() {
         SiegeConfig fresh = new SiegeConfig();
         fresh.sanitize();
-        assertEquals(1.25, fresh.subclassDamage.get("shieldfighter"), 1e-9);
+        // 1.25 since 25.10., -30 % since the DPS bench of 27.10.
+        assertEquals(0.875, fresh.subclassDamage.get("shieldfighter"), 1e-9);
+        // Simon 27.10. (DPS bench, level 10): tamer +20 %, bolt archer -40 %, bulwark -15 %, paladin -10 %, medic heals 20 % more.
+        assertEquals(1.2, fresh.subclassDamage.get("tamer"), 1e-9);
+        assertEquals(0.6, fresh.subclassDamage.get("bolter"), 1e-9);
+        assertEquals(0.85, fresh.subclassDamage.get("bulwark"), 1e-9);
+        assertEquals(0.9, fresh.subclassDamage.get("paladin"), 1e-9);
+        assertEquals(1.2, fresh.healingFactor("medic"), 1e-9);
+        assertEquals(1.0, fresh.healingFactor("warden"), 1e-9);
         // Simon 26.10.: the shield fighter takes as much as anyone, the bulwark 35 % less, the alchemist hits 15 % harder.
         assertEquals(1.0, fresh.subclassDamageTaken.get("shieldfighter"), 1e-9);
         assertEquals(0.65, fresh.subclassDamageTaken.get("bulwark"), 1e-9);
         assertEquals(1.15, fresh.subclassDamage.get("alchemist"), 1e-9);
         assertTrue(fresh.damageTakenFactor("guardian", "shieldfighter") >= fresh.damageTakenFactor("guardian", "bulwark") / 0.7 - 1e-9);
-        // A server that tuned the shield fighter itself keeps its own value.
+        // A server that tuned the shield fighter itself keeps its own value (only the -30 % of 27.10. on top).
         SiegeConfig tuned = new SiegeConfig();
         tuned.settingsVersion = 5;
         tuned.subclassDamage.put("shieldfighter", 1.5);
         tuned.sanitize();
-        assertEquals(1.5, tuned.subclassDamage.get("shieldfighter"), 1e-9);
+        assertEquals(1.05, tuned.subclassDamage.get("shieldfighter"), 1e-9);
         assertEquals(2.5, new SkillTree().get("riposte").amountPerLevel(), 1e-9);
     }
 
@@ -1694,7 +1702,7 @@ class SiegeCoreTest {
         old.sanitize();
         assertTrue(old.dungeonsEnabled);
         assertFalse(old.bloodMoonGlow);
-        assertEquals(12, old.settingsVersion);
+        assertEquals(13, old.settingsVersion);
         assertEquals(SiegeConfig.CURRENT_DUNGEON_LIST, old.dungeonListVersion);
         assertTrue(old.dungeons.stream().allMatch(t -> t.structure.startsWith("nova_structures:")));
         // Switched off again by hand, it stays off.
@@ -1950,7 +1958,7 @@ class SiegeCoreTest {
         old.settingsVersion = 7;
         old.sanitize();
         assertTrue(old.summonerForEveryone, "older configs open it once");
-        assertEquals(12, old.settingsVersion);
+        assertEquals(13, old.settingsVersion);
         // Both subclasses of the way of the wild can be learned to the end.
         java.util.Map<String, String> subs = java.util.Map.of("s_tamer", SkillTree.SUB_TAMER, "s_golemsmith", SkillTree.SUB_GOLEMSMITH,
                 "d_necro", SkillTree.SUB_NECROMANCER, "d_soulcatcher", SkillTree.SUB_SOULCATCHER);
@@ -2112,7 +2120,7 @@ class SiegeCoreTest {
         old.effectMobReplacements.put("minecraft:wither_skeleton", "minecraft:vindicator");
         old.effectMobReplacements.put("friendsandfoes:iceologer", "minecraft:vindicator");
         old.sanitize();
-        assertEquals(12, old.settingsVersion);
+        assertEquals(13, old.settingsVersion);
         assertEquals(1.25, old.subclassDamage.get("heavy"), 1e-9);
         assertEquals("minecraft:skeleton", old.effectMobReplacements.get("minecraft:wither_skeleton"));
         assertEquals("minecraft:pillager", old.effectMobReplacements.get("friendsandfoes:iceologer"));

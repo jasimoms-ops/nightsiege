@@ -159,7 +159,7 @@ public class SpotterScreen extends Screen {
             }
         }
         out.sort(java.util.Comparator.comparingInt((com.mki.nightsiege.core.TowerMenuData.Row r) -> workingLeft(r) > 0 ? 1 : 0)
-                .thenComparingInt(r -> "repair".equals(r.need) ? 0 : 1));
+                .thenComparingInt(r -> r.mag > 0 && r.ammo <= 0 ? 0 : 1));
         return out;
     }
 
@@ -177,7 +177,7 @@ public class SpotterScreen extends Screen {
             return;
         }
         coding = r;
-        int n = "repair".equals(r.need) ? towers.repairArrows : towers.reloadArrows;
+        int n = towers.reloadArrows;
         code = new int[Math.max(1, n)];
         for (int i = 0; i < code.length; i++) {
             code[i] = random.nextInt(4);
@@ -359,7 +359,7 @@ public class SpotterScreen extends Screen {
         return true;
     }
 
-    /** Towers that need work get a column of coloured dust: red broken, amber empty, white at work. */
+    /** Towers that need work get a column of coloured dust: red empty, amber half empty, white at work. */
     private void markTowers(Minecraft client) {
         if (towers == null || client.level == null || ticks % 4 != 0) {
             return;
@@ -369,7 +369,7 @@ public class SpotterScreen extends Screen {
             if (r.need.isEmpty() && !working) {
                 continue;
             }
-            int color = working ? 0xFFFFFF : "repair".equals(r.need) ? 0xFF3030 : 0xFFB347;
+            int color = working ? 0xFFFFFF : r.mag > 0 && r.ammo <= 0 ? 0xFF3030 : 0xFFB347;
             boolean picked = coding != null && rowKey(coding).equals(rowKey(r));
             for (int i = 0; i < (picked ? 6 : 3); i++) {
                 client.level.addParticle(new DustParticleOptions(color, picked ? 2.2f : 1.6f),
@@ -723,7 +723,7 @@ public class SpotterScreen extends Screen {
     }
 
     // ------------------------------------------------------------------
-    // maintenance (Simon, 27 October 2026: reload and repair from the binoculars)
+    // maintenance (Simon, 27 October 2026: reload from the binoculars; nothing breaks any more)
     // ------------------------------------------------------------------
 
     private int serviceW() {
@@ -774,9 +774,11 @@ public class SpotterScreen extends Screen {
             if (work > 0) {
                 state = Component.translatable("nightsiege.towers.working", (work + 19) / 20).getString();
                 color = LIGHT;
-            } else if ("repair".equals(r.need)) {
-                state = r.broken ? Component.translatable("nightsiege.towers.broken").getString()
-                        : Component.translatable("nightsiege.towers.wear", r.uses, r.fullUses).getString();
+            } else if (r.mag <= 0) {
+                state = Component.translatable("nightsiege.towers.wear", r.uses, r.fullUses).getString();
+                color = 0xFFFFB347;
+            } else if (r.ammo <= 0) {
+                state = Component.translatable("nightsiege.towers.ammo", r.ammo, r.mag).getString();
                 color = RED;
             } else {
                 state = Component.translatable("nightsiege.towers.ammo", r.ammo, r.mag).getString();
@@ -792,8 +794,8 @@ public class SpotterScreen extends Screen {
 
         // The code, in the middle of the screen above the fire bar.
         if (coding != null && code.length > 0) {
-            String what = Component.translatable("repair".equals(coding.need) ? "nightsiege.towers.code_repair"
-                    : "nightsiege.towers.code_reload", Component.translatable("block.nightsiege." + coding.kind)).getString();
+            String what = Component.translatable("nightsiege.towers.code_reload",
+                    Component.translatable("block.nightsiege." + coding.kind)).getString();
             int box = 22;
             int gap = 4;
             int total = code.length * box + (code.length - 1) * gap;

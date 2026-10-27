@@ -437,12 +437,15 @@ public class SiegeConfig {
     /** Short guide written into the config file. */
     public String tuningHelp = "classDamage/subclassDamage: Faktor auf den Schaden, den Spieler dieser Klasse/Unterklasse an Monstern machen. "
             + "classDamageTaken/subclassDamageTaken: Faktor auf den Schaden, den sie von Monstern bekommen. "
+            + "subclassHealing: Faktor auf Heilung und Barrieren, die Spieler dieser Unterklasse geben. "
             + "skillTweaks: je Skill-ID amount (Wert je Stufe), cost (Grundkosten), costStep (Aufschlag je Stufe), maxLevel. "
             + "Aendern, speichern, dann /nightsiege reload - gilt sofort, ohne neue Mod-Version.";
     public Map<String, Double> classDamage = new LinkedHashMap<>();
     public Map<String, Double> classDamageTaken = new LinkedHashMap<>();
     public Map<String, Double> subclassDamage = new LinkedHashMap<>();
     public Map<String, Double> subclassDamageTaken = new LinkedHashMap<>();
+    /** Factor on the healing and barriers players of this subclass give (Simon 27.10.: the medic 3.8/s). */
+    public Map<String, Double> subclassHealing = new LinkedHashMap<>();
     /** Per skill id: new values for its amount per level, base cost, cost step or highest level. */
     public Map<String, SkillTweak> skillTweaks = new LinkedHashMap<>();
 
@@ -464,6 +467,11 @@ public class SiegeConfig {
     /** Factor on the damage a player of this class and subclass deals to monsters. */
     public double damageFactor(String clazz, String subclass) {
         return factor(classDamage, clazz) * factor(subclassDamage, subclass);
+    }
+
+    /** Factor on the healing and barriers a player of this subclass gives. */
+    public double healingFactor(String subclass) {
+        return factor(subclassHealing, subclass);
     }
 
     /** Factor on the damage a player of this class and subclass takes from monsters. */
@@ -489,6 +497,11 @@ public class SiegeConfig {
         }
         Double v = map.get(key.toLowerCase(java.util.Locale.ROOT));
         return v == null ? 1.0 : v;
+    }
+
+    private static void scale(Map<String, Double> map, String key, double by) {
+        double now = map.getOrDefault(key, 1.0);
+        map.put(key, Math.max(0.1, Math.min(5.0, Math.round(now * by * 1000.0) / 1000.0)));
     }
 
     private static Map<String, Double> filled(Map<String, Double> map, String[] keys) {
@@ -677,6 +690,7 @@ public class SiegeConfig {
         classDamageTaken = filled(classDamageTaken, CLASS_KEYS);
         subclassDamage = filled(subclassDamage, SUBCLASS_KEYS);
         subclassDamageTaken = filled(subclassDamageTaken, SUBCLASS_KEYS);
+        subclassHealing = filled(subclassHealing, SUBCLASS_KEYS);
         if (skillTweaks == null) {
             skillTweaks = new LinkedHashMap<>();
         }
@@ -798,6 +812,18 @@ public class SiegeConfig {
                 sapperFromLevel = 3;
             }
             settingsVersion = 12;
+        }
+        if (settingsVersion < 13) {
+            // Simon 27.10., DPS bench at level 10: the beast tamer +20 %, the bolt archer -40 %,
+            // the shield fighter -30 %, the bulwark -15 %, the paladin -10 %; the medic heals
+            // as much as the warden (3.8 per second instead of 3.1).
+            scale(subclassDamage, "tamer", 1.2);
+            scale(subclassDamage, "bolter", 0.6);
+            scale(subclassDamage, "shieldfighter", 0.7);
+            scale(subclassDamage, "bulwark", 0.85);
+            scale(subclassDamage, "paladin", 0.9);
+            scale(subclassHealing, "medic", 1.2);
+            settingsVersion = 13;
         }
         if (Double.isNaN(meleeLifesteal)) {
             meleeLifesteal = 0.08;
