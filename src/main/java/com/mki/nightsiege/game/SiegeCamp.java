@@ -397,7 +397,8 @@ public final class SiegeCamp {
         if (state.isAir() || state.hasBlockEntity()) {
             return false;
         }
-        if (state.is(BlockTags.FLOWERS) || state.is(BlockTags.SAPLINGS) || state.is(BlockTags.REPLACEABLE_BY_TREES)
+        if (state.is(tag("flowers")) || state.is(tag("small_flowers")) || state.is(tag("saplings"))
+                || state.is(tag("replaceable_by_trees")) || state.is(tag("sword_efficient"))
                 || state.is(Blocks.BROWN_MUSHROOM) || state.is(Blocks.RED_MUSHROOM) || state.is(Blocks.MOSS_CARPET)
                 || state.is(Blocks.SWEET_BERRY_BUSH)) {
             return true;
@@ -413,6 +414,14 @@ public final class SiegeCamp {
         }
         return state.getBlock().defaultDestroyTime() <= 0.2f;
     }
+
+    /** A vanilla block tag by its name (a missing one simply matches nothing). */
+    private static net.minecraft.tags.TagKey<Block> tag(String name) {
+        return TAGS.computeIfAbsent(name, n -> net.minecraft.tags.TagKey.create(net.minecraft.core.registries.Registries.BLOCK,
+                net.minecraft.resources.Identifier.withDefaultNamespace(n)));
+    }
+
+    private static final Map<String, net.minecraft.tags.TagKey<Block>> TAGS = new java.util.concurrent.ConcurrentHashMap<>();
 
     /** Ids of things without a collision box that people put down. */
     private static final String[] MADE = {"torch", "rail", "redstone", "repeater", "comparator", "button", "lever",
@@ -432,7 +441,7 @@ public final class SiegeCamp {
         }
         return state.canBeReplaced() || state.is(BlockTags.LOGS) || state.is(BlockTags.LEAVES) || state.is(BlockTags.DIRT)
                 || state.is(BlockTags.SAND) || state.is(BlockTags.BASE_STONE_OVERWORLD) || state.is(BlockTags.SNOW)
-                || state.is(BlockTags.TERRACOTTA) || state.is(BlockTags.ICE) || state.is(BlockTags.OVERWORLD_CARVER_REPLACEABLE)
+                || state.is(BlockTags.TERRACOTTA) || state.is(BlockTags.ICE) || state.is(tag("overworld_carver_replaceable"))
                 || state.is(Blocks.GRAVEL) || state.is(Blocks.CLAY)
                 || state.is(Blocks.SANDSTONE) || state.is(Blocks.RED_SANDSTONE) || state.is(Blocks.COAL_ORE)
                 || state.is(Blocks.IRON_ORE) || state.is(Blocks.COPPER_ORE) || state.is(Blocks.CACTUS)
