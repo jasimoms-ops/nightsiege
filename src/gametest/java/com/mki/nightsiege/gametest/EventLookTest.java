@@ -1454,6 +1454,25 @@ public class EventLookTest implements FabricClientGameTest {
         });
     }
 
+    /**
+     * A hill of stone for a dungeon (the test world is flat, its ground lies too low for the
+     * vaults): 27 wide, from the gatehouse to past the arena, grass on top, air above. Returns
+     * the height one walks on.
+     */
+    private static int hill(ClientGameTestContext context, TestSingleplayerContext game, int cx, int cz) {
+        int top = -36;
+        game.getServer().runCommand("forceload add %d %d %d %d".formatted(cx - 16, cz - 16, cx + 16, cz + 88));
+        context.waitTicks(30);
+        for (int z1 = cz - 14; z1 <= cz + 84; z1 += 40) {
+            int z2 = Math.min(cz + 84, z1 + 39);
+            game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:stone".formatted(cx - 13, -63, z1, cx + 13, top - 2, z2));
+            game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:grass_block".formatted(cx - 13, top - 1, z1, cx + 13, top - 1, z2));
+            game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(cx - 13, top, z1, cx + 13, top + 18, z2));
+        }
+        context.waitTicks(5);
+        return top;
+    }
+
     /** Hits every dungeon monster standing now with a deadly player blow. */
     private static void killDungeonMobs(ClientGameTestContext context, String label) {
         onServer(context, (player, manager) -> {
@@ -1529,7 +1548,7 @@ public class EventLookTest implements FabricClientGameTest {
         int[] floors = new int[kinds.length];
         for (int i = 0; i < kinds.length; i++) {
             int cx = bx + i * 44;
-            floors[i] = yard(context, game, cx, bz, 12, 18);
+            floors[i] = hill(context, game, cx, bz);
         }
         for (int i = 0; i < kinds.length; i++) {
             final int index = i;

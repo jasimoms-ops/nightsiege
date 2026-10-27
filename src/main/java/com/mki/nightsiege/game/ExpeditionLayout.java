@@ -183,9 +183,29 @@ public final class ExpeditionLayout {
                 b.put(x, h, z, b.part(edge ? Part.WALL : Part.CEILING));
             }
         }
-        // Lintel over the door, banners beside it, lights inside.
+        // Lintel over the door and a porch before it, banners beside it, lights inside.
         for (int x = -2; x <= 2; x++) {
             b.put(x, 3, -5, b.part(Part.PILLAR));
+            b.put(x, 4, -6, b.slab(SlabType.BOTTOM));
+        }
+        for (int y = 0; y <= 3; y++) {
+            b.put(-2, y, -6, b.part(Part.PILLAR));
+            b.put(2, y, -6, b.part(Part.PILLAR));
+        }
+        // Corner towers a little higher, window slits in the sides and the back.
+        for (int x : new int[] {-5, 5}) {
+            for (int z : new int[] {-5, 5}) {
+                b.put(x, h, z, b.part(Part.PILLAR));
+                b.put(x, h + 1, z, b.part(Part.PILLAR));
+                b.put(x, h + 2, z, b.slab(SlabType.BOTTOM));
+            }
+        }
+        for (int t : new int[] {-2, 2}) {
+            for (int y = 1; y <= Math.min(3, h - 2); y++) {
+                b.put(-5, y, t, Blocks.IRON_BARS.defaultBlockState());
+                b.put(5, y, t, Blocks.IRON_BARS.defaultBlockState());
+                b.put(t, y, 5, Blocks.IRON_BARS.defaultBlockState());
+            }
         }
         b.put(-3, 0, -7, b.banner(8));   // facing whoever comes from the core
         b.put(3, 0, -7, b.banner(8));

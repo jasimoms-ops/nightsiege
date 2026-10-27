@@ -466,6 +466,10 @@ public final class Expeditions {
 
     /** Levels the ground of the gatehouse and sets everything whose ground is loaded. */
     void build(ServerLevel level, SiegeSave.ExpeditionRecord rec, BlockPos origin) {
+        int lowest = level.getMinY() + 20;   // the vaults reach 18 below the gatehouse floor (flat worlds)
+        if (origin.getY() < lowest) {
+            origin = new BlockPos(origin.getX(), lowest, origin.getZ());
+        }
         rec.x = origin.getX();
         rec.y = origin.getY();
         rec.z = origin.getZ();
