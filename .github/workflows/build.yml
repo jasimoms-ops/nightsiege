@@ -253,6 +253,7 @@ jobs:
           fi
           timeout $CLIENT_TIMEOUT xvfb-run -a -s "-screen 0 1280x720x24" gradle runClientGameTest --no-daemon --stacktrace > client-output.txt 2>&1
           echo "exit=$?" >> client-output.txt
+          cp client-output.txt client-main-output.txt
           mkdir -p shots
           find . -path ./shots -prune -o -name "*.png" -path "*screenshot*" -newer build.gradle -print | while read f; do cp "$f" shots/; done
           # Zweiter Lauf mit Iris und Sodium: zuerst das eigene Pack, dann ein fremdes
@@ -271,7 +272,9 @@ jobs:
           noise = re.compile(r"(ALSA|flite|narrator|Narrator|Suppressed|Realms|SignedJWT|resource path|OpenAL|SoundSystem|Block-attached entity)")
           pat = re.compile(r"(ERROR|Exception|Caused by|Mixin|mixin|Failed|FAILED|nightsiege|Night Siege|gametest|GameTest|screenshot|passed|exit=|BUILD|Iris|Sodium|shader)", re.I)
           lines = [l.rstrip()[:300] for l in text.splitlines() if pat.search(l) and not noise.search(l)]
-          ok = text.count("exit=0") >= 1
+          # The first exit line is the main run's (the shader run is appended after it).
+          first = re.search(r"exit=(\d+)", text)
+          ok = bool(first) and first.group(1) == "0"
           print("::notice title=CLIENTTEST::%s" % ("bestanden" if ok else "FEHLGESCHLAGEN"))
           # GitHub shows at most 10 warnings per step: the focused ones (LADDER, SIM) come first,
           # the general client lines get what is left (and CLIENT-TAIL the last one).
@@ -339,6 +342,10 @@ jobs:
           cp dungeon-mods/*.jar "$TMP/dungeon-mods/" 2>/dev/null || true
           mkdir -p "$TMP/shots"
           cp shots/*.png "$TMP/shots/" 2>/dev/null || true
+          # Haupt-Protokoll des Client-Tests (ohne Mixin-Audit) fuer die Fehlersuche
+          if [ -f client-main-output.txt ]; then
+            grep -v "Force-loading class\|ALSA\|narrator" client-main-output.txt | tail -c 3000000 > "$TMP/client-main-log.txt" || true
+          fi
           # Shader-Protokoll (ohne Mixin-Audit) fuer die Fehlersuche
           if [ -f client-shader-output.txt ]; then
             grep -v "Force-loading class\|ALSA\|narrator" client-shader-output.txt | tail -c 2000000 > "$TMP/client-shader-log.txt" || true
@@ -358,6 +365,7 @@ jobs:
           if ls "$TMP/dungeon-mods/"*.jar > /dev/null 2>&1; then mkdir -p dist/dungeon-mods; cp "$TMP/dungeon-mods/"*.jar dist/dungeon-mods/; git add -f dist/dungeon-mods; fi
           if ls "$TMP/shots/"*.png > /dev/null 2>&1; then mkdir -p dist/shots; cp "$TMP/shots/"*.png dist/shots/; git add -f dist/shots; fi
           if [ -f "$TMP/client-shader-log.txt" ]; then cp "$TMP/client-shader-log.txt" dist/; git add -f dist/client-shader-log.txt; fi
+          if [ -f "$TMP/client-main-log.txt" ]; then cp "$TMP/client-main-log.txt" dist/; git add -f dist/client-main-log.txt; fi
           if [ -f "$TMP/sim-log.txt" ]; then cp "$TMP/sim-log.txt" dist/; git add -f dist/sim-log.txt; fi
           git commit -m "Build von ${GITHUB_SHA}"
           # main fills "dist"; a work branch (version-b, ...) its own "dist-<branch>",

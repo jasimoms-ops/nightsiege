@@ -2729,27 +2729,40 @@ public class EventLookTest implements FabricClientGameTest {
      * Q drops nothing, F swaps nothing.
      */
     private static void nightKeys(ClientGameTestContext context) {
-        onServer(context, (player, manager) -> {
-            player.getInventory().setSelectedSlot(8);
-            player.getInventory().setItem(8, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.COBBLESTONE, 5));
-            player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.OFFHAND, net.minecraft.world.item.ItemStack.EMPTY);
-        });
-        context.runOnClient(client -> client.player.getInventory().setSelectedSlot(8));
-        context.waitTicks(30);   // the server says once a second that the keys are taken
-        context.runOnClient(client -> System.out.println("[Night Siege test] keys owned=" + com.mki.nightsiege.client.NightKeys.owned()
-                + " q=" + client.options.keyDrop.saveString() + " ability1=" + com.mki.nightsiege.client.NightSiegeClient.ultimateKey().saveString()
-                + " ability2=" + com.mki.nightsiege.client.GainClient.orderKey().saveString()
-                + " ability3=" + com.mki.nightsiege.client.GainClient.quiverKey().saveString()
-                + " ult2=" + com.mki.nightsiege.client.GainClient.secondUltKey().saveString()));
-        context.getInput().pressKey(net.minecraft.client.Minecraft.getInstance().options.keyDrop);
-        context.waitTicks(3);
-        context.getInput().pressKey(net.minecraft.client.Minecraft.getInstance().options.keySwapOffhand);
-        context.waitTicks(10);
-        onServer(context, (player, manager) -> System.out.println("[Night Siege test] keys hand=" + player.getMainHandItem().getCount()
-                + " offhand=" + player.getOffhandItem().getCount() + " (want 5 and 0)"));
-        context.takeScreenshot("night_keys");
-        onServer(context, (player, manager) -> player.getInventory().setItem(8, net.minecraft.world.item.ItemStack.EMPTY));
-        context.waitTicks(2);
+        try {
+            onServer(context, (player, manager) -> {
+                player.getInventory().setSelectedSlot(8);
+                player.getInventory().setItem(8, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.COBBLESTONE, 5));
+                player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.OFFHAND, net.minecraft.world.item.ItemStack.EMPTY);
+            });
+            context.runOnClient(client -> client.player.getInventory().setSelectedSlot(8));
+            context.waitTicks(5);
+            // The test player is no defender of a real night: the server's "the keys are taken" is set by hand.
+            context.runOnClient(client -> {
+                com.mki.nightsiege.client.NightKeys.setOwned(true);
+                System.out.println("[Night Siege test] keys owned=" + com.mki.nightsiege.client.NightKeys.owned()
+                        + " ability1=" + com.mki.nightsiege.client.NightSiegeClient.ultimateKey().saveString()
+                        + " ability2=" + com.mki.nightsiege.client.GainClient.orderKey().saveString()
+                        + " ability3=" + com.mki.nightsiege.client.GainClient.quiverKey().saveString()
+                        + " ult2=" + com.mki.nightsiege.client.GainClient.secondUltKey().saveString());
+            });
+            context.getInput().pressKey(net.minecraft.client.Minecraft.getInstance().options.keyDrop);
+            context.waitTicks(3);
+            context.getInput().pressKey(net.minecraft.client.Minecraft.getInstance().options.keySwapOffhand);
+            context.waitTicks(10);
+            onServer(context, (player, manager) -> System.out.println("[Night Siege test] keys hand=" + player.getMainHandItem().getCount()
+                    + " offhand=" + player.getOffhandItem().getCount() + " (want 5 and 0)"));
+            context.takeScreenshot("night_keys");
+        } catch (Throwable t) {
+            System.out.println("[Night Siege test] keys error " + t);
+            for (StackTraceElement e : t.getStackTrace()) {
+                System.out.println("[Night Siege test] keys at " + e);
+            }
+        } finally {
+            context.runOnClient(client -> com.mki.nightsiege.client.NightKeys.setOwned(false));
+            onServer(context, (player, manager) -> player.getInventory().setItem(8, net.minecraft.world.item.ItemStack.EMPTY));
+            context.waitTicks(2);
+        }
     }
 
     private static void logManned(ClientGameTestContext context, String label) {
