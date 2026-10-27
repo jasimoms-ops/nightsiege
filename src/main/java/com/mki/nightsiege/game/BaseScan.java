@@ -64,6 +64,8 @@ public final class BaseScan {
     public static final int SPAWN_MIN = 16;
     public static final int SPAWN_MAX = 32;
     private static final int SPOTS_PER_SLICE = 48;
+    /** How far from the inside the foot of a wall can be (thick walls, towers). */
+    private static final int WALL_BAND = 4;
 
     public final BlockPos core;
     public final boolean closed;
@@ -934,17 +936,29 @@ public final class BaseScan {
             Long2IntOpenHashMap dist = new Long2IntOpenHashMap();
             dist.defaultReturnValue(-1);
             LongArrayFIFOQueue queue = new LongArrayFIFOQueue();
-            for (long p : out) {
-                int x = BlockPos.getX(p);
-                int z = BlockPos.getZ(p);
-                boolean front = false;
+            // The foot of the wall: ground outside within a few blocks of the inside (walls are thick).
+            LongOpenHashSet band = new LongOpenHashSet();
+            for (long c : insideCols) {
+                int x = (int) (c >> 32);
+                int z = (int) c;
+                boolean rim = false;
                 for (int[] d : DIRS) {
-                    if (insideCols.contains(pack(x + d[0], z + d[1]))) {
-                        front = true;
+                    if (!insideCols.contains(pack(x + d[0], z + d[1]))) {
+                        rim = true;
                         break;
                     }
                 }
-                if (front) {
+                if (!rim) {
+                    continue;
+                }
+                for (int dx = -WALL_BAND; dx <= WALL_BAND; dx++) {
+                    for (int dz = -WALL_BAND; dz <= WALL_BAND; dz++) {
+                        band.add(pack(x + dx, z + dz));
+                    }
+                }
+            }
+            for (long p : out) {
+                if (band.contains(pack(BlockPos.getX(p), BlockPos.getZ(p)))) {
                     dist.put(p, 0);
                     queue.enqueue(p);
                 }

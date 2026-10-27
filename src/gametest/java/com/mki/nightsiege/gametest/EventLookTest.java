@@ -3054,13 +3054,16 @@ public class EventLookTest implements FabricClientGameTest {
         game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(cx + r, cy, cz - 1, cx + r, cy + 2, cz + 1));
         // The keep with the core, its own door.
         game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:oak_planks hollow".formatted(cx - 3, cy, cz + 2, cx + 3, cy + 4, cz + 8));
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(cx - 2, cy, cz + 3, cx + 2, cy, cz + 7));   // floor at ground level
         game.getServer().runCommand("setblock %d %d %d minecraft:oak_door[half=lower,facing=north]".formatted(cx, cy, cz + 2));
         game.getServer().runCommand("setblock %d %d %d minecraft:oak_door[half=upper,facing=north]".formatted(cx, cy + 1, cz + 2));
         // Two houses outside.
         game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:spruce_planks hollow".formatted(cx - 2, cy, cz + 20, cx + 2, cy + 3, cz + 24));
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(cx - 1, cy, cz + 21, cx + 1, cy, cz + 23));
         game.getServer().runCommand("setblock %d %d %d minecraft:spruce_door[half=lower,facing=north]".formatted(cx, cy, cz + 20));
         game.getServer().runCommand("setblock %d %d %d minecraft:spruce_door[half=upper,facing=north]".formatted(cx, cy + 1, cz + 20));
         game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:spruce_planks hollow".formatted(cx - 24, cy, cz - 2, cx - 20, cy + 3, cz + 2));
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(cx - 23, cy, cz - 1, cx - 21, cy, cz + 1));
         game.getServer().runCommand("setblock %d %d %d minecraft:spruce_door[half=lower,facing=east]".formatted(cx - 20, cy, cz));
         game.getServer().runCommand("setblock %d %d %d minecraft:spruce_door[half=upper,facing=east]".formatted(cx - 20, cy + 1, cz));
         context.waitTicks(10);
