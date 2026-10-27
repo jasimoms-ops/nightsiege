@@ -67,15 +67,16 @@ public final class BaseDefense {
         this.world = world;
         this.anchor = anchor;
         this.base = scanFresh(world, anchor, cfg);
-        this.battlements = tree.totalBonus(SkillEffect.BATTLEMENTS, core);
-        this.beacon = tree.totalBonus(SkillEffect.BEACON_FIRE, core) > 0;
-        this.rebuild = (int) Math.round(tree.totalBonus(SkillEffect.REBUILD, core));
-        digger.setSlowdown(1.0 + tree.totalBonus(SkillEffect.MASONRY, core));
+        // The core tree is gone (Simon, 27 October 2026): no masonry, battlements or beacon any
+        // more, and everything the night broke comes back after it.
+        this.battlements = 0;
+        this.beacon = false;
+        this.rebuild = REBUILD_SHARE.length - 1;
+        digger.setSlowdown(1.0);
         savedPos.clear();
         savedState.clear();
-        if (rebuild > 0 || keepSnapshot) {
-            snapshot();
-        }
+        snapshot();
+        NightDamage.begin(world);
         activeDefense = this;
     }
 
@@ -83,6 +84,7 @@ public final class BaseDefense {
         if (activeDefense == this) {
             activeDefense = null;
         }
+        NightDamage.end();
         world = null;
         anchor = null;
         base = null;
@@ -214,7 +216,7 @@ public final class BaseDefense {
      * of a lost night) stays. Returns the number of blocks put back.
      */
     public int restore(Random random) {
-        if (rebuild <= 0 || world == null || savedPos.isEmpty()) {
+        if (rebuild <= 0 || world == null) {
             return 0;
         }
         List<Integer> missing = new ArrayList<>();
@@ -248,6 +250,8 @@ public final class BaseDefense {
                 put++;
             }
         }
+        // Everything else monsters broke in the night, also outside the base's snapshot.
+        put += NightDamage.restore(world);
         if (put > 0 && anchor != null) {
             world.sendParticles(ParticleTypes.HAPPY_VILLAGER, anchor.getX() + 0.5, anchor.getY() + 1.5,
                     anchor.getZ() + 0.5, 30, 1.5, 1.0, 1.5, 0.0);

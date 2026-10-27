@@ -49,6 +49,8 @@ public class SubclassPickScreen extends Screen {
     /** Subclasses the player already has a profile of (a further unlock of an own class). */
     private final java.util.Set<String> taken = new java.util.HashSet<>();
     private int picked;
+    /** The gold confirm button draws itself. */
+    private Button okButton;
 
     private int left;
     private int top;
@@ -133,6 +135,7 @@ public class SubclassPickScreen extends Screen {
         Button ok = Button.builder(confirm, b -> confirm()).bounds(left + w - 8 - cw, top + h - 24, cw, 18).build();
         ok.active = sub != null && choosable(picked);
         ok.setAlpha(0f);
+        okButton = ok;
         addRenderableWidget(ok);
     }
 
@@ -203,6 +206,7 @@ public class SubclassPickScreen extends Screen {
             small(gui, font, chosen, left + w / 2 - cwText / 2, top + h - 18, GREY, 0.7f);
         }
         super.extractRenderState(gui, mouseX, mouseY, delta);
+        PurpleUi.skinButtons(gui, font, children(), null, okButton == null ? null : java.util.List.of(okButton), mouseX, mouseY);
         Component confirm = Component.translatable("nightsiege.subpick.confirm",
                 sub == null ? Component.literal("?") : Component.translatable("nightsiege.subclass." + sub.key()));
         int cw = Math.max(120, font.width(confirm) + 16);

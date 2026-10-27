@@ -32,6 +32,9 @@ import java.util.Map;
  */
 public class ClassPickScreen extends Screen {
 
+    /** The gold "ready" button draws itself; the skin leaves it alone. */
+    private Button readyButton;
+
     // Colours (dark night panel, gold for the chosen one).
     private static final int BACKDROP = 0xB0000000;
     private static final int FRAME = 0xFF3A3450;
@@ -202,17 +205,21 @@ public class ClassPickScreen extends Screen {
             addRenderableWidget(card);
         }
         if (data.classes.size() > CARDS) {
-            // Page arrows beside the title.
+            // Page arrows above the cards; with a long title they move up beside the small line
+            // (27 October 2026: they covered the title's end).
+            float titleScale = w >= 460 ? 1.3f : 1.1f;
+            int titleRight = left + 10 + (int) (font.width(Component.translatable("nightsiege.pick.title")) * titleScale);
+            int arrowY = titleRight > teamX - 50 ? top + 4 : cardsY - 16;
             Button back = Button.builder(Component.literal("‹"), b -> {
                 firstCard = Math.max(0, firstCard - 1);
                 rebuildWidgets();
-            }).bounds(teamX - 6 - 38, cardsY - 16, 18, 14).build();
+            }).bounds(teamX - 6 - 38, arrowY, 18, 14).build();
             back.active = firstCard > 0;
             addRenderableWidget(back);
             Button next = Button.builder(Component.literal("›"), b -> {
                 firstCard = Math.min(data.classes.size() - cardCount(), firstCard + 1);
                 rebuildWidgets();
-            }).bounds(teamX - 6 - 18, cardsY - 16, 18, 14).build();
+            }).bounds(teamX - 6 - 18, arrowY, 18, 14).build();
             next.active = firstCard + cardCount() < data.classes.size();
             addRenderableWidget(next);
         }
@@ -225,6 +232,7 @@ public class ClassPickScreen extends Screen {
             onClose();
         }).bounds(teamX + 6, top + h - 8 - 26, teamW - 12, 20).build();
         ready.setAlpha(0f);
+        readyButton = ready;
         addRenderableWidget(ready);
     }
 
@@ -253,6 +261,7 @@ public class ClassPickScreen extends Screen {
         ItemStack hovered = drawKit(gui, font, mouseX, mouseY);
         drawTeam(gui, font, mouseX, mouseY);
         super.extractRenderState(gui, mouseX, mouseY, delta);
+        PurpleUi.skinButtons(gui, font, children(), null, readyButton == null ? null : java.util.List.of(readyButton), mouseX, mouseY);
         if (!hovered.isEmpty()) {
             gui.setTooltipForNextFrame(font, hovered, mouseX, mouseY);
         }

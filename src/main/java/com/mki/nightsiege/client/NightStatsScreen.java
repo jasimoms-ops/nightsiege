@@ -129,6 +129,7 @@ public class NightStatsScreen extends Screen {
         drawHeader(gui, font);
         drawTable(gui, font);
         super.extractRenderState(gui, mouseX, mouseY, delta);
+        PurpleUi.skinButtons(gui, Minecraft.getInstance().font, children(), null, mouseX, mouseY);
     }
 
     private void drawHeader(GuiGraphicsExtractor gui, Font font) {

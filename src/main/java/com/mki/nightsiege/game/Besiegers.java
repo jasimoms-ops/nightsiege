@@ -383,6 +383,7 @@ public final class Besiegers {
                             || cfg != null && BlockGuard.isProtected(Demolition.blockId(state), cfg)) {
                         continue;
                     }
+                    NightDamage.record(world, pos, state);   // back after the night
                     if (world.destroyBlock(pos, false)) {
                         removed++;
                     }

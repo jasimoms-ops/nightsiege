@@ -272,7 +272,8 @@ public class CoreScreen extends Screen {
         List<Tab> out = new ArrayList<>();
         for (Tab tab : Tab.values()) {
             // The class trees have no tab of their own any more: the overview leads to them.
-            if (tab.clazz == null || tab.clazz.isShared()) {
+            // The core tree is gone (Simon, 27 October 2026): the base is mended after every night.
+            if (tab.clazz == null) {
                 out.add(tab);
             }
         }
@@ -315,6 +316,9 @@ public class CoreScreen extends Screen {
         goldButtons.clear();
         if (activeTab == Tab.SUMMONER && !stats.summoner) {
             activeTab = null;
+        }
+        if (activeTab == Tab.CORE) {
+            activeTab = Tab.STATS;
         }
         if (activeTab == null) {
             activeTab = Tab.CLASSES;
@@ -1995,6 +1999,29 @@ public class CoreScreen extends Screen {
         }
     }
 
+    /**
+     * The base at the foot of the next-siege card (it stood on the core tab, which is gone since
+     * 27 October 2026): closed, or where it is open.
+     */
+    private void drawBaseLine(GuiGraphicsExtractor gui, Font font, int x, int y, int w, int h) {
+        if (!stats.baseKnown) {
+            return;
+        }
+        String base;
+        int color;
+        if (stats.baseClosed) {
+            base = Component.translatable("nightsiege.ui.base_closed", stats.baseWidth, stats.baseDepth).getString();
+            color = GREEN;
+        } else if (stats.baseGap != null && !stats.baseGap.isBlank()) {
+            base = Component.translatable("nightsiege.ui.base_gap", stats.baseGap).getString();
+            color = RED;
+        } else {
+            base = Component.translatable("nightsiege.ui.base_open", stats.baseWidth, stats.baseDepth).getString();
+            color = RED;
+        }
+        smallText(gui, font, font.plainSubstrByWidth(base, (int) ((w - 16) / 0.75f)), x + 8, y + h - 10, color, 0.75f);
+    }
+
     /** A soft band in the class colour behind the path the player took. */
     private void drawPathBand(GuiGraphicsExtractor gui, Font font) {
         if (!ownsClassTab() || shownPath().isBlank()) {
@@ -3074,6 +3101,7 @@ public class CoreScreen extends Screen {
 
     private void drawNextSiege(GuiGraphicsExtractor gui, Font font, int x, int y, int w, int h) {
         int cy = card(gui, font, x, y, w, h, "nightsiege.ui.card_next", Tab.STATS.color);
+        drawBaseLine(gui, font, x, y, w, h);
         float levelScale = compact ? 1.0f : 1.5f;
         gui.pose().pushMatrix();
         gui.pose().translate(x + 8, cy);
@@ -3131,8 +3159,8 @@ public class CoreScreen extends Screen {
                     stats.myVote.equals("yes") ? GREEN : stats.myVote.equals("no") ? RED : GOLD, true);
         }
         cy += 12;
-        if (cy + 9 > y + h) {
-            return;
+        if (cy + 9 > y + h - (stats.baseKnown ? 11 : 0)) {
+            return;   // the base line sits at the foot
         }
         // The extra siege: who called tonight's, or why the button below is greyed out.
         if (stats.extraSiegeToday && (stats.voteOpen || stats.nightComing)) {

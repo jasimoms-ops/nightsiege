@@ -1583,7 +1583,7 @@ public final class SiegeManager {
         if (!bosses.spawned()) {
             if (batchCooldown <= 0) {
                 spawnBatch(server);
-                double extraDelay = skillTree.totalBonus(SkillEffect.WAVE_DELAY, save.coreSkills());
+                double extraDelay = 0.0 /* the core tree is gone (27 October 2026) */;
                 batchCooldown = (int) Math.round((config.batchIntervalSeconds + extraDelay) * 20.0);
             } else {
                 batchCooldown--;
@@ -1879,7 +1879,7 @@ public final class SiegeManager {
 
     /** Waves the whole night brings: one at the start, then one per interval. */
     private int plannedWaves() {
-        double extraDelay = skillTree.totalBonus(SkillEffect.WAVE_DELAY, save.coreSkills());
+        double extraDelay = 0.0 /* the core tree is gone (27 October 2026) */;
         // A wave starts the tick after its cooldown has run out, so waves lie one tick more apart.
         int interval = Math.max(20, (int) Math.round((config.batchIntervalSeconds + extraDelay) * 20.0)) + 1;
         return Math.max(1, (totalTicks - 1) / interval + 1);

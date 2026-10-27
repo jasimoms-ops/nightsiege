@@ -74,8 +74,14 @@ public final class PurpleUi {
      */
     public static void skinButtons(GuiGraphicsExtractor gui, Font font, List<? extends GuiEventListener> children,
                                    Collection<?> primary, int mouseX, int mouseY) {
+        skinButtons(gui, font, children, primary, null, mouseX, mouseY);
+    }
+
+    /** As above; the buttons in {@code skip} draw themselves (a screen's own gold button, say). */
+    public static void skinButtons(GuiGraphicsExtractor gui, Font font, List<? extends GuiEventListener> children,
+                                   Collection<?> primary, Collection<?> skip, int mouseX, int mouseY) {
         for (GuiEventListener child : children) {
-            if (!(child instanceof Button b) || !b.visible) {
+            if (!(child instanceof Button b) || !b.visible || (skip != null && skip.contains(b))) {
                 continue;
             }
             String text = b.getMessage().getString();

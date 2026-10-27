@@ -184,6 +184,7 @@ public class CrateScreen extends Screen {
             gui.text(font, hint, left + (W - font.width(hint)) / 2, vy + VIEW_H + 24, 0xFF8F879F, false);
         }
         super.extractRenderState(gui, mouseX, mouseY, delta);
+        PurpleUi.skinButtons(gui, Minecraft.getInstance().font, children(), null, mouseX, mouseY);
     }
 
     /** One card of the band. */
