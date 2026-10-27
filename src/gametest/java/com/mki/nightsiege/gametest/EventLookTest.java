@@ -3205,6 +3205,8 @@ public class EventLookTest implements FabricClientGameTest {
         game.getServer().runCommand("effect give @p minecraft:regeneration 600 10 true");
         game.getServer().runCommand("effect give @p minecraft:saturation 600 10 true");
         game.getServer().runCommand("tp @p %d.5 %d %d.5".formatted(cx, cy, cz - 4));
+        // The test player does not move: the arrows must not knock it off the wall into the field.
+        game.getServer().runCommand("attribute @p minecraft:knockback_resistance base set 1");
         context.waitTicks(10);
         onServer(context, (player, manager) -> {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
@@ -3382,6 +3384,7 @@ public class EventLookTest implements FabricClientGameTest {
             manager.testPool(null);
         });
         context.waitTicks(20);
+        game.getServer().runCommand("attribute @p minecraft:knockback_resistance base set 0");
         game.getServer().runCommand("forceload remove %d %d %d %d".formatted(cx - 80, cz - 80, cx + 80, cz + 80));
     }
 
