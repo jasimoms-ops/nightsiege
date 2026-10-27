@@ -161,6 +161,21 @@ jobs:
           if found:
               names = zipfile.ZipFile(found).namelist()
               for w in want:
+                  if w.startswith("!"):
+                      # "!Klasse#methode1,methode2": Bytecode (javap -c) nur dieser Methoden
+                      cls, _, meths = w[1:].partition("#")
+                      r = subprocess.run(["javap", "-c", "-p", "-cp", found, cls], capture_output=True, text=True)
+                      text = r.stdout or r.stderr
+                      out.write("== bytecode %s\n" % w[1:])
+                      keep = False
+                      for line in text.splitlines():
+                          if line.startswith("  ") and not line.startswith("   ") and "(" in line:
+                              name = line.split("(")[0].split()[-1]
+                              keep = any(name == m or name.endswith("." + m) for m in meths.split(","))
+                          if keep:
+                              out.write(line + "\n")
+                      out.write("\n")
+                      continue
                   if w.endswith("*"):
                       hits = [n[:-6].replace("/", ".") for n in names if n.endswith(".class") and n.startswith(w[:-1].replace(".", "/")) and "$" not in n]
                   else:

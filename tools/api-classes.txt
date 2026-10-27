@@ -95,3 +95,14 @@ net.minecraft.world.level.GameType
 net.minecraft.world.item.ItemDisplayContext
 com.mojang.math.Transformation
 net.minecraft.client.gui.Hud
+
+# Vogelperspektive: Chunks um die Kamera (27.10.)
+net.minecraft.server.level.ChunkMap
+net.minecraft.server.level.ChunkTrackingView
+net.minecraft.server.level.ChunkTrackingView$Positioned
+net.minecraft.client.multiplayer.ClientChunkCache
+net.minecraft.client.multiplayer.ClientChunkCache$Storage
+net.minecraft.client.renderer.SectionOcclusionGraph
+!net.minecraft.server.level.ChunkMap#updateChunkTracking,move,applyChunkTrackingView,getPlayerViewDistance,isChunkTracked
+!net.minecraft.client.renderer.SectionOcclusionGraph#runUpdates,getRelativeFrom,isInViewDistance,initializeQueueForFullUpdate
+!net.minecraft.client.multiplayer.ClientChunkCache#updateViewCenter,updateViewRadius,isValidChunk

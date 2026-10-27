@@ -493,8 +493,9 @@ class SiegeCoreTest {
         int[] weights = new SiegeConfig().crateOddsFragment;
         for (SkillClass c : new SkillClass[]{SkillClass.WARRIOR, SkillClass.ARCHER, SkillClass.GUARDIAN, SkillClass.ENGINEER,
                 SkillClass.SUMMONER}) {
-            // The archer's spare weapon left the crates (Simon 26.10.): 13 own gains for him.
-            int own = c == SkillClass.ARCHER ? 13 : 14;
+            // The archer's spare weapon left the crates (Simon 26.10.): 13 own gains for him; the
+            // engineer got the turret shield (27.10.): 15.
+            int own = c == SkillClass.ARCHER ? 13 : c == SkillClass.ENGINEER ? 15 : 14;
             assertEquals(own + 16, CrateGains.forCollection(c).size(), c + " has " + own + " gains and 16 general ones");
             for (int i = 0; i < 400; i++) {
                 CrateGains.Gain g = CrateGains.roll(c, "", weights, 0.7, random);
