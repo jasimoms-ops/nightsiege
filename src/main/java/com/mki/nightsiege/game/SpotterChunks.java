@@ -4,7 +4,9 @@ import com.mki.nightsiege.mixin.ChunkMapInvoker;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.level.TicketType;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.phys.Vec3;
 
 import java.util.Iterator;
 import java.util.Map;
@@ -24,7 +26,7 @@ public final class SpotterChunks {
     /** Without a new report for this long the view counts as closed (ticks). */
     private static final long TIMEOUT = 80;
 
-    private record Center(ChunkPos pos, long at) {
+    private record Center(ChunkPos pos, double x, double z, long at) {
     }
 
     private static final Map<UUID, Center> CENTERS = new ConcurrentHashMap<>();
@@ -36,6 +38,12 @@ public final class SpotterChunks {
     public static ChunkPos centerFor(ServerPlayer player) {
         Center c = CENTERS.get(player.getUUID());
         return c == null ? player.chunkPosition() : c.pos();
+    }
+
+    /** Where monsters are measured from for this player: the camera of an open view, else the body. */
+    public static Vec3 eyeFor(ServerPlayer player) {
+        Center c = CENTERS.isEmpty() ? null : CENTERS.get(player.getUUID());
+        return c == null ? player.position() : new Vec3(c.x(), player.getY(), c.z());
     }
 
     /** The client reports the camera (block x/z); null or too far = the view closed. */
@@ -64,9 +72,19 @@ public final class SpotterChunks {
             double k = max / d;
             pos = new ChunkPos(body.x() + (int) Math.round(dx * k), body.z() + (int) Math.round(dz * k));
         }
-        CENTERS.put(player.getUUID(), new Center(pos, level.getGameTime()));
+        CENTERS.put(player.getUUID(), new Center(pos, x, z, level.getGameTime()));
+        // The ground under the camera stays loaded while the view is open (the ticket runs out
+        // by itself two seconds after the last report).
+        ChunkPos cam = new ChunkPos((int) Math.floor(x) >> 4, (int) Math.floor(z) >> 4);
+        try {
+            level.getChunkSource().addTicketWithRadius(TicketType.ENDER_PEARL, cam, 4);
+        } catch (RuntimeException ignored) {
+            // loading is a help, not a must
+        }
         if (old == null || !old.pos().equals(pos)) {
             refresh(level, player);
+        } else {
+            refreshEntities(level, player);
         }
     }
 
@@ -95,6 +113,16 @@ public final class SpotterChunks {
             ((ChunkMapInvoker) level.getChunkSource().chunkMap).nightsiege$updateChunkTracking(player);
         } catch (RuntimeException e) {
             // never let the view break the server
+        }
+        refreshEntities(level, player);
+    }
+
+    /** Which monsters the player is sent, measured again (ChunkMap.move goes through all of them). */
+    private static void refreshEntities(ServerLevel level, ServerPlayer player) {
+        try {
+            level.getChunkSource().chunkMap.move(player);
+        } catch (RuntimeException e) {
+            // as above
         }
     }
 }

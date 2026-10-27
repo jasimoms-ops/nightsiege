@@ -161,6 +161,19 @@ jobs:
           if found:
               names = zipfile.ZipFile(found).namelist()
               for w in want:
+                  if w.startswith("?"):
+                      # "?Klasse#text": in welchen Methoden die Zeile mit "text" vorkommt
+                      cls, _, pat = w[1:].partition("#")
+                      r = subprocess.run(["javap", "-c", "-p", "-cp", found, cls], capture_output=True, text=True)
+                      out.write("== grep %s\n" % w[1:])
+                      head = ""
+                      for line in (r.stdout or r.stderr).splitlines():
+                          if line.startswith("  ") and not line.startswith("   ") and "(" in line:
+                              head = line
+                          elif pat in line:
+                              out.write(head + "\n    " + line.strip() + "\n")
+                      out.write("\n")
+                      continue
                   if w.startswith("!"):
                       # "!Klasse#methode1,methode2": Bytecode (javap -c) nur dieser Methoden
                       cls, _, meths = w[1:].partition("#")

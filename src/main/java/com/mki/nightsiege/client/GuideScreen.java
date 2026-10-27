@@ -243,24 +243,23 @@ public class GuideScreen extends Screen {
         drawSidebar(gui, font, mouseX, mouseY);
         drawContent(gui, font);
         super.extractRenderState(gui, mouseX, mouseY, delta);
+        PurpleUi.skinButtons(gui, font, children(), null, mouseX, mouseY);
     }
 
     private void drawWindow(GuiGraphicsExtractor gui, Font font) {
         int x2 = left + W;
         int y2 = top + H;
-        gui.fill(left, top, x2, y2, 0xFF000000);
-        gui.fill(left + 1, top + 1, x2 - 1, y2 - 1, 0xFFC6C6C6);
-        gui.fill(left + 1, top + 1, x2 - 1, top + 3, 0xFFFFFFFF);
-        gui.fill(left + 1, top + 1, left + 3, y2 - 1, 0xFFFFFFFF);
-        gui.fill(left + 1, y2 - 3, x2 - 1, y2 - 1, 0xFF555555);
-        gui.fill(x2 - 3, top + 1, x2 - 1, y2 - 1, 0xFF555555);
+        // The violet look of the core window (Simon, 27 October 2026).
+        gui.fill(left, top, x2, y2, PurpleUi.FRAME);
+        gui.fill(left + 1, top + 1, x2 - 1, y2 - 1, PurpleUi.PANEL_SOLID);
+        gui.fill(left + 1, top + 1, x2 - 1, top + 2, PurpleUi.FRAME_HI);
 
         // Banner.
         int bx1 = left + 4;
         int bx2 = x2 - 4;
         int by1 = top + 4;
         int by2 = by1 + BANNER;
-        gui.fill(bx1, by1, bx2, by2, 0xFF17161B);
+        gui.fill(bx1, by1, bx2, by2, PurpleUi.BOX);
         int strips = 48;
         int span = (bx2 - bx1) * 2 / 3;
         for (int i = 0; i < strips; i++) {
@@ -268,7 +267,7 @@ public class GuideScreen extends Screen {
             gui.fill(bx1 + span * i / strips, by1, bx1 + span * (i + 1) / strips, by2, (alpha << 24) | (GOLD & 0xFFFFFF));
         }
         gui.fill(bx1, by2 - 1, bx2, by2, GOLD);
-        gui.fill(bx1, by1, bx2, by1 + 1, 0x40FFFFFF);
+        gui.fill(bx1, by1, bx2, by1 + 1, 0x20FFFFFF);
         gui.item(iconOf("nightsiege:siege_guide"), bx1 + 6, by1 + 5);
         String title = Component.translatable("nightsiege.guide.title").getString();
         gui.pose().pushMatrix();
@@ -277,16 +276,14 @@ public class GuideScreen extends Screen {
         gui.text(font, title, 0, 0, GOLD, true);
         gui.pose().popMatrix();
         gui.text(font, Component.translatable("nightsiege.guide.subtitle").getString(),
-                bx1 + 28 + font.width(title) * 2 + 10, by1 + 12, 0xFFB8B4C0, true);
+                bx1 + 28 + font.width(title) * 2 + 10, by1 + 12, PurpleUi.LIGHT, true);
 
         // Backdrop under both panes.
         int ix = innerX();
         int iy = innerY();
         int iw = W - 18;
         int ih = innerH();
-        gui.fill(ix - 1, iy - 1, ix + iw + 1, iy + ih + 1, 0xFF373737);
-        gui.fill(ix, iy + ih, ix + iw + 1, iy + ih + 1, 0xFFFFFFFF);
-        gui.fill(ix + iw, iy, ix + iw + 1, iy + ih + 1, 0xFFFFFFFF);
+        gui.fill(ix - 1, iy - 1, ix + iw + 1, iy + ih + 1, PurpleUi.LINE);
         gui.enableScissor(ix, iy, ix + iw, iy + ih);
         for (int ty = iy; ty < iy + ih; ty += 16) {
             for (int tx = ix; tx < ix + iw; tx += 16) {
@@ -294,7 +291,7 @@ public class GuideScreen extends Screen {
             }
         }
         gui.disableScissor();
-        gui.fill(ix, iy, ix + iw, iy + ih, 0x70000000);
+        gui.fill(ix, iy, ix + iw, iy + ih, 0xC80E0C14);
     }
 
     private void drawSidebar(GuiGraphicsExtractor gui, Font font, int mouseX, int mouseY) {
