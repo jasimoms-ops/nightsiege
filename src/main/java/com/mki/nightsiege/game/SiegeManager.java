@@ -3124,7 +3124,7 @@ public final class SiegeManager {
             // Not signed up: the mod stays out of the way (keys do nothing, the core only offers the sign-up).
             if (!verb.equals("ult") && !verb.equals("shield") && !verb.equals("ult2") && !verb.equals("quiver")
                     && !verb.equals("jump") && !verb.equals("man") && !verb.equals("drone")
-                    && !verb.equals("ult2x") && !verb.equals("staffhit")) {
+                    && !verb.equals("ult2x") && !verb.equals("staffhit") && !verb.equals("wheel")) {
                 offerRegistration(player);
             }
             return;
@@ -3148,12 +3148,8 @@ public final class SiegeManager {
             case "ult2" -> onSecondKey(player);
             case "ult2x" -> SecondUlts.fire(player);   // X: the second ultimate alone (27 October 2026)
             case "staffhit" -> companions.staffAttack(player);   // left click with the staff (27 October 2026)
-            case "quiver" -> {
-                // G: the archer's quiver; the summoner picks his spell (way of the dead) or calls (way of the light).
-                if (!companions.selectKey(player)) {
-                    GainGear.cycleQuiver(player);
-                }
-            }
+            case "quiver" -> abilityThreeTap(player);
+            case "wheel" -> onWheel(player, argument);
             case "jump" -> GainGear.onDoubleJump(player);
             // A manned tower: the attack button pressed (1) or let go (0).
             case "man" -> traps.onManAction(player, "1".equals(argument));
@@ -3774,7 +3770,60 @@ public final class SiegeManager {
         }
         if (held.getItem() instanceof SummonStaffItem) {
             companions.command(player);
+            return;
         }
+        // The healers: the ability picked on the wheel, on the teammate looked at.
+        combat.guardian().castHeal(player);
+    }
+
+    /**
+     * A short press of Fähigkeit 3 (Simon, 27 October 2026): the next choice without the wheel –
+     * the summoner's spell (or his call on the way of the light), the alchemist's potion, the
+     * healer's ability, the archer's arrow kind.
+     */
+    private void abilityThreeTap(ServerPlayer player) {
+        if (companions.selectKey(player) || traps.nextBrew(player) || combat.guardian().nextHeal(player)) {
+            return;
+        }
+        GainGear.cycleQuiver(player);
+    }
+
+    /** The wheel of Fähigkeit 3, the one that fits the class. Null when there is nothing to pick. */
+    private com.mki.nightsiege.core.WheelData wheelOf(ServerPlayer player) {
+        com.mki.nightsiege.core.WheelData wheel = companions.spellWheel(player);
+        if (wheel == null) {
+            wheel = traps.brewWheel(player);
+        }
+        if (wheel == null) {
+            wheel = combat.guardian().healWheel(player);
+        }
+        if (wheel == null) {
+            wheel = GainGear.quiverWheel(player);
+        }
+        return wheel;
+    }
+
+    /** "wheel:open" (the key held) sends the wheel; "wheel:pick:id" (let go over a choice) takes it. */
+    private void onWheel(ServerPlayer player, String argument) {
+        if (argument.startsWith("pick:")) {
+            String id = argument.substring(5);
+            if (companions.spellWheel(player) != null) {
+                companions.pickSpell(player, id);
+            } else if (traps.brewWheel(player) != null) {
+                traps.onBrewChoice(player, id);
+            } else if (combat.guardian().healWheel(player) != null) {
+                combat.guardian().pickHeal(player, id);
+            } else {
+                GainGear.pickQuiver(player, id);
+            }
+            return;
+        }
+        com.mki.nightsiege.core.WheelData wheel = wheelOf(player);
+        if (wheel == null || wheel.options.isEmpty()) {
+            abilityThreeTap(player);   // nothing to pick (the way of the light calls): as a short press
+            return;
+        }
+        ServerPlayNetworking.send(player, new CoreNetworking.ScreenPayload("wheel", Json.toJson(wheel)));
     }
 
     /**

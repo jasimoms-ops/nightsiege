@@ -1057,6 +1057,74 @@ public final class GainGear {
         bar(player, Component.translatable("nightsiege.gadget.koecher.now", chosen.getHoverName()));
     }
 
+    /**
+     * The archer's wheel (Simon, 27 October 2026): every arrow kind he carries, with how many
+     * there are; the one in the off hand is the current one. Null without the quiver.
+     */
+    public static com.mki.nightsiege.core.WheelData quiverWheel(ServerPlayer player) {
+        if (CrateEffects.gainLevel(player, "koecher") <= 0) {
+            return null;
+        }
+        com.mki.nightsiege.core.WheelData wheel = new com.mki.nightsiege.core.WheelData();
+        wheel.title = "nightsiege.wheel.quiver";
+        wheel.hint = "nightsiege.wheel.quiver.hint";
+        Inventory inv = player.getInventory();
+        ItemStack off = player.getItemBySlot(EquipmentSlot.OFFHAND);
+        String current = arrowKey(off);
+        Map<String, Integer> count = new HashMap<>();
+        Map<String, Integer> slotOf = new HashMap<>();
+        List<String> kinds = new ArrayList<>();
+        if (!current.isEmpty()) {
+            kinds.add(current);
+            slotOf.put(current, 40);   // the off hand's slot in the inventory
+            count.merge(current, off.getCount(), Integer::sum);
+        }
+        for (int i = 0; i < 36; i++) {
+            ItemStack stack = inv.getItem(i);
+            String key = arrowKey(stack);
+            if (key.isEmpty()) {
+                continue;
+            }
+            if (!slotOf.containsKey(key)) {
+                slotOf.put(key, i);
+                kinds.add(key);
+            }
+            count.merge(key, stack.getCount(), Integer::sum);
+        }
+        for (String key : kinds) {
+            com.mki.nightsiege.core.WheelData.Option o = new com.mki.nightsiege.core.WheelData.Option();
+            o.id = key;
+            o.slot = slotOf.get(key);
+            o.sub = "nightsiege.wheel.count";
+            o.subArgs.add(String.valueOf(count.getOrDefault(key, 0)));
+            o.current = key.equals(current);
+            wheel.options.add(o);
+        }
+        return wheel;
+    }
+
+    /** A pick on the archer's wheel: that arrow kind goes into the off hand. */
+    public static void pickQuiver(ServerPlayer player, String key) {
+        if (CrateEffects.gainLevel(player, "koecher") <= 0 || key == null || key.isEmpty()) {
+            return;
+        }
+        ItemStack off = player.getItemBySlot(EquipmentSlot.OFFHAND);
+        if (key.equals(arrowKey(off))) {
+            return;
+        }
+        Inventory inv = player.getInventory();
+        for (int i = 0; i < 36; i++) {
+            ItemStack stack = inv.getItem(i);
+            if (key.equals(arrowKey(stack))) {
+                inv.setItem(i, off.copy());
+                player.setItemSlot(EquipmentSlot.OFFHAND, stack);
+                player.level().playSound(null, player.blockPosition(), SoundEvents.ARMOR_EQUIP_CHAIN.value(), SoundSource.PLAYERS, 0.6f, 1.6f);
+                bar(player, Component.translatable("nightsiege.gadget.koecher.now", stack.getHoverName()));
+                return;
+            }
+        }
+    }
+
     private static String arrowKey(ItemStack stack) {
         if (stack.is(Items.ARROW) || stack.is(Items.SPECTRAL_ARROW) || stack.is(Items.TIPPED_ARROW)) {
             return stack.getItem() + "|" + Gadgets.arrowKind(stack);

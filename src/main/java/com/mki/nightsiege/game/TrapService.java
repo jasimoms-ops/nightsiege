@@ -1582,6 +1582,53 @@ public final class TrapService {
                 new CoreNetworking.ScreenPayload("brewmenu", Json.toJson(data)));
     }
 
+    /**
+     * The alchemist's wheel (Simon, 27 October 2026): the seven potions, the open ones
+     * pickable; Fähigkeit 2 throws the one picked. Null for everyone else.
+     */
+    public com.mki.nightsiege.core.WheelData brewWheel(ServerPlayer player) {
+        PlayerSkills skills = save.get().skillsOf(player.getUUID().toString());
+        if (skills.clazz() != SkillClass.ENGINEER || !SkillTree.SUB_ALCHEMIST.equals(tree.subclassOf(skills))) {
+            return null;
+        }
+        com.mki.nightsiege.core.WheelData wheel = new com.mki.nightsiege.core.WheelData();
+        wheel.title = "nightsiege.wheel.brews";
+        wheel.hint = "nightsiege.wheel.brews.hint";
+        BrewKind current = brewOf(player, skills);
+        for (BrewKind kind : BrewKind.values()) {
+            com.mki.nightsiege.core.WheelData.Option o = new com.mki.nightsiege.core.WheelData.Option();
+            o.id = kind.id();
+            o.color = kind.color();
+            o.name = "nightsiege.brew." + kind.id();
+            o.open = kind.unlocked(skills);
+            o.sub = !o.open ? "nightsiege.wheel.locked"
+                    : kind.forPlayers() ? "nightsiege.wheel.brew_players" : "nightsiege.wheel.brew_monsters";
+            o.current = kind == current;
+            wheel.options.add(o);
+        }
+        return wheel;
+    }
+
+    /** A short press of Fähigkeit 3 (alchemist): the next open potion. False for everyone else. */
+    public boolean nextBrew(ServerPlayer player) {
+        PlayerSkills skills = save.get().skillsOf(player.getUUID().toString());
+        if (skills.clazz() != SkillClass.ENGINEER || !SkillTree.SUB_ALCHEMIST.equals(tree.subclassOf(skills))) {
+            return false;
+        }
+        BrewKind current = brewOf(player, skills);
+        BrewKind[] all = BrewKind.values();
+        int start = current == null ? -1 : current.ordinal();
+        for (int i = 1; i <= all.length; i++) {
+            BrewKind next = all[Math.floorMod(start + i, all.length)];
+            if (next.unlocked(skills)) {
+                onBrewChoice(player, next.id());
+                return true;
+            }
+        }
+        actionBar(player, Component.translatable("nightsiege.msg.brew_locked"));
+        return true;
+    }
+
     /** A pick in the potion menu. */
     public void onBrewChoice(ServerPlayer player, String id) {
         BrewKind kind = BrewKind.byId(id);
@@ -1954,13 +2001,9 @@ public final class TrapService {
             return;
         }
         long now = level.getGameTime();
-        // The alchemist (Simon, 26 October 2026): sneak + right click opens the potion menu,
-        // a right click throws the potion zone, X on a monster marks it.
+        // The alchemist (Simon, 27 October 2026): Fähigkeit 3 picks the potion on its wheel,
+        // Fähigkeit 2 throws it; the right click works as for every engineer (overcharge, mark).
         boolean alchemist = SkillTree.SUB_ALCHEMIST.equals(tree.subclassOf(skills));
-        if (alchemist && !second && player.isShiftKeyDown()) {
-            openBrewMenu(player, skills);
-            return;
-        }
         double range = SkillValues.get("e_longrange", "base", REMOTE_RANGE) + tree.totalBonus(SkillEffect.REMOTE_RANGE, skills);
         BlockPos trapPos = clicked;
         if (trapPos == null || ModContent.trapOf(level.getBlockState(trapPos)) == null) {
@@ -2031,14 +2074,14 @@ public final class TrapService {
             }
             return;
         }
-        if (sneak && aimMortar(level, player, range, now)) {
-            return;
-        }
-        if (alchemist && !sneak) {
+        if (alchemist && sneak) {
             throwZone(level, player, skills, now);
             return;
         }
-        if (monster != null && (alchemist ? sneak : !sneak)) {
+        if (sneak && aimMortar(level, player, range, now)) {
+            return;
+        }
+        if (monster != null && !sneak) {
             if (pay(player, skills, cost(skills, SkillValues.get("e_seeker", "mark", COST_MARK)))) {
                 double bonus = SkillValues.get("e_seeker", "base", 0.15) + tree.totalBonus(SkillEffect.SEEKER, skills);
                 long until = now + Math.round(SkillValues.get("e_seeker", "time", 160));

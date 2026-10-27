@@ -86,6 +86,10 @@ public final class GuardianEffects {
     private final Map<UUID, Long> blockStart = new HashMap<>();
     private final Map<UUID, Long> actionReadyAt = new HashMap<>();
     private final Map<UUID, Long> handReadyAt = new HashMap<>();
+    /** The healing ability each guardian picked on the Fähigkeit-3 wheel (27 October 2026). */
+    private final Map<UUID, String> healChoice = new HashMap<>();
+    /** The warden's own ward was given by hand: the timed one waits until then. */
+    private final Map<UUID, Long> wardSkipUntil = new HashMap<>();
     private final Map<UUID, Long> counterUntil = new HashMap<>();
     private final Map<UUID, Double> revenge = new HashMap<>();
     private final Map<UUID, Long> lastStandReadyAt = new HashMap<>();
@@ -435,7 +439,8 @@ public final class GuardianEffects {
             if (counter % every("g_ironhide", "interval", 100.0) == 0) {
                 ironhide(level, player, skills);
             }
-            if (counter % every(wardNode(skills), "interval", 160.0) == 0) {
+            if (counter % every(wardNode(skills), "interval", 160.0) == 0
+                    && level.getGameTime() >= wardSkipUntil.getOrDefault(id, 0L)) {
                 ward(level, player, skills);
             }
             if (counter % every(auraNode(skills), "interval", 60.0) == 0) {
@@ -685,6 +690,151 @@ public final class GuardianEffects {
                     : (int) Math.round(toss ? SkillValues.get("g_shieldthrow", "cd", 160.0) : SkillValues.get("g_dome", "cd", 500.0));
             actionReadyAt.put(player.getUUID(), now + cooldown);
         }
+    }
+
+    // ------------------------------------------------------------------
+    // the healers' keys (Simon, 27 October 2026): Fähigkeit 3 picks on the wheel, Fähigkeit 2 casts
+    // ------------------------------------------------------------------
+
+    /** The healing abilities this guardian has, in wheel order: healing hand, ward, dome. */
+    private List<String> heals(PlayerSkills skills) {
+        List<String> out = new ArrayList<>();
+        if (!isGuardian(skills)) {
+            return out;
+        }
+        if (tree.totalBonus(SkillEffect.HEALING_HAND, skills) > 0) {
+            out.add("hand");
+        }
+        if (tree.totalBonus(SkillEffect.WARD, skills) > 0) {
+            out.add("ward");
+        }
+        if (tree.totalBonus(SkillEffect.DOME, skills) > 0) {
+            out.add("dome");
+        }
+        return out;
+    }
+
+    private String healOf(ServerPlayer player, List<String> heals) {
+        String picked = healChoice.get(player.getUUID());
+        return picked != null && heals.contains(picked) ? picked : heals.isEmpty() ? null : heals.get(0);
+    }
+
+    /** The healer's wheel, or null when the guardian has no healing ability to pick. */
+    public com.mki.nightsiege.core.WheelData healWheel(ServerPlayer player) {
+        PlayerSkills skills = skillsFor.apply(player);
+        List<String> heals = heals(skills);
+        if (heals.isEmpty()) {
+            return null;
+        }
+        com.mki.nightsiege.core.WheelData wheel = new com.mki.nightsiege.core.WheelData();
+        wheel.title = "nightsiege.wheel.heals";
+        wheel.hint = "nightsiege.wheel.heals.hint";
+        String current = healOf(player, heals);
+        long now = player.level().getGameTime();
+        for (String id : heals) {
+            com.mki.nightsiege.core.WheelData.Option o = new com.mki.nightsiege.core.WheelData.Option();
+            o.id = id;
+            o.icon = switch (id) {
+                case "hand" -> "minecraft:honey_bottle";
+                case "ward" -> "minecraft:amethyst_shard";
+                default -> "minecraft:glass";
+            };
+            o.name = "nightsiege.heal." + id;
+            long ready = switch (id) {
+                case "hand" -> handReadyAt.getOrDefault(player.getUUID(), 0L);
+                case "ward" -> wardSkipUntil.getOrDefault(player.getUUID(), 0L);
+                default -> actionReadyAt.getOrDefault(player.getUUID(), 0L);
+            };
+            if (ready > now) {
+                o.sub = "nightsiege.wheel.wait";
+                o.subArgs.add(String.valueOf((ready - now + 19) / 20));
+            } else {
+                o.sub = "nightsiege.wheel.ready";
+            }
+            o.current = id.equals(current);
+            wheel.options.add(o);
+        }
+        return wheel;
+    }
+
+    public void pickHeal(ServerPlayer player, String id) {
+        if (heals(skillsFor.apply(player)).contains(id)) {
+            healChoice.put(player.getUUID(), id);
+            CombatEffects.actionBar(player, Component.translatable("nightsiege.msg.heal_chosen",
+                    Component.translatable("nightsiege.heal." + id)));
+        }
+    }
+
+    /** A short press of Fähigkeit 3: the next healing ability. False when the player has none. */
+    public boolean nextHeal(ServerPlayer player) {
+        List<String> heals = heals(skillsFor.apply(player));
+        if (heals.isEmpty()) {
+            return false;
+        }
+        String current = healOf(player, heals);
+        pickHeal(player, heals.get((heals.indexOf(current) + 1) % heals.size()));
+        return true;
+    }
+
+    /**
+     * Fähigkeit 2: the picked healing ability, on the teammate looked at (else on oneself) – no
+     * shield needed. False when the player has none, so the key may do something else.
+     */
+    public boolean castHeal(ServerPlayer player) {
+        if (!(player.level() instanceof ServerLevel level) || !player.isAlive()) {
+            return false;
+        }
+        PlayerSkills skills = skillsFor.apply(player);
+        List<String> heals = heals(skills);
+        String id = healOf(player, heals);
+        if (id == null) {
+            return false;
+        }
+        long now = level.getGameTime();
+        ServerPlayer mate = lookMate(level, player, SkillValues.get("g_healing_hand", "range", 16.0));
+        switch (id) {
+            case "hand" -> {
+                if (mate == null) {
+                    mate = MeleeSim.benchMate(player);
+                }
+                handHeal(level, player, skills, mate == null ? player : mate, now);
+            }
+            case "ward" -> wardByHand(level, player, skills, mate == null ? player : mate, now);
+            default -> {
+                long ready = actionReadyAt.getOrDefault(player.getUUID(), 0L);
+                if (now < ready) {
+                    CombatEffects.actionBar(player, Component.translatable("nightsiege.msg.shield_action_wait", (ready - now + 19) / 20));
+                } else if (raiseDome(level, player, now)) {
+                    actionReadyAt.put(player.getUUID(), now + (player.getAbilities().instabuild ? 20
+                            : Math.round(SkillValues.get("g_dome", "cd", 500.0))));
+                }
+            }
+        }
+        return true;
+    }
+
+    /**
+     * The warden's ward by hand: the barrier of his next timed ward goes now to the player
+     * looked at (else to himself); the timed one waits one interval, so it is not more ward.
+     */
+    private void wardByHand(ServerLevel level, ServerPlayer player, PlayerSkills skills, ServerPlayer target, long now) {
+        long ready = wardSkipUntil.getOrDefault(player.getUUID(), 0L);
+        if (now < ready) {
+            CombatEffects.actionBar(player, Component.translatable("nightsiege.msg.healing_hand_wait", (ready - now + 19) / 20));
+            return;
+        }
+        String node = wardNode(skills);
+        float amount = (float) ((SkillValues.get(node, "base", 2.0) + tree.totalBonus(SkillEffect.WARD, skills)) * barrierPower(skills));
+        giveBarrier(player, target, amount, amount);
+        ring(level, target.position().add(0, 1.0, 0), 0.8, ParticleTypes.END_ROD, 12);
+        play(level, target, SoundEvents.AMETHYST_BLOCK_CHIME, 1.0f, 1.2f);
+        if (target != player) {
+            trail(level, player.getEyePosition().subtract(0, 0.3, 0), target.position().add(0, 1.0, 0), ParticleTypes.END_ROD, 10);
+        }
+        if (SkillTree.has(skills, "g_cleanse")) {
+            cleanse(target);
+        }
+        wardSkipUntil.put(player.getUUID(), now + (player.getAbilities().instabuild ? 20 : every(node, "interval", 160.0)));
     }
 
     /** Right click on a teammate: the healing hand. Returns true when it was used. */

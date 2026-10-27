@@ -2791,24 +2791,56 @@ public class EventLookTest implements FabricClientGameTest {
             player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND,
                     new net.minecraft.world.item.ItemStack(com.mki.nightsiege.game.ModContent.REMOTE));
             System.out.println("[Night Siege test] alchemist sub=" + manager.skillTree().subclassOf(own));
-            player.setShiftKeyDown(true);
-            com.mki.nightsiege.game.RemoteItem.handler.use(player, null);
-            player.setShiftKeyDown(false);
         });
-        context.waitTicks(15);
-        context.runOnClient(client -> System.out.println("[Night Siege test] alchemist menu="
-                + (client.gui.screen() instanceof com.mki.nightsiege.client.BrewMenuScreen)));
-        context.takeScreenshot("alchemist_menu");
-        closeScreen(context);
-        onServer(context, (player, manager) -> manager.onCoreAction(player, "brew:slow"));
+        // Fähigkeit 3 held (Simon, 27 October 2026): the potion wheel opens.
+        context.runOnClient(client -> com.mki.nightsiege.client.WheelClient.testHeld = true);
+        context.waitTicks(20);
+        context.runOnClient(client -> System.out.println("[Night Siege test] alchemist wheel="
+                + (client.gui.screen() instanceof com.mki.nightsiege.client.WheelScreen)));
+        context.takeScreenshot("alchemist_wheel");
+        context.runOnClient(client -> com.mki.nightsiege.client.WheelClient.testHeld = false);
+        context.waitTicks(4);
+        context.runOnClient(client -> System.out.println("[Night Siege test] alchemist wheel closed="
+                + (client.gui.screen() == null)));
+        onServer(context, (player, manager) -> manager.onCoreAction(player, "wheel:pick:slow"));
         context.getInput().lookAt(-90.0f, 45.0f);
         context.waitTicks(4);
-        onServer(context, (player, manager) -> com.mki.nightsiege.game.RemoteItem.handler.use(player, null));
+        onServer(context, (player, manager) -> manager.onCoreAction(player, "ult2"));   // Fähigkeit 2 throws
         context.waitTicks(30);
         context.runOnClient(client -> System.out.println("[Night Siege test] alchemist zones="
                 + com.mki.nightsiege.game.AlchemyZones.count()));
         context.takeScreenshot("alchemist_zone");
         context.waitTicks(5);
+        // The warden (27 October 2026): Fähigkeit 3 held shows his healing abilities, Fähigkeit 2 casts the dome.
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
+            own.unlockClass(com.mki.nightsiege.core.SkillClass.GUARDIAN);
+            own.switchTo(com.mki.nightsiege.core.SkillClass.GUARDIAN);
+            own.levels.clear();
+            own.levels.put("vitality", 3);
+            own.levels.put("field_dressing", 3);
+            own.levels.put("g_ward", 2);
+            own.levels.put("g_dome", 1);
+            player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, net.minecraft.world.item.ItemStack.EMPTY);
+        });
+        context.runOnClient(client -> com.mki.nightsiege.client.WheelClient.testHeld = true);
+        context.waitTicks(20);
+        context.runOnClient(client -> System.out.println("[Night Siege test] alchemist healer wheel="
+                + (client.gui.screen() instanceof com.mki.nightsiege.client.WheelScreen)));
+        context.takeScreenshot("healer_wheel");
+        context.runOnClient(client -> com.mki.nightsiege.client.WheelClient.testHeld = false);
+        context.waitTicks(4);
+        onServer(context, (player, manager) -> {
+            manager.onCoreAction(player, "wheel:pick:dome");
+            manager.onCoreAction(player, "ult2");
+        });
+        context.waitTicks(10);
+        context.takeScreenshot("healer_dome");
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
+            own.switchTo(com.mki.nightsiege.core.SkillClass.ENGINEER);
+        });
+        context.waitTicks(3);
     }
 
     /**

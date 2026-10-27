@@ -116,6 +116,9 @@ public class NightSiegeClient implements ClientModInitializer {
                         DroneClient.set(payload.json());
                     } else if ("healthview".equals(payload.kind())) {
                         HealthViewClient.set(payload.json());
+                    } else if ("wheel".equals(payload.kind())) {
+                        // Fähigkeit 3 held: the wheel (27 October 2026)
+                        WheelClient.open(Json.fromJson(payload.json(), com.mki.nightsiege.core.WheelData.class));
                     } else if ("brewmenu".equals(payload.kind())) {
                         com.mki.nightsiege.core.BrewMenuData data =
                                 Json.fromJson(payload.json(), com.mki.nightsiege.core.BrewMenuData.class);

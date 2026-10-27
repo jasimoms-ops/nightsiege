@@ -66,9 +66,8 @@ public final class GainClient {
         while (secondUltKey.consumeClick()) {
             send("ult2x");
         }
-        while (quiverKey.consumeClick()) {
-            send("quiver");
-        }
+        // Fähigkeit 3: a short press or the wheel (held), see WheelClient (27 October 2026).
+        WheelClient.tick(client, quiverKey);
         LocalPlayer player = client.player;
         if (player == null) {
             jumpWasDown = false;

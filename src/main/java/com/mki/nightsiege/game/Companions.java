@@ -538,6 +538,60 @@ public final class Companions {
         return true;
     }
 
+    /**
+     * The way of the dead's wheel (Simon, 27 October 2026): the subclass's three spells with
+     * their cost in souls; the right click casts the one picked. Null for everyone else.
+     */
+    public com.mki.nightsiege.core.WheelData spellWheel(ServerPlayer player) {
+        PlayerSkills skills = skillsFor.apply(player);
+        if (skills == null || skills.clazz() != com.mki.nightsiege.core.SkillClass.SUMMONER
+                || !SkillTree.WAY_DEAD.equals(skills.pathTaken(tree))) {
+            return null;
+        }
+        List<String> spells = spellsOf(skills);
+        if (spells.isEmpty()) {
+            return null;
+        }
+        com.mki.nightsiege.core.WheelData wheel = new com.mki.nightsiege.core.WheelData();
+        wheel.title = "nightsiege.wheel.spells";
+        wheel.hint = "nightsiege.wheel.spells.hint";
+        String picked = selectedSpell(player.getUUID(), skills);
+        int souls = soulsOf(player.getUUID());
+        for (String id : spells) {
+            com.mki.nightsiege.core.WheelData.Option o = new com.mki.nightsiege.core.WheelData.Option();
+            o.id = id;
+            o.icon = switch (id) {
+                case "raise" -> "minecraft:zombie_head";
+                case "wall" -> "minecraft:bone_block";
+                case "curse" -> "minecraft:wither_rose";
+                case "swarm" -> "minecraft:soul_lantern";
+                case "shield" -> "minecraft:amethyst_shard";
+                case "chain" -> "minecraft:chain";
+                default -> "minecraft:soul_sand";
+            };
+            o.name = "nightsiege.spell." + id;
+            o.sub = "nightsiege.wheel.souls";
+            o.subArgs.add(String.valueOf(spellCost(id)));
+            o.subArgs.add(String.valueOf(souls));
+            o.current = id.equals(picked);
+            wheel.options.add(o);
+        }
+        return wheel;
+    }
+
+    /** A pick on the spell wheel. */
+    public void pickSpell(ServerPlayer player, String id) {
+        PlayerSkills skills = skillsFor.apply(player);
+        List<String> spells = skills == null ? List.of() : spellsOf(skills);
+        int at = spells.indexOf(id);
+        if (at < 0) {
+            return;
+        }
+        spellIndex.put(player.getUUID(), at);
+        showSpell(player, skills);
+        player.level().playSound(null, player.blockPosition(), SoundEvents.AMETHYST_BLOCK_CHIME, SoundSource.PLAYERS, 0.8f, 1.3f);
+    }
+
     /** The summoner's skills, or null with a note when the staff is not his to use. */
     private PlayerSkills summonerSkills(ServerPlayer player) {
         PlayerSkills skills = skillsFor.apply(player);
