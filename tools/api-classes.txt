@@ -155,3 +155,19 @@ net.minecraft.world.entity.projectile.Projectile
 net.minecraft.world.item.context.UseOnContext
 net.minecraft.world.entity.Interaction
 net.minecraft.world.entity.player.ItemCooldowns
+
+# Reparatur nach der Nacht (Feuer, alle Blockaenderungen)
+net.minecraft.world.level.Level
+net.minecraft.world.level.block.FireBlock
+net.minecraft.world.level.block.BaseFireBlock
+net.minecraft.server.level.ServerPlayerGameMode
+net.minecraft.world.level.block.piston.PistonBaseBlock
+net.minecraft.world.level.block.entity.BlockEntity
+net.minecraft.world.level.block.FarmBlock
+net.minecraft.world.level.chunk.LevelChunk
+net.minecraft.world.Clearable
+net.minecraft.world.level.storage.TagValueOutput
+net.minecraft.world.level.storage.TagValueInput
+net.minecraft.util.ProblemReporter
+!net.minecraft.world.level.block.FireBlock#tick,checkBurnOut
+!net.minecraft.world.level.Level#setBlock,removeBlock,destroyBlock
