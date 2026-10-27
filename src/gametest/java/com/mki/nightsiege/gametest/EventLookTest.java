@@ -1505,7 +1505,7 @@ public class EventLookTest implements FabricClientGameTest {
         game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %.2f %.2f %.2f facing %.2f %.2f %.2f",
                 at[0] + 2.0, at[1], at[2] + 1.0, at[0], at[1] + 1.0, at[2]));
         context.waitTicks(5);
-        for (int i = 0; i < 40; i++) {
+        for (int i = 0; i < 70; i++) {   // the photo stalls the client: the work starts over after it
             onServer(context, (player, manager) -> {
                 net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
                 java.util.List<java.util.UUID> boxes = manager.machines().testHitboxes();
