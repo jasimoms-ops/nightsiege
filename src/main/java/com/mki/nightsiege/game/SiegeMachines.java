@@ -1123,10 +1123,10 @@ public final class SiegeMachines {
         }
         long now = machine.level.getGameTime();
         long gap = machine.sabotageAt < 0 ? 0 : now - machine.sabotageAt;
-        if (gap > 12) {
+        if (gap > 20) {
             machine.sabotage = 0;   // let go in between: from the start
         } else {
-            machine.sabotage += (int) gap;
+            machine.sabotage += (int) Math.min(gap, 8);   // a lag spike gives no free work
         }
         machine.sabotageAt = now;
         saboteurs.put(player.getUUID(), machine);
@@ -1151,13 +1151,25 @@ public final class SiegeMachines {
         return true;
     }
 
+    /**
+     * On the client: a machine's hit box (an invisible husk named after a machine). Right-click
+     * on it must count as handled there too, else a bow or shield in hand starts being used and
+     * the client stops repeating the click.
+     */
+    public static boolean looksLikeMachine(Entity entity) {
+        return entity instanceof net.minecraft.world.entity.monster.zombie.Husk && entity.isInvisible()
+                && entity.getCustomName() != null
+                && entity.getCustomName().getContents() instanceof net.minecraft.network.chat.contents.TranslatableContents t
+                && t.getKey().startsWith("nightsiege.machine.");
+    }
+
     /** A hit taken interrupts a sabotage. */
     public void afterDamage(LivingEntity victim, float taken) {
         if (taken <= 0 || saboteurs.isEmpty() || !(victim instanceof ServerPlayer player)) {
             return;
         }
         Machine machine = saboteurs.remove(player.getUUID());
-        if (machine != null && machine.sabotage > 0 && machine.level.getGameTime() - machine.sabotageAt <= 12) {
+        if (machine != null && machine.sabotage > 0 && machine.level.getGameTime() - machine.sabotageAt <= 20) {
             machine.sabotage = 0;
             machine.sabotageAt = -1L;
             actionBar(player, Component.translatable("nightsiege.machine.sabotage_hit").withStyle(ChatFormatting.RED));

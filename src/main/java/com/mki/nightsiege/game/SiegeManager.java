@@ -408,10 +408,13 @@ public final class SiegeManager {
         net.fabricmc.fabric.api.event.player.UseEntityCallback.EVENT.register((player, world, hand, entity, hit) ->
                 GainGear.onUseEntity(player, world, hand, entity));
         // Siege machines are sabotaged by hand: hold right-click at one (Simon, 27 October 2026).
-        net.fabricmc.fabric.api.event.player.UseEntityCallback.EVENT.register((player, world, hand, entity, hit) ->
-                !world.isClientSide() && player instanceof ServerPlayer server && hand == net.minecraft.world.InteractionHand.MAIN_HAND
-                        && machines.onUse(server, entity, config)
-                        ? InteractionResult.SUCCESS : InteractionResult.PASS);
+        net.fabricmc.fabric.api.event.player.UseEntityCallback.EVENT.register((player, world, hand, entity, hit) -> {
+            if (world.isClientSide()) {
+                return SiegeMachines.looksLikeMachine(entity) ? InteractionResult.SUCCESS : InteractionResult.PASS;
+            }
+            return player instanceof ServerPlayer server && hand == net.minecraft.world.InteractionHand.MAIN_HAND
+                    && machines.onUse(server, entity, config) ? InteractionResult.SUCCESS : InteractionResult.PASS;
+        });
         net.fabricmc.fabric.api.event.player.UseEntityCallback.EVENT.register((player, world, hand, entity, hit) ->
                 !world.isClientSide() && player instanceof ServerPlayer server
                         && combat.guardian().onUseEntity(server, entity, hand)

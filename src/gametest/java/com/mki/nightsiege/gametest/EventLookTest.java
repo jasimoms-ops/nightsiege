@@ -1505,15 +1505,15 @@ public class EventLookTest implements FabricClientGameTest {
         game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %.2f %.2f %.2f facing %.2f %.2f %.2f",
                 at[0] + 2.0, at[1], at[2] + 1.0, at[0], at[1] + 1.0, at[2]));
         context.waitTicks(5);
-        for (int i = 0; i < 24; i++) {
+        for (int i = 0; i < 40; i++) {
             onServer(context, (player, manager) -> {
                 net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
                 java.util.List<java.util.UUID> boxes = manager.machines().testHitboxes();
                 net.minecraft.world.entity.Entity box = boxes.isEmpty() ? null : level.getEntity(boxes.get(0));
                 manager.machines().onUse(player, box, manager.config());
             });
-            context.waitTicks(4);
-            if (i == 10) {
+            context.waitTicks(3);
+            if (i == 14) {
                 context.takeScreenshot("machines_sabotage");
             }
         }
