@@ -1546,13 +1546,15 @@ public final class SiegeManager {
         bossBar.setProgress(1.0f);
         active = true;
         combat.newSiege();
+        long scanStart = System.nanoTime();
         defense.begin(world, anchor, config, save.coreSkills(), skillTree, digger, anyoneHas("mauerkelle"));
+        long scanMs = (System.nanoTime() - scanStart) / 1_000_000L;
         safe("Angriffsplan", () -> {
             raid.begin(world, anchor, defense.base(), config, random, this::barNotice);
             BaseScan b = defense.base();
             if (b != null) {
-                NightSiegeMod.LOGGER.info("[Night Siege] Basis: {} {}x{}, Tore {}, Spawnplätze {}", b.closed ? "geschlossen" : "offen",
-                        b.width(), b.depth(), b.gates.size(), b.spawnSpotCount());
+                NightSiegeMod.LOGGER.info("[Night Siege] Basis: {} {}x{}, Tore {}, Spawnplätze {} ({} ms mit Schnappschuss)",
+                        b.closed ? "geschlossen" : "offen", b.width(), b.depth(), b.gates.size(), b.spawnSpotCount(), scanMs);
             }
         });
         nightKills = 0;

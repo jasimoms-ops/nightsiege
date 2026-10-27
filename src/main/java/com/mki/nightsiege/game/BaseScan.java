@@ -48,7 +48,10 @@ public final class BaseScan {
     private static final int[][] DIRS = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
     private static final int[] STEPS = {0, 1, -1, -2, -3};
     /** Open gateways closed in thought: how many narrow places are tried. */
-    private static final int MAX_ARCH_TRIES = 6;
+    private static final int MAX_ARCH_TRIES = 10;
+    private static final int MAX_ARCH_ROUNDS = 4;
+    /** A yard shut in by a gateway closed in thought is at most this big (walkable spots). */
+    private static final int YARD_LIMIT = 30_000;
     /** The disc that closes a gateway in thought. */
     private static final int ARCH_RADIUS = 3;
     /** A passage at most this wide counts as a gateway. */
@@ -292,30 +295,55 @@ public final class BaseScan {
         List<BlockPos> arches = new ArrayList<>();
         Flood out = w.flood(seeds, true, coreZone, virtual, null, ring, minY, maxY, false);
 
-        // A gateway without a door: close the narrow places on the way in, outermost first, in
-        // thought, until one of them closes the base (that one is its gateway).
-        if (out.hit != Long.MIN_VALUE && !out.overflow && !coreZone.isEmpty()) {
-            List<BlockPos> candidates = w.narrowPlaces(out.pathFrom(out.hit), out.seen, core);
-            int tries = 0;
-            for (BlockPos c : candidates) {
-                if (tries++ >= MAX_ARCH_TRIES) {
-                    break;
+        // Gateways without a door (Simon's castle may have an archway): where the walk from outside
+        // comes in, the narrow places on its way (outermost first) are closed in thought, one at a
+        // time. If that shuts in the core (or the yard in front of a door of the base, when the core
+        // stands in a house of its own), the narrow place was a gateway: it stays closed.
+        LongOpenHashSet triedFronts = new LongOpenHashSet();
+        int tests = 0;
+        for (int round = 0; round < MAX_ARCH_ROUNDS && !out.overflow && !coreZone.isEmpty() && tests < MAX_ARCH_TRIES; round++) {
+            long start;
+            if (out.hit != Long.MIN_VALUE) {
+                start = out.hit;
+            } else {
+                LongArrayFIFOQueue inner = new LongArrayFIFOQueue();
+                for (long p : coreZone) {
+                    inner.enqueue(p);
                 }
-                LongOpenHashSet more = new LongOpenHashSet();
-                for (int dx = -ARCH_RADIUS; dx <= ARCH_RADIUS; dx++) {
-                    for (int dz = -ARCH_RADIUS; dz <= ARCH_RADIUS; dz++) {
-                        if (dx * dx + dz * dz <= ARCH_RADIUS * ARCH_RADIUS) {
-                            more.add(pack(c.getX() + dx, c.getZ() + dz));
-                        }
+                Flood in = w.flood(inner, false, null, null, out.seen, radius, core.getY() - 8, maxY, false);
+                start = Long.MIN_VALUE;
+                for (Gate g : w.gates(in.seen, out.seen, List.of())) {
+                    long f = g.front().asLong();
+                    if (triedFronts.add(f)) {
+                        start = f;
+                        break;
                     }
                 }
-                Flood test = w.flood(w.ringSeeds(ring, minY, maxY), true, coreZone, more, null, ring, minY, maxY, true);
-                if (test.hit == Long.MIN_VALUE && !test.overflow) {
-                    arches.add(c);
-                    out = test;
+                if (start == Long.MIN_VALUE) {
+                    break;   // every door of the base opens onto open land
+                }
+            }
+            BlockPos accepted = null;
+            for (BlockPos c : w.narrowPlaces(out.pathFrom(start), out.seen, core)) {
+                if (tests++ >= MAX_ARCH_TRIES) {
+                    break;
+                }
+                LongOpenHashSet more = new LongOpenHashSet(virtual);
+                disc(more, c);
+                if (w.shutIn(start, more, ring, minY, maxY)) {
+                    accepted = c;
+                    virtual = more;
                     break;
                 }
             }
+            if (accepted == null) {
+                if (out.hit != Long.MIN_VALUE) {
+                    break;   // the core lies open: an open base
+                }
+                continue;   // the next door of the base
+            }
+            arches.add(accepted);
+            out = w.flood(w.ringSeeds(ring, minY, maxY), true, coreZone, virtual, null, ring, minY, maxY, false);
         }
 
         if (!coreZone.isEmpty() && out.hit == Long.MIN_VALUE && !out.overflow && out.seen.size() > 64) {
@@ -339,13 +367,7 @@ public final class BaseScan {
                     edge[s] = Math.max(edge[s], Math.sqrt(dx * dx + dz * dz) + 1.5);
                 }
                 for (BlockPos a : arches) {
-                    for (int dx = -ARCH_RADIUS; dx <= ARCH_RADIUS; dx++) {
-                        for (int dz = -ARCH_RADIUS; dz <= ARCH_RADIUS; dz++) {
-                            if (dx * dx + dz * dz <= ARCH_RADIUS * ARCH_RADIUS) {
-                                insideCols.add(pack(a.getX() + dx, a.getZ() + dz));
-                            }
-                        }
-                    }
+                    disc(insideCols, a);
                 }
                 fill(edge, 4.0);
                 List<Gate> gates = w.gates(in.seen, out.seen, arches);
@@ -383,6 +405,17 @@ public final class BaseScan {
             }
         }
         return new BaseScan(core, false, edge, new LongOpenHashSet(), gap, List.of(), null, null, spawnOpen);
+    }
+
+    /** The columns of a gateway closed in thought. */
+    private static void disc(LongOpenHashSet columns, BlockPos c) {
+        for (int dx = -ARCH_RADIUS; dx <= ARCH_RADIUS; dx++) {
+            for (int dz = -ARCH_RADIUS; dz <= ARCH_RADIUS; dz++) {
+                if (dx * dx + dz * dz <= ARCH_RADIUS * ARCH_RADIUS) {
+                    columns.add(pack(c.getX() + dx, c.getZ() + dz));
+                }
+            }
+        }
     }
 
     private static void addCapped(List<BlockPos> list, BlockPos p, Random random) {
@@ -734,6 +767,54 @@ public final class BaseScan {
                 }
             }
             return f;
+        }
+
+        /**
+         * Whether a walk from a spot, doors shut, stays shut in (never gets near the search circle,
+         * and stays smaller than a yard) with these gateways closed.
+         */
+        boolean shutIn(long start, LongOpenHashSet virtual, int ring, int minY, int maxY) {
+            LongArrayFIFOQueue queue = new LongArrayFIFOQueue();
+            LongOpenHashSet seen = new LongOpenHashSet();
+            queue.enqueue(start);
+            seen.add(start);
+            int far = (ring - 3) * (ring - 3);
+            while (!queue.isEmpty()) {
+                if (seen.size() > YARD_LIMIT) {
+                    return false;
+                }
+                long p = queue.dequeueLong();
+                int x = BlockPos.getX(p);
+                int y = BlockPos.getY(p);
+                int z = BlockPos.getZ(p);
+                int hx0 = x - core.getX();
+                int hz0 = z - core.getZ();
+                if (hx0 * hx0 + hz0 * hz0 >= far) {
+                    return false;   // out on open land
+                }
+                for (int[] d : DIRS) {
+                    int qx = x + d[0];
+                    int qz = z + d[1];
+                    if (!level.hasChunk(qx >> 4, qz >> 4)) {
+                        return false;
+                    }
+                    for (int dy : STEPS) {
+                        int qy = y + dy;
+                        if (qy < minY || qy > maxY) {
+                            continue;
+                        }
+                        long q = BlockPos.asLong(qx, qy, qz);
+                        if (!canMove(p, q, dy, true, virtual)) {
+                            continue;
+                        }
+                        if (seen.add(q)) {
+                            queue.enqueue(q);
+                        }
+                        break;
+                    }
+                }
+            }
+            return true;
         }
 
         /**
