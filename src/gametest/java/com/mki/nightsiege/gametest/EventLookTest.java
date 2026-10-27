@@ -716,10 +716,10 @@ public class EventLookTest implements FabricClientGameTest {
             slot++;
         }
         context.waitTicks(10);
-        context.runOnClient(client -> client.setScreen(new net.minecraft.client.gui.screens.inventory.InventoryScreen(client.player)));
+        context.runOnClient(client -> client.gui.setScreen(new net.minecraft.client.gui.screens.inventory.InventoryScreen(client.player)));
         context.waitTicks(10);
         context.takeScreenshot("kit_weapons_inventory");
-        context.runOnClient(client -> client.setScreen(null));
+        closeScreen(context);
         context.waitTicks(5);
         for (int i : new int[] {0, 4, 6}) {
             final int hotbar = i;
