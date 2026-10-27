@@ -438,7 +438,7 @@ public final class KitService {
                 }
                 hotbar.add(xbow);
             }
-            hotbar.add(sword(ench, weapon, Math.max(1, sharp - 2)));
+            // No second sword for the archer any more (Simon, 27 October 2026).
             // Köcherfüllung gives arrow damage since every bow has Infinity (26 October 2026).
             int arrows = NightKit.archerArrows(level);
             hotbar.addAll(stacks(Items.ARROW, arrows));
@@ -479,15 +479,9 @@ public final class KitService {
                 hotbar.add(new ItemStack(Items.BEEF, 8 + bag));   // a wolf heals from meat
             }
         } else {
-            // Engineer (and the fallback for a player without a class).
+            // Engineer (and the fallback for a player without a class): the sword only. The bow and its
+            // arrows left the kit (Simon, 27 October 2026); the towers have their own magazines.
             hotbar.add(sword(ench, weapon, Math.max(1, sharp - 1)));
-            ItemStack bow = new ItemStack(Items.BOW);
-            enchant(bow, ench, Enchantments.POWER, Math.max(1, NightKit.sharpness(level) - 1));
-            hotbar.add(bow);
-            // Turret arrows for everyone with an arrow turret (mechanics, demolition expert, cross talent).
-            boolean mech = way.equals(SkillTree.WAY_MECHANICS) || tree.trapTier(TrapKind.TURRET, skills) > 0;
-            int arrows = NightKit.engineerArrows(level, mech) + (gainLevel(skills, clazz, "pfeilkiste") > 0 ? 32 : 0);
-            hotbar.addAll(stacks(Items.ARROW, arrows));
         }
 
         // Food and the general gains.

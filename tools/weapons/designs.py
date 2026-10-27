@@ -126,6 +126,15 @@ class Sprite:
 
 
 DESIGNS = []
+# Which picture of a bow or crossbow is drawn: 'standby' (the item as it lies in the inventory),
+# 'pull0'..'pull2' (drawing), for crossbows also 'arrow' and 'firework' (loaded). Minecraft
+# swaps these textures itself (bow_pulling_0 .. crossbow_firework).
+STATE = 'standby'
+BOW_STATES = ['standby', 'pull0', 'pull1', 'pull2']
+CROSSBOW_STATES = ['standby', 'pull0', 'pull1', 'pull2', 'arrow', 'firework']
+ARROW_SHAFT = hexc('a8804e')
+ARROW_HEAD = hexc('c9ced8')
+ARROW_FEATHER = hexc('f2f2f2')
 
 
 def design(key, clazz, sub, name, line):
@@ -295,9 +304,24 @@ def bow(s, k, wmid, wood, grip, string, nock, recurve=False):
                     s.put(x, y, wood[2] if u < 0.5 else wood[1])
                 else:
                     s.put(x, y, wood[1] if u < 0.5 else wood[0])
-    for x in range(3, 13):
-        if (x, x - 1) not in s.px:
-            s.put(x, x - 1, string)
+    pull = {'pull0': 1.0, 'pull1': 2.0, 'pull2': 2.9}.get(STATE)
+    if pull is None:
+        for x in range(3, 13):
+            if (x, x - 1) not in s.px:
+                s.put(x, x - 1, string)
+    else:
+        # Drawn: the string goes back to the nock, an arrow lies on the bow, its head past the grip.
+        nx, ny = 7.5 - pull, 6.5 + pull
+        s.segment(t1, (nx, ny), string, 0.5, over=False)
+        s.segment(t2, (nx, ny), string, 0.5, over=False)
+        tip = min(R + 2.6, math.dist((cx, cy), (15.0, 0.0)))
+        tx, ty = round(cx + tip * 0.7071), round(cy - tip * 0.7071)
+        s.segment((nx + 0.6, ny - 0.6), (tx - 1.5, ty + 1.5), ARROW_SHAFT, 0.5)
+        for (px, py) in ((tx, ty), (tx - 1, ty), (tx, ty + 1), (tx - 1, ty + 1)):
+            s.put(px, py, ARROW_HEAD)                  # the head, past the grip
+        fx, fy = round(nx), round(ny)
+        for (px, py) in ((fx - 1, fy), (fx, fy + 1), (fx - 1, fy + 1)):
+            s.put(px, py, ARROW_FEATHER)
     s.put(*t1, nock); s.put(*t2, nock)
     if recurve:
         s.put(3, 0, nock); s.put(15, 12, nock)
@@ -323,21 +347,28 @@ def heavy(s):
 
 
 def crossbow(s, stock, prod, string, bolt, head, butt=None):
-    """A loaded crossbow: stock from the bottom left, the prod across the front, the string
-    drawn back to the nut, a bolt on top pointing to the top right."""
+    """A crossbow: stock from the bottom left, the prod across the front; spanned the string is
+    drawn back to the nut, loaded a bolt (or a rocket) lies on top pointing to the top right."""
     def stock_f(a, d, x, y):
         if -13 <= a <= 6 and abs(d) <= 1:
             return stock[2] if d < 0 else stock[1] if d == 0 else stock[0]
         if -13 <= a <= -9 and abs(d) <= 2:
             return (butt or stock)[1]
     s.field(stock_f)
-    s.segment((5, 2), (7, 7), string, 0.5)
-    s.segment((12, 9), (7, 7), string, 0.5)
+    # Where the string meets the stock: at the prod when relaxed, at the nut when spanned.
+    nut = {'standby': None, 'pull0': 2.6, 'pull1': 1.6, 'pull2': 0.6}.get(STATE, 0.0)
+    bend = 2.6 if STATE == 'standby' else 3.2           # a spanned prod bends a little more
+    if nut is None:
+        s.segment((5, 2), (12, 9), string, 0.5)
+    else:
+        n = ((nut + 14) / 2, (14 - nut) / 2)
+        s.segment((5, 2), n, string, 0.5)
+        s.segment((12, 9), n, string, 0.5)
 
     def prod_f(a, d, x, y):
         if abs(d) > 7:
             return None
-        if abs(a - (6.5 - 3.2 * (d / 7.0) ** 2)) <= 0.95:
+        if abs(a - (6.5 - bend * (d / 7.0) ** 2)) <= 0.95:
             return prod[2] if d < -2 else prod[1] if d < 3 else prod[0]
     s.field(prod_f)
 
@@ -346,7 +377,16 @@ def crossbow(s, stock, prod, string, bolt, head, butt=None):
             return bolt
         if 10 <= a <= 12 and abs(d) <= (12 - a) * 0.7 + 0.2:
             return head
-    s.field(bolt_f)
+    if STATE == 'arrow':
+        s.field(bolt_f)
+
+    def rocket_f(a, d, x, y):
+        if 1 <= a <= 9 and abs(d) <= 1:
+            return hexc('e0393f') if d < 0 else hexc('b02a30') if d == 0 else hexc('7a1a1f')
+        if 10 <= a <= 11 and d == 0 or a == 10 and abs(d) == 1:
+            return hexc('f2f2f2')
+    if STATE == 'firework':
+        s.field(rocket_f)
 
 
 @design('bolter_launcher', 'Bogenschütze', 'Bolzenschütze', 'Bolzenwerfer',
@@ -367,9 +407,10 @@ def trapper(s):
     # rope drum below the stock (shadow side): rope windings
     s.field(lambda a, d, x, y: (hexc('d8c79a') if a % 2 == 0 else hexc('9c8450'))
             if -7 <= a <= -3 and 2 <= d <= 3 else None)
-    # the net on the bolt head: a little mesh
-    s.field(lambda a, d, x, y: hexc('e8dcb8') if 10 <= a <= 13 and abs(d) <= 2 and (a % 2 == 0 or abs(d) + (a - 10) >= 4) and abs(d) + (a - 10) <= 4
-            else None)
+    # the net on the bolt head: a little mesh (only when a bolt is loaded)
+    if STATE == 'arrow':
+        s.field(lambda a, d, x, y: hexc('e8dcb8') if 10 <= a <= 13 and abs(d) <= 2 and (a % 2 == 0 or abs(d) + (a - 10) >= 4) and abs(d) + (a - 10) <= 4
+                else None)
     s.outline(hexc('140c06'))
 
 
@@ -636,7 +677,42 @@ def sheet(path):
     im.save(path)
 
 
+def states_sheet(path):
+    """The drawing and loaded pictures of the four bows and crossbows."""
+    global STATE
+    from PIL import Image, ImageDraw, ImageFont
+    font_b = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 20)
+    font = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', 14)
+    names = {'standby': 'ungespannt', 'pull0': 'spannen 1', 'pull1': 'spannen 2', 'pull2': 'spannen 3',
+             'arrow': 'geladen: Bolzen', 'firework': 'geladen: Rakete'}
+    rows = [t for t in DESIGNS if t[1] == 'Bogenschütze']
+    cell = 150
+    im = Image.new('RGBA', (40 + 220 + 6 * cell, 70 + len(rows) * (cell + 20)), (18, 16, 25, 255))
+    d = ImageDraw.Draw(im)
+    d.text((20, 18), 'Bögen und Armbrüste: alle Zustände (Minecraft wechselt die Texturen selbst)',
+           fill=(255, 216, 107), font=font_b)
+    y = 60
+    for key, clazz, sub, name, line, fn in rows:
+        d.text((20, y + 50), name, fill=(255, 255, 255), font=font_b)
+        d.text((20, y + 76), sub, fill=(255, 216, 107), font=font)
+        states = CROSSBOW_STATES if 'bow_' not in key and key.split('_')[1] in ('launcher', 'netbow') else BOW_STATES
+        for i, st in enumerate(states):
+            STATE = st
+            sp = Sprite()
+            fn(sp)
+            sp.image().save(os.path.join(OUT, key + ('' if st == 'standby' else '_' + st) + '.png'))
+            big = sp.image(8)
+            x0 = 240 + i * cell
+            d.rectangle([x0, y, x0 + 136, y + 136], fill=(14, 12, 20), outline=(44, 39, 64), width=2)
+            im.paste(big, (x0 + 4, y + 4), big)
+            d.text((x0 + 4, y + 140), names[st], fill=(207, 199, 221), font=font)
+        STATE = 'standby'
+        y += cell + 20
+    im.save(path)
+
+
 if __name__ == '__main__':
     os.makedirs(OUT, exist_ok=True)
     sheet(os.path.join(OUT, 'sheet.png'))
+    states_sheet(os.path.join(OUT, 'states.png'))
     print('ok', len(DESIGNS))
