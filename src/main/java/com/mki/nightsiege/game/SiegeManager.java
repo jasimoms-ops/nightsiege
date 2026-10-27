@@ -342,6 +342,7 @@ public final class SiegeManager {
         ServerLifecycleEvents.SERVER_STARTED.register(server -> onServerStarted(server));
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
             dungeons.abortAll();
+            safe("Dungeons", () -> expeditions.endAll(server, null));   // kits back, the arena's gate open
             traps.releaseAll(server);   // gunners out of the towers, the seats go
             Drones.stopAll(server);
             if (active) {

@@ -187,7 +187,7 @@ public final class Expeditions {
         SiegeConfig cfg = m.config();
         int rooms = ExpeditionKind.rooms(m.currentLevel());
         int length = ExpeditionLayout.length(rooms);
-        for (int attempt = 0; attempt < 160; attempt++) {
+        for (int attempt = 0; attempt < 80; attempt++) {
             double angle = random.nextDouble() * Math.PI * 2.0;
             double distance = cfg.expeditionMinDistance
                     + random.nextDouble() * Math.max(0, cfg.expeditionMaxDistance - cfg.expeditionMinDistance);
@@ -232,14 +232,15 @@ public final class Expeditions {
      */
     private static String groundFor(ServerLevel level, int x, int z, int facing, int length) {
         int sea = level.getSeaLevel();
+        String biome = biomePath(level, x, sea + 4, z);
+        if (wet(biome)) {
+            return null;   // the cheap look first: sea and rivers are out
+        }
         int y0 = baseHeight(level, x, z);
         if (y0 <= sea + 1) {
             return null;
         }
-        String biome = biomePath(level, x, y0, z);
-        if (wet(biome)) {
-            return null;
-        }
+        biome = biomePath(level, x, y0, z);
         BlockPos origin = new BlockPos(x, y0, z);
         for (int lz = -8; lz <= length; lz += 8) {
             for (int lx = -10; lx <= 10; lx += 10) {
@@ -261,16 +262,14 @@ public final class Expeditions {
         return biome.contains("ocean") || biome.contains("river") || biome.contains("beach") || biome.contains("shore");
     }
 
+    /** The ground as the world's generator makes it (no trees, no buildings; works for ground nobody has seen). */
     private static int baseHeight(ServerLevel level, int x, int z) {
-        if (level.hasChunk(x >> 4, z >> 4)) {
-            return level.getHeight(Heightmap.Types.OCEAN_FLOOR, x, z);
-        }
         return level.getChunkSource().getGenerator().getBaseHeight(x, z, Heightmap.Types.OCEAN_FLOOR_WG, level,
                 level.getChunkSource().randomState());
     }
 
     private static String biomePath(ServerLevel level, int x, int y, int z) {
-        Holder<Biome> biome = level.getBiome(new BlockPos(x, y, z));
+        Holder<Biome> biome = level.getUncachedNoiseBiome(x >> 2, y >> 2, z >> 2);
         return biome.unwrapKey().map(k -> k.identifier().getPath()).orElse("plains");
     }
 
@@ -414,6 +413,13 @@ public final class Expeditions {
         if (now % 5 == 0) {
             checkEntries(level, rec, now);
         }
+        if (now % 200 == 0 && fighters.isEmpty() && !arenaClosed && rec.cleared >= rec.rooms) {
+            // A gate left shut by a crash in the arena fight opens again.
+            BlockPos gate = plan(rec).arenaGate.get(0);
+            if (level.hasChunk(gate.getX() >> 4, gate.getZ() >> 4) && level.getBlockState(gate).is(Blocks.IRON_BARS)) {
+                setGate(level, plan(rec).arenaGate, false);
+            }
+        }
         if (now % 10 == 0 && (!fighters.isEmpty() || !joined.isEmpty())) {
             tickFight(server, level, rec, now);
         }
@@ -433,10 +439,18 @@ public final class Expeditions {
             if (floor == null) {
                 continue;
             }
+            boolean someone = false;
             for (ServerPlayer p : level.players()) {
-                if (p.distanceToSqr(x + 0.5, p.getY(), z + 0.5) < 32.0 * 32.0) {
-                    return;   // nobody sees it pop up
+                // Nobody close sees it pop up; nobody at all stands where its walls go.
+                double limit = buildRounds < 3 ? 32.0 : 12.0;
+                if (p.distanceToSqr(x + 0.5, p.getY(), z + 0.5) < limit * limit) {
+                    someone = true;
+                    break;
                 }
+            }
+            if (someone) {
+                buildRounds++;
+                return;
             }
             build(level, rec, new BlockPos(x, floor, z));
             return;
@@ -465,7 +479,7 @@ public final class Expeditions {
                 for (int up = 0; up <= 14; up++) {
                     BlockPos pos = column.above(up);
                     BlockState there = level.getBlockState(pos);
-                    if (!there.isAir() && !there.hasBlockEntity()) {
+                    if (!there.isAir() && !there.hasBlockEntity() && SiegeCamp.natural(there)) {
                         level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS);
                     }
                 }
