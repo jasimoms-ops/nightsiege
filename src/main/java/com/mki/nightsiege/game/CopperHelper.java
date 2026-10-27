@@ -122,7 +122,7 @@ public final class CopperHelper {
         long now = level.getGameTime();
         Vec3 goal = null;
         // First its two towers (Simon, 27 October 2026): it walks over, stands there for the
-        // three seconds of the work, and reloads or repairs them like the engineer's code would.
+        // three seconds of the work, and strengthens them like the engineer's code would.
         if (owner != null) {
             TrapService traps = SiegeManager.get().kits().traps();
             BlockPos busy = WORKING.get(id);
