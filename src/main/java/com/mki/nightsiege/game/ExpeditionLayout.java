@@ -187,8 +187,8 @@ public final class ExpeditionLayout {
         for (int x = -2; x <= 2; x++) {
             b.put(x, 3, -5, b.part(Part.PILLAR));
         }
-        b.put(-3, 0, -7, b.banner(0));
-        b.put(3, 0, -7, b.banner(0));
+        b.put(-3, 0, -7, b.banner(8));   // facing whoever comes from the core
+        b.put(3, 0, -7, b.banner(8));
         b.light(-3, h - 1, -3);
         b.light(3, h - 1, -3);
         b.light(-3, h - 1, 3);
