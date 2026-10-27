@@ -3145,6 +3145,7 @@ public final class SiegeManager {
             case "wipegains" -> wipeAllGains(player);
             case "ult" -> onUltimateKey(player);
             case "ult2" -> onSecondKey(player);
+            case "ult2x" -> SecondUlts.fire(player);   // X: the second ultimate alone (27 October 2026)
             case "quiver" -> {
                 // G: the archer's quiver; the summoner picks his spell (way of the dead) or calls (way of the light).
                 if (!companions.selectKey(player)) {
@@ -3763,18 +3764,15 @@ public final class SiegeManager {
      */
     private void onSecondKey(ServerPlayer player) {
         ItemStack held = player.getMainHandItem();
-        // Sneak + X (Simon, 26 October 2026): with the remote or the staff in hand X gives
-        // their order and sneak + X the second ult (the soul shield is a spell now).
-        boolean sneak = player.isShiftKeyDown();
-        if (ModContent.REMOTE != null && held.is(ModContent.REMOTE) && !sneak) {
+        // Fähigkeit 2 (F, Simon 27 October 2026): the order of the remote or the staff in hand.
+        // The second ultimate has its own key X now, so the two never get in each other's way.
+        if (ModContent.REMOTE != null && held.is(ModContent.REMOTE)) {
             traps.useRemote(player, null, true);
             return;
         }
-        if (held.getItem() instanceof SummonStaffItem && !sneak) {
+        if (held.getItem() instanceof SummonStaffItem) {
             companions.command(player);
-            return;
         }
-        SecondUlts.fire(player);
     }
 
     /**

@@ -19,6 +19,8 @@ import org.lwjgl.glfw.GLFW;
  */
 public final class GainClient {
 
+    private static KeyMapping orderKey;
+    /** The second ultimate from the crate stays on X of its own (Simon, 27 October 2026). */
     private static KeyMapping secondUltKey;
     private static KeyMapping quiverKey;
     private static boolean jumpWasDown;
@@ -27,6 +29,10 @@ public final class GainClient {
     private static int airTicks;
 
     private GainClient() {
+    }
+
+    public static KeyMapping orderKey() {
+        return orderKey;
     }
 
     public static KeyMapping secondUltKey() {
@@ -38,8 +44,10 @@ public final class GainClient {
     }
 
     public static void init(KeyMapping.Category category) {
+        orderKey = KeyMappingHelper.registerKeyMapping(
+                new KeyMapping("key.nightsiege.ability2", GLFW.GLFW_KEY_F, category));   // Fähigkeit 2, the orders formerly on X (27 Oct 2026)
         secondUltKey = KeyMappingHelper.registerKeyMapping(
-                new KeyMapping("key.nightsiege.ability2", GLFW.GLFW_KEY_F, category));   // Fähigkeit 2, formerly X (27 Oct 2026)
+                new KeyMapping("key.nightsiege.second_ult", GLFW.GLFW_KEY_X, category));
         quiverKey = KeyMappingHelper.registerKeyMapping(
                 new KeyMapping("key.nightsiege.ability3", GLFW.GLFW_KEY_Z, category));   // Fähigkeit 3, formerly G: the German Y key
         ClientTickEvents.END_CLIENT_TICK.register(GainClient::tick);
@@ -52,8 +60,11 @@ public final class GainClient {
     }
 
     private static void tick(Minecraft client) {
-        while (secondUltKey.consumeClick()) {
+        while (orderKey.consumeClick()) {
             send("ult2");
+        }
+        while (secondUltKey.consumeClick()) {
+            send("ult2x");
         }
         while (quiverKey.consumeClick()) {
             send("quiver");

@@ -32,7 +32,8 @@ public final class NightKeys {
 
     private static List<KeyMapping> abilities() {
         List<KeyMapping> out = new ArrayList<>(3);
-        for (KeyMapping m : new KeyMapping[] {NightSiegeClient.ultimateKey(), GainClient.secondUltKey(), GainClient.quiverKey()}) {
+        for (KeyMapping m : new KeyMapping[] {NightSiegeClient.ultimateKey(), GainClient.orderKey(), GainClient.quiverKey(),
+                GainClient.secondUltKey()}) {
             if (m != null && !m.isUnbound()) {
                 out.add(m);
             }

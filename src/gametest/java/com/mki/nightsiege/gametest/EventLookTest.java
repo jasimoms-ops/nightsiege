@@ -2738,8 +2738,9 @@ public class EventLookTest implements FabricClientGameTest {
         context.waitTicks(30);   // the server says once a second that the keys are taken
         context.runOnClient(client -> System.out.println("[Night Siege test] keys owned=" + com.mki.nightsiege.client.NightKeys.owned()
                 + " q=" + client.options.keyDrop.saveString() + " ability1=" + com.mki.nightsiege.client.NightSiegeClient.ultimateKey().saveString()
-                + " ability2=" + com.mki.nightsiege.client.GainClient.secondUltKey().saveString()
-                + " ability3=" + com.mki.nightsiege.client.GainClient.quiverKey().saveString()));
+                + " ability2=" + com.mki.nightsiege.client.GainClient.orderKey().saveString()
+                + " ability3=" + com.mki.nightsiege.client.GainClient.quiverKey().saveString()
+                + " ult2=" + com.mki.nightsiege.client.GainClient.secondUltKey().saveString()));
         context.getInput().pressKey(net.minecraft.client.Minecraft.getInstance().options.keyDrop);
         context.waitTicks(3);
         context.getInput().pressKey(net.minecraft.client.Minecraft.getInstance().options.keySwapOffhand);
