@@ -986,7 +986,8 @@ public final class CombatEffects {
         PlayerSkills skills = skillsFor.apply(player);
         // What the hit did, about: the arrow's damage at its speed, at most the monster's life.
         float taken = (float) Math.min(victim.getMaxHealth(),
-                Math.max(1.0, arrow.getBaseDamage() * arrow.getDeltaMovement().length()));
+                Math.max(1.0, ((com.mki.nightsiege.mixin.ArrowAccessor) arrow).nightsiege$baseDamage()
+                        * arrow.getDeltaMovement().length()));
         if (skills != null) {
             arrowHit(level, player, skills, victim, arrow, taken, level.getGameTime());
         }

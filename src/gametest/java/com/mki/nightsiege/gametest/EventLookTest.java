@@ -772,6 +772,7 @@ public class EventLookTest implements FabricClientGameTest {
         });
         context.waitTicks(60);
         onServer(context, (player, manager) -> t[4] = player.level().getServer().overworld().getOverworldClockTime());
+        context.waitTicks(5);
         System.out.println("[Night Siege test] night hold: day " + t[0] + " -> test " + t[1] + ", held " + t[2] + "/" + t[3]
                 + " (active " + t[5] + "), after " + t[4]);
         if (t[1] != 24000 + 13000 || t[5] != 1 || t[2] != 24000 + 21500 || t[3] != t[2] || t[4] <= t[3]) {
