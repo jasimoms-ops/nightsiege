@@ -77,6 +77,10 @@ public final class Besiegers {
         BlockPos wall;
         Direction face;
         int rung;
+        /** Rungs this ladder needs (wall height), known once a free column was found. */
+        int height = HIGHEST_LADDER;
+        /** Walking sideways to a free column before building (since this tick, -1 = not). */
+        long walkSince = -1;
         long next;
         long fuseUntil = -1;
 
@@ -295,6 +299,11 @@ public final class Besiegers {
             // On the way: towards the core until the wall is in front.
             if (findWall(world, mob, anchor, job, 2.5)) {
                 mob.getNavigation().stop();
+                // Only where the way up is free (Simon, 27 October 2026: no ladders into an overhang).
+                if (!pickColumn(world, job, now)) {
+                    finish(mob.getUUID(), job, mob);   // nowhere to lean it: just fight
+                    return;
+                }
                 job.next = now;
                 return;
             }
@@ -302,6 +311,21 @@ public final class Besiegers {
                 mob.getNavigation().moveTo(anchor.getX() + 0.5, anchor.getY(), anchor.getZ() + 0.5, 1.0);
             }
             return;
+        }
+        if (job.walkSince >= 0) {
+            // To the free column a few blocks along the wall.
+            Vec3 goal = job.approach;
+            if (mob.position().distanceToSqr(goal.x, mob.getY(), goal.z) > 1.6 && now - job.walkSince < 100) {
+                if (mob.getNavigation().isDone() || now % 20 == 0) {
+                    mob.getNavigation().moveTo(goal.x, goal.y, goal.z, 1.0);
+                }
+                return;
+            }
+            job.walkSince = -1;
+            if (climbHeight(world, job.wall, job.face) < 0) {
+                finish(mob.getUUID(), job, mob);   // blocked in the meantime
+                return;
+            }
         }
         // At the wall: one rung after the other, from the ground up to the top.
         mob.getNavigation().stop();
@@ -315,7 +339,7 @@ public final class Besiegers {
         BlockPos support = job.wall.above(job.rung);
         BlockState ladder = Blocks.LADDER.defaultBlockState().setValue(LadderBlock.FACING, job.face);
         boolean wallThere = world.getBlockState(support).isFaceSturdy(world, support, job.face);
-        if (!wallThere || job.rung >= HIGHEST_LADDER || !ladder.canSurvive(world, rungPos)
+        if (!wallThere || job.rung >= job.height || job.rung >= HIGHEST_LADDER || !ladder.canSurvive(world, rungPos)
                 || !(TempBlocks.place(world, rungPos, ladder) || world.getBlockState(rungPos).is(Blocks.LADDER))) {
             if (job.rung > 0) {
                 world.playSound(null, column, SoundEvents.LADDER_PLACE, SoundSource.HOSTILE, 1.0f, 0.8f);
@@ -325,6 +349,59 @@ public final class Besiegers {
         }
         world.playSound(null, rungPos, SoundEvents.LADDER_PLACE, SoundSource.HOSTILE, 0.7f, 1.0f + job.rung * 0.05f);
         job.rung++;
+    }
+
+    /**
+     * The column the ladder goes into: straight ahead if the way up is free there, else the
+     * nearest free one up to 3 blocks along the wall (the carrier walks there first). False when
+     * there is none.
+     */
+    private static boolean pickColumn(ServerLevel world, Job job, long now) {
+        Direction across = job.face.getClockWise();
+        for (int o : new int[] {0, 1, -1, 2, -2, 3, -3}) {
+            BlockPos wall = job.wall.relative(across, o);
+            BlockPos column = wall.relative(job.face);
+            if (o != 0 && !solid(world, column.below()) && !world.getBlockState(column.below()).is(Blocks.LADDER)) {
+                continue;   // no ground to start from
+            }
+            int h = climbHeight(world, wall, job.face);
+            if (h > 0) {
+                job.wall = wall;
+                job.height = h;
+                job.approach = Vec3.atBottomCenterOf(column);
+                job.walkSince = o == 0 ? -1 : now;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Rungs a ladder in front of {@code wall} needs to reach the top, or -1 if the way up is
+     * blocked: a block in the column above (an overhang, a roof, a torch), the top closed off,
+     * or the wall higher than a ladder goes.
+     */
+    public static int climbHeight(ServerLevel world, BlockPos wall, Direction face) {
+        int h = 0;
+        while (h <= HIGHEST_LADDER && world.getBlockState(wall.above(h)).isFaceSturdy(world, wall.above(h), face)) {
+            h++;
+        }
+        if (h == 0 || h > HIGHEST_LADDER) {
+            return -1;
+        }
+        BlockPos column = wall.relative(face);
+        for (int i = 0; i <= h + 1; i++) {   // the ladder itself, then room for feet and head at the top
+            BlockState state = world.getBlockState(column.above(i));
+            if (!state.is(Blocks.LADDER) && !(state.isAir() || state.canBeReplaced())) {
+                return -1;
+            }
+        }
+        // Off the ladder onto the wall: free above the top (a slab on top is fine with room above it).
+        BlockPos top = wall.above(h);
+        if (solid(world, top.above()) || solid(world, top) && solid(world, top.above(2))) {
+            return -1;
+        }
+        return h;
     }
 
     // ------------------------------------------------------------------ sapper creepers

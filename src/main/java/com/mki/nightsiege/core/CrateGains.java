@@ -76,7 +76,7 @@ public final class CrateGains {
         add("feuerklinge", w, CrateRarity.RARE, 1, false, "", true);
         add("blitzklinge", w, CrateRarity.RARE, 1, false, "", true);
         add("kampfhorn", w, CrateRarity.RARE, 1, false, "", true);
-        add("ersatzwaffe_w", w, CrateRarity.RARE, 1, false, "", true);
+        // "ersatzwaffe_w" (axe and sword) left the crates too (Simon, 27 October 2026).
         add("zweihaender", w, CrateRarity.EPIC, 1, false, "", true);
         add("hinrichter", w, CrateRarity.EPIC, 1, false, "", true);
         add("kampfrausch", w, CrateRarity.EPIC, 1, false, "", true);
@@ -165,7 +165,7 @@ public final class CrateGains {
             Map.entry("gestaehlt", "minecraft:iron_ingot"), Map.entry("pluenderung", "minecraft:emerald"),
             Map.entry("schwung", "minecraft:golden_sword"), Map.entry("kriegsgurt", "minecraft:iron_chestplate"),
             Map.entry("feuerklinge", "minecraft:blaze_powder"), Map.entry("blitzklinge", "minecraft:lightning_rod"),
-            Map.entry("kampfhorn", "minecraft:goat_horn"), Map.entry("ersatzwaffe_w", "minecraft:stone_axe"),
+            Map.entry("kampfhorn", "minecraft:goat_horn"),
             Map.entry("zweihaender", "minecraft:netherite_sword"), Map.entry("hinrichter", "minecraft:wither_skeleton_skull"),
             Map.entry("kampfrausch", "minecraft:sugar"), Map.entry("schlachtentrance", "minecraft:clock"),
             Map.entry("koecherfuellung", "minecraft:arrow"),

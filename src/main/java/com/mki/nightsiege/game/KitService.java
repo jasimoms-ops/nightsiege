@@ -389,13 +389,13 @@ public final class KitService {
         if (clazz == SkillClass.WARRIOR) {
             boolean blade = way.isEmpty() || way.equals(SkillTree.WAY_BLADE);
             boolean might = way.isEmpty() || way.equals(SkillTree.WAY_MIGHT);
-            boolean spare = gainLevel(skills, clazz, "ersatzwaffe_w") > 0;
-            if (blade || spare) {
+            // The spare weapon (axe and sword) left the crates (Simon, 27 October 2026).
+            if (blade) {
                 // The blademaster's combo (no cooldown) comes with an iron sword at most.
                 NightKit.Material swordMaterial = SkillTree.has(skills, "w_combo") ? NightKit.Material.IRON : weapon;
                 hotbar.add(warriorWeapon(skills, clazz, ench, item(swordMaterial, "sword"), sharp, true));
             }
-            if (might || spare) {
+            if (might) {
                 hotbar.add(warriorWeapon(skills, clazz, ench, item(weapon, "axe"), sharp, false));
             }
         } else if (clazz == SkillClass.ARCHER) {
@@ -455,8 +455,8 @@ public final class KitService {
                 hotbar.add(PotionContents.createItemStack(Items.POTION, Potions.STRONG_HEALING));
             }
         } else if (clazz == SkillClass.SUMMONER) {
-            // The staff first (the summoner's own attack, orders, calls and spells), a sword for close
-            // quarters; food for the wolves or iron for the golem. Nothing here adds a companion.
+            // The staff (the summoner's own attack, orders, calls and spells) and no sword (Simon,
+            // 27 October 2026); food for the wolves or iron for the golem. Nothing here adds a companion.
             if (ModContent.STAFF != null) {
                 ItemStack staff = new ItemStack(ModContent.STAFF);
                 if (way.equals(SkillTree.WAY_DEAD)) {
@@ -472,7 +472,6 @@ public final class KitService {
                 }
                 hotbar.add(staff);
             }
-            hotbar.add(sword(ench, weapon, Math.max(1, sharp - 1)));
             int bag = 8 * gainLevel(skills, clazz, "futterbeutel");   // Futterbeutel: more to heal with
             if (SkillTree.has(skills, "s_golemsmith")) {
                 hotbar.add(new ItemStack(Items.IRON_INGOT, 16 + bag));   // a golem mends with iron

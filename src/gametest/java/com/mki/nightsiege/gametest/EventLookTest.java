@@ -70,6 +70,7 @@ public class EventLookTest implements FabricClientGameTest {
                 ladderScene(context, game);
                 ladderTargetScene(context, game, true);
                 innerLadderScene(context, game);
+                ladderOverhangScene(context, game);
                 com.mki.nightsiege.game.TrapService.mortarsAnyTime = true;   // the scenes below test by day
                 mortarScene(context, game);
                 mannedScene(context, game);
@@ -680,6 +681,37 @@ public class EventLookTest implements FabricClientGameTest {
             }
         });
         context.waitTicks(5);
+    }
+
+    /**
+     * Simon (27 October 2026): a ladder carrier may only build where the way up is free. A wall
+     * 5 high with an overhang over one column: there no ladder, next to it the full height.
+     */
+    private static void ladderOverhangScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        int gx = pos.getX() + 200;
+        int gz = pos.getZ();
+        int gy = groundAt(context, gx, gz);
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:stone".formatted(gx - 6, gy - 1, gz - 6, gx + 6, gy - 1, gz + 6));
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(gx - 6, gy, gz - 6, gx + 6, gy + 9, gz + 6));
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:stone_bricks".formatted(gx, gy, gz - 4, gx, gy + 4, gz + 4));
+        // The overhang: one block sticking out to the west at z = gz, two below the top.
+        game.getServer().runCommand("setblock %d %d %d minecraft:stone_bricks".formatted(gx - 1, gy + 3, gz));
+        // A roof over z = gz + 3 closes the top there.
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:stone_bricks".formatted(gx - 1, gy + 6, gz + 3, gx + 1, gy + 6, gz + 3));
+        context.waitTicks(10);
+        final int[] got = {-9, -9, -9};
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            got[0] = com.mki.nightsiege.game.Besiegers.climbHeight(level, new BlockPos(gx, gy, gz), net.minecraft.core.Direction.WEST);
+            got[1] = com.mki.nightsiege.game.Besiegers.climbHeight(level, new BlockPos(gx, gy, gz - 2), net.minecraft.core.Direction.WEST);
+            got[2] = com.mki.nightsiege.game.Besiegers.climbHeight(level, new BlockPos(gx, gy, gz + 3), net.minecraft.core.Direction.WEST);
+        });
+        context.waitTicks(5);
+        System.out.println("[Night Siege test] ladder overhang: blocked=" + got[0] + " free=" + got[1] + " roof=" + got[2]);
+        if (got[0] != -1 || got[1] != 5 || got[2] != -1) {
+            throw new AssertionError("ladder way up: overhang " + got[0] + " (want -1), free " + got[1] + " (want 5), roof " + got[2] + " (want -1)");
+        }
     }
 
     /**
