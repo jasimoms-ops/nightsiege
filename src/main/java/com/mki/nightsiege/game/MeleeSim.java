@@ -398,9 +398,13 @@ public final class MeleeSim {
                 if (!dead && staffTurn % 5 == 1) {
                     m.onCoreAction(player, "quiver");   // G: call when a place is free
                 }
-                player.setShiftKeyDown(sneak);
-                player.getMainHandItem().use(level, player, InteractionHand.MAIN_HAND);
-                player.setShiftKeyDown(false);
+                // Since 27 October 2026 the left click is the staff's attack, the right click the
+                // spell (way of the dead) or the order and call (way of the light).
+                if (sneak) {
+                    player.getMainHandItem().use(level, player, InteractionHand.MAIN_HAND);
+                } else {
+                    m.onCoreAction(player, "staffhit");
+                }
                 if (dead && sneak) {
                     m.onCoreAction(player, "quiver");   // G: the next spell for the next cast
                 }

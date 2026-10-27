@@ -209,6 +209,8 @@ public class NightSiegeClient implements ClientModInitializer {
         ClientTickEvents.START_CLIENT_TICK.register(MannedClient::tick);
         // The drone of a fallen defender (Simon, 26 October 2026): own steering and a brass frame.
         ClientTickEvents.START_CLIENT_TICK.register(DroneClient::tick);
+        // The summoner's staff: held left click repeats its attack (27 October 2026).
+        ClientTickEvents.START_CLIENT_TICK.register(StaffClient::tick);
         HudElementRegistry.attachElementAfter(VanillaHudElements.HOTBAR, ModContent.id("drone"),
                 (gui, delta) -> DroneClient.draw(gui));
         // Guardian: a left click while blocking is the shield action. Minecraft drops

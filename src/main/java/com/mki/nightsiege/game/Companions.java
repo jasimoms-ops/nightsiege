@@ -475,15 +475,26 @@ public final class Companions {
         }
         long now = level.getGameTime();
         boolean dead = SkillTree.WAY_DEAD.equals(skills.pathTaken(tree));
-        if (player.isShiftKeyDown()) {
-            if (dead) {
-                castSpell(level, player, skills, now);
-            } else if (!order(level, player, skills, now, false)) {
-                call(level, player, skills, now);
-            }
+        // Right click (Simon, 27 October 2026): the way of the dead casts the spell picked with
+        // Fähigkeit 3; the way of the light gives its order at a monster or block, or calls.
+        if (dead) {
+            castSpell(level, player, skills, now);
+        } else if (!order(level, player, skills, now, false)) {
+            call(level, player, skills, now);
+        }
+    }
+
+    /** Left click with the staff (27 October 2026): the summoner's own attack. */
+    public void staffAttack(ServerPlayer player) {
+        if (!(player.level() instanceof ServerLevel level) || !(player.getMainHandItem().getItem() instanceof SummonStaffItem)) {
             return;
         }
-        if (dead) {
+        PlayerSkills skills = summonerSkills(player);
+        if (skills == null) {
+            return;
+        }
+        long now = level.getGameTime();
+        if (SkillTree.WAY_DEAD.equals(skills.pathTaken(tree))) {
             soulBolt(level, player, skills, now);
         } else {
             callStrike(level, player, skills, now);

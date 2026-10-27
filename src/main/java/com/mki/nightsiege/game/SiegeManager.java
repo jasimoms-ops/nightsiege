@@ -3123,7 +3123,8 @@ public final class SiegeManager {
         if (!isRegistered(player) && !verb.equals("dungeon")) {
             // Not signed up: the mod stays out of the way (keys do nothing, the core only offers the sign-up).
             if (!verb.equals("ult") && !verb.equals("shield") && !verb.equals("ult2") && !verb.equals("quiver")
-                    && !verb.equals("jump") && !verb.equals("man") && !verb.equals("drone")) {
+                    && !verb.equals("jump") && !verb.equals("man") && !verb.equals("drone")
+                    && !verb.equals("ult2x") && !verb.equals("staffhit")) {
                 offerRegistration(player);
             }
             return;
@@ -3146,6 +3147,7 @@ public final class SiegeManager {
             case "ult" -> onUltimateKey(player);
             case "ult2" -> onSecondKey(player);
             case "ult2x" -> SecondUlts.fire(player);   // X: the second ultimate alone (27 October 2026)
+            case "staffhit" -> companions.staffAttack(player);   // left click with the staff (27 October 2026)
             case "quiver" -> {
                 // G: the archer's quiver; the summoner picks his spell (way of the dead) or calls (way of the light).
                 if (!companions.selectKey(player)) {

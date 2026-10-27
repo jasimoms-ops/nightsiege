@@ -19,12 +19,18 @@ public abstract class MinecraftAttackMixin {
     private void nightsiege$noAttackInTower(CallbackInfoReturnable<Boolean> cir) {
         if (MannedClient.seated() || com.mki.nightsiege.client.DroneClient.localDrone()) {
             cir.setReturnValue(false);
+            return;
+        }
+        // The summoner's staff: the left click is its attack (Simon, 27 October 2026).
+        if (com.mki.nightsiege.client.StaffClient.onAttack((Minecraft) (Object) this)) {
+            cir.setReturnValue(false);
         }
     }
 
     @Inject(method = "continueAttack", at = @At("HEAD"), cancellable = true)
     private void nightsiege$noMiningInTower(boolean down, CallbackInfo ci) {
-        if (MannedClient.seated() || com.mki.nightsiege.client.DroneClient.localDrone()) {
+        if (MannedClient.seated() || com.mki.nightsiege.client.DroneClient.localDrone()
+                || com.mki.nightsiege.client.StaffClient.holdsStaff((Minecraft) (Object) this)) {
             ci.cancel();
         }
     }
