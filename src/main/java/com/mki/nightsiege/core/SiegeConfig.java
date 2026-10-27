@@ -815,13 +815,12 @@ public class SiegeConfig {
         }
         if (settingsVersion < 13) {
             // Simon 27.10., DPS bench at level 10: the beast tamer +20 %, the bolt archer -40 %,
-            // the shield fighter -30 %, the bulwark -15 %, the paladin -10 %; the medic heals
-            // as much as the warden (3.8 per second instead of 3.1).
+            // the shield fighter -30 %, the bulwark -15 %; the medic heals as much as the warden
+            // (3.8 per second instead of 3.1). The paladin's -10 % was taken back (20:28).
             scale(subclassDamage, "tamer", 1.2);
             scale(subclassDamage, "bolter", 0.6);
             scale(subclassDamage, "shieldfighter", 0.7);
             scale(subclassDamage, "bulwark", 0.85);
-            scale(subclassDamage, "paladin", 0.9);
             scale(subclassHealing, "medic", 1.2);
             settingsVersion = 13;
         }
