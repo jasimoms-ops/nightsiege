@@ -64,6 +64,9 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("foes")) {
                     foeScene(context, game);
                 }
+                if (want.contains("raid")) {
+                    raidScene(context, game);
+                }
                 return;
             }
             if (System.getenv("NIGHTSIEGE_SIM") != null) {
@@ -96,6 +99,7 @@ public class EventLookTest implements FabricClientGameTest {
                 campScene(context, game);
                 machineScene(context, game);
                 foeScene(context, game);   // the new attackers of update 1 (27 October 2026)
+                raidScene(context, game);   // the raid's plan (27 October 2026)
                 com.mki.nightsiege.game.TrapService.mortarsAnyTime = true;   // the scenes below test by day
                 mortarScene(context, game);
                 mannedScene(context, game);
@@ -3009,6 +3013,358 @@ public class EventLookTest implements FabricClientGameTest {
                     + " golems=" + com.mki.nightsiege.game.CopperHelper.count());
         });
         context.waitTicks(10);
+    }
+
+    /**
+     * The raid's plan (27 October 2026): a castle with a gate, an archway and a keep, two houses
+     * outside. The scan finds the castle (gate and archway), the houses are ground in front; the
+     * wave comes from one side, the melee monsters gather in front of the wall and wait; a hole,
+     * a ladder and the opened gate let them in; one stuck in a pit comes back from the spawn ground.
+     */
+    private static void raidScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        int cx = pos.getX() - 300;
+        int cz = pos.getZ() - 300;
+        game.getServer().runCommand("forceload add %d %d %d %d".formatted(cx - 80, cz - 80, cx + 80, cz + 80));
+        context.waitTicks(60);
+        final int[] ground = new int[1];
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            level.getChunk(cx >> 4, cz >> 4);
+            ground[0] = level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, cx, cz);
+        });
+        context.waitTicks(10);
+        int cy = ground[0];
+        int out = 48;
+        for (int part = -out; part <= out; part += 16) {
+            int z1 = cz + part;
+            int z2 = Math.min(cz + out, z1 + 15);
+            game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:grass_block".formatted(cx - out, cy - 1, z1, cx + out, cy - 1, z2));
+            game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(cx - out, cy, z1, cx + out, cy + 9, z2));
+        }
+        int r = 12;
+        String wall = "fill %d %d %d %d %d %d minecraft:stone_bricks";
+        game.getServer().runCommand(wall.formatted(cx - r, cy, cz - r, cx + r, cy + 5, cz - r));
+        game.getServer().runCommand(wall.formatted(cx - r, cy, cz + r, cx + r, cy + 5, cz + r));
+        game.getServer().runCommand(wall.formatted(cx - r, cy, cz - r, cx - r, cy + 5, cz + r));
+        game.getServer().runCommand(wall.formatted(cx + r, cy, cz - r, cx + r, cy + 5, cz + r));
+        // The gate (north) and an archway (east).
+        game.getServer().runCommand("setblock %d %d %d minecraft:oak_door[half=lower,facing=north]".formatted(cx, cy, cz - r));
+        game.getServer().runCommand("setblock %d %d %d minecraft:oak_door[half=upper,facing=north]".formatted(cx, cy + 1, cz - r));
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(cx + r, cy, cz - 1, cx + r, cy + 2, cz + 1));
+        // The keep with the core, its own door.
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:oak_planks hollow".formatted(cx - 3, cy, cz + 2, cx + 3, cy + 4, cz + 8));
+        game.getServer().runCommand("setblock %d %d %d minecraft:oak_door[half=lower,facing=north]".formatted(cx, cy, cz + 2));
+        game.getServer().runCommand("setblock %d %d %d minecraft:oak_door[half=upper,facing=north]".formatted(cx, cy + 1, cz + 2));
+        // Two houses outside.
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:spruce_planks hollow".formatted(cx - 2, cy, cz + 20, cx + 2, cy + 3, cz + 24));
+        game.getServer().runCommand("setblock %d %d %d minecraft:spruce_door[half=lower,facing=north]".formatted(cx, cy, cz + 20));
+        game.getServer().runCommand("setblock %d %d %d minecraft:spruce_door[half=upper,facing=north]".formatted(cx, cy + 1, cz + 20));
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:spruce_planks hollow".formatted(cx - 24, cy, cz - 2, cx - 20, cy + 3, cz + 2));
+        game.getServer().runCommand("setblock %d %d %d minecraft:spruce_door[half=lower,facing=east]".formatted(cx - 20, cy, cz));
+        game.getServer().runCommand("setblock %d %d %d minecraft:spruce_door[half=upper,facing=east]".formatted(cx - 20, cy + 1, cz));
+        context.waitTicks(10);
+        BlockPos core = new BlockPos(cx, cy, cz + 5);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            com.mki.nightsiege.game.BaseDefense.forgetScans();
+            long t0 = System.nanoTime();
+            com.mki.nightsiege.game.BaseScan scan = com.mki.nightsiege.game.BaseScan.scan(level, core, manager.config().baseRadius);
+            long ms = (System.nanoTime() - t0) / 1_000_000;
+            StringBuilder gates = new StringBuilder();
+            for (com.mki.nightsiege.game.BaseScan.Gate g : scan.gates) {
+                gates.append(g.arch() ? "arch@" : "door@").append(g.pos().getX() - cx).append(',').append(g.pos().getZ() - cz).append(' ');
+            }
+            System.out.println("[Night Siege test] raid scan closed=" + scan.closed + " gates=[" + gates + "] size=" + scan.width() + "x" + scan.depth()
+                    + " spawn=" + scan.spawnSpotCount() + " ms=" + ms
+                    + " court=" + scan.contains(cx, cz - 5) + " keep=" + scan.contains(cx, cz + 5)
+                    + " houseS=" + scan.contains(cx, cz + 22) + " houseW=" + scan.contains(cx - 22, cz)
+                    + " field=" + scan.contains(cx, cz - 30));
+        });
+        context.waitTicks(5);
+        // The archway walled up: only the gate is left.
+        game.getServer().runCommand(wall.formatted(cx + r, cy, cz - 1, cx + r, cy + 2, cz + 1));
+        context.waitTicks(5);
+        final int[] keep = new int[8];
+        final double[] keepD = new double[4];
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            com.mki.nightsiege.game.BaseScan scan = com.mki.nightsiege.game.BaseScan.scan(level, core, manager.config().baseRadius);
+            int near = 0;
+            int under = 0;
+            int min = Integer.MAX_VALUE;
+            for (int s = 0; s < com.mki.nightsiege.game.BaseScan.SLICES; s++) {
+                for (BlockPos p : scan.spawnSpots(s)) {
+                    double d = Math.sqrt(p.distSqr(new BlockPos(cx, p.getY(), cz)));
+                    min = Math.min(min, (int) d);
+                    if (scan.contains(p.getX(), p.getZ())) {
+                        near++;
+                    }
+                    if (!level.canSeeSky(p)) {
+                        under++;
+                    }
+                }
+            }
+            System.out.println("[Night Siege test] raid scan walled closed=" + scan.closed + " gates=" + scan.gates.size()
+                    + " spawn=" + scan.spawnSpotCount() + " spawnInside=" + near + " spawnRoofed=" + under + " spawnMinDist=" + min);
+            com.mki.nightsiege.core.SiegeConfig cfg = manager.config();
+            keep[0] = cfg.baseMobsPerBatch;
+            keep[1] = cfg.batchIntervalSeconds;
+            keep[2] = cfg.sapperFromLevel;
+            keep[3] = cfg.nightPhantoms;
+            keep[4] = cfg.raidMinLadders;
+            keep[5] = cfg.raidStuckSeconds;
+            keep[6] = cfg.raidRegroupSeconds;
+            keep[7] = cfg.testPrepSeconds;
+            keepD[0] = cfg.mobsPerLevel;
+            keepD[1] = cfg.ladderCarrierShare;
+            keepD[2] = cfg.treasureRaiderChance;
+            keepD[3] = cfg.nightPhantomsPerLevel;
+            cfg.baseMobsPerBatch = 12;
+            cfg.mobsPerLevel = 0.0;
+            cfg.batchIntervalSeconds = 600;
+            cfg.sapperFromLevel = 0;
+            cfg.nightPhantoms = 0;
+            cfg.nightPhantomsPerLevel = 0.0;
+            cfg.ladderCarrierShare = 0.0;
+            cfg.raidMinLadders = 0;
+            cfg.treasureRaiderChance = 0.0;
+            cfg.raidStuckSeconds = 5;
+            cfg.raidRegroupSeconds = 12;
+            cfg.testPrepSeconds = 2;
+            manager.testPool(java.util.List.of(new com.mki.nightsiege.core.MobEntry("minecraft:zombie", 1, 10),
+                    new com.mki.nightsiege.core.MobEntry("minecraft:husk", 1, 4),
+                    new com.mki.nightsiege.core.MobEntry("minecraft:skeleton", 1, 4)));
+        });
+        game.getServer().runCommand("time set 18000");
+        game.getServer().runCommand("weather clear");
+        game.getServer().runCommand("gamemode survival @p");
+        game.getServer().runCommand("effect give @p minecraft:resistance 600 255 true");
+        game.getServer().runCommand("effect give @p minecraft:regeneration 600 10 true");
+        game.getServer().runCommand("effect give @p minecraft:saturation 600 10 true");
+        game.getServer().runCommand("tp @p %d.5 %d %d.5".formatted(cx, cy, cz - 4));
+        context.waitTicks(10);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            boolean ok = manager.prepareTest(level.getServer(), level, core, 8, com.mki.nightsiege.core.SiegeEvent.NONE);
+            System.out.println("[Night Siege test] raid prep ok=" + ok);
+        });
+        context.waitTicks(60);
+        closeScreen(context);
+        // Up on the north wall.
+        game.getServer().runCommand("tp @p %d.5 %d %d.5".formatted(cx + 4, cy + 6, cz - r));
+        context.waitTicks(80);
+        final double[] main = new double[] {Double.NaN};
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.game.RaidPlan plan = manager.raid();
+            com.mki.nightsiege.game.RaidPlan.Wave w = plan.lastWave();
+            if (w != null) {
+                main[0] = w.main();
+            }
+            System.out.println("[Night Siege test] raid wave " + (w == null ? "none" : w.number() + " main="
+                    + com.mki.nightsiege.game.RaidPlan.compass(w.main()) + " flank=" + (w.hasFlank() ? com.mki.nightsiege.game.RaidPlan.compass(w.flank()) : "-")
+                    + " gate=" + w.gate()) + " active=" + plan.active() + " states=" + plan.states());
+            raidCensus("spawned", (net.minecraft.server.level.ServerLevel) player.level(), manager, cx, cz);
+        });
+        context.waitTicks(500);
+        onServer(context, (player, manager) -> {
+            System.out.println("[Night Siege test] raid waiting states=" + manager.raid().states() + " rerouted=" + manager.raid().rerouted
+                    + " returned=" + manager.raid().returned + " stormed=" + manager.raid().stormed);
+            raidCensus("waiting", (net.minecraft.server.level.ServerLevel) player.level(), manager, cx, cz);
+        });
+        // A look at them from the wall, towards where they came from.
+        if (!Double.isNaN(main[0])) {
+            int lx = cx + (int) Math.round(Math.cos(main[0]) * 22);
+            int lz = cz + (int) Math.round(Math.sin(main[0]) * 22);
+            int ex = cx + (int) Math.round(Math.cos(main[0]) * (r - 1));
+            int ez = cz + (int) Math.round(Math.sin(main[0]) * (r - 1));
+            game.getServer().runCommand("tp @p %d.5 %d %d.5 facing %d.5 %d %d.5".formatted(ex, cy + 9, ez, lx, cy, lz));
+        }
+        context.runOnClient(client -> hud(client, false));
+        context.waitTicks(40);
+        context.takeScreenshot("raid_waiting");
+        context.runOnClient(client -> hud(client, true));
+        game.getServer().runCommand("tp @p %d.5 %d %d.5".formatted(cx + 4, cy + 6, cz - r));
+
+        // A hole on their side: they storm it.
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            double a = Double.isNaN(main[0]) ? Math.PI : main[0];
+            BlockPos hole = wallTowards(level, cx, cy, cz, a, r);
+            for (int dy = 0; dy <= 2; dy++) {
+                for (int side = -1; side <= 1; side++) {
+                    BlockPos p = Math.abs(Math.cos(a)) > Math.abs(Math.sin(a)) ? hole.offset(0, dy, side) : hole.offset(side, dy, 0);
+                    com.mki.nightsiege.game.NightDamage.record(level, p, level.getBlockState(p));
+                    level.destroyBlock(p, false);
+                }
+            }
+            System.out.println("[Night Siege test] raid hole at " + (hole.getX() - cx) + "," + (hole.getZ() - cz));
+        });
+        context.waitTicks(300);
+        onServer(context, (player, manager) -> {
+            StringBuilder ways = new StringBuilder();
+            for (com.mki.nightsiege.game.RaidPlan.Entry e : manager.raid().entries()) {
+                ways.append(e.kind).append(e.isOpen() ? "+" : "-").append('@').append(com.mki.nightsiege.game.RaidPlan.compass(e.angle)).append(' ');
+            }
+            System.out.println("[Night Siege test] raid hole ways=[" + ways + "] states=" + manager.raid().states() + " stormed=" + manager.raid().stormed);
+            raidCensus("hole", (net.minecraft.server.level.ServerLevel) player.level(), manager, cx, cz);
+        });
+        if (!Double.isNaN(main[0])) {
+            int ex = cx + (int) Math.round(Math.cos(main[0]) * (r - 4));
+            int ez = cz + (int) Math.round(Math.sin(main[0]) * (r - 4));
+            game.getServer().runCommand("tp @p %d.5 %d %d.5 facing %d.5 %d %d.5".formatted(cx, cy + 10, cz - 6, ex, cy, ez));
+        }
+        context.runOnClient(client -> hud(client, false));
+        context.waitTicks(30);
+        context.takeScreenshot("raid_storm");
+        context.runOnClient(client -> hud(client, true));
+        game.getServer().runCommand("tp @p %d.5 %d %d.5".formatted(cx + 4, cy + 6, cz - r));
+
+        // A new wave; the hole walled up again; a ladder on the west wall, then the gate opened.
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                if (e != null && e.entityTags().contains(com.mki.nightsiege.game.MobFactory.TAG)
+                        && e instanceof net.minecraft.world.entity.Mob m && manager.raid().stateOf(m.getUUID()) == com.mki.nightsiege.game.RaidPlan.State.HUNT) {
+                    m.discard();   // the ones inside are done
+                }
+            }
+            double a = Double.isNaN(main[0]) ? Math.PI : main[0];
+            BlockPos hole = wallTowards(level, cx, cy, cz, a, r);
+            for (int dy = 0; dy <= 2; dy++) {
+                for (int side = -1; side <= 1; side++) {
+                    BlockPos p = Math.abs(Math.cos(a)) > Math.abs(Math.sin(a)) ? hole.offset(0, dy, side) : hole.offset(side, dy, 0);
+                    level.setBlock(p, net.minecraft.world.level.block.Blocks.STONE_BRICKS.defaultBlockState(), 3);
+                }
+            }
+            net.minecraft.world.level.block.state.BlockState ladder = net.minecraft.world.level.block.Blocks.LADDER.defaultBlockState()
+                    .setValue(net.minecraft.world.level.block.LadderBlock.FACING, net.minecraft.core.Direction.WEST);
+            for (int dy = 0; dy <= 5; dy++) {
+                com.mki.nightsiege.game.TempBlocks.place(level, new BlockPos(cx - r - 1, cy + dy, cz - 6), ladder);
+            }
+        });
+        context.waitTicks(120);
+        onServer(context, (player, manager) -> {
+            StringBuilder ways = new StringBuilder();
+            for (com.mki.nightsiege.game.RaidPlan.Entry e : manager.raid().entries()) {
+                ways.append(e.kind).append(e.isOpen() ? "+" : "-").append('@').append(com.mki.nightsiege.game.RaidPlan.compass(e.angle)).append(' ');
+            }
+            System.out.println("[Night Siege test] raid ladder ways=[" + ways + "] states=" + manager.raid().states() + " stormed=" + manager.raid().stormed);
+        });
+        context.waitTicks(500);
+        onServer(context, (player, manager) -> {
+            System.out.println("[Night Siege test] raid ladder after states=" + manager.raid().states() + " stormed=" + manager.raid().stormed
+                    + " rerouted=" + manager.raid().rerouted + " returned=" + manager.raid().returned);
+            raidCensus("ladder", (net.minecraft.server.level.ServerLevel) player.level(), manager, cx, cz);
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            for (BlockPos p : new BlockPos[] {new BlockPos(cx, cy, cz - r), new BlockPos(cx, cy + 1, cz - r)}) {
+                net.minecraft.world.level.block.state.BlockState st = level.getBlockState(p);
+                if (st.hasProperty(net.minecraft.world.level.block.DoorBlock.OPEN)) {
+                    level.setBlock(p, st.setValue(net.minecraft.world.level.block.DoorBlock.OPEN, true), 10);
+                }
+            }
+            // One stuck in a pit far from everybody: it comes back from the spawn ground.
+            BlockPos pit = new BlockPos(cx + 2, cy - 3, cz + 40);
+            for (int dy = 0; dy <= 2; dy++) {
+                level.setBlock(pit.above(dy), net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
+            }
+            net.minecraft.world.entity.Mob z = com.mki.nightsiege.game.MobFactory.spawnAt(level, pit, "minecraft:zombie", 8, manager.config(),
+                    new java.util.Random(3), com.mki.nightsiege.core.SiegeEvent.NONE, false);
+            if (z != null) {
+                z.addTag("nightsiege_test_pit");
+                manager.foesHost().addMob(z);
+            }
+            System.out.println("[Night Siege test] raid pit zombie=" + (z != null) + " enlisted=" + (z != null && manager.raid().enlisted(z.getUUID())));
+        });
+        context.waitTicks(400);
+        onServer(context, (player, manager) -> {
+            StringBuilder ways = new StringBuilder();
+            for (com.mki.nightsiege.game.RaidPlan.Entry e : manager.raid().entries()) {
+                ways.append(e.kind).append(e.isOpen() ? "+" : "-").append('@').append(com.mki.nightsiege.game.RaidPlan.compass(e.angle)).append(' ');
+            }
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            String pit = "gone";
+            for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                if (e != null && e.entityTags().contains("nightsiege_test_pit")) {
+                    pit = String.format(java.util.Locale.ROOT, "%.1f %.1f %.1f", e.getX() - cx, e.getY() - cy, e.getZ() - cz);
+                }
+            }
+            System.out.println("[Night Siege test] raid gate ways=[" + ways + "] states=" + manager.raid().states() + " stormed=" + manager.raid().stormed
+                    + " returned=" + manager.raid().returned + " pit=" + pit);
+            raidCensus("gate", level, manager, cx, cz);
+            manager.abort(level.getServer());
+            com.mki.nightsiege.core.SiegeConfig cfg = manager.config();
+            cfg.baseMobsPerBatch = keep[0];
+            cfg.batchIntervalSeconds = keep[1];
+            cfg.sapperFromLevel = keep[2];
+            cfg.nightPhantoms = keep[3];
+            cfg.raidMinLadders = keep[4];
+            cfg.raidStuckSeconds = keep[5];
+            cfg.raidRegroupSeconds = keep[6];
+            cfg.testPrepSeconds = keep[7];
+            cfg.mobsPerLevel = keepD[0];
+            cfg.ladderCarrierShare = keepD[1];
+            cfg.treasureRaiderChance = keepD[2];
+            cfg.nightPhantomsPerLevel = keepD[3];
+            manager.testPool(null);
+        });
+        context.waitTicks(20);
+        game.getServer().runCommand("forceload remove %d %d %d %d".formatted(cx - 80, cz - 80, cx + 80, cz + 80));
+    }
+
+    /** The first wall block from the core towards an angle, at foot height. */
+    private static BlockPos wallTowards(net.minecraft.server.level.ServerLevel level, int cx, int cy, int cz, double a, int r) {
+        for (int d = 2; d <= r + 3; d++) {
+            BlockPos p = new BlockPos(cx + (int) Math.round(Math.cos(a) * d), cy, cz + (int) Math.round(Math.sin(a) * d));
+            if (level.getBlockState(p).is(net.minecraft.world.level.block.Blocks.STONE_BRICKS)
+                    && level.getBlockState(p.above(3)).is(net.minecraft.world.level.block.Blocks.STONE_BRICKS)) {
+                return p;
+            }
+        }
+        return new BlockPos(cx - r, cy, cz);
+    }
+
+    /** Where the night's monsters are: inside, at the wall, on the ground in front, far off; and what they aim at. */
+    private static void raidCensus(String when, net.minecraft.server.level.ServerLevel level, com.mki.nightsiege.game.SiegeManager manager,
+                                   int cx, int cz) {
+        com.mki.nightsiege.game.BaseScan scan = manager.defense() == null ? null : manager.defense().base();
+        int total = 0;
+        int inside = 0;
+        int near = 0;
+        int field = 0;
+        int far = 0;
+        int targets = 0;
+        int enlisted = 0;
+        double maxTarget = 0;
+        double maxDist = 0;
+        for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+            if (e == null || !e.entityTags().contains(com.mki.nightsiege.game.MobFactory.TAG) || !(e instanceof net.minecraft.world.entity.Mob m)
+                    || !m.isAlive()) {
+                continue;
+            }
+            total++;
+            if (manager.raid().enlisted(m.getUUID())) {
+                enlisted++;
+            }
+            double d = Math.sqrt((m.getX() - cx) * (m.getX() - cx) + (m.getZ() - cz) * (m.getZ() - cz));
+            maxDist = Math.max(maxDist, d);
+            if (scan != null && scan.contains(m.getBlockX(), m.getBlockZ())) {
+                inside++;
+            } else if (d <= 26) {
+                near++;
+            } else if (d <= 48) {
+                field++;
+            } else {
+                far++;
+            }
+            if (m.getTarget() != null) {
+                targets++;
+                maxTarget = Math.max(maxTarget, m.distanceTo(m.getTarget()));
+            }
+        }
+        System.out.println(String.format(java.util.Locale.ROOT,
+                "[Night Siege test] raid census %s total=%d enlisted=%d inside=%d atWall=%d field=%d far=%d maxDist=%.1f targets=%d maxTarget=%.1f",
+                when, total, enlisted, inside, near, field, far, maxDist, targets, maxTarget));
     }
 
     /**

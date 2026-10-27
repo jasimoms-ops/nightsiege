@@ -1846,9 +1846,19 @@ public final class SiegeManager {
         return bosses;
     }
 
+    /** The base of the running night (for the gametest). */
+    public BaseDefense defense() {
+        return defense;
+    }
+
     /** The raid's plan of the running night (for the gametest). */
     public RaidPlan raid() {
         return raid;
+    }
+
+    /** Tests: the monsters of the next waves from this list (null: the config's list again). */
+    public void testPool(java.util.List<com.mki.nightsiege.core.MobEntry> entries) {
+        pool = new MobPool(entries != null ? entries : config.mobs);
     }
 
     public SiegeCamp camp() {

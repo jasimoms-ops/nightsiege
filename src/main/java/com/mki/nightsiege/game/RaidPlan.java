@@ -355,8 +355,15 @@ public final class RaidPlan {
         if (kind == Kind.RANGED) {
             return d <= 28.0;
         }
-        boolean inside = base.closed && base.contains(target.getBlockX(), target.getBlockZ());
-        return !inside && d <= cfg.raidLeash;
+        if (base.closed) {
+            if (base.contains(target.getBlockX(), target.getBlockZ())) {
+                return false;   // behind the wall: no way there yet
+            }
+            if (base.near(target.getBlockX(), target.getBlockZ(), 2.5) && target.getY() > mob.getY() + 1.5) {
+                return false;   // up on the wall
+            }
+        }
+        return d <= cfg.raidLeash;
     }
 
     // ------------------------------------------------------------------ the ways in
