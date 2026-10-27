@@ -1163,9 +1163,13 @@ public final class SiegeMachines {
                 && t.getKey().startsWith("nightsiege.machine.");
     }
 
-    /** A hit taken interrupts a sabotage. */
-    public void afterDamage(LivingEntity victim, float taken) {
-        if (taken <= 0 || saboteurs.isEmpty() || !(victim instanceof ServerPlayer player)) {
+    /**
+     * A hit taken interrupts a sabotage: a blow, an arrow, a blast of something. Burning,
+     * poison and the like (no one behind them) do not.
+     */
+    public void afterDamage(LivingEntity victim, DamageSource source, float taken) {
+        if (taken <= 0 || saboteurs.isEmpty() || !(victim instanceof ServerPlayer player)
+                || source == null || source.getEntity() == null && source.getDirectEntity() == null) {
             return;
         }
         Machine machine = saboteurs.remove(player.getUUID());

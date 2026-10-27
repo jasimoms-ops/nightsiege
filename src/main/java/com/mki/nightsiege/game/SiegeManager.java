@@ -368,7 +368,7 @@ public final class SiegeManager {
             GainGear.afterDamage(entity, source, taken);
             MeleeSim.onDamage(entity, source, taken);
             safe("Begleiter-Treffer", () -> companions.afterDamage(entity, source, taken));
-            machines.afterDamage(entity, taken);
+            machines.afterDamage(entity, source, taken);
         });
         ServerLivingEntityEvents.ALLOW_DEATH.register((entity, source, amount) -> {
             if (!camp.allowDeath(entity, source) || !machines.allowDeath(entity, source)) {
