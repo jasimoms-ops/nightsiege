@@ -285,7 +285,7 @@ public final class SkillTree {
         node(list, "heavy_bolts", c, x, SkillEffect.CROSSBOW_DAMAGE, 3, 3, 2, 1.5, "archer_focus", "", "minecraft:crossbow", 2, 3);
         node(list, "a_steelbolts", c, x, SkillEffect.BOLT_SUNDER, 3, 3, 2, 0.06, "archer_focus", "x1", "minecraft:iron_nugget", 2, 5);
         node(list, "shrapnel", c, x, SkillEffect.SHRAPNEL, 4, 4, 2, 0.12, "heavy_bolts", "x_sub", "minecraft:firework_star", 3, 1);
-        node(list, "a_netbolt", c, x, SkillEffect.NET_BOLT, 4, 4, 2, 1.0, "heavy_bolts", "x_sub", "minecraft:cobweb", 3, 5);
+        node(list, "a_netbolt", c, x, SkillEffect.NET_BOLT, 4, 4, 2, 1.5, "heavy_bolts", "x_sub", "minecraft:cobweb", 3, 5);
         node(list, "a_explosive", c, x, SkillEffect.EXPLOSIVE, 1, 10, 0, 4.0, "shrapnel:2", "x3", "minecraft:tnt", 4, 0);
         node(list, "a_multiload", c, x, SkillEffect.MULTI_BOLT, 1, 10, 0, 1.0, "shrapnel:2", "x3", "minecraft:arrow", 4, 2);
         node(list, "a_snarefield", c, x, SkillEffect.NET_FIELD, 1, 10, 0, 1.0, "a_netbolt:2", "x3", "minecraft:string", 4, 4);

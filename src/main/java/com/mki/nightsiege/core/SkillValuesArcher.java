@@ -27,6 +27,7 @@ final class SkillValuesArcher {
         def("heavy_draw", "hp", 4);
         def("shrapnel", "hp", 4);
         def("a_netbolt", "hp", 4);
+        def("a_netbolt", "splash", 2.0);            // Simon 27.10. (more crowd control): monsters this close to the target are slowed too, half as long
         def("heavy_draw", "pause", 12);             // bow cooldown after every shot
         def("heavy_draw", "power", 1);              // extra Power level on the kit bow (KitService)
         def("double_shot", "angle", 4.0);
@@ -85,13 +86,14 @@ final class SkillValuesArcher {
         def("a_explosive", "radius", 2.5);
         def("a_multiload", "arrows", 2);
         def("a_multiload", "angle", 7.0);
-        def("a_snarefield", "radius", 3.0);
-        def("a_snarefield", "dur", 60);
-        def("a_shackle", "dur", 40);
+        def("a_snarefield", "radius", 4.0);         // 27.10.: was 3 blocks, 3 s, Slowness III
+        def("a_snarefield", "dur", 80);
+        def("a_snarefield", "level", 3);            // Slowness IV
+        def("a_shackle", "dur", 60);                // 27.10.: was 2 s
         def("a_punch", "share", 0.7);
-        def("a_tripwire", "radius", 3.0);
-        def("a_tripwire", "dur", 40);
-        def("a_tripwire", "cd", 100);
+        def("a_tripwire", "radius", 4.0);           // 27.10.: was 3 blocks, 2 s, every 5 s
+        def("a_tripwire", "dur", 60);
+        def("a_tripwire", "cd", 80);
         def("x_mark", "dur", 120);
         def("a_clusterbolt", "radius", 4.0);
         def("a_clusterbolt", "base", 3.0);          // blast without explosive bolts
@@ -108,9 +110,9 @@ final class SkillValuesArcher {
         def("a_netrain", "radius1", 12.0);
         def("a_netrain", "radius2", 14.0);
         def("a_netrain", "radius3", 16.0);
-        def("a_netrain", "dur1", 80);
-        def("a_netrain", "dur2", 100);
-        def("a_netrain", "dur3", 120);
+        def("a_netrain", "dur1", 100);              // 27.10.: +1 s each
+        def("a_netrain", "dur2", 120);
+        def("a_netrain", "dur3", 140);
         def("a_netrain", "dmg1", 6.0);
         def("a_netrain", "dmg2", 8.0);
         def("a_netrain", "dmg3", 10.0);
@@ -123,7 +125,7 @@ final class SkillValuesArcher {
         def("x_hunt", "dur", 300);
         def("a_barrage", "radius", 3.0);
         def("a_barrage", "dmg", 6.0);
-        def("a_widenet", "dur", 80);
+        def("a_widenet", "dur", 100);
         def("x_pack", "radius", 1.5);
         def("x_pack", "dur", 200);
         def("x_pack", "range", 20.0);

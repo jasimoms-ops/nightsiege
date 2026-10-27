@@ -1093,12 +1093,24 @@ public final class CombatEffects {
         if (crossbow) {
             double net = tree.totalBonus(SkillEffect.NET_BOLT, skills);
             if (net > 0) {
-                victim.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, (int) Math.round(20 * net), 1));
+                int slow = (int) Math.round(20 * net);
+                victim.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, slow, 1));
+                // More crowd control (Simon, 27 October 2026): the net catches the monsters next to the target too.
+                double splash = SkillValues.get("a_netbolt", "splash", 2.0);
+                if (splash > 0) {
+                    for (LivingEntity near : enemies(level, victim.position(), splash, 1.5)) {
+                        if (near != victim) {
+                            near.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, slow / 2, 1));
+                        }
+                    }
+                    level.sendParticles(ParticleTypes.ITEM_COBWEB, victim.getX(), victim.getY(0.4), victim.getZ(),
+                            8, splash * 0.4, 0.2, splash * 0.4, 0.0);
+                }
             }
             if (tree.totalBonus(SkillEffect.NET_FIELD, skills) > 0) {
                 int field = (int) SkillValues.get("a_snarefield", "dur", 60);
                 for (LivingEntity near : enemies(level, victim.position(), SkillValues.get("a_snarefield", "radius", 3.0), 1.5)) {
-                    near.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, field, 2));
+                    near.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, field, (int) SkillValues.get("a_snarefield", "level", 3)));
                 }
                 level.sendParticles(ParticleTypes.ITEM_COBWEB, victim.getX(), victim.getY(0.3), victim.getZ(),
                         20, 1.2, 0.2, 1.2, 0.0);
