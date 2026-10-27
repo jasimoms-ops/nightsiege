@@ -1297,11 +1297,11 @@ public class EventLookTest implements FabricClientGameTest {
                     level.setBlock(new BlockPos(sx + dx, sy + dy, sz + 6), net.minecraft.world.level.block.Blocks.STONE.defaultBlockState(), 3);
                 }
             }
-            Integer meadow = manager.camp().siteForTest(level, sx, sz);
+            String meadow = manager.camp().siteForTest(level, sx, sz);
             for (int i = 0; i < 4; i++) {
                 level.setBlock(new BlockPos(sx - 3 + i, sy, sz + 2), net.minecraft.world.level.block.Blocks.OAK_PLANKS.defaultBlockState(), 3);
             }
-            Integer built = manager.camp().siteForTest(level, sx, sz);
+            String built = manager.camp().siteForTest(level, sx, sz);
             System.out.println("[Night Siege test] camp site meadow=" + meadow + " (ground " + sy + ") with planks=" + built);
         });
         context.waitTicks(5);

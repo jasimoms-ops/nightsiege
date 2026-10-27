@@ -257,6 +257,8 @@ public final class SiegeCamp {
 
     /** Why sites were turned down (for the admin command's log line). */
     static final class Reasons {
+        /** The first block that counted as built, for the tests. */
+        String detail = "";
         int unloaded;
         int players;
         int water;
@@ -266,7 +268,7 @@ public final class SiegeCamp {
         @Override
         public String toString() {
             return "nicht geladen " + unloaded + ", Spieler nah " + players + ", Wasser " + water + ", zu steil " + steep
-                    + ", Bauten " + built;
+                    + ", Bauten " + built + (detail.isEmpty() ? "" : "; zuletzt " + detail);
         }
     }
 
@@ -319,6 +321,8 @@ public final class SiegeCamp {
                 if (g == Integer.MIN_VALUE) {
                     if (why != null) {
                         why.built++;
+                        why.detail = "Boden bei " + (x + dx) + " " + (z + dz) + ": "
+                                + level.getBlockState(new BlockPos(x + dx, level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x + dx, z + dz), z + dz));
                     }
                     return null;   // something built
                 }
@@ -328,6 +332,7 @@ public final class SiegeCamp {
         if (heights.isEmpty() || wet > samples * 0.08) {
             if (why != null) {
                 why.water++;
+                why.detail = "Wasser " + wet + "/" + samples;
             }
             return null;   // a lake or a river, not a puddle
         }
@@ -338,6 +343,7 @@ public final class SiegeCamp {
         if (floor - low > 9 || high - floor > 12) {
             if (why != null) {
                 why.steep++;
+                why.detail = "Boden " + low + " bis " + high + ", Mitte " + floor;
             }
             return null;
         }
@@ -352,6 +358,7 @@ public final class SiegeCamp {
                     if (!natural(state) && state.getFluidState().isEmpty()) {
                         if (why != null) {
                             why.built++;
+                            why.detail = (x + dx) + " " + y + " " + (z + dz) + ": " + state;
                         }
                         return null;
                     }
@@ -455,9 +462,11 @@ public final class SiegeCamp {
                 || state.is(Blocks.MAGMA_BLOCK) || state.is(Blocks.PACKED_MUD) || state.is(Blocks.MUD);
     }
 
-    /** For the tests: the floor height of a camp there, or null (chunks are loaded on the way). */
-    public Integer siteForTest(ServerLevel level, int x, int z) {
-        return site(level, x, z, false, true, null);
+    /** For the tests: the floor height of a camp there and why not ("null (…)"); chunks are loaded on the way. */
+    public String siteForTest(ServerLevel level, int x, int z) {
+        Reasons why = new Reasons();
+        Integer floor = site(level, x, z, false, true, why);
+        return floor == null ? "null (" + why + ")" : String.valueOf(floor);
     }
 
     /** Levels the ground and sets the camp's blocks; the guards come when someone is near. */
