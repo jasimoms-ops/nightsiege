@@ -1487,16 +1487,38 @@ public class EventLookTest implements FabricClientGameTest {
                 });
             }
         }
-        // One struck down.
+        // Weapons do nothing; one is sabotaged by hand (hold right-click, 4 s).
+        final double[] at = new double[3];
         onServer(context, (player, manager) -> {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
             java.util.List<java.util.UUID> boxes = manager.machines().testHitboxes();
             if (!boxes.isEmpty() && level.getEntity(boxes.get(0)) instanceof net.minecraft.world.entity.LivingEntity box) {
                 box.invulnerableTime = 0;
                 box.hurtServer(level, level.damageSources().playerAttack(player), 5000f);
+                at[0] = box.getX();
+                at[1] = box.getY();
+                at[2] = box.getZ();
             }
-            System.out.println("[Night Siege test] machines after one struck down: standing=" + manager.machines().standing());
+            System.out.println("[Night Siege test] machines after a 5000 blow: standing=" + manager.machines().standing());
         });
+        context.waitTicks(5);
+        game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %.2f %.2f %.2f facing %.2f %.2f %.2f",
+                at[0] + 2.0, at[1], at[2] + 1.0, at[0], at[1] + 1.0, at[2]));
+        context.waitTicks(5);
+        for (int i = 0; i < 24; i++) {
+            onServer(context, (player, manager) -> {
+                net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                java.util.List<java.util.UUID> boxes = manager.machines().testHitboxes();
+                net.minecraft.world.entity.Entity box = boxes.isEmpty() ? null : level.getEntity(boxes.get(0));
+                manager.machines().onUse(player, box, manager.config());
+            });
+            context.waitTicks(4);
+            if (i == 10) {
+                context.takeScreenshot("machines_sabotage");
+            }
+        }
+        onServer(context, (player, manager) ->
+                System.out.println("[Night Siege test] machines after sabotage: standing=" + manager.machines().standing()));
         context.waitTicks(20);
         onServer(context, (player, manager) -> {
             manager.abort(player.level().getServer());

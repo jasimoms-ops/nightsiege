@@ -113,6 +113,9 @@ public final class SiegeMachines {
         long crewDue = -1L;
         /** The throwing arm: when it last swung (game time), or -1. */
         long swung = -1L;
+        /** Sabotage (Simon, 27 October 2026): ticks worked on it, and when someone last did. */
+        int sabotage;
+        long sabotageAt = -1L;
         float pitch;
         final List<Rope> ropes = new ArrayList<>();
 
@@ -194,6 +197,10 @@ public final class SiegeMachines {
     private final List<SiegeMachineKind> planned = new ArrayList<>();
     private long setUpAt = -1L;
     private ServerBossEvent bar;
+    /** Machines of tonight (for the bar). */
+    private int nightTotal;
+    /** Who works on which machine right now (a hit interrupts it). */
+    private final Map<UUID, Machine> saboteurs = new HashMap<>();
 
     // ------------------------------------------------------------------ the night
 
@@ -300,11 +307,13 @@ public final class SiegeMachines {
         if (placed == 0) {
             return;
         }
+        nightTotal = placed;
         bar = new ServerBossEvent(UUID.randomUUID(), Component.translatable("nightsiege.machine.bar", placed),
                 BossEvent.BossBarColor.YELLOW, BossEvent.BossBarOverlay.PROGRESS);
         for (ServerPlayer p : host.watchers()) {
             bar.addPlayer(p);
             p.sendSystemMessage(Component.translatable("nightsiege.machine.arrive", placed).withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD));
+            p.sendSystemMessage(Component.translatable("nightsiege.machine.how", cfg.machineSabotageSeconds).withStyle(ChatFormatting.YELLOW));
             level.playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.RAID_HORN.value(), SoundSource.HOSTILE, 1.2f, 0.7f);
         }
         NightSiegeMod.LOGGER.info("[Night Siege] {} Belagerungsmaschinen aufgestellt", placed);
@@ -1076,17 +1085,87 @@ public final class SiegeMachines {
         return false;
     }
 
-    /** Hits on a hit box: only blows, shots and blasts, nothing from the ground it stands in. */
+    /**
+     * Hits on a hit box do nothing (Simon, 27 October 2026: arrows from afar would be too easy):
+     * a machine is sabotaged by hand. Only a player in creative can strike one down (to try out).
+     */
     public boolean allowDamage(LivingEntity victim, DamageSource source) {
         if (!victim.entityTags().contains(TAG_MACHINE)) {
             return true;
         }
-        if (source.is(DamageTypeTags.IS_FALL) || source.is(DamageTypeTags.IS_DROWNING)
-                || source.is(net.minecraft.world.damagesource.DamageTypes.IN_WALL)
-                || source.is(net.minecraft.world.damagesource.DamageTypes.CRAMMING)) {
+        if (source.getEntity() instanceof ServerPlayer p) {
+            if (p.getAbilities().instabuild) {
+                return true;
+            }
+            actionBar(p, Component.translatable("nightsiege.machine.no_damage").withStyle(ChatFormatting.YELLOW));
+        }
+        return false;
+    }
+
+    /**
+     * Sabotage: a defender holds right-click on a machine (the client repeats it every few
+     * ticks while the button is held). After {@code machineSabotageSeconds} of work it falls
+     * apart; letting go starts over, a hit taken interrupts it.
+     */
+    public boolean onUse(ServerPlayer player, Entity entity, SiegeConfig cfg) {
+        Machine machine = entity == null ? null : owners.get(entity.getUUID());
+        if (machine == null || !machine.hitbox.equals(entity.getUUID()) || player.isSpectator() || Drones.isDrone(player)) {
             return false;
         }
-        return !(source.getEntity() instanceof Mob mob) || !mob.entityTags().contains(MobFactory.TAG);
+        SiegeManager m = SiegeManager.get();
+        boolean creative = player.getAbilities().instabuild;
+        if (!creative && !machine.trial && (m == null || !m.isDefending(player))) {
+            return false;
+        }
+        if (player.distanceToSqr(entity) > 4.5 * 4.5) {
+            actionBar(player, Component.translatable("nightsiege.machine.sabotage_far").withStyle(ChatFormatting.GRAY));
+            return true;
+        }
+        long now = machine.level.getGameTime();
+        long gap = machine.sabotageAt < 0 ? 0 : now - machine.sabotageAt;
+        if (gap > 12) {
+            machine.sabotage = 0;   // let go in between: from the start
+        } else {
+            machine.sabotage += (int) gap;
+        }
+        machine.sabotageAt = now;
+        saboteurs.put(player.getUUID(), machine);
+        int need = creative ? 1 : Math.max(1, cfg.machineSabotageSeconds) * 20;
+        double done = Math.min(1.0, machine.sabotage / (double) need);
+        StringBuilder bar = new StringBuilder();
+        for (int i = 0; i < 10; i++) {
+            bar.append(i < Math.round(done * 10) ? '█' : '░');
+        }
+        actionBar(player, Component.translatable("nightsiege.machine.sabotage",
+                Component.translatable(machine.kind.translationKey()), bar.toString(), (int) Math.round(done * 100))
+                .withStyle(ChatFormatting.GOLD));
+        if (gap > 0) {
+            Vec3 at = entity.position().add(0, 1.0, 0);
+            machine.level.sendParticles(ParticleTypes.CRIT, at.x, at.y, at.z, 4, 0.5, 0.5, 0.5, 0.1);
+            sound(machine.level, at, now % 8 < 4 ? SoundEvents.CHAIN_HIT : SoundEvents.WOOD_HIT, 0.8f, 0.7f + (float) done * 0.6f);
+        }
+        if (machine.sabotage >= need) {
+            saboteurs.remove(player.getUUID());
+            destroy(machine, player, true);
+        }
+        return true;
+    }
+
+    /** A hit taken interrupts a sabotage. */
+    public void afterDamage(LivingEntity victim, float taken) {
+        if (taken <= 0 || saboteurs.isEmpty() || !(victim instanceof ServerPlayer player)) {
+            return;
+        }
+        Machine machine = saboteurs.remove(player.getUUID());
+        if (machine != null && machine.sabotage > 0 && machine.level.getGameTime() - machine.sabotageAt <= 12) {
+            machine.sabotage = 0;
+            machine.sabotageAt = -1L;
+            actionBar(player, Component.translatable("nightsiege.machine.sabotage_hit").withStyle(ChatFormatting.RED));
+        }
+    }
+
+    private static void actionBar(ServerPlayer player, Component text) {
+        player.connection.send(new net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket(text));
     }
 
     private void destroy(Machine machine, ServerPlayer by, boolean announce) {
@@ -1120,7 +1199,7 @@ public final class SiegeMachines {
                 SiegeManager.get().machineDestroyed(by);
             }
         }
-        NightSiegeMod.LOGGER.info("[Night Siege] Maschine {} zerstört{}", machine.kind.id(), by == null ? "" : " von " + by.getScoreboardName());
+        NightSiegeMod.LOGGER.info("[Night Siege] Maschine {} zerstört{}", machine.kind.id(), by == null ? "" : " (sabotiert von " + by.getScoreboardName() + ")");
         if (bar != null) {
             long left = machines.stream().filter(m -> !m.trial).count();
             if (left == 0) {
@@ -1131,19 +1210,11 @@ public final class SiegeMachines {
     }
 
     private void refreshBar(List<ServerPlayer> watchers) {
-        double health = 0;
-        double max = 0;
         int count = 0;
         for (Machine machine : machines) {
-            if (machine.trial) {
-                continue;
+            if (!machine.trial) {
+                count++;
             }
-            Entity e = machine.level.getEntity(machine.hitbox);
-            if (e instanceof LivingEntity l) {
-                health += l.getHealth();
-            }
-            max += machine.maxHealth;
-            count++;
         }
         if (count == 0) {
             bar.removeAllPlayers();
@@ -1151,7 +1222,7 @@ public final class SiegeMachines {
             return;
         }
         bar.setName(Component.translatable("nightsiege.machine.bar", count));
-        bar.setProgress((float) Math.max(0.0, Math.min(1.0, health / Math.max(1.0, max))));
+        bar.setProgress((float) Math.max(0.0, Math.min(1.0, count / (double) Math.max(count, nightTotal))));
         for (ServerPlayer p : new ArrayList<>(bar.getPlayers())) {
             if (!watchers.contains(p)) {
                 bar.removePlayer(p);
@@ -1166,6 +1237,8 @@ public final class SiegeMachines {
     void reset(MinecraftServer server) {
         planned.clear();
         setUpAt = -1L;
+        nightTotal = 0;
+        saboteurs.clear();
         if (bar != null) {
             bar.removeAllPlayers();
             bar = null;
@@ -1373,6 +1446,7 @@ public final class SiegeMachines {
             return false;
         }
         machine.nextShot = host.world().getGameTime() + 20;
+        nightTotal++;
         if (bar == null) {
             bar = new ServerBossEvent(UUID.randomUUID(), Component.translatable("nightsiege.machine.bar", 1),
                     BossEvent.BossBarColor.YELLOW, BossEvent.BossBarOverlay.PROGRESS);
