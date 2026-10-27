@@ -239,7 +239,14 @@ def install(root, pics):
         kind, _ = states_of(key)
         for st, px in states.items():
             name = key + ('_standby' if kind == 'crossbow' and st == 'standby' else STATE_FILES[st])
-            image(px).save(os.path.join(tex, name + '.png'))
+            im = image(px)
+            if kind in ('bow', 'crossbow'):
+                # Minecraft holds bows and crossbows with the vanilla layout (front / upper limb to the
+                # upper left); the designs point to the upper right, so the hand showed them backwards
+                # (Simon, 27 October 2026: "die Armbrüste werden falsch dargestellt").
+                from PIL import Image
+                im = im.transpose(Image.FLIP_LEFT_RIGHT)
+            im.save(os.path.join(tex, name + '.png'))
 
 
 def sheet(path, pics):
