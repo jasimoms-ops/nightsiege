@@ -65,6 +65,7 @@ public class EventLookTest implements FabricClientGameTest {
                 inviteScene(context, game);
                 coreTreeScene(context);
                 armorScene(context, game);
+                kitWeaponScene(context, game);
                 guardianScene(context);
                 engineerScene(context);
                 ladderScene(context, game);
@@ -485,11 +486,12 @@ public class EventLookTest implements FabricClientGameTest {
             for (int side = 0; side < 2; side++) {
                 game.getServer().runCommand("kill @e[type=minecraft:armor_stand]");
                 for (int i = 0; i < 4; i++) {
+                    // Since 27 October 2026 each stand also holds its subclass's kit weapon.
                     game.getServer().runCommand(String.format(java.util.Locale.ROOT,
                             "summon minecraft:armor_stand %d %d %.1f {CustomName:\"%s\",ShowArms:1b,Rotation:[%df,0f],"
                             + "equipment:{head:{id:\"minecraft:iron_helmet\"},chest:{id:\"minecraft:iron_chestplate\"},"
-                            + "legs:{id:\"minecraft:iron_leggings\"},feet:{id:\"minecraft:iron_boots\"}}}",
-                            x - 5, y, z - 2.25 + i * 1.5, all[g * 4 + i], side == 0 ? -90 : 90));
+                            + "legs:{id:\"minecraft:iron_leggings\"},feet:{id:\"minecraft:iron_boots\"},%s}}",
+                            x - 5, y, z - 2.25 + i * 1.5, all[g * 4 + i], side == 0 ? -90 : 90, kitHand(all[g * 4 + i])));
                 }
                 context.waitTicks(15);
                 context.getInput().lookAt(90.0f, 12.0f);
@@ -681,6 +683,56 @@ public class EventLookTest implements FabricClientGameTest {
             }
         });
         context.waitTicks(5);
+    }
+
+    /** The kit weapon of a subclass as an armour stand's main hand (NBT). */
+    private static String kitHand(String subclass) {
+        com.mki.nightsiege.core.KitWeapons.Look look = com.mki.nightsiege.core.KitWeapons.of(subclass);
+        if (look == null) {
+            return "mainhand:{id:\"minecraft:iron_sword\",count:1}";
+        }
+        return "mainhand:{id:\"" + kitBaseItem(look) + "\",count:1,components:{\"minecraft:item_model\":\"" + look.itemModel() + "\"}}";
+    }
+
+    private static String kitBaseItem(com.mki.nightsiege.core.KitWeapons.Look look) {
+        return switch (look.kind()) {
+            case SWORD -> "minecraft:iron_sword";
+            case AXE -> "minecraft:iron_axe";
+            case BOW -> "minecraft:bow";
+            case CROSSBOW -> "minecraft:crossbow";
+            case STAFF -> "nightsiege:summoning_staff";
+        };
+    }
+
+    /** All 20 kit weapons in the inventory, and a few in the hand (Simon, 27 October 2026). */
+    private static void kitWeaponScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        game.getServer().runCommand("clear @p");
+        game.getServer().runCommand("time set 6000");
+        int slot = 0;
+        for (com.mki.nightsiege.core.KitWeapons.Look look : com.mki.nightsiege.core.KitWeapons.all()) {
+            game.getServer().runCommand("item replace entity @p %s with %s[minecraft:item_model=\"%s\",minecraft:item_name=%s]"
+                    .formatted(slot < 9 ? "hotbar." + slot : "inventory." + (slot - 9), kitBaseItem(look), look.itemModel(),
+                            "{translate:\"" + look.nameKey() + "\"}"));
+            slot++;
+        }
+        context.waitTicks(10);
+        context.runOnClient(client -> client.setScreen(new net.minecraft.client.gui.screens.inventory.InventoryScreen(client.player)));
+        context.waitTicks(10);
+        context.takeScreenshot("kit_weapons_inventory");
+        context.runOnClient(client -> client.setScreen(null));
+        context.waitTicks(5);
+        for (int i : new int[] {0, 4, 6}) {
+            final int hotbar = i;
+            context.runOnClient(client -> client.player.getInventory().setSelectedSlot(hotbar));
+            context.getInput().lookAt(90.0f, 20.0f);
+            context.waitTicks(10);
+            context.takeScreenshot("kit_weapons_hand_" + i);
+        }
+        boolean[] named = {false};
+        context.runOnClient(client -> named[0] = client.player.getInventory().getItem(0).getHoverName().getString().equals(
+                net.minecraft.network.chat.Component.translatable("nightsiege.kitweapon.blademaster_saber").getString()));
+        System.out.println("[Night Siege test] kit weapons: named=" + named[0]);
+        game.getServer().runCommand("clear @p");
     }
 
     /**

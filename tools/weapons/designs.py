@@ -711,7 +711,82 @@ def states_sheet(path):
     im.save(path)
 
 
+KINDS = {'swift_huntbow': 'bow', 'heavy_siegebow': 'bow', 'bolter_launcher': 'crossbow', 'trapper_netbow': 'crossbow',
+         'axe_bearded': 'axe', 'paladin_sunaxe': 'axe', 'tamer_packstaff': 'staff', 'golemsmith_forgestaff': 'staff',
+         'necromancer_bonestaff': 'staff', 'soulcatcher_lanternstaff': 'staff'}
+
+
+def install(root):
+    """Writes the textures, models and item model definitions into the mod's resources
+    (assets/nightsiege/{textures/item,models/item,items}/kit/). The kit sets the item model
+    component to nightsiege:kit/<key>; bows and crossbows switch their pictures like vanilla."""
+    import json
+    global STATE
+    assets = os.path.join(root, 'src/main/resources/assets/nightsiege')
+    tex = os.path.join(assets, 'textures/item/kit')
+    mod = os.path.join(assets, 'models/item/kit')
+    itm = os.path.join(assets, 'items/kit')
+    for d in (tex, mod, itm):
+        os.makedirs(d, exist_ok=True)
+
+    def model(name, parent, texture):
+        with open(os.path.join(mod, name + '.json'), 'w') as f:
+            json.dump({'parent': parent, 'textures': {'layer0': 'nightsiege:item/kit/' + texture}}, f, indent=2)
+            f.write('\n')
+
+    def ref(name):
+        return {'type': 'minecraft:model', 'model': 'nightsiege:item/kit/' + name}
+
+    for key, clazz, sub, name, line, fn in DESIGNS:
+        kind = KINDS.get(key, 'sword')
+        states = BOW_STATES if kind == 'bow' else CROSSBOW_STATES if kind == 'crossbow' else ['standby']
+        files = {'standby': key + ('_standby' if kind == 'crossbow' else ''), 'pull0': key + '_pulling_0',
+                 'pull1': key + '_pulling_1', 'pull2': key + '_pulling_2', 'arrow': key + '_arrow',
+                 'firework': key + '_firework'}
+        for st in states:
+            STATE = st
+            sp = Sprite()
+            fn(sp)
+            sp.image().save(os.path.join(tex, files[st] + '.png'))
+        STATE = 'standby'
+        if kind == 'bow':
+            model(key, 'minecraft:item/bow', key)
+            for i in range(3):
+                model(key + '_pulling_%d' % i, 'nightsiege:item/kit/' + key, key + '_pulling_%d' % i)
+            definition = {'type': 'minecraft:condition', 'property': 'minecraft:using_item',
+                          'on_false': ref(key),
+                          'on_true': {'type': 'minecraft:range_dispatch', 'property': 'minecraft:use_duration',
+                                      'scale': 0.05,
+                                      'entries': [{'threshold': 0.65, 'model': ref(key + '_pulling_1')},
+                                                  {'threshold': 0.9, 'model': ref(key + '_pulling_2')}],
+                                      'fallback': ref(key + '_pulling_0')}}
+        elif kind == 'crossbow':
+            model(key, 'minecraft:item/crossbow', key + '_standby')
+            for extra in ('_pulling_0', '_pulling_1', '_pulling_2', '_arrow', '_firework'):
+                model(key + extra, 'nightsiege:item/kit/' + key, key + extra)
+            definition = {'type': 'minecraft:select', 'property': 'minecraft:charge_type',
+                          'cases': [{'when': 'arrow', 'model': ref(key + '_arrow')},
+                                    {'when': 'rocket', 'model': ref(key + '_firework')}],
+                          'fallback': {'type': 'minecraft:condition', 'property': 'minecraft:using_item',
+                                       'on_false': ref(key),
+                                       'on_true': {'type': 'minecraft:range_dispatch',
+                                                   'property': 'minecraft:crossbow/pull',
+                                                   'entries': [{'threshold': 0.58, 'model': ref(key + '_pulling_1')},
+                                                               {'threshold': 1.0, 'model': ref(key + '_pulling_2')}],
+                                                   'fallback': ref(key + '_pulling_0')}}}
+        else:
+            model(key, 'minecraft:item/handheld', key)
+            definition = ref(key)
+        with open(os.path.join(itm, key + '.json'), 'w') as f:
+            json.dump({'model': definition}, f, indent=2)
+            f.write('\n')
+
+
 if __name__ == '__main__':
+    import sys
+    if '--install' in sys.argv:
+        install(os.path.join(os.path.dirname(__file__), '..', '..'))
+        print('installed')
     os.makedirs(OUT, exist_ok=True)
     sheet(os.path.join(OUT, 'sheet.png'))
     states_sheet(os.path.join(OUT, 'states.png'))

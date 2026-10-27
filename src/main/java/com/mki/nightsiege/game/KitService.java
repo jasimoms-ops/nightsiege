@@ -484,6 +484,9 @@ public final class KitService {
             hotbar.add(sword(ench, weapon, Math.max(1, sharp - 1)));
         }
 
+        // The subclass's own kit weapon: look and name on the main weapon (Simon, 27 October 2026).
+        applyKitLook(hotbar, tree.subclassOf(skills));
+
         // Food and the general gains.
         int foodTier = NightKit.foodTier(level, gainLevel(skills, clazz, "proviant"));
         Item food = foodTier == 0 ? Items.BREAD : foodTier == 1 ? Items.COOKED_BEEF : Items.GOLDEN_CARROT;
@@ -534,6 +537,36 @@ public final class KitService {
             addAttribute(stack, Attributes.ENTITY_INTERACTION_RANGE, "kit_greatsword", 1.5, EquipmentSlotGroup.MAINHAND);
         }
         return stack;
+    }
+
+    /** The subclass's kit weapon look on the kit's main weapon; only look and name change. */
+    private static void applyKitLook(List<ItemStack> hotbar, String subclass) {
+        com.mki.nightsiege.core.KitWeapons.Look look = com.mki.nightsiege.core.KitWeapons.of(subclass);
+        if (look == null) {
+            return;
+        }
+        for (ItemStack stack : hotbar) {
+            if (kitLookFits(stack, look.kind())) {
+                stack.set(DataComponents.ITEM_MODEL, Identifier.fromNamespaceAndPath("nightsiege", "kit/" + look.key()));
+                stack.set(DataComponents.ITEM_NAME, Component.translatable(look.nameKey()));
+                return;
+            }
+        }
+    }
+
+    /** True if the stack is the kind of kit item a look goes on. */
+    public static boolean kitLookFits(ItemStack stack, com.mki.nightsiege.core.KitWeapons.Kind kind) {
+        if (stack == null || stack.isEmpty()) {
+            return false;
+        }
+        String path = BuiltInRegistries.ITEM.getKey(stack.getItem()).getPath();
+        return switch (kind) {
+            case SWORD -> path.endsWith("_sword");
+            case AXE -> path.endsWith("_axe");
+            case BOW -> stack.getItem() instanceof net.minecraft.world.item.BowItem;
+            case CROSSBOW -> stack.getItem() instanceof net.minecraft.world.item.CrossbowItem;
+            case STAFF -> ModContent.STAFF != null && stack.is(ModContent.STAFF);
+        };
     }
 
     private static ItemStack sword(HolderLookup.RegistryLookup<Enchantment> ench, NightKit.Material material, int sharp) {

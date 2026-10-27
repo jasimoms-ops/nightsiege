@@ -485,6 +485,24 @@ class SiegeCoreTest {
     }
 
     @Test
+    void everySubclassHasAKitWeaponWithAllItsPictures() {
+        java.util.Set<String> keys = new java.util.HashSet<>();
+        int n = 0;
+        for (KitWeapons.Look look : KitWeapons.all()) {
+            n++;
+            assertTrue(keys.add(look.key()), look.key());
+            assertNotNull(getClass().getResource("/assets/nightsiege/items/kit/" + look.key() + ".json"), look.key());
+            assertNotNull(getClass().getResource("/assets/nightsiege/models/item/kit/" + look.key() + ".json"), look.key());
+            for (String texture : KitWeapons.textures(look)) {
+                assertNotNull(getClass().getResource("/assets/nightsiege/textures/item/kit/" + texture + ".png"), texture);
+            }
+        }
+        assertEquals(20, n, "one kit weapon per subclass");
+        assertNotNull(KitWeapons.of(SkillTree.SUB_SOULCATCHER));
+        assertNull(KitWeapons.of(null));
+    }
+
+    @Test
     void everyCrateGainHasAnIconAndOnlyReadyOnesAreDrawn() {
         Random random = new Random(3);
         for (CrateGains.Gain gain : CrateGains.all()) {
