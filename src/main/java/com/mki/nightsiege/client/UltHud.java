@@ -21,10 +21,12 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * The ability bar left of the off-hand slot (Simon, 27 October 2026, instead of the wheel):
- * the ultimate (Q), Fähigkeit 2 (F), the second ultimate (X), then every spell, potion,
- * healing ability or arrow kind on a key of its own (R, G, Y, C, V, B). Each slot shows its
- * key above it and its cooldown running down over it; the arrow kind in use has a gold frame.
+ * The ability bar (Simon, 27 October 2026, instead of the wheel): the ultimate (Q), Fähigkeit 2
+ * (F) and the second ultimate (X) left of the off-hand slot; every spell, potion, healing ability
+ * or arrow kind on a key of its own (R, G, Y, C, V, B) right of the hotbar (hotfix 20:59: eight
+ * symbols on the left ran into the hotbar; names are in the handbook, chapter "Fähigkeitenleiste").
+ * Each slot shows its key above it and its cooldown running down over it; the arrow kind in use
+ * has a gold frame.
  */
 public final class UltHud {
 
@@ -79,21 +81,30 @@ public final class UltHud {
         }
         int width = mc.getWindow().getGuiScaledWidth();
         int height = mc.getWindow().getGuiScaledHeight();
-        // Right edge: just left of the off-hand slot (it sits 29 px left of the hotbar).
-        int right = width / 2 - 91 - 29 - 3;
-        int total = (fixed.size() + choices.size()) * CELL + (!fixed.isEmpty() && !choices.isEmpty() ? GAP : 0);
-        int x = Math.max(2, right - total);
         int y = height - 22;
+        // Q, F, X: just left of the off-hand slot (it sits 29 px left of the hotbar).
+        int right = width / 2 - 91 - 29 - 3;
+        int x = Math.max(2, right - fixed.size() * CELL);
         for (Cell c : fixed) {
             cell(gui, mc, x, y, c, s.live);
             x += CELL;
         }
-        if (!fixed.isEmpty() && !choices.isEmpty()) {
-            x += GAP;
-        }
+        // The choices: right of the hotbar, smaller when the screen is narrow.
+        int left = width / 2 + 91 + GAP;
+        int room = width - 2 - left;
+        int step = choices.isEmpty() ? CELL : Math.max(14, Math.min(CELL, room / choices.size()));
+        x = left;
         for (Cell c : choices) {
-            cell(gui, mc, x, y, c, s.live);
-            x += CELL;
+            if (step < CELL) {
+                gui.pose().pushMatrix();
+                gui.pose().translate(x, y + (CELL - step));
+                gui.pose().scale(step / (float) CELL, step / (float) CELL);
+                cell(gui, mc, 0, 0, c, s.live);
+                gui.pose().popMatrix();
+            } else {
+                cell(gui, mc, x, y, c, s.live);
+            }
+            x += step;
         }
     }
 

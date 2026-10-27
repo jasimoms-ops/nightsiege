@@ -22,12 +22,16 @@ public class UltState {
     /** The second ultimate from the crate (27 October 2026: its own slot next to the ult). */
     public boolean has2;
     public String icon2 = "";
+    /** Translation key of the second ultimate's name. */
+    public String name2 = "";
     public int cooldown2Ticks;
     public int total2Ticks;
 
     /** Fähigkeit 2 (F): shown when it does something for this class (remote, staff, healing). */
     public boolean hasAb2;
     public String iconAb2 = "";
+    /** Translation key of what F does for this class. */
+    public String nameAb2 = "";
 
     /**
      * The ability bar (Simon, 27 October 2026, instead of the wheel): every spell, potion,
