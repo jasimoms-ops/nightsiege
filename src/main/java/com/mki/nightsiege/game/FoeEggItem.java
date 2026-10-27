@@ -46,6 +46,14 @@ public class FoeEggItem extends Item {
             player.sendSystemMessage(Component.translatable("nightsiege.cmd.foe_failed").withStyle(ChatFormatting.RED));
             return InteractionResult.FAIL;
         }
+        // What it does, and when (Simon 27.10.: "the tunneler does not dig, the grappler does not pull").
+        Foes.Role role = Foes.roleOf(entryId);
+        String hint = !m.isActive() ? "nightsiege.foe.egg_look"
+                : role == Foes.Role.TUNNELER ? "nightsiege.foe.egg_tunneler"
+                : role == Foes.Role.GRAPPLER ? "nightsiege.foe.egg_grappler" : "";
+        if (!hint.isEmpty()) {
+            player.sendSystemMessage(Component.translatable(hint).withStyle(ChatFormatting.GRAY), true);
+        }
         return InteractionResult.SUCCESS;
     }
 }

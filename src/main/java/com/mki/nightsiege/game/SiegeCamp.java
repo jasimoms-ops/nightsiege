@@ -430,6 +430,13 @@ public final class SiegeCamp {
 
     private static final Map<String, net.minecraft.tags.TagKey<Block>> TAGS = new java.util.concurrent.ConcurrentHashMap<>();
 
+    /** Natural ground, by block (see {@link #natural}). */
+    private static final Set<Block> GROUND_BLOCKS = Set.of(Blocks.GRASS_BLOCK, Blocks.DIRT, Blocks.COARSE_DIRT,
+            Blocks.PODZOL, Blocks.MYCELIUM, Blocks.ROOTED_DIRT, Blocks.MUD, Blocks.MOSS_BLOCK, Blocks.SAND, Blocks.RED_SAND,
+            Blocks.STONE, Blocks.GRANITE, Blocks.DIORITE, Blocks.ANDESITE, Blocks.DEEPSLATE, Blocks.TUFF, Blocks.CALCITE,
+            Blocks.GRAVEL, Blocks.CLAY, Blocks.SNOW_BLOCK, Blocks.ICE, Blocks.PACKED_ICE, Blocks.BLUE_ICE, Blocks.TERRACOTTA,
+            Blocks.SANDSTONE, Blocks.RED_SANDSTONE, Blocks.DRIPSTONE_BLOCK, Blocks.SMOOTH_BASALT, Blocks.MOSSY_COBBLESTONE);
+
     /** Ids of things without a collision box that people put down. */
     private static final String[] MADE = {"torch", "rail", "redstone", "repeater", "comparator", "button", "lever",
             "tripwire", "pressure_plate", "candle", "carpet", "sign", "banner", "head", "skull", "string", "scaffolding",
@@ -444,6 +451,12 @@ public final class SiegeCamp {
             return false;
         }
         if (plant(state)) {
+            return true;
+        }
+        // The plain ground blocks by name: in 26.2 the grass block is no longer in the dirt tag
+        // (the test of 27.10. turned down a flat grass meadow), so they no longer hang on tags.
+        if (GROUND_BLOCKS.contains(state.getBlock()) || state.is(tag("dirt")) || state.is(tag("grass_blocks"))
+                || state.is(tag("substrate_overworld")) || state.is(tag("sand")) || state.is(tag("base_stone_overworld"))) {
             return true;
         }
         return state.canBeReplaced() || state.is(BlockTags.LOGS) || state.is(BlockTags.LEAVES) || state.is(BlockTags.DIRT)

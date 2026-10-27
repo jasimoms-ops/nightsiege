@@ -325,7 +325,7 @@ public final class Foes {
             }
             case STANDARD_BEARER -> mob.setItemSlot(EquipmentSlot.HEAD, banner(mob));
             case GRAPPLER -> {
-                mob.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.TRIPWIRE_HOOK));
+                mob.setItemSlot(EquipmentSlot.MAINHAND, grapplingHook());
                 mob.setItemSlot(EquipmentSlot.OFFHAND, new ItemStack(Items.LEAD));
                 if (mob instanceof PathfinderMob walker) {
                     // Without a crossbow a pillager would only stand there: between hooks it fights by hand.
@@ -386,6 +386,16 @@ public final class Foes {
                 mob.setItemSlot(slot, ItemStack.EMPTY);
             }
         }
+    }
+
+    /** The grappler's hook (Simon 27.10.: designed for it, tools/weapons/grapnel.py): a tripwire hook with its own look. */
+    static ItemStack grapplingHook() {
+        ItemStack hook = new ItemStack(Items.TRIPWIRE_HOOK);
+        hook.set(net.minecraft.core.component.DataComponents.ITEM_MODEL,
+                Identifier.fromNamespaceAndPath("nightsiege", "foe/grappling_hook"));
+        hook.set(net.minecraft.core.component.DataComponents.ITEM_NAME,
+                net.minecraft.network.chat.Component.translatable("item.nightsiege.grappling_hook"));
+        return hook;
     }
 
     private static ItemStack dyed(Item item, int rgb) {
