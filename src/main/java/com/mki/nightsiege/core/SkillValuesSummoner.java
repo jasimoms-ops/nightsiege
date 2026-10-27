@@ -125,6 +125,7 @@ final class SkillValuesSummoner {
         def("d_necro", "curse", 0.3);             // share more damage taken in the zone
         def("d_necro", "cursedmg", 3.0);           // damage per second in the zone, before the skills and the night (27 Oct 2026)
         def("d_necro", "curseslow", 0);            // Slowness amplifier in the zone (0 = Slowness I)
+        def("d_soulcatcher", "swarmcd", 120);      // ticks: Geisterschwarm at most every 6 s (Simon 27.10.)
         def("d_soulcatcher", "swarmcost", 4);      // souls: Geisterschwarm (Simon 27.10.: 4)
         def("d_soulcatcher", "ghosts", 3);
         def("d_soulcatcher", "ghost", 6.5);        // damage per ghost before the skills and the night

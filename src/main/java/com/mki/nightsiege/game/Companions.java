@@ -153,6 +153,8 @@ public final class Companions {
     private final Map<UUID, Integer> spellIndex = new HashMap<>();
     /** Owner → game time the next spell may go (a short pause against double clicks). */
     private final Map<UUID, Long> nextSpell = new HashMap<>();
+    /** When a spell with its own cooldown may come again, per player and spell ("uuid:id"). */
+    private final Map<String, Long> spellReady = new HashMap<>();
     /** Owner → game time the skeleton guard may rise again after it fell. */
     private final Map<UUID, Long> nextBones = new HashMap<>();
     /** Owner → end of the current howl (wolves faster and stronger). */
@@ -927,6 +929,14 @@ public final class Companions {
         int cost = spellCost(id, skills);
         int have = soulsOf(player.getUUID());
         boolean free = player.getAbilities().instabuild;
+        // Spells with their own cooldown (Simon, 27 October 2026: the ghost swarm at most every 6 s).
+        String readyKey = player.getUUID() + ":" + id;
+        long ready = spellReady.getOrDefault(readyKey, 0L);
+        if (now < ready) {
+            CombatEffects.actionBar(player, Component.translatable("nightsiege.msg.spell_cooldown",
+                    Component.translatable("nightsiege.spell." + id), String.format(java.util.Locale.ROOT, "%.1f", (ready - now) / 20.0)));
+            return false;
+        }
         if (have < cost && !free) {
             CombatEffects.actionBar(player, Component.translatable("nightsiege.msg.souls_short", have, cost));
             return false;
@@ -945,11 +955,20 @@ public final class Companions {
             return false;
         }
         nextSpell.put(player.getUUID(), now + Math.round(v("d_raise", "spellpause", 20)));
+        long cooldown = spellCooldown(id);
+        if (cooldown > 0) {
+            spellReady.put(readyKey, now + cooldown);
+        }
         if (!free) {
             souls.put(player.getUUID(), Math.max(0, have - cost));
         }
         showSouls(player, soulsOf(player.getUUID()), soulCap(skills));
         return true;
+    }
+
+    /** Own cooldown of a spell in ticks (0: only the short pause between two spells). */
+    static long spellCooldown(String id) {
+        return "swarm".equals(id) ? Math.round(v("d_soulcatcher", "swarmcd", 120)) : 0L;
     }
 
     /** Spell durations grow with the bind rune; the bone legion adds seconds to wall, zone and chain. */
