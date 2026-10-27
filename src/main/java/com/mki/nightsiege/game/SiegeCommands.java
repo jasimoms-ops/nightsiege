@@ -672,6 +672,15 @@ public final class SiegeCommands {
         int radius = manager.config().baseRadius;
         if (scan.closed) {
             reply(source, Component.translatable("nightsiege.cmd.base_closed", scan.width(), scan.depth(), radius));
+            StringBuilder where = new StringBuilder();
+            for (int i = 0; i < scan.gates.size() && i < 4; i++) {
+                BaseScan.Gate g = scan.gates.get(i);
+                where.append(i > 0 ? ", " : "").append(g.pos().getX()).append(' ').append(g.pos().getY()).append(' ')
+                        .append(g.pos().getZ()).append(g.arch() ? " (Torbogen)" : "");
+                BaseDefense.highlight(player, g.pos());
+            }
+            reply(source, Component.translatable("nightsiege.cmd.base_gates", scan.gates.size(),
+                    where.length() == 0 ? "-" : where.toString(), scan.spawnSpotCount()));
         } else if (scan.gap != null) {
             reply(source, Component.translatable("nightsiege.cmd.base_gap",
                     scan.gap.getX() + " " + scan.gap.getY() + " " + scan.gap.getZ(), scan.width(), scan.depth(), radius));

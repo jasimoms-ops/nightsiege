@@ -215,6 +215,8 @@ public final class SiegeManager {
     private final DungeonService dungeons = new DungeonService(() -> save, () -> config);
     private final PerkService perks = new PerkService(() -> save, () -> config);
     private final BaseDefense defense = new BaseDefense();
+    /** The raid's plan: directions, gathering in front of the wall, ways in (27 October 2026). */
+    private final RaidPlan raid = new RaidPlan();
     /** The night's protocol for balancing (config/nightsiege-stats*.csv). */
     private final NightLog nightLog = new NightLog();
     private final EventEffects events = new EventEffects();
@@ -1545,6 +1547,14 @@ public final class SiegeManager {
         active = true;
         combat.newSiege();
         defense.begin(world, anchor, config, save.coreSkills(), skillTree, digger, anyoneHas("mauerkelle"));
+        safe("Angriffsplan", () -> {
+            raid.begin(world, anchor, defense.base(), config, random, this::barNotice);
+            BaseScan b = defense.base();
+            if (b != null) {
+                NightSiegeMod.LOGGER.info("[Night Siege] Basis: {} {}x{}, Tore {}, Spawnplätze {}", b.closed ? "geschlossen" : "offen",
+                        b.width(), b.depth(), b.gates.size(), b.spawnSpotCount());
+            }
+        });
         nightKills = 0;
         spawnedTotal = 0;
         shownRequired = -1;
@@ -1779,6 +1789,7 @@ public final class SiegeManager {
             ladders.tick(world, liveMobs, anchor, world.getGameTime());
             besiegers.tick(world, liveMobs, anchor, world.getGameTime());
             safe("Gegner", () -> foes.tick(foesHost, liveMobs, world.getGameTime()));
+            safe("Angriffsplan", () -> raid.tick(world.getGameTime(), liveMobs, upright, ladders));
         }
 
         // Monsters no longer dig through walls (Simon, 27 October 2026): no pickaxe and axe monsters.
@@ -1833,6 +1844,11 @@ public final class SiegeManager {
 
     public BossService bosses() {
         return bosses;
+    }
+
+    /** The raid's plan of the running night (for the gametest). */
+    public RaidPlan raid() {
+        return raid;
     }
 
     public SiegeCamp camp() {
@@ -2073,6 +2089,9 @@ public final class SiegeManager {
                 liveMobs.add(mob.getUUID());
                 spawnedTotal++;
                 goalUp = Component.translatable("nightsiege.bar.goal_extra");
+                if (RaidPlan.eligible(mob)) {
+                    safe("Angriffsplan", () -> raid.enlist(mob, Double.NaN));   // a risen revenant goes on with the others
+                }
             }
         }
 
@@ -2236,6 +2255,16 @@ public final class SiegeManager {
         int spawned = 0;
         List<Mob> wave = new ArrayList<>();
         Map<String, Integer> waveFoes = new HashMap<>();
+        // The raid's plan: where this wave comes from (told on the bar, a horn from that side).
+        RaidPlan.Wave plan = null;
+        if (count > 0 && raid.active()) {
+            try {
+                plan = raid.planWave(wavesStarted, siegeLevel);
+            } catch (RuntimeException e) {
+                NightSiegeMod.LOGGER.error("[Night Siege] Fehler beim Angriffsplan: {}", e.toString(), e);
+            }
+        }
+        besiegers.aimAt(plan == null ? Double.NaN : plan.main());
         for (int i = 0; i < count; i++) {
             String entityId = themeMobId != null
                     ? themeMobId
@@ -2252,9 +2281,10 @@ public final class SiegeManager {
                 }
                 continue;
             }
+            double angle = raid.angleFor(plan, i, count);
             Mob mob = rift != null
                     ? MobFactory.spawnAt(world, rift, entityId, siegeLevel, config, random, currentEvent, false)
-                    : spawnMob(entityId, false);
+                    : spawnMob(entityId, false, angle);
             if (mob != null) {
                 events.onSpawned(currentEvent, mob, world);
                 liveMobs.add(mob.getUUID());
@@ -2264,7 +2294,11 @@ public final class SiegeManager {
                     spawnedTotal++;
                     goalUp = Component.translatable("nightsiege.bar.goal_extra");
                 }
-                aimAtDefender(server, mob);
+                if (plan != null && RaidPlan.eligible(mob)) {
+                    raid.enlist(mob, rift != null ? Double.NaN : angle);   // the plan steers it (and picks its fights)
+                } else {
+                    aimAtDefender(server, mob);
+                }
                 Fx.mobSpawned(world, config, mob, spawned < config.audibleSpawnsPerBatch);
                 if (currentEvent == SiegeEvent.BLOOD_MOON && config.bloodMoonGlow) {
                     SiegeTeams.mark(server, mob, SiegeTeams.BLOOD_MOON, TeamColor.DARK_RED);
@@ -2344,10 +2378,18 @@ public final class SiegeManager {
 
     /** Spawns a monster outside the walls of the base, or in the old ring if none was found. */
     private Mob spawnMob(String entityId, boolean elite) {
+        return spawnMob(entityId, elite, Double.NaN);
+    }
+
+    /** As above, on the ground in front of the walls towards an angle (the raid's plan), if there is some. */
+    private Mob spawnMob(String entityId, boolean elite, double angle) {
         if (MobFactory.isUnavailable(entityId)) {
             return null;
         }
-        BlockPos spot = defense.spawnSpot(config, random);
+        BlockPos spot = Double.isNaN(angle) ? null : raid.spawnSpot(angle);
+        if (spot == null) {
+            spot = defense.spawnSpot(config, random);
+        }
         if (spot == null) {
             spot = MobFactory.findSpawnSpot(world, anchor, config, random, 0.0);
         }
@@ -2554,6 +2596,7 @@ public final class SiegeManager {
         digger.reset();
         ladders.reset();
         besiegers.reset();
+        raid.reset();
         foes.reset(world);
         companions.dismissAll(server);
         mendBase(server);
@@ -2667,6 +2710,7 @@ public final class SiegeManager {
         digger.reset();
         ladders.reset();
         besiegers.reset();
+        raid.reset();
         foes.reset(world);
         companions.dismissAll(server);
         mendBase(server);
@@ -4150,6 +4194,9 @@ public final class SiegeManager {
         }
         if (infighting(mob, target)) {
             return false;   // monsters do not turn on each other (Simon, 25 October 2026)
+        }
+        if (!RaidPlan.mayTarget(mob, target)) {
+            return false;   // outside the walls only who comes out (the raid's plan)
         }
         return !(target instanceof net.minecraft.world.entity.player.Player player) || INSTANCE.mayFight(mob, player);
     }

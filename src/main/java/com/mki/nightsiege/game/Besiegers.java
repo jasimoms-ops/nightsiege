@@ -112,6 +112,7 @@ public final class Besiegers {
     }
 
     public void reset() {
+        preferredSide = -1;
         for (UUID id : jobs.keySet()) {
             BUSY.remove(id);
         }
@@ -152,6 +153,10 @@ public final class Besiegers {
         if (cfg.ladderCarrierShare > 0 && base != null && (base.closed || base.reach() > 6.0)) {
             double want = wave.size() * cfg.ladderCarrierShare;
             int count = (int) Math.floor(want) + (random.nextDouble() < want - Math.floor(want) ? 1 : 0);
+            if (cfg.raidPlan && base.closed) {
+                // The raid's plan: the melee monsters wait for a way in, so every wave brings ladders.
+                count = Math.max(count, cfg.raidMinLadders);
+            }
             for (Mob mob : wave) {
                 if (count <= 0) {
                     break;
@@ -177,7 +182,7 @@ public final class Besiegers {
             int count = (int) Math.floor(want) + (random.nextDouble() < want - Math.floor(want) ? 1 : 0);
             count = Math.min(count, Math.max(1, cfg.sapperMaxPerWave));
             for (int n = 0; n < count; n++) {
-                int side = freestSide(cfg, random);
+                int side = preferredSide >= 0 && sideHasRoom(cfg, preferredSide) ? preferredSide : freestSide(cfg, random);
                 if (side < 0) {
                     break;   // every side has its holes tonight
                 }
@@ -201,6 +206,19 @@ public final class Besiegers {
                 world.playSound(null, spot, SoundEvents.CREEPER_PRIMED, SoundSource.HOSTILE, 0.6f, 0.6f);
             }
         }
+    }
+
+    /** The side the wave attacks (the raid's plan), or -1. Sappers go there while it has room. */
+    private int preferredSide = -1;
+
+    /** The raid's plan: the sappers of the next waves go to the side of this angle (NaN: any side). */
+    public void aimAt(double angle) {
+        preferredSide = Double.isNaN(angle) ? -1 : Math.floorMod((int) Math.round(angle / (Math.PI / 2)), 4);
+    }
+
+    private boolean sideHasRoom(SiegeConfig cfg, int side) {
+        int used = breached.getOrDefault(side, 0) + sapperOnWay.getOrDefault(side, 0);
+        return used < Math.max(1, cfg.sapperHolesPerSide);
     }
 
     /** The side with the fewest holes and sappers on the way that still has room, or -1. */

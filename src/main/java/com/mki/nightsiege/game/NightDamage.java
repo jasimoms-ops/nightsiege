@@ -44,10 +44,14 @@ public final class NightDamage {
                 || ModContent.isCore(old)) {
             return;
         }
+        if (LOST.containsKey(pos.asLong())) {
+            return;
+        }
         if (old.hasBlockEntity() && level.getBlockEntity(pos) instanceof Container) {
             return;
         }
         LOST.putIfAbsent(pos.asLong(), old);
+        RaidPlan.blockBroken(level, pos);   // maybe a way into the base now (the raid's plan)
     }
 
     /** True while a night's damage is being written down (for the explosion mixin). */

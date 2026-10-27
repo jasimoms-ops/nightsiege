@@ -375,6 +375,22 @@ public class SiegeConfig {
     /** Radius of a sapper's crater in blocks (a charged creeper one more). */
     public double sapperBlastRadius = 3.0;
 
+    // The raid's plan (Simon, 27 October 2026: the raid keeps to the base; game/RaidPlan.java)
+    /** Waves come from one side (and a flank), melee monsters wait in front of the wall for a way in. */
+    public boolean raidPlan = true;
+    /** From this level a wave also sends a flank from a second side. */
+    public int raidFlankFromLevel = 6;
+    /** Share of a wave that goes to the flank. */
+    public double raidFlankShare = 0.3;
+    /** Outside the walls a melee monster only goes for a defender this close (blocks). */
+    public double raidLeash = 16.0;
+    /** After waiting this long, monsters also take a way in on another side (seconds). */
+    public int raidRegroupSeconds = 45;
+    /** A monster without headway for this long takes another way; three times as long: back from the spawn ground. */
+    public int raidStuckSeconds = 15;
+    /** Ladder carriers every wave brings at least, when the base has walls. */
+    public int raidMinLadders = 1;
+
     // Update 1, the new attackers (Simon, 27 October 2026; concept night-siege-update1-gegner-konzept.md)
     /** Seconds a revenant's corpse lies before it stands up again. */
     public double revenantRiseSeconds = 5.0;
@@ -1012,6 +1028,12 @@ public class SiegeConfig {
             ladderCarrierShare = 0.07;
         }
         ladderCarrierShare = Math.min(1.0, Math.max(0.0, ladderCarrierShare));
+        raidFlankFromLevel = Math.max(0, raidFlankFromLevel);
+        raidFlankShare = Double.isNaN(raidFlankShare) ? 0.3 : Math.min(0.6, Math.max(0.0, raidFlankShare));
+        raidLeash = Double.isNaN(raidLeash) || raidLeash <= 0 ? 16.0 : Math.min(48.0, Math.max(4.0, raidLeash));
+        raidRegroupSeconds = clamp(raidRegroupSeconds <= 0 ? 45 : raidRegroupSeconds, 5, 600);
+        raidStuckSeconds = clamp(raidStuckSeconds <= 0 ? 15 : raidStuckSeconds, 5, 120);
+        raidMinLadders = clamp(raidMinLadders, 0, 6);
         sapperFromLevel = Math.max(0, sapperFromLevel);
         sappersPerLevel = Double.isNaN(sappersPerLevel) ? 0.15 : Math.max(0.0, Math.min(2.0, sappersPerLevel));
         sapperMaxPerWave = clamp(sapperMaxPerWave <= 0 ? 4 : sapperMaxPerWave, 1, 20);

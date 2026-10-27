@@ -106,6 +106,18 @@ public final class BaseDefense {
         if (base == null || world == null) {
             return null;
         }
+        // The ground the scan found in front of the walls: from there a monster walks to the base.
+        if (base.spawnSpotCount() > 0) {
+            for (int attempt = 0; attempt < 8; attempt++) {
+                BlockPos spot = base.spawnNear(random.nextDouble() * Math.PI * 2.0, BaseScan.SLICES / 2, random);
+                if (spot != null && world.hasChunk(spot.getX() >> 4, spot.getZ() >> 4)
+                        && world.getBlockState(spot).getCollisionShape(world, spot).isEmpty()
+                        && world.getBlockState(spot.above()).getCollisionShape(world, spot.above()).isEmpty()
+                        && world.getBlockState(spot).getFluidState().isEmpty()) {
+                    return spot;
+                }
+            }
+        }
         for (int attempt = 0; attempt < 32; attempt++) {
             double angle = random.nextDouble() * Math.PI * 2.0;
             double cos = Math.cos(angle);
