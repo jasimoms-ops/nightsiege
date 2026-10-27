@@ -47,6 +47,18 @@ public class EventLookTest implements FabricClientGameTest {
             }
             setUpScene(context, game);
             registrationScene(context);
+            String only = System.getenv("NIGHTSIEGE_SCENES");
+            if (only != null && !only.isBlank() && !shaderRun) {
+                // A dispatch with "scenes": only these, for a quick look (27 October 2026).
+                java.util.List<String> want = java.util.Arrays.asList(only.toLowerCase(Locale.ROOT).replace(" ", "").split(","));
+                if (want.contains("camp")) {
+                    campScene(context, game);
+                }
+                if (want.contains("machines")) {
+                    machineScene(context, game);
+                }
+                return;
+            }
             if (System.getenv("NIGHTSIEGE_SIM") != null) {
                 simScene(context, game);
                 return;
@@ -74,6 +86,8 @@ public class EventLookTest implements FabricClientGameTest {
                 ladderOverhangScene(context, game);
                 nightHoldScene(context, game);
                 besiegerScene(context, game);   // again since 27 October 2026: more sappers, craters, free ladder ways
+                campScene(context, game);
+                machineScene(context, game);
                 com.mki.nightsiege.game.TrapService.mortarsAnyTime = true;   // the scenes below test by day
                 mortarScene(context, game);
                 mannedScene(context, game);
@@ -1213,6 +1227,287 @@ public class EventLookTest implements FabricClientGameTest {
      * A closed yard in a test night (level 6): every zombie carries a ladder, sapper creepers come
      * from the start. Logs ladders built and holes blown (at most one per side).
      */
+    /** Clears a square yard on the server (grass floor, air above) around a middle and returns its ground height. */
+    private static int yard(ClientGameTestContext context, TestSingleplayerContext game, int cx, int cz, int out, int high) {
+        game.getServer().runCommand("forceload add %d %d %d %d".formatted(cx - out - 8, cz - out - 8, cx + out + 8, cz + out + 8));
+        context.waitTicks(40);
+        final int[] ground = new int[1];
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            level.getChunk(cx >> 4, cz >> 4);
+            ground[0] = level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, cx, cz);
+        });
+        context.waitTicks(10);
+        int cy = ground[0];
+        for (int part = -out; part <= out; part += 16) {
+            int z1 = cz + part;
+            int z2 = Math.min(cz + out, z1 + 15);
+            game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:grass_block".formatted(cx - out, cy - 1, z1, cx + out, cy - 1, z2));
+            game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(cx - out, cy, z1, cx + out, cy + high, z2));
+        }
+        return cy;
+    }
+
+    /**
+     * The war camp (27 October 2026): built, looked at by day and by night, attacked (class
+     * cards, kit, grace), its workbench destroyed (it burns down and goes), then a second camp
+     * where the defender falls (the camp wins, the machines come for sure).
+     */
+    private static void campScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        int cx = pos.getX() + 220;
+        int cz = pos.getZ() - 60;
+        int cy = yard(context, game, cx, cz, 30, 16);
+        game.getServer().runCommand("time set 1500");
+        game.getServer().runCommand("weather clear");
+        game.getServer().runCommand("gamemode creative @p");
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            if (!manager.isRegistered(player)) {
+                manager.register(player);
+            }
+            manager.camp().testCamp(level, new BlockPos(cx, cy, cz), 0, 999_999L);
+            System.out.println("[Night Siege test] camp built at " + cx + " " + cy + " " + cz + " guards="
+                    + manager.camp().testGuards(level) + " bench=" + (manager.camp().testBench(level) != null));
+        });
+        context.waitTicks(40);
+        // From outside the gate (south), a little above.
+        game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %d.5 %d %d.5 facing %d.5 %d %d.5",
+                cx + 6, cy + 13, cz + 30, cx, cy + 1, cz));
+        context.runOnClient(client -> hud(client, false));
+        context.waitTicks(60);
+        context.takeScreenshot("camp_gate");
+        game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %d.5 %d %d.5 facing %d.5 %d %d.5",
+                cx - 26, cy + 24, cz - 22, cx, cy, cz));
+        context.waitTicks(40);
+        context.takeScreenshot("camp_above");
+        game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %d.5 %d %d.5 facing %d.5 %d %d.5",
+                cx + 2, cy + 3, cz + 9, cx, cy + 1, cz));
+        context.waitTicks(30);
+        context.takeScreenshot("camp_workshop");
+        game.getServer().runCommand("time set 18000");
+        game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %d.5 %d %d.5 facing %d.5 %d %d.5",
+                cx + 6, cy + 13, cz + 30, cx, cy + 1, cz));
+        context.waitTicks(40);
+        context.takeScreenshot("camp_night");
+        context.runOnClient(client -> hud(client, true));
+
+        // The attack: a signed-up defender walks through the gate.
+        game.getServer().runCommand("time set 1500");
+        game.getServer().runCommand("gamemode survival @p");
+        game.getServer().runCommand("effect give @p minecraft:resistance 60 255 true");
+        game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %d.5 %d %d.5 facing %d.5 %d %d.5",
+                cx, cy, cz + 9, cx, cy + 1, cz));
+        context.waitTicks(30);
+        context.takeScreenshot("camp_fight_cards");
+        closeScreen(context);
+        context.waitTicks(20);
+        context.takeScreenshot("camp_fight");
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            System.out.println("[Night Siege test] camp fight: fighter=" + manager.camp().isFighter(player)
+                    + " kit=" + manager.kits().hasStash(player) + " defending=" + manager.isDefending(player)
+                    + " guards=" + manager.camp().testGuards(level));
+        });
+        context.waitTicks(220);   // past the grace: the guards come
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            int targeting = 0;
+            for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                if (com.mki.nightsiege.game.SiegeCamp.isCampMob(e) && e instanceof net.minecraft.world.entity.Mob mob
+                        && mob.getTarget() == player) {
+                    targeting++;
+                }
+            }
+            System.out.println("[Night Siege test] camp after grace: guards on the player=" + targeting
+                    + " hp=" + Math.round(player.getHealth()));
+            net.minecraft.world.entity.LivingEntity bench = manager.camp().testBench(level);
+            if (bench != null) {
+                bench.invulnerableTime = 0;
+                bench.hurtServer(level, level.damageSources().playerAttack(player), 120f);
+                System.out.println("[Night Siege test] camp bench after a blow: " + Math.round(bench.getHealth()) + "/"
+                        + Math.round(bench.getMaxHealth()));
+                bench.invulnerableTime = 0;
+                bench.hurtServer(level, level.damageSources().playerAttack(player), 1000f);
+            }
+        });
+        context.waitTicks(30);
+        context.takeScreenshot("camp_destroyed");
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.game.SiegeSave.CampRecord camp = manager.save().camp;
+            System.out.println("[Night Siege test] camp destroyed=" + (camp != null && camp.destroyed)
+                    + " machinesDay=" + manager.save().machinesDay + " fighter=" + manager.camp().isFighter(player)
+                    + " kit=" + manager.kits().hasStash(player));
+        });
+        context.waitTicks(100);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            System.out.println("[Night Siege test] camp gone=" + (manager.save().camp == null) + " palisade="
+                    + level.getBlockState(new BlockPos(cx + 15, cy + 1, cz)).getBlock()
+                    + " guards left=" + manager.camp().testGuards(level));
+        });
+
+        // A second camp: the defender falls there, the camp wins.
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            manager.camp().testCamp(level, new BlockPos(cx, cy, cz), 1, 999_998L);
+        });
+        context.waitTicks(20);
+        game.getServer().runCommand("effect clear @p");
+        game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %d.5 %d %d.5", cx, cy, cz + 7));
+        context.waitTicks(30);
+        closeScreen(context);
+        onServer(context, (player, manager) -> {
+            player.invulnerableTime = 0;
+            player.hurtServer((net.minecraft.server.level.ServerLevel) player.level(),
+                    player.level().damageSources().generic(), 500f);
+        });
+        context.waitTicks(20);
+        onServer(context, (player, manager) -> {
+            System.out.println("[Night Siege test] camp won: alive=" + player.isAlive() + " hp=" + Math.round(player.getHealth())
+                    + " machinesDay=" + manager.save().machinesDay + " camp gone=" + (manager.save().camp == null)
+                    + " kit=" + manager.kits().hasStash(player));
+            manager.save().machinesDay = -1L;
+        });
+        game.getServer().runCommand("forceload remove all");
+        game.getServer().runCommand("gamemode creative @p");
+        game.getServer().runCommand("time set 6000");
+        context.waitTicks(10);
+    }
+
+    /**
+     * The six siege machines (27 October 2026): set up around a walled yard in a test night,
+     * photographed by day and by night, left to shoot for a while (holes, ropes, fire and
+     * plague logged), one struck down.
+     */
+    private static void machineScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        int cx = pos.getX() - 200;
+        int cz = pos.getZ() - 200;
+        int cy = yard(context, game, cx, cz, 40, 14);
+        int r = 9;
+        String wall = "fill %d %d %d %d %d %d minecraft:stone_bricks";
+        game.getServer().runCommand(wall.formatted(cx - r, cy, cz - r, cx + r, cy + 4, cz - r));
+        game.getServer().runCommand(wall.formatted(cx - r, cy, cz + r, cx + r, cy + 4, cz + r));
+        game.getServer().runCommand(wall.formatted(cx - r, cy, cz - r, cx - r, cy + 4, cz + r));
+        game.getServer().runCommand(wall.formatted(cx + r, cy, cz - r, cx + r, cy + 4, cz + r));
+        game.getServer().runCommand("time set 13000");
+        game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %d.5 %d %d.5", cx, cy, cz));
+        game.getServer().runCommand("gamemode survival @p");
+        game.getServer().runCommand("effect give @p minecraft:resistance 600 255 true");
+        game.getServer().runCommand("effect give @p minecraft:regeneration 600 10 true");
+        game.getServer().runCommand("effect give @p minecraft:saturation 600 10 true");
+        context.waitTicks(20);
+        final int[] saved = new int[2];
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            saved[0] = manager.config().testPrepSeconds;
+            saved[1] = manager.config().batchIntervalSeconds;
+            manager.config().testPrepSeconds = 1;
+            manager.config().batchIntervalSeconds = 600;   // no waves: only the machines
+            boolean ok = manager.prepareTest(level.getServer(), level, new BlockPos(cx, cy, cz), 12,
+                    com.mki.nightsiege.core.SiegeEvent.NONE);
+            System.out.println("[Night Siege test] machines prep ok=" + ok);
+        });
+        context.waitTicks(60);
+        closeScreen(context);
+        com.mki.nightsiege.core.SiegeMachineKind[] kinds = com.mki.nightsiege.core.SiegeMachineKind.values();
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            for (int i = 0; i < kinds.length; i++) {
+                double a = Math.PI * 2.0 * i / kinds.length + Math.PI / 6;
+                double x = cx + 0.5 + Math.cos(a) * 24;
+                double z = cz + 0.5 + Math.sin(a) * 24;
+                int y = level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
+                        (int) Math.floor(x), (int) Math.floor(z));
+                boolean ok = manager.testMachine(kinds[i], new net.minecraft.world.phys.Vec3(Math.floor(x) + 0.5, y, Math.floor(z) + 0.5));
+                System.out.println("[Night Siege test] machine " + kinds[i].id() + " ok=" + ok);
+            }
+            System.out.println("[Night Siege test] machines standing=" + manager.machines().standing()
+                    + " crew=" + manager.machines().testCrew());
+        });
+        context.waitTicks(20);
+        // Each machine up close by day, then all of them from above.
+        game.getServer().runCommand("time set 6000");
+        context.runOnClient(client -> hud(client, false));
+        for (int i = 0; i < kinds.length; i++) {
+            double a = Math.PI * 2.0 * i / kinds.length + Math.PI / 6;
+            double x = cx + 0.5 + Math.cos(a) * 24;
+            double z = cz + 0.5 + Math.sin(a) * 24;
+            double sx = cx + 0.5 + Math.cos(a + 0.28) * 31;
+            double sz = cz + 0.5 + Math.sin(a + 0.28) * 31;
+            game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %.1f %d %.1f facing %.1f %d %.1f",
+                    sx, cy + 3, sz, x, cy + 2, z));
+            context.waitTicks(30);
+            context.takeScreenshot("machine_" + kinds[i].id());
+        }
+        game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %d.5 %d %d.5 facing %d.5 %d %d.5",
+                cx + 34, cy + 26, cz + 34, cx, cy, cz));
+        context.waitTicks(40);
+        context.takeScreenshot("machines_above");
+        context.runOnClient(client -> hud(client, true));
+        game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %d.5 %d %d.5", cx, cy + 5, cz));
+        game.getServer().runCommand("setblock %d %d %d minecraft:barrier".formatted(cx, cy + 4, cz));
+        game.getServer().runCommand("time set 18000");
+        // Let them shoot.
+        for (int i = 0; i < 40; i++) {
+            final int step = i;
+            if (i % 10 == 0) {
+                onServer(context, (player, manager) -> manager.machines().testFireNow(player.level().getGameTime()));
+            }
+            context.waitTicks(20);
+            if (i == 3 || i == 12) {
+                closeScreen(context);
+                context.takeScreenshot("machines_fire_" + i);
+            }
+            if (step % 10 == 9) {
+                onServer(context, (player, manager) -> {
+                    net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                    int holes = 0;
+                    for (int x = cx - r; x <= cx + r; x++) {
+                        for (int z = cz - r; z <= cz + r; z++) {
+                            if (Math.abs(x - cx) != r && Math.abs(z - cz) != r) {
+                                continue;
+                            }
+                            for (int y = cy; y <= cy + 4; y++) {
+                                if (level.getBlockState(new BlockPos(x, y, z)).isAir()) {
+                                    holes++;
+                                }
+                            }
+                        }
+                    }
+                    System.out.println(String.format(java.util.Locale.ROOT,
+                            "[Night Siege test] machines t=%ds active=%s standing=%d crew=%d ropes=%d wallgaps=%d hp=%d fire=%s poison=%s",
+                            step + 1, manager.isActive(), manager.machines().standing(), manager.machines().testCrew(),
+                            manager.machines().testRopes(), holes, Math.round(player.getHealth()), player.isOnFire(),
+                            player.hasEffect(net.minecraft.world.effect.MobEffects.POISON)));
+                });
+            }
+        }
+        // One struck down.
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            java.util.List<java.util.UUID> boxes = manager.machines().testHitboxes();
+            if (!boxes.isEmpty() && level.getEntity(boxes.get(0)) instanceof net.minecraft.world.entity.LivingEntity box) {
+                box.invulnerableTime = 0;
+                box.hurtServer(level, level.damageSources().playerAttack(player), 5000f);
+            }
+            System.out.println("[Night Siege test] machines after one struck down: standing=" + manager.machines().standing());
+        });
+        context.waitTicks(20);
+        onServer(context, (player, manager) -> {
+            manager.abort(player.level().getServer());
+            manager.config().testPrepSeconds = saved[0];
+            manager.config().batchIntervalSeconds = saved[1];
+            System.out.println("[Night Siege test] machines after the night: standing=" + manager.machines().standing());
+        });
+        game.getServer().runCommand("forceload remove all");
+        game.getServer().runCommand("time set 6000");
+        game.getServer().runCommand("effect clear @p");
+        game.getServer().runCommand("gamemode creative @p");
+        context.waitTicks(10);
+    }
+
     private static void besiegerScene(ClientGameTestContext context, TestSingleplayerContext game) {
         BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
         int cx = pos.getX() - 120;

@@ -1829,6 +1829,11 @@ public final class SiegeManager {
         return true;
     }
 
+    /** Tests: one machine of the running night at a spot, aiming at the core. */
+    public boolean testMachine(com.mki.nightsiege.core.SiegeMachineKind kind, net.minecraft.world.phys.Vec3 at) {
+        return active && machines.testSpawn(bossHost, config, kind, at);
+    }
+
     /** The day of the server's clock (for the camp). */
     long dayNow(MinecraftServer server) {
         return clockDay(server);
