@@ -210,6 +210,8 @@ public final class SiegeManager {
     private final LadderClimb ladders = new LadderClimb();
     /** Ladder carriers and sapper creepers. */
     private final Besiegers besiegers = new Besiegers();
+    /** The new attackers of update 1 (Simon, 27 October 2026). */
+    private final Foes foes = new Foes();
     private final DungeonService dungeons = new DungeonService(() -> save, () -> config);
     private final PerkService perks = new PerkService(() -> save, () -> config);
     private final BaseDefense defense = new BaseDefense();
@@ -368,6 +370,7 @@ public final class SiegeManager {
             GainGear.afterDamage(entity, source, taken);
             MeleeSim.onDamage(entity, source, taken);
             safe("Begleiter-Treffer", () -> companions.afterDamage(entity, source, taken));
+            safe("Gegner-Treffer", () -> foes.afterDamage(entity, source));
         });
         ServerLivingEntityEvents.ALLOW_DEATH.register((entity, source, amount) -> {
             if (!camp.allowDeath(entity, source) || !machines.allowDeath(entity, source)) {
@@ -383,7 +386,9 @@ public final class SiegeManager {
                 !infighting(source.getEntity(), entity) && allowModDamage(entity, source.getEntity()) && combat.allowDamage(entity, source, amount)
                         && CrateEffects.allowDamage(entity, source) && Companions.allowDamage(entity, source)
                         && bosses.allowDamage(entity, source, amount)
-                        && camp.allowDamage(entity, source) && machines.allowDamage(entity, source));
+                        && camp.allowDamage(entity, source) && machines.allowDamage(entity, source)
+                        && foes.allowDamage(entity, source)
+                        && FriendlyFire.allow(entity, source));   // no friendly fire in the night (27 October 2026)
         combat.guardian().setCredit(this::creditTank);
         companions.setCredit(this::creditTank);   // the soul shield counts as healing
         traps.setMarker(combat::remoteMark);
@@ -429,6 +434,10 @@ public final class SiegeManager {
             }
             if (camp.stray(entity) || SiegeMachines.stray(entity)) {
                 entity.discard();   // a guard, workbench, machine part or crew from a camp or night that is over
+                return;
+            }
+            if (Foes.isStale(entity)) {
+                entity.discard();   // a grave or a treasure raider from before a restart
                 return;
             }
             if (BossService.isBossOrPart(entity) && !bosses.planned()) {
@@ -1542,6 +1551,7 @@ public final class SiegeManager {
             }
         }
         killQuota = SiegeMath.killQuota(config.killQuotaShare, plannedWaves(), wantedPerWave());
+        safe("Gegner", () -> foes.startNight(foesHost, plannedWaves(), bosses.planned()));
         traps.refillAll();   // every tower full and whole at nightfall (27 October 2026)
         bonus.endAurora(server);
         events.begin(server, world, anchor, currentEvent, config);
@@ -1573,6 +1583,9 @@ public final class SiegeManager {
             if (MobFactory.isUnavailable(candidate)) {
                 unavailableMobs.add(candidate);
                 continue;
+            }
+            if (Foes.isCapped(candidate)) {
+                continue;   // a night of only tunnelers or banners would make no sense
             }
             return candidate;
         }
@@ -1756,6 +1769,7 @@ public final class SiegeManager {
         if (world.getGameTime() % 2 == 0) {
             ladders.tick(world, liveMobs, anchor, world.getGameTime());
             besiegers.tick(world, liveMobs, anchor, world.getGameTime());
+            safe("Gegner", () -> foes.tick(foesHost, liveMobs, world.getGameTime()));
         }
 
         // Monsters no longer dig through walls (Simon, 27 October 2026): no pickaxe and axe monsters.
@@ -1985,6 +1999,115 @@ public final class SiegeManager {
         }
     };
 
+    /** What the night lends the new attackers (update 1, 27 October 2026). */
+    private final Foes.Host foesHost = new Foes.Host() {
+        @Override
+        public ServerLevel world() {
+            return world;
+        }
+
+        @Override
+        public BlockPos anchor() {
+            return anchor;
+        }
+
+        @Override
+        public BaseScan base() {
+            return defense.base();
+        }
+
+        @Override
+        public int level() {
+            return siegeLevel;
+        }
+
+        @Override
+        public com.mki.nightsiege.core.SiegeConfig config() {
+            return config;
+        }
+
+        @Override
+        public Random random() {
+            return random;
+        }
+
+        @Override
+        public SiegeEvent event() {
+            return currentEvent == null ? SiegeEvent.NONE : currentEvent;
+        }
+
+        @Override
+        public List<ServerPlayer> defenders() {
+            return bossHost.defenders();
+        }
+
+        @Override
+        public Set<UUID> nightPlayers() {
+            return new HashSet<>(participants);
+        }
+
+        @Override
+        public Mob spawn(String entityId, BlockPos spot) {
+            if (world == null || spot == null || MobFactory.isUnavailable(entityId)) {
+                return null;
+            }
+            Mob mob = MobFactory.spawnAt(world, spot, entityId, siegeLevel, config, random, currentEvent, false);
+            if (mob != null) {
+                events.onSpawned(currentEvent, mob, world);
+            }
+            return mob;
+        }
+
+        @Override
+        public void addMob(Mob mob) {
+            if (mob != null) {
+                liveMobs.add(mob.getUUID());
+                spawnedTotal++;
+                goalUp = Component.translatable("nightsiege.bar.goal_extra");
+            }
+        }
+
+        @Override
+        public void notice(Component text) {
+            barNotice(text);
+        }
+
+        @Override
+        public void awardCrates() {
+            if (world != null) {
+                crates.awardEach(world.getServer(), participants, CrateKind.NORMAL, siegeLevel);
+            }
+        }
+    };
+
+    public Foes foes() {
+        return foes;
+    }
+
+    public Foes.Host foesHost() {
+        return foesHost;
+    }
+
+    /** A short line in the boss bar (five seconds), e.g. the treasure raider. */
+    public void barNotice(Component text) {
+        goalNote = text;
+        goalNoteUntil = ticksLeft - 100;
+    }
+
+    /** Everyone who defends tonight, the fallen and the drones too. */
+    public boolean isNightPlayer(net.minecraft.world.entity.player.Player player) {
+        return player != null && active && participants.contains(player.getUUID());
+    }
+
+    /** For the tests: a (fake) player joins or leaves tonight's defenders. */
+    public void testJoin(UUID id, boolean join) {
+        if (join) {
+            participants.add(id);
+        } else {
+            participants.remove(id);
+        }
+    }
+
     private void refreshBossBar(MinecraftServer server) {
         if (bossBar == null) {
             return;
@@ -2103,10 +2226,12 @@ public final class SiegeManager {
         }
         int spawned = 0;
         List<Mob> wave = new ArrayList<>();
+        Map<String, Integer> waveFoes = new HashMap<>();
         for (int i = 0; i < count; i++) {
             String entityId = themeMobId != null
                     ? themeMobId
-                    : pool.pick(siegeLevel, random, unavailableMobs);
+                    : foes.limit(pool.pick(siegeLevel, random, unavailableMobs), waveFoes, siegeLevel, config,
+                            () -> pool.pick(siegeLevel, random, unavailableMobs));   // tunnelers, banners, grapplers only a few
             if (entityId == null) {
                 break;
             }
@@ -2164,6 +2289,9 @@ public final class SiegeManager {
         // Some of them carry ladders; a sapper creeper may come along (it does not count for the kill goal).
         besiegers.afterWave(world, anchor, defense.base(), wave, siegeLevel, config, random, currentEvent,
                 sapper -> liveMobs.add(sapper.getUUID()));
+        if (themeMobId == null) {
+            safe("Schatz-Pluenderer", () -> foes.afterWave(foesHost, wavesStarted));
+        }
     }
 
     private void aimAtDefender(MinecraftServer server, Mob mob) {
@@ -2282,7 +2410,8 @@ public final class SiegeManager {
         }
         return (float) (config.monsterDamageFactor(
                 net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(attacker.getType()).toString())
-                * bosses.damageFactor(attacker));   // the warlord's banner
+                * bosses.damageFactor(attacker)   // the warlord's banner
+                * Foes.bannerFactor(attacker));   // a standard bearer's aura (update 1)
     }
 
     /** Zombies and spiders against warriors and guardians (config zombieSpiderVsMelee, Simon 25 October 2026). */
@@ -2416,6 +2545,7 @@ public final class SiegeManager {
         digger.reset();
         ladders.reset();
         besiegers.reset();
+        foes.reset(world);
         companions.dismissAll(server);
         mendBase(server);
         endKits(server);
@@ -2528,6 +2658,7 @@ public final class SiegeManager {
         digger.reset();
         ladders.reset();
         besiegers.reset();
+        foes.reset(world);
         companions.dismissAll(server);
         mendBase(server);
         endKits(server);
@@ -2800,6 +2931,9 @@ public final class SiegeManager {
     private void onDeath(Object entity, net.minecraft.world.damagesource.DamageSource source) {
         if (entity instanceof LivingEntity dead) {
             safe("Todestreffer", () -> combat.afterKillingHit(dead, source));
+        }
+        if (active && entity instanceof LivingEntity fell && world != null) {
+            safe("Gegner", () -> foes.onDeath(foesHost, fell, source));   // revenants' graves, the treasure
         }
         if (active && entity instanceof Mob killed && liveMobs.contains(killed.getUUID())) {
             nightKills++;
@@ -4001,6 +4135,9 @@ public final class SiegeManager {
         }
         if (mob.entityTags().contains(SiegeMachines.TAG_CREW) && !INSTANCE.machines.mayTarget(mob, target)) {
             return false;   // the machines' pillagers stay by their machine
+        }
+        if (!Foes.mayTarget(mob, target)) {
+            return false;   // the treasure raider flees, a tunneler is busy digging
         }
         if (infighting(mob, target)) {
             return false;   // monsters do not turn on each other (Simon, 25 October 2026)

@@ -2520,6 +2520,7 @@ public final class Companions {
             if (c.level() == level && now - c.time() <= Math.round(v("d_army", "age", 600)) && c.pos().distanceToSqr(near) <= range * range
                     && (!c.elite() || champions) && !NOT_RAISED.contains(c.typeId())) {
                 it.remove();
+                Foes.corpseTaken(level, c.pos());   // a revenant's grave stays empty (update 1)
                 return c;
             }
         }

@@ -175,6 +175,7 @@ public final class GuardianEffects {
             factor *= CrateEffects.factor(victim, source);   // crate gains of the night kit
         }
         factor *= Companions.damageFactor(victim, source);   // the summoner's companions
+        factor *= Foes.hitFactor(victim, source);   // arrows glance off the iron knight (update 1)
         if (!followUp && source.getEntity() instanceof ServerPlayer attacker && victim instanceof Enemy
                 && SkillTree.has(skillsFor.apply(attacker), "g_saint")) {
             factor *= (float) SkillValues.get("g_saint", "dmg", 0.7);   // the saint heals, but hits softer

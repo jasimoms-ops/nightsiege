@@ -19,8 +19,10 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Mob;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Admin commands.
@@ -84,6 +86,11 @@ public final class SiegeCommands {
                             reply(ctx.getSource(), Component.translatable("nightsiege.cmd.machines_removed", n));
                             return n;
                         })))
+                // The new attackers of update 1 to try out (27 October 2026); in a running night they join it.
+                .then(Commands.literal("gegner").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                        .then(Commands.argument("art", StringArgumentType.word())
+                                .suggests((c, b) -> net.minecraft.commands.SharedSuggestionProvider.suggest(FOE_NAMES.keySet(), b))
+                                .executes(SiegeCommands::foe)))
                 .then(Commands.literal("bossjetzt").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                         .executes(ctx -> {
                             boolean ok = SiegeManager.get().bossNow(ctx.getSource().getServer());
@@ -703,6 +710,76 @@ public final class SiegeCommands {
         }
         reply(ctx.getSource(), Component.translatable("nightsiege.cmd.wipe_done", wiped));
         return 1;
+    }
+
+    /** The names of /nightsiege gegner and what they make. */
+    private static final java.util.Map<String, String> FOE_NAMES = new java.util.LinkedHashMap<>();
+
+    static {
+        FOE_NAMES.put("wiedergaenger", Foes.Role.REVENANT.entryId());
+        FOE_NAMES.put("tunnelgraeber", Foes.Role.TUNNELER.entryId());
+        FOE_NAMES.put("standartentraeger", Foes.Role.STANDARD_BEARER.entryId());
+        FOE_NAMES.put("enterhaken", Foes.Role.GRAPPLER.entryId());
+        FOE_NAMES.put("eisenritter", Foes.Role.IRON_KNIGHT.entryId());
+        FOE_NAMES.put("schatz", Foes.Role.TREASURE_RAIDER.entryId());
+        FOE_NAMES.put("kamel", com.mki.nightsiege.core.SiegeConfig.CAMEL_TROOP);
+    }
+
+    private static int foe(CommandContext<CommandSourceStack> ctx) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer player = ctx.getSource().getPlayerOrException();
+        String name = StringArgumentType.getString(ctx, "art").toLowerCase(java.util.Locale.ROOT);
+        String id = FOE_NAMES.get(name);
+        if (id == null) {
+            fail(ctx.getSource(), Component.translatable("nightsiege.cmd.foe_unknown", String.join(", ", FOE_NAMES.keySet())));
+            return 0;
+        }
+        SiegeManager m = SiegeManager.get();
+        Mob mob = spawnFoe(m, (ServerLevel) player.level(), id, player);
+        if (mob == null) {
+            fail(ctx.getSource(), Component.translatable("nightsiege.cmd.foe_failed"));
+            return 0;
+        }
+        reply(ctx.getSource(), Component.translatable("nightsiege.cmd.foe_spawned", mob.getDisplayName()));
+        return 1;
+    }
+
+    /** Spawns one of the new attackers a few blocks in front of a player (the command and the spawn eggs). */
+    public static Mob spawnFoe(SiegeManager m, ServerLevel level, String id, ServerPlayer player) {
+        net.minecraft.world.phys.Vec3 look = player.getLookAngle().multiply(1, 0, 1);
+        net.minecraft.world.phys.Vec3 at = player.position().add(look.lengthSqr() < 1.0e-4 ? net.minecraft.world.phys.Vec3.ZERO : look.normalize().scale(4.0));
+        BlockPos spot = BossService.groundNear(level, at.x, player.getY(), at.z);
+        return spawnFoeAt(m, level, id, spot != null ? spot : player.blockPosition());
+    }
+
+    /** Spawns one of the new attackers on a spot; in a running night it joins it. */
+    public static Mob spawnFoeAt(SiegeManager m, ServerLevel level, String id, BlockPos spot) {
+        Foes.Role role = Foes.roleOf(id);
+        if (m.isActive() && role == Foes.Role.TREASURE_RAIDER) {
+            m.foes().treasureNow(m.foesHost());
+            UUID t = m.foes().treasure();
+            return t == null ? null : level.getEntity(t) instanceof Mob raider ? raider : null;
+        }
+        if (m.isActive()) {
+            Mob mob = m.foesHost().spawn(id, spot);
+            if (mob != null) {
+                m.foesHost().addMob(mob);
+                for (net.minecraft.world.entity.Entity rider : mob.getPassengers()) {
+                    if (rider instanceof Mob r) {
+                        m.foesHost().addMob(r);
+                    }
+                }
+            }
+            return mob;
+        }
+        Mob mob = MobFactory.spawnAt(level, spot, id, m.currentLevel(), m.config(), new java.util.Random(), SiegeEvent.NONE, false);
+        if (mob != null) {
+            // Outside a night only a look: without the siege tag it can be struck down like any monster.
+            mob.removeTag(MobFactory.TAG);
+            for (net.minecraft.world.entity.Entity rider : mob.getPassengers()) {
+                rider.removeTag(MobFactory.TAG);
+            }
+        }
+        return mob;
     }
 
     private static void reply(CommandSourceStack source, Component message) {

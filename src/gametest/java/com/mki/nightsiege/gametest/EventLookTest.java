@@ -61,6 +61,9 @@ public class EventLookTest implements FabricClientGameTest {
                     alchemistScene(context, game);   // the ability bar of the alchemist and the healer
                     summonerScene(context, game);    // ... and of the summoners
                 }
+                if (want.contains("foes")) {
+                    foeScene(context, game);
+                }
                 return;
             }
             if (System.getenv("NIGHTSIEGE_SIM") != null) {
@@ -92,6 +95,7 @@ public class EventLookTest implements FabricClientGameTest {
                 besiegerScene(context, game);   // again since 27 October 2026: more sappers, craters, free ladder ways
                 campScene(context, game);
                 machineScene(context, game);
+                foeScene(context, game);   // the new attackers of update 1 (27 October 2026)
                 com.mki.nightsiege.game.TrapService.mortarsAnyTime = true;   // the scenes below test by day
                 mortarScene(context, game);
                 mannedScene(context, game);
@@ -2924,6 +2928,421 @@ public class EventLookTest implements FabricClientGameTest {
             System.out.println("[Night Siege test] B2 done: temp=" + manager.save().tempBlocks.size()
                     + " golems=" + com.mki.nightsiege.game.CopperHelper.count());
         });
+        context.waitTicks(10);
+    }
+
+    /**
+     * The new attackers of update 1 (27 October 2026) in a walled yard in a test night at level
+     * 10: a line-up by night and in the blood moon look, the revenant (rises, burns, its grave
+     * struck), the tunneler (comes up inside), the standard bearer's aura, the grappler pulling the
+     * defender off the wall, the iron knight against arrows, the treasure raider (caught and
+     * escaped), the camel troop, the limits per wave and the friendly fire. Logs "foes ..." lines.
+     */
+    private static void foeScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        int cx = pos.getX() + 160;
+        int cz = pos.getZ() + 160;
+        game.getServer().runCommand("forceload add %d %d %d %d".formatted(cx - 48, cz - 48, cx + 48, cz + 48));
+        context.waitTicks(40);
+        final int[] ground = new int[1];
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            level.getChunk(cx >> 4, cz >> 4);
+            ground[0] = level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, cx, cz);
+        });
+        context.waitTicks(10);
+        int cy = ground[0];
+        int r = 10;
+        int out = 44;
+        for (int part = -out; part <= out; part += 16) {
+            int z1 = cz + part;
+            int z2 = Math.min(cz + out, z1 + 15);
+            game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:grass_block".formatted(cx - out, cy - 1, z1, cx + out, cy - 1, z2));
+            game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(cx - out, cy, z1, cx + out, cy + 10, z2));
+        }
+        String wall = "fill %d %d %d %d %d %d minecraft:stone_bricks";
+        game.getServer().runCommand(wall.formatted(cx - r, cy, cz - r, cx + r, cy + 4, cz - r));
+        game.getServer().runCommand(wall.formatted(cx - r, cy, cz + r, cx + r, cy + 4, cz + r));
+        game.getServer().runCommand(wall.formatted(cx - r, cy, cz - r, cx - r, cy + 4, cz + r));
+        game.getServer().runCommand(wall.formatted(cx + r, cy, cz - r, cx + r, cy + 4, cz + r));
+        game.getServer().runCommand("time set 18000");
+        game.getServer().runCommand("weather clear");
+        game.getServer().runCommand("gamemode survival @p");
+        game.getServer().runCommand("effect give @p minecraft:resistance 600 255 true");
+        game.getServer().runCommand("effect give @p minecraft:regeneration 600 10 true");
+        game.getServer().runCommand("effect give @p minecraft:saturation 600 10 true");
+        game.getServer().runCommand("tp @p %d.5 %d %d.5".formatted(cx, cy, cz));
+        context.waitTicks(20);
+        final int[] keep = new int[4];
+        final double[] keepD = new double[2];
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            com.mki.nightsiege.core.SiegeConfig cfg = manager.config();
+            keep[0] = cfg.baseMobsPerBatch;
+            keep[1] = cfg.batchIntervalSeconds;
+            keep[2] = cfg.sapperFromLevel;
+            keepD[0] = cfg.mobsPerLevel;
+            keepD[1] = cfg.treasureRaiderChance;
+            cfg.baseMobsPerBatch = 1;
+            cfg.mobsPerLevel = 0.0;
+            cfg.batchIntervalSeconds = 600;
+            cfg.sapperFromLevel = 0;
+            cfg.treasureRaiderChance = 0.0;
+            cfg.testPrepSeconds = 2;
+            boolean ok = manager.prepareTest(level.getServer(), level, new BlockPos(cx, cy, cz), 10,
+                    com.mki.nightsiege.core.SiegeEvent.NONE);
+            boolean eggs = net.minecraft.core.registries.BuiltInRegistries.ITEM.containsKey(
+                    net.minecraft.resources.Identifier.fromNamespaceAndPath("nightsiege", "foe_revenant"));
+            System.out.println("[Night Siege test] foes prep ok=" + ok + " eggs=" + eggs + " list="
+                    + cfg.mobs.stream().filter(e -> e.id.startsWith("nightsiege:") || e.id.contains("camel")).map(e -> e.id).toList());
+        });
+        context.waitTicks(60);
+        closeScreen(context);
+        context.waitTicks(20);
+        onServer(context, (player, manager) -> System.out.println("[Night Siege test] foes active=" + manager.isActive()
+                + " defending=" + manager.isDefending(player)));
+
+        // The line-up, outside the north wall, looked at from above the wall.
+        final java.util.List<java.util.UUID> lineup = new java.util.ArrayList<>();
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            String[] ids = {"nightsiege:revenant", "nightsiege:tunneler", "nightsiege:standard_bearer", "nightsiege:grappler",
+                    "nightsiege:iron_knight", "nightsiege:treasure_raider", com.mki.nightsiege.core.SiegeConfig.CAMEL_TROOP};
+            for (int i = 0; i < ids.length; i++) {
+                net.minecraft.world.entity.Mob mob = com.mki.nightsiege.game.MobFactory.spawnAt(level,
+                        new BlockPos(cx - 9 + i * 3, cy, cz - r - 5), ids[i], 10, manager.config(), new java.util.Random(1),
+                        com.mki.nightsiege.core.SiegeEvent.NONE, false);
+                if (mob == null) {
+                    System.out.println("[Night Siege test] foes lineup FAILED " + ids[i]);
+                    continue;
+                }
+                mob.setNoAi(true);
+                mob.setYRot(0f);
+                mob.setYHeadRot(0f);
+                mob.setYBodyRot(0f);
+                lineup.add(mob.getUUID());
+                StringBuilder gear = new StringBuilder();
+                for (net.minecraft.world.entity.EquipmentSlot slot : net.minecraft.world.entity.EquipmentSlot.values()) {
+                    net.minecraft.world.item.ItemStack stack = mob.getItemBySlot(slot);
+                    if (!stack.isEmpty()) {
+                        gear.append(slot.getName()).append('=').append(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()).getPath()).append(' ');
+                    }
+                }
+                StringBuilder riders = new StringBuilder();
+                for (net.minecraft.world.entity.Entity rider : mob.getPassengers()) {
+                    riders.append(net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(rider.getType()).getPath());
+                    if (rider instanceof net.minecraft.world.entity.Mob rm && !rm.getMainHandItem().isEmpty()) {
+                        riders.append('(').append(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(rm.getMainHandItem().getItem()).getPath()).append(')');
+                    }
+                    riders.append(' ');
+                    lineup.add(rider.getUUID());
+                    if (rider instanceof net.minecraft.world.entity.Mob rm) {
+                        rm.setNoAi(true);
+                    }
+                }
+                System.out.println(String.format(java.util.Locale.ROOT, "[Night Siege test] foes lineup %s type=%s name=%s hp=%.0f speed=%.3f gear=[%s] riders=[%s]",
+                        ids[i], net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(mob.getType()).getPath(),
+                        mob.getCustomName() == null ? "-" : mob.getCustomName().getString(), mob.getMaxHealth(),
+                        mob.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED), gear, riders));
+            }
+        });
+        context.waitTicks(10);
+        game.getServer().runCommand("setblock %d %d %d minecraft:barrier".formatted(cx, cy + 6, cz - r + 2));
+        game.getServer().runCommand("tp @p %d.5 %d %d.5 facing %d.5 %d %d.5".formatted(cx, cy + 7, cz - r + 2, cx, cy + 1, cz - r - 5));
+        context.runOnClient(client -> hud(client, false));
+        context.waitTicks(40);
+        context.takeScreenshot("foes_lineup_night");
+        context.runOnClient(client -> EventAtmosphere.setClient(EventAtmosphere.BLOOD_MOON, 1));
+        context.waitTicks(30);
+        context.takeScreenshot("foes_lineup_blood_moon");
+        context.runOnClient(client -> EventAtmosphere.setClient("", 1));
+        game.getServer().runCommand("time set 6000");
+        context.waitTicks(30);
+        context.takeScreenshot("foes_lineup_day");
+        game.getServer().runCommand("time set 18000");
+        context.runOnClient(client -> hud(client, true));
+        onServer(context, (player, manager) -> {
+            for (java.util.UUID id : lineup) {
+                net.minecraft.world.entity.Entity e = ((net.minecraft.server.level.ServerLevel) player.level()).getEntity(id);
+                if (e != null) {
+                    e.discard();
+                }
+            }
+        });
+        game.getServer().runCommand("tp @p %d.5 %d %d.5".formatted(cx, cy, cz));
+        context.waitTicks(10);
+
+        // The revenant: struck down (rises), burnt (stays down), its grave struck (stays down).
+        final java.util.UUID[] holder = new java.util.UUID[1];
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            net.minecraft.world.entity.Mob rev = com.mki.nightsiege.game.SiegeCommands.spawnFoeAt(manager, level, "nightsiege:revenant", new BlockPos(cx + 4, cy, cz));
+            rev.setNoAi(true);
+            rev.hurtServer(level, level.damageSources().playerAttack(player), 1000f);
+            System.out.println("[Night Siege test] foes revenant down graves=" + manager.foes().graveCount());
+        });
+        game.getServer().runCommand("tp @p %d.5 %d %d.5 facing %d.5 %d %d.5".formatted(cx + 1, cy + 2, cz - 3, cx + 4, cy, cz));
+        context.runOnClient(client -> hud(client, false));
+        context.waitTicks(40);
+        context.takeScreenshot("foes_revenant_grave");
+        context.runOnClient(client -> hud(client, true));
+        context.waitTicks(100);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            System.out.println("[Night Siege test] foes revenant risen=" + manager.foes().risenTonight + " graves=" + manager.foes().graveCount());
+            for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                if (e.entityTags().contains(com.mki.nightsiege.game.Foes.TAG_RISEN) && e instanceof net.minecraft.world.entity.LivingEntity le) {
+                    System.out.println(String.format(java.util.Locale.ROOT, "[Night Siege test] foes revenant risen hp=%.1f/%.1f", le.getHealth(), le.getMaxHealth()));
+                    le.hurtServer(level, level.damageSources().playerAttack(player), 1000f);
+                }
+            }
+            net.minecraft.world.entity.Mob burnt = com.mki.nightsiege.game.SiegeCommands.spawnFoeAt(manager, level, "nightsiege:revenant", new BlockPos(cx - 4, cy, cz));
+            burnt.setNoAi(true);
+            burnt.igniteForSeconds(5f);
+            burnt.hurtServer(level, level.damageSources().onFire(), 1000f);
+            net.minecraft.world.entity.Mob struck = com.mki.nightsiege.game.SiegeCommands.spawnFoeAt(manager, level, "nightsiege:revenant", new BlockPos(cx, cy, cz + 4));
+            struck.setNoAi(true);
+            struck.hurtServer(level, level.damageSources().playerAttack(player), 1000f);
+            System.out.println("[Night Siege test] foes revenant after second death graves=" + manager.foes().graveCount() + " (risen dies for good, burnt leaves none)");
+        });
+        context.waitTicks(10);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                if (e.entityTags().contains(com.mki.nightsiege.game.Foes.TAG_GRAVE) && e instanceof net.minecraft.world.entity.LivingEntity box) {
+                    box.hurtServer(level, level.damageSources().playerAttack(player), 4f);
+                }
+            }
+        });
+        context.waitTicks(140);
+        onServer(context, (player, manager) -> System.out.println("[Night Siege test] foes revenant total risen=" + manager.foes().risenTonight
+                + " broken=" + manager.foes().gravesBroken + " graves=" + manager.foes().graveCount()));
+
+        // The tunneler: from 34 blocks south it digs in and comes up inside the walls.
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            net.minecraft.world.entity.Mob t = com.mki.nightsiege.game.SiegeCommands.spawnFoeAt(manager, level, "nightsiege:tunneler", new BlockPos(cx, cy, cz + 34));
+            holder[0] = t == null ? null : t.getUUID();
+        });
+        for (int i = 0; i < 30; i++) {
+            final int step = i;
+            context.waitTicks(20);
+            onServer(context, (player, manager) -> {
+                net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                net.minecraft.world.entity.Entity t = holder[0] == null ? null : level.getEntity(holder[0]);
+                if (t != null && step % 3 == 2) {
+                    boolean inside = Math.abs(t.getX() - cx - 0.5) < r && Math.abs(t.getZ() - cz - 0.5) < r;
+                    System.out.println(String.format(java.util.Locale.ROOT, "[Night Siege test] foes tunneler t=%ds pos=%.1f %.1f %.1f invisible=%s emerged=%s inside=%s",
+                            step + 1, t.getX() - cx, t.getY() - cy, t.getZ() - cz, t.isInvisible(),
+                            com.mki.nightsiege.game.Foes.emerged(t.getUUID()), inside));
+                }
+            });
+            if (i == 14) {
+                context.takeScreenshot("foes_tunneler_warning");
+            }
+        }
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            net.minecraft.world.entity.Entity t = holder[0] == null ? null : level.getEntity(holder[0]);
+            System.out.println("[Night Siege test] foes tunneler done=" + manager.foes().tunnelsDone + " alive=" + (t != null && t.isAlive()));
+            if (t != null) {
+                t.discard();
+            }
+        });
+
+        // The standard bearer: a zombie in its aura is faster and hits harder.
+        final java.util.UUID[] pair = new java.util.UUID[2];
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            net.minecraft.world.entity.Mob b = com.mki.nightsiege.game.SiegeCommands.spawnFoeAt(manager, level, "nightsiege:standard_bearer", new BlockPos(cx + 20, cy, cz));
+            net.minecraft.world.entity.Mob z = com.mki.nightsiege.game.SiegeCommands.spawnFoeAt(manager, level, "minecraft:zombie", new BlockPos(cx + 22, cy, cz));
+            b.setNoAi(true);
+            z.setNoAi(true);
+            pair[0] = b.getUUID();
+            pair[1] = z.getUUID();
+        });
+        context.waitTicks(50);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            net.minecraft.world.entity.Entity z = level.getEntity(pair[1]);
+            boolean fast = z instanceof net.minecraft.world.entity.LivingEntity le && le.hasEffect(net.minecraft.world.effect.MobEffects.SPEED);
+            System.out.println(String.format(java.util.Locale.ROOT, "[Night Siege test] foes banner speed=%s factor=%.2f damageFactor=%.2f",
+                    fast, com.mki.nightsiege.game.Foes.bannerFactor(z), manager.monsterDamageFactor(z)));
+            for (java.util.UUID id : pair) {
+                net.minecraft.world.entity.Entity e = level.getEntity(id);
+                if (e != null) {
+                    e.discard();
+                }
+            }
+        });
+
+        // The grappler: the defender stands on the north wall; it pulls him down outside.
+        game.getServer().runCommand("tp @p %d.5 %d %d.5".formatted(cx, cy + 5, cz - r));
+        context.waitTicks(10);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            net.minecraft.world.entity.Mob g = com.mki.nightsiege.game.SiegeCommands.spawnFoeAt(manager, level, "nightsiege:grappler", new BlockPos(cx, cy, cz - r - 7));
+            holder[0] = g == null ? null : g.getUUID();
+            System.out.println("[Night Siege test] foes grappler spawned=" + (g != null) + " hand="
+                    + (g == null ? "-" : net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(g.getMainHandItem().getItem()).getPath()));
+        });
+        final double[] lowest = {999};
+        for (int i = 0; i < 14; i++) {
+            final int step = i;
+            context.waitTicks(20);
+            onServer(context, (player, manager) -> {
+                lowest[0] = Math.min(lowest[0], player.getY() - cy);
+                if (step % 2 == 1) {
+                    System.out.println(String.format(java.util.Locale.ROOT, "[Night Siege test] foes grappler t=%ds player=%.1f %.1f %.1f hooks=%d",
+                            step + 1, player.getX() - cx, player.getY() - cy, player.getZ() - cz, manager.foes().hooksLanded));
+                }
+            });
+            if (i == 6) {
+                context.takeScreenshot("foes_grappler");
+            }
+        }
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            System.out.println("[Night Siege test] foes grappler hooks=" + manager.foes().hooksLanded + " falls_saved=" + manager.foes().fallsSaved + " lowest=" + lowest[0]
+                    + " outside=" + (player.getZ() < cz - r) + " health=" + player.getHealth());
+            net.minecraft.world.entity.Entity g = holder[0] == null ? null : level.getEntity(holder[0]);
+            if (g != null) {
+                g.discard();
+            }
+        });
+        game.getServer().runCommand("tp @p %d.5 %d %d.5".formatted(cx, cy, cz));
+        context.waitTicks(10);
+
+        // The iron knight against a shot, beside a plain zombie.
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            net.minecraft.world.entity.Mob k = com.mki.nightsiege.game.SiegeCommands.spawnFoeAt(manager, level, "nightsiege:iron_knight", new BlockPos(cx + 4, cy, cz + 4));
+            net.minecraft.world.entity.Mob z = com.mki.nightsiege.game.SiegeCommands.spawnFoeAt(manager, level, "minecraft:zombie", new BlockPos(cx - 4, cy, cz + 4));
+            k.setNoAi(true);
+            z.setNoAi(true);
+            float kh = k.getHealth();
+            float zh = z.getHealth();
+            k.hurtServer(level, level.damageSources().mobProjectile(player, player), 6f);
+            z.hurtServer(level, level.damageSources().mobProjectile(player, player), 6f);
+            float kShot = kh - k.getHealth();
+            float zShot = zh - z.getHealth();
+            k.invulnerableTime = 0;
+            float kh2 = k.getHealth();
+            k.hurtServer(level, level.damageSources().playerAttack(player), 6f);
+            System.out.println(String.format(java.util.Locale.ROOT, "[Night Siege test] foes knight shot=%.2f zombie shot=%.2f knight melee=%.2f speed=%.3f",
+                    kShot, zShot, kh2 - k.getHealth(), k.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED)));
+            k.discard();
+            z.discard();
+        });
+        context.waitTicks(10);
+
+        // The treasure raider: caught once, escaped once.
+        onServer(context, (player, manager) -> {
+            manager.config().treasureRaiderSeconds = 20;
+            boolean ok = manager.foes().treasureNow(manager.foesHost());
+            System.out.println("[Night Siege test] foes treasure spawned=" + ok + " bar=" + manager.bossBarText());
+        });
+        context.waitTicks(60);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            net.minecraft.world.entity.Entity t = manager.foes().treasure() == null ? null : level.getEntity(manager.foes().treasure());
+            if (t instanceof net.minecraft.world.entity.LivingEntity raider) {
+                System.out.println(String.format(java.util.Locale.ROOT, "[Night Siege test] foes treasure glow=%s nameShown=%s dist=%.1f target=%s",
+                        raider.isCurrentlyGlowing(), raider.isCustomNameVisible(), Math.sqrt(raider.distanceToSqr(cx, cy, cz)),
+                        raider instanceof net.minecraft.world.entity.Mob m && m.getTarget() != null));
+                player.teleportTo(raider.getX(), raider.getY() + 3, raider.getZ() - 4);
+            }
+        });
+        context.waitTicks(20);
+        context.takeScreenshot("foes_treasure");
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            int crates = 0;
+            for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+                if (player.getInventory().getItem(i).is(com.mki.nightsiege.game.CrateService.CRATE)) {
+                    crates += player.getInventory().getItem(i).getCount();
+                }
+            }
+            keep[3] = crates;
+            net.minecraft.world.entity.Entity t = manager.foes().treasure() == null ? null : level.getEntity(manager.foes().treasure());
+            if (t instanceof net.minecraft.world.entity.LivingEntity raider) {
+                raider.hurtServer(level, level.damageSources().playerAttack(player), 1000f);
+            }
+        });
+        context.waitTicks(10);
+        onServer(context, (player, manager) -> {
+            int crates = 0;
+            for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+                if (player.getInventory().getItem(i).is(com.mki.nightsiege.game.CrateService.CRATE)) {
+                    crates += player.getInventory().getItem(i).getCount();
+                }
+            }
+            System.out.println("[Night Siege test] foes treasure caught outcome=" + manager.foes().treasureOutcome + " crates "
+                    + keep[3] + "->" + crates + " xp=" + player.totalExperience);
+            manager.foes().treasureNow(manager.foesHost());
+            manager.foes().treasureTimeUp(player.level().getGameTime() + 20);
+        });
+        context.waitTicks(40);
+        onServer(context, (player, manager) -> System.out.println("[Night Siege test] foes treasure second outcome=" + manager.foes().treasureOutcome
+                + " gone=" + (manager.foes().treasure() == null)));
+        game.getServer().runCommand("tp @p %d.5 %d %d.5".formatted(cx, cy, cz));
+        context.waitTicks(10);
+
+        // The limits per wave, the camel troop in a wave and the friendly fire.
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            java.util.Map<String, Integer> wave = new java.util.HashMap<>();
+            int tunnelers = 0;
+            for (int i = 0; i < 6; i++) {
+                String id = manager.foes().limit("nightsiege:tunneler", wave, 10, manager.config(), () -> "nightsiege:tunneler");
+                if (id.equals("nightsiege:tunneler")) {
+                    tunnelers++;
+                }
+            }
+            java.util.Map<String, Integer> wave2 = new java.util.HashMap<>();
+            int bearers10 = 0;
+            int bearers15 = 0;
+            for (int i = 0; i < 6; i++) {
+                if (manager.foes().limit("nightsiege:standard_bearer", wave2, 10, manager.config(), () -> "nightsiege:standard_bearer").equals("nightsiege:standard_bearer")) {
+                    bearers10++;
+                }
+            }
+            java.util.Map<String, Integer> wave3 = new java.util.HashMap<>();
+            for (int i = 0; i < 6; i++) {
+                if (manager.foes().limit("nightsiege:standard_bearer", wave3, 15, manager.config(), () -> "nightsiege:standard_bearer").equals("nightsiege:standard_bearer")) {
+                    bearers15++;
+                }
+            }
+            System.out.println("[Night Siege test] foes limits tunnelers=" + tunnelers + "/6 bearers10=" + bearers10 + " bearers15=" + bearers15);
+            net.fabricmc.fabric.api.entity.FakePlayer friend = net.fabricmc.fabric.api.entity.FakePlayer.get(level);
+            manager.testJoin(friend.getUUID(), true);
+            boolean blocked = !com.mki.nightsiege.game.FriendlyFire.allow(player, level.damageSources().playerAttack(friend));
+            boolean arrowBlocked = !com.mki.nightsiege.game.FriendlyFire.allow(player, level.damageSources().mobProjectile(friend, friend));
+            net.minecraft.world.entity.monster.zombie.Zombie z = net.minecraft.world.entity.EntityTypes.ZOMBIE.create(level, net.minecraft.world.entity.EntitySpawnReason.EVENT);
+            boolean monsterHits = com.mki.nightsiege.game.FriendlyFire.allow(player, level.damageSources().mobAttack(z));
+            manager.testJoin(friend.getUUID(), false);
+            boolean strangerHits = com.mki.nightsiege.game.FriendlyFire.allow(player, level.damageSources().playerAttack(friend));
+            System.out.println("[Night Siege test] foes friendlyfire blow=" + blocked + " arrow=" + arrowBlocked
+                    + " monster_hits=" + monsterHits + " stranger_hits=" + strangerHits);
+        });
+        context.waitTicks(10);
+        onServer(context, (player, manager) -> {
+            manager.abort(player.level().getServer());
+            com.mki.nightsiege.core.SiegeConfig cfg = manager.config();
+            cfg.baseMobsPerBatch = keep[0];
+            cfg.batchIntervalSeconds = keep[1];
+            cfg.sapperFromLevel = keep[2];
+            cfg.mobsPerLevel = keepD[0];
+            cfg.treasureRaiderChance = keepD[1];
+            System.out.println("[Night Siege test] foes after night ff=" + com.mki.nightsiege.game.FriendlyFire.allow(player,
+                    ((net.minecraft.server.level.ServerLevel) player.level()).damageSources().playerAttack(
+                            net.fabricmc.fabric.api.entity.FakePlayer.get((net.minecraft.server.level.ServerLevel) player.level())))
+                    + " known=" + com.mki.nightsiege.game.Foes.known());
+        });
+        game.getServer().runCommand("forceload remove all");
+        game.getServer().runCommand("time set 6000");
+        game.getServer().runCommand("effect clear @p");
+        game.getServer().runCommand("gamemode creative @p");
         context.waitTicks(10);
     }
 

@@ -123,6 +123,14 @@ public final class CrateService {
         persist.run();
     }
 
+    /** Exactly one crate for every defender, without the chance of a second (the treasure raider, 27 October 2026). */
+    public void awardEach(MinecraftServer server, Set<UUID> defenders, CrateKind kind, int level) {
+        for (UUID id : new java.util.ArrayList<>(defenders)) {
+            awardOne(server, id, kind, level);
+        }
+        persist.run();
+    }
+
     private void awardOne(MinecraftServer server, UUID id, CrateKind kind, int level) {
         {
             PlayerSkills own = save.get().skillsOf(id.toString());

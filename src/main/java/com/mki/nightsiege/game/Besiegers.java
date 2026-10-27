@@ -156,7 +156,8 @@ public final class Besiegers {
                 if (count <= 0) {
                     break;
                 }
-                if (mob instanceof Zombie zombie && !zombie.isBaby() && !mob.isPassenger() && !jobs.containsKey(mob.getUUID())) {
+                if (mob instanceof Zombie zombie && !zombie.isBaby() && !mob.isPassenger() && !jobs.containsKey(mob.getUUID())
+                        && !Foes.hasRole(mob)) {   // the new attackers have their own job (update 1)
                     mob.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.LADDER, 8));
                     mob.setDropChance(EquipmentSlot.MAINHAND, 0.0f);
                     mob.addTag(CARRIER);
