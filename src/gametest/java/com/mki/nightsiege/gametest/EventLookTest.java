@@ -2852,6 +2852,10 @@ public class EventLookTest implements FabricClientGameTest {
         // Walking goes on while the wheel is open; the mouse moves its pointer, not the camera.
         double[] before = context.computeOnClient(client -> new double[]{client.player.getX(), client.player.getZ(),
                 client.player.getYRot()});
+        context.runOnClient(client -> {
+            client.mouseHandler.grabMouse();
+            System.out.println("[Night Siege test] wheel mouse grabbed=" + client.mouseHandler.isMouseGrabbed());
+        });
         context.getInput().moveCursor(0, -120);
         context.getInput().holdKeyFor(options -> options.keyUp, 12);
         context.waitTicks(2);

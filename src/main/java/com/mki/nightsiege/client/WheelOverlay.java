@@ -158,8 +158,6 @@ public final class WheelOverlay {
         int cx = width / 2;
         int cy = height / 2;
         int r = radius();
-        // A light shade only: the fight goes on and the player may be walking.
-        gui.fill(cx - r - SLOT, cy - r - SLOT, cx + r + SLOT, cy + r + SLOT, 0x38000000);
 
         // The ring: a dotted circle, gold towards the choice under the mouse.
         int n = Math.max(1, data.options.size());
@@ -232,11 +230,13 @@ public final class WheelOverlay {
         }
         small(gui, font, foot, cx, by, GREY, 0.7f);
 
-        // The pointer: a small gold mark where the mouse points.
-        int px = cx + (int) Math.round(pointerX);
-        int py = cy + (int) Math.round(pointerY);
-        gui.fill(px - 3, py, px + 4, py + 1, GOLD);
-        gui.fill(px, py - 3, px + 1, py + 4, GOLD);
+        // The pointer: a small gold mark where the mouse points (not over the middle's text).
+        if (pointerX * pointerX + pointerY * pointerY >= DEAD_ZONE * DEAD_ZONE) {
+            int px = cx + (int) Math.round(pointerX);
+            int py = cy + (int) Math.round(pointerY);
+            gui.fill(px - 3, py, px + 4, py + 1, GOLD);
+            gui.fill(px, py - 3, px + 1, py + 4, GOLD);
+        }
     }
 
     private static WheelData.Option current() {
