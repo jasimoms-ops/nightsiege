@@ -346,6 +346,7 @@ public final class SiegeManager {
             persist();
         });
         ServerTickEvents.END_SERVER_TICK.register(server -> onEndTick(server));
+        NightDamage.exclude(camp::covers);   // the war camp is not the night's to mend
         // Object parameters keep these handlers compiling across Fabric versions.
         ServerLivingEntityEvents.AFTER_DEATH.register((entity, source) -> onDeath(entity, source));
         ServerEntityCombatEvents.AFTER_KILLED_OTHER_ENTITY.register(
@@ -593,6 +594,7 @@ public final class SiegeManager {
 
     private void onEndTick(MinecraftServer server) {
         tickModCheck(server);
+        safe("Reparatur", () -> NightDamage.tick(server));
         MeleeSim.tick(server);
         trapsDirty |= traps.tick(server);
         safe("Drohnen", () -> Drones.tick(server));

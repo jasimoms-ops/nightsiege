@@ -32,6 +32,7 @@ import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.monster.zombie.Zombie;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -484,6 +485,10 @@ public final class SiegeCamp {
 
     /** Levels the ground and sets the camp's blocks; the guards come when someone is near. */
     void build(ServerLevel level, SiegeSave.CampRecord camp, BlockPos center, int facing) {
+        NightDamage.quietly(() -> buildNow(level, camp, center, facing));   // the camp's own building, not the night's
+    }
+
+    private void buildNow(ServerLevel level, SiegeSave.CampRecord camp, BlockPos center, int facing) {
         camp.x = center.getX();
         camp.y = center.getY();
         camp.z = center.getZ();
@@ -897,6 +902,21 @@ public final class SiegeCamp {
 
     /** Takes the camp away: guards, the workbench, its blocks; the floor turns to grass. */
     void remove(MinecraftServer server) {
+        NightDamage.quietly(() -> removeNow(server));   // a night does not bring the camp back
+    }
+
+    /** True for the spots of the standing camp (it builds and burns on its own; the night's mending leaves it). */
+    public boolean covers(Level level, BlockPos pos) {
+        SiegeSave.CampRecord camp = camp();
+        if (camp == null || !camp.built || level == null || !SiegeManager.dimensionName(level).equals(camp.dimension)) {
+            return false;
+        }
+        int reach = CampLayout.GROUND + 6;
+        return Math.abs(pos.getX() - camp.x) <= reach && Math.abs(pos.getZ() - camp.z) <= reach
+                && pos.getY() >= camp.y - 12 && pos.getY() <= camp.y + CampLayout.CLEAR + 6;
+    }
+
+    private void removeNow(MinecraftServer server) {
         endAll(server);
         burnUntil = -1L;
         SiegeSave.CampRecord camp = camp();

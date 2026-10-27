@@ -26,6 +26,12 @@ public abstract class ExplosionNightMixin {
         if (blocks == null || !NightDamage.recording(this.level)) {
             return;
         }
+        try {
+            // Chests and other containers outlast a night's blast (their contents would fall out).
+            blocks.removeIf(pos -> NightDamage.spared(this.level, pos));
+        } catch (UnsupportedOperationException ignored) {
+            // a fixed list: the level's own guard keeps them anyway
+        }
         for (BlockPos pos : blocks) {
             NightDamage.record(this.level, pos, this.level.getBlockState(pos));
         }

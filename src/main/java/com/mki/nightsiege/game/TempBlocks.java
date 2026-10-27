@@ -108,7 +108,7 @@ public final class TempBlocks {
         }
         INDEX.remove(key);
         if (blockId != null && matches(level.getBlockState(pos), blockId)) {
-            level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
+            NightDamage.quietly(() -> level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL));
         }
         dirty = true;
     }
@@ -143,7 +143,7 @@ public final class TempBlocks {
             try {
                 BlockPos pos = new BlockPos(Integer.parseInt(parts[1]), Integer.parseInt(parts[2]), Integer.parseInt(parts[3]));
                 if (matches(level.getBlockState(pos), parts[4])) {
-                    level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
+                    NightDamage.quietly(() -> level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL));
                     removed++;
                 }
             } catch (NumberFormatException e) {
