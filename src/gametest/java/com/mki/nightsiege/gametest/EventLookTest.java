@@ -1510,7 +1510,14 @@ public class EventLookTest implements FabricClientGameTest {
                 net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
                 java.util.List<java.util.UUID> boxes = manager.machines().testHitboxes();
                 net.minecraft.world.entity.Entity box = boxes.isEmpty() ? null : level.getEntity(boxes.get(0));
-                manager.machines().onUse(player, box, manager.config());
+                if (player.distanceToSqr(at[0], at[1], at[2]) > 9) {
+                    player.teleportTo(at[0] + 2.0, at[1], at[2] + 1.0);   // shells knock the tester away
+                }
+                boolean used = manager.machines().onUse(player, box, manager.config());
+                if (level.getGameTime() % 20 < 3) {
+                    System.out.println("[Night Siege test] sabotage used=" + used + " d=" + (box == null ? -1
+                            : Math.round(Math.sqrt(player.distanceToSqr(box)) * 10) / 10.0) + " standing=" + manager.machines().standing());
+                }
             });
             context.waitTicks(3);
             if (i == 14) {
