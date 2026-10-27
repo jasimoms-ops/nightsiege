@@ -693,7 +693,12 @@ public class EventLookTest implements FabricClientGameTest {
         if (look == null) {
             return "mainhand:{id:\"minecraft:iron_sword\",count:1}";
         }
-        return "mainhand:{id:\"" + kitBaseItem(look) + "\",count:1,components:{\"minecraft:item_model\":\"" + look.itemModel() + "\"}}";
+        String hand = "mainhand:{id:\"" + kitBaseItem(look) + "\",count:1,components:{\"minecraft:item_model\":\"" + look.itemModel() + "\"}}";
+        String shield = com.mki.nightsiege.game.ClassShields.componentsSnbt(subclass);
+        if (!shield.isEmpty()) {
+            hand += ",offhand:{id:\"minecraft:shield\",count:1,components:{" + shield + "}}";   // the subclass's shield (27 Oct 2026)
+        }
+        return hand;
     }
 
     private static String kitBaseItem(com.mki.nightsiege.core.KitWeapons.Look look) {

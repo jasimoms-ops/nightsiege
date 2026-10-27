@@ -449,6 +449,7 @@ public final class KitService {
             hotbar.add(sword(ench, weapon, sharp));
             ItemStack shield = new ItemStack(weapon == NightKit.Material.INFERNITE ? gear("infernite_shield", Items.SHIELD) : Items.SHIELD);
             GainGear.decorateShield(shield, gainLevel(skills, clazz, "turmschild") > 0, gainLevel(skills, clazz, "leichtschild") > 0);
+            ClassShields.decorate(shield, tree.subclassOf(skills), player.level().registryAccess());   // the subclass's colours (27 October 2026)
             offhand = shield;
             int potions = (way.equals(SkillTree.WAY_BLESSING) ? 2 : 0) + gainLevel(skills, clazz, "verbandskasten");
             for (int i = 0; i < potions; i++) {
