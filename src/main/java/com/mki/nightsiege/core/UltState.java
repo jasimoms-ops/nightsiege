@@ -14,4 +14,9 @@ public class UltState {
     public int totalTicks;
     /** False outside a siege (and outside creative): the slot is greyed out. */
     public boolean live;
+    /**
+     * True while the ability keys (Q, F, Y) belong to Night Siege alone: in the night as a
+     * defender, or with a class item in hand (27 October 2026).
+     */
+    public boolean keys;
 }

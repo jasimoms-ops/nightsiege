@@ -2721,6 +2721,34 @@ public class EventLookTest implements FabricClientGameTest {
             }
         });
         context.waitTicks(5);
+        nightKeys(context);
+    }
+
+    /**
+     * Simon, 27 October 2026: in the night Q, F and Y are Night Siege's ability keys alone –
+     * Q drops nothing, F swaps nothing.
+     */
+    private static void nightKeys(ClientGameTestContext context) {
+        onServer(context, (player, manager) -> {
+            player.getInventory().setSelectedSlot(8);
+            player.getInventory().setItem(8, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.COBBLESTONE, 5));
+            player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.OFFHAND, net.minecraft.world.item.ItemStack.EMPTY);
+        });
+        context.runOnClient(client -> client.player.getInventory().setSelectedSlot(8));
+        context.waitTicks(30);   // the server says once a second that the keys are taken
+        context.runOnClient(client -> System.out.println("[Night Siege test] keys owned=" + com.mki.nightsiege.client.NightKeys.owned()
+                + " q=" + client.options.keyDrop.saveString() + " ability1=" + com.mki.nightsiege.client.NightSiegeClient.ultimateKey().saveString()
+                + " ability2=" + com.mki.nightsiege.client.GainClient.secondUltKey().saveString()
+                + " ability3=" + com.mki.nightsiege.client.GainClient.quiverKey().saveString()));
+        context.getInput().pressKey(net.minecraft.client.Minecraft.getInstance().options.keyDrop);
+        context.waitTicks(3);
+        context.getInput().pressKey(net.minecraft.client.Minecraft.getInstance().options.keySwapOffhand);
+        context.waitTicks(10);
+        onServer(context, (player, manager) -> System.out.println("[Night Siege test] keys hand=" + player.getMainHandItem().getCount()
+                + " offhand=" + player.getOffhandItem().getCount() + " (want 5 and 0)"));
+        context.takeScreenshot("night_keys");
+        onServer(context, (player, manager) -> player.getInventory().setItem(8, net.minecraft.world.item.ItemStack.EMPTY));
+        context.waitTicks(2);
     }
 
     private static void logManned(ClientGameTestContext context, String label) {

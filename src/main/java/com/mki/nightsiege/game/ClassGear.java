@@ -84,6 +84,19 @@ public final class ClassGear {
     }
 
     /** True when the player holds or wears an infernite item of their own path. */
+    /** A class item of the player's way in one hand (then the ability keys do not drop it). */
+    public static boolean holds(ServerPlayer player, PlayerSkills skills, SkillTree tree) {
+        if (skills == null || !skills.hasClass()) {
+            return false;
+        }
+        for (Item item : forPath(skills.pathTaken(tree))) {
+            if (player.getMainHandItem().is(item) || player.getOffhandItem().is(item)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static boolean carries(ServerPlayer player, PlayerSkills skills, SkillTree tree) {
         if (skills == null || !skills.hasClass()) {
             return false;

@@ -39,9 +39,9 @@ public final class GainClient {
 
     public static void init(KeyMapping.Category category) {
         secondUltKey = KeyMappingHelper.registerKeyMapping(
-                new KeyMapping("key.nightsiege.second_ult", GLFW.GLFW_KEY_X, category));
+                new KeyMapping("key.nightsiege.ability2", GLFW.GLFW_KEY_F, category));   // Fähigkeit 2, formerly X (27 Oct 2026)
         quiverKey = KeyMappingHelper.registerKeyMapping(
-                new KeyMapping("key.nightsiege.quiver", GLFW.GLFW_KEY_G, category));
+                new KeyMapping("key.nightsiege.ability3", GLFW.GLFW_KEY_Z, category));   // Fähigkeit 3, formerly G: the German Y key
         ClientTickEvents.END_CLIENT_TICK.register(GainClient::tick);
     }
 

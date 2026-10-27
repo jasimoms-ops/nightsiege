@@ -79,6 +79,7 @@ public class NightSiegeClient implements ClientModInitializer {
                     MannedClient.reset();
                     HealthViewClient.clear();
                     DroneClient.clear();
+                    NightKeys.setOwned(false);
                 });
         ClientPlayNetworking.registerGlobalReceiver(CoreNetworking.ScreenPayload.TYPE,
                 (payload, context) -> context.client().execute(() -> {
@@ -149,14 +150,17 @@ public class NightSiegeClient implements ClientModInitializer {
         ClientPlayNetworking.registerGlobalReceiver(CoreNetworking.UltHudPayload.TYPE,
                 (payload, context) -> {
                     UltState state = Json.fromJson(payload.json(), UltState.class);
-                    context.client().execute(() -> UltHud.update(state));
+                    context.client().execute(() -> {
+                        UltHud.update(state);
+                        NightKeys.setOwned(state != null && state.keys);
+                    });
                 });
         HudElementRegistry.attachElementAfter(VanillaHudElements.HOTBAR, ModContent.id("ultimate"),
                 (gui, delta) -> UltHud.draw(gui, ultimateKey));
 
         KeyMapping.Category category = KeyMapping.Category.register(ModContent.id("main"));
         ultimateKey = KeyMappingHelper.registerKeyMapping(
-                new KeyMapping("key.nightsiege.ultimate", GLFW.GLFW_KEY_R, category));
+                new KeyMapping("key.nightsiege.ability1", GLFW.GLFW_KEY_Q, category));   // Fähigkeit 1: the ultimate (27 Oct 2026)
         guideKey = KeyMappingHelper.registerKeyMapping(
                 new KeyMapping("key.nightsiege.guide", GLFW.GLFW_KEY_H, category));
         GainClient.init(category);

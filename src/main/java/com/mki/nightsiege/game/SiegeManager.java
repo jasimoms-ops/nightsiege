@@ -2778,6 +2778,7 @@ public final class SiegeManager {
             PlayerSkills own = effectiveSkills(player);
             com.mki.nightsiege.core.SkillNode node = isRegistered(player) ? skillTree.ultimateOf(own) : null;
             com.mki.nightsiege.core.UltState state = new com.mki.nightsiege.core.UltState();
+            state.keys = (active && participants.contains(player.getUUID())) || ClassGear.holds(player, own, skillTree);
             if (node != null) {
                 int rank = Math.max(1, own.levelOf(node.id()));
                 state.has = true;
