@@ -15,7 +15,6 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BaseFireBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.FarmBlock;
 import net.minecraft.world.level.block.LiquidBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -165,7 +164,7 @@ public final class NightDamage {
                 || next.getBlock() instanceof LiquidBlock) {
             return true;
         }
-        return old.getBlock() instanceof FarmBlock && next.is(Blocks.DIRT);   // trampled fields
+        return old.is(Blocks.FARMLAND) && next.is(Blocks.DIRT);   // trampled fields
     }
 
     /** A block is about to be broken by a monster or an explosion of the night. */
@@ -269,7 +268,7 @@ public final class NightDamage {
 
     private static boolean putBack(ServerLevel level, BlockPos pos, BlockState state, CompoundTag data) {
         BlockState now = level.getBlockState(pos);
-        boolean trampled = state.getBlock() instanceof FarmBlock && now.is(Blocks.DIRT);
+        boolean trampled = state.is(Blocks.FARMLAND) && now.is(Blocks.DIRT);
         if (now == state || !now.isAir() && !now.canBeReplaced() && !trampled) {
             return false;   // something else stands there now (a player built over it)
         }
