@@ -64,7 +64,6 @@ public class SpotterScreen extends Screen {
     private double zoomH = 26;
     /** The camera's height right now: it glides to its target instead of jumping over towers. */
     private double camYv = Double.NaN;
-    private boolean hudWasHidden;
     private int selected;
     /** First spot of a barrage line, null when none is set. */
     private BlockPos lineStart;
@@ -95,11 +94,6 @@ public class SpotterScreen extends Screen {
             oldX = camX;
             oldY = camYv;
             oldZ = camZ;
-            // No hotbar, hearts or other overlays in the view (Simon, 27 October 2026); our own
-            // panel shows the health instead.
-            Minecraft client = Minecraft.getInstance();
-            hudWasHidden = client.options.hideGui;
-            client.options.hideGui = true;
         }
         active = this;
         cursor(false);   // the red X is the pointer (Simon, 26 October 2026)
@@ -109,7 +103,6 @@ public class SpotterScreen extends Screen {
     public void removed() {
         if (active == this) {
             active = null;
-            Minecraft.getInstance().options.hideGui = hudWasHidden;
         }
         cursor(true);
         super.removed();
