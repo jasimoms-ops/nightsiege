@@ -42,10 +42,10 @@ import java.util.function.Consumer;
  *   <li><b>Ladder carriers</b>: about 7 % of every wave are zombies carrying ladders. They
  *   walk to the wall and build a complete ladder up to its top (night blocks), then fight
  *   (and climb) like the others.</li>
- *   <li><b>Sapper creepers</b>: from a level on, one per wave walks to the wall where it is
- *   closest to the core on its side and blows a 3x3 hole into it. At most one hole per side
- *   (north, east, south, west) and night: "a hole on every side is plenty". The rebuilding
- *   of the core tree mends the holes after the night.</li>
+ *   <li><b>Sapper creepers</b>: from a level on, several per wave walk to the wall (where it is
+ *   closest to the core on their side, each at another spot) and blow a crater into it. Up to
+ *   sapperHolesPerSide holes per side and night (27 October 2026: was one; the base is rebuilt
+ *   after every night).</li>
  * </ul>
  * While at their job they pick no fights (see {@link #busy}).
  */
@@ -64,10 +64,12 @@ public final class Besiegers {
     private static final Set<UUID> BUSY = new HashSet<>();
 
     private final Map<UUID, Job> jobs = new HashMap<>();
-    /** Sides (0 east, 1 south, 2 west, 3 north) that already got their hole tonight. */
-    private final Set<Integer> breached = new HashSet<>();
-    /** Sides with a sapper on its way. */
-    private final Set<Integer> sapperOnWay = new HashSet<>();
+    /** Holes per side (0 east, 1 south, 2 west, 3 north) tonight. */
+    private final Map<Integer, Integer> breached = new HashMap<>();
+    /** Sappers on their way, per side. */
+    private final Map<Integer, Integer> sapperOnWay = new HashMap<>();
+    /** Where the sappers of each side go or went tonight, so the next one picks another spot. */
+    private final Map<Integer, List<Vec3>> sapperSpots = new HashMap<>();
 
     private static final class Job {
         final boolean sapper;
@@ -98,6 +100,7 @@ public final class Besiegers {
         jobs.clear();
         breached.clear();
         sapperOnWay.clear();
+        sapperSpots.clear();
     }
 
     /** True while the monster is at its job (it then targets nobody). */
@@ -106,7 +109,11 @@ public final class Besiegers {
     }
 
     public int breaches() {
-        return breached.size();
+        int n = 0;
+        for (int holes : breached.values()) {
+            n += holes;
+        }
+        return n;
     }
 
     // ------------------------------------------------------------------ after a wave
@@ -143,34 +150,54 @@ public final class Besiegers {
                 }
             }
         }
-        // A sapper creeper for one side that has no hole yet (and none on the way).
-        if (cfg.sapperFromLevel > 0 && level >= cfg.sapperFromLevel && base != null && base.closed) {
-            List<Integer> open = new ArrayList<>();
-            for (int side = 0; side < 4; side++) {
-                if (!breached.contains(side) && !sapperOnWay.contains(side)) {
-                    open.add(side);
+        // Sapper creepers (Simon, 27 October 2026: "more sappers, the base is rebuilt after the
+        // night, it may be bombed properly"): 1 + sappersPerLevel per level each wave (at most
+        // sapperMaxPerWave), up to sapperHolesPerSide holes per side and night, each at another spot.
+        if (cfg.sapperFromLevel > 0 && level >= cfg.sapperFromLevel && base != null && (base.closed || base.reach() > 6.0)) {
+            double want = 1.0 + Math.max(0.0, cfg.sappersPerLevel) * level;
+            int count = (int) Math.floor(want) + (random.nextDouble() < want - Math.floor(want) ? 1 : 0);
+            count = Math.min(count, Math.max(1, cfg.sapperMaxPerWave));
+            for (int n = 0; n < count; n++) {
+                int side = freestSide(cfg, random);
+                if (side < 0) {
+                    break;   // every side has its holes tonight
                 }
-            }
-            if (!open.isEmpty()) {
-                int side = open.get(random.nextInt(open.size()));
-                Vec3 approach = weakSpot(anchor, base, side);
+                Vec3 approach = weakSpot(anchor, base, side, sapperSpots.computeIfAbsent(side, k -> new ArrayList<>()), random);
                 BlockPos spot = spawnSpotOnSide(world, anchor, base, side, random);
                 Mob creeper = spot == null ? null
                         : MobFactory.spawnAt(world, spot, "minecraft:creeper", level, cfg, random, event, false);
-                if (creeper != null) {
-                    creeper.addTag(SAPPER);
-                    creeper.setCustomName(Component.translatable("nightsiege.mob.sapper"));
-                    creeper.setTarget(null);
-                    Job job = new Job(true, side, now);
-                    job.approach = approach;
-                    jobs.put(creeper.getUUID(), job);
-                    BUSY.add(creeper.getUUID());
-                    sapperOnWay.add(side);
-                    add.accept(creeper);
-                    world.playSound(null, spot, SoundEvents.CREEPER_PRIMED, SoundSource.HOSTILE, 0.6f, 0.6f);
+                if (creeper == null) {
+                    continue;
                 }
+                creeper.addTag(SAPPER);
+                creeper.setCustomName(Component.translatable("nightsiege.mob.sapper"));
+                creeper.setTarget(null);
+                Job job = new Job(true, side, now);
+                job.approach = approach;
+                jobs.put(creeper.getUUID(), job);
+                BUSY.add(creeper.getUUID());
+                sapperOnWay.merge(side, 1, Integer::sum);
+                sapperSpots.get(side).add(approach);
+                add.accept(creeper);
+                world.playSound(null, spot, SoundEvents.CREEPER_PRIMED, SoundSource.HOSTILE, 0.6f, 0.6f);
             }
         }
+    }
+
+    /** The side with the fewest holes and sappers on the way that still has room, or -1. */
+    private int freestSide(SiegeConfig cfg, Random random) {
+        int best = -1;
+        int bestUsed = Integer.MAX_VALUE;
+        int start = random.nextInt(4);
+        for (int i = 0; i < 4; i++) {
+            int side = (start + i) % 4;
+            int used = breached.getOrDefault(side, 0) + sapperOnWay.getOrDefault(side, 0);
+            if (used < Math.max(1, cfg.sapperHolesPerSide) && used < bestUsed) {
+                best = side;
+                bestUsed = used;
+            }
+        }
+        return best;
     }
 
     /** 0 east, 1 south, 2 west, 3 north of the core. */
@@ -180,21 +207,37 @@ public final class Besiegers {
         return Math.floorMod(side, 4);
     }
 
-    /** Just outside the wall where it comes closest to the core on that side. */
-    private static Vec3 weakSpot(BlockPos anchor, BaseScan base, int side) {
+    /**
+     * Just outside the wall on that side: where it comes closest to the core, the next sappers of
+     * the side at least 5 blocks away from the earlier ones (else a random spot of the side).
+     */
+    private static Vec3 weakSpot(BlockPos anchor, BaseScan base, int side, List<Vec3> taken, Random random) {
         double center = side * Math.PI / 2;
         double best = Double.MAX_VALUE;
-        double bestAngle = center;
+        Vec3 bestSpot = null;
         for (int i = -8; i <= 8; i++) {
             double a = center + i * Math.PI / 36;   // +-40 degrees
             double edge = base.edgeTowards(anchor.getX() + 0.5 + Math.cos(a) * 8, anchor.getZ() + 0.5 + Math.sin(a) * 8);
-            if (edge < best) {
+            Vec3 spot = new Vec3(anchor.getX() + 0.5 + Math.cos(a) * (edge + 3.0), anchor.getY(),
+                    anchor.getZ() + 0.5 + Math.sin(a) * (edge + 3.0));
+            boolean free = true;
+            for (Vec3 t : taken) {
+                if (t.distanceToSqr(spot.x, t.y, spot.z) < 25.0) {
+                    free = false;
+                    break;
+                }
+            }
+            if (free && edge < best) {
                 best = edge;
-                bestAngle = a;
+                bestSpot = spot;
             }
         }
-        double d = best + 3.0;
-        return new Vec3(anchor.getX() + 0.5 + Math.cos(bestAngle) * d, anchor.getY(), anchor.getZ() + 0.5 + Math.sin(bestAngle) * d);
+        if (bestSpot != null) {
+            return bestSpot;
+        }
+        double a = center + (random.nextDouble() - 0.5) * Math.PI * 4 / 9;
+        double edge = base.edgeTowards(anchor.getX() + 0.5 + Math.cos(a) * 8, anchor.getZ() + 0.5 + Math.sin(a) * 8);
+        return new Vec3(anchor.getX() + 0.5 + Math.cos(a) * (edge + 3.0), anchor.getY(), anchor.getZ() + 0.5 + Math.sin(a) * (edge + 3.0));
     }
 
     private static BlockPos spawnSpotOnSide(ServerLevel world, BlockPos anchor, BaseScan base, int side, Random random) {
@@ -247,7 +290,7 @@ public final class Besiegers {
         jobs.remove(id);
         BUSY.remove(id);
         if (job != null && job.sapper) {
-            sapperOnWay.remove(job.side);
+            sapperOnWay.computeIfPresent(job.side, (k, v) -> v > 1 ? v - 1 : null);
         }
         if (mob != null) {
             mob.removeTag(CARRIER);
@@ -435,26 +478,44 @@ public final class Besiegers {
         }
     }
 
-    /** The sapper blows: a 3x3 hole through the wall (up to 3 deep), its blast hurts like a creeper's. */
+    /**
+     * The sapper blows: a crater into the wall (a ball of sapperBlastRadius blocks, +1 when powered,
+     * at least the old 3x3 hole up to 3 deep); its blast hurts like a creeper's. Everything comes back
+     * after the night; the core, traps, containers and protected blocks stay.
+     */
     private void blow(ServerLevel world, Mob mob, Job job) {
         Vec3 at = mob.position();
         SiegeConfig cfg = SiegeManager.get() == null ? null : SiegeManager.get().config();
+        boolean powered = mob instanceof Creeper c && c.isPowered();
         // The blast itself (damage and knockback), but no block damage of its own.
-        world.explode(mob, at.x, at.y + 0.5, at.z, mob instanceof Creeper c && c.isPowered() ? 4.5f : 3.0f,
-                Level.ExplosionInteraction.NONE);
-        int removed = 0;
+        world.explode(mob, at.x, at.y + 0.5, at.z, powered ? 4.5f : 3.0f, Level.ExplosionInteraction.NONE);
+        double radius = (cfg == null ? 3.0 : Math.max(1.5, cfg.sapperBlastRadius)) + (powered ? 1.0 : 0.0);
         Direction in = job.face.getOpposite();
         Direction across = in.getClockWise();
-        for (int depth = 0; depth < 3; depth++) {
-            boolean any = false;
-            for (int w = -1; w <= 1; w++) {
-                for (int h = 0; h <= 2; h++) {
-                    BlockPos pos = job.wall.relative(in, depth).relative(across, w).above(h);
+        // The middle of the crater: one block into the wall, a block above the ground.
+        BlockPos middle = job.wall.relative(in, 1).above(1);
+        int r = (int) Math.ceil(radius);
+        int removed = 0;
+        for (int dx = -r; dx <= r; dx++) {
+            for (int dy = -r; dy <= r; dy++) {
+                for (int dz = -r; dz <= r; dz++) {
+                    BlockPos pos = middle.offset(dx, dy, dz);
+                    // The old hole (3 wide, 3 high, 3 deep) always; around it the ball.
+                    int depth = (pos.getX() - job.wall.getX()) * in.getStepX() + (pos.getZ() - job.wall.getZ()) * in.getStepZ();
+                    int side = (pos.getX() - job.wall.getX()) * across.getStepX() + (pos.getZ() - job.wall.getZ()) * across.getStepZ();
+                    int h = pos.getY() - job.wall.getY();
+                    boolean hole = depth >= 0 && depth < 3 && Math.abs(side) <= 1 && h >= 0 && h <= 2;
+                    double d2 = dx * dx + dy * dy * 1.3 + dz * dz;
+                    if (!hole && (d2 > radius * radius || h < -1)) {
+                        continue;   // a ball, at most one block into the ground
+                    }
+                    if (!hole && d2 > (radius - 0.8) * (radius - 0.8) && world.getRandom().nextFloat() < 0.4f) {
+                        continue;   // a ragged edge
+                    }
                     BlockState state = world.getBlockState(pos);
                     if (state.isAir() || !state.getFluidState().isEmpty()) {
                         continue;
                     }
-                    any = true;
                     if (ModContent.isCore(state) || ModContent.trapOf(state) != null
                             || state.is(Blocks.BEDROCK) || state.hasBlockEntity()
                             || cfg != null && BlockGuard.isProtected(Demolition.blockId(state), cfg)) {
@@ -466,12 +527,9 @@ public final class Besiegers {
                     }
                 }
             }
-            if (!any) {
-                break;   // through the wall
-            }
         }
-        breached.add(job.side);
-        NightSiegeMod.LOGGER.info("[Night Siege] Sprengcreeper: Loch in der Mauer (Seite {}), {} Blöcke", job.side, removed);
+        breached.merge(job.side, 1, Integer::sum);
+        NightSiegeMod.LOGGER.info("[Night Siege] Sprengcreeper: Krater in der Mauer (Seite {}), {} Blöcke", job.side, removed);
         finish(mob.getUUID(), job, null);
         mob.discard();
     }

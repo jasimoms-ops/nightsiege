@@ -73,6 +73,7 @@ public class EventLookTest implements FabricClientGameTest {
                 innerLadderScene(context, game);
                 ladderOverhangScene(context, game);
                 nightHoldScene(context, game);
+                besiegerScene(context, game);   // again since 27 October 2026: more sappers, craters, free ladder ways
                 com.mki.nightsiege.game.TrapService.mortarsAnyTime = true;   // the scenes below test by day
                 mortarScene(context, game);
                 mannedScene(context, game);

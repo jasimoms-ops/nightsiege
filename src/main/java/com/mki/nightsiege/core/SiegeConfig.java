@@ -331,8 +331,18 @@ public class SiegeConfig {
     public double companionScaling = 0.8;
     /** Share of every wave (taken from its zombies) that carry ladders and build one up the wall. 0 = off. */
     public double ladderCarrierShare = 0.07;
-    /** From this level one sapper creeper per wave blows a 3x3 hole into the wall, at most one per side and night. 0 = off. */
-    public int sapperFromLevel = 5;
+    /** From this level sapper creepers come with every wave and blow craters into the wall. 0 = off. */
+    public int sapperFromLevel = 3;
+    /**
+     * Sappers per wave: 1 plus this many per level (random rounding), at most sapperMaxPerWave
+     * (Simon, 27 October 2026: more sappers, the base is rebuilt after every night).
+     */
+    public double sappersPerLevel = 0.15;
+    public int sapperMaxPerWave = 4;
+    /** Holes per side of the base (north, east, south, west) and night. */
+    public int sapperHolesPerSide = 3;
+    /** Radius of a sapper's crater in blocks (a charged creeper one more). */
+    public double sapperBlastRadius = 3.0;
     /** Factor on the damage monsters deal to players (1.2 = +20 %, Simon 24 October 2026). */
     public double monsterDamage = 1.2;
     /** Per monster type (entity id), instead of monsterDamage: pillagers stay as they were. */
@@ -782,6 +792,13 @@ public class SiegeConfig {
             }
             settingsVersion = 11;
         }
+        if (settingsVersion < 12) {
+            // Simon 27.10.: more sappers from level 3 on (they came from level 5, one per wave).
+            if (sapperFromLevel == 5) {
+                sapperFromLevel = 3;
+            }
+            settingsVersion = 12;
+        }
         if (Double.isNaN(meleeLifesteal)) {
             meleeLifesteal = 0.08;
         }
@@ -823,6 +840,10 @@ public class SiegeConfig {
         }
         ladderCarrierShare = Math.min(1.0, Math.max(0.0, ladderCarrierShare));
         sapperFromLevel = Math.max(0, sapperFromLevel);
+        sappersPerLevel = Double.isNaN(sappersPerLevel) ? 0.15 : Math.max(0.0, Math.min(2.0, sappersPerLevel));
+        sapperMaxPerWave = clamp(sapperMaxPerWave <= 0 ? 4 : sapperMaxPerWave, 1, 20);
+        sapperHolesPerSide = clamp(sapperHolesPerSide <= 0 ? 3 : sapperHolesPerSide, 1, 20);
+        sapperBlastRadius = Double.isNaN(sapperBlastRadius) || sapperBlastRadius <= 0 ? 3.0 : Math.min(8.0, sapperBlastRadius);
         if (companionSettingsVersion < 1) {
             // Simon 26.10.: monsters turn on companions only within 3 blocks and for 3 s.
             if (companionTauntRadius == 6.0) {

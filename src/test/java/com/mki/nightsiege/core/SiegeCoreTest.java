@@ -1686,7 +1686,7 @@ class SiegeCoreTest {
         old.sanitize();
         assertTrue(old.dungeonsEnabled);
         assertFalse(old.bloodMoonGlow);
-        assertEquals(11, old.settingsVersion);
+        assertEquals(12, old.settingsVersion);
         assertEquals(SiegeConfig.CURRENT_DUNGEON_LIST, old.dungeonListVersion);
         assertTrue(old.dungeons.stream().allMatch(t -> t.structure.startsWith("nova_structures:")));
         // Switched off again by hand, it stays off.
@@ -1942,7 +1942,7 @@ class SiegeCoreTest {
         old.settingsVersion = 7;
         old.sanitize();
         assertTrue(old.summonerForEveryone, "older configs open it once");
-        assertEquals(11, old.settingsVersion);
+        assertEquals(12, old.settingsVersion);
         // Both subclasses of the way of the wild can be learned to the end.
         java.util.Map<String, String> subs = java.util.Map.of("s_tamer", SkillTree.SUB_TAMER, "s_golemsmith", SkillTree.SUB_GOLEMSMITH,
                 "d_necro", SkillTree.SUB_NECROMANCER, "d_soulcatcher", SkillTree.SUB_SOULCATCHER);
@@ -2104,7 +2104,7 @@ class SiegeCoreTest {
         old.effectMobReplacements.put("minecraft:wither_skeleton", "minecraft:vindicator");
         old.effectMobReplacements.put("friendsandfoes:iceologer", "minecraft:vindicator");
         old.sanitize();
-        assertEquals(11, old.settingsVersion);
+        assertEquals(12, old.settingsVersion);
         assertEquals(1.25, old.subclassDamage.get("heavy"), 1e-9);
         assertEquals("minecraft:skeleton", old.effectMobReplacements.get("minecraft:wither_skeleton"));
         assertEquals("minecraft:pillager", old.effectMobReplacements.get("friendsandfoes:iceologer"));
