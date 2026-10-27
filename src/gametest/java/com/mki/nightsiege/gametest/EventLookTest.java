@@ -2923,6 +2923,9 @@ public class EventLookTest implements FabricClientGameTest {
                     .formatted(gx + 8, gy, gz - 3 + i * 2));
         }
         game.getServer().runCommand("tp @p %d.5 %d %d.5 0 20".formatted(gx - 6, gy, gz));
+        // A normal view distance here: the view must show chunks around the camera (27 October 2026).
+        int oldDistance = context.computeOnClient(client -> client.options.renderDistance().get());
+        context.runOnClient(client -> client.options.renderDistance().set(6));
         context.waitTicks(220);
         onServer(context, (player, manager) -> {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
@@ -2971,6 +2974,16 @@ public class EventLookTest implements FabricClientGameTest {
         });
         context.waitTicks(30);
         context.takeScreenshot("spotter_barrage");
+        // Far from the body: the chunks follow the camera (27 October 2026).
+        context.runOnClient(client -> {
+            if (client.gui.screen() instanceof com.mki.nightsiege.client.SpotterScreen spot) {
+                spot.testPan(-70, -40);
+            }
+        });
+        context.waitTicks(120);
+        onServer(context, (player, manager) -> System.out.println("[Night Siege test] spotter chunks body="
+                + player.chunkPosition() + " sent around=" + com.mki.nightsiege.game.SpotterChunks.centerFor(player)));
+        context.takeScreenshot("spotter_far");
         onServer(context, (player, manager) -> {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
             StringBuilder line = new StringBuilder("[Night Siege test] spotter husks:");
@@ -2983,7 +2996,8 @@ public class EventLookTest implements FabricClientGameTest {
         });
         closeScreen(context);
         context.runOnClient(client -> System.out.println("[Night Siege test] spotter closed camera="
-                + (com.mki.nightsiege.client.SpotterScreen.cameraAt(0f) == null)));
+                + (com.mki.nightsiege.client.SpotterScreen.cameraAt(0f) == null) + " smartCull=" + client.smartCull));
+        context.runOnClient(client -> client.options.renderDistance().set(oldDistance));
         onServer(context, (player, manager) -> com.mki.nightsiege.core.SkillValues.apply(manager.config().skillTweaks));
         onServer(context, (player, manager) -> {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();

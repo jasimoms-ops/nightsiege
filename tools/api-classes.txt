@@ -106,3 +106,8 @@ net.minecraft.client.renderer.SectionOcclusionGraph
 !net.minecraft.server.level.ChunkMap#updateChunkTracking,move,applyChunkTrackingView,getPlayerViewDistance,isChunkTracked
 !net.minecraft.client.renderer.SectionOcclusionGraph#runUpdates,getRelativeFrom,isInViewDistance,initializeQueueForFullUpdate
 !net.minecraft.client.multiplayer.ClientChunkCache#updateViewCenter,updateViewRadius,isValidChunk
+net.minecraft.server.level.ServerChunkCache
+net.minecraft.server.level.TicketType
+net.minecraft.server.level.ChunkMap$TrackedEntity
+!net.minecraft.server.level.ChunkMap$TrackedEntity#updatePlayer
+!net.minecraft.client.renderer.LevelRenderer#setupRender,cullTerrain,update

@@ -393,6 +393,7 @@ public final class TrapService {
         if (++tickCounter < TICK_INTERVAL) {
             return takeDirty();
         }
+        SpotterChunks.tick(server);
         tickCounter = 0;
         rechargeRemotes(server);
         if (++dotTick % 2 == 0) {
@@ -1833,6 +1834,19 @@ public final class TrapService {
             return;
         }
         String[] parts = argument.split(":");
+        // The camera of the view (27 October 2026): the chunks sent follow it while it is open.
+        if (parts.length >= 1 && parts[0].equals("close")) {
+            SpotterChunks.report(player, null, null);
+            return;
+        }
+        if (parts.length >= 3 && parts[0].equals("cam")) {
+            try {
+                SpotterChunks.report(player, Double.parseDouble(parts[1]), Double.parseDouble(parts[2]));
+            } catch (NumberFormatException ignored) {
+                // a broken report changes nothing
+            }
+            return;
+        }
         com.mki.nightsiege.core.MortarMode mode = parts.length == 0 ? null : com.mki.nightsiege.core.MortarMode.byId(parts[0]);
         if (mode == null || parts.length < 4 || (mode == com.mki.nightsiege.core.MortarMode.BARRAGE && parts.length < 7)) {
             return;

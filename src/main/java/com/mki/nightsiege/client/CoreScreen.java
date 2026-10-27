@@ -48,26 +48,19 @@ public class CoreScreen extends Screen {
     private static final int SLOT = 26;
     private static final int ROW_H = 40;
 
-    // Vanilla window greys.
-    private static final int FRAME_FILL = 0xFFC6C6C6;
-    private static final int FRAME_LIGHT = 0xFFFFFFFF;
-    private static final int FRAME_SHADOW = 0xFF555555;
-    private static final int FRAME_DARK = 0xFF373737;
-    private static final int TITLE = 0xFF404040;
-    private static final int TAB_IDLE = 0xFF8B8B8B;
+    // The violet look of the class choice and the night statistics (Simon, 27 October 2026).
+    private static final int TITLE = PurpleUi.GREY;
 
     // Text colours of Minecraft's own codes.
     private static final int WHITE = 0xFFFFFFFF;
-    private static final int GRAY = 0xFFAAAAAA;
-    private static final int GOLD = 0xFFFFAA00;
-    private static final int GREEN = 0xFF55FF55;
-    private static final int RED = 0xFFFF5555;
+    private static final int GRAY = 0xFFA8A0B8;
+    private static final int GOLD = PurpleUi.GOLD;
+    private static final int GREEN = PurpleUi.GREEN;
+    private static final int RED = 0xFFFF6A5A;
     private static final int YELLOW = 0xFFFFFF55;
 
-    // Tooltip look.
-    private static final int BG = 0xF0100010;
-    private static final int EDGE_TOP = 0x505000FF;
-    private static final int EDGE_BOTTOM = 0x5028007F;
+    /** Buttons drawn gold: the main action of the tab (learn, play, confirm). */
+    private final java.util.Set<Button> goldButtons = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
 
     private enum Tab {
         STATS(null, "minecraft:clock", "minecraft:textures/block/deepslate_tiles.png", 0xFFFFC94A, "stats"),
@@ -319,6 +312,7 @@ public class CoreScreen extends Screen {
     @Override
     protected void init() {
         showing = this;
+        goldButtons.clear();
         if (activeTab == Tab.SUMMONER && !stats.summoner) {
             activeTab = null;
         }
@@ -360,11 +354,11 @@ public class CoreScreen extends Screen {
         if (confirmingReset) {
             int dx = left + W / 2;
             int dy = top + H / 2;
-            addRenderableWidget(Button.builder(Component.translatable("nightsiege.ui.confirm"), b -> {
+            goldButtons.add(addRenderableWidget(Button.builder(Component.translatable("nightsiege.ui.confirm"), b -> {
                 send("classreset");
                 confirmingReset = false;
                 rebuildWidgets();
-            }).bounds(dx - 104, dy + 18, 100, 20).build());
+            }).bounds(dx - 104, dy + 18, 100, 20).build()));
             addRenderableWidget(Button.builder(Component.translatable("gui.cancel"), b -> {
                 confirmingReset = false;
                 rebuildWidgets();
@@ -374,11 +368,11 @@ public class CoreScreen extends Screen {
         if (confirming != null) {
             int dx = left + W / 2;
             int dy = top + H / 2;
-            addRenderableWidget(Button.builder(Component.translatable("nightsiege.ui.confirm"), b -> {
+            goldButtons.add(addRenderableWidget(Button.builder(Component.translatable("nightsiege.ui.confirm"), b -> {
                 send("class:" + confirming.name());
                 confirming = null;
                 rebuildWidgets();
-            }).bounds(dx - 104, dy + 18, 100, 20).build());
+            }).bounds(dx - 104, dy + 18, 100, 20).build()));
             addRenderableWidget(Button.builder(Component.translatable("gui.cancel"), b -> {
                 confirming = null;
                 rebuildWidgets();
@@ -584,7 +578,8 @@ public class CoreScreen extends Screen {
         }
         if (primary != null) {
             int px = Math.max(footerX, rightEdge - pw);
-            addRenderableWidget(Button.builder(primary, primaryPress).bounds(px, footerY, Math.min(pw, rightEdge - px), 18).build());
+            goldButtons.add(addRenderableWidget(Button.builder(primary, primaryPress)
+                    .bounds(px, footerY, Math.min(pw, rightEdge - px), 18).build()));
         }
     }
 
@@ -871,7 +866,7 @@ public class CoreScreen extends Screen {
             Button learn = Button.builder(Component.translatable("nightsiege.ui.learn", n.cost),
                     b -> send(buyAction(n.id))).bounds(panelX() + 8, innerY() + innerH() - 26, PANEL_W - 16, 18).build();
             learn.active = n.blocked == null;
-            addRenderableWidget(learn);
+            goldButtons.add(addRenderableWidget(learn));
         }
         // Zoom buttons: the whole tree, or the player's way.
         addRenderableWidget(Button.builder(Component.literal("⤢"), b -> {
@@ -1771,6 +1766,7 @@ public class CoreScreen extends Screen {
         }
 
         super.extractRenderState(gui, mouseX, mouseY, delta);
+        PurpleUi.skinButtons(gui, font, children(), goldButtons, mouseX, mouseY);
 
         if (confirming == null && !confirmingReset && !choosingUnlock) {
             Tab hoveredTab = tabAt(mouseX, mouseY);
@@ -1819,10 +1815,9 @@ public class CoreScreen extends Screen {
             int x = guideTabX();
             int y = top - TAB_H + 3;
             int h = TAB_H - 3;
-            gui.fill(x, y, x + TAB_W, y + h, 0xFF000000);
-            gui.fill(x + 1, y + 1, x + TAB_W - 1, y + h, 0xFF9C8A5A);
-            gui.fill(x + 1, y + 1, x + TAB_W - 1, y + 2, FRAME_LIGHT);
-            gui.fill(x + 1, y + 1, x + 2, y + h, FRAME_LIGHT);
+            gui.fill(x, y, x + TAB_W, y + h, PurpleUi.FRAME);
+            gui.fill(x + 1, y + 1, x + TAB_W - 1, y + h, 0xFF241E2E);
+            gui.fill(x + 1, y + 1, x + TAB_W - 1, y + 2, 0xFF7C6A3A);   // the handbook: a thin gold line
             gui.item(iconOf("nightsiege:siege_guide"), x + 6, y + 5);
         }
         Tab[] tabs = visibleTabs();
@@ -1835,12 +1830,11 @@ public class CoreScreen extends Screen {
             int x = tabX(i);
             int y = top - TAB_H + (active ? 0 : 3);
             int h = active ? TAB_H + 2 : TAB_H - 3;
-            int fill = active ? FRAME_FILL : TAB_IDLE;
-            gui.fill(x, y, x + TAB_W, y + h, 0xFF000000);
-            gui.fill(x + 1, y + 1, x + TAB_W - 1, y + h, fill);
-            gui.fill(x + 1, y + 1, x + TAB_W - 1, y + 2, FRAME_LIGHT);
-            gui.fill(x + 1, y + 1, x + 2, y + h, FRAME_LIGHT);
-            gui.fill(x + TAB_W - 2, y + 2, x + TAB_W - 1, y + h, active ? FRAME_FILL : FRAME_SHADOW);
+            gui.fill(x - (active ? 1 : 0), y - (active ? 1 : 0), x + TAB_W + (active ? 1 : 0), y + h, PurpleUi.FRAME);
+            gui.fill(x + 1, y + 1, x + TAB_W - 1, y + h, active ? PurpleUi.PANEL_SOLID : PurpleUi.BOX);
+            if (active) {
+                gui.fill(x + 1, y + 1, x + TAB_W - 1, y + 2, PurpleUi.GOLD);
+            }
             gui.item(iconOf(tab.icon), x + 6, y + (active ? 6 : 5));
         }
     }
@@ -1848,12 +1842,9 @@ public class CoreScreen extends Screen {
     private void drawWindow(GuiGraphicsExtractor gui, Font font) {
         int x2 = left + W;
         int y2 = top + H;
-        gui.fill(left, top, x2, y2, 0xFF000000);
-        gui.fill(left + 1, top + 1, x2 - 1, y2 - 1, FRAME_FILL);
-        gui.fill(left + 1, top + 1, x2 - 1, top + 3, FRAME_LIGHT);
-        gui.fill(left + 1, top + 1, left + 3, y2 - 1, FRAME_LIGHT);
-        gui.fill(left + 1, y2 - 3, x2 - 1, y2 - 1, FRAME_SHADOW);
-        gui.fill(x2 - 3, top + 1, x2 - 1, y2 - 1, FRAME_SHADOW);
+        gui.fill(left, top, x2, y2, PurpleUi.FRAME);
+        gui.fill(left + 1, top + 1, x2 - 1, y2 - 1, PurpleUi.PANEL_SOLID);
+        gui.fill(left + 1, top + 1, x2 - 1, top + 2, PurpleUi.FRAME_HI);
         drawBanner(gui, font);
     }
 
@@ -1863,7 +1854,7 @@ public class CoreScreen extends Screen {
         int x2 = left + W - 4;
         int y1 = top + 4;
         int y2 = y1 + BANNER;
-        gui.fill(x1, y1, x2, y2, 0xFF17161B);
+        gui.fill(x1, y1, x2, y2, PurpleUi.BOX);
         // The tab's colour glows in from the left and fades out.
         int rgb = activeTab.color & 0xFFFFFF;
         int strips = 48;
@@ -1875,7 +1866,7 @@ public class CoreScreen extends Screen {
             gui.fill(sx, y1, ex, y2, (alpha << 24) | rgb);
         }
         gui.fill(x1, y2 - 1, x2, y2, 0xFF000000 | rgb);
-        gui.fill(x1, y1, x2, y1 + 1, 0x40FFFFFF);
+        gui.fill(x1, y1, x2, y1 + 1, 0x20FFFFFF);
 
         float titleScale = compact ? 1.25f : 2.0f;
         int iconY = compact ? y1 + 1 : y1 + 5;
@@ -1888,7 +1879,7 @@ public class CoreScreen extends Screen {
         gui.pose().popMatrix();
         String tagline = Component.translatable("nightsiege.ui.banner_sub." + activeTab.key).getString();
         int tx = x1 + 28 + (int) (font.width(name) * titleScale) + 10;
-        gui.text(font, tagline, tx, compact ? y1 + 5 : y1 + 12, 0xFFB8B4C0, true);
+        gui.text(font, tagline, tx, compact ? y1 + 5 : y1 + 12, PurpleUi.LIGHT, true);
 
         String badge = null;
         if (ownsClassTab()) {
@@ -1923,9 +1914,7 @@ public class CoreScreen extends Screen {
         int y = innerY();
         int w = innerW();
         int h = innerH();
-        gui.fill(x - 1, y - 1, x + w + 1, y + h + 1, FRAME_DARK);
-        gui.fill(x, y + h, x + w + 1, y + h + 1, FRAME_LIGHT);
-        gui.fill(x + w, y, x + w + 1, y + h + 1, FRAME_LIGHT);
+        gui.fill(x - 1, y - 1, x + w + 1, y + h + 1, PurpleUi.LINE);
         if (gridMode || activeTab == Tab.CLASSES) {
             // Dark fantasy: deep night with the class colour glowing in from the edges.
             int rgb = activeTab.color & 0xFFFFFF;
@@ -1946,7 +1935,7 @@ public class CoreScreen extends Screen {
                 }
             }
             gui.disableScissor();
-            gui.fill(x, y, x + w, y + h, 0xA8000000);
+            gui.fill(x, y, x + w, y + h, 0xC40E0C14);
             int rgb = activeTab == Tab.COLLECTION ? 0xE8B84A : 0x9A5CFF;
             for (int i = 0; i < 16; i++) {
                 int a = Math.max(0, 0x20 - i * 2);
@@ -1967,8 +1956,8 @@ public class CoreScreen extends Screen {
             }
         }
         gui.disableScissor();
-        // A light veil so lines and text stay readable on every texture.
-        gui.fill(x, y, x + w, y + h, 0x55000000);
+        // A dark violet veil: the texture only shows through faintly, like the night statistics.
+        gui.fill(x, y, x + w, y + h, 0xC80E0C14);
     }
 
     private void drawTreeHeader(GuiGraphicsExtractor gui, Font font) {
@@ -2210,6 +2199,7 @@ public class CoreScreen extends Screen {
                 Button play = Button.builder(Component.translatable("nightsiege.ui.class_play"), b -> send("play:" + clazz.name()))
                         .bounds(x + 4, by - 16, bw, 14).build();
                 play.active = !stats.siegeActive;
+                goldButtons.add(play);
                 action = play;
             }
             if (action != null) {
@@ -2376,12 +2366,9 @@ public class CoreScreen extends Screen {
         int h = 92;
         int x = left + (W - w) / 2;
         int y = top + H / 2 - 50;
-        gui.fill(x - 1, y - 1, x + w + 1, y + h + 1, 0xFF000000);
-        gui.fill(x, y, x + w, y + h, 0xF8100D16);
-        gui.fill(x, y, x + w, y + 1, 0xFF000000 | rgb);
-        gui.fill(x, y + h - 1, x + w, y + h, 0x80000000 | rgb);
-        gui.fill(x, y, x + 1, y + h, 0x80000000 | rgb);
-        gui.fill(x + w - 1, y, x + w, y + h, 0x80000000 | rgb);
+        gui.fill(x - 1, y - 1, x + w + 1, y + h + 1, PurpleUi.FRAME);
+        gui.fill(x, y, x + w, y + h, PurpleUi.PANEL_SOLID);
+        gui.fill(x, y, x + w, y + 2, 0xFF000000 | rgb);
         int cx = x + w / 2;
         gui.text(font, title, cx - font.width(title) / 2, y + 10, 0xFF000000 | rgb, true);
         gui.text(font, first, cx - font.width(first) / 2, y + 28, firstColor, true);
@@ -2956,10 +2943,9 @@ public class CoreScreen extends Screen {
         int w = unlockW();
         int h = unlockH();
         int rgb = 0xFFD86B;
-        gui.fill(x - 1, y - 1, x + w + 1, y + h + 1, 0xFF000000);
-        gui.fill(x, y, x + w, y + h, 0xF8100D16);
-        gui.fill(x, y, x + w, y + 1, 0xFF000000 | rgb);
-        gui.fill(x, y + h - 1, x + w, y + h, 0x80000000 | rgb);
+        gui.fill(x - 1, y - 1, x + w + 1, y + h + 1, PurpleUi.FRAME);
+        gui.fill(x, y, x + w, y + h, PurpleUi.PANEL_SOLID);
+        gui.fill(x, y, x + w, y + 2, 0xFF000000 | rgb);
         String title = Component.translatable("nightsiege.ui.unlock_title").getString();
         gui.text(font, title, x + (w - font.width(title)) / 2, y + 7, 0xFF000000 | rgb, true);
         String hint = Component.translatable("nightsiege.ui.unlock_desc").getString();
@@ -3212,12 +3198,9 @@ public class CoreScreen extends Screen {
         int boxY = Math.max(2, Math.min(mouseY + 8, this.height - boxH - 2));
         int x2 = boxX + boxW;
         int y2 = boxY + boxH;
-        gui.fill(boxX + 1, boxY, x2 - 1, y2, BG);
-        gui.fill(boxX, boxY + 1, x2, y2 - 1, BG);
-        gui.fill(boxX + 1, boxY + 1, x2 - 1, boxY + 2, EDGE_TOP);
-        gui.fill(boxX + 1, y2 - 2, x2 - 1, y2 - 1, EDGE_BOTTOM);
-        gui.fill(boxX + 1, boxY + 2, boxX + 2, y2 - 2, EDGE_TOP);
-        gui.fill(x2 - 2, boxY + 2, x2 - 1, y2 - 2, EDGE_TOP);
+        gui.fill(boxX, boxY, x2, y2, PurpleUi.FRAME);
+        gui.fill(boxX + 1, boxY + 1, x2 - 1, y2 - 1, 0xF6121019);
+        gui.fill(boxX + 1, boxY + 1, x2 - 1, boxY + 2, PurpleUi.FRAME_HI);
         int y = boxY + 4;
         for (int i = 0; i < lines.size(); i++) {
             gui.text(font, lines.get(i), boxX + 5, y, i < firstLines ? WHITE : GRAY, false);

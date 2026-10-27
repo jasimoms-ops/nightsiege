@@ -70,6 +70,9 @@ public class SpotterScreen extends Screen {
     /** The block under the cursor (null: none). */
     private BlockPos hover;
     private long ticks;
+    private int reportedX = Integer.MIN_VALUE;
+    private int reportedZ = Integer.MIN_VALUE;
+    private long reportedAt;
 
     public SpotterScreen(SpotterData data) {
         super(Component.translatable("nightsiege.spotter.title"));
@@ -97,6 +100,10 @@ public class SpotterScreen extends Screen {
         }
         active = this;
         cursor(false);   // the red X is the pointer (Simon, 26 October 2026)
+        // From high above, Minecraft's cave culling dropped whole stretches of ground; the
+        // view only needs the frustum (27 October 2026). Back on when the view closes.
+        Minecraft.getInstance().smartCull = false;
+        reportCamera(true);
     }
 
     @Override
@@ -105,7 +112,27 @@ public class SpotterScreen extends Screen {
             active = null;
         }
         cursor(true);
+        Minecraft.getInstance().smartCull = true;
+        send("spot:close");
         super.removed();
+    }
+
+    /** The camera's block x/z, for the server: the chunks it sends follow the camera while the view is open. */
+    private void reportCamera(boolean now) {
+        int cx = (int) Math.floor(camX) >> 4;
+        int cz = (int) Math.floor(camZ) >> 4;
+        if (now || cx != reportedX || cz != reportedZ || ticks - reportedAt >= 20) {
+            reportedX = cx;
+            reportedZ = cz;
+            reportedAt = ticks;
+            send(String.format(java.util.Locale.ROOT, "spot:cam:%.1f:%.1f", camX, camZ));
+        }
+    }
+
+    private static void send(String action) {
+        if (ClientPlayNetworking.canSend(CoreNetworking.CoreActionPayload.TYPE)) {
+            ClientPlayNetworking.send(new CoreNetworking.CoreActionPayload(action));
+        }
     }
 
     /** The lens of the view while it is open, or a negative number. */
@@ -208,6 +235,7 @@ public class SpotterScreen extends Screen {
             camX = data.centerX + dx * data.radius / d;
             camZ = data.centerZ + dz * data.radius / d;
         }
+        reportCamera(false);
         preview(client);
     }
 
@@ -295,6 +323,14 @@ public class SpotterScreen extends Screen {
         if (mode.pause > 0) {
             readyAt[selected] = ticks + mode.pause * 20L;
         }
+    }
+
+    /** For the client test: moves the camera (blocks) as WASD would, within the view's reach. */
+    public void testPan(double dx, double dz) {
+        camX += dx;
+        camZ += dz;
+        oldX = camX;
+        oldZ = camZ;
     }
 
     /** The block under the cursor: a ray from the camera through the mouse. */
