@@ -633,6 +633,8 @@ public final class BossService {
         set(hitbox, Attributes.KNOCKBACK_RESISTANCE, 1.0);
         set(hitbox, Attributes.SCALE, size / 1.6);
         hitbox.addEffect(new MobEffectInstance(MobEffects.FIRE_RESISTANCE, MobEffectInstance.INFINITE_DURATION, 0, false, false));
+        // Invisible by an effect: adding any effect resets the plain invisible flag.
+        hitbox.addEffect(new MobEffectInstance(MobEffects.INVISIBILITY, MobEffectInstance.INFINITE_DURATION, 0, false, false));
         for (EquipmentSlot slot : EquipmentSlot.values()) {
             hitbox.setItemSlot(slot, ItemStack.EMPTY);
             hitbox.setDropChance(slot, 0f);

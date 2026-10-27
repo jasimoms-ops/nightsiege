@@ -197,7 +197,7 @@ final class CampLayout {
         // A canvas over the back half (rags in it).
         for (int lx = -3; lx <= 3; lx++) {
             for (int lz = -3; lz <= 0; lz++) {
-                Block cloth = (lx * 7 + lz * 3 & 7) == 0 ? colored("brown_wool") : (lx + lz & 1) == 0 ? colored("gray_wool") : colored("light_gray_wool");
+                Block cloth = (lx * 7 + lz * 3 & 7) == 0 ? colored("brown_wool") : (lz & 1) == 0 ? colored("gray_wool") : colored("light_gray_wool");
                 b.put(lx, 5, lz, cloth.defaultBlockState());
             }
         }

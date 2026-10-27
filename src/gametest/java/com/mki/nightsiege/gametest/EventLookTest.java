@@ -1438,9 +1438,10 @@ public class EventLookTest implements FabricClientGameTest {
             double a = Math.PI * 2.0 * i / kinds.length + Math.PI / 6;
             double x = cx + 0.5 + Math.cos(a) * 24;
             double z = cz + 0.5 + Math.sin(a) * 24;
-            double sx = cx + 0.5 + Math.cos(a + 0.28) * 31;
-            double sz = cz + 0.5 + Math.sin(a + 0.28) * 31;
-            camera(game, sx, cy + 3, sz, x, cy + 1.5, z);
+            // From the side, a little above: the crew stands behind the machine.
+            double sx = x + Math.cos(a + Math.PI / 2) * 8.5 + Math.cos(a) * 2.0;
+            double sz = z + Math.sin(a + Math.PI / 2) * 8.5 + Math.sin(a) * 2.0;
+            camera(game, sx, cy + 4, sz, x, cy + 1.8, z);
             context.waitTicks(30);
             context.takeScreenshot("machine_" + kinds[i].id());
         }

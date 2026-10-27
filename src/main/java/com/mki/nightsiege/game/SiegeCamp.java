@@ -435,6 +435,8 @@ public final class SiegeCamp {
         BossService.set(box, Attributes.KNOCKBACK_RESISTANCE, 1.0);
         BossService.set(box, Attributes.SCALE, 1.9);
         box.addEffect(new MobEffectInstance(MobEffects.FIRE_RESISTANCE, MobEffectInstance.INFINITE_DURATION, 0, false, false));
+        // Invisible by an effect: any effect added later (poison, slowness) would otherwise make it seen again.
+        box.addEffect(new MobEffectInstance(MobEffects.INVISIBILITY, MobEffectInstance.INFINITE_DURATION, 0, false, false));
         for (EquipmentSlot slot : EquipmentSlot.values()) {
             box.setItemSlot(slot, ItemStack.EMPTY);
             box.setDropChance(slot, 0f);
