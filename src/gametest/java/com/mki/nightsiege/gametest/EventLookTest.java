@@ -1621,7 +1621,7 @@ public class EventLookTest implements FabricClientGameTest {
             own.chosenClass = com.mki.nightsiege.core.SkillClass.SUMMONER.name();
             own.unlockClass(com.mki.nightsiege.core.SkillClass.SUMMONER);
             own.award(800);
-            for (String id : new String[]{"s_soulbond", "d_raise", "d_soulcatcher", "d_soulcatcher", "d_swarm", "d_corpse",
+            for (String id : new String[]{"s_soulbond", "d_raise", "d_soulcatcher", "d_soulcatcher", "d_swarm", "d_shards",
                     "d_soulburn", "d_unholy", "d_army"}) {
                 manager.onBuySkill(player, id);
             }
@@ -1629,7 +1629,7 @@ public class EventLookTest implements FabricClientGameTest {
                 own.setGainStage(com.mki.nightsiege.core.SkillClass.SUMMONER, gain, 1);
             }
             System.out.println("[Night Siege test] summoner dead start souls=" + com.mki.nightsiege.game.Companions.startSouls(own)
-                    + " (want 5)");
+                    + " (want 6)");
             System.out.println("[Night Siege test] summoner dead way=" + own.pathTaken(new com.mki.nightsiege.core.SkillTree())
                     + " catcher=" + own.levelOf("d_soulcatcher") + " army=" + own.levelOf("d_army"));
             // The crate gains lift the tower caps (Simon, 26 October 2026).
@@ -2168,9 +2168,59 @@ public class EventLookTest implements FabricClientGameTest {
                 System.out.println("[Night Siege test] classes tab not set: " + e);
             }
         });
-        onServer(context, (player, manager) -> manager.openCoreWindow(player));
+        // One unlock free (Simon, 27 October 2026): the own class card gets "Freischalten" too.
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
+            own.unlocksFree = 1;
+            manager.openCoreWindow(player);
+        });
         context.waitTicks(20);
         context.takeScreenshot("ui_classes");
+        context.runOnClient(client -> {
+            StringBuilder labels = new StringBuilder("[Night Siege test] classes buttons:");
+            for (net.minecraft.client.gui.components.events.GuiEventListener l : client.gui.screen().children()) {
+                if (l instanceof net.minecraft.client.gui.components.Button b && !b.getMessage().getString().isEmpty()) {
+                    labels.append(" [").append(b.getMessage().getString()).append("]");
+                }
+            }
+            System.out.println(labels);
+        });
+        context.runOnClient(client -> client.setScreenAndShow(new com.mki.nightsiege.client.SubclassPickScreen(
+                com.mki.nightsiege.core.SkillClass.WARRIOR, com.mki.nightsiege.client.SubclassPickScreen.Mode.NEXT,
+                client.gui.screen(), "", java.util.List.of("blademaster"))));
+        context.waitTicks(10);
+        context.takeScreenshot("ui_subpick_taken");
+        context.runOnClient(client -> {
+            try {
+                java.lang.reflect.Field tab = com.mki.nightsiege.client.CoreScreen.class.getDeclaredField("activeTab");
+                tab.setAccessible(true);
+                for (Object t : tab.getType().getEnumConstants()) {
+                    if (t.toString().equals("STATS")) {
+                        tab.set(null, t);
+                    }
+                }
+            } catch (ReflectiveOperationException e) {
+                System.out.println("[Night Siege test] stats tab not set: " + e);
+            }
+        });
+        onServer(context, (player, manager) -> manager.openCoreWindow(player));
+        context.waitTicks(20);
+        context.takeScreenshot("ui_profiles");
+        context.runOnClient(client -> {
+            try {
+                java.lang.reflect.Field tab = com.mki.nightsiege.client.CoreScreen.class.getDeclaredField("activeTab");
+                tab.setAccessible(true);
+                for (Object t : tab.getType().getEnumConstants()) {
+                    if (t.toString().equals("CLASSES")) {
+                        tab.set(null, t);
+                    }
+                }
+            } catch (ReflectiveOperationException e) {
+                System.out.println("[Night Siege test] classes tab not set: " + e);
+            }
+        });
+        onServer(context, (player, manager) -> manager.openCoreWindow(player));
+        context.waitTicks(10);
         // The same at GUI scale 4 (a small screen): tabs and buttons must stay on it.
         int scaleBefore = context.computeOnClient(client -> client.options.guiScale().get());
         context.runOnClient(client -> {
@@ -2736,6 +2786,24 @@ public class EventLookTest implements FabricClientGameTest {
         context.takeScreenshot("manned_turret_fire");
         onServer(context, (player, manager) -> manager.kits().traps().onManAction(player, false));
         logManned(context, "turret after 2s");
+        // The tower takes the hits of its gunner (Simon, 27 October 2026): his health stays.
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            net.minecraft.world.entity.LivingEntity husk = null;
+            for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                if (e instanceof net.minecraft.world.entity.LivingEntity l && e.entityTags().contains("ns_manned") && l.isAlive()) {
+                    husk = l;
+                }
+            }
+            float hp = player.getHealth();
+            float towerBefore = manager.kits().traps().seatHealthLeft(player);
+            player.invulnerableTime = 0;
+            player.hurtServer(level, husk != null ? level.damageSources().mobAttack(husk) : level.damageSources().generic(), 6f);
+            System.out.println(String.format(java.util.Locale.ROOT,
+                    "[Night Siege test] tower seat health player %.1f -> %.1f tower %.1f -> %.1f seated=%s",
+                    hp, player.getHealth(), towerBefore, manager.kits().traps().seatHealthLeft(player),
+                    manager.kits().traps().isSeated(player)));
+        });
         // Climb out: the look goes back to the plain turret.
         onServer(context, (player, manager) -> player.stopRiding());
         context.waitTicks(4);

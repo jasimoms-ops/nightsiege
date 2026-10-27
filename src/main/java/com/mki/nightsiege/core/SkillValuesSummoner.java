@@ -92,24 +92,26 @@ final class SkillValuesSummoner {
         def("s_shepherd", "damage", 2.0);
 
         // ----- Way of the dead: soul magic (Simon 26.10.)
-        def("d_raise", "bolt", 5.0);               // Seelengeschoss: damage before the levels and the night
+        // Way of the dead stronger (Simon, 27 October 2026: "the dark summoner classes are too weak"):
+        // bolt +40 %, wider splash, more souls; corpses, curse, ghosts, chain and storm hit harder.
+        def("d_raise", "bolt", 7.0);               // Seelengeschoss: damage before the levels and the night
         def("d_raise", "boltpause", 20);           // ticks
-        def("d_raise", "boltsplash", 0.35);        // share of the bolt for the monsters next to its target (27 Oct 2026)
-        def("d_raise", "boltsplashradius", 2.0);   // blocks
+        def("d_raise", "boltsplash", 0.5);        // share of the bolt for the monsters next to its target (27 Oct 2026)
+        def("d_raise", "boltsplashradius", 2.5);   // blocks
         def("d_raise", "boltspeed", 1.3);          // blocks per tick
         def("d_raise", "spellpause", 20);          // ticks between two spells
         def("d_raise", "spellrange", 8.0);         // blocks more than the staff for the spells' target
-        def("d_raise", "start", 3);                // souls at the start of a night
-        def("d_raise", "cap", 10);                 // most souls
+        def("d_raise", "start", 4);                // souls at the start of a night
+        def("d_raise", "cap", 12);                 // most souls
         def("d_raise", "range", 16.0);             // blocks for souls and corpses
         def("d_raise", "slots", 2);                // raised corpses at once (the army apart)
         def("d_raise", "minhealth", 30.0);
-        def("d_raise", "power", 1.5);              // damage factor of the raised dead
+        def("d_raise", "power", 1.7);              // damage factor of the raised dead
         def("d_raise", "splash", 0.3);             // share of their melee hit on monsters around the target
         def("d_raise", "splashradius", 2.0);       // blocks around the target
         def("d_necro", "raisecost", 2);            // souls: Leiche erwecken
-        def("d_necro", "raiselife", 160);          // ticks the corpse fights
-        def("d_necro", "burst", 6.0);              // damage of its burst before the skills and the night
+        def("d_necro", "raiselife", 200);          // ticks the corpse fights
+        def("d_necro", "burst", 8.0);              // damage of its burst before the skills and the night
         def("d_necro", "burstradius", 3.0);        // blocks
         def("d_necro", "wallcost", 2);             // souls: Knochenwall
         def("d_necro", "walllife", 120);           // ticks
@@ -119,20 +121,20 @@ final class SkillValuesSummoner {
         def("d_necro", "cursecost", 3);            // souls: Fluchzone
         def("d_necro", "curselife", 120);          // ticks
         def("d_necro", "curseradius", 4.0);        // blocks
-        def("d_necro", "curse", 0.25);             // share more damage taken in the zone
-        def("d_necro", "cursedmg", 2.0);           // damage per second in the zone, before the skills and the night (27 Oct 2026)
+        def("d_necro", "curse", 0.3);             // share more damage taken in the zone
+        def("d_necro", "cursedmg", 3.0);           // damage per second in the zone, before the skills and the night (27 Oct 2026)
         def("d_necro", "curseslow", 0);            // Slowness amplifier in the zone (0 = Slowness I)
         def("d_soulcatcher", "swarmcost", 2);      // souls: Geisterschwarm
         def("d_soulcatcher", "ghosts", 3);
-        def("d_soulcatcher", "ghost", 5.0);        // damage per ghost before the skills and the night
+        def("d_soulcatcher", "ghost", 6.5);        // damage per ghost before the skills and the night
         def("d_soulcatcher", "ghostspeed", 0.7);   // blocks per tick
         def("d_soulcatcher", "spread", 6.0);       // blocks: the neighbours of the target the ghosts go for
         def("d_soulcatcher", "shieldcost", 2);     // souls: Seelenschild
-        def("d_soulcatcher", "shield", 8.0);       // health of the barrier (4 hearts)
+        def("d_soulcatcher", "shield", 10.0);       // health of the barrier (4 hearts)
         def("d_soulcatcher", "shieldrange", 16.0); // blocks to the teammate looked at
         def("d_soulcatcher", "chaincost", 3);      // souls: Seelenkette
         def("d_soulcatcher", "chainradius", 5.0);  // blocks around the target
-        def("d_soulcatcher", "chaindmg", 4.0);
+        def("d_soulcatcher", "chaindmg", 6.0);
         def("d_soulcatcher", "fearcost", 2);       // souls: Schrecken (27 Oct 2026)
         def("d_soulcatcher", "fearradius", 5.0);   // blocks around the target
         def("d_soulcatcher", "feartime", 80);      // ticks the monsters flee     // damage on every chained monster, before the skills and the night (27 Oct 2026)
@@ -154,9 +156,9 @@ final class SkillValuesSummoner {
         def("d_army", "str1", 0.9);                // strength by rank
         def("d_army", "str2", 1.0);
         def("d_army", "str3", 1.1);
-        def("d_soulstorm", "dmg1", 2.0);           // damage per soul by rank
-        def("d_soulstorm", "dmg2", 3.0);
-        def("d_soulstorm", "dmg3", 4.0);
+        def("d_soulstorm", "dmg1", 2.5);           // damage per soul by rank
+        def("d_soulstorm", "dmg2", 3.5);
+        def("d_soulstorm", "dmg3", 4.5);
         def("d_soulstorm", "radius", 10.0);        // blocks
         def("d_echo", "delay", 20);                // ticks
         def("d_army", "age", 600);                 // ticks a fallen monster can still rise
