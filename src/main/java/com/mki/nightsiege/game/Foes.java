@@ -874,7 +874,7 @@ public final class Foes {
         Hook hook = hooks.get(mob.getUUID());
         if (hook == null) {
             hook = new Hook();
-            hook.next = now + 60 + host.random().nextInt(100);
+            hook.next = now + 40 + host.random().nextInt(60);   // the first throw after 2-5 s
             hooks.put(mob.getUUID(), hook);
         }
         if (hook.target != null) {
@@ -917,7 +917,8 @@ public final class Foes {
             return;   // nobody up there: it fights hand to hand like the others
         }
         // Right under the wall it cannot see him: it keeps 6-9 blocks off, in sight, while the hook is ready.
-        boolean ready = now >= hook.next - 40;
+        // It takes its place 4 s before the throw (so it does not run under the wall first and lose sight).
+        boolean ready = now >= hook.next - 80;
         boolean seen = mob.hasLineOfSight(best);
         double dx = mob.getX() - best.getX();
         double dz = mob.getZ() - best.getZ();

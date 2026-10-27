@@ -1299,7 +1299,9 @@ public class EventLookTest implements FabricClientGameTest {
             }
             String meadow = manager.camp().siteForTest(level, sx, sz);
             for (int i = 0; i < 4; i++) {
-                level.setBlock(new BlockPos(sx - 3 + i, sy, sz + 2), net.minecraft.world.level.block.Blocks.OAK_PLANKS.defaultBlockState(), 3);
+                for (int j = 0; j < 4; j++) {   // a small floor of planks: the sparse sampling must hit it
+                    level.setBlock(new BlockPos(sx - 2 + i, sy - 1, sz - 2 + j), net.minecraft.world.level.block.Blocks.OAK_PLANKS.defaultBlockState(), 3);
+                }
             }
             String built = manager.camp().siteForTest(level, sx, sz);
             System.out.println("[Night Siege test] camp site meadow=" + meadow + " (ground " + sy + ") with planks=" + built);
