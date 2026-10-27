@@ -435,7 +435,9 @@ public final class SkillTree {
         node(list, "overcharge", c, m, SkillEffect.OVERCHARGE, 3, 20, 10, 1.0, m6, "em_ult", "minecraft:redstone_block", 8, 2);
         node(list, "thunderstorm", c, m, SkillEffect.THUNDERSTORM, 3, 20, 10, 1.0, m6, "em_ult", "minecraft:trident", 8, 4);
         node(list, "e_sustained", c, m, SkillEffect.SUSTAINED_FIRE, 1, 25, 0, 1.0, "overcharge," + turret, "em_mastery", "minecraft:dispenser", 9, 0);
-        node(list, "e_piercer", c, m, SkillEffect.ARMOR_PIERCER, 1, 25, 0, 0.5, "overcharge," + tesla, "em_mastery", "minecraft:netherite_scrap", 9, 2);
+        // Panzerbrecher needs only the ultimate (Simon, 27 October 2026: the gunner could learn
+        // just one of the two masteries behind Überladung; it helps turrets and coils alike).
+        node(list, "e_piercer", c, m, SkillEffect.ARMOR_PIERCER, 1, 25, 0, 0.5, "overcharge", "em_mastery", "minecraft:netherite_scrap", 9, 2);
         node(list, "e_ball_lightning", c, m, SkillEffect.BALL_LIGHTNING, 1, 25, 0, 1.0, "thunderstorm," + tesla, "em_mastery", "minecraft:fire_charge", 9, 4);
         node(list, "e_superconductor", c, m, SkillEffect.SUPERCONDUCTOR, 1, 25, 0, 1.0, "thunderstorm", "em_mastery", "minecraft:copper_bulb", 9, 6);
         node(list, "e_fortress", c, m, SkillEffect.FORTRESS, 1, 30, 0, 1.0, "overcharge|thunderstorm", "em_key", "minecraft:iron_bars", 10, 2);
