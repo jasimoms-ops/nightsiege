@@ -22,6 +22,10 @@ import java.util.Locale;
  */
 public class EventLookTest implements FabricClientGameTest {
 
+    /** Where the boss scene's test blast went (night damage comes back after the night). */
+    private static BlockPos BLAST_SPOT;
+
+
     private static final String[] EVENTS = {
             EventAtmosphere.ECLIPSE, EventAtmosphere.FROST, EventAtmosphere.NETHER_RIFT, EventAtmosphere.FOG,
             EventAtmosphere.THUNDER, EventAtmosphere.BLOOD_MOON, EventAtmosphere.AURORA};
@@ -1293,6 +1297,21 @@ public class EventLookTest implements FabricClientGameTest {
                 context.takeScreenshot("boss_bone_lich_crystal");
                 context.runOnClient(client -> hud(client, true));
             }
+            // Everything a night destroys comes back (Simon, 27 October 2026): a blast far out in the field.
+            if (kind == com.mki.nightsiege.core.BossKind.GRAVE_KING) {
+                onServer(context, (player, manager) -> {
+                    net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                    BlockPos at = player.blockPosition().offset(40, 0, 0);
+                    for (int dy = 0; dy < 3; dy++) {
+                        level.setBlock(at.above(dy), net.minecraft.world.level.block.Blocks.STONE_BRICKS.defaultBlockState(), 3);
+                    }
+                    BLAST_SPOT = at;
+                    level.explode(null, at.getX() + 0.5, at.getY() + 1.0, at.getZ() + 0.5, 3.0f,
+                            net.minecraft.world.level.Level.ExplosionInteraction.TNT);
+                    System.out.println("[Night Siege test] night damage blast at " + at.toShortString() + " block now="
+                            + level.getBlockState(at.above()).getBlock().getDescriptionId());
+                });
+            }
             // Let it fight for a while, then look at what it did.
             onServer(context, (player, manager) -> {
                 net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
@@ -1397,6 +1416,12 @@ public class EventLookTest implements FabricClientGameTest {
             onServer(context, (player, manager) -> {
                 System.out.println("[Night Siege test] boss " + id + " after the fall: night active=" + manager.isActive()
                         + " speed=" + player.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED));
+                if (BLAST_SPOT != null) {
+                    net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                    System.out.println("[Night Siege test] night damage after the night block="
+                            + level.getBlockState(BLAST_SPOT.above()).getBlock().getDescriptionId());
+                    BLAST_SPOT = null;
+                }
                 if (manager.isActive()) {
                     manager.abort(player.level().getServer());
                 }
