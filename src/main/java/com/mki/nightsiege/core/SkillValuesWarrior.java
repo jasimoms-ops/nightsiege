@@ -20,9 +20,9 @@ final class SkillValuesWarrior {
         def("w_combo", "stacks", 5);           // streak hits that count
         def("w_combo", "window", 40);          // ticks between two hits of a streak
         def("w_combo", "killstreak", 2);       // streak needed for the kill heal
-        def("w_combo", "killheal", 0.12);      // share of the slain monster's life (Simon 26.10.: 0.15 -> 0.06; 27.10.: more again, 0.12)
+        def("w_combo", "killheal", 0.16);      // share of the slain monster's life (Simon 26.10.: 0.15 -> 0.06; 27.10.: 0.12, 23:00: 0.16)
         def("bloodlust", "below", 1.01);       // life share below which hits heal (always since 26 October 2026, Simon)
-        def("bloodlust", "steal", 0.12);       // share of the damage healed (was config berserkerLifesteal)
+        def("bloodlust", "steal", 0.16);       // share of the damage healed (was config berserkerLifesteal; 27.10., 23:00: 0.12 -> 0.16)
         // Simon 26.10.: share of the hit on monsters around the target, plus up to splashlow more at 0 life
         // (linear with the life lost); 27.10. (DPS bench): 0.15/0.15 -> 0.11/0.11, 15 % less against groups.
         def("bloodlust", "splash", 0.11);

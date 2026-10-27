@@ -563,6 +563,15 @@ public class SiegeConfig {
         return v == null ? 1.0 : v;
     }
 
+    /** A server tweak of a skill value, if the server set one, times {@code by}. */
+    private void scaleTweak(String node, String key, double by) {
+        SkillTweak tweak = skillTweaks == null ? null : skillTweaks.get(node);
+        if (tweak == null || tweak.values == null || tweak.values.get(key) == null) {
+            return;
+        }
+        tweak.values.put(key, Math.round(tweak.values.get(key) * by * 1000.0) / 1000.0);
+    }
+
     private static void scale(Map<String, Double> map, String key, double by) {
         double now = map.getOrDefault(key, 1.0);
         map.put(key, Math.max(0.1, Math.min(5.0, Math.round(now * by * 1000.0) / 1000.0)));
@@ -951,6 +960,17 @@ public class SiegeConfig {
             scale(subclassDamage, "bulwark", 0.85);
             scale(subclassHealing, "medic", 1.2);
             settingsVersion = 13;
+        }
+        if (settingsVersion < 14) {
+            // Simon 27.10., 23:00: the melee classes need more life steal again – the kill heal of
+            // warriors and the shield fighter +50 % (0.08 -> 0.12); the berserker's steal and the
+            // blademaster's combo kill heal (server tweaks too) 0.12 -> 0.16.
+            if (!Double.isNaN(meleeLifesteal)) {
+                meleeLifesteal = Math.min(1.0, Math.round(meleeLifesteal * 1.5 * 1000.0) / 1000.0);
+            }
+            scaleTweak("bloodlust", "steal", 4.0 / 3.0);
+            scaleTweak("w_combo", "killheal", 4.0 / 3.0);
+            settingsVersion = 14;
         }
         if (Double.isNaN(meleeLifesteal)) {
             meleeLifesteal = 0.08;
