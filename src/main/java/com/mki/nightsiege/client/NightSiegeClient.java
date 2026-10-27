@@ -225,6 +225,10 @@ public class NightSiegeClient implements ClientModInitializer {
         ClientTickEvents.START_CLIENT_TICK.register(StaffClient::tick);
         HudElementRegistry.attachElementAfter(VanillaHudElements.HOTBAR, ModContent.id("drone"),
                 (gui, delta) -> DroneClient.draw(gui));
+        // The wheel of Fähigkeit 3 is a HUD layer, so walking goes on while it is open (27 October 2026).
+        ClientTickEvents.START_CLIENT_TICK.register(WheelOverlay::tick);
+        HudElementRegistry.attachElementAfter(VanillaHudElements.HOTBAR, ModContent.id("wheel"),
+                (gui, delta) -> WheelOverlay.draw(gui));
         // Guardian: a left click while blocking is the shield action. Minecraft drops
         // attack clicks while an item is in use, so they are taken here first.
         ClientTickEvents.START_CLIENT_TICK.register(client -> {

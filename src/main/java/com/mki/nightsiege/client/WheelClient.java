@@ -12,6 +12,7 @@ import org.lwjgl.glfw.GLFW;
  * Fähigkeit 3 (Simon, 27 October 2026): a short press picks the next choice as before; held
  * for a moment it asks the server for the wheel (arrow kinds, spells, potions, healing
  * abilities), which opens while the key is still down. Letting go over a choice picks it.
+ * The wheel is a HUD layer (WheelOverlay), so walking goes on while it is open.
  */
 public final class WheelClient {
 
@@ -58,8 +59,14 @@ public final class WheelClient {
             return;
         }
         if (client.gui.screen() != null) {
-            // Chat, inventory or the wheel itself: no presses counted here.
-            wasDown = client.gui.screen() instanceof WheelScreen && wasDown;
+            // Chat, inventory and the like: no presses counted here.
+            wasDown = false;
+            return;
+        }
+        if (WheelOverlay.isOpen()) {
+            // The wheel is up (it picks when the key is let go, WheelOverlay.tick).
+            wasDown = true;
+            asked = true;
             return;
         }
         boolean down = physicallyDown(client, key);
@@ -84,10 +91,10 @@ public final class WheelClient {
     public static void open(WheelData data) {
         Minecraft client = Minecraft.getInstance();
         if (client.player == null || data == null || data.options.isEmpty() || client.gui.screen() != null
-                || !physicallyDown(client, GainClient.quiverKey())) {
+                || WheelOverlay.isOpen() || !physicallyDown(client, GainClient.quiverKey())) {
             return;
         }
-        client.setScreenAndShow(new WheelScreen(data));
+        WheelOverlay.open(data);
     }
 
     static void send(String action) {

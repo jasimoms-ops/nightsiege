@@ -2848,12 +2848,23 @@ public class EventLookTest implements FabricClientGameTest {
         context.runOnClient(client -> com.mki.nightsiege.client.WheelClient.testHeld = true);
         context.waitTicks(20);
         context.runOnClient(client -> System.out.println("[Night Siege test] alchemist wheel="
-                + (client.gui.screen() instanceof com.mki.nightsiege.client.WheelScreen)));
+                + com.mki.nightsiege.client.WheelOverlay.isOpen()));
+        // Walking goes on while the wheel is open; the mouse moves its pointer, not the camera.
+        double[] before = context.computeOnClient(client -> new double[]{client.player.getX(), client.player.getZ(),
+                client.player.getYRot()});
+        context.getInput().moveCursor(0, -120);
+        context.getInput().holdKeyFor(options -> options.keyUp, 12);
+        context.waitTicks(2);
+        context.runOnClient(client -> System.out.println(String.format(java.util.Locale.ROOT,
+                "[Night Siege test] wheel walking moved=%.2f turned=%.1f open=%s pointed=%d",
+                Math.hypot(client.player.getX() - before[0], client.player.getZ() - before[1]),
+                Math.abs(client.player.getYRot() - before[2]), com.mki.nightsiege.client.WheelOverlay.isOpen(),
+                com.mki.nightsiege.client.WheelOverlay.pointed())));
         context.takeScreenshot("alchemist_wheel");
         context.runOnClient(client -> com.mki.nightsiege.client.WheelClient.testHeld = false);
         context.waitTicks(4);
         context.runOnClient(client -> System.out.println("[Night Siege test] alchemist wheel closed="
-                + (client.gui.screen() == null)));
+                + !com.mki.nightsiege.client.WheelOverlay.isOpen()));
         onServer(context, (player, manager) -> manager.onCoreAction(player, "wheel:pick:slow"));
         context.getInput().lookAt(-90.0f, 45.0f);
         context.waitTicks(4);
@@ -2878,7 +2889,7 @@ public class EventLookTest implements FabricClientGameTest {
         context.runOnClient(client -> com.mki.nightsiege.client.WheelClient.testHeld = true);
         context.waitTicks(20);
         context.runOnClient(client -> System.out.println("[Night Siege test] alchemist healer wheel="
-                + (client.gui.screen() instanceof com.mki.nightsiege.client.WheelScreen)));
+                + com.mki.nightsiege.client.WheelOverlay.isOpen()));
         context.takeScreenshot("healer_wheel");
         context.runOnClient(client -> com.mki.nightsiege.client.WheelClient.testHeld = false);
         context.waitTicks(4);

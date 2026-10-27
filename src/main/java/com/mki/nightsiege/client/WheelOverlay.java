@@ -4,8 +4,6 @@ import com.mki.nightsiege.core.WheelData;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
@@ -21,10 +19,12 @@ import java.util.Optional;
 /**
  * The wheel of Fähigkeit 3 (Simon, 27 October 2026, like GTA's weapon wheel): the choices sit
  * on a ring around the middle of the screen; the mouse points at one, letting go of the key
- * picks it. Same look as the bird's-eye view's bar: dark panels, thin frames, gold for the
- * choice under the mouse, the current one marked.
+ * picks it. It is drawn over the HUD, not as a screen, so the player keeps walking while it is
+ * open (Simon, 27 October 2026); the mouse moves the wheel's pointer instead of the camera
+ * (MouseWheelPointerMixin). Same look as the bird's-eye view's bar: dark panels, thin frames,
+ * gold for the choice pointed at, the current one marked.
  */
-public class WheelScreen extends Screen {
+public final class WheelOverlay {
 
     private static final int GOLD = 0xFFFFD86B;
     private static final int GREY = 0xFF8F879F;
@@ -34,44 +34,98 @@ public class WheelScreen extends Screen {
     private static final int PANEL = 0xD8121019;
     private static final int LINE = 0xFF2C2740;
     private static final int SLOT = 26;
-    /** Pixels from the middle before the mouse points at a choice. */
+    /** Pixels from the middle before the pointer points at a choice. */
     private static final int DEAD_ZONE = 16;
 
-    private final WheelData data;
-    private int hovered = -1;
+    private static WheelData data;
+    /** The pointer, in GUI pixels from the middle of the screen. */
+    private static double pointerX;
+    private static double pointerY;
+    private static int hovered = -1;
 
-    public WheelScreen(WheelData data) {
-        super(Component.translatable(data.title.isEmpty() ? "nightsiege.wheel.title" : data.title));
-        this.data = data;
+    private WheelOverlay() {
     }
 
-    @Override
-    public boolean isPauseScreen() {
-        return false;
+    public static boolean isOpen() {
+        return data != null;
     }
 
-    /** No blur: the fight goes on behind the wheel. */
-    @Override
-    public void extractBackground(GuiGraphicsExtractor gui, int mouseX, int mouseY, float delta) {
-        gui.fill(0, 0, this.width, this.height, 0x50000000);
+    static void open(WheelData wheel) {
+        data = wheel;
+        pointerX = 0;
+        pointerY = 0;
+        hovered = -1;
     }
 
-    private int radius() {
+    public static void close() {
+        data = null;
+        hovered = -1;
+    }
+
+    /** Mouse movement while the wheel is open (raw window pixels) moves the pointer, not the camera. */
+    public static void movePointer(double dx, double dy) {
+        if (data == null) {
+            return;
+        }
+        double scale = Math.max(1, Minecraft.getInstance().getWindow().getGuiScale());
+        pointerX += dx / scale;
+        pointerY += dy / scale;
+        double max = radius() + SLOT;
+        double len = Math.hypot(pointerX, pointerY);
+        if (len > max) {
+            pointerX *= max / len;
+            pointerY *= max / len;
+        }
+    }
+
+    /**
+     * Start of every client tick: letting go of the key (or a left click) picks the choice
+     * pointed at. Clicks are taken here so a pick does not also swing or use the held item.
+     */
+    public static void tick(Minecraft client) {
+        if (data == null) {
+            return;
+        }
+        if (client.player == null || client.level == null || client.gui.screen() != null) {
+            close();
+            return;
+        }
+        boolean clicked = false;
+        while (client.options.keyAttack.consumeClick()) {
+            clicked = true;
+        }
+        while (client.options.keyUse.consumeClick()) {
+            // nothing: right click does not use the held item while choosing
+        }
+        if (clicked || !WheelClient.physicallyDown(client, GainClient.quiverKey())) {
+            pick(pointedAt());
+        }
+    }
+
+    /** For the client test: the index pointed at, or -1. */
+    public static int pointed() {
+        return data == null ? -1 : pointedAt();
+    }
+
+    private static int radius() {
+        if (data == null) {
+            return 58;
+        }
         int n = Math.max(1, data.options.size());
         return Math.max(58, (int) Math.ceil((SLOT + 10) * n / (2 * Math.PI)));
     }
 
-    private int[] slotCenter(int i) {
+    private static int[] slotCenter(int i, int width, int height) {
         int n = Math.max(1, data.options.size());
         double a = -Math.PI / 2 + 2 * Math.PI * i / n;
         int r = radius();
-        return new int[]{this.width / 2 + (int) Math.round(Math.cos(a) * r), this.height / 2 + (int) Math.round(Math.sin(a) * r)};
+        return new int[]{width / 2 + (int) Math.round(Math.cos(a) * r), height / 2 + (int) Math.round(Math.sin(a) * r)};
     }
 
-    /** The choice the mouse points at: the nearest by angle once outside the middle. */
-    private int pointedAt(double mouseX, double mouseY) {
-        double dx = mouseX - this.width / 2.0;
-        double dy = mouseY - this.height / 2.0;
+    /** The choice the pointer points at: the nearest by angle once outside the middle. */
+    private static int pointedAt() {
+        double dx = pointerX;
+        double dy = pointerY;
         if (dx * dx + dy * dy < DEAD_ZONE * DEAD_ZONE || data.options.isEmpty()) {
             return -1;
         }
@@ -81,44 +135,31 @@ public class WheelScreen extends Screen {
         return (int) Math.round(a / (2 * Math.PI / n)) % n;
     }
 
-    @Override
-    public void tick() {
-        Minecraft client = Minecraft.getInstance();
-        if (client.player == null) {
-            onClose();
-            return;
-        }
-        if (!WheelClient.physicallyDown(client, GainClient.quiverKey())) {
-            double mx = client.mouseHandler.getScaledXPos(client.getWindow());
-            double my = client.mouseHandler.getScaledYPos(client.getWindow());
-            pick(pointedAt(mx, my));
-        }
-    }
-
-    @Override
-    public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
-        pick(pointedAt(event.x(), event.y()));
-        return true;
-    }
-
-    private void pick(int index) {
+    private static void pick(int index) {
         if (index >= 0 && index < data.options.size()) {
             WheelData.Option o = data.options.get(index);
             if (o.open && !o.current) {
                 WheelClient.send("wheel:pick:" + o.id);
             }
         }
-        onClose();
+        close();
     }
 
-    @Override
-    public void extractRenderState(GuiGraphicsExtractor gui, int mouseX, int mouseY, float delta) {
+    /** The HUD layer: drawn while the wheel is open. */
+    public static void draw(GuiGraphicsExtractor gui) {
+        if (data == null) {
+            return;
+        }
         Minecraft client = Minecraft.getInstance();
         Font font = client.font;
-        hovered = pointedAt(mouseX, mouseY);
-        int cx = this.width / 2;
-        int cy = this.height / 2;
+        int width = client.getWindow().getGuiScaledWidth();
+        int height = client.getWindow().getGuiScaledHeight();
+        hovered = pointedAt();
+        int cx = width / 2;
+        int cy = height / 2;
         int r = radius();
+        // A light shade only: the fight goes on and the player may be walking.
+        gui.fill(cx - r - SLOT, cy - r - SLOT, cx + r + SLOT, cy + r + SLOT, 0x38000000);
 
         // The ring: a dotted circle, gold towards the choice under the mouse.
         int n = Math.max(1, data.options.size());
@@ -132,7 +173,7 @@ public class WheelScreen extends Screen {
         }
         // A pointer from the middle to the choice.
         if (hovered >= 0) {
-            int[] c = slotCenter(hovered);
+            int[] c = slotCenter(hovered, width, height);
             for (int k = 3; k <= 10; k++) {
                 int px = cx + (c[0] - cx) * k / 13;
                 int py = cy + (c[1] - cy) * k / 13;
@@ -143,7 +184,7 @@ public class WheelScreen extends Screen {
         // The choices.
         for (int i = 0; i < data.options.size(); i++) {
             WheelData.Option o = data.options.get(i);
-            int[] c = slotCenter(i);
+            int[] c = slotCenter(i, width, height);
             int x0 = c[0] - SLOT / 2;
             int y0 = c[1] - SLOT / 2;
             boolean over = i == hovered;
@@ -163,7 +204,7 @@ public class WheelScreen extends Screen {
         }
 
         // The middle: title, the choice under the mouse and its line.
-        String title = this.title.getString();
+        String title = Component.translatable(data.title.isEmpty() ? "nightsiege.wheel.title" : data.title).getString();
         WheelData.Option shown = hovered >= 0 ? data.options.get(hovered) : current();
         String name = shown == null ? "" : nameOf(client, shown);
         String sub = shown == null ? "" : subOf(shown);
@@ -190,10 +231,15 @@ public class WheelScreen extends Screen {
             by += 13;
         }
         small(gui, font, foot, cx, by, GREY, 0.7f);
-        super.extractRenderState(gui, mouseX, mouseY, delta);
+
+        // The pointer: a small gold mark where the mouse points.
+        int px = cx + (int) Math.round(pointerX);
+        int py = cy + (int) Math.round(pointerY);
+        gui.fill(px - 3, py, px + 4, py + 1, GOLD);
+        gui.fill(px, py - 3, px + 1, py + 4, GOLD);
     }
 
-    private WheelData.Option current() {
+    private static WheelData.Option current() {
         for (WheelData.Option o : data.options) {
             if (o.current) {
                 return o;
