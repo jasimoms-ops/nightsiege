@@ -76,7 +76,7 @@ public final class BaseDefense {
         savedPos.clear();
         savedState.clear();
         snapshot();
-        NightDamage.begin(world);
+        NightDamage.begin(world, anchor);
         activeDefense = this;
     }
 
@@ -232,6 +232,7 @@ public final class BaseDefense {
         if (rebuild <= 0 || world == null) {
             return 0;
         }
+        NightDamage.douse(world);   // the night's fire goes out before anything comes back
         List<Integer> missing = new ArrayList<>();
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
         for (int i = 0; i < savedPos.size(); i++) {

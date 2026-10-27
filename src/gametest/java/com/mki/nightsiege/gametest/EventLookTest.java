@@ -54,6 +54,9 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("camp")) {
                     campScene(context, game);
                 }
+                if (want.contains("base")) {
+                    baseScene(context, game);   // the base, a test night and the mending after it
+                }
                 if (want.contains("machines")) {
                     machineScene(context, game);
                 }
@@ -410,6 +413,39 @@ public class EventLookTest implements FabricClientGameTest {
         // The siege bar with the kill goal.
         context.waitTicks(25);
         context.takeScreenshot("siege_bar_kills");
+        // Everything a night breaks comes back after it (Simon, 27 October 2026): a blast with a torch and
+        // a sign in it, a burnt plank, a trampled field. The chest outlasts the blast; what a player breaks stays.
+        BlockPos fix = new BlockPos(cx, cy, cz + 30);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            net.minecraft.world.level.block.state.BlockState planks = net.minecraft.world.level.block.Blocks.OAK_PLANKS.defaultBlockState();
+            level.setBlock(fix.offset(0, 0, 1), planks, 3);
+            level.setBlock(fix.offset(0, 1, 1), net.minecraft.world.level.block.Blocks.TORCH.defaultBlockState(), 3);
+            level.setBlock(fix.offset(1, 0, 0), net.minecraft.world.level.block.Blocks.OAK_SIGN.defaultBlockState(), 3);
+            if (level.getBlockEntity(fix.offset(1, 0, 0)) instanceof net.minecraft.world.level.block.entity.SignBlockEntity sign) {
+                sign.setText(sign.getFrontText().setMessage(0, net.minecraft.network.chat.Component.literal("Halt")), true);
+            }
+            level.setBlock(fix.offset(-1, 0, 0), net.minecraft.world.level.block.Blocks.CHEST.defaultBlockState(), 3);
+            if (level.getBlockEntity(fix.offset(-1, 0, 0)) instanceof net.minecraft.world.level.block.entity.ChestBlockEntity chest) {
+                chest.setItem(0, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND));
+            }
+            level.setBlock(fix.offset(-4, 0, 0), planks, 3);
+            level.setBlock(fix.offset(4, -1, 0), net.minecraft.world.level.block.Blocks.FARMLAND.defaultBlockState(), 3);
+            level.setBlock(fix.offset(0, 0, -4), planks, 3);
+            int before = com.mki.nightsiege.game.NightDamage.lostCount();
+            level.explode(null, fix.getX() + 0.5, fix.getY() + 0.5, fix.getZ() + 0.5, 3.0f,
+                    net.minecraft.world.level.Level.ExplosionInteraction.TNT);
+            level.setBlock(fix.offset(-4, 1, 0), net.minecraft.world.level.block.Blocks.FIRE.defaultBlockState(), 3);
+            level.setBlock(fix.offset(-4, 0, 0), net.minecraft.world.level.block.Blocks.FIRE.defaultBlockState(), 3);   // burnt
+            level.setBlock(fix.offset(4, -1, 0), net.minecraft.world.level.block.Blocks.DIRT.defaultBlockState(), 3);   // trampled
+            com.mki.nightsiege.game.NightDamage.playerBegin();
+            level.destroyBlock(fix.offset(0, 0, -4), false);   // a player's own
+            com.mki.nightsiege.game.NightDamage.playerEnd();
+            System.out.println("[Night Siege test] repair: recording=" + com.mki.nightsiege.game.NightDamage.recording(level)
+                    + " lost " + before + " -> " + com.mki.nightsiege.game.NightDamage.lostCount()
+                    + " chest after blast=" + level.getBlockState(fix.offset(-1, 0, 0)).getBlock());
+        });
+        context.waitTicks(5);
         onServer(context, (player, manager) -> {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
             com.mki.nightsiege.game.BaseScan scan = com.mki.nightsiege.game.BaseDefense.scanFor(level, core, manager.config());
@@ -450,6 +486,27 @@ public class EventLookTest implements FabricClientGameTest {
                 System.out.println("[Night Siege test] kit " + lv + ": " + worn + "points="
                         + manager.save().skillsOf(player.getUUID().toString()).earned);
             }
+        });
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            StringBuilder bad = new StringBuilder();
+            java.util.function.BiConsumer<String, Boolean> want = (what, ok) -> {
+                if (!ok) {
+                    bad.append(what).append("; ");
+                }
+            };
+            want.accept("planks", level.getBlockState(fix.offset(0, 0, 1)).is(net.minecraft.world.level.block.Blocks.OAK_PLANKS));
+            want.accept("torch", level.getBlockState(fix.offset(0, 1, 1)).is(net.minecraft.world.level.block.Blocks.TORCH));
+            want.accept("ground", !level.getBlockState(fix.below()).isAir());
+            want.accept("sign", level.getBlockEntity(fix.offset(1, 0, 0)) instanceof net.minecraft.world.level.block.entity.SignBlockEntity sign
+                    && "Halt".equals(sign.getFrontText().getMessage(0, false).getString()));
+            want.accept("chest", level.getBlockEntity(fix.offset(-1, 0, 0)) instanceof net.minecraft.world.level.block.entity.ChestBlockEntity chest
+                    && chest.getItem(0).is(net.minecraft.world.item.Items.DIAMOND));
+            want.accept("burnt plank", level.getBlockState(fix.offset(-4, 0, 0)).is(net.minecraft.world.level.block.Blocks.OAK_PLANKS));
+            want.accept("fire out", !level.getBlockState(fix.offset(-4, 1, 0)).is(net.minecraft.world.level.block.Blocks.FIRE));
+            want.accept("field", level.getBlockState(fix.offset(4, -1, 0)).is(net.minecraft.world.level.block.Blocks.FARMLAND));
+            want.accept("player's own stays broken", level.getBlockState(fix.offset(0, 0, -4)).isAir());
+            System.out.println("[Night Siege test] repair after the night: " + (bad.length() == 0 ? "all back" : "missing " + bad));
         });
         context.waitTicks(10);
         // A test night starts after its preparation: traps first, then the first wave.
