@@ -1819,6 +1819,23 @@ public class EventLookTest implements FabricClientGameTest {
         game.getServer().runCommand("tp @e[tag=nightsiege] %d.5 %d %d.5".formatted(cx, cy, cz - 2));
         context.waitTicks(5);
         game.getServer().runCommand("kill @e[tag=nightsiege]");   // the server's own position is far away: no distance
+        context.waitTicks(25);
+        // The ability bar of the soulcatcher (27 October 2026): his four spells on R, G, Y, C; the swarm twice:
+        // the second cast must wait for its 6 s.
+        context.runOnClient(client -> {
+            com.mki.nightsiege.core.UltState st = com.mki.nightsiege.client.UltHud.state();
+            System.out.println("[Night Siege test] soulcatcher bar slots=" + (st == null ? -1 : st.slots.size()));
+        });
+        context.takeScreenshot("summoner_bar");
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.game.Companions c = com.mki.nightsiege.game.Companions.get();
+            c.soulsForTest(player, 12);
+            long now = player.level().getGameTime();
+            boolean first = c.castSpell(player, "swarm");
+            boolean second = c.castSpell(player, "swarm");
+            System.out.println("[Night Siege test] swarm cooldown: first=" + first + " second=" + second
+                    + " left=" + c.spellCooldownLeft(player, "swarm", now) + " (a cast: second false, left 120)");
+        });
         context.waitTicks(10);
         onServer(context, (player, manager) -> {
             com.mki.nightsiege.game.Companions c = com.mki.nightsiege.game.Companions.get();
@@ -3078,41 +3095,27 @@ public class EventLookTest implements FabricClientGameTest {
                     new net.minecraft.world.item.ItemStack(com.mki.nightsiege.game.ModContent.REMOTE));
             System.out.println("[Night Siege test] alchemist sub=" + manager.skillTree().subclassOf(own));
         });
-        // Fähigkeit 3 held (Simon, 27 October 2026): the potion wheel opens.
-        context.runOnClient(client -> com.mki.nightsiege.client.WheelClient.testHeld = true);
-        context.waitTicks(20);
-        context.runOnClient(client -> System.out.println("[Night Siege test] alchemist wheel="
-                + com.mki.nightsiege.client.WheelOverlay.isOpen()));
-        // Walking goes on while the wheel is open; the mouse moves its pointer, not the camera.
-        double[] before = context.computeOnClient(client -> new double[]{client.player.getX(), client.player.getZ(),
-                client.player.getYRot()});
+        // The ability bar (Simon, 27 October 2026, instead of the wheel): every potion on a key of its own.
+        context.waitTicks(25);
         context.runOnClient(client -> {
-            client.mouseHandler.grabMouse();
-            System.out.println("[Night Siege test] wheel mouse grabbed=" + client.mouseHandler.isMouseGrabbed());
+            com.mki.nightsiege.core.UltState st = com.mki.nightsiege.client.UltHud.state();
+            System.out.println("[Night Siege test] alchemist bar slots=" + (st == null ? -1 : st.slots.size())
+                    + " ab2=" + (st != null && st.hasAb2));
         });
-        context.getInput().moveCursor(0, -120);
-        context.getInput().holdKeyFor(options -> options.keyUp, 12);
-        context.waitTicks(2);
-        context.runOnClient(client -> System.out.println(String.format(java.util.Locale.ROOT,
-                "[Night Siege test] wheel walking moved=%.2f turned=%.1f open=%s pointed=%d",
-                Math.hypot(client.player.getX() - before[0], client.player.getZ() - before[1]),
-                Math.abs(client.player.getYRot() - before[2]), com.mki.nightsiege.client.WheelOverlay.isOpen(),
-                com.mki.nightsiege.client.WheelOverlay.pointed())));
-        context.takeScreenshot("alchemist_wheel");
-        context.runOnClient(client -> com.mki.nightsiege.client.WheelClient.testHeld = false);
-        context.waitTicks(4);
-        context.runOnClient(client -> System.out.println("[Night Siege test] alchemist wheel closed="
-                + !com.mki.nightsiege.client.WheelOverlay.isOpen()));
-        onServer(context, (player, manager) -> manager.onCoreAction(player, "wheel:pick:slow"));
+        context.takeScreenshot("alchemist_bar");
         context.getInput().lookAt(-90.0f, 45.0f);
         context.waitTicks(4);
-        onServer(context, (player, manager) -> manager.onCoreAction(player, "ult2"));   // Fähigkeit 2 throws
+        onServer(context, (player, manager) -> {
+            int slot = manager.abilitySlotOf(player, "slow");
+            System.out.println("[Night Siege test] alchemist slow on bar slot " + slot);
+            manager.onCoreAction(player, "slot:" + Math.max(0, slot));   // its key throws it at once
+        });
         context.waitTicks(30);
         context.runOnClient(client -> System.out.println("[Night Siege test] alchemist zones="
                 + com.mki.nightsiege.game.AlchemyZones.count()));
         context.takeScreenshot("alchemist_zone");
         context.waitTicks(5);
-        // The warden (27 October 2026): Fähigkeit 3 held shows his healing abilities, Fähigkeit 2 casts the dome.
+        // The warden (27 October 2026): his healing abilities on the bar, the dome's key casts it.
         onServer(context, (player, manager) -> {
             com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
             own.unlockClass(com.mki.nightsiege.core.SkillClass.GUARDIAN);
@@ -3124,17 +3127,13 @@ public class EventLookTest implements FabricClientGameTest {
             own.levels.put("g_dome", 1);
             player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, net.minecraft.world.item.ItemStack.EMPTY);
         });
-        context.runOnClient(client -> com.mki.nightsiege.client.WheelClient.testHeld = true);
-        context.waitTicks(20);
-        context.runOnClient(client -> System.out.println("[Night Siege test] alchemist healer wheel="
-                + com.mki.nightsiege.client.WheelOverlay.isOpen()));
-        context.takeScreenshot("healer_wheel");
-        context.runOnClient(client -> com.mki.nightsiege.client.WheelClient.testHeld = false);
-        context.waitTicks(4);
-        onServer(context, (player, manager) -> {
-            manager.onCoreAction(player, "wheel:pick:dome");
-            manager.onCoreAction(player, "ult2");
+        context.waitTicks(25);
+        context.runOnClient(client -> {
+            com.mki.nightsiege.core.UltState st = com.mki.nightsiege.client.UltHud.state();
+            System.out.println("[Night Siege test] healer bar slots=" + (st == null ? -1 : st.slots.size()));
         });
+        context.takeScreenshot("healer_bar");
+        onServer(context, (player, manager) -> manager.onCoreAction(player, "slot:" + Math.max(0, manager.abilitySlotOf(player, "dome"))));
         context.waitTicks(10);
         context.takeScreenshot("healer_dome");
         onServer(context, (player, manager) -> {

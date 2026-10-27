@@ -8,11 +8,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * The three ability keys (Simon, 27 October 2026): Fähigkeit 1 (Q, the ultimate), Fähigkeit 2
- * (F, the orders and the second ultimate, formerly X) and Fähigkeit 3 (Y, quiver, call and spell
- * pick, formerly G). While the server says they are Night Siege's (in the night, or with a class
- * item in hand) a press on their key reaches only them: vanilla's "drop item" and "swap hands"
- * and any other mapping on the same key wait until the morning.
+ * The ability keys (Simon, 27 October 2026): Fähigkeit 1 (Q, the ultimate), Fähigkeit 2 (F, the
+ * orders), the second ultimate (X) and the six keys of the ability bar (R, G, Y, C, V, B: every
+ * spell, potion, healing ability or arrow kind on its own key, instead of the wheel). While the
+ * server says they are Night Siege's (in the night, or with a class item in hand) a press on their
+ * key reaches only them: vanilla's "drop item" and "swap hands" and any other mapping on the same
+ * key wait until the morning.
  */
 public final class NightKeys {
 
@@ -31,9 +32,14 @@ public final class NightKeys {
     }
 
     private static List<KeyMapping> abilities() {
-        List<KeyMapping> out = new ArrayList<>(3);
-        for (KeyMapping m : new KeyMapping[] {NightSiegeClient.ultimateKey(), GainClient.orderKey(), GainClient.quiverKey(),
-                GainClient.secondUltKey()}) {
+        List<KeyMapping> out = new ArrayList<>(10);
+        for (KeyMapping m : new KeyMapping[] {NightSiegeClient.ultimateKey(), GainClient.orderKey(), GainClient.secondUltKey()}) {
+            if (m != null && !m.isUnbound()) {
+                out.add(m);
+            }
+        }
+        for (int i = 0; i < GainClient.SLOTS; i++) {
+            KeyMapping m = GainClient.slotKey(i);
             if (m != null && !m.isUnbound()) {
                 out.add(m);
             }

@@ -2881,10 +2881,21 @@ public final class SiegeManager {
 
     /** Tells every player with the mod what their ultimate slot shows. */
     private void sendUltHud(MinecraftServer server) {
-        long now = server.overworld().getGameTime();
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            sendUltHud(player);
+        }
+    }
+
+    /** The ult slots and the ability bar of one player. */
+    private void sendUltHud(ServerPlayer player) {
+        MinecraftServer server = player.level().getServer();
+        if (server == null) {
+            return;
+        }
+        long now = server.overworld().getGameTime();
+        {
             if (!ServerPlayNetworking.canSend(player, CoreNetworking.UltHudPayload.TYPE)) {
-                continue;
+                return;
             }
             PlayerSkills own = effectiveSkills(player);
             com.mki.nightsiege.core.SkillNode node = isRegistered(player) ? skillTree.ultimateOf(own) : null;
@@ -2906,6 +2917,21 @@ public final class SiegeManager {
                 state.totalTicks = combat.cooldownTotal(player.getUUID(), CombatEffects.cooldownFor(rank));
                 state.cooldownTicks = combat.cooldownLeft(player.getUUID(), now);
                 state.live = liveSkillsFor(player) != null;
+            }
+            if (isRegistered(player) && own.hasClass()) {
+                state.live = state.live || liveSkillsFor(player) != null;
+                state.slots = safeSlots(player);
+                // Fähigkeit 2 (F): what it does for this class.
+                if (own.clazz() == com.mki.nightsiege.core.SkillClass.ENGINEER) {
+                    state.hasAb2 = true;
+                    state.iconAb2 = "nightsiege:remote_control";
+                } else if (own.clazz() == com.mki.nightsiege.core.SkillClass.SUMMONER) {
+                    state.hasAb2 = true;
+                    state.iconAb2 = "minecraft:lead";
+                } else if (combat.guardian().healWheel(player) != null) {
+                    state.hasAb2 = true;
+                    state.iconAb2 = "minecraft:glistering_melon_slice";
+                }
             }
             ServerPlayNetworking.send(player, new CoreNetworking.UltHudPayload(Json.toJson(state)));
         }
@@ -3243,7 +3269,8 @@ public final class SiegeManager {
             // Not signed up: the mod stays out of the way (keys do nothing, the core only offers the sign-up).
             if (!verb.equals("ult") && !verb.equals("shield") && !verb.equals("ult2") && !verb.equals("quiver")
                     && !verb.equals("jump") && !verb.equals("man") && !verb.equals("drone")
-                    && !verb.equals("ult2x") && !verb.equals("staffhit") && !verb.equals("wheel")) {
+                    && !verb.equals("ult2x") && !verb.equals("staffhit") && !verb.equals("wheel")
+                    && !verb.equals("slot")) {
                 offerRegistration(player);
             }
             return;
@@ -3268,6 +3295,7 @@ public final class SiegeManager {
             case "ult2x" -> SecondUlts.fire(player);   // X: the second ultimate alone (27 October 2026)
             case "staffhit" -> companions.staffAttack(player);   // left click with the staff (27 October 2026)
             case "quiver" -> abilityThreeTap(player);
+            case "slot" -> onSlotKey(player, parseAmount(argument));   // the ability bar (27 October 2026)
             case "wheel" -> onWheel(player, argument);
             case "jump" -> GainGear.onDoubleJump(player);
             // A manned tower: the attack button pressed (1) or let go (0).
@@ -3906,6 +3934,91 @@ public final class SiegeManager {
             return;
         }
         GainGear.cycleQuiver(player);
+    }
+
+    /**
+     * The choices of the ability bar (Simon, 27 October 2026: the wheel is gone, every ability has
+     * a key of its own): the summoner's spells (or his call on the way of the light), the
+     * alchemist's potions, the healer's abilities, the archer's arrow kinds.
+     */
+    public List<com.mki.nightsiege.core.UltState.Slot> abilitySlots(ServerPlayer player) {
+        List<com.mki.nightsiege.core.UltState.Slot> out = new ArrayList<>();
+        PlayerSkills own = effectiveSkills(player);
+        long now = player.level().getGameTime();
+        boolean spells = companions.spellWheel(player) != null;
+        com.mki.nightsiege.core.WheelData wheel = wheelOf(player);
+        if (wheel != null) {
+            for (com.mki.nightsiege.core.WheelData.Option o : wheel.options) {
+                com.mki.nightsiege.core.UltState.Slot slot = new com.mki.nightsiege.core.UltState.Slot();
+                slot.id = o.id;
+                slot.icon = o.icon;
+                slot.invSlot = o.slot;
+                slot.color = o.color;
+                slot.name = o.name;
+                slot.sub = o.sub;
+                slot.subArgs.addAll(o.subArgs);
+                slot.current = o.current && !spells;
+                if (spells) {
+                    slot.cooldownTicks = companions.spellCooldownLeft(player, o.id, now);
+                    slot.totalTicks = (int) Companions.spellCooldown(o.id);
+                }
+                out.add(slot);
+            }
+        } else if (own.clazz() == com.mki.nightsiege.core.SkillClass.SUMMONER && own.hasClass()) {
+            // The way of the light: the call (wolves or the golem back to you).
+            com.mki.nightsiege.core.UltState.Slot slot = new com.mki.nightsiege.core.UltState.Slot();
+            slot.id = "call";
+            slot.icon = "minecraft:goat_horn";
+            slot.name = "nightsiege.ability.call";
+            out.add(slot);
+        }
+        while (out.size() > 6) {
+            out.remove(out.size() - 1);
+        }
+        return out;
+    }
+
+    private List<com.mki.nightsiege.core.UltState.Slot> safeSlots(ServerPlayer player) {
+        try {
+            return abilitySlots(player);
+        } catch (RuntimeException e) {
+            NightSiegeMod.LOGGER.warn("[Night Siege] Fähigkeitenleiste: {}", e.toString());
+            return new ArrayList<>();
+        }
+    }
+
+    /** The index of a choice on the bar, or -1 (for the tests). */
+    public int abilitySlotOf(ServerPlayer player, String id) {
+        List<com.mki.nightsiege.core.UltState.Slot> slots = abilitySlots(player);
+        for (int i = 0; i < slots.size(); i++) {
+            if (slots.get(i).id.equals(id)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /** A bar key (R, G, Y, C, V, B): the ability on it, at once. */
+    private void onSlotKey(ServerPlayer player, int index) {
+        List<com.mki.nightsiege.core.UltState.Slot> slots = abilitySlots(player);
+        if (index < 0 || index >= slots.size()) {
+            return;
+        }
+        String id = slots.get(index).id;
+        if ("call".equals(id)) {
+            companions.selectKey(player);   // the way of the light: the call
+        } else if (companions.spellWheel(player) != null) {
+            companions.castSpell(player, id);   // the spell, on what you look at
+        } else if (traps.brewWheel(player) != null) {
+            traps.onBrewChoice(player, id);
+            traps.throwBrew(player);   // the potion, thrown
+        } else if (combat.guardian().healWheel(player) != null) {
+            combat.guardian().pickHeal(player, id);
+            combat.guardian().castHeal(player);   // the healing, on the teammate looked at (or you)
+        } else {
+            GainGear.pickQuiver(player, id);   // the arrow kind for the next shots
+        }
+        sendUltHud(player);
     }
 
     /** The wheel of Fähigkeit 3, the one that fits the class. Null when there is nothing to pick. */

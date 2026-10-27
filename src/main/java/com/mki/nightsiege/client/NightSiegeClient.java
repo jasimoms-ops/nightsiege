@@ -128,8 +128,7 @@ public class NightSiegeClient implements ClientModInitializer {
                             client.setScreenAndShow(new TowerMenuScreen(data));
                         }
                     } else if ("wheel".equals(payload.kind())) {
-                        // Fähigkeit 3 held: the wheel (27 October 2026)
-                        WheelClient.open(Json.fromJson(payload.json(), com.mki.nightsiege.core.WheelData.class));
+                        // The wheel is gone (27 October 2026: the ability bar instead); an old server's wheel is ignored.
                     } else if ("brewmenu".equals(payload.kind())) {
                         com.mki.nightsiege.core.BrewMenuData data =
                                 Json.fromJson(payload.json(), com.mki.nightsiege.core.BrewMenuData.class);
@@ -229,9 +228,7 @@ public class NightSiegeClient implements ClientModInitializer {
         HudElementRegistry.attachElementAfter(VanillaHudElements.HOTBAR, ModContent.id("drone"),
                 (gui, delta) -> DroneClient.draw(gui));
         // The wheel of Fähigkeit 3 is a HUD layer, so walking goes on while it is open (27 October 2026).
-        ClientTickEvents.START_CLIENT_TICK.register(WheelOverlay::tick);
-        HudElementRegistry.attachElementAfter(VanillaHudElements.HOTBAR, ModContent.id("wheel"),
-                (gui, delta) -> WheelOverlay.draw(gui));
+        // The wheel is gone (27 October 2026): the ability bar left of the off hand instead (UltHud).
         // Guardian: a left click while blocking is the shield action. Minecraft drops
         // attack clicks while an item is in use, so they are taken here first.
         ClientTickEvents.START_CLIENT_TICK.register(client -> {

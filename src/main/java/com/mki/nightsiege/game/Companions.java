@@ -966,8 +966,18 @@ public final class Companions {
         return true;
     }
 
+    /** For the tests: this many souls on the staff. */
+    public void soulsForTest(ServerPlayer player, int amount) {
+        souls.put(player.getUUID(), Math.max(0, amount));
+    }
+
+    /** Ticks until a spell with its own cooldown comes again (0: ready). */
+    public int spellCooldownLeft(ServerPlayer player, String id, long now) {
+        return (int) Math.max(0L, spellReady.getOrDefault(player.getUUID() + ":" + id, 0L) - now);
+    }
+
     /** Own cooldown of a spell in ticks (0: only the short pause between two spells). */
-    static long spellCooldown(String id) {
+    public static long spellCooldown(String id) {
         return "swarm".equals(id) ? Math.round(v("d_soulcatcher", "swarmcd", 120)) : 0L;
     }
 

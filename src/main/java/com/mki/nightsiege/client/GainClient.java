@@ -14,15 +14,20 @@ import net.minecraft.world.phys.Vec3;
 import org.lwjgl.glfw.GLFW;
 
 /**
- * The client side of the crate gains: the second-ult key (X), the quiver key (G)
- * and the double jump of the jump boots. The scope lives in a mixin.
+ * The client side of the crate gains and abilities: Fähigkeit 2 (F), the second-ult key (X),
+ * the six keys of the ability bar and the double jump of the jump boots. The scope lives in a mixin.
  */
 public final class GainClient {
 
     private static KeyMapping orderKey;
     /** The second ultimate from the crate stays on X of its own (Simon, 27 October 2026). */
     private static KeyMapping secondUltKey;
-    private static KeyMapping quiverKey;
+    /** The keys of the ability bar (27 October 2026, instead of Fähigkeit 3 and its wheel). */
+    public static final int SLOTS = 6;
+    private static final KeyMapping[] SLOT_KEYS = new KeyMapping[SLOTS];
+    /** Around WASD: R, G, Y (Z on QWERTY), C, V, B. */
+    private static final int[] SLOT_DEFAULTS = {GLFW.GLFW_KEY_R, GLFW.GLFW_KEY_G, GLFW.GLFW_KEY_Z, GLFW.GLFW_KEY_C,
+            GLFW.GLFW_KEY_V, GLFW.GLFW_KEY_B};
     private static boolean jumpWasDown;
     private static boolean doubleJumpUsed;
     /** Ticks in the air since the feet left the ground. */
@@ -39,8 +44,13 @@ public final class GainClient {
         return secondUltKey;
     }
 
+    /** The first bar key (the texts that still speak of "the choice key"). */
     public static KeyMapping quiverKey() {
-        return quiverKey;
+        return SLOT_KEYS[0];
+    }
+
+    public static KeyMapping slotKey(int index) {
+        return index >= 0 && index < SLOTS ? SLOT_KEYS[index] : null;
     }
 
     public static void init(KeyMapping.Category category) {
@@ -48,8 +58,10 @@ public final class GainClient {
                 new KeyMapping("key.nightsiege.ability2", GLFW.GLFW_KEY_F, category));   // Fähigkeit 2, the orders formerly on X (27 Oct 2026)
         secondUltKey = KeyMappingHelper.registerKeyMapping(
                 new KeyMapping("key.nightsiege.second_ult", GLFW.GLFW_KEY_X, category));
-        quiverKey = KeyMappingHelper.registerKeyMapping(
-                new KeyMapping("key.nightsiege.ability3", GLFW.GLFW_KEY_Z, category));   // Fähigkeit 3, formerly G: the German Y key
+        for (int i = 0; i < SLOTS; i++) {
+            SLOT_KEYS[i] = KeyMappingHelper.registerKeyMapping(
+                    new KeyMapping("key.nightsiege.slot" + (i + 1), SLOT_DEFAULTS[i], category));
+        }
         ClientTickEvents.END_CLIENT_TICK.register(GainClient::tick);
     }
 
@@ -66,8 +78,14 @@ public final class GainClient {
         while (secondUltKey.consumeClick()) {
             send("ult2x");
         }
-        // Fähigkeit 3: a short press or the wheel (held), see WheelClient (27 October 2026).
-        WheelClient.tick(client, quiverKey);
+        // The ability bar: each key its ability, at once (27 October 2026).
+        for (int i = 0; i < SLOTS; i++) {
+            while (SLOT_KEYS[i].consumeClick()) {
+                if (client.gui.screen() == null) {
+                    send("slot:" + i);
+                }
+            }
+        }
         LocalPlayer player = client.player;
         if (player == null) {
             jumpWasDown = false;

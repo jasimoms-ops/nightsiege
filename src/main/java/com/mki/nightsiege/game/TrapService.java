@@ -1735,6 +1735,17 @@ public final class TrapService {
      * Right click with the remote (alchemist): the picked potion flies onto the block or
      * monster looked at, up to 10 blocks away, and leaves a cloud there; then a 20 s pause.
      */
+    /** The bar key of a potion (27 October 2026): the alchemist throws it at once. */
+    public void throwBrew(ServerPlayer player) {
+        if (!(player.level() instanceof ServerLevel level)) {
+            return;
+        }
+        PlayerSkills skills = save.get().skillsOf(player.getUUID().toString());
+        if (SkillTree.SUB_ALCHEMIST.equals(tree.subclassOf(skills)) || player.getAbilities().instabuild) {
+            throwZone(level, player, skills, level.getGameTime());
+        }
+    }
+
     private void throwZone(ServerLevel level, ServerPlayer player, PlayerSkills skills, long now) {
         boolean creative = player.getAbilities().instabuild;
         SiegeManager m = SiegeManager.get();
