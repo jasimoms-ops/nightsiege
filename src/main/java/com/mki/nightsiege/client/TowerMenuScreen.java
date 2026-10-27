@@ -349,10 +349,10 @@ public class TowerMenuScreen extends Screen {
         } else {
             String hint = Component.translatable("nightsiege.towers.hint", data.reloadArrows, data.buffArrows,
                     data.buffPercent, data.buffSeconds).getString();
-            small(gui, font, hint, x0 + (w - (int) (font.width(hint) * 0.65f)) / 2, cy + 6, GREY, 0.65f);
+            centered(gui, font, hint, x0, w, cy + 2, GREY);
+            centered(gui, font, Component.translatable("nightsiege.towers.hint2", data.fixSeconds).getString(), x0, w, cy + 12, GREY);
             if (data.golem) {
-                String g = Component.translatable("nightsiege.towers.golem_hint", data.golemMax).getString();
-                small(gui, font, g, x0 + (w - (int) (font.width(g) * 0.65f)) / 2, cy + 18, GREY, 0.65f);
+                centered(gui, font, Component.translatable("nightsiege.towers.golem_hint", data.golemMax).getString(), x0, w, cy + 24, GREY);
             }
         }
         super.extractRenderState(gui, mouseX, mouseY, delta);
@@ -382,12 +382,6 @@ public class TowerMenuScreen extends Screen {
         } else if (row.mag > 0) {
             bar(gui, sx, y + 6, sw, row.ammo / (double) row.mag, row.ammo == 0 ? RED : row.ammo * 4 <= row.mag ? AMBER : GREEN);
             small(gui, font, Component.translatable("nightsiege.towers.ammo", row.ammo, row.mag).getString(), sx, y + 13, LIGHT, 0.6f);
-            if (strong > 0) {
-                String b = Component.translatable("nightsiege.towers.buffed", (strong + 19) / 20).getString();
-                small(gui, font, b, sx + sw - (int) (font.width(b) * 0.6f), y + 13, GOLD, 0.6f);
-            }
-        } else if (strong > 0) {
-            small(gui, font, Component.translatable("nightsiege.towers.buffed", (strong + 19) / 20).getString(), sx, y + 7, GOLD, 0.75f);
         } else if (row.fullUses > 0) {
             bar(gui, sx, y + 6, sw, row.uses / (double) row.fullUses, row.uses * 4 <= row.fullUses ? AMBER : GREEN);
             small(gui, font, Component.translatable("nightsiege.towers.wear", row.uses, row.fullUses).getString(), sx, y + 13, LIGHT, 0.6f);
@@ -402,6 +396,11 @@ public class TowerMenuScreen extends Screen {
         }
         if (left <= 0 && can(row, BUFF, strong)) {
             button(gui, font, bx + BTN_W + 4, y, Component.translatable("nightsiege.towers.buff").getString(), row.inRange, mouseX, mouseY);
+        } else if (strong > 0) {
+            // Strengthened: where its button sits, how long it still lasts.
+            String b = Component.translatable("nightsiege.towers.buffed", (strong + 19) / 20).getString();
+            float scale = Math.min(0.7f, (BTN_W + 4) / (float) Math.max(1, font.width(b)));
+            small(gui, font, b, bx + BTN_W + 4 + BTN_W / 2 - (int) (font.width(b) * scale) / 2, y + 8, GOLD, scale);
         }
         if (data.golem && isTower(row)) {
             int gx = bx + 108;
@@ -426,6 +425,12 @@ public class TowerMenuScreen extends Screen {
         gui.fill(bx, y + 3, bx + BTN_W, y + ROW_H - 4, over ? 0xF03A2F12 : 0xF0181424);
         float scale = Math.min(0.7f, (BTN_W - 4) / (float) Math.max(1, font.width(label)));
         small(gui, font, label, bx + BTN_W / 2 - (int) (font.width(label) * scale) / 2, y + 8, can ? GOLD : GREY, scale);
+    }
+
+    /** A grey hint line, centred in the panel and made smaller when it would not fit. */
+    private static void centered(GuiGraphicsExtractor gui, Font font, String text, int x0, int w, int y, int color) {
+        float scale = Math.min(0.65f, (w - 16) / (float) Math.max(1, font.width(text)));
+        small(gui, font, text, x0 + (w - (int) (font.width(text) * scale)) / 2, y, color, scale);
     }
 
     private static void bar(GuiGraphicsExtractor gui, int x, int y, int w, double share, int color) {
