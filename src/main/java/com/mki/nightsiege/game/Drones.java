@@ -118,7 +118,7 @@ public final class Drones {
         }
         player.addEffect(new MobEffectInstance(MobEffects.INVISIBILITY, MobEffectInstance.INFINITE_DURATION, 0, false, false));
         Drone drone = new Drone(player.getUUID());
-        drone.rig = Rigs.spawn(level, rigBase(player), rigBase(player), RIG, player.getYRot(), null);
+        drone.rig = Rigs.spawn(level, rigBase(player), rigBase(player), RIG, player.getYRot(), player);
         drone.readyAt = level.getGameTime() + 20;
         DRONES.put(player.getUUID(), drone);
         player.setDeltaMovement(0, 0.35, 0);
@@ -211,7 +211,7 @@ public final class Drones {
             if (now % 20 == 0) {
                 if (!Rigs.complete(level, drone.rig)) {
                     Rigs.remove(level, drone.rig);
-                    drone.rig = Rigs.spawn(level, rigBase(player), rigBase(player), RIG, player.getYRot(), null);
+                    drone.rig = Rigs.spawn(level, rigBase(player), rigBase(player), RIG, player.getYRot(), player);
                 }
                 if (!player.getAbilities().flying) {
                     player.getAbilities().flying = true;
@@ -219,8 +219,11 @@ public final class Drones {
                     player.onUpdateAbilities();
                 }
             }
-            // The rig follows the player (block displays smooth the steps on the client).
-            Rigs.moveTo(level, drone.rig, rigBase(player));
+            // The rig rides the player (27 October 2026: moved by the server it trailed behind
+            // with ping); the own client turns it with the player as well (DroneClient).
+            if (now % 10 == 0) {
+                Rigs.remount(level, drone.rig, player);
+            }
             Rigs.turn(level, drone.rig, player.getYRot(), 0f);
             drone.spin = (drone.spin + 47f) % 360f;
             Rigs.spin(level, drone.rig, drone.spin);

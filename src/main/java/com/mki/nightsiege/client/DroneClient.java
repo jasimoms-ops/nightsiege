@@ -112,6 +112,23 @@ public final class DroneClient {
         }
     }
 
+    /**
+     * End of every client tick: the rig riding one's own drone turns with it right away
+     * (the server's turn would arrive one ping later).
+     */
+    public static void followRig(Minecraft client) {
+        LocalPlayer p = client.player;
+        if (p == null || !isDrone(p.getUUID())) {
+            return;
+        }
+        for (net.minecraft.world.entity.Entity e : p.getPassengers()) {
+            if (e instanceof net.minecraft.world.entity.Display) {
+                e.yRotO = p.yRotO;
+                e.setYRot(p.getYRot());
+            }
+        }
+    }
+
     /** A brass frame and the crossbow's reload bar while flying. */
     public static void draw(GuiGraphicsExtractor gui) {
         if (!localDrone()) {
