@@ -1502,6 +1502,12 @@ public class EventLookTest implements FabricClientGameTest {
             System.out.println("[Night Siege test] machines after a 5000 blow: standing=" + manager.machines().standing());
         });
         context.waitTicks(5);
+        // A hit interrupts the work (checked above in the log): first the guards and workers go,
+        // the machines hold their fire, then the sabotage runs through.
+        game.getServer().runCommand("kill @e[tag=nightsiege_machinecrew]");
+        game.getServer().runCommand("kill @e[type=!minecraft:player,tag=nightsiege,tag=!nightsiege_machine]");
+        onServer(context, (player, manager) -> manager.machines().testHoldFire(player.level().getGameTime() + 4000));
+        context.waitTicks(5);
         game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %.2f %.2f %.2f facing %.2f %.2f %.2f",
                 at[0] + 2.0, at[1], at[2] + 1.0, at[0], at[1] + 1.0, at[2]));
         context.waitTicks(5);

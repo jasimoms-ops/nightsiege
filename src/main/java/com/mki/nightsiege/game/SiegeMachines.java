@@ -1506,6 +1506,13 @@ public final class SiegeMachines {
         return n;
     }
 
+    /** Tests: no machine shoots until then. */
+    public void testHoldFire(long until) {
+        for (Machine machine : machines) {
+            machine.nextShot = until;
+        }
+    }
+
     /** Tests: every machine shoots at its next tick. */
     public void testFireNow(long now) {
         for (Machine machine : machines) {
