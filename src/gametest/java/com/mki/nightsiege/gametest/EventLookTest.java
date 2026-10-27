@@ -2721,8 +2721,9 @@ public class EventLookTest implements FabricClientGameTest {
                     continue;
                 }
                 mob.setNoAi(true);
-                mob.setYRot(180f);
-                mob.setYHeadRot(180f);
+                mob.setYRot(0f);
+                mob.setYHeadRot(0f);
+                mob.setYBodyRot(0f);
                 lineup.add(mob.getUUID());
                 StringBuilder gear = new StringBuilder();
                 for (net.minecraft.world.entity.EquipmentSlot slot : net.minecraft.world.entity.EquipmentSlot.values()) {
@@ -2784,8 +2785,11 @@ public class EventLookTest implements FabricClientGameTest {
             rev.hurtServer(level, level.damageSources().playerAttack(player), 1000f);
             System.out.println("[Night Siege test] foes revenant down graves=" + manager.foes().graveCount());
         });
+        game.getServer().runCommand("tp @p %d.5 %d %d.5 facing %d.5 %d %d.5".formatted(cx + 1, cy + 2, cz - 3, cx + 4, cy, cz));
+        context.runOnClient(client -> hud(client, false));
         context.waitTicks(40);
         context.takeScreenshot("foes_revenant_grave");
+        context.runOnClient(client -> hud(client, true));
         context.waitTicks(100);
         onServer(context, (player, manager) -> {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
@@ -2903,7 +2907,7 @@ public class EventLookTest implements FabricClientGameTest {
         }
         onServer(context, (player, manager) -> {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
-            System.out.println("[Night Siege test] foes grappler hooks=" + manager.foes().hooksLanded + " lowest=" + lowest[0]
+            System.out.println("[Night Siege test] foes grappler hooks=" + manager.foes().hooksLanded + " falls_saved=" + manager.foes().fallsSaved + " lowest=" + lowest[0]
                     + " outside=" + (player.getZ() < cz - r) + " health=" + player.getHealth());
             net.minecraft.world.entity.Entity g = holder[0] == null ? null : level.getEntity(holder[0]);
             if (g != null) {

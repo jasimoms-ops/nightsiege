@@ -223,6 +223,7 @@ public final class Foes {
     public int tunnelsDone;
     public int hooksLanded;
     public int hooksBlocked;
+    public int fallsSaved;
     public String treasureOutcome = "";
 
     private static final class Grave {
@@ -462,6 +463,7 @@ public final class Foes {
         tunnelsDone = 0;
         hooksLanded = 0;
         hooksBlocked = 0;
+        fallsSaved = 0;
         treasureOutcome = "";
     }
 
@@ -577,18 +579,21 @@ public final class Foes {
         }
         hitbox.addTag(MobFactory.TAG);   // defenders and towers may strike it
         hitbox.addTag(TAG_GRAVE);
-        if (!level.addFreshEntity(hitbox)) {
-            return;
-        }
         Display.BlockDisplay mound = new Display.BlockDisplay(EntityTypes.BLOCK_DISPLAY, level);
         ((BlockDisplayAccessor) mound).nightsiege$setBlockState(Blocks.COARSE_DIRT.defaultBlockState());
         ((DisplayAccessor) mound).nightsiege$setTransformation(new Transformation(
                 new Vector3f(-0.45f, -0.08f, -0.75f), new Quaternionf(), new Vector3f(0.9f, 0.3f, 1.5f), new Quaternionf()));
         mound.setPos(spot.x, spot.y, spot.z);
         mound.addTag(TAG_GRAVE);
-        level.addFreshEntity(mound);
+        // Noted before they enter the world, else the check for leftovers of a restart takes them away.
         long riseAt = now + Math.round(host.config().revenantRiseSeconds * 20.0);
-        graves.add(new Grave(hitbox.getUUID(), mound.getUUID(), spot, riseAt));
+        Grave grave = new Grave(hitbox.getUUID(), mound.getUUID(), spot, riseAt);
+        graves.add(grave);
+        if (!level.addFreshEntity(hitbox)) {
+            graves.remove(grave);
+            return;
+        }
+        level.addFreshEntity(mound);
         BlockState soil = level.getBlockState(BlockPos.containing(spot).below());
         level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, soil.isAir() ? Blocks.DIRT.defaultBlockState() : soil),
                 spot.x, spot.y + 0.2, spot.z, 20, 0.4, 0.15, 0.6, 0.05);
@@ -1129,6 +1134,7 @@ public final class Foes {
             Long until = noFallUntil.get(player.getUUID());
             if (until != null && until >= player.level().getGameTime()) {
                 noFallUntil.remove(player.getUUID());
+                fallsSaved++;
                 return false;
             }
         }
@@ -1172,7 +1178,7 @@ public final class Foes {
             return true;
         }
         if (entity.entityTags().contains(Role.TREASURE_RAIDER.tag())) {
-            return f == null || !entity.getUUID().equals(f.treasure);
+            return !ROLES.containsKey(entity.getUUID());   // noted when it is made, gone after a restart
         }
         return false;
     }
