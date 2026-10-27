@@ -315,6 +315,8 @@ public class SiegeConfig {
     public int machineGuards = 3;
     /** Seconds until a machine whose crew fell gets a new one. */
     public int machineCrewSeconds = 45;
+    /** Seconds of holding right-click at a machine to sabotage it (weapons do nothing to it). */
+    public int machineSabotageSeconds = 4;
     /** Siege monsters drop items and experience (false since Simon's call of 26 October 2026: they drop nothing). */
     public boolean siegeMobDrops = false;
     /** Klaffende Wunden (anti-heal, Simon 25 October 2026): these monsters halve all healing of the player they hit. */
@@ -791,6 +793,7 @@ public class SiegeConfig {
         machineCrew = clamp(machineCrew, 1, 6);
         machineGuards = clamp(machineGuards, 0, 10);
         machineCrewSeconds = clamp(machineCrewSeconds, 5, 600);
+        machineSabotageSeconds = clamp(machineSabotageSeconds, 1, 60);
         bloodMoonMobMultiplier = Math.max(1.0, bloodMoonMobMultiplier);
         bloodMoonHealthMultiplier = Math.max(1.0, bloodMoonHealthMultiplier);
         bloodMoonDamageMultiplier = Math.max(1.0, bloodMoonDamageMultiplier);

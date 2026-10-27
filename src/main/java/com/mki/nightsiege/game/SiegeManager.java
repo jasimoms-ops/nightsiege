@@ -371,6 +371,7 @@ public final class SiegeManager {
             MeleeSim.onDamage(entity, source, taken);
             safe("Begleiter-Treffer", () -> companions.afterDamage(entity, source, taken));
             safe("Gegner-Treffer", () -> foes.afterDamage(entity, source));
+            machines.afterDamage(entity, source, taken);
         });
         ServerLivingEntityEvents.ALLOW_DEATH.register((entity, source, amount) -> {
             if (!camp.allowDeath(entity, source) || !machines.allowDeath(entity, source)) {
@@ -411,6 +412,14 @@ public final class SiegeManager {
         net.fabricmc.fabric.api.event.player.UseBlockCallback.EVENT.register(GainGear::onUseBlock);
         net.fabricmc.fabric.api.event.player.UseEntityCallback.EVENT.register((player, world, hand, entity, hit) ->
                 GainGear.onUseEntity(player, world, hand, entity));
+        // Siege machines are sabotaged by hand: hold right-click at one (Simon, 27 October 2026).
+        net.fabricmc.fabric.api.event.player.UseEntityCallback.EVENT.register((player, world, hand, entity, hit) -> {
+            if (world.isClientSide()) {
+                return SiegeMachines.looksLikeMachine(entity) ? InteractionResult.SUCCESS : InteractionResult.PASS;
+            }
+            return player instanceof ServerPlayer server && hand == net.minecraft.world.InteractionHand.MAIN_HAND
+                    && machines.onUse(server, entity, config) ? InteractionResult.SUCCESS : InteractionResult.PASS;
+        });
         net.fabricmc.fabric.api.event.player.UseEntityCallback.EVENT.register((player, world, hand, entity, hit) ->
                 !world.isClientSide() && player instanceof ServerPlayer server
                         && combat.guardian().onUseEntity(server, entity, hand)
