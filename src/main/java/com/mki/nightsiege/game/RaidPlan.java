@@ -349,9 +349,10 @@ public final class RaidPlan {
 
     private boolean allowed(Order order, Kind kind, Mob mob, LivingEntity target) {
         double d = mob.distanceTo(target);
-        if (order.state == State.HUNT || order.state == State.ASSAULT) {
+        if (order.state == State.HUNT) {
             return d <= 32.0;
         }
+        // On the way in (and waiting) only who comes out to them: no chasing a defender up on the wall.
         if (kind == Kind.RANGED) {
             return d <= 28.0;
         }
@@ -390,6 +391,9 @@ public final class RaidPlan {
             g.open = g.kind.equals("arch") || gateOpen(world, g.at);
             if (g.open && !was) {
                 tell("nightsiege.raid.breach_gate", g.angle, now);
+                log("Weg offen:", g);
+            } else if (was && !g.open) {
+                log("Weg zu:", g);
             }
         }
         // Holes: each broken spot near the wall once, then every few seconds again (a defender may close it).
@@ -415,7 +419,11 @@ public final class RaidPlan {
             Iterator<Entry> it = holes.iterator();
             while (it.hasNext()) {
                 Entry h = it.next();
+                boolean was = h.open;
                 h.open = base.walkInto(world, h.front, h.at, 12, 3000);
+                if (was != h.open) {
+                    log(h.open ? "Weg wieder offen:" : "Weg zu:", h);
+                }
             }
         }
         // Ladders of the night at the wall (the carriers' and the hook ballista's ropes).
@@ -448,6 +456,7 @@ public final class RaidPlan {
             if (known == null) {
                 known = new Entry("ladder", foot, foot, base.angleOf(foot.getX() + 0.5, foot.getZ() + 0.5), now);
                 tell("nightsiege.raid.breach_ladder", known.angle, now);
+                log("Weg offen:", known);
             }
             known.open = true;
             now2.add(known);
@@ -466,6 +475,7 @@ public final class RaidPlan {
             e.open = true;
             holes.add(e);
             tell("nightsiege.raid.breach_hole", e.angle, now);
+            log("Weg offen:", e);
         }
     }
 
@@ -502,6 +512,11 @@ public final class RaidPlan {
             return state.getCollisionShape(level, pos).isEmpty();   // broken: open for good
         }
         return state.hasProperty(BlockStateProperties.OPEN) && state.getValue(BlockStateProperties.OPEN);
+    }
+
+    private void log(String what, Entry e) {
+        com.mki.nightsiege.NightSiegeMod.LOGGER.info("[Night Siege] Angriffsplan: {} {} im {} bei {} {} {}", what, e.kind, compass(e.angle),
+                e.at.getX(), e.at.getY(), e.at.getZ());
     }
 
     private void tell(String key, double angle, long now) {
@@ -767,6 +782,16 @@ public final class RaidPlan {
 
     public boolean enlisted(UUID id) {
         return orders.containsKey(id);
+    }
+
+    /** For the gametest: what a monster of the plan is up to. */
+    public String describe(UUID id) {
+        Order o = orders.get(id);
+        if (o == null) {
+            return "-";
+        }
+        return o.kind + "/" + o.state + (o.entry != null ? "->" + o.entry.kind + "@" + compass(o.entry.angle) : "")
+                + " side=" + compass(o.angle) + (o.rally != null ? " rally=" + o.rally.getX() + "," + o.rally.getZ() : "");
     }
 
     public State stateOf(UUID id) {

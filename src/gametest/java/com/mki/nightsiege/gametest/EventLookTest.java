@@ -3171,7 +3171,7 @@ public class EventLookTest implements FabricClientGameTest {
                     + " gate=" + w.gate()) + " active=" + plan.active() + " states=" + plan.states());
             raidCensus("spawned", (net.minecraft.server.level.ServerLevel) player.level(), manager, cx, cz);
         });
-        context.waitTicks(500);
+        context.waitTicks(400);
         onServer(context, (player, manager) -> {
             System.out.println("[Night Siege test] raid waiting states=" + manager.raid().states() + " rerouted=" + manager.raid().rerouted
                     + " returned=" + manager.raid().returned + " stormed=" + manager.raid().stormed);
@@ -3199,7 +3199,7 @@ public class EventLookTest implements FabricClientGameTest {
             BlockPos hole = wallTowards(level, cx, cy, cz, a, r);
             for (int dy = 0; dy <= 2; dy++) {
                 for (int side = -1; side <= 1; side++) {
-                    BlockPos p = Math.abs(Math.cos(a)) > Math.abs(Math.sin(a)) ? hole.offset(0, dy, side) : hole.offset(side, dy, 0);
+                    BlockPos p = holePart(hole, cx, r, side, dy);
                     com.mki.nightsiege.game.NightDamage.record(level, p, level.getBlockState(p));
                     level.destroyBlock(p, false);
                 }
@@ -3241,7 +3241,7 @@ public class EventLookTest implements FabricClientGameTest {
             BlockPos hole = wallTowards(level, cx, cy, cz, a, r);
             for (int dy = 0; dy <= 2; dy++) {
                 for (int side = -1; side <= 1; side++) {
-                    BlockPos p = Math.abs(Math.cos(a)) > Math.abs(Math.sin(a)) ? hole.offset(0, dy, side) : hole.offset(side, dy, 0);
+                    BlockPos p = holePart(hole, cx, r, side, dy);
                     level.setBlock(p, net.minecraft.world.level.block.Blocks.STONE_BRICKS.defaultBlockState(), 3);
                 }
             }
@@ -3258,8 +3258,16 @@ public class EventLookTest implements FabricClientGameTest {
                 ways.append(e.kind).append(e.isOpen() ? "+" : "-").append('@').append(com.mki.nightsiege.game.RaidPlan.compass(e.angle)).append(' ');
             }
             System.out.println("[Night Siege test] raid ladder ways=[" + ways + "] states=" + manager.raid().states() + " stormed=" + manager.raid().stormed);
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            for (com.mki.nightsiege.game.RaidPlan.Entry e : manager.raid().entries()) {
+                if (e.kind.equals("hole")) {
+                    System.out.println("[Night Siege test] raid hole entry at=" + (e.at.getX() - cx) + "," + (e.at.getY() - cy) + "," + (e.at.getZ() - cz)
+                            + " front=" + (e.front.getX() - cx) + "," + (e.front.getY() - cy) + "," + (e.front.getZ() - cz)
+                            + " open=" + e.isOpen() + " walk=" + manager.defense().base().walkInto(level, e.front, e.at, 12, 3000));
+                }
+            }
         });
-        context.waitTicks(500);
+        context.waitTicks(400);
         onServer(context, (player, manager) -> {
             System.out.println("[Night Siege test] raid ladder after states=" + manager.raid().states() + " stormed=" + manager.raid().stormed
                     + " rerouted=" + manager.raid().rerouted + " returned=" + manager.raid().returned);
@@ -3320,16 +3328,30 @@ public class EventLookTest implements FabricClientGameTest {
         game.getServer().runCommand("forceload remove %d %d %d %d".formatted(cx - 80, cz - 80, cx + 80, cz + 80));
     }
 
-    /** The first wall block from the core towards an angle, at foot height. */
+    /** The castle wall (|x| or |z| = r around cx/cz) where a ray from the core (cx, cz + 5) towards an angle meets it, at foot height, not at a corner. */
     private static BlockPos wallTowards(net.minecraft.server.level.ServerLevel level, int cx, int cy, int cz, double a, int r) {
-        for (int d = 2; d <= r + 3; d++) {
-            BlockPos p = new BlockPos(cx + (int) Math.round(Math.cos(a) * d), cy, cz + (int) Math.round(Math.sin(a) * d));
-            if (level.getBlockState(p).is(net.minecraft.world.level.block.Blocks.STONE_BRICKS)
-                    && level.getBlockState(p.above(3)).is(net.minecraft.world.level.block.Blocks.STONE_BRICKS)) {
-                return p;
+        double ox = cx + 0.5;
+        double oz = cz + 5.5;
+        for (double d = 1; d <= 3 * r; d += 0.25) {
+            int x = (int) Math.floor(ox + Math.cos(a) * d);
+            int z = (int) Math.floor(oz + Math.sin(a) * d);
+            if (Math.abs(x - cx) >= r || Math.abs(z - cz) >= r) {
+                x = Math.max(cx - r, Math.min(cx + r, x));
+                z = Math.max(cz - r, Math.min(cz + r, z));
+                if (Math.abs(x - cx) == r) {
+                    z = Math.max(cz - r + 3, Math.min(cz + r - 3, z));
+                } else {
+                    x = Math.max(cx - r + 3, Math.min(cx + r - 3, x));
+                }
+                return new BlockPos(x, cy, z);
             }
         }
         return new BlockPos(cx - r, cy, cz);
+    }
+
+    /** The three columns of a hole across a wall block: along the wall it stands in. */
+    private static BlockPos holePart(BlockPos wall, int cx, int r, int side, int dy) {
+        return Math.abs(wall.getX() - cx) == r ? wall.offset(0, dy, side) : wall.offset(side, dy, 0);
     }
 
     /** Where the night's monsters are: inside, at the wall, on the ground in front, far off; and what they aim at. */
@@ -3345,6 +3367,7 @@ public class EventLookTest implements FabricClientGameTest {
         int enlisted = 0;
         double maxTarget = 0;
         double maxDist = 0;
+        int details = 0;
         for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
             if (e == null || !e.entityTags().contains(com.mki.nightsiege.game.MobFactory.TAG) || !(e instanceof net.minecraft.world.entity.Mob m)
                     || !m.isAlive()) {
@@ -3368,6 +3391,15 @@ public class EventLookTest implements FabricClientGameTest {
             if (m.getTarget() != null) {
                 targets++;
                 maxTarget = Math.max(maxTarget, m.distanceTo(m.getTarget()));
+            }
+            if (d > 40 && details < 4) {
+                details++;
+                net.minecraft.world.entity.LivingEntity t = m.getTarget();
+                System.out.println(String.format(java.util.Locale.ROOT, "[Night Siege test] raid far %s %s at %.0f,%.0f plan=%s target=%s",
+                        when, net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(m.getType()).getPath(), m.getX() - cx, m.getZ() - cz,
+                        manager.raid().describe(m.getUUID()),
+                        t == null ? "-" : net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(t.getType()).getPath()
+                                + String.format(java.util.Locale.ROOT, "@%.0f,%.0f", t.getX() - cx, t.getZ() - cz)));
             }
         }
         System.out.println(String.format(java.util.Locale.ROOT,
