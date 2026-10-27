@@ -2746,9 +2746,11 @@ public class EventLookTest implements FabricClientGameTest {
                         + " ability3=" + com.mki.nightsiege.client.GainClient.quiverKey().saveString()
                         + " ult2=" + com.mki.nightsiege.client.GainClient.secondUltKey().saveString());
             });
-            context.getInput().pressKey(net.minecraft.client.Minecraft.getInstance().options.keyDrop);
+            net.minecraft.client.KeyMapping drop = context.computeOnClient(client -> client.options.keyDrop);
+            net.minecraft.client.KeyMapping swap = context.computeOnClient(client -> client.options.keySwapOffhand);
+            context.getInput().pressKey(drop);
             context.waitTicks(3);
-            context.getInput().pressKey(net.minecraft.client.Minecraft.getInstance().options.keySwapOffhand);
+            context.getInput().pressKey(swap);
             context.waitTicks(10);
             onServer(context, (player, manager) -> System.out.println("[Night Siege test] keys hand=" + player.getMainHandItem().getCount()
                     + " offhand=" + player.getOffhandItem().getCount() + " (want 5 and 0)"));
@@ -2927,7 +2929,7 @@ public class EventLookTest implements FabricClientGameTest {
             level.setBlock(new BlockPos(gx - 4, gy, gz - 2), net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
             level.setBlock(new BlockPos(gx - 4, gy, gz + 2), net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
             for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
-                if (e.entityTags().contains("ns_spot")) {
+                if (e != null && e.entityTags().contains("ns_spot")) {
                     e.discard();
                 }
             }
