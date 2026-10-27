@@ -46,6 +46,14 @@ public final class SiegeCommands {
                 .then(Commands.literal("mobs").executes(SiegeCommands::mobs))
                 .then(Commands.literal("start").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                         .executes(SiegeCommands::start))
+                // Try the drone of a fallen defender any time, e.g. in creative (Simon, 27 October 2026).
+                .then(Commands.literal("drohne").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                        .executes(ctx -> {
+                            ServerPlayer player = ctx.getSource().getPlayerOrException();
+                            boolean up = Drones.toggleTest(player);
+                            reply(ctx.getSource(), Component.translatable(up ? "nightsiege.cmd.drone_on" : "nightsiege.cmd.drone_off"));
+                            return 1;
+                        }))
                 .then(Commands.literal("bossjetzt").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                         .executes(ctx -> {
                             boolean ok = SiegeManager.get().bossNow(ctx.getSource().getServer());

@@ -131,6 +131,25 @@ public final class Drones {
         sync(level.getServer());
     }
 
+    /** Game modes of players flying a drone for a try (command), to give back when they land. */
+    private static final Map<UUID, GameType> TRIAL = new HashMap<>();
+
+    /**
+     * /nightsiege drohne (Simon, 27 October 2026: try the drone in creative): up as a drone, or
+     * down again with the game mode from before. Returns true when the player now flies.
+     */
+    public static boolean toggleTest(ServerPlayer player) {
+        if (isDrone(player)) {
+            GameType before = TRIAL.remove(player.getUUID());
+            stop(player);
+            player.setGameMode(before != null ? before : GameType.SURVIVAL);
+            return false;
+        }
+        TRIAL.put(player.getUUID(), player.gameMode());
+        start(player);
+        return true;
+    }
+
     /** Back on the ground: the drone goes, the player is themselves again (game mode is set by the caller). */
     public static void stop(ServerPlayer player) {
         Drone drone = DRONES.remove(player.getUUID());
