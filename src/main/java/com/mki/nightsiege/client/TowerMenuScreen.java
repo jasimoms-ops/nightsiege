@@ -40,6 +40,9 @@ public class TowerMenuScreen extends Screen {
     private static final int ROW_OVER = 0xE0241E34;
     private static final int LINE = 0xFF2C2740;
     private static final int ROW_H = 24;
+    /** The copper golem's mark (looked up by id: the copper blocks are a weathering collection in 26.2). */
+    private static final ItemStack COPPER = new ItemStack(net.minecraft.core.registries.BuiltInRegistries.ITEM
+            .getValue(net.minecraft.resources.Identifier.withDefaultNamespace("copper_block")));
     private static final String[] ARROW = {"▲", "▼", "◀", "▶"};
 
     private TowerMenuData data;
@@ -381,7 +384,7 @@ public class TowerMenuScreen extends Screen {
             gui.pose().pushMatrix();
             gui.pose().translate(gx + 2, y + 4);
             gui.pose().scale(0.85f, 0.85f);
-            gui.item(new ItemStack(net.minecraft.world.item.Items.COPPER_BLOCK), 0, 0);
+            gui.item(COPPER, 0, 0);
             gui.pose().popMatrix();
             if (!row.golem) {
                 gui.fill(gx, y + 3, gx + 18, y + ROW_H - 4, 0x80000000);
