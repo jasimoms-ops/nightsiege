@@ -2446,7 +2446,7 @@ public final class TrapService {
     }
 
     // ------------------------------------------------------------------
-    // the tower shield (crate gain "turmschild", 27 October 2026)
+    // the turret shield (crate gain "geschuetzschild", 27 October 2026)
     // ------------------------------------------------------------------
 
     /** Shots the tower shield blocks before it is spent (0 without the gain or for other towers). */
@@ -2455,7 +2455,7 @@ public final class TrapService {
         if (kind != TrapKind.TURRET && kind != TrapKind.TESLA) {
             return 0;
         }
-        return gainOf(record, "turmschild") > 0 ? (int) Math.round(SkillValues.get("e_longrange", "shield", 20)) : 0;
+        return gainOf(record, "geschuetzschild") > 0 ? (int) Math.round(SkillValues.get("e_longrange", "shield", 20)) : 0;
     }
 
     /**
