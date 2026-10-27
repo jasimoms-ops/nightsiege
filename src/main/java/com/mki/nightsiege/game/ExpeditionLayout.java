@@ -333,6 +333,10 @@ public final class ExpeditionLayout {
         b.light(-3, d + ROOM_H - 1, r0 + 8);
         b.light(3, d + ROOM_H - 1, r0 + 8);
         b.light(0, d + ROOM_H - 1, r0 + 5);
+        if (b.dim) {
+            b.light(0, d + ROOM_H - 1, r0 + 1);
+            b.light(0, d + ROOM_H - 1, r0 + 9);
+        }
     }
 
     private static void roomDecor(B b, int r0) {
@@ -452,6 +456,13 @@ public final class ExpeditionLayout {
         }
         b.light(-3, d + ARENA_H - 1, cz);
         b.light(3, d + ARENA_H - 1, cz);
+        if (b.dim) {
+            for (int sx : new int[] {-4, 4}) {
+                for (int sz : new int[] {-4, 4}) {
+                    b.light(sx, d + ARENA_H - 1, cz + sz);
+                }
+            }
+        }
     }
 
     private static void arenaDecor(B b, int cz) {
@@ -519,6 +530,8 @@ public final class ExpeditionLayout {
         final Rotation rotation;
         final Map<BlockPos, BlockState> out = new LinkedHashMap<>();
         final Map<Part, BlockState> states = new java.util.EnumMap<>(Part.class);
+        /** Soul lanterns light less far: more of them. */
+        final boolean dim;
 
         B(BlockPos origin, int facing, ExpeditionKind kind, long seed) {
             this.origin = origin;
@@ -528,6 +541,7 @@ public final class ExpeditionLayout {
             for (Part p : Part.values()) {
                 states.put(p, block(kind.block(p)));
             }
+            this.dim = kind.block(Part.LIGHT).startsWith("soul");
         }
 
         BlockPos at(int x, int y, int z) {
