@@ -104,6 +104,7 @@ public final class Foes {
     public static final String TAG_GRAVE = "nightsiege_grave";
 
     private static final Identifier KNIGHT_SLOW = Identifier.fromNamespaceAndPath("nightsiege", "iron_knight_slow");
+    private static final Identifier KNIGHT_ARMOUR = Identifier.fromNamespaceAndPath("nightsiege", "iron_knight_armour");
     private static final String NAMESPACE = "nightsiege:";
 
     /** The kinds, their entry id ("nightsiege:revenant") and the vanilla monster under them. */
@@ -341,6 +342,14 @@ public final class Foes {
                     speed.addTransientModifier(new AttributeModifier(KNIGHT_SLOW, -cfg.ironKnightSlow,
                             AttributeModifier.Operation.ADD_MULTIPLIED_BASE));
                 }
+                // Melee hits it fully (concept): the iron is for the look and against shots only.
+                for (var attribute : List.of(Attributes.ARMOR, Attributes.ARMOR_TOUGHNESS)) {
+                    AttributeInstance armour = mob.getAttribute(attribute);
+                    if (armour != null && !armour.hasModifier(KNIGHT_ARMOUR)) {
+                        armour.addTransientModifier(new AttributeModifier(KNIGHT_ARMOUR, -1.0,
+                                AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
+                    }
+                }
             }
             case TREASURE_RAIDER -> {
                 mob.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.GOLD_INGOT));
@@ -384,7 +393,9 @@ public final class Foes {
 
     /** A grey banner with the illager face, its colours in the blood moon style. */
     private static ItemStack banner(Mob mob) {
-        ItemStack stack = new ItemStack(Items.GRAY_BANNER);
+        // 26.2 keeps the coloured banners in a colour collection: the grey one by its id.
+        ItemStack stack = new ItemStack(net.minecraft.core.registries.BuiltInRegistries.ITEM.getValue(
+                Identifier.withDefaultNamespace("gray_banner")));
         try {
             HolderGetter<BannerPattern> patterns = mob.level().registryAccess().lookupOrThrow(Registries.BANNER_PATTERN);
             stack.set(DataComponents.BANNER_PATTERNS, new BannerPatternLayers.Builder()
@@ -471,6 +482,9 @@ public final class Foes {
      * limit is picked again (at most a few times, then a plain zombie comes).
      */
     public String limit(String picked, Map<String, Integer> wave, int level, SiegeConfig cfg, Supplier<String> again) {
+        if (picked == null) {
+            return null;   // nothing to pick at all: the wave ends there, as before
+        }
         for (int attempt = 0; attempt < 6 && picked != null; attempt++) {
             Role role = roleOf(picked);
             if (role == null) {
@@ -1101,7 +1115,7 @@ public final class Foes {
             if (hook != null && hook.target != null) {
                 hook.target = null;
                 hook.next = victim.level().getGameTime() + 100;
-                victim.level().playSound(null, victim.getX(), victim.getY(), victim.getZ(), SoundEvents.LEASH_KNOT_BREAK,
+                victim.level().playSound(null, victim.getX(), victim.getY(), victim.getZ(), SoundEvents.TRIPWIRE_CLICK_ON,
                         SoundSource.HOSTILE, 1.0f, 0.8f);
             }
         } else if (role == Role.TREASURE_RAIDER) {

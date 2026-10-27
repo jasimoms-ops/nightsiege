@@ -741,7 +741,15 @@ public final class SiegeCommands {
             }
             return mob;
         }
-        return MobFactory.spawnAt(level, spot, id, m.currentLevel(), m.config(), new java.util.Random(), SiegeEvent.NONE, false);
+        Mob mob = MobFactory.spawnAt(level, spot, id, m.currentLevel(), m.config(), new java.util.Random(), SiegeEvent.NONE, false);
+        if (mob != null) {
+            // Outside a night only a look: without the siege tag it can be struck down like any monster.
+            mob.removeTag(MobFactory.TAG);
+            for (net.minecraft.world.entity.Entity rider : mob.getPassengers()) {
+                rider.removeTag(MobFactory.TAG);
+            }
+        }
+        return mob;
     }
 
     private static void reply(CommandSourceStack source, Component message) {
