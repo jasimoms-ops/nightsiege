@@ -2884,6 +2884,15 @@ public final class Companions {
     public boolean soulSwap(ServerLevel level, ServerPlayer player) {
         Mob partner = lookOwn(level, player, 48.0, 0.9);
         if (partner == null) {
+            // No own companion in view (the soul catcher has none, Simon 27.10.): a monster in
+            // view swaps places instead – out of a tight spot, or the monster out of the base.
+            LivingEntity seen = CombatEffects.lookTarget(level, player, 32.0);
+            if (seen instanceof Mob mob && seen instanceof net.minecraft.world.entity.monster.Enemy
+                    && !BossService.isBossOrPart(mob) && !isCompanion(mob)) {
+                partner = mob;
+            }
+        }
+        if (partner == null) {
             CombatEffects.actionBar(player, Component.translatable("nightsiege.msg.swap_none"));
             return false;
         }

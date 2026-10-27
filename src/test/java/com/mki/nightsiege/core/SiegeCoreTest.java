@@ -239,11 +239,11 @@ class SiegeCoreTest {
         fresh.sanitize();
         // 1.25 since 25.10., -30 % since the DPS bench of 27.10.
         assertEquals(0.875, fresh.subclassDamage.get("shieldfighter"), 1e-9);
-        // Simon 27.10. (DPS bench, level 10): tamer +20 %, bolt archer -40 %, bulwark -15 %, paladin -10 %, medic heals 20 % more.
+        // Simon 27.10. (DPS bench, level 10): tamer +20 %, bolt archer -40 %, bulwark -15 %, medic heals 20 % more; the paladin stays.
         assertEquals(1.2, fresh.subclassDamage.get("tamer"), 1e-9);
         assertEquals(0.6, fresh.subclassDamage.get("bolter"), 1e-9);
         assertEquals(0.85, fresh.subclassDamage.get("bulwark"), 1e-9);
-        assertEquals(0.9, fresh.subclassDamage.get("paladin"), 1e-9);
+        assertEquals(1.0, fresh.subclassDamage.get("paladin"), 1e-9);
         assertEquals(1.2, fresh.healingFactor("medic"), 1e-9);
         assertEquals(1.0, fresh.healingFactor("warden"), 1e-9);
         // Simon 26.10.: the shield fighter takes as much as anyone, the bulwark 35 % less, the alchemist hits 15 % harder.
