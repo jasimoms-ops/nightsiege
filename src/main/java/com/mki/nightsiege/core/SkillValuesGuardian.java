@@ -86,7 +86,7 @@ final class SkillValuesGuardian {
         def("field_dressing", "radius", 8.0);
         def("g_wardsign", "radius", 6.0);
         def("g_healing_hand", "base", 2.0);        // heal = base + amount per level (health)
-        def("g_healing_hand", "cd", 120.0);        // ticks
+        def("g_healing_hand", "cd", 90.0);         // ticks (Simon 27.10.: 120 -> 90, the medic heals as much as the warden)
         def("g_healing_hand", "self", 0.5);        // share when healing yourself
         def("g_healing_hand", "range", 16.0);      // shield action: teammate in view within this reach
         def("g_ward", "base", 2.0);                // barrier = base + amount per level (health)
