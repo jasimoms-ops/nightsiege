@@ -124,3 +124,8 @@ net.minecraft.world.level.ServerExplosion
 ?net.minecraft.world.level.ServerExplosion#BlockPos
 net.minecraft.server.commands.TimeCommand
 !net.minecraft.server.commands.TimeCommand#setTime,addTime
+net.minecraft.world.clock.ServerClockManager
+net.minecraft.world.clock.WorldClock
+!net.minecraft.server.commands.TimeCommand#getDefaultClock,setPaused,setTotalTicks,setTimeToTimeMarker
+!net.minecraft.world.level.Level#getOverworldClockTime
+!net.minecraft.server.level.ServerLevel#getOverworldClockTime
