@@ -3041,7 +3041,7 @@ public class EventLookTest implements FabricClientGameTest {
         context.getInput().lookAt(0.0f, 8.0f);
         context.waitTicks(5);
         context.runOnClient(client -> System.out.println("[Night Siege test] drone client=" + com.mki.nightsiege.client.DroneClient.localDrone()
-                + " rig riding=" + client.player.getPassengers().size()));
+                + " rig following=" + com.mki.nightsiege.client.DroneClient.rigFollowing()));
         context.takeScreenshot("drone_first");
         context.runOnClient(client -> client.options.setCameraType(net.minecraft.client.CameraType.THIRD_PERSON_FRONT));
         context.waitTicks(6);

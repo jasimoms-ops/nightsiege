@@ -112,17 +112,52 @@ public final class DroneClient {
         }
     }
 
+    /** The entity ids of one's own drone rig (sent by the server). */
+    private static int[] rig = new int[0];
+
+    public static void setRig(String ids) {
+        java.util.List<Integer> out = new java.util.ArrayList<>();
+        for (String id : ids == null ? new String[0] : ids.split(",")) {
+            try {
+                out.add(Integer.parseInt(id.trim()));
+            } catch (NumberFormatException ignored) {
+                // skipped
+            }
+        }
+        rig = out.stream().mapToInt(Integer::intValue).toArray();
+    }
+
+    /** How many pieces of the own rig this client moves itself (client test). */
+    public static int rigFollowing() {
+        Minecraft client = Minecraft.getInstance();
+        int n = 0;
+        for (int id : rig) {
+            if (client.level != null && client.level.getEntity(id) instanceof net.minecraft.world.entity.Display) {
+                n++;
+            }
+        }
+        return n;
+    }
+
     /**
-     * End of every client tick: the rig riding one's own drone turns with it right away
-     * (the server's turn would arrive one ping later).
+     * End of every client tick: one's own drone rig sits on the player and turns with it right
+     * away (27 October 2026: placed by the server alone, it trailed one ping behind).
      */
     public static void followRig(Minecraft client) {
         LocalPlayer p = client.player;
-        if (p == null || !isDrone(p.getUUID())) {
+        if (p == null || client.level == null || !isDrone(p.getUUID()) || rig.length == 0) {
             return;
         }
-        for (net.minecraft.world.entity.Entity e : p.getPassengers()) {
-            if (e instanceof net.minecraft.world.entity.Display) {
+        double h = p.getBbHeight();
+        for (int id : rig) {
+            if (client.level.getEntity(id) instanceof net.minecraft.world.entity.Display e) {
+                e.setPos(p.getX(), p.getY() + h, p.getZ());
+                e.xo = p.xo;
+                e.yo = p.yo + h;
+                e.zo = p.zo;
+                e.xOld = p.xOld;
+                e.yOld = p.yOld + h;
+                e.zOld = p.zOld;
                 e.yRotO = p.yRotO;
                 e.setYRot(p.getYRot());
             }

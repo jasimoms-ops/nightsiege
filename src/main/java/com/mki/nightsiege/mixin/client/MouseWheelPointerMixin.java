@@ -20,11 +20,12 @@ public abstract class MouseWheelPointerMixin {
     @Shadow
     private double accumulatedDY;
 
-    @Inject(method = "turnPlayer", at = @At("HEAD"), cancellable = true)
-    private void nightsiege$wheelPointer(double time, CallbackInfo ci) {
+    @Inject(method = "handleAccumulatedMovement", at = @At("HEAD"))
+    private void nightsiege$wheelPointer(CallbackInfo ci) {
         if (WheelOverlay.isOpen()) {
             WheelOverlay.movePointer(this.accumulatedDX, this.accumulatedDY);
-            ci.cancel();
+            this.accumulatedDX = 0;
+            this.accumulatedDY = 0;
         }
     }
 }

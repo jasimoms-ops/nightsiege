@@ -46,6 +46,8 @@ public final class Drones {
     private static final class Drone {
         final UUID player;
         Rigs.Rig rig;
+        /** The rig's entity ids last sent to the drone's own client. */
+        String sentRig = "";
         boolean holding;
         long readyAt;
         float spin;
@@ -118,7 +120,7 @@ public final class Drones {
         }
         player.addEffect(new MobEffectInstance(MobEffects.INVISIBILITY, MobEffectInstance.INFINITE_DURATION, 0, false, false));
         Drone drone = new Drone(player.getUUID());
-        drone.rig = Rigs.spawn(level, rigBase(player), rigBase(player), RIG, player.getYRot(), player);
+        drone.rig = Rigs.spawn(level, rigBase(player), rigBase(player), RIG, player.getYRot(), null);
         drone.readyAt = level.getGameTime() + 20;
         DRONES.put(player.getUUID(), drone);
         player.setDeltaMovement(0, 0.35, 0);
@@ -211,7 +213,7 @@ public final class Drones {
             if (now % 20 == 0) {
                 if (!Rigs.complete(level, drone.rig)) {
                     Rigs.remove(level, drone.rig);
-                    drone.rig = Rigs.spawn(level, rigBase(player), rigBase(player), RIG, player.getYRot(), player);
+                    drone.rig = Rigs.spawn(level, rigBase(player), rigBase(player), RIG, player.getYRot(), null);
                 }
                 if (!player.getAbilities().flying) {
                     player.getAbilities().flying = true;
@@ -219,11 +221,11 @@ public final class Drones {
                     player.onUpdateAbilities();
                 }
             }
-            // The rig rides the player (27 October 2026: moved by the server it trailed behind
-            // with ping); the own client turns it with the player as well (DroneClient).
-            if (now % 10 == 0) {
-                Rigs.remount(level, drone.rig, player);
-            }
+            // The rig follows the player (block displays smooth the steps for everybody else);
+            // the drone's own client puts it on the player itself (DroneClient.followRig,
+            // 27 October 2026: moved by the server alone it trailed behind with ping).
+            Rigs.moveTo(level, drone.rig, rigBase(player));
+            sendRig(level, player, drone);
             Rigs.turn(level, drone.rig, player.getYRot(), 0f);
             drone.spin = (drone.spin + 47f) % 360f;
             Rigs.spin(level, drone.rig, drone.spin);
@@ -275,6 +277,25 @@ public final class Drones {
         sent = ids;
         for (ServerPlayer p : server.getPlayerList().getPlayers()) {
             ServerPlayNetworking.send(p, new CoreNetworking.ScreenPayload("drones", ids));
+        }
+    }
+
+    /** The drone's own client learns which entities are its rig (it moves them itself, without ping). */
+    private static void sendRig(ServerLevel level, ServerPlayer player, Drone drone) {
+        StringBuilder ids = new StringBuilder();
+        for (UUID id : drone.rig.all()) {
+            net.minecraft.world.entity.Entity e = level.getEntity(id);
+            if (e != null) {
+                if (!ids.isEmpty()) {
+                    ids.append(',');
+                }
+                ids.append(e.getId());
+            }
+        }
+        String now = ids.toString();
+        if (!now.equals(drone.sentRig)) {
+            drone.sentRig = now;
+            ServerPlayNetworking.send(player, new CoreNetworking.ScreenPayload("dronerig", now));
         }
     }
 

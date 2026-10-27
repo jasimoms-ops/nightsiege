@@ -112,6 +112,8 @@ public class NightSiegeClient implements ClientModInitializer {
                         if (data != null && client.player != null) {
                             client.setScreenAndShow(new SpotterScreen(data));
                         }
+                    } else if ("dronerig".equals(payload.kind())) {
+                        DroneClient.setRig(payload.json());
                     } else if ("drones".equals(payload.kind())) {
                         DroneClient.set(payload.json());
                     } else if ("healthview".equals(payload.kind())) {
