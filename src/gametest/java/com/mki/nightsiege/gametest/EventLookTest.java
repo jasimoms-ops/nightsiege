@@ -2795,10 +2795,13 @@ public class EventLookTest implements FabricClientGameTest {
                     husk = l;
                 }
             }
+            net.minecraft.world.level.GameType mode = player.gameMode();
+            player.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);   // creative players take no hits
             float hp = player.getHealth();
             float towerBefore = manager.kits().traps().seatHealthLeft(player);
             player.invulnerableTime = 0;
             player.hurtServer(level, husk != null ? level.damageSources().mobAttack(husk) : level.damageSources().generic(), 6f);
+            player.setGameMode(mode);
             System.out.println(String.format(java.util.Locale.ROOT,
                     "[Night Siege test] tower seat health player %.1f -> %.1f tower %.1f -> %.1f seated=%s",
                     hp, player.getHealth(), towerBefore, manager.kits().traps().seatHealthLeft(player),
