@@ -1026,6 +1026,10 @@ public final class MeleeSim {
                 if (sub != null && n.inGroup() && n.group().equals(sub.group()) && !n.id().equals(subclassNode)) {
                     continue;
                 }
+                // The golemsmith takes the titan, not the wild hunt of the wolves (27 October 2026).
+                if ("s_golemsmith".equals(subclassNode) && "s_wild_hunt".equals(n.id())) {
+                    continue;
+                }
                 while (p.levelOf(n.id()) < n.maxLevel()) {
                     String why = tree.blockedReason(n.id(), p);
                     if (why != null && !why.equals("points")) {

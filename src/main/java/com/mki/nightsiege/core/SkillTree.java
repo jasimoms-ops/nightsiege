@@ -724,6 +724,25 @@ public final class SkillTree {
      * this subclass, {@code subclass_planned} this profile was opened for another
      * subclass, {@code maxed}, {@code points}.</p>
      */
+    /** The salvos of the demolition expert's bird's-eye view; only {@link #salvoLimit()} of them can be learned. */
+    public static final List<String> SALVOS = List.of("e_barrage", "e_area_fire", "e_smoke_salvo", "e_fire_salvo");
+
+    /** How many of the four salvos one profile may learn. */
+    public static int salvoLimit() {
+        return (int) Math.round(SkillValues.get("mortar_tower", "salvos", 2));
+    }
+
+    /** Salvos learned besides this one. */
+    private static int salvosLearned(PlayerSkills skills, String except) {
+        int n = 0;
+        for (String id : SALVOS) {
+            if (!id.equals(except) && skills.levelOf(id) > 0) {
+                n++;
+            }
+        }
+        return n;
+    }
+
     public String blockedReason(String nodeId, PlayerSkills skills) {
         SkillNode node = get(nodeId);
         if (node == null) {
@@ -752,6 +771,10 @@ public final class SkillTree {
                     return "choice";
                 }
             }
+        }
+        // The four salvos of the bird's-eye view: any two of them (Simon, 27 October 2026).
+        if (level == 0 && SALVOS.contains(nodeId) && salvosLearned(skills, nodeId) >= salvoLimit()) {
+            return "choice";
         }
         String subclassBlock = subclassBlocked(node, skills);
         if (subclassBlock != null) {

@@ -480,32 +480,37 @@ public class CoreScreen extends Screen {
         }
 
         CoreStats.ProfileLine page = shown();
+        // The button on the right of the footer; placed after the left ones, so they never overlap
+        // (Simon, 27 October 2026: "Klasse wechseln (Test)" covered "Schütze spielen").
+        Component primary = null;
+        Component primaryShort = null;
+        int primaryMin = 110;
+        Button.OnPress primaryPress = null;
         if (activeTab == Tab.CORE) {
             addRenderableWidget(Button.builder(Component.translatable("nightsiege.ui.donate"),
                     b -> send("donate:5")).bounds(left + W - 130, footerY, 64, 18).build());
         } else if (!hasClass()) {
             // The first class.
             SkillClass pick = activeTab.clazz;
-            Component label = Component.translatable("nightsiege.ui.choose_class", Component.translatable(pick.translationKey()));
-            int bw = Math.max(134, font.width(label) + 12);
+            primary = Component.translatable("nightsiege.ui.choose_class", Component.translatable(pick.translationKey()));
+            primaryShort = Component.translatable("nightsiege.ui.choose_short");
+            primaryMin = 134;
             // The subclass is chosen with the class, at the armour stands (26 October 2026).
-            addRenderableWidget(Button.builder(label, b -> openSubclassPick(pick))
-                    .bounds(left + W - 66 - bw, footerY, bw, 18).build());
+            primaryPress = b -> openSubclassPick(pick);
         } else if (page != null && !page.playing && !stats.siegeActive) {
             // Another own profile: play it from now on.
             String key = page.key;
-            Component label = Component.translatable("nightsiege.ui.play_class", profileName(page));
-            int bw = Math.max(110, font.width(label) + 12);
-            addRenderableWidget(Button.builder(label, b -> send("play:" + key))
-                    .bounds(left + W - 66 - bw, footerY, bw, 18).build());
+            primary = Component.translatable("nightsiege.ui.play_class", profileName(page));
+            primaryShort = Component.translatable("nightsiege.ui.play_short");
+            primaryPress = b -> send("play:" + key);
         } else if (page == null && stats.unlocksFree > 0 && stats.unlockClasses.contains(activeTab.clazz.name())) {
             // A class not owned yet: an unlock can open it.
-            Component label = Component.translatable("nightsiege.ui.unlock_open");
-            int bw = Math.max(110, font.width(label) + 12);
-            addRenderableWidget(Button.builder(label, b -> {
+            primary = Component.translatable("nightsiege.ui.unlock_open");
+            primaryShort = primary;
+            primaryPress = b -> {
                 choosingUnlock = true;
                 rebuildWidgets();
-            }).bounds(left + W - 66 - bw, footerY, bw, 18).build());
+            };
         }
         // Choosing and playing a class happen in the overview (tab Klassen) now.
         int footerX = left + 8;
@@ -557,13 +562,29 @@ public class CoreScreen extends Screen {
             }).bounds(footerX, footerY, ww, 18).build());
             footerX += ww + 4;
         }
+        int rightEdge = left + W - 66;
+        int pw = primary == null ? 0 : Math.max(primaryMin, font.width(primary) + 12);
         if (stats.classResetAvailable && ownsClassTab()) {
             Component label = Component.translatable(stats.classResetUnlimited ? "nightsiege.ui.class_reset_test"
                     : "nightsiege.ui.class_reset");
+            int rw = Math.max(90, font.width(label) + 12);
+            if (primary != null && footerX + rw + 4 > rightEdge - pw) {
+                primary = primaryShort;   // first the right button gets shorter …
+                pw = Math.max(56, font.width(primary) + 12);
+            }
+            if (footerX + rw + 4 > rightEdge - pw) {
+                label = Component.translatable("nightsiege.ui.class_reset_short");   // … then this one
+                rw = Math.max(50, font.width(label) + 12);
+            }
             addRenderableWidget(Button.builder(label, b -> {
                 confirmingReset = true;
                 rebuildWidgets();
-            }).bounds(footerX, footerY, Math.max(90, font.width(label) + 12), 18).build());
+            }).bounds(footerX, footerY, rw, 18).build());
+            footerX += rw + 4;
+        }
+        if (primary != null) {
+            int px = Math.max(footerX, rightEdge - pw);
+            addRenderableWidget(Button.builder(primary, primaryPress).bounds(px, footerY, Math.min(pw, rightEdge - px), 18).build());
         }
     }
 

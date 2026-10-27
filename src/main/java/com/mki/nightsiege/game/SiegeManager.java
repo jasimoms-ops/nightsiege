@@ -3468,9 +3468,12 @@ public final class SiegeManager {
             return;
         }
         if (!own.hasClass()) {
-            own.chosenClass = chosen.name();
             // The first class: its profile is opened for the subclass picked at the armour stands.
-            own.addProfile(chosen, skillTree.subclassesOf(chosen).contains(subclass) ? subclass : "");
+            // The profile first, then the class (Simon, 27 October 2026): with the class set first
+            // the list of profiles already held it, the pick opened a second profile "CLASS#2" for
+            // the subclass and the played one had no subclass, so both ways stood open.
+            String first = own.addProfile(chosen, skillTree.subclassesOf(chosen).contains(subclass) ? subclass : "");
+            own.chosenClass = first != null ? first : chosen.name();
             persist();
             ClassTags.update(player.level().getServer(), player, own, skillTree.chosenSubclass(own, own.clazz()));
             traps.giveRemote(player, own);
@@ -3506,6 +3509,10 @@ public final class SiegeManager {
         persist();
         player.sendSystemMessage(Component.translatable("nightsiege.msg.profile_new",
                 profileName(own, key)).withStyle(ChatFormatting.GREEN));
+        if (!(active && participants.contains(player.getUUID()))) {
+            onPlayClass(player, key);   // the new profile is played from now on (Simon, 27 October 2026)
+            return;
+        }
         openCoreWindow(player);
     }
 

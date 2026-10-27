@@ -148,6 +148,9 @@ public final class GuardianEffects {
         }
         if (tuning != null && victim instanceof ServerPlayer hurt && source.getEntity() instanceof Enemy) {
             outside *= tuning.damageTakenFactor(hurt);
+            if (source.is(DamageTypeTags.IS_PROJECTILE)) {
+                outside *= TrapService.seatShotFactor(hurt);   // a gunner in his tower (27 October 2026)
+            }
             if ((source.getEntity() instanceof net.minecraft.world.entity.monster.zombie.Zombie
                     || source.getEntity() instanceof net.minecraft.world.entity.monster.spider.Spider)
                     && !BossService.isBoss(source.getEntity())) {   // the grave king and the queen hit everyone alike

@@ -207,7 +207,7 @@ public final class CombatEffects {
         if (fired) {
             // In creative the ultimate is for trying out: only a short pause.
             int cooldown = player.getAbilities().instabuild ? 40
-                    : (int) Math.round((node.clazz() == SkillClass.WARRIOR
+                    : (int) Math.round((node.clazz() == SkillClass.WARRIOR || node.clazz() == SkillClass.SUMMONER
                     ? SkillValues.get(node.id(), "cd" + rank, cooldownFor(rank)) : cooldownFor(rank))
                     * cooldownScale.applyAsDouble(player));
             ultReadyAt.put(player.getUUID(), now + cooldown);

@@ -106,7 +106,11 @@ public final class TrapService {
     public TrapService(Supplier<SiegeSave> save, SkillTree tree) {
         this.save = save;
         this.tree = tree;
+        current = this;
     }
+
+    /** The service of the running server (for the damage hook of a seated gunner). */
+    private static TrapService current;
 
     // ------------------------------------------------------------------
     // placing, breaking, reloading
@@ -1104,7 +1108,7 @@ public final class TrapService {
      * remote, a block or a gadget in hand) and sneaks to climb out. Nobody in it: the tower
      * fights on its own at 60 %. Someone in it: the tower only fires when he does, where he
      * looks, at 140 %. The turret alternates its two crossbows and a head hit counts double;
-     * the tesla coil holds a beam while the attack button is down, paid with remote energy.
+     * the tesla coil sends one discharge at its own pace where he looks (27 October 2026).
      */
 
     /** Tag of the invisible armour stand a gunner sits on. */
@@ -1218,6 +1222,20 @@ public final class TrapService {
     /** True while the player sits in a tower. */
     public boolean isSeated(ServerPlayer player) {
         return seatOf.containsKey(player.getUUID());
+    }
+
+    /**
+     * Damage factor for a shot at a player (Simon, 27 October 2026: skeletons sniped gunners off
+     * their towers in three hits): in the seat arrows and other shots take 70 % less, melee as usual.
+     */
+    public static float seatShotFactor(ServerPlayer player) {
+        TrapService service = current;
+        Seat seat = service == null || player == null ? null : service.seatOf.get(player.getUUID());
+        if (seat == null) {
+            return 1f;
+        }
+        double guard = Math.max(0.0, Math.min(1.0, SkillValues.get(seat.kind.id(), "seatguard", 0.7)));
+        return (float) (1.0 - guard);
     }
 
     /** True for a seat stand that belongs to a gunner right now (stray ones are removed). */
@@ -1441,24 +1459,24 @@ public final class TrapService {
     }
 
     /**
-     * The manned tesla coil: while the button is held, a beam strikes the first monster on the
-     * gunner's line of sight every few ticks and jumps on like a discharge. Over time it deals
-     * the coil's own damage per second times the manned factor; each pulse that hits costs energy.
+     * The manned tesla coil (Simon, 27 October 2026: slow again and harder): while the button is
+     * held, one discharge leaves the emitter at the coil's own pace as soon as a monster is on
+     * the gunner's line of sight, with the manned factor on every hit, and jumps on like the
+     * coil's own discharge. Nothing in sight: it only crackles and keeps its charge.
      */
     private void beamPulse(ServerLevel level, Seat seat, TrapRecord record, ServerPlayer gunner, int tier, long now) {
-        int pulse = (int) Math.max(2, Math.round(SkillValues.get("tesla_coil", "beampulse", 5)));
-        seat.readyAt = now + pulse;
         Vec3 look = gunner.getLookAngle();
         Vec3 eye = gunner.getEyePosition();
         double range = TrapKind.TESLA.radius(tier) + bonus(record, SkillEffect.TOWER_RANGE)
                 + SkillValues.get("tesla_coil", "beamrange", 4.0);
         Vec3 end = eye.add(look.scale(range));
-        // The beam leaves the emitter's glowing tip.
+        // The bolt leaves the emitter's glowing tip.
         Vec3 from = new Vec3(seat.pos.getX() + 0.5, seat.pos.getY() + 1.0 + AIM_HEIGHT, seat.pos.getZ() + 0.5).add(look.scale(1.05));
+        double grace = SkillValues.get("tesla_coil", "aimgrace", 0.5);
         LivingEntity first = null;
         double best = Double.MAX_VALUE;
-        for (LivingEntity e : enemies(level, new AABB(eye, end).inflate(1.0))) {
-            java.util.Optional<Vec3> at = e.getBoundingBox().inflate(0.35).clip(eye, end);
+        for (LivingEntity e : enemies(level, new AABB(eye, end).inflate(1.0 + grace))) {
+            java.util.Optional<Vec3> at = e.getBoundingBox().inflate(grace).clip(eye, end);
             if (at.isEmpty()) {
                 continue;
             }
@@ -1469,25 +1487,27 @@ public final class TrapService {
             }
         }
         if (first == null) {
-            spark(level, from, eye.add(look.scale(3.0)));   // the beam crackles into the air
+            if (now % 8 == 0) {
+                spark(level, from, eye.add(look.scale(3.0)));   // it crackles into the air, the charge stays
+            }
             return;
         }
         PlayerSkills skills = save.get().skillsOf(gunner.getUUID().toString());
-        double cost = cost(skills, SkillValues.get("tesla_coil", "beamcost", 2.5));
-        if (!payQuiet(gunner, cost)) {
+        double price = SkillValues.get("tesla_coil", "boltcost", 0.0);
+        if (price > 0 && !payQuiet(gunner, cost(skills, price))) {
             if (now >= seat.lowNoticeAt) {
                 seat.lowNoticeAt = now + 20;
                 actionBar(gunner, Component.translatable("nightsiege.msg.beam_empty"));
             }
             return;
         }
-        double share = pulse / (double) Math.max(1, teslaCooldown(level, seat.pos, record, tier, now));
-        float damage = (float) (teslaDamage(record, tier, now) * manned(TrapKind.TESLA) * share);
+        float damage = (float) (teslaDamage(record, tier, now) * manned(TrapKind.TESLA));
         discharge(level, record, tier, now, first, from, damage);
-        level.sendParticles(ParticleTypes.ELECTRIC_SPARK, first.getX(), first.getY(0.5), first.getZ(), 6, 0.3, 0.4, 0.3, 0.1);
-        if ((now / pulse) % 2 == 0) {
-            playAt(level, seat.pos, SoundEvents.LIGHTNING_BOLT_IMPACT, 0.3f, 2.0f);
-        }
+        level.sendParticles(ParticleTypes.ELECTRIC_SPARK, first.getX(), first.getY(0.5), first.getZ(), 14, 0.3, 0.5, 0.3, 0.15);
+        level.sendParticles(ParticleTypes.END_ROD, from.x, from.y, from.z, 6, 0.1, 0.1, 0.1, 0.05);
+        playAt(level, seat.pos, SoundEvents.LIGHTNING_BOLT_IMPACT, 0.7f, 1.6f);
+        seat.readyAt = now + teslaCooldown(level, seat.pos, record, tier, now);
+        dirty = true;
     }
 
     /** Takes energy without the "too little" line (the beam says it its own way). */
@@ -1878,7 +1898,16 @@ public final class TrapService {
         }
         TrapRecord r = able.get(turn % able.size());
         Vec3 muzzle = Vec3.atCenterOf(new BlockPos(r.x, r.y, r.z)).add(0, 0.9, 0);
-        lob(level, r, muzzle, spot, KitProjectile.SHELL, tierOf(r), damage, 1.0, mode);
+        int tier = tierOf(r);
+        lob(level, r, muzzle, spot, KitProjectile.SHELL, tier, damage, 1.0, mode);
+        // A salvo shell is one of the mortar's own shots (Simon, 27 October 2026): it reloads
+        // afterwards, so a salvo steers the fire instead of adding to it.
+        double share = SkillValues.get(TrapKind.MORTAR.id(), "salvoreload", 1.0);
+        if (share > 0) {
+            long now = level.getGameTime();
+            long reload = Math.round(quicker(r, now, slowed(TrapKind.MORTAR, TrapKind.MORTAR.cooldownTicks(tier))) * share);
+            r.readyAt = Math.max(r.readyAt, now) + reload;
+        }
         return true;
     }
 

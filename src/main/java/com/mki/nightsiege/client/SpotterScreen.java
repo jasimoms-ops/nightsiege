@@ -42,6 +42,15 @@ public class SpotterScreen extends Screen {
     private static final int LINE = 0xFF2C2740;
     private static final double MIN_HEIGHT = 10;
     private static final double MAX_HEIGHT = 50;
+    /**
+     * A narrow lens from higher up (Simon, 27 October 2026: walls leaned and tall buildings cut
+     * into the picture): the view looks almost like a map, and the camera keeps above the roofs.
+     */
+    private static final float VIEW_FOV = 40f;
+    /** Height per zoom step, so the narrow lens sees about as much as the old wide one. */
+    private static final double HEIGHT_K = 1.9;
+    /** Blocks the camera stays above the highest roof below it. */
+    private static final double ROOF_GAP = 10;
 
     private final SpotterData data;
     private final long[] readyAt;
@@ -53,6 +62,9 @@ public class SpotterScreen extends Screen {
     private double oldY;
     private double oldZ;
     private double zoomH = 26;
+    /** The camera's height right now: it glides to its target instead of jumping over towers. */
+    private double camYv = Double.NaN;
+    private boolean hudWasHidden;
     private int selected;
     /** First spot of a barrage line, null when none is set. */
     private BlockPos lineStart;
@@ -79,9 +91,15 @@ public class SpotterScreen extends Screen {
     @Override
     protected void init() {
         if (active != this) {
+            camYv = targetY();
             oldX = camX;
-            oldY = camY();
+            oldY = camYv;
             oldZ = camZ;
+            // No hotbar, hearts or other overlays in the view (Simon, 27 October 2026); our own
+            // panel shows the health instead.
+            Minecraft client = Minecraft.getInstance();
+            hudWasHidden = client.options.hideGui;
+            client.options.hideGui = true;
         }
         active = this;
         cursor(false);   // the red X is the pointer (Simon, 26 October 2026)
@@ -91,9 +109,15 @@ public class SpotterScreen extends Screen {
     public void removed() {
         if (active == this) {
             active = null;
+            Minecraft.getInstance().options.hideGui = hudWasHidden;
         }
         cursor(true);
         super.removed();
+    }
+
+    /** The lens of the view while it is open, or a negative number. */
+    public static float viewFov() {
+        return active == null ? -1f : VIEW_FOV;
     }
 
     /** True while the bird's-eye view is open (the HUD leaves out its own crosshair then). */
@@ -128,7 +152,26 @@ public class SpotterScreen extends Screen {
     }
 
     private double camY() {
-        return data.centerY + zoomH;
+        return Double.isNaN(camYv) ? targetY() : camYv;
+    }
+
+    /** Where the camera wants to hang: the zoom over the core's height, but always above the roofs below. */
+    private double targetY() {
+        double y = data.centerY + zoomH * HEIGHT_K;
+        Minecraft client = Minecraft.getInstance();
+        if (client.level == null) {
+            return y;
+        }
+        int top = Integer.MIN_VALUE;
+        int reach = (int) Math.round(Math.max(6.0, zoomH * 0.5));
+        for (int ox = -reach; ox <= reach; ox += 3) {
+            for (int oz = -reach; oz <= reach; oz += 3) {
+                int bx = (int) Math.floor(camX) + ox;
+                int bz = (int) Math.floor(camZ) + oz;
+                top = Math.max(top, client.level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING, bx, bz));
+            }
+        }
+        return top == Integer.MIN_VALUE ? y : Math.max(y, top + ROOF_GAP);
     }
 
     // ------------------------------------------------------------------
@@ -146,6 +189,7 @@ public class SpotterScreen extends Screen {
         oldX = camX;
         oldY = camY();
         oldZ = camZ;
+        camYv = camY() + (targetY() - camY()) * 0.3;
         if (down(client, client.options.keyShift)) {
             onClose();
             return;
@@ -340,17 +384,30 @@ public class SpotterScreen extends Screen {
     // drawing
     // ------------------------------------------------------------------
 
-    private static final int SLOT_W = 74;
-    private static final int SLOT_H = 34;
-    private static final int SLOT_GAP = 4;
+    private static final int SLOT_H = 26;
+    private static final int SLOT_GAP = 3;
+    private static final int SLOT_MIN = 64;
+
+    /** Width of one fire slot: wide enough for the longest name at its small scale. */
+    private int slotW() {
+        Font font = Minecraft.getInstance().font;
+        int widest = 0;
+        for (int i = 0; i < data.modes.size(); i++) {
+            String name = (i + 1) + " " + Component.translatable("nightsiege.mortarmode." + data.modes.get(i).id).getString();
+            widest = Math.max(widest, (int) Math.ceil(font.width(name) * 0.7f));
+        }
+        int w = Math.max(SLOT_MIN, widest + 26);
+        int fit = (this.width - 12 - (data.modes.size() - 1) * SLOT_GAP) / Math.max(1, data.modes.size());
+        return Math.min(w, Math.max(40, fit));
+    }
 
     private int barLeft() {
-        int total = data.modes.size() * SLOT_W + (data.modes.size() - 1) * SLOT_GAP;
+        int total = data.modes.size() * slotW() + (data.modes.size() - 1) * SLOT_GAP;
         return (this.width - total) / 2;
     }
 
     private int barTop() {
-        return this.height - SLOT_H - 56;   // above the hotbar
+        return this.height - SLOT_H - 8;   // the hotbar is hidden in the view
     }
 
     private int barIndexAt(double x, double y) {
@@ -359,9 +416,10 @@ public class SpotterScreen extends Screen {
             return -1;
         }
         int left = barLeft();
+        int w = slotW();
         for (int i = 0; i < data.modes.size(); i++) {
-            int sx = left + i * (SLOT_W + SLOT_GAP);
-            if (x >= sx && x < sx + SLOT_W) {
+            int sx = left + i * (w + SLOT_GAP);
+            if (x >= sx && x < sx + w) {
                 return i;
             }
         }
@@ -373,49 +431,78 @@ public class SpotterScreen extends Screen {
         Font font = Minecraft.getInstance().font;
         Minecraft client = Minecraft.getInstance();
         // Hurt: the screen edge flashes red, the body is standing unguarded.
-        if (client.player != null && client.player.hurtTime > 0) {
+        boolean hurt = client.player != null && client.player.hurtTime > 0;
+        if (hurt) {
             int a = 0x60 + client.player.hurtTime * 12;
             int c = (Math.min(255, a) << 24) | 0xC01010;
             gui.fill(0, 0, this.width, 4, c);
             gui.fill(0, this.height - 4, this.width, this.height, c);
             gui.fill(0, 0, 4, this.height, c);
             gui.fill(this.width - 4, 0, this.width, this.height, c);
-            String warn = Component.translatable("nightsiege.spotter.hurt").getString();
-            gui.text(font, warn, (this.width - font.width(warn)) / 2, 30, RED, true);
         }
-        // Title and help.
-        gui.fill(6, 6, 6 + Math.max(170, font.width(Component.translatable("nightsiege.spotter.help").getString()) / 4 * 3 + 12), 30, PANEL);
-        gui.text(font, Component.translatable("nightsiege.spotter.title").getString(), 10, 9, GOLD, true);
-        small(gui, font, Component.translatable("nightsiege.spotter.help").getString(), 10, 20, LIGHT, 0.75f);
+
+        // Top left: title, controls in two short lines.
+        String title = Component.translatable("nightsiege.spotter.title").getString();
+        String help1 = Component.translatable("nightsiege.spotter.help1").getString();
+        String help2 = Component.translatable("nightsiege.spotter.help2").getString();
+        int hw = Math.max(font.width(title), (int) Math.ceil(Math.max(font.width(help1), font.width(help2)) * 0.65f));
+        panel(gui, 6, 6, 6 + hw + 10, 36);
+        gui.text(font, title, 11, 10, GOLD, true);
+        small(gui, font, help1, 11, 21, LIGHT, 0.65f);
+        small(gui, font, help2, 11, 28, LIGHT, 0.65f);
+
+        // Top right: mortars, distance, the body's health.
         String info = Component.translatable("nightsiege.spotter.info", data.mortars,
                 (int) Math.round(Math.sqrt(Math.pow(camX - data.centerX, 2) + Math.pow(camZ - data.centerZ, 2))), data.radius).getString();
-        int iw = (int) (font.width(info) * 0.75f);
-        gui.fill(this.width - iw - 14, 6, this.width - 6, 18, PANEL);
-        small(gui, font, info, this.width - iw - 10, 9, LIGHT, 0.75f);
+        String life = client.player == null ? "" : Component.translatable("nightsiege.spotter.life",
+                (int) Math.ceil(client.player.getHealth()), (int) Math.ceil(client.player.getMaxHealth())).getString();
+        int iw = (int) Math.ceil(Math.max(font.width(info), font.width(life)) * 0.7f);
+        panel(gui, this.width - iw - 16, 6, this.width - 6, 29);
+        small(gui, font, info, this.width - iw - 11, 10, LIGHT, 0.7f);
+        float share = client.player == null ? 1f : client.player.getHealth() / Math.max(1f, client.player.getMaxHealth());
+        int lifeColor = hurt ? RED : share > 0.6f ? 0xFF7CD67C : share > 0.3f ? GOLD : RED;
+        small(gui, font, life, this.width - iw - 11, 19, lifeColor, 0.7f);
+        if (hurt) {
+            String warn = Component.translatable("nightsiege.spotter.hurt").getString();
+            gui.text(font, warn, (this.width - font.width(warn)) / 2, 10, RED, true);
+        }
 
         // The red X on the cursor, and the spot under it.
         redX(gui, mouseX, mouseY, readyAt[selected] > ticks);
         if (hover != null) {
             String at = hover.getX() + " / " + hover.getY() + " / " + hover.getZ();
-            small(gui, font, at, mouseX + 8, mouseY + 8, LIGHT, 0.7f);
-        }
-        if (lineStart != null) {
-            String hint = Component.translatable("nightsiege.spotter.line_end").getString();
-            gui.text(font, hint, (this.width - font.width(hint)) / 2, barTop() - 14, GOLD, true);
+            small(gui, font, at, mouseX + 9, mouseY + 7, LIGHT, 0.6f);
         }
 
-        // The fire bar.
+        // Above the bar: what the picked fire does, or the second click of a barrage line.
         int left = barLeft();
         int top = barTop();
+        int w = slotW();
+        SpotterData.Mode picked = data.modes.get(selected);
+        String line = lineStart != null ? Component.translatable("nightsiege.spotter.line_end").getString()
+                : Component.translatable("nightsiege.mortarmode." + picked.id).getString() + " – "
+                + Component.translatable("nightsiege.spotter.hint." + picked.id).getString() + " · "
+                + (picked.pause > 0 ? Component.translatable("nightsiege.spotter.pause", picked.pause).getString()
+                : Component.translatable("nightsiege.spotter.nopause").getString());
+        int lw = (int) Math.ceil(font.width(line) * 0.7f);
+        panel(gui, (this.width - lw) / 2 - 5, top - 14, (this.width + lw) / 2 + 5, top - 3);
+        small(gui, font, line, (this.width - lw) / 2, top - 11, lineStart != null ? GOLD : LIGHT, 0.7f);
+
+        // The fire bar.
         for (int i = 0; i < data.modes.size(); i++) {
             SpotterData.Mode mode = data.modes.get(i);
-            int sx = left + i * (SLOT_W + SLOT_GAP);
+            int sx = left + i * (w + SLOT_GAP);
             boolean sel = i == selected;
-            gui.fill(sx - 1, top - 1, sx + SLOT_W + 1, top + SLOT_H + 1, sel ? GOLD : LINE);
-            gui.fill(sx, top, sx + SLOT_W, top + SLOT_H, mode.open ? 0xE0181424 : 0xE0101014);
-            gui.item(iconOf(mode.id), sx + 4, top + 4);
-            String name = Component.translatable("nightsiege.mortarmode." + mode.id).getString();
-            small(gui, font, (i + 1) + "  " + name, sx + 23, top + 6, mode.open ? (sel ? GOLD : 0xFFFFFFFF) : GREY, 0.7f);
+            gui.fill(sx - 1, top - 1, sx + w + 1, top + SLOT_H + 1, sel ? GOLD : LINE);
+            gui.fill(sx, top, sx + w, top + SLOT_H, mode.open ? 0xE0181424 : 0xE0101014);
+            gui.pose().pushMatrix();
+            gui.pose().translate(sx + 3, top + 5);
+            gui.pose().scale(0.95f, 0.95f);
+            gui.item(iconOf(mode.id), 0, 0);
+            gui.pose().popMatrix();
+            String name = (i + 1) + " " + Component.translatable("nightsiege.mortarmode." + mode.id).getString();
+            small(gui, font, font.plainSubstrByWidth(name, (int) ((w - 24) / 0.7f)), sx + 22, top + 5,
+                    mode.open ? (sel ? GOLD : 0xFFFFFFFF) : GREY, 0.7f);
             String sub;
             int color;
             long left2 = readyAt[i] - ticks;
@@ -426,18 +513,20 @@ public class SpotterScreen extends Screen {
                 sub = Component.translatable("nightsiege.spotter.wait", (left2 + 19) / 20).getString();
                 color = RED;
                 int h = (int) (SLOT_H * Math.min(1.0, left2 / Math.max(1.0, mode.pause * 20.0)));
-                gui.fill(sx, top + SLOT_H - h, sx + SLOT_W, top + SLOT_H, 0x70000000);
+                gui.fill(sx, top + SLOT_H - h, sx + w, top + SLOT_H, 0x70000000);
             } else {
-                sub = mode.pause > 0 ? Component.translatable("nightsiege.spotter.pause", mode.pause).getString()
-                        : Component.translatable("nightsiege.spotter.nopause").getString();
+                sub = Component.translatable("nightsiege.spotter.ready").getString();
                 color = 0xFF7CD67C;
             }
-            small(gui, font, sub, sx + 23, top + 18, color, 0.6f);
+            small(gui, font, font.plainSubstrByWidth(sub, (int) ((w - 24) / 0.6f)), sx + 22, top + 16, color, 0.6f);
         }
-        String foot = Component.translatable("nightsiege.spotter.foot").getString();
-        int fw = (int) (font.width(foot) * 0.7f);
-        small(gui, font, foot, (this.width - fw) / 2, top + SLOT_H + 6, GREY, 0.7f);
         super.extractRenderState(gui, mouseX, mouseY, delta);
+    }
+
+    /** A dark panel with a thin frame. */
+    private static void panel(GuiGraphicsExtractor gui, int x0, int y0, int x1, int y1) {
+        gui.fill(x0 - 1, y0 - 1, x1 + 1, y1 + 1, LINE);
+        gui.fill(x0, y0, x1, y1, PANEL);
     }
 
     /** A red X of 2-pixel strokes; dimmed while the picked fire still waits. */
@@ -475,5 +564,9 @@ public class SpotterScreen extends Screen {
         camX = x;
         camZ = z;
         zoomH = Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, h));
+        camYv = targetY();
+        oldX = camX;
+        oldY = camYv;
+        oldZ = camZ;
     }
 }

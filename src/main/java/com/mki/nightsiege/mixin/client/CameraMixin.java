@@ -8,6 +8,7 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
  * The demolition expert's bird's-eye view (Simon, 26 October 2026): while it is open the
@@ -18,6 +19,9 @@ public abstract class CameraMixin {
 
     @Shadow
     private boolean detached;
+
+    @Shadow
+    private float fov;
 
     @Shadow
     protected abstract void setRotation(float yRot, float xRot);
@@ -34,5 +38,18 @@ public abstract class CameraMixin {
         this.detached = true;
         this.setRotation(180f, 90f);
         this.setPosition(at[0], at[1], at[2]);
+        // A narrow lens from higher up: almost a map, walls do not lean (27 October 2026).
+        float lens = SpotterScreen.viewFov();
+        if (lens > 0) {
+            this.fov = lens;
+        }
+    }
+
+    @Inject(method = "getFov", at = @At("HEAD"), cancellable = true)
+    private void nightsiege$birdsEyeLens(CallbackInfoReturnable<Float> cir) {
+        float lens = SpotterScreen.viewFov();
+        if (lens > 0) {
+            cir.setReturnValue(lens);
+        }
     }
 }

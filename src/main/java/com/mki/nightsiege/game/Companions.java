@@ -1091,8 +1091,14 @@ public final class Companions {
         int ticks = (int) spellTicks(skills, v("d_soulcatcher", "chainlife", 80), true);
         int amp = (int) Math.round(v("d_soulcatcher", "chainslow", 3));
         Vec3 from = target.position().add(0, target.getBbHeight() * 0.5, 0);
+        // The chain bites too (Simon, 27 October 2026: more damage against groups).
+        float bite = (float) (v("d_soulcatcher", "chaindmg", 4.0) * spellScale(skills, SkillEffect.SOUL_CATCHER));
+        DamageSource source = level.damageSources().playerAttack(player);
         for (LivingEntity e : CombatEffects.enemies(level, target.position(), r, 2.0)) {
             e.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, ticks, amp));
+            if (bite > 0) {
+                spellHurt(level, e, source, bite);
+            }
             rot(e, skills);
             if (e != target) {
                 trail(level, from, e.position().add(0, e.getBbHeight() * 0.5, 0), ParticleTypes.SOUL_FIRE_FLAME, 6);
@@ -1183,6 +1189,24 @@ public final class Companions {
         rot(target, skills);
         level.sendParticles(ParticleTypes.SOUL, target.getX(), target.getY() + target.getBbHeight() * 0.6, target.getZ(),
                 6, 0.2, 0.2, 0.2, 0.02);
+        // The bolt bursts on its target (Simon, 27 October 2026: the way of the dead was weak
+        // against groups): the monsters right next to it take a share.
+        double burst = v("d_raise", "boltsplash", 0.35);
+        if (burst > 0) {
+            double radius = v("d_raise", "boltsplashradius", 2.0);
+            for (LivingEntity near : CombatEffects.enemies(level, target.position(), radius, 2.0)) {
+                if (near == target) {
+                    continue;
+                }
+                float b1 = near.getHealth();
+                near.invulnerableTime = 0;
+                near.hurtServer(level, source, (float) (m.damage * burst));
+                dealt += Math.max(0f, b1 - Math.max(0f, near.getHealth()));
+                rot(near, skills);
+            }
+            level.sendParticles(ParticleTypes.SOUL_FIRE_FLAME, target.getX(), target.getY() + target.getBbHeight() * 0.5,
+                    target.getZ(), 10, radius * 0.4, 0.2, radius * 0.4, 0.02);
+        }
         // Skelettschützen (now): the bolt jumps on to a second monster.
         if (SkillTree.has(skills, "d_archers")) {
             LivingEntity second = null;
@@ -1260,8 +1284,15 @@ public final class Companions {
             }
             ServerPlayer owner = z.level().getServer().getPlayerList().getPlayer(z.owner());
             PlayerSkills skills = owner == null ? null : skillsFor.apply(owner);
+            // The zone eats at the monsters inside once a second (Simon, 27 October 2026).
+            float rot = owner == null || skills == null || now % 20 != 0 ? 0f
+                    : (float) (v("d_necro", "cursedmg", 2.0) * spellScale(skills, SkillEffect.NECRO_POWER));
+            DamageSource source = rot > 0 ? z.level().damageSources().playerAttack(owner) : null;
             for (LivingEntity e : CombatEffects.enemies(z.level(), z.center(), z.radius(), 2.5)) {
                 CURSED.put(e.getUUID(), now + 10);
+                if (rot > 0) {
+                    spellHurt(z.level(), e, source, rot);
+                }
                 e.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 15, (int) Math.round(v("d_necro", "curseslow", 0))));
                 rot(e, skills);
             }

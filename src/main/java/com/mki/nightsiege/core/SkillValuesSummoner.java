@@ -33,8 +33,8 @@ final class SkillValuesSummoner {
         def("s_tamer", "max", 4);                  // most wolves, with every skill
         def("s_golemsmith", "pause", 1200);        // ticks: pause of a golem call with Rudelruf 1
         def("s_golemsmith", "step", 180);          // ticks: shorter for every further level of Rudelruf
-        def("s_golemsmith", "health", 60.0);       // the golem before the skills and the night (vanilla 100)
-        def("s_golemsmith", "damage", 9.0);        // vanilla 15
+        def("s_golemsmith", "health", 80.0);       // the golem before the skills and the night (vanilla 100; 60 until 27 Oct 2026)
+        def("s_golemsmith", "damage", 13.0);       // vanilla 15 (9 until 27 Oct 2026)
         def("s_golemsmith", "tauntradius", 4.0);   // blocks: the golem's mockery on order
         def("s_golemsmith", "taunttime", 60);      // ticks
         def("s_golemsmith", "slam", 6.0);          // ground slam on order, before the skills and the night
@@ -63,6 +63,14 @@ final class SkillValuesSummoner {
         def("s_wild_hunt", "dmg2", 8.0);
         def("s_wild_hunt", "dmg3", 9.0);
         def("s_wild_hunt", "duration", 200);       // ticks
+        // The light way's ultimates summon for 10–15 s: their pause is longer than the other
+        // classes' 25/20/15 s, or they were out nearly all the time (Simon, 27 October 2026).
+        def("s_wild_hunt", "cd1", 900);            // ticks
+        def("s_wild_hunt", "cd2", 800);
+        def("s_wild_hunt", "cd3", 700);
+        def("s_titan", "cd1", 900);
+        def("s_titan", "cd2", 800);
+        def("s_titan", "cd3", 700);
         def("s_wild_hunt", "speed", 0.3);          // share faster
         def("s_titan", "health", 300.0);
         def("s_titan", "duration", 300);           // ticks
@@ -86,6 +94,8 @@ final class SkillValuesSummoner {
         // ----- Way of the dead: soul magic (Simon 26.10.)
         def("d_raise", "bolt", 5.0);               // Seelengeschoss: damage before the levels and the night
         def("d_raise", "boltpause", 20);           // ticks
+        def("d_raise", "boltsplash", 0.35);        // share of the bolt for the monsters next to its target (27 Oct 2026)
+        def("d_raise", "boltsplashradius", 2.0);   // blocks
         def("d_raise", "boltspeed", 1.3);          // blocks per tick
         def("d_raise", "spellpause", 20);          // ticks between two spells
         def("d_raise", "spellrange", 8.0);         // blocks more than the staff for the spells' target
@@ -110,6 +120,7 @@ final class SkillValuesSummoner {
         def("d_necro", "curselife", 120);          // ticks
         def("d_necro", "curseradius", 4.0);        // blocks
         def("d_necro", "curse", 0.25);             // share more damage taken in the zone
+        def("d_necro", "cursedmg", 2.0);           // damage per second in the zone, before the skills and the night (27 Oct 2026)
         def("d_necro", "curseslow", 0);            // Slowness amplifier in the zone (0 = Slowness I)
         def("d_soulcatcher", "swarmcost", 2);      // souls: Geisterschwarm
         def("d_soulcatcher", "ghosts", 3);
@@ -121,6 +132,7 @@ final class SkillValuesSummoner {
         def("d_soulcatcher", "shieldrange", 16.0); // blocks to the teammate looked at
         def("d_soulcatcher", "chaincost", 3);      // souls: Seelenkette
         def("d_soulcatcher", "chainradius", 5.0);  // blocks around the target
+        def("d_soulcatcher", "chaindmg", 4.0);     // damage on every chained monster, before the skills and the night (27 Oct 2026)
         def("d_soulcatcher", "chainlife", 80);     // ticks
         def("d_soulcatcher", "chainslow", 3);      // Slowness amplifier (3 = Slowness IV)
         def("d_archers", "range", 6.0);            // blocks to the second target of the bolt

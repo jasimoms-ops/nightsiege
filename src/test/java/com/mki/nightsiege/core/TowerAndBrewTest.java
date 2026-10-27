@@ -63,4 +63,52 @@ class TowerAndBrewTest {
         assertEquals(400, SkillValues.get("potion_tower", "zonepause", -1), 1e-9);
         assertEquals(300, SkillValues.get("potion_tower", "flashpause", -1), 1e-9);
     }
+
+    @Test
+    void theSeatGuardsAgainstShots() {
+        assertEquals(0.7, SkillValues.get(TrapKind.TURRET.id(), "seatguard", -1), 1e-9);
+        assertEquals(0.7, SkillValues.get(TrapKind.TESLA.id(), "seatguard", -1), 1e-9);
+    }
+
+    /** Simon, 27 October 2026: two of the four salvos, not all four on top of the rings. */
+    @Test
+    void onlyTwoOfTheFourSalvos() {
+        SkillTree tree = new SkillTree();
+        PlayerSkills p = new PlayerSkills();
+        String key = p.addProfile(SkillClass.ENGINEER, SkillTree.SUB_DEMOLITION);
+        p.chosenClass = key;
+        p.points = 10000;
+        for (String id : new String[] {TrapKind.SPIKE.id(), TrapKind.SNARE.id(), "e_detonator", TrapKind.MORTAR.id()}) {
+            p.setLevel(id, 3);
+        }
+        assertEquals(2, SkillTree.salvoLimit());
+        assertNull(tree.blockedReason("e_barrage", p));
+        p.setLevel("e_barrage", 1);
+        assertNull(tree.blockedReason("e_fire_salvo", p));
+        p.setLevel("e_fire_salvo", 1);
+        assertEquals("choice", tree.blockedReason("e_area_fire", p));
+        assertEquals("choice", tree.blockedReason("e_smoke_salvo", p));
+    }
+
+    /**
+     * Simon, 27 October 2026: picking the first class and its subclass opened a second, empty
+     * profile for the subclass while the played one had none, so both ways stood open.
+     */
+    @Test
+    void theFirstClassGetsOneProfileWithItsSubclass() {
+        SkillTree tree = new SkillTree();
+        PlayerSkills p = new PlayerSkills();
+        String key = p.addProfile(SkillClass.ENGINEER, "gunner");
+        p.chosenClass = key;
+        p.points = 10000;
+        assertEquals("ENGINEER", key);
+        assertEquals(1, p.profilesOf(SkillClass.ENGINEER).size());
+        assertEquals("gunner", p.plannedSubclass(p.chosenClass));
+        p.setLevel(TrapKind.SPIKE.id(), 3);
+        p.setLevel(TrapKind.SNARE.id(), 3);
+        assertEquals("subclass_planned", tree.blockedReason("e_detonator", p), "the other way is shut");
+        p.setLevel("e_circuit", 3);
+        assertEquals("subclass_planned", tree.blockedReason(TrapKind.TESLA.id(), p), "the other subclass is shut");
+        assertNull(tree.blockedReason(TrapKind.TURRET.id(), p));
+    }
 }

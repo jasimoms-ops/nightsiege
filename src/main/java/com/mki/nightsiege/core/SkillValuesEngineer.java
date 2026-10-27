@@ -43,6 +43,7 @@ final class SkillValuesEngineer {
         def("arrow_turret", "manned", 1.4);                              // with a gunner in the seat
         def("arrow_turret", "headshot", 2.0);                            // a manned arrow on the head
         def("arrow_turret", "headline", 0.75);                           // share of the height from where the head starts
+        def("arrow_turret", "seatguard", 0.7);                           // share less damage from shots while seated
         tower(TrapKind.TESLA, CAP_TESLA);
         for (int t = 1; t <= 3; t++) {
             def("tesla_coil", "targets" + t, TrapKind.TESLA.baseChainTargets(t));
@@ -55,9 +56,12 @@ final class SkillValuesEngineer {
         // Manned towers (Simon, 26 October 2026): alone 60 %, with a gunner in the seat 140 %.
         def("tesla_coil", "unmanned", 0.6);
         def("tesla_coil", "manned", 1.4);
-        def("tesla_coil", "beampulse", 5);                               // ticks between two beam strikes
-        def("tesla_coil", "beamcost", 2.5);                              // energy per beam strike that hits
+        // Manned it sends single discharges at its own pace again (Simon, 27 October 2026).
+        def("tesla_coil", "boltcost", 0);                                // energy per manned discharge (0 = free)
         def("tesla_coil", "beamrange", 4);                               // blocks more than the coil's own reach
+        def("tesla_coil", "aimgrace", 0.5);                              // blocks of aim help around a monster
+        // In the seat (Simon, 27 October 2026): arrows and other shots take this share less.
+        def("tesla_coil", "seatguard", 0.7);
         tower(TrapKind.MORTAR, CAP_MORTAR);
         for (int t = 1; t <= 3; t++) {
             def("mortar_tower", "splash" + t, TrapKind.MORTAR.baseSplash(t));
@@ -69,6 +73,8 @@ final class SkillValuesEngineer {
         def("mortar_tower", "aimpause", 200);                            // ticks between two new target spots
         def("mortar_tower", "salvo", 3);                                 // shells of the X salvo
         // The bird's-eye view (Simon, 26 October 2026).
+        def("mortar_tower", "salvos", 2);                                // of the four salvos one profile may learn (27 Oct 2026)
+        def("mortar_tower", "salvoreload", 1.0);                         // reloads a salvo shell costs its mortar
         def("mortar_tower", "spotradius", 48);                           // blocks around the core the view may go
         def("e_barrage", "pause", 200);                                  // ticks after a use (10 s)
         def("e_barrage", "shells", 6);
