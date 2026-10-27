@@ -94,7 +94,8 @@ public final class MobFactory {
             return null;
         }
         applyScaling(mob, siegeLevel, cfg, event, elite);
-        equipTool(mob, cfg, random, elite);
+        // No pickaxe or axe any more (Simon, 27 October 2026): monsters get over the wall with
+        // ladders, sapper creepers and the siege machines, not by digging.
         mob.setPersistenceRequired();
         mob.addTag(TAG);
         // A rider from the entry, unless vanilla already seated one.
@@ -173,38 +174,6 @@ public final class MobFactory {
         if (follow != null) {
             follow.setBaseValue(Math.max(follow.getBaseValue(), 72.0));
         }
-    }
-
-    /**
-     * Gives some mobs a tool. Only an armed mob can break blocks later, and the
-     * kind of tool decides which blocks. The champion always carries a pickaxe
-     * so it can always reach the base.
-     */
-    private static void equipTool(Mob mob, SiegeConfig cfg, Random random, boolean elite) {
-        if (!cfg.toolGatedDigging) {
-            return;
-        }
-        // A mob that already holds something keeps it; its own tool counts too.
-        ItemStack held = mob.getItemBySlot(EquipmentSlot.MAINHAND);
-        if (held != null && !held.isEmpty()) {
-            return;
-        }
-        ToolKind kind = elite ? ToolKind.PICKAXE : ToolPicker.pick(random, cfg);
-        if (kind == ToolKind.NONE) {
-            return;
-        }
-        String itemId = ToolPicker.itemId(kind, cfg);
-        Identifier id = Identifier.tryParse(itemId);
-        if (id == null || !BuiltInRegistries.ITEM.containsKey(id)) {
-            return;
-        }
-        Item item = BuiltInRegistries.ITEM.getValue(id);
-        if (item == null) {
-            return;
-        }
-        mob.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(item));
-        // Never drop it, otherwise sieges turn into a tool farm.
-        mob.setDropChance(EquipmentSlot.MAINHAND, 0.0f);
     }
 
     /** Looks for open ground in a ring around the anchor. */

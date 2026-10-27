@@ -1,6 +1,7 @@
 package com.mki.nightsiege.game;
 
 import com.mki.nightsiege.NightSiegeMod;
+import com.mki.nightsiege.core.BlockGuard;
 import com.mki.nightsiege.core.SiegeConfig;
 import com.mki.nightsiege.core.SiegeEvent;
 import com.mki.nightsiege.core.SiegeMachineKind;

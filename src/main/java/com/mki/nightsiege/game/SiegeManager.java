@@ -1758,11 +1758,7 @@ public final class SiegeManager {
             besiegers.tick(world, liveMobs, anchor, world.getGameTime());
         }
 
-        digAccumulator++;
-        if (digAccumulator >= DIG_INTERVAL) {
-            digger.tick(world, new ArrayList<>(liveMobs), anchor, config, digAccumulator);
-            digAccumulator = 0;
-        }
+        // Monsters no longer dig through walls (Simon, 27 October 2026): no pickaxe and axe monsters.
 
         if (bossVictoryAt > 0) {
             return;   // the boss is down: the night ends in a moment, the clock stands

@@ -164,7 +164,7 @@ final class CampLayout {
                     b.put(lx, ly, lz, log.defaultBlockState());
                 }
                 if (post) {
-                    b.put(lx, h, lz, Blocks.GRAY_BANNER.defaultBlockState().setValue(BlockStateProperties.ROTATION_16, 0));
+                    b.put(lx, h, lz, colored("gray_banner").defaultBlockState().setValue(BlockStateProperties.ROTATION_16, 0));
                 } else {
                     b.put(lx, h, lz, Blocks.DARK_OAK_FENCE.defaultBlockState());   // sharpened stakes
                 }
@@ -197,14 +197,14 @@ final class CampLayout {
         // A canvas over the back half (rags in it).
         for (int lx = -3; lx <= 3; lx++) {
             for (int lz = -3; lz <= 0; lz++) {
-                Block cloth = (lx * 7 + lz * 3 & 7) == 0 ? Blocks.BROWN_WOOL : (lx + lz & 1) == 0 ? Blocks.GRAY_WOOL : Blocks.LIGHT_GRAY_WOOL;
+                Block cloth = (lx * 7 + lz * 3 & 7) == 0 ? colored("brown_wool") : (lx + lz & 1) == 0 ? colored("gray_wool") : colored("light_gray_wool");
                 b.put(lx, 5, lz, cloth.defaultBlockState());
             }
         }
-        b.put(-4, 5, -4, Blocks.BLACK_BANNER.defaultBlockState());
-        b.put(4, 5, -4, Blocks.BLACK_BANNER.defaultBlockState());
-        b.put(-4, 5, 4, Blocks.GRAY_BANNER.defaultBlockState().setValue(BlockStateProperties.ROTATION_16, 0));
-        b.put(4, 5, 4, Blocks.GRAY_BANNER.defaultBlockState().setValue(BlockStateProperties.ROTATION_16, 0));
+        b.put(-4, 5, -4, colored("black_banner").defaultBlockState());
+        b.put(4, 5, -4, colored("black_banner").defaultBlockState());
+        b.put(-4, 5, 4, colored("gray_banner").defaultBlockState().setValue(BlockStateProperties.ROTATION_16, 0));
+        b.put(4, 5, 4, colored("gray_banner").defaultBlockState().setValue(BlockStateProperties.ROTATION_16, 0));
         b.put(0, 3, 4, Blocks.LANTERN.defaultBlockState().setValue(BlockStateProperties.HANGING, true));
         b.put(-2, 3, -4, Blocks.LANTERN.defaultBlockState().setValue(BlockStateProperties.HANGING, true));
         b.put(2, 3, -4, Blocks.LANTERN.defaultBlockState().setValue(BlockStateProperties.HANGING, true));
@@ -248,8 +248,8 @@ final class CampLayout {
 
     /** A tent of rags, its opening towards the middle (side +1: east of the workshop, -1: west). */
     private static void tent(Builder b, Random random, int x0, int z0, int side) {
-        Block[] cloth = {Blocks.GRAY_WOOL, Blocks.LIGHT_GRAY_WOOL, Blocks.BROWN_WOOL, Blocks.GRAY_WOOL};
-        Block main = random.nextBoolean() ? Blocks.GRAY_WOOL : Blocks.LIGHT_GRAY_WOOL;
+        Block[] cloth = {colored("gray_wool"), colored("light_gray_wool"), colored("brown_wool"), colored("gray_wool")};
+        Block main = random.nextBoolean() ? colored("gray_wool") : colored("light_gray_wool");
         for (int depth = 0; depth < 5; depth++) {
             int lx = x0 + side * depth;
             Block stripe = depth == 2 ? cloth[random.nextInt(cloth.length)] : main;
@@ -268,8 +268,8 @@ final class CampLayout {
         b.put(x0 - side, 0, z0, Blocks.SPRUCE_FENCE.defaultBlockState());
         b.put(x0 - side, 1, z0, Blocks.SPRUCE_FENCE.defaultBlockState());
         b.put(x0 - side, 2, z0, Blocks.SPRUCE_FENCE.defaultBlockState());
-        b.put(x0 + side, 0, z0 - 1, Blocks.BROWN_CARPET.defaultBlockState());
-        b.put(x0 + side * 2, 0, z0 - 1, Blocks.BROWN_CARPET.defaultBlockState());
+        b.put(x0 + side, 0, z0 - 1, colored("brown_carpet").defaultBlockState());
+        b.put(x0 + side * 2, 0, z0 - 1, colored("brown_carpet").defaultBlockState());
         b.put(x0 + side * 3, 0, z0 + 1, Blocks.BARREL.defaultBlockState().setValue(BlockStateProperties.FACING, Direction.UP));
     }
 
@@ -307,6 +307,13 @@ final class CampLayout {
         b.put(-7, 0, 10, Blocks.IRON_BLOCK.defaultBlockState());
         b.put(-6, 0, 10, Blocks.COBBLESTONE.defaultBlockState());
         b.put(-7, 1, 10, Blocks.COBBLESTONE_SLAB.defaultBlockState());
+    }
+
+    /** A dyed block by its id (the dyed blocks are no single fields any more). */
+    private static Block colored(String id) {
+        Block block = net.minecraft.core.registries.BuiltInRegistries.BLOCK.getValue(
+                net.minecraft.resources.Identifier.withDefaultNamespace(id));
+        return block == null ? Blocks.STONE : block;
     }
 
     private static BlockState axis(Block block, Direction.Axis axis) {
