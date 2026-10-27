@@ -72,6 +72,7 @@ public class EventLookTest implements FabricClientGameTest {
                 ladderTargetScene(context, game, true);
                 innerLadderScene(context, game);
                 ladderOverhangScene(context, game);
+                nightHoldScene(context, game);
                 com.mki.nightsiege.game.TrapService.mortarsAnyTime = true;   // the scenes below test by day
                 mortarScene(context, game);
                 mannedScene(context, game);
@@ -733,6 +734,49 @@ public class EventLookTest implements FabricClientGameTest {
                 net.minecraft.network.chat.Component.translatable("nightsiege.kitweapon.blademaster_saber").getString()));
         System.out.println("[Night Siege test] kit weapons: named=" + named[0]);
         game.getServer().runCommand("clear @p");
+    }
+
+    /**
+     * Simon (27 October 2026): daybreak in the middle of a siege. A test night by day sets dusk on
+     * the same day; during the siege the clock stops at 21500; after it the clock runs again.
+     */
+    private static void nightHoldScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        game.getServer().runCommand("time set 30000");   // day 1, 6000
+        context.waitTicks(5);
+        final long[] t = new long[8];
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.MinecraftServer server = ((net.minecraft.server.level.ServerLevel) player.level()).getServer();
+            t[0] = server.overworld().getOverworldClockTime();
+            manager.ensureNight(server, com.mki.nightsiege.core.SiegeEvent.NONE);
+            t[1] = server.overworld().getOverworldClockTime();
+            manager.config().testPrepSeconds = 1;
+            manager.prepareTest(server, (net.minecraft.server.level.ServerLevel) player.level(),
+                    pos, 2, com.mki.nightsiege.core.SiegeEvent.NONE);
+        });
+        context.waitTicks(50);
+        closeScreen(context);
+        game.getServer().runCommand("time add 8600");   // past 21500, same day
+        context.waitTicks(60);
+        onServer(context, (player, manager) -> {
+            t[2] = player.level().getServer().overworld().getOverworldClockTime();
+            t[5] = manager.isActive() ? 1 : 0;
+        });
+        context.waitTicks(60);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.MinecraftServer server = ((net.minecraft.server.level.ServerLevel) player.level()).getServer();
+            t[3] = server.overworld().getOverworldClockTime();
+            manager.abort(server);
+            manager.config().testPrepSeconds = 60;
+        });
+        context.waitTicks(60);
+        onServer(context, (player, manager) -> t[4] = player.level().getServer().overworld().getOverworldClockTime());
+        System.out.println("[Night Siege test] night hold: day " + t[0] + " -> test " + t[1] + ", held " + t[2] + "/" + t[3]
+                + " (active " + t[5] + "), after " + t[4]);
+        if (t[1] != 24000 + 13000 || t[5] != 1 || t[2] != 24000 + 21500 || t[3] != t[2] || t[4] <= t[3]) {
+            throw new AssertionError("night hold: " + java.util.Arrays.toString(t));
+        }
+        game.getServer().runCommand("time set 6000");
     }
 
     /**

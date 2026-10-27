@@ -465,6 +465,7 @@ public final class SiegeManager {
         reload();
         TempBlocks.init(() -> save, this::persist);
         if (!active) {
+            releaseNight(server);   // the clock stood still when the server went down in a siege
             int left = TempBlocks.clearAll(server);
             if (left > 0) {
                 NightSiegeMod.LOGGER.info("[Night Siege] {} Nacht-Blöcke von einem Absturz aufgeräumt", left);
@@ -597,6 +598,9 @@ public final class SiegeManager {
         if (active) {
             tickSiege(server);
             return;
+        }
+        if (save.clockHeld) {
+            releaseNight(server);   // no siege, no held night
         }
         if (pendingTest != null) {
             tickPreparation(server);
@@ -777,41 +781,84 @@ public final class SiegeManager {
 
     /**
      * Latest clock time a siege night shows (Simon, 27 October 2026: daybreak came in the middle of
-     * long sieges, from level 12 on a siege outlasts the night). Until the siege ends the clock stays
-     * here; the sun rises after it.
+     * long sieges, from level 12 on a siege outlasts the night). There the overworld clock stops
+     * until the siege ends; the sun rises after it. Only the time of day moves, never the day.
      */
     public static final int NIGHT_HOLD = 21500;
     /** Where a test night started by day sets the clock (dusk; dark when the preparation ends). */
     public static final int NIGHT_START = 13000;
 
-    /** Once a second during a siege: the clock does not pass {@link #NIGHT_HOLD} (not in the eclipse, a day event). */
-    private void holdNight(MinecraftServer server) {
-        if (world == null || world.getGameTime() % 20 != 0 || currentEvent == SiegeEvent.ECLIPSE) {
-            return;
-        }
-        int time = clockTime(server);
-        if (time >= NIGHT_HOLD) {
-            setClock(server, NIGHT_HOLD);
+    private static net.minecraft.core.Holder<net.minecraft.world.clock.WorldClock> overworldClock(MinecraftServer server) {
+        try {
+            return server.overworld().dimensionTypeRegistration().value().defaultClock().orElse(null);
+        } catch (RuntimeException e) {
+            return null;
         }
     }
 
-    /** For a test night by day: night first (not for the eclipse, which comes by day). */
+    /** Moves the overworld clock to this time of day on the same day (forwards or back). */
+    private static void setTimeOfDay(MinecraftServer server, int timeOfDay) {
+        net.minecraft.core.Holder<net.minecraft.world.clock.WorldClock> clock = overworldClock(server);
+        if (clock == null) {
+            return;
+        }
+        net.minecraft.world.clock.ServerClockManager clocks = server.clockManager();
+        long total = clocks.getTotalTicks(clock);
+        clocks.setTotalTicks(clock, total - Math.floorMod(total, 24000L) + timeOfDay);
+    }
+
+    /** Once a second during a siege: the clock stops at {@link #NIGHT_HOLD} (not in the eclipse, a day event). */
+    private void holdNight(MinecraftServer server) {
+        if (save.clockHeld || world == null || world.getGameTime() % 20 != 0 || currentEvent == SiegeEvent.ECLIPSE) {
+            return;
+        }
+        int time = clockTime(server);
+        if (time < NIGHT_HOLD) {
+            return;
+        }
+        net.minecraft.core.Holder<net.minecraft.world.clock.WorldClock> clock = overworldClock(server);
+        if (clock == null) {
+            return;
+        }
+        try {
+            setTimeOfDay(server, NIGHT_HOLD);
+            server.clockManager().setPaused(clock, true);
+            save.clockHeld = true;
+            persist();
+            NightSiegeMod.LOGGER.info("[Night Siege] Nacht hält bis zum Ende der Belagerung");
+        } catch (RuntimeException e) {
+            NightSiegeMod.LOGGER.warn("[Night Siege] Uhr anhalten fehlgeschlagen: {}", e.toString());
+        }
+    }
+
+    /** After the siege (and after a crash in the middle of one): the clock runs again. */
+    private void releaseNight(MinecraftServer server) {
+        if (!save.clockHeld || server == null) {
+            return;
+        }
+        save.clockHeld = false;
+        net.minecraft.core.Holder<net.minecraft.world.clock.WorldClock> clock = overworldClock(server);
+        if (clock != null) {
+            try {
+                server.clockManager().setPaused(clock, false);
+            } catch (RuntimeException e) {
+                NightSiegeMod.LOGGER.warn("[Night Siege] Uhr freigeben fehlgeschlagen: {}", e.toString());
+            }
+        }
+    }
+
+    /** For a test night by day: night first, same day (not for the eclipse, which comes by day). */
     public void ensureNight(MinecraftServer server, SiegeEvent event) {
         if (event == SiegeEvent.ECLIPSE) {
             return;
         }
         int time = clockTime(server);
         if (time < 12500 || time >= NIGHT_HOLD) {
-            setClock(server, NIGHT_START);
-        }
-    }
-
-    private static void setClock(MinecraftServer server, int timeOfDay) {
-        try {
-            server.getCommands().performPrefixedCommand(server.createCommandSourceStack().withSuppressedOutput(),
-                    "time set " + timeOfDay);
-        } catch (RuntimeException e) {
-            NightSiegeMod.LOGGER.warn("[Night Siege] Uhrzeit setzen fehlgeschlagen: {}", e.toString());
+            try {
+                setTimeOfDay(server, NIGHT_START);
+            } catch (RuntimeException e) {
+                NightSiegeMod.LOGGER.warn("[Night Siege] Uhrzeit setzen fehlgeschlagen: {}", e.toString());
+            }
         }
     }
 
@@ -2578,6 +2625,7 @@ public final class SiegeManager {
         spawnBlockWorld = null;
         if (world != null) {
             events.end(world.getServer(), world, currentEvent);
+            releaseNight(world.getServer());
         }
         world = null;
         anchor = null;

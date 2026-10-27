@@ -41,6 +41,8 @@ public class SiegeSave {
     public int siegesLost;
     /** Sieges since the last boss fell (-1: not counted yet, set from the sieges played). */
     public int siegesSinceBoss = -1;
+    /** True while a siege holds the overworld clock before dawn (see SiegeManager.holdNight). */
+    public boolean clockHeld;
     /** The bosses still to come before the bag is filled again (ids, see BossKind). */
     public java.util.List<String> bossBag = new java.util.ArrayList<>();
     /** The boss of the last boss night, so the next bag does not start with it. */
