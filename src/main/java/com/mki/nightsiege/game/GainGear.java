@@ -642,6 +642,19 @@ public final class GainGear {
         level.playSound(null, BlockPos.containing(center), SoundEvents.FIRECHARGE_USE, SoundSource.BLOCKS, 1.2f, 0.7f);
     }
 
+    /** Monsters near a spot run away from it for a while and attack nobody (the soulcatcher's fright). */
+    public static int scare(ServerLevel level, Vec3 center, double radius, int ticks) {
+        long until = level.getGameTime() + ticks;
+        int n = 0;
+        for (Mob mob : enemies(level, center, radius)) {
+            mob.setTarget(null);
+            CALM.put(mob.getUUID(), until);
+            FLEE.put(mob.getUUID(), new Away(until, center));
+            n++;
+        }
+        return n;
+    }
+
     /** Lure arrow (archer's second ult): monsters within 8 blocks go for the spot for 5 s. */
     private static void lure(ServerLevel level, Vec3 at, ServerPlayer thrower) {
         long until = level.getGameTime() + 100;

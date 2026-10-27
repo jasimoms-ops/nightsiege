@@ -54,8 +54,9 @@ public final class KeyHints {
             case QUIVER_SHOT -> new KeyMapping[]{GainClient.quiverKey(), o.keyUse};
             case AIR_JUMP -> new KeyMapping[]{o.keyJump};
             case JUMP_ATTACK -> new KeyMapping[]{o.keyJump, o.keyAttack};
-            case USE, USE_BLOCK, PLACE_TRAP, USE_MATE, DRAW, BLOCK, PERFECT_BLOCK,
-                 REMOTE_BOOST, REMOTE_MARK -> new KeyMapping[]{o.keyUse};
+            case USE, USE_BLOCK, PLACE_TRAP, USE_MATE, DRAW, BLOCK, PERFECT_BLOCK -> new KeyMapping[]{o.keyUse};
+            // the remote (27 October 2026): overcharge and mark on Fähigkeit 2, the right click is the tower menu
+            case REMOTE_BOOST, REMOTE_MARK -> new KeyMapping[]{GainClient.orderKey()};
             // the staff's own attack is the left click (27 October 2026)
             case STAFF_ATTACK -> new KeyMapping[]{o.keyAttack};
             // the summoner's staff (26 October 2026): the call, the spells
@@ -64,8 +65,8 @@ public final class KeyHints {
             case USE_MATE_OR_SHIELD, SHIELD_ACTION -> new KeyMapping[]{o.keyUse, o.keyAttack};
             case SNEAK, SNEAK_SHOOT -> new KeyMapping[]{o.keyShift};
             case SNEAK_BLOCK -> new KeyMapping[]{o.keyShift, o.keyUse};
-            case SNEAK_USE, REMOTE_RELOAD, REMOTE_DETONATE, STAFF_X_MINION ->
-                    new KeyMapping[]{GainClient.orderKey()};
+            case SNEAK_USE, REMOTE_DETONATE, STAFF_X_MINION -> new KeyMapping[]{GainClient.orderKey()};
+            case REMOTE_RELOAD -> new KeyMapping[]{o.keyUse};
             // the X key does what sneak + right click did with the remote and the staff (25 October 2026)
             case REMOTE -> new KeyMapping[]{GainClient.orderKey(), o.keyUse, GainClient.secondUltKey()};
             case STAFF -> new KeyMapping[]{GainClient.orderKey(), o.keyUse, o.keyShift, GainClient.quiverKey(), GainClient.secondUltKey(),

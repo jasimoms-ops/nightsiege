@@ -217,7 +217,8 @@ public final class Companions {
 
     /** The spells of the way of the dead: three for each subclass, the G key steps through them. */
     static final List<String> NECRO_SPELLS = List.of("raise", "wall", "curse");
-    static final List<String> CATCHER_SPELLS = List.of("swarm", "shield", "chain");
+    // The soulcatcher's fright (Simon, 27 October 2026): his fourth spell, from the start, 2 souls.
+    static final List<String> CATCHER_SPELLS = List.of("swarm", "shield", "chain", "fear");
 
     /** Monsters that do not come back: they would blow up, poison or fly off. */
     private static final java.util.Set<String> NOT_RAISED = java.util.Set.of(
@@ -567,6 +568,7 @@ public final class Companions {
                 case "swarm" -> "minecraft:soul_lantern";
                 case "shield" -> "minecraft:amethyst_shard";
                 case "chain" -> "minecraft:chain";
+                case "fear" -> "minecraft:ghast_tear";
                 default -> "minecraft:soul_sand";
             };
             o.name = "nightsiege.spell." + id;
@@ -865,6 +867,7 @@ public final class Companions {
             case "swarm" -> (int) Math.round(v("d_soulcatcher", "swarmcost", 2));
             case "shield" -> (int) Math.round(v("d_soulcatcher", "shieldcost", 2));
             case "chain" -> (int) Math.round(v("d_soulcatcher", "chaincost", 3));
+            case "fear" -> (int) Math.round(v("d_soulcatcher", "fearcost", 2));
             default -> 0;
         };
     }
@@ -918,6 +921,7 @@ public final class Companions {
             case "swarm" -> ghostSwarm(level, player, skills);
             case "shield" -> soulShield(level, player, skills);
             case "chain" -> soulChain(level, player, skills);
+            case "fear" -> soulFright(level, player, skills);
             default -> false;
         };
         if (!done) {
@@ -1170,6 +1174,23 @@ public final class Companions {
             }
         }
         level.playSound(null, target.blockPosition(), SoundEvents.CHAIN_PLACE, SoundSource.PLAYERS, 1.2f, 0.6f);
+        return true;
+    }
+
+    /** Schrecken: the monsters around the target flee for a few seconds and attack nobody. */
+    private boolean soulFright(ServerLevel level, ServerPlayer player, PlayerSkills skills) {
+        LivingEntity target = spellTarget(level, player, skills);
+        Vec3 center = target != null ? target.position() : player.position();
+        double r = v("d_soulcatcher", "fearradius", 5.0) + (SkillTree.has(skills, "d_rot") ? bonus(SkillEffect.ROT, skills) : 0.0);
+        int ticks = (int) spellTicks(skills, v("d_soulcatcher", "feartime", 80), true);
+        int scared = GainGear.scare(level, center, r, ticks);
+        if (scared == 0) {
+            CombatEffects.actionBar(player, Component.translatable("nightsiege.msg.staff_no_prey"));
+            return false;
+        }
+        level.sendParticles(ParticleTypes.SOUL, center.x, center.y + 1.0, center.z, 30, r * 0.4, 0.6, r * 0.4, 0.05);
+        level.sendParticles(ParticleTypes.SCULK_SOUL, center.x, center.y + 1.5, center.z, 12, r * 0.3, 0.4, r * 0.3, 0.02);
+        level.playSound(null, BlockPos.containing(center), SoundEvents.GHAST_SCREAM, SoundSource.PLAYERS, 0.9f, 1.4f);
         return true;
     }
 

@@ -19,4 +19,9 @@ public class UltState {
      * defender, or with a class item in hand (27 October 2026).
      */
     public boolean keys;
+    /** The second ultimate from the crate (27 October 2026: its own slot next to the ult). */
+    public boolean has2;
+    public String icon2 = "";
+    public int cooldown2Ticks;
+    public int total2Ticks;
 }

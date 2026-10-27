@@ -13,8 +13,12 @@ public class TrapRecord {
     public int uses;
     /** Broken by chance when it sprang (Simon, 26 October 2026): does nothing until repaired. */
     public boolean broken;
-    /** Arrows loaded, turret only. */
+    /** Shots left in the magazine: arrow turret, mortar and potion thrower (27 October 2026). */
     public int ammo;
+    /** One of the two towers the copper golem looks after (27 October 2026). */
+    public boolean golem;
+    /** Shots the tower shield (crate gain) still blocks for the gunner in the seat. */
+    public int shield;
     /** Game time from which it may fire again. Not worth saving across restarts. */
     public transient long readyAt;
     /** The mortar's target spot, set with the remote (Simon, 25 October 2026); without one it does nothing. */

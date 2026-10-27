@@ -27,9 +27,14 @@ public final class UltHud {
     private UltHud() {
     }
 
+    private static ItemStack icon2 = ItemStack.EMPTY;
+
     public static void update(UltState fresh) {
         if (fresh != null && (state == null || !fresh.icon.equals(state.icon))) {
             icon = iconOf(fresh.icon);
+        }
+        if (fresh != null && (state == null || !fresh.icon2.equals(state.icon2))) {
+            icon2 = iconOf(fresh.icon2);
         }
         state = fresh;
         receivedAt = System.currentTimeMillis();
@@ -37,28 +42,39 @@ public final class UltHud {
 
     public static void draw(GuiGraphicsExtractor gui, KeyMapping key) {
         UltState s = state;
-        if (s == null || !s.has) {
+        if (s == null || (!s.has && !s.has2)) {
             return;
         }
         Minecraft mc = Minecraft.getInstance();
-        Font font = mc.font;
         int width = mc.getWindow().getGuiScaledWidth();
-        int height = mc.getWindow().getGuiScaledHeight();
         int x = width / 2 + 91;
-        int y = height - 23;
+        if (s.has) {
+            slot(gui, mc, x, icon, s.cooldownTicks, s.totalTicks, s.live, key);
+            x += 29;
+        }
+        // The second ultimate from the crate, in a slot of its own (Simon's list, 27 October 2026).
+        if (s.has2) {
+            slot(gui, mc, x, icon2, s.cooldown2Ticks, s.total2Ticks, s.live, GainClient.secondUltKey());
+        }
+    }
 
+    private static void slot(GuiGraphicsExtractor gui, Minecraft mc, int x, ItemStack item, int cooldown, int total,
+                             boolean live, KeyMapping key) {
+        Font font = mc.font;
+        int height = mc.getWindow().getGuiScaledHeight();
+        int y = height - 23;
         gui.blitSprite(RenderPipelines.GUI_TEXTURED, FRAME, x, y, 29, 24);
         int ix = x + 10;
         int iy = height - 19;
-        gui.item(icon, ix, iy);
+        gui.item(item, ix, iy);
 
         long elapsedTicks = (System.currentTimeMillis() - receivedAt) / 50L;
-        long left = Math.max(0L, s.cooldownTicks - elapsedTicks);
-        if (!s.live) {
+        long left = Math.max(0L, cooldown - elapsedTicks);
+        if (!live) {
             gui.fill(ix, iy, ix + 16, iy + 16, 0xA0000000);
-        } else if (left > 0 && s.totalTicks > 0) {
+        } else if (left > 0 && total > 0) {
             // Dark shade shrinking from the top, like an item cooldown.
-            int shade = (int) Math.ceil(16.0 * left / s.totalTicks);
+            int shade = (int) Math.ceil(16.0 * Math.min(1.0, left / (double) total));
             gui.fill(ix, iy + 16 - shade, ix + 16, iy + 16, 0xB0000000);
             String seconds = String.valueOf((left + 19) / 20);
             gui.text(font, seconds, ix + 8 - font.width(seconds) / 2, iy + 4, 0xFFFFFFFF, true);
@@ -66,7 +82,7 @@ public final class UltHud {
 
         // The key to press, above the slot.
         Component label = key == null ? Component.literal("?") : key.getTranslatedKeyMessage();
-        int color = !s.live ? 0xFF808080 : left > 0 ? 0xFFAAAAAA : 0xFFFFD84A;
+        int color = !live ? 0xFF808080 : left > 0 ? 0xFFAAAAAA : 0xFFFFD84A;
         gui.text(font, label, ix + 8 - font.width(label) / 2, y - 10, color, true);
     }
 

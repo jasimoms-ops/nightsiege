@@ -246,6 +246,8 @@ public class SiegeConfig {
     public int[] crateOddsFragment = {30, 30, 22, 13, 5};
     /** Share of class gains against general gains in a crate. */
     public double crateClassShare = 0.7;
+    /** Chance of a second crate for each winner of a night (Simon, 27 October 2026: "Loot-Drop zu selten"). */
+    public double bonusCrateChance = 0.35;
     /** Extra roll of every crate from this level on: an infernite ingot. */
     public int infernitCrateLevel = 20;
     /** Chance of that extra roll (0.05 = 5 %). */
@@ -839,6 +841,10 @@ public class SiegeConfig {
             crateClassShare = 0.7;
         }
         crateClassShare = Math.min(1.0, Math.max(0.0, crateClassShare));
+        if (Double.isNaN(bonusCrateChance)) {
+            bonusCrateChance = 0.35;
+        }
+        bonusCrateChance = Math.min(1.0, Math.max(0.0, bonusCrateChance));
         infernitCrateLevel = clamp(infernitCrateLevel, 1, 1000);
         if (Double.isNaN(infernitCrateChance)) {
             infernitCrateChance = 0.05;

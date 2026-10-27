@@ -66,6 +66,7 @@ public class EventLookTest implements FabricClientGameTest {
                 ladderScene(context, game);
                 ladderTargetScene(context, game, true);
                 innerLadderScene(context, game);
+                com.mki.nightsiege.game.TrapService.mortarsAnyTime = true;   // the scenes below test by day
                 mortarScene(context, game);
                 mannedScene(context, game);
                 alchemistScene(context, game);
@@ -2614,23 +2615,72 @@ public class EventLookTest implements FabricClientGameTest {
             place(level, manager, player, turret, com.mki.nightsiege.core.TrapKind.TURRET);
             place(level, manager, player, mine, com.mki.nightsiege.core.TrapKind.MORTAR);
             place(level, manager, player, mine2, com.mki.nightsiege.core.TrapKind.MORTAR);
-            com.mki.nightsiege.game.RemoteItem.handler.use(player, turret);   // overcharge
-            com.mki.nightsiege.game.RemoteItem.handler.use(player, null);     // mark what is in sight
+            manager.kits().traps().useRemote(player, turret, true);   // Fähigkeit 2: overcharge
+            manager.kits().traps().useRemote(player, null, true);     // Fähigkeit 2: mark what is in sight
         });
         context.waitTicks(6);
         context.takeScreenshot("engineer_remote");
-        onServer(context, (player, manager) -> {
-            player.setShiftKeyDown(true);
-            com.mki.nightsiege.game.RemoteItem.handler.use(player, player.blockPosition().offset(4, 0, 0));
-            player.setShiftKeyDown(false);
-        });
+        onServer(context, (player, manager) -> manager.kits().traps().useRemote(player, player.blockPosition().offset(4, 0, 0), true));
         context.waitTicks(4);
         context.takeScreenshot("engineer_detonate");
+        towerMenuScene(context);
         context.waitTicks(20);
         onServer(context, (player, manager) -> manager.onCoreAction(player, "ult"));
         context.waitTicks(6);
         context.takeScreenshot("engineer_bombardment");
         context.waitTicks(5);
+    }
+
+    /**
+     * The tower menu (Simon, 27 October 2026): a mortar runs empty, the arrow turret breaks;
+     * the right click with the remote shows both, the codes are typed and 3 s later they work.
+     */
+    private static void towerMenuScene(ClientGameTestContext context) {
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            net.minecraft.core.BlockPos at = player.blockPosition();
+            com.mki.nightsiege.game.TrapRecord turret = manager.kits().traps().recordAt(level, at.offset(2, 0, 3));
+            com.mki.nightsiege.game.TrapRecord mortar = manager.kits().traps().recordAt(level, at.offset(4, 0, 0));
+            if (turret != null) {
+                turret.broken = true;
+            }
+            if (mortar != null) {
+                mortar.ammo = 0;
+            }
+            com.mki.nightsiege.game.RemoteItem.handler.use(player, null);   // right click: the tower menu
+        });
+        context.waitTicks(10);
+        context.runOnClient(client -> {
+            boolean open = client.gui.screen() instanceof com.mki.nightsiege.client.TowerMenuScreen;
+            System.out.println("[Night Siege test] towers menu=" + open + " rows="
+                    + (open ? ((com.mki.nightsiege.client.TowerMenuScreen) client.gui.screen()).rows().size() : -1));
+        });
+        context.takeScreenshot("tower_menu");
+        context.runOnClient(client -> {
+            if (client.gui.screen() instanceof com.mki.nightsiege.client.TowerMenuScreen menu) {
+                menu.testShowCode(0);
+            }
+        });
+        context.waitTicks(3);
+        context.takeScreenshot("tower_code");
+        context.runOnClient(client -> {
+            if (client.gui.screen() instanceof com.mki.nightsiege.client.TowerMenuScreen menu) {
+                menu.testFix(0);
+                menu.testFix(1);
+            }
+        });
+        context.waitTicks(20);
+        context.takeScreenshot("tower_working");
+        context.waitTicks(60);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            net.minecraft.core.BlockPos at = player.blockPosition();
+            com.mki.nightsiege.game.TrapRecord turret = manager.kits().traps().recordAt(level, at.offset(2, 0, 3));
+            com.mki.nightsiege.game.TrapRecord mortar = manager.kits().traps().recordAt(level, at.offset(4, 0, 0));
+            System.out.println("[Night Siege test] towers after fix turret broken=" + (turret == null ? "?" : turret.broken)
+                    + " ammo=" + (turret == null ? -1 : turret.ammo) + " mortar ammo=" + (mortar == null ? -1 : mortar.ammo));
+        });
+        closeScreen(context);
     }
 
     /**

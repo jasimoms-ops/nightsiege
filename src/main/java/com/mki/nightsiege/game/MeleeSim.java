@@ -422,7 +422,7 @@ public final class MeleeSim {
         // The engineer overcharges a tower now and then.
         if (clazz == SkillClass.ENGINEER && now >= nextRemote && !TOWERS.isEmpty()) {
             nextRemote = now + 200;
-            RemoteItem.handler.use(player, TOWERS.get((int) ((now / 200) % TOWERS.size())));
+            m.kits().traps().useRemote(player, TOWERS.get((int) ((now / 200) % TOWERS.size())), true);   // overcharge (Fähigkeit 2)
         }
 
         boolean ranged = clazz == SkillClass.ARCHER || clazz == SkillClass.ENGINEER;

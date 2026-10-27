@@ -156,8 +156,9 @@ public final class TrapService {
         TrapRecord record = new TrapRecord(kind.id(), dimension, pos.getX(), pos.getY(), pos.getZ(), owner);
         int tier = tierOf(record);
         record.uses = fullUses(kind, tier, record);
-        record.ammo = kind.startAmmo(tier);
         traps().add(record);
+        record.ammo = magazine(record);
+        record.shield = shieldMax(record);
         dirty = true;
         level.playSound(null, pos, SoundEvents.PISTON_EXTEND, SoundSource.BLOCKS, 0.5f, 1.6f);
     }
@@ -222,8 +223,9 @@ public final class TrapService {
             TrapRecord record = new TrapRecord(kind.id(), dimension, pos.getX(), pos.getY(), pos.getZ(), old.owner);
             int tier = tierOf(record);
             record.uses = fullUses(kind, tier, record);
-            record.ammo = kind.startAmmo(tier);
             traps().add(record);
+            record.ammo = magazine(record);
+            record.shield = shieldMax(record);
             level.sendParticles(ParticleTypes.WAX_ON, pos.getX() + 0.5, pos.getY() + 0.8, pos.getZ() + 0.5, 8, 0.3, 0.2, 0.3, 0);
         }
         recycled.clear();
@@ -386,6 +388,7 @@ public final class TrapService {
     public boolean tick(MinecraftServer server) {
         // The manned towers and the alchemist's clouds want every tick (aim and pulses).
         tickSeats(server);
+        tickFixes(server);
         AlchemyZones.tick(server);
         if (++tickCounter < TICK_INTERVAL) {
             return takeDirty();
@@ -432,6 +435,19 @@ public final class TrapService {
                     level.sendParticles(ParticleTypes.LARGE_SMOKE, c.x, c.y + 0.6, c.z, 4, 0.2, 0.3, 0.2, 0.01);
                     level.sendParticles(new net.minecraft.core.particles.DustParticleOptions(0xFF2020, 1.5f),
                             c.x, c.y + 1.2, c.z, 6, 0.15, 0.4, 0.15, 0.0);
+                }
+                continue;
+            }
+            if (fixes.containsKey(key(record))) {
+                continue;   // under repair or reload: it waits
+            }
+            if (usesAmmo(kind) && record.ammo <= 0) {
+                // Empty: a grey puff every second and a half until it is reloaded.
+                if (now % 30 == 0) {
+                    Vec3 c = Vec3.atCenterOf(pos);
+                    level.sendParticles(ParticleTypes.SMOKE, c.x, c.y + 0.9, c.z, 3, 0.15, 0.1, 0.15, 0.01);
+                    level.sendParticles(new net.minecraft.core.particles.DustParticleOptions(0xFFD040, 1.2f),
+                            c.x, c.y + 1.3, c.z, 4, 0.12, 0.2, 0.12, 0.0);
                 }
                 continue;
             }
@@ -590,8 +606,17 @@ public final class TrapService {
      * The mortar fires steadily onto the spot its engineer set with the remote (X key while
      * looking at a block); without a spot it stays quiet (Simon's playtest, 25 October 2026).
      */
+    /** For the client test: mortars fire outside a siege night too. */
+    public static volatile boolean mortarsAnyTime;
+
     private void tickMortar(ServerLevel level, BlockPos pos, TrapRecord record, int tier, long now) {
         if (!record.aimed) {
+            record.readyAt = now + 20;
+            return;
+        }
+        // Only in the night (Simon's list, 27 October 2026): by day they kept shelling their spot.
+        SiegeManager m = SiegeManager.get();
+        if (!mortarsAnyTime && (m == null || !m.isActive())) {
             record.readyAt = now + 20;
             return;
         }
@@ -601,6 +626,7 @@ public final class TrapService {
             shotLog.accept(String.format(java.util.Locale.ROOT, "mortar fires at %.1f %.1f %.1f", aim.x, aim.y, aim.z));
         }
         lob(level, record, muzzle, aim, KitProjectile.SHELL, tier, 1.0, 1.0);
+        afterShot(level, pos, record);
         level.sendParticles(ParticleTypes.SMOKE, aim.x, aim.y + 0.1, aim.z, 6, 0.4, 0.02, 0.4, 0.0);
         record.readyAt = now + quicker(record, now, slowed(TrapKind.MORTAR, TrapKind.MORTAR.cooldownTicks(tier)));
         dirty = true;
@@ -615,6 +641,7 @@ public final class TrapService {
             return;
         }
         lob(level, record, muzzle, lead(muzzle, target), KitProjectile.BREW, tier, 1.0, 1.0);
+        afterShot(level, pos, record);
         record.readyAt = now + quicker(record, now, TrapKind.BREWER.cooldownTicks(tier));
         dirty = true;
     }
@@ -925,6 +952,7 @@ public final class TrapService {
         double flat = Math.sqrt(dx * dx + dz * dz);
         arrow.shoot(dx, dy + flat * 0.12, dz, 2.4f, 1.5f);
         level.addFreshEntity(arrow);
+        afterShot(level, pos, record);
         playAt(level, pos, SoundEvents.DISPENSER_LAUNCH, 0.8f, 1.3f);
         if (ultOvercharged(record, now)) {
             level.sendParticles(ParticleTypes.ELECTRIC_SPARK, muzzle.x, muzzle.y, muzzle.z, 3, 0.2, 0.2, 0.2, 0.05);
@@ -1030,6 +1058,7 @@ public final class TrapService {
         // Alone it strikes at 60 % (Simon, 26 October 2026): a gunner in the seat does better.
         float damage = (float) (teslaDamage(record, tier, now) * unmanned(TrapKind.TESLA));
         discharge(level, record, tier, now, first, from, damage);
+        afterShot(level, pos, record);
         playAt(level, pos, SoundEvents.LIGHTNING_BOLT_IMPACT, 0.6f, 1.8f);
         record.readyAt = now + teslaCooldown(level, pos, record, tier, now);
     }
@@ -1154,7 +1183,6 @@ public final class TrapService {
      */
     private static final List<Rigs.Piece> TURRET_RIG = List.of(
             Rigs.Piece.yaw("spruce_planks", -0.65, 0.0, -0.65, 1.3, 0.1, 1.3),
-            Rigs.Piece.yaw("red_wool", -0.22, 0.1, -0.3, 0.44, 0.08, 0.44),
             Rigs.Piece.yaw("spruce_planks", -0.66, 0.1, -0.2, 0.08, 0.42, 0.75),
             Rigs.Piece.yaw("spruce_planks", 0.58, 0.1, -0.2, 0.08, 0.42, 0.75),
             Rigs.Piece.yaw("iron_block", -0.67, 0.5, -0.21, 0.1, 0.05, 0.77),
@@ -1162,16 +1190,16 @@ public final class TrapService {
             Rigs.Piece.yaw("dark_oak_log", -0.6, 0.1, -0.62, 0.07, 1.25, 0.07),
             Rigs.Piece.yaw("red_wool", -0.585, 0.88, -1.0, 0.03, 0.42, 0.38),
             Rigs.Piece.yaw("gold_block", -0.59, 0.84, -1.0, 0.04, 0.05, 0.38),
-            Rigs.Piece.aim("stripped_dark_oak_log", -0.06, -0.08, 0.2, 0.12, 0.12, 1.15),
-            Rigs.Piece.aim("dark_oak_planks", -0.5, -0.06, 1.12, 0.44, 0.08, 0.08),
-            Rigs.Piece.aim("dark_oak_planks", 0.06, -0.06, 1.12, 0.44, 0.08, 0.08),
-            Rigs.Piece.aim("dark_oak_planks", -0.78, -0.055, 0.98, 0.3, 0.07, 0.07),
-            Rigs.Piece.aim("dark_oak_planks", 0.48, -0.055, 0.98, 0.3, 0.07, 0.07),
-            Rigs.Piece.aim("white_wool", -0.78, -0.03, 0.97, 1.56, 0.015, 0.015),
-            Rigs.Piece.aim("iron_block", -0.025, 0.04, 0.55, 0.05, 0.05, 0.75),
-            Rigs.Piece.aim("iron_block", -0.05, 0.015, 1.28, 0.1, 0.1, 0.1),
-            Rigs.Piece.aim("iron_block", -0.3, -0.38, 0.62, 0.6, 0.26, 0.04),
-            Rigs.Piece.aim("iron_block", -0.08, -0.3, 0.2, 0.16, 0.22, 0.12));
+            Rigs.Piece.aim("stripped_dark_oak_log", -0.081, -0.108, 0.27, 0.162, 0.162, 1.552),
+            Rigs.Piece.aim("dark_oak_planks", -0.675, -0.081, 1.512, 0.594, 0.108, 0.108),
+            Rigs.Piece.aim("dark_oak_planks", 0.081, -0.081, 1.512, 0.594, 0.108, 0.108),
+            Rigs.Piece.aim("dark_oak_planks", -1.053, -0.074, 1.323, 0.405, 0.095, 0.095),
+            Rigs.Piece.aim("dark_oak_planks", 0.648, -0.074, 1.323, 0.405, 0.095, 0.095),
+            Rigs.Piece.aim("white_wool", -1.053, -0.041, 1.31, 2.106, 0.02, 0.02),
+            Rigs.Piece.aim("iron_block", -0.034, 0.054, 0.743, 0.068, 0.068, 1.013),
+            Rigs.Piece.aim("iron_block", -0.068, 0.02, 1.728, 0.135, 0.135, 0.135),
+            Rigs.Piece.aim("iron_block", -0.405, -0.513, 0.837, 0.81, 0.351, 0.054),
+            Rigs.Piece.aim("iron_block", -0.108, -0.405, 0.27, 0.216, 0.297, 0.162));
 
     /**
      * The manned tesla coil: a copper platform, two coils behind the gunner with glowing tips
@@ -1179,7 +1207,6 @@ public final class TrapService {
      */
     private static final List<Rigs.Piece> TESLA_RIG = List.of(
             Rigs.Piece.yaw("cut_copper", -0.6, 0.0, -0.6, 1.2, 0.1, 1.2),
-            Rigs.Piece.yaw("light_blue_wool", -0.22, 0.1, -0.3, 0.44, 0.08, 0.44),
             Rigs.Piece.yaw("copper_block", -0.58, 0.1, -0.55, 0.18, 0.95, 0.18),
             Rigs.Piece.yaw("copper_block", 0.40, 0.1, -0.55, 0.18, 0.95, 0.18),
             Rigs.Piece.yaw("gold_block", -0.62, 0.3, -0.59, 0.26, 0.04, 0.26),
@@ -1413,7 +1440,11 @@ public final class TrapService {
                     spark(level, Rigs.world(top, yaw, -0.49, 1.17, -0.46), Rigs.world(top, yaw, 0.49, 1.17, -0.46));
                 }
             }
-            if (seat.holding && now >= seat.readyAt) {
+            if (seat.holding && now >= seat.readyAt && !canFire(record)) {
+                seat.readyAt = now + 20;
+                actionBar(player, Component.translatable(record.broken ? "nightsiege.msg.tower_needs_repair"
+                        : "nightsiege.msg.tower_needs_reload"));
+            } else if (seat.holding && now >= seat.readyAt) {
                 int tier = tierOf(record);
                 if (seat.kind == TrapKind.TURRET) {
                     fireManned(level, seat, record, player, tier, now);
@@ -1430,7 +1461,7 @@ public final class TrapService {
         Vec3 eye = gunner.getEyePosition();
         // The bolt leaves the ballista's head and meets the gunner's line of sight 32 blocks out.
         Vec3 pivot = new Vec3(seat.pos.getX() + 0.5, seat.pos.getY() + 1.0 + AIM_HEIGHT, seat.pos.getZ() + 0.5);
-        Vec3 out = pivot.add(look.scale(1.45));
+        Vec3 out = pivot.add(look.scale(1.45 * 1.35));   // the ballista is a third bigger since 27 October 2026
         Vec3 aim = eye.add(look.scale(32.0)).subtract(out);
         Arrow arrow = new Arrow(level, out.x, out.y, out.z, new ItemStack(Items.ARROW), null);
         arrow.entityTags().add("nightsiege_arrow");   // keeps the archer skills off it
@@ -1448,6 +1479,7 @@ public final class TrapService {
         arrow.setOwner(gunner);
         arrow.shoot(aim.x, aim.y, aim.z, 3.2f, 0.5f);
         level.addFreshEntity(arrow);
+        afterShot(level, seat.pos, record);
         MANNED_ARROWS.put(arrow.getUUID(), base);
         level.playSound(null, seat.pos, SoundEvents.ARROW_SHOOT, SoundSource.PLAYERS, 0.9f, 0.7f);
         level.sendParticles(ParticleTypes.CRIT, out.x, out.y, out.z, 3, 0.05, 0.05, 0.05, 0.05);
@@ -1503,6 +1535,7 @@ public final class TrapService {
         }
         float damage = (float) (teslaDamage(record, tier, now) * manned(TrapKind.TESLA));
         discharge(level, record, tier, now, first, from, damage);
+        afterShot(level, seat.pos, record);
         level.sendParticles(ParticleTypes.ELECTRIC_SPARK, first.getX(), first.getY(0.5), first.getZ(), 14, 0.3, 0.5, 0.3, 0.15);
         level.sendParticles(ParticleTypes.END_ROD, from.x, from.y, from.z, 6, 0.1, 0.1, 0.1, 0.05);
         playAt(level, seat.pos, SoundEvents.LIGHTNING_BOLT_IMPACT, 0.7f, 1.6f);
@@ -1936,7 +1969,7 @@ public final class TrapService {
     private boolean fireOne(ServerLevel level, List<TrapRecord> mortars, Vec3 spot, int turn, double damage, String mode) {
         List<TrapRecord> able = new ArrayList<>();
         for (TrapRecord r : mortars) {
-            if (reaches(r, spot)) {
+            if (reaches(r, spot) && canFire(r)) {
                 able.add(r);
             }
         }
@@ -1947,6 +1980,7 @@ public final class TrapService {
         Vec3 muzzle = Vec3.atCenterOf(new BlockPos(r.x, r.y, r.z)).add(0, 0.9, 0);
         int tier = tierOf(r);
         lob(level, r, muzzle, spot, KitProjectile.SHELL, tier, damage, 1.0, mode);
+        afterShot(level, new BlockPos(r.x, r.y, r.z), r);
         // A salvo shell is one of the mortar's own shots (Simon, 27 October 2026): it reloads
         // afterwards, so a salvo steers the fire instead of adding to it.
         double share = SkillValues.get(TrapKind.MORTAR.id(), "salvoreload", 1.0);
@@ -2000,11 +2034,17 @@ public final class TrapService {
             actionBar(player, Component.translatable("nightsiege.msg.remote_engineer_only"));
             return;
         }
+        // The right click (Simon, 27 October 2026): always the tower menu – the state of every
+        // tower and trap, reload and repair them with a code there.
+        if (!second) {
+            openTowerMenu(player, true);
+            return;
+        }
         long now = level.getGameTime();
-        // The alchemist (Simon, 27 October 2026): Fähigkeit 3 picks the potion on its wheel,
-        // Fähigkeit 2 throws it; the right click works as for every engineer (overcharge, mark).
+        // Fähigkeit 2: overcharge a trap (mortar, flame trap and potion thrower also fire at once),
+        // mark a monster, aim the mortars at a block; the alchemist throws his potion zone.
         boolean alchemist = SkillTree.SUB_ALCHEMIST.equals(tree.subclassOf(skills));
-        double range = SkillValues.get("e_longrange", "base", REMOTE_RANGE) + tree.totalBonus(SkillEffect.REMOTE_RANGE, skills);
+        double range = remoteRange(skills);
         BlockPos trapPos = clicked;
         if (trapPos == null || ModContent.trapOf(level.getBlockState(trapPos)) == null) {
             trapPos = null;
@@ -2020,7 +2060,6 @@ public final class TrapService {
             }
         }
         LivingEntity monster = CombatEffects.lookTarget(level, player, range);
-        boolean sneak = second;
         if (trapPos != null && (monster == null
                 || player.getEyePosition().distanceToSqr(Vec3.atCenterOf(trapPos)) <= monster.distanceToSqr(player))) {
             TrapRecord record = find(level, trapPos);
@@ -2029,59 +2068,47 @@ public final class TrapService {
                 return;
             }
             TrapKind kind = TrapKind.byId(record.kind);
-            if (sneak && (kind == TrapKind.MORTAR || kind == TrapKind.FLAME || kind == TrapKind.BREWER)) {
-                // Nothing to fire at: no energy and no "detonated" (balance update, 26 October 2026).
-                String why = detonateBlocked(level, trapPos, record, kind);
-                if (why != null) {
-                    actionBar(player, Component.translatable(why));
-                    return;
-                }
-                double cost = cost(skills, SkillValues.get("e_detonator", "cost", COST_DETONATE)
-                        - SkillValues.get("e_detonator", "save", 4.0) * tree.totalBonus(SkillEffect.DETONATOR, skills));
-                if (pay(player, skills, cost)) {
-                    detonate(level, trapPos, record, kind, skills);
-                    report(player, skills, "nightsiege.msg.remote_detonated");
-                }
-            } else if (sneak && kind == TrapKind.TESLA) {
-                // The tesla coil has no second order; it was told "still full" before.
-                actionBar(player, Component.translatable("nightsiege.msg.remote_tesla_x"));
-            } else if (sneak && kind == TrapKind.TURRET) {
-                // Endless arrows since 26 October 2026: nothing to reload.
-                actionBar(player, Component.translatable("nightsiege.msg.turret_endless"));
-            } else if (sneak) {
-                // X on a worn floor trap repairs it (Simon, 26 October 2026: only repairing, no reloading).
-                double cost = cost(skills, SkillValues.get("e_ammobelt", "reload", COST_RELOAD));
-                if (!canReload(record, kind)) {
-                    actionBar(player, Component.translatable("nightsiege.msg.remote_full"));
-                } else if (pay(player, skills, cost)) {
-                    reload(level, trapPos, record, kind, player);
-                    report(player, skills, "nightsiege.msg.remote_repaired");
-                }
-            } else if (pay(player, skills, overchargeCost(skills, kind))) {
-                boost(level, record, skills, now, 1.0);
-                if (tree.totalBonus(SkillEffect.NETWORK, skills) > 0) {
-                    Vec3 c = Vec3.atCenterOf(trapPos);
-                    double reach = SkillValues.get("e_network", "radius", 6.0);
-                    double share = SkillValues.get("e_network", "share", 0.5);
-                    for (TrapRecord other : traps()) {
-                        if (other != record && other.owner.equals(record.owner) && other.dimension.equals(record.dimension)
-                                && Vec3.atCenterOf(new BlockPos(other.x, other.y, other.z)).distanceToSqr(c) <= reach * reach) {
-                            boost(level, other, skills, now, share);
-                        }
+            if (record.broken) {
+                actionBar(player, Component.translatable("nightsiege.msg.tower_needs_repair"));
+                return;
+            }
+            if (usesAmmo(kind) && record.ammo <= 0) {
+                actionBar(player, Component.translatable("nightsiege.msg.tower_needs_reload"));
+                return;
+            }
+            if (!pay(player, skills, overchargeCost(skills, kind))) {
+                return;
+            }
+            boost(level, record, skills, now, 1.0);
+            if (tree.totalBonus(SkillEffect.NETWORK, skills) > 0) {
+                Vec3 c = Vec3.atCenterOf(trapPos);
+                double reach = SkillValues.get("e_network", "radius", 6.0);
+                double share = SkillValues.get("e_network", "share", 0.5);
+                for (TrapRecord other : traps()) {
+                    if (other != record && other.owner.equals(record.owner) && other.dimension.equals(record.dimension)
+                            && Vec3.atCenterOf(new BlockPos(other.x, other.y, other.z)).distanceToSqr(c) <= reach * reach) {
+                        boost(level, other, skills, now, share);
                     }
                 }
+            }
+            // The old "detonate" is part of the overcharge now: mortar salvo, big throw, flame burst.
+            if ((kind == TrapKind.MORTAR || kind == TrapKind.FLAME || kind == TrapKind.BREWER)
+                    && detonateBlocked(level, trapPos, record, kind) == null) {
+                detonate(level, trapPos, record, kind, skills);
+                if (kind.isTower()) {
+                    afterShot(level, trapPos, record);
+                }
+                report(player, skills, "nightsiege.msg.remote_detonated");
+            } else {
                 report(player, skills, "nightsiege.msg.remote_overcharged");
             }
             return;
         }
-        if (alchemist && sneak) {
+        if (alchemist) {
             throwZone(level, player, skills, now);
             return;
         }
-        if (sneak && aimMortar(level, player, range, now)) {
-            return;
-        }
-        if (monster != null && !sneak) {
+        if (monster != null) {
             if (pay(player, skills, cost(skills, SkillValues.get("e_seeker", "mark", COST_MARK)))) {
                 double bonus = SkillValues.get("e_seeker", "base", 0.15) + tree.totalBonus(SkillEffect.SEEKER, skills);
                 long until = now + Math.round(SkillValues.get("e_seeker", "time", 160));
@@ -2094,7 +2121,365 @@ public final class TrapService {
             }
             return;
         }
+        if (aimMortar(level, player, range, now)) {
+            return;
+        }
         actionBar(player, Component.translatable("nightsiege.msg.remote_no_target"));
+    }
+
+    /** How far the remote reaches (also the tower menu's reach for repairs). */
+    double remoteRange(PlayerSkills skills) {
+        return SkillValues.get("e_longrange", "base", REMOTE_RANGE) + tree.totalBonus(SkillEffect.REMOTE_RANGE, skills);
+    }
+
+    // ------------------------------------------------------------------
+    // tower upkeep (Simon, 27 October 2026): magazines, wear, the tower menu with its codes
+    // ------------------------------------------------------------------
+
+    /** Towers that run empty (the tesla coil only wears). */
+    public static boolean usesAmmo(TrapKind kind) {
+        return kind == TrapKind.TURRET || kind == TrapKind.MORTAR || kind == TrapKind.BREWER;
+    }
+
+    /** Shots in a full tower: about {@code magseconds} (20) seconds of its own fire. */
+    int magazine(TrapRecord record) {
+        TrapKind kind = TrapKind.byId(record.kind);
+        if (kind == null || !usesAmmo(kind)) {
+            return 0;
+        }
+        int tier = tierOf(record);
+        int cd = kind == TrapKind.BREWER ? kind.cooldownTicks(tier) : slowed(kind, kind.cooldownTicks(tier));
+        double seconds = SkillValues.get(kind.id(), "magseconds", 20);
+        double shots = Math.max(3.0, seconds * 20.0 / Math.max(1, cd));
+        if (kind == TrapKind.TURRET && bonus(record, SkillEffect.AMMO_BELT) > 0) {
+            shots *= 1.0 + SkillValues.get("e_ammobelt", "mag", 0.5);   // Munitionsband: a longer belt
+        }
+        return (int) Math.round(shots);
+    }
+
+    /** True when the tower may fire: not broken, not empty, not in the middle of a repair. */
+    boolean canFire(TrapRecord record) {
+        TrapKind kind = TrapKind.byId(record.kind);
+        if (kind == null || record.broken || fixes.containsKey(key(record))) {
+            return false;
+        }
+        return !usesAmmo(kind) || record.ammo > 0;
+    }
+
+    /** Chance of a tower to break when it fires: 5 %, less with fine mechanics. */
+    private double towerBreakChance(TrapRecord record) {
+        TrapKind kind = TrapKind.byId(record.kind);
+        double chance = SkillValues.get(kind == null ? "arrow_turret" : kind.id(), "breakchance", 0.05);
+        double fine = Math.min(0.9, bonus(record, SkillEffect.TRAP_DURABILITY));
+        return chance * (1.0 - fine);
+    }
+
+    /** One shot of a tower: a round out of the magazine, then the chance to break. */
+    void afterShot(ServerLevel level, BlockPos pos, TrapRecord record) {
+        TrapKind kind = TrapKind.byId(record.kind);
+        if (kind == null || !kind.isTower()) {
+            return;
+        }
+        dirty = true;
+        if (usesAmmo(kind)) {
+            record.ammo = Math.max(0, Math.min(record.ammo, magazine(record)) - 1);
+            if (record.ammo == 0) {
+                Vec3 c = Vec3.atCenterOf(pos);
+                level.sendParticles(ParticleTypes.SMOKE, c.x, c.y + 0.8, c.z, 8, 0.2, 0.2, 0.2, 0.01);
+                playAt(level, pos, SoundEvents.DISPENSER_FAIL, 0.9f, 0.8f);
+                tellOwner(level, record, "nightsiege.msg.tower_empty", kind, pos);
+            }
+        }
+        if (!record.broken && level.getRandom().nextDouble() < towerBreakChance(record)) {
+            record.broken = true;
+            level.sendParticles(ParticleTypes.LARGE_SMOKE, pos.getX() + 0.5, pos.getY() + 0.9, pos.getZ() + 0.5, 12, 0.3, 0.2, 0.3, 0.02);
+            playAt(level, pos, SoundEvents.ANVIL_BREAK, 0.6f, 1.4f);
+            tellOwner(level, record, "nightsiege.msg.tower_broken", kind, pos);
+        }
+    }
+
+    /** A short line over the owner's hotbar (towers run empty often: no chat for it). */
+    private void tellOwner(ServerLevel level, TrapRecord record, String key, TrapKind kind, BlockPos pos) {
+        ServerPlayer owner = ownerOf(level, record);
+        if (owner == null) {
+            return;
+        }
+        actionBar(owner, Component.translatable(key, Component.translatable("block.nightsiege." + kind.id()),
+                (int) Math.round(Math.sqrt(owner.distanceToSqr(Vec3.atCenterOf(pos))))));
+        owner.level().playSound(null, owner.blockPosition(), SoundEvents.NOTE_BLOCK_BASS.value(), SoundSource.PLAYERS, 0.6f, 0.7f);
+    }
+
+    /** Every tower full and whole: at the start and at the end of each night. */
+    public void refillAll() {
+        for (TrapRecord record : traps()) {
+            TrapKind kind = TrapKind.byId(record.kind);
+            if (kind == null) {
+                continue;
+            }
+            if (kind.isTower()) {
+                record.broken = false;
+                record.ammo = magazine(record);
+                record.shield = shieldMax(record);
+            }
+        }
+        fixes.clear();
+        dirty = true;
+    }
+
+    /** A repair or reload under way: who does it, when it is done, and what. */
+    private record Fix(UUID player, long doneAt, boolean repair, boolean golem) {
+    }
+
+    /** Trap key → its repair or reload under way. */
+    private final Map<String, Fix> fixes = new HashMap<>();
+
+    /** Ticks a repair or reload takes once the code is in (3 s). */
+    private static long fixTicks() {
+        return Math.round(SkillValues.get("e_longrange", "fixtime", 60));
+    }
+
+    /** What a trap needs: "repair", "reload" or "" (nothing). */
+    private String needOf(TrapRecord record) {
+        TrapKind kind = TrapKind.byId(record.kind);
+        if (kind == null) {
+            return "";
+        }
+        if (record.broken) {
+            return "repair";
+        }
+        if (kind.isFloorPlate()) {
+            return record.uses < fullUses(kind, tierOf(record), record) ? "repair" : "";
+        }
+        return usesAmmo(kind) && record.ammo < magazine(record) ? "reload" : "";
+    }
+
+    /** The right click with the remote: the state of every own trap in this world. */
+    public void openTowerMenu(ServerPlayer player, boolean open) {
+        if (!(player.level() instanceof ServerLevel level)) {
+            return;
+        }
+        PlayerSkills skills = save.get().skillsOf(player.getUUID().toString());
+        com.mki.nightsiege.core.TowerMenuData data = new com.mki.nightsiege.core.TowerMenuData();
+        data.open = open;
+        data.range = (int) Math.round(remoteRange(skills));
+        data.fixSeconds = (int) Math.round(fixTicks() / 20.0);
+        data.reloadArrows = (int) Math.round(SkillValues.get("e_longrange", "reloadcode", 4));
+        data.repairArrows = (int) Math.round(SkillValues.get("e_longrange", "repaircode", 6));
+        data.golem = CrateEffects.gainLevel(player, "kupfergolem") > 0;
+        data.golemMax = (int) Math.round(SkillValues.get("e_longrange", "golemtowers", 2));
+        String owner = player.getUUID().toString();
+        String dim = SiegeManager.dimensionName(level);
+        long now = level.getGameTime();
+        double reach = remoteRange(skills);
+        for (TrapRecord record : traps()) {
+            TrapKind kind = TrapKind.byId(record.kind);
+            if (kind == null || !owner.equals(record.owner) || !dim.equals(record.dimension)) {
+                continue;
+            }
+            com.mki.nightsiege.core.TowerMenuData.Row row = new com.mki.nightsiege.core.TowerMenuData.Row();
+            row.kind = kind.id();
+            row.x = record.x;
+            row.y = record.y;
+            row.z = record.z;
+            double d = Math.sqrt(player.distanceToSqr(Vec3.atCenterOf(new BlockPos(record.x, record.y, record.z))));
+            row.dist = (int) Math.round(d);
+            row.inRange = d <= reach + 0.5 || player.getAbilities().instabuild;
+            row.broken = record.broken;
+            row.mag = magazine(record);
+            row.ammo = Math.min(record.ammo, row.mag);
+            if (kind.isFloorPlate()) {
+                row.fullUses = fullUses(kind, tierOf(record), record);
+                row.uses = Math.min(record.uses, row.fullUses);
+            }
+            Fix fix = fixes.get(key(record));
+            row.working = fix == null ? 0 : (int) Math.max(1, fix.doneAt() - now);
+            row.golem = record.golem;
+            row.need = needOf(record);
+            data.rows.add(row);
+        }
+        data.rows.sort(Comparator.comparingInt((com.mki.nightsiege.core.TowerMenuData.Row r) -> r.need.isEmpty() ? 1 : 0)
+                .thenComparingInt(r -> r.dist));
+        net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(player,
+                new CoreNetworking.ScreenPayload("towers", Json.toJson(data)));
+    }
+
+    /** From the tower menu: "fix:x:y:z" (the code was right) or "golem:x:y:z" (the golem's two towers). */
+    public void onTowerAction(ServerPlayer player, String argument) {
+        if (!(player.level() instanceof ServerLevel level)) {
+            return;
+        }
+        String[] parts = argument.split(":");
+        if (parts.length < 4) {
+            return;
+        }
+        BlockPos pos;
+        try {
+            pos = new BlockPos(Integer.parseInt(parts[1]), Integer.parseInt(parts[2]), Integer.parseInt(parts[3]));
+        } catch (NumberFormatException e) {
+            return;
+        }
+        TrapRecord record = find(level, pos);
+        boolean creative = player.getAbilities().instabuild;
+        if (record == null || (!record.owner.equals(player.getUUID().toString()) && !creative)) {
+            return;
+        }
+        PlayerSkills skills = save.get().skillsOf(player.getUUID().toString());
+        if ("golem".equals(parts[0])) {
+            if (CrateEffects.gainLevel(player, "kupfergolem") <= 0 || !TrapKind.byId(record.kind).isTower()) {
+                return;
+            }
+            if (!record.golem) {
+                int most = (int) Math.round(SkillValues.get("e_longrange", "golemtowers", 2));
+                long have = traps().stream().filter(t -> t.golem && t.owner.equals(record.owner)).count();
+                if (have >= most) {
+                    actionBar(player, Component.translatable("nightsiege.msg.golem_full", most));
+                    openTowerMenu(player, false);
+                    return;
+                }
+            }
+            record.golem = !record.golem;
+            dirty = true;
+            openTowerMenu(player, false);
+            return;
+        }
+        if (!"fix".equals(parts[0])) {
+            return;
+        }
+        String need = needOf(record);
+        double d = Math.sqrt(player.distanceToSqr(Vec3.atCenterOf(pos)));
+        if (need.isEmpty() || fixes.containsKey(key(record)) || (d > remoteRange(skills) + 0.5 && !creative)) {
+            openTowerMenu(player, false);
+            return;
+        }
+        long now = level.getGameTime();
+        long ticks = gainOf(record, "werkzeugtasche") > 0 ? Math.round(fixTicks() * 0.6) : fixTicks();
+        fixes.put(key(record), new Fix(player.getUUID(), now + (creative ? 10 : ticks), "repair".equals(need), false));
+        playAt(level, pos, SoundEvents.SMITHING_TABLE_USE, 0.8f, 1.2f);
+        actionBar(player, Component.translatable("repair".equals(need) ? "nightsiege.msg.tower_repairing"
+                : "nightsiege.msg.tower_reloading", Component.translatable("block.nightsiege." + record.kind), ticks / 20));
+        openTowerMenu(player, false);
+    }
+
+    /** The copper golem starts work on a tower (it stands there for the same 3 s). True when it did. */
+    public boolean startGolemFix(ServerLevel level, BlockPos pos, UUID golem) {
+        TrapRecord record = find(level, pos);
+        if (record == null || needOf(record).isEmpty() || fixes.containsKey(key(record))) {
+            return false;
+        }
+        fixes.put(key(record), new Fix(golem, level.getGameTime() + fixTicks(), "repair".equals(needOf(record)), true));
+        playAt(level, pos, SoundEvents.SMITHING_TABLE_USE, 0.8f, 1.4f);
+        return true;
+    }
+
+    /** The golem's towers that need something, nearest first. */
+    public List<BlockPos> golemWork(ServerLevel level, String owner, Vec3 near) {
+        String dim = SiegeManager.dimensionName(level);
+        List<BlockPos> out = new ArrayList<>();
+        for (TrapRecord record : traps()) {
+            if (record.golem && owner.equals(record.owner) && dim.equals(record.dimension)
+                    && !needOf(record).isEmpty() && !fixes.containsKey(key(record))
+                    && (record.broken || record.ammo <= Math.max(1, magazine(record) / 4))) {
+                out.add(new BlockPos(record.x, record.y, record.z));
+            }
+        }
+        out.sort(Comparator.comparingDouble(p -> near.distanceToSqr(Vec3.atCenterOf(p))));
+        return out;
+    }
+
+    /** True while a fix runs on the tower at this spot. */
+    public boolean fixing(ServerLevel level, BlockPos pos) {
+        TrapRecord record = find(level, pos);
+        return record != null && fixes.containsKey(key(record));
+    }
+
+    /** Every tick: fixes that are done; sparks on the towers under work. */
+    private void tickFixes(MinecraftServer server) {
+        if (fixes.isEmpty()) {
+            return;
+        }
+        for (TrapRecord record : new ArrayList<>(traps())) {
+            Fix fix = fixes.get(key(record));
+            if (fix == null) {
+                continue;
+            }
+            ServerLevel level = SiegeManager.levelByName(server, record.dimension);
+            if (level == null) {
+                continue;
+            }
+            long now = level.getGameTime();
+            BlockPos pos = new BlockPos(record.x, record.y, record.z);
+            if (now % 5 == 0) {
+                level.sendParticles(ParticleTypes.WAX_ON, pos.getX() + 0.5, pos.getY() + 1.0, pos.getZ() + 0.5, 3, 0.3, 0.3, 0.3, 0.0);
+                if (now % 15 == 0) {
+                    playAt(level, pos, SoundEvents.ANVIL_USE, 0.35f, 1.6f);
+                }
+            }
+            if (now < fix.doneAt()) {
+                continue;
+            }
+            fixes.remove(key(record));
+            TrapKind kind = TrapKind.byId(record.kind);
+            if (kind == null) {
+                continue;
+            }
+            record.broken = false;
+            if (kind.isFloorPlate()) {
+                record.uses = fullUses(kind, tierOf(record), record);
+            } else {
+                record.ammo = magazine(record);   // a repair fills the tower too
+                record.shield = shieldMax(record);
+            }
+            record.readyAt = now;
+            dirty = true;
+            level.sendParticles(ParticleTypes.HAPPY_VILLAGER, pos.getX() + 0.5, pos.getY() + 1.1, pos.getZ() + 0.5, 10, 0.3, 0.3, 0.3, 0.0);
+            playAt(level, pos, SoundEvents.CHAIN_PLACE, 0.9f, 1.4f);
+            ServerPlayer worker = server.getPlayerList().getPlayer(fix.player());
+            if (worker != null) {
+                actionBar(worker, Component.translatable(fix.repair() ? "nightsiege.msg.tower_repaired" : "nightsiege.msg.tower_reloaded",
+                        Component.translatable("block.nightsiege." + kind.id())));
+            }
+            ServerPlayer owner = ownerOf(level, record);
+            if (owner != null && fix.golem()) {
+                actionBar(owner, Component.translatable("nightsiege.msg.golem_fixed", Component.translatable("block.nightsiege." + kind.id())));
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // the tower shield (crate gain "turmschild", 27 October 2026)
+    // ------------------------------------------------------------------
+
+    /** Shots the tower shield blocks before it is spent (0 without the gain or for other towers). */
+    int shieldMax(TrapRecord record) {
+        TrapKind kind = TrapKind.byId(record.kind);
+        if (kind != TrapKind.TURRET && kind != TrapKind.TESLA) {
+            return 0;
+        }
+        return gainOf(record, "turmschild") > 0 ? (int) Math.round(SkillValues.get("e_longrange", "shield", 20)) : 0;
+    }
+
+    /**
+     * A shot at a seated gunner: the tower shield takes it whole while it has charges.
+     * True when it was blocked.
+     */
+    public static boolean shieldBlocks(ServerPlayer player) {
+        TrapService service = current;
+        Seat seat = service == null || player == null ? null : service.seatOf.get(player.getUUID());
+        if (seat == null || !(player.level() instanceof ServerLevel level)) {
+            return false;
+        }
+        TrapRecord record = service.find(level, seat.pos);
+        if (record == null || record.shield <= 0) {
+            return false;
+        }
+        record.shield--;
+        service.dirty = true;
+        Vec3 at = player.getEyePosition().subtract(0, 0.3, 0);
+        level.sendParticles(ParticleTypes.ENCHANTED_HIT, at.x, at.y, at.z, 8, 0.35, 0.3, 0.35, 0.1);
+        level.sendParticles(ParticleTypes.END_ROD, at.x, at.y, at.z, 3, 0.4, 0.3, 0.4, 0.01);
+        level.playSound(null, player.blockPosition(), SoundEvents.SHIELD_BLOCK.value(), SoundSource.PLAYERS, 0.8f, 1.3f);
+        actionBar(player, Component.translatable("nightsiege.msg.tower_shield", record.shield, service.shieldMax(record)));
+        return true;
     }
 
     /** Ticks between two changes of a mortar's target spot (built-in; the skill value mortar_tower.aimpause wins). */
@@ -2599,8 +2984,7 @@ public final class TrapService {
     }
 
     private int maxAmmo(TrapRecord record) {
-        int max = TrapKind.TURRET.maxAmmo(tierOf(record));
-        return bonus(record, SkillEffect.AMMO_BELT) > 0 ? (int) Math.round(max * SkillValues.get("e_ammobelt", "ammo", 2.0)) : max;
+        return magazine(record);
     }
 
     /**
@@ -2654,6 +3038,11 @@ public final class TrapService {
             save.get().traps = new ArrayList<>();
         }
         return save.get().traps;
+    }
+
+    /** For the tests: the record of the trap at a spot, or null. */
+    public TrapRecord recordAt(ServerLevel level, BlockPos pos) {
+        return find(level, pos);
     }
 
     private TrapRecord find(ServerLevel level, BlockPos pos) {

@@ -39,6 +39,8 @@ public final class CopperHelper {
 
     /** Engineer → their golem. */
     private static final Map<UUID, UUID> GOLEMS = new HashMap<>();
+    /** Golem → the tower it is working on. */
+    private static final Map<UUID, BlockPos> WORKING = new HashMap<>();
     /** Golem → arrows carried. */
     private static final Map<UUID, Integer> CARRY = new HashMap<>();
     /** Golem → game time of its last free arrows. */
@@ -119,6 +121,33 @@ public final class CopperHelper {
         UUID id = golem.getUUID();
         long now = level.getGameTime();
         Vec3 goal = null;
+        // First its two towers (Simon, 27 October 2026): it walks over, stands there for the
+        // three seconds of the work, and reloads or repairs them like the engineer's code would.
+        if (owner != null) {
+            TrapService traps = SiegeManager.get().kits().traps();
+            BlockPos busy = WORKING.get(id);
+            if (busy != null) {
+                if (traps.fixing(level, busy)) {
+                    golem.lookAt(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.EYES, Vec3.atCenterOf(busy));
+                    return;   // at work
+                }
+                WORKING.remove(id);
+            }
+            List<BlockPos> towers = traps.golemWork(level, owner.getUUID().toString(), golem.position());
+            if (!towers.isEmpty()) {
+                BlockPos tower = towers.get(0);
+                Vec3 spot = Vec3.atBottomCenterOf(tower);
+                double flat = Math.pow(golem.getX() - spot.x, 2) + Math.pow(golem.getZ() - spot.z, 2);
+                if (flat < 6.25) {
+                    if (traps.startGolemFix(level, tower, id)) {
+                        WORKING.put(id, tower);
+                    }
+                    return;
+                }
+                walk(level, golem, spot, owner);
+                return;
+            }
+        }
         if (owner != null && now - FOUND.getOrDefault(id, 0L) >= REPAIR_PAUSE) {
             TrapService traps = SiegeManager.get().kits().traps();
             BlockPos worn = traps.mostWornTrap(level, owner.getUUID().toString(), golem.position(), 24.0);

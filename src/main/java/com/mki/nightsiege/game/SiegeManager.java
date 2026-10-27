@@ -1427,6 +1427,7 @@ public final class SiegeManager {
             }
         }
         killQuota = SiegeMath.killQuota(config.killQuotaShare, plannedWaves(), wantedPerWave());
+        traps.refillAll();   // every tower full and whole at nightfall (27 October 2026)
         bonus.endAurora(server);
         events.begin(server, world, anchor, currentEvent, config);
         for (UUID id : participants) {
@@ -2355,6 +2356,7 @@ public final class SiegeManager {
         secondChanceUsed.clear();
         traps.resetZones();
         traps.resetSpotter();
+        traps.refillAll();
         GainGear.endNight(server);
         traps.recycle(server);
     }
@@ -2779,6 +2781,14 @@ public final class SiegeManager {
             com.mki.nightsiege.core.SkillNode node = isRegistered(player) ? skillTree.ultimateOf(own) : null;
             com.mki.nightsiege.core.UltState state = new com.mki.nightsiege.core.UltState();
             state.keys = (active && participants.contains(player.getUUID())) || ClassGear.holds(player, own, skillTree);
+            String second = SecondUlts.gainFor(own.clazz());
+            if (second != null && own.hasClass() && own.gainStage(own.clazz(), second) > 0) {
+                state.has2 = true;
+                state.icon2 = com.mki.nightsiege.core.CrateGains.icon(second);
+                state.cooldown2Ticks = SecondUlts.secondsLeft(player) * 20;
+                state.total2Ticks = SecondUlts.COOLDOWN_TICKS;
+                state.live = liveSkillsFor(player) != null;
+            }
             if (node != null) {
                 int rank = Math.max(1, own.levelOf(node.id()));
                 state.has = true;
@@ -3153,6 +3163,7 @@ public final class SiegeManager {
             case "jump" -> GainGear.onDoubleJump(player);
             // A manned tower: the attack button pressed (1) or let go (0).
             case "man" -> traps.onManAction(player, "1".equals(argument));
+            case "tower" -> traps.onTowerAction(player, argument);   // the tower menu (27 October 2026)
             // A drone's crossbow: the attack button pressed (1) or let go (0).
             case "drone" -> Drones.onFireButton(player, "1".equals(argument));
             // The alchemist's potion menu: the potion picked.

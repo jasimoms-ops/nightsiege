@@ -153,6 +153,9 @@ public final class GuardianEffects {
         if (tuning != null && victim instanceof ServerPlayer hurt && source.getEntity() instanceof Enemy) {
             outside *= tuning.damageTakenFactor(hurt);
             if (source.is(DamageTypeTags.IS_PROJECTILE)) {
+                if (TrapService.shieldBlocks(hurt)) {
+                    return 0f;   // the tower shield (crate gain) takes the shot whole
+                }
                 outside *= TrapService.seatShotFactor(hurt);   // a gunner in his tower (27 October 2026)
             }
             if ((source.getEntity() instanceof net.minecraft.world.entity.monster.zombie.Zombie

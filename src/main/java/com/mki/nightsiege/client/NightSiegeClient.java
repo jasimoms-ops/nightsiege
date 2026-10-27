@@ -116,6 +116,15 @@ public class NightSiegeClient implements ClientModInitializer {
                         DroneClient.set(payload.json());
                     } else if ("healthview".equals(payload.kind())) {
                         HealthViewClient.set(payload.json());
+                    } else if ("towers".equals(payload.kind())) {
+                        // The engineer's tower menu (27 October 2026): opened by the remote, refreshed after a pick.
+                        com.mki.nightsiege.core.TowerMenuData data =
+                                Json.fromJson(payload.json(), com.mki.nightsiege.core.TowerMenuData.class);
+                        if (client.gui.screen() instanceof TowerMenuScreen open) {
+                            open.refresh(data);
+                        } else if (data != null && data.open && client.player != null) {
+                            client.setScreenAndShow(new TowerMenuScreen(data));
+                        }
                     } else if ("wheel".equals(payload.kind())) {
                         // Fähigkeit 3 held: the wheel (27 October 2026)
                         WheelClient.open(Json.fromJson(payload.json(), com.mki.nightsiege.core.WheelData.class));

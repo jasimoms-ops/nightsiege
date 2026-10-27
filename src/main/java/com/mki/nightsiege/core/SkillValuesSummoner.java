@@ -132,7 +132,10 @@ final class SkillValuesSummoner {
         def("d_soulcatcher", "shieldrange", 16.0); // blocks to the teammate looked at
         def("d_soulcatcher", "chaincost", 3);      // souls: Seelenkette
         def("d_soulcatcher", "chainradius", 5.0);  // blocks around the target
-        def("d_soulcatcher", "chaindmg", 4.0);     // damage on every chained monster, before the skills and the night (27 Oct 2026)
+        def("d_soulcatcher", "chaindmg", 4.0);
+        def("d_soulcatcher", "fearcost", 2);       // souls: Schrecken (27 Oct 2026)
+        def("d_soulcatcher", "fearradius", 5.0);   // blocks around the target
+        def("d_soulcatcher", "feartime", 80);      // ticks the monsters flee     // damage on every chained monster, before the skills and the night (27 Oct 2026)
         def("d_soulcatcher", "chainlife", 80);     // ticks
         def("d_soulcatcher", "chainslow", 3);      // Slowness amplifier (3 = Slowness IV)
         def("d_archers", "range", 6.0);            // blocks to the second target of the bolt

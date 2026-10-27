@@ -101,7 +101,7 @@ public final class CrateGains {
 
         // ---- guardian ----
         SkillClass g = SkillClass.GUARDIAN;
-        add("fester_griff", g, CrateRarity.COMMON, 1, false, "", true);
+        add("fester_griff", g, CrateRarity.RARE, 1, false, "", true);   // rare since 27 October 2026 (Simon: too common)
         add("projektilschutz", g, CrateRarity.COMMON, 1, true, "", true);
         add("verbandskasten", g, CrateRarity.COMMON, 1, false, "", true);
         add("turmschild", g, CrateRarity.UNCOMMON, 1, false, "", true);
@@ -130,7 +130,8 @@ public final class CrateGains {
         add("recycling", e, CrateRarity.RARE, 1, false, "", true);
         add("ueberkapazitaet", e, CrateRarity.EPIC, 1, false, "", true);
         add("tarnfallen", e, CrateRarity.EPIC, 1, false, "", true);
-        add("kupfergolem", e, CrateRarity.EPIC, 1, false, SkillTree.WAY_MECHANICS, true);
+        add("kupfergolem", e, CrateRarity.EPIC, 1, false, "", true);   // both ways since 27 October 2026: it tends two towers
+        add("turmschild", e, CrateRarity.RARE, 1, false, SkillTree.WAY_MECHANICS, true);   // 27 October 2026
         add("magnetfeld", e, CrateRarity.LEGENDARY, 1, false, "", true);
 
         // ---- summoner ----
@@ -188,7 +189,7 @@ public final class CrateGains {
             Map.entry("notfallmine", "minecraft:tnt_minecart"), Map.entry("stahlturm", "minecraft:dispenser"),
             Map.entry("zweite_ladung", "minecraft:repeater"), Map.entry("oelfass", "minecraft:lava_bucket"),
             Map.entry("recycling", "minecraft:hopper"), Map.entry("ueberkapazitaet", "minecraft:ender_chest"),
-            Map.entry("tarnfallen", "minecraft:tinted_glass"), Map.entry("kupfergolem", "minecraft:copper_block"),
+            Map.entry("tarnfallen", "minecraft:tinted_glass"), Map.entry("kupfergolem", "minecraft:copper_block"), Map.entry("turmschild", "minecraft:shield"),
             Map.entry("magnetfeld", "minecraft:lodestone"),
             Map.entry("futterbeutel", "minecraft:beef"), Map.entry("knochenstaub", "minecraft:bone_meal"),
             Map.entry("rueckrufpfeife", "minecraft:lead"), Map.entry("wolfspanzer", "minecraft:wolf_armor"),

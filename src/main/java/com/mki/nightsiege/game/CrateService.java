@@ -107,13 +107,28 @@ public final class CrateService {
         return stack;
     }
 
-    /** After a won night: one crate for every defender, for the class they played. */
+    /**
+     * After a won night: one crate for every defender, for the class they played, and with
+     * the chance {@code bonusCrateChance} a second one (Simon, 27 October 2026).
+     */
     public void award(MinecraftServer server, Set<UUID> defenders, CrateKind kind, int level) {
+        SiegeConfig cfg = config.get();
+        double bonus = cfg == null ? 0.0 : cfg.bonusCrateChance;
         for (UUID id : defenders) {
+            int count = java.util.concurrent.ThreadLocalRandom.current().nextDouble() < bonus ? 2 : 1;
+            for (int i = 0; i < count; i++) {
+                awardOne(server, id, kind, level);
+            }
+        }
+        persist.run();
+    }
+
+    private void awardOne(MinecraftServer server, UUID id, CrateKind kind, int level) {
+        {
             PlayerSkills own = save.get().skillsOf(id.toString());
             SkillClass clazz = own.clazz();
             if (clazz == null) {
-                continue;
+                return;
             }
             ServerPlayer player = server.getPlayerList().getPlayer(id);
             if (player != null) {
@@ -128,7 +143,6 @@ public final class CrateService {
                         .add(clazz.name() + "|" + kind.name() + "|" + level);
             }
         }
-        persist.run();
     }
 
     /** Crates won while the player was away. */
