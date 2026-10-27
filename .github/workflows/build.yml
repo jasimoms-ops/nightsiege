@@ -9,6 +9,10 @@ on:
         description: 'Nur bauen und API-Auszug, ohne Server- und Client-Test'
         type: boolean
         default: false
+      scenes:
+        description: 'Nur diese Client-Szenen (z. B. "camp,machines"), ohne Server-Probelauf und Shader'
+        type: string
+        default: ''
 
 permissions:
   contents: write
@@ -232,7 +236,7 @@ jobs:
       # Registrierung, Rezepte, Tags, Weltgenerierung. Nach einigen Minuten
       # wird der Server einfach beendet.
       - name: Server-Probelauf
-        if: steps.build.outcome == 'success' && !inputs.quick
+        if: steps.build.outcome == 'success' && !inputs.quick && inputs.scenes == ''
         continue-on-error: true
         run: |
           mkdir -p run
@@ -267,6 +271,7 @@ jobs:
         continue-on-error: true
         env:
           COMMIT_MSG: ${{ github.event.head_commit.message }}
+          NIGHTSIEGE_SCENES: ${{ inputs.scenes }}
         run: |
           set +e
           sudo apt-get update -qq > /dev/null
@@ -285,7 +290,7 @@ jobs:
           mkdir -p shots
           find . -path ./shots -prune -o -name "*.png" -path "*screenshot*" -newer build.gradle -print | while read f; do cp "$f" shots/; done
           # Zweiter Lauf mit Iris und Sodium: zuerst das eigene Pack, dann ein fremdes
-          if ls run-mods/*.jar > /dev/null 2>&1 && [[ "$COMMIT_MSG" != *"[noshader]"* ]]; then
+          if ls run-mods/*.jar > /dev/null 2>&1 && [[ "$COMMIT_MSG" != *"[noshader]"* ]] && [[ -z "$NIGHTSIEGE_SCENES" ]]; then
             export NIGHTSIEGE_WITH_IRIS=1
             export NIGHTSIEGE_SHADERPACKS="NightSiege-Photon.zip;$(ls -d $PWD/run-shaderpacks/* 2>/dev/null | tr '\n' ';')"
             timeout 2400 xvfb-run -a -s "-screen 0 1280x720x24" gradle runClientGameTest --no-daemon --stacktrace > client-shader-output.txt 2>&1
@@ -309,7 +314,7 @@ jobs:
           budget = 9
           ladder, seen = [], set()
           for l in text.splitlines():
-              if "[Night Siege test] ladder" in l or "besiegers" in l or "Sprengcreeper" in l or "[Night Siege test] tower" in l or "[Night Siege test] summoner" in l or "[Night Siege test] drone" in l or "[Night Siege test] spotter" in l or "[Night Siege test] alchemist" in l or "[Night Siege test] keys" in l or "[Night Siege test] towers" in l or "[Night Siege test] wheel" in l:
+              if "[Night Siege test] ladder" in l or "besiegers" in l or "Sprengcreeper" in l or "[Night Siege test] tower" in l or "[Night Siege test] summoner" in l or "[Night Siege test] drone" in l or "[Night Siege test] spotter" in l or "[Night Siege test] alchemist" in l or "[Night Siege test] keys" in l or "[Night Siege test] towers" in l or "[Night Siege test] wheel" in l or "[Night Siege test] foes" in l:
                   body = l[l.index("[Night Siege"):].strip()[:200]
                   if body not in seen:
                       seen.add(body)

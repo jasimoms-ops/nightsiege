@@ -41,6 +41,9 @@ public final class MobFactory {
             return true;
         }
         for (String part : entityId.split("\\+")) {
+            if (Foes.isRole(part.trim())) {
+                continue;   // one of the new attackers: a vanilla monster with a job (update 1)
+            }
             Identifier id = Identifier.tryParse(part.trim());
             if (id == null || !BuiltInRegistries.ENTITY_TYPE.containsKey(id)) {
                 return true;
@@ -89,21 +92,31 @@ public final class MobFactory {
             return null;
         }
         String[] parts = entityId.split("\\+");
-        Mob mob = create(world, parts[0].trim(), spot, random);
+        Foes.Role role = Foes.roleOf(parts[0].trim());
+        Mob mob = create(world, role != null ? role.base() : parts[0].trim(), spot, random);
         if (mob == null) {
             return null;
         }
+        if (role != null) {
+            Foes.setUp(mob, role, cfg);   // before the scaling, so the scaling sees its own attributes
+        }
         applyScaling(mob, siegeLevel, cfg, event, elite);
-        equipTool(mob, cfg, random, elite);
+        if (role == null) {
+            equipTool(mob, cfg, random, elite);   // the new attackers carry what their job needs
+        }
         mob.setPersistenceRequired();
         mob.addTag(TAG);
-        // A rider from the entry, unless vanilla already seated one.
+        // The riders from the entry, unless vanilla already seated some ("a+b+c": b and c both
+        // ride a, like the husk and the parched on the camel husk).
         if (parts.length > 1 && mob.getPassengers().isEmpty()) {
-            Mob rider = create(world, parts[1].trim(), spot, random);
-            if (rider != null && !rider.startRiding(mob)) {
-                rider.discard();
+            for (int i = 1; i < parts.length; i++) {
+                Mob rider = create(world, parts[i].trim(), spot, random);
+                if (rider != null && !rider.startRiding(mob)) {
+                    rider.discard();
+                }
             }
         }
+        Foes.armTroop(mob);   // the husk in front of a camel husk carries a spear
         for (Entity passenger : mob.getPassengers()) {
             if (passenger instanceof Mob riding) {
                 applyScaling(riding, siegeLevel, cfg, event, false);

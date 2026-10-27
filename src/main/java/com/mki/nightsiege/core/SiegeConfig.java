@@ -343,6 +343,41 @@ public class SiegeConfig {
     public int sapperHolesPerSide = 3;
     /** Radius of a sapper's crater in blocks (a charged creeper one more). */
     public double sapperBlastRadius = 3.0;
+
+    // Update 1, the new attackers (Simon, 27 October 2026; concept night-siege-update1-gegner-konzept.md)
+    /** Seconds a revenant's corpse lies before it stands up again. */
+    public double revenantRiseSeconds = 5.0;
+    /** Share of its life a revenant gets back when it stands up. */
+    public double revenantRiseHealth = 0.5;
+    /** Tunnelers in one wave at most. */
+    public int tunnelersPerWave = 2;
+    /** Seconds a tunneler is under the ground. */
+    public double tunnelSeconds = 8.0;
+    /** Seconds of dust and knocking before it comes up. */
+    public double tunnelWarnSeconds = 3.0;
+    /** Standard bearers in one wave at most (twice as many from standardBearerTwoFromLevel). */
+    public int standardBearersPerWave = 1;
+    public int standardBearerTwoFromLevel = 15;
+    /** Radius of the banner's aura and what it gives the monsters in it (+20 % speed and damage). */
+    public double standardBearerRadius = 8.0;
+    public double standardBearerBonus = 0.2;
+    /** Grapplers at the same time at most, seconds between two hooks, reach of a hook. */
+    public int grapplersAtOnce = 2;
+    public double grappleSeconds = 15.0;
+    public double grappleRange = 16.0;
+    /** The iron knight: slower by this share, ranged hits (arrows, bolts) keep only this share. */
+    public double ironKnightSlow = 0.25;
+    public double ironKnightRangedShare = 0.2;
+    /** The treasure raider: chance per night from a level on (not in boss nights), seconds before it is gone, chance of a crate. */
+    public double treasureRaiderChance = 0.2;
+    public int treasureRaiderFromLevel = 3;
+    public double treasureRaiderSeconds = 45.0;
+    public double treasureCrateChance = 0.5;
+    /** Experience every defender gets when the treasure holds no crate. */
+    public int treasureXp = 30;
+    /** Defenders cannot hurt each other during a siege (Simon, 27 October 2026). */
+    public boolean nightFriendlyFire = false;
+
     /** Factor on the damage monsters deal to players (1.2 = +20 %, Simon 24 October 2026). */
     public double monsterDamage = 1.2;
     /** Per monster type (entity id), instead of monsterDamage: pillagers stay as they were. */
@@ -385,9 +420,7 @@ public class SiegeConfig {
         map.put("minecraft:cave_spider", "minecraft:spider");
         map.put("minecraft:witch", "minecraft:pillager");
         map.put("minecraft:wither_skeleton", "minecraft:skeleton");
-        map.put("variantsandventures:thicket", "minecraft:zombie");
-        map.put("variantsandventures:gelid", "minecraft:zombie");
-        map.put("variantsandventures:verdant", "minecraft:skeleton");
+        // Thicket, gelid and verdant left the list (update 1, Simon 27 October 2026).
         map.put("friendsandfoes:iceologer", "minecraft:pillager");
         map.put("friendsandfoes:illusioner", "minecraft:pillager");
         return map;
@@ -540,8 +573,58 @@ public class SiegeConfig {
     /** Perks from core fragments work within this many blocks of the main core. */
     public double perkRadius = 64.0;
 
-    /** Raised whenever the default mob list changes, so old config files get the new list. */
-    public static final int CURRENT_MOB_LIST = 2;
+    /**
+     * Raised whenever the default mob list changes, so old config files get the new list.
+     * From list 2 on the change is made in place (see {@link #migrateMobList}), so weights an
+     * admin tuned on the server stay as they are.
+     */
+    public static final int CURRENT_MOB_LIST = 3;
+
+    /** Update 1 (Simon, 27 October 2026): look-alikes that left the waves. */
+    public static final List<String> RETIRED_MOBS = List.of(
+            "variantsandventures:thicket", "variantsandventures:verdant", "variantsandventures:murk",
+            "variantsandventures:gelid", "minecraft:parched", "minecraft:camel_husk+minecraft:husk");
+
+    /** The vanilla camel troop: a husk with a spear in front, a parched behind. */
+    public static final String CAMEL_TROOP = "minecraft:camel_husk+minecraft:husk+minecraft:parched";
+
+    /** Update 1: the new attackers (their own kinds of vanilla monsters, see game.Foes). */
+    public static List<MobEntry> updateOneMobs() {
+        List<MobEntry> list = new ArrayList<>();
+        list.add(new MobEntry("nightsiege:revenant", 2, 8, 0.1));          // in place of thicket and verdant
+        list.add(new MobEntry("nightsiege:tunneler", 3, 4, 0.1));          // in place of murk and gelid; at most 2 a wave
+        list.add(new MobEntry("nightsiege:standard_bearer", 5, 3, 0.1));   // in place of parched; 1 a wave (2 from level 15)
+        list.add(new MobEntry("nightsiege:grappler", 5, 4, 0.2));          // in place of the old camel rider; 2 at a time
+        list.add(new MobEntry(CAMEL_TROOP, 5, 3, 0.2));
+        list.add(new MobEntry("nightsiege:iron_knight", 8, 3, 0.3));
+        return list;
+    }
+
+    /**
+     * Brings a list of version 2 to version 3 in place: the retired look-alikes go, the new
+     * attackers come; every other entry keeps the weights it has (Simon: the axe illagers on
+     * the server stay as they are).
+     */
+    public static void migrateMobList(List<MobEntry> list, Map<String, String> replacements) {
+        if (list == null) {
+            return;
+        }
+        list.removeIf(entry -> entry == null || entry.id == null || RETIRED_MOBS.contains(entry.id.trim()));
+        java.util.Set<String> have = new java.util.HashSet<>();
+        for (MobEntry entry : list) {
+            have.add(entry.id.trim());
+        }
+        for (MobEntry entry : updateOneMobs()) {
+            if (!have.contains(entry.id)) {
+                list.add(entry);
+            }
+        }
+        if (replacements != null) {
+            replacements.remove("variantsandventures:thicket");
+            replacements.remove("variantsandventures:gelid");
+            replacements.remove("variantsandventures:verdant");
+        }
+    }
     /** Version of the mob list in this file. Older lists are replaced on load. */
     public int mobListVersion = 0;
 
@@ -552,31 +635,30 @@ public class SiegeConfig {
      */
     public static List<MobEntry> defaultMobs() {
         List<MobEntry> list = new ArrayList<>();
-        String vv = "variantsandventures:";
         String tap = "takesapillage:";
         String faf = "friendsandfoes:";
         // Level 1: the classics, fading out later.
         list.add(new MobEntry("minecraft:zombie", 1, 20, -1.0));
         list.add(new MobEntry("minecraft:skeleton", 1, 14, -0.6));
-        // Level 2-4: spiders, creepers and the regional variants.
+        // Level 2-4: spiders, creepers, the revenant and the tunneler (update 1, Simon 27 October 2026:
+        // the regional look-alikes of Variants & Ventures left the waves).
         list.add(new MobEntry("minecraft:spider", 2, 10, -0.3));
-        list.add(new MobEntry(vv + "thicket", 2, 6, 0.0));
-        list.add(new MobEntry(vv + "verdant", 2, 6, 0.0));
+        list.add(new MobEntry("nightsiege:revenant", 2, 8, 0.1));
         list.add(new MobEntry("minecraft:creeper", 3, 6, 0.2));
         // Flyers in every night (Simon, 26 October 2026): vexes without an evoker, phantoms; both go for the walls.
         list.add(new MobEntry("minecraft:vex", 3, 2, 0.15));
         list.add(new MobEntry("minecraft:phantom", 3, 2, 0.15));
         list.add(new MobEntry("minecraft:husk", 3, 8, 0.0));
-        list.add(new MobEntry(vv + "murk", 3, 6, 0.1));
-        list.add(new MobEntry(vv + "gelid", 3, 6, 0.1));
+        list.add(new MobEntry("nightsiege:tunneler", 3, 4, 0.1));   // at most 2 a wave
         list.add(new MobEntry("minecraft:stray", 4, 6, 0.1));
         list.add(new MobEntry("minecraft:bogged", 4, 6, 0.1));
         list.add(new MobEntry(tap + "skirmisher", 4, 1, 0.05));   // axe illager: strong, so only a few
         // Level 5-7: the illagers arrive, first riders.
         list.add(new MobEntry("minecraft:pillager", 5, 8, 0.4));
         list.add(new MobEntry(tap + "archer", 5, 6, 0.4));
-        list.add(new MobEntry("minecraft:parched", 5, 5, 0.2));
-        list.add(new MobEntry("minecraft:camel_husk+minecraft:husk", 5, 3, 0.2));
+        list.add(new MobEntry("nightsiege:standard_bearer", 5, 3, 0.1));   // 1 a wave, 2 from level 15
+        list.add(new MobEntry("nightsiege:grappler", 5, 4, 0.2));          // at most 2 at a time
+        list.add(new MobEntry(CAMEL_TROOP, 5, 3, 0.2));
         list.add(new MobEntry("minecraft:cave_spider", 6, 4, 0.0));
         list.add(new MobEntry("minecraft:spider+minecraft:skeleton", 6, 3, 0.2));
         list.add(new MobEntry("minecraft:vindicator", 6, 1, 0.05));   // axe illager: strong, so only a few
@@ -587,6 +669,7 @@ public class SiegeConfig {
         // Level 8-10: casters and wither skeletons.
         list.add(new MobEntry(faf + "iceologer", 8, 1, 0.1));   // rare (Simon, 27 October 2026)
         list.add(new MobEntry(faf + "illusioner", 8, 3, 0.4));
+        list.add(new MobEntry("nightsiege:iron_knight", 8, 3, 0.3));
         list.add(new MobEntry("minecraft:wither_skeleton", 8, 4, 0.5));
         list.add(new MobEntry("minecraft:evoker", 10, 2, 0.4));
         // Level 11+: ravagers with riders and the wildfire.
@@ -870,6 +953,25 @@ public class SiegeConfig {
         sapperMaxPerWave = clamp(sapperMaxPerWave <= 0 ? 4 : sapperMaxPerWave, 1, 20);
         sapperHolesPerSide = clamp(sapperHolesPerSide <= 0 ? 3 : sapperHolesPerSide, 1, 20);
         sapperBlastRadius = Double.isNaN(sapperBlastRadius) || sapperBlastRadius <= 0 ? 3.0 : Math.min(8.0, sapperBlastRadius);
+        revenantRiseSeconds = Double.isNaN(revenantRiseSeconds) ? 5.0 : clampDouble(revenantRiseSeconds, 1.0, 60.0);
+        revenantRiseHealth = Double.isNaN(revenantRiseHealth) ? 0.5 : clampDouble(revenantRiseHealth, 0.05, 1.0);
+        tunnelersPerWave = clamp(tunnelersPerWave, 0, 20);
+        tunnelSeconds = Double.isNaN(tunnelSeconds) ? 8.0 : clampDouble(tunnelSeconds, 2.0, 60.0);
+        tunnelWarnSeconds = Double.isNaN(tunnelWarnSeconds) ? 3.0 : clampDouble(tunnelWarnSeconds, 0.5, tunnelSeconds);
+        standardBearersPerWave = clamp(standardBearersPerWave, 0, 20);
+        standardBearerTwoFromLevel = clamp(standardBearerTwoFromLevel, 1, 1000);
+        standardBearerRadius = Double.isNaN(standardBearerRadius) ? 8.0 : clampDouble(standardBearerRadius, 2.0, 32.0);
+        standardBearerBonus = Double.isNaN(standardBearerBonus) ? 0.2 : clampDouble(standardBearerBonus, 0.0, 2.0);
+        grapplersAtOnce = clamp(grapplersAtOnce, 0, 20);
+        grappleSeconds = Double.isNaN(grappleSeconds) ? 15.0 : clampDouble(grappleSeconds, 3.0, 120.0);
+        grappleRange = Double.isNaN(grappleRange) ? 16.0 : clampDouble(grappleRange, 4.0, 48.0);
+        ironKnightSlow = Double.isNaN(ironKnightSlow) ? 0.25 : clampDouble(ironKnightSlow, 0.0, 0.9);
+        ironKnightRangedShare = Double.isNaN(ironKnightRangedShare) ? 0.2 : clampDouble(ironKnightRangedShare, 0.0, 1.0);
+        treasureRaiderChance = Double.isNaN(treasureRaiderChance) ? 0.2 : clampDouble(treasureRaiderChance, 0.0, 1.0);
+        treasureRaiderFromLevel = clamp(treasureRaiderFromLevel, 1, 1000);
+        treasureRaiderSeconds = Double.isNaN(treasureRaiderSeconds) ? 45.0 : clampDouble(treasureRaiderSeconds, 10.0, 600.0);
+        treasureCrateChance = Double.isNaN(treasureCrateChance) ? 0.5 : clampDouble(treasureCrateChance, 0.0, 1.0);
+        treasureXp = clamp(treasureXp, 0, 10000);
         if (companionSettingsVersion < 1) {
             // Simon 26.10.: monsters turn on companions only within 3 blocks and for 3 s.
             if (companionTauntRadius == 6.0) {
@@ -959,7 +1061,11 @@ public class SiegeConfig {
         }
         dungeons.removeIf(d -> d == null || d.key == null || d.key.isBlank() || d.structure == null);
         perkRadius = clampDouble(perkRadius, 8.0, 512.0);
-        if (mobListVersion < CURRENT_MOB_LIST) {
+        if (mobListVersion == 2) {
+            // Update 1 (27 October 2026): in place, so the weights tuned on the server stay.
+            migrateMobList(mobs, effectMobReplacements);
+            mobListVersion = CURRENT_MOB_LIST;
+        } else if (mobListVersion < CURRENT_MOB_LIST) {
             mobs = defaultMobs();
             mobListVersion = CURRENT_MOB_LIST;
         }

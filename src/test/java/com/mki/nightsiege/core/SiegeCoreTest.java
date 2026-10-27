@@ -1583,6 +1583,52 @@ class SiegeCoreTest {
     }
 
     @Test
+    void updateOneSwapsTheLookalikesForTheNewAttackersAndKeepsTunedWeights() {
+        SiegeConfig old = new SiegeConfig();
+        old.settingsVersion = 13;
+        old.mobListVersion = 2;
+        old.mobs = new java.util.ArrayList<>(List.of(
+                new MobEntry("minecraft:zombie", 1, 20, -1.0),
+                new MobEntry("takesapillage:skirmisher", 4, 12, 0.36),
+                new MobEntry("variantsandventures:thicket", 2, 6, 0.0),
+                new MobEntry("variantsandventures:verdant", 2, 6, 0.0),
+                new MobEntry("variantsandventures:murk", 3, 6, 0.1),
+                new MobEntry("variantsandventures:gelid", 3, 6, 0.1),
+                new MobEntry("minecraft:parched", 5, 5, 0.2),
+                new MobEntry("minecraft:camel_husk+minecraft:husk", 5, 3, 0.2)));
+        old.effectMobReplacements.put("variantsandventures:thicket", "minecraft:zombie");
+        old.sanitize();
+        assertEquals(SiegeConfig.CURRENT_MOB_LIST, old.mobListVersion);
+        for (SiegeConfig cfg : List.of(old, freshConfig())) {
+            java.util.Set<String> ids = new java.util.HashSet<>();
+            for (MobEntry e : cfg.mobs) {
+                ids.add(e.id);
+            }
+            for (String gone : SiegeConfig.RETIRED_MOBS) {
+                assertFalse(ids.contains(gone), gone);
+            }
+            for (String added : List.of("nightsiege:revenant", "nightsiege:tunneler", "nightsiege:standard_bearer",
+                    "nightsiege:grappler", "nightsiege:iron_knight", SiegeConfig.CAMEL_TROOP)) {
+                assertTrue(ids.contains(added), added);
+            }
+            assertFalse(ids.contains("nightsiege:treasure_raider"));   // it comes on its own, not with the waves
+            assertFalse(cfg.effectMobReplacements.containsKey("variantsandventures:thicket"));
+        }
+        // The axe illagers tuned on the server stay as they are (Simon, 27 October 2026).
+        MobEntry skirmisher = old.mobs.stream().filter(e -> e.id.equals("takesapillage:skirmisher")).findFirst().orElseThrow();
+        assertEquals(12, skirmisher.weight);
+        assertEquals(0.36, skirmisher.weightPerLevel, 1e-9);
+        // The camel troop at low levels: plain zombie and skeleton on the camel husk.
+        assertEquals("minecraft:camel_husk+minecraft:zombie+minecraft:skeleton", old.withoutEffects(SiegeConfig.CAMEL_TROOP));
+    }
+
+    private static SiegeConfig freshConfig() {
+        SiegeConfig fresh = new SiegeConfig();
+        fresh.sanitize();
+        return fresh;
+    }
+
+    @Test
     void anOldConfigGetsTheNewMobList() {
         SiegeConfig old = new SiegeConfig();
         old.mobListVersion = 1;

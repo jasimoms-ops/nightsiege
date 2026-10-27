@@ -90,6 +90,7 @@ public final class ModContent {
         DungeonContent.register();
         CrateService.registerItem();
         KitProjectile.register();
+        FoeEggs.register();   // spawn eggs of the new attackers (update 1, creative)
 
         // Everything the mod adds lives on its own creative page.
         ResourceKey<CreativeModeTab> tabKey = ResourceKey.create(Registries.CREATIVE_MODE_TAB, id("general"));
@@ -114,6 +115,9 @@ public final class ModContent {
                         if (!c.isShared()) {
                             output.accept(CrateService.crate(c, com.mki.nightsiege.core.CrateKind.NORMAL, 10));
                         }
+                    }
+                    for (Item egg : FoeEggs.all()) {
+                        output.accept(egg);
                     }
                 })
                 .build();
