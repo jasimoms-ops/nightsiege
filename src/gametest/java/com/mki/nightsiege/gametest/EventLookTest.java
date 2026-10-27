@@ -3175,13 +3175,14 @@ public class EventLookTest implements FabricClientGameTest {
                     + " returned=" + manager.raid().returned + " stormed=" + manager.raid().stormed);
             raidCensus("waiting", (net.minecraft.server.level.ServerLevel) player.level(), manager, cx, cz);
         });
-        // A look at them from the wall, towards where they came from.
+        // A look at them from above the wall, towards where they came from.
+        game.getServer().runCommand("effect give @p minecraft:night_vision 600 0 true");
         if (!Double.isNaN(main[0])) {
-            int lx = cx + (int) Math.round(Math.cos(main[0]) * 22);
-            int lz = cz + (int) Math.round(Math.sin(main[0]) * 22);
-            int ex = cx + (int) Math.round(Math.cos(main[0]) * (r - 1));
-            int ez = cz + (int) Math.round(Math.sin(main[0]) * (r - 1));
-            game.getServer().runCommand("tp @p %d.5 %d %d.5 facing %d.5 %d %d.5".formatted(ex, cy + 9, ez, lx, cy, lz));
+            int lx = cx + (int) Math.round(Math.cos(main[0]) * (r + 12));
+            int lz = cz + 5 + (int) Math.round(Math.sin(main[0]) * (r + 12));
+            int ex = cx + (int) Math.round(Math.cos(main[0]) * (r - 4));
+            int ez = cz + 5 + (int) Math.round(Math.sin(main[0]) * (r - 4));
+            game.getServer().runCommand("tp @p %d.5 %d %d.5 facing %d.5 %d %d.5".formatted(ex, cy + 16, ez, lx, cy, lz));
         }
         context.runOnClient(client -> hud(client, false));
         context.waitTicks(40);
@@ -3213,9 +3214,11 @@ public class EventLookTest implements FabricClientGameTest {
             raidCensus("hole", (net.minecraft.server.level.ServerLevel) player.level(), manager, cx, cz);
         });
         if (!Double.isNaN(main[0])) {
-            int ex = cx + (int) Math.round(Math.cos(main[0]) * (r - 4));
-            int ez = cz + (int) Math.round(Math.sin(main[0]) * (r - 4));
-            game.getServer().runCommand("tp @p %d.5 %d %d.5 facing %d.5 %d %d.5".formatted(cx, cy + 10, cz - 6, ex, cy, ez));
+            int ex = cx + (int) Math.round(Math.cos(main[0]) * (r + 2));
+            int ez = cz + 5 + (int) Math.round(Math.sin(main[0]) * (r + 2));
+            int vx = cx - (int) Math.round(Math.cos(main[0]) * 4);
+            int vz = cz + 5 - (int) Math.round(Math.sin(main[0]) * 4);
+            game.getServer().runCommand("tp @p %d.5 %d %d.5 facing %d.5 %d %d.5".formatted(vx, cy + 14, vz, ex, cy, ez));
         }
         context.runOnClient(client -> hud(client, false));
         context.waitTicks(30);
