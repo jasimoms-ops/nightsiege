@@ -93,7 +93,7 @@ public final class UltHud {
         for (Cell c : cells) {
             widest = Math.max(widest, (int) Math.ceil(font.width(c.name() + "  99s") * TEXT));
         }
-        int blockW = Math.min(right - 4, textX + widest + 4);
+        int blockW = Math.min(right - 2, textX + widest + 4);
         int nameRoom = Math.max(20, blockW - textX - 4);
         int x0 = right - blockW;
         int y0 = height - 3 - cells.size() * row;
@@ -129,7 +129,7 @@ public final class UltHud {
                 gui.fill(ix, iy + ICON - shade, ix + ICON, iy + ICON, 0xB0000000);
             }
             // The name, and the seconds still to wait.
-            String name = font.plainSubstrByWidth(c.name(), (int) (nameRoom / TEXT) - font.width(" 99s"));
+            String name = font.plainSubstrByWidth(c.name(), (int) (nameRoom / TEXT) - (waiting ? font.width(" 99s") : 0));
             int nameColor = !s.live ? 0xFF808080 : waiting ? 0xFFAAAAAA : c.current() ? PurpleUi.GOLD : 0xFFFFFFFF;
             small(gui, font, name, x0 + textX, y + (row - 7) / 2, nameColor);
             if (waiting) {
