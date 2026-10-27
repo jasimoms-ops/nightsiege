@@ -623,7 +623,8 @@ public final class CombatEffects {
                 }
             }
             if (source.getDirectEntity() instanceof AbstractArrow shot
-                    && (shot.entityTags().contains(TrapService.TAG_CHARGED) || shot.entityTags().contains(TrapService.TAG_BLAST))) {
+                    && (shot.entityTags().contains(TrapService.TAG_CHARGED) || shot.entityTags().contains(TrapService.TAG_BLAST))
+                    && handledHits.add(turretKey(shot, victim))) {
                 dealingBonus = true;
                 try {
                     traps.onTurretArrowHit(level, victim, shot, player, taken);
@@ -969,9 +970,52 @@ public final class CombatEffects {
         return true;
     }
 
+    /** (arrow id, victim id) pairs whose hit was handled, so a killing hit is not handled twice. */
+    private final java.util.Set<Long> handledHits = new java.util.HashSet<>();
+
+    /**
+     * A bolt or arrow that kills still does what it does on a hit (Simon, 27 October 2026: explosive
+     * bolts did not blow when they killed and flew on). Fabric's AFTER_DAMAGE leaves out killing
+     * hits, so this comes from the death of the monster.
+     */
+    public void afterKillingHit(LivingEntity victim, DamageSource source) {
+        if (dealingBonus || !(victim.level() instanceof ServerLevel level) || !(victim instanceof Enemy)
+                || !(source.getEntity() instanceof ServerPlayer player) || !(source.getDirectEntity() instanceof AbstractArrow arrow)) {
+            return;
+        }
+        PlayerSkills skills = skillsFor.apply(player);
+        // What the hit did, about: the arrow's damage at its speed, at most the monster's life.
+        float taken = (float) Math.min(victim.getMaxHealth(),
+                Math.max(1.0, arrow.getBaseDamage() * arrow.getDeltaMovement().length()));
+        if (skills != null) {
+            arrowHit(level, player, skills, victim, arrow, taken, level.getGameTime());
+        }
+        // Charged and blasting turret bolts too.
+        if ((arrow.entityTags().contains(TrapService.TAG_CHARGED) || arrow.entityTags().contains(TrapService.TAG_BLAST))
+                && handledHits.add(turretKey(arrow, victim))) {
+            dealingBonus = true;
+            try {
+                traps.onTurretArrowHit(level, victim, arrow, player, taken);
+            } finally {
+                dealingBonus = false;
+            }
+        }
+    }
+
+    private static long turretKey(AbstractArrow arrow, LivingEntity victim) {
+        return (((long) arrow.getId() << 32) ^ (victim.getId() & 0xffffffffL)) ^ 0x4000000000000000L;
+    }
+
     /** Returns the extra damage of an arrow or bolt hit; side effects are applied here. */
     private double arrowHit(ServerLevel level, ServerPlayer player, PlayerSkills skills,
                             LivingEntity victim, AbstractArrow arrow, float taken, long now) {
+        long key = ((long) arrow.getId() << 32) ^ (victim.getId() & 0xffffffffL);
+        if (handledHits.size() > 2048) {
+            handledHits.clear();
+        }
+        if (!handledHits.add(key)) {
+            return 0.0;
+        }
         ItemStack weapon = arrow.getWeaponItem();
         boolean crossbow = weapon != null && weapon.getItem() instanceof net.minecraft.world.item.CrossbowItem;
         boolean bow = weapon != null && weapon.getItem() instanceof net.minecraft.world.item.BowItem;

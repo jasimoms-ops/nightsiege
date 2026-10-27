@@ -2705,6 +2705,9 @@ public final class SiegeManager {
 
     /** Takes Object so the handler keeps compiling across Fabric API versions. */
     private void onDeath(Object entity, net.minecraft.world.damagesource.DamageSource source) {
+        if (entity instanceof LivingEntity dead) {
+            safe("Todestreffer", () -> combat.afterKillingHit(dead, source));
+        }
         if (active && entity instanceof Mob killed && liveMobs.contains(killed.getUUID())) {
             nightKills++;
             // A monster of the night can be raised by a summoner of the dead; souls for those near.
