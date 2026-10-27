@@ -743,6 +743,9 @@ public class EventLookTest implements FabricClientGameTest {
      */
     private static void nightHoldScene(ClientGameTestContext context, TestSingleplayerContext game) {
         BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        // The test world stands still (no daylight cycle); here the clock must run.
+        game.getServer().runCommand("gamerule advance_time true");
+        game.getServer().runCommand("gamerule doDaylightCycle true");
         game.getServer().runCommand("time set 30000");   // day 1, 6000
         context.waitTicks(5);
         final long[] t = new long[8];
@@ -771,11 +774,16 @@ public class EventLookTest implements FabricClientGameTest {
             manager.config().testPrepSeconds = 60;
         });
         context.waitTicks(60);
-        onServer(context, (player, manager) -> t[4] = player.level().getServer().overworld().getOverworldClockTime());
+        onServer(context, (player, manager) -> {
+            t[4] = player.level().getServer().overworld().getOverworldClockTime();
+            t[6] = manager.save().clockHeld ? 1 : 0;
+        });
         context.waitTicks(5);
         System.out.println("[Night Siege test] night hold: day " + t[0] + " -> test " + t[1] + ", held " + t[2] + "/" + t[3]
                 + " (active " + t[5] + "), after " + t[4]);
-        if (t[1] != 24000 + 13000 || t[5] != 1 || t[2] != 24000 + 21500 || t[3] != t[2] || t[4] <= t[3]) {
+        game.getServer().runCommand("gamerule advance_time false");
+        game.getServer().runCommand("gamerule doDaylightCycle false");
+        if (t[1] != 24000 + 13000 || t[5] != 1 || t[2] != 24000 + 21500 || t[3] != t[2] || t[4] <= t[3] || t[6] != 0) {
             throw new AssertionError("night hold: " + java.util.Arrays.toString(t));
         }
         game.getServer().runCommand("time set 6000");
