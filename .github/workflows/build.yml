@@ -284,8 +284,13 @@ jobs:
             export NIGHTSIEGE_SIM="1 $SIMARG"
             CLIENT_TIMEOUT=12000
           fi
+          # Shortly before the time is up: a thread dump of the game (shows where a hang sits).
+          ( sleep $((CLIENT_TIMEOUT - 60)); for p in $(pgrep -f "KnotClient|net.fabricmc.devlaunchinjector" || true); do echo "THREADDUMP $p" >> client-threads.txt; jstack "$p" >> client-threads.txt 2>&1 || true; done ) &
+          DUMPER=$!
           timeout $CLIENT_TIMEOUT xvfb-run -a -s "-screen 0 1280x720x24" gradle runClientGameTest --no-daemon --stacktrace > client-output.txt 2>&1
           echo "exit=$?" >> client-output.txt
+          kill $DUMPER 2>/dev/null || true
+          if [ -f client-threads.txt ]; then grep -A40 '"Server thread"\|"Render thread"\|"Test thread' client-threads.txt >> client-output.txt || true; fi
           cp client-output.txt client-main-output.txt
           mkdir -p shots
           find . -path ./shots -prune -o -name "*.png" -path "*screenshot*" -newer build.gradle -print | while read f; do cp "$f" shots/; done
