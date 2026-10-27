@@ -439,6 +439,11 @@ public final class MeleeSim {
                 }
                 player.attack(close);
                 player.swing(InteractionHand.MAIN_HAND, true);
+            } else if (inReach && clazz == SkillClass.ARCHER && close != null) {
+                shoot(player, level, close);   // no sword in the kit any more (27 October 2026): shoot point blank
+            } else if (inReach && clazz == SkillClass.SUMMONER && close != null && now % 10 == 0
+                    && hold(player, s -> s.is(ModContent.STAFF))) {
+                m.onCoreAction(player, "staffhit");   // no sword either: the staff's own left click
             } else if (guardian && !player.isUsingItem() && !player.getItemBySlot(EquipmentSlot.OFFHAND).isEmpty()) {
                 player.startUsingItem(InteractionHand.OFF_HAND);
             }
