@@ -1227,6 +1227,14 @@ public class EventLookTest implements FabricClientGameTest {
      * A closed yard in a test night (level 6): every zombie carries a ladder, sapper creepers come
      * from the start. Logs ladders built and holes blown (at most one per side).
      */
+    /** Puts the camera at a spot (on a barrier, so it does not fall) looking at a point. */
+    private static void camera(TestSingleplayerContext game, double x, double y, double z, double fx, double fy, double fz) {
+        game.getServer().runCommand(String.format(java.util.Locale.ROOT, "setblock %d %d %d minecraft:barrier",
+                (int) Math.floor(x), (int) Math.floor(y) - 1, (int) Math.floor(z)));
+        game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %.2f %.2f %.2f facing %.2f %.2f %.2f",
+                x, y, z, fx, fy, fz));
+    }
+
     /** Clears a square yard on the server (grass floor, air above) around a middle and returns its ground height. */
     private static int yard(ClientGameTestContext context, TestSingleplayerContext game, int cx, int cz, int out, int high) {
         game.getServer().runCommand("forceload add %d %d %d %d".formatted(cx - out - 8, cz - out - 8, cx + out + 8, cz + out + 8));
@@ -1272,22 +1280,18 @@ public class EventLookTest implements FabricClientGameTest {
         });
         context.waitTicks(40);
         // From outside the gate (south), a little above.
-        game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %d.5 %d %d.5 facing %d.5 %d %d.5",
-                cx + 6, cy + 13, cz + 30, cx, cy + 1, cz));
+        camera(game, cx + 6.5, cy + 13, cz + 30.5, cx + 0.5, cy + 1, cz + 0.5);
         context.runOnClient(client -> hud(client, false));
         context.waitTicks(60);
         context.takeScreenshot("camp_gate");
-        game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %d.5 %d %d.5 facing %d.5 %d %d.5",
-                cx - 26, cy + 24, cz - 22, cx, cy, cz));
+        camera(game, cx - 25.5, cy + 22, cz - 21.5, cx + 0.5, cy, cz + 0.5);
         context.waitTicks(40);
         context.takeScreenshot("camp_above");
-        game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %d.5 %d %d.5 facing %d.5 %d %d.5",
-                cx + 2, cy + 3, cz + 9, cx, cy + 1, cz));
+        camera(game, cx + 2.5, cy + 3, cz + 9.5, cx + 0.5, cy + 1.5, cz + 0.5);
         context.waitTicks(30);
         context.takeScreenshot("camp_workshop");
         game.getServer().runCommand("time set 18000");
-        game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %d.5 %d %d.5 facing %d.5 %d %d.5",
-                cx + 6, cy + 13, cz + 30, cx, cy + 1, cz));
+        camera(game, cx + 6.5, cy + 13, cz + 30.5, cx + 0.5, cy + 1, cz + 0.5);
         context.waitTicks(40);
         context.takeScreenshot("camp_night");
         context.runOnClient(client -> hud(client, true));
@@ -1436,13 +1440,11 @@ public class EventLookTest implements FabricClientGameTest {
             double z = cz + 0.5 + Math.sin(a) * 24;
             double sx = cx + 0.5 + Math.cos(a + 0.28) * 31;
             double sz = cz + 0.5 + Math.sin(a + 0.28) * 31;
-            game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %.1f %d %.1f facing %.1f %d %.1f",
-                    sx, cy + 3, sz, x, cy + 2, z));
+            camera(game, sx, cy + 3, sz, x, cy + 1.5, z);
             context.waitTicks(30);
             context.takeScreenshot("machine_" + kinds[i].id());
         }
-        game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %d.5 %d %d.5 facing %d.5 %d %d.5",
-                cx + 34, cy + 26, cz + 34, cx, cy, cz));
+        camera(game, cx + 34.5, cy + 26, cz + 34.5, cx + 0.5, cy, cz + 0.5);
         context.waitTicks(40);
         context.takeScreenshot("machines_above");
         context.runOnClient(client -> hud(client, true));

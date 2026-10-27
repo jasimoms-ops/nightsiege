@@ -369,13 +369,14 @@ public final class SiegeMachines {
         box.setCustomNameVisible(true);
         box.addTag(MobFactory.TAG);   // the defenders' weapons and towers take it for an enemy
         box.addTag(TAG_MACHINE);
+        LIVE.add(box.getUUID());   // before it enters the world: loading checks for strays
         if (!level.addFreshEntity(box)) {
+            LIVE.remove(box.getUUID());
             Rigs.remove(level, machine.rig);
             return null;
         }
         machine.hitbox = box.getUUID();
         machine.maxHealth = health;
-        LIVE.add(box.getUUID());
         owners.put(box.getUUID(), machine);
         machines.add(machine);
         if (!trial) {
