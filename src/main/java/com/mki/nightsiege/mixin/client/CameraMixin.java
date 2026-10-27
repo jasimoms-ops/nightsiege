@@ -29,6 +29,22 @@ public abstract class CameraMixin {
     @Shadow
     protected abstract void setPosition(double x, double y, double z);
 
+    /**
+     * Right after Minecraft placed the camera at the player: the culling frustum is built next
+     * from this place and rotation (27 October 2026: built from the player's own view, only the
+     * wedge in front of the body was drawn and the rest of the ground stayed empty).
+     */
+    @Inject(method = "update", at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/client/Camera;alignWithEntity(F)V", shift = At.Shift.AFTER))
+    private void nightsiege$birdsEyeBeforeCulling(DeltaTracker tracker, CallbackInfo ci) {
+        double[] at = SpotterScreen.cameraAt(((Camera) (Object) this).getCameraEntityPartialTicks(tracker));
+        if (at != null) {
+            this.detached = true;
+            this.setRotation(180f, 90f);
+            this.setPosition(at[0], at[1], at[2]);
+        }
+    }
+
     @Inject(method = "update", at = @At("TAIL"))
     private void nightsiege$birdsEye(DeltaTracker tracker, CallbackInfo ci) {
         double[] at = SpotterScreen.cameraAt(((Camera) (Object) this).getCameraEntityPartialTicks(tracker));
