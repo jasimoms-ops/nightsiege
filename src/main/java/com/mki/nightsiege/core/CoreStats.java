@@ -104,6 +104,40 @@ public class CoreStats {
     // --- night fragment set into the core (name of a NightFragment), or null
     public String nightFragment;
 
+    /** The dungeon the scouts reported (core window, page "Kundschaft"), or null. */
+    public static class ScoutLine {
+        /** ExpeditionKind id. */
+        public String kind = "";
+        public String fragment = "";
+        /** Its monsters (entity ids, each once). */
+        public List<String> mobs = new ArrayList<>();
+        public int coreX;
+        public int coreZ;
+        public int targetX;
+        public int targetZ;
+        public boolean built;
+        public boolean won;
+        public int rooms;
+        public int cleared;
+        public double championLife;
+        /** Skill points for every fighter of a win. */
+        public int points;
+        /** Players fighting in it now. */
+        public int fighters;
+        /** The viewer stands in the dungeon's world, at this spot. */
+        public boolean sameWorld;
+        public int viewerX;
+        public int viewerZ;
+        /** Terrain letters, mapSize cells a side, row by row from (mapX, mapZ), mapCell blocks each. */
+        public String map = "";
+        public int mapSize;
+        public int mapCell;
+        public int mapX;
+        public int mapZ;
+    }
+
+    public ScoutLine scout;
+
     // --- perks of the main core
     public List<PerkLine> perks = new ArrayList<>();
     public int perkRadius;

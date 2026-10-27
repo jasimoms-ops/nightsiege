@@ -99,6 +99,45 @@ public class SiegeSave {
     /** Players wearing a kit from the camp fight (it goes back when they leave, fall or log in later). */
     public List<String> campKits = new ArrayList<>();
 
+    /** The dungeon the scouts reported (dungeon update, 27 October 2026), or null. A won one stays as its ruin. */
+    public ExpeditionRecord expedition;
+    /** Players wearing a kit from a dungeon fight (it goes back when they leave, fall or log in later). */
+    public List<String> expeditionKits = new ArrayList<>();
+
+    /**
+     * A Night Siege dungeon. Its blocks follow from the record (see ExpeditionLayout); the
+     * fight itself lives in memory only, a restart starts the open room again.
+     */
+    public static class ExpeditionRecord {
+        public int id;
+        /** {@link com.mki.nightsiege.core.ExpeditionKind} id. */
+        public String kind = "";
+        public String dimension = "";
+        /** The gatehouse middle at the height one walks on (before it is built: the planned spot, y unknown). */
+        public int x;
+        public int y;
+        public int z;
+        /** The way down leads away from the core: 0 south, 1 west, 2 north, 3 east. */
+        public int facing;
+        /** Guard rooms (by the world level when it was reported). */
+        public int rooms = 2;
+        public long reportedDay = -1L;
+        /** The gatehouse stands; the rest is set chunk by chunk as its ground loads. */
+        public boolean built;
+        /** Chunks (as ChunkPos longs) whose part of the dungeon is set. */
+        public List<Long> chunksDone = new ArrayList<>();
+        /** Guard rooms cleared (their gates stay open). */
+        public int cleared;
+        /** The champion fell: the dungeon is a ruin now. */
+        public boolean won;
+        /** The scouts' map: one letter per cell (terrain), row by row, {@link #mapSize} cells a side. */
+        public String map = "";
+        public int mapX;
+        public int mapZ;
+        public int mapCell = 16;
+        public int mapSize;
+    }
+
     /**
      * The war camp of the besiegers. Its blocks follow from the record (see CampLayout), so
      * only where and how it stands is kept; it is built as soon as its ground is loaded.

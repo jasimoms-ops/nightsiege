@@ -78,7 +78,7 @@ public final class DungeonContent {
     private static boolean enabledInFile() {
         com.mki.nightsiege.core.SiegeConfig config = Json.read(Json.configFile("nightsiege.json"),
                 com.mki.nightsiege.core.SiegeConfig.class);
-        return config != null && config.settingsVersion >= 1 && config.dungeonsEnabled;
+        return config != null && config.settingsVersion >= 1 && config.dungeonsEnabled && config.legacyDungeons;
     }
 
     /** Data files with this load condition only load while the dungeons are on (the cartographer's map trade). */

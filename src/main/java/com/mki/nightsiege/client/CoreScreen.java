@@ -73,7 +73,9 @@ public class CoreScreen extends Screen {
         SUMMONER(SkillClass.SUMMONER, "nightsiege:summoning_staff", "minecraft:textures/block/mossy_stone_bricks.png", 0xFF5FD8B8, "summoner"),
         CORE(SkillClass.CORE, "nightsiege:siege_core", "minecraft:textures/block/obsidian.png", 0xFFC88CFF, "core"),
         COLLECTION(null, "nightsiege:reward_crate", "minecraft:textures/block/polished_blackstone_bricks.png", 0xFFB565FF, "collection"),
-        PERKS(null, "nightsiege:night_fragment_blood", "minecraft:textures/block/polished_blackstone.png", 0xFFE0A0FF, "perks");
+        PERKS(null, "nightsiege:night_fragment_blood", "minecraft:textures/block/polished_blackstone.png", 0xFFE0A0FF, "perks"),
+        // The scouts' report of a dungeon, with its map (dungeon update, 27 October 2026).
+        SCOUT(null, "minecraft:filled_map", "minecraft:textures/block/spruce_planks.png", 0xFFE8C77A, "scout");
 
         final SkillClass clazz;
         final String icon;
@@ -327,7 +329,7 @@ public class CoreScreen extends Screen {
         boolean big = activeTab == Tab.CLASSES
                 || (activeTab.clazz != null && stats.skillsEnabled && isGrid(activeTab.clazz.name()));
         // The start page gets room for the profile list next to its cards.
-        boolean wideStats = activeTab == Tab.STATS && hasClass();
+        boolean wideStats = activeTab == Tab.STATS && hasClass() || activeTab == Tab.SCOUT;
         W = big ? Math.max(404, Math.min(this.width - 16, 760)) : wideStats ? Math.max(404, Math.min(this.width - 16, 600)) : 404;
         H = big ? Math.min(this.height - 34, 440) : wideStats ? Math.max(244, Math.min(this.height - 34, 300)) : 244;
         // Small screens (high GUI scale): the window shrinks, so the tabs and buttons stay visible.
@@ -445,6 +447,15 @@ public class CoreScreen extends Screen {
             }
         }
 
+        if (activeTab == Tab.SCOUT) {
+            if (stats.scout != null && !stats.scout.kind.isEmpty()) {
+                Component take = Component.translatable("nightsiege.ui.scout_map");
+                int tw = Math.max(90, font.width(take) + 12);
+                goldButtons.add(addRenderableWidget(Button.builder(take, b -> send("scout"))
+                        .bounds(left + 8, footerY, tw, 18).build()));
+            }
+            return;
+        }
         if (activeTab == Tab.COLLECTION) {
             // One small button per class: whose kit the collection shows.
             int bx = innerX() + 4;
@@ -1747,6 +1758,8 @@ public class CoreScreen extends Screen {
             drawClasses(gui, font, mouseX, mouseY);
         } else if (activeTab == Tab.PERKS) {
             drawPerks(gui, font);
+        } else if (activeTab == Tab.SCOUT) {
+            drawScout(gui, font);
         } else if (activeTab == Tab.COLLECTION) {
             hoveredGain = drawCollection(gui, font, mouseX, mouseY);
         } else if (!stats.skillsEnabled) {
@@ -1812,6 +1825,9 @@ public class CoreScreen extends Screen {
         }
         if (tab == Tab.PERKS) {
             return Component.translatable("nightsiege.ui.banner_title.perks").getString();
+        }
+        if (tab == Tab.SCOUT) {
+            return Component.translatable("nightsiege.ui.banner_title.scout").getString();
         }
         return Component.translatable(tab.clazz.translationKey()).getString();
     }
@@ -1911,6 +1927,9 @@ public class CoreScreen extends Screen {
         }
         if (tab == Tab.PERKS) {
             return Component.translatable("nightsiege.ui.banner_title.perks").getString();
+        }
+        if (tab == Tab.SCOUT) {
+            return Component.translatable("nightsiege.ui.banner_title.scout").getString();
         }
         return Component.translatable(tab.clazz.translationKey()).getString();
     }
@@ -2633,6 +2652,174 @@ public class CoreScreen extends Screen {
                     Component.translatable("nightsiege.path." + g.way())).getString());
         }
         tooltip(gui, font, lines, mouseX, mouseY);
+    }
+
+    /** The colour of a terrain letter of the scouts' map. */
+    private static int terrainColor(char c) {
+        return switch (c) {
+            case 'o' -> 0xFF1E3A6E;
+            case 'w' -> 0xFF3E68B0;
+            case 'b' -> 0xFFD8CC8E;
+            case 'n' -> 0xFFE4EAEE;
+            case 'm' -> 0xFF8A8A86;
+            case 'r' -> 0xFFB8643A;
+            case 'd' -> 0xFFDCC98A;
+            case 'a' -> 0xFFA8A050;
+            case 's' -> 0xFF4C6040;
+            case 'j' -> 0xFF2F8A2A;
+            case 't' -> 0xFF3E6A4A;
+            case 'f' -> 0xFF3F7A33;
+            case 'u' -> 0xFF8E7A8E;
+            default -> 0xFF7DAA4E;
+        };
+    }
+
+    /** "Nordosten" and the like, as the server says it. */
+    private static Component direction(double dx, double dz) {
+        double angle = Math.toDegrees(Math.atan2(dx, -dz));
+        int index = Math.floorMod((int) Math.round(angle / 45.0), 8);
+        return Component.translatable("nightsiege.expedition.dir." + index);
+    }
+
+    private static String mobName(String id) {
+        int colon = id.indexOf(':');
+        String ns = colon < 0 ? "minecraft" : id.substring(0, colon);
+        String path = colon < 0 ? id : id.substring(colon + 1);
+        return Component.translatable("nightsiege".equals(ns) ? "nightsiege.foe." + path : "entity." + ns + "." + path).getString();
+    }
+
+    /**
+     * The page "Kundschaft": the scouts' drawn map (core, dungeon, the way between, the viewer)
+     * and what waits there (Simon, 27 October 2026: "zeigt dann auf einer Seite eine Karte, wo
+     * wir hin müssen").
+     */
+    private void drawScout(GuiGraphicsExtractor gui, Font font) {
+        CoreStats.ScoutLine s = stats.scout;
+        int x = innerX() + 8;
+        int y = innerY() + 6;
+        int w = innerW() - 16;
+        int h = innerH() - 12;
+        if (s == null || s.kind.isEmpty()) {
+            List<String> lines = wrap(font, Component.translatable("nightsiege.ui.scout_none").getString(), w - 40);
+            int ty = y + h / 2 - lines.size() * 5;
+            for (String line : lines) {
+                gui.text(font, line, x + (w - font.width(line)) / 2, ty, GRAY, true);
+                ty += 10;
+            }
+            return;
+        }
+        // The map on the left: parchment in a wooden frame.
+        int n = Math.max(1, s.mapSize);
+        int cellPx = Math.max(1, Math.min(h, w * 11 / 20) / n);
+        int size = cellPx * n;
+        int mx = x;
+        int my = y + (h - size) / 2;
+        gui.fill(mx - 3, my - 3, mx + size + 3, my + size + 3, 0xFF4A3622);
+        gui.fill(mx - 1, my - 1, mx + size + 1, my + size + 1, 0xFFC9B48A);
+        for (int row = 0; row < n; row++) {
+            for (int col = 0; col < n; col++) {
+                int i = row * n + col;
+                char c = i < s.map.length() ? s.map.charAt(i) : 'p';
+                gui.fill(mx + col * cellPx, my + row * cellPx, mx + (col + 1) * cellPx, my + (row + 1) * cellPx, terrainColor(c));
+            }
+        }
+        gui.fill(mx, my, mx + size, my + size, 0x38E8D8B0);   // the parchment's tint
+        double scale = cellPx / (double) Math.max(1, s.mapCell);
+        int cx = mx + (int) Math.round((s.coreX - s.mapX) * scale);
+        int cz = my + (int) Math.round((s.coreZ - s.mapZ) * scale);
+        int tx = mx + (int) Math.round((s.targetX - s.mapX) * scale);
+        int tz = my + (int) Math.round((s.targetZ - s.mapZ) * scale);
+        // The way: a dashed line from the core to the cross.
+        int steps = Math.max(2, (int) (Math.hypot(tx - cx, tz - cz) / 3));
+        for (int i = 2; i < steps - 1; i++) {
+            if (i % 3 == 0) {
+                continue;
+            }
+            int px = cx + (tx - cx) * i / steps;
+            int pz = cz + (tz - cz) * i / steps;
+            gui.fill(px, pz, px + 2, pz + 2, 0xFF3A2414);
+        }
+        // The core: a gold mark.
+        gui.fill(cx - 4, cz - 4, cx + 5, cz + 5, 0xFF2A1A0A);
+        gui.fill(cx - 3, cz - 3, cx + 4, cz + 4, GOLD);
+        gui.text(font, Component.translatable("nightsiege.ui.scout_core").getString(), cx + 6, cz - 4, 0xFF2A1A0A, false);
+        // The dungeon: a red cross (grey for a ruin).
+        int cross = s.won ? 0xFF505050 : 0xFFC01818;
+        for (int d = -4; d <= 4; d++) {
+            gui.fill(tx + d, tz + d - 1, tx + d + 1, tz + d + 2, cross);
+            gui.fill(tx + d, tz - d - 1, tx + d + 1, tz - d + 2, cross);
+        }
+        // The viewer, when on the map.
+        if (s.sameWorld) {
+            int vx = mx + (int) Math.round((s.viewerX - s.mapX) * scale);
+            int vz = my + (int) Math.round((s.viewerZ - s.mapZ) * scale);
+            if (vx >= mx && vx < mx + size && vz >= my && vz < my + size) {
+                gui.fill(vx - 2, vz - 2, vx + 3, vz + 3, 0xFF101010);
+                gui.fill(vx - 1, vz - 1, vx + 2, vz + 2, WHITE);
+            }
+        }
+        // North.
+        String north = Component.translatable("nightsiege.ui.scout_north").getString();
+        gui.fill(mx + size / 2 - 5, my + 2, mx + size / 2 + 6, my + 13, 0xC0201810);
+        gui.text(font, north, mx + size / 2 - font.width(north) / 2 + 1, my + 4, 0xFFF0E0C0, false);
+
+        // What waits there, on the right.
+        int ix = mx + size + 14;
+        int iw = x + w - ix;
+        String name = Component.translatable("nightsiege.expedition." + s.kind).getString();
+        gui.pose().pushMatrix();
+        gui.pose().translate(ix, y + 2);
+        gui.pose().scale(1.5f, 1.5f);
+        gui.text(font, name, 0, 0, s.won ? GRAY : 0xFFE8C77A, true);
+        gui.pose().popMatrix();
+        int ty = y + 18;
+        String state = Component.translatable(s.won ? "nightsiege.ui.scout_won" : s.built ? "nightsiege.ui.scout_built"
+                : "nightsiege.ui.scout_unseen").getString();
+        for (String line : wrap(font, state, iw)) {
+            gui.text(font, line, ix, ty, s.won ? GREEN : GRAY, true);
+            ty += 10;
+        }
+        ty += 4;
+        List<String> info = new ArrayList<>();
+        int dx = s.targetX - s.coreX;
+        int dz = s.targetZ - s.coreZ;
+        info.add(Component.translatable("nightsiege.ui.scout_where", (int) Math.round(Math.hypot(dx, dz)),
+                direction(dx, dz)).getString());
+        if (s.sameWorld) {
+            double vdx = s.targetX - s.viewerX;
+            double vdz = s.targetZ - s.viewerZ;
+            info.add(Component.translatable("nightsiege.ui.scout_from_you", (int) Math.round(Math.hypot(vdx, vdz)),
+                    direction(vdx, vdz)).getString());
+        }
+        if (!s.won) {
+            info.add(Component.translatable("nightsiege.ui.scout_rooms", s.cleared, s.rooms).getString());
+            info.add(Component.translatable("nightsiege.ui.scout_arena", s.rooms,
+                    Component.translatable("nightsiege.expedition." + s.kind + ".champion"),
+                    String.format(Locale.ROOT, "%.0f", s.championLife)).getString());
+            List<String> names = new ArrayList<>();
+            for (String mob : s.mobs) {
+                String m = mobName(mob);
+                if (!names.contains(m)) {
+                    names.add(m);
+                }
+            }
+            info.add(Component.translatable("nightsiege.ui.scout_mobs", String.join(", ", names)).getString());
+            info.add(Component.translatable("nightsiege.ui.scout_loot", s.points,
+                    Component.translatable("item.nightsiege.night_fragment_" + s.fragment)).getString());
+        }
+        for (String text : info) {
+            for (String line : wrap(font, text, iw)) {
+                gui.text(font, line, ix, ty, 0xFFE0D8EC, true);
+                ty += 10;
+            }
+            ty += 3;
+        }
+        if (s.fighters > 0 && !s.won) {
+            for (String line : wrap(font, Component.translatable("nightsiege.ui.scout_fighting", s.fighters).getString(), iw)) {
+                gui.text(font, line, ix, ty, RED, true);
+                ty += 10;
+            }
+        }
     }
 
     private void drawPerks(GuiGraphicsExtractor gui, Font font) {
