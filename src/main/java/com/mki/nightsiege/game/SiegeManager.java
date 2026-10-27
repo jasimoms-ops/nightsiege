@@ -2905,6 +2905,7 @@ public final class SiegeManager {
             if (second != null && own.hasClass() && own.gainStage(own.clazz(), second) > 0) {
                 state.has2 = true;
                 state.icon2 = com.mki.nightsiege.core.CrateGains.icon(second);
+                state.name2 = "nightsiege.gain." + second;
                 state.cooldown2Ticks = SecondUlts.secondsLeft(player) * 20;
                 state.total2Ticks = SecondUlts.COOLDOWN_TICKS;
                 state.live = liveSkillsFor(player) != null;
@@ -2921,16 +2922,22 @@ public final class SiegeManager {
             if (isRegistered(player) && own.hasClass()) {
                 state.live = state.live || liveSkillsFor(player) != null;
                 state.slots = safeSlots(player);
-                // Fähigkeit 2 (F): what it does for this class.
+                // Fähigkeit 2 (F): what it does for this class. The soul catcher has no companions
+                // to send (Simon 27.10.: "F does nothing for him"), so he gets no F field.
+                String sub = skillTree.subclassOf(own);
                 if (own.clazz() == com.mki.nightsiege.core.SkillClass.ENGINEER) {
                     state.hasAb2 = true;
                     state.iconAb2 = "nightsiege:remote_control";
-                } else if (own.clazz() == com.mki.nightsiege.core.SkillClass.SUMMONER) {
+                    state.nameAb2 = "nightsiege.abilitybar.f_remote";
+                } else if (own.clazz() == com.mki.nightsiege.core.SkillClass.SUMMONER
+                        && !SkillTree.SUB_SOULCATCHER.equals(sub)) {
                     state.hasAb2 = true;
                     state.iconAb2 = "minecraft:lead";
+                    state.nameAb2 = "nightsiege.abilitybar.f_staff";
                 } else if (combat.guardian().healWheel(player) != null) {
                     state.hasAb2 = true;
                     state.iconAb2 = "minecraft:glistering_melon_slice";
+                    state.nameAb2 = "nightsiege.abilitybar.f_heal";
                 }
             }
             ServerPlayNetworking.send(player, new CoreNetworking.UltHudPayload(Json.toJson(state)));
