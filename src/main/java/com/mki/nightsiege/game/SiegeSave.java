@@ -90,6 +90,41 @@ public class SiegeSave {
      */
     public List<String> tempBlocks = new ArrayList<>();
 
+    /** The war camp standing before a siege night (27 October 2026), or null. */
+    public CampRecord camp;
+    /** Day whose camp has been rolled for (one roll per siege). */
+    public long campRolledDay = -1L;
+    /** Siege day whose night brings the machines for sure (the camp won and is gone), or -1. */
+    public long machinesDay = -1L;
+    /** Players wearing a kit from the camp fight (it goes back when they leave, fall or log in later). */
+    public List<String> campKits = new ArrayList<>();
+
+    /**
+     * The war camp of the besiegers. Its blocks follow from the record (see CampLayout), so
+     * only where and how it stands is kept; it is built as soon as its ground is loaded.
+     */
+    public static class CampRecord {
+        /** A number of this camp, also on its monsters (tag), so old ones go when they load. */
+        public int id;
+        public String dimension = "";
+        /** Middle of the camp at the height one walks on (the floor lies one below). */
+        public int x;
+        public int y;
+        public int z;
+        /** The siege day this camp belongs to (it stands from the day before). */
+        public long day = -1L;
+        /** Where the gate opens (towards the core): 0 south, 1 west, 2 north, 3 east. */
+        public int facing;
+        /** Blocks set and the guards there. */
+        public boolean built;
+        public boolean manned;
+        /** The workshop was destroyed: no machines tonight. */
+        public boolean destroyed;
+        /** The workshop hit box (its uuid). */
+        public String workshop = "";
+        public List<String> guards = new ArrayList<>();
+    }
+
     /** One defender's handed-in inventory. */
     public static class KitStash {
         /** One entry per inventory slot: the item as JSON, or "" for an empty slot. */

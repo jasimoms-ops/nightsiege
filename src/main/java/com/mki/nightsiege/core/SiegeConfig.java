@@ -286,6 +286,35 @@ public class SiegeConfig {
     public int nightPhantoms = 2;
     /** … and this many more per siege level (rounded down); 0 and 0 turn it off. */
     public double nightPhantomsPerLevel = 0.25;
+
+    // ------------------------------------------------------------------
+    // war camp and siege machines (concept 27 October 2026)
+    // ------------------------------------------------------------------
+
+    /** Chance that a war camp stands from the day before a siege (0 = never). */
+    public double campChance = 0.2;
+    /** Blocks between the core and the camp. */
+    public int campMinDistance = 80;
+    public int campMaxDistance = 150;
+    /** Guards (vindicators): this many, plus some for every further signed-up player. */
+    public int campGuards = 8;
+    public int campGuardsPerPlayer = 3;
+    /** Life of the workshop's siege workbench. */
+    public double campWorkshopHealth = 300;
+    /** Seconds after entering the palisade before the guards attack. */
+    public int campGraceSeconds = 10;
+    /** Siege machines in nights after a camp. */
+    public boolean machinesEnabled = true;
+    /** Seconds into the night before the machines are set up. */
+    public int machineStartSeconds = 40;
+    /** Factors on the machines' life and on what their shots do. */
+    public double machineHealthMultiplier = 1.0;
+    public double machineDamageMultiplier = 1.0;
+    /** Pillagers at every machine: two work it, the guards stand around it (Simon, 27 October 2026). */
+    public int machineCrew = 2;
+    public int machineGuards = 3;
+    /** Seconds until a machine whose crew fell gets a new one. */
+    public int machineCrewSeconds = 45;
     /** Siege monsters drop items and experience (false since Simon's call of 26 October 2026: they drop nothing). */
     public boolean siegeMobDrops = false;
     /** Klaffende Wunden (anti-heal, Simon 25 October 2026): these monsters halve all healing of the player they hit. */
@@ -666,6 +695,19 @@ public class SiegeConfig {
         auroraPointSeconds = clamp(auroraPointSeconds, 5, 3600);
         caravanChance = clampDouble(caravanChance, 0.0, 1.0);
         caravanMinDays = clamp(caravanMinDays, 1, 100);
+        campChance = clampDouble(campChance, 0.0, 1.0);
+        campMinDistance = clamp(campMinDistance, 40, 400);
+        campMaxDistance = clamp(campMaxDistance, campMinDistance, 500);
+        campGuards = clamp(campGuards, 0, 40);
+        campGuardsPerPlayer = clamp(campGuardsPerPlayer, 0, 10);
+        campWorkshopHealth = clampDouble(campWorkshopHealth, 10.0, 5000.0);
+        campGraceSeconds = clamp(campGraceSeconds, 0, 60);
+        machineStartSeconds = clamp(machineStartSeconds, 0, 600);
+        machineHealthMultiplier = clampDouble(machineHealthMultiplier, 0.1, 20.0);
+        machineDamageMultiplier = clampDouble(machineDamageMultiplier, 0.0, 20.0);
+        machineCrew = clamp(machineCrew, 1, 6);
+        machineGuards = clamp(machineGuards, 0, 10);
+        machineCrewSeconds = clamp(machineCrewSeconds, 5, 600);
         bloodMoonMobMultiplier = Math.max(1.0, bloodMoonMobMultiplier);
         bloodMoonHealthMultiplier = Math.max(1.0, bloodMoonHealthMultiplier);
         bloodMoonDamageMultiplier = Math.max(1.0, bloodMoonDamageMultiplier);

@@ -54,6 +54,36 @@ public final class SiegeCommands {
                             reply(ctx.getSource(), Component.translatable(up ? "nightsiege.cmd.drone_on" : "nightsiege.cmd.drone_off"));
                             return 1;
                         }))
+                .then(Commands.literal("heerlager").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                        .executes(ctx -> {
+                            net.minecraft.core.BlockPos at = SiegeManager.get().camp().forceCamp(ctx.getSource().getServer());
+                            if (at == null) {
+                                fail(ctx.getSource(), Component.translatable("nightsiege.cmd.camp_none"));
+                                return 0;
+                            }
+                            reply(ctx.getSource(), Component.translatable("nightsiege.cmd.camp_built", at.getX(), at.getY(), at.getZ()));
+                            return 1;
+                        })
+                        .then(Commands.literal("weg").executes(ctx -> {
+                            SiegeManager.get().camp().remove(ctx.getSource().getServer());
+                            reply(ctx.getSource(), Component.translatable("nightsiege.cmd.camp_removed"));
+                            return 1;
+                        })))
+                .then(Commands.literal("maschinen").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                        .executes(ctx -> {
+                            boolean ok = SiegeManager.get().machinesNow(ctx.getSource().getServer());
+                            if (ok) {
+                                reply(ctx.getSource(), Component.translatable("nightsiege.cmd.machines_now"));
+                            } else {
+                                fail(ctx.getSource(), Component.translatable("nightsiege.cmd.machines_not_now"));
+                            }
+                            return ok ? 1 : 0;
+                        })
+                        .then(Commands.literal("weg").executes(ctx -> {
+                            int n = SiegeManager.get().machines().removeAll();
+                            reply(ctx.getSource(), Component.translatable("nightsiege.cmd.machines_removed", n));
+                            return n;
+                        })))
                 .then(Commands.literal("bossjetzt").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                         .executes(ctx -> {
                             boolean ok = SiegeManager.get().bossNow(ctx.getSource().getServer());

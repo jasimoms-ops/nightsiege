@@ -35,6 +35,9 @@ public final class ModContent {
     public static Item STAFF;
     public static final Map<TrapKind, Block> TRAP_BLOCKS = new EnumMap<>(TrapKind.class);
     public static final Map<TrapKind, Item> TRAP_ITEMS = new EnumMap<>(TrapKind.class);
+    /** Spawn eggs of the siege machines (creative, 27 October 2026). */
+    public static final Map<com.mki.nightsiege.core.SiegeMachineKind, Item> MACHINE_EGGS =
+            new EnumMap<>(com.mki.nightsiege.core.SiegeMachineKind.class);
 
     private ModContent() {
     }
@@ -86,6 +89,14 @@ public final class ModContent {
                 .rarity(net.minecraft.world.item.Rarity.UNCOMMON));
         Registry.register(BuiltInRegistries.ITEM, staffKey, STAFF);
 
+        for (com.mki.nightsiege.core.SiegeMachineKind kind : com.mki.nightsiege.core.SiegeMachineKind.values()) {
+            ResourceKey<Item> eggKey = ResourceKey.create(Registries.ITEM, id("machine_" + kind.id()));
+            Item egg = new MachineEggItem(kind, new Item.Properties().setId(eggKey)
+                    .rarity(net.minecraft.world.item.Rarity.UNCOMMON));
+            Registry.register(BuiltInRegistries.ITEM, eggKey, egg);
+            MACHINE_EGGS.put(kind, egg);
+        }
+
         InferniteContent.register();
         DungeonContent.register();
         CrateService.registerItem();
@@ -101,6 +112,9 @@ public final class ModContent {
                     output.accept(GuideBook.create());
                     output.accept(REMOTE);
                     output.accept(STAFF);
+                    for (Item egg : MACHINE_EGGS.values()) {
+                        output.accept(egg);
+                    }
                     for (TrapKind kind : TrapKind.values()) {
                         output.accept(TRAP_ITEMS.get(kind));
                     }
