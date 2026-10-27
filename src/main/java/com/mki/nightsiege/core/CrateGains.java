@@ -161,7 +161,7 @@ public final class CrateGains {
 
     private static final Map<String, String> ICONS = Map.ofEntries(
             Map.entry("teernetz", "minecraft:cobweb"), Map.entry("wundsalbe", "minecraft:honeycomb"),
-            Map.entry("munitionskiste", "minecraft:chest"), Map.entry("sappeuralarm", "minecraft:sculk_sensor"),
+            Map.entry("munitionskiste", "minecraft:trapped_chest"), Map.entry("sappeuralarm", "minecraft:sculk_sensor"),
             Map.entry("doppelbrau", "minecraft:dragon_breath"), Map.entry("seelenzins", "minecraft:echo_shard"),
             Map.entry("proviant", "minecraft:cooked_beef"), Map.entry("schutz", "minecraft:diamond_chestplate"),
             Map.entry("fackeln", "minecraft:torch"), Map.entry("notration", "minecraft:golden_apple"),
