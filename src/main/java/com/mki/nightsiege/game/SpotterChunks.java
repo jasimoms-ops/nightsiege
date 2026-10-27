@@ -34,6 +34,11 @@ public final class SpotterChunks {
     private SpotterChunks() {
     }
 
+    /** True while this player's bird's-eye view is open (it reports its camera). */
+    public static boolean isOpen(ServerPlayer player) {
+        return player != null && CENTERS.containsKey(player.getUUID());
+    }
+
     /** The middle of the chunks the player gets: the camera of an open view, else the body. */
     public static ChunkPos centerFor(ServerPlayer player) {
         Center c = CENTERS.get(player.getUUID());

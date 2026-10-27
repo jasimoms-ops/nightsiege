@@ -124,6 +124,8 @@ public class NightSiegeClient implements ClientModInitializer {
                                 Json.fromJson(payload.json(), com.mki.nightsiege.core.TowerMenuData.class);
                         if (client.gui.screen() instanceof TowerMenuScreen open) {
                             open.refresh(data);
+                        } else if (client.gui.screen() instanceof SpotterScreen spot) {
+                            spot.towers(data);   // the bird's-eye view's maintenance panel (27 October 2026)
                         } else if (data != null && data.open && client.player != null) {
                             client.setScreenAndShow(new TowerMenuScreen(data));
                         }

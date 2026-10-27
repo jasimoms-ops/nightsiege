@@ -3216,6 +3216,29 @@ public class EventLookTest implements FabricClientGameTest {
         });
         context.waitTicks(30);
         context.takeScreenshot("spotter_barrage");
+        // Maintenance from the binoculars (Simon, 27 October 2026): an empty mortar is reloaded with its code.
+        onServer(context, (player, manager) -> manager.kits().traps().testEmpty((net.minecraft.server.level.ServerLevel) player.level(),
+                new BlockPos(gx - 4, gy, gz - 2)));
+        context.waitTicks(30);
+        context.runOnClient(client -> {
+            if (client.gui.screen() instanceof com.mki.nightsiege.client.SpotterScreen spot) {
+                System.out.println("[Night Siege test] spotter service rows=" + spot.testServiceRows()
+                        + " started=" + spot.testServiceStart());
+            }
+        });
+        context.waitTicks(5);
+        context.takeScreenshot("spotter_service_code");
+        context.runOnClient(client -> {
+            if (client.gui.screen() instanceof com.mki.nightsiege.client.SpotterScreen spot) {
+                spot.testServiceType();
+            }
+        });
+        context.waitTicks(100);
+        context.runOnClient(client -> {
+            if (client.gui.screen() instanceof com.mki.nightsiege.client.SpotterScreen spot) {
+                System.out.println("[Night Siege test] spotter service after rows=" + spot.testServiceRows());
+            }
+        });
         // Far from the body: the chunks follow the camera (27 October 2026).
         context.runOnClient(client -> {
             if (client.gui.screen() instanceof com.mki.nightsiege.client.SpotterScreen spot) {

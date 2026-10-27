@@ -73,6 +73,20 @@ public class SpotterScreen extends Screen {
     private int reportedX = Integer.MIN_VALUE;
     private int reportedZ = Integer.MIN_VALUE;
     private long reportedAt;
+    /**
+     * Maintenance from the binoculars (Simon, 27 October 2026): the own towers as the tower
+     * menu knows them, the one whose code is typed, the code and how far it is typed.
+     */
+    private com.mki.nightsiege.core.TowerMenuData towers;
+    private long towersAt;
+    private com.mki.nightsiege.core.TowerMenuData.Row coding;
+    private int[] code = new int[0];
+    private int typed;
+    private long wrongUntil;
+    private final java.util.Random random = new java.util.Random();
+    private static final String[] ARROW = {"▲", "▼", "◀", "▶"};
+    private static final int SERVICE_ROWS = 5;
+    private static final int SERVICE_ROW_H = 11;
 
     public SpotterScreen(SpotterData data) {
         super(Component.translatable("nightsiege.spotter.title"));
@@ -104,6 +118,86 @@ public class SpotterScreen extends Screen {
         // view only needs the frustum (27 October 2026). Back on when the view closes.
         Minecraft.getInstance().smartCull = false;
         reportCamera(true);
+        send("tower:list");
+    }
+
+    /** The state of the own towers (answer to "tower:list", and after a fix). */
+    public void towers(com.mki.nightsiege.core.TowerMenuData fresh) {
+        if (fresh == null) {
+            return;
+        }
+        String keep = coding == null ? null : rowKey(coding);
+        towers = fresh;
+        towersAt = ticks;
+        if (keep != null) {
+            coding = null;
+            for (com.mki.nightsiege.core.TowerMenuData.Row r : fresh.rows) {
+                if (rowKey(r).equals(keep) && !r.need.isEmpty() && r.working == 0) {
+                    coding = r;
+                }
+            }
+            if (coding == null) {
+                code = new int[0];
+                typed = 0;
+            }
+        }
+    }
+
+    private static String rowKey(com.mki.nightsiege.core.TowerMenuData.Row r) {
+        return r.x + ":" + r.y + ":" + r.z;
+    }
+
+    /** The towers that need something or are being worked on, those that need something first. */
+    private java.util.List<com.mki.nightsiege.core.TowerMenuData.Row> serviceRows() {
+        java.util.List<com.mki.nightsiege.core.TowerMenuData.Row> out = new java.util.ArrayList<>();
+        if (towers == null) {
+            return out;
+        }
+        for (com.mki.nightsiege.core.TowerMenuData.Row r : towers.rows) {
+            if (!r.need.isEmpty() || workingLeft(r) > 0) {
+                out.add(r);
+            }
+        }
+        out.sort(java.util.Comparator.comparingInt((com.mki.nightsiege.core.TowerMenuData.Row r) -> workingLeft(r) > 0 ? 1 : 0)
+                .thenComparingInt(r -> "repair".equals(r.need) ? 0 : 1));
+        return out;
+    }
+
+    private long workingLeft(com.mki.nightsiege.core.TowerMenuData.Row r) {
+        return r.working <= 0 ? 0 : r.working - (ticks - towersAt);
+    }
+
+    private boolean canStart(com.mki.nightsiege.core.TowerMenuData.Row r) {
+        return r != null && !r.need.isEmpty() && r.inRange && workingLeft(r) <= 0;
+    }
+
+    /** Starts the code of a tower and swings the camera over to it. */
+    private void startCode(com.mki.nightsiege.core.TowerMenuData.Row r) {
+        if (!canStart(r) || towers == null) {
+            return;
+        }
+        coding = r;
+        int n = "repair".equals(r.need) ? towers.repairArrows : towers.reloadArrows;
+        code = new int[Math.max(1, n)];
+        for (int i = 0; i < code.length; i++) {
+            code[i] = random.nextInt(4);
+        }
+        typed = 0;
+        camX = r.x + 0.5;
+        camZ = r.z + 0.5;
+        lineStart = null;
+        click(1.2f);
+    }
+
+    private void stopCode() {
+        coding = null;
+        code = new int[0];
+        typed = 0;
+    }
+
+    private static void click(float pitch) {
+        Minecraft.getInstance().getSoundManager().play(net.minecraft.client.resources.sounds.SimpleSoundInstance.forUI(
+                net.minecraft.sounds.SoundEvents.UI_BUTTON_CLICK.value(), pitch, 0.25f));
     }
 
     @Override
@@ -214,7 +308,12 @@ public class SpotterScreen extends Screen {
             onClose();
             return;
         }
-        double step = 0.035 * zoomH + 0.25;
+        if (ticks % 20 == 0) {
+            send("tower:list");
+        }
+        markTowers(client);
+        // While a code is typed, WASD and the arrow keys belong to the code, not to the camera.
+        double step = coding != null ? 0.0 : 0.035 * zoomH + 0.25;
         // The camera looks north: W is towards -Z, D towards +X.
         if (down(client, client.options.keyUp) || key(client, GLFW.GLFW_KEY_UP)) {
             camZ -= step;
@@ -260,9 +359,70 @@ public class SpotterScreen extends Screen {
         return true;
     }
 
+    /** Towers that need work get a column of coloured dust: red broken, amber empty, white at work. */
+    private void markTowers(Minecraft client) {
+        if (towers == null || client.level == null || ticks % 4 != 0) {
+            return;
+        }
+        for (com.mki.nightsiege.core.TowerMenuData.Row r : towers.rows) {
+            boolean working = workingLeft(r) > 0;
+            if (r.need.isEmpty() && !working) {
+                continue;
+            }
+            int color = working ? 0xFFFFFF : "repair".equals(r.need) ? 0xFF3030 : 0xFFB347;
+            boolean picked = coding != null && rowKey(coding).equals(rowKey(r));
+            for (int i = 0; i < (picked ? 6 : 3); i++) {
+                client.level.addParticle(new DustParticleOptions(color, picked ? 2.2f : 1.6f),
+                        r.x + 0.5, r.y + 1.6 + i * 0.7, r.z + 0.5, 0, 0, 0);
+            }
+        }
+    }
+
     @Override
     public boolean keyPressed(KeyEvent event) {
         int k = event.key();
+        if (coding != null && code.length > 0) {
+            int dir = switch (k) {
+                case GLFW.GLFW_KEY_W, GLFW.GLFW_KEY_UP -> 0;
+                case GLFW.GLFW_KEY_S, GLFW.GLFW_KEY_DOWN -> 1;
+                case GLFW.GLFW_KEY_A, GLFW.GLFW_KEY_LEFT -> 2;
+                case GLFW.GLFW_KEY_D, GLFW.GLFW_KEY_RIGHT -> 3;
+                default -> -1;
+            };
+            if (dir >= 0) {
+                if (code[typed] == dir) {
+                    typed++;
+                    click(1.4f + 0.1f * typed);
+                    if (typed >= code.length) {
+                        send("tower:fix:" + rowKey(coding));
+                        click(2.0f);
+                        coding.working = towers.fixSeconds * 20;
+                        coding.need = "";
+                        towersAt = ticks;
+                        stopCode();
+                    }
+                } else {
+                    typed = 0;   // wrong arrow: from the start, like in Helldivers
+                    wrongUntil = ticks + 8;
+                    click(0.5f);
+                }
+                return true;
+            }
+            if (k == GLFW.GLFW_KEY_BACKSPACE || k == GLFW.GLFW_KEY_ESCAPE) {
+                stopCode();   // Esc only drops the code here; a second Esc leaves the view
+                return true;
+            }
+        }
+        if (k == GLFW.GLFW_KEY_R) {
+            // R: the code of the first tower that needs work.
+            for (com.mki.nightsiege.core.TowerMenuData.Row r : serviceRows()) {
+                if (canStart(r)) {
+                    startCode(r);
+                    return true;
+                }
+            }
+            return true;
+        }
         if (k >= GLFW.GLFW_KEY_1 && k <= GLFW.GLFW_KEY_9 && k - GLFW.GLFW_KEY_1 < data.modes.size()) {
             pick(k - GLFW.GLFW_KEY_1);
             return true;
@@ -272,6 +432,14 @@ public class SpotterScreen extends Screen {
 
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+        int service = serviceIndexAt(event.x(), event.y());
+        if (service >= 0) {
+            java.util.List<com.mki.nightsiege.core.TowerMenuData.Row> rows = serviceRows();
+            if (service < rows.size()) {
+                startCode(rows.get(service));
+            }
+            return true;
+        }
         int bar = barIndexAt(event.x(), event.y());
         if (bar >= 0) {
             pick(bar);
@@ -496,6 +664,8 @@ public class SpotterScreen extends Screen {
             gui.text(font, warn, (this.width - font.width(warn)) / 2, 10, RED, true);
         }
 
+        drawService(gui, font, mouseX, mouseY);
+
         // The red X on the cursor, and the spot under it.
         redX(gui, mouseX, mouseY, readyAt[selected] > ticks);
         if (hover != null) {
@@ -550,6 +720,137 @@ public class SpotterScreen extends Screen {
             small(gui, font, font.plainSubstrByWidth(sub, (int) ((w - 24) / 0.6f)), sx + 22, top + 16, color, 0.6f);
         }
         super.extractRenderState(gui, mouseX, mouseY, delta);
+    }
+
+    // ------------------------------------------------------------------
+    // maintenance (Simon, 27 October 2026: reload and repair from the binoculars)
+    // ------------------------------------------------------------------
+
+    private int serviceW() {
+        return 150;
+    }
+
+    private int serviceTop() {
+        return 36;
+    }
+
+    private int serviceIndexAt(double x, double y) {
+        int x1 = this.width - 6;
+        int x0 = x1 - serviceW();
+        int top = serviceTop() + 14;
+        if (x < x0 || x >= x1 || y < top) {
+            return -1;
+        }
+        int i = (int) ((y - top) / SERVICE_ROW_H);
+        return i < Math.min(SERVICE_ROWS, serviceRows().size()) ? i : -1;
+    }
+
+    private void drawService(GuiGraphicsExtractor gui, Font font, int mouseX, int mouseY) {
+        java.util.List<com.mki.nightsiege.core.TowerMenuData.Row> rows = serviceRows();
+        int x1 = this.width - 6;
+        int x0 = x1 - serviceW();
+        int top = serviceTop();
+        int shown = Math.min(SERVICE_ROWS, rows.size());
+        int bottom = top + 14 + Math.max(1, shown) * SERVICE_ROW_H + 2;
+        panel(gui, x0, top, x1, bottom);
+        String head = Component.translatable("nightsiege.spotter.service").getString();
+        small(gui, font, head, x0 + 5, top + 4, GOLD, 0.7f);
+        if (rows.isEmpty()) {
+            small(gui, font, Component.translatable(towers == null ? "nightsiege.spotter.service_wait"
+                    : "nightsiege.spotter.service_none").getString(), x0 + 5, top + 16, 0xFF7CD67C, 0.65f);
+        }
+        for (int i = 0; i < shown; i++) {
+            com.mki.nightsiege.core.TowerMenuData.Row r = rows.get(i);
+            int y = top + 14 + i * SERVICE_ROW_H;
+            boolean over = mouseX >= x0 && mouseX < x1 && mouseY >= y && mouseY < y + SERVICE_ROW_H;
+            boolean picked = coding != null && rowKey(coding).equals(rowKey(r));
+            if (over || picked) {
+                gui.fill(x0 + 1, y, x1 - 1, y + SERVICE_ROW_H - 1, picked ? 0xC03A2F12 : 0xC0241E34);
+            }
+            String name = Component.translatable("block.nightsiege." + r.kind).getString();
+            long work = workingLeft(r);
+            String state;
+            int color;
+            if (work > 0) {
+                state = Component.translatable("nightsiege.towers.working", (work + 19) / 20).getString();
+                color = LIGHT;
+            } else if ("repair".equals(r.need)) {
+                state = r.broken ? Component.translatable("nightsiege.towers.broken").getString()
+                        : Component.translatable("nightsiege.towers.wear", r.uses, r.fullUses).getString();
+                color = RED;
+            } else {
+                state = Component.translatable("nightsiege.towers.ammo", r.ammo, r.mag).getString();
+                color = 0xFFFFB347;
+            }
+            if (!r.inRange && work <= 0) {
+                state = Component.translatable("nightsiege.towers.far").getString();
+                color = GREY;
+            }
+            small(gui, font, font.plainSubstrByWidth(name, (int) (80 / 0.65f)), x0 + 5, y + 2, picked ? GOLD : 0xFFFFFFFF, 0.65f);
+            small(gui, font, state, x1 - 5 - (int) Math.ceil(font.width(state) * 0.65f), y + 2, color, 0.65f);
+        }
+
+        // The code, in the middle of the screen above the fire bar.
+        if (coding != null && code.length > 0) {
+            String what = Component.translatable("repair".equals(coding.need) ? "nightsiege.towers.code_repair"
+                    : "nightsiege.towers.code_reload", Component.translatable("block.nightsiege." + coding.kind)).getString();
+            int box = 22;
+            int gap = 4;
+            int total = code.length * box + (code.length - 1) * gap;
+            int keysW = (int) Math.ceil(font.width(Component.translatable("nightsiege.spotter.code_keys").getString()) * 0.65f);
+            int pw = Math.max(total, Math.max((int) Math.ceil(font.width(what) * 0.8f), keysW)) + 16;
+            int cy = barTop() - 14 - 62;
+            int px = (this.width - pw) / 2;
+            panel(gui, px, cy, px + pw, cy + 56);
+            small(gui, font, what, (this.width - (int) Math.ceil(font.width(what) * 0.8f)) / 2, cy + 4, LIGHT, 0.8f);
+            int bx = (this.width - total) / 2;
+            boolean wrong = ticks < wrongUntil;
+            for (int i = 0; i < code.length; i++) {
+                int x = bx + i * (box + gap);
+                int frame = wrong ? RED : i < typed ? GOLD : i == typed ? LIGHT : LINE;
+                gui.fill(x - 1, cy + 15, x + box + 1, cy + 17 + box, frame);
+                gui.fill(x, cy + 16, x + box, cy + 16 + box, i < typed ? 0xF03A2F12 : 0xC01A1626);
+                String a = ARROW[code[i]];
+                int c = i < typed ? GOLD : wrong ? RED : 0xFFFFFFFF;
+                gui.pose().pushMatrix();
+                gui.pose().translate(x + box / 2f - font.width(a) * 0.75f, cy + 19);
+                gui.pose().scale(1.5f, 1.5f);
+                gui.text(font, a, 0, 0, c, true);
+                gui.pose().popMatrix();
+            }
+            String keys = Component.translatable("nightsiege.spotter.code_keys").getString();
+            small(gui, font, keys, (this.width - keysW) / 2, cy + 44, GREY, 0.65f);
+        }
+    }
+
+    /** For the test: starts the code of the first tower that needs work (R). */
+    public boolean testServiceStart() {
+        for (com.mki.nightsiege.core.TowerMenuData.Row r : serviceRows()) {
+            if (canStart(r)) {
+                startCode(r);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** For the test: types the code that is open, right. */
+    public void testServiceType() {
+        int[] c = code.clone();
+        for (int d : c) {
+            int key = switch (d) {
+                case 0 -> GLFW.GLFW_KEY_W;
+                case 1 -> GLFW.GLFW_KEY_S;
+                case 2 -> GLFW.GLFW_KEY_A;
+                default -> GLFW.GLFW_KEY_D;
+            };
+            keyPressed(new KeyEvent(key, 0, 0));
+        }
+    }
+
+    /** For the test: how many towers the panel lists. */
+    public int testServiceRows() {
+        return serviceRows().size();
     }
 
     /** A dark panel with a thin frame. */

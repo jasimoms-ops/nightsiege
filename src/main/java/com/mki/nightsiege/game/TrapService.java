@@ -2363,6 +2363,30 @@ public final class TrapService {
         return usesAmmo(kind) && record.ammo < magazine(record) ? "reload" : "";
     }
 
+    /**
+     * The demolition expert's bird's-eye view reaches every own tower within its radius
+     * (Simon, 27 October 2026: reload and repair from the binoculars too).
+     */
+    private boolean spotterReaches(ServerLevel level, ServerPlayer player, BlockPos pos) {
+        if (!SpotterChunks.isOpen(player)) {
+            return false;
+        }
+        BlockPos center = spotCenter(level, player);
+        double radius = SkillValues.get(TrapKind.MORTAR.id(), "spotradius", 48) + 2.0;
+        double dx = pos.getX() + 0.5 - center.getX();
+        double dz = pos.getZ() + 0.5 - center.getZ();
+        return dx * dx + dz * dz <= radius * radius;
+    }
+
+    /** For the test: empties a tower's magazine (it then needs a reload). */
+    public void testEmpty(ServerLevel level, BlockPos pos) {
+        TrapRecord record = find(level, pos);
+        if (record != null) {
+            record.ammo = 0;
+            dirty = true;
+        }
+    }
+
     /** The right click with the remote: the state of every own trap in this world. */
     public void openTowerMenu(ServerPlayer player, boolean open) {
         if (!(player.level() instanceof ServerLevel level)) {
@@ -2393,7 +2417,8 @@ public final class TrapService {
             row.z = record.z;
             double d = Math.sqrt(player.distanceToSqr(Vec3.atCenterOf(new BlockPos(record.x, record.y, record.z))));
             row.dist = (int) Math.round(d);
-            row.inRange = d <= reach + 0.5 || player.getAbilities().instabuild;
+            row.inRange = d <= reach + 0.5 || player.getAbilities().instabuild
+                    || spotterReaches(level, player, new BlockPos(record.x, record.y, record.z));
             row.broken = record.broken;
             row.mag = magazine(record);
             row.ammo = Math.min(record.ammo, row.mag);
@@ -2419,6 +2444,10 @@ public final class TrapService {
             return;
         }
         String[] parts = argument.split(":");
+        if (parts.length >= 1 && "list".equals(parts[0])) {
+            openTowerMenu(player, false);   // the bird's-eye view asks for the state of the towers
+            return;
+        }
         if (parts.length < 4) {
             return;
         }
@@ -2457,7 +2486,8 @@ public final class TrapService {
         }
         String need = needOf(record);
         double d = Math.sqrt(player.distanceToSqr(Vec3.atCenterOf(pos)));
-        if (need.isEmpty() || fixes.containsKey(key(record)) || (d > remoteRange(skills) + 0.5 && !creative)) {
+        boolean reached = d <= remoteRange(skills) + 0.5 || creative || spotterReaches(level, player, pos);
+        if (need.isEmpty() || fixes.containsKey(key(record)) || !reached) {
             openTowerMenu(player, false);
             return;
         }
