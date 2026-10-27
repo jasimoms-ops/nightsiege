@@ -398,8 +398,10 @@ public final class RaidPlan {
         }
         // Holes: each broken spot near the wall once, then every few seconds again (a defender may close it).
         if (!pendingHoles.isEmpty()) {
-            LongArrayList cells = new LongArrayList(pendingHoles);
-            pendingHoles.clear();
+            // A few spots a second (a fire along a wooden wall breaks block after block).
+            int n = Math.min(8, pendingHoles.size());
+            LongArrayList cells = new LongArrayList(pendingHoles.subList(0, n));
+            pendingHoles.removeElements(0, n);
             for (int i = 0; i < cells.size(); i++) {
                 long c = cells.getLong(i);
                 BlockPos at = new BlockPos(BlockPos.getX(c) * 4 + 2, BlockPos.getY(c) * 4 + 2, BlockPos.getZ(c) * 4 + 2);
