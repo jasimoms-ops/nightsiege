@@ -221,65 +221,126 @@ public final class SiegeCamp {
             return;
         }
         SiegeConfig cfg = m.config();
+        Reasons why = new Reasons();
         for (int attempt = 0; attempt < 30; attempt++) {
             double angle = random.nextDouble() * Math.PI * 2.0;
             double distance = cfg.campMinDistance + random.nextDouble() * Math.max(0, cfg.campMaxDistance - cfg.campMinDistance);
             int x = core.x + (int) Math.round(Math.cos(angle) * distance);
             int z = core.z + (int) Math.round(Math.sin(angle) * distance);
-            Integer floor = site(level, x, z, true);
+            Integer floor = site(level, x, z, true, false, why);
             if (floor == null) {
                 continue;
             }
             int facing = CampLayout.facingTowards(core.x - x, core.z - z);
             build(level, camp, new BlockPos(x, floor, z), facing);
+            NightSiegeMod.LOGGER.info("[Night Siege] Heerlager aufgebaut bei {} {} {} (für Tag {})", x, floor, z, camp.day);
+            buildFails = 0;
             m.persist();
             return;
         }
+        // Every few minutes a line why it is still waiting (Simon 27.10.: it never came).
+        if (buildFails++ % 60 == 0) {
+            NightSiegeMod.LOGGER.info("[Night Siege] Heerlager für Tag {} wartet auf einen Platz ({})", camp.day, why);
+        }
     }
+
+    /** Build tries without a place since the last camp (for the log line). */
+    private int buildFails;
 
     /**
      * The height one walks on for a camp in the middle of (x, z), or null if it cannot stand
      * there: ground not loaded, water, too steep, built on, players close by.
      */
     Integer site(ServerLevel level, int x, int z, boolean awayFromPlayers) {
+        return site(level, x, z, awayFromPlayers, false, null);
+    }
+
+    /** Why sites were turned down (for the admin command's log line). */
+    static final class Reasons {
+        int unloaded;
+        int players;
+        int water;
+        int steep;
+        int built;
+
+        @Override
+        public String toString() {
+            return "nicht geladen " + unloaded + ", Spieler nah " + players + ", Wasser " + water + ", zu steil " + steep
+                    + ", Bauten " + built;
+        }
+    }
+
+    /**
+     * The site check (Simon 27.10., 22:49: "the camp never spawns"): flowers, mushrooms,
+     * saplings and every other plant count as nature now – before, one poppy anywhere on the
+     * 35 × 35 blocks turned a meadow down as "built on". A little water (a puddle, a brook)
+     * and hills the levelling can handle (up to 8 down, 12 up from the floor) are fine too.
+     * {@code load}: the admin command loads the chunks it needs.
+     */
+    Integer site(ServerLevel level, int x, int z, boolean awayFromPlayers, boolean load, Reasons why) {
         int r = CampLayout.GROUND + 1;
         for (int cx = (x - r) >> 4; cx <= (x + r) >> 4; cx++) {
             for (int cz = (z - r) >> 4; cz <= (z + r) >> 4; cz++) {
                 if (!level.hasChunk(cx, cz)) {
-                    return null;
+                    if (!load) {
+                        if (why != null) {
+                            why.unloaded++;
+                        }
+                        return null;
+                    }
+                    level.getChunk(cx, cz);   // the admin command: load (or generate) it
                 }
             }
         }
         if (awayFromPlayers) {
             for (ServerPlayer p : level.players()) {
                 if (p.distanceToSqr(x + 0.5, p.getY(), z + 0.5) < 40.0 * 40.0) {
+                    if (why != null) {
+                        why.players++;
+                    }
                     return null;   // nobody sees it pop up
                 }
             }
         }
         List<Integer> heights = new ArrayList<>();
+        int samples = 0;
+        int wet = 0;
         for (int dx = -CampLayout.GROUND; dx <= CampLayout.GROUND; dx += 2) {
             for (int dz = -CampLayout.GROUND; dz <= CampLayout.GROUND; dz += 2) {
                 if (dx * dx + dz * dz > CampLayout.GROUND * CampLayout.GROUND) {
                     continue;
                 }
+                samples++;
                 int g = ground(level, x + dx, z + dz);
+                if (g == WATER) {
+                    wet++;
+                    continue;
+                }
                 if (g == Integer.MIN_VALUE) {
-                    return null;   // water, lava or something built
+                    if (why != null) {
+                        why.built++;
+                    }
+                    return null;   // something built
                 }
                 heights.add(g);
             }
         }
-        if (heights.isEmpty()) {
-            return null;
+        if (heights.isEmpty() || wet > samples * 0.08) {
+            if (why != null) {
+                why.water++;
+            }
+            return null;   // a lake or a river, not a puddle
         }
         Collections.sort(heights);
         int low = heights.get(0);
         int high = heights.get(heights.size() - 1);
-        if (high - low > 7) {
+        int floor = heights.get(heights.size() / 2) + 1;
+        if (floor - low > 9 || high - floor > 12) {
+            if (why != null) {
+                why.steep++;
+            }
             return null;
         }
-        int floor = heights.get(heights.size() / 2) + 1;
         // Nothing but nature in the space the camp takes.
         for (int dx = -CampLayout.GROUND; dx <= CampLayout.GROUND; dx += 3) {
             for (int dz = -CampLayout.GROUND; dz <= CampLayout.GROUND; dz += 3) {
@@ -287,7 +348,11 @@ public final class SiegeCamp {
                     continue;
                 }
                 for (int y = floor - 2; y <= floor + CampLayout.CLEAR; y++) {
-                    if (!natural(level.getBlockState(new BlockPos(x + dx, y, z + dz)))) {
+                    BlockState state = level.getBlockState(new BlockPos(x + dx, y, z + dz));
+                    if (!natural(state) && state.getFluidState().isEmpty()) {
+                        if (why != null) {
+                            why.built++;
+                        }
                         return null;
                     }
                 }
@@ -296,16 +361,22 @@ public final class SiegeCamp {
         return floor;
     }
 
-    /** The top ground block of a column (trees and plants skipped), or MIN_VALUE for water or a build. */
+    /** {@link #ground} for a column of water. */
+    private static final int WATER = Integer.MIN_VALUE + 1;
+
+    /**
+     * The top ground block of a column (trees and plants skipped), {@link #WATER} for water,
+     * or MIN_VALUE for a build.
+     */
     private static int ground(ServerLevel level, int x, int z) {
         int top = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
         for (int y = top; y > top - 40 && y > level.getMinY(); y--) {
             BlockPos pos = new BlockPos(x, y, z);
             BlockState state = level.getBlockState(pos);
             if (!state.getFluidState().isEmpty()) {
-                return Integer.MIN_VALUE;
+                return WATER;
             }
-            if (state.isAir() || state.canBeReplaced() || state.is(BlockTags.LOGS) || state.is(BlockTags.LEAVES)
+            if (state.isAir() || plant(state) || state.is(BlockTags.LOGS) || state.is(BlockTags.LEAVES)
                     || state.is(Blocks.SNOW) || state.is(Blocks.BAMBOO) || state.is(Blocks.SUGAR_CANE)
                     || state.is(Blocks.CACTUS)) {
                 continue;
@@ -318,6 +389,36 @@ public final class SiegeCamp {
         return Integer.MIN_VALUE;
     }
 
+    /**
+     * Grass, flowers, mushrooms, saplings, petals, vines and any other plant: no collision box,
+     * breaks at once, no block entity – but not torches, rails, redstone, buttons and the like.
+     */
+    static boolean plant(BlockState state) {
+        if (state.isAir() || state.hasBlockEntity()) {
+            return false;
+        }
+        if (state.is(BlockTags.FLOWERS) || state.is(BlockTags.SAPLINGS) || state.is(BlockTags.REPLACEABLE_BY_TREES)
+                || state.is(Blocks.BROWN_MUSHROOM) || state.is(Blocks.RED_MUSHROOM) || state.is(Blocks.MOSS_CARPET)
+                || state.is(Blocks.SWEET_BERRY_BUSH)) {
+            return true;
+        }
+        if (!state.getCollisionShape(net.minecraft.world.level.EmptyBlockGetter.INSTANCE, BlockPos.ZERO).isEmpty()) {
+            return false;
+        }
+        String path = net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(state.getBlock()).getPath();
+        for (String made : MADE) {
+            if (path.contains(made)) {
+                return false;
+            }
+        }
+        return state.getBlock().defaultDestroyTime() <= 0.2f;
+    }
+
+    /** Ids of things without a collision box that people put down. */
+    private static final String[] MADE = {"torch", "rail", "redstone", "repeater", "comparator", "button", "lever",
+            "tripwire", "pressure_plate", "candle", "carpet", "sign", "banner", "head", "skull", "string", "scaffolding",
+            "ladder", "frame", "pot"};
+
     /** Ground, rock, trees and plants: what a camp may be set onto (no player's building). */
     static boolean natural(BlockState state) {
         if (state.isAir()) {
@@ -326,9 +427,13 @@ public final class SiegeCamp {
         if (state.hasBlockEntity() || !state.getFluidState().isEmpty()) {
             return false;
         }
+        if (plant(state)) {
+            return true;
+        }
         return state.canBeReplaced() || state.is(BlockTags.LOGS) || state.is(BlockTags.LEAVES) || state.is(BlockTags.DIRT)
                 || state.is(BlockTags.SAND) || state.is(BlockTags.BASE_STONE_OVERWORLD) || state.is(BlockTags.SNOW)
-                || state.is(BlockTags.TERRACOTTA) || state.is(BlockTags.ICE) || state.is(Blocks.GRAVEL) || state.is(Blocks.CLAY)
+                || state.is(BlockTags.TERRACOTTA) || state.is(BlockTags.ICE) || state.is(BlockTags.OVERWORLD_CARVER_REPLACEABLE)
+                || state.is(Blocks.GRAVEL) || state.is(Blocks.CLAY)
                 || state.is(Blocks.SANDSTONE) || state.is(Blocks.RED_SANDSTONE) || state.is(Blocks.COAL_ORE)
                 || state.is(Blocks.IRON_ORE) || state.is(Blocks.COPPER_ORE) || state.is(Blocks.CACTUS)
                 || state.is(Blocks.SUGAR_CANE) || state.is(Blocks.BAMBOO) || state.is(Blocks.PUMPKIN)
@@ -336,7 +441,14 @@ public final class SiegeCamp {
                 || state.is(Blocks.POWDER_SNOW) || state.is(Blocks.MUSHROOM_STEM) || state.is(Blocks.BROWN_MUSHROOM_BLOCK)
                 || state.is(Blocks.RED_MUSHROOM_BLOCK) || state.is(Blocks.CALCITE) || state.is(Blocks.SMOOTH_BASALT)
                 || state.is(Blocks.DRIPSTONE_BLOCK) || state.is(Blocks.POINTED_DRIPSTONE) || state.is(Blocks.MANGROVE_ROOTS)
-                || state.is(Blocks.MUDDY_MANGROVE_ROOTS) || state.is(Blocks.SWEET_BERRY_BUSH);
+                || state.is(Blocks.MUDDY_MANGROVE_ROOTS) || state.is(Blocks.SWEET_BERRY_BUSH) || state.is(Blocks.MOSSY_COBBLESTONE)
+                || state.is(Blocks.BEE_NEST) || state.is(Blocks.AMETHYST_BLOCK) || state.is(Blocks.OBSIDIAN)
+                || state.is(Blocks.MAGMA_BLOCK) || state.is(Blocks.PACKED_MUD) || state.is(Blocks.MUD);
+    }
+
+    /** For the tests: the floor height of a camp there, or null (chunks are loaded on the way). */
+    public Integer siteForTest(ServerLevel level, int x, int z) {
+        return site(level, x, z, false, true, null);
     }
 
     /** Levels the ground and sets the camp's blocks; the guards come when someone is near. */
@@ -360,7 +472,7 @@ public final class SiegeCamp {
                 }
             }
             // ... earth into dips under it ...
-            for (int y = floorY - 2; y > floorY - 9; y--) {
+            for (int y = floorY - 2; y > floorY - 12; y--) {
                 BlockPos pos = new BlockPos(x, y, z);
                 BlockState there = level.getBlockState(pos);
                 if (!there.isAir() && !there.canBeReplaced() && there.getFluidState().isEmpty()) {
@@ -859,18 +971,21 @@ public final class SiegeCamp {
         long day = m.save().nextSiegeDay >= today ? m.save().nextSiegeDay : today + 1;
         SiegeSave.CampRecord camp = plan(day);
         SiegeConfig cfg = m.config();
-        for (int attempt = 0; attempt < 80; attempt++) {
+        Reasons why = new Reasons();
+        for (int attempt = 0; attempt < 120; attempt++) {
             double angle = random.nextDouble() * Math.PI * 2.0;
             double distance = cfg.campMinDistance + random.nextDouble() * Math.max(0, cfg.campMaxDistance - cfg.campMinDistance);
             int x = core.x + (int) Math.round(Math.cos(angle) * distance);
             int z = core.z + (int) Math.round(Math.sin(angle) * distance);
-            Integer floor = site(level, x, z, false);
+            Integer floor = site(level, x, z, false, true, why);
             if (floor != null) {
                 build(level, camp, new BlockPos(x, floor, z), CampLayout.facingTowards(core.x - x, core.z - z));
                 m.persist();
+                NightSiegeMod.LOGGER.info("[Night Siege] Heerlager per Befehl bei {} {} {} (vorher verworfen: {})", x, floor, z, why);
                 return new BlockPos(x, floor, z);
             }
         }
+        NightSiegeMod.LOGGER.info("[Night Siege] Heerlager per Befehl: kein Platz ({})", why);
         m.save().camp = null;
         m.persist();
         return null;

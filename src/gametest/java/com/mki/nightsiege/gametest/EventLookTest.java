@@ -1265,11 +1265,55 @@ public class EventLookTest implements FabricClientGameTest {
     }
 
     /**
+     * Where a camp may stand (Simon 27.10., 22:49: "the camp never spawns"): a meadow with
+     * flowers, mushrooms, a sapling, a puddle and a small hill must be taken; the same meadow
+     * with a few planks on it must not.
+     */
+    private static void campSiteCheck(ClientGameTestContext context, TestSingleplayerContext game) {
+        BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        int sx = pos.getX() - 260;
+        int sz = pos.getZ() + 180;
+        int sy = yard(context, game, sx, sz, 22, 16);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            java.util.Random r = new java.util.Random(7);
+            net.minecraft.world.level.block.state.BlockState[] plants = {
+                    net.minecraft.world.level.block.Blocks.POPPY.defaultBlockState(),
+                    net.minecraft.world.level.block.Blocks.DANDELION.defaultBlockState(),
+                    net.minecraft.world.level.block.Blocks.CORNFLOWER.defaultBlockState(),
+                    net.minecraft.world.level.block.Blocks.SHORT_GRASS.defaultBlockState(),
+                    net.minecraft.world.level.block.Blocks.BROWN_MUSHROOM.defaultBlockState(),
+                    net.minecraft.world.level.block.Blocks.OAK_SAPLING.defaultBlockState()};
+            for (int dx = -20; dx <= 20; dx++) {
+                for (int dz = -20; dz <= 20; dz++) {
+                    if (r.nextInt(4) == 0) {
+                        level.setBlock(new BlockPos(sx + dx, sy, sz + dz), plants[r.nextInt(plants.length)], 3);
+                    }
+                }
+            }
+            level.setBlock(new BlockPos(sx + 5, sy - 1, sz - 4), net.minecraft.world.level.block.Blocks.WATER.defaultBlockState(), 3);
+            for (int dx = 8; dx <= 12; dx++) {
+                for (int dy = 0; dy < 4; dy++) {
+                    level.setBlock(new BlockPos(sx + dx, sy + dy, sz + 6), net.minecraft.world.level.block.Blocks.STONE.defaultBlockState(), 3);
+                }
+            }
+            Integer meadow = manager.camp().siteForTest(level, sx, sz);
+            for (int i = 0; i < 4; i++) {
+                level.setBlock(new BlockPos(sx - 3 + i, sy, sz + 2), net.minecraft.world.level.block.Blocks.OAK_PLANKS.defaultBlockState(), 3);
+            }
+            Integer built = manager.camp().siteForTest(level, sx, sz);
+            System.out.println("[Night Siege test] camp site meadow=" + meadow + " (ground " + sy + ") with planks=" + built);
+        });
+        context.waitTicks(5);
+    }
+
+    /**
      * The war camp (27 October 2026): built, looked at by day and by night, attacked (class
      * cards, kit, grace), its workbench destroyed (it burns down and goes), then a second camp
      * where the defender falls (the camp wins, the machines come for sure).
      */
     private static void campScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        campSiteCheck(context, game);
         BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
         int cx = pos.getX() + 220;
         int cz = pos.getZ() - 60;
