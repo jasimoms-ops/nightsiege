@@ -561,7 +561,7 @@ public final class SkillTree {
         // ----- Way of the dead: soul magic (the soul bolt, three spells per subclass, the army as ult)
         String d = WAY_DEAD;
         node(list, "d_greed", c, d, SkillEffect.SOUL_GREED, 3, 3, 2, 0.1, "s_soulbond", "d1", "minecraft:soul_sand", 2, 1);
-        node(list, "d_raise", c, d, SkillEffect.RAISE_DEAD, 3, 3, 2, 1.0, "s_soulbond", "", "minecraft:zombie_head", 2, 3);
+        node(list, "d_raise", c, d, SkillEffect.RAISE_DEAD, 3, 3, 2, 0.8, "s_soulbond", "", "minecraft:zombie_head", 2, 3);
         node(list, "d_bindrune", c, d, SkillEffect.BIND_RUNE, 3, 3, 2, 0.17, "s_soulbond", "d1", "minecraft:enchanted_book", 2, 5);
         node(list, "d_necro", c, d, SkillEffect.NECRO_POWER, 4, 4, 2, 0.15, "d_raise", "d_sub", "minecraft:wither_skeleton_skull", 3, 1);
         node(list, "d_soulcatcher", c, d, SkillEffect.SOUL_CATCHER, 4, 4, 2, 0.15, "d_raise", "d_sub", "minecraft:soul_lantern", 3, 5);

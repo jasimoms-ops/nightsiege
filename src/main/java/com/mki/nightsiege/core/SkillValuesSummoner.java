@@ -26,7 +26,7 @@ final class SkillValuesSummoner {
         def("s_packcall", "startwolves", 2);       // wolves at the start of a night
         def("s_packcall", "health", 40.0);         // a wolf before the skills and the night
         def("s_packcall", "damage", 3.0);
-        def("s_packcall", "strike", 5.0);          // Ruf-Hieb: damage before the night
+        def("s_packcall", "strike", 4.0);          // Ruf-Hieb: damage before the night (-20 %, Simon 27.10.)
         def("s_packcall", "strikepause", 20);      // ticks
         def("s_packcall", "strikeboost", 0.2);     // share more damage of the companions after a hit
         def("s_packcall", "strikeboosttime", 80);  // ticks
@@ -94,7 +94,8 @@ final class SkillValuesSummoner {
         // ----- Way of the dead: soul magic (Simon 26.10.)
         // Way of the dead stronger (Simon, 27 October 2026: "the dark summoner classes are too weak"):
         // bolt +40 %, wider splash, more souls; corpses, curse, ghosts, chain and storm hit harder.
-        def("d_raise", "bolt", 7.0);               // Seelengeschoss: damage before the levels and the night
+        // Simon 27.10. 15:31: the staff's left click 20 % weaker (bolt 7 -> 5.6, +1 -> +0.8 per level).
+        def("d_raise", "bolt", 5.6);               // Seelengeschoss: damage before the levels and the night
         def("d_raise", "boltpause", 20);           // ticks
         def("d_raise", "boltsplash", 0.5);        // share of the bolt for the monsters next to its target (27 Oct 2026)
         def("d_raise", "boltsplashradius", 2.5);   // blocks
@@ -118,13 +119,13 @@ final class SkillValuesSummoner {
         def("d_necro", "wallwidth", 5);            // blocks
         def("d_necro", "wallheight", 2);           // blocks
         def("d_necro", "walldistance", 3.0);       // blocks in front of the summoner
-        def("d_necro", "cursecost", 3);            // souls: Fluchzone
+        def("d_necro", "cursecost", 8);            // souls: Fluchzone (Simon 27.10.: 8)
         def("d_necro", "curselife", 120);          // ticks
         def("d_necro", "curseradius", 4.0);        // blocks
         def("d_necro", "curse", 0.3);             // share more damage taken in the zone
         def("d_necro", "cursedmg", 3.0);           // damage per second in the zone, before the skills and the night (27 Oct 2026)
         def("d_necro", "curseslow", 0);            // Slowness amplifier in the zone (0 = Slowness I)
-        def("d_soulcatcher", "swarmcost", 2);      // souls: Geisterschwarm
+        def("d_soulcatcher", "swarmcost", 4);      // souls: Geisterschwarm (Simon 27.10.: 4)
         def("d_soulcatcher", "ghosts", 3);
         def("d_soulcatcher", "ghost", 6.5);        // damage per ghost before the skills and the night
         def("d_soulcatcher", "ghostspeed", 0.7);   // blocks per tick
