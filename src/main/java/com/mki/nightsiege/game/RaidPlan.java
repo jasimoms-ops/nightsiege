@@ -422,7 +422,8 @@ public final class RaidPlan {
             while (it.hasNext()) {
                 Entry h = it.next();
                 boolean was = h.open;
-                h.open = base.walkInto(world, h.front, h.at, 12, 3000);
+                BlockPos from = groundOutside(h.at);
+                h.open = from != null && base.walkInto(world, from, h.at, 12, 3000);
                 if (was != h.open) {
                     log(h.open ? "Weg wieder offen:" : "Weg zu:", h);
                 }
@@ -590,6 +591,11 @@ public final class RaidPlan {
             return;
         }
         boolean inside = base.closed && base.contains(mob.getBlockX(), mob.getBlockZ());
+        if (!inside && base.closed && order.state != State.HUNT && base.near(mob.getBlockX(), mob.getBlockZ(), 2.5)) {
+            // Up on the wall (over a ladder or a rope): as good as in.
+            BlockPos ground = order.entry != null ? order.entry.front : order.rally;
+            inside = ground != null && mob.getY() > ground.getY() + 2.5 && mob.onGround();
+        }
         if (inside && order.state != State.HUNT) {
             order.state = State.HUNT;   // over the wall: now for the defenders
             stormed++;

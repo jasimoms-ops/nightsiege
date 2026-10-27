@@ -519,6 +519,9 @@ public final class BaseScan {
      */
     public boolean walkInto(ServerLevel level, BlockPos from, BlockPos around, int reach, int budget) {
         Walker w = new Walker(level, core);
+        if (from == null || !w.walkable(from.asLong(), true)) {
+            return false;   // the spot in front is built over (a hole walled up)
+        }
         LongArrayFIFOQueue queue = new LongArrayFIFOQueue();
         LongOpenHashSet seen = new LongOpenHashSet();
         queue.enqueue(from.asLong());
