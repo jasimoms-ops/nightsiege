@@ -5,17 +5,17 @@ import java.util.List;
 
 /**
  * The engineer's tower menu (Simon, 27 October 2026): every own trap and tower with its state;
- * a tower that is empty is reloaded, any tower can be strengthened with a code of arrow keys
- * (like the stratagems in Helldivers), then the work takes a few seconds. Nothing breaks any
- * more (Simon, 19:15). Server to client, as JSON.
+ * a tower is strengthened with a code of arrow keys (like the stratagems in Helldivers), then
+ * the work takes a few seconds. Nothing breaks and nothing runs empty any more (19:15, 19:51).
+ * Server to client, as JSON.
  */
 public class TowerMenuData {
     /** True: open the menu; false: only refresh it when it is open. */
     public boolean open;
     /** Blocks the remote reaches: towers further away show greyed out. */
     public int range;
+    /** Seconds a strengthening takes once the code is in. */
     public int fixSeconds;
-    public int reloadArrows = 4;
     /** Strengthening: arrows of its code, extra damage in percent, seconds it lasts. */
     public int buffArrows = 5;
     public int buffPercent = 50;
@@ -36,17 +36,12 @@ public class TowerMenuData {
         public boolean tower;
         /** Ticks the strengthening still lasts (0: not strengthened). */
         public int buffed;
-        /** Shots left and the full magazine (0: the tower needs none). */
-        public int ammo;
-        public int mag;
         /** Floor traps: springs left before they are worn (0/0 for towers). */
         public int uses;
         public int fullUses;
-        /** Ticks until a reload or strengthening under way is done (0: none). */
+        /** Ticks until a strengthening under way is done (0: none). */
         public int working;
         /** Looked after by the copper golem. */
         public boolean golem;
-        /** "reload" or "". */
-        public String need = "";
     }
 }

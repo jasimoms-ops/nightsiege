@@ -135,7 +135,7 @@ public final class CrateGains {
         add("tarnfallen", e, CrateRarity.EPIC, 1, false, "", true);
         add("kupfergolem", e, CrateRarity.EPIC, 1, false, "", true);   // both ways since 27 October 2026: it tends two towers
         add("geschuetzschild", e, CrateRarity.RARE, 1, false, SkillTree.WAY_MECHANICS, true);   // 27 October 2026
-        add("munitionskiste", e, CrateRarity.UNCOMMON, 1, false, "", true);   // 27.10.: longer magazines
+        add("munitionskiste", e, CrateRarity.UNCOMMON, 1, false, "", true);   // 27.10.: strengthening lasts 50 % longer (id kept)
         add("sappeuralarm", e, CrateRarity.UNCOMMON, 1, false, "", true);    // 27.10.: towers go for sappers first
         add("doppelbrau", e, CrateRarity.RARE, 1, false, SkillTree.WAY_CHEMISTRY, true);   // 27.10.: the alchemist's own
         add("magnetfeld", e, CrateRarity.LEGENDARY, 1, false, "", true);

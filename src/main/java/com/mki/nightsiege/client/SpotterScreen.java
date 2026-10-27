@@ -74,7 +74,7 @@ public class SpotterScreen extends Screen {
     private int reportedZ = Integer.MIN_VALUE;
     private long reportedAt;
     /**
-     * Maintenance from the binoculars (Simon, 27 October 2026): the own towers as the tower
+     * Strengthening from the binoculars (Simon, 27 October 2026): the own towers as the tower
      * menu knows them, the one whose code is typed, the code and how far it is typed.
      */
     private com.mki.nightsiege.core.TowerMenuData towers;
@@ -132,7 +132,7 @@ public class SpotterScreen extends Screen {
         if (keep != null) {
             coding = null;
             for (com.mki.nightsiege.core.TowerMenuData.Row r : fresh.rows) {
-                if (rowKey(r).equals(keep) && !r.need.isEmpty() && r.working == 0) {
+                if (rowKey(r).equals(keep) && r.tower && r.working == 0 && r.buffed <= 100) {
                     coding = r;
                 }
             }
@@ -147,19 +147,19 @@ public class SpotterScreen extends Screen {
         return r.x + ":" + r.y + ":" + r.z;
     }
 
-    /** The towers that need something or are being worked on, those that need something first. */
+    /** The own towers in reach of the view: those to strengthen first, then at work, then strengthened. */
     private java.util.List<com.mki.nightsiege.core.TowerMenuData.Row> serviceRows() {
         java.util.List<com.mki.nightsiege.core.TowerMenuData.Row> out = new java.util.ArrayList<>();
         if (towers == null) {
             return out;
         }
         for (com.mki.nightsiege.core.TowerMenuData.Row r : towers.rows) {
-            if (!r.need.isEmpty() || workingLeft(r) > 0) {
+            if (r.tower && r.inRange) {
                 out.add(r);
             }
         }
-        out.sort(java.util.Comparator.comparingInt((com.mki.nightsiege.core.TowerMenuData.Row r) -> workingLeft(r) > 0 ? 1 : 0)
-                .thenComparingInt(r -> r.mag > 0 && r.ammo <= 0 ? 0 : 1));
+        out.sort(java.util.Comparator.comparingInt((com.mki.nightsiege.core.TowerMenuData.Row r) ->
+                workingLeft(r) > 0 ? 1 : buffLeft(r) > 100 ? 2 : 0));
         return out;
     }
 
@@ -167,8 +167,13 @@ public class SpotterScreen extends Screen {
         return r.working <= 0 ? 0 : r.working - (ticks - towersAt);
     }
 
+    private long buffLeft(com.mki.nightsiege.core.TowerMenuData.Row r) {
+        return r.buffed <= 0 ? 0 : Math.max(0, r.buffed - (ticks - towersAt));
+    }
+
+    /** A tower in reach, not at work and not strengthened (or in the last 5 s of it). */
     private boolean canStart(com.mki.nightsiege.core.TowerMenuData.Row r) {
-        return r != null && !r.need.isEmpty() && r.inRange && workingLeft(r) <= 0;
+        return r != null && r.tower && r.inRange && workingLeft(r) <= 0 && buffLeft(r) <= 100;
     }
 
     /** Starts the code of a tower and swings the camera over to it. */
@@ -177,7 +182,7 @@ public class SpotterScreen extends Screen {
             return;
         }
         coding = r;
-        int n = towers.reloadArrows;
+        int n = towers.buffArrows;
         code = new int[Math.max(1, n)];
         for (int i = 0; i < code.length; i++) {
             code[i] = random.nextInt(4);
@@ -359,18 +364,18 @@ public class SpotterScreen extends Screen {
         return true;
     }
 
-    /** Towers that need work get a column of coloured dust: red empty, amber half empty, white at work. */
+    /** Towers to strengthen get a column of amber dust, white while at work (gold for the picked one). */
     private void markTowers(Minecraft client) {
         if (towers == null || client.level == null || ticks % 4 != 0) {
             return;
         }
         for (com.mki.nightsiege.core.TowerMenuData.Row r : towers.rows) {
             boolean working = workingLeft(r) > 0;
-            if (r.need.isEmpty() && !working) {
+            if (!r.tower || !r.inRange || (!working && buffLeft(r) > 100)) {
                 continue;
             }
-            int color = working ? 0xFFFFFF : r.mag > 0 && r.ammo <= 0 ? 0xFF3030 : 0xFFB347;
             boolean picked = coding != null && rowKey(coding).equals(rowKey(r));
+            int color = working ? 0xFFFFFF : picked ? 0xFFD86B : 0xFFB347;
             for (int i = 0; i < (picked ? 6 : 3); i++) {
                 client.level.addParticle(new DustParticleOptions(color, picked ? 2.2f : 1.6f),
                         r.x + 0.5, r.y + 1.6 + i * 0.7, r.z + 0.5, 0, 0, 0);
@@ -394,10 +399,9 @@ public class SpotterScreen extends Screen {
                     typed++;
                     click(1.4f + 0.1f * typed);
                     if (typed >= code.length) {
-                        send("tower:fix:" + rowKey(coding));
+                        send("tower:buff:" + rowKey(coding));
                         click(2.0f);
                         coding.working = towers.fixSeconds * 20;
-                        coding.need = "";
                         towersAt = ticks;
                         stopCode();
                     }
@@ -414,7 +418,7 @@ public class SpotterScreen extends Screen {
             }
         }
         if (k == GLFW.GLFW_KEY_R) {
-            // R: the code of the first tower that needs work.
+            // R: the code of the first tower to strengthen.
             for (com.mki.nightsiege.core.TowerMenuData.Row r : serviceRows()) {
                 if (canStart(r)) {
                     startCode(r);
@@ -723,7 +727,7 @@ public class SpotterScreen extends Screen {
     }
 
     // ------------------------------------------------------------------
-    // maintenance (Simon, 27 October 2026: reload from the binoculars; nothing breaks any more)
+    // strengthening (Simon, 27 October 2026: from the binoculars too; nothing breaks or runs empty any more)
     // ------------------------------------------------------------------
 
     private int serviceW() {
@@ -774,19 +778,12 @@ public class SpotterScreen extends Screen {
             if (work > 0) {
                 state = Component.translatable("nightsiege.towers.working", (work + 19) / 20).getString();
                 color = LIGHT;
-            } else if (r.mag <= 0) {
-                state = Component.translatable("nightsiege.towers.wear", r.uses, r.fullUses).getString();
-                color = 0xFFFFB347;
-            } else if (r.ammo <= 0) {
-                state = Component.translatable("nightsiege.towers.ammo", r.ammo, r.mag).getString();
-                color = RED;
+            } else if (buffLeft(r) > 100) {
+                state = Component.translatable("nightsiege.towers.buffed", (buffLeft(r) + 19) / 20).getString();
+                color = GOLD;
             } else {
-                state = Component.translatable("nightsiege.towers.ammo", r.ammo, r.mag).getString();
+                state = Component.translatable("nightsiege.towers.buff").getString();
                 color = 0xFFFFB347;
-            }
-            if (!r.inRange && work <= 0) {
-                state = Component.translatable("nightsiege.towers.far").getString();
-                color = GREY;
             }
             small(gui, font, font.plainSubstrByWidth(name, (int) (80 / 0.65f)), x0 + 5, y + 2, picked ? GOLD : 0xFFFFFFFF, 0.65f);
             small(gui, font, state, x1 - 5 - (int) Math.ceil(font.width(state) * 0.65f), y + 2, color, 0.65f);
@@ -794,7 +791,7 @@ public class SpotterScreen extends Screen {
 
         // The code, in the middle of the screen above the fire bar.
         if (coding != null && code.length > 0) {
-            String what = Component.translatable("nightsiege.towers.code_reload",
+            String what = Component.translatable("nightsiege.towers.code_buff",
                     Component.translatable("block.nightsiege." + coding.kind)).getString();
             int box = 22;
             int gap = 4;
@@ -825,7 +822,7 @@ public class SpotterScreen extends Screen {
         }
     }
 
-    /** For the test: starts the code of the first tower that needs work (R). */
+    /** For the test: starts the code of the first tower to strengthen (R). */
     public boolean testServiceStart() {
         for (com.mki.nightsiege.core.TowerMenuData.Row r : serviceRows()) {
             if (canStart(r)) {

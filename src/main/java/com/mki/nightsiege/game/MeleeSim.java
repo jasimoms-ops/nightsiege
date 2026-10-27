@@ -671,6 +671,14 @@ public final class MeleeSim {
         mate.setPos(p.getX() + 0.5, p.getY(), p.getZ() + 0.5);
         mate.removeAllEffects();
         mate.setAbsorptionAmount(0f);
+        // 40 health like a skilled player of the level (Simon 27.10.: with the 20 of a fresh
+        // player, half health left room for only 10 – one healing hand already overflowed it,
+        // so the bench could not see a stronger medic).
+        net.minecraft.world.entity.ai.attributes.AttributeInstance max =
+                mate.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH);
+        if (max != null) {
+            max.setBaseValue(40.0);
+        }
         mate.setHealth(mate.getMaxHealth() * 0.5f);
     }
 

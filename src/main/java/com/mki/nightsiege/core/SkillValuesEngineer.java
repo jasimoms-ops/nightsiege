@@ -113,17 +113,13 @@ final class SkillValuesEngineer {
         def("spike_trap", "overcharge", 30);
         def("snare_trap", "overcharge", 30);
         def("flame_trap", "overcharge", 30);
-        // Tower upkeep (Simon, 27 October 2026): magazines of about 90 s, reloaded with a code in
-        // the remote's tower menu. Towers and traps no longer break (Simon 19:15: "breaking and
-        // repairing goes"); instead the engineer strengthens his towers there with a code.
+        // The tower menu (Simon, 27 October 2026): towers and traps no longer break or run empty
+        // (19:15 and 19:51: breaking, repairing and reloading go); the engineer strengthens his
+        // towers there with a code.
         for (TrapKind tower : new TrapKind[] {TrapKind.TURRET, TrapKind.MORTAR, TrapKind.BREWER, TrapKind.TESLA}) {
             def(tower.id(), "seathealth", 3.0);                            // tower health for its gunner: × the player's
-            if (tower != TrapKind.TESLA) {
-                def(tower.id(), "magseconds", 90);                         // seconds of its own fire in a full magazine
-            }
         }
-        def("e_longrange", "fixtime", 60);                               // ticks a reload or strengthening takes after the code
-        def("e_longrange", "reloadcode", 4);                             // arrows of a reload code
+        def("e_longrange", "fixtime", 60);                               // ticks a strengthening takes after the code
         def("e_longrange", "buffcode", 5);                               // arrows of a strengthening code
         def("e_longrange", "buffpower", 1.5);                            // damage factor of a strengthened tower
         def("e_longrange", "bufftime", 400);                             // ticks it stays strengthened
@@ -142,8 +138,7 @@ final class SkillValuesEngineer {
         for (String cross : new String[]{"m_cross_mine", "m_cross_poison", "c_cross_turret", "c_cross_tesla"}) {
             def(cross, "tier", 2);
         }
-        def("e_ammobelt", "speed", 0.2);
-        def("e_ammobelt", "mag", 0.5);                                   // share more shots in the turret's magazine (27 Oct 2026)                                 // turrets shoot this much faster (since 26 Oct: endless arrows)
+        def("e_ammobelt", "speed", 0.2);                                 // turrets shoot this much faster (endless arrows)
         def("e_ammobelt", "reload", 40);                                 // energy of a repair with X (name kept for server tweaks)
         def("e_seeker", "base", 0.15);                                   // extra damage of a mark without the skill
         def("e_seeker", "time", 160);                                    // ticks a mark lasts
