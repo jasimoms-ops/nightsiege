@@ -179,6 +179,8 @@ jobs:
                       vz.writestr(n, data)
               print("vanilla files:", len(taken))
           out = open("api.txt", "w")
+          if os.path.exists("tools/vanilla-extract.txt"):
+              out.write("vanilla files: %d\n" % len(taken))
           out.write("jar: %s\n" % found)
           if found:
               names = zipfile.ZipFile(found).namelist()
@@ -423,6 +425,7 @@ jobs:
           cp "$TMP/nightsiege.jar" dist/nightsiege.jar
           git add -f dist/nightsiege.jar
           if [ -f "$TMP/api.txt" ]; then cp "$TMP/api.txt" dist/; git add -f dist/api.txt; fi
+          if [ -f "$TMP/vanilla.zip" ]; then cp "$TMP/vanilla.zip" dist/; git add -f dist/vanilla.zip; fi
           if ls "$TMP/dungeon-mods/"*.jar > /dev/null 2>&1; then mkdir -p dist/dungeon-mods; cp "$TMP/dungeon-mods/"*.jar dist/dungeon-mods/; git add -f dist/dungeon-mods; fi
           if ls "$TMP/shots/"*.png > /dev/null 2>&1; then mkdir -p dist/shots; cp "$TMP/shots/"*.png dist/shots/; git add -f dist/shots; fi
           if [ -f "$TMP/client-shader-log.txt" ]; then cp "$TMP/client-shader-log.txt" dist/; git add -f dist/client-shader-log.txt; fi
