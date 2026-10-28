@@ -40,6 +40,8 @@ public class KitProjectile extends ThrowableItemProjectile {
     public static final String ZONE = "zone";
     /** The alchemist's flash grenade: wider and blinding, comes back after its pause. */
     public static final String FLASH_ALCHEMIST = "flash_alchemist";
+    /** The alchemist's acid flask (28 October 2026): bursts where it lands. */
+    public static final String ACID = "acid";
 
     private String kind = "";
     /** For tower shots: which tower, whose, tier and scales (see TrapService). */

@@ -475,6 +475,16 @@ public final class SkillTree {
         node(list, "e_area_fire", c, ch, SkillEffect.AREA_FIRE, 1, 10, 0, 1.0, mine + ":2", "", "minecraft:tnt", 5, 0);
         node(list, "e_smoke_salvo", c, ch, SkillEffect.SMOKE_SALVO, 1, 12, 0, 1.0, mine + ":2", "", "minecraft:campfire", 6, 0);
         node(list, "e_fire_salvo", c, ch, SkillEffect.FIRE_SALVO, 1, 14, 0, 1.0, mine + ":3", "", "minecraft:fire_charge", 7, 0);
+        // The alchemist's potions (Simon, 28 October 2026): seven nodes on the outer edge of his
+        // half of the fan, of which one profile learns three (see brewLimit), each behind the node
+        // that opened its potion before. In exchange the acid flask, an ability of its own.
+        int[] brewCost = {2, 2, 4, 4, 6, 8, 8};
+        for (BrewKind brew : BrewKind.values()) {
+            node(list, brew.nodeId(), c, ch, SkillEffect.BREW, 1, brewCost[brew.ordinal()], 0, 1.0, brew.requirement(), "",
+                    brew.icon(), 3 + brew.ordinal(), 7);
+        }
+        node(list, "e_acid_flask", c, ch, SkillEffect.ACID_FLASK, 1, 6, 0, 1.0, poison + ":2", "",
+                "minecraft:experience_bottle", 5, 6);
         String c4 = "e_chain_reaction|e_accelerant|c_cross_turret";
         node(list, "e_blastpower", c, ch, SkillEffect.BLAST_POWER, 1, 18, 0, 0.5, c4, "ec6", "minecraft:gunpowder", 7, 1);
         node(list, "e_slowpoison", c, ch, SkillEffect.SLOW_POISON, 1, 18, 0, 0.5, c4, "ec6", "minecraft:pufferfish", 7, 3);
@@ -755,6 +765,22 @@ public final class SkillTree {
         return n;
     }
 
+    /** How many of the seven potions one profile may learn (Simon, 28 October 2026: three). */
+    public static int brewLimit() {
+        return (int) Math.round(SkillValues.get("potion_tower", "brews", 3));
+    }
+
+    /** Potions learned besides this node. */
+    public static int brewsLearned(PlayerSkills skills, String except) {
+        int n = 0;
+        for (BrewKind kind : BrewKind.values()) {
+            if (!kind.nodeId().equals(except) && skills.levelOf(kind.nodeId()) > 0) {
+                n++;
+            }
+        }
+        return n;
+    }
+
     public String blockedReason(String nodeId, PlayerSkills skills) {
         SkillNode node = get(nodeId);
         if (node == null) {
@@ -786,6 +812,10 @@ public final class SkillTree {
         }
         // The four salvos of the bird's-eye view: any two of them (Simon, 27 October 2026).
         if (level == 0 && SALVOS.contains(nodeId) && salvosLearned(skills, nodeId) >= salvoLimit()) {
+            return "choice";
+        }
+        // The alchemist's potions: any three of the seven (Simon, 28 October 2026).
+        if (level == 0 && BrewKind.byNode(nodeId) != null && brewsLearned(skills, nodeId) >= brewLimit()) {
             return "choice";
         }
         String subclassBlock = subclassBlocked(node, skills);
@@ -997,6 +1027,57 @@ public final class SkillTree {
             skills.unlocksFree = Math.max(0, before + added - used);
         }
         skills.profileVersion = PlayerSkills.PROFILE_VERSION;
+    }
+
+    /**
+     * Potions became nodes on 28 October 2026 (three of seven). Every engineer profile with the
+     * potion thrower and no potion node yet gets the first three potions the old rules gave it,
+     * for free; a profile with more potion nodes than allowed gets the points of the extra ones
+     * back. Runs once per save (see SiegeSave#migrateBrews). Returns how many profiles changed.
+     */
+    public int migrateBrews(PlayerSkills skills) {
+        if (skills == null) {
+            return 0;
+        }
+        int changed = 0;
+        for (String key : new ArrayList<>(skills.profilesOf(SkillClass.ENGINEER))) {
+            boolean touched = skills.asProfile(key, () -> {
+                if (skills.levelOf(TrapKind.BREWER.id()) <= 0) {
+                    return false;
+                }
+                int have = brewsLearned(skills, null);
+                if (have == 0) {
+                    int given = 0;
+                    for (BrewKind kind : BrewKind.values()) {
+                        if (given < brewLimit() && kind.openedTheOldWay(skills)) {
+                            skills.setLevel(kind.nodeId(), 1);
+                            given++;
+                        }
+                    }
+                    return given > 0;
+                }
+                boolean refunded = false;
+                int kept = 0;
+                for (BrewKind kind : BrewKind.values()) {
+                    if (skills.levelOf(kind.nodeId()) <= 0) {
+                        continue;
+                    }
+                    if (++kept > brewLimit()) {
+                        SkillNode node = get(kind.nodeId());
+                        skills.setLevel(kind.nodeId(), 0);
+                        if (node != null) {
+                            skills.points += node.costFor(0);
+                        }
+                        refunded = true;
+                    }
+                }
+                return refunded;
+            });
+            if (touched) {
+                changed++;
+            }
+        }
+        return changed;
     }
 
     /** True when one profile is fully learned (see {@link #isComplete}). */

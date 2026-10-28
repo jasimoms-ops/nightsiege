@@ -110,6 +110,31 @@ final class SkillValuesEngineer {
         def("potion_tower", "flashradius", 5);                           // blocks
         def("potion_tower", "flashtime", 80);                            // ticks blind and without a target
         def("potion_tower", "flashpause", 300);                          // ticks until the grenade is back
+        def("potion_tower", "flashgain", 40);                            // ticks less per level of the crate gain Blendgranaten
+        // Simon, 28 October 2026: three of the seven potions, each with its own pause after a throw;
+        // between two throws of different potions only this short lock.
+        def("potion_tower", "brews", 3);                                 // potions one profile may learn
+        def("potion_tower", "zonelock", 20);                             // ticks after any throw
+        for (BrewKind brew : BrewKind.values()) {
+            def(brew.nodeId(), "time", 160);                             // ticks its cloud stays
+            def(brew.nodeId(), "pause", 400);                            // ticks until this potion is back
+        }
+        def(BrewKind.HEAL.nodeId(), "heal", 2.0);                        // life points per second in the cloud
+        // The acid flask (in exchange for the potions): a burst of acid where it lands.
+        def("e_acid_flask", "range", 14);                                // blocks to the spot looked at
+        def("e_acid_flask", "radius", 3);                                // blocks
+        def("e_acid_flask", "dmg", 1.2);                                 // × a potion thrower hit (its 10 × level × trapDamage)
+        def("e_acid_flask", "zombie", 0.45);                             // texts only: 1.2 × 10 × 0.75 / 20 of a zombie
+        def("e_acid_flask", "acid", 0.25);                               // more damage taken while the acid eats
+        def("e_acid_flask", "time", 120);                                // ticks the acid eats
+        def("e_acid_flask", "pause", 240);                               // ticks until the next flask
+        // The escape of every engineer (Sprungladung, 28 October 2026): a blast at the feet.
+        def("e_escape", "pause", 300);                                   // ticks until the next one
+        def("e_escape", "push", 1.1);                                    // blocks per tick backwards at the start (about 7 blocks in all)
+        def("e_escape", "lift", 0.45);                                   // upwards, only from the ground
+        def("e_escape", "radius", 3.5);                                  // blocks around the engineer
+        def("e_escape", "knock", 1.2);                                   // push on the monsters
+        def("e_escape", "slow", 40);                                     // ticks the monsters crawl after it
         def("spike_trap", "overcharge", 30);
         def("snare_trap", "overcharge", 30);
         def("flame_trap", "overcharge", 30);

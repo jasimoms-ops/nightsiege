@@ -133,7 +133,9 @@ public final class TrapService {
                     Component.translatable("nightsiege.skill." + kind.id()));
         }
         int max = maxFor(kind, tier, save.get().skillsOf(player.getUUID().toString()));
-        if (placedBy(player.getUUID().toString(), kind) >= max) {
+        // In a dungeon or at the war camp only the field towers count (28 October 2026): the ones
+        // standing at home used to fill the caps, so the engineer had nothing to set up there.
+        if (placedBy(player.getUUID().toString(), kind, fieldFight(player)) >= max) {
             return Component.translatable("nightsiege.msg.trap_cap", max,
                     Component.translatable("block.nightsiege." + kind.id()));
         }
@@ -151,11 +153,29 @@ public final class TrapService {
         return count;
     }
 
+    /** Traps of this kind an engineer has standing, only the field ones or only the ones at home. */
+    public int placedBy(String owner, TrapKind kind, boolean field) {
+        int count = 0;
+        for (TrapRecord record : traps()) {
+            if (kind.id().equals(record.kind) && owner.equals(record.owner) && record.field == field) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /** True while the player fights in a dungeon or at the war camp (his traps there are field traps). */
+    static boolean fieldFight(ServerPlayer player) {
+        SiegeManager m = SiegeManager.get();
+        return m != null && player != null && m.fieldFighter(player);
+    }
+
     public void onPlaced(ServerLevel level, BlockPos pos, LivingEntity placer, TrapKind kind) {
         String owner = placer == null ? "" : placer.getUUID().toString();
         String dimension = SiegeManager.dimensionName(level);
         traps().removeIf(t -> t.matches(dimension, pos.getX(), pos.getY(), pos.getZ()));
         TrapRecord record = new TrapRecord(kind.id(), dimension, pos.getX(), pos.getY(), pos.getZ(), owner);
+        record.field = placer instanceof ServerPlayer player && fieldFight(player);
         int tier = tierOf(record);
         record.uses = fullUses(kind, tier, record);
         traps().add(record);
@@ -386,7 +406,7 @@ public final class TrapService {
                 count += (int) Math.round(tree.totalBonus(SkillEffect.FREE_TRAPS, skills));
                 // Only top up to the cap: placed traps and those in the pack both count.
                 net.minecraft.world.item.Item item = ModContent.TRAP_ITEMS.get(kind);
-                int have = placedBy(player.getUUID().toString(), kind);
+                int have = placedBy(player.getUUID().toString(), kind, fieldFight(player));
                 for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
                     ItemStack stack = player.getInventory().getItem(i);
                     if (stack.is(item)) {
@@ -438,6 +458,17 @@ public final class TrapService {
                 continue;
             }
             BlockPos pos = new BlockPos(record.x, record.y, record.z);
+            if (record.field && !fieldFight(ownerOf(level, record))) {
+                // The fight in the dungeon or at the camp is over: its field towers go, without a drop.
+                list.remove(record);
+                dirty = true;
+                if (level.isLoaded(pos) && ModContent.trapOf(level.getBlockState(pos)) == kind) {
+                    level.removeBlock(pos, false);
+                    level.sendParticles(ParticleTypes.POOF, pos.getX() + 0.5, pos.getY() + 0.8, pos.getZ() + 0.5,
+                            12, 0.3, 0.3, 0.3, 0.02);
+                }
+                continue;
+            }
             if (!level.isLoaded(pos)) {
                 continue;
             }
@@ -446,7 +477,9 @@ public final class TrapService {
                 // Gone by some way the break event did not see, e.g. an explosion.
                 list.remove(record);
                 dirty = true;
-                if (gainOf(record, "recycling") > 0 && spareBack(server, record, kind)) {
+                if (record.field) {
+                    // A field tower lost in the dungeon or at the camp stays lost (no spare, no rebuild at home).
+                } else if (gainOf(record, "recycling") > 0 && spareBack(server, record, kind)) {
                     // Ersatzteil (id recycling, 27 October 2026): back in the owner's inventory at once.
                 } else if (NightDamage.recording(level) || gainOf(record, "recycling") > 0) {
                     recycled.add(record);   // every trap lost in the night stands again after it (27 October 2026)
@@ -583,18 +616,20 @@ public final class TrapService {
      */
     private LivingEntity bestGroup(ServerLevel level, TrapRecord record, Vec3 from, double range, double splash, long now,
                                    java.util.Set<LivingEntity> skip) {
-        List<LivingEntity> all = enemies(level, new AABB(from, from).inflate(range, 14.0, range));
+        double search = range * searchFactor();
+        List<LivingEntity> all = enemies(level, new AABB(from, from).inflate(search, 14.0, search));
         BlockPos self = BlockPos.containing(from.x, from.y - 1.0, from.z);
         LivingEntity best = null;
         double bestScore = -1;
         for (LivingEntity e : all) {
-            if (skip != null && skip.contains(e)) {
+            if (skip != null && skip.contains(e) || shielded(e)) {
                 continue;
             }
             double dx = e.getX() - from.x;
             double dz = e.getZ() - from.z;
             double flat = dx * dx + dz * dz;
-            if (flat > range * range || flat < 4.0) {
+            double reach = reachOf(record, e, range, now);
+            if (flat > reach * reach || flat < 4.0) {
                 continue;   // too far, or right at the tower's foot
             }
             int around = 0;
@@ -603,7 +638,9 @@ public final class TrapService {
                     around++;
                 }
             }
-            double score = around * 10.0 + (markedBy(record, e, now) ? 25.0 : 0.0) - Math.sqrt(flat) * 0.1;
+            // Bosses and champions before any group (28 October 2026), a marked monster on top.
+            double score = around * 10.0 + (markedBy(record, e, now) ? 25.0 : 0.0) + (bigTarget(e) ? 30.0 : 0.0)
+                    - Math.sqrt(flat) * 0.1;
             if (score > bestScore && sees(level, from, e, self)) {
                 bestScore = score;
                 best = e;
@@ -625,8 +662,9 @@ public final class TrapService {
             return;
         }
         // Only in the night (Simon's list, 27 October 2026): by day they kept shelling their spot.
+        // A field mortar fires in its dungeon or camp fight too (28 October 2026): it only stands while that fight runs.
         SiegeManager m = SiegeManager.get();
-        if (!mortarsAnyTime && (m == null || !m.isActive())) {
+        if (!mortarsAnyTime && !record.field && (m == null || !m.isActive())) {
             record.readyAt = now + 20;
             return;
         }
@@ -926,11 +964,12 @@ public final class TrapService {
         // Endless arrows since 26 October 2026 (Simon): no ammo check, nothing to reload.
         Vec3 muzzle = Vec3.atCenterOf(pos).add(0, 0.75, 0);
         double range = TrapKind.TURRET.radius(tier) + bonus(record, SkillEffect.TOWER_RANGE);
-        LivingEntity target = enemies(level, new AABB(muzzle, muzzle).inflate(range)).stream()
-                .filter(e -> e.distanceToSqr(muzzle) <= range * range)
+        // Bosses and champions reach further and come first (28 October 2026), after a marked monster.
+        LivingEntity target = enemies(level, new AABB(muzzle, muzzle).inflate(range * searchFactor())).stream()
+                .filter(e -> !shielded(e) && inReach(record, e, muzzle, range, now))
                 .filter(e -> clearShot(level, port(muzzle, e), e.getEyePosition(), pos)
                         || clearShot(level, port(muzzle, e), e.position().add(0, e.getBbHeight() * 0.5, 0), pos))
-                .min(Comparator.comparingDouble(e -> (markedBy(record, e, now) ? 0.0 : 10000.0) + e.distanceToSqr(muzzle)))
+                .min(Comparator.comparingDouble(e -> priority(record, e, muzzle, now)))
                 .orElse(null);
         if (target == null) {
             return;
@@ -1055,10 +1094,10 @@ public final class TrapService {
         }
         Vec3 from = Vec3.atCenterOf(pos).add(0, 0.8, 0);
         double range = TrapKind.TESLA.radius(tier) + bonus(record, SkillEffect.TOWER_RANGE);
-        LivingEntity first = enemies(level, new AABB(from, from).inflate(range)).stream()
-                .filter(e -> e.distanceToSqr(from) <= range * range)
+        LivingEntity first = enemies(level, new AABB(from, from).inflate(range * searchFactor())).stream()
+                .filter(e -> !shielded(e) && inReach(record, e, from, range, now))
                 .filter(e -> clearShot(level, from, e.getEyePosition(), pos))
-                .min(Comparator.comparingDouble(e -> (markedBy(record, e, now) ? 0.0 : 10000.0) + e.distanceToSqr(from)))
+                .min(Comparator.comparingDouble(e -> priority(record, e, from, now)))
                 .orElse(null);
         if (first == null) {
             return;
@@ -1568,7 +1607,8 @@ public final class TrapService {
         Vec3 eye = gunner.getEyePosition();
         double range = TrapKind.TESLA.radius(tier) + bonus(record, SkillEffect.TOWER_RANGE)
                 + SkillValues.get("tesla_coil", "beamrange", 4.0);
-        Vec3 end = eye.add(look.scale(range));
+        // Bosses and champions further away still (28 October 2026): the beam looks as far as that.
+        Vec3 end = eye.add(look.scale(range * searchFactor()));
         // The bolt leaves the emitter's glowing tip.
         Vec3 from = new Vec3(seat.pos.getX() + 0.5, seat.pos.getY() + 1.0 + AIM_HEIGHT, seat.pos.getZ() + 0.5).add(look.scale(1.05));
         double grace = SkillValues.get("tesla_coil", "aimgrace", 0.5);
@@ -1576,11 +1616,12 @@ public final class TrapService {
         double best = Double.MAX_VALUE;
         for (LivingEntity e : enemies(level, new AABB(eye, end).inflate(1.0 + grace))) {
             java.util.Optional<Vec3> at = e.getBoundingBox().inflate(grace).clip(eye, end);
-            if (at.isEmpty()) {
+            if (at.isEmpty() || shielded(e)) {
                 continue;
             }
             double d = at.get().distanceToSqr(eye);
-            if (d < best && clearShot(level, eye, at.get(), seat.pos)) {
+            double reach = reachOf(record, e, range, now);
+            if (d < best && d <= reach * reach && clearShot(level, eye, at.get(), seat.pos)) {
                 best = d;
                 first = e;
             }
@@ -1651,13 +1692,32 @@ public final class TrapService {
 
     /** The potion each alchemist picked in the menu. */
     private final Map<UUID, BrewKind> brewChoice = new HashMap<>();
-    /** When each alchemist may throw the next zone potion. */
-    private final Map<UUID, Long> zoneReady = new HashMap<>();
+    /**
+     * When each alchemist may throw each potion again (Simon, 28 October 2026: the pause holds
+     * only the potion just thrown, not all of them).
+     */
+    private final Map<UUID, Map<BrewKind, Long>> zoneReady = new HashMap<>();
+    /** The short lock after any throw, so three potions never leave in the same moment. */
+    private final Map<UUID, Long> zoneLock = new HashMap<>();
+    /** When each alchemist may throw the next acid flask. */
+    private final Map<UUID, Long> acidReady = new HashMap<>();
 
-    /** The potion the alchemist throws: his pick while it is open, else the first open one. */
+    /** The potion the alchemist throws: his pick while he has it, else his first one. */
     private BrewKind brewOf(ServerPlayer player, PlayerSkills skills) {
         BrewKind picked = brewChoice.get(player.getUUID());
-        return picked != null && picked.unlocked(skills) ? picked : BrewKind.firstUnlocked(skills);
+        return picked != null && picked.usable(skills) ? picked : BrewKind.firstUnlocked(skills);
+    }
+
+    /** Ticks a potion pauses after its throw: its node's value (the old shared one as fallback). */
+    private static long brewPause(BrewKind kind) {
+        return Math.round(SkillValues.get(kind.nodeId(), "pause", SkillValues.get("potion_tower", "zonepause", 400)));
+    }
+
+    /** Ticks until this alchemist may throw this potion again; 0 when ready. */
+    public int brewCooldownLeft(ServerPlayer player, BrewKind kind, long now) {
+        Map<BrewKind, Long> own = zoneReady.get(player.getUUID());
+        Long ready = own == null || kind == null ? null : own.get(kind);
+        return ready == null || ready <= now ? 0 : (int) (ready - now);
     }
 
     /** Sneak + right click with the remote: the alchemist's potion menu. */
@@ -1665,17 +1725,16 @@ public final class TrapService {
         com.mki.nightsiege.core.BrewMenuData data = new com.mki.nightsiege.core.BrewMenuData();
         BrewKind current = brewOf(player, skills);
         data.selected = current == null ? "" : current.id();
-        Long ready = zoneReady.get(player.getUUID());
         long now = player.level().getGameTime();
-        data.cooldown = ready == null || ready <= now ? 0 : (int) ((ready - now + 19) / 20);
+        data.cooldown = current == null ? 0 : (brewCooldownLeft(player, current, now) + 19) / 20;
         data.zoneSeconds = (int) Math.round(SkillValues.get("potion_tower", "zonetime", 160) / 20.0);
         data.pauseSeconds = (int) Math.round(SkillValues.get("potion_tower", "zonepause", 400) / 20.0);
         data.reach = (int) Math.round(SkillValues.get("potion_tower", "zonerange", 10));
         for (BrewKind kind : BrewKind.values()) {
             com.mki.nightsiege.core.BrewMenuData.Entry entry = new com.mki.nightsiege.core.BrewMenuData.Entry();
             entry.id = kind.id();
-            entry.open = kind.unlocked(skills);
-            entry.need = kind.requirement();
+            entry.open = kind.usable(skills);
+            entry.need = kind.nodeId();   // its own node since 28 October 2026
             data.brews.add(entry);
         }
         net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(player,
@@ -1683,7 +1742,7 @@ public final class TrapService {
     }
 
     /**
-     * The alchemist's wheel (Simon, 27 October 2026): the seven potions, the open ones
+     * The alchemist's wheel (Simon, 27 October 2026): the seven potions, the learned ones
      * pickable; Fähigkeit 2 throws the one picked. Null for everyone else.
      */
     public com.mki.nightsiege.core.WheelData brewWheel(ServerPlayer player) {
@@ -1700,7 +1759,7 @@ public final class TrapService {
             o.id = kind.id();
             o.color = kind.color();
             o.name = "nightsiege.brew." + kind.id();
-            o.open = kind.unlocked(skills);
+            o.open = kind.usable(skills);
             o.sub = !o.open ? "nightsiege.wheel.locked"
                     : kind.forPlayers() ? "nightsiege.wheel.brew_players" : "nightsiege.wheel.brew_monsters";
             o.current = kind == current;
@@ -1709,7 +1768,7 @@ public final class TrapService {
         return wheel;
     }
 
-    /** A short press of Fähigkeit 3 (alchemist): the next open potion. False for everyone else. */
+    /** A short press of Fähigkeit 3 (alchemist): the next learned potion. False for everyone else. */
     public boolean nextBrew(ServerPlayer player) {
         PlayerSkills skills = save.get().skillsOf(player.getUUID().toString());
         if (skills.clazz() != SkillClass.ENGINEER || !SkillTree.SUB_ALCHEMIST.equals(tree.subclassOf(skills))) {
@@ -1720,7 +1779,7 @@ public final class TrapService {
         int start = current == null ? -1 : current.ordinal();
         for (int i = 1; i <= all.length; i++) {
             BrewKind next = all[Math.floorMod(start + i, all.length)];
-            if (next.unlocked(skills)) {
+            if (next.usable(skills)) {
                 onBrewChoice(player, next.id());
                 return true;
             }
@@ -1733,7 +1792,7 @@ public final class TrapService {
     public void onBrewChoice(ServerPlayer player, String id) {
         BrewKind kind = BrewKind.byId(id);
         PlayerSkills skills = save.get().skillsOf(player.getUUID().toString());
-        if (kind == null || !kind.unlocked(skills)) {
+        if (kind == null || !kind.usable(skills)) {
             actionBar(player, Component.translatable("nightsiege.msg.brew_locked"));
             return;
         }
@@ -1742,10 +1801,6 @@ public final class TrapService {
                 Component.translatable("nightsiege.brew." + kind.id())));
     }
 
-    /**
-     * Right click with the remote (alchemist): the picked potion flies onto the block or
-     * monster looked at, up to 10 blocks away, and leaves a cloud there; then a 20 s pause.
-     */
     /** The bar key of a potion (27 October 2026): the alchemist throws it at once. */
     public void throwBrew(ServerPlayer player) {
         if (!(player.level() instanceof ServerLevel level)) {
@@ -1755,6 +1810,32 @@ public final class TrapService {
         if (SkillTree.SUB_ALCHEMIST.equals(tree.subclassOf(skills)) || player.getAbilities().instabuild) {
             throwZone(level, player, skills, level.getGameTime());
         }
+    }
+
+    /** The block or monster looked at within reach, whichever is nearer; null when nothing is. */
+    private static Vec3 throwSpot(ServerLevel level, ServerPlayer player, double reach) {
+        Vec3 eye = player.getEyePosition();
+        Vec3 spot = null;
+        net.minecraft.world.phys.HitResult hit = player.pick(reach, 0f, false);
+        if (hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK) {
+            spot = hit.getLocation();
+        }
+        LivingEntity target = CombatEffects.lookTarget(level, player, reach);
+        if (target != null && (spot == null || target.distanceToSqr(eye) < spot.distanceToSqr(eye))) {
+            spot = target.position();
+        }
+        return spot;
+    }
+
+    /** Sends a thrown flask in a low arc onto the spot. */
+    private static void lobFlask(ServerLevel level, KitProjectile shot, Vec3 spot) {
+        Vec3 from = shot.position();
+        double dx = spot.x - from.x;
+        double dy = spot.y - from.y;
+        double dz = spot.z - from.z;
+        int flight = Math.max(6, flightTicks(Math.sqrt(dx * dx + dz * dz)) / 2);
+        shot.setDeltaMovement(ballistic(dx, dy, dz, flight, 0.03));
+        level.addFreshEntity(shot);
     }
 
     private void throwZone(ServerLevel level, ServerPlayer player, PlayerSkills skills, long now) {
@@ -1769,22 +1850,20 @@ public final class TrapService {
             actionBar(player, Component.translatable("nightsiege.msg.zone_none"));
             return;
         }
-        Long ready = zoneReady.get(player.getUUID());
-        if (ready != null && now < ready && !creative) {
-            actionBar(player, Component.translatable("nightsiege.msg.zone_wait", (ready - now + 19) / 20));
+        // Only this potion waits out its pause (Simon, 28 October 2026); the others are ready
+        // after the short lock of a throw.
+        int left = brewCooldownLeft(player, brew, now);
+        if (left > 0 && !creative) {
+            actionBar(player, Component.translatable("nightsiege.msg.zone_wait_brew",
+                    Component.translatable("nightsiege.brew." + brew.id()), (left + 19) / 20));
+            return;
+        }
+        Long lock = zoneLock.get(player.getUUID());
+        if (lock != null && now < lock && !creative) {
             return;
         }
         double reach = SkillValues.get("potion_tower", "zonerange", 10);
-        Vec3 eye = player.getEyePosition();
-        Vec3 spot = null;
-        net.minecraft.world.phys.HitResult hit = player.pick(reach, 0f, false);
-        if (hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK) {
-            spot = hit.getLocation();
-        }
-        LivingEntity target = CombatEffects.lookTarget(level, player, reach);
-        if (target != null && (spot == null || target.distanceToSqr(eye) < spot.distanceToSqr(eye))) {
-            spot = target.position();
-        }
+        Vec3 spot = throwSpot(level, player, reach);
         if (spot == null) {
             actionBar(player, Component.translatable("nightsiege.msg.zone_far", (int) Math.round(reach)));
             return;
@@ -1794,22 +1873,173 @@ public final class TrapService {
                 java.util.Optional.empty(), java.util.Optional.of(brew.color()), List.of(), java.util.Optional.empty()));
         KitProjectile shot = new KitProjectile(level, player, look, KitProjectile.ZONE);
         shot.setData(brew.id());
-        Vec3 from = shot.position();
-        double dx = spot.x - from.x;
-        double dy = spot.y - from.y;
-        double dz = spot.z - from.z;
-        int flight = Math.max(6, flightTicks(Math.sqrt(dx * dx + dz * dz)) / 2);
-        shot.setDeltaMovement(ballistic(dx, dy, dz, flight, 0.03));
-        level.addFreshEntity(shot);
-        zoneReady.put(player.getUUID(), now + Math.round(SkillValues.get("potion_tower", "zonepause", 400)));
+        lobFlask(level, shot, spot);
+        zoneReady.computeIfAbsent(player.getUUID(), k -> new java.util.EnumMap<>(BrewKind.class)).put(brew, now + brewPause(brew));
+        zoneLock.put(player.getUUID(), now + Math.round(SkillValues.get("potion_tower", "zonelock", 20)));
         level.playSound(null, player.blockPosition(), SoundEvents.SPLASH_POTION_THROW, SoundSource.PLAYERS, 1.0f, 0.8f);
         actionBar(player, Component.translatable("nightsiege.msg.zone_thrown",
                 Component.translatable("nightsiege.brew." + brew.id())));
     }
 
-    /** End of the night: the zone pauses start fresh. */
+    // ------------------------------------------------------------------
+    // the alchemist's acid flask (Simon, 28 October 2026: one more ability for the potions he gave up)
+    // ------------------------------------------------------------------
+
+    /** Ticks until this alchemist may throw the next acid flask; 0 when ready. */
+    public int acidCooldownLeft(ServerPlayer player, long now) {
+        Long ready = acidReady.get(player.getUUID());
+        return ready == null || ready <= now ? 0 : (int) (ready - now);
+    }
+
+    /** The bar key of the acid flask: it flies onto the block or monster looked at and bursts there. */
+    public void throwAcid(ServerPlayer player) {
+        if (!(player.level() instanceof ServerLevel level)) {
+            return;
+        }
+        PlayerSkills skills = save.get().skillsOf(player.getUUID().toString());
+        boolean creative = player.getAbilities().instabuild;
+        if (!SkillTree.has(skills, "e_acid_flask") && !creative) {
+            actionBar(player, Component.translatable("nightsiege.msg.acid_locked"));
+            return;
+        }
+        SiegeManager m = SiegeManager.get();
+        if (!creative && (m == null || !m.isDefending(player))) {
+            actionBar(player, Component.translatable("nightsiege.msg.zone_night_only"));
+            return;
+        }
+        long now = level.getGameTime();
+        int left = acidCooldownLeft(player, now);
+        if (left > 0 && !creative) {
+            actionBar(player, Component.translatable("nightsiege.msg.acid_wait", (left + 19) / 20));
+            return;
+        }
+        double reach = SkillValues.get("e_acid_flask", "range", 14);
+        Vec3 spot = throwSpot(level, player, reach);
+        if (spot == null) {
+            actionBar(player, Component.translatable("nightsiege.msg.zone_far", (int) Math.round(reach)));
+            return;
+        }
+        ItemStack look = new ItemStack(Items.SPLASH_POTION);
+        look.set(net.minecraft.core.component.DataComponents.POTION_CONTENTS, new PotionContents(
+                java.util.Optional.empty(), java.util.Optional.of(ACID_COLOR), List.of(), java.util.Optional.empty()));
+        KitProjectile shot = new KitProjectile(level, player, look, KitProjectile.ACID);
+        lobFlask(level, shot, spot);
+        acidReady.put(player.getUUID(), now + Math.round(SkillValues.get("e_acid_flask", "pause", 240)));
+        level.playSound(null, player.blockPosition(), SoundEvents.SPLASH_POTION_THROW, SoundSource.PLAYERS, 1.0f, 1.2f);
+    }
+
+    /** Colour of the acid and its flask. */
+    static final int ACID_COLOR = 0xB5E61D;
+
+    /**
+     * The acid flask burst: every monster around takes a potion thrower's hit times the flask's
+     * factor, crawls for a moment, and takes more damage from everything while the acid eats.
+     */
+    public void onAcidLanded(ServerLevel level, KitProjectile shot, Vec3 at) {
+        Entity owner = shot.getOwner();
+        if (!(owner instanceof ServerPlayer player)) {
+            return;
+        }
+        long now = level.getGameTime();
+        double r = SkillValues.get("e_acid_flask", "radius", 3.0);
+        double damage = towerHit(TrapKind.BREWER) * SkillValues.get("e_acid_flask", "dmg", 1.2);
+        double acid = SkillValues.get("e_acid_flask", "acid", 0.25);
+        int ticks = (int) Math.round(SkillValues.get("e_acid_flask", "time", 120));
+        DamageSource source = level.damageSources().playerAttack(player);
+        for (LivingEntity victim : around(level, at, r)) {
+            victim.invulnerableTime = 0;
+            victim.hurtServer(level, source, (float) damage);
+            victim.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, Math.min(ticks, 60), 0));
+            marker.mark(victim, acid, now + ticks, false);
+            level.sendParticles(ACID_DUST, victim.getX(), victim.getY(0.6), victim.getZ(), 8, 0.3, 0.4, 0.3, 0.0);
+        }
+        level.sendParticles(ACID_DUST, at.x, at.y + 0.3, at.z, 60, r * 0.45, 0.3, r * 0.45, 0.0);
+        level.sendParticles(ParticleTypes.SPLASH, at.x, at.y + 0.3, at.z, 24, r * 0.3, 0.1, r * 0.3, 0.1);
+        level.playSound(null, BlockPos.containing(at), SoundEvents.SPLASH_POTION_BREAK, SoundSource.PLAYERS, 1.0f, 0.6f);
+        level.playSound(null, BlockPos.containing(at), SoundEvents.FIRE_EXTINGUISH, SoundSource.PLAYERS, 0.7f, 1.4f);
+    }
+
+    private static final net.minecraft.core.particles.DustParticleOptions ACID_DUST =
+            new net.minecraft.core.particles.DustParticleOptions(ACID_COLOR, 1.4f);
+
+    // ------------------------------------------------------------------
+    // the engineer's ability bar (28 October 2026): the escape for all, potions and acid for the alchemist
+    // ------------------------------------------------------------------
+
+    /**
+     * The engineer's boxes on the ability bar, null for everyone else: the escape first (R for
+     * every engineer), then the alchemist's learned potions with their own pauses, then his acid flask.
+     */
+    public List<com.mki.nightsiege.core.UltState.Slot> engineerSlots(ServerPlayer player, PlayerSkills skills, long now) {
+        if (skills == null || skills.clazz() != SkillClass.ENGINEER || !skills.hasClass()) {
+            return null;
+        }
+        List<com.mki.nightsiege.core.UltState.Slot> out = new ArrayList<>();
+        com.mki.nightsiege.core.UltState.Slot escape = new com.mki.nightsiege.core.UltState.Slot();
+        escape.id = EngineerEscape.ID;
+        escape.icon = "minecraft:wind_charge";
+        escape.name = "nightsiege.ability.escape";
+        escape.sub = "nightsiege.ability.escape.sub";
+        escape.cooldownTicks = EngineerEscape.cooldownLeft(player, now);
+        escape.totalTicks = (int) EngineerEscape.pause();
+        out.add(escape);
+        if (!SkillTree.SUB_ALCHEMIST.equals(tree.subclassOf(skills))) {
+            return out;
+        }
+        BrewKind current = brewOf(player, skills);
+        for (BrewKind kind : BrewKind.learned(skills)) {
+            com.mki.nightsiege.core.UltState.Slot slot = new com.mki.nightsiege.core.UltState.Slot();
+            slot.id = kind.id();
+            slot.color = kind.color();
+            slot.name = "nightsiege.brew." + kind.id();
+            slot.sub = kind.forPlayers() ? "nightsiege.wheel.brew_players" : "nightsiege.wheel.brew_monsters";
+            slot.current = kind == current;
+            slot.cooldownTicks = brewCooldownLeft(player, kind, now);
+            slot.totalTicks = (int) brewPause(kind);
+            out.add(slot);
+        }
+        if (SkillTree.has(skills, "e_acid_flask")) {
+            com.mki.nightsiege.core.UltState.Slot acid = new com.mki.nightsiege.core.UltState.Slot();
+            acid.id = "acid";
+            acid.icon = "minecraft:experience_bottle";
+            acid.name = "nightsiege.ability.acid";
+            acid.sub = "nightsiege.ability.acid.sub";
+            acid.cooldownTicks = acidCooldownLeft(player, now);
+            acid.totalTicks = (int) Math.round(SkillValues.get("e_acid_flask", "pause", 240));
+            out.add(acid);
+        }
+        return out;
+    }
+
+    /** A bar key of an engineer: the escape, the acid flask or a potion. False when it is none of his. */
+    public boolean onEngineerSlot(ServerPlayer player, String id) {
+        PlayerSkills skills = save.get().skillsOf(player.getUUID().toString());
+        if (skills.clazz() != SkillClass.ENGINEER || id == null) {
+            return false;
+        }
+        if (EngineerEscape.ID.equals(id)) {
+            EngineerEscape.fire(player, this);
+            return true;
+        }
+        if ("acid".equals(id)) {
+            throwAcid(player);
+            return true;
+        }
+        BrewKind kind = BrewKind.byId(id);
+        if (kind != null) {
+            onBrewChoice(player, id);
+            throwBrew(player);
+            return true;
+        }
+        return false;
+    }
+
+    /** End of the night: the zone pauses, the acid flask and the escape start fresh. */
     public void resetZones() {
         zoneReady.clear();
+        zoneLock.clear();
+        acidReady.clear();
+        EngineerEscape.reset();
     }
 
     // ------------------------------------------------------------------
@@ -1873,6 +2103,9 @@ public final class TrapService {
     /** The middle of the view: the core in the player's world, else where the player stands. */
     private static BlockPos spotCenter(ServerLevel level, ServerPlayer player) {
         SiegeManager m = SiegeManager.get();
+        if (fieldFight(player)) {
+            return player.blockPosition();   // in a dungeon or at the camp: the view opens over the fight (28 October 2026)
+        }
         CoreRecord core = m == null ? null : m.mainCore();
         if (core != null && SiegeManager.dimensionName(level).equals(core.dimension)) {
             return new BlockPos(core.x, core.y, core.z);
@@ -2151,6 +2384,13 @@ public final class TrapService {
             }
         }
         LivingEntity monster = CombatEffects.lookTarget(level, player, range);
+        if (monster == null && trapPos == null && !alchemist) {
+            // A boss or champion is marked from further away (28 October 2026), so the towers can be set on it.
+            LivingEntity far = CombatEffects.lookTarget(level, player, range * bossRange());
+            if (bigTarget(far)) {
+                monster = far;
+            }
+        }
         if (trapPos != null && (monster == null
                 || player.getEyePosition().distanceToSqr(Vec3.atCenterOf(trapPos)) <= monster.distanceToSqr(player))) {
             TrapRecord record = find(level, trapPos);
@@ -2998,10 +3238,10 @@ public final class TrapService {
         return Math.max(1.0, SkillValues.get("overcharge", "speed", 3.0));
     }
 
-    /** A crate gain of the trap's owner, only while a night runs. */
+    /** A crate gain of the trap's owner, only while a night runs (or the field fight of a field tower). */
     private int gainOf(TrapRecord record, String gainId) {
         SiegeManager m = SiegeManager.get();
-        if (m == null || !m.isActive()) {
+        if (m == null || !m.isActive() && !record.field) {
             return 0;
         }
         PlayerSkills skills = ownerSkills(record);
@@ -3062,6 +3302,75 @@ public final class TrapService {
     private double poisonScale(TrapRecord record) {
         return (1.0 + bonus(record, SkillEffect.SLOW_POISON))
                 * (has(record, "e_plague_doctor") ? SkillValues.get("e_plague_doctor", "poison", 2.0) : 1.0);
+    }
+
+    /** Tag of a dungeon's champion (Expeditions) and of the boss of a dungeon core (DungeonService). */
+    static final String[] CHAMPION_TAGS = {Expeditions.CHAMPION_TAG, "nightsiege_dungeon_boss"};
+
+    /**
+     * Bosses, their soul crystals and egg sacs, and the dungeons' champions (Simon's playtest,
+     * 28 October 2026: the towers never reached them): towers reach them further and go for them first.
+     */
+    static boolean bigTarget(LivingEntity e) {
+        if (e == null) {
+            return false;
+        }
+        if (BossService.isBossOrPart(e)) {
+            return true;
+        }
+        for (String tag : CHAMPION_TAGS) {
+            if (e.entityTags().contains(tag)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** True while a boss takes no damage at all (the lich behind his soul shield): no tower wastes a shot on it. */
+    static boolean shielded(LivingEntity e) {
+        SiegeManager m = SiegeManager.get();
+        return m != null && BossService.isBoss(e) && m.bosses().shielded(e);
+    }
+
+    private static double bossRange() {
+        SiegeManager m = SiegeManager.get();
+        return m == null || m.config() == null ? 1.5 : m.config().towerBossRange;
+    }
+
+    private static double markRange() {
+        SiegeManager m = SiegeManager.get();
+        return m == null || m.config() == null ? 1.25 : m.config().towerMarkRange;
+    }
+
+    /** The widest a tower looks: its range times the larger of the two factors. */
+    static double searchFactor() {
+        return Math.max(1.0, Math.max(bossRange(), markRange()));
+    }
+
+    /** How far this tower reaches this monster: further for bosses and champions and for a marked one. */
+    private double reachOf(TrapRecord record, LivingEntity e, double range, long now) {
+        double f = 1.0;
+        if (bigTarget(e)) {
+            f = Math.max(f, bossRange());
+        }
+        if (markedBy(record, e, now)) {
+            f = Math.max(f, markRange());
+        }
+        return range * f;
+    }
+
+    private boolean inReach(TrapRecord record, LivingEntity e, Vec3 from, double range, long now) {
+        double reach = reachOf(record, e, range, now);
+        return e.distanceToSqr(from) <= reach * reach;
+    }
+
+    /** Which monster a turret or coil takes: a marked one, then bosses and champions, then the nearest. */
+    private double priority(TrapRecord record, LivingEntity e, Vec3 from, long now) {
+        double d = e.distanceToSqr(from);
+        if (markedBy(record, e, now)) {
+            return d;
+        }
+        return (bigTarget(e) ? 5000.0 : 10000.0) + d;
     }
 
     private boolean markedBy(TrapRecord record, LivingEntity e, long now) {

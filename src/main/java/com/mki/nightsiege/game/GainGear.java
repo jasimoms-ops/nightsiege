@@ -206,6 +206,10 @@ public final class GainGear {
                 out.add(Gadgets.make(Items.IRON_CHAIN, "leibwaechter", 1));
             }
         } else if (clazz == SkillClass.ENGINEER) {
+            // The reusable flash grenade for every engineer (Simon, 28 October 2026; it was the
+            // alchemist's alone since 26 October): one, it comes back after 15 s. The crate gain
+            // "Blendgranaten" still adds its throwaway ones on top.
+            out.add(Gadgets.make(Items.FIREWORK_STAR, "alchemie_blende", 1));
             int grenades = lvl(kits, skills, clazz, "blendgranaten");
             if (grenades > 0) {
                 out.add(Gadgets.make(Items.SNOWBALL, "blendgranate", 2 * grenades));
@@ -216,11 +220,7 @@ public final class GainGear {
             if (lvl(kits, skills, clazz, "oelfass") > 0) {
                 out.add(Gadgets.make(Items.INK_SAC, "oelfass", 2));
             }
-            // The alchemist's own flash grenade (Simon, 26 October 2026): one, it comes back after 15 s.
             SiegeManager m = SiegeManager.get();
-            if (m != null && SkillTree.SUB_ALCHEMIST.equals(m.skillTree().subclassOf(skills))) {
-                out.add(Gadgets.make(Items.FIREWORK_STAR, "alchemie_blende", 1));
-            }
             // The demolition expert's spyglass: the bird's-eye view (Simon, 26 October 2026).
             if (m != null && SkillTree.SUB_DEMOLITION.equals(m.skillTree().subclassOf(skills))) {
                 out.add(Gadgets.make(Items.SPYGLASS, "feldstecher", 1));
@@ -405,13 +405,18 @@ public final class GainGear {
         }
     }
 
-    /** The alchemist's flash grenade: thrown like the other, but never used up (15 s pause). */
+    /**
+     * The engineer's flash grenade (every engineer since 28 October 2026): thrown like the other,
+     * but never used up (15 s pause, 2 s less per level of the crate gain "Blendgranaten").
+     */
     private static void throwAlchemistFlash(ServerPlayer player, ServerLevel level, ItemStack stack) {
         KitProjectile projectile = new KitProjectile(level, player, stack.copyWithCount(1), KitProjectile.FLASH_ALCHEMIST);
         projectile.shootFromRotation(player, player.getXRot(), player.getYRot(), 0f, 1.4f, 0.8f);
         level.addFreshEntity(projectile);
         level.playSound(null, player.blockPosition(), SoundEvents.SNOWBALL_THROW, SoundSource.PLAYERS, 0.8f, 0.6f);
-        player.getCooldowns().addCooldown(stack, (int) Math.round(SkillValues.get("potion_tower", "flashpause", 300)));
+        double pause = SkillValues.get("potion_tower", "flashpause", 300)
+                - SkillValues.get("potion_tower", "flashgain", 40) * CrateEffects.gainLevel(player, "blendgranaten");
+        player.getCooldowns().addCooldown(stack, (int) Math.max(60, Math.round(pause)));
     }
 
     /** Grappling hook: pulls the player to the block they look at, 20 s pause. */
@@ -571,6 +576,13 @@ public final class GainGear {
             case KitProjectile.FLASH_ALCHEMIST -> flashAlchemist(level, at);
             case KitProjectile.ZONE -> AlchemyZones.land(level, projectile,
                     block != null ? new Vec3(at.x, block.getBlockPos().relative(block.getDirection()).getY(), at.z) : at);
+            case KitProjectile.ACID -> {
+                SiegeManager m = SiegeManager.get();
+                if (m != null) {
+                    m.kits().traps().onAcidLanded(level, projectile,
+                            block != null ? new Vec3(at.x, block.getBlockPos().relative(block.getDirection()).getY(), at.z) : at);
+                }
+            }
             case KitProjectile.OIL -> {
                 Vec3 spot = block != null ? Vec3.atBottomCenterOf(block.getBlockPos().relative(block.getDirection())) : at;
                 OIL.add(new Oil(spot, level.getGameTime() + 1200));

@@ -61,7 +61,8 @@ public final class AlchemyZones {
             return;
         }
         long now = level.getGameTime();
-        long time = Math.round(SkillValues.get("potion_tower", "zonetime", 160));
+        // Each potion its own cloud time since its node (28 October 2026), the old shared value as fallback.
+        long time = Math.round(SkillValues.get(kind.nodeId(), "time", SkillValues.get("potion_tower", "zonetime", 160)));
         if (shot.getOwner() instanceof net.minecraft.server.level.ServerPlayer thrower && CrateEffects.gainLevel(thrower, "doppelbrau") > 0) {
             time = Math.round(time * 1.5);   // Langes Gebräu (crate gain, 27 October 2026)
         }
@@ -122,7 +123,8 @@ public final class AlchemyZones {
                     p -> p.isAlive() && !p.isSpectator() && !Drones.isDrone(p) && inside(p, zone, r))) {
                 switch (zone.kind) {
                     case HEAL -> {
-                        p.heal((float) SkillValues.get("potion_tower", "zoneheal", 2.0));
+                        p.heal((float) SkillValues.get(BrewKind.HEAL.nodeId(), "heal",
+                                SkillValues.get("potion_tower", "zoneheal", 2.0)));
                         level.sendParticles(ParticleTypes.HEART, p.getX(), p.getY() + 2.0, p.getZ(), 1, 0.2, 0.1, 0.2, 0.0);
                     }
                     case REGEN -> p.addEffect(new MobEffectInstance(MobEffects.REGENERATION, 50, 0, false, true));
