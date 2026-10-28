@@ -6277,6 +6277,28 @@ public class EventLookTest implements FabricClientGameTest {
         game.getServer().runCommand("gamemode creative @p");
         game.getServer().runCommand("tp @p %d.5 %d %d.5".formatted(pos.getX(), pos.getY(), pos.getZ()));
         context.waitTicks(20);
+        // The heavy archer has the blast jump first on his bar too (Simon 29.10., 00:09), and it gives 2 hearts back.
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
+            own.unlockClass(com.mki.nightsiege.core.SkillClass.ARCHER);
+            own.switchTo(com.mki.nightsiege.core.SkillClass.ARCHER);
+            own.levels.clear();
+            own.levels.put("heavy_draw", 1);
+            java.util.List<com.mki.nightsiege.core.UltState.Slot> slots = manager.abilitySlots(player);
+            String first = slots.isEmpty() ? "-" : slots.get(0).id;
+            player.setHealth(10f);
+            com.mki.nightsiege.game.EngineerEscape.reset();
+            manager.onCoreAction(player, "slot:" + Math.max(0, manager.abilitySlotOf(player, "escape")));
+            System.out.println("[Night Siege test] tech heavy archer: sub=" + manager.skillTree().subclassOf(own)
+                    + " first=" + first + " hp after the jump=" + Math.round(player.getHealth()));
+            if (!"escape".equals(first)) {
+                fails.add("the heavy archer's bar starts with " + first);
+            }
+            if (player.getHealth() < 13.5f && manager.isDefending(player)) {
+                fails.add("the blast jump gave no hearts back (" + player.getHealth() + ")");
+            }
+        });
+        context.waitTicks(20);
         if (!fails.isEmpty()) {
             throw new AssertionError("tech scene: " + String.join("; ", fails));
         }
