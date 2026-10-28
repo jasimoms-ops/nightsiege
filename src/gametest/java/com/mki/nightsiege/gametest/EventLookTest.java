@@ -5694,7 +5694,11 @@ public class EventLookTest implements FabricClientGameTest {
         });
         context.waitTicks(4);
         context.takeScreenshot("tech_escape_air");
-        context.waitTicks(26);
+        context.waitTicks(6);
+        onServer(context, (player, manager) -> System.out.println(String.format(java.util.Locale.ROOT,
+                "[Night Siege test] tech escape after 10 ticks: dx %.1f dz %.1f up %.1f", player.getX() - start[0],
+                player.getZ() - start[2], player.getY() - start[1])));
+        context.waitTicks(20);
         onServer(context, (player, manager) -> {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
             double dx = player.getX() - start[0];
@@ -5721,6 +5725,7 @@ public class EventLookTest implements FabricClientGameTest {
                 fails.add("the blast jump has no pause");
             }
         });
+        context.waitTicks(5);   // the commands below must not overtake the look above
         game.getServer().runCommand("kill @e[tag=ns_tech]");
 
         // 3. Towers and the champion: 21 blocks off (range 16, ×1.5 for bosses and champions); a plain husk 20 off stays whole.
@@ -5754,6 +5759,7 @@ public class EventLookTest implements FabricClientGameTest {
                 fails.add("a tower reached the plain husk 20 blocks off");
             }
         });
+        context.waitTicks(5);
 
         // 4. The alchemist: three of seven potions, each with its own pause, and the acid flask.
         onServer(context, (player, manager) -> {
@@ -5824,6 +5830,7 @@ public class EventLookTest implements FabricClientGameTest {
                 fails.add("the acid flask did not hurt the husk");
             }
         });
+        context.waitTicks(5);
         game.getServer().runCommand("kill @e[tag=ns_tech]");
 
         // 5. A dungeon: field towers although three turrets stand at home; they go with the fight.
@@ -5899,6 +5906,7 @@ public class EventLookTest implements FabricClientGameTest {
                 manager.kits().traps().onBroken(level, at);
             }
         });
+        context.waitTicks(5);
         game.getServer().runCommand("effect clear @p");
         game.getServer().runCommand("gamemode creative @p");
         game.getServer().runCommand("tp @p %d.5 %d %d.5".formatted(pos.getX(), pos.getY(), pos.getZ()));
