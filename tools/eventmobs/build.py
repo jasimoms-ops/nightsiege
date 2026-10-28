@@ -136,7 +136,7 @@ def java(all_shapes, all_textures, all_glows):
     lines.append('')
     lines.append('    /** Event textures with a glow map ("<event>/<name>", file <name>_glow.png). */')
     lines.append('    public static final java.util.Set<String> GLOWS = java.util.Set.of(')
-    lines.append(',\n'.join('            ' + ', '.join(f'"{ev}/{n}"' for n in gl) for ev, gl in all_glows.items()) + ');')
+    lines.append(',\n'.join('            ' + ', '.join(f'"{ev}/{n}"' for n in gl) for ev, gl in all_glows.items() if gl) + ');')
     lines.append('}')
     with open(JAVA, 'w') as fh:
         fh.write('\n'.join(lines) + '\n')

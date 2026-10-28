@@ -1216,6 +1216,5 @@ public final class EventGearShapes {
             "champion_basalt_forge/wither_skeleton",
             "boss_frost_jarl/iron_golem",
             "boss_ember_colossus/iron_golem", "boss_ember_colossus/magmacube",
-            "boss_storm_witch/witch", "boss_storm_witch/phantom",
-            );
+            "boss_storm_witch/witch", "boss_storm_witch/phantom");
 }
