@@ -79,6 +79,17 @@ public final class SiegeMachines {
     static UUID landing;
     /** Tag of a machine's workers and guards. */
     public static final String TAG_CREW = "nightsiege_machinecrew";
+    /** Tag of a ballista bolt: it takes 15 % of the max health on top (Simon, 28 October 2026). */
+    public static final String TAG_BOLT = "nightsiege_machinebolt";
+
+    /**
+     * Shares of the max health on top of a hit (Simon, 28 October 2026: "mehr mit Max-Health-
+     * Damage"), at level 10 and at the centre of an impact (40 % of it at the edge).
+     */
+    static final double TREBUCHET_SHARE = 25.0;
+    static final double MORTAR_SHARE = 30.0;
+    static final double FIRE_SHARE = 10.0;
+    static final double BOLT_SHARE = 15.0;
 
     /** Everything of the machines that is in the world now (models, shots, crews); the rest goes when it loads. */
     private static final Set<UUID> LIVE = new HashSet<>();
@@ -722,6 +733,7 @@ public final class SiegeMachines {
         float speed = 3.4f;
         bolt.setBaseDamage(damage(f, cfg, 7.0) / speed);
         bolt.setCritArrow(true);
+        bolt.addTag(TAG_BOLT);
         bolt.shoot(dir.x, dir.y, dir.z, speed, 0.4f);
         level.addFreshEntity(bolt);
         sound(level, machine.base, SoundEvents.CROSSBOW_SHOOT, 2.0f, 0.45f);
@@ -848,19 +860,19 @@ public final class SiegeMachines {
                     crater(level, BlockPos.containing(at.x - (shot.wall == null ? 0 : shot.wall.face().getStepX() * 0.8), at.y,
                             at.z - (shot.wall == null ? 0 : shot.wall.face().getStepZ() * 0.8)), 2.2, cfg);
                 }
-                blast(f, cfg, machine, at, 3.5, 11.0, 1.0);
+                blast(f, cfg, machine, at, 3.5, 11.0, 1.0, TREBUCHET_SHARE);
             }
             case MORTAR -> {
                 level.sendParticles(ParticleTypes.EXPLOSION_EMITTER, at.x, at.y + 0.5, at.z, 1, 0, 0, 0, 0);
                 sound(level, at, SoundEvents.GENERIC_EXPLODE.value(), 2.4f, 0.8f);
-                blast(f, cfg, machine, at, 4.0, 12.0, 1.2);
+                blast(f, cfg, machine, at, 4.0, 12.0, 1.2, MORTAR_SHARE);
             }
             case FIRE -> {
                 level.sendParticles(ParticleTypes.FLAME, at.x, at.y + 0.3, at.z, 60, 1.6, 0.4, 1.6, 0.05);
                 level.sendParticles(ParticleTypes.LAVA, at.x, at.y + 0.3, at.z, 10, 1.0, 0.2, 1.0, 0);
                 sound(level, at, SoundEvents.FIRECHARGE_USE, 1.6f, 0.7f);
                 sound(level, at, SoundEvents.GLASS_BREAK, 1.0f, 0.6f);
-                blast(f, cfg, machine, at, 3.0, 4.0, 0.3);
+                blast(f, cfg, machine, at, 3.0, 4.0, 0.3, FIRE_SHARE);
                 zone(machine, true, at, 3.0, now + 200L, Blocks.MAGMA_BLOCK.defaultBlockState());
             }
             case PLAGUE -> {
@@ -881,8 +893,11 @@ public final class SiegeMachines {
         }
     }
 
-    /** Damage around an impact for the defenders there (through armour and shields like a blow). */
-    private void blast(Field f, SiegeConfig cfg, Machine machine, Vec3 at, double radius, double base, double push) {
+    /**
+     * Damage around an impact for the defenders there (through armour and shields like a blow),
+     * and {@code share} % of the max health on top that armour does not lessen (less to the edge).
+     */
+    private void blast(Field f, SiegeConfig cfg, Machine machine, Vec3 at, double radius, double base, double push, double share) {
         ServerLevel level = machine.level;
         Entity box = level.getEntity(machine.hitbox);
         DamageSource source = box instanceof LivingEntity l ? level.damageSources().mobAttack(l) : level.damageSources().generic();
@@ -894,9 +909,13 @@ public final class SiegeMachines {
             if (d > radius) {
                 continue;
             }
-            float dmg = (float) (damage(f, cfg, base) * (1.0 - 0.6 * d / radius));
+            double near = 1.0 - 0.6 * d / radius;
+            float dmg = (float) (damage(f, cfg, base) * near);
             p.invulnerableTime = 0;
             p.hurtServer(level, source, dmg);
+            if (share > 0 && p.isAlive()) {
+                PercentDamage.hit(level, p, box, box, share * near, f.level(), cfg, cfg.machinePercentDamage);
+            }
             if (push > 0) {
                 BossService.knock(p, at, push, 0.35);
             }
@@ -1184,6 +1203,46 @@ public final class SiegeMachines {
      * A hit taken interrupts a sabotage: a blow, an arrow, a blast of something. Burning,
      * poison and the like (no one behind them) do not.
      */
+    /** A ballista bolt struck a player: 15 % of the max health on top (Simon, 28 October 2026); a shield blocks it. */
+    public void afterBoltHit(LivingEntity victim, DamageSource source, boolean blocked) {
+        if (blocked || !(victim instanceof ServerPlayer player) || source == null || PercentDamage.inHit()
+                || !(player.level() instanceof ServerLevel level)) {
+            return;
+        }
+        Entity bolt = source.getDirectEntity();
+        if (bolt == null || !bolt.entityTags().contains(TAG_BOLT)) {
+            return;
+        }
+        SiegeManager m = SiegeManager.get();
+        SiegeConfig cfg = m == null ? new SiegeConfig() : m.config();
+        int night = m == null ? 1 : m.currentLevel();
+        PercentDamage.hit(level, player, source.getEntity(), bolt, BOLT_SHARE, night, cfg, cfg.machinePercentDamage);
+    }
+
+    /**
+     * Tests: one impact of a standing machine of this kind right at the player (as if its shot
+     * landed there), so the damage and the share can be measured.
+     */
+    public boolean testImpact(BossService.Host host, SiegeConfig cfg, SiegeMachineKind kind, ServerPlayer player) {
+        for (Machine machine : machines) {
+            if (machine.kind != kind) {
+                continue;
+            }
+            Field f = machine.trial ? trialField(machine) : field(host);
+            Vec3 at = player.position().add(0, 0.9, 0);
+            switch (kind) {
+                case TREBUCHET -> blast(f, cfg, machine, at, 3.5, 11.0, 0.0, TREBUCHET_SHARE);
+                case MORTAR -> blast(f, cfg, machine, at, 4.0, 12.0, 0.0, MORTAR_SHARE);
+                case FIRE -> blast(f, cfg, machine, at, 3.0, 4.0, 0.0, FIRE_SHARE);
+                default -> {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+
     public void afterDamage(LivingEntity victim, DamageSource source, float taken) {
         if (taken <= 0 || saboteurs.isEmpty() || !(victim instanceof ServerPlayer player)
                 || source == null || source.getEntity() == null && source.getDirectEntity() == null) {

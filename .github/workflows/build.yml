@@ -319,7 +319,7 @@ jobs:
           budget = 9
           ladder, seen = [], set()
           for l in text.splitlines():
-              if "[Night Siege test] ladder" in l or "besiegers" in l or "Sprengcreeper" in l or "[Night Siege test] tower" in l or "[Night Siege test] summoner" in l or "[Night Siege test] drone" in l or "[Night Siege test] spotter" in l or "[Night Siege test] alchemist" in l or "[Night Siege test] keys" in l or "[Night Siege test] towers" in l or "[Night Siege test] wheel" in l or "[Night Siege test] foes" in l or "[Night Siege test] raid" in l or "[Night Siege test] curse" in l:
+              if "[Night Siege test] ladder" in l or "besiegers" in l or "Sprengcreeper" in l or "[Night Siege test] tower" in l or "[Night Siege test] summoner" in l or "[Night Siege test] drone" in l or "[Night Siege test] spotter" in l or "[Night Siege test] alchemist" in l or "[Night Siege test] keys" in l or "[Night Siege test] towers" in l or "[Night Siege test] wheel" in l or "[Night Siege test] foes" in l or "[Night Siege test] raid" in l or "[Night Siege test] curse" in l or "[Night Siege test] percent" in l or "[Night Siege test] overhang" in l:
                   body = l[l.index("[Night Siege"):].strip()[:200]
                   if body not in seen:
                       seen.add(body)

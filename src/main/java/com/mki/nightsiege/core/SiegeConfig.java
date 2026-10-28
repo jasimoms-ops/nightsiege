@@ -338,6 +338,16 @@ public class SiegeConfig {
      */
     public boolean statsLogger = true;
 
+    /**
+     * Damage by share of the max health (Simon, 28 October 2026: "mehr mit Max-Health-Damage"): on
+     * top of the usual hit, armour does not lessen it, a shield blocks it. The shares are in the
+     * code (see {@code PercentDamage}); these factors scale all of them for the bosses and the machines.
+     */
+    public double bossPercentDamage = 1.0;
+    public double machinePercentDamage = 1.0;
+    /** The share grows with the level: 1 + step × (level − 10), never below the minimum. */
+    public double percentDamageLevelStep = 0.05;
+    public double percentDamageMin = 0.5;
     /** Siege monsters drop items and experience (false since Simon's call of 26 October 2026: they drop nothing). */
     public boolean siegeMobDrops = false;
     /** Klaffende Wunden (anti-heal, Simon 25 October 2026): these monsters halve all healing of the player they hit. */
@@ -879,6 +889,10 @@ public class SiegeConfig {
         expeditionMaxDistance = clamp(expeditionMaxDistance, expeditionMinDistance, 3000);
         expeditionGraceSeconds = clamp(expeditionGraceSeconds, 0, 60);
         expeditionSkillPoints = clamp(expeditionSkillPoints, 0, 100);
+        bossPercentDamage = clampDouble(bossPercentDamage, 0.0, 10.0);
+        machinePercentDamage = clampDouble(machinePercentDamage, 0.0, 10.0);
+        percentDamageLevelStep = clampDouble(percentDamageLevelStep, 0.0, 1.0);
+        percentDamageMin = clampDouble(percentDamageMin, 0.0, 5.0);
         bloodMoonMobMultiplier = Math.max(1.0, bloodMoonMobMultiplier);
         bloodMoonHealthMultiplier = Math.max(1.0, bloodMoonHealthMultiplier);
         bloodMoonDamageMultiplier = Math.max(1.0, bloodMoonDamageMultiplier);
