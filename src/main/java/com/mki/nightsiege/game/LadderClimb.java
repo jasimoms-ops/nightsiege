@@ -38,6 +38,14 @@ import java.util.UUID;
  * for one whose foot it can walk to. Before (Simon's playtest, 25 October 2026)
  * monsters were pulled to any ladder close by, also to the ladders on the inner side
  * of the walls, and pressed against the wall in front of them.
+ *
+ * <p>Simon's playtest (28 October 2026): monsters got stuck at ladders with a block beside
+ * them and at ladders ending one block above the ground. A monster is now kept to the middle
+ * of the ladder (half beside it, it bumped its head on a block next to the ladder or into the
+ * battlements beside the way over the wall); a ladder whose foot hangs one block above the
+ * ground counts too (the monster jumps up to the first rung); a monster whose goal lies on its
+ * own side of the ladder's wall (on a ladder inside the base) climbs down instead of being
+ * pushed up and back onto the wall forever; and one that makes no headway on a ladder lets go.
  */
 public final class LadderClimb {
 
@@ -66,6 +74,14 @@ public final class LadderClimb {
     private final Set<UUID> equipped = new HashSet<>();
     /** The ladder a monster last gave up on: it does not pick it again straight away. */
     private final Map<UUID, BlockPos> gaveUp = new HashMap<>();
+    /** On a ladder: the best height reached (negated on the way down), when, and the direction (1 up). */
+    private final Map<UUID, double[]> progress = new HashMap<>();
+    /** Monsters that let go of a ladder they made no headway on: left to their own AI until then. */
+    private final Map<UUID, Long> released = new HashMap<>();
+    /** Ticks on a ladder without headway before the monster lets go. */
+    private static final int STALL = 60;
+    /** Ticks a monster that let go is left to its own AI. */
+    private static final int RELEASE = 100;
 
     public void reset() {
         goals.clear();
@@ -75,6 +91,8 @@ public final class LadderClimb {
         holding.clear();
         equipped.clear();
         gaveUp.clear();
+        progress.clear();
+        released.clear();
     }
 
     public void forget(UUID id) {
@@ -85,6 +103,8 @@ public final class LadderClimb {
         holding.remove(id);
         equipped.remove(id);
         gaveUp.remove(id);
+        progress.remove(id);
+        released.remove(id);
     }
 
     /** True while the monster is on its way up a ladder (for the gametest). */
@@ -143,17 +163,36 @@ public final class LadderClimb {
             }
             equip(mob);
             holding.remove(id);
-            if (mob.onClimbable()) {
-                holding.add(id);
-                // On the way up: the walk to the ladder is over.
-                goals.remove(id);
-                goalSince.remove(id);
-                climbedAt.put(id, now);
-                climb(world, mob, anchor);
-                continue;
+            Long free = released.get(id);
+            if (free != null) {
+                if (now < free) {
+                    continue;   // let go of a ladder a moment ago: its own AI for a while
+                }
+                released.remove(id);
             }
             LivingEntity target = mob.getTarget();
             BlockPos goal = target != null ? target.blockPosition() : anchor;
+            if (mob.onClimbable()) {
+                boolean up = upward(world, mob, goal);
+                if (!up && mob.onGround()) {
+                    // At the foot of a ladder it does not want up (inside the base, or down again):
+                    // its own AI walks on.
+                    progress.remove(id);
+                    continue;
+                }
+                if (stalled(id, mob, up, now)) {
+                    letGo(world, mob, anchor, now);
+                    continue;
+                }
+                holding.add(id);
+                // On the ladder: the walk to it is over.
+                goals.remove(id);
+                goalSince.remove(id);
+                climbedAt.put(id, now);
+                climb(world, mob, anchor, up);
+                continue;
+            }
+            progress.remove(id);
             // The target came into reach after all (no wall in between): let the monster fight.
             boolean inReach = target != null && mob.distanceToSqr(target) < 16.0
                     && Math.abs(mob.getY() - target.getY()) < 2.0 && mob.getSensing().hasLineOfSight(target);
@@ -193,12 +232,15 @@ public final class LadderClimb {
                 goalSince.put(id, now);
             }
             holding.add(id);
+            // Where the monster stands to get on: the foot itself, or the ground under a ladder
+            // that ends one block above it.
+            BlockPos stand = standOf(world, foot);
             double fx = foot.getX() + 0.5;
             double fz = foot.getZ() + 0.5;
             double dx = fx - mob.getX();
             double dz = fz - mob.getZ();
             double d2 = dx * dx + dz * dz;
-            if (d2 <= 6.25 && Math.abs(mob.getY() - foot.getY()) < 1.5 && clearWalk(world, mob, foot)) {
+            if (d2 <= 6.25 && Math.abs(mob.getY() - stand.getY()) < 1.5 && clearWalk(world, mob, stand)) {
                 // Close to the foot: walk straight into the ladder (the path finder
                 // stops in front of it), the climb takes over from there.
                 mob.getNavigation().stop();
@@ -207,11 +249,18 @@ public final class LadderClimb {
                     double step = Math.min(0.24, d);
                     mob.move(MoverType.SELF, new Vec3(dx / d * step, 0.0, dz / d * step));
                 }
-                mob.getMoveControl().setWantedPosition(fx, foot.getY(), fz, 1.0);
+                if (!stand.equals(foot) && d < 0.3 && mob.onGround()) {
+                    // Right under a ladder that ends above the ground: up to its first rung.
+                    Direction toWall = wallSide(world.getBlockState(foot));
+                    double px = toWall == null ? 0.0 : toWall.getStepX() * 0.05;
+                    double pz = toWall == null ? 0.0 : toWall.getStepZ() * 0.05;
+                    mob.setDeltaMovement(px, 0.5, pz);
+                }
+                mob.getMoveControl().setWantedPosition(fx, stand.getY(), fz, 1.0);
                 mob.getLookControl().setLookAt(fx, foot.getY() + 1.5, fz);
-            } else if (!foot.equals(mob.getNavigation().getTargetPos()) || mob.getNavigation().isDone()) {
+            } else if (!stand.equals(mob.getNavigation().getTargetPos()) || mob.getNavigation().isDone()) {
                 // The monster's own AI keeps steering to its target, so steer back.
-                mob.getNavigation().moveTo(fx, foot.getY(), fz, 1.0);
+                mob.getNavigation().moveTo(fx, stand.getY(), fz, 1.0);
             }
         }
     }
@@ -248,35 +297,141 @@ public final class LadderClimb {
         return mob.blockPosition().distSqr(goal) > 9.0;
     }
 
-    /** Inside a ladder: up it goes, and at the top over onto the wall. */
-    private static void climb(ServerLevel world, Mob mob, BlockPos anchor) {
+    /**
+     * Inside a ladder: up it goes, and at the top over onto the wall; or, when the goal lies on
+     * this side of the ladder's wall, down it goes.
+     */
+    private static void climb(ServerLevel world, Mob mob, BlockPos anchor, boolean up) {
         BlockPos at = mob.blockPosition();
         BlockState here = world.getBlockState(at);
         Vec3 v = mob.getDeltaMovement();
-        Direction toWall = null;
-        if (here.getBlock() instanceof LadderBlock) {
-            toWall = here.getValue(LadderBlock.FACING).getOpposite();
-        }
-        boolean top = !isClimbable(world.getBlockState(at.above()));
-        double push = top ? 0.18 : 0.05;
-        double px = 0;
-        double pz = 0;
-        if (toWall != null) {
-            px = toWall.getStepX() * push;
-            pz = toWall.getStepZ() * push;
-        } else {
-            // Vines and scaffolding: lean towards the core.
+        Direction toWall = wallSide(here);
+        if (toWall == null) {
+            // Vines and scaffolding: up, leaning towards the core.
+            boolean top = !isClimbable(world.getBlockState(at.above()));
+            double push = top ? 0.18 : 0.05;
             double dx = anchor.getX() + 0.5 - mob.getX();
             double dz = anchor.getZ() + 0.5 - mob.getZ();
             double len = Math.max(0.001, Math.sqrt(dx * dx + dz * dz));
-            px = dx / len * push;
-            pz = dz / len * push;
+            mob.setDeltaMovement(v.x * 0.5 + dx / len * push, Math.max(v.y, 0.22), v.z * 0.5 + dz / len * push);
+            return;
         }
-        mob.setDeltaMovement(v.x * 0.5 + px, Math.max(v.y, 0.22), v.z * 0.5 + pz);
+        Direction across = toWall.getClockWise();
+        double ox = mob.getX() - (at.getX() + 0.5);
+        double oz = mob.getZ() - (at.getZ() + 0.5);
+        // Keep to the middle of the ladder: half beside it, a monster bumps its head on a block
+        // next to the ladder, or at the top into the battlements beside the way over the wall.
+        double side = ox * across.getStepX() + oz * across.getStepZ();
+        double sideways = clamp(-side * 0.45, 0.1);
+        double towards;
+        double vy;
+        if (up) {
+            boolean top = !isClimbable(world.getBlockState(at.above()));
+            double vn = v.x * toWall.getStepX() + v.z * toWall.getStepZ();
+            towards = vn * 0.5 + (top ? 0.18 : 0.05);
+            vy = Math.max(v.y, 0.22);
+        } else {
+            // Down: away from the wall to the middle (pressing against the wall or a block beside
+            // the ladder makes a monster climb up) and no steering of its own until the bottom.
+            double off = ox * toWall.getStepX() + oz * toWall.getStepZ();
+            towards = clamp(-off * 0.45, 0.1);
+            vy = Math.min(v.y, -0.15);
+            mob.getNavigation().stop();
+            mob.getMoveControl().setWantedPosition(mob.getX(), mob.getY(), mob.getZ(), 0.0);
+        }
+        mob.setDeltaMovement(toWall.getStepX() * towards + across.getStepX() * sideways, vy,
+                toWall.getStepZ() * towards + across.getStepZ() * sideways);
+    }
+
+    private static double clamp(double value, double limit) {
+        return Math.max(-limit, Math.min(limit, value));
+    }
+
+    /** The direction from a ladder to the wall it hangs on, or null for vines and scaffolding. */
+    private static Direction wallSide(BlockState state) {
+        return state.getBlock() instanceof LadderBlock ? state.getValue(LadderBlock.FACING).getOpposite() : null;
+    }
+
+    /**
+     * True when the monster on a ladder should go up: its goal lies behind the wall the ladder
+     * hangs on (or straight above). On a ladder inside the base the goal lies on the monster's
+     * own side: down. Vines and scaffolding always go up.
+     */
+    private static boolean upward(ServerLevel world, Mob mob, BlockPos goal) {
+        Direction toWall = wallSide(world.getBlockState(mob.blockPosition()));
+        if (toWall == null) {
+            return true;
+        }
+        double along = (goal.getX() + 0.5 - mob.getX()) * toWall.getStepX() + (goal.getZ() + 0.5 - mob.getZ()) * toWall.getStepZ();
+        if (along > 0.5) {
+            return true;
+        }
+        if (along < -0.5) {
+            return false;
+        }
+        return goal.getY() > mob.getY() + 1.0;   // in line with the ladder: up only to a goal clearly above
+    }
+
+    /** True when the monster made no headway on its ladder for a while (a block above it, the top closed off). */
+    private boolean stalled(UUID id, Mob mob, boolean up, long now) {
+        double h = up ? mob.getY() : -mob.getY();
+        double dir = up ? 1 : 0;
+        double[] p = progress.get(id);
+        if (p == null || p[2] != dir || h > p[0] + 0.4) {
+            progress.put(id, new double[] {h, now, dir});
+            return false;
+        }
+        return now - (long) p[1] > STALL;
+    }
+
+    /** Off the ladder it is stuck on: away from the wall, that ladder not again straight away. */
+    private void letGo(ServerLevel world, Mob mob, BlockPos anchor, long now) {
+        UUID id = mob.getUUID();
+        BlockPos foot = mob.blockPosition();
+        for (int i = 0; i < 32 && isClimbable(world.getBlockState(foot.below())); i++) {
+            foot = foot.below();
+        }
+        gaveUp.put(id, foot);
+        progress.remove(id);
+        climbedAt.remove(id);
+        goals.remove(id);
+        goalSince.remove(id);
+        released.put(id, now + RELEASE);
+        Direction toWall = wallSide(world.getBlockState(mob.blockPosition()));
+        double ax;
+        double az;
+        if (toWall != null) {
+            ax = -toWall.getStepX();
+            az = -toWall.getStepZ();
+        } else {
+            double dx = mob.getX() - (anchor.getX() + 0.5);
+            double dz = mob.getZ() - (anchor.getZ() + 0.5);
+            double len = Math.max(0.001, Math.sqrt(dx * dx + dz * dz));
+            ax = dx / len;
+            az = dz / len;
+        }
+        mob.getNavigation().stop();
+        mob.setDeltaMovement(ax * 0.3, 0.1, az * 0.3);
     }
 
     static boolean isClimbable(BlockState state) {
         return state.is(BlockTags.CLIMBABLE);
+    }
+
+    /**
+     * Where a monster stands to get onto the ladder with this foot: the foot itself, or the
+     * ground under it when the ladder ends one block above the ground.
+     */
+    private static BlockPos standOf(ServerLevel world, BlockPos foot) {
+        return world.getBlockState(foot.below()).blocksMotion() ? foot : foot.below();
+    }
+
+    /** True when a monster can get onto a ladder with this foot from below (it ends one block above the ground). */
+    private static boolean reachableFromBelow(ServerLevel world, BlockPos foot) {
+        BlockPos gap = foot.below();
+        BlockState state = world.getBlockState(gap);
+        return state.getCollisionShape(world, gap).isEmpty() && state.getFluidState().isEmpty()
+                && world.getBlockState(gap.below()).blocksMotion();
     }
 
     /** True when the monster's path finding finds a full way to the spot. */
@@ -320,8 +475,8 @@ public final class LadderClimb {
                     if (!isClimbable(world.getBlockState(pos)) || isClimbable(world.getBlockState(pos.below()))) {
                         continue;   // only the foot of a column
                     }
-                    if (!world.getBlockState(pos.below()).blocksMotion()) {
-                        continue;   // a ladder hanging in the air cannot be reached
+                    if (!world.getBlockState(pos.below()).blocksMotion() && !reachableFromBelow(world, pos)) {
+                        continue;   // a ladder hanging in the air cannot be reached (one block above the ground can)
                     }
                     if (!isClimbable(world.getBlockState(pos.above()))) {
                         continue;   // a single rung does not lead anywhere
@@ -342,7 +497,7 @@ public final class LadderClimb {
         java.util.Arrays.sort(order, java.util.Comparator.comparingDouble(scores::get));
         for (int i = 0; i < Math.min(4, order.length); i++) {
             BlockPos foot = feet.get(order[i]);
-            if (canWalkTo(mob, foot)) {
+            if (canWalkTo(mob, standOf(world, foot))) {
                 return foot;
             }
         }
