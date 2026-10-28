@@ -6040,6 +6040,32 @@ public class EventLookTest implements FabricClientGameTest {
             if (!"escape".equals(first)) {
                 fails.add("the gunner's bar starts with " + first);
             }
+            // Wooden tools in every kit, and the kit comes back sorted as the player left it (Simon 29.10.).
+            net.minecraft.world.entity.player.Inventory inv = player.getInventory();
+            int cobble = -1;
+            boolean pick = false;
+            for (int i = 0; i < 36; i++) {
+                if (inv.getItem(i).is(net.minecraft.world.item.Items.COBBLESTONE)) {
+                    cobble = i;
+                }
+                pick |= inv.getItem(i).is(net.minecraft.world.item.Items.WOODEN_PICKAXE);
+            }
+            if (!pick) {
+                fails.add("no wooden pickaxe in the kit");
+            }
+            if (cobble >= 0) {
+                int target = cobble == 35 ? 34 : 35;
+                net.minecraft.world.item.ItemStack moved = inv.getItem(cobble);
+                inv.setItem(cobble, inv.getItem(target));
+                inv.setItem(target, moved);
+                manager.kits().restore(player);
+                manager.kits().equip(player, 1);
+                boolean back = inv.getItem(target).is(net.minecraft.world.item.Items.COBBLESTONE);
+                System.out.println("[Night Siege test] tech kit layout: cobblestone " + cobble + " -> " + target + " kept=" + back);
+                if (!back) {
+                    fails.add("the kit forgot where the cobblestone was");
+                }
+            }
         });
         context.waitTicks(30);
         context.takeScreenshot("tech_kit_bar");

@@ -88,6 +88,11 @@ public class SiegeSave {
      * Kept in the save, so a crash or restart in the night loses nothing.
      */
     public Map<String, KitStash> kitStashes = new HashMap<>();
+    /**
+     * Where each player keeps the items of a class's kit (Simon 29.10.: "sort the kit once, not every
+     * round"): player → class → item key → inventory slot, noted when the kit goes back.
+     */
+    public Map<String, Map<String, Map<String, Integer>>> kitLayouts = new HashMap<>();
     /** Reward crates won while offline, by player uuid: "CLASS|KIND|LEVEL" each. */
     public Map<String, List<String>> pendingCrates = new HashMap<>();
     /**
