@@ -459,7 +459,7 @@ public class EventLookTest implements FabricClientGameTest {
             }
             level.setBlock(fix.offset(-4, 0, 0), planks, 3);
             level.setBlock(fix.offset(4, -1, 0), net.minecraft.world.level.block.Blocks.FARMLAND.defaultBlockState(), 3);
-            level.setBlock(fix.offset(0, 0, -4), planks, 3);
+            level.setBlock(fix.offset(0, 0, -8), planks, 3);
             int before = com.mki.nightsiege.game.NightDamage.lostCount();
             level.explode(null, fix.getX() + 0.5, fix.getY() + 0.5, fix.getZ() + 0.5, 3.0f,
                     net.minecraft.world.level.Level.ExplosionInteraction.TNT);
@@ -467,7 +467,7 @@ public class EventLookTest implements FabricClientGameTest {
             level.setBlock(fix.offset(-4, 0, 0), net.minecraft.world.level.block.Blocks.FIRE.defaultBlockState(), 3);   // burnt
             level.setBlock(fix.offset(4, -1, 0), net.minecraft.world.level.block.Blocks.DIRT.defaultBlockState(), 3);   // trampled
             com.mki.nightsiege.game.NightDamage.playerBegin();
-            level.destroyBlock(fix.offset(0, 0, -4), false);   // a player's own
+            level.destroyBlock(fix.offset(0, 0, -8), false);   // a player's own (out of the blast)
             com.mki.nightsiege.game.NightDamage.playerEnd();
             System.out.println("[Night Siege test] repair: recording=" + com.mki.nightsiege.game.NightDamage.recording(level)
                     + " lost " + before + " -> " + com.mki.nightsiege.game.NightDamage.lostCount()
@@ -533,7 +533,7 @@ public class EventLookTest implements FabricClientGameTest {
             want.accept("burnt plank", level.getBlockState(fix.offset(-4, 0, 0)).is(net.minecraft.world.level.block.Blocks.OAK_PLANKS));
             want.accept("fire out", !level.getBlockState(fix.offset(-4, 1, 0)).is(net.minecraft.world.level.block.Blocks.FIRE));
             want.accept("field", level.getBlockState(fix.offset(4, -1, 0)).is(net.minecraft.world.level.block.Blocks.FARMLAND));
-            want.accept("player's own stays broken", level.getBlockState(fix.offset(0, 0, -4)).isAir());
+            want.accept("player's own stays broken", level.getBlockState(fix.offset(0, 0, -8)).isAir());
             System.out.println("[Night Siege test] repair after the night: " + (bad.length() == 0 ? "all back" : "missing " + bad));
         });
         context.waitTicks(10);
