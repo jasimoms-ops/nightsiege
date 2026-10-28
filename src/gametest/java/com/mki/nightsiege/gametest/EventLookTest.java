@@ -5329,7 +5329,7 @@ public class EventLookTest implements FabricClientGameTest {
             own.levels.put("field_dressing", 3);
             own.levels.put("g_ward", 2);
             own.levels.put("g_dome", 1);
-            own.levels.put("holy_light", 1);
+            own.levels.put("mass_heal", 1);
             manager.kits().refit(player, 1);
         });
         context.waitTicks(30);
@@ -5342,8 +5342,8 @@ public class EventLookTest implements FabricClientGameTest {
         context.takeScreenshot("kithud_healer");
         // Hurt, with a shield of absorption, hungry and short of air.
         onServer(context, (player, manager) -> {
+            player.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.ABSORPTION, 600, 0));
             player.setHealth(9f);
-            player.setAbsorptionAmount(4f);
             player.getFoodData().setFoodLevel(13);
             player.setAirSupply(120);
         });

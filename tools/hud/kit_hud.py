@@ -212,13 +212,13 @@ FOOD = [
     "ow.....",
 ]
 AIR = [
-    ".ooooo.",
-    "owaaaao",
-    "oaabbbo",
-    "oabbbco",
-    "oabbcco",
-    "obccco.",
-    ".oooo..",
+    "..ooo..",
+    ".oaaao.",
+    "oawwbao",
+    "oaw.bao",
+    "oab.cao",
+    ".oacao.",
+    "..ooo..",
 ]
 def icon(rows):
     palettes = {
@@ -316,7 +316,7 @@ def preview(p):
     crest_x, abil_x = 8, 38
     bars_x = abil_x + abil_w + 7
     hot_x = bars_x + 71 + 5
-    pw = hot_x + 82 + 5
+    pw = hot_x + 90 + 5
     x0 = (W - pw) // 2
     y0 = Hs - H
     bg.alpha_composite(p["panel_left"], (x0, y0))
@@ -336,10 +336,10 @@ def preview(p):
         bg.alpha_composite(p[name], (x0 + bars_x, y0 + y + (h - 7) // 2))
         bg.alpha_composite(p[bar], (x0 + bars_x + 9, y0 + y))
     for i in range(5):
-        bg.alpha_composite(p["slot_item_selected" if i == 0 else "slot_item"], (x0 + hot_x + i * 16, y0 + 7))
+        bg.alpha_composite(p["slot_item_selected" if i == 0 else "slot_item"], (x0 + hot_x + i * 18, y0 + 6))
     for i in range(4):
-        bg.alpha_composite(p["slot_item"], (x0 + hot_x + i * 16, y0 + 24))
-    bg.alpha_composite(p["slot_offhand"], (x0 + hot_x + 4 * 16, y0 + 24))
+        bg.alpha_composite(p["slot_item"], (x0 + hot_x + i * 18, y0 + 24))
+    bg.alpha_composite(p["slot_offhand"], (x0 + hot_x + 4 * 18, y0 + 24))
     os.makedirs(os.path.join(ROOT, "build"), exist_ok=True)
     bg.resize((W * 4, Hs * 4), Image.NEAREST).save(os.path.join(ROOT, "build", "kit_hud_preview.png"))
 

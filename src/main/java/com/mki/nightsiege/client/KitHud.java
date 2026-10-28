@@ -42,8 +42,9 @@ public final class KitHud {
     /** Symbol 7, gap 2, bar 62. */
     private static final int BARS_W = 71;
     private static final int BAR_W = 62;
-    /** Five slots of 18 on a step of 16. */
-    private static final int HOT_W = 82;
+    /** Five slots of 18 side by side (the stack counts must not run into the next slot). */
+    private static final int HOT_W = 90;
+    private static final int HOT_STEP = 18;
 
     private static final Identifier PANEL_MID = tex("panel_mid");
     private static final Identifier PANEL_LEFT = tex("panel_left");
@@ -74,6 +75,8 @@ public final class KitHud {
     /** Where the panel was drawn last (screen GUI pixels), for moving the chat out of the way. */
     private static int lastLeft = Integer.MAX_VALUE;
     private static int lastTop = Integer.MAX_VALUE;
+    private static int lastArchLeft = Integer.MAX_VALUE;
+    private static float lastScale = 1f;
 
     private KitHud() {
     }
@@ -136,8 +139,9 @@ public final class KitHud {
         if (right <= lastLeft) {
             return 0;
         }
-        // The chat's last line ends 40 px above the bottom.
-        return Math.max(0, (height - 40) - lastTop + 2);
+        // The chat's last line ends 40 px above the bottom; over the arch it must clear that too.
+        int top = right > lastArchLeft ? lastTop : lastTop + Math.round(ARCH_H * lastScale);
+        return Math.max(0, (height - 40) - top + 2);
     }
 
     /** How far the name of the held item and the action bar go up. */
@@ -203,6 +207,8 @@ public final class KitHud {
         int top = sh - Math.round(H * scale);
         lastLeft = left;
         lastTop = top - Math.round(ARCH_H * scale);
+        lastArchLeft = left + Math.round((w / 2f - 28) * scale);
+        lastScale = scale;
 
         gui.pose().pushMatrix();
         gui.pose().translate(left, top);
@@ -442,7 +448,7 @@ public final class KitHud {
                 blit(gui, SLOT_ITEM, slotX(x, i), slotY(i), 18, 18);
             }
         }
-        blit(gui, SLOT_OFFHAND, x + 4 * 16, 24, 18, 18);
+        blit(gui, SLOT_OFFHAND, x + 4 * HOT_STEP, 24, 18, 18);
         if (selected >= 0 && selected < 9) {
             blit(gui, SLOT_ITEM_SELECTED, slotX(x, selected), slotY(selected), 18, 18);
         }
@@ -455,16 +461,16 @@ public final class KitHud {
         }
         ItemStack off = p.getOffhandItem();
         if (!off.isEmpty()) {
-            gui.item(off, x + 4 * 16 + 1, 25);
-            gui.itemDecorations(font, off, x + 4 * 16 + 1, 25);
+            gui.item(off, x + 4 * HOT_STEP + 1, 25);
+            gui.itemDecorations(font, off, x + 4 * HOT_STEP + 1, 25);
         }
     }
 
     private static int slotX(int x, int i) {
-        return x + (i < 5 ? i : i - 5) * 16;
+        return x + (i < 5 ? i : i - 5) * HOT_STEP;
     }
 
     private static int slotY(int i) {
-        return i < 5 ? 7 : 24;
+        return i < 5 ? 6 : 24;
     }
 }
