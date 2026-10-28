@@ -1008,9 +1008,9 @@ public class EventLookTest implements FabricClientGameTest {
             game.getServer().runCommand(("summon minecraft:husk %d %d %d {PersistenceRequired:1b,Tags:[\"ns_lc_%s\"],"
                     + "CustomName:\"%s\",CustomNameVisible:1b}").formatted(x - 10, y, z + (c % 2 == 0 ? -2 : 2), names[c], names[c]));
         }
-        // Watch the first two yards from above, a little outside.
-        game.getServer().runCommand("setblock %d %d %d minecraft:barrier".formatted(gx[0] + 15, gy[0] + 7, gz[0] - 14));
-        game.getServer().runCommand("tp @p %d.5 %d %d.5 0 30".formatted(gx[0] + 15, gy[0] + 8, gz[0] - 14));
+        // Watch the first yard (block beside the ladder) from the side, a little above.
+        game.getServer().runCommand("setblock %d %d %d minecraft:barrier".formatted(gx[0] - 4, gy[0] + 3, gz[0] - 12));
+        game.getServer().runCommand("tp @p %d.5 %d %d.5 0 22".formatted(gx[0] - 4, gy[0] + 4, gz[0] - 12));
         context.waitTicks(20);
         final com.mki.nightsiege.game.LadderClimb[] ladders = new com.mki.nightsiege.game.LadderClimb[n];
         final int[] passAt = new int[n];
@@ -1043,8 +1043,8 @@ public class EventLookTest implements FabricClientGameTest {
                 }
             });
             context.waitTicks(2);
-            if (i == 40 || i == 100) {
-                context.takeScreenshot("ladder_cases_" + i);
+            if (i == 25 || i == 45 || i == 100) {
+                context.takeScreenshot("ladder_cases_" + i * 2);
             }
         }
         context.waitTicks(5);
