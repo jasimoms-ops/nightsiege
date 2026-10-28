@@ -44,7 +44,8 @@ public final class SiegeCommands {
                 .then(Commands.literal("playtest")
                         .then(Commands.argument("zielstufe", IntegerArgumentType.integer(4, 1000))
                                 .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
-                                .executes(SiegeCommands::playtestStart))
+                                .executes(ctx -> playtestStart(ctx, false))
+                                .then(Commands.literal("allein").executes(ctx -> playtestStart(ctx, true))))
                         .then(Commands.literal("stop").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                                 .executes(ctx -> {
                                     if (!SiegeManager.get().playtest().running()) {
@@ -534,9 +535,14 @@ public final class SiegeCommands {
 
     /** Runs something for the player who typed (or clicked) the command. */
     /** /nightsiege playtest <target level>: every signed-up player online plans a path, then four nights. */
-    private static int playtestStart(CommandContext<CommandSourceStack> ctx) {
+    private static int playtestStart(CommandContext<CommandSourceStack> ctx, boolean alone) {
         int target = IntegerArgumentType.getInteger(ctx, "zielstufe");
-        String problem = SiegeManager.get().playtest().start(ctx.getSource().getServer(), target);
+        ServerPlayer self = ctx.getSource().getPlayer();
+        if (alone && self == null) {
+            fail(ctx.getSource(), Component.translatable("nightsiege.cmd.player_only"));
+            return 0;
+        }
+        String problem = SiegeManager.get().playtest().start(ctx.getSource().getServer(), target, alone ? self : null);
         if (problem != null) {
             fail(ctx.getSource(), Component.translatable(problem));
             return 0;

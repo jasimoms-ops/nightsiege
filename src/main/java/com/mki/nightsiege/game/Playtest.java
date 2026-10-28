@@ -130,8 +130,16 @@ public final class Playtest {
 
     // ------------------------------------------------------------------ start
 
-    /** Starts a playtest; returns null or the translation key of why not. */
+    /** Starts a playtest for every signed-up player online; returns null or the translation key of why not. */
     public String start(MinecraftServer server, int target) {
+        return start(server, target, null);
+    }
+
+    /**
+     * As above; with {@code alone} only that player takes part (Simon, 28 October 2026: "is the
+     * playtest possible alone"), the others online go on as they were.
+     */
+    public String start(MinecraftServer server, int target, ServerPlayer alone) {
         if (running()) {
             return "nightsiege.playtest.already";
         }
@@ -142,9 +150,16 @@ public final class Playtest {
             return "nightsiege.playtest.no_core";
         }
         List<ServerPlayer> players = new ArrayList<>();
-        for (ServerPlayer p : server.getPlayerList().getPlayers()) {
-            if (m.isRegistered(p) && !p.isSpectator()) {
-                players.add(p);
+        if (alone != null) {
+            if (!m.isRegistered(alone)) {
+                return "nightsiege.playtest.not_registered";
+            }
+            players.add(alone);
+        } else {
+            for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+                if (m.isRegistered(p) && !p.isSpectator()) {
+                    players.add(p);
+                }
             }
         }
         if (players.isEmpty()) {

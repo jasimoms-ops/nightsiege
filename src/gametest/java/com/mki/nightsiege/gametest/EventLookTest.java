@@ -5329,7 +5329,7 @@ public class EventLookTest implements FabricClientGameTest {
             }
             player.getInventory().setItem(5, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND, 7));
             before[0] = own.chosenClass + " " + new java.util.TreeMap<>(own.levels) + " points=" + own.points;
-            String problem = manager.playtest().start(level.getServer(), 8);
+            String problem = manager.playtest().start(level.getServer(), 8, player);   // alone (Simon 11:56)
             com.mki.nightsiege.core.PlayerSkills fresh = manager.save().skillsOf(id);
             System.out.println("[Night Siege test] playtest start: problem=" + problem + " before=" + before[0]
                     + " fresh class=" + fresh.hasClass() + " points=" + fresh.points()
