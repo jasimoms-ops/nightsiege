@@ -195,8 +195,7 @@ public class NightSiegeClient implements ClientModInitializer {
                 (gui, delta) -> KitHud.draw(gui, ultimateKey));
         for (net.minecraft.resources.Identifier vanilla : List.of(VanillaHudElements.HOTBAR, VanillaHudElements.ARMOR_BAR,
                 VanillaHudElements.HEALTH_BAR, VanillaHudElements.FOOD_BAR, VanillaHudElements.AIR_BAR,
-                VanillaHudElements.MOUNT_HEALTH, VanillaHudElements.INFO_BAR, VanillaHudElements.EXPERIENCE_LEVEL,
-                VanillaHudElements.INFO_BAR_FOREGROUND)) {
+                VanillaHudElements.MOUNT_HEALTH, VanillaHudElements.INFO_BAR, VanillaHudElements.EXPERIENCE_LEVEL)) {
             HudElementRegistry.replaceElement(vanilla, original -> (gui, delta) -> {
                 if (!KitHud.active()) {
                     original.extractRenderState(gui, delta);
