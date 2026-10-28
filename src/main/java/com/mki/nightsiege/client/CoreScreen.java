@@ -149,6 +149,9 @@ public class CoreScreen extends Screen {
         return false;
     }
 
+    /** The next core window opens on the own class's tree (the playtest's pauses). */
+    public static boolean showOwnTree;
+
     @Override
     public void onClose() {
         if (PlaytestScreen.planning()) {
@@ -327,6 +330,14 @@ public class CoreScreen extends Screen {
     protected void init() {
         showing = this;
         goldButtons.clear();
+        if (showOwnTree) {
+            // The playtest between its parts (28 October 2026): straight to the own tree.
+            showOwnTree = false;
+            Tab own = ownTab();
+            if (own != null) {
+                activeTab = own;
+            }
+        }
         if (activeTab == Tab.SUMMONER && !stats.summoner) {
             activeTab = null;
         }

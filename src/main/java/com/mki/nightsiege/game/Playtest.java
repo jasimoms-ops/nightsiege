@@ -481,15 +481,21 @@ public final class Playtest {
         m.persist();
         broadcast(server, Component.translatable("nightsiege.playtest.next_" + s.interludes.get(s.step), PAUSE_INTERLUDE_SECONDS)
                 .withStyle(ChatFormatting.YELLOW));
+        // Between the parts everyone looks at the own skill tree: what the night brings (Simon 28.10.).
         for (ServerPlayer p : online(server, s)) {
-            send(p, true);
+            send(p, false);
+            if (ServerPlayNetworking.canSend(p, CoreNetworking.ScreenPayload.TYPE)) {
+                ServerPlayNetworking.send(p, new CoreNetworking.ScreenPayload("playtest_tree", ""));
+            }
+            m.openCoreWindow(p);
         }
     }
 
     /**
-     * The tree of a night: everything unlearned, then the path is bought again level by level as far
-     * as the points reach (the first level that does not fit stops it, so the order holds). Returns
-     * the levels learned.
+     * The tree of a night: everything unlearned, then the planned path is learned again as far as the
+     * points reach – level by level across the abilities (Simon 28.10.: not one ability to its top
+     * before the next): first every planned ability at level 1 in the planned order, then level 2 and so
+     * on, each never above its planned level. Returns the levels learned.
      */
     int replay(PlayerSkills own, List<String> path, int budget) {
         SkillTree tree = m.skillTree();
@@ -502,18 +508,34 @@ public final class Playtest {
         own.points = Math.max(0, budget);
         own.earned = own.points;
         own.lost = 0;
-        int learned = 0;
+        if (!own.hasClass()) {
+            return 0;
+        }
+        java.util.LinkedHashMap<String, Integer> planned = new java.util.LinkedHashMap<>();
         for (String id : path) {
-            SkillNode node = tree.get(id);
-            if (node == null || !own.hasClass()) {
-                continue;
+            if (tree.get(id) != null) {
+                planned.merge(id, 1, Integer::sum);
             }
-            String reason = tree.blockedReason(id, own);
-            if ("points".equals(reason)) {
-                break;
-            }
-            if (reason == null && tree.unlock(id, own)) {
-                learned++;
+        }
+        int top = 0;
+        for (int v : planned.values()) {
+            top = Math.max(top, v);
+        }
+        int learned = 0;
+        for (int cap = 1; cap <= top; cap++) {
+            // Round "cap": every ability up to this level, in the planned order; again while something
+            // new opened up (a later ability that needs an earlier one at this level).
+            boolean progress = true;
+            while (progress) {
+                progress = false;
+                for (Map.Entry<String, Integer> e : planned.entrySet()) {
+                    String id = e.getKey();
+                    int want = Math.min(cap, e.getValue());
+                    while (own.levelOf(id) < want && tree.blockedReason(id, own) == null && tree.unlock(id, own)) {
+                        learned++;
+                        progress = true;
+                    }
+                }
             }
         }
         return learned;

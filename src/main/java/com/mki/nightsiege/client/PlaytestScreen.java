@@ -41,8 +41,14 @@ public class PlaytestScreen extends Screen {
 
     /** A state from the server: kept, and shown if the window is open (or opened when asked). */
     public static void receive(PlaytestData data, boolean open) {
+        String before = last == null ? "" : last.phase;
         last = data;
         Minecraft client = Minecraft.getInstance();
+        if (client.gui.screen() instanceof CoreScreen core && data != null && !data.phase.equals(before)
+                && ("interlude".equals(data.phase) || "night".equals(data.phase) || "done".equals(data.phase))) {
+            core.onClose();   // the skill tree of the pause goes when the camp, dungeon or night begins
+            return;
+        }
         if (client.gui.screen() instanceof PlaytestScreen screen) {
             boolean fightStarts = data != null && !data.phase.equals(screen.data.phase)
                     && ("interlude".equals(data.phase) || "night".equals(data.phase));

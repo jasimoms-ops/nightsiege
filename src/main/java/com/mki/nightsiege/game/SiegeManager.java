@@ -3477,6 +3477,14 @@ public final class SiegeManager {
                     state.nameAb2 = "nightsiege.abilitybar.f_heal";
                 }
             }
+            // By day no abilities on screen (Simon 28.10.): only in a fight (night, test, camp, dungeon),
+            // with a kit on, or in creative for trying things out.
+            boolean fighting = liveSkillsFor(player) != null || kits.hasStash(player) || player.getAbilities().instabuild
+                    || pendingTest != null && participants.contains(player.getUUID());
+            if (!fighting) {
+                state = new com.mki.nightsiege.core.UltState();
+                state.kitsOn = config.nightKits;
+            }
             ServerPlayNetworking.send(player, new CoreNetworking.UltHudPayload(Json.toJson(state)));
         }
     }

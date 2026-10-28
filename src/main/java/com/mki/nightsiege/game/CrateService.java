@@ -54,6 +54,8 @@ public final class CrateService {
     private final SkillTree tree;
     private final Runnable persist;
     private final Random random = new Random();
+    /** When each player last opened a crate (game time): the next waits until the band stopped. */
+    private final java.util.Map<UUID, Long> lastOpened = new java.util.HashMap<>();
 
     public CrateService(Supplier<SiegeSave> save, Supplier<SiegeConfig> config, SkillTree tree, Runnable persist) {
         this.save = save;
@@ -230,6 +232,14 @@ public final class CrateService {
         if (stack.isEmpty() || !stack.is(CRATE)) {
             return;
         }
+        // One crate at a time: holding the button opened several in a second and the band of each
+        // was gone before it stopped (Simon 28.10.: "Kisten können nicht richtig geöffnet werden").
+        long now = player.level().getGameTime();
+        Long last = lastOpened.get(player.getUUID());
+        if (last != null && now - last < CrateFx.SPIN_TICKS + 10 && now >= last) {
+            return;
+        }
+        lastOpened.put(player.getUUID(), now);
         CustomData data = stack.get(DataComponents.CUSTOM_DATA);
         net.minecraft.nbt.CompoundTag tag = data == null ? new net.minecraft.nbt.CompoundTag() : data.copyTag();
         SkillClass clazz = SkillClass.byName(tag.getStringOr("crate_class", ""));
