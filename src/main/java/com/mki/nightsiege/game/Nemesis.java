@@ -249,7 +249,7 @@ public final class Nemesis {
         if (prey != null) {
             mob.setTarget(prey);
         }
-        ServerBossEvent bar = new ServerBossEvent(UUID.randomUUID(), barName(rec), BossEvent.BossBarColor.RED,
+        ServerBossEvent bar = new ServerBossEvent(com.mki.nightsiege.core.NightBarIds.make(com.mki.nightsiege.core.NightBarIds.Kind.NEMESIS), barName(rec), BossEvent.BossBarColor.RED,
                 BossEvent.BossBarOverlay.NOTCHED_6);
         bar.setProgress(1.0f);
         live.put(mob.getUUID(), new Live(rec, bar, mob.getUUID()));

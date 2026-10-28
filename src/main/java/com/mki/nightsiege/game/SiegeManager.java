@@ -1333,7 +1333,7 @@ public final class SiegeManager {
             equipKit(player);
             sendClassPick(player, config.testPrepSeconds);
         }
-        prepBar = new ServerBossEvent(UUID.randomUUID(),
+        prepBar = new ServerBossEvent(com.mki.nightsiege.core.NightBarIds.make(com.mki.nightsiege.core.NightBarIds.Kind.PREP),
                 Component.translatable("nightsiege.bar.prep", shownLevel, config.testPrepSeconds),
                 BossEvent.BossBarColor.YELLOW, BossEvent.BossBarOverlay.PROGRESS);
         prepBar.setProgress(1.0f);
@@ -1593,7 +1593,7 @@ public final class SiegeManager {
         }
 
         // The event is never named. A blood moon only shows as a red bar.
-        bossBar = new ServerBossEvent(UUID.randomUUID(),
+        bossBar = new ServerBossEvent(com.mki.nightsiege.core.NightBarIds.make(com.mki.nightsiege.core.NightBarIds.Kind.NIGHT),
                 bossBarTitle(),
                 currentEvent == SiegeEvent.BLOOD_MOON || currentEvent == SiegeEvent.NETHER_RIFT
                         ? BossEvent.BossBarColor.RED

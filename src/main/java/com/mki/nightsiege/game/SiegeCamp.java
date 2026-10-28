@@ -735,7 +735,7 @@ public final class SiegeCamp {
 
     private void showBar(ServerLevel level, SiegeSave.CampRecord camp, ServerPlayer player) {
         if (bar == null) {
-            bar = new ServerBossEvent(UUID.randomUUID(), Component.translatable("nightsiege.camp.workbench"),
+            bar = new ServerBossEvent(com.mki.nightsiege.core.NightBarIds.make(com.mki.nightsiege.core.NightBarIds.Kind.CAMP), Component.translatable("nightsiege.camp.workbench"),
                     BossEvent.BossBarColor.RED, BossEvent.BossBarOverlay.NOTCHED_10);
             LivingEntity bench = bench(level, camp);
             bar.setProgress(bench == null ? 1f : (float) Math.max(0.0, Math.min(1.0, bench.getHealth() / bench.getMaxHealth())));

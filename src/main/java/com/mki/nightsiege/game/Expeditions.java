@@ -1037,7 +1037,7 @@ public final class Expeditions {
 
     private void showBar(SiegeSave.ExpeditionRecord rec, ServerPlayer player) {
         if (bar == null) {
-            bar = new ServerBossEvent(UUID.randomUUID(), Component.translatable(kind(rec).translationKey()),
+            bar = new ServerBossEvent(com.mki.nightsiege.core.NightBarIds.make(com.mki.nightsiege.core.NightBarIds.Kind.DUNGEON), Component.translatable(kind(rec).translationKey()),
                     BossEvent.BossBarColor.RED, BossEvent.BossBarOverlay.PROGRESS);
         }
         bar.addPlayer(player);

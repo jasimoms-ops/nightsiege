@@ -725,7 +725,7 @@ public final class DungeonService {
         fight.startedAt = level.getGameTime();
         fight.nextWaveAt = fight.startedAt + 40;
         fight.wave = 0;
-        fight.bar = new ServerBossEvent(UUID.randomUUID(), barTitle(fight),
+        fight.bar = new ServerBossEvent(com.mki.nightsiege.core.NightBarIds.make(com.mki.nightsiege.core.NightBarIds.Kind.DUNGEON), barTitle(fight),
                 tier == DungeonTier.NETHER || tier == DungeonTier.HARD ? BossEvent.BossBarColor.RED : BossEvent.BossBarColor.PURPLE,
                 BossEvent.BossBarOverlay.NOTCHED_10);
         for (UUID id : fight.participants) {

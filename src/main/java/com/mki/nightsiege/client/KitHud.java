@@ -440,9 +440,9 @@ public final class KitHud {
         boolean gauge = s != null && s.gauge && s.gaugeMax > 0f;
         // three rows of 7 under the health bar; without a gauge the rows spread out
         int hy = gauge ? 4 : 6;
-        int r1 = gauge ? 15 : 19;
-        int r2 = gauge ? 23 : 28;
-        int r3 = 31;
+        int r1 = 15;
+        int r2 = gauge ? 23 : 20;
+        int r3 = gauge ? 31 : 29;
         blit(gui, ICON_HEART, x, hy + 1, 7, 7);
         blit(gui, BAR_HEALTH, bx, hy, BAR_W, 10);
         int inner = BAR_W - 4;

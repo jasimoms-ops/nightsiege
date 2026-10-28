@@ -238,7 +238,7 @@ public final class BossService {
         spawned = true;
         brain.spawned(host, boss);
         aim(host, boss);
-        bar = new ServerBossEvent(UUID.randomUUID(), barName(level), color(kind), BossEvent.BossBarOverlay.NOTCHED_10);
+        bar = new ServerBossEvent(com.mki.nightsiege.core.NightBarIds.make(com.mki.nightsiege.core.NightBarIds.Kind.BOSS), barName(level), color(kind), BossEvent.BossBarOverlay.NOTCHED_10);
         bar.setDarkenScreen(true);
         bar.setProgress(1f);
         for (ServerPlayer p : host.watchers()) {

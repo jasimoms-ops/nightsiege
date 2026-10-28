@@ -321,7 +321,7 @@ public final class SiegeMachines {
             return;
         }
         nightTotal = placed;
-        bar = new ServerBossEvent(UUID.randomUUID(), Component.translatable("nightsiege.machine.bar", placed),
+        bar = new ServerBossEvent(com.mki.nightsiege.core.NightBarIds.make(com.mki.nightsiege.core.NightBarIds.Kind.MACHINE), Component.translatable("nightsiege.machine.bar", placed),
                 BossEvent.BossBarColor.YELLOW, BossEvent.BossBarOverlay.PROGRESS);
         for (ServerPlayer p : host.watchers()) {
             bar.addPlayer(p);
@@ -1542,7 +1542,7 @@ public final class SiegeMachines {
         machine.nextShot = host.world().getGameTime() + 20;
         nightTotal++;
         if (bar == null) {
-            bar = new ServerBossEvent(UUID.randomUUID(), Component.translatable("nightsiege.machine.bar", 1),
+            bar = new ServerBossEvent(com.mki.nightsiege.core.NightBarIds.make(com.mki.nightsiege.core.NightBarIds.Kind.MACHINE), Component.translatable("nightsiege.machine.bar", 1),
                     BossEvent.BossBarColor.YELLOW, BossEvent.BossBarOverlay.PROGRESS);
         }
         return true;
