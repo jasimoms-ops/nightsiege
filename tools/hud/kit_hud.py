@@ -14,7 +14,7 @@ from PIL import Image
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 OUT = os.path.join(ROOT, "src/main/resources/assets/nightsiege/textures/gui/kit_hud")
 
-H = 46  # panel height
+H = 41  # panel height (v2, 29 October 2026: 10 % smaller)
 
 OUTLINE = (10, 8, 7, 255)
 IRON0 = (20, 17, 15, 255)
@@ -49,7 +49,6 @@ def border_top(im, x0, x1):
         im.putpixel((x, 1), BRONZE)
         im.putpixel((x, 2), GOLD)
         im.putpixel((x, 3), BRONZE_D)
-        im.putpixel((x, 4), IRON0)
 
 
 def scroll(im, cx, y):
@@ -72,10 +71,8 @@ def rivet(im, x, y):
 def panel_mid():
     w = 32
     im = img(w, H)
-    plate(im, 0, 5, w, H, 1)
+    plate(im, 0, 4, w, H, 1)
     border_top(im, 0, w)
-    scroll(im, 8, 5)
-    scroll(im, 24, 5)
     # a fine bronze line along the foot
     for x in range(w):
         im.putpixel((x, H - 2), BRONZE_D)
@@ -86,7 +83,7 @@ def panel_mid():
 def panel_cap(left=True):
     w = 12
     im = img(w, H)
-    plate(im, 0, 5, w, H, 2 if left else 3)
+    plate(im, 0, 4, w, H, 2 if left else 3)
     border_top(im, 0, w)
     # rounded outer corner and a side edge
     for y in range(H):
@@ -102,7 +99,7 @@ def panel_cap(left=True):
     # a curl on the side and rivets
     for y, x in [(10, 5), (11, 6), (12, 6), (13, 5), (14, 6), (15, 7)]:
         im.putpixel((x, y), GOLD)
-    rivet(im, 6, 20)
+    rivet(im, 6, 19)
     rivet(im, 6, H - 7)
     for x in range(w):
         im.putpixel((x, H - 2), BRONZE_D)
@@ -113,14 +110,13 @@ def panel_cap(left=True):
     return im
 
 
-def arch():
-    """The crown over the middle: a raised arch with a spike."""
-    w, h = 56, 10
+def arch(w=56, h=10, spike=True):
+    """A raised arch over the panel (the middle one with a spike, the wings with a scroll)."""
     im = img(w, h)
     cx = w // 2
     for x in range(w):
         d = abs(x - cx + 0.5) / (w / 2)
-        top = int(round(2 + 7 * d * d))  # the arch's top edge, lower to the sides
+        top = int(round(2 + (h - 3) * d * d))  # the arch's top edge, lower to the sides
         for y in range(top, h):
             if y == top:
                 c = OUTLINE
@@ -131,12 +127,15 @@ def arch():
             else:
                 c = IRON1 if (x + y) % 5 else IRON0
             im.putpixel((x, y), c)
-    # the spike
-    for y, half in [(0, 0), (1, 0), (2, 1)]:
-        for x in range(cx - half - 1, cx + half + 1):
-            im.putpixel((x, y), GOLD_L if y < 2 else GOLD)
-    for x in (cx - 6, cx + 5):
-        im.putpixel((x, 6), GOLD)
+    if spike:
+        for y, half in [(0, 0), (1, 0), (2, 1)]:
+            for x in range(cx - half - 1, cx + half + 1):
+                im.putpixel((x, y), GOLD_L if y < 2 else GOLD)
+    else:
+        for dx in (-1, 0):
+            im.putpixel((cx + dx, 1), GOLD_L)
+    for x in (cx - w // 9, cx + w // 9 - 1):
+        im.putpixel((x, h - 4), GOLD)
     return im
 
 
@@ -193,6 +192,15 @@ HEART = [
     "..oco..",
     "...o...",
 ]
+STAR = [
+    "...o...",
+    "..owo..",
+    "ooawaoo",
+    "oaaaaao",
+    ".obbbo.",
+    ".ob.bo.",
+    ".o...o.",
+]
 SWORD = [
     ".....oo",
     "....owo",
@@ -234,6 +242,7 @@ def icon(rows):
         id(HEART): [(232, 84, 72, 255), (196, 44, 36, 255), (130, 24, 20, 255)],
         id(ARMOR): [(206, 214, 222, 255), (150, 160, 172, 255), (96, 104, 116, 255)],
         id(FOOD): [(226, 160, 84, 255), (184, 110, 46, 255), (120, 68, 28, 255)],
+        id(STAR): [(250, 230, 140, 255), (220, 180, 70, 255), (160, 120, 40, 255)],
         id(SWORD): [(220, 226, 232, 255), (150, 160, 172, 255), (120, 84, 40, 255)],
         id(AIR): [(200, 232, 250, 255), (120, 184, 226, 255), (66, 120, 176, 255)],
     }
@@ -391,25 +400,25 @@ def main():
         "panel_mid": panel_mid(),
         "panel_left": panel_cap(True),
         "panel_right": panel_cap(False),
-        "panel_arch": arch(),
-        "slot_ability": slot(22),
-        "slot_ability_ready": slot(22, gold=True),
-        "slot_choice": slot(14),
-        "slot_choice_current": slot(14, gold=True),
+        "panel_arch": arch(80, 12),
+        "panel_wing": arch(64, 12, spike=False),
+        "slot_ability": slot(20),
+        "slot_ability_ready": slot(20, gold=True),
+        "slot_choice": slot(13),
+        "slot_choice_current": slot(13, gold=True),
         "slot_item": slot(18),
         "slot_item_selected": slot(18, gold=True),
         "slot_offhand": slot(18, round_=True),
-        "bar_health": bar(62, 10),
-        "bar_small": bar(62, 8),
+        "slot_wing": slot(11),
+        "bar_health": bar(56, 10),
+        "bar_small": bar(56, 7),
         "icon_heart": icon(HEART),
         "icon_armor": icon(ARMOR),
         "icon_food": icon(FOOD),
         "icon_air": icon(AIR),
+        "icon_class": icon(STAR),
     }
-    for name, colors in CLASS_COLORS.items():
-        parts["crest_" + name] = crest(colors)
-        for sub, division in zip(SUBCLASSES.get(name, []), DIVISIONS):
-            parts["crest_" + sub] = crest(colors, division)
+    # The crests come from crest.py (v2, 29 October 2026).
     parts["inventory"] = inventory()
     parts["icon_damage"] = icon(SWORD)
     for name, im in parts.items():
@@ -419,17 +428,18 @@ def main():
 
 
 def preview(p):
-    """The panel put together like KitHud draws it, four times larger."""
+    """The panel v2 put together like KitHud draws it, four times larger."""
+    import crest as cr
     W, Hs = 480, 120
     bg = img(W, Hs, (52, 67, 46, 255))
     for y in range(0, 60):
         for x in range(W):
             bg.putpixel((x, y), (59, 79, 97, 255))
-    abil_w = 3 * 24 - 2
-    crest_x, abil_x = 8, 38
-    bars_x = abil_x + abil_w + 7
-    hot_x = bars_x + 71 + 5
-    pw = hot_x + 82 + 5
+    crest_x, abil_x = 6, 37
+    abil_w = 5 * 14 - 1
+    bars_x = abil_x + abil_w + 6
+    hot_x = bars_x + 65 + 5
+    pw = hot_x + 90 + 5
     x0 = (W - pw) // 2
     y0 = Hs - H
     bg.alpha_composite(p["panel_left"], (x0, y0))
@@ -438,28 +448,27 @@ def preview(p):
         bg.alpha_composite(p["panel_mid"].crop((0, 0, min(32, x0 + pw - 12 - x), H)), (x, y0))
         x += 32
     bg.alpha_composite(p["panel_right"], (x0 + pw - 12, y0))
-    bg.alpha_composite(p["panel_arch"], (x0 + pw // 2 - 28, y0 - 9))
-    bg.alpha_composite(p["crest_warrior"], (x0 + crest_x, y0 + 9))
+    bg.alpha_composite(p["panel_arch"], (x0 + pw // 2 - 40, y0 - 11))
+    bg.alpha_composite(p["panel_wing"], (x0 + (crest_x + abil_x + abil_w) // 2 - 32, y0 - 11))
+    bg.alpha_composite(p["panel_wing"], (x0 + hot_x + 45 - 32, y0 - 11))
     for i in range(3):
-        bg.alpha_composite(p["slot_ability_ready" if i == 0 else "slot_ability"], (x0 + abil_x + i * 24, y0 + 7))
-    for i in range(4):
-        bg.alpha_composite(p["slot_choice_current" if i == 1 else "slot_choice"], (x0 + abil_x + 6 + i * 15, y0 + 30))
-    for name, bar, y in (("icon_heart", "bar_health", 9), ("icon_armor", "bar_small", 22), ("icon_food", "bar_small", 33)):
+        bg.alpha_composite(p["slot_wing"], (x0 + (crest_x + abil_x + abil_w) // 2 - 18 + i * 12, y0 - 7))
+    bg.alpha_composite(cr.crest("warrior", "bend", CLASS_COLORS["warrior"], emblem="blademaster"), (x0 + crest_x, y0 + 1))
+    for i in range(3):
+        bg.alpha_composite(p["slot_ability_ready" if i == 0 else "slot_ability"], (x0 + abil_x + 3 + i * 22, y0 + 4))
+    for i in range(5):
+        bg.alpha_composite(p["slot_choice_current" if i == 1 else "slot_choice"], (x0 + abil_x + i * 14, y0 + 25))
+    for name, bar, y in (("icon_heart", "bar_health", 4), ("icon_class", "bar_small", 15), ("icon_armor", "bar_small", 23), ("icon_food", "bar_small", 31)):
         h = p[bar].height
         bg.alpha_composite(p[name], (x0 + bars_x, y0 + y + (h - 7) // 2))
         bg.alpha_composite(p[bar], (x0 + bars_x + 9, y0 + y))
     for i in range(5):
-        bg.alpha_composite(p["slot_item_selected" if i == 0 else "slot_item"], (x0 + hot_x + i * 16, y0 + 7))
+        bg.alpha_composite(p["slot_item_selected" if i == 0 else "slot_item"], (x0 + hot_x + i * 18, y0 + 4))
     for i in range(4):
-        bg.alpha_composite(p["slot_item"], (x0 + hot_x + i * 16, y0 + 24))
-    bg.alpha_composite(p["slot_offhand"], (x0 + hot_x + 4 * 16, y0 + 24))
+        bg.alpha_composite(p["slot_item"], (x0 + hot_x + i * 18, y0 + 21))
+    bg.alpha_composite(p["slot_offhand"], (x0 + hot_x + 4 * 18, y0 + 21))
     os.makedirs(os.path.join(ROOT, "build"), exist_ok=True)
     bg.resize((W * 4, Hs * 4), Image.NEAREST).save(os.path.join(ROOT, "build", "kit_hud_preview.png"))
-    sheet = img(5 * 32 + 4, 5 * 36 + 4, (40, 40, 40, 255))
-    for row, (name, subs) in enumerate(SUBCLASSES.items()):
-        for col, n in enumerate([name] + subs):
-            sheet.alpha_composite(p["crest_" + n], (4 + col * 32, 4 + row * 36))
-    sheet.resize((sheet.width * 4, sheet.height * 4), Image.NEAREST).save(os.path.join(ROOT, "build", "kit_crests.png"))
     inv = img(176 + 8, 166 + 8, (40, 40, 40, 255))
     inv.alpha_composite(p["inventory"], (4, 4))
     inv.resize((inv.width * 3, inv.height * 3), Image.NEAREST).save(os.path.join(ROOT, "build", "kit_inventory.png"))

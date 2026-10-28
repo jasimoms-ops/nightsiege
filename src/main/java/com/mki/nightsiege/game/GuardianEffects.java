@@ -474,6 +474,12 @@ public final class GuardianEffects {
         shieldLocked.clear();
     }
 
+    /** The shield energy's share (1 = full) for the kit HUD's gauge; -1 outside the night. */
+    public double shieldShare(ServerPlayer player, PlayerSkills skills) {
+        Double left = shieldEnergy.get(player.getUUID());
+        return left == null ? -1.0 : Math.max(0.0, Math.min(1.0, left / shieldCapacity(skills)));
+    }
+
     /** Ticks of blocking a full shield holds: config shieldEnergySeconds, more with the shield wall. */
     private double shieldCapacity(PlayerSkills skills) {
         SiegeManager m = SiegeManager.get();

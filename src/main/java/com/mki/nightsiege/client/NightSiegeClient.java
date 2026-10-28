@@ -211,7 +211,12 @@ public class NightSiegeClient implements ClientModInitializer {
         }
         lifted(VanillaHudElements.CHAT, KitHud::chatLift);
         lifted(VanillaHudElements.HELD_ITEM_TOOLTIP, KitHud::overlayLift);
-        lifted(VanillaHudElements.OVERLAY_MESSAGE, KitHud::overlayLift);
+        // Kit HUD v2 (29 October 2026): with the kit, the action bar's text shows in the middle arch instead.
+        HudElementRegistry.replaceElement(VanillaHudElements.OVERLAY_MESSAGE, original -> (gui, delta) -> {
+            if (!KitHud.active()) {
+                original.extractRenderState(gui, delta);
+            }
+        });
         lifted(VanillaHudElements.SUBTITLES, KitHud::subtitleLift);
 
         KeyMapping.Category category = KeyMapping.Category.register(ModContent.id("main"));

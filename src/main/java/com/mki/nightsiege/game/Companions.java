@@ -2900,6 +2900,27 @@ public final class Companions {
         return wolf && bones;
     }
 
+    /** The kit HUD's left wing (29 October 2026): one entry per kind of companion, with the weakest one's health. */
+    public static java.util.List<com.mki.nightsiege.core.UltState.Unit> unitsOf(ServerLevel level, UUID owner) {
+        java.util.Map<Kind, com.mki.nightsiege.core.UltState.Unit> out = new java.util.EnumMap<>(Kind.class);
+        for (Companion c : ALL.values()) {
+            if (!c.owner.equals(owner) || !(level.getEntity(c.id) instanceof LivingEntity body) || !body.isAlive()) {
+                continue;
+            }
+            com.mki.nightsiege.core.UltState.Unit u = out.computeIfAbsent(c.kind, k -> {
+                com.mki.nightsiege.core.UltState.Unit n = new com.mki.nightsiege.core.UltState.Unit();
+                net.minecraft.resources.Identifier type = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(body.getType());
+                net.minecraft.resources.Identifier egg = net.minecraft.resources.Identifier.fromNamespaceAndPath(type.getNamespace(), type.getPath() + "_spawn_egg");
+                n.icon = net.minecraft.core.registries.BuiltInRegistries.ITEM.containsKey(egg) ? egg.toString() : "minecraft:bone";
+                return n;
+            });
+            u.count++;
+            float share = body.getHealth() / Math.max(1f, body.getMaxHealth());
+            u.health = u.health < 0f ? share : Math.min(u.health, share);
+        }
+        return new java.util.ArrayList<>(out.values());
+    }
+
     /** Companions of one summoner, for the window and the tests. */
     public static int countOf(UUID owner) {
         int n = 0;

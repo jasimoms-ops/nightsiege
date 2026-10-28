@@ -5755,6 +5755,11 @@ public class EventLookTest implements FabricClientGameTest {
             }
         });
         context.waitTicks(30);
+        // v2 (29 October 2026): effects in the right wing, the action bar's text in the middle arch.
+        game.getServer().runCommand("effect give @p minecraft:speed 30 0");
+        game.getServer().runCommand("effect give @p minecraft:regeneration 8 0");
+        game.getServer().runCommand("title @p actionbar \"Kein Platz für die Falle hier\"");
+        context.waitTicks(5);
         context.takeScreenshot("kithud_alchemist");
         // Nothing learned: no ability section at all.
         onServer(context, (player, manager) -> {

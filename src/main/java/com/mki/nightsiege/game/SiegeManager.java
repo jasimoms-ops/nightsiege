@@ -3520,7 +3520,49 @@ public final class SiegeManager {
                 state = new com.mki.nightsiege.core.UltState();
                 state.kitsOn = config.nightKits;
             }
+            safe("Kit-Leiste", () -> kitHudValues(player, own, state));
             ServerPlayNetworking.send(player, new CoreNetworking.UltHudPayload(Json.toJson(state)));
+        }
+    }
+
+    /** Kit HUD v2 (29 October 2026): the class's gauge and the left wing (companions, towers). */
+    private void kitHudValues(ServerPlayer player, PlayerSkills own, com.mki.nightsiege.core.UltState state) {
+        if (!isRegistered(player) || !own.hasClass()) {
+            return;
+        }
+        switch (own.clazz()) {
+            case SUMMONER -> {
+                if (SkillTree.WAY_DEAD.equals(own.pathTaken(skillTree))) {
+                    state.gauge = true;
+                    state.gaugeValue = companions.soulsOf(player.getUUID());
+                    state.gaugeMax = Companions.soulCapOf(own);
+                    state.gaugeName = "nightsiege.kithud.souls";
+                    state.gaugeColor = 0xFF8E5BD6;
+                }
+                if (player.level() instanceof ServerLevel level) {
+                    state.units = Companions.unitsOf(level, player.getUUID());
+                }
+            }
+            case ENGINEER -> {
+                state.gauge = true;
+                state.gaugeValue = (float) traps.energyOf(player);
+                state.gaugeMax = (float) traps.maxEnergyOf(player);
+                state.gaugeName = "nightsiege.kithud.energy";
+                state.gaugeColor = 0xFF3FA0E0;
+                state.units = traps.unitsOf(player);
+            }
+            case GUARDIAN -> {
+                double share = combat.guardian().shieldShare(player, own);
+                if (share >= 0.0) {
+                    state.gauge = true;
+                    state.gaugeValue = (float) (share * 100.0);
+                    state.gaugeMax = 100f;
+                    state.gaugeName = "nightsiege.kithud.shield";
+                    state.gaugeColor = 0xFFC8B070;
+                }
+            }
+            default -> {
+            }
         }
     }
 

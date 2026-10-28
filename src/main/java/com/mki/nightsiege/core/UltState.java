@@ -37,6 +37,29 @@ public class UltState {
     /** The subclass ("blademaster" ...) for its own crest; empty before one is chosen. */
     public String sub = "";
 
+    /**
+     * Kit HUD v2 (29 October 2026): the class's gauge in the bars (souls, remote energy, shield
+     * energy); hidden when {@link #gauge} is false.
+     */
+    public boolean gauge;
+    public float gaugeValue;
+    public float gaugeMax;
+    /** Translation key of the gauge's name. */
+    public String gaugeName = "";
+    public int gaugeColor;
+    /** The left wing: the summoner's companions or the engineer's towers, grouped by kind. */
+    public java.util.List<Unit> units = new java.util.ArrayList<>();
+
+    /** One kind of companion or tower in the left wing. */
+    public static class Unit {
+        public String icon = "";
+        public int count;
+        /** Most of this kind (towers), 0 when there is no limit to show. */
+        public int max;
+        /** The weakest one's share of its health, -1 when it has none. */
+        public float health = -1f;
+    }
+
     /** Fähigkeit 2 (F): shown when it does something for this class (remote, staff, healing). */
     public boolean hasAb2;
     public String iconAb2 = "";

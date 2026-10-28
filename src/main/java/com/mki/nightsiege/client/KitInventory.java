@@ -38,7 +38,7 @@ public final class KitInventory {
         }
         Font font = mc.font;
         UltState s = UltHud.state();
-        KitHud.drawCrest(gui, left + 101, top + 13, s);
+        KitHud.drawCrest(gui, left + 99, top + 8, s);
 
         // The kit's values right of the crest.
         int vx = left + 131;
@@ -55,7 +55,7 @@ public final class KitInventory {
         String text = name.getString();
         int plateX = left + 99;
         int plateW = 68;
-        int plateY = top + 46;
+        int plateY = top + 47;
         gui.fill(plateX, plateY, plateX + plateW, plateY + 11, 0xFF0A0807);
         gui.fill(plateX + 1, plateY + 1, plateX + plateW - 1, plateY + 10, 0xFF4A3816);
         gui.fill(plateX + 2, plateY + 2, plateX + plateW - 2, plateY + 9, 0xFF1D1813);

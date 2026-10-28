@@ -2808,6 +2808,31 @@ public final class TrapService {
         showEnergy(player);
     }
 
+    /** The remote's full charge, for the kit HUD's gauge. */
+    public double maxEnergyOf(ServerPlayer player) {
+        return maxEnergy(save.get().skillsOf(player.getUUID().toString()));
+    }
+
+    /** The kit HUD's left wing (29 October 2026): the engineer's traps and towers by kind, with their limit. */
+    public java.util.List<com.mki.nightsiege.core.UltState.Unit> unitsOf(ServerPlayer player) {
+        java.util.List<com.mki.nightsiege.core.UltState.Unit> out = new java.util.ArrayList<>();
+        String owner = player.getUUID().toString();
+        PlayerSkills skills = save.get().skillsOf(owner);
+        for (TrapKind kind : TrapKind.values()) {
+            int count = placedBy(owner, kind);
+            net.minecraft.world.item.Item item = ModContent.TRAP_ITEMS.get(kind);
+            if (count <= 0 || item == null) {
+                continue;
+            }
+            com.mki.nightsiege.core.UltState.Unit u = new com.mki.nightsiege.core.UltState.Unit();
+            u.icon = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item).toString();
+            u.count = count;
+            u.max = maxFor(kind, Math.max(1, tree.trapTier(kind, skills)), skills);
+            out.add(u);
+        }
+        return out;
+    }
+
     public double energyOf(ServerPlayer player) {
         PlayerSkills skills = save.get().skillsOf(player.getUUID().toString());
         double max = maxEnergy(skills);
