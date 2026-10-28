@@ -247,6 +247,8 @@ public final class StatsRecorder {
     private final Map<UUID, String> mobType = new HashMap<>();
     /** Who hit a mob of the night (for the assists). */
     private final Map<UUID, Set<UUID>> hitBy = new HashMap<>();
+    /** A mob's life after the last hit: the killing blow (which the damage event leaves out) took the rest. */
+    private final Map<UUID, Float> lifeLeft = new HashMap<>();
     /** Machines by their hit box. */
     private final Map<UUID, Maschine> machineOf = new HashMap<>();
     /** Siege days whose war camp stood, fell, won (filled during the day before). */
@@ -483,6 +485,7 @@ public final class StatsRecorder {
         mobSince.clear();
         mobType.clear();
         hitBy.clear();
+        lifeLeft.clear();
         machineOf.clear();
         Path dir = folder();
         nightPath = dir == null ? null : dir.resolve((test ? "testnacht_" : "night_") + LocalDateTime.now().format(FILE_TIME) + ".json");
@@ -606,6 +609,9 @@ public final class StatsRecorder {
             }
             hitBy.computeIfAbsent(victim.getUUID(), k -> new HashSet<>()).add(attacker.getUUID());
         }
+        if (victimIsMob) {
+            lifeLeft.put(victim.getUUID(), victim.getHealth());
+        }
         if (victimIsDefender && victim instanceof ServerPlayer defender) {
             String type;
             Maschine machine = SiegeMachines.landing == null ? null : machineOf.get(SiegeMachines.landing);
@@ -642,14 +648,26 @@ public final class StatsRecorder {
         Entity raw = source == null ? null : source.getEntity();
         boolean companion = Companions.isCompanion(raw);
         Entity killer = companion ? Companions.ownerPlayer(raw) : raw;
+        Float left = lifeLeft.remove(id);
+        double lastBlow = left != null ? left : mob.getMaxHealth();
         String by;
         if (killer instanceof ServerPlayer player) {
             String from = sourceOf(player, source, companion);
+            SpielerWelle blow = pw(player);
+            blow.schaden += lastBlow;
+            blow.schadenNachQuelle.merge(from, lastBlow, Double::sum);
+            if ("drohne".equals(from)) {
+                blow.drohneSchaden += lastBlow;
+            }
             Spieler s = night.spieler.get(player.getScoreboardName());
             String who = s == null ? "?" : s.unterklasse.isEmpty() ? s.klasse : s.unterklasse;
             if (from.startsWith("turm:")) {
                 by = from;
                 Turm t = tower(from.substring(5), player.getScoreboardName());
+                t.schaden += lastBlow;
+                if (from.endsWith("_bemannt")) {
+                    t.schadenBemannt += lastBlow;
+                }
                 t.kills++;
                 if (from.endsWith("_bemannt")) {
                     t.killsBemannt++;
@@ -791,6 +809,7 @@ public final class StatsRecorder {
         mobSince.clear();
         mobType.clear();
         hitBy.clear();
+        lifeLeft.clear();
         machineOf.clear();
     }
 
