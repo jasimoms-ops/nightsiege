@@ -3118,7 +3118,8 @@ public class CoreScreen extends Screen {
             int tx = ix + 24;
             int tw = x + w - 9 - tx;
             String stampText = slain ? "" : Component.translatable("nightsiege.ui.wanted_stamp").getString();
-            int stampW = slain ? 0 : (int) (font.width(stampText) * 0.7f) + 8;
+            int stampW = 0;   // the stamp sits in the lower corner, the name has the whole line
+            int stampRoom = slain ? 0 : (int) (font.width(stampText) * 0.7f) + 10;
             String name = n.name;
             gui.text(font, font.plainSubstrByWidth(name, tw - stampW), tx, py + 5, ink, false);
             if (n.test) {
@@ -3139,20 +3140,21 @@ public class CoreScreen extends Screen {
             }
             smallText(gui, font, font.plainSubstrByWidth(traits.toString(), (int) (tw / 0.7f)), tx, py + 23, ink, 0.7f);
             String victims = Component.translatable("nightsiege.ui.wanted_victims", String.join(", ", n.victims)).getString();
-            smallText(gui, font, font.plainSubstrByWidth(victims, (int) ((w - 22) / 0.7f)), x + 10, py + 31, slain ? 0xFF3A342C : 0xFF5A1A10, 0.7f);
+            smallText(gui, font, font.plainSubstrByWidth(victims, (int) ((w - 22 - stampRoom) / 0.7f)), x + 10, py + 31, slain ? 0xFF3A342C : 0xFF5A1A10, 0.7f);
             String state = slain
                     ? Component.translatable(n.slainBy.isEmpty() ? "nightsiege.ui.wanted_slain" : "nightsiege.ui.wanted_slain_by", n.slainBy).getString()
                     : n.here ? Component.translatable("nightsiege.ui.wanted_here").getString()
                     : Component.translatable("nightsiege.ui.wanted_reward").getString();
-            smallText(gui, font, font.plainSubstrByWidth(state, (int) ((w - 22) / 0.7f)), x + 10, py + 38,
+            smallText(gui, font, font.plainSubstrByWidth(state, (int) ((w - 22 - stampRoom) / 0.7f)), x + 10, py + 38,
                     slain ? 0xFF1A1A1A : n.here ? 0xFFB01010 : 0xFF6A4A10, 0.7f);
             if (!slain) {
                 // The red stamp in the corner.
                 int sw = (int) (font.width(stampText) * 0.7f);
-                gui.fill(x + w - 12 - sw, py + 4, x + w - 8, py + 12, 0x30B01010);
-                gui.fill(x + w - 12 - sw, py + 4, x + w - 8, py + 5, 0x80B01010);
-                gui.fill(x + w - 12 - sw, py + 11, x + w - 8, py + 12, 0x80B01010);
-                smallText(gui, font, stampText, x + w - 10 - sw, py + 6, 0xFFB01010, 0.7f);
+                int sy = py + ph - 13;
+                gui.fill(x + w - 12 - sw, sy, x + w - 8, sy + 9, 0x30B01010);
+                gui.fill(x + w - 12 - sw, sy, x + w - 8, sy + 1, 0x80B01010);
+                gui.fill(x + w - 12 - sw, sy + 8, x + w - 8, sy + 9, 0x80B01010);
+                smallText(gui, font, stampText, x + w - 10 - sw, sy + 2, 0xFFB01010, 0.7f);
             }
             if (mouseX >= x + 5 && mouseX < x + w - 5 && mouseY >= py && mouseY < py + ph) {
                 tip = new ArrayList<>();
