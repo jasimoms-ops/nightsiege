@@ -76,6 +76,9 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("dungeons")) {
                     dungeonScene(context, game);
                 }
+                if (want.contains("stats")) {
+                    statsScene(context, game);
+                }
                 return;
             }
             if (System.getenv("NIGHTSIEGE_SIM") != null) {
@@ -111,6 +114,7 @@ public class EventLookTest implements FabricClientGameTest {
                 raidScene(context, game);   // the raid's plan (27 October 2026)
                 curseScene(context, game);   // update 2 "Fluch & Rache" (28 October 2026)
                 dungeonScene(context, game);   // the own dungeons (dungeon update, 27 October 2026)
+                statsScene(context, game);   // the statistics logger (28 October 2026), after the camp and the dungeons
                 com.mki.nightsiege.game.TrapService.mortarsAnyTime = true;   // the scenes below test by day
                 mortarScene(context, game);
                 mannedScene(context, game);
@@ -1536,6 +1540,113 @@ public class EventLookTest implements FabricClientGameTest {
         }
         context.waitTicks(5);
         return top;
+    }
+
+    /**
+     * The statistics logger (28 October 2026): a short test night with two waves, half of them
+     * struck down by the player, a crate opened; then the files in world/nightsiege/stats.
+     */
+    private static void statsScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        int cx = pos.getX() + 140;
+        int cz = pos.getZ() + 140;
+        int cy = yard(context, game, cx, cz, 26, 10);
+        game.getServer().runCommand("time set 1500");
+        game.getServer().runCommand("gamemode survival @p");
+        game.getServer().runCommand("effect give @p minecraft:resistance 300 255 true");
+        game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %d.5 %d %d.5", cx, cy, cz + 3));
+        context.waitTicks(20);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            if (!manager.isRegistered(player)) {
+                manager.register(player);
+            }
+            manager.config().testPrepSeconds = 1;
+            boolean ok = manager.prepareTest(level.getServer(), level, new BlockPos(cx, cy, cz), 3,
+                    com.mki.nightsiege.core.SiegeEvent.NONE);
+            System.out.println("[Night Siege test] stats night prepared=" + ok);
+        });
+        context.waitTicks(60);
+        closeScreen(context);
+        for (int round = 0; round < 2; round++) {
+            onServer(context, (player, manager) -> manager.testWave(player.level().getServer()));
+            context.waitTicks(80);
+            onServer(context, (player, manager) -> {
+                net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                int struck = 0;
+                java.util.List<net.minecraft.world.entity.Mob> mobs = level.getEntitiesOfClass(net.minecraft.world.entity.Mob.class,
+                        player.getBoundingBox().inflate(80), m -> m.entityTags().contains(com.mki.nightsiege.game.MobFactory.TAG)
+                                && m.isAlive());
+                for (int i = 0; i < mobs.size(); i += 2) {
+                    net.minecraft.world.entity.Mob mob = mobs.get(i);
+                    mob.invulnerableTime = 0;
+                    mob.hurtServer(level, level.damageSources().playerAttack(player), 6f);
+                    mob.invulnerableTime = 0;
+                    mob.hurtServer(level, level.damageSources().playerAttack(player), 100000f);
+                    struck++;
+                }
+                System.out.println("[Night Siege test] stats wave: monsters " + mobs.size() + ", struck down " + struck);
+            });
+            context.waitTicks(30);
+        }
+        onServer(context, (player, manager) -> {
+            player.getInventory().setItem(player.getInventory().getSelectedSlot(), com.mki.nightsiege.game.CrateService.crate(
+                    com.mki.nightsiege.core.SkillClass.WARRIOR, com.mki.nightsiege.core.CrateKind.NORMAL, 3));
+            manager.crates().open(player, net.minecraft.world.InteractionHand.MAIN_HAND);
+            com.mki.nightsiege.game.StatsRecorder.NightFile night = manager.stats().testNight();
+            System.out.println("[Night Siege test] stats running: " + (night == null ? "none"
+                    : "waves " + night.wellen.size() + " spawned " + night.gespawnt + " players " + night.spieler.keySet()));
+            manager.abort(player.level().getServer());
+            manager.config().testPrepSeconds = 60;
+        });
+        context.waitTicks(40);
+        closeScreen(context);
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.game.StatsRecorder.testFlush();
+            java.nio.file.Path dir = manager.stats().testFolder();
+            try (java.util.stream.Stream<java.nio.file.Path> files = java.nio.file.Files.list(dir)) {
+                java.util.List<java.nio.file.Path> list = files.sorted().toList();
+                StringBuilder names = new StringBuilder();
+                for (java.nio.file.Path f : list) {
+                    names.append(' ').append(f.getFileName()).append('(').append(java.nio.file.Files.size(f)).append(')');
+                }
+                System.out.println("[Night Siege test] stats files:" + names);
+                java.nio.file.Path last = null;
+                for (java.nio.file.Path f : list) {
+                    if (f.getFileName().toString().startsWith("testnacht_")) {
+                        last = f;
+                    }
+                }
+                if (last != null) {
+                    com.google.gson.JsonObject o = com.google.gson.JsonParser.parseString(
+                            java.nio.file.Files.readString(last)).getAsJsonObject();
+                    StringBuilder sb = new StringBuilder();
+                    sb.append("version=").append(o.get("version")).append(" build=").append(o.get("build"))
+                            .append(" ergebnis=").append(o.get("ergebnis")).append(" abgeschlossen=").append(o.get("abgeschlossen"))
+                            .append(" gespawnt=").append(o.get("gespawnt")).append(" wellen=").append(o.getAsJsonArray("wellen").size())
+                            .append(" gegner=").append(o.getAsJsonObject("gegner").keySet())
+                            .append(" spieler=").append(o.getAsJsonObject("spieler").keySet());
+                    for (com.google.gson.JsonElement w : o.getAsJsonArray("wellen")) {
+                        com.google.gson.JsonObject wave = w.getAsJsonObject();
+                        sb.append(" | welle ").append(wave.get("nummer")).append(": gespawnt ").append(wave.get("gespawnt"))
+                                .append(" spieler ").append(wave.getAsJsonObject("spieler"));
+                    }
+                    System.out.println("[Night Siege test] stats night file " + last.getFileName() + ": " + sb);
+                }
+                java.nio.file.Path crates = dir.resolve("kisten.jsonl");
+                if (java.nio.file.Files.exists(crates)) {
+                    java.util.List<String> lines = java.nio.file.Files.readAllLines(crates);
+                    System.out.println("[Night Siege test] stats crates: " + lines.size() + " last " + lines.get(lines.size() - 1));
+                }
+            } catch (java.io.IOException | RuntimeException e) {
+                System.out.println("[Night Siege test] stats files not read: " + e);
+            }
+        });
+        context.waitTicks(10);
+        game.getServer().runCommand("effect clear @p");
+        game.getServer().runCommand("gamemode creative @p");
+        game.getServer().runCommand("forceload remove all");
+        context.waitTicks(10);
     }
 
     /** Hits every dungeon monster standing now with a deadly player blow. */

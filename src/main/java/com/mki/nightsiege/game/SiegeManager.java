@@ -208,6 +208,8 @@ public final class SiegeManager {
     private final SiegeMachines machines = new SiegeMachines();
     /** Night Siege's own dungeons, reported by the scouts (dungeon update, 27 October 2026). */
     private final Expeditions expeditions = new Expeditions(this);
+    /** The statistics logger for the December playtest (28 October 2026): files on the server only. */
+    private final StatsRecorder stats = new StatsRecorder(this);
     private final Digger digger = new Digger();
     private final LadderClimb ladders = new LadderClimb();
     /** Ladder carriers and sapper creepers. */
@@ -305,6 +307,10 @@ public final class SiegeManager {
         return expeditions;
     }
 
+    public StatsRecorder stats() {
+        return stats;
+    }
+
     public PerkService perks() {
         return perks;
     }
@@ -385,6 +391,7 @@ public final class SiegeManager {
             safe("Begleiter-Treffer", () -> companions.afterDamage(entity, source, taken));
             safe("Gegner-Treffer", () -> foes.afterDamage(entity, source));
             machines.afterDamage(entity, source, taken);
+            expeditions.afterDamage(entity, source, taken);
         });
         ServerLivingEntityEvents.ALLOW_DEATH.register((entity, source, amount) -> {
             if (!camp.allowDeath(entity, source) || !machines.allowDeath(entity, source) || !expeditions.allowDeath(entity)) {
@@ -505,6 +512,7 @@ public final class SiegeManager {
 
     private void onServerStarted(MinecraftServer server) {
         EventAtmosphere.resetServer();
+        stats.attach(server);
         savePath = server.getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT)
                 .resolve(SAVE_FILE).normalize();
         migrateSharedSave();
@@ -609,7 +617,9 @@ public final class SiegeManager {
         tickModCheck(server);
         safe("Reparatur", () -> NightDamage.tick(server));
         MeleeSim.tick(server);
+        TrapService.clearHitting();
         trapsDirty |= traps.tick(server);
+        TrapService.clearHitting();
         safe("Drohnen", () -> Drones.tick(server));
         combat.tick(server);
         // Companions stay with summoners who defend the night (or try them out in creative).
@@ -1583,6 +1593,9 @@ public final class SiegeManager {
         goalUp = null;
         goalNote = null;
         nightLog.begin(world.getGameTime());
+        safe("Statistik", () -> stats.beginNight(world.getGameTime(), nightNumber, siegeLevel, testRun,
+                currentEvent.name().toLowerCase(java.util.Locale.ROOT), save.specialNight, usedFragment,
+                bosses.kind() == null ? null : bosses.kind().id(), defense.base(), List.of(), clockDay(server)));
         digger.takeBroken();
         for (UUID id : participants) {
             ServerPlayer player = server.getPlayerList().getPlayer(id);
@@ -1792,6 +1805,7 @@ public final class SiegeManager {
         if (world.getGameTime() % 20 == 0) {
             tickSpectators(server);
             CrateEffects.tick(world, upright);
+            safe("Statistik", () -> stats.tickSecond(world.getGameTime(), liveMobs, participants, world, traps));
         }
         defense.tick(liveMobs, world.getGameTime());
         if (world.getGameTime() % 20 == 0) {
@@ -2403,6 +2417,7 @@ public final class SiegeManager {
             waveSurvived(server);
         }
         wavesStarted++;
+        safe("Statistik", () -> stats.waveStart(world.getGameTime(), wavesStarted, liveMobs.size()));
         int wanted = (int) Math.round(wantedPerWave() * size);
         int room = config.maxLiveMobs - liveMobs.size();
         int count = Math.min(wanted, Math.max(0, room));
@@ -2641,6 +2656,7 @@ public final class SiegeManager {
 
     /** Notes a defender in the night's protocol, with class and subclass. */
     private void logPlayer(ServerPlayer player) {
+        safe("Statistik", () -> stats.addPlayer(player));
         NightLog.Line line = nightLog.of(player.getUUID(), player.getScoreboardName());
         PlayerSkills skills = save.skillsOf(player.getUUID().toString());
         line.clazz = skills.className().toLowerCase(java.util.Locale.ROOT);
@@ -2649,6 +2665,7 @@ public final class SiegeManager {
 
     /** Writes the night's protocol lines. */
     private void logNight(String result, int blasted, int required) {
+        safe("Statistik", () -> stats.endNight(world == null ? 0L : world.getGameTime(), result, required, nightKills, liveMobs));
         try {
             nightLog.dug += digger.takeBroken();
             String eventName = bossLabel != null ? bossLabel : currentEvent.name().toLowerCase(java.util.Locale.ROOT);
@@ -3182,6 +3199,7 @@ public final class SiegeManager {
         }
         if (active && entity instanceof Mob killed && liveMobs.contains(killed.getUUID())) {
             nightKills++;
+            safe("Statistik", () -> stats.mobDied(killed, source));
             // A monster of the night can be raised by a summoner of the dead; souls for those near.
             safe("Seelen", () -> companions.onMonsterDeath(killed, false));
         }
@@ -3211,6 +3229,7 @@ public final class SiegeManager {
         fallen.add(id);
         companions.dismiss(player);
         nightLog.of(id, player.getScoreboardName()).deaths++;
+        safe("Statistik", () -> stats.playerFell(player));
         save.statsOf(id.toString(), player.getScoreboardName()).fallen++;
         MinecraftServer server = player.level().getServer();
         broadcast(server, Component.translatable("nightsiege.msg.defender_down",
@@ -3663,6 +3682,10 @@ public final class SiegeManager {
         if (!active || taken <= 0) {
             return;
         }
+        if (entity instanceof LivingEntity living) {
+            safe("Statistik", () -> stats.damage(living, source, taken, entity.entityTags().contains(MobFactory.TAG),
+                    entity instanceof ServerPlayer p && participants.contains(p.getUUID())));
+        }
         boolean companion = Companions.isCompanion(source.getEntity());
         Entity hitter = companion ? Companions.ownerPlayer(source.getEntity()) : source.getEntity();
         if (hitter instanceof ServerPlayer attacker && entity.entityTags().contains(MobFactory.TAG)) {
@@ -3680,6 +3703,7 @@ public final class SiegeManager {
     private void creditTank(ServerPlayer player, double amount, Entity from) {
         if (active && from == null && amount > 0) {
             nightLog.of(player.getUUID(), player.getScoreboardName()).healed += amount;
+            stats.healGiven(player, amount);
         }
         if (!active || testRun || !config.skillsEnabled || config.skillPointsPerKill <= 0 || amount <= 0) {
             return;
@@ -3742,6 +3766,27 @@ public final class SiegeManager {
     }
 
     /** Routes one button press from the window. */
+    /** The name of an ability key or menu for the statistics, or null for anything else. */
+    private String abilityName(ServerPlayer player, String verb, String argument) {
+        return switch (verb) {
+            case "ult" -> "ult";
+            case "ult2" -> "faehigkeit_f";
+            case "ult2x" -> "zweit_ult";
+            case "quiver" -> "koecher";
+            case "shield" -> "schild";
+            case "staffhit" -> "stab";
+            case "spot" -> "vogelperspektive";
+            case "tower" -> "turm_menue";
+            case "jump" -> "doppelsprung";
+            case "slot" -> {
+                int index = parseAmount(argument);
+                List<com.mki.nightsiege.core.UltState.Slot> slots = abilitySlots(player);
+                yield index >= 0 && index < slots.size() ? "wahl:" + slots.get(index).id : "wahl";
+            }
+            default -> null;
+        };
+    }
+
     public void onCoreAction(ServerPlayer player, String action) {
         if (player == null || action == null || action.isBlank()) {
             return;
@@ -3758,6 +3803,12 @@ public final class SiegeManager {
                 offerRegistration(player);
             }
             return;
+        }
+        if (active) {
+            String ability = abilityName(player, verb, argument);
+            if (ability != null) {
+                safe("Statistik", () -> stats.ability(player, ability));
+            }
         }
         switch (verb) {
             case "roster" -> unregister(player);

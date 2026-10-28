@@ -529,6 +529,7 @@ public final class SiegeCamp {
             level.setBlock(e.getKey(), e.getValue(), Block.UPDATE_CLIENTS);
         }
         camp.built = true;
+        m.stats().campBuilt(camp.day);
         NightSiegeMod.LOGGER.info("[Night Siege] Heerlager steht bei {} {} {} (Tor nach {}, Belagerung an Tag {})",
                 center.getX(), center.getY(), center.getZ(), facing, camp.day);
     }
@@ -635,6 +636,7 @@ public final class SiegeCamp {
         boolean first = fighters.isEmpty();
         UUID id = player.getUUID();
         fighters.add(id);
+        m.stats().campJoin(player, m.currentLevel(), now);
         int seconds = m.config().campGraceSeconds;
         grace.put(id, now + seconds * 20L);
         if (first) {
@@ -700,6 +702,7 @@ public final class SiegeCamp {
         }
         if (fighters.isEmpty()) {
             calmGuards(level, camp);
+            m.stats().campAttemptEnd("verlassen");   // everyone left the palisade (nothing if no attempt is open)
         }
     }
 
@@ -749,6 +752,9 @@ public final class SiegeCamp {
 
     /** Everyone out of the fight (the camp goes or the night comes). */
     void endAll(MinecraftServer server) {
+        if (!fighters.isEmpty()) {
+            m.stats().campAttemptEnd("abgebrochen");
+        }
         for (UUID id : new ArrayList<>(fighters)) {
             ServerPlayer p = server.getPlayerList().getPlayer(id);
             if (p != null) {
@@ -843,6 +849,8 @@ public final class SiegeCamp {
         ServerPlayer player = by == null ? null : server.getPlayerList().getPlayer(by);
         ServerLevel level = SiegeManager.levelByName(server, camp.dimension);
         if (o == Outcome.WON) {
+            m.stats().campFell();
+            m.stats().campWon(camp.day);
             m.save().machinesDay = camp.day;
             NightSiegeMod.LOGGER.info("[Night Siege] Das Heerlager hat gesiegt: Belagerungsmaschinen in der Nacht von Tag {}", camp.day);
             m.broadcastRegistered(server, Component.translatable("nightsiege.camp.won",
@@ -855,6 +863,7 @@ public final class SiegeCamp {
             return;
         }
         camp.destroyed = true;
+        m.stats().campDestroyed(camp.day);
         NightSiegeMod.LOGGER.info("[Night Siege] Belagerungswerkstatt zerstört: keine Maschinen in der Nacht von Tag {}", camp.day);
         m.broadcastRegistered(server, Component.translatable("nightsiege.camp.destroyed",
                 player == null ? Component.literal("?") : player.getDisplayName()).withStyle(ChatFormatting.GREEN, ChatFormatting.BOLD));

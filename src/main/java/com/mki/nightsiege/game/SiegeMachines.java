@@ -75,6 +75,8 @@ public final class SiegeMachines {
 
     /** Tag of a machine's hit box. */
     public static final String TAG_MACHINE = "nightsiege_machine";
+    /** The machine whose shot is landing right now (for the statistics), or null. */
+    static UUID landing;
     /** Tag of a machine's workers and guards. */
     public static final String TAG_CREW = "nightsiege_machinecrew";
 
@@ -391,6 +393,9 @@ public final class SiegeMachines {
         owners.put(box.getUUID(), machine);
         machines.add(machine);
         if (!trial) {
+            SiegeManager.get().stats().machineSpawned(box.getUUID(), machine.kind.id(), level.getGameTime());
+        }
+        if (!trial) {
             crew(machine, cfg, siegeLevel, true);
         }
         return machine;
@@ -476,6 +481,9 @@ public final class SiegeMachines {
             return;
         }
         boolean fired = fire(f, cfg, machine, now);
+        if (fired && !machine.trial) {
+            SiegeManager.get().stats().machineShot(machine.hitbox);
+        }
         double seconds = machine.kind.seconds() * (working >= 2 ? 1.0 : 1.6);
         machine.nextShot = now + (fired ? (long) Math.round(seconds * 20) : 20L);
     }
@@ -808,7 +816,16 @@ public final class SiegeMachines {
             Field f = shot.machine.trial ? trialField(shot.machine) : night;
             if (f != null) {
                 try {
-                    land(f, cfg, shot, now);
+                    landing = shot.machine.hitbox;   // the statistics: whose shot hurts and breaks
+                    int before = NightDamage.lostCount();
+                    try {
+                        land(f, cfg, shot, now);
+                    } finally {
+                        landing = null;
+                    }
+                    if (!shot.machine.trial) {
+                        SiegeManager.get().stats().machineBlocks(shot.machine.hitbox, NightDamage.lostCount() - before);
+                    }
                 } catch (RuntimeException e) {
                     NightSiegeMod.LOGGER.warn("[Night Siege] Einschlag {}: {}", shot.machine.kind.id(), e.toString());
                 }
@@ -1187,6 +1204,7 @@ public final class SiegeMachines {
 
     private void destroy(Machine machine, ServerPlayer by, boolean announce) {
         ServerLevel level = machine.level;
+        SiegeManager.get().stats().machineGone(machine.hitbox, by, level.getGameTime(), true);
         machines.remove(machine);
         Rigs.remove(level, machine.rig);
         Entity box = level.getEntity(machine.hitbox);

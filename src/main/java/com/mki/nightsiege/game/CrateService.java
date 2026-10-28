@@ -235,6 +235,11 @@ public final class CrateService {
         int curses = Math.max(0, tag.getIntOr("crate_curse", 0));
         CrateRoll roll = roll(own, clazz, kind, level, curses);
         stack.shrink(1);
+        try {
+            SiegeManager.get().stats().crate(player, clazz.name(), kind.name(), level, roll);
+        } catch (RuntimeException e) {
+            NightSiegeMod.LOGGER.debug("[Night Siege] Kisten-Statistik: {}", e.toString());
+        }
         if (roll.infernite && InferniteContent.INGOT != null) {
             player.getInventory().placeItemBackInInventory(new ItemStack(InferniteContent.INGOT));
         }

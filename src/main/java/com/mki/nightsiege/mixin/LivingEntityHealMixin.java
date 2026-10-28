@@ -14,6 +14,7 @@ public abstract class LivingEntityHealMixin {
     private float nightsiege$wounds(float amount) {
         float healed = Wounds.heal((LivingEntity) (Object) this, amount);
         com.mki.nightsiege.game.MeleeSim.onHeal((LivingEntity) (Object) this, healed);
+        com.mki.nightsiege.game.StatsRecorder.onHeal((LivingEntity) (Object) this, healed);
         return healed;
     }
 }
