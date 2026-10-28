@@ -160,6 +160,24 @@ jobs:
                       found = j; break
               except Exception:
                   pass
+          # Vanilla pictures for the texture tools (tools/vanilla-extract.txt: one path prefix per line),
+          # searched in every Minecraft jar of the cache, zipped as vanilla.zip into the dist branch.
+          if os.path.exists("tools/vanilla-extract.txt"):
+              prefixes = [l.strip() for l in open("tools/vanilla-extract.txt") if l.strip() and not l.startswith("#")]
+              allj = glob.glob(os.path.expanduser("~/.gradle/caches/**/*.jar"), recursive=True) + glob.glob(".gradle/**/*.jar", recursive=True)
+              taken = {}
+              for j in allj:
+                  try:
+                      z = zipfile.ZipFile(j)
+                      for n in z.namelist():
+                          if any(n.startswith(p) for p in prefixes) and n not in taken:
+                              taken[n] = z.read(n)
+                  except Exception:
+                      pass
+              with zipfile.ZipFile("vanilla.zip", "w", zipfile.ZIP_DEFLATED) as vz:
+                  for n, data in taken.items():
+                      vz.writestr(n, data)
+              print("vanilla files:", len(taken))
           out = open("api.txt", "w")
           out.write("jar: %s\n" % found)
           if found:
@@ -376,6 +394,7 @@ jobs:
           TMP=$(mktemp -d)
           cp "$JAR" "$TMP/nightsiege.jar"
           cp api.txt "$TMP/api.txt" 2>/dev/null || true
+          cp vanilla.zip "$TMP/vanilla.zip" 2>/dev/null || true
           mkdir -p "$TMP/dungeon-mods"
           cp dungeon-mods/*.jar "$TMP/dungeon-mods/" 2>/dev/null || true
           mkdir -p "$TMP/shots"
