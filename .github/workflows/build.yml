@@ -277,7 +277,7 @@ jobs:
           sudo apt-get update -qq > /dev/null
           sudo apt-get install -y -qq xvfb libgl1-mesa-dri > /dev/null
           export LIBGL_ALWAYS_SOFTWARE=1
-          CLIENT_TIMEOUT=1500
+          CLIENT_TIMEOUT=2400
           # [sim] in the commit message: only the melee balance simulation, with more time.
           if [[ "$COMMIT_MSG" == *"[sim"* ]]; then
             SIMARG=$(printf '%s' "$COMMIT_MSG" | grep -o '\[sim[^]]*\]' | head -1 | sed 's/^\[sim//; s/\]$//')
@@ -384,6 +384,10 @@ jobs:
           if [ -f client-main-output.txt ]; then
             grep -v "Force-loading class\|ALSA\|narrator" client-main-output.txt | tail -c 3000000 > "$TMP/client-main-log.txt" || true
           fi
+          # Server-Probelauf (ohne die Vanilla-Meldungen ueber Bild-Entities) fuer die Fehlersuche
+          if [ -f server-output.txt ]; then
+            grep -v "Block-attached entity" server-output.txt | tail -c 1500000 > "$TMP/server-log.txt" || true
+          fi
           # Shader-Protokoll (ohne Mixin-Audit) fuer die Fehlersuche
           if [ -f client-shader-output.txt ]; then
             grep -v "Force-loading class\|ALSA\|narrator" client-shader-output.txt | tail -c 2000000 > "$TMP/client-shader-log.txt" || true
@@ -405,6 +409,7 @@ jobs:
           if [ -f "$TMP/client-shader-log.txt" ]; then cp "$TMP/client-shader-log.txt" dist/; git add -f dist/client-shader-log.txt; fi
           if [ -f "$TMP/client-main-log.txt" ]; then cp "$TMP/client-main-log.txt" dist/; git add -f dist/client-main-log.txt; fi
           if [ -f "$TMP/sim-log.txt" ]; then cp "$TMP/sim-log.txt" dist/; git add -f dist/sim-log.txt; fi
+          if [ -f "$TMP/server-log.txt" ]; then cp "$TMP/server-log.txt" dist/; git add -f dist/server-log.txt; fi
           git commit -m "Build von ${GITHUB_SHA}"
           # main fills "dist"; a work branch (version-b, ...) its own "dist-<branch>",
           # so the jar of main stays untouched until the branch is merged.
