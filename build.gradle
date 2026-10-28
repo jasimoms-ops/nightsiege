@@ -66,8 +66,25 @@ def zipShaderPack = tasks.register('zipShaderPack', Zip) {
     reproducibleFileOrder = true
 }
 
+// Which build a statistics file came from (the statistics logger, 28 October 2026): the commit
+// the CI built, so data from before and after a balancing change can be told apart.
+def buildCommit = (System.getenv("GITHUB_SHA") ?: "lokal").take(7)
+def writeBuildInfo = tasks.register('writeBuildInfo') {
+    def out = layout.buildDirectory.file('generated/buildinfo/nightsiege-build.properties')
+    inputs.property "commit", buildCommit
+    outputs.file out
+    doLast {
+        def file = out.get().asFile
+        file.parentFile.mkdirs()
+        file.text = "commit=" + buildCommit + "\n"
+    }
+}
+
 processResources {
     inputs.property "version", project.version
+    from(writeBuildInfo) {
+        into 'assets/nightsiege'
+    }
     filesMatching("fabric.mod.json") {
         expand "version": project.version
     }

@@ -130,6 +130,8 @@ public class SiegeSave {
         public int cleared;
         /** The champion fell: the dungeon is a ruin now. */
         public boolean won;
+        /** Attempts so far (for the statistics). */
+        public int attempts;
         /** The scouts' map: one letter per cell (terrain), row by row, {@link #mapSize} cells a side. */
         public String map = "";
         public int mapX;

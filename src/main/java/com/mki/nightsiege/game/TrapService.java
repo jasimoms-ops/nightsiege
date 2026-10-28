@@ -3178,8 +3178,37 @@ public final class TrapService {
         }
     }
 
+    /** The trap whose blow lands right now and when (for the statistics: a tower's hit is its owner's attack). */
+    private static TrapRecord hitting;
+    private static long hittingAt = -1L;
+
+    /** Forgets the trap of the last blow (before and after the traps' tick, so no player's own blow is taken for it). */
+    static void clearHitting() {
+        hitting = null;
+    }
+
+    /** The kind of the trap whose blow this player's damage is ("arrow_turret", "tesla_coil_bemannt" …), or null. */
+    static String hittingKey(ServerPlayer owner) {
+        TrapRecord record = hitting;
+        if (record == null || owner == null || hittingAt != owner.level().getGameTime()
+                || !owner.getUUID().toString().equals(record.owner)) {
+            return null;
+        }
+        TrapService service = current;
+        boolean manned = service != null && service.mannedTower(record);
+        return record.kind + (manned ? "_bemannt" : "");
+    }
+
+    /** The tower this player sits in ("tesla_coil" …), or null. */
+    public String seatKind(ServerPlayer player) {
+        Seat seat = seatOf.get(player.getUUID());
+        return seat == null ? null : seat.kind.id();
+    }
+
     /** Damage counts as the owner's own when they are online, so kills reward them. */
     private static DamageSource sourceFor(ServerLevel level, TrapRecord record) {
+        hitting = record;
+        hittingAt = level.getGameTime();
         ServerPlayer owner = ownerOf(level, record);
         return owner != null ? level.damageSources().playerAttack(owner) : level.damageSources().cactus();
     }

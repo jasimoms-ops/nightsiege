@@ -576,8 +576,12 @@ public final class Expeditions {
     void join(ServerLevel level, SiegeSave.ExpeditionRecord rec, ServerPlayer player, long now) {
         boolean first = fighters.isEmpty();
         UUID id = player.getUUID();
+        if (joined.isEmpty()) {
+            rec.attempts++;   // a new attempt
+        }
         fighters.add(id);
         joined.add(id);
+        m.stats().dungeonJoin(player, rec.kind, m.currentLevel(), rec.rooms, rec.attempts, now);
         int seconds = m.config().expeditionGraceSeconds;
         grace.put(id, now + seconds * 20L);
         ExpeditionKind kind = kind(rec);
@@ -669,6 +673,7 @@ public final class Expeditions {
     private void fallOut(MinecraftServer server, ServerPlayer player) {
         SiegeSave.ExpeditionRecord rec = record();
         out.add(player.getUUID());
+        m.stats().dungeonFell();
         leave(player, null);
         player.setHealth(player.getMaxHealth());
         player.clearFire();
@@ -708,6 +713,7 @@ public final class Expeditions {
             }
         }
         if (fighters.isEmpty()) {
+            m.stats().dungeonEnd("verlassen", null);
             resetAttempt(server, false);
             return;
         }
@@ -802,6 +808,7 @@ public final class Expeditions {
         setGate(level, p.roomGates.get(room), false);
         rec.cleared = room + 1;
         roomMobs.remove(room);
+        m.stats().dungeonProgress(rec.cleared, 0, false);
         m.persist();
         level.playSound(null, p.roomGates.get(room).get(0), SoundEvents.IRON_DOOR_OPEN, SoundSource.BLOCKS, 2f, 0.7f);
         Component text = Component.translatable(rec.cleared >= rec.rooms ? "nightsiege.expedition.room_last"
@@ -817,6 +824,7 @@ public final class Expeditions {
     private void spawnWave(ServerLevel level, SiegeSave.ExpeditionRecord rec, ExpeditionLayout.Plan p, ExpeditionKind kind,
                            int lvl) {
         wave++;
+        m.stats().dungeonProgress(rec.cleared, wave, false);
         int count = ExpeditionKind.wave(lvl, fighters.size());
         for (int i = 0; i < count; i++) {
             BlockPos base = p.waveSpots.get(i % p.waveSpots.size());
@@ -852,6 +860,7 @@ public final class Expeditions {
         mob.setCustomName(Component.translatable(kind.championKey()).withStyle(ChatFormatting.GOLD));
         mob.setCustomNameVisible(true);
         champion = mob.getUUID();
+        m.stats().dungeonProgress(rec.cleared, wave, true);
         level.sendParticles(ParticleTypes.EXPLOSION_EMITTER, p.arenaCenter.getX() + 0.5, p.arenaCenter.getY() + 1,
                 p.arenaCenter.getZ() + 0.5, 1, 0, 0, 0, 0);
         level.playSound(null, p.arenaCenter, SoundEvents.WITHER_SPAWN, SoundSource.HOSTILE, 1.5f, 1.2f);
@@ -939,6 +948,7 @@ public final class Expeditions {
             bar.removeAllPlayers();
             bar = null;
         }
+        m.stats().dungeonEnd(lost ? "verloren" : "abgebrochen", null);   // nothing if the attempt is written already
         if (lost) {
             NightSiegeMod.LOGGER.info("[Night Siege] Dungeon-Versuch verloren ({} von {} Räumen offen)",
                     rec == null ? 0 : rec.cleared, rec == null ? 0 : rec.rooms);
@@ -990,6 +1000,8 @@ public final class Expeditions {
         m.broadcastRegistered(server, Component.translatable("nightsiege.expedition.won", String.join(", ", names),
                 Component.translatable(kind.translationKey())).withStyle(ChatFormatting.GREEN, ChatFormatting.BOLD));
         NightSiegeMod.LOGGER.info("[Night Siege] Dungeon {} bezwungen von {}", rec.kind, names);
+        m.stats().dungeonEnd("gewonnen", List.of("klassenkiste_je_spieler", "punkte_je_spieler:" + cfg.expeditionSkillPoints,
+                "fragment:" + kind.fragment().id()));
         endAll(server, null);
         m.persist();
     }
@@ -1025,6 +1037,20 @@ public final class Expeditions {
     }
 
     // ------------------------------------------------------------------ damage and death
+
+    /** Damage in a dungeon fight, for the statistics. */
+    void afterDamage(LivingEntity victim, DamageSource source, float taken) {
+        if (fighters.isEmpty() || taken <= 0) {
+            return;
+        }
+        Entity raw = source.getEntity();
+        Entity hitter = Companions.isCompanion(raw) ? Companions.ownerPlayer(raw) : raw;
+        if (isExpeditionMob(victim) && hitter instanceof ServerPlayer p && fighters.contains(p.getUUID())) {
+            m.stats().dungeonDamage(true, taken);
+        } else if (victim instanceof ServerPlayer p && fighters.contains(p.getUUID()) && isExpeditionMob(raw)) {
+            m.stats().dungeonDamage(false, taken);
+        }
+    }
 
     /** Whether a dungeon monster may pick this target: fighters past their grace and their companions. */
     public boolean mayTarget(Mob mob, LivingEntity target) {

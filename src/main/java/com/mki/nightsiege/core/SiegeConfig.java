@@ -332,6 +332,11 @@ public class SiegeConfig {
     public int expeditionSkillPoints = 5;
     /** The old dungeon cores in the structures of Dungeons and Taverns (replaced by the own dungeons). */
     public boolean legacyDungeons = false;
+    /**
+     * The statistics logger for the December playtest (28 October 2026): one JSON file per night,
+     * dungeon and war camp attempt and a line per opened crate in {@code <world>/nightsiege/stats/}.
+     */
+    public boolean statsLogger = true;
 
     /** Siege monsters drop items and experience (false since Simon's call of 26 October 2026: they drop nothing). */
     public boolean siegeMobDrops = false;
