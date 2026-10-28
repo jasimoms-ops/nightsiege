@@ -187,8 +187,14 @@ public final class Playtest {
         // The world's own dungeon fight and camp fight end; their records wait until the playtest is over.
         m.expeditions().endAll(server, null);
         m.camp().endAll(server);
+        if (m.save().camp != null) {
+            // A camp of the world goes (its guards could not wait unseen); the next siege may roll a new one.
+            NightSiegeMod.LOGGER.info("[Night Siege] Playtest: das Heerlager der Welt wird abgebaut");
+            m.camp().remove(server);
+            m.save().campRolledDay = -1L;
+        }
         s.realExpedition = m.save().expedition;
-        s.realCamp = m.save().camp;
+        s.realCamp = null;
         s.realMachinesDay = m.save().machinesDay;
         m.save().expedition = null;
         m.save().camp = null;
@@ -677,12 +683,6 @@ public final class Playtest {
             m.expeditions().removeAll(server);
         }
         m.save().expedition = s.realExpedition;
-        if (s.realCamp != null) {
-            // Its guards went while the playtest held the camp: it is manned again when someone is near.
-            s.realCamp.manned = false;
-            s.realCamp.guards = new ArrayList<>();
-            s.realCamp.workshop = "";
-        }
         m.save().camp = s.realCamp;
         m.save().machinesDay = s.realMachinesDay;
         m.persist();
