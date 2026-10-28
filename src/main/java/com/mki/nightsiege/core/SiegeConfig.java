@@ -67,11 +67,32 @@ public class SiegeConfig {
     public double playerScaling = 0.6;
     public int maxLiveMobs = 40;
     public int batchIntervalSeconds = 38;
+    /**
+     * The playtest (Simon, 28 October 2026: "equally hard with any number of players"): every further
+     * player brings this share of a lone player's monsters (1 = each as many as alone). The same share
+     * goes for the boss's life, the camp's guards and the dungeon's monsters.
+     */
+    public double playtestPlayerScaling = 1.0;
+    /** The playtest: the cap of live monsters grows by this share of itself for every further player (at most 120). */
+    public double playtestLivePerPlayer = 0.5;
 
     public double healthPerLevel = 0.06;
     public double maxHealthMultiplier = 2.5;
     public double damagePerLevel = 0.04;
     public double maxDamageMultiplier = 2.0;
+    /**
+     * Low levels (Simon, 28 October 2026: "many classes are a little too weak on the low levels"):
+     * on level 1 players take this share of the monsters' damage and deal lowLevelDamageDealt times
+     * their own; both fade out evenly up to lowLevelUntil (from there 1).
+     */
+    public double lowLevelDamageTaken = 0.75;
+    public double lowLevelDamageDealt = 1.15;
+    public int lowLevelUntil = 10;
+    /**
+     * Archers and engineers hit in melee push the attacker back and slow it for this many seconds,
+     * once every 3 s per attacker (playtest 28.10.: the ranged classes were run down; 0 = off).
+     */
+    public double rangedPushbackSeconds = 1.5;
 
     public double spawnMinDistance = 20.0;
     public double spawnMaxDistance = 40.0;
@@ -619,6 +640,29 @@ public class SiegeConfig {
         return factor(subclassHealing, subclass);
     }
 
+    /** Low levels: the share of monster damage a player takes on this level (see lowLevelDamageTaken). */
+    public double lowLevelTaken(int level) {
+        return lowLevelShare(lowLevelDamageTaken, level);
+    }
+
+    /** Low levels: the factor on the damage a player deals on this level (see lowLevelDamageDealt). */
+    public double lowLevelDealt(int level) {
+        return lowLevelShare(lowLevelDamageDealt, level);
+    }
+
+    private double lowLevelShare(double atOne, int level) {
+        if (lowLevelUntil <= 1 || level >= lowLevelUntil) {
+            return 1.0;
+        }
+        double t = (Math.max(1, level) - 1) / (double) (lowLevelUntil - 1);
+        return atOne + (1.0 - atOne) * t;
+    }
+
+    /** Players scale things by this share per further player: in a playtest playtestPlayerScaling, else {@code normal}. */
+    public double perPlayer(boolean playtest, double normal) {
+        return playtest ? playtestPlayerScaling : normal;
+    }
+
     /** Factor on the damage a player of this class and subclass takes from monsters. */
     public double damageTakenFactor(String clazz, String subclass) {
         return factor(classDamageTaken, clazz) * factor(subclassDamageTaken, subclass);
@@ -773,7 +817,7 @@ public class SiegeConfig {
         list.add(new MobEntry("nightsiege:tunneler", 3, 4, 0.1));   // at most 2 a wave
         list.add(new MobEntry("minecraft:stray", 4, 6, 0.1));
         list.add(new MobEntry("minecraft:bogged", 4, 6, 0.1));
-        list.add(new MobEntry(tap + "skirmisher", 4, 1, 0.05));   // axe illager: strong, so only a few
+        list.add(new MobEntry(tap + "skirmisher", 6, 1, 0.05));   // axe illager: strong, so only a few, from level 6 (28.10.)
         // Level 5-7: the illagers arrive, first riders.
         list.add(new MobEntry("minecraft:pillager", 5, 8, 0.4));
         list.add(new MobEntry(tap + "archer", 5, 6, 0.4));
@@ -830,6 +874,12 @@ public class SiegeConfig {
         baseMobsPerBatch = Math.max(1, baseMobsPerBatch);
         mobsPerLevel = Math.max(0.0, mobsPerLevel);
         playerScaling = Math.max(0.0, playerScaling);
+        playtestPlayerScaling = Double.isNaN(playtestPlayerScaling) ? 1.0 : clampDouble(playtestPlayerScaling, 0.0, 2.0);
+        playtestLivePerPlayer = Double.isNaN(playtestLivePerPlayer) ? 0.5 : clampDouble(playtestLivePerPlayer, 0.0, 2.0);
+        lowLevelDamageTaken = Double.isNaN(lowLevelDamageTaken) ? 0.75 : clampDouble(lowLevelDamageTaken, 0.3, 1.5);
+        lowLevelDamageDealt = Double.isNaN(lowLevelDamageDealt) ? 1.15 : clampDouble(lowLevelDamageDealt, 0.5, 2.0);
+        lowLevelUntil = clamp(lowLevelUntil, 1, 100);
+        rangedPushbackSeconds = Double.isNaN(rangedPushbackSeconds) ? 1.5 : clampDouble(rangedPushbackSeconds, 0.0, 10.0);
         maxLiveMobs = clamp(maxLiveMobs, 1, 500);
         batchIntervalSeconds = Math.max(5, batchIntervalSeconds);
 
@@ -1069,6 +1119,26 @@ public class SiegeConfig {
                 tweak.values.put("steal", 0.12);
             }
             settingsVersion = 15;
+        }
+        if (settingsVersion < 16) {
+            // Balancing update (Simon 28.10., 23:10: "ja Plänkler so machen"): in every playtest the
+            // skirmisher did by far the most damage to players (52 for each one, 60-90 % of it on level 5);
+            // he now comes from level 6, with half his weight.
+            if (mobs != null) {
+                for (MobEntry entry : mobs) {
+                    if (entry != null && "takesapillage:skirmisher".equals(entry.id)) {
+                        entry.minLevel = Math.max(entry.minLevel, 6);
+                        entry.weight = Math.max(1, (int) Math.round(entry.weight / 2.0));
+                        entry.weightPerLevel = entry.weightPerLevel / 2.0;
+                    }
+                }
+            }
+            // The engineer took half again as much as everyone (25.10., from his tower days); out in the
+            // open (dungeons, camps) he was run down at once.
+            if (classDamageTaken != null && Math.abs(classDamageTaken.getOrDefault("engineer", 1.0) - 1.5) < 1e-9) {
+                classDamageTaken.put("engineer", 1.2);
+            }
+            settingsVersion = 16;
         }
         if (Double.isNaN(meleeLifesteal)) {
             meleeLifesteal = 0.08;

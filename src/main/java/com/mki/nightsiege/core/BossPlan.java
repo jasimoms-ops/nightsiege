@@ -48,7 +48,12 @@ public final class BossPlan {
 
     /** Health of the boss: its base, the night's level and +bossHealthPerExtraPlayer for every further defender. */
     public static double health(double base, int level, int defenders, SiegeConfig cfg) {
-        double players = 1.0 + cfg.bossHealthPerExtraPlayer * Math.max(0, defenders - 1);
+        return health(base, level, defenders, cfg, cfg.bossHealthPerExtraPlayer);
+    }
+
+    /** As above with the share per further defender given (the playtest scales per player). */
+    public static double health(double base, int level, int defenders, SiegeConfig cfg, double perPlayer) {
+        double players = 1.0 + Math.max(0.0, perPlayer) * Math.max(0, defenders - 1);
         return base * SiegeMath.healthMultiplier(level, cfg) * players * cfg.bossHealthMultiplier;
     }
 

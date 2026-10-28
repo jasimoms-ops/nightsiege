@@ -399,6 +399,7 @@ public final class SiegeManager {
             perks.afterDamage(entity, taken);
             CrateEffects.afterDamage(entity, source);
             Wounds.afterDamage(entity, source, taken);
+            safe("Abstand", () -> RangedGuard.afterDamage(this, entity, source, taken));
             safe("Boss-Treffer", () -> bosses.afterHit(entity, source, blocked));
             GainGear.afterDamage(entity, source, taken);
             MeleeSim.onDamage(entity, source, taken);
@@ -2195,7 +2196,7 @@ public final class SiegeManager {
 
         @Override
         public Mob spawnAdd(String entityId, BlockPos spot) {
-            if (world == null || liveMobs.size() >= config.maxLiveMobs || MobFactory.isUnavailable(entityId)) {
+            if (world == null || liveMobs.size() >= maxLive() || MobFactory.isUnavailable(entityId)) {
                 return null;
             }
             Mob mob = MobFactory.spawnAt(world, spot, entityId, siegeLevel, config, random, currentEvent, false);
@@ -2410,7 +2411,8 @@ public final class SiegeManager {
 
     /** Monsters one wave brings with the defenders there now. */
     private int wantedPerWave() {
-        return (int) Math.round(SiegeMath.mobsPerBatch(siegeLevel, Math.max(1, participants.size()), config)
+        return (int) Math.round(SiegeMath.mobsPerBatch(siegeLevel, Math.max(1, participants.size()), config,
+                        config.perPlayer(playtest.running(), config.playerScaling), maxLive())
                 * currentEvent.mobCountMultiplier(config) * (save.specialNight ? config.specialNightMobMultiplier : 1.0)
                 * Curses.mobFactor());
     }
@@ -2456,7 +2458,7 @@ public final class SiegeManager {
         wavesStarted++;
         safe("Statistik", () -> stats.waveStart(world.getGameTime(), wavesStarted, liveMobs.size()));
         int wanted = (int) Math.round(wantedPerWave() * size);
-        int room = config.maxLiveMobs - liveMobs.size();
+        int room = maxLive() - liveMobs.size();
         int count = Math.min(wanted, Math.max(0, room));
         if (count > 0) {
             Fx.waveIncoming(server, config, participants);
@@ -2633,6 +2635,7 @@ public final class SiegeManager {
             factor *= 1.0 + Math.min(com.mki.nightsiege.core.SkillValues.get("g_shieldthrow", "bonuscap", 0.3),
                     com.mki.nightsiege.core.SkillValues.get("g_shieldthrow", "bonus", 0.05) * near);
         }
+        factor *= config.lowLevelDealt(currentLevel());   // the low levels hit a little harder (28.10.)
         return (float) factor;
     }
 
@@ -2688,7 +2691,22 @@ public final class SiegeManager {
 
     public float damageTakenFactor(ServerPlayer player) {
         PlayerSkills skills = save.skillsOf(player.getUUID().toString());
-        return (float) config.damageTakenFactor(skills.className(), skillTree.subclassOf(skills));
+        return (float) (config.damageTakenFactor(skills.className(), skillTree.subclassOf(skills))
+                * config.lowLevelTaken(currentLevel()));   // the low levels are a little kinder (28.10.)
+    }
+
+    /** True while a playtest runs (its nights, camps and dungeons scale per player, Simon 28.10.). */
+    public boolean inPlaytest() {
+        return playtest.running();
+    }
+
+    /** Monsters alive at once at most: in a playtest the cap grows with the players. */
+    public int maxLive() {
+        if (!playtest.running()) {
+            return config.maxLiveMobs;
+        }
+        int players = Math.max(1, participants.size());
+        return (int) Math.min(120, Math.round(config.maxLiveMobs * (1.0 + config.playtestLivePerPlayer * (players - 1))));
     }
 
     /** Notes a defender in the night's protocol, with class and subclass. */
@@ -3434,7 +3452,10 @@ public final class SiegeManager {
             PlayerSkills own = effectiveSkills(player);
             com.mki.nightsiege.core.SkillNode node = isRegistered(player) ? skillTree.ultimateOf(own) : null;
             com.mki.nightsiege.core.UltState state = new com.mki.nightsiege.core.UltState();
-            state.keys = (active && participants.contains(player.getUUID())) || ClassGear.holds(player, own, skillTree);
+            // The ability keys are Night Siege's alone in the night, in every fight (camp, dungeon) and
+            // whenever a kit is on (Simon 28.10.: in the dungeon Q/F dropped and swapped instead).
+            state.keys = (active && participants.contains(player.getUUID())) || kits.hasStash(player)
+                    || camp.isFighter(player) || expeditions.isFighter(player) || ClassGear.holds(player, own, skillTree);
             state.kitsOn = config.nightKits;
             state.clazz = own.hasClass() ? own.clazz().name().toLowerCase(java.util.Locale.ROOT) : "";
             state.sub = own.hasClass() ? skillTree.subclassOf(own) : "";
@@ -4151,6 +4172,9 @@ public final class SiegeManager {
         if (node.effect().target() != SkillEffect.Target.ULTIMATE
                 || own.levelInProfile(key, node.id()) < node.maxLevel()) {
             return;
+        }
+        if (playtest != null && playtest.takesPart(player.getUUID())) {
+            return;   // the playtest's skills are thrown away afterwards: no unlocks, no template (Simon 28.10.)
         }
         if (skillTree.grantUltUnlocks(own) > 0) {
             player.sendSystemMessage(Component.translatable("nightsiege.msg.unlock_earned",

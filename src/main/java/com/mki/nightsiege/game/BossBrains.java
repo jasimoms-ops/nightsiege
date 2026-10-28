@@ -555,8 +555,11 @@ final class BossBrains {
         static final double SOUL_ARROW_DAMAGE = 4.0;
         /** The rain falls over three seconds, one arrow every third tick (it came in half a second). */
         static final int RAIN_TICKS = 60;
-        /** With his shield broken he sinks down, worn out, for seven seconds: the fighters' chance. */
-        static final int EXHAUSTED_TICKS = 140;
+        /**
+         * With his shield broken (the soul lanterns smashed) he sinks down, worn out, for fifteen
+         * seconds: the fighters' chance (was seven; Simon 28.10.: "stunned longer once the lanterns are broken").
+         */
+        static final int EXHAUSTED_TICKS = 300;
         /** He blinks away after three seconds with a fighter close (was 1.5 s), then waits twelve (was 7). */
         static final int BLINK_AFTER = 60;
         static final int BLINK_PAUSE = 240;

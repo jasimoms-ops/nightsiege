@@ -52,8 +52,12 @@ public final class SiegeCommands {
                                         fail(ctx.getSource(), Component.translatable("nightsiege.playtest.none"));
                                         return 0;
                                     }
+                                    boolean inIt = ctx.getSource().getPlayer() != null
+                                            && SiegeManager.get().playtest().takesPart(ctx.getSource().getPlayer().getUUID());
                                     SiegeManager.get().playtest().finish(ctx.getSource().getServer(), "nightsiege.playtest.stopped");
-                                    reply(ctx.getSource(), Component.translatable("nightsiege.playtest.stopped"));
+                                    if (!inIt) {
+                                        reply(ctx.getSource(), Component.translatable("nightsiege.playtest.stopped"));   // a player in it was told already
+                                    }
                                     return 1;
                                 }))
                         .then(Commands.literal("weiter").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))

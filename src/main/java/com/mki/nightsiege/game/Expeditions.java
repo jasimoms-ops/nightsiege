@@ -114,6 +114,11 @@ public final class Expeditions {
     private int buildRounds;
     /** Attempts lost (every fighter fell) since the server started: the playtest goes on after one. */
     private int lostAttempts;
+    /**
+     * The playtest's dungeon (Simon, 28 October 2026): a lost attempt is the end of it; the fallen
+     * are not let in again (they were put back in at once and the second attempt broke off).
+     */
+    private boolean noRetry;
 
     /** When each player last took a map (game time). */
     private final Map<UUID, Long> mapTaken = new HashMap<>();
@@ -130,6 +135,21 @@ public final class Expeditions {
 
     public boolean isFighter(Player player) {
         return player != null && !fighters.isEmpty() && fighters.contains(player.getUUID());
+    }
+
+    /** The fighters of now (the playtest brings the late ones to them). */
+    public List<UUID> fighterIds() {
+        return new ArrayList<>(fighters);
+    }
+
+    /** True for a fighter who fell in this attempt (and waits outside). */
+    public boolean hasFallen(UUID id) {
+        return id != null && out.contains(id);
+    }
+
+    /** The playtest: one attempt only (see {@link #noRetry}). */
+    public void noRetry(boolean value) {
+        noRetry = value;
     }
 
     public SiegeSave.ExpeditionRecord record() {
@@ -793,7 +813,9 @@ public final class Expeditions {
     private void spawnRoom(ServerLevel level, SiegeSave.ExpeditionRecord rec, ExpeditionLayout.Plan p, ExpeditionKind kind,
                            int room, int lvl) {
         Set<UUID> mobs = new HashSet<>();
-        int count = ExpeditionKind.guards(lvl, fighters.size());
+        boolean test = m.inPlaytest();   // the playtest: as many for each player as for one alone (Simon 28.10.)
+        int count = test ? ExpeditionKind.guards(lvl, fighters.size(), m.config().playtestPlayerScaling, 24)
+                : ExpeditionKind.guards(lvl, fighters.size());
         List<BlockPos> spots = p.roomSpots.get(room);
         for (int i = 0; i < count; i++) {
             BlockPos base = spots.get(i % spots.size());
@@ -828,7 +850,8 @@ public final class Expeditions {
                            int lvl) {
         wave++;
         m.stats().dungeonProgress(rec.cleared, wave, false);
-        int count = ExpeditionKind.wave(lvl, fighters.size());
+        int count = m.inPlaytest() ? ExpeditionKind.wave(lvl, fighters.size(), m.config().playtestPlayerScaling, 32)
+                : ExpeditionKind.wave(lvl, fighters.size());
         for (int i = 0; i < count; i++) {
             BlockPos base = p.waveSpots.get(i % p.waveSpots.size());
             BlockPos spot = base.offset(random.nextInt(3) - 1, 0, random.nextInt(3) - 1);
@@ -944,7 +967,9 @@ public final class Expeditions {
         arenaClosed = false;
         wave = 0;
         nextWaveAt = -1L;
-        out.clear();
+        if (!(lost && noRetry)) {
+            out.clear();
+        }
         joined.clear();
         grace.clear();
         if (bar != null) {
@@ -1246,6 +1271,8 @@ public final class Expeditions {
      * taken down even when it was won (no ruins of playtests), the record forgotten.
      */
     public boolean removeAll(MinecraftServer server) {
+        noRetry = false;
+        out.clear();
         SiegeSave.ExpeditionRecord rec = record();
         if (rec != null && rec.won) {
             rec.won = false;   // so the gatehouse goes like that of an open dungeon

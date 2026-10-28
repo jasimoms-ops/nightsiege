@@ -85,6 +85,12 @@ public final class Playtest {
         return s != null && !s.finished && "plan".equals(s.phase);
     }
 
+    /** How many players take part. */
+    public int playerCount() {
+        SiegeSave.PlaytestState s = state();
+        return s == null || s.finished ? 0 : s.players.size();
+    }
+
     public boolean takesPart(UUID id) {
         SiegeSave.PlaytestState s = state();
         return s != null && !s.finished && id != null && s.players.containsKey(id.toString());
@@ -272,6 +278,12 @@ public final class Playtest {
             send(player, true);
             return;
         }
+        if (!pp.ready && (own.history == null || own.history.isEmpty())) {
+            // Ready with an empty path would mean four nights without a single skill (playtest 28.10.).
+            player.sendSystemMessage(Component.translatable("nightsiege.playtest.need_path").withStyle(ChatFormatting.RED));
+            send(player, true);
+            return;
+        }
         pp.ready = !pp.ready;
         m.persist();
         MinecraftServer server = player.level().getServer();
@@ -358,6 +370,8 @@ public final class Playtest {
             case "interlude" -> {
                 if (interludeOver(server, s) || now >= s.phaseEnds) {
                     endInterlude(server, s, now >= s.phaseEnds);
+                } else if (now % 100 == 0) {
+                    bringLate(server, s);
                 }
             }
             case "pause_night" -> {
@@ -590,12 +604,49 @@ public final class Playtest {
             return false;
         }
         s.lostAttempts = exp.lostAttempts();
+        exp.noRetry(true);   // one attempt: lost is lost, it goes on (no second round at once)
         bringAll(server, s, level, door, false);
         broadcast(server, Component.translatable("nightsiege.playtest.dungeon_go",
                 Component.translatable(com.mki.nightsiege.core.ExpeditionKind.byId(rec.kind) == null ? "nightsiege.playtest.dungeon"
                         : com.mki.nightsiege.core.ExpeditionKind.byId(rec.kind).translationKey()), DUNGEON_MINUTES)
                 .withStyle(ChatFormatting.GOLD));
         return true;
+    }
+
+    /**
+     * Once the fight has begun, whoever is still outside (opening crates, lost on the way) is
+     * brought to a fighter, so nobody misses the part (playtest 28.10.: one player never went in).
+     * The fallen are left outside.
+     */
+    private void bringLate(MinecraftServer server, SiegeSave.PlaytestState s) {
+        boolean camp = "camp".equals(s.interludes.get(s.step));
+        List<UUID> fighters = camp ? m.camp().fighterIds() : m.expeditions().fighterIds();
+        ServerPlayer lead = null;
+        for (UUID id : fighters) {
+            ServerPlayer p = server.getPlayerList().getPlayer(id);
+            if (p != null && p.isAlive()) {
+                lead = p;
+                break;
+            }
+        }
+        if (lead == null || !(lead.level() instanceof ServerLevel level)) {
+            return;
+        }
+        for (ServerPlayer p : online(server, s)) {
+            UUID id = p.getUUID();
+            boolean fallen = camp ? m.camp().hasFallen(id) : m.expeditions().hasFallen(id);
+            if (fighters.contains(id) || fallen || !p.isAlive() || Drones.isDrone(p)) {
+                continue;
+            }
+            if (p.isSpectator()) {
+                p.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
+            }
+            p.teleportTo(level, lead.getX(), lead.getY(), lead.getZ(), java.util.Set.of(), lead.getYRot(), lead.getXRot(), true);
+            p.sendSystemMessage(Component.translatable("nightsiege.playtest.brought_late", lead.getDisplayName())
+                    .withStyle(ChatFormatting.YELLOW));
+            NightSiegeMod.LOGGER.info("[Night Siege] Playtest: {} zu {} gebracht ({})", p.getScoreboardName(),
+                    lead.getScoreboardName(), camp ? "Heerlager" : "Dungeon");
+        }
     }
 
     /** The camp is gone or burns, or the dungeon is won or lost. */

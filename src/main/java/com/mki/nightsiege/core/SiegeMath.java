@@ -41,10 +41,15 @@ public final class SiegeMath {
 
     /** How many mobs one batch spawns. */
     public static int mobsPerBatch(int level, int playerCount, SiegeConfig cfg) {
+        return mobsPerBatch(level, playerCount, cfg, cfg.playerScaling, cfg.maxLiveMobs);
+    }
+
+    /** As above with the share per further player and the cap given (the playtest scales per player). */
+    public static int mobsPerBatch(int level, int playerCount, SiegeConfig cfg, double perPlayer, int maxLive) {
         double raw = cfg.baseMobsPerBatch + cfg.mobsPerLevel * growthSteps(level, cfg);
-        double players = 1.0 + cfg.playerScaling * Math.max(0, playerCount - 1);
+        double players = 1.0 + Math.max(0.0, perPlayer) * Math.max(0, playerCount - 1);
         int result = (int) Math.round(raw * players);
-        return Math.max(1, Math.min(cfg.maxLiveMobs, result));
+        return Math.max(1, Math.min(Math.max(1, maxLive), result));
     }
 
     /** Health multiplier applied to every siege mob. */

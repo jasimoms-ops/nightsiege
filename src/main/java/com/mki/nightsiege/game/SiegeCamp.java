@@ -82,6 +82,14 @@ public final class SiegeCamp {
     private final Random random = new Random();
     /** Players fighting in the camp now. */
     private final Set<UUID> fighters = new HashSet<>();
+    /**
+     * Fighters who fell (Simon, 28 October 2026: the camp won as soon as one fell, three times
+     * within 20 s in the playtest): they wait outside until the fight is over; the camp only wins
+     * when the last one falls.
+     */
+    private final Set<UUID> out = new HashSet<>();
+    /** Fighters who fell in a damage event, handled on the next tick. */
+    private final List<UUID> fallen = new ArrayList<>();
     /** Until when a fighter is spared (game time). */
     private final Map<UUID, Long> grace = new HashMap<>();
     private ServerBossEvent bar;
@@ -111,6 +119,16 @@ public final class SiegeCamp {
         return !fighters.isEmpty();
     }
 
+    /** The fighters of now (the playtest brings the late ones to them). */
+    public List<UUID> fighterIds() {
+        return new ArrayList<>(fighters);
+    }
+
+    /** True for a fighter who fell and waits outside until the fight is over. */
+    public boolean hasFallen(UUID id) {
+        return id != null && out.contains(id);
+    }
+
     /** The camp of now, or null. */
     public SiegeSave.CampRecord camp() {
         return m.save().camp;
@@ -134,6 +152,9 @@ public final class SiegeCamp {
             outcomeBy = null;
             handleOutcome(server, o, by);
             return;
+        }
+        if (!fallen.isEmpty()) {
+            handleFallen(server);
         }
         if (now % 20 == 0) {
             roll(server);
@@ -540,6 +561,11 @@ public final class SiegeCamp {
         BlockPos center = new BlockPos(camp.x, camp.y, camp.z);
         int signedUp = m.save().registered == null ? 1 : m.save().registered.size();
         int count = cfg.campGuards + cfg.campGuardsPerPlayer * Math.max(0, signedUp - 1);
+        if (m.inPlaytest()) {
+            // The playtest goes by its own players, each as many guards as one alone (Simon 28.10.).
+            int players = Math.max(1, m.playtest().playerCount());
+            count = (int) Math.min(24, Math.round(cfg.campGuards * (1.0 + cfg.playtestPlayerScaling * (players - 1))));
+        }
         List<BlockPos> spots = CampLayout.guardSpots(center, camp.facing);
         Collections.shuffle(spots, random);
         camp.guards.clear();
@@ -618,7 +644,7 @@ public final class SiegeCamp {
             return;
         }
         for (ServerPlayer p : level.players()) {
-            if (fighters.contains(p.getUUID()) || !m.isRegistered(p) || p.isSpectator() || p.getAbilities().instabuild
+            if (fighters.contains(p.getUUID()) || out.contains(p.getUUID()) || !m.isRegistered(p) || p.isSpectator() || p.getAbilities().instabuild
                     || !p.isAlive() || Drones.isDrone(p)) {
                 continue;
             }
@@ -703,6 +729,7 @@ public final class SiegeCamp {
         if (fighters.isEmpty()) {
             calmGuards(level, camp);
             m.stats().campAttemptEnd("verlassen");   // everyone left the palisade (nothing if no attempt is open)
+            out.clear();   // nobody fights any more: the fallen may try again
         }
     }
 
@@ -763,6 +790,8 @@ public final class SiegeCamp {
         }
         fighters.clear();
         grace.clear();
+        out.clear();
+        fallen.clear();
         if (bar != null) {
             bar.removeAllPlayers();
             bar = null;
@@ -823,9 +852,8 @@ public final class SiegeCamp {
             player.removeAllEffects();
             player.clearFire();
             grace.put(player.getUUID(), Long.MAX_VALUE);   // spared until it is handled
-            if (outcome == null) {
-                outcome = Outcome.WON;
-                outcomeBy = player.getUUID();
+            if (!fallen.contains(player.getUUID())) {
+                fallen.add(player.getUUID());
             }
             return false;
         }
@@ -839,6 +867,57 @@ public final class SiegeCamp {
             return false;
         }
         return true;
+    }
+
+    /**
+     * The fallen of the last tick: each one waits outside the gate (own things back) until the fight
+     * is over; when nobody is left inside, the camp has won.
+     */
+    private void handleFallen(MinecraftServer server) {
+        SiegeSave.CampRecord camp = camp();
+        List<UUID> list = new ArrayList<>(fallen);
+        fallen.clear();
+        if (camp == null || outcome != null) {
+            return;
+        }
+        for (UUID id : list) {
+            if (!fighters.contains(id)) {
+                continue;
+            }
+            if (fighters.size() <= 1) {
+                outcome = Outcome.WON;   // the last one fell
+                outcomeBy = id;
+                return;
+            }
+            ServerPlayer player = server.getPlayerList().getPlayer(id);
+            out.add(id);
+            m.stats().campFell();
+            if (player == null) {
+                fighters.remove(id);
+                grace.remove(id);
+                continue;
+            }
+            leave(player, null);
+            player.setHealth(player.getMaxHealth());
+            player.clearFire();
+            ServerLevel level = SiegeManager.levelByName(server, camp.dimension);
+            if (level != null) {
+                BlockPos gate = CampLayout.outsideGate(new BlockPos(camp.x, camp.y, camp.z), camp.facing);
+                int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, gate.getX(), gate.getZ());
+                player.teleportTo(level, gate.getX() + 0.5, y, gate.getZ() + 0.5, java.util.Set.of(),
+                        player.getYRot(), player.getXRot(), true);
+            }
+            player.sendSystemMessage(Component.translatable("nightsiege.camp.fallen").withStyle(ChatFormatting.RED));
+            for (UUID f : fighters) {
+                ServerPlayer mate = server.getPlayerList().getPlayer(f);
+                if (mate != null) {
+                    mate.sendSystemMessage(Component.translatable("nightsiege.camp.mate_fallen", player.getDisplayName(),
+                            fighters.size()).withStyle(ChatFormatting.GOLD));
+                }
+            }
+            NightSiegeMod.LOGGER.info("[Night Siege] {} ist im Heerlager gefallen, {} kämpfen weiter",
+                    player.getScoreboardName(), fighters.size());
+        }
     }
 
     private void handleOutcome(MinecraftServer server, Outcome o, UUID by) {

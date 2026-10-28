@@ -206,7 +206,9 @@ public final class BossService {
             NightSiegeMod.LOGGER.warn("[Night Siege] Boss {} nicht erschaffen", kind.id());
             return false;
         }
-        double health = BossPlan.health(kind.baseHealth(), host.level(), defenders, host.config());
+        double perPlayer = host.config().perPlayer(SiegeManager.get() != null && SiegeManager.get().inPlaytest(),
+                host.config().bossHealthPerExtraPlayer);
+        double health = BossPlan.health(kind.baseHealth(), host.level(), defenders, host.config(), perPlayer);
         // The ravager hits hard as it is; the warlord himself takes the boss factor.
         prepare(boss, host, health, kind.scale(), kind == BossKind.WARLORD ? 0.85 : kind.damage());
         boss.setCustomName(Component.translatable("nightsiege.boss." + kind.id()));
@@ -220,7 +222,7 @@ public final class BossService {
         if (kind == BossKind.WARLORD) {
             Mob rider = create(level, BossKind.WARLORD_RIDER, spot, host.random());
             if (rider != null) {
-                double riderHealth = BossPlan.health(BossKind.WARLORD_RIDER_HEALTH, host.level(), defenders, host.config());
+                double riderHealth = BossPlan.health(BossKind.WARLORD_RIDER_HEALTH, host.level(), defenders, host.config(), perPlayer);
                 prepare(rider, host, riderHealth, 1.35, kind.damage());
                 rider.setCustomName(Component.translatable("nightsiege.boss.warlord_rider"));
                 rider.snapTo(boss.getX(), boss.getY(), boss.getZ(), boss.getYRot(), 0f);

@@ -177,13 +177,23 @@ public enum ExpeditionKind {
 
     /** Monsters in a guard room. */
     public static int guards(int level, int fighters) {
+        return guards(level, fighters, 0.5, 10);
+    }
+
+    /** As above with the share per further fighter and the cap given (the playtest scales per player). */
+    public static int guards(int level, int fighters, double perPlayer, int cap) {
         double base = 3 + Math.max(0, level) / 6.0;
-        return (int) Math.min(10, Math.round(base * (1.0 + 0.5 * Math.max(0, fighters - 1))));
+        return (int) Math.min(cap, Math.round(base * (1.0 + perPlayer * Math.max(0, fighters - 1))));
     }
 
     /** Monsters in an arena wave. */
     public static int wave(int level, int fighters) {
+        return wave(level, fighters, 0.5, 16);
+    }
+
+    /** As above with the share per further fighter and the cap given. */
+    public static int wave(int level, int fighters, double perPlayer, int cap) {
         double base = 4 + Math.max(0, level) / 4.0;
-        return (int) Math.min(16, Math.round(base * (1.0 + 0.5 * Math.max(0, fighters - 1))));
+        return (int) Math.min(cap, Math.round(base * (1.0 + perPlayer * Math.max(0, fighters - 1))));
     }
 }
