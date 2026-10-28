@@ -372,6 +372,7 @@ public final class Playtest {
                     m.persist();
                     broadcast(server, Component.translatable(s.step + 1 < NIGHTS ? "nightsiege.playtest.night_over"
                             : "nightsiege.playtest.last_night_over", s.step + 1).withStyle(ChatFormatting.GOLD));
+                    openAll(server, s);   // after the night the menu comes back (Simon 14:12)
                 }
             }
             case "after_night" -> {
@@ -649,7 +650,13 @@ public final class Playtest {
                 s.step + 1, s.levels.get(s.step), PAUSE_NIGHT_SECONDS,
                 boss == null ? Component.empty() : Component.translatable("nightsiege.boss." + boss.id()))
                 .withStyle(ChatFormatting.YELLOW));
-        refreshAll(server);
+        openAll(server, s);   // back at the core after the camp or dungeon: the menu again (Simon 14:12)
+    }
+
+    private void openAll(MinecraftServer server, SiegeSave.PlaytestState s) {
+        for (ServerPlayer p : online(server, s)) {
+            send(p, true);
+        }
     }
 
     private void startNight(MinecraftServer server, SiegeSave.PlaytestState s) {

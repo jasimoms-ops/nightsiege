@@ -77,6 +77,8 @@ public class PlaytestScreen extends Screen {
     public static void reopen() {
         if (last != null) {
             Minecraft.getInstance().setScreenAndShow(new PlaytestScreen(last));
+            // ... and the server sends the state of now (a class picked in the core window, say)
+            ClientPlayNetworking.send(new CoreNetworking.CoreActionPayload("playtest:menu"));
         }
     }
 
@@ -119,7 +121,7 @@ public class PlaytestScreen extends Screen {
             Component ready = Component.translatable(data.ready ? "nightsiege.playtest.btn_unready" : "nightsiege.playtest.btn_ready");
             int rw = Math.max(90, font.width(ready) + 14);
             Button readyButton = Button.builder(ready, b -> send("ready")).bounds(right - rw, y, rw, 20).build();
-            readyButton.active = data.hasClass;
+            // Always pressable: the server answers ("pick a class first") and sends the state of now.
             addRenderableWidget(readyButton);
             if (!data.ready && data.hasClass) {
                 primary.add(readyButton);
