@@ -1146,8 +1146,10 @@ public class CoreScreen extends Screen {
 
     /** The class's own night scene behind the tree; it drifts a little with the view. */
     private void drawScene(GuiGraphicsExtractor gui, int vx, int vy, int vw, int vh) {
-        Identifier scene = Identifier.fromNamespaceAndPath("nightsiege",
-                "textures/gui/skills/" + activeTab.key + ".png");
+        // Design update (29 October 2026): the shown profile's subclass has its own scene (tools/ui/tree_bg.py).
+        String sub = activeTab.key.equals("core") ? "" : shownSub();
+        Identifier scene = Identifier.fromNamespaceAndPath("nightsiege", sub.isEmpty()
+                ? "textures/gui/skills/" + activeTab.key + ".png" : "textures/gui/skills/sub/" + sub + ".png");
         int texW = 480;
         int texH = 270;
         int regionW = texW;
