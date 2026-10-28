@@ -49,6 +49,10 @@ public final class EventGearShapes {
         champion_deep_cellar();
         champion_nether_forge();
         champion_basalt_forge();
+        boss_frost_jarl();
+        boss_ember_colossus();
+        boss_storm_witch();
+        boss_ram_titan();
     }
 
     private static void blood_moon() {
@@ -1091,6 +1095,30 @@ public final class EventGearShapes {
                 new Box("body", -0.500f, -2.000f, -0.500f, 1, 2, 1, 46, 0, false, -0.825f, 2.942f, -3.351f, 0.611f, -0.288f, 0.237f))));
     }
 
+    private static void boss_frost_jarl() {
+    }
+
+    private static void boss_ember_colossus() {
+    }
+
+    private static void boss_storm_witch() {
+        SETS.put("boss_storm_witch/witch", new Set(64, 32, List.of(
+                new Box("body", -5.000f, 0.000f, 3.000f, 10, 18, 1, 0, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", -6.000f, -1.000f, -3.600f, 3, 3, 7, 22, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", 3.000f, -1.000f, -3.600f, 3, 3, 7, 22, 0, true, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -0.500f, -3.000f, -0.500f, 1, 3, 1, 42, 0, false, -3.500f, -11.000f, 0.000f, 0.000f, -0.000f, -0.300f),
+                new Box("head", -0.500f, -2.000f, -0.500f, 1, 2, 1, 58, 0, false, -4.209f, -13.293f, 0.000f, 0.000f, -0.000f, -0.300f),
+                new Box("head", -0.500f, -3.000f, -0.500f, 1, 3, 1, 46, 0, false, -1.000f, -11.000f, 0.000f, 0.000f, -0.000f, -0.100f),
+                new Box("head", -0.500f, -2.000f, -0.500f, 1, 2, 1, 0, 19, false, -1.240f, -13.388f, 0.000f, 0.000f, -0.000f, -0.100f),
+                new Box("head", -0.500f, -3.000f, -0.500f, 1, 3, 1, 50, 0, false, 1.500f, -11.000f, 0.000f, 0.000f, -0.000f, 0.100f),
+                new Box("head", -0.500f, -2.000f, -0.500f, 1, 2, 1, 4, 19, false, 1.740f, -13.388f, 0.000f, 0.000f, -0.000f, 0.100f),
+                new Box("head", -0.500f, -3.000f, -0.500f, 1, 3, 1, 54, 0, false, 3.500f, -11.000f, 0.000f, 0.000f, -0.000f, 0.300f),
+                new Box("head", -0.500f, -2.000f, -0.500f, 1, 2, 1, 8, 19, false, 4.209f, -13.293f, 0.000f, 0.000f, -0.000f, 0.300f))));
+    }
+
+    private static void boss_ram_titan() {
+    }
+
     /** The textures each event changes: vanilla path (under textures/entity/) = event file name. */
     public static final Map<String, List<String>> TEXTURES = Map.ofEntries(
             Map.entry("blood_moon", List.of("zombie/zombie.png=zombie", "zombie/zombie_baby.png=zombie_baby", "zombie/husk.png=husk", "zombie/husk_baby.png=husk_baby", "zombie/drowned.png=drowned", "zombie/drowned_baby.png=drowned_baby", "zombie/drowned_outer_layer.png=drowned_outer_layer", "zombie/drowned_outer_layer_baby.png=drowned_outer_layer_baby", "skeleton/skeleton.png=skeleton", "skeleton/stray.png=stray", "skeleton/stray_overlay.png=stray_overlay", "skeleton/bogged.png=bogged", "skeleton/bogged_overlay.png=bogged_overlay", "skeleton/parched.png=parched", "skeleton/wither_skeleton.png=wither_skeleton", "creeper/creeper.png=creeper", "spider/spider.png=spider", "spider/cave_spider.png=cave_spider", "illager/pillager.png=pillager", "illager/vindicator.png=vindicator", "illager/evoker.png=evoker", "illager/illusioner.png=illusioner", "witch/witch.png=witch", "illager/ravager.png=ravager", "breeze/breeze.png=breeze", "breeze/breeze_wind.png=breeze_wind", "camel/camel_husk.png=camel_husk", "spider/spider_eyes.png=spider_eyes")),
@@ -1116,7 +1144,11 @@ public final class EventGearShapes {
             Map.entry("champion_poison_swamp", List.of("witch/witch.png=witch")),
             Map.entry("champion_deep_cellar", List.of("skeleton/skeleton.png=skeleton")),
             Map.entry("champion_nether_forge", List.of("zombie/zombie.png=zombie")),
-            Map.entry("champion_basalt_forge", List.of("skeleton/wither_skeleton.png=wither_skeleton")));
+            Map.entry("champion_basalt_forge", List.of("skeleton/wither_skeleton.png=wither_skeleton")),
+            Map.entry("boss_frost_jarl", List.of("iron_golem/iron_golem.png=iron_golem")),
+            Map.entry("boss_ember_colossus", List.of("iron_golem/iron_golem.png=iron_golem", "slime/magmacube.png=magmacube")),
+            Map.entry("boss_storm_witch", List.of("witch/witch.png=witch", "phantom/phantom.png=phantom")),
+            Map.entry("boss_ram_titan", List.of("illager/ravager.png=ravager")));
 
     /** Event textures with a glow map ("<event>/<name>", file <name>_glow.png). */
     public static final java.util.Set<String> GLOWS = java.util.Set.of(
@@ -1143,5 +1175,9 @@ public final class EventGearShapes {
             "champion_poison_swamp/witch",
             "champion_deep_cellar/skeleton",
             "champion_nether_forge/zombie",
-            "champion_basalt_forge/wither_skeleton");
+            "champion_basalt_forge/wither_skeleton",
+            "boss_frost_jarl/iron_golem",
+            "boss_ember_colossus/iron_golem", "boss_ember_colossus/magmacube",
+            "boss_storm_witch/witch", "boss_storm_witch/phantom",
+            );
 }

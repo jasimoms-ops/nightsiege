@@ -171,6 +171,13 @@ if __name__ == '__main__':
     all_textures.update(c_textures)
     all_glows.update(c_glows)
     print('built', ', '.join(c_shapes))
+    # the four new bosses of the content update (design update, 29 October 2026)
+    import bosses2
+    n_shapes, n_textures, n_glows = bosses2.build(van, OUT, atlas)
+    all_shapes.update(n_shapes)
+    all_textures.update(n_textures)
+    all_glows.update(n_glows)
+    print('built', ', '.join(n_shapes))
     java(all_shapes, all_textures, all_glows)
     if prev:
         import preview
