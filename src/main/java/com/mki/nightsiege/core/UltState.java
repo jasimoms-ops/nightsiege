@@ -27,6 +27,14 @@ public class UltState {
     public int cooldown2Ticks;
     public int total2Ticks;
 
+    /**
+     * Kit HUD (Simon, 28 October 2026): true when the server hands out kits at all. Then the
+     * abilities only show inside the kit HUD; without kits the old bar stays.
+     */
+    public boolean kitsOn;
+    /** The class in lower case ("warrior", "archer" ...) for the crest of the kit HUD; empty without one. */
+    public String clazz = "";
+
     /** Fähigkeit 2 (F): shown when it does something for this class (remote, staff, healing). */
     public boolean hasAb2;
     public String iconAb2 = "";

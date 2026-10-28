@@ -3407,6 +3407,8 @@ public final class SiegeManager {
             com.mki.nightsiege.core.SkillNode node = isRegistered(player) ? skillTree.ultimateOf(own) : null;
             com.mki.nightsiege.core.UltState state = new com.mki.nightsiege.core.UltState();
             state.keys = (active && participants.contains(player.getUUID())) || ClassGear.holds(player, own, skillTree);
+            state.kitsOn = config.nightKits;
+            state.clazz = own.hasClass() ? own.clazz().name().toLowerCase(java.util.Locale.ROOT) : "";
             String second = SecondUlts.gainFor(own.clazz());
             if (second != null && own.hasClass() && own.gainStage(own.clazz(), second) > 0) {
                 state.has2 = true;
@@ -4524,6 +4526,9 @@ public final class SiegeManager {
         com.mki.nightsiege.core.WheelData wheel = wheelOf(player);
         if (wheel != null) {
             for (com.mki.nightsiege.core.WheelData.Option o : wheel.options) {
+                if (!o.open) {
+                    continue;   // not learned yet: no box and no key (Simon, 28 October 2026)
+                }
                 com.mki.nightsiege.core.UltState.Slot slot = new com.mki.nightsiege.core.UltState.Slot();
                 slot.id = o.id;
                 slot.icon = o.icon;

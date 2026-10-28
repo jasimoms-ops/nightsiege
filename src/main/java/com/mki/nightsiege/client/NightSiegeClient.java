@@ -29,6 +29,21 @@ public class NightSiegeClient implements ClientModInitializer {
     /** Opens the handbook. H by default. */
     private static KeyMapping guideKey;
 
+    /** A vanilla HUD part drawn that many pixels higher (0: where it always is). */
+    private static void lifted(net.minecraft.resources.Identifier vanilla, java.util.function.IntSupplier lift) {
+        HudElementRegistry.replaceElement(vanilla, original -> (gui, delta) -> {
+            int up = lift.getAsInt();
+            if (up <= 0) {
+                original.extractRenderState(gui, delta);
+                return;
+            }
+            gui.pose().pushMatrix();
+            gui.pose().translate(0, -up);
+            original.extractRenderState(gui, delta);
+            gui.pose().popMatrix();
+        });
+    }
+
     public static KeyMapping ultimateKey() {
         return ultimateKey;
     }
@@ -172,6 +187,26 @@ public class NightSiegeClient implements ClientModInitializer {
                 });
         HudElementRegistry.attachElementAfter(VanillaHudElements.HOTBAR, ModContent.id("ultimate"),
                 (gui, delta) -> UltHud.draw(gui, ultimateKey));
+        // Kit HUD (Simon, 28 October 2026): while the kit is worn, its own panel takes the place of the
+        // vanilla hotbar and bars; chat, item name, action bar and subtitles move up when they would
+        // run into it.
+        ClientTickEvents.END_CLIENT_TICK.register(KitHud::tick);
+        HudElementRegistry.attachElementAfter(VanillaHudElements.HOTBAR, ModContent.id("kit_hud"),
+                (gui, delta) -> KitHud.draw(gui, ultimateKey));
+        for (net.minecraft.resources.Identifier vanilla : List.of(VanillaHudElements.HOTBAR, VanillaHudElements.ARMOR_BAR,
+                VanillaHudElements.HEALTH_BAR, VanillaHudElements.FOOD_BAR, VanillaHudElements.AIR_BAR,
+                VanillaHudElements.MOUNT_HEALTH, VanillaHudElements.INFO_BAR, VanillaHudElements.EXPERIENCE_LEVEL,
+                VanillaHudElements.INFO_BAR_FOREGROUND)) {
+            HudElementRegistry.replaceElement(vanilla, original -> (gui, delta) -> {
+                if (!KitHud.active()) {
+                    original.extractRenderState(gui, delta);
+                }
+            });
+        }
+        lifted(VanillaHudElements.CHAT, KitHud::chatLift);
+        lifted(VanillaHudElements.HELD_ITEM_TOOLTIP, KitHud::overlayLift);
+        lifted(VanillaHudElements.OVERLAY_MESSAGE, KitHud::overlayLift);
+        lifted(VanillaHudElements.SUBTITLES, KitHud::subtitleLift);
 
         KeyMapping.Category category = KeyMapping.Category.register(ModContent.id("main"));
         ultimateKey = KeyMappingHelper.registerKeyMapping(

@@ -82,6 +82,9 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("percent")) {
                     percentScene(context, game);   // shares of the max health (28 October 2026)
                 }
+                if (want.contains("kithud")) {
+                    kitHudScene(context, game);   // the kit HUD (28 October 2026)
+                }
                 if (want.contains("overhang")) {
                     overhangScene(context, game);   // spiders under an overhang
                 }
@@ -133,6 +136,7 @@ public class EventLookTest implements FabricClientGameTest {
                 // ladderTargetScene and towerScene are done (ladders fine, towers 2 volleys); kept for later checks.
                 // besiegerScene is done (ladders up, one hole per side); kept for later checks.
                 summonerScene(context, game);
+                kitHudScene(context, game);   // the kit HUD (28 October 2026)
                 versionBScene(context, game);
                 versionB2Scene(context, game);
                 classUiScene(context, game);
@@ -5287,6 +5291,111 @@ public class EventLookTest implements FabricClientGameTest {
     }
 
     /** The alchemist (Simon, 26 October 2026): the potion menu, then a healing zone on the ground. */
+    /**
+     * The kit HUD (Simon, 28 October 2026): the panel with one, with many and with no abilities,
+     * hurt, under water, and the vanilla HUD back once the kit is gone.
+     */
+    private static void kitHudScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        game.getServer().runCommand("time set 6000");
+        game.getServer().runCommand("gamemode survival @p");
+        game.getServer().runCommand("effect clear @p");
+        context.getInput().lookAt(90.0f, 10.0f);
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
+            own.unlockClass(com.mki.nightsiege.core.SkillClass.WARRIOR);
+            own.switchTo(com.mki.nightsiege.core.SkillClass.WARRIOR);
+            own.levels.clear();
+            own.levels.put("whirlwind", 1);
+            manager.kits().equip(player, 1);
+        });
+        game.getServer().runCommand("say Kit-HUD: so sieht der Chat neben der Leiste aus");
+        game.getServer().runCommand("say zweite Zeile");
+        context.waitTicks(30);
+        context.runOnClient(client -> {
+            com.mki.nightsiege.core.UltState st = com.mki.nightsiege.client.UltHud.state();
+            System.out.println("[Night Siege test] kit hud: worn=" + com.mki.nightsiege.client.KitHud.worn()
+                    + " active=" + com.mki.nightsiege.client.KitHud.active()
+                    + " class=" + (st == null ? "?" : st.clazz) + " kitsOn=" + (st != null && st.kitsOn)
+                    + " ult=" + (st != null && st.has) + " slots=" + (st == null ? -1 : st.slots.size()));
+        });
+        context.takeScreenshot("kithud_warrior");
+        // Many abilities: the warden with his ult, F and three healing abilities.
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
+            own.unlockClass(com.mki.nightsiege.core.SkillClass.GUARDIAN);
+            own.switchTo(com.mki.nightsiege.core.SkillClass.GUARDIAN);
+            own.levels.clear();
+            own.levels.put("vitality", 3);
+            own.levels.put("field_dressing", 3);
+            own.levels.put("g_ward", 2);
+            own.levels.put("g_dome", 1);
+            own.levels.put("holy_light", 1);
+            manager.kits().refit(player, 1);
+        });
+        context.waitTicks(30);
+        context.runOnClient(client -> {
+            com.mki.nightsiege.core.UltState st = com.mki.nightsiege.client.UltHud.state();
+            System.out.println("[Night Siege test] kit hud healer: class=" + (st == null ? "?" : st.clazz)
+                    + " ult=" + (st != null && st.has) + " f=" + (st != null && st.hasAb2)
+                    + " slots=" + (st == null ? -1 : st.slots.size()));
+        });
+        context.takeScreenshot("kithud_healer");
+        // Hurt, with a shield of absorption, hungry and short of air.
+        onServer(context, (player, manager) -> {
+            player.setHealth(9f);
+            player.setAbsorptionAmount(4f);
+            player.getFoodData().setFoodLevel(13);
+            player.setAirSupply(120);
+        });
+        context.waitTicks(3);
+        context.takeScreenshot("kithud_hurt");
+        // The alchemist: potions not learned yet get no box.
+        onServer(context, (player, manager) -> {
+            player.setHealth(player.getMaxHealth());
+            player.getFoodData().setFoodLevel(20);
+            com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
+            own.unlockClass(com.mki.nightsiege.core.SkillClass.ENGINEER);
+            own.switchTo(com.mki.nightsiege.core.SkillClass.ENGINEER);
+            own.levels.clear();
+            own.levels.put("potion_tower", 3);
+            own.levels.put("e_acid", 1);
+            manager.kits().refit(player, 1);
+            com.mki.nightsiege.core.WheelData wheel = manager.kits().traps().brewWheel(player);
+            int open = 0;
+            for (com.mki.nightsiege.core.WheelData.Option o : wheel == null ? java.util.List.<com.mki.nightsiege.core.WheelData.Option>of() : wheel.options) {
+                open += o.open ? 1 : 0;
+            }
+            int shown = manager.abilitySlots(player).size();
+            System.out.println("[Night Siege test] kit hud alchemist: potions=" + (wheel == null ? 0 : wheel.options.size())
+                    + " learned=" + open + " boxes=" + shown);
+            if (shown != open) {
+                throw new AssertionError("kit hud: " + shown + " boxes for " + open + " learned potions");
+            }
+        });
+        context.waitTicks(30);
+        context.takeScreenshot("kithud_alchemist");
+        // Nothing learned: no ability section at all.
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
+            own.switchTo(com.mki.nightsiege.core.SkillClass.WARRIOR);
+            own.levels.clear();
+            manager.kits().refit(player, 1);
+        });
+        context.waitTicks(30);
+        context.takeScreenshot("kithud_bare");
+        // The kit gone: the vanilla HUD is back.
+        onServer(context, (player, manager) -> manager.kits().restore(player));
+        context.waitTicks(10);
+        boolean[] after = {true};
+        context.runOnClient(client -> after[0] = com.mki.nightsiege.client.KitHud.active());
+        System.out.println("[Night Siege test] kit hud after restore: active=" + after[0]);
+        context.takeScreenshot("kithud_off");
+        game.getServer().runCommand("gamemode creative @p");
+        if (after[0]) {
+            throw new AssertionError("kit hud still active without the kit");
+        }
+    }
+
     private static void alchemistScene(ClientGameTestContext context, TestSingleplayerContext game) {
         onServer(context, (player, manager) -> {
             com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());

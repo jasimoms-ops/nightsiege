@@ -45,20 +45,21 @@ public final class UltHud {
         receivedAt = System.currentTimeMillis();
     }
 
+    /** Ticks since the last state came (the cooldowns run down between two states). */
+    public static long elapsedTicks() {
+        return (System.currentTimeMillis() - receivedAt) / 50L;
+    }
+
     /** For the tests: what the bar shows right now. */
     public static UltState state() {
         return state;
     }
 
-    private record Cell(ItemStack icon, KeyMapping key, int cooldown, int total, boolean current) {
+    record Cell(ItemStack icon, KeyMapping key, int cooldown, int total, boolean current) {
     }
 
-    public static void draw(GuiGraphicsExtractor gui, KeyMapping ultKey) {
-        UltState s = state;
-        if (s == null) {
-            return;
-        }
-        Minecraft mc = Minecraft.getInstance();
+    /** Q, F and X, the ones the player has. */
+    static List<Cell> fixedCells(UltState s, KeyMapping ultKey) {
         List<Cell> fixed = new ArrayList<>();
         if (s.has) {
             fixed.add(new Cell(icon(s.icon), ultKey, s.cooldownTicks, s.totalTicks, false));
@@ -69,6 +70,11 @@ public final class UltHud {
         if (s.has2) {
             fixed.add(new Cell(icon(s.icon2), GainClient.secondUltKey(), s.cooldown2Ticks, s.total2Ticks, false));
         }
+        return fixed;
+    }
+
+    /** The choices on R, G, Y, C, V, B (only learned ones come from the server). */
+    static List<Cell> choiceCells(UltState s, Minecraft mc) {
         List<Cell> choices = new ArrayList<>();
         if (s.slots != null) {
             for (int i = 0; i < s.slots.size() && i < GainClient.SLOTS; i++) {
@@ -76,6 +82,22 @@ public final class UltHud {
                 choices.add(new Cell(iconOf(mc, slot), GainClient.slotKey(i), slot.cooldownTicks, slot.totalTicks, slot.current));
             }
         }
+        return choices;
+    }
+
+    public static void draw(GuiGraphicsExtractor gui, KeyMapping ultKey) {
+        UltState s = state;
+        if (s == null) {
+            return;
+        }
+        Minecraft mc = Minecraft.getInstance();
+        // Kit HUD (Simon, 28 October 2026): with kits on, the abilities only show in the kit's own
+        // HUD; this bar stays for servers without kits and for testing in creative.
+        if (KitHud.active() || (s.kitsOn && (mc.player == null || !mc.player.isCreative()))) {
+            return;
+        }
+        List<Cell> fixed = fixedCells(s, ultKey);
+        List<Cell> choices = choiceCells(s, mc);
         if (fixed.isEmpty() && choices.isEmpty()) {
             return;
         }
@@ -135,7 +157,7 @@ public final class UltHud {
         gui.text(font, text, x + CELL / 2 - font.width(text) / 2, y - 9, color, true);
     }
 
-    private static ItemStack iconOf(Minecraft mc, UltState.Slot slot) {
+    static ItemStack iconOf(Minecraft mc, UltState.Slot slot) {
         if (slot.invSlot >= 0 && mc.player != null) {
             ItemStack stack = mc.player.getInventory().getItem(slot.invSlot);
             if (!stack.isEmpty()) {
@@ -151,7 +173,7 @@ public final class UltHud {
         return icon(slot.icon);
     }
 
-    private static ItemStack icon(String itemId) {
+    static ItemStack icon(String itemId) {
         if (itemId == null || itemId.isEmpty()) {
             return ItemStack.EMPTY;
         }
