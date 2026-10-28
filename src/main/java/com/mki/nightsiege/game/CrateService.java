@@ -126,6 +126,17 @@ public final class CrateService {
         award(server, defenders, kind, level, 0);
     }
 
+    /** A crate of the playtest (28 October 2026): it opens only for players of a running playtest. */
+    public static ItemStack playtestCrate(SkillClass clazz, CrateKind kind, int level) {
+        ItemStack stack = crate(clazz, kind, level, 0);
+        CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> tag.putBoolean("crate_playtest", true));
+        ItemLore lore = stack.get(DataComponents.LORE);
+        List<Component> lines = new ArrayList<>(lore == null ? List.of() : lore.lines());
+        lines.add(0, Component.translatable("nightsiege.playtest.crate_lore").withStyle(ChatFormatting.AQUA));
+        stack.set(DataComponents.LORE, new ItemLore(lines));
+        return stack;
+    }
+
     /**
      * As above for a night won under curse stones (update 2 "Fluch & Rache"): the crates roll
      * better odds, and every curse adds {@code curseCrateChance} to the chance of a second one.
@@ -228,6 +239,12 @@ public final class CrateService {
         }
         if (clazz == null) {
             player.sendSystemMessage(Component.translatable("nightsiege.crate.no_class").withStyle(ChatFormatting.RED));
+            return;
+        }
+        if (tag.getBooleanOr("crate_playtest", false) && !SiegeManager.get().playtest().takesPart(player.getUUID())) {
+            // A playtest crate left over: it belongs to the playtest only.
+            stack.shrink(stack.getCount());
+            player.sendSystemMessage(Component.translatable("nightsiege.playtest.crate_gone").withStyle(ChatFormatting.GRAY));
             return;
         }
         CrateKind kind = CrateKind.byName(tag.getStringOr("crate_kind", "NORMAL"));

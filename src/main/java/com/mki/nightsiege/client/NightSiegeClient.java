@@ -95,6 +95,7 @@ public class NightSiegeClient implements ClientModInitializer {
                     HealthViewClient.clear();
                     DroneClient.clear();
                     NightKeys.setOwned(false);
+                    PlaytestScreen.clear();
                 });
         ClientPlayNetworking.registerGlobalReceiver(CoreNetworking.ScreenPayload.TYPE,
                 (payload, context) -> context.client().execute(() -> {
@@ -154,6 +155,10 @@ public class NightSiegeClient implements ClientModInitializer {
                         }
                     } else if ("bosses".equals(payload.kind())) {
                         BossLooks.set(payload.json());
+                    } else if ("playtest".equals(payload.kind()) || "playtest_update".equals(payload.kind())) {
+                        // The playtest window (28 October 2026): opened when asked, else only refreshed.
+                        PlaytestScreen.receive(Json.fromJson(payload.json(), com.mki.nightsiege.core.PlaytestData.class),
+                                "playtest".equals(payload.kind()));
                     } else if ("crate".equals(payload.kind())) {
                         com.mki.nightsiege.core.CrateRoll roll =
                                 Json.fromJson(payload.json(), com.mki.nightsiege.core.CrateRoll.class);

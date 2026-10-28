@@ -40,6 +40,42 @@ public final class SiegeCommands {
         dispatcher.register(Commands.literal("nightsiege")
                 .then(Commands.literal("info").executes(SiegeCommands::info))
                 .then(Commands.literal("statistik").executes(SiegeCommands::nightStats))
+                // The playtest (Simon, 28 October 2026): four nights of rising level along planned paths.
+                .then(Commands.literal("playtest")
+                        .then(Commands.argument("zielstufe", IntegerArgumentType.integer(4, 1000))
+                                .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                                .executes(SiegeCommands::playtestStart))
+                        .then(Commands.literal("stop").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                                .executes(ctx -> {
+                                    if (!SiegeManager.get().playtest().running()) {
+                                        fail(ctx.getSource(), Component.translatable("nightsiege.playtest.none"));
+                                        return 0;
+                                    }
+                                    SiegeManager.get().playtest().finish(ctx.getSource().getServer(), "nightsiege.playtest.stopped");
+                                    reply(ctx.getSource(), Component.translatable("nightsiege.playtest.stopped"));
+                                    return 1;
+                                }))
+                        .then(Commands.literal("weiter").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                                .executes(ctx -> {
+                                    boolean ok = SiegeManager.get().playtest().skip(ctx.getSource().getServer());
+                                    if (!ok) {
+                                        fail(ctx.getSource(), Component.translatable("nightsiege.playtest.none"));
+                                        return 0;
+                                    }
+                                    reply(ctx.getSource(), Component.translatable("nightsiege.playtest.skipped"));
+                                    return 1;
+                                }))
+                        .then(Commands.literal("status").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                                .executes(ctx -> {
+                                    reply(ctx.getSource(), Component.literal(SiegeManager.get().playtest().status()));
+                                    return 1;
+                                }))
+                        .then(Commands.literal("bereit").executes(ctx -> asPlayer(ctx,
+                                p -> SiegeManager.get().playtest().onAction(p, "ready"))))
+                        .then(Commands.literal("kisten").executes(ctx -> asPlayer(ctx,
+                                p -> SiegeManager.get().playtest().onAction(p, "crates"))))
+                        .then(Commands.literal("menue").executes(ctx -> asPlayer(ctx,
+                                p -> SiegeManager.get().playtest().onAction(p, "menu")))))
                 .then(Commands.literal("cores").executes(SiegeCommands::cores))
                 .then(Commands.literal("skills").executes(SiegeCommands::skills))
                 .then(Commands.literal("skill")
@@ -497,6 +533,20 @@ public final class SiegeCommands {
     }
 
     /** Runs something for the player who typed (or clicked) the command. */
+    /** /nightsiege playtest <target level>: every signed-up player online plans a path, then four nights. */
+    private static int playtestStart(CommandContext<CommandSourceStack> ctx) {
+        int target = IntegerArgumentType.getInteger(ctx, "zielstufe");
+        String problem = SiegeManager.get().playtest().start(ctx.getSource().getServer(), target);
+        if (problem != null) {
+            fail(ctx.getSource(), Component.translatable(problem));
+            return 0;
+        }
+        java.util.List<Integer> levels = Playtest.levelsFor(target);
+        reply(ctx.getSource(), Component.translatable("nightsiege.playtest.started_admin", target,
+                levels.get(0) + " / " + levels.get(1) + " / " + levels.get(2) + " / " + levels.get(3)));
+        return 1;
+    }
+
     private static int asPlayer(CommandContext<CommandSourceStack> ctx, java.util.function.Consumer<ServerPlayer> action) {
         ServerPlayer player = ctx.getSource().getPlayer();
         if (player == null) {

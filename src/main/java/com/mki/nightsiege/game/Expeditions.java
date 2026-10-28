@@ -112,6 +112,9 @@ public final class Expeditions {
     private UUID champion;
     private ServerBossEvent bar;
     private int buildRounds;
+    /** Attempts lost (every fighter fell) since the server started: the playtest goes on after one. */
+    private int lostAttempts;
+
     /** When each player last took a map (game time). */
     private final Map<UUID, Long> mapTaken = new HashMap<>();
 
@@ -950,6 +953,7 @@ public final class Expeditions {
         }
         m.stats().dungeonEnd(lost ? "verloren" : "abgebrochen", null);   // nothing if the attempt is written already
         if (lost) {
+            lostAttempts++;
             NightSiegeMod.LOGGER.info("[Night Siege] Dungeon-Versuch verloren ({} von {} Räumen offen)",
                     rec == null ? 0 : rec.cleared, rec == null ? 0 : rec.rooms);
         }
@@ -1232,6 +1236,23 @@ public final class Expeditions {
     // ------------------------------------------------------------------ admin and tests
 
     /** Admin: the dungeon goes (a standing one is taken away block by block, the fight ends). */
+    /** Lost attempts since the start (the playtest compares it). */
+    public int lostAttempts() {
+        return lostAttempts;
+    }
+
+    /**
+     * The playtest's dungeon goes when its part is over: fight ended, monsters gone, the gatehouse
+     * taken down even when it was won (no ruins of playtests), the record forgotten.
+     */
+    public boolean removeAll(MinecraftServer server) {
+        SiegeSave.ExpeditionRecord rec = record();
+        if (rec != null && rec.won) {
+            rec.won = false;   // so the gatehouse goes like that of an open dungeon
+        }
+        return remove(server);
+    }
+
     public boolean remove(MinecraftServer server) {
         SiegeSave.ExpeditionRecord rec = record();
         if (rec == null) {

@@ -110,6 +110,58 @@ public class SiegeSave {
     /** Players wearing a kit from a dungeon fight (it goes back when they leave, fall or log in later). */
     public List<String> expeditionKits = new ArrayList<>();
 
+    /** The playtest running now (Simon, 28 October 2026), or null. Kept so a restart can undo it. */
+    public PlaytestState playtest;
+
+    /**
+     * A playtest: four test nights of rising level, before each a war camp or a dungeon, the
+     * skills replayed along each player's planned path. Afterwards everything is as before.
+     */
+    public static class PlaytestState {
+        public int target;
+        /** The level of each of the four nights. */
+        public List<Integer> levels = new ArrayList<>();
+        /** Before each night: "camp" or "dungeon". */
+        public List<String> interludes = new ArrayList<>();
+        /** Which night brings a boss (index), or -1. */
+        public int bossNight = -1;
+        public String boss = "";
+        /** The night being played (0-3), -1 while the paths are planned. */
+        public int step = -1;
+        /** plan, pause_interlude, interlude, pause_night, night, after_night, done. */
+        public String phase = "plan";
+        /** Game time the current pause or interlude ends at (-1: none). */
+        public long phaseEnds = -1L;
+        public boolean finished;
+        /** The camp before this night won (or stood untouched): its machines come. */
+        public boolean campWon;
+        /** Siege day of the playtest's camp, to tell whether it won. */
+        public long campDay = -1L;
+        /** Lost dungeon attempts when the dungeon of this step began. */
+        public int lostAttempts;
+        public Map<String, PlaytestPlayer> players = new java.util.LinkedHashMap<>();
+        /** What the world had before the playtest took them over. */
+        public ExpeditionRecord realExpedition;
+        public CampRecord realCamp;
+        public long realMachinesDay = -1L;
+    }
+
+    /** One player of a playtest: what they had before, their planned path, ready and crates. */
+    public static class PlaytestPlayer {
+        public String name = "";
+        /** Their skills before the playtest (JSON). */
+        public String skills = "";
+        /** Their inventory before the playtest, slot by slot ("" = empty). */
+        public List<String> items = new ArrayList<>();
+        /** The planned skill path: every level in the order it was learned. */
+        public List<String> path = new ArrayList<>();
+        public boolean ready;
+        public int cratesGiven;
+        public int cratesDue;
+        /** The playtest ended while they were away: their things come back when they log in. */
+        public boolean restorePending;
+    }
+
     /** One nemesis (update 2 "Fluch & Rache"): who it is, whom it slew, whether it still lurks. */
     public static class NemesisRecord {
         public String id = "";

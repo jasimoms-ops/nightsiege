@@ -149,6 +149,15 @@ public class CoreScreen extends Screen {
         return false;
     }
 
+    @Override
+    public void onClose() {
+        if (PlaytestScreen.planning()) {
+            PlaytestScreen.reopen();   // while the playtest's paths are planned, back to its window
+            return;
+        }
+        super.onClose();
+    }
+
     /** New numbers from the server, e.g. after buying a skill. Keeps the window open. */
     public void update(CoreStats fresh) {
         this.stats = fresh;

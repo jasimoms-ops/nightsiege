@@ -88,6 +88,9 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("overhang")) {
                     overhangScene(context, game);   // spiders under an overhang
                 }
+                if (want.contains("playtest")) {
+                    playtestScene(context, game);   // the playtest (28 October 2026)
+                }
                 return;
             }
             if (System.getenv("NIGHTSIEGE_SIM") != null) {
@@ -137,6 +140,7 @@ public class EventLookTest implements FabricClientGameTest {
                 // besiegerScene is done (ladders up, one hole per side); kept for later checks.
                 summonerScene(context, game);
                 kitHudScene(context, game);   // the kit HUD (28 October 2026)
+                playtestScene(context, game);   // the playtest (28 October 2026): plan, four steps, all back
                 versionBScene(context, game);
                 versionB2Scene(context, game);
                 classUiScene(context, game);
@@ -5289,6 +5293,145 @@ public class EventLookTest implements FabricClientGameTest {
         });
         context.waitTicks(2);
     }
+
+    /**
+     * The playtest (Simon, 28 October 2026): a player with a class, skills and diamonds starts it,
+     * plans a whole path, is ready; each of the four steps gives the night's points along the path and
+     * the crates up to then, a camp or a dungeon (taken there), a test night – each skipped with
+     * "weiter". At the end the class, the skills and the diamonds are back.
+     */
+    private static void playtestScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        BlockPos core = new BlockPos(pos.getX() + 3, pos.getY(), pos.getZ() + 3);
+        String[] before = new String[2];
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            if (manager.mainCore() == null) {
+                level.setBlock(core, com.mki.nightsiege.game.ModContent.SIEGE_CORE.defaultBlockState(), 3);
+                manager.onCorePlaced(level, core, player);
+            }
+            String id = player.getUUID().toString();
+            manager.save().register(id);
+            if (manager.kits().hasStash(player)) {
+                manager.kits().restore(player);   // a kit from the scene before
+            }
+            com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(id);
+            own.reset();
+            own.award(40);
+            manager.onChooseClass(player, "ARCHER");
+            for (int i = 0; i < 3; i++) {
+                for (com.mki.nightsiege.core.SkillNode n : manager.skillTree().ofClass(com.mki.nightsiege.core.SkillClass.ARCHER)) {
+                    if (manager.skillTree().canUnlock(n.id(), own)) {
+                        manager.skillTree().unlock(n.id(), own);
+                        break;
+                    }
+                }
+            }
+            player.getInventory().setItem(5, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND, 7));
+            before[0] = own.chosenClass + " " + new java.util.TreeMap<>(own.levels) + " points=" + own.points;
+            String problem = manager.playtest().start(level.getServer(), 8);
+            com.mki.nightsiege.core.PlayerSkills fresh = manager.save().skillsOf(id);
+            System.out.println("[Night Siege test] playtest start: problem=" + problem + " before=" + before[0]
+                    + " fresh class=" + fresh.hasClass() + " points=" + fresh.points()
+                    + " inventory empty=" + player.getInventory().isEmpty() + " " + manager.playtest().status());
+        });
+        context.waitTicks(30);
+        context.takeScreenshot("playtest_plan");
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.core.SkillTree tree = manager.skillTree();
+            String sub = com.mki.nightsiege.core.SkillTree.subclassInfosOf(com.mki.nightsiege.core.SkillClass.WARRIOR).get(0).node();
+            manager.onChooseClass(player, "WARRIOR:" + sub);
+            com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
+            for (int round = 0; round < 600; round++) {
+                boolean any = false;
+                for (com.mki.nightsiege.core.SkillNode n : tree.ofClass(com.mki.nightsiege.core.SkillClass.WARRIOR)) {
+                    if (tree.canUnlock(n.id(), own)) {
+                        tree.unlock(n.id(), own);
+                        any = true;
+                        break;
+                    }
+                }
+                if (!any) {
+                    break;
+                }
+            }
+            System.out.println("[Night Siege test] playtest planned: " + own.className() + " path=" + own.history.size()
+                    + " points left=" + own.points());
+            manager.playtest().send(player, true);
+        });
+        context.waitTicks(20);
+        context.takeScreenshot("playtest_plan_done");
+        onServer(context, (player, manager) -> manager.playtest().onAction(player, "ready"));
+        context.waitTicks(45);
+        for (int step = 0; step < com.mki.nightsiege.game.Playtest.NIGHTS; step++) {
+            int shot = step;
+            onServer(context, (player, manager) -> {
+                com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
+                int due = manager.playtest().cratesDue(player.getUUID());
+                manager.playtest().onAction(player, "crates");
+                int crates = 0;
+                for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+                    if (player.getInventory().getItem(i).is(com.mki.nightsiege.game.CrateService.CRATE)) {
+                        crates += player.getInventory().getItem(i).getCount();
+                    }
+                }
+                System.out.println("[Night Siege test] playtest step " + (shot + 1) + ": " + manager.playtest().status()
+                        + " level=" + manager.currentLevel() + " points=" + own.points() + " learned=" + own.history.size()
+                        + "/" + manager.playtest().pathOf(player.getUUID()).size() + " crates due=" + due + " in inventory=" + crates);
+                manager.playtest().send(player, true);
+            });
+            context.waitTicks(20);
+            if (shot == 0) {
+                context.takeScreenshot("playtest_step1");
+            }
+            onServer(context, (player, manager) -> manager.playtest().skip(player.level().getServer()));   // to the camp or dungeon
+            context.waitTicks(80);
+            onServer(context, (player, manager) -> {
+                String kind = manager.playtest().interlude();
+                BlockPos at = player.blockPosition();
+                String what = "camp".equals(kind)
+                        ? "camp=" + (manager.save().camp != null && manager.save().camp.built)
+                        : "dungeon=" + (manager.save().expedition != null && manager.save().expedition.built)
+                        + " " + (manager.save().expedition == null ? "" : manager.save().expedition.kind);
+                System.out.println("[Night Siege test] playtest interlude " + (shot + 1) + ": " + kind + " " + what
+                        + " phase=" + manager.playtest().phase() + " player at " + at.getX() + " " + at.getY() + " " + at.getZ()
+                        + " (" + (int) Math.sqrt(at.distSqr(core)) + " from the core) level=" + manager.currentLevel());
+            });
+            context.waitTicks(10);
+            context.takeScreenshot("playtest_interlude" + (shot + 1));
+            onServer(context, (player, manager) -> manager.playtest().skip(player.level().getServer()));   // the interlude ends
+            context.waitTicks(20);
+            onServer(context, (player, manager) -> {
+                BlockPos at = player.blockPosition();
+                System.out.println("[Night Siege test] playtest back: phase=" + manager.playtest().phase() + " camp="
+                        + (manager.save().camp != null) + " dungeon=" + (manager.save().expedition != null)
+                        + " player " + (int) Math.sqrt(at.distSqr(core)) + " from the core");
+                manager.playtest().skip(player.level().getServer());   // the night
+            });
+            context.waitTicks(60);
+            onServer(context, (player, manager) -> {
+                System.out.println("[Night Siege test] playtest night " + (shot + 1) + ": phase=" + manager.playtest().phase()
+                        + " preparing=" + manager.isPreparing() + " active=" + manager.isActive());
+                manager.playtest().skip(player.level().getServer());   // the night ends
+            });
+            context.waitTicks(20);
+            onServer(context, (player, manager) -> manager.playtest().skip(player.level().getServer()));   // the next step
+            context.waitTicks(30);
+        }
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
+            String after = own.chosenClass + " " + new java.util.TreeMap<>(own.levels) + " points=" + own.points;
+            net.minecraft.world.item.ItemStack slot = player.getInventory().getItem(5);
+            boolean ok = after.equals(before[0]) && slot.is(net.minecraft.world.item.Items.DIAMOND) && slot.getCount() == 7
+                    && manager.save().playtest == null;
+            System.out.println("[Night Siege test] playtest restored: " + (ok ? "all back" : "MISSING") + " skills=" + after
+                    + " slot5=" + slot + " save=" + (manager.save().playtest == null ? "clean" : manager.playtest().status()));
+        });
+        context.waitTicks(10);
+        game.getServer().runCommand("time set 1500");
+        context.waitTicks(10);
+    }
+
 
     /** The alchemist (Simon, 26 October 2026): the potion menu, then a healing zone on the ground. */
     /**

@@ -208,6 +208,8 @@ public final class SiegeManager {
     private final SiegeMachines machines = new SiegeMachines();
     /** Night Siege's own dungeons, reported by the scouts (dungeon update, 27 October 2026). */
     private final Expeditions expeditions = new Expeditions(this);
+    /** The playtest (Simon, 28 October 2026): four nights of rising level along planned paths. */
+    private final Playtest playtest = new Playtest(this);
     /** The statistics logger for the December playtest (28 October 2026): files on the server only. */
     private final StatsRecorder stats = new StatsRecorder(this);
     private final Digger digger = new Digger();
@@ -282,6 +284,8 @@ public final class SiegeManager {
     private String bossLabel;
     /** The boss a test night brings (set by /nightsiege test <level> boss, taken at its start). */
     private com.mki.nightsiege.core.BossKind testBoss;
+    /** The next test night brings the siege machines (a playtest's camp won), taken at its start. */
+    private boolean testMachines;
     private final Set<UUID> participants = new HashSet<>();
     private final Set<UUID> fallen = new HashSet<>();
     private final Set<UUID> liveMobs = new HashSet<>();
@@ -301,6 +305,10 @@ public final class SiegeManager {
 
     public DungeonService dungeons() {
         return dungeons;
+    }
+
+    public Playtest playtest() {
+        return playtest;
     }
 
     public Expeditions expeditions() {
@@ -332,6 +340,12 @@ public final class SiegeManager {
     }
 
     public int currentLevel() {
+        if (!active) {
+            int playtestLevel = playtest.level();
+            if (playtestLevel > 0) {
+                return playtestLevel;   // camp, dungeon and kits of a playtest go by its level
+            }
+        }
         return active ? siegeLevel : SiegeMath.level(save.siegesWon, lastKnownDay, config);
     }
 
@@ -526,6 +540,7 @@ public final class SiegeManager {
                 NightSiegeMod.LOGGER.info("[Night Siege] {} Nacht-Blöcke von einem Absturz aufgeräumt", left);
             }
         }
+        playtest.afterRestart(server);   // a playtest that ran when the server went down is undone
         NightSiegeMod.LOGGER.info("[Night Siege] {} Cores bekannt, {} Belagerungen bestanden",
                 save.cores == null ? 0 : save.cores.size(), save.siegesWon);
         // CI only: where the cores of real dungeons would stand.
@@ -653,6 +668,7 @@ public final class SiegeManager {
 
         long gameTime = server.overworld().getGameTime();
         lastKnownDay = SiegeMath.dayOf(gameTime);
+        safe("Playtest", () -> playtest.tick(server));
 
         if (!active) {
             safe("Heerlager", () -> camp.tick(server));
@@ -669,6 +685,9 @@ public final class SiegeManager {
         if (pendingTest != null) {
             tickPreparation(server);
             return;
+        }
+        if (playtest.running()) {
+            return;   // the real nights wait while a playtest runs
         }
 
         tickRhythm(server);
@@ -1537,7 +1556,10 @@ public final class SiegeManager {
         safe("Dungeons", () -> expeditions.endAll(server, "nightsiege.expedition.night"));
         // The machines of a war camp left standing (or that won) come tonight.
         machines.reset(server);
-        if (config.machinesEnabled && !testRun && save.machinesDay >= 0 && save.machinesDay == clockDay(server)) {
+        boolean machinesTonight = testRun ? testMachines
+                : save.machinesDay >= 0 && save.machinesDay == clockDay(server);
+        testMachines = false;
+        if (config.machinesEnabled && machinesTonight) {
             machines.plan(siegeLevel);
         }
         if (!testRun) {
@@ -2065,6 +2087,11 @@ public final class SiegeManager {
     /** The level a kit is made for now (the camp hands out the coming night's kit). */
     int kitLevel() {
         return levelForKit();
+    }
+
+    /** The next test night brings siege machines (the playtest's camp won or stood). */
+    void setTestMachines(boolean machines) {
+        testMachines = machines;
     }
 
     /** The class cards as before a night (the camp fight opens them). */
@@ -3309,6 +3336,7 @@ public final class SiegeManager {
             Drones.start(player);   // fallen before they left: back up as a drone
         }
         crates.deliverPending(player);
+        playtest.onJoin(player);   // things back after a playtest that ended while away
         // Skills gelten nur waehrend einer Belagerung. Beim Betreten werden
         // daher Reste entfernt, etwa nach einem Absturz mitten in der Nacht.
         if (active && participants.contains(player.getUUID()) && !fallen.contains(player.getUUID())) {
@@ -3858,6 +3886,7 @@ public final class SiegeManager {
             case "shield" -> combat.guardian().onShieldAction(player);
             case "dungeon" -> dungeons.onToolAction(player, argument);
             case "scout" -> expeditions.giveMap(player);   // the core window's "Karte mitnehmen"
+            case "playtest" -> playtest.onAction(player, argument);   // the playtest window (28 October 2026)
             case "curse" -> {   // the curse altar (update 2): a stone laid on or taken off
                 Curses.toggle(this, player, argument);
                 openCoreWindow(player);
@@ -4070,8 +4099,8 @@ public final class SiegeManager {
      * (testToolsForEveryone) every player may change the class as often as they like.
      */
     public boolean classResetAvailable(PlayerSkills own) {
-        if (config.testToolsForEveryone) {
-            return own.hasClass();
+        if (config.testToolsForEveryone || playtest.plansWith(own)) {
+            return own.hasClass();   // the playtest's planning: change the class as often as one likes
         }
         return own.hasClass() && !own.classResetUsed && own.profiles().size() <= 1 && !own.earnedUnlock();
     }

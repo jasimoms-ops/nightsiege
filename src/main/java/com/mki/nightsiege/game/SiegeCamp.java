@@ -188,7 +188,7 @@ public final class SiegeCamp {
         SiegeSave save = m.save();
         SiegeConfig cfg = m.config();
         if (!cfg.machinesEnabled || cfg.campChance <= 0 || m.isActive() || m.testPending() || m.mainCore() == null
-                || save.camp != null) {
+                || save.camp != null || m.playtest().running()) {
             return;
         }
         long day = m.dayNow(server);
