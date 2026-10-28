@@ -1151,9 +1151,12 @@ public class SiegeConfig {
                 }
             }
             // The engineer took half again as much as everyone (25.10., from his tower days); out in the
-            // open (dungeons, camps) he was run down at once.
-            if (classDamageTaken != null && Math.abs(classDamageTaken.getOrDefault("engineer", 1.0) - 1.5) < 1e-9) {
-                classDamageTaken.put("engineer", 1.2);
+            // open (dungeons, camps) he was run down at once. Simon 23:55: "auf 0,9".
+            if (classDamageTaken != null) {
+                double engineer = classDamageTaken.getOrDefault("engineer", 1.0);
+                if (Math.abs(engineer - 1.5) < 1e-9 || Math.abs(engineer - 1.0) < 1e-9) {
+                    classDamageTaken.put("engineer", 0.9);
+                }
             }
             settingsVersion = 16;
         }
