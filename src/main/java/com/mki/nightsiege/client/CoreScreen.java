@@ -2447,8 +2447,16 @@ public class CoreScreen extends Screen {
 
     private void drawFooter(GuiGraphicsExtractor gui, Font font) {
         if (activeTab == Tab.CURSE) {
-            gui.text(font, font.plainSubstrByWidth(Component.translatable("nightsiege.ui.footer_curse").getString(), W - 90),
-                    left + 10, top + H - 19, TITLE, false);
+            String foot = Component.translatable("nightsiege.ui.footer_curse").getString();
+            int room = W - 90;
+            if (font.width(foot) <= room) {
+                gui.text(font, foot, left + 10, top + H - 19, TITLE, false);
+            } else {
+                List<String> lines = wrap(font, foot, (int) (room / 0.7f));
+                for (int k = 0; k < Math.min(2, lines.size()); k++) {
+                    smallText(gui, font, lines.get(k), left + 10, top + H - 21 + k * 7, TITLE, 0.7f);
+                }
+            }
             return;
         }
         if (activeTab == Tab.PERKS) {
@@ -2883,7 +2891,7 @@ public class CoreScreen extends Screen {
         return new int[]{x, altarW, x + altarW + 8, posterW};
     }
 
-    private static final int CURSE_HEAD = 34;
+    private static final int CURSE_HEAD = 38;
 
     /** Where the stone of curse number i lies: x, y, w, h. */
     private int[] curseTile(int i) {
@@ -2891,9 +2899,9 @@ public class CoreScreen extends Screen {
         int cols = col[1] >= 300 ? 4 : 2;
         int n = com.mki.nightsiege.core.CurseKind.values().length;
         int rows = (n + cols - 1) / cols;
-        int gap = 5;
+        int gap = rows > 2 ? 3 : 5;
         int y0 = innerY() + 6 + CURSE_HEAD + 4;
-        int h = Math.max(26, (innerY() + innerH() - 6 - y0 - (rows - 1) * gap) / rows);
+        int h = Math.max(20, (innerY() + innerH() - 2 - y0 - (rows - 1) * gap) / rows);
         int w = (col[1] - (cols - 1) * gap) / cols;
         return new int[]{col[0] + (i % cols) * (w + gap), y0 + (i / cols) * (h + gap), w, h};
     }
@@ -2954,9 +2962,16 @@ public class CoreScreen extends Screen {
         } else {
             pay = Component.translatable("nightsiege.ui.curse_hint").getString();
         }
-        smallText(gui, font, font.plainSubstrByWidth(pay, (int) ((w - 12) / 0.75f)), x + 6, y + 18, 0xFFC8B8D0, 0.75f);
-        smallText(gui, font, font.plainSubstrByWidth(Component.translatable("nightsiege.ui.curse_plain", oddsLine(stats.oddsPlain)).getString(),
-                (int) ((w - 12) / 0.75f)), x + 6, y + 26, 0xFF8A7A90, 0.75f);
+        List<String> payLines = wrap(font, pay, (int) ((w - 12) / 0.7f));
+        int py = y + 15;
+        for (int k = 0; k < Math.min(2, payLines.size()); k++) {
+            smallText(gui, font, payLines.get(k), x + 6, py, 0xFFC8B8D0, 0.7f);
+            py += 7;
+        }
+        if (payLines.size() < 2 || count > 0) {
+            smallText(gui, font, font.plainSubstrByWidth(Component.translatable("nightsiege.ui.curse_plain", oddsLine(stats.oddsPlain)).getString(),
+                    (int) ((w - 12) / 0.7f)), x + 6, Math.max(py, y + 29), 0xFF8A7A90, 0.7f);
+        }
 
         // The stones.
         com.mki.nightsiege.core.CurseKind[] kinds = com.mki.nightsiege.core.CurseKind.values();
@@ -3014,20 +3029,23 @@ public class CoreScreen extends Screen {
                 gui.item(iconOf(kind.icon()), sx + 2, sy + 2);
                 int textX = sx + 24;
                 int textW = tx + tw - 3 - textX;
-                int ny = ty + Math.max(3, th / 2 - 9);
-                if (font.width(name) <= textW) {
+                int nameW = textW - (on ? 10 : 0);   // room for the skull mark
+                int ny = th >= 34 ? ty + Math.max(3, th / 2 - 11) : ty + 3;
+                if (font.width(name) <= nameW) {
                     gui.text(font, name, textX, ny, nameColor, true);
                 } else {
-                    float sc = Math.max(0.65f, (float) textW / font.width(name));
-                    smallText(gui, font, font.plainSubstrByWidth(name, (int) (textW / sc)), textX, ny + 1, nameColor, sc);
+                    float sc = Math.max(0.65f, (float) nameW / font.width(name));
+                    smallText(gui, font, font.plainSubstrByWidth(name, (int) (nameW / sc)), textX, ny + 1, nameColor, sc);
                 }
-                int ly = ny + 11;
-                for (String line : wrap(font, effect, (int) (textW / 0.7f))) {
-                    if (ly + 7 > ty + th - 1) {
+                float es = th >= 34 ? 0.7f : 0.6f;
+                int step = th >= 34 ? 7 : 6;
+                int ly = ny + 10;
+                for (String line : wrap(font, effect, (int) (textW / es))) {
+                    if (ly + step > ty + th) {
                         break;
                     }
-                    smallText(gui, font, line, textX, ly, effectColor, 0.7f);
-                    ly += 7;
+                    smallText(gui, font, line, textX, ly, effectColor, es);
+                    ly += step;
                 }
             }
             if (on) {
@@ -3099,8 +3117,16 @@ public class CoreScreen extends Screen {
             gui.item(egg.isEmpty() ? iconOf("minecraft:skeleton_skull") : egg, ix + 2, iy + 2);
             int tx = ix + 24;
             int tw = x + w - 9 - tx;
-            String name = n.name + (n.test ? " (Test)" : "");
-            gui.text(font, font.plainSubstrByWidth(name, tw), tx, py + 5, ink, false);
+            String stampText = slain ? "" : Component.translatable("nightsiege.ui.wanted_stamp").getString();
+            int stampW = slain ? 0 : (int) (font.width(stampText) * 0.7f) + 8;
+            String name = n.name;
+            gui.text(font, font.plainSubstrByWidth(name, tw - stampW), tx, py + 5, ink, false);
+            if (n.test) {
+                int nw = Math.min(font.width(name), tw - stampW);
+                if (tx + nw + 4 + (int) (font.width("Test") * 0.6f) < x + w - 9 - stampW) {
+                    smallText(gui, font, "Test", tx + nw + 3, py + 7, slain ? 0xFF5A5448 : 0xFF8A6A40, 0.6f);
+                }
+            }
             String rank = Component.translatable(com.mki.nightsiege.core.NemesisLore.titleKey(n.level)).getString()
                     + " · " + Component.translatable("nightsiege.nemesis.bar_level", n.level).getString();
             smallText(gui, font, font.plainSubstrByWidth(rank, (int) (tw / 0.75f)), tx, py + 15, slain ? 0xFF4A443A : 0xFF7A1A10, 0.75f);
@@ -3122,10 +3148,11 @@ public class CoreScreen extends Screen {
                     slain ? 0xFF1A1A1A : n.here ? 0xFFB01010 : 0xFF6A4A10, 0.7f);
             if (!slain) {
                 // The red stamp in the corner.
-                String stamp = Component.translatable("nightsiege.ui.wanted_stamp").getString();
-                int sw = (int) (font.width(stamp) * 0.7f);
+                int sw = (int) (font.width(stampText) * 0.7f);
                 gui.fill(x + w - 12 - sw, py + 4, x + w - 8, py + 12, 0x30B01010);
-                smallText(gui, font, stamp, x + w - 10 - sw, py + 6, 0xFFB01010, 0.7f);
+                gui.fill(x + w - 12 - sw, py + 4, x + w - 8, py + 5, 0x80B01010);
+                gui.fill(x + w - 12 - sw, py + 11, x + w - 8, py + 12, 0x80B01010);
+                smallText(gui, font, stampText, x + w - 10 - sw, py + 6, 0xFFB01010, 0.7f);
             }
             if (mouseX >= x + 5 && mouseX < x + w - 5 && mouseY >= py && mouseY < py + ph) {
                 tip = new ArrayList<>();
