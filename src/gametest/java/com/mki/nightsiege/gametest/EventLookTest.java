@@ -91,6 +91,13 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("playtest")) {
                     playtestScene(context, game);   // the playtest (28 October 2026)
                 }
+                if (want.contains("ladders")) {
+                    // The climbing scenes, then the ladder cases of 28 October 2026 (block beside, ladder above the ground).
+                    ladderScene(context, game);
+                    ladderTargetScene(context, game, true);
+                    innerLadderScene(context, game);
+                    ladderCasesScene(context, game);
+                }
                 return;
             }
             if (System.getenv("NIGHTSIEGE_SIM") != null) {
@@ -118,6 +125,7 @@ public class EventLookTest implements FabricClientGameTest {
                 ladderTargetScene(context, game, true);
                 innerLadderScene(context, game);
                 ladderOverhangScene(context, game);
+                ladderCasesScene(context, game);   // block beside a ladder, ladder above the ground (28 October 2026)
                 nightHoldScene(context, game);
                 besiegerScene(context, game);   // again since 27 October 2026: more sappers, craters, free ladder ways
                 campScene(context, game);
@@ -933,6 +941,139 @@ public class EventLookTest implements FabricClientGameTest {
         System.out.println("[Night Siege test] ladder overhang: blocked=" + got[0] + " free=" + got[1] + " roof=" + got[2]);
         if (got[0] != -1 || got[1] != 5 || got[2] != -1) {
             throw new AssertionError("ladder way up: overhang " + got[0] + " (want -1), free " + got[1] + " (want 5), roof " + got[2] + " (want -1)");
+        }
+    }
+
+    /**
+     * Simon (28 October 2026, 22:38): monsters got stuck at ladders with a block beside them and
+     * at ladders that end one block above the ground. Four small walled yards side by side, one
+     * husk outside each that wants to the middle of its yard:
+     * <ul>
+     *   <li>side: the outer ladder has blocks beside it (at the ground, half way up, battlements at the top);</li>
+     *   <li>hanging: the lowest rung of the outer ladder is one block above the ground;</li>
+     *   <li>down: over the outer ladder, and right behind it a ladder inside with blocks beside it;</li>
+     *   <li>downhang: the same, the inner ladder ending one block above the floor of the yard.</li>
+     * </ul>
+     * Each husk must stand on the floor of its yard within the time limit: one PASS/FAIL line each.
+     */
+    private static void ladderCasesScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        final String[] names = {"side", "hanging", "down", "downhang"};
+        final int n = names.length;
+        final int r = 3;
+        final int limit = 600;   // ticks
+        final int[] gx = new int[n];
+        final int[] gy = new int[n];
+        final int[] gz = new int[n];
+        game.getServer().runCommand("time set 6000");
+        for (int c = 0; c < n; c++) {
+            gx[c] = pos.getX() + 240 + c * 30;
+            gz[c] = pos.getZ();
+            gy[c] = groundAt(context, gx[c], gz[c]);
+            int x = gx[c];
+            int y = gy[c];
+            int z = gz[c];
+            game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:grass_block".formatted(x - 14, y - 1, z - 8, x + 6, y - 1, z + 8));
+            game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(x - 14, y, z - 8, x + 6, y + 8, z + 8));
+            String wall = "fill %d %d %d %d %d %d minecraft:stone_bricks";
+            game.getServer().runCommand(wall.formatted(x - r, y, z - r, x + r, y + 3, z - r));
+            game.getServer().runCommand(wall.formatted(x - r, y, z + r, x + r, y + 3, z + r));
+            game.getServer().runCommand(wall.formatted(x - r, y, z - r, x - r, y + 3, z + r));
+            game.getServer().runCommand(wall.formatted(x + r, y, z - r, x + r, y + 3, z + r));
+            String block = "setblock %d %d %d minecraft:stone_bricks";
+            String outer = "fill %d %d %d %d %d %d minecraft:ladder[facing=west]";
+            String inner = "fill %d %d %d %d %d %d minecraft:ladder[facing=east]";
+            switch (names[c]) {
+                case "side" -> {
+                    game.getServer().runCommand(outer.formatted(x - r - 1, y, z, x - r - 1, y + 3, z));
+                    game.getServer().runCommand(block.formatted(x - r - 1, y, z + 1));       // right of it at the ground
+                    game.getServer().runCommand(block.formatted(x - r - 1, y + 2, z - 1));   // left of it half way up
+                    game.getServer().runCommand(block.formatted(x - r, y + 4, z - 1));       // battlements beside the top
+                    game.getServer().runCommand(block.formatted(x - r, y + 4, z + 1));
+                }
+                case "hanging" -> game.getServer().runCommand(outer.formatted(x - r - 1, y + 1, z, x - r - 1, y + 3, z));
+                case "down" -> {
+                    game.getServer().runCommand(outer.formatted(x - r - 1, y, z, x - r - 1, y + 3, z));
+                    game.getServer().runCommand(inner.formatted(x - r + 1, y, z, x - r + 1, y + 3, z));
+                    game.getServer().runCommand(block.formatted(x - r + 1, y + 2, z - 1));   // beside the inner ladder
+                    game.getServer().runCommand(block.formatted(x - r + 1, y + 3, z - 1));
+                    game.getServer().runCommand(block.formatted(x - r + 1, y + 2, z + 1));
+                    game.getServer().runCommand(block.formatted(x - r + 1, y + 3, z + 1));
+                }
+                default -> {
+                    game.getServer().runCommand(outer.formatted(x - r - 1, y, z, x - r - 1, y + 3, z));
+                    game.getServer().runCommand(inner.formatted(x - r + 1, y + 1, z, x - r + 1, y + 3, z));
+                }
+            }
+            game.getServer().runCommand(("summon minecraft:husk %d %d %d {PersistenceRequired:1b,Tags:[\"ns_lc_%s\"],"
+                    + "CustomName:\"%s\",CustomNameVisible:1b}").formatted(x - 10, y, z + (c % 2 == 0 ? -2 : 2), names[c], names[c]));
+        }
+        // Watch the first two yards from above, a little outside.
+        game.getServer().runCommand("setblock %d %d %d minecraft:barrier".formatted(gx[0] + 15, gy[0] + 7, gz[0] - 14));
+        game.getServer().runCommand("tp @p %d.5 %d %d.5 0 30".formatted(gx[0] + 15, gy[0] + 8, gz[0] - 14));
+        context.waitTicks(20);
+        final com.mki.nightsiege.game.LadderClimb[] ladders = new com.mki.nightsiege.game.LadderClimb[n];
+        final int[] passAt = new int[n];
+        final String[] where = new String[n];
+        for (int c = 0; c < n; c++) {
+            ladders[c] = new com.mki.nightsiege.game.LadderClimb();
+            passAt[c] = -1;
+            where[c] = "gone";
+        }
+        for (int i = 0; i < limit / 2; i++) {
+            final int step = i;
+            onServer(context, (player, manager) -> {
+                net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                    for (int c = 0; c < n; c++) {
+                        if (!e.entityTags().contains("ns_lc_" + names[c]) || !(e instanceof net.minecraft.world.entity.Mob mob)) {
+                            continue;
+                        }
+                        ladders[c].tick(level, java.util.List.of(e.getUUID()), new BlockPos(gx[c], gy[c], gz[c]), level.getGameTime());
+                        where[c] = String.format(Locale.ROOT, "%.1f %.1f %.1f climbing=%s busy=%s", e.getX() - gx[c], e.getY() - gy[c],
+                                e.getZ() - gz[c], mob.onClimbable(), ladders[c].busy(e.getUUID()));
+                        boolean inside = Math.abs(e.getBlockX() - gx[c]) < r && Math.abs(e.getBlockZ() - gz[c]) < r;
+                        if (passAt[c] < 0 && inside && e.getY() < gy[c] + 0.5 && e.onGround()) {
+                            passAt[c] = step * 2;
+                        }
+                        if (step % 50 == 0) {
+                            System.out.println("[Night Siege test] ladder case " + names[c] + " t=" + step * 2 + ": " + where[c]);
+                        }
+                    }
+                }
+            });
+            context.waitTicks(2);
+            if (i == 40 || i == 100) {
+                context.takeScreenshot("ladder_cases_" + i);
+            }
+        }
+        context.waitTicks(5);
+        int passed = 0;
+        StringBuilder failed = new StringBuilder();
+        for (int c = 0; c < n; c++) {
+            if (passAt[c] >= 0) {
+                passed++;
+                System.out.println("[Night Siege test] ladder case " + names[c] + ": PASS after " + passAt[c] + " ticks");
+            } else {
+                failed.append(' ').append(names[c]);
+                System.out.println("[Night Siege test] ladder case " + names[c] + ": FAIL, not down in the yard after " + limit
+                        + " ticks (at " + where[c] + ")");
+            }
+        }
+        System.out.println("[Night Siege test] ladder cases: " + passed + "/" + n + " PASS");
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                for (String name : names) {
+                    if (e.entityTags().contains("ns_lc_" + name)) {
+                        e.discard();
+                    }
+                }
+            }
+        });
+        context.waitTicks(5);
+        if (passed < n) {
+            throw new AssertionError("ladder cases failed:" + failed);
         }
     }
 
