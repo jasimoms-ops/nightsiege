@@ -247,6 +247,17 @@ class SiegeCoreTest {
         assertEquals(1.2, fresh.healingFactor("medic"), 1e-9);
         // Simon 27.10., 23:00: more life steal for the melee classes again.
         assertEquals(0.12, fresh.meleeLifesteal, 1e-9);
+        // Simon 28.10., 02:13: the berserker steals 12 % again; an old server tweak of 0.16 goes back too.
+        SkillValues.apply(new java.util.HashMap<>());   // the defaults alone
+        assertEquals(0.12, SkillValues.get("bloodlust", "steal", -1.0), 1e-9);
+        SiegeConfig tuned16 = new SiegeConfig();
+        tuned16.settingsVersion = 14;
+        SiegeConfig.SkillTweak bl = new SiegeConfig.SkillTweak();
+        bl.values = new java.util.HashMap<>(java.util.Map.of("below", 1.01, "steal", 0.16));
+        tuned16.skillTweaks.put("bloodlust", bl);
+        tuned16.sanitize();
+        assertEquals(0.12, tuned16.skillTweaks.get("bloodlust").values.get("steal"), 1e-9);
+        assertEquals(1.01, tuned16.skillTweaks.get("bloodlust").values.get("below"), 1e-9);
         assertEquals(1.0, fresh.healingFactor("warden"), 1e-9);
         // Simon 26.10.: the shield fighter takes as much as anyone, the bulwark 35 % less, the alchemist hits 15 % harder.
         assertEquals(1.0, fresh.subclassDamageTaken.get("shieldfighter"), 1e-9);
@@ -1750,7 +1761,7 @@ class SiegeCoreTest {
         old.sanitize();
         assertTrue(old.dungeonsEnabled);
         assertFalse(old.bloodMoonGlow);
-        assertEquals(14, old.settingsVersion);
+        assertEquals(15, old.settingsVersion);
         assertEquals(SiegeConfig.CURRENT_DUNGEON_LIST, old.dungeonListVersion);
         assertTrue(old.dungeons.stream().allMatch(t -> t.structure.startsWith("nova_structures:")));
         // Switched off again by hand, it stays off.
@@ -2006,7 +2017,7 @@ class SiegeCoreTest {
         old.settingsVersion = 7;
         old.sanitize();
         assertTrue(old.summonerForEveryone, "older configs open it once");
-        assertEquals(14, old.settingsVersion);
+        assertEquals(15, old.settingsVersion);
         // Both subclasses of the way of the wild can be learned to the end.
         java.util.Map<String, String> subs = java.util.Map.of("s_tamer", SkillTree.SUB_TAMER, "s_golemsmith", SkillTree.SUB_GOLEMSMITH,
                 "d_necro", SkillTree.SUB_NECROMANCER, "d_soulcatcher", SkillTree.SUB_SOULCATCHER);
@@ -2168,7 +2179,7 @@ class SiegeCoreTest {
         old.effectMobReplacements.put("minecraft:wither_skeleton", "minecraft:vindicator");
         old.effectMobReplacements.put("friendsandfoes:iceologer", "minecraft:vindicator");
         old.sanitize();
-        assertEquals(14, old.settingsVersion);
+        assertEquals(15, old.settingsVersion);
         assertEquals(1.25, old.subclassDamage.get("heavy"), 1e-9);
         assertEquals("minecraft:skeleton", old.effectMobReplacements.get("minecraft:wither_skeleton"));
         assertEquals("minecraft:pillager", old.effectMobReplacements.get("friendsandfoes:iceologer"));

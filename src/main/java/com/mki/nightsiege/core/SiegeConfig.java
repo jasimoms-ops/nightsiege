@@ -1009,6 +1009,14 @@ public class SiegeConfig {
             scaleTweak("w_combo", "killheal", 4.0 / 3.0);
             settingsVersion = 14;
         }
+        if (settingsVersion < 15) {
+            // Simon 28.10., 02:13: the berserker's life steal back to 12 % (also a server tweak).
+            SkillTweak tweak = skillTweaks == null ? null : skillTweaks.get("bloodlust");
+            if (tweak != null && tweak.values != null && tweak.values.get("steal") != null) {
+                tweak.values.put("steal", 0.12);
+            }
+            settingsVersion = 15;
+        }
         if (Double.isNaN(meleeLifesteal)) {
             meleeLifesteal = 0.08;
         }
