@@ -1548,7 +1548,7 @@ public class EventLookTest implements FabricClientGameTest {
             net.minecraft.world.entity.Mob boss = manager.bosses().boss(level);
             if (boss != null) {
                 boss.setNoAi(true);
-                boss.teleportTo(cx + 0.5, cy, cz - 2.5);
+                boss.teleportTo(cx + 0.5, cy, cz + 2.5);   // in front of the player (he looks south)
             }
             dressDiamond(player);
             System.out.println("[Night Siege test] percent boss=" + now + " armor=" + player.getArmorValue() + " max=" + player.getMaxHealth());
@@ -1727,7 +1727,7 @@ public class EventLookTest implements FabricClientGameTest {
         game.getServer().runCommand("time set 18000");
         game.getServer().runCommand("gamemode survival @p");
         game.getServer().runCommand("effect give @p minecraft:resistance 600 255 true");
-        game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %d.5 %d %d.5 180 20", cx, cy + 6, cz + 1));
+        game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %d.5 %d %d.5 180 20", cx, cy, cz + 7));
         context.waitTicks(20);
         final java.util.UUID[] id = new java.util.UUID[1];
         onServer(context, (player, manager) -> {
@@ -1767,8 +1767,10 @@ public class EventLookTest implements FabricClientGameTest {
                 if (e instanceof net.minecraft.world.entity.Mob m) {
                     m.setTarget(player);
                 }
-                System.out.println(String.format(java.util.Locale.ROOT, "[Night Siege test] overhang with fix t=%ds spider y=%s (top is 6) %s",
+                System.out.println(String.format(java.util.Locale.ROOT,
+                        "[Night Siege test] overhang with fix t=%ds spider y=%s z=%s (wall z 0..2, top y 6, inside z>2) %s",
                         sec, e == null ? "-" : String.format(java.util.Locale.ROOT, "%.1f", e.getY() - cy),
+                        e == null ? "-" : String.format(java.util.Locale.ROOT, "%.1f", e.getZ() - cz),
                         com.mki.nightsiege.game.SpiderOverhang.testCounts()));
             });
         }
