@@ -166,7 +166,11 @@ public final class GainGear {
             out.add(Gadgets.make(Items.IRON_SPEAR, "wurfspeer", 4));
         }
         if (lvl(kits, skills, clazz, "kletterhaken") > 0) {
-            out.add(Gadgets.make(Items.TRIPWIRE_HOOK, "kletterhaken", 1));
+            ItemStack hook = Gadgets.make(Items.TRIPWIRE_HOOK, "kletterhaken", 1);
+            // Design update (29 October 2026): the grappler's grapnel with a blue wrap (tools/weapons/grapnel.py).
+            hook.set(net.minecraft.core.component.DataComponents.ITEM_MODEL,
+                    net.minecraft.resources.Identifier.fromNamespaceAndPath("nightsiege", "kit/grappling_hook"));
+            out.add(hook);
         }
         if (lvl(kits, skills, clazz, "kriegsbanner") > 0) {
             out.add(Gadgets.make(Items.BANNER.red(), "kriegsbanner", 1));

@@ -99,6 +99,23 @@ def draw():
     return px
 
 
+WRAP = (52, 96, 196, 255)
+WRAP_LIGHT = (96, 140, 230, 255)
+
+
+def draw_kit():
+    """The kit's own hook (Simon 28.10.): the same grapnel with a blue wrap on the shank, so the own
+    tool and the enemy's are told apart."""
+    px = draw()
+    for (x, y), c in list(px.items()):
+        # the shank runs from (13.6, 18.4) to (21.6, 10.4): wrap its middle part in bands
+        u = ((x + 0.5 - 13.6) - (y + 0.5 - 18.4)) / 16.0
+        side = abs((x + 0.5 - 13.6) + (y + 0.5 - 18.4)) / 2.0
+        if 0.2 <= u <= 0.75 and side < 2.2 and c in (IRON, IRON_LIGHT, IRON_DARK):
+            px[(x, y)] = WRAP_LIGHT if int(u * 20) % 3 == 0 else WRAP
+    return px
+
+
 def picture():
     return K.finish(draw(), 23)
 
@@ -134,4 +151,14 @@ if __name__ == '__main__':
             f.write('{\n  "parent": "minecraft:item/handheld",\n  "textures": {\n    "layer0": "nightsiege:item/foe/grappling_hook"\n  }\n}\n')
         with open(os.path.join(items, 'grappling_hook.json'), 'w') as f:
             f.write('{\n  "model": {\n    "type": "minecraft:model",\n    "model": "nightsiege:item/foe/grappling_hook"\n  }\n}\n')
+        kit = K.finish(draw_kit(), 23)
+        save(kit, os.path.join(out, 'grappling_hook_kit_big.png'), 12)
+        os.makedirs(os.path.join(root, 'textures', 'item', 'kit'), exist_ok=True)
+        save(kit, os.path.join(root, 'textures', 'item', 'kit', 'grappling_hook.png'))
+        os.makedirs(os.path.join(root, 'models', 'item', 'kit'), exist_ok=True)
+        os.makedirs(os.path.join(root, 'items', 'kit'), exist_ok=True)
+        with open(os.path.join(root, 'models', 'item', 'kit', 'grappling_hook.json'), 'w') as f:
+            f.write('{\n  "parent": "minecraft:item/handheld",\n  "textures": {\n    "layer0": "nightsiege:item/kit/grappling_hook"\n  }\n}\n')
+        with open(os.path.join(root, 'items', 'kit', 'grappling_hook.json'), 'w') as f:
+            f.write('{\n  "model": {\n    "type": "minecraft:model",\n    "model": "nightsiege:item/kit/grappling_hook"\n  }\n}\n')
         print('installed')
