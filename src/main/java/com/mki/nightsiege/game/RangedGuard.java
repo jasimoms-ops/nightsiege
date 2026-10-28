@@ -70,9 +70,11 @@ final class RangedGuard {
             dz = player.getLookAngle().z;
         }
         double len = Math.sqrt(dx * dx + dz * dz);
-        // Away from the player, a little up: like a strong knockback.
-        mob.setDeltaMovement(mob.getDeltaMovement().scale(0.5).add(-dx / len * PUSH, 0.3, -dz / len * PUSH));
-        mob.hurtMarked = true;
+        if (len > 1.0e-3) {
+            // Away from the player, a little up: like a strong knockback.
+            mob.setDeltaMovement(mob.getDeltaMovement().scale(0.5).add(-dx / len * PUSH, 0.3, -dz / len * PUSH));
+            mob.hurtMarked = true;
+        }
         int ticks = (int) Math.round(m.config().rangedPushbackSeconds * 20.0);
         mob.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, ticks, 2, false, true));
         level.sendParticles(ParticleTypes.SWEEP_ATTACK, mob.getX(), mob.getY() + mob.getBbHeight() * 0.5, mob.getZ(),

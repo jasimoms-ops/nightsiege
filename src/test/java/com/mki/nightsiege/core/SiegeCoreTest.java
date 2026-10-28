@@ -1627,10 +1627,12 @@ class SiegeCoreTest {
             assertFalse(ids.contains("nightsiege:treasure_raider"));   // it comes on its own, not with the waves
             assertFalse(cfg.effectMobReplacements.containsKey("variantsandventures:thicket"));
         }
-        // The axe illagers tuned on the server stay as they are (Simon, 27 October 2026).
+        // The axe illagers tuned on the server stayed as they were (Simon, 27 October 2026); the balancing
+        // update of 28 October halves the skirmisher and lets him come from level 6 (Simon 23:10).
         MobEntry skirmisher = old.mobs.stream().filter(e -> e.id.equals("takesapillage:skirmisher")).findFirst().orElseThrow();
-        assertEquals(12, skirmisher.weight);
-        assertEquals(0.36, skirmisher.weightPerLevel, 1e-9);
+        assertEquals(6, skirmisher.weight);
+        assertEquals(0.18, skirmisher.weightPerLevel, 1e-9);
+        assertEquals(6, skirmisher.minLevel);
         // The camel troop at low levels: plain zombie and skeleton on the camel husk.
         assertEquals("minecraft:camel_husk+minecraft:zombie+minecraft:skeleton", old.withoutEffects(SiegeConfig.CAMEL_TROOP));
     }
@@ -1761,7 +1763,7 @@ class SiegeCoreTest {
         old.sanitize();
         assertTrue(old.dungeonsEnabled);
         assertFalse(old.bloodMoonGlow);
-        assertEquals(15, old.settingsVersion);
+        assertEquals(SiegeConfig.SETTINGS_VERSION, old.settingsVersion);
         assertEquals(SiegeConfig.CURRENT_DUNGEON_LIST, old.dungeonListVersion);
         assertTrue(old.dungeons.stream().allMatch(t -> t.structure.startsWith("nova_structures:")));
         // Switched off again by hand, it stays off.
@@ -2017,7 +2019,7 @@ class SiegeCoreTest {
         old.settingsVersion = 7;
         old.sanitize();
         assertTrue(old.summonerForEveryone, "older configs open it once");
-        assertEquals(15, old.settingsVersion);
+        assertEquals(SiegeConfig.SETTINGS_VERSION, old.settingsVersion);
         // Both subclasses of the way of the wild can be learned to the end.
         java.util.Map<String, String> subs = java.util.Map.of("s_tamer", SkillTree.SUB_TAMER, "s_golemsmith", SkillTree.SUB_GOLEMSMITH,
                 "d_necro", SkillTree.SUB_NECROMANCER, "d_soulcatcher", SkillTree.SUB_SOULCATCHER);
@@ -2179,7 +2181,7 @@ class SiegeCoreTest {
         old.effectMobReplacements.put("minecraft:wither_skeleton", "minecraft:vindicator");
         old.effectMobReplacements.put("friendsandfoes:iceologer", "minecraft:vindicator");
         old.sanitize();
-        assertEquals(15, old.settingsVersion);
+        assertEquals(SiegeConfig.SETTINGS_VERSION, old.settingsVersion);
         assertEquals(1.25, old.subclassDamage.get("heavy"), 1e-9);
         assertEquals("minecraft:skeleton", old.effectMobReplacements.get("minecraft:wither_skeleton"));
         assertEquals("minecraft:pillager", old.effectMobReplacements.get("friendsandfoes:iceologer"));
@@ -2188,7 +2190,8 @@ class SiegeCoreTest {
                 assertEquals(20, e.weight);
             } else {
                 assertEquals(1, e.weight);
-                assertEquals(0.05, e.weightPerLevel, 1e-9);
+                // the skirmisher's growth halved again on 28 October
+                assertEquals(e.id.endsWith("skirmisher") ? 0.025 : 0.05, e.weightPerLevel, 1e-9);
             }
         }
         // A fresh config has the same.

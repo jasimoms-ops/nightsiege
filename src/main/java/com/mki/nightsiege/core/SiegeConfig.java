@@ -730,6 +730,8 @@ public class SiegeConfig {
      * to true to have them again.
      */
     public int settingsVersion = 0;
+    /** The newest settings version (the migrations below end there). */
+    public static final int SETTINGS_VERSION = 16;
     /** Version of the dungeon list in this file. Older lists are replaced on load. */
     public int dungeonListVersion = 0;
     public static final int CURRENT_DUNGEON_LIST = 2;
