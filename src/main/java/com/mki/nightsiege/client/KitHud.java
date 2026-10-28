@@ -63,6 +63,7 @@ public final class KitHud {
     private static final Identifier ICON_FOOD = tex("icon_food");
     private static final Identifier ICON_AIR = tex("icon_air");
     private static final java.util.Map<String, Identifier> CRESTS = new java.util.HashMap<>();
+    private static final java.util.Map<String, ItemStack> CHARGES = new java.util.HashMap<>();
 
     /** True while some kit item is in the inventory (checked once a tick). */
     private static boolean worn;
@@ -78,7 +79,7 @@ public final class KitHud {
     private KitHud() {
     }
 
-    private static Identifier tex(String name) {
+    static Identifier tex(String name) {
         return ModContent.id("textures/gui/kit_hud/" + name + ".png");
     }
 
@@ -88,6 +89,8 @@ public final class KitHud {
         if (!worn) {
             trail = -1f;
         }
+        com.mki.nightsiege.core.KitView.hideCrafting = worn
+                && mc.gui.screen() instanceof net.minecraft.client.gui.screens.inventory.InventoryScreen;
     }
 
     private static boolean wearsKit(LocalPlayer p) {
@@ -230,7 +233,7 @@ public final class KitHud {
         gui.pose().popMatrix();
     }
 
-    private static void blit(GuiGraphicsExtractor gui, Identifier id, int x, int y, int w, int h) {
+    static void blit(GuiGraphicsExtractor gui, Identifier id, int x, int y, int w, int h) {
         gui.blit(RenderPipelines.GUI_TEXTURED, id, x, y, 0f, 0f, w, h, w, h);
     }
 
@@ -245,8 +248,24 @@ public final class KitHud {
     }
 
     private static void crest(GuiGraphicsExtractor gui, int x, UltState s) {
+        drawCrest(gui, x, 9, s);
+    }
+
+    /**
+     * The crest (26 x 30): the class's colour, the subclass's own division (Simon, 28 October 2026:
+     * every subclass its own crest, different but alike) and as its charge the subclass's kit weapon,
+     * or the class item before a subclass is chosen.
+     */
+    static void drawCrest(GuiGraphicsExtractor gui, int x, int y, UltState s) {
         String clazz = s == null || s.clazz == null ? "" : s.clazz;
-        ItemStack icon = switch (clazz) {
+        String sub = s == null || s.sub == null ? "" : s.sub;
+        com.mki.nightsiege.core.KitWeapons.Look look = sub.isEmpty() ? null : com.mki.nightsiege.core.KitWeapons.of(sub);
+        String name = switch (clazz) {
+            case "warrior", "archer", "guardian", "engineer", "summoner" -> look != null ? sub : clazz;
+            default -> "none";
+        };
+        blit(gui, CRESTS.computeIfAbsent(name, n -> tex("crest_" + n)), x, y, CREST_W, 30);
+        ItemStack icon = look != null ? CHARGES.computeIfAbsent(sub, k -> charge(look)) : switch (clazz) {
             case "warrior" -> new ItemStack(Items.IRON_SWORD);
             case "archer" -> new ItemStack(Items.BOW);
             case "guardian" -> new ItemStack(Items.SHIELD);
@@ -254,14 +273,23 @@ public final class KitHud {
             case "summoner" -> ModContent.STAFF != null ? new ItemStack(ModContent.STAFF) : ItemStack.EMPTY;
             default -> ItemStack.EMPTY;
         };
-        String name = switch (clazz) {
-            case "warrior", "archer", "guardian", "engineer", "summoner" -> clazz;
-            default -> "none";
-        };
-        blit(gui, CRESTS.computeIfAbsent(name, n -> tex("crest_" + n)), x, 9, CREST_W, 30);
         if (!icon.isEmpty()) {
-            gui.item(icon, x + 5, 9 + 6);
+            gui.item(icon, x + 5, y + 8);
         }
+    }
+
+    /** The subclass's kit weapon as the crest's charge. */
+    private static ItemStack charge(com.mki.nightsiege.core.KitWeapons.Look look) {
+        ItemStack stack = switch (look.kind()) {
+            case AXE -> new ItemStack(Items.IRON_AXE);
+            case BOW -> new ItemStack(Items.BOW);
+            case CROSSBOW -> new ItemStack(Items.CROSSBOW);
+            case STAFF -> ModContent.STAFF != null ? new ItemStack(ModContent.STAFF) : new ItemStack(Items.STICK);
+            default -> new ItemStack(Items.IRON_SWORD);
+        };
+        stack.set(net.minecraft.core.component.DataComponents.ITEM_MODEL,
+                Identifier.fromNamespaceAndPath("nightsiege", "kit/" + look.key()));
+        return stack;
     }
 
     /** One ability box: big (22, Q F X) or small (14, the choices). */

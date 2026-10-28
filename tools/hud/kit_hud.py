@@ -193,6 +193,15 @@ HEART = [
     "..oco..",
     "...o...",
 ]
+SWORD = [
+    ".....oo",
+    "....owo",
+    "...owo.",
+    "o.owo..",
+    ".oao...",
+    ".coo...",
+    "c..o...",
+]
 ARMOR = [
     "oo...oo",
     "owaoaao",
@@ -225,6 +234,7 @@ def icon(rows):
         id(HEART): [(232, 84, 72, 255), (196, 44, 36, 255), (130, 24, 20, 255)],
         id(ARMOR): [(206, 214, 222, 255), (150, 160, 172, 255), (96, 104, 116, 255)],
         id(FOOD): [(226, 160, 84, 255), (184, 110, 46, 255), (120, 68, 28, 255)],
+        id(SWORD): [(220, 226, 232, 255), (150, 160, 172, 255), (120, 84, 40, 255)],
         id(AIR): [(200, 232, 250, 255), (120, 184, 226, 255), (66, 120, 176, 255)],
     }
     a, b, c = palettes[id(rows)]
@@ -247,10 +257,25 @@ CLASS_COLORS = {
 }
 
 
-def crest(colors):
-    """A shield in the class colour with a gold rim (the class icon is drawn over its middle)."""
+# The subclasses of every class, in the order of their crest's division (Simon, 28 October 2026:
+# every subclass its own crest, different but alike: the class colour stays, the division changes).
+SUBCLASSES = {
+    "archer": ["swift", "heavy", "bolter", "trapper"],
+    "warrior": ["blademaster", "berserker", "axe", "paladin"],
+    "guardian": ["shieldfighter", "bulwark", "medic", "warden"],
+    "engineer": ["gunner", "electrician", "demolition", "alchemist"],
+    "summoner": ["tamer", "golemsmith", "necromancer", "soulcatcher"],
+}
+DIVISIONS = ["bend", "quarterly", "chief", "chevron"]
+
+
+def crest(colors, division="plain"):
+    """A shield in the class colour with a gold rim; the division tells the subclasses apart
+    (the kit weapon or the class item is drawn over its middle)."""
     w, h = 26, 30
     dark, light = colors
+    metal = GOLD
+    metal_d = BRONZE
     im = img(w, h)
     cx = (w - 1) / 2
     for y in range(h):
@@ -261,18 +286,102 @@ def crest(colors):
             half = 12.5 * (1 - t * t)
         for x in range(w):
             d = abs(x - cx)
-            if d <= half - 0.5:
-                edge = d > half - 2.5 or y < 2 or (y > 17 and d > half - 3.0)
-                inner = d > half - 3.5 or y < 3
-                if y == 0 or d > half - 1.5:
-                    c = OUTLINE
-                elif edge:
-                    c = GOLD if (x + y) % 3 else GOLD_L
-                elif inner:
-                    c = BRONZE_D
+            if d > half - 0.5:
+                continue
+            edge = d > half - 2.5 or y < 2 or (y > 17 and d > half - 3.0)
+            inner = d > half - 3.5 or y < 3
+            if y == 0 or d > half - 1.5:
+                c = OUTLINE
+            elif edge:
+                c = GOLD if (x + y) % 3 else GOLD_L
+            elif inner:
+                c = BRONZE_D
+            elif division == "bend":
+                # per bend: light above the diagonal, dark below, a gold bend between them
+                v = (x - 3) - (y - 3) * 0.75
+                c = metal if abs(v) < 1.2 else light if v > 0 else dark
+                if abs(v) < 1.2 and (x + y) % 4 == 0:
+                    c = GOLD_L
+            elif division == "quarterly":
+                c = light if (x < cx) == (y < 13) else dark
+                if abs(x - cx) < 0.6 or y == 13:
+                    c = metal_d
+            elif division == "chief":
+                if y <= 8:
+                    c = metal if y < 8 else metal_d
+                    if y in (4, 6) and x % 4 == (1 if y == 4 else 3):
+                        c = BRONZE_D   # small dots in the chief
                 else:
-                    c = light if (x < cx and y < 12) else dark
-                im.putpixel((x, y), c)
+                    c = dark
+            elif division == "chevron":
+                top = 9 + abs(x - cx) * 0.9   # an upward chevron
+                if top <= y < top + 3:
+                    c = GOLD_L if y == int(top) else metal
+                elif y < top:
+                    c = light
+                else:
+                    c = dark
+            else:
+                c = light if (x < cx and y < 12) else dark
+            im.putpixel((x, y), c)
+    return im
+
+
+def inventory():
+    """The inventory (E) while the kit is worn: dark iron, gold trim, the slots of the vanilla
+    places; where the 2x2 crafting grid was, a plate for the crest and the kit's values."""
+    W, H2 = 176, 166
+    im = img(W, H2)
+    plate(im, 0, 0, W, H2, 7)
+    for x in range(W):
+        for y, c in ((0, OUTLINE), (1, BRONZE), (2, GOLD), (3, BRONZE_D)):
+            im.putpixel((x, y), c)
+            im.putpixel((x, H2 - 1 - y), c)
+    for y in range(H2):
+        for x, c in ((0, OUTLINE), (1, BRONZE), (2, GOLD), (3, BRONZE_D)):
+            im.putpixel((x, y), c)
+            im.putpixel((W - 1 - x, y), c)
+    for (x, y) in [(0, 0), (1, 0), (0, 1), (W - 1, 0), (W - 2, 0), (W - 1, 1), (0, H2 - 1), (1, H2 - 1),
+                   (0, H2 - 2), (W - 1, H2 - 1), (W - 2, H2 - 1), (W - 1, H2 - 2)]:
+        im.putpixel((x, y), CLEAR)
+    for (x, y) in [(4, 4), (W - 6, 4), (4, H2 - 6), (W - 6, H2 - 6)]:
+        rivet(im, x, y)
+    sl = slot(18)
+    off = slot(18, round_=True)
+    for i in range(4):
+        im.alpha_composite(sl, (7, 7 + i * 18))
+    # the window of the player figure
+    for y in range(7, 79):
+        for x in range(25, 76):
+            if x in (25, 75) or y in (7, 78):
+                c = OUTLINE
+            elif x in (26, 74) or y in (8, 77):
+                c = BRONZE
+            else:
+                c = (14, 12, 11, 255) if (x + y) % 9 else (18, 15, 13, 255)
+            im.putpixel((x, y), c)
+    im.alpha_composite(off, (76, 61))
+    # the plate on the right (crest, class, values)
+    for y in range(7, 79):
+        for x in range(96, 170):
+            if x in (96, 169) or y in (7, 78):
+                c = OUTLINE
+            elif x in (97, 168) or y in (8, 77):
+                c = BRONZE_D
+            else:
+                c = (24, 20, 17, 255) if (x * 3 + y) % 11 else (28, 24, 20, 255)
+            im.putpixel((x, y), c)
+    for cx_ in (110, 133, 156):
+        scroll(im, cx_, 9)
+    # a gold rule between the upper half and the inventory
+    for x in range(7, W - 7):
+        im.putpixel((x, 80), BRONZE_D)
+        im.putpixel((x, 81), GOLD)
+    for r in range(3):
+        for c in range(9):
+            im.alpha_composite(sl, (7 + c * 18, 83 + r * 18))
+    for c in range(9):
+        im.alpha_composite(sl, (7 + c * 18, 141))
     return im
 
 
@@ -299,6 +408,10 @@ def main():
     }
     for name, colors in CLASS_COLORS.items():
         parts["crest_" + name] = crest(colors)
+        for sub, division in zip(SUBCLASSES.get(name, []), DIVISIONS):
+            parts["crest_" + sub] = crest(colors, division)
+    parts["inventory"] = inventory()
+    parts["icon_damage"] = icon(SWORD)
     for name, im in parts.items():
         im.save(os.path.join(OUT, name + ".png"))
     preview(parts)
@@ -342,6 +455,14 @@ def preview(p):
     bg.alpha_composite(p["slot_offhand"], (x0 + hot_x + 4 * 16, y0 + 24))
     os.makedirs(os.path.join(ROOT, "build"), exist_ok=True)
     bg.resize((W * 4, Hs * 4), Image.NEAREST).save(os.path.join(ROOT, "build", "kit_hud_preview.png"))
+    sheet = img(5 * 32 + 4, 5 * 36 + 4, (40, 40, 40, 255))
+    for row, (name, subs) in enumerate(SUBCLASSES.items()):
+        for col, n in enumerate([name] + subs):
+            sheet.alpha_composite(p["crest_" + n], (4 + col * 32, 4 + row * 36))
+    sheet.resize((sheet.width * 4, sheet.height * 4), Image.NEAREST).save(os.path.join(ROOT, "build", "kit_crests.png"))
+    inv = img(176 + 8, 166 + 8, (40, 40, 40, 255))
+    inv.alpha_composite(p["inventory"], (4, 4))
+    inv.resize((inv.width * 3, inv.height * 3), Image.NEAREST).save(os.path.join(ROOT, "build", "kit_inventory.png"))
 
 
 if __name__ == "__main__":

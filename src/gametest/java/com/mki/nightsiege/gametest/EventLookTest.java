@@ -5306,6 +5306,7 @@ public class EventLookTest implements FabricClientGameTest {
             own.switchTo(com.mki.nightsiege.core.SkillClass.WARRIOR);
             own.levels.clear();
             own.levels.put("whirlwind", 1);
+            own.levels.put("w_combo", 1);   // the blademaster: his own crest
             manager.kits().equip(player, 1);
         });
         game.getServer().runCommand("say Kit-HUD: so sieht der Chat neben der Leiste aus");
@@ -5319,6 +5320,19 @@ public class EventLookTest implements FabricClientGameTest {
                     + " ult=" + (st != null && st.has) + " slots=" + (st == null ? -1 : st.slots.size()));
         });
         context.takeScreenshot("kithud_warrior");
+        // The kit inventory (variant B): crest, values and abilities where the crafting grid was.
+        context.runOnClient(client -> client.gui.setScreen(new net.minecraft.client.gui.screens.inventory.InventoryScreen(client.player)));
+        context.waitTicks(10);
+        boolean[] hidden = {false};
+        context.runOnClient(client -> hidden[0] = com.mki.nightsiege.core.KitView.hideCrafting
+                && !client.player.inventoryMenu.getSlot(1).isActive());
+        System.out.println("[Night Siege test] kit inventory: crafting hidden=" + hidden[0]);
+        context.takeScreenshot("kithud_inventory");
+        closeScreen(context);
+        context.waitTicks(5);
+        if (!hidden[0]) {
+            throw new AssertionError("kit inventory: the crafting grid is still there");
+        }
         // Many abilities: the warden with his ult, F and three healing abilities.
         onServer(context, (player, manager) -> {
             com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());

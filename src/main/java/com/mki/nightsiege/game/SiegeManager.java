@@ -3409,6 +3409,7 @@ public final class SiegeManager {
             state.keys = (active && participants.contains(player.getUUID())) || ClassGear.holds(player, own, skillTree);
             state.kitsOn = config.nightKits;
             state.clazz = own.hasClass() ? own.clazz().name().toLowerCase(java.util.Locale.ROOT) : "";
+            state.sub = own.hasClass() ? skillTree.subclassOf(own) : "";
             String second = SecondUlts.gainFor(own.clazz());
             if (second != null && own.hasClass() && own.gainStage(own.clazz(), second) > 0) {
                 state.has2 = true;

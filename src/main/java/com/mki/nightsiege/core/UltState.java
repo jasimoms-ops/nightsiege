@@ -34,6 +34,8 @@ public class UltState {
     public boolean kitsOn;
     /** The class in lower case ("warrior", "archer" ...) for the crest of the kit HUD; empty without one. */
     public String clazz = "";
+    /** The subclass ("blademaster" ...) for its own crest; empty before one is chosen. */
+    public String sub = "";
 
     /** Fähigkeit 2 (F): shown when it does something for this class (remote, staff, healing). */
     public boolean hasAb2;
