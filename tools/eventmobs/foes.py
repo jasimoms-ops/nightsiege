@@ -39,6 +39,13 @@ PALETTES = {
     'foe_grappler': dict(skin=stops('262428', '4a474e', '76727c', 'a09ca8'), cloth=stops('120c08', '2a1e14', '46321e', '644a2c'),
                          pants=stops('0e0a08', '201812', '34281c', '4a3a28'), eye=hexc('9cffd0'), glow=hexc('3aa878'),
                          detail=hexc('a8824a'), **NEUTRAL),
+    'foe_breaker': dict(skin=stops('262428', '4a474e', '76727c', 'a09ca8'), cloth=stops('1a1410', '3a2c22', '5e4834', '846648'),
+                        pants=stops('100c0a', '241c16', '3a2e24', '524234'), eye=hexc('ff7a2a'), glow=hexc('c8501a'),
+                        detail=hexc('8a929c'), **NEUTRAL),
+    'foe_executioner': dict(skin=stops('0e0c0e', '262224', '403a3c', '5e5658'), cloth=stops('060506', '141214', '242024', '363036'),
+                            pants=stops('060506', '121012', '201c20', '2e282e'), eye=hexc('ff2c2c'), glow=hexc('9c1018'),
+                            detail=hexc('5e0a0e'), bone=stops('0c0b0e', '2a2530', '575064', '8c8498'),
+                            creeper=NEUTRAL['creeper'], spider=NEUTRAL['spider']),
     'foe_treasure_raider': dict(skin=stops('262428', '4a474e', '76727c', 'a09ca8'), cloth=stops('3a2606', '7a5414', 'b8862a', 'e8c050'),
                                 pants=stops('1a1206', '342410', '503a1c', '6c5028'), eye=hexc('fff0a0'), glow=hexc('e8b828'),
                                 detail=hexc('ffe28a'), **NEUTRAL),
@@ -52,6 +59,9 @@ FOES = {
     'foe_standard_bearer': [('illager/pillager.png', 'pillager', 'illager')],
     'foe_grappler': [('illager/pillager.png', 'pillager', 'illager')],
     'foe_treasure_raider': [('illager/pillager.png', 'pillager', 'illager')],
+    # the tank breakers of the content update (Simon 29.10.: "Diener mit Hammer", "Henker")
+    'foe_breaker': [('illager/vindicator.png', 'vindicator', 'illager')],
+    'foe_executioner': [('skeleton/wither_skeleton.png', 'wither_skeleton', 'skeleton')],
 }
 FAMILIES = {k: (v[0][2],) for k, v in FOES.items()}
 GOLD = hexc('d8a62a')
@@ -109,13 +119,20 @@ def coin_gold(p):
     return c, glow
 
 
+def black_hood(p):
+    c = ramp([(0, hexc('060506')), (0.5, hexc('161416')), (1, hexc('2a262a'))], 0.3 + 0.5 * p.rng.random())
+    if p.face not in ('top', 'bottom') and p.j >= p.fh - 1 and p.rng.random() < 0.3:
+        return None, None
+    return mul(c, materials.FACE_LIGHT.get(p.face, 1.0)), None
+
+
 def dirt(p):
     c = ramp([(0, hexc('2e2014')), (1, hexc('5e4228'))], p.rng.random())
     return c, None
 
 
 for _name, _fn in (('linen', linen), ('wax', wax), ('flame', flame), ('lamp', lamp), ('leather', leather),
-                   ('plate', plate), ('crimson', crimson), ('rope', rope), ('coin_gold', coin_gold), ('dirt', dirt)):
+                   ('plate', plate), ('crimson', crimson), ('rope', rope), ('coin_gold', coin_gold), ('dirt', dirt), ('black_hood', black_hood)):
     materials.MATERIALS[_name] = _fn
 
 
@@ -209,7 +226,33 @@ def treasure_raider(f):
     return out
 
 
-DESIGNS = {'foe_revenant': revenant, 'foe_tunneler': tunneler, 'foe_iron_knight': iron_knight,
+def breaker(f):
+    """A smith's hammer on the back, a cracked breastplate, iron pauldrons."""
+    if f != 'illager':
+        return []
+    out = [block('body', (-4.6, -0.2, -3.6), (9, 9, 1), 'plate', key='breast')]
+    out += [block('body', (-1.0, 2.0, -3.9), (1, 4, 1), 'dirt', key='crack1'), block('body', (0.0, 5.0, -3.9), (2, 1, 1), 'dirt', key='crack2')]
+    out += sym([block('body', (-6.8, -1.2, -3.4), (4, 3, 7), 'iron', key='pad')])
+    out.append(block('body', (-0.5, -6.0, 3.4), (1, 16, 1), 'pole', key='haft'))
+    out.append(block('body', (-4.0, -10.0, 2.0), (8, 5, 4), 'iron', key='head'))
+    return out
+
+
+def executioner(f):
+    """A black hood, an executioner's axe on the back, a chain noose over the shoulder."""
+    if f != 'skeleton':
+        return []
+    out = [block('head', (-4.6, -8.6, -4.6), (9, 1, 9), 'black_hood', key='hood_top')]
+    out += sym([block('head', (-4.6, -8.0, -4.6), (1, 7, 9), 'black_hood', key='hood_side')])
+    out.append(block('head', (-4.6, -8.0, 3.6), (9, 8, 1), 'black_hood', key='hood_back'))
+    out.append(block('head', (-4.6, -8.0, -4.6), (9, 3, 1), 'black_hood', key='hood_brow'))
+    out.append(block('body', (-0.5, -8.0, 2.6), (1, 20, 1), 'pole', key='haft'))
+    out.append(block('body', (0.5, -9.0, 2.4), (6, 7, 1), 'iron', key='blade'))
+    out += ring('body', (0.5, 2.0, 0.0), 4.0, 10, (1, 1, 1), 'iron', plane='xy', name='noose')
+    return out
+
+
+DESIGNS = {'foe_breaker': breaker, 'foe_executioner': executioner, 'foe_revenant': revenant, 'foe_tunneler': tunneler, 'foe_iron_knight': iron_knight,
            'foe_standard_bearer': standard_bearer, 'foe_grappler': grappler, 'foe_treasure_raider': treasure_raider}
 
 
@@ -231,6 +274,10 @@ def details(tex, family, ev, seed):
             p.put(x, y + 1, hexc('c0101a'), k=0.9)
     elif ev == 'foe_grappler' and family == 'illager':
         p.lines(['body', 'robe'], sides, 1, 5, hexc('2a1e14'), k=0.8)
+    elif ev == 'foe_breaker' and family == 'illager':
+        p.edge(['body', 'robe'], sides, -1, hexc('8a929c'))
+    elif ev == 'foe_executioner':
+        p.lines(['body', 'arm', 'leg'], sides, 1, 4, hexc('5e0a0e'), k=0.8)
     elif ev == 'foe_treasure_raider' and family == 'illager':
         p.spots(['body', 'robe', 'arm'], sides, 4, hexc('ffe28a'), glow=hexc('c89820'), k=0.9, size=1)
     p.eyes()

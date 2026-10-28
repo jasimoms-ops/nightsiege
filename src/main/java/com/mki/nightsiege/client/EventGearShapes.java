@@ -41,6 +41,8 @@ public final class EventGearShapes {
         foe_standard_bearer();
         foe_grappler();
         foe_treasure_raider();
+        foe_breaker();
+        foe_executioner();
         champion_stone_crypt();
         champion_desert_crypt();
         champion_illager_keep();
@@ -987,6 +989,38 @@ public final class EventGearShapes {
                 new Box("body", -0.500f, -1.000f, -0.500f, 1, 1, 1, 52, 16, false, 0.076f, 3.000f, 3.503f, -0.449f, -0.000f, -0.034f))));
     }
 
+    private static void foe_breaker() {
+        SETS.put("foe_breaker/illager", new Set(64, 32, List.of(
+                new Box("body", -4.600f, -0.200f, -3.600f, 9, 9, 1, 4, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", -1.000f, 2.000f, -3.900f, 1, 4, 1, 24, 17, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", 0.000f, 5.000f, -3.900f, 2, 1, 1, 28, 17, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", -6.800f, -1.200f, -3.400f, 4, 3, 7, 24, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", 2.800f, -1.200f, -3.400f, 4, 3, 7, 24, 0, true, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", -0.500f, -6.000f, 3.400f, 1, 16, 1, 0, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", -4.000f, -10.000f, 2.000f, 8, 5, 4, 0, 17, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f))));
+    }
+
+    private static void foe_executioner() {
+        SETS.put("foe_executioner/skeleton", new Set(64, 32, List.of(
+                new Box("head", -4.600f, -8.600f, -4.600f, 9, 1, 9, 24, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -4.600f, -8.000f, -4.600f, 1, 7, 9, 4, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", 3.600f, -8.000f, -4.600f, 1, 7, 9, 4, 0, true, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -4.600f, -8.000f, 3.600f, 9, 8, 1, 0, 21, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -4.600f, -8.000f, -4.600f, 9, 3, 1, 34, 21, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", -0.500f, -8.000f, 2.600f, 1, 20, 1, 0, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", 0.500f, -9.000f, 2.400f, 6, 7, 1, 20, 21, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", -0.500f, -0.500f, -0.500f, 1, 1, 1, 54, 21, false, 4.500f, 2.000f, 0.000f, 0.000f, 0.000f, 1.571f),
+                new Box("body", -0.500f, -0.500f, -0.500f, 1, 1, 1, 54, 21, false, 3.736f, 4.351f, 0.000f, 0.000f, 0.000f, 2.199f),
+                new Box("body", -0.500f, -0.500f, -0.500f, 1, 1, 1, 54, 21, false, 1.736f, 5.804f, 0.000f, 0.000f, 0.000f, 2.827f),
+                new Box("body", -0.500f, -0.500f, -0.500f, 1, 1, 1, 54, 21, false, -0.736f, 5.804f, 0.000f, 0.000f, 0.000f, 3.456f),
+                new Box("body", -0.500f, -0.500f, -0.500f, 1, 1, 1, 54, 21, false, -2.736f, 4.351f, 0.000f, 0.000f, 0.000f, 4.084f),
+                new Box("body", -0.500f, -0.500f, -0.500f, 1, 1, 1, 54, 21, false, -3.500f, 2.000f, 0.000f, 0.000f, 0.000f, 4.712f),
+                new Box("body", -0.500f, -0.500f, -0.500f, 1, 1, 1, 54, 21, false, -2.736f, -0.351f, 0.000f, 0.000f, 0.000f, 5.341f),
+                new Box("body", -0.500f, -0.500f, -0.500f, 1, 1, 1, 54, 21, false, -0.736f, -1.804f, 0.000f, 0.000f, 0.000f, 5.969f),
+                new Box("body", -0.500f, -0.500f, -0.500f, 1, 1, 1, 54, 21, false, 1.736f, -1.804f, 0.000f, 0.000f, 0.000f, 6.597f),
+                new Box("body", -0.500f, -0.500f, -0.500f, 1, 1, 1, 54, 21, false, 3.736f, -0.351f, 0.000f, 0.000f, 0.000f, 7.226f))));
+    }
+
     private static void champion_stone_crypt() {
         SETS.put("champion_stone_crypt/skeleton", new Set(64, 32, List.of(
                 new Box("body", -4.400f, -0.200f, -2.400f, 9, 10, 5, 0, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
@@ -1137,6 +1171,8 @@ public final class EventGearShapes {
             Map.entry("foe_standard_bearer", List.of("illager/pillager.png=pillager")),
             Map.entry("foe_grappler", List.of("illager/pillager.png=pillager")),
             Map.entry("foe_treasure_raider", List.of("illager/pillager.png=pillager")),
+            Map.entry("foe_breaker", List.of("illager/vindicator.png=vindicator")),
+            Map.entry("foe_executioner", List.of("skeleton/wither_skeleton.png=wither_skeleton")),
             Map.entry("champion_stone_crypt", List.of("skeleton/wither_skeleton.png=wither_skeleton")),
             Map.entry("champion_desert_crypt", List.of("zombie/husk.png=husk")),
             Map.entry("champion_illager_keep", List.of("illager/vindicator.png=vindicator")),
@@ -1168,6 +1204,8 @@ public final class EventGearShapes {
             "foe_standard_bearer/pillager",
             "foe_grappler/pillager",
             "foe_treasure_raider/pillager",
+            "foe_breaker/vindicator",
+            "foe_executioner/wither_skeleton",
             "champion_stone_crypt/wither_skeleton",
             "champion_desert_crypt/husk",
             "champion_illager_keep/vindicator",
