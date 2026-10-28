@@ -35,6 +35,12 @@ public final class EventGearShapes {
         boss_spider_queen();
         boss_bone_lich();
         boss_warlord();
+        foe_revenant();
+        foe_tunneler();
+        foe_iron_knight();
+        foe_standard_bearer();
+        foe_grappler();
+        foe_treasure_raider();
     }
 
     private static void blood_moon() {
@@ -893,6 +899,79 @@ public final class EventGearShapes {
                 new Box("body", -2.000f, 2.000f, 3.000f, 4, 2, 2, 50, 31, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f))));
     }
 
+    private static void foe_revenant() {
+        SETS.put("foe_revenant/humanoid", new Set(64, 32, List.of(
+                new Box("head", -4.600f, -8.600f, -4.600f, 9, 1, 9, 0, 15, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -4.600f, -8.000f, -4.600f, 1, 6, 9, 0, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", 3.600f, -8.000f, -4.600f, 1, 6, 9, 0, 0, true, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -4.600f, -8.000f, 3.600f, 9, 7, 1, 36, 15, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", -4.400f, 0.000f, 2.100f, 9, 13, 1, 20, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", 1.000f, -11.600f, -1.000f, 2, 3, 2, 16, 25, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -0.500f, -2.000f, -0.500f, 1, 2, 1, 24, 25, false, 2.000f, -11.600f, 0.000f, 0.000f, -0.000f, 0.000f),
+                new Box("right_arm", -3.200f, 8.000f, -2.200f, 4, 2, 4, 0, 25, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("left_arm", -0.800f, 8.000f, -2.200f, 4, 2, 4, 0, 25, true, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f))));
+    }
+
+    private static void foe_tunneler() {
+        SETS.put("foe_tunneler/humanoid", new Set(64, 32, List.of(
+                new Box("head", -4.600f, -9.000f, -4.600f, 9, 3, 9, 0, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -5.000f, -6.400f, -5.000f, 10, 1, 10, 0, 12, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -1.500f, -8.600f, -5.600f, 3, 2, 1, 26, 23, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -2.000f, -9.000f, -5.200f, 4, 3, 1, 16, 23, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("right_arm", -3.200f, 6.000f, -2.200f, 4, 4, 4, 40, 12, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("left_arm", -0.800f, 6.000f, -2.200f, 4, 4, 4, 40, 12, true, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", -3.000f, 2.000f, 2.100f, 6, 6, 2, 0, 23, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f))));
+    }
+
+    private static void foe_iron_knight() {
+        SETS.put("foe_iron_knight/humanoid", new Set(64, 32, List.of(
+                new Box("head", -4.700f, -8.700f, -4.700f, 9, 9, 9, 0, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -0.500f, -11.700f, -3.000f, 1, 3, 7, 0, 18, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", -7.000f, -1.400f, -3.000f, 4, 3, 6, 16, 18, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", 3.000f, -1.400f, -3.000f, 4, 3, 6, 16, 18, true, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", -3.000f, 2.000f, -2.300f, 6, 11, 1, 36, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("right_arm", -3.400f, 4.000f, -2.400f, 5, 4, 5, 36, 18, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("left_arm", -1.600f, 4.000f, -2.400f, 5, 4, 5, 36, 18, true, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f))));
+    }
+
+    private static void foe_standard_bearer() {
+        SETS.put("foe_standard_bearer/illager", new Set(64, 64, List.of(
+                new Box("body", -0.500f, -26.000f, 4.200f, 1, 36, 1, 0, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", -5.000f, -25.000f, 4.200f, 10, 1, 1, 0, 37, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", -4.500f, -24.000f, 4.600f, 9, 16, 1, 4, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", -1.000f, -27.500f, 3.700f, 2, 2, 2, 24, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", -2.000f, 2.000f, 3.000f, 4, 2, 2, 32, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f))));
+    }
+
+    private static void foe_grappler() {
+        SETS.put("foe_grappler/illager", new Set(64, 32, List.of(
+                new Box("body", -1.000f, -0.500f, -0.500f, 2, 1, 1, 14, 0, false, 3.600f, 4.000f, 0.000f, 0.000f, 0.000f, 1.571f),
+                new Box("body", -1.000f, -0.500f, -0.500f, 2, 1, 1, 14, 0, false, 2.721f, 6.704f, 0.000f, 0.000f, 0.000f, 2.199f),
+                new Box("body", -1.000f, -0.500f, -0.500f, 2, 1, 1, 14, 0, false, 0.421f, 8.375f, 0.000f, 0.000f, 0.000f, 2.827f),
+                new Box("body", -1.000f, -0.500f, -0.500f, 2, 1, 1, 14, 0, false, -2.421f, 8.375f, 0.000f, 0.000f, 0.000f, 3.456f),
+                new Box("body", -1.000f, -0.500f, -0.500f, 2, 1, 1, 14, 0, false, -4.721f, 6.704f, 0.000f, 0.000f, 0.000f, 4.084f),
+                new Box("body", -1.000f, -0.500f, -0.500f, 2, 1, 1, 14, 0, false, -5.600f, 4.000f, 0.000f, 0.000f, 0.000f, 4.712f),
+                new Box("body", -1.000f, -0.500f, -0.500f, 2, 1, 1, 14, 0, false, -4.721f, 1.296f, 0.000f, 0.000f, 0.000f, 5.341f),
+                new Box("body", -1.000f, -0.500f, -0.500f, 2, 1, 1, 14, 0, false, -2.421f, -0.375f, 0.000f, 0.000f, 0.000f, 5.969f),
+                new Box("body", -1.000f, -0.500f, -0.500f, 2, 1, 1, 14, 0, false, 0.421f, -0.375f, 0.000f, 0.000f, 0.000f, 6.597f),
+                new Box("body", -1.000f, -0.500f, -0.500f, 2, 1, 1, 14, 0, false, 2.721f, 1.296f, 0.000f, 0.000f, 0.000f, 7.226f),
+                new Box("body", -4.600f, 0.000f, -3.300f, 2, 12, 1, 0, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", -0.500f, -3.000f, -0.500f, 1, 3, 1, 6, 0, false, 3.500f, 11.000f, -3.200f, 0.000f, -0.000f, 0.300f),
+                new Box("body", -0.500f, -2.000f, -0.500f, 1, 2, 1, 10, 0, false, 4.209f, 8.707f, -3.200f, 0.000f, -0.000f, -0.600f))));
+    }
+
+    private static void foe_treasure_raider() {
+        SETS.put("foe_treasure_raider/illager", new Set(64, 32, List.of(
+                new Box("head", -4.600f, -10.600f, -4.600f, 9, 2, 9, 20, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -4.600f, -9.600f, -4.600f, 1, 7, 9, 0, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", 3.600f, -9.600f, -4.600f, 1, 7, 9, 0, 0, true, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -4.600f, -9.600f, 3.600f, 9, 9, 1, 0, 16, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", -3.500f, 3.000f, 3.200f, 7, 7, 3, 20, 16, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", -1.000f, -2.000f, -1.000f, 2, 2, 2, 40, 16, false, 0.000f, 3.000f, 4.500f, 0.000f, -0.000f, 0.000f),
+                new Box("body", -0.500f, -1.000f, -0.500f, 1, 1, 1, 48, 16, false, -0.902f, 3.000f, 4.932f, 0.195f, -0.000f, 0.406f),
+                new Box("body", -0.500f, -1.000f, -0.500f, 1, 1, 1, 52, 16, false, 0.076f, 3.000f, 3.503f, -0.449f, -0.000f, -0.034f))));
+    }
+
     /** The textures each event changes: vanilla path (under textures/entity/) = event file name. */
     public static final Map<String, List<String>> TEXTURES = Map.ofEntries(
             Map.entry("blood_moon", List.of("zombie/zombie.png=zombie", "zombie/zombie_baby.png=zombie_baby", "zombie/husk.png=husk", "zombie/husk_baby.png=husk_baby", "zombie/drowned.png=drowned", "zombie/drowned_baby.png=drowned_baby", "zombie/drowned_outer_layer.png=drowned_outer_layer", "zombie/drowned_outer_layer_baby.png=drowned_outer_layer_baby", "skeleton/skeleton.png=skeleton", "skeleton/stray.png=stray", "skeleton/stray_overlay.png=stray_overlay", "skeleton/bogged.png=bogged", "skeleton/bogged_overlay.png=bogged_overlay", "skeleton/parched.png=parched", "skeleton/wither_skeleton.png=wither_skeleton", "creeper/creeper.png=creeper", "spider/spider.png=spider", "spider/cave_spider.png=cave_spider", "illager/pillager.png=pillager", "illager/vindicator.png=vindicator", "illager/evoker.png=evoker", "illager/illusioner.png=illusioner", "witch/witch.png=witch", "illager/ravager.png=ravager", "breeze/breeze.png=breeze", "breeze/breeze_wind.png=breeze_wind", "camel/camel_husk.png=camel_husk", "spider/spider_eyes.png=spider_eyes")),
@@ -904,7 +983,13 @@ public final class EventGearShapes {
             Map.entry("boss_grave_king", List.of("zombie/zombie.png=zombie")),
             Map.entry("boss_spider_queen", List.of("spider/spider.png=spider", "spider/spider_eyes.png=spider_eyes")),
             Map.entry("boss_bone_lich", List.of("skeleton/skeleton.png=skeleton")),
-            Map.entry("boss_warlord", List.of("illager/vindicator.png=vindicator", "illager/ravager.png=ravager")));
+            Map.entry("boss_warlord", List.of("illager/vindicator.png=vindicator", "illager/ravager.png=ravager")),
+            Map.entry("foe_revenant", List.of("zombie/zombie.png=zombie")),
+            Map.entry("foe_tunneler", List.of("zombie/zombie.png=zombie")),
+            Map.entry("foe_iron_knight", List.of("zombie/zombie.png=zombie")),
+            Map.entry("foe_standard_bearer", List.of("illager/pillager.png=pillager")),
+            Map.entry("foe_grappler", List.of("illager/pillager.png=pillager")),
+            Map.entry("foe_treasure_raider", List.of("illager/pillager.png=pillager")));
 
     /** Event textures with a glow map ("<event>/<name>", file <name>_glow.png). */
     public static final java.util.Set<String> GLOWS = java.util.Set.of(
@@ -917,5 +1002,11 @@ public final class EventGearShapes {
             "boss_grave_king/zombie",
             "boss_spider_queen/spider",
             "boss_bone_lich/skeleton",
-            "boss_warlord/vindicator", "boss_warlord/ravager");
+            "boss_warlord/vindicator", "boss_warlord/ravager",
+            "foe_revenant/zombie",
+            "foe_tunneler/zombie",
+            "foe_iron_knight/zombie",
+            "foe_standard_bearer/pillager",
+            "foe_grappler/pillager",
+            "foe_treasure_raider/pillager");
 }

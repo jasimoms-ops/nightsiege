@@ -513,7 +513,9 @@ public final class BossService {
         }
         StringBuilder json = new StringBuilder("{\"looks\":{");
         boolean first = true;
-        for (Map.Entry<Integer, String> e : looks.entrySet()) {
+        Map<Integer, String> all = new HashMap<>(FOE_LOOKS);
+        all.putAll(looks);
+        for (Map.Entry<Integer, String> e : all.entrySet()) {
             if (!first) {
                 json.append(',');
             }
@@ -522,6 +524,28 @@ public final class BossService {
         }
         json.append("}}");
         ServerPlayNetworking.send(player, new CoreNetworking.ScreenPayload("bosses", json.toString()));
+    }
+
+    /** The update-1 foes' own looks (design update, 29 October 2026): network id → folder ("foe_revenant"). */
+    private static final Map<Integer, String> FOE_LOOKS = new HashMap<>();
+    private static BossService last;
+
+    {
+        last = this;
+    }
+
+    /** Marks a foe as wearing its own look on the clients; drops the looks of foes that are gone. */
+    public static void foeLook(net.minecraft.world.entity.Mob mob, String folder) {
+        if (mob.level() instanceof ServerLevel level) {
+            FOE_LOOKS.keySet().removeIf(id -> {
+                net.minecraft.world.entity.Entity e = level.getEntity(id);
+                return e == null || !e.isAlive();
+            });
+        }
+        FOE_LOOKS.put(mob.getId(), folder);
+        if (last != null) {
+            last.syncAll(mob.level().getServer());
+        }
     }
 
     void syncAll(MinecraftServer server) {

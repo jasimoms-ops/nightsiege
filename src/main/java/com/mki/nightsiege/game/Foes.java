@@ -308,6 +308,7 @@ public final class Foes {
         mob.addTag(role.tag());
         ROLES.put(mob.getUUID(), role);
         mob.setCustomName(Component.translatable(role.translationKey()));
+        BossService.foeLook(mob, "foe_" + role.id());   // its own look (design update, 29 October 2026)
         if (mob instanceof Zombie zombie) {
             zombie.setBaby(false);
         }

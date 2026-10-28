@@ -157,6 +157,13 @@ if __name__ == '__main__':
     all_textures.update(b_textures)
     all_glows.update(b_glows)
     print('built', ', '.join(b_shapes))
+    # the update-1 foes' own looks (design update, 29 October 2026)
+    import foes
+    f_shapes, f_textures, f_glows = foes.build(van, OUT, atlas)
+    all_shapes.update(f_shapes)
+    all_textures.update(f_textures)
+    all_glows.update(f_glows)
+    print('built', ', '.join(f_shapes))
     java(all_shapes, all_textures, all_glows)
     if prev:
         import preview

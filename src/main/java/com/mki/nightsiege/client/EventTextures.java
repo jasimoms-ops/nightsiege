@@ -49,7 +49,7 @@ public final class EventTextures {
         }
         for (Map.Entry<String, java.util.List<String>> e : EventGearShapes.TEXTURES.entrySet()) {
             String folder = e.getKey();
-            if (!folder.startsWith("boss_")) {
+            if (!folder.startsWith("boss_") && !folder.startsWith("foe_") && !folder.startsWith("champion_")) {
                 continue;
             }
             Map<Identifier, Identifier> map = new HashMap<>();
@@ -68,7 +68,8 @@ public final class EventTextures {
 
     /** The monster drawn next wears this boss look ("grave_king" …), or none (null). */
     public static void renderingBoss(String look) {
-        String folder = look == null ? null : "boss_" + (look.equals("warlord_rider") ? "warlord" : look);
+        String folder = look == null ? null : look.startsWith("foe_") || look.startsWith("champion_") ? look
+                : "boss_" + (look.equals("warlord_rider") ? "warlord" : look);
         bossFolder = folder != null && BOSS_SWAPS.containsKey(folder) ? folder : null;
     }
 
