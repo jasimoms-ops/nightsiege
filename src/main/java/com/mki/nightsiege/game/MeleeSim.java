@@ -282,7 +282,9 @@ public final class MeleeSim {
                 Run run = queue.get(index);
                 // On the bench only the engineer needs the time to set up his traps.
                 m.config().testPrepSeconds = bench && !run.sub()[0].equals("ENGINEER") ? 3 : PREP_SECONDS;
-                PlayerSkills skills = build(m.skillTree(), SkillClass.valueOf(run.sub()[0]), run.sub()[1]);
+                PlayerSkills skills = budget
+                        ? buildBudget(m.skillTree(), SkillClass.valueOf(run.sub()[0]), run.sub()[1], TestKit.pointsBefore(run.level(), m.config()))
+                        : build(m.skillTree(), SkillClass.valueOf(run.sub()[0]), run.sub()[1]);
                 m.save().skills.put(player.getUUID().toString(), skills);
                 clearMonsters(level);
                 clearTraps(level, m, player);
@@ -1026,6 +1028,51 @@ public final class MeleeSim {
     // the skill tree of one subclass, fully learned
     // ------------------------------------------------------------------
 
+    /**
+     * Only the points one has by the level (balancing update 28.10.: "the classes are a little too weak on
+     * the low levels" – a full tree hides that): set by "punkte" in the sim arguments.
+     */
+    public static boolean budget;
+
+    /**
+     * The tree with only {@code points} to spend: the full tree's levels are the plan, learned level by
+     * level across the abilities in the tree's order (like the playtest's replay).
+     */
+    public static PlayerSkills buildBudget(SkillTree tree, SkillClass clazz, String subclassNode, int points) {
+        PlayerSkills full = build(tree, clazz, subclassNode);
+        PlayerSkills p = new PlayerSkills();
+        p.chosenClass = clazz.name();
+        p.award(Math.max(0, points));
+        java.util.LinkedHashMap<String, Integer> planned = new java.util.LinkedHashMap<>();
+        int top = 0;
+        // The subclass node first, so the way's nodes behind it can open.
+        SkillNode sub = tree.get(subclassNode);
+        for (SkillNode n : tree.ofClass(clazz)) {
+            int lv = full.levelOf(n.id());
+            if (lv > 0) {
+                planned.put(n.id(), lv);
+                top = Math.max(top, lv);
+            }
+        }
+        for (int cap = 1; cap <= top; cap++) {
+            boolean progress = true;
+            while (progress) {
+                progress = false;
+                for (java.util.Map.Entry<String, Integer> e : planned.entrySet()) {
+                    String id = e.getKey();
+                    int want = Math.min(cap, e.getValue());
+                    while (p.levelOf(id) < want && tree.blockedReason(id, p) == null && tree.unlock(id, p)) {
+                        progress = true;
+                    }
+                }
+                if (sub != null && p.levelOf(sub.id()) == 0 && tree.blockedReason(sub.id(), p) == null) {
+                    progress |= tree.unlock(sub.id(), p);
+                }
+            }
+        }
+        return p;
+    }
+
     /** A full skill tree for one subclass: its way, its subclass node, every other node that can be had. */
     public static PlayerSkills build(SkillTree tree, SkillClass clazz, String subclassNode) {
         PlayerSkills p = new PlayerSkills();
@@ -1156,7 +1203,8 @@ public final class MeleeSim {
     /** The table: one row per subclass, one column per level. */
     public static List<String> report() {
         List<String> out = new ArrayList<>();
-        out.add(String.format(Locale.ROOT, "[Night Siege sim] Normale Nacht, Stufen %s, höchstens %d s, allein, voll geskillt, ohne Kisten-Gewinne",
+        out.add(String.format(Locale.ROOT, "[Night Siege sim] Normale Nacht, Stufen %s, höchstens %d s, allein, "
+                        + (budget ? "Punkte wie bis zur Stufe" : "voll geskillt") + ", ohne Kisten-Gewinne",
                 levels, maxTicks / 20));
         out.add("[Night Siege sim] Zelle: Zeit (+ = gehalten) / Schaden / eingesteckt / Kills");
         StringBuilder head = new StringBuilder(String.format(Locale.ROOT, "[Night Siege sim] %-13s", "Unterklasse"));

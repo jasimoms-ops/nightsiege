@@ -3306,6 +3306,10 @@ public class EventLookTest implements FabricClientGameTest {
                 simLevels.add(Integer.parseInt(token.substring(1)));
             } else if (token.equals("bench")) {
                 benchRun = true;
+            } else if (token.equals("punkte")) {
+                // Only the points one has by that level, spent like the playtest (28 October 2026).
+                com.mki.nightsiege.game.MeleeSim.budget = true;
+                System.out.println("[Night Siege sim] Punkte wie bis zu dieser Stufe (statt voll geskillt)");
             } else if (token.matches("[A-Za-z]+\\.[A-Za-z:_]+=[0-9.]+")) {
                 // "classDamageTaken.engineer=1.5": one entry of a map of the config.
                 String[] kv = token.split("=");
