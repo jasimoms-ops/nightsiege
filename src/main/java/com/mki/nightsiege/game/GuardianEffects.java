@@ -150,7 +150,9 @@ public final class GuardianEffects {
         float outside = 1f;
         SiegeManager tuning = SiegeManager.get();
         // Monster strength per type: outside the skill floor, so it also reaches the bulwark.
-        float monster = tuning != null && victim instanceof ServerPlayer && source.getEntity() instanceof Enemy
+        // The share of the max health (bosses, machines) stays the share it says (28 October 2026).
+        boolean share = PercentDamage.is(source);
+        float monster = tuning != null && victim instanceof ServerPlayer && source.getEntity() instanceof Enemy && !share
                 ? tuning.monsterDamageFactor(source.getEntity()) : 1f;
         if (tuning != null && source.getEntity() instanceof ServerPlayer hitter && victim instanceof Enemy
                 && !CombatEffects.inFollowUp()) {   // a follow-up hit already carries the factor
@@ -166,7 +168,7 @@ public final class GuardianEffects {
             }
             if ((source.getEntity() instanceof net.minecraft.world.entity.monster.zombie.Zombie
                     || source.getEntity() instanceof net.minecraft.world.entity.monster.spider.Spider)
-                    && !BossService.isBoss(source.getEntity())) {   // the grave king and the queen hit everyone alike
+                    && !BossService.isBoss(source.getEntity()) && !share) {   // the grave king and the queen hit everyone alike
                 outside *= tuning.zombieSpiderFactor(hurt);   // zombies and spiders hit the melee classes harder
             }
         }

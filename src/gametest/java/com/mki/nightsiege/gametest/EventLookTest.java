@@ -73,6 +73,12 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("dungeons")) {
                     dungeonScene(context, game);
                 }
+                if (want.contains("percent")) {
+                    percentScene(context, game);   // shares of the max health (28 October 2026)
+                }
+                if (want.contains("overhang")) {
+                    overhangScene(context, game);   // spiders under an overhang
+                }
                 return;
             }
             if (System.getenv("NIGHTSIEGE_SIM") != null) {
@@ -107,6 +113,8 @@ public class EventLookTest implements FabricClientGameTest {
                 foeScene(context, game);   // the new attackers of update 1 (27 October 2026)
                 raidScene(context, game);   // the raid's plan (27 October 2026)
                 dungeonScene(context, game);   // the own dungeons (dungeon update, 27 October 2026)
+                percentScene(context, game);   // bosses and machines take a share of the max health (28 October 2026)
+                overhangScene(context, game);   // spiders swing over an overhang
                 com.mki.nightsiege.game.TrapService.mortarsAnyTime = true;   // the scenes below test by day
                 mortarScene(context, game);
                 mannedScene(context, game);
@@ -1771,6 +1779,291 @@ public class EventLookTest implements FabricClientGameTest {
      * photographed by day and by night, left to shoot for a while (holes, ropes, fire and
      * plague logged), one struck down.
      */
+    /**
+     * Shares of the max health (Simon, 28 October 2026): on top of the usual hit, armour does not
+     * lessen them, a shield blocks them. Measured on a player in full diamond armour against the
+     * grave king's blow, machine impacts and the lich (soul arrow, worn out after the shield).
+     */
+    private static void percentScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        int cx = pos.getX() + 240;
+        int cz = pos.getZ() - 240;
+        int cy = yard(context, game, cx, cz, 40, 14);
+        int r = 9;
+        String wall = "fill %d %d %d %d %d %d minecraft:stone_bricks";
+        game.getServer().runCommand(wall.formatted(cx - r, cy, cz - r, cx + r, cy + 3, cz - r));
+        game.getServer().runCommand(wall.formatted(cx - r, cy, cz + r, cx + r, cy + 3, cz + r));
+        game.getServer().runCommand(wall.formatted(cx - r, cy, cz - r, cx - r, cy + 3, cz + r));
+        game.getServer().runCommand(wall.formatted(cx + r, cy, cz - r, cx + r, cy + 3, cz + r));
+        game.getServer().runCommand("time set 18000");
+        game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %d.5 %d %d.5 0 0", cx, cy, cz));
+        game.getServer().runCommand("gamemode survival @p");
+        game.getServer().runCommand("effect clear @p");
+        game.getServer().runCommand("effect give @p minecraft:saturation 600 10 true");
+        context.waitTicks(20);
+        final int[] saved = new int[2];
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            saved[0] = manager.config().testPrepSeconds;
+            saved[1] = manager.config().batchIntervalSeconds;
+            manager.config().testPrepSeconds = 1;
+            manager.config().batchIntervalSeconds = 600;   // no waves
+            com.mki.nightsiege.core.SiegeConfig cfg = manager.config();
+            System.out.println(String.format(java.util.Locale.ROOT, "[Night Siege test] percent level factor 6=%.2f 10=%.2f 20=%.2f 30=%.2f",
+                    com.mki.nightsiege.game.PercentDamage.levelFactor(6, cfg), com.mki.nightsiege.game.PercentDamage.levelFactor(10, cfg),
+                    com.mki.nightsiege.game.PercentDamage.levelFactor(20, cfg), com.mki.nightsiege.game.PercentDamage.levelFactor(30, cfg)));
+            boolean ok = manager.prepareTest(level.getServer(), level, new BlockPos(cx, cy, cz), 10,
+                    com.mki.nightsiege.core.SiegeEvent.NONE, com.mki.nightsiege.core.BossKind.GRAVE_KING);
+            System.out.println("[Night Siege test] percent prep ok=" + ok);
+        });
+        context.waitTicks(60);
+        closeScreen(context);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            boolean now = manager.bossNow(level.getServer());
+            net.minecraft.world.entity.Mob boss = manager.bosses().boss(level);
+            if (boss != null) {
+                boss.setNoAi(true);
+                boss.teleportTo(cx + 0.5, cy, cz + 2.5);   // in front of the player (he looks south)
+            }
+            dressDiamond(player);
+            System.out.println("[Night Siege test] percent boss=" + now + " armor=" + player.getArmorValue() + " max=" + player.getMaxHealth());
+        });
+        context.waitTicks(5);
+        // A: the share alone, 30 % (armour does not count).
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            net.minecraft.world.entity.Mob boss = manager.bosses().boss(level);
+            player.setHealth(player.getMaxHealth());
+            float aimed = com.mki.nightsiege.game.PercentDamage.hit(level, player, boss, boss, 30.0, 10, manager.config(), 1.0);
+            System.out.println(String.format(java.util.Locale.ROOT, "[Night Siege test] percent share 30%% aimed=%.1f took=%.1f (armour %d)",
+                    aimed, player.getMaxHealth() - player.getHealth(), player.getArmorValue()));
+        });
+        context.waitTicks(15);
+        // B: the grave king's blow: his damage through the armour plus 12 %.
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            net.minecraft.world.entity.Mob boss = manager.bosses().boss(level);
+            player.setHealth(player.getMaxHealth());
+            player.invulnerableTime = 0;
+            boolean hit = boss != null && boss.doHurtTarget(level, player);
+            float share = com.mki.nightsiege.game.PercentDamage.amount(player, 12.0, 10, manager.config(), manager.config().bossPercentDamage);
+            System.out.println(String.format(java.util.Locale.ROOT, "[Night Siege test] percent king blow hit=%s took=%.1f share=%.1f",
+                    hit, player.getMaxHealth() - player.getHealth(), share));
+        });
+        context.waitTicks(15);
+        // C: the same blow on a raised shield: nothing.
+        onServer(context, (player, manager) -> {
+            player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.OFFHAND, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.SHIELD));
+            player.setHealth(player.getMaxHealth());
+            player.startUsingItem(net.minecraft.world.InteractionHand.OFF_HAND);
+        });
+        context.waitTicks(12);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            net.minecraft.world.entity.Mob boss = manager.bosses().boss(level);
+            player.invulnerableTime = 0;
+            boolean blocking = player.isBlocking();
+            if (boss != null) {
+                boss.doHurtTarget(level, player);
+            }
+            System.out.println(String.format(java.util.Locale.ROOT, "[Night Siege test] percent shield blocking=%s took=%.1f",
+                    blocking, player.getMaxHealth() - player.getHealth()));
+            player.stopUsingItem();
+            player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.OFFHAND, net.minecraft.world.item.ItemStack.EMPTY);
+        });
+        context.waitTicks(10);
+        // D: machine impacts right at the player.
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            net.minecraft.world.entity.Mob boss = manager.bosses().boss(level);
+            if (boss != null) {
+                boss.teleportTo(cx + 0.5, cy, cz + 30.5);   // out of the way
+            }
+            com.mki.nightsiege.core.SiegeMachineKind[] kinds = {com.mki.nightsiege.core.SiegeMachineKind.TREBUCHET,
+                    com.mki.nightsiege.core.SiegeMachineKind.MORTAR, com.mki.nightsiege.core.SiegeMachineKind.FIRE};
+            for (int i = 0; i < kinds.length; i++) {
+                double a = Math.PI * 2.0 * i / kinds.length;
+                double x = cx + 0.5 + Math.cos(a) * 26;
+                double z = cz + 0.5 + Math.sin(a) * 26;
+                int y = level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
+                        (int) Math.floor(x), (int) Math.floor(z));
+                manager.testMachine(kinds[i], new net.minecraft.world.phys.Vec3(Math.floor(x) + 0.5, y, Math.floor(z) + 0.5));
+            }
+            manager.machines().testHoldFire(level.getGameTime() + 4000);
+            for (com.mki.nightsiege.core.SiegeMachineKind kind : kinds) {
+                player.setHealth(player.getMaxHealth());
+                player.clearFire();
+                boolean ok = manager.testMachineImpact(kind, player);
+                float share = com.mki.nightsiege.game.PercentDamage.amount(player,
+                        kind == com.mki.nightsiege.core.SiegeMachineKind.MORTAR ? 30.0 : kind == com.mki.nightsiege.core.SiegeMachineKind.TREBUCHET ? 25.0 : 10.0,
+                        10, manager.config(), manager.config().machinePercentDamage);
+                System.out.println(String.format(java.util.Locale.ROOT, "[Night Siege test] percent machine %s ok=%s took=%.1f share=%.1f",
+                        kind.id(), ok, player.getMaxHealth() - player.getHealth(), share));
+            }
+            player.setHealth(player.getMaxHealth());
+        });
+        context.waitTicks(10);
+        onServer(context, (player, manager) -> {
+            manager.machines().removeAll();
+            manager.abort(player.level().getServer());
+        });
+        context.waitTicks(40);
+        // E: the lich – soul arrows, then his shield broken: worn out on the ground.
+        game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %d.5 %d %d.5 0 0", cx, cy, cz));
+        game.getServer().runCommand("effect give @p minecraft:regeneration 600 3 true");
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            player.setHealth(player.getMaxHealth());
+            boolean ok = manager.prepareTest(level.getServer(), level, new BlockPos(cx, cy, cz), 10,
+                    com.mki.nightsiege.core.SiegeEvent.NONE, com.mki.nightsiege.core.BossKind.BONE_LICH);
+            System.out.println("[Night Siege test] percent lich prep ok=" + ok);
+        });
+        context.waitTicks(60);
+        closeScreen(context);
+        onServer(context, (player, manager) -> manager.bossNow(player.level().getServer()));
+        final float[] low = {99f};
+        final boolean[] slowed = {false};
+        for (int t = 0; t < 10; t++) {
+            context.waitTicks(10);
+            onServer(context, (player, manager) -> {
+                low[0] = Math.min(low[0], player.getHealth());
+                slowed[0] |= player.hasEffect(net.minecraft.world.effect.MobEffects.SLOWNESS);
+            });
+        }
+        onServer(context, (player, manager) -> System.out.println(String.format(java.util.Locale.ROOT,
+                "[Night Siege test] percent lich arrows: lowest hp=%.1f of %.0f slowed=%s", low[0], player.getMaxHealth(), slowed[0])));
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            for (java.util.UUID part : manager.bosses().partHitboxes()) {
+                net.minecraft.world.entity.Entity e = level.getEntity(part);
+                if (e instanceof net.minecraft.world.entity.LivingEntity crystal) {
+                    crystal.invulnerableTime = 0;
+                    crystal.hurtServer(level, level.damageSources().playerAttack(player), 5000f);
+                }
+            }
+        });
+        final double[] start = new double[1];
+        for (int t = 0; t < 9; t++) {
+            context.waitTicks(20);
+            final int sec = t + 1;
+            onServer(context, (player, manager) -> {
+                net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                net.minecraft.world.entity.Mob boss = manager.bosses().boss(level);
+                if (boss == null) {
+                    return;
+                }
+                if (sec == 1) {
+                    start[0] = boss.getY();
+                }
+                int ground = level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
+                        boss.getBlockX(), boss.getBlockZ());
+                if (sec == 1 || sec == 3 || sec == 6 || sec == 9) {
+                    System.out.println(String.format(java.util.Locale.ROOT,
+                            "[Night Siege test] percent lich t=%ds exhausted=%s above ground=%.1f parts=%d",
+                            sec, manager.bosses().testLichExhausted(level.getGameTime()), boss.getY() - ground,
+                            manager.bosses().partHitboxes().size()));
+                }
+            });
+        }
+        onServer(context, (player, manager) -> {
+            manager.abort(player.level().getServer());
+            manager.config().testPrepSeconds = saved[0];
+            manager.config().batchIntervalSeconds = saved[1];
+            player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.HEAD, net.minecraft.world.item.ItemStack.EMPTY);
+            player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.CHEST, net.minecraft.world.item.ItemStack.EMPTY);
+            player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.LEGS, net.minecraft.world.item.ItemStack.EMPTY);
+            player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.FEET, net.minecraft.world.item.ItemStack.EMPTY);
+        });
+        game.getServer().runCommand("effect clear @p");
+        game.getServer().runCommand("gamemode creative @p");
+        context.waitTicks(20);
+    }
+
+    private static void dressDiamond(net.minecraft.server.level.ServerPlayer player) {
+        player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.HEAD, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND_HELMET));
+        player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.CHEST, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND_CHESTPLATE));
+        player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.LEGS, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND_LEGGINGS));
+        player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.FEET, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND_BOOTS));
+    }
+
+    /**
+     * A spider under an overhang: a wall six high with a ledge jutting out two blocks at the
+     * top, a player behind it. Six seconds without the fix (it hangs under the ledge), then
+     * with it (it swings out and over).
+     */
+    private static void overhangScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        int cx = pos.getX() + 240;
+        int cz = pos.getZ() + 240;
+        int cy = yard(context, game, cx, cz, 24, 12);
+        String fill = "fill %d %d %d %d %d %d minecraft:stone_bricks";
+        game.getServer().runCommand(fill.formatted(cx - 6, cy, cz, cx + 6, cy + 5, cz + 2));          // the wall
+        game.getServer().runCommand(fill.formatted(cx - 6, cy + 5, cz - 2, cx + 6, cy + 5, cz - 1));  // the ledge
+        game.getServer().runCommand("time set 18000");
+        game.getServer().runCommand("gamemode survival @p");
+        game.getServer().runCommand("effect give @p minecraft:resistance 600 255 true");
+        game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %d.5 %d %d.5 180 20", cx, cy, cz + 7));
+        context.waitTicks(20);
+        final java.util.UUID[] id = new java.util.UUID[1];
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            net.minecraft.world.entity.monster.spider.Spider spider = net.minecraft.world.entity.EntityTypes.SPIDER.create(level,
+                    net.minecraft.world.entity.EntitySpawnReason.COMMAND);
+            if (spider != null) {
+                spider.snapTo(cx + 0.5, cy, cz - 0.5, 0f, 0f);
+                spider.setPersistenceRequired();
+                level.addFreshEntity(spider);
+                spider.setTarget(player);
+                id[0] = spider.getUUID();
+            }
+        });
+        for (int t = 0; t < 2; t++) {
+            context.waitTicks(60);
+            final int sec = (t + 1) * 3;
+            onServer(context, (player, manager) -> {
+                net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                net.minecraft.world.entity.Entity e = id[0] == null ? null : level.getEntity(id[0]);
+                if (e instanceof net.minecraft.world.entity.Mob m) {
+                    m.setTarget(player);
+                }
+                System.out.println(String.format(java.util.Locale.ROOT, "[Night Siege test] overhang without fix t=%ds spider y=%s climbing=%s",
+                        sec, e == null ? "-" : String.format(java.util.Locale.ROOT, "%.1f", e.getY() - cy),
+                        e instanceof net.minecraft.world.entity.LivingEntity l && l.onClimbable()));
+            });
+        }
+        context.takeScreenshot("overhang_stuck");
+        onServer(context, (player, manager) -> com.mki.nightsiege.game.SpiderOverhang.watch(id[0]));
+        for (int t = 0; t < 4; t++) {
+            context.waitTicks(40);
+            final int sec = (t + 1) * 2;
+            onServer(context, (player, manager) -> {
+                net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                net.minecraft.world.entity.Entity e = id[0] == null ? null : level.getEntity(id[0]);
+                if (e instanceof net.minecraft.world.entity.Mob m) {
+                    m.setTarget(player);
+                }
+                System.out.println(String.format(java.util.Locale.ROOT,
+                        "[Night Siege test] overhang with fix t=%ds spider y=%s z=%s (wall z 0..2, top y 6, inside z>2) %s",
+                        sec, e == null ? "-" : String.format(java.util.Locale.ROOT, "%.1f", e.getY() - cy),
+                        e == null ? "-" : String.format(java.util.Locale.ROOT, "%.1f", e.getZ() - cz),
+                        com.mki.nightsiege.game.SpiderOverhang.testCounts()));
+            });
+        }
+        context.takeScreenshot("overhang_over");
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.game.SpiderOverhang.watch(null);
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            net.minecraft.world.entity.Entity e = id[0] == null ? null : level.getEntity(id[0]);
+            if (e != null) {
+                e.discard();
+            }
+        });
+        game.getServer().runCommand("effect clear @p");
+        game.getServer().runCommand("gamemode creative @p");
+        context.waitTicks(10);
+    }
+
     private static void machineScene(ClientGameTestContext context, TestSingleplayerContext game) {
         BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
         int cx = pos.getX() - 200;

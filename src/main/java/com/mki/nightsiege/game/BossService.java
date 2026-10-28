@@ -70,6 +70,21 @@ public final class BossService {
     public static final String TAG_BOSS = "nightsiege_boss";
     /** Tag of a part of a boss fight: the hitbox of a soul crystal or egg sac, and its look. */
     public static final String TAG_PART = "nightsiege_bosspart";
+    /** Tags of the lich's arrows: the soul arrow (10 % of max health, slows) and the rain (6 %). */
+    public static final String TAG_SOUL_ARROW = "nightsiege_soularrow";
+    public static final String TAG_RAIN_ARROW = "nightsiege_rainarrow";
+
+    /**
+     * Shares of the max health on top of the boss's blows (Simon, 28 October 2026), at level 10;
+     * the abilities pass their own share to {@link #strike}.
+     */
+    static final double MELEE_SHARE = 12.0;
+    static final double QUEEN_BITE_SHARE = 15.0;
+    static final double SOUL_ARROW_SHARE = 10.0;
+    static final double RAIN_ARROW_SHARE = 6.0;
+
+    /** Set while an ability's own blow lands: its share comes from {@link #strike}, not as a melee share. */
+    private static final ThreadLocal<Boolean> ABILITY = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
     /** What the night lends the boss. */
     public interface Host {
@@ -121,6 +136,8 @@ public final class BossService {
 
     private BossKind kind;
     private BossBrains.Brain brain;
+    /** The night the boss fights in (level and config for the shares of the max health). */
+    private Host host;
     private UUID bossId;
     /** The warlord on the ravager's back (the boss of the second phase). */
     private UUID riderId;
@@ -182,6 +199,7 @@ public final class BossService {
             return false;
         }
         int defenders = Math.max(1, host.defenders().size());
+        this.host = host;
         brain = BossBrains.create(kind, this);
         Mob boss = create(level, kind.entityId(), spot, host.random());
         if (boss == null) {
@@ -242,6 +260,7 @@ public final class BossService {
         if (!spawned || fallen || brain == null) {
             return;
         }
+        this.host = host;
         ServerLevel level = host.world();
         Mob boss = boss(level);
         if (boss == null) {
@@ -372,14 +391,35 @@ public final class BossService {
         return brain.allowDamage((ServerLevel) victim.level(), victim, source, amount);
     }
 
-    /** A boss's blow landed on a player (the queen poisons). */
-    public void afterHit(LivingEntity victim, DamageSource source) {
+    /**
+     * A boss's blow landed on a player: the queen poisons, and every blow and every arrow of a
+     * boss takes a share of the max health on top (Simon, 28 October 2026). A blocked hit takes
+     * nothing; the share itself and an ability's blow (it brings its own share) add none.
+     */
+    public void afterHit(LivingEntity victim, DamageSource source, boolean blocked) {
         if (!spawned || fallen || brain == null || !(victim instanceof ServerPlayer player)) {
             return;
         }
         Entity attacker = source.getEntity();
-        if (attacker != null && attacker.entityTags().contains(TAG_BOSS)) {
-            brain.hitPlayer(player, attacker);
+        if (attacker == null || !attacker.entityTags().contains(TAG_BOSS) || PercentDamage.inHit() || PercentDamage.is(source)) {
+            return;
+        }
+        brain.hitPlayer(player, attacker);
+        if (blocked || ABILITY.get() || host == null || !(player.level() instanceof ServerLevel level)) {
+            return;
+        }
+        Entity direct = source.getDirectEntity();
+        double share = 0.0;
+        if (direct != null && direct.entityTags().contains(TAG_SOUL_ARROW)) {
+            share = SOUL_ARROW_SHARE;
+            player.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 40, 1), attacker);
+        } else if (direct != null && direct.entityTags().contains(TAG_RAIN_ARROW)) {
+            share = RAIN_ARROW_SHARE;
+        } else if (direct == attacker) {
+            share = kind == BossKind.SPIDER_QUEEN ? QUEEN_BITE_SHARE : MELEE_SHARE;
+        }
+        if (share > 0) {
+            PercentDamage.hit(level, player, attacker, direct, share, host.level(), host.config(), host.config().bossPercentDamage);
         }
     }
 
@@ -441,6 +481,11 @@ public final class BossService {
             list.add(part.hitbox);
         }
         return list;
+    }
+
+    /** For the tests: whether the lich lies worn out after his shield broke. */
+    public boolean testLichExhausted(long now) {
+        return brain instanceof BossBrains.Lich lich && lich.exhausted(now);
     }
 
     /** For the tests: the warlord on his ravager (null for the other bosses). */
@@ -562,8 +607,24 @@ public final class BossService {
 
     /** Hurts a player as a blow of the boss (so shields, armour and the class factors count). */
     static void hurt(ServerLevel level, Mob boss, ServerPlayer player, float damage) {
-        player.invulnerableTime = 0;
-        player.hurtServer(level, level.damageSources().mobAttack(boss), damage);
+        ABILITY.set(Boolean.TRUE);
+        try {
+            player.invulnerableTime = 0;
+            player.hurtServer(level, level.damageSources().mobAttack(boss), damage);
+        } finally {
+            ABILITY.set(Boolean.FALSE);
+        }
+    }
+
+    /**
+     * An ability's blow: the usual damage (armour counts), then {@code share} % of the player's
+     * max health that armour does not lessen (28 October 2026). A shield facing the boss blocks both.
+     */
+    static void strike(Host host, ServerLevel level, Mob boss, ServerPlayer player, float damage, double share) {
+        hurt(level, boss, player, damage);
+        if (share > 0 && player.isAlive()) {
+            PercentDamage.hit(level, player, boss, boss, share, host.level(), host.config(), host.config().bossPercentDamage);
+        }
     }
 
     /** Throws a player away from a point. */

@@ -22,7 +22,6 @@ import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.monster.illager.AbstractIllager;
-import net.minecraft.world.entity.monster.skeleton.AbstractSkeleton;
 import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
 import net.minecraft.world.entity.projectile.arrow.Arrow;
 import net.minecraft.world.item.ItemStack;
@@ -125,6 +124,8 @@ final class BossBrains {
      */
     static final class GraveKing extends Brain {
         private static final Identifier RAGE = Identifier.fromNamespaceAndPath("nightsiege", "boss_rage");
+        /** Share of the max health of the stomp at its centre (Simon, 28 October 2026). */
+        static final double STOMP_SHARE = 30.0;
         long nextStomp;
         long windupUntil;
         long nextRaise;
@@ -239,7 +240,8 @@ final class BossBrains {
                     continue;
                 }
                 double f = 1.0 - 0.5 * (d / radius);
-                BossService.hurt(level, boss, p, (float) (damage * f));
+                // 30 % of the max health at the centre on top (28 October 2026), less towards the edge.
+                BossService.strike(host, level, boss, p, (float) (damage * f), STOMP_SHARE * f);
                 BossService.knock(p, c, 0.4 + 1.2 * (1.0 - d / radius), 0.6);
             }
             BlockState ground = level.getBlockState(boss.blockPosition().below());
@@ -549,7 +551,19 @@ final class BossBrains {
      * more below half); blinks away from fighters who come close; calls skeleton guards.
      */
     static final class Lich extends Brain {
+        /** Base damage of the soul arrow before level and boss factors (about 10 on level 10, Simon 28 October 2026). */
+        static final double SOUL_ARROW_DAMAGE = 4.0;
+        /** The rain falls over three seconds, one arrow every third tick (it came in half a second). */
+        static final int RAIN_TICKS = 60;
+        /** With his shield broken he sinks down, worn out, for seven seconds: the fighters' chance. */
+        static final int EXHAUSTED_TICKS = 140;
+        /** He blinks away after three seconds with a fighter close (was 1.5 s), then waits twelve (was 7). */
+        static final int BLINK_AFTER = 60;
+        static final int BLINK_PAUSE = 240;
         double angle;
+        long exhaustedUntil;
+        /** His soul arrows in flight (they fly straight and go after three seconds). */
+        final Map<UUID, Long> soulArrows = new HashMap<>();
         long nextShot;
         long nextRain;
         Vec3 rainAt;
@@ -589,9 +603,10 @@ final class BossBrains {
             ServerLevel level = host.world();
             if (!secondShield && below(boss, 0.5)) {
                 secondShield = true;
+                exhaustedUntil = 0;   // the second shield wakes him
                 raiseShield(host, now);
             }
-            hover(host, boss, now);
+            tickSoulArrows(level, now);
             if (shield) {
                 if (service.partsOf("crystal").isEmpty()) {
                     shield = false;
@@ -599,6 +614,7 @@ final class BossBrains {
                     level.sendParticles(ParticleTypes.SOUL, boss.getX(), boss.getY() + boss.getBbHeight() * 0.5, boss.getZ(),
                             40, 1.0, 1.5, 1.0, 0.1);
                     tell(host, "nightsiege.boss.bone_lich.shield_down", ChatFormatting.GREEN);
+                    exhaust(host, boss, now);
                 } else if (now % 5 == 0) {
                     Vec3 c = boss.position().add(0, boss.getBbHeight() * 0.5, 0);
                     BossService.ring(level, ParticleTypes.SOUL_FIRE_FLAME, c.add(0, -0.15, 0), 1.6, 14);
@@ -612,14 +628,26 @@ final class BossBrains {
                     }
                 }
             }
+            if (now < exhaustedUntil) {
+                sink(host, boss, now);
+                return;
+            }
+            if (exhaustedUntil > 0) {
+                // Up again: back to his round outside the walls.
+                exhaustedUntil = 0;
+                nextShot = now + 20;
+                nextBlink = Math.max(nextBlink, now + 60);
+                boss.removeEffect(MobEffects.GLOWING);
+                BossService.sound(level, boss.position(), SoundEvents.WITHER_SKELETON_AMBIENT, 1.6f, 0.6f);
+                tell(host, "nightsiege.boss.bone_lich.rises", ChatFormatting.RED);
+            }
+            hover(host, boss, now);
             List<ServerPlayer> defenders = host.defenders();
             if (now >= nextShot) {
                 ServerPlayer target = sighted(defenders, boss, 32.0);
-                if (target != null && boss instanceof AbstractSkeleton skeleton) {
+                if (target != null) {
                     face(boss, target.position());
-                    skeleton.performRangedAttack(target, 1.0f);
-                    level.sendParticles(ParticleTypes.SOUL_FIRE_FLAME, boss.getX(), boss.getY() + boss.getBbHeight() * 0.7, boss.getZ(),
-                            6, 0.3, 0.3, 0.3, 0.02);
+                    soulArrow(host, boss, target, now);
                 }
                 nextShot = now + (secondShield ? 30 : 40);
             }
@@ -629,9 +657,13 @@ final class BossBrains {
                         BossService.ring(level, ParticleTypes.SOUL_FIRE_FLAME, rainAt, 3.5, 28);
                         BossService.ring(level, new DustParticleOptions(0x3FD0FF, 1.2f), rainAt, 2.0, 12);
                     }
-                } else if (now < rainFall + 10) {
-                    for (int i = 0; i < 2; i++) {
+                } else if (now < rainFall + RAIN_TICKS) {
+                    // Spread over three seconds, so more than one arrow can find its mark (28 October 2026).
+                    if ((now - rainFall) % 3 == 0) {
                         rainArrow(host, boss);
+                    }
+                    if (now % 6 == 0) {
+                        BossService.ring(level, ParticleTypes.SOUL_FIRE_FLAME, rainAt, 3.5, 20);
                     }
                 } else {
                     rainAt = null;
@@ -665,7 +697,7 @@ final class BossBrains {
                 }
             }
             closeTicks = close ? closeTicks + 1 : 0;
-            if (closeTicks >= 30 && now >= nextBlink) {
+            if (closeTicks >= BLINK_AFTER && now >= nextBlink) {
                 Vec3 before = boss.position();
                 angle += Math.PI * (0.5 + host.random().nextDouble() * 0.5) * (host.random().nextBoolean() ? 1 : -1);
                 Vec3 spot = hoverPoint(host, boss);
@@ -673,7 +705,7 @@ final class BossBrains {
                 level.sendParticles(ParticleTypes.REVERSE_PORTAL, before.x, before.y + 2, before.z, 40, 0.6, 1.5, 0.6, 0.1);
                 level.sendParticles(ParticleTypes.PORTAL, spot.x, spot.y + 2, spot.z, 40, 0.6, 1.5, 0.6, 0.1);
                 BossService.sound(level, before, SoundEvents.ENDERMAN_TELEPORT, 1.4f, 0.6f);
-                nextBlink = now + 140;
+                nextBlink = now + BLINK_PAUSE;
                 closeTicks = 0;
             }
         }
@@ -752,11 +784,98 @@ final class BossBrains {
             arrow.pickup = AbstractArrow.Pickup.DISALLOWED;
             arrow.setBaseDamage(BossService.abilityDamage(host, kind, 1.6));
             arrow.setCritArrow(true);
+            arrow.addTag(BossService.TAG_RAIN_ARROW);   // 6 % of the max health on top
             arrow.setDeltaMovement((host.random().nextDouble() - 0.5) * 0.1, -2.2, (host.random().nextDouble() - 0.5) * 0.1);
             level.addFreshEntity(arrow);
             if (host.random().nextInt(3) == 0) {
                 BossService.sound(level, new Vec3(x, rainAt.y + 4, z), SoundEvents.SKELETON_SHOOT, 0.8f, 0.6f);
             }
+        }
+
+        /**
+         * The soul arrow (instead of the plain skeleton shot, which grew with nothing): a straight
+         * bolt with the boss's damage, 10 % of the max health on top and a short slowness.
+         */
+        private void soulArrow(BossService.Host host, Mob boss, ServerPlayer target, long now) {
+            ServerLevel level = host.world();
+            Vec3 from = boss.position().add(0, boss.getBbHeight() * 0.75, 0);
+            Vec3 aim = target.position().add(0, target.getBbHeight() * 0.6, 0).add(target.getDeltaMovement().scale(5));
+            Vec3 dir = aim.subtract(from);
+            if (dir.lengthSqr() < 1.0e-4) {
+                return;
+            }
+            Arrow arrow = new Arrow(level, from.x, from.y, from.z, new ItemStack(Items.ARROW), null);
+            arrow.setOwner(boss);
+            arrow.pickup = AbstractArrow.Pickup.DISALLOWED;
+            arrow.setNoGravity(true);
+            float speed = 2.4f;
+            arrow.setBaseDamage(BossService.abilityDamage(host, kind, SOUL_ARROW_DAMAGE) / speed);
+            arrow.addTag(BossService.TAG_SOUL_ARROW);
+            arrow.shoot(dir.x, dir.y, dir.z, speed, 1.0f);
+            if (level.addFreshEntity(arrow)) {
+                soulArrows.put(arrow.getUUID(), now);
+            }
+            level.sendParticles(ParticleTypes.SOUL_FIRE_FLAME, from.x, from.y, from.z, 8, 0.3, 0.3, 0.3, 0.02);
+            BossService.sound(level, from, SoundEvents.SKELETON_SHOOT, 1.4f, 0.5f);
+            BossService.sound(level, from, SoundEvents.SOUL_ESCAPE.value(), 1.0f, 1.2f);
+        }
+
+        /** Soul arrows trail soul fire and go after three seconds (they fly without falling). */
+        private void tickSoulArrows(ServerLevel level, long now) {
+            Iterator<Map.Entry<UUID, Long>> it = soulArrows.entrySet().iterator();
+            while (it.hasNext()) {
+                Map.Entry<UUID, Long> e = it.next();
+                Entity arrow = level.getEntity(e.getKey());
+                if (arrow == null || !arrow.isAlive()) {
+                    it.remove();
+                } else if (now - e.getValue() > 60) {
+                    arrow.discard();
+                    it.remove();
+                } else {
+                    level.sendParticles(ParticleTypes.SOUL_FIRE_FLAME, arrow.getX(), arrow.getY(), arrow.getZ(), 1, 0.02, 0.02, 0.02, 0.0);
+                }
+            }
+        }
+
+        /** The shield broke: he sinks down worn out, the fighters' chance to strike (28 October 2026). */
+        private void exhaust(BossService.Host host, Mob boss, long now) {
+            ServerLevel level = host.world();
+            exhaustedUntil = now + EXHAUSTED_TICKS;
+            rainAt = null;
+            closeTicks = 0;
+            boss.addEffect(new MobEffectInstance(MobEffects.GLOWING, EXHAUSTED_TICKS, 0, false, false));
+            BossService.sound(level, boss.position(), SoundEvents.SKELETON_HURT, 1.8f, 0.5f);
+            tell(host, "nightsiege.boss.bone_lich.exhausted", ChatFormatting.GOLD);
+        }
+
+        /** Worn out he sinks to the ground where he is and does nothing. */
+        private void sink(BossService.Host host, Mob boss, long now) {
+            ServerLevel level = host.world();
+            double ground = BossService.surface(level, boss.getX(), boss.getZ());
+            double dy = ground - boss.getY();
+            boss.setDeltaMovement(0, Math.max(-0.25, Math.min(0.05, dy * 0.3)), 0);
+            boss.hurtMarked = true;
+            boss.getNavigation().stop();
+            if (now % 4 == 0) {
+                level.sendParticles(ParticleTypes.SOUL, boss.getX(), boss.getY() + boss.getBbHeight() * 0.6, boss.getZ(), 3, 0.5, 0.6, 0.5, 0.01);
+                level.sendParticles(ParticleTypes.SMOKE, boss.getX(), boss.getY() + boss.getBbHeight(), boss.getZ(), 2, 0.3, 0.2, 0.3, 0.0);
+            }
+        }
+
+        /** For the tests: whether he lies worn out now. */
+        boolean exhausted(long now) {
+            return now < exhaustedUntil;
+        }
+
+        @Override
+        void cleanUp(ServerLevel level) {
+            for (UUID id : soulArrows.keySet()) {
+                Entity arrow = level.getEntity(id);
+                if (arrow != null) {
+                    arrow.discard();
+                }
+            }
+            soulArrows.clear();
         }
 
         /** Three soul crystals within the walls hold the shield up. */
@@ -835,6 +954,9 @@ final class BossBrains {
      */
     static final class Warlord extends Brain {
         private static final Identifier FOOT = Identifier.fromNamespaceAndPath("nightsiege", "boss_on_foot");
+        /** Shares of the max health of the charge and of the leap's landing (Simon, 28 October 2026). */
+        static final double CHARGE_SHARE = 35.0;
+        static final double LEAP_SHARE = 25.0;
         boolean onFoot;
         long nextCharge;
         long windupUntil;
@@ -927,7 +1049,7 @@ final class BossBrains {
                 AABB box = beast.getBoundingBox().inflate(1.0);
                 for (ServerPlayer p : host.defenders()) {
                     if (box.intersects(p.getBoundingBox()) && hitThisCharge.add(p.getUUID())) {
-                        BossService.hurt(level, beast, p, damage);
+                        BossService.strike(host, level, beast, p, damage, CHARGE_SHARE);
                         p.push(chargeDir.x * 1.8, 0.6, chargeDir.z * 1.8);
                         p.hurtMarked = true;
                         BossService.sound(level, p.position(), SoundEvents.IRON_GOLEM_ATTACK, 1.4f, 0.6f);
@@ -998,7 +1120,7 @@ final class BossBrains {
                     float damage = BossService.abilityDamage(host, kind, 6.0);
                     for (ServerPlayer p : host.defenders()) {
                         if (p.distanceToSqr(c) < 4.0 * 4.0) {
-                            BossService.hurt(level, warlord, p, damage);
+                            BossService.strike(host, level, warlord, p, damage, LEAP_SHARE);
                             BossService.knock(p, c, 1.0, 0.5);
                         }
                     }

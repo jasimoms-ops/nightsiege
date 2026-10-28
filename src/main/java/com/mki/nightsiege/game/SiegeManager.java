@@ -376,12 +376,13 @@ public final class SiegeManager {
             perks.afterDamage(entity, taken);
             CrateEffects.afterDamage(entity, source);
             Wounds.afterDamage(entity, source, taken);
-            safe("Boss-Treffer", () -> bosses.afterHit(entity, source));
+            safe("Boss-Treffer", () -> bosses.afterHit(entity, source, blocked));
             GainGear.afterDamage(entity, source, taken);
             MeleeSim.onDamage(entity, source, taken);
             safe("Begleiter-Treffer", () -> companions.afterDamage(entity, source, taken));
             safe("Gegner-Treffer", () -> foes.afterDamage(entity, source));
             machines.afterDamage(entity, source, taken);
+            safe("Ballista-Treffer", () -> machines.afterBoltHit(entity, source, blocked));
         });
         ServerLivingEntityEvents.ALLOW_DEATH.register((entity, source, amount) -> {
             if (!camp.allowDeath(entity, source) || !machines.allowDeath(entity, source) || !expeditions.allowDeath(entity)) {
@@ -608,6 +609,7 @@ public final class SiegeManager {
         MeleeSim.tick(server);
         trapsDirty |= traps.tick(server);
         safe("Drohnen", () -> Drones.tick(server));
+        safe("Spinnen-Test", () -> SpiderOverhang.tickWatched(server));
         combat.tick(server);
         // Companions stay with summoners who defend the night (or try them out in creative).
         safe("Begleiter", () -> companions.tick(server, p -> isDefending(p) || p.getAbilities().instabuild));
@@ -1806,6 +1808,9 @@ public final class SiegeManager {
             safe("Gegner", () -> foes.tick(foesHost, liveMobs, world.getGameTime()));
             safe("Angriffsplan", () -> raid.tick(world.getGameTime(), liveMobs, upright, ladders));
         }
+        // Spiders under an overhang swing out and over the lip (Simon, 27 October 2026).
+        safe("Spinnen", () -> SpiderOverhang.tick(world, liveMobs, bosses.boss(world),
+                net.minecraft.world.phys.Vec3.atCenterOf(anchor), world.getGameTime()));
 
         // Monsters no longer dig through walls (Simon, 27 October 2026): no pickaxe and axe monsters.
 
@@ -1896,6 +1901,11 @@ public final class SiegeManager {
     /** Tests: one machine of the running night at a spot, aiming at the core. */
     public boolean testMachine(com.mki.nightsiege.core.SiegeMachineKind kind, net.minecraft.world.phys.Vec3 at) {
         return active && machines.testSpawn(bossHost, config, kind, at);
+    }
+
+    /** Tests: one impact of a standing machine of this kind right at the player. */
+    public boolean testMachineImpact(com.mki.nightsiege.core.SiegeMachineKind kind, ServerPlayer player) {
+        return active && machines.testImpact(bossHost, config, kind, player);
     }
 
     /** The day of the server's clock (for the camp). */
