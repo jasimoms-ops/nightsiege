@@ -3215,8 +3215,10 @@ public class EventLookTest implements FabricClientGameTest {
         });
         context.waitTicks(60);
         closeScreen(context);
-        // Up on the north wall.
-        game.getServer().runCommand("tp @p %d.5 %d %d.5".formatted(cx + 4, cy + 6, cz - r));
+        // On a lookout above the yard (inside the base): melee monsters outside cannot go for it, the
+        // camera only turns from here, so the counts are not disturbed by moving the player.
+        game.getServer().runCommand("setblock %d %d %d minecraft:barrier".formatted(cx, cy + 9, cz - 4));
+        game.getServer().runCommand("tp @p %d.5 %d %d.5".formatted(cx, cy + 10, cz - 4));
         context.waitTicks(80);
         final double[] main = new double[] {Double.NaN};
         onServer(context, (player, manager) -> {
@@ -3239,17 +3241,15 @@ public class EventLookTest implements FabricClientGameTest {
         // A look at them from above the wall, towards where they came from.
         game.getServer().runCommand("effect give @p minecraft:night_vision 600 0 true");
         if (!Double.isNaN(main[0])) {
-            int lx = cx + (int) Math.round(Math.cos(main[0]) * (r + 12));
-            int lz = cz + 5 + (int) Math.round(Math.sin(main[0]) * (r + 12));
-            int ex = cx + (int) Math.round(Math.cos(main[0]) * (r - 4));
-            int ez = cz + 5 + (int) Math.round(Math.sin(main[0]) * (r - 4));
-            game.getServer().runCommand("tp @p %d.5 %d %d.5 facing %d.5 %d %d.5".formatted(ex, cy + 16, ez, lx, cy, lz));
+            int lx = cx + (int) Math.round(Math.cos(main[0]) * (r + 10));
+            int lz = cz + 5 + (int) Math.round(Math.sin(main[0]) * (r + 10));
+            game.getServer().runCommand("tp @p %d.5 %d %d.5 facing %d.5 %d %d.5".formatted(cx, cy + 10, cz - 4, lx, cy, lz));
         }
         context.runOnClient(client -> hud(client, false));
         context.waitTicks(40);
         context.takeScreenshot("raid_waiting");
         context.runOnClient(client -> hud(client, true));
-        game.getServer().runCommand("tp @p %d.5 %d %d.5".formatted(cx + 4, cy + 6, cz - r));
+
 
         // A hole on their side: they storm it.
         onServer(context, (player, manager) -> {
@@ -3275,17 +3275,15 @@ public class EventLookTest implements FabricClientGameTest {
             raidCensus("hole", (net.minecraft.server.level.ServerLevel) player.level(), manager, cx, cz);
         });
         if (!Double.isNaN(main[0])) {
-            int ex = cx + (int) Math.round(Math.cos(main[0]) * (r + 2));
-            int ez = cz + 5 + (int) Math.round(Math.sin(main[0]) * (r + 2));
-            int vx = cx - (int) Math.round(Math.cos(main[0]) * 4);
-            int vz = cz + 5 - (int) Math.round(Math.sin(main[0]) * 4);
-            game.getServer().runCommand("tp @p %d.5 %d %d.5 facing %d.5 %d %d.5".formatted(vx, cy + 14, vz, ex, cy, ez));
+            int ex = cx + (int) Math.round(Math.cos(main[0]) * (r - 2));
+            int ez = cz + 5 + (int) Math.round(Math.sin(main[0]) * (r - 2));
+            game.getServer().runCommand("tp @p %d.5 %d %d.5 facing %d.5 %d %d.5".formatted(cx, cy + 10, cz - 4, ex, cy, ez));
         }
         context.runOnClient(client -> hud(client, false));
         context.waitTicks(30);
         context.takeScreenshot("raid_storm");
         context.runOnClient(client -> hud(client, true));
-        game.getServer().runCommand("tp @p %d.5 %d %d.5".formatted(cx + 4, cy + 6, cz - r));
+
 
         // A new wave; the hole walled up again; a ladder on the west wall, then the gate opened.
         onServer(context, (player, manager) -> {
