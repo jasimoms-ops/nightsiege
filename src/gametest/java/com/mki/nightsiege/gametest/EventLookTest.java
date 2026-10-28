@@ -85,6 +85,9 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("percent")) {
                     percentScene(context, game);   // shares of the max health (28 October 2026)
                 }
+                if (want.contains("weapons")) {
+                    kitWeaponScene(context, game);   // the kit weapons, 3D since 29 October 2026
+                }
                 if (want.contains("kithud")) {
                     kitHudScene(context, game);   // the kit HUD (28 October 2026)
                 }
