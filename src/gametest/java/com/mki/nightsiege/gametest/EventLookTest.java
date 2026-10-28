@@ -3428,6 +3428,11 @@ public class EventLookTest implements FabricClientGameTest {
         double maxTarget = 0;
         double maxDist = 0;
         int details = 0;
+        int assaultDetails = 0;
+        net.minecraft.server.level.ServerPlayer p0 = level.getServer().getPlayerList().getPlayers().get(0);
+        System.out.println(String.format(java.util.Locale.ROOT, "[Night Siege test] raid player %s at %.1f,%.1f,%.1f hp=%.1f mode=%s drone=%s",
+                when, p0.getX() - cx, p0.getY(), p0.getZ() - cz, p0.getHealth(), p0.isSpectator() ? "spectator" : p0.isCreative() ? "creative" : "survival",
+                com.mki.nightsiege.game.Drones.isDrone(p0)));
         for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
             if (e == null || !e.entityTags().contains(com.mki.nightsiege.game.MobFactory.TAG) || !(e instanceof net.minecraft.world.entity.Mob m)
                     || !m.isAlive()) {
@@ -3452,13 +3457,26 @@ public class EventLookTest implements FabricClientGameTest {
                 targets++;
                 maxTarget = Math.max(maxTarget, m.distanceTo(m.getTarget()));
             }
+            if (manager.raid().stateOf(m.getUUID()) == com.mki.nightsiege.game.RaidPlan.State.ASSAULT && assaultDetails < 3) {
+                assaultDetails++;
+                net.minecraft.world.entity.LivingEntity t = m.getTarget();
+                net.minecraft.world.level.pathfinder.Path path = m.getNavigation().getPath();
+                System.out.println(String.format(java.util.Locale.ROOT, "[Night Siege test] raid assault %s %s at %.1f,%.1f,%.1f plan=%s nav=%s target=%s",
+                        when, net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(m.getType()).getPath(), m.getX() - cx, m.getY(), m.getZ() - cz,
+                        manager.raid().describe(m.getUUID()),
+                        path == null ? "none" : (path.getTarget().getX() - cx) + "," + (path.getTarget().getZ() - cz) + (path.canReach() ? " reach" : " partial")
+                                + (m.getNavigation().isDone() ? " done" : ""),
+                        t == null ? "-" : (t == level.getServer().getPlayerList().getPlayers().get(0) ? "Player0" : t.getStringUUID().substring(0, 8))
+                                + String.format(java.util.Locale.ROOT, "@%.0f,%.0f,%.0f", t.getX() - cx, t.getY(), t.getZ() - cz)));
+            }
             if (d > 40 && details < 4) {
                 details++;
                 net.minecraft.world.entity.LivingEntity t = m.getTarget();
                 System.out.println(String.format(java.util.Locale.ROOT, "[Night Siege test] raid far %s %s at %.0f,%.0f plan=%s target=%s",
                         when, net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(m.getType()).getPath(), m.getX() - cx, m.getZ() - cz,
                         manager.raid().describe(m.getUUID()),
-                        t == null ? "-" : net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(t.getType()).getPath()
+                        t == null ? "-" : (t == p0 ? "Player0" : net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(t.getType()).getPath()
+                                + ":" + t.getName().getString())
                                 + String.format(java.util.Locale.ROOT, "@%.0f,%.0f", t.getX() - cx, t.getZ() - cz)));
             }
         }
