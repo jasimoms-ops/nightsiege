@@ -490,7 +490,8 @@ public final class Nemesis {
     /** The trophy: the head of a monster that has one, otherwise a plaque with its skull. */
     public static ItemStack trophy(SiegeSave.NemesisRecord rec) {
         Item head = headOf(rec.type);
-        ItemStack stack = new ItemStack(head == null ? Items.PAPER : head);
+        // The plaque sits on an echo shard: not placeable, no use, no recipe with fewer than eight.
+        ItemStack stack = new ItemStack(head == null ? Items.ECHO_SHARD : head);
         if (head == null) {
             stack.set(DataComponents.ITEM_MODEL, Identifier.fromNamespaceAndPath("nightsiege", "trophy/nemesis"));
         }
