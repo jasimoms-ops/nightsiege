@@ -1157,6 +1157,14 @@ public class SiegeConfig {
                 if (Math.abs(engineer - 1.5) < 1e-9 || Math.abs(engineer - 1.0) < 1e-9) {
                     classDamageTaken.put("engineer", 0.9);
                 }
+                // Simon 23:55: the summoners take more (their companions draw the monsters off them):
+                // the class 1.2, the soulcatcher 1.4 all in all (1.2 × 7/6).
+                if (Math.abs(classDamageTaken.getOrDefault("summoner", 1.0) - 1.0) < 1e-9) {
+                    classDamageTaken.put("summoner", 1.2);
+                }
+            }
+            if (subclassDamageTaken != null && Math.abs(subclassDamageTaken.getOrDefault("soulcatcher", 1.0) - 1.0) < 1e-9) {
+                subclassDamageTaken.put("soulcatcher", 1.4 / 1.2);
             }
             settingsVersion = 16;
         }
