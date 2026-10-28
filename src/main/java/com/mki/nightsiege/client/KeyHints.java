@@ -71,6 +71,9 @@ public final class KeyHints {
             case REMOTE -> new KeyMapping[]{GainClient.orderKey(), o.keyUse, GainClient.secondUltKey()};
             case STAFF -> new KeyMapping[]{GainClient.orderKey(), o.keyUse, o.keyShift, GainClient.quiverKey(), GainClient.secondUltKey(),
                     o.keyAttack};
+            // the ability bar (28 October 2026): the alchemist's potions and acid flask, the engineer's escape
+            case BAR -> new KeyMapping[]{GainClient.slotKey(0), GainClient.slotKey(GainClient.SLOTS - 1)};
+            case BAR_FIRST -> new KeyMapping[]{GainClient.slotKey(0)};
             default -> new KeyMapping[0];
         };
         Object[] names = new Object[used.length];

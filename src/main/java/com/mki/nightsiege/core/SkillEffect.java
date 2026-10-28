@@ -289,6 +289,10 @@ public enum SkillEffect {
     SMOKE_SALVO(0.0, Target.TRAP),
     /** Bird's-eye view: fire shells, the ground burns (Brandsalve). */
     FIRE_SALVO(0.0, Target.TRAP),
+    /** The alchemist learns one zone potion (Simon, 28 October 2026: three of the seven). */
+    BREW(0.0, Target.TRAP),
+    /** The alchemist's acid flask: a burst of acid that makes monsters take more damage (28 October 2026). */
+    ACID_FLASK(0.0, Target.TRAP),
     FIRE_BOMBS(0.0, Target.TRAP),
     PLAGUE(0.0, Target.TRAP),
     ACID_FOG(0.0, Target.TRAP),

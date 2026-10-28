@@ -40,6 +40,7 @@ import net.minecraft.world.level.GameType;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 /**
@@ -157,6 +158,7 @@ public final class KitService {
         if (!hasStash(player)) {
             return;
         }
+        rememberLayout(player);
         clearKit(player);
         give(player, level);
     }
@@ -176,6 +178,7 @@ public final class KitService {
             GameType mode = GameType.byName(stash.gameMode, GameType.SURVIVAL);
             player.setGameMode(mode);
         }
+        rememberLayout(player);   // the next kit of this class comes sorted the same way
         Inventory inv = player.getInventory();
         List<ItemStack> keep = new ArrayList<>();
         for (int i = 0; i < inv.getContainerSize(); i++) {
@@ -314,6 +317,94 @@ public final class KitService {
             }
         } else {
             traps.giveRemote(player, skills);
+        }
+        applyLayout(player, clazz);
+    }
+
+    // ------------------------------------------------------------------
+    // the kit's order (Simon 29.10.: "sort the kit inventory once, not anew every round")
+    // ------------------------------------------------------------------
+
+    /** Slots of the main inventory (hotbar 0-8, the rest 9-35). */
+    private static final int MAIN_SLOTS = 36;
+
+    /** What an item of the kit is, for its place: the item, its gadget, a potion's name. */
+    static String layoutKey(ItemStack stack) {
+        StringBuilder key = new StringBuilder(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString());
+        String gadget = Gadgets.of(stack);
+        if (gadget != null && !gadget.isEmpty()) {
+            key.append('|').append(gadget);
+        }
+        if (stack.has(DataComponents.POTION_CONTENTS)) {
+            key.append('|').append(stack.getHoverName().getString());
+        }
+        return key.toString();
+    }
+
+    private static boolean kitThing(ItemStack stack) {
+        return !stack.isEmpty() && (isKit(stack) || isTrapOrRemote(stack));
+    }
+
+    /** Notes where the player keeps each kit item now (several stacks of one item: in their order). */
+    private void rememberLayout(ServerPlayer player) {
+        PlayerSkills skills = save.get().skillsOf(player.getUUID().toString());
+        SkillClass clazz = skills == null ? null : skills.clazz();
+        if (clazz == null) {
+            return;
+        }
+        Inventory inv = player.getInventory();
+        Map<String, Integer> layout = new java.util.LinkedHashMap<>();
+        Map<String, Integer> seen = new java.util.HashMap<>();
+        for (int i = 0; i < MAIN_SLOTS && i < inv.getContainerSize(); i++) {
+            ItemStack stack = inv.getItem(i);
+            if (!kitThing(stack)) {
+                continue;
+            }
+            String key = layoutKey(stack);
+            int n = seen.merge(key, 1, Integer::sum);
+            layout.put(n == 1 ? key : key + "#" + n, i);
+        }
+        if (layout.isEmpty()) {
+            return;
+        }
+        if (save.get().kitLayouts == null) {
+            save.get().kitLayouts = new java.util.HashMap<>();
+        }
+        save.get().kitLayouts.computeIfAbsent(player.getUUID().toString(), k -> new java.util.HashMap<>())
+                .put(clazz.name(), layout);
+    }
+
+    /** Puts the new kit's items where the player kept them last time; new things fill the free slots. */
+    private void applyLayout(ServerPlayer player, SkillClass clazz) {
+        Map<String, Map<String, Integer>> mine = save.get().kitLayouts == null || clazz == null ? null
+                : save.get().kitLayouts.get(player.getUUID().toString());
+        Map<String, Integer> layout = mine == null ? null : mine.get(clazz.name());
+        if (layout == null || layout.isEmpty()) {
+            return;
+        }
+        Inventory inv = player.getInventory();
+        List<ItemStack> kit = new ArrayList<>();
+        for (int i = 0; i < MAIN_SLOTS && i < inv.getContainerSize(); i++) {
+            ItemStack stack = inv.getItem(i);
+            if (kitThing(stack)) {
+                kit.add(stack);
+                inv.setItem(i, ItemStack.EMPTY);
+            }
+        }
+        List<ItemStack> rest = new ArrayList<>();
+        Map<String, Integer> seen = new java.util.HashMap<>();
+        for (ItemStack stack : kit) {
+            String key = layoutKey(stack);
+            int n = seen.merge(key, 1, Integer::sum);
+            Integer slot = layout.get(n == 1 ? key : key + "#" + n);
+            if (slot != null && slot >= 0 && slot < MAIN_SLOTS && inv.getItem(slot).isEmpty()) {
+                inv.setItem(slot, stack);
+            } else {
+                rest.add(stack);
+            }
+        }
+        for (ItemStack stack : rest) {
+            inv.placeItemBackInInventory(stack);
         }
     }
 
@@ -530,6 +621,11 @@ public final class KitService {
             hotbar.add(new ItemStack(Items.LADDER, 8));
         }
         GainGear.addKitItems(this, skills, clazz, way, hotbar);
+        // Wooden tools in every kit (Simon 29.10.): to dig, chop and clear; last, so they never push
+        // the fighting things off the hotbar.
+        hotbar.add(new ItemStack(Items.WOODEN_PICKAXE));
+        hotbar.add(new ItemStack(Items.WOODEN_AXE));
+        hotbar.add(new ItemStack(Items.WOODEN_SHOVEL));
         return new Kit(armor, offhand, hotbar);
     }
 

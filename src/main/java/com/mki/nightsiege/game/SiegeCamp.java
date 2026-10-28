@@ -1079,6 +1079,9 @@ public final class SiegeCamp {
                 || !SiegeManager.dimensionName(server).equals(camp.dimension)) {
             return false;
         }
+        if (ModContent.trapOf(level.getBlockState(pos)) != null) {
+            return false;   // the engineer's field towers may be picked up again (28 October 2026)
+        }
         int dx = pos.getX() - camp.x;
         int dz = pos.getZ() - camp.z;
         int dy = pos.getY() - camp.y;

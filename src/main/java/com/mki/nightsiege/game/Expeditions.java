@@ -84,6 +84,8 @@ public final class Expeditions {
 
     /** On every monster of a dungeon. */
     public static final String TAG = "nightsiege_exp";
+    /** On the arena's champion: the engineer's towers reach it further and take it first (28 October 2026). */
+    public static final String CHAMPION_TAG = "nightsiege_exp_champion";
     /** Tag of the scouts' map (its value is the dungeon's id). */
     private static final String MAP_TAG = "nightsiege_scout";
     /** Monsters of the dungeon of now; anything else with the tag goes when it loads. */
@@ -885,6 +887,7 @@ public final class Expeditions {
         BossService.set(mob, Attributes.KNOCKBACK_RESISTANCE, 0.8);
         mob.setCustomName(Component.translatable(kind.championKey()).withStyle(ChatFormatting.GOLD));
         mob.setCustomNameVisible(true);
+        mob.addTag(CHAMPION_TAG);
         champion = mob.getUUID();
         BossService.foeLook(mob, "champion_" + kind.id());   // in its fragment's style (design update, 29 October 2026)
         m.stats().dungeonProgress(rec.cleared, wave, true);
@@ -1130,6 +1133,9 @@ public final class Expeditions {
         if (rec == null || rec.won || !rec.built || !(level instanceof ServerLevel server)
                 || !SiegeManager.dimensionName(server).equals(rec.dimension)) {
             return false;
+        }
+        if (ModContent.trapOf(level.getBlockState(pos)) != null) {
+            return false;   // the engineer takes his field towers along to the next room (28 October 2026)
         }
         int dx = pos.getX() - rec.x;
         int dz = pos.getZ() - rec.z;

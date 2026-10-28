@@ -67,6 +67,9 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("bar") || want.contains("seele")) {
                     soulcatcherScene(context, game);   // souls in the dungeon, the spells without G (28 October 2026)
                 }
+                if (want.contains("tech")) {
+                    techScene(context, game);   // the engineer after the playtest of 28 October 2026
+                }
                 if (want.contains("foes")) {
                     foeScene(context, game);
                 }
@@ -97,6 +100,13 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("playtest")) {
                     playtestScene(context, game);   // the playtest (28 October 2026)
                 }
+                if (want.contains("ladders")) {
+                    // The climbing scenes, then the ladder cases of 28 October 2026 (block beside, ladder above the ground).
+                    ladderScene(context, game);
+                    ladderTargetScene(context, game, true);
+                    innerLadderScene(context, game);
+                    ladderCasesScene(context, game);
+                }
                 return;
             }
             if (System.getenv("NIGHTSIEGE_SIM") != null) {
@@ -124,6 +134,7 @@ public class EventLookTest implements FabricClientGameTest {
                 ladderTargetScene(context, game, true);
                 innerLadderScene(context, game);
                 ladderOverhangScene(context, game);
+                ladderCasesScene(context, game);   // block beside a ladder, ladder above the ground (28 October 2026)
                 nightHoldScene(context, game);
                 besiegerScene(context, game);   // again since 27 October 2026: more sappers, craters, free ladder ways
                 campScene(context, game);
@@ -139,6 +150,7 @@ public class EventLookTest implements FabricClientGameTest {
                 mortarScene(context, game);
                 mannedScene(context, game);
                 alchemistScene(context, game);
+                techScene(context, game);   // grenade, blast jump, towers vs champions, three potions, field towers
                 spotterScene(context, game);
                 droneScene(context, game);
                 nightStatsScene(context);
@@ -940,6 +952,139 @@ public class EventLookTest implements FabricClientGameTest {
         System.out.println("[Night Siege test] ladder overhang: blocked=" + got[0] + " free=" + got[1] + " roof=" + got[2]);
         if (got[0] != -1 || got[1] != 5 || got[2] != -1) {
             throw new AssertionError("ladder way up: overhang " + got[0] + " (want -1), free " + got[1] + " (want 5), roof " + got[2] + " (want -1)");
+        }
+    }
+
+    /**
+     * Simon (28 October 2026, 22:38): monsters got stuck at ladders with a block beside them and
+     * at ladders that end one block above the ground. Four small walled yards side by side, one
+     * husk outside each that wants to the middle of its yard:
+     * <ul>
+     *   <li>side: the outer ladder has blocks beside it (at the ground, half way up, battlements at the top);</li>
+     *   <li>hanging: the lowest rung of the outer ladder is one block above the ground;</li>
+     *   <li>down: over the outer ladder, and right behind it a ladder inside with blocks beside it;</li>
+     *   <li>downhang: the same, the inner ladder ending one block above the floor of the yard.</li>
+     * </ul>
+     * Each husk must stand on the floor of its yard within the time limit: one PASS/FAIL line each.
+     */
+    private static void ladderCasesScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        final String[] names = {"side", "hanging", "down", "downhang"};
+        final int n = names.length;
+        final int r = 3;
+        final int limit = 600;   // ticks
+        final int[] gx = new int[n];
+        final int[] gy = new int[n];
+        final int[] gz = new int[n];
+        game.getServer().runCommand("time set 6000");
+        for (int c = 0; c < n; c++) {
+            gx[c] = pos.getX() + 240 + c * 30;
+            gz[c] = pos.getZ();
+            gy[c] = groundAt(context, gx[c], gz[c]);
+            int x = gx[c];
+            int y = gy[c];
+            int z = gz[c];
+            game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:grass_block".formatted(x - 14, y - 1, z - 8, x + 6, y - 1, z + 8));
+            game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(x - 14, y, z - 8, x + 6, y + 8, z + 8));
+            String wall = "fill %d %d %d %d %d %d minecraft:stone_bricks";
+            game.getServer().runCommand(wall.formatted(x - r, y, z - r, x + r, y + 3, z - r));
+            game.getServer().runCommand(wall.formatted(x - r, y, z + r, x + r, y + 3, z + r));
+            game.getServer().runCommand(wall.formatted(x - r, y, z - r, x - r, y + 3, z + r));
+            game.getServer().runCommand(wall.formatted(x + r, y, z - r, x + r, y + 3, z + r));
+            String block = "setblock %d %d %d minecraft:stone_bricks";
+            String outer = "fill %d %d %d %d %d %d minecraft:ladder[facing=west]";
+            String inner = "fill %d %d %d %d %d %d minecraft:ladder[facing=east]";
+            switch (names[c]) {
+                case "side" -> {
+                    game.getServer().runCommand(outer.formatted(x - r - 1, y, z, x - r - 1, y + 3, z));
+                    game.getServer().runCommand(block.formatted(x - r - 1, y, z + 1));       // right of it at the ground
+                    game.getServer().runCommand(block.formatted(x - r - 1, y + 2, z - 1));   // left of it half way up
+                    game.getServer().runCommand(block.formatted(x - r, y + 4, z - 1));       // battlements beside the top
+                    game.getServer().runCommand(block.formatted(x - r, y + 4, z + 1));
+                }
+                case "hanging" -> game.getServer().runCommand(outer.formatted(x - r - 1, y + 1, z, x - r - 1, y + 3, z));
+                case "down" -> {
+                    game.getServer().runCommand(outer.formatted(x - r - 1, y, z, x - r - 1, y + 3, z));
+                    game.getServer().runCommand(inner.formatted(x - r + 1, y, z, x - r + 1, y + 3, z));
+                    game.getServer().runCommand(block.formatted(x - r + 1, y + 2, z - 1));   // beside the inner ladder
+                    game.getServer().runCommand(block.formatted(x - r + 1, y + 3, z - 1));
+                    game.getServer().runCommand(block.formatted(x - r + 1, y + 2, z + 1));
+                    game.getServer().runCommand(block.formatted(x - r + 1, y + 3, z + 1));
+                }
+                default -> {
+                    game.getServer().runCommand(outer.formatted(x - r - 1, y, z, x - r - 1, y + 3, z));
+                    game.getServer().runCommand(inner.formatted(x - r + 1, y + 1, z, x - r + 1, y + 3, z));
+                }
+            }
+            game.getServer().runCommand(("summon minecraft:husk %d %d %d {PersistenceRequired:1b,Tags:[\"ns_lc_%s\"],"
+                    + "CustomName:\"%s\",CustomNameVisible:1b}").formatted(x - 10, y, z + (c % 2 == 0 ? -2 : 2), names[c], names[c]));
+        }
+        // Watch the first yard (block beside the ladder) from the side, a little above.
+        game.getServer().runCommand("setblock %d %d %d minecraft:barrier".formatted(gx[0] - 4, gy[0] + 3, gz[0] - 12));
+        game.getServer().runCommand("tp @p %d.5 %d %d.5 0 22".formatted(gx[0] - 4, gy[0] + 4, gz[0] - 12));
+        context.waitTicks(20);
+        final com.mki.nightsiege.game.LadderClimb[] ladders = new com.mki.nightsiege.game.LadderClimb[n];
+        final int[] passAt = new int[n];
+        final String[] where = new String[n];
+        for (int c = 0; c < n; c++) {
+            ladders[c] = new com.mki.nightsiege.game.LadderClimb();
+            passAt[c] = -1;
+            where[c] = "gone";
+        }
+        for (int i = 0; i < limit / 2; i++) {
+            final int step = i;
+            onServer(context, (player, manager) -> {
+                net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                    for (int c = 0; c < n; c++) {
+                        if (!e.entityTags().contains("ns_lc_" + names[c]) || !(e instanceof net.minecraft.world.entity.Mob mob)) {
+                            continue;
+                        }
+                        ladders[c].tick(level, java.util.List.of(e.getUUID()), new BlockPos(gx[c], gy[c], gz[c]), level.getGameTime());
+                        where[c] = String.format(Locale.ROOT, "%.1f %.1f %.1f climbing=%s busy=%s", e.getX() - gx[c], e.getY() - gy[c],
+                                e.getZ() - gz[c], mob.onClimbable(), ladders[c].busy(e.getUUID()));
+                        boolean inside = Math.abs(e.getBlockX() - gx[c]) < r && Math.abs(e.getBlockZ() - gz[c]) < r;
+                        if (passAt[c] < 0 && inside && e.getY() < gy[c] + 0.5 && e.onGround()) {
+                            passAt[c] = step * 2;
+                        }
+                        if (step % 50 == 0) {
+                            System.out.println("[Night Siege test] ladder case " + names[c] + " t=" + step * 2 + ": " + where[c]);
+                        }
+                    }
+                }
+            });
+            context.waitTicks(2);
+            if (i == 25 || i == 45 || i == 100) {
+                context.takeScreenshot("ladder_cases_" + i * 2);
+            }
+        }
+        context.waitTicks(5);
+        int passed = 0;
+        StringBuilder failed = new StringBuilder();
+        for (int c = 0; c < n; c++) {
+            if (passAt[c] >= 0) {
+                passed++;
+                System.out.println("[Night Siege test] ladder case " + names[c] + ": PASS after " + passAt[c] + " ticks");
+            } else {
+                failed.append(' ').append(names[c]);
+                System.out.println("[Night Siege test] ladder case " + names[c] + ": FAIL, not down in the yard after " + limit
+                        + " ticks (at " + where[c] + ")");
+            }
+        }
+        System.out.println("[Night Siege test] ladder cases: " + passed + "/" + n + " PASS");
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                for (String name : names) {
+                    if (e.entityTags().contains("ns_lc_" + name)) {
+                        e.discard();
+                    }
+                }
+            }
+        });
+        context.waitTicks(5);
+        if (passed < n) {
+            throw new AssertionError("ladder cases failed:" + failed);
         }
     }
 
@@ -5772,6 +5917,8 @@ public class EventLookTest implements FabricClientGameTest {
             own.levels.clear();
             own.levels.put("potion_tower", 3);
             own.levels.put("e_acid", 1);
+            own.levels.put("brew_heal", 1);   // potions are nodes since 28 October 2026
+            own.levels.put("brew_slow", 1);
             manager.kits().refit(player, 1);
             com.mki.nightsiege.core.WheelData wheel = manager.kits().traps().brewWheel(player);
             int open = 0;
@@ -5781,8 +5928,8 @@ public class EventLookTest implements FabricClientGameTest {
             int shown = manager.abilitySlots(player).size();
             System.out.println("[Night Siege test] kit hud alchemist: potions=" + (wheel == null ? 0 : wheel.options.size())
                     + " learned=" + open + " boxes=" + shown);
-            if (shown != open) {
-                throw new AssertionError("kit hud: " + shown + " boxes for " + open + " learned potions");
+            if (shown != open + 1) {   // the blast jump comes first (28 October 2026)
+                throw new AssertionError("kit hud: " + shown + " boxes for " + open + " learned potions and the blast jump");
             }
         });
         context.waitTicks(30);
@@ -5838,6 +5985,9 @@ public class EventLookTest implements FabricClientGameTest {
             own.levels.clear();
             own.levels.put("potion_tower", 3);
             own.levels.put("e_acid", 1);
+            for (String brew : new String[] {"brew_heal", "brew_poison", "brew_slow"}) {
+                own.levels.put(brew, 1);   // three of the seven potions (28 October 2026)
+            }
             player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND,
                     new net.minecraft.world.item.ItemStack(com.mki.nightsiege.game.ModContent.REMOTE));
             System.out.println("[Night Siege test] alchemist sub=" + manager.skillTree().subclassOf(own));
@@ -5888,6 +6038,358 @@ public class EventLookTest implements FabricClientGameTest {
             own.switchTo(com.mki.nightsiege.core.SkillClass.ENGINEER);
         });
         context.waitTicks(3);
+    }
+
+    /**
+     * The engineer after Simon's playtest of 28 October 2026: every engineer's kit holds the flash
+     * grenade and his ability bar starts with the blast jump, which throws him back; an arrow turret
+     * reaches a champion beyond its range while a plain husk as far stays untouched; the alchemist
+     * learns three of the seven potions, each with its own pause, and the acid flask; in a dungeon
+     * the engineer sets up field towers although three turrets stand at home, and they go with the fight.
+     */
+    private static void techScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        int cx = pos.getX() - 140;
+        int cz = pos.getZ() + 140;
+        int cy = yard(context, game, cx, cz, 26, 10);
+        game.getServer().runCommand("time set 6000");
+        game.getServer().runCommand("gamemode creative @p");
+        game.getServer().runCommand("tp @p %d.5 %d %d.5 0 10".formatted(cx, cy, cz - 6));
+        context.waitTicks(40);
+        java.util.List<String> fails = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+        java.util.List<BlockPos> homeTurrets = java.util.List.of(new BlockPos(cx, cy, cz), new BlockPos(cx, cy, cz - 12),
+                new BlockPos(cx + 2, cy, cz - 12));
+
+        // 1. The kit: the flash grenade for every engineer, the blast jump first on the bar.
+        onServer(context, (player, manager) -> {
+            if (!manager.isRegistered(player)) {
+                manager.register(player);
+            }
+            com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
+            own.unlockClass(com.mki.nightsiege.core.SkillClass.ENGINEER);
+            own.switchTo(com.mki.nightsiege.core.SkillClass.ENGINEER);
+            own.levels.clear();
+            for (String id : new String[] {"spike_trap", "snare_trap", "e_circuit", "arrow_turret"}) {
+                own.levels.put(id, 3);
+            }
+            player.getAbilities().flying = false;
+            player.onUpdateAbilities();
+            manager.kits().equip(player, 1);
+            int flash = 0;
+            for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+                net.minecraft.world.item.ItemStack stack = player.getInventory().getItem(i);
+                if ("alchemie_blende".equals(com.mki.nightsiege.game.Gadgets.of(stack))) {
+                    flash += stack.getCount();
+                }
+            }
+            java.util.List<com.mki.nightsiege.core.UltState.Slot> slots = manager.abilitySlots(player);
+            String first = slots.isEmpty() ? "-" : slots.get(0).id;
+            System.out.println("[Night Siege test] tech kit: sub=" + manager.skillTree().subclassOf(own) + " flash=" + flash
+                    + " bar=" + slots.size() + " first=" + first);
+            if (flash < 1) {
+                fails.add("no flash grenade in the gunner's kit");
+            }
+            if (!"escape".equals(first)) {
+                fails.add("the gunner's bar starts with " + first);
+            }
+            // Wooden tools in every kit, and the kit comes back sorted as the player left it (Simon 29.10.).
+            net.minecraft.world.entity.player.Inventory inv = player.getInventory();
+            int cobble = -1;
+            boolean pick = false;
+            for (int i = 0; i < 36; i++) {
+                if (inv.getItem(i).is(net.minecraft.world.item.Items.COBBLESTONE)) {
+                    cobble = i;
+                }
+                pick |= inv.getItem(i).is(net.minecraft.world.item.Items.WOODEN_PICKAXE);
+            }
+            if (!pick) {
+                fails.add("no wooden pickaxe in the kit");
+            }
+            if (cobble >= 0) {
+                int target = cobble == 35 ? 34 : 35;
+                net.minecraft.world.item.ItemStack moved = inv.getItem(cobble);
+                inv.setItem(cobble, inv.getItem(target));
+                inv.setItem(target, moved);
+                manager.kits().restore(player);
+                manager.kits().equip(player, 1);
+                boolean back = inv.getItem(target).is(net.minecraft.world.item.Items.COBBLESTONE);
+                System.out.println("[Night Siege test] tech kit layout: cobblestone " + cobble + " -> " + target + " kept=" + back);
+                if (!back) {
+                    fails.add("the kit forgot where the cobblestone was");
+                }
+            }
+        });
+        context.waitTicks(30);
+        context.takeScreenshot("tech_kit_bar");
+
+        // 2. The blast jump: thrown back (looking south, so north), the husk beside him crawls.
+        game.getServer().runCommand("tp @p %d.5 %d %d.5 0 0".formatted(cx - 8, cy, cz + 6));
+        game.getServer().runCommand(("summon minecraft:husk %d %d %d {PersistenceRequired:1b,Tags:[\"ns_tech\",\"ns_tech_push\"]}")
+                .formatted(cx - 8, cy, cz + 8));
+        context.waitTicks(30);
+        double[] start = new double[3];
+        onServer(context, (player, manager) -> {
+            start[0] = player.getX();
+            start[1] = player.getY();
+            start[2] = player.getZ();
+            System.out.println("[Night Siege test] tech escape before: ground=" + player.onGround()
+                    + " slot=" + manager.abilitySlotOf(player, "escape"));
+            manager.onCoreAction(player, "slot:" + Math.max(0, manager.abilitySlotOf(player, "escape")));
+        });
+        context.waitTicks(4);
+        context.takeScreenshot("tech_escape_air");
+        context.waitTicks(6);
+        onServer(context, (player, manager) -> System.out.println(String.format(java.util.Locale.ROOT,
+                "[Night Siege test] tech escape after 10 ticks: dx %.1f dz %.1f up %.1f", player.getX() - start[0],
+                player.getZ() - start[2], player.getY() - start[1])));
+        context.waitTicks(20);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            double dx = player.getX() - start[0];
+            double dz = player.getZ() - start[2];
+            double moved = Math.sqrt(dx * dx + dz * dz);
+            boolean slowed = false;
+            for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                if (e.entityTags().contains("ns_tech_push") && e instanceof net.minecraft.world.entity.LivingEntity l) {
+                    slowed = l.hasEffect(net.minecraft.world.effect.MobEffects.SLOWNESS);
+                }
+            }
+            java.util.List<com.mki.nightsiege.core.UltState.Slot> slots = manager.abilitySlots(player);
+            int wait = slots.isEmpty() ? -1 : slots.get(0).cooldownTicks;
+            System.out.println(String.format(java.util.Locale.ROOT,
+                    "[Night Siege test] tech escape: moved %.1f (dz %.1f, up %.1f) husk slowed=%s pause=%d",
+                    moved, dz, player.getY() - start[1], slowed, wait));
+            if (moved < 3.0 || dz > -2.0) {
+                fails.add(String.format(java.util.Locale.ROOT, "blast jump moved only %.1f blocks (dz %.1f)", moved, dz));
+            }
+            if (!slowed) {
+                fails.add("the blast jump did not slow the husk beside it");
+            }
+            if (wait <= 0) {
+                fails.add("the blast jump has no pause");
+            }
+        });
+        context.waitTicks(5);   // the commands below must not overtake the look above
+        game.getServer().runCommand("kill @e[tag=ns_tech]");
+
+        // 3. Towers and the champion: 21 blocks off (range 16, ×1.5 for bosses and champions); a plain husk 20 off stays whole.
+        game.getServer().runCommand(("summon minecraft:husk %d %d %d {NoAI:1b,PersistenceRequired:1b,Tags:[\"ns_tech\",\"nightsiege_exp_champion\"],"
+                + "attributes:[{id:\"minecraft:max_health\",base:200.0d}],Health:200.0f}").formatted(cx + 21, cy, cz));
+        game.getServer().runCommand(("summon minecraft:husk %d %d %d {NoAI:1b,PersistenceRequired:1b,Tags:[\"ns_tech\",\"ns_tech_plain\"],"
+                + "attributes:[{id:\"minecraft:max_health\",base:200.0d}],Health:200.0f}").formatted(cx - 20, cy, cz));
+        game.getServer().runCommand("tp @p %d.5 %d %d.5 facing %d.5 %d %d.5".formatted(cx + 6, cy, cz - 7, cx + 21, cy + 1, cz));
+        context.waitTicks(10);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            for (BlockPos at : homeTurrets) {
+                place(level, manager, player, at, com.mki.nightsiege.core.TrapKind.TURRET);
+            }
+            net.minecraft.network.chat.Component blocked = manager.kits().traps().placeBlocked(player, com.mki.nightsiege.core.TrapKind.TURRET);
+            System.out.println("[Night Siege test] tech home turrets: " + manager.kits().traps().placedBy(
+                    player.getUUID().toString(), com.mki.nightsiege.core.TrapKind.TURRET, false) + " fourth blocked="
+                    + (blocked == null ? "no (creative)" : blocked.getString()));
+        });
+        context.waitTicks(170);
+        context.takeScreenshot("tech_turret_champion");
+        onServer(context, (player, manager) -> {
+            float champion = health(player, "nightsiege_exp_champion");
+            float plain = health(player, "ns_tech_plain");
+            System.out.println(String.format(java.util.Locale.ROOT, "[Night Siege test] tech towers: champion %.1f/200 plain %.1f/200",
+                    champion, plain));
+            if (champion >= 200f) {
+                fails.add("no tower reached the champion 21 blocks off");
+            }
+            if (plain < 200f) {
+                fails.add("a tower reached the plain husk 20 blocks off");
+            }
+        });
+        context.waitTicks(5);
+
+        // 4. The alchemist: three of seven potions, each with its own pause, and the acid flask.
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
+            com.mki.nightsiege.core.SkillTree tree = manager.skillTree();
+            own.levels.clear();
+            own.points = 1000;
+            for (String id : new String[] {"spike_trap", "snare_trap", "e_detonator", "potion_tower"}) {
+                own.levels.put(id, 3);
+            }
+            own.levels.put("e_acid", 1);
+            if (own.planned != null) {
+                own.planned.remove(own.chosenClass);   // an earlier scene may have fixed another subclass
+            }
+            for (String id : new String[] {"brew_heal", "brew_slow", "brew_weak", "e_acid_flask"}) {
+                if (!tree.unlock(id, own)) {
+                    fails.add("could not learn " + id + ": " + tree.blockedReason(id, own));
+                }
+            }
+            String fourth = tree.blockedReason("brew_poison", own);
+            manager.kits().refit(player, 1);
+            java.util.List<String> ids = new java.util.ArrayList<>();
+            for (com.mki.nightsiege.core.UltState.Slot s : manager.abilitySlots(player)) {
+                ids.add(s.id);
+            }
+            System.out.println("[Night Siege test] tech alchemist: sub=" + tree.subclassOf(own) + " fourth potion=" + fourth
+                    + " bar=" + ids);
+            if (!"choice".equals(fourth)) {
+                fails.add("a fourth potion is not shut: " + fourth);
+            }
+            if (!ids.equals(java.util.List.of("escape", "heal", "slow", "weak", "acid"))) {
+                fails.add("alchemist bar " + ids);
+            }
+        });
+        game.getServer().runCommand("tp @p %d.5 %d %d.5 0 45".formatted(cx - 6, cy, cz + 10));
+        context.waitTicks(30);
+        context.takeScreenshot("tech_alchemist_bar");
+        int zonesBefore = context.computeOnClient(client -> com.mki.nightsiege.game.AlchemyZones.count());
+        onServer(context, (player, manager) -> manager.onCoreAction(player, "slot:" + Math.max(0, manager.abilitySlotOf(player, "slow"))));
+        context.waitTicks(25);
+        onServer(context, (player, manager) -> {
+            manager.onCoreAction(player, "slot:" + Math.max(0, manager.abilitySlotOf(player, "weak")));
+            long now = player.level().getGameTime();
+            int slow = manager.kits().traps().brewCooldownLeft(player, com.mki.nightsiege.core.BrewKind.SLOW, now);
+            int heal = manager.kits().traps().brewCooldownLeft(player, com.mki.nightsiege.core.BrewKind.HEAL, now);
+            System.out.println("[Night Siege test] tech alchemist pauses: slow=" + slow + " heal=" + heal);
+            if (slow <= 0 || heal != 0) {
+                fails.add("potion pauses slow=" + slow + " heal=" + heal);
+            }
+        });
+        context.waitTicks(30);
+        context.takeScreenshot("tech_alchemist_zones");
+        int zonesAfter = context.computeOnClient(client -> com.mki.nightsiege.game.AlchemyZones.count());
+        System.out.println("[Night Siege test] tech alchemist zones " + zonesBefore + " -> " + zonesAfter);
+        if (zonesAfter - zonesBefore < 2) {
+            fails.add("two potions in a row made " + (zonesAfter - zonesBefore) + " clouds");
+        }
+        // The acid flask onto the plain husk (out of the turrets' reach).
+        game.getServer().runCommand("tp @p %d.5 %d %d.5 facing %d.5 %d %d.5".formatted(cx - 14, cy, cz, cx - 20, cy + 1, cz));
+        context.waitTicks(10);
+        onServer(context, (player, manager) -> manager.onCoreAction(player, "slot:" + Math.max(0, manager.abilitySlotOf(player, "acid"))));
+        context.waitTicks(30);
+        context.takeScreenshot("tech_acid_flask");
+        onServer(context, (player, manager) -> {
+            float plain = health(player, "ns_tech_plain");
+            System.out.println(String.format(java.util.Locale.ROOT, "[Night Siege test] tech acid: plain husk %.1f/200", plain));
+            if (plain >= 200f) {
+                fails.add("the acid flask did not hurt the husk");
+            }
+        });
+        context.waitTicks(5);
+        game.getServer().runCommand("kill @e[tag=ns_tech]");
+
+        // 5. A dungeon: field towers although three turrets stand at home; they go with the fight.
+        onServer(context, (player, manager) -> {
+            manager.kits().restore(player);
+            com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
+            own.levels.clear();
+            for (String id : new String[] {"spike_trap", "snare_trap", "e_circuit", "arrow_turret"}) {
+                own.levels.put(id, 3);
+            }
+        });
+        int bx = cx + 90;
+        int bz = cz - 40;
+        int fy = hill(context, game, bx, bz);
+        onServer(context, (player, manager) -> manager.expeditions().testBuild((net.minecraft.server.level.ServerLevel) player.level(),
+                new BlockPos(bx, fy, bz), 0, com.mki.nightsiege.core.ExpeditionKind.STONE_CRYPT, 2));
+        context.waitTicks(10);
+        game.getServer().runCommand("gamemode survival @p");
+        game.getServer().runCommand("effect give @p minecraft:resistance 600 255 true");
+        game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %d.5 %d %d.5 facing %d.5 %d %d.5",
+                bx, fy - 15, bz + 16, bx, fy - 14, bz + 25));
+        context.waitTicks(30);
+        closeScreen(context);
+        BlockPos[] field = new BlockPos[1];
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            int items = 0;
+            for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+                net.minecraft.world.item.ItemStack stack = player.getInventory().getItem(i);
+                if (stack.is(com.mki.nightsiege.game.ModContent.TRAP_ITEMS.get(com.mki.nightsiege.core.TrapKind.TURRET))) {
+                    items += stack.getCount();
+                }
+            }
+            net.minecraft.network.chat.Component blocked = manager.kits().traps().placeBlocked(player, com.mki.nightsiege.core.TrapKind.TURRET);
+            field[0] = player.blockPosition().offset(0, 0, 1);
+            place(level, manager, player, field[0], com.mki.nightsiege.core.TrapKind.TURRET);
+            com.mki.nightsiege.game.TrapRecord rec = manager.kits().traps().recordAt(level, field[0]);
+            System.out.println("[Night Siege test] tech dungeon: fighter=" + manager.expeditions().isFighter(player)
+                    + " field=" + manager.fieldFighter(player) + " turret items=" + items
+                    + " blocked=" + (blocked == null ? "-" : blocked.getString()) + " placed field=" + (rec != null && rec.field)
+                    + " home=" + manager.kits().traps().placedBy(player.getUUID().toString(), com.mki.nightsiege.core.TrapKind.TURRET, false));
+            if (!manager.fieldFighter(player)) {
+                fails.add("not a field fighter in the dungeon");
+            }
+            if (items < 1) {
+                fails.add("no free turrets in the dungeon kit");
+            }
+            if (blocked != null) {
+                fails.add("turret blocked in the dungeon: " + blocked.getString());
+            }
+            if (rec == null || !rec.field) {
+                fails.add("the dungeon turret is no field tower");
+            }
+        });
+        context.waitTicks(10);
+        context.takeScreenshot("tech_dungeon_field_tower");
+        onServer(context, (player, manager) -> manager.expeditions().remove(player.level().getServer()));
+        context.waitTicks(20);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            boolean gone = manager.kits().traps().recordAt(level, field[0]) == null
+                    && com.mki.nightsiege.game.ModContent.trapOf(level.getBlockState(field[0])) == null;
+            int home = manager.kits().traps().placedBy(player.getUUID().toString(), com.mki.nightsiege.core.TrapKind.TURRET, false);
+            System.out.println("[Night Siege test] tech dungeon over: field tower gone=" + gone + " home=" + home);
+            if (!gone) {
+                fails.add("the field tower stayed after the fight");
+            }
+            if (home != homeTurrets.size()) {
+                fails.add("home turrets " + home);
+            }
+            for (BlockPos at : homeTurrets) {
+                level.removeBlock(at, false);
+                manager.kits().traps().onBroken(level, at);
+            }
+        });
+        context.waitTicks(5);
+        game.getServer().runCommand("effect clear @p");
+        game.getServer().runCommand("gamemode creative @p");
+        game.getServer().runCommand("tp @p %d.5 %d %d.5".formatted(pos.getX(), pos.getY(), pos.getZ()));
+        context.waitTicks(20);
+        // The heavy archer has the blast jump first on his bar too (Simon 29.10., 00:09), and it gives 2 hearts back.
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
+            own.unlockClass(com.mki.nightsiege.core.SkillClass.ARCHER);
+            own.switchTo(com.mki.nightsiege.core.SkillClass.ARCHER);
+            own.levels.clear();
+            own.levels.put("heavy_draw", 1);
+            java.util.List<com.mki.nightsiege.core.UltState.Slot> slots = manager.abilitySlots(player);
+            String first = slots.isEmpty() ? "-" : slots.get(0).id;
+            player.setHealth(10f);
+            com.mki.nightsiege.game.EngineerEscape.reset();
+            manager.onCoreAction(player, "slot:" + Math.max(0, manager.abilitySlotOf(player, "escape")));
+            System.out.println("[Night Siege test] tech heavy archer: sub=" + manager.skillTree().subclassOf(own)
+                    + " first=" + first + " hp after the jump=" + Math.round(player.getHealth()));
+            if (!"escape".equals(first)) {
+                fails.add("the heavy archer's bar starts with " + first);
+            }
+            if (player.getHealth() < 13.5f && manager.isDefending(player)) {
+                fails.add("the blast jump gave no hearts back (" + player.getHealth() + ")");
+            }
+        });
+        context.waitTicks(20);
+        if (!fails.isEmpty()) {
+            throw new AssertionError("tech scene: " + String.join("; ", fails));
+        }
+    }
+
+    /** Health of the first living entity with this tag, or -1. */
+    private static float health(net.minecraft.server.level.ServerPlayer player, String tag) {
+        for (net.minecraft.world.entity.Entity e : ((net.minecraft.server.level.ServerLevel) player.level()).getAllEntities()) {
+            if (e.entityTags().contains(tag) && e instanceof net.minecraft.world.entity.LivingEntity l && l.isAlive()) {
+                return l.getHealth();
+            }
+        }
+        return -1f;
     }
 
     /**
