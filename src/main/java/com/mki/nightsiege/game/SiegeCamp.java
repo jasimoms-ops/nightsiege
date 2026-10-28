@@ -281,7 +281,13 @@ public final class SiegeCamp {
      * {@code load}: the admin command loads the chunks it needs.
      */
     Integer site(ServerLevel level, int x, int z, boolean awayFromPlayers, boolean load, Reasons why) {
-        int r = CampLayout.GROUND + 1;
+        return site(level, x, z, CampLayout.GROUND, CampLayout.CLEAR, awayFromPlayers, load, why);
+    }
+
+    /** The same check for a round ground of any size (the dungeons' gatehouse uses it too). */
+    static Integer site(ServerLevel level, int x, int z, int radius, int clear, boolean awayFromPlayers, boolean load,
+                        Reasons why) {
+        int r = radius + 1;
         for (int cx = (x - r) >> 4; cx <= (x + r) >> 4; cx++) {
             for (int cz = (z - r) >> 4; cz <= (z + r) >> 4; cz++) {
                 if (!level.hasChunk(cx, cz)) {
@@ -308,9 +314,9 @@ public final class SiegeCamp {
         List<Integer> heights = new ArrayList<>();
         int samples = 0;
         int wet = 0;
-        for (int dx = -CampLayout.GROUND; dx <= CampLayout.GROUND; dx += 2) {
-            for (int dz = -CampLayout.GROUND; dz <= CampLayout.GROUND; dz += 2) {
-                if (dx * dx + dz * dz > CampLayout.GROUND * CampLayout.GROUND) {
+        for (int dx = -radius; dx <= radius; dx += 2) {
+            for (int dz = -radius; dz <= radius; dz += 2) {
+                if (dx * dx + dz * dz > radius * radius) {
                     continue;
                 }
                 samples++;
@@ -349,12 +355,12 @@ public final class SiegeCamp {
             return null;
         }
         // Nothing but nature in the space the camp takes.
-        for (int dx = -CampLayout.GROUND; dx <= CampLayout.GROUND; dx += 3) {
-            for (int dz = -CampLayout.GROUND; dz <= CampLayout.GROUND; dz += 3) {
-                if (dx * dx + dz * dz > CampLayout.GROUND * CampLayout.GROUND) {
+        for (int dx = -radius; dx <= radius; dx += 3) {
+            for (int dz = -radius; dz <= radius; dz += 3) {
+                if (dx * dx + dz * dz > radius * radius) {
                     continue;
                 }
-                for (int y = floor - 2; y <= floor + CampLayout.CLEAR; y++) {
+                for (int y = floor - 2; y <= floor + clear; y++) {
                     BlockState state = level.getBlockState(new BlockPos(x + dx, y, z + dz));
                     if (!natural(state) && state.getFluidState().isEmpty()) {
                         if (why != null) {
@@ -370,13 +376,13 @@ public final class SiegeCamp {
     }
 
     /** {@link #ground} for a column of water. */
-    private static final int WATER = Integer.MIN_VALUE + 1;
+    static final int WATER = Integer.MIN_VALUE + 1;
 
     /**
      * The top ground block of a column (trees and plants skipped), {@link #WATER} for water,
      * or MIN_VALUE for a build.
      */
-    private static int ground(ServerLevel level, int x, int z) {
+    static int ground(ServerLevel level, int x, int z) {
         int top = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
         for (int y = top; y > top - 40 && y > level.getMinY(); y--) {
             BlockPos pos = new BlockPos(x, y, z);

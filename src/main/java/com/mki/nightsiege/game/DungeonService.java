@@ -126,7 +126,7 @@ public final class DungeonService {
 
     /** Returns true when the save changed. */
     public boolean tick(MinecraftServer server) {
-        if (!config.get().dungeonsEnabled) {
+        if (!(config.get().dungeonsEnabled && config.get().legacyDungeons)) {
             return false;
         }
         tickFights(server);
@@ -634,7 +634,7 @@ public final class DungeonService {
         if (state.getBlock() != DungeonContent.CORE) {
             return false;
         }
-        if (!config.get().dungeonsEnabled) {
+        if (!(config.get().dungeonsEnabled && config.get().legacyDungeons)) {
             player.connection.send(new ClientboundSetActionBarTextPacket(Component.translatable("nightsiege.dungeon.off")));
             return true;
         }
@@ -1019,7 +1019,7 @@ public final class DungeonService {
 
     /** A blank dungeon map was used: it becomes a map to the nearest dungeon in unexplored land. */
     public void useMap(ServerLevel level, ServerPlayer player, InteractionHand hand) {
-        if (!config.get().dungeonsEnabled) {
+        if (!(config.get().dungeonsEnabled && config.get().legacyDungeons)) {
             player.connection.send(new ClientboundSetActionBarTextPacket(Component.translatable("nightsiege.dungeon.off")));
             return;
         }

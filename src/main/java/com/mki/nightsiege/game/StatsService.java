@@ -209,6 +209,7 @@ public final class StatsService {
             stats.perks.add(line);
         }
         stats.nightFragment = save.nightFragment;
+        stats.scout = manager.expeditions().scoutLine(viewer);
         stats.perkRadius = (int) Math.round(manager.config().perkRadius);
         stats.perkInRange = manager.perks().inRange(viewer);
         stats.skillsEnabled = cfg.skillsEnabled;

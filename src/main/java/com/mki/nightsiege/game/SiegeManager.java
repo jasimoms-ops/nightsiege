@@ -76,7 +76,7 @@ public final class SiegeManager {
      */
     PlayerSkills liveSkillsFor(ServerPlayer player) {
         boolean defending = active && participants.contains(player.getUUID())
-                && !fallen.contains(player.getUUID()) || camp.isFighter(player);
+                && !fallen.contains(player.getUUID()) || camp.isFighter(player) || expeditions.isFighter(player);
         PlayerSkills own = effectiveSkills(player);
         if (!defending && !player.getAbilities().instabuild && !ClassGear.carries(player, own, skillTree)) {
             return null;
@@ -206,6 +206,8 @@ public final class SiegeManager {
     /** The war camp before a siege and the siege machines of the night after it (27 October 2026). */
     private final SiegeCamp camp = new SiegeCamp(this);
     private final SiegeMachines machines = new SiegeMachines();
+    /** Night Siege's own dungeons, reported by the scouts (dungeon update, 27 October 2026). */
+    private final Expeditions expeditions = new Expeditions(this);
     private final Digger digger = new Digger();
     private final LadderClimb ladders = new LadderClimb();
     /** Ladder carriers and sapper creepers. */
@@ -296,6 +298,10 @@ public final class SiegeManager {
         return dungeons;
     }
 
+    public Expeditions expeditions() {
+        return expeditions;
+    }
+
     public PerkService perks() {
         return perks;
     }
@@ -338,6 +344,7 @@ public final class SiegeManager {
         ServerLifecycleEvents.SERVER_STARTED.register(server -> onServerStarted(server));
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
             dungeons.abortAll();
+            safe("Dungeons", () -> expeditions.endAll(server, null));   // kits back, the arena's gate open
             traps.releaseAll(server);   // gunners out of the towers, the seats go
             Drones.stopAll(server);
             if (active) {
@@ -377,8 +384,8 @@ public final class SiegeManager {
             machines.afterDamage(entity, source, taken);
         });
         ServerLivingEntityEvents.ALLOW_DEATH.register((entity, source, amount) -> {
-            if (!camp.allowDeath(entity, source) || !machines.allowDeath(entity, source)) {
-                return false;   // a fighter at the camp, the camp's workbench or a machine's hit box
+            if (!camp.allowDeath(entity, source) || !machines.allowDeath(entity, source) || !expeditions.allowDeath(entity)) {
+                return false;   // a fighter at the camp or in a dungeon, the camp's workbench or a machine's hit box
             }
             boolean dies = combat.allowDeath(entity) && allowNightDeath(entity);
             if (dies && !config.siegeMobDrops) {
@@ -391,6 +398,7 @@ public final class SiegeManager {
                         && CrateEffects.allowDamage(entity, source) && Companions.allowDamage(entity, source)
                         && bosses.allowDamage(entity, source, amount)
                         && camp.allowDamage(entity, source) && machines.allowDamage(entity, source)
+                        && expeditions.allowDamage(entity, source)
                         && foes.allowDamage(entity, source)
                         && FriendlyFire.allow(entity, source));   // no friendly fire in the night (27 October 2026)
         combat.guardian().setCredit(this::creditTank);
@@ -444,8 +452,8 @@ public final class SiegeManager {
                 drop.discard();   // a dropped kit item is gone; the kit comes again next night
                 return;
             }
-            if (camp.stray(entity) || SiegeMachines.stray(entity)) {
-                entity.discard();   // a guard, workbench, machine part or crew from a camp or night that is over
+            if (camp.stray(entity) || SiegeMachines.stray(entity) || Expeditions.stray(entity)) {
+                entity.discard();   // a guard, workbench, machine part or crew from a camp or night that is over, a dungeon monster
                 return;
             }
             if (Foes.isStale(entity)) {
@@ -467,7 +475,7 @@ public final class SiegeManager {
                 (level, player, pos, state, blockEntity) -> allowBreak(player, state));
         // The war camp is not a quarry: its blocks stay (they go with the camp).
         PlayerBlockBreakEvents.BEFORE.register((level, player, pos, state, blockEntity) ->
-                player.getAbilities().instabuild || !camp.protects(level, pos));
+                player.getAbilities().instabuild || !camp.protects(level, pos) && !expeditions.protects(level, pos));
         // Night-only blocks (barricades, the war banner, ladders, light) go without drops.
         PlayerBlockBreakEvents.BEFORE.register((level, player, pos, state, blockEntity) -> {
             if (level instanceof ServerLevel serverLevel && TempBlocks.isTemp(serverLevel, pos)) {
@@ -533,7 +541,7 @@ public final class SiegeManager {
             NightSiegeMod.LOGGER.info("[Night Siege] {} Skills mit Server-Werten", tweaked);
         }
         Json.write(configPath, config);
-        DungeonContent.active = config.dungeonsEnabled;
+        DungeonContent.active = config.dungeonsEnabled && config.legacyDungeons;   // the caravan's old maps
 
         SiegeSave loadedSave = savePath == null ? null : Json.read(savePath, SiegeSave.class);
         save = loadedSave == null ? new SiegeSave() : loadedSave;
@@ -633,6 +641,7 @@ public final class SiegeManager {
 
         if (!active) {
             safe("Heerlager", () -> camp.tick(server));
+            safe("Dungeons", () -> expeditions.tick(server));
             safe("Maschinen-Probe", () -> machines.tickTrials(server, config, gameTime));
         }
         if (active) {
@@ -1146,6 +1155,7 @@ public final class SiegeManager {
     private void soundHorn(MinecraftServer server, long day, CoreRecord core) {
         warnedDay = day;
         safe("Heerlager", () -> camp.onHorn(server));   // the camp goes; untouched, its machines come tonight
+        safe("Dungeons", () -> expeditions.endAll(server, "nightsiege.expedition.night"));
         boolean eclipse = pendingEvent() == SiegeEvent.ECLIPSE;
         broadcast(server, Component.translatable(eclipse ? "nightsiege.msg.eclipse_warning" : "nightsiege.msg.warning",
                 currentLevel()).withStyle(eclipse ? ChatFormatting.LIGHT_PURPLE : ChatFormatting.GOLD));
@@ -1506,6 +1516,7 @@ public final class SiegeManager {
         if (tonightBoss != null) {
             bosses.plan(tonightBoss);
         }
+        safe("Dungeons", () -> expeditions.endAll(server, "nightsiege.expedition.night"));
         // The machines of a war camp left standing (or that won) come tonight.
         machines.reset(server);
         if (config.machinesEnabled && !testRun && save.machinesDay >= 0 && save.machinesDay == clockDay(server)) {
@@ -2692,6 +2703,7 @@ public final class SiegeManager {
         logNight(result, blasted, required);
         save.specialNight = false;
         scheduleNextAfterNight(server);
+        safe("Kundschafter", () -> expeditions.afterNight(server));   // the morning after: maybe a dungeon
         persist();
         clearSiegeState();
     }
@@ -3093,6 +3105,7 @@ public final class SiegeManager {
             }
         }
         camp.onJoin(player);   // a kit from a camp fight before logging out goes back
+        expeditions.onJoin(player);   // the same for a dungeon fight
         if (active && config.nightKits && participants.contains(player.getUUID()) && fallen.contains(player.getUUID())
                 && !player.isSpectator()) {
             Drones.start(player);   // fallen before they left: back up as a drone
@@ -3611,6 +3624,7 @@ public final class SiegeManager {
             case "spot" -> traps.onSpotAction(player, argument);
             case "shield" -> combat.guardian().onShieldAction(player);
             case "dungeon" -> dungeons.onToolAction(player, argument);
+            case "scout" -> expeditions.giveMap(player);   // the core window's "Karte mitnehmen"
             default -> openCoreWindow(player);
         }
     }
@@ -4174,11 +4188,15 @@ public final class SiegeManager {
         if (mob.entityTags().contains(SiegeMachines.TAG_MACHINE) && player.getAbilities().instabuild) {
             return true;   // a try-out machine can be struck down in creative
         }
-        if (mob.entityTags().contains(MobFactory.TAG)) {
-            return isDefending(player) || Drones.isDrone(player);   // a drone's bolts count too
+        if (Expeditions.isExpeditionMob(mob)) {
+            return expeditions.isFighter(player) || player.getAbilities().instabuild;   // only who fights in the dungeon
         }
+        // The old dungeon's monsters first: a siege tag on them must not lock the dungeon's own fighters out.
         if (DungeonService.isDungeonMob(mob)) {
             return isRegistered(player);
+        }
+        if (mob.entityTags().contains(MobFactory.TAG)) {
+            return isDefending(player) || Drones.isDrone(player);   // a drone's bolts count too
         }
         return true;
     }
@@ -4199,6 +4217,9 @@ public final class SiegeManager {
         }
         if (SiegeCamp.isCampMob(mob)) {
             return INSTANCE.camp.mayTarget(mob, target);   // the camp's guards only fight who attacks it
+        }
+        if (Expeditions.isExpeditionMob(mob)) {
+            return INSTANCE.expeditions.mayTarget(mob, target);   // a dungeon's monsters only fight its fighters
         }
         if (mob.entityTags().contains(SiegeMachines.TAG_CREW) && !INSTANCE.machines.mayTarget(mob, target)) {
             return false;   // the machines' pillagers stay by their machine
@@ -4413,7 +4434,7 @@ public final class SiegeManager {
     /** True while this player defends the running night. */
     public boolean isDefending(net.minecraft.world.entity.player.Player player) {
         return player != null && (active && participants.contains(player.getUUID()) && !fallen.contains(player.getUUID())
-                || camp.isFighter(player));
+                || camp.isFighter(player) || expeditions.isFighter(player));
     }
 
     /**

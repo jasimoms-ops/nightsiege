@@ -142,6 +142,25 @@ public final class SiegeCommands {
                 .then(Commands.literal("reload").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                         .executes(SiegeCommands::reload))
                 .then(Commands.literal("dungeon").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                        // The own dungeons (dungeon update, 27 October 2026).
+                        .then(Commands.literal("melden").executes(ctx -> expeditionReport(ctx, null))
+                                .then(Commands.argument("art", StringArgumentType.word()).suggests(SiegeCommands::suggestExpeditions)
+                                        .executes(ctx -> expeditionReport(ctx, StringArgumentType.getString(ctx, "art")))))
+                        .then(Commands.literal("bauen").executes(SiegeCommands::expeditionBuild))
+                        .then(Commands.literal("hin").executes(SiegeCommands::expeditionGo))
+                        .then(Commands.literal("hier")
+                                .then(Commands.argument("art", StringArgumentType.word()).suggests(SiegeCommands::suggestExpeditions)
+                                        .executes(SiegeCommands::expeditionHere)))
+                        .then(Commands.literal("status").executes(ctx -> {
+                            reply(ctx.getSource(), Component.literal(SiegeManager.get().expeditions().testState()));
+                            return 1;
+                        }))
+                        .then(Commands.literal("weg").executes(ctx -> {
+                            boolean ok = SiegeManager.get().expeditions().remove(ctx.getSource().getServer());
+                            reply(ctx.getSource(), Component.translatable(ok ? "nightsiege.cmd.expedition_removed"
+                                    : "nightsiege.cmd.expedition_none"));
+                            return ok ? 1 : 0;
+                        }))
                         .then(Commands.literal("list").executes(SiegeCommands::dungeonList))
                         .then(Commands.literal("tp")
                                 .then(Commands.argument("art", StringArgumentType.word()).suggests(SiegeCommands::suggestDungeons)
@@ -540,6 +559,87 @@ public final class SiegeCommands {
             fail(ctx.getSource(), Component.translatable("nightsiege.cmd.dungeon_unknown", key));
         }
         return type;
+    }
+
+    private static java.util.concurrent.CompletableFuture<com.mojang.brigadier.suggestion.Suggestions> suggestExpeditions(
+            CommandContext<CommandSourceStack> ctx, com.mojang.brigadier.suggestion.SuggestionsBuilder builder) {
+        java.util.List<String> ids = new java.util.ArrayList<>();
+        for (com.mki.nightsiege.core.ExpeditionKind kind : com.mki.nightsiege.core.ExpeditionKind.values()) {
+            ids.add(kind.id());
+        }
+        return net.minecraft.commands.SharedSuggestionProvider.suggest(ids, builder);
+    }
+
+    /** The scouts report a dungeon now (of a given kind, or as the ground decides). */
+    private static int expeditionReport(CommandContext<CommandSourceStack> ctx, String kindId) {
+        com.mki.nightsiege.core.ExpeditionKind kind = kindId == null ? null : com.mki.nightsiege.core.ExpeditionKind.byId(kindId);
+        if (kindId != null && kind == null) {
+            fail(ctx.getSource(), Component.translatable("nightsiege.cmd.expedition_unknown", kindId));
+            return 0;
+        }
+        Expeditions exp = SiegeManager.get().expeditions();
+        if (exp.record() != null) {
+            exp.remove(ctx.getSource().getServer());
+        }
+        SiegeSave.ExpeditionRecord rec = exp.report(ctx.getSource().getServer(), kind);
+        if (rec == null) {
+            fail(ctx.getSource(), Component.translatable("nightsiege.cmd.expedition_no_spot"));
+            return 0;
+        }
+        reply(ctx.getSource(), Component.translatable("nightsiege.cmd.expedition_reported",
+                Component.translatable(com.mki.nightsiege.core.ExpeditionKind.byId(rec.kind).translationKey()), rec.x, rec.z));
+        return 1;
+    }
+
+    /** The reported dungeon is built now (its ground is loaded for it). */
+    private static int expeditionBuild(CommandContext<CommandSourceStack> ctx) {
+        net.minecraft.core.BlockPos door = SiegeManager.get().expeditions().buildNow(ctx.getSource().getServer());
+        if (door == null) {
+            fail(ctx.getSource(), Component.translatable("nightsiege.cmd.expedition_none"));
+            return 0;
+        }
+        reply(ctx.getSource(), Component.translatable("nightsiege.cmd.expedition_built", door.getX(), door.getY(), door.getZ()));
+        return 1;
+    }
+
+    /** To the gate of the reported dungeon (built first if it is not yet). */
+    private static int expeditionGo(CommandContext<CommandSourceStack> ctx) {
+        ServerPlayer player = ctx.getSource().getPlayer();
+        if (player == null) {
+            fail(ctx.getSource(), Component.translatable("nightsiege.cmd.player_only"));
+            return 0;
+        }
+        Expeditions exp = SiegeManager.get().expeditions();
+        net.minecraft.core.BlockPos door = exp.buildNow(ctx.getSource().getServer());
+        SiegeSave.ExpeditionRecord rec = exp.record();
+        if (door == null || rec == null) {
+            fail(ctx.getSource(), Component.translatable("nightsiege.cmd.expedition_none"));
+            return 0;
+        }
+        net.minecraft.server.level.ServerLevel level = SiegeManager.levelByName(ctx.getSource().getServer(), rec.dimension);
+        if (level == null) {
+            return 0;
+        }
+        player.teleportTo(level, door.getX() + 0.5, door.getY(), door.getZ() + 0.5, java.util.Set.of(),
+                player.getYRot(), player.getXRot(), true);
+        return 1;
+    }
+
+    /** A dungeon of this kind right here, the way down in the direction one looks (to look at it). */
+    private static int expeditionHere(CommandContext<CommandSourceStack> ctx) {
+        ServerPlayer player = ctx.getSource().getPlayer();
+        com.mki.nightsiege.core.ExpeditionKind kind = com.mki.nightsiege.core.ExpeditionKind.byId(StringArgumentType.getString(ctx, "art"));
+        if (player == null || kind == null) {
+            fail(ctx.getSource(), Component.translatable("nightsiege.cmd.player_only"));
+            return 0;
+        }
+        net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+        int facing = CampLayout.facingTowards(player.getLookAngle().x, player.getLookAngle().z);
+        net.minecraft.core.BlockPos origin = CampLayout.world(player.blockPosition(), facing, 0, 0, 7);
+        int rooms = com.mki.nightsiege.core.ExpeditionKind.rooms(SiegeManager.get().currentLevel());
+        SiegeManager.get().expeditions().testBuild(level, origin, facing, kind, rooms);
+        reply(ctx.getSource(), Component.translatable("nightsiege.cmd.expedition_built", origin.getX(), origin.getY(), origin.getZ()));
+        return 1;
     }
 
     private static int dungeonList(CommandContext<CommandSourceStack> ctx) {

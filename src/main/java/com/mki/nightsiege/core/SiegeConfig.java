@@ -317,6 +317,22 @@ public class SiegeConfig {
     public int machineCrewSeconds = 45;
     /** Seconds of holding right-click at a machine to sabotage it (weapons do nothing to it). */
     public int machineSabotageSeconds = 4;
+    // ------------------------------------------------------------------
+    // dungeons (dungeon update, 27 October 2026)
+    // ------------------------------------------------------------------
+
+    /** Chance that the scouts report a dungeon on the morning after a siege night (none while one is open). */
+    public double expeditionChance = 0.5;
+    /** Blocks between the core and a reported dungeon. */
+    public int expeditionMinDistance = 250;
+    public int expeditionMaxDistance = 600;
+    /** Seconds after going down the stairs before the dungeon's monsters attack. */
+    public int expeditionGraceSeconds = 10;
+    /** Skill points for every fighter of a won dungeon (Simon: "5 XP pro Dungeon"). */
+    public int expeditionSkillPoints = 5;
+    /** The old dungeon cores in the structures of Dungeons and Taverns (replaced by the own dungeons). */
+    public boolean legacyDungeons = false;
+
     /** Siege monsters drop items and experience (false since Simon's call of 26 October 2026: they drop nothing). */
     public boolean siegeMobDrops = false;
     /** Klaffende Wunden (anti-heal, Simon 25 October 2026): these monsters halve all healing of the player they hit. */
@@ -819,6 +835,11 @@ public class SiegeConfig {
         machineGuards = clamp(machineGuards, 0, 10);
         machineCrewSeconds = clamp(machineCrewSeconds, 5, 600);
         machineSabotageSeconds = clamp(machineSabotageSeconds, 1, 60);
+        expeditionChance = clampDouble(expeditionChance, 0.0, 1.0);
+        expeditionMinDistance = clamp(expeditionMinDistance, 64, 2000);
+        expeditionMaxDistance = clamp(expeditionMaxDistance, expeditionMinDistance, 3000);
+        expeditionGraceSeconds = clamp(expeditionGraceSeconds, 0, 60);
+        expeditionSkillPoints = clamp(expeditionSkillPoints, 0, 100);
         bloodMoonMobMultiplier = Math.max(1.0, bloodMoonMobMultiplier);
         bloodMoonHealthMultiplier = Math.max(1.0, bloodMoonHealthMultiplier);
         bloodMoonDamageMultiplier = Math.max(1.0, bloodMoonDamageMultiplier);
