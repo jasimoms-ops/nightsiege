@@ -158,3 +158,11 @@ net.minecraft.world.entity.player.ItemCooldowns
 net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements
 net.fabricmc.fabric.api.client.rendering.v1.hud.HudElement
 net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry
+net.minecraft.client.gui.Gui
+net.minecraft.client.gui.components.BossHealthOverlay
+net.minecraft.client.gui.components.LerpingBossEvent
+net.minecraft.world.BossEvent
+net.minecraft.client.gui.GuiGraphicsExtractor
+!net.minecraft.client.gui.Gui#setOverlayMessage,extractOverlayMessage
+!net.minecraft.client.gui.components.BossHealthOverlay#extractRenderState,extractBar
+net.minecraft.network.chat.contents.TranslatableContents
