@@ -5688,6 +5688,34 @@ public class EventLookTest implements FabricClientGameTest {
                     + " ult=" + (st != null && st.has) + " slots=" + (st == null ? -1 : st.slots.size()));
         });
         context.takeScreenshot("kithud_warrior");
+        // The bars at the top (design update): a night bar, a boss bar and the camp's workbench.
+        net.minecraft.server.level.ServerBossEvent[] bars = new net.minecraft.server.level.ServerBossEvent[3];
+        onServer(context, (player, manager) -> {
+            bars[0] = new net.minecraft.server.level.ServerBossEvent(com.mki.nightsiege.core.NightBarIds.make(com.mki.nightsiege.core.NightBarIds.Kind.NIGHT),
+                    net.minecraft.network.chat.Component.literal("Belagerung – Stufe 3 – noch 204 s · Kills 11/39"),
+                    net.minecraft.world.BossEvent.BossBarColor.PURPLE, net.minecraft.world.BossEvent.BossBarOverlay.PROGRESS);
+            bars[1] = new net.minecraft.server.level.ServerBossEvent(com.mki.nightsiege.core.NightBarIds.make(com.mki.nightsiege.core.NightBarIds.Kind.BOSS),
+                    net.minecraft.network.chat.Component.literal("Knochenlich"),
+                    net.minecraft.world.BossEvent.BossBarColor.RED, net.minecraft.world.BossEvent.BossBarOverlay.NOTCHED_10);
+            bars[2] = new net.minecraft.server.level.ServerBossEvent(com.mki.nightsiege.core.NightBarIds.make(com.mki.nightsiege.core.NightBarIds.Kind.CAMP),
+                    net.minecraft.network.chat.Component.literal("Belagerungswerkbank"),
+                    net.minecraft.world.BossEvent.BossBarColor.YELLOW, net.minecraft.world.BossEvent.BossBarOverlay.PROGRESS);
+            bars[0].setProgress(0.55f);
+            bars[1].setProgress(0.8f);
+            bars[2].setProgress(0.4f);
+            for (net.minecraft.server.level.ServerBossEvent b : bars) {
+                b.addPlayer(player);
+            }
+        });
+        context.waitTicks(5);
+        onServer(context, (player, manager) -> bars[1].setProgress(0.62f));
+        context.waitTicks(4);
+        context.takeScreenshot("kithud_bars");
+        onServer(context, (player, manager) -> {
+            for (net.minecraft.server.level.ServerBossEvent b : bars) {
+                b.removeAllPlayers();
+            }
+        });
         // The kit inventory (variant B): crest, values and abilities where the crafting grid was.
         context.runOnClient(client -> client.gui.setScreen(new net.minecraft.client.gui.screens.inventory.InventoryScreen(client.player)));
         context.waitTicks(10);
