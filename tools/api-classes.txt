@@ -158,3 +158,13 @@ net.minecraft.world.entity.player.ItemCooldowns
 net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements
 net.fabricmc.fabric.api.client.rendering.v1.hud.HudElement
 net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry
+net.minecraft.client.gui.screens.inventory.InventoryScreen
+net.minecraft.client.gui.screens.inventory.AbstractContainerScreen
+net.minecraft.client.gui.screens.inventory.AbstractRecipeBookScreen
+net.minecraft.client.gui.screens.inventory.EffectsInInventory
+net.minecraft.world.inventory.Slot
+net.minecraft.world.inventory.InventoryMenu
+net.minecraft.world.inventory.AbstractContainerMenu
+!net.minecraft.client.gui.screens.inventory.InventoryScreen#extractBackground,extractRenderState,init,extractLabels
+!net.minecraft.client.gui.screens.inventory.AbstractContainerScreen#extractBackground,extractRenderState,extractSlots,extractSlot,extractLabels,getHoveredSlot,isHovering
+!net.minecraft.client.gui.screens.inventory.AbstractRecipeBookScreen#init,extractBackground,extractRenderState
