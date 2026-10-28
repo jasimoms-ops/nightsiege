@@ -82,7 +82,7 @@ public final class StatsRecorder {
         public String ereignis = "";
         public boolean besondereNacht;
         public String fragment = "";
-        /** Curse stones taken for this night (update 2, not there yet). */
+        /** Curse stones laid on the altar for this night (update 2). */
         public List<String> fluchsteine = new ArrayList<>();
         public String boss = "";
         public String ergebnis = "läuft";
@@ -459,6 +459,9 @@ public final class StatsRecorder {
         night.besondereNacht = special;
         night.fragment = fragment == null ? "" : fragment;
         night.boss = boss == null ? "" : boss;
+        for (com.mki.nightsiege.core.CurseKind k : Curses.active()) {
+            night.fluchsteine.add(k.id());   // the curse stones of the night (update 2)
+        }
         if (base != null) {
             Basis b = new Basis();
             b.geschlossen = base.closed;
