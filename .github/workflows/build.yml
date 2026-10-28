@@ -241,7 +241,7 @@ jobs:
         run: |
           mkdir -p run
           echo "eula=true" > run/eula.txt
-          printf "level-seed=nightsiege\nonline-mode=false\n" > run/server.properties
+          printf "level-seed=nightsiege\nonline-mode=false\nmax-tick-time=-1\n" > run/server.properties
           NIGHTSIEGE_DUNGEON_PROBE=1 timeout 600 gradle runServer --no-daemon --args=nogui > server-output.txt 2>&1 || true
           python3 - <<'PY'
           import re
