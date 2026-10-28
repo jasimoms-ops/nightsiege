@@ -91,9 +91,9 @@ public final class UltHud {
             return;
         }
         Minecraft mc = Minecraft.getInstance();
-        // Kit HUD (Simon, 28 October 2026): with kits on, the abilities only show in the kit's own
-        // HUD; this bar stays for servers without kits and for testing in creative.
-        if (KitHud.active() || (s.kitsOn && (mc.player == null || !mc.player.isCreative()))) {
+        // The old bar left and right of the hotbar is gone for good (Simon 28.10., 18:16: it still
+        // showed by day): the abilities only show in the kit HUD. Kept only for servers without kits.
+        if (KitHud.active() || s.kitsOn) {
             return;
         }
         List<Cell> fixed = fixedCells(s, ultKey);
