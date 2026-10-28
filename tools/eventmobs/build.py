@@ -157,6 +157,13 @@ if __name__ == '__main__':
     all_textures.update(b_textures)
     all_glows.update(b_glows)
     print('built', ', '.join(b_shapes))
+    # the dungeon champions (Simon, 29 October 2026)
+    import champions
+    c_shapes, c_textures, c_glows = champions.build(van, OUT, atlas)
+    all_shapes.update(c_shapes)
+    all_textures.update(c_textures)
+    all_glows.update(c_glows)
+    print('built', ', '.join(c_shapes))
     java(all_shapes, all_textures, all_glows)
     if prev:
         import preview
@@ -164,3 +171,8 @@ if __name__ == '__main__':
         for ev in events:
             preview.event_sheet(ev, os.path.join(prev, f'{ev}.png'), gear_dir=os.path.join(OUT, ev))
             print('sheet', ev)
+        folders = {ev: os.path.join(OUT, ev) for ev in champions.CHAMPIONS}
+        for ev in champions.CHAMPIONS:
+            champions.sheet(ev, folders[ev], os.path.join(prev, f'{ev}.png'))
+        champions.lineup(folders, os.path.join(prev, 'champions_lineup.png'))
+        print('sheets champions')
