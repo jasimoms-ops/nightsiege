@@ -495,6 +495,14 @@ public final class BossService {
         return rider(level);
     }
 
+    /**
+     * True while this boss takes no damage at all: the lich behind his soul shield. The
+     * engineer's towers skip him then and go for the crystals (28 October 2026).
+     */
+    public boolean shielded(Entity entity) {
+        return spawned && !fallen && isBoss(entity) && brain instanceof BossBrains.Lich lich && lich.shield;
+    }
+
     /** True for a boss or one of its parts (they never count as monsters of the night). */
     public static boolean isBossOrPart(Entity entity) {
         return entity != null && (entity.entityTags().contains(TAG_BOSS) || entity.entityTags().contains(TAG_PART));

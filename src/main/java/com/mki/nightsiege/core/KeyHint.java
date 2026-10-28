@@ -88,7 +88,11 @@ public enum KeyHint {
     /** The staff: the X key looking at an own minion (until 26 October 2026, kept for old names). */
     STAFF_X_MINION,
     /** The staff: sneak and the X key (the soul shield until the spells, kept for old names). */
-    STAFF_SNEAK_X;
+    STAFF_SNEAK_X,
+    /** Its own key on the ability bar (R, G, Y, C, V, B): the alchemist's potions and acid flask. */
+    BAR,
+    /** The first key of the ability bar (R): the engineer's escape (Sprungladung, 28 October 2026). */
+    BAR_FIRST;
 
     /** Skills by id: they win over the effect (a few share an effect with a passive skill). */
     private static final Map<String, KeyHint> NODES = Map.ofEntries(
@@ -131,6 +135,9 @@ public enum KeyHint {
             Map.entry(SkillEffect.CORPSE_BLAST, STAFF_SPELL),
             Map.entry(SkillEffect.BONE_LEGION, STAFF_SPELL),
             Map.entry(SkillEffect.SOUL_BURN, STAFF_SPELL),
+            // The alchemist (28 October 2026): every learned potion and the acid flask on a bar key.
+            Map.entry(SkillEffect.BREW, BAR),
+            Map.entry(SkillEffect.ACID_FLASK, BAR),
             Map.entry(SkillEffect.DETONATOR, REMOTE_DETONATE),
             Map.entry(SkillEffect.OVERCHARGE_TIME, REMOTE_BOOST),
             Map.entry(SkillEffect.NETWORK, REMOTE_BOOST),

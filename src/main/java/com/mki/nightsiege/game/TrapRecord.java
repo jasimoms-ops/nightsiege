@@ -17,6 +17,11 @@ public class TrapRecord {
     public int ammo;
     /** One of the two towers the copper golem looks after (27 October 2026). */
     public boolean golem;
+    /**
+     * Set up in a dungeon or at the war camp (28 October 2026): it counts only against the
+     * field caps and goes when its engineer's fight there ends.
+     */
+    public boolean field;
     /** Shots the tower shield (crate gain) still blocks for the gunner in the seat. */
     public int shield;
     /** Damage the tower took for its gunner (Simon, 27 October 2026); 0 = whole. */

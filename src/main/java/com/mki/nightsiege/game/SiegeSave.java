@@ -405,6 +405,12 @@ public class SiegeSave {
         return count;
     }
 
+    /**
+     * True once the alchemist's potions moved into the tree as nodes (28 October 2026): every
+     * alchemist got the first three potions he had, extra potion nodes were paid back.
+     */
+    public boolean brewsMigrated;
+
     /** Version of the skill trees the levels below were learned in. */
     public int skillTreeVersion;
     public static final int SKILL_TREE_VERSION = 8;

@@ -608,6 +608,18 @@ public final class SiegeManager {
             NightSiegeMod.LOGGER.info("[Night Siege] Profile eingeführt: {} Freischaltungen nachgereicht", caughtUp);
             persist();
         }
+        // The alchemist's potions became nodes, three of seven (28 October 2026): once per save.
+        if (!save.brewsMigrated) {
+            int brewProfiles = 0;
+            if (save.skills != null) {
+                for (PlayerSkills own : save.skills.values()) {
+                    brewProfiles += skillTree.migrateBrews(own);
+                }
+            }
+            save.brewsMigrated = true;
+            NightSiegeMod.LOGGER.info("[Night Siege] Alchemisten-Tränke als Knoten: {} Profile angepasst", brewProfiles);
+            persist();
+        }
         scheduler.setReadyTicks(save.readyTicks);
         scheduler.setRequiredTicks(save.requiredTicks);
         if (scheduler.requiredTicks() <= 0L && !save.cores.isEmpty()) {
@@ -4599,8 +4611,12 @@ public final class SiegeManager {
         PlayerSkills own = effectiveSkills(player);
         long now = player.level().getGameTime();
         boolean spells = companions.spellWheel(player) != null;
-        com.mki.nightsiege.core.WheelData wheel = wheelOf(player);
-        if (wheel != null) {
+        // The engineer (28 October 2026): the escape first, the alchemist's potions with their own pauses, his acid flask.
+        List<com.mki.nightsiege.core.UltState.Slot> engineer = traps.engineerSlots(player, own, now);
+        com.mki.nightsiege.core.WheelData wheel = engineer != null ? null : wheelOf(player);
+        if (engineer != null) {
+            out.addAll(engineer);
+        } else if (wheel != null) {
             for (com.mki.nightsiege.core.WheelData.Option o : wheel.options) {
                 if (!o.open) {
                     continue;   // not learned yet: no box and no key (Simon, 28 October 2026)
@@ -4661,7 +4677,9 @@ public final class SiegeManager {
             return;
         }
         String id = slots.get(index).id;
-        if ("call".equals(id)) {
+        if (traps.onEngineerSlot(player, id)) {
+            // the engineer's escape, the alchemist's potion or acid flask (28 October 2026)
+        } else if ("call".equals(id)) {
             companions.selectKey(player);   // the way of the light: the call
         } else if (companions.spellWheel(player) != null) {
             companions.castSpell(player, id);   // the spell, on what you look at
@@ -4744,6 +4762,14 @@ public final class SiegeManager {
             }
         }
         return best == null ? target : best;
+    }
+
+    /**
+     * True while this player fights away from the base, in a dungeon or at the war camp, and
+     * field towers are on (28 October 2026): his towers and traps set up there are field ones.
+     */
+    public boolean fieldFighter(net.minecraft.world.entity.player.Player player) {
+        return player != null && config.fieldTowers && (camp.isFighter(player) || expeditions.isFighter(player));
     }
 
     /** True while this player defends the running night. */

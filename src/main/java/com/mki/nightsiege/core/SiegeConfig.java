@@ -398,6 +398,19 @@ public class SiegeConfig {
     public boolean trapDamageFollowsLevel = true;
     /** Factor on all trap and tower damage (server balancing of the engineer). */
     public double trapDamage = 0.75;
+    /**
+     * Towers reach bosses, their soul crystals and egg sacs, and the dungeons' champions this
+     * much further, and shoot at them before any other monster (Simon's playtest, 28 October
+     * 2026: "the bosses never come into the towers' range").
+     */
+    public double towerBossRange = 1.5;
+    /** Towers reach a monster marked with the remote this much further. */
+    public double towerMarkRange = 1.25;
+    /**
+     * Field towers (28 October 2026): in a dungeon or at the war camp the engineer sets up his
+     * towers and traps once more, besides the ones standing at home; they go when the fight ends.
+     */
+    public boolean fieldTowers = true;
     /** Factor on all damage the summoner's companions deal to monsters (Simon, 25 October 2026: +50 %). */
     public double companionDamage = 1.5;
     /**
@@ -916,6 +929,8 @@ public class SiegeConfig {
         thunderStrikeSeconds = clamp(thunderStrikeSeconds, 1, 120);
         thunderStrikeDamage = clampDouble(thunderStrikeDamage, 0.0, 100.0);
         thunderTeslaMultiplier = clampDouble(thunderTeslaMultiplier, 1.0, 5.0);
+        towerBossRange = clampDouble(towerBossRange, 1.0, 3.0);
+        towerMarkRange = clampDouble(towerMarkRange, 1.0, 3.0);
         netherRiftShare = clampDouble(netherRiftShare, 0.0, 1.0);
         netherRiftCount = clamp(netherRiftCount, 1, 8);
         auroraChance = clampDouble(auroraChance, 0.0, 1.0);
