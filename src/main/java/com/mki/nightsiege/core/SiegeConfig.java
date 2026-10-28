@@ -407,6 +407,40 @@ public class SiegeConfig {
     /** Ladder carriers every wave brings at least, when the base has walls. */
     public int raidMinLadders = 1;
 
+    // Update 2 "Fluch & Rache" (Simon, 28 October 2026)
+    /** The curse altar in the core window: curses for the next night, for better rewards. */
+    public boolean cursesEnabled = true;
+    /** Curse stones on the altar at most. */
+    public int curseMax = 3;
+    /** Each curse of a won night: this much more chance of a second crate. */
+    public double curseCrateChance = 0.15;
+    /** Each curse of a won night: skill points for every defender still standing. */
+    public int cursePoints = 1;
+    /** The crate odds a crate climbs towards past a fragment night's (each curse half a step). */
+    public int[] crateOddsCursed = {20, 27, 27, 18, 8};
+    /** What the curses do: monster life, monster damage, monsters per wave, speed, healing, wave interval, towers. */
+    public double curseHealth = 1.3;
+    public double curseDamage = 1.25;
+    public double curseMobs = 1.25;
+    public double curseSpeed = 1.15;
+    public double curseHeal = 0.5;
+    public double curseWaves = 0.75;
+    public double curseTraps = 0.65;
+    /** Nemesis: a monster that kills a defender flees and comes back named and stronger. */
+    public boolean nemesisEnabled = true;
+    /** Nemeses lurking at most; more killers do not become one until one falls. */
+    public int nemesisMax = 3;
+    /** Nemeses coming back in one night at most. */
+    public int nemesisPerNight = 2;
+    /** Chance a lurking nemesis comes back in a night (after two nights away it always does). */
+    public double nemesisReturnChance = 0.6;
+    /** Its life and damage: times this, plus this much per level above the first. */
+    public double nemesisHealth = 2.5;
+    public double nemesisHealthPerLevel = 0.5;
+    public double nemesisDamage = 1.3;
+    public double nemesisDamagePerLevel = 0.15;
+    public int nemesisMaxLevel = 5;
+
     // Update 1, the new attackers (Simon, 27 October 2026; concept night-siege-update1-gegner-konzept.md)
     /** Seconds a revenant's corpse lies before it stands up again. */
     public double revenantRiseSeconds = 5.0;
@@ -1063,6 +1097,25 @@ public class SiegeConfig {
         raidRegroupSeconds = clamp(raidRegroupSeconds <= 0 ? 45 : raidRegroupSeconds, 5, 600);
         raidStuckSeconds = clamp(raidStuckSeconds <= 0 ? 15 : raidStuckSeconds, 5, 120);
         raidMinLadders = clamp(raidMinLadders, 0, 6);
+        curseMax = clamp(curseMax <= 0 ? 3 : curseMax, 1, CurseKind.values().length);
+        curseCrateChance = Double.isNaN(curseCrateChance) ? 0.15 : Math.min(1.0, Math.max(0.0, curseCrateChance));
+        cursePoints = clamp(cursePoints, 0, 20);
+        crateOddsCursed = odds(crateOddsCursed, new int[]{20, 27, 27, 18, 8});
+        curseHealth = positive(curseHealth, 1.3);
+        curseDamage = positive(curseDamage, 1.25);
+        curseMobs = positive(curseMobs, 1.25);
+        curseSpeed = positive(curseSpeed, 1.15);
+        curseHeal = positive(curseHeal, 0.5);
+        curseWaves = positive(curseWaves, 0.75);
+        curseTraps = positive(curseTraps, 0.65);
+        nemesisMax = clamp(nemesisMax, 0, 10);
+        nemesisPerNight = clamp(nemesisPerNight, 0, 5);
+        nemesisReturnChance = Double.isNaN(nemesisReturnChance) ? 0.6 : Math.min(1.0, Math.max(0.0, nemesisReturnChance));
+        nemesisHealth = positive(nemesisHealth, 2.5);
+        nemesisHealthPerLevel = Double.isNaN(nemesisHealthPerLevel) ? 0.5 : Math.min(5.0, Math.max(0.0, nemesisHealthPerLevel));
+        nemesisDamage = positive(nemesisDamage, 1.3);
+        nemesisDamagePerLevel = Double.isNaN(nemesisDamagePerLevel) ? 0.15 : Math.min(2.0, Math.max(0.0, nemesisDamagePerLevel));
+        nemesisMaxLevel = clamp(nemesisMaxLevel <= 0 ? 5 : nemesisMaxLevel, 1, 10);
         sapperFromLevel = Math.max(0, sapperFromLevel);
         sappersPerLevel = Double.isNaN(sappersPerLevel) ? 0.15 : Math.max(0.0, Math.min(2.0, sappersPerLevel));
         sapperMaxPerWave = clamp(sapperMaxPerWave <= 0 ? 4 : sapperMaxPerWave, 1, 20);
@@ -1188,6 +1241,11 @@ public class SiegeConfig {
         if (mobs.isEmpty()) {
             mobs = defaultMobs();
         }
+    }
+
+    /** A positive factor (0.05 to 10), or the default when unset or nonsense. */
+    private static double positive(double value, double fallback) {
+        return Double.isNaN(value) || value <= 0 ? fallback : Math.min(10.0, Math.max(0.05, value));
     }
 
     private static int clamp(int value, int min, int max) {

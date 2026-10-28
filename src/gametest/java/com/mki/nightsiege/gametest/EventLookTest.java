@@ -70,6 +70,9 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("raid")) {
                     raidScene(context, game);
                 }
+                if (want.contains("curse")) {
+                    curseScene(context, game);   // update 2: the curse altar and the nemesis
+                }
                 if (want.contains("dungeons")) {
                     dungeonScene(context, game);
                 }
@@ -106,6 +109,7 @@ public class EventLookTest implements FabricClientGameTest {
                 machineScene(context, game);
                 foeScene(context, game);   // the new attackers of update 1 (27 October 2026)
                 raidScene(context, game);   // the raid's plan (27 October 2026)
+                curseScene(context, game);   // update 2 "Fluch & Rache" (28 October 2026)
                 dungeonScene(context, game);   // the own dungeons (dungeon update, 27 October 2026)
                 com.mki.nightsiege.game.TrapService.mortarsAnyTime = true;   // the scenes below test by day
                 mortarScene(context, game);
@@ -3352,6 +3356,246 @@ public class EventLookTest implements FabricClientGameTest {
      * wave comes from one side, the melee monsters gather in front of the wall and wait; a hole,
      * a ladder and the opened gate let them in; one stuck in a pit comes back from the spawn ground.
      */
+    /**
+     * Update 2 "Fluch & Rache" (Simon, 28 October 2026): three stones on the curse altar (one refused,
+     * one taken off), the window with the altar and the wanted posters, a test night under the curses,
+     * a nemesis called back, promoted, a new one made, one slain and its trophy.
+     */
+    private static void curseScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        int cx = pos.getX() + 300;
+        int cz = pos.getZ() - 300;
+        game.getServer().runCommand("forceload add %d %d %d %d".formatted(cx - 64, cz - 64, cx + 64, cz + 64));
+        context.waitTicks(60);
+        final int[] ground = new int[1];
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            level.getChunk(cx >> 4, cz >> 4);
+            ground[0] = level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, cx, cz);
+        });
+        context.waitTicks(10);
+        int cy = ground[0];
+        int out = 40;
+        for (int part = -out; part <= out; part += 16) {
+            int z1 = cz + part;
+            int z2 = Math.min(cz + out, z1 + 15);
+            game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:grass_block".formatted(cx - out, cy - 1, z1, cx + out, cy - 1, z2));
+            game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(cx - out, cy, z1, cx + out, cy + 9, z2));
+        }
+        BlockPos core = new BlockPos(cx, cy, cz);
+        game.getServer().runCommand("tp @p %d.5 %d %d.5".formatted(cx, cy, cz - 3));
+        context.waitTicks(10);
+        // The altar: three stones, a fourth refused, one taken off and another laid; two posters.
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.game.SiegeSave save = manager.save();
+            save.curses.clear();
+            com.mki.nightsiege.game.Nemesis.clear(save, true);
+            manager.onCoreAction(player, "curse:zaeh");
+            manager.onCoreAction(player, "curse:champions");
+            manager.onCoreAction(player, "curse:siechtum");
+            manager.onCoreAction(player, "curse:blutdurst");   // the altar is full: refused
+            String full = String.valueOf(save.curses);
+            manager.onCoreAction(player, "curse:siechtum");    // taken off again
+            manager.onCoreAction(player, "curse:uebermacht");
+            com.mki.nightsiege.game.SiegeSave.NemesisRecord lurk = manager.nemesis().make(manager.nemesisHost(), "minecraft:zombie", player, true, 2);
+            com.mki.nightsiege.game.SiegeSave.NemesisRecord dead = manager.nemesis().make(manager.nemesisHost(), "minecraft:spider", player, true, 1);
+            dead.status = "erschlagen";
+            dead.slainBy = player.getScoreboardName();
+            System.out.println("[Night Siege test] curse altar full=" + full + " now=" + save.curses + " posters=" + save.nemeses.size()
+                    + " lurk=" + lurk.name + "/" + lurk.level + lurk.traits + " dead=" + dead.name);
+        });
+        context.waitTicks(10);
+        showTab(context, "CURSE");
+        context.takeScreenshot("curse_altar");
+        closeScreen(context);
+
+        final int[] keep = new int[6];
+        final double[] keepD = new double[3];
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.core.SiegeConfig cfg = manager.config();
+            keep[0] = cfg.baseMobsPerBatch;
+            keep[1] = cfg.batchIntervalSeconds;
+            keep[2] = cfg.nightPhantoms;
+            keep[3] = cfg.raidMinLadders;
+            keep[4] = cfg.testPrepSeconds;
+            keep[5] = cfg.sapperFromLevel;
+            keepD[0] = cfg.mobsPerLevel;
+            keepD[1] = cfg.ladderCarrierShare;
+            keepD[2] = cfg.treasureRaiderChance;
+            cfg.baseMobsPerBatch = 6;
+            cfg.mobsPerLevel = 0.0;
+            cfg.batchIntervalSeconds = 600;
+            cfg.nightPhantoms = 0;
+            cfg.raidMinLadders = 0;
+            cfg.testPrepSeconds = 2;
+            cfg.sapperFromLevel = 999;
+            cfg.ladderCarrierShare = 0.0;
+            cfg.treasureRaiderChance = 0.0;
+            manager.testPool(java.util.List.of(new com.mki.nightsiege.core.MobEntry("minecraft:zombie", 1, 10)));
+        });
+        game.getServer().runCommand("time set 18000");
+        game.getServer().runCommand("weather clear");
+        game.getServer().runCommand("gamemode survival @p");
+        game.getServer().runCommand("effect give @p minecraft:resistance 600 255 true");
+        game.getServer().runCommand("effect give @p minecraft:night_vision 600 0 true");
+        game.getServer().runCommand("effect give @p minecraft:saturation 600 10 true");
+        context.waitTicks(10);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            boolean ok = manager.prepareTest(level.getServer(), level, core, 5, com.mki.nightsiege.core.SiegeEvent.NONE);
+            System.out.println("[Night Siege test] curse prep ok=" + ok);
+        });
+        context.waitTicks(60);
+        closeScreen(context);
+        context.waitTicks(60);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            java.util.List<net.minecraft.world.entity.Mob> mobs = level.getEntitiesOfClass(net.minecraft.world.entity.Mob.class,
+                    new net.minecraft.world.phys.AABB(core).inflate(90), m -> m.entityTags().contains(com.mki.nightsiege.game.MobFactory.TAG));
+            int champions = 0;
+            StringBuilder hp = new StringBuilder();
+            for (net.minecraft.world.entity.Mob m : mobs) {
+                if (m.entityTags().contains(com.mki.nightsiege.game.MobFactory.TAG_ELITE)) {
+                    champions++;
+                } else if (hp.length() < 40) {
+                    hp.append(Math.round(m.getMaxHealth())).append(' ');
+                }
+            }
+            System.out.println("[Night Siege test] curse night active=" + manager.isActive() + " curses=" + com.mki.nightsiege.game.Curses.active()
+                    + " count=" + manager.nightCurses() + " life=" + com.mki.nightsiege.game.Curses.healthFactor()
+                    + " mobsFactor=" + com.mki.nightsiege.game.Curses.mobFactor() + " mobs=" + mobs.size() + " champions=" + champions
+                    + " zombieHp=[" + hp.toString().trim() + "] expectHp=" + Math.round(20.0 * manager.mobHealthFactor() * 1.3)
+                    + " bar=" + manager.bossBarText());
+        });
+        context.waitTicks(10);
+        // The nemesis comes back (at once, as with the second wave).
+        final double[] at = new double[3];
+        onServer(context, (player, manager) -> {
+            int n = manager.nemesis().callIn(manager.nemesisHost(), true);
+            StringBuilder line = new StringBuilder();
+            for (net.minecraft.world.entity.Mob m : manager.nemesis().onFieldMobs()) {
+                line.append(m.getCustomName() == null ? "?" : m.getCustomName().getString()).append(" hp=").append(Math.round(m.getMaxHealth()))
+                        .append(" target=").append(m.getTarget() == null ? "-" : m.getTarget().getScoreboardName())
+                        .append(" glow=").append(m.isCurrentlyGlowing()).append(" d=").append(Math.round(m.distanceTo(player))).append("; ");
+                at[0] = m.getX();
+                at[1] = m.getY();
+                at[2] = m.getZ();
+            }
+            System.out.println("[Night Siege test] curse nemesis called=" + n + " field=[" + line + "] bar=" + manager.bossBarText());
+        });
+        context.waitTicks(30);
+        game.getServer().runCommand("tp @p %d.5 %d %d.5 facing %.1f %.1f %.1f".formatted(cx, cy, cz - 3, at[0], at[1] + 1.0, at[2]));
+        context.waitTicks(40);
+        context.takeScreenshot("curse_nemesis");
+        // It slays the player (as it would): it rises in rank and flees again.
+        onServer(context, (player, manager) -> {
+            java.util.List<net.minecraft.world.entity.Mob> field = manager.nemesis().onFieldMobs();
+            if (field.isEmpty()) {
+                System.out.println("[Night Siege test] curse promote: no nemesis on the field");
+                return;
+            }
+            net.minecraft.world.entity.Mob nem = field.get(0);
+            manager.nemesis().onDefenderKilled(manager.nemesisHost(), player, nem.damageSources().mobAttack(nem));
+            StringBuilder recs = new StringBuilder();
+            for (com.mki.nightsiege.game.SiegeSave.NemesisRecord r : com.mki.nightsiege.game.Nemesis.records(manager.save(), true)) {
+                recs.append(r.name).append('/').append(r.level).append(r.traits).append('/').append(r.status).append("; ");
+            }
+            System.out.println("[Night Siege test] curse promote promoted=" + manager.nemesis().promoted + " removed=" + nem.isRemoved()
+                    + " field=" + manager.nemesis().onFieldMobs().size() + " records=[" + recs + "]");
+        });
+        context.waitTicks(10);
+        // An ordinary zombie of the night slays the player: it becomes a nemesis.
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            java.util.List<net.minecraft.world.entity.monster.zombie.Zombie> zs = level.getEntitiesOfClass(net.minecraft.world.entity.monster.zombie.Zombie.class,
+                    new net.minecraft.world.phys.AABB(core).inflate(90), z -> z.entityTags().contains(com.mki.nightsiege.game.MobFactory.TAG)
+                            && !z.entityTags().contains(com.mki.nightsiege.game.Nemesis.TAG));
+            if (zs.isEmpty()) {
+                System.out.println("[Night Siege test] curse made: no zombie");
+                return;
+            }
+            net.minecraft.world.entity.monster.zombie.Zombie z = zs.get(0);
+            int before = com.mki.nightsiege.game.Nemesis.records(manager.save(), true).size();
+            manager.nemesis().onDefenderKilled(manager.nemesisHost(), player, z.damageSources().mobAttack(z));
+            int after = com.mki.nightsiege.game.Nemesis.records(manager.save(), true).size();
+            System.out.println("[Night Siege test] curse made made=" + manager.nemesis().made + " records=" + before + "->" + after
+                    + " fled=" + z.isRemoved());
+        });
+        context.waitTicks(10);
+        // Both lurking ones called back; the first is slain by the player: its trophy.
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            int n = manager.nemesis().callIn(manager.nemesisHost(), true);
+            java.util.List<net.minecraft.world.entity.Mob> field = manager.nemesis().onFieldMobs();
+            if (field.isEmpty()) {
+                System.out.println("[Night Siege test] curse slay: nobody came (" + n + ")");
+                return;
+            }
+            net.minecraft.world.entity.Mob victim = field.get(0);
+            victim.hurtServer(level, player.damageSources().playerAttack(player), 100000f);
+            System.out.println("[Night Siege test] curse slay called=" + n + " dead=" + !victim.isAlive());
+        });
+        context.waitTicks(10);
+        onServer(context, (player, manager) -> {
+            net.minecraft.world.item.ItemStack trophy = net.minecraft.world.item.ItemStack.EMPTY;
+            for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+                net.minecraft.world.item.ItemStack st = player.getInventory().getItem(i);
+                net.minecraft.world.item.component.CustomData data = st.get(net.minecraft.core.component.DataComponents.CUSTOM_DATA);
+                if (data != null && data.copyTag().contains("nemesis_trophy")) {
+                    trophy = st;
+                }
+            }
+            StringBuilder recs = new StringBuilder();
+            com.mki.nightsiege.game.SiegeSave.NemesisRecord slainRec = null;
+            for (com.mki.nightsiege.game.SiegeSave.NemesisRecord r : com.mki.nightsiege.game.Nemesis.records(manager.save(), true)) {
+                recs.append(r.name).append('/').append(r.status).append("; ");
+                if ("erschlagen".equals(r.status) && r.type.equals("minecraft:spider")) {
+                    slainRec = r;
+                }
+            }
+            System.out.println("[Night Siege test] curse trophy slain=" + manager.nemesis().slain + " item="
+                    + (trophy.isEmpty() ? "none" : net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(trophy.getItem()) + " " + trophy.getHoverName().getString())
+                    + " records=[" + recs + "]");
+            if (!trophy.isEmpty()) {
+                player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, trophy.copy());
+            }
+            if (slainRec != null) {
+                // The plaque of a monster without a head of its own, in the other hand.
+                player.setItemInHand(net.minecraft.world.InteractionHand.OFF_HAND, com.mki.nightsiege.game.Nemesis.trophy(slainRec));
+            }
+        });
+        context.waitTicks(20);
+        game.getServer().runCommand("tp @p %d.5 %d %d.5 -180 10".formatted(cx, cy, cz - 3));
+        context.waitTicks(20);
+        context.takeScreenshot("curse_trophy");
+        showTab(context, "CURSE");
+        context.takeScreenshot("curse_window_night");
+        closeScreen(context);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            manager.abort(level.getServer());
+            System.out.println("[Night Siege test] curse after altar=" + manager.save().curses + " active=" + com.mki.nightsiege.game.Curses.count()
+                    + " life=" + com.mki.nightsiege.game.Curses.healthFactor());
+            com.mki.nightsiege.core.SiegeConfig cfg = manager.config();
+            cfg.baseMobsPerBatch = keep[0];
+            cfg.batchIntervalSeconds = keep[1];
+            cfg.nightPhantoms = keep[2];
+            cfg.raidMinLadders = keep[3];
+            cfg.testPrepSeconds = keep[4];
+            cfg.sapperFromLevel = keep[5];
+            cfg.mobsPerLevel = keepD[0];
+            cfg.ladderCarrierShare = keepD[1];
+            cfg.treasureRaiderChance = keepD[2];
+            manager.testPool(null);
+            manager.save().curses.clear();
+            com.mki.nightsiege.game.Nemesis.clear(manager.save(), true);
+            player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, net.minecraft.world.item.ItemStack.EMPTY);
+            player.setItemInHand(net.minecraft.world.InteractionHand.OFF_HAND, net.minecraft.world.item.ItemStack.EMPTY);
+        });
+        context.waitTicks(20);
+        game.getServer().runCommand("forceload remove %d %d %d %d".formatted(cx - 64, cz - 64, cx + 64, cz + 64));
+    }
+
     private static void raidScene(ClientGameTestContext context, TestSingleplayerContext game) {
         BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
         int cx = pos.getX() - 300;

@@ -90,11 +90,19 @@ public final class CrateService {
 
     /** A crate for one class, night kind and level. */
     public static ItemStack crate(SkillClass clazz, CrateKind kind, int level) {
+        return crate(clazz, kind, level, 0);
+    }
+
+    /** As above, from a night won under {@code curses} curse stones (update 2): it rolls better odds. */
+    public static ItemStack crate(SkillClass clazz, CrateKind kind, int level, int curses) {
         ItemStack stack = new ItemStack(CRATE);
         CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> {
             tag.putString("crate_class", clazz == null ? "" : clazz.name());
             tag.putString("crate_kind", kind.name());
             tag.putInt("crate_level", level);
+            if (curses > 0) {
+                tag.putInt("crate_curse", curses);
+            }
         });
         List<Component> lines = new ArrayList<>();
         if (clazz != null) {
@@ -102,6 +110,9 @@ public final class CrateService {
         }
         lines.add(Component.translatable("nightsiege.crate.kind." + kind.key()).withStyle(ChatFormatting.GRAY));
         lines.add(Component.translatable("nightsiege.crate.level", level).withStyle(ChatFormatting.GRAY));
+        if (curses > 0) {
+            lines.add(Component.translatable("nightsiege.crate.cursed", curses).withStyle(ChatFormatting.DARK_PURPLE));
+        }
         lines.add(Component.translatable("nightsiege.crate.hint").withStyle(ChatFormatting.DARK_GRAY));
         stack.set(DataComponents.LORE, new ItemLore(lines));
         return stack;
@@ -112,12 +123,20 @@ public final class CrateService {
      * the chance {@code bonusCrateChance} a second one (Simon, 27 October 2026).
      */
     public void award(MinecraftServer server, Set<UUID> defenders, CrateKind kind, int level) {
+        award(server, defenders, kind, level, 0);
+    }
+
+    /**
+     * As above for a night won under curse stones (update 2 "Fluch & Rache"): the crates roll
+     * better odds, and every curse adds {@code curseCrateChance} to the chance of a second one.
+     */
+    public void award(MinecraftServer server, Set<UUID> defenders, CrateKind kind, int level, int curses) {
         SiegeConfig cfg = config.get();
-        double bonus = cfg == null ? 0.0 : cfg.bonusCrateChance;
+        double bonus = (cfg == null ? 0.0 : cfg.bonusCrateChance) + Curses.extraCrateChance(cfg, curses);
         for (UUID id : defenders) {
             int count = java.util.concurrent.ThreadLocalRandom.current().nextDouble() < bonus ? 2 : 1;
             for (int i = 0; i < count; i++) {
-                awardOne(server, id, kind, level);
+                awardOne(server, id, kind, level, curses);
             }
         }
         persist.run();
@@ -126,12 +145,12 @@ public final class CrateService {
     /** Exactly one crate for every defender, without the chance of a second (the treasure raider, 27 October 2026). */
     public void awardEach(MinecraftServer server, Set<UUID> defenders, CrateKind kind, int level) {
         for (UUID id : new java.util.ArrayList<>(defenders)) {
-            awardOne(server, id, kind, level);
+            awardOne(server, id, kind, level, 0);
         }
         persist.run();
     }
 
-    private void awardOne(MinecraftServer server, UUID id, CrateKind kind, int level) {
+    private void awardOne(MinecraftServer server, UUID id, CrateKind kind, int level, int curses) {
         {
             PlayerSkills own = save.get().skillsOf(id.toString());
             SkillClass clazz = own.clazz();
@@ -140,7 +159,7 @@ public final class CrateService {
             }
             ServerPlayer player = server.getPlayerList().getPlayer(id);
             if (player != null) {
-                give(player, crate(clazz, kind, level));
+                give(player, crate(clazz, kind, level, curses));
             } else {
                 // Offline: the crate waits in the save until they come back.
                 Map<String, List<String>> pending = save.get().pendingCrates;
@@ -148,7 +167,7 @@ public final class CrateService {
                     save.get().pendingCrates = pending = new java.util.HashMap<>();
                 }
                 pending.computeIfAbsent(id.toString(), k -> new ArrayList<>())
-                        .add(clazz.name() + "|" + kind.name() + "|" + level);
+                        .add(clazz.name() + "|" + kind.name() + "|" + level + (curses > 0 ? "|" + curses : ""));
             }
         }
     }
@@ -171,7 +190,15 @@ public final class CrateService {
             } catch (NumberFormatException e) {
                 level = 1;
             }
-            give(player, crate(SkillClass.byName(parts[0]), CrateKind.byName(parts[1]), level));
+            int curses = 0;
+            if (parts.length > 3) {
+                try {
+                    curses = Integer.parseInt(parts[3]);
+                } catch (NumberFormatException e) {
+                    curses = 0;
+                }
+            }
+            give(player, crate(SkillClass.byName(parts[0]), CrateKind.byName(parts[1]), level, curses));
         }
         persist.run();
     }
@@ -205,7 +232,8 @@ public final class CrateService {
         }
         CrateKind kind = CrateKind.byName(tag.getStringOr("crate_kind", "NORMAL"));
         int level = Math.max(1, tag.getIntOr("crate_level", 1));
-        CrateRoll roll = roll(own, clazz, kind, level);
+        int curses = Math.max(0, tag.getIntOr("crate_curse", 0));
+        CrateRoll roll = roll(own, clazz, kind, level, curses);
         stack.shrink(1);
         if (roll.infernite && InferniteContent.INGOT != null) {
             player.getInventory().placeItemBackInInventory(new ItemStack(InferniteContent.INGOT));
@@ -229,8 +257,19 @@ public final class CrateService {
                 roll.rarity, roll.duplicate ? " doppelt" : "");
     }
 
+    /** The odds of a crate from a night won under curses: half a step up the chain for each one. */
+    public static int[] cursedOdds(SiegeConfig cfg, CrateKind kind, int curses) {
+        int[][] chain = {cfg.crateOddsNormal, cfg.crateOddsEvent, cfg.crateOddsFragment, cfg.crateOddsCursed};
+        return com.mki.nightsiege.core.CurseKind.shiftOdds(chain, kind.ordinal(), curses);
+    }
+
     /** Rolls a crate and applies the result to the player's skills. Public for tests. */
     public CrateRoll roll(PlayerSkills own, SkillClass clazz, CrateKind kind, int level) {
+        return roll(own, clazz, kind, level, 0);
+    }
+
+    /** As above for a crate of a cursed night: every curse moves the odds half a step up (update 2). */
+    public CrateRoll roll(PlayerSkills own, SkillClass clazz, CrateKind kind, int level, int curses) {
         SiegeConfig cfg = config.get();
         String way = own.hasUnlocked(clazz) ? own.as(clazz, () -> own.pathTaken(tree)) : "";
         CrateRoll roll = new CrateRoll();
@@ -243,7 +282,7 @@ public final class CrateService {
             roll.lucky = true;
         }
         roll.kind = kind.name();
-        int[] weights = cfg.crateOdds(kind);
+        int[] weights = curses > 0 ? cursedOdds(cfg, kind, curses) : cfg.crateOdds(kind);
         roll.odds = weights.clone();
         CrateGains.Gain win = CrateGains.roll(clazz, way, weights, cfg.crateClassShare, random);
         if (win == null) {

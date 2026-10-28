@@ -75,7 +75,9 @@ public class CoreScreen extends Screen {
         COLLECTION(null, "nightsiege:reward_crate", "minecraft:textures/block/polished_blackstone_bricks.png", 0xFFB565FF, "collection"),
         PERKS(null, "nightsiege:night_fragment_blood", "minecraft:textures/block/polished_blackstone.png", 0xFFE0A0FF, "perks"),
         // The scouts' report of a dungeon, with its map (dungeon update, 27 October 2026).
-        SCOUT(null, "minecraft:filled_map", "minecraft:textures/block/spruce_planks.png", 0xFFE8C77A, "scout");
+        SCOUT(null, "minecraft:filled_map", "minecraft:textures/block/spruce_planks.png", 0xFFE8C77A, "scout"),
+        // The curse altar and the wanted posters of the nemeses (update 2 "Fluch & Rache", 28 October 2026).
+        CURSE(null, "minecraft:wither_skeleton_skull", "minecraft:textures/block/nether_bricks.png", 0xFFE0506A, "curse");
 
         final SkillClass clazz;
         final String icon;
@@ -329,7 +331,7 @@ public class CoreScreen extends Screen {
         boolean big = activeTab == Tab.CLASSES
                 || (activeTab.clazz != null && stats.skillsEnabled && isGrid(activeTab.clazz.name()));
         // The start page gets room for the profile list next to its cards.
-        boolean wideStats = activeTab == Tab.STATS && hasClass() || activeTab == Tab.SCOUT;
+        boolean wideStats = activeTab == Tab.STATS && hasClass() || activeTab == Tab.SCOUT || activeTab == Tab.CURSE;
         W = big ? Math.max(404, Math.min(this.width - 16, 760)) : wideStats ? Math.max(404, Math.min(this.width - 16, 600)) : 404;
         H = big ? Math.min(this.height - 34, 440) : wideStats ? Math.max(244, Math.min(this.height - 34, 300)) : 244;
         // Small screens (high GUI scale): the window shrinks, so the tabs and buttons stay visible.
@@ -447,6 +449,18 @@ public class CoreScreen extends Screen {
             }
         }
 
+        if (activeTab == Tab.CURSE) {
+            // Each stone of the altar is a button (laid on or taken off); sealed while a night runs.
+            if (stats.cursesEnabled && !stats.altarSealed) {
+                com.mki.nightsiege.core.CurseKind[] kinds = com.mki.nightsiege.core.CurseKind.values();
+                for (int i = 0; i < kinds.length; i++) {
+                    int[] t = curseTile(i);
+                    String id = kinds[i].id();
+                    invisible(Button.builder(Component.empty(), b -> send("curse:" + id)).bounds(t[0], t[1], t[2], t[3]).build());
+                }
+            }
+            return;
+        }
         if (activeTab == Tab.SCOUT) {
             if (stats.scout != null && !stats.scout.kind.isEmpty()) {
                 Component take = Component.translatable("nightsiege.ui.scout_map");
@@ -1760,6 +1774,8 @@ public class CoreScreen extends Screen {
             drawPerks(gui, font);
         } else if (activeTab == Tab.SCOUT) {
             drawScout(gui, font);
+        } else if (activeTab == Tab.CURSE) {
+            curseTip = drawCurses(gui, font, mouseX, mouseY);
         } else if (activeTab == Tab.COLLECTION) {
             hoveredGain = drawCollection(gui, font, mouseX, mouseY);
         } else if (!stats.skillsEnabled) {
@@ -1798,6 +1814,8 @@ public class CoreScreen extends Screen {
                 drawNodeTooltip(gui, font, hovered, mouseX, mouseY);
             } else if (hoveredGain != null && activeTab == Tab.COLLECTION) {
                 gainTooltip(gui, font, hoveredGain, mouseX, mouseY);
+            } else if (curseTip != null && activeTab == Tab.CURSE) {
+                tooltip(gui, font, curseTip, mouseX, mouseY);
             }
         }
     }
@@ -1828,6 +1846,9 @@ public class CoreScreen extends Screen {
         }
         if (tab == Tab.SCOUT) {
             return Component.translatable("nightsiege.ui.banner_title.scout").getString();
+        }
+        if (tab == Tab.CURSE) {
+            return Component.translatable("nightsiege.ui.banner_title.curse").getString();
         }
         return Component.translatable(tab.clazz.translationKey()).getString();
     }
@@ -1931,6 +1952,9 @@ public class CoreScreen extends Screen {
         if (tab == Tab.SCOUT) {
             return Component.translatable("nightsiege.ui.banner_title.scout").getString();
         }
+        if (tab == Tab.CURSE) {
+            return Component.translatable("nightsiege.ui.banner_title.curse").getString();
+        }
         return Component.translatable(tab.clazz.translationKey()).getString();
     }
 
@@ -1949,6 +1973,22 @@ public class CoreScreen extends Screen {
                 int a = 0x16 - i;
                 gui.fill(x, y + i, x + w, y + i + 1, (a << 24) | rgb);
                 gui.fill(x, y + h - 1 - i, x + w, y + h - i, (a << 24) | rgb);
+            }
+            return;
+        }
+        if (activeTab == Tab.CURSE) {
+            // The curse altar: nether brick under a deep veil, blood red rising from below.
+            gui.enableScissor(x, y, x + w, y + h);
+            for (int ty = y; ty < y + h; ty += 16) {
+                for (int tx = x; tx < x + w; tx += 16) {
+                    gui.blit(RenderPipelines.GUI_TEXTURED, activeTab.backdrop, tx, ty, 0f, 0f, 16, 16, 16, 16);
+                }
+            }
+            gui.disableScissor();
+            gui.fill(x, y, x + w, y + h, 0xD00C080E);
+            for (int i = 0; i < 20; i++) {
+                int a = Math.max(0, 0x26 - i * 2);
+                gui.fill(x, y + h - 1 - i, x + w, y + h - i, (a << 24) | 0xB0203A);
             }
             return;
         }
@@ -2406,6 +2446,11 @@ public class CoreScreen extends Screen {
     }
 
     private void drawFooter(GuiGraphicsExtractor gui, Font font) {
+        if (activeTab == Tab.CURSE) {
+            gui.text(font, font.plainSubstrByWidth(Component.translatable("nightsiege.ui.footer_curse").getString(), W - 90),
+                    left + 10, top + H - 19, TITLE, false);
+            return;
+        }
         if (activeTab == Tab.PERKS) {
             gui.text(font, Component.translatable("nightsiege.ui.footer_perks").getString(), left + 10, top + H - 19, TITLE, false);
             return;
@@ -2820,6 +2865,288 @@ public class CoreScreen extends Screen {
                 ty += 10;
             }
         }
+    }
+
+    // ------------------------------------------------------------------
+    // the curse altar and the wanted posters (update 2 "Fluch & Rache")
+    // ------------------------------------------------------------------
+
+    /** The tooltip of the curse page (a stone or a poster under the mouse), or null. */
+    private List<String> curseTip;
+
+    /** The altar's part of the page and the posters' part: x, w of each. */
+    private int[] curseColumns() {
+        int x = innerX() + 6;
+        int w = innerW() - 12;
+        int posterW = Math.max(140, Math.min(230, w * 38 / 100));
+        int altarW = w - posterW - 8;
+        return new int[]{x, altarW, x + altarW + 8, posterW};
+    }
+
+    private static final int CURSE_HEAD = 34;
+
+    /** Where the stone of curse number i lies: x, y, w, h. */
+    private int[] curseTile(int i) {
+        int[] col = curseColumns();
+        int cols = col[1] >= 300 ? 4 : 2;
+        int n = com.mki.nightsiege.core.CurseKind.values().length;
+        int rows = (n + cols - 1) / cols;
+        int gap = 5;
+        int y0 = innerY() + 6 + CURSE_HEAD + 4;
+        int h = Math.max(26, (innerY() + innerH() - 6 - y0 - (rows - 1) * gap) / rows);
+        int w = (col[1] - (cols - 1) * gap) / cols;
+        return new int[]{col[0] + (i % cols) * (w + gap), y0 + (i / cols) * (h + gap), w, h};
+    }
+
+    /** "+30 % Leben der Monster": what a curse does, with the server's numbers. */
+    private String curseEffect(String id) {
+        double f = stats.curseValues == null ? 1.0 : stats.curseValues.getOrDefault(id, 1.0);
+        long pct = Math.round(Math.abs(f - 1.0) * 100.0);
+        return Component.translatable("nightsiege.curse." + id + ".effect", pct).getString();
+    }
+
+    private static String oddsLine(int[] odds) {
+        if (odds == null || odds.length < 5) {
+            return "";
+        }
+        int sum = 0;
+        for (int v : odds) {
+            sum += Math.max(0, v);
+        }
+        sum = Math.max(1, sum);
+        // Rare and better: what climbs with the curses.
+        int rare = Math.round(100f * (odds[2] + odds[3] + odds[4]) / sum);
+        int top = Math.round(100f * (odds[3] + odds[4]) / sum);
+        return Component.translatable("nightsiege.ui.curse_odds", rare, top).getString();
+    }
+
+    private List<String> drawCurses(GuiGraphicsExtractor gui, Font font, int mouseX, int mouseY) {
+        List<String> tip = null;
+        int[] col = curseColumns();
+        int x = col[0];
+        int w = col[1];
+        int y = innerY() + 6;
+        long now = System.currentTimeMillis();
+        List<String> lying = stats.altarSealed ? stats.cursesTonight : stats.curses;
+        int count = lying == null ? 0 : lying.size();
+
+        // The inscription: how many stones lie, and what a win would pay for them.
+        gui.fill(x, y, x + w, y + CURSE_HEAD, 0xD8120A10);
+        gui.fill(x, y, x + w, y + 1, count > 0 ? 0xFFE0506A : 0xFF6A4A5A);
+        gui.fill(x, y + CURSE_HEAD - 1, x + w, y + CURSE_HEAD, 0x60000000);
+        String head;
+        int headColor;
+        if (!stats.cursesEnabled) {
+            head = Component.translatable("nightsiege.ui.curse_off").getString();
+            headColor = GRAY;
+        } else if (stats.altarSealed) {
+            head = Component.translatable(count > 0 ? "nightsiege.ui.curse_sealed_on" : "nightsiege.ui.curse_sealed", count).getString();
+            headColor = 0xFFFF8A9A;
+        } else {
+            head = Component.translatable("nightsiege.ui.curse_head", count, stats.curseMax).getString();
+            headColor = count > 0 ? 0xFFFFB0C0 : 0xFFE8DCF0;
+        }
+        gui.text(font, font.plainSubstrByWidth(head, w - 12), x + 6, y + 5, headColor, true);
+        String pay;
+        if (count > 0) {
+            int extra = (int) Math.round((stats.bonusCrateChance + count * stats.curseCrateChance) * 100);
+            pay = Component.translatable("nightsiege.ui.curse_pay", oddsLine(stats.oddsCursed), extra, count * stats.cursePoints).getString();
+        } else {
+            pay = Component.translatable("nightsiege.ui.curse_hint").getString();
+        }
+        smallText(gui, font, font.plainSubstrByWidth(pay, (int) ((w - 12) / 0.75f)), x + 6, y + 18, 0xFFC8B8D0, 0.75f);
+        smallText(gui, font, font.plainSubstrByWidth(Component.translatable("nightsiege.ui.curse_plain", oddsLine(stats.oddsPlain)).getString(),
+                (int) ((w - 12) / 0.75f)), x + 6, y + 26, 0xFF8A7A90, 0.75f);
+
+        // The stones.
+        com.mki.nightsiege.core.CurseKind[] kinds = com.mki.nightsiege.core.CurseKind.values();
+        for (int i = 0; i < kinds.length; i++) {
+            com.mki.nightsiege.core.CurseKind kind = kinds[i];
+            int[] t = curseTile(i);
+            int tx = t[0];
+            int ty = t[1];
+            int tw = t[2];
+            int th = t[3];
+            int rgb = kind.color() & 0xFFFFFF;
+            boolean on = lying != null && lying.contains(kind.id());
+            boolean hover = mouseX >= tx && mouseX < tx + tw && mouseY >= ty && mouseY < ty + th;
+            if (on) {
+                int glow = (int) (70 + 45 * Math.sin(now / 300.0 + i));
+                gui.fill(tx - 2, ty - 2, tx + tw + 2, ty + th + 2, (glow << 24) | rgb);
+            }
+            gui.fill(tx, ty, tx + tw, ty + th, on ? 0xFF000000 | rgb : hover && !stats.altarSealed ? 0xFF5A4A62 : 0xFF2A2230);
+            gui.fill(tx + 1, ty + 1, tx + tw - 1, ty + th - 1, on ? 0xF01C0E16 : 0xF0141016);
+            gui.fill(tx + 1, ty + 1, tx + tw - 1, ty + 2, (0x80 << 24) | rgb);
+            String name = Component.translatable(kind.translationKey()).getString();
+            String effect = curseEffect(kind.id());
+            int nameColor = on ? 0xFFFFFFFF : 0xFF000000 | rgb;
+            int effectColor = on ? 0xFFF0D0DA : 0xFFA898B0;
+            if (th >= 60) {
+                // A tall stone: the sign on top, the name and what it does below it.
+                int sx = tx + (tw - 22) / 2;
+                int sy = ty + 7;
+                gui.fill(sx, sy, sx + 22, sy + 22, 0xFF0A060A);
+                gui.fill(sx + 1, sy + 1, sx + 21, sy + 21, ((on ? 0x60 : 0x22) << 24) | rgb);
+                gui.item(iconOf(kind.icon()), sx + 3, sy + 3);
+                int ny = sy + 27;
+                if (font.width(name) <= tw - 6) {
+                    gui.text(font, name, tx + (tw - font.width(name)) / 2, ny, nameColor, true);
+                } else {
+                    float sc = Math.max(0.6f, (float) (tw - 6) / font.width(name));
+                    int nw = (int) (font.width(name) * sc);
+                    smallText(gui, font, font.plainSubstrByWidth(name, (int) ((tw - 6) / sc)), tx + (tw - nw) / 2, ny + 1, nameColor, sc);
+                }
+                int ly = ny + 12;
+                for (String line : wrap(font, effect, (int) ((tw - 8) / 0.7f))) {
+                    if (ly + 7 > ty + th - 2) {
+                        break;
+                    }
+                    int lw = (int) (font.width(line) * 0.7f);
+                    smallText(gui, font, line, tx + (tw - lw) / 2, ly, effectColor, 0.7f);
+                    ly += 8;
+                }
+            } else {
+                // A low stone: the sign on the left, the words beside it.
+                int sx = tx + 4;
+                int sy = ty + Math.max(3, (th - 20) / 2);
+                gui.fill(sx, sy, sx + 20, sy + 20, 0xFF0A060A);
+                gui.fill(sx + 1, sy + 1, sx + 19, sy + 19, ((on ? 0x60 : 0x22) << 24) | rgb);
+                gui.item(iconOf(kind.icon()), sx + 2, sy + 2);
+                int textX = sx + 24;
+                int textW = tx + tw - 3 - textX;
+                int ny = ty + Math.max(3, th / 2 - 9);
+                if (font.width(name) <= textW) {
+                    gui.text(font, name, textX, ny, nameColor, true);
+                } else {
+                    float sc = Math.max(0.65f, (float) textW / font.width(name));
+                    smallText(gui, font, font.plainSubstrByWidth(name, (int) (textW / sc)), textX, ny + 1, nameColor, sc);
+                }
+                int ly = ny + 11;
+                for (String line : wrap(font, effect, (int) (textW / 0.7f))) {
+                    if (ly + 7 > ty + th - 1) {
+                        break;
+                    }
+                    smallText(gui, font, line, textX, ly, effectColor, 0.7f);
+                    ly += 7;
+                }
+            }
+            if (on) {
+                smallText(gui, font, "☠", tx + tw - 9, ty + 4, 0xFFFFFFFF, 0.9f);
+            }
+            if (hover) {
+                tip = new ArrayList<>();
+                tip.add(name);
+                tip.add("§7" + effect);
+                tip.add("§8" + Component.translatable("nightsiege.curse." + kind.id() + ".desc").getString());
+                if (stats.altarSealed) {
+                    tip.add("§c" + Component.translatable("nightsiege.ui.curse_tip_sealed").getString());
+                } else if (on) {
+                    tip.add("§d" + Component.translatable("nightsiege.ui.curse_tip_take").getString());
+                } else if (count >= stats.curseMax) {
+                    tip.add("§c" + Component.translatable("nightsiege.ui.curse_tip_full", stats.curseMax).getString());
+                } else {
+                    tip.add("§d" + Component.translatable("nightsiege.ui.curse_tip_lay").getString());
+                }
+            }
+        }
+
+        List<String> posterTip = drawPosters(gui, font, col[2], innerY() + 6, col[3], innerH() - 12, mouseX, mouseY, now);
+        return tip != null ? tip : posterTip;
+    }
+
+    /** The wanted posters: every nemesis that lurks (or came tonight), then the slain ones. */
+    private List<String> drawPosters(GuiGraphicsExtractor gui, Font font, int x, int y, int w, int h, int mouseX, int mouseY, long now) {
+        List<String> tip = null;
+        gui.fill(x, y, x + w, y + h, 0xC0100A0C);
+        gui.fill(x, y, x + w, y + 1, 0xFFB08A4A);
+        String title = Component.translatable("nightsiege.ui.wanted_title").getString();
+        gui.text(font, title, x + 6, y + 4, 0xFFE8C77A, true);
+        gui.fill(x + 6, y + 14, x + w - 6, y + 15, 0x40E8C77A);
+        int py = y + 18;
+        List<CoreStats.NemesisLine> all = stats.nemeses == null ? List.of() : stats.nemeses;
+        if (all.isEmpty()) {
+            String none = Component.translatable(stats.nemesisEnabled ? "nightsiege.ui.wanted_none" : "nightsiege.ui.wanted_off").getString();
+            int ly = py + 4;
+            for (String line : wrap(font, none, (int) ((w - 14) / 0.8f))) {
+                smallText(gui, font, line, x + 7, ly, 0xFFA898B0, 0.8f);
+                ly += 9;
+            }
+            return null;
+        }
+        int ph = 46;
+        int shown = 0;
+        for (CoreStats.NemesisLine n : all) {
+            if (py + ph > y + h - 2) {
+                break;
+            }
+            boolean slain = !"lauert".equals(n.status);
+            // The parchment: yellowed, greyer once it is slain, a red rim while it is out tonight.
+            int paper = slain ? 0xFF8C8270 : 0xFFD9C89A;
+            int ink = slain ? 0xFF3A342C : 0xFF3A2414;
+            if (n.here) {
+                int glow = (int) (90 + 60 * Math.sin(now / 250.0));
+                gui.fill(x + 3, py - 2, x + w - 3, py + ph + 2, (glow << 24) | 0xE02030);
+            }
+            gui.fill(x + 5, py, x + w - 5, py + ph, 0xFF2A1A0C);
+            gui.fill(x + 6, py + 1, x + w - 6, py + ph - 1, paper);
+            gui.fill(x + 6, py + 1, x + w - 6, py + 3, slain ? 0xFF6E6656 : 0xFFBFA878);
+            // The monster in a small dark frame.
+            int ix = x + 10;
+            int iy = py + 6;
+            gui.fill(ix, iy, ix + 20, iy + 20, 0xFF2A1A0C);
+            gui.fill(ix + 1, iy + 1, ix + 19, iy + 19, slain ? 0xFF4A4438 : 0xFF5A3A22);
+            ItemStack egg = iconOf(n.type + "_spawn_egg");
+            gui.item(egg.isEmpty() ? iconOf("minecraft:skeleton_skull") : egg, ix + 2, iy + 2);
+            int tx = ix + 24;
+            int tw = x + w - 9 - tx;
+            String name = n.name + (n.test ? " (Test)" : "");
+            gui.text(font, font.plainSubstrByWidth(name, tw), tx, py + 5, ink, false);
+            String rank = Component.translatable(com.mki.nightsiege.core.NemesisLore.titleKey(n.level)).getString()
+                    + " · " + Component.translatable("nightsiege.nemesis.bar_level", n.level).getString();
+            smallText(gui, font, font.plainSubstrByWidth(rank, (int) (tw / 0.75f)), tx, py + 15, slain ? 0xFF4A443A : 0xFF7A1A10, 0.75f);
+            StringBuilder traits = new StringBuilder();
+            for (String t : n.traits) {
+                if (traits.length() > 0) {
+                    traits.append(", ");
+                }
+                traits.append(Component.translatable("nightsiege.nemesis.trait." + t).getString());
+            }
+            smallText(gui, font, font.plainSubstrByWidth(traits.toString(), (int) (tw / 0.7f)), tx, py + 23, ink, 0.7f);
+            String victims = Component.translatable("nightsiege.ui.wanted_victims", String.join(", ", n.victims)).getString();
+            smallText(gui, font, font.plainSubstrByWidth(victims, (int) ((w - 22) / 0.7f)), x + 10, py + 31, slain ? 0xFF3A342C : 0xFF5A1A10, 0.7f);
+            String state = slain
+                    ? Component.translatable(n.slainBy.isEmpty() ? "nightsiege.ui.wanted_slain" : "nightsiege.ui.wanted_slain_by", n.slainBy).getString()
+                    : n.here ? Component.translatable("nightsiege.ui.wanted_here").getString()
+                    : Component.translatable("nightsiege.ui.wanted_reward").getString();
+            smallText(gui, font, font.plainSubstrByWidth(state, (int) ((w - 22) / 0.7f)), x + 10, py + 38,
+                    slain ? 0xFF1A1A1A : n.here ? 0xFFB01010 : 0xFF6A4A10, 0.7f);
+            if (!slain) {
+                // The red stamp in the corner.
+                String stamp = Component.translatable("nightsiege.ui.wanted_stamp").getString();
+                int sw = (int) (font.width(stamp) * 0.7f);
+                gui.fill(x + w - 12 - sw, py + 4, x + w - 8, py + 12, 0x30B01010);
+                smallText(gui, font, stamp, x + w - 10 - sw, py + 6, 0xFFB01010, 0.7f);
+            }
+            if (mouseX >= x + 5 && mouseX < x + w - 5 && mouseY >= py && mouseY < py + ph) {
+                tip = new ArrayList<>();
+                tip.add(n.name + " " + Component.translatable(com.mki.nightsiege.core.NemesisLore.titleKey(n.level)).getString());
+                tip.add("§7" + Component.translatable("nightsiege.ui.wanted_tip_level", n.level, n.kills).getString());
+                for (String t : n.traits) {
+                    tip.add("§c" + Component.translatable("nightsiege.nemesis.trait." + t).getString() + "§7: "
+                            + Component.translatable("nightsiege.nemesis.trait." + t + ".desc").getString());
+                }
+                tip.add("§8" + victims);
+                if (!slain) {
+                    tip.add("§8" + Component.translatable("nightsiege.ui.wanted_tip_away", n.nightsAway).getString());
+                }
+            }
+            py += ph + 5;
+            shown++;
+        }
+        if (shown < all.size()) {
+            smallText(gui, font, Component.translatable("nightsiege.ui.wanted_more", all.size() - shown).getString(), x + 8, y + h - 9, 0xFF8A7A90, 0.7f);
+        }
+        return tip;
     }
 
     private void drawPerks(GuiGraphicsExtractor gui, Font font) {

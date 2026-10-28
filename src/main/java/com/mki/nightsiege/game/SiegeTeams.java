@@ -24,6 +24,8 @@ public final class SiegeTeams {
     public static final String GRAVE = "nightsiege_grave";
     /** The soulcatcher's ghosts: aqua, so they stand out from the evokers' vexes. */
     public static final String GHOST = "nightsiege_ghost";
+    /** A nemesis back for its revenge (update 2): red. */
+    public static final String NEMESIS = "nightsiege_nemesis";
 
     private SiegeTeams() {
     }
@@ -60,7 +62,7 @@ public final class SiegeTeams {
         }
         try {
             Scoreboard scoreboard = server.getScoreboard();
-            for (String name : new String[]{BLOOD_MOON, CHAMPION, GRAVE, GHOST}) {
+            for (String name : new String[]{BLOOD_MOON, CHAMPION, GRAVE, GHOST, NEMESIS}) {
                 PlayerTeam team = scoreboard.getPlayerTeam(name);
                 if (team != null) {
                     scoreboard.removePlayerTeam(team);

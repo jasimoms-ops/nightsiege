@@ -138,6 +138,44 @@ public class CoreStats {
 
     public ScoutLine scout;
 
+    /** One wanted poster (update 2 "Fluch & Rache"): a nemesis lurking, on the field tonight, or slain. */
+    public static class NemesisLine {
+        public String id = "";
+        public String name = "";
+        /** Entity id ("minecraft:zombie"). */
+        public String type = "";
+        public int level = 1;
+        public List<String> traits = new ArrayList<>();
+        public List<String> victims = new ArrayList<>();
+        public int kills;
+        public int nightsAway;
+        /** "lauert" or "erschlagen". */
+        public String status = "";
+        public String slainBy = "";
+        public boolean test;
+        /** On the field in the running night. */
+        public boolean here;
+    }
+
+    // --- the curse altar (core window, page "Fluch & Rache")
+    public boolean cursesEnabled;
+    public int curseMax;
+    /** Stones on the altar for the next night (CurseKind ids). */
+    public List<String> curses = new ArrayList<>();
+    /** Stones of the running night; the altar is sealed while it runs. */
+    public List<String> cursesTonight = new ArrayList<>();
+    public boolean altarSealed;
+    /** What each curse does: its factor (life 1.3, healing 0.5 ...). */
+    public java.util.Map<String, Double> curseValues = new java.util.HashMap<>();
+    public double curseCrateChance;
+    public double bonusCrateChance;
+    public int cursePoints;
+    /** A normal night's crate odds, and with the stones on the altar now. */
+    public int[] oddsPlain = new int[5];
+    public int[] oddsCursed = new int[5];
+    public boolean nemesisEnabled;
+    public List<NemesisLine> nemeses = new ArrayList<>();
+
     // --- perks of the main core
     public List<PerkLine> perks = new ArrayList<>();
     public int perkRadius;

@@ -250,6 +250,10 @@ public final class KitService {
         if (cfg.valuableDrops != null && cfg.valuableDrops.contains(id.toString())) {
             return true;
         }
+        net.minecraft.world.item.component.CustomData data = stack.get(DataComponents.CUSTOM_DATA);
+        if (data != null && data.copyTag().contains("nemesis_trophy")) {
+            return true;   // a nemesis's trophy (update 2) always goes home
+        }
         if (!cfg.keepDiamondGear) {
             return false;
         }

@@ -91,6 +91,26 @@ public final class SiegeCommands {
                         .then(Commands.argument("art", StringArgumentType.word())
                                 .suggests((c, b) -> net.minecraft.commands.SharedSuggestionProvider.suggest(FOE_NAMES.keySet(), b))
                                 .executes(SiegeCommands::foe)))
+                // Update 2 "Fluch & Rache" (28 October 2026): the curse altar and the nemeses by hand.
+                .then(Commands.literal("fluch").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                        .executes(SiegeCommands::curseList)
+                        .then(Commands.literal("leeren").executes(SiegeCommands::curseClear))
+                        .then(Commands.argument("art", StringArgumentType.word())
+                                .suggests((c, b) -> net.minecraft.commands.SharedSuggestionProvider.suggest(
+                                        java.util.Arrays.stream(com.mki.nightsiege.core.CurseKind.values()).map(com.mki.nightsiege.core.CurseKind::id), b))
+                                .executes(SiegeCommands::curseToggle)))
+                .then(Commands.literal("nemesis").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                        .executes(SiegeCommands::nemesisList)
+                        .then(Commands.literal("rufen").executes(SiegeCommands::nemesisCall))
+                        .then(Commands.literal("machen")
+                                .then(Commands.argument("typ", StringArgumentType.word())
+                                        .suggests((c, b) -> net.minecraft.commands.SharedSuggestionProvider.suggest(
+                                                List.of("zombie", "skeleton", "spider", "husk", "stray", "vindicator", "pillager", "witch", "wither_skeleton", "piglin_brute"), b))
+                                        .executes(ctx -> nemesisMake(ctx, 1))
+                                        .then(Commands.argument("stufe", IntegerArgumentType.integer(1, 10))
+                                                .executes(ctx -> nemesisMake(ctx, IntegerArgumentType.getInteger(ctx, "stufe"))))))
+                        .then(Commands.literal("vergessen").executes(ctx -> nemesisForget(ctx, false))
+                                .then(Commands.literal("test").executes(ctx -> nemesisForget(ctx, true)))))
                 .then(Commands.literal("bossjetzt").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                         .executes(ctx -> {
                             boolean ok = SiegeManager.get().bossNow(ctx.getSource().getServer());
@@ -850,6 +870,89 @@ public final class SiegeCommands {
         }
         reply(ctx.getSource(), Component.translatable("nightsiege.cmd.foe_spawned", mob.getDisplayName()));
         return 1;
+    }
+
+    // ------------------------------------------------------------------ update 2: curses and nemeses
+
+    private static int curseList(CommandContext<CommandSourceStack> ctx) {
+        SiegeManager m = SiegeManager.get();
+        List<com.mki.nightsiege.core.CurseKind> chosen = Curses.chosen(m.save());
+        reply(ctx.getSource(), Component.translatable("nightsiege.cmd.curse_list", chosen.size(), m.config().curseMax,
+                chosen.isEmpty() ? Component.literal("-") : Curses.names(chosen),
+                Curses.count() == 0 ? Component.literal("-") : Curses.names(Curses.active())));
+        return chosen.size();
+    }
+
+    private static int curseClear(CommandContext<CommandSourceStack> ctx) {
+        SiegeManager m = SiegeManager.get();
+        if (m.save().curses != null) {
+            m.save().curses.clear();
+        }
+        m.persist();
+        reply(ctx.getSource(), Component.translatable("nightsiege.cmd.curse_cleared"));
+        return 1;
+    }
+
+    private static int curseToggle(CommandContext<CommandSourceStack> ctx) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer player = ctx.getSource().getPlayerOrException();
+        String id = StringArgumentType.getString(ctx, "art");
+        if (com.mki.nightsiege.core.CurseKind.byId(id) == null) {
+            fail(ctx.getSource(), Component.translatable("nightsiege.cmd.curse_unknown"));
+            return 0;
+        }
+        return Curses.toggle(SiegeManager.get(), player, id) ? 1 : 0;
+    }
+
+    private static int nemesisList(CommandContext<CommandSourceStack> ctx) {
+        SiegeManager m = SiegeManager.get();
+        List<SiegeSave.NemesisRecord> all = new java.util.ArrayList<>(Nemesis.records(m.save(), false));
+        all.addAll(Nemesis.records(m.save(), true));
+        if (all.isEmpty()) {
+            reply(ctx.getSource(), Component.translatable("nightsiege.cmd.nemesis_none"));
+            return 0;
+        }
+        for (SiegeSave.NemesisRecord rec : all) {
+            reply(ctx.getSource(), Component.translatable("nightsiege.cmd.nemesis_line", Nemesis.fullName(rec), rec.type, rec.level,
+                    String.join(", ", rec.traits), String.join(", ", rec.victims), rec.status, rec.nightsAway,
+                    rec.test ? " (Test)" : ""));
+        }
+        return all.size();
+    }
+
+    private static int nemesisCall(CommandContext<CommandSourceStack> ctx) {
+        SiegeManager m = SiegeManager.get();
+        if (!m.isActive()) {
+            fail(ctx.getSource(), Component.translatable("nightsiege.cmd.nemesis_no_night"));
+            return 0;
+        }
+        int n = m.nemesis().callIn(m.nemesisHost(), true);
+        reply(ctx.getSource(), Component.translatable("nightsiege.cmd.nemesis_called", n));
+        return n;
+    }
+
+    /** A test nemesis, as if this monster had slain the player who types it. */
+    private static int nemesisMake(CommandContext<CommandSourceStack> ctx, int level) {
+        SiegeManager m = SiegeManager.get();
+        String type = StringArgumentType.getString(ctx, "typ").toLowerCase(java.util.Locale.ROOT);
+        if (!type.contains(":")) {
+            type = "minecraft:" + type;
+        }
+        if (MobFactory.isUnavailable(type)) {
+            fail(ctx.getSource(), Component.translatable("nightsiege.cmd.nemesis_bad_type", type));
+            return 0;
+        }
+        ServerPlayer victim = ctx.getSource().getEntity() instanceof ServerPlayer p ? p : null;
+        SiegeSave.NemesisRecord rec = m.nemesis().make(m.nemesisHost(), type, victim, true, level);
+        reply(ctx.getSource(), Component.translatable("nightsiege.cmd.nemesis_made", Nemesis.fullName(rec), type));
+        return 1;
+    }
+
+    private static int nemesisForget(CommandContext<CommandSourceStack> ctx, boolean test) {
+        SiegeManager m = SiegeManager.get();
+        int n = Nemesis.clear(m.save(), test);
+        m.persist();
+        reply(ctx.getSource(), Component.translatable(test ? "nightsiege.cmd.nemesis_forgot_test" : "nightsiege.cmd.nemesis_forgot", n));
+        return n;
     }
 
     /** Spawns one of the new attackers a few blocks in front of a player (the command and the spawn eggs). */

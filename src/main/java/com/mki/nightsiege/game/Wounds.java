@@ -57,6 +57,12 @@ public final class Wounds {
 
     /** The heal a player really gets (called for every heal). */
     public static float heal(LivingEntity entity, float amount) {
+        if (amount > 0 && entity instanceof ServerPlayer cursed && Curses.has(com.mki.nightsiege.core.CurseKind.BLIGHT)) {
+            SiegeManager sm = SiegeManager.get();
+            if (sm != null && sm.isNightPlayer(cursed)) {
+                amount *= (float) Curses.healFactor();   // the curse "Siechtum" (update 2)
+            }
+        }
         if (amount <= 0 || !(entity instanceof ServerPlayer player) || UNTIL.isEmpty()) {
             return amount;
         }

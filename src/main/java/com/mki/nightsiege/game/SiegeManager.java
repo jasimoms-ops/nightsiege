@@ -219,6 +219,9 @@ public final class SiegeManager {
     private final BaseDefense defense = new BaseDefense();
     /** The raid's plan: directions, gathering in front of the wall, ways in (27 October 2026). */
     private final RaidPlan raid = new RaidPlan();
+    /** Update 2 "Fluch & Rache": the nemeses, and the curse stones laid on tonight's altar. */
+    private final Nemesis nemesis = new Nemesis();
+    private int nightCurses;
     /** The night's protocol for balancing (config/nightsiege-stats*.csv). */
     private final NightLog nightLog = new NightLog();
     private final EventEffects events = new EventEffects();
@@ -1483,6 +1486,9 @@ public final class SiegeManager {
         world = targetWorld;
         anchor = targetAnchor;
         testRun = test;
+        // The curse stones on the altar act from the first wave (a test night tries them, no reward).
+        Curses.begin(config.cursesEnabled ? Curses.chosen(save) : List.of());
+        nightCurses = Curses.count();
         siegeLevel = testRun ? Math.min(config.maxLevel, forcedLevel)
                 : SiegeMath.level(save.siegesWon, SiegeMath.dayOf(server.overworld().getGameTime()), config);
         totalTicks = SiegeMath.durationSeconds(siegeLevel, config) * 20;
@@ -1586,6 +1592,7 @@ public final class SiegeManager {
         }
         killQuota = SiegeMath.killQuota(config.killQuotaShare, plannedWaves(), wantedPerWave());
         safe("Gegner", () -> foes.startNight(foesHost, plannedWaves(), bosses.planned()));
+        safe("Nemesis", () -> nemesis.beginNight(nemesisHost));
         traps.refillAll();   // every tower full and whole at nightfall (27 October 2026)
         bonus.endAurora(server);
         events.begin(server, world, anchor, currentEvent, config);
@@ -1600,6 +1607,10 @@ public final class SiegeManager {
 
         broadcast(server, Component.translatable("nightsiege.msg.start", siegeLevel)
                 .withStyle(ChatFormatting.RED));
+        if (nightCurses > 0) {
+            broadcast(server, Component.translatable("nightsiege.curse.night", Curses.names(Curses.active()), nightCurses)
+                    .withStyle(ChatFormatting.DARK_PURPLE));
+        }
         Fx.siegeStart(server, config, currentEvent == SiegeEvent.BLOOD_MOON);
         if (tonightBoss != null) {
             broadcast(server, Component.translatable("nightsiege.msg.boss_night",
@@ -1645,6 +1656,9 @@ public final class SiegeManager {
         Component title = save.specialNight
                 ? Component.translatable("nightsiege.bar.title_special", siegeLevel, secondsLeft())
                 : Component.translatable("nightsiege.bar.title", siegeLevel, secondsLeft());
+        if (Curses.count() > 0) {
+            title = Component.empty().append(title).append(Curses.barMark());   // a cursed night: ☠ and the number of curses
+        }
         if (bosses.planned()) {
             // A boss night: no kill goal, the boss is the goal.
             return Component.empty().append(title).append(Component.literal("  ·  "))
@@ -1747,7 +1761,7 @@ public final class SiegeManager {
             if (batchCooldown <= 0) {
                 spawnBatch(server);
                 double extraDelay = 0.0 /* the core tree is gone (27 October 2026) */;
-                batchCooldown = (int) Math.round((config.batchIntervalSeconds + extraDelay) * 20.0);
+                batchCooldown = (int) Math.round((config.batchIntervalSeconds + extraDelay) * 20.0 * Curses.waveFactor());
             } else {
                 batchCooldown--;
             }
@@ -1806,6 +1820,7 @@ public final class SiegeManager {
             safe("Gegner", () -> foes.tick(foesHost, liveMobs, world.getGameTime()));
             safe("Angriffsplan", () -> raid.tick(world.getGameTime(), liveMobs, upright, ladders));
         }
+        safe("Nemesis", () -> nemesis.tick(nemesisHost, world.getGameTime()));
 
         // Monsters no longer dig through walls (Simon, 27 October 2026): no pickaxe and axe monsters.
 
@@ -1870,6 +1885,122 @@ public final class SiegeManager {
     public RaidPlan raid() {
         return raid;
     }
+
+    public Nemesis nemesis() {
+        return nemesis;
+    }
+
+    public Nemesis.Host nemesisHost() {
+        return nemesisHost;
+    }
+
+    /** Curse stones on the running night (0 outside one). */
+    public int nightCurses() {
+        return active ? nightCurses : 0;
+    }
+
+    private final Nemesis.Host nemesisHost = new Nemesis.Host() {
+        @Override
+        public ServerLevel world() {
+            return world;
+        }
+
+        @Override
+        public BlockPos anchor() {
+            return anchor;
+        }
+
+        @Override
+        public com.mki.nightsiege.core.SiegeConfig config() {
+            return config;
+        }
+
+        @Override
+        public Random random() {
+            return random;
+        }
+
+        @Override
+        public SiegeSave save() {
+            return save;
+        }
+
+        @Override
+        public boolean testNight() {
+            return testRun;
+        }
+
+        @Override
+        public boolean isNightMob(UUID id) {
+            return liveMobs.contains(id);
+        }
+
+        @Override
+        public void forget(UUID id) {
+            liveMobs.remove(id);
+            digger.forget(id);
+            ladders.forget(id);
+        }
+
+        @Override
+        public Mob spawn(String type, double angle) {
+            if (world == null || MobFactory.isUnavailable(type)) {
+                return null;
+            }
+            Mob mob = spawnMob(type, false, angle);
+            if (mob == null) {
+                return null;
+            }
+            if (mob instanceof net.minecraft.world.entity.monster.Phantom) {
+                mob.setPos(mob.getX(), mob.getY() + 14, mob.getZ());
+            }
+            events.onSpawned(currentEvent, mob, world);
+            liveMobs.add(mob.getUUID());
+            spawnedTotal++;
+            for (Entity rider : mob.getPassengers()) {
+                liveMobs.add(rider.getUUID());
+                spawnedTotal++;
+            }
+            goalUp = Component.translatable("nightsiege.bar.goal_extra");
+            if (raid.active() && RaidPlan.eligible(mob)) {
+                safe("Angriffsplan", () -> raid.enlist(mob, angle));
+            }
+            return mob;
+        }
+
+        @Override
+        public List<ServerPlayer> defenders() {
+            return bossHost.defenders();
+        }
+
+        @Override
+        public Set<UUID> nightPlayers() {
+            return new HashSet<>(participants);
+        }
+
+        @Override
+        public String classOf(UUID player) {
+            String name = save.skillsOf(player.toString()).className();
+            return name == null ? "" : name;
+        }
+
+        @Override
+        public void broadcast(Component text) {
+            if (world != null) {
+                SiegeManager.this.broadcast(world.getServer(), text);
+            }
+        }
+
+        @Override
+        public void notice(Component text) {
+            barNotice(text);
+        }
+
+        @Override
+        public void persist() {
+            SiegeManager.this.persist();
+        }
+    };
 
     /** Tests: the monsters of the next waves from this list (null: the config's list again). */
     public void testPool(java.util.List<com.mki.nightsiege.core.MobEntry> entries) {
@@ -2229,14 +2360,15 @@ public final class SiegeManager {
     /** Monsters one wave brings with the defenders there now. */
     private int wantedPerWave() {
         return (int) Math.round(SiegeMath.mobsPerBatch(siegeLevel, Math.max(1, participants.size()), config)
-                * currentEvent.mobCountMultiplier(config) * (save.specialNight ? config.specialNightMobMultiplier : 1.0));
+                * currentEvent.mobCountMultiplier(config) * (save.specialNight ? config.specialNightMobMultiplier : 1.0)
+                * Curses.mobFactor());
     }
 
     /** Waves the whole night brings: one at the start, then one per interval. */
     private int plannedWaves() {
         double extraDelay = 0.0 /* the core tree is gone (27 October 2026) */;
         // A wave starts the tick after its cooldown has run out, so waves lie one tick more apart.
-        int interval = Math.max(20, (int) Math.round((config.batchIntervalSeconds + extraDelay) * 20.0)) + 1;
+        int interval = Math.max(20, (int) Math.round((config.batchIntervalSeconds + extraDelay) * 20.0 * Curses.waveFactor())) + 1;
         return Math.max(1, (totalTicks - 1) / interval + 1);
     }
 
@@ -2307,9 +2439,10 @@ public final class SiegeManager {
                 continue;
             }
             double angle = raid.angleFor(plan, i, count);
+            boolean champion = i < Curses.championsPerWave();   // the curse "Champions": one leads every wave
             Mob mob = rift != null
-                    ? MobFactory.spawnAt(world, rift, entityId, siegeLevel, config, random, currentEvent, false)
-                    : spawnMob(entityId, false, angle);
+                    ? MobFactory.spawnAt(world, rift, entityId, siegeLevel, config, random, currentEvent, champion)
+                    : spawnMob(entityId, champion, angle);
             if (mob != null) {
                 events.onSpawned(currentEvent, mob, world);
                 liveMobs.add(mob.getUUID());
@@ -2360,6 +2493,7 @@ public final class SiegeManager {
         if (themeMobId == null) {
             safe("Schatz-Pluenderer", () -> foes.afterWave(foesHost, wavesStarted));
         }
+        safe("Nemesis", () -> nemesis.onWave(nemesisHost, wavesStarted));   // the nemeses come with the second wave
     }
 
     private void aimAtDefender(MinecraftServer server, Mob mob) {
@@ -2487,7 +2621,9 @@ public final class SiegeManager {
         return (float) (config.monsterDamageFactor(
                 net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(attacker.getType()).toString())
                 * bosses.damageFactor(attacker)   // the warlord's banner
-                * Foes.bannerFactor(attacker));   // a standard bearer's aura (update 1)
+                * Foes.bannerFactor(attacker)   // a standard bearer's aura (update 1)
+                * Curses.damageFactor()   // the curse "Blutdurst" (update 2)
+                * Nemesis.damageFactor(attacker));   // a nemesis hits harder
     }
 
     /** Zombies and spiders against warriors and guardians (config zombieSpiderVsMelee, Simon 25 October 2026). */
@@ -2617,6 +2753,10 @@ public final class SiegeManager {
         bosses.reset(server);
         machines.reset(server);
         bossVictoryAt = -1L;
+        safe("Nemesis", () -> nemesis.endNight(nemesisHost));
+        int curses = nightCurses;
+        Curses.end();
+        nightCurses = 0;
         clearRemainingMobs();
         digger.reset();
         ladders.reset();
@@ -2672,7 +2812,10 @@ public final class SiegeManager {
             // The boss's crate is as good as a fragment night's (Simon, 25 October 2026).
             CrateKind kind = save.specialNight || (bossNight && bossDown) ? CrateKind.FRAGMENT
                     : currentEvent != SiegeEvent.NONE ? CrateKind.EVENT : CrateKind.NORMAL;
-            crates.award(server, participants, kind, siegeLevel);
+            crates.award(server, participants, kind, siegeLevel, curses);
+            if (curses > 0) {
+                awardCursePoints(server, curses);
+            }
             int next = SiegeMath.level(save.siegesWon, lastKnownDay, config);
             if (required > 0) {
                 broadcast(server, Component.translatable("nightsiege.msg.quota_met", nightKills, required)
@@ -2702,6 +2845,9 @@ public final class SiegeManager {
 
         logNight(result, blasted, required);
         save.specialNight = false;
+        if (curses > 0 && save.curses != null) {
+            save.curses.clear();   // the stones lay for this night: the altar is empty again
+        }
         scheduleNextAfterNight(server);
         safe("Kundschafter", () -> expeditions.afterNight(server));   // the morning after: maybe a dungeon
         persist();
@@ -2732,6 +2878,9 @@ public final class SiegeManager {
         bosses.reset(server);
         machines.reset(server);
         bossVictoryAt = -1L;
+        safe("Nemesis", () -> nemesis.endNight(nemesisHost));
+        Curses.end();   // broken off: the stones stay on the altar for the next night
+        nightCurses = 0;
         clearRemainingMobs();
         digger.reset();
         ladders.reset();
@@ -2989,6 +3138,20 @@ public final class SiegeManager {
                 .withStyle(ChatFormatting.AQUA));
     }
 
+    /** A night won under curse stones: skill points for everyone still standing (update 2). */
+    private void awardCursePoints(MinecraftServer server, int curses) {
+        int amount = config.skillsEnabled ? Curses.points(config, curses) : 0;
+        if (amount > 0) {
+            for (UUID id : participants) {
+                if (!fallen.contains(id)) {
+                    save.skillsOf(id.toString()).award(amount);
+                }
+            }
+        }
+        broadcast(server, Component.translatable("nightsiege.curse.paid", curses, amount,
+                Math.round(Curses.extraCrateChance(config, curses) * 100)).withStyle(ChatFormatting.LIGHT_PURPLE));
+    }
+
     private void clearRemainingMobs() {
         if (world == null) {
             return;
@@ -3014,6 +3177,9 @@ public final class SiegeManager {
         if (active && entity instanceof LivingEntity fell && world != null) {
             safe("Gegner", () -> foes.onDeath(foesHost, fell, source));   // revenants' graves, the treasure
         }
+        if (active && entity instanceof Mob slainMob && world != null) {
+            safe("Nemesis", () -> nemesis.onDeath(nemesisHost, slainMob, source));   // a nemesis slain: its trophy
+        }
         if (active && entity instanceof Mob killed && liveMobs.contains(killed.getUUID())) {
             nightKills++;
             // A monster of the night can be raised by a summoner of the dead; souls for those near.
@@ -3032,6 +3198,9 @@ public final class SiegeManager {
         UUID id = player.getUUID();
         if (!active || !participants.contains(id)) {
             return;
+        }
+        if (!fallen.contains(id)) {
+            safe("Nemesis", () -> nemesis.onDefenderKilled(nemesisHost, player, source));   // the killer flees and comes back
         }
         markFallen(player);
     }
@@ -3625,6 +3794,10 @@ public final class SiegeManager {
             case "shield" -> combat.guardian().onShieldAction(player);
             case "dungeon" -> dungeons.onToolAction(player, argument);
             case "scout" -> expeditions.giveMap(player);   // the core window's "Karte mitnehmen"
+            case "curse" -> {   // the curse altar (update 2): a stone laid on or taken off
+                Curses.toggle(this, player, argument);
+                openCoreWindow(player);
+            }
             default -> openCoreWindow(player);
         }
     }

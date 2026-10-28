@@ -559,7 +559,7 @@ public final class TrapService {
             return 1.0;
         }
         double level = m.config().trapDamageFollowsLevel ? m.mobHealthFactor() : 1.0;
-        return level * Math.max(0.05, m.config().trapDamage);
+        return level * Math.max(0.05, m.config().trapDamage) * Curses.trapFactor();   // the curse "Stumpfe Fallen"
     }
 
     /**

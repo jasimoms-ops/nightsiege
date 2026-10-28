@@ -51,6 +51,57 @@ public final class StatsService {
         }
     }
 
+    /** The curse altar and the wanted posters (update 2 "Fluch & Rache"). */
+    private static void describeCurses(CoreStats stats, SiegeManager manager, SiegeConfig cfg, SiegeSave save) {
+        stats.cursesEnabled = cfg.cursesEnabled;
+        stats.curseMax = cfg.curseMax;
+        java.util.List<com.mki.nightsiege.core.CurseKind> chosen = Curses.chosen(save);
+        for (com.mki.nightsiege.core.CurseKind k : chosen) {
+            stats.curses.add(k.id());
+        }
+        stats.altarSealed = manager.isActive();
+        for (com.mki.nightsiege.core.CurseKind k : Curses.active()) {
+            stats.cursesTonight.add(k.id());
+        }
+        stats.curseValues.put("zaeh", cfg.curseHealth);
+        stats.curseValues.put("blutdurst", cfg.curseDamage);
+        stats.curseValues.put("uebermacht", cfg.curseMobs);
+        stats.curseValues.put("eile", cfg.curseSpeed);
+        stats.curseValues.put("siechtum", cfg.curseHeal);
+        stats.curseValues.put("champions", 1.0);
+        stats.curseValues.put("sturmlauf", cfg.curseWaves);
+        stats.curseValues.put("stumpf", cfg.curseTraps);
+        stats.curseCrateChance = cfg.curseCrateChance;
+        stats.bonusCrateChance = cfg.bonusCrateChance;
+        stats.cursePoints = cfg.cursePoints;
+        stats.oddsPlain = cfg.crateOdds(com.mki.nightsiege.core.CrateKind.NORMAL).clone();
+        stats.oddsCursed = chosen.isEmpty() ? stats.oddsPlain.clone()
+                : CrateService.cursedOdds(cfg, com.mki.nightsiege.core.CrateKind.NORMAL, chosen.size());
+        stats.nemesisEnabled = cfg.nemesisEnabled;
+        java.util.List<SiegeSave.NemesisRecord> all = new java.util.ArrayList<>(Nemesis.records(save, false));
+        all.addAll(Nemesis.records(save, true));
+        for (SiegeSave.NemesisRecord rec : all) {
+            CoreStats.NemesisLine line = new CoreStats.NemesisLine();
+            line.id = rec.id;
+            line.name = rec.name;
+            line.type = rec.type;
+            line.level = rec.level;
+            line.traits = new java.util.ArrayList<>(rec.traits);
+            line.victims = new java.util.ArrayList<>(rec.victims);
+            line.kills = rec.kills;
+            line.nightsAway = rec.nightsAway;
+            line.status = rec.status;
+            line.slainBy = rec.slainBy;
+            line.test = rec.test;
+            line.here = manager.isActive() && manager.nemesis().here(rec);
+            stats.nemeses.add(line);
+        }
+        // Lurking first (on the field before them), real before test, then the slain, newest first.
+        stats.nemeses.sort(java.util.Comparator.comparingInt((CoreStats.NemesisLine l) -> l.here ? 0 : "lauert".equals(l.status) ? 1 : 2)
+                .thenComparing(l -> l.test)
+                .thenComparing(java.util.Comparator.comparingInt((CoreStats.NemesisLine l) -> l.level).reversed()));
+    }
+
     public static CoreStats build(MinecraftServer server, SiegeManager manager, ServerPlayer viewer) {
         SiegeConfig cfg = manager.config();
         SiegeSave save = manager.save();
@@ -210,6 +261,7 @@ public final class StatsService {
         }
         stats.nightFragment = save.nightFragment;
         stats.scout = manager.expeditions().scoutLine(viewer);
+        describeCurses(stats, manager, cfg, save);
         stats.perkRadius = (int) Math.round(manager.config().perkRadius);
         stats.perkInRange = manager.perks().inRange(viewer);
         stats.skillsEnabled = cfg.skillsEnabled;

@@ -28,6 +28,12 @@ public class SiegeSave {
     public String nightFragment;
     /** The siege running (or the one just rolled) is a special night. */
     public boolean specialNight;
+    /** Curse stones on the altar for the next night (CurseKind ids, update 2). */
+    public List<String> curses = new ArrayList<>();
+    /** The nemeses: monsters that killed a defender and come back (update 2). */
+    public List<NemesisRecord> nemeses = new ArrayList<>();
+    /** Counter for the nemeses' ids. */
+    public int nemesisCounter;
     /** Clock day the trader caravan last came. */
     public long lastCaravanDay = -1000L;
     /** True once the free starter core has been handed out in this world. */
@@ -103,6 +109,38 @@ public class SiegeSave {
     public ExpeditionRecord expedition;
     /** Players wearing a kit from a dungeon fight (it goes back when they leave, fall or log in later). */
     public List<String> expeditionKits = new ArrayList<>();
+
+    /** One nemesis (update 2 "Fluch & Rache"): who it is, whom it slew, whether it still lurks. */
+    public static class NemesisRecord {
+        public String id = "";
+        /** Its own name ("Moderklaue") and the entity it is (an entry id of the monster list). */
+        public String name = "";
+        public String type = "minecraft:zombie";
+        public int level = 1;
+        /** Trait ids (NemesisTrait). */
+        public List<String> traits = new ArrayList<>();
+        /** Names and ids of the defenders it slew, oldest first. */
+        public List<String> victims = new ArrayList<>();
+        public List<String> victimIds = new ArrayList<>();
+        /** The class of its first victim (its trait "class foe" works against that class). */
+        public String foeClass = "";
+        public int kills;
+        /** Nights since it last showed. */
+        public int nightsAway;
+        /** "lauert" (lurks), "erschlagen" (slain). */
+        public String status = "lauert";
+        public String slainBy = "";
+        public long slainAt;
+        /** Made in a test night: it only comes back in test nights. */
+        public boolean test;
+
+        public NemesisRecord() {
+        }
+
+        public boolean lurking() {
+            return "lauert".equals(status);
+        }
+    }
 
     /**
      * A Night Siege dungeon. Its blocks follow from the record (see ExpeditionLayout); the

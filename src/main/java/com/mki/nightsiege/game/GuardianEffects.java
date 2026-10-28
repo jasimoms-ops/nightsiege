@@ -137,6 +137,7 @@ public final class GuardianEffects {
                     && !source.is(DamageTypeTags.BYPASSES_INVULNERABILITY) && !source.is(DamageTypeTags.IS_FALL)) {
                 out = TrapService.seatAbsorb(seated, out);
             }
+            Nemesis.dealt(victim, source, out);   // the blood drinker heals from it
             return out;
         } catch (RuntimeException e) {
             return amount;
@@ -176,6 +177,7 @@ public final class GuardianEffects {
         }
         factor *= Companions.damageFactor(victim, source);   // the summoner's companions
         factor *= Foes.hitFactor(victim, source);   // arrows glance off the iron knight (update 1)
+        factor *= Nemesis.hitFactor(victim, source);   // a nemesis's armour, fireproofing and grudge (update 2)
         if (!followUp && source.getEntity() instanceof ServerPlayer attacker && victim instanceof Enemy
                 && SkillTree.has(skillsFor.apply(attacker), "g_saint")) {
             factor *= (float) SkillValues.get("g_saint", "dmg", 0.7);   // the saint heals, but hits softer

@@ -170,6 +170,7 @@ public final class MobFactory {
             healthMul *= cfg.eliteHealthMultiplier;
             damageMul *= cfg.eliteDamageMultiplier;
         }
+        healthMul *= Curses.healthFactor();   // the curse "Zähe Brut" (update 2)
 
         AttributeInstance health = mob.getAttribute(Attributes.MAX_HEALTH);
         if (health != null) {
@@ -179,6 +180,13 @@ public final class MobFactory {
         AttributeInstance damage = mob.getAttribute(Attributes.ATTACK_DAMAGE);
         if (damage != null) {
             damage.setBaseValue(damage.getBaseValue() * damageMul);
+        }
+        double speedMul = Curses.speedFactor();   // the curse "Eile"
+        if (speedMul != 1.0) {
+            AttributeInstance speed = mob.getAttribute(Attributes.MOVEMENT_SPEED);
+            if (speed != null) {
+                speed.setBaseValue(speed.getBaseValue() * speedMul);
+            }
         }
         // Without a long follow range the mobs lose interest halfway to the base.
         AttributeInstance follow = mob.getAttribute(Attributes.FOLLOW_RANGE);
