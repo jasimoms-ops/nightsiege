@@ -131,22 +131,14 @@ final class SkillValuesSummoner {
         def("d_soulcatcher", "ghost", 6.5);        // damage per ghost before the skills and the night
         def("d_soulcatcher", "ghostspeed", 0.7);   // blocks per tick
         def("d_soulcatcher", "spread", 6.0);       // blocks: the neighbours of the target the ghosts go for
-        def("d_soulcatcher", "shieldcost", 2);     // souls: Seelenschild
-        def("d_soulcatcher", "shield", 10.0);       // health of the barrier (4 hearts)
-        def("d_soulcatcher", "shieldrange", 16.0); // blocks to the teammate looked at
-        def("d_soulcatcher", "chaincost", 3);      // souls: Seelenkette
-        def("d_soulcatcher", "chainradius", 5.0);  // blocks around the target
-        def("d_soulcatcher", "chaindmg", 6.0);
+        // Seelenschild and Seelenkette are gone (Simon's playtest, 28 October 2026).
         def("d_soulcatcher", "fearcost", 2);       // souls: Schrecken (27 Oct 2026)
         def("d_soulcatcher", "fearradius", 5.0);   // blocks around the target
-        def("d_soulcatcher", "feartime", 80);      // ticks the monsters flee     // damage on every chained monster, before the skills and the night (27 Oct 2026)
-        def("d_soulcatcher", "chainlife", 80);     // ticks
-        def("d_soulcatcher", "chainslow", 3);      // Slowness amplifier (3 = Slowness IV)
+        def("d_soulcatcher", "feartime", 80);      // ticks the monsters flee
         def("d_archers", "range", 6.0);            // blocks to the second target of the bolt
         def("d_rot", "duration", 60);              // ticks of Weakness
         def("d_corpse", "radius", 1.0);            // blocks more for the corpse's burst
         def("d_shards", "ghostradius", 2.5);       // blocks of a ghost's burst (Seelensplitter, 27 Oct 2026)
-        def("d_fetter", "pull", 2.5);              // blocks the soul chain pulls the monsters towards its target
         def("d_dread", "cheaper", 1);              // souls less for Schrecken
         def("d_dread", "extra", 40);               // ticks Schrecken lasts longer
         def("d_dread", "more", 0.25);              // share more damage frightened monsters take

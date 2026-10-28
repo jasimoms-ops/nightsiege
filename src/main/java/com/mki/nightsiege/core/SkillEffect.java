@@ -360,13 +360,14 @@ public enum SkillEffect {
     SKELETON_ARCHERS(0.0, Target.COMBAT),
     GHOUL_HUNGER(0.0, Target.COMBAT),
     GHOST_SWARM(0.0, Target.COMBAT),
-    SOUL_SHIELD(0.0, Target.COMBAT),
+    /** Geisterhast (soulcatcher, 28 October 2026, in place of the soul shield): the ghost swarm comes this many seconds sooner. */
+    GHOST_HASTE(0.0, Target.COMBAT),
     ROT(0.0, Target.COMBAT),
     CORPSE_BLAST(0.0, Target.COMBAT),
     /** Seelensplitter (soulcatcher): every ghost of the swarm bursts on its target. */
     SOUL_SHARDS(0.0, Target.COMBAT),
-    /** Seelenfessel (soulcatcher): the soul chain bites harder and pulls the monsters together. */
-    SOUL_FETTER(0.0, Target.COMBAT),
+    /** Geisterschar (soulcatcher, 28 October 2026, in place of Seelenfessel): the ghost swarm gets this many ghosts more. */
+    GHOST_HOST(0.0, Target.COMBAT),
     /** Grauen (soulcatcher): Schrecken costs less, lasts longer and frightened monsters take more damage. */
     DREAD(0.0, Target.COMBAT),
     BONE_LEGION(0.0, Target.COMBAT),

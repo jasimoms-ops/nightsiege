@@ -427,7 +427,6 @@ public final class SiegeManager {
                         && foes.allowDamage(entity, source)
                         && FriendlyFire.allow(entity, source));   // no friendly fire in the night (27 October 2026)
         combat.guardian().setCredit(this::creditTank);
-        companions.setCredit(this::creditTank);   // the soul shield counts as healing
         traps.setMarker(combat::remoteMark);
         Digger.hardness = traps::digFactor;
         RemoteItem.handler = traps::useRemote;
@@ -578,6 +577,11 @@ public final class SiegeManager {
         int respec = save.migrateSkills();
         if (respec > 0) {
             NightSiegeMod.LOGGER.info("[Night Siege] Neue Klassen-Bäume: {} Spieler bekommen ihre Punkte zurück", respec);
+            persist();
+        }
+        int retired = save.moveRetiredNodes();
+        if (retired > 0) {
+            NightSiegeMod.LOGGER.info("[Night Siege] Seelenfänger umgebaut: {} Spieler behalten ihre Punkte im Nachfolger-Talent", retired);
             persist();
         }
         boolean oldBalance = save.balanceVersion < SiegeSave.BALANCE_VERSION;
@@ -3223,6 +3227,12 @@ public final class SiegeManager {
     // event handlers
     // ------------------------------------------------------------------
 
+    /** A monster of a fight by day: a guard of the war camp (not its workshop), of a dungeon or of an old dungeon core. */
+    static boolean foughtOutsideTheNight(Mob mob) {
+        return SiegeCamp.isCampMob(mob) && !mob.entityTags().contains(SiegeCamp.TAG_WORKSHOP)
+                || Expeditions.isExpeditionMob(mob) || DungeonService.isDungeonMob(mob);
+    }
+
     /** Takes Object so the handler keeps compiling across Fabric API versions. */
     private void onDeath(Object entity, net.minecraft.world.damagesource.DamageSource source) {
         if (entity instanceof LivingEntity dead) {
@@ -3239,6 +3249,10 @@ public final class SiegeManager {
             safe("Statistik", () -> stats.mobDied(killed, source));
             // A monster of the night can be raised by a summoner of the dead; souls for those near.
             safe("Seelen", () -> companions.onMonsterDeath(killed, false));
+        } else if (entity instanceof Mob fought && foughtOutsideTheNight(fought)) {
+            // The war camp's guards and the dungeons' monsters give souls and corpses too (Simon's
+            // playtest, 28 October 2026: "the soulcatcher collects no souls in dungeons").
+            safe("Seelen", () -> companions.onMonsterDeath(fought, false));
         }
         if (active && entity instanceof Mob mob && BossService.isBossOrPart(mob)) {
             if (bosses.onDeath(mob, source) && world != null && bossVictoryAt < 0) {
@@ -4578,7 +4592,7 @@ public final class SiegeManager {
                 slot.current = o.current && !spells;
                 if (spells) {
                     slot.cooldownTicks = companions.spellCooldownLeft(player, o.id, now);
-                    slot.totalTicks = (int) Companions.spellCooldown(o.id);
+                    slot.totalTicks = companions.spellCooldownTotal(player, o.id);
                 }
                 out.add(slot);
             }

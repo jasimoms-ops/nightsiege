@@ -381,10 +381,10 @@ public final class MeleeSim {
         double reach = player.getAttributeValue(Attributes.ENTITY_INTERACTION_RANGE);
         boolean inReach = close != null && player.distanceTo(close) <= reach + 0.3;
 
-        // The summoner (26 October 2026) uses the staff once a second like a player: right click at the
-        // monster (call strike / soul bolt); every few turns the way of the light gives the order (sneak +
-        // right click at it; the golem taunts and slams) or calls with G, the way of the dead casts its
-        // chosen spell (sneak + right click) and picks the next one with G, so all spells come in turn.
+        // The summoner (26 October 2026) uses the staff once a second like a player: left click at the
+        // monster (call strike / soul bolt); every few turns the way of the light gives the order (right
+        // click at it; the golem taunts and slams) or calls, the way of the dead casts a spell with its key
+        // of the ability bar, one key after the other, so all spells come in turn (no G picking since 28.10.).
         if (clazz == SkillClass.SUMMONER && now >= nextStaff) {
             nextStaff = now + 20;
             Mob aim = close != null ? close : far;
@@ -400,13 +400,13 @@ public final class MeleeSim {
                 }
                 // Since 27 October 2026 the left click is the staff's attack, the right click the
                 // spell (way of the dead) or the order and call (way of the light).
-                if (sneak) {
+                if (dead && sneak) {
+                    int keys = Math.max(1, m.abilitySlots(player).size());
+                    m.onCoreAction(player, "slot:" + (staffTurn / 3) % keys);   // the spell's own key of the bar
+                } else if (sneak) {
                     player.getMainHandItem().use(level, player, InteractionHand.MAIN_HAND);
                 } else {
                     m.onCoreAction(player, "staffhit");
-                }
-                if (dead && sneak) {
-                    m.onCoreAction(player, "quiver");   // G: the next spell for the next cast
                 }
             }
         }

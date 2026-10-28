@@ -490,6 +490,29 @@ public class SiegeSave {
         return reset;
     }
 
+    /**
+     * Nodes that left a tree, with the node that took their place (same ring, cost and levels, so
+     * what was learned moves over as it is and the points stay spent). Runs on every load; once
+     * moved, nothing is left to move. Soulcatcher (Simon's playtest, 28 October 2026): the soul
+     * shield and the soul chain are gone, Seelenschild became Geisterhast, Seelenfessel Geisterschar.
+     */
+    public static final Map<String, String> RETIRED_NODES = Map.of("d_soulshield", "d_haste", "d_fetter", "d_host");
+
+    /** Moves learned levels of retired nodes to their successors. Returns how many players had one. */
+    public int moveRetiredNodes() {
+        int moved = 0;
+        if (skills == null) {
+            return 0;
+        }
+        for (PlayerSkills own : skills.values()) {
+            if (own != null && own.hasAnyNode(RETIRED_NODES.keySet())) {
+                own.renameNodes(RETIRED_NODES);
+                moved++;
+            }
+        }
+        return moved;
+    }
+
     public PlayerSkills skillsOf(String playerUuid) {
         if (skills == null) {
             skills = new HashMap<>();
