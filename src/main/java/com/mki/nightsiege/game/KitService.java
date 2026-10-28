@@ -160,6 +160,9 @@ public final class KitService {
         if (stash == null) {
             return;
         }
+        if (Companions.get() != null) {
+            Companions.get().endFight(player);   // the souls of a camp or dungeon fight do not carry into the night
+        }
         if (stash.gameMode != null && !stash.gameMode.isEmpty()) {
             GameType mode = GameType.byName(stash.gameMode, GameType.SURVIVAL);
             player.setGameMode(mode);

@@ -64,6 +64,9 @@ public class EventLookTest implements FabricClientGameTest {
                     alchemistScene(context, game);   // the ability bar of the alchemist and the healer
                     summonerScene(context, game);    // ... and of the summoners
                 }
+                if (want.contains("bar") || want.contains("seele")) {
+                    soulcatcherScene(context, game);   // souls in the dungeon, the spells without G (28 October 2026)
+                }
                 if (want.contains("foes")) {
                     foeScene(context, game);
                 }
@@ -139,6 +142,7 @@ public class EventLookTest implements FabricClientGameTest {
                 // ladderTargetScene and towerScene are done (ladders fine, towers 2 volleys); kept for later checks.
                 // besiegerScene is done (ladders up, one hole per side); kept for later checks.
                 summonerScene(context, game);
+                soulcatcherScene(context, game);   // souls in the dungeon, the spells without G (28 October 2026)
                 kitHudScene(context, game);   // the kit HUD (28 October 2026)
                 playtestScene(context, game);   // the playtest (28 October 2026): plan, four steps, all back
                 versionBScene(context, game);
@@ -2962,8 +2966,8 @@ public class EventLookTest implements FabricClientGameTest {
         context.waitTicks(5);
         game.getServer().runCommand("kill @e[tag=nightsiege]");   // the server's own position is far away: no distance
         context.waitTicks(25);
-        // The ability bar of the soulcatcher (27 October 2026): his four spells on R, G, Y, C; the swarm twice:
-        // the second cast must wait for its 6 s.
+        // The ability bar of the soulcatcher: his two spells on R and G (since 28 October 2026); the swarm
+        // twice: the second cast must wait for its 6 s.
         context.runOnClient(client -> {
             com.mki.nightsiege.core.UltState st = com.mki.nightsiege.client.UltHud.state();
             System.out.println("[Night Siege test] soulcatcher bar slots=" + (st == null ? -1 : st.slots.size()));
@@ -2982,9 +2986,9 @@ public class EventLookTest implements FabricClientGameTest {
         onServer(context, (player, manager) -> {
             com.mki.nightsiege.game.Companions c = com.mki.nightsiege.game.Companions.get();
             int before = c.soulsOf(player.getUUID());
-            boolean shield = c.castSpell(player, "shield");   // the soulcatcher's spells since 26 October 2026
+            boolean shield = c.castSpell(player, "shield");   // gone since 28 October 2026: no cast, no souls
             System.out.println("[Night Siege test] summoner dead souls before=" + before + " after=" + c.soulsOf(player.getUUID())
-                    + " (soul shield: 2) cast=" + shield + " absorption=" + player.getAbsorptionAmount()
+                    + " (no soul shield any more: the same) cast=" + shield + " absorption=" + player.getAbsorptionAmount()
                     + " minions=" + com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "minion"));
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
             for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
@@ -3092,6 +3096,223 @@ public class EventLookTest implements FabricClientGameTest {
         game.getServer().runCommand("forceload remove all");
         game.getServer().runCommand("time set 6000");
         game.getServer().runCommand("effect clear @p");
+        context.waitTicks(10);
+    }
+
+    /**
+     * The soulcatcher after Simon's playtest of 28 October 2026: a kill in a dungeon fight gives a
+     * soul; his two spells sit on R and G of the bar and are cast without picking (no soul shield,
+     * no soul chain, the old choice key steps nothing); the necromancer raises a dungeon corpse; a
+     * guard of the war camp gives a soul too.
+     */
+    private static void soulcatcherScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        game.getServer().runCommand("time set 1500");
+        game.getServer().runCommand("weather clear");
+        game.getServer().runCommand("gamemode creative @p");
+        final boolean[] fakeCore = new boolean[1];
+        final String[] backup = new String[1];
+        final boolean[] openBefore = new boolean[1];
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            if (!manager.isRegistered(player)) {
+                manager.register(player);
+            }
+            if (manager.mainCore() == null) {
+                manager.save().cores.add(new com.mki.nightsiege.game.CoreRecord(
+                        com.mki.nightsiege.game.SiegeManager.dimensionName(level), pos.getX(), pos.getY(), pos.getZ()));
+                fakeCore[0] = true;
+            }
+            var own = manager.save().skillsOf(player.getUUID().toString());
+            backup[0] = com.mki.nightsiege.game.Json.toJson(own);
+            openBefore[0] = manager.config().summonerForEveryone;
+            manager.config().summonerForEveryone = true;
+            own.reset();
+            own.chosenClass = com.mki.nightsiege.core.SkillClass.SUMMONER.name();
+            own.unlockClass(com.mki.nightsiege.core.SkillClass.SUMMONER);
+            own.award(900);
+            for (String id : new String[]{"s_soulbond", "d_raise", "d_soulcatcher", "d_soulcatcher", "d_haste", "d_shards",
+                    "d_soulcatcher", "d_host"}) {
+                manager.onBuySkill(player, id);
+            }
+            com.mki.nightsiege.core.SkillTree tree = manager.skillTree();
+            System.out.println("[Night Siege test] summoner soulcatcher skills catcher=" + own.levelOf("d_soulcatcher")
+                    + " haste=" + own.levelOf("d_haste") + " host=" + own.levelOf("d_host")
+                    + " old nodes gone=" + (tree.get("d_fetter") == null && tree.get("d_soulshield") == null)
+                    + " (want 3, 1, 1, true)");
+        });
+        closeScreen(context);
+        // A stone crypt with one guard room, far from the other scenes.
+        int fx = pos.getX() + 220;
+        int bz = pos.getZ() - 340;
+        int fy = hill(context, game, fx, bz);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            manager.expeditions().testBuild(level, new BlockPos(fx, fy, bz), 0, com.mki.nightsiege.core.ExpeditionKind.STONE_CRYPT, 1);
+        });
+        context.waitTicks(10);
+        game.getServer().runCommand("gamemode survival @p");
+        game.getServer().runCommand("effect give @p minecraft:resistance 600 255 true");
+        game.getServer().runCommand(String.format(Locale.ROOT, "tp @p %d.5 %d %d.5 facing %d.5 %d %d.5",
+                fx, fy - 15, bz + 16, fx, fy - 14, bz + 25));
+        context.waitTicks(30);
+        closeScreen(context);   // the class cards of the dungeon
+        int rz = bz + 20;
+        game.getServer().runCommand(String.format(Locale.ROOT, "tp @p %d.5 %d %d.5 facing %d.5 %d %d.5",
+                fx, fy - 15, rz + 1, fx, fy - 14, rz + 9));
+        context.waitTicks(40);
+        closeScreen(context);
+        // One monster of the dungeon falls next to the soulcatcher: one soul (no Seelengier learned).
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            com.mki.nightsiege.game.Companions c = com.mki.nightsiege.game.Companions.get();
+            java.util.List<net.minecraft.world.entity.Mob> mobs = manager.expeditions().testMobs(level);
+            int before = c.soulsOf(player.getUUID());
+            String fell = "-";
+            if (!mobs.isEmpty()) {
+                net.minecraft.world.entity.Mob mob = mobs.get(0);
+                mob.teleportTo(player.getX() + 1.5, player.getY(), player.getZ() + 3.0);
+                mob.invulnerableTime = 0;
+                mob.hurtServer(level, level.damageSources().playerAttack(player), 100000f);
+                fell = mob.getType().getDescriptionId() + " dead=" + !mob.isAlive();
+            }
+            System.out.println("[Night Siege test] summoner soulcatcher dungeon fighter=" + manager.expeditions().isFighter(player)
+                    + " kit=" + manager.kits().hasStash(player) + " monsters=" + mobs.size() + " fell=" + fell
+                    + " souls " + before + " -> " + c.soulsOf(player.getUUID()) + " (want +1)");
+        });
+        context.waitTicks(30);   // the bar comes once a second
+        context.runOnClient(client -> {
+            com.mki.nightsiege.core.UltState st = com.mki.nightsiege.client.UltHud.state();
+            StringBuilder ids = new StringBuilder();
+            if (st != null && st.slots != null) {
+                for (com.mki.nightsiege.core.UltState.Slot slot : st.slots) {
+                    ids.append(slot.id).append(' ');
+                }
+            }
+            System.out.println("[Night Siege test] summoner soulcatcher bar on the client: " + ids + "(want swarm fear)");
+        });
+        // The spells without picking: R the swarm, G the fright, the right click the last one again; the
+        // old choice key steps nothing any more; shield and chain are no spells of his.
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            com.mki.nightsiege.game.Companions c = com.mki.nightsiege.game.Companions.get();
+            java.util.List<net.minecraft.world.entity.Mob> mobs = manager.expeditions().testMobs(level);
+            for (int i = 0; i < mobs.size(); i++) {
+                mobs.get(i).teleportTo(player.getX() + (i - 1) * 1.2, player.getY(), player.getZ() + 4.0);
+            }
+            if (!mobs.isEmpty()) {
+                player.lookAt(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.EYES,
+                        mobs.get(0).position().add(0, mobs.get(0).getBbHeight() * 0.5, 0));
+            }
+            net.minecraft.world.item.ItemStack staff = new net.minecraft.world.item.ItemStack(com.mki.nightsiege.game.ModContent.STAFF);
+            c.soulsForTest(player, 12);
+            c.resetPause(player.getUUID());
+            long now = level.getGameTime();
+            StringBuilder line = new StringBuilder("souls 12");
+            manager.onCoreAction(player, "slot:0");   // R
+            line.append(" R(swarm)->").append(c.soulsOf(player.getUUID()));
+            int swarmWait = c.spellCooldownLeft(player, "swarm", now);
+            c.resetPause(player.getUUID());
+            manager.onCoreAction(player, "slot:1");   // G
+            line.append(" G(fear)->").append(c.soulsOf(player.getUUID()));
+            c.resetPause(player.getUUID());
+            c.useStaff(player, staff);   // right click: the last spell again
+            line.append(" right->").append(c.soulsOf(player.getUUID()));
+            c.resetPause(player.getUUID());
+            manager.onCoreAction(player, "quiver");   // the old choice key
+            c.useStaff(player, staff);
+            line.append(" oldkey+right->").append(c.soulsOf(player.getUUID()));
+            boolean chain = c.castSpell(player, "chain");
+            boolean shield = c.castSpell(player, "shield");
+            System.out.println("[Night Siege test] summoner soulcatcher casts " + line + " swarm pause=" + swarmWait
+                    + " chain=" + chain + " shield=" + shield + " barslot chain=" + manager.abilitySlotOf(player, "chain")
+                    + " shield=" + manager.abilitySlotOf(player, "shield") + " fear=" + manager.abilitySlotOf(player, "fear")
+                    + " (want 8, 6, 4, 2, pause 80, false, false, -1, -1, 1)");
+        });
+        context.waitTicks(8);
+        context.takeScreenshot("summoner_soulcatcher_dungeon");
+        context.waitTicks(40);
+        // The necromancer (same way) raises a corpse of the dungeon.
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            com.mki.nightsiege.game.Companions c = com.mki.nightsiege.game.Companions.get();
+            var own = manager.save().skillsOf(player.getUUID().toString());
+            own.reset();
+            own.chosenClass = com.mki.nightsiege.core.SkillClass.SUMMONER.name();
+            own.unlockClass(com.mki.nightsiege.core.SkillClass.SUMMONER);
+            own.award(400);
+            for (String id : new String[]{"s_soulbond", "d_raise", "d_necro", "d_necro"}) {
+                manager.onBuySkill(player, id);
+            }
+            c.soulsForTest(player, 6);
+            java.util.List<net.minecraft.world.entity.Mob> mobs = manager.expeditions().testMobs(level);
+            int before = c.soulsOf(player.getUUID());
+            if (!mobs.isEmpty()) {
+                net.minecraft.world.entity.Mob mob = mobs.get(0);
+                mob.teleportTo(player.getX(), player.getY(), player.getZ() + 2.5);
+                mob.invulnerableTime = 0;
+                mob.hurtServer(level, level.damageSources().playerAttack(player), 100000f);
+            }
+            int afterKill = c.soulsOf(player.getUUID());
+            c.resetPause(player.getUUID());
+            boolean raised = c.castSpell(player, "raise");
+            System.out.println("[Night Siege test] summoner soulcatcher necromancer in the dungeon: monsters left=" + mobs.size()
+                    + " souls " + before + " -> " + afterKill + " raise=" + raised + " minions="
+                    + com.mki.nightsiege.game.Companions.countOf(player.getUUID(), "minion") + " (want +1 if one was left, true, 1)");
+        });
+        context.waitTicks(20);
+        context.takeScreenshot("summoner_soulcatcher_necro");
+        // Out of the dungeon: the kit goes, so do its souls.
+        onServer(context, (player, manager) -> {
+            manager.expeditions().remove(player.level().getServer());
+            System.out.println("[Night Siege test] summoner soulcatcher after the dungeon kit=" + manager.kits().hasStash(player)
+                    + " souls=" + com.mki.nightsiege.game.Companions.get().soulsOf(player.getUUID()) + " (want false, 4: a fresh start)");
+        });
+        context.waitTicks(10);
+        // A guard of the war camp falls near the summoner of the dead (in creative his skills count): a soul as well.
+        game.getServer().runCommand("gamemode creative @p");
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            com.mki.nightsiege.game.Companions c = com.mki.nightsiege.game.Companions.get();
+            int before = c.soulsOf(player.getUUID());
+            net.minecraft.world.entity.Mob guard = net.minecraft.world.entity.EntityTypes.ZOMBIE.create(level,
+                    net.minecraft.world.entity.EntitySpawnReason.COMMAND);
+            String result = "no guard";
+            if (guard != null) {
+                guard.snapTo(player.getX() + 2, player.getY(), player.getZ() + 2, 0f, 0f);
+                level.addFreshEntity(guard);
+                guard.addTag(com.mki.nightsiege.game.SiegeCamp.TAG);   // after the load check (no camp stands now)
+                guard.invulnerableTime = 0;
+                guard.hurtServer(level, level.damageSources().playerAttack(player), 100000f);
+                result = "dead=" + !guard.isAlive();
+            }
+            System.out.println("[Night Siege test] summoner soulcatcher camp guard " + result + " souls " + before + " -> "
+                    + c.soulsOf(player.getUUID()) + " (want +1)");
+        });
+        context.waitTicks(10);
+        onServer(context, (player, manager) -> {
+            manager.expeditions().remove(player.level().getServer());
+            com.mki.nightsiege.game.Companions.get().dismiss(player);
+            if (fakeCore[0]) {
+                manager.save().cores.removeIf(c -> c.x == pos.getX() && c.y == pos.getY() && c.z == pos.getZ());
+            }
+            manager.config().summonerForEveryone = openBefore[0];
+            var own = manager.save().skillsOf(player.getUUID().toString());
+            var old = com.mki.nightsiege.game.Json.fromJson(backup[0], com.mki.nightsiege.core.PlayerSkills.class);
+            for (java.lang.reflect.Field f : com.mki.nightsiege.core.PlayerSkills.class.getFields()) {
+                try {
+                    if (!java.lang.reflect.Modifier.isStatic(f.getModifiers())) {
+                        f.set(own, f.get(old));
+                    }
+                } catch (IllegalAccessException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        });
+        closeScreen(context);
+        game.getServer().runCommand("forceload remove all");
+        game.getServer().runCommand("effect clear @p");
+        game.getServer().runCommand("time set 6000");
         context.waitTicks(10);
     }
 

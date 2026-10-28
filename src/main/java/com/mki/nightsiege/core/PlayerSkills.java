@@ -338,6 +338,22 @@ public class PlayerSkills {
         }
     }
 
+    /** True when any of these node ids is learned or in the history, in any class. */
+    public boolean hasAnyNode(java.util.Collection<String> ids) {
+        if (levels != null && levels.keySet().stream().anyMatch(ids::contains)) {
+            return true;
+        }
+        if (classLevels != null && classLevels.values().stream()
+                .anyMatch(m -> m != null && m.keySet().stream().anyMatch(ids::contains))) {
+            return true;
+        }
+        if (history != null && history.stream().anyMatch(ids::contains)) {
+            return true;
+        }
+        return classHistory != null && classHistory.values().stream()
+                .anyMatch(l -> l != null && l.stream().anyMatch(ids::contains));
+    }
+
     private static Map<String, Integer> renamed(Map<String, Integer> map, Map<String, String> renames) {
         Map<String, Integer> out = new HashMap<>();
         if (map != null) {

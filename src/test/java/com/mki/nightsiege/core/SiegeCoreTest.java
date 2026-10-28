@@ -1129,9 +1129,10 @@ class SiegeCoreTest {
         assertEquals(KeyHint.JUMP_ATTACK, KeyHint.forNode(tree, "w_earthshock"));
         assertEquals(KeyHint.SNEAK_SHOOT, KeyHint.forNode(tree, "a_bracing"));
         assertEquals(KeyHint.REMOTE_DETONATE, KeyHint.forNode(tree, "e_detonator"));
-        // The summoner's spells (26 October 2026): G picks, sneak + right click with the staff casts.
+        // The summoner's spells: each on its key of the bar, the right click with the staff casts it again.
         assertEquals(KeyHint.STAFF_SPELL, KeyHint.forNode(tree, "d_corpse"));
-        assertEquals(KeyHint.STAFF_SPELL, KeyHint.forNode(tree, "d_soulshield"));
+        assertEquals(KeyHint.STAFF_SPELL, KeyHint.forNode(tree, "d_haste"));
+        assertEquals(KeyHint.STAFF_SPELL, KeyHint.forNode(tree, "d_host"));
         assertEquals(KeyHint.ULT2_REMOTE, KeyHint.forGain("magnetfeld"));
         assertEquals(KeyHint.ULT2_STAFF, KeyHint.forGain("seelentausch"));
         assertEquals(KeyHint.QUIVER_SHOT, KeyHint.forGain("sturmpfeile"));
@@ -2084,7 +2085,7 @@ class SiegeCoreTest {
                 {{"s_tamer", "s_golemsmith"}, {"s_alpha", "s_packhunt", "s_snowguard", "s_hardgolem"},
                         {"s_howl", "s_wardbond", "l_cross_bones"}, {"s_wildness", "s_care", "l_cross_harvest"},
                         {"s_wild_hunt", "s_titan"}},
-                {{"d_necro", "d_soulcatcher"}, {"d_archers", "d_ghoul", "d_swarm", "d_soulshield"},
+                {{"d_necro", "d_soulcatcher"}, {"d_archers", "d_ghoul", "d_swarm", "d_haste"},
                         {"d_rot", "d_corpse", "d_cross_wolf"}, {"d_unholy", "d_pact", "d_cross_loyalty"},
                         {"d_army", "d_soulstorm"}}};
         String[] stem = {"s_packcall", "d_raise"};
@@ -2143,6 +2144,58 @@ class SiegeCoreTest {
     }
 
     @Test
+    void theSoulcatcherLostTheShieldAndTheChainButKeepsItsPoints() {
+        // Simon's playtest, 28 October 2026: "the soulcatcher must lose his G ability (the soul
+        // shield on G) and the chains". Their talents gave way to Geisterhast and Geisterschar:
+        // same rings, same cost, the way costs as many points as before.
+        SkillTree tree = new SkillTree();
+        assertNull(tree.get("d_soulshield"));
+        assertNull(tree.get("d_fetter"));
+        SkillNode haste = tree.get("d_haste");
+        SkillNode host = tree.get("d_host");
+        assertNotNull(haste);
+        assertNotNull(host);
+        assertEquals(10, haste.costFor(0));
+        assertEquals(1, haste.maxLevel());
+        assertEquals(15, host.costFor(0));
+        assertEquals(1, host.maxLevel());
+        assertEquals(SkillTree.SUB_SOULCATCHER, tree.laneOf("d_haste"));
+        assertEquals(SkillTree.SUB_SOULCATCHER, tree.laneOf("d_host"));
+        for (SkillNode node : tree.ofClass(SkillClass.SUMMONER)) {
+            String needs = node.requires() == null ? "" : node.requires();
+            assertFalse(needs.contains("d_soulshield") || needs.contains("d_fetter"), node.id() + " needs " + needs);
+        }
+        // The whole soulcatcher route: Geisterschar and Grauen come one after the other again.
+        PlayerSkills p = new PlayerSkills();
+        p.chosenClass = SkillClass.SUMMONER.name();
+        p.unlockClass(SkillClass.SUMMONER);
+        p.award(100_000);
+        for (String id : new String[]{"s_soulbond", "d_raise", "d_soulcatcher", "d_soulcatcher", "d_haste", "d_shards",
+                "d_soulcatcher", "d_host", "d_soulcatcher", "d_dread"}) {
+            assertTrue(tree.unlock(id, p), "unlock " + id);
+        }
+        assertEquals(1, p.levelOf("d_dread"));
+        // An old save: the learned talents move to their successors (levels, history, other profiles), once.
+        com.mki.nightsiege.game.SiegeSave save = new com.mki.nightsiege.game.SiegeSave();
+        PlayerSkills old = save.skillsOf("a");
+        old.chosenClass = SkillClass.SUMMONER.name();
+        old.setLevel("d_soulshield", 1);
+        old.setLevel("d_fetter", 1);
+        old.history.add("d_soulshield");
+        old.history.add("d_fetter");
+        old.classLevels.put("ARCHER", new java.util.HashMap<>(java.util.Map.of("d_fetter", 1)));
+        save.skillsOf("b").setLevel("d_swarm", 1);
+        assertEquals(1, save.moveRetiredNodes());
+        assertEquals(1, old.levelOf("d_haste"));
+        assertEquals(1, old.levelOf("d_host"));
+        assertEquals(0, old.levelOf("d_soulshield"));
+        assertEquals(0, old.levelOf("d_fetter"));
+        assertEquals(List.of("d_haste", "d_host"), old.history);
+        assertEquals(1, old.classLevels.get("ARCHER").get("d_host"));
+        assertEquals(0, save.moveRetiredNodes(), "nothing left to move");
+    }
+
+    @Test
     void theSummonersCompanionsDrawLittleAnger() {
         // Simon 26.10.: monsters turn on a companion only within 3 blocks and for 3 s.
         SiegeConfig fresh = new SiegeConfig();
@@ -2160,7 +2213,7 @@ class SiegeCoreTest {
         // The spells and the call strike take their numbers from the skill values.
         assertEquals(4.0, SkillValues.get("s_tamer", "max", 0), 1e-9);
         assertEquals(2.0, SkillValues.get("d_necro", "raisecost", 0), 1e-9);
-        assertEquals(3.0, SkillValues.get("d_soulcatcher", "chaincost", 0), 1e-9);
+        assertEquals(4.0, SkillValues.get("d_soulcatcher", "swarmcost", 0), 1e-9);
         assertEquals(4.0, SkillValues.get("d_army", "max", 0), 1e-9);
         assertEquals(160.0, SkillValues.get("d_army", "duration", 0), 1e-9);
         // The tamer reaches four wolves with every level, not more: 2 + 4 × 0.5.

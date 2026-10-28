@@ -61,12 +61,13 @@ import java.util.function.Supplier;
  * goals removed); this class sets every target. Monsters turn on a companion only within a
  * few blocks and only for a few seconds (config companionTauntRadius / companionTauntSeconds).</p>
  *
- * <p><b>The staff</b>: right click is the summoner's own attack (the call strike on the way of
- * the light, the soul bolt on the way of the dead). Way of the light: sneak + right click at a
+ * <p><b>The staff</b>: the left click is the summoner's own attack (the call strike on the way
+ * of the light, the soul bolt on the way of the dead). Way of the light: right click at a
  * monster sends all companions (the golem taunts and slams), at a block they hold the spot,
- * into the air (or the G key) it calls a wolf or the golem. Way of the dead: sneak + right
- * click casts the chosen spell, G picks the next. The X key with the staff gives the order
- * (attack / hold) on both ways; sneak + X is the second ult.</p>
+ * into the air it calls a wolf or the golem. Way of the dead: every spell sits on its own key
+ * of the ability bar (R, G, Y; no key steps through them any more, Simon 28.10.), the right
+ * click casts the last one again. Fähigkeit 2 with the staff gives the order (attack / hold)
+ * on both ways; X is the second ult.</p>
  */
 public final class Companions {
 
@@ -139,8 +140,6 @@ public final class Companions {
     private final SkillTree tree;
     private final Function<ServerPlayer, PlayerSkills> skillsFor;
     private final Supplier<SiegeConfig> config;
-    private GuardianEffects.Credit credit = (player, amount, from) -> {
-    };
     /** Owner → game time the staff can call again (also shortened by Seelenernte). */
     private final Map<UUID, Long> nextCall = new HashMap<>();
     /** Owner → game time both charges of the staff's attack are back (Doppelstab: two charges). */
@@ -149,7 +148,7 @@ public final class Companions {
     private final Map<UUID, Long> boostUntil = new HashMap<>();
     /** Owner → the order of the staff (attack this monster, or hold this spot). */
     private final Map<UUID, Order> orders = new HashMap<>();
-    /** Owner → the spell the G key picked (index into the subclass's spells). */
+    /** Owner → the spell cast last (index into the subclass's spells): the right click casts it again. */
     private final Map<UUID, Integer> spellIndex = new HashMap<>();
     /** Owner → game time the next spell may go (a short pause against double clicks). */
     private final Map<UUID, Long> nextSpell = new HashMap<>();
@@ -219,10 +218,11 @@ public final class Companions {
     private record Pending(long at, Runnable action) {
     }
 
-    /** The spells of the way of the dead: three for each subclass, the G key steps through them. */
+    /** The spells of the way of the dead, each on its own key of the ability bar (in this order). */
     static final List<String> NECRO_SPELLS = List.of("raise", "wall", "curse");
-    // The soulcatcher's fright (Simon, 27 October 2026): his fourth spell, from the start, 2 souls.
-    static final List<String> CATCHER_SPELLS = List.of("swarm", "shield", "chain", "fear");
+    // The soulcatcher (Simon's playtest, 28 October 2026: "lose his G ability and the chains"): the
+    // soul shield (it sat on G) and the soul chain are gone; the ghost swarm and the fright stay.
+    static final List<String> CATCHER_SPELLS = List.of("swarm", "fear");
 
     /** Monsters that do not come back: they would blow up, poison or fly off. */
     private static final java.util.Set<String> NOT_RAISED = java.util.Set.of(
@@ -239,12 +239,6 @@ public final class Companions {
 
     public static Companions get() {
         return instance;
-    }
-
-    /** The soul shield counts as healing (night protocol and skill points), like the guardian's barriers. */
-    public void setCredit(GuardianEffects.Credit credit) {
-        this.credit = credit == null ? (player, amount, from) -> {
-        } : credit;
     }
 
     // ------------------------------------------------------------------
@@ -529,8 +523,10 @@ public final class Companions {
     }
 
     /**
-     * The G key (the archer's quiver key, free for the summoner): the way of the dead picks the
-     * next spell, the way of the light calls. False for everyone else (the quiver then).
+     * The old choice key (Fähigkeit 3) and the way of the light's "call" on the bar: the way of
+     * the light calls. The way of the dead no longer steps through its spells (Simon's playtest,
+     * 28 October 2026: every spell has its own key of the bar); it only says which spell the
+     * right click casts again. False for everyone else (the quiver then).
      */
     public boolean selectKey(ServerPlayer player) {
         PlayerSkills skills = skillsFor.apply(player);
@@ -539,15 +535,11 @@ public final class Companions {
             return false;
         }
         if (SkillTree.WAY_DEAD.equals(skills.pathTaken(tree))) {
-            List<String> spells = spellsOf(skills);
-            if (spells.isEmpty()) {
+            if (spellsOf(skills).isEmpty()) {
                 CombatEffects.actionBar(player, Component.translatable("nightsiege.msg.spell_none"));
-                return true;
+            } else {
+                showSpell(player, skills);
             }
-            int next = (spellIndex.getOrDefault(player.getUUID(), 0) + 1) % spells.size();
-            spellIndex.put(player.getUUID(), next);
-            showSpell(player, skills);
-            level.playSound(null, player.blockPosition(), SoundEvents.AMETHYST_BLOCK_CHIME, SoundSource.PLAYERS, 0.8f, 1.3f);
             return true;
         }
         call(level, player, skills, level.getGameTime());
@@ -555,8 +547,8 @@ public final class Companions {
     }
 
     /**
-     * The way of the dead's wheel (Simon, 27 October 2026): the subclass's three spells with
-     * their cost in souls; the right click casts the one picked. Null for everyone else.
+     * The way of the dead's spells for the ability bar (Simon, 27 October 2026): the subclass's
+     * spells with their cost in souls, each on its own key. Null for everyone else.
      */
     public com.mki.nightsiege.core.WheelData spellWheel(ServerPlayer player) {
         PlayerSkills skills = skillsFor.apply(player);
@@ -581,8 +573,6 @@ public final class Companions {
                 case "wall" -> "minecraft:bone_block";
                 case "curse" -> "minecraft:wither_rose";
                 case "swarm" -> "minecraft:soul_lantern";
-                case "shield" -> "minecraft:amethyst_shard";
-                case "chain" -> "minecraft:iron_chain";   // "chain" is "iron_chain" since 1.21.9
                 case "fear" -> "minecraft:ghast_tear";
                 default -> "minecraft:soul_sand";
             };
@@ -867,7 +857,7 @@ public final class Companions {
         return List.of();
     }
 
-    /** The spell the G key picked. */
+    /** The spell the right click casts: the one cast last (the first at the start). */
     String selectedSpell(UUID owner, PlayerSkills skills) {
         List<String> spells = spellsOf(skills);
         return spells.isEmpty() ? null : spells.get(Math.floorMod(spellIndex.getOrDefault(owner, 0), spells.size()));
@@ -892,8 +882,6 @@ public final class Companions {
             case "wall" -> (int) Math.round(v("d_necro", "wallcost", 2));
             case "curse" -> (int) Math.round(v("d_necro", "cursecost", 3));
             case "swarm" -> (int) Math.round(v("d_soulcatcher", "swarmcost", 2));
-            case "shield" -> (int) Math.round(v("d_soulcatcher", "shieldcost", 2));
-            case "chain" -> (int) Math.round(v("d_soulcatcher", "chaincost", 3));
             case "fear" -> (int) Math.round(v("d_soulcatcher", "fearcost", 2));
             default -> 0;
         };
@@ -924,7 +912,7 @@ public final class Companions {
         return castSpell(level, player, skills, level.getGameTime());
     }
 
-    /** Sneak + right click on the way of the dead: the chosen spell, paid with souls. */
+    /** The right click on the way of the dead (and the bar keys): the chosen spell, paid with souls. */
     private boolean castSpell(ServerLevel level, ServerPlayer player, PlayerSkills skills, long now) {
         String id = selectedSpell(player.getUUID(), skills);
         if (id == null) {
@@ -954,8 +942,6 @@ public final class Companions {
             case "wall" -> boneWall(level, player, skills, now);
             case "curse" -> curseZone(level, player, skills, now);
             case "swarm" -> ghostSwarm(level, player, skills);
-            case "shield" -> soulShield(level, player, skills);
-            case "chain" -> soulChain(level, player, skills);
             case "fear" -> soulFright(level, player, skills);
             default -> false;
         };
@@ -963,7 +949,7 @@ public final class Companions {
             return false;
         }
         nextSpell.put(player.getUUID(), now + Math.round(v("d_raise", "spellpause", 20)));
-        long cooldown = spellCooldown(id);
+        long cooldown = spellCooldown(id, skills);
         if (cooldown > 0) {
             spellReady.put(readyKey, now + cooldown);
         }
@@ -986,7 +972,24 @@ public final class Companions {
 
     /** Own cooldown of a spell in ticks (0: only the short pause between two spells). */
     public static long spellCooldown(String id) {
-        return "swarm".equals(id) ? Math.round(v("d_soulcatcher", "swarmcd", 120)) : 0L;
+        return spellCooldown(id, null);
+    }
+
+    /** Own cooldown of a spell for this summoner: Geisterhast makes the ghost swarm come sooner. */
+    public static long spellCooldown(String id, PlayerSkills skills) {
+        if (!"swarm".equals(id)) {
+            return 0L;
+        }
+        double ticks = v("d_soulcatcher", "swarmcd", 120);
+        if (skills != null && instance != null && SkillTree.has(skills, "d_haste")) {
+            ticks -= instance.bonus(SkillEffect.GHOST_HASTE, skills) * 20.0;   // seconds sooner (28 October 2026)
+        }
+        return Math.max(20L, Math.round(ticks));
+    }
+
+    /** The cooldown of a spell for the bar's box (the summoner's own skills). */
+    public int spellCooldownTotal(ServerPlayer player, String id) {
+        return (int) spellCooldown(id, skillsFor.apply(player));
     }
 
     /** Spell durations grow with the bind rune; the bone legion adds seconds to wall, zone and chain. */
@@ -1127,7 +1130,7 @@ public final class Companions {
         return true;
     }
 
-    /** Geisterschwarm: ghosts fly as homing shots at your target and its neighbours. */
+    /** Geisterschwarm: ghosts fly as homing shots at your target and its neighbours (Geisterschar: more of them). */
     private boolean ghostSwarm(ServerLevel level, ServerPlayer player, PlayerSkills skills) {
         LivingEntity target = spellTarget(level, player, skills);
         if (target == null) {
@@ -1135,7 +1138,8 @@ public final class Companions {
             return false;
         }
         int count = (int) Math.round(v("d_soulcatcher", "ghosts", 3)
-                + (SkillTree.has(skills, "d_swarm") ? bonus(SkillEffect.GHOST_SWARM, skills) : 0.0));
+                + (SkillTree.has(skills, "d_swarm") ? bonus(SkillEffect.GHOST_SWARM, skills) : 0.0)
+                + (SkillTree.has(skills, "d_host") ? bonus(SkillEffect.GHOST_HOST, skills) : 0.0));
         float damage = (float) (v("d_soulcatcher", "ghost", 5.0) * spellScale(skills, SkillEffect.SOUL_CATCHER));
         List<LivingEntity> near = new ArrayList<>();
         for (LivingEntity e : CombatEffects.enemies(level, target.position(), v("d_soulcatcher", "spread", 6.0), 2.0)) {
@@ -1152,95 +1156,6 @@ public final class Companions {
                     damage, true, i == 0));
         }
         level.playSound(null, player.blockPosition(), SoundEvents.EVOKER_CAST_SPELL, SoundSource.PLAYERS, 1.0f, 1.4f);
-        return true;
-    }
-
-    /** Seelenschild: a barrier on the teammate looked at, else on you; it counts as healing. */
-    private boolean soulShield(ServerLevel level, ServerPlayer player, PlayerSkills skills) {
-        ServerPlayer target = lookMate(level, player, v("d_soulcatcher", "shieldrange", 16.0));
-        if (target == null) {
-            target = player;
-        }
-        float amount = (float) ((v("d_soulcatcher", "shield", 8.0)
-                + (SkillTree.has(skills, "d_soulshield") ? bonus(SkillEffect.SOUL_SHIELD, skills) : 0.0))
-                * (1.0 + bonus(SkillEffect.SOUL_CATCHER, skills)));
-        float before = Math.max(0f, target.getAbsorptionAmount());
-        GuardianEffects.addAbsorption(target, amount, amount);
-        float gained = Math.max(0f, target.getAbsorptionAmount()) - before;
-        if (gained <= 0.01f) {
-            CombatEffects.actionBar(player, Component.translatable("nightsiege.msg.shield_full", target.getDisplayName()));
-            return false;
-        }
-        credit.accept(player, gained, null);
-        level.sendParticles(ParticleTypes.SOUL, target.getX(), target.getY() + 1, target.getZ(), 20, 0.5, 0.6, 0.5, 0.03);
-        level.playSound(null, target.blockPosition(), SoundEvents.SOUL_ESCAPE.value(), SoundSource.PLAYERS, 1.0f, 1.2f);
-        if (target != player) {
-            CombatEffects.actionBar(player, Component.translatable("nightsiege.msg.shield_given", target.getDisplayName()));
-        }
-        return true;
-    }
-
-    /** The teammate the summoner looks at (the bench's wounded teammate too), or null. */
-    private static ServerPlayer lookMate(ServerLevel level, ServerPlayer player, double reach) {
-        Vec3 eye = player.getEyePosition();
-        Vec3 look = player.getLookAngle();
-        ServerPlayer best = null;
-        double bestDot = 0.95;
-        for (ServerPlayer mate : GuardianEffects.mates(level)) {
-            if (mate == player || !mate.isAlive() || mate.isSpectator() || Drones.isDrone(mate)) {
-                continue;
-            }
-            Vec3 to = mate.position().add(0, 1.0, 0).subtract(eye);
-            double dist = to.length();
-            if (dist > reach || dist < 1.0e-4) {
-                continue;
-            }
-            double dot = to.scale(1.0 / dist).dot(look);
-            if (dot > bestDot) {
-                bestDot = dot;
-                best = mate;
-            }
-        }
-        return best;
-    }
-
-    /** Seelenkette: every monster within 5 blocks of the target is slowed hard for 4 s. */
-    private boolean soulChain(ServerLevel level, ServerPlayer player, PlayerSkills skills) {
-        LivingEntity target = spellTarget(level, player, skills);
-        if (target == null) {
-            CombatEffects.actionBar(player, Component.translatable("nightsiege.msg.staff_no_prey"));
-            return false;
-        }
-        double r = v("d_soulcatcher", "chainradius", 5.0) + (SkillTree.has(skills, "d_rot") ? bonus(SkillEffect.ROT, skills) : 0.0);
-        int ticks = (int) spellTicks(skills, v("d_soulcatcher", "chainlife", 80), true);
-        int amp = (int) Math.round(v("d_soulcatcher", "chainslow", 3));
-        Vec3 from = target.position().add(0, target.getBbHeight() * 0.5, 0);
-        // The chain bites too (Simon, 27 October 2026: more damage against groups).
-        boolean fetter = SkillTree.has(skills, "d_fetter");   // Seelenfessel (27 October 2026)
-        float bite = (float) ((v("d_soulcatcher", "chaindmg", 4.0) + (fetter ? bonus(SkillEffect.SOUL_FETTER, skills) : 0.0))
-                * spellScale(skills, SkillEffect.SOUL_CATCHER));
-        DamageSource source = level.damageSources().playerAttack(player);
-        double pull = fetter ? v("d_fetter", "pull", 2.5) : 0.0;
-        for (LivingEntity e : CombatEffects.enemies(level, target.position(), r, 2.0)) {
-            e.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, ticks, amp));
-            if (bite > 0) {
-                spellHurt(level, e, source, bite);
-            }
-            rot(e, skills);
-            if (e != target) {
-                trail(level, from, e.position().add(0, e.getBbHeight() * 0.5, 0), ParticleTypes.SOUL_FIRE_FLAME, 6);
-                if (pull > 0 && !BossService.isBoss(e)) {
-                    Vec3 to = target.position().subtract(e.position());
-                    double len = to.horizontalDistance();
-                    if (len > 1.2) {
-                        double k = Math.min(pull, len - 1.0) / len * 0.45;
-                        e.setDeltaMovement(e.getDeltaMovement().add(to.x * k, 0.15, to.z * k));
-                        e.hurtMarked = true;
-                    }
-                }
-            }
-        }
-        level.playSound(null, target.blockPosition(), SoundEvents.CHAIN_PLACE, SoundSource.PLAYERS, 1.2f, 0.6f);
         return true;
     }
 
@@ -2383,8 +2298,8 @@ public final class Companions {
     // ------------------------------------------------------------------
 
     /**
-     * A monster of the night fell: it may be raised for half a minute, and every summoner of
-     * the dead within 16 blocks gets a soul (Seelengier: sometimes two).
+     * A monster of the night, of the war camp or of a dungeon fell: it may be raised for half a
+     * minute, and every summoner of the dead within 16 blocks gets a soul (Seelengier: sometimes two).
      */
     public void onMonsterDeath(Mob mob, boolean elite) {
         if (!(mob.level() instanceof ServerLevel level) || isCompanion(mob)) {
@@ -2435,6 +2350,16 @@ public final class Companions {
     public void beginNight(ServerPlayer player, PlayerSkills skills) {
         if (player != null && skills != null) {
             souls.putIfAbsent(player.getUUID(), startSouls(skills));
+        }
+    }
+
+    /**
+     * The kit goes back (the end of a war camp or dungeon fight, or of the night): the souls of
+     * that fight go with it, so the next kit starts with the souls of a fresh start again.
+     */
+    public void endFight(ServerPlayer player) {
+        if (player != null) {
+            souls.remove(player.getUUID());
         }
     }
 
