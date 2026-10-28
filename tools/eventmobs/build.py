@@ -164,6 +164,13 @@ if __name__ == '__main__':
     all_textures.update(f_textures)
     all_glows.update(f_glows)
     print('built', ', '.join(f_shapes))
+    # the dungeon champions in their fragment's style (design update, 29 October 2026)
+    import champions
+    c_shapes, c_textures, c_glows = champions.build(van, OUT, atlas)
+    all_shapes.update(c_shapes)
+    all_textures.update(c_textures)
+    all_glows.update(c_glows)
+    print('built', ', '.join(c_shapes))
     java(all_shapes, all_textures, all_glows)
     if prev:
         import preview

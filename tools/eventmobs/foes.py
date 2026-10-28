@@ -161,7 +161,7 @@ def iron_knight(f):
         return out
     # a closed helm with a slit and a red crest
     out.append(block('head', (-4.7, -8.7, -4.7), (9, 4, 9), 'plate', key='helm'))
-    out.append(block('head', (-4.7, -3.7, -4.7), (9, 4.4, 9), 'plate', key='visor'))
+    out.append(block('head', (-4.7, -3.7, -4.7), (9, 4, 9), 'plate', key='visor'))
     out += sym([block('head', (-4.7, -4.7, -4.7), (3, 1, 9), 'plate', key='slit')])
     out.append(block('head', (-0.5, -11.7, -3.0), (1, 3, 7), 'crimson', key='crest'))
     # pauldrons and a tabard

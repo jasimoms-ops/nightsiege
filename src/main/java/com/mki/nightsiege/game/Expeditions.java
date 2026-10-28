@@ -886,6 +886,7 @@ public final class Expeditions {
         mob.setCustomName(Component.translatable(kind.championKey()).withStyle(ChatFormatting.GOLD));
         mob.setCustomNameVisible(true);
         champion = mob.getUUID();
+        BossService.foeLook(mob, "champion_" + kind.id());   // in its fragment's style (design update, 29 October 2026)
         m.stats().dungeonProgress(rec.cleared, wave, true);
         level.sendParticles(ParticleTypes.EXPLOSION_EMITTER, p.arenaCenter.getX() + 0.5, p.arenaCenter.getY() + 1,
                 p.arenaCenter.getZ() + 0.5, 1, 0, 0, 0, 0);
