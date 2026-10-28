@@ -44,8 +44,10 @@ public class PlaytestScreen extends Screen {
         last = data;
         Minecraft client = Minecraft.getInstance();
         if (client.gui.screen() instanceof PlaytestScreen screen) {
-            if (data == null || "done".equals(data.phase)) {
-                screen.onClose();
+            boolean fightStarts = data != null && !data.phase.equals(screen.data.phase)
+                    && ("interlude".equals(data.phase) || "night".equals(data.phase));
+            if (data == null || "done".equals(data.phase) || fightStarts) {
+                screen.onClose();   // over, or the camp, dungeon or night begins: out of the way
             } else {
                 screen.data = data;
                 screen.rebuildWidgets();

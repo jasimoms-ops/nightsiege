@@ -398,7 +398,7 @@ public final class Playtest {
                     m.abort(server);
                 }
                 s.phase = "after_night";
-                s.phaseEnds = now;
+                s.phaseEnds = now + AFTER_NIGHT_SECONDS * 20L;   // the usual pause follows ("weiter" again skips it)
             }
             case "after_night" -> nextStep(server, s);
             default -> {
