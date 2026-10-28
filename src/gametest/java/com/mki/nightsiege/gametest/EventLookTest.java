@@ -5801,6 +5801,22 @@ public class EventLookTest implements FabricClientGameTest {
         });
         context.waitTicks(30);
         context.takeScreenshot("kithud_bare");
+        // The season trophy (design update): the crown on a block in front and in the hand.
+        net.minecraft.world.entity.Display.ItemDisplay[] crown = new net.minecraft.world.entity.Display.ItemDisplay[1];
+        onServer(context, (player, manager) -> {
+            net.minecraft.core.BlockPos at = player.blockPosition().relative(player.getDirection(), 3);
+            ((net.minecraft.server.level.ServerLevel) player.level()).setBlockAndUpdate(at, net.minecraft.world.level.block.Blocks.POLISHED_DEEPSLATE.defaultBlockState());
+            crown[0] = com.mki.nightsiege.game.SiegeCrown.showOnCore((net.minecraft.server.level.ServerLevel) player.level(), at);
+            player.getInventory().setItem(8, com.mki.nightsiege.game.SiegeCrown.trophy(1, "29.10.2026", java.util.List.of("Simon", "Quxo")));
+            player.getInventory().setSelectedSlot(8);
+        });
+        context.waitTicks(10);
+        context.takeScreenshot("kithud_crown");
+        onServer(context, (player, manager) -> {
+            if (crown[0] != null) {
+                crown[0].discard();
+            }
+        });
         // The kit gone: the vanilla HUD is back.
         onServer(context, (player, manager) -> manager.kits().restore(player));
         context.waitTicks(10);
