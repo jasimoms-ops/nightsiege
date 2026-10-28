@@ -96,6 +96,15 @@ public final class KitService {
         if (stack.isEnchanted()) {
             stack.set(DataComponents.ENCHANTMENT_GLINT_OVERRIDE, false);
         }
+        // Design update (29 October 2026): kit netherite has a violet rim (tools/armor/kit20_icons.py).
+        String piece = stack.is(net.minecraft.world.item.Items.NETHERITE_HELMET) ? "helmet"
+                : stack.is(net.minecraft.world.item.Items.NETHERITE_CHESTPLATE) ? "chestplate"
+                : stack.is(net.minecraft.world.item.Items.NETHERITE_LEGGINGS) ? "leggings"
+                : stack.is(net.minecraft.world.item.Items.NETHERITE_BOOTS) ? "boots" : null;
+        if (piece != null && !stack.has(DataComponents.ITEM_MODEL)) {
+            stack.set(DataComponents.ITEM_MODEL, net.minecraft.resources.Identifier.fromNamespaceAndPath("nightsiege",
+                    "kit/netherite_" + piece));
+        }
         return stack;
     }
 
