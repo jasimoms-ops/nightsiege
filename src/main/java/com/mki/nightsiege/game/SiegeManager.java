@@ -3520,7 +3520,9 @@ public final class SiegeManager {
                 state = new com.mki.nightsiege.core.UltState();
                 state.kitsOn = config.nightKits;
             }
-            safe("Kit-Leiste", () -> kitHudValues(player, own, state));
+            final PlayerSkills hudOwn = own;
+            final com.mki.nightsiege.core.UltState hudState = state;
+            safe("Kit-Leiste", () -> kitHudValues(player, hudOwn, hudState));
             ServerPlayNetworking.send(player, new CoreNetworking.UltHudPayload(Json.toJson(state)));
         }
     }
