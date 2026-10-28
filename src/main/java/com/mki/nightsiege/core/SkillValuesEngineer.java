@@ -135,6 +135,7 @@ final class SkillValuesEngineer {
         def("e_escape", "radius", 3.5);                                  // blocks around the engineer
         def("e_escape", "knock", 1.2);                                   // push on the monsters
         def("e_escape", "slow", 40);                                     // ticks the monsters crawl after it
+        def("e_escape", "heal", 4.0);                                    // health back (two hearts, Simon 29.10.)
         def("spike_trap", "overcharge", 30);
         def("snare_trap", "overcharge", 30);
         def("flame_trap", "overcharge", 30);

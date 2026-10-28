@@ -39,6 +39,18 @@ public final class EngineerEscape {
     private EngineerEscape() {
     }
 
+    /** Its box on the ability bar (the engineers and the heavy archer, Simon 29.10.). */
+    public static com.mki.nightsiege.core.UltState.Slot slot(ServerPlayer player, long now) {
+        com.mki.nightsiege.core.UltState.Slot escape = new com.mki.nightsiege.core.UltState.Slot();
+        escape.id = ID;
+        escape.icon = "minecraft:wind_charge";
+        escape.name = "nightsiege.ability.escape";
+        escape.sub = "nightsiege.ability.escape.sub";
+        escape.cooldownTicks = cooldownLeft(player, now);
+        escape.totalTicks = (int) pause();
+        return escape;
+    }
+
     /** Ticks between two charges. */
     static long pause() {
         return Math.round(SkillValues.get("e_escape", "pause", 300));
@@ -87,6 +99,8 @@ public final class EngineerEscape {
         player.setDeltaMovement(forward.scale(-push).add(0, up, 0));
         player.hurtMarked = true;
         player.resetFallDistance();
+        // ... and two hearts back (Simon 29.10., 00:08: "und man bekommt noch 2 Herzen wieder").
+        player.heal((float) SkillValues.get("e_escape", "heal", 4.0));
         READY.put(player.getUUID(), now + pause());
 
         // The blast at his feet: the monsters around are thrown away from him and crawl.

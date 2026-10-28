@@ -4644,6 +4644,9 @@ public final class SiegeManager {
             slot.name = "nightsiege.ability.call";
             out.add(slot);
         }
+        if (own.hasClass() && SkillTree.SUB_HEAVY.equals(skillTree.subclassOf(own))) {
+            out.add(0, EngineerEscape.slot(player, now));   // the heavy archer gets the blast jump too (Simon 29.10.)
+        }
         while (out.size() > 6) {
             out.remove(out.size() - 1);
         }
@@ -4677,7 +4680,9 @@ public final class SiegeManager {
             return;
         }
         String id = slots.get(index).id;
-        if (traps.onEngineerSlot(player, id)) {
+        if (EngineerEscape.ID.equals(id)) {
+            EngineerEscape.fire(player, traps);   // the engineers' and the heavy archer's blast jump
+        } else if (traps.onEngineerSlot(player, id)) {
             // the engineer's escape, the alchemist's potion or acid flask (28 October 2026)
         } else if ("call".equals(id)) {
             companions.selectKey(player);   // the way of the light: the call

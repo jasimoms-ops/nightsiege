@@ -1975,14 +1975,7 @@ public final class TrapService {
             return null;
         }
         List<com.mki.nightsiege.core.UltState.Slot> out = new ArrayList<>();
-        com.mki.nightsiege.core.UltState.Slot escape = new com.mki.nightsiege.core.UltState.Slot();
-        escape.id = EngineerEscape.ID;
-        escape.icon = "minecraft:wind_charge";
-        escape.name = "nightsiege.ability.escape";
-        escape.sub = "nightsiege.ability.escape.sub";
-        escape.cooldownTicks = EngineerEscape.cooldownLeft(player, now);
-        escape.totalTicks = (int) EngineerEscape.pause();
-        out.add(escape);
+        out.add(EngineerEscape.slot(player, now));
         if (!SkillTree.SUB_ALCHEMIST.equals(tree.subclassOf(skills))) {
             return out;
         }
