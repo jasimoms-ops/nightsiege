@@ -742,7 +742,8 @@ public final class TeamSim {
                         BlockPos p = at.offset(dx, dy, dz);
                         if (TeamBrain.passable(level, p) && TeamBrain.passable(level, p.above())
                                 && !level.getBlockState(p.below()).getCollisionShape(level, p.below()).isEmpty()
-                                && level.getBlockState(p.below()).getFluidState().isEmpty()) {
+                                && level.getBlockState(p.below()).getFluidState().isEmpty()
+                                && !TeamBrain.dangerous(level, p)) {
                             return p;
                         }
                     }

@@ -212,8 +212,8 @@ final class TeamBrain {
         boolean bulwark = SkillTree.SUB_BULWARK.equals(m.skillTree().subclassOf(skills));
         Vec3 home = Vec3.atBottomCenterOf(post);
         boolean melee = role == Role.TANK || role == Role.MELEE || role == Role.HEALER || role == Role.SUMMONER;
-        if (player.isInWall() || player.position().distanceToSqr(home) > (melee ? (leash + 3) * (leash + 3) : 9.0)) {
-            stand(player, level);   // pushed into a wall or too far away: back to the post
+        if (player.isInWall() || player.isInLava() || player.position().distanceToSqr(home) > (melee ? (leash + 3) * (leash + 3) : 9.0)) {
+            stand(player, level);   // pushed into a wall, into lava or too far away: back to the post
         }
         Mob close = MeleeSim.nearest(level, player, melee ? leash + 4 : 10.0);
         Mob far = MeleeSim.nearest(level, player, 32.0);
@@ -380,8 +380,8 @@ final class TeamBrain {
                 break;
             }
         }
-        if (spot == null) {
-            return;
+        if (spot == null || dangerous(level, spot)) {
+            return;   // a player who knows his base does not step next to lava or fire
         }
         double y = spot.getY();
         // The whole body must be free there (a player is 0.6 wide), not only the block in the middle.
@@ -403,6 +403,27 @@ final class TeamBrain {
 
     static void log(String line) {
         NightSiegeMod.LOGGER.info(line);
+    }
+
+    /**
+     * True if lava, fire, magma or a campfire is at or under a spot or right beside it: bots keep
+     * one block away, as players who know their base do (the copy of Simon's castle has lava in the floor).
+     */
+    static boolean dangerous(ServerLevel level, BlockPos spot) {
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                for (int dy = -1; dy <= 0; dy++) {
+                    BlockState state = level.getBlockState(spot.offset(dx, dy, dz));
+                    if (state.getFluidState().is(net.minecraft.tags.FluidTags.LAVA)
+                            || state.is(net.minecraft.tags.BlockTags.FIRE)
+                            || state.is(net.minecraft.world.level.block.Blocks.MAGMA_BLOCK)
+                            || state.is(net.minecraft.tags.BlockTags.CAMPFIRES)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     /** True if the block is one the bot can walk through (air, plants, open doors and the like). */
