@@ -1,0 +1,453 @@
+<meta name="dash-one-writer">
+<style>
+  .nb-page { display: flex; flex-direction: column; gap: var(--cds-gap-lg); font-family: var(--font-anthropic-sans); }
+  .nb-head { display: flex; flex-direction: column; gap: var(--cds-gap-sm); }
+  .nb-title { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); margin: 0; text-wrap: balance; }
+  .nb-take { font-size: var(--cds-font-size-body); margin: 0; max-width: 70ch; }
+  .nb-take b, .nb-page b { font-weight: var(--cds-font-weight-medium); font-variant-numeric: tabular-nums; }
+  .nb-meta { color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); margin: 0; }
+  .nb-controls { display: flex; flex-wrap: wrap; gap: var(--cds-gap-md); align-items: center; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+  .nb-controls select { font: inherit; color: var(--color-fg); background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-xs) var(--cds-pad-sm); }
+  .nb-note { border-left: 3px solid var(--color-warn); padding: var(--cds-pad-xs) var(--cds-pad-md); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); max-width: 80ch; margin: 0; }
+  .nb-note b { color: var(--color-fg); }
+  .nb-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr)); gap: var(--cds-gap-md); }
+  .nb-card { background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-lg); display: flex; flex-direction: column; gap: var(--cds-gap-sm); min-width: 0; position: relative; }
+  .nb-card h2 { font-size: var(--cds-font-size-heading); font-weight: var(--cds-font-weight-medium); margin: 0; }
+  .nb-card .nb-sub { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); margin: 0; }
+  .nb-wide { grid-column: 1 / -1; }
+  .nb-scroll { overflow-x: auto; }
+  .nb-matrix { min-height: 12rem; }
+  .nb-matrix table, .nb-mix table { border-collapse: separate; border-spacing: 3px; font-variant-numeric: tabular-nums; width: 100%; }
+  .nb-matrix th, .nb-mix th { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); font-weight: 400; text-align: center; padding: var(--cds-pad-xs); white-space: nowrap; }
+  .nb-matrix th:first-child, .nb-mix th:first-child { text-align: left; }
+  .nb-matrix td { text-align: center; padding: var(--cds-pad-sm) var(--cds-pad-xs); border-radius: var(--cds-radius); min-width: 4.5rem; }
+  .nb-matrix td .nb-q { font-size: var(--cds-font-size-body); font-weight: var(--cds-font-weight-medium); display: block; }
+  .nb-matrix td .nb-n { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+  .nb-legend { display: flex; flex-wrap: wrap; gap: var(--cds-gap-md); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); margin: 0; }
+  .nb-swatch { display: inline-block; width: .75rem; height: .75rem; border-radius: 2px; vertical-align: -1px; margin-right: .35rem; }
+  .nb-sw-low { background: color-mix(in srgb, var(--cds-chart-status-critical) 45%, transparent); }
+  .nb-sw-mid { background: color-mix(in srgb, var(--cds-chart-muted) 30%, transparent); }
+  .nb-sw-high { background: color-mix(in srgb, var(--cds-chart-reference) 45%, transparent); }
+  .nb-chart { min-height: 15rem; position: relative; }
+  .nb-chart svg { display: block; overflow: visible; }
+  .nb-mix td { padding: var(--cds-pad-xs); font-size: var(--cds-font-size-caption); min-width: 6rem; }
+  .nb-mix td:first-child { font-size: var(--cds-font-size-body); white-space: nowrap; }
+  .nb-bar { display: flex; align-items: center; gap: .4rem; }
+  .nb-bar i { display: block; height: .55rem; border-radius: 2px; background: var(--cds-chart-muted); }
+  .nb-bar i.nb-on { background: var(--cds-chart-reference); }
+  .nb-bar span { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .nb-tablebox { max-height: 34rem; overflow: auto; }
+  .nb-uk { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; font-size: var(--cds-font-size-caption); }
+  .nb-uk th { position: sticky; top: 0; background: var(--color-panel); text-align: right; padding: 0; border-bottom: 1px solid var(--color-border-line); }
+  .nb-uk th:nth-child(-n+2) { text-align: left; }
+  .nb-uk th button { all: unset; cursor: pointer; padding: var(--cds-pad-xs) var(--cds-pad-sm); display: block; color: var(--color-fg-muted); white-space: nowrap; }
+  .nb-uk th button:focus-visible { outline: 2px solid var(--cds-chart-reference); outline-offset: -2px; }
+  .nb-uk th[aria-sort] button { color: var(--color-fg); }
+  .nb-uk td { padding: var(--cds-pad-xs) var(--cds-pad-sm); text-align: right; border-bottom: 1px solid var(--color-border-line); white-space: nowrap; }
+  .nb-uk td:nth-child(-n+2) { text-align: left; }
+  .nb-uk td:first-child { font-size: var(--cds-font-size-body); }
+  .nb-uk .nb-qcell { display: inline-flex; align-items: center; gap: .4rem; justify-content: flex-end; }
+  .nb-uk .nb-qcell i { display: inline-block; height: .5rem; border-radius: 2px; }
+  .nb-tip { position: absolute; pointer-events: none; background: var(--cds-surface-popover); border: 1px solid var(--cds-border); border-radius: var(--cds-radius); box-shadow: var(--cds-shadow-popover); padding: var(--cds-pad-xs) var(--cds-pad-sm); font-size: var(--cds-font-size-caption); white-space: nowrap; z-index: 2; }
+  .nb-tip .nb-tip-h { color: var(--cds-text-secondary); }
+  .nb-section { display: flex; flex-direction: column; gap: var(--cds-gap-sm); }
+  .nb-section h2.nb-sec { font-size: var(--cds-font-size-heading); font-weight: var(--cds-font-weight-medium); margin: 0; }
+  .nb-def { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); margin: 0; max-width: 80ch; }
+  .nb-def dt { color: var(--color-fg); font-weight: var(--cds-font-weight-medium); margin-top: var(--cds-gap-xs); }
+  .nb-def dd { margin: 0; }
+  [data-dash-source-state=empty] { color: transparent; }
+  [data-dash-source-state=refreshing] { opacity: .5; transition: opacity var(--cds-dur-slow); }
+  .nb-fail { display: flex; align-items: center; justify-content: center; gap: .4rem; min-height: 10rem; color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); }
+  .nb-fail::before { content: ""; width: .375rem; height: .375rem; border-radius: 50%; background: var(--color-bad); }
+</style>
+
+<div class="nb-page">
+  <header class="nb-head" id="ueberblick">
+    <h1 class="nb-title">Night Siege Balance</h1>
+    <p class="nb-take">Hält eine Gruppe die Nacht ihrer Stufe? Ziel sind etwa 70 % Siege. Über alle Stufen dieses Laufs gewinnen: <span data-draw="takeaway" data-source="koennen_kurve">—</span>.</p>
+    <p class="nb-meta"><span data-draw="naechte" data-source="lauf" data-field="testnaechte" data-row="0">—</span> Testnächte der Team-Sim · <span data-draw="boden" data-source="lauf" data-field="boden" data-row="0">—</span> · Stand <span data-draw="datum" data-source="lauf" data-field="datum" data-row="0">—</span></p>
+    <div class="nb-controls">
+      <label for="nb-variante">Die Bots spielen</label>
+      <select id="nb-variante" data-draw="variante" aria-label="Können der Bots" data-source="zellen"></select>
+    </div>
+    <p class="nb-note"><b>Noch nicht geeicht.</b> Die Bots sind noch nicht an euren echten Nächten gemessen. „Perfekt“ heißt: Sie verpassen keinen Schlag und keine Fähigkeit. Mit „Können 0,6“ passen sie öfter nicht auf und zünden Fähigkeiten später. Welcher Wert euch entspricht, zeigt erst der Vergleich mit den Logger-Nächten vom Server. Je Zelle laufen nur 3–7 Nächte, deshalb sind Sprünge von 15–30 Punkten Zufall.</p>
+  </header>
+
+  <div class="nb-grid">
+    <section class="nb-card nb-wide" id="matrix">
+      <h2>Siegquote je Stufe und Spielerzahl</h2>
+      <p class="nb-sub">Anteil gewonnener Testnächte, darunter die Zahl der Läufe. Gewonnen heißt: Die Gruppe hält bis zum Morgen und erreicht das Kill-Ziel.</p>
+      <div class="nb-scroll nb-matrix" data-draw="matrix" data-source="zellen"></div>
+      <p class="nb-legend"><span><i class="nb-swatch nb-sw-low"></i>unter 55 %</span><span><i class="nb-swatch nb-sw-mid"></i>55–85 %, im Ziel</span><span><i class="nb-swatch nb-sw-high"></i>über 85 %</span></p>
+    </section>
+
+    <section class="nb-card" id="koennen">
+      <h2>Siegquote nach Können der Bots</h2>
+      <p class="nb-sub">Alle Stufen zusammen, eine Linie je Spielerzahl. Die gestrichelte Linie ist das Ziel von 70 %.</p>
+      <div class="nb-chart" data-draw="koennen-chart" data-source="koennen_kurve"></div>
+    </section>
+
+    <section class="nb-card" id="gegner">
+      <h2>Gefährlichste Gegner</h2>
+      <p class="nb-sub">Anteil am Schaden, den die Bots von Monstern eingesteckt haben, die 10 größten.</p>
+      <div class="nb-chart" data-draw="gegner-chart" data-source="gegner"></div>
+    </section>
+
+    <section class="nb-card nb-wide" id="gruppen">
+      <h2>Gruppenarten</h2>
+      <p class="nb-sub">Siegquote je Zusammenstellung der Gruppe, alle Stufen zusammen. In Klammern die Zahl der Läufe. Ab 2 Spielern laufen neben zufälligen Gruppen auch feste Vorlagen.</p>
+      <div class="nb-scroll nb-mix" data-draw="mix" data-source="mischungen"></div>
+    </section>
+
+    <section class="nb-card nb-wide" id="unterklassen">
+      <h2>Unterklassen</h2>
+      <p class="nb-sub">Je Lauf, in dem die Unterklasse mitspielte. Die Siegquote ist die der ganzen Gruppe, nicht die eines einzelnen Bots. Klick auf eine Spalte sortiert.</p>
+      <div class="nb-tablebox">
+        <table class="nb-uk" data-source="unterklassen" data-row-key="variante,unterklasse">
+          <thead>
+            <tr>
+              <th data-field="name" data-sort="name"><button type="button">Unterklasse</button></th>
+              <th data-field="klasse" data-sort="klasse"><button type="button">Klasse</button></th>
+              <th data-field="laeufe" data-sort="laeufe"><button type="button">Läufe</button></th>
+              <th data-field="siegquote" data-sort="siegquote"><button type="button">Siegquote</button></th>
+              <th data-field="schaden_je_lauf" data-sort="schaden_je_lauf"><button type="button">Schaden</button></th>
+              <th data-field="erhalten_je_lauf" data-sort="erhalten_je_lauf"><button type="button">Eingesteckt</button></th>
+              <th data-field="heilung_je_lauf" data-sort="heilung_je_lauf"><button type="button">Heilung</button></th>
+              <th data-field="tode_je_lauf" data-sort="tode_je_lauf"><button type="button">Tode</button></th>
+            </tr>
+          </thead>
+          <tbody data-draw="uk-rows"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <section class="nb-section" id="abende">
+    <h2 class="nb-sec">Echte Abende</h2>
+    <p class="nb-note"><b>Noch keine echten Nächte geladen.</b> Sobald die Logger-Dateien vom Server da sind, stehen hier eure Nächte neben der Sim: Siegquote je Stufe und Spielerzahl, Werte je Unterklasse, die gefährlichsten Gegner und eure Bewertungen „zu leicht / passt / zu schwer“.</p>
+  </section>
+
+  <section class="nb-section" id="begriffe">
+    <h2 class="nb-sec">So ist gemessen</h2>
+    <dl class="nb-def">
+      <dt>Team-Sim</dt>
+      <dd>Bots spielen echte Testnächte auf einem Server ohne Grafik. Jeder hat die Punkte, die man bis zu dieser Stufe hätte, und das Kit der Stufe, aber keine Kisten-Gewinne. Tanks stehen an den Toren, Heiler dahinter, Fernkämpfer auf der Mauer, Techniker stellen ihre Türme an ihren Posten.</dd>
+      <dt>Gruppen</dt>
+      <dd>Zufällig gewählt wie echte Spieler (keine Unterklasse doppelt), dazu ab 2 Spielern die Vorlagen Tank + Heiler + Schaden, Nur Schaden, Tanks + Techniker und Nur Beschwörer. Jede Können-Stufe spielt genau dieselben Gruppen.</dd>
+      <dt>Schaden, Eingesteckt, Heilung</dt>
+      <dd>Lebenspunkte je Lauf und Bot aus dem Statistik-Logger, wie in euren echten Nächten.</dd>
+      <dt>Config</dt>
+      <dd>Die Werte des Servers vom 29.10. (Config 16) und alle Monster der Server-Liste, auch die aus Takes a Pillage und Friends &amp; Foes.</dd>
+    </dl>
+  </section>
+</div>
+
+<script>
+  window.nbTarget = 0.7;
+  window.nbCur = () => dash.params().variante ?? 'aktuell';
+  window.nbPct = (q) => Math.round(q * 100) + ' %';
+  window.nbNum = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
+  window.nbDec = new Intl.NumberFormat('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  window.nbK = (k) => (+k >= 1 ? 'perfekt' : 'Können ' + new Intl.NumberFormat('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(+k));
+  window.nbFail = (el, status) => {
+    el.replaceChildren();
+    if (status === 'error' || status === 'connect' || status === 'declined' || status === 'missing') {
+      const f = document.createElement('div');
+      f.className = 'nb-fail';
+      f.textContent = 'Failed to load';
+      el.append(f);
+      return true;
+    }
+    return false;
+  };
+  window.nbCellColor = (q) => {
+    if (q < 0.55) return `color-mix(in srgb, var(--cds-chart-status-critical) ${Math.round(18 + (0.55 - q) / 0.55 * 42)}%, transparent)`;
+    if (q > 0.85) return `color-mix(in srgb, var(--cds-chart-reference) ${Math.round(25 + (q - 0.85) / 0.15 * 30)}%, transparent)`;
+    return 'color-mix(in srgb, var(--cds-chart-muted) 22%, transparent)';
+  };
+  window.nbTipShow = (card, html, x, y) => {
+    let tip = card.querySelector(':scope > .nb-tip');
+    if (!tip) {
+      tip = document.createElement('div');
+      tip.className = 'nb-tip';
+      card.append(tip);
+    }
+    tip.replaceChildren(...html);
+    tip.hidden = false;
+    const cw = card.clientWidth;
+    const tw = tip.offsetWidth;
+    tip.style.left = Math.max(4, Math.min(cw - tw - 4, x + 12)) + 'px';
+    tip.style.top = Math.max(4, y - tip.offsetHeight - 8) + 'px';
+  };
+  window.nbTipHide = (card) => {
+    const tip = card.querySelector(':scope > .nb-tip');
+    if (tip) tip.hidden = true;
+  };
+  window.nbLine = (cls, text) => {
+    const d = document.createElement('div');
+    if (cls) d.className = cls;
+    d.textContent = text;
+    return d;
+  };
+
+  dash.calc('koennen_kurve', {
+    inputs: ['zellen'],
+    title: 'Siegquote nach Können und Spielerzahl',
+    description: 'Siege durch Läufe je Variante und Spielerzahl, über alle Stufen zusammen.',
+    fn: (zellen) => {
+      const out = new Map();
+      for (const z of zellen) {
+        const key = z.variante + '|' + z.spieler;
+        const o = out.get(key) || { variante: z.variante, koennen: +z.koennen, spieler: +z.spieler, laeufe: 0, siege: 0 };
+        o.laeufe += +z.laeufe;
+        o.siege += +z.siege;
+        out.set(key, o);
+      }
+      return [...out.values()].map((o) => ({ ...o, siegquote: o.laeufe ? o.siege / o.laeufe : 0 }));
+    },
+  });
+
+  dash.draw('variante', (sel) => {
+    const z = dash.data('zellen');
+    const seen = new Map();
+    for (const r of z.status === 'ok' ? z.data : []) seen.set(r.variante, +r.koennen);
+    const opts = [...seen].sort((a, b) => b[1] - a[1]);
+    sel.replaceChildren(...opts.map(([v, k]) => new Option(k >= 1 ? 'perfekt (Können 1,0)' : nbK(k), v)));
+    sel.value = nbCur();
+    sel.onchange = () => dash.setParams({ variante: sel.value });
+  });
+
+  dash.draw('takeaway', (el) => {
+    const c = dash.data('koennen_kurve');
+    if (c.status !== 'ok') { el.textContent = '—'; return; }
+    const rows = c.data.filter((r) => r.variante === nbCur()).sort((a, b) => a.spieler - b.spieler);
+    if (!rows.length) { el.textContent = '—'; return; }
+    el.textContent = rows.map((r) => `${r.spieler === 1 ? '1 Spieler' : r.spieler + ' Spieler'} ${nbPct(r.siegquote)}`).join(', ');
+  });
+
+  dash.draw('naechte', (el) => {
+    const d = dash.data('lauf');
+    el.textContent = d.status === 'ok' && d.data[0] ? nbNum.format(+d.data[0].testnaechte) : '—';
+  });
+  dash.draw('boden', (el) => {
+    const d = dash.data('lauf');
+    el.textContent = d.status === 'ok' && d.data[0] ? d.data[0].boden : '—';
+  });
+  dash.draw('datum', (el) => {
+    const d = dash.data('lauf');
+    el.textContent = d.status === 'ok' && d.data[0] ? new Date(d.data[0].datum + 'T12:00:00Z').toLocaleDateString('de-DE', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
+  });
+
+  dash.draw('matrix', (el) => {
+    const z = dash.data('zellen');
+    if (z.status !== 'ok') { if (!nbFail(el, z.status)) el.textContent = ''; return; }
+    const rows = z.data.filter((r) => r.variante === nbCur());
+    const levels = [...new Set(rows.map((r) => +r.stufe))].sort((a, b) => a - b);
+    const groups = [...new Set(rows.map((r) => +r.spieler))].sort((a, b) => a - b);
+    const table = document.createElement('table');
+    const head = table.createTHead().insertRow();
+    const h0 = document.createElement('th');
+    h0.textContent = 'Stufe';
+    head.append(h0);
+    for (const g of groups) {
+      const th = document.createElement('th');
+      th.textContent = g === 1 ? '1 Spieler' : g + ' Spieler';
+      head.append(th);
+    }
+    const body = table.createTBody();
+    for (const lv of levels) {
+      const tr = body.insertRow();
+      const th = document.createElement('th');
+      th.textContent = String(lv);
+      tr.append(th);
+      for (const g of groups) {
+        const td = tr.insertCell();
+        const r = rows.find((x) => +x.stufe === lv && +x.spieler === g);
+        if (!r || !+r.laeufe) { td.textContent = '–'; continue; }
+        const q = +r.siegquote;
+        td.style.background = nbCellColor(q);
+        const qs = document.createElement('span');
+        qs.className = 'nb-q';
+        qs.textContent = nbPct(q);
+        const ns = document.createElement('span');
+        ns.className = 'nb-n';
+        ns.textContent = r.laeufe + (+r.laeufe === 1 ? ' Lauf' : ' Läufe');
+        td.append(qs, ns);
+      }
+    }
+    el.replaceChildren(table);
+  });
+
+  dash.draw('koennen-chart', (el) => {
+    const c = dash.data('koennen_kurve');
+    if (c.status !== 'ok') { if (!nbFail(el, c.status)) el.textContent = ''; return; }
+    el.replaceChildren();
+    const data = c.data;
+    const groups = [...new Set(data.map((r) => r.spieler))].sort((a, b) => a - b);
+    const ks = [...new Set(data.map((r) => r.koennen))].sort((a, b) => a - b);
+    const W = Math.max(260, el.clientWidth), H = 240;
+    const svg = d3.select(el).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`);
+    // End labels decide the right margin.
+    const probe = svg.append('text').attr('font-size', 12).text('10 Spieler 100 %');
+    const endW = probe.node().getComputedTextLength() + 10;
+    probe.remove();
+    const m = { top: 12, right: endW, bottom: 30, left: 40 };
+    const x = d3.scaleLinear(ks.length > 1 ? [ks[0], ks[ks.length - 1]] : [0, 1], [m.left, W - m.right]);
+    const y = d3.scaleLinear([0, 1], [H - m.bottom, m.top]);
+    const grid = svg.append('g');
+    for (const t of [0, 0.25, 0.5, 0.75, 1]) {
+      grid.append('line').attr('x1', m.left).attr('x2', W - m.right).attr('y1', y(t)).attr('y2', y(t)).attr('stroke', 'var(--cds-chart-grid)');
+      grid.append('text').attr('x', m.left - 6).attr('y', y(t)).attr('dy', '0.32em').attr('text-anchor', 'end').attr('font-size', 11).attr('fill', 'var(--color-fg-muted)').text(nbPct(t));
+    }
+    for (const k of ks) {
+      svg.append('text').attr('x', x(k)).attr('y', H - m.bottom + 18).attr('text-anchor', 'middle').attr('font-size', 11).attr('fill', 'var(--color-fg-muted)').text(+k >= 1 ? 'perfekt' : String(k).replace('.', ','));
+    }
+    svg.append('line').attr('x1', m.left).attr('x2', W - m.right).attr('y1', y(nbTarget)).attr('y2', y(nbTarget)).attr('stroke', 'var(--cds-chart-reference)').attr('stroke-dasharray', '4 3');
+    const line = d3.line().x((d) => x(d.koennen)).y((d) => y(d.siegquote));
+    const ends = [];
+    groups.forEach((g, i) => {
+      const pts = data.filter((r) => r.spieler === g).sort((a, b) => a.koennen - b.koennen);
+      const color = dash.colors[i % dash.colors.length];
+      svg.append('path').datum(pts).attr('d', line).attr('fill', 'none').attr('stroke', color).attr('stroke-width', 2).attr('stroke-linecap', 'round').attr('stroke-linejoin', 'round');
+      svg.append('g').selectAll('circle').data(pts).join('circle').attr('cx', (d) => x(d.koennen)).attr('cy', (d) => y(d.siegquote)).attr('r', 3.5).attr('fill', color)
+        .on('mousemove', (ev, d) => {
+          const [px, py] = d3.pointer(ev, el);
+          nbTipShow(el, [nbLine('nb-tip-h', nbK(d.koennen)), nbLine('', `${d.spieler === 1 ? '1 Spieler' : d.spieler + ' Spieler'}: ${nbPct(d.siegquote)} (${d.siege} von ${d.laeufe})`)], px, py);
+        })
+        .on('mouseleave', () => nbTipHide(el));
+      const last = pts[pts.length - 1];
+      if (last) ends.push({ y: y(last.siegquote), text: `${g === 1 ? '1 Spieler' : g + ' Spieler'} ${nbPct(last.siegquote)}`, color });
+    });
+    // End labels: keep them at least 14px apart.
+    ends.sort((a, b) => a.y - b.y);
+    for (let i = 1; i < ends.length; i++) ends[i].y = Math.max(ends[i].y, ends[i - 1].y + 14);
+    const over = ends.length ? ends[ends.length - 1].y - (H - m.bottom) : 0;
+    if (over > 0) for (const e of ends) e.y -= over;
+    for (const e of ends) {
+      svg.append('text').attr('x', W - m.right + 8).attr('y', e.y).attr('dy', '0.32em').attr('font-size', 12).attr('fill', e.color).text(e.text);
+    }
+  });
+
+  dash.draw('gegner-chart', (el) => {
+    const g = dash.data('gegner');
+    if (g.status !== 'ok') { if (!nbFail(el, g.status)) el.textContent = ''; return; }
+    el.replaceChildren();
+    const rows = g.data.filter((r) => r.variante === nbCur()).sort((a, b) => b.anteil - a.anteil).slice(0, 10);
+    if (!rows.length) return;
+    const W = Math.max(260, el.clientWidth), bh = 20, gap = 6, H = rows.length * (bh + gap);
+    const svg = d3.select(el).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`);
+    let nameW = 0;
+    for (const r of rows) {
+      const t = svg.append('text').attr('font-size', 12).text(r.name);
+      nameW = Math.max(nameW, t.node().getComputedTextLength());
+      t.remove();
+    }
+    const valW = 44;
+    const x = d3.scaleLinear([0, d3.max(rows, (r) => r.anteil)], [0, Math.max(40, W - nameW - 12 - valW)]);
+    rows.forEach((r, i) => {
+      const yy = i * (bh + gap);
+      svg.append('text').attr('x', nameW).attr('y', yy + bh / 2).attr('dy', '0.32em').attr('text-anchor', 'end').attr('font-size', 12).attr('fill', 'var(--color-fg)').text(r.name);
+      svg.append('rect').attr('x', nameW + 8).attr('y', yy + 2).attr('width', Math.max(1, x(r.anteil))).attr('height', bh - 4).attr('rx', 3)
+        .attr('fill', i === 0 ? dash.colors[0] : 'var(--cds-chart-muted)')
+        .on('mousemove', (ev) => {
+          const [px, py] = d3.pointer(ev, el);
+          nbTipShow(el, [nbLine('nb-tip-h', r.name), nbLine('', `${nbPct(r.anteil)} des Schadens · ${nbNum.format(r.schaden)} Leben · ${nbNum.format(r.gespawnt)} erschienen`)], px, py);
+        })
+        .on('mouseleave', () => nbTipHide(el));
+      svg.append('text').attr('x', nameW + 12 + x(r.anteil)).attr('y', yy + bh / 2).attr('dy', '0.32em').attr('font-size', 12).attr('fill', 'var(--color-fg-muted)').text(nbPct(r.anteil));
+    });
+  });
+
+  dash.draw('mix', (el) => {
+    const d = dash.data('mischungen');
+    if (d.status !== 'ok') { if (!nbFail(el, d.status)) el.textContent = ''; return; }
+    const rows = d.data.filter((r) => r.variante === nbCur());
+    const groups = [...new Set(rows.map((r) => +r.spieler))].sort((a, b) => a - b);
+    const order = ['zufall', 'tank_heiler', 'nur_schaden', 'tanks_technik', 'beschwoerer'];
+    const kinds = [...new Set(rows.map((r) => r.mischung))].sort((a, b) => order.indexOf(a) - order.indexOf(b));
+    const table = document.createElement('table');
+    const head = table.createTHead().insertRow();
+    const h0 = document.createElement('th');
+    h0.textContent = 'Gruppe';
+    head.append(h0);
+    for (const g of groups) {
+      const th = document.createElement('th');
+      th.textContent = g === 1 ? '1 Spieler' : g + ' Spieler';
+      head.append(th);
+    }
+    const body = table.createTBody();
+    for (const k of kinds) {
+      const tr = body.insertRow();
+      const label = rows.find((r) => r.mischung === k)?.gruppenart ?? k;
+      tr.insertCell().textContent = label;
+      for (const g of groups) {
+        const td = tr.insertCell();
+        const r = rows.find((x) => x.mischung === k && +x.spieler === g);
+        if (!r) { td.textContent = '–'; continue; }
+        const box = document.createElement('div');
+        box.className = 'nb-bar';
+        const bar = document.createElement('i');
+        bar.style.width = Math.max(2, Math.round(+r.siegquote * 72)) + 'px';
+        if (+r.siegquote >= nbTarget) bar.className = 'nb-on';
+        const t = document.createElement('span');
+        t.textContent = `${nbPct(+r.siegquote)} (${r.laeufe})`;
+        box.append(bar, t);
+        td.append(box);
+      }
+    }
+    el.replaceChildren(table);
+  });
+
+  window.nbSort = { key: 'siegquote', dir: -1 };
+  dash.draw('uk-rows', (tb) => {
+    const d = dash.data('unterklassen');
+    tb.replaceChildren();
+    if (d.status !== 'ok') return;
+    const rows = d.data.filter((r) => r.variante === nbCur());
+    const { key, dir } = nbSort;
+    rows.sort((a, b) => {
+      const av = a[key], bv = b[key];
+      const c = key === 'name' || key === 'klasse' ? String(av).localeCompare(String(bv), 'de') : (+av - +bv);
+      return c * dir || String(a.name).localeCompare(String(b.name), 'de');
+    });
+    for (const r of rows) {
+      const tr = tb.insertRow();
+      tr.dataset.key = encodeURIComponent(r.variante) + ',' + encodeURIComponent(r.unterklasse);
+      tr.insertCell().textContent = r.name;
+      tr.insertCell().textContent = r.klasse;
+      tr.insertCell().textContent = nbNum.format(+r.laeufe);
+      const qc = tr.insertCell();
+      const wrap = document.createElement('span');
+      wrap.className = 'nb-qcell';
+      const bar = document.createElement('i');
+      bar.style.width = Math.max(2, Math.round(+r.siegquote * 60)) + 'px';
+      bar.style.background = nbCellColor(+r.siegquote).replace('transparent', 'var(--color-panel)');
+      bar.style.outline = '1px solid var(--color-border-line)';
+      const t = document.createElement('span');
+      t.textContent = nbPct(+r.siegquote);
+      wrap.append(bar, t);
+      qc.append(wrap);
+      tr.insertCell().textContent = nbNum.format(+r.schaden_je_lauf);
+      tr.insertCell().textContent = nbNum.format(+r.erhalten_je_lauf);
+      tr.insertCell().textContent = nbNum.format(+r.heilung_je_lauf);
+      tr.insertCell().textContent = nbDec.format(+r.tode_je_lauf);
+    }
+  });
+
+  const nbSortHeads = () => {
+    for (const th of document.querySelectorAll('.nb-uk th[data-sort]')) {
+      if (th.dataset.sort === nbSort.key) th.setAttribute('aria-sort', nbSort.dir > 0 ? 'ascending' : 'descending');
+      else th.removeAttribute('aria-sort');
+    }
+  };
+  for (const th of document.querySelectorAll('.nb-uk th[data-sort]')) {
+    th.addEventListener('click', () => {
+      const k = th.dataset.sort;
+      nbSort.dir = nbSort.key === k ? -nbSort.dir : (k === 'name' || k === 'klasse' ? 1 : -1);
+      nbSort.key = k;
+      nbSortHeads();
+      dash.draw('uk-rows');
+    });
+  }
+  nbSortHeads();
+</script>
