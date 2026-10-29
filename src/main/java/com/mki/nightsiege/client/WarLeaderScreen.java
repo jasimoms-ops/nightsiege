@@ -13,7 +13,6 @@ import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.ClipContext;
@@ -25,7 +24,6 @@ import org.lwjgl.glfw.GLFW;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 /**
  * The war leader's screen (Kriegsführer, Simon 29 October 2026; concept in
@@ -1157,35 +1155,31 @@ public class WarLeaderScreen extends Screen {
         return itemName(id);
     }
 
-    private static final Map<String, Item> ICONS = Map.ofEntries(
-            Map.entry("zombies", Items.ZOMBIE_HEAD),
-            Map.entry("skelette", Items.SKELETON_SKULL),
-            Map.entry("spinnen", Items.SPIDER_EYE),
-            Map.entry("creeper", Items.CREEPER_HEAD),
-            Map.entry("wiedergaenger", Items.ROTTEN_FLESH),
-            Map.entry("axtillager", Items.IRON_AXE),
-            Map.entry("enterhaken", Items.TRIPWIRE_HOOK),
-            Map.entry("tunnelgraeber", Items.IRON_SHOVEL),
-            Map.entry("standarte", Items.BANNER.red()),
-            Map.entry("eisenritter", Items.IRON_CHESTPLATE),
-            Map.entry("kameltrupp", Items.SAND),
-            Map.entry("machine.trebuchet", Items.OAK_LOG),
-            Map.entry("machine.mortar", Items.TNT),
-            Map.entry("machine.ballista", Items.CROSSBOW),
-            Map.entry("machine.fire", Items.FIRE_CHARGE),
-            Map.entry("machine.plague", Items.SLIME_BALL),
-            Map.entry("machine.hook", Items.LEAD),
-            Map.entry("card.blutmond", Items.REDSTONE),
-            Map.entry("card.nebel", Items.COBWEB),
-            Map.entry("card.frost", Items.SNOWBALL),
-            Map.entry("card.gewitter", Items.LIGHTNING_ROD));
-
     private static ItemStack icon(String id) {
-        Item item = ICONS.get(id);
-        if (item == null) {
-            item = id.startsWith("boss.") ? Items.WITHER_SKELETON_SKULL : Items.PAPER;
-        }
-        return new ItemStack(item);
+        return switch (id) {
+            case "zombies" -> new ItemStack(Items.ZOMBIE_HEAD);
+            case "skelette" -> new ItemStack(Items.SKELETON_SKULL);
+            case "spinnen" -> new ItemStack(Items.SPIDER_EYE);
+            case "creeper" -> new ItemStack(Items.CREEPER_HEAD);
+            case "wiedergaenger" -> new ItemStack(Items.ROTTEN_FLESH);
+            case "axtillager" -> new ItemStack(Items.IRON_AXE);
+            case "enterhaken" -> new ItemStack(Items.TRIPWIRE_HOOK);
+            case "tunnelgraeber" -> new ItemStack(Items.IRON_SHOVEL);
+            case "standarte" -> new ItemStack(Items.BANNER.red());
+            case "eisenritter" -> new ItemStack(Items.IRON_CHESTPLATE);
+            case "kameltrupp" -> new ItemStack(Items.SAND);
+            case "machine.trebuchet" -> new ItemStack(Items.OAK_LOG);
+            case "machine.mortar" -> new ItemStack(Items.TNT);
+            case "machine.ballista" -> new ItemStack(Items.CROSSBOW);
+            case "machine.fire" -> new ItemStack(Items.FIRE_CHARGE);
+            case "machine.plague" -> new ItemStack(Items.SLIME_BALL);
+            case "machine.hook" -> new ItemStack(Items.LEAD);
+            case "card.blutmond" -> new ItemStack(Items.REDSTONE);
+            case "card.nebel" -> new ItemStack(Items.COBWEB);
+            case "card.frost" -> new ItemStack(Items.SNOWBALL);
+            case "card.gewitter" -> new ItemStack(Items.LIGHTNING_ROD);
+            default -> new ItemStack(id.startsWith("boss.") ? Items.WITHER_SKELETON_SKULL : Items.PAPER);
+        };
     }
 
     private static void panel(GuiGraphicsExtractor gui, int x0, int y0, int x1, int y1) {
