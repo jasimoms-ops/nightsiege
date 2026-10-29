@@ -47,7 +47,7 @@ FOES = {
 
 def knobs_from_team(team):
     """Koennen und Wagemut je Variante aus den Einstellungen der Sim ("V=name:koennen=0.8,wagemut=1 …")."""
-    common = {"koennen": 1.0, "wagemut": 0.0}
+    common = {"koennen": 0.7, "wagemut": 1.0}   # der geeichte Standard der Sim (TeamSim.CALIBRATED_*)
     out = {}
     for token in (team or "").split():
         if token.startswith("V="):

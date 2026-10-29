@@ -51,6 +51,13 @@ public final class TeamSim {
     static final String[] TEMPLATES = {"tank_heiler", "nur_schaden", "tanks_technik", "beschwoerer"};
     static final int[] DEFAULT_LEVELS = {1, 3, 5, 8, 10, 12, 15, 20};
     static final int[] DEFAULT_GROUPS = {1, 2, 4, 7, 10};
+    /**
+     * The bots as calibrated against the real nights of the logger (29 October 2026, run
+     * balance-run-eich2 on the copy of Simon's castle): alone 0.8 / bold fitted best, groups 0.6 / bold,
+     * so 0.7 and fully bold by default. "koennen=1 wagemut=0" is the perfect bot that holds its post.
+     */
+    static final double CALIBRATED_SKILL = 0.7;
+    static final double CALIBRATED_BOLDNESS = 1.0;
     /** The target of the balance (Simon 01:17: about 70 % wins on the group's own level). */
     public static final double TARGET = 0.70;
 
@@ -494,8 +501,8 @@ public final class TeamSim {
             bot.getFoodData().setFoodLevel(20);
             bot.getFoodData().setSaturation(5f);
             bot.getInventory().clearContent();
-            TeamBrain brain = new TeamBrain(bot.getUUID(), sub, knob(run.variant(), sub[0], "koennen", 1.0),
-                    knob(run.variant(), sub[0], "wagemut", 0.0),
+            TeamBrain brain = new TeamBrain(bot.getUUID(), sub, knob(run.variant(), sub[0], "koennen", CALIBRATED_SKILL),
+                    knob(run.variant(), sub[0], "wagemut", CALIBRATED_BOLDNESS),
                     seed(run.level(), run.group(), run.mix(), run.index()) * 31 + i);
             brains.put(bot.getUUID(), brain);
         }
@@ -777,7 +784,7 @@ public final class TeamSim {
      * the common one; 1 (the perfect bot) when nothing is set.
      */
     static double skillOf(String variant, String clazz) {
-        return knob(variant, clazz, "koennen", 1.0);
+        return knob(variant, clazz, "koennen", CALIBRATED_SKILL);
     }
 
     /**
