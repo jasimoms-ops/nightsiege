@@ -228,7 +228,13 @@ public class CoreScreen extends Screen {
         return p == null || p.path == null ? "" : p.path;
     }
 
+    /** Tests only: the scene of this subclass behind any tree (the CI pictures of all 20 backgrounds). */
+    public static String testSceneSub;
+
     private String shownSub() {
+        if (testSceneSub != null) {
+            return testSceneSub;
+        }
         CoreStats.ProfileLine p = shown();
         return p == null || p.subclass == null ? "" : p.subclass;
     }
@@ -1148,6 +1154,14 @@ public class CoreScreen extends Screen {
     private void drawScene(GuiGraphicsExtractor gui, int vx, int vy, int vw, int vh) {
         // Design update (29 October 2026): the shown profile's subclass has its own scene (tools/ui/tree_bg.py).
         String sub = activeTab.key.equals("core") ? "" : shownSub();
+        if (TreeScene.has(sub)) {
+            // v2 (29 October 2026): three layers with parallax and the subclass's particles (TreeScene).
+            double dx = (camX - (minX + maxX) / 2.0) / Math.max(1.0, (maxX - minX) / 2.0);
+            double dy = (camY - (minY + maxY) / 2.0) / Math.max(1.0, (maxY - minY) / 2.0);
+            TreeScene.draw(gui, sub, vx, vy, vw, vh, Math.max(-1, Math.min(1, dx)), Math.max(-1, Math.min(1, dy)));
+            edge(gui, vx, vy, vw, vh);
+            return;
+        }
         Identifier scene = Identifier.fromNamespaceAndPath("nightsiege", sub.isEmpty()
                 ? "textures/gui/skills/" + activeTab.key + ".png" : "textures/gui/skills/sub/" + sub + ".png");
         int texW = 480;
@@ -1163,8 +1177,12 @@ public class CoreScreen extends Screen {
         float u = (float) Math.max(0, Math.min(texW - regionW, (texW - regionW) / 2.0 + driftX * 0.5));
         float v = (float) Math.max(0, Math.min(texH - regionH, (texH - regionH) / 2.0 + driftY * 0.5));
         gui.blit(RenderPipelines.GUI_TEXTURED, scene, vx, vy, u, v, vw, vh, regionW, regionH, texW, texH);
-        gui.fill(vx, vy, vx + vw, vy + vh, 0x30000000);   // a touch darker, so the stars stand out
-        // A soft dark edge so the tree stands out.
+        edge(gui, vx, vy, vw, vh);
+    }
+
+    /** A touch darker, so the stars stand out, and a soft dark edge so the tree stands out. */
+    private static void edge(GuiGraphicsExtractor gui, int vx, int vy, int vw, int vh) {
+        gui.fill(vx, vy, vx + vw, vy + vh, 0x30000000);
         for (int i = 0; i < 10; i++) {
             int a = (10 - i) * 6;
             gui.fill(vx, vy + i, vx + vw, vy + i + 1, a << 24);
