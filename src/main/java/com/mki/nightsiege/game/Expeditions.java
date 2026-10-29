@@ -1004,11 +1004,16 @@ public final class Expeditions {
             }
             return true;
         }
+        if (!m.save().skillsOf(player.getUUID().toString()).hasClass()) {
+            player.sendSystemMessage(Component.translatable("nightsiege.expedition.round_noclass").withStyle(ChatFormatting.GRAY));
+            return true;
+        }
         Round r = new Round();
         r.starter = player.getUUID();
         r.startedAt = now;
         for (ServerPlayer other : level.players()) {
             if (m.isRegistered(other) && other.isAlive() && !other.isSpectator() && !Drones.isDrone(other)
+                    && m.save().skillsOf(other.getUUID().toString()).hasClass()
                     && !out.contains(other.getUUID())
                     && other.distanceToSqr(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5) <= ROUND_RADIUS * ROUND_RADIUS) {
                 r.members.add(other.getUUID());

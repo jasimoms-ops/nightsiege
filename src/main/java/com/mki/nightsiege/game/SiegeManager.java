@@ -4527,10 +4527,11 @@ public final class SiegeManager {
         }
         player.sendSystemMessage(Component.translatable("nightsiege.msg.play_class",
                 profileName(own, key)).withStyle(ChatFormatting.GREEN));
+        expeditions.onRoundReady(player);   // the dungeon's ready round (content update)
         if (classPicking.remove(player.getUUID())) {
             // Chosen in the window before the night: no core window on top, just the new name tag.
             ClassTags.update(player.level().getServer(), player, own, skillTree.subclassOfProfile(own, own.chosenClass));
-            expeditions.onRoundReady(player);   // the dungeon's ready round (content update)
+
             refreshClassPicks(player.level().getServer());
             return;
         }

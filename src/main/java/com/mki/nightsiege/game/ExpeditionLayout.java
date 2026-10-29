@@ -155,6 +155,7 @@ public final class ExpeditionLayout {
         int cz = arenaCenter(rooms);
         arena(b, plan, cz);
         b.enclose();
+        b.hiddenLight();
         // The gates: one behind every hall (closed), the arena's (open until the fight).
         for (int i = 0; i < rooms; i++) {
             int ox = OFFSET[i];
@@ -2016,6 +2017,31 @@ public final class ExpeditionLayout {
                 }
                 Part part = a[3] == 1 ? Part.FLOOR : a[3] == 2 ? Part.CEILING : Part.WALL;
                 put(x, y, z, p(part, x, y, z));
+            }
+        }
+
+        /**
+         * Hidden light (palette rule 7: at least 7 on the ways; dark comes from fog and colour):
+         * invisible light blocks 2 over the floor every 5 blocks, where there is air.
+         */
+        void hiddenLight() {
+            BlockState light = Blocks.LIGHT.defaultBlockState().setValue(BlockStateProperties.LEVEL, dim ? 12 : 13);
+            java.util.Set<Long> done = new java.util.HashSet<>();
+            for (long[] w : walks) {
+                int x = (int) w[0];
+                int y = (int) w[1];
+                int z = (int) w[2];
+                if (Math.floorMod(x, 5) != 0 || Math.floorMod(z, 5) != 0) {
+                    continue;
+                }
+                for (int up = 2; up >= 1; up--) {
+                    long k = key(x, y + up, z);
+                    BlockState there = out.get(k);
+                    if (there != null && there.isAir() && done.add(k)) {
+                        out.put(k, light);
+                        break;
+                    }
+                }
             }
         }
 

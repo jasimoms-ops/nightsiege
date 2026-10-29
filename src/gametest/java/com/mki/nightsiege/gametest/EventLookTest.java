@@ -2024,10 +2024,10 @@ public class EventLookTest implements FabricClientGameTest {
             context.waitTicks(i == 0 ? 80 : 45);
             context.takeScreenshot("dungeon_" + id + "_gate");
             // Hall 1 from the left tower niche, then from the back over the whole hall.
-            camera(game, cx - 12.5, hy + 4.5, bz + 33.5, cx + 2.5, hy + 1, bz + 56.5);
+            camera(game, cx - 11.5, hy + 4.5, bz + 33.5, cx + 2.5, hy + 1, bz + 56.5);
             context.waitTicks(35);
             context.takeScreenshot("dungeon_" + id + "_room");
-            camera(game, cx + 0.5, hy + 9.5, bz + 32 + 28.5, cx + 0.5, hy, bz + 32 + 4.5);
+            camera(game, cx + 6.5, hy + 9.5, bz + 32 + 27.5, cx + 0.5, hy, bz + 32 + 4.5);
             context.waitTicks(30);
             context.takeScreenshot("dungeon_" + id + "_room_back");
             // Hall 2 (offset to the left): its own module.
@@ -2058,6 +2058,10 @@ public class EventLookTest implements FabricClientGameTest {
         context.waitTicks(20);
         onServer(context, (player, manager) -> {
             com.mki.nightsiege.game.ExpeditionLayout.Plan plan = manager.expeditions().testPlan();
+            if (!manager.save().skillsOf(player.getUUID().toString()).hasClass()) {
+                manager.onChooseClass(player, "WARRIOR");
+            }
+            System.out.println("[Night Siege test] dungeon class: " + manager.save().skillsOf(player.getUUID().toString()).chosenClass);
             boolean used = manager.expeditions().onSeal(player, plan.seal);
             System.out.println("[Night Siege test] dungeon seal: used=" + used + " inRound=" + manager.expeditions().inRound(player)
                     + " stone=" + player.level().getBlockState(plan.seal).getBlock()
