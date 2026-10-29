@@ -2323,18 +2323,28 @@ class SiegeCoreTest {
     }
 
     @Test
-    void bossNightEverySixthSiege() {
+    void bossNightEveryFourthSiege() {
         SiegeConfig c = new SiegeConfig();
         c.sanitize();
-        assertEquals(6, c.bossEvery);
-        // 5 sieges since the last boss: the 6th is a boss night
-        assertFalse(BossPlan.isBossNight(4, c));
-        assertTrue(BossPlan.isBossNight(5, c));
+        assertEquals(4, c.bossEvery);   // every 4th night since the content update (29 October 2026)
+        // 3 sieges since the last boss: the 4th is a boss night
+        assertFalse(BossPlan.isBossNight(2, c));
+        assertTrue(BossPlan.isBossNight(3, c));
         // a lost boss night: the counter stays, the boss comes again
-        assertTrue(BossPlan.isBossNight(7, c));
+        assertTrue(BossPlan.isBossNight(5, c));
         c.bossesEnabled = false;
-        assertFalse(BossPlan.isBossNight(5, c));
+        assertFalse(BossPlan.isBossNight(3, c));
         c.bossesEnabled = true;
+        // A server that kept the old 6 goes to 4 once; one that sets 6 again afterwards keeps it.
+        SiegeConfig old = new SiegeConfig();
+        old.bossEvery = 6;
+        old.contentVersion = 0;
+        old.sanitize();
+        assertEquals(4, old.bossEvery);
+        old.bossEvery = 6;
+        old.sanitize();
+        assertEquals(6, old.bossEvery);
+        assertEquals(8, BossKind.values().length, "eight bosses since the content update");
         // an old save counts the sieges played so far
         assertEquals(2, BossPlan.startCount(10, 4, c));
         assertEquals(0, BossPlan.startCount(0, 0, c));

@@ -4549,6 +4549,12 @@ public final class SiegeManager {
         if (target instanceof net.minecraft.world.entity.player.Player p && Drones.isDrone(p)) {
             return false;   // the drones of the fallen are left alone
         }
+        if (BossService.isBoss(mob) && !(target instanceof net.minecraft.world.entity.player.Player)) {
+            return false;   // a boss fights the defenders only (the frost jarl is an iron golem at heart)
+        }
+        if (BossService.isMount(target) || (BossService.isBossOrPart(target) && !Companions.isCompanion(mob))) {
+            return false;   // and no monster turns on a boss (zombies hate iron golems); the witch's phantom cannot be hurt
+        }
         if (!Companions.mayTarget(mob, target)) {
             return false;   // companions pick no players and no other companions
         }

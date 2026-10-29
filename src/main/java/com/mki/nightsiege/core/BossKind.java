@@ -3,7 +3,7 @@ package com.mki.nightsiege.core;
 import java.util.Locale;
 
 /**
- * The bosses of the boss nights (Simon, 25 October 2026): every 6th siege ends with one of
+ * The bosses of the boss nights (Simon, 25 October 2026): every 4th siege (6th until 29 October 2026) ends with one of
  * them, the night is only won when it falls. Each is a vanilla monster made big, with its
  * own look and abilities (see BossService).
  */
@@ -15,7 +15,16 @@ public enum BossKind {
     /** A floating skeleton: arrow rain, a soul shield held up by three crystals, blinks away. */
     BONE_LICH("bone_lich", "minecraft:skeleton", 2.0, 240.0, 1.3),
     /** A ravager with the warlord on its back: charges, the war banner, squads; then on foot. */
-    WARLORD("warlord", "minecraft:ravager", 1.5, 200.0, 1.3);
+    WARLORD("warlord", "minecraft:ravager", 1.5, 200.0, 1.3),
+    // Content update (29 October 2026): four more, each against another class.
+    /** An ice golem: a stomp over shields, walls of ice, an avalanche below 30 %. */
+    FROST_JARL("frost_jarl", "minecraft:iron_golem", 1.7, 320.0, 1.4),
+    /** A magma cube (the smallest, made big: it does not split by itself): lava cracks behind it; at half health it breaks into two halves. */
+    EMBER_COLOSSUS("ember_colossus", "minecraft:magma_cube", 5.0, 300.0, 1.3),
+    /** A witch on a phantom: chain lightning, a storm that sweeps the walls; lands now and then. */
+    STORM_WITCH("storm_witch", "minecraft:witch", 1.6, 220.0, 1.2),
+    /** A giant ravager: charges through gate and tank, leaves craters. */
+    RAM_TITAN("ram_titan", "minecraft:ravager", 1.8, 340.0, 1.3);
 
     /** The warlord himself, who rides the ravager. */
     public static final String WARLORD_RIDER = "minecraft:vindicator";

@@ -91,6 +91,9 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("weapons")) {
                     kitWeaponScene(context, game);   // the kit weapons, 3D since 29 October 2026
                 }
+                if (want.contains("bosses")) {
+                    bossScene(context, game);   // all eight bosses (four more since the content update, 29 October 2026)
+                }
                 if (want.contains("subtrees")) {
                     subTreeShots(context);   // one tree per subclass (content update, 29 October 2026)
                 }
@@ -2684,9 +2687,18 @@ public class EventLookTest implements FabricClientGameTest {
                         + manager.bosses().kind() + " spawned=" + now + " boss=" + (boss == null ? "-" : boss.getType().toShortString()
                         + " hp=" + Math.round(boss.getHealth()) + " scale=" + boss.getScale()));
                 if (boss != null) {
-                    // Hold the boss still for the photo, close to the camera.
+                    // Hold the boss still for the photo, close to the camera (its abilities wait too).
+                    com.mki.nightsiege.game.BossService.testHold = true;
                     boss.setNoAi(true);
-                    boss.teleportTo(cx + 0.5, cy, cz - 4.5);
+                    net.minecraft.world.entity.Mob mount = manager.bosses().mountOf(level);
+                    if (mount != null) {
+                        mount.teleportTo(cx + 0.5, cy + 1.0, cz - 4.5);   // the storm witch on her phantom, low
+                        mount.setYRot(0f);
+                        mount.setYHeadRot(0f);
+                        mount.yBodyRot = 0f;
+                    } else {
+                        boss.teleportTo(cx + 0.5, cy, cz - 4.5);
+                    }
                     boss.setYRot(0f);
                     boss.setYHeadRot(0f);
                     boss.yBodyRot = 0f;
@@ -2752,6 +2764,7 @@ public class EventLookTest implements FabricClientGameTest {
             }
             // Let it fight for a while, then look at what it did.
             onServer(context, (player, manager) -> {
+                com.mki.nightsiege.game.BossService.testHold = false;
                 net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
                 net.minecraft.world.entity.Mob boss = manager.bosses().boss(level);
                 if (boss != null) {
@@ -2813,6 +2826,27 @@ public class EventLookTest implements FabricClientGameTest {
                         context.runOnClient(client -> hud(client, true));
                     }
                 }
+            }
+            if (kind == com.mki.nightsiege.core.BossKind.EMBER_COLOSSUS) {
+                // Below half the colossus breaks in two (content update).
+                onServer(context, (player, manager) -> {
+                    net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                    net.minecraft.world.entity.Mob boss = manager.bosses().boss(level);
+                    if (boss != null) {
+                        boss.setHealth(boss.getMaxHealth() * 0.45f);
+                    }
+                });
+                context.waitTicks(10);
+                onServer(context, (player, manager) -> {
+                    net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                    net.minecraft.world.entity.Mob boss = manager.bosses().boss(level);
+                    net.minecraft.world.entity.Mob half = manager.bosses().riderOf(level);
+                    System.out.println("[Night Siege test] boss ember_colossus split: main=" + (boss == null ? "-" : Math.round(boss.getHealth())
+                            + "/" + Math.round(boss.getMaxHealth())) + " half=" + (half == null ? "-" : Math.round(half.getHealth())
+                            + "/" + Math.round(half.getMaxHealth())));
+                });
+                closeScreen(context);
+                context.takeScreenshot("boss_ember_colossus_split");
             }
             // Down with it: the lich's shield must hold until its crystals are gone.
             onServer(context, (player, manager) -> {
@@ -5283,9 +5317,9 @@ public class EventLookTest implements FabricClientGameTest {
                 pickSub(context, c[0], sub);
                 context.takeScreenshot("subtree_" + sub);
                 // Klare Stufen (Simon, 29 October 2026): the middle tiers and the top, readable.
-                zoomTo(context, c[0] + "/" + sub, 0.0, -5.5 * 54, 1.0);
+                zoomTo(context, c[0] + "/" + sub, 0.0, -5.5 * 50, 1.0);
                 context.takeScreenshot("subtree_" + sub + "_mid");
-                zoomTo(context, c[0] + "/" + sub, 0.0, -9.0 * 54, 1.0);
+                zoomTo(context, c[0] + "/" + sub, 0.0, -9.0 * 50, 1.0);
                 context.takeScreenshot("subtree_" + sub + "_top");
                 zoomTo(context, c[0] + "/" + sub, 0.0, 0.0, 0.0);
             }
@@ -5299,7 +5333,7 @@ public class EventLookTest implements FabricClientGameTest {
         context.takeScreenshot("subtree_berserker_choice");
         selectNode(context, null);
         // The whole tree (the button in the corner).
-        zoomTo(context, "WARRIOR/berserker", 0.0, -5.0 * 54, 0.01);
+        zoomTo(context, "WARRIOR/berserker", 0.0, -5.0 * 50, 0.01);
         context.takeScreenshot("subtree_berserker_whole");
         zoomTo(context, "WARRIOR/berserker", 0.0, 0.0, 0.0);
         closeScreen(context);

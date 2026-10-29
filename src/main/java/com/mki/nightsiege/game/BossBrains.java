@@ -41,7 +41,7 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * The abilities of the four bosses (Simon, 25 October 2026). Each brain runs every tick of
+ * The abilities of the first four bosses (Simon, 25 October 2026; the other four are in {@link ContentBosses}). Each brain runs every tick of
  * the fight; the boss's own vanilla AI still walks and strikes, the brain adds the rest.
  * Cooldowns are in ticks; every ability is announced (particles, sound) before it lands.
  */
@@ -56,6 +56,10 @@ final class BossBrains {
             case SPIDER_QUEEN -> new SpiderQueen(service, kind);
             case BONE_LICH -> new Lich(service, kind);
             case WARLORD -> new Warlord(service, kind);
+            case FROST_JARL -> new ContentBosses.FrostJarl(service, kind);
+            case EMBER_COLOSSUS -> new ContentBosses.EmberColossus(service, kind);
+            case STORM_WITCH -> new ContentBosses.StormWitch(service, kind);
+            case RAM_TITAN -> new ContentBosses.RamTitan(service, kind);
         };
     }
 
@@ -102,6 +106,10 @@ final class BossBrains {
         }
 
         void cleanUp(ServerLevel level) {
+        }
+
+        /** The boss has fallen (its helpers go at once: the witch's phantom, the jarl's ice). */
+        void died(ServerLevel level) {
         }
 
         static boolean below(Mob boss, double share) {

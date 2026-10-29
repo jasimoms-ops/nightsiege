@@ -55,13 +55,15 @@ import java.util.Random;
 import java.util.UUID;
 
 /**
- * The boss of a boss night (Simon, 25 October 2026): every 6th siege ends with one of four
- * bosses (see {@link BossKind}). It comes as the finale with a last big wave; the night is
+ * The boss of a boss night (Simon, 25 October 2026): every 4th siege (6th until the content
+ * update of 29 October 2026) ends with one of eight bosses (see {@link BossKind}). It comes as the finale with a last big wave; the night is
  * won when it falls and lost when it still stands at dawn. The abilities live in
  * {@link BossBrains}; this class spawns the boss, keeps its bar, its parts (soul crystals,
  * egg sacs) and tells the clients which monster wears which boss look.
  *
- * <p>Bosses change no blocks. They are not in the night's list of monsters, so ladders,
+ * <p>The first four change no blocks; the frost jarl raises walls of ice for 15 s and the ram
+ * titan breaks through walls and leaves craters, both written down for the repair after the
+ * night (content update). Bosses are not in the night's list of monsters, so ladders,
  * diggers and the kill goal leave them alone; towers and players hit them like any monster.</p>
  */
 public final class BossService {
@@ -70,6 +72,8 @@ public final class BossService {
     public static final String TAG_BOSS = "nightsiege_boss";
     /** Tag of a part of a boss fight: the hitbox of a soul crystal or egg sac, and its look. */
     public static final String TAG_PART = "nightsiege_bosspart";
+    /** Tag of the storm witch's phantom: it cannot be hurt, so towers and monsters leave it alone. */
+    public static final String TAG_MOUNT = "nightsiege_bossmount";
     /** Tags of the lich's arrows: the soul arrow (10 % of max health, slows) and the rain (6 %). */
     public static final String TAG_SOUL_ARROW = "nightsiege_soularrow";
     public static final String TAG_RAIN_ARROW = "nightsiege_rainarrow";
@@ -139,8 +143,10 @@ public final class BossService {
     /** The night the boss fights in (level and config for the shares of the max health). */
     private Host host;
     private UUID bossId;
-    /** The warlord on the ravager's back (the boss of the second phase). */
+    /** The warlord on the ravager's back (the boss of the second phase), or the ember colossus's second half. */
     private UUID riderId;
+    /** The storm witch's phantom (it cannot be hurt; it goes when she falls). */
+    private UUID mountId;
     private ServerBossEvent bar;
     private boolean spawned;
     private boolean fallen;
@@ -188,6 +194,12 @@ public final class BossService {
         return e instanceof Mob mob && mob.isAlive() ? mob : null;
     }
 
+    /** The storm witch's phantom, or null. */
+    Mob mount(ServerLevel level) {
+        Entity e = mountId == null || level == null ? null : level.getEntity(mountId);
+        return e instanceof Mob mob && mob.isAlive() ? mob : null;
+    }
+
     /** The boss comes: spawned outside the walls, its bar shown, everyone told. */
     public boolean spawn(Host host) {
         if (kind == null || spawned) {
@@ -209,6 +221,14 @@ public final class BossService {
         double perPlayer = host.config().perPlayer(SiegeManager.get() != null && SiegeManager.get().inPlaytest(),
                 host.config().bossHealthPerExtraPlayer);
         double health = BossPlan.health(kind.baseHealth(), host.level(), defenders, host.config(), perPlayer);
+        // The golem and the ravager hit hard as they are: the new bosses start from a lighter blow.
+        switch (kind) {
+            case FROST_JARL -> set(boss, Attributes.ATTACK_DAMAGE, 6.0);
+            case RAM_TITAN -> set(boss, Attributes.ATTACK_DAMAGE, 8.0);
+            case EMBER_COLOSSUS -> set(boss, Attributes.ATTACK_DAMAGE, 5.0);
+            default -> {
+            }
+        }
         // The ravager hits hard as it is; the warlord himself takes the boss factor.
         prepare(boss, host, health, kind.scale(), kind == BossKind.WARLORD ? 0.85 : kind.damage());
         boss.setCustomName(Component.translatable("nightsiege.boss." + kind.id()));
@@ -235,6 +255,30 @@ public final class BossService {
                 }
             }
         }
+        if (kind == BossKind.STORM_WITCH) {
+            // Her phantom: it cannot be hurt and flies where her brain steers it.
+            BlockPos high = spot.above(10);
+            Mob phantom = create(level, "minecraft:phantom", high, host.random());
+            if (phantom != null) {
+                phantom.setNoAi(true);
+                phantom.setNoGravity(true);
+                phantom.setInvulnerable(true);
+                phantom.setPersistenceRequired();
+                set(phantom, Attributes.SCALE, 2.2);
+                phantom.addEffect(new MobEffectInstance(MobEffects.FIRE_RESISTANCE, MobEffectInstance.INFINITE_DURATION, 0, false, false));
+                phantom.addTag(MobFactory.TAG);
+                phantom.addTag(TAG_MOUNT);
+                if (level.addFreshEntity(phantom)) {
+                    boss.snapTo(high.getX() + 0.5, high.getY(), high.getZ() + 0.5, boss.getYRot(), 0f);
+                    if (boss.startRiding(phantom)) {
+                        mountId = phantom.getUUID();
+                        looks.put(phantom.getId(), kind.id());
+                    } else {
+                        phantom.discard();
+                    }
+                }
+            }
+        }
         spawned = true;
         brain.spawned(host, boss);
         aim(host, boss);
@@ -257,9 +301,12 @@ public final class BossService {
         return true;
     }
 
+    /** For the tests: the boss's abilities wait (while it is photographed). */
+    public static boolean testHold;
+
     /** Every tick of the night once the boss is there. */
     public void tick(Host host, long now) {
-        if (!spawned || fallen || brain == null) {
+        if (!spawned || fallen || brain == null || testHold) {
             return;
         }
         this.host = host;
@@ -324,6 +371,10 @@ public final class BossService {
             case SPIDER_QUEEN -> BossEvent.BossBarColor.RED;
             case BONE_LICH -> BossEvent.BossBarColor.BLUE;
             case WARLORD -> BossEvent.BossBarColor.PURPLE;
+            case FROST_JARL -> BossEvent.BossBarColor.WHITE;
+            case EMBER_COLOSSUS -> BossEvent.BossBarColor.RED;
+            case STORM_WITCH -> BossEvent.BossBarColor.GREEN;
+            case RAM_TITAN -> BossEvent.BossBarColor.PINK;
         };
     }
 
@@ -345,8 +396,22 @@ public final class BossService {
                 return false;
             }
         }
+        if (kind == BossKind.EMBER_COLOSSUS && riderId != null && (id.equals(bossId) || id.equals(riderId))) {
+            // One half of the colossus is down; the other burns on.
+            ServerLevel level = (ServerLevel) mob.level();
+            Mob other = id.equals(bossId) ? rider(level) : boss(level);
+            if (other != null) {
+                bossId = other.getUUID();
+                riderId = null;
+                level.sendParticles(ParticleTypes.LAVA, mob.getX(), mob.getY() + 0.5, mob.getZ(), 30, 1.0, 0.6, 1.0, 0.1);
+                return false;
+            }
+        }
         if (id.equals(bossId) || (kind == BossKind.WARLORD && id.equals(riderId))) {
             fallen = true;
+            if (brain != null) {
+                brain.died((ServerLevel) mob.level());
+            }
             killer = source != null && source.getEntity() instanceof ServerPlayer p ? p.getUUID() : null;
             ServerLevel level = (ServerLevel) mob.level();
             level.sendParticles(ParticleTypes.EXPLOSION_EMITTER, mob.getX(), mob.getY() + 1.0, mob.getZ(), 2, 0.5, 0.5, 0.5, 0);
@@ -448,6 +513,7 @@ public final class BossService {
                 }
                 discard(level, bossId);
                 discard(level, riderId);
+                discard(level, mountId);
             }
         }
         parts.clear();
@@ -460,6 +526,7 @@ public final class BossService {
         brain = null;
         bossId = null;
         riderId = null;
+        mountId = null;
         spawned = false;
         fallen = false;
         killer = null;
@@ -490,9 +557,14 @@ public final class BossService {
         return brain instanceof BossBrains.Lich lich && lich.exhausted(now);
     }
 
-    /** For the tests: the warlord on his ravager (null for the other bosses). */
+    /** For the tests: the warlord on his ravager, the colossus's second half (null for the other bosses). */
     public Mob riderOf(ServerLevel level) {
         return rider(level);
+    }
+
+    /** For the tests: the storm witch's phantom, or null. */
+    public Mob mountOf(ServerLevel level) {
+        return mount(level);
     }
 
     /**
@@ -505,7 +577,13 @@ public final class BossService {
 
     /** True for a boss or one of its parts (they never count as monsters of the night). */
     public static boolean isBossOrPart(Entity entity) {
-        return entity != null && (entity.entityTags().contains(TAG_BOSS) || entity.entityTags().contains(TAG_PART));
+        return entity != null && (entity.entityTags().contains(TAG_BOSS) || entity.entityTags().contains(TAG_PART)
+                || entity.entityTags().contains(TAG_MOUNT));
+    }
+
+    /** True for the storm witch's phantom. */
+    public static boolean isMount(Entity entity) {
+        return entity != null && entity.entityTags().contains(TAG_MOUNT);
     }
 
     public static boolean isBoss(Entity entity) {
@@ -567,7 +645,7 @@ public final class BossService {
 
     // ------------------------------------------------------------------ building blocks
 
-    private static Mob create(ServerLevel level, String entityId, BlockPos spot, Random random) {
+    static Mob create(ServerLevel level, String entityId, BlockPos spot, Random random) {
         net.minecraft.resources.Identifier id = net.minecraft.resources.Identifier.tryParse(entityId);
         EntityType<?> type = id == null ? null : net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getValue(id);
         Entity entity = type == null ? null : type.create(level, EntitySpawnReason.EVENT);
@@ -582,7 +660,7 @@ public final class BossService {
     }
 
     /** Health, size, damage, tags and protection of a boss monster. */
-    private static void prepare(Mob mob, Host host, double health, double scale, double damage) {
+    static void prepare(Mob mob, Host host, double health, double scale, double damage) {
         set(mob, Attributes.MAX_HEALTH, health);
         mob.setHealth((float) health);
         AttributeInstance attack = mob.getAttribute(Attributes.ATTACK_DAMAGE);
@@ -659,6 +737,51 @@ public final class BossService {
         if (share > 0 && player.isAlive()) {
             PercentDamage.hit(level, player, boss, boss, share, host.level(), host.config(), host.config().bossPercentDamage);
         }
+    }
+
+    /** As {@link #strike}, but the share goes through a raised shield (the jarl's stomp, the titan's charge). */
+    static void strikeThrough(Host host, ServerLevel level, Mob boss, ServerPlayer player, float damage, double share) {
+        hurt(level, boss, player, damage);
+        if (share > 0 && player.isAlive()) {
+            PercentDamage.hitThrough(level, player, boss, boss, share, host.level(), host.config(), host.config().bossPercentDamage);
+        }
+    }
+
+    /**
+     * The ember colossus breaks in two (content update): both halves keep {@code share} of the
+     * whole's max health each and shrink a little; the bar goes on from where it stood.
+     */
+    boolean splitColossus(Host host, Mob whole, double share) {
+        ServerLevel level = host.world();
+        if (riderId != null || whole == null) {
+            return false;
+        }
+        double max = whole.getMaxHealth();
+        double half = max * share;
+        double scale = whole.getScale() * 0.78;
+        Mob other = create(level, kind.entityId(), whole.blockPosition(), host.random());
+        if (other == null) {
+            return false;
+        }
+        set(other, Attributes.ATTACK_DAMAGE, 5.0);
+        prepare(other, host, half, scale, kind.damage());
+        other.setCustomName(whole.getCustomName());
+        double a = host.random().nextDouble() * Math.PI * 2.0;
+        other.snapTo(whole.getX() + Math.cos(a) * 2.5, whole.getY() + 0.5, whole.getZ() + Math.sin(a) * 2.5, whole.getYRot(), 0f);
+        if (!level.addFreshEntity(other)) {
+            return false;
+        }
+        set(whole, Attributes.MAX_HEALTH, half);
+        whole.setHealth((float) half);
+        set(whole, Attributes.SCALE, scale);
+        riderId = other.getUUID();
+        looks.put(other.getId(), kind.id());
+        syncAll(level.getServer());
+        // The bar stands where it stood: the two halves together are what was left.
+        double shown = bar == null ? 0.5 : Math.max(0.05, bar.getProgress());
+        maxTotal = 2.0 * half / shown;
+        aim(host, other);
+        return true;
     }
 
     /** Throws a player away from a point. */

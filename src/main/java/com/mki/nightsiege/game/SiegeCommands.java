@@ -403,7 +403,8 @@ public final class SiegeCommands {
      * like without touching the record, the points or the base.
      */
     /** German names of the bosses for the test command (the ids work too). */
-    private static final String[] BOSS_NAMES = {"grabkoenig", "spinnenkoenigin", "knochenlich", "kriegsherr"};
+    private static final String[] BOSS_NAMES = {"grabkoenig", "spinnenkoenigin", "knochenlich", "kriegsherr", "frostjarl",
+            "glutkoloss", "sturmhexe", "rammbock"};
 
     private static com.mki.nightsiege.core.BossKind bossByName(String name) {
         if (name == null) {
@@ -415,6 +416,10 @@ public final class SiegeCommands {
             case "spinnenkoenigin", "koenigin" -> com.mki.nightsiege.core.BossKind.SPIDER_QUEEN;
             case "knochenlich", "lich" -> com.mki.nightsiege.core.BossKind.BONE_LICH;
             case "kriegsherr", "illager" -> com.mki.nightsiege.core.BossKind.WARLORD;
+            case "frostjarl", "jarl" -> com.mki.nightsiege.core.BossKind.FROST_JARL;
+            case "glutkoloss", "koloss" -> com.mki.nightsiege.core.BossKind.EMBER_COLOSSUS;
+            case "sturmhexe", "hexe" -> com.mki.nightsiege.core.BossKind.STORM_WITCH;
+            case "rammbock", "titan", "rammbock-titan" -> com.mki.nightsiege.core.BossKind.RAM_TITAN;
             default -> com.mki.nightsiege.core.BossKind.byId(n);
         };
     }

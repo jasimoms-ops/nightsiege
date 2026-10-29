@@ -3346,6 +3346,9 @@ public final class TrapService {
 
     /** True while a boss takes no damage at all (the lich behind his soul shield): no tower wastes a shot on it. */
     static boolean shielded(LivingEntity e) {
+        if (BossService.isMount(e)) {
+            return true;   // the storm witch's phantom cannot be hurt
+        }
         SiegeManager m = SiegeManager.get();
         return m != null && BossService.isBoss(e) && m.bosses().shielded(e);
     }

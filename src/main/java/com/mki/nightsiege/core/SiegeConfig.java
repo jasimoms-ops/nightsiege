@@ -159,7 +159,9 @@ public class SiegeConfig {
     // --- boss nights (Simon, 25 October 2026; the champion night is gone) ---
     public boolean bossesEnabled = true;
     /** Every this many sieges is a boss night (a lost one comes again until the boss falls). */
-    public int bossEvery = 6;
+    public int bossEvery = 4;
+    /** Migrations of the content update (kept apart from settingsVersion, which belongs to the balancing). */
+    public int contentVersion = 0;
     /** Seconds before the end of the night at which the boss comes, with a last big wave (at most half the night). */
     public int bossFinaleSeconds = 180;
     /** Size of the last wave that comes with the boss, as a share of a normal wave. */
@@ -986,7 +988,14 @@ public class SiegeConfig {
         bloodMoonDamageMultiplier = Math.max(1.0, bloodMoonDamageMultiplier);
         eliteHealthMultiplier = Math.max(1.0, eliteHealthMultiplier);
         eliteDamageMultiplier = Math.max(1.0, eliteDamageMultiplier);
-        bossEvery = clamp(bossEvery <= 0 ? 6 : bossEvery, 1, 100);
+        if (contentVersion < 1) {
+            // Content update (Simon 28.10.): a boss night every 4th night, a server's 6 too.
+            if (bossEvery == 6) {
+                bossEvery = 4;
+            }
+            contentVersion = 1;
+        }
+        bossEvery = clamp(bossEvery <= 0 ? 4 : bossEvery, 1, 100);
         bossFinaleSeconds = clamp(bossFinaleSeconds <= 0 ? 180 : bossFinaleSeconds, 30, 1200);
         bossFinaleWave = clampDouble(bossFinaleWave, 0.0, 5.0);
         bossHealthMultiplier = clampDouble(bossHealthMultiplier <= 0 ? 1.0 : bossHealthMultiplier, 0.1, 20.0);
