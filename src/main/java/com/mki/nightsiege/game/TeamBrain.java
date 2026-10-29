@@ -20,6 +20,7 @@ import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 import java.util.UUID;
 
 /**
@@ -58,13 +59,31 @@ final class TeamBrain {
     private long nextRemote;
     private long nextSlot;
     private long nextHeal;
+    /**
+     * How well this bot plays (the calibration knob "koennen", 0.05–1): the share of the time it is
+     * paying attention (attacking, shooting, blocking, healing), and its abilities come 1/skill as
+     * late. 1 is the perfect bot of before; real players are calibrated against the logger's nights.
+     */
+    final double skill;
+    private final Random rnd;
+    private boolean focused = true;
+    private long nextFocus;
+    private long nextUlt;
+    private long nextUlt2;
+    private long nextShield;
     private int staffTurn;
     private int slotTurn;
     private boolean trapsSet;
     private final List<BlockPos> towers = new ArrayList<>();
 
     TeamBrain(UUID id, String[] sub) {
+        this(id, sub, 1.0, 0L);
+    }
+
+    TeamBrain(UUID id, String[] sub, double skill, long seed) {
         this.id = id;
+        this.skill = Math.max(0.05, Math.min(1.0, skill));
+        this.rnd = new Random(seed);
         this.clazz = SkillClass.valueOf(sub[0]);
         this.subNode = sub[1];
         this.subclass = sub[2];
@@ -86,9 +105,14 @@ final class TeamBrain {
     void reset(long now) {
         nextUse = now;
         nextStaff = now;
-        nextRemote = now + 100;
-        nextSlot = now + 40;
+        nextRemote = now + iv(100);
+        nextSlot = now + iv(40);
         nextHeal = now;
+        nextUlt = now + iv(60);
+        nextUlt2 = now + iv(100);
+        nextShield = now + 20;
+        focused = true;
+        nextFocus = now;
         staffTurn = 0;
         slotTurn = 0;
         trapsSet = false;
@@ -155,10 +179,20 @@ final class TeamBrain {
         }
     }
 
+    /** A timer of the perfect bot, stretched by the skill (a slower hand on the keys). */
+    private int iv(int ticks) {
+        return (int) Math.round(ticks / skill);
+    }
+
     /** One tick in the night. {@code team}: the other bots still standing. */
     void tick(SiegeManager m, ServerPlayer player, ServerLevel level, long now, List<ServerPlayer> team) {
         if (post == null) {
             return;
+        }
+        // Attention in stretches of 0.5–2 s: focused with the chance "skill", else the bot only stands.
+        if (now >= nextFocus) {
+            focused = skill >= 1.0 || rnd.nextDouble() < skill;
+            nextFocus = now + 10 + rnd.nextInt(31);
         }
         PlayerSkills skills = m.save().skillsOf(player.getUUID().toString());
         boolean guardian = clazz == SkillClass.GUARDIAN;
@@ -174,27 +208,31 @@ final class TeamBrain {
         boolean inReach = close != null && player.distanceTo(close) <= reach + 0.3;
 
         // Melee: a few steps towards the monster, never further than the leash from the post.
-        if (melee && close != null && !inReach && close.position().distanceTo(home) <= LEASH + 2) {
+        if (melee && focused && close != null && !inReach && close.position().distanceTo(home) <= LEASH + 2) {
             stepTowards(player, level, close.position(), home);
         } else if (melee && close == null && player.position().distanceToSqr(home) > 2.0) {
             stepTowards(player, level, home, home);
         }
 
-        if (clazz == SkillClass.SUMMONER && now >= nextStaff) {
-            nextStaff = now + 20;
+        if (clazz == SkillClass.SUMMONER && focused && now >= nextStaff) {
+            nextStaff = now + iv(20);
             staff(m, player, level, skills, close != null ? close : far);
         }
         if (clazz == SkillClass.ENGINEER && now >= nextRemote && !towers.isEmpty()) {
-            nextRemote = now + 200;
+            nextRemote = now + iv(200);
             m.kits().traps().useRemote(player, towers.get((int) ((now / 200) % towers.size())), true);   // overcharge
         }
-        if (role == Role.HEALER && now >= nextHeal) {
-            nextHeal = now + 20;
+        if (role == Role.HEALER && focused && now >= nextHeal) {
+            nextHeal = now + iv(20);
             heal(m, player, team);
         }
 
         boolean ranged = clazz == SkillClass.ARCHER || clazz == SkillClass.ENGINEER;
-        if (inReach || !ranged) {
+        if (!focused) {
+            if (player.isUsingItem()) {
+                player.stopUsingItem();   // not paying attention: no blocking, no drawn bow
+            }
+        } else if (inReach || !ranged) {
             if (close != null && (inReach || role != Role.HEALER || now < nextHeal - 10)) {
                 player.lookAt(EntityAnchorArgument.Anchor.EYES, close.getEyePosition());
             }
@@ -218,19 +256,22 @@ final class TeamBrain {
             player.stopUsingItem();
         }
         player.setShiftKeyDown(bulwark);
-        if (now % 60 == 0) {
+        if (now >= nextUlt) {
+            nextUlt = now + iv(60);
             m.onCoreAction(player, "ult");
         }
-        if (now % 100 == 50 && clazz != SkillClass.ENGINEER && clazz != SkillClass.SUMMONER) {
+        if (now >= nextUlt2 && clazz != SkillClass.ENGINEER && clazz != SkillClass.SUMMONER) {
+            nextUlt2 = now + iv(100);
             m.onCoreAction(player, "ult2");   // Fähigkeit 2
         }
-        if (guardian && player.isBlocking() && now % 40 == 20) {
+        if (guardian && player.isBlocking() && now >= nextShield) {
+            nextShield = now + iv(40);
             m.onCoreAction(player, "shield");
         }
         // The ability bar (spells, potions, salvos): the next one that is ready, every two seconds.
         // Archers' keys only pick the arrow kind, healers fire theirs at a team-mate in heal().
-        if (now >= nextSlot && clazz != SkillClass.ARCHER && role != Role.HEALER && clazz != SkillClass.SUMMONER) {
-            nextSlot = now + 40;
+        if (now >= nextSlot && focused && clazz != SkillClass.ARCHER && role != Role.HEALER && clazz != SkillClass.SUMMONER) {
+            nextSlot = now + iv(40);
             fireReadySlot(m, player);
         }
         if (now >= nextUse) {
@@ -323,7 +364,8 @@ final class TeamBrain {
 
     /** For the log: a short line about this bot. */
     String describe() {
-        return subclass + "@" + (post == null ? "-" : post.toShortString()) + (gate >= 0 ? " Tor " + gate : "");
+        return subclass + "@" + (post == null ? "-" : post.toShortString()) + (gate >= 0 ? " Tor " + gate : "")
+                + (skill < 1.0 ? String.format(java.util.Locale.ROOT, " k%.2f", skill) : "");
     }
 
     static void log(String line) {

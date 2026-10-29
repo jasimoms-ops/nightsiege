@@ -479,7 +479,8 @@ public final class TeamSim {
             bot.getFoodData().setFoodLevel(20);
             bot.getFoodData().setSaturation(5f);
             bot.getInventory().clearContent();
-            TeamBrain brain = new TeamBrain(bot.getUUID(), sub);
+            TeamBrain brain = new TeamBrain(bot.getUUID(), sub, skillOf(run.variant(), sub[0]),
+                    seed(run.level(), run.group(), run.mix(), run.index()) * 31 + i);
             brains.put(bot.getUUID(), brain);
         }
         posts(m);
@@ -743,11 +744,35 @@ public final class TeamSim {
         }
     }
 
+    /**
+     * The bots' skill (calibration knob): "koennen.<klasse>" before "koennen", the variant's before
+     * the common one; 1 (the perfect bot) when nothing is set.
+     */
+    static double skillOf(String variant, String clazz) {
+        String own = "koennen." + clazz.toLowerCase(Locale.ROOT);
+        for (Map<String, String> over : List.of(variants.getOrDefault(variant, Map.of()), common)) {
+            for (String key : List.of(own, "koennen")) {
+                String v = over.get(key);
+                if (v != null) {
+                    try {
+                        return Math.max(0.05, Math.min(1.0, Double.parseDouble(v)));
+                    } catch (NumberFormatException ignored) {
+                        // fall through
+                    }
+                }
+            }
+        }
+        return 1.0;
+    }
+
     private static void applyConfig(SiegeManager m, Map<String, String> over) {
         SiegeConfig cfg = m.config();
         for (Map.Entry<String, String> e : over.entrySet()) {
             String key = e.getKey();
             String value = e.getValue();
+            if (key.startsWith("koennen")) {
+                continue;   // the bots' skill, not a config value
+            }
             try {
                 if (key.contains(".")) {
                     String[] path = key.split("\\.", 2);
