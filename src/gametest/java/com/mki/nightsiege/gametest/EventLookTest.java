@@ -7575,8 +7575,15 @@ public class EventLookTest implements FabricClientGameTest {
             }
         });
         context.waitTicks(40);
-        // 0. The core window's button.
-        onServer(context, (player, manager) -> manager.openCoreWindow(player));
+        // 0. The core window's button (on the overview, which a player with a class sees first).
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
+            if (!own.hasClass()) {
+                own.unlockClass(com.mki.nightsiege.core.SkillClass.WARRIOR);
+                own.switchTo(com.mki.nightsiege.core.SkillClass.WARRIOR);
+            }
+            manager.openCoreWindow(player);
+        });
         context.waitTicks(20);
         context.takeScreenshot("war_00_core_button");
         closeScreen(context);

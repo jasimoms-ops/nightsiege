@@ -459,15 +459,18 @@ public class NightStatsScreen extends Screen {
             }
         }
         String hint = Component.translatable(any ? "nightsiege.records.hint" : "nightsiege.records.empty").getString();
-        small(gui, font, font.plainSubstrByWidth(hint, (int) ((w - 230) / 0.7f)), left + 10, top + h - 8 - 32, GREY, 0.7f);
-        // The war leader's rounds (Kriegsführer, 29 October 2026), under the classes when none is open.
+        int hintY = top + h - 8 - 32;
         if (v.war != null && !v.war.isEmpty() && openClass == null) {
-            int wy = Math.max(y + 4, top + h - 8 - 34 - v.war.size() * 9);
+            // The war leader's rounds (Kriegsführer, 29 October 2026) in place of the hint, under the classes.
+            int wy = Math.max(y + 2, hintY - (v.war.size() - 1) * 8);
             for (String line : v.war) {
                 String text = WarLeaderScreen.lineText(line);
-                small(gui, font, font.plainSubstrByWidth(text, (int) ((w - 20) / 0.7f)), left + 10, wy, line.startsWith("nightsiege.records.war_title") ? GOLD : LIGHT, 0.7f);
-                wy += 9;
+                small(gui, font, font.plainSubstrByWidth(text, (int) ((w - 20) / 0.65f)), left + 10, wy,
+                        line.startsWith("nightsiege.records.war_title") ? GOLD : LIGHT, 0.65f);
+                wy += 8;
             }
+        } else {
+            small(gui, font, font.plainSubstrByWidth(hint, (int) ((w - 230) / 0.7f)), left + 10, hintY, GREY, 0.7f);
         }
     }
 
