@@ -36,6 +36,7 @@ public enum ExpeditionKind {
                     .put(Part.STAIRS, "polished_tuff_stairs")
                     .put(Part.SLAB, "polished_tuff_slab")
                     .put(Part.BANNER, "gray_banner")
+                    .put(Part.RAIL, "polished_tuff_wall")
                     .put(Part.THRONE, "red_candle"),
             List.of()),
     DESERT_CRYPT("desert_crypt", Layout.CRYPT, NightFragment.BLOOD,
@@ -62,6 +63,7 @@ public enum ExpeditionKind {
                     .put(Part.STAIRS, "sandstone_stairs")
                     .put(Part.SLAB, "cut_sandstone_slab")
                     .put(Part.BANNER, "orange_banner")
+                    .put(Part.RAIL, "sandstone_wall")
                     .put(Part.THRONE, "red_candle"),
             List.of("desert", "badlands", "savanna")),
     ILLAGER_KEEP("illager_keep", Layout.KEEP, NightFragment.STORM,
@@ -89,6 +91,7 @@ public enum ExpeditionKind {
                     .put(Part.STAIRS, "dark_oak_stairs")
                     .put(Part.SLAB, "dark_oak_slab")
                     .put(Part.BANNER, "gray_banner")
+                    .put(Part.RAIL, "dark_oak_fence")
                     .put(Part.THRONE, "lantern"),
             List.of()),
     FROST_KEEP("frost_keep", Layout.KEEP, NightFragment.FROST,
@@ -116,6 +119,7 @@ public enum ExpeditionKind {
                     .put(Part.STAIRS, "spruce_stairs")
                     .put(Part.SLAB, "spruce_slab")
                     .put(Part.BANNER, "light_blue_banner")
+                    .put(Part.RAIL, "spruce_fence")
                     .put(Part.THRONE, "lantern"),
             List.of("snow", "frozen", "ice", "grove", "peaks", "slopes")),
     POISON_SWAMP("poison_swamp", Layout.CELLAR, NightFragment.MIST,
@@ -143,6 +147,7 @@ public enum ExpeditionKind {
                     .put(Part.STAIRS, "mud_brick_stairs")
                     .put(Part.SLAB, "mud_brick_slab")
                     .put(Part.BANNER, "green_banner")
+                    .put(Part.RAIL, "mangrove_fence")
                     .put(Part.THRONE, "verdant_froglight"),
             List.of("swamp", "mangrove", "jungle")),
     DEEP_CELLAR("deep_cellar", Layout.CELLAR, NightFragment.SHADOW,
@@ -170,6 +175,7 @@ public enum ExpeditionKind {
                     .put(Part.STAIRS, "deepslate_brick_stairs")
                     .put(Part.SLAB, "deepslate_brick_slab")
                     .put(Part.BANNER, "black_banner")
+                    .put(Part.RAIL, "deepslate_tile_wall")
                     .put(Part.THRONE, "purple_candle"),
             List.of()),
     NETHER_FORGE("nether_forge", Layout.FORGE, NightFragment.EMBER,
@@ -197,6 +203,7 @@ public enum ExpeditionKind {
                     .put(Part.STAIRS, "polished_blackstone_brick_stairs")
                     .put(Part.SLAB, "polished_blackstone_brick_slab")
                     .put(Part.BANNER, "red_banner")
+                    .put(Part.RAIL, "red_nether_brick_wall")
                     .put(Part.THRONE, "lava_cauldron"),
             List.of()),
     BASALT_FORGE("basalt_forge", Layout.FORGE, NightFragment.EMBER,
@@ -223,6 +230,7 @@ public enum ExpeditionKind {
                     .put(Part.STAIRS, "polished_blackstone_stairs")
                     .put(Part.SLAB, "polished_blackstone_slab")
                     .put(Part.BANNER, "light_gray_banner")
+                    .put(Part.RAIL, "polished_blackstone_wall")
                     .put(Part.THRONE, "soul_lantern"),
             List.of("stony", "windswept", "jagged", "meadow"));
 
@@ -237,6 +245,8 @@ public enum ExpeditionKind {
     public enum Part {
         WALL, BASE, WALL_TOP, TRIM, FRAME, PILLAR, FLOOR, RUNNER, CEILING, BEAM, GALLERY, COVER,
         LIGHT_HANG, LIGHT_WALL, LIGHT_SMALL, ACCENT, PROPS, STAIRS, SLAB, BANNER,
+        /** Railings of galleries and trenches (a wall or a fence: monsters do not jump it). */
+        RAIL,
         /** The small light at the altar and the throne (the third colour). */
         THRONE
     }
