@@ -70,7 +70,6 @@ public class GuideScreen extends Screen {
             new Chapter("guardian", "minecraft:shield"),
             new Chapter("engineer", "nightsiege:arrow_turret"),
             new Chapter("traps", "nightsiege:spike_trap"),
-            new Chapter("infernite", "nightsiege:infernite_ingot"),
             new Chapter("dungeons", "nightsiege:dungeon_map"),
             new Chapter("perks", "nightsiege:night_fragment_blood"),
             new Chapter("commands", "minecraft:command_block"));

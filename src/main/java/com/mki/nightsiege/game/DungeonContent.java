@@ -122,11 +122,7 @@ public final class DungeonContent {
 
     public static List<Item> creativeItems() {
         List<Item> out = new ArrayList<>();
-        out.add(COMPASS);
-        out.add(MAP);
-        out.addAll(NIGHT_FRAGMENTS.values());
-        out.add(CORE_ITEM);
-        out.add(SPENT_CORE_ITEM);
+        out.addAll(NIGHT_FRAGMENTS.values());   // the old cores, maps, compasses and perk fragments are gone (29 October 2026)
         return out;
     }
 

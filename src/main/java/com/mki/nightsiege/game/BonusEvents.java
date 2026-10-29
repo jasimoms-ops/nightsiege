@@ -46,7 +46,6 @@ public final class BonusEvents {
 
     private final Supplier<SiegeSave> save;
     private final Supplier<SiegeConfig> config;
-    private final PerkService perks;
     private final Random random = new Random();
     private long rolledAuroraDay = Long.MIN_VALUE;
     private long rolledCaravanDay = Long.MIN_VALUE;
@@ -55,10 +54,29 @@ public final class BonusEvents {
     private boolean forcedAurora;
     private int auroraTicks;
 
-    public BonusEvents(Supplier<SiegeSave> save, Supplier<SiegeConfig> config, PerkService perks) {
+    public BonusEvents(Supplier<SiegeSave> save, Supplier<SiegeConfig> config) {
         this.save = save;
         this.config = config;
-        this.perks = perks;
+    }
+
+    /** Near a core (the aurora's reach, the radius of the old core perks). */
+    private boolean nearCore(ServerPlayer player) {
+        if (save.get().cores == null) {
+            return false;
+        }
+        String dim = SiegeManager.dimensionName(player.level());
+        double r = config.get().perkRadius;
+        for (CoreRecord core : save.get().cores) {
+            if (core != null && dim.equals(core.dimension)) {
+                double dx = player.getX() - (core.x + 0.5);
+                double dy = player.getY() - (core.y + 0.5);
+                double dz = player.getZ() - (core.z + 0.5);
+                if (dx * dx + dy * dy + dz * dz <= r * r) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     public boolean auroraActive() {
@@ -146,7 +164,7 @@ public final class BonusEvents {
             if (!SiegeManager.get().isRegistered(player)) {
                 continue;
             }
-            if (!player.isAlive() || player.isSpectator() || !perks.inRange(player)) {
+            if (!player.isAlive() || player.isSpectator() || !nearCore(player)) {
                 continue;
             }
             if (auroraTicks % 40 == 0) {

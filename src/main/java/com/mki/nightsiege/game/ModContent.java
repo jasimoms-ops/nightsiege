@@ -119,9 +119,6 @@ public final class ModContent {
                     for (TrapKind kind : TrapKind.values()) {
                         output.accept(TRAP_ITEMS.get(kind));
                     }
-                    for (Item item : InferniteContent.creativeItems()) {
-                        output.accept(item);
-                    }
                     for (Item item : DungeonContent.creativeItems()) {
                         output.accept(item);
                     }

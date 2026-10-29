@@ -335,7 +335,7 @@ public final class CrateService {
             roll.stage = stage + 1;
             own.setGainStage(clazz, win.id(), roll.stage);
         }
-        roll.infernite = level >= cfg.infernitCrateLevel && random.nextDouble() < cfg.infernitCrateChance;
+        roll.infernite = false;   // infernite is gone, from level 20 on the crates bring nothing extra (29 October 2026)
         // The band: random cards around the winner, which stops under the marker.
         int length = 40;
         roll.winIndex = 32;

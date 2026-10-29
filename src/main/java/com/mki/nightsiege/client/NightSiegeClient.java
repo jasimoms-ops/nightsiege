@@ -11,7 +11,6 @@ import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
-import com.mki.nightsiege.game.ClassGear;
 import com.mki.nightsiege.game.GuideItem;
 import net.fabricmc.fabric.api.client.item.v1.ItemTooltipCallback;
 import net.minecraft.ChatFormatting;
@@ -231,21 +230,6 @@ public class NightSiegeClient implements ClientModInitializer {
                     && com.mki.nightsiege.game.KitService.isKit(stack)) {
                 lines.add(Component.translatable("nightsiege.tooltip.shield_energy").withStyle(ChatFormatting.AQUA));
             }
-        });
-        ItemTooltipCallback.EVENT.register((stack, context, type, lines) -> {
-            List<String> paths = ClassGear.pathsFor(stack.getItem());
-            if (paths.isEmpty()) {
-                return;
-            }
-            Component names = Component.empty();
-            for (int i = 0; i < paths.size(); i++) {
-                if (i > 0) {
-                    names = names.copy().append(", ");
-                }
-                names = names.copy().append(Component.translatable("nightsiege.path." + paths.get(i)));
-            }
-            lines.add(Component.translatable("nightsiege.tooltip.class_item", names).withStyle(ChatFormatting.GOLD));
-            lines.add(Component.translatable("nightsiege.tooltip.class_item_hint").withStyle(ChatFormatting.GRAY));
         });
         // Event looks: hoods and rags over zombies and skeletons, the 3D gear on every event monster.
         net.fabricmc.fabric.api.client.rendering.v1.LivingEntityRenderLayerRegistrationCallback.EVENT.register(

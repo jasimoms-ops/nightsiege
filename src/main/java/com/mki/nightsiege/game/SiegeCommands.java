@@ -6,7 +6,6 @@ import com.mki.nightsiege.core.AnchorPicker;
 import com.mki.nightsiege.core.MobEntry;
 import com.mki.nightsiege.core.PlayerSkills;
 import com.mki.nightsiege.core.SkillNode;
-import com.mki.nightsiege.core.PerkKind;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
@@ -221,17 +220,7 @@ public final class SiegeCommands {
                                     : "nightsiege.cmd.expedition_none"));
                             return ok ? 1 : 0;
                         }))
-                        .then(Commands.literal("perk")
-                                .then(Commands.argument("perk", StringArgumentType.word())
-                                        .suggests((c, b) -> {
-                                            java.util.List<String> ids = new java.util.ArrayList<>();
-                                            for (PerkKind kind : PerkKind.values()) {
-                                                ids.add(kind.id());
-                                            }
-                                            return net.minecraft.commands.SharedSuggestionProvider.suggest(ids, b);
-                                        })
-                                        .then(Commands.argument("stufe", IntegerArgumentType.integer(0, PerkKind.MAX_STAGE))
-                                                .executes(SiegeCommands::perkSet)))))
+)
                 .then(Commands.literal("sim").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                         .executes(ctx -> sim(ctx, 10, 150))
                         .then(Commands.argument("stufe", IntegerArgumentType.integer(1, 1000))
@@ -683,24 +672,6 @@ public final class SiegeCommands {
         int rooms = com.mki.nightsiege.core.ExpeditionKind.rooms(SiegeManager.get().currentLevel());
         SiegeManager.get().expeditions().testBuild(level, origin, facing, kind, rooms);
         reply(ctx.getSource(), Component.translatable("nightsiege.cmd.expedition_built", origin.getX(), origin.getY(), origin.getZ()));
-        return 1;
-    }
-
-    private static int perkSet(CommandContext<CommandSourceStack> ctx) {
-        CommandSourceStack source = ctx.getSource();
-        PerkKind kind = PerkKind.byId(StringArgumentType.getString(ctx, "perk"));
-        if (kind == null) {
-            fail(source, Component.translatable("nightsiege.cmd.perk_unknown"));
-            return 0;
-        }
-        int stage = IntegerArgumentType.getInteger(ctx, "stufe");
-        SiegeSave save = SiegeManager.get().save();
-        if (save.perkFragments == null) {
-            save.perkFragments = new java.util.HashMap<>();
-        }
-        save.perkFragments.put(kind.id(), PerkKind.fragmentsFor(stage));
-        SiegeManager.get().persist();
-        reply(source, Component.translatable("nightsiege.cmd.perk_set", PerkService.perkName(kind), PerkService.roman(stage)));
         return 1;
     }
 

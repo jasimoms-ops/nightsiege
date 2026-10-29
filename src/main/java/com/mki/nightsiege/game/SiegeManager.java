@@ -78,81 +78,19 @@ public final class SiegeManager {
         boolean defending = active && participants.contains(player.getUUID())
                 && !fallen.contains(player.getUUID()) || camp.isFighter(player) || expeditions.isFighter(player);
         PlayerSkills own = effectiveSkills(player);
-        if (!defending && !player.getAbilities().instabuild && !ClassGear.carries(player, own, skillTree)) {
+        if (!defending && !player.getAbilities().instabuild) {   // the infernite class items are gone (29 October 2026)
             return null;
         }
         return own;
     }
 
-    /** Creative only: which of a class item's paths is being tried out, per player. */
-    private final Map<UUID, Integer> testPathIndex = new HashMap<>();
-    /** Fully levelled stand-in skill sets, one per path, for trying paths out. */
-    private final Map<String, PlayerSkills> testProfiles = new HashMap<>();
-
-    /**
-     * The skills that count for this player. Normally their own; in creative,
-     * holding an infernite class item of another path lends them that path,
-     * fully levelled, so every ultimate can be tried out.
-     */
+    /** The skills that count for this player: their own (the creative path trial went with the class items). */
     PlayerSkills effectiveSkills(ServerPlayer player) {
-        PlayerSkills own = save.skillsOf(player.getUUID().toString());
-        String path = testPath(player, own);
-        return path == null ? own : testProfile(path);
+        return save.skillsOf(player.getUUID().toString());
     }
 
-    private String testPath(ServerPlayer player, PlayerSkills own) {
-        if (!player.getAbilities().instabuild) {
-            return null;
-        }
-        List<String> paths = ClassGear.heldPaths(player);
-        if (paths.isEmpty() || paths.contains(own.pathTaken(skillTree))) {
-            return null;
-        }
-        int index = testPathIndex.getOrDefault(player.getUUID(), 0);
-        return paths.get(Math.floorMod(index, paths.size()));
-    }
-
-    private PlayerSkills testProfile(String path) {
-        return testProfiles.computeIfAbsent(path, p -> {
-            PlayerSkills profile = new PlayerSkills();
-            for (com.mki.nightsiege.core.SkillNode node : skillTree.all()) {
-                if (p.equals(node.path())) {
-                    profile.chosenClass = node.clazz().name();
-                }
-            }
-            // Everything of the path at full level; of each choice only the first that fits.
-            java.util.Set<String> groups = new java.util.HashSet<>();
-            for (com.mki.nightsiege.core.SkillNode node : skillTree.all()) {
-                if (!node.clazz().name().equals(profile.chosenClass) || !(node.onTrunk() || p.equals(node.path()))) {
-                    continue;
-                }
-                if ((node.inGroup() && groups.contains(node.group())) || !skillTree.needsMet(node, profile)
-                        || skillTree.lockedOut(node, profile)) {
-                    continue;
-                }
-                if (node.inGroup()) {
-                    groups.add(node.group());
-                }
-                profile.setLevel(node.id(), node.maxLevel());
-            }
-            return profile;
-        });
-    }
-
-    /** Ultimate key: fires the ultimate; in creative, sneaking switches the path being tried. */
+    /** Ultimate key: fires the ultimate. */
     private void onUltimateKey(ServerPlayer player) {
-        List<String> paths = ClassGear.heldPaths(player);
-        if (player.getAbilities().instabuild && player.isShiftKeyDown() && paths.size() > 1) {
-            int next = testPathIndex.getOrDefault(player.getUUID(), 0) + 1;
-            testPathIndex.put(player.getUUID(), next);
-            String path = paths.get(Math.floorMod(next, paths.size()));
-            com.mki.nightsiege.core.SkillNode ult = skillTree.ultimateOf(testProfile(path));
-            player.connection.send(new net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket(
-                    Component.translatable("nightsiege.msg.test_path",
-                            Component.translatable("nightsiege.ui.path_" + path),
-                            ult == null ? Component.literal("-") : Component.translatable("nightsiege.skill." + ult.id()))));
-            return;
-        }
         combat.triggerUltimate(player);
     }
 
@@ -218,7 +156,6 @@ public final class SiegeManager {
     private final Besiegers besiegers = new Besiegers();
     /** The new attackers of update 1 (Simon, 27 October 2026). */
     private final Foes foes = new Foes();
-    private final PerkService perks = new PerkService(() -> save, () -> config);
     private final BaseDefense defense = new BaseDefense();
     /** The raid's plan: directions, gathering in front of the wall, ways in (27 October 2026). */
     private final RaidPlan raid = new RaidPlan();
@@ -228,7 +165,7 @@ public final class SiegeManager {
     /** The night's protocol for balancing (config/nightsiege-stats*.csv). */
     private final NightLog nightLog = new NightLog();
     private final EventEffects events = new EventEffects();
-    private final BonusEvents bonus = new BonusEvents(() -> save, () -> config, perks);
+    private final BonusEvents bonus = new BonusEvents(() -> save, () -> config);
     private final Random random = new Random();
     private MobPool pool = new MobPool(SiegeConfig.defaultMobs());
     private final Set<String> unavailableMobs = new HashSet<>();
@@ -314,10 +251,6 @@ public final class SiegeManager {
         return stats;
     }
 
-    public PerkService perks() {
-        return perks;
-    }
-
     public BonusEvents bonus() {
         return bonus;
     }
@@ -356,8 +289,7 @@ public final class SiegeManager {
         ModContent.register();
         CoreNetworking.registerTypes();
         CoreNetworking.registerServerReceivers();
-        combat.setCooldownScale(perks::cooldownScale);
-        combat.setArrowBonus(p -> perks.arrowBonus(p) + defense.arrowBonus(p));
+        combat.setArrowBonus(defense::arrowBonus);   // the core perks are gone (content update, 29 October 2026)
         traps.setTeslaBoost(() -> active && currentEvent == SiegeEvent.THUNDER ? config.thunderTeslaMultiplier : 1.0);
         ServerLifecycleEvents.SERVER_STARTED.register(server -> onServerStarted(server));
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
@@ -390,7 +322,6 @@ public final class SiegeManager {
         ServerLivingEntityEvents.AFTER_DAMAGE.register((entity, source, baseDamage, taken, blocked) -> {
             logDamage(entity, source, taken);
             combat.afterDamage(entity, source, baseDamage, taken, blocked);
-            perks.afterDamage(entity, taken);
             CrateEffects.afterDamage(entity, source);
             Wounds.afterDamage(entity, source, taken);
             safe("Abstand", () -> RangedGuard.afterDamage(this, entity, source, taken));
@@ -463,6 +394,10 @@ public final class SiegeManager {
                 entity.discard();   // the seat of a manned tower from before a restart
                 return;
             }
+            if (RetiredItems.strayDrop(entity)) {
+                entity.discard();   // infernite or an old dungeon's thing on the ground
+                return;
+            }
             if (NightDrops.isLoot(entity)) {
                 entity.discard();   // loot of a siege monster
                 return;
@@ -512,6 +447,7 @@ public final class SiegeManager {
                     }
                     onBlockBroken(level, pos);
                 });
+        RetiredItems.register();   // infernite and the old dungeons' things go (content update, 29 October 2026)
         UseBlockCallback.EVENT.register(
                 (player, level, hand, hitResult) -> onUseBlock(player, level, hand, hitResult));
         CommandRegistrationCallback.EVENT.register(
@@ -647,7 +583,6 @@ public final class SiegeManager {
         combat.tick(server);
         // Companions stay with summoners who defend the night (or try them out in creative).
         safe("Begleiter", () -> companions.tick(server, p -> isDefending(p) || p.getAbilities().instabuild));
-        perks.tick(server);
         safe("Kisten-Effekt", () -> CrateFx.tick(server));
         EventAtmosphere.tickServer();
         BaseDefense.tickHighlights(server);
@@ -660,7 +595,6 @@ public final class SiegeManager {
         }
         if (server.overworld().getGameTime() % 20 == 0) {
             sendUltHud(server);
-            tickClassGear(server);
             safe("Lebensanzeige", () -> HealthView.tick(server, this));
         }
         if (trapsDirty && ++trapSaveCounter >= 200) {
@@ -2122,8 +2056,8 @@ public final class SiegeManager {
         }
         nightLog.of(player.getUUID(), player.getScoreboardName()).kills++;
         if (config.skillsEnabled && config.skillPointsPerKill > 0) {
-            save.skillsOf(player.getUUID().toString()).award(nightPoints(perks.experience(player,
-                    config.skillPointsPerKill * config.championPointMultiplier)));
+            save.skillsOf(player.getUUID().toString()).award(nightPoints(
+                    config.skillPointsPerKill * config.championPointMultiplier));
         }
     }
 
@@ -3337,6 +3271,7 @@ public final class SiegeManager {
         if (!(entity instanceof ServerPlayer player)) {
             return;
         }
+        RetiredItems.purgePlayer(player);
         events.forget(player.getUUID());
         HealthView.forget(player.getUUID());
         Drones.cleanup(player);
@@ -3420,28 +3355,6 @@ public final class SiegeManager {
     }
 
     /** Called from the block itself when a core is put down. */
-    /** Players whose skills hold outside a siege because they carry their class item. */
-    private final Set<UUID> gearBoosted = new HashSet<>();
-
-    /** Applies or lifts the attribute skills of players who carry their class item. */
-    private void tickClassGear(MinecraftServer server) {
-        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            UUID id = player.getUUID();
-            boolean defending = active && participants.contains(id) && !fallen.contains(id);
-            if (defending) {
-                gearBoosted.remove(id);   // the siege looks after these
-                continue;
-            }
-            PlayerSkills own = effectiveSkills(player);
-            if (isRegistered(player) && ClassGear.carries(player, own, skillTree)) {
-                SkillService.apply(player, own, skillTree);
-                gearBoosted.add(id);
-            } else if (gearBoosted.remove(id)) {
-                SkillService.clear(player);
-            }
-        }
-    }
-
     /** Tells every player with the mod what their ultimate slot shows. */
     private void sendUltHud(MinecraftServer server) {
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
@@ -3466,7 +3379,7 @@ public final class SiegeManager {
             // The ability keys are Night Siege's alone in the night, in every fight (camp, dungeon) and
             // whenever a kit is on (Simon 28.10.: in the dungeon Q/F dropped and swapped instead).
             state.keys = (active && participants.contains(player.getUUID())) || kits.hasStash(player)
-                    || camp.isFighter(player) || expeditions.isFighter(player) || ClassGear.holds(player, own, skillTree);
+                    || camp.isFighter(player) || expeditions.isFighter(player);
             state.kitsOn = config.nightKits;
             state.clazz = own.hasClass() ? own.clazz().name().toLowerCase(java.util.Locale.ROOT) : "";
             state.sub = own.hasClass() ? skillTree.subclassOf(own) : "";
@@ -3690,10 +3603,6 @@ public final class SiegeManager {
             persist();
             return InteractionResult.SUCCESS;
         }
-        if (perks.insert(player, held, pos)) {
-            persist();
-            return InteractionResult.SUCCESS;
-        }
         openCoreWindow(player);
         return InteractionResult.SUCCESS;
     }
@@ -3838,7 +3747,7 @@ public final class SiegeManager {
         if (pool >= per) {
             int points = (int) (pool / per);
             tankPool.put(player.getUUID(), pool - points * per);
-            save.skillsOf(player.getUUID().toString()).award(nightPoints(perks.experience(player, points * config.skillPointsPerKill)));
+            save.skillsOf(player.getUUID().toString()).award(nightPoints(points * config.skillPointsPerKill));
         }
     }
 
@@ -3881,9 +3790,9 @@ public final class SiegeManager {
             save.totalChampionKills++;
         }
         if (config.skillsEnabled && config.skillPointsPerKill > 0) {
-            save.skillsOf(player.getUUID().toString()).award(nightPoints(perks.experience(player, champion
+            save.skillsOf(player.getUUID().toString()).award(nightPoints(champion
                     ? config.skillPointsPerKill * config.championPointMultiplier
-                    : config.skillPointsPerKill)));
+                    : config.skillPointsPerKill));
         }
     }
 
@@ -4216,7 +4125,7 @@ public final class SiegeManager {
 
     /**
      * Maxing an ultimate: every profile's first time gives one unlock (a new class or a
-     * further subclass); the very first one also pays out the infernite upgrade template.
+     * further subclass).
      */
     private void rewardMaxedUltimate(ServerPlayer player, PlayerSkills own, com.mki.nightsiege.core.SkillNode node,
                                      String key) {
@@ -4232,14 +4141,7 @@ public final class SiegeManager {
                     profileName(own, key)).withStyle(ChatFormatting.GOLD));
             Fx.pointsEarned(player.level().getServer(), config);
         }
-        if (own.templateGiven) {
-            return;
-        }
-        own.templateGiven = true;
-        player.getInventory().placeItemBackInInventory(new ItemStack(InferniteContent.TEMPLATE));
-        player.sendSystemMessage(Component.translatable("nightsiege.msg.template_earned")
-                .withStyle(ChatFormatting.GOLD));
-        Fx.pointsEarned(player.level().getServer(), config);
+        // No infernite template any more (content update, 29 October 2026).
     }
 
     /** "Krieger – Berserker" (or just "Krieger" while the profile has no subclass), translated on the client. */
@@ -4383,7 +4285,6 @@ public final class SiegeManager {
             own.switchToProfile(key);
             persist();
             SkillService.clear(player);
-            gearBoosted.remove(player.getUUID());
             if (kits.hasStash(player)) {
                 kits.refit(player, levelForKit());   // the kit of the new class for tonight
             } else {
@@ -4890,7 +4791,6 @@ public final class SiegeManager {
         save.unregister(id);
         persist();
         SkillService.clear(player);
-        gearBoosted.remove(player.getUUID());
         ClassTags.update(server, player, null, null);
         events.forget(player.getUUID());
         player.sendSystemMessage(Component.translatable("nightsiege.msg.unregistered").withStyle(ChatFormatting.GRAY));

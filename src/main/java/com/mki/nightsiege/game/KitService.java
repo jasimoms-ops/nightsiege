@@ -460,6 +460,12 @@ public final class KitService {
     private Kit build(ServerPlayer player, PlayerSkills skills, int level) {
         SkillClass clazz = skills.clazz();
         String way = skills.pathTaken(tree);
+        if (way.isEmpty()) {
+            // No way learned yet (a new class, the playtest): the way of the subclass chosen with the
+            // class decides, so a warrior carries one melee weapon only (content update, 29 October 2026).
+            String planned = tree.wayOfSubclass(clazz, tree.subclassOfProfile(skills, skills.chosenClass));
+            way = planned == null ? "" : planned;
+        }
         HolderLookup.RegistryLookup<Enchantment> ench = player.level().registryAccess().lookupOrThrow(Registries.ENCHANTMENT);
         ItemStack[] armor = new ItemStack[4];
         ItemStack offhand = ItemStack.EMPTY;
@@ -484,6 +490,17 @@ public final class KitService {
                         new EquipmentSlotGroup[]{EquipmentSlotGroup.HEAD, EquipmentSlotGroup.CHEST,
                                 EquipmentSlotGroup.LEGS, EquipmentSlotGroup.FEET}[i]);
             }
+            if (material == NightKit.Material.INFERNITE) {
+                // From level 20 on: netherite with the old infernite numbers (content update, 29 October 2026):
+                // chest 9 and legs 7 instead of 8 and 6, toughness 3.5, knockback resistance 0.15.
+                EquipmentSlotGroup group = new EquipmentSlotGroup[]{EquipmentSlotGroup.HEAD, EquipmentSlotGroup.CHEST,
+                        EquipmentSlotGroup.LEGS, EquipmentSlotGroup.FEET}[i];
+                if (i == 1 || i == 2) {
+                    addAttribute(piece, Attributes.ARMOR, "kit_tier20_armor_" + i, 1.0, group);
+                }
+                addAttribute(piece, Attributes.ARMOR_TOUGHNESS, "kit_tier20_tough_" + i, 0.5, group);
+                addAttribute(piece, Attributes.KNOCKBACK_RESISTANCE, "kit_tier20_kb_" + i, 0.05, group);
+            }
             if (i == 3 && gainLevel(skills, clazz, "sprungstiefel") > 0) {
                 Gadgets.setFlag(piece, Gadgets.DOUBLE_JUMP);   // jump boots: a second jump in the air
             }
@@ -494,8 +511,8 @@ public final class KitService {
         int sharp = NightKit.plusOne(NightKit.sharpness(level), gainLevel(skills, clazz, "schaerfe"), 5);
         List<ItemStack> hotbar = new ArrayList<>();
         if (clazz == SkillClass.WARRIOR) {
-            boolean blade = way.isEmpty() || way.equals(SkillTree.WAY_BLADE);
-            boolean might = way.isEmpty() || way.equals(SkillTree.WAY_MIGHT);
+            boolean might = way.equals(SkillTree.WAY_MIGHT);
+            boolean blade = !might;   // one melee weapon: the axe for might, else the sword
             // The spare weapon (axe and sword) left the crates (Simon, 27 October 2026).
             if (blade) {
                 // The blademaster's combo (no cooldown) comes with an iron sword at most.
@@ -593,6 +610,15 @@ public final class KitService {
         }
 
         // The subclass's own kit weapon: look and name on the main weapon (Simon, 27 October 2026).
+        if (weapon == NightKit.Material.INFERNITE) {
+            // Level 20: the netherite weapons hit one point harder (the old infernite gear).
+            for (ItemStack stack : hotbar) {
+                if (stack.is(net.minecraft.tags.ItemTags.SWORDS) || stack.is(net.minecraft.tags.ItemTags.AXES)
+                        || stack.is(Items.MACE)) {
+                    addAttribute(stack, Attributes.ATTACK_DAMAGE, "kit_tier20_damage", 1.0, EquipmentSlotGroup.MAINHAND);
+                }
+            }
+        }
         applyKitLook(hotbar, tree.subclassOf(skills));
 
         // Food and the general gains.
@@ -709,19 +735,14 @@ public final class KitService {
 
     private static Item item(NightKit.Material material, String piece) {
         if (material == NightKit.Material.INFERNITE) {
-            Item infernite = InferniteContent.gear("infernite_" + piece);
-            if (infernite != null) {
-                return infernite;
-            }
-            material = NightKit.Material.NETHERITE;
+            material = NightKit.Material.NETHERITE;   // infernite is gone: netherite with bonuses (29 October 2026)
         }
         String id = material.name().toLowerCase(java.util.Locale.ROOT) + "_" + piece;
         return BuiltInRegistries.ITEM.getValue(Identifier.withDefaultNamespace(id));
     }
 
     private static Item gear(String id, Item fallback) {
-        Item item = InferniteContent.gear(id);
-        return item != null ? item : fallback;
+        return fallback;   // the infernite bow, crossbow and shield are gone (29 October 2026)
     }
 
     private static void enchant(ItemStack stack, HolderLookup.RegistryLookup<Enchantment> ench,

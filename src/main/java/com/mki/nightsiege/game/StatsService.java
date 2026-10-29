@@ -249,21 +249,10 @@ public final class StatsService {
         stats.admin = manager.isAdmin(viewer);
         stats.classResetUnlimited = manager.config().testToolsForEveryone;
         stats.classResetAvailable = manager.classResetAvailable(skills);
-        for (com.mki.nightsiege.core.PerkKind kind : com.mki.nightsiege.core.PerkKind.values()) {
-            CoreStats.PerkLine line = new CoreStats.PerkLine();
-            line.id = kind.id();
-            line.fragments = manager.perks().fragments(kind);
-            line.stage = com.mki.nightsiege.core.PerkKind.stageFor(line.fragments);
-            line.stageAt = com.mki.nightsiege.core.PerkKind.fragmentsFor(line.stage);
-            line.nextAt = line.stage >= com.mki.nightsiege.core.PerkKind.MAX_STAGE ? 0
-                    : com.mki.nightsiege.core.PerkKind.fragmentsFor(line.stage + 1);
-            stats.perks.add(line);
-        }
         stats.nightFragment = save.nightFragment;
         stats.scout = manager.expeditions().scoutLine(viewer);
         describeCurses(stats, manager, cfg, save);
         stats.perkRadius = (int) Math.round(manager.config().perkRadius);
-        stats.perkInRange = manager.perks().inRange(viewer);
         stats.skillsEnabled = cfg.skillsEnabled;
         describeBase(stats, save, cfg, viewer);
         stats.corePoints = save.coreSkills().points();
