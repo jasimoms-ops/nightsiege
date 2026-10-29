@@ -841,6 +841,12 @@ public final class CombatEffects {
                 player.heal((float) ((taken + extra) * steal));
             }
         }
+        // Axe fighter, blademaster and paladin: a share of every hit heals (Simon 29.10., config hitLifesteal).
+        SiegeManager manager = SiegeManager.get();
+        double hitShare = manager == null ? 0.0 : manager.config().hitLifesteal(tree.subclassOf(skills));
+        if (hitShare > 0 && skills.clazz() == SkillClass.WARRIOR && taken + extra > 0) {
+            player.heal((float) ((taken + extra) * hitShare));
+        }
         return extra;
     }
 
@@ -858,8 +864,8 @@ public final class CombatEffects {
         boolean melee = skills.clazz() == SkillClass.WARRIOR && !SkillTree.SUB_BERSERKER.equals(sub)
                 && !SkillTree.SUB_BLADEMASTER.equals(sub)
                 || skills.clazz() == SkillClass.GUARDIAN && SkillTree.SUB_SHIELDFIGHTER.equals(sub);
-        if (!melee) {
-            return 0.0;
+        if (!melee || m.config().hitLifesteal(sub) > 0) {
+            return 0.0;   // life steal on hits instead (axe fighter, paladin; Simon 29.10.)
         }
         // Simon 26.10.: the axe fighter heals half as much from kills.
         return m.config().meleeLifesteal * (SkillTree.SUB_AXE.equals(sub) ? SkillValues.get("heavy_blow", "lifesteal", 0.5) : 1.0);
@@ -926,7 +932,9 @@ public final class CombatEffects {
             }
         }
         // The blademaster's life steal: only a kill in the middle of a combo heals (Simon, 24 Oct 2026).
-        if (skills != null && SkillTree.SUB_BLADEMASTER.equals(tree.subclassOf(skills)) && killed instanceof LivingEntity dead) {
+        SiegeManager sm = SiegeManager.get();
+        boolean onHits = sm != null && skills != null && sm.config().hitLifesteal(tree.subclassOf(skills)) > 0;
+        if (skills != null && !onHits && SkillTree.SUB_BLADEMASTER.equals(tree.subclassOf(skills)) && killed instanceof LivingEntity dead) {
             long[] streak = combos.get(player.getUUID());
             long now = level.getGameTime();
             // The share is the skill value w_combo.killheal (no longer the config's comboKillLifesteal).
