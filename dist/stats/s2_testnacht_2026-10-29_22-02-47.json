@@ -1,0 +1,183 @@
+{
+  "art": "nacht",
+  "sim": "g14|L5|G2|zufall|2",
+  "version": "1.0.0",
+  "build": "673f738",
+  "start": "2026-10-29 22:02:47",
+  "ende": "2026-10-29 22:03:28",
+  "abgeschlossen": true,
+  "test": true,
+  "nacht": -1,
+  "stufe": 5,
+  "ereignis": "none",
+  "besondereNacht": false,
+  "fragment": "",
+  "fluchsteine": [],
+  "boss": "",
+  "ergebnis": "test_gehalten",
+  "dauerSekunden": 959,
+  "killZiel": 0,
+  "kills": 23,
+  "gespawnt": 34,
+  "tode": 0,
+  "basis": {
+    "geschlossen": true,
+    "breite": 29,
+    "tiefe": 29,
+    "tore": 3
+  },
+  "spieler": {
+    "Bot01": {
+      "name": "Bot01",
+      "uuid": "59db4448-2e93-31f2-b572-f9f8749b0f17",
+      "klasse": "guardian",
+      "weg": "bless",
+      "unterklasse": "medic",
+      "profil": "GUARDIAN",
+      "punkteImProfil": 21,
+      "ultStufe3": false,
+      "kit": "guardian"
+    },
+    "Bot02": {
+      "name": "Bot02",
+      "uuid": "2169bc70-47b7-396c-b0e6-a3d8306b7dfa",
+      "klasse": "summoner",
+      "weg": "dead",
+      "unterklasse": "necromancer",
+      "profil": "SUMMONER",
+      "punkteImProfil": 21,
+      "ultStufe3": false,
+      "kit": "summoner"
+    }
+  },
+  "heerlager": {
+    "erschienen": false,
+    "zerstoert": false,
+    "lagerSiegte": false,
+    "maschinen": 0
+  },
+  "maschinen": [],
+  "wellen": [
+    {
+      "nummer": 0,
+      "startSekunde": 0,
+      "dauerSekunden": 959,
+      "gespawnt": 34,
+      "typen": {
+        "minecraft:zombie": 12,
+        "minecraft:creeper": 14,
+        "minecraft:skeleton": 6,
+        "nightsiege:standard_bearer": 1,
+        "nightsiege:tunneler": 1
+      },
+      "uebrigAmEnde": 0,
+      "bloeckeZerstoert": 0,
+      "spieler": {
+        "Bot01": {
+          "schaden": 15.847999572753906,
+          "schadenNachQuelle": {
+            "nah:iron_sword": 15.847999572753906
+          },
+          "erhalten": 8.749592781066895,
+          "erhaltenNachGegner": {
+            "minecraft:creeper": 8.749592781066895
+          },
+          "heilungGegeben": 0.6480000019073486,
+          "heilungErhalten": 3.691856309771538,
+          "kills": 1,
+          "assists": 0,
+          "tode": 0,
+          "drohneSekunden": 0,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {
+            "schild": 479,
+            "ult": 319,
+            "faehigkeit_f": 191
+          },
+          "turmSekunden": 0
+        },
+        "Bot02": {
+          "schaden": 625.2543234825134,
+          "schadenNachQuelle": {
+            "nah:summoning_staff": 613.624249458313,
+            "begleiter": 11.63007402420044
+          },
+          "erhalten": 0.0,
+          "erhaltenNachGegner": {},
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 2.1480000019073486,
+          "kills": 22,
+          "assists": 1,
+          "tode": 0,
+          "drohneSekunden": 0,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {
+            "stab": 640,
+            "wahl:wall": 107,
+            "ult": 319,
+            "wahl:curse": 106,
+            "wahl:raise": 106
+          },
+          "turmSekunden": 0
+        }
+      }
+    }
+  ],
+  "gegner": {
+    "minecraft:zombie": {
+      "gespawnt": 12,
+      "getoetet": 12,
+      "ueberlebtSekundenSumme": 783.8000000000001,
+      "ueberlebtSekundenSchnitt": 65.3,
+      "schadenAnSpielern": 0.0,
+      "getoetetVon": {
+        "klasse:necromancer": 11,
+        "begleiter:necromancer": 1
+      }
+    },
+    "minecraft:creeper": {
+      "gespawnt": 14,
+      "getoetet": 6,
+      "ueberlebtSekundenSumme": 286.75,
+      "ueberlebtSekundenSchnitt": 47.8,
+      "schadenAnSpielern": 8.749592781066895,
+      "getoetetVon": {
+        "klasse:necromancer": 5,
+        "klasse:medic": 1
+      }
+    },
+    "minecraft:skeleton": {
+      "gespawnt": 6,
+      "getoetet": 3,
+      "ueberlebtSekundenSumme": 1668.5,
+      "ueberlebtSekundenSchnitt": 556.2,
+      "schadenAnSpielern": 0.0,
+      "getoetetVon": {
+        "klasse:necromancer": 3
+      }
+    },
+    "nightsiege:standard_bearer": {
+      "gespawnt": 1,
+      "getoetet": 1,
+      "ueberlebtSekundenSumme": 9.8,
+      "ueberlebtSekundenSchnitt": 9.8,
+      "schadenAnSpielern": 0.0,
+      "getoetetVon": {
+        "begleiter:necromancer": 1
+      }
+    },
+    "nightsiege:tunneler": {
+      "gespawnt": 1,
+      "getoetet": 1,
+      "ueberlebtSekundenSumme": 67.1,
+      "ueberlebtSekundenSchnitt": 67.1,
+      "schadenAnSpielern": 0.0,
+      "getoetetVon": {
+        "klasse:necromancer": 1
+      }
+    }
+  },
+  "tuerme": {},
+  "bewertung": {},
+  "staerksteKlasse": {}
+}

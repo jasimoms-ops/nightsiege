@@ -1,0 +1,181 @@
+{
+  "art": "nacht",
+  "sim": "aktuell|L5|G2|zufall|1",
+  "version": "1.0.0",
+  "build": "673f738",
+  "start": "2026-10-29 22:18:52",
+  "ende": "2026-10-29 22:19:27",
+  "abgeschlossen": true,
+  "test": true,
+  "nacht": -1,
+  "stufe": 5,
+  "ereignis": "none",
+  "besondereNacht": false,
+  "fragment": "",
+  "fluchsteine": [],
+  "boss": "",
+  "ergebnis": "test_gehalten",
+  "dauerSekunden": 959,
+  "killZiel": 0,
+  "kills": 12,
+  "gespawnt": 23,
+  "tode": 0,
+  "basis": {
+    "geschlossen": true,
+    "breite": 29,
+    "tiefe": 29,
+    "tore": 3
+  },
+  "spieler": {
+    "Bot01": {
+      "name": "Bot01",
+      "uuid": "59db4448-2e93-31f2-b572-f9f8749b0f17",
+      "klasse": "engineer",
+      "weg": "chem",
+      "unterklasse": "",
+      "profil": "ENGINEER",
+      "punkteImProfil": 20,
+      "ultStufe3": false,
+      "kit": "engineer"
+    },
+    "Bot02": {
+      "name": "Bot02",
+      "uuid": "2169bc70-47b7-396c-b0e6-a3d8306b7dfa",
+      "klasse": "warrior",
+      "weg": "edge",
+      "unterklasse": "berserker",
+      "profil": "WARRIOR",
+      "punkteImProfil": 21,
+      "ultStufe3": false,
+      "kit": "warrior"
+    }
+  },
+  "heerlager": {
+    "erschienen": false,
+    "zerstoert": false,
+    "lagerSiegte": false,
+    "maschinen": 1
+  },
+  "maschinen": [
+    {
+      "art": "plague",
+      "startSekunde": 787,
+      "endeSekunde": 959,
+      "zerstoert": false,
+      "sabotiertVon": "",
+      "schuesse": 18,
+      "bloecke": 0,
+      "schadenAnSpielern": 0.0
+    }
+  ],
+  "wellen": [
+    {
+      "nummer": 0,
+      "startSekunde": 0,
+      "dauerSekunden": 959,
+      "gespawnt": 23,
+      "typen": {
+        "minecraft:creeper": 9,
+        "minecraft:zombie": 10,
+        "nightsiege:grappler": 4
+      },
+      "uebrigAmEnde": 0,
+      "bloeckeZerstoert": 0,
+      "spieler": {
+        "Bot02": {
+          "schaden": 304.36129577457905,
+          "schadenNachQuelle": {
+            "nah:iron_sword": 304.36129577457905
+          },
+          "erhalten": 32.67826843261719,
+          "erhaltenNachGegner": {
+            "minecraft:creeper": 3.2389073371887207,
+            "nightsiege:grappler": 5.917770862579346,
+            "umgebung:magic": 15.0,
+            "minecraft:zombie": 8.521590232849121
+          },
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 9.574522987008095,
+          "kills": 12,
+          "assists": 0,
+          "tode": 0,
+          "drohneSekunden": 0,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {
+            "ult": 319,
+            "faehigkeit_f": 191
+          },
+          "turmSekunden": 0
+        },
+        "Bot01": {
+          "schaden": 79.05625057220459,
+          "schadenNachQuelle": {
+            "turm:spike_trap": 56.30625104904175,
+            "nah:iron_sword": 22.749999523162842
+          },
+          "erhalten": 21.0,
+          "erhaltenNachGegner": {
+            "umgebung:magic": 21.0
+          },
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 14.280009001493454,
+          "kills": 0,
+          "assists": 5,
+          "tode": 0,
+          "drohneSekunden": 0,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {
+            "wahl:escape": 60,
+            "ult": 319
+          },
+          "turmSekunden": 0
+        }
+      }
+    }
+  ],
+  "gegner": {
+    "minecraft:creeper": {
+      "gespawnt": 9,
+      "getoetet": 1,
+      "ueberlebtSekundenSumme": 43.75,
+      "ueberlebtSekundenSchnitt": 43.8,
+      "schadenAnSpielern": 3.2389073371887207,
+      "getoetetVon": {
+        "klasse:berserker": 1
+      }
+    },
+    "minecraft:zombie": {
+      "gespawnt": 10,
+      "getoetet": 8,
+      "ueberlebtSekundenSumme": 682.3499999999999,
+      "ueberlebtSekundenSchnitt": 85.3,
+      "schadenAnSpielern": 8.521590232849121,
+      "getoetetVon": {
+        "klasse:berserker": 8
+      }
+    },
+    "nightsiege:grappler": {
+      "gespawnt": 4,
+      "getoetet": 3,
+      "ueberlebtSekundenSumme": 233.95,
+      "ueberlebtSekundenSchnitt": 78.0,
+      "schadenAnSpielern": 5.917770862579346,
+      "getoetetVon": {
+        "klasse:berserker": 3
+      }
+    }
+  },
+  "tuerme": {
+    "spike_trap|Bot01": {
+      "art": "spike_trap",
+      "besitzer": "Bot01",
+      "schaden": 56.30625104904175,
+      "schadenBemannt": 0.0,
+      "kills": 0,
+      "killsBemannt": 0,
+      "sekundenBemannt": 0
+    }
+  },
+  "bewertung": {},
+  "staerksteKlasse": {}
+}

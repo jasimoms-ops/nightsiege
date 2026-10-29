@@ -1,0 +1,197 @@
+{
+  "art": "nacht",
+  "sim": "g14|L10|G2|zufall|3",
+  "version": "1.0.0",
+  "build": "673f738",
+  "start": "2026-10-29 22:21:42",
+  "ende": "2026-10-29 22:22:03",
+  "abgeschlossen": true,
+  "test": true,
+  "nacht": -1,
+  "stufe": 10,
+  "ereignis": "none",
+  "besondereNacht": false,
+  "fragment": "",
+  "fluchsteine": [],
+  "boss": "",
+  "ergebnis": "test_verloren",
+  "dauerSekunden": 557,
+  "killZiel": 0,
+  "kills": 14,
+  "gespawnt": 21,
+  "tode": 2,
+  "basis": {
+    "geschlossen": true,
+    "breite": 29,
+    "tiefe": 29,
+    "tore": 3
+  },
+  "spieler": {
+    "Bot01": {
+      "name": "Bot01",
+      "uuid": "59db4448-2e93-31f2-b572-f9f8749b0f17",
+      "klasse": "engineer",
+      "weg": "mech",
+      "unterklasse": "gunner",
+      "profil": "ENGINEER",
+      "punkteImProfil": 58,
+      "ultStufe3": false,
+      "kit": "engineer"
+    },
+    "Bot02": {
+      "name": "Bot02",
+      "uuid": "2169bc70-47b7-396c-b0e6-a3d8306b7dfa",
+      "klasse": "summoner",
+      "weg": "dead",
+      "unterklasse": "soulcatcher",
+      "profil": "SUMMONER",
+      "punkteImProfil": 57,
+      "ultStufe3": false,
+      "kit": "summoner"
+    }
+  },
+  "heerlager": {
+    "erschienen": false,
+    "zerstoert": false,
+    "lagerSiegte": false,
+    "maschinen": 2
+  },
+  "maschinen": [
+    {
+      "art": "trebuchet",
+      "startSekunde": 247,
+      "endeSekunde": 557,
+      "zerstoert": false,
+      "sabotiertVon": "",
+      "schuesse": 35,
+      "bloecke": 116,
+      "schadenAnSpielern": 0.0
+    },
+    {
+      "art": "mortar",
+      "startSekunde": 427,
+      "endeSekunde": 557,
+      "zerstoert": false,
+      "sabotiertVon": "",
+      "schuesse": 19,
+      "bloecke": 0,
+      "schadenAnSpielern": 0.0
+    }
+  ],
+  "wellen": [
+    {
+      "nummer": 0,
+      "startSekunde": 0,
+      "dauerSekunden": 556,
+      "gespawnt": 21,
+      "typen": {
+        "minecraft:zombie": 10,
+        "minecraft:creeper": 8,
+        "minecraft:skeleton": 3
+      },
+      "uebrigAmEnde": 0,
+      "bloeckeZerstoert": 0,
+      "spieler": {
+        "Bot02": {
+          "schaden": 390.52249097824097,
+          "schadenNachQuelle": {
+            "nah:summoning_staff": 390.52249097824097
+          },
+          "erhalten": 67.96542644500732,
+          "erhaltenNachGegner": {
+            "maschine": 67.96542644500732
+          },
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 3.833333373069763,
+          "kills": 7,
+          "assists": 5,
+          "tode": 1,
+          "drohneSekunden": 77,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {
+            "stab": 320,
+            "wahl:fear": 80,
+            "ult": 159,
+            "wahl:swarm": 79
+          },
+          "turmSekunden": 0
+        },
+        "Bot01": {
+          "schaden": 158.11276054382324,
+          "schadenNachQuelle": {
+            "turm:arrow_turret": 158.11276054382324
+          },
+          "erhalten": 152.94855737686157,
+          "erhaltenNachGegner": {
+            "maschine": 152.94855737686157
+          },
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 28.96046769618988,
+          "kills": 7,
+          "assists": 0,
+          "tode": 1,
+          "drohneSekunden": 0,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {
+            "wahl:escape": 35,
+            "ult": 185
+          },
+          "turmSekunden": 0
+        }
+      }
+    }
+  ],
+  "gegner": {
+    "minecraft:zombie": {
+      "gespawnt": 10,
+      "getoetet": 10,
+      "ueberlebtSekundenSumme": 659.9499999999999,
+      "ueberlebtSekundenSchnitt": 66.0,
+      "schadenAnSpielern": 0.0,
+      "getoetetVon": {
+        "turm:arrow_turret": 4,
+        "klasse:soulcatcher": 6
+      }
+    },
+    "minecraft:creeper": {
+      "gespawnt": 8,
+      "getoetet": 4,
+      "ueberlebtSekundenSumme": 184.4,
+      "ueberlebtSekundenSchnitt": 46.1,
+      "schadenAnSpielern": 0.0,
+      "getoetetVon": {
+        "turm:arrow_turret": 3,
+        "klasse:soulcatcher": 1
+      }
+    },
+    "minecraft:skeleton": {
+      "gespawnt": 3,
+      "getoetet": 0,
+      "ueberlebtSekundenSumme": 0.0,
+      "ueberlebtSekundenSchnitt": 0.0,
+      "schadenAnSpielern": 0.0,
+      "getoetetVon": {}
+    },
+    "maschine": {
+      "gespawnt": 0,
+      "getoetet": 0,
+      "ueberlebtSekundenSumme": 0.0,
+      "ueberlebtSekundenSchnitt": 0.0,
+      "schadenAnSpielern": 220.9139838218689,
+      "getoetetVon": {}
+    }
+  },
+  "tuerme": {
+    "arrow_turret|Bot01": {
+      "art": "arrow_turret",
+      "besitzer": "Bot01",
+      "schaden": 158.11276054382324,
+      "schadenBemannt": 0.0,
+      "kills": 7,
+      "killsBemannt": 0,
+      "sekundenBemannt": 0
+    }
+  },
+  "bewertung": {},
+  "staerksteKlasse": {}
+}

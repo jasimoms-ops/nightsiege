@@ -1,0 +1,181 @@
+{
+  "art": "nacht",
+  "sim": "g14|L5|G2|zufall|0",
+  "version": "1.0.0",
+  "build": "673f738",
+  "start": "2026-10-29 22:13:27",
+  "ende": "2026-10-29 22:13:57",
+  "abgeschlossen": true,
+  "test": true,
+  "nacht": -1,
+  "stufe": 5,
+  "ereignis": "none",
+  "besondereNacht": false,
+  "fragment": "",
+  "fluchsteine": [],
+  "boss": "",
+  "ergebnis": "test_gehalten",
+  "dauerSekunden": 959,
+  "killZiel": 0,
+  "kills": 20,
+  "gespawnt": 32,
+  "tode": 1,
+  "basis": {
+    "geschlossen": true,
+    "breite": 29,
+    "tiefe": 29,
+    "tore": 3
+  },
+  "spieler": {
+    "Bot01": {
+      "name": "Bot01",
+      "uuid": "59db4448-2e93-31f2-b572-f9f8749b0f17",
+      "klasse": "warrior",
+      "weg": "might",
+      "unterklasse": "paladin",
+      "profil": "WARRIOR",
+      "punkteImProfil": 21,
+      "ultStufe3": false,
+      "kit": "warrior"
+    },
+    "Bot02": {
+      "name": "Bot02",
+      "uuid": "2169bc70-47b7-396c-b0e6-a3d8306b7dfa",
+      "klasse": "engineer",
+      "weg": "mech",
+      "unterklasse": "",
+      "profil": "ENGINEER",
+      "punkteImProfil": 20,
+      "ultStufe3": false,
+      "kit": "engineer"
+    }
+  },
+  "heerlager": {
+    "erschienen": false,
+    "zerstoert": false,
+    "lagerSiegte": false,
+    "maschinen": 1
+  },
+  "maschinen": [
+    {
+      "art": "plague",
+      "startSekunde": 787,
+      "endeSekunde": 959,
+      "zerstoert": false,
+      "sabotiertVon": "",
+      "schuesse": 11,
+      "bloecke": 0,
+      "schadenAnSpielern": 0.0
+    }
+  ],
+  "wellen": [
+    {
+      "nummer": 0,
+      "startSekunde": 3,
+      "dauerSekunden": 956,
+      "gespawnt": 32,
+      "typen": {
+        "minecraft:zombie": 18,
+        "minecraft:skeleton": 3,
+        "minecraft:creeper": 11
+      },
+      "uebrigAmEnde": 0,
+      "bloeckeZerstoert": 0,
+      "spieler": {
+        "Bot02": {
+          "schaden": 475.7329411506653,
+          "schadenNachQuelle": {
+            "turm:spike_trap": 87.01875162124634,
+            "nah:iron_sword": 388.71418952941895
+          },
+          "erhalten": 127.37040305137634,
+          "erhaltenNachGegner": {
+            "minecraft:skeleton": 121.37894630432129,
+            "minecraft:creeper": 1.4800269603729248,
+            "minecraft:zombie": 4.511429786682129
+          },
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 21.793812453746796,
+          "kills": 16,
+          "assists": 2,
+          "tode": 0,
+          "drohneSekunden": 0,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {
+            "wahl:escape": 60,
+            "ult": 319
+          },
+          "turmSekunden": 0
+        },
+        "Bot01": {
+          "schaden": 88.05240821838379,
+          "schadenNachQuelle": {
+            "nah:iron_axe": 88.05240821838379
+          },
+          "erhalten": 174.48970079421997,
+          "erhaltenNachGegner": {
+            "minecraft:skeleton": 174.48970079421997
+          },
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 6.530069962143898,
+          "kills": 3,
+          "assists": 1,
+          "tode": 1,
+          "drohneSekunden": 675,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {
+            "ult": 94,
+            "faehigkeit_f": 56
+          },
+          "turmSekunden": 0
+        }
+      }
+    }
+  ],
+  "gegner": {
+    "minecraft:zombie": {
+      "gespawnt": 18,
+      "getoetet": 17,
+      "ueberlebtSekundenSumme": 1358.1000000000004,
+      "ueberlebtSekundenSchnitt": 79.9,
+      "schadenAnSpielern": 4.511429786682129,
+      "getoetetVon": {
+        "klasse:paladin": 2,
+        "klasse:engineer": 15
+      }
+    },
+    "minecraft:skeleton": {
+      "gespawnt": 3,
+      "getoetet": 3,
+      "ueberlebtSekundenSumme": 566.25,
+      "ueberlebtSekundenSchnitt": 188.8,
+      "schadenAnSpielern": 295.86864709854126,
+      "getoetetVon": {
+        "klasse:paladin": 1,
+        "sonstiges:minecraft:wolf": 1,
+        "klasse:engineer": 1
+      }
+    },
+    "minecraft:creeper": {
+      "gespawnt": 11,
+      "getoetet": 0,
+      "ueberlebtSekundenSumme": 0.0,
+      "ueberlebtSekundenSchnitt": 0.0,
+      "schadenAnSpielern": 1.4800269603729248,
+      "getoetetVon": {}
+    }
+  },
+  "tuerme": {
+    "spike_trap|Bot02": {
+      "art": "spike_trap",
+      "besitzer": "Bot02",
+      "schaden": 87.01875162124634,
+      "schadenBemannt": 0.0,
+      "kills": 0,
+      "killsBemannt": 0,
+      "sekundenBemannt": 0
+    }
+  },
+  "bewertung": {},
+  "staerksteKlasse": {}
+}

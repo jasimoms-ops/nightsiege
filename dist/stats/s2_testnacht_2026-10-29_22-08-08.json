@@ -1,0 +1,205 @@
+{
+  "art": "nacht",
+  "sim": "g14|L20|G2|zufall|2",
+  "version": "1.0.0",
+  "build": "673f738",
+  "start": "2026-10-29 22:08:08",
+  "ende": "2026-10-29 22:08:50",
+  "abgeschlossen": true,
+  "test": true,
+  "nacht": -1,
+  "stufe": 20,
+  "ereignis": "none",
+  "besondereNacht": false,
+  "fragment": "",
+  "fluchsteine": [],
+  "boss": "",
+  "ergebnis": "test_gehalten",
+  "dauerSekunden": 959,
+  "killZiel": 0,
+  "kills": 33,
+  "gespawnt": 41,
+  "tode": 1,
+  "basis": {
+    "geschlossen": true,
+    "breite": 29,
+    "tiefe": 29,
+    "tore": 3
+  },
+  "spieler": {
+    "Bot01": {
+      "name": "Bot01",
+      "uuid": "59db4448-2e93-31f2-b572-f9f8749b0f17",
+      "klasse": "engineer",
+      "weg": "chem",
+      "unterklasse": "demolition",
+      "profil": "ENGINEER",
+      "punkteImProfil": 159,
+      "ultStufe3": false,
+      "kit": "engineer"
+    },
+    "Bot02": {
+      "name": "Bot02",
+      "uuid": "2169bc70-47b7-396c-b0e6-a3d8306b7dfa",
+      "klasse": "archer",
+      "weg": "xbow",
+      "unterklasse": "bolter",
+      "profil": "ARCHER",
+      "punkteImProfil": 163,
+      "ultStufe3": false,
+      "kit": "archer"
+    }
+  },
+  "heerlager": {
+    "erschienen": false,
+    "zerstoert": false,
+    "lagerSiegte": false,
+    "maschinen": 2
+  },
+  "maschinen": [
+    {
+      "art": "ballista",
+      "startSekunde": 247,
+      "endeSekunde": 959,
+      "zerstoert": false,
+      "sabotiertVon": "",
+      "schuesse": 0,
+      "bloecke": 0,
+      "schadenAnSpielern": 0.0
+    },
+    {
+      "art": "plague",
+      "startSekunde": 427,
+      "endeSekunde": 959,
+      "zerstoert": false,
+      "sabotiertVon": "",
+      "schuesse": 54,
+      "bloecke": 0,
+      "schadenAnSpielern": 0.0
+    }
+  ],
+  "wellen": [
+    {
+      "nummer": 0,
+      "startSekunde": 0,
+      "dauerSekunden": 959,
+      "gespawnt": 41,
+      "typen": {
+        "minecraft:creeper": 13,
+        "minecraft:zombie": 22,
+        "minecraft:spider": 6
+      },
+      "uebrigAmEnde": 0,
+      "bloeckeZerstoert": 0,
+      "spieler": {
+        "Bot02": {
+          "schaden": 1727.1711555719376,
+          "schadenNachQuelle": {
+            "fern:crossbow": 956.7648466825485,
+            "nah:crossbow": 770.406308889389
+          },
+          "erhalten": 208.2984013557434,
+          "erhaltenNachGegner": {
+            "umgebung:magic": 42.0,
+            "boss:minecraft:witch": 166.2984013557434
+          },
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 4.300004363059998,
+          "kills": 21,
+          "assists": 11,
+          "tode": 1,
+          "drohneSekunden": 70,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {
+            "ult": 296,
+            "faehigkeit_f": 177
+          },
+          "turmSekunden": 0
+        },
+        "Bot01": {
+          "schaden": 311.7452940940857,
+          "schadenNachQuelle": {
+            "nah:netherite_sword": 283.215699672699,
+            "turm:spike_trap": 28.52959442138672
+          },
+          "erhalten": 112.26491117477417,
+          "erhaltenNachGegner": {
+            "umgebung:magic": 73.0,
+            "boss:minecraft:witch": 39.26491117477417
+          },
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 33.848220854997635,
+          "kills": 11,
+          "assists": 1,
+          "tode": 0,
+          "drohneSekunden": 0,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {
+            "wahl:escape": 60,
+            "ult": 319
+          },
+          "turmSekunden": 0
+        }
+      }
+    }
+  ],
+  "gegner": {
+    "minecraft:creeper": {
+      "gespawnt": 13,
+      "getoetet": 5,
+      "ueberlebtSekundenSumme": 233.5,
+      "ueberlebtSekundenSchnitt": 46.7,
+      "schadenAnSpielern": 0.0,
+      "getoetetVon": {
+        "klasse:bolter": 2,
+        "umgebung:fall": 1,
+        "klasse:demolition": 2
+      }
+    },
+    "minecraft:zombie": {
+      "gespawnt": 22,
+      "getoetet": 22,
+      "ueberlebtSekundenSumme": 1299.55,
+      "ueberlebtSekundenSchnitt": 59.1,
+      "schadenAnSpielern": 0.0,
+      "getoetetVon": {
+        "klasse:bolter": 15,
+        "turm:spike_trap": 1,
+        "klasse:demolition": 6
+      }
+    },
+    "minecraft:spider": {
+      "gespawnt": 6,
+      "getoetet": 6,
+      "ueberlebtSekundenSumme": 232.3,
+      "ueberlebtSekundenSchnitt": 38.7,
+      "schadenAnSpielern": 0.0,
+      "getoetetVon": {
+        "klasse:bolter": 4,
+        "klasse:demolition": 1,
+        "turm:spike_trap": 1
+      }
+    },
+    "boss:minecraft:witch": {
+      "gespawnt": 0,
+      "getoetet": 0,
+      "ueberlebtSekundenSumme": 0.0,
+      "ueberlebtSekundenSchnitt": 0.0,
+      "schadenAnSpielern": 205.56331253051758,
+      "getoetetVon": {}
+    }
+  },
+  "tuerme": {
+    "spike_trap|Bot01": {
+      "art": "spike_trap",
+      "besitzer": "Bot01",
+      "schaden": 28.52959442138672,
+      "schadenBemannt": 0.0,
+      "kills": 2,
+      "killsBemannt": 0,
+      "sekundenBemannt": 0
+    }
+  },
+  "bewertung": {},
+  "staerksteKlasse": {}
+}
