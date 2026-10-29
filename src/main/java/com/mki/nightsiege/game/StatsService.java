@@ -294,6 +294,8 @@ public final class StatsService {
             line.cost = node.costFor(line.level);
             line.requires = node.requires();
             line.requiresLevel = node.requiresLevel();
+            line.freeLevels = node.freeLevels();
+            line.upgradeRequires = node.upgradeRequires();
             line.blocked = shared ? tree.blockedReason(node.id(), save.coreSkills())
                     : skills.hasUnlocked(node.clazz())
                     ? skills.as(node.clazz(), () -> tree.blockedReason(node.id(), skills))

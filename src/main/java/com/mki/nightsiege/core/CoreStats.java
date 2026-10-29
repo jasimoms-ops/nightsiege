@@ -43,6 +43,10 @@ public class CoreStats {
         public int cost;
         public String requires;
         public int requiresLevel;
+        /** Levels given for free (the subclass node's level 1, since 29 October 2026). */
+        public int freeLevels;
+        /** What the levels after the free ones need besides {@link #requires} (the subclass node: its way's first node). */
+        public String upgradeRequires;
         public String blocked;
         public boolean live;
         /** Choice group (one node per group), place from the top, nodes it closes. */

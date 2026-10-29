@@ -68,6 +68,14 @@ public class PlayerSkills {
     public int profileVersion;
     public static final int PROFILE_VERSION = 1;
 
+    /**
+     * 1 once level 1 of the subclass node is the free one for this player (the subclass first, Simon
+     * 29 October 2026): set by {@link SkillTree#migrateFreeSubclass} for older saves, and by every free
+     * level given since. A player still at 0 who holds a subclass node bought its level 1.
+     */
+    public int freeSubclassVersion;
+    public static final int FREE_SUBCLASS_VERSION = 1;
+
     /** At most this many profiles per class: one per subclass. */
     public static final int MAX_PROFILES = 4;
 
@@ -169,17 +177,73 @@ public class PlayerSkills {
         return info == null ? "" : info.node();
     }
 
-    /** Fixes the subclass of a class's profile by its node id (the armour stand window). */
+    /** Fixes the subclass of a class's profile by its node id (the armour stand window); level 1 of it comes free. */
     public void fixSub(SkillClass c, String nodeId) {
         SkillTree.SubclassInfo info = SkillTree.subclassByNode(nodeId);
         String key = profileFor(c);
         if (info == null || info.clazz() != c || key == null) {
             return;
         }
+        planSubclass(key, info.key());
+    }
+
+    /** Fixes the subclass of one profile and gives it level 1 of the subclass node (see {@link #grantFreeSubclass}). */
+    public void planSubclass(String key, String subclass) {
+        if (key == null || subclass == null || subclass.isBlank()) {
+            return;
+        }
         if (planned == null) {
             planned = new HashMap<>();
         }
-        planned.put(key, info.key());
+        planned.put(key, subclass);
+        grantFreeSubclass(key);
+    }
+
+    /**
+     * Level 1 of the subclass node comes with the subclass (Simon, 29 October 2026: "stufe 1
+     * geschenkt"): a profile with a fixed subclass that has not learned its node gets level 1, at no
+     * cost and outside the history (a lost night never takes it). Nothing happens while the profile
+     * holds a subclass node already. Returns true when the level was given now.
+     */
+    public boolean grantFreeSubclass(String key) {
+        SkillClass c = classOfKey(key);
+        SkillTree.SubclassInfo info = c == null ? null : SkillTree.subclassByKey(c, plannedSubclass(key));
+        if (info == null || !hasProfile(key)) {
+            return false;
+        }
+        for (SkillTree.SubclassInfo other : SkillTree.subclassInfosOf(c)) {
+            if (levelInProfile(key, other.node()) > 0) {
+                return false;
+            }
+        }
+        if (key.equals(chosenClass)) {
+            setLevel(info.node(), 1);
+        } else {
+            if (classLevels == null) {
+                classLevels = new HashMap<>();
+            }
+            classLevels.computeIfAbsent(key, k -> new HashMap<>()).put(info.node(), 1);
+        }
+        freeSubclassVersion = FREE_SUBCLASS_VERSION;
+        return true;
+    }
+
+    /** {@link #grantFreeSubclass} for every profile. Returns how many got their level 1 now. */
+    public int grantFreeSubclasses() {
+        int given = 0;
+        for (String key : new ArrayList<>(unlockedClasses())) {
+            if (grantFreeSubclass(key)) {
+                given++;
+            }
+        }
+        return given;
+    }
+
+    /** Takes the oldest purchase of a node out of the played profile's history (it was paid back). */
+    public void forgetPurchase(String nodeId) {
+        if (history != null) {
+            history.remove(nodeId);
+        }
     }
 
     /** A learned level in the played profile, or in the class's profile (see {@link #profileFor}). */
@@ -303,13 +367,36 @@ public class PlayerSkills {
             classLevels = new HashMap<>();
         }
         classLevels.putIfAbsent(key, new HashMap<>());
-        if (subclass != null && !subclass.isBlank()) {
-            if (planned == null) {
-                planned = new HashMap<>();
-            }
-            planned.put(key, subclass);
-        }
+        // The subclass comes with its node at level 1 (the root of the profile's tree).
+        planSubclass(key, subclass);
         return key;
+    }
+
+    /**
+     * Plays a profile just opened while no class was played yet (the first class): what it holds
+     * already (level 1 of its subclass node) becomes the played levels.
+     */
+    public void playOpened(String key) {
+        if (key == null || key.isBlank()) {
+            return;
+        }
+        Map<String, Integer> parked = classLevels == null ? null : classLevels.remove(key);
+        List<String> parkedHistory = classHistory == null ? null : classHistory.remove(key);
+        chosenClass = key;
+        if (levels == null) {
+            levels = new HashMap<>();
+        }
+        if (parked != null) {
+            for (Map.Entry<String, Integer> e : parked.entrySet()) {
+                levels.merge(e.getKey(), e.getValue(), Math::max);
+            }
+        }
+        if (history == null) {
+            history = new ArrayList<>();
+        }
+        if (parkedHistory != null) {
+            history.addAll(0, parkedHistory);
+        }
     }
 
     /** Opens the first profile of a class (nothing happens when the class has one already). */

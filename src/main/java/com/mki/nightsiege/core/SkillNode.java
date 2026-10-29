@@ -25,11 +25,24 @@ import java.util.List;
  * @param group          choice group: only one node of a group can be taken; empty for none
  * @param locks          nodes that can no longer be taken once this one is (and the other way round)
  * @param col            place from the top inside its column; -1 lets the window decide
+ * @param freeLevels     the first levels that cost nothing (the subclass node: level 1 comes with
+ *                       the subclass, Simon 29 October 2026); 0 for every other node
+ * @param upgradeRequires what the levels after the free ones need besides {@code requires}, or null
+ *                       (the subclass node: the first node of its way), same form as {@code requires}
  */
 public record SkillNode(String id, SkillClass clazz, String path, SkillEffect effect, int maxLevel,
                         int baseCost, int costStep, double amountPerLevel,
                         String requires, int requiresLevel, String icon, int row,
-                        String group, List<String> locks, int col) {
+                        String group, List<String> locks, int col, int freeLevels, String upgradeRequires) {
+
+    /** A node whose every level is paid and has the same requirement. */
+    public SkillNode(String id, SkillClass clazz, String path, SkillEffect effect, int maxLevel,
+                     int baseCost, int costStep, double amountPerLevel,
+                     String requires, int requiresLevel, String icon, int row,
+                     String group, List<String> locks, int col) {
+        this(id, clazz, path, effect, maxLevel, baseCost, costStep, amountPerLevel,
+                requires, requiresLevel, icon, row, group, locks, col, 0, null);
+    }
 
     /** A node without choice group, locks or fixed place (all classes but the warrior). */
     public SkillNode(String id, SkillClass clazz, String path, SkillEffect effect, int maxLevel,
@@ -43,9 +56,22 @@ public record SkillNode(String id, SkillClass clazz, String path, SkillEffect ef
     public record Need(String id, int level) {
     }
 
-    /** Points needed to go from the given level to the next one. */
+    /** Points needed to go from the given level to the next one (a free level costs nothing). */
     public int costFor(int currentLevel) {
+        if (isFreeAt(currentLevel)) {
+            return 0;
+        }
         return baseCost + costStep * Math.max(0, currentLevel);
+    }
+
+    /** True when the step from this level to the next one is a free one. */
+    public boolean isFreeAt(int currentLevel) {
+        return currentLevel >= 0 && currentLevel < freeLevels;
+    }
+
+    /** What the paid levels after the free ones need, as alternatives that must all be met (empty: nothing). */
+    public List<List<Need>> upgradeNeeds() {
+        return parse(upgradeRequires, requiresLevel);
     }
 
     public double bonusAt(int level) {
@@ -66,6 +92,11 @@ public record SkillNode(String id, SkillClass clazz, String path, SkillEffect ef
 
     /** The requirement as a list of alternatives that must all be met. */
     public List<List<Need>> needs() {
+        return parse(requires, requiresLevel);
+    }
+
+    /** Reads a requirement expression ({@code a|b:2,c}); a name without a level needs {@code requiresLevel}. */
+    private static List<List<Need>> parse(String requires, int requiresLevel) {
         List<List<Need>> all = new ArrayList<>();
         if (requires == null || requires.isBlank()) {
             return all;
