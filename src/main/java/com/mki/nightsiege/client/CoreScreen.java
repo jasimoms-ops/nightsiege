@@ -185,7 +185,157 @@ public class CoreScreen extends Screen {
 
     /** True when the active class tab shows one of the player's own profiles. */
     private boolean ownsClassTab() {
-        return activeTab != null && activeTab.clazz != null && activeTab != Tab.CORE && shown() != null;
+        return activeTab != null && activeTab.clazz != null && activeTab != Tab.CORE && shown() != null && !previewSub();
+    }
+
+    // ------------------------------------------------------------------
+    // one tree per subclass (content update, Simon 29 October 2026: "jede Unterklasse sollte ihren
+    // eigenen skilltree haben und nicht mehr diese 4er Übersicht"): tabs for the class's four
+    // subclasses, the tree grows from the trunk at the bottom up to the mastery at the top.
+    // ------------------------------------------------------------------
+
+    /** The subclass each class tab shows, kept while the game runs. */
+    private static final java.util.Map<String, String> VIEW_SUB = new java.util.HashMap<>();
+
+    /** The subclass the active class tab shows: the chosen tab, else the shown profile's, else the first. */
+    private String viewedSub() {
+        if (testSceneSub != null) {
+            return testSceneSub;
+        }
+        if (!isClassTree(activeTab)) {
+            return "";
+        }
+        List<com.mki.nightsiege.core.SkillTree.SubclassInfo> infos =
+                com.mki.nightsiege.core.SkillTree.subclassInfosOf(activeTab.clazz);
+        String chosen = VIEW_SUB.get(activeTab.clazz.name());
+        for (com.mki.nightsiege.core.SkillTree.SubclassInfo info : infos) {
+            if (info.key().equals(chosen)) {
+                return chosen;
+            }
+        }
+        CoreStats.ProfileLine p = shown();
+        if (p != null && p.subclass != null && !p.subclass.isBlank()) {
+            return p.subclass;
+        }
+        return infos.isEmpty() ? "" : infos.get(0).key();
+    }
+
+    /** True while a class tab looks at a subclass that is not the shown profile's (only to look at). */
+    private boolean previewSub() {
+        if (!isClassTree(activeTab)) {
+            return false;
+        }
+        CoreStats.ProfileLine p = shown();
+        String sub = viewedSub();
+        return p == null || (p.subclass != null && !p.subclass.isBlank() && !p.subclass.equals(sub));
+    }
+
+    /** The own profile of a class that has this subclass, or null. */
+    private CoreStats.ProfileLine profileWithSub(SkillClass clazz, String sub) {
+        for (CoreStats.ProfileLine p : profilesOf(clazz)) {
+            if (sub.equals(p.subclass)) {
+                return p;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The nodes of one subclass's tree: the trunk, and every node of its way that can be learned
+     * without the other subclass of the way (so the way's shared nodes are in both trees).
+     */
+    private java.util.Set<String> subclassNodes(String clazz, String sub) {
+        java.util.Set<String> in = new java.util.LinkedHashSet<>();
+        SkillClass c = SkillClass.byName(clazz);
+        com.mki.nightsiege.core.SkillTree.SubclassInfo info = com.mki.nightsiege.core.SkillTree.subclassByKey(c, sub);
+        java.util.Map<String, CoreStats.NodeLine> all = new java.util.LinkedHashMap<>();
+        for (CoreStats.NodeLine n : stats.nodes) {
+            if (clazz.equals(n.clazz)) {
+                all.put(n.id, n);
+            }
+        }
+        java.util.Set<String> otherNodes = new java.util.HashSet<>();
+        java.util.Set<String> otherLanes = new java.util.HashSet<>();
+        String way = info == null ? "" : info.way();
+        if (info != null) {
+            for (com.mki.nightsiege.core.SkillTree.SubclassInfo o : com.mki.nightsiege.core.SkillTree.subclassInfosOf(c)) {
+                if (!o.key().equals(sub)) {
+                    otherNodes.add(o.node());
+                    otherLanes.add(o.key());
+                }
+            }
+        }
+        boolean changed = true;
+        while (changed) {
+            changed = false;
+            for (CoreStats.NodeLine n : all.values()) {
+                if (in.contains(n.id)) {
+                    continue;
+                }
+                boolean trunk = n.path == null || n.path.isBlank();
+                if (!trunk) {
+                    if (!n.path.equals(way) || otherNodes.contains(n.id)
+                            || (n.lane != null && otherLanes.contains(n.lane))) {
+                        continue;
+                    }
+                }
+                boolean ok = true;
+                for (List<String[]> any : needsOf(n)) {
+                    boolean met = false;
+                    for (String[] need : any) {
+                        met |= in.contains(need[0]) || !all.containsKey(need[0]);
+                    }
+                    ok &= met;
+                }
+                if (ok) {
+                    in.add(n.id);
+                    changed = true;
+                }
+            }
+        }
+        return in;
+    }
+
+    /** Distance between the tiers of a subclass tree, and between its columns (tree units). */
+    private static final double SUB_ROW = 50;
+    private static final double SUB_COL = 32;
+
+    /** Places the nodes of a subclass tree: tier 0 at the bottom, columns by the node's place. */
+    private java.util.Map<String, double[]> placeSub(List<CoreStats.NodeLine> nodes) {
+        java.util.Map<String, double[]> out = new java.util.HashMap<>();
+        int minCol = Integer.MAX_VALUE;
+        int maxCol = Integer.MIN_VALUE;
+        for (CoreStats.NodeLine n : nodes) {
+            if (n.path != null && !n.path.isBlank()) {
+                int col = n.col < 0 ? 3 : n.col;
+                minCol = Math.min(minCol, col);
+                maxCol = Math.max(maxCol, col);
+            }
+        }
+        double wayMid = minCol > maxCol ? 3 : (minCol + maxCol) / 2.0;
+        java.util.Map<Integer, List<CoreStats.NodeLine>> rows = new java.util.TreeMap<>();
+        for (CoreStats.NodeLine n : nodes) {
+            rows.computeIfAbsent(n.row, k -> new ArrayList<>()).add(n);
+        }
+        for (java.util.Map.Entry<Integer, List<CoreStats.NodeLine>> e : rows.entrySet()) {
+            List<CoreStats.NodeLine> row = e.getValue();
+            row.sort(java.util.Comparator.comparingInt(n -> n.col < 0 ? 3 : n.col));
+            double y = -e.getKey() * SUB_ROW;
+            java.util.List<Double> taken = new ArrayList<>();
+            for (CoreStats.NodeLine n : row) {
+                boolean trunk = n.path == null || n.path.isBlank();
+                int col = n.col < 0 ? 3 : n.col;
+                double x = (col - (trunk ? 3 : wayMid)) * SUB_COL;
+                for (double t : taken) {
+                    if (Math.abs(t - x) < SUB_COL * 0.9) {
+                        x = t + SUB_COL;   // two nodes on one place: the second steps aside
+                    }
+                }
+                taken.add(x);
+                out.put(n.id, new double[]{x, y});
+            }
+        }
+        return out;
     }
 
     /** The viewer's profiles of one class, oldest first. */
@@ -263,6 +413,16 @@ public class CoreScreen extends Screen {
 
     /** Lays the levels of the shown profile over the node lines of its class. */
     private void applyShownProfile() {
+        if (previewSub() && activeTab != null && activeTab.clazz != null) {
+            // Another subclass, only to look at: no levels, nothing to learn.
+            for (CoreStats.NodeLine n : stats.nodes) {
+                if (activeTab.clazz.name().equals(n.clazz)) {
+                    n.level = 0;
+                    n.blocked = null;
+                }
+            }
+            return;
+        }
         CoreStats.ProfileLine p = shown();
         if (p == null || stats.profileNodes == null) {
             return;
@@ -352,6 +512,13 @@ public class CoreScreen extends Screen {
         }
         if (activeTab == null) {
             activeTab = Tab.CLASSES;
+        }
+        if (isClassTree(activeTab)) {
+            // The subclass tab chosen last time: its own profile, if the player has one.
+            CoreStats.ProfileLine owner = profileWithSub(activeTab.clazz, viewedSub());
+            if (owner != null) {
+                shownProfile = owner.key;
+            }
         }
         applyShownProfile();
         boolean big = activeTab == Tab.CLASSES
@@ -524,7 +691,9 @@ public class CoreScreen extends Screen {
         }
         boolean own = ownsTree();
         layoutNodes(activeTab.clazz.name(), own);
-        if (activeTab != Tab.CORE) {
+        if (gridMode && isClassTree(activeTab)) {
+            layoutSubTabs();
+        } else if (activeTab != Tab.CORE) {
             layoutProfilePages();
         }
 
@@ -546,7 +715,15 @@ public class CoreScreen extends Screen {
             primaryMin = 134;
             // The subclass is chosen with the class, at the armour stands (26 October 2026).
             primaryPress = b -> openSubclassPick(pick);
-        } else if (page != null && !page.playing && !stats.siegeActive) {
+        } else if (previewSub() && page != null && stats.unlocksFree > 0) {
+            // Another subclass of an own class: an unlock can open it.
+            primary = Component.translatable("nightsiege.ui.unlock_open");
+            primaryShort = primary;
+            primaryPress = b -> {
+                choosingUnlock = true;
+                rebuildWidgets();
+            };
+        } else if (page != null && !page.playing && !stats.siegeActive && !previewSub()) {
             // Another own profile: play it from now on.
             String key = page.key;
             primary = Component.translatable("nightsiege.ui.play_class", profileName(page));
@@ -855,12 +1032,24 @@ public class CoreScreen extends Screen {
     /** Set while the map is laid out only to be drawn behind a question. */
     private boolean quiet;
 
+    /** True while a class tab shows one subclass's tree (not the core, not the old star map). */
+    private boolean subMode;
+    /** The nodes of the subclass tree on show. */
+    private java.util.Set<String> subNodes = java.util.Set.of();
+
+    /** True when a node belongs to the tree on show. */
+    private boolean onShow(CoreStats.NodeLine node, String clazz) {
+        return clazz.equals(node.clazz) && (!subMode || subNodes.contains(node.id));
+    }
+
     private void layoutGrid(String clazz, boolean buyable) {
         ways.clear();
         gridNodes.clear();
+        subMode = isClassTree(activeTab);
+        subNodes = subMode ? subclassNodes(clazz, viewedSub()) : java.util.Set.of();
         int maxRow = 0;
         for (CoreStats.NodeLine node : stats.nodes) {
-            if (!clazz.equals(node.clazz)) {
+            if (!onShow(node, clazz)) {
                 continue;
             }
             maxRow = Math.max(maxRow, node.row);
@@ -871,20 +1060,24 @@ public class CoreScreen extends Screen {
         gridMaxRow = Math.max(1, maxRow);
         trunkNodes = 0;
         for (CoreStats.NodeLine node : stats.nodes) {
-            if (clazz.equals(node.clazz) && (node.path == null || node.path.isBlank())) {
+            if (onShow(node, clazz) && (node.path == null || node.path.isBlank())) {
                 trunkNodes++;
             }
         }
+        List<CoreStats.NodeLine> shownNodes = new ArrayList<>();
+        for (CoreStats.NodeLine node : stats.nodes) {
+            if (onShow(node, clazz)) {
+                shownNodes.add(node);
+            }
+        }
+        java.util.Map<String, double[]> subPlaces = subMode ? placeSub(shownNodes) : java.util.Map.of();
         PANEL_W = Math.max(124, Math.min(170, innerW() * 3 / 10));
         minX = Double.MAX_VALUE;
         maxX = -Double.MAX_VALUE;
         minY = Double.MAX_VALUE;
         maxY = -Double.MAX_VALUE;
-        for (CoreStats.NodeLine node : stats.nodes) {
-            if (!clazz.equals(node.clazz)) {
-                continue;
-            }
-            double[] p = place(node);
+        for (CoreStats.NodeLine node : shownNodes) {
+            double[] p = subMode ? subPlaces.get(node.id) : place(node);
             gridNodes.add(new GridNode(node, p[0], p[1]));
             minX = Math.min(minX, p[0]);
             maxX = Math.max(maxX, p[0]);
@@ -896,10 +1089,13 @@ public class CoreScreen extends Screen {
         }
         // A little room around the outer ring; the way names sit in the corners of the view.
         double spanX = maxX - minX + 2 * (N_SLOT + 14);
-        double spanY = maxY - minY + 2 * (N_SLOT + 10);
+        double spanY = maxY - minY + 2 * (N_SLOT + 10) + (subMode ? 36 : 0);   // room for the subclass's name
         fitZoom = Math.min(viewW() / spanX, viewH() / spanY);
-        shownClass = clazz;
-        double[] view = VIEWS.get(clazz);
+        shownClass = subMode ? clazz + "/" + viewedSub() : clazz;
+        double[] view = VIEWS.get(shownClass);
+        if (view == null && subMode) {
+            view = VIEWS.get(clazz);   // the tests set the class's view
+        }
         if (view == null) {
             camX = (minX + maxX) / 2.0;
             camY = (minY + maxY) / 2.0;
@@ -1153,7 +1349,7 @@ public class CoreScreen extends Screen {
     /** The class's own night scene behind the tree; it drifts a little with the view. */
     private void drawScene(GuiGraphicsExtractor gui, int vx, int vy, int vw, int vh) {
         // Design update (29 October 2026): the shown profile's subclass has its own scene (tools/ui/tree_bg.py).
-        String sub = activeTab.key.equals("core") ? "" : shownSub();
+        String sub = activeTab.key.equals("core") ? "" : isClassTree(activeTab) ? viewedSub() : shownSub();
         if (TreeScene.has(sub)) {
             // v2 (29 October 2026): three layers with parallax and the subclass's particles (TreeScene).
             double dx = (camX - (minX + maxX) / 2.0) / Math.max(1.0, (maxX - minX) / 2.0);
@@ -1224,7 +1420,17 @@ public class CoreScreen extends Screen {
         } else {
             head = Component.translatable("nightsiege.ui.preview_other", Component.literal(playedName())).getString();
         }
-        gui.text(font, font.plainSubstrByWidth(head, vw - 4), vx + 4, innerY() + 3, own ? GOLD : GRAY, true);
+        if (subMode) {
+            // The subclass tabs take the line; the points stand on its right.
+            drawSubTabs(gui, font, mouseX, mouseY);
+            int tabsEnd = subTabs.isEmpty() ? vx : subTabs.get(subTabs.size() - 1).x() + subTabs.get(subTabs.size() - 1).w();
+            String pts = own ? Component.translatable("nightsiege.ui.points_short", stats.points).getString() : "";
+            if (!pts.isEmpty() && tabsEnd + 8 + font.width(pts) < vx + vw) {
+                gui.text(font, pts, vx + vw - font.width(pts) - 2, innerY() + 3, GOLD, true);
+            }
+        } else {
+            gui.text(font, font.plainSubstrByWidth(head, vw - 4), vx + 4, innerY() + 3, own ? GOLD : GRAY, true);
+        }
 
         gui.enableScissor(vx, vy, vx + vw, vy + vh);
         drawScene(gui, vx, vy, vw, vh);
@@ -1245,9 +1451,30 @@ public class CoreScreen extends Screen {
 
         boolean stars = zoom < STAR_ZOOM;   // far out: the tree as a constellation
 
-        // Rings: one faint dotted arc per ring and way.
+        // Rings: one faint dotted arc per ring and way (a subclass tree: one dotted line per tier).
         int dot = (int) Math.max(1, Math.round(px));
-        for (int w = 0; w < ways.size(); w++) {
+        if (subMode) {
+            java.util.Set<Integer> tiers = new java.util.TreeSet<>();
+            for (GridNode g : gridNodes) {
+                tiers.add(g.node().row);
+            }
+            for (int row : tiers) {
+                int y = (int) Math.round(-row * SUB_ROW);
+                int color = row == 8 ? 0x48FFD86B : 0x22FFFFFF;
+                for (int x = (int) minX - 40; x <= maxX + 40; x += 8) {
+                    gui.fill(x, y, x + dot * 2, y + dot, color);
+                }
+            }
+            // Every link of the tree, faint; bright where both ends are learned.
+            for (Edge edge : edges) {
+                for (GridNode p : edge.parents()) {
+                    boolean on = p.node().level > 0 && edge.child().node().level > 0;
+                    line(gui, p.cx(), p.cy(), edge.child().cx(), edge.child().cy(), Math.max(1.0, 1.2 * px),
+                            on ? 0xC0000000 | laneColor(edge.child().node(), rgb) : 0x40C8C0D8);
+                }
+            }
+        }
+        for (int w = 0; w < ways.size() && !subMode; w++) {
             boolean faded = !taken.isBlank() && !taken.equals(ways.get(w));
             for (int row = 2; row <= gridMaxRow; row++) {
                 double r = ringRadius(row);
@@ -1381,7 +1608,22 @@ public class CoreScreen extends Screen {
 
         // Labels in screen size, so they stay readable at any zoom.
         double midR = (ringRadius(2) + ringRadius(gridMaxRow)) / 2.0;
-        for (int w = 0; w < ways.size(); w++) {
+        if (subMode) {
+            drawSubTitle(gui, font, vx, vy);
+            // The tiers' names on the left edge.
+            java.util.Set<Integer> tiers = new java.util.TreeSet<>();
+            for (GridNode g : gridNodes) {
+                tiers.add(g.node().row);
+            }
+            for (int row : tiers) {
+                int sy = (int) screenY(-row * SUB_ROW) - 4;
+                if (sy > vy + 34 && sy < vy + vh - 10 && row >= 2) {
+                    String ring = roman(row - 1);
+                    gui.text(font, ring, vx + vw - font.width(ring) - 6, sy, row == 8 ? 0xC0FFD86B : 0x80B8B0C4, true);
+                }
+            }
+        }
+        for (int w = 0; w < ways.size() && !subMode; w++) {
             String way = ways.get(w);
             boolean faded = !taken.isBlank() && !taken.equals(way);
             // The way's name in its top corner of the view: left way left, right way right.
@@ -3540,6 +3782,93 @@ public class CoreScreen extends Screen {
     }
 
     /** Small page buttons above a class tree when the player has more than one profile of the class. */
+    /** A subclass tab above the tree: where it is drawn and which subclass it is. */
+    private record SubTab(String sub, int x, int y, int w, int h) {
+    }
+
+    private final List<SubTab> subTabs = new ArrayList<>();
+
+    /** The four subclass tabs in the line above the tree. */
+    private void layoutSubTabs() {
+        subTabs.clear();
+        int x = viewX();
+        int y = innerY() + 1;
+        for (com.mki.nightsiege.core.SkillTree.SubclassInfo info
+                : com.mki.nightsiege.core.SkillTree.subclassInfosOf(activeTab.clazz)) {
+            String sub = info.key();
+            String label = subTabLabel(sub);
+            int w = font.width(label) + 10 + (profileWithSub(activeTab.clazz, sub) == null ? 8 : 0);
+            subTabs.add(new SubTab(sub, x, y, w, 12));
+            invisible(Button.builder(Component.empty(), b -> {
+                VIEW_SUB.put(activeTab.clazz.name(), sub);
+                CoreStats.ProfileLine owner = profileWithSub(activeTab.clazz, sub);
+                if (owner != null) {
+                    shownProfile = owner.key;
+                }
+                selectedId = null;
+                rebuildWidgets();
+            }).bounds(x, y, w, 12).build());
+            x += w + 2;
+        }
+    }
+
+    private String subTabLabel(String sub) {
+        CoreStats.ProfileLine owner = profileWithSub(activeTab.clazz, sub);
+        String name = Component.translatable("nightsiege.subclass." + sub).getString();
+        if (owner == null) {
+            return name;
+        }
+        return (owner.playing ? "★ " : "") + name;
+    }
+
+    /** The tabs: the shown one in its subclass colour, the others dark, a lock on those not opened yet. */
+    private void drawSubTabs(GuiGraphicsExtractor gui, Font font, int mouseX, int mouseY) {
+        String shownSubKey = viewedSub();
+        for (SubTab t : subTabs) {
+            int lane = LANE_COLORS.getOrDefault(t.sub(), activeTab.color & 0xFFFFFF);
+            boolean on = t.sub().equals(shownSubKey);
+            boolean hover = mouseX >= t.x() && mouseX < t.x() + t.w() && mouseY >= t.y() && mouseY < t.y() + t.h();
+            boolean locked = profileWithSub(activeTab.clazz, t.sub()) == null;
+            gui.fill(t.x(), t.y(), t.x() + t.w(), t.y() + t.h(), 0xFF000000);
+            gui.fill(t.x() + 1, t.y() + 1, t.x() + t.w() - 1, t.y() + t.h(),
+                    on ? 0xFF000000 | lane : hover ? 0xFF2E2838 : 0xFF1A1622);
+            int tx = t.x() + 5;
+            if (locked) {
+                // a small padlock
+                int c = on ? 0xFF15121C : 0xFF8A8494;
+                gui.fill(tx, t.y() + 6, tx + 5, t.y() + 10, c);
+                gui.fill(tx + 1, t.y() + 3, tx + 2, t.y() + 6, c);
+                gui.fill(tx + 3, t.y() + 3, tx + 4, t.y() + 6, c);
+                gui.fill(tx + 1, t.y() + 3, tx + 4, t.y() + 4, c);
+                tx += 8;
+            }
+            int text = on ? 0xFF15121C : locked ? 0xFF8A8494 : 0xFF000000 | lane;
+            gui.text(font, subTabLabel(t.sub()), tx, t.y() + 2, text, !on);
+        }
+    }
+
+    /** The subclass's name and where it belongs, in the top left of the tree. */
+    private void drawSubTitle(GuiGraphicsExtractor gui, Font font, int vx, int vy) {
+        String sub = viewedSub();
+        com.mki.nightsiege.core.SkillTree.SubclassInfo info =
+                com.mki.nightsiege.core.SkillTree.subclassByKey(activeTab.clazz, sub);
+        int lane = LANE_COLORS.getOrDefault(sub, activeTab.color & 0xFFFFFF);
+        String name = Component.translatable("nightsiege.subclass." + sub).getString();
+        String line = Component.translatable(activeTab.clazz.translationKey()).getString()
+                + (info == null ? "" : " · " + Component.translatable("nightsiege.path." + info.way()).getString());
+        if (previewSub()) {
+            line += " · " + Component.translatable("nightsiege.ui.sub_preview").getString();
+        }
+        int w = Math.max(font.width(name) * 3 / 2, font.width(line)) + 10;
+        gui.fill(vx + 3, vy + 3, vx + 3 + w, vy + 31, 0x80000000);
+        gui.pose().pushMatrix();
+        gui.pose().translate(vx + 7, vy + 6);
+        gui.pose().scale(1.5f, 1.5f);
+        gui.text(font, name, 0, 0, 0xFF000000 | lane, true);
+        gui.pose().popMatrix();
+        gui.text(font, line, vx + 7, vy + 20, 0xFFB8B0C4, true);
+    }
+
     private void layoutProfilePages() {
         List<CoreStats.ProfileLine> own = profilesOf(activeTab.clazz);
         if (own.size() < 2) {

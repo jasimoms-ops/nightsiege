@@ -91,6 +91,9 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("weapons")) {
                     kitWeaponScene(context, game);   // the kit weapons, 3D since 29 October 2026
                 }
+                if (want.contains("subtrees")) {
+                    subTreeShots(context);   // one tree per subclass (content update, 29 October 2026)
+                }
                 if (want.contains("treebg")) {
                     treeSceneShots(context);   // the skill tree backgrounds v2 (29 October 2026)
                 }
@@ -5263,6 +5266,43 @@ public class EventLookTest implements FabricClientGameTest {
         });
         onServer(context, (player, manager) -> manager.onCoreAction(player, "open"));
         context.waitTicks(40);
+    }
+
+    /** One skill tree per subclass (Simon, 29 October 2026): every class, every subclass tab. */
+    private static void subTreeShots(ClientGameTestContext context) {
+        String[][] classes = {
+                {"WARRIOR", "blademaster", "berserker", "axe", "paladin"},
+                {"GUARDIAN", "shieldfighter", "bulwark", "medic", "warden"},
+                {"ARCHER", "swift", "heavy", "bolter", "trapper"},
+                {"ENGINEER", "gunner", "electrician", "demolition", "alchemist"},
+                {"SUMMONER", "tamer", "golemsmith", "necromancer", "soulcatcher"}};
+        for (String[] c : classes) {
+            openTree(context, c[0]);
+            for (int i = 1; i < c.length; i++) {
+                String clazz = c[0];
+                String sub = c[i];
+                context.runOnClient(client -> {
+                    try {
+                        java.lang.reflect.Field field = com.mki.nightsiege.client.CoreScreen.class.getDeclaredField("VIEW_SUB");
+                        field.setAccessible(true);
+                        @SuppressWarnings("unchecked")
+                        java.util.Map<String, String> views = (java.util.Map<String, String>) field.get(null);
+                        views.put(clazz, sub);
+                    } catch (ReflectiveOperationException e) {
+                        System.out.println("[Night Siege test] could not pick the subclass: " + e);
+                    }
+                });
+                onServer(context, (player, manager) -> manager.onCoreAction(player, "open"));
+                context.waitTicks(15);
+                context.takeScreenshot("subtree_" + sub);
+            }
+        }
+        // The warrior again, with a few nodes learned, close up.
+        openTree(context, "WARRIOR", "warrior_drill");
+        zoomTo(context, "WARRIOR", 0.0, -150.0, 1.0);
+        context.takeScreenshot("subtree_warrior_zoom");
+        zoomTo(context, "WARRIOR", 0.0, 0.0, 0.0);
+        closeScreen(context);
     }
 
     /**
