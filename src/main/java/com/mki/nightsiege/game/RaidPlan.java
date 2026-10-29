@@ -303,6 +303,14 @@ public final class RaidPlan {
         mob.setTarget(null);
     }
 
+    /** The war leader called a squad back (Kriegsführer, 29 October 2026): the plan lets go of it. */
+    public void release(Mob mob) {
+        if (mob != null && orders.remove(mob.getUUID()) != null) {
+            mob.setTarget(null);
+            mob.getNavigation().stop();
+        }
+    }
+
     /** True for the monsters the plan steers (a wave's ground monsters). */
     public static boolean eligible(Mob mob) {
         if (mob.isNoGravity()) {

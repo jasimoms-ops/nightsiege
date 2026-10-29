@@ -171,6 +171,12 @@ public final class SiegeManager {
     private final Expeditions expeditions = new Expeditions(this);
     /** The playtest (Simon, 28 October 2026): four nights of rising level along planned paths. */
     private final Playtest playtest = new Playtest(this);
+    /** The war leader's round (Kriegsführer, Simon 29 October 2026): one player leads the monsters. */
+    private final WarLeader warLeader = new WarLeader(this);
+    /** The running night is a war leader's round: no waves of its own, the leader buys them. */
+    private boolean warRound;
+    /** Where the boss of a war round comes (a gathering point), while it is set up; else null. */
+    private BlockPos warSpot;
     /** The statistics logger for the December playtest (28 October 2026): files on the server only. */
     private final StatsRecorder stats = new StatsRecorder(this);
     private final Digger digger = new Digger();
@@ -275,6 +281,130 @@ public final class SiegeManager {
         return expeditions;
     }
 
+    public WarLeader warLeader() {
+        return warLeader;
+    }
+
+    /** True while a war leader's round runs (its night). */
+    public boolean isWarRound() {
+        return active && warRound;
+    }
+
+    ServerLevel nightWorld() {
+        return world;
+    }
+
+    BaseScan nightBase() {
+        return defense.base();
+    }
+
+    BossService.Host bossHost() {
+        return bossHost;
+    }
+
+    int liveCount() {
+        return liveMobs.size();
+    }
+
+    boolean isFallen(UUID id) {
+        return fallen.contains(id);
+    }
+
+    /** Ticks since the night began (the war round counts its build-up and waves from them). */
+    int warElapsedTicks() {
+        return Math.max(0, totalTicks - ticksLeft);
+    }
+
+    void setWarSpot(BlockPos spot) {
+        warSpot = spot;
+    }
+
+    /** The war leader's round: a test night of its own kind at the world's level (see WarLeader). */
+    boolean startWar(MinecraftServer server, ServerLevel targetWorld, BlockPos targetAnchor, int level) {
+        warRound = true;
+        boolean ok = false;
+        try {
+            ok = start(server, targetWorld, targetAnchor, Math.max(1, level), SiegeEvent.NONE);
+        } finally {
+            if (!ok) {
+                warRound = false;
+            }
+        }
+        return ok;
+    }
+
+    /** A monster the war leader bought, at a gathering point: counted with the night's. */
+    Mob warSpawn(String entityId, BlockPos spot) {
+        if (world == null || !active) {
+            return null;
+        }
+        String id = config.withoutEffects(events.substitute(currentEvent, entityId, config), siegeLevel, random);
+        if (MobFactory.isUnavailable(id)) {
+            id = entityId;
+        }
+        Mob mob = MobFactory.spawnAt(world, spot, id, siegeLevel, config, random, currentEvent, false);
+        if (mob == null) {
+            return null;
+        }
+        events.onSpawned(currentEvent, mob, world);
+        liveMobs.add(mob.getUUID());
+        spawnedTotal++;
+        for (Entity rider : mob.getPassengers()) {
+            liveMobs.add(rider.getUUID());
+            spawnedTotal++;
+        }
+        Fx.mobSpawned(world, config, mob, true);
+        if (currentEvent == SiegeEvent.BLOOD_MOON && config.bloodMoonGlow) {
+            SiegeTeams.mark(world.getServer(), mob, SiegeTeams.BLOOD_MOON, TeamColor.DARK_RED);
+        }
+        return mob;
+    }
+
+    /** A card of the war leader: tonight's event changes (NONE: back to a plain night). */
+    void warEvent(MinecraftServer server, SiegeEvent event) {
+        if (!active || world == null) {
+            return;
+        }
+        events.end(server, world, currentEvent);
+        currentEvent = event == null ? SiegeEvent.NONE : event;
+        if (currentEvent != SiegeEvent.NONE) {
+            events.begin(server, world, anchor, currentEvent, config);
+        }
+        if (bossBar != null) {
+            bossBar.setColor(currentEvent == SiegeEvent.BLOOD_MOON ? BossEvent.BossBarColor.RED
+                    : currentEvent == SiegeEvent.FROST ? BossEvent.BossBarColor.BLUE
+                    : currentEvent == SiegeEvent.FOG ? BossEvent.BossBarColor.WHITE
+                    : BossEvent.BossBarColor.PURPLE);
+        }
+    }
+
+    /** The war round's clock: midnight, standing until the round is over. */
+    void warNight(MinecraftServer server) {
+        try {
+            setTimeOfDay(server, 18000);
+            net.minecraft.core.Holder<net.minecraft.world.clock.WorldClock> clock = overworldClock(server);
+            if (clock != null) {
+                server.clockManager().setPaused(clock, true);
+                save.clockHeld = true;
+            }
+        } catch (RuntimeException e) {
+            NightSiegeMod.LOGGER.warn("[Night Siege] Uhr für die Kriegsführer-Runde nicht gestellt: {}", e.toString());
+        }
+    }
+
+    int clockTimeOf(MinecraftServer server) {
+        return clockTime(server);
+    }
+
+    /** The time of day back after a war round (the same day). */
+    void setClockTime(MinecraftServer server, int timeOfDay) {
+        try {
+            setTimeOfDay(server, timeOfDay);
+        } catch (RuntimeException e) {
+            NightSiegeMod.LOGGER.warn("[Night Siege] Uhrzeit nicht zurückgestellt: {}", e.toString());
+        }
+    }
+
     public StatsRecorder stats() {
         return stats;
     }
@@ -324,6 +454,7 @@ public final class SiegeManager {
             TeamSim.stop(server);
             SimBots.removeAll(server);
             safe("Dungeons", () -> expeditions.endAll(server, null));   // kits back, the arena's gate open
+            safe("Kriegsführer", () -> warLeader.onServerStopping(server));   // the leader back on the ground
             traps.releaseAll(server);   // gunners out of the towers, the seats go
             Drones.stopAll(server);
             if (active) {
@@ -645,7 +776,10 @@ public final class SiegeManager {
 
         long gameTime = server.overworld().getGameTime();
         lastKnownDay = SiegeMath.dayOf(gameTime);
-        safe("Playtest", () -> playtest.tick(server));
+        safe("Kriegsführer", () -> warLeader.tick(server));
+        if (!warLeader.busy()) {
+            safe("Playtest", () -> playtest.tick(server));   // the playtest waits while a war round runs
+        }
 
         if (!active) {
             safe("Heerlager", () -> camp.tick(server));
@@ -788,15 +922,18 @@ public final class SiegeManager {
                 data.team.add(mate);
             }
         }
-        if (camp.inRound(player) || expeditions.inRound(player)) {
+        boolean atWar = warLeader.inRound(player);
+        if (camp.inRound(player) || expeditions.inRound(player) || atWar) {
             // A ready round (content update): the war drum's or the dungeon's seal stone's, its members,
-            // who is ready, the starter's button.
+            // who is ready, the starter's button. The war leader's round (29 October 2026): its leader
+            // has his own screen, the defenders only pick.
             boolean atCamp = camp.inRound(player);
+            long now = player.level().getGameTime();
             data.round = true;
-            data.starter = atCamp ? camp.roundStarter(player) : expeditions.roundStarter(player);
-            data.forceIn = atCamp ? camp.roundForceIn(player.level().getGameTime()) : expeditions.roundForceIn(player.level().getGameTime());
+            data.starter = !atWar && (atCamp ? camp.roundStarter(player) : expeditions.roundStarter(player));
+            data.forceIn = atWar ? warLeader.roundForceIn(now) : atCamp ? camp.roundForceIn(now) : expeditions.roundForceIn(now);
             data.team.clear();
-            for (UUID id : atCamp ? camp.roundMembers() : expeditions.roundMembers()) {
+            for (UUID id : atWar ? warLeader.roundMembers() : atCamp ? camp.roundMembers() : expeditions.roundMembers()) {
                 ServerPlayer other = player.level().getServer().getPlayerList().getPlayer(id);
                 if (other == null) {
                     continue;
@@ -806,7 +943,7 @@ public final class SiegeManager {
                         other.getScoreboardName(), os.className());
                 mate.subclass = skillTree.subclassOfProfile(os, os.chosenClass);
                 mate.self = other == player;
-                mate.ready = atCamp ? camp.roundReady(id) : expeditions.roundReady(id);
+                mate.ready = atWar ? warLeader.roundReady(id) : atCamp ? camp.roundReady(id) : expeditions.roundReady(id);
                 data.team.add(mate);
             }
         }
@@ -1549,11 +1686,11 @@ public final class SiegeManager {
         anchor = targetAnchor;
         testRun = test;
         // The curse stones on the altar act from the first wave (a test night tries them, no reward).
-        Curses.begin(config.cursesEnabled ? Curses.chosen(save) : List.of());
+        Curses.begin(config.cursesEnabled && !warRound ? Curses.chosen(save) : List.of());   // none in a war round
         nightCurses = Curses.count();
         siegeLevel = testRun ? Math.min(config.maxLevel, forcedLevel)
                 : SiegeMath.level(save.siegesWon, SiegeMath.dayOf(server.overworld().getGameTime()), config);
-        totalTicks = SiegeMath.durationSeconds(siegeLevel, config) * 20;
+        totalTicks = warRound ? warLeader.totalTicks(config) : SiegeMath.durationSeconds(siegeLevel, config) * 20;
         ticksLeft = totalTicks;
         batchCooldown = 0;
         digAccumulator = 0;
@@ -1696,8 +1833,10 @@ public final class SiegeManager {
             }
         }
 
-        broadcast(server, Component.translatable("nightsiege.msg.start", siegeLevel)
-                .withStyle(ChatFormatting.RED));
+        if (!warRound) {
+            broadcast(server, Component.translatable("nightsiege.msg.start", siegeLevel)
+                    .withStyle(ChatFormatting.RED));
+        }
         if (nightCurses > 0) {
             broadcast(server, Component.translatable("nightsiege.curse.night", Curses.names(Curses.active()), nightCurses)
                     .withStyle(ChatFormatting.DARK_PURPLE));
@@ -1751,6 +1890,9 @@ public final class SiegeManager {
     }
 
     private Component bossBarTitle() {
+        if (warRound) {
+            return warLeader.barTitle();   // the war leader's round: its build-up, waves and card
+        }
         Component title = save.specialNight
                 ? Component.translatable("nightsiege.bar.title_special", siegeLevel, secondsLeft())
                 : Component.translatable("nightsiege.bar.title", siegeLevel, secondsLeft());
@@ -1871,7 +2013,7 @@ public final class SiegeManager {
         }
 
         // The boss night's finale: the boss and a last big wave; after that no more waves.
-        if (bosses.planned() && !bosses.spawned() && ticksLeft <= bossFinaleTicks() && world.getGameTime() % 20 == 0) {
+        if (!warRound && bosses.planned() && !bosses.spawned() && ticksLeft <= bossFinaleTicks() && world.getGameTime() % 20 == 0) {
             if (bosses.spawn(bossHost)) {
                 spawnBatch(server, config.bossFinaleWave);
             }
@@ -1887,7 +2029,7 @@ public final class SiegeManager {
                         .withStyle(ChatFormatting.GOLD));
             }
         }
-        if (!finaleNight && !(lateNight && !finaleBosses.isEmpty()) && !bosses.spawned() && !warden.spawned()) {
+        if (!warRound && !finaleNight && !(lateNight && !finaleBosses.isEmpty()) && !bosses.spawned() && !warden.spawned()) {
             if (batchCooldown <= 0) {
                 spawnBatch(server);
                 double extraDelay = 0.0 /* the core tree is gone (27 October 2026) */;
@@ -1967,6 +2109,10 @@ public final class SiegeManager {
             return;   // the boss is down: the night ends in a moment, the clock stands (the finale has none)
         }
         ticksLeft--;
+        if (ticksLeft <= 0 && warRound) {
+            finish(server, true);   // the war round: the last wave ran out with defenders standing
+            return;
+        }
         if (ticksLeft <= 0) {
             if (bosses.spawned() && !bosses.fallen()) {
                 // Dawn and the boss still stands: the night is lost.
@@ -2421,6 +2567,9 @@ public final class SiegeManager {
     }
 
     boolean testPending() {
+        if (warLeader.busy()) {
+            return true;   // a war leader's ready round or round: the camp and the dungeons wait
+        }
         return pendingTest != null;
     }
 
@@ -2553,6 +2702,9 @@ public final class SiegeManager {
         public BlockPos spawnSpot() {
             if (world == null || anchor == null) {
                 return null;
+            }
+            if (warSpot != null) {
+                return warSpot;   // the war leader's boss comes at its gathering point
             }
             BlockPos spot = defense.spawnSpot(config, random);
             return spot != null ? spot : MobFactory.findSpawnSpot(world, anchor, config, random, 0.0);
@@ -3289,8 +3441,17 @@ public final class SiegeManager {
         endKits(server);
 
         // A boss night is won by the boss's fall alone, the kill goal does not count; so is a night whose warden came.
-        int required = bossNight || wardenNight ? 0 : killsRequired();
+        int required = bossNight || wardenNight || warRound ? 0 : killsRequired();
         boolean quotaMet = nightKills >= required;
+        if (warRound) {
+            // The war leader's round: no reward, its own records; the leader back on the ground.
+            logNight(won ? "test_gehalten" : "test_verloren", 0, 0);
+            testRun = false;
+            warRound = false;
+            safe("Kriegsführer", () -> warLeader.onEnd(server, won));
+            clearSiegeState();
+            return;
+        }
         if (testRun) {
             logNight(won ? "test_gehalten" : "test_verloren", 0, required);
             testRun = false;
@@ -3426,12 +3587,16 @@ public final class SiegeManager {
         companions.dismissAll(server);
         mendBase(server);
         endKits(server);
-        logNight("abgebrochen", 0, killsRequired());
+        logNight("abgebrochen", 0, warRound ? 0 : killsRequired());
         if (!testRun) {
             scheduleNextAfterNight(server);
             persist();
         }
         testRun = false;
+        if (warRound) {
+            warRound = false;
+            safe("Kriegsführer", () -> warLeader.onEnd(server, null));
+        }
         broadcast(server, Component.translatable("nightsiege.msg.aborted").withStyle(ChatFormatting.GRAY));
         clearSiegeState();
     }
@@ -3789,6 +3954,13 @@ public final class SiegeManager {
 
     /** The boss has fallen: the night is won; the monsters left flee, the night ends in three seconds. */
     private void onBossDown(MinecraftServer server, Mob boss) {
+        if (warRound) {
+            // The war leader's boss fell: the round goes on.
+            broadcast(server, Component.translatable("nightsiege.war.boss_down",
+                    Component.translatable("nightsiege.boss." + bosses.kind().id())).withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD));
+            warLeader.onBossDown(server);
+            return;
+        }
         bossVictoryAt = world.getGameTime() + 60L;
         routMonsters();
         UUID killer = bosses.killer();
@@ -3866,6 +4038,7 @@ public final class SiegeManager {
         }
         crates.deliverPending(player);
         playtest.onJoin(player);   // things back after a playtest that ended while away
+        safe("Kriegsführer", () -> warLeader.onJoin(player));   // a war leader back on the ground (or back above it)
         // Skills gelten nur waehrend einer Belagerung. Beim Betreten werden
         // daher Reste entfernt, etwa nach einem Absturz mitten in der Nacht.
         if (active && participants.contains(player.getUUID()) && !fallen.contains(player.getUUID())) {
@@ -4453,6 +4626,7 @@ public final class SiegeManager {
                 expeditions.forceRound(player);
             }
             case "playtest" -> playtest.onAction(player, argument);   // the playtest window (28 October 2026)
+            case "war" -> warLeader.onAction(player, argument);   // the war leader's round (29 October 2026)
             case "feedback" -> safe("Bewertung", () -> stats.feedback(player, argument));   // 1-click feedback (29 October 2026)
             case "curse" -> {   // the curse altar (update 2): a stone laid on or taken off
                 Curses.toggle(this, player, argument);
@@ -4872,6 +5046,7 @@ public final class SiegeManager {
         player.sendSystemMessage(Component.translatable("nightsiege.msg.play_class",
                 profileName(own, key)).withStyle(ChatFormatting.GREEN));
         camp.onRoundReady(player);   // the war drum's ready round (content update)
+        warLeader.onRoundReady(player);   // the war leader's ready round (29 October 2026)
         expeditions.onRoundReady(player);   // the dungeon's ready round (content update)
         if (classPicking.remove(player.getUUID())) {
             // Chosen in the window before the night: no core window on top, just the new name tag.
@@ -5065,6 +5240,9 @@ public final class SiegeManager {
         }
         if (!RaidPlan.mayTarget(mob, target)) {
             return false;   // outside the walls only who comes out (the raid's plan)
+        }
+        if (!INSTANCE.warLeader.mayTarget(mob, target)) {
+            return false;   // a war leader's squad gathering: only who comes out to its point
         }
         return !(target instanceof net.minecraft.world.entity.player.Player player) || INSTANCE.mayFight(mob, player);
     }
@@ -5298,6 +5476,9 @@ public final class SiegeManager {
      * none of them is there, so an admin can test alone).
      */
     private List<ServerPlayer> defendersNear(MinecraftServer server, ServerLevel targetWorld, BlockPos center, boolean test) {
+        if (warRound) {
+            return warLeader.rosterOnline(server, targetWorld);   // the war round: those of its ready round, never the leader
+        }
         List<ServerPlayer> near = playersNear(server, targetWorld, center, config.participantRadius);
         List<ServerPlayer> out = new ArrayList<>();
         for (ServerPlayer player : near) {

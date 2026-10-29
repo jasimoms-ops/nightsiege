@@ -918,6 +918,17 @@ public final class StatsRecorder {
         camp = null;
     }
 
+    // ------------------------------------------------------------------ the war leader's round
+
+    /** One file per war leader's round (Kriegsführer, 29 October 2026): purchases, gold, orders, result. */
+    void warRound(WarLeader.RoundFile round) {
+        if (!on() || round == null) {
+            return;
+        }
+        Path dir = folder();
+        writeLater(dir == null ? null : dir.resolve("kriegsfuehrer_" + LocalDateTime.now().format(FILE_TIME) + ".json"), round);
+    }
+
     // ------------------------------------------------------------------ dungeons
 
     void dungeonJoin(ServerPlayer player, String kind, int level, int rooms, int attempt, long gameTime) {

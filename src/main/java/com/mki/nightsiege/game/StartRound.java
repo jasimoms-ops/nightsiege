@@ -28,14 +28,29 @@ final class StartRound {
     final UUID starter;
     final BlockPos at;
     final long startedAt;
+    /** How close to the block one must stand, and when the starter may go without the others. */
+    private final double radius;
+    private final int forceSeconds;
     private final Set<UUID> members = new LinkedHashSet<>();
     private final Set<UUID> ready = new HashSet<>();
 
     StartRound(UUID starter, BlockPos at, long now) {
+        this(starter, at, now, RADIUS, FORCE_SECONDS, true);
+    }
+
+    /**
+     * The war leader's round (Kriegsführer, 29 October 2026) has its own reach round the core, and
+     * its starter leads the monsters: then he is no member ({@code starterPlays} false).
+     */
+    StartRound(UUID starter, BlockPos at, long now, double radius, int forceSeconds, boolean starterPlays) {
         this.starter = starter;
         this.at = at;
         this.startedAt = now;
-        members.add(starter);
+        this.radius = radius;
+        this.forceSeconds = forceSeconds;
+        if (starterPlays) {
+            members.add(starter);
+        }
     }
 
     void add(UUID id) {
@@ -81,13 +96,13 @@ final class StartRound {
 
     /** Seconds until the starter may go without the others (0 when he may now). */
     int forceIn(long now) {
-        return (int) Math.max(0, FORCE_SECONDS - (now - startedAt) / 20);
+        return (int) Math.max(0, forceSeconds - (now - startedAt) / 20);
     }
 
     /** True when someone stands close enough to the block to join or stay. */
     boolean near(ServerPlayer player, ServerLevel level) {
         return player != null && player.level() == level && player.isAlive()
-                && player.distanceToSqr(at.getX() + 0.5, at.getY(), at.getZ() + 0.5) <= RADIUS * RADIUS;
+                && player.distanceToSqr(at.getX() + 0.5, at.getY(), at.getZ() + 0.5) <= radius * radius;
     }
 
     /**

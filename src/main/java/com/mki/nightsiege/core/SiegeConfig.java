@@ -374,6 +374,36 @@ public class SiegeConfig {
     public double campWorkshopHealthPerPlayer = 0.3;
     /** Seconds after entering the palisade before the guards attack. */
     public int campGraceSeconds = 10;
+    // ---- the war leader's round (Kriegsführer, Simon 29.10.2026)
+    /** The round can be started from the core window. */
+    public boolean warLeaderEnabled = true;
+    /** Gold: this share of what a normal night of the same level and team would send (Simon 20:24: "vielleicht 20 % einfacher"). */
+    public double warGoldShare = 0.8;
+    /** What one monster of a normal night is worth in gold, and the shares of machines and boss in the night's worth. */
+    public double warGoldPerMob = 1.2;
+    public double warMachineShare = 0.35;
+    public double warBossShare = 0.25;
+    /** Seconds of the build-up, waves and seconds per wave. */
+    public int warPrepSeconds = 60;
+    public int warWaves = 5;
+    public int warWaveSeconds = 180;
+    /** A bought squad comes this many seconds after the flare; a squad without an order storms after this many. */
+    public int warSquadDelaySeconds = 5;
+    public int warAutoStormSeconds = 45;
+    /** The view reaches the base's edge plus this many blocks, at least this many from the core. */
+    public int warRangeExtra = 70;
+    public int warRangeMin = 120;
+    /** Machines at once, and the waves from which machines and the boss may be bought. */
+    public int warMaxMachines = 2;
+    public int warMachineFromWave = 2;
+    public int warBossFromWave = 3;
+    /** Who stands this close to the core is in the ready round; after this the leader may go without those not ready. */
+    public int warLobbyRadius = 48;
+    public int warForceSeconds = 30;
+    /** Gathering points round the base, and how far before the wall they lie. */
+    public int warGatherPoints = 8;
+    public int warGatherMin = 30;
+    public int warGatherMax = 60;
     /** Siege machines in nights after a camp. */
     public boolean machinesEnabled = true;
     /** Seconds into the night before the machines are set up. */
@@ -1020,6 +1050,25 @@ public class SiegeConfig {
         campWorkshopHealth = clampDouble(campWorkshopHealth, 10.0, 5000.0);
         campGraceSeconds = clamp(campGraceSeconds, 0, 60);
         machineStartSeconds = clamp(machineStartSeconds, 0, 600);
+        warGoldShare = Double.isNaN(warGoldShare) ? 0.8 : clampDouble(warGoldShare, 0.05, 5.0);
+        warGoldPerMob = Double.isNaN(warGoldPerMob) ? 1.2 : clampDouble(warGoldPerMob, 0.1, 10.0);
+        warMachineShare = Double.isNaN(warMachineShare) ? 0.35 : clampDouble(warMachineShare, 0.0, 5.0);
+        warBossShare = Double.isNaN(warBossShare) ? 0.25 : clampDouble(warBossShare, 0.0, 5.0);
+        warPrepSeconds = clamp(warPrepSeconds, 5, 600);
+        warWaves = clamp(warWaves, 1, 20);
+        warWaveSeconds = clamp(warWaveSeconds, 10, 1200);
+        warSquadDelaySeconds = clamp(warSquadDelaySeconds, 0, 60);
+        warAutoStormSeconds = clamp(warAutoStormSeconds, 5, 600);
+        warRangeExtra = clamp(warRangeExtra, 20, 200);
+        warRangeMin = clamp(warRangeMin, 40, 300);
+        warMaxMachines = clamp(warMaxMachines, 0, 6);
+        warMachineFromWave = clamp(warMachineFromWave, 1, 20);
+        warBossFromWave = clamp(warBossFromWave, 1, 20);
+        warLobbyRadius = clamp(warLobbyRadius, 8, 200);
+        warForceSeconds = clamp(warForceSeconds, 0, 300);
+        warGatherPoints = clamp(warGatherPoints, 3, 16);
+        warGatherMin = clamp(warGatherMin, 8, 120);
+        warGatherMax = clamp(warGatherMax, warGatherMin, 160);
         machineHealthMultiplier = clampDouble(machineHealthMultiplier, 0.1, 20.0);
         machineDamageMultiplier = clampDouble(machineDamageMultiplier, 0.0, 20.0);
         machineCrew = clamp(machineCrew, 1, 6);

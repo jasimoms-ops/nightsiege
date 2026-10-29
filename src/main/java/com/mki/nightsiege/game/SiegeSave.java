@@ -118,6 +118,57 @@ public class SiegeSave {
     public PlaytestState playtest;
 
     /**
+     * The war leader of a running round (Kriegsführer, 29 October 2026): where his body stood and
+     * in which game mode, and the time of day before the round. Kept so a crash or a log-out in
+     * the middle of the round still gives him back his place; null when no round runs.
+     */
+    public WarRestore warLeader;
+    /** The war leader's round: its own records (a fun mode, no reward). */
+    public WarRecords war = new WarRecords();
+
+    public static class WarRestore {
+        public String id = "";
+        public String name = "";
+        public String dimension = "";
+        public double x;
+        public double y;
+        public double z;
+        public float yaw;
+        public float pitch;
+        public String gameMode = "survival";
+        public int timeOfDay = -1;
+    }
+
+    public static class WarRecords {
+        public int rounds;
+        public int leaderWins;
+        public int defenderWins;
+        /** The fastest win of a war leader: seconds since the first wave, the wave, who, against how many. */
+        public int fastestSeconds = -1;
+        public int fastestWave;
+        public String fastestBy = "";
+        public int fastestDefenders;
+        public String fastestDate = "";
+        public Map<String, WarPlayer> players = new HashMap<>();
+
+        public WarPlayer of(String id, String name) {
+            WarPlayer p = players.computeIfAbsent(id, k -> new WarPlayer());
+            if (name != null && !name.isBlank()) {
+                p.name = name;
+            }
+            return p;
+        }
+    }
+
+    public static class WarPlayer {
+        public String name = "";
+        public int leaderWins;
+        public int leaderLosses;
+        public int defenderWins;
+        public int defenderLosses;
+    }
+
+    /**
      * A playtest: four test nights of rising level, before each a war camp or a dungeon, the
      * skills replayed along each player's planned path. Afterwards everything is as before.
      */

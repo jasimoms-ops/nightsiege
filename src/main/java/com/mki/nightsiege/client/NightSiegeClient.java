@@ -115,6 +115,12 @@ public class NightSiegeClient implements ClientModInitializer {
                         if (data != null && client.player != null) {
                             client.setScreenAndShow(new SpotterScreen(data));
                         }
+                    } else if ("warleader".equals(payload.kind()) || "warleader_update".equals(payload.kind())) {
+                        // The war leader's screen (Kriegsführer, 29 October 2026).
+                        WarLeaderScreen.receive(Json.fromJson(payload.json(), com.mki.nightsiege.core.WarLeaderData.class),
+                                "warleader".equals(payload.kind()));
+                    } else if ("warleader_close".equals(payload.kind())) {
+                        WarLeaderScreen.closeAll();
                     } else if ("dronerig".equals(payload.kind())) {
                         DroneClient.setRig(payload.json());
                     } else if ("drones".equals(payload.kind())) {
@@ -213,6 +219,7 @@ public class NightSiegeClient implements ClientModInitializer {
                 new KeyMapping("key.nightsiege.guide", GLFW.GLFW_KEY_H, category));
         GainClient.init(category);
         net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents.END_CLIENT_TICK.register(NightStatsScreen::tick);
+        ClientTickEvents.END_CLIENT_TICK.register(WarLeaderScreen::tickClosed);   // the war leader's screen back after another one
         net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry.register(
                 com.mki.nightsiege.game.KitProjectile.TYPE, net.minecraft.client.renderer.entity.ThrownItemRenderer::new);
         GuideItem.opener = () -> Minecraft.getInstance().setScreenAndShow(new GuideScreen());

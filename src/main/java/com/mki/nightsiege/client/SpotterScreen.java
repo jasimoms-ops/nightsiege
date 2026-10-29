@@ -236,12 +236,12 @@ public class SpotterScreen extends Screen {
 
     /** The lens of the view while it is open, or a negative number. */
     public static float viewFov() {
-        return active == null ? -1f : VIEW_FOV;
+        return active == null ? WarLeaderScreen.viewFov() : VIEW_FOV;   // the war leader's view too (29 October 2026)
     }
 
     /** True while the bird's-eye view is open (the HUD leaves out its own crosshair then). */
     public static boolean isOpen() {
-        return active != null;
+        return active != null || WarLeaderScreen.isViewOpen();
     }
 
     /** Shows or hides the system's mouse pointer over the game window. */
@@ -258,7 +258,7 @@ public class SpotterScreen extends Screen {
     public static double[] cameraAt(float partialTick) {
         SpotterScreen view = active;
         if (view == null) {
-            return null;
+            return WarLeaderScreen.cameraAt(partialTick);   // the war leader's bird's-eye view (29 October 2026)
         }
         double t = Math.max(0.0, Math.min(1.0, partialTick));
         return new double[]{view.oldX + (view.camX - view.oldX) * t, view.oldY + (view.camY() - view.oldY) * t,

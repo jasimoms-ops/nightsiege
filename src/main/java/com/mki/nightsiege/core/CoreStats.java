@@ -211,6 +211,15 @@ public class CoreStats {
     public boolean extraSiegeOn;
     public int extraSiegeFromLevel;
     public String extraSiegeBlock = "";
+    /**
+     * The war leader's round (Kriegsführer, 29 October 2026): the button in the footer; why it is
+     * greyed out (a translation key, "" when free), and the leader of a round that runs ("" none).
+     */
+    public boolean warOn;
+    public String warBlock = "";
+    public String warLeader = "";
+    /** The viewer leads it (the button takes him back to his window). */
+    public boolean warMine;
     public boolean extraSiegeToday;
     public String extraSiegeBy = "";
 

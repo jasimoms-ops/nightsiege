@@ -255,6 +255,22 @@ public final class SiegeCommands {
                             return ok ? 1 : 0;
                         }))
 )
+                // The war leader's round (Kriegsführer, 29 October 2026): a bot leads, or the round stops.
+                .then(Commands.literal("kriegsfuehrer").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                        .then(Commands.literal("bot").executes(ctx -> {
+                            String why = SiegeManager.get().warLeader().startBot(ctx.getSource().getServer());
+                            reply(ctx.getSource(), Component.translatable(why == null ? "nightsiege.war.bot_started" : why));
+                            return why == null ? 1 : 0;
+                        }))
+                        .then(Commands.literal("stop").executes(ctx -> {
+                            boolean ok = SiegeManager.get().warLeader().stop(ctx.getSource().getServer());
+                            reply(ctx.getSource(), Component.translatable(ok ? "nightsiege.war.stopped" : "nightsiege.war.none"));
+                            return ok ? 1 : 0;
+                        }))
+                        .then(Commands.literal("status").executes(ctx -> {
+                            reply(ctx.getSource(), Component.literal(SiegeManager.get().warLeader().status()));
+                            return 1;
+                        })))
                 .then(Commands.literal("sim").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                         .executes(ctx -> sim(ctx, 10, 150))
                         // The balance tool's team simulation (29 October 2026): only on a test world.
