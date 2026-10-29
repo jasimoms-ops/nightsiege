@@ -85,6 +85,8 @@ public final class ExpeditionLayout {
         /** The halls themselves (without their corridor). */
         public final List<AABB> roomHalls = new ArrayList<>();
         public final List<BlockPos> arenaGate = new ArrayList<>();
+        /** The gate before the first hall: it goes up when every fighter stands before it (Simon 29.10.). */
+        public final List<BlockPos> frontGate = new ArrayList<>();
         /** The bars of the four monster gates (they open with the first wave). */
         public final List<BlockPos> waveGates = new ArrayList<>();
         public final List<BlockPos> waveSpots = new ArrayList<>();
@@ -180,6 +182,17 @@ public final class ExpeditionLayout {
         for (int x = -2; x <= 2; x++) {
             for (int y = 0; y <= 4; y++) {
                 plan.arenaGate.add(b.at(x, ARENA_Y + y, cz - R - 1));
+            }
+        }
+        // The gate in the front wall of the first hall (Simon 29.10.: "unten vorm ersten Raum sollten
+        // auch Ketten sein, die erst aufgehen, wenn alle davor stehen"): bars like the other gates.
+        if (rooms > 0) {
+            int front = hallStart(0) - 1;
+            for (int x = -2; x <= 2; x++) {
+                for (int y = 0; y <= 4; y++) {
+                    b.put(OFFSET[0] + x, HALL_Y + y, front, Blocks.IRON_BARS.defaultBlockState());
+                    plan.frontGate.add(b.at(OFFSET[0] + x, HALL_Y + y, front));
+                }
             }
         }
         plan.arenaCenter = b.at(0, ARENA_Y - 3, cz);
@@ -448,7 +461,7 @@ public final class ExpeditionLayout {
             b.hang(0, ARENA_Y + 7, c + 13, ARENA_Y + 10);
         }
         for (int z = c + 2; z <= c + CORR - 1; z += 4) {
-            b.hang(i < rooms && z >= bendTo ? ox : (prev + ox) / 2, y + 4, z, y + 6);
+            b.hang(z >= bendTo ? ox : (prev + ox) / 2, y + 4, z, y + 6);
         }
     }
 
@@ -626,6 +639,8 @@ public final class ExpeditionLayout {
         }
         h.sym(12, 2, 4, b.rail());
         h.sym(14, 2, 4, b.rail());
+        h.sym(14, 0, 4, b.first(Part.GALLERY));   // the outer rail stands on a post (it hung in the air, 29.10.)
+        h.sym(14, 1, 4, b.first(Part.GALLERY));
         // Galleries, +5, along both side walls; stairs up at the front, down along the back wall.
         for (int z = 10; z <= 27; z++) {
             for (int x = 11; x <= 15; x++) {
@@ -1331,7 +1346,7 @@ public final class ExpeditionLayout {
                 h.sym(5, y, z + 1, Part.WALL_TOP);
             }
         }
-        h.sym(3, 2, 15, b.lightSmall());
+        h.sym(3, 2, 13, b.lightSmall());   // on the ovens (it stood in the air over the aisle, 29.10.)
         for (int z = 24; z <= 27; z++) {
             h.sym(4, 0, z, b.prop(z % 4));
         }
@@ -1641,9 +1656,14 @@ public final class ExpeditionLayout {
         }
         for (int i = 0; i < 8; i++) {
             double rad = Math.PI * 2 * i / 8 + Math.PI / 8;
-            b.hang((int) Math.round(Math.cos(rad) * 9), y + (b.dim ? 5 : 7), cz + (int) Math.round(Math.sin(rad) * 9), ceilAt(9));
+            int x1 = (int) Math.round(Math.cos(rad) * 9);
+            int z1 = cz + (int) Math.round(Math.sin(rad) * 9);
+            b.hang(x1, b.overStairs(x1, y + 7, z1) ? y + 7 : y + (b.dim ? 5 : 7), z1, ceilAt(9));
             double rad2 = Math.PI * 2 * i / 8;
-            b.hang((int) Math.round(Math.cos(rad2) * 13), y + (b.dim ? 5 : 7), cz + (int) Math.round(Math.sin(rad2) * 13), ceilAt(13));
+            int x2 = (int) Math.round(Math.cos(rad2) * 13);
+            int z2 = cz + (int) Math.round(Math.sin(rad2) * 13);
+            // Over a stair a low light is in the way (Simon 29.10.: "das Ende der Treppe ist durch einen Block blockiert").
+            b.hang(x2, b.overStairs(x2, y + 7, z2) ? y + 7 : y + (b.dim ? 5 : 7), z2, ceilAt(13));
         }
         arenaDecor(b, layout, cz);
     }
@@ -1917,8 +1937,9 @@ public final class ExpeditionLayout {
 
         void lamp(int x, int y, int z) {
             BlockState s = lampState();
-            if (!s.canOcclude() && get(x, y - 1, z) == null) {
-                put(x, y - 1, z, first(Part.BASE));
+            BlockState below = get(x, y - 1, z);
+            if (!s.canOcclude() && (below == null || below.isAir())) {
+                put(x, y - 1, z, first(Part.BASE));   // a campfire in the hall stood in the air (29.10.)
             }
             put(x, y, z, s);
         }
@@ -1927,6 +1948,17 @@ public final class ExpeditionLayout {
         BlockState hangUnder() {
             BlockState s = first(Part.LIGHT_HANG);
             return s.hasProperty(BlockStateProperties.HANGING) ? s.setValue(BlockStateProperties.HANGING, true) : s;
+        }
+
+        /** True when a stair lies in the column below y (down to 8 blocks): a low light there is in the way. */
+        boolean overStairs(int x, int y, int z) {
+            for (int dy = 1; dy <= 8; dy++) {
+                BlockState s = get(x, y - dy, z);
+                if (s != null && s.getBlock() instanceof net.minecraft.world.level.block.StairBlock) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         /** A hanging light at y on a chain up to the ceiling at ceilingY. */

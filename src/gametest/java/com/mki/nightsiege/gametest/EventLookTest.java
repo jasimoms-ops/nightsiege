@@ -2096,6 +2096,9 @@ public class EventLookTest implements FabricClientGameTest {
         for (BlockPos p : plan.arenaGate) {
             dumpSpot(out, "arenaGate", p, o);
         }
+        for (BlockPos p : plan.frontGate) {
+            dumpSpot(out, "frontGate", p, o);
+        }
         for (BlockPos p : plan.waveGates) {
             dumpSpot(out, "waveGate", p, o);
         }
@@ -2420,8 +2423,12 @@ public class EventLookTest implements FabricClientGameTest {
             int ox = fx + offsets[room];
             game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %d.5 %d %d.5 facing %d.5 %d %d.5",
                     ox, fy - 20, z0 + 2, ox, fy - 19, z0 + 14));
-            context.waitTicks(30);
+            // The first hall: its gate goes up once everyone stands before it (29.10.), then its guards come.
+            context.waitTicks(room == 0 ? 90 : 30);
             if (room == 0) {
+                onServer(context, (player, manager) -> System.out.println("[Night Siege test] dungeon front gate: "
+                        + player.level().getBlockState(manager.expeditions().testPlan().frontGate.get(0)).getBlock()
+                        + " | " + manager.expeditions().testState()));
                 context.takeScreenshot("dungeon_fight_room");
             }
             onServer(context, (player, manager) -> {
