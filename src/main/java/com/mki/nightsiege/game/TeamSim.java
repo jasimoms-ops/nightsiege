@@ -494,7 +494,8 @@ public final class TeamSim {
             bot.getFoodData().setFoodLevel(20);
             bot.getFoodData().setSaturation(5f);
             bot.getInventory().clearContent();
-            TeamBrain brain = new TeamBrain(bot.getUUID(), sub, skillOf(run.variant(), sub[0]),
+            TeamBrain brain = new TeamBrain(bot.getUUID(), sub, knob(run.variant(), sub[0], "koennen", 1.0),
+                    knob(run.variant(), sub[0], "wagemut", 0.0),
                     seed(run.level(), run.group(), run.mix(), run.index()) * 31 + i);
             brains.put(bot.getUUID(), brain);
         }
@@ -775,20 +776,28 @@ public final class TeamSim {
      * the common one; 1 (the perfect bot) when nothing is set.
      */
     static double skillOf(String variant, String clazz) {
-        String own = "koennen." + clazz.toLowerCase(Locale.ROOT);
+        return knob(variant, clazz, "koennen", 1.0);
+    }
+
+    /**
+     * A bot knob ("koennen", "wagemut"): "<name>.<klasse>" before "<name>", the variant's before the
+     * common one, else the given default; always 0–1.
+     */
+    static double knob(String variant, String clazz, String name, double fallback) {
+        String own = name + "." + clazz.toLowerCase(Locale.ROOT);
         for (Map<String, String> over : List.of(variants.getOrDefault(variant, Map.of()), common)) {
-            for (String key : List.of(own, "koennen")) {
+            for (String key : List.of(own, name)) {
                 String v = over.get(key);
                 if (v != null) {
                     try {
-                        return Math.max(0.05, Math.min(1.0, Double.parseDouble(v)));
+                        return Math.max(0.0, Math.min(1.0, Double.parseDouble(v)));
                     } catch (NumberFormatException ignored) {
                         // fall through
                     }
                 }
             }
         }
-        return 1.0;
+        return fallback;
     }
 
     private static void applyConfig(SiegeManager m, Map<String, String> over) {
@@ -796,8 +805,8 @@ public final class TeamSim {
         for (Map.Entry<String, String> e : over.entrySet()) {
             String key = e.getKey();
             String value = e.getValue();
-            if (key.startsWith("koennen")) {
-                continue;   // the bots' skill, not a config value
+            if (key.startsWith("koennen") || key.startsWith("wagemut")) {
+                continue;   // the bots' knobs, not config values
             }
             try {
                 if (key.contains(".")) {
