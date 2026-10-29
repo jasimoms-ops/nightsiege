@@ -553,14 +553,14 @@ class SiegeCoreTest {
             // 13 own gains each; the engineer got the turret shield (27.10.): 15.
             // 27.10. evening: the crate review – warrior 13 (Spaltaxt for Plünderung), archer 14 (Teernetz),
             // guardian 15 (Wundsalbe), engineer 18 (Munitionskiste, Sappeur-Alarm, Langes Gebräu), summoner 15 (Seelenzins).
+            // 29.10. (balance update 2): Köcher and Blendgranaten left (archer 13, engineer 17), Dritte Hand came (17 general).
             int own = switch (c) {
-                case WARRIOR -> 13;
-                case ARCHER -> 14;
+                case WARRIOR, ARCHER -> 13;
                 case GUARDIAN, SUMMONER -> 15;
-                case ENGINEER -> 18;
+                case ENGINEER -> 17;
                 default -> 0;
             };
-            assertEquals(own + 16, CrateGains.forCollection(c).size(), c + " has " + own + " gains and 16 general ones");
+            assertEquals(own + 17, CrateGains.forCollection(c).size(), c + " has " + own + " gains and 17 general ones");
             for (int i = 0; i < 400; i++) {
                 CrateGains.Gain g = CrateGains.roll(c, "", weights, 0.7, random);
                 assertNotNull(g);
