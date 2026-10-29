@@ -7585,6 +7585,24 @@ public class EventLookTest implements FabricClientGameTest {
             manager.openCoreWindow(player);
         });
         context.waitTicks(20);
+        // The overview tab, where the button sits (the window opens on the classes for a new player).
+        context.runOnClient(client -> {
+            if (client.gui.screen() instanceof com.mki.nightsiege.client.CoreScreen core) {
+                try {
+                    java.lang.reflect.Field tab = com.mki.nightsiege.client.CoreScreen.class.getDeclaredField("activeTab");
+                    tab.setAccessible(true);
+                    @SuppressWarnings({"unchecked", "rawtypes"})
+                    Object stats = Enum.valueOf((Class) tab.getType(), "STATS");
+                    tab.set(core, stats);
+                    java.lang.reflect.Method rebuild = net.minecraft.client.gui.screens.Screen.class.getDeclaredMethod("rebuildWidgets");
+                    rebuild.setAccessible(true);
+                    rebuild.invoke(core);
+                } catch (ReflectiveOperationException e) {
+                    System.out.println("[Night Siege test] war core tab: " + e);
+                }
+            }
+        });
+        context.waitTicks(10);
         context.takeScreenshot("war_00_core_button");
         closeScreen(context);
         // 1. The ready round: the player leads, the bots are in it.
