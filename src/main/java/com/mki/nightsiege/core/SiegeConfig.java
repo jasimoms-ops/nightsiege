@@ -382,9 +382,10 @@ public class SiegeConfig {
      * a share of machines and boss, in gold), over the round's waves, times this share (Simon
      * 20:24: "so schwer wie normale Nächte, vielleicht 20 % einfacher"). The round lasts much longer
      * than a night; the team simulation (29 October 2026) found the share of the whole night too
-     * hard at higher levels and too easy at low ones.
+     * hard at higher levels and too easy at low ones. Bots held 53 % of normal nights (levels 3-20,
+     * 2 and 4 players); war rounds at 0.12: 59 %, at 0.10: 79 %.
      */
-    public double warGoldShare = 0.12;
+    public double warGoldShare = 0.11;
     /** What one monster of a normal night is worth in gold, and the shares of machines and boss in the night's worth. */
     public double warGoldPerMob = 1.2;
     public double warMachineShare = 0.35;
@@ -1056,7 +1057,7 @@ public class SiegeConfig {
         campWorkshopHealth = clampDouble(campWorkshopHealth, 10.0, 5000.0);
         campGraceSeconds = clamp(campGraceSeconds, 0, 60);
         machineStartSeconds = clamp(machineStartSeconds, 0, 600);
-        warGoldShare = Double.isNaN(warGoldShare) ? 0.12 : clampDouble(warGoldShare, 0.01, 5.0);
+        warGoldShare = Double.isNaN(warGoldShare) ? 0.11 : clampDouble(warGoldShare, 0.01, 5.0);
         warGoldPerMob = Double.isNaN(warGoldPerMob) ? 1.2 : clampDouble(warGoldPerMob, 0.1, 10.0);
         warMachineShare = Double.isNaN(warMachineShare) ? 0.35 : clampDouble(warMachineShare, 0.0, 5.0);
         warBossShare = Double.isNaN(warBossShare) ? 0.25 : clampDouble(warBossShare, 0.0, 5.0);
