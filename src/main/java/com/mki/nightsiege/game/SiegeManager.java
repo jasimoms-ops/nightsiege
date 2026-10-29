@@ -232,6 +232,11 @@ public final class SiegeManager {
     /** The night's protocol for balancing (config/nightsiege-stats*.csv). */
     private final NightLog nightLog = new NightLog();
     private final EventEffects events = new EventEffects();
+
+    /** The event looks sent to the players (the dungeons send their own and hand back). */
+    EventEffects events() {
+        return events;
+    }
     private final BonusEvents bonus = new BonusEvents(() -> save, () -> config, perks);
     private final Random random = new Random();
     private MobPool pool = new MobPool(SiegeConfig.defaultMobs());

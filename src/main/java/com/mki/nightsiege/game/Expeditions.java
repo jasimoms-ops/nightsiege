@@ -130,6 +130,11 @@ public final class Expeditions {
     private UUID champion;
     /** The champion's two skills (content update). */
     private ChampionBrains brains;
+    /** The effects of the fight: half life reached, the champion's entrance, the guards waking. */
+    private boolean phase2;
+    private long championShownAt = -1L;
+    private final Map<UUID, Long> wakeAt = new HashMap<>();
+    private boolean roomAwake;
     private ServerBossEvent bar;
     private int buildRounds;
     /** Attempts lost (every fighter fell) since the server started: the playtest goes on after one. */
@@ -500,6 +505,19 @@ public final class Expeditions {
                 setGate(level, plan(rec).arenaGate, false);
             }
         }
+        if (!fighters.isEmpty()) {
+            List<ServerPlayer> inside = new ArrayList<>();
+            for (UUID id : fighters) {
+                ServerPlayer p = server.getPlayerList().getPlayer(id);
+                if (p != null) {
+                    inside.add(p);
+                }
+            }
+            DungeonFx.ambient(level, inside, kind(rec), now);
+        }
+        if (round != null && now % 5 == 0) {
+            DungeonFx.runes(level, plan(rec).seal, round.ready.size(), round.members.size());
+        }
         if (brains != null && !fighters.isEmpty()) {
             brains.tick(level, championHost(level, rec), m.currentLevel(), m.config(), now);
         }
@@ -724,7 +742,7 @@ public final class Expeditions {
                         player.connection.send(new ClientboundSetActionBarTextPacket(text));
                         player.connection.send(new ClientboundSoundPacket(SoundEvents.GENERIC_EXPLODE, SoundSource.AMBIENT,
                                 player.getX(), player.getY(), player.getZ(), 0.5f, 0.4f, random.nextLong()));
-                        level.sendParticles(ParticleTypes.ASH, player.getX(), player.getY() + 3, player.getZ(), 40, 4, 1, 4, 0.0);
+                        DungeonFx.debris(level, player, ExpeditionLayout.B.block(kind(rec).block(ExpeditionKind.Part.CEILING)));
                     }
                 }
             }
@@ -1008,7 +1026,7 @@ public final class Expeditions {
                 m.campClassPick(p, 0);
             }
         }
-        level.playSound(null, pos, SoundEvents.BELL_BLOCK, SoundSource.BLOCKS, 1.5f, 0.7f);
+        level.playSound(null, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, SoundEvents.BELL_BLOCK, SoundSource.BLOCKS, 1.5f, 0.7f);
         level.sendParticles(ParticleTypes.ENCHANT, pos.getX() + 0.5, pos.getY() + 1.2, pos.getZ() + 0.5, 60, 1.5, 0.5, 1.5, 0.5);
         NightSiegeMod.LOGGER.info("[Night Siege] Bereit-Runde am Dungeon {} von {} mit {} Spielern", rec.kind,
                 player.getScoreboardName(), r.members.size());
@@ -1023,7 +1041,8 @@ public final class Expeditions {
         round.ready.add(player.getUUID());
         if (player.level() instanceof ServerLevel level) {
             BlockPos seal = record() == null ? player.blockPosition() : plan(record()).seal;
-            level.playSound(null, seal, SoundEvents.BELL_BLOCK, SoundSource.BLOCKS, 1.2f, 1.0f + 0.1f * round.ready.size());
+            level.playSound(null, seal.getX() + 0.5, seal.getY() + 0.5, seal.getZ() + 0.5, SoundEvents.BELL_BLOCK, SoundSource.BLOCKS, 1.2f,
+                    1.0f + 0.1f * round.ready.size());
             Component text = Component.translatable("nightsiege.expedition.round_ready", player.getDisplayName(),
                     round.ready.size(), round.members.size()).withStyle(ChatFormatting.YELLOW);
             for (UUID id : round.members) {
@@ -1206,6 +1225,7 @@ public final class Expeditions {
         }
         SkillService.apply(player, m.save().skillsOf(id.toString()), m.skillTree());
         showBar(rec, player);
+        DungeonFx.look(player, kind, phase2);
         NightSiegeMod.LOGGER.info("[Night Siege] {} betritt den Dungeon {}", player.getScoreboardName(), rec.kind);
     }
 
@@ -1214,6 +1234,9 @@ public final class Expeditions {
         UUID id = player.getUUID();
         fighters.remove(id);
         grace.remove(id);
+        if (record() != null) {
+            DungeonFx.leave(player, kind(record()));
+        }
         if (bar != null) {
             bar.removePlayer(player);
         }
@@ -1341,6 +1364,7 @@ public final class Expeditions {
                 }
             } else {
                 mobs.removeIf(id -> !(level.getEntity(id) instanceof LivingEntity l) || !l.isAlive());
+                wakeRoom(level, p, room, mobs, now);
                 if (mobs.isEmpty()) {
                     openRoom(level, rec, p, room);
                 }
@@ -1360,6 +1384,14 @@ public final class Expeditions {
                 wave = 0;
                 nextWaveAt = now + 60;
                 level.playSound(null, p.arenaGate.get(0), SoundEvents.IRON_DOOR_CLOSE, SoundSource.BLOCKS, 2f, 0.6f);
+                List<ServerPlayer> inArena = new ArrayList<>();
+                for (UUID id : fighters) {
+                    ServerPlayer player = server.getPlayerList().getPlayer(id);
+                    if (player != null) {
+                        inArena.add(player);
+                    }
+                }
+                DungeonFx.arenaClosed(level, p.arenaGate, inArena, kind);
                 for (UUID id : fighters) {
                     ServerPlayer player = server.getPlayerList().getPlayer(id);
                     if (player != null) {
@@ -1394,6 +1426,26 @@ public final class Expeditions {
                 win(server, level, rec);
                 return;
             }
+            if (championShownAt > 0 && c instanceof Mob cm) {
+                if (now - championShownAt < 60) {
+                    DungeonFx.pit(level, p.arenaCenter, kind, 1);
+                } else {
+                    cm.setInvulnerable(false);
+                    cm.setNoAi(false);
+                    championShownAt = -1L;
+                }
+            }
+            if (!phase2 && c instanceof LivingEntity lc && lc.getHealth() < lc.getMaxHealth() * 0.5f) {
+                phase2 = true;
+                List<ServerPlayer> all = new ArrayList<>();
+                for (UUID id : fighters) {
+                    ServerPlayer player = server.getPlayerList().getPlayer(id);
+                    if (player != null) {
+                        all.add(player);
+                    }
+                }
+                DungeonFx.phase2(level, all.toArray(new ServerPlayer[0]), kind, c.position());
+            }
             if (now % 20 == 0 && c instanceof Mob cm && !("champion_" + kind.id()).equals(BossService.foeLookOf(c.getId()))) {
                 BossService.foeLook(cm, "champion_" + kind.id());   // again after a restart (new network id)
             }
@@ -1413,10 +1465,59 @@ public final class Expeditions {
             Mob mob = spawn(level, rec, kind.mobs().get(random.nextInt(kind.mobs().size())), spot);
             if (mob != null) {
                 mobs.add(mob.getUUID());
+                mob.setNoAi(true);   // statues until someone reaches the middle or strikes one (content update)
             }
         }
         roomMobs.put(room, mobs);
-        level.playSound(null, p.roomCenters.get(room), SoundEvents.EVOKER_PREPARE_SUMMON, SoundSource.HOSTILE, 1.6f, 0.8f);
+        roomAwake = false;
+        wakeAt.clear();
+        // The hall's title: its theme, which hall of how many.
+        String module = room < p.roomModules.size() ? p.roomModules.get(room) : "";
+        for (UUID id : fighters) {
+            ServerPlayer player = level.getServer().getPlayerList().getPlayer(id);
+            if (player != null) {
+                player.connection.send(new ClientboundSetTitlesAnimationPacket(10, 50, 15));
+                player.connection.send(new ClientboundSetTitleTextPacket(Component.translatable("nightsiege.expedition.module." + module)
+                        .withStyle(ChatFormatting.GOLD)));
+                player.connection.send(new ClientboundSetSubtitleTextPacket(Component.translatable("nightsiege.expedition.hall_of",
+                        room + 1, rec.rooms).withStyle(ChatFormatting.GRAY)));
+            }
+        }
+    }
+
+    /** The guards wake group by group, a second apart, when one comes close or strikes one. */
+    private void wakeRoom(ServerLevel level, ExpeditionLayout.Plan p, int room, Set<UUID> mobs, long now) {
+        if (!roomAwake) {
+            BlockPos center = p.roomCenters.get(room);
+            boolean near = false;
+            for (UUID id : fighters) {
+                ServerPlayer player = level.getServer().getPlayerList().getPlayer(id);
+                if (player != null && player.distanceToSqr(center.getX() + 0.5, center.getY(), center.getZ() + 0.5) < 10.0 * 10.0) {
+                    near = true;
+                }
+            }
+            for (UUID id : mobs) {
+                if (level.getEntity(id) instanceof Mob mob && mob.getHealth() < mob.getMaxHealth()) {
+                    near = true;
+                }
+            }
+            if (!near) {
+                return;
+            }
+            roomAwake = true;
+            int i = 0;
+            for (UUID id : mobs) {
+                wakeAt.put(id, now + 20L * (i++ % 4));
+            }
+            level.playSound(null, center, SoundEvents.EVOKER_PREPARE_SUMMON, SoundSource.HOSTILE, 2f, 0.7f);
+        }
+        for (Map.Entry<UUID, Long> e : new ArrayList<>(wakeAt.entrySet())) {
+            if (now >= e.getValue() && level.getEntity(e.getKey()) instanceof Mob mob) {
+                mob.setNoAi(false);
+                level.sendParticles(ParticleTypes.SOUL, mob.getX(), mob.getY() + 1, mob.getZ(), 8, 0.3, 0.6, 0.3, 0.02);
+                wakeAt.remove(e.getKey());
+            }
+        }
     }
 
     private void openRoom(ServerLevel level, SiegeSave.ExpeditionRecord rec, ExpeditionLayout.Plan p, int room) {
@@ -1426,9 +1527,11 @@ public final class Expeditions {
         m.stats().dungeonProgress(rec.cleared, 0, false);
         m.persist();
         level.playSound(null, p.roomGates.get(room).get(0), SoundEvents.IRON_DOOR_OPEN, SoundSource.BLOCKS, 2f, 0.7f);
+        BlockPos gate = p.roomGates.get(room).get(0);
+        level.playSound(null, gate.getX() + 0.5, gate.getY() + 1, gate.getZ() + 0.5, SoundEvents.VAULT_OPEN_SHUTTER, SoundSource.BLOCKS, 2f, 0.8f);
         Component text = Component.translatable(rec.cleared >= rec.rooms ? "nightsiege.expedition.room_last"
                 : "nightsiege.expedition.room_open", rec.cleared, rec.rooms).withStyle(ChatFormatting.GREEN);
-        for (UUID id : fighters) {
+        for (UUID id : joined) {
             ServerPlayer player = level.getServer().getPlayerList().getPlayer(id);
             if (player != null) {
                 player.connection.send(new ClientboundSetActionBarTextPacket(text));
@@ -1476,7 +1579,20 @@ public final class Expeditions {
         WardenNight.dress(mob, kind, health);
         mob.addTag(CHAMPION_TAG);
         champion = mob.getUUID();
-        brains = new ChampionBrains(mob, kind, level.getGameTime());
+        brains = new ChampionBrains(mob, kind, level.getGameTime() + 60);
+        // He rises from his pit: 3 s of title card, untouchable and still meanwhile.
+        mob.setInvulnerable(true);
+        mob.setNoAi(true);
+        championShownAt = level.getGameTime();
+        DungeonFx.pit(level, p.arenaCenter, kind, 0);
+        for (UUID id : fighters) {
+            ServerPlayer player = level.getServer().getPlayerList().getPlayer(id);
+            if (player != null) {
+                player.connection.send(new ClientboundSetTitlesAnimationPacket(10, 50, 10));
+                player.connection.send(new ClientboundSetTitleTextPacket(WardenNight.name(kind)));
+                player.connection.send(new ClientboundSetSubtitleTextPacket(WardenNight.epithet(kind).copy().withStyle(ChatFormatting.GRAY)));
+            }
+        }
         m.stats().dungeonProgress(rec.cleared, wave, true);
         level.sendParticles(ParticleTypes.EXPLOSION_EMITTER, p.arenaCenter.getX() + 0.5, p.arenaCenter.getY() + 1,
                 p.arenaCenter.getZ() + 0.5, 1, 0, 0, 0, 0);
@@ -1600,6 +1716,10 @@ public final class Expeditions {
         arenaMobs.clear();
         champion = null;
         brains = null;
+        phase2 = false;
+        championShownAt = -1L;
+        wakeAt.clear();
+        roomAwake = false;
         lastInside.clear();
         allowed.clear();
         gateOpenUntil = -1L;
@@ -1633,6 +1753,8 @@ public final class Expeditions {
         rec.won = true;
         rec.collapseAt = level.getGameTime() + COLLAPSE_TICKS;
         setGate(level, p.arenaGate, false);
+        BlockPos exit = p.arenaGate.get(p.arenaGate.size() / 2);
+        DungeonFx.win(level, new Vec3(exit.getX() + 0.5, exit.getY(), exit.getZ() + 0.5));
         // The group's night fragment goes to the first of them (content update: no chest, no ruin).
         Item fragment = DungeonContent.NIGHT_FRAGMENTS.get(kind.fragment());
         ServerPlayer taker = null;
@@ -1708,8 +1830,12 @@ public final class Expeditions {
         ExpeditionKind kind = kind(rec);
         if (champion != null && level.getEntity(champion) instanceof LivingEntity c) {
             bar.setName(WardenNight.name(kind));
-            bar.setColor(BossEvent.BossBarColor.PURPLE);
-            bar.setProgress((float) Math.max(0.0, Math.min(1.0, c.getHealth() / c.getMaxHealth())));
+            bar.setColor(phase2 ? BossEvent.BossBarColor.RED : BossEvent.BossBarColor.PURPLE);
+            float life = (float) Math.max(0.0, Math.min(1.0, c.getHealth() / c.getMaxHealth()));
+            if (championShownAt > 0) {
+                life = Math.min(life, (level.getGameTime() - championShownAt) / 40f);   // the bar fills in 2 s
+            }
+            bar.setProgress(Math.max(0f, life));
         } else if (arenaClosed) {
             bar.setName(Component.translatable("nightsiege.expedition.bar_wave", Component.translatable(kind.translationKey()),
                     Math.max(1, wave), rec.rooms));
