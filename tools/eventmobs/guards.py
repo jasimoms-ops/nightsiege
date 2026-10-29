@@ -63,7 +63,9 @@ NAMES = {
 }
 
 # the guards' colours: their warden's, the forge's skeletons charred dark instead of pale bone
-OVERRIDES = {'guard_nether_forge': dict(bone=skins.stops('0a0808', '1e1814', '3a2c22', '5a4434'))}
+OVERRIDES = {'guard_nether_forge': dict(bone=skins.stops('0a0808', '1e1814', '3a2c22', '5a4434')),
+             # the crypt's zombies: grave-grey, not pale
+             'guard_stone_crypt': dict(skin=skins.stops('161414', '2e2828', '4e4444', '6e6260'))}
 for _g, (_c, _m) in GUARDS.items():
     skins.EVENTS[_g] = dict(PALETTES[_c], **OVERRIDES.get(_g, {}))
 
