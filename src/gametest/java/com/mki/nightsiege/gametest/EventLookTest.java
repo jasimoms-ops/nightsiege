@@ -115,6 +115,12 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("playtest")) {
                     playtestScene(context, game);   // the playtest (28 October 2026)
                 }
+                if (want.contains("ui")) {
+                    // The windows at the end of the full run (the full run outgrew its 40 minutes, 29 October 2026).
+                    versionBScene(context, game);
+                    versionB2Scene(context, game);
+                    classUiScene(context, game);
+                }
                 if (want.contains("ladders")) {
                     // The climbing scenes, then the ladder cases of 28 October 2026 (block beside, ladder above the ground).
                     ladderScene(context, game);
