@@ -1177,7 +1177,7 @@ public class WarLeaderScreen extends Screen {
             case "card.blutmond" -> new ItemStack(Items.REDSTONE);
             case "card.nebel" -> new ItemStack(Items.COBWEB);
             case "card.frost" -> new ItemStack(Items.SNOWBALL);
-            case "card.gewitter" -> new ItemStack(Items.LIGHTNING_ROD);
+            case "card.gewitter" -> new ItemStack(Items.TRIDENT);
             default -> new ItemStack(id.startsWith("boss.") ? Items.WITHER_SKELETON_SKULL : Items.PAPER);
         };
     }
