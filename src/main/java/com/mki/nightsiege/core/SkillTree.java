@@ -99,7 +99,8 @@ public final class SkillTree {
                     t.cost != null ? Math.max(0, t.cost) : n.baseCost(),
                     t.costStep != null ? Math.max(0, t.costStep) : n.costStep(),
                     t.amount != null ? t.amount : n.amountPerLevel(),
-                    n.requires(), n.requiresLevel(), n.icon(), n.row(), n.group(), n.locks(), n.col()));
+                    n.requires(), n.requiresLevel(), n.icon(), n.row(), n.group(), n.locks(), n.col(),
+                    n.freeLevels(), n.upgradeRequires()));
         }
         return changed;
     }
@@ -108,6 +109,12 @@ public final class SkillTree {
         List<SkillNode> list = new ArrayList<>();
         // Every class: a trunk, then four paths of three nodes, the last an ultimate.
         // A point in one path closes the other three for good.
+        // The subclass first (Simon, 29 October 2026: "den unterklassen skill als ersten skill des
+        // trees", "stufe 1 geschenkt"): the subclass node is the root of its tree (row 0, level 1
+        // free, it comes with the subclass), the trunk hangs from it (rows 1 and 2), then the way of
+        // the subclass (row 3) and everything above as before. From level 2 on the subclass node
+        // needs the first node of its way, so the deeper tiers (which need it at level 2) still
+        // come after trunk and way.
 
         // ---------------- Archer ----------------
         // Trunk, then bow or crossbow. Marking and the hunt (the old hunter)
@@ -239,19 +246,19 @@ public final class SkillTree {
 
     private static void archer(List<SkillNode> list) {
         SkillClass c = SkillClass.ARCHER;
-        node(list, "archer_focus", c, "", SkillEffect.ARROW_DAMAGE, 3, 2, 1, 0.5, null, "", "minecraft:bow", 0, 3);
-        node(list, "a_lightfoot", c, "", SkillEffect.MOVEMENT_SPEED, 3, 3, 2, 0.005, "archer_focus", "a_stem", "minecraft:leather_boots", 1, 2);
-        node(list, "a_quiver", c, "", SkillEffect.QUIVER, 3, 3, 2, 0.15, "archer_focus", "a_stem", "minecraft:bundle", 1, 4);
+        node(list, "archer_focus", c, "", SkillEffect.ARROW_DAMAGE, 3, 2, 1, 0.5, anySubclassNode(c), "", "minecraft:bow", 1, 3);
+        node(list, "a_lightfoot", c, "", SkillEffect.MOVEMENT_SPEED, 3, 3, 2, 0.005, "archer_focus", "a_stem", "minecraft:leather_boots", 2, 2);
+        node(list, "a_quiver", c, "", SkillEffect.QUIVER, 3, 3, 2, 0.15, "archer_focus", "a_stem", "minecraft:bundle", 2, 4);
 
         // ----- Way of the bow
         // Balance update, 26 October 2026: every subclass and talent choice reaches a node on ring V and
         // a mastery for every ultimate (looser needs on rings V and the masteries, no node removed).
         String b = WAY_BOW;
-        node(list, "a_steady", c, b, SkillEffect.DRAW_ASSIST, 3, 3, 2, 0.1, "archer_focus", "b1", "minecraft:string", 2, 1);
-        node(list, "a_pierce", c, b, SkillEffect.PIERCE, 2, 3, 2, 1.0, "archer_focus", "", "minecraft:spectral_arrow", 2, 3);
-        node(list, "a_longshot", c, b, SkillEffect.LONGSHOT, 3, 3, 2, 0.1, "archer_focus", "b1", "minecraft:spyglass", 2, 5);
-        node(list, "swift_draw", c, b, SkillEffect.DRAW_ASSIST, 4, 4, 2, 0.2, "a_pierce", "b_sub", "minecraft:feather", 3, 1);
-        node(list, "heavy_draw", c, b, SkillEffect.ARROW_DAMAGE, 4, 4, 2, 1.0, "a_pierce", "b_sub", "minecraft:iron_ingot", 3, 5);
+        node(list, "a_steady", c, b, SkillEffect.DRAW_ASSIST, 3, 3, 2, 0.1, "archer_focus", "b1", "minecraft:string", 3, 1);
+        node(list, "a_pierce", c, b, SkillEffect.PIERCE, 2, 3, 2, 1.0, "archer_focus", "", "minecraft:spectral_arrow", 3, 3);
+        node(list, "a_longshot", c, b, SkillEffect.LONGSHOT, 3, 3, 2, 0.1, "archer_focus", "b1", "minecraft:spyglass", 3, 5);
+        subNode(list, "swift_draw", c, b, SkillEffect.DRAW_ASSIST, 4, 4, 2, 0.2, "a_pierce", "b_sub", "minecraft:feather", 1);
+        subNode(list, "heavy_draw", c, b, SkillEffect.ARROW_DAMAGE, 4, 4, 2, 1.0, "a_pierce", "b_sub", "minecraft:iron_ingot", 5);
         node(list, "double_shot", c, b, SkillEffect.DOUBLE_SHOT, 1, 10, 0, 1.0, "swift_draw:2", "b3", "minecraft:arrow", 4, 0);
         node(list, "a_volley", c, b, SkillEffect.VOLLEY, 1, 10, 0, 1.0, "swift_draw:2", "b3", "minecraft:tipped_arrow", 4, 2);
         node(list, "piercing", c, b, SkillEffect.PIERCE, 1, 10, 0, 2.0, "heavy_draw:2", "b3", "minecraft:trident", 4, 4);
@@ -283,11 +290,11 @@ public final class SkillTree {
 
         // ----- Way of the crossbow
         String x = WAY_CROSSBOW;
-        node(list, "a_lightxbow", c, x, SkillEffect.XBOW_SPEED, 3, 3, 2, 0.006, "archer_focus", "x1", "minecraft:leather", 2, 1);
-        node(list, "heavy_bolts", c, x, SkillEffect.CROSSBOW_DAMAGE, 3, 3, 2, 1.5, "archer_focus", "", "minecraft:crossbow", 2, 3);
-        node(list, "a_steelbolts", c, x, SkillEffect.BOLT_SUNDER, 3, 3, 2, 0.06, "archer_focus", "x1", "minecraft:iron_nugget", 2, 5);
-        node(list, "shrapnel", c, x, SkillEffect.SHRAPNEL, 4, 4, 2, 0.12, "heavy_bolts", "x_sub", "minecraft:firework_star", 3, 1);
-        node(list, "a_netbolt", c, x, SkillEffect.NET_BOLT, 4, 4, 2, 1.5, "heavy_bolts", "x_sub", "minecraft:cobweb", 3, 5);
+        node(list, "a_lightxbow", c, x, SkillEffect.XBOW_SPEED, 3, 3, 2, 0.006, "archer_focus", "x1", "minecraft:leather", 3, 1);
+        node(list, "heavy_bolts", c, x, SkillEffect.CROSSBOW_DAMAGE, 3, 3, 2, 1.5, "archer_focus", "", "minecraft:crossbow", 3, 3);
+        node(list, "a_steelbolts", c, x, SkillEffect.BOLT_SUNDER, 3, 3, 2, 0.06, "archer_focus", "x1", "minecraft:iron_nugget", 3, 5);
+        subNode(list, "shrapnel", c, x, SkillEffect.SHRAPNEL, 4, 4, 2, 0.12, "heavy_bolts", "x_sub", "minecraft:firework_star", 1);
+        subNode(list, "a_netbolt", c, x, SkillEffect.NET_BOLT, 4, 4, 2, 1.5, "heavy_bolts", "x_sub", "minecraft:cobweb", 5);
         node(list, "a_explosive", c, x, SkillEffect.EXPLOSIVE, 1, 10, 0, 4.0, "shrapnel:2", "x3", "minecraft:tnt", 4, 0);
         node(list, "a_multiload", c, x, SkillEffect.MULTI_BOLT, 1, 10, 0, 1.0, "shrapnel:2", "x3", "minecraft:arrow", 4, 2);
         node(list, "a_snarefield", c, x, SkillEffect.NET_FIELD, 1, 10, 0, 1.0, "a_netbolt:2", "x3", "minecraft:string", 4, 4);
@@ -318,18 +325,18 @@ public final class SkillTree {
     private static void warrior(List<SkillNode> list) {
         SkillClass c = SkillClass.WARRIOR;
         // Trunk: drill, then stamina or footwork.
-        node(list, "warrior_drill", c, "", SkillEffect.ATTACK_DAMAGE, 3, 2, 1, 0.5, null, "", "minecraft:iron_sword", 0, 3);
-        node(list, "w_endurance", c, "", SkillEffect.MAX_HEALTH, 3, 3, 2, 2.0, "warrior_drill", "w_stem", "minecraft:cooked_beef", 1, 2);
-        node(list, "w_footwork", c, "", SkillEffect.MOVEMENT_SPEED, 3, 3, 2, 0.005, "warrior_drill", "w_stem", "minecraft:leather_boots", 1, 4);
+        node(list, "warrior_drill", c, "", SkillEffect.ATTACK_DAMAGE, 3, 2, 1, 0.5, anySubclassNode(c), "", "minecraft:iron_sword", 1, 3);
+        node(list, "w_endurance", c, "", SkillEffect.MAX_HEALTH, 3, 3, 2, 2.0, "warrior_drill", "w_stem", "minecraft:cooked_beef", 2, 2);
+        node(list, "w_footwork", c, "", SkillEffect.MOVEMENT_SPEED, 3, 3, 2, 0.005, "warrior_drill", "w_stem", "minecraft:leather_boots", 2, 4);
 
         // ----- Way of the blade (swords)
         String e = WAY_BLADE;
-        node(list, "w_bladedance", c, e, SkillEffect.WEAPON_SPEED, 3, 3, 2, 0.15, "warrior_drill", "e1", "minecraft:feather", 2, 1);
-        node(list, "champion_bane", c, e, SkillEffect.CHAMPION_BANE, 3, 3, 2, 0.25, "warrior_drill", "", "minecraft:golden_sword", 2, 3);
-        node(list, "w_fencer", c, e, SkillEffect.KNOCKBACK_RESIST, 3, 3, 2, 0.15, "warrior_drill", "e1", "minecraft:chainmail_chestplate", 2, 5);
+        node(list, "w_bladedance", c, e, SkillEffect.WEAPON_SPEED, 3, 3, 2, 0.15, "warrior_drill", "e1", "minecraft:feather", 3, 1);
+        node(list, "champion_bane", c, e, SkillEffect.CHAMPION_BANE, 3, 3, 2, 0.25, "warrior_drill", "", "minecraft:golden_sword", 3, 3);
+        node(list, "w_fencer", c, e, SkillEffect.KNOCKBACK_RESIST, 3, 3, 2, 0.15, "warrior_drill", "e1", "minecraft:chainmail_chestplate", 3, 5);
         // Combo is the blademaster's subclass node (Simon, 24 Oct 2026): no sword cooldown, plus the streak bonus.
-        node(list, "w_combo", c, e, SkillEffect.COMBO, 4, 4, 2, 0.02, "champion_bane", "e_sub", "minecraft:sugar", 3, 1);
-        node(list, "bloodlust", c, e, SkillEffect.RAGE, 4, 4, 2, 0.15, "champion_bane", "e_sub", "minecraft:redstone", 3, 5);
+        subNode(list, "w_combo", c, e, SkillEffect.COMBO, 4, 4, 2, 0.02, "champion_bane", "e_sub", "minecraft:sugar", 1);
+        subNode(list, "bloodlust", c, e, SkillEffect.RAGE, 4, 4, 2, 0.15, "champion_bane", "e_sub", "minecraft:redstone", 5);
         node(list, "keen_edge", c, e, SkillEffect.CRIT_CHANCE, 1, 10, 0, 0.2, "w_combo:2", "e3", "minecraft:flint", 4, 0);
         node(list, "w_precision", c, e, SkillEffect.CRIT_POWER, 1, 10, 0, 0.5, "w_combo:2", "e3", "minecraft:target", 4, 2);
         node(list, "blood_drinker", c, e, SkillEffect.MAX_HEALTH, 1, 10, 0, 4.0, "bloodlust:2", "e3", "minecraft:ghast_tear", 4, 4);
@@ -361,11 +368,11 @@ public final class SkillTree {
 
         // ----- Way of might (axes and maces)
         String m = WAY_MIGHT;
-        node(list, "w_ironskin", c, m, SkillEffect.ARMOR, 3, 3, 2, 1.5, "warrior_drill", "m1", "minecraft:iron_chestplate", 2, 1);
-        node(list, "sunder", c, m, SkillEffect.SUNDER, 3, 3, 2, 0.08, "warrior_drill", "", "minecraft:iron_axe", 2, 3);
-        node(list, "w_heavyswing", c, m, SkillEffect.WEAPON_SPEED, 3, 3, 2, 0.2, "warrior_drill", "m1", "minecraft:piston", 2, 5);
-        node(list, "heavy_blow", c, m, SkillEffect.HEAVY_BLOW, 4, 4, 2, 1.0, "sunder", "m_sub", "minecraft:diamond_axe", 3, 1);
-        node(list, "smite", c, m, SkillEffect.SMITE, 4, 4, 2, 0.12, "sunder", "m_sub", "minecraft:golden_sword", 3, 5);
+        node(list, "w_ironskin", c, m, SkillEffect.ARMOR, 3, 3, 2, 1.5, "warrior_drill", "m1", "minecraft:iron_chestplate", 3, 1);
+        node(list, "sunder", c, m, SkillEffect.SUNDER, 3, 3, 2, 0.08, "warrior_drill", "", "minecraft:iron_axe", 3, 3);
+        node(list, "w_heavyswing", c, m, SkillEffect.WEAPON_SPEED, 3, 3, 2, 0.2, "warrior_drill", "m1", "minecraft:piston", 3, 5);
+        subNode(list, "heavy_blow", c, m, SkillEffect.HEAVY_BLOW, 4, 4, 2, 1.0, "sunder", "m_sub", "minecraft:diamond_axe", 1);
+        subNode(list, "smite", c, m, SkillEffect.SMITE, 4, 4, 2, 0.12, "sunder", "m_sub", "minecraft:golden_sword", 5);
         node(list, "w_cleave", c, m, SkillEffect.CLEAVE, 1, 10, 0, 0.4, "heavy_blow:2", "m3", "minecraft:stone_axe", 4, 0);
         node(list, "w_headhunter", c, m, SkillEffect.HEADHUNTER, 1, 10, 0, 0.4, "heavy_blow:2", "m3", "minecraft:skeleton_skull", 4, 2);
         node(list, "holy_vigor", c, m, SkillEffect.MAX_HEALTH, 1, 10, 0, 4.0, "smite:2", "m3", "minecraft:glow_berries", 4, 4);
@@ -403,20 +410,20 @@ public final class SkillTree {
         SkillClass c = SkillClass.ENGINEER;
         String spike = TrapKind.SPIKE.id();
         String snare = TrapKind.SNARE.id();
-        node(list, spike, c, "", SkillEffect.TRAP, 3, 3, 2, 1.0, null, "", "nightsiege:spike_trap", 0, 3);
-        node(list, "e_battery", c, "", SkillEffect.REMOTE_ENERGY, 3, 3, 2, 10.0, spike, "e_stem", "minecraft:copper_ingot", 1, 1);
-        node(list, snare, c, "", SkillEffect.TRAP, 3, 3, 2, 1.0, spike + ":2", "", "nightsiege:snare_trap", 1, 3);
-        node(list, "e_finemech", c, "", SkillEffect.TRAP_DURABILITY, 3, 3, 2, 0.17, spike, "e_stem", "minecraft:clock", 1, 5);
+        node(list, spike, c, "", SkillEffect.TRAP, 3, 3, 2, 1.0, anySubclassNode(c), "", "nightsiege:spike_trap", 1, 3);
+        node(list, "e_battery", c, "", SkillEffect.REMOTE_ENERGY, 3, 3, 2, 10.0, spike, "e_stem", "minecraft:copper_ingot", 2, 1);
+        node(list, snare, c, "", SkillEffect.TRAP, 3, 3, 2, 1.0, spike + ":2", "", "nightsiege:snare_trap", 2, 3);
+        node(list, "e_finemech", c, "", SkillEffect.TRAP_DURABILITY, 3, 3, 2, 0.17, spike, "e_stem", "minecraft:clock", 2, 5);
 
         // ----- Way of mechanics: turrets and current
         String m = WAY_MECHANICS;
         String turret = TrapKind.TURRET.id();
         String tesla = TrapKind.TESLA.id();
-        node(list, "e_longrange", c, m, SkillEffect.REMOTE_RANGE, 3, 3, 2, 5.0, snare, "em1", "minecraft:spyglass", 2, 1);
-        node(list, "e_circuit", c, m, SkillEffect.OVERCHARGE_TIME, 3, 3, 2, 20.0, snare, "", "minecraft:repeater", 2, 3);
-        node(list, "e_fastcharge", c, m, SkillEffect.RECHARGE, 3, 3, 2, 0.17, snare, "em1", "minecraft:redstone_torch", 2, 5);
-        node(list, turret, c, m, SkillEffect.TRAP, 3, 4, 3, 1.0, "e_circuit", "em_sub", "nightsiege:arrow_turret", 3, 1);
-        node(list, tesla, c, m, SkillEffect.TRAP, 3, 4, 3, 1.0, "e_circuit", "em_sub", "nightsiege:tesla_coil", 3, 5);
+        node(list, "e_longrange", c, m, SkillEffect.REMOTE_RANGE, 3, 3, 2, 5.0, snare, "em1", "minecraft:spyglass", 3, 1);
+        node(list, "e_circuit", c, m, SkillEffect.OVERCHARGE_TIME, 3, 3, 2, 20.0, snare, "", "minecraft:repeater", 3, 3);
+        node(list, "e_fastcharge", c, m, SkillEffect.RECHARGE, 3, 3, 2, 0.17, snare, "em1", "minecraft:redstone_torch", 3, 5);
+        subNode(list, turret, c, m, SkillEffect.TRAP, 3, 4, 3, 1.0, "e_circuit", "em_sub", "nightsiege:arrow_turret", 1);
+        subNode(list, tesla, c, m, SkillEffect.TRAP, 3, 4, 3, 1.0, "e_circuit", "em_sub", "nightsiege:tesla_coil", 5);
         node(list, "turret_tuning", c, m, SkillEffect.TRAP_BOOST, 1, 10, 0, 2.0, turret + ":2", "em3", "minecraft:redstone", 4, 0);
         node(list, "e_ammobelt", c, m, SkillEffect.AMMO_BELT, 1, 10, 0, 1.0, turret + ":2", "em3", "minecraft:arrow", 4, 2);
         node(list, "capacitor", c, m, SkillEffect.TRAP_BOOST, 1, 10, 0, 2.0, tesla + ":2", "em3", "minecraft:copper_block", 4, 4);
@@ -454,11 +461,11 @@ public final class SkillTree {
         String ch = WAY_CHEMISTRY;
         String mine = TrapKind.MORTAR.id();
         String poison = TrapKind.BREWER.id();
-        node(list, "e_stockpile", c, ch, SkillEffect.FREE_TRAPS, 3, 3, 2, 1.0, snare, "ec1", "minecraft:chest", 2, 1);
-        node(list, "e_detonator", c, ch, SkillEffect.DETONATOR, 3, 3, 2, 1.0, snare, "", "minecraft:lever", 2, 3);
-        node(list, "e_durable", c, ch, SkillEffect.TOWER_TOUGHNESS, 3, 3, 2, 0.17, snare, "ec1", "minecraft:iron_ingot", 2, 5);
-        node(list, mine, c, ch, SkillEffect.TRAP, 3, 4, 3, 1.0, "e_detonator", "ec_sub", "nightsiege:mortar_tower", 3, 1);
-        node(list, poison, c, ch, SkillEffect.TRAP, 3, 4, 3, 1.0, "e_detonator", "ec_sub", "nightsiege:potion_tower", 3, 5);
+        node(list, "e_stockpile", c, ch, SkillEffect.FREE_TRAPS, 3, 3, 2, 1.0, snare, "ec1", "minecraft:chest", 3, 1);
+        node(list, "e_detonator", c, ch, SkillEffect.DETONATOR, 3, 3, 2, 1.0, snare, "", "minecraft:lever", 3, 3);
+        node(list, "e_durable", c, ch, SkillEffect.TOWER_TOUGHNESS, 3, 3, 2, 0.17, snare, "ec1", "minecraft:iron_ingot", 3, 5);
+        subNode(list, mine, c, ch, SkillEffect.TRAP, 3, 4, 3, 1.0, "e_detonator", "ec_sub", "nightsiege:mortar_tower", 1);
+        subNode(list, poison, c, ch, SkillEffect.TRAP, 3, 4, 3, 1.0, "e_detonator", "ec_sub", "nightsiege:potion_tower", 5);
         node(list, TrapKind.FLAME.id(), c, ch, SkillEffect.TRAP, 3, 10, 5, 1.0, mine + ":2", "ec3", "nightsiege:flame_trap", 4, 0);
         node(list, "e_shrapnel_mine", c, ch, SkillEffect.SHRAPNEL_MINE, 1, 10, 0, 0.5, mine + ":2", "ec3", "minecraft:flint", 4, 2);
         node(list, "toxic_brew", c, ch, SkillEffect.TRAP_BOOST, 1, 10, 0, 2.0, poison + ":2", "ec3", "minecraft:fermented_spider_eye", 4, 4);
@@ -525,19 +532,19 @@ public final class SkillTree {
      */
     private static void summoner(List<SkillNode> list) {
         SkillClass c = SkillClass.SUMMONER;
-        node(list, "s_soulbond", c, "", SkillEffect.SUMMON_HEALTH, 3, 2, 1, 0.1, null, "", "minecraft:lead", 0, 3);
-        node(list, "s_callrange", c, "", SkillEffect.CALL_RANGE, 3, 3, 2, 3.0, "s_soulbond", "s_stem", "minecraft:compass", 1, 1);
+        node(list, "s_soulbond", c, "", SkillEffect.SUMMON_HEALTH, 3, 2, 1, 0.1, anySubclassNode(c), "", "minecraft:lead", 1, 3);
+        node(list, "s_callrange", c, "", SkillEffect.CALL_RANGE, 3, 3, 2, 3.0, "s_soulbond", "s_stem", "minecraft:compass", 2, 1);
         // Lebensband (Simon, 25 October 2026): the summoner had no hearts in the tree at all.
-        node(list, "s_lifebond", c, "", SkillEffect.MAX_HEALTH, 3, 3, 2, 4.0, "s_soulbond", "", "minecraft:golden_apple", 1, 3);
-        node(list, "s_command", c, "", SkillEffect.SUMMON_DAMAGE, 3, 3, 2, 0.1, "s_soulbond", "s_stem", "minecraft:name_tag", 1, 5);
+        node(list, "s_lifebond", c, "", SkillEffect.MAX_HEALTH, 3, 3, 2, 4.0, "s_soulbond", "", "minecraft:golden_apple", 2, 3);
+        node(list, "s_command", c, "", SkillEffect.SUMMON_DAMAGE, 3, 3, 2, 0.1, "s_soulbond", "s_stem", "minecraft:name_tag", 2, 5);
 
         // ----- Way of the wild: wolves and golems answer the call
         String w = WAY_WILD;
-        node(list, "s_loyalty", c, w, SkillEffect.SUMMON_TOUGHNESS, 3, 3, 2, 0.05, "s_soulbond", "l1", "minecraft:leather_chestplate", 2, 1);
-        node(list, "s_packcall", c, w, SkillEffect.PACK_CALL, 3, 3, 2, 3.0, "s_soulbond", "", "minecraft:wolf_spawn_egg", 2, 3);
-        node(list, "s_trail", c, w, SkillEffect.SUMMON_SPEED, 3, 3, 2, 0.07, "s_soulbond", "l1", "minecraft:rabbit_foot", 2, 5);
-        node(list, "s_tamer", c, w, SkillEffect.PACK_SLOTS, 4, 4, 2, 0.5, "s_packcall", "l_sub", "minecraft:bone", 3, 1);
-        node(list, "s_golemsmith", c, w, SkillEffect.GOLEM_CALL, 4, 4, 2, 0.15, "s_packcall", "l_sub", "minecraft:iron_golem_spawn_egg", 3, 5);
+        node(list, "s_loyalty", c, w, SkillEffect.SUMMON_TOUGHNESS, 3, 3, 2, 0.05, "s_soulbond", "l1", "minecraft:leather_chestplate", 3, 1);
+        node(list, "s_packcall", c, w, SkillEffect.PACK_CALL, 3, 3, 2, 3.0, "s_soulbond", "", "minecraft:wolf_spawn_egg", 3, 3);
+        node(list, "s_trail", c, w, SkillEffect.SUMMON_SPEED, 3, 3, 2, 0.07, "s_soulbond", "l1", "minecraft:rabbit_foot", 3, 5);
+        subNode(list, "s_tamer", c, w, SkillEffect.PACK_SLOTS, 4, 4, 2, 0.5, "s_packcall", "l_sub", "minecraft:bone", 1);
+        subNode(list, "s_golemsmith", c, w, SkillEffect.GOLEM_CALL, 4, 4, 2, 0.15, "s_packcall", "l_sub", "minecraft:iron_golem_spawn_egg", 5);
         node(list, "s_alpha", c, w, SkillEffect.ALPHA_WOLF, 1, 10, 0, 1.0, "s_tamer:2", "l3", "minecraft:wolf_armor", 4, 0);
         node(list, "s_packhunt", c, w, SkillEffect.PACK_HUNT, 1, 10, 0, 0.2, "s_tamer:2", "l3", "minecraft:beef", 4, 2);
         node(list, "s_snowguard", c, w, SkillEffect.SNOW_GUARD, 1, 10, 0, 1.0, "s_golemsmith:2", "l3", "minecraft:snowball", 4, 4);
@@ -567,11 +574,11 @@ public final class SkillTree {
 
         // ----- Way of the dead: soul magic (the soul bolt, three spells per subclass, the army as ult)
         String d = WAY_DEAD;
-        node(list, "d_greed", c, d, SkillEffect.SOUL_GREED, 3, 3, 2, 0.1, "s_soulbond", "d1", "minecraft:soul_sand", 2, 1);
-        node(list, "d_raise", c, d, SkillEffect.RAISE_DEAD, 3, 3, 2, 0.8, "s_soulbond", "", "minecraft:zombie_head", 2, 3);
-        node(list, "d_bindrune", c, d, SkillEffect.BIND_RUNE, 3, 3, 2, 0.17, "s_soulbond", "d1", "minecraft:enchanted_book", 2, 5);
-        node(list, "d_necro", c, d, SkillEffect.NECRO_POWER, 4, 4, 2, 0.15, "d_raise", "d_sub", "minecraft:wither_skeleton_skull", 3, 1);
-        node(list, "d_soulcatcher", c, d, SkillEffect.SOUL_CATCHER, 4, 4, 2, 0.15, "d_raise", "d_sub", "minecraft:soul_lantern", 3, 5);
+        node(list, "d_greed", c, d, SkillEffect.SOUL_GREED, 3, 3, 2, 0.1, "s_soulbond", "d1", "minecraft:soul_sand", 3, 1);
+        node(list, "d_raise", c, d, SkillEffect.RAISE_DEAD, 3, 3, 2, 0.8, "s_soulbond", "", "minecraft:zombie_head", 3, 3);
+        node(list, "d_bindrune", c, d, SkillEffect.BIND_RUNE, 3, 3, 2, 0.17, "s_soulbond", "d1", "minecraft:enchanted_book", 3, 5);
+        subNode(list, "d_necro", c, d, SkillEffect.NECRO_POWER, 4, 4, 2, 0.15, "d_raise", "d_sub", "minecraft:wither_skeleton_skull", 1);
+        subNode(list, "d_soulcatcher", c, d, SkillEffect.SOUL_CATCHER, 4, 4, 2, 0.15, "d_raise", "d_sub", "minecraft:soul_lantern", 5);
         node(list, "d_archers", c, d, SkillEffect.SKELETON_ARCHERS, 1, 10, 0, 0.5, "d_necro:2", "d3", "minecraft:bow", 4, 0);
         node(list, "d_ghoul", c, d, SkillEffect.GHOUL_HUNGER, 1, 10, 0, 0.1, "d_necro:2", "d3", "minecraft:rotten_flesh", 4, 2);
         node(list, "d_swarm", c, d, SkillEffect.GHOST_SWARM, 1, 10, 0, 1.0, "d_soulcatcher:2", "d3", "minecraft:phantom_membrane", 4, 4);
@@ -620,17 +627,17 @@ public final class SkillTree {
 
     private static void guardian(List<SkillNode> list) {
         SkillClass c = SkillClass.GUARDIAN;
-        node(list, "vitality", c, "", SkillEffect.MAX_HEALTH, 4, 2, 1, 2.0, null, "", "minecraft:golden_apple", 0, 3);
-        node(list, "g_challenger", c, "", SkillEffect.AGGRO, 3, 3, 2, 2.0, "vitality", "g_stem", "minecraft:bell", 1, 2);
-        node(list, "toughness", c, "", SkillEffect.ARMOR, 3, 3, 2, 1.5, "vitality", "g_stem", "minecraft:iron_chestplate", 1, 4);
+        node(list, "vitality", c, "", SkillEffect.MAX_HEALTH, 4, 2, 1, 2.0, anySubclassNode(c), "", "minecraft:golden_apple", 1, 3);
+        node(list, "g_challenger", c, "", SkillEffect.AGGRO, 3, 3, 2, 2.0, "vitality", "g_stem", "minecraft:bell", 2, 2);
+        node(list, "toughness", c, "", SkillEffect.ARMOR, 3, 3, 2, 1.5, "vitality", "g_stem", "minecraft:iron_chestplate", 2, 4);
 
         // ----- Way of the shield (combat boni need a shield at hand; armour of the trunk, steadfast and the cross nodes do not)
         String s = WAY_SHIELD;
-        node(list, "g_ironward", c, s, SkillEffect.IRONWARD, 3, 3, 2, 1.5, "vitality", "s1", "minecraft:iron_ingot", 2, 1);
-        node(list, "g_shieldwall", c, s, SkillEffect.SHIELD_WALL, 3, 3, 2, 1.0, "vitality", "", "minecraft:shield", 2, 3);
-        node(list, "steadfast", c, s, SkillEffect.KNOCKBACK_RESIST, 3, 3, 2, 0.25, "vitality", "s1", "minecraft:netherite_ingot", 2, 5);
-        node(list, "riposte", c, s, SkillEffect.COUNTER, 4, 4, 2, 2.5, "g_shieldwall", "s_sub", "minecraft:iron_sword", 3, 1);
-        node(list, "g_bastion", c, s, SkillEffect.BASTION, 4, 4, 2, 0.02, "g_shieldwall", "s_sub", "minecraft:cobblestone_wall", 3, 5);
+        node(list, "g_ironward", c, s, SkillEffect.IRONWARD, 3, 3, 2, 1.5, "vitality", "s1", "minecraft:iron_ingot", 3, 1);
+        node(list, "g_shieldwall", c, s, SkillEffect.SHIELD_WALL, 3, 3, 2, 1.0, "vitality", "", "minecraft:shield", 3, 3);
+        node(list, "steadfast", c, s, SkillEffect.KNOCKBACK_RESIST, 3, 3, 2, 0.25, "vitality", "s1", "minecraft:netherite_ingot", 3, 5);
+        subNode(list, "riposte", c, s, SkillEffect.COUNTER, 4, 4, 2, 2.5, "g_shieldwall", "s_sub", "minecraft:iron_sword", 1);
+        subNode(list, "g_bastion", c, s, SkillEffect.BASTION, 4, 4, 2, 0.02, "g_shieldwall", "s_sub", "minecraft:cobblestone_wall", 5);
         node(list, "g_shieldthrow", c, s, SkillEffect.SHIELD_THROW, 1, 10, 0, 10.0, "riposte:2", "s3", "minecraft:trident", 4, 0);
         node(list, "g_shieldbash", c, s, SkillEffect.SHIELD_BASH, 1, 10, 0, 8.0, "riposte:2", "s3", "minecraft:piston", 4, 2);
         node(list, "g_ironhide", c, s, SkillEffect.IRONHIDE, 1, 10, 0, 2.0, "g_bastion:2", "s3", "minecraft:chainmail_chestplate", 4, 4);
@@ -660,11 +667,11 @@ public final class SkillTree {
 
         // ----- Way of blessing (healing and barriers)
         String b = WAY_BLESSING;
-        node(list, "g_prayer", c, b, SkillEffect.HEAL_POWER, 3, 3, 2, 0.08, "vitality", "gb1", "minecraft:book", 2, 1);
-        node(list, "field_dressing", c, b, SkillEffect.HEAL_AURA, 3, 3, 2, 0.5, "vitality", "", "minecraft:glistering_melon_slice", 2, 3);
-        node(list, "g_wardsign", c, b, SkillEffect.WARD_SIGN, 3, 3, 2, 0.04, "vitality", "gb1", "minecraft:white_banner", 2, 5);
-        node(list, "g_healing_hand", c, b, SkillEffect.HEALING_HAND, 4, 4, 2, 1.0, "field_dressing", "gb_sub", "minecraft:honey_bottle", 3, 1);
-        node(list, "g_ward", c, b, SkillEffect.WARD, 4, 4, 2, 1.0, "field_dressing", "gb_sub", "minecraft:amethyst_shard", 3, 5);
+        node(list, "g_prayer", c, b, SkillEffect.HEAL_POWER, 3, 3, 2, 0.08, "vitality", "gb1", "minecraft:book", 3, 1);
+        node(list, "field_dressing", c, b, SkillEffect.HEAL_AURA, 3, 3, 2, 0.5, "vitality", "", "minecraft:glistering_melon_slice", 3, 3);
+        node(list, "g_wardsign", c, b, SkillEffect.WARD_SIGN, 3, 3, 2, 0.04, "vitality", "gb1", "minecraft:white_banner", 3, 5);
+        subNode(list, "g_healing_hand", c, b, SkillEffect.HEALING_HAND, 4, 4, 2, 1.0, "field_dressing", "gb_sub", "minecraft:honey_bottle", 1);
+        subNode(list, "g_ward", c, b, SkillEffect.WARD, 4, 4, 2, 1.0, "field_dressing", "gb_sub", "minecraft:amethyst_shard", 5);
         node(list, "guardian_angel", c, b, SkillEffect.GUARDIAN_ANGEL, 1, 10, 0, 2.0, "g_healing_hand:2", "gb3", "minecraft:totem_of_undying", 4, 0);
         node(list, "g_triage", c, b, SkillEffect.TRIAGE, 1, 10, 0, 1.0, "g_healing_hand:2", "gb3", "minecraft:apple", 4, 2);
         node(list, "g_dome", c, b, SkillEffect.DOME, 1, 10, 0, 1.0, "g_ward:2", "gb3", "minecraft:glass", 4, 4);
@@ -698,6 +705,26 @@ public final class SkillTree {
                              String group, String icon, int row, int col, String... locks) {
         list.add(new SkillNode(id, clazz, path, effect, maxLevel, baseCost, costStep, amount,
                 requires, requires == null ? 0 : 1, icon, row, group, List.of(locks), col));
+    }
+
+    /**
+     * A subclass node: the root of its subclass's tree (row 0). Level 1 is free and needs nothing (it
+     * comes with the subclass); the levels after it need {@code gate}, the first node of its way.
+     */
+    private static void subNode(List<SkillNode> list, String id, SkillClass clazz, String path, SkillEffect effect,
+                                int maxLevel, int baseCost, int costStep, double amount, String gate,
+                                String group, String icon, int col) {
+        list.add(new SkillNode(id, clazz, path, effect, maxLevel, baseCost, costStep, amount,
+                null, 0, icon, 0, group, List.of(), col, 1, gate));
+    }
+
+    /** Every subclass node of a class as one requirement ("a|b|c|d"): the trunk hangs from the profile's one. */
+    private static String anySubclassNode(SkillClass clazz) {
+        List<String> ids = new ArrayList<>();
+        for (SubclassInfo info : subclassInfosOf(clazz)) {
+            ids.add(info.node());
+        }
+        return String.join("|", ids);
     }
 
     private static void add(List<SkillNode> list, String id, SkillClass clazz, String path, SkillEffect effect,
@@ -826,6 +853,10 @@ public final class SkillTree {
         }
         if (!needsMet(node, skills)) {
             return "locked";
+        }
+        // The subclass node from level 2 on: first the first node of its way (the free level 1 needs nothing).
+        if (level >= node.freeLevels() && !upgradeMet(node, skills)) {
+            return "upgrade";
         }
         if (skills.points() < node.costFor(level)) {
             return "points";
@@ -1079,6 +1110,46 @@ public final class SkillTree {
         return changed;
     }
 
+    /**
+     * The subclass first (Simon, 29 October 2026): level 1 of the subclass node is free now. Once per
+     * player (see {@link PlayerSkills#freeSubclassVersion}): every profile that bought level 1 gets its
+     * cost back as points, and the history forgets that purchase; every profile with a fixed subclass
+     * that never learned its node gets level 1 for free. Nothing learned is taken away, also where the
+     * new order (trunk after the subclass) would not allow it any more. Returns the points paid back.
+     */
+    public int migrateFreeSubclass(PlayerSkills skills) {
+        if (skills == null || skills.freeSubclassVersion >= PlayerSkills.FREE_SUBCLASS_VERSION) {
+            return 0;
+        }
+        int refunded = 0;
+        for (String key : new ArrayList<>(skills.profiles())) {
+            SkillClass clazz = PlayerSkills.classOfKey(key);
+            if (clazz == null || clazz.isShared()) {
+                continue;
+            }
+            refunded += skills.asProfile(key, () -> {
+                int back = 0;
+                for (SubclassInfo info : subclassInfosOf(clazz)) {
+                    SkillNode node = get(info.node());
+                    if (node == null || skills.levelOf(info.node()) <= 0) {
+                        continue;
+                    }
+                    back += node.baseCost();   // what level 1 cost until now
+                    skills.forgetPurchase(info.node());
+                    if (skills.plannedSubclass(key).isEmpty()) {
+                        // Learned in the tree the old way: the subclass is fixed with it, as it is now.
+                        skills.planSubclass(key, info.key());
+                    }
+                }
+                return back;
+            });
+        }
+        skills.points += refunded;
+        skills.grantFreeSubclasses();
+        skills.freeSubclassVersion = PlayerSkills.FREE_SUBCLASS_VERSION;
+        return refunded;
+    }
+
     /** True when one profile is fully learned (see {@link #isComplete}). */
     public boolean isCompleteProfile(PlayerSkills skills, String key) {
         SkillClass clazz = PlayerSkills.classOfKey(key);
@@ -1190,7 +1261,21 @@ public final class SkillTree {
 
     /** Whether every requirement of a node is met. */
     public boolean needsMet(SkillNode node, PlayerSkills skills) {
-        for (List<SkillNode.Need> any : node.needs()) {
+        return met(node.needs(), skills);
+    }
+
+    /** Whether what the paid levels after the free ones need is met (always, for a node without free levels). */
+    public boolean upgradeMet(SkillNode node, PlayerSkills skills) {
+        return met(node.upgradeNeeds(), skills);
+    }
+
+    /** True while a learned node still has what its learned levels need (for the lost night's deepest leaf). */
+    private boolean holds(SkillNode node, PlayerSkills skills) {
+        return needsMet(node, skills) && (skills.levelOf(node.id()) <= node.freeLevels() || upgradeMet(node, skills));
+    }
+
+    private static boolean met(List<List<SkillNode.Need>> needs, PlayerSkills skills) {
+        for (List<SkillNode.Need> any : needs) {
             boolean met = false;
             for (SkillNode.Need need : any) {
                 if (skills.levelOf(need.id()) >= need.level()) {
@@ -1305,10 +1390,26 @@ public final class SkillTree {
         }
         SkillNode node = get(nodeId);
         int level = skills.levelOf(nodeId);
+        if (node.isFreeAt(level)) {
+            // A free level is no purchase: no points, nothing in the history a lost night takes from.
+            // The subclass node taken in the tree (a profile without a subclass yet) fixes the subclass.
+            skills.setLevel(nodeId, level + 1);
+            SubclassInfo info = subclassByNode(nodeId);
+            if (info != null && info.clazz() == skills.clazz() && skills.plannedSubclass(skills.chosenClass).isEmpty()) {
+                skills.planSubclass(skills.chosenClass, info.key());
+            }
+            skills.freeSubclassVersion = PlayerSkills.FREE_SUBCLASS_VERSION;
+            return true;
+        }
         skills.spend(node.costFor(level));
         skills.setLevel(nodeId, level + 1);
         skills.remember(nodeId);
         return true;
+    }
+
+    /** True for the subclass nodes (the roots of the subclass trees). */
+    public static boolean isSubclassNode(String nodeId) {
+        return nodeId != null && SUBCLASS_NODES.containsKey(nodeId);
     }
 
     /**
@@ -1320,6 +1421,9 @@ public final class SkillTree {
         List<String> taken = new ArrayList<>();
         for (int i = 0; i < count; i++) {
             String id = skills.takeLast();
+            while (id != null && isFreeLevel(id, skills)) {
+                id = skills.takeLast();   // the free level of the subclass node is never lost
+            }
             if (id == null) {
                 id = deepestLeaf(skills);
             }
@@ -1337,18 +1441,25 @@ public final class SkillTree {
         return taken;
     }
 
+    /** True when the highest learned level of this node is one of its free levels. */
+    private boolean isFreeLevel(String id, PlayerSkills skills) {
+        SkillNode node = get(id);
+        int level = skills.levelOf(id);
+        return node != null && level > 0 && node.isFreeAt(level - 1);
+    }
+
     private String deepestLeaf(PlayerSkills skills) {
         String best = null;
         int bestRow = -1;
         for (SkillNode node : nodes.values()) {
             int level = skills.levelOf(node.id());
-            if (level <= 0 || node.clazz() != skills.clazz()) {
+            if (level <= 0 || node.clazz() != skills.clazz() || node.isFreeAt(level - 1)) {
                 continue;
             }
             skills.setLevel(node.id(), level - 1);
             boolean free = true;
             for (SkillNode other : nodes.values()) {
-                if (other != node && skills.levelOf(other.id()) > 0 && !needsMet(other, skills)) {
+                if (other != node && skills.levelOf(other.id()) > 0 && !holds(other, skills)) {
                     free = false;
                     break;
                 }

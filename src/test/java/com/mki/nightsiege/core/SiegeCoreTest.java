@@ -312,10 +312,13 @@ class SiegeCoreTest {
         assertEquals(List.of("WARRIOR", "GUARDIAN"), p.profiles());
         assertEquals(SkillClass.WARRIOR, p.clazz(), "unlocking does not switch the played class");
         p.award(100);
-        // Buying for the guardian while playing the warrior.
-        String first = tree.ofClass(SkillClass.GUARDIAN).stream().filter(SkillNode::onTrunk)
-                .filter(n -> n.needs().isEmpty()).findFirst().orElseThrow().id();
-        assertTrue(p.as(SkillClass.GUARDIAN, () -> tree.unlock(first, p)));
+        // Buying for the guardian while playing the warrior: its subclass node first (the root of its
+        // tree, level 1 free), then the root of its trunk.
+        String sub = tree.ofClass(SkillClass.GUARDIAN).stream().filter(n -> n.needs().isEmpty())
+                .findFirst().orElseThrow().id();
+        assertTrue(SkillTree.isSubclassNode(sub), sub);
+        String first = "vitality";
+        assertTrue(p.as(SkillClass.GUARDIAN, () -> tree.unlock(sub, p) && tree.unlock(first, p)));
         assertEquals(1, p.levelIn(SkillClass.GUARDIAN, first));
         assertEquals(0, p.levelOf(first), "the played warrior does not see guardian nodes");
         // Switching: the guardian's levels are the played ones now, the warrior's are kept apart.
@@ -332,7 +335,7 @@ class SiegeCoreTest {
 
     // --- profiles (Simon, 26 October 2026) ------------------------------
 
-    /** A warrior with the trunk and the blade way's shared node, ready to pick a subclass. */
+    /** A warrior with the trunk and the blade way's shared node, ready to raise the subclass to level 2. */
     private static void warriorTrunk(SkillTree tree, PlayerSkills p) {
         assertTrue(tree.unlock("warrior_drill", p));
         assertTrue(tree.unlock("w_endurance", p));
@@ -345,34 +348,35 @@ class SiegeCoreTest {
         PlayerSkills p = new PlayerSkills();
         p.chosenClass = SkillClass.WARRIOR.name();
         p.award(5000);
+        assertTrue(tree.unlock("bloodlust", p));   // the subclass first (the root of the tree, free)
         warriorTrunk(tree, p);
-        assertTrue(tree.unlock("bloodlust", p));
         assertEquals(SkillTree.SUB_BERSERKER, tree.subclassOf(p));
-        // A further subclass: a new profile "WARRIOR#2" that starts at 0.
+        // A further subclass: a new profile "WARRIOR#2" that starts at 0, with its subclass node at the free level 1.
         String key = p.addProfile(SkillClass.WARRIOR, SkillTree.SUB_BLADEMASTER);
         assertEquals("WARRIOR#2", key);
         assertEquals(SkillClass.WARRIOR, PlayerSkills.classOfKey(key));
         assertEquals(List.of("WARRIOR", "WARRIOR#2"), p.profiles());
         assertEquals(0, p.levelInProfile(key, "warrior_drill"));
+        assertEquals(1, p.levelInProfile(key, "w_combo"), "level 1 comes with the subclass");
         assertEquals(SkillTree.SUB_BLADEMASTER, tree.subclassOfProfile(p, key), "opened for the blademaster");
         assertEquals(SkillClass.WARRIOR, p.clazz(), "opening a profile does not switch the played one");
         // Points are one account: spent in the new profile while the first one is played.
         int before = p.points();
         p.asProfile(key, () -> {
             warriorTrunk(tree, p);
-            assertEquals("subclass_owned", tree.blockedReason("bloodlust", p), "the berserker is the first profile's");
+            assertEquals("choice", tree.blockedReason("bloodlust", p), "the profile holds the blademaster");
             assertTrue(tree.unlock("w_combo", p));
             return null;
         });
         assertTrue(p.points() < before);
-        assertEquals(1, p.levelInProfile(key, "w_combo"));
+        assertEquals(2, p.levelInProfile(key, "w_combo"));
         assertEquals(0, p.levelInProfile("WARRIOR", "w_combo"), "the first profile keeps its own tree");
         assertEquals(1, p.levelInProfile("WARRIOR", "bloodlust"));
         assertEquals(SkillTree.SUB_BLADEMASTER, tree.subclassOfProfile(p, key));
         assertEquals(SkillTree.SUB_BERSERKER, tree.subclassOfProfile(p, "WARRIOR"));
         // Playing the second profile: its levels are the played ones now.
         assertTrue(p.switchToProfile(key));
-        assertEquals(1, p.levelOf("w_combo"));
+        assertEquals(2, p.levelOf("w_combo"));
         assertEquals(0, p.levelOf("bloodlust"));
         assertEquals(SkillTree.SUB_BLADEMASTER, tree.subclassOf(p));
         // The blademaster profile keeps to the blade way.
@@ -390,21 +394,28 @@ class SiegeCoreTest {
         PlayerSkills p = new PlayerSkills();
         p.chosenClass = SkillClass.WARRIOR.name();
         p.award(5000);
+        assertTrue(tree.unlock("w_combo", p));   // the blademaster: its node first, level 1 free
         warriorTrunk(tree, p);
         // A profile opened for the paladin keeps it for itself.
         String paladin = p.addProfile(SkillClass.WARRIOR, SkillTree.SUB_PALADIN);
         assertNotNull(paladin);
+        assertEquals(1, p.levelInProfile(paladin, "smite"));
         assertTrue(tree.unlock("w_combo", p));
         // A third profile without a planned subclass may take neither the paladin nor the blademaster.
         String third = p.addProfile(SkillClass.WARRIOR, "");
         assertEquals("WARRIOR#3", third);
         p.asProfile(third, () -> {
-            assertTrue(tree.unlock("warrior_drill", p));
+            assertEquals("locked", tree.blockedReason("warrior_drill", p), "the trunk hangs from the subclass");
             assertEquals("subclass_owned", tree.blockedReason("smite", p), "the paladin belongs to WARRIOR#2");
-            assertTrue(tree.unlock("w_endurance", p));
-            assertTrue(tree.unlock("champion_bane", p));
             assertEquals("subclass_owned", tree.blockedReason("w_combo", p));
             assertEquals(null, tree.blockedReason("bloodlust", p));
+            int points = p.points();
+            assertTrue(tree.unlock("bloodlust", p));   // picked in the tree: free, and the subclass is fixed with it
+            assertEquals(points, p.points());
+            assertEquals(SkillTree.SUB_BERSERKER, p.plannedSubclass(third));
+            assertTrue(tree.unlock("warrior_drill", p));
+            assertTrue(tree.unlock("w_endurance", p));
+            assertTrue(tree.unlock("champion_bane", p));
             return null;
         });
         assertFalse(tree.freeSubclasses(p, SkillClass.WARRIOR).contains(SkillTree.SUB_BLADEMASTER));
@@ -487,10 +498,13 @@ class SiegeCoreTest {
         p.award(200);
         p.unlockClass(SkillClass.GUARDIAN);
         p.addProfile(SkillClass.WARRIOR, SkillTree.SUB_AXE);
-        // Bought in the oldest and in the newest profile, while the first is played.
+        // Bought in the oldest and in the newest profile, while the first is played (the subclass
+        // nodes first: free in the tree, or given with the profile of the axe fighter).
+        assertTrue(tree.unlock("bloodlust", p));
         assertTrue(tree.unlock("warrior_drill", p));
-        assertTrue(p.asProfile("GUARDIAN", () -> tree.unlock("vitality", p)));
+        assertTrue(p.asProfile("GUARDIAN", () -> tree.unlock("riposte", p) && tree.unlock("vitality", p)));
         assertTrue(p.asProfile("WARRIOR#2", () -> tree.unlock("warrior_drill", p)));
+        assertEquals(1, p.levelInProfile("WARRIOR#2", "heavy_blow"));
         assertEquals(1, p.levelInProfile("WARRIOR", "warrior_drill"));
         assertEquals(1, p.levelInProfile("WARRIOR#2", "warrior_drill"));
         assertEquals(1, p.levelInProfile("GUARDIAN", "vitality"));
@@ -503,6 +517,9 @@ class SiegeCoreTest {
         assertTrue(p.switchToProfile("WARRIOR#2"));
         assertEquals(List.of("warrior_drill"), tree.loseLast(p, 1));
         assertEquals(1, p.levelInProfile("WARRIOR", "warrior_drill"));
+        // The free level of the subclass node is never lost.
+        assertEquals(List.of(), tree.loseLast(p, 1));
+        assertEquals(1, p.levelOf("heavy_blow"));
     }
 
     @Test
@@ -888,7 +905,9 @@ class SiegeCoreTest {
         assertEquals("nochoice", tree.blockedReason("archer_focus", skills));
 
         skills.chosenClass = SkillClass.ARCHER.name();
-        assertNull(tree.blockedReason("archer_focus", skills));
+        // The subclass node is the first node of the tree; the trunk hangs from it.
+        assertNull(tree.blockedReason("swift_draw", skills));
+        assertEquals("locked", tree.blockedReason("archer_focus", skills));
         // A node of a different class stays shut.
         assertEquals("class", tree.blockedReason("warrior_drill", skills));
     }
@@ -915,15 +934,21 @@ class SiegeCoreTest {
         skills.chosenClass = SkillClass.ARCHER.name();
         skills.award(500);
 
+        // The subclass picks the way (Simon, 29 October 2026): its node first, level 1 for free.
+        assertEquals(0, tree.get("swift_draw").costFor(0));
+        assertTrue(tree.unlock("swift_draw", skills));
+        assertEquals(500, skills.points());
+        assertEquals(SkillTree.SUB_SWIFT, tree.subclassOf(skills));
+        assertEquals(SkillTree.WAY_BOW, skills.pathTaken(tree));
+        assertEquals("choice", tree.blockedReason("heavy_draw", skills));
+        assertEquals("path", tree.blockedReason("heavy_bolts", skills));
+        assertEquals("upgrade", tree.blockedReason("swift_draw", skills), "level 2 needs the way's first node");
         assertTrue(tree.unlock("archer_focus", skills));
         assertNull(tree.blockedReason("a_pierce", skills));
-        assertNull(tree.blockedReason("heavy_bolts", skills));
         assertTrue(tree.unlock("a_pierce", skills));
-        assertEquals(SkillTree.WAY_BOW, skills.pathTaken(tree));
-        assertEquals("path", tree.blockedReason("heavy_bolts", skills));
+        int before = skills.points();
         assertTrue(tree.unlock("swift_draw", skills));
-        assertEquals("choice", tree.blockedReason("heavy_draw", skills));
-        assertEquals(SkillTree.SUB_SWIFT, tree.subclassOf(skills));
+        assertEquals(before - 6, skills.points(), "level 2 costs as before");
     }
 
     @Test
@@ -932,10 +957,10 @@ class SiegeCoreTest {
         PlayerSkills skills = new PlayerSkills();
         skills.chosenClass = SkillClass.ARCHER.name();
         skills.award(2000);
+        assertTrue(tree.unlock("a_netbolt", skills));   // the trapper's node first, level 1 free
         tree.unlock("archer_focus", skills);
         tree.unlock("heavy_bolts", skills);
         assertEquals("locked", tree.blockedReason("a_explosive", skills));
-        assertTrue(tree.unlock("a_netbolt", skills));
         assertTrue(tree.unlock("a_netbolt", skills));
         assertTrue(tree.unlock("a_shackle", skills));
         assertTrue(tree.unlock("x_mark", skills));
@@ -956,7 +981,7 @@ class SiegeCoreTest {
         PlayerSkills heavy = new PlayerSkills();
         heavy.chosenClass = SkillClass.ARCHER.name();
         heavy.award(5000);
-        for (String id : new String[]{"archer_focus", "a_pierce", "heavy_draw", "heavy_draw", "piercing", "a_fire"}) {
+        for (String id : new String[]{"heavy_draw", "archer_focus", "a_pierce", "heavy_draw", "piercing", "a_fire"}) {
             assertTrue(tree.unlock(id, heavy), id);
         }
         assertNull(tree.blockedReason("a_firevolley", heavy));
@@ -964,7 +989,7 @@ class SiegeCoreTest {
         PlayerSkills swift = new PlayerSkills();
         swift.chosenClass = SkillClass.ARCHER.name();
         swift.award(5000);
-        for (String id : new String[]{"archer_focus", "a_pierce", "swift_draw", "swift_draw", "double_shot", "b_mark",
+        for (String id : new String[]{"swift_draw", "archer_focus", "a_pierce", "swift_draw", "double_shot", "b_mark",
                 "a_deathmark", "a_eagle", "power_shot"}) {
             assertTrue(tree.unlock(id, swift), id);
         }
@@ -973,7 +998,7 @@ class SiegeCoreTest {
         PlayerSkills trapper = new PlayerSkills();
         trapper.chosenClass = SkillClass.ARCHER.name();
         trapper.award(5000);
-        for (String id : new String[]{"archer_focus", "heavy_bolts", "a_netbolt", "a_netbolt", "a_snarefield", "a_punch"}) {
+        for (String id : new String[]{"a_netbolt", "archer_focus", "heavy_bolts", "a_netbolt", "a_snarefield", "a_punch"}) {
             assertTrue(tree.unlock(id, trapper), id);
         }
         assertNull(tree.blockedReason("a_hunternet", trapper));
@@ -992,6 +1017,7 @@ class SiegeCoreTest {
         two.chosenClass = SkillClass.WARRIOR.name();
         one.award(50);
 
+        assertTrue(tree.unlock("swift_draw", one));
         assertTrue(tree.unlock("archer_focus", one));
         assertEquals(0, two.points());
         assertEquals(0, two.levelOf("archer_focus"));
@@ -1005,6 +1031,8 @@ class SiegeCoreTest {
         skills.chosenClass = SkillClass.ARCHER.name();
         skills.award(1000);
 
+        assertTrue(tree.unlock("heavy_draw", skills));
+        assertEquals(1000, skills.points(), "the subclass's level 1 costs nothing");
         int first = skills.points();
         tree.unlock("archer_focus", skills);
         int afterFirst = skills.points();
@@ -1072,12 +1100,17 @@ class SiegeCoreTest {
         engineer.award(500);
 
         assertEquals("locked", tree.blockedReason(TrapKind.SNARE.id(), engineer));
+        assertEquals("locked", tree.blockedReason(TrapKind.SPIKE.id(), engineer), "the trunk hangs from the subclass");
+        // The gunner: the arrow turret is the first node of the tree, at tier 1 for free.
+        assertTrue(tree.unlock(TrapKind.TURRET.id(), engineer));
+        assertEquals(500, engineer.points());
+        assertEquals(1, tree.trapTier(TrapKind.TURRET, engineer));
         assertTrue(tree.unlock(TrapKind.SPIKE.id(), engineer));
         assertEquals(1, tree.trapTier(TrapKind.SPIKE, engineer));
         assertEquals("locked", tree.blockedReason(TrapKind.SNARE.id(), engineer));
         assertTrue(tree.unlock(TrapKind.SPIKE.id(), engineer));
         assertTrue(tree.unlock(TrapKind.SNARE.id(), engineer));
-        assertEquals("locked", tree.blockedReason(TrapKind.TURRET.id(), engineer));
+        assertEquals("upgrade", tree.blockedReason(TrapKind.TURRET.id(), engineer), "tier 2 needs the circuit");
     }
 
     @Test
@@ -1244,18 +1277,19 @@ class SiegeCoreTest {
         PlayerSkills warrior = new PlayerSkills();
         warrior.chosenClass = SkillClass.WARRIOR.name();
         warrior.award(5000);
+        // Subclass first: it picks the way, the way of might closes.
+        assertTrue(tree.unlock("w_combo", warrior));
+        assertEquals("choice", tree.blockedReason("bloodlust", warrior));
+        assertEquals(SkillTree.SUB_BLADEMASTER, tree.subclassOf(warrior));
+        assertEquals(SkillTree.WAY_BLADE, warrior.pathTaken(tree));
+        assertEquals("path", tree.blockedReason("sunder", warrior));
         assertTrue(tree.unlock("warrior_drill", warrior));
         // Trunk choice: endurance closes footwork.
         assertTrue(tree.unlock("w_endurance", warrior));
         assertEquals("choice", tree.blockedReason("w_footwork", warrior));
-        // The shared node of the blade way; the way of might closes.
+        // The shared node of the blade way opens the subclass's level 2.
+        assertEquals("upgrade", tree.blockedReason("w_combo", warrior));
         assertTrue(tree.unlock("champion_bane", warrior));
-        assertEquals(SkillTree.WAY_BLADE, warrior.pathTaken(tree));
-        assertEquals("path", tree.blockedReason("sunder", warrior));
-        // Subclass.
-        assertTrue(tree.unlock("w_combo", warrior));
-        assertEquals("choice", tree.blockedReason("bloodlust", warrior));
-        assertEquals(SkillTree.SUB_BLADEMASTER, tree.subclassOf(warrior));
         assertEquals("locked", tree.blockedReason("keen_edge", warrior));
         assertTrue(tree.unlock("w_combo", warrior));
         assertTrue(tree.unlock("keen_edge", warrior));
@@ -1316,15 +1350,15 @@ class SiegeCoreTest {
         PlayerSkills guardian = new PlayerSkills();
         guardian.chosenClass = SkillClass.GUARDIAN.name();
         guardian.award(5000);
+        assertTrue(tree.unlock("g_bastion", guardian));
+        assertEquals(SkillTree.SUB_BULWARK, tree.subclassOf(guardian));
+        assertEquals(SkillTree.WAY_SHIELD, guardian.pathTaken(tree));
+        assertEquals("choice", tree.blockedReason("riposte", guardian));
+        assertEquals("path", tree.blockedReason("field_dressing", guardian));
         assertTrue(tree.unlock("vitality", guardian));
         assertTrue(tree.unlock("g_challenger", guardian));
         assertEquals("choice", tree.blockedReason("toughness", guardian));
         assertTrue(tree.unlock("g_shieldwall", guardian));
-        assertEquals(SkillTree.WAY_SHIELD, guardian.pathTaken(tree));
-        assertEquals("path", tree.blockedReason("field_dressing", guardian));
-        assertTrue(tree.unlock("g_bastion", guardian));
-        assertEquals(SkillTree.SUB_BULWARK, tree.subclassOf(guardian));
-        assertEquals("choice", tree.blockedReason("riposte", guardian));
         assertEquals("locked", tree.blockedReason("g_ironhide", guardian));
         assertTrue(tree.unlock("g_bastion", guardian));
         assertTrue(tree.unlock("g_anchor", guardian));
@@ -1368,22 +1402,42 @@ class SiegeCoreTest {
             PlayerSkills guardian = new PlayerSkills();
             guardian.chosenClass = SkillClass.GUARDIAN.name();
             guardian.award(5000);
-            assertTrue(tree.unlock("vitality", guardian));
-            for (String id : route) {
-                assertTrue(tree.unlock(id, guardian), id + " " + tree.blockedReason(id, guardian));
-            }
+            learnRoute(tree, guardian, List.of("vitality"), route);
         }
         // The other way's riposte and the healing spring shut each other (neighbour tiers since
         // 29 October 2026); the life spring, two tiers further, stays open.
         PlayerSkills cross = new PlayerSkills();
         cross.chosenClass = SkillClass.GUARDIAN.name();
         cross.award(5000);
-        for (String id : new String[]{"vitality", "field_dressing", "g_ward", "g_ward", "g_dome", "g_wellspring"}) {
+        for (String id : new String[]{"g_ward", "vitality", "field_dressing", "g_ward", "g_dome", "g_wellspring"}) {
             assertTrue(tree.unlock(id, cross), id);
         }
         assertEquals("lockedby", tree.blockedReason("b_cross_riposte", cross));
         assertEquals("locked", tree.blockedReason("g_lifespring", cross));
         assertEquals(SkillTree.SUB_WARDEN, tree.subclassOf(cross));
+    }
+
+    /**
+     * Learns a route the way it goes since the subclass comes first (Simon, 29 October 2026): the
+     * route's subclass node at its free level 1, then the trunk, then the route; the route's first step
+     * on the subclass node (written as before, after the way's first node) is its level 2 now.
+     */
+    private static void learnRoute(SkillTree tree, PlayerSkills p, List<String> trunk, String... route) {
+        String sub = java.util.Arrays.stream(route).filter(SkillTree::isSubclassNode).findFirst().orElse(null);
+        if (sub != null) {
+            assertTrue(tree.unlock(sub, p), sub + " " + tree.blockedReason(sub, p));
+        }
+        for (String id : trunk) {
+            assertTrue(tree.unlock(id, p), id + " " + tree.blockedReason(id, p));
+        }
+        boolean skipped = false;
+        for (String id : route) {
+            if (!skipped && id.equals(sub)) {
+                skipped = true;   // that was the free level 1
+                continue;
+            }
+            assertTrue(tree.unlock(id, p), id + " " + tree.blockedReason(id, p));
+        }
     }
 
     @Test
@@ -1513,7 +1567,16 @@ class SiegeCoreTest {
                     SkillNode other = tree.get(need.id());
                     assertTrue(other != null, node.id() + " needs unknown " + need.id());
                     assertEquals(node.clazz(), other.clazz(), node.id() + " needs " + need.id());
-                    assertTrue(other.onTrunk() || other.path().equals(node.path()), node.id() + " needs " + need.id());
+                    // The trunk hangs from the subclass node, whichever way it is on (29 October 2026).
+                    assertTrue(other.onTrunk() || other.path().equals(node.path())
+                            || (node.onTrunk() && SkillTree.isSubclassNode(other.id())), node.id() + " needs " + need.id());
+                }
+            }
+            for (List<SkillNode.Need> any : node.upgradeNeeds()) {
+                for (SkillNode.Need need : any) {
+                    SkillNode other = tree.get(need.id());
+                    assertTrue(other != null, node.id() + " needs unknown " + need.id());
+                    assertEquals(node.path(), other.path(), node.id() + " needs " + need.id() + " from level 2");
                 }
             }
             for (String locked : node.locksList()) {
@@ -1546,8 +1609,10 @@ class SiegeCoreTest {
     @Test
     void engineerWaysShareTheTrunkTraps() {
         SkillTree tree = new SkillTree();
-        assertEquals("e_circuit", tree.get(TrapKind.TESLA.id()).requires());
-        assertEquals("e_detonator", tree.get(TrapKind.MORTAR.id()).requires());
+        // The subclass traps are the roots of their trees; from tier 2 on they need the way's first node.
+        assertNull(tree.get(TrapKind.TESLA.id()).requires());
+        assertEquals("e_circuit", tree.get(TrapKind.TESLA.id()).upgradeRequires());
+        assertEquals("e_detonator", tree.get(TrapKind.MORTAR.id()).upgradeRequires());
         assertTrue(tree.get(TrapKind.SPIKE.id()).onTrunk());
         assertTrue(tree.get(TrapKind.SNARE.id()).onTrunk());
         assertEquals(SkillTree.WAY_MECHANICS, tree.get(TrapKind.TURRET.id()).path());
@@ -1560,13 +1625,13 @@ class SiegeCoreTest {
         PlayerSkills engineer = new PlayerSkills();
         engineer.chosenClass = SkillClass.ENGINEER.name();
         engineer.award(5000);
-        for (String id : new String[]{"spike_trap", "spike_trap", "e_battery", "snare_trap", "e_circuit"}) {
+        // The electrician: the tesla coil first (the root of the tree, tier 1 for free), then the trunk.
+        for (String id : new String[]{"tesla_coil", "spike_trap", "spike_trap", "e_battery", "snare_trap", "e_circuit"}) {
             assertTrue(tree.unlock(id, engineer), id);
         }
         assertEquals("choice", tree.blockedReason("e_finemech", engineer));
         assertEquals(SkillTree.WAY_MECHANICS, engineer.pathTaken(tree));
         assertEquals("path", tree.blockedReason("e_detonator", engineer));
-        assertTrue(tree.unlock("tesla_coil", engineer));
         assertEquals(SkillTree.SUB_ELECTRICIAN, tree.subclassOf(engineer));
         assertEquals("choice", tree.blockedReason("arrow_turret", engineer));
         assertEquals(0, tree.trapTier(TrapKind.MORTAR, engineer));
@@ -1608,13 +1673,7 @@ class SiegeCoreTest {
             PlayerSkills engineer = new PlayerSkills();
             engineer.chosenClass = SkillClass.ENGINEER.name();
             engineer.award(5000);
-            assertTrue(tree.unlock("spike_trap", engineer));
-            assertTrue(tree.unlock("spike_trap", engineer));
-            assertTrue(tree.unlock("snare_trap", engineer));
-            for (String id : route) {
-                boolean ok = tree.unlock(id, engineer);
-                assertTrue(ok, id + " " + tree.blockedReason(id, engineer));
-            }
+            learnRoute(tree, engineer, List.of("spike_trap", "spike_trap", "snare_trap"), route);
         }
     }
 
@@ -1658,7 +1717,8 @@ class SiegeCoreTest {
             p.unlockClass(clazz);
             p.award(100_000);
             List<String> chosen = new java.util.ArrayList<>(trunk);
-            boolean possible = true;
+            // The subclass first (29 October 2026): its node is the root of the tree, level 1 free.
+            boolean possible = tree.unlock(rows[0][pick[0]], p);
             for (String id : trunk) {
                 possible &= tree.unlock(id, p) || p.levelOf(id) > 0;
             }
@@ -1669,9 +1729,7 @@ class SiegeCoreTest {
                     possible = false;   // a talent of the other subclass
                     break;
                 }
-                if (r == 0) {
-                    tree.unlock(id, p);   // the subclass at tier 2 for the talents
-                }
+                // (r == 0: that was the subclass's level 2, which the talents need)
                 if (r == 2) {
                     final PlayerSkills skills = p;
                     String five = java.util.Arrays.stream(ringFive).filter(x -> tree.canUnlock(x, skills)).findFirst().orElse(null);
@@ -1890,6 +1948,7 @@ class SiegeCoreTest {
         PlayerSkills p = new PlayerSkills();
         p.chosenClass = SkillClass.GUARDIAN.name();
         p.award(100);
+        assertTrue(tree.unlock("g_ward", p));
         assertTrue(tree.unlock("vitality", p));
         assertTrue(tree.unlock("vitality", p));
         assertTrue(tree.unlock("g_challenger", p));
@@ -1905,7 +1964,12 @@ class SiegeCoreTest {
         assertTrue(tree.unlock("toughness", p) || p.levelOf("toughness") == 0);
         p.history.clear();
         List<String> old = tree.loseLast(p, 1);
-        assertEquals(1, old.size());
+        assertEquals(List.of("toughness"), old);
+        // ... down to the root of the trunk, but never the subclass's free level 1.
+        int lost = p.lost;
+        assertEquals(List.of("vitality"), tree.loseLast(p, 3));
+        assertEquals(1, p.levelOf("g_ward"));
+        assertEquals(lost + tree.get("vitality").costFor(0), p.lost);
         // The class change no longer gives lost points back.
         p.changeClass();
         assertEquals(p.earned - p.donated - p.lost, p.points());
@@ -1941,12 +2005,174 @@ class SiegeCoreTest {
         skills.award(40);
         skills.donated = 5;
         skills.spend(5);
+        assertTrue(tree.unlock("riposte", skills));
         assertTrue(tree.unlock("vitality", skills));
         skills.changeClass();
         assertFalse(skills.hasClass());
-        assertEquals(35, skills.points());
+        assertEquals(35, skills.points(), "the free level 1 of the subclass pays out nothing");
         assertEquals(0, skills.levelOf("vitality"));
+        assertEquals(0, skills.levelOf("riposte"));
+        assertEquals("", skills.plannedSubclass(SkillClass.GUARDIAN.name()));
         assertTrue(skills.classResetUsed);
+    }
+
+    // --- the subclass first, level 1 free (Simon, 29 October 2026) -----------------
+
+    @Test
+    void theSubclassNodeIsTheRootOfItsTree() {
+        SkillTree tree = new SkillTree();
+        for (SkillTree.SubclassInfo info : SkillTree.SUBCLASSES) {
+            SkillNode sub = tree.get(info.node());
+            assertEquals(0, sub.row(), info.node());
+            assertTrue(sub.needs().isEmpty(), info.node() + " needs nothing");
+            assertEquals(1, sub.freeLevels(), info.node());
+            assertEquals(0, sub.costFor(0), info.node() + ": level 1 is free");
+            assertEquals(sub.baseCost() + sub.costStep(), sub.costFor(1), info.node() + ": level 2 costs as before");
+            // From level 2 on it needs the first node of its way (the one it needed before).
+            SkillNode gate = tree.get(sub.upgradeRequires());
+            assertNotNull(gate, info.node());
+            assertEquals(info.way(), gate.path(), info.node());
+            assertEquals(3, gate.row(), info.node());
+            // The trunk's root hangs from it (and from every other subclass node of the class).
+            SkillNode root = tree.ofClass(info.clazz()).stream().filter(n -> n.onTrunk() && n.row() == 1)
+                    .filter(n -> n.requires() != null && n.requires().contains("|")).findFirst().orElseThrow();
+            assertTrue(root.needs().get(0).stream().anyMatch(n -> n.id().equals(info.node())), root.id());
+        }
+        // The deeper tiers keep their needs (ring IV wants the subclass at level 2).
+        assertEquals("swift_draw:2", tree.get("double_shot").requires());
+        assertEquals("d_soulcatcher:2", tree.get("d_swarm").requires());
+    }
+
+    @Test
+    void levelOneComesFreeWithTheSubclass() {
+        SkillTree tree = new SkillTree();
+        // The first class, picked with its subclass (onChooseClass): the profile holds the node at level 1.
+        PlayerSkills p = new PlayerSkills();
+        p.award(50);
+        String key = p.addProfile(SkillClass.ARCHER, SkillTree.SUB_HEAVY);
+        p.playOpened(key);
+        assertEquals("ARCHER", p.chosenClass);
+        assertEquals(1, p.levelOf("heavy_draw"));
+        assertTrue(p.classLevels.get("ARCHER") == null || p.classLevels.get("ARCHER").isEmpty());
+        assertEquals(50, p.points());
+        assertTrue(p.history.isEmpty());
+        assertEquals(0, tree.pointsSpent(p, SkillClass.ARCHER), "the free level is no points spent");
+        assertEquals(SkillTree.SUB_HEAVY, tree.subclassOf(p));
+        // The trunk opens at once; level 2 costs as before once the way's first node is there.
+        assertNull(tree.blockedReason("archer_focus", p));
+        assertEquals("upgrade", tree.blockedReason("heavy_draw", p));
+        assertTrue(tree.unlock("archer_focus", p));
+        assertTrue(tree.unlock("a_pierce", p));
+        int before = p.points();
+        assertTrue(tree.unlock("heavy_draw", p));
+        assertEquals(before - tree.get("heavy_draw").costFor(1), p.points());
+        assertEquals(6, before - p.points());
+        assertEquals(List.of("archer_focus", "a_pierce", "heavy_draw"), p.history);
+        assertEquals(p.earned - p.points(), tree.pointsSpent(p, SkillClass.ARCHER));
+        // Fixing the subclass of a class picked without one gives it too, once.
+        PlayerSkills q = new PlayerSkills();
+        q.chosenClass = SkillClass.GUARDIAN.name();
+        q.fixSub(SkillClass.GUARDIAN, "g_ward");
+        assertEquals(1, q.levelOf("g_ward"));
+        assertFalse(q.grantFreeSubclass(q.chosenClass), "never twice");
+        q.fixSub(SkillClass.GUARDIAN, "g_ward");
+        assertEquals(1, q.levelOf("g_ward"));
+        // A further profile gets its own free level, the played one stays as it is.
+        String second = q.addProfile(SkillClass.GUARDIAN, SkillTree.SUB_MEDIC);
+        assertEquals(1, q.levelInProfile(second, "g_healing_hand"));
+        assertEquals(0, q.levelOf("g_healing_hand"));
+        // Switching profiles keeps every free level where it is.
+        assertTrue(q.switchToProfile(second));
+        assertEquals(1, q.levelOf("g_healing_hand"));
+        assertEquals(1, q.levelInProfile("GUARDIAN", "g_ward"));
+        assertTrue(q.switchToProfile("GUARDIAN"));
+        assertEquals(0, q.grantFreeSubclasses());
+        // The class change pays back what was earned; the free levels were never paid.
+        q.award(30);
+        assertTrue(tree.unlock("vitality", q));
+        q.changeClass();
+        assertEquals(30, q.points());
+        assertEquals(0, q.levelOf("g_ward"));
+        assertTrue(q.profiles().isEmpty());
+    }
+
+    @Test
+    void aProfileCannotLearnTheOtherWay() {
+        SkillTree tree = new SkillTree();
+        for (SkillTree.SubclassInfo info : SkillTree.SUBCLASSES) {
+            PlayerSkills p = new PlayerSkills();
+            p.award(100_000);
+            p.playOpened(p.addProfile(info.clazz(), info.key()));
+            for (int round = 0; round < 60; round++) {
+                for (SkillNode n : tree.ofClass(info.clazz())) {
+                    if (tree.blockedReason(n.id(), p) == null) {
+                        tree.unlock(n.id(), p);
+                    }
+                }
+            }
+            for (SkillNode n : tree.ofClass(info.clazz())) {
+                if (!n.onTrunk() && !n.path().equals(info.way())) {
+                    assertEquals(0, p.levelOf(n.id()), info.key() + " learned " + n.id() + " of the other way");
+                    assertNotNull(tree.blockedReason(n.id(), p), n.id());
+                }
+                if (SkillTree.isSubclassNode(n.id()) && !n.id().equals(info.node())) {
+                    assertEquals(0, p.levelOf(n.id()), info.key() + " also took " + n.id());
+                }
+            }
+            assertEquals(tree.get(info.node()).maxLevel(), p.levelOf(info.node()), info.key());
+            assertTrue(tree.ultimateMaxed(p, info.clazz()), info.key());
+            assertEquals(p.earned - p.points(), tree.pointsSpent(p, info.clazz()), info.key());
+        }
+    }
+
+    @Test
+    void oldSavesGetTheirLevelOnePaidBackOnce() {
+        SkillTree tree = new SkillTree();
+        PlayerSkills old = new PlayerSkills();
+        old.chosenClass = SkillClass.ARCHER.name();
+        old.award(100);
+        // Bought the old way: trunk, way, then the subclass twice (2 + 3 + 4 + 6 points).
+        for (String id : new String[]{"archer_focus", "a_pierce", "swift_draw", "swift_draw"}) {
+            old.setLevel(id, old.levelOf(id) + 1);
+            old.remember(id);
+        }
+        old.spend(15);
+        // A second profile opened for the bolt archer that never learned it, a guardian without
+        // subclass whose trunk was learned first (vitality twice: 2 + 3 points).
+        old.unlocked.addAll(List.of("ARCHER", "ARCHER#2", "GUARDIAN"));
+        old.planned.put("ARCHER#2", SkillTree.SUB_BOLTER);
+        old.classLevels.put("ARCHER#2", new java.util.HashMap<>());
+        old.classLevels.put("GUARDIAN", new java.util.HashMap<>(java.util.Map.of("vitality", 2)));
+        old.spend(5);
+        assertEquals(80, old.points);
+        assertEquals(0, old.freeSubclassVersion);
+
+        assertEquals(4, tree.migrateFreeSubclass(old), "level 1 of the swift shot cost 4");
+        assertEquals(84, old.points);
+        assertEquals(2, old.levelOf("swift_draw"), "the levels stay");
+        assertEquals(List.of("archer_focus", "a_pierce", "swift_draw"), old.history, "the paid-back purchase is forgotten");
+        assertEquals(SkillTree.SUB_SWIFT, old.plannedSubclass("ARCHER"));
+        assertEquals(1, old.levelInProfile("ARCHER#2", "shrapnel"), "planned, never learned: level 1 for free");
+        assertEquals(2, old.levelInProfile("GUARDIAN", "vitality"), "nothing learned is lost");
+        assertEquals(PlayerSkills.FREE_SUBCLASS_VERSION, old.freeSubclassVersion);
+        // Points and paid levels add up: nothing given away, nothing taken.
+        assertEquals(old.earned - old.points, tree.pointsSpentProfile(old, "ARCHER") + tree.pointsSpentProfile(old, "ARCHER#2")
+                + tree.pointsSpentProfile(old, "GUARDIAN"));
+        // Once only.
+        assertEquals(0, tree.migrateFreeSubclass(old));
+        assertEquals(84, old.points);
+        assertEquals(2, old.levelOf("swift_draw"));
+        // A lost night takes the paid level 2, never the free level 1.
+        assertEquals(List.of("swift_draw", "a_pierce", "archer_focus"), tree.loseLast(old, 3));
+        assertEquals(1, old.levelOf("swift_draw"));
+        assertEquals(List.of(), tree.loseLast(old, 1));
+        // A player of the new rules (free levels given) is never paid back.
+        PlayerSkills fresh = new PlayerSkills();
+        fresh.playOpened(fresh.addProfile(SkillClass.WARRIOR, SkillTree.SUB_AXE));
+        assertEquals(PlayerSkills.FREE_SUBCLASS_VERSION, fresh.freeSubclassVersion);
+        assertEquals(0, tree.migrateFreeSubclass(fresh));
+        assertEquals(0, fresh.points);
+        assertEquals(1, fresh.levelOf("heavy_blow"));
     }
 
     @Test
@@ -2077,8 +2303,22 @@ class SiegeCoreTest {
         p.fixSub(SkillClass.WARRIOR, "w_combo");
         p.award(100_000);
         assertEquals("blademaster", tree.chosenSubclass(p, SkillClass.WARRIOR));
+        // Fixing the subclass gives its node's level 1 (the root of the tree) for free.
+        assertEquals(1, p.levelOf("w_combo"));
+        assertEquals(100_000, p.points());
+        assertTrue(p.history.isEmpty(), "a free level is no purchase");
         // The fixed subclass is the profile's planned subclass: the other way is shut for it.
-        assertEquals("subclass_planned", tree.blockedReason("heavy_blow", p), "the way of might is shut");
+        assertEquals("path", tree.blockedReason("heavy_blow", p), "the way of might is shut");
+        assertEquals("path", tree.blockedReason("sunder", p));
+        // Without the learned node the planned subclass still shuts the other way and subclass.
+        PlayerSkills planOnly = new PlayerSkills();
+        planOnly.chosenClass = SkillClass.WARRIOR.name();
+        planOnly.planned.put(SkillClass.WARRIOR.name(), SkillTree.SUB_BLADEMASTER);
+        planOnly.award(100);
+        assertEquals("subclass_planned", tree.blockedReason("heavy_blow", planOnly));
+        assertEquals("subclass_planned", tree.blockedReason("sunder", planOnly));
+        assertEquals("subclass_planned", tree.blockedReason("bloodlust", planOnly));
+        assertNull(tree.blockedReason("w_combo", planOnly));
         for (int round = 0; round < 40; round++) {
             for (SkillNode n : tree.ofClass(SkillClass.WARRIOR)) {
                 if (tree.blockedReason(n.id(), p) == null) {
@@ -2121,9 +2361,9 @@ class SiegeCoreTest {
             p.chosenClass = SkillClass.SUMMONER.name();
             p.unlockClass(SkillClass.SUMMONER);
             p.award(100_000);
+            assertTrue(tree.unlock(sub, p));
             assertTrue(tree.unlock("s_soulbond", p));
             assertTrue(tree.unlock(dead ? "d_raise" : "s_packcall", p));
-            assertTrue(tree.unlock(sub, p));
             assertTrue(tree.unlock(sub, p));
             assertEquals(dead ? SkillTree.WAY_DEAD : SkillTree.WAY_WILD, p.pathTaken(tree));
             assertEquals(subs.get(sub), tree.subclassOf(p));
@@ -2219,7 +2459,7 @@ class SiegeCoreTest {
         p.chosenClass = SkillClass.SUMMONER.name();
         p.unlockClass(SkillClass.SUMMONER);
         p.award(100_000);
-        for (String id : new String[]{"s_soulbond", "d_raise", "d_soulcatcher", "d_soulcatcher", "d_haste", "d_shards",
+        for (String id : new String[]{"d_soulcatcher", "s_soulbond", "d_raise", "d_soulcatcher", "d_haste", "d_shards",
                 "d_soulcatcher", "d_host", "d_soulcatcher", "d_dread"}) {
             assertTrue(tree.unlock(id, p), "unlock " + id);
         }

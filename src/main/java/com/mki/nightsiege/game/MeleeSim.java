@@ -1042,6 +1042,7 @@ public final class MeleeSim {
         PlayerSkills full = build(tree, clazz, subclassNode);
         PlayerSkills p = new PlayerSkills();
         p.chosenClass = clazz.name();
+        planSubclass(p, clazz, subclassNode);   // its node at level 1 for free, as with a player's class pick
         p.award(Math.max(0, points));
         java.util.LinkedHashMap<String, Integer> planned = new java.util.LinkedHashMap<>();
         // The tree's order is the plan; new abilities and the subclass come as soon as they are open.
@@ -1055,10 +1056,20 @@ public final class MeleeSim {
         return p;
     }
 
+    /** The bot picks its subclass with the class, like a player: its node is the root of the tree, level 1 free. */
+    private static void planSubclass(PlayerSkills p, SkillClass clazz, String subclassNode) {
+        SkillTree.SubclassInfo info = SkillTree.subclassByNode(subclassNode);
+        if (info != null && info.clazz() == clazz) {
+            p.planSubclass(p.chosenClass, info.key());
+        }
+        p.freeSubclassVersion = PlayerSkills.FREE_SUBCLASS_VERSION;
+    }
+
     /** A full skill tree for one subclass: its way, its subclass node, every other node that can be had. */
     public static PlayerSkills build(SkillTree tree, SkillClass clazz, String subclassNode) {
         PlayerSkills p = new PlayerSkills();
         p.chosenClass = clazz.name();
+        planSubclass(p, clazz, subclassNode);
         SkillNode sub = tree.get(subclassNode);
         String way = sub == null ? "" : sub.path();
         boolean changed = true;

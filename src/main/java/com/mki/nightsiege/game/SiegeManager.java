@@ -584,6 +584,8 @@ public final class SiegeManager {
             NightSiegeMod.LOGGER.info("[Night Siege] Alchemisten-Tränke als Knoten: {} Profile angepasst", brewProfiles);
             persist();
         }
+        // The subclass first, its level 1 free (Simon, 29 October 2026): once per player, see migrateFreeSubclasses.
+        migrateFreeSubclasses();
         scheduler.setReadyTicks(save.readyTicks);
         scheduler.setRequiredTicks(save.requiredTicks);
         if (scheduler.requiredTicks() <= 0L && !save.cores.isEmpty()) {
@@ -593,6 +595,40 @@ public final class SiegeManager {
         pool = new MobPool(config.mobs);
         unavailableMobs.clear();
         TempBlocks.rebuildIndex();
+    }
+
+    /**
+     * Level 1 of the subclass node is free since 29 October 2026: every player who bought it gets its
+     * points back once, every profile with a fixed subclass that never learned it gets it for free
+     * (see SkillTree#migrateFreeSubclass), also the skills a running playtest keeps for afterwards.
+     */
+    private void migrateFreeSubclasses() {
+        int players = 0;
+        int points = 0;
+        if (save.skills != null) {
+            for (PlayerSkills own : save.skills.values()) {
+                if (own != null && own.freeSubclassVersion < PlayerSkills.FREE_SUBCLASS_VERSION) {
+                    points += skillTree.migrateFreeSubclass(own);
+                    players++;
+                }
+            }
+        }
+        if (save.playtest != null && save.playtest.players != null) {
+            for (SiegeSave.PlaytestPlayer pp : save.playtest.players.values()) {
+                PlayerSkills kept = pp == null || pp.skills == null || pp.skills.isEmpty() ? null
+                        : Json.fromJson(pp.skills, PlayerSkills.class);
+                if (kept != null && kept.freeSubclassVersion < PlayerSkills.FREE_SUBCLASS_VERSION) {
+                    points += skillTree.migrateFreeSubclass(kept);
+                    pp.skills = Json.toJson(kept);
+                    players++;
+                }
+            }
+        }
+        if (players > 0) {
+            NightSiegeMod.LOGGER.info("[Night Siege] Unterklasse zuerst, Stufe 1 geschenkt: {} Spieler, {} Punkte zurück",
+                    players, points);
+            persist();
+        }
     }
 
     private void syncSchedulerToSave() {
@@ -4765,8 +4801,9 @@ public final class SiegeManager {
             // The profile first, then the class (Simon, 27 October 2026): with the class set first
             // the list of profiles already held it, the pick opened a second profile "CLASS#2" for
             // the subclass and the played one had no subclass, so both ways stood open.
+            // The profile holds level 1 of its subclass node from the start (29 October 2026): played, it stays.
             String first = own.addProfile(chosen, skillTree.subclassesOf(chosen).contains(subclass) ? subclass : "");
-            own.chosenClass = first != null ? first : chosen.name();
+            own.playOpened(first != null ? first : chosen.name());
             persist();
             ClassTags.update(player.level().getServer(), player, own, skillTree.chosenSubclass(own, own.clazz()));
             traps.giveRemote(player, own);

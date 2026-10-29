@@ -367,8 +367,8 @@ public class EventLookTest implements FabricClientGameTest {
                 com.mki.nightsiege.game.SiegeManager manager = com.mki.nightsiege.game.SiegeManager.get();
                 manager.onCoreAction(player, "class:WARRIOR");
                 manager.onCoreAction(player, "dev:400");
-                for (String id : new String[]{"warrior_drill", "w_endurance", "champion_bane", "w_combo", "w_combo",
-                        "keen_edge", "w_bladefrenzy", "w_frenzy", "w_evasion", "execute", "w_chain_execute"}) {
+                for (String id : subclassFirst("warrior_drill", "w_endurance", "champion_bane", "w_combo", "w_combo",
+                        "keen_edge", "w_bladefrenzy", "w_frenzy", "w_evasion", "execute", "w_chain_execute")) {
                     manager.onBuySkill(player, id);
                 }
                 manager.onCoreAction(player, "open");
@@ -392,8 +392,8 @@ public class EventLookTest implements FabricClientGameTest {
                 manager.onCoreAction(player, "dev:reset");
                 manager.onCoreAction(player, "class:ARCHER");
                 manager.onCoreAction(player, "dev:400");
-                for (String id : new String[]{"archer_focus", "a_quiver", "heavy_bolts", "a_netbolt", "a_netbolt",
-                        "a_shackle", "x_mark", "a_hunternet", "a_reloadrush", "x_hunt", "x_pack"}) {
+                for (String id : subclassFirst("archer_focus", "a_quiver", "heavy_bolts", "a_netbolt", "a_netbolt",
+                        "a_shackle", "x_mark", "a_hunternet", "a_reloadrush", "x_hunt", "x_pack")) {
                     manager.onBuySkill(player, id);
                 }
                 manager.onCoreAction(player, "open");
@@ -683,7 +683,7 @@ public class EventLookTest implements FabricClientGameTest {
             manager.onCoreAction(player, "dev:reset");
             manager.onCoreAction(player, "class:WARRIOR");
             manager.onCoreAction(player, "dev:600");
-            for (String id : new String[]{"warrior_drill", "champion_bane", "bloodlust"}) {
+            for (String id : subclassFirst("warrior_drill", "champion_bane", "bloodlust")) {
                 manager.onBuySkill(player, id);
             }
             manager.onCoreAction(player, "open");
@@ -3732,8 +3732,8 @@ public class EventLookTest implements FabricClientGameTest {
             own.chosenClass = com.mki.nightsiege.core.SkillClass.SUMMONER.name();
             own.unlockClass(com.mki.nightsiege.core.SkillClass.SUMMONER);
             own.award(600);
-            for (String id : new String[]{"s_soulbond", "s_command", "s_packcall", "s_tamer", "s_tamer", "s_alpha", "s_howl",
-                    "s_packleader", "s_wildness", "s_wild_hunt"}) {
+            for (String id : subclassFirst("s_soulbond", "s_command", "s_packcall", "s_tamer", "s_tamer", "s_alpha", "s_howl",
+                    "s_packleader", "s_wildness", "s_wild_hunt")) {
                 manager.onBuySkill(player, id);
             }
             System.out.println("[Night Siege test] summoner class=" + own.chosenClass + " tamer=" + own.levelOf("s_tamer")
@@ -3902,8 +3902,8 @@ public class EventLookTest implements FabricClientGameTest {
             own.chosenClass = com.mki.nightsiege.core.SkillClass.SUMMONER.name();
             own.unlockClass(com.mki.nightsiege.core.SkillClass.SUMMONER);
             own.award(800);
-            for (String id : new String[]{"s_soulbond", "d_raise", "d_soulcatcher", "d_soulcatcher", "d_swarm", "d_shards",
-                    "d_soulburn", "d_unholy", "d_army"}) {
+            for (String id : subclassFirst("s_soulbond", "d_raise", "d_soulcatcher", "d_soulcatcher", "d_swarm", "d_shards",
+                    "d_soulburn", "d_unholy", "d_army")) {
                 manager.onBuySkill(player, id);
             }
             for (String gain : new String[]{"knochenstaub", "grabkerzen", "grabruestung", "totenglocke", "seelengefaess"}) {
@@ -4103,8 +4103,8 @@ public class EventLookTest implements FabricClientGameTest {
             own.chosenClass = com.mki.nightsiege.core.SkillClass.SUMMONER.name();
             own.unlockClass(com.mki.nightsiege.core.SkillClass.SUMMONER);
             own.award(900);
-            for (String id : new String[]{"s_soulbond", "d_raise", "d_soulcatcher", "d_soulcatcher", "d_haste", "d_shards",
-                    "d_soulcatcher", "d_host"}) {
+            for (String id : subclassFirst("s_soulbond", "d_raise", "d_soulcatcher", "d_soulcatcher", "d_haste", "d_shards",
+                    "d_soulcatcher", "d_host")) {
                 manager.onBuySkill(player, id);
             }
             com.mki.nightsiege.core.SkillTree tree = manager.skillTree();
@@ -4214,7 +4214,7 @@ public class EventLookTest implements FabricClientGameTest {
             own.chosenClass = com.mki.nightsiege.core.SkillClass.SUMMONER.name();
             own.unlockClass(com.mki.nightsiege.core.SkillClass.SUMMONER);
             own.award(400);
-            for (String id : new String[]{"s_soulbond", "d_raise", "d_necro", "d_necro"}) {
+            for (String id : subclassFirst("s_soulbond", "d_raise", "d_necro", "d_necro")) {
                 manager.onBuySkill(player, id);
             }
             c.soulsForTest(player, 6);
@@ -6053,6 +6053,22 @@ public class EventLookTest implements FabricClientGameTest {
         });
     }
 
+    /**
+     * A learning order written the old way (trunk, way, then the subclass) in the order of today's
+     * trees (Simon, 29 October 2026: the subclass node first, its level 1 free): the first step on a
+     * subclass node moves to the front, every later one stays where it was (its level 2 and up).
+     */
+    private static String[] subclassFirst(String... ids) {
+        java.util.List<String> out = new java.util.ArrayList<>(java.util.Arrays.asList(ids));
+        for (int i = 0; i < out.size(); i++) {
+            if (com.mki.nightsiege.core.SkillTree.isSubclassNode(out.get(i))) {
+                out.add(0, out.remove(i));
+                break;
+            }
+        }
+        return out.toArray(new String[0]);
+    }
+
     /** Picks a class and some nodes, then opens the window on that class's tab. */
     private static void openTree(ClientGameTestContext context, String clazz, String... nodes) {
         context.runOnClient(client -> {
@@ -6068,7 +6084,7 @@ public class EventLookTest implements FabricClientGameTest {
             manager.onCoreAction(player, "dev:reset");
             manager.onCoreAction(player, "class:" + clazz);
             manager.onCoreAction(player, "dev:600");
-            for (String id : nodes) {
+            for (String id : subclassFirst(nodes)) {
                 manager.onBuySkill(player, id);
             }
             manager.onCoreAction(player, "open");
@@ -6123,6 +6139,29 @@ public class EventLookTest implements FabricClientGameTest {
         zoomTo(context, "WARRIOR/berserker", 0.0, -5.0 * 50, 0.01);
         context.takeScreenshot("subtree_berserker_whole");
         zoomTo(context, "WARRIOR/berserker", 0.0, 0.0, 0.0);
+        // The subclass first (Simon, 29 October 2026): picked with the class at the armour stands, its node
+        // is the root of the tree with level 1 for free; the trunk opens at once, nothing was paid.
+        openTree(context, "ARCHER");
+        onServer(context, (player, manager) -> {
+            manager.onCoreAction(player, "dev:reset");
+            manager.onCoreAction(player, "class:ARCHER:swift_draw");
+            manager.onCoreAction(player, "dev:600");
+            com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
+            System.out.println("[Night Siege test] subclass first: swift_draw=" + own.levelOf("swift_draw")
+                    + " points=" + own.points() + " history=" + own.history
+                    + " trunk=" + manager.skillTree().blockedReason("archer_focus", own)
+                    + " level2=" + manager.skillTree().blockedReason("swift_draw", own)
+                    + " other way=" + manager.skillTree().blockedReason("heavy_bolts", own));
+            manager.onCoreAction(player, "open");
+        });
+        context.waitTicks(20);
+        pickSub(context, "ARCHER", "swift");
+        context.takeScreenshot("subtree_swift_gift");
+        selectNode(context, "swift_draw");
+        context.takeScreenshot("subtree_swift_gift_panel");
+        selectNode(context, "double_shot");
+        context.takeScreenshot("subtree_swift_spine");
+        selectNode(context, null);
         closeScreen(context);
     }
 
@@ -6151,7 +6190,7 @@ public class EventLookTest implements FabricClientGameTest {
         String[] subs = {"blademaster", "berserker", "axe", "paladin", "swift", "heavy", "bolter", "trapper",
                 "shieldfighter", "bulwark", "medic", "warden", "gunner", "electrician", "demolition", "alchemist",
                 "tamer", "golemsmith", "necromancer", "soulcatcher"};
-        openTree(context, "WARRIOR", "warrior_drill");
+        openTree(context, "WARRIOR", "warrior_drill", "bloodlust");
         for (String sub : subs) {
             context.runOnClient(client -> com.mki.nightsiege.client.CoreScreen.testSceneSub = sub);
             context.waitTicks(4);
