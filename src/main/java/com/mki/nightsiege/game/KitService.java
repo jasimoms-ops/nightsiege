@@ -160,6 +160,7 @@ public final class KitService {
         for (ItemStack crate : carried) {
             player.getInventory().placeItemBackInInventory(crate);
         }
+        resync(player);
         player.sendSystemMessage(Component.translatable("nightsiege.kit.equipped").withStyle(net.minecraft.ChatFormatting.AQUA));
     }
 
@@ -216,6 +217,7 @@ public final class KitService {
         for (ItemStack stack : keep) {
             inv.placeItemBackInInventory(stack);
         }
+        resync(player);
         if (broken.isEmpty()) {
             s.kitStashes.remove(id);
         } else {
@@ -342,6 +344,20 @@ public final class KitService {
             traps.giveRemote(player, skills);
         }
         applyLayout(player, clazz);
+        resync(player);
+    }
+
+    /**
+     * Sends the whole inventory to the client again. placeItemBackInInventory tells the client at once
+     * where a stack landed, but not the menu's record of what the client has; when applyLayout then moved
+     * the stack to its remembered slot, the old slot looked unchanged to the server and the client kept
+     * a ghost copy there (Simon 29.10.: "beim nächsten Kit dupliziert").
+     */
+    private static void resync(ServerPlayer player) {
+        player.inventoryMenu.sendAllDataToRemote();
+        if (player.containerMenu != player.inventoryMenu) {
+            player.containerMenu.sendAllDataToRemote();
+        }
     }
 
     // ------------------------------------------------------------------
