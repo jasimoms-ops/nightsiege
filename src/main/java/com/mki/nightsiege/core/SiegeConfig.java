@@ -164,15 +164,24 @@ public class SiegeConfig {
     public int contentVersion = 0;
     /** Seconds before the end of the night at which the boss comes, with a last big wave (at most half the night). */
     public int bossFinaleSeconds = 180;
-    // --- season finale (content update, Simon 28 October 2026) ---
-    /** Every this many nights a season ends with all bosses in one night (0 = no seasons). */
-    public int seasonLength = 25;
-    /** Health of each boss of the finale, as a share of its boss night's health. */
-    public double finaleBossHealth = 0.4;
-    /** Seconds between a boss's fall and the next one (and before the first). */
-    public int finalePauseSeconds = 20;
-    /** Seconds after which the next boss comes even when the last one still stands. */
-    public int finaleBossSeconds = 120;
+    // --- boss rhythm (Simon 29 October 2026) ---
+    /** Every this many nights the "Vierer-Nacht": the bosses of the boss nights before it, two at a time (0 = none). */
+    public int bossGroupEvery = 20;
+    /** The last night of that rhythm; after it every bossLateEvery-th night bossLateCount bosses come at once (0 = never). */
+    public int bossLateFrom = 40;
+    public int bossLateEvery = 2;
+    public int bossLateCount = 2;
+    /** Seconds into a late boss night before its bosses come (at most half the night). */
+    public int bossLateSeconds = 300;
+    /** Health of each boss of a Vierer-Nacht and of a late boss night, as a share of a boss night's. */
+    public double bossGroupHealth = 0.5;
+    public double bossLateHealth = 0.75;
+    /** Bosses at once in a Vierer-Nacht. */
+    public int bossGroupAtOnce = 2;
+    /** Seconds of pause before the first pair and after a pair has fallen. */
+    public int bossGroupPauseSeconds = 20;
+    /** Seconds after which the next pair comes even when one of the last still stands. */
+    public int bossGroupPairSeconds = 180;
     /** Size of the last wave that comes with the boss, as a share of a normal wave. */
     public double bossFinaleWave = 1.5;
     /** Factor on the health of every boss. */
@@ -1040,10 +1049,16 @@ public class SiegeConfig {
         }
         bossEvery = clamp(bossEvery <= 0 ? 4 : bossEvery, 1, 100);
         bossFinaleSeconds = clamp(bossFinaleSeconds <= 0 ? 180 : bossFinaleSeconds, 30, 1200);
-        seasonLength = clamp(seasonLength, 0, 1000);
-        finaleBossHealth = clampDouble(finaleBossHealth <= 0 ? 0.4 : finaleBossHealth, 0.05, 5.0);
-        finalePauseSeconds = clamp(finalePauseSeconds, 0, 300);
-        finaleBossSeconds = clamp(finaleBossSeconds <= 0 ? 120 : finaleBossSeconds, 20, 1800);
+        bossGroupEvery = clamp(bossGroupEvery, 0, 1000);
+        bossLateFrom = clamp(bossLateFrom, 0, 10000);
+        bossLateEvery = clamp(bossLateEvery, 0, 100);
+        bossLateCount = clamp(bossLateCount <= 0 ? 2 : bossLateCount, 1, 4);
+        bossLateSeconds = clamp(bossLateSeconds, 0, 1800);
+        bossGroupHealth = clampDouble(bossGroupHealth <= 0 ? 0.5 : bossGroupHealth, 0.05, 5.0);
+        bossLateHealth = clampDouble(bossLateHealth <= 0 ? 0.75 : bossLateHealth, 0.05, 5.0);
+        bossGroupAtOnce = clamp(bossGroupAtOnce <= 0 ? 2 : bossGroupAtOnce, 1, 4);
+        bossGroupPauseSeconds = clamp(bossGroupPauseSeconds, 0, 300);
+        bossGroupPairSeconds = clamp(bossGroupPairSeconds <= 0 ? 180 : bossGroupPairSeconds, 20, 1800);
         bossFinaleWave = clampDouble(bossFinaleWave, 0.0, 5.0);
         bossHealthMultiplier = clampDouble(bossHealthMultiplier <= 0 ? 1.0 : bossHealthMultiplier, 0.1, 20.0);
         bossHealthPerExtraPlayer = clampDouble(bossHealthPerExtraPlayer, 0.0, 3.0);

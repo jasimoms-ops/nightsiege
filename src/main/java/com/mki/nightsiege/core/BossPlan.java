@@ -6,24 +6,13 @@ import java.util.List;
 import java.util.Random;
 
 /**
- * When a boss comes and which one (Simon, 25 October 2026): every 6th siege is a boss
- * night; a lost boss night comes again until the boss falls. The four bosses come from a
- * shuffled bag, none twice before all have been there.
+ * When a boss comes and which one (Simon, 25 October 2026; rhythm of 29 October 2026, see
+ * {@link #nightKind}): a lost boss night comes again until the boss falls. The bosses come from
+ * a shuffled bag, none twice before all have been there.
  */
 public final class BossPlan {
 
     private BossPlan() {
-    }
-
-    /** True when the coming siege is a boss night, after this many sieges since the last boss fell. */
-    public static boolean isBossNight(int siegesSinceBoss, SiegeConfig cfg) {
-        return cfg.bossesEnabled && cfg.bossEvery > 0 && siegesSinceBoss >= cfg.bossEvery - 1;
-    }
-
-    /** The counter for a save that has none yet: the sieges played so far, as if counted all along. */
-    public static int startCount(int siegesWon, int siegesLost, SiegeConfig cfg) {
-        int every = Math.max(1, cfg.bossEvery);
-        return Math.floorMod(Math.max(0, siegesWon) + Math.max(0, siegesLost), every);
     }
 
     /**
@@ -57,22 +46,76 @@ public final class BossPlan {
         return base * SiegeMath.healthMultiplier(level, cfg) * players * cfg.bossHealthMultiplier;
     }
 
+    /** What a night of the boss rhythm brings. */
+    public enum NightKind {
+        /** Waves only. */
+        NORMAL,
+        /** One boss at the end of the night (every bossEvery-th night). */
+        BOSS,
+        /** The "Vierer-Nacht": the bosses of the boss nights before, two at a time, no waves, no clock. */
+        GROUP,
+        /** After the last Vierer-Nacht: two bosses at once, five minutes into the night. */
+        LATE
+    }
+
     /**
-     * The coming night is the season finale (content update, Simon 28 October 2026): the last
-     * night of the season, and again the night after a lost finale.
+     * The boss rhythm (Simon 29 October 2026): boss nights 4, 8, 12, 16; night 20 the four bosses
+     * that came; the same for 24–36 and night 40 with the other four; from night 41 every 2nd night
+     * two bosses at once after five minutes. {@code night} counts from 1.
      */
-    public static boolean finaleDue(int seasonNights, SiegeConfig cfg) {
-        return cfg.seasonLength > 0 && cfg.bossesEnabled && seasonNights + 1 >= cfg.seasonLength;
+    public static NightKind nightKind(int night, SiegeConfig cfg) {
+        if (!cfg.bossesEnabled || night <= 0) {
+            return NightKind.NORMAL;
+        }
+        if (cfg.bossLateFrom > 0 && night > cfg.bossLateFrom) {
+            return cfg.bossLateEvery > 0 && (night - cfg.bossLateFrom) % cfg.bossLateEvery == 0 ? NightKind.LATE : NightKind.NORMAL;
+        }
+        if (cfg.bossGroupEvery > 0 && night % cfg.bossGroupEvery == 0) {
+            return NightKind.GROUP;
+        }
+        if (cfg.bossEvery > 0 && night % cfg.bossEvery == 0) {
+            return NightKind.BOSS;
+        }
+        return NightKind.NORMAL;
     }
 
-    /** The season's count after a real night; it stops at the finale until the finale is won. */
-    public static int countNight(int seasonNights, SiegeConfig cfg) {
-        return cfg.seasonLength <= 0 ? seasonNights : Math.min(cfg.seasonLength, Math.max(0, seasonNights) + 1);
+    /** The rhythm's count after a real night: a lost boss night or Vierer-Nacht comes again. */
+    public static int countNight(int nights, NightKind kind, boolean bossesDown) {
+        int n = Math.max(0, nights);
+        if ((kind == NightKind.BOSS || kind == NightKind.GROUP) && !bossesDown) {
+            return n;
+        }
+        return n + 1;
     }
 
-    /** The count for a save that has none yet: the nights held before, as if counted all along. */
-    public static int startSeason(int nightsHeldBefore, SiegeConfig cfg) {
-        return Math.floorMod(Math.max(0, nightsHeldBefore), Math.max(1, cfg.seasonLength));
+    /**
+     * The bosses of a Vierer-Nacht: those that came in the boss nights before it (in their order),
+     * filled up with others when fewer came (an old save, a test).
+     */
+    public static List<BossKind> groupBosses(List<String> came, int count, Random random) {
+        List<BossKind> out = new ArrayList<>();
+        if (came != null) {
+            for (String id : came) {
+                BossKind kind = BossKind.byId(id);
+                if (kind != null && !out.contains(kind) && out.size() < count) {
+                    out.add(kind);
+                }
+            }
+        }
+        List<BossKind> rest = new ArrayList<>(List.of(BossKind.values()));
+        rest.removeAll(out);
+        Collections.shuffle(rest, random);
+        while (out.size() < count && !rest.isEmpty()) {
+            out.add(rest.remove(0));
+        }
+        return out;
+    }
+
+    /** The bosses of a late boss night: so many different ones, at random. */
+    public static List<BossKind> lateBosses(int count, Random random) {
+        List<BossKind> all = new ArrayList<>(List.of(BossKind.values()));
+        Collections.shuffle(all, random);
+        return new ArrayList<>(all.subList(0, Math.max(0, Math.min(count, all.size()))));
     }
 
     /** Ticks before the end of the night at which the boss comes: bossFinaleSeconds, at most half the night. */

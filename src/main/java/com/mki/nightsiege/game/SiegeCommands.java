@@ -200,7 +200,8 @@ public final class SiegeCommands {
                                                     return b.buildFuture();
                                                 })
                                                 .executes(ctx -> testBoss(ctx, StringArgumentType.getString(ctx, "name")))))
-                                .then(Commands.literal("finale").executes(SiegeCommands::testFinale))
+                                .then(Commands.literal("vierer").executes(SiegeCommands::testFinale))
+                                .then(Commands.literal("doppel").executes(SiegeCommands::testLate))
                                 .then(Commands.literal("waechter").executes(ctx -> testWarden(ctx, null))
                                         .then(Commands.argument("name", StringArgumentType.word())
                                                 .suggests((c, b) -> net.minecraft.commands.SharedSuggestionProvider.suggest(
@@ -463,12 +464,22 @@ public final class SiegeCommands {
         return test(ctx, event, null);
     }
 
-    /** /nightsiege test <level> finale: a test night as the season finale (all bosses, the first after 5 s). */
+    /** /nightsiege test <level> vierer: a test night as the Vierer-Nacht (four bosses, two at a time, the first after 5 s). */
     private static int testFinale(CommandContext<CommandSourceStack> ctx) {
         SiegeManager.get().markTestFinale(true);
         int result = test(ctx, SiegeEvent.NONE);
         if (result == 0) {
             SiegeManager.get().markTestFinale(false);
+        }
+        return result;
+    }
+
+    /** /nightsiege test <level> doppel: a test night as a late boss night (two bosses, 15 s in). */
+    private static int testLate(CommandContext<CommandSourceStack> ctx) {
+        SiegeManager.get().markTestLate(true);
+        int result = test(ctx, SiegeEvent.NONE);
+        if (result == 0) {
+            SiegeManager.get().markTestLate(false);
         }
         return result;
     }

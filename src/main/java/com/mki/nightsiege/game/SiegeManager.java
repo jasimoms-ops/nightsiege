@@ -142,19 +142,24 @@ public final class SiegeManager {
     /** The boss of a boss night (every 6th siege, Simon 25 October 2026; the champion night is gone). */
     private final BossService bosses = new BossService();
     /**
-     * The season finale (content update, Simon 28 October 2026): every seasonLength nights all eight
-     * bosses come one after another, each with about 40 % of its health; no waves and no clock.
+     * The boss rhythm (Simon 29 October 2026): the "Vierer-Nacht" on nights 20 and 40 brings the four
+     * bosses of the boss nights before it, two at a time, with no waves and no clock; won, every
+     * defender gets the crown. From night 41 every 2nd night two bosses come at once, five minutes in.
      */
     private boolean finaleNight;
-    /** The finale's bosses that came so far (one service each; two can fight at once). */
+    /** A late boss night (after night 40): its bosses come five minutes in, waves before. */
+    private boolean lateNight;
+    /** What tonight is in the boss rhythm (counted at its end). */
+    private com.mki.nightsiege.core.BossPlan.NightKind tonightKind = com.mki.nightsiege.core.BossPlan.NightKind.NORMAL;
+    /** The bosses of the Vierer-Nacht or the late night that came so far (one service each). */
     private final List<BossService> finaleBosses = new ArrayList<>();
-    /** The finale's bosses still to come, in their order. */
+    /** Their bosses still to come, in their order. */
     private final List<com.mki.nightsiege.core.BossKind> finaleQueue = new ArrayList<>();
-    /** When the next boss of the finale comes (game time), or -1 before the first is timed. */
+    /** When the next pair of the Vierer-Nacht comes (game time), or -1 before the first is timed. */
     private long finaleNextAt = -1L;
     private int finaleDown;
-    /** The next test night is a season finale (/nightsiege test <level> finale). */
-    private boolean testFinale;
+    /** What the next test night is (/nightsiege test <level> vierer | doppel), or null. */
+    private com.mki.nightsiege.core.BossPlan.NightKind testKind;
     /** A dungeon warden at the end of a normal night (Simon, 29 October 2026: 20 %). */
     private final WardenNight warden = new WardenNight();
     /** The warden a test night brings (set by /nightsiege test <level> waechter, taken at its start). */
@@ -444,7 +449,7 @@ public final class SiegeManager {
                 entity.discard();   // a grave or a treasure raider from before a restart
                 return;
             }
-            if (BossService.isBossOrPart(entity) && !bosses.planned() && !finaleNight) {
+            if (BossService.isBossOrPart(entity) && !bosses.planned() && !finaleNight && !lateNight) {
                 entity.discard();   // left from a night that ended without us (a crash)
                 return;
             }
@@ -1090,7 +1095,7 @@ public final class SiegeManager {
         // The event is rolled now: an eclipse comes at noon, so the vote must know it.
         NightFragment fragment = NightFragment.byName(save.nightFragment);
         SiegeEvent pending = fragment != null ? fragment.event() : EventPicker.pick(currentLevel(), random, config);
-        if (upcomingBoss() != null) {
+        if (comingKind() != com.mki.nightsiege.core.BossPlan.NightKind.NORMAL) {
             pending = SiegeEvent.NONE;   // a boss night comes by night and has no event
         }
         if (pending == SiegeEvent.ECLIPSE && extraSiegeRuns()
@@ -1119,9 +1124,15 @@ public final class SiegeManager {
         player.sendSystemMessage(text);
         NightFragment fragment = NightFragment.byName(save.nightFragment);
         com.mki.nightsiege.core.BossKind boss = upcomingBoss();
+        com.mki.nightsiege.core.BossPlan.NightKind coming = comingKind();
         if (boss != null) {
             player.sendSystemMessage(Component.translatable("nightsiege.msg.boss_warning",
                     Component.translatable("nightsiege.boss." + boss.id())).withStyle(ChatFormatting.DARK_RED, ChatFormatting.BOLD));
+        } else if (coming == com.mki.nightsiege.core.BossPlan.NightKind.GROUP) {
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.group_warning").withStyle(ChatFormatting.DARK_RED, ChatFormatting.BOLD));
+        } else if (coming == com.mki.nightsiege.core.BossPlan.NightKind.LATE) {
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.late_warning", config.bossLateCount,
+                    Math.max(1, config.bossLateSeconds / 60)).withStyle(ChatFormatting.DARK_RED, ChatFormatting.BOLD));
         } else if (fragment != null) {
             player.sendSystemMessage(Component.translatable("nightsiege.msg.special_warning",
                     Component.translatable("nightsiege.event." + fragment.event().name().toLowerCase(Locale.ROOT)),
@@ -1565,15 +1576,15 @@ public final class SiegeManager {
             joinNight(player);
         }
 
-        // The season finale (every seasonLength nights, again after a lost one): all bosses, no waves.
+        // The boss rhythm (Simon 29.10.): boss nights 4, 8, 12, 16, the Vierer-Nacht on 20 and 40, from 41
+        // every 2nd night two bosses after five minutes. A boss night has no event; a fragment waits.
         resetFinale(server);
-        boolean finale = testRun ? testFinale : seasonFinaleDue();
-        testFinale = false;
-        if (!testRun) {
-            countSeasonNight();
-        }
-        // A boss night (every 4th siege) has no event; a fragment waits for the night after.
-        com.mki.nightsiege.core.BossKind tonightBoss = finale ? null : testRun ? testBoss : upcomingBoss();
+        com.mki.nightsiege.core.BossPlan.NightKind kind = testRun ? (testBoss != null ? com.mki.nightsiege.core.BossPlan.NightKind.BOSS : testKind != null ? testKind : com.mki.nightsiege.core.BossPlan.NightKind.NORMAL)
+                : comingKind();
+        testKind = null;
+        tonightKind = kind;
+        boolean finale = kind == com.mki.nightsiege.core.BossPlan.NightKind.GROUP;
+        com.mki.nightsiege.core.BossKind tonightBoss = kind != com.mki.nightsiege.core.BossPlan.NightKind.BOSS ? null : testRun ? testBoss : upcomingBoss();
         testBoss = null;
         bossVictoryAt = -1L;
         bosses.reset(server);
@@ -1582,13 +1593,14 @@ public final class SiegeManager {
         }
         if (finale) {
             finaleNight = true;
-            List<com.mki.nightsiege.core.BossKind> order = new ArrayList<>(List.of(com.mki.nightsiege.core.BossKind.values()));
-            java.util.Collections.shuffle(order, random);
-            finaleQueue.addAll(order);
+            finaleQueue.addAll(com.mki.nightsiege.core.BossPlan.groupBosses(save.groupBosses, 4, random));
+        } else if (kind == com.mki.nightsiege.core.BossPlan.NightKind.LATE) {
+            lateNight = true;
+            finaleQueue.addAll(com.mki.nightsiege.core.BossPlan.lateBosses(config.bossLateCount, random));
         }
         // A normal night may end with a dungeon warden (Simon, 29 October 2026: 20 %, one of the eight).
         warden.reset(server);
-        com.mki.nightsiege.core.ExpeditionKind tonightWarden = tonightBoss != null || finale ? null
+        com.mki.nightsiege.core.ExpeditionKind tonightWarden = tonightBoss != null || kind != com.mki.nightsiege.core.BossPlan.NightKind.NORMAL ? null
                 : testRun ? testWarden : WardenNight.roll(random, config.wardenChance);
         testWarden = null;
         if (tonightWarden != null) {
@@ -1607,10 +1619,10 @@ public final class SiegeManager {
         if (!testRun) {
             save.machinesDay = -1L;
         }
-        currentEvent = tonightBoss != null || finaleNight ? SiegeEvent.NONE : forcedEvent != null ? forcedEvent : pickEventNow(server);
+        currentEvent = tonightBoss != null || finaleNight || lateNight ? SiegeEvent.NONE : forcedEvent != null ? forcedEvent : pickEventNow(server);
         save.specialNight = false;
         usedFragment = null;
-        NightFragment fragment = testRun || tonightBoss != null || finaleNight ? null : NightFragment.byName(save.nightFragment);
+        NightFragment fragment = testRun || tonightBoss != null || finaleNight || lateNight ? null : NightFragment.byName(save.nightFragment);
         if (fragment != null) {
             int time = (int) Math.floorMod(server.overworld().getOverworldClockTime(), 24000L);
             // A shadow fragment waits for a siege by day: an eclipse needs the sun.
@@ -1661,7 +1673,7 @@ public final class SiegeManager {
         nightLog.begin(world.getGameTime());
         safe("Statistik", () -> stats.beginNight(world.getGameTime(), nightNumber, siegeLevel, testRun,
                 currentEvent.name().toLowerCase(java.util.Locale.ROOT), save.specialNight, usedFragment,
-                finaleNight ? "finale" : bosses.kind() == null ? null : bosses.kind().id(), defense.base(), List.of(), clockDay(server)));
+                finaleNight ? "vierer" : lateNight ? "doppel" : bosses.kind() == null ? null : bosses.kind().id(), defense.base(), List.of(), clockDay(server)));
         digger.takeBroken();
         for (UUID id : participants) {
             ServerPlayer player = server.getPlayerList().getPlayer(id);
@@ -1670,7 +1682,7 @@ public final class SiegeManager {
             }
         }
         killQuota = SiegeMath.killQuota(config.killQuotaShare, plannedWaves(), wantedPerWave());
-        safe("Gegner", () -> foes.startNight(foesHost, plannedWaves(), bosses.planned() || finaleNight));
+        safe("Gegner", () -> foes.startNight(foesHost, plannedWaves(), bosses.planned() || finaleNight || lateNight));
         safe("Nemesis", () -> nemesis.beginNight(nemesisHost));
         traps.refillAll();   // every tower full and whole at nightfall (27 October 2026)
         bonus.endAurora(server);
@@ -1696,8 +1708,11 @@ public final class SiegeManager {
                     Component.translatable("nightsiege.boss." + tonightBoss.id())).withStyle(ChatFormatting.DARK_RED, ChatFormatting.BOLD));
         }
         if (finaleNight) {
-            broadcast(server, Component.translatable("nightsiege.msg.finale", save.season, finaleQueue.size())
+            broadcast(server, Component.translatable("nightsiege.msg.group_night", bossNames(finaleQueue))
                     .withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD));
+        } else if (lateNight) {
+            broadcast(server, Component.translatable("nightsiege.msg.late_night", finaleQueue.size(), lateTicks() / 20 / 60)
+                    .withStyle(ChatFormatting.DARK_RED, ChatFormatting.BOLD));
         }
         return true;
     }
@@ -1743,10 +1758,20 @@ public final class SiegeManager {
             title = Component.empty().append(title).append(Curses.barMark());   // a cursed night: ☠ and the number of curses
         }
         if (finaleNight) {
-            // The season finale: no clock, the bosses are the goal.
+            // The Vierer-Nacht: no clock, the bosses are the goal.
             int total = finaleDown + finaleQueue.size() + (int) finaleBosses.stream().filter(b -> !b.fallen()).count();
-            return Component.translatable("nightsiege.bar.finale", siegeLevel, save.season, finaleDown, total)
+            return Component.translatable("nightsiege.bar.group", siegeLevel, finaleDown, total)
                     .withStyle(ChatFormatting.GOLD);
+        }
+        if (lateNight) {
+            // A late boss night: the clock and the bosses (coming, or how many still stand).
+            int standing = (int) finaleBosses.stream().filter(b -> !b.fallen()).count();
+            Component state = finaleBosses.isEmpty()
+                    ? Component.translatable("nightsiege.bar.late_coming", finaleQueue.size(),
+                            Math.max(0, (lateTicks() - (totalTicks - ticksLeft)) / 20))
+                    : Component.translatable("nightsiege.bar.late_here", standing);
+            return Component.empty().append(title).append(Component.literal("  ·  "))
+                    .append(state.copy().withStyle(ChatFormatting.RED));
         }
         if (bosses.planned()) {
             // A boss night: no kill goal, the boss is the goal.
@@ -1853,6 +1878,8 @@ public final class SiegeManager {
         }
         if (finaleNight) {
             tickFinale(server);
+        } else if (lateNight) {
+            tickLate(server);
         } else if (warden.planned() && !warden.spawned() && ticksLeft <= wardenFinaleTicks() && world.getGameTime() % 20 == 0) {
             // The warden comes at the end of the night, after the last wave; then no more waves.
             if (warden.spawn(bossHost)) {
@@ -1860,7 +1887,7 @@ public final class SiegeManager {
                         .withStyle(ChatFormatting.GOLD));
             }
         }
-        if (!finaleNight && !bosses.spawned() && !warden.spawned()) {
+        if (!finaleNight && !(lateNight && !finaleBosses.isEmpty()) && !bosses.spawned() && !warden.spawned()) {
             if (batchCooldown <= 0) {
                 spawnBatch(server);
                 double extraDelay = 0.0 /* the core tree is gone (27 October 2026) */;
@@ -1946,6 +1973,10 @@ public final class SiegeManager {
                 broadcast(server, Component.translatable("nightsiege.msg.boss_survived",
                         Component.translatable("nightsiege.boss." + bosses.kind().id())).withStyle(ChatFormatting.DARK_RED));
                 finish(server, false);
+            } else if (lateNight && (!finaleQueue.isEmpty() || finaleBosses.stream().anyMatch(b -> !b.fallen()))) {
+                // Dawn and a boss of the late night still stands: the night is lost.
+                broadcast(server, Component.translatable("nightsiege.msg.late_survived").withStyle(ChatFormatting.DARK_RED));
+                finish(server, false);
             } else if (warden.spawned() && !warden.fallen()) {
                 // Dawn and the warden still stands: the night is lost.
                 broadcast(server, Component.translatable("nightsiege.warden.survived", WardenNight.name(warden.kind()))
@@ -2000,61 +2031,101 @@ public final class SiegeManager {
         return false;
     }
 
-    /** The season finale is due: the last night of the season (or the one after a lost finale). */
-    private boolean seasonFinaleDue() {
-        if (config.seasonLength <= 0 || !config.bossesEnabled || inPlaytest()) {
-            return false;
-        }
-        startSeasonCount();
-        return com.mki.nightsiege.core.BossPlan.finaleDue(save.seasonNights, config);
-    }
-
-    /** An old save counts its season from the nights held so far. */
-    private void startSeasonCount() {
-        if (save.seasonNights < 0) {
-            save.seasonNights = com.mki.nightsiege.core.BossPlan.startSeason(save.nightsHeld - 1, config);
+    /** The night count of the boss rhythm (an old save starts from the nights held so far). */
+    private int bossNights() {
+        if (save.bossNights < 0) {
+            save.bossNights = Math.max(0, save.nightsHeld);
         }
         if (save.season <= 0) {
             save.season = 1;
         }
+        return save.bossNights;
     }
 
-    /** A real night of the season (the finale stays the last one until it is won). */
-    private void countSeasonNight() {
-        if (config.seasonLength <= 0) {
-            return;
+    /** What the coming real night is in the boss rhythm. */
+    private com.mki.nightsiege.core.BossPlan.NightKind comingKind() {
+        if (inPlaytest()) {
+            return com.mki.nightsiege.core.BossPlan.NightKind.NORMAL;   // the playtest brings its own boss
         }
-        startSeasonCount();
-        save.seasonNights = com.mki.nightsiege.core.BossPlan.countNight(save.seasonNights, config);
+        return com.mki.nightsiege.core.BossPlan.nightKind(bossNights() + 1, config);
     }
 
-    /** The finale's bosses: the next comes when the last fell (after a pause), at the latest after a while. */
+    /** Ticks into a late boss night at which its bosses come (a test night: 15 s; at most half the night). */
+    private int lateTicks() {
+        if (testRun) {
+            return 300;
+        }
+        return Math.max(20, Math.min(config.bossLateSeconds * 20, totalTicks / 2));
+    }
+
+    /** "A, B, C und D" for the chat. */
+    private Component bossNames(List<com.mki.nightsiege.core.BossKind> kinds) {
+        MutableComponent out = Component.empty();
+        for (int i = 0; i < kinds.size(); i++) {
+            if (i > 0) {
+                out.append(Component.translatable(i == kinds.size() - 1 ? "nightsiege.msg.and" : "nightsiege.msg.comma"));
+            }
+            out.append(Component.translatable("nightsiege.boss." + kinds.get(i).id()));
+        }
+        return out;
+    }
+
+    /** The Vierer-Nacht: two bosses at a time; the next pair when the last fell (after a pause), at the latest after a while. */
     private void tickFinale(MinecraftServer server) {
         long now = world.getGameTime();
         if (finaleNextAt < 0) {
-            finaleNextAt = now + (testRun ? 100L : config.finalePauseSeconds * 20L);
+            finaleNextAt = now + (testRun ? 100L : config.bossGroupPauseSeconds * 20L);
             return;
         }
         if (finaleQueue.isEmpty() || now < finaleNextAt || now % 20 != 0) {
             return;
         }
-        com.mki.nightsiege.core.BossKind kind = finaleQueue.get(0);
-        BossService next = new BossService();
-        next.plan(kind, config.finaleBossHealth);
-        if (!next.spawn(bossHost)) {
+        List<com.mki.nightsiege.core.BossKind> came = new ArrayList<>();
+        int atOnce = Math.max(1, config.bossGroupAtOnce);
+        while (came.size() < atOnce && !finaleQueue.isEmpty()) {
+            com.mki.nightsiege.core.BossKind kind = finaleQueue.get(0);
+            BossService next = new BossService();
+            next.plan(kind, config.bossGroupHealth);
+            if (!next.spawn(bossHost)) {
+                break;
+            }
+            finaleQueue.remove(0);
+            finaleBosses.add(next);
+            came.add(kind);
+        }
+        if (came.isEmpty()) {
             finaleNextAt = now + 40L;
             return;
         }
-        finaleQueue.remove(0);
-        finaleBosses.add(next);
-        finaleNextAt = now + config.finaleBossSeconds * 20L;
-        traps.refillAll();   // the towers full and whole again for every boss
-        broadcast(server, Component.translatable("nightsiege.msg.finale_boss", finaleBosses.size(),
-                finaleBosses.size() + finaleQueue.size(), Component.translatable("nightsiege.boss." + kind.id()))
-                .withStyle(ChatFormatting.GOLD));
+        finaleNextAt = now + config.bossGroupPairSeconds * 20L;
+        traps.refillAll();   // the towers full and whole again for every pair
+        broadcast(server, Component.translatable("nightsiege.msg.group_pair", bossNames(came),
+                finaleBosses.size(), finaleBosses.size() + finaleQueue.size()).withStyle(ChatFormatting.GOLD));
     }
 
-    /** A boss of the finale fell: the next one after the pause, or the season is won. */
+    /** A late boss night: its bosses all at once, five minutes in, with a last big wave; then no more waves. */
+    private void tickLate(MinecraftServer server) {
+        if (finaleQueue.isEmpty() || world.getGameTime() % 20 != 0 || totalTicks - ticksLeft < lateTicks()) {
+            return;
+        }
+        List<com.mki.nightsiege.core.BossKind> came = new ArrayList<>();
+        for (com.mki.nightsiege.core.BossKind kind : new ArrayList<>(finaleQueue)) {
+            BossService next = new BossService();
+            next.plan(kind, config.bossLateHealth);
+            if (next.spawn(bossHost)) {
+                finaleQueue.remove(kind);
+                finaleBosses.add(next);
+                came.add(kind);
+            }
+        }
+        if (came.isEmpty()) {
+            return;
+        }
+        spawnBatch(server, config.bossFinaleWave);
+        broadcast(server, Component.translatable("nightsiege.msg.late_comes", bossNames(came)).withStyle(ChatFormatting.DARK_RED, ChatFormatting.BOLD));
+    }
+
+    /** A boss of the Vierer-Nacht or the late night fell: the next pair after the pause, or the night is won. */
     private void onFinaleBossDown(MinecraftServer server, BossService fallenBoss) {
         finaleDown++;
         UUID killer = fallenBoss.killer();
@@ -2068,12 +2139,12 @@ public final class SiegeManager {
         if (allDown && bossVictoryAt < 0) {
             routMonsters();
             bossVictoryAt = now + 60L;
-        } else if (!finaleQueue.isEmpty()) {
-            finaleNextAt = Math.min(finaleNextAt, now + config.finalePauseSeconds * 20L);
+        } else if (finaleNight && !finaleQueue.isEmpty() && finaleBosses.stream().allMatch(BossService::fallen)) {
+            finaleNextAt = Math.min(finaleNextAt, now + config.bossGroupPauseSeconds * 20L);   // the pair is down
         }
     }
 
-    /** The finale is won: a crown for every defender, one on the core, and the next season begins. */
+    /** The Vierer-Nacht is won: a crown for every defender, one on the core; the next four come anew. */
     private void endSeason(MinecraftServer server) {
         int season = save.season;
         String date = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy"));
@@ -2097,7 +2168,7 @@ public final class SiegeManager {
         }
         broadcast(server, Component.translatable("nightsiege.msg.season_won", season).withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD));
         save.season = season + 1;
-        save.seasonNights = 0;
+        save.groupBosses.clear();
     }
 
     private void resetFinale(MinecraftServer server) {
@@ -2109,16 +2180,22 @@ public final class SiegeManager {
         finaleNextAt = -1L;
         finaleDown = 0;
         finaleNight = false;
+        lateNight = false;
     }
 
-    /** Test nights: the next one is a season finale. */
+    /** Test nights: the next one is a Vierer-Nacht (or not). */
     public void markTestFinale(boolean on) {
-        testFinale = on;
+        testKind = on ? com.mki.nightsiege.core.BossPlan.NightKind.GROUP : null;
     }
 
-    /** For the tests: the finale's state ("bosses down / bosses in all"). */
+    /** Test nights: the next one is a late boss night (or not). */
+    public void markTestLate(boolean on) {
+        testKind = on ? com.mki.nightsiege.core.BossPlan.NightKind.LATE : null;
+    }
+
+    /** For the tests: the Vierer-Nacht's or late night's state ("bosses down / bosses in all"). */
     public String finaleState() {
-        return finaleNight ? finaleDown + "/" + (finaleDown + finaleQueue.size() + (int) finaleBosses.stream().filter(b -> !b.fallen()).count())
+        return finaleNight || lateNight ? finaleDown + "/" + (finaleDown + finaleQueue.size() + (int) finaleBosses.stream().filter(b -> !b.fallen()).count())
                 : "-";
     }
 
@@ -2138,17 +2215,9 @@ public final class SiegeManager {
         return com.mki.nightsiege.core.BossPlan.finaleTicks(totalTicks, config);
     }
 
-    /** Sieges since the last boss fell (counted from the sieges played for an old save). */
-    private int siegesSinceBoss() {
-        if (save.siegesSinceBoss < 0) {
-            save.siegesSinceBoss = com.mki.nightsiege.core.BossPlan.startCount(save.siegesWon, save.siegesLost, config);
-        }
-        return save.siegesSinceBoss;
-    }
-
     /** The boss of the coming siege, or null when it is no boss night (drawn once and kept until it falls). */
     private com.mki.nightsiege.core.BossKind upcomingBoss() {
-        if (!com.mki.nightsiege.core.BossPlan.isBossNight(siegesSinceBoss(), config)) {
+        if (comingKind() != com.mki.nightsiege.core.BossPlan.NightKind.BOSS) {
             return null;
         }
         com.mki.nightsiege.core.BossKind kind = com.mki.nightsiege.core.BossKind.byId(save.nextBoss);
@@ -3185,12 +3254,15 @@ public final class SiegeManager {
             bossBar = null;
         }
         boolean finale = finaleNight;
-        boolean finaleWon = finale && finaleQueue.isEmpty() && !finaleBosses.isEmpty()
+        boolean late = lateNight;
+        com.mki.nightsiege.core.BossPlan.NightKind kindTonight = tonightKind;
+        tonightKind = com.mki.nightsiege.core.BossPlan.NightKind.NORMAL;
+        boolean manyDown = (finale || late) && finaleQueue.isEmpty() && !finaleBosses.isEmpty()
                 && finaleBosses.stream().allMatch(BossService::fallen);
-        boolean bossNight = bosses.planned() || finale;
-        boolean bossDown = finale ? finaleWon : bosses.fallen();
+        boolean bossNight = bosses.planned() || finale || late;
+        boolean bossDown = finale || late ? manyDown : bosses.fallen();
         com.mki.nightsiege.core.BossKind bossKind = bosses.kind();
-        bossLabel = finale ? "finale" : bossKind == null ? null : "boss_" + bossKind.id();
+        bossLabel = finale ? "vierer" : late ? "doppel" : bossKind == null ? null : "boss_" + bossKind.id();
         bosses.reset(server);
         resetFinale(server);
         boolean wardenNight = warden.spawned();
@@ -3234,17 +3306,20 @@ public final class SiegeManager {
 
         save.highestLevel = Math.max(save.highestLevel, siegeLevel);
         if (finale) {
-            // The finale leaves the boss nights' count alone; won, the season is over.
+            // The Vierer-Nacht: won, a crown for every defender.
             if (won && bossDown) {
                 endSeason(server);
             }
-        } else if (bossNight && bossDown && won) {
-            save.siegesSinceBoss = 0;
+        } else if (bosses.planned() && bossDown && won) {
             save.lastBoss = bossKind == null ? null : bossKind.id();
             save.nextBoss = null;
-        } else if (!bossNight) {
-            save.siegesSinceBoss = siegesSinceBoss() + 1;
-        }   // a lost boss night comes again: the counter stays
+            if (bossKind != null) {
+                save.groupBosses.add(bossKind.id());   // one of the four of the next Vierer-Nacht
+            }
+        }
+        // The rhythm's count: a lost boss night or Vierer-Nacht comes again.
+        bossNights();
+        save.bossNights = com.mki.nightsiege.core.BossPlan.countNight(save.bossNights, kindTonight, won && bossDown);
         String result = won ? (quotaMet ? "gewonnen" : "ziel_verfehlt") : "verloren";
         int blasted = 0;
         if (won && !quotaMet) {
@@ -3332,7 +3407,8 @@ public final class SiegeManager {
             bossBar.removeAllPlayers();
             bossBar = null;
         }
-        bossLabel = finaleNight ? "finale" : bosses.kind() == null ? null : "boss_" + bosses.kind().id();
+        bossLabel = finaleNight ? "vierer" : lateNight ? "doppel" : bosses.kind() == null ? null : "boss_" + bosses.kind().id();
+        tonightKind = com.mki.nightsiege.core.BossPlan.NightKind.NORMAL;
         bosses.reset(server);
         resetFinale(server);
         warden.reset(server);
