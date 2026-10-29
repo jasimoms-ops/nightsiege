@@ -194,9 +194,14 @@ jobs:
         with:
           path: parts
       - name: Zusammenfuehren
+        env:
+          TEAM: ${{ needs.plan.outputs.team }}
         run: |
           python3 tools/sim/merge.py parts merged
           cat merged/teamsim.txt | head -80
+          # Die Dateien fuers Balance-Dashboard (zum Hochladen ins Dashboard).
+          BURG=standard; [ -f tools/sim/burg.json.gz ] && BURG=kopie
+          python3 tools/sim/dashboard_data.py merged merged/dashboard --lauf "$GITHUB_REF_NAME" --burg "$BURG" --team "$TEAM" || true
       - name: Ergebnis im dist-Branch
         run: |
           set -e
