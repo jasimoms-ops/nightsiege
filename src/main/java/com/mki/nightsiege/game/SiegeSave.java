@@ -232,6 +232,11 @@ public class SiegeSave {
         public int mapZ;
         public int mapCell = 16;
         public int mapSize;
+        /** The plan version it was built with (content update: 2, with a snapshot of the ground). */
+        public int layout;
+        /** After the win: when the dungeon goes (game time), and whether it is being taken down now. */
+        public long collapseAt;
+        public boolean restoring;
     }
 
     /**

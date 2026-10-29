@@ -1,0 +1,72 @@
+name: mobs
+
+# Builds the monster textures (events, bosses, dungeon champions) with tools/eventmobs from the
+# vanilla textures of the Minecraft version in gradle.properties. The development environment
+# cannot reach Mojang; here the client jar is fetched, only its entity textures are read, and only
+# what the generator makes goes into the branch "dist-<branch>" (no vanilla file is published).
+on:
+  push:
+    branches: ['mobs-*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  mobs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Vanilla-Texturen lesen
+        run: |
+          python3 - <<'PY'
+          import io, json, os, urllib.request, zipfile
+          props = {}
+          for line in open("gradle.properties", encoding="utf-8"):
+              if "=" in line and not line.strip().startswith("#"):
+                  k, v = line.split("=", 1)
+                  props[k.strip()] = v.strip()
+          mc = props["minecraft_version"]
+          manifest = json.load(urllib.request.urlopen("https://piston-meta.mojang.com/mc/game/version_manifest_v2.json", timeout=30))
+          version = next(v for v in manifest["versions"] if v["id"] == mc)
+          meta = json.load(urllib.request.urlopen(version["url"], timeout=30))
+          jar = zipfile.ZipFile(io.BytesIO(urllib.request.urlopen(meta["downloads"]["client"]["url"], timeout=180).read()))
+          prefix = "assets/minecraft/textures/entity/"
+          n = 0
+          for name in jar.namelist():
+              if name.startswith(prefix) and name.endswith(".png"):
+                  out = os.path.join("/tmp/vanilla", name[len(prefix):])
+                  os.makedirs(os.path.dirname(out), exist_ok=True)
+                  with open(out, "wb") as fh:
+                      fh.write(jar.read(name))
+                  n += 1
+          print("::notice title=VANILLA::%s, %d Texturen" % (mc, n))
+          PY
+
+      - name: Generator
+        run: |
+          python3 -m pip install --user --break-system-packages pillow >/dev/null 2>&1 || python3 -m pip install --user pillow
+          cd tools/eventmobs
+          python3 build.py /tmp/vanilla /tmp/previews 2>&1 | tail -40
+
+      - name: Ergebnis im dist-Branch bereitstellen
+        run: |
+          set -e
+          TMP=$(mktemp -d)
+          mkdir -p "$TMP/textures" "$TMP/previews"
+          cp -r src/main/resources/assets/nightsiege/textures/entity/event/* "$TMP/textures/" 2>/dev/null || true
+          cp src/main/java/com/mki/nightsiege/client/EventGearShapes.java "$TMP/"
+          cp /tmp/previews/*.png "$TMP/previews/" 2>/dev/null || true
+          # which committed files the generator changed (events and bosses should stay the same)
+          git status --porcelain > "$TMP/drift.txt"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan dist-tmp
+          git reset --hard
+          git clean -fdq
+          mkdir -p dist
+          cp -r "$TMP/"* dist/
+          git add -f dist
+          git commit -qm "Monster-Texturen von ${GITHUB_SHA}"
+          git push -f origin dist-tmp:dist-${GITHUB_REF_NAME}

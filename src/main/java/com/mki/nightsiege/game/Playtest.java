@@ -606,6 +606,7 @@ public final class Playtest {
             return false;
         }
         s.lostAttempts = exp.lostAttempts();
+        exp.openEntry(true);   // the playtest goes straight down (no ready round at the seal stone)
         exp.noRetry(true);   // one attempt: lost is lost, it goes on (no second round at once)
         bringAll(server, s, level, door, false);
         broadcast(server, Component.translatable("nightsiege.playtest.dungeon_go",
@@ -683,6 +684,7 @@ public final class Playtest {
             boolean won = rec != null && rec.won;
             m.expeditions().endAll(server, null);
             m.expeditions().removeAll(server);
+            m.expeditions().openEntry(false);
             broadcast(server, Component.translatable(won ? "nightsiege.playtest.dungeon_won"
                     : timedOut ? "nightsiege.playtest.dungeon_time" : "nightsiege.playtest.dungeon_lost")
                     .withStyle(won ? ChatFormatting.GREEN : ChatFormatting.GRAY));
@@ -778,6 +780,7 @@ public final class Playtest {
             m.camp().remove(server);
         }
         m.expeditions().endAll(server, null);
+        m.expeditions().openEntry(false);
         if (m.save().expedition != null) {
             m.expeditions().removeAll(server);
         }

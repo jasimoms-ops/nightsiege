@@ -155,6 +155,10 @@ public final class SiegeManager {
     private int finaleDown;
     /** The next test night is a season finale (/nightsiege test <level> finale). */
     private boolean testFinale;
+    /** A dungeon warden at the end of a normal night (Simon, 29 October 2026: 20 %). */
+    private final WardenNight warden = new WardenNight();
+    /** The warden a test night brings (set by /nightsiege test <level> waechter, taken at its start). */
+    private com.mki.nightsiege.core.ExpeditionKind testWarden;
     /** The war camp before a siege and the siege machines of the night after it (27 October 2026). */
     private final SiegeCamp camp = new SiegeCamp(this);
     private final SiegeMachines machines = new SiegeMachines();
@@ -179,6 +183,11 @@ public final class SiegeManager {
     /** The night's protocol for balancing (config/nightsiege-stats*.csv). */
     private final NightLog nightLog = new NightLog();
     private final EventEffects events = new EventEffects();
+
+    /** The event looks sent to the players (the dungeons send their own and hand back). */
+    EventEffects events() {
+        return events;
+    }
     private final BonusEvents bonus = new BonusEvents(() -> save, () -> config);
     private final Random random = new Random();
     private MobPool pool = new MobPool(SiegeConfig.defaultMobs());
@@ -767,13 +776,15 @@ public final class SiegeManager {
                 data.team.add(mate);
             }
         }
-        if (camp.inRound(player)) {
-            // The war drum's ready round (content update): its members, who is ready, the starter's button.
+        if (camp.inRound(player) || expeditions.inRound(player)) {
+            // A ready round (content update): the war drum's or the dungeon's seal stone's, its members,
+            // who is ready, the starter's button.
+            boolean atCamp = camp.inRound(player);
             data.round = true;
-            data.starter = camp.roundStarter(player);
-            data.forceIn = camp.roundForceIn(player.level().getGameTime());
+            data.starter = atCamp ? camp.roundStarter(player) : expeditions.roundStarter(player);
+            data.forceIn = atCamp ? camp.roundForceIn(player.level().getGameTime()) : expeditions.roundForceIn(player.level().getGameTime());
             data.team.clear();
-            for (UUID id : camp.roundMembers()) {
+            for (UUID id : atCamp ? camp.roundMembers() : expeditions.roundMembers()) {
                 ServerPlayer other = player.level().getServer().getPlayerList().getPlayer(id);
                 if (other == null) {
                     continue;
@@ -783,7 +794,7 @@ public final class SiegeManager {
                         other.getScoreboardName(), os.className());
                 mate.subclass = skillTree.subclassOfProfile(os, os.chosenClass);
                 mate.self = other == player;
-                mate.ready = camp.roundReady(id);
+                mate.ready = atCamp ? camp.roundReady(id) : expeditions.roundReady(id);
                 data.team.add(mate);
             }
         }
@@ -1554,6 +1565,15 @@ public final class SiegeManager {
             java.util.Collections.shuffle(order, random);
             finaleQueue.addAll(order);
         }
+        // A normal night may end with a dungeon warden (Simon, 29 October 2026: 20 %, one of the eight).
+        warden.reset(server);
+        com.mki.nightsiege.core.ExpeditionKind tonightWarden = tonightBoss != null || finale ? null
+                : testRun ? testWarden : WardenNight.roll(random, config.wardenChance);
+        testWarden = null;
+        if (tonightWarden != null) {
+            warden.plan(tonightWarden);
+            NightSiegeMod.LOGGER.info("[Night Siege] Wächter der Nacht: {}", tonightWarden.id());
+        }
         safe("Dungeons", () -> expeditions.endAll(server, "nightsiege.expedition.night"));
         // The machines of a war camp left standing (or that won) come tonight.
         machines.reset(server);
@@ -1713,6 +1733,11 @@ public final class SiegeManager {
                     .append(Component.translatable(bosses.spawned() ? "nightsiege.bar.boss_here" : "nightsiege.bar.boss_coming",
                             Component.translatable("nightsiege.boss." + bosses.kind().id())).withStyle(ChatFormatting.RED));
         }
+        if (warden.spawned()) {
+            // The warden came: he is the goal now, the kill goal is gone.
+            return Component.empty().append(title).append(Component.literal("  ·  "))
+                    .append(Component.translatable("nightsiege.bar.warden_here", WardenNight.name(warden.kind())));
+        }
         int required = killsRequired();
         noteGoalChange(required);
         if (required <= 0) {
@@ -1807,7 +1832,14 @@ public final class SiegeManager {
         }
         if (finaleNight) {
             tickFinale(server);
-        } else if (!bosses.spawned()) {
+        } else if (warden.planned() && !warden.spawned() && ticksLeft <= wardenFinaleTicks() && world.getGameTime() % 20 == 0) {
+            // The warden comes at the end of the night, after the last wave; then no more waves.
+            if (warden.spawn(bossHost)) {
+                broadcast(server, Component.translatable("nightsiege.warden.comes", WardenNight.name(warden.kind()))
+                        .withStyle(ChatFormatting.GOLD));
+            }
+        }
+        if (!finaleNight && !bosses.spawned() && !warden.spawned()) {
             if (batchCooldown <= 0) {
                 spawnBatch(server);
                 double extraDelay = 0.0 /* the core tree is gone (27 October 2026) */;
@@ -1821,6 +1853,7 @@ public final class SiegeManager {
                 b.tick(bossHost, world.getGameTime());
             }
         });
+        safe("Wächter", () -> warden.tick(bossHost, world.getGameTime()));
         safe("Maschinen", () -> machines.tick(bossHost, config, world.getGameTime()));
         if (bossVictoryAt > 0 && world.getGameTime() >= bossVictoryAt) {
             finish(server, true);
@@ -1891,6 +1924,11 @@ public final class SiegeManager {
                 // Dawn and the boss still stands: the night is lost.
                 broadcast(server, Component.translatable("nightsiege.msg.boss_survived",
                         Component.translatable("nightsiege.boss." + bosses.kind().id())).withStyle(ChatFormatting.DARK_RED));
+                finish(server, false);
+            } else if (warden.spawned() && !warden.fallen()) {
+                // Dawn and the warden still stands: the night is lost.
+                broadcast(server, Component.translatable("nightsiege.warden.survived", WardenNight.name(warden.kind()))
+                        .withStyle(ChatFormatting.DARK_RED));
                 finish(server, false);
             } else {
                 finish(server, true);
@@ -2007,7 +2045,7 @@ public final class SiegeManager {
         long now = world.getGameTime();
         boolean allDown = finaleQueue.isEmpty() && finaleBosses.stream().allMatch(BossService::fallen);
         if (allDown && bossVictoryAt < 0) {
-            onBossDownCleanUp();
+            routMonsters();
             bossVictoryAt = now + 60L;
         } else if (!finaleQueue.isEmpty()) {
             finaleNextAt = Math.min(finaleNextAt, now + config.finalePauseSeconds * 20L);
@@ -2063,6 +2101,14 @@ public final class SiegeManager {
                 : "-";
     }
 
+    /** Ticks before the end of the night at which the warden comes (a test night: 15 s after the start). */
+    private int wardenFinaleTicks() {
+        if (testRun) {
+            return Math.max(20, totalTicks - 300);
+        }
+        return Math.max(20, Math.min(config.wardenFinaleSeconds * 20, totalTicks / 2));
+    }
+
     /** Ticks before the end of the night at which the boss comes (a test night: 15 s after the start). */
     private int bossFinaleTicks() {
         if (testRun) {
@@ -2097,6 +2143,28 @@ public final class SiegeManager {
 
     public BossService bosses() {
         return bosses;
+    }
+
+    public WardenNight warden() {
+        return warden;
+    }
+
+    /** /nightsiege test <level> waechter <name>: the next test night ends with this warden. */
+    public void planTestWarden(com.mki.nightsiege.core.ExpeditionKind kind) {
+        testWarden = kind;
+    }
+
+    /** Admin and tests: the warden planned for this night comes now. */
+    public boolean wardenNow(MinecraftServer server) {
+        if (!active || !warden.planned() || warden.spawned()) {
+            return false;
+        }
+        boolean ok = warden.spawn(bossHost);
+        if (ok) {
+            broadcast(server, Component.translatable("nightsiege.warden.comes", WardenNight.name(warden.kind()))
+                    .withStyle(ChatFormatting.GOLD));
+        }
+        return ok;
     }
 
     /** The base of the running night (for the gametest). */
@@ -3104,6 +3172,13 @@ public final class SiegeManager {
         bossLabel = finale ? "finale" : bossKind == null ? null : "boss_" + bossKind.id();
         bosses.reset(server);
         resetFinale(server);
+        boolean wardenNight = warden.spawned();
+        boolean wardenDown = warden.fallen();
+        com.mki.nightsiege.core.ExpeditionKind wardenKind = warden.kind();
+        if (bossLabel == null && wardenNight && wardenKind != null) {
+            bossLabel = "waechter_" + wardenKind.id();
+        }
+        warden.reset(server);
         machines.reset(server);
         bossVictoryAt = -1L;
         safe("Nemesis", () -> nemesis.endNight(nemesisHost));
@@ -3120,8 +3195,8 @@ public final class SiegeManager {
         mendBase(server);
         endKits(server);
 
-        // A boss night is won by the boss's fall alone, the kill goal does not count.
-        int required = bossNight ? 0 : killsRequired();
+        // A boss night is won by the boss's fall alone, the kill goal does not count; so is a night whose warden came.
+        int required = bossNight || wardenNight ? 0 : killsRequired();
         boolean quotaMet = nightKills >= required;
         if (testRun) {
             logNight(won ? "test_gehalten" : "test_verloren", 0, required);
@@ -3168,11 +3243,15 @@ public final class SiegeManager {
             awardSkillPoints(server);
             // The reward of a won night: a crate for every defender (better odds in event and fragment nights).
             // The boss's crate is as good as a fragment night's (Simon, 25 October 2026).
-            CrateKind kind = save.specialNight || (bossNight && bossDown) ? CrateKind.FRAGMENT
+            // So is the warden's (Simon, 29 October 2026), with ability points for those still standing.
+            CrateKind kind = save.specialNight || (bossNight && bossDown) || wardenDown ? CrateKind.FRAGMENT
                     : currentEvent != SiegeEvent.NONE ? CrateKind.EVENT : CrateKind.NORMAL;
             crates.award(server, participants, kind, siegeLevel, curses);
             if (curses > 0) {
                 awardCursePoints(server, curses);
+            }
+            if (wardenDown) {
+                awardWardenPoints(server, wardenKind);
             }
             int next = SiegeMath.level(save.siegesWon, lastKnownDay, config);
             if (required > 0) {
@@ -3235,6 +3314,7 @@ public final class SiegeManager {
         bossLabel = finaleNight ? "finale" : bosses.kind() == null ? null : "boss_" + bosses.kind().id();
         bosses.reset(server);
         resetFinale(server);
+        warden.reset(server);
         machines.reset(server);
         bossVictoryAt = -1L;
         safe("Nemesis", () -> nemesis.endNight(nemesisHost));
@@ -3498,6 +3578,20 @@ public final class SiegeManager {
     }
 
     /** A night won under curse stones: skill points for everyone still standing (update 2). */
+    /** The warden fell: ability points for every defender still standing. */
+    private void awardWardenPoints(MinecraftServer server, com.mki.nightsiege.core.ExpeditionKind kind) {
+        int amount = config.skillsEnabled ? config.wardenPoints : 0;
+        if (amount > 0) {
+            for (UUID id : participants) {
+                if (!fallen.contains(id)) {
+                    save.skillsOf(id.toString()).award(amount);
+                }
+            }
+        }
+        broadcast(server, Component.translatable("nightsiege.warden.paid",
+                kind == null ? Component.empty() : WardenNight.name(kind), amount).withStyle(ChatFormatting.GOLD));
+    }
+
     private void awardCursePoints(MinecraftServer server, int curses) {
         int amount = config.skillsEnabled ? Curses.points(config, curses) : 0;
         if (amount > 0) {
@@ -3555,6 +3649,9 @@ public final class SiegeManager {
             // playtest, 28 October 2026: "the soulcatcher collects no souls in dungeons").
             safe("Seelen", () -> companions.onMonsterDeath(fought, false));
         }
+        if (active && entity instanceof Mob wardenMob && world != null && warden.onDeath(wardenMob, source) && bossVictoryAt < 0) {
+            onWardenDown(world.getServer());
+        }
         if (active && entity instanceof Mob mob && BossService.isBossOrPart(mob)) {
             if (bosses.onDeath(mob, source) && world != null && bossVictoryAt < 0) {
                 onBossDown(world.getServer(), mob);
@@ -3596,7 +3693,7 @@ public final class SiegeManager {
     /** The boss has fallen: the night is won; the monsters left flee, the night ends in three seconds. */
     private void onBossDown(MinecraftServer server, Mob boss) {
         bossVictoryAt = world.getGameTime() + 60L;
-        onBossDownCleanUp();
+        routMonsters();
         UUID killer = bosses.killer();
         ServerPlayer hero = killer == null ? null : server.getPlayerList().getPlayer(killer);
         broadcast(server, Component.translatable(hero != null ? "nightsiege.msg.boss_down_by" : "nightsiege.msg.boss_down",
@@ -3604,8 +3701,18 @@ public final class SiegeManager {
                 hero == null ? "" : hero.getScoreboardName()).withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD));
     }
 
-    /** The last boss is down: the monsters still standing vanish. */
-    private void onBossDownCleanUp() {
+    /** The warden has fallen: the night is won; the monsters left flee, the night ends in three seconds. */
+    private void onWardenDown(MinecraftServer server) {
+        bossVictoryAt = world.getGameTime() + 60L;
+        routMonsters();
+        UUID killer = warden.killer();
+        ServerPlayer hero = killer == null ? null : server.getPlayerList().getPlayer(killer);
+        broadcast(server, Component.translatable(hero != null ? "nightsiege.warden.down_by" : "nightsiege.warden.down",
+                WardenNight.name(warden.kind()), hero == null ? "" : hero.getScoreboardName()).withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD));
+    }
+
+    /** The monsters still standing flee in a puff of smoke. */
+    private void routMonsters() {
         for (UUID id : new ArrayList<>(liveMobs)) {
             Entity other = world.getEntity(id);
             if (other instanceof Mob mob && mob.isAlive()) {
@@ -3934,6 +4041,10 @@ public final class SiegeManager {
         }
         BlockPos pos = hit.getBlockPos();
         ItemStack held = handObject instanceof InteractionHand hand ? player.getItemInHand(hand) : ItemStack.EMPTY;
+        // The dungeon's seal stone (content update): the ready round.
+        if (handObject == InteractionHand.MAIN_HAND && expeditions.onSeal(player, pos)) {
+            return InteractionResult.SUCCESS;
+        }
         // Manned towers (Simon, 26 October 2026): a right click on an arrow turret or tesla coil sits down in it.
         if (handObject == InteractionHand.MAIN_HAND && traps.tryMount(serverLevel, pos, player, held)) {
             return InteractionResult.SUCCESS;
@@ -4240,7 +4351,10 @@ public final class SiegeManager {
             case "spot" -> traps.onSpotAction(player, argument);
             case "shield" -> combat.guardian().onShieldAction(player);
             case "scout" -> expeditions.giveMap(player);   // the core window's "Karte mitnehmen"
-            case "round_force" -> camp.forceRound(player);   // the war drum's round: go without the others
+            case "round_force" -> {   // a ready round (war drum or seal stone): go without the others
+                camp.forceRound(player);
+                expeditions.forceRound(player);
+            }
             case "playtest" -> playtest.onAction(player, argument);   // the playtest window (28 October 2026)
             case "curse" -> {   // the curse altar (update 2): a stone laid on or taken off
                 Curses.toggle(this, player, argument);
@@ -4660,9 +4774,11 @@ public final class SiegeManager {
         player.sendSystemMessage(Component.translatable("nightsiege.msg.play_class",
                 profileName(own, key)).withStyle(ChatFormatting.GREEN));
         camp.onRoundReady(player);   // the war drum's ready round (content update)
+        expeditions.onRoundReady(player);   // the dungeon's ready round (content update)
         if (classPicking.remove(player.getUUID())) {
             // Chosen in the window before the night: no core window on top, just the new name tag.
             ClassTags.update(player.level().getServer(), player, own, skillTree.subclassOfProfile(own, own.chosenClass));
+
             refreshClassPicks(player.level().getServer());
             return;
         }

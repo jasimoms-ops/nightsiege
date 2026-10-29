@@ -96,7 +96,23 @@ public final class Expeditions {
 
     private ExpeditionLayout.Plan plan;
     private int planId = -1;
-    private Map<Long, List<Map.Entry<BlockPos, BlockState>>> byChunk = new HashMap<>();
+    /** One spot the dungeon sets: where, what, and whether only where nothing solid is (the ground above). */
+    private record Spot(BlockPos pos, BlockState want, boolean fill) {
+    }
+    private Map<Long, List<Spot>> byChunk = new HashMap<>();
+    /** The chunks from the gatehouse outwards (built and taken down in this order). */
+    private List<Long> chunkOrder = new ArrayList<>();
+    private ExpeditionSnapshot snapshot;
+    private int snapshotId = -1;
+    /** The chunk being set or taken down now, and how far. */
+    private long cursorChunk = Long.MIN_VALUE;
+    private int cursorIndex;
+    /** Blocks set or taken back per tick (content update: about 4 000). */
+    static final int BLOCKS_PER_TICK = 4000;
+    /** The plan version: a dungeon of an older one (no snapshot) is closed and reported anew. */
+    static final int LAYOUT = 2;
+    /** The way out after the win: 30 s, then the dungeon goes. */
+    static final int COLLAPSE_TICKS = 600;
 
     /** Players fighting now, everyone of this attempt (for the reward), the fallen of it. */
     private final Set<UUID> fighters = new HashSet<>();
@@ -112,6 +128,15 @@ public final class Expeditions {
     private int wave;
     private long nextWaveAt = -1L;
     private UUID champion;
+    /** The champion's two skills (content update). */
+    private ChampionBrains brains;
+    /** The effects of the fight: half life reached, the champion's entrance, the guards waking. */
+    private boolean phase2;
+    private long championShownAt = -1L;
+    private final Map<UUID, Long> wakeAt = new HashMap<>();
+    private boolean roomAwake;
+    /** The ring of light round the dome, lit once round in 3 s when the arena closes. */
+    private long ringAt = -1L;
     private ServerBossEvent bar;
     private int buildRounds;
     /** Attempts lost (every fighter fell) since the server started: the playtest goes on after one. */
@@ -175,10 +200,33 @@ public final class Expeditions {
             planId = rec.id;
             byChunk = new HashMap<>();
             for (Map.Entry<BlockPos, BlockState> e : plan.blocks.entrySet()) {
-                byChunk.computeIfAbsent(chunkKey(e.getKey().getX() >> 4, e.getKey().getZ() >> 4), k -> new ArrayList<>()).add(e);
+                byChunk.computeIfAbsent(chunkKey(e.getKey().getX() >> 4, e.getKey().getZ() >> 4), k -> new ArrayList<>())
+                        .add(new Spot(e.getKey(), e.getValue(), false));
             }
+            for (Map.Entry<BlockPos, BlockState> e : plan.fill.entrySet()) {
+                byChunk.computeIfAbsent(chunkKey(e.getKey().getX() >> 4, e.getKey().getZ() >> 4), k -> new ArrayList<>())
+                        .add(new Spot(e.getKey(), e.getValue(), true));
+            }
+            int ocx = rec.x >> 4;
+            int ocz = rec.z >> 4;
+            chunkOrder = new ArrayList<>(byChunk.keySet());
+            chunkOrder.sort(java.util.Comparator.comparingLong(k -> {
+                long dx = (k >> 32) - ocx;
+                long dz = (int) (long) k - ocz;
+                return dx * dx + dz * dz;
+            }));
+            cursorChunk = Long.MIN_VALUE;
+            cursorIndex = 0;
         }
         return plan;
+    }
+
+    private ExpeditionSnapshot snapshot(MinecraftServer server, SiegeSave.ExpeditionRecord rec) {
+        if (snapshot == null || snapshotId != rec.id) {
+            snapshot = ExpeditionSnapshot.load(server, rec.id);
+            snapshotId = rec.id;
+        }
+        return snapshot;
     }
 
     private static long chunkKey(int cx, int cz) {
@@ -190,7 +238,7 @@ public final class Expeditions {
     /** After a siege night (won or lost): the scouts may report a dungeon. */
     void afterNight(MinecraftServer server) {
         SiegeConfig cfg = m.config();
-        if (!cfg.dungeonsEnabled || open() || random.nextDouble() >= cfg.expeditionChance) {
+        if (!cfg.dungeonsEnabled || record() != null || random.nextDouble() >= cfg.expeditionChance) {
             return;
         }
         report(server, null);
@@ -201,6 +249,9 @@ public final class Expeditions {
      * can carry the way down. Null when no spot was found (or no core).
      */
     public SiegeSave.ExpeditionRecord report(MinecraftServer server, ExpeditionKind forced) {
+        if (record() != null && record().built && record().layout >= LAYOUT) {
+            restoreNow(server);   // a won one still being taken down goes at once
+        }
         CoreRecord core = m.mainCore();
         if (core == null) {
             return null;
@@ -232,6 +283,7 @@ public final class Expeditions {
             rec.z = z;
             rec.facing = facing;
             rec.rooms = rooms;
+            rec.layout = LAYOUT;
             rec.reportedDay = m.dayNow(server);
             drawMap(level, rec, core);
             if (fighters.size() > 0) {
@@ -268,11 +320,11 @@ public final class Expeditions {
         biome = biomePath(level, x, y0, z);
         BlockPos origin = new BlockPos(x, y0, z);
         for (int lz = -8; lz <= length; lz += 8) {
-            for (int lx = -10; lx <= 10; lx += 10) {
+            for (int lx = -30; lx <= 30; lx += 10) {
                 BlockPos at = CampLayout.world(origin, facing, lx, 0, lz);
                 int h = baseHeight(level, at.getX(), at.getZ());
-                // The vaults' roofs lie 6 below the gatehouse floor; water may not stand above them.
-                if (h < y0 - 4 || h <= sea) {
+                // The vaults' roofs lie 8 below the gatehouse floor, two of ground over them; no water above.
+                if (h < y0 - 6 || h <= sea) {
                     return null;
                 }
                 if (lz % 24 == 0 && wet(biomePath(level, at.getX(), h, at.getZ()))) {
@@ -407,9 +459,20 @@ public final class Expeditions {
         if (now % 10 == 0) {
             mapHints(server, rec);
         }
+        if (rec != null && rec.layout < LAYOUT) {
+            legacy(rec);
+            return;
+        }
         if (rec == null || rec.won) {
             if (!fighters.isEmpty()) {
                 endAll(server, null);
+            }
+            ServerLevel level = rec == null ? null : SiegeManager.levelByName(server, rec.dimension);
+            if (level != null && rec.built) {
+                afterWin(level, rec, now);
+            } else if (rec != null && !rec.built) {
+                m.save().expedition = null;
+                m.persist();
             }
             return;
         }
@@ -429,14 +492,13 @@ public final class Expeditions {
             }
             return;
         }
-        if (now % 40 == 0) {
-            plan(rec);
-            if (rec.chunksDone.size() < byChunk.size()) {
-                buildChunks(level, rec);
-            }
+        plan(rec);
+        if (rec.chunksDone.size() < byChunk.size()) {
+            buildStep(level, rec, BLOCKS_PER_TICK);
         }
         if (now % 5 == 0) {
             checkEntries(level, rec, now);
+            tickRound(level, rec, now);
         }
         if (now % 200 == 0 && fighters.isEmpty() && !arenaClosed && rec.cleared >= rec.rooms) {
             // A gate left shut by a crash in the arena fight opens again.
@@ -444,6 +506,31 @@ public final class Expeditions {
             if (level.hasChunk(gate.getX() >> 4, gate.getZ() >> 4) && level.getBlockState(gate).is(Blocks.IRON_BARS)) {
                 setGate(level, plan(rec).arenaGate, false);
             }
+        }
+        if (!fighters.isEmpty()) {
+            List<ServerPlayer> inside = new ArrayList<>();
+            for (UUID id : fighters) {
+                ServerPlayer p = server.getPlayerList().getPlayer(id);
+                if (p != null) {
+                    inside.add(p);
+                }
+            }
+            DungeonFx.ambient(level, inside, kind(rec), now);
+        }
+        if (ringAt > 0) {
+            int step = (int) (now - ringAt);
+            if (step > 60) {
+                ringAt = -1L;
+            } else {
+                ExpeditionLayout.Plan p = plan(rec);
+                DungeonFx.ring(level, p.arenaCenter.above(13), step / 60.0);
+            }
+        }
+        if (round != null && now % 5 == 0) {
+            DungeonFx.runes(level, plan(rec).seal, round.ready.size(), round.members.size());
+        }
+        if (brains != null && !fighters.isEmpty()) {
+            brains.tick(level, championHost(level, rec), m.currentLevel(), m.config(), now);
         }
         if (now % 10 == 0 && (!fighters.isEmpty() || !joined.isEmpty())) {
             tickFight(server, level, rec, now);
@@ -491,7 +578,7 @@ public final class Expeditions {
 
     /** Levels the ground of the gatehouse and sets everything whose ground is loaded. */
     void build(ServerLevel level, SiegeSave.ExpeditionRecord rec, BlockPos origin) {
-        int lowest = level.getMinY() + 20;   // the vaults reach 18 below the gatehouse floor (flat worlds)
+        int lowest = level.getMinY() + 32;   // the arena's pit lies 29 below the gatehouse floor (flat worlds)
         if (origin.getY() < lowest) {
             origin = new BlockPos(origin.getX(), lowest, origin.getZ());
         }
@@ -499,9 +586,11 @@ public final class Expeditions {
         rec.y = origin.getY();
         rec.z = origin.getZ();
         rec.built = true;
+        rec.layout = LAYOUT;
         rec.chunksDone.clear();
         plan = null;
-        int y = origin.getY();
+        // What stands where the ground is levelled goes back last when the dungeon is gone.
+        snapshot(level.getServer(), rec).record(LEVEL_CHUNK, level, levelSpots(rec));
         for (int lx = -8; lx <= 8; lx++) {
             for (int lz = -10; lz <= 7; lz++) {
                 BlockPos column = CampLayout.world(origin, rec.facing, lx, 0, lz);
@@ -529,45 +618,285 @@ public final class Expeditions {
                 }
             }
         }
-        buildChunks(level, rec);
+        buildStep(level, rec, BLOCKS_PER_TICK);
         m.persist();
         NightSiegeMod.LOGGER.info("[Night Siege] Dungeon {} steht bei {} {} {} (Weg nach {}, {} Räume)", rec.kind,
                 rec.x, rec.y, rec.z, rec.facing, rec.rooms);
     }
 
-    /** Sets the dungeon's blocks in every loaded chunk not done yet. */
-    private void buildChunks(ServerLevel level, SiegeSave.ExpeditionRecord rec) {
+    /** The snapshot's key for the levelled ground round the gatehouse. */
+    private static final long LEVEL_CHUNK = Long.MAX_VALUE;
+
+    /** The spots {@link #build} levels: round the gatehouse, from below the ground to the sky. */
+    private static List<BlockPos> levelSpots(SiegeSave.ExpeditionRecord rec) {
+        BlockPos origin = new BlockPos(rec.x, rec.y, rec.z);
+        List<BlockPos> out = new ArrayList<>();
+        for (int lx = -8; lx <= 8; lx++) {
+            for (int lz = -10; lz <= 7; lz++) {
+                BlockPos column = CampLayout.world(origin, rec.facing, lx, 0, lz);
+                for (int dy = -13; dy <= 14; dy++) {
+                    out.add(column.above(dy));
+                }
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Sets up to {@code budget} blocks of the dungeon in loaded chunks, from the gatehouse
+     * outwards. Before a chunk is touched, what stands there is written down (the snapshot).
+     */
+    private void buildStep(ServerLevel level, SiegeSave.ExpeditionRecord rec, int budget) {
         ExpeditionLayout.Plan p = plan(rec);
+        ExpeditionSnapshot snap = snapshot(level.getServer(), rec);
         Set<BlockPos> openGates = new HashSet<>();
         for (int i = 0; i < Math.min(rec.cleared, p.roomGates.size()); i++) {
             openGates.addAll(p.roomGates.get(i));
         }
-        boolean changed = false;
-        for (Map.Entry<Long, List<Map.Entry<BlockPos, BlockState>>> chunk : byChunk.entrySet()) {
-            if (rec.chunksDone.contains(chunk.getKey())) {
+        while (budget > 0) {
+            if (cursorChunk == Long.MIN_VALUE) {
+                for (long key : chunkOrder) {
+                    if (!rec.chunksDone.contains(key) && level.hasChunk((int) (key >> 32), (int) key)) {
+                        cursorChunk = key;
+                        cursorIndex = 0;
+                        break;
+                    }
+                }
+                if (cursorChunk == Long.MIN_VALUE) {
+                    return;
+                }
+                if (!snap.has(cursorChunk)) {
+                    List<BlockPos> where = new ArrayList<>();
+                    for (Spot s : byChunk.get(cursorChunk)) {
+                        where.add(s.pos());
+                    }
+                    snap.record(cursorChunk, level, where);
+                }
+            }
+            if (!level.hasChunk((int) (cursorChunk >> 32), (int) cursorChunk)) {
+                cursorChunk = Long.MIN_VALUE;   // unloaded meanwhile: again from the start when it is back
                 continue;
             }
-            int cx = (int) (chunk.getKey() >> 32);
-            int cz = (int) (long) chunk.getKey();
-            if (!level.hasChunk(cx, cz)) {
-                continue;
-            }
-            for (Map.Entry<BlockPos, BlockState> e : chunk.getValue()) {
-                BlockPos pos = e.getKey();
-                BlockState now = level.getBlockState(pos);
+            List<Spot> spots = byChunk.get(cursorChunk);
+            for (; cursorIndex < spots.size() && budget > 0; cursorIndex++, budget--) {
+                Spot s = spots.get(cursorIndex);
+                BlockState now = level.getBlockState(s.pos());
                 if (now.hasBlockEntity() && !now.is(Blocks.SPAWNER)) {
                     continue;   // somebody's chest stays where it is
                 }
-                BlockState want = openGates.contains(pos) ? Blocks.AIR.defaultBlockState() : e.getValue();
+                if (s.fill() && !(now.isAir() || now.canBeReplaced() || !now.getFluidState().isEmpty())) {
+                    continue;   // the ground above the vaults only where there is none
+                }
+                BlockState want = openGates.contains(s.pos()) ? Blocks.AIR.defaultBlockState() : s.want();
                 if (now != want) {
-                    level.setBlock(pos, want, Block.UPDATE_CLIENTS);
+                    level.setBlock(s.pos(), want, Block.UPDATE_CLIENTS);
                 }
             }
-            rec.chunksDone.add(chunk.getKey());
-            changed = true;
+            if (cursorIndex >= spots.size()) {
+                // Fences, walls, bars and stairs join their neighbours.
+                for (Spot s : spots) {
+                    Block b = s.want().getBlock();
+                    if (b instanceof net.minecraft.world.level.block.CrossCollisionBlock || b instanceof net.minecraft.world.level.block.WallBlock
+                            || b instanceof net.minecraft.world.level.block.StairBlock) {
+                        BlockState there = level.getBlockState(s.pos());
+                        if (there.is(b)) {
+                            BlockState shaped = Block.updateFromNeighbourShapes(there, level, s.pos());
+                            if (shaped != there) {
+                                level.setBlock(s.pos(), shaped, Block.UPDATE_CLIENTS);
+                            }
+                        }
+                    }
+                }
+                rec.chunksDone.add(cursorChunk);
+                cursorChunk = Long.MIN_VALUE;
+                m.persist();
+            }
         }
-        if (changed) {
+    }
+
+    /** Tests and admin: every chunk loaded and set now. */
+    private void buildAll(ServerLevel level, SiegeSave.ExpeditionRecord rec) {
+        plan(rec);
+        for (long key : chunkOrder) {
+            level.getChunk((int) (key >> 32), (int) key);
+        }
+        cursorChunk = Long.MIN_VALUE;
+        buildStep(level, rec, Integer.MAX_VALUE);
+    }
+
+    /** A dungeon of the old plan (no snapshot): closed, its blocks stay; the scouts report anew. */
+    private void legacy(SiegeSave.ExpeditionRecord rec) {
+        if (rec.built) {
+            NightSiegeMod.LOGGER.info("[Night Siege] Alter Dungeon {} ({}) geschlossen: neue Dungeons ab dem Content-Update",
+                    rec.kind, rec.won ? "bezwungen" : "offen");
+            m.save().expedition = null;
+        } else {
+            rec.layout = LAYOUT;
+        }
+        plan = null;
+        m.persist();
+    }
+
+    /**
+     * After the win: 30 s to get out (the dungeon shakes), then everyone and everything left
+     * inside is put before the gatehouse and the dungeon goes, block by block, from the
+     * gatehouse outwards; the ground comes back as it was.
+     */
+    private void afterWin(ServerLevel level, SiegeSave.ExpeditionRecord rec, long now) {
+        ExpeditionLayout.Plan p = plan(rec);
+        if (!rec.restoring && rec.collapseAt > 0 && now < rec.collapseAt) {
+            if (now % 20 == 0) {
+                int left = (int) ((rec.collapseAt - now) / 20);
+                Component text = Component.translatable("nightsiege.expedition.collapse_bar", left).withStyle(ChatFormatting.GOLD);
+                for (ServerPlayer player : level.players()) {
+                    if (p.bounds.contains(player.position())) {
+                        player.connection.send(new ClientboundSetActionBarTextPacket(text));
+                        player.connection.send(new ClientboundSoundPacket(SoundEvents.GENERIC_EXPLODE, SoundSource.AMBIENT,
+                                player.getX(), player.getY(), player.getZ(), 0.5f, 0.4f, random.nextLong()));
+                        DungeonFx.debris(level, player, ExpeditionLayout.B.block(kind(rec).block(ExpeditionKind.Part.CEILING)));
+                    }
+                }
+            }
+            return;
+        }
+        if (!rec.restoring) {
+            evacuate(level, rec);
+            rec.restoring = true;
+            cursorChunk = Long.MIN_VALUE;
             m.persist();
+        }
+        restoreStep(level, rec, BLOCKS_PER_TICK, true);
+    }
+
+    /** Everyone inside out before the gate, items lying about there too, the dungeon's monsters gone. */
+    private void evacuate(ServerLevel level, SiegeSave.ExpeditionRecord rec) {
+        ExpeditionLayout.Plan p = plan(rec);
+        BlockPos door = p.door;
+        for (ServerPlayer player : level.players()) {
+            if (p.bounds.contains(player.position()) && (inside(p, player, 1.0) || player.getY() < rec.y - 1)) {
+                player.teleportTo(level, door.getX() + 0.5, door.getY(), door.getZ() + 0.5, java.util.Set.of(),
+                        player.getYRot(), player.getXRot(), true);
+            }
+        }
+        for (net.minecraft.world.entity.item.ItemEntity item : level.getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class,
+                p.bounds)) {
+            item.teleportTo(door.getX() + 0.5, door.getY() + 0.5, door.getZ() + 0.5);
+        }
+        for (Entity e : level.getEntitiesOfClass(Entity.class, p.bounds.inflate(4), Expeditions::isExpeditionMob)) {
+            BossService.dropFoeLook(level.getServer(), e.getId());
+            e.discard();
+        }
+    }
+
+    /**
+     * Takes back up to {@code budget} blocks. A chunk not loaded is loaded (one a tick), so the
+     * ground is whole again even where nobody goes. When all is back, the record goes.
+     */
+    private void restoreStep(ServerLevel level, SiegeSave.ExpeditionRecord rec, int budget, boolean loadOne) {
+        ExpeditionSnapshot snap = snapshot(level.getServer(), rec);
+        plan(rec);
+        boolean loaded = false;
+        while (budget > 0) {
+            if (cursorChunk == Long.MIN_VALUE) {
+                long next = Long.MIN_VALUE;
+                long unloaded = Long.MIN_VALUE;
+                for (long key : chunkOrder) {
+                    if (!snap.has(key) && !rec.chunksDone.contains(key)) {
+                        continue;
+                    }
+                    if (level.hasChunk((int) (key >> 32), (int) key)) {
+                        next = key;
+                        break;
+                    }
+                    if (unloaded == Long.MIN_VALUE) {
+                        unloaded = key;
+                    }
+                }
+                if (next == Long.MIN_VALUE && unloaded != Long.MIN_VALUE && (loadOne && !loaded || !loadOne)) {
+                    level.getChunk((int) (unloaded >> 32), (int) unloaded);
+                    loaded = true;
+                    next = unloaded;
+                }
+                if (next == Long.MIN_VALUE) {
+                    if (unloaded == Long.MIN_VALUE) {
+                        finishRestore(level, rec, snap);
+                    }
+                    return;
+                }
+                cursorChunk = next;
+                cursorIndex = 0;
+            }
+            List<Spot> spots = byChunk.get(cursorChunk);
+            if (spots == null || !snap.has(cursorChunk)) {
+                rec.chunksDone.remove((Long) cursorChunk);
+                cursorChunk = Long.MIN_VALUE;
+                continue;
+            }
+            for (; cursorIndex < spots.size() && budget > 0; cursorIndex++, budget--) {
+                BlockState old = snap.old(cursorChunk, cursorIndex);
+                BlockPos pos = spots.get(cursorIndex).pos();
+                if (old != null && level.getBlockState(pos) != old) {
+                    level.setBlock(pos, old, Block.UPDATE_CLIENTS);
+                }
+            }
+            if (cursorIndex >= spots.size()) {
+                rec.chunksDone.remove((Long) cursorChunk);
+                snap.forget(cursorChunk);
+                cursorChunk = Long.MIN_VALUE;
+                m.persist();
+            }
+        }
+    }
+
+    /** All back: the levelled ground too, the snapshot and the record go. */
+    private void finishRestore(ServerLevel level, SiegeSave.ExpeditionRecord rec, ExpeditionSnapshot snap) {
+        if (snap.has(LEVEL_CHUNK)) {
+            List<BlockPos> where = levelSpots(rec);
+            for (int i = 0; i < where.size(); i++) {
+                BlockState old = snap.old(LEVEL_CHUNK, i);
+                if (old != null && level.getBlockState(where.get(i)) != old) {
+                    level.setBlock(where.get(i), old, Block.UPDATE_CLIENTS);
+                }
+            }
+        }
+        ExpeditionLayout.Plan p = plan(rec);
+        for (ServerPlayer player : level.players()) {
+            if (player.distanceToSqr(p.door.getX() + 0.5, p.door.getY(), p.door.getZ() + 0.5) < 36.0) {
+                BlockPos up = level.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, player.blockPosition());
+                if (up.getY() > player.getY()) {
+                    player.teleportTo(level, player.getX(), up.getY(), player.getZ(), java.util.Set.of(),
+                            player.getYRot(), player.getXRot(), true);
+                }
+            }
+        }
+        snap.delete();
+        snapshot = null;
+        NightSiegeMod.LOGGER.info("[Night Siege] Dungeon {} ist abgebaut, das Gelände wie vorher", rec.kind);
+        if (m.save().expedition == rec) {
+            m.save().expedition = null;
+        }
+        plan = null;
+        m.persist();
+    }
+
+    /** Admin and tests: the dungeon goes now, everything at once. */
+    public void restoreNow(MinecraftServer server) {
+        SiegeSave.ExpeditionRecord rec = record();
+        if (rec == null) {
+            return;
+        }
+        ServerLevel level = SiegeManager.levelByName(server, rec.dimension);
+        if (level == null || !rec.built) {
+            m.save().expedition = null;
+            m.persist();
+            return;
+        }
+        evacuate(level, rec);
+        rec.won = true;
+        rec.restoring = true;
+        cursorChunk = Long.MIN_VALUE;
+        for (int guard = 0; guard < 4 && m.save().expedition == rec; guard++) {
+            restoreStep(level, rec, Integer.MAX_VALUE, false);
         }
     }
 
@@ -591,10 +920,279 @@ public final class Expeditions {
                     || player.getAbilities().instabuild || !player.isAlive() || Drones.isDrone(player)) {
                 continue;
             }
+            // Only who was in the ready round goes in (the tests and the playtest: anyone signed up).
+            if (!openEntry && !allowed.contains(id)) {
+                continue;
+            }
             if (inside(p, player, 0.0)) {
                 join(level, rec, player, now);
             }
         }
+    }
+
+    // ------------------------------------------------------------------ the ready round (the seal stone)
+
+    /** A ready round at the seal stone: who is in it, who is ready. */
+    private static final class Round {
+        UUID starter;
+        final Set<UUID> members = new LinkedHashSet<>();
+        final Set<UUID> ready = new HashSet<>();
+        long startedAt;
+    }
+
+    private Round round;
+    /** Those of the last round: only they may go down while the gate is open. */
+    private final Set<UUID> allowed = new HashSet<>();
+    /** After the round: the gate stays open until this time or until all are down. */
+    private long gateOpenUntil = -1L;
+    /** The gate goes up row by row from here (2 s). */
+    private long gateRiseAt = -1L;
+    /** Tests and the playtest: anyone signed up who goes down joins (no ready round, the gate open). */
+    private boolean openEntry;
+    /** Where each fighter last stood inside (who gets out is put back there). */
+    private final Map<UUID, Vec3> lastInside = new HashMap<>();
+    static final double ROUND_RADIUS = 20.0;
+    /** After this, the starter may go without those not ready (Simon 29.10., 01:00). */
+    static final int FORCE_SECONDS = 30;
+
+    public void openEntry(boolean value) {
+        openEntry = value;
+    }
+
+    /** The round a player is in (for the class window), or null. */
+    public boolean inRound(ServerPlayer player) {
+        return round != null && player != null && round.members.contains(player.getUUID());
+    }
+
+    public boolean roundStarter(ServerPlayer player) {
+        return round != null && player != null && player.getUUID().equals(round.starter);
+    }
+
+    /** Seconds until the starter may go without the others (0 when he may now). */
+    public int roundForceIn(long now) {
+        return round == null ? 0 : (int) Math.max(0, FORCE_SECONDS - (now - round.startedAt) / 20);
+    }
+
+    public List<UUID> roundMembers() {
+        return round == null ? List.of() : new ArrayList<>(round.members);
+    }
+
+    public boolean roundReady(UUID id) {
+        return round != null && round.ready.contains(id);
+    }
+
+    /** A right click on the seal stone: starts the ready round, or ends it again (the starter). */
+    public boolean onSeal(ServerPlayer player, BlockPos pos) {
+        SiegeSave.ExpeditionRecord rec = record();
+        if (rec == null || !rec.built || rec.won || !(player.level() instanceof ServerLevel level)
+                || !SiegeManager.dimensionName(level).equals(rec.dimension) || !pos.equals(plan(rec).seal)) {
+            return false;
+        }
+        long now = level.getGameTime();
+        if (!m.isRegistered(player)) {
+            player.sendSystemMessage(Component.translatable("nightsiege.expedition.round_register").withStyle(ChatFormatting.GRAY));
+            return true;
+        }
+        if (!fighters.isEmpty()) {
+            player.sendSystemMessage(Component.translatable("nightsiege.expedition.round_running").withStyle(ChatFormatting.GRAY));
+            return true;
+        }
+        if (m.isActive() || m.testPending() || m.nightComing(level.getServer())) {
+            player.sendSystemMessage(Component.translatable("nightsiege.expedition.night").withStyle(ChatFormatting.GRAY));
+            return true;
+        }
+        if (out.contains(player.getUUID())) {
+            player.sendSystemMessage(Component.translatable("nightsiege.expedition.round_fallen").withStyle(ChatFormatting.GRAY));
+            return true;
+        }
+        if (round != null) {
+            if (player.getUUID().equals(round.starter)) {
+                endRound(level, "nightsiege.expedition.round_cancelled");
+            } else if (round.members.contains(player.getUUID())) {
+                m.campClassPick(player, 0);
+            } else {
+                player.sendSystemMessage(Component.translatable("nightsiege.expedition.round_other").withStyle(ChatFormatting.GRAY));
+            }
+            return true;
+        }
+        if (!m.save().skillsOf(player.getUUID().toString()).hasClass()) {
+            player.sendSystemMessage(Component.translatable("nightsiege.expedition.round_noclass").withStyle(ChatFormatting.GRAY));
+            return true;
+        }
+        Round r = new Round();
+        r.starter = player.getUUID();
+        r.startedAt = now;
+        for (ServerPlayer other : level.players()) {
+            if (m.isRegistered(other) && other.isAlive() && !other.isSpectator() && !Drones.isDrone(other)
+                    && m.save().skillsOf(other.getUUID().toString()).hasClass()
+                    && !out.contains(other.getUUID())
+                    && other.distanceToSqr(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5) <= ROUND_RADIUS * ROUND_RADIUS) {
+                r.members.add(other.getUUID());
+            }
+        }
+        r.members.add(player.getUUID());
+        round = r;
+        ExpeditionKind kind = kind(rec);
+        Component text = Component.translatable("nightsiege.expedition.round_open", player.getDisplayName(),
+                Component.translatable(kind.translationKey())).withStyle(ChatFormatting.GOLD);
+        for (UUID id : r.members) {
+            ServerPlayer p = level.getServer().getPlayerList().getPlayer(id);
+            if (p != null) {
+                p.sendSystemMessage(text);
+                m.campClassPick(p, 0);
+            }
+        }
+        level.playSound(null, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, SoundEvents.BELL_BLOCK, SoundSource.BLOCKS, 1.5f, 0.7f);
+        level.sendParticles(ParticleTypes.ENCHANT, pos.getX() + 0.5, pos.getY() + 1.2, pos.getZ() + 0.5, 60, 1.5, 0.5, 1.5, 0.5);
+        NightSiegeMod.LOGGER.info("[Night Siege] Bereit-Runde am Dungeon {} von {} mit {} Spielern", rec.kind,
+                player.getScoreboardName(), r.members.size());
+        return true;
+    }
+
+    /** A class chosen in the window: ready in the round. */
+    public void onRoundReady(ServerPlayer player) {
+        if (round == null || player == null || !round.members.contains(player.getUUID())) {
+            return;
+        }
+        round.ready.add(player.getUUID());
+        if (player.level() instanceof ServerLevel level) {
+            BlockPos seal = record() == null ? player.blockPosition() : plan(record()).seal;
+            level.playSound(null, seal.getX() + 0.5, seal.getY() + 0.5, seal.getZ() + 0.5, SoundEvents.BELL_BLOCK, SoundSource.BLOCKS, 1.2f,
+                    1.0f + 0.1f * round.ready.size());
+            Component text = Component.translatable("nightsiege.expedition.round_ready", player.getDisplayName(),
+                    round.ready.size(), round.members.size()).withStyle(ChatFormatting.YELLOW);
+            for (UUID id : round.members) {
+                ServerPlayer p = level.getServer().getPlayerList().getPlayer(id);
+                if (p != null) {
+                    p.connection.send(new ClientboundSetActionBarTextPacket(text));
+                }
+            }
+        }
+    }
+
+    /** The starter's button: go without those not ready (after 30 s). */
+    public void forceRound(ServerPlayer player) {
+        if (round == null || player == null || !player.getUUID().equals(round.starter) || !(player.level() instanceof ServerLevel level)) {
+            return;
+        }
+        if (roundForceIn(level.getGameTime()) > 0 || round.ready.isEmpty()) {
+            return;
+        }
+        for (UUID id : new ArrayList<>(round.members)) {
+            if (!round.ready.contains(id)) {
+                round.members.remove(id);
+                ServerPlayer p = level.getServer().getPlayerList().getPlayer(id);
+                if (p != null) {
+                    p.sendSystemMessage(Component.translatable("nightsiege.expedition.round_dropped").withStyle(ChatFormatting.GRAY));
+                }
+            }
+        }
+    }
+
+    private void endRound(ServerLevel level, String messageKey) {
+        if (round == null) {
+            return;
+        }
+        for (UUID id : round.members) {
+            ServerPlayer p = level.getServer().getPlayerList().getPlayer(id);
+            if (p != null && messageKey != null) {
+                p.sendSystemMessage(Component.translatable(messageKey).withStyle(ChatFormatting.GRAY));
+            }
+        }
+        round = null;
+    }
+
+    /** The round: who walks off is out; when all are ready, the gate goes up. */
+    private void tickRound(ServerLevel level, SiegeSave.ExpeditionRecord rec, long now) {
+        ExpeditionLayout.Plan p = plan(rec);
+        if (round != null) {
+            BlockPos seal = p.seal;
+            for (UUID id : new ArrayList<>(round.members)) {
+                ServerPlayer player = level.getServer().getPlayerList().getPlayer(id);
+                boolean gone = player == null || player.level() != level || !player.isAlive()
+                        || player.distanceToSqr(seal.getX() + 0.5, seal.getY(), seal.getZ() + 0.5) > ROUND_RADIUS * ROUND_RADIUS;
+                if (gone) {
+                    round.members.remove(id);
+                    round.ready.remove(id);
+                    if (player != null) {
+                        player.sendSystemMessage(Component.translatable("nightsiege.expedition.round_left").withStyle(ChatFormatting.GRAY));
+                    }
+                    if (id.equals(round.starter)) {
+                        endRound(level, "nightsiege.expedition.round_cancelled");
+                        return;
+                    }
+                }
+            }
+            if (round.members.isEmpty()) {
+                round = null;
+            } else if (round.ready.containsAll(round.members)) {
+                startRound(level, rec, now);
+            }
+        }
+        if (gateRiseAt > 0) {
+            int rows = (int) Math.min(4, (now - gateRiseAt) / 10 + 1);
+            for (BlockPos pos : p.stairGate) {
+                if (pos.getY() - p.seal.getY() < rows && level.getBlockState(pos).is(Blocks.IRON_BARS)) {
+                    level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
+                }
+            }
+            level.playSound(null, p.stairGate.get(0), SoundEvents.CHAIN_PLACE, SoundSource.BLOCKS, 1.5f, 0.6f);
+            if (rows >= 4) {
+                gateRiseAt = -1L;
+            }
+        }
+        if (gateOpenUntil > 0) {
+            boolean allDown = true;
+            for (UUID id : allowed) {
+                if (!fighters.contains(id) && level.getServer().getPlayerList().getPlayer(id) != null) {
+                    allDown = false;
+                }
+            }
+            if (now >= gateOpenUntil || allDown && !fighters.isEmpty()) {
+                closeStairGate(level, p);
+                for (UUID id : allowed) {
+                    ServerPlayer player = level.getServer().getPlayerList().getPlayer(id);
+                    if (player != null && !fighters.contains(id)) {
+                        player.sendSystemMessage(Component.translatable("nightsiege.expedition.round_late").withStyle(ChatFormatting.GRAY));
+                    }
+                }
+                allowed.clear();
+            }
+        }
+        if (openEntry && level.getBlockState(p.stairGate.get(0)).is(Blocks.IRON_BARS)) {
+            setGate(level, p.stairGate, false);
+        }
+    }
+
+    /** All ready: horn, the title, the gate goes up (2 s); they have 30 s to go down. */
+    private void startRound(ServerLevel level, SiegeSave.ExpeditionRecord rec, long now) {
+        ExpeditionLayout.Plan p = plan(rec);
+        ExpeditionKind kind = kind(rec);
+        allowed.clear();
+        allowed.addAll(round.members);
+        round = null;
+        gateOpenUntil = now + 600;
+        gateRiseAt = now;
+        level.playSound(null, p.seal, SoundEvents.RAID_HORN.value(), SoundSource.HOSTILE, 6f, 0.9f);
+        for (UUID id : allowed) {
+            ServerPlayer player = level.getServer().getPlayerList().getPlayer(id);
+            if (player != null) {
+                player.connection.send(new ClientboundSetTitlesAnimationPacket(10, 70, 20));
+                player.connection.send(new ClientboundSetTitleTextPacket(Component.translatable(kind.translationKey())
+                        .withStyle(ChatFormatting.DARK_RED, ChatFormatting.BOLD)));
+                player.connection.send(new ClientboundSetSubtitleTextPacket(Component.translatable("nightsiege.expedition.round_go",
+                        rec.rooms, WardenNight.name(kind)).withStyle(ChatFormatting.GOLD)));
+            }
+        }
+    }
+
+    private void closeStairGate(ServerLevel level, ExpeditionLayout.Plan p) {
+        gateOpenUntil = -1L;
+        if (openEntry) {
+            return;
+        }
+        setGate(level, p.stairGate, true);
+        level.playSound(null, p.stairGate.get(0), SoundEvents.IRON_DOOR_CLOSE, SoundSource.BLOCKS, 2f, 0.5f);
     }
 
     /** A signed-up player goes down the stairs: horn, class cards, kit, skills, grace. */
@@ -638,9 +1236,12 @@ public final class Expeditions {
                 m.persist();
             }
         }
-        m.campClassPick(player, seconds);
+        if (openEntry || !allowed.contains(id)) {
+            m.campClassPick(player, seconds);   // in the ready round the class is chosen already
+        }
         SkillService.apply(player, m.save().skillsOf(id.toString()), m.skillTree());
         showBar(rec, player);
+        DungeonFx.look(player, kind, phase2);
         NightSiegeMod.LOGGER.info("[Night Siege] {} betritt den Dungeon {}", player.getScoreboardName(), rec.kind);
     }
 
@@ -649,6 +1250,9 @@ public final class Expeditions {
         UUID id = player.getUUID();
         fighters.remove(id);
         grace.remove(id);
+        if (record() != null) {
+            DungeonFx.leave(player, kind(record()));
+        }
         if (bar != null) {
             bar.removePlayer(player);
         }
@@ -704,10 +1308,15 @@ public final class Expeditions {
         player.clearFire();
         if (rec != null && rec.built) {
             ServerLevel level = SiegeManager.levelByName(server, rec.dimension);
-            BlockPos door = plan(rec).door;
+            ExpeditionLayout.Plan p = plan(rec);
+            // The fallen wait in the gatehouse (content update): on the benches, with the bar of the fight.
+            BlockPos seat = p.waiting.get(Math.floorMod(out.size() - 1, p.waiting.size()));
             if (level != null) {
-                player.teleportTo(level, door.getX() + 0.5, door.getY(), door.getZ() + 0.5, java.util.Set.of(),
+                player.teleportTo(level, seat.getX() + 0.5, seat.getY() + 0.5, seat.getZ() + 0.5, java.util.Set.of(),
                         player.getYRot(), player.getXRot(), true);
+            }
+            if (bar != null) {
+                bar.addPlayer(player);
             }
         }
         player.sendSystemMessage(Component.translatable("nightsiege.expedition.fallen").withStyle(ChatFormatting.RED));
@@ -729,12 +1338,25 @@ public final class Expeditions {
         for (UUID id : new ArrayList<>(fighters)) {
             ServerPlayer player = server.getPlayerList().getPlayer(id);
             if (player == null) {
-                fighters.remove(id);   // logged out: the own things come back when they log in again
+                fighters.remove(id);   // logged out: fallen; the own things come back when they log in again
                 grace.remove(id);
+                out.add(id);
                 continue;
             }
-            if (player.level() != level || !inside(p, player, 1.5)) {
+            if (player.level() != level) {
                 leave(player, "nightsiege.expedition.left");
+            } else if (!inside(p, player, 1.5)) {
+                // Locked in (content update): who gets out (pearl, hook, climbing arrow) is put back.
+                Vec3 back = lastInside.get(id);
+                if (back != null && !openEntry) {
+                    player.teleportTo(level, back.x, back.y, back.z, java.util.Set.of(), player.getYRot(), player.getXRot(), true);
+                    player.connection.send(new ClientboundSetActionBarTextPacket(Component.translatable("nightsiege.expedition.no_escape")
+                            .withStyle(ChatFormatting.RED)));
+                } else {
+                    leave(player, "nightsiege.expedition.left");
+                }
+            } else if (player.onGround()) {
+                lastInside.put(id, player.position());
             }
         }
         if (fighters.isEmpty()) {
@@ -758,6 +1380,7 @@ public final class Expeditions {
                 }
             } else {
                 mobs.removeIf(id -> !(level.getEntity(id) instanceof LivingEntity l) || !l.isAlive());
+                wakeRoom(level, p, room, mobs, now);
                 if (mobs.isEmpty()) {
                     openRoom(level, rec, p, room);
                 }
@@ -777,6 +1400,15 @@ public final class Expeditions {
                 wave = 0;
                 nextWaveAt = now + 60;
                 level.playSound(null, p.arenaGate.get(0), SoundEvents.IRON_DOOR_CLOSE, SoundSource.BLOCKS, 2f, 0.6f);
+                List<ServerPlayer> inArena = new ArrayList<>();
+                for (UUID id : fighters) {
+                    ServerPlayer player = server.getPlayerList().getPlayer(id);
+                    if (player != null) {
+                        inArena.add(player);
+                    }
+                }
+                DungeonFx.arenaClosed(level, p.arenaGate, inArena, kind);
+                ringAt = now;
                 for (UUID id : fighters) {
                     ServerPlayer player = server.getPlayerList().getPlayer(id);
                     if (player != null) {
@@ -805,8 +1437,34 @@ public final class Expeditions {
         } else {
             Entity c = level.getEntity(champion);
             if (!(c instanceof LivingEntity l) || !l.isAlive()) {
+                if (c != null) {
+                    BossService.dropFoeLook(server, c.getId());
+                }
                 win(server, level, rec);
                 return;
+            }
+            if (championShownAt > 0 && c instanceof Mob cm) {
+                if (now - championShownAt < 60) {
+                    DungeonFx.pit(level, p.arenaCenter, kind, 1);
+                } else {
+                    cm.setInvulnerable(false);
+                    cm.setNoAi(false);
+                    championShownAt = -1L;
+                }
+            }
+            if (!phase2 && c instanceof LivingEntity lc && lc.getHealth() < lc.getMaxHealth() * 0.5f) {
+                phase2 = true;
+                List<ServerPlayer> all = new ArrayList<>();
+                for (UUID id : fighters) {
+                    ServerPlayer player = server.getPlayerList().getPlayer(id);
+                    if (player != null) {
+                        all.add(player);
+                    }
+                }
+                DungeonFx.phase2(level, all.toArray(new ServerPlayer[0]), kind, c.position());
+            }
+            if (now % 20 == 0 && c instanceof Mob cm && !("champion_" + kind.id()).equals(BossService.foeLookOf(c.getId()))) {
+                BossService.foeLook(cm, "champion_" + kind.id());   // again after a restart (new network id)
             }
         }
         updateBar(level, rec);
@@ -820,15 +1478,63 @@ public final class Expeditions {
                 : ExpeditionKind.guards(lvl, fighters.size());
         List<BlockPos> spots = p.roomSpots.get(room);
         for (int i = 0; i < count; i++) {
-            BlockPos base = spots.get(i % spots.size());
-            BlockPos spot = i < spots.size() ? base : base.offset(random.nextInt(3) - 1, 0, random.nextInt(3) - 1);
+            BlockPos spot = spots.get(i % spots.size());
             Mob mob = spawn(level, rec, kind.mobs().get(random.nextInt(kind.mobs().size())), spot);
             if (mob != null) {
                 mobs.add(mob.getUUID());
+                mob.setNoAi(true);   // statues until someone reaches the middle or strikes one (content update)
             }
         }
         roomMobs.put(room, mobs);
-        level.playSound(null, p.roomCenters.get(room), SoundEvents.EVOKER_PREPARE_SUMMON, SoundSource.HOSTILE, 1.6f, 0.8f);
+        roomAwake = false;
+        wakeAt.clear();
+        // The hall's title: its theme, which hall of how many.
+        String module = room < p.roomModules.size() ? p.roomModules.get(room) : "";
+        for (UUID id : fighters) {
+            ServerPlayer player = level.getServer().getPlayerList().getPlayer(id);
+            if (player != null) {
+                player.connection.send(new ClientboundSetTitlesAnimationPacket(10, 50, 15));
+                player.connection.send(new ClientboundSetTitleTextPacket(Component.translatable("nightsiege.expedition.module." + module)
+                        .withStyle(ChatFormatting.GOLD)));
+                player.connection.send(new ClientboundSetSubtitleTextPacket(Component.translatable("nightsiege.expedition.hall_of",
+                        room + 1, rec.rooms).withStyle(ChatFormatting.GRAY)));
+            }
+        }
+    }
+
+    /** The guards wake group by group, a second apart, when one comes close or strikes one. */
+    private void wakeRoom(ServerLevel level, ExpeditionLayout.Plan p, int room, Set<UUID> mobs, long now) {
+        if (!roomAwake) {
+            BlockPos center = p.roomCenters.get(room);
+            boolean near = false;
+            for (UUID id : fighters) {
+                ServerPlayer player = level.getServer().getPlayerList().getPlayer(id);
+                if (player != null && player.distanceToSqr(center.getX() + 0.5, center.getY(), center.getZ() + 0.5) < 10.0 * 10.0) {
+                    near = true;
+                }
+            }
+            for (UUID id : mobs) {
+                if (level.getEntity(id) instanceof Mob mob && mob.getHealth() < mob.getMaxHealth()) {
+                    near = true;
+                }
+            }
+            if (!near) {
+                return;
+            }
+            roomAwake = true;
+            int i = 0;
+            for (UUID id : mobs) {
+                wakeAt.put(id, now + 20L * (i++ % 4));
+            }
+            level.playSound(null, center, SoundEvents.EVOKER_PREPARE_SUMMON, SoundSource.HOSTILE, 2f, 0.7f);
+        }
+        for (Map.Entry<UUID, Long> e : new ArrayList<>(wakeAt.entrySet())) {
+            if (now >= e.getValue() && level.getEntity(e.getKey()) instanceof Mob mob) {
+                mob.setNoAi(false);
+                level.sendParticles(ParticleTypes.SOUL, mob.getX(), mob.getY() + 1, mob.getZ(), 8, 0.3, 0.6, 0.3, 0.02);
+                wakeAt.remove(e.getKey());
+            }
+        }
     }
 
     private void openRoom(ServerLevel level, SiegeSave.ExpeditionRecord rec, ExpeditionLayout.Plan p, int room) {
@@ -838,9 +1544,11 @@ public final class Expeditions {
         m.stats().dungeonProgress(rec.cleared, 0, false);
         m.persist();
         level.playSound(null, p.roomGates.get(room).get(0), SoundEvents.IRON_DOOR_OPEN, SoundSource.BLOCKS, 2f, 0.7f);
+        BlockPos gate = p.roomGates.get(room).get(0);
+        level.playSound(null, gate.getX() + 0.5, gate.getY() + 1, gate.getZ() + 0.5, SoundEvents.VAULT_OPEN_SHUTTER, SoundSource.BLOCKS, 2f, 0.8f);
         Component text = Component.translatable(rec.cleared >= rec.rooms ? "nightsiege.expedition.room_last"
                 : "nightsiege.expedition.room_open", rec.cleared, rec.rooms).withStyle(ChatFormatting.GREEN);
-        for (UUID id : fighters) {
+        for (UUID id : joined) {
             ServerPlayer player = level.getServer().getPlayerList().getPlayer(id);
             if (player != null) {
                 player.connection.send(new ClientboundSetActionBarTextPacket(text));
@@ -851,12 +1559,15 @@ public final class Expeditions {
     private void spawnWave(ServerLevel level, SiegeSave.ExpeditionRecord rec, ExpeditionLayout.Plan p, ExpeditionKind kind,
                            int lvl) {
         wave++;
+        if (wave == 1) {
+            setGate(level, p.waveGates, false);   // the four monster gates open
+            level.playSound(null, p.arenaCenter, SoundEvents.IRON_DOOR_OPEN, SoundSource.BLOCKS, 3f, 0.5f);
+        }
         m.stats().dungeonProgress(rec.cleared, wave, false);
         int count = m.inPlaytest() ? ExpeditionKind.wave(lvl, fighters.size(), m.config().playtestPlayerScaling, 32)
                 : ExpeditionKind.wave(lvl, fighters.size());
         for (int i = 0; i < count; i++) {
-            BlockPos base = p.waveSpots.get(i % p.waveSpots.size());
-            BlockPos spot = base.offset(random.nextInt(3) - 1, 0, random.nextInt(3) - 1);
+            BlockPos spot = p.waveSpots.get(i % p.waveSpots.size());
             Mob mob = spawn(level, rec, kind.mobs().get(random.nextInt(kind.mobs().size())), spot);
             if (mob != null) {
                 arenaMobs.add(mob.getUUID());
@@ -879,17 +1590,28 @@ public final class Expeditions {
             win(level.getServer(), level, rec);   // nothing to fight (a missing monster): the way is free
             return;
         }
-        double factor = ExpeditionKind.championLife(lvl) * (1.0 + 0.5 * Math.max(0, fighters.size() - 1));
+        double factor = ExpeditionKind.championLife(lvl) * kind.championLifeShare() * (1.0 + 0.5 * Math.max(0, fighters.size() - 1));
         double health = mob.getMaxHealth() * factor;
-        BossService.set(mob, Attributes.MAX_HEALTH, health);
-        mob.setHealth((float) health);
-        BossService.set(mob, Attributes.SCALE, 1.35);
-        BossService.set(mob, Attributes.KNOCKBACK_RESISTANCE, 0.8);
-        mob.setCustomName(Component.translatable(kind.championKey()).withStyle(ChatFormatting.GOLD));
-        mob.setCustomNameVisible(true);
+        // In the look of his dungeon and the colour of his fragment (Simon, 29 October 2026: "Dungeon-Wächter").
+        WardenNight.dress(mob, kind, health);
         mob.addTag(CHAMPION_TAG);
         champion = mob.getUUID();
-        BossService.foeLook(mob, "champion_" + kind.id());   // in its fragment's style (design update, 29 October 2026)
+        brains = new ChampionBrains(mob, kind, level.getGameTime() + 60);
+        // He rises from his pit: 3 s of title card, untouchable and still meanwhile.
+        mob.setInvulnerable(true);
+        mob.setNoAi(true);
+        championShownAt = level.getGameTime();
+        DungeonFx.pit(level, p.arenaCenter, kind, 0);
+        for (UUID id : fighters) {
+            ServerPlayer player = level.getServer().getPlayerList().getPlayer(id);
+            if (player != null) {
+                // The lights go out for half a second.
+                player.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.DARKNESS, 25, 0, false, false));
+                player.connection.send(new ClientboundSetTitlesAnimationPacket(10, 50, 10));
+                player.connection.send(new ClientboundSetTitleTextPacket(WardenNight.name(kind)));
+                player.connection.send(new ClientboundSetSubtitleTextPacket(WardenNight.epithet(kind).copy().withStyle(ChatFormatting.GRAY)));
+            }
+        }
         m.stats().dungeonProgress(rec.cleared, wave, true);
         level.sendParticles(ParticleTypes.EXPLOSION_EMITTER, p.arenaCenter.getX() + 0.5, p.arenaCenter.getY() + 1,
                 p.arenaCenter.getZ() + 0.5, 1, 0, 0, 0, 0);
@@ -902,6 +1624,48 @@ public final class Expeditions {
                 player.connection.send(new ClientboundSetActionBarTextPacket(text));
             }
         }
+    }
+
+    /** What the champion's skills may use of the fight. */
+    private ChampionBrains.Host championHost(ServerLevel level, SiegeSave.ExpeditionRecord rec) {
+        return new ChampionBrains.Host() {
+            @Override
+            public List<ServerPlayer> fighters() {
+                List<ServerPlayer> out = new ArrayList<>();
+                for (UUID id : fighters) {
+                    ServerPlayer p = level.getServer().getPlayerList().getPlayer(id);
+                    if (p != null && p.isAlive() && !p.isSpectator()) {
+                        out.add(p);
+                    }
+                }
+                return out;
+            }
+
+            @Override
+            public Mob spawnAdd(String entityId, BlockPos at) {
+                Mob mob = spawn(level, rec, entityId, at);
+                if (mob != null) {
+                    arenaMobs.add(mob.getUUID());
+                }
+                return mob;
+            }
+
+            @Override
+            public List<Mob> arenaMobs() {
+                List<Mob> out = new ArrayList<>();
+                for (UUID id : arenaMobs) {
+                    if (level.getEntity(id) instanceof Mob mob && mob.isAlive()) {
+                        out.add(mob);
+                    }
+                }
+                return out;
+            }
+
+            @Override
+            public int floorY() {
+                return plan(rec).arenaCenter.getY() + 3;
+            }
+        };
     }
 
     /** A monster of the dungeon: no siege monster (no night counting, its own drops), only for the fighters. */
@@ -957,17 +1721,30 @@ public final class Expeditions {
             for (UUID id : allMobs()) {
                 Entity e = level.getEntity(id);
                 if (e != null) {
+                    BossService.dropFoeLook(level.getServer(), e.getId());
                     e.discard();
                 }
                 LIVE.remove(id);
             }
-            if (arenaClosed && rec.built) {
+            if (arenaClosed && rec.built && !rec.won) {
                 setGate(level, plan(rec).arenaGate, false);
+                setGate(level, plan(rec).waveGates, true);
             }
         }
         roomMobs.clear();
         arenaMobs.clear();
         champion = null;
+        brains = null;
+        phase2 = false;
+        championShownAt = -1L;
+        wakeAt.clear();
+        roomAwake = false;
+        lastInside.clear();
+        allowed.clear();
+        gateOpenUntil = -1L;
+        if (level != null && rec.built && !rec.won && !openEntry) {
+            setGate(level, plan(rec).stairGate, true);   // the next attempt starts at the seal stone again
+        }
         arenaClosed = false;
         wave = 0;
         nextWaveAt = -1L;
@@ -988,23 +1765,25 @@ public final class Expeditions {
         }
     }
 
-    /** The champion fell: rewards, the chest with the fragment, the ruin. */
+    /** The champion fell: rewards, the night fragment straight into the inventory, then the dungeon goes. */
     private void win(MinecraftServer server, ServerLevel level, SiegeSave.ExpeditionRecord rec) {
         ExpeditionLayout.Plan p = plan(rec);
         ExpeditionKind kind = kind(rec);
         rec.won = true;
+        rec.collapseAt = level.getGameTime() + COLLAPSE_TICKS;
         setGate(level, p.arenaGate, false);
-        // The group's chest with the night fragment, facing the way in.
-        BlockState chest = Blocks.CHEST.defaultBlockState().setValue(BlockStateProperties.HORIZONTAL_FACING, Direction.NORTH)
-                .rotate(CampLayout.rotation(rec.facing));
-        level.setBlock(p.chest, chest, Block.UPDATE_ALL);
-        BlockEntity be = level.getBlockEntity(p.chest);
+        BlockPos exit = p.arenaGate.get(p.arenaGate.size() / 2);
+        DungeonFx.win(level, new Vec3(exit.getX() + 0.5, exit.getY(), exit.getZ() + 0.5));
+        // The group's night fragment goes to the first of them (content update: no chest, no ruin).
         Item fragment = DungeonContent.NIGHT_FRAGMENTS.get(kind.fragment());
-        if (be instanceof Container box && fragment != null) {
-            box.setItem(13, new ItemStack(fragment));
+        ServerPlayer taker = null;
+        for (UUID id : joined) {
+            taker = server.getPlayerList().getPlayer(id);
+            if (taker != null) {
+                break;
+            }
         }
-        level.sendParticles(ParticleTypes.TOTEM_OF_UNDYING, p.chest.getX() + 0.5, p.chest.getY() + 1, p.chest.getZ() + 0.5,
-                40, 0.6, 0.8, 0.6, 0.3);
+        final ServerPlayer fragmentTo = taker;
         // The signal fire goes out: nobody gathers here any more.
         BlockState fire = level.getBlockState(p.fire);
         if (fire.hasProperty(BlockStateProperties.LIT)) {
@@ -1035,7 +1814,26 @@ public final class Expeditions {
         NightSiegeMod.LOGGER.info("[Night Siege] Dungeon {} bezwungen von {}", rec.kind, names);
         m.stats().dungeonEnd("gewonnen", List.of("klassenkiste_je_spieler", "punkte_je_spieler:" + cfg.expeditionSkillPoints,
                 "fragment:" + kind.fragment().id()));
+        for (UUID id : who) {
+            ServerPlayer player = server.getPlayerList().getPlayer(id);
+            if (player != null) {
+                player.connection.send(new ClientboundSetTitlesAnimationPacket(10, 60, 20));
+                player.connection.send(new ClientboundSetTitleTextPacket(Component.translatable("nightsiege.expedition.collapse")
+                        .withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD)));
+                player.connection.send(new ClientboundSetSubtitleTextPacket(Component.translatable("nightsiege.expedition.collapse_sub",
+                        COLLAPSE_TICKS / 20).withStyle(ChatFormatting.YELLOW)));
+            }
+        }
         endAll(server, null);
+        // After the own things are back (the kit's stash would take it away again).
+        if (fragmentTo != null && fragment != null) {
+            ItemStack stack = new ItemStack(fragment);
+            if (!fragmentTo.getInventory().add(stack)) {
+                fragmentTo.drop(stack, false);
+            }
+            level.sendParticles(ParticleTypes.TOTEM_OF_UNDYING, fragmentTo.getX(), fragmentTo.getY() + 1, fragmentTo.getZ(),
+                    40, 0.6, 0.8, 0.6, 0.3);
+        }
         m.persist();
     }
 
@@ -1053,9 +1851,13 @@ public final class Expeditions {
         }
         ExpeditionKind kind = kind(rec);
         if (champion != null && level.getEntity(champion) instanceof LivingEntity c) {
-            bar.setName(Component.translatable(kind.championKey()));
-            bar.setColor(BossEvent.BossBarColor.PURPLE);
-            bar.setProgress((float) Math.max(0.0, Math.min(1.0, c.getHealth() / c.getMaxHealth())));
+            bar.setName(WardenNight.name(kind));
+            bar.setColor(phase2 ? BossEvent.BossBarColor.RED : BossEvent.BossBarColor.PURPLE);
+            float life = (float) Math.max(0.0, Math.min(1.0, c.getHealth() / c.getMaxHealth()));
+            if (championShownAt > 0) {
+                life = Math.min(life, (level.getGameTime() - championShownAt) / 40f);   // the bar fills in 2 s
+            }
+            bar.setProgress(Math.max(0f, life));
         } else if (arenaClosed) {
             bar.setName(Component.translatable("nightsiege.expedition.bar_wave", Component.translatable(kind.translationKey()),
                     Math.max(1, wave), rec.rooms));
@@ -1130,7 +1932,7 @@ public final class Expeditions {
     /** True for a block of a dungeon not won yet (players cannot break it). */
     public boolean protects(net.minecraft.world.level.Level level, BlockPos pos) {
         SiegeSave.ExpeditionRecord rec = record();
-        if (rec == null || rec.won || !rec.built || !(level instanceof ServerLevel server)
+        if (rec == null || !rec.built || !(level instanceof ServerLevel server)
                 || !SiegeManager.dimensionName(server).equals(rec.dimension)) {
             return false;
         }
@@ -1280,10 +2082,6 @@ public final class Expeditions {
     public boolean removeAll(MinecraftServer server) {
         noRetry = false;
         out.clear();
-        SiegeSave.ExpeditionRecord rec = record();
-        if (rec != null && rec.won) {
-            rec.won = false;   // so the gatehouse goes like that of an open dungeon
-        }
         return remove(server);
     }
 
@@ -1293,19 +2091,8 @@ public final class Expeditions {
             return false;
         }
         endAll(server, null);
-        ServerLevel level = SiegeManager.levelByName(server, rec.dimension);
-        if (level != null && rec.built && !rec.won) {
-            ExpeditionLayout.Plan p = plan(rec);
-            for (Entity e : level.getEntitiesOfClass(Entity.class, p.bounds.inflate(4), Expeditions::isExpeditionMob)) {
-                e.discard();
-            }
-            for (Map.Entry<BlockPos, BlockState> e : p.blocks.entrySet()) {
-                BlockPos pos = e.getKey();
-                if (level.hasChunk(pos.getX() >> 4, pos.getZ() >> 4) && pos.getY() >= rec.y - 1
-                        && level.getBlockState(pos).is(e.getValue().getBlock()) && !e.getValue().isAir()) {
-                    level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS);   // the gatehouse; the vaults stay hidden
-                }
-            }
+        if (rec.built && rec.layout >= LAYOUT) {
+            restoreNow(server);   // taken down at once, the ground as it was
         }
         m.save().expedition = null;
         plan = null;
@@ -1334,12 +2121,9 @@ public final class Expeditions {
         // Everything else too: its chunks are loaded (generated) here.
         ExpeditionLayout.Plan p = plan(rec);
         if (rec.won) {
-            return p.door;   // a ruin is not built again
+            return p.door;   // a won one is not built again
         }
-        for (long key : byChunk.keySet()) {
-            level.getChunk((int) (key >> 32), (int) key);
-        }
-        buildChunks(level, rec);
+        buildAll(level, rec);
         return p.door;
     }
 
@@ -1357,9 +2141,14 @@ public final class Expeditions {
         if (record() != null) {
             endAll(server, null);
         }
+        SiegeSave.ExpeditionRecord old = record();
+        if (old != null) {
+            ExpeditionSnapshot.load(server, old.id).delete();   // the tests leave the old ones standing
+        }
         SiegeSave.ExpeditionRecord rec = new SiegeSave.ExpeditionRecord();
         rec.id = random.nextInt(1_000_000) + 1;
         rec.kind = kind.id();
+        rec.layout = LAYOUT;
         rec.dimension = SiegeManager.dimensionName(level);
         rec.x = origin.getX();
         rec.y = origin.getY();
@@ -1375,11 +2164,7 @@ public final class Expeditions {
         plan = null;
         loadAround(level, rec.x, rec.z, 12);
         build(level, rec, origin);
-        plan(rec);
-        for (long key : byChunk.keySet()) {
-            level.getChunk((int) (key >> 32), (int) key);
-        }
-        buildChunks(level, rec);
+        buildAll(level, rec);
         return rec;
     }
 
@@ -1420,7 +2205,8 @@ public final class Expeditions {
     /** Tests: a short state line. */
     public String testState() {
         SiegeSave.ExpeditionRecord rec = record();
-        return rec == null ? "keiner" : String.format(Locale.ROOT, "%s räume %d/%d arena %s welle %d champion %s gewonnen %s kämpfer %d",
-                rec.kind, rec.cleared, rec.rooms, arenaClosed, wave, champion != null, rec.won, fighters.size());
+        return rec == null ? "keiner" : String.format(Locale.ROOT, "%s räume %d/%d arena %s welle %d champion %s gewonnen %s kämpfer %d abbau %s chunks %d",
+                rec.kind, rec.cleared, rec.rooms, arenaClosed, wave, champion != null, rec.won, fighters.size(), rec.restoring,
+                rec.chunksDone.size());
     }
 }

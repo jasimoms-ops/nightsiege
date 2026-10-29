@@ -176,6 +176,16 @@ public final class SiegeCommands {
                             }
                             return ok ? 1 : 0;
                         }))
+                .then(Commands.literal("waechterjetzt").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                        .executes(ctx -> {
+                            boolean ok = SiegeManager.get().wardenNow(ctx.getSource().getServer());
+                            if (ok) {
+                                reply(ctx.getSource(), Component.translatable("nightsiege.cmd.warden_now"));
+                            } else {
+                                fail(ctx.getSource(), Component.translatable("nightsiege.cmd.no_warden_now"));
+                            }
+                            return ok ? 1 : 0;
+                        }))
                 .then(Commands.literal("test").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                         .then(Commands.argument("level", IntegerArgumentType.integer(1, 1000))
                                 .executes(ctx -> test(ctx, null))
@@ -191,6 +201,12 @@ public final class SiegeCommands {
                                                 })
                                                 .executes(ctx -> testBoss(ctx, StringArgumentType.getString(ctx, "name")))))
                                 .then(Commands.literal("finale").executes(SiegeCommands::testFinale))
+                                .then(Commands.literal("waechter").executes(ctx -> testWarden(ctx, null))
+                                        .then(Commands.argument("name", StringArgumentType.word())
+                                                .suggests((c, b) -> net.minecraft.commands.SharedSuggestionProvider.suggest(
+                                                        java.util.Arrays.stream(com.mki.nightsiege.core.ExpeditionKind.values())
+                                                                .map(com.mki.nightsiege.core.ExpeditionKind::id), b))
+                                                .executes(ctx -> testWarden(ctx, StringArgumentType.getString(ctx, "name")))))
                                 .then(Commands.literal("thema").executes(ctx -> test(ctx, SiegeEvent.THEME_WAVE)))
                                 .then(Commands.literal("finsternis").executes(ctx -> test(ctx, SiegeEvent.ECLIPSE)))
                                 .then(Commands.literal("nebel").executes(ctx -> test(ctx, SiegeEvent.FOG)))
@@ -448,6 +464,28 @@ public final class SiegeCommands {
         int result = test(ctx, SiegeEvent.NONE);
         if (result == 0) {
             SiegeManager.get().markTestFinale(false);
+        }
+        return result;
+    }
+
+    /** /nightsiege test <level> waechter [dungeon]: a test night that ends with this dungeon warden (15 s in). */
+    private static int testWarden(CommandContext<CommandSourceStack> ctx, String name) {
+        com.mki.nightsiege.core.ExpeditionKind[] all = com.mki.nightsiege.core.ExpeditionKind.values();
+        com.mki.nightsiege.core.ExpeditionKind kind = name == null ? all[new java.util.Random().nextInt(all.length)] : null;
+        for (com.mki.nightsiege.core.ExpeditionKind k : all) {
+            if (k.id().equals(name)) {
+                kind = k;
+            }
+        }
+        if (kind == null) {
+            fail(ctx.getSource(), Component.translatable("nightsiege.cmd.no_warden",
+                    String.join(", ", java.util.Arrays.stream(all).map(com.mki.nightsiege.core.ExpeditionKind::id).toList())));
+            return 0;
+        }
+        SiegeManager.get().planTestWarden(kind);
+        int result = test(ctx, SiegeEvent.NONE);
+        if (result == 0) {
+            SiegeManager.get().planTestWarden(null);
         }
         return result;
     }

@@ -144,6 +144,15 @@ public final class EventAtmosphere {
                 .modify(EnvironmentAttributes.STAR_BRIGHTNESS, FloatModifier.MAXIMUM, 0.85f)
                 .modify(EnvironmentAttributes.SKY_LIGHT_COLOR, ColorModifier.ALPHA_BLEND, ARGB.color(50, 0x60, 0xFF, 0xB0))
                 .build());
+        // The dungeons (content update): fog and its colour, ambient particles; "_2" for phase 2.
+        dungeon("stone_crypt", 0x2E3A33, 48f, new AmbientParticle(ParticleTypes.WHITE_ASH, 0.03f));
+        dungeon("desert_crypt", 0x5C4426, 56f, new AmbientParticle(ParticleTypes.WHITE_ASH, 0.05f));
+        dungeon("illager_keep", 0x2E3644, 52f, new AmbientParticle(ParticleTypes.SMOKE, 0.01f));
+        dungeon("frost_keep", 0x9FB4C8, 40f, new AmbientParticle(ParticleTypes.SNOWFLAKE, 0.10f));
+        dungeon("poison_swamp", 0x2C4426, 32f, new AmbientParticle(ParticleTypes.SPORE_BLOSSOM_AIR, 0.06f));
+        dungeon("deep_cellar", 0x0E1220, 28f, new AmbientParticle(ParticleTypes.SCULK_SOUL, 0.004f));
+        dungeon("nether_forge", 0x3C0E0C, 48f, new AmbientParticle(ParticleTypes.ASH, 0.10f));
+        dungeon("basalt_forge", 0x2E4444, 44f, new AmbientParticle(ParticleTypes.WHITE_ASH, 0.08f));
         for (EnvironmentAttributeMap map : LOOKS.values()) {
             TOUCHED.addAll(map.keySet());
         }
@@ -153,6 +162,25 @@ public final class EventAtmosphere {
     }
 
     private EventAtmosphere() {
+    }
+
+    /** The look of a dungeon, by its id; phase 2: the fog closer and redder. */
+    public static String dungeonLook(String id, boolean phase2) {
+        return "DUNGEON_" + id + (phase2 ? "_2" : "");
+    }
+
+    private static void dungeon(String id, int fog, float distance, AmbientParticle particle) {
+        int red = (((fog >> 16) & 0xFF) + 0x60) / 2 << 16 | (((fog >> 8) & 0xFF) + 0x10) / 2 << 8 | ((fog & 0xFF) + 0x10) / 2;
+        for (boolean two : new boolean[] {false, true}) {
+            float end = two ? distance * 0.65f : distance;
+            LOOKS.put(dungeonLook(id, two), EnvironmentAttributeMap.builder()
+                    .modify(EnvironmentAttributes.FOG_START_DISTANCE, FloatModifier.MINIMUM, end * 0.2f)
+                    .modify(EnvironmentAttributes.FOG_END_DISTANCE, FloatModifier.MINIMUM, end)
+                    .modify(EnvironmentAttributes.FOG_COLOR, ColorModifier.ALPHA_BLEND, ARGB.color(220, (two ? red : fog) >> 16 & 0xFF,
+                            (two ? red : fog) >> 8 & 0xFF, (two ? red : fog) & 0xFF))
+                    .set(EnvironmentAttributes.AMBIENT_PARTICLES, List.of(particle))
+                    .build());
+        }
     }
 
     private static int rgb(int value) {
