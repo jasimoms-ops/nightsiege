@@ -806,7 +806,11 @@ public final class ExpeditionLayout {
         }
         for (int x = -2; x <= 2; x++) {
             for (int z = 24; z <= 27; z++) {
-                h.put(x, 0, z, x == 0 && z == 26 ? b.first(Part.FRAME) : Part.ACCENT);
+                if (x == 0 && z == 26) {
+                    h.put(x, 0, z, b.first(Part.FRAME));
+                } else {
+                    h.put(x, 0, z, Part.ACCENT);
+                }
             }
         }
         h.throne(0, 1, 26);
