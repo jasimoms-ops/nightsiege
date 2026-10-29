@@ -2198,6 +2198,12 @@ public class CoreScreen extends Screen {
         if (super.mouseClicked(event, doubleClick)) {
             return true;
         }
+        // The collection (balance update 2): a click on a gain ability puts it onto the first gain key.
+        if (activeTab == Tab.COLLECTION && hoveredGain != null && com.mki.nightsiege.core.CrateGains.keyAbility(hoveredGain.id())
+                && gainStage(collectionClass(), hoveredGain.id()) > 0) {
+            send("gainkey:" + collectionClass() + ":" + hoveredGain.id());
+            return true;
+        }
         if (!gridMode || confirming != null || confirmingReset || choosingUnlock || !inView(event.x(), event.y())) {
             return false;
         }
@@ -3240,6 +3246,16 @@ public class CoreScreen extends Screen {
                 } else if (half) {
                     smallText(gui, font, "½", tx + box - 6, y + 1, 0xFFFFC46B, 0.7f);
                 }
+                int onKey = gainKeyIndex(clazz, g.id());
+                if (onKey >= 0) {
+                    // On a gain key: its letter in gold at the bottom left of the showcase.
+                    net.minecraft.client.KeyMapping key = GainClient.gainKey(onKey);
+                    String letter = key == null ? "?" : key.getTranslatedKeyMessage().getString();
+                    if (letter.length() > 2) {
+                        letter = letter.substring(0, 2);
+                    }
+                    smallText(gui, font, letter, tx + 2, y + box - 6, 0xFFFFD84A, 0.7f);
+                }
                 if (over) {
                     hovered = g;
                 }
@@ -3258,6 +3274,12 @@ public class CoreScreen extends Screen {
         gui.pose().scale(scale, scale);
         gui.text(font, text, 0, 0, color, true);
         gui.pose().popMatrix();
+    }
+
+    /** The gain key a gain ability sits on in this class (0 = first), or -1. */
+    private int gainKeyIndex(String clazz, String gain) {
+        java.util.List<String> keys = stats.gainKeys == null ? null : stats.gainKeys.get(clazz);
+        return keys == null ? -1 : keys.indexOf(gain);
     }
 
     private void gainTooltip(GuiGraphicsExtractor gui, Font font, com.mki.nightsiege.core.CrateGains.Gain g, int mouseX, int mouseY) {
@@ -3288,6 +3310,22 @@ public class CoreScreen extends Screen {
         if (!g.way().isEmpty()) {
             lines.add("§8" + Component.translatable("nightsiege.ui.collection_way",
                     Component.translatable("nightsiege.path." + g.way())).getString());
+        }
+        if (!g.subs().isEmpty()) {
+            java.util.List<String> names = new ArrayList<>();
+            for (String sub : g.subs()) {
+                names.add(Component.translatable("nightsiege.subclass." + sub).getString());
+            }
+            lines.add("§8" + Component.translatable("nightsiege.ui.collection_subs", String.join(", ", names)).getString());
+        }
+        if (com.mki.nightsiege.core.CrateGains.keyAbility(g.id())) {
+            int onKey = gainKeyIndex(collectionClass(), g.id());
+            net.minecraft.client.KeyMapping key = onKey >= 0 ? GainClient.gainKey(onKey) : null;
+            if (key != null) {
+                lines.add("§e" + Component.translatable("nightsiege.ui.collection_on_key", key.getTranslatedKeyMessage()).getString());
+            } else if (stage > 0) {
+                lines.add("§7" + Component.translatable("nightsiege.ui.collection_to_key").getString());
+            }
         }
         tooltip(gui, font, lines, mouseX, mouseY);
     }

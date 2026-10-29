@@ -4589,11 +4589,11 @@ public class EventLookTest implements FabricClientGameTest {
         String[][] byClass = {
                 {"WARRIOR", "wurfbeile:3", "kampfhorn:1", "schlachtentrance:1", "wurfspeere:1", "kletterhaken:1",
                         "kriegsbanner:1", "sprungstiefel:1"},
-                {"ARCHER", "lichtpfeile:1", "kletterpfeile:1", "sturmpfeile:1", "tarnumhang:1", "koecher:1",
+                {"ARCHER", "lichtpfeile:1", "kletterpfeile:1", "sturmpfeile:1", "tarnumhang:1",
                         "zielfernrohr:1", "lenkpfeile:1", "lockpfeil:1", "spektralpfeile:1"},
                 {"GUARDIAN", "barrikaden:1", "signalhorn:1", "mauerkelle:1", "leibwaechter:1", "turmschild:1",
                         "leichtschild:1", "schildlaterne:1", "spiegelschild:1"},
-                {"ENGINEER", "blendgranaten:3", "ersatzbatterie:1", "oelfass:1", "kupfergolem:1", "magnetfeld:1",
+                {"ENGINEER", "ersatzbatterie:1", "oelfass:1", "kupfergolem:1", "magnetfeld:1",
                         "werkzeugtasche:1", "zweite_ladung:1", "stahlturm:1", "recycling:1", "tarnfallen:1"}};
         for (String[] row : byClass) {
             com.mki.nightsiege.core.SkillClass c = com.mki.nightsiege.core.SkillClass.valueOf(row[0]);
@@ -4803,6 +4803,7 @@ public class EventLookTest implements FabricClientGameTest {
     }
 
     private static void versionB2Scene(ClientGameTestContext context, TestSingleplayerContext game) {
+        java.util.List<String> b2Fails = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
         int[] core = context.computeOnClient(client -> {
             com.mki.nightsiege.game.CoreRecord c = com.mki.nightsiege.game.SiegeManager.get().save().cores.get(0);
             return new int[]{c.x, c.y, c.z};
@@ -4861,9 +4862,19 @@ public class EventLookTest implements FabricClientGameTest {
             boolean barricade = com.mki.nightsiege.game.GainGear.testPlace(player, "barrikade",
                     new net.minecraft.core.BlockPos(px + 3, py - 1, pz));
             com.mki.nightsiege.game.SecondUlts.fire(player);
-            boolean horn = com.mki.nightsiege.game.GainGear.testUse(player, "kampfhorn");
+            // The horn is on a gain key now (balance update 2), not in the kit.
+            var own = manager.save().skillsOf(player.getUUID().toString());
+            java.util.List<String> keys = com.mki.nightsiege.game.GainKeys.assigned(manager, own, own.clazz());
+            manager.onCoreAction(player, "gain:" + keys.indexOf("kampfhorn"));
+            long horn = com.mki.nightsiege.game.GainKeys.pauseLeft(player, "kampfhorn");
             System.out.println("[Night Siege test] B2 warrior: axe=" + axe + " banner=" + banner + " barricade=" + barricade
-                    + " horn=" + horn + " state=" + com.mki.nightsiege.game.GainGear.debugState());
+                    + " keys=" + keys + " hornPause=" + horn + " state=" + com.mki.nightsiege.game.GainGear.debugState());
+            if (!keys.contains("kampfhorn") || !keys.contains("kletterhaken") || horn <= 0) {
+                b2Fails.add("warrior gain keys " + keys + " horn pause " + horn);
+            }
+            if (kitHas(player, "kampfhorn") || kitHas(player, "kletterhaken")) {
+                b2Fails.add("the warrior's kit still holds the horn or the hook");
+            }
         });
         context.waitTicks(25);
         context.takeScreenshot("b2_warrior_gadgets");
@@ -4884,20 +4895,60 @@ public class EventLookTest implements FabricClientGameTest {
         // ---- archer: light, climbing and storm arrows, the quiver ----
         b2Night(context, core, "ARCHER");
         inventoryShot(context, "b2_kit_archer");
+        // The quiver (balance update 2, Simon 29.10.): no arrow stacks of their own, the kinds are shots
+        // in the quiver, picked on the bar; a normal arrow shot after the pick flies as that kind.
         onServer(context, (player, manager) -> {
-            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
-            String[] kinds = {"light", "climb", "storm"};
-            for (int i = 0; i < kinds.length; i++) {
-                net.minecraft.world.item.ItemStack ammo = com.mki.nightsiege.game.Gadgets.arrows(kinds[i], 0xFFFFFF, 1);
+            StringBuilder stacks = new StringBuilder();
+            for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+                net.minecraft.world.item.ItemStack st = player.getInventory().getItem(i);
+                if (!com.mki.nightsiege.game.Gadgets.arrowKind(st).isEmpty() || st.is(net.minecraft.world.item.Items.SPECTRAL_ARROW)) {
+                    stacks.append(st.getCount()).append('x').append(st.getHoverName().getString()).append(' ');
+                }
+            }
+            var q = com.mki.nightsiege.game.GainGear.quiverOf(player);
+            java.util.List<String> bar = new java.util.ArrayList<>();
+            for (var slot : manager.abilitySlots(player)) {
+                bar.add(slot.id.isEmpty() ? "normal" : slot.id);
+            }
+            System.out.println("[Night Siege test] B2 quiver: stacks=" + stacks + " shots=" + (q == null ? "-" : q.shots) + " bar=" + bar);
+            if (stacks.length() > 0) {
+                b2Fails.add("special arrow stacks in the kit: " + stacks);
+            }
+            if (q == null || q.shots.getOrDefault("light", 0) != 16 || q.shots.getOrDefault("spectral", 0) != 16
+                    || !bar.contains("light") || !bar.contains("storm")) {
+                b2Fails.add("quiver " + (q == null ? "-" : q.shots) + " bar " + bar);
+            }
+        });
+        String[] kinds = {"light", "climb", "storm"};
+        for (int i = 0; i < kinds.length; i++) {
+            final int k = i;
+            onServer(context, (player, manager) -> {
+                net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                manager.onCoreAction(player, "slot:" + manager.abilitySlotOf(player, kinds[k]));
                 net.minecraft.world.entity.projectile.arrow.Arrow arrow = new net.minecraft.world.entity.projectile.arrow.Arrow(
-                        level, player, ammo, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.BOW));
-                arrow.setPos(px + 1.5, py + 3.5, pz - 1.5 + i * 1.5);
+                        level, player, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.ARROW),
+                        new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.BOW));
+                arrow.setPos(px + 1.5, py + 3.5, pz - 1.5 + k * 1.5);
                 arrow.shoot(1, 0.0, 0, 2.5f, 0f);
                 level.addFreshEntity(arrow);
-                System.out.println("[Night Siege test] B2 arrow " + kinds[i] + ": " + com.mki.nightsiege.game.GainGear.debugArrow(arrow));
+                String info = com.mki.nightsiege.game.GainGear.debugArrow(arrow);
+                System.out.println("[Night Siege test] B2 arrow " + kinds[k] + ": " + info
+                        + " shots=" + com.mki.nightsiege.game.GainGear.quiverOf(player).shots);
+                if (!arrow.entityTags().contains("ns_arrow_" + kinds[k])) {
+                    b2Fails.add("a shot after picking " + kinds[k] + " flew as " + info);
+                }
+            });
+            context.waitTicks(3);
+        }
+        onServer(context, (player, manager) -> {
+            // Climbing arrows: 4 shots, one gone; a pick of the current kind again goes back to the normal arrows.
+            var q = com.mki.nightsiege.game.GainGear.quiverOf(player);
+            String before = q.current;
+            com.mki.nightsiege.game.GainGear.pickQuiver(player, before);
+            System.out.println("[Night Siege test] B2 quiver after: shots=" + q.shots + " current " + before + " -> '" + q.current + "'");
+            if (q.shots.getOrDefault("climb", 0) != 3 || !q.current.isEmpty()) {
+                b2Fails.add("quiver after the shots " + q.shots + " current '" + q.current + "'");
             }
-            com.mki.nightsiege.game.GainGear.cycleQuiver(player);
-            System.out.println("[Night Siege test] B2 quiver: offhand=" + player.getOffhandItem().getHoverName().getString());
         });
         context.waitTicks(30);
         onServer(context, (player, manager) -> {
@@ -4925,15 +4976,32 @@ public class EventLookTest implements FabricClientGameTest {
             player.setYRot(-90f);
             player.setXRot(20f);
             com.mki.nightsiege.game.SecondUlts.fire(player);
-            boolean oil = com.mki.nightsiege.game.GainGear.testUse(player, "oelfass");
-            boolean flash = com.mki.nightsiege.game.GainGear.testUse(player, "blendgranate");
+            var own = manager.save().skillsOf(player.getUUID().toString());
+            java.util.List<String> keys = com.mki.nightsiege.game.GainKeys.assigned(manager, own, own.clazz());
+            manager.onCoreAction(player, "gain:" + keys.indexOf("oelfass"));
+            boolean flash = com.mki.nightsiege.game.GainGear.testUse(player, "alchemie_blende");
+            net.minecraft.world.item.ItemStack grenade = net.minecraft.world.item.ItemStack.EMPTY;
+            for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+                if ("alchemie_blende".equals(com.mki.nightsiege.game.Gadgets.of(player.getInventory().getItem(i)))) {
+                    grenade = player.getInventory().getItem(i);
+                }
+            }
+            float flashCd = grenade.isEmpty() ? -1f : player.getCooldowns().getCooldownPercent(grenade, 0f);
             System.out.println("[Night Siege test] B2 engineer: golems=" + com.mki.nightsiege.game.CopperHelper.count()
-                    + " oil=" + oil + " flash=" + flash);
+                    + " keys=" + keys + " oil=" + com.mki.nightsiege.game.GainGear.debugState() + " flash=" + flash + " flashCd=" + flashCd);
+            if (!keys.contains("oelfass") || !keys.contains("ersatzbatterie") || !flash || kitHas(player, "oelfass")
+                    || kitHas(player, "blendgranate")) {
+                b2Fails.add("engineer keys " + keys + " flash " + flash);
+            }
         });
         context.waitTicks(30);
         context.takeScreenshot("b2_engineer");
         onServer(context, (player, manager) -> {
             System.out.println("[Night Siege test] B2 engineer later: " + com.mki.nightsiege.game.GainGear.debugState());
+            if (!com.mki.nightsiege.game.GainGear.debugState().contains("oil=1")) {
+                b2Fails.add("the oil barrel from its key made no puddle: " + com.mki.nightsiege.game.GainGear.debugState());
+            }
+            // The flash grenade is back after 7 s (Simon 29.10.): 100 ticks in, it is still down; at 140 it is up.
             manager.abort(((net.minecraft.server.level.ServerLevel) player.level()).getServer());
         });
         game.getServer().runCommand("kill @e[type=minecraft:zombie]");
@@ -4944,8 +5012,30 @@ public class EventLookTest implements FabricClientGameTest {
         inventoryShot(context, "b2_kit_guardian");
         onServer(context, (player, manager) -> {
             com.mki.nightsiege.game.SecondUlts.fire(player);
-            boolean signal = com.mki.nightsiege.game.GainGear.testUse(player, "signalhorn");
-            boolean trowel = com.mki.nightsiege.game.GainGear.testUse(player, "mauerkelle");
+            // Three gain abilities, two keys: the rarest first (chain, trowel); a click in the collection
+            // puts the signal horn on the first key; "Dritte Hand" brings the third key.
+            var own = manager.save().skillsOf(player.getUUID().toString());
+            java.util.List<String> first = com.mki.nightsiege.game.GainKeys.assigned(manager, own, own.clazz());
+            manager.onCoreAction(player, "gainkey:GUARDIAN:signalhorn");
+            java.util.List<String> chosen = com.mki.nightsiege.game.GainKeys.assigned(manager, own, own.clazz());
+            manager.onCoreAction(player, "gain:0");
+            boolean signal = player.hasEffect(net.minecraft.world.effect.MobEffects.GLOWING);
+            own.setGainStage(com.mki.nightsiege.core.SkillClass.GUARDIAN, "dritte_hand", 1);
+            java.util.List<String> three = com.mki.nightsiege.game.GainKeys.assigned(manager, own, own.clazz());
+            manager.onCoreAction(player, "gain:" + three.indexOf("mauerkelle"));
+            boolean trowel = com.mki.nightsiege.game.GainGear.usedTonight(player, "mauerkelle");
+            var hud = com.mki.nightsiege.game.GainKeys.slots(manager, player, player.level().getGameTime());
+            StringBuilder boxes = new StringBuilder();
+            for (var b : hud) {
+                boxes.append(b.id).append(b.current ? "(spent)" : "").append(b.cooldownTicks > 0 ? "(" + b.cooldownTicks + ")" : "").append(' ');
+            }
+            System.out.println("[Night Siege test] B2 guardian keys: first=" + first + " chosen=" + chosen + " three=" + three
+                    + " hud=" + boxes);
+            if (!first.equals(java.util.List.of("leibwaechter", "mauerkelle")) || !chosen.get(0).equals("signalhorn")
+                    || three.size() != 3 || !signal || !trowel) {
+                b2Fails.add("guardian keys first=" + first + " chosen=" + chosen + " three=" + three + " signal=" + signal
+                        + " trowel=" + trowel);
+            }
             net.minecraft.world.item.ItemStack shield = player.getOffhandItem();
             System.out.println("[Night Siege test] B2 guardian: mirror=" + com.mki.nightsiege.game.SecondUlts.mirrorUp(player)
                     + " signal=" + signal + " trowel=" + trowel
@@ -4960,6 +5050,19 @@ public class EventLookTest implements FabricClientGameTest {
                     + " golems=" + com.mki.nightsiege.game.CopperHelper.count());
         });
         context.waitTicks(10);
+        if (!b2Fails.isEmpty()) {
+            throw new AssertionError("B2 gadgets: " + String.join("; ", b2Fails));
+        }
+    }
+
+    /** True when the kit holds a gadget with this id. */
+    private static boolean kitHas(net.minecraft.server.level.ServerPlayer player, String gadget) {
+        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+            if (gadget.equals(com.mki.nightsiege.game.Gadgets.of(player.getInventory().getItem(i)))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

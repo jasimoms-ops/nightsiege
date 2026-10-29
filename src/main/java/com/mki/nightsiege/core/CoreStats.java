@@ -287,6 +287,8 @@ public class CoreStats {
     public List<ClassLine> classLines = new ArrayList<>();
     /** Crate gains per class: gain id to stage. */
     public java.util.Map<String, java.util.Map<String, Integer>> gains = new java.util.HashMap<>();
+    /** Per class: the gain abilities on the gain keys, key by key (balance update 2). */
+    public java.util.Map<String, java.util.List<String>> gainKeys = new java.util.HashMap<>();
     public boolean skillsEnabled;
 
     /** The shared core tree. */

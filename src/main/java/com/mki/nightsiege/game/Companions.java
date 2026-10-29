@@ -2633,23 +2633,33 @@ public final class Companions {
 
     /** A right click with one of the summoner's kit gadgets (whistle, steed, bowl, bell). */
     public void useGadget(ServerPlayer player, ServerLevel level, ItemStack stack, String id) {
-        PlayerSkills skills = skillsFor.apply(player);
-        if (skills == null || skills.clazz() != com.mki.nightsiege.core.SkillClass.SUMMONER) {
-            CombatEffects.actionBar(player, Component.translatable("nightsiege.msg.staff_summoner_only"));
-            return;
-        }
-        switch (id) {
-            case "rueckrufpfeife" -> recall(level, player, stack);
-            case "geisterross" -> steed(level, player, skills, stack);
-            case "futternapf" -> feedingBowl(level, player, stack);
-            case "totenglocke" -> deathBell(level, player, skills, stack);
-            default -> {
-            }
+        int pause = useGadgetKey(player, level, id);
+        if (pause > 0 && stack != null) {
+            player.getCooldowns().addCooldown(stack, pause);
         }
     }
 
+    /**
+     * The summoner's crate gains on a gain key (balance update 2, 29 October 2026: no items any
+     * more). Returns the pause in ticks, or -1 when it did nothing.
+     */
+    public int useGadgetKey(ServerPlayer player, ServerLevel level, String id) {
+        PlayerSkills skills = skillsFor.apply(player);
+        if (skills == null || skills.clazz() != com.mki.nightsiege.core.SkillClass.SUMMONER) {
+            CombatEffects.actionBar(player, Component.translatable("nightsiege.msg.staff_summoner_only"));
+            return -1;
+        }
+        return switch (id) {
+            case "rueckrufpfeife" -> recall(level, player);
+            case "geisterross" -> steed(level, player, skills);
+            case "futternapf" -> feedingBowl(level, player);
+            case "totenglocke" -> deathBell(level, player, skills);
+            default -> -1;
+        };
+    }
+
     /** Rückrufpfeife: every companion is at the summoner's side at once. 10 s pause. */
-    private void recall(ServerLevel level, ServerPlayer player, ItemStack stack) {
+    private int recall(ServerLevel level, ServerPlayer player) {
         int came = 0;
         orders.remove(player.getUUID());
         for (Companion c : new ArrayList<>(ALL.values())) {
@@ -2665,33 +2675,32 @@ public final class Companions {
             came++;
         }
         level.playSound(null, player.blockPosition(), SoundEvents.NOTE_BLOCK_FLUTE.value(), SoundSource.PLAYERS, 1.2f, 1.8f);
-        player.getCooldowns().addCooldown(stack, 200);
         CombatEffects.actionBar(player, Component.translatable("nightsiege.gadget.rueckrufpfeife.done", came));
+        return 200;
     }
 
     /** Geisterross: a saddled skeleton horse for the night; if it stands already, it comes. */
-    private void steed(ServerLevel level, ServerPlayer player, PlayerSkills skills, ItemStack stack) {
+    private int steed(ServerLevel level, ServerPlayer player, PlayerSkills skills) {
         for (Companion c : ALL.values()) {
             if (c.owner.equals(player.getUUID()) && c.kind == Kind.MOUNT && level.getEntity(c.id) instanceof Mob horse && horse.isAlive()) {
                 Vec3 at = spot(level, player);
                 horse.teleportTo(at.x, at.y, at.z);
                 level.playSound(null, horse.blockPosition(), SoundEvents.SKELETON_HORSE_AMBIENT, SoundSource.NEUTRAL, 1f, 1f);
-                player.getCooldowns().addCooldown(stack, 60);
                 CombatEffects.actionBar(player, Component.translatable("nightsiege.gadget.geisterross.comes"));
-                return;
+                return 60;
             }
         }
         Mob horse = spawn(level, player, skills, Kind.MOUNT);
         if (horse == null) {
-            return;
+            return -1;
         }
         level.playSound(null, horse.blockPosition(), SoundEvents.SKELETON_HORSE_AMBIENT, SoundSource.NEUTRAL, 1.2f, 0.8f);
-        player.getCooldowns().addCooldown(stack, 100);
         CombatEffects.actionBar(player, Component.translatable("nightsiege.gadget.geisterross.called"));
+        return 100;
     }
 
     /** Futternapf: companions within five blocks heal for thirty seconds. 90 s pause. */
-    private void feedingBowl(ServerLevel level, ServerPlayer player, ItemStack stack) {
+    private int feedingBowl(ServerLevel level, ServerPlayer player) {
         int fed = 0;
         for (Mob mob : mobsOf(level, player.getUUID())) {
             if (mob.distanceToSqr(player) <= 25.0) {
@@ -2702,25 +2711,25 @@ public final class Companions {
         }
         if (fed == 0) {
             CombatEffects.actionBar(player, Component.translatable("nightsiege.gadget.futternapf.none"));
-            return;
+            return -1;
         }
         level.playSound(null, player.blockPosition(), SoundEvents.GENERIC_EAT.value(), SoundSource.PLAYERS, 1f, 0.9f);
-        player.getCooldowns().addCooldown(stack, 1800);
         CombatEffects.actionBar(player, Component.translatable("nightsiege.gadget.futternapf.done", fed));
+        return 1800;
     }
 
     /**
      * Totenglocke (since the spells, 26 October 2026): the bell calls souls – three at once
      * (up to the most you can hold). 60 s pause.
      */
-    private void deathBell(ServerLevel level, ServerPlayer player, PlayerSkills skills, ItemStack stack) {
+    private int deathBell(ServerLevel level, ServerPlayer player, PlayerSkills skills) {
         int before = soulsOf(player.getUUID());
         addSouls(player, skills, 3);
         int got = soulsOf(player.getUUID()) - before;
         level.sendParticles(ParticleTypes.SOUL, player.getX(), player.getY() + 1, player.getZ(), 12, 0.5, 0.6, 0.5, 0.03);
         level.playSound(null, player.blockPosition(), SoundEvents.BELL_BLOCK, SoundSource.PLAYERS, 1.6f, 0.6f);
-        player.getCooldowns().addCooldown(stack, 1200);
         CombatEffects.actionBar(player, Component.translatable("nightsiege.gadget.totenglocke.done", got));
+        return 1200;
     }
 
     /** Grabrüstung: the raised dead wear iron where they wear nothing. */

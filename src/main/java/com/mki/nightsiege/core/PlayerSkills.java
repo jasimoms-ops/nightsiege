@@ -50,6 +50,8 @@ public class PlayerSkills {
     public List<String> unlocked = new ArrayList<>();
     /** Crate gains per class: gain id to the stage reached (see the reward crates). */
     public Map<String, Map<String, Integer>> gains = new HashMap<>();
+    /** The gain abilities on the gain keys per class, key by key (balance update 2, 29 October 2026). */
+    public Map<String, java.util.List<String>> gainKeyChoice = new HashMap<>();
     /** Souls the summoner's soul vessel (crate gain) carries into the next night. */
     public int keptSouls;
     /**

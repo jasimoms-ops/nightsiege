@@ -443,6 +443,37 @@ public class SiegeSave {
      */
     public boolean brewsMigrated;
 
+    /**
+     * True once the owners of the crate gains that left the crates (Blendgranaten, Köcher; balance
+     * update 2, 29 October 2026) got their duplicate points back: one payout per stage they had.
+     */
+    public boolean retiredGainsPaid;
+
+    /** Pays back the retired crate gains (see {@link #retiredGainsPaid}); returns the points paid. */
+    public int payRetiredGains() {
+        int paid = 0;
+        if (skills == null) {
+            return 0;
+        }
+        for (PlayerSkills own : skills.values()) {
+            if (own == null || own.gains == null) {
+                continue;
+            }
+            for (java.util.Map.Entry<String, Integer> retired : com.mki.nightsiege.core.CrateGains.RETIRED.entrySet()) {
+                String[] key = retired.getKey().split(":", 2);
+                java.util.Map<String, Integer> map = own.gains.get(key[0]);
+                Integer stage = map == null ? null : map.get(key[1]);
+                if (stage != null && stage > 0) {
+                    int points = stage * retired.getValue();
+                    own.award(points);
+                    paid += points;
+                    map.remove(key[1]);
+                }
+            }
+        }
+        return paid;
+    }
+
     /** Version of the skill trees the levels below were learned in. */
     public int skillTreeVersion;
     public static final int SKILL_TREE_VERSION = 8;

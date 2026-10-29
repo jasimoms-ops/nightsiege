@@ -382,7 +382,7 @@ public final class KitHud {
     private static void ability(GuiGraphicsExtractor gui, Font font, int x, int y, int size, UltHud.Cell c, boolean live) {
         long left = Math.max(0L, c.cooldown() - UltHud.elapsedTicks());
         boolean bigBox = size == BIG;
-        boolean gold = bigBox ? live && c.total() > 0 && left == 0 : c.current();
+        boolean gold = bigBox ? live && !c.spent() && c.total() > 0 && left == 0 : c.current();
         Identifier frame = bigBox ? (gold ? SLOT_ABILITY_READY : SLOT_ABILITY) : (gold ? SLOT_CHOICE_CURRENT : SLOT_CHOICE);
         blit(gui, frame, x, y, size, size);
         int icon = bigBox ? 16 : 10;
@@ -397,8 +397,8 @@ public final class KitHud {
             gui.item(c.icon(), 0, 0);
             gui.pose().popMatrix();
         }
-        if (!live) {
-            gui.fill(ix, iy, ix + icon, iy + icon, 0xA0000000);
+        if (!live || c.spent()) {
+            gui.fill(ix, iy, ix + icon, iy + icon, 0xA0000000);   // spent: a gain ability used up tonight
         } else if (left > 0 && c.total() > 0) {
             int shade = (int) Math.ceil(icon * Math.min(1.0, left / (double) c.total()));
             gui.fill(ix, iy + icon - shade, ix + icon, iy + icon, 0xB0000000);
@@ -414,7 +414,7 @@ public final class KitHud {
         if (text.length() > 3) {
             text = text.substring(0, 3);
         }
-        int color = !live ? 0xFF9A9080 : left > 0 ? 0xFFB8AC98 : 0xFFF0D27A;
+        int color = !live || c.spent() ? 0xFF9A9080 : left > 0 ? 0xFFB8AC98 : 0xFFF0D27A;
         small(gui, font, text, x + size - 2.5f - font.width(text) / 2f, y + size - 6.5f, color);
     }
 

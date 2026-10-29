@@ -1141,20 +1141,70 @@ class SiegeCoreTest {
         assertEquals(KeyHint.QUIVER_SHOT, KeyHint.forGain("sturmpfeile"));
         assertEquals(KeyHint.NONE, KeyHint.forGain("totem"));
         assertEquals(KeyHint.ULT2, KeyHint.forGain("spiegelschild"));
-        assertEquals(KeyHint.QUIVER, KeyHint.forGain("koecher"));
+        assertEquals(KeyHint.GAIN_KEY, KeyHint.forGain("kletterhaken"));
         assertEquals(KeyHint.USE, KeyHint.forGadget("wurfbeil"));
         // Every gain with a key exists.
         java.util.Set<String> ids = new java.util.HashSet<>();
         for (CrateGains.Gain g : CrateGains.all()) {
             ids.add(g.id());
         }
-        for (String id : new String[]{"koecher", "sprungstiefel", "zielfernrohr", "wurfspeere", "wurfbeile", "blendgranaten",
+        for (String id : new String[]{"dritte_hand", "sprungstiefel", "zielfernrohr", "wurfspeere", "wurfbeile",
                 "oelfass", "kletterhaken", "kampfhorn", "tarnumhang", "signalhorn", "mauerkelle", "ersatzbatterie",
                 "kriegsbanner", "barrikaden", "leibwaechter", "schlachtentrance", "lockpfeil", "magnetfeld", "spiegelschild",
                 "rueckrufpfeife", "geisterross", "futternapf", "totenglocke", "seelentausch"}) {
             assertTrue(ids.contains(id), id);
             assertNotEquals(KeyHint.NONE, KeyHint.forGain(id), id);
         }
+    }
+
+    @Test
+    void cratesSkipGainsASubclassHasNoUseFor() {
+        // Balance update 2 (Simon 29.10.: "schau über die Beutekisten im Bezug auf Sinn für alle Unterklassen").
+        CrateGains.Gain net = CrateGains.get("teernetz");
+        assertTrue(CrateGains.drawable(net, SkillClass.ARCHER, SkillTree.WAY_CROSSBOW, SkillTree.SUB_TRAPPER));
+        assertFalse(CrateGains.drawable(net, SkillClass.ARCHER, SkillTree.WAY_CROSSBOW, SkillTree.SUB_BOLTER));
+        assertFalse(CrateGains.drawable(net, SkillClass.ARCHER, SkillTree.WAY_BOW, ""));
+        assertTrue(CrateGains.drawable(net, SkillClass.ARCHER, SkillTree.WAY_CROSSBOW, ""));
+        assertFalse(CrateGains.drawable(CrateGains.get("golemplatten"), SkillClass.SUMMONER, SkillTree.WAY_WILD, SkillTree.SUB_TAMER));
+        assertTrue(CrateGains.drawable(CrateGains.get("golemplatten"), SkillClass.SUMMONER, SkillTree.WAY_WILD, SkillTree.SUB_GOLEMSMITH));
+        assertFalse(CrateGains.drawable(CrateGains.get("notfallmine"), SkillClass.ENGINEER, SkillTree.WAY_CHEMISTRY, SkillTree.SUB_ALCHEMIST));
+        assertFalse(CrateGains.drawable(CrateGains.get("doppelbrau"), SkillClass.ENGINEER, SkillTree.WAY_CHEMISTRY, SkillTree.SUB_DEMOLITION));
+        CrateGains.Gain hand = CrateGains.get("dritte_hand");
+        assertFalse(CrateGains.drawable(hand, SkillClass.WARRIOR, SkillTree.WAY_BLADE, SkillTree.SUB_BERSERKER));
+        assertFalse(CrateGains.drawable(hand, SkillClass.ARCHER, SkillTree.WAY_BOW, ""));
+        assertFalse(CrateGains.drawable(hand, SkillClass.ENGINEER, SkillTree.WAY_MECHANICS, SkillTree.SUB_GUNNER));
+        assertTrue(CrateGains.drawable(hand, SkillClass.ENGINEER, SkillTree.WAY_CHEMISTRY, SkillTree.SUB_DEMOLITION));
+        assertTrue(CrateGains.drawable(hand, SkillClass.GUARDIAN, "", ""));
+        assertNull(CrateGains.get("blendgranaten"));
+        assertNull(CrateGains.get("koecher"));
+        Random random = new Random(7);
+        int[] odds = {20, 20, 20, 20, 20};
+        for (int i = 0; i < 3000; i++) {
+            CrateGains.Gain g = CrateGains.roll(SkillClass.ARCHER, SkillTree.WAY_CROSSBOW, SkillTree.SUB_BOLTER, odds, 0.7, random);
+            assertNotEquals("teernetz", g.id());
+            assertNotEquals("dritte_hand", g.id());
+        }
+        // Every key ability is a gain that can be drawn.
+        for (String id : CrateGains.KEY_ABILITIES) {
+            assertNotNull(CrateGains.get(id), id);
+        }
+    }
+
+    @Test
+    void retiredGainsPayTheirPointsBackOnce() {
+        com.mki.nightsiege.game.SiegeSave save = new com.mki.nightsiege.game.SiegeSave();
+        PlayerSkills own = save.skillsOf("p1");
+        own.setGainStage(SkillClass.ENGINEER, "blendgranaten", 3);
+        own.setGainStage(SkillClass.ARCHER, "koecher", 1);
+        own.setGainStage(SkillClass.ARCHER, "lichtpfeile", 1);
+        int before = own.points();
+        int paid = save.payRetiredGains();
+        assertEquals(3 * CrateRarity.COMMON.duplicatePoints() + CrateRarity.EPIC.duplicatePoints(), paid);
+        assertEquals(before + paid, own.points());
+        assertEquals(0, own.gainStage(SkillClass.ENGINEER, "blendgranaten"));
+        assertEquals(0, own.gainStage(SkillClass.ARCHER, "koecher"));
+        assertEquals(1, own.gainStage(SkillClass.ARCHER, "lichtpfeile"));
+        assertEquals(0, save.payRetiredGains());
     }
 
     @Test

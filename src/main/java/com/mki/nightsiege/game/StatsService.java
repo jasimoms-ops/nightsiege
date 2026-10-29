@@ -239,6 +239,11 @@ public final class StatsService {
                 stats.gains.put(entry.getKey(), new java.util.HashMap<>(entry.getValue()));
             }
         }
+        for (com.mki.nightsiege.core.SkillClass c : com.mki.nightsiege.core.SkillClass.values()) {
+            if (!c.isShared()) {
+                stats.gainKeys.put(c.name(), GainKeys.assigned(manager, skills, c));
+            }
+        }
         stats.points = skills.points();
         stats.earned = skills.earned;
         stats.donated = skills.donated;

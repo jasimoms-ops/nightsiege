@@ -185,15 +185,10 @@ public final class GainGear {
 
     /** The B2 gadgets of a class's kit, added to the items the kit hands out. */
     public static void addKitItems(KitService kits, PlayerSkills skills, SkillClass clazz, String way, List<ItemStack> out) {
+        // Balance update 2 (Simon 29.10.): crate gains with an ability of their own are on the gain keys
+        // (GainKeys), the arrow kinds in the quiver; what is thrown, eaten or set down stays an item.
         if (lvl(kits, skills, clazz, "wurfspeere") > 0) {
             out.add(Gadgets.make(Items.IRON_SPEAR, "wurfspeer", 4));
-        }
-        if (lvl(kits, skills, clazz, "kletterhaken") > 0) {
-            ItemStack hook = Gadgets.make(Items.TRIPWIRE_HOOK, "kletterhaken", 1);
-            // Design update (29 October 2026): the grappler's grapnel with a blue wrap (tools/weapons/grapnel.py).
-            hook.set(net.minecraft.core.component.DataComponents.ITEM_MODEL,
-                    net.minecraft.resources.Identifier.fromNamespaceAndPath("nightsiege", "kit/grappling_hook"));
-            out.add(hook);
         }
         if (lvl(kits, skills, clazz, "kriegsbanner") > 0) {
             out.add(Gadgets.make(Items.BANNER.red(), "kriegsbanner", 1));
@@ -203,67 +198,18 @@ public final class GainGear {
             if (axes > 0) {
                 out.add(Gadgets.make(Items.IRON_AXE, "wurfbeil", 2 * axes));
             }
-            if (lvl(kits, skills, clazz, "kampfhorn") > 0) {
-                out.add(Gadgets.make(Items.GOAT_HORN, "kampfhorn", 1));
-            }
-        } else if (clazz == SkillClass.ARCHER) {
-            if (lvl(kits, skills, clazz, "lichtpfeile") > 0) {
-                out.add(Gadgets.arrows("light", 0xFFE36B, 16));
-            }
-            if (lvl(kits, skills, clazz, "kletterpfeile") > 0) {
-                out.add(Gadgets.arrows("climb", 0x9C6B3A, 4));
-            }
-            if (lvl(kits, skills, clazz, "sturmpfeile") > 0) {
-                out.add(Gadgets.arrows("storm", 0xBFE9FF, 8));
-            }
-            if (lvl(kits, skills, clazz, "tarnumhang") > 0) {
-                out.add(Gadgets.make(Items.PHANTOM_MEMBRANE, "tarnumhang", 1));
-            }
         } else if (clazz == SkillClass.GUARDIAN) {
             if (lvl(kits, skills, clazz, "barrikaden") > 0) {
                 out.add(Gadgets.make(Items.OAK_FENCE, "barrikade", 3));
             }
-            if (lvl(kits, skills, clazz, "signalhorn") > 0) {
-                out.add(Gadgets.make(Items.BELL, "signalhorn", 1));
-            }
-            if (lvl(kits, skills, clazz, "mauerkelle") > 0) {
-                out.add(Gadgets.make(Items.BRICK, "mauerkelle", 1));
-            }
-            if (lvl(kits, skills, clazz, "leibwaechter") > 0) {
-                out.add(Gadgets.make(Items.IRON_CHAIN, "leibwaechter", 1));
-            }
         } else if (clazz == SkillClass.ENGINEER) {
             // The reusable flash grenade for every engineer (Simon, 28 October 2026; it was the
-            // alchemist's alone since 26 October): one, it comes back after 15 s. The crate gain
-            // "Blendgranaten" still adds its throwaway ones on top.
+            // alchemist's alone since 26 October): one, it comes back after 7 s (Simon 29.10., was 15 s).
             out.add(Gadgets.make(Items.FIREWORK_STAR, "alchemie_blende", 1));
-            int grenades = lvl(kits, skills, clazz, "blendgranaten");
-            if (grenades > 0) {
-                out.add(Gadgets.make(Items.SNOWBALL, "blendgranate", 2 * grenades));
-            }
-            if (lvl(kits, skills, clazz, "ersatzbatterie") > 0) {
-                out.add(Gadgets.make(Items.REDSTONE, "ersatzbatterie", 1));
-            }
-            if (lvl(kits, skills, clazz, "oelfass") > 0) {
-                out.add(Gadgets.make(Items.INK_SAC, "oelfass", 2));
-            }
             SiegeManager m = SiegeManager.get();
             // The demolition expert's spyglass: the bird's-eye view (Simon, 26 October 2026).
             if (m != null && SkillTree.SUB_DEMOLITION.equals(m.skillTree().subclassOf(skills))) {
                 out.add(Gadgets.make(Items.SPYGLASS, "feldstecher", 1));
-            }
-        } else if (clazz == SkillClass.SUMMONER) {
-            if (lvl(kits, skills, clazz, "rueckrufpfeife") > 0) {
-                out.add(Gadgets.make(Items.LEAD, "rueckrufpfeife", 1));
-            }
-            if (lvl(kits, skills, clazz, "geisterross") > 0) {
-                out.add(Gadgets.make(Items.SADDLE, "geisterross", 1));
-            }
-            if (lvl(kits, skills, clazz, "futternapf") > 0 && !way.equals(SkillTree.WAY_DEAD)) {
-                out.add(Gadgets.make(Items.BOWL, "futternapf", 1));
-            }
-            if (lvl(kits, skills, clazz, "totenglocke") > 0 && way.equals(SkillTree.WAY_DEAD)) {
-                out.add(Gadgets.make(Items.BELL, "totenglocke", 1));
             }
         }
     }
@@ -361,12 +307,7 @@ public final class GainGear {
                 bar(guard, Component.translatable("nightsiege.gadget.leibwaechter.not_ally"));
                 return InteractionResult.FAIL;
             }
-            BODYGUARD.values().removeIf(g -> g.equals(guard.getUUID()));
-            BODYGUARD.put(ally.getUUID(), guard.getUUID());
-            world.playSound(null, guard.blockPosition(), SoundEvents.CHAIN_PLACE, SoundSource.PLAYERS, 1f, 0.8f);
-            bar(guard, Component.translatable("nightsiege.gadget.leibwaechter.linked", ally.getDisplayName()));
-            ally.sendSystemMessage(Component.translatable("nightsiege.gadget.leibwaechter.ally", guard.getDisplayName())
-                    .withStyle(ChatFormatting.AQUA));
+            link(guard, world, ally);
         }
         return InteractionResult.SUCCESS;
     }
@@ -400,21 +341,114 @@ public final class GainGear {
                 }
             }
             case "oelfass" -> throwIt(player, level, stack, KitProjectile.OIL, 1.0f, creative);
-            case "kletterhaken" -> grapple(player, level, stack);
-            case "kampfhorn" -> warHorn(player, level, stack);
-            case "tarnumhang" -> cloak(player, level, stack);
-            case "signalhorn" -> signal(player, level, stack);
-            case "mauerkelle" -> trowel(player, level);
-            case "ersatzbatterie" -> battery(player, level, stack, creative);
             case "leibwaechter" -> bar(player, Component.translatable("nightsiege.gadget.leibwaechter.hint"));
-            case "rueckrufpfeife", "geisterross", "futternapf", "totenglocke" -> {
-                if (Companions.get() != null) {
-                    Companions.get().useGadget(player, level, stack, id);
+            case "ersatzbatterie" -> {
+                if (battery(player, level) && !creative) {
+                    stack.shrink(1);
                 }
             }
             default -> {
+                // An item from before the gain keys (balance update 2): it still does its thing.
+                int pause = useAbility(player, level, id);
+                if (pause > 0) {
+                    player.getCooldowns().addCooldown(stack, pause);
+                }
             }
         }
+    }
+
+    /**
+     * A gain ability (balance update 2, Simon 29.10.: the crate gains with an ability of their own
+     * are on the gain keys, no item in the kit): does what its item did. Returns the pause in ticks,
+     * 0 for none, -1 when it did nothing (nothing in sight, used up tonight).
+     */
+    public static int useAbility(ServerPlayer player, ServerLevel level, String id) {
+        return switch (id) {
+            case "kletterhaken" -> grapple(player, level);
+            case "kampfhorn" -> warHorn(player, level);
+            case "tarnumhang" -> cloak(player, level);
+            case "signalhorn" -> signal(player, level);
+            case "mauerkelle" -> trowel(player, level) ? 0 : -1;
+            case "ersatzbatterie" -> battery(player, level) ? 0 : -1;
+            case "leibwaechter" -> bodyguardKey(player, level);
+            case "oelfass" -> {
+                throwFree(player, level, Gadgets.make(Items.INK_SAC, "oelfass", 1), KitProjectile.OIL, 1.0f);
+                yield 20;
+            }
+            case "rueckrufpfeife", "geisterross", "futternapf", "totenglocke" ->
+                    Companions.get() == null ? -1 : Companions.get().useGadgetKey(player, level, id);
+            default -> -1;
+        };
+    }
+
+    /** True when a once-a-night gain ability was used tonight (the trowel, the spare battery). */
+    public static boolean usedTonight(ServerPlayer player, String id) {
+        return switch (id) {
+            case "mauerkelle" -> TROWEL_USED.contains(player.getUUID());
+            case "ersatzbatterie" -> BATTERY_USED.contains(player.getUUID());
+            default -> false;
+        };
+    }
+
+    /** A thrown thing that is not taken from a stack (the oil barrel on its key). */
+    private static void throwFree(ServerPlayer player, ServerLevel level, ItemStack look, String kind, float speed) {
+        KitProjectile projectile = new KitProjectile(level, player, look, kind);
+        projectile.shootFromRotation(player, player.getXRot(), player.getYRot(), 0f, speed, 0.8f);
+        level.addFreshEntity(projectile);
+        level.playSound(null, player.blockPosition(), SoundEvents.SNOWBALL_THROW, SoundSource.PLAYERS, 0.8f, 0.6f);
+    }
+
+    /**
+     * The bodyguard chain on its key: ties the guardian to the defender he looks at (up to 16
+     * blocks), else to the nearest one within 6 blocks.
+     */
+    private static int bodyguardKey(ServerPlayer guard, ServerLevel level) {
+        SiegeManager m = SiegeManager.get();
+        if (m == null) {
+            return -1;
+        }
+        Vec3 eye = guard.getEyePosition();
+        Vec3 look = guard.getLookAngle();
+        ServerPlayer best = null;
+        double bestDot = 0.96;
+        ServerPlayer near = null;
+        double nearSq = 36.0;
+        for (ServerPlayer other : level.players()) {
+            if (other == guard || !other.isAlive() || other.isSpectator() || !m.isDefending(other)) {
+                continue;
+            }
+            Vec3 to = other.position().add(0, other.getBbHeight() * 0.6, 0).subtract(eye);
+            double dist = to.length();
+            if (dist < 16.0 && dist > 1.0e-3) {
+                double dot = to.scale(1.0 / dist).dot(look);
+                if (dot > bestDot && guard.hasLineOfSight(other)) {
+                    bestDot = dot;
+                    best = other;
+                }
+            }
+            double sq = other.distanceToSqr(guard);
+            if (sq < nearSq) {
+                nearSq = sq;
+                near = other;
+            }
+        }
+        ServerPlayer ally = best != null ? best : near;
+        if (ally == null) {
+            bar(guard, Component.translatable("nightsiege.gadget.leibwaechter.not_ally"));
+            return -1;
+        }
+        link(guard, level, ally);
+        return 40;
+    }
+
+    /** The bodyguard chain: the guardian takes a share of what the ally takes. */
+    private static void link(ServerPlayer guard, ServerLevel world, ServerPlayer ally) {
+        BODYGUARD.values().removeIf(g -> g.equals(guard.getUUID()));
+        BODYGUARD.put(ally.getUUID(), guard.getUUID());
+        world.playSound(null, guard.blockPosition(), SoundEvents.CHAIN_PLACE, SoundSource.PLAYERS, 1f, 0.8f);
+        bar(guard, Component.translatable("nightsiege.gadget.leibwaechter.linked", ally.getDisplayName()));
+        ally.sendSystemMessage(Component.translatable("nightsiege.gadget.leibwaechter.ally", guard.getDisplayName())
+                .withStyle(ChatFormatting.AQUA));
     }
 
     private static void throwIt(ServerPlayer player, ServerLevel level, ItemStack stack, String kind, float speed, boolean creative) {
@@ -434,24 +468,23 @@ public final class GainGear {
 
     /**
      * The engineer's flash grenade (every engineer since 28 October 2026): thrown like the other,
-     * but never used up (15 s pause, 2 s less per level of the crate gain "Blendgranaten").
+     * but never used up (7 s pause since Simon 29.10.; the crate gain "Blendgranaten" is gone).
      */
     private static void throwAlchemistFlash(ServerPlayer player, ServerLevel level, ItemStack stack) {
         KitProjectile projectile = new KitProjectile(level, player, stack.copyWithCount(1), KitProjectile.FLASH_ALCHEMIST);
         projectile.shootFromRotation(player, player.getXRot(), player.getYRot(), 0f, 1.4f, 0.8f);
         level.addFreshEntity(projectile);
         level.playSound(null, player.blockPosition(), SoundEvents.SNOWBALL_THROW, SoundSource.PLAYERS, 0.8f, 0.6f);
-        double pause = SkillValues.get("potion_tower", "flashpause", 300)
-                - SkillValues.get("potion_tower", "flashgain", 40) * CrateEffects.gainLevel(player, "blendgranaten");
-        player.getCooldowns().addCooldown(stack, (int) Math.max(60, Math.round(pause)));
+        double pause = SkillValues.get("potion_tower", "flashpause", 140);
+        player.getCooldowns().addCooldown(stack, (int) Math.max(40, Math.round(pause)));
     }
 
     /** Grappling hook: pulls the player to the block they look at, 20 s pause. */
-    private static void grapple(ServerPlayer player, ServerLevel level, ItemStack stack) {
+    private static int grapple(ServerPlayer player, ServerLevel level) {
         HitResult hit = player.pick(24.0, 0f, false);
         if (hit.getType() != HitResult.Type.BLOCK) {
             bar(player, Component.translatable("nightsiege.gadget.kletterhaken.miss"));
-            return;
+            return -1;
         }
         Vec3 to = hit.getLocation().subtract(player.position());
         double dist = to.length();
@@ -461,11 +494,11 @@ public final class GainGear {
         player.resetFallDistance();
         drawLine(level, player.getEyePosition(), hit.getLocation(), ParticleTypes.CRIT);
         level.playSound(null, player.blockPosition(), SoundEvents.FISHING_BOBBER_THROW, SoundSource.PLAYERS, 1f, 0.7f);
-        player.getCooldowns().addCooldown(stack, 400);
+        return 400;
     }
 
     /** War horn: monsters within 8 blocks run away for 3 s, 60 s pause. */
-    private static void warHorn(ServerPlayer player, ServerLevel level, ItemStack stack) {
+    private static int warHorn(ServerPlayer player, ServerLevel level) {
         long until = level.getGameTime() + 60;
         for (Mob mob : enemies(level, player.position(), 8.0)) {
             mob.setTarget(null);
@@ -474,11 +507,11 @@ public final class GainGear {
         }
         level.playSound(null, player.blockPosition(), SoundEvents.RAID_HORN.value(), SoundSource.PLAYERS, 1.2f, 1.3f);
         level.sendParticles(ParticleTypes.SONIC_BOOM, player.getX(), player.getY() + 1.2, player.getZ(), 1, 0, 0, 0, 0);
-        player.getCooldowns().addCooldown(stack, 1200);
+        return 1200;
     }
 
     /** Cloak: 3 s invisible, monsters lose the player, 45 s pause. */
-    private static void cloak(ServerPlayer player, ServerLevel level, ItemStack stack) {
+    private static int cloak(ServerPlayer player, ServerLevel level) {
         long until = level.getGameTime() + 60;
         HIDDEN.put(player.getUUID(), until);
         player.addEffect(new MobEffectInstance(MobEffects.INVISIBILITY, 60, 0, false, false, true));
@@ -489,40 +522,39 @@ public final class GainGear {
         }
         level.sendParticles(ParticleTypes.LARGE_SMOKE, player.getX(), player.getY() + 1, player.getZ(), 30, 0.4, 0.6, 0.4, 0.02);
         level.playSound(null, player.blockPosition(), SoundEvents.ILLUSIONER_CAST_SPELL, SoundSource.PLAYERS, 0.8f, 1.4f);
-        player.getCooldowns().addCooldown(stack, 900);
+        return 900;
     }
 
     /** Signal horn: allies see the guardian through walls for 10 s, 60 s pause. */
-    private static void signal(ServerPlayer player, ServerLevel level, ItemStack stack) {
+    private static int signal(ServerPlayer player, ServerLevel level) {
         player.addEffect(new MobEffectInstance(MobEffects.GLOWING, 200, 0, false, false, true));
         level.playSound(null, player.blockPosition(), SoundEvents.BELL_BLOCK, SoundSource.PLAYERS, 2f, 1f);
         level.playSound(null, player.blockPosition(), SoundEvents.BELL_RESONATE, SoundSource.PLAYERS, 1f, 1f);
-        player.getCooldowns().addCooldown(stack, 1200);
+        return 1200;
     }
 
     /** Trowel: broken base blocks within 5 blocks come back, once a night. */
-    private static void trowel(ServerPlayer player, ServerLevel level) {
+    private static boolean trowel(ServerPlayer player, ServerLevel level) {
         if (!TROWEL_USED.add(player.getUUID())) {
             bar(player, Component.translatable("nightsiege.gadget.once_a_night"));
-            return;
+            return false;
         }
         int put = SiegeManager.get().restoreBaseNear(player.blockPosition(), 5.0);
         level.playSound(null, player.blockPosition(), SoundEvents.ANVIL_USE, SoundSource.PLAYERS, 0.7f, 1.4f);
         bar(player, Component.translatable("nightsiege.gadget.mauerkelle.done", put));
+        return true;
     }
 
     /** Spare battery: fills the remote, once a night. */
-    private static void battery(ServerPlayer player, ServerLevel level, ItemStack stack, boolean creative) {
+    private static boolean battery(ServerPlayer player, ServerLevel level) {
         if (!BATTERY_USED.add(player.getUUID())) {
             bar(player, Component.translatable("nightsiege.gadget.once_a_night"));
-            return;
+            return false;
         }
         SiegeManager.get().kits().traps().fillRemote(player);
         level.sendParticles(ParticleTypes.ELECTRIC_SPARK, player.getX(), player.getY() + 1, player.getZ(), 25, 0.3, 0.5, 0.3, 0.1);
         level.playSound(null, player.blockPosition(), SoundEvents.BEACON_ACTIVATE, SoundSource.PLAYERS, 0.6f, 1.8f);
-        if (!creative) {
-            stack.shrink(1);
-        }
+        return true;
     }
 
     /** The war banner stands on the clicked block (or on its side as a wall banner). */
@@ -720,6 +752,12 @@ public final class GainGear {
             return;
         }
         String kind = Gadgets.arrowKind(arrow.getPickupItemStackOrigin());
+        if (kind.isEmpty() && !arrow.entityTags().contains("ns_shot")) {
+            // The quiver (balance update 2): a fresh shot takes the picked kind. The tag keeps an arrow
+            // that loads again with its chunk from taking another one.
+            arrow.addTag("ns_shot");
+            kind = takeQuiverShot(player, arrow.level().getGameTime());
+        }
         if (!kind.isEmpty()) {
             arrow.addTag("ns_arrow_" + kind);
         }
@@ -765,7 +803,7 @@ public final class GainGear {
 
     /** The kind of a player's special arrow (light, climb, storm), read from its tag or its item. */
     private static String kindOf(AbstractArrow arrow) {
-        for (String k : new String[]{"light", "climb", "storm"}) {
+        for (String k : new String[]{"light", "climb", "storm", "spectral"}) {
             if (arrow.entityTags().contains("ns_arrow_" + k)) {
                 return k;
             }
@@ -774,6 +812,13 @@ public final class GainGear {
             return "";
         }
         return Gadgets.arrowKind(arrow.getPickupItemStackOrigin());
+    }
+
+    /** A player's arrow hit a monster: the spectral kind from the quiver makes it glow for 10 s. */
+    public static void onArrowHitEntity(AbstractArrow arrow, LivingEntity victim) {
+        if (victim != null && arrow.entityTags().contains("ns_arrow_spectral")) {
+            victim.addEffect(new MobEffectInstance(MobEffects.GLOWING, 200, 0));
+        }
     }
 
     /** For the gametest. */
@@ -815,6 +860,9 @@ public final class GainGear {
         if (source.getDirectEntity() instanceof AbstractArrow arrow && kindOf(arrow).equals("storm")
                 && victim.level() instanceof ServerLevel level) {
             storm(level, victim.position(), arrow.getOwner());
+        }
+        if (source.getDirectEntity() instanceof AbstractArrow arrow && victim instanceof Enemy) {
+            onArrowHitEntity(arrow, victim);   // the quiver's spectral arrows (balance update 2)
         }
         if (taken > 0 && victim instanceof ServerPlayer ally && victim.level() instanceof ServerLevel level) {
             ServerPlayer guard = guardOf(ally);
@@ -1074,115 +1122,173 @@ public final class GainGear {
     // the quiver (key G) and the double jump
     // ------------------------------------------------------------------
 
-    /** Quiver: the next kind of arrow goes into the off hand, where the bow takes it first. */
-    public static void cycleQuiver(ServerPlayer player) {
-        if (CrateEffects.gainLevel(player, "koecher") <= 0) {
-            bar(player, Component.translatable("nightsiege.gadget.koecher.none"));
+    /**
+     * The quiver (balance update 2, Simon 29.10.: "Jeder sollte den Köcher haben, Pfeilarten nur noch
+     * über Köcher"): every archer has it. The kit holds one stack of normal arrows; every arrow kind
+     * won from a crate is a number of shots in the quiver. The kind picked on the ability bar flies
+     * with the next shots until its shots run out, then the normal arrows again.
+     */
+    public static final class Quiver {
+        /** The kind for the next shots ("" for the normal arrows). */
+        public String current = "";
+        /** Shots left of each kind. */
+        public final Map<String, Integer> shots = new java.util.LinkedHashMap<>();
+        /** The game time and kind of the last shot that took a kind (a volley takes it once). */
+        long lastTick = -1L;
+        String lastKind = "";
+    }
+
+    /** The arrow kinds of the quiver: id, crate gain, shots per night, colour. */
+    private record ArrowKind(String id, String gain, int shots, int color, String icon) {
+    }
+
+    private static final List<ArrowKind> ARROW_KINDS = List.of(
+            new ArrowKind("light", "lichtpfeile", 16, 0xFFE36B, "minecraft:glowstone_dust"),
+            new ArrowKind("spectral", "spektralpfeile", 16, 0xF2D46B, "minecraft:spectral_arrow"),
+            new ArrowKind("climb", "kletterpfeile", 4, 0x9C6B3A, "minecraft:ladder"),
+            new ArrowKind("storm", "sturmpfeile", 8, 0xBFE9FF, "minecraft:wind_charge"));
+
+    private static final Map<UUID, Quiver> QUIVERS = new HashMap<>();
+
+    /** A new kit: the quiver holds the shots of every arrow kind the archer has won. */
+    public static void fillQuiver(ServerPlayer player, KitService kits, PlayerSkills skills) {
+        if (skills == null || skills.clazz() != SkillClass.ARCHER) {
+            QUIVERS.remove(player.getUUID());
             return;
         }
-        Inventory inv = player.getInventory();
-        List<String> kinds = new ArrayList<>();
-        Map<String, Integer> slotOf = new HashMap<>();
-        for (int i = 0; i < 36; i++) {
-            ItemStack stack = inv.getItem(i);
-            String key = arrowKey(stack);
-            if (!key.isEmpty() && !slotOf.containsKey(key)) {
-                slotOf.put(key, i);
-                kinds.add(key);
+        Quiver q = new Quiver();
+        for (ArrowKind kind : ARROW_KINDS) {
+            if (kits.gainLevel(skills, SkillClass.ARCHER, kind.gain()) > 0) {
+                q.shots.put(kind.id(), kind.shots());
             }
         }
-        ItemStack off = player.getItemBySlot(EquipmentSlot.OFFHAND);
-        String current = arrowKey(off);
-        if (!current.isEmpty() && !kinds.contains(current)) {
-            kinds.add(0, current);
+        QUIVERS.put(player.getUUID(), q);
+    }
+
+    /** The kit ends: the quiver empties. */
+    public static void emptyQuiver(ServerPlayer player) {
+        QUIVERS.remove(player.getUUID());
+    }
+
+    /** For the tests and the HUD: the quiver of a player, or null. */
+    public static Quiver quiverOf(ServerPlayer player) {
+        return QUIVERS.get(player.getUUID());
+    }
+
+    private static ArrowKind arrowKind(String id) {
+        for (ArrowKind kind : ARROW_KINDS) {
+            if (kind.id().equals(id)) {
+                return kind;
+            }
         }
-        if (kinds.isEmpty() || kinds.size() == 1 && kinds.get(0).equals(current)) {
+        return null;
+    }
+
+    /** A short press of the choice key without the bar: the next arrow kind with shots left. */
+    public static void cycleQuiver(ServerPlayer player) {
+        Quiver q = QUIVERS.get(player.getUUID());
+        if (q == null) {
+            return;
+        }
+        List<String> kinds = new ArrayList<>();
+        kinds.add("");
+        for (Map.Entry<String, Integer> e : q.shots.entrySet()) {
+            if (e.getValue() > 0) {
+                kinds.add(e.getKey());
+            }
+        }
+        if (kinds.size() == 1) {
             bar(player, Component.translatable("nightsiege.gadget.koecher.one"));
             return;
         }
-        int at = kinds.indexOf(current);
-        String next = kinds.get((at + 1) % kinds.size());
-        int slot = slotOf.get(next);
-        ItemStack chosen = inv.getItem(slot);
-        inv.setItem(slot, off.copy());
-        player.setItemSlot(EquipmentSlot.OFFHAND, chosen);
-        player.level().playSound(null, player.blockPosition(), SoundEvents.ARMOR_EQUIP_CHAIN.value(), SoundSource.PLAYERS, 0.6f, 1.6f);
-        bar(player, Component.translatable("nightsiege.gadget.koecher.now", chosen.getHoverName()));
+        int at = Math.max(0, kinds.indexOf(q.current));
+        pickQuiver(player, kinds.get((at + 1) % kinds.size()));
     }
 
     /**
-     * The archer's wheel (Simon, 27 October 2026): every arrow kind he carries, with how many
-     * there are; the one in the off hand is the current one. Null without the quiver.
+     * The archer's choices on the ability bar: the normal arrows and every kind with shots left
+     * (how many there are); the one for the next shots is the current one. Null with nothing to pick.
      */
     public static com.mki.nightsiege.core.WheelData quiverWheel(ServerPlayer player) {
-        if (CrateEffects.gainLevel(player, "koecher") <= 0) {
+        Quiver q = QUIVERS.get(player.getUUID());
+        if (q == null || q.shots.isEmpty()) {
             return null;
         }
         com.mki.nightsiege.core.WheelData wheel = new com.mki.nightsiege.core.WheelData();
         wheel.title = "nightsiege.wheel.quiver";
         wheel.hint = "nightsiege.wheel.quiver.hint";
-        Inventory inv = player.getInventory();
-        ItemStack off = player.getItemBySlot(EquipmentSlot.OFFHAND);
-        String current = arrowKey(off);
-        Map<String, Integer> count = new HashMap<>();
-        Map<String, Integer> slotOf = new HashMap<>();
-        List<String> kinds = new ArrayList<>();
-        if (!current.isEmpty()) {
-            kinds.add(current);
-            slotOf.put(current, 40);   // the off hand's slot in the inventory
-            count.merge(current, off.getCount(), Integer::sum);
-        }
-        for (int i = 0; i < 36; i++) {
-            ItemStack stack = inv.getItem(i);
-            String key = arrowKey(stack);
-            if (key.isEmpty()) {
+        com.mki.nightsiege.core.WheelData.Option normal = new com.mki.nightsiege.core.WheelData.Option();
+        normal.id = "";
+        normal.icon = "minecraft:arrow";
+        normal.name = "nightsiege.arrow.normal";
+        normal.current = q.current.isEmpty();
+        wheel.options.add(normal);
+        for (ArrowKind kind : ARROW_KINDS) {
+            Integer left = q.shots.get(kind.id());
+            if (left == null) {
                 continue;
             }
-            if (!slotOf.containsKey(key)) {
-                slotOf.put(key, i);
-                kinds.add(key);
-            }
-            count.merge(key, stack.getCount(), Integer::sum);
-        }
-        for (String key : kinds) {
             com.mki.nightsiege.core.WheelData.Option o = new com.mki.nightsiege.core.WheelData.Option();
-            o.id = key;
-            o.slot = slotOf.get(key);
+            o.id = kind.id();
+            o.icon = kind.icon();
+            o.name = "nightsiege.arrow." + kind.id();
             o.sub = "nightsiege.wheel.count";
-            o.subArgs.add(String.valueOf(count.getOrDefault(key, 0)));
-            o.current = key.equals(current);
+            o.subArgs.add(String.valueOf(left));
+            o.current = kind.id().equals(q.current);
+            o.open = left > 0;
             wheel.options.add(o);
         }
         return wheel;
     }
 
-    /** A pick on the archer's wheel: that arrow kind goes into the off hand. */
+    /** A pick on the bar: that arrow kind flies with the next shots ("" for the normal arrows). */
     public static void pickQuiver(ServerPlayer player, String key) {
-        if (CrateEffects.gainLevel(player, "koecher") <= 0 || key == null || key.isEmpty()) {
+        Quiver q = QUIVERS.get(player.getUUID());
+        if (q == null || key == null) {
             return;
         }
-        ItemStack off = player.getItemBySlot(EquipmentSlot.OFFHAND);
-        if (key.equals(arrowKey(off))) {
+        if (!key.isEmpty() && q.shots.getOrDefault(key, 0) <= 0) {
+            bar(player, Component.translatable("nightsiege.gadget.koecher.empty",
+                    Component.translatable("nightsiege.arrow." + key)));
             return;
         }
-        Inventory inv = player.getInventory();
-        for (int i = 0; i < 36; i++) {
-            ItemStack stack = inv.getItem(i);
-            if (key.equals(arrowKey(stack))) {
-                inv.setItem(i, off.copy());
-                player.setItemSlot(EquipmentSlot.OFFHAND, stack);
-                player.level().playSound(null, player.blockPosition(), SoundEvents.ARMOR_EQUIP_CHAIN.value(), SoundSource.PLAYERS, 0.6f, 1.6f);
-                bar(player, Component.translatable("nightsiege.gadget.koecher.now", stack.getHoverName()));
-                return;
-            }
-        }
+        // The kind picked again: back to the normal arrows.
+        q.current = key.equals(q.current) ? "" : key;
+        player.level().playSound(null, player.blockPosition(), SoundEvents.ARMOR_EQUIP_CHAIN.value(), SoundSource.PLAYERS, 0.6f, 1.6f);
+        Component name = Component.translatable("nightsiege.arrow." + (q.current.isEmpty() ? "normal" : q.current));
+        bar(player, q.current.isEmpty() ? Component.translatable("nightsiege.gadget.koecher.now", name)
+                : Component.translatable("nightsiege.gadget.koecher.now_left", name, q.shots.getOrDefault(q.current, 0)));
     }
 
-    private static String arrowKey(ItemStack stack) {
-        if (stack.is(Items.ARROW) || stack.is(Items.SPECTRAL_ARROW) || stack.is(Items.TIPPED_ARROW)) {
-            return stack.getItem() + "|" + Gadgets.arrowKind(stack);
+    /**
+     * A shot of an archer: the picked kind goes with it (once per tick, so a volley or a double shot
+     * takes one shot of the kind), and when its shots run out the normal arrows come back.
+     */
+    private static String takeQuiverShot(ServerPlayer player, long now) {
+        Quiver q = QUIVERS.get(player.getUUID());
+        if (q == null) {
+            return "";
         }
-        return "";
+        if (q.lastTick == now && !q.lastKind.isEmpty()) {
+            return q.lastKind;   // the other arrows of the same volley
+        }
+        if (q.current.isEmpty()) {
+            return "";
+        }
+        int left = q.shots.getOrDefault(q.current, 0);
+        if (left <= 0) {
+            q.current = "";
+            return "";
+        }
+        String kind = q.current;
+        q.shots.put(kind, left - 1);
+        q.lastTick = now;
+        q.lastKind = kind;
+        if (left - 1 <= 0) {
+            q.current = "";
+            bar(player, Component.translatable("nightsiege.gadget.koecher.out", Component.translatable("nightsiege.arrow." + kind)));
+        }
+        return kind;
     }
 
     /** The client jumped a second time in the air: no fall damage from before, a puff of cloud. */

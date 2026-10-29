@@ -109,8 +109,7 @@ final class SkillValuesEngineer {
         def("potion_tower", "zoneheal", 2.0);                            // life points per second in the healing cloud
         def("potion_tower", "flashradius", 5);                           // blocks
         def("potion_tower", "flashtime", 80);                            // ticks blind and without a target
-        def("potion_tower", "flashpause", 300);                          // ticks until the grenade is back
-        def("potion_tower", "flashgain", 40);                            // ticks less per level of the crate gain Blendgranaten
+        def("potion_tower", "flashpause", 140);                          // ticks until the grenade is back (7 s, Simon 29.10.)
         // Simon, 28 October 2026: three of the seven potions, each with its own pause after a throw;
         // between two throws of different potions only this short lock.
         def("potion_tower", "brews", 3);                                 // potions one profile may learn

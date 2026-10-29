@@ -572,6 +572,13 @@ public final class SiegeManager {
             NightSiegeMod.LOGGER.info("[Night Siege] Profile eingeführt: {} Freischaltungen nachgereicht", caughtUp);
             persist();
         }
+        // Balance update 2 (29 October 2026): crate gains that left the crates pay their duplicate points back once.
+        if (!save.retiredGainsPaid) {
+            int paid = save.payRetiredGains();
+            save.retiredGainsPaid = true;
+            NightSiegeMod.LOGGER.info("[Night Siege] Entfernte Kisten-Gewinne zurückgezahlt: {} Punkte", paid);
+            persist();
+        }
         // The alchemist's potions became nodes, three of seven (28 October 2026): once per save.
         if (!save.brewsMigrated) {
             int brewProfiles = 0;
@@ -3969,6 +3976,11 @@ public final class SiegeManager {
             if (isRegistered(player) && own.hasClass()) {
                 state.live = state.live || liveSkillsFor(player) != null;
                 state.slots = safeSlots(player);
+                try {
+                    state.gains = GainKeys.slots(this, player, now);
+                } catch (RuntimeException e) {
+                    NightSiegeMod.LOGGER.warn("[Night Siege] Gewinn-Tasten: {}", e.toString());
+                }
                 // Fähigkeit 2 (F): what it does for this class. The soul catcher has no companions
                 // to send (Simon 27.10.: "F does nothing for him"), so he gets no F field.
                 String sub = skillTree.subclassOf(own);
@@ -4387,6 +4399,12 @@ public final class SiegeManager {
                 List<com.mki.nightsiege.core.UltState.Slot> slots = abilitySlots(player);
                 yield index >= 0 && index < slots.size() ? "wahl:" + slots.get(index).id : "wahl";
             }
+            case "gain" -> {
+                int index = parseAmount(argument);
+                PlayerSkills own = save.skillsOf(player.getUUID().toString());
+                List<String> keys = own.hasClass() ? GainKeys.assigned(this, own, own.clazz()) : List.of();
+                yield index >= 0 && index < keys.size() ? "gewinn:" + keys.get(index) : "gewinn";
+            }
             default -> null;
         };
     }
@@ -4403,7 +4421,7 @@ public final class SiegeManager {
             if (!verb.equals("ult") && !verb.equals("shield") && !verb.equals("ult2") && !verb.equals("quiver")
                     && !verb.equals("jump") && !verb.equals("man") && !verb.equals("drone")
                     && !verb.equals("ult2x") && !verb.equals("staffhit") && !verb.equals("wheel")
-                    && !verb.equals("slot")) {
+                    && !verb.equals("slot") && !verb.equals("gain")) {
                 offerRegistration(player);
             }
             return;
@@ -4435,6 +4453,19 @@ public final class SiegeManager {
             case "staffhit" -> companions.staffAttack(player);   // left click with the staff (27 October 2026)
             case "quiver" -> abilityThreeTap(player);
             case "slot" -> onSlotKey(player, parseAmount(argument));   // the ability bar (27 October 2026)
+            case "gain" -> {
+                GainKeys.onKey(this, player, parseAmount(argument));   // the gain keys N, M, J (balance update 2)
+                sendUltHud(player);
+            }
+            case "gainkey" -> {
+                // The collection: a gain ability onto the first gain key ("gainkey:CLASS:id").
+                String[] bits = argument.split(":", 2);
+                if (bits.length == 2 && GainKeys.choose(this, player, bits[0], bits[1])) {
+                    persist();
+                    sendUltHud(player);
+                    StatsService.sendTo(player, this);
+                }
+            }
             case "wheel" -> onWheel(player, argument);
             case "jump" -> GainGear.onDoubleJump(player);
             // A manned tower: the attack button pressed (1) or let go (0).

@@ -28,6 +28,10 @@ public final class GainClient {
     /** Around WASD: R, G, Y (Z on QWERTY), C, V, B. */
     private static final int[] SLOT_DEFAULTS = {GLFW.GLFW_KEY_R, GLFW.GLFW_KEY_G, GLFW.GLFW_KEY_Z, GLFW.GLFW_KEY_C,
             GLFW.GLFW_KEY_V, GLFW.GLFW_KEY_B};
+    /** The gain keys (balance update 2, Simon 29.10.: N, M, J): the crate gains with an ability of their own. */
+    public static final int GAIN_KEYS = 3;
+    private static final KeyMapping[] GAIN_KEY_MAPPINGS = new KeyMapping[GAIN_KEYS];
+    private static final int[] GAIN_DEFAULTS = {GLFW.GLFW_KEY_N, GLFW.GLFW_KEY_M, GLFW.GLFW_KEY_J};
     private static boolean jumpWasDown;
     private static boolean doubleJumpUsed;
     /** Ticks in the air since the feet left the ground. */
@@ -53,6 +57,10 @@ public final class GainClient {
         return index >= 0 && index < SLOTS ? SLOT_KEYS[index] : null;
     }
 
+    public static KeyMapping gainKey(int index) {
+        return index >= 0 && index < GAIN_KEYS ? GAIN_KEY_MAPPINGS[index] : null;
+    }
+
     public static void init(KeyMapping.Category category) {
         orderKey = KeyMappingHelper.registerKeyMapping(
                 new KeyMapping("key.nightsiege.ability2", GLFW.GLFW_KEY_F, category));   // Fähigkeit 2, the orders formerly on X (27 Oct 2026)
@@ -61,6 +69,10 @@ public final class GainClient {
         for (int i = 0; i < SLOTS; i++) {
             SLOT_KEYS[i] = KeyMappingHelper.registerKeyMapping(
                     new KeyMapping("key.nightsiege.slot" + (i + 1), SLOT_DEFAULTS[i], category));
+        }
+        for (int i = 0; i < GAIN_KEYS; i++) {
+            GAIN_KEY_MAPPINGS[i] = KeyMappingHelper.registerKeyMapping(
+                    new KeyMapping("key.nightsiege.gain" + (i + 1), GAIN_DEFAULTS[i], category));
         }
         ClientTickEvents.END_CLIENT_TICK.register(GainClient::tick);
     }
@@ -83,6 +95,13 @@ public final class GainClient {
             while (SLOT_KEYS[i].consumeClick()) {
                 if (client.gui.screen() == null) {
                     send("slot:" + i);
+                }
+            }
+        }
+        for (int i = 0; i < GAIN_KEYS; i++) {
+            while (GAIN_KEY_MAPPINGS[i].consumeClick()) {
+                if (client.gui.screen() == null) {
+                    send("gain:" + i);
                 }
             }
         }

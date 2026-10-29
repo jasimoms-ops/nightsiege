@@ -71,6 +71,11 @@ public class UltState {
      * healing ability or arrow kind on a key of its own (R, G, Y, C, V, B), in this order.
      */
     public java.util.List<Slot> slots = new java.util.ArrayList<>();
+    /**
+     * The gain keys (N, M, J; balance update 2, 29 October 2026): the crate gains with an ability
+     * of their own. {@link Slot#current} marks one that is spent (used up tonight or in this kit).
+     */
+    public java.util.List<Slot> gains = new java.util.ArrayList<>();
 
     /** One ability of the bar. */
     public static class Slot {

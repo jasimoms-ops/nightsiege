@@ -191,6 +191,8 @@ public final class KitService {
             player.setGameMode(mode);
         }
         rememberLayout(player);   // the next kit of this class comes sorted the same way
+        GainGear.emptyQuiver(player);
+        GainKeys.newKit(player);
         Inventory inv = player.getInventory();
         List<ItemStack> keep = new ArrayList<>();
         for (int i = 0; i < inv.getContainerSize(); i++) {
@@ -331,6 +333,9 @@ public final class KitService {
         if (clazz == SkillClass.SUMMONER && Companions.get() != null) {
             Companions.get().beginNight(player, skills);   // the souls the staff shows are the ones the night starts with
         }
+        // Balance update 2 (Simon 29.10.): the arrow kinds in the quiver, the gain abilities on their keys.
+        GainGear.fillQuiver(player, this, skills);
+        GainKeys.newKit(player);
 
         // Traps and the remote, as before (topped up to the free amount).
         if (clazz == SkillClass.ENGINEER) {
@@ -605,9 +610,7 @@ public final class KitService {
             // Köcherfüllung gives arrow damage since every bow has Infinity (26 October 2026).
             int arrows = NightKit.archerArrows(level);
             hotbar.addAll(stacks(Items.ARROW, arrows));
-            if (gainLevel(skills, clazz, "spektralpfeile") > 0) {
-                hotbar.add(new ItemStack(Items.SPECTRAL_ARROW, 16));
-            }
+            // The spectral arrows (and every other arrow kind) are shots in the quiver now (balance update 2).
         } else if (clazz == SkillClass.GUARDIAN) {
             hotbar.add(sword(ench, weapon, sharp));
             ItemStack shield = new ItemStack(weapon == NightKit.Material.INFERNITE ? gear("infernite_shield", Items.SHIELD) : Items.SHIELD);

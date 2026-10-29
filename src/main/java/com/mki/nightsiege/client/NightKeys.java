@@ -32,7 +32,7 @@ public final class NightKeys {
     }
 
     private static List<KeyMapping> abilities() {
-        List<KeyMapping> out = new ArrayList<>(10);
+        List<KeyMapping> out = new ArrayList<>(13);
         for (KeyMapping m : new KeyMapping[] {NightSiegeClient.ultimateKey(), GainClient.orderKey(), GainClient.secondUltKey()}) {
             if (m != null && !m.isUnbound()) {
                 out.add(m);
@@ -40,6 +40,13 @@ public final class NightKeys {
         }
         for (int i = 0; i < GainClient.SLOTS; i++) {
             KeyMapping m = GainClient.slotKey(i);
+            if (m != null && !m.isUnbound()) {
+                out.add(m);
+            }
+        }
+        // The gain keys (balance update 2): in the kit they win over the map, the night vision and the like.
+        for (int i = 0; i < GainClient.GAIN_KEYS; i++) {
+            KeyMapping m = GainClient.gainKey(i);
             if (m != null && !m.isUnbound()) {
                 out.add(m);
             }
