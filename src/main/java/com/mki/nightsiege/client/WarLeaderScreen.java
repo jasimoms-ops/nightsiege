@@ -1166,7 +1166,7 @@ public class WarLeaderScreen extends Screen {
             Map.entry("axtillager", Items.IRON_AXE),
             Map.entry("enterhaken", Items.TRIPWIRE_HOOK),
             Map.entry("tunnelgraeber", Items.IRON_SHOVEL),
-            Map.entry("standarte", Items.WHITE_BANNER),
+            Map.entry("standarte", Items.BANNER.red()),
             Map.entry("eisenritter", Items.IRON_CHESTPLATE),
             Map.entry("kameltrupp", Items.SAND),
             Map.entry("machine.trebuchet", Items.OAK_LOG),
