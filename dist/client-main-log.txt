@@ -1,0 +1,617 @@
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/9.8.2/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+
+> Configure project :
+Fabric Loom: 1.18.4
+
+> Task :compileIrisstubsJava UP-TO-DATE
+> Task :processIrisstubsResources NO-SOURCE
+> Task :irisstubsClasses UP-TO-DATE
+> Task :compileJava UP-TO-DATE
+> Task :writeBuildInfo UP-TO-DATE
+> Task :zipShaderPack UP-TO-DATE
+> Task :processResources UP-TO-DATE
+> Task :classes UP-TO-DATE
+> Task :compileGametestJava
+> Task :deleteGameTestRunDir UP-TO-DATE
+> Task :acceptGameTestEula
+> Task :generateLog4jConfig
+> Task :generateDLIConfig
+> Task :configureLaunch
+> Task :downloadAssets
+> Task :configureClientLaunch
+> Task :processGametestResources
+> Task :gametestClasses
+
+> Task :runClientGameTest
+[23:39:40] [main/INFO] (FabricLoader/GameProvider) Loading Minecraft 26.2 with Fabric Loader 0.20.1
+[23:39:41] [main/INFO] (FabricLoader/Mappings) Mappings not present!
+[23:39:41] [main/INFO] (FabricLoader) Loading 53 mods:
+	- fabric-advancement-api-v1 1.0.0+58719a3b9e
+	- fabric-api 0.161.0+26.2
+	- fabric-api-base 2.0.4+ece063239e
+	- fabric-api-lookup-api-v1 2.0.18+11e1c9a39e
+	- fabric-biome-api-v1 18.0.6+c7bd5b8e9e
+	- fabric-block-api-v1 3.1.0+53515aab9e
+	- fabric-block-getter-api-v2 2.0.7+ec56b6019e
+	- fabric-client-gametest-api-v1 6.0.2+0f4f1dca9e
+	- fabric-command-api-v2 3.1.0+00cb03469e
+	- fabric-content-registries-v0 11.3.2+37b1aa249e
+	- fabric-convention-tags-v2 4.7.1+1f023a9e9e
+	- fabric-crash-report-info-v1 1.0.5+086d547a9e
+	- fabric-creative-tab-api-v1 5.0.15+6468574f9e
+	- fabric-data-attachment-api-v1 2.2.19+515ac5339e
+	- fabric-data-generation-api-v1 25.6.0+c0da0b829e
+	- fabric-debug-api-v1 1.0.2+c792624d9e
+	- fabric-dimensions-v1 5.1.12+515ac5339e
+	- fabric-entity-events-v1 5.0.5+06488ac19e
+	- fabric-events-interaction-v0 5.2.8+515ac5339e
+	- fabric-game-rule-api-v1 4.0.8+46a6d00c9e
+	- fabric-gametest-api-v1 4.0.22+4a7fa0819e
+	- fabric-item-api-v1 14.5.0+c68f6cbe9e
+	- fabric-key-mapping-api-v1 2.0.5+e2bdee789e
+	- fabric-lifecycle-events-v1 4.1.4+29b6eb019e
+	- fabric-loot-api-v3 3.0.17+06488ac19e
+	- fabric-menu-api-v1 2.0.17+086d547a9e
+	- fabric-message-api-v1 7.0.8+bb2ed3f79e
+	- fabric-model-loading-api-v1 8.0.17+c80601bb9e
+	- fabric-networking-api-v1 6.3.4+2989c6a09e
+	- fabric-object-builder-api-v1 24.1.1+6fcd5f039e
+	- fabric-particles-v1 5.0.19+d1756aa99e
+	- fabric-permission-api-v1 1.0.5+e442d8d09e
+	- fabric-recipe-api-v1 9.0.22+11e1c9a39e
+	- fabric-registry-sync-v0 7.1.1+c7bd5b8e9e
+	- fabric-renderer-api-v1 14.1.4+2b0d8a229e
+	- fabric-renderer-indigo 9.1.4+2b0d8a229e
+	- fabric-rendering-fluids-v1 6.0.4+06488ac19e
+	- fabric-rendering-v1 25.3.3+515ac5339e
+	- fabric-resource-conditions-api-v1 6.1.0+10e9a28b9e
+	- fabric-resource-loader-v0 3.3.20+4fc5413f9e
+	- fabric-resource-loader-v1 2.0.13+9edec1269e
+	- fabric-screen-api-v1 5.2.1+5087f8249e
+	- fabric-serialization-api-v1 2.0.4+11a26f319e
+	- fabric-sound-api-v1 2.0.5+11a26f319e
+	- fabric-tag-api-v1 2.1.4+515ac5339e
+	- fabric-transfer-api-v1 8.0.13+11dbb7d79e
+	- fabric-transitive-access-wideners-v1 8.1.4+67c847259e
+	- fabricloader 0.20.1
+	- java 25
+	- minecraft 26.2
+	- mixinextras 0.5.5
+	- nightsiege 1.0.0
+	- nightsiege-test 1.0.0
+[23:39:41] [main/INFO] (FabricLoader/Mixin) SpongePowered MIXIN Subsystem Version=0.8.7 Source=file:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc/sponge-mixin/0.17.5+mixin.0.8.7/cef8519a91129d0c21fa03bb9378f0e8ca810e5/sponge-mixin-0.17.5+mixin.0.8.7.jar Service=Knot/Fabric Env=CLIENT
+[23:39:42] [main/WARN] (FabricLoader/Mixin) Error loading class: net/irisshaders/iris/uniforms/CommonUniforms (java.lang.ClassNotFoundException: net/irisshaders/iris/uniforms/CommonUniforms)
+[23:39:43] [main/INFO] (FabricLoader/MixinExtras|Service) Initializing MixinExtras via com.llamalad7.mixinextras.service.MixinExtrasServiceImpl(version=0.5.5).
+[23:39:44] [Datafixer Bootstrap #0/INFO] (Minecraft) 295 Datafixer optimizations took 629 milliseconds
+[23:39:50] [Render thread/INFO] (Minecraft) Environment: Environment[sessionHost=https://sessionserver.mojang.com, servicesHost=https://api.minecraftservices.com, profilesHost=https://api.mojang.com, name=PROD]
+[23:39:50] [Render thread/INFO] (Minecraft) Setting user: Player0
+[23:39:51] [Render thread/INFO] (nightsiege) [Night Siege] bereit
+[23:39:51] [Render thread/INFO] (Minecraft) [STDOUT]: [Night Siege] shader pack installed: /home/runner/work/nightsiege/nightsiege/build/run/clientGameTest/shaderpacks/NightSiege-Photon.zip
+[23:39:51] [Render thread/INFO] (Indigo) [Indigo] Registering Indigo renderer!
+[23:39:51] [Render thread/ERROR] (Minecraft) Illegal option value 0 for Anisotropic Filtering
+[23:39:51] [Render thread/INFO] (Minecraft) Backend library: LWJGL version 3.4.1-snapshot
+[23:39:55] [Render thread/INFO] (Minecraft) Using graphics backend OpenGL, using drivers: 4.5 (Core Profile) Mesa 26.0.8-1ubuntu0.3
+[23:39:55] [Render thread/INFO] (Minecraft) Using graphics device: llvmpipe (LLVM 21.1.8, 256 bits) (Mesa)
+[23:39:55] [Render thread/INFO] (Minecraft) Using graphics device extensions: GL_ARB_multi_draw_indirect, GL_ARB_buffer_storage, GL_ARB_shader_draw_parameters, GL_ARB_base_instance, GL_KHR_debug, GL_ARB_draw_indirect, GL_ARB_clip_control, GL_ARB_vertex_attrib_binding, GL_ARB_direct_state_access, GL_EXT_texture_filter_anisotropic
+[23:39:56] [Download-2/INFO] (Minecraft) Could not authorize you against Realms server: java.lang.RuntimeException: Failed to parse into SignedJWT: FabricMC
+
+com.mojang.text2speech.Narrator$InitializeException: Failed to load library flite
+	at knot//com.mojang.text2speech.NarratorLinux$FliteLibrary.loadNative(NarratorLinux.java:82)
+	at knot//com.mojang.text2speech.NarratorLinux.<init>(NarratorLinux.java:19)
+	at knot//com.mojang.text2speech.Narrator.getNarrator(Narrator.java:41)
+	at knot//net.minecraft.client.GameNarrator.<init>(GameNarrator.java:20)
+	at knot//net.minecraft.client.Minecraft.<init>(Minecraft.java:733)
+	at knot//net.minecraft.client.main.Main.main(Main.java:278)
+	at net.fabricmc.loader.impl.game.minecraft.MinecraftGameProvider.launch(MinecraftGameProvider.java:517)
+	at net.fabricmc.loader.impl.launch.knot.Knot.launch(Knot.java:72)
+	at net.fabricmc.loader.impl.launch.knot.KnotClient.main(KnotClient.java:23)
+	at net.fabricmc.devlaunchinjector.Main.main(Main.java:86)
+Caused by: java.lang.UnsatisfiedLinkError: Unable to load library 'flite':
+libflite.so: cannot open shared object file: No such file or directory
+libflite.so: cannot open shared object file: No such file or directory
+Native library (linux-x86-64/libflite.so) not found in resource path (/home/runner/work/nightsiege/nightsiege/build/classes/java/gametest:/home/runner/work/nightsiege/nightsiege/build/resources/gametest:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc/fabric-loader/0.20.1/7c7f9831e9f27b303d5d08decb5f4258a9f03296/fabric-loader-0.20.1.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-api/0.161.0+26.2/332da34ebb72171e603a0c538de17f4c54ea9e29/fabric-api-0.161.0+26.2.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.ow2.asm/asm/9.10.1/ada2141c0cc52ee8f5c48cd5fa4ce0e794f22236/asm-9.10.1.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.ow2.asm/asm-analysis/9.10.1/8d49f14d51f632cb1d87c88d1ceaf50db0d8af1b/asm-analysis-9.10.1.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.ow2.asm/asm-commons/9.10.1/4229e4c55fd8e01c23f9fe9884075cc628aacc50/asm-commons-9.10.1.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.ow2.asm/asm-tree/9.10.1/e244332a17564c1d1572449399a842de35881be2/asm-tree-9.10.1.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.ow2.asm/asm-util/9.10.1/7bb9d450e8d4cbf9f9e04096c44bbfe7fba80b15/asm-util-9.10.1.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc/sponge-mixin/0.17.5+mixin.0.8.7/cef8519a91129d0c21fa03bb9378f0e8ca810e5/sponge-mixin-0.17.5+mixin.0.8.7.jar:/home/runner/.gradle/caches/modules-2/files-2.1/io.github.llamalad7/mixinextras-fabric/0.5.5/d1055b99c0ab08a8403fe2da3d79ca28e6340a76/mixinextras-fabric-0.5.5.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc/dev-launch-injector/0.2.1+build.8/da8bef7e6e2f952da707f282bdb46882a0fce5e3/dev-launch-injector-0.2.1+build.8.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc/fabric-log4j-util/1.0.2/ef0b3fb613356feb75a67d54f2fad6f03a006648/fabric-log4j-util-1.0.2.jar:/home/runner/.gradle/caches/modules-2/files-2.1/at.yawk.lz4/lz4-java/1.10.1/f541d7f910fe3d76f38f799c507c48cc81b12ecb/lz4-java-1.10.1.jar:/home/runner/.gradle/caches/modules-2/files-2.1/com.azure/azure-json/1.4.0/fcc1d354dbc3e0300e5276b1bf124d0247799cd8/azure-json-1.4.0.jar:/home/runner/.gradle/caches/modules-2/files-2.1/com.github.oshi/oshi-core/6.9.0/3224870731860cfcd7744581a05b559e94291e7/oshi-core-6.9.0.jar:/home/runner/.gradle/caches/modules-2/files-2.1/com.google.code.gson/gson/2.14.0/efc0e34ede4e3204eaefb84a00e55e8c86634382/gson-2.14.0.jar:/home/runner/.gradle/caches/modules-2/files-2.1/com.google.guava/failureaccess/1.0.3/aeaffd00d57023a2c947393ed251f0354f0985fc/failureaccess-1.0.3.jar:/home/runner/.gradle/caches/modules-2/files-2.1/com.google.guava/guava/33.6.0-jre/c376b13067cc99a5774403530953f7b05a91e218/guava-33.6.0-jre.jar:/home/runner/.gradle/caches/modules-2/files-2.1/com.ibm.icu/icu4j/78.3/6a851a53bb1f25689fc418dcc8935b0d93580adf/icu4j-78.3.jar:/home/runner/.gradle/caches/modules-2/files-2.1/com.microsoft.azure/msal4j/1.24.1/c233f2d047b9755f7041adf21a858c680e4c9242/msal4j-1.24.1.jar:/home/runner/.gradle/caches/modules-2/files-2.1/com.mojang/authlib/9.0.75/d61056a234d5e4b272e09d59b0713f80d6c0b6af/authlib-9.0.75.jar:/home/runner/.gradle/caches/modules-2/files-2.1/com.mojang/blocklist/1.0.10/5c685c5ffa94c4cd39496c7184c1d122e515ecef/blocklist-1.0.10.jar:/home/runner/.gradle/caches/modules-2/files-2.1/com.mojang/brigadier/1.3.10/d15b53a14cf20fdcaa98f731af5dda654452c010/brigadier-1.3.10.jar:/home/runner/.gradle/caches/modules-2/files-2.1/com.mojang/datafixerupper/10.0.21/b6b2ae770c02e0c1eb90f9985b151e9085a38d0b/datafixerupper-10.0.21.jar:/home/runner/.gradle/caches/modules-2/files-2.1/com.mojang/jtracy/1.0.37/a3fb649b2e2b2288d2978f0b0bc3d83f62809d1e/jtracy-1.0.37.jar:/home/runner/.gradle/caches/modules-2/files-2.1/com.mojang/jtracy/1.0.37/e1b4395227af41195da9e2ead13c48ee0b7d31cd/jtracy-1.0.37-natives-linux.jar:/home/runner/.gradle/caches/modules-2/files-2.1/com.mojang/logging/1.7.12/351cea64a5233361327d8d54c44277041beed97f/logging-1.7.12.jar:/home/runner/.gradle/caches/modules-2/files-2.1/com.mojang/patchy/2.2.10/da05971b07cbb379d002cf7eaec6a2048211fefc/patchy-2.2.10.jar:/home/runner/.gradle/caches/modules-2/files-2.1/com.mojang/text2speech/1.19.12/2e517a75c79d34d32de2b5d68422150836c2133e/text2speech-1.19.12.jar:/home/runner/.gradle/caches/modules-2/files-2.1/commons-codec/commons-codec/1.22.0/6b3eb4beb7058c2a638f5f17bcb388649fd339dd/commons-codec-1.22.0.jar:/home/runner/.gradle/caches/modules-2/files-2.1/commons-io/commons-io/2.20.0/36f3474daec2849c149e877614e7f979b2082cd2/commons-io-2.20.0.jar:/home/runner/.gradle/caches/modules-2/files-2.1/io.netty/netty-buffer/4.2.15.Final/2beb620803bf871cda2dd5d46b8f831e8015dd34/netty-buffer-4.2.15.Final.jar:/home/runner/.gradle/caches/modules-2/files-2.1/io.netty/netty-codec-base/4.2.15.Final/e97149fdd5fb04858efa90e314651c8d700dc68b/netty-codec-base-4.2.15.Final.jar:/home/runner/.gradle/caches/modules-2/files-2.1/io.netty/netty-codec-compression/4.2.15.Final/89fc4a20b7ae6af974304b1695405e62c4f9b16d/netty-codec-compression-4.2.15.Final.jar:/home/runner/.gradle/caches/modules-2/files-2.1/io.netty/netty-codec-http/4.2.15.Final/e611826aa054371bb9a17f27bdb05755a4cac5f0/netty-codec-http-4.2.15.Final.jar:/home/runner/.gradle/caches/modules-2/files-2.1/io.netty/netty-common/4.2.15.Final/7222492c1af9c2d4d78d521eea340a619e242fda/netty-common-4.2.15.Final.jar:/home/runner/.gradle/caches/modules-2/files-2.1/io.netty/netty-handler/4.2.15.Final/d5344afd1148e3b9927a74be019605ebb0937a93/netty-handler-4.2.15.Final.jar:/home/runner/.gradle/caches/modules-2/files-2.1/io.netty/netty-resolver/4.2.15.Final/b961a16d379b508b473e064ba06842bba280f4e3/netty-resolver-4.2.15.Final.jar:/home/runner/.gradle/caches/modules-2/files-2.1/io.netty/netty-transport-classes-epoll/4.2.15.Final/44bafba9c9993800e955b365bba4981326f3f3b1/netty-transport-classes-epoll-4.2.15.Final.jar:/home/runner/.gradle/caches/modules-2/files-2.1/io.netty/netty-transport-classes-kqueue/4.2.15.Final/f248656bb907607c5a41c7b61fd918a97db79250/netty-transport-classes-kqueue-4.2.15.Final.jar:/home/runner/.gradle/caches/modules-2/files-2.1/io.netty/netty-transport-native-epoll/4.2.15.Final/cccd31f2c8e966ab1e7a4d2293c8a3965628fe73/netty-transport-native-epoll-4.2.15.Final-linux-aarch_64.jar:/home/runner/.gradle/caches/modules-2/files-2.1/io.netty/netty-transport-native-epoll/4.2.15.Final/ce256127f8ed3f076756f1f4dcb5877d65d1f1c2/netty-transport-native-epoll-4.2.15.Final-linux-x86_64.jar:/home/runner/.gradle/caches/modules-2/files-2.1/io.netty/netty-transport-native-unix-common/4.2.15.Final/efb6943b4de9e0226a5ac35330f232605424af02/netty-transport-native-unix-common-4.2.15.Final.jar:/home/runner/.gradle/caches/modules-2/files-2.1/io.netty/netty-transport/4.2.15.Final/a000c3a6196ee40207b73ac619dcb339409dd62f/netty-transport-4.2.15.Final.jar:/home/runner/.gradle/caches/modules-2/files-2.1/it.unimi.dsi/fastutil/8.5.18/a6cff377eecc19c2037bf31568a6d7106b50ba1f/fastutil-8.5.18.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.java.dev.jna/jna-platform/5.17.0/a4934c44d25a9d8c2ddf4203affd20330cb3426f/jna-platform-5.17.0.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.java.dev.jna/jna/5.17.0/33d12735bef894440780fce64f9758d420c7bae2/jna-5.17.0.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.sf.jopt-simple/jopt-simple/5.0.4/4fdac2fbe92dfad86aa6e9301736f6b4342a3f5c/jopt-simple-5.0.4.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.apache.commons/commons-compress/1.28.0/e482f2c7a88dac3c497e96aa420b6a769f59c8d7/commons-compress-1.28.0.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.apache.commons/commons-lang3/3.20.0/65897b3e5731220962e659e001904af3c3cbeba9/commons-lang3-3.20.0.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.apache.logging.log4j/log4j-api/2.26.0/ad52af0ecf054a7e3f275a2e180ee06d9c490951/log4j-api-2.26.0.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.apache.logging.log4j/log4j-core/2.26.0/d267ca60b27ddb075e0b4e75e7875859717bf85f/log4j-core-2.26.0.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.apache.logging.log4j/log4j-slf4j2-impl/2.26.0/668c0f0e813d83f00a7182533aa658ec7e7a0a0d/log4j-slf4j2-impl-2.26.0.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.jcraft/jorbis/0.0.17/8872d22b293e8f5d7d56ff92be966e6dc28ebdc6/jorbis-0.0.17.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.joml/joml/1.10.8/fc0a71dad90a2cf41d82a76156a0e700af8e4f8d/joml-1.10.8.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.jspecify/jspecify/1.0.0/7425a601c1c7ec76645a78d22b8c6a627edee507/jspecify-1.0.0.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-freetype/3.4.1/caa75a37e857efc9b0686e434d708d6420c5b6ea/lwjgl-freetype-3.4.1.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-freetype/3.4.1/40a29a29b1549c4cad073ccd682e3776ffb454fa/lwjgl-freetype-3.4.1-natives-linux.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-glfw/3.4.1/a782b1ddd175c9107bf300fd92920579ea65e2a4/lwjgl-glfw-3.4.1.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-glfw/3.4.1/23cdf7655ce9f3b27ad90f08e73345e0d5b46362/lwjgl-glfw-3.4.1-natives-linux.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-jemalloc/3.4.1/16b663092854fc6adfe0a941e61cae2bb2e437b6/lwjgl-jemalloc-3.4.1.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-jemalloc/3.4.1/b83c82d941f2e624d150d6d1e2efcf4ea49ff8ea/lwjgl-jemalloc-3.4.1-natives-linux.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-openal/3.4.1/8508bd60589de0539aa465b78fcf838efd07ae9a/lwjgl-openal-3.4.1.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-openal/3.4.1/dbff577119266cd4312e4eb9cc2b171407c56360/lwjgl-openal-3.4.1-natives-linux.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-opengl/3.4.1/830412cab823c029cda6b9729f9d2ed36cf79959/lwjgl-opengl-3.4.1.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-opengl/3.4.1/b750599f0e75ddb19f1d0fe993f3011334b710ae/lwjgl-opengl-3.4.1-natives-linux.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-shaderc/3.4.1/5c02c88f0d879529014c78463b76f43fdecfd272/lwjgl-shaderc-3.4.1.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-shaderc/3.4.1/4289bdfa998c4afcdfa7c6925baf50e938113188/lwjgl-shaderc-3.4.1-natives-linux.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-spvc/3.4.1/188553592e97b5ab2dba54a1b403ee80b48dad4c/lwjgl-spvc-3.4.1.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-spvc/3.4.1/6ea8d9edcfcc5664d14e11b9a37a1a900783584a/lwjgl-spvc-3.4.1-natives-linux.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-stb/3.4.1/f077c3dafc31924fbe8acb0b913f08977ba27f8e/lwjgl-stb-3.4.1.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-stb/3.4.1/7e1cfae909da6c68f3cb6073a9bfeb6c90e82a57/lwjgl-stb-3.4.1-natives-linux.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-tinyfd/3.4.1/562697d40dbd2ed0424bf24dcf65d51170f81adf/lwjgl-tinyfd-3.4.1.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-tinyfd/3.4.1/fc6a72690afc8defb60d82ad1de64dd8f537154c/lwjgl-tinyfd-3.4.1-natives-linux.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-vma/3.4.1/2c54ce10154feb1ede4d23c5947438cdbfdcc003/lwjgl-vma-3.4.1.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-vma/3.4.1/1d5d00e4abed992e0850aa970d338453ebbd3e0c/lwjgl-vma-3.4.1-natives-linux.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-vulkan/3.4.1/d0601fdc38890755e5638048c14cc0f7b990964b/lwjgl-vulkan-3.4.1.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl/3.4.1/129e06a04f93992cb2a45172435b21fc4b60dd7d/lwjgl-3.4.1-unsafe.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl/3.4.1/2734e106bd95db49fe0da8cf8bf7fd96475c436c/lwjgl-3.4.1-natives-linux.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.slf4j/slf4j-api/2.0.17/d9e58ac9c7779ba3bf8142aff6c830617a7fe60f/slf4j-api-2.0.17.jar:/home/runner/work/nightsiege/nightsiege/.gradle/loom-cache/minecraftMaven/net/minecraft/minecraft-merged-201bed67e3/26.2/minecraft-merged-201bed67e3-26.2.jar:/home/runner/.gradle/caches/modules-2/files-2.1/io.netty/netty-transport-native-kqueue/4.2.15.Final/4245380831515fb4eca18d32477a27fbb8f7b8f4/netty-transport-native-kqueue-4.2.15.Final-osx-x86_64.jar:/home/runner/.gradle/caches/modules-2/files-2.1/io.netty/netty-transport-native-kqueue/4.2.15.Final/8ea0ef3eb716d821332e4b4926825a4b7c1a6d38/netty-transport-native-kqueue-4.2.15.Final-osx-aarch_64.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-advancement-api-v1/1.0.0+58719a3b9e/4394b4ce7f29690f622da915d780493148b974cb/fabric-advancement-api-v1-1.0.0+58719a3b9e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-transfer-api-v1/8.0.13+11dbb7d79e/10f39a4b46043bc724c7ea3b93bcc0243e592abb/fabric-transfer-api-v1-8.0.13+11dbb7d79e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-api-lookup-api-v1/2.0.18+11e1c9a39e/31fc094d5f4d878ed12bba2e5e8cdb42b26d83ae/fabric-api-lookup-api-v1-2.0.18+11e1c9a39e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-block-api-v1/3.1.0+53515aab9e/46cf7e7564fbbb13d099c3fe1b065561f14e268f/fabric-block-api-v1-3.1.0+53515aab9e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-command-api-v2/3.1.0+00cb03469e/b144d197307c39c1bc516c274d9460f0116131a3/fabric-command-api-v2-3.1.0+00cb03469e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-content-registries-v0/11.3.2+37b1aa249e/6f664a04bd603be3564b614caafa898e2fc9c67c/fabric-content-registries-v0-11.3.2+37b1aa249e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-data-generation-api-v1/25.6.0+c0da0b829e/6b314081c5999c2094b6a92323c055d59bf7e639/fabric-data-generation-api-v1-25.6.0+c0da0b829e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-convention-tags-v2/4.7.1+1f023a9e9e/e465c608c60ceb105c4f5d792460f5de02d90135/fabric-convention-tags-v2-4.7.1+1f023a9e9e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-creative-tab-api-v1/5.0.15+6468574f9e/b8896143a3467ad9eeff3bda41fb787bc080019e/fabric-creative-tab-api-v1-5.0.15+6468574f9e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-data-attachment-api-v1/2.2.19+515ac5339e/6ac7e37bdfaf6b9fc26be152d01daa0f95d799a2/fabric-data-attachment-api-v1-2.2.19+515ac5339e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-debug-api-v1/1.0.2+c792624d9e/9f0581bb985edf22a0d812dbe67178bd2849286/fabric-debug-api-v1-1.0.2+c792624d9e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-dimensions-v1/5.1.12+515ac5339e/b9d60e3ceee08f0fbc6f19fe8264c82c5fc2d122/fabric-dimensions-v1-5.1.12+515ac5339e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-entity-events-v1/5.0.5+06488ac19e/5cbecb675b91d0ebfe2ef3f20339e1a2c76c435/fabric-entity-events-v1-5.0.5+06488ac19e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-events-interaction-v0/5.2.8+515ac5339e/98650380bb4e65a3deb6254e7c10a171eb907477/fabric-events-interaction-v0-5.2.8+515ac5339e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-game-rule-api-v1/4.0.8+46a6d00c9e/886816530fb79c925eb1bc6c34dd4d9d82e71d49/fabric-game-rule-api-v1-4.0.8+46a6d00c9e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-gametest-api-v1/4.0.22+4a7fa0819e/3fb91749fe4f238518d2980fdc18454016949190/fabric-gametest-api-v1-4.0.22+4a7fa0819e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-item-api-v1/14.5.0+c68f6cbe9e/c2d241b01e3c083637adb17c2c8ff798cb752d5a/fabric-item-api-v1-14.5.0+c68f6cbe9e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-recipe-api-v1/9.0.22+11e1c9a39e/e756703eda39613f8d638521829b673c92276604/fabric-recipe-api-v1-9.0.22+11e1c9a39e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-model-loading-api-v1/8.0.17+c80601bb9e/b7b69be9cac7b63f853bd3c937c1b774c96a13fb/fabric-model-loading-api-v1-8.0.17+c80601bb9e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-renderer-indigo/9.1.4+2b0d8a229e/48cdf540bd670fe9333a74dd1570316180d10ab3/fabric-renderer-indigo-9.1.4+2b0d8a229e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-renderer-api-v1/14.1.4+2b0d8a229e/f6a6d234cc1073ffb871150d548d2164f8bc8d0b/fabric-renderer-api-v1-14.1.4+2b0d8a229e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-rendering-v1/25.3.3+515ac5339e/b970a6d778b9867d6ea13d5437193f1e86a19c55/fabric-rendering-v1-25.3.3+515ac5339e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-lifecycle-events-v1/4.1.4+29b6eb019e/54a508470dcea81513e39001b5c0bf9fae0f1d5/fabric-lifecycle-events-v1-4.1.4+29b6eb019e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-loot-api-v3/3.0.17+06488ac19e/964f3985687b491093db6b9ff87b35106112b74d/fabric-loot-api-v3-3.0.17+06488ac19e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-menu-api-v1/2.0.17+086d547a9e/2d35d55e2aa842d5eec1f9262a74074385c69cfb/fabric-menu-api-v1-2.0.17+086d547a9e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-message-api-v1/7.0.8+bb2ed3f79e/106dc9ed22970076aaa39cd257b69705d136dd05/fabric-message-api-v1-7.0.8+bb2ed3f79e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-client-gametest-api-v1/6.0.2+0f4f1dca9e/f54e52e7af5a41fdcf6715f87d09282b2dc9b0f2/fabric-client-gametest-api-v1-6.0.2+0f4f1dca9e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-particles-v1/5.0.19+d1756aa99e/f6290d6511388b78455e2186d980553879343172/fabric-particles-v1-5.0.19+d1756aa99e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-object-builder-api-v1/24.1.1+6fcd5f039e/90175252776d48f5c549835501e7fa227e68c4c8/fabric-object-builder-api-v1-24.1.1+6fcd5f039e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-registry-sync-v0/7.1.1+c7bd5b8e9e/82c1ce3885265deb0c15970d4abadf0ae055a539/fabric-registry-sync-v0-7.1.1+c7bd5b8e9e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-networking-api-v1/6.3.4+2989c6a09e/608860809ec66fd65ca764c4157e96030f330537/fabric-networking-api-v1-6.3.4+2989c6a09e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-permission-api-v1/1.0.5+e442d8d09e/92197dd81a18322fd36b87de79bdaa8d2b4a1ba9/fabric-permission-api-v1-1.0.5+e442d8d09e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-rendering-fluids-v1/6.0.4+06488ac19e/9ded3bc73b5ff3c441075d0c8eca988aacce1f1f/fabric-rendering-fluids-v1-6.0.4+06488ac19e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-tag-api-v1/2.1.4+515ac5339e/f66a24273cdcc2ce424bf8c69cdc9cf48bdcb328/fabric-tag-api-v1-2.1.4+515ac5339e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-resource-loader-v0/3.3.20+4fc5413f9e/c6551ab905383f3c8e046a403a78a25bebabaff0/fabric-resource-loader-v0-3.3.20+4fc5413f9e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-resource-loader-v1/2.0.13+9edec1269e/db19bb66f069d7ed3dde41eb7e1f9ff3122c15a4/fabric-resource-loader-v1-2.0.13+9edec1269e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-screen-api-v1/5.2.1+5087f8249e/ef9ad9a09f392eff05957c24c71e4da6797bb8d9/fabric-screen-api-v1-5.2.1+5087f8249e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-api-base/2.0.4+ece063239e/e766f3698b7bab8b1e13683040f8648fab511ca3/fabric-api-base-2.0.4+ece063239e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-biome-api-v1/18.0.6+c7bd5b8e9e/414c89d2bc8ab64dce1763edc4dbe4619113a5b/fabric-biome-api-v1-18.0.6+c7bd5b8e9e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-block-getter-api-v2/2.0.7+ec56b6019e/8204045ca262749761be09b144618e6c4133ebe1/fabric-block-getter-api-v2-2.0.7+ec56b6019e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-crash-report-info-v1/1.0.5+086d547a9e/119f48a9a648d86c89fe21444176d0032449d95c/fabric-crash-report-info-v1-1.0.5+086d547a9e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-key-mapping-api-v1/2.0.5+e2bdee789e/c86dc688a7e9caa7edca9973dc6abfe37c652135/fabric-key-mapping-api-v1-2.0.5+e2bdee789e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-resource-conditions-api-v1/6.1.0+10e9a28b9e/bfe91afa0e7712974b318ed7e274b493b038a596/fabric-resource-conditions-api-v1-6.1.0+10e9a28b9e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-serialization-api-v1/2.0.4+11a26f319e/ebf77996be79909f639a7352689d851385a9cd2b/fabric-serialization-api-v1-2.0.4+11a26f319e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-sound-api-v1/2.0.5+11a26f319e/73e4e62924608e1d1581f192607857db096dafe7/fabric-sound-api-v1-2.0.5+11a26f319e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-transitive-access-wideners-v1/8.1.4+67c847259e/e1e769f8e123395ab939d5d8da900e6a6ad53ab2/fabric-transitive-access-wideners-v1-8.1.4+67c847259e.jar:/home/runner/work/nightsiege/nightsiege/build/classes/java/main:/home/runner/work/nightsiege/nightsiege/build/resources/main)
+	at knot//com.sun.jna.NativeLibrary.loadLibrary(NativeLibrary.java:325)
+	at knot//com.sun.jna.NativeLibrary.getInstance(NativeLibrary.java:481)
+	at knot//com.sun.jna.NativeLibrary.getInstance(NativeLibrary.java:423)
+	at knot//com.mojang.text2speech.NarratorLinux$FliteLibrary.loadNative(NarratorLinux.java:80)
+	... 9 more
+	Suppressed: java.lang.UnsatisfiedLinkError: libflite.so: cannot open shared object file: No such file or directory
+		at knot//com.sun.jna.Native.open(Native Method)
+		at knot//com.sun.jna.NativeLibrary.loadLibrary(NativeLibrary.java:213)
+		... 12 more
+	Suppressed: java.lang.UnsatisfiedLinkError: libflite.so: cannot open shared object file: No such file or directory
+		at knot//com.sun.jna.Native.open(Native Method)
+		at knot//com.sun.jna.NativeLibrary.loadLibrary(NativeLibrary.java:226)
+		... 12 more
+	Suppressed: java.io.IOException: Native library (linux-x86-64/libflite.so) not found in resource path (/home/runner/work/nightsiege/nightsiege/build/classes/java/gametest:/home/runner/work/nightsiege/nightsiege/build/resources/gametest:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc/fabric-loader/0.20.1/7c7f9831e9f27b303d5d08decb5f4258a9f03296/fabric-loader-0.20.1.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-api/0.161.0+26.2/332da34ebb72171e603a0c538de17f4c54ea9e29/fabric-api-0.161.0+26.2.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.ow2.asm/asm/9.10.1/ada2141c0cc52ee8f5c48cd5fa4ce0e794f22236/asm-9.10.1.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.ow2.asm/asm-analysis/9.10.1/8d49f14d51f632cb1d87c88d1ceaf50db0d8af1b/asm-analysis-9.10.1.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.ow2.asm/asm-commons/9.10.1/4229e4c55fd8e01c23f9fe9884075cc628aacc50/asm-commons-9.10.1.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.ow2.asm/asm-tree/9.10.1/e244332a17564c1d1572449399a842de35881be2/asm-tree-9.10.1.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.ow2.asm/asm-util/9.10.1/7bb9d450e8d4cbf9f9e04096c44bbfe7fba80b15/asm-util-9.10.1.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc/sponge-mixin/0.17.5+mixin.0.8.7/cef8519a91129d0c21fa03bb9378f0e8ca810e5/sponge-mixin-0.17.5+mixin.0.8.7.jar:/home/runner/.gradle/caches/modules-2/files-2.1/io.github.llamalad7/mixinextras-fabric/0.5.5/d1055b99c0ab08a8403fe2da3d79ca28e6340a76/mixinextras-fabric-0.5.5.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc/dev-launch-injector/0.2.1+build.8/da8bef7e6e2f952da707f282bdb46882a0fce5e3/dev-launch-injector-0.2.1+build.8.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc/fabric-log4j-util/1.0.2/ef0b3fb613356feb75a67d54f2fad6f03a006648/fabric-log4j-util-1.0.2.jar:/home/runner/.gradle/caches/modules-2/files-2.1/at.yawk.lz4/lz4-java/1.10.1/f541d7f910fe3d76f38f799c507c48cc81b12ecb/lz4-java-1.10.1.jar:/home/runner/.gradle/caches/modules-2/files-2.1/com.azure/azure-json/1.4.0/fcc1d354dbc3e0300e5276b1bf124d0247799cd8/azure-json-1.4.0.jar:/home/runner/.gradle/caches/modules-2/files-2.1/com.github.oshi/oshi-core/6.9.0/3224870731860cfcd7744581a05b559e94291e7/oshi-core-6.9.0.jar:/home/runner/.gradle/caches/modules-2/files-2.1/com.google.code.gson/gson/2.14.0/efc0e34ede4e3204eaefb84a00e55e8c86634382/gson-2.14.0.jar:/home/runner/.gradle/caches/modules-2/files-2.1/com.google.guava/failureaccess/1.0.3/aeaffd00d57023a2c947393ed251f0354f0985fc/failureaccess-1.0.3.jar:/home/runner/.gradle/caches/modules-2/files-2.1/com.google.guava/guava/33.6.0-jre/c376b13067cc99a5774403530953f7b05a91e218/guava-33.6.0-jre.jar:/home/runner/.gradle/caches/modules-2/files-2.1/com.ibm.icu/icu4j/78.3/6a851a53bb1f25689fc418dcc8935b0d93580adf/icu4j-78.3.jar:/home/runner/.gradle/caches/modules-2/files-2.1/com.microsoft.azure/msal4j/1.24.1/c233f2d047b9755f7041adf21a858c680e4c9242/msal4j-1.24.1.jar:/home/runner/.gradle/caches/modules-2/files-2.1/com.mojang/authlib/9.0.75/d61056a234d5e4b272e09d59b0713f80d6c0b6af/authlib-9.0.75.jar:/home/runner/.gradle/caches/modules-2/files-2.1/com.mojang/blocklist/1.0.10/5c685c5ffa94c4cd39496c7184c1d122e515ecef/blocklist-1.0.10.jar:/home/runner/.gradle/caches/modules-2/files-2.1/com.mojang/brigadier/1.3.10/d15b53a14cf20fdcaa98f731af5dda654452c010/brigadier-1.3.10.jar:/home/runner/.gradle/caches/modules-2/files-2.1/com.mojang/datafixerupper/10.0.21/b6b2ae770c02e0c1eb90f9985b151e9085a38d0b/datafixerupper-10.0.21.jar:/home/runner/.gradle/caches/modules-2/files-2.1/com.mojang/jtracy/1.0.37/a3fb649b2e2b2288d2978f0b0bc3d83f62809d1e/jtracy-1.0.37.jar:/home/runner/.gradle/caches/modules-2/files-2.1/com.mojang/jtracy/1.0.37/e1b4395227af41195da9e2ead13c48ee0b7d31cd/jtracy-1.0.37-natives-linux.jar:/home/runner/.gradle/caches/modules-2/files-2.1/com.mojang/logging/1.7.12/351cea64a5233361327d8d54c44277041beed97f/logging-1.7.12.jar:/home/runner/.gradle/caches/modules-2/files-2.1/com.mojang/patchy/2.2.10/da05971b07cbb379d002cf7eaec6a2048211fefc/patchy-2.2.10.jar:/home/runner/.gradle/caches/modules-2/files-2.1/com.mojang/text2speech/1.19.12/2e517a75c79d34d32de2b5d68422150836c2133e/text2speech-1.19.12.jar:/home/runner/.gradle/caches/modules-2/files-2.1/commons-codec/commons-codec/1.22.0/6b3eb4beb7058c2a638f5f17bcb388649fd339dd/commons-codec-1.22.0.jar:/home/runner/.gradle/caches/modules-2/files-2.1/commons-io/commons-io/2.20.0/36f3474daec2849c149e877614e7f979b2082cd2/commons-io-2.20.0.jar:/home/runner/.gradle/caches/modules-2/files-2.1/io.netty/netty-buffer/4.2.15.Final/2beb620803bf871cda2dd5d46b8f831e8015dd34/netty-buffer-4.2.15.Final.jar:/home/runner/.gradle/caches/modules-2/files-2.1/io.netty/netty-codec-base/4.2.15.Final/e97149fdd5fb04858efa90e314651c8d700dc68b/netty-codec-base-4.2.15.Final.jar:/home/runner/.gradle/caches/modules-2/files-2.1/io.netty/netty-codec-compression/4.2.15.Final/89fc4a20b7ae6af974304b1695405e62c4f9b16d/netty-codec-compression-4.2.15.Final.jar:/home/runner/.gradle/caches/modules-2/files-2.1/io.netty/netty-codec-http/4.2.15.Final/e611826aa054371bb9a17f27bdb05755a4cac5f0/netty-codec-http-4.2.15.Final.jar:/home/runner/.gradle/caches/modules-2/files-2.1/io.netty/netty-common/4.2.15.Final/7222492c1af9c2d4d78d521eea340a619e242fda/netty-common-4.2.15.Final.jar:/home/runner/.gradle/caches/modules-2/files-2.1/io.netty/netty-handler/4.2.15.Final/d5344afd1148e3b9927a74be019605ebb0937a93/netty-handler-4.2.15.Final.jar:/home/runner/.gradle/caches/modules-2/files-2.1/io.netty/netty-resolver/4.2.15.Final/b961a16d379b508b473e064ba06842bba280f4e3/netty-resolver-4.2.15.Final.jar:/home/runner/.gradle/caches/modules-2/files-2.1/io.netty/netty-transport-classes-epoll/4.2.15.Final/44bafba9c9993800e955b365bba4981326f3f3b1/netty-transport-classes-epoll-4.2.15.Final.jar:/home/runner/.gradle/caches/modules-2/files-2.1/io.netty/netty-transport-classes-kqueue/4.2.15.Final/f248656bb907607c5a41c7b61fd918a97db79250/netty-transport-classes-kqueue-4.2.15.Final.jar:/home/runner/.gradle/caches/modules-2/files-2.1/io.netty/netty-transport-native-epoll/4.2.15.Final/cccd31f2c8e966ab1e7a4d2293c8a3965628fe73/netty-transport-native-epoll-4.2.15.Final-linux-aarch_64.jar:/home/runner/.gradle/caches/modules-2/files-2.1/io.netty/netty-transport-native-epoll/4.2.15.Final/ce256127f8ed3f076756f1f4dcb5877d65d1f1c2/netty-transport-native-epoll-4.2.15.Final-linux-x86_64.jar:/home/runner/.gradle/caches/modules-2/files-2.1/io.netty/netty-transport-native-unix-common/4.2.15.Final/efb6943b4de9e0226a5ac35330f232605424af02/netty-transport-native-unix-common-4.2.15.Final.jar:/home/runner/.gradle/caches/modules-2/files-2.1/io.netty/netty-transport/4.2.15.Final/a000c3a6196ee40207b73ac619dcb339409dd62f/netty-transport-4.2.15.Final.jar:/home/runner/.gradle/caches/modules-2/files-2.1/it.unimi.dsi/fastutil/8.5.18/a6cff377eecc19c2037bf31568a6d7106b50ba1f/fastutil-8.5.18.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.java.dev.jna/jna-platform/5.17.0/a4934c44d25a9d8c2ddf4203affd20330cb3426f/jna-platform-5.17.0.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.java.dev.jna/jna/5.17.0/33d12735bef894440780fce64f9758d420c7bae2/jna-5.17.0.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.sf.jopt-simple/jopt-simple/5.0.4/4fdac2fbe92dfad86aa6e9301736f6b4342a3f5c/jopt-simple-5.0.4.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.apache.commons/commons-compress/1.28.0/e482f2c7a88dac3c497e96aa420b6a769f59c8d7/commons-compress-1.28.0.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.apache.commons/commons-lang3/3.20.0/65897b3e5731220962e659e001904af3c3cbeba9/commons-lang3-3.20.0.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.apache.logging.log4j/log4j-api/2.26.0/ad52af0ecf054a7e3f275a2e180ee06d9c490951/log4j-api-2.26.0.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.apache.logging.log4j/log4j-core/2.26.0/d267ca60b27ddb075e0b4e75e7875859717bf85f/log4j-core-2.26.0.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.apache.logging.log4j/log4j-slf4j2-impl/2.26.0/668c0f0e813d83f00a7182533aa658ec7e7a0a0d/log4j-slf4j2-impl-2.26.0.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.jcraft/jorbis/0.0.17/8872d22b293e8f5d7d56ff92be966e6dc28ebdc6/jorbis-0.0.17.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.joml/joml/1.10.8/fc0a71dad90a2cf41d82a76156a0e700af8e4f8d/joml-1.10.8.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.jspecify/jspecify/1.0.0/7425a601c1c7ec76645a78d22b8c6a627edee507/jspecify-1.0.0.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-freetype/3.4.1/caa75a37e857efc9b0686e434d708d6420c5b6ea/lwjgl-freetype-3.4.1.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-freetype/3.4.1/40a29a29b1549c4cad073ccd682e3776ffb454fa/lwjgl-freetype-3.4.1-natives-linux.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-glfw/3.4.1/a782b1ddd175c9107bf300fd92920579ea65e2a4/lwjgl-glfw-3.4.1.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-glfw/3.4.1/23cdf7655ce9f3b27ad90f08e73345e0d5b46362/lwjgl-glfw-3.4.1-natives-linux.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-jemalloc/3.4.1/16b663092854fc6adfe0a941e61cae2bb2e437b6/lwjgl-jemalloc-3.4.1.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-jemalloc/3.4.1/b83c82d941f2e624d150d6d1e2efcf4ea49ff8ea/lwjgl-jemalloc-3.4.1-natives-linux.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-openal/3.4.1/8508bd60589de0539aa465b78fcf838efd07ae9a/lwjgl-openal-3.4.1.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-openal/3.4.1/dbff577119266cd4312e4eb9cc2b171407c56360/lwjgl-openal-3.4.1-natives-linux.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-opengl/3.4.1/830412cab823c029cda6b9729f9d2ed36cf79959/lwjgl-opengl-3.4.1.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-opengl/3.4.1/b750599f0e75ddb19f1d0fe993f3011334b710ae/lwjgl-opengl-3.4.1-natives-linux.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-shaderc/3.4.1/5c02c88f0d879529014c78463b76f43fdecfd272/lwjgl-shaderc-3.4.1.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-shaderc/3.4.1/4289bdfa998c4afcdfa7c6925baf50e938113188/lwjgl-shaderc-3.4.1-natives-linux.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-spvc/3.4.1/188553592e97b5ab2dba54a1b403ee80b48dad4c/lwjgl-spvc-3.4.1.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-spvc/3.4.1/6ea8d9edcfcc5664d14e11b9a37a1a900783584a/lwjgl-spvc-3.4.1-natives-linux.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-stb/3.4.1/f077c3dafc31924fbe8acb0b913f08977ba27f8e/lwjgl-stb-3.4.1.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-stb/3.4.1/7e1cfae909da6c68f3cb6073a9bfeb6c90e82a57/lwjgl-stb-3.4.1-natives-linux.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-tinyfd/3.4.1/562697d40dbd2ed0424bf24dcf65d51170f81adf/lwjgl-tinyfd-3.4.1.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-tinyfd/3.4.1/fc6a72690afc8defb60d82ad1de64dd8f537154c/lwjgl-tinyfd-3.4.1-natives-linux.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-vma/3.4.1/2c54ce10154feb1ede4d23c5947438cdbfdcc003/lwjgl-vma-3.4.1.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-vma/3.4.1/1d5d00e4abed992e0850aa970d338453ebbd3e0c/lwjgl-vma-3.4.1-natives-linux.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl-vulkan/3.4.1/d0601fdc38890755e5638048c14cc0f7b990964b/lwjgl-vulkan-3.4.1.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl/3.4.1/129e06a04f93992cb2a45172435b21fc4b60dd7d/lwjgl-3.4.1-unsafe.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.lwjgl/lwjgl/3.4.1/2734e106bd95db49fe0da8cf8bf7fd96475c436c/lwjgl-3.4.1-natives-linux.jar:/home/runner/.gradle/caches/modules-2/files-2.1/org.slf4j/slf4j-api/2.0.17/d9e58ac9c7779ba3bf8142aff6c830617a7fe60f/slf4j-api-2.0.17.jar:/home/runner/work/nightsiege/nightsiege/.gradle/loom-cache/minecraftMaven/net/minecraft/minecraft-merged-201bed67e3/26.2/minecraft-merged-201bed67e3-26.2.jar:/home/runner/.gradle/caches/modules-2/files-2.1/io.netty/netty-transport-native-kqueue/4.2.15.Final/4245380831515fb4eca18d32477a27fbb8f7b8f4/netty-transport-native-kqueue-4.2.15.Final-osx-x86_64.jar:/home/runner/.gradle/caches/modules-2/files-2.1/io.netty/netty-transport-native-kqueue/4.2.15.Final/8ea0ef3eb716d821332e4b4926825a4b7c1a6d38/netty-transport-native-kqueue-4.2.15.Final-osx-aarch_64.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-advancement-api-v1/1.0.0+58719a3b9e/4394b4ce7f29690f622da915d780493148b974cb/fabric-advancement-api-v1-1.0.0+58719a3b9e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-transfer-api-v1/8.0.13+11dbb7d79e/10f39a4b46043bc724c7ea3b93bcc0243e592abb/fabric-transfer-api-v1-8.0.13+11dbb7d79e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-api-lookup-api-v1/2.0.18+11e1c9a39e/31fc094d5f4d878ed12bba2e5e8cdb42b26d83ae/fabric-api-lookup-api-v1-2.0.18+11e1c9a39e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-block-api-v1/3.1.0+53515aab9e/46cf7e7564fbbb13d099c3fe1b065561f14e268f/fabric-block-api-v1-3.1.0+53515aab9e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-command-api-v2/3.1.0+00cb03469e/b144d197307c39c1bc516c274d9460f0116131a3/fabric-command-api-v2-3.1.0+00cb03469e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-content-registries-v0/11.3.2+37b1aa249e/6f664a04bd603be3564b614caafa898e2fc9c67c/fabric-content-registries-v0-11.3.2+37b1aa249e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-data-generation-api-v1/25.6.0+c0da0b829e/6b314081c5999c2094b6a92323c055d59bf7e639/fabric-data-generation-api-v1-25.6.0+c0da0b829e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-convention-tags-v2/4.7.1+1f023a9e9e/e465c608c60ceb105c4f5d792460f5de02d90135/fabric-convention-tags-v2-4.7.1+1f023a9e9e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-creative-tab-api-v1/5.0.15+6468574f9e/b8896143a3467ad9eeff3bda41fb787bc080019e/fabric-creative-tab-api-v1-5.0.15+6468574f9e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-data-attachment-api-v1/2.2.19+515ac5339e/6ac7e37bdfaf6b9fc26be152d01daa0f95d799a2/fabric-data-attachment-api-v1-2.2.19+515ac5339e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-debug-api-v1/1.0.2+c792624d9e/9f0581bb985edf22a0d812dbe67178bd2849286/fabric-debug-api-v1-1.0.2+c792624d9e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-dimensions-v1/5.1.12+515ac5339e/b9d60e3ceee08f0fbc6f19fe8264c82c5fc2d122/fabric-dimensions-v1-5.1.12+515ac5339e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-entity-events-v1/5.0.5+06488ac19e/5cbecb675b91d0ebfe2ef3f20339e1a2c76c435/fabric-entity-events-v1-5.0.5+06488ac19e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-events-interaction-v0/5.2.8+515ac5339e/98650380bb4e65a3deb6254e7c10a171eb907477/fabric-events-interaction-v0-5.2.8+515ac5339e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-game-rule-api-v1/4.0.8+46a6d00c9e/886816530fb79c925eb1bc6c34dd4d9d82e71d49/fabric-game-rule-api-v1-4.0.8+46a6d00c9e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-gametest-api-v1/4.0.22+4a7fa0819e/3fb91749fe4f238518d2980fdc18454016949190/fabric-gametest-api-v1-4.0.22+4a7fa0819e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-item-api-v1/14.5.0+c68f6cbe9e/c2d241b01e3c083637adb17c2c8ff798cb752d5a/fabric-item-api-v1-14.5.0+c68f6cbe9e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-recipe-api-v1/9.0.22+11e1c9a39e/e756703eda39613f8d638521829b673c92276604/fabric-recipe-api-v1-9.0.22+11e1c9a39e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-model-loading-api-v1/8.0.17+c80601bb9e/b7b69be9cac7b63f853bd3c937c1b774c96a13fb/fabric-model-loading-api-v1-8.0.17+c80601bb9e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-renderer-indigo/9.1.4+2b0d8a229e/48cdf540bd670fe9333a74dd1570316180d10ab3/fabric-renderer-indigo-9.1.4+2b0d8a229e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-renderer-api-v1/14.1.4+2b0d8a229e/f6a6d234cc1073ffb871150d548d2164f8bc8d0b/fabric-renderer-api-v1-14.1.4+2b0d8a229e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-rendering-v1/25.3.3+515ac5339e/b970a6d778b9867d6ea13d5437193f1e86a19c55/fabric-rendering-v1-25.3.3+515ac5339e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-lifecycle-events-v1/4.1.4+29b6eb019e/54a508470dcea81513e39001b5c0bf9fae0f1d5/fabric-lifecycle-events-v1-4.1.4+29b6eb019e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-loot-api-v3/3.0.17+06488ac19e/964f3985687b491093db6b9ff87b35106112b74d/fabric-loot-api-v3-3.0.17+06488ac19e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-menu-api-v1/2.0.17+086d547a9e/2d35d55e2aa842d5eec1f9262a74074385c69cfb/fabric-menu-api-v1-2.0.17+086d547a9e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-message-api-v1/7.0.8+bb2ed3f79e/106dc9ed22970076aaa39cd257b69705d136dd05/fabric-message-api-v1-7.0.8+bb2ed3f79e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-client-gametest-api-v1/6.0.2+0f4f1dca9e/f54e52e7af5a41fdcf6715f87d09282b2dc9b0f2/fabric-client-gametest-api-v1-6.0.2+0f4f1dca9e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-particles-v1/5.0.19+d1756aa99e/f6290d6511388b78455e2186d980553879343172/fabric-particles-v1-5.0.19+d1756aa99e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-object-builder-api-v1/24.1.1+6fcd5f039e/90175252776d48f5c549835501e7fa227e68c4c8/fabric-object-builder-api-v1-24.1.1+6fcd5f039e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-registry-sync-v0/7.1.1+c7bd5b8e9e/82c1ce3885265deb0c15970d4abadf0ae055a539/fabric-registry-sync-v0-7.1.1+c7bd5b8e9e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-networking-api-v1/6.3.4+2989c6a09e/608860809ec66fd65ca764c4157e96030f330537/fabric-networking-api-v1-6.3.4+2989c6a09e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-permission-api-v1/1.0.5+e442d8d09e/92197dd81a18322fd36b87de79bdaa8d2b4a1ba9/fabric-permission-api-v1-1.0.5+e442d8d09e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-rendering-fluids-v1/6.0.4+06488ac19e/9ded3bc73b5ff3c441075d0c8eca988aacce1f1f/fabric-rendering-fluids-v1-6.0.4+06488ac19e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-tag-api-v1/2.1.4+515ac5339e/f66a24273cdcc2ce424bf8c69cdc9cf48bdcb328/fabric-tag-api-v1-2.1.4+515ac5339e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-resource-loader-v0/3.3.20+4fc5413f9e/c6551ab905383f3c8e046a403a78a25bebabaff0/fabric-resource-loader-v0-3.3.20+4fc5413f9e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-resource-loader-v1/2.0.13+9edec1269e/db19bb66f069d7ed3dde41eb7e1f9ff3122c15a4/fabric-resource-loader-v1-2.0.13+9edec1269e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-screen-api-v1/5.2.1+5087f8249e/ef9ad9a09f392eff05957c24c71e4da6797bb8d9/fabric-screen-api-v1-5.2.1+5087f8249e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-api-base/2.0.4+ece063239e/e766f3698b7bab8b1e13683040f8648fab511ca3/fabric-api-base-2.0.4+ece063239e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-biome-api-v1/18.0.6+c7bd5b8e9e/414c89d2bc8ab64dce1763edc4dbe4619113a5b/fabric-biome-api-v1-18.0.6+c7bd5b8e9e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-block-getter-api-v2/2.0.7+ec56b6019e/8204045ca262749761be09b144618e6c4133ebe1/fabric-block-getter-api-v2-2.0.7+ec56b6019e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-crash-report-info-v1/1.0.5+086d547a9e/119f48a9a648d86c89fe21444176d0032449d95c/fabric-crash-report-info-v1-1.0.5+086d547a9e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-key-mapping-api-v1/2.0.5+e2bdee789e/c86dc688a7e9caa7edca9973dc6abfe37c652135/fabric-key-mapping-api-v1-2.0.5+e2bdee789e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-resource-conditions-api-v1/6.1.0+10e9a28b9e/bfe91afa0e7712974b318ed7e274b493b038a596/fabric-resource-conditions-api-v1-6.1.0+10e9a28b9e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-serialization-api-v1/2.0.4+11a26f319e/ebf77996be79909f639a7352689d851385a9cd2b/fabric-serialization-api-v1-2.0.4+11a26f319e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-sound-api-v1/2.0.5+11a26f319e/73e4e62924608e1d1581f192607857db096dafe7/fabric-sound-api-v1-2.0.5+11a26f319e.jar:/home/runner/.gradle/caches/modules-2/files-2.1/net.fabricmc.fabric-api/fabric-transitive-access-wideners-v1/8.1.4+67c847259e/e1e769f8e123395ab939d5d8da900e6a6ad53ab2/fabric-transitive-access-wideners-v1-8.1.4+67c847259e.jar:/home/runner/work/nightsiege/nightsiege/build/classes/java/main:/home/runner/work/nightsiege/nightsiege/build/resources/main)
+		at knot//com.sun.jna.Native.extractFromResourcePath(Native.java:1141)
+		at knot//com.sun.jna.NativeLibrary.loadLibrary(NativeLibrary.java:297)
+		... 12 more
+[23:39:56] [Render thread/INFO] (Minecraft) Reloading ResourceManager: vanilla, fabric-advancement-api-v1, fabric-api, fabric-api-base, fabric-api-lookup-api-v1, fabric-biome-api-v1, fabric-block-api-v1, fabric-block-getter-api-v2, fabric-client-gametest-api-v1, fabric-command-api-v2, fabric-content-registries-v0, fabric-convention-tags-v2, fabric-crash-report-info-v1, fabric-creative-tab-api-v1, fabric-data-attachment-api-v1, fabric-data-generation-api-v1, fabric-debug-api-v1, fabric-dimensions-v1, fabric-entity-events-v1, fabric-events-interaction-v0, fabric-game-rule-api-v1, fabric-gametest-api-v1, fabric-item-api-v1, fabric-key-mapping-api-v1, fabric-lifecycle-events-v1, fabric-loot-api-v3, fabric-menu-api-v1, fabric-message-api-v1, fabric-model-loading-api-v1, fabric-networking-api-v1, fabric-object-builder-api-v1, fabric-particles-v1, fabric-permission-api-v1, fabric-recipe-api-v1, fabric-registry-sync-v0, fabric-renderer-api-v1, fabric-renderer-indigo, fabric-rendering-fluids-v1, fabric-rendering-v1, fabric-resource-conditions-api-v1, fabric-resource-loader-v0, fabric-resource-loader-v1, fabric-screen-api-v1, fabric-serialization-api-v1, fabric-sound-api-v1, fabric-tag-api-v1, fabric-transfer-api-v1, fabric-transitive-access-wideners-v1, fabricloader, nightsiege
+[23:39:57] [Worker-Main-1/INFO] (Minecraft) Found unifont_all_no_pua-17.0.01.hex, loading
+[23:39:57] [Worker-Main-3/INFO] (Minecraft) Found unifont_pua-17.0.01.hex, loading
+[23:39:57] [Worker-Main-1/INFO] (Minecraft) Found unifont_jp_patch-17.0.01.hex, loading
+[23:39:59] [Render thread/ERROR] (Minecraft) Error starting SoundSystem. Turning off sounds & music
+
+java.lang.IllegalStateException: Failed to open OpenAL device
+	at knot//com.mojang.blaze3d.audio.Library.openDeviceOrFallback(Library.java:275)
+	at knot//com.mojang.blaze3d.audio.Library.init(Library.java:150)
+	at knot//net.minecraft.client.sounds.SoundEngine.loadLibrary(SoundEngine.java:120)
+	at knot//net.minecraft.client.sounds.SoundEngine.reload(SoundEngine.java:109)
+	at knot//net.minecraft.client.sounds.SoundManager.apply(SoundManager.java:122)
+	at knot//net.minecraft.client.sounds.SoundManager.apply(SoundManager.java:41)
+	at knot//net.minecraft.server.packs.resources.SimplePreparableReloadListener.lambda$reload$1(SimplePreparableReloadListener.java:15)
+	at java.base/java.util.concurrent.CompletableFuture$UniAccept.tryFire(CompletableFuture.java:739)
+	at java.base/java.util.concurrent.CompletableFuture$Completion.run(CompletableFuture.java:503)
+	at knot//net.minecraft.server.packs.resources.SimpleReloadInstance.lambda$prepareTasks$3(SimpleReloadInstance.java:59)
+	at knot//net.minecraft.util.thread.BlockableEventLoop.doRunTask(BlockableEventLoop.java:173)
+	at knot//net.minecraft.util.thread.ReentrantBlockableEventLoop.doRunTask(ReentrantBlockableEventLoop.java:23)
+	at knot//net.minecraft.util.thread.BlockableEventLoop.pollTask(BlockableEventLoop.java:147)
+	at knot//net.minecraft.util.thread.BlockableEventLoop.runAllTasks(BlockableEventLoop.java:127)
+	at knot//net.minecraft.client.Minecraft.runTick(Minecraft.java:1235)
+	at knot//net.minecraft.client.Minecraft.run$mixinextras$wrapped$272(Minecraft.java:959)
+	at knot//net.minecraft.client.Minecraft.mixinextras$bridge$run$mixinextras$wrapped$272$273(Minecraft.java)
+	at knot//net.minecraft.client.Minecraft.wrapMethod$zbn000$fabric-client-gametest-api-v1$onRun(Minecraft.java:3679)
+	at knot//net.minecraft.client.Minecraft.run(Minecraft.java)
+	at knot//net.minecraft.client.main.Main.main(Main.java:292)
+	at net.fabricmc.loader.impl.game.minecraft.MinecraftGameProvider.launch(MinecraftGameProvider.java:517)
+	at net.fabricmc.loader.impl.launch.knot.Knot.launch(Knot.java:72)
+	at net.fabricmc.loader.impl.launch.knot.KnotClient.main(KnotClient.java:23)
+	at net.fabricmc.devlaunchinjector.Main.main(Main.java:86)
+[23:39:59] [Render thread/INFO] (Minecraft) Created: 512x256x0 minecraft:textures/atlas/particles.png-atlas
+[23:40:00] [Render thread/INFO] (Minecraft) Created: 128x128x0 minecraft:textures/atlas/decorated_pot.png-atlas
+[23:40:00] [Render thread/INFO] (Minecraft) Created: 2048x1024x0 minecraft:textures/atlas/armor_trims.png-atlas
+[23:40:00] [Render thread/INFO] (Minecraft) Created: 512x256x0 minecraft:textures/atlas/paintings.png-atlas
+[23:40:00] [Render thread/INFO] (Minecraft) Created: 1024x512x0 minecraft:textures/atlas/shield_patterns.png-atlas
+[23:40:00] [Render thread/INFO] (Minecraft) Created: 2048x2048x4 minecraft:textures/atlas/blocks.png-atlas
+[23:40:00] [Render thread/INFO] (Minecraft) Created: 512x512x0 minecraft:textures/atlas/chest.png-atlas
+[23:40:00] [Render thread/INFO] (Minecraft) Created: 512x256x0 minecraft:textures/atlas/celestials.png-atlas
+[23:40:00] [Render thread/INFO] (Minecraft) Created: 1024x512x0 minecraft:textures/atlas/banner_patterns.png-atlas
+[23:40:00] [Render thread/INFO] (Minecraft) Created: 1024x512x0 minecraft:textures/atlas/items.png-atlas
+[23:40:00] [Render thread/INFO] (Minecraft) Created: 1024x1024x0 minecraft:textures/atlas/gui.png-atlas
+[23:40:00] [Render thread/INFO] (Minecraft) Created: 128x64x0 minecraft:textures/atlas/map_decorations.png-atlas
+[23:40:00] [Render thread/INFO] (Minecraft) Created: 512x512x0 minecraft:textures/atlas/shulker_boxes.png-atlas
+[23:40:00] [Download-2/INFO] (Minecraft) Could not authorize you against Realms server: java.lang.RuntimeException: Failed to parse into SignedJWT: FabricMC
+[23:40:04] [Render thread/INFO] (Minecraft) Loaded 1593 recipes
+[23:40:04] [Render thread/INFO] (Minecraft) Loaded 1688 advancements
+[23:40:04] [Render thread/INFO] (fabric-client-gametest-api-v1) World loading finished: null screen: net.minecraft.client.gui.screens.GenericMessageScreen@c9ee095
+[23:40:05] [Render thread/INFO] (BiomeModificationImpl) Applied 0 biome modifications to 0 of 66 new biomes in 1.384 ms
+[23:40:05] [Server thread/INFO] (Minecraft) Starting integrated minecraft server version 26.2
+[23:40:05] [Server thread/INFO] (Minecraft) Generating keypair
+[23:40:05] [Server thread/INFO] (Minecraft) Selecting global world spawn...
+[23:40:05] [Server thread/INFO] (Minecraft) Loading 0 persistent chunks...
+[23:40:05] [Server thread/INFO] (Minecraft) Preparing spawn area: 16%
+[23:40:05] [Server thread/INFO] (Minecraft) Saving chunks for level 'ServerLevel[New World]'/minecraft:overworld
+[23:40:05] [Server thread/INFO] (Minecraft) Saving chunks for level 'ServerLevel[New World]'/minecraft:the_end
+[23:40:05] [Server thread/INFO] (Minecraft) Saving chunks for level 'ServerLevel[New World]'/minecraft:the_nether
+[23:40:05] [Server thread/INFO] (Minecraft) ThreadedAnvilChunkStorage (world): All chunks are saved
+[23:40:05] [Server thread/INFO] (Minecraft) ThreadedAnvilChunkStorage (DIM1): All chunks are saved
+[23:40:05] [Server thread/INFO] (Minecraft) ThreadedAnvilChunkStorage (DIM-1): All chunks are saved
+[23:40:05] [Server thread/INFO] (Minecraft) ThreadedAnvilChunkStorage: All dimensions are saved
+[23:40:05] [Server thread/WARN] (TranslationConventionLogWarnings) 
+	Dev warning - Untranslated Item Tags detected. Please translate your item tags so other mods such as recipe viewers can properly display your tag's name.
+	The format desired is tag.item.<namespace>.<path> for the translation key with slashes in path turned into periods.
+	To disable this message, set this system property in your runs: `-Dfabric-tag-conventions-v2.missingTagTranslationWarning=SILENCED`.
+	To see individual untranslated item tags found, set the system property to `-Dfabric-tag-conventions-v2.missingTagTranslationWarning=VERBOSE`.
+	Default is `SHORT`.
+
+[23:40:06] [Server thread/INFO] (nightsiege) [Night Siege] Neues Balancing: 0 Spieler starten mit 0 Punkten neu
+[23:40:06] [Server thread/INFO] (nightsiege) [Night Siege] Alchemisten-Tränke als Knoten: 0 Profile angepasst
+[23:40:06] [Server thread/INFO] (nightsiege) [Night Siege] 0 Cores bekannt, 0 Belagerungen bestanden
+[23:40:06] [Render thread/INFO] (fabric-client-gametest-api-v1) World loading finished: null screen: net.minecraft.client.gui.screens.LevelLoadingScreen@47616e24
+[23:40:06] [Render thread/INFO] (fabric-client-gametest-api-v1) World loading finished: null screen: net.minecraft.client.gui.screens.LevelLoadingScreen@47616e24
+[23:40:06] [Render thread/INFO] (fabric-client-gametest-api-v1) World loading finished: null screen: net.minecraft.client.gui.screens.LevelLoadingScreen@47616e24
+[23:40:06] [Render thread/INFO] (fabric-client-gametest-api-v1) World loading finished: null screen: net.minecraft.client.gui.screens.LevelLoadingScreen@47616e24
+[23:40:06] [Render thread/INFO] (fabric-client-gametest-api-v1) World loading finished: null screen: net.minecraft.client.gui.screens.LevelLoadingScreen@47616e24
+[23:40:06] [Render thread/INFO] (fabric-client-gametest-api-v1) World loading finished: null screen: net.minecraft.client.gui.screens.LevelLoadingScreen@47616e24
+[23:40:06] [Server thread/INFO] (Minecraft) Loading 48 chunks for player spawn...
+[23:40:06] [Server thread/INFO] (Minecraft) Preparing spawn area: 16%
+[23:40:06] [Render thread/INFO] (fabric-client-gametest-api-v1) World loading finished: null screen: net.minecraft.client.gui.screens.LevelLoadingScreen@47616e24
+[23:40:06] [Server thread/INFO] (Minecraft) Preparing spawn area: 16%
+[23:40:06] [Render thread/INFO] (fabric-client-gametest-api-v1) World loading finished: null screen: net.minecraft.client.gui.screens.LevelLoadingScreen@47616e24
+[23:40:06] [Render thread/INFO] (fabric-client-gametest-api-v1) World loading finished: null screen: net.minecraft.client.gui.screens.LevelLoadingScreen@47616e24
+[23:40:06] [Server thread/INFO] (Minecraft) Preparing spawn area: 16%
+[23:40:07] [Render thread/INFO] (fabric-client-gametest-api-v1) World loading finished: null screen: net.minecraft.client.gui.screens.LevelLoadingScreen@47616e24
+[23:40:07] [Render thread/INFO] (fabric-client-gametest-api-v1) World loading finished: null screen: net.minecraft.client.gui.screens.LevelLoadingScreen@47616e24
+[23:40:07] [Server thread/INFO] (Minecraft) Time elapsed: 1706 ms
+[23:40:07] [Render thread/INFO] (fabric-client-gametest-api-v1) World loading finished: null screen: net.minecraft.client.gui.screens.LevelLoadingScreen@47616e24
+[23:40:07] [Server thread/INFO] (Minecraft) Player0[local:E:14b954b8] logged in with entity id 1 at (0.5, -60.0, 0.5)
+[23:40:07] [Server thread/INFO] (Minecraft) Player0 joined the game
+[23:40:07] [Server thread/INFO] (Minecraft) Changing view distance to 5, from 10
+[23:40:07] [Server thread/INFO] (Minecraft) Changing simulation distance to 12, from 0
+[23:40:07] [Render thread/INFO] (fabric-client-gametest-api-v1) World loading finished: null screen: net.minecraft.client.gui.screens.LevelLoadingScreen@47616e24
+[23:40:07] [Render thread/INFO] (Minecraft) [System] [CHAT] You have been given a siege core. Place it where your base should stand.
+[23:40:07] [Download-2/ERROR] (Minecraft) Failed to retrieve profile key pair
+
+MinecraftClientHttpException[type=HTTP_ERROR, status=401, response=ErrorResponse[path=/player/certificates, error=null, errorMessage=null, details=null]]
+	at knot//com.mojang.authlib.minecraft.client.MinecraftClient.buildHttpException(MinecraftClient.java:170)
+	at knot//com.mojang.authlib.minecraft.client.MinecraftClient.readServiceResponse(MinecraftClient.java:147)
+	at knot//com.mojang.authlib.minecraft.client.MinecraftClient.post(MinecraftClient.java:89)
+	at knot//com.mojang.authlib.yggdrasil.YggdrasilUserApiService.getKeyPair(YggdrasilUserApiService.java:62)
+	at knot//net.minecraft.client.multiplayer.AccountProfileKeyPairManager.fetchProfileKeyPair(AccountProfileKeyPairManager.java:128)
+	at knot//net.minecraft.client.multiplayer.AccountProfileKeyPairManager.lambda$readOrFetchProfileKeyPair$0(AccountProfileKeyPairManager.java:77)
+	at java.base/java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1789)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1090)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:614)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+[23:40:07] [Render thread/INFO] (Minecraft) Loaded 2 advancements
+[23:40:07] [Render thread/INFO] (fabric-client-gametest-api-v1) World loading finished: ClientLevel screen: net.minecraft.client.gui.screens.LevelLoadingScreen@47616e24
+[23:40:08] [Render thread/INFO] (Minecraft) Resizing Dynamic Transforms UBO, capacity limit of 2 reached during a single frame. New capacity will be 4.
+[23:40:08] [Render thread/INFO] (fabric-client-gametest-api-v1) World loading finished: ClientLevel screen: net.minecraft.client.gui.screens.LevelLoadingScreen@47616e24
+[23:40:08] [Render thread/INFO] (Minecraft) Resizing Dynamic Transforms UBO, capacity limit of 4 reached during a single frame. New capacity will be 8.
+[23:40:08] [Render thread/INFO] (fabric-client-gametest-api-v1) World loading finished: ClientLevel screen: net.minecraft.client.gui.screens.LevelLoadingScreen@47616e24
+[23:40:08] [Render thread/INFO] (Minecraft) Resizing Dynamic Transforms UBO, capacity limit of 8 reached during a single frame. New capacity will be 16.
+[23:40:08] [Render thread/INFO] (fabric-client-gametest-api-v1) World loading finished: ClientLevel screen: net.minecraft.client.gui.screens.LevelLoadingScreen@47616e24
+[23:40:08] [Render thread/INFO] (fabric-client-gametest-api-v1) World loading finished: ClientLevel screen: net.minecraft.client.gui.screens.LevelLoadingScreen@47616e24
+[23:40:08] [Server thread/WARN] (Minecraft) Can't keep up! Is the server overloaded? Running 2035ms or 40 ticks behind
+[23:40:08] [Render thread/INFO] (Minecraft) Resizing Chunk Sections UBO, capacity limit of 2 reached during a single frame. New capacity will be 8.
+[23:40:09] [Render thread/INFO] (fabric-client-gametest-api-v1) World loading finished: ClientLevel screen: net.minecraft.client.gui.screens.LevelLoadingScreen@47616e24
+[23:40:09] [Render thread/INFO] (fabric-client-gametest-api-v1) World loading finished: ClientLevel screen: net.minecraft.client.gui.screens.LevelLoadingScreen@47616e24
+[23:40:09] [Render thread/INFO] (fabric-client-gametest-api-v1) World loading finished: ClientLevel screen: net.minecraft.client.gui.screens.LevelLoadingScreen@47616e24
+[23:40:09] [Render thread/INFO] (fabric-client-gametest-api-v1) World loading finished: ClientLevel screen: net.minecraft.client.gui.screens.LevelLoadingScreen@47616e24
+[23:40:09] [Render thread/INFO] (Minecraft) Resizing Chunk Sections UBO, capacity limit of 8 reached during a single frame. New capacity will be 16.
+[23:40:09] [Render thread/INFO] (fabric-client-gametest-api-v1) World loading finished: ClientLevel screen: null
+[23:40:09] [Render thread/INFO] (Minecraft) Resizing Chunk Sections UBO, capacity limit of 16 reached during a single frame. New capacity will be 32.
+[23:40:10] [Render thread/INFO] (Minecraft) Resizing Chunk Sections UBO, capacity limit of 32 reached during a single frame. New capacity will be 64.
+[23:40:11] [Server thread/INFO] (Minecraft) Set minecraft:overworld to 1500 tick(s)
+[23:40:11] [Server thread/INFO] (Minecraft) Set the weather to clear
+[23:40:11] [Server thread/INFO] (Minecraft) Summoned new Zombie
+[23:40:11] [Server thread/INFO] (Minecraft) Summoned new Skeleton
+[23:40:11] [Server thread/INFO] (Minecraft) Summoned new Creeper
+[23:40:11] [Server thread/INFO] (Minecraft) Summoned new Spider
+[23:40:11] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:11] [Render thread/INFO] (Minecraft) [System] [CHAT] [Server: Set minecraft:overworld to 1500 tick(s)]
+[23:40:11] [Render thread/INFO] (Minecraft) [System] [CHAT] [Server: Set the weather to clear]
+[23:40:11] [Render thread/INFO] (Minecraft) [System] [CHAT] [Server: Summoned new Zombie]
+[23:40:11] [Render thread/INFO] (Minecraft) [System] [CHAT] [Server: Summoned new Skeleton]
+[23:40:11] [Render thread/INFO] (Minecraft) [System] [CHAT] [Server: Summoned new Creeper]
+[23:40:11] [Render thread/INFO] (Minecraft) [System] [CHAT] [Server: Summoned new Spider]
+[23:40:15] [Render thread/INFO] (Minecraft) Resizing Chunk Sections UBO, capacity limit of 64 reached during a single frame. New capacity will be 128.
+[23:40:15] [Render thread/INFO] (Minecraft) [System] [CHAT] This core invites you to the siege nights. Players who are not signed up are left alone by the mod.
+[23:40:15] [Render thread/INFO] (Minecraft) [System] [CHAT] [Sign up]  You stay signed up until you sign out.
+[23:40:15] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] registered=true
+[23:40:17] [Server thread/INFO] (Minecraft) Marked 225 chunks in minecraft:overworld from [19, 13] to [33, 27] to be force loaded
+[23:40:17] [Render thread/INFO] (Minecraft) [System] [CHAT] [Server: Marked 225 chunks in minecraft:overworld from [19, 13] to [33, 27] to be force loaded]
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) No blocks were filled
+[23:40:21] [Server thread/INFO] (Minecraft) Successfully filled 150 block(s)
+[23:40:21] [Server thread/INFO] (Minecraft) Successfully filled 150 block(s)
+[23:40:21] [Server thread/INFO] (Minecraft) Successfully filled 138 block(s)
+[23:40:21] [Server thread/INFO] (Minecraft) Successfully filled 138 block(s)
+[23:40:21] [Server thread/INFO] (Minecraft) Changed the block at 420, -60, 308
+[23:40:21] [Server thread/INFO] (Minecraft) Changed the block at 420, -59, 308
+[23:40:21] [Server thread/INFO] (Minecraft) Set minecraft:overworld to 6000 tick(s)
+[23:40:21] [Server thread/INFO] (Minecraft) Set the weather to clear
+[23:40:21] [Server thread/INFO] (Minecraft) Teleported Player0 to 420.500000, -60.000000, 290.500000
+[23:40:21] [Render thread/INFO] (Minecraft) [System] [CHAT] [Server: Successfully filled 150 block(s)]
+[23:40:21] [Render thread/INFO] (Minecraft) [System] [CHAT] [Server: Successfully filled 150 block(s)]
+[23:40:21] [Render thread/INFO] (Minecraft) [System] [CHAT] [Server: Successfully filled 138 block(s)]
+[23:40:21] [Render thread/INFO] (Minecraft) [System] [CHAT] [Server: Successfully filled 138 block(s)]
+[23:40:21] [Render thread/INFO] (Minecraft) [System] [CHAT] [Server: Changed the block at 420, -60, 308]
+[23:40:21] [Render thread/INFO] (Minecraft) [System] [CHAT] [Server: Changed the block at 420, -59, 308]
+[23:40:21] [Render thread/INFO] (Minecraft) [System] [CHAT] [Server: Set minecraft:overworld to 6000 tick(s)]
+[23:40:21] [Render thread/INFO] (Minecraft) [System] [CHAT] [Server: Set the weather to clear]
+[23:40:21] [Render thread/INFO] (Minecraft) [System] [CHAT] [Server: Teleported Player0 to 420.500000, -60.000000, 290.500000]
+[23:40:23] [Server thread/INFO] (Minecraft) WarBot1[local] logged in with entity id 6 at (0.0, 0.0, 0.0)
+[23:40:23] [Server thread/INFO] (Minecraft) WarBot1 joined the game
+[23:40:23] [Server thread/INFO] (Minecraft) WarBot2[local] logged in with entity id 7 at (0.0, 0.0, 0.0)
+[23:40:23] [Server thread/INFO] (Minecraft) WarBot2 joined the game
+[23:40:23] [Render thread/INFO] (Minecraft) [System] [CHAT] WarBot1 joined the game
+[23:40:23] [Render thread/INFO] (Minecraft) [System] [CHAT] WarBot2 joined the game
+[23:40:26] [Server thread/WARN] (Minecraft) Can't keep up! Is the server overloaded? Running 2710ms or 54 ticks behind
+[23:40:28] [Server thread/INFO] (nightsiege) [Night Siege] Kriegsführer-Runde: Bereit-Runde von Player0 mit 2 Spielern
+[23:40:28] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] war lobby: Kriegsführer: Bereit-Runde von Player0, 0/2 bereit members=2
+[23:40:28] [Render thread/INFO] (Minecraft) [System] [CHAT] You are the war leader. As soon as everyone within 48 blocks of the core is ready, it begins.
+[23:40:30] [Render thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] war lobby screen=lobby
+[23:40:30] [Server thread/INFO] (nightsiege) [Night Siege] Basis: geschlossen 23x24, Tore 1, Spawnplätze 3248 (54 ms mit Schnappschuss)
+[23:40:30] [Server thread/INFO] (nightsiege) [Night Siege] Kriegsführer-Runde beginnt: Player0 gegen 2 Verteidiger, Stufe 1, Gold 10 (Welle 1: 4), 8 Sammelplätze, Sicht 120
+[23:40:30] [Render thread/INFO] (Minecraft) [System] [CHAT] ⚔ War leader's round: Player0 leads the monsters! 12 s to build up, then 2 waves of 0 minutes.
+[23:40:30] [Render thread/INFO] (Minecraft) [System] [CHAT] Click a red flag to pick the gathering point, buy for it on the left. Click a squad, then a gate or a piece of wall: target. Space: storm. Esc: menu.
+[23:40:30] [Server thread/INFO] (Minecraft) WarBot1 Blademaster has made the advancement [Suit Up]
+[23:40:30] [Server thread/INFO] (Minecraft) WarBot1 Blademaster has made the advancement [Stone Age]
+[23:40:30] [Server thread/INFO] (Minecraft) WarBot2 Bulwark has made the advancement [Suit Up]
+[23:40:30] [Server thread/INFO] (Minecraft) WarBot2 Bulwark has made the advancement [Stone Age]
+[23:40:30] [Render thread/INFO] (Minecraft) [System] [CHAT] WarBot1 Blademaster has made the advancement [Suit Up]
+[23:40:30] [Render thread/INFO] (Minecraft) [System] [CHAT] WarBot1 Blademaster has made the advancement [Stone Age]
+[23:40:30] [Render thread/INFO] (Minecraft) [System] [CHAT] WarBot2 Bulwark has made the advancement [Suit Up]
+[23:40:30] [Render thread/INFO] (Minecraft) [System] [CHAT] WarBot2 Bulwark has made the advancement [Stone Age]
+[23:40:32] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] war begun round=true Kriegsführer: Player0, Welle 0/2, Gold 4 (Runde 10), 0 Trupps, 8 Sammelplätze, Sicht 120, Karte -
+[23:40:32] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] war points (distance to core): 0:64 1:51 2:67 3:53 4:47 5:74 6:56 7:47 radius=120 gold=4 roundGold=10
+[23:40:32] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] war leader spectator=true y=80 clock=18000 bar=⚔ War leader Player0 · build-up 0:10
+[23:40:32] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] war buy prep: zombies=null skelette=null creeper=null ladders=null sapper=null machine=nightsiege.war.later card=nightsiege.war.card_prep gold=131 squads=1=zombies/coming/0 2=skelette/coming/0 3=creeper/coming/0 4=leitertraeger/coming/0 5=sprengmeister/coming/0
+[23:40:33] [Render thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] war view phase=prep
+[23:40:34] [Render thread/INFO] (Minecraft) Resizing Chunk Sections UBO, capacity limit of 128 reached during a single frame. New capacity will be 256.
+[23:40:34] [Render thread/INFO] (Minecraft) Resizing Dynamic Transforms UBO, capacity limit of 16 reached during a single frame. New capacity will be 32.
+[23:40:42] [Render thread/INFO] (Minecraft) [System] [CHAT] ⚔ Wave 1 of 2 – the squads are coming!
+[23:40:47] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] war wave1: Kriegsführer: Player0, Welle 1/2, Gold 131 (Runde 10), 5 Trupps, 8 Sammelplätze, Sicht 120, Karte - squads=1=zombies/gather/4 2=skelette/gather/3 3=creeper/gather/2 4=leitertraeger/gather/2 5=sprengmeister/gather/1 live={}
+[23:40:47] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] war buy wave1: machine=null card=null card2=nightsiege.war.card_busy gold=96 bar=⚔ War leader Player0 · wave 1/2 · 0:35 · card: Blood Moon
+[23:40:47] [Render thread/INFO] (Minecraft) [System] [CHAT] Player0 plays a card: Blood Moon!
+[23:40:51] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] war order target #1: 1=zombies/target/4 2=skelette/gather/3 3=creeper/gather/2 4=leitertraeger/target/2 5=sprengmeister/target/1 6=machine.trebuchet/free/1 raid={APPROACH=6} machines=1
+[23:40:51] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] war buy boss boss.frost_jarl=null again=nightsiege.war.boss_used gold=56
+[23:40:54] [Render thread/INFO] (Minecraft) [System] [CHAT] The war leader calls a boss: Frost Jarl!
+[23:40:55] [Server thread/INFO] (nightsiege) [Night Siege] Angriffsplan: Weg offen: hole im sw bei 414 -58 334
+[23:40:56] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] war storm: 1=zombies/target/4 2=skelette/storm/3 3=creeper/storm/2 4=leitertraeger/target/2 5=sprengmeister/target/1 6=machine.trebuchet/free/1 7=boss.frost_jarl/free/1 raid={APPROACH=11} boss=true machines=1 bar=⚔ War leader Player0 · wave 1/2 · 0:26 · card: Blood Moon
+[23:41:12] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] war ways in: breaches=0 ladders=0 raid={APPROACH=7, ASSAULT=2, HOLD=2} entries=2 squads=1=zombies/target/4 2=skelette/storm/3 3=creeper/storm/2 4=leitertraeger/target/2 5=sprengmeister/target/1 6=machine.trebuchet/free/1 7=boss.frost_jarl/free/1
+[23:41:12] [Render thread/INFO] (Minecraft) [System] [CHAT] WarBot1 has fallen. 1 defenders still standing.
+[23:41:12] [Render thread/INFO] (Minecraft) [System] [CHAT] WarBot2 has fallen. 0 defenders still standing.
+[23:41:12] [Server thread/INFO] (nightsiege) [Night Siege] Statistik der Nacht geschrieben: testnacht_2026-10-29_23-40-30.json
+[23:41:12] [Server thread/INFO] (nightsiege) [Night Siege] Kriegsführer-Runde vorbei: kriegsfuehrer nach 41 s (Welle 1), Gold 98 von 10, 7 Käufe, 4 Befehle, gefallen [WarBot1, WarBot2]
+[23:41:12] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege] WAR;kriegsfuehrer;1;2;1;41;10;98;7;2
+[23:41:12] [Render thread/INFO] (Minecraft) [System] [CHAT] Rebuilding: 15 blocks the night destroyed – blown up, dug out, burnt – are back.
+[23:41:12] [Render thread/INFO] (Minecraft) [System] [CHAT] ⚔ Player0 wins the war leader's round: every defender fell in wave 1 (after 0:29).
+[23:41:12] [Render thread/INFO] (Minecraft) [System] [CHAT] New record: Player0 with the fastest win as war leader (0:29)!
+[23:41:12] [Server thread/WARN] (Minecraft) Can't keep up! Is the server overloaded? Running 2013ms or 40 ticks behind
+[23:41:15] [Render thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] war end screen=end
+[23:41:15] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] war end1: round=false active=false Kriegsführer: keine Runde creative=true spectator=false back=420.5,-60.0,290.5 (was 420.5,-60.0,290.5) clock=6000 (was 6000) restore=false records=1/1/29
+[23:41:20] [Server thread/INFO] (nightsiege) [Night Siege] Kriegsführer-Runde: Bereit-Runde von Player0 mit 2 Spielern
+[23:41:20] [Render thread/INFO] (Minecraft) [System] [CHAT] You are the war leader. As soon as everyone within 48 blocks of the core is ready, it begins.
+[23:41:21] [Server thread/INFO] (nightsiege) [Night Siege] Basis: geschlossen 23x24, Tore 1, Spawnplätze 3248 (39 ms mit Schnappschuss)
+[23:41:21] [Server thread/INFO] (nightsiege) [Night Siege] Kriegsführer-Runde beginnt: Player0 gegen 2 Verteidiger, Stufe 1, Gold 10 (Welle 1: 4), 8 Sammelplätze, Sicht 120
+[23:41:21] [Render thread/INFO] (Minecraft) [System] [CHAT] ⚔ War leader's round: Player0 leads the monsters! 12 s to build up, then 2 waves of 0 minutes.
+[23:41:21] [Render thread/INFO] (Minecraft) [System] [CHAT] Click a red flag to pick the gathering point, buy for it on the left. Click a squad, then a gate or a piece of wall: target. Space: storm. Esc: menu.
+[23:41:23] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] war round2: Kriegsführer: Player0, Welle 0/2, Gold 4 (Runde 10), 0 Trupps, 8 Sammelplätze, Sicht 120, Karte - round=true
+[23:41:23] [Server thread/INFO] (nightsiege) [Night Siege] Statistik der Nacht geschrieben: testnacht_2026-10-29_23-41-21.json
+[23:41:23] [Server thread/INFO] (nightsiege) [Night Siege] Kriegsführer-Runde vorbei: verteidiger nach 1 s (Welle 0), Gold 0 von 10, 0 Käufe, 0 Befehle, gefallen []
+[23:41:23] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege] WAR;verteidiger;1;2;0;1;10;0;0;0
+[23:41:23] [Render thread/INFO] (Minecraft) [System] [CHAT] Player0 gives up – the defenders win the war leader's round!
+[23:41:23] [Render thread/INFO] (Minecraft) [System] [CHAT] ⚔ The defenders hold! 2 of 2 still stand – Player0 is beaten.
+[23:41:24] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] war end2: round=false Kriegsführer: keine Runde creative=true records=2/1
+[23:41:25] [Server thread/INFO] (nightsiege) [Night Siege] Kriegsführer-Runde: Bereit-Runde von Player0 mit 2 Spielern
+[23:41:25] [Render thread/INFO] (Minecraft) [System] [CHAT] You are the war leader. As soon as everyone within 48 blocks of the core is ready, it begins.
+[23:41:25] [Server thread/INFO] (nightsiege) [Night Siege] Basis: geschlossen 23x24, Tore 1, Spawnplätze 3248 (41 ms mit Schnappschuss)
+[23:41:25] [Server thread/INFO] (nightsiege) [Night Siege] Kriegsführer-Runde beginnt: Player0 gegen 2 Verteidiger, Stufe 1, Gold 10 (Welle 1: 10), 8 Sammelplätze, Sicht 120
+[23:41:26] [Render thread/INFO] (Minecraft) [System] [CHAT] ⚔ War leader's round: Player0 leads the monsters! 5 s to build up, then 1 waves of 0 minutes.
+[23:41:26] [Render thread/INFO] (Minecraft) [System] [CHAT] Click a red flag to pick the gathering point, buy for it on the left. Click a squad, then a gate or a piece of wall: target. Space: storm. Esc: menu.
+[23:41:27] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] war round3: Kriegsführer: Player0, Welle 0/1, Gold 10 (Runde 10), 0 Trupps, 8 Sammelplätze, Sicht 120, Karte -
+[23:41:29] [Server thread/WARN] (Minecraft) Can't keep up! Is the server overloaded? Running 2030ms or 40 ticks behind
+[23:41:31] [Render thread/INFO] (Minecraft) [System] [CHAT] ⚔ Wave 1 of 1 – the squads are coming!
+[23:41:41] [Server thread/INFO] (nightsiege) [Night Siege] Statistik der Nacht geschrieben: testnacht_2026-10-29_23-41-25.json
+[23:41:41] [Server thread/INFO] (nightsiege) [Night Siege] Kriegsführer-Runde vorbei: verteidiger nach 14 s (Welle 1), Gold 0 von 10, 0 Käufe, 0 Befehle, gefallen []
+[23:41:41] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege] WAR;verteidiger;1;2;1;14;10;0;0;0
+[23:41:41] [Render thread/INFO] (Minecraft) [System] [CHAT] ⚔ The defenders hold! 2 of 2 still stand – Player0 is beaten.
+[23:41:45] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] war end3: round=false active=false Kriegsführer: keine Runde creative=true clock=6000 records=3/2 restore=false
+[23:41:45] [Server thread/INFO] (Minecraft) Unmarked 225 chunks in minecraft:overworld from [19, 13] to [33, 27] for force loading
+[23:41:45] [Server thread/INFO] (Minecraft) Teleported Player0 Warrior to 0.500000, -60.000000, 0.500000
+[23:41:45] [Render thread/INFO] (Minecraft) [System] [CHAT] [Server: Unmarked 225 chunks in minecraft:overworld from [19, 13] to [33, 27] for force loading]
+[23:41:45] [Render thread/INFO] (Minecraft) [System] [CHAT] [Server: Teleported Player0 Warrior to 0.500000, -60.000000, 0.500000]
+[23:41:46] [Server thread/INFO] (Minecraft) Set minecraft:overworld to 6000 tick(s)
+[23:41:46] [Server thread/INFO] (Minecraft) Teleported Player0 Warrior to 422.500000, -60.000000, 327.500000
+[23:41:46] [Render thread/INFO] (Minecraft) [System] [CHAT] [Server: Set minecraft:overworld to 6000 tick(s)]
+[23:41:46] [Render thread/INFO] (Minecraft) [System] [CHAT] [Server: Teleported Player0 Warrior to 422.500000, -60.000000, 327.500000]
+[23:41:47] [Render thread/INFO] (Minecraft) [System] [CHAT] Your night kit: your own inventory is put away safely and comes back after the night.
+[23:41:47] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] one-class pick: prep=true unlocked=[WARRIOR] summonerForEveryone=true mayChoose=true
+[23:41:47] [Server thread/INFO] (Minecraft) Player0 Warrior has made the advancement [Cover Me with Diamonds]
+[23:41:47] [Server thread/INFO] (Minecraft) Player0 Warrior has made the advancement [Stone Age]
+[23:41:47] [Render thread/ERROR] (Minecraft) ########## GL ERROR ##########
+[23:41:47] [Render thread/ERROR] (Minecraft) @ Pre render
+[23:41:47] [Render thread/ERROR] (Minecraft) 65547: X11: Standard cursor shape unavailable
+[23:41:47] [Render thread/INFO] (Minecraft) [System] [CHAT] §6Test night at level 5 starts in 30 seconds. Weapons and traps are handed out: set your traps and take your positions!
+[23:41:47] [Render thread/INFO] (Minecraft) [System] [CHAT] Player0 Warrior has made the advancement [Cover Me with Diamonds]
+[23:41:47] [Render thread/INFO] (Minecraft) [System] [CHAT] Player0 Warrior has made the advancement [Stone Age]
+[23:41:47] [Render thread/INFO] (Minecraft) Loaded 27 advancements
+[23:41:49] [Test thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] one-class pick screen=ClassPickScreen
+[23:41:49] [Server thread/WARN] (Minecraft) Can't keep up! Is the server overloaded? Running 2043ms or 40 ticks behind
+[23:41:49] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] one-class pick cancelled=true stash=false
+[23:41:49] [Render thread/INFO] (Minecraft) [System] [CHAT] The night is over: your own inventory is back.
+[23:41:50] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] B prep: ok=true stash=true unlocked=[WARRIOR, GUARDIAN]
+[23:41:50] [Render thread/INFO] (Minecraft) [System] [CHAT] Your night kit: your own inventory is put away safely and comes back after the night.
+[23:41:50] [Render thread/INFO] (Minecraft) [System] [CHAT] §6Test night at level 14 starts in 8 seconds. Weapons and traps are handed out: set your traps and take your positions!
+[23:41:50] [Server thread/INFO] (Minecraft) Player0 Warrior has completed the challenge [Cover Me in Debris]
+[23:41:50] [Render thread/INFO] (Minecraft) [System] [CHAT] Player0 Warrior has completed the challenge [Cover Me in Debris]
+[23:41:50] [Render thread/INFO] (Minecraft) Loaded 30 advancements
+[23:41:52] [Render thread/INFO] (Minecraft) [System] [CHAT] You now play Guardian.
+[23:41:54] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] B kit: 1xminecraft:netherite_sword* 32xminecraft:golden_carrot* 32xminecraft:cobblestone* 1xminecraft:wooden_pickaxe* 1xminecraft:wooden_axe* 1xminecraft:wooden_shovel* 1xminecraft:netherite_boots* 1xminecraft:netherite_leggings* 1xminecraft:netherite_chestplate* 1xminecraft:netherite_helmet* 1xminecraft:shield* 
+[23:41:58] [Server thread/INFO] (nightsiege) [Night Siege] Basis: geschlossen 23x24, Tore 1, Spawnplätze 3248 (28 ms mit Schnappschuss)
+[23:41:58] [Render thread/INFO] (Minecraft) [System] [CHAT] The siege begins! Level 14. Hold out until dawn.
+[23:41:58] [Server thread/WARN] (nightsiege) [Night Siege] Mob takesapillage:legioner nicht gefunden, wird uebersprungen
+[23:42:01] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] B night: active=true
+[23:42:01] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] B fallen: spectator=false alive=true
+[23:42:01] [Render thread/INFO] (Minecraft) [System] [CHAT] Player0 has fallen. 0 defenders still standing.
+[23:42:01] [Render thread/INFO] (Minecraft) [System] [CHAT] You fell – as a drone you fly on for the rest of the night and shoot with the crossbow.
+[23:42:01] [Server thread/INFO] (nightsiege) [Night Siege] Statistik der Nacht geschrieben: testnacht_2026-10-29_23-41-58.json
+[23:42:01] [Render thread/INFO] (Minecraft) [System] [CHAT] The night is over: your own inventory is back.
+[23:42:01] [Render thread/INFO] (Minecraft) [System] [CHAT] [Show the night's statistics]
+[23:42:01] [Render thread/INFO] (Minecraft) [System] [CHAT] Test siege lost. Nothing was counted and the base is untouched.
+[23:42:01] [Render thread/INFO] (Minecraft) Loaded 32 advancements
+[23:42:02] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] B restored: mode=SURVIVAL stash=false items=32xminecraft:dirt 1xminecraft:golden_sword 
+[23:42:04] [Server thread/INFO] (Minecraft) Set Player0 Guardian's game mode to Creative Mode
+[23:42:04] [Server thread/INFO] (nightsiege) [Night Siege] Kiste von Player0: barrikaden (UNCOMMON)
+[23:42:04] [Render thread/INFO] (Minecraft) [System] [CHAT] Your game mode has been updated to Creative Mode
+[23:42:04] [Render thread/INFO] (Minecraft) [System] [CHAT] [Server: Set Player0 Guardian's game mode to Creative Mode]
+[23:42:04] [Render thread/INFO] (Minecraft) [System] [CHAT] Crate: Barricades for your Guardian kit.
+[23:42:07] [Server thread/WARN] (Minecraft) Can't keep up! Is the server overloaded? Running 2033ms or 40 ticks behind
+[23:42:11] [Server thread/INFO] (nightsiege) [Night Siege] Kiste von Player0: fackeln (COMMON)
+[23:42:11] [Render thread/INFO] (Minecraft) [System] [CHAT] Crate: Torch bundle for your Guardian kit.
+[23:42:18] [Server thread/INFO] (nightsiege) [Night Siege] Kiste von Player0: wurfperlen (UNCOMMON)
+[23:42:18] [Render thread/INFO] (Minecraft) [System] [CHAT] Crate: Throwing pearls for your Guardian kit.
+[23:42:20] [Server thread/INFO] (Minecraft) Teleported Player0 Guardian to 0.000000, -60.000000, 0.000000
+[23:42:20] [Render thread/INFO] (Minecraft) [System] [CHAT] [Server: Teleported Player0 Guardian to 0.000000, -60.000000, 0.000000]
+[23:42:20] [Server thread/INFO] (Minecraft) ✦ Player0 Guardian drew a legendary gain: War banner! ✦
+[23:42:20] [Render thread/INFO] (Minecraft) [System] [CHAT] ✦ Player0 Guardian drew a legendary gain: War banner! ✦
+[23:42:23] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] B gains: {GUARDIAN={fackeln=1, wurfperlen=1, barrikaden=1}}
+[23:42:24] [Render thread/INFO] (Minecraft) [System] [CHAT] You are signed up! Every 3 days an invitation comes in the morning; with 3 accepts the night is played.
+[23:42:24] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] core right click: Success[swingSource=CLIENT, itemContext=ItemContext[wasItemInteraction=true, heldItemTransformedTo=null]] registered=true
+[23:42:24] [Server thread/WARN] (Minecraft) Can't keep up! Is the server overloaded? Running 2068ms or 41 ticks behind
+[23:42:25] [Server thread/INFO] (Minecraft) Set minecraft:overworld to 18000 tick(s)
+[23:42:25] [Server thread/INFO] (Minecraft) Applied effect Night Vision to Player0 Guardian
+[23:42:25] [Server thread/INFO] (Minecraft) Teleported Player0 Guardian to 423.500000, -60.000000, 328.500000
+[23:42:25] [Server thread/INFO] (Minecraft) That position is not loaded
+[23:42:25] [Server thread/INFO] (Minecraft) That position is not loaded
+[23:42:25] [Server thread/INFO] (Minecraft) That position is not loaded
+[23:42:25] [Render thread/INFO] (Minecraft) [System] [CHAT] [Server: Set minecraft:overworld to 18000 tick(s)]
+[23:42:25] [Render thread/INFO] (Minecraft) [System] [CHAT] [Server: Applied effect Night Vision to Player0 Guardian]
+[23:42:25] [Render thread/INFO] (Minecraft) [System] [CHAT] [Server: Teleported Player0 Guardian to 423.500000, -60.000000, 328.500000]
+[23:42:26] [Render thread/INFO] (Minecraft) [System] [CHAT] You now play Warrior.
+[23:42:26] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] B2 WARRIOR prep ok=true
+[23:42:26] [Render thread/INFO] (Minecraft) [System] [CHAT] Your night kit: your own inventory is put away safely and comes back after the night.
+[23:42:26] [Render thread/INFO] (Minecraft) [System] [CHAT] §6Test night at level 14 starts in 3 seconds. Weapons and traps are handed out: set your traps and take your positions!
+[23:42:26] [Render thread/INFO] (Minecraft) Loaded 34 advancements
+[23:42:30] [Server thread/INFO] (nightsiege) [Night Siege] Basis: geschlossen 23x24, Tore 1, Spawnplätze 3248 (39 ms mit Schnappschuss)
+[23:42:30] [Render thread/INFO] (Minecraft) [System] [CHAT] The siege begins! Level 14. Hold out until dawn.
+[23:42:30] [Server thread/WARN] (nightsiege) [Night Siege] Mob friendsandfoes:wildfire nicht gefunden, wird uebersprungen
+[23:42:31] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] B2 WARRIOR night active=true defending=true gadgets=4xwurfspeer 1xkletterhaken 1xkriegsbanner 6xwurfbeil 1xkampfhorn 
+[23:42:33] [Server thread/INFO] (Minecraft) Summoned new Zombie
+[23:42:33] [Server thread/INFO] (Minecraft) Summoned new Zombie
+[23:42:33] [Server thread/INFO] (Minecraft) Summoned new Zombie
+[23:42:33] [Server thread/INFO] (Minecraft) Summoned new Zombie
+[23:42:33] [Render thread/INFO] (Minecraft) [System] [CHAT] [Server: Summoned new Zombie]
+[23:42:33] [Render thread/INFO] (Minecraft) [System] [CHAT] [Server: Summoned new Zombie]
+[23:42:33] [Render thread/INFO] (Minecraft) [System] [CHAT] [Server: Summoned new Zombie]
+[23:42:33] [Render thread/INFO] (Minecraft) [System] [CHAT] [Server: Summoned new Zombie]
+[23:42:33] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] B2 warrior: axe=true banner=true barricade=true horn=true state=banners=1 oil=0 calm=5 lured=0 flee=5 guards=0
+[23:42:33] [Render thread/INFO] (Minecraft) [System] [CHAT] Player0 Warrior raised the war banner: +10 % damage within 10 blocks!
+[23:42:34] [Server thread/INFO] (nightsiege) [Night Siege] Sprengcreeper: Krater in der Mauer (Seite 1), 23 Blöcke
+[23:42:35] [Server thread/INFO] (Minecraft) Named entity Zombie['Tunneler'/155, l='ServerLevel[New World]', x=429.34, y=-63.00, z=351.50] died: Tunneler was killed
+[23:42:35] [Server thread/INFO] (Minecraft) Named entity Zombie['Tunneler'/159, l='ServerLevel[New World]', x=423.50, y=-63.00, z=356.49] died: Tunneler was killed
+[23:42:35] [Server thread/INFO] (Minecraft) Named entity Zombie['Ladder Carrier'/165, l='ServerLevel[New World]', x=411.50, y=-60.00, z=297.66] died: Ladder Carrier was killed
+[23:42:35] [Server thread/INFO] (Minecraft) Killed 7 entities
+[23:42:35] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] B2 zombies: 0s 0s 0s 0s 
+[23:42:35] [Server thread/INFO] (nightsiege) [Night Siege] Statistik der Nacht geschrieben: testnacht_2026-10-29_23-42-30.json
+[23:42:35] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] B2 after night: temp=0 fence=Block{minecraft:air}
+[23:42:35] [Render thread/INFO] (Minecraft) [System] [CHAT] [Server: Killed 7 entities]
+[23:42:35] [Render thread/INFO] (Minecraft) [System] [CHAT] Rebuilding: 23 blocks the night destroyed – blown up, dug out, burnt – are back.
+[23:42:35] [Render thread/INFO] (Minecraft) [System] [CHAT] The night is over: your own inventory is back.
+[23:42:35] [Render thread/INFO] (Minecraft) [System] [CHAT] The siege was called off. Nobody was left to defend.
+[23:42:35] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] B2 ARCHER prep ok=true
+[23:42:35] [Render thread/INFO] (Minecraft) [System] [CHAT] You now play Archer.
+[23:42:35] [Render thread/INFO] (Minecraft) [System] [CHAT] Your night kit: your own inventory is put away safely and comes back after the night.
+[23:42:35] [Render thread/INFO] (Minecraft) [System] [CHAT] §6Test night at level 14 starts in 3 seconds. Weapons and traps are handed out: set your traps and take your positions!
+[23:42:35] [Render thread/INFO] (Minecraft) Loaded 35 advancements
+[23:42:39] [Server thread/INFO] (nightsiege) [Night Siege] Basis: geschlossen 23x24, Tore 1, Spawnplätze 3248 (25 ms mit Schnappschuss)
+[23:42:39] [Render thread/INFO] (Minecraft) [System] [CHAT] The siege begins! Level 14. Hold out until dawn.
+[23:42:39] [Server thread/WARN] (nightsiege) [Night Siege] Mob takesapillage:archer nicht gefunden, wird uebersprungen
+[23:42:40] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] B2 ARCHER night active=true defending=true gadgets=16xlight 4xclimb 8xstorm 1xtarnumhang 
+[23:42:41] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] B2 arrow light: tags=[ns_arrow_light, nightsiege_arrow] kind=light owner=ServerPlayer['Player0'/1, l='ServerLevel[New World]', x=423.50, y=-60.00, z=328.50] item=1 minecraft:tipped_arrow ground=false
+[23:42:41] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] B2 arrow climb: tags=[ns_arrow_climb, nightsiege_arrow] kind=climb owner=ServerPlayer['Player0'/1, l='ServerLevel[New World]', x=423.50, y=-60.00, z=328.50] item=1 minecraft:tipped_arrow ground=false
+[23:42:41] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] B2 arrow storm: tags=[ns_arrow_storm, nightsiege_arrow] kind=storm owner=ServerPlayer['Player0'/1, l='ServerLevel[New World]', x=423.50, y=-60.00, z=328.50] item=1 minecraft:tipped_arrow ground=false
+[23:42:41] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] B2 quiver: offhand=Arrow
+[23:42:43] [Server thread/INFO] (Minecraft) Teleported Player0 Archer to 423.500000, -60.000000, 328.500000
+[23:42:43] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] B2 archer: temp=[minecraft:overworld|431|-57|326|minecraft:light, minecraft:overworld|431|-57|327|minecraft:ladder, minecraft:overworld|431|-58|327|minecraft:ladder, minecraft:overworld|431|-59|327|minecraft:ladder, minecraft:overworld|431|-60|327|minecraft:ladder]
+[23:42:43] [Render thread/INFO] (Minecraft) [System] [CHAT] [Server: Teleported Player0 Archer to 423.500000, -60.000000, 328.500000]
+[23:42:43] [Server thread/INFO] (nightsiege) [Night Siege] Statistik der Nacht geschrieben: testnacht_2026-10-29_23-42-39.json
+[23:42:44] [Render thread/INFO] (Minecraft) [System] [CHAT] The night is over: your own inventory is back.
+[23:42:44] [Render thread/INFO] (Minecraft) [System] [CHAT] The siege was called off. Nobody was left to defend.
+[23:42:44] [Render thread/INFO] (Minecraft) [System] [CHAT] §6You got a remote: right click opens the tower menu (strengthen towers), Ability 2 overcharges a trap, marks a monster or aims the mortars.
+[23:42:44] [Render thread/INFO] (Minecraft) [System] [CHAT] You now play Engineer.
+[23:42:44] [Render thread/INFO] (Minecraft) [System] [CHAT] §6You got a remote: right click opens the tower menu (strengthen towers), Ability 2 overcharges a trap, marks a monster or aims the mortars.
+[23:42:44] [Render thread/INFO] (Minecraft) [System] [CHAT] Your night kit: your own inventory is put away safely and comes back after the night.
+[23:42:44] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] B2 ENGINEER prep ok=true
+[23:42:44] [Render thread/INFO] (Minecraft) [System] [CHAT] §6Test night at level 14 starts in 3 seconds. Weapons and traps are handed out: set your traps and take your positions!
+[23:42:44] [Render thread/INFO] (Minecraft) Loaded 46 advancements
+[23:42:45] [Server thread/WARN] (Minecraft) Can't keep up! Is the server overloaded? Running 2017ms or 40 ticks behind
+[23:42:47] [Server thread/INFO] (nightsiege) [Night Siege] Basis: geschlossen 23x24, Tore 1, Spawnplätze 3248 (33 ms mit Schnappschuss)
+[23:42:47] [Server thread/WARN] (nightsiege) [Night Siege] Mob friendsandfoes:illusioner nicht gefunden, wird uebersprungen
+[23:42:47] [Render thread/INFO] (Minecraft) [System] [CHAT] The siege begins! Level 14. Hold out until dawn.
+[23:42:49] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] B2 ENGINEER night active=true defending=true gadgets=1xalchemie_blende 6xblendgranate 1xersatzbatterie 2xoelfass 
+[23:42:52] [Server thread/INFO] (Minecraft) Summoned new Zombie
+[23:42:52] [Server thread/INFO] (Minecraft) Summoned new Zombie
+[23:42:52] [Server thread/INFO] (Minecraft) Summoned new Zombie
+[23:42:52] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] B2 engineer: golems=1 oil=true flash=true
+[23:42:52] [Render thread/INFO] (Minecraft) [System] [CHAT] [Server: Summoned new Zombie]
+[23:42:52] [Render thread/INFO] (Minecraft) [System] [CHAT] [Server: Summoned new Zombie]
+[23:42:52] [Render thread/INFO] (Minecraft) [System] [CHAT] [Server: Summoned new Zombie]
+[23:42:52] [Server thread/INFO] (nightsiege) [Night Siege] Sprengcreeper: Krater in der Mauer (Seite 0), 26 Blöcke
+[23:42:53] [Server thread/INFO] (nightsiege) [Night Siege] Angriffsplan: Weg offen: hole im se bei 430 -58 334
+[23:42:53] [Server thread/INFO] (nightsiege) [Night Siege] Angriffsplan: Weg offen: hole im se bei 430 -62 330
+[23:42:53] [Server thread/INFO] (nightsiege) [Night Siege] Angriffsplan: Weg offen: hole im se bei 434 -62 334
+[23:42:53] [Server thread/INFO] (nightsiege) [Night Siege] Angriffsplan: Weg offen: hole im e bei 434 -58 330
+[23:42:53] [Server thread/INFO] (nightsiege) [Night Siege] Sprengcreeper: Krater in der Mauer (Seite 0), 18 Blöcke
+[23:42:54] [Server thread/INFO] (Minecraft) Named entity Zombie['Tunneler'/216, l='ServerLevel[New World]', x=456.84, y=-63.00, z=324.10] died: Tunneler was killed
+[23:42:54] [Server thread/INFO] (Minecraft) Killed 6 entities
+[23:42:54] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] B2 engineer later: banners=0 oil=1 calm=3 lured=0 flee=0 guards=0
+[23:42:54] [Server thread/INFO] (nightsiege) [Night Siege] Statistik der Nacht geschrieben: testnacht_2026-10-29_23-42-47.json
+[23:42:54] [Render thread/INFO] (Minecraft) [System] [CHAT] [Server: Killed 6 entities]
+[23:42:54] [Render thread/INFO] (Minecraft) [System] [CHAT] Rebuilding: 44 blocks the night destroyed – blown up, dug out, burnt – are back.
+[23:42:54] [Render thread/INFO] (Minecraft) [System] [CHAT] The night is over: your own inventory is back.
+[23:42:54] [Render thread/INFO] (Minecraft) [System] [CHAT] The siege was called off. Nobody was left to defend.
+[23:42:54] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] B2 GUARDIAN prep ok=true
+[23:42:54] [Render thread/INFO] (Minecraft) [System] [CHAT] You now play Guardian.
+[23:42:54] [Render thread/INFO] (Minecraft) [System] [CHAT] Your night kit: your own inventory is put away safely and comes back after the night.
+[23:42:54] [Render thread/INFO] (Minecraft) [System] [CHAT] §6Test night at level 14 starts in 3 seconds. Weapons and traps are handed out: set your traps and take your positions!
+[23:42:54] [Render thread/INFO] (Minecraft) Loaded 49 advancements
+[23:42:58] [Server thread/INFO] (nightsiege) [Night Siege] Basis: geschlossen 23x24, Tore 1, Spawnplätze 3248 (25 ms mit Schnappschuss)
+[23:42:58] [Render thread/INFO] (Minecraft) [System] [CHAT] The siege begins! Level 14. Hold out until dawn.
+[23:42:59] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] B2 GUARDIAN night active=true defending=true gadgets=3xbarrikade 1xsignalhorn 1xmauerkelle 1xleibwaechter 
+[23:43:00] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] B2 guardian: mirror=true signal=true trowel=true shield=BlocksAttacks[blockDelaySeconds=0.25, disableCooldownScale=1.0, damageReductions=[DamageReduction[horizontalBlockingAngle=135.0, type=Optional.empty, base=0.0, factor=1.0]], itemDamage=ItemDamageFunction[threshold=3.0, base=1.0, factor=1.0], bypassedBy=Optional[NamedSet(TagKey[minecraft:damage_type / minecraft:bypasses_shield])[[Reference{ResourceKey[minecraft:damage_type / minecraft:on_fire]=DamageType[msgId=onFire, scaling=WHEN_CAUSED_BY_LIVING_NON_PLAYER, exhaustion=0.0, effects=BURNING, deathMessageType=DEFAULT]}, Reference{ResourceKey[minecraft:damage_type / minecraft:in_wall]=DamageType[msgId=inWall, scaling=WHEN_CAUSED_BY_LIVING_NON_PLAYER, exhaustion=0.0, effects=HURT, deathMessageType=DEFAULT]}, Reference{ResourceKey[minecraft:damage_type / minecraft:cramming]=DamageType[msgId=cramming, scaling=WHEN_CAUSED_BY_LIVING_NON_PLAYER, exhaustion=0.0, effects=HURT, deathMessageType=DEFAULT]}, Reference{ResourceKey[minecraft:damage_type / minecraft:drown]=DamageType[msgId=drown, scaling=WHEN_CAUSED_BY_LIVING_NON_PLAYER, exhaustion=0.0, effects=DROWNING, deathMessageType=DEFAULT]}, Reference{ResourceKey[minecraft:damage_type / minecraft:fly_into_wall]=DamageType[msgId=flyIntoWall, scaling=WHEN_CAUSED_BY_LIVING_NON_PLAYER, exhaustion=0.0, effects=HURT, deathMessageType=DEFAULT]}, Reference{ResourceKey[minecraft:damage_type / minecraft:generic]=DamageType[msgId=generic, scaling=WHEN_CAUSED_BY_LIVING_NON_PLAYER, exhaustion=0.0, effects=HURT, deathMessageType=DEFAULT]}, Reference{ResourceKey[minecraft:damage_type / minecraft:wither]=DamageType[msgId=wither, scaling=WHEN_CAUSED_BY_LIVING_NON_PLAYER, exhaustion=0.0, effects=HURT, deathMessageType=DEFAULT]}, Reference{ResourceKey[minecraft:damage_type / minecraft:dragon_breath]=DamageType[msgId=dragonBreath, scaling=WHEN_CAUSED_BY_LIVING_NON_PLAYER, exhaustion=0.0, effects=HURT, deathMessageType=DEFAULT]}, Reference{ResourceKey[minecraft:damage_type / minecraft:starve]=DamageType[msgId=starve, scaling=WHEN_CAUSED_BY_LIVING_NON_PLAYER, exhaustion=0.0, effects=HURT, deathMessageType=DEFAULT]}, Reference{ResourceKey[minecraft:damage_type / minecraft:fall]=DamageType[msgId=fall, scaling=WHEN_CAUSED_BY_LIVING_NON_PLAYER, exhaustion=0.0, effects=HURT, deathMessageType=FALL_VARIANTS]}, Reference{ResourceKey[minecraft:damage_type / minecraft:ender_pearl]=DamageType[msgId=fall, scaling=WHEN_CAUSED_BY_LIVING_NON_PLAYER, exhaustion=0.0, effects=HURT, deathMessageType=FALL_VARIANTS]}, Reference{ResourceKey[minecraft:damage_type / minecraft:freeze]=DamageType[msgId=freeze, scaling=WHEN_CAUSED_BY_LIVING_NON_PLAYER, exhaustion=0.0, effects=FREEZING, deathMessageType=DEFAULT]}, Reference{ResourceKey[minecraft:damage_type / minecraft:stalagmite]=DamageType[msgId=stalagmite, scaling=WHEN_CAUSED_BY_LIVING_NON_PLAYER, exhaustion=0.0, effects=HURT, deathMessageType=DEFAULT]}, Reference{ResourceKey[minecraft:damage_type / minecraft:magic]=DamageType[msgId=magic, scaling=WHEN_CAUSED_BY_LIVING_NON_PLAYER, exhaustion=0.0, effects=HURT, deathMessageType=DEFAULT]}, Reference{ResourceKey[minecraft:damage_type / minecraft:indirect_magic]=DamageType[msgId=indirectMagic, scaling=WHEN_CAUSED_BY_LIVING_NON_PLAYER, exhaustion=0.0, effects=HURT, deathMessageType=DEFAULT]}, Reference{ResourceKey[minecraft:damage_type / minecraft:out_of_world]=DamageType[msgId=outOfWorld, scaling=WHEN_CAUSED_BY_LIVING_NON_PLAYER, exhaustion=0.0, effects=HURT, deathMessageType=DEFAULT]}, Reference{ResourceKey[minecraft:damage_type / minecraft:generic_kill]=DamageType[msgId=genericKill, scaling=WHEN_CAUSED_BY_LIVING_NON_PLAYER, exhaustion=0.0, effects=HURT, deathMessageType=DEFAULT]}, Reference{ResourceKey[minecraft:damage_type / minecraft:sonic_boom]=DamageType[msgId=sonic_boom, scaling=ALWAYS, exhaustion=0.0, effects=HURT, deathMessageType=DEFAULT]}, Reference{ResourceKey[minecraft:damage_type / minecraft:outside_border]=DamageType[msgId=outsideBorder, scaling=WHEN_CAUSED_BY_LIVING_NON_PLAYER, exhaustion=0.0, effects=HURT, deathMessageType=DEFAULT]}, Reference{ResourceKey[minecraft:damage_type / nightsiege:crushing]=DamageType[msgId=nightsiege.crushing, scaling=NEVER, exhaustion=0.1, effects=HURT, deathMessageType=DEFAULT]}, Reference{ResourceKey[minecraft:damage_type / nightsiege:crushing_through]=DamageType[msgId=nightsiege.crushing, scaling=NEVER, exhaustion=0.1, effects=HURT, deathMessageType=DEFAULT]}, Reference{ResourceKey[minecraft:damage_type / minecraft:cactus]=DamageType[msgId=cactus, scaling=WHEN_CAUSED_BY_LIVING_NON_PLAYER, exhaustion=0.1, effects=HURT, deathMessageType=DEFAULT]}, Reference{ResourceKey[minecraft:damage_type / minecraft:campfire]=DamageType[msgId=inFire, scaling=WHEN_CAUSED_BY_LIVING_NON_PLAYER, exhaustion=0.1, effects=BURNING, deathMessageType=DEFAULT]}, Reference{ResourceKey[minecraft:damage_type / minecraft:dry_out]=DamageType[msgId=dryout, scaling=WHEN_CAUSED_BY_LIVING_NON_PLAYER, exhaustion=0.1, effects=HURT, deathMessageType=DEFAULT]}, Reference{ResourceKey[minecraft:damage_type / minecraft:falling_anvil]=DamageType[msgId=anvil, scaling=WHEN_CAUSED_BY_LIVING_NON_PLAYER, exhaustion=0.1, effects=HURT, deathMessageType=DEFAULT]}, Reference{ResourceKey[minecraft:damage_type / minecraft:falling_stalactite]=DamageType[msgId=fallingStalactite, scaling=WHEN_CAUSED_BY_LIVING_NON_PLAYER, exhaustion=0.1, effects=HURT, deathMessageType=DEFAULT]}, Reference{ResourceKey[minecraft:damage_type / minecraft:hot_floor]=DamageType[msgId=hotFloor, scaling=WHEN_CAUSED_BY_LIVING_NON_PLAYER, exhaustion=0.1, effects=BURNING, deathMessageType=DEFAULT]}, Reference{ResourceKey[minecraft:damage_type / minecraft:sulfur_cube_hot]=DamageType[msgId=sulfurCubeHot, scaling=WHEN_CAUSED_BY_LIVING_NON_PLAYER, exhaustion=0.1, effects=BURNING, deathMessageType=DEFAULT]}, Reference{ResourceKey[minecraft:damage_type / minecraft:in_fire]=DamageType[msgId=inFire, scaling=WHEN_CAUSED_BY_LIVING_NON_PLAYER, exhaustion=0.1, effects=BURNING, deathMessageType=DEFAULT]}, Reference{ResourceKey[minecraft:damage_type / minecraft:lava]=DamageType[msgId=lava, scaling=WHEN_CAUSED_BY_LIVING_NON_PLAYER, exhaustion=0.1, effects=BURNING, deathMessageType=DEFAULT]}, Reference{ResourceKey[minecraft:damage_type / minecraft:lightning_bolt]=DamageType[msgId=lightningBolt, scaling=WHEN_CAUSED_BY_LIVING_NON_PLAYER, exhaustion=0.1, effects=HURT, deathMessageType=DEFAULT]}, Reference{ResourceKey[minecraft:damage_type / minecraft:sweet_berry_bush]=DamageType[msgId=sweetBerryBush, scaling=WHEN_CAUSED_BY_LIVING_NON_PLAYER, exhaustion=0.1, effects=POKING, deathMessageType=DEFAULT]}]]], blockSound=Optional[Reference{ResourceKey[minecraft:sound_event / minecraft:item.shield.block]=SoundEvent[location=minecraft:item.shield.block, fixedRange=Optional.empty]}], disableSound=Optional[Reference{ResourceKey[minecraft:sound_event / minecraft:item.shield.break]=SoundEvent[location=minecraft:item.shield.break, fixedRange=Optional.empty]}]] use=UseEffects[canSprint=true, interactVibrations=true, speedMultiplier=1.0]
+[23:43:01] [Server thread/INFO] (nightsiege) [Night Siege] Statistik der Nacht geschrieben: testnacht_2026-10-29_23-42-58.json
+[23:43:01] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] B2 done: temp=0 golems=0
+[23:43:01] [Render thread/INFO] (Minecraft) [System] [CHAT] The night is over: your own inventory is back.
+[23:43:01] [Render thread/INFO] (Minecraft) [System] [CHAT] The siege was called off. Nobody was left to defend.
+[23:43:02] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] classes ult3=true way=edge sub=blademaster axe blocked=path berserker blocked=choice nextOpen=false
+[23:43:02] [Render thread/INFO] (Minecraft) [System] [CHAT] You have no unlock. Bring the ult of a profile to level 3.
+[23:43:02] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] classes unlocked=[WARRIOR] guardian sub= medic blocked=class
+[23:43:05] [Render thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] classes buttons: [Done] [Skill tree] [Unlock] [Skill tree] [Unlock] [Skill tree] [Unlock] [Skill tree] [Unlock] [Skill tree] [Unlock]
+[23:43:06] [Server thread/WARN] (Minecraft) Can't keep up! Is the server overloaded? Running 2024ms or 40 ticks behind
+[23:43:12] [Server thread/INFO] (Minecraft) [STDOUT]: [Night Siege test] classes prep=true
+[23:43:12] [Render thread/INFO] (Minecraft) [System] [CHAT] Your night kit: your own inventory is put away safely and comes back after the night.
+[23:43:12] [Render thread/INFO] (Minecraft) [System] [CHAT] §6Test night at level 12 starts in 20 seconds. Weapons and traps are handed out: set your traps and take your positions!
+[23:43:14] [Render thread/INFO] (Minecraft) [System] [CHAT] The night is over: your own inventory is back.
+[23:43:14] [Server thread/INFO] (Minecraft) Player0 lost connection: Disconnected
+[23:43:14] [Server thread/INFO] (Minecraft) Player0 Blademaster left the game
+[23:43:14] [Server thread/INFO] (Minecraft) Stopping singleplayer server as player logged out
+[23:43:14] [Server thread/INFO] (Minecraft) Stopping server
+[23:43:14] [Server thread/INFO] (Minecraft) Saving players
+[23:43:14] [Server thread/INFO] (Minecraft) Saving worlds
+[23:43:14] [Server thread/INFO] (Minecraft) Saving chunks for level 'ServerLevel[New World]'/minecraft:overworld
+[23:43:14] [Server thread/INFO] (Minecraft) Saving chunks for level 'ServerLevel[New World]'/minecraft:the_end
+[23:43:14] [Server thread/INFO] (Minecraft) Saving chunks for level 'ServerLevel[New World]'/minecraft:the_nether
+[23:43:14] [Server thread/INFO] (Minecraft) ThreadedAnvilChunkStorage (world): All chunks are saved
+[23:43:14] [Server thread/INFO] (Minecraft) ThreadedAnvilChunkStorage (DIM1): All chunks are saved
+[23:43:14] [Server thread/INFO] (Minecraft) ThreadedAnvilChunkStorage (DIM-1): All chunks are saved
+[23:43:14] [Server thread/INFO] (Minecraft) ThreadedAnvilChunkStorage: All dimensions are saved
+[23:43:14] [Render thread/INFO] (Minecraft) Stopping!
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_6-1793317167867.json
+
+BUILD SUCCESSFUL in 3m 51s
+13 actionable tasks: 7 executed, 6 up-to-date
+Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.8.2/userguide/configuration_cache_enabling.html
+exit=0
