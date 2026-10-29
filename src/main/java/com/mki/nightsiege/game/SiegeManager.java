@@ -1371,7 +1371,8 @@ public final class SiegeManager {
         if (m.config == null || !m.config.blockNaturalSpawnsInSiege) {
             return false;
         }
-        return (m.active && m.world == level) || (m.pendingTest != null && m.pendingTest.world == level);
+        return (m.active && m.world == level) || (m.pendingTest != null && m.pendingTest.world == level)
+                || m.playtest.running();
     }
 
     /** Natural monsters are held back only around the core, so players elsewhere notice nothing. */
@@ -1391,12 +1392,25 @@ public final class SiegeManager {
         if (center == null && blocked != null && blocked.equals(dimensionName(level)) && level.getGameTime() < spawnBlockUntil) {
             center = spawnBlockCenter;
         }
+        double r = config.naturalSpawnBlockRadius;
+        if (center == null && playtest.running() && level.getServer() != null) {
+            // The playtest (Simon 29.10.): no natural monsters around its players, at any time.
+            for (ServerPlayer p : playtest.onlinePlayers(level.getServer())) {
+                if (p.level() == level) {
+                    double px = x - p.getX();
+                    double pz = z - p.getZ();
+                    if (px * px + pz * pz <= r * r) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
         if (center == null) {
             return false;
         }
         double dx = x - (center.getX() + 0.5);
         double dz = z - (center.getZ() + 0.5);
-        double r = config.naturalSpawnBlockRadius;
         return dx * dx + dz * dz <= r * r;
     }
 

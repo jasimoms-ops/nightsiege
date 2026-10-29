@@ -5783,8 +5783,17 @@ public class EventLookTest implements FabricClientGameTest {
             });
             context.waitTicks(60);
             onServer(context, (player, manager) -> {
+                int crates = 0;
+                for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+                    if (player.getInventory().getItem(i).is(com.mki.nightsiege.game.CrateService.CRATE)) {
+                        crates += player.getInventory().getItem(i).getCount();
+                    }
+                }
+                com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
                 System.out.println("[Night Siege test] playtest night " + (shot + 1) + ": phase=" + manager.playtest().phase()
-                        + " preparing=" + manager.isPreparing() + " active=" + manager.isActive());
+                        + " preparing=" + manager.isPreparing() + " active=" + manager.isActive()
+                        + " kit=" + manager.kits().hasStash(player) + " crates with the kit=" + crates
+                        + " levels=" + new java.util.TreeMap<>(own.levels));
                 manager.playtest().skip(player.level().getServer());   // the night ends
             });
             context.waitTicks(20);
