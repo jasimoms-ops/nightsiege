@@ -130,6 +130,16 @@ public final class WardenNight {
             if (armour != null) {
                 armour.setBaseValue(armour.getBaseValue() + 4.0);
             }
+            // The clients saw the armour when he was added; the change alone would not reach them
+            // (the game compares with the last tick, and he has not ticked yet): tell them.
+            if (mob.level() instanceof ServerLevel level) {
+                List<com.mojang.datafixers.util.Pair<EquipmentSlot, ItemStack>> bare = new ArrayList<>();
+                for (EquipmentSlot slot : new EquipmentSlot[]{EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET}) {
+                    bare.add(com.mojang.datafixers.util.Pair.of(slot, ItemStack.EMPTY));
+                }
+                level.getChunkSource().sendToTrackingPlayers(mob,
+                        new net.minecraft.network.protocol.game.ClientboundSetEquipmentPacket(mob.getId(), bare));
+            }
         }
         for (EquipmentSlot slot : EquipmentSlot.values()) {
             mob.setDropChance(slot, 0f);
@@ -188,7 +198,8 @@ public final class WardenNight {
         if (target != null) {
             mob.setTarget(target);
         }
-        bar = new ServerBossEvent(UUID.randomUUID(), name(kind), color(kind.fragment()), BossEvent.BossBarOverlay.NOTCHED_10);
+        bar = new ServerBossEvent(com.mki.nightsiege.core.NightBarIds.make(com.mki.nightsiege.core.NightBarIds.Kind.BOSS), name(kind),
+                color(kind.fragment()), BossEvent.BossBarOverlay.NOTCHED_10);   // the boss bars' look (design update)
         bar.setDarkenScreen(true);
         bar.setProgress(1f);
         for (ServerPlayer p : host.watchers()) {

@@ -293,6 +293,11 @@ public class EventLookTest implements FabricClientGameTest {
             game.getServer().runCommand("tp @a %d.5 %d %d.5 -90 8".formatted(home.getX() + 2, home.getY(), rows[1]));
             context.waitTicks(10);
             context.takeScreenshot("mobs4_" + event.toLowerCase(Locale.ROOT));
+            // The phantom up close (it is the last of the fourth row, one block up).
+            game.getServer().runCommand("tp @a %d.5 %d %d.5 facing %d.5 %d %d.5".formatted(home.getX() + 5, home.getY() + 1,
+                    rows[1] + 8, home.getX() + 9, home.getY() + 1, rows[1] + 8));
+            context.waitTicks(10);
+            context.takeScreenshot("mobs5_phantom_" + event.toLowerCase(Locale.ROOT));
             game.getServer().runCommand("tp @a %d.5 %d %d.5 -90 6".formatted(home.getX() + 2, home.getY(), home.getZ()));
             context.waitTicks(5);
         }
@@ -2645,12 +2650,13 @@ public class EventLookTest implements FabricClientGameTest {
             game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:grass_block".formatted(cx - out, cy - 1, z1, cx + out, cy - 1, z2));
             game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(cx - out, cy, z1, cx + out, cy + 12, z2));
         }
-        game.getServer().runCommand("time set 6000");
+        game.getServer().runCommand("time set 18000");   // the undead would burn by day
         game.getServer().runCommand("weather clear");
         game.getServer().runCommand("tp @p %d.5 %d %d.5 0 10".formatted(cx, cy, cz + 6));
         game.getServer().runCommand("gamemode survival @p");
         game.getServer().runCommand("effect give @p minecraft:resistance 600 255 true");
         game.getServer().runCommand("effect give @p minecraft:regeneration 600 10 true");
+        game.getServer().runCommand("kill @e[type=!player,x=%d,y=%d,z=%d,distance=..40]".formatted(cx, cy, cz));
         context.waitTicks(20);
         // All eight in a row, facing the camera.
         final java.util.List<java.util.UUID> row = new java.util.ArrayList<>();
@@ -2687,6 +2693,7 @@ public class EventLookTest implements FabricClientGameTest {
         // At night (the undead would burn by day), lit by night vision; then without it: what glows.
         game.getServer().runCommand("time set 18000");
         game.getServer().runCommand("effect give @p minecraft:night_vision 600 0 true");
+        game.getServer().runCommand("kill @e[type=!player,tag=!nightsiege_warden,x=%d,y=%d,z=%d,distance=..40]".formatted(cx, cy, cz));
         closeScreen(context);
         context.runOnClient(client -> hud(client, false));
         context.waitTicks(40);
