@@ -1,0 +1,173 @@
+name: balance
+
+# Balance-Werkzeug (29.10.2026): Team-Sim mit 1-10 Bots auf einem echten Server ohne Grafik.
+# Start: Push auf einen Branch "balance-run-*". Die Commit-Nachricht steuert den Lauf:
+#   [team L1,3,5,8,10,12,15,20 G1,2,4,7,10 N6 T1 V=neu:monsterDamage=0.8]  Einstellungen der Sim
+#   [shards 10]                                                            so viele Jobs nebeneinander
+# Ohne [team …] gelten die Standardwerte der Sim. Ergebnis: Branch "dist-<branch>"
+# (teamsim.csv, teamsim.txt, stats/ mit jeder Testnacht des Loggers).
+
+on:
+  push:
+    branches: ['balance-run-*']
+  workflow_dispatch:
+    inputs:
+      team:
+        description: 'Einstellungen der Team-Sim (z. B. "L5,10 G2,4 N4")'
+        type: string
+        default: ''
+      shards:
+        description: 'Jobs nebeneinander'
+        type: string
+        default: '10'
+
+permissions:
+  contents: write
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      shards: ${{ steps.plan.outputs.shards }}
+      count: ${{ steps.plan.outputs.count }}
+      team: ${{ steps.plan.outputs.team }}
+    steps:
+      - id: plan
+        env:
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+          IN_TEAM: ${{ inputs.team }}
+          IN_SHARDS: ${{ inputs.shards }}
+        run: |
+          python3 - <<'PY'
+          import json, os, re
+          msg = os.environ.get("COMMIT_MSG") or ""
+          team = os.environ.get("IN_TEAM") or ""
+          m = re.search(r"\[team ([^\]]*)\]", msg)
+          if m:
+              team = m.group(1).strip()
+          shards = os.environ.get("IN_SHARDS") or "10"
+          m = re.search(r"\[shards (\d+)\]", msg)
+          if m:
+              shards = m.group(1)
+          n = max(1, min(20, int(shards)))
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              out.write("shards=%s\n" % json.dumps(list(range(n))))
+              out.write("count=%d\n" % n)
+              out.write("team=%s\n" % team)
+          print("::notice title=TEAMSIM::%d Jobs, Einstellungen: %s" % (n, team or "(Standard)"))
+          PY
+
+  sim:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.plan.outputs.shards) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Passende Abhaengigkeiten waehlen
+        run: |
+          python3 - <<'PY'
+          import json, re, urllib.request
+          props = {}
+          for line in open("gradle.properties", encoding="utf-8"):
+              if "=" in line and not line.strip().startswith("#"):
+                  k, v = line.split("=", 1)
+                  props[k.strip()] = v.strip()
+          mc = props["minecraft_version"]
+          xml = urllib.request.urlopen("https://maven.fabricmc.net/net/fabricmc/fabric-api/fabric-api/maven-metadata.xml", timeout=30).read().decode()
+          api = [v for v in re.findall(r"<version>([^<]+)</version>", xml) if v.endswith("+" + mc)]
+          loader = json.loads(urllib.request.urlopen("https://meta.fabricmc.net/v2/versions/loader", timeout=30).read().decode())[0]["version"]
+          text = open("gradle.properties", encoding="utf-8").read()
+          text = re.sub(r"(?m)^fabric_version=.*$", "fabric_version=" + api[-1], text)
+          text = re.sub(r"(?m)^loader_version=.*$", "loader_version=" + loader, text)
+          open("gradle.properties", "w", encoding="utf-8").write(text)
+          PY
+
+      - name: JDK 25 einrichten
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Gradle einrichten
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Bauen
+        run: |
+          set -o pipefail
+          gradle build -x test --no-daemon --stacktrace 2>&1 | tee build-output.txt | tail -60
+
+      - name: Team-Sim
+        env:
+          TEAM: ${{ needs.plan.outputs.team }}
+          SHARD: ${{ matrix.shard }}
+          COUNT: ${{ needs.plan.outputs.count }}
+        run: |
+          set +e
+          mkdir -p run/config
+          echo "eula=true" > run/eula.txt
+          printf "level-seed=nightsiege\nonline-mode=false\nmax-tick-time=-1\ndifficulty=hard\nspawn-protection=0\nview-distance=8\nsimulation-distance=8\nsync-chunk-writes=false\n" > run/server.properties
+          # Die Werte des echten Servers (Stand 29.10.), damit die Sim mit denselben Reglern spielt.
+          cp tools/sim/server-config.json run/config/nightsiege.json
+          export NIGHTSIEGE_TEAMSIM="$TEAM shard=$SHARD/$COUNT"
+          if [ -f tools/sim/burg.json.gz ]; then export NIGHTSIEGE_TEAMSIM_KARTE="$PWD/tools/sim/burg.json.gz"; fi
+          echo "Team-Sim: $NIGHTSIEGE_TEAMSIM (Karte: ${NIGHTSIEGE_TEAMSIM_KARTE:-Standard-Burg})"
+          timeout 19000 gradle runServer --no-daemon --args=nogui > server-output.txt 2>&1
+          echo "exit=$?" >> server-output.txt
+          mkdir -p out/stats
+          cp run/config/nightsiege-teamsim.csv out/teamsim-$SHARD.csv 2>/dev/null || true
+          cp run/config/nightsiege-teamsim.txt out/teamsim-$SHARD.txt 2>/dev/null || true
+          cp run/world/nightsiege/stats/*.json out/stats/ 2>/dev/null || true
+          grep "\[Night Siege sim\]\|Exception\|Caused by\|ERROR" server-output.txt | tail -c 3000000 > out/sim-log-$SHARD.txt || true
+          tail -c 400000 server-output.txt > out/server-tail-$SHARD.txt
+          python3 - <<'PY'
+          import re
+          text = open("server-output.txt", encoding="utf-8", errors="replace").read()
+          lines = [l[l.index("[Night Siege sim]") + 17:].strip()[:220] for l in text.splitlines() if "[Night Siege sim]" in l and ("LAUF;" in l or "Stand:" in l or "TEAM" in l or "abgebrochen" in l or "Fehler" in l)]
+          for n in range(0, min(len(lines), 180), 20):
+              print("::warning title=SIM%d::" % (n // 20 + 1) + "%0A".join(lines[n:n + 20]))
+          errs = [l.strip()[:300] for l in text.splitlines() if "Exception" in l or "Caused by" in l][:30]
+          if errs:
+              print("::warning title=FEHLER::" + "%0A".join(errs))
+          print("::warning title=TAIL::" + "%0A".join(l[:250] for l in text.splitlines()[-25:]))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: teamsim-${{ matrix.shard }}
+          path: out/
+          if-no-files-found: warn
+
+  merge:
+    needs: [plan, sim]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: parts
+      - name: Zusammenfuehren
+        run: |
+          python3 tools/sim/merge.py parts merged
+          cat merged/teamsim.txt | head -80
+      - name: Ergebnis im dist-Branch
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          TMP=$(mktemp -d)
+          cp -r merged/. "$TMP/"
+          git checkout --orphan dist-tmp
+          git rm -rf -q . || true
+          rm -rf ./* || true
+          mkdir -p dist
+          cp -r "$TMP"/. dist/
+          git add -f dist
+          git commit -q -m "Team-Sim von ${GITHUB_SHA}"
+          git push -f origin dist-tmp:dist-${GITHUB_REF_NAME}

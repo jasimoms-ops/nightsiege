@@ -366,6 +366,8 @@ public final class SiegeManager {
         traps.setTeslaBoost(() -> active && currentEvent == SiegeEvent.THUNDER ? config.thunderTeslaMultiplier : 1.0);
         ServerLifecycleEvents.SERVER_STARTED.register(server -> onServerStarted(server));
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
+            TeamSim.stop(server);
+            SimBots.removeAll(server);
             dungeons.abortAll();
             safe("Dungeons", () -> expeditions.endAll(server, null));   // kits back, the arena's gate open
             traps.releaseAll(server);   // gunners out of the towers, the seats go
@@ -547,6 +549,10 @@ public final class SiegeManager {
         if (System.getenv("NIGHTSIEGE_DUNGEON_PROBE") != null) {
             dungeons.probe(server);
         }
+        // CI only: the balance tool's team simulation (29 October 2026).
+        if (System.getenv("NIGHTSIEGE_TEAMSIM") != null) {
+            TeamSim.startFromEnv(server);
+        }
     }
 
     /** How far the base scan looks for walls; kept in the config file. */
@@ -650,6 +656,7 @@ public final class SiegeManager {
         tickModCheck(server);
         safe("Reparatur", () -> NightDamage.tick(server));
         MeleeSim.tick(server);
+        TeamSim.tick(server);
         TrapService.clearHitting();
         trapsDirty |= traps.tick(server);
         TrapService.clearHitting();
@@ -3399,7 +3406,7 @@ public final class SiegeManager {
                 sendInvitation(player);
             }
         }
-        if (config.requireClientMod) {
+        if (config.requireClientMod && !SimBots.isBot(player)) {
             // The client registers its channels a moment after joining, so the
             // check waits three seconds rather than kicking an honest player.
             pendingModCheck.put(player.getUUID(), 60);
@@ -3730,7 +3737,7 @@ public final class SiegeManager {
             }
             it.remove();
             ServerPlayer player = server.getPlayerList().getPlayer(entry.getKey());
-            if (player == null) {
+            if (player == null || SimBots.isBot(player)) {
                 continue;
             }
             if (!ServerPlayNetworking.canSend(player, CoreNetworking.CoreUiPayload.TYPE)) {

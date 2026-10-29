@@ -65,12 +65,18 @@ public final class StatsRecorder {
     });
     private static String version;
     private static String build;
+    /** Set by the team simulation before a run: written into the night's file as "sim". */
+    public static volatile String simLabel = "";
+    /** The last night that was finished (the team simulation reads its result from it). */
+    public static volatile NightFile lastFinished;
 
     // ------------------------------------------------------------------ the files
 
     /** One night. Field names are the keys in the file (German, like the other protocols). */
     public static final class NightFile {
         public String art = "nacht";
+        /** A run of the balance tool's team simulation ("variant|level|group|mix|run"), empty for real nights. */
+        public String sim = "";
         public String version = "";
         public String build = "";
         public String start = "";
@@ -451,6 +457,7 @@ public final class StatsRecorder {
             return;
         }
         night = new NightFile();
+        night.sim = simLabel == null ? "" : simLabel;
         night.version = version();
         night.build = build();
         night.start = now();
@@ -804,6 +811,7 @@ public final class StatsRecorder {
         }
         writeLater(nightPath, night);
         NightSiegeMod.LOGGER.info("[Night Siege] Statistik der Nacht geschrieben: {}", nightPath == null ? "-" : nightPath.getFileName());
+        lastFinished = night;
         night = null;
         wave = null;
         mobSince.clear();

@@ -472,7 +472,7 @@ public final class MeleeSim {
     }
 
     /** Bow: draw fully and let go. Crossbow: load, then fire. Aimed a little above the target. */
-    private static void shoot(ServerPlayer player, ServerLevel level, Mob target) {
+    static void shoot(ServerPlayer player, ServerLevel level, Mob target) {
         // Any bow or crossbow item: the kit gives the subclass bows and from night 20 infernite ones,
         // which are not the vanilla items (the bench measured 0 damage for heavy shooters and crossbows).
         boolean crossbow = !hold(player, s -> s.getItem() instanceof net.minecraft.world.item.BowItem)
@@ -520,12 +520,12 @@ public final class MeleeSim {
         }
     }
 
-    private static boolean isMelee(ItemStack stack) {
+    static boolean isMelee(ItemStack stack) {
         return stack.is(ItemTags.SWORDS) || stack.is(ItemTags.AXES) || stack.getItem() instanceof net.minecraft.world.item.MaceItem;
     }
 
     /** Puts the first matching item of the inventory into the main hand. False when there is none. */
-    private static boolean hold(ServerPlayer player, java.util.function.Predicate<ItemStack> wanted) {
+    static boolean hold(ServerPlayer player, java.util.function.Predicate<ItemStack> wanted) {
         if (wanted.test(player.getMainHandItem())) {
             return true;
         }
@@ -603,7 +603,7 @@ public final class MeleeSim {
     }
 
     /** Drinks a healing potion or eats a golden apple (heal), or eats normal food. */
-    private static boolean use(ServerPlayer player, ServerLevel level, boolean heal) {
+    static boolean use(ServerPlayer player, ServerLevel level, boolean heal) {
         Inventory inv = player.getInventory();
         for (int i = 0; i < inv.getContainerSize(); i++) {
             ItemStack stack = inv.getItem(i);
@@ -619,7 +619,7 @@ public final class MeleeSim {
         return false;
     }
 
-    private static Mob nearest(ServerLevel level, ServerPlayer player, double radius) {
+    static Mob nearest(ServerLevel level, ServerPlayer player, double radius) {
         Mob best = null;
         double bestD = Double.MAX_VALUE;
         for (Mob mob : level.getEntitiesOfClass(Mob.class, player.getBoundingBox().inflate(radius),
