@@ -342,7 +342,7 @@ public class EventLookTest implements FabricClientGameTest {
                 manager.onCoreAction(player, "class:WARRIOR");
                 manager.onCoreAction(player, "dev:400");
                 for (String id : new String[]{"warrior_drill", "w_endurance", "champion_bane", "w_combo", "w_combo",
-                        "keen_edge", "w_frenzy", "w_bladefrenzy", "w_evasion", "execute", "w_chain_execute"}) {
+                        "keen_edge", "w_bladefrenzy", "w_frenzy", "w_evasion", "execute", "w_chain_execute"}) {
                     manager.onBuySkill(player, id);
                 }
                 manager.onCoreAction(player, "open");
@@ -2915,7 +2915,7 @@ public class EventLookTest implements FabricClientGameTest {
             own.unlockClass(com.mki.nightsiege.core.SkillClass.SUMMONER);
             own.award(600);
             for (String id : new String[]{"s_soulbond", "s_command", "s_packcall", "s_tamer", "s_tamer", "s_alpha", "s_howl",
-                    "s_wildness", "s_wild_hunt"}) {
+                    "s_packleader", "s_wildness", "s_wild_hunt"}) {
                 manager.onBuySkill(player, id);
             }
             System.out.println("[Night Siege test] summoner class=" + own.chosenClass + " tamer=" + own.levelOf("s_tamer")
@@ -5279,30 +5279,47 @@ public class EventLookTest implements FabricClientGameTest {
         for (String[] c : classes) {
             openTree(context, c[0]);
             for (int i = 1; i < c.length; i++) {
-                String clazz = c[0];
                 String sub = c[i];
-                context.runOnClient(client -> {
-                    try {
-                        java.lang.reflect.Field field = com.mki.nightsiege.client.CoreScreen.class.getDeclaredField("VIEW_SUB");
-                        field.setAccessible(true);
-                        @SuppressWarnings("unchecked")
-                        java.util.Map<String, String> views = (java.util.Map<String, String>) field.get(null);
-                        views.put(clazz, sub);
-                    } catch (ReflectiveOperationException e) {
-                        System.out.println("[Night Siege test] could not pick the subclass: " + e);
-                    }
-                });
-                onServer(context, (player, manager) -> manager.onCoreAction(player, "open"));
-                context.waitTicks(15);
+                pickSub(context, c[0], sub);
                 context.takeScreenshot("subtree_" + sub);
+                // Klare Stufen (Simon, 29 October 2026): the middle tiers and the top, readable.
+                zoomTo(context, c[0] + "/" + sub, 0.0, -5.5 * 54, 1.0);
+                context.takeScreenshot("subtree_" + sub + "_mid");
+                zoomTo(context, c[0] + "/" + sub, 0.0, -9.0 * 54, 1.0);
+                context.takeScreenshot("subtree_" + sub + "_top");
+                zoomTo(context, c[0] + "/" + sub, 0.0, 0.0, 0.0);
             }
         }
-        // The warrior again, with a few nodes learned, close up.
-        openTree(context, "WARRIOR", "warrior_drill");
-        zoomTo(context, "WARRIOR", 0.0, -150.0, 1.0);
-        context.takeScreenshot("subtree_warrior_zoom");
-        zoomTo(context, "WARRIOR", 0.0, 0.0, 0.0);
+        // The berserker with a way learned: lit links, the view on the next tier, a talent chosen.
+        openTree(context, "WARRIOR", "warrior_drill", "w_endurance", "champion_bane", "bloodlust", "bloodlust",
+                "blood_drinker", "w_bloodblade");
+        pickSub(context, "WARRIOR", "berserker");
+        context.takeScreenshot("subtree_berserker_learned");
+        selectNode(context, "w_frenzy");
+        context.takeScreenshot("subtree_berserker_choice");
+        selectNode(context, null);
+        // The whole tree (the button in the corner).
+        zoomTo(context, "WARRIOR/berserker", 0.0, -5.0 * 54, 0.01);
+        context.takeScreenshot("subtree_berserker_whole");
+        zoomTo(context, "WARRIOR/berserker", 0.0, 0.0, 0.0);
         closeScreen(context);
+    }
+
+    /** Shows one subclass's tree in the open class tab. */
+    private static void pickSub(ClientGameTestContext context, String clazz, String sub) {
+        context.runOnClient(client -> {
+            try {
+                java.lang.reflect.Field field = com.mki.nightsiege.client.CoreScreen.class.getDeclaredField("VIEW_SUB");
+                field.setAccessible(true);
+                @SuppressWarnings("unchecked")
+                java.util.Map<String, String> views = (java.util.Map<String, String>) field.get(null);
+                views.put(clazz, sub);
+            } catch (ReflectiveOperationException e) {
+                System.out.println("[Night Siege test] could not pick the subclass: " + e);
+            }
+        });
+        onServer(context, (player, manager) -> manager.onCoreAction(player, "open"));
+        context.waitTicks(15);
     }
 
     /**
@@ -5425,7 +5442,7 @@ public class EventLookTest implements FabricClientGameTest {
     /** The guardian: both ways in the window, then the shield throw, the dome and the sanctuary in the world. */
     private static void guardianScene(ClientGameTestContext context) {
         openTree(context, "GUARDIAN", "vitality", "g_challenger", "g_shieldwall", "riposte", "riposte",
-                "g_shieldthrow", "g_thorns", "g_boomerang", "g_laststand", "shield_charge", "g_debris");
+                "g_shieldthrow", "g_boomerang", "g_thorns", "g_laststand", "shield_charge", "g_debris");
         selectNode(context, "g_boomerang");
         context.takeScreenshot("ui_guardian_shield");
         zoomTo(context, "GUARDIAN", -200.0, -60.0, 0.55);
@@ -5453,7 +5470,7 @@ public class EventLookTest implements FabricClientGameTest {
         context.waitTicks(20);
 
         openTree(context, "GUARDIAN", "vitality", "toughness", "field_dressing", "g_ward", "g_ward", "g_dome",
-                "g_lightbringer", "g_wellspring", "g_grace", "g_sanctuary", "g_lightcircle");
+                "g_wellspring", "g_lightbringer", "g_grace", "g_sanctuary", "g_eternal_watch");
         selectNode(context, "g_wellspring");
         context.takeScreenshot("ui_guardian_blessing");
         zoomShots(context, "GUARDIAN", "guardian");
@@ -5480,7 +5497,7 @@ public class EventLookTest implements FabricClientGameTest {
         selectNode(context, "e_charged");
         context.takeScreenshot("ui_engineer_mech");
         openTree(context, "ENGINEER", "spike_trap", "spike_trap", "e_finemech", "snare_trap", "e_detonator",
-                "mortar_tower", "mortar_tower", "e_shrapnel_mine", "e_chain_reaction", "e_blastpower", "bombardment",
+                "mortar_tower", "mortar_tower", "e_shrapnel_mine", "e_chain_reaction", "e_napalm", "e_blastpower", "bombardment",
                 "e_carpet");
         selectNode(context, "e_chain_reaction");
         context.takeScreenshot("ui_engineer_chem");

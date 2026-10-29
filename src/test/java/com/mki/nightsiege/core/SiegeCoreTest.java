@@ -941,7 +941,8 @@ class SiegeCoreTest {
         assertTrue(tree.unlock("x_mark", skills));
         assertTrue(tree.unlock("a_hunternet", skills));
         assertTrue(tree.unlock("x_cross_double", skills));
-        assertEquals("lockedby", tree.blockedReason("a_barrage", skills));
+        // The cross double shot locks nothing any more (Simon, 29 October 2026); the barrage stays the bolter's.
+        assertEquals("locked", tree.blockedReason("a_barrage", skills));
         assertTrue(tree.unlock("x_hunt", skills));
         assertEquals("choice", tree.blockedReason("bolt_volley", skills));
         assertTrue(tree.unlock("x_pack", skills));
@@ -972,11 +973,13 @@ class SiegeCoreTest {
         PlayerSkills trapper = new PlayerSkills();
         trapper.chosenClass = SkillClass.ARCHER.name();
         trapper.award(5000);
-        for (String id : new String[]{"archer_focus", "heavy_bolts", "a_netbolt", "a_netbolt", "a_snarefield", "a_punch",
-                "a_reloadrush", "bolt_volley"}) {
+        for (String id : new String[]{"archer_focus", "heavy_bolts", "a_netbolt", "a_netbolt", "a_snarefield", "a_punch"}) {
             assertTrue(tree.unlock(id, trapper), id);
         }
         assertNull(tree.blockedReason("a_hunternet", trapper));
+        for (String id : new String[]{"a_hunternet", "a_reloadrush", "bolt_volley"}) {
+            assertTrue(tree.unlock(id, trapper), id);
+        }
         assertNull(tree.blockedReason("a_widenet", trapper));
     }
 
@@ -1257,13 +1260,18 @@ class SiegeCoreTest {
         assertTrue(tree.unlock("w_combo", warrior));
         assertTrue(tree.unlock("keen_edge", warrior));
         assertEquals("choice", tree.blockedReason("blood_drinker", warrior));
-        // A cross talent takes the place of an own one; ring V needs only the subclass's ring III.
+        // Each tier needs the one below (Simon, 29 October 2026): the hybrid follows ring III, the
+        // talents follow the hybrid, ring VI the talents, the keystone a mastery.
+        assertEquals("locked", tree.blockedReason("e_cross_heavy", warrior));
+        assertTrue(tree.unlock("w_bladefrenzy", warrior));
+        // A cross talent takes the place of an own one.
         assertTrue(tree.unlock("e_cross_heavy", warrior));
-        assertNull(tree.blockedReason("w_bladefrenzy", warrior), "ring V needs only the subclass's ring III");
         assertEquals("choice", tree.blockedReason("w_frenzy", warrior));
         assertTrue(tree.unlock("w_evasion", warrior));
         assertTrue(tree.unlock("whirlwind", warrior));
         assertEquals("choice", tree.blockedReason("execute", warrior));
+        assertEquals("locked", tree.blockedReason("w_glass_cannon", warrior));
+        assertTrue(tree.unlock("w_bladestorm", warrior));
         assertNull(tree.blockedReason("w_glass_cannon", warrior));
         assertEquals(tree.get("whirlwind"), tree.ultimateOf(warrior));
         assertEquals("class", tree.blockedReason("g_ironward", warrior));
@@ -1320,12 +1328,14 @@ class SiegeCoreTest {
         assertEquals("locked", tree.blockedReason("g_ironhide", guardian));
         assertTrue(tree.unlock("g_bastion", guardian));
         assertTrue(tree.unlock("g_anchor", guardian));
-        assertTrue(tree.unlock("g_thorns", guardian));
         assertTrue(tree.unlock("g_hedgehog", guardian));
-        // The ward from the other way closes the shield charge.
+        assertTrue(tree.unlock("g_thorns", guardian));
+        // The ward from the other way no longer closes the shield charge (Simon, 29 October 2026:
+        // a choice closes at most the next tier, and the charge's masteries lie two tiers on).
         assertTrue(tree.unlock("s_cross_ward", guardian));
-        assertEquals("lockedby", tree.blockedReason("shield_charge", guardian));
+        assertNull(tree.blockedReason("shield_charge", guardian));
         assertTrue(tree.unlock("taunt", guardian));
+        assertEquals("choice", tree.blockedReason("shield_charge", guardian));
         assertTrue(tree.unlock("g_iron_will", guardian));
         assertEquals("choice", tree.blockedReason("g_shared_burden", guardian));
         assertTrue(tree.unlock("g_living_wall", guardian));
@@ -1337,22 +1347,22 @@ class SiegeCoreTest {
     void theGuardianReachesEveryHybridSlot() {
         SkillTree tree = new SkillTree();
         String[][] routes = {
-                {"g_shieldwall", "riposte", "riposte", "g_shieldthrow", "g_thorns", "g_boomerang"},
-                {"g_shieldwall", "g_bastion", "g_bastion", "g_ironhide", "g_counterstrike", "g_vengeance"},
-                {"g_shieldwall", "riposte", "riposte", "g_shieldbash", "g_counterstrike", "g_vengeance"},
-                {"field_dressing", "g_ward", "g_ward", "g_dome", "g_selfless", "g_lifebond"},
-                {"field_dressing", "g_ward", "g_ward", "g_dome", "g_lightbringer", "g_wellspring"},
-                {"field_dressing", "g_healing_hand", "g_healing_hand", "g_triage", "g_selfless", "g_miracle"},
-                {"field_dressing", "g_ward", "g_ward", "g_cleanse", "b_cross_riposte", "g_overflow", "g_sanctuary",
-                        "g_eternal_watch", "g_patron"},
-                // Balance update 26 October 2026: every subclass lane reaches a ring-V node and a mastery.
-                {"g_shieldwall", "riposte", "riposte", "g_shieldbash", "g_thorns", "g_vengeance"},
-                {"g_shieldwall", "riposte", "riposte", "g_shieldthrow", "s_cross_dressing", "g_boomerang"},
-                {"g_shieldwall", "g_bastion", "g_bastion", "g_ironhide", "g_thorns", "g_vengeance"},
-                {"g_shieldwall", "g_bastion", "g_bastion", "g_anchor", "g_counterstrike", "g_hedgehog"},
-                {"field_dressing", "g_ward", "g_ward", "g_cleanse", "g_lightbringer", "g_lifebond"},
-                {"field_dressing", "g_healing_hand", "g_healing_hand", "g_triage", "b_cross_riposte", "g_miracle",
-                        "g_grace", "mass_heal", "g_rebirth"},
+                {"g_shieldwall", "riposte", "riposte", "g_shieldthrow", "g_boomerang", "g_thorns"},
+                {"g_shieldwall", "g_bastion", "g_bastion", "g_ironhide", "g_vengeance", "g_counterstrike"},
+                {"g_shieldwall", "riposte", "riposte", "g_shieldbash", "g_vengeance", "g_counterstrike"},
+                {"field_dressing", "g_ward", "g_ward", "g_dome", "g_lifebond", "g_selfless"},
+                {"field_dressing", "g_ward", "g_ward", "g_dome", "g_wellspring", "g_lightbringer"},
+                {"field_dressing", "g_healing_hand", "g_healing_hand", "g_triage", "g_miracle", "g_selfless"},
+                {"field_dressing", "g_ward", "g_ward", "g_cleanse", "g_lifebond", "b_cross_riposte", "g_overflow",
+                        "g_sanctuary", "g_eternal_watch", "g_patron"},
+                // Balance update 26 October 2026: every subclass lane reaches a hybrid node and a mastery.
+                {"g_shieldwall", "riposte", "riposte", "g_shieldbash", "g_vengeance", "g_thorns"},
+                {"g_shieldwall", "riposte", "riposte", "g_shieldthrow", "g_boomerang", "s_cross_dressing"},
+                {"g_shieldwall", "g_bastion", "g_bastion", "g_ironhide", "g_vengeance", "g_thorns"},
+                {"g_shieldwall", "g_bastion", "g_bastion", "g_anchor", "g_hedgehog", "g_counterstrike"},
+                {"field_dressing", "g_ward", "g_ward", "g_cleanse", "g_lifebond", "g_lightbringer"},
+                {"field_dressing", "g_healing_hand", "g_healing_hand", "g_triage", "g_miracle", "b_cross_riposte", "g_grace",
+                        "mass_heal", "g_rebirth"},
         };
         for (String[] route : routes) {
             PlayerSkills guardian = new PlayerSkills();
@@ -1363,16 +1373,134 @@ class SiegeCoreTest {
                 assertTrue(tree.unlock(id, guardian), id + " " + tree.blockedReason(id, guardian));
             }
         }
-        // The other way's riposte closes the healing spring and the life spring.
+        // The other way's riposte and the healing spring shut each other (neighbour tiers since
+        // 29 October 2026); the life spring, two tiers further, stays open.
         PlayerSkills cross = new PlayerSkills();
         cross.chosenClass = SkillClass.GUARDIAN.name();
         cross.award(5000);
-        for (String id : new String[]{"vitality", "field_dressing", "g_ward", "g_ward", "g_dome", "b_cross_riposte"}) {
+        for (String id : new String[]{"vitality", "field_dressing", "g_ward", "g_ward", "g_dome", "g_wellspring"}) {
             assertTrue(tree.unlock(id, cross), id);
         }
-        assertEquals("lockedby", tree.blockedReason("g_wellspring", cross));
-        assertEquals("lockedby", tree.blockedReason("g_lifespring", cross));
+        assertEquals("lockedby", tree.blockedReason("b_cross_riposte", cross));
+        assertEquals("locked", tree.blockedReason("g_lifespring", cross));
         assertEquals(SkillTree.SUB_WARDEN, tree.subclassOf(cross));
+    }
+
+    @Test
+    void aChoiceClosesAtMostTheNextTier() {
+        // Simon, 29 October 2026: "Sachen aus 3 dürfen nur Sachen aus 4 ausschließen". In every
+        // subclass tree a pick (its choice group, its locks, and what can then no longer be reached)
+        // closes nothing two or more tiers above it, and every run of picks reaches the keystone.
+        SkillTree tree = new SkillTree();
+        for (SkillTree.SubclassInfo info : SkillTree.SUBCLASSES) {
+            java.util.Map<String, SkillNode> in = subclassTree(tree, info);
+            assertTrue(in.size() > 20, info.key());
+            for (SkillNode pick : in.values()) {
+                for (String id : closedBy(in, List.of(pick))) {
+                    assertTrue(in.get(id).row() <= pick.row() + 1, info.key() + ": " + pick.id() + " closes " + id);
+                }
+            }
+            assertEquals(0, deadEnds(in, new java.util.ArrayList<>(), 0), info.key());
+        }
+    }
+
+    /** The trunk and the subclass's way without the other subclasses' nodes (as the skill window shows it). */
+    private static java.util.Map<String, SkillNode> subclassTree(SkillTree tree, SkillTree.SubclassInfo info) {
+        Set<String> others = new HashSet<>();
+        Set<String> otherLanes = new HashSet<>();
+        for (SkillTree.SubclassInfo o : SkillTree.subclassInfosOf(info.clazz())) {
+            if (!o.key().equals(info.key())) {
+                others.add(o.node());
+                otherLanes.add(o.key());
+            }
+        }
+        List<SkillNode> all = tree.ofClass(info.clazz());
+        Set<String> ids = new HashSet<>();
+        all.forEach(n -> ids.add(n.id()));
+        java.util.Map<String, SkillNode> in = new java.util.LinkedHashMap<>();
+        boolean changed = true;
+        while (changed) {
+            changed = false;
+            for (SkillNode n : all) {
+                if (in.containsKey(n.id()) || (!n.onTrunk() && (!n.path().equals(info.way()) || others.contains(n.id())
+                        || otherLanes.contains(tree.laneOf(n.id()))))) {
+                    continue;
+                }
+                boolean ok = true;
+                for (List<SkillNode.Need> any : n.needs()) {
+                    ok &= any.stream().anyMatch(need -> in.containsKey(need.id()) || !ids.contains(need.id()));
+                }
+                if (ok) {
+                    in.put(n.id(), n);
+                    changed = true;
+                }
+            }
+        }
+        return in;
+    }
+
+    /** What these picks shut in a subclass tree: their choice groups, their locks, and what then hangs only on those. */
+    private static Set<String> closedBy(java.util.Map<String, SkillNode> in, List<SkillNode> picks) {
+        Set<String> picked = new HashSet<>();
+        picks.forEach(n -> picked.add(n.id()));
+        Set<String> closed = new HashSet<>();
+        for (SkillNode a : picks) {
+            for (SkillNode n : in.values()) {
+                if (!picked.contains(n.id()) && ((a.inGroup() && a.group().equals(n.group()))
+                        || a.locksList().contains(n.id()) || n.locksList().contains(a.id()))) {
+                    closed.add(n.id());
+                }
+            }
+        }
+        boolean changed = true;
+        while (changed) {
+            changed = false;
+            for (SkillNode n : in.values()) {
+                if (picked.contains(n.id()) || closed.contains(n.id())) {
+                    continue;
+                }
+                for (List<SkillNode.Need> any : n.needs()) {
+                    if (any.stream().noneMatch(need -> picked.contains(need.id())
+                            || (in.containsKey(need.id()) && !closed.contains(need.id())))) {
+                        closed.add(n.id());
+                        changed = true;
+                        break;
+                    }
+                }
+            }
+        }
+        return closed;
+    }
+
+    /** Every run of one pick per choice tier from this row on; counts the runs that lose a later tier. */
+    private static int deadEnds(java.util.Map<String, SkillNode> in, List<SkillNode> picks, int fromRow) {
+        Set<String> closed = closedBy(in, picks);
+        for (int row = fromRow; row <= 10; row++) {
+            List<SkillNode> open = new java.util.ArrayList<>();
+            boolean grouped = false;
+            for (SkillNode n : in.values()) {
+                if (n.row() == row && n.inGroup()) {
+                    grouped = true;
+                    if (!closed.contains(n.id()) && !picks.contains(n)) {
+                        open.add(n);
+                    }
+                }
+            }
+            if (!grouped) {
+                continue;
+            }
+            if (open.isEmpty()) {
+                return 1;
+            }
+            int bad = 0;
+            for (SkillNode n : open) {
+                List<SkillNode> next = new java.util.ArrayList<>(picks);
+                next.add(n);
+                bad += deadEnds(in, next, row + 1);
+            }
+            return bad;
+        }
+        return 0;
     }
 
     @Test
@@ -1445,15 +1573,18 @@ class SiegeCoreTest {
         assertTrue(tree.unlock("tesla_coil", engineer));
         assertTrue(tree.unlock("capacitor", engineer));
         assertEquals(4, tree.trapTier(TrapKind.TESLA, engineer));
-        // The mortar from the other way, at tier 2, closes the network and the ball lightning.
+        // The mortar from the other way, at tier 2, closes the network on the next tier (and since
+        // Simon's rule of 29 October 2026 nothing further up: the ball lightning stays open).
         assertTrue(tree.unlock("m_cross_mine", engineer));
         assertEquals(2, tree.trapTier(TrapKind.MORTAR, engineer));
         assertEquals("lockedby", tree.blockedReason("e_network", engineer));
+        assertTrue(tree.unlock("e_beacon", engineer));
         assertTrue(tree.unlock("e_watchtower", engineer));
         assertTrue(tree.unlock("thunderstorm", engineer));
-        assertEquals("lockedby", tree.blockedReason("e_ball_lightning", engineer));
+        assertNull(tree.blockedReason("e_ball_lightning", engineer));
         // The superconductor needs only the thunderstorm, so the electrician keeps a mastery (balance update).
         assertNull(tree.blockedReason("e_superconductor", engineer));
+        assertTrue(tree.unlock("e_superconductor", engineer));
         assertTrue(tree.unlock("e_fieldtech", engineer));
         assertEquals("thunderstorm", tree.ultimateOf(engineer).id());
     }
@@ -1489,7 +1620,8 @@ class SiegeCoreTest {
 
     @Test
     void everyEngineerRouteKeepsARingFiveNodeAndAMastery() {
-        // Balance update (26 October 2026): no choice of the engineer runs into a dead end.
+        // Balance update (26 October 2026): no choice of the engineer runs into a dead end; since
+        // 29 October 2026 every tier needs the one below, up to the keystone.
         SkillTree tree = new SkillTree();
         String[][][] ways = {
                 {{"arrow_turret", "tesla_coil"}, {"turret_tuning", "e_ammobelt", "capacitor", "e_chainbolt"},
@@ -1502,45 +1634,69 @@ class SiegeCoreTest {
         String[][] ringFive = {{"e_charged", "e_beacon", "e_network"}, {"e_napalm", "e_plague_mine", "e_targetblast"}};
         String[][] masteries = {{"e_sustained", "e_piercer", "e_ball_lightning", "e_superconductor"},
                 {"e_carpet", "e_firebombs", "e_plague", "e_acid_fog"}};
+        String[][] keys = {{"e_fortress", "e_fieldtech"}, {"e_pyro", "e_plague_doctor"}};
         int routes = 0;
         for (int w = 0; w < ways.length; w++) {
-            String[][] rows = ways[w];
-            int[] pick = new int[rows.length];
-            while (true) {
-                PlayerSkills p = new PlayerSkills();
-                p.chosenClass = SkillClass.ENGINEER.name();
-                p.award(100_000);
-                List<String> chosen = new java.util.ArrayList<>(List.of("spike_trap", "spike_trap", "snare_trap", firstOf[w][0]));
-                for (int r = 0; r < rows.length; r++) {
-                    chosen.add(rows[r][pick[r]]);
-                    if (r == 0) {
-                        chosen.add(rows[0][pick[0]]);   // the subclass at tier 2 for the talents
-                    }
-                }
-                boolean possible = true;
-                for (String id : chosen) {
-                    if (!tree.unlock(id, p) && p.levelOf(id) == 0) {
-                        possible = false;   // e.g. a talent of the other subclass, or a locked ultimate
-                        break;
-                    }
-                }
-                if (possible) {
-                    routes++;
-                    final PlayerSkills skills = p;
-                    assertTrue(java.util.Arrays.stream(ringFive[w]).anyMatch(id -> tree.canUnlock(id, skills)), "ring V: " + chosen);
-                    assertTrue(java.util.Arrays.stream(masteries[w]).anyMatch(id -> tree.canUnlock(id, skills)), "mastery: " + chosen);
-                }
-                int k = rows.length - 1;
-                while (k >= 0 && ++pick[k] >= rows[k].length) {
-                    pick[k] = 0;
-                    k--;
-                }
-                if (k < 0) {
-                    break;
-                }
-            }
+            routes += walkRoutes(tree, SkillClass.ENGINEER, List.of("spike_trap", "spike_trap", "snare_trap", firstOf[w][0]),
+                    ways[w], ringFive[w], masteries[w], keys[w]);
         }
         assertTrue(routes > 40, "routes " + routes);
+    }
+
+    /**
+     * Walks every pick of subclass, ring III, ring IV, ring VI and ult (Simon, 29 October 2026: each
+     * tier needs the one below): ring V (the first open one), a mastery and the keystone must always
+     * stay open. Returns the routes that could be walked (a talent of the other subclass ends one).
+     */
+    private static int walkRoutes(SkillTree tree, SkillClass clazz, List<String> trunk, String[][] rows,
+                                  String[] ringFive, String[] masteries, String[] keys) {
+        int routes = 0;
+        int[] pick = new int[rows.length];
+        while (true) {
+            PlayerSkills p = new PlayerSkills();
+            p.chosenClass = clazz.name();
+            p.unlockClass(clazz);
+            p.award(100_000);
+            List<String> chosen = new java.util.ArrayList<>(trunk);
+            boolean possible = true;
+            for (String id : trunk) {
+                possible &= tree.unlock(id, p) || p.levelOf(id) > 0;
+            }
+            for (int r = 0; r < rows.length && possible; r++) {
+                String id = rows[r][pick[r]];
+                chosen.add(id);
+                if (!tree.unlock(id, p) && p.levelOf(id) == 0) {
+                    possible = false;   // a talent of the other subclass
+                    break;
+                }
+                if (r == 0) {
+                    tree.unlock(id, p);   // the subclass at tier 2 for the talents
+                }
+                if (r == 2) {
+                    final PlayerSkills skills = p;
+                    String five = java.util.Arrays.stream(ringFive).filter(x -> tree.canUnlock(x, skills)).findFirst().orElse(null);
+                    assertNotNull(five, "ring V: " + chosen);
+                    assertTrue(tree.unlock(five, p), five);
+                    chosen.add(five);
+                }
+            }
+            if (possible) {
+                routes++;
+                final PlayerSkills skills = p;
+                String mastery = java.util.Arrays.stream(masteries).filter(x -> tree.canUnlock(x, skills)).findFirst().orElse(null);
+                assertNotNull(mastery, "mastery: " + chosen);
+                assertTrue(tree.unlock(mastery, p), mastery);
+                assertTrue(java.util.Arrays.stream(keys).anyMatch(x -> tree.canUnlock(x, skills)), "keystone: " + chosen);
+            }
+            int k = rows.length - 1;
+            while (k >= 0 && ++pick[k] >= rows[k].length) {
+                pick[k] = 0;
+                k--;
+            }
+            if (k < 0) {
+                return routes;
+            }
+        }
     }
 
     @Test
@@ -2014,7 +2170,7 @@ class SiegeCoreTest {
     @Test
     void everySummonerRouteKeepsARingFiveNodeAndAMastery() {
         // Simon 26.10.: the summoner rebuild keeps rings, groups, ids and ults; every choice of
-        // both ways still reaches ring V and a mastery.
+        // both ways still reaches ring V, a mastery and (29 October 2026) the keystone.
         SkillTree tree = new SkillTree();
         String[][][] ways = {
                 {{"s_tamer", "s_golemsmith"}, {"s_alpha", "s_packhunt", "s_snowguard", "s_hardgolem"},
@@ -2027,53 +2183,11 @@ class SiegeCoreTest {
         String[][] ringFive = {{"s_packleader", "s_golemwork", "s_mixedpack"}, {"d_legion", "d_soulburn", "d_dance"}};
         String[][] masteries = {{"s_endless_hunt", "s_moonpack", "s_titanfist", "s_orecore"},
                 {"d_eternal", "d_champion", "d_soulflood", "d_echo"}};
+        String[][] keys = {{"s_beastlord", "s_shepherd"}, {"d_lich", "d_soulkeeper"}};
         int routes = 0;
         for (int w = 0; w < ways.length; w++) {
-            String[][] rows = ways[w];
-            int[] pick = new int[rows.length];
-            while (true) {
-                PlayerSkills p = new PlayerSkills();
-                p.chosenClass = SkillClass.SUMMONER.name();
-                p.unlockClass(SkillClass.SUMMONER);
-                p.award(100_000);
-                List<String> chosen = new java.util.ArrayList<>(List.of("s_soulbond", stem[w]));
-                for (int r = 0; r < rows.length; r++) {
-                    chosen.add(rows[r][pick[r]]);
-                    if (r == 0) {
-                        chosen.add(rows[0][pick[0]]);   // the subclass at tier 2 for the talents
-                    }
-                }
-                List<String> ringFiveBefore = new java.util.ArrayList<>(chosen);
-                ringFiveBefore.remove(ringFiveBefore.size() - 1);   // ring V comes before the ult
-                boolean possible = true;
-                for (String id : ringFiveBefore) {
-                    if (!tree.unlock(id, p) && p.levelOf(id) == 0) {
-                        possible = false;   // a talent of the other subclass
-                        break;
-                    }
-                }
-                if (possible) {
-                    final PlayerSkills skills = p;
-                    assertTrue(java.util.Arrays.stream(ringFive[w]).anyMatch(id -> tree.canUnlock(id, skills)), "ring V: " + chosen);
-                    String ult = chosen.get(chosen.size() - 1);
-                    if (tree.unlock(ult, p)) {
-                        routes++;
-                        assertTrue(java.util.Arrays.stream(masteries[w]).anyMatch(id -> tree.canUnlock(id, skills)), "mastery: " + chosen);
-                    } else {
-                        // A cross talent locked this ult: the other one must stay open.
-                        String other = rows[rows.length - 1][1 - pick[rows.length - 1]];
-                        assertTrue(tree.canUnlock(other, p), "no ult: " + chosen);
-                    }
-                }
-                int k = rows.length - 1;
-                while (k >= 0 && ++pick[k] >= rows[k].length) {
-                    pick[k] = 0;
-                    k--;
-                }
-                if (k < 0) {
-                    break;
-                }
-            }
+            routes += walkRoutes(tree, SkillClass.SUMMONER, List.of("s_soulbond", stem[w]), ways[w], ringFive[w],
+                    masteries[w], keys[w]);
         }
         assertTrue(routes > 40, "routes " + routes);
     }

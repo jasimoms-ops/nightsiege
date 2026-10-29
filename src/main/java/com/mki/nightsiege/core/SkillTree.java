@@ -263,21 +263,23 @@ public final class SkillTree {
         node(list, "a_firevolley", c, b, SkillEffect.FIRE_VOLLEY, 1, 15, 0, 1.0, "a_fire", "b5", "minecraft:fire_charge", 6, 1);
         node(list, "a_deathmark", c, b, SkillEffect.DEATH_MARK, 1, 15, 0, 0.3, "b_mark", "b5", "minecraft:wither_skeleton_skull", 6, 3);
         node(list, "a_venomburst", c, b, SkillEffect.VENOM_BURST, 1, 15, 0, 1.0, "a_poison", "b5", "minecraft:fermented_spider_eye", 6, 5);
-        String b4 = "a_fire|a_poison|b_mark";
-        node(list, "a_eagle", c, b, SkillEffect.ARROW_CRIT, 1, 18, 0, 0.2, b4, "b6", "minecraft:feather", 7, 1);
-        node(list, "a_retreat", c, b, SkillEffect.RETREAT, 1, 18, 0, 1.0, b4, "b6", "minecraft:rabbit_foot", 7, 3);
-        node(list, "b_cross_shrapnel", c, b, SkillEffect.SHRAPNEL, 1, 18, 0, 0.3, b4, "b6", "minecraft:firework_star", 7, 5,
-                "a_firevolley", "a_firestorm");
+        // Simon, 29 October 2026: a choice closes at most the next tier. Ring VI follows ring V, the
+        // keystone a mastery; a cross node locks only its neighbour tier.
+        String b5 = "a_firevolley|a_deathmark|a_venomburst";
+        node(list, "a_eagle", c, b, SkillEffect.ARROW_CRIT, 1, 18, 0, 0.2, b5, "b6", "minecraft:feather", 7, 1);
+        node(list, "a_retreat", c, b, SkillEffect.RETREAT, 1, 18, 0, 1.0, b5, "b6", "minecraft:rabbit_foot", 7, 3);
+        node(list, "b_cross_shrapnel", c, b, SkillEffect.SHRAPNEL, 1, 18, 0, 0.3, b5, "b6", "minecraft:firework_star", 7, 5,
+                "a_firevolley");
         String b6 = "a_eagle|a_retreat|b_cross_shrapnel";
         node(list, "arrow_storm", c, b, SkillEffect.ARROW_STORM, 3, 20, 10, 1.0, b6, "b_ult", "minecraft:blaze_rod", 8, 1);
         node(list, "power_shot", c, b, SkillEffect.POWER_SHOT, 3, 20, 10, 1.0, b6, "b_ult", "minecraft:dragon_breath", 8, 3);
         node(list, "b_hunt", c, b, SkillEffect.HUNTERS_MARK, 3, 20, 10, 1.0, b6, "b_ult", "minecraft:compass", 8, 5);
         node(list, "a_tempest", c, b, SkillEffect.TEMPEST, 1, 25, 0, 1.0, "arrow_storm", "b_mastery", "minecraft:wind_charge", 9, 0);
-        node(list, "a_firestorm", c, b, SkillEffect.FIRESTORM, 1, 25, 0, 1.0, "arrow_storm,a_fire|a_firevolley", "b_mastery", "minecraft:magma_cream", 9, 2);
+        node(list, "a_firestorm", c, b, SkillEffect.FIRESTORM, 1, 25, 0, 1.0, "arrow_storm", "b_mastery", "minecraft:magma_cream", 9, 2);
         node(list, "a_sniper", c, b, SkillEffect.SNIPER, 1, 25, 0, 1.0, "power_shot", "b_mastery", "minecraft:crossbow", 9, 4);
         node(list, "b_pack", c, b, SkillEffect.PACK, 1, 25, 0, 1.0, "b_hunt", "b_mastery", "minecraft:bone", 9, 6);
-        node(list, "a_deadeye", c, b, SkillEffect.DEADEYE, 1, 30, 0, 1.0, "arrow_storm|power_shot|b_hunt", "b_key", "minecraft:target", 10, 2);
-        node(list, "a_skirmisher", c, b, SkillEffect.SKIRMISHER, 1, 30, 0, 1.0, "arrow_storm|power_shot|b_hunt", "b_key", "minecraft:golden_boots", 10, 4);
+        node(list, "a_deadeye", c, b, SkillEffect.DEADEYE, 1, 30, 0, 1.0, "a_tempest|a_firestorm|a_sniper|b_pack", "b_key", "minecraft:target", 10, 2);
+        node(list, "a_skirmisher", c, b, SkillEffect.SKIRMISHER, 1, 30, 0, 1.0, "a_tempest|a_firestorm|a_sniper|b_pack", "b_key", "minecraft:golden_boots", 10, 4);
 
         // ----- Way of the crossbow
         String x = WAY_CROSSBOW;
@@ -294,14 +296,13 @@ public final class SkillTree {
         node(list, "a_punch", c, x, SkillEffect.PIERCE, 1, 12, 0, 2.0, x3, "x4", "minecraft:spectral_arrow", 5, 1);
         node(list, "a_tripwire", c, x, SkillEffect.TRIPWIRE, 1, 12, 0, 1.0, x3, "x4", "minecraft:tripwire_hook", 5, 3);
         node(list, "x_mark", c, x, SkillEffect.MARK, 1, 12, 0, 0.25, x3, "x4", "minecraft:ender_eye", 5, 5);
-        node(list, "a_clusterbolt", c, x, SkillEffect.CLUSTER, 1, 15, 0, 1.0, "a_explosive|a_multiload,a_punch", "x5", "minecraft:firework_rocket", 6, 1);
-        node(list, "a_hunternet", c, x, SkillEffect.HUNTER_NET, 1, 15, 0, 0.25, "a_snarefield|a_shackle|x_mark", "x5", "minecraft:lead", 6, 3);
+        node(list, "a_clusterbolt", c, x, SkillEffect.CLUSTER, 1, 15, 0, 1.0, "shrapnel,a_punch", "x5", "minecraft:firework_rocket", 6, 1);
+        node(list, "a_hunternet", c, x, SkillEffect.HUNTER_NET, 1, 15, 0, 0.25, "a_netbolt|x_mark,a_punch|a_tripwire|x_mark", "x5", "minecraft:lead", 6, 3);
         node(list, "a_trapmaster", c, x, SkillEffect.TRAPMASTER, 1, 15, 0, 4.0, "a_tripwire", "x5", "minecraft:iron_bars", 6, 5);
-        String x4 = "a_punch|a_tripwire|x_mark";
-        node(list, "a_bracing", c, x, SkillEffect.BRACE, 1, 18, 0, 0.4, x4, "x6", "minecraft:anvil", 7, 1);
-        node(list, "a_reloadrush", c, x, SkillEffect.RELOAD_RUSH, 1, 18, 0, 1.0, x4, "x6", "minecraft:sugar", 7, 3);
-        node(list, "x_cross_double", c, x, SkillEffect.DOUBLE_SHOT, 1, 18, 0, 1.0, x4, "x6", "minecraft:bow", 7, 5,
-                "a_multiload", "a_barrage");
+        String x5 = "a_clusterbolt|a_hunternet|a_trapmaster";
+        node(list, "a_bracing", c, x, SkillEffect.BRACE, 1, 18, 0, 0.4, x5, "x6", "minecraft:anvil", 7, 1);
+        node(list, "a_reloadrush", c, x, SkillEffect.RELOAD_RUSH, 1, 18, 0, 1.0, x5, "x6", "minecraft:sugar", 7, 3);
+        node(list, "x_cross_double", c, x, SkillEffect.DOUBLE_SHOT, 1, 18, 0, 1.0, x5, "x6", "minecraft:bow", 7, 5);
         String x6 = "a_bracing|a_reloadrush|x_cross_double";
         node(list, "bolt_volley", c, x, SkillEffect.BOLT_VOLLEY, 3, 20, 10, 1.0, x6, "x_ult", "minecraft:firework_rocket", 8, 1);
         node(list, "a_netrain", c, x, SkillEffect.NET_RAIN, 3, 20, 10, 1.0, x6, "x_ult", "minecraft:cobweb", 8, 3);
@@ -310,8 +311,8 @@ public final class SkillTree {
         node(list, "a_widenet", c, x, SkillEffect.WIDE_NET, 1, 25, 0, 1.0, "bolt_volley", "x_mastery", "minecraft:string", 9, 2);
         node(list, "a_deathtrap", c, x, SkillEffect.DEATHTRAP, 1, 25, 0, 0.5, "a_netrain", "x_mastery", "minecraft:wither_rose", 9, 4);
         node(list, "x_pack", c, x, SkillEffect.PACK, 1, 25, 0, 1.0, "x_hunt", "x_mastery", "minecraft:bone", 9, 6);
-        node(list, "a_siegeengine", c, x, SkillEffect.SIEGE_ENGINE, 1, 30, 0, 1.0, "bolt_volley|a_netrain|x_hunt", "x_key", "minecraft:dispenser", 10, 2);
-        node(list, "a_watchful", c, x, SkillEffect.WATCHFUL, 1, 30, 0, 0.15, "bolt_volley|a_netrain|x_hunt", "x_key", "minecraft:observer", 10, 4);
+        node(list, "a_siegeengine", c, x, SkillEffect.SIEGE_ENGINE, 1, 30, 0, 1.0, "a_barrage|a_widenet|a_deathtrap|x_pack", "x_key", "minecraft:dispenser", 10, 2);
+        node(list, "a_watchful", c, x, SkillEffect.WATCHFUL, 1, 30, 0, 0.15, "a_barrage|a_widenet|a_deathtrap|x_pack", "x_key", "minecraft:observer", 10, 4);
     }
 
     private static void warrior(List<SkillNode> list) {
@@ -333,18 +334,21 @@ public final class SkillTree {
         node(list, "w_precision", c, e, SkillEffect.CRIT_POWER, 1, 10, 0, 0.5, "w_combo:2", "e3", "minecraft:target", 4, 2);
         node(list, "blood_drinker", c, e, SkillEffect.MAX_HEALTH, 1, 10, 0, 4.0, "bloodlust:2", "e3", "minecraft:ghast_tear", 4, 4);
         node(list, "w_warcry", c, e, SkillEffect.WARCRY, 1, 10, 0, 1.0, "bloodlust:2", "e3", "minecraft:goat_horn", 4, 6);
-        String e3 = "keen_edge|w_precision|blood_drinker|w_warcry";
-        node(list, "w_parry", c, e, SkillEffect.PARRY, 1, 12, 0, 0.15, e3, "e4", "minecraft:iron_sword", 5, 1);
-        node(list, "w_frenzy", c, e, SkillEffect.FRENZY, 1, 12, 0, 1.0, e3, "e4", "minecraft:blaze_powder", 5, 3);
+        // Simon, 29 October 2026: a choice closes at most the next tier. The hybrid builds on the pick of
+        // ring III, so it follows it directly (ring IV, was V); the talents follow the hybrid (ring V,
+        // was IV), ring VI the talents, the keystone a mastery. No cross node locks an ult any more.
+        node(list, "w_bladefrenzy", c, e, SkillEffect.CRIT_RAGE, 1, 12, 0, 1.0, "keen_edge|w_precision", "e5", "minecraft:netherite_sword", 5, 2);
+        node(list, "w_bloodblade", c, e, SkillEffect.BLOOD_BLADE, 1, 12, 0, 1.0, "blood_drinker|w_warcry", "e5", "minecraft:red_dye", 5, 4);
+        String e5 = "w_bladefrenzy|w_bloodblade";
+        node(list, "w_parry", c, e, SkillEffect.PARRY, 1, 15, 0, 0.15, e5, "e4", "minecraft:iron_sword", 6, 1);
+        node(list, "w_frenzy", c, e, SkillEffect.FRENZY, 1, 15, 0, 1.0, e5, "e4", "minecraft:blaze_powder", 6, 3);
         // Balance update 26 Oct 2026: the cross blow closes nothing any more (it closed the blade storm,
-        // so a blademaster with both cross nodes had no mastery); ring V asks only for the subclass's ring III.
-        node(list, "e_cross_heavy", c, e, SkillEffect.HEAVY_BLOW, 1, 12, 0, 3.0, e3, "e4", "minecraft:iron_axe", 5, 5);
-        node(list, "w_bladefrenzy", c, e, SkillEffect.CRIT_RAGE, 1, 15, 0, 1.0, "keen_edge|w_precision", "e5", "minecraft:netherite_sword", 6, 2);
-        node(list, "w_bloodblade", c, e, SkillEffect.BLOOD_BLADE, 1, 15, 0, 1.0, "blood_drinker|w_warcry", "e5", "minecraft:red_dye", 6, 4);
+        // so a blademaster with both cross nodes had no mastery).
+        node(list, "e_cross_heavy", c, e, SkillEffect.HEAVY_BLOW, 1, 15, 0, 3.0, e5, "e4", "minecraft:iron_axe", 6, 5);
         String e4 = "w_parry|w_frenzy|e_cross_heavy";
         node(list, "w_evasion", c, e, SkillEffect.DODGE, 1, 18, 0, 0.10, e4, "e6", "minecraft:phantom_membrane", 7, 1);
         node(list, "w_bloodprice", c, e, SkillEffect.BLOOD_PRICE, 1, 18, 0, 0.3, e4, "e6", "minecraft:redstone_block", 7, 3);
-        node(list, "e_cross_smite", c, e, SkillEffect.SMITE, 1, 18, 0, 0.35, e4, "e6", "minecraft:glowstone_dust", 7, 5, "execute");
+        node(list, "e_cross_smite", c, e, SkillEffect.SMITE, 1, 18, 0, 0.35, e4, "e6", "minecraft:glowstone_dust", 7, 5);
         String e6 = "w_evasion|w_bloodprice|e_cross_smite";
         node(list, "execute", c, e, SkillEffect.EXECUTE, 3, 20, 10, 1.0, e6, "e_ult", "minecraft:diamond_sword", 8, 2);
         node(list, "whirlwind", c, e, SkillEffect.WHIRLWIND, 3, 20, 10, 1.0, e6, "e_ult", "minecraft:breeze_rod", 8, 4);
@@ -352,8 +356,8 @@ public final class SkillTree {
         node(list, "w_bloody_execute", c, e, SkillEffect.BLOODY_EXECUTE, 1, 25, 0, 1.0, "execute,bloodlust", "e_mastery", "minecraft:nether_wart", 9, 2);
         node(list, "w_bladestorm", c, e, SkillEffect.BLADESTORM, 1, 25, 0, 1.0, "whirlwind,w_combo", "e_mastery", "minecraft:wind_charge", 9, 4);
         node(list, "w_bloodstorm", c, e, SkillEffect.BLOODSTORM, 1, 25, 0, 1.0, "whirlwind,bloodlust", "e_mastery", "minecraft:fermented_spider_eye", 9, 6);
-        node(list, "w_glass_cannon", c, e, SkillEffect.GLASS_CANNON, 1, 30, 0, 0.3, "execute|whirlwind", "e_key", "minecraft:glass", 10, 2);
-        node(list, "w_unstoppable", c, e, SkillEffect.UNSTOPPABLE, 1, 30, 0, 1.0, "execute|whirlwind", "e_key", "minecraft:obsidian", 10, 4);
+        node(list, "w_glass_cannon", c, e, SkillEffect.GLASS_CANNON, 1, 30, 0, 0.3, "w_chain_execute|w_bloody_execute|w_bladestorm|w_bloodstorm", "e_key", "minecraft:glass", 10, 2);
+        node(list, "w_unstoppable", c, e, SkillEffect.UNSTOPPABLE, 1, 30, 0, 1.0, "w_chain_execute|w_bloody_execute|w_bladestorm|w_bloodstorm", "e_key", "minecraft:obsidian", 10, 4);
 
         // ----- Way of might (axes and maces)
         String m = WAY_MIGHT;
@@ -366,21 +370,20 @@ public final class SkillTree {
         node(list, "w_headhunter", c, m, SkillEffect.HEADHUNTER, 1, 10, 0, 0.4, "heavy_blow:2", "m3", "minecraft:skeleton_skull", 4, 2);
         node(list, "holy_vigor", c, m, SkillEffect.MAX_HEALTH, 1, 10, 0, 4.0, "smite:2", "m3", "minecraft:glow_berries", 4, 4);
         node(list, "w_vow", c, m, SkillEffect.VOW, 1, 10, 0, 1.0, "smite:2", "m3", "minecraft:bell", 4, 6);
-        String m3 = "w_cleave|w_headhunter|holy_vigor|w_vow";
-        node(list, "w_momentum", c, m, SkillEffect.MOMENTUM, 1, 12, 0, 1.0, m3, "m4", "minecraft:rabbit_foot", 5, 1);
-        node(list, "w_blessing", c, m, SkillEffect.HEAL_AURA, 1, 12, 0, 1.0, m3, "m4", "minecraft:glistering_melon_slice", 5, 3);
-        // Balance update 26 Oct 2026: the cross crit no longer closes the aftershock (an axe fighter kept
-        // no mastery), and ring V asks only for the subclass's ring III (headsman and holy strike bring
-        // a small crit chance of their own when nothing else gives one). Redemption needs only the light,
-        // so an axe fighter with holy light keeps a mastery too.
-        node(list, "m_cross_keen", c, m, SkillEffect.CRIT_CHANCE, 1, 12, 0, 0.2, m3, "m4", "minecraft:flint", 5, 5);
-        node(list, "w_crusader", c, m, SkillEffect.CRUSADER, 1, 15, 0, 1.0, "w_cleave", "m5", "minecraft:golden_axe", 6, 1);
-        node(list, "w_headsman", c, m, SkillEffect.HEADSMAN, 1, 15, 0, 4.0, "w_headhunter", "m5", "minecraft:netherite_axe", 6, 3);
-        node(list, "w_holy_strike", c, m, SkillEffect.HOLY_STRIKE, 1, 15, 0, 1.0, "holy_vigor|w_vow", "m5", "minecraft:blaze_rod", 6, 5);
+        // Simon, 29 October 2026: the hybrid follows ring III directly, the talents follow the hybrid
+        // (see the way of the blade). Headsman and holy strike bring a small crit chance of their own
+        // when nothing else gives one; redemption needs only the light.
+        node(list, "w_crusader", c, m, SkillEffect.CRUSADER, 1, 12, 0, 1.0, "w_cleave", "m5", "minecraft:golden_axe", 5, 1);
+        node(list, "w_headsman", c, m, SkillEffect.HEADSMAN, 1, 12, 0, 4.0, "w_headhunter", "m5", "minecraft:netherite_axe", 5, 3);
+        node(list, "w_holy_strike", c, m, SkillEffect.HOLY_STRIKE, 1, 12, 0, 1.0, "holy_vigor|w_vow", "m5", "minecraft:blaze_rod", 5, 5);
+        String m5 = "w_crusader|w_headsman|w_holy_strike";
+        node(list, "w_momentum", c, m, SkillEffect.MOMENTUM, 1, 15, 0, 1.0, m5, "m4", "minecraft:rabbit_foot", 6, 1);
+        node(list, "w_blessing", c, m, SkillEffect.HEAL_AURA, 1, 15, 0, 1.0, m5, "m4", "minecraft:glistering_melon_slice", 6, 3);
+        node(list, "m_cross_keen", c, m, SkillEffect.CRIT_CHANCE, 1, 15, 0, 0.2, m5, "m4", "minecraft:flint", 6, 5);
         String m4 = "w_momentum|w_blessing|m_cross_keen";
         node(list, "w_earthshock", c, m, SkillEffect.EARTHSHOCK, 1, 18, 0, 0.6, m4, "m6", "minecraft:mace", 7, 1);
         node(list, "w_divine_shield", c, m, SkillEffect.DIVINE_SHIELD, 1, 18, 0, 1.0, m4, "m6", "minecraft:shield", 7, 3);
-        node(list, "m_cross_rage", c, m, SkillEffect.RAGE, 1, 18, 0, 0.6, m4, "m6", "minecraft:redstone", 7, 5, "holy_light");
+        node(list, "m_cross_rage", c, m, SkillEffect.RAGE, 1, 18, 0, 0.6, m4, "m6", "minecraft:redstone", 7, 5);
         String m6 = "w_earthshock|w_divine_shield|m_cross_rage";
         node(list, "ground_slam", c, m, SkillEffect.GROUND_SLAM, 3, 20, 10, 1.0, m6, "m_ult", "minecraft:heavy_core", 8, 2);
         node(list, "holy_light", c, m, SkillEffect.HOLY_LIGHT, 3, 20, 10, 1.0, m6, "m_ult", "minecraft:beacon", 8, 4);
@@ -388,8 +391,8 @@ public final class SkillTree {
         node(list, "w_crater", c, m, SkillEffect.CRATER, 1, 25, 0, 1.0, "ground_slam,smite", "m_mastery", "minecraft:cobweb", 9, 2);
         node(list, "w_sunfire", c, m, SkillEffect.SUNFIRE, 1, 25, 0, 1.0, "holy_light,smite", "m_mastery", "minecraft:fire_charge", 9, 4);
         node(list, "w_redemption", c, m, SkillEffect.REDEMPTION, 1, 25, 0, 1.0, "holy_light", "m_mastery", "minecraft:enchanted_golden_apple", 9, 6);
-        node(list, "w_colossus", c, m, SkillEffect.COLOSSUS, 1, 30, 0, 1.0, "ground_slam|holy_light", "m_key", "minecraft:iron_block", 10, 2);
-        node(list, "w_martyr", c, m, SkillEffect.MARTYR, 1, 30, 0, 1.0, "ground_slam|holy_light", "m_key", "minecraft:totem_of_undying", 10, 4);
+        node(list, "w_colossus", c, m, SkillEffect.COLOSSUS, 1, 30, 0, 1.0, "w_aftershock|w_crater|w_sunfire|w_redemption", "m_key", "minecraft:iron_block", 10, 2);
+        node(list, "w_martyr", c, m, SkillEffect.MARTYR, 1, 30, 0, 1.0, "w_aftershock|w_crater|w_sunfire|w_redemption", "m_key", "minecraft:totem_of_undying", 10, 4);
     }
 
     // ------------------------------------------------------------------
@@ -422,15 +425,14 @@ public final class SkillTree {
         node(list, "e_seeker", c, m, SkillEffect.SEEKER, 1, 12, 0, 0.3, m3, "em4", "minecraft:target", 5, 1);
         node(list, "e_overvolt", c, m, SkillEffect.OVERVOLT, 1, 12, 0, 1.0, m3, "em4", "minecraft:glowstone_dust", 5, 3);
         node(list, "m_cross_mine", c, m, SkillEffect.TRAP, 1, 12, 0, 1.0, m3, "em4", "nightsiege:mortar_tower", 5, 5,
-                "e_network", "e_ball_lightning");
+                "e_network");
         node(list, "e_charged", c, m, SkillEffect.CHARGED_ARROWS, 1, 15, 0, 0.5, turret + ",e_overvolt|e_seeker|m_cross_mine", "em5", "minecraft:spectral_arrow", 6, 1);
         node(list, "e_beacon", c, m, SkillEffect.GUIDING_BEAM, 1, 15, 0, 1.0, tesla + ",e_seeker|m_cross_mine", "em5", "minecraft:end_rod", 6, 3);
-        node(list, "e_network", c, m, SkillEffect.NETWORK, 1, 15, 0, 1.0, m3 + ",e_overvolt", "em5", "minecraft:comparator", 6, 5);
-        String m4 = "e_seeker|e_overvolt|m_cross_mine";
-        node(list, "e_backup", c, m, SkillEffect.BACKUP_POWER, 1, 18, 0, 1.0, m4, "em6", "minecraft:redstone_lamp", 7, 1);
-        node(list, "e_watchtower", c, m, SkillEffect.TOWER_RANGE, 1, 18, 0, 4.0, m4, "em6", "minecraft:observer", 7, 3);
-        node(list, "m_cross_poison", c, m, SkillEffect.TRAP, 1, 18, 0, 1.0, m4, "em6", "nightsiege:potion_tower", 7, 5,
-                "thunderstorm");
+        node(list, "e_network", c, m, SkillEffect.NETWORK, 1, 15, 0, 1.0, "e_overvolt", "em5", "minecraft:comparator", 6, 5);
+        String m5 = "e_charged|e_beacon|e_network";
+        node(list, "e_backup", c, m, SkillEffect.BACKUP_POWER, 1, 18, 0, 1.0, m5, "em6", "minecraft:redstone_lamp", 7, 1);
+        node(list, "e_watchtower", c, m, SkillEffect.TOWER_RANGE, 1, 18, 0, 4.0, m5, "em6", "minecraft:observer", 7, 3);
+        node(list, "m_cross_poison", c, m, SkillEffect.TRAP, 1, 18, 0, 1.0, m5, "em6", "nightsiege:potion_tower", 7, 5);
         String m6 = "e_backup|e_watchtower|m_cross_poison";
         node(list, "overcharge", c, m, SkillEffect.OVERCHARGE, 3, 20, 10, 1.0, m6, "em_ult", "minecraft:redstone_block", 8, 2);
         node(list, "thunderstorm", c, m, SkillEffect.THUNDERSTORM, 3, 20, 10, 1.0, m6, "em_ult", "minecraft:trident", 8, 4);
@@ -440,8 +442,8 @@ public final class SkillTree {
         node(list, "e_piercer", c, m, SkillEffect.ARMOR_PIERCER, 1, 25, 0, 0.5, "overcharge", "em_mastery", "minecraft:netherite_scrap", 9, 2);
         node(list, "e_ball_lightning", c, m, SkillEffect.BALL_LIGHTNING, 1, 25, 0, 1.0, "thunderstorm," + tesla, "em_mastery", "minecraft:fire_charge", 9, 4);
         node(list, "e_superconductor", c, m, SkillEffect.SUPERCONDUCTOR, 1, 25, 0, 1.0, "thunderstorm", "em_mastery", "minecraft:copper_bulb", 9, 6);
-        node(list, "e_fortress", c, m, SkillEffect.FORTRESS, 1, 30, 0, 1.0, "overcharge|thunderstorm", "em_key", "minecraft:iron_bars", 10, 2);
-        node(list, "e_fieldtech", c, m, SkillEffect.FIELD_TECH, 1, 30, 0, 1.0, "overcharge|thunderstorm", "em_key", "minecraft:crafter", 10, 4);
+        node(list, "e_fortress", c, m, SkillEffect.FORTRESS, 1, 30, 0, 1.0, "e_sustained|e_piercer|e_ball_lightning|e_superconductor", "em_key", "minecraft:iron_bars", 10, 2);
+        node(list, "e_fieldtech", c, m, SkillEffect.FIELD_TECH, 1, 30, 0, 1.0, "e_sustained|e_piercer|e_ball_lightning|e_superconductor", "em_key", "minecraft:crafter", 10, 4);
 
         // Balance update (26 October 2026): every choice of ring IV leaves a node on ring V and every
         // ultimate a mastery: the borrowed mortar opens the charged arrows and the guiding beam, the
@@ -465,10 +467,10 @@ public final class SkillTree {
         node(list, "e_chain_reaction", c, ch, SkillEffect.CHAIN_REACTION, 1, 12, 0, 1.0, c3, "ec4", "minecraft:tnt", 5, 1);
         node(list, "e_accelerant", c, ch, SkillEffect.ACCELERANT, 1, 12, 0, 0.5, c3, "ec4", "minecraft:blaze_powder", 5, 3);
         node(list, "c_cross_turret", c, ch, SkillEffect.TRAP, 1, 12, 0, 1.0, c3, "ec4", "nightsiege:arrow_turret", 5, 5,
-                "e_napalm", "e_carpet");
+                "e_napalm");
         node(list, "e_napalm", c, ch, SkillEffect.NAPALM, 1, 15, 0, 1.0, mine + ",e_accelerant|e_chain_reaction", "ec5", "minecraft:magma_cream", 6, 1);
         node(list, "e_plague_mine", c, ch, SkillEffect.PLAGUE_MINE, 1, 15, 0, 8.0, poison + ",e_chain_reaction|e_accelerant", "ec5", "minecraft:spider_eye", 6, 3);
-        node(list, "e_targetblast", c, ch, SkillEffect.TARGET_BLAST, 1, 15, 0, 4.0, "c_cross_turret,e_detonator", "ec5", "minecraft:firework_star", 6, 5);
+        node(list, "e_targetblast", c, ch, SkillEffect.TARGET_BLAST, 1, 15, 0, 4.0, "c_cross_turret", "ec5", "minecraft:firework_star", 6, 5);
         // The bird's-eye view's fire (Simon, 26 October 2026): each one a skill of its own on the
         // outer edge of the demolition fan, open in any order once the mortar is learned.
         node(list, "e_barrage", c, ch, SkillEffect.BARRAGE_FIRE, 1, 8, 0, 1.0, mine, "", "minecraft:iron_bars", 4, 1);
@@ -485,11 +487,10 @@ public final class SkillTree {
         }
         node(list, "e_acid_flask", c, ch, SkillEffect.ACID_FLASK, 1, 6, 0, 1.0, poison + ":2", "",
                 "minecraft:experience_bottle", 5, 6);
-        String c4 = "e_chain_reaction|e_accelerant|c_cross_turret";
-        node(list, "e_blastpower", c, ch, SkillEffect.BLAST_POWER, 1, 18, 0, 0.5, c4, "ec6", "minecraft:gunpowder", 7, 1);
-        node(list, "e_slowpoison", c, ch, SkillEffect.SLOW_POISON, 1, 18, 0, 0.5, c4, "ec6", "minecraft:pufferfish", 7, 3);
-        node(list, "c_cross_tesla", c, ch, SkillEffect.TRAP, 1, 18, 0, 1.0, c4, "ec6", "nightsiege:tesla_coil", 7, 5,
-                "toxic_cloud");
+        String c5 = "e_napalm|e_plague_mine|e_targetblast";
+        node(list, "e_blastpower", c, ch, SkillEffect.BLAST_POWER, 1, 18, 0, 0.5, c5, "ec6", "minecraft:gunpowder", 7, 1);
+        node(list, "e_slowpoison", c, ch, SkillEffect.SLOW_POISON, 1, 18, 0, 0.5, c5, "ec6", "minecraft:pufferfish", 7, 3);
+        node(list, "c_cross_tesla", c, ch, SkillEffect.TRAP, 1, 18, 0, 1.0, c5, "ec6", "nightsiege:tesla_coil", 7, 5);
         String c6 = "e_blastpower|e_slowpoison|c_cross_tesla";
         node(list, "bombardment", c, ch, SkillEffect.BOMBARDMENT, 3, 20, 10, 1.0, c6, "ec_ult", "minecraft:tnt_minecart", 8, 2);
         node(list, "toxic_cloud", c, ch, SkillEffect.TOXIC_CLOUD, 3, 20, 10, 1.0, c6, "ec_ult", "minecraft:lingering_potion", 8, 4);
@@ -497,8 +498,8 @@ public final class SkillTree {
         node(list, "e_firebombs", c, ch, SkillEffect.FIRE_BOMBS, 1, 25, 0, 1.0, "bombardment", "ec_mastery", "minecraft:fire_charge", 9, 2);
         node(list, "e_plague", c, ch, SkillEffect.PLAGUE, 1, 25, 0, 1.0, "toxic_cloud," + poison, "ec_mastery", "minecraft:wither_rose", 9, 4);
         node(list, "e_acid_fog", c, ch, SkillEffect.ACID_FOG, 1, 25, 0, 0.25, "toxic_cloud," + mine, "ec_mastery", "minecraft:bone_meal", 9, 6);
-        node(list, "e_pyro", c, ch, SkillEffect.PYROMANIAC, 1, 30, 0, 0.4, "bombardment|toxic_cloud", "ec_key", "minecraft:flint_and_steel", 10, 2);
-        node(list, "e_plague_doctor", c, ch, SkillEffect.PLAGUE_DOCTOR, 1, 30, 0, 1.0, "bombardment|toxic_cloud", "ec_key", "minecraft:carved_pumpkin", 10, 4);
+        node(list, "e_pyro", c, ch, SkillEffect.PYROMANIAC, 1, 30, 0, 0.4, "e_carpet|e_firebombs|e_plague|e_acid_fog", "ec_key", "minecraft:flint_and_steel", 10, 2);
+        node(list, "e_plague_doctor", c, ch, SkillEffect.PLAGUE_DOCTOR, 1, 30, 0, 1.0, "e_carpet|e_firebombs|e_plague|e_acid_fog", "ec_key", "minecraft:carved_pumpkin", 10, 4);
     }
 
     // ------------------------------------------------------------------
@@ -544,20 +545,16 @@ public final class SkillTree {
         String l3 = "s_alpha|s_packhunt|s_snowguard|s_hardgolem";
         // Balance update (26 October 2026): every pick of ring III and IV leads to a ring V node –
         // the wolf nodes for the tamer, Golemwerk for the golemsmith, Mischrudel with the skeleton.
-        String l3tamer = "s_alpha|s_packhunt";
-        String l3golem = "s_snowguard|s_hardgolem";
         node(list, "s_howl", c, w, SkillEffect.HOWL, 1, 12, 0, 0.3, l3, "l4", "minecraft:goat_horn", 5, 1);
         node(list, "s_wardbond", c, w, SkillEffect.WARD_BOND, 1, 12, 0, 0.25, l3, "l4", "minecraft:shield", 5, 3);
-        node(list, "l_cross_bones", c, w, SkillEffect.BONE_GUARD, 1, 12, 0, 1.0, l3, "l4", "minecraft:skeleton_skull", 5, 5,
-                "s_moonpack");
-        node(list, "s_packleader", c, w, SkillEffect.PACK_LEADER, 1, 15, 0, 2.0, l3tamer + ",s_howl|s_wardbond|l_cross_bones", "l5", "minecraft:glistering_melon_slice", 6, 1);
-        node(list, "s_golemwork", c, w, SkillEffect.GOLEM_WORK, 1, 15, 0, 2.0, l3golem + ",s_howl|s_wardbond|l_cross_bones", "l5", "minecraft:piston", 6, 3);
-        node(list, "s_mixedpack", c, w, SkillEffect.MIXED_PACK, 1, 15, 0, 0.15, l3tamer + ",l_cross_bones", "l5", "minecraft:bone_meal", 6, 5);
-        String l4 = "s_howl|s_wardbond|l_cross_bones";
-        node(list, "s_wildness", c, w, SkillEffect.WILDNESS, 1, 18, 0, 0.25, l4, "l6", "minecraft:redstone", 7, 1);
-        node(list, "s_care", c, w, SkillEffect.CARE, 1, 18, 0, 2.0, l4, "l6", "minecraft:sweet_berries", 7, 3);
-        node(list, "l_cross_harvest", c, w, SkillEffect.SOUL_HARVEST, 1, 18, 0, 3.0, l4, "l6", "minecraft:soul_lantern", 7, 5,
-                "s_titan");
+        node(list, "l_cross_bones", c, w, SkillEffect.BONE_GUARD, 1, 12, 0, 1.0, l3, "l4", "minecraft:skeleton_skull", 5, 5);
+        node(list, "s_packleader", c, w, SkillEffect.PACK_LEADER, 1, 15, 0, 2.0, "s_tamer,s_howl|s_wardbond|l_cross_bones", "l5", "minecraft:glistering_melon_slice", 6, 1);
+        node(list, "s_golemwork", c, w, SkillEffect.GOLEM_WORK, 1, 15, 0, 2.0, "s_golemsmith,s_howl|s_wardbond|l_cross_bones", "l5", "minecraft:piston", 6, 3);
+        node(list, "s_mixedpack", c, w, SkillEffect.MIXED_PACK, 1, 15, 0, 0.15, "s_tamer,l_cross_bones", "l5", "minecraft:bone_meal", 6, 5);
+        String l5 = "s_packleader|s_golemwork|s_mixedpack";
+        node(list, "s_wildness", c, w, SkillEffect.WILDNESS, 1, 18, 0, 0.25, l5, "l6", "minecraft:redstone", 7, 1);
+        node(list, "s_care", c, w, SkillEffect.CARE, 1, 18, 0, 2.0, l5, "l6", "minecraft:sweet_berries", 7, 3);
+        node(list, "l_cross_harvest", c, w, SkillEffect.SOUL_HARVEST, 1, 18, 0, 3.0, l5, "l6", "minecraft:soul_lantern", 7, 5);
         String l6 = "s_wildness|s_care|l_cross_harvest";
         node(list, "s_wild_hunt", c, w, SkillEffect.WILD_HUNT, 3, 20, 10, 1.0, l6, "l_ult", "minecraft:echo_shard", 8, 2);
         node(list, "s_titan", c, w, SkillEffect.TITAN, 3, 20, 10, 1.0, l6, "l_ult", "minecraft:iron_block", 8, 4);
@@ -565,8 +562,8 @@ public final class SkillTree {
         node(list, "s_moonpack", c, w, SkillEffect.MOON_PACK, 1, 25, 0, 1.0, "s_wild_hunt", "l_mastery", "minecraft:glow_berries", 9, 2);
         node(list, "s_titanfist", c, w, SkillEffect.TITAN_FIST, 1, 25, 0, 1.0, "s_titan", "l_mastery", "minecraft:mace", 9, 4);
         node(list, "s_orecore", c, w, SkillEffect.ORE_CORE, 1, 25, 0, 1.0, "s_titan,s_golemsmith", "l_mastery", "minecraft:raw_iron_block", 9, 6);
-        node(list, "s_beastlord", c, w, SkillEffect.BEAST_LORD, 1, 30, 0, 0.2, "s_wild_hunt|s_titan", "l_key", "minecraft:dragon_head", 10, 2);
-        node(list, "s_shepherd", c, w, SkillEffect.SHEPHERD, 1, 30, 0, 1.0, "s_wild_hunt|s_titan", "l_key", "minecraft:lantern", 10, 4);
+        node(list, "s_beastlord", c, w, SkillEffect.BEAST_LORD, 1, 30, 0, 0.2, "s_endless_hunt|s_moonpack|s_titanfist|s_orecore", "l_key", "minecraft:dragon_head", 10, 2);
+        node(list, "s_shepherd", c, w, SkillEffect.SHEPHERD, 1, 30, 0, 1.0, "s_endless_hunt|s_moonpack|s_titanfist|s_orecore", "l_key", "minecraft:lantern", 10, 4);
 
         // ----- Way of the dead: soul magic (the soul bolt, three spells per subclass, the army as ult)
         String d = WAY_DEAD;
@@ -590,8 +587,7 @@ public final class SkillTree {
         node(list, "d_corpse", c, d, SkillEffect.CORPSE_BLAST, 1, 12, 0, 6.0, "d_necro,d_archers|d_ghoul", "d4", "minecraft:tnt", 5, 2);
         node(list, "d_shards", c, d, SkillEffect.SOUL_SHARDS, 1, 12, 0, 0.6, "d_soulcatcher,d_swarm|d_haste", "d4",
                 "minecraft:amethyst_cluster", 5, 4);
-        node(list, "d_cross_wolf", c, d, SkillEffect.PACK_CALL, 1, 12, 0, 0.0, d3, "d4", "minecraft:wolf_spawn_egg", 5, 6,
-                "d_champion");
+        node(list, "d_cross_wolf", c, d, SkillEffect.PACK_CALL, 1, 12, 0, 0.0, d3, "d4", "minecraft:wolf_spawn_egg", 5, 6);
         node(list, "d_legion", c, d, SkillEffect.BONE_LEGION, 1, 15, 0, 2.0, "d_rot", "d5", "minecraft:arrow", 6, 1);
         node(list, "d_soulburn", c, d, SkillEffect.SOUL_BURN, 1, 15, 0, 1.0, "d_corpse|d_shards", "d5", "minecraft:soul_campfire", 6, 3);
         node(list, "d_dance", c, d, SkillEffect.DEATH_DANCE, 1, 15, 0, 2.0, "d_cross_wolf", "d5", "minecraft:bone", 6, 5);
@@ -603,10 +599,10 @@ public final class SkillTree {
                 "minecraft:vex_spawn_egg", 6, 4);
         node(list, "d_dread", c, d, SkillEffect.DREAD, 1, 18, 0, 1.0, "d_soulcatcher:4,d_host", "",
                 "minecraft:sculk_shrieker", 7, 4);
-        node(list, "d_unholy", c, d, SkillEffect.UNHOLY_MIGHT, 1, 18, 0, 0.02, d4, "d6", "minecraft:wither_rose", 7, 1);
-        node(list, "d_pact", c, d, SkillEffect.SOUL_PACT, 1, 18, 0, 2.0, d4, "d6", "minecraft:ghast_tear", 7, 3);
-        node(list, "d_cross_loyalty", c, d, SkillEffect.SUMMON_TOUGHNESS, 1, 18, 0, 0.15, d4, "d6", "minecraft:leather_chestplate", 7, 5,
-                "d_soulstorm");
+        String d5 = "d_legion|d_soulburn|d_dance";
+        node(list, "d_unholy", c, d, SkillEffect.UNHOLY_MIGHT, 1, 18, 0, 0.02, d5, "d6", "minecraft:wither_rose", 7, 1);
+        node(list, "d_pact", c, d, SkillEffect.SOUL_PACT, 1, 18, 0, 2.0, d5, "d6", "minecraft:ghast_tear", 7, 3);
+        node(list, "d_cross_loyalty", c, d, SkillEffect.SUMMON_TOUGHNESS, 1, 18, 0, 0.15, d5, "d6", "minecraft:leather_chestplate", 7, 5);
         String d6 = "d_unholy|d_pact|d_cross_loyalty";
         node(list, "d_army", c, d, SkillEffect.ARMY_OF_THE_DEAD, 3, 20, 10, 1.0, d6, "d_ult", "minecraft:skeleton_skull", 8, 2);
         node(list, "d_soulstorm", c, d, SkillEffect.SOUL_STORM, 3, 20, 10, 1.0, d6, "d_ult", "minecraft:sculk_catalyst", 8, 4);
@@ -614,8 +610,8 @@ public final class SkillTree {
         node(list, "d_champion", c, d, SkillEffect.CHAMPION_OF_THE_DEAD, 1, 25, 0, 1.0, "d_army", "d_mastery", "minecraft:golden_helmet", 9, 2);
         node(list, "d_soulflood", c, d, SkillEffect.SOUL_FLOOD, 1, 25, 0, 0.5, "d_soulstorm,d_soulcatcher", "d_mastery", "minecraft:soul_torch", 9, 4);
         node(list, "d_echo", c, d, SkillEffect.ECHO, 1, 25, 0, 0.5, "d_soulstorm,d_necro", "d_mastery", "minecraft:echo_shard", 9, 6);
-        node(list, "d_lich", c, d, SkillEffect.LICH, 1, 30, 0, 0.5, "d_army|d_soulstorm", "d_key", "minecraft:dragon_breath", 10, 2);
-        node(list, "d_soulkeeper", c, d, SkillEffect.SOUL_KEEPER, 1, 30, 0, 20.0, "d_army|d_soulstorm", "d_key", "minecraft:respawn_anchor", 10, 4);
+        node(list, "d_lich", c, d, SkillEffect.LICH, 1, 30, 0, 0.5, "d_eternal|d_champion|d_soulflood|d_echo", "d_key", "minecraft:dragon_breath", 10, 2);
+        node(list, "d_soulkeeper", c, d, SkillEffect.SOUL_KEEPER, 1, 30, 0, 20.0, "d_eternal|d_champion|d_soulflood|d_echo", "d_key", "minecraft:respawn_anchor", 10, 4);
     }
 
     // ------------------------------------------------------------------
@@ -639,19 +635,19 @@ public final class SkillTree {
         node(list, "g_shieldbash", c, s, SkillEffect.SHIELD_BASH, 1, 10, 0, 8.0, "riposte:2", "s3", "minecraft:piston", 4, 2);
         node(list, "g_ironhide", c, s, SkillEffect.IRONHIDE, 1, 10, 0, 2.0, "g_bastion:2", "s3", "minecraft:chainmail_chestplate", 4, 4);
         node(list, "g_anchor", c, s, SkillEffect.ANCHOR, 1, 10, 0, 0.3, "g_bastion:2", "s3", "minecraft:anvil", 4, 6);
-        String s3 = "g_shieldthrow|g_shieldbash|g_ironhide|g_anchor";
-        node(list, "g_counterstrike", c, s, SkillEffect.COUNTERSTRIKE, 1, 12, 0, 1.0, s3, "s4", "minecraft:golden_sword", 5, 1);
-        node(list, "g_thorns", c, s, SkillEffect.THORNS, 1, 12, 0, 4.0, s3, "s4", "minecraft:sweet_berries", 5, 3);
-        node(list, "s_cross_dressing", c, s, SkillEffect.HEAL_AURA, 1, 12, 0, 0.75, s3, "s4", "minecraft:glistering_melon_slice", 5, 5,
-                "g_rampart");
+        // Simon, 29 October 2026: the hybrid builds on the pick of ring III and follows it directly
+        // (ring IV, was V); the talents follow the hybrid (ring V, was IV).
+        node(list, "g_boomerang", c, s, SkillEffect.BOOMERANG, 1, 12, 0, 1.0, "g_shieldthrow", "s5", "minecraft:fishing_rod", 5, 1);
+        node(list, "g_vengeance", c, s, SkillEffect.VENGEANCE, 1, 12, 0, 9.0, "g_ironhide|g_shieldbash", "s5", "minecraft:fire_charge", 5, 3);
+        node(list, "g_hedgehog", c, s, SkillEffect.HEDGEHOG, 1, 12, 0, 1.0, "g_anchor", "s5", "minecraft:cactus", 5, 5);
+        String s5 = "g_boomerang|g_vengeance|g_hedgehog";
+        node(list, "g_counterstrike", c, s, SkillEffect.COUNTERSTRIKE, 1, 15, 0, 1.0, s5, "s4", "minecraft:golden_sword", 6, 1);
+        node(list, "g_thorns", c, s, SkillEffect.THORNS, 1, 15, 0, 4.0, s5, "s4", "minecraft:sweet_berries", 6, 3);
+        node(list, "s_cross_dressing", c, s, SkillEffect.HEAL_AURA, 1, 15, 0, 0.75, s5, "s4", "minecraft:glistering_melon_slice", 6, 5);
         String s4 = "g_counterstrike|g_thorns|s_cross_dressing";
-        node(list, "g_boomerang", c, s, SkillEffect.BOOMERANG, 1, 15, 0, 1.0, "g_shieldthrow,g_counterstrike|g_thorns|s_cross_dressing", "s5", "minecraft:fishing_rod", 6, 1);
-        node(list, "g_vengeance", c, s, SkillEffect.VENGEANCE, 1, 15, 0, 9.0, "g_ironhide|g_shieldbash,g_counterstrike|g_thorns|s_cross_dressing", "s5", "minecraft:fire_charge", 6, 3);
-        node(list, "g_hedgehog", c, s, SkillEffect.HEDGEHOG, 1, 15, 0, 1.0, "g_anchor,g_counterstrike|g_thorns|s_cross_dressing", "s5", "minecraft:cactus", 6, 5);
         node(list, "g_laststand", c, s, SkillEffect.LAST_STAND, 1, 18, 0, 1.0, s4, "s6", "minecraft:shulker_shell", 7, 1);
         node(list, "g_revenge", c, s, SkillEffect.REVENGE, 1, 18, 0, 0.5, s4, "s6", "minecraft:redstone", 7, 3);
-        node(list, "s_cross_ward", c, s, SkillEffect.WARD, 1, 18, 0, 4.0, s4, "s6", "minecraft:amethyst_shard", 7, 5,
-                "shield_charge");
+        node(list, "s_cross_ward", c, s, SkillEffect.WARD, 1, 18, 0, 4.0, s4, "s6", "minecraft:amethyst_shard", 7, 5);
         String s6 = "g_laststand|g_revenge|s_cross_ward";
         node(list, "shield_charge", c, s, SkillEffect.SHIELD_CHARGE, 3, 20, 10, 1.0, s6, "s_ult", "minecraft:iron_horse_armor", 8, 2);
         node(list, "taunt", c, s, SkillEffect.TAUNT, 3, 20, 10, 1.0, s6, "s_ult", "minecraft:goat_horn", 8, 4);
@@ -659,8 +655,8 @@ public final class SkillTree {
         node(list, "g_rampart", c, s, SkillEffect.RAMPART, 1, 25, 0, 1.0, "shield_charge,g_bastion", "s_mastery", "minecraft:iron_block", 9, 2);
         node(list, "g_iron_will", c, s, SkillEffect.IRON_WILL, 1, 25, 0, 1.0, "taunt,g_bastion", "s_mastery", "minecraft:netherite_chestplate", 9, 4);
         node(list, "g_shared_burden", c, s, SkillEffect.SHARED_BURDEN, 1, 25, 0, 1.0, "taunt,riposte", "s_mastery", "minecraft:lead", 9, 6);
-        node(list, "g_living_wall", c, s, SkillEffect.LIVING_WALL, 1, 30, 0, 1.0, "shield_charge|taunt", "s_key", "minecraft:obsidian", 10, 2);
-        node(list, "g_bladeshield", c, s, SkillEffect.BLADESHIELD, 1, 30, 0, 1.0, "shield_charge|taunt", "s_key", "minecraft:netherite_sword", 10, 4);
+        node(list, "g_living_wall", c, s, SkillEffect.LIVING_WALL, 1, 30, 0, 1.0, "g_debris|g_rampart|g_iron_will|g_shared_burden", "s_key", "minecraft:obsidian", 10, 2);
+        node(list, "g_bladeshield", c, s, SkillEffect.BLADESHIELD, 1, 30, 0, 1.0, "g_debris|g_rampart|g_iron_will|g_shared_burden", "s_key", "minecraft:netherite_sword", 10, 4);
 
         // ----- Way of blessing (healing and barriers)
         String b = WAY_BLESSING;
@@ -673,19 +669,19 @@ public final class SkillTree {
         node(list, "g_triage", c, b, SkillEffect.TRIAGE, 1, 10, 0, 1.0, "g_healing_hand:2", "gb3", "minecraft:apple", 4, 2);
         node(list, "g_dome", c, b, SkillEffect.DOME, 1, 10, 0, 1.0, "g_ward:2", "gb3", "minecraft:glass", 4, 4);
         node(list, "g_cleanse", c, b, SkillEffect.CLEANSE, 1, 10, 0, 1.0, "g_ward:2", "gb3", "minecraft:milk_bucket", 4, 6);
-        String b3 = "guardian_angel|g_triage|g_dome|g_cleanse";
-        node(list, "g_lightbringer", c, b, SkillEffect.AURA_RANGE, 1, 12, 0, 4.0, b3, "gb4", "minecraft:lantern", 5, 1);
-        node(list, "g_selfless", c, b, SkillEffect.SELFLESS, 1, 12, 0, 0.3, b3, "gb4", "minecraft:poppy", 5, 3);
-        node(list, "b_cross_riposte", c, b, SkillEffect.COUNTER, 1, 12, 0, 3.0, b3, "gb4", "minecraft:iron_sword", 5, 5,
-                "g_wellspring", "g_lifespring");
+        // Simon, 29 October 2026: the hybrid follows ring III directly, the talents follow the hybrid.
+        node(list, "g_lifebond", c, b, SkillEffect.LIFEBOND, 1, 12, 0, 3.0, "g_dome|g_cleanse", "gb5", "minecraft:heart_of_the_sea", 5, 1);
+        node(list, "g_wellspring", c, b, SkillEffect.WELLSPRING, 1, 12, 0, 1.0, "g_dome", "gb5", "minecraft:water_bucket", 5, 3);
+        node(list, "g_miracle", c, b, SkillEffect.MIRACLE, 1, 12, 0, 4.0, "guardian_angel|g_triage", "gb5", "minecraft:nether_star", 5, 5);
+        String b5 = "g_lifebond|g_wellspring|g_miracle";
+        node(list, "g_lightbringer", c, b, SkillEffect.AURA_RANGE, 1, 15, 0, 4.0, b5, "gb4", "minecraft:lantern", 6, 1);
+        node(list, "g_selfless", c, b, SkillEffect.SELFLESS, 1, 15, 0, 0.3, b5, "gb4", "minecraft:poppy", 6, 3);
+        node(list, "b_cross_riposte", c, b, SkillEffect.COUNTER, 1, 15, 0, 3.0, b5, "gb4", "minecraft:iron_sword", 6, 5,
+                "g_wellspring");
         String b4 = "g_lightbringer|g_selfless|b_cross_riposte";
-        node(list, "g_lifebond", c, b, SkillEffect.LIFEBOND, 1, 15, 0, 3.0, "g_dome|g_cleanse,g_lightbringer|g_selfless|b_cross_riposte", "gb5", "minecraft:heart_of_the_sea", 6, 1);
-        node(list, "g_wellspring", c, b, SkillEffect.WELLSPRING, 1, 15, 0, 1.0, "g_dome,g_lightbringer", "gb5", "minecraft:water_bucket", 6, 3);
-        node(list, "g_miracle", c, b, SkillEffect.MIRACLE, 1, 15, 0, 4.0, "guardian_angel|g_triage,g_lightbringer|g_selfless|b_cross_riposte", "gb5", "minecraft:nether_star", 6, 5);
         node(list, "g_overflow", c, b, SkillEffect.OVERFLOW, 1, 18, 0, 6.0, b4, "gb6", "minecraft:experience_bottle", 7, 1);
         node(list, "g_grace", c, b, SkillEffect.GRACE, 1, 18, 0, 1.0, b4, "gb6", "minecraft:feather", 7, 3);
-        node(list, "b_cross_bastion", c, b, SkillEffect.BASTION, 1, 18, 0, 0.06, b4, "gb6", "minecraft:cobblestone_wall", 7, 5,
-                "mass_heal");
+        node(list, "b_cross_bastion", c, b, SkillEffect.BASTION, 1, 18, 0, 0.06, b4, "gb6", "minecraft:cobblestone_wall", 7, 5);
         String b6 = "g_overflow|g_grace|b_cross_bastion";
         node(list, "mass_heal", c, b, SkillEffect.MASS_HEAL, 3, 20, 10, 1.0, b6, "gb_ult", "minecraft:enchanted_golden_apple", 8, 2);
         node(list, "g_sanctuary", c, b, SkillEffect.SANCTUARY, 3, 20, 10, 1.0, b6, "gb_ult", "minecraft:end_crystal", 8, 4);
@@ -693,8 +689,8 @@ public final class SkillTree {
         node(list, "g_lifespring", c, b, SkillEffect.LIFESPRING, 1, 25, 0, 1.0, "mass_heal,g_ward", "gb_mastery", "minecraft:glow_berries", 9, 2);
         node(list, "g_lightcircle", c, b, SkillEffect.LIGHT_CIRCLE, 1, 25, 0, 1.0, "g_sanctuary,g_healing_hand", "gb_mastery", "minecraft:sunflower", 9, 4);
         node(list, "g_eternal_watch", c, b, SkillEffect.ETERNAL_WATCH, 1, 25, 0, 1.0, "g_sanctuary,g_ward", "gb_mastery", "minecraft:clock", 9, 6);
-        node(list, "g_saint", c, b, SkillEffect.SAINT, 1, 30, 0, 0.4, "mass_heal|g_sanctuary", "gb_key", "minecraft:enchanted_book", 10, 2);
-        node(list, "g_patron", c, b, SkillEffect.PATRON, 1, 30, 0, 0.5, "mass_heal|g_sanctuary", "gb_key", "minecraft:diamond_chestplate", 10, 4);
+        node(list, "g_saint", c, b, SkillEffect.SAINT, 1, 30, 0, 0.4, "g_rebirth|g_lifespring|g_lightcircle|g_eternal_watch", "gb_key", "minecraft:enchanted_book", 10, 2);
+        node(list, "g_patron", c, b, SkillEffect.PATRON, 1, 30, 0, 0.5, "g_rebirth|g_lifespring|g_lightcircle|g_eternal_watch", "gb_key", "minecraft:diamond_chestplate", 10, 4);
     }
 
     private static void node(List<SkillNode> list, String id, SkillClass clazz, String path, SkillEffect effect,

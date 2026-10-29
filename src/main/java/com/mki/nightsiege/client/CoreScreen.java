@@ -296,44 +296,280 @@ public class CoreScreen extends Screen {
         return in;
     }
 
-    /** Distance between the tiers of a subclass tree, and between its columns (tree units). */
-    private static final double SUB_ROW = 36;
-    private static final double SUB_COL = 30;
+    /** Distance between the tiers of a subclass tree, and between the nodes of a tier (tree units). */
+    private static final double SUB_ROW = 54;
+    private static final double SUB_COL = 66;
+    /** Below this zoom a subclass tree leaves out the names under its nodes. */
+    private static final double SUB_NAME_ZOOM = 0.5;
+    /** Size of those names (tree units per font pixel). */
+    private static final float SUB_NAME_SCALE = 0.75f;
+    /** The zoom a subclass tree opens with when it fits the width (names readable). */
+    private static final double SUB_READ_ZOOM = 1.0;
 
-    /** Places the nodes of a subclass tree: tier 0 at the bottom, columns by the node's place. */
-    private java.util.Map<String, double[]> placeSub(List<CoreStats.NodeLine> nodes) {
-        java.util.Map<String, double[]> out = new java.util.HashMap<>();
-        int minCol = Integer.MAX_VALUE;
-        int maxCol = Integer.MIN_VALUE;
-        for (CoreStats.NodeLine n : nodes) {
-            if (n.path != null && !n.path.isBlank()) {
-                int col = n.col < 0 ? 3 : n.col;
-                minCol = Math.min(minCol, col);
-                maxCol = Math.max(maxCol, col);
+    /**
+     * A node beside the tier choices (Simon, 29 October 2026: "klare Stufen"): the alchemist's
+     * potions, the salvos, the acid flask, the soulcatcher's extra talents – any number in any order,
+     * so they stand in a column at the side of the tree instead of in the tiers.
+     */
+    private static boolean sideNode(CoreStats.NodeLine n) {
+        return (n.group == null || n.group.isBlank()) && n.path != null && !n.path.isBlank() && n.row >= 3
+                && com.mki.nightsiege.core.SkillTree.subclassByNode(n.id) == null;
+    }
+
+    /** The column family of a side node: 0 salvos (left), 1 single talents, 2 potions (right). */
+    private static int sideFamily(CoreStats.NodeLine n) {
+        if (com.mki.nightsiege.core.SkillTree.SALVOS.contains(n.id)) {
+            return 0;
+        }
+        return com.mki.nightsiege.core.BrewKind.byNode(n.id) != null ? 2 : 1;
+    }
+
+    /** The zoom at which a subclass tree fills the view's width (names readable). */
+    private double subReadZoom = 1.0;
+
+    /**
+     * A subclass tree at readable size, looking at the highest tier with a new node to learn (else the
+     * highest learned one), that tier low in the view so the next ones show above it.
+     */
+    private void readableSubView() {
+        zoom = subReadZoom;
+        camX = (minX + maxX) / 2.0;
+        int frontier = -1;
+        int learned = 0;
+        for (GridNode g : gridNodes) {
+            CoreStats.NodeLine n = g.node();
+            if (n.level > 0) {
+                learned = Math.max(learned, n.row);
+            }
+            if (n.level == 0 && (n.blocked == null || "points".equals(n.blocked)) && !sideNode(n)) {
+                frontier = Math.max(frontier, n.row);
             }
         }
-        double wayMid = minCol > maxCol ? 3 : (minCol + maxCol) / 2.0;
-        java.util.Map<Integer, List<CoreStats.NodeLine>> rows = new java.util.TreeMap<>();
-        for (CoreStats.NodeLine n : nodes) {
-            rows.computeIfAbsent(n.row, k -> new ArrayList<>()).add(n);
+        int row = frontier >= 0 ? frontier : learned;
+        camY = -row * SUB_ROW - viewH() / 5.0 / zoom;
+        clampCam();
+    }
+
+    /**
+     * The name key of a tier. On rings III to VI the choice group tells, since the hybrid and the
+     * talents swap places in some ways (Simon, 29 October 2026).
+     */
+    private static String tierKey(int row, String group) {
+        if (row >= 4 && row <= 7 && group != null && !group.isBlank()) {
+            char d = group.charAt(group.length() - 1);
+            if (d >= '3' && d <= '6') {
+                return "nightsiege.ui.tier." + (d - '3' + 4);
+            }
         }
+        return "nightsiege.ui.tier." + row;
+    }
+
+    /** The links a subclass tree always shows: each node to what it needs on the nearest tier below it. */
+    private List<GridNode[]> subLinks(List<Edge> edges) {
+        java.util.Map<GridNode, List<GridNode>> needs = new java.util.LinkedHashMap<>();
+        for (Edge edge : edges) {
+            GridNode c = edge.child();
+            if (sideNode(c.node())) {
+                continue;
+            }
+            for (GridNode p : edge.parents()) {
+                if (p.node().row < c.node().row && !sideNode(p.node())) {
+                    needs.computeIfAbsent(c, k -> new ArrayList<>()).add(p);
+                }
+            }
+        }
+        List<GridNode[]> out = new ArrayList<>();
+        for (java.util.Map.Entry<GridNode, List<GridNode>> e : needs.entrySet()) {
+            int near = -1;
+            for (GridNode p : e.getValue()) {
+                near = Math.max(near, p.node().row);
+            }
+            java.util.Set<String> seen = new java.util.HashSet<>();
+            for (GridNode p : e.getValue()) {
+                if (p.node().row == near && seen.add(p.node().id)) {
+                    out.add(new GridNode[]{p, e.getKey()});
+                }
+            }
+        }
+        return out;
+    }
+
+    /**
+     * A link of a subclass tree, at right angles: up from the parent, across below the child's name,
+     * up into the child. Where a node of a tier in between stands in the way (the trunk's side
+     * nodes), the line steps aside first.
+     */
+    private void subLink(GuiGraphicsExtractor gui, GridNode p, GridNode c, double t, int color) {
+        double half = N_SLOT / 2.0;
+        double bus = c.cy() + SUB_ROW / 2.0 + 7;
+        double x = p.cx();
+        double top = p.cy() - half;
+        if (c.node().row - p.node().row > 1) {
+            boolean blocked = false;
+            for (GridNode g : gridNodes) {
+                int r = g.node().row;
+                if (g != p && r > p.node().row && r < c.node().row && Math.abs(g.cx() - x) < N_SLOT) {
+                    blocked = true;
+                    break;
+                }
+            }
+            if (blocked) {
+                double step = (c.cx() >= x ? 1 : -1) * SUB_COL / 2.0;
+                double jog = top - 5;
+                vseg(gui, x, top, jog, t, color);
+                hseg(gui, x, x + step, jog, t, color);
+                x += step;
+                top = jog;
+            }
+        }
+        vseg(gui, x, top, bus, t, color);
+        hseg(gui, x, c.cx(), bus, t, color);
+        vseg(gui, c.cx(), bus, c.cy() + half, t, color);
+    }
+
+    /** A straight line along x, in tree units. */
+    private static void hseg(GuiGraphicsExtractor gui, double x1, double x2, double y, double t, int color) {
+        double a = Math.min(x1, x2) - t / 2;
+        double b = Math.max(x1, x2) + t / 2;
+        gui.pose().pushMatrix();
+        gui.pose().translate((float) a, (float) (y - t / 2));
+        gui.fill(0, 0, Math.max(1, (int) Math.round(b - a)), Math.max(1, (int) Math.round(t)), color);
+        gui.pose().popMatrix();
+    }
+
+    /** A straight line along y, in tree units. */
+    private static void vseg(GuiGraphicsExtractor gui, double x, double y1, double y2, double t, int color) {
+        double a = Math.min(y1, y2) - t / 2;
+        double b = Math.max(y1, y2) + t / 2;
+        gui.pose().pushMatrix();
+        gui.pose().translate((float) (x - t / 2), (float) a);
+        gui.fill(0, 0, Math.max(1, (int) Math.round(t)), Math.max(1, (int) Math.round(b - a)), color);
+        gui.pose().popMatrix();
+    }
+
+    /** A node's name in at most two lines that fit under it (font pixels; a long second line shrinks). */
+    private static List<String> nameLines(Font font, String name, int width) {
+        List<String> out = new ArrayList<>();
+        StringBuilder line = new StringBuilder();
+        for (String word : name.split(" ")) {
+            String next = line.length() == 0 ? word : line + " " + word;
+            if (font.width(next) > width && line.length() > 0 && out.isEmpty()) {
+                out.add(line.toString());
+                line = new StringBuilder(word);
+            } else {
+                line = new StringBuilder(next);
+            }
+        }
+        out.add(line.toString());
+        return out;
+    }
+
+    /** The name under a node of a subclass tree, on a dark plate (the links pass behind it). */
+    private void drawSubName(GuiGraphicsExtractor gui, Font font, GridNode g, boolean own) {
+        CoreStats.NodeLine n = g.node();
+        int width = (int) ((SUB_COL - 8) / SUB_NAME_SCALE);
+        List<String> lines = nameLines(font, nameOf(n.id), width);
+        float s = SUB_NAME_SCALE;
+        double y = g.cy() + N_SLOT / 2.0 + 6;
+        double lh = 9 * s;
+        double plate = 0;
+        for (String l : lines) {
+            plate = Math.max(plate, Math.min(width, font.width(l)) * s);
+        }
+        gui.pose().pushMatrix();
+        gui.pose().translate((float) (g.cx() - plate / 2 - 2), (float) (y - 1));
+        gui.fill(0, 0, (int) Math.ceil(plate + 4), (int) Math.ceil(lines.size() * lh + 1), 0xC8100E16);
+        gui.pose().popMatrix();
+        int color;
+        if (n.level >= n.maxLevel) {
+            color = 0xFFE8B84A;
+        } else if (n.level > 0) {
+            color = 0xFFFFFFFF;
+        } else if (isClosed(n)) {
+            color = 0xFF6A5A62;
+        } else if (n.blocked == null && own) {
+            color = 0xFFF4F0FA;
+        } else {
+            color = 0xFFA8A0B4;
+        }
+        for (int i = 0; i < lines.size(); i++) {
+            String l = lines.get(i);
+            float fit = Math.min(1f, width / (float) Math.max(1, font.width(l)));
+            gui.pose().pushMatrix();
+            gui.pose().translate((float) (g.cx() - font.width(l) * s * fit / 2), (float) (y + i * lh));
+            gui.pose().scale(s * fit, s * fit);
+            gui.text(font, l, 0, 0, color, false);
+            gui.pose().popMatrix();
+        }
+    }
+
+    /** Under the lowest node of a side column with a limit: "Tränke · 3 von 7", "Salven · 2 von 4". */
+    private void drawSideHeads(GuiGraphicsExtractor gui, Font font) {
+        GridNode[] lowest = new GridNode[3];
+        for (GridNode g : gridNodes) {
+            if (sideNode(g.node())) {
+                int f = sideFamily(g.node());
+                if (lowest[f] == null || g.node().row < lowest[f].node().row) {
+                    lowest[f] = g;
+                }
+            }
+        }
+        for (int f = 0; f < 3; f += 2) {
+            GridNode g = lowest[f];
+            if (g == null) {
+                continue;
+            }
+            String text = f == 0
+                    ? Component.translatable("nightsiege.ui.side_salvos", com.mki.nightsiege.core.SkillTree.salvoLimit(),
+                            com.mki.nightsiege.core.SkillTree.SALVOS.size()).getString()
+                    : Component.translatable("nightsiege.ui.side_brews", com.mki.nightsiege.core.SkillTree.brewLimit(),
+                            com.mki.nightsiege.core.BrewKind.values().length).getString();
+            float s = SUB_NAME_SCALE;
+            double y = g.cy() + N_SLOT / 2.0 + 6 + 2 * 9 * s + 4;
+            gui.pose().pushMatrix();
+            gui.pose().translate((float) (g.cx() - font.width(text) * s / 2), (float) y);
+            gui.pose().scale(s, s);
+            gui.text(font, text, 0, 0, 0xFFFFD86B, true);
+            gui.pose().popMatrix();
+        }
+    }
+
+    /**
+     * Places the nodes of a subclass tree: one row per tier, the trunk at the bottom, the nodes of a
+     * tier side by side around the middle (in the order of their columns); side nodes in their own
+     * columns, salvos on the left, the rest on the right.
+     */
+    private java.util.Map<String, double[]> placeSub(List<CoreStats.NodeLine> nodes) {
+        java.util.Map<String, double[]> out = new java.util.HashMap<>();
+        java.util.Map<Integer, List<CoreStats.NodeLine>> rows = new java.util.TreeMap<>();
+        List<CoreStats.NodeLine> side = new ArrayList<>();
+        for (CoreStats.NodeLine n : nodes) {
+            if (sideNode(n)) {
+                side.add(n);
+            } else {
+                rows.computeIfAbsent(n.row, k -> new ArrayList<>()).add(n);
+            }
+        }
+        double reach = SUB_COL / 2.0;
         for (java.util.Map.Entry<Integer, List<CoreStats.NodeLine>> e : rows.entrySet()) {
             List<CoreStats.NodeLine> row = e.getValue();
             row.sort(java.util.Comparator.comparingInt(n -> n.col < 0 ? 3 : n.col));
             double y = -e.getKey() * SUB_ROW;
-            java.util.List<Double> taken = new ArrayList<>();
-            for (CoreStats.NodeLine n : row) {
-                boolean trunk = n.path == null || n.path.isBlank();
-                int col = n.col < 0 ? 3 : n.col;
-                double x = (col - (trunk ? 3 : wayMid)) * SUB_COL;
-                for (double t : taken) {
-                    if (Math.abs(t - x) < SUB_COL * 0.9) {
-                        x = t + SUB_COL;   // two nodes on one place: the second steps aside
-                    }
-                }
-                taken.add(x);
-                out.put(n.id, new double[]{x, y});
+            for (int i = 0; i < row.size(); i++) {
+                double x = (i - (row.size() - 1) / 2.0) * SUB_COL;
+                reach = Math.max(reach, Math.abs(x));
+                out.put(row.get(i).id, new double[]{x, y});
             }
+        }
+        // The side columns: one per family that this tree has.
+        boolean[] has = new boolean[3];
+        for (CoreStats.NodeLine n : side) {
+            has[sideFamily(n)] = true;
+        }
+        for (CoreStats.NodeLine n : side) {
+            int f = sideFamily(n);
+            double x = f == 0 ? -reach - SUB_COL * 1.25 : reach + SUB_COL * 1.25 + (f == 2 && has[1] ? SUB_COL : 0);
+            out.put(n.id, new double[]{x, -n.row * SUB_ROW});
         }
         return out;
     }
@@ -1091,12 +1327,15 @@ public class CoreScreen extends Screen {
         double spanX = maxX - minX + 2 * (N_SLOT + 14);
         double spanY = maxY - minY + 2 * (N_SLOT + 10) + (subMode ? 36 : 0);   // room for the subclass's name
         fitZoom = Math.min(viewW() / spanX, viewH() / spanY);
+        subReadZoom = Math.max(fitZoom, Math.min(SUB_READ_ZOOM, viewW() / spanX));
         shownClass = subMode ? clazz + "/" + viewedSub() : clazz;
         double[] view = VIEWS.get(shownClass);
         if (view == null && subMode) {
             view = VIEWS.get(clazz);   // the tests set the class's view
         }
-        if (view == null) {
+        if (view == null && subMode) {
+            readableSubView();
+        } else if (view == null) {
             camX = (minX + maxX) / 2.0;
             camY = (minY + maxY) / 2.0;
             zoom = fitZoom;
@@ -1121,9 +1360,14 @@ public class CoreScreen extends Screen {
         }
         // Zoom buttons: the whole tree, or the player's way.
         addRenderableWidget(Button.builder(Component.literal("⤢"), b -> {
-            camX = (minX + maxX) / 2.0;
-            camY = (minY + maxY) / 2.0;
-            zoom = fitZoom;
+            if (subMode && zoom <= fitZoom * 1.05) {
+                readableSubView();   // back from the whole tree to readable size
+            } else {
+                camX = (minX + maxX) / 2.0;
+                camY = (minY + maxY) / 2.0;
+                zoom = fitZoom;
+            }
+            clampCam();
             saveView(shownClass);
         }).bounds(viewX() + viewW() - 22, viewY() + viewH() - 20, 18, 16)
                 .tooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("nightsiege.ui.zoom_all")))
@@ -1454,23 +1698,36 @@ public class CoreScreen extends Screen {
         // Rings: one faint dotted arc per ring and way (a subclass tree: one dotted line per tier).
         int dot = (int) Math.max(1, Math.round(px));
         if (subMode) {
+            // One faint band per tier (every other one a touch lighter, the ult golden).
             java.util.Set<Integer> tiers = new java.util.TreeSet<>();
             for (GridNode g : gridNodes) {
                 tiers.add(g.node().row);
             }
+            double left = worldX(vx) - 4;
+            double right = worldX(vx + vw) + 4;
             for (int row : tiers) {
-                int y = (int) Math.round(-row * SUB_ROW);
-                int color = row == 8 ? 0x48FFD86B : 0x22FFFFFF;
-                for (int x = (int) minX - 40; x <= maxX + 40; x += 8) {
-                    gui.fill(x, y, x + dot * 2, y + dot, color);
-                }
+                int color = row == 8 ? 0x1CFFD86B : row % 2 == 0 ? 0x10FFFFFF : 0x06FFFFFF;
+                gui.pose().pushMatrix();
+                gui.pose().translate((float) left, (float) (-row * SUB_ROW - SUB_ROW / 2.0 + 7));
+                gui.fill(0, 0, (int) Math.ceil(right - left), (int) Math.ceil(SUB_ROW), color);
+                gui.pose().popMatrix();
             }
-            // Every link of the tree, faint; bright where both ends are learned.
-            for (Edge edge : edges) {
-                for (GridNode p : edge.parents()) {
-                    boolean on = p.node().level > 0 && edge.child().node().level > 0;
-                    line(gui, p.cx(), p.cy(), edge.child().cx(), edge.child().cy(), Math.max(1.0, 1.2 * px),
-                            on ? 0xC0000000 | laneColor(edge.child().node(), rgb) : 0x30C8C0D8);
+            // The links: each node to what it needs on the tier below; lit from learned nodes on.
+            List<GridNode[]> links = subLinks(edges);
+            double t = Math.max(1.0, 1.2 * px);
+            for (int pass = 0; pass < 3; pass++) {
+                for (GridNode[] link : links) {
+                    CoreStats.NodeLine pn = link[0].node();
+                    CoreStats.NodeLine cn = link[1].node();
+                    int lane = laneColor(cn, rgb);
+                    int level = cn.level > 0 && pn.level > 0 ? 2 : pn.level > 0 && !isClosed(cn) ? 1 : 0;
+                    if (level != pass) {
+                        continue;
+                    }
+                    int color = level == 2 ? 0xFF000000 | lane
+                            : level == 1 ? (cn.blocked == null && own ? 0xFF000000 | lane : 0xFF000000 | ((lane >> 1) & 0x7F7F7F))
+                            : isClosed(cn) ? 0xFF2E2A36 : 0xFF5E586E;
+                    subLink(gui, link[0], link[1], level == 2 ? t * 1.8 : t, color);
                 }
             }
         }
@@ -1508,7 +1765,9 @@ public class CoreScreen extends Screen {
                             continue;
                         }
                         int color = !in ? 0xFF7FC8FF : satisfied(edge, i) ? 0xFF6FE07A : termMet ? 0x90A8A0B4 : 0xFFFF6A5A;
-                        if (pass == 0) {
+                        if (subMode) {
+                            subLink(gui, p, edge.child(), pass == 0 ? thin + 2 * px : thin, pass == 0 ? 0xB0000000 : color);
+                        } else if (pass == 0) {
                             line(gui, p.cx(), p.cy(), edge.child().cx(), edge.child().cy(), thin + 2 * px, 0xB0000000);
                         } else {
                             line(gui, p.cx(), p.cy(), edge.child().cx(), edge.child().cy(), thin, color);
@@ -1604,23 +1863,47 @@ public class CoreScreen extends Screen {
                 }
             }
         }
+        if (subMode && zoom >= SUB_NAME_ZOOM) {
+            for (GridNode g : gridNodes) {
+                drawSubName(gui, font, g, own);
+            }
+            drawSideHeads(gui, font);
+        }
         gui.pose().popMatrix();
 
         // Labels in screen size, so they stay readable at any zoom.
         double midR = (ringRadius(2) + ringRadius(gridMaxRow)) / 2.0;
         if (subMode) {
             drawSubTitle(gui, font, vx, vy);
-            // The tiers' names on the left edge.
-            java.util.Set<Integer> tiers = new java.util.TreeSet<>();
+            // The tiers on the right edge: number and kind ("IV · Mischform"); the trunk once.
+            java.util.Map<Integer, String> tierGroups = new java.util.TreeMap<>();
             for (GridNode g : gridNodes) {
-                tiers.add(g.node().row);
-            }
-            for (int row : tiers) {
-                int sy = (int) screenY(-row * SUB_ROW) - 4;
-                if (sy > vy + 34 && sy < vy + vh - 10 && row >= 2) {
-                    String ring = roman(row - 1);
-                    gui.text(font, ring, vx + vw - font.width(ring) - 6, sy, row == 8 ? 0xC0FFD86B : 0x80B8B0C4, true);
+                CoreStats.NodeLine n = g.node();
+                if (!sideNode(n) && n.row != 1 && (!tierGroups.containsKey(n.row) || (n.group != null && !n.group.isBlank()))) {
+                    tierGroups.put(n.row, n.group);
                 }
+            }
+            for (java.util.Map.Entry<Integer, String> e : tierGroups.entrySet()) {
+                int row = e.getKey();
+                int sy = (int) screenY(-row * SUB_ROW) - 8;
+                if (sy < vy + 2 || sy > vy + vh - 16) {
+                    continue;
+                }
+                String num = row < 2 ? "" : roman(row - 1);
+                String kind = Component.translatable(tierKey(row, e.getValue())).getString();
+                int kw = (int) Math.ceil(font.width(kind) * 0.75f);
+                int w = Math.max(font.width(num), kw) + 6;
+                int x = vx + vw - w - 3;
+                int c = row == 8 ? 0xFFFFD86B : 0xFFC8C0D8;
+                gui.fill(x, sy - 1, x + w, sy + (num.isEmpty() ? 9 : 17), 0x90000000);
+                if (!num.isEmpty()) {
+                    gui.text(font, num, x + w - 3 - font.width(num), sy, c, true);
+                }
+                gui.pose().pushMatrix();
+                gui.pose().translate(x + w - 3 - kw, sy + (num.isEmpty() ? 1 : 9));
+                gui.pose().scale(0.75f, 0.75f);
+                gui.text(font, kind, 0, 0, (c & 0x00FFFFFF) | 0xB0000000, false);
+                gui.pose().popMatrix();
             }
         }
         for (int w = 0; w < ways.size() && !subMode; w++) {
@@ -1690,9 +1973,12 @@ public class CoreScreen extends Screen {
     }
 
     /** "Ring III · Talent": which ring of its way a node sits on (the trunk has no ring). */
-    private static String ringName(int row) {
-        String kind = Component.translatable("nightsiege.ui.tier." + row).getString();
-        return row < 2 ? kind : Component.translatable("nightsiege.ui.ring", roman(row - 1), kind).getString();
+    private static String ringName(CoreStats.NodeLine n) {
+        if (sideNode(n)) {
+            return Component.translatable("nightsiege.ui.tier.side").getString();
+        }
+        String kind = Component.translatable(tierKey(n.row, n.group)).getString();
+        return n.row < 2 ? kind : Component.translatable("nightsiege.ui.ring", roman(n.row - 1), kind).getString();
     }
 
     /** The core's rings: the foundation in the middle, then the extensions of each way. */
@@ -1779,7 +2065,7 @@ public class CoreScreen extends Screen {
             gui.text(font, Component.translatable("nightsiege.ui.panel_title").getString(), tx, y, 0xFFFFD86B, true);
             y += 14;
             String help = Component.translatable("nightsiege.ui.panel_help").getString() + "\n"
-                    + Component.translatable("nightsiege.ui.grid_hint").getString();
+                    + Component.translatable(subMode ? "nightsiege.ui.grid_hint_sub" : "nightsiege.ui.grid_hint").getString();
             for (String line : wrap(font, help, tw)) {
                 gui.text(font, line, tx, y, 0xFFB8B0C8, false);
                 y += 10;
@@ -1803,7 +2089,7 @@ public class CoreScreen extends Screen {
         }
         y += Math.max(22, title.size() * 10 + 4);
         List<String> lines = new ArrayList<>();
-        lines.add("§8" + (activeTab == Tab.CORE ? coreRingName(n.row) : ringName(n.row)));
+        lines.add("§8" + (activeTab == Tab.CORE ? coreRingName(n.row) : ringName(n)));
         String sub = Component.translatable("nightsiege.subclass_node." + n.id).getString();
         if (!sub.equals("nightsiege.subclass_node." + n.id)) {
             lines.add("§6" + sub);
@@ -1957,6 +2243,12 @@ public class CoreScreen extends Screen {
         if (gridMode && confirming == null && !confirmingReset && !choosingUnlock && x >= panelX() && x < panelX() + PANEL_W
                 && y >= panelTop && y < panelBottom + 32) {
             panelScroll = (int) Math.max(0, Math.min(panelMax, panelScroll - scrollY * 12));
+            return true;
+        }
+        if (gridMode && subMode && inView(x, y) && confirming == null && !confirmingReset && !choosingUnlock) {
+            camY -= scrollY * SUB_ROW * 0.6 / zoom;   // a subclass tree: the wheel climbs the tiers
+            clampCam();
+            saveView(shownClass);
             return true;
         }
         if (gridMode && inView(x, y) && confirming == null && !confirmingReset && !choosingUnlock) {
