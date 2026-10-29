@@ -2323,18 +2323,44 @@ class SiegeCoreTest {
     }
 
     @Test
-    void bossNightEveryFourthSiege() {
+    void bossRhythmFourGroupsOfFourThenTwoEveryOtherNight() {
         SiegeConfig c = new SiegeConfig();
         c.sanitize();
-        assertEquals(4, c.bossEvery);   // every 4th night since the content update (29 October 2026)
-        // 3 sieges since the last boss: the 4th is a boss night
-        assertFalse(BossPlan.isBossNight(2, c));
-        assertTrue(BossPlan.isBossNight(3, c));
-        // a lost boss night: the counter stays, the boss comes again
-        assertTrue(BossPlan.isBossNight(5, c));
+        assertEquals(4, c.bossEvery);
+        // Simon 29.10.: boss nights 4, 8, 12, 16, the Vierer-Nacht on 20; again 24-36 and 40;
+        // from night 41 every 2nd night two bosses.
+        int boss = 0;
+        for (int night = 1; night <= 50; night++) {
+            BossPlan.NightKind kind = BossPlan.nightKind(night, c);
+            BossPlan.NightKind want = night == 20 || night == 40 ? BossPlan.NightKind.GROUP
+                    : night < 40 && night % 4 == 0 ? BossPlan.NightKind.BOSS
+                    : night > 40 && night % 2 == 0 ? BossPlan.NightKind.LATE : BossPlan.NightKind.NORMAL;
+            assertEquals(want, kind, "night " + night);
+            if (kind == BossPlan.NightKind.BOSS) {
+                boss++;
+            }
+        }
+        assertEquals(8, boss, "every one of the eight bosses has its own boss night before night 40");
+        assertEquals(8, BossKind.values().length);
+        // A lost boss night or Vierer-Nacht comes again; a late night goes on.
+        assertEquals(3, BossPlan.countNight(3, BossPlan.NightKind.BOSS, false));
+        assertEquals(4, BossPlan.countNight(3, BossPlan.NightKind.BOSS, true));
+        assertEquals(19, BossPlan.countNight(19, BossPlan.NightKind.GROUP, false));
+        assertEquals(42, BossPlan.countNight(41, BossPlan.NightKind.LATE, false));
+        assertEquals(6, BossPlan.countNight(5, BossPlan.NightKind.NORMAL, false));
         c.bossesEnabled = false;
-        assertFalse(BossPlan.isBossNight(3, c));
+        assertEquals(BossPlan.NightKind.NORMAL, BossPlan.nightKind(4, c));
         c.bossesEnabled = true;
+        // The Vierer-Nacht takes the four that came, in their order; fewer are filled up, none twice.
+        List<String> came = List.of("frost_jarl", "grave_king", "storm_witch", "ram_titan");
+        List<BossKind> four = BossPlan.groupBosses(came, 4, new Random(1));
+        assertEquals(List.of(BossKind.FROST_JARL, BossKind.GRAVE_KING, BossKind.STORM_WITCH, BossKind.RAM_TITAN), four);
+        List<BossKind> filled = BossPlan.groupBosses(List.of("grave_king"), 4, new Random(2));
+        assertEquals(4, filled.size());
+        assertEquals(BossKind.GRAVE_KING, filled.get(0));
+        assertEquals(4, new HashSet<>(filled).size());
+        List<BossKind> late = BossPlan.lateBosses(2, new Random(3));
+        assertEquals(2, new HashSet<>(late).size());
         // A server that kept the old 6 goes to 4 once; one that sets 6 again afterwards keeps it.
         SiegeConfig old = new SiegeConfig();
         old.bossEvery = 6;
@@ -2344,37 +2370,6 @@ class SiegeCoreTest {
         old.bossEvery = 6;
         old.sanitize();
         assertEquals(6, old.bossEvery);
-        assertEquals(8, BossKind.values().length, "eight bosses since the content update");
-        // an old save counts the sieges played so far
-        assertEquals(2, BossPlan.startCount(10, 4, c));
-        assertEquals(0, BossPlan.startCount(0, 0, c));
-    }
-
-    @Test
-    void theSeasonEndsWithAFinaleEveryTwentyFiveNights() {
-        SiegeConfig c = new SiegeConfig();
-        c.sanitize();
-        assertEquals(25, c.seasonLength);
-        int nights = 0;
-        int finales = 0;
-        for (int night = 1; night <= 50; night++) {
-            boolean finale = BossPlan.finaleDue(nights, c);
-            assertEquals(night == 25 || night == 50, finale, "night " + night);
-            nights = BossPlan.countNight(nights, c);
-            if (finale) {
-                finales++;
-                nights = 0;   // won: the next season begins
-            }
-        }
-        assertEquals(2, finales);
-        // A lost finale stays due until it is won.
-        int lost = BossPlan.countNight(24, c);
-        assertTrue(BossPlan.finaleDue(lost, c));
-        assertTrue(BossPlan.finaleDue(BossPlan.countNight(lost, c), c));
-        // An old save starts where its nights held leave it.
-        assertEquals(15, BossPlan.startSeason(40, c));
-        c.seasonLength = 0;
-        assertFalse(BossPlan.finaleDue(100, c));
     }
 
     @Test

@@ -397,13 +397,16 @@ public class SiegeSave {
 
     /** Siege nights held so far (real ones, won or lost): numbers the nights for catching up. */
     public int nightsHeld;
-    /**
-     * The season (content update): every seasonLength nights one night with all eight bosses; won,
-     * the next season begins, lost, the finale comes again the night after.
-     */
+    /** The number on the next crown of the Vierer-Nacht (one more after every won one). */
     public int season = 1;
-    /** Nights of this season so far (the finale is the last); -1 until counted (then from nightsHeld). */
-    public int seasonNights = -1;
+    /**
+     * Real nights in the boss rhythm so far (Simon 29.10.: boss nights 4, 8, 12, 16, the Vierer-Nacht
+     * on 20 and 40, from 41 every 2nd night two bosses); a lost boss night or Vierer-Nacht does not
+     * count. -1 until counted (then from nightsHeld).
+     */
+    public int bossNights = -1;
+    /** The bosses of the boss nights since the last Vierer-Nacht (its four). */
+    public List<String> groupBosses = new ArrayList<>();
     /** Version of the balancing the points below were earned under. */
     public int balanceVersion;
     public static final int BALANCE_VERSION = 1;
