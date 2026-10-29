@@ -13,6 +13,8 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -46,6 +48,13 @@ public class NightStatsScreen extends Screen {
     private static int pendingWait;
 
     private final NightStatsData data;
+    /** 1-click feedback after a real night (balance tool, 29 October 2026). */
+    private final boolean feedback;
+    private final List<Button> voteButtons = new ArrayList<>();
+    private Button bestButton;
+    private String voted;
+    private int bestIndex = -1;
+    private final List<String> subclasses = new ArrayList<>();
     private int left;
     private int top;
     private int w;
@@ -55,6 +64,12 @@ public class NightStatsScreen extends Screen {
     public NightStatsScreen(NightStatsData data) {
         super(Component.translatable("nightsiege.stats.title"));
         this.data = data;
+        this.feedback = !data.test && !data.rows.isEmpty();
+        for (NightStatsData.Row row : data.rows) {
+            if (row.subclass != null && !row.subclass.isBlank() && !subclasses.contains(row.subclass)) {
+                subclasses.add(row.subclass);
+            }
+        }
     }
 
     /** The night just ended: the window comes in a moment, when no other window is open. */
@@ -97,13 +112,59 @@ public class NightStatsScreen extends Screen {
     @Override
     protected void init() {
         w = Math.max(340, Math.min(520, this.width - 8));
-        h = Math.min(this.height - 8, 78 + shownRows() * ROW_H + 32);
+        h = Math.min(this.height - 8, 78 + shownRows() * ROW_H + 32 + (feedback ? 16 : 0));
         left = (this.width - w) / 2;
         top = (this.height - h) / 2;
         scroll = Math.max(0, Math.min(scroll, data.rows.size() - shownRows()));
         Button close = Button.builder(Component.translatable("nightsiege.stats.close"), b -> onClose())
                 .bounds(left + w - 8 - 90, top + h - 8 - 20, 90, 20).build();
         addRenderableWidget(close);
+        voteButtons.clear();
+        bestButton = null;
+        if (feedback) {
+            // Three buttons and, on a wide window, the strongest class of tonight (balance tool, 29 October 2026).
+            String[] votes = {"leicht", "passt", "schwer"};
+            int bw = Math.min(64, (w - 8 - 90 - 8 - 8) / 3 - 2);
+            for (int i = 0; i < votes.length; i++) {
+                String vote = votes[i];
+                Button b = Button.builder(Component.translatable("nightsiege.stats.feedback." + vote), btn -> vote(vote))
+                        .bounds(left + 8 + i * (bw + 2), top + h - 8 - 20, bw, 20).build();
+                b.active = voted == null;
+                voteButtons.add(addRenderableWidget(b));
+            }
+            int free = w - 8 - 90 - 8 - 3 * (bw + 2) - 12;
+            if (free >= 110 && !subclasses.isEmpty()) {
+                bestButton = addRenderableWidget(Button.builder(bestLabel(), btn -> cycleBest())
+                        .bounds(left + 8 + 3 * (bw + 2) + 6, top + h - 8 - 20, Math.min(150, free), 20).build());
+            }
+        }
+    }
+
+    private void vote(String vote) {
+        voted = vote;
+        net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(
+                new com.mki.nightsiege.game.CoreNetworking.CoreActionPayload("feedback:" + vote));
+        for (Button b : voteButtons) {
+            b.active = false;
+        }
+    }
+
+    private void cycleBest() {
+        bestIndex = bestIndex + 1 >= subclasses.size() ? -1 : bestIndex + 1;
+        String sub = bestIndex < 0 ? "" : subclasses.get(bestIndex);
+        net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(
+                new com.mki.nightsiege.game.CoreNetworking.CoreActionPayload("feedback:best:" + sub));
+        if (bestButton != null) {
+            bestButton.setMessage(bestLabel());
+        }
+    }
+
+    private Component bestLabel() {
+        if (bestIndex < 0) {
+            return Component.translatable("nightsiege.stats.feedback.best_none");
+        }
+        return Component.translatable("nightsiege.stats.feedback.best",
+                Component.translatable("nightsiege.subclass." + subclasses.get(bestIndex)));
     }
 
     @Override
@@ -241,12 +302,19 @@ public class NightStatsScreen extends Screen {
             }
             y += ROW_H;
         }
+        // With the feedback buttons in the bottom row the hint goes one line up.
+        int hintY = feedback ? top + h - 8 - 20 - 12 : top + h - 8 - 13;
         if (data.rows.size() > shownRows()) {
             String more = Component.translatable("nightsiege.stats.scroll", scroll + 1,
                     Math.min(data.rows.size(), scroll + shownRows()), data.rows.size()).getString();
-            small(gui, font, more, left + 10, top + h - 8 - 13, GREY, 0.7f);
-        } else {
-            small(gui, font, Component.translatable("nightsiege.stats.hint").getString(), left + 10, top + h - 8 - 13, GREY, 0.7f);
+            small(gui, font, more, left + 10, hintY, GREY, 0.7f);
+        } else if (!feedback) {
+            small(gui, font, Component.translatable("nightsiege.stats.hint").getString(), left + 10, hintY, GREY, 0.7f);
+        }
+        if (feedback) {
+            String ask = Component.translatable(voted == null ? "nightsiege.stats.feedback" : "nightsiege.stats.feedback.thanks").getString();
+            int askX = data.rows.size() > shownRows() ? left + w - 10 - (int) (font.width(ask) * 0.7f) : left + 10;
+            small(gui, font, ask, askX, hintY, voted == null ? LIGHT : GREEN, 0.7f);
         }
     }
 

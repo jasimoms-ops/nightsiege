@@ -3949,6 +3949,7 @@ public final class SiegeManager {
             case "dungeon" -> dungeons.onToolAction(player, argument);
             case "scout" -> expeditions.giveMap(player);   // the core window's "Karte mitnehmen"
             case "playtest" -> playtest.onAction(player, argument);   // the playtest window (28 October 2026)
+            case "feedback" -> safe("Bewertung", () -> stats.feedback(player, argument));   // 1-click feedback (29 October 2026)
             case "curse" -> {   // the curse altar (update 2): a stone laid on or taken off
                 Curses.toggle(this, player, argument);
                 openCoreWindow(player);

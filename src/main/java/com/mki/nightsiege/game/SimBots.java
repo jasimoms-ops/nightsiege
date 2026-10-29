@@ -142,7 +142,7 @@ public final class SimBots {
 
         BotConnection(EmbeddedChannel channel) {
             super(PacketFlow.SERVERBOUND);
-            ((ConnectionAccessor) this).nightsiege$setChannel(channel);
+            ((ConnectionAccessor) (Object) this).nightsiege$setChannel(channel);
         }
 
         @Override
