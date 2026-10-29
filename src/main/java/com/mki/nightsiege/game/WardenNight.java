@@ -19,6 +19,8 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.BossEvent;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
@@ -132,6 +134,9 @@ public final class WardenNight {
         for (EquipmentSlot slot : EquipmentSlot.values()) {
             mob.setDropChance(slot, 0f);
         }
+        // Like the bosses: no sunburn when a night runs into the morning.
+        mob.addEffect(new MobEffectInstance(MobEffects.FIRE_RESISTANCE, MobEffectInstance.INFINITE_DURATION, 0, false, false));
+        mob.clearFire();
         mob.setCustomName(name(kind));
         mob.setCustomNameVisible(true);
         mob.setPersistenceRequired();

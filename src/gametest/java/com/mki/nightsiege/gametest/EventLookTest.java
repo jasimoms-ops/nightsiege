@@ -276,6 +276,7 @@ public class EventLookTest implements FabricClientGameTest {
             }
             context.runOnClient(client -> EventAtmosphere.setClient(event, 1));
             context.waitTicks(30);
+            closeScreen(context);   // a statistics window that came late must not cover the photos
             context.takeScreenshot("mobs_" + event.toLowerCase(Locale.ROOT));
             game.getServer().runCommand("tp @a %d.5 %d %d.5 -90 8".formatted(home.getX() + 3, home.getY(), vz));
             context.waitTicks(10);
@@ -288,11 +289,10 @@ public class EventLookTest implements FabricClientGameTest {
             game.getServer().runCommand("tp @a %d.5 %d %d.5 -90 8".formatted(home.getX() + 2, home.getY(), rows[0]));
             context.waitTicks(10);
             context.takeScreenshot("mobs3_" + event.toLowerCase(Locale.ROOT));
-            if (EventAtmosphere.NETHER_RIFT.equals(event) || EventAtmosphere.ECLIPSE.equals(event)) {
-                game.getServer().runCommand("tp @a %d.5 %d %d.5 -90 8".formatted(home.getX() + 2, home.getY(), rows[1]));
-                context.waitTicks(10);
-                context.takeScreenshot("mobs4_" + event.toLowerCase(Locale.ROOT));
-            }
+            // The phantom wears every event's look since 29 October 2026 (the nether monsters only the rift's).
+            game.getServer().runCommand("tp @a %d.5 %d %d.5 -90 8".formatted(home.getX() + 2, home.getY(), rows[1]));
+            context.waitTicks(10);
+            context.takeScreenshot("mobs4_" + event.toLowerCase(Locale.ROOT));
             game.getServer().runCommand("tp @a %d.5 %d %d.5 -90 6".formatted(home.getX() + 2, home.getY(), home.getZ()));
             context.waitTicks(5);
         }
@@ -2684,14 +2684,17 @@ public class EventLookTest implements FabricClientGameTest {
         context.waitTicks(10);
         game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %d.5 %d %.1f facing %d.5 %.1f %.1f",
                 cx, cy, cz + 7.5, cx, cy + 1.7, cz - 3.5));
+        // At night (the undead would burn by day), lit by night vision; then without it: what glows.
+        game.getServer().runCommand("time set 18000");
+        game.getServer().runCommand("effect give @p minecraft:night_vision 600 0 true");
         closeScreen(context);
         context.runOnClient(client -> hud(client, false));
         context.waitTicks(40);
         context.takeScreenshot("warden_row_day");
-        game.getServer().runCommand("time set 18000");
+        game.getServer().runCommand("effect clear @p minecraft:night_vision");
         context.waitTicks(20);
         context.takeScreenshot("warden_row_night");
-        game.getServer().runCommand("time set 6000");
+        game.getServer().runCommand("effect give @p minecraft:night_vision 600 0 true");
         onServer(context, (player, manager) -> {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
             for (java.util.UUID id : row) {
@@ -2785,8 +2788,9 @@ public class EventLookTest implements FabricClientGameTest {
             }
             manager.config().testPrepSeconds = prep[0];
         });
-        context.waitTicks(20);
+        context.waitTicks(60);
         closeScreen(context);
+        game.getServer().runCommand("effect clear @p minecraft:night_vision");
         game.getServer().runCommand("forceload remove all");
         game.getServer().runCommand("time set 6000");
         game.getServer().runCommand("effect clear @p");
