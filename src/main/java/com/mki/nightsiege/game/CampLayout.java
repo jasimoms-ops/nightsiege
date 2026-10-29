@@ -22,6 +22,9 @@ import java.util.Random;
  *
  * <p>Everything follows from the middle, the gate side and a seed, so the save only keeps
  * those and the same blocks can be taken away again when the camp goes.</p>
+ *
+ * <p>Content update (29 October 2026): a fenced forecourt before the gate with the war drum that
+ * starts the ready round, and benches by a fire where the fallen wait until the fight is over.</p>
  */
 final class CampLayout {
 
@@ -33,6 +36,10 @@ final class CampLayout {
     static final int GROUND = 17;
     /** Height above the floor that is cleared (trees, hills). */
     static final int CLEAR = 14;
+    /** The forecourt before the gate (layout space): x from -FORE_HALF to FORE_HALF, z from FORE_NEAR to FORE_FAR. */
+    static final int FORE_HALF = 6;
+    static final int FORE_NEAR = 15;
+    static final int FORE_FAR = 25;
 
     private CampLayout() {
     }
@@ -73,9 +80,54 @@ final class CampLayout {
         return center.above();
     }
 
-    /** A spot just outside the gate (where the fallen are put down and the way in starts). */
+    /** A spot just outside the gate, in the forecourt (where the way in starts). */
     static BlockPos outsideGate(BlockPos center, int facing) {
         return world(center, facing, 0, 0, 19);
+    }
+
+    /** The war drum in the forecourt: a right click starts the ready round. */
+    static BlockPos drum(BlockPos center, int facing) {
+        return world(center, facing, 3, 0, 17);
+    }
+
+    /** Where the fallen wait: by the fire in the forecourt. */
+    static BlockPos waiting(BlockPos center, int facing) {
+        return world(center, facing, -3, 0, 23);
+    }
+
+    /** The five-wide gate in the palisade, up to under its beam (iron bars close it in a fight). */
+    static List<BlockPos> gate(BlockPos center, int facing) {
+        List<BlockPos> out = new ArrayList<>();
+        for (int lx = -2; lx <= 2; lx++) {
+            for (int ly = 0; ly <= 4; ly++) {
+                out.add(world(center, facing, lx, ly, 15));
+            }
+        }
+        return out;
+    }
+
+    /** Where the ready round's fighters stand when the fight begins: just inside the gate. */
+    static BlockPos insideGate(BlockPos center, int facing, int index) {
+        int lx = (index % 5) - 2;
+        int lz = 12 - (index / 5);
+        return world(center, facing, lx, 0, lz);
+    }
+
+    /** A world point back in layout space: {x to the side, z towards the gate}. */
+    static int[] local(BlockPos center, int facing, BlockPos pos) {
+        int dx = pos.getX() - center.getX();
+        int dz = pos.getZ() - center.getZ();
+        return switch (facing & 3) {
+            case 1 -> new int[] {dz, -dx};
+            case 2 -> new int[] {-dx, -dz};
+            case 3 -> new int[] {-dz, dx};
+            default -> new int[] {dx, dz};
+        };
+    }
+
+    /** True for a point of the forecourt (layout space, the fence included). */
+    static boolean inForecourt(int lx, int lz) {
+        return Math.abs(lx) <= FORE_HALF && lz >= FORE_NEAR && lz <= FORE_FAR;
     }
 
     /** Spots where the guards stand at first: by the fires, the tents, the gate and the workshop. */
@@ -123,6 +175,26 @@ final class CampLayout {
                 out.put(world(center, facing, lx, -1, lz), state);
             }
         }
+        // The forecourt: trodden earth, a path to the gate, planks under the drum.
+        for (int lx = -FORE_HALF; lx <= FORE_HALF; lx++) {
+            for (int lz = FORE_NEAR; lz <= FORE_FAR; lz++) {
+                BlockPos at = world(center, facing, lx, -1, lz);
+                if (out.containsKey(at) && lz <= 16) {
+                    continue;
+                }
+                BlockState state;
+                if (lx == 0 || lx == 1) {
+                    state = Blocks.DIRT_PATH.defaultBlockState();
+                } else if (lx >= 2 && lx <= 4 && lz >= 16 && lz <= 18) {
+                    state = Blocks.SPRUCE_PLANKS.defaultBlockState();
+                } else {
+                    int r = random.nextInt(100);
+                    state = r < 60 ? Blocks.COARSE_DIRT.defaultBlockState()
+                            : r < 82 ? Blocks.PACKED_MUD.defaultBlockState() : Blocks.GRAVEL.defaultBlockState();
+                }
+                out.put(at, state);
+            }
+        }
         return out;
     }
 
@@ -142,7 +214,45 @@ final class CampLayout {
         tent(b, random, -8, 6, -1);
         fires(b);
         clutter(b, random);
+        forecourt(b);
         return b.out;
+    }
+
+    /**
+     * The forecourt before the gate: a low fence with an opening towards the core, the war drum
+     * on its stand by the gate, and benches round a fire where the fallen wait.
+     */
+    private static void forecourt(Builder b) {
+        for (int lz = 16; lz <= FORE_FAR; lz++) {
+            b.put(-FORE_HALF, 0, lz, Blocks.DARK_OAK_FENCE.defaultBlockState());
+            b.put(FORE_HALF, 0, lz, Blocks.DARK_OAK_FENCE.defaultBlockState());
+        }
+        for (int lx = -FORE_HALF + 1; lx <= FORE_HALF - 1; lx++) {
+            if (lx < -1 || lx > 2) {
+                b.put(lx, 0, FORE_FAR, Blocks.DARK_OAK_FENCE.defaultBlockState());
+            }
+        }
+        // Lanterns on the posts of the way in.
+        for (int lx : new int[] {-2, 3}) {
+            b.put(lx, 0, FORE_FAR, Blocks.DARK_OAK_FENCE.defaultBlockState());
+            b.put(lx, 1, FORE_FAR, Blocks.DARK_OAK_FENCE.defaultBlockState());
+            b.put(lx, 2, FORE_FAR, Blocks.LANTERN.defaultBlockState());
+        }
+        // The war drum: a barrel standing up between two posts with lanterns.
+        b.put(3, 0, 17, Blocks.BARREL.defaultBlockState().setValue(BlockStateProperties.FACING, Direction.UP));
+        for (int lx : new int[] {2, 4}) {
+            b.put(lx, 0, 17, Blocks.DARK_OAK_FENCE.defaultBlockState());
+            b.put(lx, 1, 17, Blocks.LANTERN.defaultBlockState());
+        }
+        // The waiting place: a fire and two benches.
+        b.put(-3, 0, 21, Blocks.CAMPFIRE.defaultBlockState().setValue(BlockStateProperties.LIT, true)
+                .setValue(BlockStateProperties.SIGNAL_FIRE, false));
+        for (int lz = 20; lz <= 22; lz++) {
+            b.put(-5, 0, lz, Blocks.SPRUCE_STAIRS.defaultBlockState().setValue(BlockStateProperties.HORIZONTAL_FACING, Direction.WEST));
+            b.put(-1, 0, lz, Blocks.SPRUCE_STAIRS.defaultBlockState().setValue(BlockStateProperties.HORIZONTAL_FACING, Direction.EAST));
+        }
+        b.put(-4, 0, 24, Blocks.BARREL.defaultBlockState().setValue(BlockStateProperties.FACING, Direction.UP));
+        b.put(-5, 0, 24, Blocks.HAY_BLOCK.defaultBlockState());
     }
 
     // ------------------------------------------------------------------ parts

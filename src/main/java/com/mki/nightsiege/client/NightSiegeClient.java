@@ -89,6 +89,10 @@ public class NightSiegeClient implements ClientModInitializer {
                         if (data != null) {
                             client.setScreenAndShow(new ClassPickScreen(data));
                         }
+                    } else if ("classpick_close".equals(payload.kind())) {
+                        if (client.gui.screen() instanceof ClassPickScreen) {
+                            client.setScreenAndShow(null);   // the war drum's round ended
+                        }
                     } else if ("classpick_update".equals(payload.kind())) {
                         com.mki.nightsiege.core.ClassPickData data =
                                 Json.fromJson(payload.json(), com.mki.nightsiege.core.ClassPickData.class);

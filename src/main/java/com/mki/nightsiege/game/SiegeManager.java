@@ -767,10 +767,42 @@ public final class SiegeManager {
                 data.team.add(mate);
             }
         }
+        if (camp.inRound(player)) {
+            // The war drum's ready round (content update): its members, who is ready, the starter's button.
+            data.round = true;
+            data.starter = camp.roundStarter(player);
+            data.forceIn = camp.roundForceIn(player.level().getGameTime());
+            data.team.clear();
+            for (UUID id : camp.roundMembers()) {
+                ServerPlayer other = player.level().getServer().getPlayerList().getPlayer(id);
+                if (other == null) {
+                    continue;
+                }
+                PlayerSkills os = save.skillsOf(id.toString());
+                com.mki.nightsiege.core.ClassPickData.Mate mate = new com.mki.nightsiege.core.ClassPickData.Mate(
+                        other.getScoreboardName(), os.className());
+                mate.subclass = skillTree.subclassOfProfile(os, os.chosenClass);
+                mate.self = other == player;
+                mate.ready = camp.roundReady(id);
+                data.team.add(mate);
+            }
+        }
         if ("classpick".equals(kind)) {
             classPicking.add(player.getUUID());
         }
         ServerPlayNetworking.send(player, new CoreNetworking.ScreenPayload(kind, Json.toJson(data)));
+    }
+
+    /** The class window shut from the server (the war drum's round ended or left it). */
+    void closeClassPick(ServerPlayer player) {
+        if (player != null && classPicking.remove(player.getUUID())) {
+            ServerPlayNetworking.send(player, new CoreNetworking.ScreenPayload("classpick_close", "{}"));
+        }
+    }
+
+    /** The open class windows anew (the war drum's round changed). */
+    void refreshClassPicksNow(MinecraftServer server) {
+        refreshClassPicks(server);
     }
 
     /** Someone confirmed a class: the others with the window open see it at once. */
@@ -3905,6 +3937,10 @@ public final class SiegeManager {
             trapsDirty = true;
             return InteractionResult.SUCCESS;
         }
+        // The war drum before the war camp (content update): the ready round.
+        if (handObject == InteractionHand.MAIN_HAND && camp.onDrum(player, pos)) {
+            return InteractionResult.SUCCESS;
+        }
         TrapKind placing = ModContent.trapOf(held);
         Component blocked = placing == null ? null : traps.placeBlocked(player, placing);
         if (blocked != null) {
@@ -4199,6 +4235,7 @@ public final class SiegeManager {
             case "spot" -> traps.onSpotAction(player, argument);
             case "shield" -> combat.guardian().onShieldAction(player);
             case "scout" -> expeditions.giveMap(player);   // the core window's "Karte mitnehmen"
+            case "round_force" -> camp.forceRound(player);   // the war drum's round: go without the others
             case "playtest" -> playtest.onAction(player, argument);   // the playtest window (28 October 2026)
             case "curse" -> {   // the curse altar (update 2): a stone laid on or taken off
                 Curses.toggle(this, player, argument);
@@ -4617,6 +4654,7 @@ public final class SiegeManager {
         }
         player.sendSystemMessage(Component.translatable("nightsiege.msg.play_class",
                 profileName(own, key)).withStyle(ChatFormatting.GREEN));
+        camp.onRoundReady(player);   // the war drum's ready round (content update)
         if (classPicking.remove(player.getUUID())) {
             // Chosen in the window before the night: no core window on top, just the new name tag.
             ClassTags.update(player.level().getServer(), player, own, skillTree.subclassOfProfile(own, own.chosenClass));

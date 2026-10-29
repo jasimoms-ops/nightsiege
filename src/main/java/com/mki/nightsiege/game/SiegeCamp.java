@@ -57,10 +57,14 @@ import java.util.UUID;
  *
  * <p>On the day before a siege a camp stands with a chance of 20 %, 80–150 blocks from the
  * core, guarded by vindicators: 8 and 3 more for every further signed-up player. Nothing is
- * said in the chat; only the smoke of its fires shows it. Whoever of the signed-up players
- * steps inside the palisade starts the fight: the war horn, the class cards as before a
- * night, the kit (the own things go into the kit store) and 10 seconds of grace. The own
- * things come back when the workshop falls, when the player falls or leaves the palisade.</p>
+ * said in the chat; only the smoke of its fires shows it.</p>
+ *
+ * <p>Content update (Simon 28/29 October 2026): the fight starts at the war drum in the forecourt.
+ * A strike opens the ready round ({@link StartRound}): everyone signed up within 20 blocks chooses
+ * a class; when all are ready they stand inside the gate, iron bars shut it, the war horn sounds,
+ * the kits come and 10 seconds of grace. Nobody gets out (who does is put back) and nobody else
+ * gets in; who logs out counts as fallen. The fallen wait by the fire in the forecourt with the
+ * fight's bar until it is over. The own things come back when the fight ends or the player falls.</p>
  *
  * <ul>
  *   <li>The siege workbench destroyed: no siege machines tonight (the rest of the night as ever).</li>
@@ -98,6 +102,14 @@ public final class SiegeCamp {
     private UUID outcomeBy;
     /** The camp burns down at this time after its workshop fell (game time), or -1. */
     private long burnUntil = -1L;
+    /** The ready round at the war drum, or null. */
+    private StartRound round;
+    /** Tests and the playtest: whoever steps inside joins (no ready round). */
+    private boolean openEntry;
+    /** Where each fighter last stood inside (who gets out is put back there). */
+    private final Map<UUID, Vec3> lastInside = new HashMap<>();
+    /** The iron bars in the gate while a fight is on. */
+    private final List<BlockPos> gateBars = new ArrayList<>();
 
     SiegeCamp(SiegeManager manager) {
         this.m = manager;
@@ -160,6 +172,9 @@ public final class SiegeCamp {
             roll(server);
         }
         SiegeSave.CampRecord camp = camp();
+        if (camp == null || burnUntil > 0) {
+            endRound(server, null);   // no camp to fight (any more): the round goes
+        }
         if (camp == null) {
             if (!fighters.isEmpty()) {
                 endAll(server);
@@ -197,7 +212,14 @@ public final class SiegeCamp {
             return;
         }
         if (now % 5 == 0) {
-            checkEntries(level, camp, center, now);
+            if (openEntry) {
+                checkEntries(level, camp, center, now);
+            } else if (!fighters.isEmpty()) {
+                keepOut(level, camp, center);
+            }
+        }
+        if (round != null && now % 10 == 0) {
+            tickRound(level, camp, center, now);
         }
         if (now % 20 == 0) {
             tickFighters(server, level, camp, center, now);
@@ -254,6 +276,10 @@ public final class SiegeCamp {
                 continue;
             }
             int facing = CampLayout.facingTowards(core.x - x, core.z - z);
+            if (!forecourtFits(level, new BlockPos(x, floor, z), facing)) {
+                why.built++;
+                continue;
+            }
             build(level, camp, new BlockPos(x, floor, z), facing);
             NightSiegeMod.LOGGER.info("[Night Siege] Heerlager aufgebaut bei {} {} {} (für Tag {})", x, floor, z, camp.day);
             buildFails = 0;
@@ -637,6 +663,273 @@ public final class SiegeCamp {
         return e instanceof LivingEntity l && l.isAlive() ? l : null;
     }
 
+    /** The forecourt's ground towards the core: natural and not too steep for the levelling. */
+    private static boolean forecourtFits(ServerLevel level, BlockPos center, int facing) {
+        for (int lx = -CampLayout.FORE_HALF; lx <= CampLayout.FORE_HALF; lx += 2) {
+            for (int lz = CampLayout.FORE_NEAR + 2; lz <= CampLayout.FORE_FAR; lz += 2) {
+                BlockPos at = CampLayout.world(center, facing, lx, 0, lz);
+                if (!level.hasChunk(at.getX() >> 4, at.getZ() >> 4)) {
+                    return false;
+                }
+                int g = ground(level, at.getX(), at.getZ());
+                if (g == WATER || g == Integer.MIN_VALUE || center.getY() - g > 9 || g - center.getY() > 12) {
+                    return false;
+                }
+                for (int y = center.getY(); y <= center.getY() + 4; y++) {
+                    if (!natural(level.getBlockState(new BlockPos(at.getX(), y, at.getZ())))) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    // ------------------------------------------------------------------ the ready round (the war drum)
+
+    /** Tests and the playtest: whoever steps inside joins, without the ready round. */
+    public void openEntry(boolean value) {
+        openEntry = value;
+    }
+
+    /** True for a member of the ready round (for the class window). */
+    public boolean inRound(ServerPlayer player) {
+        return round != null && player != null && round.has(player.getUUID());
+    }
+
+    public boolean roundStarter(ServerPlayer player) {
+        return round != null && player != null && round.isStarter(player.getUUID());
+    }
+
+    /** Seconds until the starter may go without the others (0 when he may now). */
+    public int roundForceIn(long now) {
+        return round == null ? 0 : round.forceIn(now);
+    }
+
+    public List<UUID> roundMembers() {
+        return round == null ? List.of() : round.members();
+    }
+
+    public boolean roundReady(UUID id) {
+        return round != null && round.isReady(id);
+    }
+
+    /** A right click on the war drum: the ready round begins, or ends again (its starter). */
+    public boolean onDrum(ServerPlayer player, BlockPos pos) {
+        SiegeSave.CampRecord camp = camp();
+        if (camp == null || !camp.built || camp.destroyed || burnUntil > 0 || !(player.level() instanceof ServerLevel level)
+                || !SiegeManager.dimensionName(level).equals(camp.dimension)) {
+            return false;
+        }
+        BlockPos center = new BlockPos(camp.x, camp.y, camp.z);
+        BlockPos drum = CampLayout.drum(center, camp.facing);
+        if (!pos.equals(drum)) {
+            return false;
+        }
+        beat(level, drum, 0.9f);
+        UUID id = player.getUUID();
+        if (!m.isRegistered(player)) {
+            player.sendSystemMessage(Component.translatable("nightsiege.camp.round_register").withStyle(ChatFormatting.GRAY));
+            return true;
+        }
+        if (!fighters.isEmpty()) {
+            player.sendSystemMessage(Component.translatable(out.contains(id) ? "nightsiege.camp.round_fallen"
+                    : "nightsiege.camp.round_running").withStyle(ChatFormatting.GRAY));
+            return true;
+        }
+        if (m.isActive() || m.testPending() || m.nightComing(level.getServer())) {
+            player.sendSystemMessage(Component.translatable("nightsiege.camp.round_night").withStyle(ChatFormatting.GRAY));
+            return true;
+        }
+        if (!camp.manned) {
+            return true;   // the guards are not there yet (they come when the camp's ground ticks)
+        }
+        if (round != null) {
+            if (round.isStarter(id)) {
+                endRound(level.getServer(), "nightsiege.camp.round_cancelled");
+            } else if (round.has(id)) {
+                m.campClassPick(player, 0);
+            } else {
+                player.sendSystemMessage(Component.translatable("nightsiege.camp.round_other").withStyle(ChatFormatting.GRAY));
+            }
+            return true;
+        }
+        if (!m.save().skillsOf(id.toString()).hasClass()) {
+            player.sendSystemMessage(Component.translatable("nightsiege.camp.round_noclass").withStyle(ChatFormatting.GRAY));
+            return true;
+        }
+        StartRound r = new StartRound(id, drum, level.getGameTime());
+        for (ServerPlayer other : level.players()) {
+            if (other != player && m.isRegistered(other) && !other.isSpectator() && !Drones.isDrone(other)
+                    && !other.getAbilities().instabuild && m.save().skillsOf(other.getUUID().toString()).hasClass()
+                    && r.near(other, level)) {
+                r.add(other.getUUID());
+            }
+        }
+        round = r;
+        Component text = Component.translatable("nightsiege.camp.round_open", player.getDisplayName()).withStyle(ChatFormatting.GOLD);
+        for (UUID member : r.members()) {
+            ServerPlayer p = level.getServer().getPlayerList().getPlayer(member);
+            if (p != null) {
+                p.sendSystemMessage(text);
+                m.campClassPick(p, 0);
+            }
+        }
+        beat(level, drum, 0.7f);
+        NightSiegeMod.LOGGER.info("[Night Siege] Bereit-Runde an der Kriegstrommel von {} mit {} Spielern",
+                player.getScoreboardName(), r.size());
+        return true;
+    }
+
+    /** A class chosen in the window: ready in the round. */
+    public void onRoundReady(ServerPlayer player) {
+        if (round == null || player == null || !round.markReady(player.getUUID()) || !(player.level() instanceof ServerLevel level)) {
+            return;
+        }
+        beat(level, round.at, 1.0f + 0.1f * round.readyCount());
+        Component text = Component.translatable("nightsiege.camp.round_ready", player.getDisplayName(),
+                round.readyCount(), round.size()).withStyle(ChatFormatting.YELLOW);
+        for (UUID id : round.members()) {
+            ServerPlayer p = level.getServer().getPlayerList().getPlayer(id);
+            if (p != null) {
+                p.connection.send(new net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket(text));
+            }
+        }
+    }
+
+    /** The starter's button: go without those not ready (after 30 s). */
+    public void forceRound(ServerPlayer player) {
+        if (round == null || player == null || !round.isStarter(player.getUUID()) || !(player.level() instanceof ServerLevel level)) {
+            return;
+        }
+        List<UUID> dropped = round.force(level.getGameTime());
+        for (UUID id : dropped) {
+            ServerPlayer p = level.getServer().getPlayerList().getPlayer(id);
+            if (p != null) {
+                p.sendSystemMessage(Component.translatable("nightsiege.camp.round_dropped").withStyle(ChatFormatting.GRAY));
+                m.closeClassPick(p);
+            }
+        }
+        if (!dropped.isEmpty()) {
+            m.refreshClassPicksNow(level.getServer());
+        }
+    }
+
+    private void endRound(MinecraftServer server, String messageKey) {
+        if (round == null) {
+            return;
+        }
+        List<UUID> members = round.members();
+        round = null;
+        for (UUID id : members) {
+            ServerPlayer p = server.getPlayerList().getPlayer(id);
+            if (p != null) {
+                if (messageKey != null) {
+                    p.sendSystemMessage(Component.translatable(messageKey).withStyle(ChatFormatting.GRAY));
+                }
+                m.closeClassPick(p);
+            }
+        }
+    }
+
+    /** The round: who walks off is out (the starter ends it); when all are ready, the fight begins. */
+    private void tickRound(ServerLevel level, SiegeSave.CampRecord camp, BlockPos center, long now) {
+        if (m.isActive() || m.testPending() || m.nightComing(level.getServer())) {
+            endRound(level.getServer(), "nightsiege.camp.round_night");   // the night comes first
+            return;
+        }
+        List<UUID> gone = round.dropGone(level);
+        for (UUID id : gone) {
+            ServerPlayer p = level.getServer().getPlayerList().getPlayer(id);
+            if (p != null) {
+                p.sendSystemMessage(Component.translatable("nightsiege.camp.round_left").withStyle(ChatFormatting.GRAY));
+                m.closeClassPick(p);
+            }
+            if (round.isStarter(id)) {
+                endRound(level.getServer(), "nightsiege.camp.round_cancelled");
+                return;
+            }
+        }
+        if (!gone.isEmpty()) {
+            m.refreshClassPicksNow(level.getServer());
+        }
+        if (round.size() == 0) {
+            round = null;
+        } else if (round.allReady()) {
+            startFight(level, camp, center, now);
+        }
+    }
+
+    /** All ready: they stand inside the gate, the bars shut it, the horn, kits and grace. */
+    private void startFight(ServerLevel level, SiegeSave.CampRecord camp, BlockPos center, long now) {
+        List<UUID> members = round.members();
+        round = null;
+        BlockPos in = CampLayout.world(center, camp.facing, 0, 0, -1);
+        float yaw = (float) Math.toDegrees(Math.atan2(-(in.getX() - center.getX()), in.getZ() - center.getZ()));
+        int i = 0;
+        for (UUID id : members) {
+            ServerPlayer p = level.getServer().getPlayerList().getPlayer(id);
+            if (p == null) {
+                continue;
+            }
+            BlockPos spot = CampLayout.insideGate(center, camp.facing, i++);
+            m.closeClassPick(p);
+            p.closeContainer();
+            p.teleportTo(level, spot.getX() + 0.5, spot.getY(), spot.getZ() + 0.5, java.util.Set.of(), yaw, 0f, true);
+            join(level, camp, center, p, now, false);
+        }
+        shutGate(level, camp, center);
+        NightSiegeMod.LOGGER.info("[Night Siege] Heerlager-Kampf beginnt mit {} Spielern, das Tor ist zu", i);
+    }
+
+    /** Iron bars into the gate (temporary blocks: they never stay). */
+    private void shutGate(ServerLevel level, SiegeSave.CampRecord camp, BlockPos center) {
+        for (BlockPos pos : CampLayout.gate(center, camp.facing)) {
+            if (TempBlocks.place(level, pos, Blocks.IRON_BARS.defaultBlockState())) {
+                gateBars.add(pos);
+            }
+        }
+        BlockPos mid = CampLayout.world(center, camp.facing, 0, 1, 15);
+        level.playSound(null, mid, SoundEvents.IRON_DOOR_CLOSE, SoundSource.BLOCKS, 2f, 0.5f);
+        level.playSound(null, mid, SoundEvents.CHAIN_PLACE, SoundSource.BLOCKS, 1.5f, 0.6f);
+    }
+
+    private void openGate(ServerLevel level) {
+        if (gateBars.isEmpty()) {
+            return;
+        }
+        for (BlockPos pos : gateBars) {
+            if (TempBlocks.isTemp(level, pos)) {
+                TempBlocks.remove(level, pos);
+            }
+        }
+        level.playSound(null, gateBars.get(0), SoundEvents.IRON_DOOR_OPEN, SoundSource.BLOCKS, 2f, 0.6f);
+        gateBars.clear();
+    }
+
+    /** While a fight is on, nobody else is inside the palisade: the late are put in the forecourt. */
+    private void keepOut(ServerLevel level, SiegeSave.CampRecord camp, BlockPos center) {
+        BlockPos seat = CampLayout.waiting(center, camp.facing);
+        for (ServerPlayer p : level.players()) {
+            if (fighters.contains(p.getUUID()) || p.isSpectator() || p.getAbilities().instabuild || Drones.isDrone(p)) {
+                continue;
+            }
+            double dx = p.getX() - (center.getX() + 0.5);
+            double dz = p.getZ() - (center.getZ() + 0.5);
+            if (dx * dx + dz * dz > CampLayout.INSIDE * CampLayout.INSIDE || Math.abs(p.getY() - center.getY()) > 8) {
+                continue;
+            }
+            p.teleportTo(level, seat.getX() + 0.5, seat.getY(), seat.getZ() + 0.5, java.util.Set.of(), p.getYRot(), p.getXRot(), true);
+            p.sendSystemMessage(Component.translatable("nightsiege.camp.round_late").withStyle(ChatFormatting.GRAY));
+        }
+    }
+
+    /** The drum's beat. */
+    private static void beat(ServerLevel level, BlockPos drum, float pitch) {
+        level.playSound(null, drum, SoundEvents.NOTE_BLOCK_BASEDRUM.value(), SoundSource.BLOCKS, 3f, pitch);
+        level.sendParticles(ParticleTypes.NOTE, drum.getX() + 0.5, drum.getY() + 1.2, drum.getZ() + 0.5, 1, 0, 0, 0, 0.5);
+    }
+
     // ------------------------------------------------------------------ the fight
 
     private void checkEntries(ServerLevel level, SiegeSave.CampRecord camp, BlockPos center, long now) {
@@ -659,7 +952,13 @@ public final class SiegeCamp {
 
     /** A signed-up player stepped inside the palisade: horn, class cards, kit, grace. */
     void join(ServerLevel level, SiegeSave.CampRecord camp, BlockPos center, ServerPlayer player, long now) {
+        join(level, camp, center, player, now, true);
+    }
+
+    /** As above; {@code pick}: the class window (not after the ready round, the class is chosen). */
+    void join(ServerLevel level, SiegeSave.CampRecord camp, BlockPos center, ServerPlayer player, long now, boolean pick) {
         boolean first = fighters.isEmpty();
+        lastInside.put(player.getUUID(), player.position());
         UUID id = player.getUUID();
         fighters.add(id);
         m.stats().campJoin(player, m.currentLevel(), now);
@@ -694,7 +993,9 @@ public final class SiegeCamp {
                 m.persist();
             }
         }
-        m.campClassPick(player, seconds);
+        if (pick) {
+            m.campClassPick(player, seconds);
+        }
         SkillService.apply(player, m.save().skillsOf(id.toString()), m.skillTree());
         showBar(level, camp, player);
         NightSiegeMod.LOGGER.info("[Night Siege] {} greift das Heerlager an", player.getScoreboardName());
@@ -704,16 +1005,25 @@ public final class SiegeCamp {
         for (UUID id : new ArrayList<>(fighters)) {
             ServerPlayer p = server.getPlayerList().getPlayer(id);
             if (p == null) {
-                // Logged out: the own things come back when they log in again.
-                fighters.remove(id);
-                grace.remove(id);
+                // Logged out: counts as fallen (content update); the own things come back at the next login.
+                if (!fallen.contains(id)) {
+                    fallen.add(id);
+                }
                 continue;
             }
             double dx = p.getX() - (center.getX() + 0.5);
             double dz = p.getZ() - (center.getZ() + 0.5);
-            double limit = CampLayout.PALISADE + 2.5;
-            if (p.level() != level || dx * dx + dz * dz > limit * limit || Math.abs(p.getY() - center.getY()) > 14) {
+            double limit = CampLayout.PALISADE + 0.5;
+            boolean inside = p.level() == level && dx * dx + dz * dz <= limit * limit && Math.abs(p.getY() - center.getY()) <= 14;
+            if (inside) {
+                lastInside.put(id, p.position());
+            } else if (openEntry) {
                 leave(p, "nightsiege.camp.left");
+            } else {
+                // Out over the palisade (a pearl, the hook, a climbing arrow): back where he stood inside.
+                Vec3 back = lastInside.getOrDefault(id, Vec3.atBottomCenterOf(CampLayout.insideGate(center, camp.facing, 2)));
+                p.teleportTo(level, back.x, back.y, back.z, java.util.Set.of(), p.getYRot(), p.getXRot(), true);
+                p.sendSystemMessage(Component.translatable("nightsiege.camp.put_back").withStyle(ChatFormatting.GRAY));
             }
         }
         LivingEntity bench = bench(level, camp);
@@ -730,6 +1040,7 @@ public final class SiegeCamp {
             calmGuards(level, camp);
             m.stats().campAttemptEnd("verlassen");   // everyone left the palisade (nothing if no attempt is open)
             out.clear();   // nobody fights any more: the fallen may try again
+            openGate(level);
         }
     }
 
@@ -792,9 +1103,16 @@ public final class SiegeCamp {
         grace.clear();
         out.clear();
         fallen.clear();
+        lastInside.clear();
+        round = null;
         if (bar != null) {
             bar.removeAllPlayers();
             bar = null;
+        }
+        SiegeSave.CampRecord camp = camp();
+        ServerLevel level = camp == null ? null : SiegeManager.levelByName(server, camp.dimension);
+        if (level != null) {
+            openGate(level);
         }
     }
 
@@ -900,11 +1218,13 @@ public final class SiegeCamp {
             leave(player, null);
             player.setHealth(player.getMaxHealth());
             player.clearFire();
+            if (bar != null) {
+                bar.addPlayer(player);   // the fight's bar stays with the waiting
+            }
             ServerLevel level = SiegeManager.levelByName(server, camp.dimension);
             if (level != null) {
-                BlockPos gate = CampLayout.outsideGate(new BlockPos(camp.x, camp.y, camp.z), camp.facing);
-                int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, gate.getX(), gate.getZ());
-                player.teleportTo(level, gate.getX() + 0.5, y, gate.getZ() + 0.5, java.util.Set.of(),
+                BlockPos seat = CampLayout.waiting(new BlockPos(camp.x, camp.y, camp.z), camp.facing);
+                player.teleportTo(level, seat.getX() + 0.5, seat.getY(), seat.getZ() + 0.5, java.util.Set.of(),
                         player.getYRot(), player.getXRot(), true);
             }
             player.sendSystemMessage(Component.translatable("nightsiege.camp.fallen").withStyle(ChatFormatting.RED));
@@ -1005,7 +1325,7 @@ public final class SiegeCamp {
         if (camp == null || !camp.built || level == null || !SiegeManager.dimensionName(level).equals(camp.dimension)) {
             return false;
         }
-        int reach = CampLayout.GROUND + 6;
+        int reach = Math.max(CampLayout.GROUND + 6, CampLayout.FORE_FAR + 2);   // the forecourt too
         return Math.abs(pos.getX() - camp.x) <= reach && Math.abs(pos.getZ() - camp.z) <= reach
                 && pos.getY() >= camp.y - 12 && pos.getY() <= camp.y + CampLayout.CLEAR + 6;
     }
@@ -1085,6 +1405,12 @@ public final class SiegeCamp {
         int dx = pos.getX() - camp.x;
         int dz = pos.getZ() - camp.z;
         int dy = pos.getY() - camp.y;
+        if (dy >= -1 && dy <= 4) {
+            int[] l = CampLayout.local(new BlockPos(camp.x, camp.y, camp.z), camp.facing, pos);
+            if (CampLayout.inForecourt(l[0], l[1])) {
+                return true;   // the forecourt, its drum and benches (content update)
+            }
+        }
         return dy >= -1 && dy <= 7 && dx * dx + dz * dz <= (CampLayout.PALISADE + 1.5) * (CampLayout.PALISADE + 1.5);
     }
 
@@ -1155,6 +1481,45 @@ public final class SiegeCamp {
         if (camp != null && camp.built && player.level() instanceof ServerLevel level) {
             join(level, camp, new BlockPos(camp.x, camp.y, camp.z), player, level.getGameTime());
         }
+    }
+
+    /** Tests: the war drum, or null. */
+    public BlockPos testDrum() {
+        SiegeSave.CampRecord camp = camp();
+        return camp == null ? null : CampLayout.drum(new BlockPos(camp.x, camp.y, camp.z), camp.facing);
+    }
+
+    /** Tests: a free spot on the forecourt's path (near the drum). */
+    public BlockPos testForecourtPath() {
+        SiegeSave.CampRecord camp = camp();
+        return camp == null ? null : CampLayout.world(new BlockPos(camp.x, camp.y, camp.z), camp.facing, 0, 0, 19);
+    }
+
+    /** Tests: the round and the gate in one line. */
+    public String testRound(ServerLevel level) {
+        SiegeSave.CampRecord camp = camp();
+        int bars = 0;
+        int gate = 0;
+        if (camp != null) {
+            for (BlockPos pos : CampLayout.gate(new BlockPos(camp.x, camp.y, camp.z), camp.facing)) {
+                gate++;
+                if (level.getBlockState(pos).is(Blocks.IRON_BARS)) {
+                    bars++;
+                }
+            }
+        }
+        return "round=" + (round == null ? "-" : round.readyCount() + "/" + round.size()) + " gate=" + bars + "/" + gate
+                + " fighters=" + fighters.size() + " fallen=" + out.size();
+    }
+
+    /** Tests: true when the point lies in the forecourt (the waiting place of the fallen). */
+    public boolean testInForecourt(BlockPos pos) {
+        SiegeSave.CampRecord camp = camp();
+        if (camp == null) {
+            return false;
+        }
+        int[] l = CampLayout.local(new BlockPos(camp.x, camp.y, camp.z), camp.facing, pos);
+        return CampLayout.inForecourt(l[0], l[1]);
     }
 
     /** Tests: the workbench's hit box, or null. */

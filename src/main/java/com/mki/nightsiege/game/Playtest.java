@@ -208,6 +208,7 @@ public final class Playtest {
         // The world's own dungeon fight and camp fight end; their records wait until the playtest is over.
         m.expeditions().endAll(server, null);
         m.camp().endAll(server);
+        m.camp().openEntry(false);
         if (m.save().camp != null) {
             // A camp of the world goes (its guards could not wait unseen); the next siege may roll a new one.
             NightSiegeMod.LOGGER.info("[Night Siege] Playtest: das Heerlager der Welt wird abgebaut");
@@ -583,6 +584,7 @@ public final class Playtest {
             return false;
         }
         BlockPos gate = CampLayout.outsideGate(center, camp.facing);
+        m.camp().openEntry(true);   // the playtest walks in as before (no war drum round)
         bringAll(server, s, level, gate, true);
         broadcast(server, Component.translatable("nightsiege.playtest.camp_go", CAMP_MINUTES).withStyle(ChatFormatting.GOLD));
         return true;
@@ -668,6 +670,7 @@ public final class Playtest {
             s.campWon = won || standing;
             if (camp != null) {
                 m.camp().endAll(server);
+                m.camp().openEntry(false);
                 if (standing) {
                     m.camp().remove(server);
                 }
@@ -770,6 +773,7 @@ public final class Playtest {
         m.setTestMachines(false);
         // The playtest's camp and dungeon go; the world gets its own back.
         m.camp().endAll(server);
+        m.camp().openEntry(false);
         if (m.save().camp != null) {
             m.camp().remove(server);
         }
