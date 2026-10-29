@@ -442,13 +442,15 @@ public final class ExpeditionLayout {
                 b.lamp(nx, y, c + 8);
             }
         } else {
-            // The great stair down to the arena: four steps, then a landing before the gate.
+            // The great stair down to the arena: four steps, then a landing before the gate. The first
+            // step lies level with the way (Simon 29.10.: at its top end stood a full block – the steps
+            // lay one too deep, so going back up meant a jump).
             for (int k = 1; k <= 4; k++) {
                 int z = c + 6 + k;
                 for (int x = -3; x <= 3; x++) {
-                    b.put(x, y - k - 1, z, b.stairs(Direction.NORTH));
-                    b.put(x, y - k - 2, z, b.p(Part.FLOOR, x, y - k - 2, z));
-                    for (int up = 0; up <= 5 + k; up++) {
+                    b.put(x, y - k, z, b.stairs(Direction.NORTH));
+                    b.put(x, y - k - 1, z, b.p(Part.FLOOR, x, y - k - 1, z));
+                    for (int up = 1; up <= 5 + k; up++) {
                         b.put(x, y - k + up, z, Blocks.AIR.defaultBlockState());
                     }
                     b.put(x, y + 6, z, b.p(Part.CEILING, x, y + 6, z));
