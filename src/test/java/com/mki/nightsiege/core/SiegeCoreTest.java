@@ -2294,7 +2294,7 @@ class SiegeCoreTest {
         // A weaker night breaks nothing; a stronger one does, and the own best moves along.
         List<NightRecords.Broken> second = r.offer(List.of(
                 new NightRecords.Line("a", "Simon", "WARRIOR", "berserker", 200, 25, 0, 50)), true, 2, "2026-10-30");
-        assertEquals(200, r.best.get("WARRIOR|dealt").value > 250 ? 200 : 0, 1e-9);
+        assertEquals(300, r.best.get("WARRIOR|dealt").value, 1e-9);
         assertTrue(second.stream().anyMatch(b -> b.stat().equals("kills")));
         assertEquals(2, (int) r.streak.get("a"));
         assertEquals(2, r.serverStreak);
