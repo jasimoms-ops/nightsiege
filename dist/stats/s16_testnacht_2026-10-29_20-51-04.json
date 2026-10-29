@@ -1,0 +1,202 @@
+{
+  "art": "nacht",
+  "sim": "g35|L10|G2|tank_heiler|6",
+  "version": "1.0.0",
+  "build": "0983ea1",
+  "start": "2026-10-29 20:51:04",
+  "ende": "2026-10-29 20:51:17",
+  "abgeschlossen": true,
+  "test": true,
+  "nacht": -1,
+  "stufe": 10,
+  "ereignis": "none",
+  "besondereNacht": false,
+  "fragment": "",
+  "fluchsteine": [],
+  "boss": "",
+  "ergebnis": "test_verloren",
+  "dauerSekunden": 496,
+  "killZiel": 0,
+  "kills": 22,
+  "gespawnt": 28,
+  "tode": 2,
+  "basis": {
+    "geschlossen": true,
+    "breite": 29,
+    "tiefe": 29,
+    "tore": 3
+  },
+  "spieler": {
+    "Bot01": {
+      "name": "Bot01",
+      "uuid": "59db4448-2e93-31f2-b572-f9f8749b0f17",
+      "klasse": "guardian",
+      "weg": "shield",
+      "unterklasse": "shieldfighter",
+      "profil": "GUARDIAN",
+      "punkteImProfil": 58,
+      "ultStufe3": false,
+      "kit": "guardian"
+    },
+    "Bot02": {
+      "name": "Bot02",
+      "uuid": "2169bc70-47b7-396c-b0e6-a3d8306b7dfa",
+      "klasse": "guardian",
+      "weg": "bless",
+      "unterklasse": "medic",
+      "profil": "GUARDIAN",
+      "punkteImProfil": 58,
+      "ultStufe3": false,
+      "kit": "guardian"
+    }
+  },
+  "heerlager": {
+    "erschienen": false,
+    "zerstoert": false,
+    "lagerSiegte": false,
+    "maschinen": 2
+  },
+  "maschinen": [
+    {
+      "art": "hook",
+      "startSekunde": 247,
+      "endeSekunde": 496,
+      "zerstoert": false,
+      "sabotiertVon": "",
+      "schuesse": 17,
+      "bloecke": 0,
+      "schadenAnSpielern": 0.0
+    },
+    {
+      "art": "ballista",
+      "startSekunde": 427,
+      "endeSekunde": 496,
+      "zerstoert": false,
+      "sabotiertVon": "",
+      "schuesse": 18,
+      "bloecke": 0,
+      "schadenAnSpielern": 0.0
+    }
+  ],
+  "wellen": [
+    {
+      "nummer": 0,
+      "startSekunde": 0,
+      "dauerSekunden": 496,
+      "gespawnt": 28,
+      "typen": {
+        "minecraft:creeper": 10,
+        "nightsiege:revenant": 7,
+        "minecraft:zombie": 10,
+        "nightsiege:grappler": 1
+      },
+      "uebrigAmEnde": 0,
+      "bloeckeZerstoert": 0,
+      "spieler": {
+        "Bot01": {
+          "schaden": 583.0264739990234,
+          "schadenNachQuelle": {
+            "nah:diamond_sword": 583.0264739990234
+          },
+          "erhalten": 153.2361617088318,
+          "erhaltenNachGegner": {
+            "nightsiege:revenant": 22.12055778503418,
+            "maschine": 131.1156039237976
+          },
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 14.417749181389809,
+          "kills": 9,
+          "assists": 12,
+          "tode": 1,
+          "drohneSekunden": 0,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {
+            "schild": 245,
+            "ult": 165,
+            "faehigkeit_f": 99
+          },
+          "turmSekunden": 0
+        },
+        "Bot02": {
+          "schaden": 357.2044504582882,
+          "schadenNachQuelle": {
+            "nah:diamond_sword": 357.2044504582882
+          },
+          "erhalten": 225.27242493629456,
+          "erhaltenNachGegner": {
+            "minecraft:creeper": 29.648414611816406,
+            "maschine": 195.62401032447815
+          },
+          "heilungGegeben": 7.480245351791382,
+          "heilungErhalten": 22.746381610631943,
+          "kills": 13,
+          "assists": 2,
+          "tode": 1,
+          "drohneSekunden": 12,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {
+            "schild": 240,
+            "ult": 161,
+            "faehigkeit_f": 96,
+            "wahl:hand": 25
+          },
+          "turmSekunden": 0
+        }
+      }
+    }
+  ],
+  "gegner": {
+    "minecraft:creeper": {
+      "gespawnt": 10,
+      "getoetet": 5,
+      "ueberlebtSekundenSumme": 1128.25,
+      "ueberlebtSekundenSchnitt": 225.7,
+      "schadenAnSpielern": 29.648414611816406,
+      "getoetetVon": {
+        "klasse:shieldfighter": 3,
+        "klasse:medic": 2
+      }
+    },
+    "nightsiege:revenant": {
+      "gespawnt": 7,
+      "getoetet": 7,
+      "ueberlebtSekundenSumme": 302.45,
+      "ueberlebtSekundenSchnitt": 43.2,
+      "schadenAnSpielern": 22.12055778503418,
+      "getoetetVon": {
+        "klasse:shieldfighter": 4,
+        "klasse:medic": 3
+      }
+    },
+    "minecraft:zombie": {
+      "gespawnt": 10,
+      "getoetet": 10,
+      "ueberlebtSekundenSumme": 439.15000000000003,
+      "ueberlebtSekundenSchnitt": 43.9,
+      "schadenAnSpielern": 0.0,
+      "getoetetVon": {
+        "klasse:shieldfighter": 2,
+        "klasse:medic": 8
+      }
+    },
+    "nightsiege:grappler": {
+      "gespawnt": 1,
+      "getoetet": 0,
+      "ueberlebtSekundenSumme": 0.0,
+      "ueberlebtSekundenSchnitt": 0.0,
+      "schadenAnSpielern": 0.0,
+      "getoetetVon": {}
+    },
+    "maschine": {
+      "gespawnt": 0,
+      "getoetet": 0,
+      "ueberlebtSekundenSumme": 0.0,
+      "ueberlebtSekundenSchnitt": 0.0,
+      "schadenAnSpielern": 326.73961424827576,
+      "getoetetVon": {}
+    }
+  },
+  "tuerme": {},
+  "bewertung": {},
+  "staerksteKlasse": {}
+}

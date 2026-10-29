@@ -1,0 +1,236 @@
+{
+  "art": "nacht",
+  "sim": "g45|L15|G2|zufall|3",
+  "version": "1.0.0",
+  "build": "0983ea1",
+  "start": "2026-10-29 21:00:10",
+  "ende": "2026-10-29 21:00:30",
+  "abgeschlossen": true,
+  "test": true,
+  "nacht": -1,
+  "stufe": 15,
+  "ereignis": "none",
+  "besondereNacht": false,
+  "fragment": "",
+  "fluchsteine": [],
+  "boss": "",
+  "ergebnis": "test_verloren",
+  "dauerSekunden": 391,
+  "killZiel": 0,
+  "kills": 44,
+  "gespawnt": 54,
+  "tode": 2,
+  "basis": {
+    "geschlossen": true,
+    "breite": 29,
+    "tiefe": 29,
+    "tore": 3
+  },
+  "spieler": {
+    "Bot01": {
+      "name": "Bot01",
+      "uuid": "59db4448-2e93-31f2-b572-f9f8749b0f17",
+      "klasse": "warrior",
+      "weg": "edge",
+      "unterklasse": "berserker",
+      "profil": "WARRIOR",
+      "punkteImProfil": 104,
+      "ultStufe3": false,
+      "kit": "warrior"
+    },
+    "Bot02": {
+      "name": "Bot02",
+      "uuid": "2169bc70-47b7-396c-b0e6-a3d8306b7dfa",
+      "klasse": "summoner",
+      "weg": "dead",
+      "unterklasse": "necromancer",
+      "profil": "SUMMONER",
+      "punkteImProfil": 106,
+      "ultStufe3": false,
+      "kit": "summoner"
+    }
+  },
+  "heerlager": {
+    "erschienen": false,
+    "zerstoert": false,
+    "lagerSiegte": false,
+    "maschinen": 1
+  },
+  "maschinen": [
+    {
+      "art": "mortar",
+      "startSekunde": 247,
+      "endeSekunde": 391,
+      "zerstoert": false,
+      "sabotiertVon": "",
+      "schuesse": 21,
+      "bloecke": 0,
+      "schadenAnSpielern": 0.0
+    }
+  ],
+  "wellen": [
+    {
+      "nummer": 0,
+      "startSekunde": 0,
+      "dauerSekunden": 390,
+      "gespawnt": 54,
+      "typen": {
+        "minecraft:creeper": 12,
+        "minecraft:vindicator": 3,
+        "minecraft:zombie": 22,
+        "minecraft:skeleton": 3,
+        "minecraft:spider": 12,
+        "nightsiege:standard_bearer": 1,
+        "nightsiege:tunneler": 1
+      },
+      "uebrigAmEnde": 0,
+      "bloeckeZerstoert": 0,
+      "spieler": {
+        "Bot01": {
+          "schaden": 1023.7725085318089,
+          "schadenNachQuelle": {
+            "nah:netherite_sword": 1023.7725085318089
+          },
+          "erhalten": 239.55658149719238,
+          "erhaltenNachGegner": {
+            "minecraft:spider": 1.8849601745605469,
+            "minecraft:creeper": 12.71918773651123,
+            "maschine": 224.9524335861206
+          },
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 46.76557034254074,
+          "kills": 23,
+          "assists": 6,
+          "tode": 1,
+          "drohneSekunden": 0,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {
+            "ult": 129,
+            "faehigkeit_f": 77
+          },
+          "turmSekunden": 0
+        },
+        "Bot02": {
+          "schaden": 1111.6626484394073,
+          "schadenNachQuelle": {
+            "nah:summoning_staff": 867.8427128791809,
+            "nah:wooden_axe": 120.71217751502991,
+            "begleiter": 123.10775804519653
+          },
+          "erhalten": 121.65116679668427,
+          "erhaltenNachGegner": {
+            "maschine": 73.71330881118774,
+            "minecraft:zombie": 5.322240352630615,
+            "minecraft:spider": 9.313920855522156,
+            "minecraft:creeper": 33.30169677734375
+          },
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 5.166666701436043,
+          "kills": 20,
+          "assists": 7,
+          "tode": 1,
+          "drohneSekunden": 102,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {
+            "stab": 216,
+            "wahl:wall": 32,
+            "ult": 95,
+            "wahl:curse": 32,
+            "wahl:raise": 32
+          },
+          "turmSekunden": 0
+        }
+      }
+    }
+  ],
+  "gegner": {
+    "minecraft:creeper": {
+      "gespawnt": 12,
+      "getoetet": 3,
+      "ueberlebtSekundenSumme": 140.1,
+      "ueberlebtSekundenSchnitt": 46.7,
+      "schadenAnSpielern": 46.02088451385498,
+      "getoetetVon": {
+        "klasse:necromancer": 2,
+        "begleiter:necromancer": 1
+      }
+    },
+    "minecraft:vindicator": {
+      "gespawnt": 3,
+      "getoetet": 3,
+      "ueberlebtSekundenSumme": 117.75,
+      "ueberlebtSekundenSchnitt": 39.3,
+      "schadenAnSpielern": 0.0,
+      "getoetetVon": {
+        "klasse:necromancer": 1,
+        "klasse:berserker": 2
+      }
+    },
+    "minecraft:zombie": {
+      "gespawnt": 22,
+      "getoetet": 22,
+      "ueberlebtSekundenSumme": 1314.55,
+      "ueberlebtSekundenSchnitt": 59.8,
+      "schadenAnSpielern": 5.322240352630615,
+      "getoetetVon": {
+        "klasse:necromancer": 9,
+        "begleiter:necromancer": 1,
+        "klasse:berserker": 12
+      }
+    },
+    "minecraft:skeleton": {
+      "gespawnt": 3,
+      "getoetet": 2,
+      "ueberlebtSekundenSumme": 133.95,
+      "ueberlebtSekundenSchnitt": 67.0,
+      "schadenAnSpielern": 0.0,
+      "getoetetVon": {
+        "sonstiges:minecraft:wolf": 1,
+        "klasse:berserker": 1
+      }
+    },
+    "minecraft:spider": {
+      "gespawnt": 12,
+      "getoetet": 12,
+      "ueberlebtSekundenSumme": 484.75,
+      "ueberlebtSekundenSchnitt": 40.4,
+      "schadenAnSpielern": 11.198881030082703,
+      "getoetetVon": {
+        "klasse:berserker": 7,
+        "klasse:necromancer": 4,
+        "begleiter:necromancer": 1
+      }
+    },
+    "nightsiege:standard_bearer": {
+      "gespawnt": 1,
+      "getoetet": 1,
+      "ueberlebtSekundenSumme": 51.65,
+      "ueberlebtSekundenSchnitt": 51.7,
+      "schadenAnSpielern": 0.0,
+      "getoetetVon": {
+        "klasse:necromancer": 1
+      }
+    },
+    "nightsiege:tunneler": {
+      "gespawnt": 1,
+      "getoetet": 1,
+      "ueberlebtSekundenSumme": 52.5,
+      "ueberlebtSekundenSchnitt": 52.5,
+      "schadenAnSpielern": 0.0,
+      "getoetetVon": {
+        "klasse:berserker": 1
+      }
+    },
+    "maschine": {
+      "gespawnt": 0,
+      "getoetet": 0,
+      "ueberlebtSekundenSumme": 0.0,
+      "ueberlebtSekundenSchnitt": 0.0,
+      "schadenAnSpielern": 298.66574239730835,
+      "getoetetVon": {}
+    }
+  },
+  "tuerme": {},
+  "bewertung": {},
+  "staerksteKlasse": {}
+}

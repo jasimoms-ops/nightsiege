@@ -1,0 +1,187 @@
+{
+  "art": "nacht",
+  "sim": "aktuell|L5|G2|zufall|1",
+  "version": "1.0.0",
+  "build": "0983ea1",
+  "start": "2026-10-29 20:56:57",
+  "ende": "2026-10-29 20:57:38",
+  "abgeschlossen": true,
+  "test": true,
+  "nacht": -1,
+  "stufe": 5,
+  "ereignis": "none",
+  "besondereNacht": false,
+  "fragment": "",
+  "fluchsteine": [],
+  "boss": "",
+  "ergebnis": "test_gehalten",
+  "dauerSekunden": 959,
+  "killZiel": 0,
+  "kills": 15,
+  "gespawnt": 30,
+  "tode": 1,
+  "basis": {
+    "geschlossen": true,
+    "breite": 29,
+    "tiefe": 29,
+    "tore": 3
+  },
+  "spieler": {
+    "Bot01": {
+      "name": "Bot01",
+      "uuid": "59db4448-2e93-31f2-b572-f9f8749b0f17",
+      "klasse": "engineer",
+      "weg": "chem",
+      "unterklasse": "",
+      "profil": "ENGINEER",
+      "punkteImProfil": 20,
+      "ultStufe3": false,
+      "kit": "engineer"
+    },
+    "Bot02": {
+      "name": "Bot02",
+      "uuid": "2169bc70-47b7-396c-b0e6-a3d8306b7dfa",
+      "klasse": "warrior",
+      "weg": "edge",
+      "unterklasse": "berserker",
+      "profil": "WARRIOR",
+      "punkteImProfil": 21,
+      "ultStufe3": false,
+      "kit": "warrior"
+    }
+  },
+  "heerlager": {
+    "erschienen": false,
+    "zerstoert": false,
+    "lagerSiegte": false,
+    "maschinen": 0
+  },
+  "maschinen": [],
+  "wellen": [
+    {
+      "nummer": 0,
+      "startSekunde": 0,
+      "dauerSekunden": 959,
+      "gespawnt": 30,
+      "typen": {
+        "minecraft:zombie": 14,
+        "minecraft:creeper": 10,
+        "nightsiege:standard_bearer": 2,
+        "nightsiege:revenant": 3,
+        "nightsiege:grappler": 1
+      },
+      "uebrigAmEnde": 0,
+      "bloeckeZerstoert": 0,
+      "spieler": {
+        "Bot02": {
+          "schaden": 100.37280375510454,
+          "schadenNachQuelle": {
+            "nah:iron_sword": 100.37280375510454
+          },
+          "erhalten": 200.69947004318237,
+          "erhaltenNachGegner": {
+            "nightsiege:standard_bearer": 198.66801381111145,
+            "minecraft:creeper": 2.031456232070923
+          },
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 11.885009825229645,
+          "kills": 2,
+          "assists": 0,
+          "tode": 1,
+          "drohneSekunden": 719,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {
+            "ult": 79,
+            "faehigkeit_f": 47
+          },
+          "turmSekunden": 0
+        },
+        "Bot01": {
+          "schaden": 388.1407747268677,
+          "schadenNachQuelle": {
+            "turm:spike_trap": 89.83450078964233,
+            "nah:iron_sword": 298.30627393722534
+          },
+          "erhalten": 500.4464678764343,
+          "erhaltenNachGegner": {
+            "nightsiege:standard_bearer": 491.42360830307007,
+            "minecraft:zombie": 9.022859573364258
+          },
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 80.92419563233852,
+          "kills": 13,
+          "assists": 0,
+          "tode": 0,
+          "drohneSekunden": 0,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {
+            "wahl:escape": 60,
+            "ult": 319
+          },
+          "turmSekunden": 0
+        }
+      }
+    }
+  ],
+  "gegner": {
+    "minecraft:zombie": {
+      "gespawnt": 14,
+      "getoetet": 13,
+      "ueberlebtSekundenSumme": 1704.65,
+      "ueberlebtSekundenSchnitt": 131.1,
+      "schadenAnSpielern": 9.022859573364258,
+      "getoetetVon": {
+        "klasse:berserker": 2,
+        "klasse:engineer": 10,
+        "turm:spike_trap": 1
+      }
+    },
+    "minecraft:creeper": {
+      "gespawnt": 10,
+      "getoetet": 0,
+      "ueberlebtSekundenSumme": 0.0,
+      "ueberlebtSekundenSchnitt": 0.0,
+      "schadenAnSpielern": 2.031456232070923,
+      "getoetetVon": {}
+    },
+    "nightsiege:standard_bearer": {
+      "gespawnt": 2,
+      "getoetet": 0,
+      "ueberlebtSekundenSumme": 0.0,
+      "ueberlebtSekundenSchnitt": 0.0,
+      "schadenAnSpielern": 690.0916221141815,
+      "getoetetVon": {}
+    },
+    "nightsiege:revenant": {
+      "gespawnt": 3,
+      "getoetet": 2,
+      "ueberlebtSekundenSumme": 1075.6,
+      "ueberlebtSekundenSchnitt": 537.8,
+      "schadenAnSpielern": 0.0,
+      "getoetetVon": {
+        "klasse:engineer": 2
+      }
+    },
+    "nightsiege:grappler": {
+      "gespawnt": 1,
+      "getoetet": 0,
+      "ueberlebtSekundenSumme": 0.0,
+      "ueberlebtSekundenSchnitt": 0.0,
+      "schadenAnSpielern": 0.0,
+      "getoetetVon": {}
+    }
+  },
+  "tuerme": {
+    "spike_trap|Bot01": {
+      "art": "spike_trap",
+      "besitzer": "Bot01",
+      "schaden": 89.83450078964233,
+      "schadenBemannt": 0.0,
+      "kills": 1,
+      "killsBemannt": 0,
+      "sekundenBemannt": 0
+    }
+  },
+  "bewertung": {},
+  "staerksteKlasse": {}
+}

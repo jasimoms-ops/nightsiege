@@ -1,0 +1,241 @@
+{
+  "art": "nacht",
+  "sim": "aktuell|L15|G2|zufall|0",
+  "version": "1.0.0",
+  "build": "0983ea1",
+  "start": "2026-10-29 20:54:41",
+  "ende": "2026-10-29 20:55:13",
+  "abgeschlossen": true,
+  "test": true,
+  "nacht": -1,
+  "stufe": 15,
+  "ereignis": "none",
+  "besondereNacht": false,
+  "fragment": "",
+  "fluchsteine": [],
+  "boss": "",
+  "ergebnis": "test_verloren",
+  "dauerSekunden": 528,
+  "killZiel": 0,
+  "kills": 45,
+  "gespawnt": 59,
+  "tode": 2,
+  "basis": {
+    "geschlossen": true,
+    "breite": 29,
+    "tiefe": 29,
+    "tore": 3
+  },
+  "spieler": {
+    "Bot01": {
+      "name": "Bot01",
+      "uuid": "59db4448-2e93-31f2-b572-f9f8749b0f17",
+      "klasse": "archer",
+      "weg": "xbow",
+      "unterklasse": "bolter",
+      "profil": "ARCHER",
+      "punkteImProfil": 104,
+      "ultStufe3": false,
+      "kit": "archer"
+    },
+    "Bot02": {
+      "name": "Bot02",
+      "uuid": "2169bc70-47b7-396c-b0e6-a3d8306b7dfa",
+      "klasse": "summoner",
+      "weg": "wild",
+      "unterklasse": "golemsmith",
+      "profil": "SUMMONER",
+      "punkteImProfil": 106,
+      "ultStufe3": false,
+      "kit": "summoner"
+    }
+  },
+  "heerlager": {
+    "erschienen": false,
+    "zerstoert": false,
+    "lagerSiegte": false,
+    "maschinen": 1
+  },
+  "maschinen": [
+    {
+      "art": "ballista",
+      "startSekunde": 247,
+      "endeSekunde": 528,
+      "zerstoert": false,
+      "sabotiertVon": "",
+      "schuesse": 71,
+      "bloecke": 0,
+      "schadenAnSpielern": 0.0
+    }
+  ],
+  "wellen": [
+    {
+      "nummer": 0,
+      "startSekunde": 0,
+      "dauerSekunden": 528,
+      "gespawnt": 59,
+      "typen": {
+        "minecraft:creeper": 10,
+        "minecraft:zombie": 25,
+        "nightsiege:revenant": 12,
+        "nightsiege:grappler": 4,
+        "minecraft:spider": 6,
+        "nightsiege:tunneler": 1,
+        "nightsiege:iron_knight": 1
+      },
+      "uebrigAmEnde": 0,
+      "bloeckeZerstoert": 0,
+      "spieler": {
+        "Bot01": {
+          "schaden": 1632.5956649780273,
+          "schadenNachQuelle": {
+            "fern:crossbow": 858.9426499605179,
+            "nah:crossbow": 758.653014421463,
+            "nah:wooden_axe": 15.000000596046448
+          },
+          "erhalten": 200.23894786834717,
+          "erhaltenNachGegner": {
+            "maschine": 99.4320011138916,
+            "boss:minecraft:zombie": 100.80694675445557
+          },
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 5.166666701436043,
+          "kills": 21,
+          "assists": 12,
+          "tode": 1,
+          "drohneSekunden": 0,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {
+            "ult": 175,
+            "faehigkeit_f": 105
+          },
+          "turmSekunden": 0
+        },
+        "Bot02": {
+          "schaden": 1742.7878184318542,
+          "schadenNachQuelle": {
+            "nah:summoning_staff": 477.3180527687073,
+            "begleiter": 1259.469765663147,
+            "nah:wooden_axe": 6.0
+          },
+          "erhalten": 128.0697717666626,
+          "erhaltenNachGegner": {
+            "minecraft:zombie": 59.875197410583496,
+            "boss:minecraft:zombie": 68.1945743560791
+          },
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 5.166666701436043,
+          "kills": 23,
+          "assists": 5,
+          "tode": 1,
+          "drohneSekunden": 51,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {
+            "koecher": 96,
+            "stab": 452,
+            "ult": 158
+          },
+          "turmSekunden": 0
+        }
+      }
+    }
+  ],
+  "gegner": {
+    "minecraft:creeper": {
+      "gespawnt": 10,
+      "getoetet": 4,
+      "ueberlebtSekundenSumme": 293.6,
+      "ueberlebtSekundenSchnitt": 73.4,
+      "schadenAnSpielern": 0.0,
+      "getoetetVon": {
+        "klasse:bolter": 2,
+        "klasse:golemsmith": 2
+      }
+    },
+    "minecraft:zombie": {
+      "gespawnt": 25,
+      "getoetet": 18,
+      "ueberlebtSekundenSumme": 921.65,
+      "ueberlebtSekundenSchnitt": 51.2,
+      "schadenAnSpielern": 59.875197410583496,
+      "getoetetVon": {
+        "klasse:golemsmith": 3,
+        "klasse:bolter": 10,
+        "begleiter:golemsmith": 5
+      }
+    },
+    "nightsiege:revenant": {
+      "gespawnt": 12,
+      "getoetet": 12,
+      "ueberlebtSekundenSumme": 786.55,
+      "ueberlebtSekundenSchnitt": 65.5,
+      "schadenAnSpielern": 0.0,
+      "getoetetVon": {
+        "begleiter:golemsmith": 6,
+        "umgebung:fall": 1,
+        "klasse:bolter": 4,
+        "klasse:golemsmith": 1
+      }
+    },
+    "nightsiege:grappler": {
+      "gespawnt": 4,
+      "getoetet": 3,
+      "ueberlebtSekundenSumme": 26.0,
+      "ueberlebtSekundenSchnitt": 8.7,
+      "schadenAnSpielern": 0.0,
+      "getoetetVon": {
+        "klasse:bolter": 3
+      }
+    },
+    "minecraft:spider": {
+      "gespawnt": 6,
+      "getoetet": 6,
+      "ueberlebtSekundenSumme": 229.05,
+      "ueberlebtSekundenSchnitt": 38.2,
+      "schadenAnSpielern": 0.0,
+      "getoetetVon": {
+        "begleiter:golemsmith": 4,
+        "klasse:golemsmith": 2
+      }
+    },
+    "nightsiege:tunneler": {
+      "gespawnt": 1,
+      "getoetet": 1,
+      "ueberlebtSekundenSumme": 17.65,
+      "ueberlebtSekundenSchnitt": 17.7,
+      "schadenAnSpielern": 0.0,
+      "getoetetVon": {
+        "klasse:bolter": 1
+      }
+    },
+    "nightsiege:iron_knight": {
+      "gespawnt": 1,
+      "getoetet": 1,
+      "ueberlebtSekundenSumme": 78.9,
+      "ueberlebtSekundenSchnitt": 78.9,
+      "schadenAnSpielern": 0.0,
+      "getoetetVon": {
+        "klasse:bolter": 1
+      }
+    },
+    "maschine": {
+      "gespawnt": 0,
+      "getoetet": 0,
+      "ueberlebtSekundenSumme": 0.0,
+      "ueberlebtSekundenSchnitt": 0.0,
+      "schadenAnSpielern": 99.4320011138916,
+      "getoetetVon": {}
+    },
+    "boss:minecraft:zombie": {
+      "gespawnt": 0,
+      "getoetet": 0,
+      "ueberlebtSekundenSumme": 0.0,
+      "ueberlebtSekundenSchnitt": 0.0,
+      "schadenAnSpielern": 169.00152111053467,
+      "getoetetVon": {}
+    }
+  },
+  "tuerme": {},
+  "bewertung": {},
+  "staerksteKlasse": {}
+}
