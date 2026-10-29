@@ -378,12 +378,13 @@ public class SiegeConfig {
     /** The round can be started from the core window. */
     public boolean warLeaderEnabled = true;
     /**
-     * Gold: this share of what a normal night of the same level and team would send (Simon 20:24:
-     * "vielleicht 20 % einfacher"). The round lasts three times as long as a night, so the team
-     * simulation (29 October 2026) asked for less: at 0.8 the bots held 13 % against 47 % in normal
-     * nights, at 0.45 38 %, at 0.3 72 %.
+     * Gold: what a normal night of the same level and team sends per minute (its monsters, sappers,
+     * a share of machines and boss, in gold), over the round's waves, times this share (Simon
+     * 20:24: "so schwer wie normale Nächte, vielleicht 20 % einfacher"). The round lasts much longer
+     * than a night; the team simulation (29 October 2026) found the share of the whole night too
+     * hard at higher levels and too easy at low ones.
      */
-    public double warGoldShare = 0.4;
+    public double warGoldShare = 0.12;
     /** What one monster of a normal night is worth in gold, and the shares of machines and boss in the night's worth. */
     public double warGoldPerMob = 1.2;
     public double warMachineShare = 0.35;
@@ -1055,7 +1056,7 @@ public class SiegeConfig {
         campWorkshopHealth = clampDouble(campWorkshopHealth, 10.0, 5000.0);
         campGraceSeconds = clamp(campGraceSeconds, 0, 60);
         machineStartSeconds = clamp(machineStartSeconds, 0, 600);
-        warGoldShare = Double.isNaN(warGoldShare) ? 0.4 : clampDouble(warGoldShare, 0.05, 5.0);
+        warGoldShare = Double.isNaN(warGoldShare) ? 0.12 : clampDouble(warGoldShare, 0.01, 5.0);
         warGoldPerMob = Double.isNaN(warGoldPerMob) ? 1.2 : clampDouble(warGoldPerMob, 0.1, 10.0);
         warMachineShare = Double.isNaN(warMachineShare) ? 0.35 : clampDouble(warMachineShare, 0.0, 5.0);
         warBossShare = Double.isNaN(warBossShare) ? 0.25 : clampDouble(warBossShare, 0.0, 5.0);

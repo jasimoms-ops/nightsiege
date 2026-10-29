@@ -116,7 +116,8 @@ public final class WarShop {
     }
 
     /**
-     * The whole gold of a round: a normal night of this level and team in gold, times the share.
+     * The whole gold of a round: a normal night of this level and team in gold, per second of the
+     * night, over the round's waves, times the share.
      * {@code perPlayer} and {@code maxLive} as the night uses them (the playtest scales otherwise).
      */
     public static int roundGold(int level, int players, SiegeConfig cfg, double perPlayer, int maxLive) {
@@ -126,7 +127,11 @@ public final class WarShop {
                 + SAPPER_PRICE * nightSappers(level, cfg)
                 + MACHINE_PRICE * SiegeMachineKind.countFor(level) * cfg.warMachineShare
                 + BOSS_PRICE * cfg.warBossShare;
-        return (int) Math.max(10, Math.round(worth * cfg.warGoldShare));
+        // The round is longer than a night (5 x 3 min against 4-10 min): what the night sends per
+        // minute, over the round's waves, times the share. So every level gets the same pressure.
+        double nightSeconds = Math.max(60.0, SiegeMath.durationSeconds(level, cfg));
+        double pace = (double) cfg.warWaves * cfg.warWaveSeconds / nightSeconds;
+        return (int) Math.max(10, Math.round(worth * pace * cfg.warGoldShare));
     }
 
     /** Sapper creepers a normal night of this level sends (they come on top of its waves). */

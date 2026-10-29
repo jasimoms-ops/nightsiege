@@ -61,7 +61,7 @@ class WarShopTest {
                         + WarShop.SAPPER_PRICE * WarShop.nightSappers(level, cfg)
                         + WarShop.MACHINE_PRICE * SiegeMachineKind.countFor(level) * cfg.warMachineShare
                         + WarShop.BOSS_PRICE * cfg.warBossShare;
-                assertTrue(gold <= Math.max(10, Math.round(night)), "share below one: level " + level);
+                assertTrue(gold <= Math.max(10, Math.round(night)), "less than the whole night: level " + level);
                 System.out.println("[WarShopTest] level " + level + " players " + players + ": waves " + WarShop.nightWaves(level, cfg)
                         + " x " + perWave + " monsters, round gold " + gold + " (night worth " + Math.round(night) + ")");
             }
