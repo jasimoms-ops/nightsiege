@@ -82,6 +82,9 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("dungeons")) {
                     dungeonScene(context, game);
                 }
+                if (want.contains("dungeondump")) {
+                    dungeonDumpScene(context, game);   // every block of the eight dungeons as a file (29 October 2026)
+                }
                 if (want.contains("warden")) {
                     wardenScene(context, game);   // the eight dungeon wardens (29 October 2026)
                 }
@@ -2013,6 +2016,165 @@ public class EventLookTest implements FabricClientGameTest {
         return sum;
     }
 
+    /**
+     * Every block of the eight dungeons, built side by side with four halls each, written to
+     * {@code nightsiege-dungeon-dump.txt.gz} in the game folder (Simon 29.10.: blocked doors and
+     * stairs, blocks in the air): per block the state, whether it can stand where it stands, and
+     * per state its collision boxes; plus the plan's spots and boxes. Checked outside the game.
+     */
+    private static void dungeonDumpScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        game.getServer().runCommand("gamemode creative @p");
+        com.mki.nightsiege.core.ExpeditionKind[] kinds = com.mki.nightsiege.core.ExpeditionKind.values();
+        int bx = pos.getX() - 300;
+        int bz = pos.getZ() + 260;
+        int top = -6;
+        int rooms = 4;
+        int cz = 20 + 43 * rooms + 38;
+        Path file = FabricLoader.getInstance().getGameDir().resolve("nightsiege-dungeon-dump.txt.gz");
+        final java.io.Writer[] out = new java.io.Writer[1];
+        try {
+            out[0] = new java.io.BufferedWriter(new java.io.OutputStreamWriter(
+                    new java.util.zip.GZIPOutputStream(Files.newOutputStream(file)), java.nio.charset.StandardCharsets.UTF_8));
+        } catch (java.io.IOException e) {
+            System.out.println("[Night Siege test] dungeon dump not opened: " + e);
+            return;
+        }
+        for (int i = 0; i < kinds.length; i++) {
+            final int index = i;
+            final int cx = bx + i * 72;
+            game.getServer().runCommand("forceload add %d %d %d %d".formatted(cx - 36, bz - 14, cx + 36, bz + cz + 34));
+            game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:stone".formatted(cx - 8, -60, bz - 10, cx + 8, top - 2, bz + 7));
+            game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:grass_block".formatted(cx - 8, top - 1, bz - 10, cx + 8, top - 1, bz + 7));
+            context.waitTicks(20);
+            onServer(context, (player, manager) -> {
+                net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                BlockPos origin = new BlockPos(cx, top, bz);
+                manager.expeditions().testBuild(level, origin, 0, kinds[index], rooms);
+                com.mki.nightsiege.game.ExpeditionLayout.Plan plan = manager.expeditions().testPlan();
+                try {
+                    int n = dumpDungeon(level, plan, origin, kinds[index].id(), rooms, out[0]);
+                    System.out.println("[Night Siege test] dungeon dump " + kinds[index].id() + ": " + n + " blocks");
+                } catch (java.io.IOException | RuntimeException e) {
+                    System.out.println("[Night Siege test] dungeon dump " + kinds[index].id() + " failed: " + e);
+                }
+            });
+            context.waitTicks(20);
+            game.getServer().runCommand("forceload remove all");
+        }
+        onServer(context, (player, manager) -> {
+            try {
+                out[0].close();
+                System.out.println("[Night Siege test] dungeon dump written: " + file + " " + Files.size(file));
+            } catch (java.io.IOException e) {
+                System.out.println("[Night Siege test] dungeon dump not closed: " + e);
+            }
+        });
+        context.waitTicks(10);
+    }
+
+    private static void dumpSpot(java.io.Writer out, String name, BlockPos p, BlockPos o) throws java.io.IOException {
+        out.write("M " + name + " " + (p.getX() - o.getX()) + " " + (p.getY() - o.getY()) + " " + (p.getZ() - o.getZ()) + "\n");
+    }
+
+    private static void dumpBox(java.io.Writer out, String name, net.minecraft.world.phys.AABB b, BlockPos o) throws java.io.IOException {
+        out.write("B " + name + " " + (int) Math.floor(b.minX - o.getX()) + " " + (int) Math.floor(b.minY - o.getY()) + " "
+                + (int) Math.floor(b.minZ - o.getZ()) + " " + (int) Math.ceil(b.maxX - o.getX()) + " "
+                + (int) Math.ceil(b.maxY - o.getY()) + " " + (int) Math.ceil(b.maxZ - o.getZ()) + "\n");
+    }
+
+    private static int dumpDungeon(net.minecraft.server.level.ServerLevel level, com.mki.nightsiege.game.ExpeditionLayout.Plan plan,
+                                   BlockPos o, String id, int rooms, java.io.Writer out) throws java.io.IOException {
+        out.write("D " + id + " " + rooms + " " + o.getX() + " " + o.getY() + " " + o.getZ() + "\n");
+        dumpSpot(out, "door", plan.door, o);
+        dumpSpot(out, "seal", plan.seal, o);
+        dumpSpot(out, "fire", plan.fire, o);
+        dumpSpot(out, "arenaCenter", plan.arenaCenter, o);
+        for (BlockPos p : plan.stairGate) {
+            dumpSpot(out, "stairGate", p, o);
+        }
+        for (BlockPos p : plan.arenaGate) {
+            dumpSpot(out, "arenaGate", p, o);
+        }
+        for (BlockPos p : plan.frontGate) {
+            dumpSpot(out, "frontGate", p, o);
+        }
+        for (BlockPos p : plan.waveGates) {
+            dumpSpot(out, "waveGate", p, o);
+        }
+        for (BlockPos p : plan.waveSpots) {
+            dumpSpot(out, "waveSpot", p, o);
+        }
+        for (BlockPos p : plan.waiting) {
+            dumpSpot(out, "waiting", p, o);
+        }
+        for (BlockPos p : plan.walkways) {
+            dumpSpot(out, "walk", p, o);
+        }
+        for (int i = 0; i < plan.roomGates.size(); i++) {
+            for (BlockPos p : plan.roomGates.get(i)) {
+                dumpSpot(out, "roomGate" + i, p, o);
+            }
+            for (BlockPos p : plan.roomSpots.get(i)) {
+                dumpSpot(out, "roomSpot" + i, p, o);
+            }
+            dumpSpot(out, "roomCenter" + i, plan.roomCenters.get(i), o);
+            dumpBox(out, "hall" + i, plan.roomHalls.get(i), o);
+            dumpBox(out, "zone" + i, plan.roomZones.get(i), o);
+            out.write("H " + i + " " + plan.roomModules.get(i) + "\n");
+        }
+        for (net.minecraft.world.phys.AABB b : plan.inside) {
+            dumpBox(out, "inside", b, o);
+        }
+        dumpBox(out, "arena", plan.arena, o);
+        dumpBox(out, "bounds", plan.bounds, o);
+        java.util.Map<net.minecraft.world.level.block.state.BlockState, Integer> pal = new java.util.LinkedHashMap<>();
+        net.minecraft.world.phys.AABB b = plan.bounds.inflate(2);
+        int n = 0;
+        BlockPos.MutableBlockPos at = new BlockPos.MutableBlockPos();
+        StringBuilder sb = new StringBuilder();
+        for (int x = (int) b.minX; x < (int) b.maxX; x++) {
+            for (int y = (int) b.minY; y < (int) b.maxY; y++) {
+                for (int z = (int) b.minZ; z < (int) b.maxZ; z++) {
+                    at.set(x, y, z);
+                    net.minecraft.world.level.block.state.BlockState st = level.getBlockState(at);
+                    if (st.isAir()) {
+                        continue;
+                    }
+                    Integer idx = pal.get(st);
+                    if (idx == null) {
+                        idx = pal.size();
+                        pal.put(st, idx);
+                    }
+                    sb.setLength(0);
+                    sb.append(x - o.getX()).append(' ').append(y - o.getY()).append(' ').append(z - o.getZ()).append(' ').append(idx);
+                    if (!st.canSurvive(level, at)) {
+                        sb.append(" s");
+                    }
+                    sb.append('\n');
+                    out.write(sb.toString());
+                    n++;
+                }
+            }
+        }
+        for (java.util.Map.Entry<net.minecraft.world.level.block.state.BlockState, Integer> e : pal.entrySet()) {
+            net.minecraft.world.level.block.state.BlockState st = e.getKey();
+            sb.setLength(0);
+            sb.append("P ").append(e.getValue()).append(' ').append(st.toString().replace(' ', '_')).append(" |");
+            for (net.minecraft.world.phys.AABB box : st.getCollisionShape(net.minecraft.world.level.EmptyBlockGetter.INSTANCE,
+                    BlockPos.ZERO).toAabbs()) {
+                sb.append(String.format(Locale.ROOT, " %.3f,%.3f,%.3f,%.3f,%.3f,%.3f", box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ));
+            }
+            if (!st.getFluidState().isEmpty()) {
+                sb.append(" fluid");
+            }
+            sb.append('\n');
+            out.write(sb.toString());
+        }
+        out.flush();
+        return n;
+    }
+
     /** Block light where one walks in the dungeon of now (palette rule 7: at least 7 on the ways). */
     private static void lightCheck(net.minecraft.server.level.ServerLevel level, com.mki.nightsiege.game.SiegeManager manager, String id) {
         com.mki.nightsiege.game.ExpeditionLayout.Plan plan = manager.expeditions().testPlan();
@@ -2261,8 +2423,12 @@ public class EventLookTest implements FabricClientGameTest {
             int ox = fx + offsets[room];
             game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %d.5 %d %d.5 facing %d.5 %d %d.5",
                     ox, fy - 20, z0 + 2, ox, fy - 19, z0 + 14));
-            context.waitTicks(30);
+            // The first hall: its gate goes up once everyone stands before it (29.10.), then its guards come.
+            context.waitTicks(room == 0 ? 90 : 30);
             if (room == 0) {
+                onServer(context, (player, manager) -> System.out.println("[Night Siege test] dungeon front gate: "
+                        + player.level().getBlockState(manager.expeditions().testPlan().frontGate.get(0)).getBlock()
+                        + " | " + manager.expeditions().testState()));
                 context.takeScreenshot("dungeon_fight_room");
             }
             onServer(context, (player, manager) -> {

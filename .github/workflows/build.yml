@@ -382,6 +382,9 @@ jobs:
             grep -v "Force-loading class\|ALSA\|narrator" client-shader-output.txt | tail -c 2000000 > "$TMP/client-shader-log.txt" || true
           fi
           # Simulation and test-bench lines (and errors) of the client test, for the evaluation
+          # The dungeon dump of the scene "dungeondump" (every block of the eight dungeons)
+          DUMP=$(find . -name "nightsiege-dungeon-dump.txt.gz" -newer build.gradle 2>/dev/null | head -1)
+          if [ -n "$DUMP" ]; then cp "$DUMP" "$TMP/nightsiege-dungeon-dump.txt.gz"; fi
           if [ -f client-output.txt ] && grep -q "\[Night Siege sim\]" client-output.txt; then
             grep "\[Night Siege sim\]\|Exception\|Caused by" client-output.txt | tail -c 2000000 > "$TMP/sim-log.txt" || true
           fi
@@ -399,6 +402,7 @@ jobs:
           if [ -f "$TMP/client-main-log.txt" ]; then cp "$TMP/client-main-log.txt" dist/; git add -f dist/client-main-log.txt; fi
           if [ -f "$TMP/sim-log.txt" ]; then cp "$TMP/sim-log.txt" dist/; git add -f dist/sim-log.txt; fi
           if [ -f "$TMP/server-log.txt" ]; then cp "$TMP/server-log.txt" dist/; git add -f dist/server-log.txt; fi
+          if [ -f "$TMP/nightsiege-dungeon-dump.txt.gz" ]; then cp "$TMP/nightsiege-dungeon-dump.txt.gz" dist/; git add -f dist/nightsiege-dungeon-dump.txt.gz; fi
           git commit -m "Build von ${GITHUB_SHA}"
           # main fills "dist"; a work branch (version-b, ...) its own "dist-<branch>",
           # so the jar of main stays untouched until the branch is merged.
