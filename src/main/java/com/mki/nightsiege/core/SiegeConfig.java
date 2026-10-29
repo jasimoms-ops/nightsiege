@@ -746,10 +746,7 @@ public class SiegeConfig {
     /** The newest settings version (the migrations below end there). */
     public static final int SETTINGS_VERSION = 16;
     /** Version of the dungeon list in this file. Older lists are replaced on load. */
-    public int dungeonListVersion = 0;
-    public static final int CURRENT_DUNGEON_LIST = 2;
     /** Which structures hold dungeons, how hard they are and what lives there. */
-    public List<DungeonType> dungeons = DungeonType.defaults();
     /** Perks from core fragments work within this many blocks of the main core. */
     public double perkRadius = 64.0;
 
@@ -1340,11 +1337,6 @@ public class SiegeConfig {
         if (mobs == null || mobs.isEmpty()) {
             mobs = defaultMobs();
         }
-        if (dungeons == null || dungeonListVersion < CURRENT_DUNGEON_LIST) {
-            dungeons = DungeonType.defaults();
-            dungeonListVersion = CURRENT_DUNGEON_LIST;
-        }
-        dungeons.removeIf(d -> d == null || d.key == null || d.key.isBlank() || d.structure == null);
         perkRadius = clampDouble(perkRadius, 8.0, 512.0);
         if (mobListVersion == 2) {
             // Update 1 (27 October 2026): in place, so the weights tuned on the server stay.

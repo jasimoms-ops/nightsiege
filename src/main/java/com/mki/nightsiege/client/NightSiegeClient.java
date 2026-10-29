@@ -71,22 +71,6 @@ public class NightSiegeClient implements ClientModInitializer {
                     });
                 });
 
-        ClientPlayNetworking.registerGlobalReceiver(CoreNetworking.DungeonUiPayload.TYPE,
-                (payload, context) -> {
-                    com.mki.nightsiege.game.DungeonToolState state =
-                            Json.fromJson(payload.json(), com.mki.nightsiege.game.DungeonToolState.class);
-                    if (state == null) {
-                        return;
-                    }
-                    context.client().execute(() -> {
-                        DungeonToolScreen open = DungeonToolScreen.openInstance();
-                        if (open != null) {
-                            open.update(state);
-                        } else {
-                            Minecraft.getInstance().setScreenAndShow(new DungeonToolScreen(state));
-                        }
-                    });
-                });
         // Network ids of boss monsters only hold for one connection.
         net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents.DISCONNECT.register(
                 (handler, client) -> {

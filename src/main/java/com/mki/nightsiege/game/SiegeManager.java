@@ -218,7 +218,6 @@ public final class SiegeManager {
     private final Besiegers besiegers = new Besiegers();
     /** The new attackers of update 1 (Simon, 27 October 2026). */
     private final Foes foes = new Foes();
-    private final DungeonService dungeons = new DungeonService(() -> save, () -> config);
     private final PerkService perks = new PerkService(() -> save, () -> config);
     private final BaseDefense defense = new BaseDefense();
     /** The raid's plan: directions, gathering in front of the wall, ways in (27 October 2026). */
@@ -303,10 +302,6 @@ public final class SiegeManager {
         return save;
     }
 
-    public DungeonService dungeons() {
-        return dungeons;
-    }
-
     public Playtest playtest() {
         return playtest;
     }
@@ -366,7 +361,6 @@ public final class SiegeManager {
         traps.setTeslaBoost(() -> active && currentEvent == SiegeEvent.THUNDER ? config.thunderTeslaMultiplier : 1.0);
         ServerLifecycleEvents.SERVER_STARTED.register(server -> onServerStarted(server));
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
-            dungeons.abortAll();
             safe("Dungeons", () -> expeditions.endAll(server, null));   // kits back, the arena's gate open
             traps.releaseAll(server);   // gunners out of the towers, the seats go
             Drones.stopAll(server);
@@ -494,7 +488,6 @@ public final class SiegeManager {
             GainGear.onArrowLoad(entity);
             CopperHelper.onLoad(entity);
             Companions.onEntityLoad(entity);
-            dungeons.onEntityLoad(entity);
         });
         PlayerBlockBreakEvents.BEFORE.register(
                 (level, player, pos, state, blockEntity) -> allowBreak(player, state));
@@ -543,10 +536,6 @@ public final class SiegeManager {
         playtest.afterRestart(server);   // a playtest that ran when the server went down is undone
         NightSiegeMod.LOGGER.info("[Night Siege] {} Cores bekannt, {} Belagerungen bestanden",
                 save.cores == null ? 0 : save.cores.size(), save.siegesWon);
-        // CI only: where the cores of real dungeons would stand.
-        if (System.getenv("NIGHTSIEGE_DUNGEON_PROBE") != null) {
-            dungeons.probe(server);
-        }
     }
 
     /** How far the base scan looks for walls; kept in the config file. */
@@ -662,9 +651,6 @@ public final class SiegeManager {
         safe("Kisten-Effekt", () -> CrateFx.tick(server));
         EventAtmosphere.tickServer();
         BaseDefense.tickHighlights(server);
-        if (dungeons.tick(server)) {
-            persist();
-        }
         if (server.overworld().getGameTime() % 100 == 0) {
             refreshClassTags(server);
         }
@@ -3260,7 +3246,7 @@ public final class SiegeManager {
     /** A monster of a fight by day: a guard of the war camp (not its workshop), of a dungeon or of an old dungeon core. */
     static boolean foughtOutsideTheNight(Mob mob) {
         return SiegeCamp.isCampMob(mob) && !mob.entityTags().contains(SiegeCamp.TAG_WORKSHOP)
-                || Expeditions.isExpeditionMob(mob) || DungeonService.isDungeonMob(mob);
+                || Expeditions.isExpeditionMob(mob);
     }
 
     /** Takes Object so the handler keeps compiling across Fabric API versions. */
@@ -3293,7 +3279,6 @@ public final class SiegeManager {
         if (!(entity instanceof ServerPlayer player)) {
             return;
         }
-        dungeons.onPlayerDeath(player);
         UUID id = player.getUUID();
         if (!active || !participants.contains(id)) {
             return;
@@ -3689,9 +3674,6 @@ public final class SiegeManager {
             player.connection.send(new net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket(blocked));
             return InteractionResult.FAIL;
         }
-        if (handObject == InteractionHand.MAIN_HAND && dungeons.onUse(serverLevel, pos, player)) {
-            return InteractionResult.SUCCESS;
-        }
         if (!ModContent.isCore(serverLevel.getBlockState(pos))) {
             return InteractionResult.PASS;
         }
@@ -3983,7 +3965,6 @@ public final class SiegeManager {
             // The demolition expert's bird's-eye view: a fire called on a spot.
             case "spot" -> traps.onSpotAction(player, argument);
             case "shield" -> combat.guardian().onShieldAction(player);
-            case "dungeon" -> dungeons.onToolAction(player, argument);
             case "scout" -> expeditions.giveMap(player);   // the core window's "Karte mitnehmen"
             case "playtest" -> playtest.onAction(player, argument);   // the playtest window (28 October 2026)
             case "curse" -> {   // the curse altar (update 2): a stone laid on or taken off
@@ -4558,10 +4539,6 @@ public final class SiegeManager {
         }
         if (Expeditions.isExpeditionMob(mob)) {
             return expeditions.isFighter(player) || player.getAbilities().instabuild;   // only who fights in the dungeon
-        }
-        // The old dungeon's monsters first: a siege tag on them must not lock the dungeon's own fighters out.
-        if (DungeonService.isDungeonMob(mob)) {
-            return isRegistered(player);
         }
         if (mob.entityTags().contains(MobFactory.TAG)) {
             return isDefending(player) || Drones.isDrone(player);   // a drone's bolts count too

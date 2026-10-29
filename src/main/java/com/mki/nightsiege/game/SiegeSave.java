@@ -17,7 +17,6 @@ public class SiegeSave {
     public List<CoreRecord> cores = new ArrayList<>();
     public List<TrapRecord> traps = new ArrayList<>();
     /** Dungeon cores placed in structures so far. */
-    public List<DungeonRecord> dungeons = new ArrayList<>();
     /** Structures a dungeon map pointed at: these always hold a core. Entries are "dimension|chunkX|chunkZ". */
     public List<String> forcedDungeons = new ArrayList<>();
     /** Core fragments inserted into the main core, per perk id. */

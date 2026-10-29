@@ -1774,22 +1774,10 @@ class SiegeCoreTest {
     }
 
     @Test
-    void everyDungeonHasAFragmentAndEveryFragmentADungeon() {
-        java.util.Set<NightFragment> seen = java.util.EnumSet.noneOf(NightFragment.class);
-        java.util.Set<String> keys = new java.util.HashSet<>();
-        for (DungeonType type : DungeonType.defaults()) {
-            assertTrue(keys.add(type.key), "twice: " + type.key);
-            assertNotNull(NightFragment.byName(type.fragment), type.key);
-            assertNotNull(DungeonTheme.byName(type.theme), type.key);
-            assertEquals(1.0, type.chance);
-            seen.add(type.fragment());
-        }
-        assertEquals(NightFragment.values().length, seen.size());
+    void everyFragmentHasAnEvent() {
         for (NightFragment fragment : NightFragment.values()) {
             assertNotEquals(SiegeEvent.NONE, fragment.event());
         }
-        assertTrue(DungeonMath.isDungeon(42L, "nova_structures:undead_crypt", 3, 4, 1.0));
-        assertFalse(DungeonMath.isDungeon(42L, "nova_structures:undead_crypt", 3, 4, 0.0));
     }
 
     @Test
@@ -1832,56 +1820,6 @@ class SiegeCoreTest {
         assertEquals(5, PerkKind.stageFor(15));
         assertEquals(5, PerkKind.stageFor(99));
         assertEquals(15, PerkKind.fragmentsFor(5));
-    }
-
-    @Test
-    void roughlyTwoInFiveStructuresHideACore() {
-        int hits = 0;
-        for (int i = 0; i < 5000; i++) {
-            if (DungeonMath.isDungeon(12345L, "mvs:castle_ruins", i, i * 7)) {
-                hits++;
-            }
-        }
-        assertTrue(hits > 1700 && hits < 2300, "hits " + hits);
-        // Asking twice gives the same answer.
-        assertEquals(DungeonMath.isDungeon(9L, "a:b", 3, 4), DungeonMath.isDungeon(9L, "a:b", 3, 4));
-    }
-
-    @Test
-    void dungeonDifficultyFollowsTierAndProgress() {
-        assertEquals(DungeonTier.EASY.baseLevel(), DungeonMath.level(DungeonTier.EASY, 0));
-        assertEquals(DungeonTier.EASY.baseLevel() + 2, DungeonMath.level(DungeonTier.EASY, 50));
-        assertEquals(DungeonTier.NETHER.baseLevel() + DungeonMath.MAX_PROGRESS_LEVELS,
-                DungeonMath.level(DungeonTier.NETHER, 10000));
-        assertTrue(DungeonMath.mobsPerWave(DungeonTier.HARD, 3) > DungeonMath.mobsPerWave(DungeonTier.HARD, 1));
-        assertTrue(DungeonMath.guards(DungeonTier.EASY, 1, 200) > DungeonMath.guards(DungeonTier.EASY, 1, 2));
-        assertEquals(DungeonTier.EASY.mobsPerWave() + 2 + 20, DungeonMath.guards(DungeonTier.EASY, 1, 10000));
-        assertEquals(1, DungeonTier.EASY.waves());
-        assertEquals(3, DungeonTier.NETHER.waves());
-    }
-
-    @Test
-    void dungeonKindsMatchTheirStructures() {
-        List<DungeonType> types = DungeonType.defaults();
-        assertEquals("undead_crypt", DungeonType.find(types, "nova_structures:undead_crypt").key);
-        assertEquals("combat_shrine_6", DungeonType.find(types, "nova_structures:shrine_combat_tier_6").key);
-        assertEquals("trident_monument", DungeonType.find(types, "nova_structures:trident_trial_monument").key);
-        assertNull(DungeonType.find(types, "nova_structures:tavern_oak"));
-        assertNull(DungeonType.find(types, "minecraft:village_plains"));
-        Set<String> keys = new HashSet<>();
-        for (DungeonType type : types) {
-            assertTrue(keys.add(type.key), "duplicate " + type.key);
-        }
-        assertEquals(30, types.size());
-    }
-
-    @Test
-    void anOldConfigGetsTheDungeonList() {
-        SiegeConfig old = new SiegeConfig();
-        old.dungeons = null;
-        old.sanitize();
-        assertEquals(SiegeConfig.CURRENT_DUNGEON_LIST, old.dungeonListVersion);
-        assertFalse(old.dungeons.isEmpty());
     }
 
     @Test

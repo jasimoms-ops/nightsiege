@@ -68,21 +68,6 @@ public final class CoreNetworking {
         }
     }
 
-    /** Server to client: the dungeon test tool window as JSON. */
-    public record DungeonUiPayload(String json) implements CustomPacketPayload {
-
-        public static final CustomPacketPayload.Type<DungeonUiPayload> TYPE =
-                new CustomPacketPayload.Type<>(ModContent.id("dungeon_ui"));
-
-        public static final StreamCodec<RegistryFriendlyByteBuf, DungeonUiPayload> CODEC =
-                StreamCodec.composite(ByteBufCodecs.stringUtf8(262144), DungeonUiPayload::json, DungeonUiPayload::new);
-
-        @Override
-        public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
-            return TYPE;
-        }
-    }
-
     /** Server to client: opens a window by kind ("classpick", "crate") with its state as JSON. */
     public record ScreenPayload(String kind, String json) implements CustomPacketPayload {
 
@@ -131,7 +116,6 @@ public final class CoreNetworking {
         typesRegistered = true;
         PayloadTypeRegistry.clientboundPlay().register(CoreUiPayload.TYPE, CoreUiPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(UltHudPayload.TYPE, UltHudPayload.CODEC);
-        PayloadTypeRegistry.clientboundPlay().register(DungeonUiPayload.TYPE, DungeonUiPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(EventSkyPayload.TYPE, EventSkyPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(ScreenPayload.TYPE, ScreenPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(CoreActionPayload.TYPE, CoreActionPayload.CODEC);

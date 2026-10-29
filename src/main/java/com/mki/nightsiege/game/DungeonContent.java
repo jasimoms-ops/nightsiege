@@ -56,8 +56,8 @@ public final class DungeonContent {
         for (com.mki.nightsiege.core.NightFragment kind : com.mki.nightsiege.core.NightFragment.values()) {
             NIGHT_FRAGMENTS.put(kind, item("night_fragment_" + kind.id(), p -> new Item(p.stacksTo(16).rarity(Rarity.EPIC))));
         }
-        MAP = item("dungeon_map", p -> new DungeonMapItem(p.stacksTo(16).rarity(Rarity.UNCOMMON)));
-        COMPASS = item("dungeon_compass", p -> new DungeonCompassItem(p.stacksTo(1).rarity(Rarity.EPIC)));
+        MAP = item("dungeon_map", p -> new Item(p.stacksTo(16).rarity(Rarity.UNCOMMON)));   // the old dungeons are gone (29 October 2026)
+        COMPASS = item("dungeon_compass", p -> new Item(p.stacksTo(1).rarity(Rarity.EPIC)));
         registerLoot();
         net.fabricmc.fabric.api.resource.conditions.v1.ResourceConditions.register(DUNGEONS_ON);
     }
