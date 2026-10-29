@@ -1890,11 +1890,11 @@ public class EventLookTest implements FabricClientGameTest {
             }
             String part = "gang";
             for (int i = 0; i < plan.roomHalls.size(); i++) {
-                if (plan.roomHalls.get(i).contains(p.getCenter())) {
+                if (plan.roomHalls.get(i).contains(net.minecraft.world.phys.Vec3.atCenterOf(p))) {
                     part = "saal" + (i + 1);
                 }
             }
-            if (plan.arena.inflate(2).contains(p.getCenter())) {
+            if (plan.arena.inflate(2).contains(net.minecraft.world.phys.Vec3.atCenterOf(p))) {
                 part = "arena";
             }
             int[] c = parts.computeIfAbsent(part, k -> new int[2]);
@@ -2043,11 +2043,38 @@ public class EventLookTest implements FabricClientGameTest {
         context.waitTicks(10);
         game.getServer().runCommand("gamemode survival @p");
         game.getServer().runCommand("effect give @p minecraft:resistance 900 255 true");
+        // The ready round at the seal stone: the window, the class chosen, the gate goes up.
+        game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %d.5 %d %d.5 facing %d.5 %d %d.5",
+                fx + 2, fy, bz - 4, fx, fy, bz + 2));
+        context.waitTicks(20);
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.game.ExpeditionLayout.Plan plan = manager.expeditions().testPlan();
+            boolean used = manager.expeditions().onSeal(player, plan.seal);
+            System.out.println("[Night Siege test] dungeon seal: used=" + used + " inRound=" + manager.expeditions().inRound(player)
+                    + " stone=" + player.level().getBlockState(plan.seal).getBlock()
+                    + " gate=" + player.level().getBlockState(plan.stairGate.get(0)).getBlock());
+        });
+        context.waitTicks(30);
+        context.takeScreenshot("dungeon_round_pick");
+        onServer(context, (player, manager) -> manager.onPlayClass(player, manager.save().skillsOf(player.getUUID().toString()).chosenClass));
+        context.waitTicks(10);
+        closeScreen(context);
+        context.waitTicks(50);
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.game.ExpeditionLayout.Plan plan = manager.expeditions().testPlan();
+            System.out.println("[Night Siege test] dungeon round started: inRound=" + manager.expeditions().inRound(player)
+                    + " gate=" + player.level().getBlockState(plan.stairGate.get(0)).getBlock()
+                    + "/" + player.level().getBlockState(plan.stairGate.get(3)).getBlock());
+        });
+        context.takeScreenshot("dungeon_round_gate");
         game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %d.5 %d %d.5 facing %d.5 %d %d.5",
                 fx, fy - 12, bz + 12, fx, fy - 16, bz + 20));
         context.waitTicks(30);
         context.takeScreenshot("dungeon_fight_cards");
         closeScreen(context);
+        context.waitTicks(20);
+        onServer(context, (player, manager) -> System.out.println("[Night Siege test] dungeon gate behind: "
+                + player.level().getBlockState(manager.expeditions().testPlan().stairGate.get(0)).getBlock()));
         onServer(context, (player, manager) -> System.out.println("[Night Siege test] dungeon enter: fighter="
                 + manager.expeditions().isFighter(player) + " kit=" + manager.kits().hasStash(player)
                 + " defending=" + manager.isDefending(player) + " | " + manager.expeditions().testState()));
@@ -2156,6 +2183,7 @@ public class EventLookTest implements FabricClientGameTest {
             manager.expeditions().testBuild(level, new BlockPos(lx, ly, bz), 0, com.mki.nightsiege.core.ExpeditionKind.ILLAGER_KEEP, rooms);
         });
         context.waitTicks(10);
+        onServer(context, (player, manager) -> manager.expeditions().openEntry(true));
         game.getServer().runCommand("gamemode survival @p");
         game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %d.5 %d %d.5", lx, ly - 20, bz + 34));
         context.waitTicks(30);
@@ -2174,6 +2202,7 @@ public class EventLookTest implements FabricClientGameTest {
                 + " monsters=" + manager.expeditions().testMobs((net.minecraft.server.level.ServerLevel) player.level()).size()
                 + " | " + manager.expeditions().testState()));
         onServer(context, (player, manager) -> {
+            manager.expeditions().openEntry(false);
             manager.expeditions().remove(player.level().getServer());
             if (fakeCore[0]) {
                 manager.save().cores.removeIf(c -> c.x == pos.getX() && c.y == pos.getY() && c.z == pos.getZ());

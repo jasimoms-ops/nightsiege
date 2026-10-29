@@ -128,6 +128,8 @@ public final class Expeditions {
     private int wave;
     private long nextWaveAt = -1L;
     private UUID champion;
+    /** The champion's two skills (content update). */
+    private ChampionBrains brains;
     private ServerBossEvent bar;
     private int buildRounds;
     /** Attempts lost (every fighter fell) since the server started: the playtest goes on after one. */
@@ -489,6 +491,7 @@ public final class Expeditions {
         }
         if (now % 5 == 0) {
             checkEntries(level, rec, now);
+            tickRound(level, rec, now);
         }
         if (now % 200 == 0 && fighters.isEmpty() && !arenaClosed && rec.cleared >= rec.rooms) {
             // A gate left shut by a crash in the arena fight opens again.
@@ -496,6 +499,9 @@ public final class Expeditions {
             if (level.hasChunk(gate.getX() >> 4, gate.getZ() >> 4) && level.getBlockState(gate).is(Blocks.IRON_BARS)) {
                 setGate(level, plan(rec).arenaGate, false);
             }
+        }
+        if (brains != null && !fighters.isEmpty()) {
+            brains.tick(level, championHost(level, rec), m.currentLevel(), m.config(), now);
         }
         if (now % 10 == 0 && (!fighters.isEmpty() || !joined.isEmpty())) {
             tickFight(server, level, rec, now);
@@ -885,10 +891,273 @@ public final class Expeditions {
                     || player.getAbilities().instabuild || !player.isAlive() || Drones.isDrone(player)) {
                 continue;
             }
+            // Only who was in the ready round goes in (the tests and the playtest: anyone signed up).
+            if (!openEntry && !allowed.contains(id)) {
+                continue;
+            }
             if (inside(p, player, 0.0)) {
                 join(level, rec, player, now);
             }
         }
+    }
+
+    // ------------------------------------------------------------------ the ready round (the seal stone)
+
+    /** A ready round at the seal stone: who is in it, who is ready. */
+    private static final class Round {
+        UUID starter;
+        final Set<UUID> members = new LinkedHashSet<>();
+        final Set<UUID> ready = new HashSet<>();
+        long startedAt;
+    }
+
+    private Round round;
+    /** Those of the last round: only they may go down while the gate is open. */
+    private final Set<UUID> allowed = new HashSet<>();
+    /** After the round: the gate stays open until this time or until all are down. */
+    private long gateOpenUntil = -1L;
+    /** The gate goes up row by row from here (2 s). */
+    private long gateRiseAt = -1L;
+    /** Tests and the playtest: anyone signed up who goes down joins (no ready round, the gate open). */
+    private boolean openEntry;
+    /** Where each fighter last stood inside (who gets out is put back there). */
+    private final Map<UUID, Vec3> lastInside = new HashMap<>();
+    static final double ROUND_RADIUS = 20.0;
+    /** After this, the starter may go without those not ready (Simon 29.10., 01:00). */
+    static final int FORCE_SECONDS = 30;
+
+    public void openEntry(boolean value) {
+        openEntry = value;
+    }
+
+    /** The round a player is in (for the class window), or null. */
+    public boolean inRound(ServerPlayer player) {
+        return round != null && player != null && round.members.contains(player.getUUID());
+    }
+
+    public boolean roundStarter(ServerPlayer player) {
+        return round != null && player != null && player.getUUID().equals(round.starter);
+    }
+
+    /** Seconds until the starter may go without the others (0 when he may now). */
+    public int roundForceIn(long now) {
+        return round == null ? 0 : (int) Math.max(0, FORCE_SECONDS - (now - round.startedAt) / 20);
+    }
+
+    public List<UUID> roundMembers() {
+        return round == null ? List.of() : new ArrayList<>(round.members);
+    }
+
+    public boolean roundReady(UUID id) {
+        return round != null && round.ready.contains(id);
+    }
+
+    /** A right click on the seal stone: starts the ready round, or ends it again (the starter). */
+    public boolean onSeal(ServerPlayer player, BlockPos pos) {
+        SiegeSave.ExpeditionRecord rec = record();
+        if (rec == null || !rec.built || rec.won || !(player.level() instanceof ServerLevel level)
+                || !SiegeManager.dimensionName(level).equals(rec.dimension) || !pos.equals(plan(rec).seal)) {
+            return false;
+        }
+        long now = level.getGameTime();
+        if (!m.isRegistered(player)) {
+            player.sendSystemMessage(Component.translatable("nightsiege.expedition.round_register").withStyle(ChatFormatting.GRAY));
+            return true;
+        }
+        if (!fighters.isEmpty()) {
+            player.sendSystemMessage(Component.translatable("nightsiege.expedition.round_running").withStyle(ChatFormatting.GRAY));
+            return true;
+        }
+        if (m.isActive() || m.testPending() || m.nightComing(level.getServer())) {
+            player.sendSystemMessage(Component.translatable("nightsiege.expedition.night").withStyle(ChatFormatting.GRAY));
+            return true;
+        }
+        if (out.contains(player.getUUID())) {
+            player.sendSystemMessage(Component.translatable("nightsiege.expedition.round_fallen").withStyle(ChatFormatting.GRAY));
+            return true;
+        }
+        if (round != null) {
+            if (player.getUUID().equals(round.starter)) {
+                endRound(level, "nightsiege.expedition.round_cancelled");
+            } else if (round.members.contains(player.getUUID())) {
+                m.campClassPick(player, 0);
+            } else {
+                player.sendSystemMessage(Component.translatable("nightsiege.expedition.round_other").withStyle(ChatFormatting.GRAY));
+            }
+            return true;
+        }
+        Round r = new Round();
+        r.starter = player.getUUID();
+        r.startedAt = now;
+        for (ServerPlayer other : level.players()) {
+            if (m.isRegistered(other) && other.isAlive() && !other.isSpectator() && !Drones.isDrone(other)
+                    && !out.contains(other.getUUID())
+                    && other.distanceToSqr(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5) <= ROUND_RADIUS * ROUND_RADIUS) {
+                r.members.add(other.getUUID());
+            }
+        }
+        r.members.add(player.getUUID());
+        round = r;
+        ExpeditionKind kind = kind(rec);
+        Component text = Component.translatable("nightsiege.expedition.round_open", player.getDisplayName(),
+                Component.translatable(kind.translationKey())).withStyle(ChatFormatting.GOLD);
+        for (UUID id : r.members) {
+            ServerPlayer p = level.getServer().getPlayerList().getPlayer(id);
+            if (p != null) {
+                p.sendSystemMessage(text);
+                m.campClassPick(p, 0);
+            }
+        }
+        level.playSound(null, pos, SoundEvents.BELL_BLOCK, SoundSource.BLOCKS, 1.5f, 0.7f);
+        level.sendParticles(ParticleTypes.ENCHANT, pos.getX() + 0.5, pos.getY() + 1.2, pos.getZ() + 0.5, 60, 1.5, 0.5, 1.5, 0.5);
+        NightSiegeMod.LOGGER.info("[Night Siege] Bereit-Runde am Dungeon {} von {} mit {} Spielern", rec.kind,
+                player.getScoreboardName(), r.members.size());
+        return true;
+    }
+
+    /** A class chosen in the window: ready in the round. */
+    public void onRoundReady(ServerPlayer player) {
+        if (round == null || player == null || !round.members.contains(player.getUUID())) {
+            return;
+        }
+        round.ready.add(player.getUUID());
+        if (player.level() instanceof ServerLevel level) {
+            BlockPos seal = record() == null ? player.blockPosition() : plan(record()).seal;
+            level.playSound(null, seal, SoundEvents.BELL_BLOCK, SoundSource.BLOCKS, 1.2f, 1.0f + 0.1f * round.ready.size());
+            Component text = Component.translatable("nightsiege.expedition.round_ready", player.getDisplayName(),
+                    round.ready.size(), round.members.size()).withStyle(ChatFormatting.YELLOW);
+            for (UUID id : round.members) {
+                ServerPlayer p = level.getServer().getPlayerList().getPlayer(id);
+                if (p != null) {
+                    p.connection.send(new ClientboundSetActionBarTextPacket(text));
+                }
+            }
+        }
+    }
+
+    /** The starter's button: go without those not ready (after 30 s). */
+    public void forceRound(ServerPlayer player) {
+        if (round == null || player == null || !player.getUUID().equals(round.starter) || !(player.level() instanceof ServerLevel level)) {
+            return;
+        }
+        if (roundForceIn(level.getGameTime()) > 0 || round.ready.isEmpty()) {
+            return;
+        }
+        for (UUID id : new ArrayList<>(round.members)) {
+            if (!round.ready.contains(id)) {
+                round.members.remove(id);
+                ServerPlayer p = level.getServer().getPlayerList().getPlayer(id);
+                if (p != null) {
+                    p.sendSystemMessage(Component.translatable("nightsiege.expedition.round_dropped").withStyle(ChatFormatting.GRAY));
+                }
+            }
+        }
+    }
+
+    private void endRound(ServerLevel level, String messageKey) {
+        if (round == null) {
+            return;
+        }
+        for (UUID id : round.members) {
+            ServerPlayer p = level.getServer().getPlayerList().getPlayer(id);
+            if (p != null && messageKey != null) {
+                p.sendSystemMessage(Component.translatable(messageKey).withStyle(ChatFormatting.GRAY));
+            }
+        }
+        round = null;
+    }
+
+    /** The round: who walks off is out; when all are ready, the gate goes up. */
+    private void tickRound(ServerLevel level, SiegeSave.ExpeditionRecord rec, long now) {
+        ExpeditionLayout.Plan p = plan(rec);
+        if (round != null) {
+            BlockPos seal = p.seal;
+            for (UUID id : new ArrayList<>(round.members)) {
+                ServerPlayer player = level.getServer().getPlayerList().getPlayer(id);
+                boolean gone = player == null || player.level() != level || !player.isAlive()
+                        || player.distanceToSqr(seal.getX() + 0.5, seal.getY(), seal.getZ() + 0.5) > ROUND_RADIUS * ROUND_RADIUS;
+                if (gone) {
+                    round.members.remove(id);
+                    round.ready.remove(id);
+                    if (player != null) {
+                        player.sendSystemMessage(Component.translatable("nightsiege.expedition.round_left").withStyle(ChatFormatting.GRAY));
+                    }
+                    if (id.equals(round.starter)) {
+                        endRound(level, "nightsiege.expedition.round_cancelled");
+                        return;
+                    }
+                }
+            }
+            if (round.members.isEmpty()) {
+                round = null;
+            } else if (round.ready.containsAll(round.members)) {
+                startRound(level, rec, now);
+            }
+        }
+        if (gateRiseAt > 0) {
+            int rows = (int) Math.min(4, (now - gateRiseAt) / 10 + 1);
+            for (BlockPos pos : p.stairGate) {
+                if (pos.getY() - p.seal.getY() < rows && level.getBlockState(pos).is(Blocks.IRON_BARS)) {
+                    level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
+                }
+            }
+            level.playSound(null, p.stairGate.get(0), SoundEvents.CHAIN_PLACE, SoundSource.BLOCKS, 1.5f, 0.6f);
+            if (rows >= 4) {
+                gateRiseAt = -1L;
+            }
+        }
+        if (gateOpenUntil > 0) {
+            boolean allDown = true;
+            for (UUID id : allowed) {
+                if (!fighters.contains(id) && level.getServer().getPlayerList().getPlayer(id) != null) {
+                    allDown = false;
+                }
+            }
+            if (now >= gateOpenUntil || allDown && !fighters.isEmpty()) {
+                closeStairGate(level, p);
+                for (UUID id : allowed) {
+                    ServerPlayer player = level.getServer().getPlayerList().getPlayer(id);
+                    if (player != null && !fighters.contains(id)) {
+                        player.sendSystemMessage(Component.translatable("nightsiege.expedition.round_late").withStyle(ChatFormatting.GRAY));
+                    }
+                }
+                allowed.clear();
+            }
+        }
+        if (openEntry && level.getBlockState(p.stairGate.get(0)).is(Blocks.IRON_BARS)) {
+            setGate(level, p.stairGate, false);
+        }
+    }
+
+    /** All ready: horn, the title, the gate goes up (2 s); they have 30 s to go down. */
+    private void startRound(ServerLevel level, SiegeSave.ExpeditionRecord rec, long now) {
+        ExpeditionLayout.Plan p = plan(rec);
+        ExpeditionKind kind = kind(rec);
+        allowed.clear();
+        allowed.addAll(round.members);
+        round = null;
+        gateOpenUntil = now + 600;
+        gateRiseAt = now;
+        level.playSound(null, p.seal, SoundEvents.RAID_HORN.value(), SoundSource.HOSTILE, 6f, 0.9f);
+        for (UUID id : allowed) {
+            ServerPlayer player = level.getServer().getPlayerList().getPlayer(id);
+            if (player != null) {
+                player.connection.send(new ClientboundSetTitlesAnimationPacket(10, 70, 20));
+                player.connection.send(new ClientboundSetTitleTextPacket(Component.translatable(kind.translationKey())
+                        .withStyle(ChatFormatting.DARK_RED, ChatFormatting.BOLD)));
+                player.connection.send(new ClientboundSetSubtitleTextPacket(Component.translatable("nightsiege.expedition.round_go",
+                        rec.rooms, WardenNight.name(kind)).withStyle(ChatFormatting.GOLD)));
+            }
+        }
+    }
+
+    private void closeStairGate(ServerLevel level, ExpeditionLayout.Plan p) {
+        gateOpenUntil = -1L;
+        if (openEntry) {
+            return;
+        }
+        setGate(level, p.stairGate, true);
+        level.playSound(null, p.stairGate.get(0), SoundEvents.IRON_DOOR_CLOSE, SoundSource.BLOCKS, 2f, 0.5f);
     }
 
     /** A signed-up player goes down the stairs: horn, class cards, kit, skills, grace. */
@@ -932,7 +1201,9 @@ public final class Expeditions {
                 m.persist();
             }
         }
-        m.campClassPick(player, seconds);
+        if (openEntry || !allowed.contains(id)) {
+            m.campClassPick(player, seconds);   // in the ready round the class is chosen already
+        }
         SkillService.apply(player, m.save().skillsOf(id.toString()), m.skillTree());
         showBar(rec, player);
         NightSiegeMod.LOGGER.info("[Night Siege] {} betritt den Dungeon {}", player.getScoreboardName(), rec.kind);
@@ -998,10 +1269,15 @@ public final class Expeditions {
         player.clearFire();
         if (rec != null && rec.built) {
             ServerLevel level = SiegeManager.levelByName(server, rec.dimension);
-            BlockPos door = plan(rec).door;
+            ExpeditionLayout.Plan p = plan(rec);
+            // The fallen wait in the gatehouse (content update): on the benches, with the bar of the fight.
+            BlockPos seat = p.waiting.get(Math.floorMod(out.size() - 1, p.waiting.size()));
             if (level != null) {
-                player.teleportTo(level, door.getX() + 0.5, door.getY(), door.getZ() + 0.5, java.util.Set.of(),
+                player.teleportTo(level, seat.getX() + 0.5, seat.getY() + 0.5, seat.getZ() + 0.5, java.util.Set.of(),
                         player.getYRot(), player.getXRot(), true);
+            }
+            if (bar != null) {
+                bar.addPlayer(player);
             }
         }
         player.sendSystemMessage(Component.translatable("nightsiege.expedition.fallen").withStyle(ChatFormatting.RED));
@@ -1023,12 +1299,25 @@ public final class Expeditions {
         for (UUID id : new ArrayList<>(fighters)) {
             ServerPlayer player = server.getPlayerList().getPlayer(id);
             if (player == null) {
-                fighters.remove(id);   // logged out: the own things come back when they log in again
+                fighters.remove(id);   // logged out: fallen; the own things come back when they log in again
                 grace.remove(id);
+                out.add(id);
                 continue;
             }
-            if (player.level() != level || !inside(p, player, 1.5)) {
+            if (player.level() != level) {
                 leave(player, "nightsiege.expedition.left");
+            } else if (!inside(p, player, 1.5)) {
+                // Locked in (content update): who gets out (pearl, hook, climbing arrow) is put back.
+                Vec3 back = lastInside.get(id);
+                if (back != null && !openEntry) {
+                    player.teleportTo(level, back.x, back.y, back.z, java.util.Set.of(), player.getYRot(), player.getXRot(), true);
+                    player.connection.send(new ClientboundSetActionBarTextPacket(Component.translatable("nightsiege.expedition.no_escape")
+                            .withStyle(ChatFormatting.RED)));
+                } else {
+                    leave(player, "nightsiege.expedition.left");
+                }
+            } else if (player.onGround()) {
+                lastInside.put(id, player.position());
             }
         }
         if (fighters.isEmpty()) {
@@ -1181,12 +1470,13 @@ public final class Expeditions {
             win(level.getServer(), level, rec);   // nothing to fight (a missing monster): the way is free
             return;
         }
-        double factor = ExpeditionKind.championLife(lvl) * (1.0 + 0.5 * Math.max(0, fighters.size() - 1));
+        double factor = ExpeditionKind.championLife(lvl) * kind.championLifeShare() * (1.0 + 0.5 * Math.max(0, fighters.size() - 1));
         double health = mob.getMaxHealth() * factor;
         // In the look of his dungeon and the colour of his fragment (Simon, 29 October 2026: "Dungeon-Wächter").
         WardenNight.dress(mob, kind, health);
         mob.addTag(CHAMPION_TAG);
         champion = mob.getUUID();
+        brains = new ChampionBrains(mob, kind, level.getGameTime());
         m.stats().dungeonProgress(rec.cleared, wave, true);
         level.sendParticles(ParticleTypes.EXPLOSION_EMITTER, p.arenaCenter.getX() + 0.5, p.arenaCenter.getY() + 1,
                 p.arenaCenter.getZ() + 0.5, 1, 0, 0, 0, 0);
@@ -1199,6 +1489,48 @@ public final class Expeditions {
                 player.connection.send(new ClientboundSetActionBarTextPacket(text));
             }
         }
+    }
+
+    /** What the champion's skills may use of the fight. */
+    private ChampionBrains.Host championHost(ServerLevel level, SiegeSave.ExpeditionRecord rec) {
+        return new ChampionBrains.Host() {
+            @Override
+            public List<ServerPlayer> fighters() {
+                List<ServerPlayer> out = new ArrayList<>();
+                for (UUID id : fighters) {
+                    ServerPlayer p = level.getServer().getPlayerList().getPlayer(id);
+                    if (p != null && p.isAlive() && !p.isSpectator()) {
+                        out.add(p);
+                    }
+                }
+                return out;
+            }
+
+            @Override
+            public Mob spawnAdd(String entityId, BlockPos at) {
+                Mob mob = spawn(level, rec, entityId, at);
+                if (mob != null) {
+                    arenaMobs.add(mob.getUUID());
+                }
+                return mob;
+            }
+
+            @Override
+            public List<Mob> arenaMobs() {
+                List<Mob> out = new ArrayList<>();
+                for (UUID id : arenaMobs) {
+                    if (level.getEntity(id) instanceof Mob mob && mob.isAlive()) {
+                        out.add(mob);
+                    }
+                }
+                return out;
+            }
+
+            @Override
+            public int floorY() {
+                return plan(rec).arenaCenter.getY() + 3;
+            }
+        };
     }
 
     /** A monster of the dungeon: no siege monster (no night counting, its own drops), only for the fighters. */
@@ -1267,6 +1599,13 @@ public final class Expeditions {
         roomMobs.clear();
         arenaMobs.clear();
         champion = null;
+        brains = null;
+        lastInside.clear();
+        allowed.clear();
+        gateOpenUntil = -1L;
+        if (level != null && rec.built && !rec.won && !openEntry) {
+            setGate(level, plan(rec).stairGate, true);   // the next attempt starts at the seal stone again
+        }
         arenaClosed = false;
         wave = 0;
         nextWaveAt = -1L;

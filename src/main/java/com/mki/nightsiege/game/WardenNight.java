@@ -188,7 +188,7 @@ public final class WardenNight {
         int defenders = Math.max(1, host.defenders().size());
         SiegeManager m = SiegeManager.get();
         double perPlayer = host.config().perPlayer(m != null && m.inPlaytest(), host.config().bossHealthPerExtraPlayer);
-        double health = mob.getMaxHealth() * ExpeditionKind.championLife(host.level()) * (1.0 + perPlayer * (defenders - 1));
+        double health = mob.getMaxHealth() * ExpeditionKind.championLife(host.level()) * kind.championLifeShare() * (1.0 + perPlayer * (defenders - 1));
         dress(mob, kind, health);
         wardenId = mob.getUUID();
         networkId = mob.getId();

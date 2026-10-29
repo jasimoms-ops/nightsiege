@@ -95,6 +95,12 @@ public final class ExpeditionLayout {
         public BlockPos door;
         /** The signal fire on the roof (it goes out when the dungeon is won). */
         public BlockPos fire;
+        /** The seal stone in the gatehouse: a right click starts the ready round. */
+        public BlockPos seal;
+        /** The gate at the head of the stair (closed until all are ready). */
+        public final List<BlockPos> stairGate = new ArrayList<>();
+        /** Where the fallen wait (the gatehouse's benches). */
+        public final List<BlockPos> waiting = new ArrayList<>();
         /** The way down: from here on one is inside. */
         public final List<AABB> inside = new ArrayList<>();
         /** Everything the dungeon takes (no breaking before it is gone). */
@@ -177,6 +183,16 @@ public final class ExpeditionLayout {
         plan.arenaCenter = b.at(0, ARENA_Y - 3, cz);
         plan.arena = b.box(-R, ARENA_Y - 3, cz - R, R, ARENA_Y + 15, cz + R);
         plan.door = b.at(0, 0, -8);
+        plan.seal = b.at(0, 0, -3);
+        for (int x = -2; x <= 2; x++) {
+            for (int y = 0; y <= 3; y++) {
+                plan.stairGate.add(b.at(x, y, -1));
+            }
+        }
+        for (int z = 0; z <= 3; z++) {
+            plan.waiting.add(b.at(-4, 0, z));
+            plan.waiting.add(b.at(4, 0, z));
+        }
         // Inside: below the gatehouse floor on the stair, the corridors, halls, arena and its gates.
         plan.inside.add(b.box(-2, HALL_Y - 2, 0, 2, -3, FIRST - 1));
         for (int i = 0; i <= rooms; i++) {
@@ -330,15 +346,29 @@ public final class ExpeditionLayout {
         b.put(0, fy, fz, Blocks.HAY_BLOCK.defaultBlockState());
         b.put(0, fy + 1, fz, Blocks.CAMPFIRE.defaultBlockState()
                 .setValue(BlockStateProperties.SIGNAL_FIRE, true).setValue(BlockStateProperties.LIT, true));
-        // A parapet round the stairwell.
+        // A parapet round the stairwell, the gate at its head (closed until all are ready).
         for (int z = -1; z <= 4; z++) {
             b.put(-3, 0, z, b.rail());
             b.put(3, 0, z, b.rail());
         }
+        for (int x = -2; x <= 2; x++) {
+            b.put(x, 0, 4, b.rail());
+        }
+        // The seal stone before the stair; the waiting room of the fallen: benches and two fires.
+        b.put(0, 0, -3, Blocks.LODESTONE.defaultBlockState());
+        b.put(0, -1, -3, b.first(Part.FRAME));
+        for (int z = 0; z <= 3; z++) {
+            b.put(-4, 0, z, b.stairs(Direction.WEST));
+            b.put(4, 0, z, b.stairs(Direction.EAST));
+        }
+        for (int x : new int[] {-4, 4}) {
+            b.put(x, 0, -4, b.first(Part.FRAME));
+            b.lamp(x, 1, -4);
+        }
         return b.at(0, fy + 1, fz);
     }
 
-    /** The stair from the gatehouse down to the halls: 5 wide, one step a block. */
+    /** The stair from the gatehouse down to the halls: 5 wide, one step a block, a gate at its head. */
     private static void stairs(B b) {
         BlockState step = b.stairs(Direction.NORTH);
         int steps = -HALL_Y;
@@ -368,6 +398,11 @@ public final class ExpeditionLayout {
             }
         }
         b.hang(0, -2, 4, -1);
+        for (int x = -2; x <= 2; x++) {
+            for (int y = 0; y <= 3; y++) {
+                b.put(x, y, -1, Blocks.IRON_BARS.defaultBlockState());
+            }
+        }
     }
 
     // ------------------------------------------------------------------ corridors

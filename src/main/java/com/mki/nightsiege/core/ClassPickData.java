@@ -67,6 +67,11 @@ public class ClassPickData {
     public String armor = "";
     public int protection;
     public int sharpness;
-    public List<Entry> classes = new ArrayList<>();
+    /** The dungeon's ready round (seal stone): no countdown, the starter may go without the others. */
+    public boolean round;
+    public boolean starter;
+    /** Seconds (from opening) until the starter's button works. */
+    public int forceIn;
+        public List<Entry> classes = new ArrayList<>();
     public List<Mate> team = new ArrayList<>();
 }

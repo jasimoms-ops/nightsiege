@@ -389,6 +389,11 @@ public enum ExpeditionKind {
         return level < 10 ? 4.0 : level < 20 ? 5.0 : 6.0;
     }
 
+    /** The champion's share of that life: the keep lord 80 % (Simon 29 October 2026, 01:00: for his new skills). */
+    public double championLifeShare() {
+        return this == ILLAGER_KEEP ? 0.8 : 1.0;
+    }
+
     /** Monsters in a guard room. */
     public static int guards(int level, int fighters) {
         return guards(level, fighters, 0.5, 14);

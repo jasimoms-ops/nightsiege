@@ -431,6 +431,30 @@ public final class TrapService {
     // ------------------------------------------------------------------
 
     /** Returns true when the save changed and should be written. */
+    /**
+     * The frost lord's breath (dungeon update): towers within {@code radius} of a point do not
+     * shoot for {@code ticks}. Returns how many were struck.
+     */
+    public int freezeNear(ServerLevel level, net.minecraft.world.phys.Vec3 at, double radius, int ticks) {
+        int count = 0;
+        long until = level.getGameTime() + ticks;
+        String dim = SiegeManager.dimensionName(level);
+        for (TrapRecord record : traps()) {
+            if (!dim.equals(record.dimension)) {
+                continue;
+            }
+            double dx = record.x + 0.5 - at.x;
+            double dy = record.y + 0.5 - at.y;
+            double dz = record.z + 0.5 - at.z;
+            if (dx * dx + dy * dy + dz * dz <= radius * radius) {
+                record.readyAt = Math.max(record.readyAt, until);
+                level.sendParticles(ParticleTypes.SNOWFLAKE, record.x + 0.5, record.y + 1.0, record.z + 0.5, 20, 0.4, 0.5, 0.4, 0.02);
+                count++;
+            }
+        }
+        return count;
+    }
+
     public boolean tick(MinecraftServer server) {
         // The manned towers and the alchemist's clouds want every tick (aim and pulses).
         tickSeats(server);

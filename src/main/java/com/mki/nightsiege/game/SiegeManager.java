@@ -818,6 +818,26 @@ public final class SiegeManager {
                 data.team.add(mate);
             }
         }
+        if (expeditions.inRound(player)) {
+            // The dungeon's ready round: its members, who is ready, the starter's button.
+            data.round = true;
+            data.starter = expeditions.roundStarter(player);
+            data.forceIn = expeditions.roundForceIn(player.level().getGameTime());
+            data.team.clear();
+            for (UUID id : expeditions.roundMembers()) {
+                ServerPlayer other = player.level().getServer().getPlayerList().getPlayer(id);
+                if (other == null) {
+                    continue;
+                }
+                PlayerSkills os = save.skillsOf(id.toString());
+                com.mki.nightsiege.core.ClassPickData.Mate mate = new com.mki.nightsiege.core.ClassPickData.Mate(
+                        other.getScoreboardName(), os.className());
+                mate.subclass = skillTree.subclassOfProfile(os, os.chosenClass);
+                mate.self = other == player;
+                mate.ready = expeditions.roundReady(id);
+                data.team.add(mate);
+            }
+        }
         if ("classpick".equals(kind)) {
             classPicking.add(player.getUUID());
         }
@@ -3765,6 +3785,10 @@ public final class SiegeManager {
         }
         BlockPos pos = hit.getBlockPos();
         ItemStack held = handObject instanceof InteractionHand hand ? player.getItemInHand(hand) : ItemStack.EMPTY;
+        // The dungeon's seal stone (content update): the ready round.
+        if (handObject == InteractionHand.MAIN_HAND && expeditions.onSeal(player, pos)) {
+            return InteractionResult.SUCCESS;
+        }
         // Manned towers (Simon, 26 October 2026): a right click on an arrow turret or tesla coil sits down in it.
         if (handObject == InteractionHand.MAIN_HAND && traps.tryMount(serverLevel, pos, player, held)) {
             return InteractionResult.SUCCESS;
@@ -4071,6 +4095,7 @@ public final class SiegeManager {
             case "spot" -> traps.onSpotAction(player, argument);
             case "shield" -> combat.guardian().onShieldAction(player);
             case "scout" -> expeditions.giveMap(player);   // the core window's "Karte mitnehmen"
+            case "round_force" -> expeditions.forceRound(player);   // the seal stone's round: go without the others
             case "playtest" -> playtest.onAction(player, argument);   // the playtest window (28 October 2026)
             case "curse" -> {   // the curse altar (update 2): a stone laid on or taken off
                 Curses.toggle(this, player, argument);
@@ -4500,6 +4525,7 @@ public final class SiegeManager {
         if (classPicking.remove(player.getUUID())) {
             // Chosen in the window before the night: no core window on top, just the new name tag.
             ClassTags.update(player.level().getServer(), player, own, skillTree.subclassOfProfile(own, own.chosenClass));
+            expeditions.onRoundReady(player);   // the dungeon's ready round (content update)
             refreshClassPicks(player.level().getServer());
             return;
         }

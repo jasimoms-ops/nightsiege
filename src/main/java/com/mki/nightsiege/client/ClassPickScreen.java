@@ -234,6 +234,32 @@ public class ClassPickScreen extends Screen {
         ready.setAlpha(0f);
         readyButton = ready;
         addRenderableWidget(ready);
+        forceButton = null;
+        if (data.round && data.starter) {
+            // The dungeon's ready round: after 30 s the starter may go without those not ready.
+            Button force = Button.builder(Component.translatable("nightsiege.pick.round_force"), b -> {
+                ClientPlayNetworking.send(new CoreNetworking.CoreActionPayload("round_force"));
+            }).bounds(teamX + 6, top + h - 8 - 26 - 24, teamW - 12, 20).build();
+            force.active = forceReady();
+            forceButton = force;
+            addRenderableWidget(force);
+        }
+    }
+
+    private Button forceButton;
+
+    private boolean forceReady() {
+        return (System.currentTimeMillis() - opened) / 1000L >= data.forceIn;
+    }
+
+    private int readyCount() {
+        int n = 0;
+        for (ClassPickData.Mate mate : data.team) {
+            if (mate.ready) {
+                n++;
+            }
+        }
+        return n;
     }
 
     private int cardX(int index) {
@@ -254,6 +280,9 @@ public class ClassPickScreen extends Screen {
         gui.fill(left, top, x2, y2, PANEL);
         gui.fill(left, top, x2, top + 1, 0xFF4A4266);
 
+        if (forceButton != null) {
+            forceButton.active = forceReady();
+        }
         drawHeader(gui, font);
         for (int i = 0; i < cardCount() && firstCard + i < data.classes.size(); i++) {
             drawCard(gui, font, data.classes.get(firstCard + i), cardX(i), cardsY, mouseX, mouseY);
@@ -272,7 +301,7 @@ public class ClassPickScreen extends Screen {
         String event = data.event == null || data.event.isEmpty() ? ""
                 : Component.translatable("nightsiege.event." + data.event.toLowerCase(Locale.ROOT)).getString()
                 .toUpperCase(Locale.ROOT);
-        String key = data.test ? "nightsiege.pick.test" : "nightsiege.pick.horn";
+        String key = data.round ? "nightsiege.pick.round" : data.test ? "nightsiege.pick.test" : "nightsiege.pick.horn";
         String line = Component.translatable(event.isEmpty() ? key : key + "_event", level, event).getString();
         small(gui, font, line, left + 10, top + 8, RED, 0.75f);
         float titleScale = w >= 460 ? 1.3f : 1.1f;
@@ -288,10 +317,11 @@ public class ClassPickScreen extends Screen {
         int by = top + 6;
         gui.fill(bx, by, bx + bw, by + 28, LINE);
         gui.fill(bx + 1, by + 1, bx + bw - 1, by + 27, BOX_DARK);
-        String label = Component.translatable("nightsiege.pick.starts_in").getString();
+        String label = Component.translatable(data.round ? "nightsiege.pick.round_box" : "nightsiege.pick.starts_in").getString();
         small(gui, font, label, bx + bw - 5 - (int) (font.width(label) * 0.7f), by + 4, GREY, 0.7f);
-        int secs = Math.max(0, data.seconds - (int) ((System.currentTimeMillis() - opened) / 1000L));
-        String time = (secs / 60) + ":" + String.format(Locale.ROOT, "%02d", secs % 60);
+        int secs = data.round ? 99 : Math.max(0, data.seconds - (int) ((System.currentTimeMillis() - opened) / 1000L));
+        String time = data.round ? readyCount() + "/" + data.team.size()
+                : (secs / 60) + ":" + String.format(Locale.ROOT, "%02d", secs % 60);
         gui.pose().pushMatrix();
         gui.pose().translate(bx + bw - 5 - font.width(time) * 1.5f, by + 12);
         gui.pose().scale(1.5f, 1.5f);
@@ -508,12 +538,13 @@ public class ClassPickScreen extends Screen {
         gui.fill(x + 1, y + 1, x2 - 1, y2 - 1, BOX_DARK);
         gui.text(font, font.plainSubstrByWidth(Component.translatable("nightsiege.pick.team").getString(), teamW - 12),
                 x + 6, y + 6, GOLD, false);
-        String sub = data.test ? Component.translatable("nightsiege.pick.test_team").getString()
+        String sub = data.round ? Component.translatable("nightsiege.pick.round_team", readyCount(), data.team.size()).getString()
+                : data.test ? Component.translatable("nightsiege.pick.test_team").getString()
                 : Component.translatable("nightsiege.pick.accepts", data.accepts, data.required).getString();
         small(gui, font, sub, x + 6, y + 17, GREY, 0.7f);
 
         int my = y + 27;
-        int readyTop = y2 - 8 - 26 - 22;
+        int readyTop = y2 - 8 - 26 - 22 - (forceButton != null ? 24 : 0);
         for (ClassPickData.Mate mate : data.team) {
             if (my + 22 > readyTop) {
                 break;
