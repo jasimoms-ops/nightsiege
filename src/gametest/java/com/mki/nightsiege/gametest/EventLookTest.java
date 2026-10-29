@@ -88,6 +88,9 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("warden")) {
                     wardenScene(context, game);   // the eight dungeon wardens (29 October 2026)
                 }
+                if (want.contains("guards")) {
+                    guardScene(context, game);   // the dungeon guards in their warden's look (29 October 2026, 22:06)
+                }
                 if (want.contains("mobs")) {
                     mobLineup(context, game);   // the event monsters of every event
                 }
@@ -143,6 +146,7 @@ public class EventLookTest implements FabricClientGameTest {
             if (!shaderRun) {
                 bossScene(context, game);
                 wardenScene(context, game);   // the eight dungeon wardens in their looks, and a warden night
+                guardScene(context, game);   // the dungeon guards in their warden's look
                 series(context, game, "event");
                 mobLineup(context, game);
                 context.runOnClient(client -> EventAtmosphere.setClient("", 1));
@@ -3505,6 +3509,87 @@ public class EventLookTest implements FabricClientGameTest {
      * from the front and the back, by day and by night; then a test night with a warden at
      * its end, who must fall for the night to be won.
      */
+    /**
+     * The dungeon guards (Simon, 29 October 2026, 22:06: "Wachen, die auf den Wächtern basieren"):
+     * for every dungeon its warden and one guard of every kind of its monsters, in a row at night
+     * with night vision, then without it.
+     */
+    private static void guardScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        int cx = pos.getX() + 160;
+        int cz = pos.getZ() - 160;
+        game.getServer().runCommand("forceload add %d %d %d %d".formatted(cx - 48, cz - 48, cx + 48, cz + 48));
+        context.waitTicks(40);
+        final int[] ground = new int[1];
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            level.getChunk(cx >> 4, cz >> 4);
+            ground[0] = level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, cx, cz);
+        });
+        context.waitTicks(10);
+        int cy = ground[0];
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:grass_block".formatted(cx - 20, cy - 1, cz - 12, cx + 20, cy - 1, cz + 12));
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(cx - 20, cy, cz - 12, cx + 20, cy + 10, cz + 12));
+        game.getServer().runCommand("time set 18000");
+        game.getServer().runCommand("weather clear");
+        game.getServer().runCommand("gamemode creative @p");
+        game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %d.5 %d %.1f facing %d.5 %.1f %.1f",
+                cx, cy, cz + 7.5, cx, cy + 1.3, cz - 3.5));
+        game.getServer().runCommand("effect give @p minecraft:night_vision 600 0 true");
+        context.runOnClient(client -> hud(client, false));
+        for (com.mki.nightsiege.core.ExpeditionKind kind : com.mki.nightsiege.core.ExpeditionKind.values()) {
+            game.getServer().runCommand("kill @e[type=!player,x=%d,y=%d,z=%d,distance=..30]".formatted(cx, cy, cz));
+            context.waitTicks(5);
+            onServer(context, (player, manager) -> {
+                net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                java.util.List<String> ids = new java.util.ArrayList<>();
+                ids.add(kind.champion());
+                for (String id : kind.mobs()) {
+                    if (!ids.contains(id)) {
+                        ids.add(id);
+                    }
+                }
+                StringBuilder sb = new StringBuilder();
+                for (int k = 0; k < ids.size(); k++) {
+                    double x = cx + 0.5 + (k - (ids.size() - 1) / 2.0) * 2.4;
+                    BlockPos spot = new BlockPos((int) Math.floor(x), cy, cz - 4);
+                    net.minecraft.world.entity.Mob mob = com.mki.nightsiege.game.MobFactory.spawnAt(level, spot, ids.get(k), 8,
+                            manager.config(), new java.util.Random(k), com.mki.nightsiege.core.SiegeEvent.NONE, false);
+                    if (mob == null) {
+                        sb.append(' ').append(ids.get(k)).append("=none");
+                        continue;
+                    }
+                    if (k == 0) {
+                        com.mki.nightsiege.game.WardenNight.dress(mob, kind, 60.0);
+                    } else if (!com.mki.nightsiege.game.Foes.isRole(ids.get(k))) {
+                        com.mki.nightsiege.game.BossService.foeLook(mob, "guard_" + kind.id());
+                    }
+                    mob.setNoAi(true);
+                    mob.setInvulnerable(true);
+                    mob.removeTag(com.mki.nightsiege.game.MobFactory.TAG);
+                    mob.addTag("nightsiege_test_guard");
+                    mob.teleportTo(x, cy, cz - 3.5);
+                    mob.setYRot(0f);
+                    mob.setYHeadRot(0f);
+                    mob.yBodyRot = 0f;
+                    sb.append(' ').append(mob.getType().toShortString()).append('=')
+                            .append(com.mki.nightsiege.game.BossService.foeLookOf(mob.getId()));
+                }
+                System.out.println("[Night Siege test] guards " + kind.id() + ":" + sb);
+            });
+            context.waitTicks(40);
+            context.takeScreenshot("guards_" + kind.id());
+        }
+        game.getServer().runCommand("effect clear @p minecraft:night_vision");
+        context.waitTicks(20);
+        context.takeScreenshot("guards_basalt_forge_dark");
+        context.runOnClient(client -> hud(client, true));
+        game.getServer().runCommand("kill @e[type=!player,x=%d,y=%d,z=%d,distance=..30]".formatted(cx, cy, cz));
+        game.getServer().runCommand("forceload remove all");
+        game.getServer().runCommand("time set 6000");
+        context.waitTicks(10);
+    }
+
     private static void wardenScene(ClientGameTestContext context, TestSingleplayerContext game) {
         BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
         int cx = pos.getX() - 160;

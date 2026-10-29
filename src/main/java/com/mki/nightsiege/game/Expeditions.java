@@ -486,6 +486,9 @@ public final class Expeditions {
         if (rec.built && now % 20 == 7) {
             sweep(level, plan(rec));   // nothing from outside in the halls, at night too
         }
+        if (now % 20 == 11) {
+            tickPendingGates(level);
+        }
         if (m.isActive() || m.testPending() || m.nightComing(server)) {
             if (!fighters.isEmpty()) {
                 endAll(server, "nightsiege.expedition.night");   // the night calls everyone home
@@ -1544,6 +1547,7 @@ public final class Expeditions {
                 mob.setNoAi(true);   // statues until someone reaches the middle or strikes one (content update)
             }
         }
+        sendLooks(level);
         roomMobs.put(room, mobs);
         roomAwake = false;
         wakeAt.clear();
@@ -1699,6 +1703,7 @@ public final class Expeditions {
                 arenaMobs.add(mob.getUUID());
             }
         }
+        sendLooks(level);
         level.playSound(null, p.arenaCenter, SoundEvents.RAID_HORN.value(), SoundSource.HOSTILE, 4f, 1.2f);
         Component text = Component.translatable("nightsiege.expedition.wave", wave, rec.rooms).withStyle(ChatFormatting.RED);
         for (UUID id : fighters) {
@@ -1773,6 +1778,7 @@ public final class Expeditions {
                 if (mob != null) {
                     arenaMobs.add(mob.getUUID());
                 }
+                sendLooks(level);
                 return mob;
             }
 
@@ -1811,7 +1817,35 @@ public final class Expeditions {
                 mark(rider, rec);
             }
         }
+        // The dungeon's guards (Simon, 29 October 2026, 22:06): in their warden's look, not the plain monsters.
+        // The new attackers keep their own looks; the champion is dressed in his own right after.
+        if (!Foes.isRole(entityId)) {
+            String guard = "guard_" + kind(rec).id();
+            mob.setBaby(false);   // guards are grown (a baby's texture has no guard look)
+            Entity vehicle = mob.getVehicle();
+            if (vehicle != null && !isExpeditionMob(vehicle)) {
+                mob.stopRiding();   // no chicken jockeys in the halls
+                vehicle.discard();
+            }
+            BossService.foeLookQuiet(mob, guard);
+            for (Entity passenger : mob.getPassengers()) {
+                if (passenger instanceof Mob rider) {
+                    BossService.foeLookQuiet(rider, guard);
+                }
+            }
+            lookPending = true;
+        }
         return mob;
+    }
+
+    /** Guards were dressed: the clients learn it once for the whole room or wave. */
+    private boolean lookPending;
+
+    private void sendLooks(ServerLevel level) {
+        if (lookPending) {
+            lookPending = false;
+            BossService.syncFoeLooks(level);
+        }
     }
 
     private static void mark(Mob mob, SiegeSave.ExpeditionRecord rec) {
@@ -1833,9 +1867,33 @@ public final class Expeditions {
         return all;
     }
 
-    private static void setGate(ServerLevel level, List<BlockPos> gate, boolean closed) {
+    private void setGate(ServerLevel level, List<BlockPos> gate, boolean closed) {
         for (BlockPos pos : gate) {
+            if (!level.hasChunk(pos.getX() >> 4, pos.getZ() >> 4)) {
+                // Not loaded (everyone left): set when it loads again. Loading it here mid-tick broke
+                // C2ME's entity sections (server log 29 October 2026, 18:09).
+                pendingGates.put(pos.immutable(), closed);
+                continue;
+            }
+            pendingGates.remove(pos);
             level.setBlock(pos, closed ? Blocks.IRON_BARS.defaultBlockState() : Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
+        }
+    }
+
+    /** Gate blocks waiting for their chunk (see {@link #setGate}). */
+    private final Map<BlockPos, Boolean> pendingGates = new HashMap<>();
+
+    private void tickPendingGates(ServerLevel level) {
+        if (pendingGates.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<BlockPos, Boolean> e : new ArrayList<>(pendingGates.entrySet())) {
+            BlockPos pos = e.getKey();
+            if (level.hasChunk(pos.getX() >> 4, pos.getZ() >> 4)) {
+                pendingGates.remove(pos);
+                level.setBlock(pos, e.getValue() ? Blocks.IRON_BARS.defaultBlockState() : Blocks.AIR.defaultBlockState(),
+                        Block.UPDATE_ALL);
+            }
         }
     }
 

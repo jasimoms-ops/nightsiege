@@ -26,6 +26,9 @@ public final class EventTextures {
     /** The boss folders (boss_grave_king …): their swaps, by folder. */
     private static final Map<String, Map<Identifier, Identifier>> BOSS_SWAPS = new HashMap<>();
     /** Boss folders whose zombie or skeleton also wears clothes. */
+    /** The dungeon guards (29 October 2026) with their warden's clothes: which kind ("zombie", "skeleton") wears them. */
+    private static final Map<String, String> GUARD_CLOTHED = Map.of("guard_stone_crypt", "skeleton",
+            "guard_desert_crypt", "zombie", "guard_deep_cellar", "skeleton", "guard_basalt_forge", "skeleton");
     private static final java.util.Set<String> BOSS_CLOTHED = java.util.Set.of("boss_grave_king", "boss_bone_lich",
             "champion_stone_crypt", "champion_desert_crypt", "champion_deep_cellar", "champion_basalt_forge");
     /** The folder of the boss being drawn right now, or null (set around each monster's submit). */
@@ -50,7 +53,8 @@ public final class EventTextures {
         }
         for (Map.Entry<String, java.util.List<String>> e : EventGearShapes.TEXTURES.entrySet()) {
             String folder = e.getKey();
-            if (!folder.startsWith("boss_") && !folder.startsWith("foe_") && !folder.startsWith("champion_")) {
+            if (!folder.startsWith("boss_") && !folder.startsWith("foe_") && !folder.startsWith("champion_")
+                    && !folder.startsWith("guard_")) {
                 continue;
             }
             Map<Identifier, Identifier> map = new HashMap<>();
@@ -69,7 +73,7 @@ public final class EventTextures {
 
     /** The monster drawn next wears this boss look ("grave_king" …), or none (null). */
     public static void renderingBoss(String look) {
-        String folder = look == null ? null : look.startsWith("foe_") || look.startsWith("champion_") ? look
+        String folder = look == null ? null : look.startsWith("foe_") || look.startsWith("champion_") || look.startsWith("guard_") ? look
                 : "boss_" + (look.equals("warlord_rider") ? "warlord" : look);
         bossFolder = folder != null && BOSS_SWAPS.containsKey(folder) ? folder : null;
     }
@@ -138,6 +142,10 @@ public final class EventTextures {
     /** The clothes of a mob ("zombie", "skeleton") in the event shown now, or null. */
     public static Identifier clothing(String mob) {
         if (bossFolder != null) {
+            String only = GUARD_CLOTHED.get(bossFolder);
+            if (only != null) {
+                return only.equals(mob) ? texture(bossFolder, mob + "_outer") : null;   // the guards: one kind wears it
+            }
             return BOSS_CLOTHED.contains(bossFolder) ? texture(bossFolder, mob + "_outer") : null;
         }
         EventAtmosphere.State state = EventAtmosphere.client();
