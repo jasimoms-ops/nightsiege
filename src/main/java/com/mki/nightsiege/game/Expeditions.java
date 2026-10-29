@@ -1821,6 +1821,12 @@ public final class Expeditions {
         // The new attackers keep their own looks; the champion is dressed in his own right after.
         if (!Foes.isRole(entityId)) {
             String guard = "guard_" + kind(rec).id();
+            mob.setBaby(false);   // guards are grown (a baby's texture has no guard look)
+            Entity vehicle = mob.getVehicle();
+            if (vehicle != null && !isExpeditionMob(vehicle)) {
+                mob.stopRiding();   // no chicken jockeys in the halls
+                vehicle.discard();
+            }
             BossService.foeLookQuiet(mob, guard);
             for (Entity passenger : mob.getPassengers()) {
                 if (passenger instanceof Mob rider) {
