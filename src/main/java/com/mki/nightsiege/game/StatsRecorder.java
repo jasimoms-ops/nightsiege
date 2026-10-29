@@ -65,12 +65,20 @@ public final class StatsRecorder {
     });
     private static String version;
     private static String build;
+    /** Set by the team simulation before a run: written into the night's file as "sim". */
+    public static volatile String simLabel = "";
+    /** The last night that was finished (the team simulation reads its result from it). */
+    public static volatile NightFile lastFinished;
+    /** Where {@link #lastFinished} was written (the feedback writes it again). */
+    private static volatile Path lastPath;
 
     // ------------------------------------------------------------------ the files
 
     /** One night. Field names are the keys in the file (German, like the other protocols). */
     public static final class NightFile {
         public String art = "nacht";
+        /** A run of the balance tool's team simulation ("variant|level|group|mix|run"), empty for real nights. */
+        public String sim = "";
         public String version = "";
         public String build = "";
         public String start = "";
@@ -98,6 +106,10 @@ public final class StatsRecorder {
         public List<Welle> wellen = new ArrayList<>();
         public Map<String, Gegner> gegner = new LinkedHashMap<>();
         public Map<String, Turm> tuerme = new LinkedHashMap<>();
+        /** 1-click feedback after the night (balance tool, 29 October 2026): player → leicht / passt / schwer. */
+        public Map<String, String> bewertung = new LinkedHashMap<>();
+        /** Optional with it: player → the subclass they found strongest tonight. */
+        public Map<String, String> staerksteKlasse = new LinkedHashMap<>();
     }
 
     public static final class Basis {
@@ -451,6 +463,7 @@ public final class StatsRecorder {
             return;
         }
         night = new NightFile();
+        night.sim = simLabel == null ? "" : simLabel;
         night.version = version();
         night.build = build();
         night.start = now();
@@ -804,6 +817,8 @@ public final class StatsRecorder {
         }
         writeLater(nightPath, night);
         NightSiegeMod.LOGGER.info("[Night Siege] Statistik der Nacht geschrieben: {}", nightPath == null ? "-" : nightPath.getFileName());
+        lastFinished = night;
+        lastPath = nightPath;
         night = null;
         wave = null;
         mobSince.clear();
@@ -811,6 +826,36 @@ public final class StatsRecorder {
         hitBy.clear();
         lifeLeft.clear();
         machineOf.clear();
+    }
+
+    /**
+     * The 1-click feedback from the night statistics window (balance tool, 29 October 2026):
+     * "leicht", "passt" or "schwer", or "best:<subclass>". Only for the last real night and only
+     * from its defenders; a second click replaces the first. The night's file is written again.
+     */
+    void feedback(ServerPlayer player, String argument) {
+        NightFile n = lastFinished;
+        Path path = lastPath;
+        if (n == null || path == null || n.test || argument == null) {
+            return;
+        }
+        String name = player.getScoreboardName();
+        if (!n.spieler.containsKey(name)) {
+            return;
+        }
+        if (argument.startsWith("best:")) {
+            String sub = argument.substring(5);
+            if (sub.isBlank() || sub.length() > 40) {
+                n.staerksteKlasse.remove(name);
+            } else {
+                n.staerksteKlasse.put(name, sub);
+            }
+        } else if (argument.equals("leicht") || argument.equals("passt") || argument.equals("schwer")) {
+            n.bewertung.put(name, argument);
+        } else {
+            return;
+        }
+        writeLater(path, n);
     }
 
     // ------------------------------------------------------------------ the war camp

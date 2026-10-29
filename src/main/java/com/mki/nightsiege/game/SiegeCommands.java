@@ -256,6 +256,11 @@ public final class SiegeCommands {
 )
                 .then(Commands.literal("sim").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                         .executes(ctx -> sim(ctx, 10, 150))
+                        // The balance tool's team simulation (29 October 2026): only on a test world.
+                        .then(Commands.literal("team")
+                                .executes(ctx -> teamSim(ctx, ""))
+                                .then(Commands.argument("einstellungen", StringArgumentType.greedyString())
+                                        .executes(ctx -> teamSim(ctx, StringArgumentType.getString(ctx, "einstellungen")))))
                         .then(Commands.argument("stufe", IntegerArgumentType.integer(1, 1000))
                                 .executes(ctx -> sim(ctx, IntegerArgumentType.getInteger(ctx, "stufe"), 150))
                                 .then(Commands.argument("sekunden", IntegerArgumentType.integer(20, 900))
@@ -526,6 +531,24 @@ public final class SiegeCommands {
     }
 
     /** Class simulation: every subclass defends a test night alone, fully skilled. */
+
+    /** /nightsiege sim team [Stufen Gruppen …] or "stop": the team simulation at the existing core. */
+    private static int teamSim(CommandContext<CommandSourceStack> ctx, String args) {
+        MinecraftServer server = ctx.getSource().getServer();
+        if (args.trim().equals("stop")) {
+            TeamSim.stop(server);
+            reply(ctx.getSource(), Component.literal("Team-Sim gestoppt"));
+            return 1;
+        }
+        String problem = TeamSim.start(server, args);
+        if (problem != null) {
+            fail(ctx.getSource(), Component.literal("Team-Sim: " + problem));
+            return 0;
+        }
+        reply(ctx.getSource(), Component.literal("Team-Sim läuft – Ergebnis in config/nightsiege-teamsim.txt"));
+        return 1;
+    }
+
     private static int sim(CommandContext<CommandSourceStack> ctx, int level, int seconds) {
         CommandSourceStack source = ctx.getSource();
         ServerPlayer player;

@@ -221,7 +221,7 @@ jobs:
       # Registrierung, Rezepte, Tags, Weltgenerierung. Nach einigen Minuten
       # wird der Server einfach beendet.
       - name: Server-Probelauf
-        if: steps.build.outcome == 'success' && !inputs.quick && inputs.scenes == ''
+        if: steps.build.outcome == 'success' && !inputs.quick && inputs.scenes == '' && !contains(github.event.head_commit.message, '[quick]') && !contains(github.event.head_commit.message, '[scenes')
         continue-on-error: true
         run: |
           mkdir -p run
@@ -252,7 +252,7 @@ jobs:
       # eine Welt, prueft alle Mixins und fotografiert jedes Ereignis. Die Bilder
       # wandern mit der Jar in den dist-Branch.
       - name: Client-Test
-        if: steps.build.outcome == 'success' && !inputs.quick
+        if: steps.build.outcome == 'success' && !inputs.quick && !contains(github.event.head_commit.message, '[quick]')
         continue-on-error: true
         env:
           COMMIT_MSG: ${{ github.event.head_commit.message }}
@@ -263,6 +263,11 @@ jobs:
           sudo apt-get install -y -qq xvfb libgl1-mesa-dri > /dev/null
           export LIBGL_ALWAYS_SOFTWARE=1
           CLIENT_TIMEOUT=2400
+          # [scenes a,b] in the commit message: only these client scenes (like the scenes input).
+          if [[ -z "$NIGHTSIEGE_SCENES" && "$COMMIT_MSG" == *"[scenes "* ]]; then
+            export NIGHTSIEGE_SCENES=$(printf '%s' "$COMMIT_MSG" | grep -o '\[scenes [^]]*\]' | head -1 | sed 's/^\[scenes //; s/\]$//')
+            echo "Szenen aus der Commit-Nachricht: $NIGHTSIEGE_SCENES"
+          fi
           # [sim] in the commit message: only the melee balance simulation, with more time.
           if [[ "$COMMIT_MSG" == *"[sim"* ]]; then
             SIMARG=$(printf '%s' "$COMMIT_MSG" | grep -o '\[sim[^]]*\]' | head -1 | sed 's/^\[sim//; s/\]$//')

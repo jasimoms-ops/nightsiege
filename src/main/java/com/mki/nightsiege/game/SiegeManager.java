@@ -316,6 +316,8 @@ public final class SiegeManager {
         traps.setTeslaBoost(() -> active && currentEvent == SiegeEvent.THUNDER ? config.thunderTeslaMultiplier : 1.0);
         ServerLifecycleEvents.SERVER_STARTED.register(server -> onServerStarted(server));
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
+            TeamSim.stop(server);
+            SimBots.removeAll(server);
             safe("Dungeons", () -> expeditions.endAll(server, null));   // kits back, the arena's gate open
             traps.releaseAll(server);   // gunners out of the towers, the seats go
             Drones.stopAll(server);
@@ -500,6 +502,10 @@ public final class SiegeManager {
         playtest.afterRestart(server);   // a playtest that ran when the server went down is undone
         NightSiegeMod.LOGGER.info("[Night Siege] {} Cores bekannt, {} Belagerungen bestanden",
                 save.cores == null ? 0 : save.cores.size(), save.siegesWon);
+        // CI only: the balance tool's team simulation (29 October 2026).
+        if (System.getenv("NIGHTSIEGE_TEAMSIM") != null) {
+            TeamSim.startFromEnv(server);
+        }
     }
 
     /** How far the base scan looks for walls; kept in the config file. */
@@ -603,6 +609,7 @@ public final class SiegeManager {
         tickModCheck(server);
         safe("Reparatur", () -> NightDamage.tick(server));
         MeleeSim.tick(server);
+        TeamSim.tick(server);
         TrapService.clearHitting();
         trapsDirty |= traps.tick(server);
         TrapService.clearHitting();
@@ -3801,7 +3808,7 @@ public final class SiegeManager {
                 sendInvitation(player);
             }
         }
-        if (config.requireClientMod) {
+        if (config.requireClientMod && !SimBots.isBot(player)) {
             // The client registers its channels a moment after joining, so the
             // check waits three seconds rather than kicking an honest player.
             pendingModCheck.put(player.getUUID(), 60);
@@ -4155,7 +4162,7 @@ public final class SiegeManager {
             }
             it.remove();
             ServerPlayer player = server.getPlayerList().getPlayer(entry.getKey());
-            if (player == null) {
+            if (player == null || SimBots.isBot(player)) {
                 continue;
             }
             if (!ServerPlayNetworking.canSend(player, CoreNetworking.CoreUiPayload.TYPE)) {
@@ -4370,6 +4377,7 @@ public final class SiegeManager {
                 expeditions.forceRound(player);
             }
             case "playtest" -> playtest.onAction(player, argument);   // the playtest window (28 October 2026)
+            case "feedback" -> safe("Bewertung", () -> stats.feedback(player, argument));   // 1-click feedback (29 October 2026)
             case "curse" -> {   // the curse altar (update 2): a stone laid on or taken off
                 Curses.toggle(this, player, argument);
                 openCoreWindow(player);
