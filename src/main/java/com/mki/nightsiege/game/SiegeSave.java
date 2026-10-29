@@ -162,6 +162,8 @@ public class SiegeSave {
         public boolean ready;
         public int cratesGiven;
         public int cratesDue;
+        /** The skill points the nights have given so far (the next night adds only the rest). */
+        public int pointsGiven;
         /** The playtest ended while they were away: their things come back when they log in. */
         public boolean restorePending;
     }

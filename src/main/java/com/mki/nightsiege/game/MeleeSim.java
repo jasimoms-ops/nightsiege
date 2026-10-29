@@ -1035,8 +1035,8 @@ public final class MeleeSim {
     public static boolean budget;
 
     /**
-     * The tree with only {@code points} to spend: the full tree's levels are the plan, learned level by
-     * level across the abilities in the tree's order (like the playtest's replay).
+     * The tree with only {@code points} to spend: the full tree's levels are the plan, learned like the
+     * playtest does ({@link Playtest#learnLikeAPlayer}).
      */
     public static PlayerSkills buildBudget(SkillTree tree, SkillClass clazz, String subclassNode, int points) {
         PlayerSkills full = build(tree, clazz, subclassNode);
@@ -1044,32 +1044,14 @@ public final class MeleeSim {
         p.chosenClass = clazz.name();
         p.award(Math.max(0, points));
         java.util.LinkedHashMap<String, Integer> planned = new java.util.LinkedHashMap<>();
-        int top = 0;
-        // The subclass node first, so the way's nodes behind it can open.
-        SkillNode sub = tree.get(subclassNode);
+        // The tree's order is the plan; new abilities and the subclass come as soon as they are open.
         for (SkillNode n : tree.ofClass(clazz)) {
             int lv = full.levelOf(n.id());
             if (lv > 0) {
                 planned.put(n.id(), lv);
-                top = Math.max(top, lv);
             }
         }
-        for (int cap = 1; cap <= top; cap++) {
-            boolean progress = true;
-            while (progress) {
-                progress = false;
-                for (java.util.Map.Entry<String, Integer> e : planned.entrySet()) {
-                    String id = e.getKey();
-                    int want = Math.min(cap, e.getValue());
-                    while (p.levelOf(id) < want && tree.blockedReason(id, p) == null && tree.unlock(id, p)) {
-                        progress = true;
-                    }
-                }
-                if (sub != null && p.levelOf(sub.id()) == 0 && tree.blockedReason(sub.id(), p) == null) {
-                    progress |= tree.unlock(sub.id(), p);
-                }
-            }
-        }
+        Playtest.learnLikeAPlayer(tree, p, planned);
         return p;
     }
 
