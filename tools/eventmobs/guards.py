@@ -63,7 +63,12 @@ NAMES = {
 }
 
 # the guards' colours: their warden's, the forge's skeletons charred dark instead of pale bone
-OVERRIDES = {'guard_nether_forge': dict(bone=skins.stops('0a0808', '1e1814', '3a2c22', '5a4434')),
+# blazes (painted with the 'creeper' stops) burn in the forge's colour; the spiders take the dungeon's
+OVERRIDES = {'guard_nether_forge': dict(bone=skins.stops('0a0808', '1e1814', '3a2c22', '5a4434'),
+                                        creeper=skins.stops('1a0a04', '5a2006', 'c8560e', 'ffb03a')),
+             'guard_basalt_forge': dict(creeper=skins.stops('0a1416', '1e3a3e', '3e8a8e', '8ef2ff')),
+             'guard_poison_swamp': dict(spider=skins.stops('0a1408', '1c2e14', '34502a', '5a7a44')),
+             'guard_deep_cellar': dict(spider=skins.stops('08060e', '1a1228', '2e2046', '4a3670')),
              # the crypt's zombies: grave-grey, not pale
              'guard_stone_crypt': dict(skin=skins.stops('161414', '2e2828', '4e4444', '6e6260'))}
 for _g, (_c, _m) in GUARDS.items():
