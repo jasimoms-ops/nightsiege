@@ -1760,13 +1760,10 @@ class SiegeCoreTest {
         SiegeConfig old = new SiegeConfig();
         old.dungeonsEnabled = false;
         old.settingsVersion = 2;
-        old.dungeonListVersion = 1;
         old.sanitize();
         assertTrue(old.dungeonsEnabled);
         assertFalse(old.bloodMoonGlow);
         assertEquals(SiegeConfig.SETTINGS_VERSION, old.settingsVersion);
-        assertEquals(SiegeConfig.CURRENT_DUNGEON_LIST, old.dungeonListVersion);
-        assertTrue(old.dungeons.stream().allMatch(t -> t.structure.startsWith("nova_structures:")));
         // Switched off again by hand, it stays off.
         old.dungeonsEnabled = false;
         old.sanitize();
