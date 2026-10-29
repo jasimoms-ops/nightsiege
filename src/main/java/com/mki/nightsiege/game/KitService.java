@@ -114,12 +114,19 @@ public final class KitService {
         if (!config.get().nightKits) {
             return;
         }
+        List<ItemStack> carried = new ArrayList<>();
         if (!hasStash(player)) {
             SiegeSave.KitStash stash = new SiegeSave.KitStash();
             HolderLookup.Provider regs = player.level().registryAccess();
             Inventory inv = player.getInventory();
             for (int i = 0; i < inv.getContainerSize(); i++) {
                 ItemStack stack = inv.getItem(i);
+                if (playtestCrate(stack)) {
+                    // The playtest's crates stay at hand with the kit (Simon 29.10.: they vanished into the stash).
+                    carried.add(stack.copy());
+                    stash.items.add("");
+                    continue;
+                }
                 String json = encode(stack, regs);
                 if (!stack.isEmpty() && json.isEmpty()) {
                     // Something the save cannot hold: better no kit than a lost item.
@@ -141,6 +148,9 @@ public final class KitService {
             clearKit(player);
         }
         give(player, level);
+        for (ItemStack crate : carried) {
+            player.getInventory().placeItemBackInInventory(crate);
+        }
         player.sendSystemMessage(Component.translatable("nightsiege.kit.equipped").withStyle(net.minecraft.ChatFormatting.AQUA));
     }
 
@@ -250,7 +260,19 @@ public final class KitService {
     }
 
     /** True for drops that may leave the night: the listed items and armour or weapons of diamond or better. */
+    /** A crate of the playtest: it goes with the player, kit or not. */
+    static boolean playtestCrate(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) {
+            return false;
+        }
+        net.minecraft.world.item.component.CustomData data = stack.get(DataComponents.CUSTOM_DATA);
+        return data != null && data.copyTag().getBooleanOr("crate_playtest", false);
+    }
+
     public boolean valuable(ItemStack stack) {
+        if (playtestCrate(stack)) {
+            return true;   // unopened playtest crates come back with the own things
+        }
         Identifier id = BuiltInRegistries.ITEM.getKey(stack.getItem());
         SiegeConfig cfg = config.get();
         if (cfg.valuableDrops != null && cfg.valuableDrops.contains(id.toString())) {

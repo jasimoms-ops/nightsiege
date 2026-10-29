@@ -85,6 +85,36 @@ public final class Playtest {
         return s != null && !s.finished && "plan".equals(s.phase);
     }
 
+    /** The players of the playtest who are online now. */
+    public List<ServerPlayer> onlinePlayers(MinecraftServer server) {
+        SiegeSave.PlaytestState s = state();
+        return s == null || s.finished ? List.of() : online(server, s);
+    }
+
+    /**
+     * Natural monsters near the players go (between the parts it is night, and they were killed by
+     * zombies and creepers while waiting): not those of the night, the camp, the dungeon or a summoner.
+     */
+    private void clearWildMonsters(MinecraftServer server, SiegeSave.PlaytestState s) {
+        for (ServerPlayer p : online(server, s)) {
+            if (!(p.level() instanceof ServerLevel level)) {
+                continue;
+            }
+            for (net.minecraft.world.entity.Mob mob : level.getEntitiesOfClass(net.minecraft.world.entity.Mob.class,
+                    p.getBoundingBox().inflate(48.0), mob -> mob instanceof net.minecraft.world.entity.monster.Enemy
+                            && mob.isAlive() && wild(mob))) {
+                mob.discard();
+            }
+        }
+    }
+
+    private static boolean wild(net.minecraft.world.entity.Mob mob) {
+        java.util.Set<String> tags = mob.entityTags();
+        return !tags.contains(MobFactory.TAG) && !Expeditions.isExpeditionMob(mob) && !SiegeCamp.isCampMob(mob)
+                && !Companions.isCompanion(mob) && !BossService.isBossOrPart(mob) && !mob.isPersistenceRequired()
+                && !mob.hasCustomName() && !mob.isPassenger();
+    }
+
     /** How many players take part. */
     public int playerCount() {
         SiegeSave.PlaytestState s = state();
@@ -354,6 +384,9 @@ public final class Playtest {
         if (now % 20 != 0) {
             return;
         }
+        if (now % 100 == 0 && !"night".equals(s.phase)) {
+            clearWildMonsters(server, s);   // between the parts nothing natural hunts the players (Simon 29.10.)
+        }
         switch (s.phase) {
             case "plan" -> {
                 if (allReady(server, s)) {
@@ -484,9 +517,9 @@ public final class Playtest {
                 p.sendSystemMessage(Component.translatable("nightsiege.playtest.step", s.step + 1, NIGHTS, level, budget,
                         learned, pp.path.size()).withStyle(ChatFormatting.AQUA));
                 if (pp.cratesDue > 0) {
-                    p.sendSystemMessage(Component.translatable("nightsiege.playtest.crates_waiting", pp.cratesDue)
-                            .withStyle(style -> style.withColor(ChatFormatting.LIGHT_PURPLE).withUnderlined(true)
-                                    .withClickEvent(new ClickEvent.RunCommand("/nightsiege playtest kisten"))));
+                    // Straight into the inventory (Simon 29.10.: one only got them from the chat link);
+                    // they stay with the player through every kit.
+                    claimCrates(p, pp);
                 }
             }
         }
@@ -508,9 +541,8 @@ public final class Playtest {
 
     /**
      * The tree of a night: everything unlearned, then the planned path is learned again as far as the
-     * points reach – level by level across the abilities (Simon 28.10.: not one ability to its top
-     * before the next): first every planned ability at level 1 in the planned order, then level 2 and so
-     * on, each never above its planned level. Returns the levels learned.
+     * points reach, the way a sensible player would (Simon 29.10.: "nobody puts the first skill to 4
+     * before picking the subclass"): see {@link #learnLikeAPlayer}. Returns the levels learned.
      */
     int replay(PlayerSkills own, List<String> path, int budget) {
         SkillTree tree = m.skillTree();
@@ -532,26 +564,77 @@ public final class Playtest {
                 planned.merge(id, 1, Integer::sum);
             }
         }
-        int top = 0;
-        for (int v : planned.values()) {
-            top = Math.max(top, v);
-        }
+        return learnLikeAPlayer(tree, own, planned);
+    }
+
+    /**
+     * Spends the points of {@code own} on the planned levels (node → top level, in the planned order),
+     * one level at a time, always the first that fits of:
+     * <ol>
+     *   <li>a planned node not learned yet that can be learned now (new abilities, the way, the
+     *   subclass, the ult come as soon as they are open);</li>
+     *   <li>a level that opens a planned node still shut (e.g. the subclass node at level 2 for the
+     *   next ring);</li>
+     *   <li>the planned node with the lowest level (ties: the planned order), so the levels grow evenly.</li>
+     * </ol>
+     * Returns the levels learned. Also used by the simulation ("punkte").
+     */
+    public static int learnLikeAPlayer(SkillTree tree, PlayerSkills own, java.util.LinkedHashMap<String, Integer> planned) {
+        List<String> order = new ArrayList<>(planned.keySet());
         int learned = 0;
-        for (int cap = 1; cap <= top; cap++) {
-            // Round "cap": every ability up to this level, in the planned order; again while something
-            // new opened up (a later ability that needs an earlier one at this level).
-            boolean progress = true;
-            while (progress) {
-                progress = false;
-                for (Map.Entry<String, Integer> e : planned.entrySet()) {
-                    String id = e.getKey();
-                    int want = Math.min(cap, e.getValue());
-                    while (own.levelOf(id) < want && tree.blockedReason(id, own) == null && tree.unlock(id, own)) {
-                        learned++;
-                        progress = true;
+        for (int guard = 0; guard < 500; guard++) {
+            String pick = null;
+            for (String id : order) {
+                if (own.levelOf(id) == 0 && tree.blockedReason(id, own) == null) {
+                    pick = id;
+                    break;
+                }
+            }
+            if (pick == null) {
+                List<String> shut = new ArrayList<>();
+                for (String id : order) {
+                    if (own.levelOf(id) == 0 && "locked".equals(tree.blockedReason(id, own))) {
+                        shut.add(id);
+                    }
+                }
+                if (!shut.isEmpty()) {
+                    for (String id : order) {
+                        if (own.levelOf(id) == 0 || own.levelOf(id) >= planned.get(id) || tree.blockedReason(id, own) != null) {
+                            continue;
+                        }
+                        PlayerSkills test = Json.fromJson(Json.toJson(own), PlayerSkills.class);
+                        if (test == null || !tree.unlock(id, test)) {
+                            continue;
+                        }
+                        boolean opens = false;
+                        for (String c : shut) {
+                            String why = tree.blockedReason(c, test);
+                            if (why == null || "points".equals(why)) {
+                                opens = true;
+                                break;
+                            }
+                        }
+                        if (opens) {
+                            pick = id;
+                            break;
+                        }
                     }
                 }
             }
+            if (pick == null) {
+                int best = Integer.MAX_VALUE;
+                for (String id : order) {
+                    int lv = own.levelOf(id);
+                    if (lv > 0 && lv < planned.get(id) && lv < best && tree.blockedReason(id, own) == null) {
+                        best = lv;
+                        pick = id;
+                    }
+                }
+            }
+            if (pick == null || !tree.unlock(pick, own)) {
+                break;
+            }
+            learned++;
         }
         return learned;
     }
