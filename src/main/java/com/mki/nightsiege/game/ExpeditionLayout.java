@@ -828,6 +828,9 @@ public final class ExpeditionLayout {
                 h.put(x, 0, z, b.first(Part.GALLERY));
             }
             h.put(x, 0, z0 - 1, b.stairs(Direction.SOUTH));
+            if (z1 + 1 < LEN - 1) {
+                h.put(x, 0, z1 + 1, b.stairs(Direction.NORTH));   // up from the back gate too, without a jump (29.10.)
+            }
         }
         for (int x = -1; x <= 1; x++) {
             h.put(x, 1, z1 - 1, b.first(Part.FRAME));
