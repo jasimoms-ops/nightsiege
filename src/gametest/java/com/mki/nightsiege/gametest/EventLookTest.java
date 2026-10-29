@@ -2972,6 +2972,17 @@ public class EventLookTest implements FabricClientGameTest {
             onServer(context, (player, manager) -> {
                 net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
                 java.util.List<String> alive = new java.util.ArrayList<>();
+                if (at > 0) {
+                    // The lich's crystals first (its shield holds until they are gone), as in the boss scenes.
+                    for (com.mki.nightsiege.game.BossService b : manager.bossesForTest()) {
+                        for (java.util.UUID part : b.partHitboxes()) {
+                            if (level.getEntity(part) instanceof net.minecraft.world.entity.LivingEntity l && l.isAlive()) {
+                                l.invulnerableTime = 0;
+                                l.hurtServer(level, level.damageSources().playerAttack(player), 10000f);
+                            }
+                        }
+                    }
+                }
                 for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
                     if (e instanceof net.minecraft.world.entity.Mob m && m.isAlive()
                             && m.entityTags().contains(com.mki.nightsiege.game.BossService.TAG_BOSS)) {

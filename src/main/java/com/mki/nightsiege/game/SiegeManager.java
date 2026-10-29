@@ -1898,6 +1898,11 @@ public final class SiegeManager {
         }
     }
 
+    /** Tests: every boss of the night (the finale's included). */
+    public List<BossService> bossesForTest() {
+        return allBosses();
+    }
+
     /** The main boss service and the finale's, for the hooks every boss needs. */
     private List<BossService> allBosses() {
         if (finaleBosses.isEmpty()) {
