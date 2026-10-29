@@ -199,8 +199,8 @@ final class TeamBrain {
         boolean bulwark = SkillTree.SUB_BULWARK.equals(m.skillTree().subclassOf(skills));
         Vec3 home = Vec3.atBottomCenterOf(post);
         boolean melee = role == Role.TANK || role == Role.MELEE || role == Role.HEALER || role == Role.SUMMONER;
-        if (player.position().distanceToSqr(home) > (melee ? (LEASH + 3) * (LEASH + 3) : 9.0)) {
-            stand(player, level);
+        if (player.isInWall() || player.position().distanceToSqr(home) > (melee ? (LEASH + 3) * (LEASH + 3) : 9.0)) {
+            stand(player, level);   // pushed into a wall or too far away: back to the post
         }
         Mob close = MeleeSim.nearest(level, player, melee ? LEASH + 4 : 10.0);
         Mob far = MeleeSim.nearest(level, player, 32.0);
@@ -354,11 +354,30 @@ final class TeamBrain {
         if (next.distanceTo(home) > LEASH) {
             return;
         }
-        BlockPos spot = TeamSim.standable(level, BlockPos.containing(next), 1);
+        // Only the column the step goes into, at most one block up or down (like walking). Before,
+        // a free spot next to it was found but the bot was put at the step itself - into the wall.
+        BlockPos want = BlockPos.containing(next);
+        BlockPos spot = null;
+        for (int dy : new int[]{0, 1, -1}) {
+            BlockPos p = want.offset(0, dy, 0);
+            if (passable(level, p) && passable(level, p.above())
+                    && !level.getBlockState(p.below()).getCollisionShape(level, p.below()).isEmpty()
+                    && level.getBlockState(p.below()).getFluidState().isEmpty()) {
+                spot = p;
+                break;
+            }
+        }
         if (spot == null) {
             return;
         }
         double y = spot.getY();
+        // The whole body must be free there (a player is 0.6 wide), not only the block in the middle.
+        double half = player.getBbWidth() / 2.0;
+        net.minecraft.world.phys.AABB body = new net.minecraft.world.phys.AABB(next.x - half, y + 0.01, next.z - half,
+                next.x + half, y + player.getBbHeight(), next.z + half);
+        if (!level.noCollision(player, body)) {
+            return;
+        }
         player.teleportTo(next.x, y, next.z);
     }
 

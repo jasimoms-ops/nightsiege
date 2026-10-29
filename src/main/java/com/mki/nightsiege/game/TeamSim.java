@@ -166,6 +166,21 @@ public final class TeamSim {
         NightSiegeMod.LOGGER.info("[Night Siege sim] Team-Sim: {} Läufe (Teil {}/{}), Stufen {}, Gruppen {}, Varianten {}",
                 queue.size(), shard + 1, shards, levels, groups, variants.keySet());
         System.out.println("[Night Siege sim] TEAMSTART;" + queue.size() + ";" + levels + ";" + groups + ";" + variants.keySet());
+        // Monsters of the list this server does not know (a mod of the modpack missing): they never come.
+        SiegeManager m = SiegeManager.get();
+        if (m != null) {
+            List<String> missing = new ArrayList<>();
+            for (com.mki.nightsiege.core.MobEntry e : m.config().mobs) {
+                for (String part : e.id.split("\\+")) {
+                    net.minecraft.resources.Identifier id = net.minecraft.resources.Identifier.tryParse(part);
+                    if (!part.startsWith("nightsiege:") && (id == null
+                            || !net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.containsKey(id))) {
+                        missing.add(part);
+                    }
+                }
+            }
+            System.out.println("[Night Siege sim] TEAMMOBS;" + (missing.isEmpty() ? "alle da" : "fehlen " + missing));
+        }
     }
 
     /**
