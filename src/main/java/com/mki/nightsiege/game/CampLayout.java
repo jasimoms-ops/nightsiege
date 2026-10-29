@@ -567,7 +567,7 @@ final class CampLayout {
     }
 
     /**
-     * A watchtower: four posts, a platform at {@link #TOWER_FLOOR} with a railing, a roof, a
+     * A watchtower: four posts, a platform at {@link #TOWER_FLOOR} with a low parapet, a roof, a
      * ladder up on the side towards the camp's gate.
      */
     private static void tower(Builder b, int cx, int cz) {
@@ -590,7 +590,7 @@ final class CampLayout {
                 boolean edge = Math.abs(dx) == 2 || Math.abs(dz) == 2;
                 boolean corner = Math.abs(dx) == 2 && Math.abs(dz) == 2;
                 if (edge && !corner && !(dx == 0 && dz == 2)) {
-                    b.put(cx + dx, 6, cz + dz, Blocks.DARK_OAK_FENCE.defaultBlockState());
+                    b.put(cx + dx, 6, cz + dz, Blocks.SPRUCE_SLAB.defaultBlockState());   // a low parapet: the crossbows shoot over it
                 }
                 b.put(cx + dx, 9, cz + dz, Blocks.DARK_OAK_SLAB.defaultBlockState());
             }

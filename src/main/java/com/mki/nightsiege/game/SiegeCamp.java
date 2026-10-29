@@ -1150,14 +1150,26 @@ public final class SiegeCamp {
                 continue;
             }
             ServerPlayer target = nearestFighter(level, bow, cfg.campCrossbowRange);
-            if (target == null || !bow.hasLineOfSight(target)) {
+            if (target == null) {
+                continue;
+            }
+            // The bolt leaves over the parapet (a step forward and up), and only when its way is free.
+            Vec3 eye = bow.getEyePosition();
+            Vec3 aim = target.getEyePosition().subtract(0, 0.45, 0).add(target.getDeltaMovement().scale(4));
+            Vec3 flat = new Vec3(aim.x - eye.x, 0, aim.z - eye.z);
+            if (flat.lengthSqr() < 1.0) {
+                continue;
+            }
+            Vec3 from = eye.add(flat.normalize().scale(1.8)).add(0, 0.3, 0);
+            net.minecraft.world.phys.BlockHitResult way = level.clip(new net.minecraft.world.level.ClipContext(from,
+                    target.getEyePosition(), net.minecraft.world.level.ClipContext.Block.COLLIDER,
+                    net.minecraft.world.level.ClipContext.Fluid.NONE, bow));
+            if (way.getType() != net.minecraft.world.phys.HitResult.Type.MISS) {
                 continue;
             }
             nextShot.put(bow.getUUID(), now + Math.round(cfg.campCrossbowSeconds * 20) + random.nextInt(8));
             bow.setTarget(target);
             bow.getLookControl().setLookAt(target, 60f, 60f);
-            Vec3 from = bow.getEyePosition();
-            Vec3 aim = target.getEyePosition().subtract(0, 0.45, 0).add(target.getDeltaMovement().scale(4));
             Vec3 dir = aim.subtract(from);
             float speed = 2.6f;
             double flight = dir.length() / speed;

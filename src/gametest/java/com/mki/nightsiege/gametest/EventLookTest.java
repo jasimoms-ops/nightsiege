@@ -1600,7 +1600,7 @@ public class EventLookTest implements FabricClientGameTest {
         camera(game, cx + 3.5, cy + 4, cz + 7.5, cx + 0.5, cy + 2, cz + 0.5);
         context.waitTicks(30);
         context.takeScreenshot("camp_workshop");
-        camera(game, cx + 1.5, cy + 4, cz + 2.5, cx - 10.5, cy + 6, cz - 9.5);
+        camera(game, cx + 0.5, cy + 9, cz - 3.5, cx - 10.5, cy + 6.5, cz - 10.5);
         context.waitTicks(30);
         context.takeScreenshot("camp_tower");
         game.getServer().runCommand("time set 18000");
