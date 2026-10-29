@@ -97,6 +97,9 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("weapons")) {
                     kitWeaponScene(context, game);   // the kit weapons, 3D since 29 October 2026
                 }
+                if (want.contains("treebg")) {
+                    treeSceneShots(context);   // the skill tree backgrounds v2 (29 October 2026)
+                }
                 if (want.contains("kithud")) {
                     kitHudScene(context, game);   // the kit HUD (28 October 2026)
                 }
@@ -5453,6 +5456,34 @@ public class EventLookTest implements FabricClientGameTest {
         });
         onServer(context, (player, manager) -> manager.onCoreAction(player, "open"));
         context.waitTicks(40);
+    }
+
+    /**
+     * The skill tree backgrounds v2 (29 October 2026): all 20 behind the warrior's tree, two of them
+     * also dragged to both sides (parallax) and a second later (the particles move).
+     */
+    private static void treeSceneShots(ClientGameTestContext context) {
+        String[] subs = {"blademaster", "berserker", "axe", "paladin", "swift", "heavy", "bolter", "trapper",
+                "shieldfighter", "bulwark", "medic", "warden", "gunner", "electrician", "demolition", "alchemist",
+                "tamer", "golemsmith", "necromancer", "soulcatcher"};
+        openTree(context, "WARRIOR", "warrior_drill");
+        for (String sub : subs) {
+            context.runOnClient(client -> com.mki.nightsiege.client.CoreScreen.testSceneSub = sub);
+            context.waitTicks(4);
+            context.takeScreenshot("treebg_" + sub);
+        }
+        for (String sub : new String[] {"berserker", "soulcatcher"}) {
+            context.runOnClient(client -> com.mki.nightsiege.client.CoreScreen.testSceneSub = sub);
+            zoomTo(context, "WARRIOR", -400.0, 0.0, 0.5);
+            context.takeScreenshot("treebg_" + sub + "_left");
+            zoomTo(context, "WARRIOR", 400.0, 0.0, 0.5);
+            context.takeScreenshot("treebg_" + sub + "_right");
+            context.waitTicks(20);
+            context.takeScreenshot("treebg_" + sub + "_right_later");
+        }
+        zoomTo(context, "WARRIOR", 0.0, 0.0, 0.0);
+        context.runOnClient(client -> com.mki.nightsiege.client.CoreScreen.testSceneSub = null);
+        closeScreen(context);
     }
 
     /** Sets where the window looks (as the mouse wheel would) and redraws it. */
