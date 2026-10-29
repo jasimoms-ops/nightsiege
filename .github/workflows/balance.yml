@@ -162,7 +162,7 @@ jobs:
           mkdir -p out/stats
           cp run/config/nightsiege-teamsim.csv out/teamsim-$SHARD.csv 2>/dev/null || true
           cp run/config/nightsiege-teamsim.txt out/teamsim-$SHARD.txt 2>/dev/null || true
-          cp run/world/nightsiege/stats/*.json out/stats/ 2>/dev/null || true
+          for f in run/world/nightsiege/stats/*.json; do [ -f "$f" ] && cp "$f" "out/stats/s${SHARD}_$(basename "$f")"; done
           grep "\[Night Siege sim\]\|Exception\|Caused by\|ERROR" server-output.txt | tail -c 3000000 > out/sim-log-$SHARD.txt || true
           tail -c 400000 server-output.txt > out/server-tail-$SHARD.txt
           python3 - <<'PY'

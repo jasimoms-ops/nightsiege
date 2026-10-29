@@ -20,7 +20,7 @@ TARGET = 0.70
 
 def main(src, dst):
     os.makedirs(os.path.join(dst, "stats"), exist_ok=True)
-    runs, bots, logs = [], [], []
+    runs, bots, logs, nights = [], [], [], []
     for root, _dirs, files in os.walk(src):
         for f in sorted(files):
             path = os.path.join(root, f)
@@ -32,7 +32,14 @@ def main(src, dst):
                     elif parts[0] == "BOT" and len(parts) >= 12:
                         bots.append(parts)
             elif f.endswith(".json") and os.path.basename(root) == "stats":
-                shutil.copy(path, os.path.join(dst, "stats", f))
+                # Jobs schreiben in derselben Sekunde gleich benannte Dateien: Job-Ordner voranstellen.
+                part = os.path.basename(os.path.dirname(root))
+                name = f if f.startswith("s") and "_" in f[:4] else "%s_%s" % (part, f)
+                shutil.copy(path, os.path.join(dst, "stats", name))
+                try:
+                    nights.append(json.load(open(path, encoding="utf-8")))
+                except (OSError, ValueError):
+                    pass
             elif f.startswith("sim-log-"):
                 logs.append(open(path, encoding="utf-8", errors="replace").read())
     with open(os.path.join(dst, "teamsim.csv"), "w", encoding="utf-8") as out:
@@ -111,9 +118,30 @@ def main(src, dst):
         n = max(1, s["laeufe"])
         lines.append("  %s %-14s %4d  %3.0f %%  %7.0f %7.0f %6.0f %5.2f" % (var, sub, s["laeufe"], 100 * s["siege"] / n,
                      s["schaden"] / n, s["erhalten"] / n, s["heilung"] / n, s["tode"] / n))
-    with open(os.path.join(dst, "teamsim.txt"), "w", encoding="utf-8") as out:
-        out.write("\n".join(lines) + "\n")
+    # Gefaehrlichste Gegner und woher der Schaden an den Bots kommt (aus den Logger-Naechten).
+    foes = defaultdict(lambda: {"gespawnt": 0, "schaden": 0.0, "naechte": 0})
+    taken = defaultdict(lambda: defaultdict(float))
+    for n in nights:
+        var = (n.get("sim") or "").split("|")[0] or "-"
+        for typ, g in (n.get("gegner") or {}).items():
+            fo = foes[(var, typ)]
+            fo["gespawnt"] += g.get("gespawnt", 0)
+            fo["schaden"] += g.get("schadenAnSpielern", 0.0)
+            fo["naechte"] += 1
+        for w in n.get("wellen") or []:
+            for pw in (w.get("spieler") or {}).values():
+                for src, v in (pw.get("erhaltenNachGegner") or {}).items():
+                    taken[var][src] += v
+    lines.append("")
+    lines.append("Schaden an den Bots nach Quelle (Anteil; in_wall = erstickt, sollte 0 sein)")
+    for var in sorted(taken):
+        tot = sum(taken[var].values()) or 1
+        top = sorted(taken[var].items(), key=lambda kv: -kv[1])[:12]
+        lines.append("  %s: %s" % (var, ", ".join("%s %.0f%%" % (k.split(":")[-1], 100 * v / tot) for k, v in top)))
     summary = {
+        "gegner": [dict(variante=k[0], typ=k[1], **v) for k, v in sorted(foes.items())],
+        "schadenQuellen": {var: dict(sorted(t.items(), key=lambda kv: -kv[1])) for var, t in taken.items()},
+        "naechteImLogger": len(nights),
         "ziel": TARGET,
         "laeufe": len(runs),
         "probleme": problems,
@@ -121,6 +149,8 @@ def main(src, dst):
         "mischungen": [dict(variante=k[0], gruppe=k[1], mischung=k[2], **v) for k, v in sorted(mixes.items())],
         "unterklassen": [dict(variante=k[0], unterklasse=k[1], **v) for k, v in sorted(subs.items())],
     }
+    with open(os.path.join(dst, "teamsim.txt"), "w", encoding="utf-8") as out:
+        out.write("\n".join(lines) + "\n")
     with open(os.path.join(dst, "summary.json"), "w", encoding="utf-8") as out:
         json.dump(summary, out, ensure_ascii=False, indent=1)
     print("\n".join(lines[:60]))
