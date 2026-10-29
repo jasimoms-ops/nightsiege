@@ -357,6 +357,8 @@ public class CoreScreen extends Screen {
         }
         int row = frontier >= 0 ? frontier : learned;
         camY = -row * SUB_ROW - viewH() / 5.0 / zoom;
+        // The subclass node at the foot stays in sight while the tree is young (balance update 2).
+        camY = Math.max(camY, maxY - (viewH() / 2.0 - 26) / zoom);
         clampCam();
     }
 
