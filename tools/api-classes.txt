@@ -158,3 +158,21 @@ net.minecraft.world.entity.player.ItemCooldowns
 net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements
 net.fabricmc.fabric.api.client.rendering.v1.hud.HudElement
 net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry
+
+# Balance-Werkzeuge (29.10.): Team-Bots als echte Server-Spieler, Burg-Vorlage
+net.minecraft.server.level.ServerPlayer
+net.minecraft.server.players.PlayerList
+net.minecraft.network.Connection
+net.minecraft.network.protocol.PacketFlow
+net.minecraft.server.network.CommonListenerCookie
+net.minecraft.server.level.ClientInformation
+net.minecraft.server.network.ServerGamePacketListenerImpl
+net.minecraft.server.network.ServerCommonPacketListenerImpl
+net.minecraft.network.DisconnectionDetails
+net.minecraft.nbt.NbtIo
+net.minecraft.nbt.NbtAccounter
+net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager
+net.minecraft.server.level.ServerPlayerGameMode
+net.minecraft.world.level.GameRules
+net.minecraft.server.ServerTickRateManager
+net.minecraft.world.TickRateManager
