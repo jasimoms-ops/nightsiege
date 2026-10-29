@@ -90,6 +90,7 @@ public class EventLookTest implements FabricClientGameTest {
                 }
                 if (want.contains("stats")) {
                     statsScene(context, game);
+                    nightStatsScene(context);
                 }
                 if (want.contains("percent")) {
                     percentScene(context, game);   // shares of the max health (28 October 2026)
@@ -1496,6 +1497,19 @@ public class EventLookTest implements FabricClientGameTest {
         });
         context.waitTicks(10);
         context.takeScreenshot("night_stats");
+        // A real night with records: the vote row over the page tabs (29 October 2026).
+        context.runOnClient(client -> {
+            if (client.gui.screen() instanceof com.mki.nightsiege.client.NightStatsScreen open) {
+                com.mki.nightsiege.core.NightStatsData data = com.mki.nightsiege.game.Json.fromJson(
+                        com.mki.nightsiege.game.Json.toJson(open.dataForTest()), com.mki.nightsiege.core.NightStatsData.class);
+                data.test = false;
+                data.result = "gewonnen";
+                data.records = new com.mki.nightsiege.core.NightRecords.View();
+                client.setScreenAndShow(new com.mki.nightsiege.client.NightStatsScreen(data));
+            }
+        });
+        context.waitTicks(10);
+        context.takeScreenshot("night_stats_vote");
         context.runOnClient(client -> client.setScreenAndShow(null));
         context.waitTicks(5);
     }

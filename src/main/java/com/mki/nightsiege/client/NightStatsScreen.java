@@ -121,17 +121,17 @@ public class NightStatsScreen extends Screen {
     protected void init() {
         w = Math.max(340, Math.min(520, this.width - 8));
         h = records ? Math.min(this.height - 8, 300)
-                : Math.min(this.height - 8, 78 + shownRows() * ROW_H + 32 + (feedback ? 38 : 0));
+                : Math.min(this.height - 8, 78 + shownRows() * ROW_H + 32 + (feedback ? 38 : tabs() ? 12 : 0));
         left = (this.width - w) / 2;
         top = (this.height - h) / 2;
         scroll = Math.max(0, Math.min(scroll, data.rows.size() - shownRows()));
         Button close = Button.builder(Component.translatable("nightsiege.stats.close"), b -> onClose())
                 .bounds(left + w - 8 - 90, top + h - 8 - 20, 90, 20).build();
         addRenderableWidget(close);
-        // The two pages: the night and the records.
+        // The two pages: the night and the records (only when there are records to show).
         int bx = left + 8;
         int by = top + h - 8 - 20;
-        if (!data.recordsOnly) {
+        if (tabs()) {
             Component night = Component.translatable("nightsiege.stats.tab.night");
             Button nb = Button.builder(night, b -> {
                 records = false;
@@ -141,7 +141,7 @@ public class NightStatsScreen extends Screen {
             addRenderableWidget(nb);
             bx += nb.getWidth() + 4;
         }
-        if (data.records != null) {
+        if (tabs()) {
             Component rec = Component.translatable("nightsiege.stats.tab.records");
             Button rb = Button.builder(rec, b -> {
                 records = true;
@@ -188,6 +188,16 @@ public class NightStatsScreen extends Screen {
             }
         }
         return false;
+    }
+
+    /** Tests: the data this window shows. */
+    public NightStatsData dataForTest() {
+        return data;
+    }
+
+    /** The page tabs "Nacht" and "Rekorde": only on the night's window when records came along. */
+    private boolean tabs() {
+        return data.records != null && !data.recordsOnly;
     }
 
     private void vote(String vote) {
@@ -357,7 +367,8 @@ public class NightStatsScreen extends Screen {
             y += ROW_H;
         }
         // With the feedback buttons in the bottom row the hint goes one line up.
-        int hintY = feedback ? top + h - 8 - 20 - 24 - 12 : top + h - 8 - 13;
+        // Above the vote row, above the page tabs, or in the bottom row beside "Schließen".
+        int hintY = feedback ? top + h - 8 - 20 - 24 - 12 : tabs() ? top + h - 8 - 20 - 12 : top + h - 8 - 13;
         if (data.rows.size() > shownRows()) {
             String more = Component.translatable("nightsiege.stats.scroll", scroll + 1,
                     Math.min(data.rows.size(), scroll + shownRows()), data.rows.size()).getString();
