@@ -1705,6 +1705,22 @@ public class EventLookTest implements FabricClientGameTest {
     }
 
     /**
+     * Ground for a dungeon of the content update (its vaults go 29 deep, too deep for the flat
+     * test world): the chunks loaded, a pillar of stone under the gatehouse; the halls and the
+     * arena stand in the air below. Returns the height one walks on.
+     */
+    private static int dungeonGround(ClientGameTestContext context, TestSingleplayerContext game, int cx, int cz, int rooms) {
+        int top = -6;
+        int cz2 = 20 + 43 * rooms + 38;
+        game.getServer().runCommand("forceload add %d %d %d %d".formatted(cx - 34, cz - 14, cx + 34, cz + cz2 + 32));
+        context.waitTicks(30);
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:stone".formatted(cx - 8, -60, cz - 10, cx + 8, top - 2, cz + 7));
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:grass_block".formatted(cx - 8, top - 1, cz - 10, cx + 8, top - 1, cz + 7));
+        context.waitTicks(5);
+        return top;
+    }
+
+    /**
      * A hill of stone for a dungeon (the test world is flat, its ground lies too low for the
      * vaults): 27 wide, from the gatehouse to past the arena, grass on top, air above. Returns
      * the height one walks on.
@@ -2263,6 +2279,7 @@ public class EventLookTest implements FabricClientGameTest {
                 + " monsters=" + manager.expeditions().testMobs((net.minecraft.server.level.ServerLevel) player.level()).size()
                 + " | " + manager.expeditions().testState()));
         onServer(context, (player, manager) -> {
+            manager.expeditions().openEntry(false);
             manager.expeditions().openEntry(false);
             manager.expeditions().remove(player.level().getServer());
             if (fakeCore[0]) {
@@ -3699,21 +3716,22 @@ public class EventLookTest implements FabricClientGameTest {
         // A stone crypt with one guard room, far from the other scenes.
         int fx = pos.getX() + 220;
         int bz = pos.getZ() - 340;
-        int fy = hill(context, game, fx, bz);
+        int fy = dungeonGround(context, game, fx, bz, 1);
         onServer(context, (player, manager) -> {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
             manager.expeditions().testBuild(level, new BlockPos(fx, fy, bz), 0, com.mki.nightsiege.core.ExpeditionKind.STONE_CRYPT, 1);
+            manager.expeditions().openEntry(true);   // straight in, no ready round
         });
         context.waitTicks(10);
         game.getServer().runCommand("gamemode survival @p");
         game.getServer().runCommand("effect give @p minecraft:resistance 600 255 true");
         game.getServer().runCommand(String.format(Locale.ROOT, "tp @p %d.5 %d %d.5 facing %d.5 %d %d.5",
-                fx, fy - 15, bz + 16, fx, fy - 14, bz + 25));
+                fx, fy - 12, bz + 12, fx, fy - 16, bz + 20));
         context.waitTicks(30);
         closeScreen(context);   // the class cards of the dungeon
-        int rz = bz + 20;
+        int rz = bz + 32;
         game.getServer().runCommand(String.format(Locale.ROOT, "tp @p %d.5 %d %d.5 facing %d.5 %d %d.5",
-                fx, fy - 15, rz + 1, fx, fy - 14, rz + 9));
+                fx, fy - 20, rz + 2, fx, fy - 19, rz + 14));
         context.waitTicks(40);
         closeScreen(context);
         // One monster of the dungeon falls next to the soulcatcher: one soul (no Seelengier learned).
@@ -3818,6 +3836,7 @@ public class EventLookTest implements FabricClientGameTest {
         context.takeScreenshot("summoner_soulcatcher_necro");
         // Out of the dungeon: the kit goes, so do its souls.
         onServer(context, (player, manager) -> {
+            manager.expeditions().openEntry(false);
             manager.expeditions().remove(player.level().getServer());
             System.out.println("[Night Siege test] summoner soulcatcher after the dungeon kit=" + manager.kits().hasStash(player)
                     + " souls=" + com.mki.nightsiege.game.Companions.get().soulsOf(player.getUUID()) + " (want false, 4: a fresh start)");
@@ -3845,6 +3864,7 @@ public class EventLookTest implements FabricClientGameTest {
         });
         context.waitTicks(10);
         onServer(context, (player, manager) -> {
+            manager.expeditions().openEntry(false);
             manager.expeditions().remove(player.level().getServer());
             com.mki.nightsiege.game.Companions.get().dismiss(player);
             if (fakeCore[0]) {
@@ -6694,14 +6714,17 @@ public class EventLookTest implements FabricClientGameTest {
         });
         int bx = cx + 90;
         int bz = cz - 40;
-        int fy = hill(context, game, bx, bz);
-        onServer(context, (player, manager) -> manager.expeditions().testBuild((net.minecraft.server.level.ServerLevel) player.level(),
-                new BlockPos(bx, fy, bz), 0, com.mki.nightsiege.core.ExpeditionKind.STONE_CRYPT, 2));
+        int fy = dungeonGround(context, game, bx, bz, 2);
+        onServer(context, (player, manager) -> {
+            manager.expeditions().testBuild((net.minecraft.server.level.ServerLevel) player.level(),
+                    new BlockPos(bx, fy, bz), 0, com.mki.nightsiege.core.ExpeditionKind.STONE_CRYPT, 2);
+            manager.expeditions().openEntry(true);   // straight in, no ready round
+        });
         context.waitTicks(10);
         game.getServer().runCommand("gamemode survival @p");
         game.getServer().runCommand("effect give @p minecraft:resistance 600 255 true");
         game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %d.5 %d %d.5 facing %d.5 %d %d.5",
-                bx, fy - 15, bz + 16, bx, fy - 14, bz + 25));
+                bx, fy - 20, bz + 34, bx, fy - 19, bz + 44));
         context.waitTicks(30);
         closeScreen(context);
         BlockPos[] field = new BlockPos[1];
@@ -6737,7 +6760,10 @@ public class EventLookTest implements FabricClientGameTest {
         });
         context.waitTicks(10);
         context.takeScreenshot("tech_dungeon_field_tower");
-        onServer(context, (player, manager) -> manager.expeditions().remove(player.level().getServer()));
+        onServer(context, (player, manager) -> {
+            manager.expeditions().openEntry(false);
+            manager.expeditions().remove(player.level().getServer());
+        });
         context.waitTicks(20);
         onServer(context, (player, manager) -> {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
