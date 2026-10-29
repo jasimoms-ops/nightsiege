@@ -184,6 +184,7 @@ public final class KitService {
         if (Companions.get() != null) {
             Companions.get().endFight(player);   // the souls of a camp or dungeon fight do not carry into the night
         }
+        GainGear.removeBanners(player);   // the kit's war banner goes with the kit
         if (stash.gameMode != null && !stash.gameMode.isEmpty()) {
             GameType mode = GameType.byName(stash.gameMode, GameType.SURVIVAL);
             player.setGameMode(mode);
@@ -671,9 +672,28 @@ public final class KitService {
         GainGear.addKitItems(this, skills, clazz, way, hotbar);
         // Wooden tools in every kit (Simon 29.10.): to dig, chop and clear; last, so they never push
         // the fighting things off the hotbar.
-        hotbar.add(new ItemStack(Items.WOODEN_PICKAXE));
-        hotbar.add(new ItemStack(Items.WOODEN_AXE));
-        hotbar.add(new ItemStack(Items.WOODEN_SHOVEL));
+        // Only those the kit has no tool of yet (Simon 29.10.: "man hat eine Axt zu viel" – the axe
+        // warriors and the throwing axes chop already).
+        boolean axe = false;
+        boolean pick = false;
+        boolean shovel = false;
+        for (ItemStack stack : hotbar) {
+            axe |= stack.is(net.minecraft.tags.ItemTags.AXES);
+            pick |= stack.is(net.minecraft.tags.ItemTags.PICKAXES);
+            shovel |= stack.is(net.minecraft.tags.ItemTags.SHOVELS);
+        }
+        if (offhand != null && offhand.is(net.minecraft.tags.ItemTags.AXES)) {
+            axe = true;
+        }
+        if (!pick) {
+            hotbar.add(new ItemStack(Items.WOODEN_PICKAXE));
+        }
+        if (!axe) {
+            hotbar.add(new ItemStack(Items.WOODEN_AXE));
+        }
+        if (!shovel) {
+            hotbar.add(new ItemStack(Items.WOODEN_SHOVEL));
+        }
         return new Kit(armor, offhand, hotbar);
     }
 

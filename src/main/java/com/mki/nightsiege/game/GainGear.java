@@ -109,7 +109,7 @@ public final class GainGear {
         }
     }
 
-    private record Banner(String dimension, BlockPos pos) {
+    private record Banner(String dimension, BlockPos pos, java.util.UUID owner) {
     }
 
     public static final double OIL_RADIUS = 3.0;
@@ -142,6 +142,29 @@ public final class GainGear {
         HOMING.clear();
         BANNERS.clear();
         AlchemyZones.reset();
+    }
+
+    /**
+     * The war banners a player has standing go (a new one is set, or his kit ends after a
+     * dungeon or the war camp: every kit brings a fresh banner, and the old ones stood on).
+     */
+    public static void removeBanners(ServerPlayer player) {
+        if (player == null || BANNERS.isEmpty()) {
+            return;
+        }
+        java.util.Iterator<Banner> it = BANNERS.iterator();
+        while (it.hasNext()) {
+            Banner banner = it.next();
+            if (!player.getUUID().equals(banner.owner())) {
+                continue;
+            }
+            ServerLevel level = player.level().getServer() == null ? null
+                    : SiegeManager.levelByName(player.level().getServer(), banner.dimension());
+            if (level != null && TempBlocks.isTemp(level, banner.pos())) {
+                TempBlocks.remove(level, banner.pos());
+            }
+            it.remove();
+        }
     }
 
     /** End of the night: the night's blocks go, the copper golems go home. */
@@ -519,7 +542,8 @@ public final class GainGear {
             bar(player, Component.translatable("nightsiege.gadget.no_room"));
             return false;
         }
-        BANNERS.add(new Banner(SiegeManager.dimensionName(level), pos));
+        removeBanners(player);   // one war banner per player: the last one goes (Simon 29.10.: "Kriegsbanner dupliziert sich")
+        BANNERS.add(new Banner(SiegeManager.dimensionName(level), pos, player.getUUID()));
         level.playSound(null, pos, SoundEvents.RAID_HORN.value(), SoundSource.PLAYERS, 0.6f, 1.6f);
         level.sendParticles(ParticleTypes.HAPPY_VILLAGER, pos.getX() + 0.5, pos.getY() + 1, pos.getZ() + 0.5, 20, 1.5, 0.5, 1.5, 0);
         SiegeManager.get().broadcastDefenders(Component.translatable("nightsiege.gadget.kriegsbanner.placed",
