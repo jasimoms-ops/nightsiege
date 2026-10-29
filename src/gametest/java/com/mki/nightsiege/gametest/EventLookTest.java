@@ -7829,9 +7829,12 @@ public class EventLookTest implements FabricClientGameTest {
             cfg.warBossFromWave = keep[6];
             cfg.warForceSeconds = keep[7];
             cfg.sapperFromLevel = keep[9];
-            level.setBlock(core, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
-            manager.save().cores.clear();
-            manager.save().cores.addAll(oldCores);
+            if (!oldCores.isEmpty()) {
+                // The core of the scenes before comes back; without one, this one stays (the later scenes need one).
+                level.setBlock(core, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
+                manager.save().cores.clear();
+                manager.save().cores.addAll(oldCores);
+            }
             com.mki.nightsiege.game.BaseDefense.forgetScans();
         });
         game.getServer().runCommand("forceload remove %d %d %d %d".formatted(cx - 112, cz - 112, cx + 112, cz + 112));
