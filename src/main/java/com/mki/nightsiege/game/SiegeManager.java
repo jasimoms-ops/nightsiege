@@ -2763,8 +2763,11 @@ public final class SiegeManager {
 
     /** Monsters one wave brings with the defenders there now. */
     private int wantedPerWave() {
-        return (int) Math.round(SiegeMath.mobsPerBatch(siegeLevel, Math.max(1, participants.size()), config,
-                        config.perPlayer(playtest.running(), config.playerScaling), maxLive())
+        int players = Math.max(1, participants.size());
+        double perPlayer = config.perPlayer(playtest.running(), config.playerScaling);
+        // What the cap leaves out comes as life (per-player scaling, 29 October 2026).
+        overflowHealth = SiegeMath.overflowHealthFactor(SiegeMath.mobsWanted(siegeLevel, players, config, perPlayer), maxLive(), config);
+        return (int) Math.round(SiegeMath.mobsPerBatch(siegeLevel, players, config, perPlayer, maxLive())
                 * currentEvent.mobCountMultiplier(config) * (save.specialNight ? config.specialNightMobMultiplier : 1.0)
                 * Curses.mobFactor());
     }
@@ -3043,8 +3046,17 @@ public final class SiegeManager {
 
     public float damageTakenFactor(ServerPlayer player) {
         PlayerSkills skills = save.skillsOf(player.getUUID().toString());
+        // A lone defender of a night takes soloDamageTaken of it (per-player scaling, 29 October 2026).
+        double solo = active && participants.size() == 1 && participants.contains(player.getUUID()) ? config.soloDamageTaken : 1.0;
         return (float) (config.damageTakenFactor(skills.className(), skillTree.subclassOf(skills))
-                * config.lowLevelTaken(currentLevel()));   // the low levels are a little kinder (28.10.)
+                * config.lowLevelTaken(currentLevel()) * solo);   // the low levels are a little kinder (28.10.)
+    }
+
+    /** Life factor of tonight's monsters for the ones the cap left out (overflowHealth); 1 outside a night. */
+    private double overflowHealth = 1.0;
+
+    public double overflowHealthFactor() {
+        return active ? overflowHealth : 1.0;
     }
 
     /** True while a playtest runs (its nights, camps and dungeons scale per player, Simon 28.10.). */
@@ -3055,7 +3067,7 @@ public final class SiegeManager {
     /** Monsters alive at once at most: in a playtest the cap grows with the players. */
     public int maxLive() {
         if (!playtest.running()) {
-            return config.maxLiveMobs;
+            return SiegeMath.liveCap(Math.max(1, participants.size()), config);   // livePerPlayer, 29.10.
         }
         int players = Math.max(1, participants.size());
         return (int) Math.min(120, Math.round(config.maxLiveMobs * (1.0 + config.playtestLivePerPlayer * (players - 1))));

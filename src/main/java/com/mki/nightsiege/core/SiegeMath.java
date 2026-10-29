@@ -46,10 +46,31 @@ public final class SiegeMath {
 
     /** As above with the share per further player and the cap given (the playtest scales per player). */
     public static int mobsPerBatch(int level, int playerCount, SiegeConfig cfg, double perPlayer, int maxLive) {
+        return Math.max(1, Math.min(Math.max(1, maxLive), (int) Math.round(mobsWanted(level, playerCount, cfg, perPlayer))));
+    }
+
+    /**
+     * The monsters a batch would bring without any cap: the level's monsters times
+     * (soloScaling + perPlayer × further players), per-player scaling of 29 October 2026.
+     */
+    public static double mobsWanted(int level, int playerCount, SiegeConfig cfg, double perPlayer) {
         double raw = cfg.baseMobsPerBatch + cfg.mobsPerLevel * growthSteps(level, cfg);
-        double players = 1.0 + Math.max(0.0, perPlayer) * Math.max(0, playerCount - 1);
-        int result = (int) Math.round(raw * players);
-        return Math.max(1, Math.min(Math.max(1, maxLive), result));
+        double players = Math.max(0.0, cfg.soloScaling) + Math.max(0.0, perPlayer) * Math.max(0, playerCount - 1);
+        return raw * players;
+    }
+
+    /** The cap of live monsters on a normal night: grows by livePerPlayer for every further player, at most maxLiveMobsCap. */
+    public static int liveCap(int playerCount, SiegeConfig cfg) {
+        double grown = cfg.maxLiveMobs * (1.0 + Math.max(0.0, cfg.livePerPlayer) * Math.max(0, playerCount - 1));
+        return (int) Math.max(1, Math.min(Math.max(cfg.maxLiveMobs, cfg.maxLiveMobsCap), Math.round(grown)));
+    }
+
+    /** Life factor for monsters a capped batch could not bring (overflowHealth; 1 = no overflow). */
+    public static double overflowHealthFactor(double wanted, int cap, SiegeConfig cfg) {
+        if (cfg.overflowHealth <= 0 || cap <= 0 || wanted <= cap) {
+            return 1.0;
+        }
+        return 1.0 + cfg.overflowHealth * (wanted / cap - 1.0);
     }
 
     /** Health multiplier applied to every siege mob. */

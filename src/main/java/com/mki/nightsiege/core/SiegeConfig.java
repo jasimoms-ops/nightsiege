@@ -65,6 +65,23 @@ public class SiegeConfig {
     public double mobsPerLevel = 1.0;
     /** Each additional player multiplies the batch size by this much. */
     public double playerScaling = 0.6;
+    /**
+     * Per-player scaling (Simon, 29 October 2026: "wir brauchen ein besseres Scaling pro Spieler"):
+     * the first player's share of a wave. The batch is the level's monsters times
+     * (soloScaling + playerScaling × further players). 1 = as before.
+     */
+    public double soloScaling = 1.0;
+    /** Normal nights: the cap of live monsters grows by this share of itself for every further player (0 = as before). */
+    public double livePerPlayer = 0.0;
+    /** The highest cap of live monsters however many play (Simon 29.10.: 120 should run fine). */
+    public int maxLiveMobsCap = 120;
+    /**
+     * Monsters a wave wants beyond the cap come as life instead: every monster gets
+     * 1 + overflowHealth × (wanted ÷ cap − 1) times its life. 0 = off (as before).
+     */
+    public double overflowHealth = 0.0;
+    /** Night: a lone defender takes this share of the monsters' damage (1 = as before). */
+    public double soloDamageTaken = 1.0;
     public int maxLiveMobs = 40;
     public int batchIntervalSeconds = 38;
     /**
@@ -961,6 +978,11 @@ public class SiegeConfig {
         lowLevelUntil = clamp(lowLevelUntil, 1, 100);
         rangedPushbackSeconds = Double.isNaN(rangedPushbackSeconds) ? 1.5 : clampDouble(rangedPushbackSeconds, 0.0, 10.0);
         maxLiveMobs = clamp(maxLiveMobs, 1, 500);
+        soloScaling = Double.isNaN(soloScaling) ? 1.0 : clampDouble(soloScaling, 0.1, 3.0);
+        livePerPlayer = Double.isNaN(livePerPlayer) ? 0.0 : clampDouble(livePerPlayer, 0.0, 3.0);
+        maxLiveMobsCap = clamp(maxLiveMobsCap, Math.max(1, maxLiveMobs), 500);
+        overflowHealth = Double.isNaN(overflowHealth) ? 0.0 : clampDouble(overflowHealth, 0.0, 3.0);
+        soloDamageTaken = Double.isNaN(soloDamageTaken) ? 1.0 : clampDouble(soloDamageTaken, 0.1, 2.0);
         batchIntervalSeconds = Math.max(5, batchIntervalSeconds);
 
         healthPerLevel = Math.max(0.0, healthPerLevel);

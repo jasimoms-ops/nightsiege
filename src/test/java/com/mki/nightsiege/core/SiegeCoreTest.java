@@ -43,6 +43,28 @@ class SiegeCoreTest {
     }
 
     @Test
+    void perPlayerScaling() {
+        SiegeConfig c = cfg();
+        // The defaults keep everything as it was: cap 40 for any group, no overflow life.
+        assertEquals(40, SiegeMath.liveCap(1, c));
+        assertEquals(40, SiegeMath.liveCap(10, c));
+        assertEquals(1.0, SiegeMath.overflowHealthFactor(SiegeMath.mobsWanted(20, 10, c, c.playerScaling), 40, c), 1e-9);
+        assertEquals(SiegeMath.mobsPerBatch(7, 3, c), (int) Math.round(SiegeMath.mobsWanted(7, 3, c, c.playerScaling)));
+        // Lighter alone, more per further player, a cap that grows with the group up to maxLiveMobsCap.
+        c.soloScaling = 0.5;
+        c.playerScaling = 1.0;
+        c.livePerPlayer = 0.5;
+        c.overflowHealth = 1.0;
+        assertEquals(5, SiegeMath.mobsPerBatch(7, 1, c));                 // half of 10
+        assertEquals(25, SiegeMath.mobsPerBatch(7, 3, c));                // 10 × (0.5 + 2)
+        assertEquals(100, SiegeMath.liveCap(4, c));                       // 40 × (1 + 0.5 × 3)
+        assertEquals(120, SiegeMath.liveCap(10, c));                      // at most maxLiveMobsCap
+        double wanted = SiegeMath.mobsWanted(20, 10, c, c.playerScaling); // 23 × 9.5 ≈ 218
+        assertEquals(120, SiegeMath.mobsPerBatch(20, 10, c, c.playerScaling, SiegeMath.liveCap(10, c)));
+        assertEquals(wanted / 120.0, SiegeMath.overflowHealthFactor(wanted, 120, c), 1e-9);
+    }
+
+    @Test
     void growthSlowsAboveTwenty() {
         SiegeConfig c = cfg();
         assertEquals(1.0, SiegeMath.healthMultiplier(1, c), 1e-9);
