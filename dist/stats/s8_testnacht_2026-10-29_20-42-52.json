@@ -1,0 +1,208 @@
+{
+  "art": "nacht",
+  "sim": "g30|L10|G2|zufall|0",
+  "version": "1.0.0",
+  "build": "447c355",
+  "start": "2026-10-29 20:42:52",
+  "ende": "2026-10-29 20:43:34",
+  "abgeschlossen": true,
+  "test": true,
+  "nacht": -1,
+  "stufe": 10,
+  "ereignis": "none",
+  "besondereNacht": false,
+  "fragment": "",
+  "fluchsteine": [],
+  "boss": "",
+  "ergebnis": "test_gehalten",
+  "dauerSekunden": 959,
+  "killZiel": 0,
+  "kills": 35,
+  "gespawnt": 46,
+  "tode": 1,
+  "basis": {
+    "geschlossen": true,
+    "breite": 29,
+    "tiefe": 29,
+    "tore": 3
+  },
+  "spieler": {
+    "Bot01": {
+      "name": "Bot01",
+      "uuid": "59db4448-2e93-31f2-b572-f9f8749b0f17",
+      "klasse": "archer",
+      "weg": "bow",
+      "unterklasse": "swift",
+      "profil": "ARCHER",
+      "punkteImProfil": 58,
+      "ultStufe3": false,
+      "kit": "archer"
+    },
+    "Bot02": {
+      "name": "Bot02",
+      "uuid": "2169bc70-47b7-396c-b0e6-a3d8306b7dfa",
+      "klasse": "warrior",
+      "weg": "edge",
+      "unterklasse": "berserker",
+      "profil": "WARRIOR",
+      "punkteImProfil": 58,
+      "ultStufe3": false,
+      "kit": "warrior"
+    }
+  },
+  "heerlager": {
+    "erschienen": false,
+    "zerstoert": false,
+    "lagerSiegte": false,
+    "maschinen": 0
+  },
+  "maschinen": [],
+  "wellen": [
+    {
+      "nummer": 0,
+      "startSekunde": 0,
+      "dauerSekunden": 959,
+      "gespawnt": 46,
+      "typen": {
+        "minecraft:zombie": 20,
+        "nightsiege:tunneler": 2,
+        "minecraft:creeper": 13,
+        "minecraft:skeleton": 9,
+        "nightsiege:standard_bearer": 1,
+        "nightsiege:grappler": 1
+      },
+      "uebrigAmEnde": 0,
+      "bloeckeZerstoert": 0,
+      "spieler": {
+        "Bot01": {
+          "schaden": 1145.1031265854836,
+          "schadenNachQuelle": {
+            "fern:bow": 958.7301006317139,
+            "nah:bow": 186.37302595376968
+          },
+          "erhalten": 231.44337224960327,
+          "erhaltenNachGegner": {
+            "umgebung:lightning_bolt": 10.0,
+            "umgebung:in_fire": 70.0,
+            "boss:minecraft:witch": 151.44337224960327
+          },
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 5.051590636372566,
+          "kills": 25,
+          "assists": 5,
+          "tode": 1,
+          "drohneSekunden": 26,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {
+            "ult": 310,
+            "faehigkeit_f": 186
+          },
+          "turmSekunden": 0
+        },
+        "Bot02": {
+          "schaden": 221.48601013422012,
+          "schadenNachQuelle": {
+            "nah:diamond_sword": 221.48601013422012
+          },
+          "erhalten": 219.86010813713074,
+          "erhaltenNachGegner": {
+            "nightsiege:standard_bearer": 33.37950038909912,
+            "minecraft:creeper": 11.752395629882812,
+            "minecraft:skeleton": 128.41291093826294,
+            "umgebung:magic": 31.0,
+            "boss:minecraft:witch": 15.315301179885864
+          },
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 22.31874130666256,
+          "kills": 8,
+          "assists": 1,
+          "tode": 0,
+          "drohneSekunden": 0,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {
+            "ult": 319,
+            "faehigkeit_f": 191
+          },
+          "turmSekunden": 0
+        }
+      }
+    }
+  ],
+  "gegner": {
+    "minecraft:zombie": {
+      "gespawnt": 20,
+      "getoetet": 20,
+      "ueberlebtSekundenSumme": 1628.75,
+      "ueberlebtSekundenSchnitt": 81.4,
+      "schadenAnSpielern": 0.0,
+      "getoetetVon": {
+        "klasse:swift": 14,
+        "klasse:berserker": 6
+      }
+    },
+    "nightsiege:tunneler": {
+      "gespawnt": 2,
+      "getoetet": 2,
+      "ueberlebtSekundenSumme": 45.05,
+      "ueberlebtSekundenSchnitt": 22.5,
+      "schadenAnSpielern": 0.0,
+      "getoetetVon": {
+        "klasse:swift": 2
+      }
+    },
+    "minecraft:creeper": {
+      "gespawnt": 13,
+      "getoetet": 4,
+      "ueberlebtSekundenSumme": 219.0,
+      "ueberlebtSekundenSchnitt": 54.8,
+      "schadenAnSpielern": 11.752395629882812,
+      "getoetetVon": {
+        "klasse:swift": 2,
+        "umgebung:on_fire": 1,
+        "klasse:berserker": 1
+      }
+    },
+    "minecraft:skeleton": {
+      "gespawnt": 9,
+      "getoetet": 7,
+      "ueberlebtSekundenSumme": 1223.5500000000002,
+      "ueberlebtSekundenSchnitt": 174.8,
+      "schadenAnSpielern": 128.41291093826294,
+      "getoetetVon": {
+        "klasse:swift": 6,
+        "umgebung:fall": 1
+      }
+    },
+    "nightsiege:standard_bearer": {
+      "gespawnt": 1,
+      "getoetet": 1,
+      "ueberlebtSekundenSumme": 46.65,
+      "ueberlebtSekundenSchnitt": 46.7,
+      "schadenAnSpielern": 33.37950038909912,
+      "getoetetVon": {
+        "klasse:berserker": 1
+      }
+    },
+    "nightsiege:grappler": {
+      "gespawnt": 1,
+      "getoetet": 1,
+      "ueberlebtSekundenSumme": 145.55,
+      "ueberlebtSekundenSchnitt": 145.6,
+      "schadenAnSpielern": 0.0,
+      "getoetetVon": {
+        "klasse:swift": 1
+      }
+    },
+    "boss:minecraft:witch": {
+      "gespawnt": 0,
+      "getoetet": 0,
+      "ueberlebtSekundenSumme": 0.0,
+      "ueberlebtSekundenSchnitt": 0.0,
+      "schadenAnSpielern": 166.75867342948914,
+      "getoetetVon": {}
+    }
+  },
+  "tuerme": {},
+  "bewertung": {},
+  "staerksteKlasse": {}
+}

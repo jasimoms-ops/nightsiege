@@ -1,0 +1,226 @@
+{
+  "art": "nacht",
+  "sim": "g60|L5|G2|zufall|2",
+  "version": "1.0.0",
+  "build": "447c355",
+  "start": "2026-10-29 20:39:51",
+  "ende": "2026-10-29 20:40:45",
+  "abgeschlossen": true,
+  "test": true,
+  "nacht": -1,
+  "stufe": 5,
+  "ereignis": "none",
+  "besondereNacht": false,
+  "fragment": "",
+  "fluchsteine": [],
+  "boss": "",
+  "ergebnis": "test_gehalten",
+  "dauerSekunden": 959,
+  "killZiel": 0,
+  "kills": 33,
+  "gespawnt": 42,
+  "tode": 0,
+  "basis": {
+    "geschlossen": true,
+    "breite": 29,
+    "tiefe": 29,
+    "tore": 3
+  },
+  "spieler": {
+    "Bot01": {
+      "name": "Bot01",
+      "uuid": "59db4448-2e93-31f2-b572-f9f8749b0f17",
+      "klasse": "guardian",
+      "weg": "bless",
+      "unterklasse": "medic",
+      "profil": "GUARDIAN",
+      "punkteImProfil": 21,
+      "ultStufe3": false,
+      "kit": "guardian"
+    },
+    "Bot02": {
+      "name": "Bot02",
+      "uuid": "2169bc70-47b7-396c-b0e6-a3d8306b7dfa",
+      "klasse": "summoner",
+      "weg": "dead",
+      "unterklasse": "necromancer",
+      "profil": "SUMMONER",
+      "punkteImProfil": 21,
+      "ultStufe3": false,
+      "kit": "summoner"
+    }
+  },
+  "heerlager": {
+    "erschienen": false,
+    "zerstoert": false,
+    "lagerSiegte": false,
+    "maschinen": 0
+  },
+  "maschinen": [],
+  "wellen": [
+    {
+      "nummer": 0,
+      "startSekunde": 0,
+      "dauerSekunden": 959,
+      "gespawnt": 42,
+      "typen": {
+        "minecraft:creeper": 10,
+        "minecraft:zombie": 14,
+        "nightsiege:grappler": 3,
+        "nightsiege:revenant": 6,
+        "minecraft:spider": 7,
+        "minecraft:skeleton": 1,
+        "minecraft:camel_husk": 1
+      },
+      "uebrigAmEnde": 0,
+      "bloeckeZerstoert": 0,
+      "spieler": {
+        "Bot01": {
+          "schaden": 153.02013850212097,
+          "schadenNachQuelle": {
+            "nah:iron_sword": 153.02013850212097
+          },
+          "erhalten": 91.61895561218262,
+          "erhaltenNachGegner": {
+            "minecraft:creeper": 16.993433952331543,
+            "minecraft:spider": 6.683599948883057,
+            "boss:minecraft:witch": 54.94192171096802,
+            "umgebung:magic": 13.0
+          },
+          "heilungGegeben": 44.082677602767944,
+          "heilungErhalten": 30.68849679082632,
+          "kills": 6,
+          "assists": 6,
+          "tode": 0,
+          "drohneSekunden": 0,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {
+            "schild": 479,
+            "ult": 319,
+            "faehigkeit_f": 191,
+            "wahl:hand": 43
+          },
+          "turmSekunden": 0
+        },
+        "Bot02": {
+          "schaden": 846.6771546602249,
+          "schadenNachQuelle": {
+            "nah:summoning_staff": 771.3315739631653,
+            "nah:wooden_axe": 47.998998284339905,
+            "begleiter": 27.346582412719727
+          },
+          "erhalten": 101.98106384277344,
+          "erhaltenNachGegner": {
+            "minecraft:zombie": 4.296599864959717,
+            "minecraft:spider": 4.010159969329834,
+            "boss:minecraft:witch": 66.67430400848389,
+            "umgebung:magic": 27.0
+          },
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 41.488547541201115,
+          "kills": 25,
+          "assists": 6,
+          "tode": 0,
+          "drohneSekunden": 0,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {
+            "stab": 659,
+            "wahl:wall": 107,
+            "ult": 319,
+            "wahl:curse": 106,
+            "wahl:raise": 106
+          },
+          "turmSekunden": 0
+        }
+      }
+    }
+  ],
+  "gegner": {
+    "minecraft:creeper": {
+      "gespawnt": 10,
+      "getoetet": 3,
+      "ueberlebtSekundenSumme": 121.74999999999999,
+      "ueberlebtSekundenSchnitt": 40.6,
+      "schadenAnSpielern": 16.993433952331543,
+      "getoetetVon": {
+        "klasse:medic": 1,
+        "klasse:necromancer": 2
+      }
+    },
+    "minecraft:zombie": {
+      "gespawnt": 14,
+      "getoetet": 14,
+      "ueberlebtSekundenSumme": 1105.1,
+      "ueberlebtSekundenSchnitt": 78.9,
+      "schadenAnSpielern": 4.296599864959717,
+      "getoetetVon": {
+        "klasse:necromancer": 10,
+        "klasse:medic": 2,
+        "begleiter:necromancer": 1,
+        "umgebung:in_wall": 1
+      }
+    },
+    "nightsiege:grappler": {
+      "gespawnt": 3,
+      "getoetet": 3,
+      "ueberlebtSekundenSumme": 592.9499999999999,
+      "ueberlebtSekundenSchnitt": 197.6,
+      "schadenAnSpielern": 0.0,
+      "getoetetVon": {
+        "klasse:necromancer": 3
+      }
+    },
+    "nightsiege:revenant": {
+      "gespawnt": 6,
+      "getoetet": 6,
+      "ueberlebtSekundenSumme": 355.59999999999997,
+      "ueberlebtSekundenSchnitt": 59.3,
+      "schadenAnSpielern": 0.0,
+      "getoetetVon": {
+        "klasse:necromancer": 4,
+        "klasse:medic": 2
+      }
+    },
+    "minecraft:spider": {
+      "gespawnt": 7,
+      "getoetet": 6,
+      "ueberlebtSekundenSumme": 283.35,
+      "ueberlebtSekundenSchnitt": 47.2,
+      "schadenAnSpielern": 10.69375991821289,
+      "getoetetVon": {
+        "klasse:necromancer": 3,
+        "klasse:medic": 1,
+        "begleiter:necromancer": 2
+      }
+    },
+    "minecraft:skeleton": {
+      "gespawnt": 1,
+      "getoetet": 1,
+      "ueberlebtSekundenSumme": 200.1,
+      "ueberlebtSekundenSchnitt": 200.1,
+      "schadenAnSpielern": 0.0,
+      "getoetetVon": {
+        "umgebung:in_wall": 1
+      }
+    },
+    "minecraft:camel_husk": {
+      "gespawnt": 1,
+      "getoetet": 0,
+      "ueberlebtSekundenSumme": 0.0,
+      "ueberlebtSekundenSchnitt": 0.0,
+      "schadenAnSpielern": 0.0,
+      "getoetetVon": {}
+    },
+    "boss:minecraft:witch": {
+      "gespawnt": 0,
+      "getoetet": 0,
+      "ueberlebtSekundenSumme": 0.0,
+      "ueberlebtSekundenSchnitt": 0.0,
+      "schadenAnSpielern": 121.6162257194519,
+      "getoetetVon": {}
+    }
+  },
+  "tuerme": {},
+  "bewertung": {},
+  "staerksteKlasse": {}
+}
