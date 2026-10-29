@@ -1,0 +1,235 @@
+{
+  "art": "nacht",
+  "sim": "aktuell|L5|G2|zufall|1",
+  "version": "1.0.0",
+  "build": "1c40b6a",
+  "start": "2026-10-29 20:32:33",
+  "ende": "2026-10-29 20:33:22",
+  "abgeschlossen": true,
+  "test": true,
+  "nacht": -1,
+  "stufe": 5,
+  "ereignis": "none",
+  "besondereNacht": false,
+  "fragment": "",
+  "fluchsteine": [],
+  "boss": "",
+  "ergebnis": "test_verloren",
+  "dauerSekunden": 823,
+  "killZiel": 0,
+  "kills": 40,
+  "gespawnt": 68,
+  "tode": 2,
+  "basis": {
+    "geschlossen": true,
+    "breite": 29,
+    "tiefe": 29,
+    "tore": 3
+  },
+  "spieler": {
+    "Bot01": {
+      "name": "Bot01",
+      "uuid": "59db4448-2e93-31f2-b572-f9f8749b0f17",
+      "klasse": "engineer",
+      "weg": "chem",
+      "unterklasse": "",
+      "profil": "ENGINEER",
+      "punkteImProfil": 20,
+      "ultStufe3": false,
+      "kit": "engineer"
+    },
+    "Bot02": {
+      "name": "Bot02",
+      "uuid": "2169bc70-47b7-396c-b0e6-a3d8306b7dfa",
+      "klasse": "warrior",
+      "weg": "edge",
+      "unterklasse": "berserker",
+      "profil": "WARRIOR",
+      "punkteImProfil": 21,
+      "ultStufe3": false,
+      "kit": "warrior"
+    }
+  },
+  "heerlager": {
+    "erschienen": false,
+    "zerstoert": false,
+    "lagerSiegte": false,
+    "maschinen": 0
+  },
+  "maschinen": [],
+  "wellen": [
+    {
+      "nummer": 0,
+      "startSekunde": 0,
+      "dauerSekunden": 822,
+      "gespawnt": 68,
+      "typen": {
+        "minecraft:zombie": 40,
+        "minecraft:skeleton": 7,
+        "minecraft:creeper": 14,
+        "nightsiege:tunneler": 1,
+        "nightsiege:grappler": 2,
+        "minecraft:spider": 2,
+        "nightsiege:revenant": 1,
+        "minecraft:camel_husk": 1
+      },
+      "uebrigAmEnde": 0,
+      "bloeckeZerstoert": 0,
+      "spieler": {
+        "Bot02": {
+          "schaden": 1273.8847936540842,
+          "schadenNachQuelle": {
+            "nah:iron_sword": 1273.8847936540842
+          },
+          "erhalten": 370.43254244327545,
+          "erhaltenNachGegner": {
+            "minecraft:skeleton": 42.60795021057129,
+            "minecraft:creeper": 8.769287109375,
+            "minecraft:zombie": 107.18943119049072,
+            "boss:minecraft:zombie": 211.86587393283844
+          },
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 91.50513531267643,
+          "kills": 26,
+          "assists": 6,
+          "tode": 1,
+          "drohneSekunden": 0,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {
+            "ult": 274,
+            "faehigkeit_f": 164
+          },
+          "turmSekunden": 0
+        },
+        "Bot01": {
+          "schaden": 289.2789349555969,
+          "schadenNachQuelle": {
+            "turm:spike_trap": 16.447115421295166,
+            "nah:iron_sword": 192.01218700408936,
+            "drohne": 80.8196325302124
+          },
+          "erhalten": 374.01901865005493,
+          "erhaltenNachGegner": {
+            "minecraft:skeleton": 369.5075888633728,
+            "minecraft:zombie": 4.511429786682129
+          },
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 42.66376055777073,
+          "kills": 12,
+          "assists": 0,
+          "tode": 1,
+          "drohneSekunden": 550,
+          "drohneSchaden": 80.8196325302124,
+          "faehigkeiten": {
+            "wahl:escape": 17,
+            "ult": 90
+          },
+          "turmSekunden": 0
+        }
+      }
+    }
+  ],
+  "gegner": {
+    "minecraft:zombie": {
+      "gespawnt": 40,
+      "getoetet": 29,
+      "ueberlebtSekundenSumme": 1780.6000000000004,
+      "ueberlebtSekundenSchnitt": 61.4,
+      "schadenAnSpielern": 111.70086097717285,
+      "getoetetVon": {
+        "klasse:engineer": 9,
+        "klasse:berserker": 19,
+        "drohne": 1
+      }
+    },
+    "minecraft:skeleton": {
+      "gespawnt": 7,
+      "getoetet": 5,
+      "ueberlebtSekundenSumme": 623.45,
+      "ueberlebtSekundenSchnitt": 124.7,
+      "schadenAnSpielern": 412.1155390739441,
+      "getoetetVon": {
+        "sonstiges:minecraft:wolf": 2,
+        "klasse:berserker": 3
+      }
+    },
+    "minecraft:creeper": {
+      "gespawnt": 14,
+      "getoetet": 2,
+      "ueberlebtSekundenSumme": 108.4,
+      "ueberlebtSekundenSchnitt": 54.2,
+      "schadenAnSpielern": 8.769287109375,
+      "getoetetVon": {
+        "klasse:berserker": 2
+      }
+    },
+    "nightsiege:tunneler": {
+      "gespawnt": 1,
+      "getoetet": 1,
+      "ueberlebtSekundenSumme": 39.0,
+      "ueberlebtSekundenSchnitt": 39.0,
+      "schadenAnSpielern": 0.0,
+      "getoetetVon": {
+        "turm:spike_trap": 1
+      }
+    },
+    "nightsiege:grappler": {
+      "gespawnt": 2,
+      "getoetet": 0,
+      "ueberlebtSekundenSumme": 0.0,
+      "ueberlebtSekundenSchnitt": 0.0,
+      "schadenAnSpielern": 0.0,
+      "getoetetVon": {}
+    },
+    "minecraft:spider": {
+      "gespawnt": 2,
+      "getoetet": 2,
+      "ueberlebtSekundenSumme": 233.9,
+      "ueberlebtSekundenSchnitt": 117.0,
+      "schadenAnSpielern": 0.0,
+      "getoetetVon": {
+        "drohne": 1,
+        "klasse:berserker": 1
+      }
+    },
+    "nightsiege:revenant": {
+      "gespawnt": 1,
+      "getoetet": 1,
+      "ueberlebtSekundenSumme": 147.75,
+      "ueberlebtSekundenSchnitt": 147.8,
+      "schadenAnSpielern": 0.0,
+      "getoetetVon": {
+        "klasse:berserker": 1
+      }
+    },
+    "minecraft:camel_husk": {
+      "gespawnt": 1,
+      "getoetet": 0,
+      "ueberlebtSekundenSumme": 0.0,
+      "ueberlebtSekundenSchnitt": 0.0,
+      "schadenAnSpielern": 0.0,
+      "getoetetVon": {}
+    },
+    "boss:minecraft:zombie": {
+      "gespawnt": 0,
+      "getoetet": 0,
+      "ueberlebtSekundenSumme": 0.0,
+      "ueberlebtSekundenSchnitt": 0.0,
+      "schadenAnSpielern": 211.86587393283844,
+      "getoetetVon": {}
+    }
+  },
+  "tuerme": {
+    "spike_trap|Bot01": {
+      "art": "spike_trap",
+      "besitzer": "Bot01",
+      "schaden": 16.447115421295166,
+      "schadenBemannt": 0.0,
+      "kills": 1,
+      "killsBemannt": 0,
+      "sekundenBemannt": 0
+    }
+  },
+  "bewertung": {},
+  "staerksteKlasse": {}
+}
