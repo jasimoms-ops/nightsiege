@@ -55,7 +55,7 @@ jobs:
           set -e
           TMP=$(mktemp -d)
           mkdir -p "$TMP/textures" "$TMP/previews"
-          cp -r src/main/resources/assets/nightsiege/textures/entity/event/champion_* "$TMP/textures/" 2>/dev/null || true
+          cp -r src/main/resources/assets/nightsiege/textures/entity/event/* "$TMP/textures/" 2>/dev/null || true
           cp src/main/java/com/mki/nightsiege/client/EventGearShapes.java "$TMP/"
           cp /tmp/previews/*.png "$TMP/previews/" 2>/dev/null || true
           # which committed files the generator changed (events and bosses should stay the same)

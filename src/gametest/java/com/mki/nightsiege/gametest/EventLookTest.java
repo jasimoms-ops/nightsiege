@@ -82,6 +82,9 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("warden")) {
                     wardenScene(context, game);   // the eight dungeon wardens (29 October 2026)
                 }
+                if (want.contains("mobs")) {
+                    mobLineup(context, game);   // the event monsters of every event
+                }
                 if (want.contains("stats")) {
                     statsScene(context, game);
                 }
@@ -217,6 +220,7 @@ public class EventLookTest implements FabricClientGameTest {
 
     /** The event monsters up close, so their textures, clothes and eyes can be checked. */
     private static void mobLineup(ClientGameTestContext context, TestSingleplayerContext game) {
+        closeScreen(context);   // the statistics window of the test nights before must not cover the photos
         BlockPos home = context.computeOnClient(client -> client.player.blockPosition());
         // At night (undead burn by day), seen with night vision so the textures show; no command echo in the chat.
         game.getServer().runCommand("gamerule log_admin_commands false");

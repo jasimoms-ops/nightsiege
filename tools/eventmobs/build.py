@@ -48,7 +48,8 @@ MOBS = {
     'breeze': ('breeze/breeze.png', 'whole', False, ALL_EVENTS),
     'breeze_wind': ('breeze/breeze_wind.png', None, False, ALL_EVENTS),
     'camel_husk': ('camel/camel_husk.png', 'whole', False, ALL_EVENTS),
-    'phantom': ('phantom/phantom.png', 'whole', False, ('eclipse',)),
+    # phantoms fly in every night (26 October 2026), so they wear every event's look (Simon, 29 October 2026)
+    'phantom': ('phantom/phantom.png', 'whole', False, ALL_EVENTS),
     'blaze': ('blaze/blaze.png', 'whole', False, ('nether_rift',)),
     'piglin_brute': ('piglin/piglin_brute.png', 'whole', False, ('nether_rift',)),
     'zombified_piglin': ('piglin/zombified_piglin.png', 'whole', False, ('nether_rift',)),
@@ -58,7 +59,7 @@ MOBS = {
     'hoglin_baby': ('hoglin/hoglin_baby.png', 'whole', True, ('nether_rift',)),
 }
 # eyes layers recoloured in the event's eye colour
-EYES = {'spider_eyes': ('spider/spider_eyes.png', ALL_EVENTS), 'phantom_eyes': ('phantom/phantom_eyes.png', ('eclipse',))}
+EYES = {'spider_eyes': ('spider/spider_eyes.png', ALL_EVENTS), 'phantom_eyes': ('phantom/phantom_eyes.png', ALL_EVENTS)}
 
 
 def build_event(van, ev):
