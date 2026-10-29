@@ -172,6 +172,13 @@ if __name__ == '__main__':
     all_textures.update(c_textures)
     all_glows.update(c_glows)
     print('built', ', '.join(c_shapes))
+    # the dungeon guards in their warden's style (Simon, 29 October 2026, 22:06)
+    import guards
+    g_shapes, g_textures, g_glows = guards.build(van, OUT, atlas)
+    all_shapes.update(g_shapes)
+    all_textures.update(g_textures)
+    all_glows.update(g_glows)
+    print('built', ', '.join(g_shapes))
     # the four new bosses of the content update (design update, 29 October 2026)
     import bosses2
     n_shapes, n_textures, n_glows = bosses2.build(van, OUT, atlas)
@@ -191,4 +198,5 @@ if __name__ == '__main__':
         for ev in champions.CHAMPIONS:
             champions.sheet(ev, folders[ev], os.path.join(prev, f'{ev}.png'))
         champions.lineup(folders, os.path.join(prev, 'champions_lineup.png'))
+        guards.all_sheets(OUT, prev)
         print('sheets champions')
