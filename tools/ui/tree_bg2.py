@@ -213,24 +213,22 @@ def dead_tree(cv, x, yb, h, c, r):
 
 
 def castle(cv, x0, yb, w, h, c, lit, r, towers=2, crenel=2):
-    cv.rect(x0, yb - h, x0 + w, yb, c)
+    stone = shade(c, 1.9)
+    stone_wall(cv, x0, yb - h, x0 + w, yb, stone, r)
     for x in range(x0, x0 + w + 1, crenel * 2):
-        cv.rect(x, yb - h - crenel, x + crenel - 1, yb - h - 1, c)
-    tw = max(5, w // 6)
+        cv.rect(x, yb - h - crenel, x + crenel - 1, yb - h - 1, stone)
+    tw = max(7, w // 6)
     for i in range(towers):
-        tx = x0 - 2 if i == 0 else x0 + w - tw + 2
-        th = h + 10 + r.randrange(0, 6)
-        cv.rect(tx, yb - th, tx + tw, yb, c)
-        cv.poly([(tx - 1, yb - th), (tx + tw + 1, yb - th), (tx + tw // 2, yb - th - tw)], c)
+        tx = x0 - 3 if i == 0 else x0 + w - tw + 3
+        th = h + 12 + r.randrange(0, 6)
+        stone_wall(cv, tx, yb - th, tx + tw, yb, shade(stone, 0.95), r, light_left=i == 0)
+        cone(cv, tx + tw // 2, yb - th - 1, tw // 2 + 2, tw + 4, shade(c, 1.5))
         if lit:
-            cv.put(tx + tw // 2, yb - th + 4, lit)
-            cv.put(tx + tw // 2, yb - th + 5, lit)
+            window(cv, tx + tw // 2 - 1, yb - th + 5, 3, 5, lit, shade(stone, 0.6), cross=False)
     if lit:
-        for _ in range(w // 8):
-            wx, wy = r.randrange(x0 + 3, x0 + w - 3), r.randrange(yb - h + 3, yb - 4)
-            cv.put(wx, wy, lit)
-            cv.put(wx, wy + 1, lit)
-            cv.glow(wx, wy, 4, lit, 0.25)
+        for k in range(w // 14):
+            wx = x0 + 8 + k * 14
+            window(cv, wx, yb - h + 6, 3, 5, lit, shade(stone, 0.6), cross=False)
 
 
 def banner(cv, x, ytop, crest, pole, cloth, glow=None):
@@ -354,6 +352,136 @@ def mute(cv, f):
                 cv.px[x, y] = (int(p[0] * f), int(p[1] * f), int(p[2] * f), p[3])
 
 
+
+# ------------------------------------------------------------------ buildings (Simon 01:31: "die häuser designs
+# sollten aber nochmal überarbeitet werden"): textured walls, shingled roofs, framed windows, lit from the moon side
+
+def stone_wall(cv, x0, y0, x1, y1, base, r, light_left=True):
+    """Ashlar: courses of 3 rows, bricks 4-7 wide, mortar lines, a few lighter and darker stones."""
+    mortar = shade(base, 0.7)
+    y = y1
+    row = 0
+    while y >= y0:
+        x = x0 - (row % 2) * 3
+        while x <= x1:
+            bw = r.randrange(4, 8)
+            tone = shade(base, r.choice([0.92, 1.0, 1.0, 1.08, 1.16]))
+            for yy in range(max(y0, y - 2), y + 1):
+                for xx in range(max(x0, x), min(x1, x + bw - 1) + 1):
+                    cv.put(xx, yy, tone)
+            for yy in range(max(y0, y - 2), y + 1):
+                if x0 <= x + bw - 1 <= x1:
+                    cv.put(x + bw - 1, yy, mortar)
+            if y - 2 >= y0:
+                for xx in range(max(x0, x), min(x1, x + bw - 1) + 1):
+                    cv.put(xx, y - 2, shade(tone, 1.12))   # the lit top edge of each stone
+            x += bw
+        for xx in range(x0, x1 + 1):
+            if y - 3 >= y0:
+                cv.put(xx, y - 3, mortar)
+        y -= 4
+        row += 1
+    edge = x0 if light_left else x1
+    for yy in range(y0, y1 + 1):
+        cv.put(edge, yy, shade(base, 1.3))
+
+
+def timber_wall(cv, x0, y0, x1, y1, plaster, beam, r):
+    """Half-timbering: plaster panels between dark posts, a rail in the middle, braces in the corners."""
+    cv.rect(x0, y0, x1, y1, plaster)
+    for yy in range(y0, y1 + 1):   # a little stain on the plaster
+        for xx in range(x0, x1 + 1):
+            if r.random() < 0.08:
+                cv.put(xx, yy, shade(plaster, 0.9))
+    step = 7
+    xs = list(range(x0, x1 + 1, step))
+    if xs[-1] != x1:
+        xs.append(x1)
+    for x in xs:
+        cv.rect(x, y0, x + 1 if x < x1 else x, y1, beam)
+    cv.rect(x0, y0, x1, y0 + 1, beam)
+    cv.rect(x0, y1 - 1, x1, y1, beam)
+    mid = (y0 + y1) // 2
+    cv.rect(x0, mid, x1, mid, beam)
+    for a, b in zip(xs, xs[1:]):
+        if (a // step) % 2 == 0:
+            cv.line(a + 1, y1 - 1, b - 1, mid + 1, beam)
+        else:
+            cv.line(a + 1, mid - 1, b - 1, y0 + 2, beam)
+
+
+def roof(cv, x0, x1, yb, h, tile, r, overhang=3):
+    """A gable roof seen from the front: shingle rows that alternate, a lighter ridge, dark eaves."""
+    x0 -= overhang
+    x1 += overhang
+    cx = (x0 + x1) / 2.0
+    for y in range(yb - h, yb + 1):
+        t = (y - (yb - h)) / max(1, h)
+        half = (x1 - x0) / 2.0 * t
+        row = (y - (yb - h)) // 2
+        for x in range(int(cx - half), int(cx + half) + 1):
+            c = shade(tile, 1.0 if row % 2 else 0.86)
+            if (x + row * 2) % 4 == 0 and y % 2 == 0:
+                c = shade(tile, 0.72)
+            if x < cx:
+                c = shade(c, 1.12)   # the moon side
+            cv.put(x, y, c)
+    cv.rect(x0, yb, x1, yb, shade(tile, 0.55))
+    cv.put(int(cx), yb - h - 1, shade(tile, 1.3))
+
+
+def cone(cv, cx, yb, rad, h, tile):
+    """A conical tower roof with shingle rings."""
+    for y in range(yb - h, yb + 1):
+        t = (y - (yb - h)) / max(1, h)
+        half = rad * t + 1
+        row = (y - (yb - h)) // 2
+        for x in range(int(cx - half), int(cx + half) + 1):
+            c = shade(tile, 1.0 if row % 2 else 0.85)
+            if x < cx:
+                c = shade(c, 1.12)
+            cv.put(x, y, c)
+    cv.rect(cx, yb - h - 4, cx, yb - h - 1, (110, 100, 80))
+
+
+def window(cv, x, y, w, h, lit, frame, arch=False, cross=True):
+    cv.rect(x - 1, y - 1, x + w, y + h, frame)
+    cv.rect(x, y, x + w - 1, y + h - 1, lit)
+    for yy in range(y, y + h):   # warmer at the bottom, as from a fire inside
+        for xx in range(x, x + w):
+            if yy < y + h // 3:
+                cv.put(xx, yy, shade(lit, 0.85))
+    if arch:
+        for xx in range(x, x + w):
+            if xx in (x, x + w - 1):
+                cv.put(xx, y, frame)
+    if cross:
+        cv.rect(x + w // 2, y, x + w // 2, y + h - 1, frame)
+        cv.rect(x, y + h // 2, x + w - 1, y + h // 2, frame)
+    cv.rect(x - 1, y + h, x + w, y + h, shade(frame, 1.4))   # the sill
+    cv.glow(x + w / 2, y + h / 2, max(w, h) * 1.8, lit, 0.28)
+
+
+def door(cv, x, yb, w, h, wood, frame, lit=None):
+    cv.rect(x - 1, yb - h - 1, x + w, yb, frame)
+    cv.rect(x, yb - h, x + w - 1, yb, lit if lit else wood)
+    cv.put(x, yb - h, frame)
+    cv.put(x + w - 1, yb - h, frame)
+    if not lit:
+        for xx in range(x + 1, x + w - 1, 2):
+            cv.rect(xx, yb - h + 1, xx, yb, shade(wood, 0.8))
+        cv.put(x + w - 2, yb - h // 2, (200, 170, 90))
+    else:
+        cv.glow(x + w / 2, yb - h / 2, h * 1.4, lit, 0.35)
+
+
+def chimney(cv, x, yb, h, base, r, smoke=None):
+    cv.rect(x, yb - h, x + 4, yb, base)
+    cv.rect(x - 1, yb - h - 1, x + 5, yb - h, shade(base, 1.2))
+    if smoke:
+        for k in range(6):
+            cv.disc(x + 2 + k * 2 + r.randrange(-1, 2), yb - h - 4 - k * 4, 1.5 + k * 0.5, smoke)
+
 # ------------------------------------------------------------------ the scenes
 
 def scene(sub):
@@ -419,25 +547,39 @@ def scene(sub):
             front.rect(x + 10, fy - 4, x + 30, fy - 1, (40, 28, 18))   # logs
             front.rect(x + 30, fy - 4, x + 31, fy - 1, (90, 66, 40))
     elif sub == "paladin":
-        moon(sky, 196, 24, 9, halo=(120, 100, 60))
+        moon(sky, 210, 24, 9, halo=(120, 100, 60))
         ridge(sky, 94, 8, 0.03, farther, 10)
-        cx = 136   # a cathedral with a lit rose window
-        mid.rect(cx - 40, gy - 50, cx + 40, gy, far)
-        mid.poly([(cx - 44, gy - 50), (cx + 44, gy - 50), (cx, gy - 74)], far)
-        for tx in (cx - 52, cx + 40):
-            mid.rect(tx, gy - 66, tx + 12, gy, far)
-            mid.poly([(tx - 1, gy - 66), (tx + 13, gy - 66), (tx + 6, gy - 84)], far)
-        mid.disc(cx, gy - 44, 10, (40, 30, 20))
+        ridge(mid, gy, 2, 0.05, far, 12)
+        stone = mix(hor, (110, 100, 86), 0.4)
+        tile = mix(hor, (60, 56, 64), 0.5)
+        gold = (240, 200, 110)
+        cx = 140
+        stone_wall(mid, cx - 38, gy - 52, cx + 38, gy, stone, r)        # the nave front
+        mid.poly([(cx - 40, gy - 52), (cx + 40, gy - 52), (cx, gy - 76)], shade(stone, 0.9))
+        for x in range(cx - 38, cx + 39, 6):                             # the gable edge
+            mid.put(x, gy - 52 - int((38 - abs(x - cx)) * 0.63), shade(stone, 1.3))
+        for tx in (cx - 54, cx + 38):                                    # two towers with spires
+            stone_wall(mid, tx, gy - 70, tx + 16, gy, shade(stone, 0.95), r, light_left=tx < cx)
+            cone(mid, tx + 8, gy - 71, 9, 26, tile)
+            window(mid, tx + 6, gy - 60, 4, 10, gold, shade(stone, 0.6), cross=False)
+            window(mid, tx + 6, gy - 34, 4, 8, shade(gold, 0.8), shade(stone, 0.6), cross=False)
+        for bx in (cx - 39, cx + 37):                                    # buttresses
+            mid.rect(bx, gy - 40, bx + 2, gy, shade(stone, 0.8))
+        mid.disc(cx, gy - 44, 10, shade(stone, 0.6))                     # the rose window
         cols = [(200, 60, 40), (60, 90, 200), (230, 190, 90), (60, 150, 80)]
         for k in range(8):
             a = k * math.pi / 4
-            mid.disc(cx + math.cos(a) * 6, gy - 44 + math.sin(a) * 6, 2.5, shade(cols[k % 4], 0.75))
-        mid.disc(cx, gy - 44, 3, (240, 210, 120))
-        mid.glow(cx, gy - 44, 30, (240, 190, 90), 0.45)
-        for k in range(-30, 31, 12):   # light from the door
-            mid.line(cx, gy - 10, cx + k, gy + 30, shade((240, 200, 110), 0.25))
-        mid.rect(cx - 5, gy - 16, cx + 5, gy, (230, 190, 100))
-        banner(mid, 40, 40, crest, pole, cloth, glow=(160, 130, 60))
+            mid.disc(cx + math.cos(a) * 6, gy - 44 + math.sin(a) * 6, 2.5, shade(cols[k % 4], 0.8))
+        mid.disc(cx, gy - 44, 3, gold)
+        mid.glow(cx, gy - 44, 30, gold, 0.4)
+        for x in (cx - 26, cx + 20):                                     # pointed windows of the nave
+            window(mid, x, gy - 30, 6, 12, shade(gold, 0.85), shade(stone, 0.6))
+            mid.put(x + 2, gy - 32, shade(stone, 0.6))
+            mid.put(x + 3, gy - 32, shade(stone, 0.6))
+        door(mid, cx - 6, gy, 12, 18, (70, 48, 30), shade(stone, 0.6), lit=(235, 200, 110))
+        for k in range(-30, 31, 10):                                     # light from the door
+            mid.line(cx, gy, cx + k, gy + 30, shade(gold, 0.22))
+        banner(mid, 36, 40, crest, pole, cloth, glow=(160, 130, 60))
         ground(front, fy, near, 11, grass=shade(near, 1.3))
         for x in range(6, FRONTW, 40):
             grave(front, x, fy, shade(near, 1.5), cross=True)
@@ -463,21 +605,28 @@ def scene(sub):
             front.line(x + 20, fy, x + 26, fy - 18, (50, 40, 30))   # arrows stuck in the ground
             front.rect(x + 25, fy - 20, x + 27, fy - 18, (200, 200, 200))
     elif sub == "heavy":
-        moon(sky, 190, 26, 10, halo=(90, 100, 60))
+        moon(sky, 200, 26, 10, halo=(90, 100, 60))
         ridge(sky, 86, 14, 0.035, farther, 16)
-        mid.rect(30, gy - 46, 62, gy, far)   # a stone watchtower with a heavy crossbow
-        for x in range(28, 64, 6):
-            mid.rect(x, gy - 50, x + 3, gy - 46, far)
-        mid.rect(40, gy - 38, 44, gy - 34, (230, 170, 80))
-        mid.glow(42, gy - 36, 8, (230, 160, 60), 0.4)
-        mid.line(48, gy - 52, 78, gy - 60, (70, 50, 30), 2)
-        mid.line(60, gy - 64, 66, gy - 48, (70, 50, 30), 2)
-        oak(mid, 210, gy, 16, far, mix(far, (20, 50, 20), 0.4))
         ridge(mid, gy, 2, 0.06, far, 17)
+        stone = mix(hor, (96, 96, 84), 0.45)
+        tile = mix(hor, (70, 52, 40), 0.5)
+        lamp = (230, 170, 80)
+        # a stone watchtower with a heavy crossbow on its platform
+        stone_wall(mid, 30, gy - 48, 62, gy, stone, r)
+        for x in range(28, 64, 6):
+            mid.rect(x, gy - 53, x + 3, gy - 49, stone)
+        mid.rect(28, gy - 49, 64, gy - 48, shade(stone, 1.3))
+        window(mid, 42, gy - 38, 5, 7, lamp, shade(stone, 0.6))
+        window(mid, 42, gy - 22, 5, 6, shade(lamp, 0.8), shade(stone, 0.6))
+        door(mid, 41, gy, 8, 11, (70, 48, 30), shade(stone, 0.6))
+        mid.line(48, gy - 55, 78, gy - 62, (80, 58, 36), 2)
+        mid.line(62, gy - 66, 68, gy - 50, (80, 58, 36), 2)
+        mid.line(60, gy - 64, 76, gy - 60, (200, 200, 200))
+        oak(mid, 212, gy, 16, far, mix(far, (20, 50, 20), 0.4))
         banner(mid, 116, 34, crest, pole, cloth)
         ground(front, fy, near, 18, grass=shade(near, 1.3))
         for x in range(0, FRONTW, 50):
-            front.rect(x + 8, fy - 8, x + 16, fy, (58, 42, 28))   # crates of bolts
+            front.rect(x + 8, fy - 8, x + 16, fy, (58, 42, 28))
             front.rect(x + 8, fy - 8, x + 16, fy - 8, (90, 66, 40))
     elif sub == "bolter":
         moon(sky, 120, 22, 9, halo=(80, 90, 90))
@@ -536,22 +685,35 @@ def scene(sub):
         wall_crest(mid, 122, gy - 42, crest, shade(far, 1.5))
         ground(front, fy, near, 28, grass=shade(near, 1.2))
     elif sub == "medic":
-        moon(sky, 70, 26, 9, halo=(70, 120, 110))
+        moon(sky, 50, 26, 9, halo=(70, 120, 110))
         ridge(sky, 92, 10, 0.03, farther, 30)
-        ridge(mid, gy, 3, 0.05, far, 31)
-        mid.rect(170, gy - 28, 210, gy, far)   # a field hospital tent
-        mid.poly([(166, gy - 28), (214, gy - 28), (190, gy - 46)], far)
-        mid.rect(186, gy - 40, 194, gy - 32, shade((220, 60, 50), 0.55))
-        mid.rect(188, gy - 42, 192, gy - 30, shade((220, 60, 50), 0.55))
-        mid.rect(186, gy - 16, 194, gy, (210, 190, 120))
-        mid.glow(190, gy - 8, 16, (220, 200, 120), 0.4)
-        mid.disc(60, gy - 6, 8, shade(far, 1.4))   # a healing well
-        mid.rect(53, gy - 6, 67, gy, shade(far, 1.4))
-        mid.rect(56, gy - 7, 64, gy - 6, (90, 200, 160))
-        mid.glow(60, gy - 8, 14, (80, 220, 160), 0.5)
-        banner(mid, 110, 34, crest, pole, cloth)
+        ridge(mid, gy, 2, 0.05, far, 31)
+        plaster = mix(hor, (130, 130, 118), 0.45)
+        beam = (44, 34, 26)
+        stone = mix(hor, (96, 100, 96), 0.45)
+        tile = mix(hor, (90, 54, 44), 0.5)
+        warm = (230, 210, 140)
+        # the infirmary: stone base, timbered walls, a red cross over the door
+        stone_wall(mid, 150, gy - 8, 230, gy, stone, r)
+        timber_wall(mid, 150, gy - 36, 230, gy - 9, plaster, beam, r)
+        roof(mid, 150, 230, gy - 37, 22, tile, r)
+        door(mid, 184, gy, 10, 16, (70, 48, 30), beam, lit=warm)
+        mid.rect(186, gy - 31, 192, gy - 29, (190, 50, 44))
+        mid.rect(188, gy - 33, 190, gy - 27, (190, 50, 44))
+        for x in (158, 170, 204, 216):
+            window(mid, x, gy - 26, 6, 8, warm, beam)
+        window(mid, 188, gy - 50, 4, 5, shade(warm, 0.8), beam, cross=False)
+        chimney(mid, 214, gy - 48, 12, shade(stone, 0.9), r, smoke=shade(far, 1.3))
+        # the healing well with its little roof
+        stone_wall(mid, 50, gy - 6, 70, gy, stone, r)
+        mid.rect(51, gy - 7, 69, gy - 6, (90, 200, 160))
+        mid.rect(52, gy - 22, 53, gy - 7, beam)
+        mid.rect(67, gy - 22, 68, gy - 7, beam)
+        roof(mid, 52, 68, gy - 22, 8, tile, r, overhang=2)
+        mid.glow(60, gy - 8, 16, (80, 220, 160), 0.5)
+        banner(mid, 104, 34, crest, pole, cloth)
         ground(front, fy, near, 32, grass=shade(near, 1.5))
-        for x in range(0, FRONTW, 4):   # herbs and flowers
+        for x in range(0, FRONTW, 4):
             if r.random() < 0.5:
                 h = r.randrange(2, 6)
                 front.line(x, fy, x, fy - h, shade((70, 140, 60), 0.6))
@@ -577,18 +739,29 @@ def scene(sub):
         banner(mid, cx - 14, 30, crest, pole, cloth, glow=shade(acc, 0.5))
         ground(front, fy, near, 35, grass=shade(near, 1.3))
     elif sub == "gunner":
-        moon(sky, 50, 24, 9, halo=(90, 80, 60))
+        moon(sky, 44, 24, 9, halo=(90, 80, 60))
         ridge(sky, 90, 10, 0.03, farther, 36)
-        mid.rect(140, gy - 26, 220, gy, far)   # a workshop
-        mid.poly([(136, gy - 26), (224, gy - 26), (200, gy - 38), (160, gy - 38)], far)
-        mid.rect(206, gy - 50, 212, gy - 30, far)   # chimney
-        for x in (150, 170, 190):
-            mid.rect(x, gy - 18, x + 8, gy - 10, (210, 170, 90))
-        mid.glow(180, gy - 14, 26, (220, 150, 60), 0.35)
-        for x in (30, 90):   # turrets
-            mid.rect(x, gy - 10, x + 12, gy, shade(far, 1.3))
-            mid.rect(x + 2, gy - 18, x + 10, gy - 10, shade(far, 1.4))
-            mid.line(x + 10, gy - 14, x + 24, gy - 19, shade(acc, 0.4), 2)
+        ridge(mid, gy, 2, 0.05, far, 38)
+        brick = mix(hor, (120, 70, 50), 0.45)
+        tile = mix(hor, (64, 64, 70), 0.5)
+        lamp = (230, 180, 100)
+        # the workshop: brick, a saw-tooth roof with skylights, a big gear on the front
+        stone_wall(mid, 132, gy - 30, 226, gy, brick, r)
+        for k in range(3):
+            x0 = 132 + k * 32
+            mid.poly([(x0, gy - 30), (x0 + 32, gy - 30), (x0 + 32, gy - 46)], tile)
+            mid.rect(x0 + 28, gy - 44, x0 + 31, gy - 32, shade(lamp, 0.7))
+        mid.rect(130, gy - 31, 228, gy - 30, shade(brick, 0.6))
+        door(mid, 166, gy, 24, 20, (60, 46, 34), shade(brick, 0.6), lit=lamp)   # the big gate, open
+        for x in (140, 202, 214):
+            window(mid, x, gy - 22, 6, 8, lamp, shade(brick, 0.6))
+        gear(mid, 178, gy - 38, 6, shade(tile, 1.4), 9)
+        chimney(mid, 216, gy - 46, 18, shade(brick, 0.85), r, smoke=shade(far, 1.25))
+        for x in (34, 84):                                               # turrets on their posts
+            mid.rect(x + 4, gy - 8, x + 8, gy, shade(far, 1.3))
+            mid.rect(x, gy - 16, x + 12, gy - 8, shade(tile, 1.2))
+            mid.rect(x + 2, gy - 14, x + 4, gy - 12, (230, 100, 60))
+            mid.line(x + 12, gy - 13, x + 24, gy - 17, shade(acc, 0.45), 2)
         banner(mid, 100, 30, crest, pole, cloth)
         ground(front, fy, near, 37, grass=None)
         for x in range(10, FRONTW, 60):
@@ -632,20 +805,54 @@ def scene(sub):
         for x in range(0, FRONTW, 16):   # rubble
             front.rect(x, fy - r.randrange(1, 4), x + r.randrange(2, 6), fy, shade(near, 1.5))
     elif sub == "alchemist":
-        moon(sky, 180, 24, 9, c=(200, 230, 170), halo=(80, 140, 60))
+        moon(sky, 196, 24, 9, c=(200, 230, 170), halo=(80, 140, 60))
         ridge(sky, 92, 10, 0.03, farther, 45)
-        mid.rect(20, gy - 40, 120, gy, far)   # a lab tower
-        mid.poly([(16, gy - 40), (124, gy - 40), (70, gy - 62)], far)
-        for x in (36, 64, 92):
-            mid.rect(x, gy - 30, x + 8, gy - 20, (130, 220, 100))
-            mid.glow(x + 4, gy - 25, 10, (100, 230, 80), 0.35)
-        for k, x in enumerate((150, 172, 196)):
-            flask(mid, x, gy - 1, (90, 70, 50), shade([(120, 240, 100), (200, 90, 220), (240, 180, 60)][k], 0.7),
-                  shade((180, 210, 220), 0.5))
-        cauldron(mid, 226, gy, shade(far, 1.4), (110, 230, 90))
-        mid.glow(226, gy - 9, 14, (100, 230, 80), 0.5)
-        banner(mid, 126, 32, crest, pole, cloth)
+        ridge(mid, gy, 2, 0.05, far, 44)
+        stone = mix(hor, (92, 96, 84), 0.45)
+        plaster = mix(hor, (120, 116, 92), 0.45)
+        beam = (40, 30, 22)
+        tile = mix(hor, (62, 82, 46), 0.55)
+        green = (130, 235, 100)
+        # the house: stone below, half-timbered upper floor jutting out, a mossy gable roof
+        stone_wall(mid, 26, gy - 20, 88, gy, stone, r)
+        timber_wall(mid, 23, gy - 38, 91, gy - 21, plaster, beam, r)
+        mid.rect(22, gy - 21, 92, gy - 20, beam)
+        roof(mid, 23, 91, gy - 39, 22, tile, r)
+        window(mid, 33, gy - 15, 6, 7, green, beam)
+        window(mid, 71, gy - 15, 6, 7, green, beam)
+        door(mid, 52, gy, 8, 12, (70, 48, 30), shade(stone, 0.7))
+        mid.rect(48, gy - 16, 64, gy - 15, beam)                       # a sign above the door
+        flask(mid, 56, gy - 18, (90, 70, 50), (120, 230, 90), (150, 170, 170))
+        for x in (30, 52, 74):
+            window(mid, x, gy - 33, 5, 6, shade(green, 0.85), beam)
+        mid.disc(57, gy - 48, 4, beam)
+        mid.disc(57, gy - 48, 3, shade(green, 0.9))
+        mid.glow(57, gy - 48, 10, green, 0.35)
+        chimney(mid, 76, gy - 50, 14, shade(stone, 0.9), r, smoke=mix(far, (90, 150, 80), 0.35))
+        # the tower with its observatory cone and a brass star
+        stone_wall(mid, 92, gy - 62, 108, gy, shade(stone, 0.95), r, light_left=False)
+        window(mid, 98, gy - 50, 4, 8, green, beam, cross=False)
+        window(mid, 98, gy - 28, 4, 6, shade(green, 0.8), beam, cross=False)
+        cone(mid, 100, gy - 63, 11, 22, tile)
+        mid.put(100, gy - 91, (240, 210, 120))
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            mid.put(100 + dx, gy - 91 + dy, (200, 170, 90))
+        # outside: a table with flasks, a bubbling cauldron, herbs
+        mid.rect(150, gy - 8, 186, gy - 7, (70, 50, 32))
+        mid.rect(152, gy - 7, 153, gy, (50, 36, 24))
+        mid.rect(183, gy - 7, 184, gy, (50, 36, 24))
+        for k, x in enumerate((156, 166, 178)):
+            flask(mid, x, gy - 9, (90, 70, 50), shade([(120, 240, 100), (200, 90, 220), (240, 180, 60)][k], 0.75),
+                  shade((180, 210, 220), 0.55))
+        cauldron(mid, 214, gy, shade(stone, 0.8), (110, 230, 90))
+        mid.glow(214, gy - 9, 16, (100, 230, 80), 0.5)
+        mid.glow(214, gy + 1, 8, (240, 120, 40), 0.5)                  # the fire under it
+        banner(mid, 118, 30, crest, pole, cloth)
         ground(front, fy, near, 46, grass=shade(near, 1.3))
+        for x in range(0, FRONTW, 5):                                  # herbs
+            if r.random() < 0.45:
+                h = r.randrange(2, 6)
+                front.line(x, fy, x, fy - h, shade((70, 120, 50), 0.55))
     elif sub == "tamer":
         moon(sky, 130, 32, 16, halo=(110, 120, 130))
         ridge(sky, 90, 10, 0.03, farther, 48)
@@ -660,36 +867,65 @@ def scene(sub):
     elif sub == "golemsmith":
         moon(sky, 40, 24, 9, halo=(100, 70, 50))
         ridge(sky, 90, 12, 0.03, farther, 51)
-        mid.rect(130, gy - 30, 230, gy, far)   # a forge hall
-        mid.rect(140, gy - 56, 150, gy - 30, far)
-        mid.rect(150, gy - 20, 210, gy, (40, 22, 14))
-        mid.glow(180, gy - 10, 34, (240, 120, 40), 0.6)
-        gx = 180   # a golem frame on a scaffold
-        mid.rect(gx - 8, gy - 26, gx + 8, gy - 8, shade((170, 160, 150), 0.45))
-        mid.rect(gx - 4, gy - 32, gx + 4, gy - 26, shade((170, 160, 150), 0.45))
-        mid.rect(gx - 13, gy - 24, gx - 9, gy - 10, shade((170, 160, 150), 0.42))
-        mid.rect(gx + 9, gy - 24, gx + 13, gy - 10, shade((170, 160, 150), 0.42))
-        mid.put(gx - 2, gy - 29, (240, 140, 60))
-        mid.put(gx + 2, gy - 29, (240, 140, 60))
-        for x in (40, 70):   # anvils
-            mid.rect(x, gy - 6, x + 10, gy - 4, shade(far, 1.5))
-            mid.rect(x + 3, gy - 4, x + 7, gy, shade(far, 1.5))
-        banner(mid, 96, 34, crest, pole, cloth)
+        ridge(mid, gy, 2, 0.05, far, 53)
+        stone = mix(hor, (96, 88, 82), 0.45)
+        tile = mix(hor, (58, 52, 50), 0.5)
+        fire = (245, 130, 50)
+        # the forge hall: a wide stone front, a great arch open to the fire, two chimneys
+        stone_wall(mid, 128, gy - 40, 236, gy, stone, r)
+        roof(mid, 128, 236, gy - 41, 18, tile, r)
+        mid.rect(156, gy - 30, 208, gy, (34, 20, 12))
+        for x in range(156, 209):                                        # the arch
+            top = gy - 30 - int(math.sqrt(max(0, 26 ** 2 - (x - 182) ** 2)) * 0.25)
+            mid.rect(x, top, x, gy - 30, (34, 20, 12))
+        mid.glow(182, gy - 10, 40, fire, 0.6)
+        gx = 182                                                         # a golem frame on the scaffold
+        iron = shade((170, 160, 150), 0.55)
+        mid.rect(gx - 8, gy - 26, gx + 8, gy - 8, iron)
+        mid.rect(gx - 4, gy - 32, gx + 4, gy - 26, iron)
+        mid.rect(gx - 13, gy - 24, gx - 9, gy - 10, shade(iron, 0.9))
+        mid.rect(gx + 9, gy - 24, gx + 13, gy - 10, shade(iron, 0.9))
+        mid.rect(gx - 6, gy - 8, gx - 3, gy, shade(iron, 0.9))
+        mid.rect(gx + 3, gy - 8, gx + 6, gy, shade(iron, 0.9))
+        mid.put(gx - 2, gy - 29, fire)
+        mid.put(gx + 2, gy - 29, fire)
+        for x in (gx - 18, gx + 17):                                     # scaffold poles
+            mid.rect(x, gy - 34, x + 1, gy, (70, 50, 32))
+        mid.rect(gx - 18, gy - 34, gx + 18, gy - 33, (70, 50, 32))
+        for x in (136, 216):
+            window(mid, x, gy - 26, 6, 8, fire, shade(stone, 0.6))
+        chimney(mid, 140, gy - 56, 20, shade(stone, 0.85), r, smoke=shade(far, 1.3))
+        chimney(mid, 222, gy - 56, 24, shade(stone, 0.85), r, smoke=shade(far, 1.3))
+        for x in (40, 70):                                               # anvils
+            mid.rect(x, gy - 6, x + 10, gy - 4, shade(far, 1.6))
+            mid.rect(x + 3, gy - 4, x + 7, gy, shade(far, 1.6))
+        banner(mid, 92, 34, crest, pole, cloth)
         ground(front, fy, near, 52)
     elif sub == "necromancer":
         moon(sky, 70, 26, 12, c=(200, 190, 220), halo=(110, 70, 160))
         ridge(sky, 92, 10, 0.03, farther, 54)
         ridge(mid, gy, 3, 0.05, far, 55)
+        stone = mix(hor, (96, 90, 108), 0.45)
+        purple = (170, 100, 240)
         for k in range(10):
-            grave(mid, 10 + k * 26 + r.randrange(-4, 5), gy, shade(far, 1.5), cross=k % 3 == 0)
-        dead_tree(mid, 220, gy, 34, far, r)
-        mid.rect(100, gy - 34, 124, gy, far)   # a crypt
-        mid.poly([(96, gy - 34), (128, gy - 34), (112, gy - 46)], far)
-        mid.rect(108, gy - 14, 116, gy, (120, 70, 180))
-        mid.glow(112, gy - 8, 18, (150, 90, 220), 0.5)
-        banner(mid, 150, 30, crest, pole, cloth)
+            grave(mid, 10 + k * 26 + r.randrange(-4, 5), gy, shade(far, 1.6), cross=k % 3 == 0)
+        dead_tree(mid, 226, gy, 34, far, r)
+        # the mausoleum: steps, four columns, a pediment with a skull, the purple door
+        stone_wall(mid, 92, gy - 34, 136, gy - 4, stone, r)
+        mid.rect(88, gy - 3, 140, gy, shade(stone, 1.1))
+        mid.rect(86, gy - 1, 142, gy, shade(stone, 1.2))
+        for x in (94, 104, 122, 132):
+            mid.rect(x, gy - 32, x + 2, gy - 4, shade(stone, 1.25))
+            mid.rect(x - 1, gy - 33, x + 3, gy - 32, shade(stone, 1.35))
+        mid.poly([(88, gy - 34), (140, gy - 34), (114, gy - 48)], shade(stone, 0.95))
+        mid.rect(88, gy - 35, 140, gy - 34, shade(stone, 1.3))
+        mid.rect(112, gy - 43, 116, gy - 39, (190, 186, 170))
+        mid.put(113, gy - 41, (30, 20, 30))
+        mid.put(115, gy - 41, (30, 20, 30))
+        door(mid, 109, gy - 4, 10, 18, (40, 30, 40), shade(stone, 0.6), lit=purple)
+        banner(mid, 156, 30, crest, pole, cloth)
         ground(front, fy, near, 56)
-        for x in range(0, FRONTW, 34):   # bones
+        for x in range(0, FRONTW, 34):
             front.rect(x, fy - 1, x + 5, fy - 1, (150, 146, 130))
             front.put(x, fy - 2, (150, 146, 130))
             front.put(x + 5, fy - 2, (150, 146, 130))
