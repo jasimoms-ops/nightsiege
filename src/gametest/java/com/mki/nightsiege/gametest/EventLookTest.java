@@ -1969,6 +1969,15 @@ public class EventLookTest implements FabricClientGameTest {
         int top = -6;
         int rooms = 2;
         int cz = 20 + 43 * rooms + 38;   // the arena's middle (ExpeditionLayout.arenaCenter)
+        for (com.mki.nightsiege.core.ExpeditionKind k : kinds) {
+            java.util.List<String> missing = new java.util.ArrayList<>();
+            for (String id : k.allBlocks()) {
+                if (!net.minecraft.core.registries.BuiltInRegistries.BLOCK.containsKey(net.minecraft.resources.Identifier.withDefaultNamespace(id))) {
+                    missing.add(id);
+                }
+            }
+            System.out.println("[Night Siege test] dungeon palette " + k.id() + ": " + k.allBlocks().size() + " blocks, missing " + missing);
+        }
         int[] floors = new int[kinds.length + 1];
         for (int i = 0; i <= kinds.length; i++) {
             int cx = bx + i * 72;
@@ -2137,8 +2146,21 @@ public class EventLookTest implements FabricClientGameTest {
                         + Math.round(mob.getHealth()) + "/" + Math.round(mob.getMaxHealth()) + " at " + mob.blockPosition());
             }
         });
+        context.waitTicks(90);   // his entrance (3 s, untouchable) is over
+        context.takeScreenshot("dungeon_fight_champion2");
         final int[] pointsBefore = new int[1];
         onServer(context, (player, manager) -> pointsBefore[0] = manager.save().skillsOf(player.getUUID().toString()).points());
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            for (net.minecraft.world.entity.Mob mob : manager.expeditions().testMobs(level)) {
+                if (mob.entityTags().contains(com.mki.nightsiege.game.Expeditions.CHAMPION_TAG)) {
+                    mob.invulnerableTime = 0;
+                    mob.hurtServer(level, level.damageSources().playerAttack(player), mob.getMaxHealth() * 0.6f);   // phase 2
+                }
+            }
+        });
+        context.waitTicks(30);
+        context.takeScreenshot("dungeon_fight_phase2");
         killDungeonMobs(context, "champion");
         context.waitTicks(25);
         onServer(context, (player, manager) -> {

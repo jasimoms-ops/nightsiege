@@ -14,7 +14,6 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.AreaEffectCloud;
-import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LightningBolt;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.phys.Vec3;
@@ -179,10 +178,13 @@ final class ChampionBrains {
             case ILLAGER_KEEP -> {
                 if (which == 0) {
                     // Lightning through the shield: 8 % that no shield stops.
-                    LightningBolt bolt = new LightningBolt(EntityType.LIGHTNING_BOLT, level);
-                    bolt.snapTo(target.getX(), target.getY(), target.getZ());
-                    bolt.setVisualOnly(true);
-                    level.addFreshEntity(bolt);
+                    LightningBolt bolt = net.minecraft.world.entity.EntityTypes.LIGHTNING_BOLT.create(level,
+                            net.minecraft.world.entity.EntitySpawnReason.TRIGGERED);
+                    if (bolt != null) {
+                        bolt.setPos(target.getX(), target.getY(), target.getZ());
+                        bolt.setVisualOnly(true);
+                        level.addFreshEntity(bolt);
+                    }
                     float amount = PercentDamage.amount(target, 8.0, siegeLevel, cfg, 1.0);
                     target.invulnerableTime = 0;
                     target.hurtServer(level, level.damageSources().magic(), amount);
