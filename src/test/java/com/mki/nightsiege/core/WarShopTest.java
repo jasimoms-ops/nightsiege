@@ -58,6 +58,7 @@ class WarShopTest {
                 // A normal night of the same kind in gold, without the share.
                 int perWave = SiegeMath.mobsPerBatch(level, players, cfg, perPlayer, cfg.maxLiveMobs);
                 double night = WarShop.nightWaves(level, cfg) * perWave * cfg.warGoldPerMob
+                        + WarShop.SAPPER_PRICE * WarShop.nightSappers(level, cfg)
                         + WarShop.MACHINE_PRICE * SiegeMachineKind.countFor(level) * cfg.warMachineShare
                         + WarShop.BOSS_PRICE * cfg.warBossShare;
                 assertTrue(gold <= Math.max(10, Math.round(night)), "share below one: level " + level);

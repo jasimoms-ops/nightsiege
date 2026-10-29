@@ -7529,7 +7529,7 @@ public class EventLookTest implements FabricClientGameTest {
         game.getServer().runCommand("tp @p %d.5 %d %d.5 0 0".formatted(cx, cy, cz - 30));
         context.waitTicks(20);
         BlockPos core = new BlockPos(cx, cy, cz + 5);
-        final int[] keep = new int[9];
+        final int[] keep = new int[10];
         final java.util.List<com.mki.nightsiege.game.CoreRecord> oldCores = new java.util.ArrayList<>();
         onServer(context, (player, manager) -> {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
@@ -7550,6 +7550,8 @@ public class EventLookTest implements FabricClientGameTest {
             keep[6] = cfg.warBossFromWave;
             keep[7] = cfg.warForceSeconds;
             keep[8] = cfg.nightPhantoms;
+            keep[9] = cfg.sapperFromLevel;
+            cfg.sapperFromLevel = 1;
             cfg.warPrepSeconds = 12;
             cfg.warWaveSeconds = 40;
             cfg.warWaves = 2;
@@ -7616,9 +7618,12 @@ public class EventLookTest implements FabricClientGameTest {
                     + " bar=" + manager.bossBarText());
             // Purchases in the build-up: squads yes (they come with wave 1), machines and cards not yet.
             net.minecraft.server.MinecraftServer server = player.level().getServer();
+            manager.warLeader().testAddGold(150);   // enough to try the machine, the boss and a card later
             System.out.println("[Night Siege test] war buy prep: zombies=" + manager.warLeader().testBuy(server, "zombies", 0)
                     + " skelette=" + manager.warLeader().testBuy(server, "skelette", 0)
                     + " creeper=" + manager.warLeader().testBuy(server, "creeper", 1)
+                    + " ladders=" + manager.warLeader().testBuy(server, "leitertraeger", 0)
+                    + " sapper=" + manager.warLeader().testBuy(server, "sprengmeister", 0)
                     + " machine=" + manager.warLeader().testBuy(server, "machine.trebuchet", 0)
                     + " card=" + manager.warLeader().testBuy(server, "card.nebel", 0)
                     + " gold=" + manager.warLeader().testGold() + " squads=" + manager.warLeader().testSquads());
@@ -7659,6 +7664,8 @@ public class EventLookTest implements FabricClientGameTest {
             net.minecraft.server.MinecraftServer server = player.level().getServer();
             int first = manager.warLeader().testFirstSquad();
             manager.warLeader().testOrder(server, first, "target", core.getX() + 0.5, core.getZ() - 12 + 0.5);
+            manager.warLeader().testOrder(server, 4, "target", core.getX() + 0.5, core.getZ() - 12 + 0.5);   // the ladder carriers
+            manager.warLeader().testOrder(server, 5, "target", core.getX() + 0.5, core.getZ() - 12 + 0.5);   // the sapper
             System.out.println("[Night Siege test] war order target #" + first + ": " + manager.warLeader().testSquads()
                     + " raid=" + manager.raid().states() + " machines=" + manager.machines().standing());
             // The boss: one of the three offered.
@@ -7676,7 +7683,7 @@ public class EventLookTest implements FabricClientGameTest {
         onServer(context, (player, manager) -> {
             manager.warLeader().testStormAll();
             System.out.println("[Night Siege test] war storm: " + manager.warLeader().testSquads() + " raid=" + manager.raid().states()
-                    + " boss=" + manager.bosses().spawned() + " bar=" + manager.bossBarText());
+                    + " boss=" + manager.bosses().spawned() + " machines=" + manager.machines().standing() + " bar=" + manager.bossBarText());
         });
         context.runOnClient(client -> {
             if (client.gui.screen() instanceof com.mki.nightsiege.client.WarLeaderScreen w) {
@@ -7686,6 +7693,11 @@ public class EventLookTest implements FabricClientGameTest {
         });
         context.waitTicks(100);
         context.takeScreenshot("war_05_battle");
+        context.waitTicks(200);
+        onServer(context, (player, manager) -> System.out.println("[Night Siege test] war ways in: breaches=" + manager.besiegerBreaches()
+                + " ladders=" + com.mki.nightsiege.game.TempBlocks.all((net.minecraft.server.level.ServerLevel) player.level(),
+                net.minecraft.world.level.block.Blocks.LADDER).size() + " raid=" + manager.raid().states()
+                + " entries=" + manager.raid().entries().size() + " squads=" + manager.warLeader().testSquads()));
         context.runOnClient(client -> {
             if (client.gui.screen() instanceof com.mki.nightsiege.client.WarLeaderScreen w) {
                 w.testMenu(true);
@@ -7782,6 +7794,7 @@ public class EventLookTest implements FabricClientGameTest {
             cfg.warMachineFromWave = keep[5];
             cfg.warBossFromWave = keep[6];
             cfg.warForceSeconds = keep[7];
+            cfg.sapperFromLevel = keep[9];
             level.setBlock(core, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
             manager.save().cores.clear();
             manager.save().cores.addAll(oldCores);

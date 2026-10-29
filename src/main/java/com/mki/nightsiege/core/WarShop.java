@@ -64,6 +64,9 @@ public final class WarShop {
         }
     }
 
+    /** The squad of the sapper creeper (its price is also what a night's sapper is worth). */
+    public static final String SAPPER = "sprengmeister";
+    public static final int SAPPER_PRICE = 5;
     public static final int MACHINE_PRICE = 15;
     public static final int BOSS_PRICE = 40;
     /** How many bosses the leader may choose from in a round. */
@@ -83,7 +86,11 @@ public final class WarShop {
             new Squad("tunnelgraeber", 4, List.of("nightsiege:tunneler"), 3, true),
             new Squad("standarte", 4, List.of("nightsiege:standard_bearer"), 5, true),
             new Squad("eisenritter", 5, List.of("nightsiege:iron_knight"), 8, false),
-            new Squad("kameltrupp", 5, List.of("minecraft:camel_husk+minecraft:husk+minecraft:parched"), 5, false));
+            new Squad("kameltrupp", 5, List.of("minecraft:camel_husk+minecraft:husk+minecraft:parched"), 5, false),
+            // The ways over the wall (a normal night brings them along with its waves): ladder carriers
+            // and a sapper creeper; they set to work when their squad attacks.
+            new Squad("leitertraeger", 4, times("minecraft:zombie", 2), 1, false),
+            new Squad(SAPPER, 5, List.of("minecraft:creeper"), 3, false));
 
     private WarShop() {
     }
@@ -116,9 +123,19 @@ public final class WarShop {
         int perWave = SiegeMath.mobsPerBatch(level, Math.max(1, players), cfg, perPlayer, maxLive);
         double mobs = (double) nightWaves(level, cfg) * perWave;
         double worth = mobs * cfg.warGoldPerMob
+                + SAPPER_PRICE * nightSappers(level, cfg)
                 + MACHINE_PRICE * SiegeMachineKind.countFor(level) * cfg.warMachineShare
                 + BOSS_PRICE * cfg.warBossShare;
         return (int) Math.max(10, Math.round(worth * cfg.warGoldShare));
+    }
+
+    /** Sapper creepers a normal night of this level sends (they come on top of its waves). */
+    public static double nightSappers(int level, SiegeConfig cfg) {
+        if (cfg.sapperFromLevel <= 0 || level < cfg.sapperFromLevel) {
+            return 0;
+        }
+        double perWave = Math.min(1.0 + Math.max(0.0, cfg.sappersPerLevel) * level, Math.max(1, cfg.sapperMaxPerWave));
+        return Math.min(perWave * nightWaves(level, cfg), 4.0 * Math.max(1, cfg.sapperHolesPerSide));
     }
 
     /** The gold of one wave (1-based) out of the round's: the last wave brings half again as much. */

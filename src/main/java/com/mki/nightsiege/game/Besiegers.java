@@ -208,6 +208,52 @@ public final class Besiegers {
         }
     }
 
+    /**
+     * The war leader's ladder carriers (Kriegsführer, 29 October 2026): these zombies take their
+     * ladders to the wall on the side of the angle, now.
+     */
+    public void carriers(BlockPos anchor, List<Mob> mobs, double angle, long now) {
+        int side = Double.isNaN(angle) ? -1 : Math.floorMod((int) Math.round(angle / (Math.PI / 2)), 4);
+        for (Mob mob : mobs) {
+            if (mob instanceof Zombie zombie && !zombie.isBaby() && !mob.isPassenger() && !jobs.containsKey(mob.getUUID())
+                    && !Foes.hasRole(mob)) {
+                mob.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.LADDER, 8));
+                mob.setDropChance(EquipmentSlot.MAINHAND, 0.0f);
+                mob.addTag(CARRIER);
+                mob.setCustomName(Component.translatable("nightsiege.mob.ladderman"));
+                mob.setTarget(null);
+                jobs.put(mob.getUUID(), new Job(false, side >= 0 ? side : sideOf(anchor, mob.position()), now));
+                BUSY.add(mob.getUUID());
+            }
+        }
+    }
+
+    /**
+     * The war leader's sapper (Kriegsführer): this creeper blows a hole in the wall on the side of
+     * the angle (or the freest side). False when every side has its holes tonight.
+     */
+    public boolean sapper(Mob creeper, BlockPos anchor, BaseScan base, SiegeConfig cfg, Random random, double angle, long now) {
+        if (creeper == null || anchor == null || base == null || jobs.containsKey(creeper.getUUID())) {
+            return false;
+        }
+        int wanted = Double.isNaN(angle) ? -1 : Math.floorMod((int) Math.round(angle / (Math.PI / 2)), 4);
+        int side = wanted >= 0 && sideHasRoom(cfg, wanted) ? wanted : freestSide(cfg, random);
+        if (side < 0) {
+            return false;
+        }
+        Vec3 approach = weakSpot(anchor, base, side, sapperSpots.computeIfAbsent(side, k -> new ArrayList<>()), random);
+        creeper.addTag(SAPPER);
+        creeper.setCustomName(Component.translatable("nightsiege.mob.sapper"));
+        creeper.setTarget(null);
+        Job job = new Job(true, side, now);
+        job.approach = approach;
+        jobs.put(creeper.getUUID(), job);
+        BUSY.add(creeper.getUUID());
+        sapperOnWay.merge(side, 1, Integer::sum);
+        sapperSpots.get(side).add(approach);
+        return true;
+    }
+
     /** The side the wave attacks (the raid's plan), or -1. Sappers go there while it has room. */
     private int preferredSide = -1;
 

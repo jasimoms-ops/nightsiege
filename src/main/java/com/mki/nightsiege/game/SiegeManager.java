@@ -302,6 +302,10 @@ public final class SiegeManager {
         return bossHost;
     }
 
+    Besiegers besiegers() {
+        return besiegers;
+    }
+
     int liveCount() {
         return liveMobs.size();
     }
@@ -3356,7 +3360,9 @@ public final class SiegeManager {
             copy = data;
         }
         if (save.records != null) {
-            copy.records = save.records.view(player.getUUID().toString());
+            com.mki.nightsiege.core.NightRecords.View view = save.records.view(player.getUUID().toString());
+            copy.records = view;
+            safe("Kriegsführer-Rekorde", () -> warLeader.recordLines(view.war, player));
         }
         copy.openRecords = open;
         return copy;

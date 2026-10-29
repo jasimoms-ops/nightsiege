@@ -84,6 +84,8 @@ public class WarLeaderScreen extends Screen {
     private int point;
     private int squad = -1;
     private String tab = "squad";
+    /** The first row of the shop shown (the list scrolls when the screen is low). */
+    private int shopFirst;
     private boolean menu;
     private boolean confirmGiveUp;
     private String notice = "";
@@ -352,6 +354,10 @@ public class WarLeaderScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        if (inView() && mouseX >= shopX() && mouseX < shopX() + SHOP_W && mouseY >= shopTop() && mouseY < shopBottom()) {
+            shopFirst = Math.max(0, Math.min(Math.max(0, shown().size() - shopRows()), shopFirst - (int) Math.signum(scrollY)));
+            return true;
+        }
         if (inView()) {
             zoomH = Math.max(MIN_HEIGHT, Math.min(maxZoom(), zoomH - scrollY * 3.0));
         }
@@ -389,6 +395,7 @@ public class WarLeaderScreen extends Screen {
         if (k == GLFW.GLFW_KEY_TAB) {
             int i = List.of(TABS).indexOf(tab);
             tab = TABS[(i + 1) % TABS.length];
+            shopFirst = 0;
             return true;
         }
         if (k >= GLFW.GLFW_KEY_1 && k <= GLFW.GLFW_KEY_9 && k - GLFW.GLFW_KEY_1 < data.points.size()) {
@@ -587,6 +594,11 @@ public class WarLeaderScreen extends Screen {
         return Math.min(this.width - 2 * (SHOP_W + 14), 260);
     }
 
+    /** Rows of the shop that fit. */
+    private int shopRows() {
+        return Math.max(3, (shopBottom() - 24 - (shopTop() + 30)) / ROW_H);
+    }
+
     private List<WarLeaderData.Item> shown() {
         List<WarLeaderData.Item> out = new ArrayList<>();
         for (WarLeaderData.Item it : data.shop) {
@@ -607,6 +619,7 @@ public class WarLeaderScreen extends Screen {
             int i = (int) ((x - x0) / tabW);
             if (i >= 0 && i < TABS.length) {
                 tab = TABS[i];
+                shopFirst = 0;
                 click(1.1f);
             }
             return true;
@@ -614,8 +627,8 @@ public class WarLeaderScreen extends Screen {
         int rowTop = shopTop() + 30;
         int i = (int) ((y - rowTop) / ROW_H);
         List<WarLeaderData.Item> items = shown();
-        if (y >= rowTop && i >= 0 && i < items.size()) {
-            WarLeaderData.Item it = items.get(i);
+        if (y >= rowTop && i >= 0 && i < shopRows() && shopFirst + i < items.size()) {
+            WarLeaderData.Item it = items.get(shopFirst + i);
             if ("ok".equals(it.state)) {
                 send("war:buy:" + it.id + ":" + point);
                 click(1.5f);
@@ -980,10 +993,16 @@ public class WarLeaderScreen extends Screen {
         small(gui, font, at, x0 + 4, top + 17, LIGHT, 0.7f);
         int y = top + 30;
         WarLeaderData.Item over = null;
-        for (WarLeaderData.Item it : shown()) {
-            if (y + ROW_H > bottom - 24) {
-                break;
-            }
+        List<WarLeaderData.Item> list = shown();
+        shopFirst = Math.max(0, Math.min(shopFirst, Math.max(0, list.size() - shopRows())));
+        if (shopFirst > 0) {
+            small(gui, font, "▲", x0 + SHOP_W - 10, top + 17, GREY, 0.7f);
+        }
+        if (shopFirst + shopRows() < list.size()) {
+            small(gui, font, "▼ " + (list.size() - shopFirst - shopRows()), x0 + SHOP_W - 22, bottom - 30, GREY, 0.7f);
+        }
+        for (int n = shopFirst; n < list.size() && n < shopFirst + shopRows(); n++) {
+            WarLeaderData.Item it = list.get(n);
             boolean ok = "ok".equals(it.state);
             boolean hot = mouseX >= x0 && mouseX < x0 + SHOP_W && mouseY >= y && mouseY < y + ROW_H;
             if (hot) {
@@ -1021,7 +1040,9 @@ public class WarLeaderScreen extends Screen {
     private String describe(WarLeaderData.Item it) {
         String state = "ok".equals(it.state) ? "" : " – " + stateText(it);
         return switch (it.group) {
-            case "squad" -> tr(it.ownWill ? "nightsiege.war.about_own" : "nightsiege.war.about_squad", it.count, it.from) + state;
+            case "squad" -> tr("leitertraeger".equals(it.id) ? "nightsiege.war.about_ladder"
+                    : "sprengmeister".equals(it.id) ? "nightsiege.war.about_sapper"
+                    : it.ownWill ? "nightsiege.war.about_own" : "nightsiege.war.about_squad", it.count, it.from) + state;
             case "machine" -> tr("nightsiege.war.about_machine", it.from, data.machinesMax) + state;
             case "boss" -> tr("nightsiege.war.about_boss", it.from) + state;
             default -> tr("nightsiege.war.card_about." + it.id.substring(it.id.indexOf('.') + 1)) + state;
@@ -1168,6 +1189,8 @@ public class WarLeaderScreen extends Screen {
             case "standarte" -> new ItemStack(Items.BANNER.red());
             case "eisenritter" -> new ItemStack(Items.IRON_CHESTPLATE);
             case "kameltrupp" -> new ItemStack(Items.SAND);
+            case "leitertraeger" -> new ItemStack(Items.LADDER);
+            case "sprengmeister" -> new ItemStack(Items.GUNPOWDER);
             case "machine.trebuchet" -> new ItemStack(Items.OAK_LOG);
             case "machine.mortar" -> new ItemStack(Items.TNT);
             case "machine.ballista" -> new ItemStack(Items.CROSSBOW);

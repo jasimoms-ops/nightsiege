@@ -1061,9 +1061,24 @@ public final class WarLeader {
 
     private void attack(Squad s, double angle, double x, double z) {
         RaidPlan raid = m.raid();
+        long now = world.getGameTime();
+        if ("leitertraeger".equals(s.item) && base != null) {
+            // The ladder carriers take their ladders to the wall on that side (then they climb with the rest).
+            List<Mob> carriers = new ArrayList<>();
+            for (UUID id : s.members) {
+                if (world.getEntity(id) instanceof Mob mob) {
+                    carriers.add(mob);
+                }
+            }
+            m.besiegers().carriers(core, carriers, angle, now);
+        }
         for (UUID id : s.members) {
             if (!(world.getEntity(id) instanceof Mob mob) || mob.isPassenger()) {
                 continue;
+            }
+            if (WarShop.SAPPER.equals(s.item) && base != null && !Besiegers.busy(mob)
+                    && m.besiegers().sapper(mob, core, base, m.config(), random, angle, now)) {
+                continue;   // the sapper goes for the wall on its own
             }
             raid.release(mob);
             if (raid.active() && RaidPlan.eligible(mob)) {
@@ -1348,7 +1363,7 @@ public final class WarLeader {
             if (sq == null) {
                 return null;
             }
-            if (sq.fromLevel() > level) {
+            if (fromLevel(sq) > level) {
                 return "nightsiege.war.level";
             }
             if (m.liveCount() + pendingMonsters() + sq.size() > m.maxLive()) {
@@ -1384,6 +1399,11 @@ public final class WarLeader {
         if (file != null) {
             file.ausgegeben += price;
         }
+    }
+
+    /** From which level a squad comes (the sapper as in the nights: from sapperFromLevel). */
+    private int fromLevel(WarShop.Squad sq) {
+        return WarShop.SAPPER.equals(sq.id()) ? Math.max(1, m.config().sapperFromLevel) : sq.fromLevel();
     }
 
     private static int priceOf(String item) {
@@ -1424,12 +1444,12 @@ public final class WarLeader {
     // ------------------------------------------------------------------ flares
 
     private void tickFlares(long now) {
-        if (flares.isEmpty() || now % 2 != 0) {
+        if (flares.isEmpty()) {
             return;
         }
         List<ServerPlayer> viewers = world.players();
-        DustParticleOptions red = new DustParticleOptions(0xFF2A1A, 3.0f);
-        DustParticleOptions glow = new DustParticleOptions(0xFF5A3A, 2.2f);
+        DustParticleOptions red = new DustParticleOptions(0xFF2A1A, 4.0f);
+        DustParticleOptions glow = new DustParticleOptions(0xFF5A3A, 3.0f);
         Iterator<Flare> it = flares.iterator();
         while (it.hasNext()) {
             Flare f = it.next();
@@ -1449,14 +1469,25 @@ public final class WarLeader {
             }
             for (ServerPlayer p : viewers) {
                 if (t < 24) {
+                    if (t % 2 != 0) {
+                        continue;
+                    }
                     double y = f.at().getY() + 2 + t * 1.0;
-                    world.sendParticles(p, red, true, true, x, y, z, 3, 0.05, 0.3, 0.05, 0.0);
-                    world.sendParticles(p, ParticleTypes.FIREWORK, true, true, x, y - 0.6, z, 2, 0.05, 0.2, 0.05, 0.02);
-                } else if (t < 26) {
-                    world.sendParticles(p, red, true, true, x, top, z, 60, 2.5, 2.0, 2.5, 0.0);
-                    world.sendParticles(p, ParticleTypes.FIREWORK, true, true, x, top, z, 40, 1.5, 1.5, 1.5, 0.15);
+                    world.sendParticles(p, red, true, true, x, y, z, 4, 0.08, 0.3, 0.08, 0.0);
+                    world.sendParticles(p, ParticleTypes.FIREWORK, true, true, x, y - 0.6, z, 3, 0.05, 0.2, 0.05, 0.02);
+                } else if (t < 28) {
+                    world.sendParticles(p, red, true, true, x, top, z, 90, 3.0, 2.0, 3.0, 0.0);
+                    world.sendParticles(p, ParticleTypes.FIREWORK, true, true, x, top, z, 60, 1.8, 1.5, 1.8, 0.2);
                 } else if (t % 10 == 0) {
-                    world.sendParticles(p, glow, true, true, x, top - (t - 26) * 0.05, z, 8, 0.8, 0.4, 0.8, 0.0);
+                    world.sendParticles(p, glow, true, true, x, top - (t - 28) * 0.05, z, 10, 1.0, 0.4, 1.0, 0.0);
+                }
+                // Until the squad is there: a red ring on the ground where it will stand.
+                if (t % 6 == 0) {
+                    for (int i = 0; i < 16; i++) {
+                        double a = Math.PI * 2 * i / 16;
+                        world.sendParticles(p, red, true, true, x + Math.cos(a) * 3.0, f.at().getY() + 0.3, z + Math.sin(a) * 3.0,
+                                1, 0.0, 0.0, 0.0, 0.0);
+                    }
                 }
             }
             if (t == 24) {
@@ -1607,6 +1638,22 @@ public final class WarLeader {
         flares.clear();
         card = null;
         file = null;
+    }
+
+    /** The records page (★ Rekorde): the war rounds' tally, the fastest win, the viewer's own. */
+    void recordLines(List<String> out, ServerPlayer viewer) {
+        SiegeSave.WarRecords rec = m.save().war;
+        if (rec == null || rec.rounds <= 0) {
+            return;
+        }
+        out.add(line("nightsiege.records.war_title", rec.rounds, rec.leaderWins, rec.defenderWins));
+        if (rec.fastestSeconds >= 0) {
+            out.add(line("nightsiege.records.war_fastest", clock(rec.fastestSeconds), rec.fastestWave, rec.fastestBy, rec.fastestDefenders));
+        }
+        SiegeSave.WarPlayer mine = viewer == null ? null : rec.players.get(viewer.getUUID().toString());
+        if (mine != null) {
+            out.add(line("nightsiege.records.war_mine", mine.leaderWins, mine.leaderLosses, mine.defenderWins, mine.defenderLosses));
+        }
     }
 
     /** "key\u0001arg\u0001arg": a line the client translates. */
@@ -1839,9 +1886,9 @@ public final class WarLeader {
         for (WarShop.Squad sq : WarShop.SQUADS) {
             WarLeaderData.Item it = item(sq.id(), "squad", sq.price());
             it.count = sq.size();
-            it.from = sq.fromLevel();
+            it.from = fromLevel(sq);
             it.ownWill = sq.ownWill();
-            it.state = sq.fromLevel() > level ? "level" : live + sq.size() > m.maxLive() ? "full" : gold < sq.price() ? "poor" : "ok";
+            it.state = fromLevel(sq) > level ? "level" : live + sq.size() > m.maxLive() ? "full" : gold < sq.price() ? "poor" : "ok";
             d.shop.add(it);
         }
         for (SiegeMachineKind kind : SiegeMachineKind.values()) {
@@ -2019,13 +2066,20 @@ public final class WarLeader {
                 buy(server, "card." + c.id(), main, now);
             }
         }
+        // Every wave a way over the wall first, as a normal night brings it: ladder carriers and sappers.
+        buy(server, "leitertraeger", main, now);
+        if (level >= Math.max(1, cfg.sapperFromLevel)) {
+            buy(server, WarShop.SAPPER, main, now);
+            buy(server, WarShop.SAPPER, flank, now);
+        }
         String[] weights = {"zombies", "zombies", "zombies", "skelette", "skelette", "spinnen", "spinnen", "creeper", "creeper",
-                "wiedergaenger", "wiedergaenger", "axtillager", "enterhaken", "tunnelgraeber", "standarte", "eisenritter", "kameltrupp"};
+                "wiedergaenger", "wiedergaenger", "axtillager", "enterhaken", "tunnelgraeber", "standarte", "eisenritter", "kameltrupp",
+                "leitertraeger", WarShop.SAPPER};
         int tries = 0;
         while (gold >= 3 && tries++ < 60) {
             String id = weights[random.nextInt(weights.length)];
             WarShop.Squad sq = WarShop.squad(id);
-            if (sq == null || sq.fromLevel() > level || sq.price() > gold) {
+            if (sq == null || fromLevel(sq) > level || sq.price() > gold) {
                 continue;
             }
             String why = buy(server, id, random.nextDouble() < 0.65 ? main : flank, now);
@@ -2086,6 +2140,11 @@ public final class WarLeader {
 
     public int testGold() {
         return gold;
+    }
+
+    /** Tests: gold for the leader (to try the machines, the boss and the cards). */
+    public void testAddGold(int amount) {
+        gold += amount;
     }
 
     public int testRoundGold() {
