@@ -1277,6 +1277,9 @@ public final class SiegeManager {
     /** Siege monsters killed this night, spawned this night, and the kills the night asks for. */
     private int nightKills;
     private int spawnedTotal;
+    /** Monsters of the night gone without being slain (quotaSkipsVanished, 29.10.). */
+    private int vanishedTotal;
+    private final Set<UUID> slainNightMobs = new HashSet<>();
     private int killQuota;
     /**
      * The kill goal moves with what can still come (Simon, 26 October 2026: keep the sum, but
@@ -1666,6 +1669,8 @@ public final class SiegeManager {
         });
         nightKills = 0;
         spawnedTotal = 0;
+        vanishedTotal = 0;
+        slainNightMobs.clear();
         shownRequired = -1;
         goalDown = null;
         goalUp = null;
@@ -2318,7 +2323,9 @@ public final class SiegeManager {
 
         @Override
         public void forget(UUID id) {
-            liveMobs.remove(id);
+            if (liveMobs.remove(id)) {
+                noteVanished(id);
+            }
             digger.forget(id);
             ladders.forget(id);
         }
@@ -2786,7 +2793,8 @@ public final class SiegeManager {
      * waves small, and then fewer kills are needed).
      */
     public int killsRequired() {
-        return SiegeMath.killsRequired(config.killQuotaShare, killQuota, spawnedTotal,
+        int counted = config.quotaSkipsVanished ? spawnedTotal - vanishedTotal : spawnedTotal;
+        return SiegeMath.killsRequired(config.killQuotaShare, killQuota, Math.max(0, counted),
                 plannedWaves() - wavesStarted, wantedPerWave());
     }
 
@@ -2927,6 +2935,16 @@ public final class SiegeManager {
         }
     }
 
+    /** A monster of the night left the field: slain, or gone without a kill (blown up, fled …). */
+    private void noteVanished(UUID id) {
+        if (!slainNightMobs.remove(id)) {
+            vanishedTotal++;
+            if (config.quotaSkipsVanished) {
+                goalDown = Component.translatable("nightsiege.bar.goal_vanished");
+            }
+        }
+    }
+
     private void pruneMobs() {
         Iterator<UUID> it = liveMobs.iterator();
         while (it.hasNext()) {
@@ -2936,6 +2954,7 @@ public final class SiegeManager {
                 digger.forget(id);
                 ladders.forget(id);
                 it.remove();
+                noteVanished(id);
             }
         }
     }
@@ -3752,6 +3771,7 @@ public final class SiegeManager {
         }
         if (active && entity instanceof Mob killed && liveMobs.contains(killed.getUUID())) {
             nightKills++;
+            slainNightMobs.add(killed.getUUID());
             safe("Statistik", () -> stats.mobDied(killed, source));
             // A monster of the night can be raised by a summoner of the dead; souls for those near.
             safe("Seelen", () -> companions.onMonsterDeath(killed, false));

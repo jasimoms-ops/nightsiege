@@ -706,6 +706,12 @@ public class SiegeConfig {
     public double specialNightMobMultiplier = 1.3;
     /** Share of the night's monsters the defenders must kill; a held night below it comes again. 0 turns it off. */
     public double killQuotaShare = 0.6;
+    /**
+     * The kill goal leaves out monsters gone without being slain: blown-up creepers, a fleeing
+     * nemesis, … (team sim 29.10.: alone, half of all spawned monsters went that way, and the 60 %
+     * goal could hardly be reached). Off: every spawned monster counts, as before.
+     */
+    public boolean quotaSkipsVanished = false;
     /** Balancing targets for /nightsiege balance: share of nights won, of held nights with the kill goal, deaths per night, allowed spread of subclass damage. */
     public double targetWinRate = 0.75;
     // ---------------- Balancing on the server (no new client needed) ----------------
