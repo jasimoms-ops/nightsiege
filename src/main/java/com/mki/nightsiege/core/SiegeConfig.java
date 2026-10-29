@@ -289,6 +289,12 @@ public class SiegeConfig {
      */
     public double meleeLifesteal = 0.08;
     /**
+     * Life steal on every melee hit, per subclass (Simon 29.10., 01:45: the axe fighter, the blademaster
+     * and the paladin "back to on hit, not on kill"): this share of each hit's damage heals. These
+     * subclasses no longer heal from kills.
+     */
+    public Map<String, Double> hitLifesteal = new LinkedHashMap<>(Map.of("axe", 0.06, "blademaster", 0.08, "paladin", 0.08));
+    /**
      * The blademaster has no life steal on his hits; a kill in the middle of a combo heals him by
      * this share of the monster's maximum life instead.
      * @deprecated no longer read (balance update, 26 October 2026): use {@code skillTweaks.w_combo.values.killheal}.
@@ -659,6 +665,12 @@ public class SiegeConfig {
     /** Factor on the healing and barriers a player of this subclass gives. */
     public double healingFactor(String subclass) {
         return factor(subclassHealing, subclass);
+    }
+
+    /** Life steal on each melee hit of this subclass (0 = none, it heals from kills as before). */
+    public double hitLifesteal(String subclass) {
+        Double v = hitLifesteal == null || subclass == null ? null : hitLifesteal.get(subclass);
+        return v == null ? 0.0 : v;
     }
 
     /** Low levels: the share of monster damage a player takes on this level (see lowLevelDamageTaken). */
@@ -1180,6 +1192,10 @@ public class SiegeConfig {
             meleeLifesteal = 0.08;
         }
         meleeLifesteal = Math.min(1.0, Math.max(0.0, meleeLifesteal));
+        if (hitLifesteal == null) {
+            hitLifesteal = new LinkedHashMap<>(Map.of("axe", 0.06, "blademaster", 0.08, "paladin", 0.08));
+        }
+        hitLifesteal.replaceAll((k, v) -> v == null || Double.isNaN(v) ? 0.0 : Math.min(1.0, Math.max(0.0, v)));
         if (antiHealMobs == null) {
             antiHealMobs = new java.util.ArrayList<>(java.util.List.of("minecraft:spider", "minecraft:cave_spider", "minecraft:witch"));
         }
