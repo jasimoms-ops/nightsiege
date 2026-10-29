@@ -1598,13 +1598,13 @@ public class EventLookTest implements FabricClientGameTest {
         camera(game, cx + 6.5, cy + 13, cz + 30.5, cx + 0.5, cy + 1, cz + 0.5);
         context.waitTicks(40);
         context.takeScreenshot("camp_night");
-        context.runOnClient(client -> hud(client, true));
 
-        // The forecourt (content update): the war drum, the fire, the benches.
+        // The forecourt (content update): the war drum, the fire, the benches, the gate behind.
         game.getServer().runCommand("time set 1500");
-        camera(game, cx - 9.5, cy + 6, cz + 30.5, cx + 1.5, cy + 0.5, cz + 18.5);
+        camera(game, cx + 0.5, cy + 9, cz + 34.5, cx + 0.5, cy, cz + 18.5);
         context.waitTicks(40);
         context.takeScreenshot("camp_forecourt");
+        context.runOnClient(client -> hud(client, true));
 
         // Walking in without the drum: nothing happens (the gate is no way in any more).
         game.getServer().runCommand("gamemode survival @p");
@@ -1625,6 +1625,10 @@ public class EventLookTest implements FabricClientGameTest {
             com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
             if (!own.hasClass()) {
                 own.unlockClass(com.mki.nightsiege.core.SkillClass.WARRIOR);
+                String key = own.profileFor(com.mki.nightsiege.core.SkillClass.WARRIOR);
+                if (key != null) {
+                    own.switchToProfile(key);
+                }
             }
             BlockPos drum = manager.camp().testDrum();
             boolean struck = manager.camp().onDrum(player, drum);
