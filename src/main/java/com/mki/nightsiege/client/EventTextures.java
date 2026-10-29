@@ -25,8 +25,9 @@ public final class EventTextures {
     private static final Map<String, Map<Identifier, Identifier>> SWAPS = new HashMap<>();
     /** The boss folders (boss_grave_king …): their swaps, by folder. */
     private static final Map<String, Map<Identifier, Identifier>> BOSS_SWAPS = new HashMap<>();
-    /** Boss folders whose zombie or skeleton also wears clothes. */
-    private static final java.util.Set<String> BOSS_CLOTHED = java.util.Set.of("boss_grave_king", "boss_bone_lich");
+    /** Boss and champion folders whose zombie or skeleton also wears clothes. */
+    private static final java.util.Set<String> BOSS_CLOTHED = java.util.Set.of("boss_grave_king", "boss_bone_lich",
+            "champion_stone_crypt", "champion_desert_crypt", "champion_deep_cellar", "champion_basalt_forge");
     /** The folder of the boss being drawn right now, or null (set around each monster's submit). */
     private static String bossFolder;
     /** Our event texture → its glow map, where there is one. */
@@ -49,8 +50,8 @@ public final class EventTextures {
         }
         for (Map.Entry<String, java.util.List<String>> e : EventGearShapes.TEXTURES.entrySet()) {
             String folder = e.getKey();
-            if (!folder.startsWith("boss_")) {
-                continue;
+            if (!folder.startsWith("boss_") && !folder.startsWith("champion_")) {
+                continue;   // the dungeon champions (29 October 2026) wear their look like a boss
             }
             Map<Identifier, Identifier> map = new HashMap<>();
             for (String entry : e.getValue()) {
@@ -66,9 +67,10 @@ public final class EventTextures {
         }
     }
 
-    /** The monster drawn next wears this boss look ("grave_king" …), or none (null). */
+    /** The monster drawn next wears this boss look ("grave_king", "champion_stone_crypt" …), or none (null). */
     public static void renderingBoss(String look) {
-        String folder = look == null ? null : "boss_" + (look.equals("warlord_rider") ? "warlord" : look);
+        String folder = look == null ? null : look.startsWith("champion_") ? look
+                : "boss_" + (look.equals("warlord_rider") ? "warlord" : look);
         bossFolder = folder != null && BOSS_SWAPS.containsKey(folder) ? folder : null;
     }
 

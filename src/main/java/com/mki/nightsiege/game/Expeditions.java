@@ -803,8 +803,14 @@ public final class Expeditions {
         } else {
             Entity c = level.getEntity(champion);
             if (!(c instanceof LivingEntity l) || !l.isAlive()) {
+                if (c != null) {
+                    BossService.dropChampionLook(server, c.getId());
+                }
                 win(server, level, rec);
                 return;
+            }
+            if (now % 20 == 0) {
+                BossService.championLook(c, kind);   // again after a restart (new network id)
             }
         }
         updateBar(level, rec);
@@ -879,12 +885,8 @@ public final class Expeditions {
         }
         double factor = ExpeditionKind.championLife(lvl) * (1.0 + 0.5 * Math.max(0, fighters.size() - 1));
         double health = mob.getMaxHealth() * factor;
-        BossService.set(mob, Attributes.MAX_HEALTH, health);
-        mob.setHealth((float) health);
-        BossService.set(mob, Attributes.SCALE, 1.35);
-        BossService.set(mob, Attributes.KNOCKBACK_RESISTANCE, 0.8);
-        mob.setCustomName(Component.translatable(kind.championKey()).withStyle(ChatFormatting.GOLD));
-        mob.setCustomNameVisible(true);
+        // In the look of his dungeon (Simon, 29 October 2026: "Dungeon-Wächter").
+        WardenNight.dress(mob, kind, health);
         champion = mob.getUUID();
         m.stats().dungeonProgress(rec.cleared, wave, true);
         level.sendParticles(ParticleTypes.EXPLOSION_EMITTER, p.arenaCenter.getX() + 0.5, p.arenaCenter.getY() + 1,
@@ -953,6 +955,7 @@ public final class Expeditions {
             for (UUID id : allMobs()) {
                 Entity e = level.getEntity(id);
                 if (e != null) {
+                    BossService.dropChampionLook(level.getServer(), e.getId());
                     e.discard();
                 }
                 LIVE.remove(id);
@@ -1049,7 +1052,7 @@ public final class Expeditions {
         }
         ExpeditionKind kind = kind(rec);
         if (champion != null && level.getEntity(champion) instanceof LivingEntity c) {
-            bar.setName(Component.translatable(kind.championKey()));
+            bar.setName(WardenNight.name(kind));
             bar.setColor(BossEvent.BossBarColor.PURPLE);
             bar.setProgress((float) Math.max(0.0, Math.min(1.0, c.getHealth() / c.getMaxHealth())));
         } else if (arenaClosed) {

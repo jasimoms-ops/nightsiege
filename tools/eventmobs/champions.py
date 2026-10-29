@@ -274,7 +274,7 @@ def spore(p):
 def dark_plate(p):
     c = ramp([(0, hexc('0a080e')), (0.5, hexc('1c1826')), (1, hexc('34304a'))], 0.3 + 0.4 * p.rng.random())
     if side(p) and p.j == 0:
-        c = hexc('4a3a6a')   # a violet rim
+        c = hexc('b08a2a')   # a gold rim, like the lines on the shadow fragment
     return lit(p, c), None
 
 
@@ -292,6 +292,12 @@ def old_iron(p):
     c = ramp([(0, hexc('34363a')), (1, hexc('6a6c70'))], 0.3 + 0.5 * p.rng.random())
     if p.rng.random() < 0.2:
         c = hexc('5a3420')
+    return c, None
+
+
+def brass(p):
+    """Old brass: the keys of the last cell."""
+    c = ramp([(0, hexc('5a4214')), (0.6, hexc('a8822a')), (1, hexc('e0c060'))], 0.3 + 0.5 * p.rng.random())
     return c, None
 
 
@@ -368,7 +374,7 @@ for _name, _fn in list(globals().items()):
     if _name in ('grave_stone', 'rust_iron', 'chain_rust', 'chain_iron', 'wax_red', 'flame_red', 'gold_lapis', 'nemes',
                  'collar', 'keep_steel', 'rod_storm', 'storm_banner', 'fur', 'frost_cape', 'moss_strand', 'mushroom',
                  'stem', 'swamp_lantern', 'spore', 'dark_plate', 'shadow_visor', 'old_iron', 'amethyst', 'ember_plate',
-                 'ember_visor', 'hot_iron', 'anvil_iron', 'anvil_top', 'crying', 'leather', 'basalt_pillar'):
+                 'ember_visor', 'hot_iron', 'anvil_iron', 'anvil_top', 'crying', 'leather', 'basalt_pillar', 'brass'):
         materials.MATERIALS[_name] = _fn
 
 
@@ -436,7 +442,6 @@ def keep_lord(f):
         return []
     out = []
     out.append(block('head', (-4.6, -10.8, -4.6), (9, 4, 9), 'keep_steel', key='helm'))
-    out.append(block('head', (-0.5, -6.8, -4.9), (1, 3, 1), 'keep_steel', key='nose'))
     out.append(block('head', (-1.0, -11.8, -1.0), (2, 1, 2), 'copper', key='knob'))
     out.append(block('head', (-0.5, -15.8, -0.5), (1, 4, 1), 'rod_storm', key='rod'))
     out += sym([block('body', (-6.8, -1.2, -3.4), (4, 3, 7), 'copper', key='pad')])
@@ -505,10 +510,10 @@ def shadow_warden(f):
     out += sym(chain('body', (-5.6, -1.2, 0), (0, 0, -0.5), [(1, 3, 1), (1, 2, 1)], 'dark_plate', name='padsp'))
     # the key ring at his hip and three keys on it
     out.append(block('body', (-4.2, 10.0, -2.4), (9, 1, 5), 'dark_plate', key='belt'))
-    out += ring('body', (-1.5, 11.8, -2.7), 1.2, 8, (1, 1, 1), 'old_iron', name='keyring')
+    out += ring('body', (-1.5, 11.8, -2.7), 1.2, 8, (1, 1, 1), 'brass', name='keyring')
     for k, (x, h) in enumerate(((-2.0, 3), (-0.6, 4))):
-        out.append(block('body', (x - 0.5, 12.8, -2.9), (1, h, 1), 'old_iron', key=f'key{h}'))
-        out.append(block('body', (x, 11.8 + h, -2.9), (1, 1, 1), 'old_iron', key='bit'))
+        out.append(block('body', (x - 0.5, 12.8, -2.9), (1, h, 1), 'brass', key=f'key{h}'))
+        out.append(block('body', (x, 11.8 + h, -2.9), (1, 1, 1), 'brass', key='bit'))
     # shackles with broken chains on his wrists
     out += sym([block('right_arm', (-1.5, 7.0, -1.5), (3, 2, 3), 'old_iron', key='cuff')])
     out += sym([block('right_arm', (-0.5, 9.0, -0.5), (1, 4, 1), 'chain_iron', key='cuffch')])
@@ -599,8 +604,8 @@ def details(tex, family, ev, seed):
     elif ev == 'champion_illager_keep':
         # yellow war paint like a lightning bolt under the eyes, a brass hem on the coat
         for x, y in skins.EYES.get(family, [])[:4:3]:
-            for dx, dy in ((0, 1), (1, 2), (0, 3)):
-                p.put(x + dx, y + dy, hexc('ffe24a'), glow=hexc('c08a0e') if dy < 3 else None)
+            for dx, dy in ((0, 1), (1, 2)):
+                p.put(x + dx, y + dy, hexc('ffe24a'), glow=hexc('c08a0e') if dy == 1 else None, k=0.85)
         p.edge(['body', 'robe'], sides, -1, hexc('b08a2a'))
         p.edge(['body'], ('front',), 0, hexc('b08a2a'))
         p.lines(['robe'], ('front', 'back'), 1, 7, hexc('d8b02a'), k=0.7, dirs=((1, 1), (-1, 1), (0, 1)))
@@ -706,7 +711,7 @@ def clothes(img, ev, how, seed):
             u, v, w, h = body[face]
             for x in range(u, u + w):
                 if px[x, v + h - 1][3] > 0:
-                    px[x, v + h - 1] = (122, 58, 184, 255)
+                    px[x, v + h - 1] = (176, 138, 42, 255)
     elif how == 'apron':
         # only a leather apron: the chest and the front of the legs
         keep = {body['front'], leg['front']}
@@ -757,6 +762,7 @@ def build(van, out_root, atlas):
 # ---------------------------------------------------------------- preview sheets
 
 def scene(ev, folder):
+    """The champion's preview scene; returns (scene, index of the first gear quad)."""
     import render
     import atlas
     path, name, fam = CHAMPIONS[ev][0]
@@ -769,7 +775,58 @@ def scene(ev, folder):
     gtex = load(f'gear_{fam}.png')
     gglow = load(f'gear_{fam}_glow.png')
     atlas.pack(boxes, gtex.size[0])
-    return render.mob_scene(fam, skin, glow, outer, boxes, gtex, gglow)
+    sc = render.mob_scene(fam, skin, glow, outer, (), None, None)
+    start = len(sc.quads)
+    parts = bones(fam)
+    for b in boxes:
+        xf = parts[b.bone].then(b.pivot, b.rot)
+        sc.cube(gtex, gglow, xf, b.pos, b.size, (b.u, b.v), 0.0, b.mirror)
+    return sc, start
+
+
+def bones(family):
+    import render
+    from geom import FAMILIES as GF
+    fam = GF[family]
+    parts = {}
+    for name, spec in fam['bones'].items():
+        pivot, rot, cubes = spec[:3]
+        parent = parts[spec[3]] if len(spec) > 3 else render.Xf()
+        parts[name] = parent.then(pivot, fam['pose'].get(name, rot))
+    parts.setdefault('hat', parts.get('head'))
+    return parts
+
+
+def draw(sc_start, yaw, pitch, scale, night=False, size=(44, 56), origin=(0.5, 0.45), bias=1.0):
+    """Like Scene.render, but gear lying flat on the skin is drawn over it (the painter's sort
+    alone mixes two parallel faces 0.5 px apart into a grid; the game has a depth buffer)."""
+    import math
+    from gear import rot_matrix, mm, mv
+    sc, start = sc_start
+    view = mm(rot_matrix(math.radians(pitch), 0, 0), rot_matrix(0, math.radians(yaw), 0))
+    items = []
+    for k, (corners, n, c, g) in enumerate(sc.quads):
+        vn = mv(view, n)
+        if vn[2] >= -1e-6:
+            continue
+        pts = [mv(view, p) for p in corners]
+        depth = sum(p[2] for p in pts) / 4 - (bias if k >= start else 0.0)
+        shade = 0.62 + 0.38 * max(0.0, -vn[2] * 0.6 - vn[1] * 0.5 + 0.15 * vn[0])
+        if night:
+            shade *= 0.32
+        col = [min(255, int(c[i] * shade)) for i in range(3)]
+        if g is not None:
+            col = [min(255, max(col[i], g[i])) for i in range(3)] if night else \
+                  [min(255, int(col[i] * 0.6 + g[i] * 0.5)) for i in range(3)]
+        items.append((depth, pts, tuple(col) + (255,)))
+    items.sort(key=lambda it: -it[0])
+    W, H = int(size[0] * scale), int(size[1] * scale)
+    img = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+    dr = ImageDraw.Draw(img)
+    ox, oy = W * origin[0], H * origin[1]
+    for depth, pts, col in items:
+        dr.polygon([(ox + p[0] * scale, oy + p[1] * scale) for p in pts], fill=col)
+    return img
 
 
 KW = dict(size=(44, 56), origin=(0.5, 0.45))
@@ -786,7 +843,7 @@ def font(size):
 def sheet(ev, folder, out, scale=8):
     """One champion: front and back by day, front by night, with his name."""
     sc = scene(ev, folder)
-    tiles = [sc.render(-28, 12, scale, **KW), sc.render(152, 12, scale, **KW), sc.render(-28, 12, scale, night=True, **KW)]
+    tiles = [draw(sc, -28, 12, scale, **KW), draw(sc, 152, 12, scale, **KW), draw(sc, -28, 12, scale, night=True, **KW)]
     w = sum(t.width for t in tiles) + 40
     h = tiles[0].height + 70
     img = Image.new('RGBA', (w, h), (34, 31, 39, 255))
@@ -807,7 +864,7 @@ def sheet(ev, folder, out, scale=8):
 
 def lineup(folders, out, scale=7):
     """All eight from the front, by day, side by side."""
-    tiles = [(ev, scene(ev, folders[ev]).render(-25, 10, scale, **KW)) for ev in CHAMPIONS]
+    tiles = [(ev, draw(scene(ev, folders[ev]), -25, 10, scale, **KW)) for ev in CHAMPIONS]
     w = sum(t.width for _, t in tiles) + 10 * (len(tiles) + 1)
     h = tiles[0][1].height + 20
     img = Image.new('RGBA', (w, h), (0, 0, 0, 0))

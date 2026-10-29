@@ -513,7 +513,9 @@ public final class BossService {
         }
         StringBuilder json = new StringBuilder("{\"looks\":{");
         boolean first = true;
-        for (Map.Entry<Integer, String> e : looks.entrySet()) {
+        Map<Integer, String> all = new HashMap<>(CHAMPION_LOOKS);
+        all.putAll(looks);
+        for (Map.Entry<Integer, String> e : all.entrySet()) {
             if (!first) {
                 json.append(',');
             }
@@ -530,6 +532,46 @@ public final class BossService {
         }
         for (ServerPlayer p : server.getPlayerList().getPlayers()) {
             syncTo(p);
+        }
+    }
+
+    // ------------------------------------------------------------------ the dungeon champions' looks
+
+    /**
+     * Dungeon champions wearing the look of their dungeon (Simon, 29 October 2026: "Dungeon-Wächter"),
+     * in a dungeon's arena or at the end of a night, by network id. They go to the clients with the
+     * boss looks ("champion_stone_crypt" …, see EventTextures).
+     */
+    private static final Map<Integer, String> CHAMPION_LOOKS = new HashMap<>();
+
+    /** A dungeon champion wears the look of its dungeon on every client. */
+    public static void championLook(Entity mob, com.mki.nightsiege.core.ExpeditionKind kind) {
+        if (mob == null || kind == null) {
+            return;
+        }
+        String look = "champion_" + kind.id();
+        if (look.equals(CHAMPION_LOOKS.put(mob.getId(), look))) {
+            return;
+        }
+        resync(mob.level().getServer());
+    }
+
+    /** The champion with this network id is gone. */
+    public static void dropChampionLook(MinecraftServer server, int entityId) {
+        if (CHAMPION_LOOKS.remove(entityId) != null) {
+            resync(server);
+        }
+    }
+
+    /** For the tests: the look of the champion with this network id, or null. */
+    public static String championLookOf(int entityId) {
+        return CHAMPION_LOOKS.get(entityId);
+    }
+
+    private static void resync(MinecraftServer server) {
+        SiegeManager m = SiegeManager.get();
+        if (m != null && server != null) {
+            m.bosses().syncAll(server);
         }
     }
 
