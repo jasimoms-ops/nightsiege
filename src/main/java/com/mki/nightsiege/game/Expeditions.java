@@ -135,6 +135,8 @@ public final class Expeditions {
     private long championShownAt = -1L;
     private final Map<UUID, Long> wakeAt = new HashMap<>();
     private boolean roomAwake;
+    /** The ring of light round the dome, lit once round in 3 s when the arena closes. */
+    private long ringAt = -1L;
     private ServerBossEvent bar;
     private int buildRounds;
     /** Attempts lost (every fighter fell) since the server started: the playtest goes on after one. */
@@ -514,6 +516,15 @@ public final class Expeditions {
                 }
             }
             DungeonFx.ambient(level, inside, kind(rec), now);
+        }
+        if (ringAt > 0) {
+            int step = (int) (now - ringAt);
+            if (step > 60) {
+                ringAt = -1L;
+            } else {
+                ExpeditionLayout.Plan p = plan(rec);
+                DungeonFx.ring(level, p.arenaCenter.above(13), step / 60.0);
+            }
         }
         if (round != null && now % 5 == 0) {
             DungeonFx.runes(level, plan(rec).seal, round.ready.size(), round.members.size());
@@ -1397,6 +1408,7 @@ public final class Expeditions {
                     }
                 }
                 DungeonFx.arenaClosed(level, p.arenaGate, inArena, kind);
+                ringAt = now;
                 for (UUID id : fighters) {
                     ServerPlayer player = server.getPlayerList().getPlayer(id);
                     if (player != null) {
@@ -1593,6 +1605,8 @@ public final class Expeditions {
         for (UUID id : fighters) {
             ServerPlayer player = level.getServer().getPlayerList().getPlayer(id);
             if (player != null) {
+                // The lights go out for half a second.
+                player.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.DARKNESS, 25, 0, false, false));
                 player.connection.send(new ClientboundSetTitlesAnimationPacket(10, 50, 10));
                 player.connection.send(new ClientboundSetTitleTextPacket(WardenNight.name(kind)));
                 player.connection.send(new ClientboundSetSubtitleTextPacket(WardenNight.epithet(kind).copy().withStyle(ChatFormatting.GRAY)));

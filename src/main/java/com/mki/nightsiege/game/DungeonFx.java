@@ -144,6 +144,16 @@ final class DungeonFx {
         }
     }
 
+    /** The ring of light round the dome: a flash runs once round (share 0..1 of the way). */
+    static void ring(ServerLevel level, BlockPos top, double share) {
+        double a = share * Math.PI * 2 - Math.PI / 2;
+        for (int k = 0; k < 3; k++) {
+            double b = a - k * 0.05;
+            level.sendParticles(ParticleTypes.END_ROD, top.getX() + 0.5 + Math.cos(b) * 19.5, top.getY(), top.getZ() + 0.5 + Math.sin(b) * 19.5,
+                    4, 0.2, 0.2, 0.2, 0.01);
+        }
+    }
+
     /** The champion's pit glows, a column of his fire rises. */
     static void pit(ServerLevel level, BlockPos pit, ExpeditionKind kind, int step) {
         SimpleParticleType fire = kind.fragment() == com.mki.nightsiege.core.NightFragment.EMBER ? ParticleTypes.FLAME
