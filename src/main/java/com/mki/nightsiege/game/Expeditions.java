@@ -1769,13 +1769,7 @@ public final class Expeditions {
                 break;
             }
         }
-        if (taker != null && fragment != null) {
-            ItemStack stack = new ItemStack(fragment);
-            if (!taker.getInventory().add(stack)) {
-                taker.drop(stack, false);
-            }
-            level.sendParticles(ParticleTypes.TOTEM_OF_UNDYING, taker.getX(), taker.getY() + 1, taker.getZ(), 40, 0.6, 0.8, 0.6, 0.3);
-        }
+        final ServerPlayer fragmentTo = taker;
         // The signal fire goes out: nobody gathers here any more.
         BlockState fire = level.getBlockState(p.fire);
         if (fire.hasProperty(BlockStateProperties.LIT)) {
@@ -1817,6 +1811,15 @@ public final class Expeditions {
             }
         }
         endAll(server, null);
+        // After the own things are back (the kit's stash would take it away again).
+        if (fragmentTo != null && fragment != null) {
+            ItemStack stack = new ItemStack(fragment);
+            if (!fragmentTo.getInventory().add(stack)) {
+                fragmentTo.drop(stack, false);
+            }
+            level.sendParticles(ParticleTypes.TOTEM_OF_UNDYING, fragmentTo.getX(), fragmentTo.getY() + 1, fragmentTo.getZ(),
+                    40, 0.6, 0.8, 0.6, 0.3);
+        }
         m.persist();
     }
 

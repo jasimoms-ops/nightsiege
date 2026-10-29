@@ -1991,8 +1991,21 @@ public class EventLookTest implements FabricClientGameTest {
         int fx = bx + kinds.length * 72;
         int fy = floors[kinds.length];
         final long[] sumBefore = new long[1];
-        onServer(context, (player, manager) -> sumBefore[0] = groundSum((net.minecraft.server.level.ServerLevel) player.level(),
-                fx, bz, cz));
+        final java.util.Map<BlockPos, net.minecraft.world.level.block.state.BlockState> before = new java.util.HashMap<>();
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            sumBefore[0] = groundSum(level, fx, bz, cz);
+            for (int x = fx - 33; x <= fx + 33; x++) {
+                for (int z = bz - 12; z <= bz + cz + 30; z++) {
+                    for (int y = -60; y <= 12; y++) {
+                        net.minecraft.world.level.block.state.BlockState st = level.getBlockState(new BlockPos(x, y, z));
+                        if (!st.isAir()) {
+                            before.put(new BlockPos(x, y, z), st);
+                        }
+                    }
+                }
+            }
+        });
         for (int i = 0; i < kinds.length; i++) {
             final int index = i;
             final int cx = bx + i * 72;
@@ -2191,7 +2204,29 @@ public class EventLookTest implements FabricClientGameTest {
                 + player.blockPosition() + " | " + manager.expeditions().testState()));
         context.waitTicks(200);
         onServer(context, (player, manager) -> {
-            long after = groundSum((net.minecraft.server.level.ServerLevel) player.level(), fx, bz, cz);
+            net.minecraft.server.level.ServerLevel lv = (net.minecraft.server.level.ServerLevel) player.level();
+            long after = groundSum(lv, fx, bz, cz);
+            int diff = 0;
+            StringBuilder sb = new StringBuilder();
+            for (int x = fx - 33; x <= fx + 33; x++) {
+                for (int z = bz - 12; z <= bz + cz + 30; z++) {
+                    for (int y = -60; y <= 12; y++) {
+                        BlockPos at = new BlockPos(x, y, z);
+                        net.minecraft.world.level.block.state.BlockState was = before.getOrDefault(at,
+                                net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
+                        net.minecraft.world.level.block.state.BlockState now = lv.getBlockState(at);
+                        if (was != now) {
+                            if (diff < 12) {
+                                sb.append(' ').append(x - fx).append('/').append(y).append('/').append(z - bz).append(':')
+                                        .append(net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(was.getBlock()).getPath()).append("->")
+                                        .append(net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(now.getBlock()).getPath());
+                            }
+                            diff++;
+                        }
+                    }
+                }
+            }
+            System.out.println("[Night Siege test] dungeon ground diff: " + diff + sb);
             System.out.println("[Night Siege test] dungeon gone: record=" + (manager.save().expedition != null)
                     + " ground before=" + sumBefore[0] + " after=" + after + " same=" + (sumBefore[0] == after)
                     + " | " + manager.expeditions().testState());

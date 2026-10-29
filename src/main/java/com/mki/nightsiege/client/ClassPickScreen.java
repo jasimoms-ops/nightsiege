@@ -536,7 +536,7 @@ public class ClassPickScreen extends Screen {
         int y2 = top + h - 8;
         gui.fill(x, y, x2, y2, LINE);
         gui.fill(x + 1, y + 1, x2 - 1, y2 - 1, BOX_DARK);
-        gui.text(font, font.plainSubstrByWidth(Component.translatable("nightsiege.pick.team").getString(), teamW - 12),
+        gui.text(font, font.plainSubstrByWidth(Component.translatable(data.round ? "nightsiege.pick.round_group" : "nightsiege.pick.team").getString(), teamW - 12),
                 x + 6, y + 6, GOLD, false);
         String sub = data.round ? Component.translatable("nightsiege.pick.round_team", readyCount(), data.team.size()).getString()
                 : data.test ? Component.translatable("nightsiege.pick.test_team").getString()
@@ -575,7 +575,7 @@ public class ClassPickScreen extends Screen {
         }
 
         // The rule and the ready button.
-        wrapped(gui, font, Component.translatable("nightsiege.pick.hint").getString(), x + 6, readyTop + 2, teamW - 12,
+        wrapped(gui, font, Component.translatable(data.round ? "nightsiege.pick.round_hint" : "nightsiege.pick.hint").getString(), x + 6, readyTop + 2, teamW - 12,
                 GREY, 0.7f, 3);
         int bx = teamX + 6;
         int by = top + h - 8 - 26;

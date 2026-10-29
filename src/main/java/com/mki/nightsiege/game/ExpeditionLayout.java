@@ -156,6 +156,7 @@ public final class ExpeditionLayout {
         arena(b, plan, cz);
         b.enclose();
         b.hiddenLight();
+        b.support();
         // The gates: one behind every hall (closed), the arena's (open until the fight).
         for (int i = 0; i < rooms; i++) {
             int ox = OFFSET[i];
@@ -2025,7 +2026,7 @@ public final class ExpeditionLayout {
          * invisible light blocks 2 over the floor every 5 blocks, where there is air.
          */
         void hiddenLight() {
-            BlockState light = Blocks.LIGHT.defaultBlockState().setValue(BlockStateProperties.LEVEL, dim ? 12 : 13);
+            BlockState light = Blocks.LIGHT.defaultBlockState().setValue(BlockStateProperties.LEVEL, dim ? 14 : 13);
             java.util.Set<Long> done = new java.util.HashSet<>();
             for (long[] w : walks) {
                 int x = (int) w[0];
@@ -2042,6 +2043,27 @@ public final class ExpeditionLayout {
                         break;
                     }
                 }
+            }
+        }
+
+        /** Palette rule 10: sand and gravel only on something solid (a cave under the floor would let them fall). */
+        void support() {
+            List<long[]> add = new ArrayList<>();
+            for (Map.Entry<Long, BlockState> e : out.entrySet()) {
+                if (!(e.getValue().getBlock() instanceof net.minecraft.world.level.block.FallingBlock)) {
+                    continue;
+                }
+                long k = e.getKey();
+                int x = (int) (k >>> 24) - 2048;
+                int y = (int) ((k >>> 12) & 0xfff) - 2048;
+                int z = (int) (k & 0xfff) - 2048;
+                BlockState below = out.get(key(x, y - 1, z));
+                if (below == null || !solid(below)) {
+                    add.add(new long[] {x, y - 1, z});
+                }
+            }
+            for (long[] a : add) {
+                put((int) a[0], (int) a[1], (int) a[2], first(Part.BASE));
             }
         }
 
