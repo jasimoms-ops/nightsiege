@@ -7587,16 +7587,16 @@ public class EventLookTest implements FabricClientGameTest {
         context.waitTicks(20);
         // The overview tab, where the button sits (the window opens on the classes for a new player).
         context.runOnClient(client -> {
-            if (client.gui.screen() instanceof com.mki.nightsiege.client.CoreScreen core) {
+            if (client.gui.screen() instanceof com.mki.nightsiege.client.CoreScreen coreScreen) {
                 try {
                     java.lang.reflect.Field tab = com.mki.nightsiege.client.CoreScreen.class.getDeclaredField("activeTab");
                     tab.setAccessible(true);
                     @SuppressWarnings({"unchecked", "rawtypes"})
                     Object stats = Enum.valueOf((Class) tab.getType(), "STATS");
-                    tab.set(core, stats);
+                    tab.set(coreScreen, stats);
                     java.lang.reflect.Method rebuild = net.minecraft.client.gui.screens.Screen.class.getDeclaredMethod("rebuildWidgets");
                     rebuild.setAccessible(true);
-                    rebuild.invoke(core);
+                    rebuild.invoke(coreScreen);
                 } catch (ReflectiveOperationException e) {
                     System.out.println("[Night Siege test] war core tab: " + e);
                 }
