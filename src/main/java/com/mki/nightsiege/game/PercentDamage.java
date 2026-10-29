@@ -21,6 +21,8 @@ public final class PercentDamage {
 
     /** The damage type of the share (data pack: tagged to pass armour and enchantments, no knock-back). */
     public static final ResourceKey<DamageType> TYPE = ResourceKey.create(Registries.DAMAGE_TYPE, ModContent.id("crushing"));
+    /** The same share through a raised shield (the tank breakers, content update 29 October 2026). */
+    public static final ResourceKey<DamageType> THROUGH = ResourceKey.create(Registries.DAMAGE_TYPE, ModContent.id("crushing_through"));
 
     private static final ThreadLocal<Boolean> IN_HIT = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
@@ -55,6 +57,17 @@ public final class PercentDamage {
      */
     public static float hit(ServerLevel level, ServerPlayer player, Entity attacker, Entity direct, double percent,
                             int siegeLevel, SiegeConfig cfg, double factor) {
+        return deal(level, player, attacker, direct, percent, siegeLevel, cfg, factor, TYPE);
+    }
+
+    /** As {@link #hit}, but no shield stops it. */
+    public static float hitThrough(ServerLevel level, ServerPlayer player, Entity attacker, Entity direct, double percent,
+                                   int siegeLevel, SiegeConfig cfg, double factor) {
+        return deal(level, player, attacker, direct, percent, siegeLevel, cfg, factor, THROUGH);
+    }
+
+    private static float deal(ServerLevel level, ServerPlayer player, Entity attacker, Entity direct, double percent,
+                              int siegeLevel, SiegeConfig cfg, double factor, ResourceKey<DamageType> kind) {
         if (level == null || player == null || !player.isAlive() || player.isCreative() || player.isSpectator()) {
             return 0f;
         }
@@ -62,7 +75,7 @@ public final class PercentDamage {
         if (amount <= 0f) {
             return 0f;
         }
-        DamageSource source = source(level, direct == null ? attacker : direct, attacker);
+        DamageSource source = source(level, direct == null ? attacker : direct, attacker, kind);
         IN_HIT.set(Boolean.TRUE);
         try {
             player.invulnerableTime = 0;
@@ -80,12 +93,12 @@ public final class PercentDamage {
 
     /** True for a hit of the share's own type. */
     public static boolean is(DamageSource source) {
-        return source != null && source.is(TYPE);
+        return source != null && (source.is(TYPE) || source.is(THROUGH));
     }
 
-    private static DamageSource source(ServerLevel level, Entity direct, Entity causing) {
+    private static DamageSource source(ServerLevel level, Entity direct, Entity causing, ResourceKey<DamageType> kind) {
         try {
-            Holder<DamageType> type = level.registryAccess().lookupOrThrow(Registries.DAMAGE_TYPE).get(TYPE).orElse(null);
+            Holder<DamageType> type = level.registryAccess().lookupOrThrow(Registries.DAMAGE_TYPE).get(kind).orElse(null);
             if (type != null) {
                 return new DamageSource(type, direct, causing);
             }

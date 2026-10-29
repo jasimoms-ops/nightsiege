@@ -114,7 +114,10 @@ public final class Foes {
         STANDARD_BEARER("standard_bearer", "minecraft:pillager"),
         GRAPPLER("grappler", "minecraft:pillager"),
         IRON_KNIGHT("iron_knight", "minecraft:zombie"),
-        TREASURE_RAIDER("treasure_raider", "minecraft:pillager");
+        TREASURE_RAIDER("treasure_raider", "minecraft:pillager"),
+        // The tank breakers (content update, 29 October 2026): only when a shieldfighter or bulwark plays.
+        BREAKER("breaker", "minecraft:vindicator"),
+        EXECUTIONER("executioner", "minecraft:wither_skeleton");
 
         private final String id;
         private final String base;
@@ -197,6 +200,16 @@ public final class Foes {
 
         /** One crate for every defender of the night (the treasure raider). */
         void awardCrates();
+
+        /** A defender who plays a tank (shieldfighter or bulwark): the tank breakers come for them. */
+        default boolean isTank(ServerPlayer player) {
+            return false;
+        }
+
+        /** The shield-lock of a breaker is halved for this defender ("Fester Griff"). */
+        default boolean firmGrip(ServerPlayer player) {
+            return false;
+        }
     }
 
     /** The running instance (for the static hooks of MobFactory, the damage and the summoner). */
@@ -297,7 +310,8 @@ public final class Foes {
     /** True for kinds that come only a few at a time (never as a theme wave). */
     public static boolean isCapped(String entryId) {
         Role role = roleOf(entryId);
-        return role == Role.TUNNELER || role == Role.STANDARD_BEARER || role == Role.GRAPPLER || role == Role.TREASURE_RAIDER;
+        return role == Role.TUNNELER || role == Role.STANDARD_BEARER || role == Role.GRAPPLER || role == Role.TREASURE_RAIDER
+                || role == Role.BREAKER || role == Role.EXECUTIONER;
     }
 
     // ------------------------------------------------------------------ making one
@@ -355,6 +369,8 @@ public final class Foes {
                     }
                 }
             }
+            case BREAKER -> mob.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.MACE));   // the smith's hammer
+            case EXECUTIONER -> mob.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_AXE));
             case TREASURE_RAIDER -> {
                 mob.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.GOLD_INGOT));
                 mob.setItemSlot(EquipmentSlot.OFFHAND, ItemStack.EMPTY);
@@ -479,6 +495,11 @@ public final class Foes {
         hooksBlocked = 0;
         fallsSaved = 0;
         treasureOutcome = "";
+        executionerNext.clear();
+        breakersTonight = 0;
+        executionersTonight = 0;
+        shieldsBroken = 0;
+        executions = 0;
     }
 
     /** The wave planned for the treasure raider (-1: none tonight). */
@@ -486,11 +507,104 @@ public final class Foes {
         return treasureWave;
     }
 
-    /** A wave has come: maybe the treasure raider with it. */
+    /** A wave has come: maybe the treasure raider with it, and the tank breakers for every tank. */
     public void afterWave(Host host, int wave) {
         if (wave == treasureWave && !treasureCame) {
             spawnTreasure(host);
         }
+        spawnTankBreakers(host);
+    }
+
+    /**
+     * The tank breakers (content update, 29 October 2026): with every wave one breaker per
+     * shieldfighter or bulwark from level 5 on, one executioner per tank from level 10 on.
+     */
+    private void spawnTankBreakers(Host host) {
+        SiegeConfig cfg = host.config();
+        int tanks = 0;
+        for (ServerPlayer p : host.defenders()) {
+            if (host.isTank(p)) {
+                tanks++;
+            }
+        }
+        if (tanks == 0 || host.level() < cfg.breakerFromLevel) {
+            return;
+        }
+        for (int i = 0; i < tanks; i++) {
+            spawnRole(host, Role.BREAKER);
+            if (host.level() >= cfg.executionerFromLevel) {
+                spawnRole(host, Role.EXECUTIONER);
+            }
+        }
+    }
+
+    private void spawnRole(Host host, Role role) {
+        BlockPos spot = outsideSpot(host);
+        Mob mob = spot == null ? null : host.spawn(role.entryId(), spot);
+        if (mob != null) {
+            host.addMob(mob);
+            if (role == Role.BREAKER) {
+                breakersTonight++;
+            } else {
+                executionersTonight++;
+            }
+        }
+    }
+
+    /** For the tank breakers: when the executioner strikes next, per monster. */
+    private final Map<UUID, Long> executionerNext = new HashMap<>();
+    public int breakersTonight;
+    public int executionersTonight;
+    public int shieldsBroken;
+    public int executions;
+
+    /** For the tests and the command: the tank breakers come now (as with a wave). */
+    public void tankBreakersNow(Host host) {
+        spawnTankBreakers(host);
+    }
+
+    /**
+     * After a hit: a breaker's blow on a raised shield goes through it with a share of the max
+     * health and locks the shield (2 s with "Fester Griff", else 4 s).
+     */
+    public void afterHit(Host host, LivingEntity victim, DamageSource source, boolean blocked) {
+        if (!blocked || !(victim instanceof ServerPlayer player) || PercentDamage.inHit()
+                || !(source.getEntity() instanceof Mob attacker) || ROLES.get(attacker.getUUID()) != Role.BREAKER
+                || !(player.level() instanceof ServerLevel level)) {
+            return;
+        }
+        SiegeConfig cfg = host.config();
+        PercentDamage.hitThrough(level, player, attacker, attacker, cfg.breakerPercent, host.level(), cfg, 1.0);
+        int ticks = (int) Math.round(cfg.breakerShieldLockSeconds * 20 * (host.firmGrip(player) ? 0.5 : 1.0));
+        for (ItemStack hand : new ItemStack[]{player.getOffhandItem(), player.getMainHandItem()}) {
+            if (hand.has(DataComponents.BLOCKS_ATTACKS)) {
+                player.getCooldowns().addCooldown(hand, ticks);
+            }
+        }
+        player.stopUsingItem();
+        level.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.SHIELD_BREAK.value(),
+                SoundSource.PLAYERS, 1.0f, 0.8f);
+        level.sendParticles(ParticleTypes.CRIT, player.getX(), player.getY() + 1.2, player.getZ(), 12, 0.4, 0.4, 0.4, 0.2);
+        shieldsBroken++;
+    }
+
+    /** The executioner: every few seconds a blow the shield does not stop, on whom it fights. */
+    private void tickExecutioner(Host host, Mob mob, long now) {
+        if (!(mob.getTarget() instanceof ServerPlayer player) || !player.isAlive()
+                || mob.distanceToSqr(player) > 3.4 * 3.4 || !(mob.level() instanceof ServerLevel level)) {
+            return;
+        }
+        SiegeConfig cfg = host.config();
+        long next = executionerNext.getOrDefault(mob.getUUID(), 0L);
+        if (now < next) {
+            return;
+        }
+        executionerNext.put(mob.getUUID(), now + Math.round(cfg.executionerEverySeconds * 20));
+        mob.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
+        level.playSound(null, mob.getX(), mob.getY(), mob.getZ(), SoundEvents.ANVIL_LAND, SoundSource.HOSTILE, 0.8f, 0.6f);
+        level.sendParticles(ParticleTypes.SWEEP_ATTACK, player.getX(), player.getY() + 1.0, player.getZ(), 1, 0, 0, 0, 0);
+        PercentDamage.hitThrough(level, player, mob, mob, cfg.executionerPercent, host.level(), cfg, 1.0);
+        executions++;
     }
 
     /**
@@ -510,7 +624,7 @@ public final class Foes {
                 case TUNNELER -> cfg.tunnelersPerWave;
                 case STANDARD_BEARER -> level >= cfg.standardBearerTwoFromLevel ? cfg.standardBearersPerWave * 2 : cfg.standardBearersPerWave;
                 case GRAPPLER -> cfg.grapplersAtOnce;
-                case TREASURE_RAIDER -> 0;
+                case TREASURE_RAIDER, BREAKER, EXECUTIONER -> 0;   // they come on their own, never from the list
                 default -> Integer.MAX_VALUE;
             };
             int used = role == Role.GRAPPLER ? living(Role.GRAPPLER) : wave.getOrDefault(role.entryId(), 0);
@@ -552,6 +666,7 @@ public final class Foes {
                 case TUNNELER -> tickTunneler(host, mob, now);
                 case STANDARD_BEARER -> tickBearer(host, mob, defenders, now);
                 case GRAPPLER -> tickGrappler(host, mob, defenders, now);
+                case EXECUTIONER -> tickExecutioner(host, mob, now);
                 default -> {
                 }
             }

@@ -330,6 +330,7 @@ public final class SiegeManager {
             MeleeSim.onDamage(entity, source, taken);
             safe("Begleiter-Treffer", () -> companions.afterDamage(entity, source, taken));
             safe("Gegner-Treffer", () -> foes.afterDamage(entity, source));
+            safe("Tank-Brecher", () -> foes.afterHit(foesHost, entity, source, blocked));
             machines.afterDamage(entity, source, taken);
             expeditions.afterDamage(entity, source, taken);
             safe("Ballista-Treffer", () -> machines.afterBoltHit(entity, source, blocked));
@@ -2249,6 +2250,19 @@ public final class SiegeManager {
             if (world != null) {
                 crates.awardEach(world.getServer(), participants, CrateKind.NORMAL, siegeLevel);
             }
+        }
+
+        @Override
+        public boolean isTank(ServerPlayer player) {
+            String sub = skillTree.subclassOf(save.skillsOf(player.getUUID().toString()));
+            return com.mki.nightsiege.core.SkillTree.SUB_SHIELDFIGHTER.equals(sub)
+                    || com.mki.nightsiege.core.SkillTree.SUB_BULWARK.equals(sub);
+        }
+
+        @Override
+        public boolean firmGrip(ServerPlayer player) {
+            PlayerSkills own = save.skillsOf(player.getUUID().toString());
+            return own.hasClass() && kits.gainLevel(own, own.clazz(), "fester_griff") > 0;
         }
     };
 

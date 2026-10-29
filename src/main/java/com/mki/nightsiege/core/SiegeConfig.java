@@ -520,6 +520,18 @@ public class SiegeConfig {
     /** The iron knight: slower by this share, ranged hits (arrows, bolts) keep only this share. */
     public double ironKnightSlow = 0.25;
     public double ironKnightRangedShare = 0.2;
+    /**
+     * The tank breakers (content update, 29 October 2026): only with a shieldfighter or bulwark in
+     * the night, one per tank and wave. The breaker's blow on a raised shield goes through it with
+     * this share of the max health and locks the shield; the executioner strikes every few seconds
+     * through the shield.
+     */
+    public int breakerFromLevel = 5;
+    public int executionerFromLevel = 10;
+    public double breakerPercent = 10.0;
+    public double breakerShieldLockSeconds = 4.0;
+    public double executionerPercent = 8.0;
+    public double executionerEverySeconds = 6.0;
     /** The treasure raider: chance per night from a level on (not in boss nights), seconds before it is gone, chance of a crate. */
     public double treasureRaiderChance = 0.2;
     public int treasureRaiderFromLevel = 3;
