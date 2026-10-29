@@ -505,6 +505,20 @@ public final class TeamSim {
         phaseTick = now;
     }
 
+    /**
+     * The subclass a bot plays in this run. On low levels it has not learned the subclass node yet
+     * (the logger then has an empty subclass), but the run gave "BotNN" the NN-th subclass of the group.
+     */
+    static String plannedSub(Run run, String name) {
+        if (name != null && name.matches("Bot\\d{2}")) {
+            int i = Integer.parseInt(name.substring(3)) - 1;
+            if (i >= 0 && i < run.subs().size()) {
+                return run.subs().get(i)[2];
+            }
+        }
+        return name;
+    }
+
     /** The night is over (or never came): one result, then the pause. */
     private static void record(MinecraftServer server, SiegeManager m, String problem) {
         Run run = queue.get(index);
@@ -519,7 +533,7 @@ public final class TeamSim {
             for (StatsRecorder.Welle w : night.wellen) {
                 for (Map.Entry<String, StatsRecorder.SpielerWelle> e : w.spieler.entrySet()) {
                     StatsRecorder.Spieler who = night.spieler.get(e.getKey());
-                    String sub = who == null || who.unterklasse.isBlank() ? e.getKey() : who.unterklasse;
+                    String sub = who == null || who.unterklasse.isBlank() ? plannedSub(run, e.getKey()) : who.unterklasse;
                     double[] v = bySub.computeIfAbsent(e.getKey() + ":" + sub, k -> new double[5]);
                     StatsRecorder.SpielerWelle pw = e.getValue();
                     v[0] += pw.schaden;
