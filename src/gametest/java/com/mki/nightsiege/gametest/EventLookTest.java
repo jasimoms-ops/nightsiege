@@ -7575,6 +7575,11 @@ public class EventLookTest implements FabricClientGameTest {
             }
         });
         context.waitTicks(40);
+        // 0. The core window's button.
+        onServer(context, (player, manager) -> manager.openCoreWindow(player));
+        context.waitTicks(20);
+        context.takeScreenshot("war_00_core_button");
+        closeScreen(context);
         // 1. The ready round: the player leads, the bots are in it.
         onServer(context, (player, manager) -> {
             player.setGameMode(net.minecraft.world.level.GameType.CREATIVE);
@@ -7730,6 +7735,10 @@ public class EventLookTest implements FabricClientGameTest {
         context.runOnClient(client -> System.out.println("[Night Siege test] war end screen="
                 + (client.gui.screen() instanceof com.mki.nightsiege.client.WarLeaderScreen w ? w.testPhase() : String.valueOf(client.gui.screen()))));
         context.takeScreenshot("war_07_end");
+        closeScreen(context);
+        onServer(context, (player, manager) -> manager.sendRecords(player));
+        context.waitTicks(20);
+        context.takeScreenshot("war_08_records");
         closeScreen(context);
         // 4. A round the leader gives up.
         context.waitTicks(60);
