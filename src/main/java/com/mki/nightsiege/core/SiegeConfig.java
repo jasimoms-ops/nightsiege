@@ -334,11 +334,27 @@ public class SiegeConfig {
     /** Blocks between the core and the camp. */
     public int campMinDistance = 80;
     public int campMaxDistance = 150;
-    /** Guards (vindicators): this many, plus some for every further signed-up player. */
-    public int campGuards = 8;
-    public int campGuardsPerPlayer = 3;
-    /** Life of the workshop's siege workbench. */
+    /**
+     * Content update (Simon 29.10.: "etwa wie heute"): tent guards (vindicators) alone and for
+     * each further attacker; crossbowmen (pillagers) on the two watchtowers alone, per further
+     * attacker and at most.
+     */
+    public int campTentGuards = 6;
+    public int campTentGuardsPerPlayer = 2;
+    public int campCrossbows = 2;
+    public int campCrossbowsPerPlayer = 1;
+    public int campCrossbowsMax = 4;
+    /** Seconds between two shots of a crossbowman on a tower, and how far he shoots. */
+    public double campCrossbowSeconds = 2.5;
+    public double campCrossbowRange = 30;
+    /** Reinforcement while the workbench stands: every this many seconds this many plus this many per fighter, up to this many guards alive. */
+    public int campReinforceSeconds = 60;
+    public int campReinforceBase = 1;
+    public int campReinforcePerPlayer = 1;
+    public int campReinforceCap = 8;
+    /** Life of the workshop's siege workbench, and its share more for each further attacker (Simon 29.10.: +30 %). */
     public double campWorkshopHealth = 300;
+    public double campWorkshopHealthPerPlayer = 0.3;
     /** Seconds after entering the palisade before the guards attack. */
     public int campGraceSeconds = 10;
     /** Siege machines in nights after a camp. */
@@ -972,8 +988,18 @@ public class SiegeConfig {
         campChance = clampDouble(campChance, 0.0, 1.0);
         campMinDistance = clamp(campMinDistance, 40, 400);
         campMaxDistance = clamp(campMaxDistance, campMinDistance, 500);
-        campGuards = clamp(campGuards, 0, 40);
-        campGuardsPerPlayer = clamp(campGuardsPerPlayer, 0, 10);
+        campTentGuards = clamp(campTentGuards, 0, 24);
+        campTentGuardsPerPlayer = clamp(campTentGuardsPerPlayer, 0, 8);
+        campCrossbows = clamp(campCrossbows, 0, 4);
+        campCrossbowsPerPlayer = clamp(campCrossbowsPerPlayer, 0, 4);
+        campCrossbowsMax = clamp(campCrossbowsMax, 0, 4);
+        campCrossbowSeconds = clampDouble(campCrossbowSeconds, 0.5, 20.0);
+        campCrossbowRange = clampDouble(campCrossbowRange, 8.0, 64.0);
+        campReinforceSeconds = clamp(campReinforceSeconds, 10, 600);
+        campReinforceBase = clamp(campReinforceBase, 0, 10);
+        campReinforcePerPlayer = clamp(campReinforcePerPlayer, 0, 5);
+        campReinforceCap = clamp(campReinforceCap, 0, 30);
+        campWorkshopHealthPerPlayer = clampDouble(campWorkshopHealthPerPlayer, 0.0, 2.0);
         campWorkshopHealth = clampDouble(campWorkshopHealth, 10.0, 5000.0);
         campGraceSeconds = clamp(campGraceSeconds, 0, 60);
         machineStartSeconds = clamp(machineStartSeconds, 0, 600);

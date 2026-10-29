@@ -56,8 +56,14 @@ import java.util.UUID;
  * genauso"; built that evening: "Werkbank mit Lebensleiste", "Schon am Vortag", "Diener").
  *
  * <p>On the day before a siege a camp stands with a chance of 20 %, 80–150 blocks from the
- * core, guarded by vindicators: 8 and 3 more for every further signed-up player. Nothing is
- * said in the chat; only the smoke of its fires shows it.</p>
+ * core. Nothing is said in the chat; only the smoke of its fires shows it.</p>
+ *
+ * <p>Camp rebuilt (Simon 29.10.: "etwa wie heute", the workbench grows with the attackers): alone 6
+ * tent guards (vindicators, two before each tent) and 2 crossbowmen (pillagers) on the two
+ * watchtowers, for each further attacker 2 tent guards and 1 crossbowman more (at most 4). The
+ * inner ring round the workshop opens when the tent guards have fallen; until then the workbench
+ * takes no hits. While it stands, reinforcement comes from the tents every 60 s: 1 and 1 per
+ * fighter, up to 8 guards alive. The workbench has 300 life and 30 % more per further attacker.</p>
  *
  * <p>Content update (Simon 28/29 October 2026): the fight starts at the war drum in the forecourt.
  * A strike opens the ready round ({@link StartRound}): everyone signed up within 20 blocks chooses
@@ -110,6 +116,14 @@ public final class SiegeCamp {
     private final Map<UUID, Vec3> lastInside = new HashMap<>();
     /** The iron bars in the gate while a fight is on. */
     private final List<BlockPos> gateBars = new ArrayList<>();
+    /** Tag of the crossbowmen on the watchtowers. */
+    public static final String TAG_TOWER = "nightsiege_camptower";
+    /** When the next reinforcement comes (game time), or -1. */
+    private long nextReinforce = -1L;
+    /** When each crossbowman may shoot again (game time). */
+    private final Map<UUID, Long> nextShot = new HashMap<>();
+    /** When a fighter was last told that the inner ring is shut (game time). */
+    private final Map<UUID, Long> toldShut = new HashMap<>();
 
     SiegeCamp(SiegeManager manager) {
         this.m = manager;
@@ -223,6 +237,9 @@ public final class SiegeCamp {
         }
         if (now % 20 == 0) {
             tickFighters(server, level, camp, center, now);
+        }
+        if (!fighters.isEmpty() && now % 5 == 0) {
+            shootFromTowers(level, camp, now);
         }
     }
 
@@ -584,43 +601,122 @@ public final class SiegeCamp {
     /** The guards and the workbench's hit box (once the camp's ground is entity-loaded). */
     void man(ServerLevel level, SiegeSave.CampRecord camp) {
         SiegeConfig cfg = m.config();
-        BlockPos center = new BlockPos(camp.x, camp.y, camp.z);
-        int signedUp = m.save().registered == null ? 1 : m.save().registered.size();
-        int count = cfg.campGuards + cfg.campGuardsPerPlayer * Math.max(0, signedUp - 1);
+        int players = 1;
+        int tents = cfg.campTentGuards;
         if (m.inPlaytest()) {
             // The playtest goes by its own players, each as many guards as one alone (Simon 28.10.).
-            int players = Math.max(1, m.playtest().playerCount());
-            count = (int) Math.min(24, Math.round(cfg.campGuards * (1.0 + cfg.playtestPlayerScaling * (players - 1))));
+            players = Math.max(1, m.playtest().playerCount());
+            tents = (int) Math.min(20, Math.round(cfg.campTentGuards * (1.0 + cfg.playtestPlayerScaling * (players - 1))));
         }
-        List<BlockPos> spots = CampLayout.guardSpots(center, camp.facing);
-        Collections.shuffle(spots, random);
         camp.guards.clear();
-        for (int i = 0; i < count; i++) {
-            BlockPos base = spots.get(i % spots.size());
-            BlockPos spot = BossService.groundNear(level, base.getX() + 0.5 + random.nextInt(3) - 1, base.getY() + 1,
+        camp.tentGuards.clear();
+        camp.crossbows.clear();
+        camp.ringOpen = false;
+        spawnTentGuards(level, camp, tents);
+        spawnCrossbows(level, camp, crossbowsFor(players));
+        Zombie bench = workbench(level, camp);
+        camp.workshop = bench == null ? "" : bench.getUUID().toString();
+        if (bench != null) {
+            setBenchLife(bench, players);
+        }
+        camp.manned = true;
+        m.persist();
+        NightSiegeMod.LOGGER.info("[Night Siege] Heerlager bemannt: {} Zeltwachen, {} Armbrustschützen",
+                camp.tentGuards.size(), camp.crossbows.size());
+    }
+
+    /** Crossbowmen on the towers for so many attackers. */
+    private int crossbowsFor(int players) {
+        SiegeConfig cfg = m.config();
+        return Math.max(0, Math.min(cfg.campCrossbowsMax, cfg.campCrossbows + cfg.campCrossbowsPerPlayer * Math.max(0, players - 1)));
+    }
+
+    /** Tent guards for so many attackers. */
+    private int tentGuardsFor(int players) {
+        SiegeConfig cfg = m.config();
+        return cfg.campTentGuards + cfg.campTentGuardsPerPlayer * Math.max(0, players - 1);
+    }
+
+    /** The workbench's life for so many attackers (Simon 29.10.: 30 % more per further one). */
+    private void setBenchLife(LivingEntity bench, int players) {
+        SiegeConfig cfg = m.config();
+        double health = cfg.campWorkshopHealth * (1.0 + cfg.campWorkshopHealthPerPlayer * Math.max(0, players - 1));
+        BossService.set(bench, Attributes.MAX_HEALTH, health);
+        bench.setHealth((float) health);
+        if (bar != null) {
+            bar.setProgress(1f);
+        }
+    }
+
+    /** One guard of the camp (tagged, at home in the camp), or null. */
+    private Mob spawnGuard(ServerLevel level, SiegeSave.CampRecord camp, BlockPos base, String type, boolean jitter) {
+        BlockPos spot = base;
+        if (jitter) {
+            spot = BossService.groundNear(level, base.getX() + 0.5 + random.nextInt(3) - 1, base.getY() + 1,
                     base.getZ() + 0.5 + random.nextInt(3) - 1);
             if (spot == null) {
                 spot = BossService.groundNear(level, base.getX() + 0.5, base.getY() + 1, base.getZ() + 0.5);
             }
             if (spot == null) {
-                continue;
+                return null;
             }
-            Mob guard = MobFactory.spawnAt(level, spot, "minecraft:vindicator", m.currentLevel(), cfg, random, SiegeEvent.NONE, false);
-            if (guard == null) {
-                continue;
-            }
-            guard.removeTag(MobFactory.TAG);   // not a monster of the night: it guards the camp
-            guard.addTag(TAG);
-            guard.addTag(TAG + "_" + camp.id);
-            guard.setHomeTo(center, 13);
-            guard.setPersistenceRequired();
-            camp.guards.add(guard.getUUID().toString());
         }
-        Zombie bench = workbench(level, camp);
-        camp.workshop = bench == null ? "" : bench.getUUID().toString();
-        camp.manned = true;
-        m.persist();
-        NightSiegeMod.LOGGER.info("[Night Siege] Heerlager bemannt: {} Wachen", camp.guards.size());
+        Mob guard = MobFactory.spawnAt(level, spot, type, m.currentLevel(), m.config(), random, SiegeEvent.NONE, false);
+        if (guard == null) {
+            return null;
+        }
+        guard.removeTag(MobFactory.TAG);   // not a monster of the night: it guards the camp
+        guard.addTag(TAG);
+        guard.addTag(TAG + "_" + camp.id);
+        guard.setHomeTo(new BlockPos(camp.x, camp.y, camp.z), 17);
+        guard.setPersistenceRequired();
+        camp.guards.add(guard.getUUID().toString());
+        return guard;
+    }
+
+    /** Guards before the tents, two at each, round and round. */
+    private void spawnTentGuards(ServerLevel level, SiegeSave.CampRecord camp, int count) {
+        List<BlockPos> spots = CampLayout.tentSpots(new BlockPos(camp.x, camp.y, camp.z), camp.facing);
+        int start = camp.tentGuards.size();
+        for (int i = 0; i < count; i++) {
+            Mob guard = spawnGuard(level, camp, spots.get((start + i) % spots.size()), "minecraft:vindicator", true);
+            if (guard != null) {
+                camp.tentGuards.add(guard.getUUID().toString());
+            }
+        }
+    }
+
+    /** Crossbowmen on the towers' platforms: they stay up there (no walking) and shoot. */
+    private void spawnCrossbows(ServerLevel level, SiegeSave.CampRecord camp, int count) {
+        List<BlockPos> spots = CampLayout.towerSpots(new BlockPos(camp.x, camp.y, camp.z), camp.facing);
+        for (int i = camp.crossbows.size(); i < Math.min(count, spots.size()); i++) {
+            BlockPos spot = spots.get(i);
+            Mob bow = spawnGuard(level, camp, spot, "minecraft:pillager", false);
+            if (bow == null) {
+                continue;
+            }
+            BossService.set(bow, Attributes.MOVEMENT_SPEED, 0.0);
+            BossService.set(bow, Attributes.KNOCKBACK_RESISTANCE, 1.0);
+            bow.setHomeTo(spot, 1);
+            bow.addTag(TAG_TOWER);
+            if (!(bow.getMainHandItem().getItem() instanceof net.minecraft.world.item.CrossbowItem)) {
+                bow.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(net.minecraft.world.item.Items.CROSSBOW));
+            }
+            bow.setDropChance(EquipmentSlot.MAINHAND, 0f);
+            camp.crossbows.add(bow.getUUID().toString());
+        }
+    }
+
+    /** Living guards of the camp (all of them, or of one list). */
+    private static int alive(ServerLevel level, List<String> ids) {
+        int n = 0;
+        for (String g : ids) {
+            Entity e = level.getEntity(UUID.fromString(g));
+            if (e != null && e.isAlive()) {
+                n++;
+            }
+        }
+        return n;
     }
 
     /** The siege workbench's hit box: an invisible, still monster with the workbench's life. */
@@ -864,6 +960,18 @@ public final class SiegeCamp {
     private void startFight(ServerLevel level, SiegeSave.CampRecord camp, BlockPos center, long now) {
         List<UUID> members = round.members();
         round = null;
+        // As many guards and as much life as this group needs (Simon 29.10.: "etwa wie heute").
+        int players = Math.max(1, members.size());
+        int more = tentGuardsFor(players) - camp.tentGuards.size();
+        if (more > 0) {
+            spawnTentGuards(level, camp, more);
+        }
+        spawnCrossbows(level, camp, crossbowsFor(players));
+        LivingEntity bench = bench(level, camp);
+        if (bench != null) {
+            setBenchLife(bench, players);
+        }
+        m.persist();
         BlockPos in = CampLayout.world(center, camp.facing, 0, 0, -1);
         float yaw = (float) Math.toDegrees(Math.atan2(-(in.getX() - center.getX()), in.getZ() - center.getZ()));
         int i = 0;
@@ -879,17 +987,20 @@ public final class SiegeCamp {
             join(level, camp, center, p, now, false);
         }
         shutGate(level, camp, center);
-        NightSiegeMod.LOGGER.info("[Night Siege] Heerlager-Kampf beginnt mit {} Spielern, das Tor ist zu", i);
+        NightSiegeMod.LOGGER.info("[Night Siege] Heerlager-Kampf beginnt mit {} Spielern, das Tor ist zu ({} Zeltwachen, {} Armbrustschützen, Werkbank {})",
+                i, alive(level, camp.tentGuards), alive(level, camp.crossbows), bench == null ? "-" : Math.round(bench.getMaxHealth()));
     }
 
     /** Iron bars into the gate (temporary blocks: they never stay). */
     private void shutGate(ServerLevel level, SiegeSave.CampRecord camp, BlockPos center) {
-        for (BlockPos pos : CampLayout.gate(center, camp.facing)) {
+        List<BlockPos> bars = new ArrayList<>(CampLayout.gate(center, camp.facing));
+        bars.addAll(CampLayout.forecourtGate(center, camp.facing));   // the second portcullis: the forecourt's way in
+        for (BlockPos pos : bars) {
             if (TempBlocks.place(level, pos, Blocks.IRON_BARS.defaultBlockState())) {
                 gateBars.add(pos);
             }
         }
-        BlockPos mid = CampLayout.world(center, camp.facing, 0, 1, 15);
+        BlockPos mid = CampLayout.world(center, camp.facing, 0, 1, CampLayout.GATE_Z);
         level.playSound(null, mid, SoundEvents.IRON_DOOR_CLOSE, SoundSource.BLOCKS, 2f, 0.5f);
         level.playSound(null, mid, SoundEvents.CHAIN_PLACE, SoundSource.BLOCKS, 1.5f, 0.6f);
     }
@@ -907,20 +1018,159 @@ public final class SiegeCamp {
         gateBars.clear();
     }
 
-    /** While a fight is on, nobody else is inside the palisade: the late are put in the forecourt. */
+    /**
+     * While a fight is on, nobody else is in the camp or its forecourt (both are shut): the late
+     * are put before the forecourt. The fallen wait in the forecourt.
+     */
     private void keepOut(ServerLevel level, SiegeSave.CampRecord camp, BlockPos center) {
-        BlockPos seat = CampLayout.waiting(center, camp.facing);
+        BlockPos before = CampLayout.beforeForecourt(center, camp.facing);
         for (ServerPlayer p : level.players()) {
-            if (fighters.contains(p.getUUID()) || p.isSpectator() || p.getAbilities().instabuild || Drones.isDrone(p)) {
+            UUID id = p.getUUID();
+            if (fighters.contains(id) || p.isSpectator() || p.getAbilities().instabuild || Drones.isDrone(p)) {
+                continue;
+            }
+            if (Math.abs(p.getY() - center.getY()) > 10) {
                 continue;
             }
             double dx = p.getX() - (center.getX() + 0.5);
             double dz = p.getZ() - (center.getZ() + 0.5);
-            if (dx * dx + dz * dz > CampLayout.INSIDE * CampLayout.INSIDE || Math.abs(p.getY() - center.getY()) > 8) {
+            boolean inCamp = dx * dx + dz * dz <= CampLayout.INSIDE * CampLayout.INSIDE;
+            int[] l = CampLayout.local(center, camp.facing, p.blockPosition());
+            boolean inForecourt = CampLayout.insideForecourt(l[0], l[1]);
+            if (inCamp || inForecourt && !out.contains(id)) {
+                p.teleportTo(level, before.getX() + 0.5, before.getY(), before.getZ() + 0.5, java.util.Set.of(), p.getYRot(), p.getXRot(), true);
+                p.sendSystemMessage(Component.translatable("nightsiege.camp.round_late").withStyle(ChatFormatting.GRAY));
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------ the inner ring, reinforcement, the towers
+
+    /** The tent guards have fallen: the inner ring's gate opens (the workbench may be struck now). */
+    private void checkRing(ServerLevel level, SiegeSave.CampRecord camp, BlockPos center) {
+        if (camp.ringOpen || alive(level, camp.tentGuards) > 0) {
+            return;
+        }
+        camp.ringOpen = true;
+        NightDamage.quietly(() -> {
+            for (BlockPos pos : CampLayout.innerGate(center, camp.facing)) {
+                if (level.getBlockState(pos).is(Blocks.IRON_BARS)) {
+                    level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
+                }
+            }
+        });
+        BlockPos gate = CampLayout.world(center, camp.facing, 0, 1, CampLayout.INNER_GATE_Z);
+        level.playSound(null, gate, SoundEvents.IRON_DOOR_OPEN, SoundSource.BLOCKS, 2f, 0.6f);
+        level.playSound(null, gate, SoundEvents.CHAIN_PLACE, SoundSource.BLOCKS, 2f, 0.5f);
+        level.sendParticles(ParticleTypes.CLOUD, gate.getX() + 0.5, gate.getY() + 0.5, gate.getZ() + 0.5, 20, 1.2, 0.8, 0.3, 0.02);
+        for (UUID id : fighters) {
+            ServerPlayer p = level.getServer().getPlayerList().getPlayer(id);
+            if (p != null) {
+                p.connection.send(new ClientboundSetTitlesAnimationPacket(5, 40, 15));
+                p.connection.send(new ClientboundSetTitleTextPacket(Component.empty()));
+                p.connection.send(new ClientboundSetSubtitleTextPacket(Component.translatable("nightsiege.camp.ring_open")
+                        .withStyle(ChatFormatting.GOLD)));
+                p.sendSystemMessage(Component.translatable("nightsiege.camp.ring_open_chat").withStyle(ChatFormatting.GOLD));
+            }
+        }
+        m.persist();
+        NightSiegeMod.LOGGER.info("[Night Siege] Heerlager: Zeltwachen gefallen, der innere Ring ist offen");
+    }
+
+    /** Every 60 s while the workbench stands: guards come out of the tents (up to the cap alive). */
+    private void reinforce(ServerLevel level, SiegeSave.CampRecord camp, long now) {
+        SiegeConfig cfg = m.config();
+        int room = cfg.campReinforceCap - alive(level, camp.guards);
+        int count = Math.min(room, cfg.campReinforceBase + cfg.campReinforcePerPlayer * fighters.size());
+        if (count <= 0) {
+            return;
+        }
+        List<BlockPos> spots = CampLayout.tentSpots(new BlockPos(camp.x, camp.y, camp.z), camp.facing);
+        int came = 0;
+        for (int i = 0; i < count; i++) {
+            BlockPos spot = spots.get(random.nextInt(spots.size()));
+            Mob guard = spawnGuard(level, camp, spot, "minecraft:vindicator", true);
+            if (guard == null) {
                 continue;
             }
-            p.teleportTo(level, seat.getX() + 0.5, seat.getY(), seat.getZ() + 0.5, java.util.Set.of(), p.getYRot(), p.getXRot(), true);
-            p.sendSystemMessage(Component.translatable("nightsiege.camp.round_late").withStyle(ChatFormatting.GRAY));
+            came++;
+            ServerPlayer target = nearestFighter(level, guard, 48);
+            if (target != null) {
+                guard.setTarget(target);
+            }
+            if (i == 0) {
+                level.playSound(null, guard.blockPosition(), SoundEvents.VINDICATOR_CELEBRATE, SoundSource.HOSTILE, 2f, 0.8f);
+            }
+        }
+        if (came == 0) {
+            return;
+        }
+        Component text = Component.translatable("nightsiege.camp.reinforce", came).withStyle(ChatFormatting.RED);
+        for (UUID id : fighters) {
+            ServerPlayer p = level.getServer().getPlayerList().getPlayer(id);
+            if (p != null) {
+                p.connection.send(new net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket(text));
+            }
+        }
+        m.persist();
+        NightSiegeMod.LOGGER.info("[Night Siege] Heerlager: Verstärkung {} (lebend jetzt {})", came, alive(level, camp.guards));
+    }
+
+    /** The nearest fighter this guard may fight (past the grace), within so many blocks, or null. */
+    private ServerPlayer nearestFighter(ServerLevel level, Mob mob, double range) {
+        ServerPlayer best = null;
+        double bestDist = range * range;
+        for (UUID id : fighters) {
+            ServerPlayer p = level.getServer().getPlayerList().getPlayer(id);
+            if (p == null || p.level() != level || !p.isAlive() || !mayTarget(mob, p)) {
+                continue;
+            }
+            double d = p.distanceToSqr(mob);
+            if (d < bestDist) {
+                bestDist = d;
+                best = p;
+            }
+        }
+        return best;
+    }
+
+    /**
+     * The crossbowmen on the towers shoot at the nearest fighter they see, far beyond a
+     * pillager's own reach (they cannot walk up to anyone up there).
+     */
+    private void shootFromTowers(ServerLevel level, SiegeSave.CampRecord camp, long now) {
+        SiegeConfig cfg = m.config();
+        for (String g : camp.crossbows) {
+            Entity e = level.getEntity(UUID.fromString(g));
+            if (!(e instanceof Mob bow) || !bow.isAlive()) {
+                continue;
+            }
+            Long next = nextShot.get(bow.getUUID());
+            if (next != null && now < next) {
+                continue;
+            }
+            ServerPlayer target = nearestFighter(level, bow, cfg.campCrossbowRange);
+            if (target == null || !bow.hasLineOfSight(target)) {
+                continue;
+            }
+            nextShot.put(bow.getUUID(), now + Math.round(cfg.campCrossbowSeconds * 20) + random.nextInt(8));
+            bow.setTarget(target);
+            bow.getLookControl().setLookAt(target, 60f, 60f);
+            Vec3 from = bow.getEyePosition();
+            Vec3 aim = target.getEyePosition().subtract(0, 0.45, 0).add(target.getDeltaMovement().scale(4));
+            Vec3 dir = aim.subtract(from);
+            float speed = 2.6f;
+            double flight = dir.length() / speed;
+            dir = dir.add(0, 0.025 * flight * flight, 0);   // the arrow falls on its way
+            net.minecraft.world.entity.projectile.arrow.Arrow bolt = new net.minecraft.world.entity.projectile.arrow.Arrow(
+                    level, from.x, from.y, from.z, new ItemStack(net.minecraft.world.item.Items.ARROW), new ItemStack(net.minecraft.world.item.Items.CROSSBOW));
+            bolt.setOwner(bow);
+            bolt.pickup = net.minecraft.world.entity.projectile.arrow.AbstractArrow.Pickup.DISALLOWED;
+            double damage = 4.0 * com.mki.nightsiege.core.SiegeMath.damageMultiplier(m.currentLevel(), cfg);
+            bolt.setBaseDamage(damage / speed);
+            bolt.shoot(dir.x, dir.y, dir.z, speed, 1.0f);
+            level.addFreshEntity(bolt);
+            level.playSound(null, bow.blockPosition(), SoundEvents.CROSSBOW_SHOOT, SoundSource.HOSTILE, 1.5f, 0.9f + random.nextFloat() * 0.2f);
         }
     }
 
@@ -965,6 +1215,7 @@ public final class SiegeCamp {
         int seconds = m.config().campGraceSeconds;
         grace.put(id, now + seconds * 20L);
         if (first) {
+            nextReinforce = now + (seconds + m.config().campReinforceSeconds) * 20L;
             for (ServerPlayer p : level.players()) {
                 if (p.distanceToSqr(center.getX(), center.getY(), center.getZ()) < 160.0 * 160.0) {
                     p.connection.send(new net.minecraft.network.protocol.game.ClientboundSoundPacket(
@@ -1024,6 +1275,13 @@ public final class SiegeCamp {
                 Vec3 back = lastInside.getOrDefault(id, Vec3.atBottomCenterOf(CampLayout.insideGate(center, camp.facing, 2)));
                 p.teleportTo(level, back.x, back.y, back.z, java.util.Set.of(), p.getYRot(), p.getXRot(), true);
                 p.sendSystemMessage(Component.translatable("nightsiege.camp.put_back").withStyle(ChatFormatting.GRAY));
+            }
+        }
+        if (!fighters.isEmpty() && outcome == null) {
+            checkRing(level, camp, center);
+            if (nextReinforce > 0 && now >= nextReinforce) {
+                nextReinforce = now + m.config().campReinforceSeconds * 20L;
+                reinforce(level, camp, now);
             }
         }
         LivingEntity bench = bench(level, camp);
@@ -1104,6 +1362,9 @@ public final class SiegeCamp {
         out.clear();
         fallen.clear();
         lastInside.clear();
+        nextShot.clear();
+        toldShut.clear();
+        nextReinforce = -1L;
         round = null;
         if (bar != null) {
             bar.removeAllPlayers();
@@ -1151,7 +1412,25 @@ public final class SiegeCamp {
             if (fighters.isEmpty() || attacker == null || isCampMob(attacker)) {
                 return false;   // no falling, no suffocating in its own blocks, nothing from outside the fight
             }
-            return !(attacker instanceof Player p) || fighters.contains(p.getUUID());
+            if (attacker instanceof Player p && !fighters.contains(p.getUUID())) {
+                return false;
+            }
+            SiegeSave.CampRecord camp = camp();
+            if (camp != null && !camp.ringOpen) {
+                // The inner ring is shut until the tent guards have fallen (also against arrows over it).
+                if (attacker instanceof ServerPlayer p && victim.level() instanceof ServerLevel level) {
+                    long now = level.getGameTime();
+                    Long told = toldShut.get(p.getUUID());
+                    if (told == null || now - told > 60) {
+                        toldShut.put(p.getUUID(), now);
+                        p.connection.send(new net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket(
+                                Component.translatable("nightsiege.camp.ring_shut", alive(level, camp.tentGuards))
+                                        .withStyle(ChatFormatting.RED)));
+                    }
+                }
+                return false;
+            }
+            return true;
         }
         if (victim instanceof ServerPlayer player && isCampMob(attacker)) {
             Long until = grace.get(player.getUUID());
@@ -1356,7 +1635,7 @@ public final class SiegeCamp {
                 e.discard();
             }
         }
-        for (Entity e : level.getEntitiesOfClass(Entity.class, new AABB(center).inflate(28, 16, 28), SiegeCamp::isCampMob)) {
+        for (Entity e : level.getEntitiesOfClass(Entity.class, new AABB(center).inflate(34, 18, 34), SiegeCamp::isCampMob)) {
             e.discard();
         }
         Map<BlockPos, BlockState> blocks = CampLayout.blocks(center, camp.facing, camp.id);
@@ -1411,7 +1690,7 @@ public final class SiegeCamp {
                 return true;   // the forecourt, its drum and benches (content update)
             }
         }
-        return dy >= -1 && dy <= 7 && dx * dx + dz * dz <= (CampLayout.PALISADE + 1.5) * (CampLayout.PALISADE + 1.5);
+        return dy >= -1 && dy <= 11 && dx * dx + dz * dz <= (CampLayout.PALISADE + 1.5) * (CampLayout.PALISADE + 1.5);
     }
 
     /** A camp monster loaded from the world that belongs to no camp of now goes. */
@@ -1492,7 +1771,7 @@ public final class SiegeCamp {
     /** Tests: a free spot on the forecourt's path (near the drum). */
     public BlockPos testForecourtPath() {
         SiegeSave.CampRecord camp = camp();
-        return camp == null ? null : CampLayout.world(new BlockPos(camp.x, camp.y, camp.z), camp.facing, 0, 0, 19);
+        return camp == null ? null : CampLayout.outsideGate(new BlockPos(camp.x, camp.y, camp.z), camp.facing);
     }
 
     /** Tests: the round and the gate in one line. */
@@ -1508,8 +1787,13 @@ public final class SiegeCamp {
                 }
             }
         }
+        LivingEntity bench = camp == null ? null : bench(level, camp);
         return "round=" + (round == null ? "-" : round.readyCount() + "/" + round.size()) + " gate=" + bars + "/" + gate
-                + " fighters=" + fighters.size() + " fallen=" + out.size();
+                + " fighters=" + fighters.size() + " fallen=" + out.size()
+                + (camp == null ? "" : " ring=" + (camp.ringOpen ? "open" : "shut") + " tents=" + alive(level, camp.tentGuards) + "/"
+                + camp.tentGuards.size() + " bows=" + alive(level, camp.crossbows) + "/" + camp.crossbows.size()
+                + " guards=" + alive(level, camp.guards) + " bench=" + (bench == null ? "-" : Math.round(bench.getHealth()) + "/"
+                + Math.round(bench.getMaxHealth())));
     }
 
     /** Tests: true when the point lies in the forecourt (the waiting place of the fallen). */

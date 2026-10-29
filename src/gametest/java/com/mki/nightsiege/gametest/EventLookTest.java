@@ -1560,16 +1560,18 @@ public class EventLookTest implements FabricClientGameTest {
     }
 
     /**
-     * The war camp (27 October 2026): built, looked at by day and by night, attacked (class
-     * cards, kit, grace), its workbench destroyed (it burns down and goes), then a second camp
-     * where the defender falls (the camp wins, the machines come for sure).
+     * The war camp (27 October 2026, rebuilt 29 October): built, looked at by day and by night,
+     * attacked through the war drum's ready round (class cards, kit, grace, the gates shut), the
+     * crossbowmen on the towers, the workbench shut away until the tent guards fall, the inner
+     * ring opening, reinforcement from the tents, the workbench destroyed (it burns down and goes),
+     * then a second camp where the defender falls (the camp wins, the machines come for sure).
      */
     private static void campScene(ClientGameTestContext context, TestSingleplayerContext game) {
         campSiteCheck(context, game);
         BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
         int cx = pos.getX() + 220;
         int cz = pos.getZ() - 60;
-        int cy = yard(context, game, cx, cz, 30, 16);
+        int cy = yard(context, game, cx, cz, 36, 18);
         game.getServer().runCommand("time set 1500");
         game.getServer().runCommand("weather clear");
         game.getServer().runCommand("gamemode creative @p");
@@ -1580,44 +1582,52 @@ public class EventLookTest implements FabricClientGameTest {
             }
             manager.camp().testCamp(level, new BlockPos(cx, cy, cz), 0, 999_999L);
             System.out.println("[Night Siege test] camp built at " + cx + " " + cy + " " + cz + " guards="
-                    + manager.camp().testGuards(level) + " bench=" + (manager.camp().testBench(level) != null));
+                    + manager.camp().testGuards(level) + " bench=" + (manager.camp().testBench(level) != null)
+                    + " " + manager.camp().testRound(level));
         });
         context.waitTicks(40);
         // From outside the gate (south), a little above.
-        camera(game, cx + 6.5, cy + 13, cz + 30.5, cx + 0.5, cy + 1, cz + 0.5);
+        camera(game, cx + 8.5, cy + 16, cz + 42.5, cx + 0.5, cy + 1, cz + 0.5);
         context.runOnClient(client -> hud(client, false));
         context.waitTicks(60);
         context.takeScreenshot("camp_gate");
-        camera(game, cx - 25.5, cy + 22, cz - 21.5, cx + 0.5, cy, cz + 0.5);
+        camera(game, cx - 30.5, cy + 30, cz - 26.5, cx + 0.5, cy, cz + 0.5);
         context.waitTicks(40);
         context.takeScreenshot("camp_above");
-        camera(game, cx + 2.5, cy + 3, cz + 9.5, cx + 0.5, cy + 1.5, cz + 0.5);
+        camera(game, cx + 0.5, cy + 34, cz + 6.5, cx + 0.5, cy, cz + 4.5);
+        context.waitTicks(40);
+        context.takeScreenshot("camp_top");
+        camera(game, cx + 3.5, cy + 4, cz + 7.5, cx + 0.5, cy + 2, cz + 0.5);
         context.waitTicks(30);
         context.takeScreenshot("camp_workshop");
+        camera(game, cx + 1.5, cy + 4, cz + 2.5, cx - 10.5, cy + 6, cz - 9.5);
+        context.waitTicks(30);
+        context.takeScreenshot("camp_tower");
         game.getServer().runCommand("time set 18000");
-        camera(game, cx + 6.5, cy + 13, cz + 30.5, cx + 0.5, cy + 1, cz + 0.5);
+        camera(game, cx + 8.5, cy + 16, cz + 42.5, cx + 0.5, cy + 1, cz + 0.5);
         context.waitTicks(40);
         context.takeScreenshot("camp_night");
 
         // The forecourt (content update): the war drum, the fire, the benches, the gate behind.
         game.getServer().runCommand("time set 1500");
-        camera(game, cx + 0.5, cy + 9, cz + 34.5, cx + 0.5, cy, cz + 18.5);
+        camera(game, cx + 0.5, cy + 9, cz + 38.5, cx + 0.5, cy, cz + 22.5);
         context.waitTicks(40);
         context.takeScreenshot("camp_forecourt");
         context.runOnClient(client -> hud(client, true));
 
         // Walking in without the drum: nothing happens (the gate is no way in any more).
         game.getServer().runCommand("gamemode survival @p");
-        game.getServer().runCommand("effect give @p minecraft:resistance 60 255 true");
-        game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %d.5 %d %d.5", cx, cy, cz + 9));
+        game.getServer().runCommand("effect give @p minecraft:resistance 120 255 true");
+        game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %d.5 %d %d.5", cx, cy, cz + 14));
         context.waitTicks(20);
         onServer(context, (player, manager) -> System.out.println("[Night Siege test] camp walk-in without drum: fighter="
                 + manager.camp().isFighter(player)));
 
-        // The attack: the war drum struck, the class cards of the ready round, ready, inside, the gate shut.
+        // The attack: the war drum struck, the class cards of the ready round, ready, inside, the gates shut.
         onServer(context, (player, manager) -> {
             BlockPos path = manager.camp().testForecourtPath();
             player.teleportTo(path.getX() + 0.5, path.getY(), path.getZ() + 0.5);
+            manager.config().campReinforceSeconds = 10;   // the reinforcement comes within the test
         });
         context.waitTicks(10);
         onServer(context, (player, manager) -> {
@@ -1651,16 +1661,19 @@ public class EventLookTest implements FabricClientGameTest {
                     + " guards=" + manager.camp().testGuards(level) + " at=" + player.blockPosition()
                     + " " + manager.camp().testRound(level));
         });
-        camera(game, cx + 0.5, cy + 3, cz + 6.5, cx + 0.5, cy + 1.5, cz + 15.5);
+        camera(game, cx + 0.5, cy + 3, cz + 12.5, cx + 0.5, cy + 1.5, cz + 18.5);
         context.waitTicks(20);
         context.takeScreenshot("camp_gate_shut");
         // Out over the palisade: put back inside.
-        game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %d.5 %d %d.5", cx, cy, cz + 21));
+        game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %d.5 %d %d.5", cx, cy, cz + 24));
         context.waitTicks(30);
         onServer(context, (player, manager) -> System.out.println("[Night Siege test] camp out over the wall: fighter="
-                + manager.camp().isFighter(player) + " back inside=" + (player.getZ() < cz + 15) + " at=" + player.blockPosition()));
+                + manager.camp().isFighter(player) + " back inside=" + (player.getZ() < cz + 18) + " at=" + player.blockPosition()));
+        // In the open before the towers: the crossbowmen shoot from up there.
+        game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %d.5 %d %d.5 facing %d.5 %d %d.5",
+                cx, cy, cz - 15, cx - 10, cy + 6, cz - 10));
         context.takeScreenshot("camp_fight");
-        context.waitTicks(220);   // past the grace: the guards come
+        context.waitTicks(220);   // past the grace: the guards come, the towers shoot
         onServer(context, (player, manager) -> {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
             int targeting = 0;
@@ -1670,14 +1683,53 @@ public class EventLookTest implements FabricClientGameTest {
                     targeting++;
                 }
             }
+            int bolts = 0;
+            for (net.minecraft.world.entity.Entity e : level.getEntities((net.minecraft.world.entity.Entity) null,
+                    new net.minecraft.world.phys.AABB(new BlockPos(cx, cy, cz)).inflate(40, 20, 40),
+                    e -> e instanceof net.minecraft.world.entity.projectile.arrow.AbstractArrow a
+                            && a.getOwner() != null && a.getOwner().entityTags().contains(com.mki.nightsiege.game.SiegeCamp.TAG_TOWER))) {
+                bolts++;
+            }
             System.out.println("[Night Siege test] camp after grace: guards on the player=" + targeting
-                    + " hp=" + Math.round(player.getHealth()));
+                    + " tower bolts=" + bolts + " hp=" + Math.round(player.getHealth()) + " " + manager.camp().testRound(level));
+            net.minecraft.world.entity.LivingEntity bench = manager.camp().testBench(level);
+            if (bench != null) {
+                bench.invulnerableTime = 0;
+                bench.hurtServer(level, level.damageSources().playerAttack(player), 120f);
+                System.out.println("[Night Siege test] camp bench before the ring is open: " + Math.round(bench.getHealth()) + "/"
+                        + Math.round(bench.getMaxHealth()));
+            }
+            // The tent guards fall: the inner ring opens.
+            for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                if (com.mki.nightsiege.game.SiegeCamp.isCampMob(e) && e instanceof net.minecraft.world.entity.Mob mob
+                        && mob.getType() == net.minecraft.world.entity.EntityTypes.VINDICATOR) {
+                    mob.invulnerableTime = 0;
+                    mob.hurtServer(level, level.damageSources().playerAttack(player), 10000f);
+                }
+            }
+        });
+        context.waitTicks(30);
+        camera(game, cx + 0.5, cy + 3, cz + 14.5, cx + 0.5, cy + 1, cz + 8.5);
+        context.waitTicks(20);
+        context.takeScreenshot("camp_ring_open");
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            System.out.println("[Night Siege test] camp tents down: " + manager.camp().testRound(level));
             net.minecraft.world.entity.LivingEntity bench = manager.camp().testBench(level);
             if (bench != null) {
                 bench.invulnerableTime = 0;
                 bench.hurtServer(level, level.damageSources().playerAttack(player), 120f);
                 System.out.println("[Night Siege test] camp bench after a blow: " + Math.round(bench.getHealth()) + "/"
                         + Math.round(bench.getMaxHealth()));
+            }
+        });
+        context.waitTicks(200);   // a reinforcement comes out of the tents (every 10 s in this test)
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            System.out.println("[Night Siege test] camp reinforcement: " + manager.camp().testRound(level));
+            manager.config().campReinforceSeconds = 60;
+            net.minecraft.world.entity.LivingEntity bench = manager.camp().testBench(level);
+            if (bench != null) {
                 bench.invulnerableTime = 0;
                 bench.hurtServer(level, level.damageSources().playerAttack(player), 1000f);
             }
@@ -1695,11 +1747,11 @@ public class EventLookTest implements FabricClientGameTest {
         onServer(context, (player, manager) -> {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
             System.out.println("[Night Siege test] camp gone=" + (manager.save().camp == null) + " palisade="
-                    + level.getBlockState(new BlockPos(cx + 15, cy + 1, cz)).getBlock()
+                    + level.getBlockState(new BlockPos(cx + 18, cy + 1, cz)).getBlock()
                     + " guards left=" + manager.camp().testGuards(level));
         });
 
-        // A second camp: the defender falls there, the camp wins.
+        // A second camp, two attackers' worth: the defender falls there, the camp wins.
         onServer(context, (player, manager) -> {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
             manager.camp().testCamp(level, new BlockPos(cx, cy, cz), 1, 999_998L);
@@ -1728,8 +1780,7 @@ public class EventLookTest implements FabricClientGameTest {
         onServer(context, (player, manager) -> {
             System.out.println("[Night Siege test] camp won: alive=" + player.isAlive() + " hp=" + Math.round(player.getHealth())
                     + " machinesDay=" + manager.save().machinesDay + " camp gone=" + (manager.save().camp == null)
-                    + " kit=" + manager.kits().hasStash(player) + " waits in forecourt="
-                    + manager.camp().testInForecourt(player.blockPosition()) + " at=" + player.blockPosition());
+                    + " kit=" + manager.kits().hasStash(player) + " at=" + player.blockPosition());
             manager.save().machinesDay = -1L;
         });
         game.getServer().runCommand("forceload remove all");

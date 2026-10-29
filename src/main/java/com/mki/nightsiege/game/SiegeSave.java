@@ -258,6 +258,11 @@ public class SiegeSave {
         /** The workshop hit box (its uuid). */
         public String workshop = "";
         public List<String> guards = new ArrayList<>();
+        /** Content update: the guards of the tents (the inner ring opens when they have fallen) and the crossbowmen on the towers. */
+        public List<String> tentGuards = new ArrayList<>();
+        public List<String> crossbows = new ArrayList<>();
+        /** The inner ring's gate is open (its tent guards have fallen). */
+        public boolean ringOpen;
     }
 
     /** One defender's handed-in inventory. */
