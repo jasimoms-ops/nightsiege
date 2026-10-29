@@ -368,6 +368,7 @@ public final class SiegeManager {
             machines.afterDamage(entity, source, taken);
             expeditions.afterDamage(entity, source, taken);
             safe("Ballista-Treffer", () -> machines.afterBoltHit(entity, source, blocked));
+            safe("Wächter-Treffer", () -> ChampionStrikes.afterHit(this, entity, source, blocked));   // balance update 2 (29.10.)
         });
         ServerLivingEntityEvents.ALLOW_DEATH.register((entity, source, amount) -> {
             if (!camp.allowDeath(entity, source) || !machines.allowDeath(entity, source) || !expeditions.allowDeath(entity)) {
@@ -405,6 +406,7 @@ public final class SiegeManager {
                 Drones.isDrone(player) ? InteractionResult.FAIL : InteractionResult.PASS);
         // Crate gadgets (B2): thrown, blown, placed or tied to an ally.
         net.fabricmc.fabric.api.event.player.UseItemCallback.EVENT.register(GainGear::onUseItem);
+        KitGuard.register();   // kit items go into no vase, frame, stand or bundle (balance update 2, 29.10.)
         net.fabricmc.fabric.api.event.player.UseBlockCallback.EVENT.register(GainGear::onUseBlock);
         net.fabricmc.fabric.api.event.player.UseEntityCallback.EVENT.register((player, world, hand, entity, hit) ->
                 GainGear.onUseEntity(player, world, hand, entity));
