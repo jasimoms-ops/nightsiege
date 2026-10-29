@@ -61,8 +61,24 @@ public final class SiegeMath {
 
     /** The cap of live monsters on a normal night: grows by livePerPlayer for every further player, at most maxLiveMobsCap. */
     public static int liveCap(int playerCount, SiegeConfig cfg) {
+        int highest = Math.max(1, cfg.maxLiveMobsCap);
+        if (cfg.liveCapByPlayers != null && !cfg.liveCapByPlayers.isEmpty()) {
+            java.util.List<Integer> table = cfg.liveCapByPlayers;
+            int i = Math.max(0, playerCount - 1);
+            int v = i < table.size() ? table.get(i) : table.get(table.size() - 1) + cfg.liveCapStep * (i - table.size() + 1);
+            return Math.max(1, Math.min(highest, v));
+        }
         double grown = cfg.maxLiveMobs * (1.0 + Math.max(0.0, cfg.livePerPlayer) * Math.max(0, playerCount - 1));
         return (int) Math.max(1, Math.min(Math.max(cfg.maxLiveMobs, cfg.maxLiveMobsCap), Math.round(grown)));
+    }
+
+    /** Share of the monsters' damage a defender takes in a night with this many defenders. */
+    public static double damageTakenForGroup(int playerCount, SiegeConfig cfg) {
+        if (cfg.damageTakenByPlayers != null && !cfg.damageTakenByPlayers.isEmpty()) {
+            java.util.List<Double> table = cfg.damageTakenByPlayers;
+            return table.get(Math.min(table.size() - 1, Math.max(0, playerCount - 1)));
+        }
+        return playerCount <= 1 ? cfg.soloDamageTaken : 1.0;
     }
 
     /** Life factor for monsters a capped batch could not bring (overflowHealth; 1 = no overflow). */

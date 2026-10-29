@@ -62,6 +62,20 @@ class SiegeCoreTest {
         double wanted = SiegeMath.mobsWanted(20, 10, c, c.playerScaling); // 23 × 9.5 ≈ 218
         assertEquals(120, SiegeMath.mobsPerBatch(20, 10, c, c.playerScaling, SiegeMath.liveCap(10, c)));
         assertEquals(wanted / 120.0, SiegeMath.overflowHealthFactor(wanted, 120, c), 1e-9);
+        // A table by group size, past its end liveCapStep per further player, at most maxLiveMobsCap.
+        c.liveCapByPlayers = new java.util.ArrayList<>(java.util.List.of(8, 12, 20, 30));
+        c.liveCapStep = 9;
+        assertEquals(8, SiegeMath.liveCap(1, c));
+        assertEquals(30, SiegeMath.liveCap(4, c));
+        assertEquals(57, SiegeMath.liveCap(7, c));
+        assertEquals(84, SiegeMath.liveCap(10, c));
+        assertEquals(120, SiegeMath.liveCap(30, c));
+        assertEquals(c.soloDamageTaken, SiegeMath.damageTakenForGroup(1, c), 1e-9);
+        assertEquals(1.0, SiegeMath.damageTakenForGroup(3, c), 1e-9);
+        c.damageTakenByPlayers = new java.util.ArrayList<>(java.util.List.of(0.6, 0.8, 1.0));
+        assertEquals(0.6, SiegeMath.damageTakenForGroup(1, c), 1e-9);
+        assertEquals(0.8, SiegeMath.damageTakenForGroup(2, c), 1e-9);
+        assertEquals(1.0, SiegeMath.damageTakenForGroup(9, c), 1e-9);
     }
 
     @Test

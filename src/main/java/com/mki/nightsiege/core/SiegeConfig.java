@@ -82,6 +82,18 @@ public class SiegeConfig {
     public double overflowHealth = 0.0;
     /** Night: a lone defender takes this share of the monsters' damage (1 = as before). */
     public double soloDamageTaken = 1.0;
+    /**
+     * Normal nights: the cap of live monsters by group size, for 1, 2, 3 … players (team sim 29.10.:
+     * small groups need fewer monsters per head, big ones more, so no straight line fits). Past the
+     * end of the list every further player adds liveCapStep. Empty: maxLiveMobs × (1 + livePerPlayer × further).
+     */
+    public List<Integer> liveCapByPlayers = new ArrayList<>();
+    public int liveCapStep = 8;
+    /**
+     * Night: the share of the monsters' damage a defender takes by group size, for 1, 2, 3 … players;
+     * past the end of the list its last value. Empty: soloDamageTaken alone, 1 from two players.
+     */
+    public List<Double> damageTakenByPlayers = new ArrayList<>();
     public int maxLiveMobs = 40;
     public int batchIntervalSeconds = 38;
     /**
@@ -983,6 +995,15 @@ public class SiegeConfig {
         maxLiveMobsCap = clamp(maxLiveMobsCap, Math.max(1, maxLiveMobs), 500);
         overflowHealth = Double.isNaN(overflowHealth) ? 0.0 : clampDouble(overflowHealth, 0.0, 3.0);
         soloDamageTaken = Double.isNaN(soloDamageTaken) ? 1.0 : clampDouble(soloDamageTaken, 0.1, 2.0);
+        if (liveCapByPlayers == null) {
+            liveCapByPlayers = new ArrayList<>();
+        }
+        liveCapByPlayers.replaceAll(v -> v == null ? 1 : clamp(v, 1, 500));
+        liveCapStep = clamp(liveCapStep, 0, 100);
+        if (damageTakenByPlayers == null) {
+            damageTakenByPlayers = new ArrayList<>();
+        }
+        damageTakenByPlayers.replaceAll(v -> v == null || Double.isNaN(v) ? 1.0 : clampDouble(v, 0.1, 2.0));
         batchIntervalSeconds = Math.max(5, batchIntervalSeconds);
 
         healthPerLevel = Math.max(0.0, healthPerLevel);

@@ -836,6 +836,16 @@ public final class TeamSim {
                         f.setInt(cfg, (int) Double.parseDouble(value));
                     } else if (f.getType() == boolean.class) {
                         f.setBoolean(cfg, Boolean.parseBoolean(value));
+                    } else if (List.class.isAssignableFrom(f.getType())) {
+                        // A list as numbers with "/" between them: liveCapByPlayers=8/12/20/30
+                        boolean ints = f.getGenericType().getTypeName().contains("Integer");
+                        List<Object> list = new ArrayList<>();
+                        for (String part : value.split("/")) {
+                            if (!part.isBlank()) {
+                                list.add(ints ? (Object) (int) Math.round(Double.parseDouble(part)) : (Object) Double.parseDouble(part));
+                            }
+                        }
+                        f.set(cfg, list);
                     }
                 }
             } catch (ReflectiveOperationException | RuntimeException ex) {

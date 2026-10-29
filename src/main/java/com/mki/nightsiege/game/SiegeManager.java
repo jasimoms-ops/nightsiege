@@ -3047,7 +3047,8 @@ public final class SiegeManager {
     public float damageTakenFactor(ServerPlayer player) {
         PlayerSkills skills = save.skillsOf(player.getUUID().toString());
         // A lone defender of a night takes soloDamageTaken of it (per-player scaling, 29 October 2026).
-        double solo = active && participants.size() == 1 && participants.contains(player.getUUID()) ? config.soloDamageTaken : 1.0;
+        double solo = active && participants.contains(player.getUUID())
+                ? SiegeMath.damageTakenForGroup(participants.size(), config) : 1.0;   // by group size (29.10.)
         return (float) (config.damageTakenFactor(skills.className(), skillTree.subclassOf(skills))
                 * config.lowLevelTaken(currentLevel()) * solo);   // the low levels are a little kinder (28.10.)
     }
