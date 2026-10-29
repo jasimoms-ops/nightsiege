@@ -297,7 +297,7 @@ public class CoreScreen extends Screen {
     }
 
     /** Distance between the tiers of a subclass tree, and between the nodes of a tier (tree units). */
-    private static final double SUB_ROW = 54;
+    private static final double SUB_ROW = 50;
     private static final double SUB_COL = 66;
     /** Below this zoom a subclass tree leaves out the names under its nodes. */
     private static final double SUB_NAME_ZOOM = 0.5;
@@ -305,6 +305,8 @@ public class CoreScreen extends Screen {
     private static final float SUB_NAME_SCALE = 0.75f;
     /** The zoom a subclass tree opens with when it fits the width (names readable). */
     private static final double SUB_READ_ZOOM = 1.0;
+    /** Room on the right of a subclass tree for the tiers' names (screen pixels). */
+    private static final int SUB_GUTTER = 36;
 
     /**
      * A node beside the tier choices (Simon, 29 October 2026: "klare Stufen"): the alchemist's
@@ -333,7 +335,7 @@ public class CoreScreen extends Screen {
      */
     private void readableSubView() {
         zoom = subReadZoom;
-        camX = (minX + maxX) / 2.0;
+        camX = (minX + maxX) / 2.0 + SUB_GUTTER / 2.0 / zoom;   // the tree left of the tiers' names
         int frontier = -1;
         int learned = 0;
         for (GridNode g : gridNodes) {
@@ -1325,9 +1327,9 @@ public class CoreScreen extends Screen {
         }
         // A little room around the outer ring; the way names sit in the corners of the view.
         double spanX = maxX - minX + 2 * (N_SLOT + 14);
-        double spanY = maxY - minY + 2 * (N_SLOT + 10) + (subMode ? 36 : 0);   // room for the subclass's name
+        double spanY = maxY - minY + 2 * (N_SLOT + 10) + (subMode ? 16 : 0);   // room for the subclass's name
         fitZoom = Math.min(viewW() / spanX, viewH() / spanY);
-        subReadZoom = Math.max(fitZoom, Math.min(SUB_READ_ZOOM, viewW() / spanX));
+        subReadZoom = Math.max(fitZoom, Math.min(SUB_READ_ZOOM, (viewW() - SUB_GUTTER) / spanX));
         shownClass = subMode ? clazz + "/" + viewedSub() : clazz;
         double[] view = VIEWS.get(shownClass);
         if (view == null && subMode) {
@@ -1883,19 +1885,24 @@ public class CoreScreen extends Screen {
                     tierGroups.put(n.row, n.group);
                 }
             }
-            for (java.util.Map.Entry<Integer, String> e : tierGroups.entrySet()) {
+            double gap = SUB_ROW * zoom;   // far out the names would overlap: numbers only, then nothing
+            for (java.util.Map.Entry<Integer, String> e : gap < 11 ? java.util.Map.<Integer, String>of().entrySet() : tierGroups.entrySet()) {
                 int row = e.getKey();
-                int sy = (int) screenY(-row * SUB_ROW) - 8;
+                boolean kinds = gap >= 20;
+                int sy = (int) screenY(-row * SUB_ROW) - (kinds ? 8 : 4);
                 if (sy < vy + 2 || sy > vy + vh - 16) {
                     continue;
                 }
                 String num = row < 2 ? "" : roman(row - 1);
-                String kind = Component.translatable(tierKey(row, e.getValue())).getString();
+                String kind = kinds || num.isEmpty() ? Component.translatable(tierKey(row, e.getValue())).getString() : "";
+                if (!kinds && num.isEmpty()) {
+                    continue;
+                }
                 int kw = (int) Math.ceil(font.width(kind) * 0.75f);
                 int w = Math.max(font.width(num), kw) + 6;
                 int x = vx + vw - w - 3;
                 int c = row == 8 ? 0xFFFFD86B : 0xFFC8C0D8;
-                gui.fill(x, sy - 1, x + w, sy + (num.isEmpty() ? 9 : 17), 0x90000000);
+                gui.fill(x, sy - 1, x + w, sy + (num.isEmpty() || kind.isEmpty() ? 9 : 17), 0x90000000);
                 if (!num.isEmpty()) {
                     gui.text(font, num, x + w - 3 - font.width(num), sy, c, true);
                 }
@@ -2097,7 +2104,11 @@ public class CoreScreen extends Screen {
         if (n.id.contains("_cross_")) {
             lines.add("§b" + Component.translatable("nightsiege.ui.cross").getString());
         }
-        int shuts = wouldClose(n, ownsClassTab() ? shownPath() : "").size();
+        java.util.Set<String> shut = wouldClose(n, ownsClassTab() ? shownPath() : "");
+        if (subMode) {
+            shut.retainAll(subNodes);   // a subclass tree counts only what it shows
+        }
+        int shuts = shut.size();
         if (shuts > 0) {
             lines.add("§c" + Component.translatable("nightsiege.ui.would_close", shuts).getString());
         }
@@ -4157,20 +4168,16 @@ public class CoreScreen extends Screen {
         com.mki.nightsiege.core.SkillTree.SubclassInfo info =
                 com.mki.nightsiege.core.SkillTree.subclassByKey(activeTab.clazz, sub);
         int lane = LANE_COLORS.getOrDefault(sub, activeTab.color & 0xFFFFFF);
+        // One small line (Simon 29.10.: "klare Stufen"), so it hides as little of the tree as it can.
         String name = Component.translatable("nightsiege.subclass." + sub).getString();
-        String line = Component.translatable(activeTab.clazz.translationKey()).getString()
-                + (info == null ? "" : " · " + Component.translatable("nightsiege.path." + info.way()).getString());
+        String line = (info == null ? "" : " · " + Component.translatable("nightsiege.path." + info.way()).getString());
         if (previewSub()) {
             line += " · " + Component.translatable("nightsiege.ui.sub_preview").getString();
         }
-        int w = Math.max(font.width(name) * 3 / 2, font.width(line)) + 10;
-        gui.fill(vx + 3, vy + 3, vx + 3 + w, vy + 31, 0x80000000);
-        gui.pose().pushMatrix();
-        gui.pose().translate(vx + 7, vy + 6);
-        gui.pose().scale(1.5f, 1.5f);
-        gui.text(font, name, 0, 0, 0xFF000000 | lane, true);
-        gui.pose().popMatrix();
-        gui.text(font, line, vx + 7, vy + 20, 0xFFB8B0C4, true);
+        int w = font.width(name) + font.width(line) + 8;
+        gui.fill(vx + 3, vy + 3, vx + 3 + w, vy + 15, 0x70000000);
+        gui.text(font, name, vx + 7, vy + 5, 0xFF000000 | lane, true);
+        gui.text(font, line, vx + 7 + font.width(name), vy + 5, 0xFFB8B0C4, true);
     }
 
     private void layoutProfilePages() {
