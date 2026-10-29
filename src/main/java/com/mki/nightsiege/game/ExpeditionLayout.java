@@ -1995,7 +1995,9 @@ public final class ExpeditionLayout {
                 int x = (int) (k >>> 24) - 2048;
                 int y = (int) ((k >>> 12) & 0xfff) - 2048;
                 int z = (int) (k & 0xfff) - 2048;
-                for (int dx = -1; dx <= 1; dx++) {
+                // Walls only under the ground: above it stands the gatehouse, whose door must
+                // stay open (Simon 29.10.: "der Eingang ist immer versperrt" – it was walled up).
+                for (int dx = -1; dx <= 1 && y < 0; dx++) {
                     for (int dz = -1; dz <= 1; dz++) {
                         if ((dx != 0 || dz != 0) && !out.containsKey(key(x + dx, y, z + dz))) {
                             add.add(new long[] {x + dx, y, z + dz, 0});
