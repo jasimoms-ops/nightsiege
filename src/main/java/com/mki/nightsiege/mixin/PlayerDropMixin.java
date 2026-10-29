@@ -15,7 +15,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 /**
  * No dropping items during the night (Simon, 25 October 2026): a defender who throws an
  * item (Q key, out of the inventory screen) gets it back into the inventory. Dying still
- * works as before, and an item that no longer fits anywhere falls as usual.
+ * works as before, and an item that no longer fits anywhere falls as usual. A kit item that
+ * would fall vanishes instead (Simon, 29 October 2026).
  */
 @Mixin(ServerPlayer.class)
 public abstract class PlayerDropMixin {
@@ -28,8 +29,18 @@ public abstract class PlayerDropMixin {
     private void nightsiege$noDropAtNight(ItemStack stack, boolean throwRandomly, boolean retainOwnership,
             CallbackInfoReturnable<ItemEntity> cir) {
         ServerPlayer player = (ServerPlayer) (Object) this;
-        if (nightsiege$returning || stack.isEmpty() || player.isDeadOrDying() || SiegeManager.get() == null
-                || !SiegeManager.get().isDefending(player)) {
+        if (stack.isEmpty()) {
+            return;
+        }
+        boolean keep = !nightsiege$returning && !player.isDeadOrDying() && SiegeManager.get() != null
+                && SiegeManager.get().isDefending(player);
+        if (!keep && com.mki.nightsiege.game.KitService.isKit(stack)) {
+            // A kit item that would fall (Q, thrown out of a window, on death, no room) is gone (Simon 29.10.);
+            // the kit comes again next night, the own things come back from the stash.
+            cir.setReturnValue(null);
+            return;
+        }
+        if (!keep) {
             return;
         }
         nightsiege$returning = true;

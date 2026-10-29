@@ -220,6 +220,13 @@ public final class KitService {
             inv.placeItemBackInInventory(stack);
         }
         resync(player);
+        // Safety net (Simon 29.10.: kit items put into a vase): kit items left in containers, frames or on
+        // stands around the player go with the kit.
+        try {
+            KitGuard.sweepAround(player);
+        } catch (RuntimeException e) {
+            NightSiegeMod.LOGGER.warn("[Night Siege] Kit-Reste um {} nicht entfernt: {}", player.getScoreboardName(), e.toString());
+        }
         if (broken.isEmpty()) {
             s.kitStashes.remove(id);
         } else {

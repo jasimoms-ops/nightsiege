@@ -315,6 +315,18 @@ public class SiegeConfig {
      */
     public Map<String, Double> hitLifesteal = new LinkedHashMap<>(Map.of("axe", 0.06, "blademaster", 0.08, "paladin", 0.08));
     /**
+     * Simon 29.10. (solo playtests: the melee classes healed only 9–20 % of what they took): the hit
+     * life steal is this many times stronger on world level 1 and falls in a line to 1× at
+     * hitLifestealLowUntil.
+     */
+    public double hitLifestealLowFactor = 2.5;
+    public int hitLifestealLowUntil = 15;
+    /** Every hit that hurts a monster heals at least this much (1.0 = half a heart), at most once per hitLifestealMinTicks. */
+    public double hitLifestealMinHeal = 1.0;
+    public int hitLifestealMinTicks = 10;
+    /** The axe fighter's cleave (splash, Spaltaxt) heals at this share of the hit life steal (0.5 = half the rate). */
+    public double hitLifestealCleave = 0.5;
+    /**
      * The blademaster has no life steal on his hits; a kill in the middle of a combo heals him by
      * this share of the monster's maximum life instead.
      * @deprecated no longer read (balance update, 26 October 2026): use {@code skillTweaks.w_combo.values.killheal}.
@@ -419,6 +431,15 @@ public class SiegeConfig {
     /** The share grows with the level: 1 + step × (level − 10), never below the minimum. */
     public double percentDamageLevelStep = 0.05;
     public double percentDamageMin = 0.5;
+    /**
+     * Simon 29.10.: every normal blow and shot of a dungeon champion (Wächter, in his dungeon and at the
+     * end of a night) takes this share of the target's max health on top, like a boss's: 4 % below
+     * level 10, 5 % below 20, then 6 % (one share more for each step reached). No level factor.
+     */
+    public double[] championPercentDamage = {0.04, 0.05, 0.06};
+    public int[] championPercentDamageSteps = {10, 20};
+    /** What of that share goes through a raised shield (0.5 = half, like the guardian's shield way). */
+    public double championPercentShield = 0.5;
     /** Siege monsters drop items and experience (false since Simon's call of 26 October 2026: they drop nothing). */
     public boolean siegeMobDrops = false;
     /** Klaffende Wunden (anti-heal, Simon 25 October 2026): these monsters halve all healing of the player they hit. */
@@ -719,6 +740,31 @@ public class SiegeConfig {
     public double hitLifesteal(String subclass) {
         Double v = hitLifesteal == null || subclass == null ? null : hitLifesteal.get(subclass);
         return v == null ? 0.0 : v;
+    }
+
+    /** Factor on the hit life steal at this world level: hitLifestealLowFactor on level 1, 1 from hitLifestealLowUntil on. */
+    public double hitLifestealLevelFactor(int level) {
+        if (hitLifestealLowUntil <= 1 || level >= hitLifestealLowUntil) {
+            return 1.0;
+        }
+        double t = (Math.max(1, level) - 1) / (double) (hitLifestealLowUntil - 1);
+        return hitLifestealLowFactor + (1.0 - hitLifestealLowFactor) * t;
+    }
+
+    /** Share of the max health (0.04 = 4 %) a dungeon champion's normal hit takes on top at this level. */
+    public double championPercent(int level) {
+        if (championPercentDamage == null || championPercentDamage.length == 0) {
+            return 0.0;
+        }
+        int step = 0;
+        if (championPercentDamageSteps != null) {
+            for (int from : championPercentDamageSteps) {
+                if (level >= from) {
+                    step++;
+                }
+            }
+        }
+        return championPercentDamage[Math.min(step, championPercentDamage.length - 1)];
     }
 
     /** Low levels: the share of monster damage a player takes on this level (see lowLevelDamageTaken). */
@@ -1271,6 +1317,22 @@ public class SiegeConfig {
             hitLifesteal = new LinkedHashMap<>(Map.of("axe", 0.06, "blademaster", 0.08, "paladin", 0.08));
         }
         hitLifesteal.replaceAll((k, v) -> v == null || Double.isNaN(v) ? 0.0 : Math.min(1.0, Math.max(0.0, v)));
+        hitLifestealLowFactor = Double.isNaN(hitLifestealLowFactor) ? 2.5 : Math.min(10.0, Math.max(0.0, hitLifestealLowFactor));
+        hitLifestealLowUntil = clamp(hitLifestealLowUntil, 1, 100);
+        hitLifestealMinHeal = Double.isNaN(hitLifestealMinHeal) ? 1.0 : Math.min(20.0, Math.max(0.0, hitLifestealMinHeal));
+        hitLifestealMinTicks = clamp(hitLifestealMinTicks, 1, 1200);
+        hitLifestealCleave = Double.isNaN(hitLifestealCleave) ? 0.5 : Math.min(1.0, Math.max(0.0, hitLifestealCleave));
+        if (championPercentDamage == null || championPercentDamage.length == 0) {
+            championPercentDamage = new double[] {0.04, 0.05, 0.06};
+        }
+        for (int i = 0; i < championPercentDamage.length; i++) {
+            double v = championPercentDamage[i];
+            championPercentDamage[i] = Double.isNaN(v) ? 0.0 : Math.min(1.0, Math.max(0.0, v));
+        }
+        if (championPercentDamageSteps == null) {
+            championPercentDamageSteps = new int[] {10, 20};
+        }
+        championPercentShield = Double.isNaN(championPercentShield) ? 0.5 : Math.min(1.0, Math.max(0.0, championPercentShield));
         if (antiHealMobs == null) {
             antiHealMobs = new java.util.ArrayList<>(java.util.List.of("minecraft:spider", "minecraft:cave_spider", "minecraft:witch"));
         }

@@ -902,6 +902,350 @@ public class EventLookTest implements FabricClientGameTest {
                 net.minecraft.network.chat.Component.translatable("nightsiege.kitweapon.blademaster_saber").getString()));
         System.out.println("[Night Siege test] kit weapons: named=" + named[0]);
         game.getServer().runCommand("clear @p");
+        balanceFightScene(context, game);   // balance update 2 (29 October 2026): life steal, champions, kit storage
+    }
+
+    /** The slot of a menu that shows this slot of the player's inventory, or -1. */
+    private static int menuSlotOf(net.minecraft.world.inventory.AbstractContainerMenu menu,
+                                  net.minecraft.world.entity.player.Inventory inv, int invSlot) {
+        for (int i = 0; i < menu.slots.size(); i++) {
+            net.minecraft.world.inventory.Slot s = menu.slots.get(i);
+            if (s.container == inv && s.getContainerSlot() == invSlot) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /** Kit items in a container, counted by stack size. */
+    private static int kitCount(net.minecraft.world.Container box) {
+        int n = 0;
+        for (int i = 0; i < box.getContainerSize(); i++) {
+            if (com.mki.nightsiege.game.KitService.isKit(box.getItem(i))) {
+                n += box.getItem(i).getCount();
+            }
+        }
+        return n;
+    }
+
+    /**
+     * Balance update 2 (Simon, 29 October 2026): the hit life steal on level 1 against level 15 and its
+     * floor of half a heart, a dungeon champion's blow and shot with the share of the max health (half
+     * through a shield), and kit items that go into no chest, no vase, no bundle and vanish when dropped.
+     */
+    private static void balanceFightScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        int cx = pos.getX() - 180;
+        int cz = pos.getZ() - 120;
+        int cy = yard(context, game, cx, cz, 16, 8);
+        game.getServer().runCommand("time set 6000");
+        game.getServer().runCommand("gamemode creative @p");
+        game.getServer().runCommand("clear @p");
+        game.getServer().runCommand("effect clear @p");
+        game.getServer().runCommand("tp @p %d.5 %d %d.5 0 0".formatted(cx, cy, cz));
+        game.getServer().runCommand(("summon minecraft:husk %d %d %d {NoAI:1b,PersistenceRequired:1b,Silent:1b,Tags:[\"ns_fight\",\"ns_fight_dummy\"],"
+                + "attributes:[{id:\"minecraft:max_health\",base:1000.0d}],Health:1000.0f}").formatted(cx + 4, cy, cz + 4));
+        context.waitTicks(20);
+        java.util.List<String> fails = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+        int[] savedWon = {0};
+
+        // 1. Life steal of the axe fighter: level 1 (×2.5) against level 15 (×1), then the floor of 1 life point.
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            if (!manager.isRegistered(player)) {
+                manager.register(player);
+            }
+            com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
+            own.unlockClass(com.mki.nightsiege.core.SkillClass.WARRIOR);
+            own.switchTo(com.mki.nightsiege.core.SkillClass.WARRIOR);
+            own.levels.clear();
+            own.levels.put("heavy_blow", 1);
+            player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_AXE));
+            net.minecraft.world.entity.LivingEntity dummy = null;
+            for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                if (e.entityTags().contains("ns_fight_dummy") && e instanceof net.minecraft.world.entity.LivingEntity l) {
+                    dummy = l;
+                }
+            }
+            if (dummy == null) {
+                fails.add("no training dummy");
+                return;
+            }
+            com.mki.nightsiege.core.SiegeConfig cfg = manager.config();
+            String sub = manager.skillTree().subclassOf(own);
+            savedWon[0] = manager.save().siegesWon;
+            int[] levels = {1, 15};
+            double[] ratio = new double[2];
+            for (int i = 0; i < levels.length; i++) {
+                manager.save().siegesWon = levels[i] - 1;
+                player.setHealth(2f);
+                float before = dummy.getHealth();
+                dummy.invulnerableTime = 0;
+                dummy.hurtServer(level, level.damageSources().playerAttack(player), 30f);
+                float dealt = before - dummy.getHealth();
+                float healed = player.getHealth() - 2f;
+                ratio[i] = dealt > 0 ? healed / dealt : 0;
+                System.out.println(String.format(java.util.Locale.ROOT,
+                        "[Night Siege test] fight lifesteal level %d (now %d) sub=%s dealt %.2f healed %.2f share %.3f expect %.3f",
+                        levels[i], manager.currentLevel(), sub, dealt, healed, ratio[i],
+                        cfg.hitLifesteal(sub) * cfg.hitLifestealLevelFactor(levels[i])));
+            }
+            if (!"axe".equals(sub)) {
+                fails.add("lifesteal test is no axe fighter: " + sub);
+            }
+            if (ratio[1] < 0.045 || ratio[1] > 0.075) {
+                fails.add(String.format(java.util.Locale.ROOT, "life steal on level 15 is %.3f of the hit, not 0.06", ratio[1]));
+            }
+            if (ratio[1] <= 0 || ratio[0] / ratio[1] < 2.2 || ratio[0] / ratio[1] > 2.8) {
+                fails.add(String.format(java.util.Locale.ROOT, "life steal level 1 / level 15 = %.2f, not 2.5",
+                        ratio[1] <= 0 ? 0 : ratio[0] / ratio[1]));
+            }
+            // Two small hits at once: the first heals the floor (1 life point), the second only its share.
+            float[] small = new float[2];
+            for (int i = 0; i < 2; i++) {
+                player.setHealth(2f);
+                dummy.invulnerableTime = 0;
+                dummy.hurtServer(level, level.damageSources().playerAttack(player), 2f);
+                small[i] = player.getHealth() - 2f;
+            }
+            System.out.println(String.format(java.util.Locale.ROOT,
+                    "[Night Siege test] fight lifesteal floor: first small hit healed %.2f, second %.2f (floor %.1f every %d ticks)",
+                    small[0], small[1], cfg.hitLifestealMinHeal, cfg.hitLifestealMinTicks));
+            if (Math.abs(small[0] - cfg.hitLifestealMinHeal) > 0.05) {
+                fails.add(String.format(java.util.Locale.ROOT, "the floor heal was %.2f, not %.1f", small[0], cfg.hitLifestealMinHeal));
+            }
+            if (small[1] >= cfg.hitLifestealMinHeal - 0.05 || small[1] <= 0f) {
+                fails.add(String.format(java.util.Locale.ROOT, "the second small hit healed %.2f (the floor must wait)", small[1]));
+            }
+            // The formula alone: what the config says for a hit of 10 on level 1 and 15.
+            double h1 = com.mki.nightsiege.game.CombatEffects.hitHeal(cfg, "axe", 10, 0, 1, false);
+            double h15 = com.mki.nightsiege.game.CombatEffects.hitHeal(cfg, "axe", 10, 4, 15, false);
+            System.out.println(String.format(java.util.Locale.ROOT, "[Night Siege test] fight lifesteal formula: hit 10 on level 1 heals %.2f,"
+                    + " on level 15 with 4 cleaved %.2f", h1, h15));
+            if (Math.abs(h1 - 1.5) > 1e-6 || Math.abs(h15 - (0.6 + 4 * 0.06 * 0.5)) > 1e-6) {
+                fails.add("life steal formula " + h1 + " / " + h15);
+            }
+            manager.save().siegesWon = savedWon[0];
+            own.levels.clear();
+            player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND, net.minecraft.world.item.ItemStack.EMPTY);
+            player.setHealth(player.getMaxHealth());
+        });
+        context.waitTicks(10);
+        game.getServer().runCommand("kill @e[tag=ns_fight]");
+
+        // 2. A dungeon champion's blow and arrow take the share on top; a plain husk does not.
+        game.getServer().runCommand(("summon minecraft:husk %d %d %d {NoAI:1b,PersistenceRequired:1b,Silent:1b,Tags:[\"ns_fight\",\"ns_fight_champion\",\"nightsiege_warden\"]}")
+                .formatted(cx, cy, cz + 2));
+        game.getServer().runCommand(("summon minecraft:husk %d %d %d {NoAI:1b,PersistenceRequired:1b,Silent:1b,Tags:[\"ns_fight\",\"ns_fight_plain\"]}")
+                .formatted(cx + 3, cy, cz + 2));
+        game.getServer().runCommand("tp @p %d.5 %d %d.5 facing %d.5 %d %d.5".formatted(cx, cy, cz, cx, cy + 1, cz + 2));
+        game.getServer().runCommand("gamemode survival @p");
+        context.waitTicks(20);
+        float[] share = new float[1];
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            net.minecraft.world.entity.Mob champion = null;
+            net.minecraft.world.entity.Mob plain = null;
+            for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                if (e instanceof net.minecraft.world.entity.Mob mob && e.entityTags().contains("ns_fight_champion")) {
+                    champion = mob;
+                } else if (e instanceof net.minecraft.world.entity.Mob mob && e.entityTags().contains("ns_fight_plain")) {
+                    plain = mob;
+                }
+            }
+            if (champion == null || plain == null) {
+                fails.add("champion or plain husk missing");
+                return;
+            }
+            com.mki.nightsiege.core.SiegeConfig cfg = manager.config();
+            float max = player.getMaxHealth();
+            share[0] = (float) (max * cfg.championPercent(manager.currentLevel()) * manager.damageTakenFactor(player));
+            float[] took = new float[4];
+            net.minecraft.world.entity.Mob[] by = {plain, champion};
+            for (int i = 0; i < 2; i++) {
+                player.setHealth(max);
+                player.invulnerableTime = 0;
+                by[i].doHurtTarget(level, player);
+                took[i] = max - player.getHealth();
+            }
+            for (int i = 0; i < 2; i++) {
+                player.setHealth(max);
+                player.invulnerableTime = 0;
+                net.minecraft.world.entity.projectile.arrow.Arrow arrow = new net.minecraft.world.entity.projectile.arrow.Arrow(level, by[i],
+                        new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.ARROW), new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.BOW));
+                player.hurtServer(level, level.damageSources().arrow(arrow, by[i]), 2f);
+                took[2 + i] = max - player.getHealth();
+                arrow.discard();
+            }
+            System.out.println(String.format(java.util.Locale.ROOT,
+                    "[Night Siege test] fight champion level %d share %.2f (%.0f %%): blow plain %.2f champion %.2f, arrow plain %.2f champion %.2f",
+                    manager.currentLevel(), share[0], cfg.championPercent(manager.currentLevel()) * 100, took[0], took[1], took[2], took[3]));
+            if (took[1] - took[0] < share[0] * 0.9f) {
+                fails.add(String.format(java.util.Locale.ROOT, "the champion's blow took %.2f, a plain one %.2f (share %.2f)", took[1], took[0], share[0]));
+            }
+            if (took[3] - took[2] < share[0] * 0.9f) {
+                fails.add(String.format(java.util.Locale.ROOT, "the champion's arrow took %.2f, a plain one %.2f (share %.2f)", took[3], took[2], share[0]));
+            }
+            player.setHealth(max);
+            player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.OFFHAND, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.SHIELD));
+            player.startUsingItem(net.minecraft.world.InteractionHand.OFF_HAND);
+        });
+        context.waitTicks(12);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            net.minecraft.world.entity.Mob champion = null;
+            for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                if (e instanceof net.minecraft.world.entity.Mob mob && e.entityTags().contains("ns_fight_champion")) {
+                    champion = mob;
+                }
+            }
+            float max = player.getMaxHealth();
+            player.setHealth(max);
+            player.invulnerableTime = 0;
+            boolean blocking = player.isBlocking();
+            if (champion != null) {
+                champion.doHurtTarget(level, player);
+            }
+            float took = max - player.getHealth();
+            System.out.println(String.format(java.util.Locale.ROOT, "[Night Siege test] fight champion on a shield: blocking=%s took %.2f (half share %.2f)",
+                    blocking, took, share[0] * manager.config().championPercentShield));
+            if (blocking && Math.abs(took - share[0] * manager.config().championPercentShield) > 0.15f + share[0] * 0.1f) {
+                fails.add(String.format(java.util.Locale.ROOT, "on a shield the champion took %.2f, not half the share %.2f", took,
+                        share[0] * manager.config().championPercentShield));
+            }
+            player.stopUsingItem();
+            player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.OFFHAND, net.minecraft.world.item.ItemStack.EMPTY);
+            player.setHealth(max);
+        });
+        context.waitTicks(5);
+        game.getServer().runCommand("gamemode creative @p");
+        game.getServer().runCommand("kill @e[tag=ns_fight]");
+
+        // 3. Kit items: not into a chest (click, shift-click, number key), not into a vase, not into a bundle,
+        //    free inside the own inventory, gone when dropped; left-overs go when the kit ends.
+        BlockPos chestPos = new BlockPos(cx + 2, cy, cz + 3);
+        BlockPos potPos = new BlockPos(cx - 2, cy, cz + 3);
+        game.getServer().runCommand("setblock %d %d %d minecraft:chest".formatted(chestPos.getX(), chestPos.getY(), chestPos.getZ()));
+        game.getServer().runCommand("setblock %d %d %d minecraft:decorated_pot".formatted(potPos.getX(), potPos.getY(), potPos.getZ()));
+        context.waitTicks(10);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            net.minecraft.world.entity.player.Inventory inv = player.getInventory();
+            inv.clearContent();
+            net.minecraft.world.item.ItemStack kit = com.mki.nightsiege.game.KitService.mark(
+                    new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.BREAD, 3));
+            inv.setItem(0, kit.copy());
+            inv.setSelectedSlot(0);
+            if (!(level.getBlockEntity(chestPos) instanceof net.minecraft.world.level.block.entity.ChestBlockEntity chest)) {
+                fails.add("no chest for the kit test");
+                return;
+            }
+            player.openMenu(chest);
+            net.minecraft.world.inventory.AbstractContainerMenu menu = player.containerMenu;
+            int hot0 = menuSlotOf(menu, inv, 0);
+            menu.clicked(hot0, 0, net.minecraft.world.inventory.ContainerInput.QUICK_MOVE, player);
+            int afterShift = kitCount(chest);
+            menu.clicked(hot0, 0, net.minecraft.world.inventory.ContainerInput.PICKUP, player);
+            menu.clicked(0, 0, net.minecraft.world.inventory.ContainerInput.PICKUP, player);
+            int afterPlace = kitCount(chest);
+            menu.clicked(hot0, 0, net.minecraft.world.inventory.ContainerInput.PICKUP, player);
+            menu.clicked(1, 0, net.minecraft.world.inventory.ContainerInput.SWAP, player);
+            int afterSwap = kitCount(chest);
+            player.closeContainer();
+            boolean back = com.mki.nightsiege.game.KitService.isKit(inv.getItem(0)) && inv.getItem(0).getCount() == 3;
+            System.out.println("[Night Siege test] fight kit chest: menu slot " + hot0 + " shift=" + afterShift + " place=" + afterPlace
+                    + " swap=" + afterSwap + " kept=" + back);
+            if (hot0 < 0 || afterShift + afterPlace + afterSwap > 0 || !back) {
+                fails.add("a kit item went into the chest (shift " + afterShift + ", place " + afterPlace + ", swap " + afterSwap + ", kept " + back + ")");
+            }
+            // The vase: a right-click with the kit bread in hand.
+            net.minecraft.world.phys.BlockHitResult hit = new net.minecraft.world.phys.BlockHitResult(
+                    net.minecraft.world.phys.Vec3.atCenterOf(potPos), net.minecraft.core.Direction.UP, potPos, false);
+            net.minecraft.world.InteractionResult used = player.gameMode.useItemOn(player, level, player.getMainHandItem(),
+                    net.minecraft.world.InteractionHand.MAIN_HAND, hit);
+            int inPot = level.getBlockEntity(potPos) instanceof net.minecraft.world.Container pot ? kitCount(pot) : -1;
+            System.out.println("[Night Siege test] fight kit vase: " + used + " in the vase " + inPot + " in hand " + player.getMainHandItem().getCount());
+            if (inPot != 0) {
+                fails.add("the vase took the kit item (" + inPot + ")");
+            }
+            // A bundle takes no kit item; inside the own inventory the kit item moves freely.
+            inv.clearContent();
+            inv.setItem(9, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.BUNDLE));
+            inv.setItem(10, kit.copy());
+            net.minecraft.world.inventory.AbstractContainerMenu own = player.inventoryMenu;
+            int s9 = menuSlotOf(own, inv, 9);
+            int s10 = menuSlotOf(own, inv, 10);
+            int s20 = menuSlotOf(own, inv, 20);
+            own.clicked(s10, 0, net.minecraft.world.inventory.ContainerInput.PICKUP, player);
+            own.clicked(s9, 0, net.minecraft.world.inventory.ContainerInput.PICKUP, player);
+            own.clicked(s20, 0, net.minecraft.world.inventory.ContainerInput.PICKUP, player);
+            if (!own.getCarried().isEmpty()) {
+                inv.placeItemBackInInventory(own.getCarried());
+                own.setCarried(net.minecraft.world.item.ItemStack.EMPTY);
+            }
+            int kitLeft = kitCount(inv);
+            boolean moved = com.mki.nightsiege.game.KitService.isKit(inv.getItem(9));
+            System.out.println("[Night Siege test] fight kit bundle: kit items " + kitLeft + "/3, moved to slot 9=" + moved
+                    + " bundle at 20=" + inv.getItem(20).is(net.minecraft.world.item.Items.BUNDLE));
+            if (kitLeft != 3) {
+                fails.add("the bundle took kit items (" + kitLeft + "/3 left)");
+            }
+            if (!moved) {
+                fails.add("the kit item did not move inside the own inventory");
+            }
+            // Dropped: gone.
+            inv.clearContent();
+            net.minecraft.world.entity.item.ItemEntity drop = player.drop(kit.copy(), false, true);
+            System.out.println("[Night Siege test] fight kit drop: entity=" + (drop != null));
+            if (drop != null) {
+                fails.add("a dropped kit item lies on the ground");
+            }
+            // Left-overs: a kit item in the chest and in an item frame go when the kit ends.
+            chest.setItem(4, kit.copy());
+            net.minecraft.world.entity.decoration.ItemFrame frame = new net.minecraft.world.entity.decoration.ItemFrame(level,
+                    new BlockPos(cx - 3, cy, cz - 3), net.minecraft.core.Direction.UP);
+            level.addFreshEntity(frame);
+            frame.setItem(kit.copy());
+            boolean frameRefused = com.mki.nightsiege.game.KitGuard.refusesEntity(player, net.minecraft.world.InteractionHand.MAIN_HAND, frame);
+            inv.setItem(0, kit.copy());
+            boolean frameRefusedWithKit = com.mki.nightsiege.game.KitGuard.refusesEntity(player, net.minecraft.world.InteractionHand.MAIN_HAND, frame);
+            inv.clearContent();
+            int removed = com.mki.nightsiege.game.KitGuard.sweepAround(player);
+            System.out.println("[Night Siege test] fight kit sweep: removed " + removed + " chest " + kitCount(chest) + " frame "
+                    + frame.getItem().getCount() + " frame refuses empty hand=" + frameRefused + " kit hand=" + frameRefusedWithKit);
+            if (kitCount(chest) != 0 || !frame.getItem().isEmpty()) {
+                fails.add("the sweep left kit items (chest " + kitCount(chest) + ", frame " + frame.getItem().getCount() + ")");
+            }
+            if (frameRefused || !frameRefusedWithKit) {
+                fails.add("item frame guard empty=" + frameRefused + " kit=" + frameRefusedWithKit);
+            }
+            frame.discard();
+        });
+        context.waitTicks(10);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            int lying = 0;
+            for (net.minecraft.world.entity.item.ItemEntity e : level.getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class,
+                    player.getBoundingBox().inflate(12.0))) {
+                if (com.mki.nightsiege.game.KitService.isKit(e.getItem())) {
+                    lying++;
+                }
+            }
+            System.out.println("[Night Siege test] fight kit items on the ground: " + lying);
+            if (lying > 0) {
+                fails.add(lying + " kit items lie on the ground");
+            }
+        });
+        context.waitTicks(5);
+        game.getServer().runCommand("setblock %d %d %d minecraft:air".formatted(chestPos.getX(), chestPos.getY(), chestPos.getZ()));
+        game.getServer().runCommand("setblock %d %d %d minecraft:air".formatted(potPos.getX(), potPos.getY(), potPos.getZ()));
+        game.getServer().runCommand("clear @p");
+        game.getServer().runCommand("tp @p %d.5 %d %d.5".formatted(pos.getX(), pos.getY(), pos.getZ()));
+        context.waitTicks(20);
+        System.out.println("[Night Siege test] fight scene: " + (fails.isEmpty() ? "ok" : String.join("; ", fails)));
+        if (!fails.isEmpty()) {
+            throw new AssertionError("fight scene: " + String.join("; ", fails));
+        }
     }
 
     /**

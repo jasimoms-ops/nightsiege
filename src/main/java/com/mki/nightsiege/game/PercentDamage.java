@@ -86,6 +86,29 @@ public final class PercentDamage {
         return amount;
     }
 
+    /**
+     * Hits a player for exactly {@code percent} % of his max health, without the level factor (the
+     * dungeon champions' normal blows, Simon 29.10.: the share goes by level bands itself).
+     * {@code through}: no shield stops it. Returns the damage aimed.
+     */
+    public static float hitFlat(ServerLevel level, ServerPlayer player, Entity attacker, Entity direct, double percent,
+                                boolean through) {
+        if (level == null || player == null || !player.isAlive() || player.isCreative() || player.isSpectator()
+                || percent <= 0) {
+            return 0f;
+        }
+        float amount = (float) (player.getMaxHealth() * percent / 100.0);
+        DamageSource source = source(level, direct == null ? attacker : direct, attacker, through ? THROUGH : TYPE);
+        IN_HIT.set(Boolean.TRUE);
+        try {
+            player.invulnerableTime = 0;
+            player.hurtServer(level, source, amount);
+        } finally {
+            IN_HIT.set(Boolean.FALSE);
+        }
+        return amount;
+    }
+
     /** True while a share is being dealt (its own after-damage call must not add another one). */
     public static boolean inHit() {
         return IN_HIT.get();
