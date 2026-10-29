@@ -86,6 +86,8 @@ public class WarLeaderScreen extends Screen {
     private String tab = "squad";
     /** The first row of the shop shown (the list scrolls when the screen is low). */
     private int shopFirst;
+    /** The first own squad shown on the right. */
+    private int squadFirst;
     private boolean menu;
     private boolean confirmGiveUp;
     private String notice = "";
@@ -354,6 +356,10 @@ public class WarLeaderScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        if (inView() && mouseX >= sideX() && mouseX < sideX() + SIDE_W && mouseY >= shopTop() && mouseY < squadsBottom()) {
+            squadFirst = Math.max(0, Math.min(Math.max(0, data.squads.size() - squadRows()), squadFirst - (int) Math.signum(scrollY)));
+            return true;
+        }
         if (inView() && mouseX >= shopX() && mouseX < shopX() + SHOP_W && mouseY >= shopTop() && mouseY < shopBottom()) {
             shopFirst = Math.max(0, Math.min(Math.max(0, shown().size() - shopRows()), shopFirst - (int) Math.signum(scrollY)));
             return true;
@@ -662,8 +668,8 @@ public class WarLeaderScreen extends Screen {
         }
         int rowTop = shopTop() + 16;
         int i = (int) ((y - rowTop) / 12);
-        if (y >= rowTop && i >= 0 && i < Math.min(squadRows(), data.squads.size())) {
-            WarLeaderData.Squad s = data.squads.get(i);
+        if (y >= rowTop && i >= 0 && i < squadRows() && squadFirst + i < data.squads.size()) {
+            WarLeaderData.Squad s = data.squads.get(squadFirst + i);
             squad = s.id;
             if (!"coming".equals(s.order)) {
                 camX = s.x;
@@ -1057,7 +1063,8 @@ public class WarLeaderScreen extends Screen {
         small(gui, font, tr("nightsiege.war.squads", data.squads.size()), x0 + 4, top + 4, GOLD, 0.75f);
         int y = top + 16;
         int rows = squadRows();
-        for (int i = 0; i < Math.min(rows, data.squads.size()); i++) {
+        squadFirst = Math.max(0, Math.min(squadFirst, Math.max(0, data.squads.size() - rows)));
+        for (int i = squadFirst; i < Math.min(squadFirst + rows, data.squads.size()); i++) {
             WarLeaderData.Squad s = data.squads.get(i);
             boolean sel = s.id == squad;
             boolean hot = mouseX >= x0 && mouseX < x0 + SIDE_W && mouseY >= y && mouseY < y + 12;
@@ -1073,7 +1080,9 @@ public class WarLeaderScreen extends Screen {
             y += 12;
         }
         if (data.squads.size() > rows) {
-            small(gui, font, "+" + (data.squads.size() - rows), x0 + 4, y, GREY, 0.6f);
+            // More than fit: the wheel scrolls, the header shows where.
+            String more = (squadFirst > 0 ? "▲ " : "") + (squadFirst + rows < data.squads.size() ? "▼ " + (data.squads.size() - squadFirst - rows) : "");
+            small(gui, font, more, x0 + SIDE_W - 4 - (int) Math.ceil(font.width(more) * 0.65f), top + 5, GREY, 0.65f);
         }
         if (data.squads.isEmpty()) {
             small(gui, font, tr("nightsiege.war.squads_none"), x0 + 4, y, GREY, 0.65f);
