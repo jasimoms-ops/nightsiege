@@ -385,6 +385,13 @@ public class SiegeSave {
 
     /** Siege nights held so far (real ones, won or lost): numbers the nights for catching up. */
     public int nightsHeld;
+    /**
+     * The season (content update): every seasonLength nights one night with all eight bosses; won,
+     * the next season begins, lost, the finale comes again the night after.
+     */
+    public int season = 1;
+    /** Nights of this season so far (the finale is the last); -1 until counted (then from nightsHeld). */
+    public int seasonNights = -1;
     /** Version of the balancing the points below were earned under. */
     public int balanceVersion;
     public static final int BALANCE_VERSION = 1;

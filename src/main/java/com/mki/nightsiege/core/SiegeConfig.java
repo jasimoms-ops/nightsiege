@@ -164,6 +164,15 @@ public class SiegeConfig {
     public int contentVersion = 0;
     /** Seconds before the end of the night at which the boss comes, with a last big wave (at most half the night). */
     public int bossFinaleSeconds = 180;
+    // --- season finale (content update, Simon 28 October 2026) ---
+    /** Every this many nights a season ends with all bosses in one night (0 = no seasons). */
+    public int seasonLength = 25;
+    /** Health of each boss of the finale, as a share of its boss night's health. */
+    public double finaleBossHealth = 0.4;
+    /** Seconds between a boss's fall and the next one (and before the first). */
+    public int finalePauseSeconds = 20;
+    /** Seconds after which the next boss comes even when the last one still stands. */
+    public int finaleBossSeconds = 120;
     /** Size of the last wave that comes with the boss, as a share of a normal wave. */
     public double bossFinaleWave = 1.5;
     /** Factor on the health of every boss. */
@@ -997,6 +1006,10 @@ public class SiegeConfig {
         }
         bossEvery = clamp(bossEvery <= 0 ? 4 : bossEvery, 1, 100);
         bossFinaleSeconds = clamp(bossFinaleSeconds <= 0 ? 180 : bossFinaleSeconds, 30, 1200);
+        seasonLength = clamp(seasonLength, 0, 1000);
+        finaleBossHealth = clampDouble(finaleBossHealth <= 0 ? 0.4 : finaleBossHealth, 0.05, 5.0);
+        finalePauseSeconds = clamp(finalePauseSeconds, 0, 300);
+        finaleBossSeconds = clamp(finaleBossSeconds <= 0 ? 120 : finaleBossSeconds, 20, 1800);
         bossFinaleWave = clampDouble(bossFinaleWave, 0.0, 5.0);
         bossHealthMultiplier = clampDouble(bossHealthMultiplier <= 0 ? 1.0 : bossHealthMultiplier, 0.1, 20.0);
         bossHealthPerExtraPlayer = clampDouble(bossHealthPerExtraPlayer, 0.0, 3.0);

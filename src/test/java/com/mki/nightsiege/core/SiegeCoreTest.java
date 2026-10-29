@@ -2351,6 +2351,33 @@ class SiegeCoreTest {
     }
 
     @Test
+    void theSeasonEndsWithAFinaleEveryTwentyFiveNights() {
+        SiegeConfig c = new SiegeConfig();
+        c.sanitize();
+        assertEquals(25, c.seasonLength);
+        int nights = 0;
+        int finales = 0;
+        for (int night = 1; night <= 50; night++) {
+            boolean finale = BossPlan.finaleDue(nights, c);
+            assertEquals(night == 25 || night == 50, finale, "night " + night);
+            nights = BossPlan.countNight(nights, c);
+            if (finale) {
+                finales++;
+                nights = 0;   // won: the next season begins
+            }
+        }
+        assertEquals(2, finales);
+        // A lost finale stays due until it is won.
+        int lost = BossPlan.countNight(24, c);
+        assertTrue(BossPlan.finaleDue(lost, c));
+        assertTrue(BossPlan.finaleDue(BossPlan.countNight(lost, c), c));
+        // An old save starts where its nights held leave it.
+        assertEquals(15, BossPlan.startSeason(40, c));
+        c.seasonLength = 0;
+        assertFalse(BossPlan.finaleDue(100, c));
+    }
+
+    @Test
     void bossBagGivesEveryBossOnceBeforeRepeating() {
         List<String> bag = new java.util.ArrayList<>();
         Random random = new Random(5);

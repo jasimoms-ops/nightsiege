@@ -156,13 +156,43 @@ public final class BossService {
     final List<Part> parts = new ArrayList<>();
     /** Network ids of the boss monsters and their look, for the clients. */
     private final Map<Integer, String> looks = new HashMap<>();
+    /**
+     * The looks of every boss service of the night (the season finale runs several at once), so
+     * that one service's update does not wipe the others' looks on the clients.
+     */
+    private static final Map<Integer, String> ALL_LOOKS = new HashMap<>();
+    /** Share of the boss night's health this boss gets (the season finale: about 40 %). */
+    private double healthShare = 1.0;
 
     // ------------------------------------------------------------------ the night
 
     /** A boss night begins: this boss comes in the finale. */
     public void plan(BossKind kind) {
+        plan(kind, 1.0);
+    }
+
+    /** As above with a share of its usual health (the season finale's bosses: about 40 %). */
+    public void plan(BossKind kind, double healthShare) {
         reset(null);
         this.kind = kind;
+        this.healthShare = Math.max(0.05, healthShare);
+    }
+
+    /** True for this service's boss, its rider or second half, its mount or one of its parts. */
+    boolean owns(Entity entity) {
+        if (entity == null) {
+            return false;
+        }
+        UUID id = entity.getUUID();
+        if (id.equals(bossId) || id.equals(riderId) || id.equals(mountId)) {
+            return true;
+        }
+        for (Part part : parts) {
+            if (part.hitbox.equals(id)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** The boss planned for tonight, or null in a night without boss. */
@@ -220,7 +250,7 @@ public final class BossService {
         }
         double perPlayer = host.config().perPlayer(SiegeManager.get() != null && SiegeManager.get().inPlaytest(),
                 host.config().bossHealthPerExtraPlayer);
-        double health = BossPlan.health(kind.baseHealth(), host.level(), defenders, host.config(), perPlayer);
+        double health = BossPlan.health(kind.baseHealth(), host.level(), defenders, host.config(), perPlayer) * healthShare;
         // The golem and the ravager hit hard as they are: the new bosses start from a lighter blow.
         switch (kind) {
             case FROST_JARL -> set(boss, Attributes.ATTACK_DAMAGE, 6.0);
@@ -236,19 +266,20 @@ public final class BossService {
             return false;
         }
         bossId = boss.getUUID();
-        looks.clear();
-        looks.put(boss.getId(), kind.id());
+        forgetLooks();
+        look(boss.getId(), kind.id());
         maxTotal = boss.getMaxHealth();
         if (kind == BossKind.WARLORD) {
             Mob rider = create(level, BossKind.WARLORD_RIDER, spot, host.random());
             if (rider != null) {
-                double riderHealth = BossPlan.health(BossKind.WARLORD_RIDER_HEALTH, host.level(), defenders, host.config(), perPlayer);
+                double riderHealth = BossPlan.health(BossKind.WARLORD_RIDER_HEALTH, host.level(), defenders, host.config(), perPlayer)
+                        * healthShare;
                 prepare(rider, host, riderHealth, 1.35, kind.damage());
                 rider.setCustomName(Component.translatable("nightsiege.boss.warlord_rider"));
                 rider.snapTo(boss.getX(), boss.getY(), boss.getZ(), boss.getYRot(), 0f);
                 if (level.addFreshEntity(rider) && rider.startRiding(boss)) {
                     riderId = rider.getUUID();
-                    looks.put(rider.getId(), "warlord_rider");
+                    look(rider.getId(), "warlord_rider");
                     maxTotal += rider.getMaxHealth();
                 } else {
                     rider.discard();
@@ -272,7 +303,7 @@ public final class BossService {
                     boss.snapTo(high.getX() + 0.5, high.getY(), high.getZ() + 0.5, boss.getYRot(), 0f);
                     if (boss.startRiding(phantom)) {
                         mountId = phantom.getUUID();
-                        looks.put(phantom.getId(), kind.id());
+                        look(phantom.getId(), kind.id());
                     } else {
                         phantom.discard();
                     }
@@ -447,8 +478,8 @@ public final class BossService {
         if (!spawned || fallen || brain == null || victim == null) {
             return true;
         }
-        if (!victim.entityTags().contains(TAG_BOSS)) {
-            return true;
+        if (!victim.entityTags().contains(TAG_BOSS) || !owns(victim)) {
+            return true;   // not a boss, or another service's (the season finale)
         }
         if (source.is(DamageTypeTags.IS_FALL) || source.is(DamageTypeTags.IS_DROWNING)
                 || source.is(net.minecraft.world.damagesource.DamageTypes.IN_WALL)
@@ -468,7 +499,8 @@ public final class BossService {
             return;
         }
         Entity attacker = source.getEntity();
-        if (attacker == null || !attacker.entityTags().contains(TAG_BOSS) || PercentDamage.inHit() || PercentDamage.is(source)) {
+        if (attacker == null || !attacker.entityTags().contains(TAG_BOSS) || !owns(attacker) || PercentDamage.inHit()
+                || PercentDamage.is(source)) {
             return;
         }
         brain.hitPlayer(player, attacker);
@@ -495,7 +527,7 @@ public final class BossService {
         if (!spawned || fallen || brain == null || attacker == null || !(attacker.level() instanceof ServerLevel level)) {
             return 1.0;
         }
-        return brain.auraFactor(level, attacker);
+        return brain.auraFactor(level, attacker);   // the warlord's banner (his own illagers; another boss is no illager)
     }
 
     /** The night ends: bar, parts and whatever is left of the boss go. */
@@ -518,7 +550,7 @@ public final class BossService {
         }
         parts.clear();
         boolean hadLooks = !looks.isEmpty();
-        looks.clear();
+        forgetLooks();
         if (hadLooks && server != null) {
             syncAll(server);
         }
@@ -572,7 +604,7 @@ public final class BossService {
      * engineer's towers skip him then and go for the crystals (28 October 2026).
      */
     public boolean shielded(Entity entity) {
-        return spawned && !fallen && isBoss(entity) && brain instanceof BossBrains.Lich lich && lich.shield;
+        return spawned && !fallen && isBoss(entity) && owns(entity) && brain instanceof BossBrains.Lich lich && lich.shield;
     }
 
     /** True for a boss or one of its parts (they never count as monsters of the night). */
@@ -600,7 +632,7 @@ public final class BossService {
         StringBuilder json = new StringBuilder("{\"looks\":{");
         boolean first = true;
         Map<Integer, String> all = new HashMap<>(FOE_LOOKS);
-        all.putAll(looks);
+        all.putAll(ALL_LOOKS);
         for (Map.Entry<Integer, String> e : all.entrySet()) {
             if (!first) {
                 json.append(',');
@@ -775,7 +807,7 @@ public final class BossService {
         whole.setHealth((float) half);
         set(whole, Attributes.SCALE, scale);
         riderId = other.getUUID();
-        looks.put(other.getId(), kind.id());
+        look(other.getId(), kind.id());
         syncAll(level.getServer());
         // The bar stands where it stood: the two halves together are what was left.
         double shown = bar == null ? 0.5 : Math.max(0.05, bar.getProgress());
@@ -922,7 +954,20 @@ public final class BossService {
 
     /** Marks a monster as wearing a boss look on the clients (the guards of a boss do not). */
     void look(Mob mob, String look) {
-        looks.put(mob.getId(), look);
+        look(mob.getId(), look);
         syncAll(mob.level().getServer());
+    }
+
+    private void look(int networkId, String look) {
+        looks.put(networkId, look);
+        ALL_LOOKS.put(networkId, look);
+    }
+
+    /** This service's looks go (the others' stay). */
+    private void forgetLooks() {
+        for (Integer id : looks.keySet()) {
+            ALL_LOOKS.remove(id);
+        }
+        looks.clear();
     }
 }

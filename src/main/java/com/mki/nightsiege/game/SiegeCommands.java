@@ -190,6 +190,7 @@ public final class SiegeCommands {
                                                     return b.buildFuture();
                                                 })
                                                 .executes(ctx -> testBoss(ctx, StringArgumentType.getString(ctx, "name")))))
+                                .then(Commands.literal("finale").executes(SiegeCommands::testFinale))
                                 .then(Commands.literal("thema").executes(ctx -> test(ctx, SiegeEvent.THEME_WAVE)))
                                 .then(Commands.literal("finsternis").executes(ctx -> test(ctx, SiegeEvent.ECLIPSE)))
                                 .then(Commands.literal("nebel").executes(ctx -> test(ctx, SiegeEvent.FOG)))
@@ -439,6 +440,16 @@ public final class SiegeCommands {
 
     private static int test(CommandContext<CommandSourceStack> ctx, SiegeEvent event) {
         return test(ctx, event, null);
+    }
+
+    /** /nightsiege test <level> finale: a test night as the season finale (all bosses, the first after 5 s). */
+    private static int testFinale(CommandContext<CommandSourceStack> ctx) {
+        SiegeManager.get().markTestFinale(true);
+        int result = test(ctx, SiegeEvent.NONE);
+        if (result == 0) {
+            SiegeManager.get().markTestFinale(false);
+        }
+        return result;
     }
 
     private static int test(CommandContext<CommandSourceStack> ctx, SiegeEvent event, com.mki.nightsiege.core.BossKind boss) {

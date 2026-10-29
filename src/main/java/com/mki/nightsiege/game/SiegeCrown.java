@@ -39,12 +39,24 @@ public final class SiegeCrown {
         stack.set(DataComponents.RARITY, Rarity.EPIC);
         stack.set(DataComponents.ENCHANTMENT_GLINT_OVERRIDE, true);
         stack.set(DataComponents.MAX_STACK_SIZE, 1);
+        // Worn on the head (and on an armour stand): the crown without its cushion (content update).
+        stack.set(DataComponents.EQUIPPABLE, net.minecraft.world.item.equipment.Equippable
+                .builder(net.minecraft.world.entity.EquipmentSlot.HEAD).build());
         List<Component> lore = new ArrayList<>();
         lore.add(Component.translatable("nightsiege.crown.season", season, date).withStyle(ChatFormatting.GRAY));
         lore.add(Component.translatable("nightsiege.crown.names", String.join(", ", names)).withStyle(ChatFormatting.GOLD));
         stack.set(DataComponents.LORE, new ItemLore(lore));
         CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> tag.putInt(TAG, season));
         return stack;
+    }
+
+    /** The crown on the core after a won season: once (a crown already there stays the only one). */
+    public static void crownCore(ServerLevel level, BlockPos core) {
+        net.minecraft.world.phys.AABB around = new net.minecraft.world.phys.AABB(core).inflate(2.0);
+        if (!level.getEntitiesOfClass(Display.ItemDisplay.class, around, d -> d.entityTags().contains(TAG)).isEmpty()) {
+            return;
+        }
+        showOnCore(level, core);
     }
 
     /** The crown on top of the core (a display that stays; tagged so it can be found again). */

@@ -3350,7 +3350,7 @@ public final class TrapService {
             return true;   // the storm witch's phantom cannot be hurt
         }
         SiegeManager m = SiegeManager.get();
-        return m != null && BossService.isBoss(e) && m.bosses().shielded(e);
+        return m != null && BossService.isBoss(e) && m.bossShielded(e);
     }
 
     private static double bossRange() {

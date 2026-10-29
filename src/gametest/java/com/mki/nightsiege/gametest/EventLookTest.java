@@ -2901,6 +2901,53 @@ public class EventLookTest implements FabricClientGameTest {
             context.waitTicks(20);
             closeScreen(context);
         }
+        // The season finale (content update): all eight bosses one after another in one test night.
+        final int[] pause = new int[1];
+        final boolean[] running = {true};
+        game.getServer().runCommand("tp @p %d.5 %d %d.5 0 10".formatted(cx, cy, cz));
+        onServer(context, (player, manager) -> {
+            pause[0] = manager.config().finalePauseSeconds;
+            manager.config().finalePauseSeconds = 1;
+            manager.markTestFinale(true);
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            boolean ok = manager.prepareTest(level.getServer(), level, new BlockPos(cx, cy, cz), 25,
+                    com.mki.nightsiege.core.SiegeEvent.NONE);
+            System.out.println("[Night Siege test] finale prep ok=" + ok);
+        });
+        context.waitTicks(40 + 120);
+        closeScreen(context);
+        for (int step = 0; step < 30 && running[0]; step++) {
+            final int at = step;
+            onServer(context, (player, manager) -> {
+                net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                java.util.List<String> alive = new java.util.ArrayList<>();
+                for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                    if (e instanceof net.minecraft.world.entity.Mob m && m.isAlive()
+                            && m.entityTags().contains(com.mki.nightsiege.game.BossService.TAG_BOSS)) {
+                        alive.add(m.getType().toShortString() + " " + Math.round(m.getHealth()) + "/" + Math.round(m.getMaxHealth()));
+                        if (at > 0) {
+                            m.invulnerableTime = 0;
+                            m.hurtServer(level, level.damageSources().playerAttack(player), 100000f);
+                        }
+                    }
+                }
+                running[0] = manager.isActive();
+                System.out.println("[Night Siege test] finale step " + at + ": active=" + manager.isActive() + " state="
+                        + manager.finaleState() + " bosses=" + alive);
+            });
+            if (step == 0) {
+                context.takeScreenshot("finale_bar");
+            }
+            context.waitTicks(60);
+        }
+        onServer(context, (player, manager) -> {
+            System.out.println("[Night Siege test] finale over: active=" + manager.isActive() + " state=" + manager.finaleState());
+            if (manager.isActive()) {
+                manager.abort(player.level().getServer());
+            }
+            manager.config().finalePauseSeconds = pause[0];
+        });
+        context.waitTicks(20);
         onServer(context, (player, manager) -> manager.config().testPrepSeconds = prep[0]);
         game.getServer().runCommand("forceload remove all");
         game.getServer().runCommand("time set 6000");

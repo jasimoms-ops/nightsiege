@@ -141,6 +141,20 @@ public final class SiegeManager {
             BossService::isBoss, archer, traps);
     /** The boss of a boss night (every 6th siege, Simon 25 October 2026; the champion night is gone). */
     private final BossService bosses = new BossService();
+    /**
+     * The season finale (content update, Simon 28 October 2026): every seasonLength nights all eight
+     * bosses come one after another, each with about 40 % of its health; no waves and no clock.
+     */
+    private boolean finaleNight;
+    /** The finale's bosses that came so far (one service each; two can fight at once). */
+    private final List<BossService> finaleBosses = new ArrayList<>();
+    /** The finale's bosses still to come, in their order. */
+    private final List<com.mki.nightsiege.core.BossKind> finaleQueue = new ArrayList<>();
+    /** When the next boss of the finale comes (game time), or -1 before the first is timed. */
+    private long finaleNextAt = -1L;
+    private int finaleDown;
+    /** The next test night is a season finale (/nightsiege test <level> finale). */
+    private boolean testFinale;
     /** The war camp before a siege and the siege machines of the night after it (27 October 2026). */
     private final SiegeCamp camp = new SiegeCamp(this);
     private final SiegeMachines machines = new SiegeMachines();
@@ -325,7 +339,11 @@ public final class SiegeManager {
             CrateEffects.afterDamage(entity, source);
             Wounds.afterDamage(entity, source, taken);
             safe("Abstand", () -> RangedGuard.afterDamage(this, entity, source, taken));
-            safe("Boss-Treffer", () -> bosses.afterHit(entity, source, blocked));
+            safe("Boss-Treffer", () -> {
+                for (BossService b : allBosses()) {
+                    b.afterHit(entity, source, blocked);
+                }
+            });
             GainGear.afterDamage(entity, source, taken);
             MeleeSim.onDamage(entity, source, taken);
             safe("Begleiter-Treffer", () -> companions.afterDamage(entity, source, taken));
@@ -348,7 +366,7 @@ public final class SiegeManager {
         ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) ->
                 !infighting(source.getEntity(), entity) && allowModDamage(entity, source.getEntity()) && combat.allowDamage(entity, source, amount)
                         && CrateEffects.allowDamage(entity, source) && Companions.allowDamage(entity, source)
-                        && bosses.allowDamage(entity, source, amount)
+                        && bossesAllowDamage(entity, source, amount)
                         && camp.allowDamage(entity, source) && machines.allowDamage(entity, source)
                         && expeditions.allowDamage(entity, source)
                         && foes.allowDamage(entity, source)
@@ -415,7 +433,7 @@ public final class SiegeManager {
                 entity.discard();   // a grave or a treasure raider from before a restart
                 return;
             }
-            if (BossService.isBossOrPart(entity) && !bosses.planned()) {
+            if (BossService.isBossOrPart(entity) && !bosses.planned() && !finaleNight) {
                 entity.discard();   // left from a night that ended without us (a crash)
                 return;
             }
@@ -1483,13 +1501,26 @@ public final class SiegeManager {
             joinNight(player);
         }
 
-        // A boss night (every 6th siege) has no event; a fragment waits for the night after.
-        com.mki.nightsiege.core.BossKind tonightBoss = testRun ? testBoss : upcomingBoss();
+        // The season finale (every seasonLength nights, again after a lost one): all bosses, no waves.
+        resetFinale(server);
+        boolean finale = testRun ? testFinale : seasonFinaleDue();
+        testFinale = false;
+        if (!testRun) {
+            countSeasonNight();
+        }
+        // A boss night (every 4th siege) has no event; a fragment waits for the night after.
+        com.mki.nightsiege.core.BossKind tonightBoss = finale ? null : testRun ? testBoss : upcomingBoss();
         testBoss = null;
         bossVictoryAt = -1L;
         bosses.reset(server);
         if (tonightBoss != null) {
             bosses.plan(tonightBoss);
+        }
+        if (finale) {
+            finaleNight = true;
+            List<com.mki.nightsiege.core.BossKind> order = new ArrayList<>(List.of(com.mki.nightsiege.core.BossKind.values()));
+            java.util.Collections.shuffle(order, random);
+            finaleQueue.addAll(order);
         }
         safe("Dungeons", () -> expeditions.endAll(server, "nightsiege.expedition.night"));
         // The machines of a war camp left standing (or that won) come tonight.
@@ -1503,10 +1534,10 @@ public final class SiegeManager {
         if (!testRun) {
             save.machinesDay = -1L;
         }
-        currentEvent = tonightBoss != null ? SiegeEvent.NONE : forcedEvent != null ? forcedEvent : pickEventNow(server);
+        currentEvent = tonightBoss != null || finaleNight ? SiegeEvent.NONE : forcedEvent != null ? forcedEvent : pickEventNow(server);
         save.specialNight = false;
         usedFragment = null;
-        NightFragment fragment = testRun || tonightBoss != null ? null : NightFragment.byName(save.nightFragment);
+        NightFragment fragment = testRun || tonightBoss != null || finaleNight ? null : NightFragment.byName(save.nightFragment);
         if (fragment != null) {
             int time = (int) Math.floorMod(server.overworld().getOverworldClockTime(), 24000L);
             // A shadow fragment waits for a siege by day: an eclipse needs the sun.
@@ -1557,7 +1588,7 @@ public final class SiegeManager {
         nightLog.begin(world.getGameTime());
         safe("Statistik", () -> stats.beginNight(world.getGameTime(), nightNumber, siegeLevel, testRun,
                 currentEvent.name().toLowerCase(java.util.Locale.ROOT), save.specialNight, usedFragment,
-                bosses.kind() == null ? null : bosses.kind().id(), defense.base(), List.of(), clockDay(server)));
+                finaleNight ? "finale" : bosses.kind() == null ? null : bosses.kind().id(), defense.base(), List.of(), clockDay(server)));
         digger.takeBroken();
         for (UUID id : participants) {
             ServerPlayer player = server.getPlayerList().getPlayer(id);
@@ -1566,7 +1597,7 @@ public final class SiegeManager {
             }
         }
         killQuota = SiegeMath.killQuota(config.killQuotaShare, plannedWaves(), wantedPerWave());
-        safe("Gegner", () -> foes.startNight(foesHost, plannedWaves(), bosses.planned()));
+        safe("Gegner", () -> foes.startNight(foesHost, plannedWaves(), bosses.planned() || finaleNight));
         safe("Nemesis", () -> nemesis.beginNight(nemesisHost));
         traps.refillAll();   // every tower full and whole at nightfall (27 October 2026)
         bonus.endAurora(server);
@@ -1590,6 +1621,10 @@ public final class SiegeManager {
         if (tonightBoss != null) {
             broadcast(server, Component.translatable("nightsiege.msg.boss_night",
                     Component.translatable("nightsiege.boss." + tonightBoss.id())).withStyle(ChatFormatting.DARK_RED, ChatFormatting.BOLD));
+        }
+        if (finaleNight) {
+            broadcast(server, Component.translatable("nightsiege.msg.finale", save.season, finaleQueue.size())
+                    .withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD));
         }
         return true;
     }
@@ -1633,6 +1668,12 @@ public final class SiegeManager {
                 : Component.translatable("nightsiege.bar.title", siegeLevel, secondsLeft());
         if (Curses.count() > 0) {
             title = Component.empty().append(title).append(Curses.barMark());   // a cursed night: ☠ and the number of curses
+        }
+        if (finaleNight) {
+            // The season finale: no clock, the bosses are the goal.
+            int total = finaleDown + finaleQueue.size() + (int) finaleBosses.stream().filter(b -> !b.fallen()).count();
+            return Component.translatable("nightsiege.bar.finale", siegeLevel, save.season, finaleDown, total)
+                    .withStyle(ChatFormatting.GOLD);
         }
         if (bosses.planned()) {
             // A boss night: no kill goal, the boss is the goal.
@@ -1732,7 +1773,9 @@ public final class SiegeManager {
                 spawnBatch(server, config.bossFinaleWave);
             }
         }
-        if (!bosses.spawned()) {
+        if (finaleNight) {
+            tickFinale(server);
+        } else if (!bosses.spawned()) {
             if (batchCooldown <= 0) {
                 spawnBatch(server);
                 double extraDelay = 0.0 /* the core tree is gone (27 October 2026) */;
@@ -1741,7 +1784,11 @@ public final class SiegeManager {
                 batchCooldown--;
             }
         }
-        safe("Boss", () -> bosses.tick(bossHost, world.getGameTime()));
+        safe("Boss", () -> {
+            for (BossService b : allBosses()) {
+                b.tick(bossHost, world.getGameTime());
+            }
+        });
         safe("Maschinen", () -> machines.tick(bossHost, config, world.getGameTime()));
         if (bossVictoryAt > 0 && world.getGameTime() >= bossVictoryAt) {
             finish(server, true);
@@ -1803,8 +1850,8 @@ public final class SiegeManager {
 
         // Monsters no longer dig through walls (Simon, 27 October 2026): no pickaxe and axe monsters.
 
-        if (bossVictoryAt > 0) {
-            return;   // the boss is down: the night ends in a moment, the clock stands
+        if (bossVictoryAt > 0 || finaleNight) {
+            return;   // the boss is down: the night ends in a moment, the clock stands (the finale has none)
         }
         ticksLeft--;
         if (ticksLeft <= 0) {
@@ -1817,6 +1864,166 @@ public final class SiegeManager {
                 finish(server, true);
             }
         }
+    }
+
+    /** The main boss service and the finale's, for the hooks every boss needs. */
+    private List<BossService> allBosses() {
+        if (finaleBosses.isEmpty()) {
+            return List.of(bosses);
+        }
+        List<BossService> all = new ArrayList<>(finaleBosses.size() + 1);
+        all.add(bosses);
+        all.addAll(finaleBosses);
+        return all;
+    }
+
+    private boolean bossesAllowDamage(LivingEntity victim, net.minecraft.world.damagesource.DamageSource source, float amount) {
+        for (BossService b : allBosses()) {
+            if (!b.allowDamage(victim, source, amount)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private double bossDamageFactor(Entity attacker) {
+        double f = 1.0;
+        for (BossService b : allBosses()) {
+            f *= b.damageFactor(attacker);
+        }
+        return f;
+    }
+
+    /** True while one of the night's bosses takes no damage at all (the lich behind his soul shield). */
+    public boolean bossShielded(Entity entity) {
+        for (BossService b : allBosses()) {
+            if (b.shielded(entity)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** The season finale is due: the last night of the season (or the one after a lost finale). */
+    private boolean seasonFinaleDue() {
+        if (config.seasonLength <= 0 || !config.bossesEnabled || inPlaytest()) {
+            return false;
+        }
+        startSeasonCount();
+        return com.mki.nightsiege.core.BossPlan.finaleDue(save.seasonNights, config);
+    }
+
+    /** An old save counts its season from the nights held so far. */
+    private void startSeasonCount() {
+        if (save.seasonNights < 0) {
+            save.seasonNights = com.mki.nightsiege.core.BossPlan.startSeason(save.nightsHeld - 1, config);
+        }
+        if (save.season <= 0) {
+            save.season = 1;
+        }
+    }
+
+    /** A real night of the season (the finale stays the last one until it is won). */
+    private void countSeasonNight() {
+        if (config.seasonLength <= 0) {
+            return;
+        }
+        startSeasonCount();
+        save.seasonNights = com.mki.nightsiege.core.BossPlan.countNight(save.seasonNights, config);
+    }
+
+    /** The finale's bosses: the next comes when the last fell (after a pause), at the latest after a while. */
+    private void tickFinale(MinecraftServer server) {
+        long now = world.getGameTime();
+        if (finaleNextAt < 0) {
+            finaleNextAt = now + (testRun ? 100L : config.finalePauseSeconds * 20L);
+            return;
+        }
+        if (finaleQueue.isEmpty() || now < finaleNextAt || now % 20 != 0) {
+            return;
+        }
+        com.mki.nightsiege.core.BossKind kind = finaleQueue.get(0);
+        BossService next = new BossService();
+        next.plan(kind, config.finaleBossHealth);
+        if (!next.spawn(bossHost)) {
+            finaleNextAt = now + 40L;
+            return;
+        }
+        finaleQueue.remove(0);
+        finaleBosses.add(next);
+        finaleNextAt = now + config.finaleBossSeconds * 20L;
+        traps.refillAll();   // the towers full and whole again for every boss
+        broadcast(server, Component.translatable("nightsiege.msg.finale_boss", finaleBosses.size(),
+                finaleBosses.size() + finaleQueue.size(), Component.translatable("nightsiege.boss." + kind.id()))
+                .withStyle(ChatFormatting.GOLD));
+    }
+
+    /** A boss of the finale fell: the next one after the pause, or the season is won. */
+    private void onFinaleBossDown(MinecraftServer server, BossService fallenBoss) {
+        finaleDown++;
+        UUID killer = fallenBoss.killer();
+        ServerPlayer hero = killer == null ? null : server.getPlayerList().getPlayer(killer);
+        com.mki.nightsiege.core.BossKind kind = fallenBoss.kind();
+        broadcast(server, Component.translatable(hero != null ? "nightsiege.msg.boss_down_by" : "nightsiege.msg.boss_down",
+                Component.translatable("nightsiege.boss." + (kind == null ? "grave_king" : kind.id())),
+                hero == null ? "" : hero.getScoreboardName()).withStyle(ChatFormatting.GOLD));
+        long now = world.getGameTime();
+        boolean allDown = finaleQueue.isEmpty() && finaleBosses.stream().allMatch(BossService::fallen);
+        if (allDown && bossVictoryAt < 0) {
+            onBossDownCleanUp();
+            bossVictoryAt = now + 60L;
+        } else if (!finaleQueue.isEmpty()) {
+            finaleNextAt = Math.min(finaleNextAt, now + config.finalePauseSeconds * 20L);
+        }
+    }
+
+    /** The finale is won: a crown for every defender, one on the core, and the next season begins. */
+    private void endSeason(MinecraftServer server) {
+        int season = save.season;
+        String date = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy"));
+        List<String> names = new ArrayList<>();
+        for (UUID id : participants) {
+            ServerPlayer p = server.getPlayerList().getPlayer(id);
+            String name = p != null ? p.getScoreboardName() : save.statsOf(id.toString(), null).name;
+            names.add(name == null || name.isBlank() ? "?" : name);
+        }
+        for (UUID id : participants) {
+            ServerPlayer player = server.getPlayerList().getPlayer(id);
+            if (player != null) {
+                net.minecraft.world.item.ItemStack crown = SiegeCrown.trophy(season, date, names);
+                if (!player.getInventory().add(crown)) {
+                    player.drop(crown, false);
+                }
+            }
+        }
+        if (world != null && anchor != null) {
+            SiegeCrown.crownCore(world, anchor);
+        }
+        broadcast(server, Component.translatable("nightsiege.msg.season_won", season).withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD));
+        save.season = season + 1;
+        save.seasonNights = 0;
+    }
+
+    private void resetFinale(MinecraftServer server) {
+        for (BossService b : finaleBosses) {
+            b.reset(server);
+        }
+        finaleBosses.clear();
+        finaleQueue.clear();
+        finaleNextAt = -1L;
+        finaleDown = 0;
+        finaleNight = false;
+    }
+
+    /** Test nights: the next one is a season finale. */
+    public void markTestFinale(boolean on) {
+        testFinale = on;
+    }
+
+    /** For the tests: the finale's state ("bosses down / bosses in all"). */
+    public String finaleState() {
+        return finaleNight ? finaleDown + "/" + (finaleDown + finaleQueue.size() + (int) finaleBosses.stream().filter(b -> !b.fallen()).count())
+                : "-";
     }
 
     /** Ticks before the end of the night at which the boss comes (a test night: 15 s after the start). */
@@ -2625,7 +2832,7 @@ public final class SiegeManager {
         }
         return (float) (config.monsterDamageFactor(
                 net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(attacker.getType()).toString())
-                * bosses.damageFactor(attacker)   // the warlord's banner
+                * bossDamageFactor(attacker)   // the warlord's banner
                 * Foes.bannerFactor(attacker)   // a standard bearer's aura (update 1)
                 * Curses.damageFactor()   // the curse "Blutdurst" (update 2)
                 * Nemesis.damageFactor(attacker));   // a nemesis hits harder
@@ -2851,11 +3058,15 @@ public final class SiegeManager {
             bossBar.removeAllPlayers();
             bossBar = null;
         }
-        boolean bossNight = bosses.planned();
-        boolean bossDown = bosses.fallen();
+        boolean finale = finaleNight;
+        boolean finaleWon = finale && finaleQueue.isEmpty() && !finaleBosses.isEmpty()
+                && finaleBosses.stream().allMatch(BossService::fallen);
+        boolean bossNight = bosses.planned() || finale;
+        boolean bossDown = finale ? finaleWon : bosses.fallen();
         com.mki.nightsiege.core.BossKind bossKind = bosses.kind();
-        bossLabel = bossKind == null ? null : "boss_" + bossKind.id();
+        bossLabel = finale ? "finale" : bossKind == null ? null : "boss_" + bossKind.id();
         bosses.reset(server);
+        resetFinale(server);
         machines.reset(server);
         bossVictoryAt = -1L;
         safe("Nemesis", () -> nemesis.endNight(nemesisHost));
@@ -2889,7 +3100,12 @@ public final class SiegeManager {
         }
 
         save.highestLevel = Math.max(save.highestLevel, siegeLevel);
-        if (bossNight && bossDown && won) {
+        if (finale) {
+            // The finale leaves the boss nights' count alone; won, the season is over.
+            if (won && bossDown) {
+                endSeason(server);
+            }
+        } else if (bossNight && bossDown && won) {
             save.siegesSinceBoss = 0;
             save.lastBoss = bossKind == null ? null : bossKind.id();
             save.nextBoss = null;
@@ -2979,8 +3195,9 @@ public final class SiegeManager {
             bossBar.removeAllPlayers();
             bossBar = null;
         }
-        bossLabel = bosses.kind() == null ? null : "boss_" + bosses.kind().id();
+        bossLabel = finaleNight ? "finale" : bosses.kind() == null ? null : "boss_" + bosses.kind().id();
         bosses.reset(server);
+        resetFinale(server);
         machines.reset(server);
         bossVictoryAt = -1L;
         safe("Nemesis", () -> nemesis.endNight(nemesisHost));
@@ -3305,6 +3522,11 @@ public final class SiegeManager {
             if (bosses.onDeath(mob, source) && world != null && bossVictoryAt < 0) {
                 onBossDown(world.getServer(), mob);
             }
+            for (BossService b : new ArrayList<>(finaleBosses)) {
+                if (b.onDeath(mob, source) && world != null) {
+                    onFinaleBossDown(world.getServer(), b);
+                }
+            }
             return;
         }
         if (!(entity instanceof ServerPlayer player)) {
@@ -3337,6 +3559,16 @@ public final class SiegeManager {
     /** The boss has fallen: the night is won; the monsters left flee, the night ends in three seconds. */
     private void onBossDown(MinecraftServer server, Mob boss) {
         bossVictoryAt = world.getGameTime() + 60L;
+        onBossDownCleanUp();
+        UUID killer = bosses.killer();
+        ServerPlayer hero = killer == null ? null : server.getPlayerList().getPlayer(killer);
+        broadcast(server, Component.translatable(hero != null ? "nightsiege.msg.boss_down_by" : "nightsiege.msg.boss_down",
+                Component.translatable("nightsiege.boss." + bosses.kind().id()),
+                hero == null ? "" : hero.getScoreboardName()).withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD));
+    }
+
+    /** The last boss is down: the monsters still standing vanish. */
+    private void onBossDownCleanUp() {
         for (UUID id : new ArrayList<>(liveMobs)) {
             Entity other = world.getEntity(id);
             if (other instanceof Mob mob && mob.isAlive()) {
@@ -3346,11 +3578,6 @@ public final class SiegeManager {
             }
         }
         liveMobs.clear();
-        UUID killer = bosses.killer();
-        ServerPlayer hero = killer == null ? null : server.getPlayerList().getPlayer(killer);
-        broadcast(server, Component.translatable(hero != null ? "nightsiege.msg.boss_down_by" : "nightsiege.msg.boss_down",
-                Component.translatable("nightsiege.boss." + bosses.kind().id()),
-                hero == null ? "" : hero.getScoreboardName()).withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD));
     }
 
     private int countStanding() {

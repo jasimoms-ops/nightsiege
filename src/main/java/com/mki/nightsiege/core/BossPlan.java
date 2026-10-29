@@ -57,6 +57,24 @@ public final class BossPlan {
         return base * SiegeMath.healthMultiplier(level, cfg) * players * cfg.bossHealthMultiplier;
     }
 
+    /**
+     * The coming night is the season finale (content update, Simon 28 October 2026): the last
+     * night of the season, and again the night after a lost finale.
+     */
+    public static boolean finaleDue(int seasonNights, SiegeConfig cfg) {
+        return cfg.seasonLength > 0 && cfg.bossesEnabled && seasonNights + 1 >= cfg.seasonLength;
+    }
+
+    /** The season's count after a real night; it stops at the finale until the finale is won. */
+    public static int countNight(int seasonNights, SiegeConfig cfg) {
+        return cfg.seasonLength <= 0 ? seasonNights : Math.min(cfg.seasonLength, Math.max(0, seasonNights) + 1);
+    }
+
+    /** The count for a save that has none yet: the nights held before, as if counted all along. */
+    public static int startSeason(int nightsHeldBefore, SiegeConfig cfg) {
+        return Math.floorMod(Math.max(0, nightsHeldBefore), Math.max(1, cfg.seasonLength));
+    }
+
     /** Ticks before the end of the night at which the boss comes: bossFinaleSeconds, at most half the night. */
     public static int finaleTicks(int totalTicks, SiegeConfig cfg) {
         return Math.max(20, Math.min(cfg.bossFinaleSeconds * 20, totalTicks / 2));
