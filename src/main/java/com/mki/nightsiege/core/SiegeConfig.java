@@ -171,6 +171,14 @@ public class SiegeConfig {
     /** Factor on the damage of every boss (blows and abilities). */
     public double bossDamageMultiplier = 1.0;
 
+    // --- dungeon wardens in the nights (Simon, 29 October 2026) ---
+    /** Chance that a normal night (no boss night) ends with one of the eight dungeon champions. */
+    public double wardenChance = 0.2;
+    /** Seconds before the end of the night at which the warden comes (at most half the night). */
+    public int wardenFinaleSeconds = 150;
+    /** Ability points for every defender still standing when the warden falls. */
+    public int wardenPoints = 2;
+
     // --- tools ------------------------------------------------------------
     /** Only mobs carrying a fitting tool can break blocks. */
     public boolean toolGatedDigging = true;
@@ -971,6 +979,9 @@ public class SiegeConfig {
         bossHealthMultiplier = clampDouble(bossHealthMultiplier <= 0 ? 1.0 : bossHealthMultiplier, 0.1, 20.0);
         bossHealthPerExtraPlayer = clampDouble(bossHealthPerExtraPlayer, 0.0, 3.0);
         bossDamageMultiplier = clampDouble(bossDamageMultiplier <= 0 ? 1.0 : bossDamageMultiplier, 0.1, 10.0);
+        wardenChance = clampDouble(wardenChance, 0.0, 1.0);
+        wardenFinaleSeconds = clamp(wardenFinaleSeconds <= 0 ? 150 : wardenFinaleSeconds, 30, 1200);
+        wardenPoints = clamp(wardenPoints, 0, 20);
 
         skillPointsPerSiege = Math.max(0, skillPointsPerSiege);
         skillPointsPerKill = Math.max(0, skillPointsPerKill);

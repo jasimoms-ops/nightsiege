@@ -26,7 +26,8 @@ public final class EventTextures {
     /** The boss folders (boss_grave_king …): their swaps, by folder. */
     private static final Map<String, Map<Identifier, Identifier>> BOSS_SWAPS = new HashMap<>();
     /** Boss folders whose zombie or skeleton also wears clothes. */
-    private static final java.util.Set<String> BOSS_CLOTHED = java.util.Set.of("boss_grave_king", "boss_bone_lich");
+    private static final java.util.Set<String> BOSS_CLOTHED = java.util.Set.of("boss_grave_king", "boss_bone_lich",
+            "champion_stone_crypt", "champion_desert_crypt", "champion_deep_cellar", "champion_basalt_forge");
     /** The folder of the boss being drawn right now, or null (set around each monster's submit). */
     private static String bossFolder;
     /** Our event texture → its glow map, where there is one. */

@@ -556,6 +556,18 @@ public final class BossService {
         }
     }
 
+    /** The foe or champion with this network id is gone (discarded at the end of a fight, 29 October 2026). */
+    public static void dropFoeLook(MinecraftServer server, int entityId) {
+        if (FOE_LOOKS.remove(entityId) != null && last != null) {
+            last.syncAll(server);
+        }
+    }
+
+    /** The look of the monster with this network id ("champion_stone_crypt" …), or null. */
+    public static String foeLookOf(int entityId) {
+        return FOE_LOOKS.get(entityId);
+    }
+
     void syncAll(MinecraftServer server) {
         if (server == null) {
             return;
