@@ -208,7 +208,7 @@ public class ClassPickScreen extends Screen {
             // Page arrows above the cards; with a long title they move up beside the small line
             // (27 October 2026: they covered the title's end).
             float titleScale = w >= 460 ? 1.3f : 1.1f;
-            int titleRight = left + 10 + (int) (font.width(Component.translatable("nightsiege.pick.title")) * titleScale);
+            int titleRight = left + 10 + (int) (font.width(Component.translatable(titleKey())) * titleScale);
             int arrowY = titleRight > teamX - 50 ? top + 4 : cardsY - 16;
             Button back = Button.builder(Component.literal("‹"), b -> {
                 firstCard = Math.max(0, firstCard - 1);
@@ -247,6 +247,11 @@ public class ClassPickScreen extends Screen {
     }
 
     private Button forceButton;
+
+    /** The question over the cards: before a night, or for a ready round (camp, dungeon). */
+    private String titleKey() {
+        return data.round ? "nightsiege.pick.round_title" : "nightsiege.pick.title";
+    }
 
     private boolean forceReady() {
         return (System.currentTimeMillis() - opened) / 1000L >= data.forceIn;
@@ -308,7 +313,7 @@ public class ClassPickScreen extends Screen {
         gui.pose().pushMatrix();
         gui.pose().translate(left + 10, top + 18);
         gui.pose().scale(titleScale, titleScale);
-        gui.text(font, Component.translatable("nightsiege.pick.title").getString(), 0, 0, GOLD, true);
+        gui.text(font, Component.translatable(titleKey()).getString(), 0, 0, GOLD, true);
         gui.pose().popMatrix();
 
         // Countdown box.
@@ -551,8 +556,9 @@ public class ClassPickScreen extends Screen {
             }
             gui.fill(x + 5, my, x2 - 5, my + 21, LINE);
             gui.fill(x + 6, my + 1, x2 - 6, my + 20, BOX);
-            boolean ready = mate.ready;
             boolean self = mate.self;
+            // In a ready round the own line, too, waits for the own "Bereit".
+            boolean ready = mate.ready || self && !data.round;
             String cls;
             if (self) {
                 ClassPickData.Entry mine = entryOf(chosen);
@@ -563,14 +569,14 @@ public class ClassPickScreen extends Screen {
                         ? Component.translatable("nightsiege.subclass." + mate.subclass).getString()
                         : Component.translatable(c.translationKey()).getString();
             }
-            int dot = self || ready ? 0xFF4CC35A : ORANGE;
+            int dot = ready ? 0xFF4CC35A : ORANGE;
             gui.fill(x + 10, my + 5, x + 14, my + 9, dot);
             String name = self ? Component.translatable("nightsiege.pick.you").getString() : mate.name;
             gui.text(font, font.plainSubstrByWidth(name, teamW - 30), x + 18, my + 3, WHITE, false);
-            String state = ready || self ? Component.translatable("nightsiege.pick.mate_ready", cls).getString()
+            String state = ready ? Component.translatable("nightsiege.pick.mate_ready", cls).getString()
                     : Component.translatable("nightsiege.pick.mate_picking").getString();
             small(gui, font, font.plainSubstrByWidth(state, (int) ((teamW - 30) / 0.7f)), x + 18, my + 13,
-                    ready || self ? GREEN : ORANGE, 0.7f);
+                    ready ? GREEN : ORANGE, 0.7f);
             my += 24;
         }
 
