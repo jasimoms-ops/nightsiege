@@ -76,6 +76,10 @@ class SiegeCoreTest {
         assertEquals(0.6, SiegeMath.damageTakenForGroup(1, c), 1e-9);
         assertEquals(0.8, SiegeMath.damageTakenForGroup(2, c), 1e-9);
         assertEquals(1.0, SiegeMath.damageTakenForGroup(9, c), 1e-9);
+        assertEquals(1.0, SiegeMath.healthForGroup(1, c), 1e-9);
+        c.mobHealthByPlayers = new java.util.ArrayList<>(java.util.List.of(0.7, 0.85));
+        assertEquals(0.7, SiegeMath.healthForGroup(1, c), 1e-9);
+        assertEquals(0.85, SiegeMath.healthForGroup(6, c), 1e-9);
     }
 
     @Test

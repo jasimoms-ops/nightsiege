@@ -3057,7 +3057,8 @@ public final class SiegeManager {
     private double overflowHealth = 1.0;
 
     public double overflowHealthFactor() {
-        return active ? overflowHealth : 1.0;
+        // and the life by group size (mobHealthByPlayers, 29.10.)
+        return active ? overflowHealth * SiegeMath.healthForGroup(Math.max(1, participants.size()), config) : 1.0;
     }
 
     /** True while a playtest runs (its nights, camps and dungeons scale per player, Simon 28.10.). */

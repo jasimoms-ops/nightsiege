@@ -81,6 +81,15 @@ public final class SiegeMath {
         return playerCount <= 1 ? cfg.soloDamageTaken : 1.0;
     }
 
+    /** Life of the night's monsters for a group of this size (mobHealthByPlayers; 1 without a table). */
+    public static double healthForGroup(int playerCount, SiegeConfig cfg) {
+        if (cfg.mobHealthByPlayers != null && !cfg.mobHealthByPlayers.isEmpty()) {
+            java.util.List<Double> table = cfg.mobHealthByPlayers;
+            return table.get(Math.min(table.size() - 1, Math.max(0, playerCount - 1)));
+        }
+        return 1.0;
+    }
+
     /** Life factor for monsters a capped batch could not bring (overflowHealth; 1 = no overflow). */
     public static double overflowHealthFactor(double wanted, int cap, SiegeConfig cfg) {
         if (cfg.overflowHealth <= 0 || cap <= 0 || wanted <= cap) {

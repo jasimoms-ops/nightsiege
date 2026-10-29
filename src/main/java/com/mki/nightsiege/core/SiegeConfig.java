@@ -94,6 +94,11 @@ public class SiegeConfig {
      * past the end of the list its last value. Empty: soloDamageTaken alone, 1 from two players.
      */
     public List<Double> damageTakenByPlayers = new ArrayList<>();
+    /**
+     * Night: life of the monsters by group size, for 1, 2, 3 … players (team sim 29.10.: alone or
+     * two, the night is lost on kills, not on the castle); past the end its last value. Empty: 1.
+     */
+    public List<Double> mobHealthByPlayers = new ArrayList<>();
     public int maxLiveMobs = 40;
     public int batchIntervalSeconds = 38;
     /**
@@ -1004,6 +1009,10 @@ public class SiegeConfig {
             damageTakenByPlayers = new ArrayList<>();
         }
         damageTakenByPlayers.replaceAll(v -> v == null || Double.isNaN(v) ? 1.0 : clampDouble(v, 0.1, 2.0));
+        if (mobHealthByPlayers == null) {
+            mobHealthByPlayers = new ArrayList<>();
+        }
+        mobHealthByPlayers.replaceAll(v -> v == null || Double.isNaN(v) ? 1.0 : clampDouble(v, 0.1, 3.0));
         batchIntervalSeconds = Math.max(5, batchIntervalSeconds);
 
         healthPerLevel = Math.max(0.0, healthPerLevel);
