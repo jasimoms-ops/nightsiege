@@ -2666,11 +2666,58 @@ public final class SiegeManager {
                     world == null ? 0L : world.getGameTime(), blasted);
             nightLog.write(night);
             if (!"abgebrochen".equals(result) && world != null) {
-                showNightStats(world.getServer(), nightLog.summary(night));
+                com.mki.nightsiege.core.NightStatsData summary = nightLog.summary(night);
+                if (!testRun && !inPlaytest() && nightNumber >= 0) {
+                    safe("Rekorde", () -> takeRecords(world.getServer(), summary.held()));
+                }
+                showNightStats(world.getServer(), summary);
             }
         } catch (RuntimeException e) {
             NightSiegeMod.LOGGER.warn("[Night Siege] Nacht-Protokoll fehlgeschlagen: {}", e.toString());
         }
+    }
+
+    /** Records broken tonight, per player (shown with the statistics). */
+    private void takeRecords(MinecraftServer server, boolean held) {
+        if (save.records == null) {
+            save.records = new com.mki.nightsiege.core.NightRecords();
+        }
+        String date = java.time.LocalDate.now().toString();
+        List<com.mki.nightsiege.core.NightRecords.Broken> broken =
+                save.records.offer(nightLog.recordLines(), held, nightNumber, date);
+        persist();
+        Map<String, Integer> shown = new HashMap<>();
+        for (com.mki.nightsiege.core.NightRecords.Broken b : broken) {
+            ServerPlayer player = server.getPlayerList().getPlayer(UUID.fromString(b.uuid()));
+            int n = shown.merge(b.uuid(), 1, Integer::sum);
+            if (player == null || n > 3) {
+                continue;   // three messages at most (Simon 28.10.)
+            }
+            Component what = recordText(b);
+            if (n == 1) {
+                player.connection.send(new net.minecraft.network.protocol.game.ClientboundSetTitlesAnimationPacket(10, 120, 10));
+                player.connection.send(new net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket(
+                        Component.translatable("nightsiege.records.new").withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD)));
+                player.connection.send(new net.minecraft.network.protocol.game.ClientboundSetSubtitleTextPacket(what));
+                player.level().playSound(null, player.blockPosition(), net.minecraft.sounds.SoundEvents.UI_TOAST_CHALLENGE_COMPLETE,
+                        net.minecraft.sounds.SoundSource.PLAYERS, 1f, 1.1f);
+            }
+            player.sendSystemMessage(Component.translatable("nightsiege.records.chat", what).withStyle(ChatFormatting.GOLD));
+        }
+    }
+
+    /** "Schaden als Berserker: 312 ❤" and the like. */
+    private static Component recordText(com.mki.nightsiege.core.NightRecords.Broken b) {
+        Component who = b.subclass() != null && !b.subclass().isBlank() && !"class".equals(b.kind())
+                ? Component.translatable("nightsiege.subclass." + b.subclass())
+                : Component.translatable("nightsiege.class." + b.clazz().toLowerCase(java.util.Locale.ROOT));
+        if ("streak".equals(b.stat())) {
+            return Component.translatable("nightsiege.records.streak_line", (int) b.value());
+        }
+        String value = "kills".equals(b.stat()) ? String.valueOf((int) b.value())
+                : String.format(java.util.Locale.GERMANY, "%.1f ❤", b.value() / 2.0);
+        return Component.translatable("nightsiege.records.line." + b.kind(),
+                Component.translatable("nightsiege.records.stat." + b.stat()), who, value);
     }
 
     /** The statistics of the last night, for /nightsiege statistik. */
@@ -2686,14 +2733,14 @@ public final class SiegeManager {
         lastNightDefenders.clear();
         lastNightDefenders.addAll(nightLog.ids());
         lastNightDefenders.addAll(participants);
-        String json = Json.toJson(data);
         for (UUID id : lastNightDefenders) {
             ServerPlayer player = server.getPlayerList().getPlayer(id);
             if (player == null) {
                 continue;
             }
             if (ServerPlayNetworking.canSend(player, CoreNetworking.ScreenPayload.TYPE)) {
-                ServerPlayNetworking.send(player, new CoreNetworking.ScreenPayload("nightstats", json));
+                ServerPlayNetworking.send(player, new CoreNetworking.ScreenPayload("nightstats",
+                        Json.toJson(withRecords(data, player, false))));
             }
             player.sendSystemMessage(Component.translatable("nightsiege.stats.chat")
                     .withStyle(style -> style.withColor(ChatFormatting.AQUA).withUnderlined(true)
@@ -2707,8 +2754,44 @@ public final class SiegeManager {
                 || !ServerPlayNetworking.canSend(player, CoreNetworking.ScreenPayload.TYPE)) {
             return false;
         }
-        ServerPlayNetworking.send(player, new CoreNetworking.ScreenPayload("nightstats_now", Json.toJson(lastNightStats)));
+        ServerPlayNetworking.send(player, new CoreNetworking.ScreenPayload("nightstats_now",
+                Json.toJson(withRecords(lastNightStats, player, false))));
         return true;
+    }
+
+    /** /nightsiege rekorde: the statistics window on its records page (works without a night too). */
+    public boolean sendRecords(ServerPlayer player) {
+        if (player == null || !ServerPlayNetworking.canSend(player, CoreNetworking.ScreenPayload.TYPE)) {
+            return false;
+        }
+        com.mki.nightsiege.core.NightStatsData data = lastNightStats;
+        if (data == null) {
+            data = new com.mki.nightsiege.core.NightStatsData();
+            data.recordsOnly = true;
+        }
+        ServerPlayNetworking.send(player, new CoreNetworking.ScreenPayload("nightstats_now",
+                Json.toJson(withRecords(data, player, true))));
+        return true;
+    }
+
+    /** Admin: every record goes (the progress reset keeps them; this is the only way to clear them). */
+    public void clearRecords() {
+        save.records = new com.mki.nightsiege.core.NightRecords();
+        persist();
+    }
+
+    /** A copy of the night's data with this player's view of the records. */
+    private com.mki.nightsiege.core.NightStatsData withRecords(com.mki.nightsiege.core.NightStatsData data,
+                                                                ServerPlayer player, boolean open) {
+        com.mki.nightsiege.core.NightStatsData copy = Json.fromJson(Json.toJson(data), com.mki.nightsiege.core.NightStatsData.class);
+        if (copy == null) {
+            copy = data;
+        }
+        if (save.records != null) {
+            copy.records = save.records.view(player.getUUID().toString());
+        }
+        copy.openRecords = open;
+        return copy;
     }
 
     /** The rebuilding of the core tree mends the base; then the night's base is forgotten. */

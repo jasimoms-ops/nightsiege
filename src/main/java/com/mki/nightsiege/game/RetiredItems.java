@@ -90,7 +90,7 @@ public final class RetiredItems {
             return InteractionResult.PASS;
         });
         // After the load, not inside it: the blocks are set on the next server step.
-        ServerChunkEvents.CHUNK_LOAD.register((level, chunk) -> {
+        ServerChunkEvents.CHUNK_LOAD.register((level, chunk, generated) -> {
             if (InferniteContent.ORE != null && hasOre(chunk)) {
                 level.getServer().execute(() -> oreToNetherrack(level, chunk));
             }

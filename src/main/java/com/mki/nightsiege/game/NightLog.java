@@ -133,6 +133,17 @@ public final class NightLog {
         return data;
     }
 
+    /** Every defender's night for the records (content update, 29 October 2026). */
+    public List<com.mki.nightsiege.core.NightRecords.Line> recordLines() {
+        List<com.mki.nightsiege.core.NightRecords.Line> out = new java.util.ArrayList<>();
+        for (Map.Entry<UUID, Line> e : players.entrySet()) {
+            Line l = e.getValue();
+            out.add(new com.mki.nightsiege.core.NightRecords.Line(e.getKey().toString(), l.name, l.clazz, l.subclass,
+                    l.dealt, l.kills, l.healed, l.taken));
+        }
+        return out;
+    }
+
     /** The defenders of this night. */
     public java.util.Set<UUID> ids() {
         return players.keySet();

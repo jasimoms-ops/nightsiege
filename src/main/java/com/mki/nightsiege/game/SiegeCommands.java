@@ -38,6 +38,22 @@ public final class SiegeCommands {
         dispatcher.register(Commands.literal("nightsiege")
                 .then(Commands.literal("info").executes(SiegeCommands::info))
                 .then(Commands.literal("statistik").executes(SiegeCommands::nightStats))
+                // The records (content update, 29 October 2026); clearing them is for admins only.
+                .then(Commands.literal("rekorde").executes(ctx -> {
+                            if (ctx.getSource().getEntity() instanceof net.minecraft.server.level.ServerPlayer player
+                                    && SiegeManager.get().sendRecords(player)) {
+                                return 1;
+                            }
+                            reply(ctx.getSource(), Component.translatable("nightsiege.records.none"));
+                            return 0;
+                        })
+                        .then(Commands.literal("loeschen")
+                                .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                                .then(Commands.literal("bestaetigen").executes(ctx -> {
+                                    SiegeManager.get().clearRecords();
+                                    reply(ctx.getSource(), Component.translatable("nightsiege.records.cleared"));
+                                    return 1;
+                                }))))
                 // The playtest (Simon, 28 October 2026): four nights of rising level along planned paths.
                 .then(Commands.literal("playtest")
                         .then(Commands.argument("zielstufe", IntegerArgumentType.integer(4, 1000))

@@ -297,8 +297,8 @@ public class CoreScreen extends Screen {
     }
 
     /** Distance between the tiers of a subclass tree, and between its columns (tree units). */
-    private static final double SUB_ROW = 50;
-    private static final double SUB_COL = 32;
+    private static final double SUB_ROW = 36;
+    private static final double SUB_COL = 30;
 
     /** Places the nodes of a subclass tree: tier 0 at the bottom, columns by the node's place. */
     private java.util.Map<String, double[]> placeSub(List<CoreStats.NodeLine> nodes) {
@@ -1449,7 +1449,7 @@ public class CoreScreen extends Screen {
         gui.pose().scale((float) zoom, (float) zoom);
         double px = 1.0 / zoom;   // one screen pixel in tree units
 
-        boolean stars = zoom < STAR_ZOOM;   // far out: the tree as a constellation
+        boolean stars = zoom < STAR_ZOOM && !subMode;   // far out: the tree as a constellation (not a subclass tree)
 
         // Rings: one faint dotted arc per ring and way (a subclass tree: one dotted line per tier).
         int dot = (int) Math.max(1, Math.round(px));
@@ -1470,7 +1470,7 @@ public class CoreScreen extends Screen {
                 for (GridNode p : edge.parents()) {
                     boolean on = p.node().level > 0 && edge.child().node().level > 0;
                     line(gui, p.cx(), p.cy(), edge.child().cx(), edge.child().cy(), Math.max(1.0, 1.2 * px),
-                            on ? 0xC0000000 | laneColor(edge.child().node(), rgb) : 0x40C8C0D8);
+                            on ? 0xC0000000 | laneColor(edge.child().node(), rgb) : 0x30C8C0D8);
                 }
             }
         }
@@ -1519,7 +1519,7 @@ public class CoreScreen extends Screen {
         }
 
         // Nodes.
-        boolean icons = zoom >= 0.42;
+        boolean icons = zoom >= 0.42 || subMode;
         int h = N_SLOT / 2;
         for (GridNode g : gridNodes) {
             CoreStats.NodeLine n = g.node();
@@ -3787,17 +3787,25 @@ public class CoreScreen extends Screen {
     }
 
     private final List<SubTab> subTabs = new ArrayList<>();
+    private float subTabScale = 1f;
 
     /** The four subclass tabs in the line above the tree. */
     private void layoutSubTabs() {
         subTabs.clear();
         int x = viewX();
         int y = innerY() + 1;
-        for (com.mki.nightsiege.core.SkillTree.SubclassInfo info
-                : com.mki.nightsiege.core.SkillTree.subclassInfosOf(activeTab.clazz)) {
+        List<com.mki.nightsiege.core.SkillTree.SubclassInfo> infos =
+                com.mki.nightsiege.core.SkillTree.subclassInfosOf(activeTab.clazz);
+        int total = 0;
+        for (com.mki.nightsiege.core.SkillTree.SubclassInfo info : infos) {
+            total += font.width(subTabLabel(info.key())) + 12 + (profileWithSub(activeTab.clazz, info.key()) == null ? 8 : 0);
+        }
+        // Too wide for the line: the names get smaller (the window on a high GUI scale).
+        subTabScale = total <= viewW() ? 1f : Math.max(0.6f, (viewW() - infos.size() * 14f) / Math.max(1, total - infos.size() * 14f));
+        for (com.mki.nightsiege.core.SkillTree.SubclassInfo info : infos) {
             String sub = info.key();
             String label = subTabLabel(sub);
-            int w = font.width(label) + 10 + (profileWithSub(activeTab.clazz, sub) == null ? 8 : 0);
+            int w = Math.round(font.width(label) * subTabScale) + 10 + (profileWithSub(activeTab.clazz, sub) == null ? 8 : 0);
             subTabs.add(new SubTab(sub, x, y, w, 12));
             invisible(Button.builder(Component.empty(), b -> {
                 VIEW_SUB.put(activeTab.clazz.name(), sub);
@@ -3843,7 +3851,11 @@ public class CoreScreen extends Screen {
                 tx += 8;
             }
             int text = on ? 0xFF15121C : locked ? 0xFF8A8494 : 0xFF000000 | lane;
-            gui.text(font, subTabLabel(t.sub()), tx, t.y() + 2, text, !on);
+            gui.pose().pushMatrix();
+            gui.pose().translate(tx, t.y() + 2 + (1 - subTabScale) * 4);
+            gui.pose().scale(subTabScale, subTabScale);
+            gui.text(font, subTabLabel(t.sub()), 0, 0, text, !on);
+            gui.pose().popMatrix();
         }
     }
 

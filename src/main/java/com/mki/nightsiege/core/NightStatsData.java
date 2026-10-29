@@ -22,6 +22,12 @@ public class NightStatsData {
     /** Index of the night's best defender in {@link #rows}, or -1. */
     public int mvp = -1;
     public List<Row> rows = new ArrayList<>();
+    /** The records as this viewer sees them (content update, 29 October 2026); null in old data. */
+    public NightRecords.View records;
+    /** Open on the records page (/nightsiege rekorde). */
+    public boolean openRecords;
+    /** Only the records: no night to show (no night yet since the server started). */
+    public boolean recordsOnly;
 
     /** One defender's night. */
     public static class Row {

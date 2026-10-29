@@ -377,6 +377,12 @@ public class SiegeSave {
         return stats;
     }
 
+    /**
+     * The records of the statistics window (content update, 29 October 2026). Not part of anyone's
+     * progress: a progress reset leaves them standing (the hall of fame).
+     */
+    public com.mki.nightsiege.core.NightRecords records = new com.mki.nightsiege.core.NightRecords();
+
     /** Siege nights held so far (real ones, won or lost): numbers the nights for catching up. */
     public int nightsHeld;
     /** Version of the balancing the points below were earned under. */
