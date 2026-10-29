@@ -121,6 +121,7 @@ public class EventLookTest implements FabricClientGameTest {
                 }
                 if (want.contains("ui")) {
                     // The windows at the end of the full run (the full run outgrew its 40 minutes, 29 October 2026).
+                    ensureCore(context, game);   // alone, no scene before it placed a core (30 October 2026)
                     versionBScene(context, game);
                     versionB2Scene(context, game);
                     classUiScene(context, game);
@@ -4633,6 +4634,30 @@ public class EventLookTest implements FabricClientGameTest {
         game.getServer().runCommand("effect clear @p");
         game.getServer().runCommand("time set 6000");
         context.waitTicks(10);
+    }
+
+    /** A core on flat ground near the player, when none is known yet (the scenes that need one, run alone). */
+    private static void ensureCore(ClientGameTestContext context, TestSingleplayerContext game) {
+        boolean none = context.computeOnClient(client -> com.mki.nightsiege.game.SiegeManager.get().save().cores.isEmpty());
+        if (!none) {
+            return;
+        }
+        BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        int cx = pos.getX() + 40;
+        int cz = pos.getZ() + 40;
+        int cy = yard(context, game, cx, cz, 16, 10);
+        net.minecraft.core.BlockPos core = new net.minecraft.core.BlockPos(cx, cy, cz);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            level.setBlock(core, com.mki.nightsiege.game.ModContent.SIEGE_CORE.defaultBlockState(), 3);
+            manager.onCorePlaced(level, core, player);
+            if (!manager.isRegistered(player)) {
+                manager.register(player);
+            }
+            System.out.println("[Night Siege test] ensureCore: placed at " + core + " cores=" + manager.save().cores.size());
+        });
+        context.waitTicks(10);
+        closeScreen(context);
     }
 
     /**
