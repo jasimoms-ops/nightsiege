@@ -508,7 +508,8 @@ public final class Playtest {
         for (Map.Entry<String, SiegeSave.PlaytestPlayer> e : s.players.entrySet()) {
             SiegeSave.PlaytestPlayer pp = e.getValue();
             PlayerSkills own = m.save().skillsOf(e.getKey());
-            int learned = replay(own, pp.path, budget);
+            int learned = replay(own, pp.path, budget, s.step == 0 ? 0 : pp.pointsGiven);
+            pp.pointsGiven = Math.max(pp.pointsGiven, budget);
             pp.cratesDue = Math.max(0, crates - pp.cratesGiven);
             ServerPlayer p = server.getPlayerList().getPlayer(UUID.fromString(e.getKey()));
             if (p != null) {
@@ -544,17 +545,23 @@ public final class Playtest {
      * points reach, the way a sensible player would (Simon 29.10.: "nobody puts the first skill to 4
      * before picking the subclass"): see {@link #learnLikeAPlayer}. Returns the levels learned.
      */
-    int replay(PlayerSkills own, List<String> path, int budget) {
+    int replay(PlayerSkills own, List<String> path, int budget, int given) {
         SkillTree tree = m.skillTree();
-        if (own.levels != null) {
-            own.levels.clear();
+        if (given > 0 && own.hasClass() && own.levels != null && !own.levels.isEmpty()) {
+            // Night after night only the new points are spent, on top of what the night before had
+            // (a real player keeps his levels; playtest 29.10.: a level fell from 3 back to 1).
+            own.award(Math.max(0, budget - given));
+        } else {
+            if (own.levels != null) {
+                own.levels.clear();
+            }
+            if (own.history != null) {
+                own.history.clear();
+            }
+            own.points = Math.max(0, budget);
+            own.earned = own.points;
+            own.lost = 0;
         }
-        if (own.history != null) {
-            own.history.clear();
-        }
-        own.points = Math.max(0, budget);
-        own.earned = own.points;
-        own.lost = 0;
         if (!own.hasClass()) {
             return 0;
         }
