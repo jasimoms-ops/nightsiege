@@ -1087,6 +1087,11 @@ public final class MeleeSim {
                 if ("s_golemsmith".equals(subclassNode) && "s_wild_hunt".equals(n.id())) {
                     continue;
                 }
+                // The bulwark takes the taunt, not the shield charge (30.10.): the tank's ult, and its own
+                // mastery (iron will) needs it. With the first choice of each ring no bot ever taunted.
+                if ("g_bastion".equals(subclassNode) && "shield_charge".equals(n.id())) {
+                    continue;
+                }
                 while (p.levelOf(n.id()) < n.maxLevel()) {
                     String why = tree.blockedReason(n.id(), p);
                     if (why != null && !why.equals("points")) {
