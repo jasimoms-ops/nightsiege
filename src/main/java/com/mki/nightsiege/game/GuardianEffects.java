@@ -94,6 +94,13 @@ public final class GuardianEffects {
     private final Map<UUID, Double> revenge = new HashMap<>();
     private final Map<UUID, Long> lastStandReadyAt = new HashMap<>();
     private final Map<UUID, Long> tauntUntil = new HashMap<>();
+    /**
+     * A monster's hit on a player as the monster dealt it (its strength included), before every cut on
+     * the defender's side: subclass damage taken, bastion, anchor, Wächter-Schutz, ward sign, sanctuary.
+     * The logger's "abgefangen" (30.10.: it was counted after those, so the bulwark's own cuts made it
+     * look as if it held off less than the shield fighter).
+     */
+    private static final Map<UUID, Float> RAW_HIT = new HashMap<>();
     /** Who gave a player the barrier they carry: the life bond heals when it breaks. */
     private final Map<UUID, UUID> barrierFrom = new HashMap<>();
     /** A player's absorption just before a hit, to see a barrier break. */
@@ -145,6 +152,15 @@ public final class GuardianEffects {
     }
 
     /**
+     * The monster's hit that just landed on this player as the monster dealt it, before the defender's
+     * cuts ({@link #RAW_HIT}); {@code fallback} when none was noted. Taken once, by the logger.
+     */
+    public static float rawHit(UUID player, float fallback) {
+        Float raw = RAW_HIT.remove(player);
+        return raw == null ? fallback : raw;
+    }
+
+    /**
      * The heavy archer against a dungeon champion (Simon 30.10.: "wuchtschütze maximal 8% damage des
      * lebens der wächter"): one hit takes at most this share of the champion's max health.
      */
@@ -171,6 +187,13 @@ public final class GuardianEffects {
         boolean share = PercentDamage.is(source);
         float monster = tuning != null && victim instanceof ServerPlayer && source.getEntity() instanceof Enemy && !share
                 ? tuning.monsterDamageFactor(source.getEntity()) : 1f;
+        if (victim instanceof ServerPlayer hit) {
+            if (source.getEntity() instanceof Enemy) {
+                RAW_HIT.put(hit.getUUID(), amount * monster);   // for the logger, before the defender's cuts
+            } else {
+                RAW_HIT.remove(hit.getUUID());
+            }
+        }
         if (tuning != null && source.getEntity() instanceof ServerPlayer hitter && victim instanceof Enemy
                 && !CombatEffects.inFollowUp()) {   // a follow-up hit already carries the factor
             outside *= tuning.damageFactor(hitter);   // server balancing per class and subclass
@@ -579,21 +602,33 @@ public final class GuardianEffects {
         }
     }
 
-    /** Monsters close by that go for a teammate turn on the guardian. */
+    /**
+     * Monsters close by that go for a teammate turn on the guardian. The bulwark reaches further and is
+     * always sure (Simon 30.10.: "the bulwark is the worst tank of its class": every guardian drew alike).
+     * A tank (way of the shield) also takes monsters off the healers (config tanksPeelHealers); before,
+     * a monster on any guardian was left alone, so the medic and the warden kept theirs.
+     */
     private void aggro(ServerLevel level, ServerPlayer player, PlayerSkills skills) {
         if (player.isCreative()) {
             return;
         }
         double extra = tree.totalBonus(SkillEffect.AGGRO, skills);
-        double radius = SkillValues.get("g_challenger", "radius", 6.0) + extra;
+        double call = SkillTree.SUB_BULWARK.equals(tree.subclassOf(skills))
+                ? Math.max(0.0, SkillValues.get("g_challenger", "bulwark", 4.0)) : 0.0;
+        SiegeManager m = SiegeManager.get();
+        boolean peel = isTank(skills) && (m == null || m.config() == null || m.config().tanksPeelHealers);
+        double radius = SkillValues.get("g_challenger", "radius", 6.0) + extra + call;
         for (LivingEntity e : CombatEffects.enemies(level, player.position(), radius, 3.0)) {
             if (!(e instanceof Mob mob) || !(mob.getTarget() instanceof Player other) || other == player) {
                 continue;
             }
-            if (other instanceof ServerPlayer mate && isGuardian(skillsFor.apply(mate))) {
-                continue;   // another tank already holds it
+            if (other instanceof ServerPlayer mate) {
+                PlayerSkills held = skillsFor.apply(mate);
+                if (isGuardian(held) && (!peel || isTank(held))) {
+                    continue;   // another tank already holds it (a healer's monster only a tank takes)
+                }
             }
-            if (extra > 0 || random.nextDouble() < SkillValues.get("g_challenger", "chance", 0.6)) {
+            if (extra > 0 || call > 0 || random.nextDouble() < SkillValues.get("g_challenger", "chance", 0.6)) {
                 mob.setTarget(player);
                 level.sendParticles(ParticleTypes.ANGRY_VILLAGER, mob.getX(), mob.getY() + mob.getBbHeight() + 0.3,
                         mob.getZ(), 1, 0.1, 0.1, 0.1, 0.0);
@@ -1409,6 +1444,11 @@ public final class GuardianEffects {
 
     public static boolean isGuardian(PlayerSkills skills) {
         return skills != null && skills.clazz() == SkillClass.GUARDIAN;
+    }
+
+    /** A tank: a guardian on the way of the shield (shield fighter, bulwark), not a healer. */
+    private boolean isTank(PlayerSkills skills) {
+        return isGuardian(skills) && SkillTree.WAY_SHIELD.equals(skills.pathTaken(tree));
     }
 
     /** The boni of the way of the shield need a shield at hand; the other way has no such rule. */

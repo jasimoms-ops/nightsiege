@@ -418,7 +418,9 @@ final class TeamBrain {
         } else if (player.isUsingItem()) {
             player.stopUsingItem();
         }
-        player.setShiftKeyDown(bulwark);
+        // Crouching only with the anchor, which needs it (30.10.): a crouching player is seen by monsters at
+        // 80 % of their range (vanilla), and the bulwark bots crouched all night without having the anchor.
+        player.setShiftKeyDown(bulwark && SkillTree.has(skills, "g_anchor"));
         if (now >= nextUlt) {
             nextUlt = now + iv(60);
             m.onCoreAction(player, "ult");

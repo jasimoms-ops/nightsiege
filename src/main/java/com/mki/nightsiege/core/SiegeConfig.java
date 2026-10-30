@@ -796,6 +796,13 @@ public class SiegeConfig {
     public double shieldfighterGuardRadius = 5.0;
     public double shieldfighterGuardDamage = 0.10;
     public double shieldfighterGuardKnockback = 0.3;
+    /**
+     * Tanks (shield fighter, bulwark) take monsters off the healers too (medic, warden) with their
+     * challenger (30.10.). Off: a monster on any guardian stays there, as before; the healers kept
+     * theirs and took more hits than the tanks. The bulwark's own extra reach is the skill value
+     * g_challenger.bulwark (skillTweaks).
+     */
+    public boolean tanksPeelHealers = true;
     /** Factor on the healing and barriers players of this subclass give (Simon 27.10.: the medic 3.8/s). */
     public Map<String, Double> subclassHealing = new LinkedHashMap<>();
     /** Per skill id: new values for its amount per level, base cost, cost step or highest level. */

@@ -126,6 +126,14 @@ class SiegeCoreTest {
     }
 
     @Test
+    void theBulwarkDrawsFurtherAndTanksTakeMonstersOffTheHealers() {
+        // Simon 30.10.: "the bulwark is the worst tank of its class" - every guardian drew alike.
+        assertTrue(cfg().tanksPeelHealers);
+        assertEquals(4.0, SkillValues.get("g_challenger", "bulwark", 0.0), 1e-9);
+        assertEquals(6.0, SkillValues.get("g_challenger", "radius", 0.0), 1e-9);
+    }
+
+    @Test
     void refillAndFieldStrengthAreOffByDefaultAndScaleByTheReference() {
         // Nachschub and Feld-Stärke (Simon 30.10.): off in a fresh config, so the waves stay as they were.
         SiegeConfig c = cfg();

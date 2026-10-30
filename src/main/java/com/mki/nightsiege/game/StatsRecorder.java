@@ -815,8 +815,13 @@ public final class StatsRecorder {
     /** Set by the combat effects while a life-steal heal lands (Simon 30.10.: "hast du Werte der Lifesteal-Heilung"). */
     static boolean stealing;
 
-    /** A monster's hit on a defender before any reduction, blocked or not (what a tank holds off). */
+    /**
+     * A monster's hit on a defender before any reduction, blocked or not (what a tank holds off). The
+     * amount is the hit before the defender's own cuts (30.10.: {@code base} already had the subclass
+     * damage taken, the bastion and the Wächter-Schutz in it, so the bulwark looked as if it held less).
+     */
     void incoming(ServerPlayer player, DamageSource source, float base, boolean blocked) {
+        float raw = GuardianEffects.rawHit(player.getUUID(), base);
         if (night == null || base <= 0) {
             return;
         }
@@ -825,7 +830,7 @@ public final class StatsRecorder {
             return;
         }
         SpielerWelle w = pw(player);
-        w.abgefangen += base;
+        w.abgefangen += raw;
         w.treffer++;
         if (blocked) {
             w.geblockt++;

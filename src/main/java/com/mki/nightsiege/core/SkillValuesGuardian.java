@@ -12,6 +12,7 @@ final class SkillValuesGuardian {
         // ----- trunk
         def("g_challenger", "radius", 6.0);        // aggro radius of every guardian, blocks
         def("g_challenger", "chance", 0.6);        // chance to turn a monster without the node
+        def("g_challenger", "bulwark", 4.0);       // the bulwark's extra aggro radius, blocks; it turns them for sure (30.10.)
 
         // ----- way of the shield
         def("g_ironward", "toughness", 1.0);       // armour toughness per level, only with a shield at hand
