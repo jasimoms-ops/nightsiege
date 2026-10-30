@@ -131,6 +131,8 @@ public final class Expeditions {
     private int wave;
     private long nextWaveAt = -1L;
     private UUID champion;
+    /** How often a monster was kept off the stair (for the tests). */
+    private int stairPushes;
     /** The champion's two skills (content update). */
     private ChampionBrains brains;
     /** The effects of the fight: half life reached, the champion's entrance, the guards waking. */
@@ -541,6 +543,9 @@ public final class Expeditions {
         if (brains != null && !fighters.isEmpty()) {
             brains.tick(level, championHost(level, rec), m.currentLevel(), m.config(), now);
         }
+        if (now % 2 == 0 && !fighters.isEmpty()) {
+            keepOffStair(level, plan(rec));
+        }
         if (now % 10 == 0 && (!fighters.isEmpty() || !joined.isEmpty())) {
             tickFight(server, level, rec, now);
         }
@@ -573,6 +578,14 @@ public final class Expeditions {
                 buildRounds++;
                 return;
             }
+            Boolean free = freeOfPlayers(level, rec, new BlockPos(x, floor, z), why);
+            if (free == null) {
+                buildRounds++;
+                return;   // not all its ground is loaded yet: again when it is
+            }
+            if (!free) {
+                continue;
+            }
             build(level, rec, new BlockPos(x, floor, z));
             return;
         }
@@ -583,6 +596,64 @@ public final class Expeditions {
             m.persist();
             NightSiegeMod.LOGGER.info("[Night Siege] Dungeon wartet auf einen Platz ({}), neu bei {} {}", why, rec.x, rec.z);
         }
+    }
+
+    /**
+     * Update 30.10. (Simon: "die dungeons … dürfen auf keinen fall in irgendwelchen von spieler
+     * platzierten blöcken spawnen"): every spot the whole dungeon would set, down to the arena, is
+     * nature, rock or water (no chest, no planks, no torch), and no chunk it reaches holds a
+     * player's building. Null while some of its ground is not loaded.
+     */
+    private Boolean freeOfPlayers(ServerLevel level, SiegeSave.ExpeditionRecord rec, BlockPos at, SiegeCamp.Reasons why) {
+        int lowest = level.getMinY() + 32;
+        BlockPos origin = at.getY() < lowest ? new BlockPos(at.getX(), lowest, at.getZ()) : at;
+        ExpeditionLayout.Plan candidate = ExpeditionLayout.plan(origin, rec.facing, kind(rec), rec.rooms, rec.id);
+        java.util.Set<Long> chunks = new HashSet<>();
+        List<BlockPos> all = new ArrayList<>(candidate.blocks.keySet());
+        all.addAll(candidate.fill.keySet());
+        for (int lx = -8; lx <= 8; lx++) {
+            for (int lz = -10; lz <= 7; lz++) {
+                BlockPos column = CampLayout.world(origin, rec.facing, lx, 0, lz);
+                for (int dy = -13; dy <= 14; dy++) {
+                    all.add(column.above(dy));
+                }
+            }
+        }
+        for (BlockPos pos : all) {
+            int cx = pos.getX() >> 4;
+            int cz = pos.getZ() >> 4;
+            if (chunks.add(PlayerBuilt.key(cx, cz))) {
+                if (!level.hasChunk(cx, cz)) {
+                    return null;
+                }
+                if (PlayerBuilt.marked(level, cx, cz)) {
+                    why.built++;
+                    why.detail = "Spieler haben bei Chunk " + cx + " " + cz + " gebaut";
+                    return false;
+                }
+            }
+        }
+        for (BlockPos pos : all) {
+            BlockState state = level.getBlockState(pos);
+            if (state.hasBlockEntity() || !SiegeCamp.natural(state) && state.getFluidState().isEmpty() && !underground(state)) {
+                why.built++;
+                why.detail = "Dungeon-Raum " + pos.getX() + " " + pos.getY() + " " + pos.getZ() + ": " + state;
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static final Set<String> UNDERGROUND = Set.of("deepslate", "tuff", "budding_amethyst", "amethyst_cluster",
+            "small_amethyst_bud", "medium_amethyst_bud", "large_amethyst_bud", "sculk", "sculk_vein", "moss_carpet",
+            "azalea", "flowering_azalea", "glow_lichen", "cave_vines", "cave_vines_plant", "spore_blossom", "hanging_roots",
+            "big_dripleaf", "big_dripleaf_stem", "small_dripleaf", "raw_iron_block", "raw_copper_block", "bedrock", "lava",
+            "water", "cobweb");
+
+    /** Deep rock the camp's check does not know: ores, deepslate, cave growth. */
+    private static boolean underground(BlockState state) {
+        String path = net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(state.getBlock()).getPath();
+        return path.endsWith("_ore") || path.startsWith("infested_") || UNDERGROUND.contains(path);
     }
 
     /** Levels the ground of the gatehouse and sets everything whose ground is loaded. */
@@ -1536,13 +1607,14 @@ public final class Expeditions {
                            int room, int lvl) {
         Set<UUID> mobs = new HashSet<>();
         boolean test = m.inPlaytest();   // the playtest: as many for each player as for one alone (Simon 28.10.)
-        int count = test ? ExpeditionKind.guards(lvl, fighters.size(), m.config().playtestPlayerScaling, 24)
-                : ExpeditionKind.guards(lvl, fighters.size());
+        int count = more(kind, test ? ExpeditionKind.guards(lvl, fighters.size(), m.config().playtestPlayerScaling, 24)
+                : ExpeditionKind.guards(lvl, fighters.size()));
         List<BlockPos> spots = p.roomSpots.get(room);
         for (int i = 0; i < count; i++) {
             BlockPos spot = spots.get(i % spots.size());
             Mob mob = spawn(level, rec, kind.mobs().get(random.nextInt(kind.mobs().size())), spot);
             if (mob != null) {
+                toughen(mob, kind);
                 mobs.add(mob.getUUID());
                 mob.setNoAi(true);   // statues until someone reaches the middle or strikes one (content update)
             }
@@ -1694,12 +1766,13 @@ public final class Expeditions {
             level.playSound(null, p.arenaCenter, SoundEvents.IRON_DOOR_OPEN, SoundSource.BLOCKS, 3f, 0.5f);
         }
         m.stats().dungeonProgress(rec.cleared, wave, false);
-        int count = m.inPlaytest() ? ExpeditionKind.wave(lvl, fighters.size(), m.config().playtestPlayerScaling, 32)
-                : ExpeditionKind.wave(lvl, fighters.size());
+        int count = more(kind, m.inPlaytest() ? ExpeditionKind.wave(lvl, fighters.size(), m.config().playtestPlayerScaling, 32)
+                : ExpeditionKind.wave(lvl, fighters.size()));
         for (int i = 0; i < count; i++) {
             BlockPos spot = p.waveSpots.get(i % p.waveSpots.size());
             Mob mob = spawn(level, rec, kind.mobs().get(random.nextInt(kind.mobs().size())), spot);
             if (mob != null) {
+                toughen(mob, kind);
                 arenaMobs.add(mob.getUUID());
             }
         }
@@ -1721,10 +1794,17 @@ public final class Expeditions {
             win(level.getServer(), level, rec);   // nothing to fight (a missing monster): the way is free
             return;
         }
-        double factor = ExpeditionKind.championLife(lvl) * kind.championLifeShare() * (1.0 + 0.5 * Math.max(0, fighters.size() - 1));
+        double factor = ExpeditionKind.championLife(lvl) * kind.championLifeShare() * (1.0 + 0.5 * Math.max(0, fighters.size() - 1))
+                * m.config().dungeonChampionLife;   // Simon 30.10.: "sehr leicht zu töten", 2.5 times the life
         double health = mob.getMaxHealth() * factor;
         // In the look of his dungeon and the colour of his fragment (Simon, 29 October 2026: "Dungeon-Wächter").
         WardenNight.dress(mob, kind, health);
+        // Simon 30.10.: "die wächter kommen gefühlt nicht an spieler ran": a little faster, and his leap (ChampionBrains).
+        net.minecraft.world.entity.ai.attributes.AttributeInstance speed = mob.getAttribute(
+                net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED);
+        if (speed != null) {
+            speed.setBaseValue(speed.getBaseValue() * m.config().championSpeed);
+        }
         mob.addTag(CHAMPION_TAG);
         champion = mob.getUUID();
         brains = new ChampionBrains(mob, kind, level.getGameTime() + 60);
@@ -1838,6 +1918,42 @@ public final class Expeditions {
         return mob;
     }
 
+    /** The life of the halls' and waves' monsters (not the illager keep; Simon 30.10.: "+50 % Leben"). */
+    private static final net.minecraft.resources.Identifier GUARD_LIFE = ModContent.id("dungeon_guard_life");
+
+    /** The dungeons are tougher (Simon 30.10.), all but the illager keep, which was hard enough. */
+    private void toughen(Mob mob, ExpeditionKind kind) {
+        double f = m.config().dungeonGuardLife;
+        if (kind == ExpeditionKind.ILLAGER_KEEP || Math.abs(f - 1.0) < 1e-6) {
+            return;
+        }
+        for (Mob one : riders(mob)) {
+            net.minecraft.world.entity.ai.attributes.AttributeInstance hp = one.getAttribute(
+                    net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH);
+            if (hp != null) {
+                hp.addOrReplacePermanentModifier(new net.minecraft.world.entity.ai.attributes.AttributeModifier(GUARD_LIFE, f - 1.0,
+                        net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
+                one.setHealth(one.getMaxHealth());
+            }
+        }
+    }
+
+    private static List<Mob> riders(Mob mob) {
+        List<Mob> out = new ArrayList<>();
+        out.add(mob);
+        for (Entity passenger : mob.getPassengers()) {
+            if (passenger instanceof Mob rider) {
+                out.add(rider);
+            }
+        }
+        return out;
+    }
+
+    /** A quarter more monsters in the halls and waves (not the illager keep; Simon 30.10.). */
+    private int more(ExpeditionKind kind, int count) {
+        return kind == ExpeditionKind.ILLAGER_KEEP ? count : (int) Math.round(count * m.config().dungeonGuardCount);
+    }
+
     /** Guards were dressed: the clients learn it once for the whole room or wave. */
     private boolean lookPending;
 
@@ -1854,6 +1970,44 @@ public final class Expeditions {
         mob.addTag(TAG);
         mob.addTag(TAG + "_" + rec.id);
         mob.setPersistenceRequired();
+    }
+
+    /**
+     * The stair keeps the dungeon's monsters in (Simon 30.10., 03:26: "sie können direkt angreifen
+     * aber den raum nicht die treppe hoch verlassen"): one that sets foot on it is pushed back down,
+     * one deeper in is put at the stair's foot.
+     */
+    private void keepOffStair(ServerLevel level, ExpeditionLayout.Plan p) {
+        if (p.stairZone == null || p.stairFoot == null) {
+            return;
+        }
+        Vec3 foot = Vec3.atBottomCenterOf(p.stairFoot);
+        for (UUID id : allMobs()) {
+            if (!(level.getEntity(id) instanceof Mob mob) || !mob.isAlive() || !p.stairZone.contains(mob.position())) {
+                continue;
+            }
+            mob.getNavigation().stop();
+            Vec3 back = foot.subtract(mob.position());
+            if (back.lengthSqr() > 5.0 * 5.0) {
+                mob.teleportTo(foot.x, foot.y, foot.z);
+                stairPushes++;
+            } else {
+                Vec3 dir = back.normalize();
+                mob.setDeltaMovement(dir.x * 0.6, Math.max(0.1, mob.getDeltaMovement().y), dir.z * 0.6);
+                mob.hurtMarked = true;
+                stairPushes++;
+            }
+        }
+    }
+
+    /** For the tests: how often the champion leapt at a fighter. */
+    public int championLeaps() {
+        return brains == null ? 0 : brains.leaps();
+    }
+
+    /** For the tests: how often a monster was kept off the stair. */
+    public int stairPushes() {
+        return stairPushes;
     }
 
     private Set<UUID> allMobs() {

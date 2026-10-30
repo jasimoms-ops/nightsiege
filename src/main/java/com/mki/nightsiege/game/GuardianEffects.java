@@ -144,6 +144,22 @@ public final class GuardianEffects {
         }
     }
 
+    /**
+     * The heavy archer against a dungeon champion (Simon 30.10.: "wuchtschütze maximal 8% damage des
+     * lebens der wächter"): one hit takes at most this share of the champion's max health.
+     */
+    private float heavyCap(LivingEntity victim, DamageSource source, float amount) {
+        if (amount <= 0f || !ChampionStrikes.isChampion(victim) || !(source.getEntity() instanceof ServerPlayer hitter)) {
+            return amount;
+        }
+        SiegeManager m = SiegeManager.get();
+        double share = m == null || m.config() == null ? 0.08 : m.config().heavyChampionCap;
+        if (share <= 0 || !SkillTree.SUB_HEAVY.equals(tree.subclassOf(skillsFor.apply(hitter)))) {
+            return amount;
+        }
+        return (float) Math.min(amount, victim.getMaxHealth() * share);
+    }
+
     private float scaleDamage(LivingEntity victim, ServerLevel level, DamageSource source, float amount) {
         float factor = 1f;
         // Server balancing per class and subclass (and zombies/spiders against the melee classes) is
@@ -185,7 +201,7 @@ public final class GuardianEffects {
             factor *= (float) SkillValues.get("g_saint", "dmg", 0.7);   // the saint heals, but hits softer
         }
         if (!(victim instanceof ServerPlayer player) || source.is(DamageTypeTags.BYPASSES_INVULNERABILITY)) {
-            return amount * outside * factor;
+            return heavyCap(victim, source, amount * outside * factor);
         }
         absorbBefore.put(player.getUUID(), player.getAbsorptionAmount());
         boolean fromMonster = source.getEntity() instanceof Enemy;

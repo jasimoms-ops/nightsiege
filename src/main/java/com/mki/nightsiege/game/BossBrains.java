@@ -340,6 +340,12 @@ final class BossBrains {
         final Map<UUID, Long> rooted = new HashMap<>();
         /** How far each egg has cracked (0 to 2). */
         final Map<UUID, Integer> cracked = new HashMap<>();
+        /** Stuck behind something with the target far (update 30.10.): a leap at him, no teleport. */
+        Vec3 lastPos;
+        int stuckTicks;
+        long nextLeap;
+        int leaps;
+        int directTicks;
 
         SpiderQueen(BossService service, BossKind kind) {
             super(service, kind);
@@ -350,7 +356,52 @@ final class BossBrains {
             super.spawned(host, boss);
             nextWeb = spawnedAt + 80;
             nextEggs = spawnedAt + 200;
+            nextLeap = spawnedAt + 60;
             BossService.set(boss, Attributes.MOVEMENT_SPEED, 0.33);
+            // Simon 30.10. ("greifen gar nicht richtig an … bleiben irgendwo hängen"): a spider lets go of
+            // its target in the light (and the base is lit). Her attack keeps it, light or not.
+            if (boss instanceof net.minecraft.world.entity.PathfinderMob walker) {
+                boss.getGoalSelector().removeAllGoals(g -> g instanceof net.minecraft.world.entity.ai.goal.MeleeAttackGoal);
+                boss.getGoalSelector().addGoal(4, new net.minecraft.world.entity.ai.goal.MeleeAttackGoal(walker, 1.0, true));
+            }
+        }
+
+        /**
+         * After her target: where the path ends (too big for a gate, a wall in the way) she goes
+         * straight at him and climbs what is in the way like her kind; stuck for three seconds,
+         * she leaps. Every second the nearest defender, when one is much closer than hers.
+         */
+        private void chase(BossService.Host host, Mob boss, long now) {
+            LivingEntity target = boss.getTarget();
+            if (now % 20 == 0) {
+                ServerPlayer near = BossService.nearest(host.defenders(), boss.position(), 96.0);
+                if (near != null && (target == null || !target.isAlive()
+                        || near.distanceToSqr(boss) + 36.0 < target.distanceToSqr(boss))) {
+                    boss.setTarget(near);
+                    target = near;
+                }
+            }
+            if (target == null || !target.isAlive()) {
+                return;
+            }
+            double d2 = boss.distanceToSqr(target);
+            boolean noPath = boss.getNavigation().isDone() || boss.getNavigation().isStuck();
+            if (d2 > 2.5 * 2.5 && (noPath || stuckTicks >= 20)) {
+                boss.getMoveControl().setWantedPosition(target.getX(), target.getY(), target.getZ(), 1.0);
+                directTicks++;
+            }
+            if (now % 20 == 0) {
+                Vec3 pos = boss.position();
+                boolean far = d2 > 4.0 * 4.0;
+                stuckTicks = lastPos != null && lastPos.distanceToSqr(pos) < 1.0 && far ? stuckTicks + 20 : 0;
+                lastPos = pos;
+                if (stuckTicks >= 60 && now >= nextLeap && boss.onGround() && d2 < 30.0 * 30.0) {
+                    leap(host.world(), boss, target.position(), 4.0);
+                    nextLeap = now + 160;
+                    stuckTicks = 0;
+                    leaps++;
+                }
+            }
         }
 
         @Override
@@ -362,6 +413,7 @@ final class BossBrains {
         void tick(BossService.Host host, Mob boss, long now) {
             ServerLevel level = host.world();
             tickRoots(host, now);
+            chase(host, boss, now);
             if (!brood && below(boss, 0.5)) {
                 brood = true;
                 int called = 0;
@@ -584,6 +636,20 @@ final class BossBrains {
         long nextGuards;
         boolean shield;
         boolean secondShield;
+        /**
+         * Update 30.10. (Simon: "teleportieren sich … greifen garnicht richtig an … bleiben irgendwo
+         * hängen"): no blink any more, he sweeps away in a second; he hovers above the walls so he
+         * sees into the base, higher still while he sees no one; caught on something, he rises and
+         * glides through it.
+         */
+        long dashUntil;
+        int dashes;
+        int blindTicks;
+        double lift;
+        Vec3 lastPos;
+        int stuckTicks;
+        long glideUntil;
+        int shots;
 
         Lich(BossService service, BossKind kind) {
             super(service, kind);
@@ -655,10 +721,14 @@ final class BossBrains {
             hover(host, boss, now);
             List<ServerPlayer> defenders = host.defenders();
             if (now >= nextShot) {
-                ServerPlayer target = sighted(defenders, boss, 32.0);
+                ServerPlayer target = sighted(defenders, boss, 40.0);
                 if (target != null) {
                     face(boss, target.position());
                     soulArrow(host, boss, target, now);
+                    shots++;
+                    blindTicks = 0;
+                } else {
+                    blindTicks += secondShield ? 30 : 40;
                 }
                 nextShot = now + (secondShield ? 30 : 40);
             }
@@ -709,28 +779,55 @@ final class BossBrains {
             }
             closeTicks = close ? closeTicks + 1 : 0;
             if (closeTicks >= BLINK_AFTER && now >= nextBlink) {
+                // No teleport (Simon 30.10.): he sweeps off, a quarter to half round the base, in two seconds.
                 Vec3 before = boss.position();
-                angle += Math.PI * (0.5 + host.random().nextDouble() * 0.5) * (host.random().nextBoolean() ? 1 : -1);
-                Vec3 spot = hoverPoint(host, boss);
-                boss.teleportTo(spot.x, spot.y, spot.z);
-                level.sendParticles(ParticleTypes.REVERSE_PORTAL, before.x, before.y + 2, before.z, 40, 0.6, 1.5, 0.6, 0.1);
-                level.sendParticles(ParticleTypes.PORTAL, spot.x, spot.y + 2, spot.z, 40, 0.6, 1.5, 0.6, 0.1);
-                BossService.sound(level, before, SoundEvents.ENDERMAN_TELEPORT, 1.4f, 0.6f);
+                angle += Math.PI * (0.25 + host.random().nextDouble() * 0.25) * (host.random().nextBoolean() ? 1 : -1);
+                dashUntil = now + 40;
+                dashes++;
+                level.sendParticles(ParticleTypes.SOUL, before.x, before.y + 1.5, before.z, 30, 0.6, 1.0, 0.6, 0.05);
+                BossService.sound(level, before, SoundEvents.PHANTOM_SWOOP, 1.6f, 0.6f);
                 nextBlink = now + BLINK_PAUSE;
                 closeTicks = 0;
             }
         }
 
-        /** Floats round the base, a little above the ground, outside the walls. */
+        /** For the tests: his sweeps, his shots and whether he lies worn out. */
+        int dashes() {
+            return dashes;
+        }
+
+        int shots() {
+            return shots;
+        }
+
+        /** Floats round the base outside the walls, above them so he sees in. */
         private void hover(BossService.Host host, Mob boss, long now) {
             angle += 0.004;
+            // Higher while he has seen no one for three seconds (up to 8 blocks), down again when he does.
+            double wantLift = blindTicks >= 60 ? Math.min(8.0, 2.0 + (blindTicks - 60) / 20.0) : 0.0;
+            lift += Math.max(-0.05, Math.min(0.05, wantLift - lift));
             Vec3 goal = hoverPoint(host, boss);
             Vec3 pos = boss.position();
             Vec3 step = goal.subtract(pos);
             double len = step.length();
-            Vec3 move = len < 1.0e-3 ? Vec3.ZERO : step.scale(Math.min(0.16, len) / len);
+            boolean dashing = now < dashUntil;
+            double speed = dashing ? 0.55 : 0.16;
+            Vec3 move = len < 1.0e-3 ? Vec3.ZERO : step.scale(Math.min(speed, len) / len);
+            // Caught on something (a tree, a hill): through it for a second, like the soul he is.
+            if (now % 20 == 0) {
+                stuckTicks = lastPos != null && len > 2.0 && lastPos.distanceToSqr(pos) < 0.5 ? stuckTicks + 20 : 0;
+                lastPos = pos;
+                if (stuckTicks >= 40) {
+                    glideUntil = now + 30;
+                    stuckTicks = 0;
+                }
+            }
+            boss.noPhysics = dashing || now < glideUntil;
             boss.setDeltaMovement(move);
             boss.hurtMarked = true;
+            if (dashing && now % 2 == 0) {
+                host.world().sendParticles(ParticleTypes.SOUL, pos.x, pos.y + 1.2, pos.z, 3, 0.3, 0.6, 0.3, 0.01);
+            }
             LivingEntity target = boss.getTarget();
             if (target == null || !target.isAlive() || now % 40 == 0) {
                 ServerPlayer near = BossService.nearest(host.defenders(), pos, 40.0);
@@ -757,7 +854,9 @@ final class BossBrains {
             double radius = Math.max(9.0, Math.min(30.0, (edge > 0 ? edge : 8.0) + 5.0));
             double x = cx + Math.cos(angle) * radius;
             double z = cz + Math.sin(angle) * radius;
-            double y = Math.max(BossService.surface(host.world(), x, z), a.getY() - 2) + 1.5;
+            // Over the wall top between him and the base (it hid the defenders from him; Simon 30.10.).
+            double wall = edge > 0 ? BossService.surface(host.world(), cx + Math.cos(angle) * edge, cz + Math.sin(angle) * edge) : a.getY();
+            double y = Math.max(Math.max(BossService.surface(host.world(), x, z), a.getY() - 2), wall) + 2.5 + lift;
             return new Vec3(x, y, z);
         }
 
@@ -862,6 +961,7 @@ final class BossBrains {
         /** Worn out he sinks to the ground where he is and does nothing. */
         private void sink(BossService.Host host, Mob boss, long now) {
             ServerLevel level = host.world();
+            boss.noPhysics = false;   // worn out on the ground, not in it
             double ground = BossService.surface(level, boss.getX(), boss.getZ());
             double dy = ground - boss.getY();
             boss.setDeltaMovement(0, Math.max(-0.25, Math.min(0.05, dy * 0.3)), 0);

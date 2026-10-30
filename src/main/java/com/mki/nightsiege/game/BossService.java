@@ -346,12 +346,19 @@ public final class BossService {
         if (boss == null) {
             return;
         }
-        // Lost far away (thrown, fled): back to where the monsters come from.
+        // Lost far away (thrown, fled): back towards the base on its own feet (Simon 30.10.: the bosses
+        // "teleportieren sich"). Only one lost very far, with no defender near it, is put back.
         BlockPos anchor = host.anchor();
-        if (now % 20 == 0 && boss.distanceToSqr(anchor.getX() + 0.5, anchor.getY(), anchor.getZ() + 0.5) > 64.0 * 64.0) {
-            BlockPos spot = host.spawnSpot();
-            if (spot != null) {
-                boss.teleportTo(spot.getX() + 0.5, spot.getY(), spot.getZ() + 0.5);
+        if (now % 20 == 0 && !(brain instanceof BossBrains.Lich)) {
+            double away = boss.distanceToSqr(anchor.getX() + 0.5, anchor.getY(), anchor.getZ() + 0.5);
+            boolean watched = nearest(host.defenders(), boss.position(), 40.0) != null;
+            if (away > 160.0 * 160.0 && !watched) {
+                BlockPos spot = host.spawnSpot();
+                if (spot != null) {
+                    boss.teleportTo(spot.getX() + 0.5, spot.getY(), spot.getZ() + 0.5);
+                }
+            } else if (away > 64.0 * 64.0 && !watched) {
+                boss.getNavigation().moveTo(anchor.getX() + 0.5, anchor.getY(), anchor.getZ() + 0.5, 1.2);
             }
         }
         if (now % 20 == 0 && (boss.getTarget() == null || !boss.getTarget().isAlive()) && !(brain instanceof BossBrains.Lich)) {
@@ -582,6 +589,17 @@ public final class BossService {
             list.add(part.hitbox);
         }
         return list;
+    }
+
+    /** For the tests (update 30.10.): the queen's straight runs and leaps, the lich's sweeps and shots. */
+    public String testBrainStats() {
+        if (brain instanceof BossBrains.SpiderQueen queen) {
+            return "direct=" + queen.directTicks + " leaps=" + queen.leaps;
+        }
+        if (brain instanceof BossBrains.Lich lich) {
+            return "dashes=" + lich.dashes() + " shots=" + lich.shots() + " lift=" + Math.round(lich.lift);
+        }
+        return "-";
     }
 
     /** For the tests: whether the lich lies worn out after his shield broke. */

@@ -100,6 +100,18 @@ public class SiegeSave {
      */
     public List<String> tempBlocks = new ArrayList<>();
 
+    /**
+     * Chunks where players have set blocks down, by dimension (update 30.10., Simon: "die dungeons oder
+     * heerlager dürfen auf keinen fall in irgendwelchen von spieler platzierten blöcken spawnen").
+     * Chunk keys as {@code ChunkPos.asLong}.
+     */
+    public Map<String, java.util.Set<Long>> playerBuilt = new HashMap<>();
+    /**
+     * War camps whose ground under them is written down, "id|dimension" (update 30.10.): it goes back
+     * when the camp goes, chunk by chunk as they load.
+     */
+    public List<String> campGrounds = new ArrayList<>();
+
     /** The war camp standing before a siege night (27 October 2026), or null. */
     public CampRecord camp;
     /** Day whose camp has been rolled for (one roll per siege). */

@@ -213,8 +213,10 @@ public final class NightDamage {
             return 0;
         }
         int[] put = {0};
+        BlockPos core = center;
         quietly(() -> {
             douse(level);
+            startFireWatch(level, core);
             if (LOST.isEmpty()) {
                 return;
             }
@@ -315,8 +317,105 @@ public final class NightDamage {
         return (long) cx << 32 | cz & 0xffffffffL;
     }
 
+    // ------------------------------------------------------------------ the fire after the night
+
+    /**
+     * Simon 30.10.: "feuer brennt nach der Nacht weiter … und brennt damit leider die base nieder". The
+     * fire the night wrote down goes out with the mending, but not what it missed: a fireball still in
+     * the air, a fire in a chunk that was not loaded, a fire that spread after the night. So for two
+     * minutes after a night every fire round the base goes out (every two seconds, only in sections
+     * that hold fire at all); a fire on netherrack or soul soil (a fireplace) stays.
+     */
+    private static ServerLevel sweepWorld;
+    private static BlockPos sweepCenter;
+    private static long sweepUntil;
+    /** How many fires went out after the nights (for the tests). */
+    private static int sweptFires;
+    static final int SWEEP_REACH = 144;
+
+    /** The night is over: its fireballs and lightning go, and the fire watch begins. */
+    static void startFireWatch(ServerLevel level, BlockPos core) {
+        if (level == null || core == null) {
+            return;
+        }
+        sweepWorld = level;
+        sweepCenter = core.immutable();
+        sweepUntil = level.getGameTime() + 2400;
+        net.minecraft.world.phys.AABB box = new net.minecraft.world.phys.AABB(core).inflate(SWEEP_REACH, 96, SWEEP_REACH);
+        for (net.minecraft.world.entity.Entity e : level.getEntitiesOfClass(net.minecraft.world.entity.Entity.class, box,
+                e -> e.getType() == net.minecraft.world.entity.EntityTypes.SMALL_FIREBALL
+                        || e.getType() == net.minecraft.world.entity.EntityTypes.FIREBALL
+                        || e instanceof net.minecraft.world.entity.LightningBolt)) {
+            e.discard();
+        }
+        sweepFire(level, core, SWEEP_REACH);
+    }
+
+    /** Puts out every fire in the loaded chunks round a spot (not on netherrack and its kin); returns how many. */
+    static int sweepFire(ServerLevel level, BlockPos center, int reach) {
+        int[] out = {0};
+        quietly(() -> {
+            for (int cx = (center.getX() - reach) >> 4; cx <= (center.getX() + reach) >> 4; cx++) {
+                for (int cz = (center.getZ() - reach) >> 4; cz <= (center.getZ() + reach) >> 4; cz++) {
+                    if (!level.hasChunk(cx, cz)) {
+                        continue;
+                    }
+                    net.minecraft.world.level.chunk.LevelChunk chunk = level.getChunk(cx, cz);
+                    net.minecraft.world.level.chunk.LevelChunkSection[] sections = chunk.getSections();
+                    for (int si = 0; si < sections.length; si++) {
+                        net.minecraft.world.level.chunk.LevelChunkSection section = sections[si];
+                        if (section == null || section.hasOnlyAir() || !section.maybeHas(st -> st.getBlock() instanceof BaseFireBlock)) {
+                            continue;
+                        }
+                        int baseY = level.getSectionYFromSectionIndex(si) << 4;
+                        for (int y = 0; y < 16; y++) {
+                            for (int z = 0; z < 16; z++) {
+                                for (int x = 0; x < 16; x++) {
+                                    if (!(section.getBlockState(x, y, z).getBlock() instanceof BaseFireBlock)) {
+                                        continue;
+                                    }
+                                    BlockPos pos = new BlockPos((cx << 4) + x, baseY + y, (cz << 4) + z);
+                                    BlockState below = level.getBlockState(pos.below());
+                                    if (below.is(net.minecraft.tags.BlockTags.INFINIBURN_OVERWORLD)
+                                            || below.is(Blocks.SOUL_SAND) || below.is(Blocks.SOUL_SOIL)) {
+                                        continue;   // a fireplace
+                                    }
+                                    level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS);
+                                    out[0]++;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        sweptFires += out[0];
+        if (out[0] > 0) {
+            NightSiegeMod.LOGGER.info("[Night Siege] Feuer nach der Nacht gelöscht: {}", out[0]);
+        }
+        return out[0];
+    }
+
+    /** For the tests: fires put out after the nights so far. */
+    public static int sweptFires() {
+        return sweptFires;
+    }
+
+    /** For the tests: put out the fire round a spot now. */
+    public static int sweepFireNow(ServerLevel level, BlockPos center) {
+        return sweepFire(level, center, SWEEP_REACH);
+    }
+
     /** Every second: what waited for its chunk comes back once the chunk is loaded. */
     static void tick(MinecraftServer server) {
+        if (sweepWorld != null) {
+            long now = sweepWorld.getGameTime();
+            if (now > sweepUntil || world == sweepWorld) {
+                sweepWorld = null;   // over, or the next night has begun (it watches its own fire)
+            } else if (now % 40 == 13) {
+                sweepFire(sweepWorld, sweepCenter, SWEEP_REACH);
+            }
+        }
         if (PENDING.isEmpty() || pendingWorld == null || server.overworld().getGameTime() % 20 != 7) {
             return;
         }

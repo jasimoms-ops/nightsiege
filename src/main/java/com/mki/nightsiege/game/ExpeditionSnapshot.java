@@ -54,7 +54,17 @@ final class ExpeditionSnapshot {
 
     /** The snapshot of a dungeon (empty when there is none yet). */
     static ExpeditionSnapshot load(MinecraftServer server, int id) {
-        ExpeditionSnapshot snap = new ExpeditionSnapshot(folder(server).resolve(id + ".txt.gz"));
+        return load(folder(server).resolve(id + ".txt.gz"));
+    }
+
+    /** The snapshot of the war camp with this id (update 30.10.: the camp's ground goes back when it goes). */
+    static ExpeditionSnapshot loadCamp(MinecraftServer server, int id) {
+        return load(server.getWorldPath(LevelResource.ROOT).resolve("nightsiege").resolve("camps").normalize()
+                .resolve(id + ".txt.gz"));
+    }
+
+    private static ExpeditionSnapshot load(Path path) {
+        ExpeditionSnapshot snap = new ExpeditionSnapshot(path);
         if (Files.exists(snap.file)) {
             try (BufferedReader in = new BufferedReader(new InputStreamReader(
                     new GZIPInputStream(Files.newInputStream(snap.file)), StandardCharsets.UTF_8))) {
@@ -111,6 +121,23 @@ final class ExpeditionSnapshot {
 
     int chunkCount() {
         return chunks.size();
+    }
+
+    /** Writes down what stands now at the spots of a chunk without saving (then {@link #flush}). */
+    void recordQuietly(long chunk, ServerLevel level, List<BlockPos> spots) {
+        BlockState[] states = new BlockState[spots.size()];
+        long[] where = new long[spots.size()];
+        for (int i = 0; i < states.length; i++) {
+            states[i] = level.getBlockState(spots.get(i));
+            where[i] = spots.get(i).asLong();
+        }
+        chunks.put(chunk, states);
+        places.put(chunk, where);
+    }
+
+    /** Saves the file now. */
+    void flush() {
+        save();
     }
 
     /** Writes down what stands now at the spots of a chunk, then saves the file. */

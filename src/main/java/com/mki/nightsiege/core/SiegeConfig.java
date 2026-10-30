@@ -409,8 +409,12 @@ public class SiegeConfig {
     /** Blocks between the core and a reported dungeon. */
     public int expeditionMinDistance = 250;
     public int expeditionMaxDistance = 600;
-    /** Seconds after going down the stairs before the dungeon's monsters attack. */
-    public int expeditionGraceSeconds = 10;
+    /**
+     * Seconds after going down the stairs before the dungeon's monsters attack. 0 since 30.10.
+     * (Simon: "sie können direkt angreifen aber den raum nicht die treppe hoch verlassen"): they
+     * attack at once, and the stair keeps them in.
+     */
+    public int expeditionGraceSeconds = 0;
     /** Skill points for every fighter of a won dungeon (Simon: "5 XP pro Dungeon"). */
     public int expeditionSkillPoints = 5;
     /** The old dungeon cores in the structures of Dungeons and Taverns (replaced by the own dungeons). */
@@ -440,6 +444,21 @@ public class SiegeConfig {
     public int[] championPercentDamageSteps = {10, 20};
     /** What of that share goes through a raised shield (0.5 = half, like the guardian's shield way). */
     public double championPercentShield = 0.5;
+    /** Simon 30.10.: one hit of the heavy archer takes at most this share of a dungeon champion's max health (0 = no cap). */
+    public double heavyChampionCap = 0.08;
+    /**
+     * Simon 30.10. ("alle wächter aus den dungeons … sehr leicht zu töten"): the champion in his dungeon
+     * has this many times the life he had (the warden at the end of a night keeps his).
+     */
+    public double dungeonChampionLife = 2.5;
+    /** The halls of the dungeons, not the illager keep (Simon 30.10.: "+50 % Leben, +25 % Monster"). */
+    public double dungeonGuardLife = 1.5;
+    public double dungeonGuardCount = 1.25;
+    /** The champion's leap at a fighter who keeps his distance (Simon 30.10.: "Sprungangriff"): from this far, this often. */
+    public double championLeapRange = 7.0;
+    public int championLeapTicks = 120;
+    /** The champion in his dungeon runs this much faster. */
+    public double championSpeed = 1.2;
     /** Siege monsters drop items and experience (false since Simon's call of 26 October 2026: they drop nothing). */
     public boolean siegeMobDrops = false;
     /** Klaffende Wunden (anti-heal, Simon 25 October 2026): these monsters halve all healing of the player they hit. */
@@ -1076,6 +1095,13 @@ public class SiegeConfig {
         expeditionMinDistance = clamp(expeditionMinDistance, 64, 2000);
         expeditionMaxDistance = clamp(expeditionMaxDistance, expeditionMinDistance, 3000);
         expeditionGraceSeconds = clamp(expeditionGraceSeconds, 0, 60);
+        heavyChampionCap = Double.isNaN(heavyChampionCap) ? 0.08 : clampDouble(heavyChampionCap, 0.0, 1.0);
+        dungeonChampionLife = Double.isNaN(dungeonChampionLife) || dungeonChampionLife <= 0 ? 2.5 : clampDouble(dungeonChampionLife, 0.1, 20.0);
+        dungeonGuardLife = Double.isNaN(dungeonGuardLife) || dungeonGuardLife <= 0 ? 1.5 : clampDouble(dungeonGuardLife, 0.1, 10.0);
+        dungeonGuardCount = Double.isNaN(dungeonGuardCount) || dungeonGuardCount <= 0 ? 1.25 : clampDouble(dungeonGuardCount, 0.1, 5.0);
+        championLeapRange = Double.isNaN(championLeapRange) ? 7.0 : clampDouble(championLeapRange, 0.0, 40.0);
+        championLeapTicks = clamp(championLeapTicks <= 0 ? 120 : championLeapTicks, 20, 2400);
+        championSpeed = Double.isNaN(championSpeed) || championSpeed <= 0 ? 1.2 : clampDouble(championSpeed, 0.5, 3.0);
         expeditionSkillPoints = clamp(expeditionSkillPoints, 0, 100);
         bossPercentDamage = clampDouble(bossPercentDamage, 0.0, 10.0);
         machinePercentDamage = clampDouble(machinePercentDamage, 0.0, 10.0);
@@ -1092,6 +1118,13 @@ public class SiegeConfig {
                 bossEvery = 4;
             }
             contentVersion = 1;
+        }
+        if (contentVersion < 2) {
+            // Update 30.10. (Simon 03:26): the dungeon's monsters attack at once; the old 10 s grace goes.
+            if (expeditionGraceSeconds == 10) {
+                expeditionGraceSeconds = 0;
+            }
+            contentVersion = 2;
         }
         bossEvery = clamp(bossEvery <= 0 ? 4 : bossEvery, 1, 100);
         bossFinaleSeconds = clamp(bossFinaleSeconds <= 0 ? 180 : bossFinaleSeconds, 30, 1200);

@@ -105,6 +105,13 @@ public final class ExpeditionLayout {
         public final List<BlockPos> waiting = new ArrayList<>();
         /** The way down: from here on one is inside. */
         public final List<AABB> inside = new ArrayList<>();
+        /**
+         * The stair and the gatehouse above it (Simon 30.10.: the monsters attack at once, "aber den
+         * raum nicht die treppe hoch verlassen"): no monster of the dungeon goes in here.
+         */
+        public AABB stairZone;
+        /** At the foot of the stair, in the first corridor: where a monster on the stair is put back. */
+        public BlockPos stairFoot;
         /** Everything the dungeon takes (no breaking before it is gone). */
         public AABB bounds;
         /** Floor cells one walks on (for the light check of the tests): world positions of the feet. */
@@ -210,6 +217,8 @@ public final class ExpeditionLayout {
         }
         // Inside: below the gatehouse floor on the stair, the corridors, halls, arena and its gates.
         plan.inside.add(b.box(-2, HALL_Y - 2, 0, 2, -3, FIRST - 1));
+        plan.stairZone = b.box(-3, HALL_Y - 2, -11, 3, h + 4, FIRST - 2);
+        plan.stairFoot = b.at(0, HALL_Y, FIRST + 1);
         for (int i = 0; i <= rooms; i++) {
             int c = corridorStart(i);
             int prev = i == 0 ? 0 : OFFSET[i - 1];

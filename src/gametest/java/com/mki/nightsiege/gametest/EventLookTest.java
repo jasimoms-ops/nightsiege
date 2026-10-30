@@ -107,6 +107,9 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("bosses")) {
                     bossScene(context, game);   // all eight bosses (four more since the content update, 29 October 2026)
                 }
+                if (want.contains("bossai")) {
+                    bossAiScene(context, game);   // the spider queen and the bone lich behind walls (30 October 2026)
+                }
                 if (want.contains("subtrees")) {
                     subTreeShots(context);   // one tree per subclass (content update, 29 October 2026)
                 }
@@ -1960,6 +1963,35 @@ public class EventLookTest implements FabricClientGameTest {
         game.getServer().runCommand("time set 1500");
         game.getServer().runCommand("weather clear");
         game.getServer().runCommand("gamemode creative @p");
+        // Update 30.10.: the ground under the camp comes back (a tree and a pile of stone stand there now),
+        // and a chunk a player built in takes no camp.
+        final long[] groundBefore = new long[1];
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            for (int dy = 0; dy < 5; dy++) {
+                level.setBlock(new BlockPos(cx + 10, cy + dy, cz + 3), net.minecraft.world.level.block.Blocks.OAK_LOG.defaultBlockState(), 2);
+            }
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    level.setBlock(new BlockPos(cx + 10 + dx, cy + 5, cz + 3 + dz), net.minecraft.world.level.block.Blocks.OAK_LEAVES
+                            .defaultBlockState().setValue(net.minecraft.world.level.block.LeavesBlock.PERSISTENT, true), 2);
+                }
+            }
+            for (int dy = 0; dy < 3; dy++) {
+                level.setBlock(new BlockPos(cx - 8, cy + dy, cz - 8), net.minecraft.world.level.block.Blocks.STONE.defaultBlockState(), 2);
+            }
+            groundBefore[0] = campGround(level, cx, cy, cz);
+            BlockPos far = new BlockPos(cx + 400, level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
+                    cx + 400, cz), cz);
+            level.getChunk(far.getX() >> 4, far.getZ() >> 4);
+            int fy = level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, far.getX(), far.getZ());
+            BlockPos placed = new BlockPos(far.getX(), fy, far.getZ());
+            level.setBlock(placed, net.minecraft.world.level.block.Blocks.DIRT.defaultBlockState(), 2);
+            String freeBefore = manager.camp().siteForTest(level, far.getX() + 3, far.getZ() + 3);
+            com.mki.nightsiege.game.PlayerBuilt.mark(level, placed);
+            String freeAfter = manager.camp().siteForTest(level, far.getX() + 3, far.getZ() + 3);
+            System.out.println("[Night Siege test] camp player built: before=" + freeBefore + " after=" + freeAfter);
+        });
         onServer(context, (player, manager) -> {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
             if (!manager.isRegistered(player)) {
@@ -2135,6 +2167,15 @@ public class EventLookTest implements FabricClientGameTest {
                     + level.getBlockState(new BlockPos(cx + 18, cy + 1, cz)).getBlock()
                     + " guards left=" + manager.camp().testGuards(level));
         });
+        context.waitTicks(40);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            long after = campGround(level, cx, cy, cz);
+            System.out.println("[Night Siege test] camp ground back: same=" + (after == groundBefore[0])
+                    + " log=" + level.getBlockState(new BlockPos(cx + 10, cy + 2, cz + 3)).getBlock()
+                    + " stone=" + level.getBlockState(new BlockPos(cx - 8, cy + 2, cz - 8)).getBlock()
+                    + " " + manager.camp().groundState());
+        });
 
         // A second camp, two attackers' worth: the defender falls there, the camp wins.
         onServer(context, (player, manager) -> {
@@ -2172,6 +2213,20 @@ public class EventLookTest implements FabricClientGameTest {
         game.getServer().runCommand("gamemode creative @p");
         game.getServer().runCommand("time set 6000");
         context.waitTicks(10);
+    }
+
+    /** A sum over the ground a test camp takes (the same before it stood and after it is gone). */
+    private static long campGround(net.minecraft.server.level.ServerLevel level, int x, int y, int z) {
+        long sum = 0;
+        for (int bx = x - 30; bx <= x + 30; bx++) {
+            for (int bz = z - 30; bz <= z + 30; bz++) {
+                for (int by = y - 12; by <= y + 16; by++) {
+                    BlockPos p = new BlockPos(bx, by, bz);
+                    sum = sum * 31 + net.minecraft.world.level.block.Block.getId(level.getBlockState(p)) + 7L * (bx + by * 3 + bz * 5);
+                }
+            }
+        }
+        return sum;
     }
 
     /** Sets the core window's tab by its name (the next opening shows it). */
@@ -2795,7 +2850,58 @@ public class EventLookTest implements FabricClientGameTest {
                 System.out.println("[Night Siege test] dungeon room: monsters=" + manager.expeditions().testMobs(level).size()
                         + " on the player=" + targeting + " at" + where);
             });
+            if (room == 0) {
+                // Update 30.10.: the stair keeps the monsters in (one put on it is pushed back down).
+                onServer(context, (player, manager) -> {
+                    net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                    com.mki.nightsiege.game.ExpeditionLayout.Plan plan = manager.expeditions().testPlan();
+                    java.util.List<net.minecraft.world.entity.Mob> mobs = manager.expeditions().testMobs(level);
+                    net.minecraft.world.phys.AABB stair = plan.inside.get(0);
+                    int sx = (int) Math.floor(stair.getCenter().x);
+                    int sz = (int) Math.floor(stair.getCenter().z);
+                    BlockPos step = null;
+                    for (int y = (int) stair.maxY; y >= (int) stair.minY; y--) {
+                        BlockPos at = new BlockPos(sx, y, sz);
+                        if (level.getBlockState(at).isAir() && !level.getBlockState(at.below()).isAir()) {
+                            step = at;
+                            break;
+                        }
+                    }
+                    if (!mobs.isEmpty() && step != null) {
+                        net.minecraft.world.entity.Mob mob = mobs.get(0);
+                        mob.setNoAi(false);
+                        mob.teleportTo(step.getX() + 0.5, step.getY(), step.getZ() + 0.5);
+                        System.out.println("[Night Siege test] dungeon stair: put " + mob.getType().getDescriptionId() + " on " + step
+                                + " inZone=" + plan.stairZone.contains(mob.position()));
+                    } else {
+                        System.out.println("[Night Siege test] dungeon stair: no monster or no step (" + mobs.size() + ", " + step + ")");
+                    }
+                });
+                context.waitTicks(12);
+                onServer(context, (player, manager) -> {
+                    net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                    com.mki.nightsiege.game.ExpeditionLayout.Plan plan = manager.expeditions().testPlan();
+                    int onStair = 0;
+                    for (net.minecraft.world.entity.Mob mob : manager.expeditions().testMobs(level)) {
+                        if (plan.stairZone.contains(mob.position())) {
+                            onStair++;
+                        }
+                    }
+                    System.out.println("[Night Siege test] dungeon stair after: on the stair=" + onStair
+                            + " pushes=" + manager.expeditions().stairPushes());
+                });
+            }
             killDungeonMobs(context, "room " + (room + 1));
+            if (room == 0) {
+                context.waitTicks(3);
+                onServer(context, (player, manager) -> {
+                    net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                    net.minecraft.world.phys.AABB around = player.getBoundingBox().inflate(48);
+                    int items = level.getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, around).size();
+                    int orbs = level.getEntitiesOfClass(net.minecraft.world.entity.ExperienceOrb.class, around).size();
+                    System.out.println("[Night Siege test] dungeon drops after room 1: items=" + items + " orbs=" + orbs);
+                });
+            }
             context.waitTicks(25);
             final int gateZ = z0 + 30;
             final int gateX = ox;
@@ -2831,6 +2937,31 @@ public class EventLookTest implements FabricClientGameTest {
         });
         context.waitTicks(90);   // his entrance (3 s, untouchable) is over
         context.takeScreenshot("dungeon_fight_champion2");
+        // Update 30.10.: 2.5 times the life, and he leaps at a fighter who keeps away (no teleport).
+        final double[] leapFrom = new double[1];
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            for (net.minecraft.world.entity.Mob mob : manager.expeditions().testMobs(level)) {
+                if (mob.entityTags().contains(com.mki.nightsiege.game.Expeditions.CHAMPION_TAG)) {
+                    player.teleportTo(level, mob.getX() + 14, mob.getY(), mob.getZ(), java.util.Set.of(), player.getYRot(), player.getXRot(), true);
+                    leapFrom[0] = Math.sqrt(player.distanceToSqr(mob));
+                    System.out.println("[Night Siege test] dungeon champion life: " + Math.round(mob.getMaxHealth())
+                            + " speed=" + String.format(java.util.Locale.ROOT, "%.3f", mob.getAttributeValue(
+                                    net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED))
+                            + " distance=" + Math.round(leapFrom[0]));
+                }
+            }
+        });
+        context.waitTicks(70);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            for (net.minecraft.world.entity.Mob mob : manager.expeditions().testMobs(level)) {
+                if (mob.entityTags().contains(com.mki.nightsiege.game.Expeditions.CHAMPION_TAG)) {
+                    System.out.println("[Night Siege test] dungeon champion leap: leaps=" + manager.expeditions().championLeaps()
+                            + " distance " + Math.round(leapFrom[0]) + " -> " + Math.round(Math.sqrt(player.distanceToSqr(mob))));
+                }
+            }
+        });
         final int[] pointsBefore = new int[1];
         onServer(context, (player, manager) -> pointsBefore[0] = manager.save().skillsOf(player.getUUID().toString()).points());
         onServer(context, (player, manager) -> {
@@ -3771,6 +3902,140 @@ public class EventLookTest implements FabricClientGameTest {
      * The lich's soul shield must hold until its crystals are broken; the warlord's beast
      * falls first, then the warlord. The boss's fall wins the night.
      */
+    /**
+     * Update 30.10. (Simon: the spider queen and the bone lich "teleportieren sich oder greifen garnicht
+     * richtig an sondern bleiben irgendwo hängen"): each in a test night against a defender behind a
+     * walled square (5 high, a 1-wide gate); every tick a jump of more than 3 blocks counts as a
+     * teleport. The queen must come to the defender, the lich must shoot over the wall.
+     */
+    private static void bossAiScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        int cx = pos.getX() + 160;
+        int cz = pos.getZ() - 160;
+        game.getServer().runCommand("forceload add %d %d %d %d".formatted(cx - 48, cz - 48, cx + 48, cz + 48));
+        context.waitTicks(40);
+        final int[] ground = new int[1];
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            level.getChunk(cx >> 4, cz >> 4);
+            ground[0] = level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, cx, cz);
+        });
+        context.waitTicks(10);
+        int cy = ground[0];
+        int r = 9;
+        int out = 40;
+        for (int part = -out; part <= out; part += 20) {
+            int z1 = cz + part;
+            int z2 = Math.min(cz + out, z1 + 19);
+            game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:grass_block".formatted(cx - out, cy - 1, z1, cx + out, cy - 1, z2));
+            game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(cx - out, cy, z1, cx + out, cy + 14, z2));
+        }
+        String wall = "fill %d %d %d %d %d %d minecraft:stone_bricks";
+        game.getServer().runCommand(wall.formatted(cx - r, cy, cz - r, cx + r, cy + 4, cz - r));
+        game.getServer().runCommand(wall.formatted(cx - r, cy, cz + r, cx + r, cy + 4, cz + r));
+        game.getServer().runCommand(wall.formatted(cx - r, cy, cz - r, cx - r, cy + 4, cz + r));
+        game.getServer().runCommand(wall.formatted(cx + r, cy, cz - r, cx + r, cy + 4, cz + r));
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(cx, cy, cz + r, cx, cy + 1, cz + r));   // the gate
+        for (int t = -r + 2; t <= r - 2; t += 4) {   // the base is lit (a spider lets go of its target in the light)
+            game.getServer().runCommand("setblock %d %d %d minecraft:torch".formatted(cx + t, cy, cz - r + 1));
+            game.getServer().runCommand("setblock %d %d %d minecraft:torch".formatted(cx + t, cy, cz + r - 1));
+        }
+        game.getServer().runCommand("time set 18000");
+        game.getServer().runCommand("weather clear");
+        game.getServer().runCommand("gamemode survival @p");
+        game.getServer().runCommand("effect give @p minecraft:resistance 600 255 true");
+        game.getServer().runCommand("effect give @p minecraft:regeneration 600 10 true");
+        game.getServer().runCommand("effect give @p minecraft:saturation 600 10 true");
+        final int[] prep = new int[1];
+        onServer(context, (player, manager) -> {
+            prep[0] = manager.config().testPrepSeconds;
+            manager.config().testPrepSeconds = 1;
+        });
+        for (com.mki.nightsiege.core.BossKind kind : new com.mki.nightsiege.core.BossKind[] {
+                com.mki.nightsiege.core.BossKind.SPIDER_QUEEN, com.mki.nightsiege.core.BossKind.BONE_LICH}) {
+            String id = kind.id();
+            game.getServer().runCommand("tp @p %d.5 %d %d.5 0 10".formatted(cx, cy, cz - 4));
+            context.waitTicks(5);
+            onServer(context, (player, manager) -> {
+                net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                boolean ok = manager.prepareTest(level.getServer(), level, new BlockPos(cx, cy, cz), 8,
+                        com.mki.nightsiege.core.SiegeEvent.NONE, kind);
+                System.out.println("[Night Siege test] bossai " + id + " prep ok=" + ok);
+            });
+            context.waitTicks(40);
+            closeScreen(context);
+            onServer(context, (player, manager) -> {
+                manager.bossNow(player.level().getServer());
+                net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                net.minecraft.world.entity.Mob boss = manager.bosses().boss(level);
+                if (boss != null && kind == com.mki.nightsiege.core.BossKind.SPIDER_QUEEN) {
+                    boss.teleportTo(cx + 0.5, cy, cz + r + 14.5);   // outside, in front of the gate side
+                }
+                System.out.println("[Night Siege test] bossai " + id + " boss=" + (boss == null ? "-" : boss.blockPosition().toShortString()));
+            });
+            final double[] last = {Double.NaN, 0, 0};
+            final int[] jumps = new int[1];
+            final double[] closest = {1e9};
+            final float[] lost = new float[1];
+            for (int tick = 0; tick < 500; tick += 2) {
+                context.waitTicks(2);
+                final int now = tick;
+                onServer(context, (player, manager) -> {
+                    net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                    net.minecraft.world.entity.Mob boss = manager.bosses().boss(level);
+                    if (boss == null) {
+                        return;
+                    }
+                    if (!Double.isNaN(last[0])) {
+                        double dx = boss.getX() - last[0];
+                        double dy = boss.getY() - last[1];
+                        double dz = boss.getZ() - last[2];
+                        if (dx * dx + dy * dy + dz * dz > 3.0 * 3.0) {
+                            jumps[0]++;
+                            System.out.println("[Night Siege test] bossai " + id + " jump at t=" + now + ": "
+                                    + Math.round(Math.sqrt(dx * dx + dy * dy + dz * dz)) + " blocks");
+                        }
+                    }
+                    last[0] = boss.getX();
+                    last[1] = boss.getY();
+                    last[2] = boss.getZ();
+                    closest[0] = Math.min(closest[0], Math.sqrt(boss.distanceToSqr(player)));
+                    lost[0] = Math.max(lost[0], player.getMaxHealth() - player.getHealth());
+                    if (now % 100 == 0) {
+                        System.out.println(String.format(java.util.Locale.ROOT,
+                                "[Night Siege test] bossai %s t=%d pos=%s distance=%.1f target=%s %s",
+                                id, now, boss.blockPosition().toShortString(), Math.sqrt(boss.distanceToSqr(player)),
+                                boss.getTarget() == player ? "player" : boss.getTarget() == null ? "-" : boss.getTarget().getType().toShortString(),
+                                manager.bosses().testBrainStats()));
+                    }
+                });
+                if (tick == 200) {
+                    context.takeScreenshot("bossai_" + id);
+                }
+            }
+            onServer(context, (player, manager) -> {
+                System.out.println(String.format(java.util.Locale.ROOT,
+                        "[Night Siege test] bossai %s result: teleports=%d closest=%.1f %s",
+                        id, jumps[0], closest[0], manager.bosses().testBrainStats()));
+                if (manager.isActive()) {
+                    manager.abort(player.level().getServer());
+                }
+            });
+            context.waitTicks(40);
+        }
+        // The fire after the night (update 30.10.): a fire lit after the night's end goes out within two seconds.
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:oak_planks".formatted(cx + 2, cy, cz + 2, cx + 4, cy, cz + 4));
+        game.getServer().runCommand("setblock %d %d %d minecraft:fire".formatted(cx + 3, cy + 1, cz + 3));
+        game.getServer().runCommand("setblock %d %d %d minecraft:netherrack".formatted(cx - 4, cy, cz - 4));
+        game.getServer().runCommand("setblock %d %d %d minecraft:fire".formatted(cx - 4, cy + 1, cz - 4));
+        context.waitTicks(60);
+        onServer(context, (player, manager) -> System.out.println("[Night Siege test] bossai fire after the night: planks fire="
+                + player.level().getBlockState(new BlockPos(cx + 3, cy + 1, cz + 3)).getBlock()
+                + " fireplace=" + player.level().getBlockState(new BlockPos(cx - 4, cy + 1, cz - 4)).getBlock()
+                + " swept=" + com.mki.nightsiege.game.NightDamage.sweptFires()));
+        onServer(context, (player, manager) -> manager.config().testPrepSeconds = prep[0]);
+    }
+
     private static void bossScene(ClientGameTestContext context, TestSingleplayerContext game) {
         BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
         int cx = pos.getX() - 160;

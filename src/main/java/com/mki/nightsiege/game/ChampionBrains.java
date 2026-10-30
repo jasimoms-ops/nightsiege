@@ -58,11 +58,19 @@ final class ChampionBrains {
     /** The ember lord's lava trail: points and until when they burn. */
     private final List<Vec3> trail = new ArrayList<>();
     private long trailUntil;
+    /**
+     * The leap (Simon 30.10.: "die wächter kommen gefühlt nicht an spieler ran", "Sprungangriff"): at a
+     * fighter who keeps his distance he jumps, no teleport; where he lands, the fighters close by are hit.
+     */
+    private long leapAt;
+    private long leapedAt = -1L;
+    private int leaps;
 
     ChampionBrains(Mob champion, ExpeditionKind kind, long now) {
         this.champion = champion;
         this.kind = kind;
         this.nextAt = now + 160;   // the first after 8 s
+        this.leapAt = now + 80;
         this.lastHealth = champion.getHealth();
     }
 
@@ -80,6 +88,7 @@ final class ChampionBrains {
             level.sendParticles(ParticleTypes.SPORE_BLOSSOM_AIR, champion.getX(), champion.getY() + 1, champion.getZ(), 40, 0.6, 0.8, 0.6, 0.02);
         }
         lastHealth = champion.getHealth();
+        leap(level, host, siegeLevel, cfg, now);
         if (now < trailUntil) {
             if (now % 4 == 0) {
                 trail.add(champion.position());
@@ -125,6 +134,64 @@ final class ChampionBrains {
         for (ServerPlayer player : host.fighters()) {
             player.connection.send(new ClientboundSetActionBarTextPacket(text));
         }
+    }
+
+    /** How often he leapt (for the tests). */
+    int leaps() {
+        return leaps;
+    }
+
+    private void leap(ServerLevel level, Host host, int siegeLevel, SiegeConfig cfg, long now) {
+        if (leapedAt >= 0) {
+            // In the air: on landing a blow on everyone near him.
+            if (now - leapedAt > 4 && (champion.onGround() || now - leapedAt > 50)) {
+                leapedAt = -1L;
+                level.sendParticles(ParticleTypes.EXPLOSION, champion.getX(), champion.getY() + 0.2, champion.getZ(), 3, 1.0, 0.1, 1.0, 0.0);
+                level.sendParticles(ParticleTypes.CAMPFIRE_COSY_SMOKE, champion.getX(), champion.getY() + 0.1, champion.getZ(), 16, 1.4, 0.1, 1.4, 0.02);
+                level.playSound(null, champion.blockPosition(), SoundEvents.MACE_SMASH_GROUND_HEAVY, SoundSource.HOSTILE, 1.6f, 0.8f);
+                for (ServerPlayer player : host.fighters()) {
+                    if (player.distanceToSqr(champion) < 3.0 * 3.0) {
+                        PercentDamage.hit(level, player, champion, champion, 6.0, siegeLevel, cfg, 1.0);
+                        Vec3 push = player.position().subtract(champion.position()).multiply(1, 0, 1);
+                        if (push.lengthSqr() > 1e-4) {
+                            push = push.normalize().scale(0.7);
+                            player.push(push.x, 0.35, push.z);
+                            player.hurtMarked = true;
+                        }
+                    }
+                }
+            }
+            return;
+        }
+        if (cfg.championLeapRange <= 0 || now < leapAt || champion.isNoAi() || !champion.onGround() || castAt >= 0) {
+            return;
+        }
+        List<ServerPlayer> fighters = host.fighters();
+        if (fighters.isEmpty()) {
+            return;
+        }
+        ServerPlayer target = champion.getTarget() instanceof ServerPlayer p && fighters.contains(p) ? p
+                : fighters.stream().min(Comparator.comparingDouble(champion::distanceToSqr)).orElse(null);
+        if (target == null) {
+            return;
+        }
+        Vec3 to = target.position().subtract(champion.position());
+        double horizontal = Math.sqrt(to.x * to.x + to.z * to.z);
+        if (horizontal < cfg.championLeapRange || horizontal > 28.0 || !champion.hasLineOfSight(target)) {
+            leapAt = now + 10;   // look again in half a second
+            return;
+        }
+        // Lands about two blocks short of him: ~19 ticks in the air, the air slows by 0.91 a tick.
+        double v = Math.min(2.2, Math.max(0.0, horizontal - 2.0) / 9.25);
+        champion.setDeltaMovement(to.x / horizontal * v, 0.75 + Math.max(0.0, Math.min(4.0, to.y)) * 0.06, to.z / horizontal * v);
+        champion.hurtMarked = true;
+        champion.setTarget(target);
+        champion.getNavigation().stop();
+        leapedAt = now;
+        leapAt = now + cfg.championLeapTicks;
+        leaps++;
+        level.sendParticles(ParticleTypes.CLOUD, champion.getX(), champion.getY() + 0.2, champion.getZ(), 12, 0.6, 0.1, 0.6, 0.05);
+        level.playSound(null, champion.blockPosition(), SoundEvents.RAVAGER_ROAR, SoundSource.HOSTILE, 1.4f, 1.3f);
     }
 
     private void cast(ServerLevel level, Host host, int which, int siegeLevel, SiegeConfig cfg, long now) {
