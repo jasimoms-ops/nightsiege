@@ -107,6 +107,9 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("bosses")) {
                     bossScene(context, game);   // all eight bosses (four more since the content update, 29 October 2026)
                 }
+                if (want.contains("campground")) {
+                    campGroundScene(context, game);   // the camp's ground comes back (30 October 2026)
+                }
                 if (want.contains("bossai")) {
                     bossAiScene(context, game);   // the spider queen and the bone lich behind walls (30 October 2026)
                 }
@@ -2213,6 +2216,62 @@ public class EventLookTest implements FabricClientGameTest {
         game.getServer().runCommand("gamemode creative @p");
         game.getServer().runCommand("time set 6000");
         context.waitTicks(10);
+    }
+
+    /**
+     * Update 30.10. (Simon: "das heer lager muss komplett verschwinden … da bleibt dann immer eine gerade
+     * grass fläche über"): a camp on uneven ground with a tree and a pile of stone; after it goes, the
+     * ground is the same block for block.
+     */
+    private static void campGroundScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        int cx = pos.getX() - 260;
+        int cz = pos.getZ() + 90;
+        int cy = yard(context, game, cx, cz, 36, 18);
+        game.getServer().runCommand("gamemode creative @p");
+        final long[] before = new long[1];
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            for (int dy = 0; dy < 5; dy++) {
+                level.setBlock(new BlockPos(cx + 10, cy + dy, cz + 3), net.minecraft.world.level.block.Blocks.OAK_LOG.defaultBlockState(), 2);
+            }
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    level.setBlock(new BlockPos(cx + 10 + dx, cy + 5, cz + 3 + dz), net.minecraft.world.level.block.Blocks.OAK_LEAVES
+                            .defaultBlockState().setValue(net.minecraft.world.level.block.LeavesBlock.PERSISTENT, true), 2);
+                }
+            }
+            for (int dx = -2; dx <= 2; dx++) {   // a little hill
+                for (int dz = -2; dz <= 2; dz++) {
+                    level.setBlock(new BlockPos(cx - 8 + dx, cy, cz - 8 + dz), net.minecraft.world.level.block.Blocks.GRASS_BLOCK.defaultBlockState(), 2);
+                }
+            }
+            for (int dy = 1; dy < 3; dy++) {
+                level.setBlock(new BlockPos(cx - 8, cy + dy, cz - 8), net.minecraft.world.level.block.Blocks.STONE.defaultBlockState(), 2);
+            }
+            level.setBlock(new BlockPos(cx + 4, cy - 1, cz - 12), net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 2);   // a dip
+            before[0] = campGround(level, cx, cy, cz);
+            manager.camp().testCamp(level, new BlockPos(cx, cy, cz), 0, 999_997L);
+            System.out.println("[Night Siege test] campground built: log=" + level.getBlockState(new BlockPos(cx + 10, cy + 2, cz + 3)).getBlock()
+                    + " " + manager.camp().groundState());
+        });
+        context.waitTicks(20);
+        game.getServer().runCommand("tp @p %d.5 %d %d.5 180 20".formatted(cx, cy + 12, cz + 30));
+        context.waitTicks(10);
+        context.takeScreenshot("campground_standing");
+        onServer(context, (player, manager) -> manager.camp().testRemove(player.level().getServer()));
+        context.waitTicks(40);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            long after = campGround(level, cx, cy, cz);
+            System.out.println("[Night Siege test] campground back: same=" + (after == before[0])
+                    + " log=" + level.getBlockState(new BlockPos(cx + 10, cy + 2, cz + 3)).getBlock()
+                    + " stone=" + level.getBlockState(new BlockPos(cx - 8, cy + 2, cz - 8)).getBlock()
+                    + " dip=" + level.getBlockState(new BlockPos(cx + 4, cy - 1, cz - 12)).getBlock()
+                    + " " + manager.camp().groundState());
+        });
+        context.takeScreenshot("campground_gone");
+        game.getServer().runCommand("forceload remove all");
     }
 
     /** A sum over the ground a test camp takes (the same before it stood and after it is gone). */

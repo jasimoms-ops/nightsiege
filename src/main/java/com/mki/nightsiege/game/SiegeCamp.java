@@ -1953,6 +1953,11 @@ public final class SiegeCamp {
         man(level, camp);
     }
 
+    /** Tests: the camp goes now (as when its night is called off). */
+    public void testRemove(MinecraftServer server) {
+        remove(server);
+    }
+
     /** Tests: the player steps into the fight now (as when walking through the gate). */
     public void testJoin(ServerPlayer player) {
         SiegeSave.CampRecord camp = camp();
