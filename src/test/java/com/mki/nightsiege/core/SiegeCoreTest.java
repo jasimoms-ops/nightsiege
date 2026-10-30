@@ -126,6 +126,37 @@ class SiegeCoreTest {
     }
 
     @Test
+    void refillAndFieldStrengthAreOffByDefaultAndScaleByTheReference() {
+        // Nachschub and Feld-Stärke (Simon 30.10.): off in a fresh config, so the waves stay as they were.
+        SiegeConfig c = cfg();
+        assertFalse(c.refillSpawns);
+        assertEquals(40, c.refillCap);
+        assertEquals(5, c.refillGapTicks);
+        assertTrue(c.fieldRefCaps.isEmpty());
+        assertEquals(1.0, SiegeMath.fieldStrength(10, 38, c), 1e-9);
+        // The server's values: field 6 … 38, reference the old caps 9 … 114.
+        c.liveCapByPlayers = new java.util.ArrayList<>(List.of(6, 10, 13, 17, 20, 24, 27, 31, 34, 38));
+        c.fieldRefCaps = new java.util.ArrayList<>(List.of(9, 15, 20, 33, 46, 58, 70, 82, 98, 114));
+        assertEquals(20, SiegeMath.liveCap(5, c));
+        assertEquals(27, SiegeMath.liveCap(7, c));
+        assertEquals(46.0 / 20.0, SiegeMath.fieldStrength(5, SiegeMath.liveCap(5, c), c), 1e-9);
+        assertEquals(3.0, SiegeMath.fieldStrength(10, SiegeMath.liveCap(10, c), c), 1e-9);
+        assertEquals(1.0, SiegeMath.fieldStrength(4, 40, c), 1e-9);   // a field above the reference: never weaker
+        // Past the end of the reference: +liveCapStep per player, like the cap table.
+        assertEquals((114.0 + 8) / 38.0, SiegeMath.fieldStrength(11, 38, c), 1e-9);
+        // Out of range values are pulled back.
+        c.refillCap = 0;
+        c.refillGapTicks = 0;
+        c.fieldHealth = 9.0;
+        c.fieldDamage = Double.NaN;
+        c.sanitize();
+        assertEquals(1, c.refillCap);
+        assertEquals(1, c.refillGapTicks);
+        assertEquals(3.0, c.fieldHealth, 1e-9);
+        assertEquals(0.0, c.fieldDamage, 1e-9);
+    }
+
+    @Test
     void growthSlowsAboveTwenty() {
         SiegeConfig c = cfgOneCap();
         assertEquals(1.0, SiegeMath.healthMultiplier(1, c), 1e-9);
