@@ -5579,15 +5579,27 @@ public class EventLookTest implements FabricClientGameTest {
             System.out.println("[Night Siege test] survival vote: open=" + manager.voteOpen(player.level().getServer())
                     + " accepted=" + manager.acceptedCount());
         });
+        context.waitTicks(20);   // the queued vote runs before the clock jumps to the evening
         // Evening: the horn.
         game.getServer().runCommand("time set 12100");
         context.waitTicks(60);
         onServer(context, (player, manager) -> MinecraftServerAccess.log(manager, player, "after horn time"));
+        context.waitTicks(20);
         closeScreen(context);
         // Night: the start at the core.
         game.getServer().runCommand("time set 15100");
         context.waitTicks(80);
         closeScreen(context);
+        boolean natural = context.computeOnClient(client -> com.mki.nightsiege.game.SiegeManager.get().isActive());
+        if (!natural) {
+            // The rhythm did not start the night: a real night by command instead (not a test night).
+            onServer(context, (player, manager) -> MinecraftServerAccess.log(manager, player, "no natural night, starting by command"));
+            context.waitTicks(10);
+            game.getServer().runCommand("execute as @p at @p run nightsiege start");
+            context.waitTicks(80);
+            closeScreen(context);
+        }
+        System.out.println("[Night Siege test] survival night came naturally=" + natural);
         onServer(context, (player, manager) -> {
             MinecraftServerAccess.log(manager, player, "after start time");
             java.util.List<String> now = survivalSnapshot(player);
@@ -5599,7 +5611,7 @@ public class EventLookTest implements FabricClientGameTest {
             player.getInventory().add(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIRT, 3));
             player.getInventory().add(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND, 2));
         });
-        context.waitTicks(10);
+        context.waitTicks(20);
         context.takeScreenshot("survival_night");
         // Sleep the siege night away? A bed beside the player, then into it.
         onServer(context, (player, manager) -> {
