@@ -72,6 +72,20 @@ public final class SiegeMath {
         return (int) Math.max(1, Math.min(Math.max(cfg.maxLiveMobs, cfg.maxLiveMobsCap), Math.round(grown)));
     }
 
+    /**
+     * Feld-Stärke (Simon 30.10.): the reference field of this group size (fieldRefCaps) over the cap it
+     * really gets, at least 1; 1 without a reference.
+     */
+    public static double fieldStrength(int playerCount, int cap, SiegeConfig cfg) {
+        if (cfg.fieldRefCaps == null || cfg.fieldRefCaps.isEmpty() || cap <= 0) {
+            return 1.0;
+        }
+        java.util.List<Integer> table = cfg.fieldRefCaps;
+        int i = Math.max(0, playerCount - 1);
+        int ref = i < table.size() ? table.get(i) : table.get(table.size() - 1) + cfg.liveCapStep * (i - table.size() + 1);
+        return Math.max(1.0, ref / (double) cap);
+    }
+
     /** Share of the monsters' damage a defender takes in a night with this many defenders. */
     public static double damageTakenForGroup(int playerCount, SiegeConfig cfg) {
         if (cfg.damageTakenByPlayers != null && !cfg.damageTakenByPlayers.isEmpty()) {
