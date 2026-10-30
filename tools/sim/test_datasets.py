@@ -23,6 +23,10 @@ RUNS = {
         'aktuell': ('Neues Balancing', 'Alles, was auf den Server geht: Klassen-Paket mit Axtkämpfer 1,35, Seelenfänger 1,2, Totenbeschwörer 1,0; Pfeilregen auf F; Nachschub (Feld 6 … 38) mit Feld-Stärke 0,4 und angepasster Referenz für 4–10 Spieler; Wächter-Nacht wie im Dungeon; Leiter-Fix'),
         'regen2': ('Pfeilregen ×2', 'Wie Neues Balancing, aber der Pfeilregen macht doppelten Schaden'),
     },
+    'final5': {
+        'aktuell': ('Server-Stand + Mörser-Fix', 'Server-Stand seit 30.10. 22:25 (Feld-Stärke 0,4); in der Sim zielen Sprengmeister-Bots jetzt ihre Mörser und Techniker überladen ihre Türme (Sim-Fix moerser-sim)'),
+        'r4': ('Referenz 4 Spieler 26', 'Wie Server-Stand + Mörser-Fix, aber Feld-Referenz für 4 Spieler 26 statt 32 (Monster für 4 Spieler etwas schwächer)'),
+    },
     'final4': {
         'aktuell': ('Feld-Stärke 0,45', 'Wie Server-Stand, aber Feld-Stärke 0,45 (so lief der Server 30.10. 21:57–22:25; Gruppen mit 4 Spielern 61 %)'),
         's40': ('Server-Stand 30.10.', 'Was seit 30.10. 22:25 auf dem Server läuft: Klassen-Paket mit Axtkämpfer 1,5, Seelenfänger 1,2, Totenbeschwörer 1,0; Pfeilregen auf F mit halbem Schaden; Nachschub (Feld 6 … 38) mit Feld-Stärke 0,4; Wächter-Nacht wie im Dungeon; Leiter-Fix'),

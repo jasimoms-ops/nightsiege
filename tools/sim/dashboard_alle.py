@@ -32,7 +32,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ARTEN = [("kriegnormal", "Vergleich"), ("krieg", "Kriegsführer"), ("probe", "Probe"), ("burg", "Probe"),
          ("eich", "Eichung"), ("kalib", "Eichung"), ("skal", "Skalierung"), ("klassen", "Klassen"),
          ("last", "Serverlast"), ("gross", "Großer Lauf"), ("bogen", "Klassen"), ("balance", "Balancing"),
-         ("final", "Balancing"), ("druck", "Spawn-Konzept"), ("max", "Spawn-Konzept")]
+         ("final", "Balancing"), ("druck", "Spawn-Konzept"), ("max", "Spawn-Konzept"),
+         ("moerser", "Probe"), ("bollwerk", "Probe")]
 BOT_KNOBS = ("koennen", "wagemut")
 # Vor dem grossen Lauf (gross1) spielten die Bots ohne Angabe perfekt und am Posten;
 # seitdem geeicht (Koennen 0,7, Wagemut 1, TeamSim.CALIBRATED_*).
@@ -98,6 +99,17 @@ LABELS = {
         "aktuell": "Neues Balancing: Schritt 1 mit Axtkämpfer 1,35, Seelenfänger 1,2, Totenbeschwörer 1,0, Pfeilregen, Nachschub mit Feld-Stärke 0,4 und angepasster Referenz, Wächter-Nacht wie im Dungeon",
         "regen2": "wie Neues Balancing, Pfeilregen mit doppeltem Schaden",
     },
+    "final5": {
+        "aktuell": "Server-Stand ab 30.10. 22:25 (Feld-Stärke 0,4), Sim mit Mörser-Fix (Sprengmeister zielt, Techniker überladen)",
+        "r4": "wie aktuell, Feld-Referenz für 4 Spieler 26 statt 32",
+    },
+    "bollwerk1": {
+        "aktuell": "Bollwerk-Fix: Bollwerk-Ruf (+4 Blöcke, immer), Tanks nehmen Heilern Monster ab; Bollwerk in jeder Gruppe",
+        "vorher": "wie Bollwerk-Fix, aber ohne Bollwerk-Ruf und ohne Abnehmen (Stand vorher, neue Messung)",
+    },
+    "moerser1": {
+        "aktuell": "Mörser-Fix der Sim, Sprengmeister in jeder Gruppe (alte Klassen-Werte)",
+    },
     "final4": {
         "aktuell": "wie final3, Pfeilregen halber Schaden, Axtkämpfer 1,5, Feld-Stärke 0,45 (Server 30.10. 21:57–22:25)",
         "s40": "Server-Stand ab 30.10. 22:25: wie final3, Pfeilregen halber Schaden, Axtkämpfer 1,5, Feld-Stärke 0,4",
@@ -123,7 +135,7 @@ LABELS = {
 
 # Runs whose variant is the server's state although it carries values of its own (they came onto the
 # server by config afterwards): run -> variant.
-SERVER_STAND = {"bogen1": "aktuell", "balance1": "aktuell", "balance2": "aktuell", "final4": "s40"}
+SERVER_STAND = {"bogen1": "aktuell", "balance1": "aktuell", "balance2": "aktuell", "final4": "s40", "final5": "aktuell"}
 
 
 def parse_team(msg):
