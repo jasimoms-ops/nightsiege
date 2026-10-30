@@ -60,6 +60,9 @@
   [data-dash-source-state=empty] { color: transparent; }
   [data-dash-source-state=refreshing] { opacity: .5; transition: opacity var(--cds-dur-slow); }
   .nb-fail { display: flex; align-items: center; justify-content: center; gap: .4rem; min-height: 8rem; color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); }
+  .nb-chart.sk-line { min-height: 17rem; }
+  .nb-chart.sk-bars { min-height: 12rem; }
+  .sk-sw-rest { background: var(--cds-chart-muted); }
   .nb-fail::before { content: ""; width: .375rem; height: .375rem; border-radius: 50%; background: var(--color-bad); }
 </style>
 
@@ -73,6 +76,56 @@
       <select id="nb-variante" data-draw="variante" aria-label="Wie die Bots spielen" data-source="zellen"></select>
     </div>
   </header>
+
+  <section class="nb-section" id="skalierung">
+    <h2 class="nb-sec">Skalierung je Spielerzahl</h2>
+    <p class="nb-secnote">Vorschlag vom 30.10., noch nicht auf dem Server. Geeichte Bots auf der Kopie deiner Burg, je Variante dieselben Gruppen auf drei Stufen. Einzelne Werte schwanken um einige Prozentpunkte.</p>
+    <p class="nb-find">Mit der Tabelle und dem Creeper-Schalter gewinnen alle Gruppengrößen <b data-draw="sk-spanne-neu" data-source="skal_spanne" data-field="spanne" data-where="variante=TF">—</b> der Nächte, heute <b data-draw="sk-spanne-heute" data-source="skal_spanne" data-field="spanne" data-where="variante=aktuell">—</b>.</p>
+    <div class="nb-grid">
+      <div class="nb-card nb-wide" id="skal-chart">
+        <h3>Siegquote je Spielerzahl</h3>
+        <p class="nb-sub">Alle Stufen zusammen. Die gestrichelte Linie ist das Ziel. Fahre über das Diagramm für die Werte.</p>
+        <div class="nb-chart sk-line" data-draw="sk-chart" data-source="skal_gesamt"></div>
+      </div>
+
+      <div class="nb-card" id="skal-vorschlag">
+        <h3>Der Vorschlag</h3>
+        <p class="nb-sub">Monster gleichzeitig je Spielerzahl statt eines Limits für alle, kleinere Wellen und für kleine Gruppen schwächere Monster. Dazu ist der Creeper-Schalter an.</p>
+        <div class="nb-tablebox">
+          <table class="nb-tbl" data-source="skal_vorschlag" data-row-key="spieler">
+            <thead>
+              <tr>
+                <th class="nb-l" data-field="spieler">Spieler</th>
+                <th data-field="limit">Monster gleichzeitig</th>
+                <th data-field="limit_heute">heute</th>
+                <th data-field="welle_vs_heute">Welle ggü. heute</th>
+                <th data-field="schaden_leben">Schaden und Leben</th>
+              </tr>
+            </thead>
+            <tbody data-draw="sk-vor-rows"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="nb-card" id="skal-ohne">
+        <h3>Warum Solo und Duo am Kill-Ziel scheitern</h3>
+        <p class="nb-sub">Anteil der gespawnten Monster, die nie getötet wurden (Tabelle ohne Schalter). Das Kill-Ziel zählt heute jedes gespawnte Monster mit, auch einen Creeper, der sich an der Mauer sprengt. Große Gruppen erwischen sie vorher.</p>
+        <p class="nb-legend"><span><i class="nb-swatch sk-sw" data-sk-color="0"></i>Creeper gesprengt</span><span><i class="nb-swatch sk-sw" data-sk-color="1"></i>Phantom weggeflogen</span><span><i class="nb-swatch sk-sw-rest"></i>anders weg oder am Ende noch da</span></p>
+        <div class="nb-chart sk-bars" data-draw="sk-ohne-chart" data-source="skal_ohne_kill"></div>
+      </div>
+
+      <div class="nb-card nb-wide" id="skal-stufen">
+        <h3>Siegquote je Stufe</h3>
+        <p class="nb-sub">Je Stufe und Spielerzahl, darunter die Zahl der Testnächte. Große Gruppen tun sich auf niedriger Stufe schwerer, weil dort das Limit nicht greift und nur die Wellengröße zählt.</p>
+        <div class="nb-controls">
+          <label for="sk-variante">Variante</label>
+          <select id="sk-variante" data-draw="sk-variante" aria-label="Variante" data-source="skal_gesamt"></select>
+        </div>
+        <div class="nb-scroll nb-pivot" data-draw="sk-matrix" data-source="skal_quote"></div>
+        <p class="nb-legend"><span><i class="nb-swatch nb-sw-low"></i>unter 55 %</span><span><i class="nb-swatch nb-sw-mid"></i>55–85 %, im Ziel</span><span><i class="nb-swatch nb-sw-high"></i>über 85 %</span></p>
+      </div>
+    </div>
+  </section>
 
   <section class="nb-section" id="eichung">
     <h2 class="nb-sec">Spielen die Bots wie ihr?</h2>
@@ -251,6 +304,10 @@
       <dd>Zufällig gewählt wie echte Spieler (keine Unterklasse doppelt), dazu ab 2 Spielern die Vorlagen Tank + Heiler + Schaden, Nur Schaden, Tanks + Techniker und Nur Beschwörer. Jede Bot-Variante spielt genau dieselben Gruppen.</dd>
       <dt>Eichung</dt>
       <dd>Die Bots haben zwei Regler. „Können“ (0–1): wie oft sie aufpassen und wie schnell sie Fähigkeiten nutzen. „Wagemut“ (0–1): wie weit sie für einen Gegner ihren Posten verlassen, von 7 bis 22 Blöcken. Die Variante mit dem kleinsten Abstand zu euren Nächten ist die geeichte.</dd>
+      <dt>Monster gleichzeitig</dt>
+      <dd>Wie viele Monster der Nacht zugleich leben dürfen. Ist das Limit erreicht, kommen neue erst nach, wenn welche sterben, und das Kill-Ziel sinkt („Ziel ↓ Feld voll“). Heute gilt für jede Gruppengröße dasselbe Limit.</dd>
+      <dt>Creeper-Schalter</dt>
+      <dd>Das Kill-Ziel ist ein fester Anteil aller gespawnten Monster. Mit dem Schalter zählen Monster nicht mehr mit, die ohne Kill verschwinden: gesprengte Creeper, weggeflogene Phantome, eine geflohene Nemesis. Die Leiste zeigt dann „Ziel ↓ Monster ohne Kill weg“. Den Schaden an der Mauer hat ein Creeper trotzdem angerichtet.</dd>
       <dt>Deine Basis</dt>
       <dd>Der Server erkennt deine Burg seit dem 28.10. nachmittags als offen (keine geschlossene Mauer, 0 Tore). Dann warten die Monster nicht vor der Mauer, sondern greifen sofort an. Die Sim spielt das genauso.</dd>
     </dl>
@@ -604,4 +661,186 @@
     });
   }
   nbSortHeads();
+</script>
+<script>
+  window.skCur = () => dash.params().skal ?? 'TF';
+  for (const sw of document.querySelectorAll('.sk-sw')) sw.style.background = dash.colors[+sw.dataset.skColor || 0];
+
+  dash.calc('skal_gesamt', {
+    inputs: ['skal_quote'],
+    title: 'Siegquote je Variante und Spielerzahl',
+    description: 'Siege durch Testnächte je Variante und Spielerzahl, über alle Stufen.',
+    fn: (skal_quote) => {
+      const out = new Map();
+      for (const r of skal_quote) {
+        const key = r.variante + '|' + r.spieler;
+        const o = out.get(key) || { variante: r.variante, variante_name: r.variante_name, reihenfolge: +r.reihenfolge, spieler: +r.spieler, laeufe: 0, siege: 0 };
+        o.laeufe += +r.laeufe;
+        o.siege += +r.siege;
+        out.set(key, o);
+      }
+      return [...out.values()].map((o) => ({ ...o, siegquote: o.laeufe ? o.siege / o.laeufe : 0 }));
+    },
+  });
+
+  dash.calc('skal_spanne', {
+    inputs: ['skal_gesamt'],
+    title: 'Spanne der Siegquote je Variante',
+    description: 'Niedrigste und höchste Siegquote einer Variante über alle Spielerzahlen.',
+    fn: (skal_gesamt) => {
+      const out = new Map();
+      for (const r of skal_gesamt) {
+        const o = out.get(r.variante) || { variante: r.variante, variante_name: r.variante_name, min: 1, max: 0 };
+        o.min = Math.min(o.min, r.siegquote);
+        o.max = Math.max(o.max, r.siegquote);
+        out.set(r.variante, o);
+      }
+      return [...out.values()].map((o) => ({ ...o, spanne: Math.round(o.min * 100) + '–' + Math.round(o.max * 100) + ' %' }));
+    },
+  });
+
+  for (const [name, v] of [['sk-spanne-neu', 'TF'], ['sk-spanne-heute', 'aktuell']]) {
+    dash.draw(name, (el) => {
+      const d = dash.data('skal_spanne');
+      const r = d.status === 'ok' ? d.data.find((x) => x.variante === v) : null;
+      el.textContent = r ? r.spanne : '—';
+    });
+  }
+
+  dash.draw('sk-chart', (el) => {
+    const c = dash.data('skal_gesamt');
+    if (c.status !== 'ok') { if (!nbFail(el, c.status)) el.replaceChildren(); return; }
+    el.replaceChildren();
+    const data = c.data;
+    const vars = [...new Map(data.map((r) => [r.variante, r])).values()].sort((a, b) => a.reihenfolge - b.reihenfolge);
+    // the proposal in the first color, today muted and dashed, the rest in order
+    const colorOf = new Map();
+    let k = 1;
+    for (const v of vars) colorOf.set(v.variante, v.variante === 'TF' ? dash.colors[0] : v.variante === 'aktuell' ? 'var(--cds-chart-muted)' : dash.colors[k++ % dash.colors.length]);
+    const players = [...new Set(data.map((r) => r.spieler))].sort((a, b) => a - b);
+    const W = Math.max(280, el.clientWidth);
+    const svg = d3.select(el).append('svg').attr('width', '100%');
+    // legend, wrapped
+    const items = [];
+    let lx = 0, ly = 0;
+    for (const v of vars) {
+      const t = svg.append('text').attr('font-size', 12).text(v.variante_name);
+      const w = 16 + t.node().getComputedTextLength() + 18;
+      t.remove();
+      if (lx + w > W && lx > 0) { lx = 0; ly += 18; }
+      items.push({ v, x: lx, y: ly });
+      lx += w;
+    }
+    const top = ly + 18 + 12;
+    const tickW = (() => { const t = svg.append('text').attr('font-size', 11).text('100 %'); const w = t.node().getComputedTextLength(); t.remove(); return w; })();
+    const m = { left: tickW + 10, right: 12, bottom: 26 };
+    const H = top + 220 + m.bottom;
+    svg.attr('viewBox', `0 0 ${W} ${H}`);
+    for (const it of items) {
+      const sel = it.v.variante === 'TF';
+      svg.append('rect').attr('x', it.x).attr('y', it.y + 2).attr('width', 10).attr('height', 10).attr('rx', 2).attr('fill', colorOf.get(it.v.variante));
+      svg.append('text').attr('x', it.x + 14).attr('y', it.y + 7).attr('dy', '0.32em').attr('font-size', 12)
+        .attr('fill', sel ? 'var(--color-fg)' : 'var(--color-fg-muted)').attr('font-weight', sel ? 600 : 400).text(it.v.variante_name);
+    }
+    const x = d3.scaleLinear([players[0], players[players.length - 1]], [m.left + 8, W - m.right - 8]);
+    const y = d3.scaleLinear([0, 1], [H - m.bottom, top]);
+    for (const q of [0, 0.25, 0.5, 0.75, 1]) {
+      svg.append('line').attr('x1', m.left).attr('x2', W - m.right).attr('y1', y(q)).attr('y2', y(q)).attr('stroke', 'var(--cds-chart-grid)');
+      svg.append('text').attr('x', m.left - 6).attr('y', y(q)).attr('dy', '0.32em').attr('text-anchor', 'end').attr('font-size', 11).attr('fill', 'var(--color-fg-muted)').text(nbPct(q));
+    }
+    const step = players.length > 1 ? x(players[1]) - x(players[0]) : W;
+    for (const p of players) {
+      svg.append('text').attr('x', x(p)).attr('y', H - 8).attr('text-anchor', 'middle').attr('font-size', 11).attr('fill', 'var(--color-fg-muted)')
+        .text(step < 34 ? String(p) : nbPlayers(p).replace(' Spieler', ' Sp.'));
+    }
+    svg.append('line').attr('x1', m.left).attr('x2', W - m.right).attr('y1', y(nbTarget)).attr('y2', y(nbTarget)).attr('stroke', 'var(--cds-chart-reference)').attr('stroke-dasharray', '4 3');
+    const order = [...vars].sort((a, b) => (a.variante === 'TF') - (b.variante === 'TF'));
+    for (const v of order) {
+      const pts = players.map((p) => data.find((r) => r.variante === v.variante && r.spieler === p) || null);
+      const line = d3.line().defined((d) => d).x((d) => x(d.spieler)).y((d) => y(d.siegquote));
+      const sel = v.variante === 'TF';
+      svg.append('path').attr('d', line(pts)).attr('fill', 'none').attr('stroke', colorOf.get(v.variante))
+        .attr('stroke-width', sel ? 3 : 2).attr('stroke-linecap', 'round').attr('stroke-linejoin', 'round')
+        .attr('stroke-dasharray', v.variante === 'aktuell' ? '6 4' : null);
+      for (const d of pts) if (d) svg.append('circle').attr('cx', x(d.spieler)).attr('cy', y(d.siegquote)).attr('r', sel ? 3.5 : 2.5).attr('fill', colorOf.get(v.variante));
+    }
+    const rule = svg.append('line').attr('y1', top).attr('y2', H - m.bottom).attr('stroke', 'var(--cds-chart-axis)').attr('visibility', 'hidden');
+    svg.append('rect').attr('x', m.left).attr('y', top).attr('width', W - m.left - m.right).attr('height', H - m.bottom - top).attr('fill', 'transparent')
+      .on('mousemove', (ev) => {
+        const [px] = d3.pointer(ev, svg.node());
+        const p = players.reduce((best, q) => (Math.abs(x(q) - px) < Math.abs(x(best) - px) ? q : best), players[0]);
+        rule.attr('x1', x(p)).attr('x2', x(p)).attr('visibility', 'visible');
+        const lines = [nbPlayers(p)];
+        for (const v of vars) {
+          const r = data.find((d) => d.variante === v.variante && d.spieler === p);
+          if (r) lines.push(`${v.variante_name}: ${nbPct(r.siegquote)} (${r.siege} von ${r.laeufe})`);
+        }
+        const [ex, ey] = d3.pointer(ev, el);
+        nbTip(el, lines, ex, ey);
+      })
+      .on('mouseleave', () => { rule.attr('visibility', 'hidden'); nbTipOff(el); });
+  });
+
+  dash.draw('sk-vor-rows', (tb) => {
+    const d = dash.data('skal_vorschlag');
+    tb.replaceChildren();
+    if (d.status !== 'ok') return;
+    for (const r of [...d.data].sort((a, b) => a.spieler - b.spieler)) {
+      const tr = tb.insertRow();
+      tr.dataset.key = String(r.spieler);
+      nbCell(tr, nbPlayers(r.spieler), 'nb-l nb-main');
+      nbCell(tr, nbNum.format(+r.limit), 'nb-main');
+      nbCell(tr, nbNum.format(+r.limit_heute));
+      nbCell(tr, nbPct(+r.welle_vs_heute));
+      nbCell(tr, nbPct(+r.schaden_leben));
+    }
+  });
+
+  dash.draw('sk-ohne-chart', (el) => {
+    const d = dash.data('skal_ohne_kill');
+    if (d.status !== 'ok') { if (!nbFail(el, d.status)) el.replaceChildren(); return; }
+    el.replaceChildren();
+    const rows = [...d.data].sort((a, b) => a.spieler - b.spieler);
+    const W = Math.max(260, el.clientWidth), bh = 20, gap = 6, H = rows.length * (bh + gap);
+    const svg = d3.select(el).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`);
+    let nameW = 0;
+    for (const r of rows) { const t = svg.append('text').attr('font-size', 12).text(nbPlayers(r.spieler)); nameW = Math.max(nameW, t.node().getComputedTextLength()); t.remove(); }
+    const x = d3.scaleLinear([0, d3.max(rows, (r) => +r.nicht_getoetet) || 1], [0, Math.max(40, W - nameW - 12 - 44)]);
+    const parts = [['creeper_gesprengt', dash.colors[0]], ['phantom_weg', dash.colors[1]], ['rest', 'var(--cds-chart-muted)']];
+    rows.forEach((r, i) => {
+      const yy = i * (bh + gap);
+      svg.append('text').attr('x', nameW).attr('y', yy + bh / 2).attr('dy', '0.32em').attr('text-anchor', 'end').attr('font-size', 12).attr('fill', 'var(--color-fg)').text(nbPlayers(r.spieler));
+      let x0 = nameW + 8;
+      for (const [f, col] of parts) {
+        const w = Math.max(0, x(+r[f]));
+        svg.append('rect').attr('x', x0).attr('y', yy + 2).attr('width', w).attr('height', bh - 4).attr('fill', col)
+          .on('mousemove', (ev) => { const [px, py] = d3.pointer(ev, el); nbTip(el, [nbPlayers(r.spieler), `nie getötet: ${nbPct(+r.nicht_getoetet)} (${nbNum.format(+r.getoetet_je_nacht)} von ${nbNum.format(+r.gespawnt_je_nacht)} je Nacht getötet)`, `Creeper gesprengt: ${nbPct(+r.creeper_gesprengt)}`, `Phantom weggeflogen: ${nbPct(+r.phantom_weg)}`, `anders weg oder noch da: ${nbPct(+r.rest)}`], px, py); })
+          .on('mouseleave', () => nbTipOff(el));
+        x0 += w;
+      }
+      svg.append('text').attr('x', x0 + 4).attr('y', yy + bh / 2).attr('dy', '0.32em').attr('font-size', 12).attr('fill', 'var(--color-fg-muted)').text(nbPct(+r.nicht_getoetet));
+    });
+  });
+
+  dash.draw('sk-variante', (sel) => {
+    const c = dash.data('skal_gesamt');
+    const seen = new Map();
+    for (const r of c.status === 'ok' ? c.data : []) seen.set(r.variante, r);
+    const opts = [...seen.values()].sort((a, b) => a.reihenfolge - b.reihenfolge);
+    sel.replaceChildren(...opts.map((o) => new Option(o.variante_name, o.variante)));
+    sel.value = skCur();
+    sel.onchange = () => dash.setParams({ skal: sel.value });
+  });
+
+  dash.draw('sk-matrix', (el) => {
+    const z = dash.data('skal_quote');
+    if (z.status !== 'ok') { if (!nbFail(el, z.status)) el.replaceChildren(); return; }
+    const rows = z.data.filter((r) => r.variante === skCur());
+    const levels = [...new Set(rows.map((r) => +r.stufe))].sort((a, b) => a - b);
+    const groups = [...new Set(rows.map((r) => +r.spieler))].sort((a, b) => a - b);
+    nbPivot(el, levels, groups, (lv, g) => {
+      const r = rows.find((x) => +x.stufe === lv && +x.spieler === g);
+      return r && +r.laeufe ? { q: +r.siegquote, n: r.laeufe + (+r.laeufe === 1 ? ' Nacht' : ' Nächte') } : null;
+    }, (lv) => String(lv), nbPlayers, 'Stufe');
+  });
 </script>
