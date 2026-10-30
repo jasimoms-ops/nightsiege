@@ -144,6 +144,9 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("leitersturm")) {
                     ladderCrowdScene(context, game);   // many monsters at one ladder in a real night (Simon 30.10., 16:12)
                 }
+                if (want.contains("survival")) {
+                    survivalScene(context, game);   // a real night in survival, start to end (Simon 30.10., 23:51)
+                }
                 if (want.contains("ladders")) {
                     // The climbing scenes, then the ladder cases of 28 October 2026 (block beside, ladder above the ground).
                     ladderScene(context, game);
@@ -5463,6 +5466,239 @@ public class EventLookTest implements FabricClientGameTest {
         });
         context.waitTicks(10);
         closeScreen(context);
+    }
+
+    /** The player's inventory slot by slot as text (item, count, every component), for the before/after check. */
+    private static java.util.List<String> survivalSnapshot(net.minecraft.server.level.ServerPlayer player) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        net.minecraft.core.HolderLookup.Provider regs = player.level().registryAccess();
+        net.minecraft.world.entity.player.Inventory inv = player.getInventory();
+        for (int i = 0; i < inv.getContainerSize(); i++) {
+            net.minecraft.world.item.ItemStack st = inv.getItem(i);
+            out.add(st.isEmpty() ? "" : com.mki.nightsiege.game.KitService.encode(st, regs));
+        }
+        return out;
+    }
+
+    private static String survivalShort(String json) {
+        if (json == null || json.isEmpty()) {
+            return "-";
+        }
+        return json.length() > 140 ? json.substring(0, 140) + "…" : json;
+    }
+
+    /**
+     * Survival spot check (Simon 30.10., 23:51: "die Mod wurde noch nie im Survival probiert"):
+     * a REAL night, not a test night – the rhythm invites in the morning, the player accepts, the
+     * horn sounds, the night starts at the core – with a full survival inventory (enchanted, named,
+     * damaged items, a filled shulker box, potions, totems, pearls, emeralds, worn armour, a shield).
+     * In the night: what the kit did with the inventory, items picked up, a try to sleep the night
+     * away, a lethal hit. After the night: the inventory slot by slot against the one before, the
+     * clock, game mode, abilities, the save.
+     */
+    private static void survivalScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        ensureCore(context, game);
+        final java.util.List<String> before = new java.util.ArrayList<>();
+        final int[] core = new int[3];
+        game.getServer().runCommand("gamemode survival @p");
+        game.getServer().runCommand("difficulty normal");
+        game.getServer().runCommand("time set 500");
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.game.CoreRecord c = manager.mainCore();
+            core[0] = c.x;
+            core[1] = c.y;
+            core[2] = c.z;
+            if (!manager.isRegistered(player)) {
+                manager.register(player);
+            }
+            com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
+            own.unlockClass(com.mki.nightsiege.core.SkillClass.WARRIOR);
+            own.switchTo(com.mki.nightsiege.core.SkillClass.WARRIOR);
+            // A real survival inventory: every slot full, armour on, a shield in the off hand.
+            net.minecraft.core.HolderLookup.RegistryLookup<net.minecraft.world.item.enchantment.Enchantment> ench =
+                    player.level().registryAccess().lookupOrThrow(net.minecraft.core.registries.Registries.ENCHANTMENT);
+            net.minecraft.world.entity.player.Inventory inv = player.getInventory();
+            inv.clearContent();
+            net.minecraft.world.item.ItemStack sword = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND_SWORD);
+            ench.get(net.minecraft.world.item.enchantment.Enchantments.SHARPNESS).ifPresent(h -> sword.enchant(h, 5));
+            sword.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME, net.minecraft.network.chat.Component.literal("Simons Schwert"));
+            sword.set(net.minecraft.core.component.DataComponents.DAMAGE, 120);
+            net.minecraft.world.item.ItemStack shulker = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.SHULKER_BOX);
+            shulker.set(net.minecraft.core.component.DataComponents.CONTAINER,
+                    net.minecraft.world.item.component.ItemContainerContents.fromItems(java.util.List.of(
+                            new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND_BLOCK, 9),
+                            new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.NETHERITE_INGOT, 4),
+                            new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.ENCHANTED_GOLDEN_APPLE, 2))));
+            net.minecraft.world.item.ItemStack potion = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.POTION);
+            potion.set(net.minecraft.core.component.DataComponents.POTION_CONTENTS,
+                    new net.minecraft.world.item.alchemy.PotionContents(net.minecraft.world.item.alchemy.Potions.HEALING));
+            net.minecraft.world.item.ItemStack[] hot = {
+                    sword, shulker,
+                    new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.ENDER_PEARL, 16),
+                    new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.TOTEM_OF_UNDYING, 1),
+                    new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.EMERALD, 30),
+                    new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND, 10),
+                    potion,
+                    new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GOLDEN_APPLE, 5),
+                    new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.TORCH, 64)};
+            for (int i = 0; i < hot.length; i++) {
+                inv.setItem(i, hot[i]);
+            }
+            net.minecraft.world.item.Item[] fill = {net.minecraft.world.item.Items.COBBLESTONE, net.minecraft.world.item.Items.OAK_LOG,
+                    net.minecraft.world.item.Items.IRON_INGOT, net.minecraft.world.item.Items.BREAD, net.minecraft.world.item.Items.DIRT,
+                    net.minecraft.world.item.Items.ARROW, net.minecraft.world.item.Items.STONE_BRICKS, net.minecraft.world.item.Items.REDSTONE};
+            for (int i = 9; i < 36; i++) {
+                net.minecraft.world.item.Item item = fill[i % fill.length];
+                inv.setItem(i, new net.minecraft.world.item.ItemStack(item, Math.min(64, 10 + i)));
+            }
+            net.minecraft.world.item.ItemStack chest = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND_CHESTPLATE);
+            ench.get(net.minecraft.world.item.enchantment.Enchantments.PROTECTION).ifPresent(h -> chest.enchant(h, 4));
+            net.minecraft.world.item.ItemStack helmet = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_HELMET);
+            helmet.set(net.minecraft.core.component.DataComponents.DAMAGE, 50);
+            player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.CHEST, chest);
+            player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.HEAD, helmet);
+            player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.FEET, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND_BOOTS));
+            player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.OFFHAND, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.SHIELD));
+            player.teleportTo((net.minecraft.server.level.ServerLevel) player.level(), core[0] + 2.5, core[1], core[2] + 0.5,
+                    java.util.Set.of(), 0f, 0f, true);
+            before.addAll(survivalSnapshot(player));
+            // Today is a siege day; nothing voted yet.
+            manager.save().nextSiegeDay = manager.clockDayFor(player.level().getServer());
+            manager.save().clearVotes();
+            System.out.println("[Night Siege test] survival setup: core=" + c.x + " " + c.y + " " + c.z + " slots=" + before.size()
+                    + " filled=" + before.stream().filter(x -> !x.isEmpty()).count() + " day=" + manager.save().nextSiegeDay
+                    + " level=" + manager.currentLevel() + " mode=" + player.gameMode());
+        });
+        context.waitTicks(20);
+        // Morning: the invitation.
+        game.getServer().runCommand("time set 1100");
+        context.waitTicks(60);
+        onServer(context, (player, manager) -> {
+            MinecraftServerAccess.log(manager, player, "after invite time");
+            manager.vote(player, true);
+            System.out.println("[Night Siege test] survival vote: open=" + manager.voteOpen(player.level().getServer())
+                    + " accepted=" + manager.acceptedCount());
+        });
+        // Evening: the horn.
+        game.getServer().runCommand("time set 12100");
+        context.waitTicks(60);
+        onServer(context, (player, manager) -> MinecraftServerAccess.log(manager, player, "after horn time"));
+        closeScreen(context);
+        // Night: the start at the core.
+        game.getServer().runCommand("time set 15100");
+        context.waitTicks(80);
+        closeScreen(context);
+        onServer(context, (player, manager) -> {
+            MinecraftServerAccess.log(manager, player, "after start time");
+            java.util.List<String> now = survivalSnapshot(player);
+            System.out.println("[Night Siege test] survival in night: kit=" + manager.kits().hasStash(player)
+                    + " defending=" + manager.isDefending(player) + " slots=" + now.stream().filter(x -> !x.isEmpty()).count()
+                    + " mainhand=" + player.getMainHandItem().getItem() + " mode=" + player.gameMode());
+            // Things picked up in the night: emeralds and diamonds go home with the player, dirt does not.
+            player.getInventory().add(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.EMERALD, 5));
+            player.getInventory().add(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIRT, 3));
+            player.getInventory().add(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND, 2));
+        });
+        context.waitTicks(10);
+        context.takeScreenshot("survival_night");
+        // Sleep the siege night away? A bed beside the player, then into it.
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            BlockPos bed = player.blockPosition().offset(0, 0, 2);
+            level.setBlock(bed.offset(0, 0, 1), net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
+            net.minecraft.world.level.block.state.BlockState foot = net.minecraft.world.level.block.Blocks.RED_BED.defaultBlockState()
+                    .setValue(net.minecraft.world.level.block.BedBlock.FACING, net.minecraft.core.Direction.SOUTH);
+            level.setBlock(bed, foot, 3);
+            level.setBlock(bed.offset(0, 0, 1), foot.setValue(net.minecraft.world.level.block.BedBlock.PART,
+                    net.minecraft.world.level.block.state.properties.BedPart.HEAD), 3);
+            Object result = player.startSleepInBed(bed.offset(0, 0, 1));
+            System.out.println("[Night Siege test] survival sleep: result=" + result + " sleeping=" + player.isSleeping()
+                    + " time=" + manager.clockTimeFor(level.getServer()));
+        });
+        context.waitTicks(140);
+        onServer(context, (player, manager) -> {
+            System.out.println("[Night Siege test] survival after sleep: sleeping=" + player.isSleeping() + " active=" + manager.isActive()
+                    + " time=" + manager.clockTimeFor(player.level().getServer()));
+            if (player.isSleeping()) {
+                player.stopSleeping();
+            }
+        });
+        // A lethal hit in the night.
+        onServer(context, (player, manager) -> {
+            float hp = player.getHealth();
+            player.hurtServer((net.minecraft.server.level.ServerLevel) player.level(), player.damageSources().generic(), 500f);
+            System.out.println("[Night Siege test] survival lethal hit: hp " + hp + " -> " + player.getHealth() + " alive=" + player.isAlive()
+                    + " drone=" + com.mki.nightsiege.game.Drones.isDrone(player) + " active=" + manager.isActive());
+        });
+        context.waitTicks(100);
+        closeScreen(context);
+        for (int i = 0; i < 12; i++) {
+            boolean active = context.computeOnClient(client -> com.mki.nightsiege.game.SiegeManager.get().isActive());
+            if (!active) {
+                break;
+            }
+            context.waitTicks(100);
+        }
+        context.waitTicks(40);
+        closeScreen(context);
+        onServer(context, (player, manager) -> {
+            if (!player.isAlive()) {
+                System.out.println("[Night Siege test] survival: player dead after the night, respawning");
+                player.connection.handleClientCommand(new net.minecraft.network.protocol.game.ServerboundClientCommandPacket(
+                        net.minecraft.network.protocol.game.ServerboundClientCommandPacket.Action.PERFORM_RESPAWN));
+            }
+        });
+        context.waitTicks(40);
+        onServer(context, (player, manager) -> {
+            MinecraftServerAccess.log(manager, player, "after the night");
+            java.util.List<String> after = survivalSnapshot(player);
+            int same = 0;
+            java.util.List<String> diff = new java.util.ArrayList<>();
+            for (int i = 0; i < Math.max(before.size(), after.size()); i++) {
+                String b = i < before.size() ? before.get(i) : "";
+                String a = i < after.size() ? after.get(i) : "";
+                if (b.equals(a)) {
+                    same++;
+                } else {
+                    diff.add("slot " + i + ": vorher " + survivalShort(b) + " | nachher " + survivalShort(a));
+                }
+            }
+            System.out.println("[Night Siege test] survival RESULT: same=" + same + " differ=" + diff.size()
+                    + " kitLeft=" + manager.kits().hasStash(player) + " drone=" + com.mki.nightsiege.game.Drones.isDrone(player)
+                    + " mode=" + player.gameMode() + " flying=" + player.getAbilities().flying + " mayfly=" + player.getAbilities().mayfly
+                    + " invulnerable=" + player.getAbilities().invulnerable + " hp=" + player.getHealth()
+                    + " won=" + manager.save().siegesWon + " lost=" + manager.save().siegesLost
+                    + " nextSiegeDay=" + manager.save().nextSiegeDay);
+            for (String d : diff) {
+                System.out.println("[Night Siege test] survival DIFF " + d);
+            }
+            java.util.List<net.minecraft.world.entity.item.ItemEntity> dropped = player.level().getEntitiesOfClass(
+                    net.minecraft.world.entity.item.ItemEntity.class, player.getBoundingBox().inflate(24));
+            for (net.minecraft.world.entity.item.ItemEntity e : dropped) {
+                System.out.println("[Night Siege test] survival dropped near player: " + e.getItem().getItem() + " x" + e.getItem().getCount());
+            }
+        });
+        // The clock goes on after the night (no frozen night).
+        onServer(context, (player, manager) -> System.out.println("[Night Siege test] survival clock A: "
+                + manager.clockTimeFor(player.level().getServer())));
+        context.waitTicks(100);
+        onServer(context, (player, manager) -> System.out.println("[Night Siege test] survival clock B: "
+                + manager.clockTimeFor(player.level().getServer())));
+        context.takeScreenshot("survival_after");
+        game.getServer().runCommand("gamemode creative @p");
+    }
+
+    /** Log lines for the survival scene. */
+    private static final class MinecraftServerAccess {
+        static void log(com.mki.nightsiege.game.SiegeManager manager, net.minecraft.server.level.ServerPlayer player, String when) {
+            net.minecraft.server.MinecraftServer server = player.level().getServer();
+            System.out.println("[Night Siege test] survival " + when + ": day=" + manager.clockDayFor(server)
+                    + " time=" + manager.clockTimeFor(server) + " nextSiegeDay=" + manager.save().nextSiegeDay
+                    + " voteDay=" + manager.save().voteDay + " voteOpen=" + manager.voteOpen(server)
+                    + " nightComing=" + manager.nightComing(server) + " active=" + manager.isActive()
+                    + " accepted=" + manager.acceptedCount() + " defending=" + manager.isDefending(player)
+                    + " kit=" + manager.kits().hasStash(player) + " mode=" + player.gameMode());
+        }
     }
 
     /**
