@@ -2943,7 +2943,9 @@ public class EventLookTest implements FabricClientGameTest {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
             for (net.minecraft.world.entity.Mob mob : manager.expeditions().testMobs(level)) {
                 if (mob.entityTags().contains(com.mki.nightsiege.game.Expeditions.CHAMPION_TAG)) {
-                    player.teleportTo(level, mob.getX() + 14, mob.getY(), mob.getZ(), java.util.Set.of(), player.getYRot(), player.getXRot(), true);
+                    // On the arena floor 14 blocks off (he may still stand in his pit, three lower).
+                    int floor = manager.expeditions().testPlan().arenaCenter.getY() + 3;
+                    player.teleportTo(level, mob.getX() + 14, floor, mob.getZ(), java.util.Set.of(), player.getYRot(), player.getXRot(), true);
                     leapFrom[0] = Math.sqrt(player.distanceToSqr(mob));
                     System.out.println("[Night Siege test] dungeon champion life: " + Math.round(mob.getMaxHealth())
                             + " speed=" + String.format(java.util.Locale.ROOT, "%.3f", mob.getAttributeValue(
@@ -2952,12 +2954,13 @@ public class EventLookTest implements FabricClientGameTest {
                 }
             }
         });
-        context.waitTicks(70);
+        context.waitTicks(40);
         onServer(context, (player, manager) -> {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
             for (net.minecraft.world.entity.Mob mob : manager.expeditions().testMobs(level)) {
                 if (mob.entityTags().contains(com.mki.nightsiege.game.Expeditions.CHAMPION_TAG)) {
                     System.out.println("[Night Siege test] dungeon champion leap: leaps=" + manager.expeditions().championLeaps()
+                            + " sees=" + mob.hasLineOfSight(player) + " ground=" + mob.onGround() + " noAi=" + mob.isNoAi()
                             + " distance " + Math.round(leapFrom[0]) + " -> " + Math.round(Math.sqrt(player.distanceToSqr(mob))));
                 }
             }
