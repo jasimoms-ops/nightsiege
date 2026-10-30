@@ -20,9 +20,13 @@ import java.util.Random;
  */
 public final class CrateGains {
 
-    /** One gain: its id, class (null for every class), rarity, stages, the way it needs ("" for any). */
+    /**
+     * One gain: its id, class (null for every class), rarity, stages, the way it needs ("" for any)
+     * and the subclasses it is drawn for (empty for all; balance update 2, 29 October 2026: no gain
+     * comes out of a crate for a subclass it does nothing for).
+     */
     public record Gain(String id, SkillClass clazz, CrateRarity rarity, int stages, boolean twoPulls,
-                       String way, boolean ready, boolean consumable) {
+                       String way, boolean ready, boolean consumable, java.util.Set<String> subs) {
 
         /** The number of draws to reach the top. */
         public int topStage() {
@@ -64,6 +68,11 @@ public final class CrateGains {
         add("federleicht", null, CrateRarity.EPIC, 1, false, "", true);
         add("zweite_chance", null, CrateRarity.EPIC, 1, false, "", true);
         add("kriegsbanner", null, CrateRarity.LEGENDARY, 1, false, "", true);
+        // A third gain key (balance update 2, Simon 29.10.: "2 Gewinn-Tasten reichen, man kann eine 3. gewinnen"),
+        // only where three gain abilities can come together: the guardian, the summoner, the chemistry engineers.
+        only("dritte_hand", null, CrateRarity.RARE, SkillTree.SUB_SHIELDFIGHTER, SkillTree.SUB_BULWARK, SkillTree.SUB_MEDIC,
+                SkillTree.SUB_WARDEN, SkillTree.SUB_TAMER, SkillTree.SUB_GOLEMSMITH, SkillTree.SUB_NECROMANCER,
+                SkillTree.SUB_SOULCATCHER, SkillTree.SUB_DEMOLITION, SkillTree.SUB_ALCHEMIST);
 
         // ---- warrior ----
         SkillClass w = SkillClass.WARRIOR;
@@ -95,8 +104,9 @@ public final class CrateGains {
         add("sturmpfeile", a, CrateRarity.RARE, 1, false, "", true);
         // "ersatzwaffe_a" (second ranged weapon) left the crates (Simon 26.10.).
         add("tarnumhang", a, CrateRarity.RARE, 1, false, "", true);
-        add("teernetz", a, CrateRarity.RARE, 1, false, SkillTree.WAY_CROSSBOW, true);   // 27.10.: nets stop ladders and sappers
-        add("koecher", a, CrateRarity.EPIC, 1, false, "", true);
+        // 27.10.: nets stop ladders and sappers; the net bolt is the trapper's, so the bolter never draws it (29.10.).
+        only("teernetz", a, CrateRarity.RARE, SkillTree.SUB_TRAPPER);
+        // "koecher" left the crates: every archer has the quiver (Simon 29.10.), owners got points back.
         add("adlerfeder", a, CrateRarity.EPIC, 1, false, "", true);
         add("lenkpfeile", a, CrateRarity.EPIC, 1, false, "", true);
         add("lockpfeil", a, CrateRarity.LEGENDARY, 1, false, "", true);
@@ -121,12 +131,12 @@ public final class CrateGains {
 
         // ---- engineer ----
         SkillClass e = SkillClass.ENGINEER;
-        add("blendgranaten", e, CrateRarity.COMMON, 3, false, "", true);
+        // "blendgranaten" left the crates (Simon 29.10.): the kit's flash grenade is back after 7 s; owners got points back.
         add("pfeilkiste", e, CrateRarity.COMMON, 1, false, SkillTree.WAY_MECHANICS, true);
         add("werkzeugtasche", e, CrateRarity.COMMON, 1, false, "", true);
         add("verstaerkt", e, CrateRarity.UNCOMMON, 3, false, "", true);
         add("ersatzbatterie", e, CrateRarity.UNCOMMON, 1, false, "", true);
-        add("notfallmine", e, CrateRarity.UNCOMMON, 1, false, SkillTree.WAY_CHEMISTRY, true);
+        only("notfallmine", e, CrateRarity.UNCOMMON, SkillTree.SUB_DEMOLITION);   // the mortar is the demolition expert's (29.10.)
         add("stahlturm", e, CrateRarity.RARE, 1, false, SkillTree.WAY_MECHANICS, true);
         add("zweite_ladung", e, CrateRarity.RARE, 1, false, "", true);
         add("oelfass", e, CrateRarity.RARE, 1, false, SkillTree.WAY_CHEMISTRY, true);
@@ -137,7 +147,7 @@ public final class CrateGains {
         add("geschuetzschild", e, CrateRarity.RARE, 1, false, SkillTree.WAY_MECHANICS, true);   // 27 October 2026
         add("munitionskiste", e, CrateRarity.UNCOMMON, 1, false, "", true);   // 27.10.: strengthening lasts 50 % longer (id kept)
         add("sappeuralarm", e, CrateRarity.UNCOMMON, 1, false, "", true);    // 27.10.: towers go for sappers first
-        add("doppelbrau", e, CrateRarity.RARE, 1, false, SkillTree.WAY_CHEMISTRY, true);   // 27.10.: the alchemist's own
+        only("doppelbrau", e, CrateRarity.RARE, SkillTree.SUB_ALCHEMIST);   // 27.10.: the alchemist's own (his potion clouds)
         add("magnetfeld", e, CrateRarity.LEGENDARY, 1, false, "", true);
 
         // ---- summoner ----
@@ -146,7 +156,7 @@ public final class CrateGains {
         add("knochenstaub", s, CrateRarity.COMMON, 2, false, SkillTree.WAY_DEAD, true);
         add("rueckrufpfeife", s, CrateRarity.COMMON, 1, false, "", true);
         add("wolfspanzer", s, CrateRarity.UNCOMMON, 1, false, SkillTree.WAY_WILD, true);
-        add("golemplatten", s, CrateRarity.UNCOMMON, 1, false, SkillTree.WAY_WILD, true);
+        only("golemplatten", s, CrateRarity.UNCOMMON, SkillTree.SUB_GOLEMSMITH);   // the tamer has no golem (29.10.)
         add("grabkerzen", s, CrateRarity.UNCOMMON, 1, false, SkillTree.WAY_DEAD, true);
         add("geisterross", s, CrateRarity.RARE, 1, false, "", true);
         add("futternapf", s, CrateRarity.RARE, 1, false, SkillTree.WAY_WILD, true);
@@ -206,6 +216,7 @@ public final class CrateGains {
             Map.entry("golemplatten", "minecraft:heavy_weighted_pressure_plate"), Map.entry("grabkerzen", "minecraft:purple_candle"),
             Map.entry("geisterross", "minecraft:saddle"), Map.entry("futternapf", "minecraft:bowl"),
             Map.entry("totenglocke", "minecraft:bell"), Map.entry("grabruestung", "minecraft:iron_helmet"),
+            Map.entry("dritte_hand", "minecraft:armor_stand"),
             Map.entry("doppelstab", "nightsiege:summoning_staff"), Map.entry("spaehfalke", "minecraft:parrot_spawn_egg"),
             Map.entry("seelengefaess", "minecraft:soul_lantern"), Map.entry("seelentausch", "minecraft:chorus_fruit"));
 
@@ -219,12 +230,39 @@ public final class CrateGains {
 
     private static void add(String id, SkillClass clazz, CrateRarity rarity, int stages, boolean twoPulls,
                             String way, boolean ready) {
-        GAINS.put(id, new Gain(id, clazz, rarity, stages, twoPulls, way, ready, false));
+        GAINS.put(id, new Gain(id, clazz, rarity, stages, twoPulls, way, ready, false, java.util.Set.of()));
+    }
+
+    /** A one-stage gain drawn only for these subclasses. */
+    private static void only(String id, SkillClass clazz, CrateRarity rarity, String... subs) {
+        GAINS.put(id, new Gain(id, clazz, rarity, 1, false, "", true, false, java.util.Set.of(subs)));
     }
 
     /** A gain used up by the next crate (the luck crate): it can always be drawn again. */
     private static void addConsumable(String id, SkillClass clazz, CrateRarity rarity) {
-        GAINS.put(id, new Gain(id, clazz, rarity, 1, false, "", true, true));
+        GAINS.put(id, new Gain(id, clazz, rarity, 1, false, "", true, true, java.util.Set.of()));
+    }
+
+    /**
+     * The gains that were in the crates and left them (29 October 2026), with what one stage
+     * paid as a duplicate then: owners get that back once per stage.
+     */
+    public static final Map<String, Integer> RETIRED = Map.of(
+            SkillClass.ENGINEER.name() + ":blendgranaten", CrateRarity.COMMON.duplicatePoints(),
+            SkillClass.ARCHER.name() + ":koecher", CrateRarity.EPIC.duplicatePoints());
+
+    /**
+     * The gains whose ability sits on a gain key instead of an item in the kit (balance update 2,
+     * Simon 29.10.: "alle Sachen aus den Beutekisten, die eine Fähigkeit geben, mit einem Knopf"),
+     * in the order they fill the keys when nothing is chosen (rarer first is decided by the caller).
+     */
+    public static final List<String> KEY_ABILITIES = List.of("kletterhaken", "kampfhorn", "tarnumhang", "signalhorn",
+            "mauerkelle", "leibwaechter", "ersatzbatterie", "oelfass", "rueckrufpfeife", "geisterross", "futternapf",
+            "totenglocke");
+
+    /** True for a gain whose ability is on a gain key. */
+    public static boolean keyAbility(String id) {
+        return id != null && KEY_ABILITIES.contains(id);
     }
 
     public static Gain get(String id) {
@@ -252,10 +290,33 @@ public final class CrateGains {
 
     /** True when a gain fits the class and way and can be drawn at all. */
     public static boolean drawable(Gain gain, SkillClass clazz, String way) {
+        return drawable(gain, clazz, way, "");
+    }
+
+    /**
+     * True when a gain fits the class, way and subclass and can be drawn at all. Without a known
+     * subclass a gain for some subclasses only still needs one of them on the way (if that is known).
+     */
+    public static boolean drawable(Gain gain, SkillClass clazz, String way, String sub) {
         if (!gain.ready() || (gain.clazz() != null && gain.clazz() != clazz)) {
             return false;
         }
-        return gain.way().isEmpty() || way == null || way.isEmpty() || gain.way().equals(way);
+        if (!gain.way().isEmpty() && way != null && !way.isEmpty() && !gain.way().equals(way)) {
+            return false;
+        }
+        if (gain.subs().isEmpty()) {
+            return true;
+        }
+        if (sub != null && !sub.isEmpty()) {
+            return gain.subs().contains(sub);
+        }
+        for (SkillTree.SubclassInfo info : SkillTree.SUBCLASSES) {
+            if (gain.subs().contains(info.key()) && info.clazz() == clazz
+                    && (way == null || way.isEmpty() || info.way().equals(way))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -287,12 +348,17 @@ public final class CrateGains {
      * drawable gain steps down to the next one that has some.
      */
     public static Gain roll(SkillClass clazz, String way, int[] weights, double classShare, Random random) {
+        return roll(clazz, way, "", weights, classShare, random);
+    }
+
+    /** As above, for a known subclass (gains it has no use for stay in the crate). */
+    public static Gain roll(SkillClass clazz, String way, String sub, int[] weights, double classShare, Random random) {
         CrateRarity rarity = rollRarity(weights, random);
         for (int step = 0; step < CrateRarity.values().length; step++) {
             List<Gain> own = new ArrayList<>();
             List<Gain> general = new ArrayList<>();
             for (Gain gain : GAINS.values()) {
-                if (gain.rarity() == rarity && drawable(gain, clazz, way)) {
+                if (gain.rarity() == rarity && drawable(gain, clazz, way, sub)) {
                     (gain.general() ? general : own).add(gain);
                 }
             }
@@ -311,7 +377,11 @@ public final class CrateGains {
 
     /** Filler for the spinning band: any drawable gain of a rolled rarity. */
     public static Gain filler(SkillClass clazz, String way, int[] weights, Random random) {
-        Gain gain = roll(clazz, way, weights, 0.7, random);
+        return filler(clazz, way, "", weights, random);
+    }
+
+    public static Gain filler(SkillClass clazz, String way, String sub, int[] weights, Random random) {
+        Gain gain = roll(clazz, way, sub, weights, 0.7, random);
         return gain != null ? gain : GAINS.values().iterator().next();
     }
 }

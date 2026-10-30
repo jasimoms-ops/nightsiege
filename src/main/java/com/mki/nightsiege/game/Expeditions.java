@@ -110,7 +110,7 @@ public final class Expeditions {
     /** Blocks set or taken back per tick (content update: about 4 000). */
     static final int BLOCKS_PER_TICK = 4000;
     /** The plan version: a dungeon of an older one (no snapshot) is closed and reported anew. */
-    static final int LAYOUT = 2;
+    static final int LAYOUT = 3;   // 3: the fixes of 29 October 2026 (door, lights, stairs); snapshots know their places
     /** The way out after the win: 30 s, then the dungeon goes. */
     static final int COLLAPSE_TICKS = 600;
 
@@ -125,6 +125,9 @@ public final class Expeditions {
     private final Map<Integer, Set<UUID>> roomMobs = new HashMap<>();
     private final Set<UUID> arenaMobs = new HashSet<>();
     private boolean arenaClosed;
+    /** The gate before the first hall is up (everyone stood before it); it goes up row by row from frontRiseAt. */
+    private boolean frontOpen;
+    private long frontRiseAt = -1L;
     private int wave;
     private long nextWaveAt = -1L;
     private UUID champion;
@@ -480,6 +483,12 @@ public final class Expeditions {
         if (level == null) {
             return;
         }
+        if (rec.built && now % 20 == 7) {
+            sweep(level, plan(rec));   // nothing from outside in the halls, at night too
+        }
+        if (now % 20 == 11) {
+            tickPendingGates(level);
+        }
         if (m.isActive() || m.testPending() || m.nightComing(server)) {
             if (!fighters.isEmpty()) {
                 endAll(server, "nightsiege.expedition.night");   // the night calls everyone home
@@ -653,6 +662,9 @@ public final class Expeditions {
         for (int i = 0; i < Math.min(rec.cleared, p.roomGates.size()); i++) {
             openGates.addAll(p.roomGates.get(i));
         }
+        if (rec.cleared > 0) {
+            openGates.addAll(p.frontGate);
+        }
         while (budget > 0) {
             if (cursorChunk == Long.MIN_VALUE) {
                 for (long key : chunkOrder) {
@@ -672,6 +684,7 @@ public final class Expeditions {
                     }
                     snap.record(cursorChunk, level, where);
                 }
+                clearChunk(level, p, cursorChunk);
             }
             if (!level.hasChunk((int) (cursorChunk >> 32), (int) cursorChunk)) {
                 cursorChunk = Long.MIN_VALUE;   // unloaded meanwhile: again from the start when it is back
@@ -786,6 +799,7 @@ public final class Expeditions {
             BossService.dropFoeLook(level.getServer(), e.getId());
             e.discard();
         }
+        sweep(level, p);   // nothing else is walled in when the ground comes back
     }
 
     /**
@@ -800,7 +814,7 @@ public final class Expeditions {
             if (cursorChunk == Long.MIN_VALUE) {
                 long next = Long.MIN_VALUE;
                 long unloaded = Long.MIN_VALUE;
-                for (long key : chunkOrder) {
+                for (long key : restoreOrder(snap)) {
                     if (!snap.has(key) && !rec.chunksDone.contains(key)) {
                         continue;
                     }
@@ -826,20 +840,21 @@ public final class Expeditions {
                 cursorChunk = next;
                 cursorIndex = 0;
             }
-            List<Spot> spots = byChunk.get(cursorChunk);
-            if (spots == null || !snap.has(cursorChunk)) {
+            List<BlockPos> where = snapPlaces(snap, cursorChunk);
+            if (where == null) {
                 rec.chunksDone.remove((Long) cursorChunk);
+                snap.forget(cursorChunk);
                 cursorChunk = Long.MIN_VALUE;
                 continue;
             }
-            for (; cursorIndex < spots.size() && budget > 0; cursorIndex++, budget--) {
+            for (; cursorIndex < where.size() && budget > 0; cursorIndex++, budget--) {
                 BlockState old = snap.old(cursorChunk, cursorIndex);
-                BlockPos pos = spots.get(cursorIndex).pos();
+                BlockPos pos = where.get(cursorIndex);
                 if (old != null && level.getBlockState(pos) != old) {
                     level.setBlock(pos, old, Block.UPDATE_CLIENTS);
                 }
             }
-            if (cursorIndex >= spots.size()) {
+            if (cursorIndex >= where.size()) {
                 rec.chunksDone.remove((Long) cursorChunk);
                 snap.forget(cursorChunk);
                 cursorChunk = Long.MIN_VALUE;
@@ -848,10 +863,45 @@ public final class Expeditions {
         }
     }
 
+    /** The chunks to take back: the plan's from the gatehouse outwards, then any other the snapshot knows. */
+    private List<Long> restoreOrder(ExpeditionSnapshot snap) {
+        List<Long> order = new ArrayList<>(chunkOrder);
+        Set<Long> known = new HashSet<>(chunkOrder);
+        for (long key : snap.keys()) {
+            if (key != LEVEL_CHUNK && known.add(key)) {
+                order.add(key);
+            }
+        }
+        return order;
+    }
+
+    /**
+     * Where the snapshot's spots of a chunk are: written in the snapshot since 29 October 2026
+     * (so a changed plan cannot shift them), for older ones the plan's order. Null when unknown.
+     */
+    private List<BlockPos> snapPlaces(ExpeditionSnapshot snap, long chunk) {
+        if (!snap.has(chunk)) {
+            return null;
+        }
+        List<BlockPos> where = snap.places(chunk);
+        if (where != null) {
+            return where;
+        }
+        List<Spot> spots = byChunk.get(chunk);
+        if (spots == null) {
+            return null;
+        }
+        where = new ArrayList<>(spots.size());
+        for (Spot s : spots) {
+            where.add(s.pos());
+        }
+        return where;
+    }
+
     /** All back: the levelled ground too, the snapshot and the record go. */
     private void finishRestore(ServerLevel level, SiegeSave.ExpeditionRecord rec, ExpeditionSnapshot snap) {
         if (snap.has(LEVEL_CHUNK)) {
-            List<BlockPos> where = levelSpots(rec);
+            List<BlockPos> where = snap.places(LEVEL_CHUNK) != null ? snap.places(LEVEL_CHUNK) : levelSpots(rec);
             for (int i = 0; i < where.size(); i++) {
                 BlockState old = snap.old(LEVEL_CHUNK, i);
                 if (old != null && level.getBlockState(where.get(i)) != old) {
@@ -1201,6 +1251,11 @@ public final class Expeditions {
         UUID id = player.getUUID();
         if (joined.isEmpty()) {
             rec.attempts++;   // a new attempt
+            if (rec.cleared == 0) {
+                frontOpen = false;
+                frontRiseAt = -1L;
+                setGate(level, plan(rec).frontGate, true);   // it goes up when everyone stands before it
+            }
         }
         fighters.add(id);
         joined.add(id);
@@ -1236,8 +1291,10 @@ public final class Expeditions {
                 m.persist();
             }
         }
-        if (openEntry || !allowed.contains(id)) {
-            m.campClassPick(player, seconds);   // in the ready round the class is chosen already
+        if (!allowed.contains(id)) {
+            // In the ready round the class is chosen already: no second window on the stairs, the
+            // playtest's open entry too (Simon 29.10.: "beim Treppe runterlaufen kommt nochmal das Klassenfenster").
+            m.campClassPick(player, seconds);
         }
         SkillService.apply(player, m.save().skillsOf(id.toString()), m.skillTree());
         showBar(rec, player);
@@ -1366,10 +1423,15 @@ public final class Expeditions {
         }
         ExpeditionKind kind = kind(rec);
         int lvl = m.currentLevel();
+        if (rec.cleared == 0 && !frontOpen) {
+            tickFrontGate(server, level, p, now);
+        }
         if (rec.cleared < rec.rooms) {
             int room = rec.cleared;
             Set<UUID> mobs = roomMobs.get(room);
-            if (mobs == null) {
+            if (mobs == null && room == 0 && !frontOpen) {
+                // The first hall's guards come when its gate goes up (Simon 29.10.: only once all are down).
+            } else if (mobs == null) {
                 AABB zone = p.roomZones.get(room);
                 for (UUID id : fighters) {
                     ServerPlayer player = server.getPlayerList().getPlayer(id);
@@ -1485,6 +1547,7 @@ public final class Expeditions {
                 mob.setNoAi(true);   // statues until someone reaches the middle or strikes one (content update)
             }
         }
+        sendLooks(level);
         roomMobs.put(room, mobs);
         roomAwake = false;
         wakeAt.clear();
@@ -1537,6 +1600,73 @@ public final class Expeditions {
         }
     }
 
+    /**
+     * The gate before the first hall (Simon 29.10.): it goes up, row by row, when every fighter
+     * stands before it and nobody of the ready round is still on the way down. Until then the
+     * fighters see how many are there.
+     */
+    private void tickFrontGate(MinecraftServer server, ServerLevel level, ExpeditionLayout.Plan p, long now) {
+        if (p.frontGate.isEmpty()) {
+            frontOpen = true;
+            return;
+        }
+        if (frontRiseAt > 0) {
+            int bottom = Integer.MAX_VALUE;
+            for (BlockPos pos : p.frontGate) {
+                bottom = Math.min(bottom, pos.getY());
+            }
+            int rows = (int) Math.min(5, (now - frontRiseAt) / 10 + 1);
+            for (BlockPos pos : p.frontGate) {
+                if (pos.getY() - bottom < rows && level.getBlockState(pos).is(Blocks.IRON_BARS)) {
+                    level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
+                }
+            }
+            level.playSound(null, p.frontGate.get(0), SoundEvents.CHAIN_PLACE, SoundSource.BLOCKS, 1.5f, 0.6f);
+            if (rows >= 5) {
+                frontOpen = true;
+                frontRiseAt = -1L;
+            }
+            return;
+        }
+        AABB zone = p.roomZones.get(0).inflate(1.0);
+        int total = 0;
+        int before = 0;
+        for (UUID id : fighters) {
+            ServerPlayer player = server.getPlayerList().getPlayer(id);
+            if (player == null) {
+                continue;
+            }
+            total++;
+            if (zone.contains(player.position())) {
+                before++;
+            }
+        }
+        for (UUID id : allowed) {
+            if (!fighters.contains(id) && !out.contains(id) && server.getPlayerList().getPlayer(id) != null) {
+                total++;   // still on the way down
+            }
+        }
+        if (total > 0 && before == total) {
+            frontRiseAt = now;
+            level.playSound(null, p.frontGate.get(0), SoundEvents.RAID_HORN.value(), SoundSource.HOSTILE, 3f, 1.1f);
+            Component text = Component.translatable("nightsiege.expedition.front_open").withStyle(ChatFormatting.GOLD);
+            for (UUID id : fighters) {
+                ServerPlayer player = server.getPlayerList().getPlayer(id);
+                if (player != null) {
+                    player.connection.send(new ClientboundSetActionBarTextPacket(text));
+                }
+            }
+        } else if (now % 40 == 0) {
+            Component text = Component.translatable("nightsiege.expedition.front_wait", before, total).withStyle(ChatFormatting.YELLOW);
+            for (UUID id : fighters) {
+                ServerPlayer player = server.getPlayerList().getPlayer(id);
+                if (player != null) {
+                    player.connection.send(new ClientboundSetActionBarTextPacket(text));
+                }
+            }
+        }
+    }
+
     private void openRoom(ServerLevel level, SiegeSave.ExpeditionRecord rec, ExpeditionLayout.Plan p, int room) {
         setGate(level, p.roomGates.get(room), false);
         rec.cleared = room + 1;
@@ -1573,6 +1703,7 @@ public final class Expeditions {
                 arenaMobs.add(mob.getUUID());
             }
         }
+        sendLooks(level);
         level.playSound(null, p.arenaCenter, SoundEvents.RAID_HORN.value(), SoundSource.HOSTILE, 4f, 1.2f);
         Component text = Component.translatable("nightsiege.expedition.wave", wave, rec.rooms).withStyle(ChatFormatting.RED);
         for (UUID id : fighters) {
@@ -1647,6 +1778,7 @@ public final class Expeditions {
                 if (mob != null) {
                     arenaMobs.add(mob.getUUID());
                 }
+                sendLooks(level);
                 return mob;
             }
 
@@ -1685,7 +1817,35 @@ public final class Expeditions {
                 mark(rider, rec);
             }
         }
+        // The dungeon's guards (Simon, 29 October 2026, 22:06): in their warden's look, not the plain monsters.
+        // The new attackers keep their own looks; the champion is dressed in his own right after.
+        if (!Foes.isRole(entityId)) {
+            String guard = "guard_" + kind(rec).id();
+            mob.setBaby(false);   // guards are grown (a baby's texture has no guard look)
+            Entity vehicle = mob.getVehicle();
+            if (vehicle != null && !isExpeditionMob(vehicle)) {
+                mob.stopRiding();   // no chicken jockeys in the halls
+                vehicle.discard();
+            }
+            BossService.foeLookQuiet(mob, guard);
+            for (Entity passenger : mob.getPassengers()) {
+                if (passenger instanceof Mob rider) {
+                    BossService.foeLookQuiet(rider, guard);
+                }
+            }
+            lookPending = true;
+        }
         return mob;
+    }
+
+    /** Guards were dressed: the clients learn it once for the whole room or wave. */
+    private boolean lookPending;
+
+    private void sendLooks(ServerLevel level) {
+        if (lookPending) {
+            lookPending = false;
+            BossService.syncFoeLooks(level);
+        }
     }
 
     private static void mark(Mob mob, SiegeSave.ExpeditionRecord rec) {
@@ -1707,9 +1867,33 @@ public final class Expeditions {
         return all;
     }
 
-    private static void setGate(ServerLevel level, List<BlockPos> gate, boolean closed) {
+    private void setGate(ServerLevel level, List<BlockPos> gate, boolean closed) {
         for (BlockPos pos : gate) {
+            if (!level.hasChunk(pos.getX() >> 4, pos.getZ() >> 4)) {
+                // Not loaded (everyone left): set when it loads again. Loading it here mid-tick broke
+                // C2ME's entity sections (server log 29 October 2026, 18:09).
+                pendingGates.put(pos.immutable(), closed);
+                continue;
+            }
+            pendingGates.remove(pos);
             level.setBlock(pos, closed ? Blocks.IRON_BARS.defaultBlockState() : Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
+        }
+    }
+
+    /** Gate blocks waiting for their chunk (see {@link #setGate}). */
+    private final Map<BlockPos, Boolean> pendingGates = new HashMap<>();
+
+    private void tickPendingGates(ServerLevel level) {
+        if (pendingGates.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<BlockPos, Boolean> e : new ArrayList<>(pendingGates.entrySet())) {
+            BlockPos pos = e.getKey();
+            if (level.hasChunk(pos.getX() >> 4, pos.getZ() >> 4)) {
+                pendingGates.remove(pos);
+                level.setBlock(pos, e.getValue() ? Blocks.IRON_BARS.defaultBlockState() : Blocks.AIR.defaultBlockState(),
+                        Block.UPDATE_ALL);
+            }
         }
     }
 
@@ -1746,6 +1930,11 @@ public final class Expeditions {
             setGate(level, plan(rec).stairGate, true);   // the next attempt starts at the seal stone again
         }
         arenaClosed = false;
+        if (level != null && rec.built && !rec.won && rec.cleared == 0) {
+            setGate(level, plan(rec).frontGate, true);
+        }
+        frontOpen = false;
+        frontRiseAt = -1L;
         wave = 0;
         nextWaveAt = -1L;
         if (!(lost && noRetry)) {
@@ -1922,6 +2111,81 @@ public final class Expeditions {
             return false;
         }
         return true;
+    }
+
+    /**
+     * A creature that does not belong in a dungeon (Simon 29.10.: an enderman with a grass block,
+     * a chicken): anything alive that is none of the mod's own, not named, not tamed, not on a
+     * lead and carries no player.
+     */
+    static boolean intruder(Entity entity) {
+        if (!(entity instanceof Mob mob) || !mob.isAlive() || mob.hasCustomName() || mob.isLeashed()) {
+            return false;
+        }
+        for (String tag : mob.entityTags()) {
+            if (tag.startsWith("nightsiege")) {
+                return false;   // the dungeon's monsters, companions, bosses, the night's own
+            }
+        }
+        if (mob instanceof net.minecraft.world.entity.OwnableEntity own && own.getOwnerReference() != null) {
+            return false;
+        }
+        for (Entity rider : mob.getPassengers()) {
+            if (rider instanceof Player) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Loose things in a dungeon's space before its walls go up: items, orbs, arrows stuck in the ground. */
+    private static boolean litter(Entity entity) {
+        return entity instanceof net.minecraft.world.entity.item.ItemEntity || entity instanceof net.minecraft.world.entity.ExperienceOrb
+                || entity instanceof net.minecraft.world.entity.projectile.arrow.AbstractArrow;
+    }
+
+    /** The dungeon's spaces (halls, ways, arena) with their walls, cut to one chunk. */
+    private static List<AABB> spaceIn(ExpeditionLayout.Plan p, long chunk) {
+        double x0 = (double) ((int) (chunk >> 32) << 4);
+        double z0 = (double) ((int) chunk << 4);
+        List<AABB> out = new ArrayList<>();
+        for (AABB box : p.inside) {
+            AABB b = box.inflate(2.0);
+            double minX = Math.max(b.minX, x0);
+            double maxX = Math.min(b.maxX, x0 + 16);
+            double minZ = Math.max(b.minZ, z0);
+            double maxZ = Math.min(b.maxZ, z0 + 16);
+            if (minX < maxX && minZ < maxZ) {
+                out.add(new AABB(minX, b.minY, minZ, maxX, b.maxY, maxZ));
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Before the dungeon is set in a chunk: what lives or lies where its halls and walls go is
+     * taken away, quietly (no drops). Cave monsters walled in there died and their loot lay in
+     * the halls (Simon 29.10.: "es liegen Items rum").
+     */
+    private static void clearChunk(ServerLevel level, ExpeditionLayout.Plan p, long chunk) {
+        for (AABB box : spaceIn(p, chunk)) {
+            for (Entity e : level.getEntitiesOfClass(Entity.class, box, e -> intruder(e) || litter(e))) {
+                e.discard();
+            }
+        }
+    }
+
+    /** Every second while a dungeon stands: creatures that came in from outside go (endermen teleport in). */
+    private static void sweep(ServerLevel level, ExpeditionLayout.Plan p) {
+        for (AABB box : p.inside) {
+            if (!level.hasChunkAt(BlockPos.containing(box.getCenter()))) {
+                continue;
+            }
+            // With the walls: a cave monster walled in when the halls went up goes before it suffocates and drops its loot.
+            for (Mob mob : level.getEntitiesOfClass(Mob.class, box.inflate(2.0), Expeditions::intruder)) {
+                mob.discard();
+            }
+        }
     }
 
     /** A dungeon monster loaded from the world that belongs to no fight of now goes. */

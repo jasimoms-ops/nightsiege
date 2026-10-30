@@ -55,7 +55,11 @@ public final class UltHud {
         return state;
     }
 
-    record Cell(ItemStack icon, KeyMapping key, int cooldown, int total, boolean current) {
+    /** One box: {@code spent} greys out a gain ability used up for tonight or this kit. */
+    record Cell(ItemStack icon, KeyMapping key, int cooldown, int total, boolean current, boolean spent) {
+        Cell(ItemStack icon, KeyMapping key, int cooldown, int total, boolean current) {
+            this(icon, key, cooldown, total, current, false);
+        }
     }
 
     /** Q, F and X, the ones the player has. */
@@ -69,6 +73,13 @@ public final class UltHud {
         }
         if (s.has2) {
             fixed.add(new Cell(icon(s.icon2), GainClient.secondUltKey(), s.cooldown2Ticks, s.total2Ticks, false));
+        }
+        // The gain keys N, M, J (balance update 2, 29 October 2026): the crate gains with an ability of their own.
+        if (s.gains != null) {
+            for (int i = 0; i < s.gains.size() && i < GainClient.GAIN_KEYS; i++) {
+                UltState.Slot g = s.gains.get(i);
+                fixed.add(new Cell(icon(g.icon), GainClient.gainKey(i), g.cooldownTicks, g.totalTicks, false, g.current));
+            }
         }
         return fixed;
     }
@@ -140,7 +151,7 @@ public final class UltHud {
         gui.item(c.icon(), ix, iy);
         long elapsedTicks = (System.currentTimeMillis() - receivedAt) / 50L;
         long left = Math.max(0L, c.cooldown() - elapsedTicks);
-        if (!live) {
+        if (!live || c.spent()) {
             gui.fill(ix, iy, ix + 16, iy + 16, 0xA0000000);
         } else if (left > 0 && c.total() > 0) {
             int shade = (int) Math.ceil(16.0 * Math.min(1.0, left / (double) c.total()));
@@ -153,7 +164,7 @@ public final class UltHud {
         if (text.length() > 3) {
             text = text.substring(0, 3);
         }
-        int color = !live ? 0xFF808080 : left > 0 ? 0xFFAAAAAA : 0xFFFFD84A;
+        int color = !live || c.spent() ? 0xFF808080 : left > 0 ? 0xFFAAAAAA : 0xFFFFD84A;
         gui.text(font, text, x + CELL / 2 - font.width(text) / 2, y - 9, color, true);
     }
 

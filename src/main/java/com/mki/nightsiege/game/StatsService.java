@@ -239,6 +239,11 @@ public final class StatsService {
                 stats.gains.put(entry.getKey(), new java.util.HashMap<>(entry.getValue()));
             }
         }
+        for (com.mki.nightsiege.core.SkillClass c : com.mki.nightsiege.core.SkillClass.values()) {
+            if (!c.isShared()) {
+                stats.gainKeys.put(c.name(), GainKeys.assigned(manager, skills, c));
+            }
+        }
         stats.points = skills.points();
         stats.earned = skills.earned;
         stats.donated = skills.donated;
@@ -289,6 +294,8 @@ public final class StatsService {
             line.cost = node.costFor(line.level);
             line.requires = node.requires();
             line.requiresLevel = node.requiresLevel();
+            line.freeLevels = node.freeLevels();
+            line.upgradeRequires = node.upgradeRequires();
             line.blocked = shared ? tree.blockedReason(node.id(), save.coreSkills())
                     : skills.hasUnlocked(node.clazz())
                     ? skills.as(node.clazz(), () -> tree.blockedReason(node.id(), skills))

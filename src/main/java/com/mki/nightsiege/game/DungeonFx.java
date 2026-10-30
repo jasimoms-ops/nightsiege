@@ -117,6 +117,9 @@ final class DungeonFx {
         }
     }
 
+    /** How loud the arena's music plays (was a disc at full volume before 29 October 2026). */
+    static final float MUSIC_VOLUME = 0.35f;
+
     /** The music of the building, for the group (vanilla discs over the record slider). */
     static Holder<SoundEvent> music(ExpeditionKind kind) {
         String id = switch (kind.layout()) {
@@ -138,8 +141,10 @@ final class DungeonFx {
         for (ServerPlayer p : players) {
             p.addEffect(new MobEffectInstance(MobEffects.NAUSEA, 40, 0, false, false));
             if (music != null) {
-                p.connection.send(new ClientboundSoundPacket(music, SoundSource.RECORDS, p.getX(), p.getY() + 2, p.getZ(), 4f, 1f,
-                        RANDOM.nextLong()));
+                // Quieter and with the player (Simon 29.10.: "die Musik des Dungeons muss leiser"): bound to
+                // him, so it neither swells nor fades as he walks; the record slider still sets it.
+                p.connection.send(new net.minecraft.network.protocol.game.ClientboundSoundEntityPacket(music, SoundSource.RECORDS, p,
+                        MUSIC_VOLUME, 1f, RANDOM.nextLong()));
             }
         }
     }

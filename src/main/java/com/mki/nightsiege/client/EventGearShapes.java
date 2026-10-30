@@ -51,6 +51,14 @@ public final class EventGearShapes {
         champion_deep_cellar();
         champion_nether_forge();
         champion_basalt_forge();
+        guard_stone_crypt();
+        guard_desert_crypt();
+        guard_illager_keep();
+        guard_frost_keep();
+        guard_poison_swamp();
+        guard_deep_cellar();
+        guard_nether_forge();
+        guard_basalt_forge();
         boss_frost_jarl();
         boss_ember_colossus();
         boss_storm_witch();
@@ -1203,6 +1211,115 @@ public final class EventGearShapes {
                 new Box("body", -1.000f, 2.000f, -2.600f, 2, 2, 1, 50, 8, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f))));
     }
 
+    private static void guard_stone_crypt() {
+        SETS.put("guard_stone_crypt/humanoid", new Set(64, 32, List.of(
+                new Box("head", -4.600f, -8.600f, -4.600f, 9, 1, 1, 34, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -4.600f, -8.600f, 3.600f, 9, 1, 1, 34, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -4.600f, -8.600f, -3.600f, 1, 1, 7, 0, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", 3.600f, -8.600f, -3.600f, 1, 1, 7, 0, 0, true, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -0.500f, -10.600f, -4.600f, 1, 2, 1, 30, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", -6.200f, -1.000f, -2.500f, 2, 2, 5, 16, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", 4.200f, -1.000f, -2.500f, 2, 2, 5, 16, 0, true, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f))));
+        SETS.put("guard_stone_crypt/skeleton", new Set(64, 32, List.of(
+                new Box("head", -4.600f, -8.600f, -4.600f, 9, 1, 1, 34, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -4.600f, -8.600f, 3.600f, 9, 1, 1, 34, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -4.600f, -8.600f, -3.600f, 1, 1, 7, 0, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", 3.600f, -8.600f, -3.600f, 1, 1, 7, 0, 0, true, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -0.500f, -10.600f, -4.600f, 1, 2, 1, 30, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", -6.200f, -1.000f, -2.500f, 2, 2, 5, 16, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", 4.200f, -1.000f, -2.500f, 2, 2, 5, 16, 0, true, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f))));
+    }
+
+    private static void guard_desert_crypt() {
+        SETS.put("guard_desert_crypt/humanoid", new Set(64, 32, List.of(
+                new Box("head", -4.600f, -9.100f, -4.600f, 9, 1, 1, 0, 8, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -4.600f, -9.100f, 3.600f, 9, 1, 1, 0, 8, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -4.600f, -9.100f, -3.600f, 1, 1, 7, 0, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", 3.600f, -9.100f, -3.600f, 1, 1, 7, 0, 0, true, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -5.100f, -7.600f, -3.000f, 1, 6, 2, 16, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", 4.100f, -7.600f, -3.000f, 1, 6, 2, 16, 0, true, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", -4.500f, -0.400f, -2.700f, 9, 1, 5, 22, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f))));
+        SETS.put("guard_desert_crypt/skeleton", new Set(64, 32, List.of(
+                new Box("head", -4.600f, -9.100f, -4.600f, 9, 1, 1, 0, 8, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -4.600f, -9.100f, 3.600f, 9, 1, 1, 0, 8, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -4.600f, -9.100f, -3.600f, 1, 1, 7, 0, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", 3.600f, -9.100f, -3.600f, 1, 1, 7, 0, 0, true, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -5.100f, -7.600f, -3.000f, 1, 6, 2, 16, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", 4.100f, -7.600f, -3.000f, 1, 6, 2, 16, 0, true, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", -4.500f, -0.400f, -2.700f, 9, 1, 5, 22, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f))));
+    }
+
+    private static void guard_illager_keep() {
+        SETS.put("guard_illager_keep/illager", new Set(64, 32, List.of(
+                new Box("head", -4.600f, -10.600f, -4.600f, 9, 3, 9, 0, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -1.000f, -11.600f, -1.000f, 2, 1, 2, 56, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", -6.400f, -0.800f, -3.400f, 3, 2, 7, 36, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", 3.400f, -0.800f, -3.400f, 3, 2, 7, 36, 0, true, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f))));
+    }
+
+    private static void guard_frost_keep() {
+        SETS.put("guard_frost_keep/skeleton", new Set(64, 32, List.of(
+                new Box("head", -0.500f, -2.000f, -0.500f, 1, 2, 1, 34, 0, false, -3.000f, -8.000f, -3.600f, 0.000f, -0.000f, -0.180f),
+                new Box("head", -0.500f, -3.000f, -0.500f, 1, 3, 1, 30, 0, false, -1.000f, -8.000f, -3.800f, 0.000f, -0.000f, -0.060f),
+                new Box("head", -0.500f, -3.000f, -0.500f, 1, 3, 1, 30, 0, false, 1.000f, -8.000f, -3.800f, 0.000f, -0.000f, 0.060f),
+                new Box("head", -0.500f, -2.000f, -0.500f, 1, 2, 1, 34, 0, false, 3.000f, -8.000f, -3.600f, 0.000f, -0.000f, 0.180f),
+                new Box("body", -5.000f, -1.200f, -2.600f, 10, 2, 5, 0, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f))));
+        SETS.put("guard_frost_keep/illager", new Set(64, 32, List.of(
+                new Box("head", -0.500f, -2.000f, -0.500f, 1, 2, 1, 38, 0, false, -3.000f, -10.000f, -3.600f, 0.000f, -0.000f, -0.180f),
+                new Box("head", -0.500f, -3.000f, -0.500f, 1, 3, 1, 34, 0, false, -1.000f, -10.000f, -3.800f, 0.000f, -0.000f, -0.060f),
+                new Box("head", -0.500f, -3.000f, -0.500f, 1, 3, 1, 34, 0, false, 1.000f, -10.000f, -3.800f, 0.000f, -0.000f, 0.060f),
+                new Box("head", -0.500f, -2.000f, -0.500f, 1, 2, 1, 38, 0, false, 3.000f, -10.000f, -3.600f, 0.000f, -0.000f, 0.180f),
+                new Box("body", -5.000f, -1.200f, -3.600f, 10, 2, 7, 0, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f))));
+    }
+
+    private static void guard_poison_swamp() {
+        SETS.put("guard_poison_swamp/witch", new Set(64, 32, List.of(
+                new Box("body", -4.800f, -0.800f, -3.600f, 10, 2, 7, 0, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", -3.500f, 1.200f, 3.200f, 1, 5, 1, 38, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", 0.000f, 1.200f, 3.200f, 1, 7, 1, 34, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", 2.500f, 1.200f, 3.200f, 1, 4, 1, 42, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -5.300f, -10.800f, -5.300f, 4, 1, 3, 46, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", 2.000f, -11.800f, -4.500f, 2, 1, 2, 0, 9, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", 2.500f, -10.800f, -4.000f, 1, 1, 1, 8, 9, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f))));
+        SETS.put("guard_poison_swamp/skeleton", new Set(64, 32, List.of(
+                new Box("body", -4.800f, -0.800f, -2.600f, 10, 2, 5, 0, 10, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", -3.500f, 1.200f, 2.200f, 1, 5, 1, 30, 10, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", 0.000f, 1.200f, 2.200f, 1, 7, 1, 36, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", 2.500f, 1.200f, 2.200f, 1, 4, 1, 34, 10, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -4.600f, -8.800f, -4.600f, 9, 1, 9, 0, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -4.600f, -7.800f, -2.000f, 1, 3, 1, 38, 10, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", 3.600f, -7.800f, -2.000f, 1, 3, 1, 38, 10, true, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f))));
+    }
+
+    private static void guard_deep_cellar() {
+        SETS.put("guard_deep_cellar/skeleton", new Set(64, 32, List.of(
+                new Box("head", -4.500f, -8.600f, -4.500f, 9, 9, 9, 0, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", -6.400f, -1.200f, -2.600f, 3, 2, 5, 36, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", 3.400f, -1.200f, -2.600f, 3, 2, 5, 36, 0, true, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("right_arm", -1.500f, 7.000f, -1.500f, 3, 2, 3, 52, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("left_arm", -1.500f, 7.000f, -1.500f, 3, 2, 3, 52, 0, true, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f))));
+    }
+
+    private static void guard_nether_forge() {
+        SETS.put("guard_nether_forge/skeleton", new Set(64, 32, List.of(
+                new Box("body", -6.600f, -1.600f, -2.800f, 4, 3, 6, 0, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", 2.600f, -1.600f, -2.800f, 4, 3, 6, 0, 0, true, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -0.500f, -2.000f, -0.500f, 1, 2, 1, 20, 0, false, -4.200f, -7.000f, -0.500f, -0.100f, -0.000f, -1.250f),
+                new Box("head", -0.500f, -2.000f, -0.500f, 1, 2, 1, 24, 0, false, -5.522f, -7.439f, -0.360f, -0.335f, 0.052f, -0.702f),
+                new Box("head", -0.500f, -2.000f, -0.500f, 1, 2, 1, 20, 0, true, 4.200f, -7.000f, -0.500f, -0.100f, 0.000f, 1.250f),
+                new Box("head", -0.500f, -2.000f, -0.500f, 1, 2, 1, 24, 0, true, 5.522f, -7.439f, -0.360f, -0.335f, -0.052f, 0.702f),
+                new Box("body", -1.000f, 3.000f, -2.600f, 2, 2, 1, 28, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f))));
+    }
+
+    private static void guard_basalt_forge() {
+        SETS.put("guard_basalt_forge/skeleton", new Set(64, 32, List.of(
+                new Box("body", -6.400f, -2.000f, -2.200f, 3, 3, 4, 4, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", 3.400f, -2.000f, -2.200f, 3, 3, 4, 4, 0, true, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", -3.500f, -0.300f, -2.300f, 1, 7, 1, 0, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", 2.500f, -0.300f, -2.300f, 1, 7, 1, 0, 0, true, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", -1.000f, 2.000f, -2.600f, 2, 2, 1, 18, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f))));
+    }
+
     private static void boss_frost_jarl() {
     }
 
@@ -1255,6 +1372,14 @@ public final class EventGearShapes {
             Map.entry("champion_deep_cellar", List.of("skeleton/skeleton.png=skeleton")),
             Map.entry("champion_nether_forge", List.of("zombie/zombie.png=zombie")),
             Map.entry("champion_basalt_forge", List.of("skeleton/wither_skeleton.png=wither_skeleton")),
+            Map.entry("guard_stone_crypt", List.of("zombie/zombie.png=zombie", "skeleton/skeleton.png=skeleton")),
+            Map.entry("guard_desert_crypt", List.of("zombie/husk.png=husk", "skeleton/skeleton.png=skeleton")),
+            Map.entry("guard_illager_keep", List.of("illager/vindicator.png=vindicator", "illager/pillager.png=pillager")),
+            Map.entry("guard_frost_keep", List.of("skeleton/stray.png=stray", "illager/pillager.png=pillager", "illager/vindicator.png=vindicator", "skeleton/stray_overlay.png=stray_overlay")),
+            Map.entry("guard_poison_swamp", List.of("witch/witch.png=witch", "skeleton/bogged.png=bogged", "skeleton/bogged_overlay.png=bogged_overlay", "spider/spider.png=spider", "spider/spider_eyes.png=spider_eyes", "spider/cave_spider.png=cave_spider")),
+            Map.entry("guard_deep_cellar", List.of("spider/spider.png=spider", "spider/spider_eyes.png=spider_eyes", "spider/cave_spider.png=cave_spider", "skeleton/skeleton.png=skeleton")),
+            Map.entry("guard_nether_forge", List.of("blaze/blaze.png=blaze", "skeleton/wither_skeleton.png=wither_skeleton")),
+            Map.entry("guard_basalt_forge", List.of("skeleton/wither_skeleton.png=wither_skeleton", "blaze/blaze.png=blaze", "skeleton/skeleton.png=skeleton")),
             Map.entry("boss_frost_jarl", List.of("iron_golem/iron_golem.png=iron_golem")),
             Map.entry("boss_ember_colossus", List.of("iron_golem/iron_golem.png=iron_golem", "slime/magmacube.png=magmacube")),
             Map.entry("boss_storm_witch", List.of("witch/witch.png=witch", "phantom/phantom.png=phantom")),
@@ -1288,6 +1413,14 @@ public final class EventGearShapes {
             "champion_deep_cellar/skeleton",
             "champion_nether_forge/zombie",
             "champion_basalt_forge/wither_skeleton",
+            "guard_stone_crypt/zombie", "guard_stone_crypt/skeleton",
+            "guard_desert_crypt/husk", "guard_desert_crypt/skeleton",
+            "guard_illager_keep/vindicator", "guard_illager_keep/pillager",
+            "guard_frost_keep/stray", "guard_frost_keep/pillager", "guard_frost_keep/vindicator",
+            "guard_poison_swamp/witch", "guard_poison_swamp/bogged",
+            "guard_deep_cellar/skeleton",
+            "guard_nether_forge/wither_skeleton",
+            "guard_basalt_forge/wither_skeleton", "guard_basalt_forge/skeleton",
             "boss_frost_jarl/iron_golem",
             "boss_ember_colossus/iron_golem", "boss_ember_colossus/magmacube",
             "boss_storm_witch/witch", "boss_storm_witch/phantom");

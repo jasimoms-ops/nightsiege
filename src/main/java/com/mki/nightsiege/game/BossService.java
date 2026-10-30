@@ -666,6 +666,22 @@ public final class BossService {
         }
     }
 
+    /** As {@link #foeLook}, without telling the clients yet (many at once: then {@link #syncFoeLooks}). */
+    public static void foeLookQuiet(net.minecraft.world.entity.Mob mob, String folder) {
+        FOE_LOOKS.put(mob.getId(), folder);
+    }
+
+    /** Tells every client the looks now, dropping those of monsters that are gone. */
+    public static void syncFoeLooks(ServerLevel level) {
+        FOE_LOOKS.keySet().removeIf(id -> {
+            net.minecraft.world.entity.Entity e = level.getEntity(id);
+            return e == null || !e.isAlive();
+        });
+        if (last != null) {
+            last.syncAll(level.getServer());
+        }
+    }
+
     /** The foe or champion with this network id is gone (discarded at the end of a fight, 29 October 2026). */
     public static void dropFoeLook(MinecraftServer server, int entityId) {
         if (FOE_LOOKS.remove(entityId) != null && last != null) {

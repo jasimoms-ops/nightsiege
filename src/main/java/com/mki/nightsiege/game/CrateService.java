@@ -304,6 +304,13 @@ public final class CrateService {
     public CrateRoll roll(PlayerSkills own, SkillClass clazz, CrateKind kind, int level, int curses) {
         SiegeConfig cfg = config.get();
         String way = own.hasUnlocked(clazz) ? own.as(clazz, () -> own.pathTaken(tree)) : "";
+        // The subclass of the profile played in this class (learned or chosen with the class): gains it
+        // has no use for stay in the crate (balance update 2, 29 October 2026).
+        String sub = own.hasUnlocked(clazz) ? tree.subclassOfProfile(own, own.profileFor(clazz)) : "";
+        if (way.isEmpty() && !sub.isEmpty()) {
+            String planned = tree.wayOfSubclass(clazz, sub);
+            way = planned == null ? "" : planned;
+        }
         CrateRoll roll = new CrateRoll();
         roll.clazz = clazz.name();
         roll.level = level;
@@ -316,7 +323,7 @@ public final class CrateService {
         roll.kind = kind.name();
         int[] weights = curses > 0 ? cursedOdds(cfg, kind, curses) : cfg.crateOdds(kind);
         roll.odds = weights.clone();
-        CrateGains.Gain win = CrateGains.roll(clazz, way, weights, cfg.crateClassShare, random);
+        CrateGains.Gain win = CrateGains.roll(clazz, way, sub, weights, cfg.crateClassShare, random);
         if (win == null) {
             win = CrateGains.get("fackeln");
         }
@@ -340,7 +347,7 @@ public final class CrateService {
         int length = 40;
         roll.winIndex = 32;
         for (int i = 0; i < length; i++) {
-            CrateGains.Gain g = i == roll.winIndex ? win : CrateGains.filler(clazz, way, weights, random);
+            CrateGains.Gain g = i == roll.winIndex ? win : CrateGains.filler(clazz, way, sub, weights, random);
             roll.band.add(new CrateRoll.Slot(g.id(), g.rarity().name(), CrateGains.icon(g.id())));
         }
         for (CrateGains.Gain g : CrateGains.forCollection(clazz)) {

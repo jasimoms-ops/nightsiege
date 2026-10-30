@@ -256,6 +256,7 @@ public final class Playtest {
         for (ServerPlayer p : players) {
             PlayerSkills fresh = new PlayerSkills();
             fresh.profileVersion = PlayerSkills.PROFILE_VERSION;
+            fresh.freeSubclassVersion = PlayerSkills.FREE_SUBCLASS_VERSION;
             fresh.award(PLAN_POINTS);
             m.save().skills.put(p.getUUID().toString(), fresh);
             p.getInventory().clearContent();
@@ -566,10 +567,19 @@ public final class Playtest {
         if (!own.hasClass()) {
             return 0;
         }
+        // The subclass comes with its node at level 1, for free and outside the path (29 October 2026).
+        own.grantFreeSubclasses();
         java.util.LinkedHashMap<String, Integer> planned = new java.util.LinkedHashMap<>();
         for (String id : path) {
             if (tree.get(id) != null) {
                 planned.merge(id, 1, Integer::sum);
+            }
+        }
+        // The path holds the bought levels only: the free ones come on top.
+        for (Map.Entry<String, Integer> e : planned.entrySet()) {
+            SkillNode node = tree.get(e.getKey());
+            if (node.freeLevels() > 0 && own.levelOf(node.id()) >= node.freeLevels()) {
+                e.setValue(e.getValue() + node.freeLevels());
             }
         }
         return learnLikeAPlayer(tree, own, planned);
@@ -579,6 +589,7 @@ public final class Playtest {
      * Spends the points of {@code own} on the planned levels (node → top level, in the planned order),
      * one level at a time, always the first that fits of:
      * <ol>
+     *   <li>a free level (the subclass node's level 1, the root of the tree: it costs nothing);</li>
      *   <li>a planned node not learned yet that can be learned now (new abilities, the way, the
      *   subclass, the ult come as soon as they are open);</li>
      *   <li>a level that opens a planned node still shut (e.g. the subclass node at level 2 for the
@@ -592,7 +603,19 @@ public final class Playtest {
         int learned = 0;
         for (int guard = 0; guard < 500; guard++) {
             String pick = null;
+            // A free level first (the subclass node, the root of the tree since 29 October 2026).
             for (String id : order) {
+                SkillNode node = tree.get(id);
+                int lv = own.levelOf(id);
+                if (node != null && node.isFreeAt(lv) && lv < planned.get(id) && tree.blockedReason(id, own) == null) {
+                    pick = id;
+                    break;
+                }
+            }
+            for (String id : order) {
+                if (pick != null) {
+                    break;
+                }
                 if (own.levelOf(id) == 0 && tree.blockedReason(id, own) == null) {
                     pick = id;
                     break;
@@ -937,6 +960,7 @@ public final class Playtest {
         if (before == null) {
             before = new PlayerSkills();
         }
+        m.skillTree().migrateFreeSubclass(before);   // kept from before the subclass came first: once, as on loading
         m.save().skills.put(player.getUUID().toString(), before);
         SkillService.clear(player);
         if (server != null) {

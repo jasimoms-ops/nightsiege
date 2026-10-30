@@ -530,8 +530,9 @@ public final class TeamSim {
     }
 
     /**
-     * The subclass a bot plays in this run. On low levels it has not learned the subclass node yet
-     * (the logger then has an empty subclass), but the run gave "BotNN" the NN-th subclass of the group.
+     * The subclass a bot plays in this run. Since 29 October 2026 every bot holds its subclass node from
+     * the start (level 1 free); should the logger still have an empty subclass, the run gave "BotNN" the
+     * NN-th subclass of the group.
      */
     static String plannedSub(Run run, String name, StatsRecorder.Spieler who) {
         // Its brain knows (the bots are reused in any order, so "Bot03" can be the group's second).

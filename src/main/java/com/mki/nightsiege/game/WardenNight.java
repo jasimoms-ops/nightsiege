@@ -110,6 +110,10 @@ public final class WardenNight {
      * the look of his dungeon.
      */
     public static void dress(Mob mob, ExpeditionKind kind, double health) {
+        // A grown warden alone: no baby (its texture has no look), no jockey on him or under him.
+        mob.setBaby(false);
+        mob.ejectPassengers();
+        mob.stopRiding();
         BossService.set(mob, Attributes.MAX_HEALTH, health);
         mob.setHealth((float) health);
         BossService.set(mob, Attributes.SCALE, 1.35);

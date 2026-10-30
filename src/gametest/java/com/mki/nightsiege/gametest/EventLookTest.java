@@ -82,8 +82,14 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("dungeons")) {
                     dungeonScene(context, game);
                 }
+                if (want.contains("dungeondump")) {
+                    dungeonDumpScene(context, game);   // every block of the eight dungeons as a file (29 October 2026)
+                }
                 if (want.contains("warden")) {
                     wardenScene(context, game);   // the eight dungeon wardens (29 October 2026)
+                }
+                if (want.contains("guards")) {
+                    guardScene(context, game);   // the dungeon guards in their warden's look (29 October 2026, 22:06)
                 }
                 if (want.contains("mobs")) {
                     mobLineup(context, game);   // the event monsters of every event
@@ -118,6 +124,7 @@ public class EventLookTest implements FabricClientGameTest {
                 }
                 if (want.contains("ui")) {
                     // The windows at the end of the full run (the full run outgrew its 40 minutes, 29 October 2026).
+                    ensureCore(context, game);   // alone, no scene before it placed a core (30 October 2026)
                     versionBScene(context, game);
                     versionB2Scene(context, game);
                     classUiScene(context, game);
@@ -139,6 +146,7 @@ public class EventLookTest implements FabricClientGameTest {
             if (!shaderRun) {
                 bossScene(context, game);
                 wardenScene(context, game);   // the eight dungeon wardens in their looks, and a warden night
+                guardScene(context, game);   // the dungeon guards in their warden's look
                 series(context, game, "event");
                 mobLineup(context, game);
                 context.runOnClient(client -> EventAtmosphere.setClient("", 1));
@@ -364,8 +372,8 @@ public class EventLookTest implements FabricClientGameTest {
                 com.mki.nightsiege.game.SiegeManager manager = com.mki.nightsiege.game.SiegeManager.get();
                 manager.onCoreAction(player, "class:WARRIOR");
                 manager.onCoreAction(player, "dev:400");
-                for (String id : new String[]{"warrior_drill", "w_endurance", "champion_bane", "w_combo", "w_combo",
-                        "keen_edge", "w_bladefrenzy", "w_frenzy", "w_evasion", "execute", "w_chain_execute"}) {
+                for (String id : subclassFirst("warrior_drill", "w_endurance", "champion_bane", "w_combo", "w_combo",
+                        "keen_edge", "w_bladefrenzy", "w_frenzy", "w_evasion", "execute", "w_chain_execute")) {
                     manager.onBuySkill(player, id);
                 }
                 manager.onCoreAction(player, "open");
@@ -389,8 +397,8 @@ public class EventLookTest implements FabricClientGameTest {
                 manager.onCoreAction(player, "dev:reset");
                 manager.onCoreAction(player, "class:ARCHER");
                 manager.onCoreAction(player, "dev:400");
-                for (String id : new String[]{"archer_focus", "a_quiver", "heavy_bolts", "a_netbolt", "a_netbolt",
-                        "a_shackle", "x_mark", "a_hunternet", "a_reloadrush", "x_hunt", "x_pack"}) {
+                for (String id : subclassFirst("archer_focus", "a_quiver", "heavy_bolts", "a_netbolt", "a_netbolt",
+                        "a_shackle", "x_mark", "a_hunternet", "a_reloadrush", "x_hunt", "x_pack")) {
                     manager.onBuySkill(player, id);
                 }
                 manager.onCoreAction(player, "open");
@@ -680,7 +688,7 @@ public class EventLookTest implements FabricClientGameTest {
             manager.onCoreAction(player, "dev:reset");
             manager.onCoreAction(player, "class:WARRIOR");
             manager.onCoreAction(player, "dev:600");
-            for (String id : new String[]{"warrior_drill", "champion_bane", "bloodlust"}) {
+            for (String id : subclassFirst("warrior_drill", "champion_bane", "bloodlust")) {
                 manager.onBuySkill(player, id);
             }
             manager.onCoreAction(player, "open");
@@ -899,6 +907,350 @@ public class EventLookTest implements FabricClientGameTest {
                 net.minecraft.network.chat.Component.translatable("nightsiege.kitweapon.blademaster_saber").getString()));
         System.out.println("[Night Siege test] kit weapons: named=" + named[0]);
         game.getServer().runCommand("clear @p");
+        balanceFightScene(context, game);   // balance update 2 (29 October 2026): life steal, champions, kit storage
+    }
+
+    /** The slot of a menu that shows this slot of the player's inventory, or -1. */
+    private static int menuSlotOf(net.minecraft.world.inventory.AbstractContainerMenu menu,
+                                  net.minecraft.world.entity.player.Inventory inv, int invSlot) {
+        for (int i = 0; i < menu.slots.size(); i++) {
+            net.minecraft.world.inventory.Slot s = menu.slots.get(i);
+            if (s.container == inv && s.getContainerSlot() == invSlot) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /** Kit items in a container, counted by stack size. */
+    private static int kitCount(net.minecraft.world.Container box) {
+        int n = 0;
+        for (int i = 0; i < box.getContainerSize(); i++) {
+            if (com.mki.nightsiege.game.KitService.isKit(box.getItem(i))) {
+                n += box.getItem(i).getCount();
+            }
+        }
+        return n;
+    }
+
+    /**
+     * Balance update 2 (Simon, 29 October 2026): the hit life steal on level 1 against level 15 and its
+     * floor of half a heart, a dungeon champion's blow and shot with the share of the max health (half
+     * through a shield), and kit items that go into no chest, no vase, no bundle and vanish when dropped.
+     */
+    private static void balanceFightScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        int cx = pos.getX() - 180;
+        int cz = pos.getZ() - 120;
+        int cy = yard(context, game, cx, cz, 16, 8);
+        game.getServer().runCommand("time set 6000");
+        game.getServer().runCommand("gamemode creative @p");
+        game.getServer().runCommand("clear @p");
+        game.getServer().runCommand("effect clear @p");
+        game.getServer().runCommand("tp @p %d.5 %d %d.5 0 0".formatted(cx, cy, cz));
+        game.getServer().runCommand(("summon minecraft:husk %d %d %d {NoAI:1b,PersistenceRequired:1b,Silent:1b,Tags:[\"ns_fight\",\"ns_fight_dummy\"],"
+                + "attributes:[{id:\"minecraft:max_health\",base:1000.0d}],Health:1000.0f}").formatted(cx + 4, cy, cz + 4));
+        context.waitTicks(20);
+        java.util.List<String> fails = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+        int[] savedWon = {0};
+
+        // 1. Life steal of the axe fighter: level 1 (×2.5) against level 15 (×1), then the floor of 1 life point.
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            if (!manager.isRegistered(player)) {
+                manager.register(player);
+            }
+            com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
+            own.unlockClass(com.mki.nightsiege.core.SkillClass.WARRIOR);
+            own.switchTo(com.mki.nightsiege.core.SkillClass.WARRIOR);
+            own.levels.clear();
+            own.levels.put("heavy_blow", 1);
+            player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_AXE));
+            net.minecraft.world.entity.LivingEntity dummy = null;
+            for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                if (e.entityTags().contains("ns_fight_dummy") && e instanceof net.minecraft.world.entity.LivingEntity l) {
+                    dummy = l;
+                }
+            }
+            if (dummy == null) {
+                fails.add("no training dummy");
+                return;
+            }
+            com.mki.nightsiege.core.SiegeConfig cfg = manager.config();
+            String sub = manager.skillTree().subclassOf(own);
+            savedWon[0] = manager.save().siegesWon;
+            int[] levels = {1, 15};
+            double[] ratio = new double[2];
+            for (int i = 0; i < levels.length; i++) {
+                manager.save().siegesWon = levels[i] - 1;
+                player.setHealth(2f);
+                float before = dummy.getHealth();
+                dummy.invulnerableTime = 0;
+                dummy.hurtServer(level, level.damageSources().playerAttack(player), 30f);
+                float dealt = before - dummy.getHealth();
+                float healed = player.getHealth() - 2f;
+                ratio[i] = dealt > 0 ? healed / dealt : 0;
+                System.out.println(String.format(java.util.Locale.ROOT,
+                        "[Night Siege test] fight lifesteal level %d (now %d) sub=%s dealt %.2f healed %.2f share %.3f expect %.3f",
+                        levels[i], manager.currentLevel(), sub, dealt, healed, ratio[i],
+                        cfg.hitLifesteal(sub) * cfg.hitLifestealLevelFactor(levels[i])));
+            }
+            if (!"axe".equals(sub)) {
+                fails.add("lifesteal test is no axe fighter: " + sub);
+            }
+            if (ratio[1] < 0.045 || ratio[1] > 0.075) {
+                fails.add(String.format(java.util.Locale.ROOT, "life steal on level 15 is %.3f of the hit, not 0.06", ratio[1]));
+            }
+            if (ratio[1] <= 0 || ratio[0] / ratio[1] < 2.2 || ratio[0] / ratio[1] > 2.8) {
+                fails.add(String.format(java.util.Locale.ROOT, "life steal level 1 / level 15 = %.2f, not 2.5",
+                        ratio[1] <= 0 ? 0 : ratio[0] / ratio[1]));
+            }
+            // Two small hits at once: the first heals the floor (1 life point), the second only its share.
+            float[] small = new float[2];
+            for (int i = 0; i < 2; i++) {
+                player.setHealth(2f);
+                dummy.invulnerableTime = 0;
+                dummy.hurtServer(level, level.damageSources().playerAttack(player), 2f);
+                small[i] = player.getHealth() - 2f;
+            }
+            System.out.println(String.format(java.util.Locale.ROOT,
+                    "[Night Siege test] fight lifesteal floor: first small hit healed %.2f, second %.2f (floor %.1f every %d ticks)",
+                    small[0], small[1], cfg.hitLifestealMinHeal, cfg.hitLifestealMinTicks));
+            if (Math.abs(small[0] - cfg.hitLifestealMinHeal) > 0.05) {
+                fails.add(String.format(java.util.Locale.ROOT, "the floor heal was %.2f, not %.1f", small[0], cfg.hitLifestealMinHeal));
+            }
+            if (small[1] >= cfg.hitLifestealMinHeal - 0.05 || small[1] <= 0f) {
+                fails.add(String.format(java.util.Locale.ROOT, "the second small hit healed %.2f (the floor must wait)", small[1]));
+            }
+            // The formula alone: what the config says for a hit of 10 on level 1 and 15.
+            double h1 = com.mki.nightsiege.game.CombatEffects.hitHeal(cfg, "axe", 10, 0, 1, false);
+            double h15 = com.mki.nightsiege.game.CombatEffects.hitHeal(cfg, "axe", 10, 4, 15, false);
+            System.out.println(String.format(java.util.Locale.ROOT, "[Night Siege test] fight lifesteal formula: hit 10 on level 1 heals %.2f,"
+                    + " on level 15 with 4 cleaved %.2f", h1, h15));
+            if (Math.abs(h1 - 1.5) > 1e-6 || Math.abs(h15 - (0.6 + 4 * 0.06 * 0.5)) > 1e-6) {
+                fails.add("life steal formula " + h1 + " / " + h15);
+            }
+            manager.save().siegesWon = savedWon[0];
+            own.levels.clear();
+            player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND, net.minecraft.world.item.ItemStack.EMPTY);
+            player.setHealth(player.getMaxHealth());
+        });
+        context.waitTicks(10);
+        game.getServer().runCommand("kill @e[tag=ns_fight]");
+
+        // 2. A dungeon champion's blow and arrow take the share on top; a plain husk does not.
+        game.getServer().runCommand(("summon minecraft:husk %d %d %d {NoAI:1b,PersistenceRequired:1b,Silent:1b,Tags:[\"ns_fight\",\"ns_fight_champion\",\"nightsiege_warden\"]}")
+                .formatted(cx, cy, cz + 2));
+        game.getServer().runCommand(("summon minecraft:husk %d %d %d {NoAI:1b,PersistenceRequired:1b,Silent:1b,Tags:[\"ns_fight\",\"ns_fight_plain\"]}")
+                .formatted(cx + 3, cy, cz + 2));
+        game.getServer().runCommand("tp @p %d.5 %d %d.5 facing %d.5 %d %d.5".formatted(cx, cy, cz, cx, cy + 1, cz + 2));
+        game.getServer().runCommand("gamemode survival @p");
+        context.waitTicks(20);
+        float[] share = new float[1];
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            net.minecraft.world.entity.Mob champion = null;
+            net.minecraft.world.entity.Mob plain = null;
+            for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                if (e instanceof net.minecraft.world.entity.Mob mob && e.entityTags().contains("ns_fight_champion")) {
+                    champion = mob;
+                } else if (e instanceof net.minecraft.world.entity.Mob mob && e.entityTags().contains("ns_fight_plain")) {
+                    plain = mob;
+                }
+            }
+            if (champion == null || plain == null) {
+                fails.add("champion or plain husk missing");
+                return;
+            }
+            com.mki.nightsiege.core.SiegeConfig cfg = manager.config();
+            float max = player.getMaxHealth();
+            share[0] = (float) (max * cfg.championPercent(manager.currentLevel()) * manager.damageTakenFactor(player));
+            float[] took = new float[4];
+            net.minecraft.world.entity.Mob[] by = {plain, champion};
+            for (int i = 0; i < 2; i++) {
+                player.setHealth(max);
+                player.invulnerableTime = 0;
+                by[i].doHurtTarget(level, player);
+                took[i] = max - player.getHealth();
+            }
+            for (int i = 0; i < 2; i++) {
+                player.setHealth(max);
+                player.invulnerableTime = 0;
+                net.minecraft.world.entity.projectile.arrow.Arrow arrow = new net.minecraft.world.entity.projectile.arrow.Arrow(level, by[i],
+                        new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.ARROW), new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.BOW));
+                player.hurtServer(level, level.damageSources().arrow(arrow, by[i]), 2f);
+                took[2 + i] = max - player.getHealth();
+                arrow.discard();
+            }
+            System.out.println(String.format(java.util.Locale.ROOT,
+                    "[Night Siege test] fight champion level %d share %.2f (%.0f %%): blow plain %.2f champion %.2f, arrow plain %.2f champion %.2f",
+                    manager.currentLevel(), share[0], cfg.championPercent(manager.currentLevel()) * 100, took[0], took[1], took[2], took[3]));
+            if (took[1] - took[0] < share[0] * 0.9f) {
+                fails.add(String.format(java.util.Locale.ROOT, "the champion's blow took %.2f, a plain one %.2f (share %.2f)", took[1], took[0], share[0]));
+            }
+            if (took[3] - took[2] < share[0] * 0.9f) {
+                fails.add(String.format(java.util.Locale.ROOT, "the champion's arrow took %.2f, a plain one %.2f (share %.2f)", took[3], took[2], share[0]));
+            }
+            player.setHealth(max);
+            player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.OFFHAND, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.SHIELD));
+            player.startUsingItem(net.minecraft.world.InteractionHand.OFF_HAND);
+        });
+        context.waitTicks(12);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            net.minecraft.world.entity.Mob champion = null;
+            for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                if (e instanceof net.minecraft.world.entity.Mob mob && e.entityTags().contains("ns_fight_champion")) {
+                    champion = mob;
+                }
+            }
+            float max = player.getMaxHealth();
+            player.setHealth(max);
+            player.invulnerableTime = 0;
+            boolean blocking = player.isBlocking();
+            if (champion != null) {
+                champion.doHurtTarget(level, player);
+            }
+            float took = max - player.getHealth();
+            System.out.println(String.format(java.util.Locale.ROOT, "[Night Siege test] fight champion on a shield: blocking=%s took %.2f (half share %.2f)",
+                    blocking, took, share[0] * manager.config().championPercentShield));
+            if (blocking && Math.abs(took - share[0] * manager.config().championPercentShield) > 0.15f + share[0] * 0.1f) {
+                fails.add(String.format(java.util.Locale.ROOT, "on a shield the champion took %.2f, not half the share %.2f", took,
+                        share[0] * manager.config().championPercentShield));
+            }
+            player.stopUsingItem();
+            player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.OFFHAND, net.minecraft.world.item.ItemStack.EMPTY);
+            player.setHealth(max);
+        });
+        context.waitTicks(5);
+        game.getServer().runCommand("gamemode creative @p");
+        game.getServer().runCommand("kill @e[tag=ns_fight]");
+
+        // 3. Kit items: not into a chest (click, shift-click, number key), not into a vase, not into a bundle,
+        //    free inside the own inventory, gone when dropped; left-overs go when the kit ends.
+        BlockPos chestPos = new BlockPos(cx + 2, cy, cz + 3);
+        BlockPos potPos = new BlockPos(cx - 2, cy, cz + 3);
+        game.getServer().runCommand("setblock %d %d %d minecraft:chest".formatted(chestPos.getX(), chestPos.getY(), chestPos.getZ()));
+        game.getServer().runCommand("setblock %d %d %d minecraft:decorated_pot".formatted(potPos.getX(), potPos.getY(), potPos.getZ()));
+        context.waitTicks(10);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            net.minecraft.world.entity.player.Inventory inv = player.getInventory();
+            inv.clearContent();
+            net.minecraft.world.item.ItemStack kit = com.mki.nightsiege.game.KitService.mark(
+                    new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.BREAD, 3));
+            inv.setItem(0, kit.copy());
+            inv.setSelectedSlot(0);
+            if (!(level.getBlockEntity(chestPos) instanceof net.minecraft.world.level.block.entity.ChestBlockEntity chest)) {
+                fails.add("no chest for the kit test");
+                return;
+            }
+            player.openMenu(chest);
+            net.minecraft.world.inventory.AbstractContainerMenu menu = player.containerMenu;
+            int hot0 = menuSlotOf(menu, inv, 0);
+            menu.clicked(hot0, 0, net.minecraft.world.inventory.ContainerInput.QUICK_MOVE, player);
+            int afterShift = kitCount(chest);
+            menu.clicked(hot0, 0, net.minecraft.world.inventory.ContainerInput.PICKUP, player);
+            menu.clicked(0, 0, net.minecraft.world.inventory.ContainerInput.PICKUP, player);
+            int afterPlace = kitCount(chest);
+            menu.clicked(hot0, 0, net.minecraft.world.inventory.ContainerInput.PICKUP, player);
+            menu.clicked(1, 0, net.minecraft.world.inventory.ContainerInput.SWAP, player);
+            int afterSwap = kitCount(chest);
+            player.closeContainer();
+            boolean back = com.mki.nightsiege.game.KitService.isKit(inv.getItem(0)) && inv.getItem(0).getCount() == 3;
+            System.out.println("[Night Siege test] fight kit chest: menu slot " + hot0 + " shift=" + afterShift + " place=" + afterPlace
+                    + " swap=" + afterSwap + " kept=" + back);
+            if (hot0 < 0 || afterShift + afterPlace + afterSwap > 0 || !back) {
+                fails.add("a kit item went into the chest (shift " + afterShift + ", place " + afterPlace + ", swap " + afterSwap + ", kept " + back + ")");
+            }
+            // The vase: a right-click with the kit bread in hand.
+            net.minecraft.world.phys.BlockHitResult hit = new net.minecraft.world.phys.BlockHitResult(
+                    net.minecraft.world.phys.Vec3.atCenterOf(potPos), net.minecraft.core.Direction.UP, potPos, false);
+            net.minecraft.world.InteractionResult used = player.gameMode.useItemOn(player, level, player.getMainHandItem(),
+                    net.minecraft.world.InteractionHand.MAIN_HAND, hit);
+            int inPot = level.getBlockEntity(potPos) instanceof net.minecraft.world.Container pot ? kitCount(pot) : -1;
+            System.out.println("[Night Siege test] fight kit vase: " + used + " in the vase " + inPot + " in hand " + player.getMainHandItem().getCount());
+            if (inPot != 0) {
+                fails.add("the vase took the kit item (" + inPot + ")");
+            }
+            // A bundle takes no kit item; inside the own inventory the kit item moves freely.
+            inv.clearContent();
+            inv.setItem(9, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.BUNDLE));
+            inv.setItem(10, kit.copy());
+            net.minecraft.world.inventory.AbstractContainerMenu own = player.inventoryMenu;
+            int s9 = menuSlotOf(own, inv, 9);
+            int s10 = menuSlotOf(own, inv, 10);
+            int s20 = menuSlotOf(own, inv, 20);
+            own.clicked(s10, 0, net.minecraft.world.inventory.ContainerInput.PICKUP, player);
+            own.clicked(s9, 0, net.minecraft.world.inventory.ContainerInput.PICKUP, player);
+            own.clicked(s20, 0, net.minecraft.world.inventory.ContainerInput.PICKUP, player);
+            if (!own.getCarried().isEmpty()) {
+                inv.placeItemBackInInventory(own.getCarried());
+                own.setCarried(net.minecraft.world.item.ItemStack.EMPTY);
+            }
+            int kitLeft = kitCount(inv);
+            boolean moved = com.mki.nightsiege.game.KitService.isKit(inv.getItem(9));
+            System.out.println("[Night Siege test] fight kit bundle: kit items " + kitLeft + "/3, moved to slot 9=" + moved
+                    + " bundle at 20=" + inv.getItem(20).is(net.minecraft.world.item.Items.BUNDLE));
+            if (kitLeft != 3) {
+                fails.add("the bundle took kit items (" + kitLeft + "/3 left)");
+            }
+            if (!moved) {
+                fails.add("the kit item did not move inside the own inventory");
+            }
+            // Dropped: gone.
+            inv.clearContent();
+            net.minecraft.world.entity.item.ItemEntity drop = player.drop(kit.copy(), false, true);
+            System.out.println("[Night Siege test] fight kit drop: entity=" + (drop != null));
+            if (drop != null) {
+                fails.add("a dropped kit item lies on the ground");
+            }
+            // Left-overs: a kit item in the chest and in an item frame go when the kit ends.
+            chest.setItem(4, kit.copy());
+            net.minecraft.world.entity.decoration.ItemFrame frame = new net.minecraft.world.entity.decoration.ItemFrame(level,
+                    new BlockPos(cx - 3, cy, cz - 3), net.minecraft.core.Direction.UP);
+            level.addFreshEntity(frame);
+            frame.setItem(kit.copy());
+            boolean frameRefused = com.mki.nightsiege.game.KitGuard.refusesEntity(player, net.minecraft.world.InteractionHand.MAIN_HAND, frame);
+            inv.setItem(0, kit.copy());
+            boolean frameRefusedWithKit = com.mki.nightsiege.game.KitGuard.refusesEntity(player, net.minecraft.world.InteractionHand.MAIN_HAND, frame);
+            inv.clearContent();
+            int removed = com.mki.nightsiege.game.KitGuard.sweepAround(player);
+            System.out.println("[Night Siege test] fight kit sweep: removed " + removed + " chest " + kitCount(chest) + " frame "
+                    + frame.getItem().getCount() + " frame refuses empty hand=" + frameRefused + " kit hand=" + frameRefusedWithKit);
+            if (kitCount(chest) != 0 || !frame.getItem().isEmpty()) {
+                fails.add("the sweep left kit items (chest " + kitCount(chest) + ", frame " + frame.getItem().getCount() + ")");
+            }
+            if (frameRefused || !frameRefusedWithKit) {
+                fails.add("item frame guard empty=" + frameRefused + " kit=" + frameRefusedWithKit);
+            }
+            frame.discard();
+        });
+        context.waitTicks(10);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            int lying = 0;
+            for (net.minecraft.world.entity.item.ItemEntity e : level.getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class,
+                    player.getBoundingBox().inflate(12.0))) {
+                if (com.mki.nightsiege.game.KitService.isKit(e.getItem())) {
+                    lying++;
+                }
+            }
+            System.out.println("[Night Siege test] fight kit items on the ground: " + lying);
+            if (lying > 0) {
+                fails.add(lying + " kit items lie on the ground");
+            }
+        });
+        context.waitTicks(5);
+        game.getServer().runCommand("setblock %d %d %d minecraft:air".formatted(chestPos.getX(), chestPos.getY(), chestPos.getZ()));
+        game.getServer().runCommand("setblock %d %d %d minecraft:air".formatted(potPos.getX(), potPos.getY(), potPos.getZ()));
+        game.getServer().runCommand("clear @p");
+        game.getServer().runCommand("tp @p %d.5 %d %d.5".formatted(pos.getX(), pos.getY(), pos.getZ()));
+        context.waitTicks(20);
+        System.out.println("[Night Siege test] fight scene: " + (fails.isEmpty() ? "ok" : String.join("; ", fails)));
+        if (!fails.isEmpty()) {
+            throw new AssertionError("fight scene: " + String.join("; ", fails));
+        }
     }
 
     /**
@@ -2013,6 +2365,165 @@ public class EventLookTest implements FabricClientGameTest {
         return sum;
     }
 
+    /**
+     * Every block of the eight dungeons, built side by side with four halls each, written to
+     * {@code nightsiege-dungeon-dump.txt.gz} in the game folder (Simon 29.10.: blocked doors and
+     * stairs, blocks in the air): per block the state, whether it can stand where it stands, and
+     * per state its collision boxes; plus the plan's spots and boxes. Checked outside the game.
+     */
+    private static void dungeonDumpScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        game.getServer().runCommand("gamemode creative @p");
+        com.mki.nightsiege.core.ExpeditionKind[] kinds = com.mki.nightsiege.core.ExpeditionKind.values();
+        int bx = pos.getX() - 300;
+        int bz = pos.getZ() + 260;
+        int top = -6;
+        int rooms = 4;
+        int cz = 20 + 43 * rooms + 38;
+        Path file = FabricLoader.getInstance().getGameDir().resolve("nightsiege-dungeon-dump.txt.gz");
+        final java.io.Writer[] out = new java.io.Writer[1];
+        try {
+            out[0] = new java.io.BufferedWriter(new java.io.OutputStreamWriter(
+                    new java.util.zip.GZIPOutputStream(Files.newOutputStream(file)), java.nio.charset.StandardCharsets.UTF_8));
+        } catch (java.io.IOException e) {
+            System.out.println("[Night Siege test] dungeon dump not opened: " + e);
+            return;
+        }
+        for (int i = 0; i < kinds.length; i++) {
+            final int index = i;
+            final int cx = bx + i * 72;
+            game.getServer().runCommand("forceload add %d %d %d %d".formatted(cx - 36, bz - 14, cx + 36, bz + cz + 34));
+            game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:stone".formatted(cx - 8, -60, bz - 10, cx + 8, top - 2, bz + 7));
+            game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:grass_block".formatted(cx - 8, top - 1, bz - 10, cx + 8, top - 1, bz + 7));
+            context.waitTicks(20);
+            onServer(context, (player, manager) -> {
+                net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                BlockPos origin = new BlockPos(cx, top, bz);
+                manager.expeditions().testBuild(level, origin, 0, kinds[index], rooms);
+                com.mki.nightsiege.game.ExpeditionLayout.Plan plan = manager.expeditions().testPlan();
+                try {
+                    int n = dumpDungeon(level, plan, origin, kinds[index].id(), rooms, out[0]);
+                    System.out.println("[Night Siege test] dungeon dump " + kinds[index].id() + ": " + n + " blocks");
+                } catch (java.io.IOException | RuntimeException e) {
+                    System.out.println("[Night Siege test] dungeon dump " + kinds[index].id() + " failed: " + e);
+                }
+            });
+            context.waitTicks(20);
+            game.getServer().runCommand("forceload remove all");
+        }
+        onServer(context, (player, manager) -> {
+            try {
+                out[0].close();
+                System.out.println("[Night Siege test] dungeon dump written: " + file + " " + Files.size(file));
+            } catch (java.io.IOException e) {
+                System.out.println("[Night Siege test] dungeon dump not closed: " + e);
+            }
+        });
+        context.waitTicks(10);
+    }
+
+    private static void dumpSpot(java.io.Writer out, String name, BlockPos p, BlockPos o) throws java.io.IOException {
+        out.write("M " + name + " " + (p.getX() - o.getX()) + " " + (p.getY() - o.getY()) + " " + (p.getZ() - o.getZ()) + "\n");
+    }
+
+    private static void dumpBox(java.io.Writer out, String name, net.minecraft.world.phys.AABB b, BlockPos o) throws java.io.IOException {
+        out.write("B " + name + " " + (int) Math.floor(b.minX - o.getX()) + " " + (int) Math.floor(b.minY - o.getY()) + " "
+                + (int) Math.floor(b.minZ - o.getZ()) + " " + (int) Math.ceil(b.maxX - o.getX()) + " "
+                + (int) Math.ceil(b.maxY - o.getY()) + " " + (int) Math.ceil(b.maxZ - o.getZ()) + "\n");
+    }
+
+    private static int dumpDungeon(net.minecraft.server.level.ServerLevel level, com.mki.nightsiege.game.ExpeditionLayout.Plan plan,
+                                   BlockPos o, String id, int rooms, java.io.Writer out) throws java.io.IOException {
+        out.write("D " + id + " " + rooms + " " + o.getX() + " " + o.getY() + " " + o.getZ() + "\n");
+        dumpSpot(out, "door", plan.door, o);
+        dumpSpot(out, "seal", plan.seal, o);
+        dumpSpot(out, "fire", plan.fire, o);
+        dumpSpot(out, "arenaCenter", plan.arenaCenter, o);
+        for (BlockPos p : plan.stairGate) {
+            dumpSpot(out, "stairGate", p, o);
+        }
+        for (BlockPos p : plan.arenaGate) {
+            dumpSpot(out, "arenaGate", p, o);
+        }
+        for (BlockPos p : plan.frontGate) {
+            dumpSpot(out, "frontGate", p, o);
+        }
+        for (BlockPos p : plan.waveGates) {
+            dumpSpot(out, "waveGate", p, o);
+        }
+        for (BlockPos p : plan.waveSpots) {
+            dumpSpot(out, "waveSpot", p, o);
+        }
+        for (BlockPos p : plan.waiting) {
+            dumpSpot(out, "waiting", p, o);
+        }
+        for (BlockPos p : plan.walkways) {
+            dumpSpot(out, "walk", p, o);
+        }
+        for (int i = 0; i < plan.roomGates.size(); i++) {
+            for (BlockPos p : plan.roomGates.get(i)) {
+                dumpSpot(out, "roomGate" + i, p, o);
+            }
+            for (BlockPos p : plan.roomSpots.get(i)) {
+                dumpSpot(out, "roomSpot" + i, p, o);
+            }
+            dumpSpot(out, "roomCenter" + i, plan.roomCenters.get(i), o);
+            dumpBox(out, "hall" + i, plan.roomHalls.get(i), o);
+            dumpBox(out, "zone" + i, plan.roomZones.get(i), o);
+            out.write("H " + i + " " + plan.roomModules.get(i) + "\n");
+        }
+        for (net.minecraft.world.phys.AABB b : plan.inside) {
+            dumpBox(out, "inside", b, o);
+        }
+        dumpBox(out, "arena", plan.arena, o);
+        dumpBox(out, "bounds", plan.bounds, o);
+        java.util.Map<net.minecraft.world.level.block.state.BlockState, Integer> pal = new java.util.LinkedHashMap<>();
+        net.minecraft.world.phys.AABB b = plan.bounds.inflate(2);
+        int n = 0;
+        BlockPos.MutableBlockPos at = new BlockPos.MutableBlockPos();
+        StringBuilder sb = new StringBuilder();
+        for (int x = (int) b.minX; x < (int) b.maxX; x++) {
+            for (int y = (int) b.minY; y < (int) b.maxY; y++) {
+                for (int z = (int) b.minZ; z < (int) b.maxZ; z++) {
+                    at.set(x, y, z);
+                    net.minecraft.world.level.block.state.BlockState st = level.getBlockState(at);
+                    if (st.isAir()) {
+                        continue;
+                    }
+                    Integer idx = pal.get(st);
+                    if (idx == null) {
+                        idx = pal.size();
+                        pal.put(st, idx);
+                    }
+                    sb.setLength(0);
+                    sb.append(x - o.getX()).append(' ').append(y - o.getY()).append(' ').append(z - o.getZ()).append(' ').append(idx);
+                    if (!st.canSurvive(level, at)) {
+                        sb.append(" s");
+                    }
+                    sb.append('\n');
+                    out.write(sb.toString());
+                    n++;
+                }
+            }
+        }
+        for (java.util.Map.Entry<net.minecraft.world.level.block.state.BlockState, Integer> e : pal.entrySet()) {
+            net.minecraft.world.level.block.state.BlockState st = e.getKey();
+            sb.setLength(0);
+            sb.append("P ").append(e.getValue()).append(' ').append(st.toString().replace(' ', '_')).append(" |");
+            for (net.minecraft.world.phys.AABB box : st.getCollisionShape(net.minecraft.world.level.EmptyBlockGetter.INSTANCE,
+                    BlockPos.ZERO).toAabbs()) {
+                sb.append(String.format(Locale.ROOT, " %.3f,%.3f,%.3f,%.3f,%.3f,%.3f", box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ));
+            }
+            if (!st.getFluidState().isEmpty()) {
+                sb.append(" fluid");
+            }
+            sb.append('\n');
+            out.write(sb.toString());
+        }
+        out.flush();
+        return n;
+    }
+
     /** Block light where one walks in the dungeon of now (palette rule 7: at least 7 on the ways). */
     private static void lightCheck(net.minecraft.server.level.ServerLevel level, com.mki.nightsiege.game.SiegeManager manager, String id) {
         com.mki.nightsiege.game.ExpeditionLayout.Plan plan = manager.expeditions().testPlan();
@@ -2261,8 +2772,12 @@ public class EventLookTest implements FabricClientGameTest {
             int ox = fx + offsets[room];
             game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %d.5 %d %d.5 facing %d.5 %d %d.5",
                     ox, fy - 20, z0 + 2, ox, fy - 19, z0 + 14));
-            context.waitTicks(30);
+            // The first hall: its gate goes up once everyone stands before it (29.10.), then its guards come.
+            context.waitTicks(room == 0 ? 90 : 30);
             if (room == 0) {
+                onServer(context, (player, manager) -> System.out.println("[Night Siege test] dungeon front gate: "
+                        + player.level().getBlockState(manager.expeditions().testPlan().frontGate.get(0)).getBlock()
+                        + " | " + manager.expeditions().testState()));
                 context.takeScreenshot("dungeon_fight_room");
             }
             onServer(context, (player, manager) -> {
@@ -2994,6 +3509,87 @@ public class EventLookTest implements FabricClientGameTest {
      * from the front and the back, by day and by night; then a test night with a warden at
      * its end, who must fall for the night to be won.
      */
+    /**
+     * The dungeon guards (Simon, 29 October 2026, 22:06: "Wachen, die auf den Wächtern basieren"):
+     * for every dungeon its warden and one guard of every kind of its monsters, in a row at night
+     * with night vision, then without it.
+     */
+    private static void guardScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        int cx = pos.getX() + 160;
+        int cz = pos.getZ() - 160;
+        game.getServer().runCommand("forceload add %d %d %d %d".formatted(cx - 48, cz - 48, cx + 48, cz + 48));
+        context.waitTicks(40);
+        final int[] ground = new int[1];
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            level.getChunk(cx >> 4, cz >> 4);
+            ground[0] = level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, cx, cz);
+        });
+        context.waitTicks(10);
+        int cy = ground[0];
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:grass_block".formatted(cx - 20, cy - 1, cz - 12, cx + 20, cy - 1, cz + 12));
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(cx - 20, cy, cz - 12, cx + 20, cy + 10, cz + 12));
+        game.getServer().runCommand("time set 18000");
+        game.getServer().runCommand("weather clear");
+        game.getServer().runCommand("gamemode creative @p");
+        game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %d.5 %d %.1f facing %d.5 %.1f %.1f",
+                cx, cy, cz + 7.5, cx, cy + 1.3, cz - 3.5));
+        game.getServer().runCommand("effect give @p minecraft:night_vision 600 0 true");
+        context.runOnClient(client -> hud(client, false));
+        for (com.mki.nightsiege.core.ExpeditionKind kind : com.mki.nightsiege.core.ExpeditionKind.values()) {
+            game.getServer().runCommand("kill @e[type=!player,x=%d,y=%d,z=%d,distance=..30]".formatted(cx, cy, cz));
+            context.waitTicks(5);
+            onServer(context, (player, manager) -> {
+                net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                java.util.List<String> ids = new java.util.ArrayList<>();
+                ids.add(kind.champion());
+                for (String id : kind.mobs()) {
+                    if (!ids.contains(id)) {
+                        ids.add(id);
+                    }
+                }
+                StringBuilder sb = new StringBuilder();
+                for (int k = 0; k < ids.size(); k++) {
+                    double x = cx + 0.5 + (k - (ids.size() - 1) / 2.0) * 2.4;
+                    BlockPos spot = new BlockPos((int) Math.floor(x), cy, cz - 4);
+                    net.minecraft.world.entity.Mob mob = com.mki.nightsiege.game.MobFactory.spawnAt(level, spot, ids.get(k), 8,
+                            manager.config(), new java.util.Random(k), com.mki.nightsiege.core.SiegeEvent.NONE, false);
+                    if (mob == null) {
+                        sb.append(' ').append(ids.get(k)).append("=none");
+                        continue;
+                    }
+                    if (k == 0) {
+                        com.mki.nightsiege.game.WardenNight.dress(mob, kind, 60.0);
+                    } else if (!com.mki.nightsiege.game.Foes.isRole(ids.get(k))) {
+                        com.mki.nightsiege.game.BossService.foeLook(mob, "guard_" + kind.id());
+                    }
+                    mob.setNoAi(true);
+                    mob.setInvulnerable(true);
+                    mob.removeTag(com.mki.nightsiege.game.MobFactory.TAG);
+                    mob.addTag("nightsiege_test_guard");
+                    mob.teleportTo(x, cy, cz - 3.5);
+                    mob.setYRot(0f);
+                    mob.setYHeadRot(0f);
+                    mob.yBodyRot = 0f;
+                    sb.append(' ').append(mob.getType().toShortString()).append('=')
+                            .append(com.mki.nightsiege.game.BossService.foeLookOf(mob.getId()));
+                }
+                System.out.println("[Night Siege test] guards " + kind.id() + ":" + sb);
+            });
+            context.waitTicks(40);
+            context.takeScreenshot("guards_" + kind.id());
+        }
+        game.getServer().runCommand("effect clear @p minecraft:night_vision");
+        context.waitTicks(20);
+        context.takeScreenshot("guards_basalt_forge_dark");
+        context.runOnClient(client -> hud(client, true));
+        game.getServer().runCommand("kill @e[type=!player,x=%d,y=%d,z=%d,distance=..30]".formatted(cx, cy, cz));
+        game.getServer().runCommand("forceload remove all");
+        game.getServer().runCommand("time set 6000");
+        context.waitTicks(10);
+    }
+
     private static void wardenScene(ClientGameTestContext context, TestSingleplayerContext game) {
         BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
         int cx = pos.getX() - 160;
@@ -3566,8 +4162,8 @@ public class EventLookTest implements FabricClientGameTest {
             own.chosenClass = com.mki.nightsiege.core.SkillClass.SUMMONER.name();
             own.unlockClass(com.mki.nightsiege.core.SkillClass.SUMMONER);
             own.award(600);
-            for (String id : new String[]{"s_soulbond", "s_command", "s_packcall", "s_tamer", "s_tamer", "s_alpha", "s_howl",
-                    "s_packleader", "s_wildness", "s_wild_hunt"}) {
+            for (String id : subclassFirst("s_soulbond", "s_command", "s_packcall", "s_tamer", "s_tamer", "s_alpha", "s_howl",
+                    "s_packleader", "s_wildness", "s_wild_hunt")) {
                 manager.onBuySkill(player, id);
             }
             System.out.println("[Night Siege test] summoner class=" + own.chosenClass + " tamer=" + own.levelOf("s_tamer")
@@ -3736,8 +4332,8 @@ public class EventLookTest implements FabricClientGameTest {
             own.chosenClass = com.mki.nightsiege.core.SkillClass.SUMMONER.name();
             own.unlockClass(com.mki.nightsiege.core.SkillClass.SUMMONER);
             own.award(800);
-            for (String id : new String[]{"s_soulbond", "d_raise", "d_soulcatcher", "d_soulcatcher", "d_swarm", "d_shards",
-                    "d_soulburn", "d_unholy", "d_army"}) {
+            for (String id : subclassFirst("s_soulbond", "d_raise", "d_soulcatcher", "d_soulcatcher", "d_swarm", "d_shards",
+                    "d_soulburn", "d_unholy", "d_army")) {
                 manager.onBuySkill(player, id);
             }
             for (String gain : new String[]{"knochenstaub", "grabkerzen", "grabruestung", "totenglocke", "seelengefaess"}) {
@@ -3937,8 +4533,8 @@ public class EventLookTest implements FabricClientGameTest {
             own.chosenClass = com.mki.nightsiege.core.SkillClass.SUMMONER.name();
             own.unlockClass(com.mki.nightsiege.core.SkillClass.SUMMONER);
             own.award(900);
-            for (String id : new String[]{"s_soulbond", "d_raise", "d_soulcatcher", "d_soulcatcher", "d_haste", "d_shards",
-                    "d_soulcatcher", "d_host"}) {
+            for (String id : subclassFirst("s_soulbond", "d_raise", "d_soulcatcher", "d_soulcatcher", "d_haste", "d_shards",
+                    "d_soulcatcher", "d_host")) {
                 manager.onBuySkill(player, id);
             }
             com.mki.nightsiege.core.SkillTree tree = manager.skillTree();
@@ -4048,7 +4644,7 @@ public class EventLookTest implements FabricClientGameTest {
             own.chosenClass = com.mki.nightsiege.core.SkillClass.SUMMONER.name();
             own.unlockClass(com.mki.nightsiege.core.SkillClass.SUMMONER);
             own.award(400);
-            for (String id : new String[]{"s_soulbond", "d_raise", "d_necro", "d_necro"}) {
+            for (String id : subclassFirst("s_soulbond", "d_raise", "d_necro", "d_necro")) {
                 manager.onBuySkill(player, id);
             }
             c.soulsForTest(player, 6);
@@ -4123,6 +4719,30 @@ public class EventLookTest implements FabricClientGameTest {
         game.getServer().runCommand("effect clear @p");
         game.getServer().runCommand("time set 6000");
         context.waitTicks(10);
+    }
+
+    /** A core on flat ground near the player, when none is known yet (the scenes that need one, run alone). */
+    private static void ensureCore(ClientGameTestContext context, TestSingleplayerContext game) {
+        boolean none = context.computeOnClient(client -> com.mki.nightsiege.game.SiegeManager.get().save().cores.isEmpty());
+        if (!none) {
+            return;
+        }
+        BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        int cx = pos.getX() + 40;
+        int cz = pos.getZ() + 40;
+        int cy = yard(context, game, cx, cz, 16, 10);
+        net.minecraft.core.BlockPos core = new net.minecraft.core.BlockPos(cx, cy, cz);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            level.setBlock(core, com.mki.nightsiege.game.ModContent.SIEGE_CORE.defaultBlockState(), 3);
+            manager.onCorePlaced(level, core, player);
+            if (!manager.isRegistered(player)) {
+                manager.register(player);
+            }
+            System.out.println("[Night Siege test] ensureCore: placed at " + core + " cores=" + manager.save().cores.size());
+        });
+        context.waitTicks(10);
+        closeScreen(context);
     }
 
     /**
@@ -4423,11 +5043,11 @@ public class EventLookTest implements FabricClientGameTest {
         String[][] byClass = {
                 {"WARRIOR", "wurfbeile:3", "kampfhorn:1", "schlachtentrance:1", "wurfspeere:1", "kletterhaken:1",
                         "kriegsbanner:1", "sprungstiefel:1"},
-                {"ARCHER", "lichtpfeile:1", "kletterpfeile:1", "sturmpfeile:1", "tarnumhang:1", "koecher:1",
+                {"ARCHER", "lichtpfeile:1", "kletterpfeile:1", "sturmpfeile:1", "tarnumhang:1",
                         "zielfernrohr:1", "lenkpfeile:1", "lockpfeil:1", "spektralpfeile:1"},
                 {"GUARDIAN", "barrikaden:1", "signalhorn:1", "mauerkelle:1", "leibwaechter:1", "turmschild:1",
                         "leichtschild:1", "schildlaterne:1", "spiegelschild:1"},
-                {"ENGINEER", "blendgranaten:3", "ersatzbatterie:1", "oelfass:1", "kupfergolem:1", "magnetfeld:1",
+                {"ENGINEER", "ersatzbatterie:1", "oelfass:1", "kupfergolem:1", "magnetfeld:1",
                         "werkzeugtasche:1", "zweite_ladung:1", "stahlturm:1", "recycling:1", "tarnfallen:1"}};
         for (String[] row : byClass) {
             com.mki.nightsiege.core.SkillClass c = com.mki.nightsiege.core.SkillClass.valueOf(row[0]);
@@ -4637,6 +5257,7 @@ public class EventLookTest implements FabricClientGameTest {
     }
 
     private static void versionB2Scene(ClientGameTestContext context, TestSingleplayerContext game) {
+        java.util.List<String> b2Fails = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
         int[] core = context.computeOnClient(client -> {
             com.mki.nightsiege.game.CoreRecord c = com.mki.nightsiege.game.SiegeManager.get().save().cores.get(0);
             return new int[]{c.x, c.y, c.z};
@@ -4695,9 +5316,19 @@ public class EventLookTest implements FabricClientGameTest {
             boolean barricade = com.mki.nightsiege.game.GainGear.testPlace(player, "barrikade",
                     new net.minecraft.core.BlockPos(px + 3, py - 1, pz));
             com.mki.nightsiege.game.SecondUlts.fire(player);
-            boolean horn = com.mki.nightsiege.game.GainGear.testUse(player, "kampfhorn");
+            // The horn is on a gain key now (balance update 2), not in the kit.
+            var own = manager.save().skillsOf(player.getUUID().toString());
+            java.util.List<String> keys = com.mki.nightsiege.game.GainKeys.assigned(manager, own, own.clazz());
+            manager.onCoreAction(player, "gain:" + keys.indexOf("kampfhorn"));
+            long horn = com.mki.nightsiege.game.GainKeys.pauseLeft(player, "kampfhorn");
             System.out.println("[Night Siege test] B2 warrior: axe=" + axe + " banner=" + banner + " barricade=" + barricade
-                    + " horn=" + horn + " state=" + com.mki.nightsiege.game.GainGear.debugState());
+                    + " keys=" + keys + " hornPause=" + horn + " state=" + com.mki.nightsiege.game.GainGear.debugState());
+            if (!keys.contains("kampfhorn") || !keys.contains("kletterhaken") || horn <= 0) {
+                b2Fails.add("warrior gain keys " + keys + " horn pause " + horn);
+            }
+            if (kitHas(player, "kampfhorn") || kitHas(player, "kletterhaken")) {
+                b2Fails.add("the warrior's kit still holds the horn or the hook");
+            }
         });
         context.waitTicks(25);
         context.takeScreenshot("b2_warrior_gadgets");
@@ -4718,20 +5349,60 @@ public class EventLookTest implements FabricClientGameTest {
         // ---- archer: light, climbing and storm arrows, the quiver ----
         b2Night(context, core, "ARCHER");
         inventoryShot(context, "b2_kit_archer");
+        // The quiver (balance update 2, Simon 29.10.): no arrow stacks of their own, the kinds are shots
+        // in the quiver, picked on the bar; a normal arrow shot after the pick flies as that kind.
         onServer(context, (player, manager) -> {
-            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
-            String[] kinds = {"light", "climb", "storm"};
-            for (int i = 0; i < kinds.length; i++) {
-                net.minecraft.world.item.ItemStack ammo = com.mki.nightsiege.game.Gadgets.arrows(kinds[i], 0xFFFFFF, 1);
+            StringBuilder stacks = new StringBuilder();
+            for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+                net.minecraft.world.item.ItemStack st = player.getInventory().getItem(i);
+                if (!com.mki.nightsiege.game.Gadgets.arrowKind(st).isEmpty() || st.is(net.minecraft.world.item.Items.SPECTRAL_ARROW)) {
+                    stacks.append(st.getCount()).append('x').append(st.getHoverName().getString()).append(' ');
+                }
+            }
+            var q = com.mki.nightsiege.game.GainGear.quiverOf(player);
+            java.util.List<String> bar = new java.util.ArrayList<>();
+            for (var slot : manager.abilitySlots(player)) {
+                bar.add(slot.id.isEmpty() ? "normal" : slot.id);
+            }
+            System.out.println("[Night Siege test] B2 quiver: stacks=" + stacks + " shots=" + (q == null ? "-" : q.shots) + " bar=" + bar);
+            if (stacks.length() > 0) {
+                b2Fails.add("special arrow stacks in the kit: " + stacks);
+            }
+            if (q == null || q.shots.getOrDefault("light", 0) != 16 || q.shots.getOrDefault("spectral", 0) != 16
+                    || !bar.contains("light") || !bar.contains("storm")) {
+                b2Fails.add("quiver " + (q == null ? "-" : q.shots) + " bar " + bar);
+            }
+        });
+        String[] kinds = {"light", "climb", "storm"};
+        for (int i = 0; i < kinds.length; i++) {
+            final int k = i;
+            onServer(context, (player, manager) -> {
+                net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                manager.onCoreAction(player, "slot:" + manager.abilitySlotOf(player, kinds[k]));
                 net.minecraft.world.entity.projectile.arrow.Arrow arrow = new net.minecraft.world.entity.projectile.arrow.Arrow(
-                        level, player, ammo, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.BOW));
-                arrow.setPos(px + 1.5, py + 3.5, pz - 1.5 + i * 1.5);
+                        level, player, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.ARROW),
+                        new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.BOW));
+                arrow.setPos(px + 1.5, py + 3.5, pz - 1.5 + k * 1.5);
                 arrow.shoot(1, 0.0, 0, 2.5f, 0f);
                 level.addFreshEntity(arrow);
-                System.out.println("[Night Siege test] B2 arrow " + kinds[i] + ": " + com.mki.nightsiege.game.GainGear.debugArrow(arrow));
+                String info = com.mki.nightsiege.game.GainGear.debugArrow(arrow);
+                System.out.println("[Night Siege test] B2 arrow " + kinds[k] + ": " + info
+                        + " shots=" + com.mki.nightsiege.game.GainGear.quiverOf(player).shots);
+                if (!arrow.entityTags().contains("ns_arrow_" + kinds[k])) {
+                    b2Fails.add("a shot after picking " + kinds[k] + " flew as " + info);
+                }
+            });
+            context.waitTicks(3);
+        }
+        onServer(context, (player, manager) -> {
+            // Climbing arrows: 4 shots, one gone; a pick of the current kind again goes back to the normal arrows.
+            var q = com.mki.nightsiege.game.GainGear.quiverOf(player);
+            String before = q.current;
+            com.mki.nightsiege.game.GainGear.pickQuiver(player, before);
+            System.out.println("[Night Siege test] B2 quiver after: shots=" + q.shots + " current " + before + " -> '" + q.current + "'");
+            if (q.shots.getOrDefault("climb", 0) != 3 || !q.current.isEmpty()) {
+                b2Fails.add("quiver after the shots " + q.shots + " current '" + q.current + "'");
             }
-            com.mki.nightsiege.game.GainGear.cycleQuiver(player);
-            System.out.println("[Night Siege test] B2 quiver: offhand=" + player.getOffhandItem().getHoverName().getString());
         });
         context.waitTicks(30);
         onServer(context, (player, manager) -> {
@@ -4759,15 +5430,32 @@ public class EventLookTest implements FabricClientGameTest {
             player.setYRot(-90f);
             player.setXRot(20f);
             com.mki.nightsiege.game.SecondUlts.fire(player);
-            boolean oil = com.mki.nightsiege.game.GainGear.testUse(player, "oelfass");
-            boolean flash = com.mki.nightsiege.game.GainGear.testUse(player, "blendgranate");
+            var own = manager.save().skillsOf(player.getUUID().toString());
+            java.util.List<String> keys = com.mki.nightsiege.game.GainKeys.assigned(manager, own, own.clazz());
+            manager.onCoreAction(player, "gain:" + keys.indexOf("oelfass"));
+            boolean flash = com.mki.nightsiege.game.GainGear.testUse(player, "alchemie_blende");
+            net.minecraft.world.item.ItemStack grenade = net.minecraft.world.item.ItemStack.EMPTY;
+            for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+                if ("alchemie_blende".equals(com.mki.nightsiege.game.Gadgets.of(player.getInventory().getItem(i)))) {
+                    grenade = player.getInventory().getItem(i);
+                }
+            }
+            float flashCd = grenade.isEmpty() ? -1f : player.getCooldowns().getCooldownPercent(grenade, 0f);
             System.out.println("[Night Siege test] B2 engineer: golems=" + com.mki.nightsiege.game.CopperHelper.count()
-                    + " oil=" + oil + " flash=" + flash);
+                    + " keys=" + keys + " oil=" + com.mki.nightsiege.game.GainGear.debugState() + " flash=" + flash + " flashCd=" + flashCd);
+            if (!keys.contains("oelfass") || !keys.contains("ersatzbatterie") || !flash || kitHas(player, "oelfass")
+                    || kitHas(player, "blendgranate")) {
+                b2Fails.add("engineer keys " + keys + " flash " + flash);
+            }
         });
         context.waitTicks(30);
         context.takeScreenshot("b2_engineer");
         onServer(context, (player, manager) -> {
             System.out.println("[Night Siege test] B2 engineer later: " + com.mki.nightsiege.game.GainGear.debugState());
+            if (!com.mki.nightsiege.game.GainGear.debugState().contains("oil=1")) {
+                b2Fails.add("the oil barrel from its key made no puddle: " + com.mki.nightsiege.game.GainGear.debugState());
+            }
+            // The flash grenade is back after 7 s (Simon 29.10.): 100 ticks in, it is still down; at 140 it is up.
             manager.abort(((net.minecraft.server.level.ServerLevel) player.level()).getServer());
         });
         game.getServer().runCommand("kill @e[type=minecraft:zombie]");
@@ -4778,8 +5466,30 @@ public class EventLookTest implements FabricClientGameTest {
         inventoryShot(context, "b2_kit_guardian");
         onServer(context, (player, manager) -> {
             com.mki.nightsiege.game.SecondUlts.fire(player);
-            boolean signal = com.mki.nightsiege.game.GainGear.testUse(player, "signalhorn");
-            boolean trowel = com.mki.nightsiege.game.GainGear.testUse(player, "mauerkelle");
+            // Three gain abilities, two keys: the rarest first (chain, trowel); a click in the collection
+            // puts the signal horn on the first key; "Dritte Hand" brings the third key.
+            var own = manager.save().skillsOf(player.getUUID().toString());
+            java.util.List<String> first = com.mki.nightsiege.game.GainKeys.assigned(manager, own, own.clazz());
+            manager.onCoreAction(player, "gainkey:GUARDIAN:signalhorn");
+            java.util.List<String> chosen = com.mki.nightsiege.game.GainKeys.assigned(manager, own, own.clazz());
+            manager.onCoreAction(player, "gain:0");
+            boolean signal = player.hasEffect(net.minecraft.world.effect.MobEffects.GLOWING);
+            own.setGainStage(com.mki.nightsiege.core.SkillClass.GUARDIAN, "dritte_hand", 1);
+            java.util.List<String> three = com.mki.nightsiege.game.GainKeys.assigned(manager, own, own.clazz());
+            manager.onCoreAction(player, "gain:" + three.indexOf("mauerkelle"));
+            boolean trowel = com.mki.nightsiege.game.GainGear.usedTonight(player, "mauerkelle");
+            var hud = com.mki.nightsiege.game.GainKeys.slots(manager, player, player.level().getGameTime());
+            StringBuilder boxes = new StringBuilder();
+            for (var b : hud) {
+                boxes.append(b.id).append(b.current ? "(spent)" : "").append(b.cooldownTicks > 0 ? "(" + b.cooldownTicks + ")" : "").append(' ');
+            }
+            System.out.println("[Night Siege test] B2 guardian keys: first=" + first + " chosen=" + chosen + " three=" + three
+                    + " hud=" + boxes);
+            if (!first.equals(java.util.List.of("leibwaechter", "mauerkelle")) || !chosen.get(0).equals("signalhorn")
+                    || three.size() != 3 || !signal || !trowel) {
+                b2Fails.add("guardian keys first=" + first + " chosen=" + chosen + " three=" + three + " signal=" + signal
+                        + " trowel=" + trowel);
+            }
             net.minecraft.world.item.ItemStack shield = player.getOffhandItem();
             System.out.println("[Night Siege test] B2 guardian: mirror=" + com.mki.nightsiege.game.SecondUlts.mirrorUp(player)
                     + " signal=" + signal + " trowel=" + trowel
@@ -4794,6 +5504,19 @@ public class EventLookTest implements FabricClientGameTest {
                     + " golems=" + com.mki.nightsiege.game.CopperHelper.count());
         });
         context.waitTicks(10);
+        if (!b2Fails.isEmpty()) {
+            throw new AssertionError("B2 gadgets: " + String.join("; ", b2Fails));
+        }
+    }
+
+    /** True when the kit holds a gadget with this id. */
+    private static boolean kitHas(net.minecraft.server.level.ServerPlayer player, String gadget) {
+        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+            if (gadget.equals(com.mki.nightsiege.game.Gadgets.of(player.getInventory().getItem(i)))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -5887,6 +6610,22 @@ public class EventLookTest implements FabricClientGameTest {
         });
     }
 
+    /**
+     * A learning order written the old way (trunk, way, then the subclass) in the order of today's
+     * trees (Simon, 29 October 2026: the subclass node first, its level 1 free): the first step on a
+     * subclass node moves to the front, every later one stays where it was (its level 2 and up).
+     */
+    private static String[] subclassFirst(String... ids) {
+        java.util.List<String> out = new java.util.ArrayList<>(java.util.Arrays.asList(ids));
+        for (int i = 0; i < out.size(); i++) {
+            if (com.mki.nightsiege.core.SkillTree.isSubclassNode(out.get(i))) {
+                out.add(0, out.remove(i));
+                break;
+            }
+        }
+        return out.toArray(new String[0]);
+    }
+
     /** Picks a class and some nodes, then opens the window on that class's tab. */
     private static void openTree(ClientGameTestContext context, String clazz, String... nodes) {
         context.runOnClient(client -> {
@@ -5902,7 +6641,7 @@ public class EventLookTest implements FabricClientGameTest {
             manager.onCoreAction(player, "dev:reset");
             manager.onCoreAction(player, "class:" + clazz);
             manager.onCoreAction(player, "dev:600");
-            for (String id : nodes) {
+            for (String id : subclassFirst(nodes)) {
                 manager.onBuySkill(player, id);
             }
             manager.onCoreAction(player, "open");
@@ -5957,6 +6696,29 @@ public class EventLookTest implements FabricClientGameTest {
         zoomTo(context, "WARRIOR/berserker", 0.0, -5.0 * 50, 0.01);
         context.takeScreenshot("subtree_berserker_whole");
         zoomTo(context, "WARRIOR/berserker", 0.0, 0.0, 0.0);
+        // The subclass first (Simon, 29 October 2026): picked with the class at the armour stands, its node
+        // is the root of the tree with level 1 for free; the trunk opens at once, nothing was paid.
+        openTree(context, "ARCHER");
+        onServer(context, (player, manager) -> {
+            manager.onCoreAction(player, "dev:reset");
+            manager.onCoreAction(player, "class:ARCHER:swift_draw");
+            manager.onCoreAction(player, "dev:600");
+            com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
+            System.out.println("[Night Siege test] subclass first: swift_draw=" + own.levelOf("swift_draw")
+                    + " points=" + own.points() + " history=" + own.history
+                    + " trunk=" + manager.skillTree().blockedReason("archer_focus", own)
+                    + " level2=" + manager.skillTree().blockedReason("swift_draw", own)
+                    + " other way=" + manager.skillTree().blockedReason("heavy_bolts", own));
+            manager.onCoreAction(player, "open");
+        });
+        context.waitTicks(20);
+        pickSub(context, "ARCHER", "swift");
+        context.takeScreenshot("subtree_swift_gift");
+        selectNode(context, "swift_draw");
+        context.takeScreenshot("subtree_swift_gift_panel");
+        selectNode(context, "double_shot");
+        context.takeScreenshot("subtree_swift_spine");
+        selectNode(context, null);
         closeScreen(context);
     }
 
@@ -5985,7 +6747,7 @@ public class EventLookTest implements FabricClientGameTest {
         String[] subs = {"blademaster", "berserker", "axe", "paladin", "swift", "heavy", "bolter", "trapper",
                 "shieldfighter", "bulwark", "medic", "warden", "gunner", "electrician", "demolition", "alchemist",
                 "tamer", "golemsmith", "necromancer", "soulcatcher"};
-        openTree(context, "WARRIOR", "warrior_drill");
+        openTree(context, "WARRIOR", "warrior_drill", "bloodlust");
         for (String sub : subs) {
             context.runOnClient(client -> com.mki.nightsiege.client.CoreScreen.testSceneSub = sub);
             context.waitTicks(4);

@@ -34,6 +34,8 @@ public enum KeyHint {
     QUIVER,
     /** Special arrows: the quiver key picks them, then shoot. */
     QUIVER_SHOT,
+    /** A gain ability on the gain keys N, M, J (balance update 2, 29 October 2026). */
+    GAIN_KEY,
     /** Jump again while in the air. */
     AIR_JUMP,
     /** Jump and hit while falling. */
@@ -154,7 +156,6 @@ public enum KeyHint {
             "seelentausch");
 
     private static final Map<String, KeyHint> GAINS = Map.ofEntries(
-            Map.entry("koecher", QUIVER),
             Map.entry("lichtpfeile", QUIVER_SHOT),
             Map.entry("spektralpfeile", QUIVER_SHOT),
             Map.entry("kletterpfeile", QUIVER_SHOT),
@@ -166,28 +167,28 @@ public enum KeyHint {
             Map.entry("wurfperlen", USE),
             Map.entry("heiltrank", USE),
             Map.entry("verbandskasten", USE),
-            Map.entry("blendgranaten", USE),
-            Map.entry("oelfass", USE),
-            Map.entry("kletterhaken", USE),
-            Map.entry("kampfhorn", USE),
-            Map.entry("tarnumhang", USE),
-            Map.entry("signalhorn", USE),
-            Map.entry("mauerkelle", USE),
-            Map.entry("ersatzbatterie", USE),
+            Map.entry("oelfass", GAIN_KEY),
+            Map.entry("kletterhaken", GAIN_KEY),
+            Map.entry("kampfhorn", GAIN_KEY),
+            Map.entry("tarnumhang", GAIN_KEY),
+            Map.entry("signalhorn", GAIN_KEY),
+            Map.entry("mauerkelle", GAIN_KEY),
+            Map.entry("ersatzbatterie", GAIN_KEY),
+            Map.entry("dritte_hand", GAIN_KEY),
             Map.entry("kriegsbanner", USE_BLOCK),
             Map.entry("barrikaden", USE_BLOCK),
             Map.entry("baukiste", USE_BLOCK),
             Map.entry("fackeln", USE_BLOCK),
             Map.entry("notfallmine", PLACE_TRAP),
-            Map.entry("leibwaechter", USE_MATE),
+            Map.entry("leibwaechter", GAIN_KEY),
             Map.entry("turmschild", BLOCK),
             Map.entry("leichtschild", BLOCK),
             Map.entry("deckung", BLOCK),
             Map.entry("doppelstab", STAFF_ATTACK),
-            Map.entry("rueckrufpfeife", USE),
-            Map.entry("geisterross", USE),
-            Map.entry("futternapf", USE),
-            Map.entry("totenglocke", USE));
+            Map.entry("rueckrufpfeife", GAIN_KEY),
+            Map.entry("geisterross", GAIN_KEY),
+            Map.entry("futternapf", GAIN_KEY),
+            Map.entry("totenglocke", GAIN_KEY));
 
     /** Kit gadgets (by their item id in the custom data). */
     private static final Map<String, KeyHint> GADGETS = Map.ofEntries(

@@ -130,7 +130,7 @@ class TowerAndBrewTest {
         assertEquals(10, SkillValues.get("potion_tower", "zonerange", -1), 1e-9);
         assertEquals(400, SkillValues.get("potion_tower", "zonepause", -1), 1e-9);
         assertEquals(400, SkillValues.get(BrewKind.HEAL.nodeId(), "pause", -1), 1e-9);
-        assertEquals(300, SkillValues.get("potion_tower", "flashpause", -1), 1e-9);
+        assertEquals(140, SkillValues.get("potion_tower", "flashpause", -1), 1e-9);   // 7 s (Simon 29.10.)
     }
 
     @Test

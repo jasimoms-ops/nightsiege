@@ -648,6 +648,9 @@ public final class CombatEffects {
         if (skills.clazz() == SkillClass.WARRIOR && !holdsWayWeapon(player, skills)) {
             return 0.0;
         }
+        // The axe fighter's cleave heals at half the rate of his hit life steal (Simon 29.10.): what it took is counted here.
+        boolean axeSteal = SkillTree.SUB_AXE.equals(tree.subclassOf(skills));
+        float cleaved = 0f;
         // Spaltaxt (crate gain, 27 October 2026): an axe hit cleaves into the monster right behind.
         if (CrateEffects.gainLevel(player, "spaltaxt") > 0
                 && BuiltInRegistries.ITEM.getKey(player.getMainHandItem().getItem()).getPath().endsWith("_axe")) {
@@ -657,7 +660,9 @@ public final class CombatEffects {
                 Vec3 behind = victim.position().add(dir.normalize().scale(1.4));
                 for (LivingEntity near : enemies(level, behind, 1.3, 1.5)) {
                     if (near != victim) {
+                        float before = near.getHealth();
                         bonusHit(level, near, level.damageSources().playerAttack(player), taken * 0.5f);
+                        cleaved += axeSteal ? Math.max(0f, before - near.getHealth()) : 0f;
                         level.sendParticles(ParticleTypes.SWEEP_ATTACK, near.getX(), near.getY(0.6), near.getZ(), 1, 0, 0, 0, 0);
                         break;
                     }
@@ -794,7 +799,9 @@ public final class CombatEffects {
                 if (near == victim) {
                     continue;
                 }
+                float before = near.getHealth();
                 followUpHit(level, near, source, splash);
+                cleaved += axeSteal ? Math.max(0f, before - near.getHealth()) : 0f;
                 if (crusader && cleave > 0) {
                     if (isUndead(near)) {
                         near.igniteForSeconds((float) (SkillValues.get("w_crusader", "burn", 60) / 20.0));
@@ -841,13 +848,56 @@ public final class CombatEffects {
                 player.heal((float) ((taken + extra) * steal));
             }
         }
-        // Axe fighter, blademaster and paladin: a share of every hit heals (Simon 29.10., config hitLifesteal).
-        SiegeManager manager = SiegeManager.get();
-        double hitShare = manager == null ? 0.0 : manager.config().hitLifesteal(tree.subclassOf(skills));
-        if (hitShare > 0 && skills.clazz() == SkillClass.WARRIOR && taken + extra > 0) {
-            player.heal((float) ((taken + extra) * hitShare));
+        // Axe fighter, blademaster and paladin: a share of every hit heals (Simon 29.10., config hitLifesteal),
+        // more on the low levels and at least half a heart (balance update 2, 29.10.).
+        if (skills.clazz() == SkillClass.WARRIOR && taken + extra > 0) {
+            stealOnHit(player, tree.subclassOf(skills), taken + extra, cleaved, now);
         }
         return extra;
+    }
+
+    /** Players' last hit that healed the minimum (game time), for hitLifestealMinTicks. */
+    private final Map<UUID, Long> minHealAt = new HashMap<>();
+
+    /**
+     * The hit life steal of the axe fighter, the blademaster and the paladin (Simon 29.10.: solo they
+     * healed only 9–20 % of what they took): the share of the hit times the low-level factor, at least
+     * hitLifestealMinHeal (at most once per hitLifestealMinTicks), and the cleave at half the rate.
+     */
+    private void stealOnHit(ServerPlayer player, String subclass, double dealt, double cleaved, long now) {
+        SiegeManager manager = SiegeManager.get();
+        if (manager == null || manager.config().hitLifesteal(subclass) <= 0 || dealt <= 0) {
+            return;
+        }
+        com.mki.nightsiege.core.SiegeConfig cfg = manager.config();
+        int level = nightLevel();
+        Long last = minHealAt.get(player.getUUID());
+        boolean minReady = last == null || now < last || now - last >= cfg.hitLifestealMinTicks;
+        if (minReady && dealt * cfg.hitLifesteal(subclass) * cfg.hitLifestealLevelFactor(level) < cfg.hitLifestealMinHeal) {
+            minHealAt.put(player.getUUID(), now);   // the floor is used: the next one in hitLifestealMinTicks
+        }
+        float heal = (float) hitHeal(cfg, subclass, dealt, cleaved, level, minReady);
+        if (heal > 0f) {
+            player.heal(heal);
+        }
+    }
+
+    /**
+     * What one melee hit of this subclass heals (also for the tests): {@code dealt} × hitLifesteal × the
+     * factor of the level, at least hitLifestealMinHeal when {@code minReady}, plus {@code cleaved} (the
+     * axe fighter's cleave) at hitLifestealCleave of that rate.
+     */
+    public static double hitHeal(com.mki.nightsiege.core.SiegeConfig cfg, String subclass, double dealt, double cleaved,
+                                 int level, boolean minReady) {
+        double share = cfg.hitLifesteal(subclass) * cfg.hitLifestealLevelFactor(level);
+        if (share <= 0 || dealt <= 0) {
+            return 0.0;
+        }
+        double heal = dealt * share;
+        if (minReady && heal < cfg.hitLifestealMinHeal) {
+            heal = cfg.hitLifestealMinHeal;
+        }
+        return heal + Math.max(0.0, cleaved) * share * cfg.hitLifestealCleave;
     }
 
     /**
@@ -1003,6 +1053,10 @@ public final class CombatEffects {
      * hits, so this comes from the death of the monster.
      */
     public void afterKillingHit(LivingEntity victim, DamageSource source) {
+        if (!dealingBonus && victim instanceof Enemy && source.getEntity() instanceof ServerPlayer striker
+                && source.getDirectEntity() == striker) {
+            killingBlowSteal(striker, victim);
+        }
         if (dealingBonus || !(victim.level() instanceof ServerLevel level) || !(victim instanceof Enemy)
                 || !(source.getEntity() instanceof ServerPlayer player) || !(source.getDirectEntity() instanceof AbstractArrow arrow)) {
             return;
@@ -1025,6 +1079,20 @@ public final class CombatEffects {
                 dealingBonus = false;
             }
         }
+    }
+
+    /**
+     * A killing melee blow heals like any other hit (balance update 2, 29.10.: at the low levels most
+     * blows kill, and AFTER_DAMAGE leaves them out). What it did: about the weapon's damage, at most
+     * the monster's life.
+     */
+    private void killingBlowSteal(ServerPlayer player, LivingEntity victim) {
+        PlayerSkills skills = skillsFor.apply(player);
+        if (skills == null || skills.clazz() != SkillClass.WARRIOR || !holdsWayWeapon(player, skills)) {
+            return;
+        }
+        double dealt = Math.min(victim.getMaxHealth(), player.getAttributeValue(Attributes.ATTACK_DAMAGE));
+        stealOnHit(player, tree.subclassOf(skills), dealt, 0.0, player.level().getGameTime());
     }
 
     private static long turretKey(AbstractArrow arrow, LivingEntity victim) {

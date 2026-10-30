@@ -51,6 +51,7 @@ public final class KeyHints {
             case ULT2, ULT2_REMOTE, ULT2_STAFF -> new KeyMapping[]{GainClient.secondUltKey()};
             case STAFF_SNEAK_X -> new KeyMapping[]{GainClient.orderKey(), o.keyShift};
             case QUIVER -> new KeyMapping[]{GainClient.quiverKey()};
+            case GAIN_KEY -> new KeyMapping[]{GainClient.gainKey(0), GainClient.gainKey(1), GainClient.gainKey(2)};
             case QUIVER_SHOT -> new KeyMapping[]{GainClient.quiverKey(), o.keyUse};
             case AIR_JUMP -> new KeyMapping[]{o.keyJump};
             case JUMP_ATTACK -> new KeyMapping[]{o.keyJump, o.keyAttack};

@@ -372,6 +372,7 @@ public final class SiegeManager {
             machines.afterDamage(entity, source, taken);
             expeditions.afterDamage(entity, source, taken);
             safe("Ballista-Treffer", () -> machines.afterBoltHit(entity, source, blocked));
+            safe("Wächter-Treffer", () -> ChampionStrikes.afterHit(this, entity, source, blocked));   // balance update 2 (29.10.)
         });
         ServerLivingEntityEvents.ALLOW_DEATH.register((entity, source, amount) -> {
             if (!camp.allowDeath(entity, source) || !machines.allowDeath(entity, source) || !expeditions.allowDeath(entity)) {
@@ -409,6 +410,7 @@ public final class SiegeManager {
                 Drones.isDrone(player) ? InteractionResult.FAIL : InteractionResult.PASS);
         // Crate gadgets (B2): thrown, blown, placed or tied to an ally.
         net.fabricmc.fabric.api.event.player.UseItemCallback.EVENT.register(GainGear::onUseItem);
+        KitGuard.register();   // kit items go into no vase, frame, stand or bundle (balance update 2, 29.10.)
         net.fabricmc.fabric.api.event.player.UseBlockCallback.EVENT.register(GainGear::onUseBlock);
         net.fabricmc.fabric.api.event.player.UseEntityCallback.EVENT.register((player, world, hand, entity, hit) ->
                 GainGear.onUseEntity(player, world, hand, entity));
@@ -576,6 +578,13 @@ public final class SiegeManager {
             NightSiegeMod.LOGGER.info("[Night Siege] Profile eingeführt: {} Freischaltungen nachgereicht", caughtUp);
             persist();
         }
+        // Balance update 2 (29 October 2026): crate gains that left the crates pay their duplicate points back once.
+        if (!save.retiredGainsPaid) {
+            int paid = save.payRetiredGains();
+            save.retiredGainsPaid = true;
+            NightSiegeMod.LOGGER.info("[Night Siege] Entfernte Kisten-Gewinne zurückgezahlt: {} Punkte", paid);
+            persist();
+        }
         // The alchemist's potions became nodes, three of seven (28 October 2026): once per save.
         if (!save.brewsMigrated) {
             int brewProfiles = 0;
@@ -588,6 +597,8 @@ public final class SiegeManager {
             NightSiegeMod.LOGGER.info("[Night Siege] Alchemisten-Tränke als Knoten: {} Profile angepasst", brewProfiles);
             persist();
         }
+        // The subclass first, its level 1 free (Simon, 29 October 2026): once per player, see migrateFreeSubclasses.
+        migrateFreeSubclasses();
         scheduler.setReadyTicks(save.readyTicks);
         scheduler.setRequiredTicks(save.requiredTicks);
         if (scheduler.requiredTicks() <= 0L && !save.cores.isEmpty()) {
@@ -597,6 +608,40 @@ public final class SiegeManager {
         pool = new MobPool(config.mobs);
         unavailableMobs.clear();
         TempBlocks.rebuildIndex();
+    }
+
+    /**
+     * Level 1 of the subclass node is free since 29 October 2026: every player who bought it gets its
+     * points back once, every profile with a fixed subclass that never learned it gets it for free
+     * (see SkillTree#migrateFreeSubclass), also the skills a running playtest keeps for afterwards.
+     */
+    private void migrateFreeSubclasses() {
+        int players = 0;
+        int points = 0;
+        if (save.skills != null) {
+            for (PlayerSkills own : save.skills.values()) {
+                if (own != null && own.freeSubclassVersion < PlayerSkills.FREE_SUBCLASS_VERSION) {
+                    points += skillTree.migrateFreeSubclass(own);
+                    players++;
+                }
+            }
+        }
+        if (save.playtest != null && save.playtest.players != null) {
+            for (SiegeSave.PlaytestPlayer pp : save.playtest.players.values()) {
+                PlayerSkills kept = pp == null || pp.skills == null || pp.skills.isEmpty() ? null
+                        : Json.fromJson(pp.skills, PlayerSkills.class);
+                if (kept != null && kept.freeSubclassVersion < PlayerSkills.FREE_SUBCLASS_VERSION) {
+                    points += skillTree.migrateFreeSubclass(kept);
+                    pp.skills = Json.toJson(kept);
+                    players++;
+                }
+            }
+        }
+        if (players > 0) {
+            NightSiegeMod.LOGGER.info("[Night Siege] Unterklasse zuerst, Stufe 1 geschenkt: {} Spieler, {} Punkte zurück",
+                    players, points);
+            persist();
+        }
     }
 
     private void syncSchedulerToSave() {
@@ -4032,6 +4077,11 @@ public final class SiegeManager {
             if (isRegistered(player) && own.hasClass()) {
                 state.live = state.live || liveSkillsFor(player) != null;
                 state.slots = safeSlots(player);
+                try {
+                    state.gains = GainKeys.slots(this, player, now);
+                } catch (RuntimeException e) {
+                    NightSiegeMod.LOGGER.warn("[Night Siege] Gewinn-Tasten: {}", e.toString());
+                }
                 // Fähigkeit 2 (F): what it does for this class. The soul catcher has no companions
                 // to send (Simon 27.10.: "F does nothing for him"), so he gets no F field.
                 String sub = skillTree.subclassOf(own);
@@ -4450,6 +4500,12 @@ public final class SiegeManager {
                 List<com.mki.nightsiege.core.UltState.Slot> slots = abilitySlots(player);
                 yield index >= 0 && index < slots.size() ? "wahl:" + slots.get(index).id : "wahl";
             }
+            case "gain" -> {
+                int index = parseAmount(argument);
+                PlayerSkills own = save.skillsOf(player.getUUID().toString());
+                List<String> keys = own.hasClass() ? GainKeys.assigned(this, own, own.clazz()) : List.of();
+                yield index >= 0 && index < keys.size() ? "gewinn:" + keys.get(index) : "gewinn";
+            }
             default -> null;
         };
     }
@@ -4466,7 +4522,7 @@ public final class SiegeManager {
             if (!verb.equals("ult") && !verb.equals("shield") && !verb.equals("ult2") && !verb.equals("quiver")
                     && !verb.equals("jump") && !verb.equals("man") && !verb.equals("drone")
                     && !verb.equals("ult2x") && !verb.equals("staffhit") && !verb.equals("wheel")
-                    && !verb.equals("slot")) {
+                    && !verb.equals("slot") && !verb.equals("gain")) {
                 offerRegistration(player);
             }
             return;
@@ -4498,6 +4554,19 @@ public final class SiegeManager {
             case "staffhit" -> companions.staffAttack(player);   // left click with the staff (27 October 2026)
             case "quiver" -> abilityThreeTap(player);
             case "slot" -> onSlotKey(player, parseAmount(argument));   // the ability bar (27 October 2026)
+            case "gain" -> {
+                GainKeys.onKey(this, player, parseAmount(argument));   // the gain keys N, M, J (balance update 2)
+                sendUltHud(player);
+            }
+            case "gainkey" -> {
+                // The collection: a gain ability onto the first gain key ("gainkey:CLASS:id").
+                String[] bits = argument.split(":", 2);
+                if (bits.length == 2 && GainKeys.choose(this, player, bits[0], bits[1])) {
+                    persist();
+                    sendUltHud(player);
+                    StatsService.sendTo(player, this);
+                }
+            }
             case "wheel" -> onWheel(player, argument);
             case "jump" -> GainGear.onDoubleJump(player);
             // A manned tower: the attack button pressed (1) or let go (0).
@@ -4828,8 +4897,9 @@ public final class SiegeManager {
             // The profile first, then the class (Simon, 27 October 2026): with the class set first
             // the list of profiles already held it, the pick opened a second profile "CLASS#2" for
             // the subclass and the played one had no subclass, so both ways stood open.
+            // The profile holds level 1 of its subclass node from the start (29 October 2026): played, it stays.
             String first = own.addProfile(chosen, skillTree.subclassesOf(chosen).contains(subclass) ? subclass : "");
-            own.chosenClass = first != null ? first : chosen.name();
+            own.playOpened(first != null ? first : chosen.name());
             persist();
             ClassTags.update(player.level().getServer(), player, own, skillTree.chosenSubclass(own, own.clazz()));
             traps.giveRemote(player, own);

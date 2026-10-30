@@ -191,7 +191,9 @@ public class CoreScreen extends Screen {
     // ------------------------------------------------------------------
     // one tree per subclass (content update, Simon 29 October 2026: "jede Unterklasse sollte ihren
     // eigenen skilltree haben und nicht mehr diese 4er Übersicht"): tabs for the class's four
-    // subclasses, the tree grows from the trunk at the bottom up to the mastery at the top.
+    // subclasses, the tree grows from the trunk at the bottom up to the mastery at the top. Since
+    // 29 October 2026 the subclass node is the root below the trunk (Simon: "den unterklassen skill als
+    // ersten skill des trees", level 1 free), and its links to the deeper tiers run along the left edge.
     // ------------------------------------------------------------------
 
     /** The subclass each class tab shows, kept while the game runs. */
@@ -199,9 +201,6 @@ public class CoreScreen extends Screen {
 
     /** The subclass the active class tab shows: the chosen tab, else the shown profile's, else the first. */
     private String viewedSub() {
-        if (testSceneSub != null) {
-            return testSceneSub;
-        }
         if (!isClassTree(activeTab)) {
             return "";
         }
@@ -314,8 +313,15 @@ public class CoreScreen extends Screen {
      * so they stand in a column at the side of the tree instead of in the tiers.
      */
     private static boolean sideNode(CoreStats.NodeLine n) {
-        return (n.group == null || n.group.isBlank()) && n.path != null && !n.path.isBlank() && n.row >= 3
+        // Above the way (row 3 since the subclass came first, 29 October 2026); the potions from the way's row on.
+        return (n.group == null || n.group.isBlank()) && n.path != null && !n.path.isBlank()
+                && (n.row >= 4 || com.mki.nightsiege.core.BrewKind.byNode(n.id) != null)
                 && com.mki.nightsiege.core.SkillTree.subclassByNode(n.id) == null;
+    }
+
+    /** True for the subclass node: the root of a subclass tree (row 0), its level 1 free. */
+    private static boolean subclassRoot(CoreStats.NodeLine n) {
+        return n != null && com.mki.nightsiege.core.SkillTree.subclassByNode(n.id) != null;
     }
 
     /** The column family of a side node: 0 salvos (left), 1 single talents, 2 potions (right). */
@@ -328,6 +334,8 @@ public class CoreScreen extends Screen {
 
     /** The zoom at which a subclass tree fills the view's width (names readable). */
     private double subReadZoom = 1.0;
+    /** How far the widest tier of the subclass tree on show reaches from the middle (tree units). */
+    private double subReach = SUB_COL / 2.0;
 
     /**
      * A subclass tree at readable size, looking at the highest tier with a new node to learn (else the
@@ -349,6 +357,8 @@ public class CoreScreen extends Screen {
         }
         int row = frontier >= 0 ? frontier : learned;
         camY = -row * SUB_ROW - viewH() / 5.0 / zoom;
+        // The subclass node at the foot stays in sight while the tree is young (balance update 2).
+        camY = Math.max(camY, maxY - (viewH() / 2.0 - 26) / zoom);
         clampCam();
     }
 
@@ -404,6 +414,16 @@ public class CoreScreen extends Screen {
     private void subLink(GuiGraphicsExtractor gui, GridNode p, GridNode c, double t, int color) {
         double half = N_SLOT / 2.0;
         double bus = c.cy() + SUB_ROW / 2.0 + 7;
+        if (subclassRoot(p.node()) && c.node().row > p.node().row + 1) {
+            // From the subclass node at the root up to a deeper tier (its level 2 and up): along the
+            // tree's left edge, past trunk and way, so everything visibly hangs from the subclass.
+            double spine = -(subReach + SUB_COL * 0.55);
+            hseg(gui, p.cx() - half, spine, p.cy(), t, color);
+            vseg(gui, spine, p.cy(), bus, t, color);
+            hseg(gui, spine, c.cx(), bus, t, color);
+            vseg(gui, c.cx(), bus, c.cy() + half, t, color);
+            return;
+        }
         double x = p.cx();
         double top = p.cy() - half;
         if (c.node().row - p.node().row > 1) {
@@ -505,6 +525,28 @@ public class CoreScreen extends Screen {
         }
     }
 
+    /**
+     * Beside the subclass node at the root of the tree: "Stufe 1 geschenkt" (Simon, 29 October 2026),
+     * its first level comes with the subclass. Tree units, on a dark plate.
+     */
+    private void drawGiftTag(GuiGraphicsExtractor gui, Font font, GridNode g) {
+        CoreStats.NodeLine n = g.node();
+        String text = "★ " + Component.translatable(n.level >= n.freeLevels ? "nightsiege.ui.sub_gift"
+                : "nightsiege.ui.sub_gift_take").getString();
+        float s = 0.7f;
+        double x = g.cx() + N_SLOT / 2.0 + 6;
+        double y = g.cy() - 4;
+        gui.pose().pushMatrix();
+        gui.pose().translate((float) (x - 2), (float) (y - 2));
+        gui.fill(0, 0, (int) Math.ceil(font.width(text) * s + 4), (int) Math.ceil(9 * s + 3), 0xC8100E16);
+        gui.pose().popMatrix();
+        gui.pose().pushMatrix();
+        gui.pose().translate((float) x, (float) y);
+        gui.pose().scale(s, s);
+        gui.text(font, text, 0, 0, 0xFFFFD86B, false);
+        gui.pose().popMatrix();
+    }
+
     /** Under the lowest node of a side column with a limit: "Tränke · 3 von 7", "Salven · 2 von 4". */
     private void drawSideHeads(GuiGraphicsExtractor gui, Font font) {
         GridNode[] lowest = new GridNode[3];
@@ -537,7 +579,8 @@ public class CoreScreen extends Screen {
     }
 
     /**
-     * Places the nodes of a subclass tree: one row per tier, the trunk at the bottom, the nodes of a
+     * Places the nodes of a subclass tree: one row per tier, the subclass node alone at the bottom in the
+     * middle (row 0), the trunk above it, the nodes of a
      * tier side by side around the middle (in the order of their columns); side nodes in their own
      * columns, salvos on the left, the rest on the right.
      */
@@ -563,6 +606,7 @@ public class CoreScreen extends Screen {
                 out.put(row.get(i).id, new double[]{x, y});
             }
         }
+        subReach = reach;
         // The side columns: one per family that this tree has.
         boolean[] has = new boolean[3];
         for (CoreStats.NodeLine n : side) {
@@ -1355,7 +1399,9 @@ public class CoreScreen extends Screen {
         GridNode chosen = selectedId == null ? null : gridOf(selectedId);
         if (chosen != null && buyable && chosen.node().level < chosen.node().maxLevel) {
             CoreStats.NodeLine n = chosen.node();
-            Button learn = Button.builder(Component.translatable("nightsiege.ui.learn", n.cost),
+            Component label = n.level < n.freeLevels ? Component.translatable("nightsiege.ui.learn_free")
+                    : Component.translatable("nightsiege.ui.learn", n.cost);
+            Button learn = Button.builder(label,
                     b -> send(buyAction(n.id))).bounds(panelX() + 8, innerY() + innerH() - 26, PANEL_W - 16, 18).build();
             learn.active = n.blocked == null;
             goldButtons.add(addRenderableWidget(learn));
@@ -1595,7 +1641,9 @@ public class CoreScreen extends Screen {
     /** The class's own night scene behind the tree; it drifts a little with the view. */
     private void drawScene(GuiGraphicsExtractor gui, int vx, int vy, int vw, int vh) {
         // Design update (29 October 2026): the shown profile's subclass has its own scene (tools/ui/tree_bg.py).
-        String sub = activeTab.key.equals("core") ? "" : isClassTree(activeTab) ? viewedSub() : shownSub();
+        // The tests' pictures of all 20 backgrounds put each one behind the same tree (testSceneSub).
+        String sub = testSceneSub != null ? testSceneSub
+                : activeTab.key.equals("core") ? "" : isClassTree(activeTab) ? viewedSub() : shownSub();
         if (TreeScene.has(sub)) {
             // v2 (29 October 2026): three layers with parallax and the subclass's particles (TreeScene).
             double dx = (camX - (minX + maxX) / 2.0) / Math.max(1.0, (maxX - minX) / 2.0);
@@ -1860,9 +1908,13 @@ public class CoreScreen extends Screen {
                 for (int i = 0; i < pips; i++) {
                     int sx = startX + i * (pw + 1);
                     gui.fill(sx, y + N_SLOT + 2, sx + pw, y + N_SLOT + 5, 0xFF000000);
-                    int fill = i < n.level ? (maxed ? 0xFFE8B84A : 0xFF000000 | lane) : 0xFF3A3644;
+                    // The free level's pip is golden: it came with the subclass.
+                    int fill = i < n.level ? (maxed || i < n.freeLevels ? 0xFFE8B84A : 0xFF000000 | lane) : 0xFF3A3644;
                     gui.fill(sx, y + N_SLOT + 2, sx + pw, y + N_SLOT + 4, fill);
                 }
+            }
+            if (subMode && subclassRoot(n) && n.freeLevels > 0 && zoom >= SUB_NAME_ZOOM) {
+                drawGiftTag(gui, font, g);
             }
         }
         if (subMode && zoom >= SUB_NAME_ZOOM) {
@@ -1972,7 +2024,7 @@ public class CoreScreen extends Screen {
     /** The subclass node of a lane (where its name is written). */
     private String laneRoot(String lane) {
         for (GridNode g : gridNodes) {
-            if (lane.equals(g.node().lane) && g.node().row == 3) {
+            if (lane.equals(g.node().lane) && subclassRoot(g.node())) {
                 return g.node().id;
             }
         }
@@ -2101,6 +2153,10 @@ public class CoreScreen extends Screen {
         if (!sub.equals("nightsiege.subclass_node." + n.id)) {
             lines.add("§6" + sub);
         }
+        if (n.freeLevels > 0) {
+            // The subclass first (Simon, 29 October 2026): level 1 comes with the subclass.
+            lines.add("§e★ " + Component.translatable("nightsiege.ui.free_level").getString());
+        }
         if (n.id.contains("_cross_")) {
             lines.add("§b" + Component.translatable("nightsiege.ui.cross").getString());
         }
@@ -2123,28 +2179,16 @@ public class CoreScreen extends Screen {
         if (activeTab != Tab.CORE) {
             lines.add(KeyHints.always(com.mki.nightsiege.core.KeyHint.byName(n.key)));
         }
+        String price = n.level < n.freeLevels ? "  §a" + Component.translatable("nightsiege.ui.node_free").getString()
+                : "  §e" + Component.translatable("nightsiege.ui.node_cost", n.cost).getString();
         lines.add("§f" + Component.translatable("nightsiege.ui.node_level", n.level, n.maxLevel).getString()
-                + (n.level < n.maxLevel ? "  §e" + Component.translatable("nightsiege.ui.node_cost", n.cost).getString() : ""));
+                + (n.level < n.maxLevel ? price : ""));
         // What it needs, term by term.
-        List<List<String[]>> needs = needsOf(n);
-        if (!needs.isEmpty()) {
-            lines.add("§8" + Component.translatable("nightsiege.ui.needs").getString());
-            for (List<String[]> any : needs) {
-                StringBuilder sb = new StringBuilder();
-                boolean met = false;
-                for (String[] need : any) {
-                    GridNode p = gridOf(need[0]);
-                    int lvl = parseInt(need[1]);
-                    if (p != null && p.node().level >= lvl) {
-                        met = true;
-                    }
-                    if (sb.length() > 0) {
-                        sb.append(Component.translatable("nightsiege.ui.or").getString());
-                    }
-                    sb.append(nameOf(need[0])).append(lvl > 1 ? " " + lvl : "");
-                }
-                lines.add((met ? "§a✔ " : "§c✘ ") + sb);
-            }
+        needLines(lines, needsOf(n), Component.translatable("nightsiege.ui.needs").getString());
+        // The subclass node from level 2 on: the first node of its way (29 October 2026).
+        if (n.level < n.maxLevel) {
+            needLines(lines, needsOf(n.upgradeRequires, 1),
+                    Component.translatable("nightsiege.ui.needs_from", n.freeLevels + 1).getString());
         }
         // What it opens.
         List<String> opens = new ArrayList<>();
@@ -2196,6 +2240,12 @@ public class CoreScreen extends Screen {
     @Override
     public boolean mouseClicked(net.minecraft.client.input.MouseButtonEvent event, boolean doubleClick) {
         if (super.mouseClicked(event, doubleClick)) {
+            return true;
+        }
+        // The collection (balance update 2): a click on a gain ability puts it onto the first gain key.
+        if (activeTab == Tab.COLLECTION && hoveredGain != null && com.mki.nightsiege.core.CrateGains.keyAbility(hoveredGain.id())
+                && gainStage(collectionClass(), hoveredGain.id()) > 0) {
+            send("gainkey:" + collectionClass() + ":" + hoveredGain.id());
             return true;
         }
         if (!gridMode || confirming != null || confirmingReset || choosingUnlock || !inView(event.x(), event.y())) {
@@ -2684,11 +2734,16 @@ public class CoreScreen extends Screen {
 
     /** The nodes a grid node needs, as alternatives that must all be met. */
     private static List<List<String[]>> needsOf(CoreStats.NodeLine node) {
+        return needsOf(node.requires, node.requiresLevel);
+    }
+
+    /** A requirement ({@code a|b:2,c}) as alternatives that must all be met: node id and level. */
+    private static List<List<String[]>> needsOf(String requires, int requiresLevel) {
         List<List<String[]>> all = new ArrayList<>();
-        if (node.requires == null || node.requires.isBlank()) {
+        if (requires == null || requires.isBlank()) {
             return all;
         }
-        for (String term : node.requires.split(",")) {
+        for (String term : requires.split(",")) {
             List<String[]> any = new ArrayList<>();
             for (String option : term.split("\\|")) {
                 String o = option.trim();
@@ -2697,11 +2752,45 @@ public class CoreScreen extends Screen {
                 }
                 int colon = o.indexOf(':');
                 any.add(colon > 0 ? new String[]{o.substring(0, colon), o.substring(colon + 1)}
-                        : new String[]{o, String.valueOf(Math.max(1, node.requiresLevel))});
+                        : new String[]{o, String.valueOf(Math.max(1, requiresLevel))});
             }
             all.add(any);
         }
         return all;
+    }
+
+    /**
+     * The info panel's lines of a requirement, term by term: met or missing. A subclass tree names only
+     * what it shows (the trunk's root hangs from all four subclass nodes, the tree shows one).
+     */
+    private void needLines(List<String> lines, List<List<String[]>> needs, String head) {
+        if (needs.isEmpty()) {
+            return;
+        }
+        lines.add("§8" + head);
+        for (List<String[]> any : needs) {
+            StringBuilder sb = new StringBuilder();
+            boolean met = false;
+            boolean shownAny = false;
+            for (String[] need : any) {
+                shownAny |= gridOf(need[0]) != null;
+            }
+            for (String[] need : any) {
+                GridNode p = gridOf(need[0]);
+                int lvl = parseInt(need[1]);
+                if (p != null && p.node().level >= lvl) {
+                    met = true;
+                }
+                if (subMode && shownAny && p == null) {
+                    continue;
+                }
+                if (sb.length() > 0) {
+                    sb.append(Component.translatable("nightsiege.ui.or").getString());
+                }
+                sb.append(nameOf(need[0])).append(lvl > 1 ? " " + lvl : "");
+            }
+            lines.add((met ? "§a✔ " : "§c✘ ") + sb);
+        }
     }
 
     /** Marking and the hunt: the old hunter's skills, open to both archer ways. */
@@ -3240,6 +3329,16 @@ public class CoreScreen extends Screen {
                 } else if (half) {
                     smallText(gui, font, "½", tx + box - 6, y + 1, 0xFFFFC46B, 0.7f);
                 }
+                int onKey = gainKeyIndex(clazz, g.id());
+                if (onKey >= 0) {
+                    // On a gain key: its letter in gold at the bottom left of the showcase.
+                    net.minecraft.client.KeyMapping key = GainClient.gainKey(onKey);
+                    String letter = key == null ? "?" : key.getTranslatedKeyMessage().getString();
+                    if (letter.length() > 2) {
+                        letter = letter.substring(0, 2);
+                    }
+                    smallText(gui, font, letter, tx + 2, y + box - 6, 0xFFFFD84A, 0.7f);
+                }
                 if (over) {
                     hovered = g;
                 }
@@ -3258,6 +3357,12 @@ public class CoreScreen extends Screen {
         gui.pose().scale(scale, scale);
         gui.text(font, text, 0, 0, color, true);
         gui.pose().popMatrix();
+    }
+
+    /** The gain key a gain ability sits on in this class (0 = first), or -1. */
+    private int gainKeyIndex(String clazz, String gain) {
+        java.util.List<String> keys = stats.gainKeys == null ? null : stats.gainKeys.get(clazz);
+        return keys == null ? -1 : keys.indexOf(gain);
     }
 
     private void gainTooltip(GuiGraphicsExtractor gui, Font font, com.mki.nightsiege.core.CrateGains.Gain g, int mouseX, int mouseY) {
@@ -3288,6 +3393,22 @@ public class CoreScreen extends Screen {
         if (!g.way().isEmpty()) {
             lines.add("§8" + Component.translatable("nightsiege.ui.collection_way",
                     Component.translatable("nightsiege.path." + g.way())).getString());
+        }
+        if (!g.subs().isEmpty()) {
+            java.util.List<String> names = new ArrayList<>();
+            for (String sub : g.subs()) {
+                names.add(Component.translatable("nightsiege.subclass." + sub).getString());
+            }
+            lines.add("§8" + Component.translatable("nightsiege.ui.collection_subs", String.join(", ", names)).getString());
+        }
+        if (com.mki.nightsiege.core.CrateGains.keyAbility(g.id())) {
+            int onKey = gainKeyIndex(collectionClass(), g.id());
+            net.minecraft.client.KeyMapping key = onKey >= 0 ? GainClient.gainKey(onKey) : null;
+            if (key != null) {
+                lines.add("§e" + Component.translatable("nightsiege.ui.collection_on_key", key.getTranslatedKeyMessage()).getString());
+            } else if (stage > 0) {
+                lines.add("§7" + Component.translatable("nightsiege.ui.collection_to_key").getString());
+            }
         }
         tooltip(gui, font, lines, mouseX, mouseY);
     }
@@ -4495,7 +4616,9 @@ public class CoreScreen extends Screen {
             lines.add(KeyHints.always(com.mki.nightsiege.core.KeyHint.byName(node.key)));
         }
         lines.add(Component.translatable("nightsiege.ui.node_level", node.level, node.maxLevel).getString());
-        if (node.level < node.maxLevel) {
+        if (node.level < node.freeLevels) {
+            lines.add("§a" + Component.translatable("nightsiege.ui.node_free").getString());
+        } else if (node.level < node.maxLevel) {
             lines.add(Component.translatable("nightsiege.ui.node_cost", node.cost).getString());
         }
         boolean viewOnly = activeTab != Tab.CORE && !ownsClassTab();
