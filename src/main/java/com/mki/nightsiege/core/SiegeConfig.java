@@ -890,6 +890,10 @@ public class SiegeConfig {
         UPDATE_17_TWEAKS.add(new String[] {"holy_light", "heal", "8"});
         UPDATE_17_TWEAKS.add(new String[] {"w_holy_strike", "heal", "2"});
         UPDATE_17_TWEAKS.add(new String[] {"d_soulcatcher", "swarmcd", "80"});
+        // The alchemist's potion tower does not go through subclassDamage (klassen3: +6 % instead of -22 %):
+        // its hit and the poison's ticks -22 % themselves.
+        UPDATE_17_TWEAKS.add(new String[] {"potion_tower", "hit", "7.8"});
+        UPDATE_17_TWEAKS.add(new String[] {"potion_tower", "poison", "62"});
     }
 
     /** Sets one named number of a skill on the server (a skill tweak value). */
