@@ -226,12 +226,49 @@ public final class Expeditions {
 
     /** The plan of the dungeon of now (one worked out already, or a new one), with its spots per chunk. */
     private void usePlan(SiegeSave.ExpeditionRecord rec, ExpeditionLayout.Plan p) {
+        usePlan(rec, p, spotsByChunk(p));
+    }
+
+    private void usePlan(SiegeSave.ExpeditionRecord rec, ExpeditionLayout.Plan p, Map<Long, List<Spot>> spots) {
         plan = p;
         planId = rec.id;
-        byChunk = spotsByChunk(p);
+        byChunk = spots;
         chunkOrder = outwards(byChunk.keySet(), rec);
         cursorChunk = Long.MIN_VALUE;
         cursorIndex = 0;
+    }
+
+    /** A plan with its spots by chunk, worked out away from the server thread, and how long that took. */
+    private record Prepared(BlockPos origin, ExpeditionLayout.Plan plan, Map<Long, List<Spot>> byChunk, long nanos) {
+    }
+
+    /**
+     * Works out a dungeon's plan in the background (update 30.10.: 30–160 ms in one tick otherwise).
+     * The plan only reads the layout and block states, nothing of the world.
+     */
+    private static java.util.concurrent.CompletableFuture<Prepared> workOut(BlockPos origin, int facing, ExpeditionKind kind,
+                                                                           int rooms, int id) {
+        return java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+            long t0 = System.nanoTime();
+            ExpeditionLayout.Plan p = ExpeditionLayout.plan(origin, facing, kind, rooms, id);
+            return new Prepared(origin, p, spotsByChunk(p), System.nanoTime() - t0);
+        });
+    }
+
+    /** The plan of a future once it is there; null while it is still being worked out (or on an error: then at once). */
+    private static Prepared ready(java.util.concurrent.CompletableFuture<Prepared> future, BlockPos origin, int facing,
+                                  ExpeditionKind kind, int rooms, int id) {
+        if (!future.isDone()) {
+            return null;
+        }
+        try {
+            return future.join();
+        } catch (RuntimeException e) {
+            NightSiegeMod.LOGGER.warn("[Night Siege] Dungeon-Plan im Hintergrund fehlgeschlagen ({}), jetzt im Tick", e.toString());
+            long t0 = System.nanoTime();
+            ExpeditionLayout.Plan p = ExpeditionLayout.plan(origin, facing, kind, rooms, id);
+            return new Prepared(origin, p, spotsByChunk(p), System.nanoTime() - t0);
+        }
     }
 
     /** Every spot of a plan by its chunk. */
@@ -722,8 +759,11 @@ public final class Expeditions {
             return;
         }
         if (!rec.built) {
-            if (now % 100 == 0 && job == null && teardowns.isEmpty()) {
-                tryBuild(level, rec);
+            if (job == null && teardowns.isEmpty()) {
+                checkSite(level, rec);
+                if (now % 100 == 0) {
+                    tryBuild(level, rec);
+                }
             }
             return;
         }
@@ -776,9 +816,18 @@ public final class Expeditions {
 
     // ------------------------------------------------------------------ building
 
+    /** A place that passed the first checks, its plan being worked out in the background. */
+    private record SiteCheck(int id, BlockPos at, java.util.concurrent.CompletableFuture<Prepared> plan) {
+    }
+
+    private SiteCheck siteCheck;
+
     private void tryBuild(ServerLevel level, SiegeSave.ExpeditionRecord rec) {
         if (!level.hasChunk(rec.x >> 4, rec.z >> 4)) {
             return;   // nobody near yet
+        }
+        if (siteCheck != null && siteCheck.id() == rec.id) {
+            return;   // a place is being looked at (see checkSite)
         }
         SiegeCamp.Reasons why = new SiegeCamp.Reasons();
         for (int attempt = 0; attempt < 6; attempt++) {
@@ -788,16 +837,7 @@ public final class Expeditions {
             if (floor == null) {
                 continue;
             }
-            boolean someone = false;
-            for (ServerPlayer p : level.players()) {
-                // Nobody close sees it pop up; nobody at all stands where its walls go.
-                double limit = buildRounds < 3 ? 32.0 : 12.0;
-                if (p.distanceToSqr(x + 0.5, p.getY(), z + 0.5) < limit * limit) {
-                    someone = true;
-                    break;
-                }
-            }
-            if (someone) {
+            if (someoneNear(level, x, z)) {
                 buildRounds++;
                 return;
             }
@@ -807,24 +847,28 @@ public final class Expeditions {
                 buildRounds++;
                 return;   // not all its ground is loaded yet: again when it is
             }
-            // The whole plan is worked out for the check below: at most one a round (update 30.10.).
-            long t0 = System.nanoTime();
-            ExpeditionLayout.Plan candidate = ExpeditionLayout.plan(at, rec.facing, kind(rec), rec.rooms, rec.id);
-            free = freeOfPlayers(level, rec, at, candidate, why);
-            long checked = System.nanoTime() - t0;
-            if (free == null) {
-                buildRounds++;
-                return;
-            }
             if (!free) {
-                break;
+                continue;
             }
-            Build b = new Build(rec.id, rec.dimension);
-            b.careful = true;   // a player may come close while it goes up
-            b.planNanos = checked;   // the plan and its check (in the tick that found the place)
-            beginBuild(level, rec, at, candidate, b);
+            // Every spot of it is checked next, against its plan (worked out in the background).
+            siteCheck = new SiteCheck(rec.id, at, workOut(at, rec.facing, kind(rec), rec.rooms, rec.id));
             return;
         }
+        roundWithoutPlace(rec, why);
+    }
+
+    /** Nobody close sees it pop up; nobody at all stands where its walls go. */
+    private boolean someoneNear(ServerLevel level, int x, int z) {
+        double limit = buildRounds < 3 ? 32.0 : 12.0;
+        for (ServerPlayer p : level.players()) {
+            if (p.distanceToSqr(x + 0.5, p.getY(), z + 0.5) < limit * limit) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void roundWithoutPlace(SiegeSave.ExpeditionRecord rec, SiegeCamp.Reasons why) {
         if (++buildRounds % 12 == 0) {
             // A minute with the ground loaded and no place: a little further off.
             rec.x += random.nextInt(97) - 48;
@@ -832,6 +876,43 @@ public final class Expeditions {
             m.persist();
             NightSiegeMod.LOGGER.info("[Night Siege] Dungeon wartet auf einen Platz ({}), neu bei {} {}", why, rec.x, rec.z);
         }
+    }
+
+    /** Every tick while a place is looked at: once its plan is there, every spot is checked and the build begins. */
+    private void checkSite(ServerLevel level, SiegeSave.ExpeditionRecord rec) {
+        SiteCheck c = siteCheck;
+        if (c == null) {
+            return;
+        }
+        if (c.id() != rec.id) {
+            siteCheck = null;
+            return;
+        }
+        Prepared ready = ready(c.plan(), c.at(), rec.facing, kind(rec), rec.rooms, rec.id);
+        if (ready == null) {
+            return;
+        }
+        siteCheck = null;
+        SiegeCamp.Reasons why = new SiegeCamp.Reasons();
+        if (someoneNear(level, c.at().getX(), c.at().getZ())) {
+            buildRounds++;
+            return;
+        }
+        long t0 = System.nanoTime();
+        Boolean free = freeOfPlayers(level, rec, c.at(), ready.plan(), why);
+        long checked = System.nanoTime() - t0;
+        if (free == null) {
+            buildRounds++;
+            return;
+        }
+        if (!free) {
+            roundWithoutPlace(rec, why);
+            return;
+        }
+        Build b = new Build(rec.id, rec.dimension);
+        b.careful = true;   // a player may come close while it goes up
+        b.checkNanos = checked;
+        beginBuild(level, rec, c.at(), ready, b);
     }
 
     /** The gatehouse floor no lower than the arena's pit allows (it lies 29 below it; flat worlds). */
@@ -958,9 +1039,15 @@ public final class Expeditions {
         long work;
         long longest;
         long planNanos;
+        /** Of that, in a tick (the rest in the background); and the check of every spot (built by itself). */
+        long tickNanos;
+        long checkNanos;
         int busyTicks;
         long searchMs = -1L;
         int searchTicks;
+        /** The plan being worked out in the background (only its spot was known), and for where. */
+        java.util.concurrent.CompletableFuture<Prepared> planning;
+        BlockPos planAt;
 
         Build(int id, String dimension) {
             this.id = id;
@@ -970,10 +1057,9 @@ public final class Expeditions {
 
     /**
      * The dungeon's place is fixed; it is built over the next ticks (see {@link #stepBuild}).
-     * {@code candidate}: its plan when it is worked out already.
+     * {@code ready}: its plan when it is worked out already (else it is worked out now, in this tick).
      */
-    private void beginBuild(ServerLevel level, SiegeSave.ExpeditionRecord rec, BlockPos origin, ExpeditionLayout.Plan candidate,
-                            Build carry) {
+    private void beginBuild(ServerLevel level, SiegeSave.ExpeditionRecord rec, BlockPos origin, Prepared ready, Build carry) {
         origin = groundOrigin(level, origin);
         rec.x = origin.getX();
         rec.y = origin.getY();
@@ -984,13 +1070,16 @@ public final class Expeditions {
         rec.chunksDone.clear();
         Build b = carry != null ? carry : new Build(rec.id, rec.dimension);
         long t0 = System.nanoTime();
-        if (candidate != null) {
-            usePlan(rec, candidate);
+        if (ready != null && ready.origin().equals(origin)) {
+            usePlan(rec, ready.plan(), ready.byChunk());
+            b.planNanos += ready.nanos();   // in the background
+            b.tickNanos += System.nanoTime() - t0;
         } else {
             plan = null;
             plan(rec);
+            b.planNanos += System.nanoTime() - t0;
+            b.tickNanos += System.nanoTime() - t0;
         }
-        b.planNanos += System.nanoTime() - t0;
         b.stage = Build.FAR;
         b.listed = false;
         job = b;
@@ -1069,15 +1158,32 @@ public final class Expeditions {
                 }
                 b.want.addAll(withRing(site));
             }
-            if (!asked(level, b.want, b, now)) {
-                return false;   // the ground there is still loading
+            if (b.planning == null) {
+                if (!asked(level, b.want, b, now)) {
+                    return false;   // the ground there is still loading
+                }
+                Integer floor = SiegeCamp.site(level, rec.x, rec.z, 9, 12, false, false, null);
+                if (floor == null) {
+                    floor = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, rec.x, rec.z);
+                }
+                b.busy = true;
+                BlockPos at = groundOrigin(level, new BlockPos(rec.x, floor, rec.z));
+                if (b.sync) {
+                    beginBuild(level, rec, at, null, b);
+                } else {
+                    b.planning = workOut(at, rec.facing, kind(rec), rec.rooms, rec.id);   // its plan, in the background
+                    b.planAt = at;
+                }
+                return false;
             }
-            Integer floor = SiegeCamp.site(level, rec.x, rec.z, 9, 12, false, false, null);
-            if (floor == null) {
-                floor = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, rec.x, rec.z);
+            asked(level, b.want, b, now);
+            Prepared ready = ready(b.planning, b.planAt, rec.facing, kind(rec), rec.rooms, rec.id);
+            if (ready == null) {
+                return false;
             }
+            b.planning = null;
             b.busy = true;
-            beginBuild(level, rec, new BlockPos(rec.x, floor, rec.z), null, b);
+            beginBuild(level, rec, b.planAt, ready, b);
             return false;
         }
         if (!b.listed) {
@@ -1267,9 +1373,11 @@ public final class Expeditions {
         m.persist();
         NightSiegeMod.LOGGER.info("[Night Siege] Dungeon {} steht bei {} {} {} (Weg nach {}, {} Räume)", rec.kind,
                 rec.x, rec.y, rec.z, rec.facing, rec.rooms);
-        NightSiegeMod.LOGGER.info("[Night Siege] Dungeon-Bau: {}Plan {} ms, Bau {} ms in {} Ticks (längster Tick {} ms), {} Chunks, fertig nach {} s",
+        NightSiegeMod.LOGGER.info("[Night Siege] Dungeon-Bau: {}Plan {} ms (davon im Tick {} ms){}, Bau {} ms in {} Ticks (längster Tick {} ms), {} Chunks, fertig nach {} s",
                 b.searchMs >= 0 ? "Suche " + b.searchMs + " ms in " + b.searchTicks + " Ticks, " : "",
-                b.planNanos / 1_000_000L, b.work / 1_000_000L, b.busyTicks, b.longest / 1_000_000L, byChunk.size(),
+                b.planNanos / 1_000_000L, b.tickNanos / 1_000_000L,
+                b.checkNanos > 0 ? ", Platzprüfung " + b.checkNanos / 1_000_000L + " ms" : "",
+                b.work / 1_000_000L, b.busyTicks, b.longest / 1_000_000L, byChunk.size(),
                 String.format(Locale.ROOT, "%.1f", (System.nanoTime() - b.born) / 1e9));
     }
 
@@ -3427,7 +3535,11 @@ public final class Expeditions {
         SiegeSave.ExpeditionRecord rec = newRecord(level, origin, facing, kind, rooms);
         m.save().expedition = rec;
         plan = null;
-        beginBuild(level, rec, origin, null, null);
+        Build b = new Build(rec.id, rec.dimension);
+        b.stage = Build.SITE;   // its spot is given: only the plan is worked out (in the background) first
+        b.planAt = groundOrigin(level, origin);
+        b.planning = workOut(b.planAt, facing, kind, rooms, rec.id);
+        job = b;
         return rec;
     }
 
