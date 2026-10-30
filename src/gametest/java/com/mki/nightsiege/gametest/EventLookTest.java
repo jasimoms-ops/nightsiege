@@ -6809,6 +6809,7 @@ public class EventLookTest implements FabricClientGameTest {
         game.getServer().runCommand("tp @p %d.5 %d %d.5 0 10".formatted(cx, cy, cz - 6));
         context.waitTicks(40);
         java.util.List<String> fails = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+        int[] layoutMove = {-1, -1};   // the cobblestone's slot before and after the player moved it
         java.util.List<BlockPos> homeTurrets = java.util.List.of(new BlockPos(cx, cy, cz), new BlockPos(cx, cy, cz - 12),
                 new BlockPos(cx + 2, cy, cz - 12));
 
@@ -6857,21 +6858,61 @@ public class EventLookTest implements FabricClientGameTest {
             if (!pick) {
                 fails.add("no wooden pickaxe in the kit");
             }
-            if (cobble >= 0) {
-                int target = cobble == 35 ? 34 : 35;
-                net.minecraft.world.item.ItemStack moved = inv.getItem(cobble);
-                inv.setItem(cobble, inv.getItem(target));
-                inv.setItem(target, moved);
-                manager.kits().restore(player);
-                manager.kits().equip(player, 1);
-                boolean back = inv.getItem(target).is(net.minecraft.world.item.Items.COBBLESTONE);
-                System.out.println("[Night Siege test] tech kit layout: cobblestone " + cobble + " -> " + target + " kept=" + back);
+            // Moved into an empty slot, like Simon did (29.10.: "beim nächsten Kit dupliziert").
+            int free = -1;
+            for (int i = 35; i >= 9 && free < 0; i--) {
+                if (inv.getItem(i).isEmpty()) {
+                    free = i;
+                }
+            }
+            if (cobble >= 0 && free >= 0) {
+                layoutMove[0] = cobble;
+                layoutMove[1] = free;
+                inv.setItem(free, inv.getItem(cobble));
+                inv.setItem(cobble, net.minecraft.world.item.ItemStack.EMPTY);
+            }
+        });
+        context.waitTicks(5);
+        onServer(context, (player, manager) -> manager.kits().restore(player));
+        context.waitTicks(5);
+        String[] serverSlots = new String[36];
+        onServer(context, (player, manager) -> {
+            manager.kits().equip(player, 1);
+            net.minecraft.world.entity.player.Inventory inv = player.getInventory();
+            if (layoutMove[1] >= 0) {
+                boolean back = inv.getItem(layoutMove[1]).is(net.minecraft.world.item.Items.COBBLESTONE);
+                System.out.println("[Night Siege test] tech kit layout: cobblestone " + layoutMove[0] + " -> " + layoutMove[1]
+                        + " kept=" + back);
                 if (!back) {
                     fails.add("the kit forgot where the cobblestone was");
                 }
             }
+            for (int i = 0; i < 36; i++) {
+                net.minecraft.world.item.ItemStack s = inv.getItem(i);
+                serverSlots[i] = s.isEmpty() ? "" : net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(s.getItem()) + "x" + s.getCount();
+            }
         });
-        context.waitTicks(30);
+        context.waitTicks(10);
+        // What the client shows must be what the server holds (ghost copies looked like duplicated items).
+        String ghost = context.computeOnClient(client -> {
+            StringBuilder diff = new StringBuilder();
+            net.minecraft.world.entity.player.Inventory inv = client.player.getInventory();
+            for (int i = 0; i < 36; i++) {
+                net.minecraft.world.item.ItemStack s = inv.getItem(i);
+                String c = s.isEmpty() ? "" : net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(s.getItem()) + "x" + s.getCount();
+                String sv = serverSlots[i] == null ? "" : serverSlots[i];
+                if (!c.equals(sv)) {
+                    diff.append(' ').append(i).append(":client=").append(c.isEmpty() ? "-" : c).append("/server=")
+                            .append(sv.isEmpty() ? "-" : sv);
+                }
+            }
+            return diff.toString();
+        });
+        System.out.println("[Night Siege test] tech kit client sync:" + (ghost.isEmpty() ? " ok" : ghost));
+        if (!ghost.isEmpty()) {
+            fails.add("the client shows other kit slots than the server:" + ghost);
+        }
+        context.waitTicks(20);
         context.takeScreenshot("tech_kit_bar");
 
         // 2. The blast jump: thrown back (looking south, so north), the husk beside him crawls.
