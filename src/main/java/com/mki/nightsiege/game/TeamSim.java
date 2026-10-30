@@ -437,6 +437,7 @@ public final class TeamSim {
                 }
                 case SETUP -> setup(server, m, now);
                 case PREP -> {
+                    keepStanding(server);   // the night starts them at full health anyway
                     if (now - phaseTick == 20) {
                         for (Map.Entry<UUID, TeamBrain> e : brains.entrySet()) {
                             ServerPlayer bot = server.getPlayerList().getPlayer(e.getKey());
@@ -486,6 +487,7 @@ public final class TeamSim {
                     }
                 }
                 case PAUSE -> {
+                    keepStanding(server);
                     if (now - phaseTick >= 40) {
                         phase = Phase.SETUP;
                     }
@@ -510,16 +512,26 @@ public final class TeamSim {
         applyConfig(m, common);
         applyConfig(m, variants.getOrDefault(run.variant(), Map.of()));
         clearField(m);
-        // The bots: as many as the group, the same names every time.
-        List<ServerPlayer> bots = new ArrayList<>(SimBots.all());
-        while (bots.size() > run.group()) {
-            SimBots.remove(server, bots.remove(bots.size() - 1));
+        // The bots: as many as the group, "Bot01" to "BotNN" every time, the NN-th playing the NN-th subclass.
+        // Picked by name, not by place in the list (31.10.): a bot that died after the night was missing from
+        // SimBots.all(), so the others moved up a place, the last name came twice (one subclass lost) and the
+        // dead body stayed in the player list as a defender with the last run's skills. SimBots.spawn gives
+        // a standing bot back as it is and brings a dead one back fresh.
+        List<String> names = new ArrayList<>();
+        java.util.Set<UUID> wanted = new java.util.HashSet<>();
+        for (int i = 0; i < run.group(); i++) {
+            names.add(String.format(Locale.ROOT, "Bot%02d", i + 1));
+            wanted.add(SimBots.idOf(names.get(i)));
+        }
+        for (ServerPlayer extra : SimBots.known()) {
+            if (!wanted.contains(extra.getUUID())) {
+                SimBots.remove(server, extra);
+            }
         }
         brains.clear();
         for (int i = 0; i < run.group(); i++) {
-            String name = String.format(Locale.ROOT, "Bot%02d", i + 1);
-            ServerPlayer bot = i < bots.size() ? bots.get(i)
-                    : SimBots.spawn(server, world, name, core.getX() + 0.5, core.getY() + 1, core.getZ() + 2.5);
+            String name = names.get(i);
+            ServerPlayer bot = SimBots.spawn(server, world, name, core.getX() + 0.5, core.getY() + 1, core.getZ() + 2.5);
             if (bot == null) {
                 finish(server, "Bot ließ sich nicht erzeugen");
                 return;
@@ -538,6 +550,7 @@ public final class TeamSim {
                 bot.setGameMode(GameType.SURVIVAL);
             }
             bot.removeAllEffects();
+            bot.clearFire();
             bot.setHealth(bot.getMaxHealth());
             bot.getFoodData().setFoodLevel(20);
             bot.getFoodData().setSaturation(5f);
@@ -663,9 +676,27 @@ public final class TeamSim {
             m.cancelPreparation();
         }
         clearField(m);
+        keepStanding(server);
         index++;
         phase = Phase.PAUSE;
         phaseTick = server.getTickCount();
+    }
+
+    /**
+     * Between the nights the bots stay whole (31.10.): outside the night no drone catches a fatal blow
+     * (a wounded survivor in a mended wall, a last arrow), and a bot that really dies has no client to
+     * press "respawn". Only the bots; the night itself starts them at full health anyway.
+     */
+    private static void keepStanding(MinecraftServer server) {
+        for (UUID id : brains.keySet()) {
+            ServerPlayer bot = server.getPlayerList().getPlayer(id);
+            if (bot != null && SimBots.isBot(bot) && bot.isAlive()) {
+                bot.clearFire();
+                if (bot.getHealth() < bot.getMaxHealth()) {
+                    bot.setHealth(bot.getMaxHealth());
+                }
+            }
+        }
     }
 
     /** One line of the trap service's shot log: a mortar shot, or a shell burst with the monsters it hit. */
@@ -696,7 +727,7 @@ public final class TeamSim {
             }
             restoreConfig(m);
             clearField(m);
-            for (ServerPlayer bot : SimBots.all()) {
+            for (ServerPlayer bot : SimBots.known()) {
                 m.save().skills.remove(bot.getUUID().toString());
                 m.save().unregister(bot.getUUID().toString());
             }
