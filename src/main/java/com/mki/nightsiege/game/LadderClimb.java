@@ -74,6 +74,29 @@ public final class LadderClimb {
     private final Set<UUID> equipped = new HashSet<>();
     /** The ladder a monster last gave up on: it does not pick it again straight away. */
     private final Map<UUID, BlockPos> gaveUp = new HashMap<>();
+    /**
+     * Until when that ladder stays barred for it (Simon 30.10., 16:12: before, a ladder given up once
+     * stayed barred for the whole night, while the raid kept sending the monster to its foot).
+     */
+    private final Map<UUID, Long> gaveUpUntil = new HashMap<>();
+    /** Ticks a ladder given up on stays barred for that monster. */
+    private static final int BARRED = 300;
+    /**
+     * One monster at a time gets onto a ladder (Simon 30.10., 16:12: "mehrere Monster sammeln sich
+     * unten an der Leiter und keins kommt hoch"): the foot → the monster whose turn it is, and since when.
+     * The others wait a few blocks out from the wall, so they do not push the climber off the rungs.
+     */
+    private final Map<BlockPos, UUID> turn = new HashMap<>();
+    private final Map<BlockPos, Long> turnSince = new HashMap<>();
+    /** Ticks a monster may take with its turn before the next one gets it. */
+    private static final int TURN_MAX = 120;
+    /** Height above the foot from which the next monster may get on. */
+    private static final double NEXT_ON = 2.5;
+    /** How far out from the wall the others wait. */
+    private static final int WAIT_OUT = 3;
+    /** Since when a monster waits for its turn (it gives up after a while and tries another way). */
+    private final Map<UUID, Long> waitSince = new HashMap<>();
+    private static final int WAIT_MAX = 600;
     /** On a ladder: the best height reached (negated on the way down), when, and the direction (1 up). */
     private final Map<UUID, double[]> progress = new HashMap<>();
     /** Monsters that let go of a ladder they made no headway on: left to their own AI until then. */
@@ -83,7 +106,56 @@ public final class LadderClimb {
     /** Ticks a monster that let go is left to its own AI. */
     private static final int RELEASE = 100;
 
+    /** What the ladders did in this night (for the log and the gametest, 30 October 2026). */
+    public static final class Stats {
+        public int searches;
+        public int searchesWithSkip;
+        public int found;
+        public int boarded;
+        public int topped;
+        public int gaveUpWalk;
+        public int letGo;
+        public int waited;
+        public int pushedOff;
+
+        @Override
+        public String toString() {
+            return "Suchen " + searches + " (mit gesperrter Leiter " + searchesWithSkip + "), gefunden " + found
+                    + ", aufgestiegen " + boarded + ", oben " + topped + ", Weg aufgegeben " + gaveUpWalk
+                    + ", losgelassen " + letGo + ", gewartet " + waited + ", unten abgerutscht " + pushedOff;
+        }
+    }
+
+    private Stats stats = new Stats();
+    /** Monsters that reached the top on their current climb (counted once). */
+    private final Set<UUID> toppedNow = new HashSet<>();
+
+    public Stats stats() {
+        return stats;
+    }
+
+    /** One monster's ladder state, for the gametest. */
+    public String describe(UUID id, long now) {
+        Long free = released.get(id);
+        Long climbed = climbedAt.get(id);
+        BlockPos g = goals.get(id);
+        return "ziel=" + (g != null ? g.toShortString() : "-")
+                + " dran=" + (g != null && id.equals(turn.get(g)))
+                + " wartet_seit=" + (waitSince.containsKey(id) ? String.valueOf(now - waitSince.get(id)) : "-")
+                + " gesperrt=" + (gaveUp.containsKey(id) ? gaveUp.get(id).toShortString() + " noch "
+                + (gaveUpUntil.getOrDefault(id, now) - now) : "-")
+                + " frei_in=" + (free == null ? "-" : String.valueOf(free - now))
+                + " geklettert_vor=" + (climbed == null ? "-" : String.valueOf(now - climbed))
+                + " gesteuert=" + holding.contains(id);
+    }
+
     public void reset() {
+        stats = new Stats();
+        toppedNow.clear();
+        gaveUpUntil.clear();
+        turn.clear();
+        turnSince.clear();
+        waitSince.clear();
         goals.clear();
         goalSince.clear();
         lastSearch.clear();
@@ -96,6 +168,10 @@ public final class LadderClimb {
     }
 
     public void forget(UUID id) {
+        toppedNow.remove(id);
+        gaveUpUntil.remove(id);
+        waitSince.remove(id);
+        turn.values().removeIf(id::equals);
         goals.remove(id);
         goalSince.remove(id);
         lastSearch.remove(id);
@@ -156,9 +232,7 @@ public final class LadderClimb {
     public void tick(ServerLevel world, Collection<UUID> mobs, BlockPos anchor, long now) {
         for (UUID id : mobs) {
             Entity entity = world.getEntity(id);
-            if (!(entity instanceof Mob mob) || !mob.isAlive() || mob.isPassenger() || mob.isVehicle()
-                    || mob.getNavigation() instanceof WallClimberNavigation || mob.getBbWidth() > 1.2f
-                    || mob.isNoGravity()) {
+            if (!(entity instanceof Mob mob) || !mob.isAlive() || !canTake(mob)) {
                 continue;
             }
             equip(mob);
@@ -185,9 +259,36 @@ public final class LadderClimb {
                     continue;
                 }
                 holding.add(id);
-                // On the ladder: the walk to it is over.
-                goals.remove(id);
-                goalSince.remove(id);
+                waitSince.remove(id);
+                Long before = climbedAt.get(id);
+                if (before == null || now - before > OVER_THE_TOP) {
+                    stats.boarded++;
+                    toppedNow.remove(id);
+                }
+                if (up && !toppedNow.contains(id)) {
+                    // Keep the ladder as its goal while it climbs: pushed off near the bottom, it
+                    // walks straight back in (before, it took itself for over the wall and pressed
+                    // against the wall beside the ladder). At the top the goal is done for good.
+                    BlockPos foot = goals.get(id);
+                    if (foot == null || foot.getX() != mob.getBlockX() || foot.getZ() != mob.getBlockZ()) {
+                        foot = footOf(world, mob.blockPosition());
+                        goals.put(id, foot);
+                    }
+                    goalSince.put(id, now);
+                    if (mob.getY() - foot.getY() >= NEXT_ON) {
+                        endTurn(foot, id);   // up a bit: the next one may get on
+                    }
+                    if (!isClimbable(world.getBlockState(mob.blockPosition().above()))) {
+                        toppedNow.add(id);
+                        stats.topped++;
+                        goals.remove(id);
+                        goalSince.remove(id);
+                        endTurn(foot, id);
+                    }
+                } else if (!up) {
+                    goals.remove(id);
+                    goalSince.remove(id);
+                }
                 climbedAt.put(id, now);
                 climb(world, mob, anchor, up);
                 continue;
@@ -198,18 +299,26 @@ public final class LadderClimb {
                     && Math.abs(mob.getY() - target.getY()) < 2.0 && mob.getSensing().hasLineOfSight(target);
             Long climbed = climbedAt.get(id);
             if (climbed != null && now - climbed < OVER_THE_TOP && !inReach) {
-                holding.add(id);
-                overTheTop(mob, goal);
-                continue;
+                if (toppedNow.contains(id)) {
+                    holding.add(id);
+                    overTheTop(mob, goal);
+                    continue;
+                }
+                // Off the ladder near the bottom (pushed off, or slipped): not over the wall, back to the ladder.
+                climbedAt.remove(id);
+                stats.pushedOff++;
             }
             BlockPos foot = goals.get(id);
             if (foot != null && (!isClimbable(world.getBlockState(foot)) || inReach
                     || now - goalSince.getOrDefault(id, now) > GIVE_UP)) {
                 if (now - goalSince.getOrDefault(id, now) > GIVE_UP) {
-                    gaveUp.put(id, foot);
+                    bar(id, foot, now);
+                    stats.gaveUpWalk++;
                 }
+                endTurn(foot, id);
                 goals.remove(id);
                 goalSince.remove(id);
+                waitSince.remove(id);
                 foot = null;
             }
             if (foot == null) {
@@ -224,10 +333,21 @@ public final class LadderClimb {
                 if (canWalkTo(mob, goal)) {
                     continue;   // there is a way after all: no ladder needed
                 }
-                foot = findLadder(world, mob, goal, gaveUp.get(id));
+                stats.searches++;
+                BlockPos skip = gaveUp.get(id);
+                if (skip != null && now >= gaveUpUntil.getOrDefault(id, 0L)) {
+                    gaveUp.remove(id);   // barred long enough: it may try that ladder again
+                    gaveUpUntil.remove(id);
+                    skip = null;
+                }
+                if (skip != null) {
+                    stats.searchesWithSkip++;
+                }
+                foot = findLadder(world, mob, goal, skip);
                 if (foot == null) {
                     continue;
                 }
+                stats.found++;
                 goals.put(id, foot);
                 goalSince.put(id, now);
             }
@@ -240,6 +360,34 @@ public final class LadderClimb {
             double dx = fx - mob.getX();
             double dz = fz - mob.getZ();
             double d2 = dx * dx + dz * dz;
+            if (d2 <= 25.0 && !myTurn(world, foot, id, now)) {
+                // Somebody else is getting on: wait a few blocks out from the wall.
+                Long since = waitSince.putIfAbsent(id, now);
+                if (since == null) {
+                    stats.waited++;
+                } else if (now - since > WAIT_MAX) {
+                    bar(id, foot, now);   // waited long enough: another way (another ladder, or the raid's)
+                    goals.remove(id);
+                    goalSince.remove(id);
+                    waitSince.remove(id);
+                    holding.remove(id);
+                    continue;
+                }
+                goalSince.put(id, now);   // waiting is no giving up
+                BlockPos wait = waitSpot(world, foot, stand);
+                double wx = wait.getX() + 0.5 - mob.getX();
+                double wz = wait.getZ() + 0.5 - mob.getZ();
+                if (wx * wx + wz * wz > 2.25) {
+                    if (!wait.equals(mob.getNavigation().getTargetPos()) || mob.getNavigation().isDone()) {
+                        mob.getNavigation().moveTo(wait.getX() + 0.5, wait.getY(), wait.getZ() + 0.5, 1.0);
+                    }
+                } else {
+                    mob.getNavigation().stop();
+                }
+                mob.getLookControl().setLookAt(fx, foot.getY() + 1.5, fz);
+                continue;
+            }
+            waitSince.remove(id);
             if (d2 <= 6.25 && Math.abs(mob.getY() - stand.getY()) < 1.5 && clearWalk(world, mob, stand)) {
                 // Close to the foot: walk straight into the ladder (the path finder
                 // stops in front of it), the climb takes over from there.
@@ -327,6 +475,14 @@ public final class LadderClimb {
         double vy;
         if (up) {
             boolean top = !isClimbable(world.getBlockState(at.above()));
+            double off = ox * toWall.getStepX() + oz * toWall.getStepZ();
+            if (!top && (Math.abs(side) > 0.2 || off < -0.2)) {
+                // Others below push a climber off the rungs (Simon 30.10., 16:12): back onto them, to
+                // the middle of the block (closer to the wall it would stick in the ladder's own box).
+                mob.setPos(at.getX() + 0.5, mob.getY(), at.getZ() + 0.5);
+                v = new Vec3(0.0, v.y, 0.0);
+                sideways = 0.0;
+            }
             double vn = v.x * toWall.getStepX() + v.z * toWall.getStepZ();
             towards = vn * 0.5 + (top ? 0.18 : 0.05);
             vy = Math.max(v.y, 0.22);
@@ -387,11 +543,13 @@ public final class LadderClimb {
     /** Off the ladder it is stuck on: away from the wall, that ladder not again straight away. */
     private void letGo(ServerLevel world, Mob mob, BlockPos anchor, long now) {
         UUID id = mob.getUUID();
+        stats.letGo++;
         BlockPos foot = mob.blockPosition();
         for (int i = 0; i < 32 && isClimbable(world.getBlockState(foot.below())); i++) {
             foot = foot.below();
         }
-        gaveUp.put(id, foot);
+        bar(id, foot, now);
+        endTurn(foot, id);
         progress.remove(id);
         climbedAt.remove(id);
         goals.remove(id);
@@ -412,6 +570,83 @@ public final class LadderClimb {
         }
         mob.getNavigation().stop();
         mob.setDeltaMovement(ax * 0.3, 0.1, az * 0.3);
+    }
+
+    /**
+     * True for a monster that can take a ladder: no mount, no rider, not wider than a ladder, not
+     * flying, and no spider (it climbs any wall anyway).
+     */
+    public static boolean canTake(Mob mob) {
+        return !mob.isPassenger() && !mob.isVehicle() && !(mob.getNavigation() instanceof WallClimberNavigation)
+                && mob.getBbWidth() <= 1.2f && !mob.isNoGravity();
+    }
+
+    /** Bars a ladder for a monster for a while. */
+    private void bar(UUID id, BlockPos foot, long now) {
+        gaveUp.put(id, foot);
+        gaveUpUntil.put(id, now + BARRED);
+    }
+
+    /**
+     * True when it is this monster's turn at the ladder: nobody else has it, or the one who had it
+     * is gone, has taken too long, or is no longer heading for it.
+     */
+    private boolean myTurn(ServerLevel world, BlockPos foot, UUID id, long now) {
+        UUID other = turn.get(foot);
+        if (other != null && !other.equals(id)) {
+            Entity e = world.getEntity(other);
+            boolean still = e != null && e.isAlive() && foot.equals(goals.get(other))
+                    && now - turnSince.getOrDefault(foot, now) <= TURN_MAX;
+            if (still) {
+                return false;
+            }
+            if (e != null && e.isAlive() && foot.equals(goals.get(other))) {
+                bar(other, foot, now);   // took too long: its turn is over, that ladder barred for it
+                goals.remove(other);
+                goalSince.remove(other);
+            }
+            other = null;
+        }
+        if (other == null) {
+            turn.put(foot, id);
+            turnSince.put(foot, now);
+        }
+        return true;
+    }
+
+    private void endTurn(BlockPos foot, UUID id) {
+        if (foot != null && id.equals(turn.get(foot))) {
+            turn.remove(foot);
+            turnSince.remove(foot);
+        }
+    }
+
+    /** Where the others wait for their turn: a few blocks out from the wall in front of the ladder. */
+    private static BlockPos waitSpot(ServerLevel world, BlockPos foot, BlockPos stand) {
+        BlockState state = world.getBlockState(foot);
+        if (!(state.getBlock() instanceof LadderBlock)) {
+            return stand;
+        }
+        Direction out = state.getValue(LadderBlock.FACING);
+        BlockPos p = stand.relative(out, WAIT_OUT);
+        for (int dy = 2; dy >= -3; dy--) {
+            BlockPos q = p.above(dy);
+            if (world.getBlockState(q.below()).blocksMotion()
+                    && world.getBlockState(q).getCollisionShape(world, q).isEmpty()
+                    && world.getBlockState(q.above()).getCollisionShape(world, q.above()).isEmpty()) {
+                return q;
+            }
+        }
+        return stand;
+    }
+
+    /** The lowest rung of the climbable column at {@code at}. */
+    private static BlockPos footOf(ServerLevel world, BlockPos at) {
+        BlockPos foot = at;
+        for (int i = 0; i < 32 && isClimbable(world.getBlockState(foot.below())); i++) {
+            foot = foot.below();
+        }
+        return foot;
     }
 
     static boolean isClimbable(BlockState state) {
