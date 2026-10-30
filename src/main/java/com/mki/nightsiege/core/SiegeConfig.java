@@ -821,6 +821,43 @@ public class SiegeConfig {
     }
 
     /** A server tweak of a skill value, if the server set one, times {@code by}. */
+    // The class balancing of update 30.10. (subclass -> new factor; skill, value, new number).
+    private static final Map<String, Double> UPDATE_17_DAMAGE = new LinkedHashMap<>();
+    private static final Map<String, Double> UPDATE_17_TAKEN = new LinkedHashMap<>();
+    private static final Map<String, Double> UPDATE_17_HEALING = new LinkedHashMap<>();
+    private static final List<String[]> UPDATE_17_TWEAKS = new ArrayList<>();
+
+    static {
+        UPDATE_17_DAMAGE.put("axe", 1.1);
+        UPDATE_17_DAMAGE.put("paladin", 1.1);
+        UPDATE_17_DAMAGE.put("shieldfighter", 0.45);
+        UPDATE_17_DAMAGE.put("bulwark", 0.63);
+        UPDATE_17_DAMAGE.put("alchemist", 0.9);
+        UPDATE_17_DAMAGE.put("gunner", 0.78);
+        UPDATE_17_DAMAGE.put("electrician", 1.5);
+        UPDATE_17_DAMAGE.put("necromancer", 0.87);
+        UPDATE_17_TAKEN.put("golemsmith", 0.8);
+        UPDATE_17_TAKEN.put("soulcatcher", 0.85);
+        UPDATE_17_HEALING.put("medic", 1.8);
+        UPDATE_17_TWEAKS.add(new String[] {"smite", "hp", "0"});
+        UPDATE_17_TWEAKS.add(new String[] {"w_vow", "radius", "8"});
+        UPDATE_17_TWEAKS.add(new String[] {"holy_light", "heal", "8"});
+        UPDATE_17_TWEAKS.add(new String[] {"w_holy_strike", "heal", "2"});
+        UPDATE_17_TWEAKS.add(new String[] {"d_soulcatcher", "swarmcd", "80"});
+    }
+
+    /** Sets one named number of a skill on the server (a skill tweak value). */
+    private void setTweak(String node, String key, double value) {
+        if (skillTweaks == null) {
+            skillTweaks = new LinkedHashMap<>();
+        }
+        SkillTweak tweak = skillTweaks.computeIfAbsent(node, k -> new SkillTweak());
+        if (tweak.values == null) {
+            tweak.values = new LinkedHashMap<>();
+        }
+        tweak.values.put(key, value);
+    }
+
     private void scaleTweak(String node, String key, double by) {
         SkillTweak tweak = skillTweaks == null ? null : skillTweaks.get(node);
         if (tweak == null || tweak.values == null || tweak.values.get(key) == null) {
@@ -1337,6 +1374,24 @@ public class SiegeConfig {
                 subclassDamageTaken.put("soulcatcher", 1.4 / 1.2);
             }
             settingsVersion = 16;
+        }
+        if (settingsVersion < 17) {
+            // Update 30.10. (Simon 30.10., 03:37: "bau ein update wenn alle tests abgeschlossen sind"):
+            // the night scales by group size (team sim skal3-skal5: about 70 % wins for 1-10 players),
+            // the kill goal leaves out monsters gone without a kill, and the class balancing (klassen3).
+            soloScaling = 0.6;
+            overflowHealth = 0.0;
+            liveCapByPlayers = new ArrayList<>(List.of(9, 15, 20, 33, 46, 58, 70, 82, 98, 114));
+            damageTakenByPlayers = new ArrayList<>(List.of(0.7, 0.9, 0.95, 1.0));
+            mobHealthByPlayers = new ArrayList<>(List.of(0.7, 0.9, 0.95, 1.0));
+            quotaSkipsVanished = true;
+            UPDATE_17_DAMAGE.forEach(subclassDamage::put);
+            UPDATE_17_TAKEN.forEach(subclassDamageTaken::put);
+            UPDATE_17_HEALING.forEach(subclassHealing::put);
+            for (String[] t : UPDATE_17_TWEAKS) {
+                setTweak(t[0], t[1], Double.parseDouble(t[2]));
+            }
+            settingsVersion = 17;
         }
         if (Double.isNaN(meleeLifesteal)) {
             meleeLifesteal = 0.08;

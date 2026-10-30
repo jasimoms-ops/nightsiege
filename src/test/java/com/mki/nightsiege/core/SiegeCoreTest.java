@@ -18,6 +18,16 @@ class SiegeCoreTest {
         return c;
     }
 
+    /** The night's size as before update 30.10. (settings 17): one formula, one cap for every group. */
+    private SiegeConfig cfgOneCap() {
+        SiegeConfig c = cfg();
+        c.soloScaling = 1.0;
+        c.liveCapByPlayers.clear();
+        c.damageTakenByPlayers.clear();
+        c.mobHealthByPlayers.clear();
+        return c;
+    }
+
     // --- difficulty ---------------------------------------------------
 
     @Test
@@ -33,7 +43,7 @@ class SiegeCoreTest {
 
     @Test
     void durationAndBatchScale() {
-        SiegeConfig c = cfg();
+        SiegeConfig c = cfgOneCap();
         assertEquals(240, SiegeMath.durationSeconds(1, c));
         assertEquals(600, SiegeMath.durationSeconds(99, c));
         assertEquals(4, SiegeMath.mobsPerBatch(1, 1, c));
@@ -44,7 +54,7 @@ class SiegeCoreTest {
 
     @Test
     void perPlayerScaling() {
-        SiegeConfig c = cfg();
+        SiegeConfig c = cfgOneCap();
         // The defaults keep everything as it was: cap 40 for any group, no overflow life.
         assertEquals(40, SiegeMath.liveCap(1, c));
         assertEquals(40, SiegeMath.liveCap(10, c));
@@ -83,8 +93,39 @@ class SiegeCoreTest {
     }
 
     @Test
+    void update17ScalesByGroupAndBalancesTheClasses() {
+        // A server at settings 16 (the config of 29.10.) gets the tables, the switch and the class values.
+        SiegeConfig server = new SiegeConfig();
+        server.settingsVersion = 16;
+        server.subclassDamage.put("alchemist", 1.15);
+        server.subclassDamageTaken.put("soulcatcher", 1.1666);
+        server.sanitize();
+        assertEquals(17, server.settingsVersion);
+        assertEquals(0.6, server.soloScaling, 1e-9);
+        assertEquals(9, SiegeMath.liveCap(1, server));
+        assertEquals(33, SiegeMath.liveCap(4, server));
+        assertEquals(114, SiegeMath.liveCap(10, server));
+        assertEquals(120, SiegeMath.liveCap(12, server));   // past the table +8 per player, at most 120
+        assertEquals(0.7, SiegeMath.damageTakenForGroup(1, server), 1e-9);
+        assertEquals(0.95, SiegeMath.healthForGroup(3, server), 1e-9);
+        assertEquals(1.0, SiegeMath.healthForGroup(8, server), 1e-9);
+        assertTrue(server.quotaSkipsVanished);
+        assertEquals(0.9, server.subclassDamage.get("alchemist"), 1e-9);
+        assertEquals(0.85, server.subclassDamageTaken.get("soulcatcher"), 1e-9);
+        assertEquals(80.0, server.skillTweaks.get("d_soulcatcher").values.get("swarmcd"), 1e-9);
+        assertEquals(8.0, server.skillTweaks.get("holy_light").values.get("heal"), 1e-9);
+        // The tank guard is on by default.
+        assertEquals(0.15, server.bulwarkGuardDamage, 1e-9);
+        assertEquals(0.3, server.shieldfighterGuardKnockback, 1e-9);
+        // Once done, a server's own later changes stay.
+        server.liveCapByPlayers.set(9, 90);
+        server.sanitize();
+        assertEquals(90, SiegeMath.liveCap(10, server));
+    }
+
+    @Test
     void growthSlowsAboveTwenty() {
-        SiegeConfig c = cfg();
+        SiegeConfig c = cfgOneCap();
         assertEquals(1.0, SiegeMath.healthMultiplier(1, c), 1e-9);
         assertEquals(2.14, SiegeMath.healthMultiplier(20, c), 1e-9);
         assertEquals(1.76, SiegeMath.damageMultiplier(20, c), 1e-9);
@@ -278,13 +319,14 @@ class SiegeCoreTest {
         SiegeConfig fresh = new SiegeConfig();
         fresh.sanitize();
         // 1.25 since 25.10., -30 % since the DPS bench of 27.10.
-        assertEquals(0.875, fresh.subclassDamage.get("shieldfighter"), 1e-9);
+        // Update 30.10. (settings 17) sets the class balancing of the team sim (klassen3).
+        assertEquals(0.45, fresh.subclassDamage.get("shieldfighter"), 1e-9);
         // Simon 27.10. (DPS bench, level 10): tamer +20 %, bolt archer -40 %, bulwark -15 %, medic heals 20 % more; the paladin stays.
         assertEquals(1.2, fresh.subclassDamage.get("tamer"), 1e-9);
         assertEquals(0.6, fresh.subclassDamage.get("bolter"), 1e-9);
-        assertEquals(0.85, fresh.subclassDamage.get("bulwark"), 1e-9);
-        assertEquals(1.0, fresh.subclassDamage.get("paladin"), 1e-9);
-        assertEquals(1.2, fresh.healingFactor("medic"), 1e-9);
+        assertEquals(0.63, fresh.subclassDamage.get("bulwark"), 1e-9);
+        assertEquals(1.1, fresh.subclassDamage.get("paladin"), 1e-9);
+        assertEquals(1.8, fresh.healingFactor("medic"), 1e-9);
         // Simon 27.10., 23:00: more life steal for the melee classes again.
         assertEquals(0.12, fresh.meleeLifesteal, 1e-9);
         // Simon 28.10., 02:13: the berserker steals 12 % again; an old server tweak of 0.16 goes back too.
@@ -302,14 +344,15 @@ class SiegeCoreTest {
         // Simon 26.10.: the shield fighter takes as much as anyone, the bulwark 35 % less, the alchemist hits 15 % harder.
         assertEquals(1.0, fresh.subclassDamageTaken.get("shieldfighter"), 1e-9);
         assertEquals(0.65, fresh.subclassDamageTaken.get("bulwark"), 1e-9);
-        assertEquals(1.15, fresh.subclassDamage.get("alchemist"), 1e-9);
+        assertEquals(0.9, fresh.subclassDamage.get("alchemist"), 1e-9);
         assertTrue(fresh.damageTakenFactor("guardian", "shieldfighter") >= fresh.damageTakenFactor("guardian", "bulwark") / 0.7 - 1e-9);
-        // A server that tuned the shield fighter itself keeps its own value (only the -30 % of 27.10. on top).
+        // A server that tuned the shield fighter itself kept its own value (only the -30 % of 27.10. on top);
+        // update 30.10. then sets the tested value.
         SiegeConfig tuned = new SiegeConfig();
         tuned.settingsVersion = 5;
         tuned.subclassDamage.put("shieldfighter", 1.5);
         tuned.sanitize();
-        assertEquals(1.05, tuned.subclassDamage.get("shieldfighter"), 1e-9);
+        assertEquals(0.45, tuned.subclassDamage.get("shieldfighter"), 1e-9);
         assertEquals(2.5, new SkillTree().get("riposte").amountPerLevel(), 1e-9);
     }
 
