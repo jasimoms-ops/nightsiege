@@ -257,6 +257,16 @@ public final class SiegeManager {
     private final Set<UUID> participants = new HashSet<>();
     private final Set<UUID> fallen = new HashSet<>();
     private final Set<UUID> liveMobs = new HashSet<>();
+    /** Defenders without a connection, with the game time they went (Simon 31.10.: a minute's grace). */
+    private final Map<UUID, Long> offlineSince = new HashMap<>();
+    private final Map<UUID, String> defenderNames = new HashMap<>();
+    private static final long DISCONNECT_GRACE_TICKS = 1200L;
+    /** Defenders here right now (online or within the grace), counted every tick of the night. */
+    private int presentDefenders;
+    /** The war camp's machines come tonight (given back when the night is broken off). */
+    private boolean machinesNight;
+    /** Every monster of a night carries it, so one left by a crash goes when its chunk loads. */
+    public static final String NIGHT_MOB_TAG = "nightsiege_night";
     /** Vexes and phantoms: high-standing defenders first (Simon, 26 October 2026). */
     private final SkyHunters skyHunters = new SkyHunters();
 
@@ -330,6 +340,7 @@ public final class SiegeManager {
             SimBots.removeAll(server);
             safe("Dungeons", () -> expeditions.endAll(server, null));   // kits back, the arena's gate open
             traps.releaseAll(server);   // gunners out of the towers, the seats go
+            safe("Nacht beim Stopp", () -> endNightForStop(server));   // before vanilla saves the players
             Drones.stopAll(server);
             if (active) {
                 events.end(server, world, currentEvent);
@@ -349,6 +360,15 @@ public final class SiegeManager {
         ServerEntityCombatEvents.AFTER_KILLED_OTHER_ENTITY.register(
                 (killWorld, killer, killed, killSource) -> onKill(killer, killed));
         ServerPlayerEvents.JOIN.register(player -> onJoin(player));
+        // No sleeping from the horn until the siege is over (Simon 31.10.: survival safety), real, test and
+        // playtest nights alike; this also covers sleeping through a thunderstorm by day.
+        net.fabricmc.fabric.api.entity.event.v1.EntitySleepEvents.ALLOW_SLEEPING.register((sleeper, bedPos) -> {
+            if (sleeper instanceof ServerPlayer sp && sleepBlocked(sp.level().getServer())) {
+                sp.sendOverlayMessage(Component.translatable("nightsiege.msg.no_sleep").withStyle(ChatFormatting.GOLD));
+                return net.minecraft.world.entity.player.Player.BedSleepingProblem.OTHER_PROBLEM;
+            }
+            return null;
+        });
         ServerPlayerEvents.COPY_FROM.register((oldPlayer, newPlayer, alive) -> {
             if (!alive && keptInventory.remove(oldPlayer.getUUID())) {
                 net.minecraft.world.entity.player.Inventory from = oldPlayer.getInventory();
@@ -465,6 +485,11 @@ public final class SiegeManager {
             }
             if (BossService.isBossOrPart(entity) && !bosses.planned() && !finaleNight && !lateNight) {
                 entity.discard();   // left from a night that ended without us (a crash)
+                return;
+            }
+            if (!active && entity.entityTags().contains(NIGHT_MOB_TAG) && !Companions.isCompanion(entity)
+                    && !(entity instanceof Mob campOrDungeon && foughtOutsideTheNight(campOrDungeon))) {
+                entity.discard();   // a monster of a night that ended without us (a crash, Simon 31.10.)
                 return;
             }
             archer.onEntityLoad(entity, world, skillTree, this::liveSkillsFor);
@@ -727,6 +752,9 @@ public final class SiegeManager {
 
         long gameTime = server.overworld().getGameTime();
         lastKnownDay = SiegeMath.dayOf(gameTime);
+        if (sleepBlocked(server)) {
+            safe("Schlaf", () -> wakeSleepers(server));   // in bed before the horn: up (Simon 31.10.)
+        }
         safe("Playtest", () -> playtest.tick(server));
 
         if (!active) {
@@ -821,7 +849,7 @@ public final class SiegeManager {
         SiegeEvent tonight = pendingTest != null ? pendingTest.event : pendingEvent();
         data.event = tonight == null || tonight == SiegeEvent.NONE ? "" : tonight.name();
         data.accepts = acceptedCount();
-        data.required = config.requiredAccepts;
+        data.required = requiredAccepts();
         data.unlocksFree = own.unlocksFree;
         data.nextOpen = mayUnlock(player, own);
         // One card per profile (Simon, 26 October 2026): "Krieger – Berserker", "Krieger – Klingenmeister" ...
@@ -1073,6 +1101,34 @@ public final class SiegeManager {
         return !active && warnedDay == day && startedDay != day;
     }
 
+    /**
+     * No sleeping from the horn until the siege is over (Simon 31.10.: survival safety): while a real
+     * night is coming or running, a test night (also the playtest's) is prepared or running.
+     */
+    public boolean sleepBlocked(MinecraftServer server) {
+        return server != null && (active || pendingTest != null || nightComing(server));
+    }
+
+    /** Whoever lies in bed while a night is coming or running gets up. */
+    private void wakeSleepers(MinecraftServer server) {
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            if (player.isSleeping()) {
+                player.stopSleepInBed(true, true);
+                player.sendOverlayMessage(Component.translatable("nightsiege.msg.no_sleep").withStyle(ChatFormatting.GOLD));
+            }
+        }
+    }
+
+    /** Accepts tonight's real night needs: the config's number at most, otherwise everyone invited (Simon 31.10.). */
+    public int requiredAccepts() {
+        return SiegeRhythm.requiredAccepts(config, save.invitedCount());
+    }
+
+    /** True on Peaceful: monsters vanish at once, a night would be a free win (Simon 31.10.). */
+    private static boolean peaceful(MinecraftServer server) {
+        return server != null && server.overworld().getDifficulty() == net.minecraft.world.Difficulty.PEACEFUL;
+    }
+
     /** Accepted invitations of players still signed up. */
     public int acceptedCount() {
         int count = 0;
@@ -1093,16 +1149,42 @@ public final class SiegeManager {
         }
         long day = clockDay(server);
         int time = clockTime(server);
+        if (warnedDay > day && startedDay != warnedDay) {
+            // The clock went back past tonight's horn (/time set, Simon 31.10.): that night does not come;
+            // the kits go back, the vote starts anew on the siege day.
+            NightSiegeMod.LOGGER.info("[Night Siege] Uhr vor das Horn von Tag {} zurückgestellt (jetzt Tag {}): Kits zurück", warnedDay, day);
+            warnedDay = -1L;
+            save.voteDay = -1L;
+            save.clearVotes();
+            endKits(server);
+            persist();
+        }
         SiegeRhythm.Step step = SiegeRhythm.decide(day, time, save.nextSiegeDay, save.voteDay, warnedDay, startedDay,
-                acceptedCount(), config, closeTime(), startTime());
+                acceptedCount(), requiredAccepts(), config, closeTime(), startTime());
+        if ((step == SiegeRhythm.Step.WARN || step == SiegeRhythm.Step.START) && peaceful(server)) {
+            cancelNight(server, day, "nightsiege.msg.peaceful_night");   // no free wins on Peaceful (Simon 31.10.)
+            return;
+        }
         switch (step) {
             case SCHEDULE -> {
+                if (SiegeRhythm.tooFarAhead(day, save.nextSiegeDay, config)) {
+                    // The clock went back (/time set 1000 on day 50): the siege day would be weeks away (Simon 31.10.).
+                    NightSiegeMod.LOGGER.info("[Night Siege] Belagerungstag {} liegt zu weit voraus (Tag {}): neu ab heute",
+                            save.nextSiegeDay, day);
+                    save.extraSiegeDay = -1L;
+                    save.extraRegularDay = -1L;
+                    save.voteDay = -1L;
+                    save.clearVotes();
+                }
                 save.nextSiegeDay = SiegeRhythm.nextAfter(day, config);
                 persist();
             }
             case MISSED -> {
                 save.nextSiegeDay = extraSiegeRuns() ? endExtraSiege(day, time) : SiegeRhythm.afterMissed(day, time, config);
                 save.clearVotes();
+                // The night never came after its horn (slept through, server off, time skipped, Simon 31.10.):
+                // kits off, own things back.
+                endKits(server);
                 persist();
             }
             case INVITE -> sendInvitations(server, day);
@@ -1194,6 +1276,11 @@ public final class SiegeManager {
             pending = SiegeEvent.NONE;   // an extra siege called late in the day: no time left to vote before noon
         }
         save.pendingEvent = pending.name();
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            if (isRegistered(player)) {
+                save.invite(player.getUUID().toString());   // all first, so the first invitation shows the right count
+            }
+        }
         persist();
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             if (isRegistered(player)) {
@@ -1204,6 +1291,9 @@ public final class SiegeManager {
 
     /** The invitation with its two buttons. */
     public void sendInvitation(ServerPlayer player) {
+        if (save.invite(player.getUUID().toString())) {
+            persist();   // joined or signed up during the vote: invited too, tonight may need one more accept
+        }
         boolean eclipse = pendingEvent() == SiegeEvent.ECLIPSE;
         MutableComponent text = Component.empty()
                 .append(Component.translatable(eclipse ? "nightsiege.msg.invite_noon" : "nightsiege.msg.invite",
@@ -1230,7 +1320,7 @@ public final class SiegeManager {
                     config.specialNightXpMultiplier).withStyle(ChatFormatting.LIGHT_PURPLE));
         }
         player.sendSystemMessage(Component.translatable("nightsiege.msg.vote_need", acceptedCount(),
-                config.requiredAccepts).withStyle(ChatFormatting.GRAY));
+                requiredAccepts()).withStyle(ChatFormatting.GRAY));
     }
 
     /** A clickable chat button that runs a command. */
@@ -1251,7 +1341,7 @@ public final class SiegeManager {
             player.sendSystemMessage(Component.translatable("nightsiege.msg.vote_closed").withStyle(ChatFormatting.GRAY));
             return;
         }
-        boolean wasEnough = acceptedCount() >= config.requiredAccepts;
+        boolean wasEnough = acceptedCount() >= requiredAccepts();
         if (!save.vote(player.getUUID().toString(), yes)) {
             player.sendSystemMessage(Component.translatable(yes ? "nightsiege.msg.vote_already_yes" : "nightsiege.msg.vote_already_no")
                     .withStyle(ChatFormatting.GRAY));
@@ -1260,9 +1350,9 @@ public final class SiegeManager {
         persist();
         int accepts = acceptedCount();
         broadcast(server, Component.translatable(yes ? "nightsiege.msg.voted_yes" : "nightsiege.msg.voted_no",
-                player.getDisplayName(), accepts, config.requiredAccepts)
+                player.getDisplayName(), accepts, requiredAccepts())
                 .withStyle(yes ? ChatFormatting.GREEN : ChatFormatting.GRAY));
-        if (!wasEnough && accepts >= config.requiredAccepts) {
+        if (!wasEnough && accepts >= requiredAccepts()) {
             broadcast(server, Component.translatable(pendingEvent() == SiegeEvent.ECLIPSE
                     ? "nightsiege.msg.vote_enough_noon" : "nightsiege.msg.vote_enough").withStyle(ChatFormatting.GOLD));
         }
@@ -1274,7 +1364,7 @@ public final class SiegeManager {
         long next = nextSiegeDayAfter(server, day);
         int days = (int) (next - day);
         if (save.voteDay == day) {
-            broadcast(server, Component.translatable(key, acceptedCount(), config.requiredAccepts, days)
+            broadcast(server, Component.translatable(key, acceptedCount(), requiredAccepts(), days)
                     .withStyle(ChatFormatting.GRAY));
         }
         if (pendingEvent() == SiegeEvent.ECLIPSE) {
@@ -1302,6 +1392,7 @@ public final class SiegeManager {
         broadcast(server, Component.translatable(eclipse ? "nightsiege.msg.eclipse_warning" : "nightsiege.msg.warning",
                 currentLevel()).withStyle(eclipse ? ChatFormatting.LIGHT_PURPLE : ChatFormatting.GOLD));
         Fx.warning(server, config);
+        wakeSleepers(server);   // nobody sleeps the night away (Simon 31.10.)
         handOutAtWarning(server, core);
         if (eclipse) {
             EventAtmosphere.setServer(core.dimension, EventAtmosphere.ECLIPSE,
@@ -1639,6 +1730,14 @@ public final class SiegeManager {
         if (nearby.isEmpty()) {
             return false;
         }
+        if (peaceful(server)) {
+            // Monsters vanish at once on Peaceful (Simon 31.10.): no real night, a test night only with a warning.
+            broadcast(server, Component.translatable(test ? "nightsiege.msg.peaceful_test" : "nightsiege.msg.peaceful_start")
+                    .withStyle(ChatFormatting.GRAY));
+            if (!test) {
+                return false;
+            }
+        }
         world = targetWorld;
         anchor = targetAnchor;
         testRun = test;
@@ -1657,12 +1756,14 @@ public final class SiegeManager {
         participants.clear();
         fallen.clear();
         liveMobs.clear();
+        offlineSince.clear();
         digger.reset();
         ladders.reset();
         besiegers.reset();
         for (ServerPlayer player : nearby) {
             participants.add(player.getUUID());
         }
+        presentDefenders = participants.size();
         wavesStarted = 0;
         waveWeight.clear();
         CrateEffects.reset();
@@ -1710,6 +1811,7 @@ public final class SiegeManager {
         boolean machinesTonight = testRun ? testMachines
                 : save.machinesDay >= 0 && save.machinesDay == clockDay(server);
         testMachines = false;
+        machinesNight = config.machinesEnabled && machinesTonight;
         if (config.machinesEnabled && machinesTonight) {
             machines.plan(siegeLevel);
         }
@@ -1949,13 +2051,38 @@ public final class SiegeManager {
 
         int standing = 0;
         int fallenCount = 0;
-        for (UUID id : participants) {
+        int present = 0;
+        long nowTick = world.getGameTime();
+        for (UUID id : new ArrayList<>(participants)) {
+            // A defender who lost the connection still stands for a minute (Simon 31.10.: survival safety);
+            // away longer, they count as fallen, so logging off is no way out of a lost night.
+            ServerPlayer onlinePlayer = server.getPlayerList().getPlayer(id);
+            boolean online = onlinePlayer != null;
+            if (online) {
+                offlineSince.remove(id);
+                defenderNames.put(id, onlinePlayer.getScoreboardName());
+            } else {
+                offlineSince.putIfAbsent(id, nowTick);
+            }
+            boolean here = online || nowTick - offlineSince.get(id) < DISCONNECT_GRACE_TICKS;
+            if (here) {
+                present++;
+            }
             if (fallen.contains(id)) {
                 fallenCount++;
-            } else if (server.getPlayerList().getPlayer(id) != null) {
+            } else if (here) {
                 standing++;
+            } else {
+                fallen.add(id);
+                fallenCount++;
+                String name = defenderNames.getOrDefault(id, "?");
+                NightSiegeMod.LOGGER.info("[Night Siege] {} ist seit {} s weg und gilt als gefallen", name,
+                        DISCONNECT_GRACE_TICKS / 20);
+                broadcast(server, Component.translatable("nightsiege.msg.defender_gone", name, countStanding())
+                        .withStyle(ChatFormatting.RED));
             }
         }
+        presentDefenders = present;   // waves, monster life and the field go by who is here (Simon 31.10.)
         if (standing == 0) {
             if (bossVictoryAt > 0) {
                 finish(server, true);   // the boss fell first
@@ -2880,7 +3007,7 @@ public final class SiegeManager {
 
     /** Monsters one wave brings with the defenders there now. */
     private int wantedPerWave() {
-        int players = Math.max(1, participants.size());
+        int players = presentCount();
         double perPlayer = config.perPlayer(playtest.running(), config.playerScaling);
         // What the cap leaves out comes as life (per-player scaling, 29 October 2026).
         overflowHealth = SiegeMath.overflowHealthFactor(SiegeMath.mobsWanted(siegeLevel, players, config, perPlayer), maxLive(), config);
@@ -3119,6 +3246,8 @@ public final class SiegeManager {
                 ladders.forget(id);
                 it.remove();
                 noteVanished(id);
+            } else if (!mob.entityTags().contains(NIGHT_MOB_TAG)) {
+                mob.addTag(NIGHT_MOB_TAG);   // a crash leaves no monster behind (ENTITY_LOAD, Simon 31.10.)
             }
         }
     }
@@ -3232,7 +3361,7 @@ public final class SiegeManager {
         PlayerSkills skills = save.skillsOf(player.getUUID().toString());
         // A lone defender of a night takes soloDamageTaken of it (per-player scaling, 29 October 2026).
         double solo = active && participants.contains(player.getUUID())
-                ? SiegeMath.damageTakenForGroup(participants.size(), config) : 1.0;   // by group size (29.10.)
+                ? SiegeMath.damageTakenForGroup(presentCount(), config) : 1.0;   // by group size (29.10.), who is here (31.10.)
         return (float) (config.damageTakenFactor(skills.className(), skillTree.subclassOf(skills))
                 * config.lowLevelTaken(currentLevel()) * solo);   // the low levels are a little kinder (28.10.)
     }
@@ -3242,7 +3371,7 @@ public final class SiegeManager {
 
     public double overflowHealthFactor() {
         // and the life by group size (mobHealthByPlayers, 29.10.)
-        return active ? overflowHealth * SiegeMath.healthForGroup(Math.max(1, participants.size()), config)
+        return active ? overflowHealth * SiegeMath.healthForGroup(presentCount(), config)
                 * fieldFactor(config.fieldHealth) : 1.0;   // Feld-Stärke (30.10.)
     }
 
@@ -3251,8 +3380,16 @@ public final class SiegeManager {
         if (!active || share <= 0) {
             return 1.0;
         }
-        double f = SiegeMath.fieldStrength(Math.max(1, participants.size()), maxLive(), config);
+        double f = SiegeMath.fieldStrength(presentCount(), maxLive(), config);
         return 1.0 + share * (f - 1.0);
+    }
+
+    /**
+     * Defenders of the running night who are here: online, or gone for less than the grace minute
+     * (Simon 31.10.: the night no longer stays sized for everyone who was ever there). At least 1.
+     */
+    public int presentCount() {
+        return Math.max(1, presentDefenders);
     }
 
     /** True while a playtest runs (its nights, camps and dungeons scale per player, Simon 28.10.). */
@@ -3264,9 +3401,9 @@ public final class SiegeManager {
     public int maxLive() {
         int cap;
         if (!playtest.running()) {
-            cap = SiegeMath.liveCap(Math.max(1, participants.size()), config);   // livePerPlayer, 29.10.
+            cap = SiegeMath.liveCap(presentCount(), config);   // livePerPlayer, 29.10.
         } else {
-            int players = Math.max(1, participants.size());
+            int players = presentCount();
             cap = (int) Math.min(120, Math.round(config.maxLiveMobs * (1.0 + config.playtestLivePerPlayer * (players - 1))));
         }
         return config.refillSpawns ? Math.min(cap, config.refillCap) : cap;   // Nachschub: at most 40 (30.10.)
@@ -3609,9 +3746,19 @@ public final class SiegeManager {
 
     /** Ends the siege with no winner and no punishment. */
     public void abort(MinecraftServer server) {
+        abort(server, "nightsiege.msg.aborted");
+    }
+
+    /**
+     * Ends the siege with no winner and no punishment; the line everyone reads. A real night gives back
+     * what it used (Simon 31.10.: survival safety): its night fragment and the war camp's machines come
+     * with the next night.
+     */
+    public void abort(MinecraftServer server, String messageKey) {
         if (!active) {
             return;
         }
+        boolean machinesWere = machinesNight;
         active = false;
         clearSkillsFromParticipants(server);
         SiegeTeams.cleanUp(server);
@@ -3642,11 +3789,47 @@ public final class SiegeManager {
         logNight("abgebrochen", 0, killsRequired());
         if (!testRun) {
             scheduleNextAfterNight(server);
+            if (usedFragment != null && (save.nightFragment == null || save.nightFragment.isBlank())) {
+                save.nightFragment = usedFragment;   // the special night comes again
+            }
+            if (machinesWere && config.machinesEnabled) {
+                save.machinesDay = save.nextSiegeDay;   // the camp's machines come with the next night
+            }
+            save.specialNight = false;
             persist();
         }
+        usedFragment = null;
+        machinesNight = false;
         testRun = false;
-        broadcast(server, Component.translatable("nightsiege.msg.aborted").withStyle(ChatFormatting.GRAY));
+        broadcast(server, Component.translatable(messageKey).withStyle(ChatFormatting.GRAY));
         clearSiegeState();
+    }
+
+    /**
+     * The server stops (Simon 31.10.: survival safety): a running night is broken off, no win, no loss
+     * (monsters, bosses and machines go, the base is mended, night blocks go, kits come off); a coming
+     * night takes its kits back (the vote stays: back the same day, the horn sounds again); a test's
+     * preparation ends. Runs before vanilla saves the players (public for the tests).
+     */
+    public void endNightForStop(MinecraftServer server) {
+        if (active) {
+            NightSiegeMod.LOGGER.info("[Night Siege] Server stoppt mitten in der Nacht: Nacht abgebrochen");
+            abort(server, "nightsiege.msg.aborted_stop");
+        } else if (pendingTest != null) {
+            cancelPreparation();
+        } else if (nightComing(server)) {
+            NightSiegeMod.LOGGER.info("[Night Siege] Server stoppt nach dem Horn: Kits zurück");
+            endKits(server);
+        }
+    }
+
+    /** /nightsiege stop after the horn, before the start: tonight is called off, kits come off. */
+    public boolean stopComingNight(MinecraftServer server) {
+        if (server == null || !nightComing(server)) {
+            return false;
+        }
+        cancelNight(server, clockDay(server), "nightsiege.msg.night_stopped");
+        return true;
     }
 
     /** The night is over (or did not come): every kit goes back, fallen defenders return to the core. */
@@ -3655,6 +3838,9 @@ public final class SiegeManager {
             return;
         }
         for (ServerPlayer player : new ArrayList<>(server.getPlayerList().getPlayers())) {
+            if (kitOfAFight(player)) {
+                continue;   // a dungeon or war camp fighter keeps that fight's kit (Simon 31.10.: a declined vote took it)
+            }
             endNightFor(player);
         }
         Drones.stopAll(server);
@@ -3701,6 +3887,18 @@ public final class SiegeManager {
                 player.sendSystemMessage(message);
             }
         }
+    }
+
+    /** True while the player fights in a dungeon expedition or at the war camp: the kit is that fight's. */
+    private boolean kitOfAFight(ServerPlayer player) {
+        return expeditions.isFighter(player) || camp.isFighter(player);
+    }
+
+    /** True when a dungeon's or the camp's kit of this player waits to be given back by them (on join). */
+    private boolean fightKitNoted(ServerPlayer player) {
+        String id = player.getUUID().toString();
+        return save.expeditionKits != null && save.expeditionKits.contains(id)
+                || save.campKits != null && save.campKits.contains(id);
     }
 
     /** One defender after the night: own inventory back; a spectator stands at the core again. */
@@ -3835,6 +4033,9 @@ public final class SiegeManager {
         participants.clear();
         fallen.clear();
         liveMobs.clear();
+        offlineSince.clear();
+        defenderNames.clear();
+        presentDefenders = 0;
     }
 
     /** A lost night: every defender loses the newest learned skills, the points spent on them with them. */
@@ -3926,6 +4127,16 @@ public final class SiegeManager {
             }
         }
         liveMobs.clear();
+        // Monsters of the night that dropped out of the list (their chunk unloaded and came back, 31.10.).
+        List<Entity> strays = new ArrayList<>();
+        for (Entity e : world.getAllEntities()) {
+            if (e.entityTags().contains(NIGHT_MOB_TAG) && !Companions.isCompanion(e)) {
+                strays.add(e);
+            }
+        }
+        for (Entity e : strays) {
+            e.discard();
+        }
     }
 
     // ------------------------------------------------------------------
@@ -4061,8 +4272,8 @@ public final class SiegeManager {
         MinecraftServer joinServer = player.level().getServer();
         boolean stillTonight = (active && participants.contains(player.getUUID())) || pendingTest != null
                 || (joinServer != null && nightComing(joinServer));
-        if (kits.hasStash(player) && !stillTonight) {
-            // The night ended while they were away: their own things come back now.
+        if (kits.hasStash(player) && !stillTonight && !kitOfAFight(player) && !fightKitNoted(player)) {
+            // The night ended while they were away: their own things come back now (a dungeon's or camp's kit is theirs to give back).
             boolean watching = player.isSpectator();
             kits.restore(player);
             if (watching) {

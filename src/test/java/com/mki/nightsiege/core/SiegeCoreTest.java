@@ -232,6 +232,32 @@ class SiegeCoreTest {
     }
 
     @Test
+    void rhythmNeedsAtMostTheConfigsAcceptsOtherwiseEveryoneInvited() {
+        SiegeConfig c = cfg();
+        assertEquals(3, c.requiredAccepts);
+        assertEquals(1, SiegeRhythm.requiredAccepts(c, 1));
+        assertEquals(2, SiegeRhythm.requiredAccepts(c, 2));
+        assertEquals(3, SiegeRhythm.requiredAccepts(c, 5));
+        assertEquals(1, SiegeRhythm.requiredAccepts(c, 0));   // nobody invited: still one accept needed
+        int need = SiegeRhythm.requiredAccepts(c, 1);
+        assertEquals(SiegeRhythm.Step.WARN, SiegeRhythm.decide(8, c.warningDayTime, 8, 8, -1, -1, 1, need, c,
+                c.warningDayTime, c.startDayTime));
+        assertEquals(SiegeRhythm.Step.CANCEL, SiegeRhythm.decide(8, c.warningDayTime, 8, 8, -1, -1, 1,
+                SiegeRhythm.requiredAccepts(c, 2), c, c.warningDayTime, c.startDayTime));
+    }
+
+    @Test
+    void rhythmSetsANewDayWhenTheClockWentBack() {
+        SiegeConfig c = cfg();
+        // /time set 1000 on day 50: the siege day 52 would be weeks away.
+        assertTrue(SiegeRhythm.tooFarAhead(0, 52, c));
+        assertEquals(SiegeRhythm.Step.SCHEDULE, rhythm(0, 1000, 52, 50, 50, -1, 0, c));
+        // The longest interval and one day more are fine.
+        assertEquals(SiegeRhythm.Step.NONE, rhythm(0, 1000, 4, -1, -1, -1, 0, c));
+        assertEquals(SiegeRhythm.Step.SCHEDULE, rhythm(0, 1000, 5, -1, -1, -1, 0, c));
+    }
+
+    @Test
     void eclipseVoteClosesBeforeNoon() {
         SiegeConfig c = cfg();
         int close = c.eclipseWarningDayTime;

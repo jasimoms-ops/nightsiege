@@ -649,6 +649,10 @@ public final class SiegeCommands {
             reply(source, Component.translatable("nightsiege.cmd.prep_cancelled"));
             return 1;
         }
+        if (!manager.isActive() && manager.stopComingNight(source.getServer())) {
+            reply(source, Component.translatable("nightsiege.cmd.stopped"));   // after the horn: called off, kits back (31.10.)
+            return 1;
+        }
         if (!manager.isActive()) {
             fail(source, Component.translatable("nightsiege.cmd.not_active"));
             return 0;

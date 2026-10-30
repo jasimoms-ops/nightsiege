@@ -44,7 +44,17 @@ public final class SiegeRhythm {
      */
     public static Step decide(long day, int time, long siegeDay, long votedDay, long warnedDay, long startedDay,
                               int accepts, SiegeConfig cfg, int closeTime, int startTime) {
-        if (siegeDay < 0) {
+        return decide(day, time, siegeDay, votedDay, warnedDay, startedDay, accepts, Math.max(1, cfg.requiredAccepts),
+                cfg, closeTime, startTime);
+    }
+
+    /**
+     * As above with the accepts tonight needs ({@link #requiredAccepts}). A siege day further ahead
+     * than any interval could put it (the clock was set back, /time set) is set anew from today.
+     */
+    public static Step decide(long day, int time, long siegeDay, long votedDay, long warnedDay, long startedDay,
+                              int accepts, int required, SiegeConfig cfg, int closeTime, int startTime) {
+        if (siegeDay < 0 || tooFarAhead(day, siegeDay, cfg)) {
             return Step.SCHEDULE;
         }
         if (day < siegeDay) {
@@ -62,7 +72,7 @@ public final class SiegeRhythm {
             return time >= invite && time < closeTime ? Step.INVITE
                     : time >= closeTime ? Step.CANCEL : Step.NONE;
         }
-        boolean enough = accepts >= Math.max(1, cfg.requiredAccepts);
+        boolean enough = accepts >= Math.max(1, required);
         if (warnedDay != day) {
             if (time < closeTime) {
                 return Step.NONE;
@@ -74,6 +84,22 @@ public final class SiegeRhythm {
             return time >= startTime ? Step.START : Step.WARN;
         }
         return time >= startTime ? Step.START : Step.NONE;
+    }
+
+    /**
+     * Accepts a real night needs (Simon 31.10.: survival safety): the config's number at most,
+     * otherwise everyone invited (two players invited: two accepts suffice), never less than one.
+     */
+    public static int requiredAccepts(SiegeConfig cfg, int invited) {
+        return Math.max(1, Math.min(Math.max(1, cfg.requiredAccepts), invited));
+    }
+
+    /**
+     * True when the siege day lies further ahead than the longest interval (+1 day): the clock went
+     * back (/time set 1000 on day 50) and the rhythm would wait for weeks.
+     */
+    public static boolean tooFarAhead(long day, long siegeDay, SiegeConfig cfg) {
+        return siegeDay >= 0 && siegeDay - day > Math.max(1, cfg.daysBetweenSieges) + 1L;
     }
 
     /** The next siege day after this one: a few days on. */
