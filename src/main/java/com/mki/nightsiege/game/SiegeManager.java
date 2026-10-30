@@ -208,6 +208,10 @@ public final class SiegeManager {
     private int ticksLeft;
     private int totalTicks;
     private int batchCooldown;
+    /** Nachschub (refillSpawns): game time of the next replacement, the raid plan and monster counts of the running wave. */
+    private long nextRefill;
+    private RaidPlan.Wave wavePlan;
+    private Map<String, Integer> waveFoesNow = new HashMap<>();
     private int digAccumulator;
     /** Players waiting for the client-mod check, with the tick it is due. */
     private final Map<UUID, Integer> pendingModCheck = new HashMap<>();
@@ -1633,6 +1637,9 @@ public final class SiegeManager {
         totalTicks = SiegeMath.durationSeconds(siegeLevel, config) * 20;
         ticksLeft = totalTicks;
         batchCooldown = 0;
+        nextRefill = 0L;
+        wavePlan = null;
+        waveFoesNow = new HashMap<>();
         digAccumulator = 0;
         participants.clear();
         fallen.clear();
@@ -1973,6 +1980,9 @@ public final class SiegeManager {
                 batchCooldown = (int) Math.round((config.batchIntervalSeconds + extraDelay) * 20.0 * Curses.waveFactor());
             } else {
                 batchCooldown--;
+            }
+            if (config.refillSpawns && wavesStarted > 0) {
+                refill(server);   // Nachschub: whatever fell is replaced at once (Simon 30.10.)
             }
         }
         safe("Boss", () -> {
@@ -2903,9 +2913,10 @@ public final class SiegeManager {
         int spawned = 0;
         List<Mob> wave = new ArrayList<>();
         Map<String, Integer> waveFoes = new HashMap<>();
+        waveFoesNow = waveFoes;
         // The raid's plan: where this wave comes from (told on the bar, a horn from that side).
         RaidPlan.Wave plan = null;
-        if (count > 0 && raid.active()) {
+        if ((count > 0 || config.refillSpawns) && raid.active()) {   // Nachschub: the refills follow the wave's plan
             try {
                 plan = raid.planWave(wavesStarted, siegeLevel);
             } catch (RuntimeException e) {
@@ -2913,6 +2924,7 @@ public final class SiegeManager {
             }
         }
         besiegers.aimAt(plan == null ? Double.NaN : plan.main());
+        wavePlan = plan;
         for (int i = 0; i < count; i++) {
             String entityId = themeMobId != null
                     ? themeMobId
@@ -2956,7 +2968,7 @@ public final class SiegeManager {
                 spawned++;
             }
         }
-        if (count < wanted) {
+        if (count < wanted && !config.refillSpawns) {
             goalDown = Component.translatable("nightsiege.bar.goal_full");   // the field is full
         } else if (spawned < count) {
             goalDown = Component.translatable("nightsiege.bar.goal_no_room");   // no spot for some of them
@@ -2985,6 +2997,58 @@ public final class SiegeManager {
             safe("Schatz-Pluenderer", () -> foes.afterWave(foesHost, wavesStarted));
         }
         safe("Nemesis", () -> nemesis.onWave(nemesisHost, wavesStarted));   // the nemeses come with the second wave
+    }
+
+    /**
+     * Nachschub (refillSpawns, Simon 30.10.): while the field has room, one new monster every
+     * refillGapTicks, like one of the running wave (its raid plan, its limits on special foes).
+     */
+    private void refill(MinecraftServer server) {
+        if (world == null || liveMobs.size() >= maxLive()) {
+            return;
+        }
+        long now = world.getGameTime();
+        if (now < nextRefill) {
+            return;
+        }
+        nextRefill = now + Math.max(1, config.refillGapTicks);
+        String entityId = themeMobId != null
+                ? themeMobId
+                : foes.limit(pool.pick(siegeLevel, random, unavailableMobs), waveFoesNow, siegeLevel, config,
+                        () -> pool.pick(siegeLevel, random, unavailableMobs));
+        if (entityId == null) {
+            return;
+        }
+        entityId = config.withoutEffects(events.substitute(currentEvent, entityId, config), siegeLevel, random);
+        BlockPos rift = events.riftForLast();
+        if (MobFactory.isUnavailable(entityId)) {
+            unavailableMobs.add(entityId);
+            return;
+        }
+        RaidPlan.Wave plan = raid.active() ? wavePlan : null;
+        double angle = plan == null ? Double.NaN : raid.angleFor(plan, random.nextInt(8), 8);
+        Mob mob = rift != null
+                ? MobFactory.spawnAt(world, rift, entityId, siegeLevel, config, random, currentEvent, false)
+                : spawnMob(entityId, false, angle);
+        if (mob == null) {
+            return;
+        }
+        events.onSpawned(currentEvent, mob, world);
+        liveMobs.add(mob.getUUID());
+        spawnedTotal++;
+        for (Entity rider : mob.getPassengers()) {
+            liveMobs.add(rider.getUUID());
+            spawnedTotal++;
+        }
+        if (plan != null && RaidPlan.eligible(mob)) {
+            raid.enlist(mob, rift != null ? Double.NaN : angle);
+        } else {
+            aimAtDefender(server, mob);
+        }
+        Fx.mobSpawned(world, config, mob, false);
+        if (currentEvent == SiegeEvent.BLOOD_MOON && config.bloodMoonGlow) {
+            SiegeTeams.mark(server, mob, SiegeTeams.BLOOD_MOON, TeamColor.DARK_RED);
+        }
     }
 
     private void aimAtDefender(MinecraftServer server, Mob mob) {
@@ -3161,11 +3225,14 @@ public final class SiegeManager {
 
     /** Monsters alive at once at most: in a playtest the cap grows with the players. */
     public int maxLive() {
+        int cap;
         if (!playtest.running()) {
-            return SiegeMath.liveCap(Math.max(1, participants.size()), config);   // livePerPlayer, 29.10.
+            cap = SiegeMath.liveCap(Math.max(1, participants.size()), config);   // livePerPlayer, 29.10.
+        } else {
+            int players = Math.max(1, participants.size());
+            cap = (int) Math.min(120, Math.round(config.maxLiveMobs * (1.0 + config.playtestLivePerPlayer * (players - 1))));
         }
-        int players = Math.max(1, participants.size());
-        return (int) Math.min(120, Math.round(config.maxLiveMobs * (1.0 + config.playtestLivePerPlayer * (players - 1))));
+        return config.refillSpawns ? Math.min(cap, config.refillCap) : cap;   // Nachschub: at most 40 (30.10.)
     }
 
     /** Notes a defender in the night's protocol, with class and subclass. */
