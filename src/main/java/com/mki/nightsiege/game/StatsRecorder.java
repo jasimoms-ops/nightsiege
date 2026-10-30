@@ -162,6 +162,16 @@ public final class StatsRecorder {
         /** Blocks the night broke during this wave (walls, gates, everything the mending brings back). */
         public int bloeckeZerstoert;
         public Map<String, SpielerWelle> spieler = new LinkedHashMap<>();
+        /**
+         * Server load in this wave (30.10., "does the server manage 120 monsters?"): average and
+         * longest tick in ms (20 ticks a second need under 50), ticks over 50 ms, the most monsters
+         * of the night alive at once, all mobs of the world (counted once a second).
+         */
+        public double msptSchnitt;
+        public double msptMax;
+        public int ticksUeber50;
+        public int lebendMax;
+        public int mobsMax;
     }
 
     public static final class SpielerWelle {
@@ -537,6 +547,42 @@ public final class StatsRecorder {
         wave.dauerSekunden = (int) Math.max(0, (gameTime - waveStartTick) / 20);
         wave.uebrigAmEnde = liveNow;
         wave.bloeckeZerstoert = Math.max(0, NightDamage.lostCount() - blocksAtWave);
+        wave.msptSchnitt = tickCount == 0 ? 0 : Math.round(tickSumMs / tickCount * 10.0) / 10.0;
+        wave.msptMax = Math.round(tickMaxMs * 10.0) / 10.0;
+        wave.ticksUeber50 = ticksOver50;
+        wave.lebendMax = Math.max(liveMax, liveNow);
+        wave.mobsMax = mobsMax;
+        tickSumMs = 0;
+        tickCount = 0;
+        tickMaxMs = 0;
+        ticksOver50 = 0;
+        liveMax = 0;
+        mobsMax = 0;
+    }
+
+    // the server's load in the running wave (30.10.)
+    private double tickSumMs;
+    private int tickCount;
+    private double tickMaxMs;
+    private int ticksOver50;
+    private int liveMax;
+    private int mobsMax;
+
+    /** One server tick of a night: how long it took, the night's monsters alive, all mobs (-1: not counted). */
+    void tickLoad(double ms, int live, int mobsAll) {
+        if (night == null || wave == null) {
+            return;
+        }
+        tickSumMs += ms;
+        tickCount++;
+        tickMaxMs = Math.max(tickMaxMs, ms);
+        if (ms > 50.0) {
+            ticksOver50++;
+        }
+        liveMax = Math.max(liveMax, live);
+        if (mobsAll >= 0) {
+            mobsMax = Math.max(mobsMax, mobsAll);
+        }
     }
 
     private SpielerWelle pw(ServerPlayer player) {

@@ -333,7 +333,11 @@ public final class SiegeManager {
             syncSchedulerToSave();
             persist();
         });
-        ServerTickEvents.END_SERVER_TICK.register(server -> onEndTick(server));
+        ServerTickEvents.START_SERVER_TICK.register(server -> tickStartNanos = System.nanoTime());
+        ServerTickEvents.END_SERVER_TICK.register(server -> {
+            onEndTick(server);
+            noteTickLoad();
+        });
         NightDamage.exclude(camp::covers);   // the war camp is not the night's to mend
         // Object parameters keep these handlers compiling across Fabric versions.
         ServerLivingEntityEvents.AFTER_DEATH.register((entity, source) -> onDeath(entity, source));
@@ -609,6 +613,29 @@ public final class SiegeManager {
     // ------------------------------------------------------------------
     // main loop
     // ------------------------------------------------------------------
+
+    /** When the running server tick began (for the load in the logger, 30.10.). */
+    private long tickStartNanos;
+    private int loadTicks;
+
+    /** The night's load for the logger: the tick's time, the monsters alive, once a second all mobs. */
+    private void noteTickLoad() {
+        if (!active || world == null || tickStartNanos == 0L) {
+            return;
+        }
+        double ms = (System.nanoTime() - tickStartNanos) / 1_000_000.0;
+        int all = -1;
+        if (++loadTicks % 20 == 0) {
+            all = 0;
+            for (Entity e : world.getAllEntities()) {
+                if (e instanceof Mob) {
+                    all++;
+                }
+            }
+        }
+        int mobsAll = all;
+        safe("Statistik", () -> stats.tickLoad(ms, liveMobs.size(), mobsAll));
+    }
 
     private void onEndTick(MinecraftServer server) {
         tickModCheck(server);
