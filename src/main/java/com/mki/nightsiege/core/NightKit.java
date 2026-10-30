@@ -61,7 +61,6 @@ public final class NightKit {
         return level >= 4 ? 2 : 1;
     }
 
-    /** Quick charge of the crossbow: none at first, III from 20. */
     /** Punch on the archer's kit bow from level 5. */
     public static int bowPunch(int level) {
         return level >= 5 ? 1 : 0;
@@ -77,8 +76,9 @@ public final class NightKit {
         return level >= 15 ? 3 : level >= 10 ? 2 : level >= 5 ? 1 : 0;
     }
 
+    /** Quick charge of the kit crossbow (Simon 30.10.: needed earlier): I from the start, II from 7, III from 13. */
     public static int quickCharge(int level) {
-        return level >= 20 ? 3 : level >= 13 ? 2 : level >= 7 ? 1 : 0;
+        return level >= 13 ? 3 : level >= 7 ? 2 : 1;
     }
 
     /** A "+1" gain on top of a base enchantment, at most one above Minecraft's own top. */

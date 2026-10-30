@@ -93,13 +93,23 @@ public final class ArcherEffects {
 
         // A short bow draw is pulled towards full force.
         double assist = Math.min(1.0, tree.totalBonus(SkillEffect.DRAW_ASSIST, skills));
-        if (bow && assist > 0 && !arrow.isCritArrow()) {
+        // The quick shot draws his bow full at once (Simon 30.10.: short taps fell to the ground): his
+        // arrows always fly at full force, and they hit as hard as the draw and the assist give, so the
+        // damage stays as it was (an arrow's damage is its speed times its base damage).
+        boolean quick = bow && SkillTree.SUB_SWIFT.equals(tree.subclassOf(skills));
+        double drawScale = 1.0;
+        if (bow && (quick || assist > 0) && !arrow.isCritArrow()) {
             Vec3 motion = arrow.getDeltaMovement();
             double speed = motion.length();
             if (speed > 1.0e-4) {
                 double drawn = Math.min(1.0, speed / FULL_SPEED);
                 double boosted = drawn + assist * (1.0 - drawn);
-                arrow.setDeltaMovement(motion.scale(boosted / drawn));
+                if (quick) {
+                    arrow.setDeltaMovement(motion.scale(Math.max(1.0, FULL_SPEED / speed)));
+                    drawScale = boosted;
+                } else {
+                    arrow.setDeltaMovement(motion.scale(boosted / drawn));
+                }
                 if (boosted >= 0.98) {
                     arrow.setCritArrow(true);
                 }
@@ -140,6 +150,7 @@ public final class ArcherEffects {
         if (crossbow && SkillTree.has(skills, "a_siegeengine")) {
             damage *= SkillValues.get("a_siegeengine", "mult", 1.4);
         }
+        damage *= drawScale;   // the quick shot: flies full, hits like the draw (extra arrows too)
         arrow.setBaseDamage(damage);
         // Standfest counts when the bolt leaves the crossbow while sneaking (26 October 2026: it used to
         // check the sneak key when the bolt landed).

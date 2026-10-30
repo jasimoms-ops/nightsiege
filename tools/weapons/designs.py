@@ -757,7 +757,9 @@ def install(root):
                           'on_false': ref(key),
                           'on_true': {'type': 'minecraft:range_dispatch', 'property': 'minecraft:use_duration',
                                       'scale': 0.05,
-                                      'entries': [{'threshold': 0.65, 'model': ref(key + '_pulling_1')},
+                                      # The quick shot's bow is drawn full at once (Simon 30.10.).
+                                      'entries': [{'threshold': 0.0, 'model': ref(key + '_pulling_2')}] if key == 'swift_huntbow' else
+                                                 [{'threshold': 0.65, 'model': ref(key + '_pulling_1')},
                                                   {'threshold': 0.9, 'model': ref(key + '_pulling_2')}],
                                       'fallback': ref(key + '_pulling_0')}}
         elif kind == 'crossbow':
