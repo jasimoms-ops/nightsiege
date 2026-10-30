@@ -114,15 +114,40 @@
         <div class="nb-chart sk-bars" data-draw="sk-ohne-chart" data-source="skal_ohne_kill"></div>
       </div>
 
+    </div>
+    <div class="nb-controls">
+      <label for="sk-variante">Variante für Stufen und Unterklassen</label>
+      <select id="sk-variante" data-draw="sk-variante" aria-label="Variante für Stufen und Unterklassen" data-source="skal_gesamt"></select>
+    </div>
+    <div class="nb-grid">
       <div class="nb-card nb-wide" id="skal-stufen">
         <h3>Siegquote je Stufe</h3>
         <p class="nb-sub">Je Stufe und Spielerzahl, darunter die Zahl der Testnächte. Große Gruppen tun sich auf niedriger Stufe schwerer, weil dort das Limit nicht greift und nur die Wellengröße zählt.</p>
-        <div class="nb-controls">
-          <label for="sk-variante">Variante</label>
-          <select id="sk-variante" data-draw="sk-variante" aria-label="Variante" data-source="skal_gesamt"></select>
-        </div>
         <div class="nb-scroll nb-pivot" data-draw="sk-matrix" data-source="skal_quote"></div>
         <p class="nb-legend"><span><i class="nb-swatch nb-sw-low"></i>unter 55 %</span><span><i class="nb-swatch nb-sw-mid"></i>55–85 %, im Ziel</span><span><i class="nb-swatch nb-sw-high"></i>über 85 %</span></p>
+      </div>
+
+      <div class="nb-card nb-wide" id="skal-unterklassen">
+        <h3>Unterklassen mit dieser Variante</h3>
+        <p class="nb-sub">Je Testnacht, in der die Unterklasse mitspielte, über alle Gruppengrößen und Stufen. Die Siegquote ist die der ganzen Gruppe, „heute“ dieselbe Unterklasse mit der heutigen Einstellung im selben Lauf. Ein Klick auf eine Spalte sortiert.</p>
+        <div class="nb-tablebox">
+          <table class="nb-tbl sk-sortable" data-source="skal_uk" data-row-key="variante,unterklasse">
+            <thead>
+              <tr>
+                <th class="nb-l" data-field="name" data-sort="name"><button type="button">Unterklasse</button></th>
+                <th class="nb-l" data-field="klasse" data-sort="klasse"><button type="button">Klasse</button></th>
+                <th data-field="laeufe" data-sort="laeufe"><button type="button">Nächte</button></th>
+                <th data-field="siegquote" data-sort="siegquote"><button type="button">Siegquote</button></th>
+                <th data-field="siegquote_heute" data-sort="siegquote_heute"><button type="button">heute</button></th>
+                <th data-field="schaden_je_lauf" data-sort="schaden_je_lauf"><button type="button">Schaden</button></th>
+                <th data-field="erhalten_je_lauf" data-sort="erhalten_je_lauf"><button type="button">Eingesteckt</button></th>
+                <th data-field="heilung_je_lauf" data-sort="heilung_je_lauf"><button type="button">Heilung</button></th>
+                <th data-field="tode_je_lauf" data-sort="tode_je_lauf"><button type="button">Tode</button></th>
+              </tr>
+            </thead>
+            <tbody data-draw="sk-uk-rows"></tbody>
+          </table>
+        </div>
       </div>
     </div>
   </section>
@@ -182,7 +207,7 @@
 
       <div class="nb-card nb-wide" id="unterklassen">
         <h3>Unterklassen in der Sim</h3>
-        <p class="nb-sub">Je Lauf, in dem die Unterklasse mitspielte. Die Siegquote ist die der ganzen Gruppe. Ein Klick auf eine Spalte sortiert.</p>
+        <p class="nb-sub">Je Lauf, in dem die Unterklasse mitspielte, aus dem großen Lauf mit der heutigen Einstellung. Die Siegquote ist die der ganzen Gruppe. Ein Klick auf eine Spalte sortiert. Mit dem Skalierungs-Vorschlag steht die Tabelle oben unter „Skalierung je Spielerzahl“.</p>
         <div class="nb-tablebox">
           <table class="nb-tbl nb-sortable" data-source="unterklassen" data-row-key="variante,unterklasse">
             <thead>
@@ -831,6 +856,55 @@
     sel.value = skCur();
     sel.onchange = () => dash.setParams({ skal: sel.value });
   });
+
+  dash.calc('skal_uk', {
+    inputs: ['skal_unterklassen'],
+    title: 'Unterklassen je Variante, dazu heute',
+    description: 'Jede Unterklasse je Variante des Skalierungs-Laufs, dazu ihre Siegquote mit der heutigen Einstellung (Variante aktuell) im selben Lauf.',
+    fn: (skal_unterklassen) => {
+      const heute = new Map(skal_unterklassen.filter((r) => r.variante === 'aktuell').map((r) => [r.unterklasse, +r.siegquote]));
+      return skal_unterklassen.map((r) => ({ ...r, siegquote_heute: heute.has(r.unterklasse) ? heute.get(r.unterklasse) : null }));
+    },
+  });
+
+  window.skSort = { key: 'siegquote', dir: -1 };
+  dash.draw('sk-uk-rows', (tb) => {
+    const d = dash.data('skal_uk');
+    tb.replaceChildren();
+    if (d.status !== 'ok') return;
+    const rows = d.data.filter((r) => r.variante === skCur());
+    const { key, dir } = skSort;
+    rows.sort((a, b) => (key === 'name' || key === 'klasse' ? String(a[key]).localeCompare(String(b[key]), 'de') : ((+a[key] || 0) - (+b[key] || 0))) * dir || String(a.name).localeCompare(String(b.name), 'de'));
+    for (const r of rows) {
+      const tr = tb.insertRow();
+      tr.dataset.key = encodeURIComponent(r.variante) + ',' + encodeURIComponent(r.unterklasse);
+      nbCell(tr, r.name, 'nb-l nb-main');
+      nbCell(tr, r.klasse, 'nb-l');
+      nbCell(tr, nbNum.format(+r.laeufe));
+      nbQuote(tr, +r.siegquote);
+      if (r.siegquote_heute == null) nbCell(tr, '–'); else nbQuote(tr, +r.siegquote_heute);
+      nbCell(tr, nbNum.format(+r.schaden_je_lauf));
+      nbCell(tr, nbNum.format(+r.erhalten_je_lauf));
+      nbCell(tr, nbNum.format(+r.heilung_je_lauf));
+      nbCell(tr, nbDec.format(+r.tode_je_lauf));
+    }
+  });
+  const skSortHeads = () => {
+    for (const th of document.querySelectorAll('.sk-sortable th[data-sort]')) {
+      if (th.dataset.sort === skSort.key) th.setAttribute('aria-sort', skSort.dir > 0 ? 'ascending' : 'descending');
+      else th.removeAttribute('aria-sort');
+    }
+  };
+  for (const th of document.querySelectorAll('.sk-sortable th[data-sort]')) {
+    th.addEventListener('click', () => {
+      const k = th.dataset.sort;
+      skSort.dir = skSort.key === k ? -skSort.dir : (k === 'name' || k === 'klasse' ? 1 : -1);
+      skSort.key = k;
+      skSortHeads();
+      dash.draw('sk-uk-rows');
+    });
+  }
+  skSortHeads();
 
   dash.draw('sk-matrix', (el) => {
     const z = dash.data('skal_quote');
