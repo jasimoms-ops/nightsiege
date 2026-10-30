@@ -356,7 +356,7 @@ public final class SiegeCamp {
         int r = radius + 1;
         for (int cx = (x - r) >> 4; cx <= (x + r) >> 4; cx++) {
             for (int cz = (z - r) >> 4; cz <= (z + r) >> 4; cz++) {
-                if (!level.hasChunk(cx, cz)) {
+                if (!Expeditions.loaded(level, cx, cz)) {   // (hasChunk is true before a chunk is generated)
                     if (!load) {
                         if (why != null) {
                             why.unloaded++;
@@ -569,8 +569,14 @@ public final class SiegeCamp {
 
     /** Levels the ground and sets the camp's blocks; the guards come when someone is near. */
     void build(ServerLevel level, SiegeSave.CampRecord camp, BlockPos center, int facing) {
+        long t0 = System.nanoTime();
         NightDamage.quietly(() -> buildNow(level, camp, center, facing));   // the camp's own building, not the night's
+        lastBuildMs = (System.nanoTime() - t0) / 1_000_000L;
+        NightSiegeMod.LOGGER.info("[Night Siege] Heerlager-Bau: {} ms in einem Tick", lastBuildMs);
     }
+
+    /** How long the last camp took to set (for the log line). */
+    private long lastBuildMs;
 
     private void buildNow(ServerLevel level, SiegeSave.CampRecord camp, BlockPos center, int facing) {
         camp.x = center.getX();
@@ -797,7 +803,7 @@ public final class SiegeCamp {
         for (int lx = -CampLayout.FORE_HALF; lx <= CampLayout.FORE_HALF; lx += 2) {
             for (int lz = CampLayout.FORE_NEAR + 2; lz <= CampLayout.FORE_FAR; lz += 2) {
                 BlockPos at = CampLayout.world(center, facing, lx, 0, lz);
-                if (!level.hasChunk(at.getX() >> 4, at.getZ() >> 4)) {
+                if (!Expeditions.loaded(level, at.getX() >> 4, at.getZ() >> 4)) {
                     return false;
                 }
                 int g = ground(level, at.getX(), at.getZ());
@@ -1688,7 +1694,7 @@ public final class SiegeCamp {
             // Written down when it was built: its chests empty now, then the old ground comes back
             // chunk by chunk (restoreGround), trees, hills and all.
             for (BlockPos pos : blocks.keySet()) {
-                if (level.hasChunk(pos.getX() >> 4, pos.getZ() >> 4) && level.getBlockEntity(pos) instanceof Container container) {
+                if (Expeditions.loaded(level, pos.getX() >> 4, pos.getZ() >> 4) && level.getBlockEntity(pos) instanceof Container container) {
                     container.clearContent();
                 }
             }
@@ -1757,9 +1763,9 @@ public final class SiegeCamp {
             int cx = pos.getX() >> 4;
             int cz = pos.getZ() >> 4;
             if (seen.add(PlayerBuilt.key(cx, cz))) {
-                if (!level.hasChunk(cx, cz) || PlayerBuilt.marked(level, cx, cz)) {
+                if (!Expeditions.loaded(level, cx, cz) || PlayerBuilt.marked(level, cx, cz)) {
                     if (why != null) {
-                        why.detail = level.hasChunk(cx, cz) ? "Spieler haben dort gebaut" : "Chunk nicht geladen";
+                        why.detail = Expeditions.loaded(level, cx, cz) ? "Spieler haben dort gebaut" : "Chunk nicht geladen";
                     }
                     return false;
                 }
@@ -1775,11 +1781,23 @@ public final class SiegeCamp {
         return true;
     }
 
-    /** The camps whose old ground is coming back: a few chunks every tick, once their chunks are loaded. */
+    /**
+     * The camps whose old ground is coming back: a few milliseconds every tick (update 30.10.:
+     * before, up to 6 000 blocks a tick), chunk by chunk once a chunk and its neighbours are loaded.
+     */
     private ExpeditionSnapshot groundSnap;
     private String groundKey;
     /** For the tests: blocks of old ground put back so far. */
     private int groundPut;
+    /** The chunk being put back now (its places, bottom up), and how far. */
+    private long groundChunk;
+    private List<BlockPos> groundWhere;
+    private List<Integer> groundOrder;
+    private int groundIndex;
+    /** The clock of the camp's ground (for the log line). */
+    private long groundWork;
+    private long groundLongest;
+    private int groundTicks;
 
     private void restoreGround(MinecraftServer server) {
         List<String> pending = m.save().campGrounds;
@@ -1814,54 +1832,94 @@ public final class SiegeCamp {
         if (groundSnap == null || !key.equals(groundKey)) {
             groundSnap = ExpeditionSnapshot.loadCamp(server, id);
             groundKey = key;
+            groundWhere = null;
+            groundWork = 0L;
+            groundLongest = 0L;
+            groundTicks = 0;
         }
-        int budget = 6000;
+        long t0 = System.nanoTime();
+        long deadline = t0 + m.config().dungeonWorkMillis * 1_000_000L;
         int[] put = {0};
-        for (long chunk : groundSnap.keys()) {
-            if (budget <= 0) {
-                break;
+        while (System.nanoTime() < deadline) {
+            if (groundWhere == null) {
+                for (long chunk : groundSnap.keys()) {
+                    int cx = (int) chunk;
+                    int cz = (int) (chunk >>> 32);
+                    if (!loadedAround(level, cx, cz)) {
+                        continue;   // back once someone comes by
+                    }
+                    List<BlockPos> where = groundSnap.places(chunk);
+                    if (where == null) {
+                        groundSnap.forget(chunk);
+                        continue;
+                    }
+                    List<Integer> order = new ArrayList<>();
+                    for (int i = 0; i < where.size(); i++) {
+                        order.add(i);
+                    }
+                    order.sort((a, b) -> Integer.compare(where.get(a).getY(), where.get(b).getY()));   // from the bottom up
+                    groundChunk = chunk;
+                    groundWhere = where;
+                    groundOrder = order;
+                    groundIndex = 0;
+                    break;
+                }
+                if (groundWhere == null) {
+                    break;   // the rest is not loaded
+                }
             }
-            int cx = (int) chunk;
-            int cz = (int) (chunk >>> 32);
-            if (!level.hasChunk(cx, cz)) {
-                continue;   // back once someone comes by
-            }
-            List<BlockPos> where = groundSnap.places(chunk);
-            if (where == null) {
-                groundSnap.forget(chunk);
-                continue;
-            }
-            List<Integer> order = new ArrayList<>();
-            for (int i = 0; i < where.size(); i++) {
-                order.add(i);
-            }
-            order.sort((a, b) -> Integer.compare(where.get(a).getY(), where.get(b).getY()));   // from the bottom up
             NightDamage.quietly(() -> {
-                for (int i : order) {
-                    BlockState old = groundSnap.old(chunk, i);
-                    BlockPos pos = where.get(i);
+                for (; groundIndex < groundOrder.size(); groundIndex++) {
+                    if ((groundIndex & 63) == 0 && System.nanoTime() >= deadline) {
+                        return;
+                    }
+                    int i = groundOrder.get(groundIndex);
+                    BlockState old = groundSnap.old(groundChunk, i);
+                    BlockPos pos = groundWhere.get(i);
                     if (old == null || level.getBlockState(pos) == old) {
                         continue;
                     }
                     if (level.getBlockEntity(pos) instanceof Container container) {
                         container.clearContent();
                     }
-                    level.setBlock(pos, old, Block.UPDATE_CLIENTS);
+                    level.setBlock(pos, old, Expeditions.BULK);
                     put[0]++;
                 }
             });
-            budget -= where.size();
-            groundSnap.forget(chunk);
+            if (groundIndex >= groundOrder.size()) {
+                groundSnap.forget(groundChunk);
+                groundWhere = null;
+            }
+        }
+        long spent = System.nanoTime() - t0;
+        if (put[0] > 0) {
+            groundWork += spent;
+            groundLongest = Math.max(groundLongest, spent);
+            groundTicks++;
         }
         groundPut += put[0];
-        if (groundSnap.chunkCount() == 0) {
+        if (groundWhere == null && groundSnap.chunkCount() == 0) {
             groundSnap.delete();
             groundSnap = null;
             groundKey = null;
             pending.remove(key);
             m.persist();
             NightSiegeMod.LOGGER.info("[Night Siege] Gelände des Heerlagers {} wiederhergestellt", id);
+            NightSiegeMod.LOGGER.info("[Night Siege] Heerlager-Gelände: {} ms in {} Ticks (längster Tick {} ms)",
+                    groundWork / 1_000_000L, groundTicks, groundLongest / 1_000_000L);
         }
+    }
+
+    /** A chunk and its eight neighbours are loaded (nothing is loaded here in the middle of a tick). */
+    private static boolean loadedAround(ServerLevel level, int cx, int cz) {
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                if (level.getChunkSource().getChunkNow(cx + dx, cz + dz) == null) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     /** For the tests: blocks of old ground put back, and camps still waiting for theirs. */
@@ -1920,21 +1978,30 @@ public final class SiegeCamp {
         }
         long today = m.dayNow(server);
         long day = m.save().nextSiegeDay >= today ? m.save().nextSiegeDay : today + 1;
+        Reasons why = new Reasons();
         SiegeSave.CampRecord camp = plan(day);
         SiegeConfig cfg = m.config();
-        Reasons why = new Reasons();
-        for (int attempt = 0; attempt < 120; attempt++) {
-            double angle = random.nextDouble() * Math.PI * 2.0;
-            double distance = cfg.campMinDistance + random.nextDouble() * Math.max(0, cfg.campMaxDistance - cfg.campMinDistance);
-            int x = core.x + (int) Math.round(Math.cos(angle) * distance);
-            int z = core.z + (int) Math.round(Math.sin(angle) * distance);
-            Integer floor = site(level, x, z, false, true, why);
-            if (floor != null && untouched(level, new BlockPos(x, floor, z), CampLayout.facingTowards(core.x - x, core.z - z),
-                    camp.id, why)) {
-                build(level, camp, new BlockPos(x, floor, z), CampLayout.facingTowards(core.x - x, core.z - z));
-                m.persist();
-                NightSiegeMod.LOGGER.info("[Night Siege] Heerlager per Befehl bei {} {} {} (vorher verworfen: {})", x, floor, z, why);
-                return new BlockPos(x, floor, z);
+        long t0 = System.nanoTime();
+        // Ground that is loaded first (update 30.10.: every place tried loaded or generated its chunks
+        // in the middle of the tick, which held the server up); only when none fits, the old way.
+        for (int pass = 0; pass < 2; pass++) {
+            boolean load = pass == 1;
+            for (int attempt = 0; attempt < 120; attempt++) {
+                double angle = random.nextDouble() * Math.PI * 2.0;
+                double distance = cfg.campMinDistance + random.nextDouble() * Math.max(0, cfg.campMaxDistance - cfg.campMinDistance);
+                int x = core.x + (int) Math.round(Math.cos(angle) * distance);
+                int z = core.z + (int) Math.round(Math.sin(angle) * distance);
+                Integer floor = site(level, x, z, false, load, why);
+                if (floor != null && untouched(level, new BlockPos(x, floor, z), CampLayout.facingTowards(core.x - x, core.z - z),
+                        camp.id, why)) {
+                    long searched = System.nanoTime() - t0;
+                    build(level, camp, new BlockPos(x, floor, z), CampLayout.facingTowards(core.x - x, core.z - z));
+                    m.persist();
+                    NightSiegeMod.LOGGER.info("[Night Siege] Heerlager per Befehl bei {} {} {} (vorher verworfen: {})", x, floor, z, why);
+                    NightSiegeMod.LOGGER.info("[Night Siege] Heerlager-Suche: {} ms ({}), Bau {} ms", searched / 1_000_000L,
+                            load ? "Chunks geladen" : "nur geladene Chunks", lastBuildMs);
+                    return new BlockPos(x, floor, z);
+                }
             }
         }
         NightSiegeMod.LOGGER.info("[Night Siege] Heerlager per Befehl: kein Platz ({})", why);

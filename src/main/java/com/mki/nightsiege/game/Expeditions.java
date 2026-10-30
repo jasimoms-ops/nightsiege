@@ -23,6 +23,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerBossEvent;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.level.TicketType;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.BossEvent;
@@ -37,6 +38,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.MapItem;
 import net.minecraft.world.item.component.CustomData;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
@@ -70,8 +72,11 @@ import java.util.concurrent.ConcurrentHashMap;
  *       report a band of besiegers 250–600 blocks from the core. The core window shows where
  *       (tab "Kundschaft"), with a map to take along. Only one is open at a time; it stays until
  *       it is won.</li>
- *   <li><b>Building:</b> the gatehouse is set when its ground is loaded and nobody stands close;
- *       the rooms below follow chunk by chunk as their ground loads.</li>
+ *   <li><b>Building:</b> once its ground is loaded and nobody stands close, its place is fixed;
+ *       the chunks it needs are asked for (tickets, loaded in the background) and the blocks are
+ *       set a few milliseconds every tick, from the far end of the arena to the gatehouse, which
+ *       comes last (update 30.10.: before, everything was set in one tick and the server stood still
+ *       for seconds). Only then may anyone go in.</li>
  *   <li><b>The fight:</b> a signed-up player going down the stairs fights with class, kit and
  *       skills like at the war camp. Guard rooms one after the other (the gate opens when the
  *       room's monsters are dead), then the arena: waves and the champion. Who falls is out until
@@ -104,11 +109,24 @@ public final class Expeditions {
     private List<Long> chunkOrder = new ArrayList<>();
     private ExpeditionSnapshot snapshot;
     private int snapshotId = -1;
-    /** The chunk being set or taken down now, and how far. */
+    /** The chunk being set now, and how far. */
     private long cursorChunk = Long.MIN_VALUE;
     private int cursorIndex;
-    /** Blocks set or taken back per tick (content update: about 4 000). */
-    static final int BLOCKS_PER_TICK = 4000;
+    /**
+     * How blocks are set in bulk (update 30.10.): to the players, but without shape updates of the
+     * neighbours (fences, walls, bars and stairs are joined in one pass at the end) and so without
+     * drops or loading the chunk next door.
+     */
+    static final int BULK = Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE;
+    /** The scouts on their way: the search for a place, a few milliseconds every tick (update 30.10.). */
+    private Scouting scouting;
+    /** The dungeon being built now. */
+    private Build job;
+    /** Dungeons whose ground is coming back (by id): the won one of now and the ones taken away. */
+    private final Map<Integer, Teardown> teardowns = new java.util.LinkedHashMap<>();
+    /** The playtest's dungeon is searched and built during the pause before it; it failed when no place was found. */
+    private boolean prepping;
+    private boolean prepFailed;
     /** The plan version: a dungeon of an older one (no snapshot) is closed and reported anew. */
     static final int LAYOUT = 3;   // 3: the fixes of 29 October 2026 (door, lights, stairs); snapshots know their places
     /** The way out after the win: 30 s, then the dungeon goes. */
@@ -201,29 +219,83 @@ public final class Expeditions {
 
     private ExpeditionLayout.Plan plan(SiegeSave.ExpeditionRecord rec) {
         if (plan == null || planId != rec.id) {
-            plan = ExpeditionLayout.plan(new BlockPos(rec.x, rec.y, rec.z), rec.facing, kind(rec), rec.rooms, rec.id);
-            planId = rec.id;
-            byChunk = new HashMap<>();
-            for (Map.Entry<BlockPos, BlockState> e : plan.blocks.entrySet()) {
-                byChunk.computeIfAbsent(chunkKey(e.getKey().getX() >> 4, e.getKey().getZ() >> 4), k -> new ArrayList<>())
-                        .add(new Spot(e.getKey(), e.getValue(), false));
-            }
-            for (Map.Entry<BlockPos, BlockState> e : plan.fill.entrySet()) {
-                byChunk.computeIfAbsent(chunkKey(e.getKey().getX() >> 4, e.getKey().getZ() >> 4), k -> new ArrayList<>())
-                        .add(new Spot(e.getKey(), e.getValue(), true));
-            }
-            int ocx = rec.x >> 4;
-            int ocz = rec.z >> 4;
-            chunkOrder = new ArrayList<>(byChunk.keySet());
-            chunkOrder.sort(java.util.Comparator.comparingLong(k -> {
-                long dx = (k >> 32) - ocx;
-                long dz = (int) (long) k - ocz;
-                return dx * dx + dz * dz;
-            }));
-            cursorChunk = Long.MIN_VALUE;
-            cursorIndex = 0;
+            usePlan(rec, ExpeditionLayout.plan(new BlockPos(rec.x, rec.y, rec.z), rec.facing, kind(rec), rec.rooms, rec.id));
         }
         return plan;
+    }
+
+    /** The plan of the dungeon of now (one worked out already, or a new one), with its spots per chunk. */
+    private void usePlan(SiegeSave.ExpeditionRecord rec, ExpeditionLayout.Plan p) {
+        usePlan(rec, p, spotsByChunk(p));
+    }
+
+    private void usePlan(SiegeSave.ExpeditionRecord rec, ExpeditionLayout.Plan p, Map<Long, List<Spot>> spots) {
+        plan = p;
+        planId = rec.id;
+        byChunk = spots;
+        chunkOrder = outwards(byChunk.keySet(), rec);
+        cursorChunk = Long.MIN_VALUE;
+        cursorIndex = 0;
+    }
+
+    /** A plan with its spots by chunk, worked out away from the server thread, and how long that took. */
+    private record Prepared(BlockPos origin, ExpeditionLayout.Plan plan, Map<Long, List<Spot>> byChunk, long nanos) {
+    }
+
+    /**
+     * Works out a dungeon's plan in the background (update 30.10.: 30–160 ms in one tick otherwise).
+     * The plan only reads the layout and block states, nothing of the world.
+     */
+    private static java.util.concurrent.CompletableFuture<Prepared> workOut(BlockPos origin, int facing, ExpeditionKind kind,
+                                                                           int rooms, int id) {
+        return java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+            long t0 = System.nanoTime();
+            ExpeditionLayout.Plan p = ExpeditionLayout.plan(origin, facing, kind, rooms, id);
+            return new Prepared(origin, p, spotsByChunk(p), System.nanoTime() - t0);
+        });
+    }
+
+    /** The plan of a future once it is there; null while it is still being worked out (or on an error: then at once). */
+    private static Prepared ready(java.util.concurrent.CompletableFuture<Prepared> future, BlockPos origin, int facing,
+                                  ExpeditionKind kind, int rooms, int id) {
+        if (!future.isDone()) {
+            return null;
+        }
+        try {
+            return future.join();
+        } catch (RuntimeException e) {
+            NightSiegeMod.LOGGER.warn("[Night Siege] Dungeon-Plan im Hintergrund fehlgeschlagen ({}), jetzt im Tick", e.toString());
+            long t0 = System.nanoTime();
+            ExpeditionLayout.Plan p = ExpeditionLayout.plan(origin, facing, kind, rooms, id);
+            return new Prepared(origin, p, spotsByChunk(p), System.nanoTime() - t0);
+        }
+    }
+
+    /** Every spot of a plan by its chunk. */
+    private static Map<Long, List<Spot>> spotsByChunk(ExpeditionLayout.Plan p) {
+        Map<Long, List<Spot>> out = new HashMap<>();
+        for (Map.Entry<BlockPos, BlockState> e : p.blocks.entrySet()) {
+            out.computeIfAbsent(chunkKey(e.getKey().getX() >> 4, e.getKey().getZ() >> 4), k -> new ArrayList<>())
+                    .add(new Spot(e.getKey(), e.getValue(), false));
+        }
+        for (Map.Entry<BlockPos, BlockState> e : p.fill.entrySet()) {
+            out.computeIfAbsent(chunkKey(e.getKey().getX() >> 4, e.getKey().getZ() >> 4), k -> new ArrayList<>())
+                    .add(new Spot(e.getKey(), e.getValue(), true));
+        }
+        return out;
+    }
+
+    /** The chunks from the gatehouse outwards. */
+    private static List<Long> outwards(java.util.Collection<Long> chunks, SiegeSave.ExpeditionRecord rec) {
+        int ocx = rec.x >> 4;
+        int ocz = rec.z >> 4;
+        List<Long> order = new ArrayList<>(chunks);
+        order.sort(java.util.Comparator.comparingLong(k -> {
+            long dx = (k >> 32) - ocx;
+            long dz = (int) (long) k - ocz;
+            return dx * dx + dz * dz;
+        }));
+        return order;
     }
 
     private ExpeditionSnapshot snapshot(MinecraftServer server, SiegeSave.ExpeditionRecord rec) {
@@ -238,106 +310,284 @@ public final class Expeditions {
         return ((long) cx << 32) | (cz & 0xFFFFFFFFL);
     }
 
+    private static int chunkX(long key) {
+        return (int) (key >> 32);
+    }
+
+    private static int chunkZ(long key) {
+        return (int) key;
+    }
+
     // ------------------------------------------------------------------ the report
 
     /** After a siege night (won or lost): the scouts may report a dungeon. */
     void afterNight(MinecraftServer server) {
         SiegeConfig cfg = m.config();
-        if (!cfg.dungeonsEnabled || record() != null || random.nextDouble() >= cfg.expeditionChance) {
+        if (!cfg.dungeonsEnabled || record() != null || scouting != null || m.playtest().running()
+                || random.nextDouble() >= cfg.expeditionChance) {
             return;
         }
-        report(server, null);
+        scout(server, null, false, null);
     }
 
     /**
-     * The scouts report a dungeon: a spot on land 250–600 blocks from the core whose ground
-     * can carry the way down. Null when no spot was found (or no core).
+     * The scouts set out (update 30.10.): the search for a place runs a few milliseconds every tick
+     * and reports when it is done (the world's generator is asked for the ground of up to 80
+     * places, which took seconds in one tick on the server). {@code build}: the dungeon is built
+     * right after (playtest, admin) without waiting for a player to come near. {@code asker} is told
+     * the result. False when there is no core.
+     */
+    public boolean scout(MinecraftServer server, ExpeditionKind forced, boolean build, UUID asker) {
+        Scouting s = newScouting(server, forced, build, asker);
+        scouting = s;
+        return s != null;
+    }
+
+    /**
+     * Tests: the scouts report a dungeon now, all in this tick: a spot on land 250–600 blocks from
+     * the core whose ground can carry the way down. Null when no spot was found (or no core).
      */
     public SiegeSave.ExpeditionRecord report(MinecraftServer server, ExpeditionKind forced) {
-        if (record() != null && record().built && record().layout >= LAYOUT) {
-            restoreNow(server);   // a won one still being taken down goes at once
+        Scouting s = newScouting(server, forced, false, null);
+        if (s == null) {
+            return null;
         }
+        if (scouting != null) {
+            scouting = null;   // this one instead
+        }
+        ServerLevel level = SiegeManager.levelByName(server, s.dimension);
+        long t0 = System.nanoTime();
+        while (!stepScouting(level, s, Long.MAX_VALUE)) {
+            // all at once
+        }
+        s.work = s.longest = System.nanoTime() - t0;
+        s.ticks = 1;
+        return finishScouting(server, level, s);
+    }
+
+    /** The scouts' search, a step at a time (see {@link #stepScouting}). */
+    private static final class Scouting {
+        final ExpeditionKind forced;
+        final boolean build;
+        final UUID asker;
+        final String dimension;
+        final int coreX;
+        final int coreZ;
+        final int rooms;
+        final int length;
+        final int minDistance;
+        final int maxDistance;
+        final long born = System.nanoTime();
+        long work;
+        long longest;
+        int ticks;
+        /** Places looked at (of at most 80). */
+        int attempt;
+        /** The place being looked at: its ground is checked one column at a time. */
+        boolean looking;
+        int x;
+        int z;
+        int facing;
+        double distance;
+        int y0;
+        String biome;
+        int stage;
+        /** The columns along the way down (local x, z), coarse ones first, and the next to look at. */
+        final int[] colX;
+        final int[] colZ;
+        int col;
+        /** Found: the record, its map drawn a row at a time. */
+        SiegeSave.ExpeditionRecord found;
+        int mapRow;
+
+        Scouting(ExpeditionKind forced, boolean build, UUID asker, CoreRecord core, int rooms, SiegeConfig cfg) {
+            this.forced = forced;
+            this.build = build;
+            this.asker = asker;
+            this.dimension = core.dimension;
+            this.coreX = core.x;
+            this.coreZ = core.z;
+            this.rooms = rooms;
+            this.length = ExpeditionLayout.length(rooms);
+            this.minDistance = cfg.expeditionMinDistance;
+            this.maxDistance = cfg.expeditionMaxDistance;
+            // Every 8 blocks along the way, 10 across: a few spread columns first (most places fail
+            // somewhere, so a coarse look finds it sooner); a place passes only if every one fits.
+            List<int[]> cols = new ArrayList<>();
+            for (int lz = -8; lz <= length; lz += 8) {
+                for (int lx = -30; lx <= 30; lx += 10) {
+                    int rank = ((lz + 8) % 24 == 0 ? 0 : 2) + (lx % 30 == 0 ? 0 : 1);
+                    cols.add(new int[] {lx, lz, rank});
+                }
+            }
+            cols.sort(java.util.Comparator.comparingInt(c -> c[2]));
+            colX = new int[cols.size()];
+            colZ = new int[cols.size()];
+            for (int i = 0; i < cols.size(); i++) {
+                colX[i] = cols.get(i)[0];
+                colZ[i] = cols.get(i)[1];
+            }
+        }
+    }
+
+    private Scouting newScouting(MinecraftServer server, ExpeditionKind forced, boolean build, UUID asker) {
         CoreRecord core = m.mainCore();
-        if (core == null) {
+        if (core == null || SiegeManager.levelByName(server, core.dimension) == null) {
             return null;
         }
-        ServerLevel level = SiegeManager.levelByName(server, core.dimension);
+        return new Scouting(forced, build, asker, core, ExpeditionKind.rooms(m.currentLevel()), m.config());
+    }
+
+    /** Every tick while the scouts are out: on with the search until the tick's time is used. */
+    private void tickScouting(MinecraftServer server, long deadline) {
+        Scouting s = scouting;
+        ServerLevel level = SiegeManager.levelByName(server, s.dimension);
         if (level == null) {
-            return null;
+            scouting = null;
+            return;
         }
-        SiegeConfig cfg = m.config();
-        int rooms = ExpeditionKind.rooms(m.currentLevel());
-        int length = ExpeditionLayout.length(rooms);
-        for (int attempt = 0; attempt < 80; attempt++) {
-            double angle = random.nextDouble() * Math.PI * 2.0;
-            double distance = cfg.expeditionMinDistance
-                    + random.nextDouble() * Math.max(0, cfg.expeditionMaxDistance - cfg.expeditionMinDistance);
-            int x = core.x + (int) Math.round(Math.cos(angle) * distance);
-            int z = core.z + (int) Math.round(Math.sin(angle) * distance);
-            int facing = CampLayout.facingTowards(x - core.x, z - core.z);   // the way leads away from the core
-            String biome = groundFor(level, x, z, facing, length);
-            if (biome == null) {
-                continue;
-            }
-            SiegeSave.ExpeditionRecord rec = new SiegeSave.ExpeditionRecord();
-            rec.id = random.nextInt(1_000_000) + 1;
-            rec.kind = (forced != null ? forced : ExpeditionKind.forBiome(biome, random.nextInt(10))).id();
-            rec.dimension = core.dimension;
-            rec.x = x;
-            rec.y = Integer.MIN_VALUE;
-            rec.z = z;
-            rec.facing = facing;
-            rec.rooms = rooms;
-            rec.layout = LAYOUT;
-            rec.reportedDay = m.dayNow(server);
-            drawMap(level, rec, core);
-            if (fighters.size() > 0) {
-                endAll(server, null);
-            }
-            m.save().expedition = rec;
-            plan = null;
-            buildRounds = 0;
-            m.persist();
-            announce(server, rec, core);
-            NightSiegeMod.LOGGER.info("[Night Siege] Kundschafter melden {} bei {} {} ({} Blöcke vom Core, Biom {})",
-                    rec.kind, x, z, (int) distance, biome);
-            return rec;
+        long t0 = System.nanoTime();
+        boolean done = stepScouting(level, s, deadline);
+        long spent = System.nanoTime() - t0;
+        s.work += spent;
+        s.longest = Math.max(s.longest, spent);
+        s.ticks++;
+        if (done && scouting == s) {
+            scouting = null;
+            finishScouting(server, level, s);
         }
-        NightSiegeMod.LOGGER.info("[Night Siege] Kundschafter: kein Platz für einen Dungeon gefunden");
-        return null;
     }
 
     /**
-     * The biome at a planned spot if the ground there carries a dungeon: land (no sea, no river)
+     * The search: up to 80 places 250–600 blocks from the core; for each, land (no sea, no river)
      * and, along the whole way down, ground above the vaults – from the world's generator, so it
-     * works for ground nobody has seen yet. Null when not.
+     * works for ground nobody has seen yet (no chunk is loaded). One column a step, until the
+     * deadline. Then the map, a row a step. True when done (found or not).
      */
-    private static String groundFor(ServerLevel level, int x, int z, int facing, int length) {
+    private boolean stepScouting(ServerLevel level, Scouting s, long deadline) {
         int sea = level.getSeaLevel();
-        String biome = biomePath(level, x, sea + 4, z);
-        if (wet(biome)) {
-            return null;   // the cheap look first: sea and rivers are out
-        }
-        int y0 = baseHeight(level, x, z);
-        if (y0 <= sea + 1) {
-            return null;
-        }
-        biome = biomePath(level, x, y0, z);
-        BlockPos origin = new BlockPos(x, y0, z);
-        for (int lz = -8; lz <= length; lz += 8) {
-            for (int lx = -30; lx <= 30; lx += 10) {
-                BlockPos at = CampLayout.world(origin, facing, lx, 0, lz);
+        while (true) {
+            if (s.found != null) {
+                drawMapRow(level, s.found, s.mapRow++);
+                if (s.mapRow >= s.found.mapSize) {
+                    return true;
+                }
+            } else if (!s.looking) {
+                if (s.attempt >= 80) {
+                    return true;   // nothing found
+                }
+                s.attempt++;
+                double angle = random.nextDouble() * Math.PI * 2.0;
+                s.distance = s.minDistance + random.nextDouble() * Math.max(0, s.maxDistance - s.minDistance);
+                s.x = s.coreX + (int) Math.round(Math.cos(angle) * s.distance);
+                s.z = s.coreZ + (int) Math.round(Math.sin(angle) * s.distance);
+                s.facing = CampLayout.facingTowards(s.x - s.coreX, s.z - s.coreZ);   // the way leads away from the core
+                s.stage = 0;
+                s.looking = true;
+            } else if (s.stage == 0) {
+                // The cheap look first: sea and rivers are out.
+                s.looking = !wet(biomePath(level, s.x, sea + 4, s.z));
+                s.stage = 1;
+            } else if (s.stage == 1) {
+                s.y0 = baseHeight(level, s.x, s.z);
+                if (s.y0 <= sea + 1) {
+                    s.looking = false;
+                } else {
+                    s.biome = biomePath(level, s.x, s.y0, s.z);
+                    s.col = 0;
+                    s.stage = 2;
+                }
+            } else {
+                int lx = s.colX[s.col];
+                int lz = s.colZ[s.col];
+                BlockPos at = CampLayout.world(new BlockPos(s.x, s.y0, s.z), s.facing, lx, 0, lz);
                 int h = baseHeight(level, at.getX(), at.getZ());
                 // The vaults' roofs lie 8 below the gatehouse floor, two of ground over them; no water above.
-                if (h < y0 - 6 || h <= sea) {
-                    return null;
-                }
-                if (lz % 24 == 0 && wet(biomePath(level, at.getX(), h, at.getZ()))) {
-                    return null;
+                if (h < s.y0 - 6 || h <= sea || lz % 24 == 0 && wet(biomePath(level, at.getX(), h, at.getZ()))) {
+                    s.looking = false;
+                } else if (++s.col >= s.colX.length) {
+                    s.looking = false;
+                    s.found = found(level, s);
+                    s.mapRow = 0;
                 }
             }
+            if (System.nanoTime() >= deadline) {
+                return false;
+            }
         }
-        return biome;
+    }
+
+    /** The record of a place the scouts found (its map still to be drawn). */
+    private SiegeSave.ExpeditionRecord found(ServerLevel level, Scouting s) {
+        SiegeSave.ExpeditionRecord rec = new SiegeSave.ExpeditionRecord();
+        rec.id = random.nextInt(1_000_000) + 1;
+        rec.kind = (s.forced != null ? s.forced : ExpeditionKind.forBiome(s.biome, random.nextInt(10))).id();
+        rec.dimension = s.dimension;
+        rec.x = s.x;
+        rec.y = Integer.MIN_VALUE;
+        rec.z = s.z;
+        rec.facing = s.facing;
+        rec.rooms = s.rooms;
+        rec.layout = LAYOUT;
+        rec.reportedDay = m.dayNow(level.getServer());
+        startMap(rec, s.coreX, s.coreZ);
+        return rec;
+    }
+
+    /** The search is over: the report (or that there is no place), and for the playtest and admin the building. */
+    private SiegeSave.ExpeditionRecord finishScouting(MinecraftServer server, ServerLevel level, Scouting s) {
+        long ms = (System.nanoTime() - s.born) / 1_000_000L;
+        SiegeSave.ExpeditionRecord rec = s.found;
+        if (rec == null) {
+            NightSiegeMod.LOGGER.info("[Night Siege] Kundschafter: kein Platz für einen Dungeon gefunden (Suche {} ms in {} Ticks, längster {} ms, {} Orte)",
+                    s.work / 1_000_000L, s.ticks, s.longest / 1_000_000L, s.attempt);
+            if (s.build && prepping) {
+                prepping = false;
+                prepFailed = true;
+            }
+            tell(server, s.asker, Component.translatable("nightsiege.cmd.expedition_no_spot"));
+            return null;
+        }
+        SiegeSave.ExpeditionRecord old = record();
+        if (old != null) {
+            if (!fighters.isEmpty()) {
+                endAll(server, null);
+            }
+            cancelJob(server);
+            if (old.built && old.layout >= LAYOUT) {
+                detach(server, old);   // a won one still being taken down goes on in the background
+            }
+        }
+        m.save().expedition = rec;
+        plan = null;
+        buildRounds = 0;
+        m.persist();
+        CoreRecord core = m.mainCore();
+        if (core != null) {
+            announce(server, rec, core);
+        }
+        NightSiegeMod.LOGGER.info("[Night Siege] Kundschafter melden {} bei {} {} ({} Blöcke vom Core, Biom {})",
+                rec.kind, rec.x, rec.z, (int) s.distance, s.biome);
+        NightSiegeMod.LOGGER.info("[Night Siege] Dungeon-Suche: {} ms in {} Ticks (längster {} ms), {} Orte geprüft, nach {} s gemeldet",
+                s.work / 1_000_000L, s.ticks, s.longest / 1_000_000L, s.attempt, String.format(Locale.ROOT, "%.1f", ms / 1000.0));
+        tell(server, s.asker, Component.translatable("nightsiege.cmd.expedition_reported",
+                Component.translatable(kind(rec).translationKey()), rec.x, rec.z));
+        if (s.build) {
+            Build b = new Build(rec.id, rec.dimension);
+            b.stage = Build.SITE;
+            b.searchMs = s.work / 1_000_000L;
+            b.searchTicks = s.ticks;
+            job = b;
+        }
+        return rec;
+    }
+
+    /** A line for the admin who sent the scouts (if still online). */
+    private static void tell(MinecraftServer server, UUID who, Component text) {
+        ServerPlayer p = who == null ? null : server.getPlayerList().getPlayer(who);
+        if (p != null) {
+            p.sendSystemMessage(text);
+        }
     }
 
     private static boolean wet(String biome) {
@@ -357,23 +607,33 @@ public final class Expeditions {
 
     /** The scouts' map: a square around the core and the dungeon, one terrain letter per cell. */
     private static void drawMap(ServerLevel level, SiegeSave.ExpeditionRecord rec, CoreRecord core) {
+        startMap(rec, core.x, core.z);
+        for (int row = 0; row < rec.mapSize; row++) {
+            drawMapRow(level, rec, row);
+        }
+    }
+
+    private static void startMap(SiegeSave.ExpeditionRecord rec, int coreX, int coreZ) {
         int size = 40;
-        int cx = (core.x + rec.x) / 2;
-        int cz = (core.z + rec.z) / 2;
-        int span = Math.max(Math.abs(rec.x - core.x), Math.abs(rec.z - core.z)) + 160;
+        int cx = (coreX + rec.x) / 2;
+        int cz = (coreZ + rec.z) / 2;
+        int span = Math.max(Math.abs(rec.x - coreX), Math.abs(rec.z - coreZ)) + 160;
         int cell = Math.max(8, (span + size - 1) / size);
         rec.mapSize = size;
         rec.mapCell = cell;
         rec.mapX = cx - size * cell / 2;
         rec.mapZ = cz - size * cell / 2;
+        rec.map = "";
+    }
+
+    /** One row of the map (the rows come in order). */
+    private static void drawMapRow(ServerLevel level, SiegeSave.ExpeditionRecord rec, int row) {
         int y = level.getSeaLevel() + 6;
-        StringBuilder out = new StringBuilder(size * size);
-        for (int row = 0; row < size; row++) {
-            for (int col = 0; col < size; col++) {
-                int x = rec.mapX + col * cell + cell / 2;
-                int z = rec.mapZ + row * cell + cell / 2;
-                out.append(terrain(biomePath(level, x, y, z)));
-            }
+        StringBuilder out = new StringBuilder(rec.map);
+        for (int col = 0; col < rec.mapSize; col++) {
+            int x = rec.mapX + col * rec.mapCell + rec.mapCell / 2;
+            int z = rec.mapZ + row * rec.mapCell + rec.mapCell / 2;
+            out.append(terrain(biomePath(level, x, y, z)));
         }
         rec.map = out.toString();
     }
@@ -459,8 +719,9 @@ public final class Expeditions {
             }
             falling.clear();
         }
-        SiegeSave.ExpeditionRecord rec = record();
         long now = server.overworld().getGameTime();
+        work(server, now);   // the scouts, the building and the taking down: a few milliseconds of it
+        SiegeSave.ExpeditionRecord rec = record();
         if (now % 10 == 0) {
             mapHints(server, rec);
         }
@@ -498,14 +759,16 @@ public final class Expeditions {
             return;
         }
         if (!rec.built) {
-            if (now % 100 == 0) {
-                tryBuild(level, rec);
+            if (job == null && teardowns.isEmpty()) {
+                checkSite(level, rec);
+                if (now % 100 == 0) {
+                    tryBuild(level, rec);
+                }
             }
             return;
         }
-        plan(rec);
-        if (rec.chunksDone.size() < byChunk.size()) {
-            buildStep(level, rec, BLOCKS_PER_TICK);
+        if (!rec.complete) {
+            return;   // still being built (see work): nobody goes in yet
         }
         if (now % 5 == 0) {
             checkEntries(level, rec, now);
@@ -514,7 +777,7 @@ public final class Expeditions {
         if (now % 200 == 0 && fighters.isEmpty() && !arenaClosed && rec.cleared >= rec.rooms) {
             // A gate left shut by a crash in the arena fight opens again.
             BlockPos gate = plan(rec).arenaGate.get(0);
-            if (level.hasChunk(gate.getX() >> 4, gate.getZ() >> 4) && level.getBlockState(gate).is(Blocks.IRON_BARS)) {
+            if (loaded(level, gate.getX() >> 4, gate.getZ() >> 4) && level.getBlockState(gate).is(Blocks.IRON_BARS)) {
                 setGate(level, plan(rec).arenaGate, false);
             }
         }
@@ -553,9 +816,18 @@ public final class Expeditions {
 
     // ------------------------------------------------------------------ building
 
+    /** A place that passed the first checks, its plan being worked out in the background. */
+    private record SiteCheck(int id, BlockPos at, java.util.concurrent.CompletableFuture<Prepared> plan) {
+    }
+
+    private SiteCheck siteCheck;
+
     private void tryBuild(ServerLevel level, SiegeSave.ExpeditionRecord rec) {
-        if (!level.hasChunk(rec.x >> 4, rec.z >> 4)) {
+        if (!loaded(level, rec.x >> 4, rec.z >> 4)) {
             return;   // nobody near yet
+        }
+        if (siteCheck != null && siteCheck.id() == rec.id) {
+            return;   // a place is being looked at (see checkSite)
         }
         SiegeCamp.Reasons why = new SiegeCamp.Reasons();
         for (int attempt = 0; attempt < 6; attempt++) {
@@ -565,20 +837,12 @@ public final class Expeditions {
             if (floor == null) {
                 continue;
             }
-            boolean someone = false;
-            for (ServerPlayer p : level.players()) {
-                // Nobody close sees it pop up; nobody at all stands where its walls go.
-                double limit = buildRounds < 3 ? 32.0 : 12.0;
-                if (p.distanceToSqr(x + 0.5, p.getY(), z + 0.5) < limit * limit) {
-                    someone = true;
-                    break;
-                }
-            }
-            if (someone) {
+            if (someoneNear(level, x, z)) {
                 buildRounds++;
                 return;
             }
-            Boolean free = freeOfPlayers(level, rec, new BlockPos(x, floor, z), why);
+            BlockPos at = groundOrigin(level, new BlockPos(x, floor, z));
+            Boolean free = freeOfPlayers(level, rec, at, null, why);
             if (free == null) {
                 buildRounds++;
                 return;   // not all its ground is loaded yet: again when it is
@@ -586,9 +850,25 @@ public final class Expeditions {
             if (!free) {
                 continue;
             }
-            build(level, rec, new BlockPos(x, floor, z));
+            // Every spot of it is checked next, against its plan (worked out in the background).
+            siteCheck = new SiteCheck(rec.id, at, workOut(at, rec.facing, kind(rec), rec.rooms, rec.id));
             return;
         }
+        roundWithoutPlace(rec, why);
+    }
+
+    /** Nobody close sees it pop up; nobody at all stands where its walls go. */
+    private boolean someoneNear(ServerLevel level, int x, int z) {
+        double limit = buildRounds < 3 ? 32.0 : 12.0;
+        for (ServerPlayer p : level.players()) {
+            if (p.distanceToSqr(x + 0.5, p.getY(), z + 0.5) < limit * limit) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void roundWithoutPlace(SiegeSave.ExpeditionRecord rec, SiegeCamp.Reasons why) {
         if (++buildRounds % 12 == 0) {
             // A minute with the ground loaded and no place: a little further off.
             rec.x += random.nextInt(97) - 48;
@@ -598,19 +878,64 @@ public final class Expeditions {
         }
     }
 
+    /** Every tick while a place is looked at: once its plan is there, every spot is checked and the build begins. */
+    private void checkSite(ServerLevel level, SiegeSave.ExpeditionRecord rec) {
+        SiteCheck c = siteCheck;
+        if (c == null) {
+            return;
+        }
+        if (c.id() != rec.id) {
+            siteCheck = null;
+            return;
+        }
+        Prepared ready = ready(c.plan(), c.at(), rec.facing, kind(rec), rec.rooms, rec.id);
+        if (ready == null) {
+            return;
+        }
+        siteCheck = null;
+        SiegeCamp.Reasons why = new SiegeCamp.Reasons();
+        if (someoneNear(level, c.at().getX(), c.at().getZ())) {
+            buildRounds++;
+            return;
+        }
+        long t0 = System.nanoTime();
+        Boolean free = freeOfPlayers(level, rec, c.at(), ready.plan(), why);
+        long checked = System.nanoTime() - t0;
+        if (free == null) {
+            buildRounds++;
+            return;
+        }
+        if (!free) {
+            roundWithoutPlace(rec, why);
+            return;
+        }
+        Build b = new Build(rec.id, rec.dimension);
+        b.careful = true;   // a player may come close while it goes up
+        b.checkNanos = checked;
+        beginBuild(level, rec, c.at(), ready, b);
+    }
+
+    /** The gatehouse floor no lower than the arena's pit allows (it lies 29 below it; flat worlds). */
+    private static BlockPos groundOrigin(ServerLevel level, BlockPos at) {
+        int lowest = level.getMinY() + 32;
+        return at.getY() < lowest ? new BlockPos(at.getX(), lowest, at.getZ()) : at;
+    }
+
     /**
      * Update 30.10. (Simon: "die dungeons … dürfen auf keinen fall in irgendwelchen von spieler
      * platzierten blöcken spawnen"): every spot the whole dungeon would set, down to the arena, is
      * nature, rock or water (no chest, no planks, no torch), and no chunk it reaches holds a
-     * player's building. Null while some of its ground is not loaded.
+     * player's building. Null while some of its ground is not loaded. Without a plan only the
+     * chunks are looked at (all loaded, none built on); with it, every spot.
      */
-    private Boolean freeOfPlayers(ServerLevel level, SiegeSave.ExpeditionRecord rec, BlockPos at, SiegeCamp.Reasons why) {
-        int lowest = level.getMinY() + 32;
-        BlockPos origin = at.getY() < lowest ? new BlockPos(at.getX(), lowest, at.getZ()) : at;
-        ExpeditionLayout.Plan candidate = ExpeditionLayout.plan(origin, rec.facing, kind(rec), rec.rooms, rec.id);
+    private Boolean freeOfPlayers(ServerLevel level, SiegeSave.ExpeditionRecord rec, BlockPos origin,
+                                  ExpeditionLayout.Plan candidate, SiegeCamp.Reasons why) {
         java.util.Set<Long> chunks = new HashSet<>();
-        List<BlockPos> all = new ArrayList<>(candidate.blocks.keySet());
-        all.addAll(candidate.fill.keySet());
+        List<BlockPos> all = new ArrayList<>();
+        if (candidate != null) {
+            all.addAll(candidate.blocks.keySet());
+            all.addAll(candidate.fill.keySet());
+        }
         for (int lx = -8; lx <= 8; lx++) {
             for (int lz = -10; lz <= 7; lz++) {
                 BlockPos column = CampLayout.world(origin, rec.facing, lx, 0, lz);
@@ -619,11 +944,20 @@ public final class Expeditions {
                 }
             }
         }
+        if (candidate == null) {
+            // The plan's reach without working it out: its bounds.
+            int length = ExpeditionLayout.length(rec.rooms) + 8;
+            for (int lz = -11; lz <= length; lz += 8) {
+                for (int lx = -40; lx <= 40; lx += 8) {
+                    all.add(CampLayout.world(origin, rec.facing, lx, 0, lz));
+                }
+            }
+        }
         for (BlockPos pos : all) {
             int cx = pos.getX() >> 4;
             int cz = pos.getZ() >> 4;
             if (chunks.add(PlayerBuilt.key(cx, cz))) {
-                if (!level.hasChunk(cx, cz)) {
+                if (!loaded(level, cx, cz)) {
                     return null;
                 }
                 if (PlayerBuilt.marked(level, cx, cz)) {
@@ -632,6 +966,9 @@ public final class Expeditions {
                     return false;
                 }
             }
+        }
+        if (candidate == null) {
+            return true;
         }
         for (BlockPos pos : all) {
             BlockState state = level.getBlockState(pos);
@@ -656,21 +993,430 @@ public final class Expeditions {
         return path.endsWith("_ore") || path.startsWith("infested_") || UNDERGROUND.contains(path);
     }
 
-    /** Levels the ground of the gatehouse and sets everything whose ground is loaded. */
-    void build(ServerLevel level, SiegeSave.ExpeditionRecord rec, BlockPos origin) {
-        int lowest = level.getMinY() + 32;   // the arena's pit lies 29 below the gatehouse floor (flat worlds)
-        if (origin.getY() < lowest) {
-            origin = new BlockPos(origin.getX(), lowest, origin.getZ());
+    /**
+     * A dungeon being set (update 30.10., the server stood still for 4–9 s while one was set in a
+     * single tick): first the chunks it needs are asked for (tickets: loaded or generated in the
+     * background), then its blocks are set a few milliseconds a tick, from the far end of the arena
+     * towards the gatehouse; the ground round the gatehouse is levelled and the gatehouse set last,
+     * then fences, walls, bars and stairs are joined. Only then is it complete.
+     */
+    private static final class Build {
+        /** Only its spot is known: the gatehouse floor is found once the ground there is loaded. */
+        static final int SITE = 0;
+        /** The chunks away from the gatehouse, the arena's first. */
+        static final int FAR = 1;
+        /** The ground round the gatehouse is levelled. */
+        static final int LEVEL = 2;
+        /** The chunks of the gatehouse. */
+        static final int NEAR = 3;
+        /** Fences, walls, bars and stairs join their neighbours. */
+        static final int SHAPE = 4;
+
+        final int id;
+        final String dimension;
+        int stage = FAR;
+        /** The lists below are made (once the plan is there). */
+        boolean listed;
+        /** Every chunk asked for: the dungeon's, the levelled ground's and one ring round them. */
+        final Set<Long> want = new HashSet<>();
+        final List<Long> far = new ArrayList<>();
+        final List<Long> near = new ArrayList<>();
+        /** The levelled ground's chunks. */
+        final Set<Long> levelChunks = new HashSet<>();
+        List<Spot> shaped;
+        int shapeAt;
+        long askedAt = Long.MIN_VALUE;
+        /** A player may stand where the gatehouse goes (built by itself, not by the playtest or an admin). */
+        boolean careful;
+        long waitSince = -1L;
+        /** Tests: all at once, the chunks loaded on the way. */
+        boolean sync;
+        boolean busy;
+        boolean dirty;
+        long savedAt;
+        // The clock (for the log line).
+        final long born = System.nanoTime();
+        long work;
+        long longest;
+        long planNanos;
+        /** Of that, in a tick (the rest in the background); and the check of every spot (built by itself). */
+        long tickNanos;
+        long checkNanos;
+        int busyTicks;
+        long searchMs = -1L;
+        int searchTicks;
+        /** The plan being worked out in the background (only its spot was known), and for where. */
+        java.util.concurrent.CompletableFuture<Prepared> planning;
+        BlockPos planAt;
+
+        Build(int id, String dimension) {
+            this.id = id;
+            this.dimension = dimension;
         }
+    }
+
+    /**
+     * The dungeon's place is fixed; it is built over the next ticks (see {@link #stepBuild}).
+     * {@code ready}: its plan when it is worked out already (else it is worked out now, in this tick).
+     */
+    private void beginBuild(ServerLevel level, SiegeSave.ExpeditionRecord rec, BlockPos origin, Prepared ready, Build carry) {
+        origin = groundOrigin(level, origin);
         rec.x = origin.getX();
         rec.y = origin.getY();
         rec.z = origin.getZ();
         rec.built = true;
+        rec.complete = false;
         rec.layout = LAYOUT;
         rec.chunksDone.clear();
-        plan = null;
-        // What stands where the ground is levelled goes back last when the dungeon is gone.
-        snapshot(level.getServer(), rec).record(LEVEL_CHUNK, level, levelSpots(rec));
+        Build b = carry != null ? carry : new Build(rec.id, rec.dimension);
+        long t0 = System.nanoTime();
+        if (ready != null && ready.origin().equals(origin)) {
+            usePlan(rec, ready.plan(), ready.byChunk());
+            b.planNanos += ready.nanos();   // in the background
+            b.tickNanos += System.nanoTime() - t0;
+        } else {
+            plan = null;
+            plan(rec);
+            b.planNanos += System.nanoTime() - t0;
+            b.tickNanos += System.nanoTime() - t0;
+        }
+        b.stage = Build.FAR;
+        b.listed = false;
+        job = b;
+        m.persist();
+        NightSiegeMod.LOGGER.info("[Night Siege] Dungeon {} wird gebaut bei {} {} {} (Weg nach {}, {} Räume, {} Chunks)",
+                rec.kind, rec.x, rec.y, rec.z, rec.facing, rec.rooms, byChunk.size());
+    }
+
+    /** The build's chunk lists: far ones first (the arena), the gatehouse's last; all of them asked for, with a ring. */
+    private void list(ServerLevel level, SiegeSave.ExpeditionRecord rec, Build b) {
+        plan(rec);
+        b.levelChunks.clear();
+        for (BlockPos pos : levelSpots(rec)) {
+            b.levelChunks.add(chunkKey(pos.getX() >> 4, pos.getZ() >> 4));
+        }
+        b.far.clear();
+        b.near.clear();
+        for (int i = chunkOrder.size() - 1; i >= 0; i--) {
+            long key = chunkOrder.get(i);
+            (b.levelChunks.contains(key) ? b.near : b.far).add(key);
+        }
+        Set<Long> want = new HashSet<>(byChunk.keySet());
+        want.addAll(b.levelChunks);
+        want = withRing(want);
+        Set<Long> gone = new HashSet<>(b.want);
+        gone.removeAll(want);
+        release(level, gone);
+        b.want.clear();
+        b.want.addAll(want);
+        b.askedAt = Long.MIN_VALUE;
+        b.listed = true;
+    }
+
+    /** Every tick while a dungeon is being built. */
+    private void tickBuild(MinecraftServer server, long now, long deadline) {
+        Build b = job;
+        SiegeSave.ExpeditionRecord rec = record();
+        if (rec == null || rec.id != b.id || rec.won || rec.layout < LAYOUT) {
+            cancelJob(server);   // its record went (taken away, or put aside by the playtest)
+            return;
+        }
+        ServerLevel level = SiegeManager.levelByName(server, rec.dimension);
+        if (level == null) {
+            return;
+        }
+        long t0 = System.nanoTime();
+        b.busy = false;
+        boolean done = stepBuild(level, rec, b, now, deadline);
+        long spent = System.nanoTime() - t0;
+        if (b.busy) {
+            b.work += spent;
+            b.longest = Math.max(b.longest, spent);
+            b.busyTicks++;
+        }
+        if (done) {
+            finishBuild(level, rec, b);
+        } else if (b.dirty && now - b.savedAt >= 100) {
+            b.dirty = false;
+            b.savedAt = now;
+            m.persist();   // which chunks stand (a restart goes on from there)
+        }
+    }
+
+    /** Builds until the deadline. True when the dungeon is complete. */
+    private boolean stepBuild(ServerLevel level, SiegeSave.ExpeditionRecord rec, Build b, long now, long deadline) {
+        if (!teardowns.isEmpty() && !b.sync) {
+            return false;   // the ground of the one before comes back first (it could lie where this one goes)
+        }
+        if (b.stage == Build.SITE) {
+            if (b.want.isEmpty()) {
+                Set<Long> site = new HashSet<>();
+                for (int cx = (rec.x - 14) >> 4; cx <= (rec.x + 14) >> 4; cx++) {
+                    for (int cz = (rec.z - 14) >> 4; cz <= (rec.z + 14) >> 4; cz++) {
+                        site.add(chunkKey(cx, cz));
+                    }
+                }
+                b.want.addAll(withRing(site));
+            }
+            if (b.planning == null) {
+                if (!asked(level, b.want, b, now)) {
+                    return false;   // the ground there is still loading
+                }
+                Integer floor = SiegeCamp.site(level, rec.x, rec.z, 9, 12, false, false, null);
+                if (floor == null) {
+                    floor = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, rec.x, rec.z);
+                }
+                b.busy = true;
+                BlockPos at = groundOrigin(level, new BlockPos(rec.x, floor, rec.z));
+                if (b.sync) {
+                    beginBuild(level, rec, at, null, b);
+                } else {
+                    b.planning = workOut(at, rec.facing, kind(rec), rec.rooms, rec.id);   // its plan, in the background
+                    b.planAt = at;
+                }
+                return false;
+            }
+            asked(level, b.want, b, now);
+            Prepared ready = ready(b.planning, b.planAt, rec.facing, kind(rec), rec.rooms, rec.id);
+            if (ready == null) {
+                return false;
+            }
+            b.planning = null;
+            b.busy = true;
+            beginBuild(level, rec, b.planAt, ready, b);
+            return false;
+        }
+        if (!b.listed) {
+            list(level, rec, b);
+            b.busy = true;
+        }
+        asked(level, b.want, b, now);
+        ExpeditionLayout.Plan p = plan(rec);
+        ExpeditionSnapshot snap = snapshot(level.getServer(), rec);
+        Set<BlockPos> openGates = null;
+        while (true) {
+            if (System.nanoTime() >= deadline) {
+                return false;
+            }
+            if (b.stage == Build.LEVEL) {
+                for (long key : b.levelChunks) {
+                    if (!loadedAround(level, key, b.sync)) {
+                        return false;
+                    }
+                }
+                if (!snap.has(LEVEL_CHUNK)) {
+                    if (!b.sync && b.careful && !clearOfPlayers(level, rec, now, b)) {
+                        return false;   // someone stands where the gatehouse goes: a little while
+                    }
+                    // What stands where the ground is levelled goes back last when the dungeon is gone.
+                    snap.record(LEVEL_CHUNK, level, levelSpots(rec));
+                    levelGround(level, rec);
+                }
+                b.busy = true;
+                b.stage = Build.NEAR;
+                continue;
+            }
+            if (b.stage == Build.SHAPE) {
+                return shapeStep(level, rec, b, deadline);
+            }
+            List<Long> list = b.stage == Build.FAR ? b.far : b.near;
+            if (cursorChunk == Long.MIN_VALUE) {
+                long next = Long.MIN_VALUE;
+                boolean left = false;
+                for (long key : list) {
+                    if (rec.chunksDone.contains(key)) {
+                        continue;
+                    }
+                    left = true;
+                    if (loadedAround(level, key, b.sync)) {
+                        next = key;
+                        break;
+                    }
+                }
+                if (!left) {
+                    b.stage = b.stage == Build.FAR ? Build.LEVEL : Build.SHAPE;
+                    continue;
+                }
+                if (next == Long.MIN_VALUE) {
+                    return false;   // the next chunks are still loading
+                }
+                cursorChunk = next;
+                cursorIndex = 0;
+                if (!snap.has(next)) {
+                    // Before the chunk is touched, what stands there is written down (the snapshot).
+                    List<BlockPos> where = new ArrayList<>();
+                    for (Spot s : byChunk.get(next)) {
+                        where.add(s.pos());
+                    }
+                    snap.record(next, level, where);
+                }
+                clearChunk(level, p, next);
+                b.busy = true;
+            } else if (!loadedAround(level, cursorChunk, b.sync)) {
+                cursorChunk = Long.MIN_VALUE;   // unloaded meanwhile: again from the start when it is back
+                return false;
+            }
+            if (openGates == null) {
+                openGates = new HashSet<>();
+                for (int i = 0; i < Math.min(rec.cleared, p.roomGates.size()); i++) {
+                    openGates.addAll(p.roomGates.get(i));
+                }
+                if (rec.cleared > 0) {
+                    openGates.addAll(p.frontGate);
+                }
+            }
+            List<Spot> spots = byChunk.get(cursorChunk);
+            for (; cursorIndex < spots.size(); cursorIndex++) {
+                if ((cursorIndex & 63) == 0 && System.nanoTime() >= deadline) {
+                    return false;
+                }
+                b.busy = true;
+                Spot s = spots.get(cursorIndex);
+                BlockState there = level.getBlockState(s.pos());
+                if (there.hasBlockEntity() && !there.is(Blocks.SPAWNER)) {
+                    continue;   // somebody's chest stays where it is
+                }
+                if (s.fill() && !(there.isAir() || there.canBeReplaced() || !there.getFluidState().isEmpty())) {
+                    continue;   // the ground above the vaults only where there is none
+                }
+                BlockState want = openGates.contains(s.pos()) ? Blocks.AIR.defaultBlockState() : s.want();
+                if (there != want) {
+                    level.setBlock(s.pos(), want, BULK);
+                }
+            }
+            rec.chunksDone.add(cursorChunk);
+            cursorChunk = Long.MIN_VALUE;
+            b.dirty = true;
+        }
+    }
+
+    /** The last pass: fences, walls, bars and stairs join their neighbours (they were set without it). */
+    private boolean shapeStep(ServerLevel level, SiegeSave.ExpeditionRecord rec, Build b, long deadline) {
+        if (b.shaped == null) {
+            b.shaped = new ArrayList<>();
+            for (long key : chunkOrder) {
+                for (Spot s : byChunk.get(key)) {
+                    if (!s.fill() && joins(s.want().getBlock())) {
+                        b.shaped.add(s);
+                    }
+                }
+            }
+            b.shapeAt = 0;
+        }
+        long checked = Long.MIN_VALUE;
+        for (; b.shapeAt < b.shaped.size(); b.shapeAt++) {
+            if ((b.shapeAt & 63) == 0 && System.nanoTime() >= deadline) {
+                return false;
+            }
+            Spot s = b.shaped.get(b.shapeAt);
+            long key = chunkKey(s.pos().getX() >> 4, s.pos().getZ() >> 4);
+            if (key != checked) {
+                if (!loadedAround(level, key, b.sync)) {
+                    return false;
+                }
+                checked = key;
+            }
+            b.busy = true;
+            BlockState there = level.getBlockState(s.pos());
+            if (there.is(s.want().getBlock())) {
+                BlockState shaped = Block.updateFromNeighbourShapes(there, level, s.pos());
+                if (shaped != there) {
+                    level.setBlock(s.pos(), shaped, BULK);
+                }
+            }
+        }
+        return true;
+    }
+
+    private static boolean joins(Block b) {
+        return b instanceof net.minecraft.world.level.block.CrossCollisionBlock || b instanceof net.minecraft.world.level.block.WallBlock
+                || b instanceof net.minecraft.world.level.block.StairBlock;
+    }
+
+    /**
+     * Before the gatehouse goes up where the dungeon was built by itself: nobody stands there.
+     * After 30 s of waiting, whoever still does is put before its door.
+     */
+    private boolean clearOfPlayers(ServerLevel level, SiegeSave.ExpeditionRecord rec, long now, Build b) {
+        BlockPos a = CampLayout.world(new BlockPos(rec.x, rec.y, rec.z), rec.facing, -9, -14, -11);
+        BlockPos c = CampLayout.world(new BlockPos(rec.x, rec.y, rec.z), rec.facing, 9, 16, 8);
+        AABB box = new AABB(Math.min(a.getX(), c.getX()), Math.min(a.getY(), c.getY()), Math.min(a.getZ(), c.getZ()),
+                Math.max(a.getX(), c.getX()) + 1, Math.max(a.getY(), c.getY()) + 1, Math.max(a.getZ(), c.getZ()) + 1);
+        List<ServerPlayer> there = new ArrayList<>();
+        for (ServerPlayer p : level.players()) {
+            if (!p.isSpectator() && box.contains(p.position())) {
+                there.add(p);
+            }
+        }
+        if (there.isEmpty()) {
+            return true;
+        }
+        if (b.waitSince < 0) {
+            b.waitSince = now;
+        }
+        if (now - b.waitSince < 600) {
+            return false;
+        }
+        BlockPos door = plan(rec).door;
+        for (ServerPlayer p : there) {
+            p.teleportTo(level, door.getX() + 0.5, door.getY(), door.getZ() + 0.5, java.util.Set.of(), p.getYRot(), p.getXRot(), true);
+        }
+        return true;
+    }
+
+    /** The dungeon stands, every block of it. */
+    private void finishBuild(ServerLevel level, SiegeSave.ExpeditionRecord rec, Build b) {
+        rec.complete = true;
+        job = null;
+        cursorChunk = Long.MIN_VALUE;
+        release(level, b.want);
+        m.persist();
+        NightSiegeMod.LOGGER.info("[Night Siege] Dungeon {} steht bei {} {} {} (Weg nach {}, {} Räume)", rec.kind,
+                rec.x, rec.y, rec.z, rec.facing, rec.rooms);
+        NightSiegeMod.LOGGER.info("[Night Siege] Dungeon-Bau: {}Plan {} ms (davon im Tick {} ms){}, Bau {} ms in {} Ticks (längster Tick {} ms), {} Chunks, fertig nach {} s",
+                b.searchMs >= 0 ? "Suche " + b.searchMs + " ms in " + b.searchTicks + " Ticks, " : "",
+                b.planNanos / 1_000_000L, b.tickNanos / 1_000_000L,
+                b.checkNanos > 0 ? ", Platzprüfung " + b.checkNanos / 1_000_000L + " ms" : "",
+                b.work / 1_000_000L, b.busyTicks, b.longest / 1_000_000L, byChunk.size(),
+                String.format(Locale.ROOT, "%.1f", (System.nanoTime() - b.born) / 1e9));
+    }
+
+    /** The job of now is dropped (its chunks are let go). */
+    private void cancelJob(MinecraftServer server) {
+        Build b = job;
+        job = null;
+        cursorChunk = Long.MIN_VALUE;
+        if (b != null && !b.want.isEmpty()) {
+            ServerLevel level = SiegeManager.levelByName(server, b.dimension);
+            if (level != null) {
+                release(level, b.want);
+            }
+        }
+    }
+
+    /** Tests: the job of now done in this tick, its chunks loaded (or generated) on the way. */
+    private void finishJobNow(ServerLevel level) {
+        Build b = job;
+        if (b == null) {
+            return;
+        }
+        b.sync = true;
+        SiegeSave.ExpeditionRecord rec = record();
+        for (int guard = 0; guard < 64 && job == b; guard++) {
+            long t0 = System.nanoTime();
+            boolean done = stepBuild(level, rec, b, level.getGameTime(), Long.MAX_VALUE);
+            b.work += System.nanoTime() - t0;
+            b.longest = b.work;
+            b.busyTicks = 1;
+            if (done) {
+                finishBuild(level, rec, b);
+            }
+        }
+    }
+
+    /** Levels the ground round the gatehouse: away with trees and hills, earth into dips, grass and the path. */
+    private static void levelGround(ServerLevel level, SiegeSave.ExpeditionRecord rec) {
+        BlockPos origin = new BlockPos(rec.x, rec.y, rec.z);
         for (int lx = -8; lx <= 8; lx++) {
             for (int lz = -10; lz <= 7; lz++) {
                 BlockPos column = CampLayout.world(origin, rec.facing, lx, 0, lz);
@@ -698,16 +1444,12 @@ public final class Expeditions {
                 }
             }
         }
-        buildStep(level, rec, BLOCKS_PER_TICK);
-        m.persist();
-        NightSiegeMod.LOGGER.info("[Night Siege] Dungeon {} steht bei {} {} {} (Weg nach {}, {} Räume)", rec.kind,
-                rec.x, rec.y, rec.z, rec.facing, rec.rooms);
     }
 
     /** The snapshot's key for the levelled ground round the gatehouse. */
     private static final long LEVEL_CHUNK = Long.MAX_VALUE;
 
-    /** The spots {@link #build} levels: round the gatehouse, from below the ground to the sky. */
+    /** The spots {@link #levelGround} levels: round the gatehouse, from below the ground to the sky. */
     private static List<BlockPos> levelSpots(SiegeSave.ExpeditionRecord rec) {
         BlockPos origin = new BlockPos(rec.x, rec.y, rec.z);
         List<BlockPos> out = new ArrayList<>();
@@ -722,90 +1464,86 @@ public final class Expeditions {
         return out;
     }
 
+    // ------------------------------------------------------------------ the chunks a job needs
+
+    /** These chunks and the ring round them (whatever touches a neighbour finds it loaded). */
+    private static Set<Long> withRing(Set<Long> chunks) {
+        Set<Long> out = new HashSet<>();
+        for (long key : chunks) {
+            int cx = chunkX(key);
+            int cz = chunkZ(key);
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    out.add(chunkKey(cx + dx, cz + dz));
+                }
+            }
+        }
+        return out;
+    }
+
     /**
-     * Sets up to {@code budget} blocks of the dungeon in loaded chunks, from the gatehouse
-     * outwards. Before a chunk is touched, what stands there is written down (the snapshot).
+     * Keeps the chunks asked for (once a second: a ticket each, which runs out by itself 2 s after
+     * the last call, so nothing stays loaded when a job is dropped). True when all are loaded.
      */
-    private void buildStep(ServerLevel level, SiegeSave.ExpeditionRecord rec, int budget) {
-        ExpeditionLayout.Plan p = plan(rec);
-        ExpeditionSnapshot snap = snapshot(level.getServer(), rec);
-        Set<BlockPos> openGates = new HashSet<>();
-        for (int i = 0; i < Math.min(rec.cleared, p.roomGates.size()); i++) {
-            openGates.addAll(p.roomGates.get(i));
+    private static boolean asked(ServerLevel level, Set<Long> chunks, Build b, long now) {
+        if (now - b.askedAt >= 20 || b.askedAt == Long.MIN_VALUE) {
+            b.askedAt = now;
+            ask(level, chunks);
         }
-        if (rec.cleared > 0) {
-            openGates.addAll(p.frontGate);
+        for (long key : chunks) {
+            if (level.getChunkSource().getChunkNow(chunkX(key), chunkZ(key)) == null) {
+                return false;
+            }
         }
-        while (budget > 0) {
-            if (cursorChunk == Long.MIN_VALUE) {
-                for (long key : chunkOrder) {
-                    if (!rec.chunksDone.contains(key) && level.hasChunk((int) (key >> 32), (int) key)) {
-                        cursorChunk = key;
-                        cursorIndex = 0;
-                        break;
-                    }
-                }
-                if (cursorChunk == Long.MIN_VALUE) {
-                    return;
-                }
-                if (!snap.has(cursorChunk)) {
-                    List<BlockPos> where = new ArrayList<>();
-                    for (Spot s : byChunk.get(cursorChunk)) {
-                        where.add(s.pos());
-                    }
-                    snap.record(cursorChunk, level, where);
-                }
-                clearChunk(level, p, cursorChunk);
+        return true;
+    }
+
+    private static void ask(ServerLevel level, Set<Long> chunks) {
+        try {
+            for (long key : chunks) {
+                level.getChunkSource().addTicketWithRadius(TicketType.ENDER_PEARL, new ChunkPos(chunkX(key), chunkZ(key)), 0);
             }
-            if (!level.hasChunk((int) (cursorChunk >> 32), (int) cursorChunk)) {
-                cursorChunk = Long.MIN_VALUE;   // unloaded meanwhile: again from the start when it is back
-                continue;
-            }
-            List<Spot> spots = byChunk.get(cursorChunk);
-            for (; cursorIndex < spots.size() && budget > 0; cursorIndex++, budget--) {
-                Spot s = spots.get(cursorIndex);
-                BlockState now = level.getBlockState(s.pos());
-                if (now.hasBlockEntity() && !now.is(Blocks.SPAWNER)) {
-                    continue;   // somebody's chest stays where it is
-                }
-                if (s.fill() && !(now.isAir() || now.canBeReplaced() || !now.getFluidState().isEmpty())) {
-                    continue;   // the ground above the vaults only where there is none
-                }
-                BlockState want = openGates.contains(s.pos()) ? Blocks.AIR.defaultBlockState() : s.want();
-                if (now != want) {
-                    level.setBlock(s.pos(), want, Block.UPDATE_CLIENTS);
-                }
-            }
-            if (cursorIndex >= spots.size()) {
-                // Fences, walls, bars and stairs join their neighbours.
-                for (Spot s : spots) {
-                    Block b = s.want().getBlock();
-                    if (b instanceof net.minecraft.world.level.block.CrossCollisionBlock || b instanceof net.minecraft.world.level.block.WallBlock
-                            || b instanceof net.minecraft.world.level.block.StairBlock) {
-                        BlockState there = level.getBlockState(s.pos());
-                        if (there.is(b)) {
-                            BlockState shaped = Block.updateFromNeighbourShapes(there, level, s.pos());
-                            if (shaped != there) {
-                                level.setBlock(s.pos(), shaped, Block.UPDATE_CLIENTS);
-                            }
-                        }
-                    }
-                }
-                rec.chunksDone.add(cursorChunk);
-                cursorChunk = Long.MIN_VALUE;
-                m.persist();
-            }
+        } catch (RuntimeException e) {
+            NightSiegeMod.LOGGER.warn("[Night Siege] Dungeon: Chunks nicht angefordert: {}", e.toString());
         }
     }
 
-    /** Tests and admin: every chunk loaded and set now. */
-    private void buildAll(ServerLevel level, SiegeSave.ExpeditionRecord rec) {
-        plan(rec);
-        for (long key : chunkOrder) {
-            level.getChunk((int) (key >> 32), (int) key);
+    private static void release(ServerLevel level, Set<Long> chunks) {
+        try {
+            for (long key : chunks) {
+                level.getChunkSource().removeTicketWithRadius(TicketType.ENDER_PEARL, new ChunkPos(chunkX(key), chunkZ(key)), 0);
+            }
+        } catch (RuntimeException e) {
+            NightSiegeMod.LOGGER.debug("[Night Siege] Dungeon: Chunks nicht freigegeben: {}", e.toString());
         }
-        cursorChunk = Long.MIN_VALUE;
-        buildStep(level, rec, Integer.MAX_VALUE);
+    }
+
+    /**
+     * The chunk is there to read and set, now (update 30.10.: {@code hasChunk} is true as soon as a
+     * chunk is asked for, before it is loaded or generated, and reading it then waits for it).
+     */
+    static boolean loaded(ServerLevel level, int cx, int cz) {
+        return level.getChunkSource().getChunkNow(cx, cz) != null;
+    }
+
+    /**
+     * The chunk and its eight neighbours are loaded (never loaded here in the middle of a tick:
+     * that took seconds and broke C2ME's entity sections). {@code sync}: tests, loaded now.
+     */
+    private static boolean loadedAround(ServerLevel level, long key, boolean sync) {
+        int cx = chunkX(key);
+        int cz = chunkZ(key);
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                if (level.getChunkSource().getChunkNow(cx + dx, cz + dz) == null) {
+                    if (!sync) {
+                        return false;
+                    }
+                    level.getChunk(cx + dx, cz + dz);
+                }
+            }
+        }
+        return true;
     }
 
     /** A dungeon of the old plan (no snapshot): closed, its blocks stay; the scouts report anew. */
@@ -821,10 +1559,12 @@ public final class Expeditions {
         m.persist();
     }
 
+    // ------------------------------------------------------------------ taking it down
+
     /**
      * After the win: 30 s to get out (the dungeon shakes), then everyone and everything left
-     * inside is put before the gatehouse and the dungeon goes, block by block, from the
-     * gatehouse outwards; the ground comes back as it was.
+     * inside is put before the gatehouse and the dungeon goes, a few milliseconds a tick, from the
+     * gatehouse outwards; the ground comes back as it was (see {@link Teardown}).
      */
     private void afterWin(ServerLevel level, SiegeSave.ExpeditionRecord rec, long now) {
         ExpeditionLayout.Plan p = plan(rec);
@@ -844,17 +1584,15 @@ public final class Expeditions {
             return;
         }
         if (!rec.restoring) {
-            evacuate(level, rec);
+            evacuate(level, rec, p);
+            pendingGates.clear();   // no gate of it goes up in the ground that comes back
             rec.restoring = true;
-            cursorChunk = Long.MIN_VALUE;
-            m.persist();
+            m.persist();   // from here the teardown takes it (see work)
         }
-        restoreStep(level, rec, BLOCKS_PER_TICK, true);
     }
 
     /** Everyone inside out before the gate, items lying about there too, the dungeon's monsters gone. */
-    private void evacuate(ServerLevel level, SiegeSave.ExpeditionRecord rec) {
-        ExpeditionLayout.Plan p = plan(rec);
+    private void evacuate(ServerLevel level, SiegeSave.ExpeditionRecord rec, ExpeditionLayout.Plan p) {
         BlockPos door = p.door;
         for (ServerPlayer player : level.players()) {
             if (p.bounds.contains(player.position()) && (inside(p, player, 1.0) || player.getY() < rec.y - 1)) {
@@ -874,91 +1612,248 @@ public final class Expeditions {
     }
 
     /**
-     * Takes back up to {@code budget} blocks. A chunk not loaded is loaded (one a tick), so the
-     * ground is whole again even where nobody goes. When all is back, the record goes.
+     * A dungeon going (update 30.10.: before, it went in one tick and the server stood still for
+     * 2–5 s): its chunks are asked for and the old blocks put back a few milliseconds a tick, from
+     * the gatehouse outwards, the levelled ground last. It has its own plan and snapshot, so the
+     * next dungeon may be reported meanwhile.
      */
-    private void restoreStep(ServerLevel level, SiegeSave.ExpeditionRecord rec, int budget, boolean loadOne) {
-        ExpeditionSnapshot snap = snapshot(level.getServer(), rec);
-        plan(rec);
-        boolean loaded = false;
-        while (budget > 0) {
-            if (cursorChunk == Long.MIN_VALUE) {
-                long next = Long.MIN_VALUE;
-                long unloaded = Long.MIN_VALUE;
-                for (long key : restoreOrder(snap)) {
-                    if (!snap.has(key) && !rec.chunksDone.contains(key)) {
-                        continue;
-                    }
-                    if (level.hasChunk((int) (key >> 32), (int) key)) {
-                        next = key;
-                        break;
-                    }
-                    if (unloaded == Long.MIN_VALUE) {
-                        unloaded = key;
-                    }
-                }
-                if (next == Long.MIN_VALUE && unloaded != Long.MIN_VALUE && (loadOne && !loaded || !loadOne)) {
-                    level.getChunk((int) (unloaded >> 32), (int) unloaded);
-                    loaded = true;
-                    next = unloaded;
-                }
-                if (next == Long.MIN_VALUE) {
-                    if (unloaded == Long.MIN_VALUE) {
-                        finishRestore(level, rec, snap);
-                    }
-                    return;
-                }
-                cursorChunk = next;
-                cursorIndex = 0;
-            }
-            List<BlockPos> where = snapPlaces(snap, cursorChunk);
-            if (where == null) {
-                rec.chunksDone.remove((Long) cursorChunk);
-                snap.forget(cursorChunk);
-                cursorChunk = Long.MIN_VALUE;
-                continue;
-            }
-            for (; cursorIndex < where.size() && budget > 0; cursorIndex++, budget--) {
-                BlockState old = snap.old(cursorChunk, cursorIndex);
-                BlockPos pos = where.get(cursorIndex);
-                if (old != null && level.getBlockState(pos) != old) {
-                    level.setBlock(pos, old, Block.UPDATE_CLIENTS);
-                }
-            }
-            if (cursorIndex >= where.size()) {
-                rec.chunksDone.remove((Long) cursorChunk);
-                snap.forget(cursorChunk);
-                cursorChunk = Long.MIN_VALUE;
-                m.persist();
-            }
+    private static final class Teardown {
+        final SiegeSave.ExpeditionRecord rec;
+        ExpeditionLayout.Plan plan;
+        Map<Long, List<Spot>> byChunk;
+        List<Long> order;
+        ExpeditionSnapshot snap;
+        final Set<Long> want = new HashSet<>();
+        final Set<Long> levelChunks = new HashSet<>();
+        List<BlockPos> levelPlaces;
+        long cursor = Long.MIN_VALUE;
+        List<BlockPos> where;
+        int index;
+        boolean levelling;
+        long askedAt = Long.MIN_VALUE;
+        boolean sync;
+        boolean dirty;
+        long savedAt;
+        // The clock (for the log line).
+        final long born = System.nanoTime();
+        long work;
+        long longest;
+        int busyTicks;
+        int chunks;
+
+        Teardown(SiegeSave.ExpeditionRecord rec) {
+            this.rec = rec;
         }
     }
 
-    /** The chunks to take back: the plan's from the gatehouse outwards, then any other the snapshot knows. */
-    private List<Long> restoreOrder(ExpeditionSnapshot snap) {
-        List<Long> order = new ArrayList<>(chunkOrder);
-        Set<Long> known = new HashSet<>(chunkOrder);
-        for (long key : snap.keys()) {
+    /** The teardown of a dungeon (made when first needed, also after a restart). */
+    private Teardown teardownOf(MinecraftServer server, SiegeSave.ExpeditionRecord rec) {
+        Teardown t = teardowns.get(rec.id);
+        if (t != null) {
+            return t;
+        }
+        t = new Teardown(rec);
+        List<Long> outward;
+        if (plan != null && planId == rec.id) {
+            t.plan = plan;
+            t.byChunk = byChunk;
+            outward = chunkOrder;
+        } else {
+            t.plan = ExpeditionLayout.plan(new BlockPos(rec.x, rec.y, rec.z), rec.facing, kind(rec), rec.rooms, rec.id);
+            t.byChunk = spotsByChunk(t.plan);
+            outward = outwards(t.byChunk.keySet(), rec);
+        }
+        t.snap = snapshot != null && snapshotId == rec.id ? snapshot : ExpeditionSnapshot.load(server, rec.id);
+        // The plan's chunks from the gatehouse outwards, then any other the snapshot knows.
+        t.order = new ArrayList<>(outward);
+        Set<Long> known = new HashSet<>(outward);
+        for (long key : t.snap.keys()) {
             if (key != LEVEL_CHUNK && known.add(key)) {
-                order.add(key);
+                t.order.add(key);
             }
         }
-        return order;
+        Set<Long> want = new HashSet<>();
+        for (long key : t.order) {
+            if (t.snap.has(key) || rec.chunksDone.contains(key)) {
+                want.add(key);
+            }
+        }
+        if (t.snap.has(LEVEL_CHUNK)) {
+            t.levelPlaces = t.snap.places(LEVEL_CHUNK) != null ? t.snap.places(LEVEL_CHUNK) : levelSpots(rec);
+            for (BlockPos pos : t.levelPlaces) {
+                t.levelChunks.add(chunkKey(pos.getX() >> 4, pos.getZ() >> 4));
+            }
+            want.addAll(t.levelChunks);
+        }
+        t.want.addAll(withRing(want));
+        teardowns.put(rec.id, t);
+        return t;
+    }
+
+    /** The dungeons to take down: those taken away, and the won one of now once it collapses. */
+    private void findTeardowns(MinecraftServer server) {
+        List<SiegeSave.ExpeditionRecord> gone = m.save().expeditionTeardowns;
+        if (gone != null) {
+            for (SiegeSave.ExpeditionRecord rec : new ArrayList<>(gone)) {
+                teardownOf(server, rec);
+            }
+        }
+        SiegeSave.ExpeditionRecord rec = record();
+        if (rec != null && rec.won && rec.built && rec.restoring && rec.layout >= LAYOUT) {
+            teardownOf(server, rec);
+        }
+    }
+
+    /**
+     * A dungeon taken away (removed, replaced, the playtest's): everyone out at once, then its
+     * ground comes back over the next ticks (kept in the save until it is done).
+     */
+    private void detach(MinecraftServer server, SiegeSave.ExpeditionRecord rec) {
+        if (job != null && job.id == rec.id) {
+            cancelJob(server);
+        }
+        rec.won = true;
+        rec.restoring = true;
+        pendingGates.clear();   // no gate of it goes up in the ground that comes back
+        if (m.save().expeditionTeardowns == null) {
+            m.save().expeditionTeardowns = new ArrayList<>();
+        }
+        if (!m.save().expeditionTeardowns.contains(rec)) {
+            m.save().expeditionTeardowns.add(rec);
+        }
+        if (m.save().expedition == rec) {
+            m.save().expedition = null;
+        }
+        Teardown t = teardownOf(server, rec);
+        ServerLevel level = SiegeManager.levelByName(server, rec.dimension);
+        if (level != null) {
+            evacuate(level, rec, t.plan);
+        }
+        m.persist();
+    }
+
+    /** Every tick while a dungeon goes. */
+    private void tickTeardown(MinecraftServer server, Teardown t, long now, long deadline) {
+        ServerLevel level = SiegeManager.levelByName(server, t.rec.dimension);
+        if (level == null) {
+            NightSiegeMod.LOGGER.warn("[Night Siege] Dungeon {}: Welt {} fehlt, Abbau aufgegeben", t.rec.kind, t.rec.dimension);
+            dropTeardown(t);
+            return;
+        }
+        if (!t.sync && (now - t.askedAt >= 20 || t.askedAt == Long.MIN_VALUE)) {
+            t.askedAt = now;
+            ask(level, t.want);
+        }
+        long t0 = System.nanoTime();
+        boolean[] busy = {false};
+        boolean done = stepTeardown(level, t, deadline, busy);
+        long spent = System.nanoTime() - t0;
+        if (busy[0]) {
+            t.work += spent;
+            t.longest = Math.max(t.longest, spent);
+            t.busyTicks++;
+        }
+        if (done) {
+            finishTeardown(level, t);
+        } else if (t.dirty && now - t.savedAt >= 100) {
+            t.dirty = false;
+            t.savedAt = now;
+            m.persist();
+        }
+    }
+
+    /** Puts old blocks back until the deadline. True when all are back. */
+    private boolean stepTeardown(ServerLevel level, Teardown t, long deadline, boolean[] busy) {
+        while (true) {
+            if (System.nanoTime() >= deadline) {
+                return false;
+            }
+            if (t.levelling) {
+                if (t.levelPlaces == null) {
+                    return true;
+                }
+                for (long key : t.levelChunks) {
+                    if (!loadedAround(level, key, t.sync)) {
+                        return false;
+                    }
+                }
+                for (; t.index < t.levelPlaces.size(); t.index++) {
+                    if ((t.index & 63) == 0 && System.nanoTime() >= deadline) {
+                        return false;
+                    }
+                    busy[0] = true;
+                    BlockState old = t.snap.old(LEVEL_CHUNK, t.index);
+                    BlockPos pos = t.levelPlaces.get(t.index);
+                    if (old != null && level.getBlockState(pos) != old) {
+                        level.setBlock(pos, old, BULK);
+                    }
+                }
+                return true;
+            }
+            if (t.cursor == Long.MIN_VALUE) {
+                long next = Long.MIN_VALUE;
+                boolean left = false;
+                for (long key : t.order) {
+                    if (!t.snap.has(key) && !t.rec.chunksDone.contains(key)) {
+                        continue;
+                    }
+                    left = true;
+                    if (loadedAround(level, key, t.sync)) {
+                        next = key;
+                        break;
+                    }
+                }
+                if (!left) {
+                    t.levelling = true;   // the plan's chunks are back: now the levelled ground
+                    t.index = 0;
+                    continue;
+                }
+                if (next == Long.MIN_VALUE) {
+                    return false;   // the next chunks are still loading
+                }
+                t.cursor = next;
+                t.index = 0;
+                t.where = snapPlaces(t, next);
+                if (t.where == null) {
+                    t.rec.chunksDone.remove((Long) next);
+                    t.snap.forget(next);
+                    t.cursor = Long.MIN_VALUE;
+                    continue;
+                }
+            }
+            for (; t.index < t.where.size(); t.index++) {
+                if ((t.index & 63) == 0 && System.nanoTime() >= deadline) {
+                    return false;
+                }
+                busy[0] = true;
+                BlockState old = t.snap.old(t.cursor, t.index);
+                BlockPos pos = t.where.get(t.index);
+                if (old != null && level.getBlockState(pos) != old) {
+                    level.setBlock(pos, old, BULK);
+                }
+            }
+            t.rec.chunksDone.remove((Long) t.cursor);
+            t.snap.forget(t.cursor);
+            t.cursor = Long.MIN_VALUE;
+            t.where = null;
+            t.chunks++;
+            t.dirty = true;
+        }
     }
 
     /**
      * Where the snapshot's spots of a chunk are: written in the snapshot since 29 October 2026
      * (so a changed plan cannot shift them), for older ones the plan's order. Null when unknown.
      */
-    private List<BlockPos> snapPlaces(ExpeditionSnapshot snap, long chunk) {
-        if (!snap.has(chunk)) {
+    private static List<BlockPos> snapPlaces(Teardown t, long chunk) {
+        if (!t.snap.has(chunk)) {
             return null;
         }
-        List<BlockPos> where = snap.places(chunk);
+        List<BlockPos> where = t.snap.places(chunk);
         if (where != null) {
             return where;
         }
-        List<Spot> spots = byChunk.get(chunk);
+        List<Spot> spots = t.byChunk.get(chunk);
         if (spots == null) {
             return null;
         }
@@ -969,18 +1864,9 @@ public final class Expeditions {
         return where;
     }
 
-    /** All back: the levelled ground too, the snapshot and the record go. */
-    private void finishRestore(ServerLevel level, SiegeSave.ExpeditionRecord rec, ExpeditionSnapshot snap) {
-        if (snap.has(LEVEL_CHUNK)) {
-            List<BlockPos> where = snap.places(LEVEL_CHUNK) != null ? snap.places(LEVEL_CHUNK) : levelSpots(rec);
-            for (int i = 0; i < where.size(); i++) {
-                BlockState old = snap.old(LEVEL_CHUNK, i);
-                if (old != null && level.getBlockState(where.get(i)) != old) {
-                    level.setBlock(where.get(i), old, Block.UPDATE_CLIENTS);
-                }
-            }
-        }
-        ExpeditionLayout.Plan p = plan(rec);
+    /** All back: the snapshot and the record go. */
+    private void finishTeardown(ServerLevel level, Teardown t) {
+        ExpeditionLayout.Plan p = t.plan;
         for (ServerPlayer player : level.players()) {
             if (player.distanceToSqr(p.door.getX() + 0.5, p.door.getY(), p.door.getZ() + 0.5) < 36.0) {
                 BlockPos up = level.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, player.blockPosition());
@@ -990,34 +1876,63 @@ public final class Expeditions {
                 }
             }
         }
-        snap.delete();
-        snapshot = null;
-        NightSiegeMod.LOGGER.info("[Night Siege] Dungeon {} ist abgebaut, das Gelände wie vorher", rec.kind);
-        if (m.save().expedition == rec) {
-            m.save().expedition = null;
-        }
-        plan = null;
+        t.snap.delete();
+        release(level, t.want);
+        dropTeardown(t);
+        NightSiegeMod.LOGGER.info("[Night Siege] Dungeon {} ist abgebaut, das Gelände wie vorher", t.rec.kind);
+        NightSiegeMod.LOGGER.info("[Night Siege] Dungeon-Abbau: {} ms in {} Ticks (längster Tick {} ms), {} Chunks, fertig nach {} s",
+                t.work / 1_000_000L, t.busyTicks, t.longest / 1_000_000L, t.chunks,
+                String.format(Locale.ROOT, "%.1f", (System.nanoTime() - t.born) / 1e9));
         m.persist();
     }
 
-    /** Admin and tests: the dungeon goes now, everything at once. */
-    public void restoreNow(MinecraftServer server) {
-        SiegeSave.ExpeditionRecord rec = record();
-        if (rec == null) {
-            return;
+    /** The teardown is over (or given up): its record goes from wherever it is. */
+    private void dropTeardown(Teardown t) {
+        teardowns.remove(t.rec.id);
+        if (snapshot == t.snap) {
+            snapshot = null;
+            snapshotId = -1;
         }
-        ServerLevel level = SiegeManager.levelByName(server, rec.dimension);
-        if (level == null || !rec.built) {
+        if (m.save().expeditionTeardowns != null) {
+            m.save().expeditionTeardowns.remove(t.rec);
+        }
+        if (m.save().expedition == t.rec) {
             m.save().expedition = null;
-            m.persist();
-            return;
+            plan = null;
         }
-        evacuate(level, rec);
-        rec.won = true;
-        rec.restoring = true;
-        cursorChunk = Long.MIN_VALUE;
-        for (int guard = 0; guard < 4 && m.save().expedition == rec; guard++) {
-            restoreStep(level, rec, Integer.MAX_VALUE, false);
+    }
+
+    /** Tests: every dungeon still going is back now, all in this tick (chunks loaded on the way). */
+    private void flushTeardowns(MinecraftServer server) {
+        findTeardowns(server);
+        for (int guard = 0; guard < 64 && !teardowns.isEmpty(); guard++) {
+            Teardown t = teardowns.values().iterator().next();
+            t.sync = true;
+            tickTeardown(server, t, server.overworld().getGameTime(), Long.MAX_VALUE);
+        }
+    }
+
+    // ------------------------------------------------------------------ the work of every tick
+
+    /**
+     * The heavy work, at most {@link SiegeConfig#dungeonWorkMillis} a tick (update 30.10.): first a
+     * dungeon going, then the one being built, then the scouts' search.
+     */
+    private void work(MinecraftServer server, long now) {
+        long deadline = System.nanoTime() + m.config().dungeonWorkMillis * 1_000_000L;
+        findTeardowns(server);
+        if (!teardowns.isEmpty()) {
+            tickTeardown(server, teardowns.values().iterator().next(), now, deadline);
+        }
+        SiegeSave.ExpeditionRecord rec = record();
+        if (job == null && rec != null && rec.built && !rec.complete && !rec.won && rec.layout >= LAYOUT) {
+            job = new Build(rec.id, rec.dimension);   // half built (a restart, or the playtest gave it back): on with it
+        }
+        if (job != null && System.nanoTime() < deadline) {
+            tickBuild(server, now, deadline);
+        }
+        if (scouting != null && System.nanoTime() < deadline) {
+            tickScouting(server, deadline);
         }
     }
 
@@ -1105,9 +2020,9 @@ public final class Expeditions {
     /** A right click on the seal stone: starts the ready round, or ends it again (the starter). */
     public boolean onSeal(ServerPlayer player, BlockPos pos) {
         SiegeSave.ExpeditionRecord rec = record();
-        if (rec == null || !rec.built || rec.won || !(player.level() instanceof ServerLevel level)
+        if (rec == null || !rec.built || !rec.complete || rec.won || !(player.level() instanceof ServerLevel level)
                 || !SiegeManager.dimensionName(level).equals(rec.dimension) || !pos.equals(plan(rec).seal)) {
-            return false;
+            return false;   // (not complete: still being built, nobody goes in yet)
         }
         long now = level.getGameTime();
         if (!m.isRegistered(player)) {
@@ -2023,7 +2938,7 @@ public final class Expeditions {
 
     private void setGate(ServerLevel level, List<BlockPos> gate, boolean closed) {
         for (BlockPos pos : gate) {
-            if (!level.hasChunk(pos.getX() >> 4, pos.getZ() >> 4)) {
+            if (!loaded(level, pos.getX() >> 4, pos.getZ() >> 4)) {
                 // Not loaded (everyone left): set when it loads again. Loading it here mid-tick broke
                 // C2ME's entity sections (server log 29 October 2026, 18:09).
                 pendingGates.put(pos.immutable(), closed);
@@ -2043,7 +2958,7 @@ public final class Expeditions {
         }
         for (Map.Entry<BlockPos, Boolean> e : new ArrayList<>(pendingGates.entrySet())) {
             BlockPos pos = e.getKey();
-            if (level.hasChunk(pos.getX() >> 4, pos.getZ() >> 4)) {
+            if (loaded(level, pos.getX() >> 4, pos.getZ() >> 4)) {
                 pendingGates.remove(pos);
                 level.setBlock(pos, e.getValue() ? Blocks.IRON_BARS.defaultBlockState() : Blocks.AIR.defaultBlockState(),
                         Block.UPDATE_ALL);
@@ -2064,7 +2979,7 @@ public final class Expeditions {
                 }
                 LIVE.remove(id);
             }
-            if (arenaClosed && rec.built && !rec.won) {
+            if (arenaClosed && rec.built && rec.complete && !rec.won) {
                 setGate(level, plan(rec).arenaGate, false);
                 setGate(level, plan(rec).waveGates, true);
             }
@@ -2080,11 +2995,13 @@ public final class Expeditions {
         lastInside.clear();
         allowed.clear();
         gateOpenUntil = -1L;
-        if (level != null && rec.built && !rec.won && !openEntry) {
+        // (Only a complete one: one still being built gets its gates with its blocks, and a gate set
+        // before its chunk is written down would stay in the ground when it goes.)
+        if (level != null && rec.built && rec.complete && !rec.won && !openEntry) {
             setGate(level, plan(rec).stairGate, true);   // the next attempt starts at the seal stone again
         }
         arenaClosed = false;
-        if (level != null && rec.built && !rec.won && rec.cleared == 0) {
+        if (level != null && rec.built && rec.complete && !rec.won && rec.cleared == 0) {
             setGate(level, plan(rec).frontGate, true);
         }
         frontOpen = false;
@@ -2386,7 +3303,7 @@ public final class Expeditions {
         line.coreZ = core.z;
         line.targetX = rec.x;
         line.targetZ = rec.z;
-        line.built = rec.built;
+        line.built = rec.built && rec.complete;
         line.won = rec.won;
         line.rooms = rec.rooms;
         line.cleared = rec.cleared;
@@ -2487,7 +3404,6 @@ public final class Expeditions {
 
     // ------------------------------------------------------------------ admin and tests
 
-    /** Admin: the dungeon goes (a standing one is taken away block by block, the fight ends). */
     /** Lost attempts since the start (the playtest compares it). */
     public int lostAttempts() {
         return lostAttempts;
@@ -2503,14 +3419,25 @@ public final class Expeditions {
         return remove(server);
     }
 
+    /**
+     * Admin and the playtest: the dungeon goes (the fight ends, everyone inside is put out, its
+     * ground comes back over the next seconds; update 30.10.: before, all of it in one tick). The
+     * scouts' search, if one runs, is called off too.
+     */
     public boolean remove(MinecraftServer server) {
+        boolean searching = scouting != null || prepping;
+        scouting = null;
+        prepping = false;
+        prepFailed = false;
         SiegeSave.ExpeditionRecord rec = record();
         if (rec == null) {
-            return false;
+            cancelJob(server);
+            return searching;
         }
         endAll(server, null);
+        cancelJob(server);
         if (rec.built && rec.layout >= LAYOUT) {
-            restoreNow(server);   // taken down at once, the ground as it was
+            detach(server, rec);   // its ground comes back in the background
         }
         m.save().expedition = null;
         plan = null;
@@ -2518,39 +3445,70 @@ public final class Expeditions {
         return true;
     }
 
-    /** Admin and tests: the reported dungeon is built now at its spot (chunks are loaded on the way). */
+    /**
+     * Admin and the playtest: the reported dungeon is built at its spot without waiting for a
+     * player to come near (update 30.10.: over the next seconds, its chunks loaded in the
+     * background). Its door once it stands complete (or a won one), else null: see {@link #building}.
+     */
     public BlockPos buildNow(MinecraftServer server) {
         SiegeSave.ExpeditionRecord rec = record();
         if (rec == null || rec.won && !rec.built) {
             return null;
         }
-        ServerLevel level = SiegeManager.levelByName(server, rec.dimension);
-        if (level == null) {
-            return null;
+        if (rec.built && (rec.complete || rec.won)) {
+            return plan(rec).door;   // a won one is not built again
         }
-        if (!rec.built) {
-            loadAround(level, rec.x, rec.z, 12);
-            Integer floor = SiegeCamp.site(level, rec.x, rec.z, 9, 12, false, true, null);
-            if (floor == null) {
-                floor = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, rec.x, rec.z);
-            }
-            build(level, rec, new BlockPos(rec.x, floor, rec.z));
+        if (job == null) {
+            Build b = new Build(rec.id, rec.dimension);
+            b.stage = rec.built ? Build.FAR : Build.SITE;
+            job = b;
         }
-        // Everything else too: its chunks are loaded (generated) here.
-        ExpeditionLayout.Plan p = plan(rec);
-        if (rec.won) {
-            return p.door;   // a won one is not built again
-        }
-        buildAll(level, rec);
-        return p.door;
+        return null;
     }
 
-    private static void loadAround(ServerLevel level, int x, int z, int r) {
-        for (int cx = (x - r) >> 4; cx <= (x + r) >> 4; cx++) {
-            for (int cz = (z - r) >> 4; cz <= (z + r) >> 4; cz++) {
-                level.getChunk(cx, cz);
-            }
+    /** The scouts are out or a dungeon is being built now. */
+    public boolean building() {
+        return scouting != null || job != null;
+    }
+
+    /**
+     * The playtest (update 30.10.): its dungeon is searched and built during the pause before it,
+     * so the players are taken to a finished one and the server does not stand still meanwhile.
+     */
+    public void prepare(MinecraftServer server) {
+        removeAll(server);
+        boolean out = scout(server, null, true, null);
+        prepping = out;
+        prepFailed = !out;
+    }
+
+    /** The playtest's dungeon: "ready", "failed", "building" (searched or built still) or "" (none prepared). */
+    public String preparation(MinecraftServer server) {
+        if (!prepping) {
+            return prepFailed ? "failed" : "";
         }
+        if (scouting != null) {
+            return "building";
+        }
+        SiegeSave.ExpeditionRecord rec = record();
+        if (rec == null) {
+            prepping = false;
+            prepFailed = true;
+            return "failed";
+        }
+        if (rec.built && rec.complete) {
+            return "ready";
+        }
+        if (job == null) {
+            buildNow(server);
+        }
+        return "building";
+    }
+
+    /** The playtest takes its prepared dungeon. */
+    public void takePrepared() {
+        prepping = false;
+        prepFailed = false;
     }
 
     /** Tests: a dungeon of this kind at a given spot, built at once (no checks). */
@@ -2559,10 +3517,41 @@ public final class Expeditions {
         if (record() != null) {
             endAll(server, null);
         }
+        scouting = null;
+        prepping = false;
+        cancelJob(server);
+        flushTeardowns(server);   // a dungeon still going comes back first (it could lie where this one goes)
         SiegeSave.ExpeditionRecord old = record();
         if (old != null) {
             ExpeditionSnapshot.load(server, old.id).delete();   // the tests leave the old ones standing
         }
+        SiegeSave.ExpeditionRecord rec = newRecord(level, origin, facing, kind, rooms);
+        m.save().expedition = rec;
+        plan = null;
+        beginBuild(level, rec, origin, null, null);
+        finishJobNow(level);
+        return rec;
+    }
+
+    /**
+     * Admin ("dungeon hier"): a dungeon of this kind at a given spot, no checks, built over the
+     * next seconds (update 30.10.: before, in one tick). The one of before goes.
+     */
+    public SiegeSave.ExpeditionRecord buildHere(ServerLevel level, BlockPos origin, int facing, ExpeditionKind kind, int rooms) {
+        MinecraftServer server = level.getServer();
+        remove(server);
+        SiegeSave.ExpeditionRecord rec = newRecord(level, origin, facing, kind, rooms);
+        m.save().expedition = rec;
+        plan = null;
+        Build b = new Build(rec.id, rec.dimension);
+        b.stage = Build.SITE;   // its spot is given: only the plan is worked out (in the background) first
+        b.planAt = groundOrigin(level, origin);
+        b.planning = workOut(b.planAt, facing, kind, rooms, rec.id);
+        job = b;
+        return rec;
+    }
+
+    private SiegeSave.ExpeditionRecord newRecord(ServerLevel level, BlockPos origin, int facing, ExpeditionKind kind, int rooms) {
         SiegeSave.ExpeditionRecord rec = new SiegeSave.ExpeditionRecord();
         rec.id = random.nextInt(1_000_000) + 1;
         rec.kind = kind.id();
@@ -2573,16 +3562,11 @@ public final class Expeditions {
         rec.z = origin.getZ();
         rec.facing = facing;
         rec.rooms = rooms;
-        rec.reportedDay = m.dayNow(server);
+        rec.reportedDay = m.dayNow(level.getServer());
         CoreRecord core = m.mainCore();
         if (core != null) {
             drawMap(level, rec, core);
         }
-        m.save().expedition = rec;
-        plan = null;
-        loadAround(level, rec.x, rec.z, 12);
-        build(level, rec, origin);
-        buildAll(level, rec);
         return rec;
     }
 
@@ -2595,7 +3579,8 @@ public final class Expeditions {
     /** Tests: the player goes down now. */
     public void testJoin(ServerPlayer player) {
         SiegeSave.ExpeditionRecord rec = record();
-        if (rec != null && rec.built && player.level() instanceof ServerLevel level && !fighters.contains(player.getUUID())) {
+        if (rec != null && rec.built && rec.complete && player.level() instanceof ServerLevel level
+                && !fighters.contains(player.getUUID())) {
             join(level, rec, player, level.getGameTime());
         }
     }
@@ -2623,8 +3608,20 @@ public final class Expeditions {
     /** Tests: a short state line. */
     public String testState() {
         SiegeSave.ExpeditionRecord rec = record();
-        return rec == null ? "keiner" : String.format(Locale.ROOT, "%s räume %d/%d arena %s welle %d champion %s gewonnen %s kämpfer %d abbau %s chunks %d",
+        return rec == null ? "keiner" + (teardowns.isEmpty() ? "" : " (Abbau läuft: " + teardowns.size() + ")")
+                : String.format(Locale.ROOT, "%s räume %d/%d arena %s welle %d champion %s gewonnen %s kämpfer %d abbau %s chunks %d fertig %s",
                 rec.kind, rec.cleared, rec.rooms, arenaClosed, wave, champion != null, rec.won, fighters.size(), rec.restoring,
-                rec.chunksDone.size());
+                rec.chunksDone.size(), rec.complete);
+    }
+
+    /** Tests: dungeons whose ground is still coming back. */
+    public int teardownsLeft() {
+        Set<Integer> ids = new HashSet<>(teardowns.keySet());
+        if (m.save().expeditionTeardowns != null) {
+            for (SiegeSave.ExpeditionRecord rec : m.save().expeditionTeardowns) {
+                ids.add(rec.id);
+            }
+        }
+        return ids.size();
     }
 }

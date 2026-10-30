@@ -123,6 +123,11 @@ public class SiegeSave {
 
     /** The dungeon the scouts reported (dungeon update, 27 October 2026), or null. A won one stays as its ruin. */
     public ExpeditionRecord expedition;
+    /**
+     * Dungeons taken away (removed, replaced, the playtest's) whose ground is still coming back,
+     * a few milliseconds a tick (update 30.10.); kept so a restart finishes them.
+     */
+    public List<ExpeditionRecord> expeditionTeardowns = new ArrayList<>();
     /** Players wearing a kit from a dungeon fight (it goes back when they leave, fall or log in later). */
     public List<String> expeditionKits = new ArrayList<>();
 
@@ -230,8 +235,13 @@ public class SiegeSave {
         /** Guard rooms (by the world level when it was reported). */
         public int rooms = 2;
         public long reportedDay = -1L;
-        /** The gatehouse stands; the rest is set chunk by chunk as its ground loads. */
+        /** Its place is fixed and it is being set (or stands); see {@link #complete}. */
         public boolean built;
+        /**
+         * Every block of it is set (update 30.10.: it is built over many ticks; nobody goes in, no
+         * ready round, no playtest before this).
+         */
+        public boolean complete;
         /** Chunks (as ChunkPos longs) whose part of the dungeon is set. */
         public List<Long> chunksDone = new ArrayList<>();
         /** Guard rooms cleared (their gates stay open). */

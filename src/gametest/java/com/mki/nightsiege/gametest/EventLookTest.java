@@ -32,6 +32,7 @@ public class EventLookTest implements FabricClientGameTest {
 
     @Override
     public void runTest(ClientGameTestContext context) {
+        startWatchdog();
         String packs = System.getenv("NIGHTSIEGE_SHADERPACKS");
         boolean shaderRun = packs != null && !packs.isBlank();
         try (TestSingleplayerContext game = context.worldBuilder()
@@ -230,6 +231,59 @@ public class EventLookTest implements FabricClientGameTest {
                 series(context, game, "shader_" + n);
             }
         }
+    }
+
+    /**
+     * A hang (30.10.: the client test ran into its 40 minutes without a word): when the server has
+     * not ticked for a minute, the stacks of the server, render and test threads go into the log
+     * and the game stops, so the log shows where it stood.
+     */
+    private static void startWatchdog() {
+        Thread watch = new Thread(() -> {
+            int last = -1;
+            int still = 0;
+            while (true) {
+                try {
+                    Thread.sleep(10_000L);
+                } catch (InterruptedException e) {
+                    return;
+                }
+                net.minecraft.server.MinecraftServer server = net.minecraft.client.Minecraft.getInstance().getSingleplayerServer();
+                if (server == null) {
+                    still = 0;
+                    continue;
+                }
+                int ticks = server.getTickCount();
+                still = ticks == last ? still + 1 : 0;
+                last = ticks;
+                if (still < 6) {
+                    continue;
+                }
+                for (java.util.Map.Entry<Thread, StackTraceElement[]> e : Thread.getAllStackTraces().entrySet()) {
+                    String name = e.getKey().getName();
+                    if (!name.contains("Server thread") && !name.contains("Render thread") && !name.toLowerCase(Locale.ROOT).contains("test")) {
+                        continue;
+                    }
+                    System.out.println("[Night Siege test] HANG " + name + " (" + e.getKey().getState() + ")");
+                    int n = 0;
+                    for (StackTraceElement el : e.getValue()) {
+                        if (n++ >= 60) {
+                            break;
+                        }
+                        System.out.println("[Night Siege test] HANG   at " + el);
+                    }
+                }
+                System.out.flush();
+                try {
+                    Thread.sleep(3_000L);
+                } catch (InterruptedException e) {
+                    return;
+                }
+                Runtime.getRuntime().halt(3);
+            }
+        }, "Night Siege watchdog");
+        watch.setDaemon(true);
+        watch.start();
     }
 
     private static void setUpScene(ClientGameTestContext context, TestSingleplayerContext game) {
@@ -3157,6 +3211,47 @@ public class EventLookTest implements FabricClientGameTest {
             manager.expeditions().openEntry(false);
             manager.expeditions().openEntry(false);
             manager.expeditions().remove(player.level().getServer());
+        });
+
+        // The scouts' dungeon builds by itself once its ground is loaded and nobody is close (update 30.10.:
+        // its plan worked out in the background, its blocks over many ticks): on loaded flat ground far off.
+        int sx = bx + (kinds.length + 3) * 72;
+        game.getServer().runCommand("forceload add %d %d %d %d".formatted(sx - 70, bz - 40, sx + 70, bz + 300));
+        context.waitTicks(60);
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.game.SiegeSave.ExpeditionRecord rec = manager.expeditions().report(player.level().getServer(),
+                    com.mki.nightsiege.core.ExpeditionKind.STONE_CRYPT);
+            if (rec != null) {
+                rec.x = sx;
+                rec.z = bz;
+                rec.facing = 0;
+            }
+            System.out.println("[Night Siege test] dungeon by itself: reported=" + (rec != null) + " at " + sx + " " + bz);
+        });
+        boolean[] stands = {false};
+        int[] waitedTicks = {0};
+        for (int i = 0; i < 60 && !stands[0]; i++) {
+            context.waitTicks(20);
+            waitedTicks[0] += 20;
+            onServer(context, (player, manager) -> {
+                com.mki.nightsiege.game.SiegeSave.ExpeditionRecord rec = manager.save().expedition;
+                stands[0] = rec != null && rec.built && rec.complete;
+            });
+        }
+        context.waitTicks(5);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            com.mki.nightsiege.game.ExpeditionLayout.Plan plan = manager.expeditions().testPlan();
+            System.out.println("[Night Siege test] dungeon by itself: stands=" + stands[0] + " after ~" + waitedTicks[0] + " ticks"
+                    + " seal=" + (plan == null ? "?" : level.getBlockState(plan.seal).getBlock())
+                    + " fire=" + (plan == null ? "?" : level.getBlockState(plan.fire).getBlock())
+                    + " | " + manager.expeditions().testState());
+            manager.expeditions().remove(level.getServer());
+        });
+        context.waitTicks(100);
+        onServer(context, (player, manager) -> {
+            System.out.println("[Night Siege test] dungeon by itself gone: teardowns left=" + manager.expeditions().teardownsLeft()
+                    + " | " + manager.expeditions().testState());
             if (fakeCore[0]) {
                 manager.save().cores.removeIf(c -> c.x == pos.getX() && c.y == pos.getY() && c.z == pos.getZ());
             }
@@ -7989,6 +8084,21 @@ public class EventLookTest implements FabricClientGameTest {
             }
             onServer(context, (player, manager) -> manager.playtest().skip(player.level().getServer()));   // to the camp or dungeon
             context.waitTicks(80);
+            // A dungeon is searched and built during the pause before it (update 30.10.: no longer in one
+            // tick): the part begins once it stands complete.
+            String[] waitPhase = {""};
+            int waited = 0;
+            for (int wait = 0; wait < 120; wait++) {
+                onServer(context, (player, manager) -> waitPhase[0] = manager.playtest().phase());
+                context.waitTicks(20);
+                if (!"pause_interlude".equals(waitPhase[0])) {
+                    break;
+                }
+                waited++;
+            }
+            int waitedSeconds = waited;
+            onServer(context, (player, manager) -> System.out.println("[Night Siege test] playtest waited " + waitedSeconds
+                    + " s for the part: " + manager.expeditions().testState()));
             onServer(context, (player, manager) -> {
                 String kind = manager.playtest().interlude();
                 BlockPos at = player.blockPosition();
