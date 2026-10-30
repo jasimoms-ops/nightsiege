@@ -94,6 +94,13 @@ public final class GuardianEffects {
     private final Map<UUID, Double> revenge = new HashMap<>();
     private final Map<UUID, Long> lastStandReadyAt = new HashMap<>();
     private final Map<UUID, Long> tauntUntil = new HashMap<>();
+    /**
+     * A monster's hit on a player as the monster dealt it (its strength included), before every cut on
+     * the defender's side: subclass damage taken, bastion, anchor, Wächter-Schutz, ward sign, sanctuary.
+     * The logger's "abgefangen" (30.10.: it was counted after those, so the bulwark's own cuts made it
+     * look as if it held off less than the shield fighter).
+     */
+    private static final Map<UUID, Float> RAW_HIT = new HashMap<>();
     /** Who gave a player the barrier they carry: the life bond heals when it breaks. */
     private final Map<UUID, UUID> barrierFrom = new HashMap<>();
     /** A player's absorption just before a hit, to see a barrier break. */
@@ -145,6 +152,15 @@ public final class GuardianEffects {
     }
 
     /**
+     * The monster's hit that just landed on this player as the monster dealt it, before the defender's
+     * cuts ({@link #RAW_HIT}); {@code fallback} when none was noted. Taken once, by the logger.
+     */
+    public static float rawHit(UUID player, float fallback) {
+        Float raw = RAW_HIT.remove(player);
+        return raw == null ? fallback : raw;
+    }
+
+    /**
      * The heavy archer against a dungeon champion (Simon 30.10.: "wuchtschütze maximal 8% damage des
      * lebens der wächter"): one hit takes at most this share of the champion's max health.
      */
@@ -171,6 +187,13 @@ public final class GuardianEffects {
         boolean share = PercentDamage.is(source);
         float monster = tuning != null && victim instanceof ServerPlayer && source.getEntity() instanceof Enemy && !share
                 ? tuning.monsterDamageFactor(source.getEntity()) : 1f;
+        if (victim instanceof ServerPlayer hit) {
+            if (source.getEntity() instanceof Enemy) {
+                RAW_HIT.put(hit.getUUID(), amount * monster);   // for the logger, before the defender's cuts
+            } else {
+                RAW_HIT.remove(hit.getUUID());
+            }
+        }
         if (tuning != null && source.getEntity() instanceof ServerPlayer hitter && victim instanceof Enemy
                 && !CombatEffects.inFollowUp()) {   // a follow-up hit already carries the factor
             outside *= tuning.damageFactor(hitter);   // server balancing per class and subclass
