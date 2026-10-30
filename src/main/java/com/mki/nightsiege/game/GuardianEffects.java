@@ -602,21 +602,33 @@ public final class GuardianEffects {
         }
     }
 
-    /** Monsters close by that go for a teammate turn on the guardian. */
+    /**
+     * Monsters close by that go for a teammate turn on the guardian. The bulwark reaches further and is
+     * always sure (Simon 30.10.: "the bulwark is the worst tank of its class": every guardian drew alike).
+     * A tank (way of the shield) also takes monsters off the healers (config tanksPeelHealers); before,
+     * a monster on any guardian was left alone, so the medic and the warden kept theirs.
+     */
     private void aggro(ServerLevel level, ServerPlayer player, PlayerSkills skills) {
         if (player.isCreative()) {
             return;
         }
         double extra = tree.totalBonus(SkillEffect.AGGRO, skills);
-        double radius = SkillValues.get("g_challenger", "radius", 6.0) + extra;
+        double call = SkillTree.SUB_BULWARK.equals(tree.subclassOf(skills))
+                ? Math.max(0.0, SkillValues.get("g_challenger", "bulwark", 4.0)) : 0.0;
+        SiegeManager m = SiegeManager.get();
+        boolean peel = isTank(skills) && (m == null || m.config() == null || m.config().tanksPeelHealers);
+        double radius = SkillValues.get("g_challenger", "radius", 6.0) + extra + call;
         for (LivingEntity e : CombatEffects.enemies(level, player.position(), radius, 3.0)) {
             if (!(e instanceof Mob mob) || !(mob.getTarget() instanceof Player other) || other == player) {
                 continue;
             }
-            if (other instanceof ServerPlayer mate && isGuardian(skillsFor.apply(mate))) {
-                continue;   // another tank already holds it
+            if (other instanceof ServerPlayer mate) {
+                PlayerSkills held = skillsFor.apply(mate);
+                if (isGuardian(held) && (!peel || isTank(held))) {
+                    continue;   // another tank already holds it (a healer's monster only a tank takes)
+                }
             }
-            if (extra > 0 || random.nextDouble() < SkillValues.get("g_challenger", "chance", 0.6)) {
+            if (extra > 0 || call > 0 || random.nextDouble() < SkillValues.get("g_challenger", "chance", 0.6)) {
                 mob.setTarget(player);
                 level.sendParticles(ParticleTypes.ANGRY_VILLAGER, mob.getX(), mob.getY() + mob.getBbHeight() + 0.3,
                         mob.getZ(), 1, 0.1, 0.1, 0.1, 0.0);
@@ -1432,6 +1444,11 @@ public final class GuardianEffects {
 
     public static boolean isGuardian(PlayerSkills skills) {
         return skills != null && skills.clazz() == SkillClass.GUARDIAN;
+    }
+
+    /** A tank: a guardian on the way of the shield (shield fighter, bulwark), not a healer. */
+    private boolean isTank(PlayerSkills skills) {
+        return isGuardian(skills) && SkillTree.WAY_SHIELD.equals(skills.pathTaken(tree));
     }
 
     /** The boni of the way of the shield need a shield at hand; the other way has no such rule. */
