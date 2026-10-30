@@ -90,6 +90,18 @@ LABELS = {
         "aktuell": "Schritt 1 mit Wellen: " + PAKET,
         "nachschub": "Schritt 1 + Nachschub (Feld 6…38 je Spielerzahl, jedes gefallene Monster kommt sofort nach) + Feld-Stärke 0,5",
     },
+    "final2": {
+        "aktuell": "Server-Stand nach dem Einspielen, Entwurf: Schritt 1, Nachschub, Feld-Stärke 0,4, Leiter-Fix",
+        "n30": "wie aktuell, Feld-Stärke 0,3",
+    },
+    "final3": {
+        "aktuell": "Neues Balancing: Schritt 1 mit Axtkämpfer 1,35, Seelenfänger 1,2, Totenbeschwörer 1,0, Pfeilregen, Nachschub mit Feld-Stärke 0,4 und angepasster Referenz, Wächter-Nacht wie im Dungeon",
+        "regen2": "wie Neues Balancing, Pfeilregen mit doppeltem Schaden",
+    },
+    "final4": {
+        "aktuell": "wie final3, Pfeilregen halber Schaden, Axtkämpfer 1,5, Feld-Stärke 0,45 (Server 30.10. 21:57–22:25)",
+        "s40": "Server-Stand ab 30.10. 22:25: wie final3, Pfeilregen halber Schaden, Axtkämpfer 1,5, Feld-Stärke 0,4",
+    },
     "druck1": {
         "aktuell": "Wellen mit Klassen-Paket, Magier ab 11, Stufe 5 schwerer",
         "nachschub": "Nachschub, Feld 6…38, ohne Feld-Stärke",
@@ -111,7 +123,7 @@ LABELS = {
 
 # Runs whose variant is the server's state although it carries values of its own (they came onto the
 # server by config afterwards): run -> variant.
-SERVER_STAND = {"bogen1": "aktuell", "balance1": "aktuell", "balance2": "aktuell"}
+SERVER_STAND = {"bogen1": "aktuell", "balance1": "aktuell", "balance2": "aktuell", "final4": "s40"}
 
 
 def parse_team(msg):

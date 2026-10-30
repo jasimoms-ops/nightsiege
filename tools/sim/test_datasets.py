@@ -12,12 +12,23 @@ import statistics as st
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from test_load import load  # noqa: E402
+from load import load  # noqa: E402
 
-NAMES = {
-    'aktuell': ('Wellen', 'Schritt 1: Klassen-Paket, Magier und Henker ab Stufe 11, Stufe 5 schwerer; Monster kommen in Wellen (Limit 9 … 114 je Spielerzahl)'),
-    'nachschub': ('Nachschub', 'Schritt 1 und 2: dazu Nachschub (Feld 6 … 38 je Spielerzahl, jedes gefallene Monster kommt sofort nach) und Feld-Stärke 0,5'),
+RUNS = {
+    'final1': {
+        'aktuell': ('Wellen', 'Schritt 1: Klassen-Paket, Magier und Henker ab Stufe 11, Stufe 5 schwerer; Monster kommen in Wellen (Limit 9 … 114 je Spielerzahl)'),
+        'nachschub': ('Nachschub', 'Schritt 1 und 2: dazu Nachschub (Feld 6 … 38 je Spielerzahl, jedes gefallene Monster kommt sofort nach) und Feld-Stärke 0,5'),
+    },
+    'final3': {
+        'aktuell': ('Neues Balancing', 'Alles, was auf den Server geht: Klassen-Paket mit Axtkämpfer 1,35, Seelenfänger 1,2, Totenbeschwörer 1,0; Pfeilregen auf F; Nachschub (Feld 6 … 38) mit Feld-Stärke 0,4 und angepasster Referenz für 4–10 Spieler; Wächter-Nacht wie im Dungeon; Leiter-Fix'),
+        'regen2': ('Pfeilregen ×2', 'Wie Neues Balancing, aber der Pfeilregen macht doppelten Schaden'),
+    },
+    'final4': {
+        'aktuell': ('Feld-Stärke 0,45', 'Wie Server-Stand, aber Feld-Stärke 0,45 (so lief der Server 30.10. 21:57–22:25; Gruppen mit 4 Spielern 61 %)'),
+        's40': ('Server-Stand 30.10.', 'Was seit 30.10. 22:25 auf dem Server läuft: Klassen-Paket mit Axtkämpfer 1,5, Seelenfänger 1,2, Totenbeschwörer 1,0; Pfeilregen auf F mit halbem Schaden; Nachschub (Feld 6 … 38) mit Feld-Stärke 0,4; Wächter-Nacht wie im Dungeon; Leiter-Fix'),
+    },
 }
+NAMES = {}
 CLASS_ORDER = ['Krieger', 'Bogenschütze', 'Wächter', 'Techniker', 'Beschwörer']
 
 
@@ -25,7 +36,9 @@ def r(x, n=4):
     return None if x is None or (isinstance(x, float) and math.isnan(x)) else round(x, n)
 
 
-def main(stats, dashdir, out):
+def main(stats, dashdir, out, lauf='final1'):
+    global NAMES
+    NAMES = RUNS.get(lauf, {})
     os.makedirs(out, exist_ok=True)
     N = load([stats])
     raw = {}
@@ -106,6 +119,10 @@ def main(stats, dashdir, out):
             per[k]['schaden'].append(p['dmg'])
             per[k]['eingesteckt'].append(p['taken'])
             per[k]['heilung'].append(p['heal'])
+            per[k]['geheilt'].append(p['healed'])
+            per[k]['abgefangen'].append(p['raw'])
+            per[k]['treffer'].append(p['hits'])
+            per[k]['lebensraub'].append(p['steal'])
             per[k]['tode'].append(p['deaths'])
             per[k]['sieg'].append(n['win'])
             cls = uk_info.get(p['sub'], (p['sub'], p['cls']))[1]
@@ -124,7 +141,11 @@ def main(stats, dashdir, out):
         c = con.get((v, s), [])
         tu.append(dict(variante=v, name=vname(v), unterklasse=s, uname=name, klasse=cls, naechte=len(d['anteil']),
                        anteil=r(st.mean(d['anteil']), 3), schaden=round(st.mean(d['schaden'])), eingesteckt=round(st.mean(d['eingesteckt'])),
-                       heilung=round(st.mean(d['heilung'])), tode=r(st.mean(d['tode']), 2), siegquote=r(st.mean(d['sieg'])),
+                       heilung=round(st.mean(d['heilung'])), geheilt=round(st.mean(d['geheilt'])),
+                       abgefangen=round(st.mean(d['abgefangen'])) if any(d['abgefangen']) else None,
+                       treffer=round(st.mean(d['treffer'])) if any(d['treffer']) else None,
+                       lebensraub=round(st.mean(d['lebensraub'])) if any(d['abgefangen']) else None,
+                       tode=r(st.mean(d['tode']), 2), siegquote=r(st.mean(d['sieg'])),
                        beitrag=r(st.mean(c), 3) if c else None))
     tk = []
     for v in variants:
@@ -146,10 +167,12 @@ def main(stats, dashdir, out):
 
     files = {'test_varianten': tv, 'test_spieler': ts, 'test_stufe': tl, 'test_zellen': tz, 'test_klassen': tk, 'test_uk': tu, 'test_gegner': tg}
     for k, rows in files.items():
+        rows[:] = [dict({'lauf': lauf}, **row) for row in rows]
         with open(os.path.join(out, k + '.json'), 'w', encoding='utf-8') as fh:
             json.dump(rows, fh, ensure_ascii=False, separators=(',', ':'))
         print(k, len(rows), os.path.getsize(os.path.join(out, k + '.json')))
 
 
 if __name__ == '__main__':
-    main(*sys.argv[1:4])
+    # test_datasets.py <stats> <dashboard> <out> [lauf]
+    main(*sys.argv[1:5])
