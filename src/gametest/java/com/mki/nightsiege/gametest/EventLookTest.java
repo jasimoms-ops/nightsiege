@@ -3157,6 +3157,47 @@ public class EventLookTest implements FabricClientGameTest {
             manager.expeditions().openEntry(false);
             manager.expeditions().openEntry(false);
             manager.expeditions().remove(player.level().getServer());
+        });
+
+        // The scouts' dungeon builds by itself once its ground is loaded and nobody is close (update 30.10.:
+        // its plan worked out in the background, its blocks over many ticks): on loaded flat ground far off.
+        int sx = bx + (kinds.length + 3) * 72;
+        game.getServer().runCommand("forceload add %d %d %d %d".formatted(sx - 70, bz - 40, sx + 70, bz + 300));
+        context.waitTicks(60);
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.game.SiegeSave.ExpeditionRecord rec = manager.expeditions().report(player.level().getServer(),
+                    com.mki.nightsiege.core.ExpeditionKind.STONE_CRYPT);
+            if (rec != null) {
+                rec.x = sx;
+                rec.z = bz;
+                rec.facing = 0;
+            }
+            System.out.println("[Night Siege test] dungeon by itself: reported=" + (rec != null) + " at " + sx + " " + bz);
+        });
+        boolean[] stands = {false};
+        int[] waitedTicks = {0};
+        for (int i = 0; i < 60 && !stands[0]; i++) {
+            context.waitTicks(20);
+            waitedTicks[0] += 20;
+            onServer(context, (player, manager) -> {
+                com.mki.nightsiege.game.SiegeSave.ExpeditionRecord rec = manager.save().expedition;
+                stands[0] = rec != null && rec.built && rec.complete;
+            });
+        }
+        context.waitTicks(5);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            com.mki.nightsiege.game.ExpeditionLayout.Plan plan = manager.expeditions().testPlan();
+            System.out.println("[Night Siege test] dungeon by itself: stands=" + stands[0] + " after ~" + waitedTicks[0] + " ticks"
+                    + " seal=" + (plan == null ? "?" : level.getBlockState(plan.seal).getBlock())
+                    + " fire=" + (plan == null ? "?" : level.getBlockState(plan.fire).getBlock())
+                    + " | " + manager.expeditions().testState());
+            manager.expeditions().remove(level.getServer());
+        });
+        context.waitTicks(100);
+        onServer(context, (player, manager) -> {
+            System.out.println("[Night Siege test] dungeon by itself gone: teardowns left=" + manager.expeditions().teardownsLeft()
+                    + " | " + manager.expeditions().testState());
             if (fakeCore[0]) {
                 manager.save().cores.removeIf(c -> c.x == pos.getX() && c.y == pos.getY() && c.z == pos.getZ());
             }
