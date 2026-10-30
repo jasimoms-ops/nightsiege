@@ -265,10 +265,10 @@ public final class LadderClimb {
                     stats.boarded++;
                     toppedNow.remove(id);
                 }
-                if (up) {
+                if (up && !toppedNow.contains(id)) {
                     // Keep the ladder as its goal while it climbs: pushed off near the bottom, it
                     // walks straight back in (before, it took itself for over the wall and pressed
-                    // against the wall beside the ladder).
+                    // against the wall beside the ladder). At the top the goal is done for good.
                     BlockPos foot = goals.get(id);
                     if (foot == null || foot.getX() != mob.getBlockX() || foot.getZ() != mob.getBlockZ()) {
                         foot = footOf(world, mob.blockPosition());
@@ -278,13 +278,14 @@ public final class LadderClimb {
                     if (mob.getY() - foot.getY() >= NEXT_ON) {
                         endTurn(foot, id);   // up a bit: the next one may get on
                     }
-                    if (!isClimbable(world.getBlockState(mob.blockPosition().above())) && toppedNow.add(id)) {
+                    if (!isClimbable(world.getBlockState(mob.blockPosition().above()))) {
+                        toppedNow.add(id);
                         stats.topped++;
                         goals.remove(id);
                         goalSince.remove(id);
                         endTurn(foot, id);
                     }
-                } else {
+                } else if (!up) {
                     goals.remove(id);
                     goalSince.remove(id);
                 }

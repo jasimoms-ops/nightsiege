@@ -3833,6 +3833,7 @@ public class EventLookTest implements FabricClientGameTest {
         final double[] savedD = new double[1];
         final int[] savedI = new int[3];
         final boolean[] savedB = new boolean[3];
+        final java.util.List<Integer> savedCapCrowd = new java.util.ArrayList<>();
         onServer(context, (player, manager) -> {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
             com.mki.nightsiege.core.SiegeConfig cfg = manager.config();
@@ -3843,15 +3844,27 @@ public class EventLookTest implements FabricClientGameTest {
             savedB[0] = cfg.machinesEnabled;
             savedB[1] = cfg.cursesEnabled;
             savedB[2] = cfg.nemesisEnabled;
-            cfg.ladderCarrierShare = 0.15;
+            cfg.ladderCarrierShare = 0.0;   // the two ladders below, the same in every run
             cfg.sapperFromLevel = 999;   // no craters: the ladders are the only way in
             cfg.batchIntervalSeconds = 10;
             cfg.testPrepSeconds = 2;
             cfg.machinesEnabled = false;
             cfg.cursesEnabled = false;
             cfg.nemesisEnabled = false;
+            savedCapCrowd.clear();
+            savedCapCrowd.addAll(cfg.liveCapByPlayers);
+            cfg.liveCapByPlayers = new java.util.ArrayList<>(java.util.List.of(30));
             boolean ok = manager.prepareTest(level.getServer(), level, new BlockPos(cx, cy, cz), 8,
                     com.mki.nightsiege.core.SiegeEvent.NONE);
+            // Two night ladders like the carriers', on the outside of the north and the east wall.
+            for (int y = cy; y <= cy + 4; y++) {
+                com.mki.nightsiege.game.TempBlocks.place(level, new BlockPos(cx + 3, y, cz - r - 1),
+                        net.minecraft.world.level.block.Blocks.LADDER.defaultBlockState()
+                                .setValue(net.minecraft.world.level.block.LadderBlock.FACING, net.minecraft.core.Direction.NORTH));
+                com.mki.nightsiege.game.TempBlocks.place(level, new BlockPos(cx + r + 1, y, cz - 2),
+                        net.minecraft.world.level.block.Blocks.LADDER.defaultBlockState()
+                                .setValue(net.minecraft.world.level.block.LadderBlock.FACING, net.minecraft.core.Direction.EAST));
+            }
             System.out.println("[Night Siege test] leitersturm yard " + cx + " " + cy + " " + cz + " prep ok=" + ok);
         });
         context.waitTicks(10);
@@ -3959,6 +3972,7 @@ public class EventLookTest implements FabricClientGameTest {
             cfg.machinesEnabled = savedB[0];
             cfg.cursesEnabled = savedB[1];
             cfg.nemesisEnabled = savedB[2];
+            cfg.liveCapByPlayers = new java.util.ArrayList<>(savedCapCrowd);
         });
         game.getServer().runCommand("forceload remove all");
         game.getServer().runCommand("time set 6000");
