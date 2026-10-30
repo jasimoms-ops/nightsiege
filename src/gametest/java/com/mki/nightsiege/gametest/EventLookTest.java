@@ -5564,8 +5564,8 @@ public class EventLookTest implements FabricClientGameTest {
             player.teleportTo((net.minecraft.server.level.ServerLevel) player.level(), core[0] + 2.5, core[1], core[2] + 0.5,
                     java.util.Set.of(), 0f, 0f, true);
             before.addAll(survivalSnapshot(player));
-            System.out.println("[Night Siege test] survival requiredAccepts was " + manager.config().requiredAccepts + ", set to 1 for this world");
-            manager.config().requiredAccepts = 1;
+            // Survival safety (31.10.): no override any more – one invited player, one accept must be enough.
+            System.out.println("[Night Siege test] survival requiredAccepts config=" + manager.config().requiredAccepts + " (not overridden)");
             // Today is a siege day; nothing voted yet.
             manager.save().nextSiegeDay = manager.clockDayFor(player.level().getServer());
             manager.save().clearVotes();
@@ -5630,10 +5630,18 @@ public class EventLookTest implements FabricClientGameTest {
             System.out.println("[Night Siege test] survival in night: kit=" + manager.kits().hasStash(player)
                     + " defending=" + manager.isDefending(player) + " slots=" + now.stream().filter(x -> !x.isEmpty()).count()
                     + " mainhand=" + player.getMainHandItem().getItem() + " mode=" + player.gameMode());
-            // Things picked up in the night: emeralds and diamonds go home with the player, dirt does not.
+            // Things picked up in the night (survival safety 31.10.: everything that is not kit stays with the player).
             player.getInventory().add(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.EMERALD, 5));
             player.getInventory().add(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIRT, 3));
             player.getInventory().add(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND, 2));
+            // Taken from the own chest while the kit is on: an elytra and a potion (the own inventory is full,
+            // so after the night they must come back beside it or lie at the player's feet).
+            net.minecraft.world.item.ItemStack swift = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.POTION);
+            swift.set(net.minecraft.core.component.DataComponents.POTION_CONTENTS,
+                    new net.minecraft.world.item.alchemy.PotionContents(net.minecraft.world.item.alchemy.Potions.SWIFTNESS));
+            player.getInventory().add(swift);
+            player.getInventory().add(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.ELYTRA));
+            System.out.println("[Night Siege test] survival taken in the night: emerald 5, dirt 3, diamond 2, swiftness potion, elytra");
         });
         context.waitTicks(20);
         context.takeScreenshot("survival_night");
@@ -5703,9 +5711,22 @@ public class EventLookTest implements FabricClientGameTest {
             }
             java.util.List<net.minecraft.world.entity.item.ItemEntity> dropped = player.level().getEntitiesOfClass(
                     net.minecraft.world.entity.item.ItemEntity.class, player.getBoundingBox().inflate(24));
+            int elytra = 0;
+            int swift = 0;
             for (net.minecraft.world.entity.item.ItemEntity e : dropped) {
                 System.out.println("[Night Siege test] survival dropped near player: " + e.getItem().getItem() + " x" + e.getItem().getCount());
+                elytra += e.getItem().is(net.minecraft.world.item.Items.ELYTRA) ? 1 : 0;
+                swift += survivalSwift(e.getItem()) ? 1 : 0;
             }
+            net.minecraft.world.entity.player.Inventory inv = player.getInventory();
+            int kitItems = 0;
+            for (int i = 0; i < inv.getContainerSize(); i++) {
+                elytra += inv.getItem(i).is(net.minecraft.world.item.Items.ELYTRA) ? 1 : 0;
+                swift += survivalSwift(inv.getItem(i)) ? 1 : 0;
+                kitItems += com.mki.nightsiege.game.KitService.isKit(inv.getItem(i)) ? 1 : 0;
+            }
+            System.out.println("[Night Siege test] survival KEPT: elytra=" + elytra + " swiftness=" + swift + " kitItemsLeft=" + kitItems
+                    + " (expected 1 1 0)");
         });
         // The clock goes on after the night (no frozen night).
         onServer(context, (player, manager) -> System.out.println("[Night Siege test] survival clock A: "
@@ -5715,6 +5736,11 @@ public class EventLookTest implements FabricClientGameTest {
                 + manager.clockTimeFor(player.level().getServer())));
         context.takeScreenshot("survival_after");
         game.getServer().runCommand("gamemode creative @p");
+    }
+
+    private static boolean survivalSwift(net.minecraft.world.item.ItemStack stack) {
+        net.minecraft.world.item.alchemy.PotionContents pc = stack.get(net.minecraft.core.component.DataComponents.POTION_CONTENTS);
+        return stack.is(net.minecraft.world.item.Items.POTION) && pc != null && pc.is(net.minecraft.world.item.alchemy.Potions.SWIFTNESS);
     }
 
     /** A bed two blocks south of the player; returns its head. */
