@@ -8677,7 +8677,7 @@ public class EventLookTest implements FabricClientGameTest {
             own.levels.put("a_lightxbow", 1);
             own.levels.put("a_tripwire", 1);
             manager.expeditions().testBuild((net.minecraft.server.level.ServerLevel) player.level(),
-                    new BlockPos(bx, fy, bz), 0, com.mki.nightsiege.core.ExpeditionKind.STONE_CRYPT, 2);
+                    new BlockPos(bx, fy, bz), 0, com.mki.nightsiege.core.ExpeditionKind.DEEP_CELLAR, 2);
             manager.expeditions().openEntry(true);   // straight in, no ready round
         });
         context.waitTicks(10);
@@ -8720,6 +8720,71 @@ public class EventLookTest implements FabricClientGameTest {
         context.getInput().lookAt(0.0f, -10.0f);
         context.waitTicks(5);
         bolterShot(context, d, "dungeon_up10", 0);
+        // What the standing player collides with down there, on the server and on the client, and
+        // where in the halls the server would make him crawl (eye 0.4) while the client stands.
+        onServer(context, (player, manager) -> {
+            net.minecraft.world.level.Level level = player.level();
+            net.minecraft.world.phys.AABB box = player.getDimensions(net.minecraft.world.entity.Pose.STANDING)
+                    .makeBoundingBox(player.position()).deflate(1.0E-7);
+            StringBuilder line = new StringBuilder("[Night Siege test] bolt collide server at " + player.blockPosition() + ":");
+            for (net.minecraft.world.phys.shapes.VoxelShape shape : level.getBlockCollisions(player, box)) {
+                net.minecraft.world.phys.AABB bb = shape.bounds();
+                BlockPos at = BlockPos.containing(bb.getCenter());
+                line.append(String.format(Locale.ROOT, " block %s %s [%.2f..%.2f]", at, level.getBlockState(at), bb.minY, bb.maxY));
+            }
+            for (net.minecraft.world.phys.shapes.VoxelShape shape : level.getEntityCollisions(player, box)) {
+                line.append(String.format(Locale.ROOT, " entityShape %s", shape.bounds()));
+            }
+            for (net.minecraft.world.entity.Entity e : level.getEntities(player, box.inflate(0.5))) {
+                line.append(" entity ").append(net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()))
+                        .append(e.canBeCollidedWith(player) ? "(solid)" : "").append(e.entityTags());
+            }
+            line.append(" border=").append(level.getWorldBorder().isWithinBounds(box));
+            System.out.println(line);
+            // The halls: each block column at the player's floor height, 30 to each side and 70 ahead.
+            int crawl = 0;
+            int blocked = 0;
+            int free = 0;
+            StringBuilder spots = new StringBuilder();
+            for (int x = player.getBlockX() - 14; x <= player.getBlockX() + 14; x++) {
+                for (int z = player.getBlockZ() - 30; z <= player.getBlockZ() + 70; z++) {
+                    BlockPos foot = new BlockPos(x, player.getBlockY(), z);
+                    if (!level.getBlockState(foot.below()).isFaceSturdy(level, foot.below(), net.minecraft.core.Direction.UP)
+                            || !level.getBlockState(foot).getCollisionShape(level, foot).isEmpty()) {
+                        continue;   // no floor to stand on here
+                    }
+                    net.minecraft.world.phys.Vec3 at = net.minecraft.world.phys.Vec3.atBottomCenterOf(foot);
+                    boolean stand = level.noCollision(player, player.getDimensions(net.minecraft.world.entity.Pose.STANDING).makeBoundingBox(at).deflate(1.0E-7));
+                    boolean swim = level.noCollision(player, player.getDimensions(net.minecraft.world.entity.Pose.SWIMMING).makeBoundingBox(at).deflate(1.0E-7));
+                    boolean airAbove = level.getBlockState(foot.above()).getCollisionShape(level, foot.above()).isEmpty();
+                    if (stand) {
+                        free++;
+                    } else if (swim) {
+                        crawl++;
+                        if (airAbove && spots.length() < 1500) {
+                            spots.append(' ').append(x).append('/').append(z);
+                        }
+                    } else {
+                        blocked++;
+                    }
+                }
+            }
+            System.out.println("[Night Siege test] bolt collide scan: free=" + free + " crawl=" + crawl + " blocked=" + blocked
+                    + " crawl-with-air-above:" + spots);
+        });
+        context.runOnClient(client -> {
+            net.minecraft.world.phys.AABB box = client.player.getDimensions(net.minecraft.world.entity.Pose.STANDING)
+                    .makeBoundingBox(client.player.position()).deflate(1.0E-7);
+            StringBuilder line = new StringBuilder("[Night Siege test] bolt collide client fits=" + client.level.noCollision(client.player, box) + ":");
+            for (net.minecraft.world.phys.shapes.VoxelShape shape : client.level.getBlockCollisions(client.player, box)) {
+                line.append(" block ").append(shape.bounds());
+            }
+            for (net.minecraft.world.phys.shapes.VoxelShape shape : client.level.getEntityCollisions(client.player, box)) {
+                line.append(" entityShape ").append(shape.bounds());
+            }
+            line.append(" border=").append(client.level.getWorldBorder().isWithinBounds(box));
+            System.out.println(line);
+        });
         onServer(context, (player, manager) -> {
             manager.expeditions().openEntry(false);
             manager.expeditions().remove(player.level().getServer());
