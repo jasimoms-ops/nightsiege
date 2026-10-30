@@ -2144,6 +2144,7 @@ class SiegeCoreTest {
         int before = tree.get("masonry").baseCost();
         SiegeConfig.SkillTweak t = new SiegeConfig.SkillTweak();
         t.cost = before + 5;
+        cfg.skillTweaks.clear();   // only this tweak (update 30.10. brings skill values of its own)
         cfg.skillTweaks.put("masonry", t);
         assertEquals(1, tree.applyTweaks(cfg.skillTweaks));
         assertEquals(before + 5, tree.get("masonry").baseCost());
