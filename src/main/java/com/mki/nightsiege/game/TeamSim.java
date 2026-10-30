@@ -828,6 +828,28 @@ public final class TeamSim {
                     }
                     t.values.put(path[2], Double.parseDouble(value));
                     com.mki.nightsiege.core.SkillValues.apply(cfg.skillTweaks);
+                } else if (key.startsWith("mob.")) {
+                    // A field of a spawn-table entry: mob.minecraft:evoker.minLevel=11 (30.10.)
+                    String rest = key.substring(4);
+                    int dot = rest.lastIndexOf('.');
+                    String id = rest.substring(0, dot);
+                    String field = rest.substring(dot + 1);
+                    boolean found = false;
+                    for (com.mki.nightsiege.core.MobEntry entry : cfg.mobs) {
+                        if (entry != null && id.equals(entry.id)) {
+                            java.lang.reflect.Field f = entry.getClass().getField(field);
+                            backup.putIfAbsent(key, f.get(entry));
+                            if (f.getType() == int.class) {
+                                f.setInt(entry, (int) Math.round(Double.parseDouble(value)));
+                            } else {
+                                f.setDouble(entry, Double.parseDouble(value));
+                            }
+                            found = true;
+                        }
+                    }
+                    if (!found) {
+                        NightSiegeMod.LOGGER.warn("[Night Siege sim] Monster {} nicht in der Liste", id);
+                    }
                 } else if (key.contains(".")) {
                     String[] path = key.split("\\.", 2);
                     java.lang.reflect.Field f = cfg.getClass().getField(path[0]);
@@ -870,7 +892,16 @@ public final class TeamSim {
         for (Map.Entry<String, Object> e : backup.entrySet()) {
             String key = e.getKey();
             try {
-                if (key.contains(".")) {
+                if (key.startsWith("mob.")) {
+                    String rest = key.substring(4);
+                    int dot = rest.lastIndexOf('.');
+                    String id = rest.substring(0, dot);
+                    for (com.mki.nightsiege.core.MobEntry entry : cfg.mobs) {
+                        if (entry != null && id.equals(entry.id)) {
+                            entry.getClass().getField(rest.substring(dot + 1)).set(entry, e.getValue());
+                        }
+                    }
+                } else if (key.contains(".")) {
                     String[] path = key.split("\\.", 2);
                     java.lang.reflect.Field f = cfg.getClass().getField(path[0]);
                     @SuppressWarnings("unchecked")
