@@ -12,7 +12,7 @@ import statistics as st
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from load import load  # noqa: E402
+from test_load import load  # noqa: E402
 
 RUNS = {
     'final1': {

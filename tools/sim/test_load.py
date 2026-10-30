@@ -17,7 +17,8 @@ def load(dirs):
             players = {}
             for name, p in n['spieler'].items():
                 players[name] = dict(sub=p.get('unterklasse'), cls=p.get('klasse'), dmg=0.0, taken=0.0, heal=0.0,
-                                     kills=0, deaths=0, src=collections.Counter(), tak=collections.Counter())
+                                     kills=0, deaths=0, src=collections.Counter(), tak=collections.Counter(),
+                                     healed=0.0, raw=0.0, hits=0, blocked=0, steal=0.0)
             for w in n.get('wellen', []):
                 for name, s in (w.get('spieler') or {}).items():
                     if name not in players:
@@ -26,6 +27,11 @@ def load(dirs):
                     p['dmg'] += s.get('schaden', 0) or 0
                     p['taken'] += s.get('erhalten', 0) or 0
                     p['heal'] += s.get('heilungGegeben', 0) or 0
+                    p['healed'] += s.get('heilungErhalten', 0) or 0
+                    p['raw'] += s.get('abgefangen', 0) or 0
+                    p['hits'] += s.get('treffer', 0) or 0
+                    p['blocked'] += s.get('geblockt', 0) or 0
+                    p['steal'] += s.get('lebensraub', 0) or 0
                     p['kills'] += s.get('kills', 0) or 0
                     p['deaths'] += s.get('tode', 0) or 0
                     for k, v in (s.get('schadenNachQuelle') or {}).items():
