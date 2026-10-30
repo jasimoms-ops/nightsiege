@@ -1,0 +1,191 @@
+{
+  "art": "nacht",
+  "sim": "HF|L3|G1|zufall|7",
+  "version": "1.0.0",
+  "build": "67ff44f",
+  "start": "2026-10-29 22:30:23",
+  "ende": "2026-10-29 22:30:26",
+  "abgeschlossen": true,
+  "test": true,
+  "nacht": -1,
+  "stufe": 3,
+  "ereignis": "none",
+  "besondereNacht": false,
+  "fragment": "",
+  "fluchsteine": [],
+  "boss": "",
+  "ergebnis": "test_verloren",
+  "dauerSekunden": 75,
+  "killZiel": 23,
+  "kills": 5,
+  "gespawnt": 15,
+  "tode": 1,
+  "basis": {
+    "geschlossen": false,
+    "breite": 82,
+    "tiefe": 91,
+    "tore": 0
+  },
+  "spieler": {
+    "Bot01": {
+      "name": "Bot01",
+      "uuid": "59db4448-2e93-31f2-b572-f9f8749b0f17",
+      "klasse": "archer",
+      "weg": "xbow",
+      "unterklasse": "",
+      "profil": "ARCHER",
+      "punkteImProfil": 8,
+      "ultStufe3": false,
+      "kit": "archer"
+    }
+  },
+  "heerlager": {
+    "erschienen": false,
+    "zerstoert": false,
+    "lagerSiegte": false,
+    "maschinen": 0
+  },
+  "maschinen": [],
+  "wellen": [
+    {
+      "nummer": 1,
+      "startSekunde": 0,
+      "dauerSekunden": 38,
+      "gespawnt": 6,
+      "typen": {
+        "nightsiege:revenant": 1,
+        "minecraft:creeper": 2,
+        "minecraft:zombie": 3
+      },
+      "uebrigAmEnde": 2,
+      "bloeckeZerstoert": 64,
+      "spieler": {
+        "Bot01": {
+          "schaden": 19.53106164932251,
+          "schadenNachQuelle": {
+            "nah:wooden_axe": 19.53106164932251
+          },
+          "erhalten": 20.772502660751343,
+          "erhaltenNachGegner": {
+            "minecraft:creeper": 6.0206074714660645,
+            "minecraft:zombie": 10.751895189285278,
+            "umgebung:lava": 4.0
+          },
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 2.0000000447034836,
+          "kills": 1,
+          "assists": 0,
+          "tode": 0,
+          "drohneSekunden": 0,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {
+            "ult": 8,
+            "faehigkeit_f": 5
+          },
+          "turmSekunden": 0
+        }
+      }
+    },
+    {
+      "nummer": 2,
+      "startSekunde": 38,
+      "dauerSekunden": 37,
+      "gespawnt": 9,
+      "typen": {
+        "nightsiege:tunneler": 2,
+        "minecraft:creeper": 2,
+        "minecraft:zombie": 2,
+        "minecraft:skeleton": 1,
+        "minecraft:phantom": 2
+      },
+      "uebrigAmEnde": 0,
+      "bloeckeZerstoert": 0,
+      "spieler": {
+        "Bot01": {
+          "schaden": 61.50661313533783,
+          "schadenNachQuelle": {
+            "nah:wooden_axe": 16.931822180747986,
+            "fern:crossbow": 44.574790954589844
+          },
+          "erhalten": 47.2653865814209,
+          "erhaltenNachGegner": {
+            "umgebung:on_fire": 13.0,
+            "minecraft:zombie": 14.369355201721191,
+            "nightsiege:tunneler": 19.896031379699707
+          },
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 2.333333343267441,
+          "kills": 3,
+          "assists": 0,
+          "tode": 1,
+          "drohneSekunden": 0,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {
+            "ult": 9,
+            "faehigkeit_f": 5
+          },
+          "turmSekunden": 0
+        }
+      }
+    }
+  ],
+  "gegner": {
+    "nightsiege:revenant": {
+      "gespawnt": 1,
+      "getoetet": 1,
+      "ueberlebtSekundenSumme": 25.0,
+      "ueberlebtSekundenSchnitt": 25.0,
+      "schadenAnSpielern": 0.0,
+      "getoetetVon": {
+        "umgebung:on_fire": 1
+      }
+    },
+    "minecraft:creeper": {
+      "gespawnt": 4,
+      "getoetet": 0,
+      "ueberlebtSekundenSumme": 0.0,
+      "ueberlebtSekundenSchnitt": 0.0,
+      "schadenAnSpielern": 6.0206074714660645,
+      "getoetetVon": {}
+    },
+    "minecraft:zombie": {
+      "gespawnt": 5,
+      "getoetet": 3,
+      "ueberlebtSekundenSumme": 115.19999999999999,
+      "ueberlebtSekundenSchnitt": 38.4,
+      "schadenAnSpielern": 25.12125039100647,
+      "getoetetVon": {
+        "klasse:archer": 3
+      }
+    },
+    "nightsiege:tunneler": {
+      "gespawnt": 2,
+      "getoetet": 1,
+      "ueberlebtSekundenSumme": 16.85,
+      "ueberlebtSekundenSchnitt": 16.9,
+      "schadenAnSpielern": 19.896031379699707,
+      "getoetetVon": {
+        "klasse:archer": 1
+      }
+    },
+    "minecraft:skeleton": {
+      "gespawnt": 1,
+      "getoetet": 0,
+      "ueberlebtSekundenSumme": 0.0,
+      "ueberlebtSekundenSchnitt": 0.0,
+      "schadenAnSpielern": 0.0,
+      "getoetetVon": {}
+    },
+    "minecraft:phantom": {
+      "gespawnt": 2,
+      "getoetet": 0,
+      "ueberlebtSekundenSumme": 0.0,
+      "ueberlebtSekundenSchnitt": 0.0,
+      "schadenAnSpielern": 0.0,
+      "getoetetVon": {}
+    }
+  },
+  "tuerme": {},
+  "bewertung": {},
+  "staerksteKlasse": {}
+}
