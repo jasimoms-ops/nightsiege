@@ -56,6 +56,8 @@ public final class KitHud {
     private static final Identifier PANEL_ARCH = tex("panel_arch");
     private static final Identifier PANEL_WING = tex("panel_wing");
     private static final Identifier SLOT_WING = tex("slot_wing");
+    /** The left end's curl and rivets, mirrored: the crest has them on both sides (Simon 30.10.). */
+    private static final Identifier CREST_TRIM = tex("crest_trim");
     private static final Identifier ICON_CLASS = tex("icon_class");
     private static final Identifier SLOT_ABILITY = tex("slot_ability");
     private static final Identifier SLOT_ABILITY_READY = tex("slot_ability_ready");
@@ -206,14 +208,17 @@ public final class KitHud {
         Minecraft mc = Minecraft.getInstance();
         LocalPlayer p = mc.player;
         UltState s = UltHud.state();
-        List<UltHud.Cell> big = s == null ? List.of() : UltHud.fixedCells(s, ultKey);
+        // The gain keys N, M, J sit in the middle arch as small symbols, like the effects and the
+        // companions in the wings (Simon 30.10.), no longer as big boxes behind Q, F and X.
+        List<UltHud.Cell> big = s == null ? List.of() : UltHud.fixedCells(s, ultKey, false);
+        List<UltHud.Cell> gains = s == null ? List.of() : UltHud.gainCells(s);
         List<UltHud.Cell> small = s == null ? List.of() : UltHud.choiceCells(s, mc);
         boolean live = s != null && s.live;
 
         // The layout from left to right; sections without boxes take no room.
         int x = 6;
         int crestX = x;
-        x += CREST_W + 3;
+        x += CREST_W + 5;   // room for the trim on its right (30.10.)
         int bigW = big.isEmpty() ? 0 : big.size() * BIG_STEP - 2;
         int smallW = small.isEmpty() ? 0 : small.size() * SMALL_STEP - 1;
         int abilW = Math.max(bigW, smallW);
@@ -242,8 +247,11 @@ public final class KitHud {
             gui.pose().scale(scale, scale);
         }
         int leftWing = Math.max(WING_W / 2 + 2, (crestX + abilX + Math.max(abilW, 0)) / 2);
-        int rightWing = Math.min(w - WING_W / 2 - 2, hotX + HOT_W / 2);
+        // The three arches stand evenly (Simon 30.10.: "der rechte irgendwie zu weit links"): the right
+        // wing mirrors the left one about the middle arch.
+        int rightWing = w - leftWing;
         panel(gui, w, leftWing, rightWing);
+        blit(gui, CREST_TRIM, crestX + CREST_W - 2, 0, 3, H);
         drawCrest(gui, crestX, H - CREST_H - 2, s);
         if (abilW > 0) {
             int bx = abilX + (abilW - bigW) / 2;
@@ -263,7 +271,8 @@ public final class KitHud {
         hotbar(gui, mc.font, p, hotX);
         units(gui, mc.font, leftWing, s);
         effects(gui, mc.font, p, rightWing);
-        message(gui, mc.font, w / 2);
+        gainSlots(gui, mc.font, w / 2, gains, live);
+        message(gui, mc.font, w / 2, !gains.isEmpty());
         gui.pose().popMatrix();
     }
 
@@ -340,8 +349,47 @@ public final class KitHud {
         }
     }
 
-    /** The middle arch: the action bar's text, fading out. */
-    private static void message(GuiGraphicsExtractor gui, Font font, int cx) {
+    /**
+     * The middle arch: the gain keys (N, M, J) as small symbols with their key, the pause running down
+     * and greyed when used up for tonight (Simon 30.10.: "so anzeigen wie … effekte oder die lebenden tiere").
+     */
+    private static void gainSlots(GuiGraphicsExtractor gui, Font font, int cx, List<UltHud.Cell> gains, boolean live) {
+        if (gains.isEmpty()) {
+            return;
+        }
+        int n = Math.min(3, gains.size());
+        int x = cx - (n * (WING_SLOT + 2) - 2) / 2;
+        int y = -ARCH_H + 3;
+        for (int i = 0; i < n; i++) {
+            UltHud.Cell c = gains.get(i);
+            long left = Math.max(0L, c.cooldown() - UltHud.elapsedTicks());
+            boolean ready = live && !c.spent() && left == 0;
+            blit(gui, ready ? SLOT_WING : SLOT_CHOICE, x, y, WING_SLOT, WING_SLOT);
+            gui.pose().pushMatrix();
+            gui.pose().translate(x + 1.5f, y + 1.5f);
+            gui.pose().scale(0.5f, 0.5f);
+            gui.item(c.icon(), 0, 0);
+            gui.pose().popMatrix();
+            if (!live || c.spent()) {
+                gui.fill(x + 1, y + 1, x + WING_SLOT - 1, y + WING_SLOT - 1, 0xA0000000);
+            } else if (left > 0 && c.total() > 0) {
+                int shade = (int) Math.ceil((WING_SLOT - 2) * Math.min(1.0, left / (double) c.total()));
+                gui.fill(x + 1, y + WING_SLOT - 1 - shade, x + WING_SLOT - 1, y + WING_SLOT - 1, 0xB0000000);
+                String sec = String.valueOf((left + 19) / 20);
+                small(gui, font, sec, x + WING_SLOT / 2f - font.width(sec) / 4f, y + 3f, 0xFFFFFFFF);
+            }
+            String key = c.key() == null ? "?" : c.key().getTranslatedKeyMessage().getString();
+            if (key.length() > 3) {
+                key = key.substring(0, 3);
+            }
+            small(gui, font, key, x + WING_SLOT - 0.5f - font.width(key) / 2f, y + WING_SLOT - 5.5f,
+                    ready ? 0xFFF0D27A : 0xFFB8AC98);
+            x += WING_SLOT + 2;
+        }
+    }
+
+    /** The middle arch: the action bar's text, fading out (above the arch while the gain keys sit in it). */
+    private static void message(GuiGraphicsExtractor gui, Font font, int cx, boolean above) {
         long now = System.currentTimeMillis();
         if (message == null || now > messageUntil) {
             return;
@@ -351,13 +399,14 @@ public final class KitHud {
         int width = font.width(message);
         float scale = Math.max(0.5f, Math.min(0.75f, (ARCH_W - 14) / (float) Math.max(1, width)));
         float shown = width * scale;
-        if (shown > ARCH_W - 10) {
-            // too long for the arch: a dark plate behind the words
+        int lift = above ? 10 : 0;
+        if (above || shown > ARCH_W - 10) {
+            // too long for the arch, or above it: a dark plate behind the words
             int half = Math.round(shown / 2f) + 4;
-            gui.fill(cx - half, -ARCH_H - 1, cx + half, -ARCH_H + 6, (Math.round(0xC0 * fade) << 24) | 0x100C0A);
+            gui.fill(cx - half, -ARCH_H - 1 - lift, cx + half, -ARCH_H + 6 - lift, (Math.round(0xC0 * fade) << 24) | 0x100C0A);
         }
         gui.pose().pushMatrix();
-        gui.pose().translate(cx - shown / 2f, -ARCH_H + 5.5f - 4f * scale);
+        gui.pose().translate(cx - shown / 2f, -ARCH_H + 5.5f - 4f * scale - lift);
         gui.pose().scale(scale, scale);
         gui.text(font, message, 0, 0, (alpha << 24) | 0xF4E6C8, true);
         gui.pose().popMatrix();

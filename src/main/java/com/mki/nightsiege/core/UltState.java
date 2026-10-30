@@ -94,5 +94,10 @@ public class UltState {
         public boolean current;
         public int cooldownTicks;
         public int totalTicks;
+        /**
+         * One key for a set of choices (arrows, potions; Simon 30.10.): held, the mouse wheel changes
+         * the choice; a tap uses it (a potion) or goes back to the plain one (arrows).
+         */
+        public boolean scroll;
     }
 }

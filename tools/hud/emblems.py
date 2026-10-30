@@ -78,22 +78,21 @@ E['axe'] = [
     '.oo............',
 ]
 
-E['paladin'] = [
-    '..y...y...y....',
-    '...y..y..y.....',
-    'y...ooooo...y..',
-    '.y.olllllo.y...',
-    '...olgogglo....',
-    '..olggoggglo...',
-    'yyolooooooloyy.',
-    '..olggoggglo...',
-    '...olgogglo....',
-    '.y.olllllo.y...',
-    'y...ooooo...y..',
-    '...y..y..y.....',
-    '..y...y...y....',
-    '...............',
-    '...............',
+E['paladin'] = [   # the sun with the cross, symmetric (Simon 30.10.: "beim paladin ist es nach links gedreht")
+    '......yy......',
+    '......yy......',
+    '..y...oo...y..',
+    '....oolgoo....',
+    '...ollrrggo...',
+    '...olgrrggo...',
+    'yyolrrrrrrgoyy',
+    'yyogrrrrrrgoyy',
+    '...oggrrggo...',
+    '...oggrrggo...',
+    '....ooggoo....',
+    '..y...oo...y..',
+    '......yy......',
+    '......yy......',
 ]
 
 E['archer'] = [

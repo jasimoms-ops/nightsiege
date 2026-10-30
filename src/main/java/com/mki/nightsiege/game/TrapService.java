@@ -2003,16 +2003,18 @@ public final class TrapService {
         if (!SkillTree.SUB_ALCHEMIST.equals(tree.subclassOf(skills))) {
             return out;
         }
+        // One key for the potions (Simon 30.10.: "pfeile und die tränke auf eine taste … dann kann man
+        // scrollen um zu ändern"): it shows the chosen one; held, the wheel changes it; a tap throws it.
         BrewKind current = brewOf(player, skills);
-        for (BrewKind kind : BrewKind.learned(skills)) {
+        if (current != null && !BrewKind.learned(skills).isEmpty()) {
             com.mki.nightsiege.core.UltState.Slot slot = new com.mki.nightsiege.core.UltState.Slot();
-            slot.id = kind.id();
-            slot.color = kind.color();
-            slot.name = "nightsiege.brew." + kind.id();
-            slot.sub = kind.forPlayers() ? "nightsiege.wheel.brew_players" : "nightsiege.wheel.brew_monsters";
-            slot.current = kind == current;
-            slot.cooldownTicks = brewCooldownLeft(player, kind, now);
-            slot.totalTicks = (int) brewPause(kind);
+            slot.id = BREW_SLOT;
+            slot.color = current.color();
+            slot.name = "nightsiege.brew." + current.id();
+            slot.sub = "nightsiege.wheel.scroll_hint";
+            slot.cooldownTicks = brewCooldownLeft(player, current, now);
+            slot.totalTicks = (int) brewPause(current);
+            slot.scroll = true;
             out.add(slot);
         }
         if (SkillTree.has(skills, "e_acid_flask")) {
@@ -2028,6 +2030,22 @@ public final class TrapService {
         return out;
     }
 
+    /** The id of the alchemist's one potion key on the bar. */
+    public static final String BREW_SLOT = "brew";
+
+    /** The potion key held and the wheel turned: the next (or the one before) of his learned potions. */
+    public void cycleBrew(ServerPlayer player, int direction) {
+        PlayerSkills skills = save.get().skillsOf(player.getUUID().toString());
+        List<BrewKind> learned = BrewKind.learned(skills);
+        if (learned.isEmpty()) {
+            return;
+        }
+        BrewKind current = brewOf(player, skills);
+        int at = Math.max(0, learned.indexOf(current));
+        BrewKind next = learned.get(Math.floorMod(at + (direction < 0 ? -1 : 1), learned.size()));
+        onBrewChoice(player, next.id());
+    }
+
     /** A bar key of an engineer: the escape, the acid flask or a potion. False when it is none of his. */
     public boolean onEngineerSlot(ServerPlayer player, String id) {
         PlayerSkills skills = save.get().skillsOf(player.getUUID().toString());
@@ -2036,6 +2054,10 @@ public final class TrapService {
         }
         if (EngineerEscape.ID.equals(id)) {
             EngineerEscape.fire(player, this);
+            return true;
+        }
+        if (BREW_SLOT.equals(id)) {
+            throwBrew(player);   // a tap: the chosen potion
             return true;
         }
         if ("acid".equals(id)) {
@@ -2057,6 +2079,7 @@ public final class TrapService {
         zoneLock.clear();
         acidReady.clear();
         EngineerEscape.reset();
+        WarriorDash.reset();
     }
 
     // ------------------------------------------------------------------

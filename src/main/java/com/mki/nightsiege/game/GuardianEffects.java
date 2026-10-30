@@ -812,6 +812,43 @@ public final class GuardianEffects {
         return true;
     }
 
+    /** The id of the medic's own healing key on the bar (Simon 30.10.). */
+    public static final String SELF_HEAL = "selfheal";
+
+    /**
+     * The medic's key to heal himself (Simon 30.10.: "der sanitäter braucht eine extra taste um sich
+     * selbst zu heilen"): his healing hand on himself, whoever he looks at (it shares the hand's pause).
+     */
+    public com.mki.nightsiege.core.UltState.Slot selfHealSlot(ServerPlayer player) {
+        PlayerSkills skills = skillsFor.apply(player);
+        if (!heals(skills).contains("hand")) {
+            return null;
+        }
+        long now = player.level().getGameTime();
+        com.mki.nightsiege.core.UltState.Slot slot = new com.mki.nightsiege.core.UltState.Slot();
+        slot.id = SELF_HEAL;
+        slot.icon = "minecraft:glistering_melon_slice";
+        slot.name = "nightsiege.heal.self";
+        slot.sub = "nightsiege.heal.self.sub";
+        long ready = handReadyAt.getOrDefault(player.getUUID(), 0L);
+        slot.cooldownTicks = ready > now ? (int) (ready - now) : 0;
+        slot.totalTicks = (int) Math.round(SkillValues.get("g_healing_hand", "cd", 120.0));
+        return slot;
+    }
+
+    /** The self-heal key: the healing hand on himself. */
+    public boolean castSelfHeal(ServerPlayer player) {
+        if (!(player.level() instanceof ServerLevel level) || !player.isAlive()) {
+            return false;
+        }
+        PlayerSkills skills = skillsFor.apply(player);
+        if (!heals(skills).contains("hand")) {
+            return false;
+        }
+        handHeal(level, player, skills, player, level.getGameTime());
+        return true;
+    }
+
     /**
      * Fähigkeit 2: the picked healing ability, on the teammate looked at (else on oneself) – no
      * shield needed. False when the player has none, so the key may do something else.

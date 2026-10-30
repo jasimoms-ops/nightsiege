@@ -1184,6 +1184,72 @@ public final class GainGear {
         return null;
     }
 
+    /** The id of the archer's one arrow key on the bar. */
+    public static final String QUIVER_SLOT = "quiver";
+
+    /**
+     * The archer's one arrow key (Simon 30.10.: "pfeile und die tränke auf eine taste … dann kann man
+     * scrollen um zu ändern"): it shows the kind for the next shots; held, the wheel changes it; a tap
+     * goes back to the normal arrows. Null without any kind won.
+     */
+    public static com.mki.nightsiege.core.UltState.Slot quiverSlot(ServerPlayer player) {
+        Quiver q = QUIVERS.get(player.getUUID());
+        if (q == null || q.shots.isEmpty()) {
+            return null;
+        }
+        com.mki.nightsiege.core.UltState.Slot slot = new com.mki.nightsiege.core.UltState.Slot();
+        slot.id = QUIVER_SLOT;
+        ArrowKind kind = q.current.isEmpty() ? null : arrowKind(q.current);
+        slot.icon = kind == null ? "minecraft:arrow" : kind.icon();
+        slot.name = "nightsiege.arrow." + (kind == null ? "normal" : kind.id());
+        if (kind != null) {
+            slot.sub = "nightsiege.wheel.count";
+            slot.subArgs.add(String.valueOf(q.shots.getOrDefault(kind.id(), 0)));
+        } else {
+            slot.sub = "nightsiege.wheel.scroll_hint";
+        }
+        slot.current = kind != null;
+        slot.scroll = true;
+        return slot;
+    }
+
+    /** The arrow key held and the wheel turned: the next (or the one before) kind with shots left, normal arrows among them. */
+    public static void cycleQuiver(ServerPlayer player, int direction) {
+        Quiver q = QUIVERS.get(player.getUUID());
+        if (q == null) {
+            return;
+        }
+        List<String> kinds = new ArrayList<>();
+        kinds.add("");
+        for (ArrowKind kind : ARROW_KINDS) {
+            if (q.shots.getOrDefault(kind.id(), 0) > 0) {
+                kinds.add(kind.id());
+            }
+        }
+        if (kinds.size() == 1) {
+            bar(player, Component.translatable("nightsiege.gadget.koecher.one"));
+            return;
+        }
+        int at = Math.max(0, kinds.indexOf(q.current));
+        String next = kinds.get(Math.floorMod(at + (direction < 0 ? -1 : 1), kinds.size()));
+        q.current = next;
+        player.level().playSound(null, player.blockPosition(), SoundEvents.ARMOR_EQUIP_CHAIN.value(), SoundSource.PLAYERS, 0.5f, 1.8f);
+        Component name = Component.translatable("nightsiege.arrow." + (next.isEmpty() ? "normal" : next));
+        bar(player, next.isEmpty() ? Component.translatable("nightsiege.gadget.koecher.now", name)
+                : Component.translatable("nightsiege.gadget.koecher.now_left", name, q.shots.getOrDefault(next, 0)));
+    }
+
+    /** A tap on the arrow key: back to the normal arrows. */
+    public static void normalArrows(ServerPlayer player) {
+        Quiver q = QUIVERS.get(player.getUUID());
+        if (q == null || q.current.isEmpty()) {
+            return;
+        }
+        q.current = "";
+        player.level().playSound(null, player.blockPosition(), SoundEvents.ARMOR_EQUIP_CHAIN.value(), SoundSource.PLAYERS, 0.5f, 1.4f);
+        bar(player, Component.translatable("nightsiege.gadget.koecher.now", Component.translatable("nightsiege.arrow.normal")));
+    }
+
     /** A short press of the choice key without the bar: the next arrow kind with shots left. */
     public static void cycleQuiver(ServerPlayer player) {
         Quiver q = QUIVERS.get(player.getUUID());

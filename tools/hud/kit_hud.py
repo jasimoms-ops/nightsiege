@@ -110,6 +110,22 @@ def panel_cap(left=True):
     return im
 
 
+def crest_trim():
+    """The curl and the rivets of the left end, mirrored, for the right side of the crest (Simon 30.10.:
+    "verzierung um den banner nur links kann auf beide seiten"). Three wide; drawn at x 32 of the panel,
+    the mirror of the left end's x 5 to 7 about the shield's middle (19.5)."""
+    w = 3
+    im = img(w, H)
+    for y, x in [(10, 5), (11, 6), (12, 6), (13, 5), (14, 6), (15, 7)]:
+        im.putpixel((7 - x, y), GOLD)
+    for ry in (19, H - 7):
+        im.putpixel((1, ry), GOLD_L)
+        im.putpixel((0, ry), GOLD)
+        im.putpixel((1, ry + 1), GOLD)
+        im.putpixel((0, ry + 1), BRONZE_D)
+    return im
+
+
 def arch(w=56, h=10, spike=True):
     """A raised arch over the panel (the middle one with a spike, the wings with a scroll)."""
     im = img(w, h)
@@ -410,6 +426,7 @@ def main():
         "slot_item_selected": slot(18, gold=True),
         "slot_offhand": slot(18, round_=True),
         "slot_wing": slot(11),
+        "crest_trim": crest_trim(),
         "bar_health": bar(56, 10),
         "bar_small": bar(56, 7),
         "icon_heart": icon(HEART),

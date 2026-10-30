@@ -4459,7 +4459,7 @@ public final class SiegeManager {
             if (!verb.equals("ult") && !verb.equals("shield") && !verb.equals("ult2") && !verb.equals("quiver")
                     && !verb.equals("jump") && !verb.equals("man") && !verb.equals("drone")
                     && !verb.equals("ult2x") && !verb.equals("staffhit") && !verb.equals("wheel")
-                    && !verb.equals("slot") && !verb.equals("gain")) {
+                    && !verb.equals("slot") && !verb.equals("gain") && !verb.equals("cycle")) {
                 offerRegistration(player);
             }
             return;
@@ -4491,6 +4491,7 @@ public final class SiegeManager {
             case "staffhit" -> companions.staffAttack(player);   // left click with the staff (27 October 2026)
             case "quiver" -> abilityThreeTap(player);
             case "slot" -> onSlotKey(player, parseAmount(argument));   // the ability bar (27 October 2026)
+            case "cycle" -> onCycle(player, argument);   // arrows and potions: the key held, the wheel turned (30.10.)
             case "gain" -> {
                 GainKeys.onKey(this, player, parseAmount(argument));   // the gain keys N, M, J (balance update 2)
                 sendUltHud(player);
@@ -5195,6 +5196,11 @@ public final class SiegeManager {
         com.mki.nightsiege.core.WheelData wheel = engineer != null ? null : wheelOf(player);
         if (engineer != null) {
             out.addAll(engineer);
+        } else if (wheel != null && "nightsiege.wheel.quiver".equals(wheel.title)) {
+            com.mki.nightsiege.core.UltState.Slot quiver = GainGear.quiverSlot(player);
+            if (quiver != null) {
+                out.add(quiver);   // one key for the arrows (Simon 30.10.)
+            }
         } else if (wheel != null) {
             for (com.mki.nightsiege.core.WheelData.Option o : wheel.options) {
                 if (!o.open) {
@@ -5225,6 +5231,15 @@ public final class SiegeManager {
         }
         if (own.hasClass() && SkillTree.SUB_HEAVY.equals(skillTree.subclassOf(own))) {
             out.add(0, EngineerEscape.slot(player, now));   // the heavy archer gets the blast jump too (Simon 29.10.)
+        }
+        if (own.hasClass() && own.clazz() == com.mki.nightsiege.core.SkillClass.WARRIOR) {
+            out.add(0, WarriorDash.slot(player, now));   // every warrior: the dash on R (Simon 30.10.)
+        }
+        if (own.hasClass() && SkillTree.SUB_MEDIC.equals(skillTree.subclassOf(own))) {
+            com.mki.nightsiege.core.UltState.Slot self = combat.guardian().selfHealSlot(player);
+            if (self != null) {
+                out.add(self);   // the medic heals himself on a key of his own (Simon 30.10.)
+            }
         }
         while (out.size() > 6) {
             out.remove(out.size() - 1);
@@ -5259,7 +5274,13 @@ public final class SiegeManager {
             return;
         }
         String id = slots.get(index).id;
-        if (EngineerEscape.ID.equals(id)) {
+        if (WarriorDash.ID.equals(id)) {
+            WarriorDash.fire(player, traps);   // the warriors' dash (Simon 30.10.)
+        } else if (GainGear.QUIVER_SLOT.equals(id)) {
+            GainGear.normalArrows(player);   // a tap on the arrow key: the normal arrows again
+        } else if (GuardianEffects.SELF_HEAL.equals(id)) {
+            combat.guardian().castSelfHeal(player);
+        } else if (EngineerEscape.ID.equals(id)) {
             EngineerEscape.fire(player, traps);   // the engineers' and the heavy archer's blast jump
         } else if (traps.onEngineerSlot(player, id)) {
             // the engineer's escape, the alchemist's potion or acid flask (28 October 2026)
@@ -5275,6 +5296,24 @@ public final class SiegeManager {
             combat.guardian().castHeal(player);   // the healing, on the teammate looked at (or you)
         } else {
             GainGear.pickQuiver(player, id);   // the arrow kind for the next shots
+        }
+        sendUltHud(player);
+    }
+
+    /** "cycle:index:direction": a key for a set of choices held and the mouse wheel turned (Simon 30.10.). */
+    private void onCycle(ServerPlayer player, String argument) {
+        String[] bits = argument.split(":", 2);
+        int index = parseAmount(bits[0]);
+        int direction = bits.length > 1 && bits[1].startsWith("-") ? -1 : 1;
+        List<com.mki.nightsiege.core.UltState.Slot> slots = abilitySlots(player);
+        if (index < 0 || index >= slots.size()) {
+            return;
+        }
+        String id = slots.get(index).id;
+        if (GainGear.QUIVER_SLOT.equals(id)) {
+            GainGear.cycleQuiver(player, direction);
+        } else if (TrapService.BREW_SLOT.equals(id)) {
+            traps.cycleBrew(player, direction);
         }
         sendUltHud(player);
     }

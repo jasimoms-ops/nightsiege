@@ -62,8 +62,25 @@ public final class UltHud {
         }
     }
 
-    /** Q, F and X, the ones the player has. */
+    /** Q, F and X, the ones the player has, and the gain keys behind them. */
     static List<Cell> fixedCells(UltState s, KeyMapping ultKey) {
+        return fixedCells(s, ultKey, true);
+    }
+
+    /** The gain keys N, M, J (for the kit HUD's middle arch, 30.10.). */
+    static List<Cell> gainCells(UltState s) {
+        List<Cell> out = new ArrayList<>();
+        if (s.gains != null) {
+            for (int i = 0; i < s.gains.size() && i < GainClient.GAIN_KEYS; i++) {
+                UltState.Slot g = s.gains.get(i);
+                out.add(new Cell(icon(g.icon), GainClient.gainKey(i), g.cooldownTicks, g.totalTicks, false, g.current));
+            }
+        }
+        return out;
+    }
+
+    /** Q, F and X, the ones the player has; with {@code gains} the gain keys behind them too. */
+    static List<Cell> fixedCells(UltState s, KeyMapping ultKey, boolean gains) {
         List<Cell> fixed = new ArrayList<>();
         if (s.has) {
             fixed.add(new Cell(icon(s.icon), ultKey, s.cooldownTicks, s.totalTicks, false));
@@ -75,7 +92,7 @@ public final class UltHud {
             fixed.add(new Cell(icon(s.icon2), GainClient.secondUltKey(), s.cooldown2Ticks, s.total2Ticks, false));
         }
         // The gain keys N, M, J (balance update 2, 29 October 2026): the crate gains with an ability of their own.
-        if (s.gains != null) {
+        if (gains && s.gains != null) {
             for (int i = 0; i < s.gains.size() && i < GainClient.GAIN_KEYS; i++) {
                 UltState.Slot g = s.gains.get(i);
                 fixed.add(new Cell(icon(g.icon), GainClient.gainKey(i), g.cooldownTicks, g.totalTicks, false, g.current));

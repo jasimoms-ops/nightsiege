@@ -3,6 +3,7 @@ emblem of the class or subclass and an ornament on top (plume, feathers, crown, 
 
     python3 tools/hud/crest.py
 """
+import math
 import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -101,6 +102,46 @@ TOP = {   # ornament over the shield, 16 wide x 9, the last row rests on the shi
 }
 TCOL = dict(COL); TCOL.update({"r": (178, 40, 34, 255), "W": (236, 232, 220, 255)})
 
+# Emblems whose middle column is one too many when it would be doubled (wide ones lose it instead).
+DOUBLE = set()
+REMOVE = set()
+
+
+def _mirror_score(rows, axis2):
+    pts = [(x, y) for y, r in enumerate(rows) for x, ch in enumerate(r) if ch in COL]
+    ok = 0
+    for x, y in pts:
+        mx = axis2 - x
+        if 0 <= mx < len(rows[y]) and rows[y][mx] in COL:
+            ok += 1
+    return ok / len(pts)
+
+
+def centred(name, rows):
+    """The emblem and its middle (x). The shield's middle lies between two columns, so a mirror-
+    symmetric emblem whose axis runs through a column gets that column twice (or, a wide one,
+    loses it) and then lies exactly in the middle; a lopsided one goes by the middle of its weight
+    (the bow, the axe), not of its box."""
+    pts = [(x, y) for y, r in enumerate(rows) for x, ch in enumerate(r) if ch in COL]
+    x0, x1 = min(p[0] for p in pts), max(p[0] for p in pts)
+    best = None
+    for a2 in range(2 * x0, 2 * x1 + 1):
+        sc = _mirror_score(rows, a2)
+        if best is None or sc > best[0] + 1e-9 or (abs(sc - best[0]) < 1e-9 and abs(a2 - (x0 + x1)) < abs(best[1] - (x0 + x1))):
+            best = (sc, a2)
+    sc, a2 = best
+    if sc >= 0.9:
+        if a2 % 2 == 0:
+            a = a2 // 2
+            if name in REMOVE or (x1 - x0 + 1 >= 15 and name not in DOUBLE):
+                return [r[:a] + r[a + 1:] for r in rows], a - 0.5
+            return [r[:a + 1] + r[a] + r[a + 1:] for r in rows], a + 0.5
+        return rows, a2 / 2
+    weight = sum(p[0] for p in pts) / len(pts)
+    middle = ((x0 + x1) / 2 + weight) / 2
+    return rows, math.floor(middle) + 0.5
+
+
 def shield_mask(x, y, w=24, h=29):
     cx = (w - 1) / 2
     if y < 0 or y >= h: return None
@@ -140,12 +181,12 @@ def crest(cls, division, colors, weapon=False, emblem=None):
             im.putpixel((ox + x, oy + y), c)
     # charge
     if not weapon and emblem in EM.E:
-        rows = EM.E[emblem]
-        # always in the middle of the field (Simon 29 October 2026): centre the drawn pixels
+        # Exactly in the middle of the field (Simon 30.10.: "bei vielen wappen ist das zeichen nicht
+        # richtig in der mitte"): see centred().
+        rows, axis = centred(emblem, EM.E[emblem])
         pts = [(x, y) for y, r in enumerate(rows) for x, ch in enumerate(r) if ch in COL]
-        x0_, x1_ = min(p[0] for p in pts), max(p[0] for p in pts)
         y0_, y1_ = min(p[1] for p in pts), max(p[1] for p in pts)
-        sx = ox + round(11.5 - (x0_ + x1_) / 2)
+        sx = ox + int(round(11.5 - axis))
         sy = oy + round(13.5 - (y0_ + y1_) / 2)
         for y, r in enumerate(rows):
             for x, ch in enumerate(r):

@@ -32,6 +32,10 @@ public final class GainClient {
     public static final int GAIN_KEYS = 3;
     private static final KeyMapping[] GAIN_KEY_MAPPINGS = new KeyMapping[GAIN_KEYS];
     private static final int[] GAIN_DEFAULTS = {GLFW.GLFW_KEY_N, GLFW.GLFW_KEY_M, GLFW.GLFW_KEY_J};
+    /** The arrow or potion key being held (its bar index), -1 for none; whether the wheel turned meanwhile. */
+    private static int heldSlot = -1;
+    private static boolean scrolled;
+    private static double scrollSum;
     private static boolean jumpWasDown;
     private static boolean doubleJumpUsed;
     /** Ticks in the air since the feet left the ground. */
@@ -77,6 +81,39 @@ public final class GainClient {
         ClientTickEvents.END_CLIENT_TICK.register(GainClient::tick);
     }
 
+    /** True when bar key i holds a set of choices (arrows, potions) that the mouse wheel goes through. */
+    private static boolean scrollSlot(int i) {
+        com.mki.nightsiege.core.UltState s = UltHud.state();
+        return s != null && s.slots != null && i >= 0 && i < s.slots.size() && s.slots.get(i).scroll;
+    }
+
+    /** For the HUD: the bar key held for the wheel now, -1 for none. */
+    public static int heldSlot() {
+        return heldSlot;
+    }
+
+    /**
+     * The mouse wheel (MouseScrollMixin): with the arrow or potion key held it changes the choice and
+     * the hotbar stays where it is. True when it was taken.
+     */
+    public static boolean onScroll(double amount) {
+        Minecraft client = Minecraft.getInstance();
+        if (heldSlot < 0 || client.gui.screen() != null || amount == 0.0) {
+            return false;
+        }
+        scrollSum += amount;
+        while (Math.abs(scrollSum) >= 1.0) {
+            int step = scrollSum > 0 ? -1 : 1;   // up: the one before
+            send("cycle:" + heldSlot + ":" + step);
+            scrollSum += step;
+            scrolled = true;
+        }
+        if (!scrolled && Math.abs(scrollSum) > 0.0) {
+            scrolled = true;   // a touchpad's small steps still count as turning
+        }
+        return true;
+    }
+
     private static void send(String action) {
         if (ClientPlayNetworking.canSend(CoreNetworking.CoreActionPayload.TYPE)) {
             ClientPlayNetworking.send(new CoreNetworking.CoreActionPayload(action));
@@ -90,13 +127,26 @@ public final class GainClient {
         while (secondUltKey.consumeClick()) {
             send("ult2x");
         }
-        // The ability bar: each key its ability, at once (27 October 2026).
+        // The ability bar: each key its ability, at once (27 October 2026). The arrow and the potion key
+        // (Simon 30.10.): held, the mouse wheel changes the choice; let go without turning it, a tap.
         for (int i = 0; i < SLOTS; i++) {
             while (SLOT_KEYS[i].consumeClick()) {
                 if (client.gui.screen() == null) {
-                    send("slot:" + i);
+                    if (scrollSlot(i)) {
+                        heldSlot = i;
+                        scrolled = false;
+                        scrollSum = 0.0;
+                    } else {
+                        send("slot:" + i);
+                    }
                 }
             }
+        }
+        if (heldSlot >= 0 && !SLOT_KEYS[heldSlot].isDown()) {
+            if (!scrolled) {
+                send("slot:" + heldSlot);
+            }
+            heldSlot = -1;
         }
         for (int i = 0; i < GAIN_KEYS; i++) {
             while (GAIN_KEY_MAPPINGS[i].consumeClick()) {
