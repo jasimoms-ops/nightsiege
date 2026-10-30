@@ -7989,6 +7989,21 @@ public class EventLookTest implements FabricClientGameTest {
             }
             onServer(context, (player, manager) -> manager.playtest().skip(player.level().getServer()));   // to the camp or dungeon
             context.waitTicks(80);
+            // A dungeon is searched and built during the pause before it (update 30.10.: no longer in one
+            // tick): the part begins once it stands complete.
+            String[] waitPhase = {""};
+            int waited = 0;
+            for (int wait = 0; wait < 120; wait++) {
+                onServer(context, (player, manager) -> waitPhase[0] = manager.playtest().phase());
+                context.waitTicks(20);
+                if (!"pause_interlude".equals(waitPhase[0])) {
+                    break;
+                }
+                waited++;
+            }
+            int waitedSeconds = waited;
+            onServer(context, (player, manager) -> System.out.println("[Night Siege test] playtest waited " + waitedSeconds
+                    + " s for the part: " + manager.expeditions().testState()));
             onServer(context, (player, manager) -> {
                 String kind = manager.playtest().interlude();
                 BlockPos at = player.blockPosition();

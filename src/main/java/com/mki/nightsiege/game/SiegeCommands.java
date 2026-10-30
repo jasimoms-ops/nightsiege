@@ -718,20 +718,27 @@ public final class SiegeCommands {
         if (exp.record() != null) {
             exp.remove(ctx.getSource().getServer());
         }
-        SiegeSave.ExpeditionRecord rec = exp.report(ctx.getSource().getServer(), kind);
-        if (rec == null) {
+        // The scouts search over the next seconds (update 30.10.: it held the server up); the
+        // result comes as a chat line to whoever sent them.
+        ServerPlayer asker = ctx.getSource().getPlayer();
+        if (!exp.scout(ctx.getSource().getServer(), kind, false, asker == null ? null : asker.getUUID())) {
             fail(ctx.getSource(), Component.translatable("nightsiege.cmd.expedition_no_spot"));
             return 0;
         }
-        reply(ctx.getSource(), Component.translatable("nightsiege.cmd.expedition_reported",
-                Component.translatable(com.mki.nightsiege.core.ExpeditionKind.byId(rec.kind).translationKey()), rec.x, rec.z));
+        reply(ctx.getSource(), Component.translatable("nightsiege.cmd.expedition_searching"));
         return 1;
     }
 
-    /** The reported dungeon is built now (its ground is loaded for it). */
+    /** The reported dungeon is built now (its ground is loaded for it, over the next seconds). */
     private static int expeditionBuild(CommandContext<CommandSourceStack> ctx) {
-        net.minecraft.core.BlockPos door = SiegeManager.get().expeditions().buildNow(ctx.getSource().getServer());
+        Expeditions exp = SiegeManager.get().expeditions();
+        net.minecraft.core.BlockPos door = exp.buildNow(ctx.getSource().getServer());
         if (door == null) {
+            boolean busy = exp.building();
+            if (busy) {
+                reply(ctx.getSource(), Component.translatable("nightsiege.cmd.expedition_building"));
+                return 1;
+            }
             fail(ctx.getSource(), Component.translatable("nightsiege.cmd.expedition_none"));
             return 0;
         }
@@ -739,7 +746,7 @@ public final class SiegeCommands {
         return 1;
     }
 
-    /** To the gate of the reported dungeon (built first if it is not yet). */
+    /** To the gate of the reported dungeon (once it stands: else it is built first, then again). */
     private static int expeditionGo(CommandContext<CommandSourceStack> ctx) {
         ServerPlayer player = ctx.getSource().getPlayer();
         if (player == null) {
@@ -749,6 +756,10 @@ public final class SiegeCommands {
         Expeditions exp = SiegeManager.get().expeditions();
         net.minecraft.core.BlockPos door = exp.buildNow(ctx.getSource().getServer());
         SiegeSave.ExpeditionRecord rec = exp.record();
+        if (door == null && rec != null && exp.building()) {
+            reply(ctx.getSource(), Component.translatable("nightsiege.cmd.expedition_building"));
+            return 1;
+        }
         if (door == null || rec == null) {
             fail(ctx.getSource(), Component.translatable("nightsiege.cmd.expedition_none"));
             return 0;
@@ -774,8 +785,8 @@ public final class SiegeCommands {
         int facing = CampLayout.facingTowards(player.getLookAngle().x, player.getLookAngle().z);
         net.minecraft.core.BlockPos origin = CampLayout.world(player.blockPosition(), facing, 0, 0, 7);
         int rooms = com.mki.nightsiege.core.ExpeditionKind.rooms(SiegeManager.get().currentLevel());
-        SiegeManager.get().expeditions().testBuild(level, origin, facing, kind, rooms);
-        reply(ctx.getSource(), Component.translatable("nightsiege.cmd.expedition_built", origin.getX(), origin.getY(), origin.getZ()));
+        SiegeManager.get().expeditions().buildHere(level, origin, facing, kind, rooms);   // over the next seconds
+        reply(ctx.getSource(), Component.translatable("nightsiege.cmd.expedition_building"));
         return 1;
     }
 

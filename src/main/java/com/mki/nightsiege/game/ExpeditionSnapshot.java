@@ -17,9 +17,11 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
+import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -36,6 +38,10 @@ import java.util.zip.GZIPOutputStream;
  * <p>One file per dungeon in {@code <world>/nightsiege/expeditions/<id>.txt.gz}: per chunk a
  * palette of block states (as text, so it survives mods coming and going) and one index per
  * spot, in the order of the dungeon's plan for that chunk.</p>
+ *
+ * <p>Since 30 October 2026 a chunk written down is appended to the file as a gzip member of its
+ * own, and a chunk put back adds a line "F &lt;chunk&gt;" the same way: before, every chunk wrote the
+ * whole file anew, which made building and taking down a dungeon cost seconds on the server.</p>
  */
 final class ExpeditionSnapshot {
 
@@ -66,16 +72,29 @@ final class ExpeditionSnapshot {
     private static ExpeditionSnapshot load(Path path) {
         ExpeditionSnapshot snap = new ExpeditionSnapshot(path);
         if (Files.exists(snap.file)) {
+            List<String> lines = new ArrayList<>();
             try (BufferedReader in = new BufferedReader(new InputStreamReader(
                     new GZIPInputStream(Files.newInputStream(snap.file)), StandardCharsets.UTF_8))) {
-                List<String> lines = new ArrayList<>();
                 String read;
                 while ((read = in.readLine()) != null) {
                     lines.add(read);
                 }
+            } catch (IOException | RuntimeException e) {
+                // A member cut off by a crash: what was read before it still counts.
+                NightSiegeMod.LOGGER.warn("[Night Siege] Dungeon-Schnappschuss {} nur teilweise lesbar ({} Zeilen): {}",
+                        snap.file, lines.size(), e.toString());
+            }
+            try {
                 int at = 0;
                 while (at < lines.size()) {
                     String line = lines.get(at++);
+                    if (line.startsWith("F ")) {
+                        // Put back (and forgotten) after it was written down.
+                        long key = Long.parseLong(line.substring(2).trim());
+                        snap.chunks.remove(key);
+                        snap.places.remove(key);
+                        continue;
+                    }
                     if (!line.startsWith("C ")) {
                         continue;
                     }
@@ -108,7 +127,7 @@ final class ExpeditionSnapshot {
                         }
                     }
                 }
-            } catch (IOException | RuntimeException e) {
+            } catch (RuntimeException e) {
                 NightSiegeMod.LOGGER.warn("[Night Siege] Dungeon-Schnappschuss {} nicht lesbar: {}", snap.file, e.toString());
             }
         }
@@ -140,7 +159,10 @@ final class ExpeditionSnapshot {
         save();
     }
 
-    /** Writes down what stands now at the spots of a chunk, then saves the file. */
+    /**
+     * Writes down what stands now at the spots of a chunk and adds it to the file at once (only
+     * this chunk: a gzip member appended to the file).
+     */
     void record(long chunk, ServerLevel level, List<BlockPos> spots) {
         BlockState[] states = new BlockState[spots.size()];
         long[] where = new long[spots.size()];
@@ -150,7 +172,9 @@ final class ExpeditionSnapshot {
         }
         chunks.put(chunk, states);
         places.put(chunk, where);
-        save();
+        StringBuilder text = new StringBuilder(states.length * 20 + 64);
+        writeChunk(text, chunk, states, where);
+        append(text.toString());
     }
 
     /** What stood at the i-th spot of a chunk (null when not known). */
@@ -178,10 +202,11 @@ final class ExpeditionSnapshot {
         return new ArrayList<>(chunks.keySet());
     }
 
+    /** A chunk put back: gone from the snapshot (a line "F" appended to the file, not the whole file anew). */
     void forget(long chunk) {
         places.remove(chunk);
         if (chunks.remove(chunk) != null) {
-            save();
+            append("F " + chunk + "\n");
         }
     }
 
@@ -195,6 +220,7 @@ final class ExpeditionSnapshot {
         }
     }
 
+    /** The whole file anew (the war camp writes all its chunks at once, then this). */
     private void save() {
         try {
             Files.createDirectories(file.getParent());
@@ -202,43 +228,59 @@ final class ExpeditionSnapshot {
             try (BufferedWriter out = new BufferedWriter(new OutputStreamWriter(
                     new GZIPOutputStream(Files.newOutputStream(tmp)), StandardCharsets.UTF_8))) {
                 for (Map.Entry<Long, BlockState[]> e : chunks.entrySet()) {
-                    Map<BlockState, Integer> index = new HashMap<>();
-                    List<BlockState> pal = new ArrayList<>();
-                    StringBuilder idx = new StringBuilder();
-                    for (BlockState s : e.getValue()) {
-                        BlockState state = s == null ? Blocks.AIR.defaultBlockState() : s;
-                        Integer i = index.get(state);
-                        if (i == null) {
-                            i = pal.size();
-                            index.put(state, i);
-                            pal.add(state);
-                        }
-                        if (idx.length() > 0) {
-                            idx.append(' ');
-                        }
-                        idx.append(i);
-                    }
-                    out.write("C " + e.getKey() + " " + e.getValue().length + " " + pal.size() + "\n");
-                    for (BlockState s : pal) {
-                        out.write(write(s));
-                        out.write('\n');
-                    }
-                    out.write(idx.toString());
-                    out.write('\n');
-                    long[] where = places.get(e.getKey());
-                    if (where != null && where.length == e.getValue().length) {
-                        StringBuilder line = new StringBuilder("L");
-                        for (long l : where) {
-                            line.append(' ').append(l);
-                        }
-                        out.write(line.toString());
-                        out.write('\n');
-                    }
+                    StringBuilder text = new StringBuilder(e.getValue().length * 20 + 64);
+                    writeChunk(text, e.getKey(), e.getValue(), places.get(e.getKey()));
+                    out.write(text.toString());
                 }
             }
             Files.move(tmp, file, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {
             NightSiegeMod.LOGGER.warn("[Night Siege] Dungeon-Schnappschuss {} nicht gespeichert: {}", file, e.toString());
+        }
+    }
+
+    /** Adds text to the end of the file as a gzip member of its own (the reader takes the members as one). */
+    private void append(String text) {
+        try {
+            Files.createDirectories(file.getParent());
+            try (Writer out = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(Files.newOutputStream(file,
+                    StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.APPEND)), StandardCharsets.UTF_8))) {
+                out.write(text);
+            }
+        } catch (IOException e) {
+            NightSiegeMod.LOGGER.warn("[Night Siege] Dungeon-Schnappschuss {} nicht ergänzt: {}", file, e.toString());
+        }
+    }
+
+    /** One chunk as text: "C key count palette", the palette, the indices, the places ("L"). */
+    private static void writeChunk(StringBuilder out, long key, BlockState[] states, long[] where) {
+        Map<BlockState, Integer> index = new HashMap<>();
+        List<BlockState> pal = new ArrayList<>();
+        StringBuilder idx = new StringBuilder(states.length * 3);
+        for (BlockState s : states) {
+            BlockState state = s == null ? Blocks.AIR.defaultBlockState() : s;
+            Integer i = index.get(state);
+            if (i == null) {
+                i = pal.size();
+                index.put(state, i);
+                pal.add(state);
+            }
+            if (idx.length() > 0) {
+                idx.append(' ');
+            }
+            idx.append(i);
+        }
+        out.append("C ").append(key).append(' ').append(states.length).append(' ').append(pal.size()).append('\n');
+        for (BlockState s : pal) {
+            out.append(write(s)).append('\n');
+        }
+        out.append(idx).append('\n');
+        if (where != null && where.length == states.length) {
+            out.append('L');
+            for (long l : where) {
+                out.append(' ').append(l);
+            }
+            out.append('\n');
         }
     }
 

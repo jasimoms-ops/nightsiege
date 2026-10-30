@@ -181,3 +181,7 @@ net.minecraft.server.level.ServerPlayerGameMode
 net.minecraft.world.level.GameRules
 net.minecraft.server.ServerTickRateManager
 net.minecraft.world.TickRateManager
+
+# Dungeon-Bau ueber mehrere Ticks (30.10.): wann hasChunk wahr ist, wie Tickets erneuert werden
+!net.minecraft.server.level.ServerChunkCache#hasChunk,chunkAbsent,getChunkNow,addTicketWithRadius
+!net.minecraft.world.level.TicketStorage#addTicket,purgeStaleTickets

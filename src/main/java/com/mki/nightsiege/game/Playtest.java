@@ -458,7 +458,10 @@ public final class Playtest {
         long now = server.overworld().getGameTime();
         switch (s.phase) {
             case "plan" -> beginNights(server, s);
-            case "pause_interlude" -> startInterlude(server, s);
+            case "pause_interlude" -> {
+                s.phaseEnds = Math.min(s.phaseEnds, now);   // the dungeon may still be building: as soon as it stands
+                startInterlude(server, s);
+            }
             case "interlude" -> endInterlude(server, s, true);
             case "pause_night" -> startNight(server, s);
             case "night" -> {
@@ -529,6 +532,12 @@ public final class Playtest {
         s.phase = "pause_interlude";
         s.phaseEnds = server.overworld().getGameTime() + PAUSE_INTERLUDE_SECONDS * 20L;
         s.campWon = false;
+        waitSince = -1L;
+        if ("dungeon".equals(s.interludes.get(s.step))) {
+            // The dungeon is searched and built during the pause (update 30.10.: in one tick it held
+            // the server up for seconds); the players are taken there once it stands.
+            m.expeditions().prepare(server);
+        }
         m.persist();
         broadcast(server, Component.translatable("nightsiege.playtest.next_" + s.interludes.get(s.step), PAUSE_INTERLUDE_SECONDS)
                 .withStyle(ChatFormatting.YELLOW));
@@ -670,11 +679,33 @@ public final class Playtest {
         return learned;
     }
 
+    /** Since when the players wait for a dungeon still being built (game time), or -1. */
+    private long waitSince = -1L;
+    /** How long they wait at most (then it goes on with the night). */
+    private static final long MAX_WAIT_TICKS = 3 * 60 * 20L;
+    private static final int STARTED = 0;
+    private static final int FAILED = 1;
+    private static final int WAITING = 2;
+
     private void startInterlude(MinecraftServer server, SiegeSave.PlaytestState s) {
         String kind = s.interludes.get(s.step);
         long now = server.overworld().getGameTime();
-        boolean ok = "camp".equals(kind) ? startCamp(server, s) : startDungeon(server, s);
-        if (!ok) {
+        int result = "camp".equals(kind) ? (startCamp(server, s) ? STARTED : FAILED) : startDungeon(server, s);
+        if (result == WAITING) {
+            if (waitSince < 0) {
+                waitSince = now;
+                broadcast(server, Component.translatable("nightsiege.playtest.dungeon_wait").withStyle(ChatFormatting.GRAY));
+            }
+            if (now - waitSince < MAX_WAIT_TICKS) {
+                return;   // again next second (phaseEnds has passed)
+            }
+            NightSiegeMod.LOGGER.warn("[Night Siege] Playtest: Dungeon nach {} s noch nicht fertig, es geht ohne weiter",
+                    (now - waitSince) / 20);
+            m.expeditions().removeAll(server);
+            result = FAILED;
+        }
+        waitSince = -1L;
+        if (result == FAILED) {
             broadcast(server, Component.translatable("nightsiege.playtest.no_place_" + kind).withStyle(ChatFormatting.GRAY));
             toNightPause(server, s);
             return;
@@ -703,20 +734,28 @@ public final class Playtest {
         return true;
     }
 
-    private boolean startDungeon(MinecraftServer server, SiegeSave.PlaytestState s) {
+    /** The dungeon prepared during the pause: the players go there once it stands complete. */
+    private int startDungeon(MinecraftServer server, SiegeSave.PlaytestState s) {
         Expeditions exp = m.expeditions();
-        if (exp.record() != null) {
+        String prep = exp.preparation(server);
+        if (prep.isEmpty()) {
+            exp.prepare(server);   // not prepared (a restart in the pause): now
+            prep = exp.preparation(server);
+        }
+        if ("failed".equals(prep)) {
             exp.removeAll(server);
+            return FAILED;
         }
-        SiegeSave.ExpeditionRecord rec = exp.report(server, null);
-        if (rec == null) {
-            return false;
+        if (!"ready".equals(prep)) {
+            return WAITING;
         }
+        exp.takePrepared();
+        SiegeSave.ExpeditionRecord rec = exp.record();
         BlockPos door = exp.buildNow(server);
-        ServerLevel level = SiegeManager.levelByName(server, rec.dimension);
+        ServerLevel level = rec == null ? null : SiegeManager.levelByName(server, rec.dimension);
         if (door == null || level == null) {
             exp.removeAll(server);
-            return false;
+            return FAILED;
         }
         s.lostAttempts = exp.lostAttempts();
         exp.openEntry(true);   // the playtest goes straight down (no ready round at the seal stone)
@@ -726,7 +765,7 @@ public final class Playtest {
                 Component.translatable(com.mki.nightsiege.core.ExpeditionKind.byId(rec.kind) == null ? "nightsiege.playtest.dungeon"
                         : com.mki.nightsiege.core.ExpeditionKind.byId(rec.kind).translationKey()), DUNGEON_MINUTES)
                 .withStyle(ChatFormatting.GOLD));
-        return true;
+        return STARTED;
     }
 
     /**
@@ -894,9 +933,7 @@ public final class Playtest {
         }
         m.expeditions().endAll(server, null);
         m.expeditions().openEntry(false);
-        if (m.save().expedition != null) {
-            m.expeditions().removeAll(server);
-        }
+        m.expeditions().removeAll(server);   // also a search or a build of its dungeon still going on
         m.save().expedition = s.realExpedition;
         m.save().camp = s.realCamp;
         m.save().machinesDay = s.realMachinesDay;

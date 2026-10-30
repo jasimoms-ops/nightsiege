@@ -464,6 +464,13 @@ public class SiegeConfig {
     public int expeditionMinDistance = 250;
     public int expeditionMaxDistance = 600;
     /**
+     * Milliseconds per server tick for the dungeons' heavy work (update 30.10.: the server stood
+     * still for 4–9 s when a dungeon was built and 2–5 s when it went): the scouts' search, setting
+     * the blocks and putting the ground back each take at most this much of a tick and go on in the
+     * next one. More is faster but makes those ticks longer.
+     */
+    public int dungeonWorkMillis = 15;
+    /**
      * Seconds after going down the stairs before the dungeon's monsters attack. 0 since 30.10.
      * (Simon: "sie können direkt angreifen aber den raum nicht die treppe hoch verlassen"): they
      * attack at once, and the stair keeps them in.
@@ -1238,6 +1245,7 @@ public class SiegeConfig {
         expeditionMinDistance = clamp(expeditionMinDistance, 64, 2000);
         expeditionMaxDistance = clamp(expeditionMaxDistance, expeditionMinDistance, 3000);
         expeditionGraceSeconds = clamp(expeditionGraceSeconds, 0, 60);
+        dungeonWorkMillis = clamp(dungeonWorkMillis, 2, 45);
         heavyChampionCap = Double.isNaN(heavyChampionCap) ? 0.08 : clampDouble(heavyChampionCap, 0.0, 1.0);
         dungeonChampionLife = Double.isNaN(dungeonChampionLife) || dungeonChampionLife <= 0 ? 2.5 : clampDouble(dungeonChampionLife, 0.1, 20.0);
         dungeonGuardLife = Double.isNaN(dungeonGuardLife) || dungeonGuardLife <= 0 ? 1.5 : clampDouble(dungeonGuardLife, 0.1, 10.0);
