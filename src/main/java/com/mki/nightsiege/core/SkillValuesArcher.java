@@ -133,5 +133,28 @@ final class SkillValuesArcher {
         def("a_siegeengine", "speed", 0.15);        // share of the base speed 0.1, read in SkillService.keystone
         def("a_watchful", "dur", 120);
         def("a_watchful", "health", 4.0);           // read in SkillService.keystone
+
+        // ----- arrow rain on F (Simon 30.10.: every archer, "je Unterklasse eigen", 5 s between two rains)
+        // Damage per hit is for level 1; it grows like the monsters' life and the config's archer factors apply.
+        // Per monster and rain, after the subclass factors: about 3 (swift 12 × 0.25, heavy 4 × 0.43 × 1.75,
+        // bolter 6 × 1.0 × 0.6, trapper 6 × 0.35 and slowed).
+        def("arrow_rain", "dur", 60);               // ticks the rain falls
+        def("arrow_rain", "pause", 100);            // ticks after the rain until the next one (Simon: 5 s)
+        def("arrow_rain", "range", 32.0);           // blocks to the spot looked at
+        def("arrow_rain", "mult", 1.0);             // on every hit (for balancing)
+        def("arrow_rain", "radius_swift", 4.0);
+        def("arrow_rain", "every_swift", 5);
+        def("arrow_rain", "dmg_swift", 0.25);
+        def("arrow_rain", "radius_heavy", 3.5);
+        def("arrow_rain", "every_heavy", 15);
+        def("arrow_rain", "dmg_heavy", 0.43);
+        def("arrow_rain", "push_heavy", 0.4);
+        def("arrow_rain", "radius_bolter", 3.0);
+        def("arrow_rain", "every_bolter", 10);
+        def("arrow_rain", "dmg_bolter", 1.0);
+        def("arrow_rain", "radius_trapper", 4.5);
+        def("arrow_rain", "every_trapper", 10);
+        def("arrow_rain", "dmg_trapper", 0.35);
+        def("arrow_rain", "slow_trapper", 30);       // ticks of Slowness II, renewed by every hit
     }
 }

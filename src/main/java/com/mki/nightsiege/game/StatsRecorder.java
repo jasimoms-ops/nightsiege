@@ -186,6 +186,15 @@ public final class StatsRecorder {
         public int kills;
         public int assists;
         public int tode;
+        /**
+         * What a defender held off (Simon 30.10.: "warum tankt Bollwerk weniger als Schildkämpfer"): the
+         * monsters' damage before armour, shield and reductions, blocked hits too; the hits; the blocked ones.
+         */
+        public double abgefangen;
+        public int treffer;
+        public int geblockt;
+        /** Life back from life steal (hit, kill and combo heals, the berserker's bloodlust), as it landed. */
+        public double lebensraub;
         public int drohneSekunden;
         public double drohneSchaden;
         public Map<String, Integer> faehigkeiten = new LinkedHashMap<>();
@@ -439,6 +448,9 @@ public final class StatsRecorder {
         }
         if (Drones.isDrone(player)) {
             return "drohne";
+        }
+        if (ArrowRain.hitting()) {
+            return "faehigkeit:pfeilregen";   // the archers' arrow rain (Simon 30.10.)
         }
         Entity direct = source.getDirectEntity();
         if (direct != null && direct != player) {
@@ -792,7 +804,31 @@ public final class StatsRecorder {
         float room = Math.max(0f, player.getMaxHealth() - player.getHealth());
         float landed = Math.min(amount, room);
         if (landed > 0) {
-            pw(player).heilungErhalten += landed;
+            SpielerWelle w = pw(player);
+            w.heilungErhalten += landed;
+            if (stealing) {
+                w.lebensraub += landed;
+            }
+        }
+    }
+
+    /** Set by the combat effects while a life-steal heal lands (Simon 30.10.: "hast du Werte der Lifesteal-Heilung"). */
+    static boolean stealing;
+
+    /** A monster's hit on a defender before any reduction, blocked or not (what a tank holds off). */
+    void incoming(ServerPlayer player, DamageSource source, float base, boolean blocked) {
+        if (night == null || base <= 0) {
+            return;
+        }
+        Entity hitter = source.getEntity();
+        if (hitter == null || hitter instanceof ServerPlayer) {
+            return;
+        }
+        SpielerWelle w = pw(player);
+        w.abgefangen += base;
+        w.treffer++;
+        if (blocked) {
+            w.geblockt++;
         }
     }
 

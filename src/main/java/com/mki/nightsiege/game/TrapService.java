@@ -460,6 +460,7 @@ public final class TrapService {
         tickSeats(server);
         tickFixes(server);
         AlchemyZones.tick(server);
+        ArrowRain.tick(server);   // the archers' arrow rain (Simon 30.10.)
         if (++tickCounter < TICK_INTERVAL) {
             return takeDirty();
         }
@@ -2080,6 +2081,7 @@ public final class TrapService {
         acidReady.clear();
         EngineerEscape.reset();
         WarriorDash.reset();
+        ArrowRain.reset();
     }
 
     // ------------------------------------------------------------------

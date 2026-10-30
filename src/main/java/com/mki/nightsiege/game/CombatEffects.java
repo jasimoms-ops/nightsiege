@@ -845,7 +845,7 @@ public final class CombatEffects {
             double steal = SkillValues.get("bloodlust", "steal", 0.12)
                     + (SkillTree.has(skills, "w_bloodblade") ? SkillValues.get("w_bloodblade", "steal", 0.05) : 0.0);
             if (steal > 0) {
-                player.heal((float) ((taken + extra) * steal));
+                steal(player, (float) ((taken + extra) * steal));
             }
         }
         // Axe fighter, blademaster and paladin: a share of every hit heals (Simon 29.10., config hitLifesteal),
@@ -878,7 +878,7 @@ public final class CombatEffects {
         }
         float heal = (float) hitHeal(cfg, subclass, dealt, cleaved, level, minReady);
         if (heal > 0f) {
-            player.heal(heal);
+            steal(player, heal);
         }
     }
 
@@ -978,7 +978,7 @@ public final class CombatEffects {
         if (skills != null && killed instanceof LivingEntity slain) {
             double share = baseLifesteal(skills);
             if (share > 0) {
-                player.heal((float) (slain.getMaxHealth() * share));
+                steal(player, (float) (slain.getMaxHealth() * share));
             }
         }
         // The blademaster's life steal: only a kill in the middle of a combo heals (Simon, 24 Oct 2026).
@@ -992,7 +992,7 @@ public final class CombatEffects {
                     && now - streak[1] <= (long) SkillValues.get("w_combo", "window", 40)) {
                 float heal = (float) (dead.getMaxHealth() * SkillValues.get("w_combo", "killheal", 0.15));
                 if (heal > 0) {
-                    player.heal(heal);
+                    steal(player, heal);
                     level.sendParticles(ParticleTypes.HEART, player.getX(), player.getY(1.1), player.getZ(), 2, 0.3, 0.2, 0.3, 0.0);
                 }
             }
@@ -1417,6 +1417,16 @@ public final class CombatEffects {
     /** True while a follow-up hit is dealt; read by the damage scaling. */
     static boolean inFollowUp() {
         return followUp;
+    }
+
+    /** A life-steal heal: counted apart in the statistics (Simon 30.10.). */
+    private static void steal(ServerPlayer player, float amount) {
+        StatsRecorder.stealing = true;
+        try {
+            player.heal(amount);
+        } finally {
+            StatsRecorder.stealing = false;
+        }
     }
 
     void bonusHit(ServerLevel level, LivingEntity victim, DamageSource source, float amount) {

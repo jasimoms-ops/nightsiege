@@ -65,6 +65,9 @@ public class UltState {
     public String iconAb2 = "";
     /** Translation key of what F does for this class. */
     public String nameAb2 = "";
+    /** F's pause (the archers' arrow rain, Simon 30.10.): ticks left and the whole pause. */
+    public int cooldownAb2Ticks;
+    public int totalAb2Ticks;
 
     /**
      * The ability bar (Simon, 27 October 2026, instead of the wheel): every spell, potion,

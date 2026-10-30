@@ -86,7 +86,7 @@ public final class UltHud {
             fixed.add(new Cell(icon(s.icon), ultKey, s.cooldownTicks, s.totalTicks, false));
         }
         if (s.hasAb2) {
-            fixed.add(new Cell(icon(s.iconAb2), GainClient.orderKey(), 0, 0, false));
+            fixed.add(new Cell(icon(s.iconAb2), GainClient.orderKey(), s.cooldownAb2Ticks, s.totalAb2Ticks, false));
         }
         if (s.has2) {
             fixed.add(new Cell(icon(s.icon2), GainClient.secondUltKey(), s.cooldown2Ticks, s.total2Ticks, false));

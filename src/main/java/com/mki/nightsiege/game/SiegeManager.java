@@ -321,7 +321,8 @@ public final class SiegeManager {
         ModContent.register();
         CoreNetworking.registerTypes();
         CoreNetworking.registerServerReceivers();
-        combat.setArrowBonus(defense::arrowBonus);   // the core perks are gone (content update, 29 October 2026)
+        combat.setArrowBonus(defense::arrowBonus);
+        ArrowRain.use(combat);   // the archers' arrow rain hits through the combat effects (Simon 30.10.)   // the core perks are gone (content update, 29 October 2026)
         traps.setTeslaBoost(() -> active && currentEvent == SiegeEvent.THUNDER ? config.thunderTeslaMultiplier : 1.0);
         ServerLifecycleEvents.SERVER_STARTED.register(server -> onServerStarted(server));
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
@@ -359,6 +360,9 @@ public final class SiegeManager {
         });
         ServerLivingEntityEvents.AFTER_DAMAGE.register((entity, source, baseDamage, taken, blocked) -> {
             logDamage(entity, source, taken);
+            if (active && entity instanceof ServerPlayer hitPlayer && participants.contains(hitPlayer.getUUID())) {
+                safe("Statistik", () -> stats.incoming(hitPlayer, source, baseDamage, blocked));   // what a tank holds off (Simon 30.10.)
+            }
             combat.afterDamage(entity, source, baseDamage, taken, blocked);
             CrateEffects.afterDamage(entity, source);
             Wounds.afterDamage(entity, source, taken);
@@ -4191,6 +4195,13 @@ public final class SiegeManager {
                     state.hasAb2 = true;
                     state.iconAb2 = "minecraft:glistering_melon_slice";
                     state.nameAb2 = "nightsiege.abilitybar.f_heal";
+                } else if (own.clazz() == com.mki.nightsiege.core.SkillClass.ARCHER) {
+                    // The arrow rain (Simon 30.10.): its pause runs on the F field.
+                    state.hasAb2 = true;
+                    state.iconAb2 = "minecraft:spectral_arrow";
+                    state.nameAb2 = "nightsiege.abilitybar.f_rain";
+                    state.cooldownAb2Ticks = ArrowRain.cooldownLeft(player, now);
+                    state.totalAb2Ticks = ArrowRain.cooldownTotal(player);
                 }
             }
             // By day no abilities on screen (Simon 28.10.): only in a fight (night, test, camp, dungeon),
@@ -5311,6 +5322,11 @@ public final class SiegeManager {
      */
     private void onSecondKey(ServerPlayer player) {
         ItemStack held = player.getMainHandItem();
+        // The archers' arrow rain (Simon 30.10.: "die Bogenschützen haben doch nichts auf F").
+        if (ArrowRain.has(effectiveSkills(player))) {
+            ArrowRain.fire(player, this);
+            return;
+        }
         // Fähigkeit 2 (F, Simon 27 October 2026): the order of the remote or the staff in hand.
         // The second ultimate has its own key X now, so the two never get in each other's way.
         if (ModContent.REMOTE != null && held.is(ModContent.REMOTE)) {

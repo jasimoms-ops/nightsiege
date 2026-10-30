@@ -16,6 +16,7 @@ import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
@@ -200,6 +201,28 @@ final class TeamBrain {
         }
     }
 
+    /** The monster with the most others within {@code radius} around it, in reach; null when none is. */
+    static Vec3 crowd(ServerLevel level, ServerPlayer player, double reach, double radius) {
+        List<LivingEntity> all = CombatEffects.enemies(level, player.position(), reach, 12.0);
+        Vec3 best = null;
+        int bestCount = 0;
+        for (LivingEntity e : all) {
+            int count = 0;
+            for (LivingEntity o : all) {
+                double dx = o.getX() - e.getX();
+                double dz = o.getZ() - e.getZ();
+                if (dx * dx + dz * dz <= radius * radius) {
+                    count++;
+                }
+            }
+            if (count > bestCount) {
+                bestCount = count;
+                best = e.position();
+            }
+        }
+        return best;
+    }
+
     /** A timer of the perfect bot, stretched by the skill (a slower hand on the keys). */
     private int iv(int ticks) {
         return (int) Math.round(ticks / skill);
@@ -292,7 +315,16 @@ final class TeamBrain {
             nextUlt = now + iv(60);
             m.onCoreAction(player, "ult");
         }
-        if (now >= nextUlt2 && clazz != SkillClass.ENGINEER && clazz != SkillClass.SUMMONER) {
+        if (clazz == SkillClass.ARCHER) {
+            // The arrow rain on F (Simon 30.10.): onto the thickest crowd in reach, as soon as it is ready.
+            if (focused && now >= nextUlt2 && ArrowRain.cooldownLeft(player, now) == 0) {
+                nextUlt2 = now + iv(20);
+                Vec3 spot = crowd(level, player, ArrowRain.range(), 4.0);
+                if (spot != null) {
+                    ArrowRain.fireAt(player, m, spot);
+                }
+            }
+        } else if (now >= nextUlt2 && clazz != SkillClass.ENGINEER && clazz != SkillClass.SUMMONER) {
             nextUlt2 = now + iv(100);
             m.onCoreAction(player, "ult2");   // Fähigkeit 2
         }
