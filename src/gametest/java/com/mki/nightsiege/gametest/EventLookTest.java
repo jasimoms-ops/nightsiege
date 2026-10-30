@@ -2251,6 +2251,15 @@ public class EventLookTest implements FabricClientGameTest {
             }
             level.setBlock(new BlockPos(cx + 4, cy - 1, cz - 12), net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 2);   // a dip
             before[0] = campGround(level, cx, cy, cz);
+            CAMP_BEFORE.clear();
+            for (int bx = cx - 30; bx <= cx + 30; bx++) {
+                for (int bz = cz - 30; bz <= cz + 30; bz++) {
+                    for (int by = cy - 12; by <= cy + 16; by++) {
+                        BlockPos p = new BlockPos(bx, by, bz);
+                        CAMP_BEFORE.put(p, level.getBlockState(p));
+                    }
+                }
+            }
             manager.camp().testCamp(level, new BlockPos(cx, cy, cz), 0, 999_997L);
             System.out.println("[Night Siege test] campground built: log=" + level.getBlockState(new BlockPos(cx + 10, cy + 2, cz + 3)).getBlock()
                     + " " + manager.camp().groundState());
@@ -2264,6 +2273,18 @@ public class EventLookTest implements FabricClientGameTest {
         onServer(context, (player, manager) -> {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
             long after = campGround(level, cx, cy, cz);
+            int diffs = 0;
+            StringBuilder first = new StringBuilder();
+            for (java.util.Map.Entry<BlockPos, net.minecraft.world.level.block.state.BlockState> e : CAMP_BEFORE.entrySet()) {
+                net.minecraft.world.level.block.state.BlockState now = level.getBlockState(e.getKey());
+                if (now != e.getValue()) {
+                    if (diffs++ < 12) {
+                        first.append(' ').append(e.getKey().getX() - cx).append('/').append(e.getKey().getY() - cy).append('/')
+                                .append(e.getKey().getZ() - cz).append(' ').append(e.getValue()).append("->").append(now);
+                    }
+                }
+            }
+            System.out.println("[Night Siege test] campground diff: " + diffs + first);
             System.out.println("[Night Siege test] campground back: same=" + (after == before[0])
                     + " log=" + level.getBlockState(new BlockPos(cx + 10, cy + 2, cz + 3)).getBlock()
                     + " stone=" + level.getBlockState(new BlockPos(cx - 8, cy + 2, cz - 8)).getBlock()
@@ -2273,6 +2294,8 @@ public class EventLookTest implements FabricClientGameTest {
         context.takeScreenshot("campground_gone");
         game.getServer().runCommand("forceload remove all");
     }
+
+    private static final java.util.Map<BlockPos, net.minecraft.world.level.block.state.BlockState> CAMP_BEFORE = new java.util.HashMap<>();
 
     /** A sum over the ground a test camp takes (the same before it stood and after it is gone). */
     private static long campGround(net.minecraft.server.level.ServerLevel level, int x, int y, int z) {
