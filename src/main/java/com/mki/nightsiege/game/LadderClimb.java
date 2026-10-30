@@ -83,7 +83,46 @@ public final class LadderClimb {
     /** Ticks a monster that let go is left to its own AI. */
     private static final int RELEASE = 100;
 
+    /** What the ladders did in this night (for the log and the gametest, 30 October 2026). */
+    public static final class Stats {
+        public int searches;
+        public int searchesWithSkip;
+        public int found;
+        public int boarded;
+        public int topped;
+        public int gaveUpWalk;
+        public int letGo;
+
+        @Override
+        public String toString() {
+            return "Suchen " + searches + " (mit gesperrter Leiter " + searchesWithSkip + "), gefunden " + found
+                    + ", aufgestiegen " + boarded + ", oben " + topped + ", Weg aufgegeben " + gaveUpWalk
+                    + ", losgelassen " + letGo;
+        }
+    }
+
+    private Stats stats = new Stats();
+    /** Monsters that reached the top on their current climb (counted once). */
+    private final Set<UUID> toppedNow = new HashSet<>();
+
+    public Stats stats() {
+        return stats;
+    }
+
+    /** One monster's ladder state, for the gametest. */
+    public String describe(UUID id, long now) {
+        Long free = released.get(id);
+        Long climbed = climbedAt.get(id);
+        return "ziel=" + (goals.containsKey(id) ? goals.get(id).toShortString() : "-")
+                + " gesperrt=" + (gaveUp.containsKey(id) ? gaveUp.get(id).toShortString() : "-")
+                + " frei_in=" + (free == null ? "-" : String.valueOf(free - now))
+                + " geklettert_vor=" + (climbed == null ? "-" : String.valueOf(now - climbed))
+                + " gesteuert=" + holding.contains(id);
+    }
+
     public void reset() {
+        stats = new Stats();
+        toppedNow.clear();
         goals.clear();
         goalSince.clear();
         lastSearch.clear();
@@ -96,6 +135,7 @@ public final class LadderClimb {
     }
 
     public void forget(UUID id) {
+        toppedNow.remove(id);
         goals.remove(id);
         goalSince.remove(id);
         lastSearch.remove(id);
@@ -188,6 +228,14 @@ public final class LadderClimb {
                 // On the ladder: the walk to it is over.
                 goals.remove(id);
                 goalSince.remove(id);
+                Long before = climbedAt.get(id);
+                if (before == null || now - before > OVER_THE_TOP) {
+                    stats.boarded++;
+                    toppedNow.remove(id);
+                }
+                if (up && !isClimbable(world.getBlockState(mob.blockPosition().above())) && toppedNow.add(id)) {
+                    stats.topped++;
+                }
                 climbedAt.put(id, now);
                 climb(world, mob, anchor, up);
                 continue;
@@ -207,6 +255,7 @@ public final class LadderClimb {
                     || now - goalSince.getOrDefault(id, now) > GIVE_UP)) {
                 if (now - goalSince.getOrDefault(id, now) > GIVE_UP) {
                     gaveUp.put(id, foot);
+                    stats.gaveUpWalk++;
                 }
                 goals.remove(id);
                 goalSince.remove(id);
@@ -224,10 +273,15 @@ public final class LadderClimb {
                 if (canWalkTo(mob, goal)) {
                     continue;   // there is a way after all: no ladder needed
                 }
+                stats.searches++;
+                if (gaveUp.containsKey(id)) {
+                    stats.searchesWithSkip++;
+                }
                 foot = findLadder(world, mob, goal, gaveUp.get(id));
                 if (foot == null) {
                     continue;
                 }
+                stats.found++;
                 goals.put(id, foot);
                 goalSince.put(id, now);
             }
@@ -387,6 +441,7 @@ public final class LadderClimb {
     /** Off the ladder it is stuck on: away from the wall, that ladder not again straight away. */
     private void letGo(ServerLevel world, Mob mob, BlockPos anchor, long now) {
         UUID id = mob.getUUID();
+        stats.letGo++;
         BlockPos foot = mob.blockPosition();
         for (int i = 0; i < 32 && isClimbable(world.getBlockState(foot.below())); i++) {
             foot = foot.below();

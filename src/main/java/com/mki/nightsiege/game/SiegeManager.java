@@ -2341,6 +2341,19 @@ public final class SiegeManager {
         return defense;
     }
 
+    /** One line in the server log: what the monsters did with ladders this night (30 October 2026). */
+    private void logLadders() {
+        LadderClimb.Stats st = ladders.stats();
+        if (st.searches > 0 || st.boarded > 0) {
+            NightSiegeMod.LOGGER.info("[Night Siege] Leitern der Nacht: {}", st);
+        }
+    }
+
+    /** The ladder climbing of the running night (for the gametest). */
+    public LadderClimb ladders() {
+        return ladders;
+    }
+
     /** The raid's plan of the running night (for the gametest). */
     public RaidPlan raid() {
         return raid;
@@ -3387,6 +3400,7 @@ public final class SiegeManager {
         nightCurses = 0;
         clearRemainingMobs();
         digger.reset();
+        logLadders();
         ladders.reset();
         besiegers.reset();
         raid.reset();
@@ -3526,6 +3540,7 @@ public final class SiegeManager {
         nightCurses = 0;
         clearRemainingMobs();
         digger.reset();
+        logLadders();
         ladders.reset();
         besiegers.reset();
         raid.reset();

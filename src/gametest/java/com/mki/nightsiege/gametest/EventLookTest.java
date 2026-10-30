@@ -138,6 +138,9 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("bolzen")) {
                     bolterAimScene(context, game);   // where the bolter's bolt flies (Simon 30.10., 11:50)
                 }
+                if (want.contains("leitersturm")) {
+                    ladderCrowdScene(context, game);   // many monsters at one ladder in a real night (Simon 30.10., 16:12)
+                }
                 if (want.contains("ladders")) {
                     // The climbing scenes, then the ladder cases of 28 October 2026 (block beside, ladder above the ground).
                     ladderScene(context, game);
@@ -3606,6 +3609,167 @@ public class EventLookTest implements FabricClientGameTest {
             manager.config().testPrepSeconds = saved[0];
             manager.config().batchIntervalSeconds = saved[1];
             System.out.println("[Night Siege test] machines after the night: standing=" + manager.machines().standing());
+        });
+        game.getServer().runCommand("forceload remove all");
+        game.getServer().runCommand("time set 6000");
+        game.getServer().runCommand("effect clear @p");
+        game.getServer().runCommand("gamemode creative @p");
+        context.waitTicks(10);
+    }
+
+    /**
+     * Simon 30.10., 16:12: "mehrere Monster sammeln sich unten an der Leiter und keins kommt hoch".
+     * A real test night at a closed yard (walls 5 high, no gate, no sappers): the ladder carriers
+     * put up ladders, the raid sends the melee monsters to them. Every 5 s: how many monsters are
+     * over the wall, how many stand at a ladder's foot and what the ladder climbing does with them.
+     */
+    private static void ladderCrowdScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        int cx = pos.getX() + 120;
+        int cz = pos.getZ() + 120;
+        game.getServer().runCommand("forceload add %d %d %d %d".formatted(cx - 48, cz - 48, cx + 48, cz + 48));
+        context.waitTicks(40);
+        final int[] ground = new int[1];
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            level.getChunk(cx >> 4, cz >> 4);
+            ground[0] = level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, cx, cz);
+        });
+        context.waitTicks(10);
+        int cy = ground[0];
+        int r = 12;
+        int out = 44;
+        game.getServer().runCommand("time set 13000");
+        game.getServer().runCommand("weather clear");
+        for (int part = -out; part <= out; part += 22) {
+            int z1 = cz + part;
+            int z2 = Math.min(cz + out, z1 + 21);
+            game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:grass_block".formatted(cx - out, cy - 1, z1, cx + out, cy - 1, z2));
+            game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(cx - out, cy, z1, cx + out, cy + 12, z2));
+        }
+        String wall = "fill %d %d %d %d %d %d minecraft:stone_bricks";
+        game.getServer().runCommand(wall.formatted(cx - r, cy, cz - r, cx + r, cy + 4, cz - r));
+        game.getServer().runCommand(wall.formatted(cx - r, cy, cz + r, cx + r, cy + 4, cz + r));
+        game.getServer().runCommand(wall.formatted(cx - r, cy, cz - r, cx - r, cy + 4, cz + r));
+        game.getServer().runCommand(wall.formatted(cx + r, cy, cz - r, cx + r, cy + 4, cz + r));
+        game.getServer().runCommand("kill @e[type=!player,x=%d,y=%d,z=%d,distance=..70]".formatted(cx, cy, cz));
+        // The defender in the middle of the yard, looking north over the wall.
+        game.getServer().runCommand("tp @p %d.5 %d %d.5 180 -12".formatted(cx, cy, cz + 4));
+        game.getServer().runCommand("gamemode survival @p");
+        game.getServer().runCommand("effect give @p minecraft:resistance 200 255 true");
+        game.getServer().runCommand("effect give @p minecraft:regeneration 200 10 true");
+        game.getServer().runCommand("effect give @p minecraft:saturation 200 10 true");
+        game.getServer().runCommand("effect give @p minecraft:night_vision 200 0 true");
+        context.waitTicks(20);
+        final double[] savedD = new double[1];
+        final int[] savedI = new int[3];
+        final boolean[] savedB = new boolean[3];
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            com.mki.nightsiege.core.SiegeConfig cfg = manager.config();
+            savedD[0] = cfg.ladderCarrierShare;
+            savedI[0] = cfg.sapperFromLevel;
+            savedI[1] = cfg.batchIntervalSeconds;
+            savedI[2] = cfg.testPrepSeconds;
+            savedB[0] = cfg.machinesEnabled;
+            savedB[1] = cfg.cursesEnabled;
+            savedB[2] = cfg.nemesisEnabled;
+            cfg.ladderCarrierShare = 0.15;
+            cfg.sapperFromLevel = 999;   // no craters: the ladders are the only way in
+            cfg.batchIntervalSeconds = 10;
+            cfg.testPrepSeconds = 2;
+            cfg.machinesEnabled = false;
+            cfg.cursesEnabled = false;
+            cfg.nemesisEnabled = false;
+            boolean ok = manager.prepareTest(level.getServer(), level, new BlockPos(cx, cy, cz), 8,
+                    com.mki.nightsiege.core.SiegeEvent.NONE);
+            System.out.println("[Night Siege test] leitersturm yard " + cx + " " + cy + " " + cz + " prep ok=" + ok);
+        });
+        context.waitTicks(10);
+        closeScreen(context);
+        final int[] best = new int[2];
+        for (int i = 0; i < 24; i++) {
+            final int step = i;
+            context.waitTicks(100);
+            onServer(context, (player, manager) -> {
+                net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                long now = level.getGameTime();
+                // The feet of the night's ladders outside the wall.
+                java.util.Map<Long, BlockPos> feet = new java.util.HashMap<>();
+                for (BlockPos p : com.mki.nightsiege.game.TempBlocks.all(level, net.minecraft.world.level.block.Blocks.LADDER)) {
+                    if (!level.getBlockState(p).is(net.minecraft.world.level.block.Blocks.LADDER)) {
+                        continue;
+                    }
+                    long col = ((long) p.getX() << 32) | (p.getZ() & 0xFFFFFFFFL);
+                    BlockPos f = feet.get(col);
+                    if (f == null || p.getY() < f.getY()) {
+                        feet.put(col, p);
+                    }
+                }
+                int total = 0;
+                int inside = 0;
+                int onWall = 0;
+                int atFoot = 0;
+                java.util.Map<String, Integer> states = new java.util.TreeMap<>();
+                java.util.List<String> footDetail = new java.util.ArrayList<>();
+                for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                    if (!(e instanceof net.minecraft.world.entity.Mob mob) || !e.isAlive()
+                            || !e.entityTags().contains(com.mki.nightsiege.game.MobFactory.TAG)) {
+                        continue;
+                    }
+                    total++;
+                    int ax = Math.abs(e.getBlockX() - cx);
+                    int az = Math.abs(e.getBlockZ() - cz);
+                    if (ax < r && az < r) {
+                        inside++;
+                    } else if (Math.max(ax, az) <= r && e.getY() >= cy + 4.5) {
+                        onWall++;
+                    }
+                    com.mki.nightsiege.game.RaidPlan.State st = manager.raid().stateOf(e.getUUID());
+                    states.merge(String.valueOf(st), 1, Integer::sum);
+                    for (BlockPos f : feet.values()) {
+                        double dx = e.getX() - (f.getX() + 0.5);
+                        double dz = e.getZ() - (f.getZ() + 0.5);
+                        if (dx * dx + dz * dz < 9.0 && e.getY() < f.getY() + 1.5) {
+                            atFoot++;
+                            footDetail.add(String.format(java.util.Locale.ROOT, "%s@%.1f,%.1f,%.1f fuss=%s plan=%s ziel=%s klettert=%s %s",
+                                    e.getType().toShortString(), e.getX() - cx, e.getY() - cy, e.getZ() - cz,
+                                    f.offset(-cx, -cy, -cz).toShortString(), st,
+                                    mob.getTarget() == null ? "-" : mob.getTarget().getName().getString(), mob.onClimbable(),
+                                    manager.ladders().describe(e.getUUID(), now)));
+                            break;
+                        }
+                    }
+                }
+                best[0] = Math.max(best[0], inside + onWall);
+                best[1] = Math.max(best[1], atFoot);
+                System.out.println(String.format(java.util.Locale.ROOT,
+                        "[Night Siege test] leitersturm t=%ds aktiv=%s leitern=%d monster=%d drin=%d mauer=%d am_fuss=%d plan=%s | %s",
+                        (step + 1) * 5, manager.isActive(), feet.size(), total, inside, onWall, atFoot, states,
+                        manager.ladders().stats()));
+                if (step % 4 == 3) {
+                    for (String d : footDetail) {
+                        System.out.println("[Night Siege test] leitersturm   am Fuß: " + d);
+                    }
+                }
+            });
+            if (i == 9 || i == 17 || i == 23) {
+                closeScreen(context);
+                context.takeScreenshot("leitersturm_" + (i + 1) * 5);
+            }
+        }
+        System.out.println("[Night Siege test] leitersturm ERGEBNIS: höchstens " + best[0] + " Monster drin/auf der Mauer, "
+                + "höchstens " + best[1] + " am Fuß einer Leiter");
+        onServer(context, (player, manager) -> {
+            manager.abort(player.level().getServer());
+            com.mki.nightsiege.core.SiegeConfig cfg = manager.config();
+            cfg.ladderCarrierShare = savedD[0];
+            cfg.sapperFromLevel = savedI[0];
+            cfg.batchIntervalSeconds = savedI[1];
+            cfg.testPrepSeconds = savedI[2];
+            cfg.machinesEnabled = savedB[0];
+            cfg.cursesEnabled = savedB[1];
+            cfg.nemesisEnabled = savedB[2];
         });
         game.getServer().runCommand("forceload remove all");
         game.getServer().runCommand("time set 6000");
