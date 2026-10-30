@@ -457,7 +457,7 @@ public final class RaidPlan {
                 }
             }
             if (known == null) {
-                known = new Entry("ladder", foot, foot, base.angleOf(foot.getX() + 0.5, foot.getZ() + 0.5), now);
+                known = new Entry("ladder", foot, ladderFront(foot), base.angleOf(foot.getX() + 0.5, foot.getZ() + 0.5), now);
                 tell("nightsiege.raid.breach_ladder", known.angle, now);
                 log("Weg offen:", known);
             }
@@ -483,6 +483,29 @@ public final class RaidPlan {
     }
 
     /** Ground outside the wall near a spot, the nearest a monster can stand on. */
+    /**
+     * Where the storm gathers in front of a ladder: a few blocks out from the wall, not at its foot
+     * (Simon 30.10., 16:12: all of them at the foot pushed each other off the rungs). The ladder
+     * climbing takes them up one at a time from there.
+     */
+    private BlockPos ladderFront(BlockPos foot) {
+        BlockState state = world.getBlockState(foot);
+        if (!(state.getBlock() instanceof net.minecraft.world.level.block.LadderBlock)) {
+            return foot;
+        }
+        net.minecraft.core.Direction out = state.getValue(net.minecraft.world.level.block.LadderBlock.FACING);
+        for (int n = 3; n >= 1; n--) {
+            BlockPos p = foot.relative(out, n);
+            for (int dy = 1; dy >= -3; dy--) {
+                BlockPos q = p.above(dy);
+                if (free(q) && !base.contains(q.getX(), q.getZ())) {
+                    return q;
+                }
+            }
+        }
+        return foot;
+    }
+
     private BlockPos groundOutside(BlockPos at) {
         BlockPos best = null;
         double bestD = Double.MAX_VALUE;
