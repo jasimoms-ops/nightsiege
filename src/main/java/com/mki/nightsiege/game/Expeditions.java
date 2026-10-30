@@ -355,8 +355,10 @@ public final class Expeditions {
         int y0;
         String biome;
         int stage;
-        int lx;
-        int lz;
+        /** The columns along the way down (local x, z), coarse ones first, and the next to look at. */
+        final int[] colX;
+        final int[] colZ;
+        int col;
         /** Found: the record, its map drawn a row at a time. */
         SiegeSave.ExpeditionRecord found;
         int mapRow;
@@ -372,6 +374,22 @@ public final class Expeditions {
             this.length = ExpeditionLayout.length(rooms);
             this.minDistance = cfg.expeditionMinDistance;
             this.maxDistance = cfg.expeditionMaxDistance;
+            // Every 8 blocks along the way, 10 across: a few spread columns first (most places fail
+            // somewhere, so a coarse look finds it sooner); a place passes only if every one fits.
+            List<int[]> cols = new ArrayList<>();
+            for (int lz = -8; lz <= length; lz += 8) {
+                for (int lx = -30; lx <= 30; lx += 10) {
+                    int rank = ((lz + 8) % 24 == 0 ? 0 : 2) + (lx % 30 == 0 ? 0 : 1);
+                    cols.add(new int[] {lx, lz, rank});
+                }
+            }
+            cols.sort(java.util.Comparator.comparingInt(c -> c[2]));
+            colX = new int[cols.size()];
+            colZ = new int[cols.size()];
+            for (int i = 0; i < cols.size(); i++) {
+                colX[i] = cols.get(i)[0];
+                colZ[i] = cols.get(i)[1];
+            }
         }
     }
 
@@ -439,23 +457,21 @@ public final class Expeditions {
                     s.looking = false;
                 } else {
                     s.biome = biomePath(level, s.x, s.y0, s.z);
-                    s.lz = -8;
-                    s.lx = -30;
+                    s.col = 0;
                     s.stage = 2;
                 }
             } else {
-                BlockPos at = CampLayout.world(new BlockPos(s.x, s.y0, s.z), s.facing, s.lx, 0, s.lz);
+                int lx = s.colX[s.col];
+                int lz = s.colZ[s.col];
+                BlockPos at = CampLayout.world(new BlockPos(s.x, s.y0, s.z), s.facing, lx, 0, lz);
                 int h = baseHeight(level, at.getX(), at.getZ());
                 // The vaults' roofs lie 8 below the gatehouse floor, two of ground over them; no water above.
-                if (h < s.y0 - 6 || h <= sea || s.lz % 24 == 0 && wet(biomePath(level, at.getX(), h, at.getZ()))) {
+                if (h < s.y0 - 6 || h <= sea || lz % 24 == 0 && wet(biomePath(level, at.getX(), h, at.getZ()))) {
                     s.looking = false;
-                } else if ((s.lx += 10) > 30) {
-                    s.lx = -30;
-                    if ((s.lz += 8) > s.length) {
-                        s.looking = false;
-                        s.found = found(level, s);
-                        s.mapRow = 0;
-                    }
+                } else if (++s.col >= s.colX.length) {
+                    s.looking = false;
+                    s.found = found(level, s);
+                    s.mapRow = 0;
                 }
             }
             if (System.nanoTime() >= deadline) {
@@ -792,8 +808,10 @@ public final class Expeditions {
                 return;   // not all its ground is loaded yet: again when it is
             }
             // The whole plan is worked out for the check below: at most one a round (update 30.10.).
+            long t0 = System.nanoTime();
             ExpeditionLayout.Plan candidate = ExpeditionLayout.plan(at, rec.facing, kind(rec), rec.rooms, rec.id);
             free = freeOfPlayers(level, rec, at, candidate, why);
+            long checked = System.nanoTime() - t0;
             if (free == null) {
                 buildRounds++;
                 return;
@@ -803,6 +821,7 @@ public final class Expeditions {
             }
             Build b = new Build(rec.id, rec.dimension);
             b.careful = true;   // a player may come close while it goes up
+            b.planNanos = checked;   // the plan and its check (in the tick that found the place)
             beginBuild(level, rec, at, candidate, b);
             return;
         }
