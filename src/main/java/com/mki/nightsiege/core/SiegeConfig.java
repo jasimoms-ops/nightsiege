@@ -725,6 +725,17 @@ public class SiegeConfig {
     public Map<String, Double> classDamageTaken = new LinkedHashMap<>();
     public Map<String, Double> subclassDamage = new LinkedHashMap<>();
     public Map<String, Double> subclassDamageTaken = new LinkedHashMap<>();
+    /**
+     * Wächter-Schutz (Simon 30.10.): teammates within the radius of a bulwark or shield fighter take
+     * this share less damage from monsters and this share less knockback. Only the strongest tank
+     * near a player counts; it works wherever there is fighting. 0 switches it off.
+     */
+    public double bulwarkGuardRadius = 6.0;
+    public double bulwarkGuardDamage = 0.15;
+    public double bulwarkGuardKnockback = 0.5;
+    public double shieldfighterGuardRadius = 5.0;
+    public double shieldfighterGuardDamage = 0.10;
+    public double shieldfighterGuardKnockback = 0.3;
     /** Factor on the healing and barriers players of this subclass give (Simon 27.10.: the medic 3.8/s). */
     public Map<String, Double> subclassHealing = new LinkedHashMap<>();
     /** Per skill id: new values for its amount per level, base cost, cost step or highest level. */
@@ -1011,6 +1022,12 @@ public class SiegeConfig {
         }
         liveCapByPlayers.replaceAll(v -> v == null ? 1 : clamp(v, 1, 500));
         liveCapStep = clamp(liveCapStep, 0, 100);
+        bulwarkGuardRadius = Double.isNaN(bulwarkGuardRadius) ? 6.0 : clampDouble(bulwarkGuardRadius, 0.0, 32.0);
+        bulwarkGuardDamage = Double.isNaN(bulwarkGuardDamage) ? 0.15 : clampDouble(bulwarkGuardDamage, 0.0, 0.9);
+        bulwarkGuardKnockback = Double.isNaN(bulwarkGuardKnockback) ? 0.5 : clampDouble(bulwarkGuardKnockback, 0.0, 1.0);
+        shieldfighterGuardRadius = Double.isNaN(shieldfighterGuardRadius) ? 5.0 : clampDouble(shieldfighterGuardRadius, 0.0, 32.0);
+        shieldfighterGuardDamage = Double.isNaN(shieldfighterGuardDamage) ? 0.10 : clampDouble(shieldfighterGuardDamage, 0.0, 0.9);
+        shieldfighterGuardKnockback = Double.isNaN(shieldfighterGuardKnockback) ? 0.3 : clampDouble(shieldfighterGuardKnockback, 0.0, 1.0);
         if (damageTakenByPlayers == null) {
             damageTakenByPlayers = new ArrayList<>();
         }

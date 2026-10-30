@@ -639,6 +639,8 @@ public final class SiegeManager {
 
     private void onEndTick(MinecraftServer server) {
         tickModCheck(server);
+        safe("Wächter-Schutz", () -> TankGuard.tick(server, config,
+                p -> skillTree.subclassOf(save.skillsOf(p.getUUID().toString()))));
         safe("Reparatur", () -> NightDamage.tick(server));
         MeleeSim.tick(server);
         TeamSim.tick(server);
