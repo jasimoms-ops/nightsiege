@@ -7712,8 +7712,9 @@ public class EventLookTest implements FabricClientGameTest {
             int shown = manager.abilitySlots(player).size();
             System.out.println("[Night Siege test] kit hud alchemist: potions=" + (wheel == null ? 0 : wheel.options.size())
                     + " learned=" + open + " boxes=" + shown);
-            if (shown != open + 1) {   // the blast jump comes first (28 October 2026)
-                throw new AssertionError("kit hud: " + shown + " boxes for " + open + " learned potions and the blast jump");
+            // The blast jump first (28 October 2026), then one key for all potions (30 October 2026).
+            if (shown != (open > 0 ? 2 : 1)) {
+                throw new AssertionError("kit hud: " + shown + " boxes for " + open + " learned potions (one key) and the blast jump");
             }
         });
         context.waitTicks(30);

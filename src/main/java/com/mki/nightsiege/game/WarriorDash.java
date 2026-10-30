@@ -27,7 +27,7 @@ public final class WarriorDash {
     /** Ticks between two dashes (Simon: every 10 s). */
     static final int PAUSE = 200;
     /** About three blocks: on the ground the friction takes 45 % a tick, in the air the drag 9 %. */
-    static final double GROUND_SPEED = 1.35;
+    static final double GROUND_SPEED = 1.2;
     static final double AIR_SPEED = 0.28;
 
     private static final Map<UUID, Long> READY = new HashMap<>();
