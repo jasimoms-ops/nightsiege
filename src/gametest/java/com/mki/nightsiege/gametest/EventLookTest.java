@@ -8581,8 +8581,8 @@ public class EventLookTest implements FabricClientGameTest {
                             state = net.minecraft.world.level.block.Blocks.STONE.defaultBlockState();
                         }
                         if (dx == -16) {
-                            state = (dy == 1 && dz == 0 ? net.minecraft.world.level.block.Blocks.BLACK_CONCRETE
-                                    : net.minecraft.world.level.block.Blocks.WHITE_CONCRETE).defaultBlockState();
+                            state = (dy == 1 && dz == 0 ? net.minecraft.world.level.block.Blocks.COAL_BLOCK
+                                    : net.minecraft.world.level.block.Blocks.QUARTZ_BLOCK).defaultBlockState();
                         }
                         level.setBlock(b.offset(dx, dy, dz), state, 2);
                     }
