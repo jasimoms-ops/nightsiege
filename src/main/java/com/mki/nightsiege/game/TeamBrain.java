@@ -86,6 +86,9 @@ final class TeamBrain {
     private int slotTurn;
     private boolean trapsSet;
     private final List<BlockPos> towers = new ArrayList<>();
+    /** The demolition man's mortars: they only fire onto a spot set with the spotter (30.10.: bots never set one). */
+    private final List<BlockPos> mortars = new ArrayList<>();
+    private long nextAim;
 
     TeamBrain(UUID id, String[] sub) {
         this(id, sub, 1.0, 0.0, 0L);
@@ -130,6 +133,8 @@ final class TeamBrain {
         slotTurn = 0;
         trapsSet = false;
         towers.clear();
+        mortars.clear();
+        nextAim = now + iv(60);
     }
 
     /** In the preparation: the engineer sets every trap of his kit around his post. */
@@ -160,6 +165,9 @@ final class TeamBrain {
                 stack.shrink(1);
                 if (isTower(kind)) {
                     towers.add(pos);
+                }
+                if (kind == TrapKind.MORTAR) {
+                    mortars.add(pos);
                 }
             }
         }
@@ -234,6 +242,17 @@ final class TeamBrain {
         if (clazz == SkillClass.ENGINEER && now >= nextRemote && !towers.isEmpty()) {
             nextRemote = now + iv(200);
             m.kits().traps().useRemote(player, towers.get((int) ((now / 200) % towers.size())), true);   // overcharge
+        }
+        // Like a player with the spotter: every few seconds the mortars onto the nearest monster.
+        if (!mortars.isEmpty() && focused && now >= nextAim) {
+            Mob target = far != null ? far : MeleeSim.nearest(level, player, 44.0);
+            if (target != null) {
+                nextAim = now + iv(200);
+                BlockPos spot = target.blockPosition().below();
+                for (BlockPos mortar : mortars) {
+                    m.trapService().setAim(level, mortar, spot);
+                }
+            }
         }
         if (role == Role.HEALER && focused && now >= nextHeal) {
             nextHeal = now + iv(20);
