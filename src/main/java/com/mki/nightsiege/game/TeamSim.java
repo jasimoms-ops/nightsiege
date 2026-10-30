@@ -677,6 +677,19 @@ public final class TeamSim {
         }
         clearField(m);
         keepStanding(server);
+        // PRÜFUNG nur für balance-run-simbot1: nach jedem 4. Lauf stirbt Bot01 wirklich, wie ein verwundeter
+        // Bot nach dem Ende der Nacht. Der nächste Lauf muss ihn frisch holen (BOTNEU), ohne Fremden in der Nacht.
+        if (index % 4 == 1 && world != null) {
+            ServerPlayer victim = server.getPlayerList().getPlayer(SimBots.idOf("Bot01"));
+            if (victim != null && victim.isAlive()) {
+                victim.hurtServer(world, world.damageSources().generic(), 10000f);
+                boolean hit = victim.isDeadOrDying();
+                if (!hit) {
+                    victim.setHealth(0f);
+                }
+                System.out.println("[Night Siege sim] PRUEFTOD;Bot01;" + index + ";" + (hit ? "gestorben" : "auf null gesetzt"));
+            }
+        }
         index++;
         phase = Phase.PAUSE;
         phaseTick = server.getTickCount();
