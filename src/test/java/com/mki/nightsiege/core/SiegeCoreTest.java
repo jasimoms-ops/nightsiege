@@ -129,6 +129,7 @@ class SiegeCoreTest {
     void theBulwarkDrawsFurtherAndTanksTakeMonstersOffTheHealers() {
         // Simon 30.10.: "the bulwark is the worst tank of its class" - every guardian drew alike.
         assertTrue(cfg().tanksPeelHealers);
+        assertFalse(cfg().healersChallenge);   // Simon 31.10.: healers do not pull
         assertEquals(4.0, SkillValues.get("g_challenger", "bulwark", 0.0), 1e-9);
         assertEquals(6.0, SkillValues.get("g_challenger", "radius", 0.0), 1e-9);
     }

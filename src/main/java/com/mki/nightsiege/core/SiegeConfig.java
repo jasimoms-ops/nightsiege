@@ -810,6 +810,11 @@ public class SiegeConfig {
      * g_challenger.bulwark (skillTweaks).
      */
     public boolean tanksPeelHealers = true;
+    /**
+     * The healers (medic, warden) draw monsters with the challenger too (31.10., Simon: "Heiler sollen
+     * nicht ziehen"). Off by default: only the shield fighter and the bulwark turn monsters on themselves.
+     */
+    public boolean healersChallenge = false;
     /** Factor on the healing and barriers players of this subclass give (Simon 27.10.: the medic 3.8/s). */
     public Map<String, Double> subclassHealing = new LinkedHashMap<>();
     /** Per skill id: new values for its amount per level, base cost, cost step or highest level. */

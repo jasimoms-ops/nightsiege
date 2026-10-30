@@ -612,6 +612,10 @@ public final class GuardianEffects {
         if (player.isCreative()) {
             return;
         }
+        SiegeManager sm = SiegeManager.get();
+        if (!isTank(skills) && !(sm != null && sm.config() != null && sm.config().healersChallenge)) {
+            return;   // Simon 31.10.: the healers do not pull monsters off the damage dealers
+        }
         double extra = tree.totalBonus(SkillEffect.AGGRO, skills);
         double call = SkillTree.SUB_BULWARK.equals(tree.subclassOf(skills))
                 ? Math.max(0.0, SkillValues.get("g_challenger", "bulwark", 4.0)) : 0.0;
