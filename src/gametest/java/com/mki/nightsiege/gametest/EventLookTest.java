@@ -5633,8 +5633,9 @@ public class EventLookTest implements FabricClientGameTest {
             if (stacks.length() > 0) {
                 b2Fails.add("special arrow stacks in the kit: " + stacks);
             }
+            // Update 30.10.: one arrow key (held + wheel), no key per kind.
             if (q == null || q.shots.getOrDefault("light", 0) != 16 || q.shots.getOrDefault("spectral", 0) != 16
-                    || !bar.contains("light") || !bar.contains("storm")) {
+                    || !bar.contains("quiver") || bar.contains("light") || bar.contains("storm")) {
                 b2Fails.add("quiver " + (q == null ? "-" : q.shots) + " bar " + bar);
             }
         });
@@ -5643,7 +5644,11 @@ public class EventLookTest implements FabricClientGameTest {
             final int k = i;
             onServer(context, (player, manager) -> {
                 net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
-                manager.onCoreAction(player, "slot:" + manager.abilitySlotOf(player, kinds[k]));
+                int key = manager.abilitySlotOf(player, "quiver");
+                var qq = com.mki.nightsiege.game.GainGear.quiverOf(player);
+                for (int turn = 0; turn < 6 && !kinds[k].equals(qq.current); turn++) {
+                    manager.onCoreAction(player, "cycle:" + key + ":1");   // the wheel, the key held
+                }
                 net.minecraft.world.entity.projectile.arrow.Arrow arrow = new net.minecraft.world.entity.projectile.arrow.Arrow(
                         level, player, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.ARROW),
                         new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.BOW));
@@ -5663,7 +5668,7 @@ public class EventLookTest implements FabricClientGameTest {
             // Climbing arrows: 4 shots, one gone; a pick of the current kind again goes back to the normal arrows.
             var q = com.mki.nightsiege.game.GainGear.quiverOf(player);
             String before = q.current;
-            com.mki.nightsiege.game.GainGear.pickQuiver(player, before);
+            manager.onCoreAction(player, "slot:" + manager.abilitySlotOf(player, "quiver"));   // a tap: normal arrows
             System.out.println("[Night Siege test] B2 quiver after: shots=" + q.shots + " current " + before + " -> '" + q.current + "'");
             if (q.shots.getOrDefault("climb", 0) != 3 || !q.current.isEmpty()) {
                 b2Fails.add("quiver after the shots " + q.shots + " current '" + q.current + "'");
@@ -7782,9 +7787,23 @@ public class EventLookTest implements FabricClientGameTest {
         context.getInput().lookAt(-90.0f, 45.0f);
         context.waitTicks(4);
         onServer(context, (player, manager) -> {
-            int slot = manager.abilitySlotOf(player, "slow");
-            System.out.println("[Night Siege test] alchemist slow on bar slot " + slot);
-            manager.onCoreAction(player, "slot:" + Math.max(0, slot));   // its key throws it at once
+            // Update 30.10.: one potion key; held, the wheel goes to the slowness potion; a tap throws it.
+            int slot = manager.abilitySlotOf(player, "brew");
+            StringBuilder seen = new StringBuilder();
+            for (int turn = 0; turn < 4 && slot >= 0; turn++) {
+                String name = manager.abilitySlots(player).get(slot).name;
+                seen.append(name.substring(name.lastIndexOf('.') + 1)).append(' ');
+                if (name.endsWith(".slow")) {
+                    break;
+                }
+                manager.onCoreAction(player, "cycle:" + slot + ":1");
+            }
+            java.util.List<String> ids = new java.util.ArrayList<>();
+            for (var one : manager.abilitySlots(player)) {
+                ids.add(one.id);
+            }
+            System.out.println("[Night Siege test] alchemist potion key " + slot + " went " + seen + "bar=" + ids);
+            manager.onCoreAction(player, "slot:" + Math.max(0, slot));   // a tap throws it at once
         });
         context.waitTicks(30);
         context.runOnClient(client -> System.out.println("[Night Siege test] alchemist zones="
@@ -7812,7 +7831,87 @@ public class EventLookTest implements FabricClientGameTest {
         onServer(context, (player, manager) -> manager.onCoreAction(player, "slot:" + Math.max(0, manager.abilitySlotOf(player, "dome"))));
         context.waitTicks(10);
         context.takeScreenshot("healer_dome");
+        // Update 30.10.: the medic's self heal on a key of its own (the hand on himself, whoever he looks at).
         onServer(context, (player, manager) -> {
+            com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
+            own.levels.clear();
+            own.levels.put("field_dressing", 1);
+            own.levels.put("g_healing_hand", 2);   // the medic's subclass node
+        });
+        context.waitTicks(25);
+        final float[] hpBefore = new float[1];
+        onServer(context, (player, manager) -> {
+            player.setHealth(player.getMaxHealth() - 8f);
+            hpBefore[0] = player.getHealth();
+            int key = manager.abilitySlotOf(player, "selfheal");
+            java.util.List<String> ids = new java.util.ArrayList<>();
+            for (var one : manager.abilitySlots(player)) {
+                ids.add(one.id);
+            }
+            System.out.println("[Night Siege test] medic bar=" + ids + " selfheal key=" + key
+                    + " sub=" + manager.skillTree().subclassOf(manager.save().skillsOf(player.getUUID().toString())));
+            manager.onCoreAction(player, "slot:" + Math.max(0, key));
+        });
+        context.waitTicks(5);
+        onServer(context, (player, manager) -> System.out.println("[Night Siege test] medic self heal: hp "
+                + hpBefore[0] + " -> " + player.getHealth()));
+        context.takeScreenshot("medic_bar");
+        // Update 30.10.: every warrior's storm step on R, 3 blocks the way he looks.
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
+            own.unlockClass(com.mki.nightsiege.core.SkillClass.WARRIOR);
+            own.switchTo(com.mki.nightsiege.core.SkillClass.WARRIOR);
+            own.levels.clear();
+            player.getAbilities().flying = false;
+            player.onUpdateAbilities();
+        });
+        context.getInput().lookAt(-90.0f, 10.0f);
+        context.waitTicks(25);
+        final double[] dashFrom = new double[3];
+        onServer(context, (player, manager) -> {
+            dashFrom[0] = player.getX();
+            dashFrom[1] = player.getY();
+            dashFrom[2] = player.getZ();
+            java.util.List<String> ids = new java.util.ArrayList<>();
+            for (var one : manager.abilitySlots(player)) {
+                ids.add(one.id);
+            }
+            System.out.println("[Night Siege test] warrior bar=" + ids + " onGround=" + player.onGround());
+            manager.onCoreAction(player, "slot:" + Math.max(0, manager.abilitySlotOf(player, "dash")));
+        });
+        context.waitTicks(20);
+        context.takeScreenshot("warrior_bar");
+        onServer(context, (player, manager) -> {
+            double dx = player.getX() - dashFrom[0];
+            double dz = player.getZ() - dashFrom[2];
+            System.out.println(String.format(java.util.Locale.ROOT, "[Night Siege test] warrior dash: moved %.2f blocks (dx %.2f dz %.2f dy %.2f) dashes=%d",
+                    Math.sqrt(dx * dx + dz * dz), dx, dz, player.getY() - dashFrom[1], com.mki.nightsiege.game.WarriorDash.dashes()));
+        });
+        // Update 30.10.: the quick shot's tap: a bow let go one tick after the press still shoots.
+        final int[] arrowsBefore = new int[1];
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
+            own.unlockClass(com.mki.nightsiege.core.SkillClass.ARCHER);
+            own.switchTo(com.mki.nightsiege.core.SkillClass.ARCHER);
+            own.levels.clear();
+            own.levels.put("swift_draw", 1);
+            net.minecraft.world.item.ItemStack bow = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.BOW);
+            player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, bow);
+            player.getInventory().add(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.ARROW, 16));
+            arrowsBefore[0] = player.level().getEntitiesOfClass(net.minecraft.world.entity.projectile.arrow.AbstractArrow.class,
+                    player.getBoundingBox().inflate(64)).size();
+            player.startUsingItem(net.minecraft.world.InteractionHand.MAIN_HAND);
+        });
+        context.waitTicks(1);
+        onServer(context, (player, manager) -> player.releaseUsingItem());
+        context.waitTicks(2);
+        onServer(context, (player, manager) -> {
+            int now = player.level().getEntitiesOfClass(net.minecraft.world.entity.projectile.arrow.AbstractArrow.class,
+                    player.getBoundingBox().inflate(64)).size();
+            System.out.println("[Night Siege test] quick shot tap: arrows " + arrowsBefore[0] + " -> " + now
+                    + " saved taps=" + com.mki.nightsiege.game.QuickDraw.savedTaps()
+                    + " sub=" + manager.skillTree().subclassOf(manager.save().skillsOf(player.getUUID().toString())));
+            player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, net.minecraft.world.item.ItemStack.EMPTY);
             com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
             own.switchTo(com.mki.nightsiege.core.SkillClass.ENGINEER);
         });
