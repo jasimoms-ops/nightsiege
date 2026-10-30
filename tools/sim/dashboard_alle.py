@@ -100,8 +100,8 @@ LABELS = {
         "regen2": "wie Neues Balancing, Pfeilregen mit doppeltem Schaden",
     },
     "final5": {
-        "aktuell": "Server-Stand ab 30.10. 22:25 (Feld-Stärke 0,4), Sim mit Mörser-Fix (Sprengmeister zielt, Techniker überladen)",
-        "r4": "wie aktuell, Feld-Referenz für 4 Spieler 26 statt 32",
+        "aktuell": "Stand 30.10. 22:25 (Feld-Stärke 0,4), Sim mit Mörser-Fix (Sprengmeister zielt, Techniker überladen)",
+        "r4": "Server-Stand ab 31.10. 0:38: Feld-Referenz für 4 Spieler 26 statt 32, Sim mit Mörser-Fix",
     },
     "bollwerk1": {
         "aktuell": "Bollwerk-Fix: Bollwerk-Ruf (+4 Blöcke, immer), Tanks nehmen Heilern Monster ab; Bollwerk in jeder Gruppe",
@@ -135,7 +135,7 @@ LABELS = {
 
 # Runs whose variant is the server's state although it carries values of its own (they came onto the
 # server by config afterwards): run -> variant.
-SERVER_STAND = {"bogen1": "aktuell", "balance1": "aktuell", "balance2": "aktuell", "final4": "s40", "final5": "aktuell"}
+SERVER_STAND = {"bogen1": "aktuell", "balance1": "aktuell", "balance2": "aktuell", "final4": "s40", "final5": "r4"}
 
 
 def parse_team(msg):

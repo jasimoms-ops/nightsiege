@@ -23,9 +23,16 @@ RUNS = {
         'aktuell': ('Neues Balancing', 'Alles, was auf den Server geht: Klassen-Paket mit Axtkämpfer 1,35, Seelenfänger 1,2, Totenbeschwörer 1,0; Pfeilregen auf F; Nachschub (Feld 6 … 38) mit Feld-Stärke 0,4 und angepasster Referenz für 4–10 Spieler; Wächter-Nacht wie im Dungeon; Leiter-Fix'),
         'regen2': ('Pfeilregen ×2', 'Wie Neues Balancing, aber der Pfeilregen macht doppelten Schaden'),
     },
+    'bollwerk1': {
+        'vorher': ('Bollwerk vorher', 'Server-Stand, Bollwerk in jeder Gruppe (Stufe 5/10/15, 4 und 6 Spieler), neue Messung „Abgefangen“ vor allen Minderungen; ohne Bollwerk-Ruf und ohne Abnehmen von Heilern'),
+        'aktuell': ('Bollwerk-Fix', 'Wie Bollwerk vorher, mit Bollwerk-Ruf (Herausforderer +4 Blöcke, immer) und Tanks nehmen Heilern Monster ab'),
+    },
+    'moerser1': {
+        'aktuell': ('Mörser-Fix', 'Sim-Fix: Sprengmeister zielt seine Mörser; Sprengmeister in jeder Gruppe (Stufe 5/10/15, 4 und 7 Spieler), alte Klassen-Werte ohne Server-Config'),
+    },
     'final5': {
-        'aktuell': ('Server-Stand + Mörser-Fix', 'Server-Stand seit 30.10. 22:25 (Feld-Stärke 0,4); in der Sim zielen Sprengmeister-Bots jetzt ihre Mörser und Techniker überladen ihre Türme (Sim-Fix moerser-sim)'),
-        'r4': ('Referenz 4 Spieler 26', 'Wie Server-Stand + Mörser-Fix, aber Feld-Referenz für 4 Spieler 26 statt 32 (Monster für 4 Spieler etwas schwächer)'),
+        'aktuell': ('Stand 30.10. 22:25', 'Server-Stand 30.10. 22:25–31.10. 0:38 (Feld-Stärke 0,4, Referenz 4 Spieler 32); in der Sim zielen Sprengmeister-Bots jetzt ihre Mörser und Techniker überladen ihre Türme (Sim-Fix moerser-sim)'),
+        'r4': ('Server-Stand 31.10.', 'Server-Stand seit 31.10. 0:38: wie davor, aber Feld-Referenz für 4 Spieler 26 statt 32 (Monster für 4 Spieler etwas schwächer); Sim mit Mörser-Fix'),
     },
     'final4': {
         'aktuell': ('Feld-Stärke 0,45', 'Wie Server-Stand, aber Feld-Stärke 0,45 (so lief der Server 30.10. 21:57–22:25; Gruppen mit 4 Spielern 61 %)'),
@@ -55,7 +62,8 @@ def main(stats, dashdir, out, lauf='final1'):
     uk_info = {}
     for u in json.load(open(os.path.join(dashdir, 'unterklassen.json'))):
         uk_info[u['unterklasse']] = (u['name'], u['klasse'])
-    variants = sorted({n['var'] for n in N}, key=lambda v: (v != 'aktuell', v))
+    order = list(NAMES)
+    variants = sorted({n['var'] for n in N}, key=lambda v: (order.index(v) if v in order else 99, v != 'aktuell', v))
     vname = lambda v: NAMES.get(v, (v, v))[0]
 
     # per night: load figures
