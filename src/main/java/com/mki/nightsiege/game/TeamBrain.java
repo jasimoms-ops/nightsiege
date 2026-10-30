@@ -1,8 +1,10 @@
 package com.mki.nightsiege.game;
 
 import com.mki.nightsiege.NightSiegeMod;
+import com.mki.nightsiege.core.MortarMode;
 import com.mki.nightsiege.core.PlayerSkills;
 import com.mki.nightsiege.core.SkillClass;
+import com.mki.nightsiege.core.SkillEffect;
 import com.mki.nightsiege.core.SkillTree;
 import com.mki.nightsiege.core.TrapKind;
 import net.minecraft.commands.arguments.EntityAnchorArgument;
@@ -90,6 +92,15 @@ final class TeamBrain {
     /** The demolition man's mortars: they only fire onto a spot set with the spotter (30.10.: bots never set one). */
     private final List<BlockPos> mortars = new ArrayList<>();
     private long nextAim;
+    /** Where the mortars fire now (on top of the block clicked in the bird's-eye view), null before the first spot. */
+    private Vec3 aimed;
+    /** When each fire of the bird's-eye view may come again (by {@link MortarMode#ordinal()}). */
+    private final long[] nextSalvo = new long[MortarMode.values().length];
+    /** The salvos a bot calls from the bird's-eye view when it has learned them (smoke does no damage). */
+    private static final MortarMode[] SALVOS = {MortarMode.AREA, MortarMode.FIRE, MortarMode.BARRAGE};
+    /** For the sim log: spots set and salvos called in this run. */
+    int aims;
+    int salvos;
 
     TeamBrain(UUID id, String[] sub) {
         this(id, sub, 1.0, 0.0, 0L);
@@ -118,7 +129,11 @@ final class TeamBrain {
         };
     }
 
-    /** Back to the start of a run: timers reset, no traps set yet. */
+    /**
+     * The fight begins: timers reset. The traps set in the preparation stay known (30.10.: this cleared
+     * the towers and mortars right after {@link #prepare} had set them, so in the fight no tower was ever
+     * overcharged and no mortar ever aimed; every brain is new for its run, nothing old is left here).
+     */
     void reset(long now) {
         nextUse = now;
         nextStaff = now;
@@ -132,11 +147,19 @@ final class TeamBrain {
         nextFocus = now;
         staffTurn = 0;
         slotTurn = 0;
-        trapsSet = false;
-        towers.clear();
-        mortars.clear();
-        nextAim = now + iv(60);
+        nextAim = now + iv(20);
+        aimed = null;
+        java.util.Arrays.fill(nextSalvo, now + iv(100));
+        aims = 0;
+        salvos = 0;
     }
+
+    /** Mortars this bot set in the preparation (for the sim log). */
+    int mortarCount() {
+        return mortarsPlaced;
+    }
+
+    private int mortarsPlaced;
 
     /** In the preparation: the engineer sets every trap of his kit around his post. */
     void prepare(SiegeManager m, ServerPlayer player, ServerLevel level) {
@@ -169,6 +192,7 @@ final class TeamBrain {
                 }
                 if (kind == TrapKind.MORTAR) {
                     mortars.add(pos);
+                    mortarsPlaced++;
                 }
             }
         }
@@ -223,6 +247,96 @@ final class TeamBrain {
         return best;
     }
 
+    /**
+     * The demolition man in the bird's-eye view (Feldstecher), as a player uses it (30.10.): point fire
+     * onto the thickest crowd one of his mortars reaches, set again once the old spot is empty or a crowd
+     * twice as thick stands elsewhere; a learned salvo (area, fire, barrage) onto three or more when ready.
+     * It is the same click as a player's ("spot:…"), so the server checks reach, subclass and pauses.
+     */
+    private void aimMortars(SiegeManager m, ServerPlayer player, ServerLevel level, PlayerSkills skills, long now) {
+        mortars.removeIf(p -> ModContent.trapOf(level.getBlockState(p)) != TrapKind.MORTAR);   // lost in the night
+        if (mortars.isEmpty()) {
+            return;
+        }
+        int tier = Math.max(1, m.skillTree().trapTier(TrapKind.MORTAR, skills));
+        double reach = TrapKind.MORTAR.radius(tier) + m.skillTree().totalBonus(SkillEffect.TOWER_RANGE, skills) - 1.0;
+        double splash = TrapKind.MORTAR.splash(tier);
+        Vec3 home = Vec3.atBottomCenterOf(post);
+        List<LivingEntity> all = CombatEffects.enemies(level, home, reach + 4.0, 16.0);
+        LivingEntity best = null;
+        int bestCount = 0;
+        double bestDist = Double.MAX_VALUE;
+        for (LivingEntity e : all) {
+            if (!mortarsReach(e.position(), reach)) {
+                continue;
+            }
+            int around = 0;
+            for (LivingEntity o : all) {
+                if (o.distanceToSqr(e) <= splash * splash) {
+                    around++;
+                }
+            }
+            double d = e.position().distanceToSqr(home);
+            if (around > bestCount || (around == bestCount && d < bestDist)) {
+                best = e;
+                bestCount = around;
+                bestDist = d;
+            }
+        }
+        if (best == null) {
+            return;   // nothing in reach: the mortars keep their spot
+        }
+        int still = 0;
+        if (aimed != null) {
+            for (LivingEntity o : all) {
+                if (o.distanceToSqr(aimed) <= (splash + 1.0) * (splash + 1.0)) {
+                    still++;
+                }
+            }
+        }
+        BlockPos ground = best.blockPosition().below();
+        String at = ground.getX() + ":" + ground.getY() + ":" + ground.getZ();
+        if (aimed == null || still == 0 || bestCount >= 2 * still + 1) {
+            m.onCoreAction(player, "spot:" + MortarMode.POINT.id() + ":" + at);
+            aimed = Vec3.atBottomCenterOf(ground.above());
+            aims++;
+        }
+        if (bestCount < 3) {
+            return;
+        }
+        for (MortarMode mode : SALVOS) {
+            if (!mode.unlocked(skills) || now < nextSalvo[mode.ordinal()]) {
+                continue;
+            }
+            String arg = "spot:" + mode.id() + ":" + at;
+            if (mode == MortarMode.BARRAGE) {
+                // A line through the crowd along the way the monsters come (from the post outwards).
+                Vec3 dir = new Vec3(ground.getX() - post.getX(), 0, ground.getZ() - post.getZ());
+                dir = dir.lengthSqr() < 1.0 ? new Vec3(1, 0, 0) : dir.normalize();
+                BlockPos from = BlockPos.containing(ground.getX() - dir.x * 4, ground.getY(), ground.getZ() - dir.z * 4);
+                BlockPos to = BlockPos.containing(ground.getX() + dir.x * 4, ground.getY(), ground.getZ() + dir.z * 4);
+                arg = "spot:" + mode.id() + ":" + from.getX() + ":" + from.getY() + ":" + from.getZ()
+                        + ":" + to.getX() + ":" + to.getY() + ":" + to.getZ();
+            }
+            m.onCoreAction(player, arg);
+            nextSalvo[mode.ordinal()] = now + mode.pauseTicks() + iv(20);
+            salvos++;
+            break;
+        }
+    }
+
+    /** True when one of this bot's mortars reaches the spot (flat distance, like the server's check). */
+    private boolean mortarsReach(Vec3 spot, double reach) {
+        for (BlockPos p : mortars) {
+            double dx = p.getX() + 0.5 - spot.x;
+            double dz = p.getZ() + 0.5 - spot.z;
+            if (dx * dx + dz * dz <= reach * reach) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** A timer of the perfect bot, stretched by the skill (a slower hand on the keys). */
     private int iv(int ticks) {
         return (int) Math.round(ticks / skill);
@@ -266,16 +380,10 @@ final class TeamBrain {
             nextRemote = now + iv(200);
             m.kits().traps().useRemote(player, towers.get((int) ((now / 200) % towers.size())), true);   // overcharge
         }
-        // Like a player with the spotter: every few seconds the mortars onto the nearest monster.
+        // Like a player with the spotter (Feldstecher): the mortars onto the thickest crowd they reach.
         if (!mortars.isEmpty() && focused && now >= nextAim) {
-            Mob target = far != null ? far : MeleeSim.nearest(level, player, 44.0);
-            if (target != null) {
-                nextAim = now + iv(200);
-                BlockPos spot = target.blockPosition().below();
-                for (BlockPos mortar : mortars) {
-                    m.trapService().setAim(level, mortar, spot);
-                }
-            }
+            nextAim = now + iv(40);
+            aimMortars(m, player, level, skills, now);
         }
         if (role == Role.HEALER && focused && now >= nextHeal) {
             nextHeal = now + iv(20);

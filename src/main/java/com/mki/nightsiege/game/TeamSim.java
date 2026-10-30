@@ -104,6 +104,11 @@ public final class TeamSim {
     private static String groundKind = "-";
     private static final Map<String, Object> backup = new LinkedHashMap<>();
     private static long startedAt;
+    /** The run's mortar shots, shell bursts and monsters hit, from the trap service's shot log (30.10.). */
+    private static int mortarShots;
+    private static int shellBursts;
+    private static int shellVictims;
+    private static final java.util.function.Consumer<String> SHOT_COUNTER = TeamSim::countShot;
 
     private TeamSim() {
     }
@@ -170,6 +175,9 @@ public final class TeamSim {
         phaseTick = server.getTickCount();
         started = true;
         startedAt = System.currentTimeMillis();
+        if (TrapService.shotLog == null) {
+            TrapService.shotLog = SHOT_COUNTER;   // counts the mortars' shots for the MOERSER line
+        }
         NightSiegeMod.LOGGER.info("[Night Siege sim] Team-Sim: {} Läufe (Teil {}/{}), Stufen {}, Gruppen {}, Varianten {}",
                 queue.size(), shard + 1, shards, levels, groups, variants.keySet());
         System.out.println("[Night Siege sim] TEAMSTART;" + queue.size() + ";" + levels + ";" + groups + ";" + variants.keySet());
@@ -298,9 +306,39 @@ public final class TeamSim {
         }
         for (int i = 0; i < all.size(); i++) {
             if (i % shards == shard) {
-                queue.add(all.get(i));
+                Run r = all.get(i);
+                queue.add(new Run(r.variant(), r.level(), r.group(), r.mix(), r.index(), withForced(r.subs())));
             }
         }
+    }
+
+    /**
+     * Sim knob "mit=demolition[,gunner…]" (30.10.): every group gets these subclasses, in place of its
+     * last members, so one subclass can be measured in many nights. Without it the groups stay as they are.
+     */
+    static List<String[]> withForced(List<String[]> subs) {
+        String want = common.get("mit");
+        if (want == null || want.isBlank()) {
+            return subs;
+        }
+        List<String[]> out = new ArrayList<>(subs);
+        int slot = out.size() - 1;
+        for (String name : want.split(",")) {
+            String[] info = null;
+            for (String[] s : MeleeSim.SUBCLASSES) {
+                if (s[2].equals(name.trim())) {
+                    info = s;
+                }
+            }
+            boolean has = false;
+            for (String[] s : out) {
+                has |= info != null && s[2].equals(info[2]);
+            }
+            if (info != null && !has && slot >= 0) {
+                out.set(slot--, info);
+            }
+        }
+        return out;
     }
 
     private static long seed(int level, int group, String mix, int i) {
@@ -378,6 +416,9 @@ public final class TeamSim {
             return;
         }
         long now = server.getTickCount();
+        // A tower shell that burst in this tick's entity tick leaves its trap as "the blow that lands now"
+        // until the traps' own tick; the bots' sword hits below would be counted as that tower (30.10.).
+        TrapService.clearHitting();
         try {
             switch (phase) {
                 case GROUND -> {
@@ -518,6 +559,9 @@ public final class TeamSim {
         StatsRecorder.simLabel = String.format(Locale.ROOT, "%s|L%d|G%d|%s|%d", run.variant(), run.level(), run.group(),
                 run.mix(), run.index());
         StatsRecorder.lastFinished = null;
+        mortarShots = 0;
+        shellBursts = 0;
+        shellVictims = 0;
         applyConfig(m, Map.of("testPrepSeconds", "12"));   // time for the engineers' traps
         boolean ok = m.prepareTest(server, world, core, run.level(), SiegeEvent.NONE);
         if (!ok) {
@@ -598,6 +642,17 @@ public final class TeamSim {
             System.out.println(String.format(Locale.ROOT, "[Night Siege sim] BOT;%s;%d;%d;%s;%d;%s;%.0f;%.0f;%.0f;%.0f;%.0f",
                     run.variant(), run.level(), run.group(), run.mix(), run.index(), sub, v[0], v[1], v[2], v[3], v[4]));
         }
+        // The demolition men (30.10.): mortars set / spots set / salvos called each, and the mortars' shots.
+        StringBuilder demo = new StringBuilder();
+        for (TeamBrain b : brains.values()) {
+            if ("demolition".equals(b.subclass)) {
+                demo.append(demo.length() == 0 ? "" : "+").append(b.mortarCount()).append('/').append(b.aims).append('/').append(b.salvos);
+            }
+        }
+        if (demo.length() > 0 || mortarShots > 0 || shellBursts > 0) {
+            System.out.println(String.format(Locale.ROOT, "[Night Siege sim] MOERSER;%s;%d;%d;%s;%d;%s;%d;%d;%d",
+                    run.variant(), run.level(), run.group(), run.mix(), run.index(), demo, mortarShots, shellBursts, shellVictims));
+        }
         if (index % 10 == 9) {
             long secs = (System.currentTimeMillis() - startedAt) / 1000;
             System.out.println(String.format(Locale.ROOT, "[Night Siege sim] Stand: %d von %d Läufen, %d s", index + 1, queue.size(), secs));
@@ -611,6 +666,23 @@ public final class TeamSim {
         index++;
         phase = Phase.PAUSE;
         phaseTick = server.getTickCount();
+    }
+
+    /** One line of the trap service's shot log: a mortar shot, or a shell burst with the monsters it hit. */
+    private static void countShot(String line) {
+        if (line.startsWith("mortar fires")) {
+            mortarShots++;
+        } else if (line.startsWith("shell burst")) {
+            shellBursts++;
+            int at = line.lastIndexOf("victims=");
+            if (at >= 0) {
+                try {
+                    shellVictims += Integer.parseInt(line.substring(at + 8).trim());
+                } catch (NumberFormatException ignored) {
+                    // a line of another shape: only counted
+                }
+            }
+        }
     }
 
     private static void finish(MinecraftServer server, String problem) {
@@ -631,6 +703,9 @@ public final class TeamSim {
             m.persist();
         }
         SimBots.removeAll(server);
+        if (TrapService.shotLog == SHOT_COUNTER) {
+            TrapService.shotLog = null;
+        }
         phase = Phase.DONE;
         StatsRecorder.simLabel = "";
         List<String> lines = report();
@@ -814,7 +889,7 @@ public final class TeamSim {
         for (Map.Entry<String, String> e : over.entrySet()) {
             String key = e.getKey();
             String value = e.getValue();
-            if (key.startsWith("koennen") || key.startsWith("wagemut")) {
+            if (key.startsWith("koennen") || key.startsWith("wagemut") || key.equals("mit")) {
                 continue;   // the bots' knobs, not config values
             }
             try {
