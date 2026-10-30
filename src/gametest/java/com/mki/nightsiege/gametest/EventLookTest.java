@@ -3688,12 +3688,32 @@ public class EventLookTest implements FabricClientGameTest {
         context.waitTicks(10);
         closeScreen(context);
         final int[] best = new int[2];
+        final boolean[] camels = {false};
         for (int i = 0; i < 24; i++) {
             final int step = i;
             context.waitTicks(100);
             onServer(context, (player, manager) -> {
                 net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
                 long now = level.getGameTime();
+                if (!camels[0]) {
+                    // Simon's crowd: camel troops in front of the first ladder (they cannot climb it).
+                    for (BlockPos p : com.mki.nightsiege.game.TempBlocks.all(level, net.minecraft.world.level.block.Blocks.LADDER)) {
+                        net.minecraft.world.level.block.state.BlockState ls = level.getBlockState(p);
+                        if (!ls.is(net.minecraft.world.level.block.Blocks.LADDER)) {
+                            continue;
+                        }
+                        net.minecraft.core.Direction outDir = ls.getValue(net.minecraft.world.level.block.LadderBlock.FACING);
+                        for (int k = 0; k < 2; k++) {
+                            BlockPos spot = new BlockPos(p.getX(), cy, p.getZ()).relative(outDir, 7 + k * 3);
+                            net.minecraft.world.entity.Mob troop = com.mki.nightsiege.game.SiegeCommands.spawnFoeAt(manager, level,
+                                    com.mki.nightsiege.core.SiegeConfig.CAMEL_TROOP, spot);
+                            System.out.println("[Night Siege test] leitersturm Kamel-Trupp bei " + spot.offset(-cx, -cy, -cz).toShortString()
+                                    + ": " + (troop == null ? "keiner" : troop.getType().toShortString() + " Reiter " + troop.getPassengers().size()));
+                        }
+                        camels[0] = true;
+                        break;
+                    }
+                }
                 // The feet of the night's ladders outside the wall.
                 java.util.Map<Long, BlockPos> feet = new java.util.HashMap<>();
                 for (BlockPos p : com.mki.nightsiege.game.TempBlocks.all(level, net.minecraft.world.level.block.Blocks.LADDER)) {
@@ -3744,9 +3764,9 @@ public class EventLookTest implements FabricClientGameTest {
                 best[0] = Math.max(best[0], inside + onWall);
                 best[1] = Math.max(best[1], atFoot);
                 System.out.println(String.format(java.util.Locale.ROOT,
-                        "[Night Siege test] leitersturm t=%ds aktiv=%s leitern=%d monster=%d drin=%d mauer=%d am_fuss=%d plan=%s | %s",
+                        "[Night Siege test] leitersturm t=%ds aktiv=%s leitern=%d monster=%d drin=%d mauer=%d am_fuss=%d plan=%s abgesessen=%d | %s",
                         (step + 1) * 5, manager.isActive(), feet.size(), total, inside, onWall, atFoot, states,
-                        manager.ladders().stats()));
+                        manager.raid().dismounted, manager.ladders().stats()));
                 if (step % 4 == 3) {
                     for (String d : footDetail) {
                         System.out.println("[Night Siege test] leitersturm   am Fuß: " + d);

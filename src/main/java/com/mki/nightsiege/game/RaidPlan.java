@@ -127,6 +127,8 @@ public final class RaidPlan {
     public int rerouted;
     public int returned;
     public int stormed;
+    /** Riders that got off their mount in front of a ladder. */
+    public int dismounted;
 
     public RaidPlan() {
         current = this;
@@ -168,6 +170,7 @@ public final class RaidPlan {
         rerouted = 0;
         returned = 0;
         stormed = 0;
+        dismounted = 0;
     }
 
     public boolean active() {
@@ -555,10 +558,18 @@ public final class RaidPlan {
 
     /** The open way in a monster on that side takes; after a long wait also one on another side. */
     private Entry entryFor(Order order, Mob mob, long now) {
+        return entryFor(order, mob, now, LadderClimb.canTake(mob));
+    }
+
+    /**
+     * The open way in; ladders only for a monster that can take one (Simon 30.10., 16:12: camel
+     * troops, ravagers and the like stood at the foot of a ladder for good and blocked it).
+     */
+    private Entry entryFor(Order order, Mob mob, long now, boolean ladderToo) {
         Entry best = null;
         double bestScore = Double.MAX_VALUE;
         boolean longWait = order.holdSince >= 0 && now - order.holdSince > cfg.raidRegroupSeconds * 20L;
-        for (List<Entry> list : List.of(gates, holes, ladders)) {
+        for (List<Entry> list : ladderToo ? List.of(gates, holes, ladders) : List.of(gates, holes)) {
             for (Entry e : list) {
                 if (!e.open) {
                     continue;
@@ -649,6 +660,7 @@ public final class RaidPlan {
                 }
             }
             case APPROACH, HOLD -> {
+                dismountAtLadder(mob, order, now);
                 Entry entry = entryFor(order, mob, now);
                 if (entry != null && order.kind != Kind.RANGED) {
                     order.entry = entry;
@@ -744,6 +756,39 @@ public final class RaidPlan {
                 }
                 order.navGoal = null;
                 mob.getNavigation().stop();
+            }
+        }
+    }
+
+    /**
+     * The riders of a mount (the camel troop) get off in front of the wall when a ladder is open on
+     * their side and go up it; the mount stays outside (Simon 30.10., 16:12).
+     */
+    private void dismountAtLadder(Mob mob, Order order, long now) {
+        if (!mob.isVehicle() || order.rally == null
+                || mob.distanceToSqr(Vec3.atBottomCenterOf(order.rally)) > 144.0) {
+            return;
+        }
+        Entry ladder = null;
+        for (Entry e : ladders) {
+            if (e.open && angleBetween(e.angle, order.angle) <= Math.PI * 0.4) {
+                ladder = e;
+                break;
+            }
+        }
+        if (ladder == null && (order.holdSince < 0 || now - order.holdSince <= cfg.raidRegroupSeconds * 20L)) {
+            return;
+        }
+        if (ladder == null && ladders.stream().noneMatch(e -> e.open)) {
+            return;
+        }
+        for (Entity p : new ArrayList<>(mob.getPassengers())) {
+            if (p instanceof Mob rider) {
+                rider.stopRiding();
+                if (eligible(rider)) {
+                    enlist(rider, order.angle);
+                }
+                dismounted++;
             }
         }
     }

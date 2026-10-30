@@ -232,9 +232,7 @@ public final class LadderClimb {
     public void tick(ServerLevel world, Collection<UUID> mobs, BlockPos anchor, long now) {
         for (UUID id : mobs) {
             Entity entity = world.getEntity(id);
-            if (!(entity instanceof Mob mob) || !mob.isAlive() || mob.isPassenger() || mob.isVehicle()
-                    || mob.getNavigation() instanceof WallClimberNavigation || mob.getBbWidth() > 1.2f
-                    || mob.isNoGravity()) {
+            if (!(entity instanceof Mob mob) || !mob.isAlive() || !canTake(mob)) {
                 continue;
             }
             equip(mob);
@@ -570,6 +568,15 @@ public final class LadderClimb {
         }
         mob.getNavigation().stop();
         mob.setDeltaMovement(ax * 0.3, 0.1, az * 0.3);
+    }
+
+    /**
+     * True for a monster that can take a ladder: no mount, no rider, not wider than a ladder, not
+     * flying, and no spider (it climbs any wall anyway).
+     */
+    public static boolean canTake(Mob mob) {
+        return !mob.isPassenger() && !mob.isVehicle() && !(mob.getNavigation() instanceof WallClimberNavigation)
+                && mob.getBbWidth() <= 1.2f && !mob.isNoGravity();
     }
 
     /** Bars a ladder for a monster for a while. */
