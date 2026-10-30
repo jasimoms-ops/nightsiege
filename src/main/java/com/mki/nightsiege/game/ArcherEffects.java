@@ -77,6 +77,9 @@ public final class ArcherEffects {
         // Any bow or crossbow counts, the infernite ones included.
         boolean bow = weapon != null && weapon.getItem() instanceof net.minecraft.world.item.BowItem;
         boolean crossbow = weapon != null && weapon.getItem() instanceof net.minecraft.world.item.CrossbowItem;
+        if (bow || crossbow) {
+            shotDiagnosis(arrow, player, level);
+        }
         if (!bow && !crossbow) {
             return;   // Dispensers and thrown arrows stay vanilla.
         }
@@ -231,6 +234,45 @@ public final class ArcherEffects {
         }
     }
 
+    /** Shots written to the log in this dungeon fight, per player (the diagnosis below). */
+    private final Map<UUID, long[]> diagnosed = new HashMap<>();
+
+    /**
+     * Diagnosis (Simon 30.10.: in the dungeon every bolt started almost at the floor, outside it
+     * started at the eye as it should – not reproduced in the test client). For a dungeon fighter,
+     * one log line per shot (at most one in two seconds, 40 per player): the player's pose, eye and
+     * feet, where the bolt starts and whether a standing body fits where he stands.
+     */
+    private void shotDiagnosis(AbstractArrow arrow, ServerPlayer player, ServerLevel level) {
+        SiegeManager m = SiegeManager.get();
+        if (m == null || !m.expeditions().isFighter(player)) {
+            return;
+        }
+        long now = level.getGameTime();
+        long[] seen = diagnosed.computeIfAbsent(player.getUUID(), k -> new long[] {Long.MIN_VALUE / 2, 0});
+        if (now - seen[0] > 6000) {
+            seen[1] = 0;   // a new fight (five minutes without a shot): count again
+        }
+        if (now - seen[0] < 40 || seen[1] >= 40) {
+            return;
+        }
+        seen[0] = now;
+        seen[1]++;
+        Vec3 eye = player.getEyePosition();
+        boolean fits = level.noCollision(player, player.getDimensions(net.minecraft.world.entity.Pose.STANDING)
+                .makeBoundingBox(player.position()).deflate(1.0E-7));
+        net.minecraft.world.entity.ai.attributes.AttributeInstance scale =
+                player.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.SCALE);
+        com.mki.nightsiege.NightSiegeMod.LOGGER.info(String.format(java.util.Locale.ROOT,
+                "[Night Siege] Schuss-Diagnose %s: Haltung=%s Augenhoehe=%.2f Fuesse=%.2f Auge=%.2f Bolzen=%.2f (%.2f unter dem Auge) "
+                        + "am-Boden=%s schleicht=%s Fahrzeug=%s Groesse=%.2f stehen-passt=%s Waffe=%s",
+                player.getScoreboardName(), player.getPose(), player.getEyeHeight(), player.getY(), eye.y, arrow.getY(),
+                eye.y - arrow.getY(), player.onGround(), player.isShiftKeyDown(),
+                player.getVehicle() == null ? "-" : net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(player.getVehicle().getType()),
+                scale == null ? 1.0 : scale.getValue(), fits,
+                net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(arrow.getWeaponItem().getItem())));
+    }
+
     /** Rank 1: x3, rank 3: x4.5 damage, and a faster flight. The sniper's shot hits half again as hard and pierces. */
     private static void firePowerShot(AbstractArrow arrow, ServerLevel level, ServerPlayer player,
                                       double damage, int rank, boolean sniper) {
@@ -277,6 +319,7 @@ public final class ArcherEffects {
 
     /** Called when a player's class is reset. */
     public void forget(UUID player) {
+        diagnosed.remove(player);
         powerArmed.remove(player);
         stormUntil.remove(player);
         volleyCount.remove(player);
