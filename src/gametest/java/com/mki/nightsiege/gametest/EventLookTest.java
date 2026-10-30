@@ -135,6 +135,9 @@ public class EventLookTest implements FabricClientGameTest {
                     versionB2Scene(context, game);
                     classUiScene(context, game);
                 }
+                if (want.contains("bolzen")) {
+                    bolterAimScene(context, game);   // where the bolter's bolt flies (Simon 30.10., 11:50)
+                }
                 if (want.contains("ladders")) {
                     // The climbing scenes, then the ladder cases of 28 October 2026 (block beside, ladder above the ground).
                     ladderScene(context, game);
@@ -8528,6 +8531,209 @@ public class EventLookTest implements FabricClientGameTest {
             }
         });
         context.waitTicks(5);
+    }
+
+    /** Prints every player arrow when it comes into the world (only while the bolter scene measures). */
+    private static boolean BOLT_WATCH;
+    private static boolean BOLT_HOOKED;
+
+    /**
+     * The bolter's aim (Simon 30.10., 11:50: "die Armbrust schießt nicht aufs Fadenkreuz, der Schuss
+     * kommt von weiter unten"): the crossbow loaded and shot by a real right click at a white wall
+     * 15.5 blocks ahead. For every shot: where the bolt starts and how it flies next to the eye and
+     * the look on the server and the client, where it sticks against the point under the crosshair,
+     * and two pictures. Kit crossbow standing, sneaking, sneaking at once, a plain crossbow.
+     */
+    private static void bolterAimScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        if (!BOLT_HOOKED) {
+            BOLT_HOOKED = true;
+            net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents.ENTITY_LOAD.register((entity, level) -> {
+                if (BOLT_WATCH && entity instanceof net.minecraft.world.entity.projectile.arrow.AbstractArrow a
+                        && a.getOwner() instanceof net.minecraft.server.level.ServerPlayer p) {
+                    net.minecraft.world.phys.Vec3 eye = p.getEyePosition();
+                    net.minecraft.world.phys.Vec3 look = p.getLookAngle();
+                    net.minecraft.world.phys.Vec3 m = a.getDeltaMovement();
+                    double speed = m.length();
+                    double angle = speed < 1e-6 ? -1 : Math.toDegrees(Math.acos(Math.max(-1, Math.min(1, m.scale(1 / speed).dot(look)))));
+                    System.out.println(String.format(Locale.ROOT,
+                            "[Night Siege test] bolt spawn pos=%.3f/%.3f/%.3f eye=%.3f/%.3f/%.3f below-eye=%.3f motion=%.3f/%.3f/%.3f speed=%.2f "
+                                    + "look=%.3f/%.3f/%.3f off-look=%.2fdeg pitch=%.1f yaw=%.1f crouch=%s eyeH=%.2f weapon=%s model=%s tags=%s",
+                            a.getX(), a.getY(), a.getZ(), eye.x, eye.y, eye.z, eye.y - a.getY(), m.x, m.y, m.z, speed,
+                            look.x, look.y, look.z, angle, p.getXRot(), p.getYRot(), p.isCrouching(), p.getEyeHeight(),
+                            a.getWeaponItem() == null ? "-" : net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(a.getWeaponItem().getItem()),
+                            a.getWeaponItem() == null ? "-" : a.getWeaponItem().get(net.minecraft.core.component.DataComponents.ITEM_MODEL),
+                            a.entityTags()));
+                }
+            });
+        }
+        final int[] o = new int[3];
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            BlockPos b = player.blockPosition().above(30);
+            o[0] = b.getX();
+            o[1] = b.getY();
+            o[2] = b.getZ();
+            for (int dx = -18; dx <= 3; dx++) {
+                for (int dz = -7; dz <= 7; dz++) {
+                    for (int dy = -1; dy <= 8; dy++) {
+                        net.minecraft.world.level.block.state.BlockState state = net.minecraft.world.level.block.Blocks.AIR.defaultBlockState();
+                        if (dy == -1 && dx >= -2) {
+                            state = net.minecraft.world.level.block.Blocks.STONE.defaultBlockState();
+                        }
+                        if (dx == -16) {
+                            state = (dy == 1 && dz == 0 ? net.minecraft.world.level.block.Blocks.BLACK_CONCRETE
+                                    : net.minecraft.world.level.block.Blocks.WHITE_CONCRETE).defaultBlockState();
+                        }
+                        level.setBlock(b.offset(dx, dy, dz), state, 2);
+                    }
+                }
+            }
+            player.getAbilities().flying = false;
+            player.onUpdateAbilities();
+            player.teleportTo(level, b.getX() + 0.5, b.getY(), b.getZ() + 0.5, java.util.Set.of(), 90f, 0f, true);
+            com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
+            own.unlockClass(com.mki.nightsiege.core.SkillClass.ARCHER);
+            own.switchTo(com.mki.nightsiege.core.SkillClass.ARCHER);
+            own.levels.clear();
+            own.levels.put("archer_focus", 1);
+            own.levels.put("heavy_bolts", 3);
+            own.levels.put("shrapnel", 1);
+            manager.kits().equip(player, 10);
+            net.minecraft.world.item.ItemStack xbow = net.minecraft.world.item.ItemStack.EMPTY;
+            for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+                net.minecraft.world.item.ItemStack s = player.getInventory().getItem(i);
+                if (s.getItem() instanceof net.minecraft.world.item.CrossbowItem) {
+                    xbow = s.copy();
+                    break;
+                }
+            }
+            player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, xbow);
+            System.out.println("[Night Siege test] bolter sub=" + manager.skillTree().subclassOf(own)
+                    + " way=" + own.pathTaken(manager.skillTree()) + " kit=" + manager.kits().hasStash(player)
+                    + " hand=" + net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(xbow.getItem())
+                    + " model=" + xbow.get(net.minecraft.core.component.DataComponents.ITEM_MODEL)
+                    + " enchants=" + xbow.getEnchantments());
+        });
+        context.runOnClient(client -> client.options.setCameraType(net.minecraft.client.CameraType.FIRST_PERSON));
+        context.getInput().lookAt(90.0f, 0.0f);
+        context.waitTicks(20);
+        bolterShot(context, o, "kit_stand", 0);
+        context.runOnClient(client -> client.options.keyShift.setDown(true));
+        context.waitTicks(15);
+        bolterShot(context, o, "kit_sneak", 0);
+        context.runOnClient(client -> client.options.keyShift.setDown(false));
+        context.waitTicks(15);
+        // Sneak pressed only just before the shot: the camera still comes down while the bolt leaves.
+        bolterShot(context, o, "kit_sneak_now", 2);
+        context.runOnClient(client -> client.options.keyShift.setDown(false));
+        context.waitTicks(15);
+        // A plain crossbow in a warrior's hand: no kit look, no archer skills (Minecraft alone).
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
+            own.unlockClass(com.mki.nightsiege.core.SkillClass.WARRIOR);
+            own.switchTo(com.mki.nightsiege.core.SkillClass.WARRIOR);
+            player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND,
+                    new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.CROSSBOW));
+        });
+        context.waitTicks(10);
+        bolterShot(context, o, "plain_stand", 0);
+        context.getInput().lookAt(90.0f, -10.0f);
+        context.waitTicks(5);
+        bolterShot(context, o, "plain_up10", 0);
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
+            own.switchTo(com.mki.nightsiege.core.SkillClass.ARCHER);
+            manager.kits().equip(player, 10);
+            for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+                net.minecraft.world.item.ItemStack s = player.getInventory().getItem(i);
+                if (s.getItem() instanceof net.minecraft.world.item.CrossbowItem) {
+                    player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, s.copy());
+                    break;
+                }
+            }
+        });
+        context.waitTicks(10);
+        bolterShot(context, o, "kit_up10", 0);
+        context.getInput().lookAt(90.0f, 0.0f);
+        context.waitTicks(5);
+    }
+
+    /**
+     * One crossbow shot: load by holding the use key, then (after {@code sneakFirst} ticks of fresh
+     * sneaking, when not 0) a click fires. Prints the flight on server and client and where it stuck.
+     */
+    private static void bolterShot(ClientGameTestContext context, int[] o, String label, int sneakFirst) {
+        onServer(context, (player, manager) -> {
+            for (net.minecraft.world.entity.Entity e : player.level().getEntities((net.minecraft.world.entity.Entity) null,
+                    player.getBoundingBox().inflate(40), e -> e instanceof net.minecraft.world.entity.projectile.arrow.AbstractArrow)) {
+                e.discard();
+            }
+        });
+        context.runOnClient(client -> client.options.keyUse.setDown(true));
+        context.waitTicks(36);
+        context.runOnClient(client -> client.options.keyUse.setDown(false));
+        context.waitTicks(10);
+        onServer(context, (player, manager) -> {
+            net.minecraft.world.item.component.ChargedProjectiles loaded = player.getMainHandItem()
+                    .get(net.minecraft.core.component.DataComponents.CHARGED_PROJECTILES);
+            System.out.println("[Night Siege test] bolt " + label + " loaded=" + (loaded != null && !loaded.isEmpty()));
+        });
+        if (sneakFirst > 0) {
+            context.runOnClient(client -> client.options.keyShift.setDown(true));
+            context.waitTicks(sneakFirst);
+        }
+        context.runOnClient(client -> {
+            net.minecraft.world.phys.Vec3 eye = client.player.getEyePosition();
+            System.out.println(String.format(Locale.ROOT,
+                    "[Night Siege test] bolt %s client before eye=%.3f/%.3f/%.3f pitch=%.1f yaw=%.1f crouch=%s",
+                    label, eye.x, eye.y, eye.z, client.player.getXRot(), client.player.getYRot(), client.player.isCrouching()));
+        });
+        BOLT_WATCH = true;
+        net.minecraft.client.KeyMapping use = context.computeOnClient(client -> client.options.keyUse);
+        context.getInput().pressKey(use);
+        for (int t = 1; t <= 7; t++) {
+            context.waitTicks(1);
+            final int tick = t;
+            onServer(context, (player, manager) -> {
+                StringBuilder line = new StringBuilder(String.format(Locale.ROOT, "[Night Siege test] bolt %s t=%d server:", label, tick));
+                for (net.minecraft.world.entity.Entity e : player.level().getEntities((net.minecraft.world.entity.Entity) null,
+                        player.getBoundingBox().inflate(40), e -> e instanceof net.minecraft.world.entity.projectile.arrow.AbstractArrow)) {
+                    line.append(String.format(Locale.ROOT, " %.2f/%.3f/%.2f v=%.2f/%.3f/%.2f%s", e.getX(), e.getY(), e.getZ(),
+                            e.getDeltaMovement().x, e.getDeltaMovement().y, e.getDeltaMovement().z,
+                            ((com.mki.nightsiege.mixin.ArrowAccessor) e).nightsiege$isInGround() ? " stuck" : ""));
+                }
+                System.out.println(line);
+            });
+            context.runOnClient(client -> {
+                StringBuilder line = new StringBuilder(String.format(Locale.ROOT, "[Night Siege test] bolt %s t=%d client:", label, tick));
+                for (net.minecraft.world.entity.Entity e : client.level.getEntities((net.minecraft.world.entity.Entity) null,
+                        client.player.getBoundingBox().inflate(40), e -> e instanceof net.minecraft.world.entity.projectile.arrow.AbstractArrow)) {
+                    line.append(String.format(Locale.ROOT, " %.2f/%.3f/%.2f", e.getX(), e.getY(), e.getZ()));
+                }
+                System.out.println(line);
+            });
+            if (t == 1) {
+                context.takeScreenshot("bolt_" + label + "_flight");
+            }
+        }
+        BOLT_WATCH = false;
+        context.waitTicks(8);
+        onServer(context, (player, manager) -> {
+            net.minecraft.world.phys.Vec3 eye = player.getEyePosition();
+            net.minecraft.world.phys.Vec3 look = player.getLookAngle();
+            double wall = o[0] - 15;   // the wall's face towards the player
+            double t = (wall - eye.x) / look.x;
+            double wantY = eye.y + look.y * t;
+            double wantZ = eye.z + look.z * t;
+            for (net.minecraft.world.entity.Entity e : player.level().getEntities((net.minecraft.world.entity.Entity) null,
+                    player.getBoundingBox().inflate(40), e -> e instanceof net.minecraft.world.entity.projectile.arrow.AbstractArrow)) {
+                System.out.println(String.format(Locale.ROOT,
+                        "[Night Siege test] bolt %s result: stuck=%s at=%.2f/%.3f/%.3f crosshair=%.3f/%.3f below-crosshair=%.3f side=%.3f",
+                        label, ((com.mki.nightsiege.mixin.ArrowAccessor) e).nightsiege$isInGround(), e.getX(), e.getY(), e.getZ(),
+                        wantY, wantZ, wantY - e.getY(), e.getZ() - wantZ));
+            }
+        });
+        context.takeScreenshot("bolt_" + label + "_hit");
     }
 
     /**
