@@ -333,7 +333,11 @@ public final class SiegeManager {
             syncSchedulerToSave();
             persist();
         });
-        ServerTickEvents.END_SERVER_TICK.register(server -> onEndTick(server));
+        ServerTickEvents.START_SERVER_TICK.register(server -> tickStartNanos = System.nanoTime());
+        ServerTickEvents.END_SERVER_TICK.register(server -> {
+            onEndTick(server);
+            noteTickLoad();
+        });
         NightDamage.exclude(camp::covers);   // the war camp is not the night's to mend
         // Object parameters keep these handlers compiling across Fabric versions.
         ServerLivingEntityEvents.AFTER_DEATH.register((entity, source) -> onDeath(entity, source));
@@ -655,8 +659,33 @@ public final class SiegeManager {
     // main loop
     // ------------------------------------------------------------------
 
+    /** When the running server tick began (for the load in the logger, 30.10.). */
+    private long tickStartNanos;
+    private int loadTicks;
+
+    /** The night's load for the logger: the tick's time, the monsters alive, once a second all mobs. */
+    private void noteTickLoad() {
+        if (!active || world == null || tickStartNanos == 0L) {
+            return;
+        }
+        double ms = (System.nanoTime() - tickStartNanos) / 1_000_000.0;
+        int all = -1;
+        if (++loadTicks % 20 == 0) {
+            all = 0;
+            for (Entity e : world.getAllEntities()) {
+                if (e instanceof Mob) {
+                    all++;
+                }
+            }
+        }
+        int mobsAll = all;
+        safe("Statistik", () -> stats.tickLoad(ms, liveMobs.size(), mobsAll));
+    }
+
     private void onEndTick(MinecraftServer server) {
         tickModCheck(server);
+        safe("Wächter-Schutz", () -> TankGuard.tick(server, config,
+                p -> skillTree.subclassOf(save.skillsOf(p.getUUID().toString()))));
         safe("Reparatur", () -> NightDamage.tick(server));
         MeleeSim.tick(server);
         TeamSim.tick(server);
@@ -1322,6 +1351,9 @@ public final class SiegeManager {
     /** Siege monsters killed this night, spawned this night, and the kills the night asks for. */
     private int nightKills;
     private int spawnedTotal;
+    /** Monsters of the night gone without being slain (quotaSkipsVanished, 29.10.). */
+    private int vanishedTotal;
+    private final Set<UUID> slainNightMobs = new HashSet<>();
     private int killQuota;
     /**
      * The kill goal moves with what can still come (Simon, 26 October 2026: keep the sum, but
@@ -1711,6 +1743,8 @@ public final class SiegeManager {
         });
         nightKills = 0;
         spawnedTotal = 0;
+        vanishedTotal = 0;
+        slainNightMobs.clear();
         shownRequired = -1;
         goalDown = null;
         goalUp = null;
@@ -2363,7 +2397,9 @@ public final class SiegeManager {
 
         @Override
         public void forget(UUID id) {
-            liveMobs.remove(id);
+            if (liveMobs.remove(id)) {
+                noteVanished(id);
+            }
             digger.forget(id);
             ladders.forget(id);
         }
@@ -2808,8 +2844,11 @@ public final class SiegeManager {
 
     /** Monsters one wave brings with the defenders there now. */
     private int wantedPerWave() {
-        return (int) Math.round(SiegeMath.mobsPerBatch(siegeLevel, Math.max(1, participants.size()), config,
-                        config.perPlayer(playtest.running(), config.playerScaling), maxLive())
+        int players = Math.max(1, participants.size());
+        double perPlayer = config.perPlayer(playtest.running(), config.playerScaling);
+        // What the cap leaves out comes as life (per-player scaling, 29 October 2026).
+        overflowHealth = SiegeMath.overflowHealthFactor(SiegeMath.mobsWanted(siegeLevel, players, config, perPlayer), maxLive(), config);
+        return (int) Math.round(SiegeMath.mobsPerBatch(siegeLevel, players, config, perPlayer, maxLive())
                 * currentEvent.mobCountMultiplier(config) * (save.specialNight ? config.specialNightMobMultiplier : 1.0)
                 * Curses.mobFactor());
     }
@@ -2828,7 +2867,8 @@ public final class SiegeManager {
      * waves small, and then fewer kills are needed).
      */
     public int killsRequired() {
-        return SiegeMath.killsRequired(config.killQuotaShare, killQuota, spawnedTotal,
+        int counted = config.quotaSkipsVanished ? spawnedTotal - vanishedTotal : spawnedTotal;
+        return SiegeMath.killsRequired(config.killQuotaShare, killQuota, Math.max(0, counted),
                 plannedWaves() - wavesStarted, wantedPerWave());
     }
 
@@ -2969,6 +3009,16 @@ public final class SiegeManager {
         }
     }
 
+    /** A monster of the night left the field: slain, or gone without a kill (blown up, fled …). */
+    private void noteVanished(UUID id) {
+        if (!slainNightMobs.remove(id)) {
+            vanishedTotal++;
+            if (config.quotaSkipsVanished) {
+                goalDown = Component.translatable("nightsiege.bar.goal_vanished");
+            }
+        }
+    }
+
     private void pruneMobs() {
         Iterator<UUID> it = liveMobs.iterator();
         while (it.hasNext()) {
@@ -2978,6 +3028,7 @@ public final class SiegeManager {
                 digger.forget(id);
                 ladders.forget(id);
                 it.remove();
+                noteVanished(id);
             }
         }
     }
@@ -3088,8 +3139,19 @@ public final class SiegeManager {
 
     public float damageTakenFactor(ServerPlayer player) {
         PlayerSkills skills = save.skillsOf(player.getUUID().toString());
+        // A lone defender of a night takes soloDamageTaken of it (per-player scaling, 29 October 2026).
+        double solo = active && participants.contains(player.getUUID())
+                ? SiegeMath.damageTakenForGroup(participants.size(), config) : 1.0;   // by group size (29.10.)
         return (float) (config.damageTakenFactor(skills.className(), skillTree.subclassOf(skills))
-                * config.lowLevelTaken(currentLevel()));   // the low levels are a little kinder (28.10.)
+                * config.lowLevelTaken(currentLevel()) * solo);   // the low levels are a little kinder (28.10.)
+    }
+
+    /** Life factor of tonight's monsters for the ones the cap left out (overflowHealth); 1 outside a night. */
+    private double overflowHealth = 1.0;
+
+    public double overflowHealthFactor() {
+        // and the life by group size (mobHealthByPlayers, 29.10.)
+        return active ? overflowHealth * SiegeMath.healthForGroup(Math.max(1, participants.size()), config) : 1.0;
     }
 
     /** True while a playtest runs (its nights, camps and dungeons scale per player, Simon 28.10.). */
@@ -3100,7 +3162,7 @@ public final class SiegeManager {
     /** Monsters alive at once at most: in a playtest the cap grows with the players. */
     public int maxLive() {
         if (!playtest.running()) {
-            return config.maxLiveMobs;
+            return SiegeMath.liveCap(Math.max(1, participants.size()), config);   // livePerPlayer, 29.10.
         }
         int players = Math.max(1, participants.size());
         return (int) Math.min(120, Math.round(config.maxLiveMobs * (1.0 + config.playtestLivePerPlayer * (players - 1))));
@@ -3783,6 +3845,7 @@ public final class SiegeManager {
         }
         if (active && entity instanceof Mob killed && liveMobs.contains(killed.getUUID())) {
             nightKills++;
+            slainNightMobs.add(killed.getUUID());
             safe("Statistik", () -> stats.mobDied(killed, source));
             // A monster of the night can be raised by a summoner of the dead; souls for those near.
             safe("Seelen", () -> companions.onMonsterDeath(killed, false));

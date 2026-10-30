@@ -330,6 +330,51 @@ public final class Companions {
         }
     }
 
+    /** When the golemsmith's golem may draw his attackers again (Simon 30.10.). */
+    private static final Map<UUID, Long> GOLEM_GUARD_READY = new HashMap<>();
+
+    /**
+     * The golem guards its smith (Simon 30.10.): when a monster hits the golemsmith, his golem
+     * draws the hitter and the monsters around him onto itself for the taunt time, every 8 s at most.
+     */
+    public static void ownerHurt(ServerPlayer owner, Entity attacker) {
+        if (instance == null || !(owner.level() instanceof ServerLevel level) || !(attacker instanceof Mob hitter)
+                || !(hitter instanceof Enemy) || isCompanion(hitter)) {
+            return;
+        }
+        long now = level.getGameTime();
+        Long ready = GOLEM_GUARD_READY.get(owner.getUUID());
+        if (ready != null && now < ready) {
+            return;
+        }
+        Mob golem = null;
+        double reach = v("s_golemsmith", "guardreach", 24.0);
+        for (Mob m : mobsOf(level, owner.getUUID())) {
+            Companion c = ALL.get(m.getUUID());
+            if (c != null && c.kind == Kind.GOLEM && m.isAlive() && m.distanceToSqr(owner) <= reach * reach) {
+                golem = m;
+                break;
+            }
+        }
+        if (golem == null) {
+            return;
+        }
+        GOLEM_GUARD_READY.put(owner.getUUID(), now + Math.round(v("s_golemsmith", "guardevery", 160)));
+        if (GOLEM_GUARD_READY.size() > 200) {
+            GOLEM_GUARD_READY.values().removeIf(t -> t < now);
+        }
+        long ticks = Math.round(v("s_golemsmith", "taunttime", 60));
+        double r = v("s_golemsmith", "guardradius", 4.0);
+        tauntTo(level, hitter, golem, ticks);
+        for (Mob foe : level.getEntitiesOfClass(Mob.class, owner.getBoundingBox().inflate(r, 2.0, r),
+                e -> e instanceof Enemy && e.isAlive() && !isCompanion(e))) {
+            tauntTo(level, foe, golem, ticks);
+        }
+        level.sendParticles(ParticleTypes.ANGRY_VILLAGER, golem.getX(), golem.getY() + golem.getBbHeight(), golem.getZ(),
+                4, 0.4, 0.2, 0.4, 0.0);
+        level.playSound(null, golem.blockPosition(), SoundEvents.IRON_GOLEM_ATTACK, SoundSource.NEUTRAL, 1.0f, 0.7f);
+    }
+
     /** A monster turns on a companion for a while (the taunt and the golem's mockery). */
     private static void tauntTo(ServerLevel level, Mob foe, Mob guard, long ticks) {
         if (foe.getTarget() == guard) {

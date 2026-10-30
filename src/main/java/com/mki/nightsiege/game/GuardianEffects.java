@@ -177,6 +177,8 @@ public final class GuardianEffects {
         }
         if (tuning != null && victim instanceof ServerPlayer hurt && source.getEntity() instanceof Enemy) {
             outside *= tuning.damageTakenFactor(hurt);
+            outside *= TankGuard.damageFactor(hurt);   // a bulwark or shield fighter near (Simon 30.10.)
+            Companions.ownerHurt(hurt, source.getEntity());   // the golem draws the golemsmith's attackers
             if (source.is(DamageTypeTags.IS_PROJECTILE)) {
                 if (TrapService.shieldBlocks(hurt)) {
                     return 0f;   // the tower shield (crate gain) takes the shot whole

@@ -43,6 +43,8 @@ final class TeamBrain {
 
     /** How far a melee bot leaves its post for a monster. */
     static final double LEASH = 7.0;
+    /** How far the boldest bot goes out for a monster. */
+    static final double BOLD_LEASH = 22.0;
     /** Blocks a bot steps per tick (about a player's walking pace). */
     private static final double STEP = 0.22;
 
@@ -65,6 +67,15 @@ final class TeamBrain {
      * late. 1 is the perfect bot of before; real players are calibrated against the logger's nights.
      */
     final double skill;
+    /**
+     * How boldly this bot plays (calibration knob "wagemut", 0–1): how far melee, tanks, healers and
+     * summoners leave their post for a monster, from {@link #LEASH} (0, the careful bot of before)
+     * up to {@link #BOLD_LEASH} (1). Real players fight far out in front of the gate (logger 29.10.:
+     * they take 2–4 times the damage of bots that hold their posts).
+     */
+    final double boldness;
+    /** This bot's leash: {@link #LEASH} to {@link #BOLD_LEASH}, by its boldness. */
+    private final double leash;
     private final Random rnd;
     private boolean focused = true;
     private long nextFocus;
@@ -75,14 +86,19 @@ final class TeamBrain {
     private int slotTurn;
     private boolean trapsSet;
     private final List<BlockPos> towers = new ArrayList<>();
+    /** The demolition man's mortars: they only fire onto a spot set with the spotter (30.10.: bots never set one). */
+    private final List<BlockPos> mortars = new ArrayList<>();
+    private long nextAim;
 
     TeamBrain(UUID id, String[] sub) {
-        this(id, sub, 1.0, 0L);
+        this(id, sub, 1.0, 0.0, 0L);
     }
 
-    TeamBrain(UUID id, String[] sub, double skill, long seed) {
+    TeamBrain(UUID id, String[] sub, double skill, double boldness, long seed) {
         this.id = id;
         this.skill = Math.max(0.05, Math.min(1.0, skill));
+        this.boldness = Math.max(0.0, Math.min(1.0, boldness));
+        this.leash = LEASH + (BOLD_LEASH - LEASH) * this.boldness;
         this.rnd = new Random(seed);
         this.clazz = SkillClass.valueOf(sub[0]);
         this.subNode = sub[1];
@@ -117,6 +133,8 @@ final class TeamBrain {
         slotTurn = 0;
         trapsSet = false;
         towers.clear();
+        mortars.clear();
+        nextAim = now + iv(60);
     }
 
     /** In the preparation: the engineer sets every trap of his kit around his post. */
@@ -147,6 +165,9 @@ final class TeamBrain {
                 stack.shrink(1);
                 if (isTower(kind)) {
                     towers.add(pos);
+                }
+                if (kind == TrapKind.MORTAR) {
+                    mortars.add(pos);
                 }
             }
         }
@@ -199,19 +220,19 @@ final class TeamBrain {
         boolean bulwark = SkillTree.SUB_BULWARK.equals(m.skillTree().subclassOf(skills));
         Vec3 home = Vec3.atBottomCenterOf(post);
         boolean melee = role == Role.TANK || role == Role.MELEE || role == Role.HEALER || role == Role.SUMMONER;
-        if (player.isInWall() || player.position().distanceToSqr(home) > (melee ? (LEASH + 3) * (LEASH + 3) : 9.0)) {
-            stand(player, level);   // pushed into a wall or too far away: back to the post
+        if (player.isInWall() || player.isInLava() || player.position().distanceToSqr(home) > (melee ? (leash + 3) * (leash + 3) : 9.0)) {
+            stand(player, level);   // pushed into a wall, into lava or too far away: back to the post
         }
-        Mob close = MeleeSim.nearest(level, player, melee ? LEASH + 4 : 10.0);
+        Mob close = MeleeSim.nearest(level, player, melee ? leash + 4 : 10.0);
         Mob far = MeleeSim.nearest(level, player, 32.0);
         double reach = player.getAttributeValue(Attributes.ENTITY_INTERACTION_RANGE);
         boolean inReach = close != null && player.distanceTo(close) <= reach + 0.3;
 
         // Melee: a few steps towards the monster, never further than the leash from the post.
-        if (melee && focused && close != null && !inReach && close.position().distanceTo(home) <= LEASH + 2) {
-            stepTowards(player, level, close.position(), home);
+        if (melee && focused && close != null && !inReach && close.position().distanceTo(home) <= leash + 2) {
+            stepTowards(player, level, close.position(), home, leash);
         } else if (melee && close == null && player.position().distanceToSqr(home) > 2.0) {
-            stepTowards(player, level, home, home);
+            stepTowards(player, level, home, home, leash);
         }
 
         if (clazz == SkillClass.SUMMONER && focused && now >= nextStaff) {
@@ -221,6 +242,17 @@ final class TeamBrain {
         if (clazz == SkillClass.ENGINEER && now >= nextRemote && !towers.isEmpty()) {
             nextRemote = now + iv(200);
             m.kits().traps().useRemote(player, towers.get((int) ((now / 200) % towers.size())), true);   // overcharge
+        }
+        // Like a player with the spotter: every few seconds the mortars onto the nearest monster.
+        if (!mortars.isEmpty() && focused && now >= nextAim) {
+            Mob target = far != null ? far : MeleeSim.nearest(level, player, 44.0);
+            if (target != null) {
+                nextAim = now + iv(200);
+                BlockPos spot = target.blockPosition().below();
+                for (BlockPos mortar : mortars) {
+                    m.trapService().setAim(level, mortar, spot);
+                }
+            }
         }
         if (role == Role.HEALER && focused && now >= nextHeal) {
             nextHeal = now + iv(20);
@@ -343,7 +375,7 @@ final class TeamBrain {
     }
 
     /** One small step towards {@code target}, on standable ground, never beyond the leash. */
-    private static void stepTowards(ServerPlayer player, ServerLevel level, Vec3 target, Vec3 home) {
+    private static void stepTowards(ServerPlayer player, ServerLevel level, Vec3 target, Vec3 home, double leash) {
         Vec3 here = player.position();
         Vec3 d = new Vec3(target.x - here.x, 0, target.z - here.z);
         double len = d.length();
@@ -351,7 +383,7 @@ final class TeamBrain {
             return;
         }
         Vec3 next = here.add(d.scale(Math.min(STEP, len) / len));
-        if (next.distanceTo(home) > LEASH) {
+        if (next.distanceTo(home) > leash) {
             return;
         }
         // Only the column the step goes into, at most one block up or down (like walking). Before,
@@ -367,8 +399,8 @@ final class TeamBrain {
                 break;
             }
         }
-        if (spot == null) {
-            return;
+        if (spot == null || dangerous(level, spot)) {
+            return;   // a player who knows his base does not step next to lava or fire
         }
         double y = spot.getY();
         // The whole body must be free there (a player is 0.6 wide), not only the block in the middle.
@@ -384,11 +416,33 @@ final class TeamBrain {
     /** For the log: a short line about this bot. */
     String describe() {
         return subclass + "@" + (post == null ? "-" : post.toShortString()) + (gate >= 0 ? " Tor " + gate : "")
-                + (skill < 1.0 ? String.format(java.util.Locale.ROOT, " k%.2f", skill) : "");
+                + (skill < 1.0 ? String.format(java.util.Locale.ROOT, " k%.2f", skill) : "")
+                + (boldness > 0 ? String.format(java.util.Locale.ROOT, " w%.2f", boldness) : "");
     }
 
     static void log(String line) {
         NightSiegeMod.LOGGER.info(line);
+    }
+
+    /**
+     * True if lava, fire, magma or a campfire is at or under a spot or right beside it: bots keep
+     * one block away, as players who know their base do (the copy of Simon's castle has lava in the floor).
+     */
+    static boolean dangerous(ServerLevel level, BlockPos spot) {
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                for (int dy = -1; dy <= 0; dy++) {
+                    BlockState state = level.getBlockState(spot.offset(dx, dy, dz));
+                    if (state.getFluidState().is(net.minecraft.tags.FluidTags.LAVA)
+                            || state.is(net.minecraft.tags.BlockTags.FIRE)
+                            || state.is(net.minecraft.world.level.block.Blocks.MAGMA_BLOCK)
+                            || state.is(net.minecraft.tags.BlockTags.CAMPFIRES)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     /** True if the block is one the bot can walk through (air, plants, open doors and the like). */

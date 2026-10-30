@@ -171,6 +171,10 @@ public final class MobFactory {
             damageMul *= cfg.eliteDamageMultiplier;
         }
         healthMul *= Curses.healthFactor();   // the curse "Zähe Brut" (update 2)
+        SiegeManager sm = SiegeManager.get();
+        if (sm != null) {
+            healthMul *= sm.overflowHealthFactor();   // monsters the cap left out come as life (29.10.)
+        }
 
         AttributeInstance health = mob.getAttribute(Attributes.MAX_HEALTH);
         if (health != null) {

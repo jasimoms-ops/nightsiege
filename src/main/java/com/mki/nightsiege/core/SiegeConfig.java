@@ -65,6 +65,40 @@ public class SiegeConfig {
     public double mobsPerLevel = 1.0;
     /** Each additional player multiplies the batch size by this much. */
     public double playerScaling = 0.6;
+    /**
+     * Per-player scaling (Simon, 29 October 2026: "wir brauchen ein besseres Scaling pro Spieler"):
+     * the first player's share of a wave. The batch is the level's monsters times
+     * (soloScaling + playerScaling × further players). 1 = as before.
+     */
+    public double soloScaling = 1.0;
+    /** Normal nights: the cap of live monsters grows by this share of itself for every further player (0 = as before). */
+    public double livePerPlayer = 0.0;
+    /** The highest cap of live monsters however many play (Simon 29.10.: 120 should run fine). */
+    public int maxLiveMobsCap = 120;
+    /**
+     * Monsters a wave wants beyond the cap come as life instead: every monster gets
+     * 1 + overflowHealth × (wanted ÷ cap − 1) times its life. 0 = off (as before).
+     */
+    public double overflowHealth = 0.0;
+    /** Night: a lone defender takes this share of the monsters' damage (1 = as before). */
+    public double soloDamageTaken = 1.0;
+    /**
+     * Normal nights: the cap of live monsters by group size, for 1, 2, 3 … players (team sim 29.10.:
+     * small groups need fewer monsters per head, big ones more, so no straight line fits). Past the
+     * end of the list every further player adds liveCapStep. Empty: maxLiveMobs × (1 + livePerPlayer × further).
+     */
+    public List<Integer> liveCapByPlayers = new ArrayList<>();
+    public int liveCapStep = 8;
+    /**
+     * Night: the share of the monsters' damage a defender takes by group size, for 1, 2, 3 … players;
+     * past the end of the list its last value. Empty: soloDamageTaken alone, 1 from two players.
+     */
+    public List<Double> damageTakenByPlayers = new ArrayList<>();
+    /**
+     * Night: life of the monsters by group size, for 1, 2, 3 … players (team sim 29.10.: alone or
+     * two, the night is lost on kills, not on the castle); past the end its last value. Empty: 1.
+     */
+    public List<Double> mobHealthByPlayers = new ArrayList<>();
     public int maxLiveMobs = 40;
     public int batchIntervalSeconds = 38;
     /**
@@ -712,6 +746,12 @@ public class SiegeConfig {
     public double specialNightMobMultiplier = 1.3;
     /** Share of the night's monsters the defenders must kill; a held night below it comes again. 0 turns it off. */
     public double killQuotaShare = 0.6;
+    /**
+     * The kill goal leaves out monsters gone without being slain: blown-up creepers, a fleeing
+     * nemesis, … (team sim 29.10.: alone, half of all spawned monsters went that way, and the 60 %
+     * goal could hardly be reached). Off: every spawned monster counts, as before.
+     */
+    public boolean quotaSkipsVanished = false;
     /** Balancing targets for /nightsiege balance: share of nights won, of held nights with the kill goal, deaths per night, allowed spread of subclass damage. */
     public double targetWinRate = 0.75;
     // ---------------- Balancing on the server (no new client needed) ----------------
@@ -725,6 +765,17 @@ public class SiegeConfig {
     public Map<String, Double> classDamageTaken = new LinkedHashMap<>();
     public Map<String, Double> subclassDamage = new LinkedHashMap<>();
     public Map<String, Double> subclassDamageTaken = new LinkedHashMap<>();
+    /**
+     * Wächter-Schutz (Simon 30.10.): teammates within the radius of a bulwark or shield fighter take
+     * this share less damage from monsters and this share less knockback. Only the strongest tank
+     * near a player counts; it works wherever there is fighting. 0 switches it off.
+     */
+    public double bulwarkGuardRadius = 6.0;
+    public double bulwarkGuardDamage = 0.15;
+    public double bulwarkGuardKnockback = 0.5;
+    public double shieldfighterGuardRadius = 5.0;
+    public double shieldfighterGuardDamage = 0.10;
+    public double shieldfighterGuardKnockback = 0.3;
     /** Factor on the healing and barriers players of this subclass give (Simon 27.10.: the medic 3.8/s). */
     public Map<String, Double> subclassHealing = new LinkedHashMap<>();
     /** Per skill id: new values for its amount per level, base cost, cost step or highest level. */
@@ -835,6 +886,46 @@ public class SiegeConfig {
     }
 
     /** A server tweak of a skill value, if the server set one, times {@code by}. */
+    // The class balancing of update 30.10. (subclass -> new factor; skill, value, new number).
+    private static final Map<String, Double> UPDATE_17_DAMAGE = new LinkedHashMap<>();
+    private static final Map<String, Double> UPDATE_17_TAKEN = new LinkedHashMap<>();
+    private static final Map<String, Double> UPDATE_17_HEALING = new LinkedHashMap<>();
+    private static final List<String[]> UPDATE_17_TWEAKS = new ArrayList<>();
+
+    static {
+        UPDATE_17_DAMAGE.put("axe", 1.1);
+        UPDATE_17_DAMAGE.put("paladin", 1.1);
+        UPDATE_17_DAMAGE.put("bulwark", 0.63);
+        UPDATE_17_DAMAGE.put("alchemist", 0.9);
+        UPDATE_17_DAMAGE.put("gunner", 0.78);
+        UPDATE_17_DAMAGE.put("electrician", 1.5);
+        UPDATE_17_DAMAGE.put("necromancer", 0.87);
+        UPDATE_17_TAKEN.put("golemsmith", 0.8);
+        UPDATE_17_TAKEN.put("soulcatcher", 0.85);
+        UPDATE_17_HEALING.put("medic", 1.8);
+        UPDATE_17_TWEAKS.add(new String[] {"smite", "hp", "0"});
+        UPDATE_17_TWEAKS.add(new String[] {"w_vow", "radius", "8"});
+        UPDATE_17_TWEAKS.add(new String[] {"holy_light", "heal", "8"});
+        UPDATE_17_TWEAKS.add(new String[] {"w_holy_strike", "heal", "2"});
+        UPDATE_17_TWEAKS.add(new String[] {"d_soulcatcher", "swarmcd", "80"});
+        // The alchemist's potion tower does not go through subclassDamage (klassen3: +6 % instead of -22 %):
+        // its hit and the poison's ticks -22 % themselves.
+        UPDATE_17_TWEAKS.add(new String[] {"potion_tower", "hit", "7.8"});
+        UPDATE_17_TWEAKS.add(new String[] {"potion_tower", "poison", "62"});
+    }
+
+    /** Sets one named number of a skill on the server (a skill tweak value). */
+    private void setTweak(String node, String key, double value) {
+        if (skillTweaks == null) {
+            skillTweaks = new LinkedHashMap<>();
+        }
+        SkillTweak tweak = skillTweaks.computeIfAbsent(node, k -> new SkillTweak());
+        if (tweak.values == null) {
+            tweak.values = new LinkedHashMap<>();
+        }
+        tweak.values.put(key, value);
+    }
+
     private void scaleTweak(String node, String key, double by) {
         SkillTweak tweak = skillTweaks == null ? null : skillTweaks.get(node);
         if (tweak == null || tweak.values == null || tweak.values.get(key) == null) {
@@ -877,7 +968,7 @@ public class SiegeConfig {
      */
     public int settingsVersion = 0;
     /** The newest settings version (the migrations below end there). */
-    public static final int SETTINGS_VERSION = 16;
+    public static final int SETTINGS_VERSION = 17;
     /** Version of the dungeon list in this file. Older lists are replaced on load. */
     /** Which structures hold dungeons, how hard they are and what lives there. */
     /** Perks from core fragments work within this many blocks of the main core. */
@@ -1026,6 +1117,30 @@ public class SiegeConfig {
         lowLevelUntil = clamp(lowLevelUntil, 1, 100);
         rangedPushbackSeconds = Double.isNaN(rangedPushbackSeconds) ? 1.5 : clampDouble(rangedPushbackSeconds, 0.0, 10.0);
         maxLiveMobs = clamp(maxLiveMobs, 1, 500);
+        soloScaling = Double.isNaN(soloScaling) ? 1.0 : clampDouble(soloScaling, 0.1, 3.0);
+        livePerPlayer = Double.isNaN(livePerPlayer) ? 0.0 : clampDouble(livePerPlayer, 0.0, 3.0);
+        maxLiveMobsCap = clamp(maxLiveMobsCap, Math.max(1, maxLiveMobs), 500);
+        overflowHealth = Double.isNaN(overflowHealth) ? 0.0 : clampDouble(overflowHealth, 0.0, 3.0);
+        soloDamageTaken = Double.isNaN(soloDamageTaken) ? 1.0 : clampDouble(soloDamageTaken, 0.1, 2.0);
+        if (liveCapByPlayers == null) {
+            liveCapByPlayers = new ArrayList<>();
+        }
+        liveCapByPlayers.replaceAll(v -> v == null ? 1 : clamp(v, 1, 500));
+        liveCapStep = clamp(liveCapStep, 0, 100);
+        bulwarkGuardRadius = Double.isNaN(bulwarkGuardRadius) ? 6.0 : clampDouble(bulwarkGuardRadius, 0.0, 32.0);
+        bulwarkGuardDamage = Double.isNaN(bulwarkGuardDamage) ? 0.15 : clampDouble(bulwarkGuardDamage, 0.0, 0.9);
+        bulwarkGuardKnockback = Double.isNaN(bulwarkGuardKnockback) ? 0.5 : clampDouble(bulwarkGuardKnockback, 0.0, 1.0);
+        shieldfighterGuardRadius = Double.isNaN(shieldfighterGuardRadius) ? 5.0 : clampDouble(shieldfighterGuardRadius, 0.0, 32.0);
+        shieldfighterGuardDamage = Double.isNaN(shieldfighterGuardDamage) ? 0.10 : clampDouble(shieldfighterGuardDamage, 0.0, 0.9);
+        shieldfighterGuardKnockback = Double.isNaN(shieldfighterGuardKnockback) ? 0.3 : clampDouble(shieldfighterGuardKnockback, 0.0, 1.0);
+        if (damageTakenByPlayers == null) {
+            damageTakenByPlayers = new ArrayList<>();
+        }
+        damageTakenByPlayers.replaceAll(v -> v == null || Double.isNaN(v) ? 1.0 : clampDouble(v, 0.1, 2.0));
+        if (mobHealthByPlayers == null) {
+            mobHealthByPlayers = new ArrayList<>();
+        }
+        mobHealthByPlayers.replaceAll(v -> v == null || Double.isNaN(v) ? 1.0 : clampDouble(v, 0.1, 3.0));
         batchIntervalSeconds = Math.max(5, batchIntervalSeconds);
 
         healthPerLevel = Math.max(0.0, healthPerLevel);
@@ -1341,6 +1456,27 @@ public class SiegeConfig {
                 subclassDamageTaken.put("soulcatcher", 1.4 / 1.2);
             }
             settingsVersion = 16;
+        }
+        if (settingsVersion < 17) {
+            // Update 30.10. (Simon 30.10., 03:37: "bau ein update wenn alle tests abgeschlossen sind"):
+            // the night scales by group size (team sim skal3-skal5: about 70 % wins for 1-10 players),
+            // the kill goal leaves out monsters gone without a kill, and the class balancing (klassen3).
+            soloScaling = 0.6;
+            overflowHealth = 0.0;
+            liveCapByPlayers = new ArrayList<>(List.of(9, 15, 20, 33, 46, 58, 70, 82, 98, 114));
+            damageTakenByPlayers = new ArrayList<>(List.of(0.7, 0.9, 0.95, 1.0));
+            mobHealthByPlayers = new ArrayList<>(List.of(0.7, 0.9, 0.95, 1.0));
+            quotaSkipsVanished = true;
+            // The shield fighter stays as he was (klassen4: his group won 20 points less with -49 %
+            // damage; Simon: a class that swings too strongly stays out), so no guard of his either.
+            shieldfighterGuardRadius = 0.0;
+            UPDATE_17_DAMAGE.forEach(subclassDamage::put);
+            UPDATE_17_TAKEN.forEach(subclassDamageTaken::put);
+            UPDATE_17_HEALING.forEach(subclassHealing::put);
+            for (String[] t : UPDATE_17_TWEAKS) {
+                setTweak(t[0], t[1], Double.parseDouble(t[2]));
+            }
+            settingsVersion = 17;
         }
         if (Double.isNaN(meleeLifesteal)) {
             meleeLifesteal = 0.08;

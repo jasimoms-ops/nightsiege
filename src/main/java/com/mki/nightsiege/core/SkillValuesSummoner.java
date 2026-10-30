@@ -41,6 +41,9 @@ final class SkillValuesSummoner {
         def("s_golemsmith", "slamradius", 3.5);    // blocks
         def("s_golemsmith", "slamreach", 3.5);     // blocks to the ordered target before it slams
         def("s_golemsmith", "slamevery", 200);     // ticks
+        def("s_golemsmith", "guardevery", 160);    // ticks: the golem draws the smith's attackers at most every 8 s (Simon 30.10.)
+        def("s_golemsmith", "guardradius", 4.0);   // blocks around the smith whose monsters it draws
+        def("s_golemsmith", "guardreach", 24.0);   // blocks: only when the golem is no further from the smith
         def("s_alpha", "health", 2.0);             // factor
         def("s_alpha", "damage", 2.0);             // factor
         def("s_alpha", "size", 1.35);

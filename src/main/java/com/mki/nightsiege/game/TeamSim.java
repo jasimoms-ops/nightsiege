@@ -51,6 +51,13 @@ public final class TeamSim {
     static final String[] TEMPLATES = {"tank_heiler", "nur_schaden", "tanks_technik", "beschwoerer"};
     static final int[] DEFAULT_LEVELS = {1, 3, 5, 8, 10, 12, 15, 20};
     static final int[] DEFAULT_GROUPS = {1, 2, 4, 7, 10};
+    /**
+     * The bots as calibrated against the real nights of the logger (29 October 2026, run
+     * balance-run-eich2 on the copy of Simon's castle): alone 0.8 / bold fitted best, groups 0.6 / bold,
+     * so 0.7 and fully bold by default. "koennen=1 wagemut=0" is the perfect bot that holds its post.
+     */
+    static final double CALIBRATED_SKILL = 0.7;
+    static final double CALIBRATED_BOLDNESS = 1.0;
     /** The target of the balance (Simon 01:17: about 70 % wins on the group's own level). */
     public static final double TARGET = 0.70;
 
@@ -494,7 +501,8 @@ public final class TeamSim {
             bot.getFoodData().setFoodLevel(20);
             bot.getFoodData().setSaturation(5f);
             bot.getInventory().clearContent();
-            TeamBrain brain = new TeamBrain(bot.getUUID(), sub, skillOf(run.variant(), sub[0]),
+            TeamBrain brain = new TeamBrain(bot.getUUID(), sub, knob(run.variant(), sub[0], "koennen", CALIBRATED_SKILL),
+                    knob(run.variant(), sub[0], "wagemut", CALIBRATED_BOLDNESS),
                     seed(run.level(), run.group(), run.mix(), run.index()) * 31 + i);
             brains.put(bot.getUUID(), brain);
         }
@@ -742,7 +750,8 @@ public final class TeamSim {
                         BlockPos p = at.offset(dx, dy, dz);
                         if (TeamBrain.passable(level, p) && TeamBrain.passable(level, p.above())
                                 && !level.getBlockState(p.below()).getCollisionShape(level, p.below()).isEmpty()
-                                && level.getBlockState(p.below()).getFluidState().isEmpty()) {
+                                && level.getBlockState(p.below()).getFluidState().isEmpty()
+                                && !TeamBrain.dangerous(level, p)) {
                             return p;
                         }
                     }
@@ -776,20 +785,28 @@ public final class TeamSim {
      * the common one; 1 (the perfect bot) when nothing is set.
      */
     static double skillOf(String variant, String clazz) {
-        String own = "koennen." + clazz.toLowerCase(Locale.ROOT);
+        return knob(variant, clazz, "koennen", CALIBRATED_SKILL);
+    }
+
+    /**
+     * A bot knob ("koennen", "wagemut"): "<name>.<klasse>" before "<name>", the variant's before the
+     * common one, else the given default; always 0–1.
+     */
+    static double knob(String variant, String clazz, String name, double fallback) {
+        String own = name + "." + clazz.toLowerCase(Locale.ROOT);
         for (Map<String, String> over : List.of(variants.getOrDefault(variant, Map.of()), common)) {
-            for (String key : List.of(own, "koennen")) {
+            for (String key : List.of(own, name)) {
                 String v = over.get(key);
                 if (v != null) {
                     try {
-                        return Math.max(0.05, Math.min(1.0, Double.parseDouble(v)));
+                        return Math.max(0.0, Math.min(1.0, Double.parseDouble(v)));
                     } catch (NumberFormatException ignored) {
                         // fall through
                     }
                 }
             }
         }
-        return 1.0;
+        return fallback;
     }
 
     private static void applyConfig(SiegeManager m, Map<String, String> over) {
@@ -797,11 +814,21 @@ public final class TeamSim {
         for (Map.Entry<String, String> e : over.entrySet()) {
             String key = e.getKey();
             String value = e.getValue();
-            if (key.startsWith("koennen")) {
-                continue;   // the bots' skill, not a config value
+            if (key.startsWith("koennen") || key.startsWith("wagemut")) {
+                continue;   // the bots' knobs, not config values
             }
             try {
-                if (key.contains(".")) {
+                if (key.startsWith("sv.")) {
+                    // A skill value like a server skill tweak: sv.d_soulcatcher.swarmcd=80 (30.10.)
+                    String[] path = key.split("\\.", 3);
+                    backup.putIfAbsent("skillTweaks", copyTweaks(cfg.skillTweaks));
+                    SiegeConfig.SkillTweak t = cfg.skillTweaks.computeIfAbsent(path[1], k -> new SiegeConfig.SkillTweak());
+                    if (t.values == null) {
+                        t.values = new java.util.LinkedHashMap<>();
+                    }
+                    t.values.put(path[2], Double.parseDouble(value));
+                    com.mki.nightsiege.core.SkillValues.apply(cfg.skillTweaks);
+                } else if (key.contains(".")) {
                     String[] path = key.split("\\.", 2);
                     java.lang.reflect.Field f = cfg.getClass().getField(path[0]);
                     @SuppressWarnings("unchecked")
@@ -820,6 +847,16 @@ public final class TeamSim {
                         f.setInt(cfg, (int) Double.parseDouble(value));
                     } else if (f.getType() == boolean.class) {
                         f.setBoolean(cfg, Boolean.parseBoolean(value));
+                    } else if (List.class.isAssignableFrom(f.getType())) {
+                        // A list as numbers with "/" between them: liveCapByPlayers=8/12/20/30
+                        boolean ints = f.getGenericType().getTypeName().contains("Integer");
+                        List<Object> list = new ArrayList<>();
+                        for (String part : value.split("/")) {
+                            if (!part.isBlank()) {
+                                list.add(ints ? (Object) (int) Math.round(Double.parseDouble(part)) : (Object) Double.parseDouble(part));
+                            }
+                        }
+                        f.set(cfg, list);
                     }
                 }
             } catch (ReflectiveOperationException | RuntimeException ex) {
@@ -851,6 +888,28 @@ public final class TeamSim {
             }
         }
         backup.clear();
+        com.mki.nightsiege.core.SkillValues.apply(cfg.skillTweaks);   // the server's skill values again
+    }
+
+    /** A copy of the skill tweaks, so a variant's sv.… values can be taken back. */
+    private static Map<String, SiegeConfig.SkillTweak> copyTweaks(Map<String, SiegeConfig.SkillTweak> tweaks) {
+        Map<String, SiegeConfig.SkillTweak> copy = new java.util.LinkedHashMap<>();
+        if (tweaks != null) {
+            for (Map.Entry<String, SiegeConfig.SkillTweak> e : tweaks.entrySet()) {
+                SiegeConfig.SkillTweak t = e.getValue();
+                if (t == null) {
+                    continue;
+                }
+                SiegeConfig.SkillTweak c = new SiegeConfig.SkillTweak();
+                c.amount = t.amount;
+                c.cost = t.cost;
+                c.costStep = t.costStep;
+                c.maxLevel = t.maxLevel;
+                c.values = t.values == null ? null : new java.util.LinkedHashMap<>(t.values);
+                copy.put(e.getKey(), c);
+            }
+        }
+        return copy;
     }
 
     private static void run(MinecraftServer server, String command) {
