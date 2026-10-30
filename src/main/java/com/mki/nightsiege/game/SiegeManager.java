@@ -3190,7 +3190,8 @@ public final class SiegeManager {
                 * bossDamageFactor(attacker)   // the warlord's banner
                 * Foes.bannerFactor(attacker)   // a standard bearer's aura (update 1)
                 * Curses.damageFactor()   // the curse "Blutdurst" (update 2)
-                * Nemesis.damageFactor(attacker));   // a nemesis hits harder
+                * Nemesis.damageFactor(attacker)   // a nemesis hits harder
+                * (active && liveMobs.contains(attacker.getUUID()) ? fieldFactor(config.fieldDamage) : 1.0));   // Feld-Stärke (30.10.)
     }
 
     /** Zombies and spiders against warriors and guardians (config zombieSpiderVsMelee, Simon 25 October 2026). */
@@ -3215,7 +3216,17 @@ public final class SiegeManager {
 
     public double overflowHealthFactor() {
         // and the life by group size (mobHealthByPlayers, 29.10.)
-        return active ? overflowHealth * SiegeMath.healthForGroup(Math.max(1, participants.size()), config) : 1.0;
+        return active ? overflowHealth * SiegeMath.healthForGroup(Math.max(1, participants.size()), config)
+                * fieldFactor(config.fieldHealth) : 1.0;   // Feld-Stärke (30.10.)
+    }
+
+    /** Feld-Stärke (Simon 30.10.): 1 + share × (reference field ÷ cap − 1) for tonight's group. */
+    private double fieldFactor(double share) {
+        if (!active || share <= 0) {
+            return 1.0;
+        }
+        double f = SiegeMath.fieldStrength(Math.max(1, participants.size()), maxLive(), config);
+        return 1.0 + share * (f - 1.0);
     }
 
     /** True while a playtest runs (its nights, camps and dungeons scale per player, Simon 28.10.). */

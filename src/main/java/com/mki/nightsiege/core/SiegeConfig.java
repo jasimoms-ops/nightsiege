@@ -111,6 +111,15 @@ public class SiegeConfig {
     public int refillCap = 40;
     /** Nachschub: ticks between two replacements (5 = up to four a second). */
     public int refillGapTicks = 5;
+    /**
+     * Feld-Stärke (Simon 30.10.: "maximal 70 Monster, danach Leben und Schaden skalieren"): the field each group
+     * size would hold without a lower cap (as liveCapByPlayers was). When the cap holds fewer, every monster
+     * of the night gets life × (1 + fieldHealth × (ref/cap − 1)) and damage × (1 + fieldDamage × (ref/cap − 1)).
+     * Empty: off.
+     */
+    public List<Integer> fieldRefCaps = new ArrayList<>();
+    public double fieldHealth = 0.0;
+    public double fieldDamage = 0.0;
     public int batchIntervalSeconds = 38;
     /**
      * The playtest (Simon, 28 October 2026: "equally hard with any number of players"): every further
@@ -1132,6 +1141,12 @@ public class SiegeConfig {
         livePerPlayer = Double.isNaN(livePerPlayer) ? 0.0 : clampDouble(livePerPlayer, 0.0, 3.0);
         maxLiveMobsCap = clamp(maxLiveMobsCap, Math.max(1, maxLiveMobs), 500);
         refillCap = clamp(refillCap, 1, 500);
+        if (fieldRefCaps == null) {
+            fieldRefCaps = new ArrayList<>();
+        }
+        fieldRefCaps.removeIf(v -> v == null || v < 1);
+        fieldHealth = Double.isNaN(fieldHealth) ? 0.0 : clampDouble(fieldHealth, 0.0, 3.0);
+        fieldDamage = Double.isNaN(fieldDamage) ? 0.0 : clampDouble(fieldDamage, 0.0, 3.0);
         refillGapTicks = clamp(refillGapTicks, 1, 400);
         overflowHealth = Double.isNaN(overflowHealth) ? 0.0 : clampDouble(overflowHealth, 0.0, 3.0);
         soloDamageTaken = Double.isNaN(soloDamageTaken) ? 1.0 : clampDouble(soloDamageTaken, 0.1, 2.0);
