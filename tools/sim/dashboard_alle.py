@@ -31,7 +31,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 ARTEN = [("kriegnormal", "Vergleich"), ("krieg", "Kriegsführer"), ("probe", "Probe"), ("burg", "Probe"),
          ("eich", "Eichung"), ("kalib", "Eichung"), ("skal", "Skalierung"), ("klassen", "Klassen"),
-         ("last", "Serverlast"), ("gross", "Großer Lauf")]
+         ("last", "Serverlast"), ("gross", "Großer Lauf"), ("bogen", "Klassen"), ("balance", "Balancing"),
+         ("final", "Balancing"), ("druck", "Spawn-Konzept"), ("max", "Spawn-Konzept")]
 BOT_KNOBS = ("koennen", "wagemut")
 # Vor dem grossen Lauf (gross1) spielten die Bots ohne Angabe perfekt und am Posten;
 # seitdem geeicht (Koennen 0,7, Wagemut 1, TeamSim.CALIBRATED_*).
@@ -83,12 +84,34 @@ def art_of(name):
 
 # Runs whose variants the commit message alone does not describe right (their "aktuell" was not the
 # server's config): the label shown on the page.
+PAKET = "Balancing-Paket 30.10. (Bogenschützen ×1,5, Alchemist, Klingenmeister, Axtkämpfer, Tierbändiger, Magier und Henker ab 11, Stufe 5 schwerer)"
 LABELS = {
+    "final1": {
+        "aktuell": "Schritt 1 mit Wellen: " + PAKET,
+        "nachschub": "Schritt 1 + Nachschub (Feld 6…38 je Spielerzahl, jedes gefallene Monster kommt sofort nach) + Feld-Stärke 0,5",
+    },
+    "druck1": {
+        "aktuell": "Wellen mit Klassen-Paket, Magier ab 11, Stufe 5 schwerer",
+        "nachschub": "Nachschub, Feld 6…38, ohne Feld-Stärke",
+        "nachschub_mittel": "Nachschub, Feld 6…38, Feld-Stärke 0,25",
+        "nachschub_stark": "Nachschub, Feld 6…38, Feld-Stärke 0,5",
+    },
+    "max70": {
+        "aktuell": "Wellen mit Klassen-Paket, Magier ab 11, Stufe 5 schwerer (Limit bis 114)",
+        "max70": "höchstens 70 Monster, kein Ausgleich",
+        "max70_leben": "höchstens 70, Leben nach Feld-Stärke ×1",
+        "max70_beides": "höchstens 70, Leben und Schaden nach Feld-Stärke je 0,5",
+    },
     "klassen4": {
         "aktuell": "Update-Stand (balance-2 + Skalierung + Creeper-Schalter) mit den alten Klassen-Werten",
         "klassen": "Update-Stand mit Klassen-Balance (Config-Migration 17; Schildkämpfer hier noch mit −49 %)",
     },
 }
+
+
+# Runs whose variant is the server's state although it carries values of its own (they came onto the
+# server by config afterwards): run -> variant.
+SERVER_STAND = {"bogen1": "aktuell", "balance1": "aktuell", "balance2": "aktuell"}
 
 
 def parse_team(msg):
@@ -178,6 +201,8 @@ def main():
             own_cfg = [kv for kv in own if kv.split("=")[0].split(".")[0] not in BOT_KNOBS]
             # "aktuell" with values of its own is not the server's state any more (klassen3, klassen4).
             server = vname == "aktuell" and not common_cfg and not own_cfg and kurz not in LABELS
+            if kurz in SERVER_STAND:
+                server = vname == SERVER_STAND[kurz]
             label = LABELS.get(kurz, {}).get(vname)
             if label:
                 text = label

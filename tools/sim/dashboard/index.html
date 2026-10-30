@@ -84,6 +84,7 @@
 
   <nav class="nb-tabs" role="tablist" aria-label="Seiten">
     <button type="button" role="tab" id="tab-ueberblick" data-tab="ueberblick" aria-controls="ueberblick">Überblick</button>
+    <button type="button" role="tab" id="tab-test" data-tab="test" aria-controls="test">Ausführlicher Test</button>
     <button type="button" role="tab" id="tab-vergleich" data-tab="vergleich" aria-controls="vergleich">Läufe vergleichen</button>
     <button type="button" role="tab" id="tab-klassen" data-tab="klassen" aria-controls="klassen">Klassen</button>
     <button type="button" role="tab" id="tab-abende" data-tab="abende" aria-controls="abende">Echte Abende</button>
@@ -461,6 +462,177 @@
       </div>
     </div>
   </section>
+  <!-- ===================== Ausführlicher Test ===================== -->
+  <section class="nb-section" id="test" role="tabpanel" aria-labelledby="tab-test" data-panel hidden>
+    <p class="nb-secnote">Ausführlicher Test des Balancings vom 30.10. (Lauf final1). Beide Varianten spielen dieselben Gruppen auf denselben Stufen. <b>Wellen</b> ist Schritt 1 des Balancings: Klassen-Paket, Magier und Henker erst ab Stufe 11, Stufe 5 etwas schwerer, die Monster kommen wie bisher in Wellen. <b>Nachschub</b> ist Schritt 1 und 2: Das Feld bleibt je Spielerzahl auf einem festen Stand, jedes gefallene Monster kommt sofort nach, und die Monster bekommen dafür mehr Leben und Schaden. Was genau drin ist, steht in der Tabelle darunter. Sieg heißt: Burg bis zum Morgen gehalten und Kill-Ziel erreicht. Weil der Nachschub hier etwas zu schwer war, ging er mit etwas schwächerer Feld-Stärke auf den Server; ein zweiter Test prüft das.</p>
+
+    <div class="nb-kpis">
+      <div class="nb-kpi"><span class="nb-big" data-draw="t-kpi-quote" data-source="test_varianten" data-field="siegquote" data-where="variante=nachschub">—</span><span class="nb-n">Siegquote mit Nachschub</span></div>
+      <div class="nb-kpi"><span class="nb-big" data-draw="t-kpi-quote-w" data-source="test_varianten" data-field="siegquote" data-where="variante=aktuell">—</span><span class="nb-n">Siegquote mit Wellen</span></div>
+      <div class="nb-kpi"><span class="nb-big" data-draw="t-kpi-ms" data-source="test_varianten" data-field="ms_tick_gross" data-where="variante=nachschub">—</span><span class="nb-n">ms je Tick mit Nachschub, größte Gruppe</span></div>
+      <div class="nb-kpi"><span class="nb-big" data-draw="t-kpi-ms-w" data-source="test_varianten" data-field="ms_tick_gross" data-where="variante=aktuell">—</span><span class="nb-n">ms je Tick mit Wellen, größte Gruppe</span></div>
+    </div>
+
+    <div class="nb-card" id="test-varianten">
+      <h3>Die beiden Varianten</h3>
+      <p class="nb-sub">Über alle Stufen und Teamgrößen. Serverlast in der Sim für die größte Gruppe; der echte Server braucht laut Lasttest vom 30.10. etwa 1,5- bis 2-mal so lange. Unter 50 ms je Tick läuft der Server ohne Lag.</p>
+      <div class="nb-tablebox">
+        <table class="nb-tbl" data-source="test_varianten" data-row-key="variante">
+          <thead>
+            <tr>
+              <th class="nb-l" data-field="variante">Variante</th>
+              <th data-field="testnaechte">Testnächte</th>
+              <th data-field="siegquote">Siegquote</th>
+              <th data-field="tode_je_nacht">Tode je Nacht</th>
+              <th data-field="kills_je_nacht">Kills je Nacht</th>
+              <th data-field="ms_tick_gross">ms je Tick (größte Gruppe)</th>
+              <th data-field="ueber50_gross">Ticks über 50 ms</th>
+              <th data-field="monster_max_gross">Monster gleichzeitig</th>
+              <th class="nb-l" data-field="beschreibung">Was drin ist</th>
+            </tr>
+          </thead>
+          <tbody data-draw="t-var-rows"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="nb-grid">
+      <div class="nb-card" id="test-spieler">
+        <h3>Siegquote je Teamgröße</h3>
+        <p class="nb-sub">Über alle Stufen. Grau: Wellen, farbig: Nachschub. Das helle Band ist 55–85 %, die gestrichelte Linie das Ziel.</p>
+        <div class="nb-chart" data-draw="t-spieler" data-source="test_spieler"></div>
+      </div>
+      <div class="nb-card" id="test-stufe">
+        <h3>Siegquote je Stufe</h3>
+        <p class="nb-sub">Über alle Teamgrößen. Grau: Wellen, farbig: Nachschub.</p>
+        <div class="nb-chart" data-draw="t-stufe" data-source="test_stufe"></div>
+      </div>
+      <div class="nb-card nb-wide" id="test-zellen">
+        <h3>Stufe × Teamgröße</h3>
+        <p class="nb-sub">Siegquote je Zelle, darunter die Zahl der Testnächte. Rot unter 55 %, blau über 85 %. Je Zelle sind es nur wenige Nächte, einzelne Felder schwanken deshalb stark.</p>
+        <div class="nb-controls">
+          <label for="nb-testvar">Variante</label>
+          <select id="nb-testvar" class="nb-testvar" aria-label="Variante für die Tabelle">
+            <option value="nachschub">Nachschub</option>
+            <option value="aktuell">Wellen</option>
+          </select>
+        </div>
+        <div class="nb-pivot" data-draw="t-zellen" data-source="test_zellen"></div>
+      </div>
+    </div>
+
+    <div class="nb-grid">
+      <div class="nb-card nb-wide" id="test-klassen">
+        <h3>Wie die Klassen abgeschnitten haben</h3>
+        <p class="nb-sub">Schaden als Anteil am Schnitt der Gruppe in derselben Nacht (1,00× = so viel wie der Schnitt). Beitrag: wie viel öfter eine zufällige Gruppe mit dieser Klasse gewinnt als andere Gruppen gleicher Größe auf derselben Stufe, in Prozentpunkten.</p>
+        <div class="nb-tablebox">
+          <table class="nb-tbl" data-source="test_klassen" data-row-key="variante,klasse">
+            <thead>
+              <tr>
+                <th class="nb-l" data-field="klasse">Klasse</th>
+                <th class="nb-l" data-field="variante">Variante</th>
+                <th data-field="anteil">Schaden</th>
+                <th data-field="tode">Tode je Nacht</th>
+                <th data-field="beitrag">Beitrag zur Siegquote</th>
+                <th data-field="spielernaechte">Spieler-Nächte</th>
+              </tr>
+            </thead>
+            <tbody data-draw="t-klassen-rows"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="nb-card nb-wide" id="test-uk-chart">
+        <h3>Unterklassen: Wellen gegen Nachschub</h3>
+        <p class="nb-sub">Oberer Balken Wellen (grau), unterer Nachschub (farbig). Die gestrichelte Linie ist beim Schaden-Anteil 1,00×, bei der Siegquote das Ziel, beim Beitrag null.</p>
+        <div class="nb-controls">
+          <label for="nb-testwert">Wert</label>
+          <select id="nb-testwert" class="nb-testwert" aria-label="Welcher Wert">
+            <option value="anteil">Schaden-Anteil am Gruppenschnitt</option>
+            <option value="schaden">Schaden je Nacht</option>
+            <option value="eingesteckt">Eingesteckt je Nacht</option>
+            <option value="heilung">Heilung je Nacht</option>
+            <option value="tode">Tode je Nacht</option>
+            <option value="siegquote">Siegquote der Gruppe</option>
+            <option value="beitrag">Beitrag zur Siegquote</option>
+          </select>
+        </div>
+        <div class="nb-chart" data-draw="t-uk-chart" data-source="test_uk"></div>
+      </div>
+
+      <div class="nb-card nb-wide" id="test-uk-tabelle">
+        <h3>Alle Werte je Unterklasse</h3>
+        <p class="nb-sub">Je Unterklasse eine Zeile für Wellen und eine für Nachschub. Werte je Nacht, in der die Unterklasse mitspielte.</p>
+        <div class="nb-tablebox">
+          <table class="nb-tbl" data-source="test_uk" data-row-key="variante,unterklasse">
+            <thead>
+              <tr>
+                <th class="nb-l" data-field="uname">Unterklasse</th>
+                <th class="nb-l" data-field="klasse">Klasse</th>
+                <th class="nb-l" data-field="variante">Variante</th>
+                <th data-field="naechte">Nächte</th>
+                <th data-field="anteil">Schaden-Anteil</th>
+                <th data-field="schaden">Schaden</th>
+                <th data-field="eingesteckt">Eingesteckt</th>
+                <th data-field="heilung">Heilung</th>
+                <th data-field="tode">Tode</th>
+                <th data-field="siegquote">Siegquote</th>
+                <th data-field="beitrag">Beitrag</th>
+              </tr>
+            </thead>
+            <tbody data-draw="t-uk-rows"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="nb-grid">
+      <div class="nb-card" id="test-last">
+        <h3>Serverlast je Teamgröße</h3>
+        <p class="nb-sub">Mittlere Zeit je Tick in der Sim. Grau: Wellen, farbig: Nachschub. Die gestrichelte Linie liegt bei 50 ms; darüber hält der Server keine 20 Ticks pro Sekunde mehr.</p>
+        <div class="nb-chart" data-draw="t-last" data-source="test_spieler"></div>
+      </div>
+      <div class="nb-card" id="test-last-tabelle">
+        <h3>Last und Monster je Teamgröße</h3>
+        <p class="nb-sub">Monster gleichzeitig: höchstens lebende Monster der Nacht. Alle Mobs: dazu Begleiter, Tiere und Maschinen in der Welt.</p>
+        <div class="nb-tablebox">
+          <table class="nb-tbl" data-source="test_spieler" data-row-key="variante,spieler">
+            <thead>
+              <tr>
+                <th class="nb-l" data-field="spieler">Spieler</th>
+                <th class="nb-l" data-field="variante">Variante</th>
+                <th data-field="siegquote">Siegquote</th>
+                <th data-field="tode_je_nacht">Tode</th>
+                <th data-field="ms_tick">ms je Tick</th>
+                <th data-field="ueber50">über 50 ms</th>
+                <th data-field="monster_max">Monster gleichz.</th>
+                <th data-field="mobs_max">alle Mobs</th>
+                <th data-field="kills_je_nacht">Kills</th>
+              </tr>
+            </thead>
+            <tbody data-draw="t-last-rows"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="nb-card nb-wide" id="test-gegner">
+        <h3>Gefährlichste Gegner</h3>
+        <p class="nb-sub">Anteil am Schaden, den alle Spieler eingesteckt haben, je Variante die zwölf größten.</p>
+        <div class="nb-tablebox">
+          <table class="nb-tbl" data-source="test_gegner" data-row-key="variante,rang">
+            <thead>
+              <tr>
+                <th class="nb-l" data-field="variante">Variante</th>
+                <th data-field="rang">Rang</th>
+                <th class="nb-l" data-field="gegner">Gegner</th>
+                <th data-field="anteil">Anteil am Schaden</th>
+              </tr>
+            </thead>
+            <tbody data-draw="t-gegner-rows"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
 </div>
 
 <script>
@@ -663,7 +835,7 @@
     description: 'Je Lauf die Variante mit der Server-Config und die Variante, deren Siegquoten am nächsten an 70 % liegen; „standard“ markiert den neuesten geeichten Lauf mit Server-Config über mindestens drei Spielerzahlen.',
     fn: (sim_laeufe, sim_varianten, sim_spanne) => {
       const span = new Map(sim_spanne.map((s) => [s.id, s]));
-      const geeicht = ['Großer Lauf', 'Skalierung', 'Klassen', 'Serverlast'];
+      const geeicht = ['Großer Lauf', 'Skalierung', 'Klassen', 'Serverlast', 'Balancing'];
       const rows = [];
       let standard = null;
       for (const l of [...sim_laeufe].sort((a, b) => String(b.zeit).localeCompare(String(a.zeit)))) {
@@ -746,7 +918,7 @@
   nb.where = (el, field, value) => { el.setAttribute('data-where', field + '=' + encodeURIComponent(value)); };
 
   // ---------- tabs ----------
-  nb.tabs = ['ueberblick', 'vergleich', 'klassen', 'abende', 'analysen'];
+  nb.tabs = ['ueberblick', 'test', 'vergleich', 'klassen', 'abende', 'analysen'];
   nb.show = (name, link) => {
     if (!nb.tabs.includes(name)) name = 'ueberblick';
     for (const sec of document.querySelectorAll('[data-panel]')) sec.hidden = sec.id !== name;
@@ -1201,4 +1373,262 @@
   });
   for (const sw of document.querySelectorAll('.nb-sw-c0')) sw.style.background = dash.colors[0];
   for (const sw of document.querySelectorAll('.nb-sw-c1')) sw.style.background = dash.colors[1];
+</script>
+
+<script>
+  // ---------- Ausführlicher Test (Lauf final1, 30.10.) ----------
+  const T = {
+    vars: [
+      { v: 'aktuell', color: 'var(--cds-chart-muted)' },
+      { v: 'nachschub', color: dash.colors[0] },
+    ],
+    classOrder: ['Krieger', 'Wächter', 'Bogenschütze', 'Techniker', 'Beschwörer'],
+    ms: new Intl.NumberFormat('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+    x: (v) => (v == null || isNaN(v) ? '–' : new Intl.NumberFormat('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v) + '×'),
+    msLimit: 50,
+  };
+  T.fmt = (k, v) => {
+    if (v == null || isNaN(v)) return '–';
+    if (k === 'anteil') return T.x(+v);
+    if (k === 'siegquote') return nb.pct(+v);
+    if (k === 'beitrag') return nb.pp(+v);
+    if (k === 'tode') return nb.dec.format(+v);
+    return nb.num.format(+v);
+  };
+  T.name = (rows, v) => { const r = rows.find((x) => x.variante === v); return r ? r.name : v; };
+
+  // fixed controls of this tab
+  for (const [cls, param, dflt] of [['.nb-testvar', 'testvar', 'nachschub'], ['.nb-testwert', 'testwert', 'anteil']]) {
+    for (const sel of document.querySelectorAll(cls)) sel.addEventListener('change', () => dash.setParams({ [param]: sel.value || null }));
+    T[param] = () => dash.params()[param] ?? dflt;
+  }
+  dash.onData(() => {
+    for (const [cls, param] of [['.nb-testvar', 'testvar'], ['.nb-testwert', 'testwert']]) {
+      for (const sel of document.querySelectorAll(cls)) sel.value = T[param]();
+    }
+  });
+
+  // KPI tiles
+  for (const [name, v, field] of [['t-kpi-quote', 'nachschub', 'siegquote'], ['t-kpi-quote-w', 'aktuell', 'siegquote'],
+    ['t-kpi-ms', 'nachschub', 'ms_tick_gross'], ['t-kpi-ms-w', 'aktuell', 'ms_tick_gross']]) {
+    dash.draw(name, (el) => {
+      const d = nb.ok('test_varianten'); if (!d) { el.textContent = '—'; return; }
+      const r = d.find((x) => x.variante === v);
+      el.textContent = !r ? '—' : field === 'siegquote' ? nb.pct(+r[field]) : T.ms.format(+r[field]) + ' ms';
+    });
+  }
+
+  dash.draw('t-var-rows', (tb) => {
+    tb.replaceChildren();
+    const d = nb.ok('test_varianten'); if (!d) return;
+    for (const r of d) {
+      const tr = tb.insertRow(); tr.dataset.key = r.variante;
+      nb.cell(tr, r.name, 'nb-l nb-main');
+      nb.cell(tr, nb.num.format(+r.testnaechte));
+      nb.quote(tr, +r.siegquote);
+      nb.cell(tr, nb.dec.format(+r.tode_je_nacht));
+      nb.cell(tr, nb.num.format(+r.kills_je_nacht));
+      nb.cell(tr, T.ms.format(+r.ms_tick_gross) + ' ms');
+      nb.cell(tr, T.ms.format(+r.ueber50_gross) + ' %');
+      nb.cell(tr, nb.num.format(+r.monster_max_gross));
+      nb.cell(tr, r.beschreibung, 'nb-l nb-wrap');
+    }
+  });
+
+  // win rate lines (team size, level)
+  for (const [name, id, key, label, head] of [['t-spieler', 'test_spieler', 'spieler', 'Spieler', (v) => v + ' Spieler'],
+    ['t-stufe', 'test_stufe', 'stufe', 'Stufe', (v) => 'Stufe ' + v]]) {
+    dash.draw(name, (el) => {
+      const d = nb.ok(id); if (!d) { nb.fail(el, id); return; }
+      const xs = [...new Set(d.map((r) => +r[key]))].sort((a, b) => a - b);
+      const series = T.vars.filter((s) => d.some((r) => r.variante === s.v)).map((s) => ({
+        label: T.name(d, s.v), color: s.color, strong: s.v === 'nachschub',
+        at: (x) => { const r = d.find((q) => q.variante === s.v && +q[key] === x); return r ? { siegquote: +r.siegquote, siege: +r.siege, laeufe: +r.laeufe } : null; },
+      }));
+      nb.lines(el, xs, series, label, head);
+    });
+  }
+
+  dash.draw('t-zellen', (el) => {
+    const d = nb.ok('test_zellen'); if (!d) { nb.fail(el, 'test_zellen'); return; }
+    const v = T.testvar();
+    const rows = d.filter((r) => r.variante === v);
+    if (!rows.length) { nb.empty(el, 'Keine Nächte für diese Variante.'); return; }
+    const ls = [...new Set(rows.map((r) => +r.stufe))].sort((a, b) => a - b);
+    const gs = [...new Set(rows.map((r) => +r.spieler))].sort((a, b) => a - b);
+    nb.pivot(el, ls, gs, (l, g) => {
+      const r = rows.find((q) => +q.stufe === l && +q.spieler === g);
+      return r ? { text: nb.pct(+r.siegquote), n: nb.num.format(+r.laeufe) + ' N.', color: nb.cellColor(+r.siegquote) } : null;
+    }, (l) => 'Stufe ' + l, (g) => g + ' Sp.', 'Stufe \\ Spieler');
+  });
+
+  dash.draw('t-klassen-rows', (tb) => {
+    tb.replaceChildren();
+    const d = nb.ok('test_klassen'); if (!d) return;
+    const rows = [...d].sort((a, b) => T.classOrder.indexOf(a.klasse) - T.classOrder.indexOf(b.klasse) || (a.variante === 'aktuell' ? -1 : 1));
+    let last = null;
+    for (const r of rows) {
+      const tr = tb.insertRow(); tr.dataset.key = encodeURIComponent(r.variante) + ',' + encodeURIComponent(r.klasse);
+      if (last && last !== r.klasse) tr.className = 'nb-grp';
+      last = r.klasse;
+      nb.cell(tr, r.klasse, 'nb-l nb-main');
+      nb.cell(tr, r.name, 'nb-l');
+      nb.cell(tr, T.x(+r.anteil));
+      nb.cell(tr, nb.dec.format(+r.tode));
+      nb.cell(tr, nb.pp(+r.beitrag));
+      nb.cell(tr, nb.num.format(+r.spielernaechte));
+    }
+  });
+
+  dash.draw('t-uk-chart', (el) => {
+    const d = nb.ok('test_uk'); if (!d) { nb.fail(el, 'test_uk'); return; }
+    const key = T.testwert();
+    const subs = [...new Set(d.map((r) => r.unterklasse))].map((u) => ({
+      u, ra: d.find((r) => r.unterklasse === u && r.variante === 'aktuell'), rb: d.find((r) => r.unterklasse === u && r.variante === 'nachschub'),
+    }));
+    if (!subs.length) { nb.empty(el, 'Keine Unterklassen.'); return; }
+    const info = (s) => s.rb || s.ra;
+    subs.sort((x, y) => T.classOrder.indexOf(info(x).klasse) - T.classOrder.indexOf(info(y).klasse) || (+(y.rb?.[key] ?? -9) - +(x.rb?.[key] ?? -9)));
+    el.replaceChildren();
+    const W = Math.max(300, el.clientWidth), bh = 8, rowH = 2 * bh + 2 + 9, headH = 20;
+    const groups = []; let cur = null;
+    for (const s of subs) { if (!cur || cur.k !== info(s).klasse) { cur = { k: info(s).klasse, items: [] }; groups.push(cur); } cur.items.push(s); }
+    const H = 24 + groups.length * headH + subs.length * rowH + 4;
+    const svg = d3.select(el).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`);
+    const nameW = Math.min(W * 0.35, d3.max(subs, (s) => nb.textW(svg, info(s).uname, 12)));
+    const vals = subs.flatMap((s) => [s.ra?.[key], s.rb?.[key]]).filter((v) => v != null).map(Number);
+    const lo = key === 'beitrag' ? Math.min(0, d3.min(vals)) : 0;
+    const hi = key === 'siegquote' ? 1 : Math.max(key === 'anteil' ? 1 : 0, d3.max(vals) || 1);
+    const valW = nb.textW(svg, '−00 P.', 11) + 8;
+    const x = d3.scaleLinear([lo, hi], [nameW + 10, W - valW]);
+    const ref = key === 'anteil' ? 1 : key === 'siegquote' ? nb.target : key === 'beitrag' ? 0 : null;
+    if (ref != null) svg.append('line').attr('x1', x(ref)).attr('x2', x(ref)).attr('y1', 20).attr('y2', H - 4).attr('stroke', 'var(--cds-chart-reference)').attr('stroke-dasharray', '4 3');
+    let y = 24;
+    for (const g of groups) {
+      svg.append('text').attr('x', 0).attr('y', y + 10).attr('font-size', 11).attr('font-weight', 600).attr('fill', 'var(--color-fg-muted)').text(g.k);
+      y += headH;
+      for (const s of g.items) {
+        svg.append('text').attr('x', nameW).attr('y', y + bh + 1).attr('dy', '0.32em').attr('text-anchor', 'end').attr('font-size', 12).attr('fill', 'var(--color-fg)').text(info(s).uname);
+        [[s.ra, T.vars[0].color, 0], [s.rb, T.vars[1].color, bh + 2]].forEach(([r, col, off]) => {
+          if (!r || r[key] == null) return;
+          const v = +r[key], x0 = x(Math.min(0, v)), x1 = x(Math.max(0, v));
+          svg.append('rect').attr('x', x0).attr('y', y + off).attr('width', Math.max(1, x1 - x0)).attr('height', bh).attr('rx', 2).attr('fill', col);
+          svg.append('text').attr('x', x1 + 4).attr('y', y + off + bh / 2).attr('dy', '0.32em').attr('font-size', 10).attr('fill', 'var(--color-fg-muted)').text(T.fmt(key, v));
+        });
+        svg.append('rect').attr('x', 0).attr('y', y - 2).attr('width', W).attr('height', rowH).attr('fill', 'transparent')
+          .on('mousemove', (ev) => {
+            const lines = [`${info(s).uname} (${info(s).klasse})`];
+            if (s.ra) lines.push(`${s.ra.name}: ${T.fmt(key, s.ra[key])} · ${nb.num.format(+s.ra.naechte)} Nächte`);
+            if (s.rb) lines.push(`${s.rb.name}: ${T.fmt(key, s.rb[key])} · ${nb.num.format(+s.rb.naechte)} Nächte`);
+            const [px, py] = d3.pointer(ev, el); nb.tip(el, lines, px, py);
+          })
+          .on('mouseleave', () => nb.tipOff(el));
+        y += rowH;
+      }
+    }
+  });
+
+  dash.draw('t-uk-rows', (tb) => {
+    tb.replaceChildren();
+    const d = nb.ok('test_uk'); if (!d) return;
+    const rows = [...d].sort((a, b) => T.classOrder.indexOf(a.klasse) - T.classOrder.indexOf(b.klasse) || String(a.uname).localeCompare(String(b.uname)) || (a.variante === 'aktuell' ? -1 : 1));
+    let last = null;
+    for (const r of rows) {
+      const tr = tb.insertRow(); tr.dataset.key = encodeURIComponent(r.variante) + ',' + encodeURIComponent(r.unterklasse);
+      if (last && last !== r.klasse) tr.className = 'nb-grp';
+      last = r.klasse;
+      nb.cell(tr, r.uname, 'nb-l nb-main');
+      nb.cell(tr, r.klasse, 'nb-l');
+      nb.cell(tr, r.name, 'nb-l');
+      nb.cell(tr, nb.num.format(+r.naechte));
+      nb.cell(tr, T.x(+r.anteil));
+      nb.cell(tr, nb.num.format(+r.schaden));
+      nb.cell(tr, nb.num.format(+r.eingesteckt));
+      nb.cell(tr, nb.num.format(+r.heilung));
+      nb.cell(tr, nb.dec.format(+r.tode));
+      nb.quote(tr, +r.siegquote);
+      nb.cell(tr, r.beitrag == null ? '–' : nb.pp(+r.beitrag));
+    }
+  });
+
+  dash.draw('t-last', (el) => {
+    const d = nb.ok('test_spieler'); if (!d) { nb.fail(el, 'test_spieler'); return; }
+    el.replaceChildren();
+    const xs = [...new Set(d.map((r) => +r.spieler))].sort((a, b) => a - b);
+    const W = Math.max(260, el.clientWidth);
+    const svg = d3.select(el).append('svg').attr('width', '100%');
+    const top = Math.max(T.msLimit * 1.1, d3.max(d, (r) => +r.ms_tick || 0) * 1.1);
+    const m = { left: nb.textW(svg, '00 ms', 11) + 10, right: 14, bottom: 24, top: 30 };
+    const H = m.top + 190 + m.bottom;
+    svg.attr('viewBox', `0 0 ${W} ${H}`);
+    let lx = m.left;
+    for (const s of T.vars) {
+      if (!d.some((r) => r.variante === s.v)) continue;
+      svg.append('rect').attr('x', lx).attr('y', 4).attr('width', 10).attr('height', 10).attr('rx', 2).attr('fill', s.color);
+      const t = svg.append('text').attr('x', lx + 14).attr('y', 9).attr('dy', '0.32em').attr('font-size', 12).attr('fill', 'var(--color-fg-muted)').text(T.name(d, s.v));
+      lx += 14 + t.node().getComputedTextLength() + 18;
+    }
+    const x = d3.scaleLinear([xs[0], xs[xs.length - 1]], [m.left + 10, W - m.right - 10]);
+    const y = d3.scaleLinear([0, top], [H - m.bottom, m.top]);
+    for (const q of y.ticks(4)) {
+      svg.append('line').attr('x1', m.left).attr('x2', W - m.right).attr('y1', y(q)).attr('y2', y(q)).attr('stroke', 'var(--cds-chart-grid)');
+      svg.append('text').attr('x', m.left - 6).attr('y', y(q)).attr('dy', '0.32em').attr('text-anchor', 'end').attr('font-size', 11).attr('fill', 'var(--color-fg-muted)').text(q + ' ms');
+    }
+    svg.append('line').attr('x1', m.left).attr('x2', W - m.right).attr('y1', y(T.msLimit)).attr('y2', y(T.msLimit)).attr('stroke', 'var(--cds-chart-status-critical)').attr('stroke-dasharray', '4 3');
+    for (const v of xs) svg.append('text').attr('x', x(v)).attr('y', H - 6).attr('text-anchor', 'middle').attr('font-size', 11).attr('fill', 'var(--color-fg-muted)').text(String(v));
+    svg.append('text').attr('x', W - m.right).attr('y', H - 6).attr('dy', '-1.3em').attr('text-anchor', 'end').attr('font-size', 11).attr('fill', 'var(--color-fg-muted)').text('Spieler');
+    for (const s of T.vars) {
+      const pts = xs.map((v) => d.find((r) => r.variante === s.v && +r.spieler === v)).map((r) => (r && r.ms_tick != null ? +r.ms_tick : null));
+      if (!pts.some((p) => p != null)) continue;
+      const line = d3.line().defined((p) => p != null).x((p, i) => x(xs[i])).y((p) => y(p));
+      svg.append('path').attr('d', line(pts)).attr('fill', 'none').attr('stroke', s.color).attr('stroke-width', s.v === 'nachschub' ? 3 : 2).attr('stroke-linecap', 'round').attr('stroke-linejoin', 'round');
+      pts.forEach((p, i) => { if (p != null) svg.append('circle').attr('cx', x(xs[i])).attr('cy', y(p)).attr('r', 3).attr('fill', s.color); });
+    }
+    svg.append('rect').attr('x', m.left).attr('y', m.top).attr('width', W - m.left - m.right).attr('height', H - m.bottom - m.top).attr('fill', 'transparent')
+      .on('mousemove', (ev) => {
+        const [px] = d3.pointer(ev, svg.node());
+        const v = xs.reduce((best, q) => (Math.abs(x(q) - px) < Math.abs(x(best) - px) ? q : best), xs[0]);
+        const lines = [v + ' Spieler'];
+        for (const s of T.vars) { const r = d.find((q) => q.variante === s.v && +q.spieler === v); if (r) lines.push(`${r.name}: ${T.ms.format(+r.ms_tick)} ms, ${nb.num.format(+r.monster_max)} Monster gleichzeitig`); }
+        const [ex, ey] = d3.pointer(ev, el); nb.tip(el, lines, ex, ey);
+      })
+      .on('mouseleave', () => nb.tipOff(el));
+  });
+
+  dash.draw('t-last-rows', (tb) => {
+    tb.replaceChildren();
+    const d = nb.ok('test_spieler'); if (!d) return;
+    const rows = [...d].sort((a, b) => +a.spieler - +b.spieler || (a.variante === 'aktuell' ? -1 : 1));
+    let last = null;
+    for (const r of rows) {
+      const tr = tb.insertRow(); tr.dataset.key = encodeURIComponent(r.variante) + ',' + encodeURIComponent(r.spieler);
+      if (last != null && last !== +r.spieler) tr.className = 'nb-grp';
+      last = +r.spieler;
+      nb.cell(tr, String(r.spieler), 'nb-l nb-main');
+      nb.cell(tr, r.name, 'nb-l');
+      nb.quote(tr, +r.siegquote);
+      nb.cell(tr, nb.dec.format(+r.tode_je_nacht));
+      nb.cell(tr, T.ms.format(+r.ms_tick));
+      nb.cell(tr, T.ms.format(+r.ueber50) + ' %');
+      nb.cell(tr, nb.num.format(+r.monster_max));
+      nb.cell(tr, nb.num.format(+r.mobs_max));
+      nb.cell(tr, nb.num.format(+r.kills_je_nacht));
+    }
+  });
+
+  dash.draw('t-gegner-rows', (tb) => {
+    tb.replaceChildren();
+    const d = nb.ok('test_gegner'); if (!d) return;
+    const rows = [...d].sort((a, b) => (a.variante === b.variante ? 0 : a.variante === 'aktuell' ? -1 : 1) || +a.rang - +b.rang);
+    let last = null;
+    for (const r of rows) {
+      const tr = tb.insertRow(); tr.dataset.key = encodeURIComponent(r.variante) + ',' + encodeURIComponent(r.rang);
+      if (last && last !== r.variante) tr.className = 'nb-grp';
+      last = r.variante;
+      nb.cell(tr, r.name, 'nb-l');
+      nb.cell(tr, String(r.rang));
+      nb.cell(tr, r.gegner, 'nb-l nb-main');
+      nb.cell(tr, nb.pct(+r.anteil));
+    }
+  });
 </script>
