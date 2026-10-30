@@ -117,6 +117,8 @@ class SiegeCoreTest {
         // The tank guard is on by default.
         assertEquals(0.15, server.bulwarkGuardDamage, 1e-9);
         assertEquals(0.3, server.shieldfighterGuardKnockback, 1e-9);
+        assertEquals(0.0, server.shieldfighterGuardRadius, 1e-9);   // the shield fighter stays out (klassen4)
+        assertEquals(6.0, server.bulwarkGuardRadius, 1e-9);
         // Once done, a server's own later changes stay.
         server.liveCapByPlayers.set(9, 90);
         server.sanitize();
@@ -319,8 +321,8 @@ class SiegeCoreTest {
         SiegeConfig fresh = new SiegeConfig();
         fresh.sanitize();
         // 1.25 since 25.10., -30 % since the DPS bench of 27.10.
-        // Update 30.10. (settings 17) sets the class balancing of the team sim (klassen3).
-        assertEquals(0.45, fresh.subclassDamage.get("shieldfighter"), 1e-9);
+        // Update 30.10. (settings 17) sets the class balancing of the team sim (klassen4); the shield fighter stays.
+        assertEquals(0.875, fresh.subclassDamage.get("shieldfighter"), 1e-9);
         // Simon 27.10. (DPS bench, level 10): tamer +20 %, bolt archer -40 %, bulwark -15 %, medic heals 20 % more; the paladin stays.
         assertEquals(1.2, fresh.subclassDamage.get("tamer"), 1e-9);
         assertEquals(0.6, fresh.subclassDamage.get("bolter"), 1e-9);
@@ -346,13 +348,12 @@ class SiegeCoreTest {
         assertEquals(0.65, fresh.subclassDamageTaken.get("bulwark"), 1e-9);
         assertEquals(0.9, fresh.subclassDamage.get("alchemist"), 1e-9);
         assertTrue(fresh.damageTakenFactor("guardian", "shieldfighter") >= fresh.damageTakenFactor("guardian", "bulwark") / 0.7 - 1e-9);
-        // A server that tuned the shield fighter itself kept its own value (only the -30 % of 27.10. on top);
-        // update 30.10. then sets the tested value.
+        // A server that tuned the shield fighter itself keeps its own value (only the -30 % of 27.10. on top).
         SiegeConfig tuned = new SiegeConfig();
         tuned.settingsVersion = 5;
         tuned.subclassDamage.put("shieldfighter", 1.5);
         tuned.sanitize();
-        assertEquals(0.45, tuned.subclassDamage.get("shieldfighter"), 1e-9);
+        assertEquals(1.05, tuned.subclassDamage.get("shieldfighter"), 1e-9);
         assertEquals(2.5, new SkillTree().get("riposte").amountPerLevel(), 1e-9);
     }
 

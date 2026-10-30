@@ -876,7 +876,6 @@ public class SiegeConfig {
     static {
         UPDATE_17_DAMAGE.put("axe", 1.1);
         UPDATE_17_DAMAGE.put("paladin", 1.1);
-        UPDATE_17_DAMAGE.put("shieldfighter", 0.45);
         UPDATE_17_DAMAGE.put("bulwark", 0.63);
         UPDATE_17_DAMAGE.put("alchemist", 0.9);
         UPDATE_17_DAMAGE.put("gunner", 0.78);
@@ -1435,6 +1434,9 @@ public class SiegeConfig {
             damageTakenByPlayers = new ArrayList<>(List.of(0.7, 0.9, 0.95, 1.0));
             mobHealthByPlayers = new ArrayList<>(List.of(0.7, 0.9, 0.95, 1.0));
             quotaSkipsVanished = true;
+            // The shield fighter stays as he was (klassen4: his group won 20 points less with -49 %
+            // damage; Simon: a class that swings too strongly stays out), so no guard of his either.
+            shieldfighterGuardRadius = 0.0;
             UPDATE_17_DAMAGE.forEach(subclassDamage::put);
             UPDATE_17_TAKEN.forEach(subclassDamageTaken::put);
             UPDATE_17_HEALING.forEach(subclassHealing::put);
