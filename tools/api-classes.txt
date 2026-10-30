@@ -181,3 +181,17 @@ net.minecraft.server.level.ServerPlayerGameMode
 net.minecraft.world.level.GameRules
 net.minecraft.server.ServerTickRateManager
 net.minecraft.world.TickRateManager
+
+# Survival-Sicherheit Inventar (31.10.): Menues beim Kit-Tausch, Spielerdaten sofort sichern, SNBT
+net.minecraft.world.inventory.AbstractContainerMenu
+net.minecraft.world.inventory.InventoryMenu
+net.minecraft.world.entity.item.ItemEntity
+net.minecraft.nbt.TagParser
+net.minecraft.nbt.NbtUtils
+net.minecraft.nbt.CompoundTag
+net.minecraft.nbt.NbtOps
+!net.minecraft.server.level.ServerPlayer#closeContainer,doCloseContainer,restoreFrom
+!net.minecraft.world.inventory.InventoryMenu#removed
+!net.minecraft.world.inventory.AbstractContainerMenu#removed,clearContainer,dropOrPlaceInInventory
+!net.minecraft.world.entity.player.Inventory#placeItemBackInInventory
+!net.minecraft.server.players.PlayerList#save,remove
