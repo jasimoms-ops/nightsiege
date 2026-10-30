@@ -81,6 +81,16 @@ def art_of(name):
     return "Sonstiges"
 
 
+# Runs whose variants the commit message alone does not describe right (their "aktuell" was not the
+# server's config): the label shown on the page.
+LABELS = {
+    "klassen4": {
+        "aktuell": "Update-Stand (balance-2 + Skalierung + Creeper-Schalter) mit den alten Klassen-Werten",
+        "klassen": "Update-Stand mit Klassen-Balance (Config-Migration 17; Schildkämpfer hier noch mit −49 %)",
+    },
+}
+
+
 def parse_team(msg):
     """[team L3,8 G1,2 N12 T1 voll k=v V=name:k=v,…] -> Teile."""
     m = re.search(r"\[team ([^\]]*)\]", msg or "")
@@ -166,9 +176,13 @@ def main():
         for vname, v in per_var.items():
             own = spec["varianten"].get(vname, [])
             own_cfg = [kv for kv in own if kv.split("=")[0].split(".")[0] not in BOT_KNOBS]
-            server = vname == "aktuell" and not common_cfg
-            if vname == "aktuell":
-                text = "Server-Config" + (" mit " + nice(common_cfg) if common_cfg else "")
+            # "aktuell" with values of its own is not the server's state any more (klassen3, klassen4).
+            server = vname == "aktuell" and not common_cfg and not own_cfg and kurz not in LABELS
+            label = LABELS.get(kurz, {}).get(vname)
+            if label:
+                text = label
+            elif vname == "aktuell":
+                text = "Server-Config" + (" mit " + nice(common_cfg + own_cfg) if common_cfg or own_cfg else "")
             else:
                 text = nice(common_cfg + own_cfg) or "Server-Config"
             varianten.append({
