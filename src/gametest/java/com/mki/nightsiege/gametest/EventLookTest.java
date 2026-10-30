@@ -32,6 +32,7 @@ public class EventLookTest implements FabricClientGameTest {
 
     @Override
     public void runTest(ClientGameTestContext context) {
+        startWatchdog();
         String packs = System.getenv("NIGHTSIEGE_SHADERPACKS");
         boolean shaderRun = packs != null && !packs.isBlank();
         try (TestSingleplayerContext game = context.worldBuilder()
@@ -230,6 +231,59 @@ public class EventLookTest implements FabricClientGameTest {
                 series(context, game, "shader_" + n);
             }
         }
+    }
+
+    /**
+     * A hang (30.10.: the client test ran into its 40 minutes without a word): when the server has
+     * not ticked for a minute, the stacks of the server, render and test threads go into the log
+     * and the game stops, so the log shows where it stood.
+     */
+    private static void startWatchdog() {
+        Thread watch = new Thread(() -> {
+            int last = -1;
+            int still = 0;
+            while (true) {
+                try {
+                    Thread.sleep(10_000L);
+                } catch (InterruptedException e) {
+                    return;
+                }
+                net.minecraft.server.MinecraftServer server = net.minecraft.client.Minecraft.getInstance().getSingleplayerServer();
+                if (server == null) {
+                    still = 0;
+                    continue;
+                }
+                int ticks = server.getTickCount();
+                still = ticks == last ? still + 1 : 0;
+                last = ticks;
+                if (still < 6) {
+                    continue;
+                }
+                for (java.util.Map.Entry<Thread, StackTraceElement[]> e : Thread.getAllStackTraces().entrySet()) {
+                    String name = e.getKey().getName();
+                    if (!name.contains("Server thread") && !name.contains("Render thread") && !name.toLowerCase(Locale.ROOT).contains("test")) {
+                        continue;
+                    }
+                    System.out.println("[Night Siege test] HANG " + name + " (" + e.getKey().getState() + ")");
+                    int n = 0;
+                    for (StackTraceElement el : e.getValue()) {
+                        if (n++ >= 60) {
+                            break;
+                        }
+                        System.out.println("[Night Siege test] HANG   at " + el);
+                    }
+                }
+                System.out.flush();
+                try {
+                    Thread.sleep(3_000L);
+                } catch (InterruptedException e) {
+                    return;
+                }
+                Runtime.getRuntime().halt(3);
+            }
+        }, "Night Siege watchdog");
+        watch.setDaemon(true);
+        watch.start();
     }
 
     private static void setUpScene(ClientGameTestContext context, TestSingleplayerContext game) {
