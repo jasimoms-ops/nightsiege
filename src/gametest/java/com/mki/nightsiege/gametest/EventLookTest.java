@@ -5606,7 +5606,7 @@ public class EventLookTest implements FabricClientGameTest {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
             BlockPos bed = player.blockPosition().offset(0, 0, 2);
             level.setBlock(bed.offset(0, 0, 1), net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
-            net.minecraft.world.level.block.state.BlockState foot = net.minecraft.world.level.block.Blocks.RED_BED.defaultBlockState()
+            net.minecraft.world.level.block.state.BlockState foot = net.minecraft.core.registries.BuiltInRegistries.BLOCK.getValue(net.minecraft.resources.Identifier.withDefaultNamespace("red_bed")).defaultBlockState()
                     .setValue(net.minecraft.world.level.block.BedBlock.FACING, net.minecraft.core.Direction.SOUTH);
             level.setBlock(bed, foot, 3);
             level.setBlock(bed.offset(0, 0, 1), foot.setValue(net.minecraft.world.level.block.BedBlock.PART,
