@@ -8557,9 +8557,9 @@ public class EventLookTest implements FabricClientGameTest {
                     double angle = speed < 1e-6 ? -1 : Math.toDegrees(Math.acos(Math.max(-1, Math.min(1, m.scale(1 / speed).dot(look)))));
                     System.out.println(String.format(Locale.ROOT,
                             "[Night Siege test] bolt spawn pos=%.3f/%.3f/%.3f eye=%.3f/%.3f/%.3f below-eye=%.3f motion=%.3f/%.3f/%.3f speed=%.2f "
-                                    + "look=%.3f/%.3f/%.3f off-look=%.2fdeg pitch=%.1f yaw=%.1f crouch=%s eyeH=%.2f weapon=%s model=%s tags=%s",
+                                    + "look=%.3f/%.3f/%.3f off-look=%.2fdeg pitch=%.1f yaw=%.1f crouch=%s pose=%s eyeH=%.2f feetY=%.3f weapon=%s model=%s tags=%s",
                             a.getX(), a.getY(), a.getZ(), eye.x, eye.y, eye.z, eye.y - a.getY(), m.x, m.y, m.z, speed,
-                            look.x, look.y, look.z, angle, p.getXRot(), p.getYRot(), p.isCrouching(), p.getEyeHeight(),
+                            look.x, look.y, look.z, angle, p.getXRot(), p.getYRot(), p.isCrouching(), p.getPose(), p.getEyeHeight(), p.getY(),
                             a.getWeaponItem() == null ? "-" : net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(a.getWeaponItem().getItem()),
                             a.getWeaponItem() == null ? "-" : a.getWeaponItem().get(net.minecraft.core.component.DataComponents.ITEM_MODEL),
                             a.entityTags()));
@@ -8656,6 +8656,77 @@ public class EventLookTest implements FabricClientGameTest {
         bolterShot(context, o, "kit_up10", 0);
         context.getInput().lookAt(90.0f, 0.0f);
         context.waitTicks(5);
+
+        // Simon 30.10., 12:39: "es war nur im Dungeon so" – the same shots in a dungeon fight.
+        int bx = o[0] + 140;
+        int bz = o[2] - 60;
+        int fy = dungeonGround(context, game, bx, bz, 2);
+        onServer(context, (player, manager) -> {
+            manager.kits().restore(player);
+            com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
+            own.unlockClass(com.mki.nightsiege.core.SkillClass.ARCHER);
+            own.switchTo(com.mki.nightsiege.core.SkillClass.ARCHER);
+            own.levels.clear();
+            // Simon's bolter on the server (30.10.).
+            own.levels.put("heavy_bolts", 1);
+            own.levels.put("archer_focus", 2);
+            own.levels.put("shrapnel", 2);
+            own.levels.put("a_trapmaster", 1);
+            own.levels.put("a_quiver", 1);
+            own.levels.put("a_explosive", 1);
+            own.levels.put("a_lightxbow", 1);
+            own.levels.put("a_tripwire", 1);
+            manager.expeditions().testBuild((net.minecraft.server.level.ServerLevel) player.level(),
+                    new BlockPos(bx, fy, bz), 0, com.mki.nightsiege.core.ExpeditionKind.STONE_CRYPT, 2);
+            manager.expeditions().openEntry(true);   // straight in, no ready round
+        });
+        context.waitTicks(10);
+        game.getServer().runCommand("gamemode survival @p");
+        game.getServer().runCommand("effect give @p minecraft:resistance 600 255 true");
+        game.getServer().runCommand(String.format(Locale.ROOT, "tp @p %d.5 %d %d.5 facing %d.5 %d %d.5",
+                bx, fy - 20, bz + 34, bx, fy - 19, bz + 44));
+        context.waitTicks(40);
+        closeScreen(context);
+        onServer(context, (player, manager) -> {
+            if (!manager.expeditions().isFighter(player)) {
+                manager.expeditions().testJoin(player);
+            }
+            for (net.minecraft.world.entity.Mob mob : manager.expeditions().testMobs((net.minecraft.server.level.ServerLevel) player.level())) {
+                mob.setNoAi(true);   // no monster in the way of the measurement
+            }
+            for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+                net.minecraft.world.item.ItemStack st = player.getInventory().getItem(i);
+                if (st.getItem() instanceof net.minecraft.world.item.CrossbowItem) {
+                    net.minecraft.world.item.ItemStack held = player.getMainHandItem().copy();
+                    player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, st.copy());
+                    player.getInventory().setItem(i, held);
+                    break;
+                }
+            }
+            System.out.println("[Night Siege test] bolt dungeon: " + manager.expeditions().testState()
+                    + " fighter=" + manager.expeditions().isFighter(player) + " kit=" + manager.kits().hasStash(player)
+                    + " hand=" + net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(player.getMainHandItem().getItem())
+                    + " model=" + player.getMainHandItem().get(net.minecraft.core.component.DataComponents.ITEM_MODEL)
+                    + " at=" + player.blockPosition() + " pose=" + player.getPose());
+        });
+        closeScreen(context);
+        context.waitTicks(10);
+        context.takeScreenshot("bolt_dungeon_view");
+        int[] d = {bx, fy - 20, bz + 34};
+        bolterShot(context, d, "dungeon_stand", 0);
+        context.getInput().lookAt(0.0f, 10.0f);
+        context.waitTicks(5);
+        bolterShot(context, d, "dungeon_down10", 0);
+        context.getInput().lookAt(0.0f, -10.0f);
+        context.waitTicks(5);
+        bolterShot(context, d, "dungeon_up10", 0);
+        onServer(context, (player, manager) -> {
+            manager.expeditions().openEntry(false);
+            manager.expeditions().remove(player.level().getServer());
+        });
+        context.waitTicks(20);
+        game.getServer().runCommand("effect clear @p");
+        game.getServer().runCommand("gamemode creative @p");
     }
 
     /**
@@ -8685,8 +8756,18 @@ public class EventLookTest implements FabricClientGameTest {
         context.runOnClient(client -> {
             net.minecraft.world.phys.Vec3 eye = client.player.getEyePosition();
             System.out.println(String.format(Locale.ROOT,
-                    "[Night Siege test] bolt %s client before eye=%.3f/%.3f/%.3f pitch=%.1f yaw=%.1f crouch=%s",
-                    label, eye.x, eye.y, eye.z, client.player.getXRot(), client.player.getYRot(), client.player.isCrouching()));
+                    "[Night Siege test] bolt %s client before eye=%.3f/%.3f/%.3f feetY=%.3f pitch=%.1f yaw=%.1f crouch=%s pose=%s eyeH=%.2f",
+                    label, eye.x, eye.y, eye.z, client.player.getY(), client.player.getXRot(), client.player.getYRot(),
+                    client.player.isCrouching(), client.player.getPose(), client.player.getEyeHeight()));
+        });
+        onServer(context, (player, manager) -> {
+            net.minecraft.world.phys.Vec3 eye = player.getEyePosition();
+            System.out.println(String.format(Locale.ROOT,
+                    "[Night Siege test] bolt %s server before eye=%.3f/%.3f/%.3f feetY=%.3f pose=%s eyeH=%.2f fighter=%s fitsStanding=%s",
+                    label, eye.x, eye.y, eye.z, player.getY(), player.getPose(), player.getEyeHeight(),
+                    manager.expeditions().isFighter(player),
+                    player.level().noCollision(player, player.getDimensions(net.minecraft.world.entity.Pose.STANDING)
+                            .makeBoundingBox(player.position()).deflate(1.0E-7))));
         });
         BOLT_WATCH = true;
         net.minecraft.client.KeyMapping use = context.computeOnClient(client -> client.options.keyUse);
@@ -8721,8 +8802,8 @@ public class EventLookTest implements FabricClientGameTest {
         onServer(context, (player, manager) -> {
             net.minecraft.world.phys.Vec3 eye = player.getEyePosition();
             net.minecraft.world.phys.Vec3 look = player.getLookAngle();
-            double wall = o[0] - 15;   // the wall's face towards the player
-            double t = (wall - eye.x) / look.x;
+            double wall = o[0] - 15;   // the wall's face towards the player (the open-air wall; in the dungeon look.x is 0)
+            double t = Math.abs(look.x) > 0.5 ? (wall - eye.x) / look.x : 0;
             double wantY = eye.y + look.y * t;
             double wantZ = eye.z + look.z * t;
             for (net.minecraft.world.entity.Entity e : player.level().getEntities((net.minecraft.world.entity.Entity) null,
