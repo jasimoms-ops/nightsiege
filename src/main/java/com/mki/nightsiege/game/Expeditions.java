@@ -777,7 +777,7 @@ public final class Expeditions {
         if (now % 200 == 0 && fighters.isEmpty() && !arenaClosed && rec.cleared >= rec.rooms) {
             // A gate left shut by a crash in the arena fight opens again.
             BlockPos gate = plan(rec).arenaGate.get(0);
-            if (level.hasChunk(gate.getX() >> 4, gate.getZ() >> 4) && level.getBlockState(gate).is(Blocks.IRON_BARS)) {
+            if (loaded(level, gate.getX() >> 4, gate.getZ() >> 4) && level.getBlockState(gate).is(Blocks.IRON_BARS)) {
                 setGate(level, plan(rec).arenaGate, false);
             }
         }
@@ -823,7 +823,7 @@ public final class Expeditions {
     private SiteCheck siteCheck;
 
     private void tryBuild(ServerLevel level, SiegeSave.ExpeditionRecord rec) {
-        if (!level.hasChunk(rec.x >> 4, rec.z >> 4)) {
+        if (!loaded(level, rec.x >> 4, rec.z >> 4)) {
             return;   // nobody near yet
         }
         if (siteCheck != null && siteCheck.id() == rec.id) {
@@ -957,7 +957,7 @@ public final class Expeditions {
             int cx = pos.getX() >> 4;
             int cz = pos.getZ() >> 4;
             if (chunks.add(PlayerBuilt.key(cx, cz))) {
-                if (!level.hasChunk(cx, cz)) {
+                if (!loaded(level, cx, cz)) {
                     return null;
                 }
                 if (PlayerBuilt.marked(level, cx, cz)) {
@@ -1516,6 +1516,14 @@ public final class Expeditions {
         } catch (RuntimeException e) {
             NightSiegeMod.LOGGER.debug("[Night Siege] Dungeon: Chunks nicht freigegeben: {}", e.toString());
         }
+    }
+
+    /**
+     * The chunk is there to read and set, now (update 30.10.: {@code hasChunk} is true as soon as a
+     * chunk is asked for, before it is loaded or generated, and reading it then waits for it).
+     */
+    static boolean loaded(ServerLevel level, int cx, int cz) {
+        return level.getChunkSource().getChunkNow(cx, cz) != null;
     }
 
     /**
@@ -2930,7 +2938,7 @@ public final class Expeditions {
 
     private void setGate(ServerLevel level, List<BlockPos> gate, boolean closed) {
         for (BlockPos pos : gate) {
-            if (!level.hasChunk(pos.getX() >> 4, pos.getZ() >> 4)) {
+            if (!loaded(level, pos.getX() >> 4, pos.getZ() >> 4)) {
                 // Not loaded (everyone left): set when it loads again. Loading it here mid-tick broke
                 // C2ME's entity sections (server log 29 October 2026, 18:09).
                 pendingGates.put(pos.immutable(), closed);
@@ -2950,7 +2958,7 @@ public final class Expeditions {
         }
         for (Map.Entry<BlockPos, Boolean> e : new ArrayList<>(pendingGates.entrySet())) {
             BlockPos pos = e.getKey();
-            if (level.hasChunk(pos.getX() >> 4, pos.getZ() >> 4)) {
+            if (loaded(level, pos.getX() >> 4, pos.getZ() >> 4)) {
                 pendingGates.remove(pos);
                 level.setBlock(pos, e.getValue() ? Blocks.IRON_BARS.defaultBlockState() : Blocks.AIR.defaultBlockState(),
                         Block.UPDATE_ALL);

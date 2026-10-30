@@ -356,7 +356,7 @@ public final class SiegeCamp {
         int r = radius + 1;
         for (int cx = (x - r) >> 4; cx <= (x + r) >> 4; cx++) {
             for (int cz = (z - r) >> 4; cz <= (z + r) >> 4; cz++) {
-                if (!level.hasChunk(cx, cz)) {
+                if (!Expeditions.loaded(level, cx, cz)) {   // (hasChunk is true before a chunk is generated)
                     if (!load) {
                         if (why != null) {
                             why.unloaded++;
@@ -803,7 +803,7 @@ public final class SiegeCamp {
         for (int lx = -CampLayout.FORE_HALF; lx <= CampLayout.FORE_HALF; lx += 2) {
             for (int lz = CampLayout.FORE_NEAR + 2; lz <= CampLayout.FORE_FAR; lz += 2) {
                 BlockPos at = CampLayout.world(center, facing, lx, 0, lz);
-                if (!level.hasChunk(at.getX() >> 4, at.getZ() >> 4)) {
+                if (!Expeditions.loaded(level, at.getX() >> 4, at.getZ() >> 4)) {
                     return false;
                 }
                 int g = ground(level, at.getX(), at.getZ());
@@ -1694,7 +1694,7 @@ public final class SiegeCamp {
             // Written down when it was built: its chests empty now, then the old ground comes back
             // chunk by chunk (restoreGround), trees, hills and all.
             for (BlockPos pos : blocks.keySet()) {
-                if (level.hasChunk(pos.getX() >> 4, pos.getZ() >> 4) && level.getBlockEntity(pos) instanceof Container container) {
+                if (Expeditions.loaded(level, pos.getX() >> 4, pos.getZ() >> 4) && level.getBlockEntity(pos) instanceof Container container) {
                     container.clearContent();
                 }
             }
@@ -1763,9 +1763,9 @@ public final class SiegeCamp {
             int cx = pos.getX() >> 4;
             int cz = pos.getZ() >> 4;
             if (seen.add(PlayerBuilt.key(cx, cz))) {
-                if (!level.hasChunk(cx, cz) || PlayerBuilt.marked(level, cx, cz)) {
+                if (!Expeditions.loaded(level, cx, cz) || PlayerBuilt.marked(level, cx, cz)) {
                     if (why != null) {
-                        why.detail = level.hasChunk(cx, cz) ? "Spieler haben dort gebaut" : "Chunk nicht geladen";
+                        why.detail = Expeditions.loaded(level, cx, cz) ? "Spieler haben dort gebaut" : "Chunk nicht geladen";
                     }
                     return false;
                 }
