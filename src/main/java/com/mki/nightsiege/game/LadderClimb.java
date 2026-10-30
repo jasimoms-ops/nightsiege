@@ -477,8 +477,9 @@ public final class LadderClimb {
             boolean top = !isClimbable(world.getBlockState(at.above()));
             double off = ox * toWall.getStepX() + oz * toWall.getStepZ();
             if (!top && (Math.abs(side) > 0.2 || off < -0.2)) {
-                // Others below push a climber off the rungs (Simon 30.10., 16:12): back onto them.
-                mob.setPos(at.getX() + 0.5 + toWall.getStepX() * 0.1, mob.getY(), at.getZ() + 0.5 + toWall.getStepZ() * 0.1);
+                // Others below push a climber off the rungs (Simon 30.10., 16:12): back onto them, to
+                // the middle of the block (closer to the wall it would stick in the ladder's own box).
+                mob.setPos(at.getX() + 0.5, mob.getY(), at.getZ() + 0.5);
                 v = new Vec3(0.0, v.y, 0.0);
                 sideways = 0.0;
             }
