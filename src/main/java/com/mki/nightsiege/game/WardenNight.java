@@ -54,6 +54,11 @@ public final class WardenNight {
     private UUID killer;
     private ServerBossEvent bar;
     private double maxHealth = 1.0;
+    /** His skills and leap, the same as in his dungeon (Simon 30.10.: "Stats 1:1"). */
+    private ChampionBrains brains;
+    /** The monsters his skills brought (they count as the night's). */
+    private final List<UUID> adds = new ArrayList<>();
+    private int floorY;
 
     /** One of the eight with this chance, else null. */
     public static ExpeditionKind roll(Random random, double chance) {
@@ -92,6 +97,52 @@ public final class WardenNight {
     public Mob warden(ServerLevel level) {
         Entity e = wardenId == null || level == null ? null : level.getEntity(wardenId);
         return e instanceof Mob mob && mob.isAlive() ? mob : null;
+    }
+
+    /** His life factor, the same in a night and in his dungeon: level, his share, +50 % per further fighter, the config's factor. */
+    public static double life(int level, ExpeditionKind kind, int fighters, com.mki.nightsiege.core.SiegeConfig cfg) {
+        return ExpeditionKind.championLife(level) * kind.championLifeShare() * (1.0 + 0.5 * Math.max(0, fighters - 1))
+                * cfg.dungeonChampionLife;
+    }
+
+    /** What his skills may use of the night: the defenders, the night's spawning, his adds, the ground he stands on. */
+    private ChampionBrains.Host brainHost(BossService.Host host, ServerLevel level) {
+        return new ChampionBrains.Host() {
+            @Override
+            public List<ServerPlayer> fighters() {
+                return host.defenders();
+            }
+
+            @Override
+            public Mob spawnAdd(String entityId, BlockPos at) {
+                Mob add = host.spawnAdd(entityId, at);
+                if (add != null) {
+                    adds.add(add.getUUID());
+                }
+                return add;
+            }
+
+            @Override
+            public List<Mob> arenaMobs() {
+                List<Mob> out = new ArrayList<>();
+                for (UUID id : adds) {
+                    if (level.getEntity(id) instanceof Mob add && add.isAlive()) {
+                        out.add(add);
+                    }
+                }
+                return out;
+            }
+
+            @Override
+            public int floorY() {
+                return floorY;
+            }
+        };
+    }
+
+    /** For the tests: how often he leapt at a defender. */
+    public int leaps() {
+        return brains == null ? 0 : brains.leaps();
     }
 
     /** His name in the colour of his fragment. */
@@ -190,10 +241,18 @@ public final class WardenNight {
             return false;   // the field is full: the next second
         }
         int defenders = Math.max(1, host.defenders().size());
-        SiegeManager m = SiegeManager.get();
-        double perPlayer = host.config().perPlayer(m != null && m.inPlaytest(), host.config().bossHealthPerExtraPlayer);
-        double health = mob.getMaxHealth() * ExpeditionKind.championLife(host.level()) * kind.championLifeShare() * (1.0 + perPlayer * (defenders - 1));
+        // The same numbers as in his dungeon (Simon 30.10., 20:26: "die Wächter müssen in der Nacht genauso
+        // werden wie in den Dungeons, Stats 1:1"): life ×dungeonChampionLife, +50 % per further fighter,
+        // championSpeed, and his skills and leap (ChampionBrains); the percent strikes apply to both already.
+        double health = mob.getMaxHealth() * life(host.level(), kind, defenders, host.config());
         dress(mob, kind, health);
+        AttributeInstance speed = mob.getAttribute(Attributes.MOVEMENT_SPEED);
+        if (speed != null) {
+            speed.setBaseValue(speed.getBaseValue() * host.config().championSpeed);
+        }
+        brains = new ChampionBrains(mob, kind, level.getGameTime() + 60);
+        adds.clear();
+        floorY = mob.blockPosition().getY();
         wardenId = mob.getUUID();
         networkId = mob.getId();
         maxHealth = health;
@@ -243,6 +302,9 @@ public final class WardenNight {
                 }
             }
         }
+        if (brains != null && !host.defenders().isEmpty()) {
+            brains.tick(level, brainHost(host, level), host.level(), host.config(), now);   // his dungeon skills (Simon 30.10.)
+        }
         if (bar != null) {
             bar.setProgress((float) Math.max(0.0, Math.min(1.0, mob.getHealth() / maxHealth)));
             if (now % 20 == 0) {
@@ -280,6 +342,8 @@ public final class WardenNight {
 
     /** End of the night: bar, look and (if still standing) the warden himself go. */
     public void reset(MinecraftServer server) {
+        brains = null;
+        adds.clear();
         if (bar != null) {
             bar.removeAllPlayers();
             bar = null;
