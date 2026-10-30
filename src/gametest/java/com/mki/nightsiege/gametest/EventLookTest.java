@@ -5502,6 +5502,8 @@ public class EventLookTest implements FabricClientGameTest {
         final int[] core = new int[3];
         game.getServer().runCommand("gamemode survival @p");
         game.getServer().runCommand("difficulty normal");
+        game.getServer().runCommand("gamerule advance_time true");
+        game.getServer().runCommand("gamerule doDaylightCycle true");
         game.getServer().runCommand("time set 500");
         onServer(context, (player, manager) -> {
             com.mki.nightsiege.game.CoreRecord c = manager.mainCore();
@@ -5562,6 +5564,8 @@ public class EventLookTest implements FabricClientGameTest {
             player.teleportTo((net.minecraft.server.level.ServerLevel) player.level(), core[0] + 2.5, core[1], core[2] + 0.5,
                     java.util.Set.of(), 0f, 0f, true);
             before.addAll(survivalSnapshot(player));
+            System.out.println("[Night Siege test] survival requiredAccepts was " + manager.config().requiredAccepts + ", set to 1 for this world");
+            manager.config().requiredAccepts = 1;
             // Today is a siege day; nothing voted yet.
             manager.save().nextSiegeDay = manager.clockDayFor(player.level().getServer());
             manager.save().clearVotes();
@@ -5586,6 +5590,26 @@ public class EventLookTest implements FabricClientGameTest {
         onServer(context, (player, manager) -> MinecraftServerAccess.log(manager, player, "after horn time"));
         context.waitTicks(20);
         closeScreen(context);
+        // Between horn and start: everyone goes to bed (the base is free of monsters then).
+        game.getServer().runCommand("time set 13000");
+        context.waitTicks(10);
+        onServer(context, (player, manager) -> {
+            Object result = player.startSleepInBed(survivalBed(player));
+            System.out.println("[Night Siege test] survival sleep after horn: result=" + result + " sleeping=" + player.isSleeping());
+        });
+        context.waitTicks(160);
+        onServer(context, (player, manager) -> {
+            if (player.isSleeping()) {
+                player.stopSleeping();
+            }
+            MinecraftServerAccess.log(manager, player, "after sleeping past the horn");
+        });
+        context.waitTicks(20);
+        closeScreen(context);
+        // The clock where the night should begin (if sleeping moved it to the morning, back to the evening of the same day).
+        onServer(context, (player, manager) -> System.out.println("[Night Siege test] survival before start: day="
+                + manager.clockDayFor(player.level().getServer()) + " time=" + manager.clockTimeFor(player.level().getServer())));
+        context.waitTicks(10);
         // Night: the start at the core.
         game.getServer().runCommand("time set 15100");
         context.waitTicks(80);
@@ -5616,14 +5640,7 @@ public class EventLookTest implements FabricClientGameTest {
         // Sleep the siege night away? A bed beside the player, then into it.
         onServer(context, (player, manager) -> {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
-            BlockPos bed = player.blockPosition().offset(0, 0, 2);
-            level.setBlock(bed.offset(0, 0, 1), net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
-            net.minecraft.world.level.block.state.BlockState foot = net.minecraft.core.registries.BuiltInRegistries.BLOCK.getValue(net.minecraft.resources.Identifier.withDefaultNamespace("red_bed")).defaultBlockState()
-                    .setValue(net.minecraft.world.level.block.BedBlock.FACING, net.minecraft.core.Direction.SOUTH);
-            level.setBlock(bed, foot, 3);
-            level.setBlock(bed.offset(0, 0, 1), foot.setValue(net.minecraft.world.level.block.BedBlock.PART,
-                    net.minecraft.world.level.block.state.properties.BedPart.HEAD), 3);
-            Object result = player.startSleepInBed(bed.offset(0, 0, 1));
+            Object result = player.startSleepInBed(survivalBed(player));
             System.out.println("[Night Siege test] survival sleep: result=" + result + " sleeping=" + player.isSleeping()
                     + " time=" + manager.clockTimeFor(level.getServer()));
         });
@@ -5698,6 +5715,19 @@ public class EventLookTest implements FabricClientGameTest {
                 + manager.clockTimeFor(player.level().getServer())));
         context.takeScreenshot("survival_after");
         game.getServer().runCommand("gamemode creative @p");
+    }
+
+    /** A bed two blocks south of the player; returns its head. */
+    private static BlockPos survivalBed(net.minecraft.server.level.ServerPlayer player) {
+        net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+        BlockPos bed = player.blockPosition().offset(0, 0, 2);
+        net.minecraft.world.level.block.state.BlockState foot = net.minecraft.core.registries.BuiltInRegistries.BLOCK
+                .getValue(net.minecraft.resources.Identifier.withDefaultNamespace("red_bed")).defaultBlockState()
+                .setValue(net.minecraft.world.level.block.BedBlock.FACING, net.minecraft.core.Direction.SOUTH);
+        level.setBlock(bed, foot, 3);
+        level.setBlock(bed.offset(0, 0, 1), foot.setValue(net.minecraft.world.level.block.BedBlock.PART,
+                net.minecraft.world.level.block.state.properties.BedPart.HEAD), 3);
+        return bed.offset(0, 0, 1);
     }
 
     /** Log lines for the survival scene. */
