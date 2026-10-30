@@ -817,7 +817,17 @@ public final class TeamSim {
                 continue;   // the bots' knobs, not config values
             }
             try {
-                if (key.contains(".")) {
+                if (key.startsWith("sv.")) {
+                    // A skill value like a server skill tweak: sv.d_soulcatcher.swarmcd=80 (30.10.)
+                    String[] path = key.split("\\.", 3);
+                    backup.putIfAbsent("skillTweaks", copyTweaks(cfg.skillTweaks));
+                    SiegeConfig.SkillTweak t = cfg.skillTweaks.computeIfAbsent(path[1], k -> new SiegeConfig.SkillTweak());
+                    if (t.values == null) {
+                        t.values = new java.util.LinkedHashMap<>();
+                    }
+                    t.values.put(path[2], Double.parseDouble(value));
+                    com.mki.nightsiege.core.SkillValues.apply(cfg.skillTweaks);
+                } else if (key.contains(".")) {
                     String[] path = key.split("\\.", 2);
                     java.lang.reflect.Field f = cfg.getClass().getField(path[0]);
                     @SuppressWarnings("unchecked")
@@ -877,6 +887,28 @@ public final class TeamSim {
             }
         }
         backup.clear();
+        com.mki.nightsiege.core.SkillValues.apply(cfg.skillTweaks);   // the server's skill values again
+    }
+
+    /** A copy of the skill tweaks, so a variant's sv.… values can be taken back. */
+    private static Map<String, SiegeConfig.SkillTweak> copyTweaks(Map<String, SiegeConfig.SkillTweak> tweaks) {
+        Map<String, SiegeConfig.SkillTweak> copy = new java.util.LinkedHashMap<>();
+        if (tweaks != null) {
+            for (Map.Entry<String, SiegeConfig.SkillTweak> e : tweaks.entrySet()) {
+                SiegeConfig.SkillTweak t = e.getValue();
+                if (t == null) {
+                    continue;
+                }
+                SiegeConfig.SkillTweak c = new SiegeConfig.SkillTweak();
+                c.amount = t.amount;
+                c.cost = t.cost;
+                c.costStep = t.costStep;
+                c.maxLevel = t.maxLevel;
+                c.values = t.values == null ? null : new java.util.LinkedHashMap<>(t.values);
+                copy.put(e.getKey(), c);
+            }
+        }
+        return copy;
     }
 
     private static void run(MinecraftServer server, String command) {
