@@ -429,21 +429,23 @@ public final class SiegeCamp {
             }
             return null;
         }
-        // ... and nothing but nature in the space it takes, every block of it (it was every third
-        // column, and a fence or a hut between them was missed).
-        for (int dx = -radius - 1; dx <= radius + 1; dx++) {
-            for (int dz = -radius - 1; dz <= radius + 1; dz++) {
-                if (dx * dx + dz * dz > (radius + 1) * (radius + 1)) {
-                    continue;
-                }
-                for (int y = floor - 2; y <= floor + clear; y++) {
-                    BlockState state = level.getBlockState(new BlockPos(x + dx, y, z + dz));
-                    if (!natural(state) && state.getFluidState().isEmpty()) {
-                        if (why != null) {
-                            why.built++;
-                            why.detail = (x + dx) + " " + y + " " + (z + dz) + ": " + state;
+        // ... and nothing but nature in the space it takes: first every third column (quick, most
+        // places fail here), then every block of it (a fence or a hut between those was missed).
+        for (int step = 3; step >= 1; step -= 2) {
+            for (int dx = -radius - 1; dx <= radius + 1; dx += step) {
+                for (int dz = -radius - 1; dz <= radius + 1; dz += step) {
+                    if (dx * dx + dz * dz > (radius + 1) * (radius + 1)) {
+                        continue;
+                    }
+                    for (int y = floor - 2; y <= floor + clear; y++) {
+                        BlockState state = level.getBlockState(new BlockPos(x + dx, y, z + dz));
+                        if (!natural(state) && state.getFluidState().isEmpty()) {
+                            if (why != null) {
+                                why.built++;
+                                why.detail = (x + dx) + " " + y + " " + (z + dz) + ": " + state;
+                            }
+                            return null;
                         }
-                        return null;
                     }
                 }
             }
