@@ -1,32 +1,34 @@
 <meta name="dash-one-writer">
 <style>
-  .nb-page { display: flex; flex-direction: column; gap: var(--cds-gap-xl); font-family: var(--font-anthropic-sans); }
+  .nb-page { display: flex; flex-direction: column; gap: var(--cds-gap-lg); font-family: var(--font-anthropic-sans); }
   .nb-head { display: flex; flex-direction: column; gap: var(--cds-gap-sm); }
   .nb-title { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); margin: 0; text-wrap: balance; }
-  .nb-take { font-size: var(--cds-font-size-body); margin: 0; max-width: 72ch; }
+  .nb-take { font-size: var(--cds-font-size-body); margin: 0; max-width: 78ch; }
   .nb-page b { font-weight: var(--cds-font-weight-medium); font-variant-numeric: tabular-nums; }
   .nb-meta { color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); margin: 0; }
-  .nb-controls { display: flex; flex-wrap: wrap; gap: var(--cds-gap-sm); align-items: center; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
-  .nb-controls select { font: inherit; color: var(--color-fg); background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-xs) var(--cds-pad-sm); max-width: 100%; }
-  .nb-note { border-left: 3px solid var(--color-warn); padding: var(--cds-pad-xs) var(--cds-pad-md); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); max-width: 82ch; margin: 0; }
-  .nb-note b { color: var(--color-fg); }
-  .nb-find { border-left: 3px solid var(--cds-chart-reference); padding: var(--cds-pad-xs) var(--cds-pad-md); font-size: var(--cds-font-size-body); max-width: 82ch; margin: 0; }
+  .nb-tabs { display: flex; flex-wrap: wrap; gap: var(--cds-gap-xs); border-bottom: 1px solid var(--color-border-line); }
+  .nb-tabs button { font: inherit; font-size: var(--cds-font-size-body); color: var(--color-fg-muted); background: none; border: 0; border-bottom: 2px solid transparent; padding: var(--cds-pad-sm) var(--cds-pad-md); cursor: pointer; margin-bottom: -1px; }
+  .nb-tabs button[aria-selected=true] { color: var(--color-fg); border-bottom-color: var(--cds-chart-reference); }
+  .nb-tabs button:focus-visible { outline: 2px solid var(--cds-chart-reference); outline-offset: -2px; }
   .nb-section { display: flex; flex-direction: column; gap: var(--cds-gap-md); }
-  .nb-sec { font-size: var(--cds-font-size-heading); font-weight: var(--cds-font-weight-medium); margin: 0; }
   .nb-secnote { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); margin: 0; max-width: 82ch; }
   .nb-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr)); gap: var(--cds-gap-md); }
   .nb-card { background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-lg); display: flex; flex-direction: column; gap: var(--cds-gap-sm); min-width: 0; }
   .nb-card h3 { font-size: var(--cds-font-size-heading); font-weight: var(--cds-font-weight-medium); margin: 0; }
   .nb-sub { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); margin: 0; }
   .nb-wide { grid-column: 1 / -1; }
-  .nb-scroll { overflow-x: auto; }
-  .nb-pivot { min-height: 8rem; }
-  .nb-pivot table { border-collapse: separate; border-spacing: 3px; font-variant-numeric: tabular-nums; width: 100%; }
-  .nb-pivot th { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); font-weight: 400; text-align: center; padding: var(--cds-pad-xs); white-space: nowrap; }
-  .nb-pivot th:first-child { text-align: left; }
-  .nb-pivot td { text-align: center; padding: var(--cds-pad-sm) var(--cds-pad-xs); border-radius: var(--cds-radius); min-width: 4.5rem; }
-  .nb-pivot td.nb-label { text-align: left; white-space: nowrap; font-size: var(--cds-font-size-body); }
-  .nb-q { display: block; font-size: var(--cds-font-size-body); font-weight: var(--cds-font-weight-medium); }
+  .nb-controls { display: flex; flex-wrap: wrap; gap: var(--cds-gap-sm); align-items: center; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+  .nb-controls select { font: inherit; color: var(--color-fg); background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-xs) var(--cds-pad-sm); max-width: 100%; }
+  .nb-pick { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); gap: var(--cds-gap-md); }
+  .nb-pickbox { border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-sm) var(--cds-pad-md); display: flex; flex-direction: column; gap: var(--cds-gap-xs); background: var(--color-panel); }
+  .nb-pickbox .nb-badge { display: inline-block; min-width: 1.4rem; text-align: center; border-radius: var(--cds-radius); font-weight: var(--cds-font-weight-medium); color: var(--color-fg); }
+  .nb-badge-a { background: color-mix(in srgb, var(--cds-chart-muted) 45%, transparent); }
+  .nb-badge-b { outline: 2px solid var(--cds-chart-reference); }
+  .nb-info { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); margin: 0; overflow-wrap: anywhere; }
+  .nb-info b { color: var(--color-fg); }
+  .nb-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr)); gap: var(--cds-gap-md); }
+  .nb-kpi { background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-md) var(--cds-pad-lg); display: flex; flex-direction: column; gap: var(--cds-gap-xs); }
+  .nb-big { font-family: var(--font-anthropic-serif); font-size: var(--cds-font-size-title); font-weight: 400; font-variant-numeric: tabular-nums; }
   .nb-n { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
   .nb-legend { display: flex; flex-wrap: wrap; gap: var(--cds-gap-md); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); margin: 0; }
   .nb-swatch { display: inline-block; width: .75rem; height: .75rem; border-radius: 2px; vertical-align: -1px; margin-right: .35rem; }
@@ -34,18 +36,28 @@
   .nb-sw-mid { background: color-mix(in srgb, var(--cds-chart-muted) 30%, transparent); }
   .nb-sw-high { background: color-mix(in srgb, var(--cds-chart-reference) 45%, transparent); }
   .nb-chart { min-height: 14rem; position: relative; }
+  .nb-chart.nb-tall { min-height: 20rem; }
   .nb-chart svg { display: block; overflow: visible; }
+  .nb-pivot { min-height: 8rem; overflow-x: auto; position: relative; }
+  .nb-pivot table { border-collapse: separate; border-spacing: 3px; font-variant-numeric: tabular-nums; width: 100%; }
+  .nb-pivot th { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); font-weight: 400; text-align: center; padding: var(--cds-pad-xs); white-space: nowrap; }
+  .nb-pivot th:first-child { text-align: left; }
+  .nb-pivot td { text-align: center; padding: var(--cds-pad-sm) var(--cds-pad-xs); border-radius: var(--cds-radius); min-width: 4rem; }
+  .nb-pivot td.nb-label { text-align: left; white-space: nowrap; font-size: var(--cds-font-size-caption); }
+  .nb-pivot .nb-q { display: block; font-size: var(--cds-font-size-body); }
   .nb-tablebox { max-height: 30rem; overflow: auto; }
   .nb-tbl { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; font-size: var(--cds-font-size-caption); }
   .nb-tbl th { position: sticky; top: 0; background: var(--color-panel); text-align: right; font-weight: 400; color: var(--color-fg-muted); padding: var(--cds-pad-xs) var(--cds-pad-sm); border-bottom: 1px solid var(--color-border-line); white-space: nowrap; }
   .nb-tbl th.nb-l, .nb-tbl td.nb-l { text-align: left; }
-  .nb-tbl th button { all: unset; cursor: pointer; }
-  .nb-tbl th button:focus-visible { outline: 2px solid var(--cds-chart-reference); outline-offset: 2px; }
-  .nb-tbl th[aria-sort] { color: var(--color-fg); }
   .nb-tbl td { padding: var(--cds-pad-xs) var(--cds-pad-sm); text-align: right; border-bottom: 1px solid var(--color-border-line); white-space: nowrap; }
+  .nb-tbl td.nb-wrap { white-space: normal; min-width: 14rem; }
   .nb-tbl td.nb-main { font-size: var(--cds-font-size-body); }
+  .nb-tbl tr.nb-click { cursor: pointer; }
+  .nb-tbl tr.nb-click:hover td { background: color-mix(in srgb, var(--cds-chart-reference) 8%, transparent); }
+  .nb-tbl tr.nb-on td { background: color-mix(in srgb, var(--cds-chart-reference) 12%, transparent); }
   .nb-tbl tr.nb-real td { font-weight: var(--cds-font-weight-medium); background: color-mix(in srgb, var(--cds-chart-reference) 10%, transparent); }
   .nb-tbl tr.nb-best td { background: color-mix(in srgb, var(--color-ok) 12%, transparent); }
+  .nb-tbl tr.nb-grp td { border-top: 2px solid var(--color-border-line); }
   .nb-chip { display: inline-block; font-size: var(--cds-font-size-caption); padding: 0 .4rem; border-radius: 999px; border: 1px solid var(--color-border-line); color: var(--color-fg-muted); margin-left: .4rem; }
   .nb-qcell { display: inline-flex; align-items: center; gap: .4rem; justify-content: flex-end; }
   .nb-qcell i { display: inline-block; height: .5rem; border-radius: 2px; outline: 1px solid var(--color-border-line); }
@@ -56,219 +68,267 @@
   .nb-def dd { margin: 0; }
   .nb-votes { display: flex; flex-wrap: wrap; gap: var(--cds-gap-lg); }
   .nb-vote { display: flex; flex-direction: column; }
-  .nb-vote .nb-big { font-family: var(--font-anthropic-serif); font-size: var(--cds-font-size-title); font-weight: 400; font-variant-numeric: tabular-nums; }
+  .nb-fail { display: flex; align-items: center; justify-content: center; gap: .4rem; min-height: 8rem; color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); }
+  .nb-fail::before { content: ""; width: .375rem; height: .375rem; border-radius: 50%; background: var(--color-bad); }
+  .nb-empty { color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); padding: var(--cds-pad-md) 0; }
   [data-dash-source-state=empty] { color: transparent; }
   [data-dash-source-state=refreshing] { opacity: .5; transition: opacity var(--cds-dur-slow); }
-  .nb-fail { display: flex; align-items: center; justify-content: center; gap: .4rem; min-height: 8rem; color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); }
-  .nb-chart.sk-line { min-height: 17rem; }
-  .nb-chart.sk-bars { min-height: 12rem; }
-  .sk-sw-rest { background: var(--cds-chart-muted); }
-  .nb-chart.uk-beitrag { min-height: 34rem; }
-  .nb-fail::before { content: ""; width: .375rem; height: .375rem; border-radius: 50%; background: var(--color-bad); }
 </style>
 
 <div class="nb-page">
-  <header class="nb-head" id="ueberblick">
+  <header class="nb-head">
     <h1 class="nb-title">Night Siege Balance</h1>
-    <p class="nb-take">Hält eine Gruppe die Nacht ihrer Stufe? Ziel sind etwa 70 % Siege. Mit den gewählten Bots gewinnen über die Stufen dieses Laufs: <b data-draw="takeaway" data-source="varianten_quote">—</b>.</p>
-    <p class="nb-meta"><span data-draw="naechte" data-source="lauf" data-field="testnaechte" data-row="0">—</span> Testnächte der Team-Sim auf der <span data-draw="boden" data-source="lauf" data-field="boden" data-row="0">—</span> · Lauf vom <span data-draw="datum" data-source="lauf" data-field="datum" data-row="0">—</span> · dazu <span data-draw="echt-n" data-source="echte_naechte">—</span> echte Nächte vom Server</p>
-    <div class="nb-controls">
-      <label for="nb-variante">Die Bots spielen</label>
-      <select id="nb-variante" data-draw="variante" aria-label="Wie die Bots spielen" data-source="zellen"></select>
-    </div>
+    <p class="nb-take">Ziel: Eine Gruppe gewinnt etwa 70 % der Nächte ihrer Stufe. In der Sim gewinnt der Server-Stand (<span data-draw="take-server-id" data-source="sim_varianten" data-field="id">—</span>) je nach Spielerzahl <b data-draw="take-server" data-source="sim_spanne" data-field="spanne">—</b> der Nächte, der Vergleich (<span data-draw="take-vor-id" data-source="sim_varianten" data-field="id">—</span>) <b data-draw="take-vor" data-source="sim_spanne" data-field="spanne">—</b>. Eure echten Nächte: <b data-draw="take-echt" data-source="echt_gesamt" data-field="siegquote" data-row="0">—</b> gewonnen, von <span data-draw="kpi-echt" data-source="echt_gesamt" data-field="naechte" data-row="0">—</span>.</p>
+    <p class="nb-meta">Neuester Sim-Lauf <span data-draw="meta-lauf" data-source="sim_laeufe" data-field="lauf" data-row="0">—</span> vom <span data-draw="meta-zeit" data-source="sim_laeufe" data-field="zeit" data-row="0">—</span> · echte Nächte bis <span data-draw="meta-echt" data-source="echt_gesamt" data-field="letzte" data-row="0">—</span></p>
   </header>
 
-  <section class="nb-section" id="skalierung">
-    <h2 class="nb-sec">Skalierung je Spielerzahl</h2>
-    <p class="nb-secnote">Vorschlag vom 30.10., noch nicht auf dem Server. Geeichte Bots auf der Kopie deiner Burg, je Variante dieselben Gruppen auf drei Stufen. Einzelne Werte schwanken um einige Prozentpunkte.</p>
-    <p class="nb-find">Mit der Tabelle und dem Creeper-Schalter gewinnen alle Gruppengrößen <b data-draw="sk-spanne-neu" data-source="skal_spanne" data-field="spanne" data-where="variante=TF">—</b> der Nächte, heute <b data-draw="sk-spanne-heute" data-source="skal_spanne" data-field="spanne" data-where="variante=aktuell">—</b>.</p>
+  <nav class="nb-tabs" role="tablist" aria-label="Seiten">
+    <button type="button" role="tab" id="tab-ueberblick" data-tab="ueberblick" aria-controls="ueberblick">Überblick</button>
+    <button type="button" role="tab" id="tab-vergleich" data-tab="vergleich" aria-controls="vergleich">Läufe vergleichen</button>
+    <button type="button" role="tab" id="tab-klassen" data-tab="klassen" aria-controls="klassen">Klassen</button>
+    <button type="button" role="tab" id="tab-abende" data-tab="abende" aria-controls="abende">Echte Abende</button>
+    <button type="button" role="tab" id="tab-analysen" data-tab="analysen" aria-controls="analysen">Analysen</button>
+  </nav>
+
+  <!-- ===================== Überblick ===================== -->
+  <section class="nb-section" id="ueberblick" role="tabpanel" aria-labelledby="tab-ueberblick" data-panel>
     <div class="nb-grid">
-      <div class="nb-card nb-wide" id="skal-chart">
-        <h3>Siegquote je Spielerzahl</h3>
-        <p class="nb-sub">Alle Stufen zusammen. Die gestrichelte Linie ist das Ziel. Fahre über das Diagramm für die Werte.</p>
-        <div class="nb-chart sk-line" data-draw="sk-chart" data-source="skal_gesamt"></div>
-      </div>
-
-      <div class="nb-card" id="skal-vorschlag">
-        <h3>Der Vorschlag</h3>
-        <p class="nb-sub">Monster gleichzeitig je Spielerzahl statt eines Limits für alle, kleinere Wellen und für kleine Gruppen schwächere Monster. Dazu ist der Creeper-Schalter an.</p>
-        <div class="nb-tablebox">
-          <table class="nb-tbl" data-source="skal_vorschlag" data-row-key="spieler">
-            <thead>
-              <tr>
-                <th class="nb-l" data-field="spieler">Spieler</th>
-                <th data-field="limit">Monster gleichzeitig</th>
-                <th data-field="limit_heute">heute</th>
-                <th data-field="welle_vs_heute">Welle ggü. heute</th>
-                <th data-field="schaden_leben">Schaden und Leben</th>
-              </tr>
-            </thead>
-            <tbody data-draw="sk-vor-rows"></tbody>
-          </table>
+      <div class="nb-card nb-wide" id="ampel">
+        <h3>Hält die Gruppe ihre Stufe?</h3>
+        <p class="nb-sub">Siegquote je Spielerzahl über alle Stufen des Laufs. Grauer Ring: Server-Stand in der Sim, gefüllter Punkt: der Vergleich, Raute: eure echten Nächte (alle Stufen). Das helle Band ist 55–85 %, die Linie das Ziel von 70 %.</p>
+        <div class="nb-controls">
+          <label for="nb-basis">Lauf</label>
+          <select id="nb-basis" data-draw="sel-basis" aria-label="Lauf für den Überblick" data-source="auswahl"></select>
+          <label for="nb-vorschlag">Vergleich mit</label>
+          <select id="nb-vorschlag" data-draw="sel-vorschlag" aria-label="Variante zum Vergleich" data-source="sim_varianten"></select>
         </div>
-      </div>
-
-      <div class="nb-card" id="skal-ohne">
-        <h3>Warum Solo und Duo am Kill-Ziel scheitern</h3>
-        <p class="nb-sub">Anteil der gespawnten Monster, die nie getötet wurden (Tabelle ohne Schalter). Das Kill-Ziel zählt heute jedes gespawnte Monster mit, auch einen Creeper, der sich an der Mauer sprengt. Große Gruppen erwischen sie vorher.</p>
-        <p class="nb-legend"><span><i class="nb-swatch sk-sw" data-sk-color="0"></i>Creeper gesprengt</span><span><i class="nb-swatch sk-sw" data-sk-color="1"></i>Phantom weggeflogen</span><span><i class="nb-swatch sk-sw-rest"></i>anders weg oder am Ende noch da</span></p>
-        <div class="nb-chart sk-bars" data-draw="sk-ohne-chart" data-source="skal_ohne_kill"></div>
-      </div>
-
-    </div>
-    <div class="nb-controls">
-      <label for="sk-variante">Variante für Stufen und Unterklassen</label>
-      <select id="sk-variante" data-draw="sk-variante" aria-label="Variante für Stufen und Unterklassen" data-source="skal_gesamt"></select>
-    </div>
-    <div class="nb-grid">
-      <div class="nb-card nb-wide" id="skal-stufen">
-        <h3>Siegquote je Stufe</h3>
-        <p class="nb-sub">Je Stufe und Spielerzahl, darunter die Zahl der Testnächte. Große Gruppen tun sich auf niedriger Stufe schwerer, weil dort das Limit nicht greift und nur die Wellengröße zählt.</p>
-        <div class="nb-scroll nb-pivot" data-draw="sk-matrix" data-source="skal_quote"></div>
-        <p class="nb-legend"><span><i class="nb-swatch nb-sw-low"></i>unter 55 %</span><span><i class="nb-swatch nb-sw-mid"></i>55–85 %, im Ziel</span><span><i class="nb-swatch nb-sw-high"></i>über 85 %</span></p>
-      </div>
-
-      <div class="nb-card nb-wide" id="skal-unterklassen">
-        <h3>Unterklassen mit dieser Variante</h3>
-        <p class="nb-sub">Je Testnacht, in der die Unterklasse mitspielte, über alle Gruppengrößen und Stufen. Die Siegquote ist die der ganzen Gruppe, „heute“ dieselbe Unterklasse mit der heutigen Einstellung im selben Lauf. Ein Klick auf eine Spalte sortiert.</p>
-        <div class="nb-tablebox">
-          <table class="nb-tbl sk-sortable" data-source="skal_uk" data-row-key="variante,unterklasse">
-            <thead>
-              <tr>
-                <th class="nb-l" data-field="name" data-sort="name"><button type="button">Unterklasse</button></th>
-                <th class="nb-l" data-field="klasse" data-sort="klasse"><button type="button">Klasse</button></th>
-                <th data-field="laeufe" data-sort="laeufe"><button type="button">Nächte</button></th>
-                <th data-field="siegquote" data-sort="siegquote"><button type="button">Siegquote</button></th>
-                <th data-field="siegquote_heute" data-sort="siegquote_heute"><button type="button">heute</button></th>
-                <th data-field="schaden_je_lauf" data-sort="schaden_je_lauf"><button type="button">Schaden</button></th>
-                <th data-field="erhalten_je_lauf" data-sort="erhalten_je_lauf"><button type="button">Eingesteckt</button></th>
-                <th data-field="heilung_je_lauf" data-sort="heilung_je_lauf"><button type="button">Heilung</button></th>
-                <th data-field="tode_je_lauf" data-sort="tode_je_lauf"><button type="button">Tode</button></th>
-              </tr>
-            </thead>
-            <tbody data-draw="sk-uk-rows"></tbody>
-          </table>
-        </div>
+        <p class="nb-info"><b data-draw="vor-name" data-source="sim_varianten" data-field="variante">—</b>: <span data-draw="vor-einst" data-source="sim_varianten" data-field="einstellungen">—</span></p>
+        <div class="nb-chart nb-tall" data-draw="ampel" data-source="sim_je_spieler echt_je_spieler"></div>
       </div>
     </div>
-  </section>
 
-  <section class="nb-section" id="eichung">
-    <h2 class="nb-sec">Spielen die Bots wie ihr?</h2>
-    <p class="nb-secnote">Jede Bot-Variante neben euren echten Nächten (Stufe 1–15, ohne Bossnächte). „Können“ sagt, wie oft ein Bot aufpasst und wie schnell er Fähigkeiten zündet. „Geht raus“ heißt, er verlässt seinen Posten und kämpft vor dem Tor wie ihr. Der Abstand misst, wie weit eine Variante von euch weg liegt (0 = gleich). Grün ist die Variante, die am besten passt.</p>
-    <div class="nb-card nb-wide">
+    <div class="nb-kpis">
+      <div class="nb-kpi"><span class="nb-big" data-draw="kpi-laeufe" data-source="kennzahlen" data-field="laeufe" data-row="0">—</span><span class="nb-n">Sim-Läufe</span></div>
+      <div class="nb-kpi"><span class="nb-big" data-draw="kpi-sim" data-source="kennzahlen" data-field="testnaechte" data-row="0">—</span><span class="nb-n">Testnächte der Sim</span></div>
+      <div class="nb-kpi"><span class="nb-big" data-draw="kpi-echt" data-source="echt_gesamt" data-field="naechte" data-row="0">—</span><span class="nb-n">echte Nächte</span></div>
+      <div class="nb-kpi"><span class="nb-big" data-draw="kpi-passt" data-source="echt_gesamt" data-field="passt_anteil" data-row="0">—</span><span class="nb-n">eurer Bewertungen sagen „passt“</span></div>
+    </div>
+
+    <div class="nb-card" id="neueste">
+      <h3>Neueste Sim-Läufe</h3>
+      <p class="nb-sub">Ein Klick öffnet den Lauf unter „Läufe vergleichen“.</p>
       <div class="nb-tablebox">
-        <table class="nb-tbl" data-source="eichung" data-row-key="variante,art">
+        <table class="nb-tbl" data-source="sim_laeufe" data-row-key="lauf">
           <thead>
             <tr>
-              <th class="nb-l" data-field="name">Wer</th>
-              <th class="nb-l" data-field="art">Spieler</th>
-              <th data-field="n">Spieler-Nächte</th>
-              <th data-field="schaden_je_min">Schaden/min</th>
-              <th data-field="erhalten_je_min">Eingesteckt/min</th>
-              <th data-field="tod_anteil">Mit Tod</th>
-              <th data-field="ueberlebt_s">Überlebt (Median)</th>
-              <th data-field="fern_anteil">Von Fernkämpfern</th>
-              <th data-field="abstand">Abstand</th>
+              <th class="nb-l" data-field="lauf">Lauf</th>
+              <th class="nb-l" data-field="art">Art</th>
+              <th class="nb-l" data-field="zeit">Wann</th>
+              <th data-field="testnaechte">Testnächte</th>
+              <th class="nb-l" data-field="beschreibung">Worum es ging</th>
             </tr>
           </thead>
-          <tbody data-draw="eich-rows"></tbody>
+          <tbody data-draw="neueste-rows"></tbody>
         </table>
       </div>
     </div>
   </section>
 
-  <section class="nb-section" id="sim">
-    <h2 class="nb-sec">Team-Sim</h2>
-    <div class="nb-grid">
-      <div class="nb-card nb-wide" id="matrix">
-        <h3>Siegquote je Stufe und Spielerzahl</h3>
-        <p class="nb-sub">Anteil gewonnener Testnächte, darunter die Zahl der Läufe. Gewonnen heißt: Die Gruppe hält bis zum Morgen und erreicht das Kill-Ziel.</p>
-        <div class="nb-scroll nb-pivot" data-draw="matrix" data-source="zellen"></div>
-        <p class="nb-legend"><span><i class="nb-swatch nb-sw-low"></i>unter 55 %</span><span><i class="nb-swatch nb-sw-mid"></i>55–85 %, im Ziel</span><span><i class="nb-swatch nb-sw-high"></i>über 85 %</span></p>
-      </div>
-
-      <div class="nb-card" id="varianten">
-        <h3>Siegquote je Bot-Variante</h3>
-        <p class="nb-sub">Alle Stufen zusammen, ein Balken je Spielerzahl. Die gestrichelte Linie ist das Ziel von 70 %.</p>
-        <div class="nb-chart" data-draw="var-chart" data-source="varianten_quote"></div>
-      </div>
-
-      <div class="nb-card" id="gegner">
-        <h3>Gefährlichste Gegner in der Sim</h3>
-        <p class="nb-sub">Anteil am Schaden, den die gewählten Bots von Monstern eingesteckt haben, die 10 größten.</p>
-        <div class="nb-chart" data-draw="gegner-chart" data-source="gegner"></div>
-      </div>
-
-      <div class="nb-card nb-wide" id="gruppen">
-        <h3>Gruppenarten</h3>
-        <p class="nb-sub">Siegquote je Zusammenstellung, alle Stufen zusammen, in Klammern die Zahl der Läufe. Ab 2 Spielern laufen neben zufälligen Gruppen feste Vorlagen.</p>
-        <div class="nb-scroll nb-pivot" data-draw="mix" data-source="mischungen"></div>
-      </div>
-
-      <div class="nb-card nb-wide" id="beitrag">
-        <h3>Was jede Unterklasse ihrer Gruppe bringt</h3>
-        <p class="nb-sub">Wie viel öfter oder seltener eine Gruppe gewinnt, wenn die Unterklasse dabei ist, verglichen mit anderen Gruppen gleicher Größe auf derselben Stufe, in Prozentpunkten. Nur zufällig gewählte Gruppen aus allen großen Sim-Läufen, die Striche zeigen die Unsicherheit. Fahre über einen Balken für Schaden, Eingestecktes und Tode im Vergleich zur eigenen Gruppe.</p>
+  <!-- ===================== Läufe vergleichen ===================== -->
+  <section class="nb-section" id="vergleich" role="tabpanel" aria-labelledby="tab-vergleich" data-panel hidden>
+    <p class="nb-secnote">Wähle zwei Läufe oder zwei Varianten eines Laufs. A ist grau, B farbig. Die Siegquote zählt Nächte, in denen die Gruppe bis zum Morgen hält und das Kill-Ziel erreicht. Je Zelle schwanken die Werte um einige Prozentpunkte.</p>
+    <div class="nb-pick">
+      <div class="nb-pickbox">
         <div class="nb-controls">
-          <label for="uk-beitrag-sicht">Gruppen</label>
-          <select id="uk-beitrag-sicht" aria-label="Welche Gruppen">
-            <option value="alle">alle Gruppengrößen</option>
-            <option value="klein">nur 1–3 Spieler</option>
+          <span class="nb-badge nb-badge-a">A</span>
+          <select class="nb-sel-lauf" data-side="a" data-draw="sel-lauf-a" aria-label="Lauf A" data-source="sim_laeufe"></select>
+          <select class="nb-sel-var" data-side="a" data-draw="sel-var-a" aria-label="Variante A" data-source="sim_varianten"></select>
+        </div>
+        <p class="nb-info"><b data-draw="a-besch" data-source="sim_laeufe" data-field="beschreibung">—</b> · <span data-draw="a-einst" data-source="sim_varianten" data-field="einstellungen">—</span> · Bots: <span data-draw="a-bots" data-source="sim_varianten" data-field="bots">—</span> · <span data-draw="a-n" data-source="sim_varianten" data-field="testnaechte">—</span> Testnächte</p>
+      </div>
+      <div class="nb-pickbox">
+        <div class="nb-controls">
+          <span class="nb-badge nb-badge-b">B</span>
+          <select class="nb-sel-lauf" data-side="b" data-draw="sel-lauf-b" aria-label="Lauf B" data-source="sim_laeufe"></select>
+          <select class="nb-sel-var" data-side="b" data-draw="sel-var-b" aria-label="Variante B" data-source="sim_varianten"></select>
+        </div>
+        <p class="nb-info"><b data-draw="b-besch" data-source="sim_laeufe" data-field="beschreibung">—</b> · <span data-draw="b-einst" data-source="sim_varianten" data-field="einstellungen">—</span> · Bots: <span data-draw="b-bots" data-source="sim_varianten" data-field="bots">—</span> · <span data-draw="b-n" data-source="sim_varianten" data-field="testnaechte">—</span> Testnächte</p>
+      </div>
+    </div>
+
+    <div class="nb-grid">
+      <div class="nb-card" id="cmp-spieler">
+        <h3>Siegquote je Spielerzahl</h3>
+        <p class="nb-sub">Alle Stufen des Laufs zusammen. Die gestrichelte Linie ist das Ziel von 70 %.</p>
+        <div class="nb-chart" data-draw="cmp-spieler" data-source="sim_je_spieler"></div>
+      </div>
+      <div class="nb-card" id="cmp-stufe">
+        <h3>Siegquote je Stufe</h3>
+        <p class="nb-sub">Alle Spielerzahlen des Laufs zusammen.</p>
+        <div class="nb-chart" data-draw="cmp-stufe" data-source="sim_je_stufe"></div>
+      </div>
+      <div class="nb-card nb-wide" id="cmp-matrix">
+        <h3>Stufe × Spielerzahl</h3>
+        <p class="nb-sub">Siegquote je Zelle, darunter die Zahl der Testnächte. Bei „B − A“ der Unterschied in Prozentpunkten.</p>
+        <div class="nb-controls">
+          <label for="nb-sicht">Zeige</label>
+          <select id="nb-sicht" class="nb-sicht" aria-label="Was die Tabellen zeigen">
+            <option value="b">B</option>
+            <option value="a">A</option>
+            <option value="diff">B − A</option>
           </select>
         </div>
-        <div class="nb-chart uk-beitrag" data-draw="uk-beitrag-chart" data-source="uk_beitrag"></div>
+        <div class="nb-pivot" data-draw="cmp-matrix" data-source="sim_quote"></div>
+        <p class="nb-legend"><span><i class="nb-swatch nb-sw-low"></i>unter 55 % (bei B − A: B schlechter)</span><span><i class="nb-swatch nb-sw-mid"></i>55–85 %, im Ziel</span><span><i class="nb-swatch nb-sw-high"></i>über 85 % (bei B − A: B besser)</span></p>
       </div>
-
-      <div class="nb-card nb-wide" id="unterklassen">
-        <h3>Unterklassen in der Sim</h3>
-        <p class="nb-sub">Je Lauf, in dem die Unterklasse mitspielte, aus dem großen Lauf mit der heutigen Einstellung. Die Siegquote ist die der ganzen Gruppe. Ein Klick auf eine Spalte sortiert. Mit dem Skalierungs-Vorschlag steht die Tabelle oben unter „Skalierung je Spielerzahl“.</p>
+      <div class="nb-card" id="cmp-gegner">
+        <h3>Gefährlichste Gegner</h3>
+        <p class="nb-sub">Anteil am Schaden, den die Bots eingesteckt haben, die 10 größten aus A und B. Oberer Balken A, unterer B.</p>
+        <div class="nb-chart nb-tall" data-draw="cmp-gegner" data-source="sim_gegner"></div>
+      </div>
+      <div class="nb-card" id="cmp-gruppen">
+        <h3>Gruppenarten</h3>
+        <p class="nb-sub">Siegquote je Zusammenstellung und Spielerzahl, alle Stufen; Auswahl wie bei Stufe × Spielerzahl.</p>
+        <div class="nb-pivot" data-draw="cmp-gruppen" data-source="sim_gruppen"></div>
+      </div>
+      <div class="nb-card nb-wide" id="alle-laeufe">
+        <h3>Alle Läufe</h3>
+        <p class="nb-sub">Ein Klick setzt den Lauf als A, mit Shift-Klick als B.</p>
+        <div class="nb-controls">
+          <label for="nb-art">Art</label>
+          <select id="nb-art" class="nb-art" aria-label="Art der Läufe">
+            <option value="">alle</option>
+            <option value="Skalierung">Skalierung</option>
+            <option value="Klassen">Klassen</option>
+            <option value="Großer Lauf">Großer Lauf</option>
+            <option value="Eichung">Eichung</option>
+            <option value="Serverlast">Serverlast</option>
+            <option value="Kriegsführer">Kriegsführer</option>
+            <option value="Vergleich">Vergleich</option>
+            <option value="Probe">Probe</option>
+          </select>
+        </div>
         <div class="nb-tablebox">
-          <table class="nb-tbl nb-sortable" data-source="unterklassen" data-row-key="variante,unterklasse">
+          <table class="nb-tbl" data-source="sim_laeufe" data-row-key="lauf">
             <thead>
               <tr>
-                <th class="nb-l" data-field="name" data-sort="name"><button type="button">Unterklasse</button></th>
-                <th class="nb-l" data-field="klasse" data-sort="klasse"><button type="button">Klasse</button></th>
-                <th data-field="laeufe" data-sort="laeufe"><button type="button">Läufe</button></th>
-                <th data-field="siegquote" data-sort="siegquote"><button type="button">Siegquote</button></th>
-                <th data-field="schaden_je_lauf" data-sort="schaden_je_lauf"><button type="button">Schaden</button></th>
-                <th data-field="erhalten_je_lauf" data-sort="erhalten_je_lauf"><button type="button">Eingesteckt</button></th>
-                <th data-field="heilung_je_lauf" data-sort="heilung_je_lauf"><button type="button">Heilung</button></th>
-                <th data-field="tode_je_lauf" data-sort="tode_je_lauf"><button type="button">Tode</button></th>
+                <th class="nb-l" data-field="lauf">Lauf</th>
+                <th class="nb-l" data-field="art">Art</th>
+                <th class="nb-l" data-field="zeit">Wann</th>
+                <th data-field="testnaechte">Testnächte</th>
+                <th class="nb-l" data-field="stufen">Stufen</th>
+                <th class="nb-l" data-field="spieler">Spieler</th>
+                <th class="nb-l" data-field="beschreibung">Worum es ging</th>
+              </tr>
+            </thead>
+            <tbody data-draw="alle-rows"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== Klassen ===================== -->
+  <section class="nb-section" id="klassen" role="tabpanel" aria-labelledby="tab-klassen" data-panel hidden>
+    <p class="nb-secnote">Dieselbe Auswahl A und B wie unter „Läufe vergleichen“. Werte je Testnacht, in der die Unterklasse mitspielte, über alle Stufen und Spielerzahlen. Die Siegquote ist die der ganzen Gruppe.</p>
+    <div class="nb-pick">
+      <div class="nb-pickbox">
+        <div class="nb-controls">
+          <span class="nb-badge nb-badge-a">A</span>
+          <select class="nb-sel-lauf" data-side="a" data-draw="sel-lauf-a" aria-label="Lauf A" data-source="sim_laeufe"></select>
+          <select class="nb-sel-var" data-side="a" data-draw="sel-var-a" aria-label="Variante A" data-source="sim_varianten"></select>
+        </div>
+        <p class="nb-info"><span data-draw="a-einst" data-source="sim_varianten" data-field="einstellungen">—</span></p>
+      </div>
+      <div class="nb-pickbox">
+        <div class="nb-controls">
+          <span class="nb-badge nb-badge-b">B</span>
+          <select class="nb-sel-lauf" data-side="b" data-draw="sel-lauf-b" aria-label="Lauf B" data-source="sim_laeufe"></select>
+          <select class="nb-sel-var" data-side="b" data-draw="sel-var-b" aria-label="Variante B" data-source="sim_varianten"></select>
+        </div>
+        <p class="nb-info"><span data-draw="b-einst" data-source="sim_varianten" data-field="einstellungen">—</span></p>
+      </div>
+    </div>
+
+    <div class="nb-grid">
+      <div class="nb-card nb-wide" id="uk-chart">
+        <h3>Unterklassen: A gegen B</h3>
+        <p class="nb-sub">Je Klasse sortiert nach B. Oberer Balken A, unterer B. Die gestrichelte Linie ist der Schnitt von B über alle Unterklassen; beim Schaden zeigt das helle Band ±25 % davon (Ziel aus dem Balance-Konzept, Heiler und Tanks haben eigene Ziele).</p>
+        <div class="nb-controls">
+          <label for="nb-wert">Wert</label>
+          <select id="nb-wert" class="nb-wert" aria-label="Welcher Wert">
+            <option value="schaden_je_lauf">Schaden je Nacht</option>
+            <option value="erhalten_je_lauf">Eingesteckt je Nacht</option>
+            <option value="heilung_je_lauf">Heilung je Nacht</option>
+            <option value="tode_je_lauf">Tode je Nacht</option>
+            <option value="siegquote">Siegquote der Gruppe</option>
+          </select>
+        </div>
+        <div class="nb-chart" data-draw="uk-chart" data-source="sim_uk"></div>
+      </div>
+
+      <div class="nb-card nb-wide" id="uk-tabelle">
+        <h3>Alle Werte je Unterklasse</h3>
+        <p class="nb-sub">Je Unterklasse eine Zeile für A und eine für B.</p>
+        <div class="nb-tablebox">
+          <table class="nb-tbl" data-source="sim_uk" data-row-key="lauf,variante,unterklasse">
+            <thead>
+              <tr>
+                <th class="nb-l" data-field="name">Unterklasse</th>
+                <th class="nb-l" data-field="klasse">Klasse</th>
+                <th class="nb-l" data-field="lauf">Lauf</th>
+                <th class="nb-l" data-field="variante">Variante</th>
+                <th data-field="laeufe">Nächte</th>
+                <th data-field="siegquote">Siegquote</th>
+                <th data-field="schaden_je_lauf">Schaden</th>
+                <th data-field="erhalten_je_lauf">Eingesteckt</th>
+                <th data-field="heilung_je_lauf">Heilung</th>
+                <th data-field="tode_je_lauf">Tode</th>
               </tr>
             </thead>
             <tbody data-draw="uk-rows"></tbody>
           </table>
         </div>
       </div>
+
+      <div class="nb-card nb-wide" id="beitrag">
+        <h3>Was jede Unterklasse ihrer Gruppe bringt</h3>
+        <p class="nb-sub">Auswertung vom 30.10. über 2 496 zufällige Gruppen aus gross1, skal3 und skal4: wie viel öfter eine Gruppe gewinnt, wenn die Unterklasse dabei ist, verglichen mit anderen Gruppen gleicher Größe auf derselben Stufe, in Prozentpunkten. Der Strich zeigt die Unsicherheit.</p>
+        <div class="nb-controls">
+          <label for="nb-beitrag">Gruppen</label>
+          <select id="nb-beitrag" class="nb-beitrag" aria-label="Welche Gruppen">
+            <option value="alle">alle Gruppengrößen</option>
+            <option value="klein">nur 1–3 Spieler</option>
+          </select>
+        </div>
+        <div class="nb-chart" data-draw="uk-beitrag" data-source="uk_beitrag"></div>
+      </div>
     </div>
   </section>
 
-  <section class="nb-section" id="abende">
-    <h2 class="nb-sec">Echte Abende</h2>
-    <p class="nb-secnote">Aus den Logger-Dateien des Servers, ohne Spielernamen. Bisher fast nur Solo-Testnächte und ein Gruppenabend am 28.10. Abgebrochene Nächte zählen nicht.</p>
+  <!-- ===================== Echte Abende ===================== -->
+  <section class="nb-section" id="abende" role="tabpanel" aria-labelledby="tab-abende" data-panel hidden>
+    <p class="nb-secnote">Aus den Logger-Dateien des Servers, ohne Spielernamen. Abgebrochene Nächte zählen nicht. Stand: Nächte bis <span data-draw="meta-echt" data-source="echt_gesamt" data-field="letzte" data-row="0">—</span>.</p>
     <div class="nb-grid">
       <div class="nb-card" id="echt-matrix">
         <h3>Siegquote eurer Nächte</h3>
         <p class="nb-sub">Je Stufenbereich und Spielerzahl, darunter die Zahl der Nächte.</p>
-        <div class="nb-scroll nb-pivot" data-draw="echt-matrix" data-source="echte_zellen"></div>
+        <div class="nb-pivot" data-draw="echt-matrix" data-source="echte_zellen"></div>
       </div>
-
-      <div class="nb-card" id="echt-gegner">
-        <h3>Gefährlichste Gegner bei euch</h3>
-        <p class="nb-sub">Anteil am Schaden, den ihr eingesteckt habt, die 10 größten.</p>
-        <div class="nb-chart" data-draw="echt-gegner-chart" data-source="echte_gegner"></div>
-      </div>
-
       <div class="nb-card" id="bewertung">
         <h3>Eure Bewertungen</h3>
         <p class="nb-sub">Die 1-Klick-Bewertung im Statistik-Fenster nach jeder Nacht, alle Nächte zusammen.</p>
         <div class="nb-votes">
-          <div class="nb-vote"><span class="nb-big" data-draw="vote-leicht" data-source="bewertungen" data-field="zu_leicht" data-row="0">—</span><span class="nb-n">zu leicht</span></div>
-          <div class="nb-vote"><span class="nb-big" data-draw="vote-passt" data-source="bewertungen" data-field="passt" data-row="0">—</span><span class="nb-n">passt</span></div>
-          <div class="nb-vote"><span class="nb-big" data-draw="vote-schwer" data-source="bewertungen" data-field="zu_schwer" data-row="0">—</span><span class="nb-n">zu schwer</span></div>
+          <div class="nb-vote"><span class="nb-big" data-draw="vote-leicht" data-source="echt_gesamt" data-field="zu_leicht" data-row="0">—</span><span class="nb-n">zu leicht</span></div>
+          <div class="nb-vote"><span class="nb-big" data-draw="vote-passt" data-source="echt_gesamt" data-field="passt" data-row="0">—</span><span class="nb-n">passt</span></div>
+          <div class="nb-vote"><span class="nb-big" data-draw="vote-schwer" data-source="echt_gesamt" data-field="zu_schwer" data-row="0">—</span><span class="nb-n">zu schwer</span></div>
         </div>
       </div>
-
+      <div class="nb-card" id="echt-gegner">
+        <h3>Gefährlichste Gegner bei euch</h3>
+        <p class="nb-sub">Anteil am Schaden, den ihr eingesteckt habt, die 10 größten.</p>
+        <div class="nb-chart" data-draw="echt-gegner" data-source="echte_gegner"></div>
+      </div>
       <div class="nb-card" id="echt-dungeons">
         <h3>Dungeons und Heerlager</h3>
         <p class="nb-sub">Versuche und Siege, ohne verlassene und abgebrochene. Beim Heerlager zählt die zerstörte Werkbank als Sieg.</p>
@@ -286,7 +346,6 @@
           </table>
         </div>
       </div>
-
       <div class="nb-card nb-wide" id="echt-unterklassen">
         <h3>Unterklassen bei euch</h3>
         <p class="nb-sub">Je Unterklasse über alle eure Nächte: Siegquote der Gruppe, Schaden und eingesteckter Schaden je Minute, Tode je Nacht.</p>
@@ -307,10 +366,9 @@
           </table>
         </div>
       </div>
-
       <div class="nb-card nb-wide" id="echt-liste">
         <h3>Letzte Nächte</h3>
-        <p class="nb-sub">Die 15 neuesten echten Nächte.</p>
+        <p class="nb-sub">Die 20 neuesten echten Nächte.</p>
         <div class="nb-tablebox">
           <table class="nb-tbl" data-source="echte_naechte" data-row-key="nacht">
             <thead>
@@ -334,50 +392,109 @@
     </div>
   </section>
 
-  <section class="nb-section" id="begriffe">
-    <h2 class="nb-sec">So ist gemessen</h2>
-    <dl class="nb-def">
-      <dt>Team-Sim</dt>
-      <dd>Bots spielen echte Testnächte auf einem Server ohne Grafik, auf der Kopie deiner Burg (9 × 9 Chunks um den Core, Stand 29.10.). Jeder hat die Punkte, die man bis zu dieser Stufe hätte, und das Kit der Stufe, aber keine Kisten-Gewinne. Die Config ist die des Servers vom 29.10., alle Monster der Server-Liste sind dabei, auch die aus Takes a Pillage und Friends &amp; Foes.</dd>
-      <dt>Gruppen</dt>
-      <dd>Zufällig gewählt wie echte Spieler (keine Unterklasse doppelt), dazu ab 2 Spielern die Vorlagen Tank + Heiler + Schaden, Nur Schaden, Tanks + Techniker und Nur Beschwörer. Jede Bot-Variante spielt genau dieselben Gruppen.</dd>
-      <dt>Eichung</dt>
-      <dd>Die Bots haben zwei Regler. „Können“ (0–1): wie oft sie aufpassen und wie schnell sie Fähigkeiten nutzen. „Wagemut“ (0–1): wie weit sie für einen Gegner ihren Posten verlassen, von 7 bis 22 Blöcken. Die Variante mit dem kleinsten Abstand zu euren Nächten ist die geeichte.</dd>
-      <dt>Monster gleichzeitig</dt>
-      <dd>Wie viele Monster der Nacht zugleich leben dürfen. Ist das Limit erreicht, kommen neue erst nach, wenn welche sterben, und das Kill-Ziel sinkt („Ziel ↓ Feld voll“). Heute gilt für jede Gruppengröße dasselbe Limit.</dd>
-      <dt>Creeper-Schalter</dt>
-      <dd>Das Kill-Ziel ist ein fester Anteil aller gespawnten Monster. Mit dem Schalter zählen Monster nicht mehr mit, die ohne Kill verschwinden: gesprengte Creeper, weggeflogene Phantome, eine geflohene Nemesis. Die Leiste zeigt dann „Ziel ↓ Monster ohne Kill weg“. Den Schaden an der Mauer hat ein Creeper trotzdem angerichtet.</dd>
-      <dt>Deine Basis</dt>
-      <dd>Der Server erkennt deine Burg seit dem 28.10. nachmittags als offen (keine geschlossene Mauer, 0 Tore). Dann warten die Monster nicht vor der Mauer, sondern greifen sofort an. Die Sim spielt das genauso.</dd>
-    </dl>
+  <!-- ===================== Analysen ===================== -->
+  <section class="nb-section" id="analysen" role="tabpanel" aria-labelledby="tab-analysen" data-panel hidden>
+    <p class="nb-secnote">Einzelne Auswertungen, die nicht aus einem Lauf allein kommen. Sie werden nicht von selbst neu berechnet; ihr Stand steht jeweils dabei.</p>
+    <div class="nb-grid">
+      <div class="nb-card nb-wide" id="eichung">
+        <h3>Spielen die Bots wie ihr?</h3>
+        <p class="nb-sub">Stand 29.10. (Lauf eich2). Jede Bot-Variante neben euren echten Nächten (Stufe 1–15, ohne Bossnächte). Kleinster Abstand = passt am besten.</p>
+        <div class="nb-tablebox">
+          <table class="nb-tbl" data-source="eichung" data-row-key="variante,art">
+            <thead>
+              <tr>
+                <th class="nb-l" data-field="name">Wer</th>
+                <th class="nb-l" data-field="art">Spieler</th>
+                <th data-field="n">Spieler-Nächte</th>
+                <th data-field="schaden_je_min">Schaden/min</th>
+                <th data-field="erhalten_je_min">Eingesteckt/min</th>
+                <th data-field="tod_anteil">Mit Tod</th>
+                <th data-field="ueberlebt_s">Überlebt (Median)</th>
+                <th data-field="fern_anteil">Von Fernkämpfern</th>
+                <th data-field="abstand">Abstand</th>
+              </tr>
+            </thead>
+            <tbody data-draw="eich-rows"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="nb-card" id="skal-vorschlag">
+        <h3>Skalierungs-Vorschlag</h3>
+        <p class="nb-sub">Stand 30.10., aus skal3 und skal4: Monster gleichzeitig je Spielerzahl statt eines Limits für alle, kleinere Wellen, für kleine Gruppen schwächere Monster, dazu der Creeper-Schalter. Geprüft in skal5 (Variante „neu“).</p>
+        <div class="nb-tablebox">
+          <table class="nb-tbl" data-source="skal_vorschlag" data-row-key="spieler">
+            <thead>
+              <tr>
+                <th class="nb-l" data-field="spieler">Spieler</th>
+                <th data-field="limit">Monster gleichzeitig</th>
+                <th data-field="limit_heute">bisher</th>
+                <th data-field="welle_vs_heute">Welle ggü. bisher</th>
+                <th data-field="schaden_leben">Schaden und Leben</th>
+              </tr>
+            </thead>
+            <tbody data-draw="sk-vor-rows"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="nb-card" id="skal-ohne">
+        <h3>Warum Solo und Duo am Kill-Ziel scheitern</h3>
+        <p class="nb-sub">Stand 30.10., Lauf skal4 (Tabelle ohne Schalter): Anteil der gespawnten Monster, die nie getötet wurden. Ohne Creeper-Schalter zählen sie trotzdem zum Kill-Ziel.</p>
+        <p class="nb-legend"><span><i class="nb-swatch nb-sw-c0"></i>Creeper gesprengt</span><span><i class="nb-swatch nb-sw-c1"></i>Phantom weggeflogen</span><span><i class="nb-swatch nb-sw-mid"></i>anders weg oder noch da</span></p>
+        <div class="nb-chart" data-draw="sk-ohne" data-source="skal_ohne_kill"></div>
+      </div>
+      <div class="nb-card nb-wide" id="begriffe">
+        <h3>So ist gemessen</h3>
+        <dl class="nb-def">
+          <dt>Team-Sim</dt>
+          <dd>Bots spielen echte Testnächte auf einem Server ohne Grafik, auf der Kopie deiner Burg (9 × 9 Chunks um den Core, Stand 29.10.). Jeder hat die Punkte, die man bis zu dieser Stufe hätte, und das Kit der Stufe, aber keine Kisten-Gewinne. Alle Monster der Server-Liste sind dabei, auch die aus Takes a Pillage und Friends &amp; Foes.</dd>
+          <dt>Lauf und Variante</dt>
+          <dd>Ein Lauf ist ein Auftrag an die Sim (Branch balance-run-…). Jede Variante darin spielt dieselben Gruppen; „aktuell“ ist die Server-Config, die anderen ändern einzelne Werte. „Server-Stand“ im Überblick ist „aktuell“ im neuesten geeichten Lauf, der mindestens drei Spielerzahlen abdeckt; „Vergleich“ ist dort die Variante, deren Siegquoten am nächsten an 70 % liegen, solange du keine andere wählst.</dd>
+          <dt>Gruppen</dt>
+          <dd>Zufällig gewählt wie echte Spieler (keine Unterklasse doppelt), dazu ab 2 Spielern die Vorlagen Tank + Heiler + Schaden, Nur Schaden, Tanks + Techniker und Nur Beschwörer.</dd>
+          <dt>Bots</dt>
+          <dd>Zwei Regler: „Können“ (0–1) sagt, wie oft ein Bot aufpasst und wie schnell er Fähigkeiten nutzt, „Wagemut“ (0–1), wie weit er für einen Gegner seinen Posten verlässt (7–22 Blöcke). Seit dem großen Lauf (gross1) spielen sie geeicht an euren Nächten: Können 0,7, geht weit raus. Ältere Läufe spielten perfekt am Posten.</dd>
+          <dt>Monster gleichzeitig und Creeper-Schalter</dt>
+          <dd>Ist das Limit gleichzeitig lebender Monster erreicht, kommen neue erst nach, wenn welche sterben, und das Kill-Ziel sinkt. Mit dem Creeper-Schalter zählen Monster nicht mehr zum Kill-Ziel, die ohne Kill verschwinden (gesprengte Creeper, weggeflogene Phantome, geflohene Nemesis).</dd>
+          <dt>Daten nachladen</dt>
+          <dd>Die Sim-Daten kommen aus allen Branches dist-balance-run-* (Skript tools/sim/dashboard_alle.py), die echten Abende aus den Logger-Dateien des Servers (tools/sim/echte_naechte.py). Sag Claude „Bring das Balance-Dashboard auf den Stand“; ein Auftrag, der das regelmäßig macht, lässt sich später anlegen.</dd>
+        </dl>
+      </div>
+    </div>
   </section>
 </div>
 
 <script>
-  window.nbTarget = 0.7;
-  window.nbCur = () => dash.params().variante ?? 'aktuell';
-  window.nbPct = (q) => (q == null || isNaN(q) ? '–' : Math.round(q * 100) + ' %');
-  window.nbNum = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
-  window.nbDec = new Intl.NumberFormat('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  window.nbSecs = (s) => (s == null ? '–' : s >= 120 ? Math.floor(s / 60) + ' min ' + String(Math.round(s % 60)).padStart(2, '0') + ' s' : Math.round(s) + ' s');
-  window.nbPlayers = (g) => (+g === 1 ? '1 Spieler' : g + ' Spieler');
-  window.nbFail = (el, status) => {
+  // ---------- helpers ----------
+  window.nb = window.nb || {};
+  nb.target = 0.7;
+  nb.pct = (q) => (q == null || isNaN(q) ? '–' : Math.round(q * 100) + ' %');
+  nb.pp = (v) => (v == null || isNaN(v) ? '–' : (v > 0.0049 ? '+' : v < -0.0049 ? '−' : '±') + Math.abs(Math.round(v * 100)) + ' P.');
+  nb.num = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
+  nb.dec = new Intl.NumberFormat('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  nb.secs = (s) => (s == null ? '–' : s >= 120 ? Math.floor(s / 60) + ' min ' + String(Math.round(s % 60)).padStart(2, '0') + ' s' : Math.round(s) + ' s');
+  nb.players = (g) => g + ' Spieler';
+  nb.when = (z) => { const m = /^(\d{4})-(\d\d)-(\d\d) (\d\d:\d\d)/.exec(String(z || '')); return m ? `${+m[3]}.${+m[2]}. ${m[4]}` : String(z || '–'); };
+  nb.ok = (id) => { const d = dash.data(id); return d.status === 'ok' ? d.data : null; };
+  nb.fail = (el, id) => {
+    const st = dash.data(id).status;
     el.replaceChildren();
-    if (status === 'error' || status === 'connect' || status === 'declined' || status === 'missing') {
-      const f = document.createElement('div');
-      f.className = 'nb-fail';
-      f.textContent = 'Failed to load';
-      el.append(f);
-      return true;
+    if (st === 'error' || st === 'connect' || st === 'declined' || st === 'missing') {
+      const f = document.createElement('div'); f.className = 'nb-fail'; f.textContent = 'Failed to load'; el.append(f);
     }
-    return false;
   };
-  window.nbCellColor = (q) => {
+  nb.empty = (el, text) => { const p = document.createElement('div'); p.className = 'nb-empty'; p.textContent = text; el.replaceChildren(p); };
+  nb.cellColor = (q) => {
     if (q < 0.55) return `color-mix(in srgb, var(--cds-chart-status-critical) ${Math.round(18 + (0.55 - q) / 0.55 * 42)}%, transparent)`;
     if (q > 0.85) return `color-mix(in srgb, var(--cds-chart-reference) ${Math.round(25 + (q - 0.85) / 0.15 * 30)}%, transparent)`;
     return 'color-mix(in srgb, var(--cds-chart-muted) 22%, transparent)';
   };
-  window.nbTip = (el, lines, x, y) => {
+  nb.diffColor = (d) => {
+    const s = Math.min(1, Math.abs(d) / 0.3);
+    if (Math.abs(d) < 0.03) return 'color-mix(in srgb, var(--cds-chart-muted) 15%, transparent)';
+    return d > 0 ? `color-mix(in srgb, var(--cds-chart-reference) ${Math.round(15 + s * 40)}%, transparent)`
+      : `color-mix(in srgb, var(--cds-chart-status-critical) ${Math.round(15 + s * 40)}%, transparent)`;
+  };
+  nb.tip = (el, lines, x, y) => {
     let tip = el.querySelector(':scope > .nb-tip');
     if (!tip) { tip = document.createElement('div'); tip.className = 'nb-tip'; el.append(tip); }
     tip.replaceChildren(...lines.map((t, i) => { const d = document.createElement('div'); if (i === 0) d.className = 'nb-tip-h'; d.textContent = t; return d; }));
@@ -385,17 +502,17 @@
     tip.style.left = Math.max(4, Math.min(el.clientWidth - tip.offsetWidth - 4, x + 12)) + 'px';
     tip.style.top = Math.max(4, y - tip.offsetHeight - 8) + 'px';
   };
-  window.nbTipOff = (el) => { const t = el.querySelector(':scope > .nb-tip'); if (t) t.hidden = true; };
-  window.nbCell = (tr, text, cls) => { const td = tr.insertCell(); td.textContent = text; if (cls) td.className = cls; return td; };
-  window.nbQuote = (tr, q) => {
+  nb.tipOff = (el) => { const t = el.querySelector(':scope > .nb-tip'); if (t) t.hidden = true; };
+  nb.cell = (tr, text, cls) => { const td = tr.insertCell(); td.textContent = text; if (cls) td.className = cls; return td; };
+  nb.quote = (tr, q) => {
     const td = tr.insertCell();
     const w = document.createElement('span'); w.className = 'nb-qcell';
-    const bar = document.createElement('i'); bar.style.width = Math.max(2, Math.round(q * 56)) + 'px'; bar.style.background = nbCellColor(q).replace('transparent', 'var(--color-panel)');
-    const t = document.createElement('span'); t.textContent = nbPct(q);
+    const bar = document.createElement('i'); bar.style.width = Math.max(2, Math.round(q * 56)) + 'px'; bar.style.background = nb.cellColor(q).replace('transparent', 'var(--color-panel)');
+    const t = document.createElement('span'); t.textContent = nb.pct(q);
     w.append(bar, t); td.append(w);
   };
-  // A pivot table (rows × columns of one value) drawn into el.
-  window.nbPivot = (el, rowsOf, colsOf, cellOf, rowLabel, colLabel, corner) => {
+  nb.textW = (svg, text, size) => { const t = svg.append('text').attr('font-size', size).text(text); const w = t.node().getComputedTextLength(); t.remove(); return w; };
+  nb.pivot = (el, rowsOf, colsOf, cellOf, rowLabel, colLabel, corner) => {
     const table = document.createElement('table');
     const head = table.createTHead().insertRow();
     const h0 = document.createElement('th'); h0.textContent = corner; head.append(h0);
@@ -408,540 +525,565 @@
         const td = tr.insertCell();
         const v = cellOf(r, c);
         if (!v) { td.textContent = '–'; continue; }
-        td.style.background = nbCellColor(v.q);
-        const qs = document.createElement('span'); qs.className = 'nb-q'; qs.textContent = nbPct(v.q);
+        td.style.background = v.color;
+        const qs = document.createElement('span'); qs.className = 'nb-q'; qs.textContent = v.text;
         const ns = document.createElement('span'); ns.className = 'nb-n'; ns.textContent = v.n;
         td.append(qs, ns);
       }
     }
     el.replaceChildren(table);
   };
-  // Horizontal bars of shares (top 10), drawn into el.
-  window.nbBars = (el, rows, lines) => {
+  // shares as horizontal bars (one or two series), drawn into el
+  nb.bars = (el, rows, series, tipOf) => {
     el.replaceChildren();
     if (!rows.length) return;
-    const W = Math.max(260, el.clientWidth), bh = 20, gap = 6, H = rows.length * (bh + gap);
+    const W = Math.max(260, el.clientWidth), per = series.length, bh = per > 1 ? 9 : 16, gap = per > 1 ? 10 : 8;
+    const rowH = per * bh + (per - 1) * 2 + gap, H = rows.length * rowH;
     const svg = d3.select(el).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`);
-    let nameW = 0;
-    for (const r of rows) { const t = svg.append('text').attr('font-size', 12).text(r.name); nameW = Math.max(nameW, t.node().getComputedTextLength()); t.remove(); }
-    const x = d3.scaleLinear([0, d3.max(rows, (r) => +r.anteil) || 1], [0, Math.max(40, W - nameW - 12 - 44)]);
+    const nameW = Math.min(W * 0.4, d3.max(rows, (r) => nb.textW(svg, r.name, 12)));
+    const max = d3.max(rows, (r) => d3.max(series, (s) => +(r[s.key] || 0))) || 1;
+    const x = d3.scaleLinear([0, max], [0, Math.max(40, W - nameW - 12 - 44)]);
     rows.forEach((r, i) => {
-      const yy = i * (bh + gap);
-      svg.append('text').attr('x', nameW).attr('y', yy + bh / 2).attr('dy', '0.32em').attr('text-anchor', 'end').attr('font-size', 12).attr('fill', 'var(--color-fg)').text(r.name);
-      svg.append('rect').attr('x', nameW + 8).attr('y', yy + 2).attr('width', Math.max(1, x(+r.anteil))).attr('height', bh - 4).attr('rx', 3)
-        .attr('fill', i === 0 ? dash.colors[0] : 'var(--cds-chart-muted)')
-        .on('mousemove', (ev) => { const [px, py] = d3.pointer(ev, el); nbTip(el, lines(r), px, py); })
-        .on('mouseleave', () => nbTipOff(el));
-      svg.append('text').attr('x', nameW + 12 + x(+r.anteil)).attr('y', yy + bh / 2).attr('dy', '0.32em').attr('font-size', 12).attr('fill', 'var(--color-fg-muted)').text(nbPct(+r.anteil));
-    });
-  };
-
-  dash.calc('varianten_quote', {
-    inputs: ['zellen'],
-    title: 'Siegquote je Bot-Variante und Spielerzahl',
-    description: 'Siege durch Läufe je Bot-Variante und Spielerzahl, über alle Stufen des Laufs.',
-    fn: (zellen) => {
-      const out = new Map();
-      for (const z of zellen) {
-        const key = z.variante + '|' + z.spieler;
-        const o = out.get(key) || { variante: z.variante, name: z.variante_name || z.variante, koennen: +z.koennen, wagemut: +(z.wagemut || 0), spieler: +z.spieler, laeufe: 0, siege: 0 };
-        o.laeufe += +z.laeufe;
-        o.siege += +z.siege;
-        out.set(key, o);
-      }
-      return [...out.values()].map((o) => ({ ...o, siegquote: o.laeufe ? o.siege / o.laeufe : 0 }));
-    },
-  });
-
-  dash.calc('bewertungen', {
-    inputs: ['echte_naechte'],
-    title: 'Bewertungen zusammengezählt',
-    description: 'Summe der 1-Klick-Bewertungen über alle echten Nächte.',
-    fn: (echte_naechte) => [echte_naechte.reduce((a, n) => ({ zu_leicht: a.zu_leicht + +n.zu_leicht, passt: a.passt + +n.passt, zu_schwer: a.zu_schwer + +n.zu_schwer }), { zu_leicht: 0, passt: 0, zu_schwer: 0 })],
-  });
-
-  dash.draw('variante', (sel) => {
-    const z = dash.data('zellen');
-    const seen = new Map();
-    for (const r of z.status === 'ok' ? z.data : []) seen.set(r.variante, { name: r.variante_name || r.variante, k: +r.koennen, w: +(r.wagemut || 0) });
-    const opts = [...seen].sort((a, b) => b[1].k - a[1].k || a[1].w - b[1].w);
-    sel.replaceChildren(...opts.map(([v, o]) => new Option(o.name, v)));
-    sel.value = nbCur();
-    sel.onchange = () => dash.setParams({ variante: sel.value });
-  });
-
-  dash.draw('takeaway', (el) => {
-    const c = dash.data('varianten_quote');
-    if (c.status !== 'ok') { el.textContent = '—'; return; }
-    const rows = c.data.filter((r) => r.variante === nbCur()).sort((a, b) => a.spieler - b.spieler);
-    el.textContent = rows.length ? rows.map((r) => `${nbPlayers(r.spieler)} ${nbPct(r.siegquote)}`).join(', ') : '—';
-  });
-
-  const nbLauf = (field, fmt) => (el) => {
-    const d = dash.data('lauf');
-    el.textContent = d.status === 'ok' && d.data[0] ? fmt(d.data[0][field]) : '—';
-  };
-  dash.draw('naechte', nbLauf('testnaechte', (v) => nbNum.format(+v)));
-  dash.draw('boden', nbLauf('boden', (v) => String(v)));
-  dash.draw('datum', nbLauf('datum', (v) => new Date(v + 'T12:00:00Z').toLocaleDateString('de-DE', { day: 'numeric', month: 'long', year: 'numeric' })));
-  dash.draw('echt-n', (el) => {
-    const d = dash.data('echte_naechte');
-    el.textContent = d.status === 'ok' ? nbNum.format(d.data.length) : '—';
-  });
-
-  dash.draw('eich-rows', (tb) => {
-    const d = dash.data('eichung');
-    tb.replaceChildren();
-    if (d.status !== 'ok') return;
-    const best = {};
-    for (const r of d.data) if (r.quelle === 'sim' && r.abstand != null && (!best[r.art] || +r.abstand < +best[r.art].abstand)) best[r.art] = r;
-    const rows = [...d.data].sort((a, b) => (a.art === b.art ? 0 : a.art === 'allein' ? -1 : 1) || (a.quelle === 'echt' ? -1 : b.quelle === 'echt' ? 1 : (+a.abstand) - (+b.abstand)));
-    for (const r of rows) {
-      const tr = tb.insertRow();
-      tr.dataset.key = encodeURIComponent(r.variante) + ',' + encodeURIComponent(r.art);
-      if (r.quelle === 'echt') tr.className = 'nb-real';
-      else if (best[r.art] === r) tr.className = 'nb-best';
-      const name = nbCell(tr, r.name, 'nb-l nb-main');
-      if (best[r.art] === r) { const chip = document.createElement('span'); chip.className = 'nb-chip'; chip.textContent = 'passt am besten'; name.append(chip); }
-      nbCell(tr, r.art === 'allein' ? 'allein' : 'Gruppe', 'nb-l');
-      nbCell(tr, nbNum.format(+r.n));
-      nbCell(tr, nbNum.format(+r.schaden_je_min));
-      nbCell(tr, nbNum.format(+r.erhalten_je_min));
-      nbCell(tr, nbPct(+r.tod_anteil));
-      nbCell(tr, nbSecs(r.ueberlebt_s == null ? null : +r.ueberlebt_s));
-      nbCell(tr, nbPct(+r.fern_anteil));
-      nbCell(tr, r.quelle === 'echt' ? '–' : r.abstand == null ? '–' : nbDec.format(+r.abstand));
-    }
-  });
-
-  dash.draw('matrix', (el) => {
-    const z = dash.data('zellen');
-    if (z.status !== 'ok') { if (!nbFail(el, z.status)) el.textContent = ''; return; }
-    const rows = z.data.filter((r) => r.variante === nbCur());
-    const levels = [...new Set(rows.map((r) => +r.stufe))].sort((a, b) => a - b);
-    const groups = [...new Set(rows.map((r) => +r.spieler))].sort((a, b) => a - b);
-    nbPivot(el, levels, groups, (lv, g) => {
-      const r = rows.find((x) => +x.stufe === lv && +x.spieler === g);
-      return r && +r.laeufe ? { q: +r.siegquote, n: r.laeufe + (+r.laeufe === 1 ? ' Lauf' : ' Läufe') } : null;
-    }, (lv) => String(lv), nbPlayers, 'Stufe');
-  });
-
-  dash.draw('var-chart', (el) => {
-    const c = dash.data('varianten_quote');
-    if (c.status !== 'ok') { if (!nbFail(el, c.status)) el.textContent = ''; return; }
-    el.replaceChildren();
-    const data = c.data;
-    const vars = [...new Map(data.map((r) => [r.variante, r])).values()].sort((a, b) => b.koennen - a.koennen || a.wagemut - b.wagemut);
-    const groups = [...new Set(data.map((r) => r.spieler))].sort((a, b) => a - b);
-    const W = Math.max(260, el.clientWidth);
-    const rowH = 14 * groups.length + 16;
-    const svg = d3.select(el).append('svg').attr('width', '100%');
-    let nameW = 0;
-    for (const v of vars) { const t = svg.append('text').attr('font-size', 12).text(v.name); nameW = Math.max(nameW, t.node().getComputedTextLength()); t.remove(); }
-    nameW = Math.min(nameW, W * 0.5);
-    const legendH = 22, H = legendH + vars.length * rowH + 18;
-    svg.attr('viewBox', `0 0 ${W} ${H}`);
-    const x = d3.scaleLinear([0, 1], [nameW + 10, W - 44]);
-    groups.forEach((g, i) => {
-      const lx = nameW + 10 + i * 90;
-      svg.append('rect').attr('x', lx).attr('y', 4).attr('width', 10).attr('height', 10).attr('rx', 2).attr('fill', dash.colors[i % dash.colors.length]);
-      svg.append('text').attr('x', lx + 14).attr('y', 9).attr('dy', '0.32em').attr('font-size', 11).attr('fill', 'var(--color-fg-muted)').text(nbPlayers(g));
-    });
-    svg.append('line').attr('x1', x(nbTarget)).attr('x2', x(nbTarget)).attr('y1', legendH).attr('y2', H - 16).attr('stroke', 'var(--cds-chart-reference)').attr('stroke-dasharray', '4 3');
-    svg.append('text').attr('x', x(nbTarget)).attr('y', H - 4).attr('text-anchor', 'middle').attr('font-size', 11).attr('fill', 'var(--color-fg-muted)').text('70 %');
-    vars.forEach((v, vi) => {
-      const y0 = legendH + vi * rowH;
-      const label = svg.append('text').attr('x', nameW).attr('y', y0 + rowH / 2 - 4).attr('dy', '0.32em').attr('text-anchor', 'end').attr('font-size', 12)
-        .attr('fill', v.variante === nbCur() ? 'var(--color-fg)' : 'var(--color-fg-muted)').attr('font-weight', v.variante === nbCur() ? 600 : 400).text(v.name);
-      while (label.node().getComputedTextLength() > nameW && label.text().length > 4) label.text(label.text().slice(0, -2) + '…');
-      groups.forEach((g, gi) => {
-        const r = data.find((d) => d.variante === v.variante && d.spieler === g);
-        if (!r) return;
-        const yy = y0 + gi * 14;
-        svg.append('rect').attr('x', x(0)).attr('y', yy).attr('width', Math.max(1, x(r.siegquote) - x(0))).attr('height', 11).attr('rx', 2)
-          .attr('fill', dash.colors[gi % dash.colors.length])
-          .on('mousemove', (ev) => { const [px, py] = d3.pointer(ev, el); nbTip(el, [v.name, `${nbPlayers(g)}: ${nbPct(r.siegquote)} (${r.siege} von ${r.laeufe})`], px, py); })
-          .on('mouseleave', () => nbTipOff(el));
-        svg.append('text').attr('x', x(r.siegquote) + 4).attr('y', yy + 5.5).attr('dy', '0.32em').attr('font-size', 10).attr('fill', 'var(--color-fg-muted)').text(nbPct(r.siegquote));
+      const y0 = i * rowH;
+      svg.append('text').attr('x', nameW).attr('y', y0 + (rowH - gap) / 2).attr('dy', '0.32em').attr('text-anchor', 'end').attr('font-size', 12).attr('fill', 'var(--color-fg)').text(r.name);
+      series.forEach((s, si) => {
+        const v = +(r[s.key] || 0), yy = y0 + si * (bh + 2);
+        svg.append('rect').attr('x', nameW + 8).attr('y', yy).attr('width', Math.max(1, x(v))).attr('height', bh).attr('rx', 2).attr('fill', s.color)
+          .on('mousemove', (ev) => { const [px, py] = d3.pointer(ev, el); nb.tip(el, tipOf(r), px, py); })
+          .on('mouseleave', () => nb.tipOff(el));
+        svg.append('text').attr('x', nameW + 12 + x(v)).attr('y', yy + bh / 2).attr('dy', '0.32em').attr('font-size', 11).attr('fill', 'var(--color-fg-muted)').text(nb.pct(v));
       });
     });
-  });
-
-  dash.draw('gegner-chart', (el) => {
-    const g = dash.data('gegner');
-    if (g.status !== 'ok') { if (!nbFail(el, g.status)) el.textContent = ''; return; }
-    const rows = g.data.filter((r) => r.variante === nbCur()).sort((a, b) => b.anteil - a.anteil).slice(0, 10);
-    nbBars(el, rows, (r) => [r.name, `${nbPct(+r.anteil)} des Schadens · ${nbNum.format(+r.schaden)} Leben · ${nbNum.format(+r.gespawnt)} erschienen`]);
-  });
-
-  dash.draw('echt-gegner-chart', (el) => {
-    const g = dash.data('echte_gegner');
-    if (g.status !== 'ok') { if (!nbFail(el, g.status)) el.textContent = ''; return; }
-    const rows = [...g.data].sort((a, b) => b.anteil - a.anteil).slice(0, 10);
-    nbBars(el, rows, (r) => [r.name, `${nbPct(+r.anteil)} des Schadens · ${nbNum.format(+r.schaden)} Leben`]);
-  });
-
-  dash.draw('mix', (el) => {
-    const d = dash.data('mischungen');
-    if (d.status !== 'ok') { if (!nbFail(el, d.status)) el.textContent = ''; return; }
-    const rows = d.data.filter((r) => r.variante === nbCur());
-    const groups = [...new Set(rows.map((r) => +r.spieler))].sort((a, b) => a - b);
-    const order = ['zufall', 'tank_heiler', 'nur_schaden', 'tanks_technik', 'beschwoerer'];
-    const kinds = [...new Set(rows.map((r) => r.mischung))].sort((a, b) => order.indexOf(a) - order.indexOf(b));
-    nbPivot(el, kinds, groups, (k, g) => {
-      const r = rows.find((x) => x.mischung === k && +x.spieler === g);
-      return r ? { q: +r.siegquote, n: r.laeufe + (+r.laeufe === 1 ? ' Lauf' : ' Läufe') } : null;
-    }, (k) => rows.find((r) => r.mischung === k)?.gruppenart ?? k, nbPlayers, 'Gruppe');
-  });
-
-  dash.draw('echt-matrix', (el) => {
-    const d = dash.data('echte_zellen');
-    if (d.status !== 'ok') { if (!nbFail(el, d.status)) el.textContent = ''; return; }
-    const bands = [...new Map(d.data.map((r) => [r.stufen, +r.ordnung])).entries()].sort((a, b) => a[1] - b[1]).map((e) => e[0]);
-    const groups = [...new Set(d.data.map((r) => +r.spieler))].sort((a, b) => a - b);
-    nbPivot(el, bands, groups, (b, g) => {
-      const r = d.data.find((x) => x.stufen === b && +x.spieler === g);
-      return r ? { q: +r.siegquote, n: r.naechte + (+r.naechte === 1 ? ' Nacht' : ' Nächte') } : null;
-    }, (b) => b, nbPlayers, 'Stufe');
-  });
-
-  for (const [name, field] of [['vote-leicht', 'zu_leicht'], ['vote-passt', 'passt'], ['vote-schwer', 'zu_schwer']]) {
-    dash.draw(name, (el) => {
-      const d = dash.data('bewertungen');
-      el.textContent = d.status === 'ok' && d.data[0] ? nbNum.format(+d.data[0][field]) : '—';
-    });
-  }
-
-  dash.draw('dg-rows', (tb) => {
-    const d = dash.data('echte_dungeons');
-    tb.replaceChildren();
-    if (d.status !== 'ok') return;
-    for (const r of [...d.data].sort((a, b) => b.versuche - a.versuche)) {
-      const tr = tb.insertRow();
-      tr.dataset.key = encodeURIComponent(r.typ);
-      nbCell(tr, r.name, 'nb-l nb-main');
-      nbCell(tr, nbNum.format(+r.versuche));
-      nbCell(tr, nbNum.format(+r.siege));
-      nbQuote(tr, +r.siegquote);
-    }
-  });
-
-  dash.draw('euk-rows', (tb) => {
-    const d = dash.data('echte_unterklassen');
-    tb.replaceChildren();
-    if (d.status !== 'ok') return;
-    for (const r of [...d.data].sort((a, b) => b.naechte - a.naechte || String(a.name).localeCompare(String(b.name), 'de'))) {
-      const tr = tb.insertRow();
-      tr.dataset.key = encodeURIComponent(r.name);
-      nbCell(tr, r.name, 'nb-l nb-main');
-      nbCell(tr, r.klasse, 'nb-l');
-      nbCell(tr, nbNum.format(+r.naechte));
-      nbQuote(tr, +r.siegquote);
-      nbCell(tr, nbNum.format(+r.schaden_je_min));
-      nbCell(tr, nbNum.format(+r.erhalten_je_min));
-      nbCell(tr, nbDec.format(+r.tode_je_nacht));
-    }
-  });
-
-  dash.draw('nacht-rows', (tb) => {
-    const d = dash.data('echte_naechte');
-    tb.replaceChildren();
-    if (d.status !== 'ok') return;
-    for (const r of [...d.data].sort((a, b) => String(b.datum).localeCompare(String(a.datum))).slice(0, 15)) {
-      const tr = tb.insertRow();
-      tr.dataset.key = encodeURIComponent(r.nacht);
-      nbCell(tr, r.datum, 'nb-l');
-      nbCell(tr, String(r.stufe));
-      nbCell(tr, String(r.spieler));
-      nbCell(tr, r.unterklassen, 'nb-l');
-      nbCell(tr, r.ergebnis, 'nb-l');
-      nbCell(tr, nbSecs(+r.sekunden));
-      nbCell(tr, nbNum.format(+r.kills));
-      nbCell(tr, nbNum.format(+r.killziel));
-      nbCell(tr, r.boss || '–', 'nb-l');
-      nbCell(tr, r.build, 'nb-l');
-    }
-  });
-
-  window.nbSort = { key: 'siegquote', dir: -1 };
-  dash.draw('uk-rows', (tb) => {
-    const d = dash.data('unterklassen');
-    tb.replaceChildren();
-    if (d.status !== 'ok') return;
-    const rows = d.data.filter((r) => r.variante === nbCur());
-    const { key, dir } = nbSort;
-    rows.sort((a, b) => (key === 'name' || key === 'klasse' ? String(a[key]).localeCompare(String(b[key]), 'de') : (+a[key] - +b[key])) * dir || String(a.name).localeCompare(String(b.name), 'de'));
-    for (const r of rows) {
-      const tr = tb.insertRow();
-      tr.dataset.key = encodeURIComponent(r.variante) + ',' + encodeURIComponent(r.unterklasse);
-      nbCell(tr, r.name, 'nb-l nb-main');
-      nbCell(tr, r.klasse, 'nb-l');
-      nbCell(tr, nbNum.format(+r.laeufe));
-      nbQuote(tr, +r.siegquote);
-      nbCell(tr, nbNum.format(+r.schaden_je_lauf));
-      nbCell(tr, nbNum.format(+r.erhalten_je_lauf));
-      nbCell(tr, nbNum.format(+r.heilung_je_lauf));
-      nbCell(tr, nbDec.format(+r.tode_je_lauf));
-    }
-  });
-  const nbSortHeads = () => {
-    for (const th of document.querySelectorAll('.nb-sortable th[data-sort]')) {
-      if (th.dataset.sort === nbSort.key) th.setAttribute('aria-sort', nbSort.dir > 0 ? 'ascending' : 'descending');
-      else th.removeAttribute('aria-sort');
-    }
   };
-  for (const th of document.querySelectorAll('.nb-sortable th[data-sort]')) {
-    th.addEventListener('click', () => {
-      const k = th.dataset.sort;
-      nbSort.dir = nbSort.key === k ? -nbSort.dir : (k === 'name' || k === 'klasse' ? 1 : -1);
-      nbSort.key = k;
-      nbSortHeads();
-      dash.draw('uk-rows');
+  // lines over a numeric x (players or level) for up to two series
+  nb.lines = (el, xs, series, xLabel, tipHead) => {
+    el.replaceChildren();
+    if (!xs.length) return;
+    const W = Math.max(260, el.clientWidth);
+    const svg = d3.select(el).append('svg').attr('width', '100%');
+    const tickW = nb.textW(svg, '100 %', 11);
+    const legendH = 20;
+    const m = { left: tickW + 10, right: 14, bottom: 24, top: legendH + 10 };
+    const H = m.top + 190 + m.bottom;
+    svg.attr('viewBox', `0 0 ${W} ${H}`);
+    let lx = m.left;
+    for (const s of series) {
+      svg.append('rect').attr('x', lx).attr('y', 4).attr('width', 10).attr('height', 10).attr('rx', 2).attr('fill', s.color);
+      const t = svg.append('text').attr('x', lx + 14).attr('y', 9).attr('dy', '0.32em').attr('font-size', 12).attr('fill', 'var(--color-fg-muted)').text(s.label);
+      lx += 14 + t.node().getComputedTextLength() + 18;
+    }
+    const x = xs.length > 1 ? d3.scaleLinear([xs[0], xs[xs.length - 1]], [m.left + 10, W - m.right - 10]) : () => (m.left + W - m.right) / 2;
+    const y = d3.scaleLinear([0, 1], [H - m.bottom, m.top]);
+    svg.append('rect').attr('x', m.left).attr('width', W - m.left - m.right).attr('y', y(0.85)).attr('height', y(0.55) - y(0.85)).attr('fill', 'color-mix(in srgb, var(--cds-chart-muted) 12%, transparent)');
+    for (const q of [0, 0.25, 0.5, 0.75, 1]) {
+      svg.append('line').attr('x1', m.left).attr('x2', W - m.right).attr('y1', y(q)).attr('y2', y(q)).attr('stroke', 'var(--cds-chart-grid)');
+      svg.append('text').attr('x', m.left - 6).attr('y', y(q)).attr('dy', '0.32em').attr('text-anchor', 'end').attr('font-size', 11).attr('fill', 'var(--color-fg-muted)').text(nb.pct(q));
+    }
+    svg.append('line').attr('x1', m.left).attr('x2', W - m.right).attr('y1', y(nb.target)).attr('y2', y(nb.target)).attr('stroke', 'var(--cds-chart-reference)').attr('stroke-dasharray', '4 3');
+    const step = xs.length > 1 ? (x(xs[xs.length - 1]) - x(xs[0])) / (xs.length - 1) : W;
+    xs.forEach((v, i) => {
+      if (step < 22 && i % 2 === 1 && i !== xs.length - 1) return;
+      svg.append('text').attr('x', x(v)).attr('y', H - 6).attr('text-anchor', 'middle').attr('font-size', 11).attr('fill', 'var(--color-fg-muted)').text(String(v));
     });
-  }
-  nbSortHeads();
-</script>
-<script>
-  window.skCur = () => dash.params().skal ?? 'TF';
-  for (const sw of document.querySelectorAll('.sk-sw')) sw.style.background = dash.colors[+sw.dataset.skColor || 0];
+    svg.append('text').attr('x', W - m.right).attr('y', H - 6).attr('dy', '-1.3em').attr('text-anchor', 'end').attr('font-size', 11).attr('fill', 'var(--color-fg-muted)').text(xLabel);
+    for (const s of series) {
+      const pts = xs.map((v) => s.at(v));
+      const line = d3.line().defined((d, i) => d != null).x((d, i) => x(xs[i])).y((d) => y(d.siegquote));
+      svg.append('path').attr('d', line(pts)).attr('fill', 'none').attr('stroke', s.color).attr('stroke-width', s.strong ? 3 : 2)
+        .attr('stroke-linecap', 'round').attr('stroke-linejoin', 'round').attr('stroke-dasharray', s.dashed ? '6 4' : null);
+      pts.forEach((d, i) => { if (d) svg.append('circle').attr('cx', x(xs[i])).attr('cy', y(d.siegquote)).attr('r', s.strong ? 3.5 : 2.5).attr('fill', s.color); });
+    }
+    const rule = svg.append('line').attr('y1', m.top).attr('y2', H - m.bottom).attr('stroke', 'var(--cds-chart-axis)').attr('visibility', 'hidden');
+    svg.append('rect').attr('x', m.left).attr('y', m.top).attr('width', W - m.left - m.right).attr('height', H - m.bottom - m.top).attr('fill', 'transparent')
+      .on('mousemove', (ev) => {
+        const [px] = d3.pointer(ev, svg.node());
+        const v = xs.reduce((best, q) => (Math.abs(x(q) - px) < Math.abs(x(best) - px) ? q : best), xs[0]);
+        rule.attr('x1', x(v)).attr('x2', x(v)).attr('visibility', 'visible');
+        const lines = [tipHead(v)];
+        for (const s of series) { const d = s.at(v); if (d) lines.push(`${s.label}: ${nb.pct(d.siegquote)} (${d.siege} von ${d.laeufe})`); }
+        const [ex, ey] = d3.pointer(ev, el);
+        nb.tip(el, lines, ex, ey);
+      })
+      .on('mouseleave', () => { rule.attr('visibility', 'hidden'); nb.tipOff(el); });
+  };
 
-  dash.calc('skal_gesamt', {
-    inputs: ['skal_quote'],
+  // ---------- calculations ----------
+  dash.calc('sim_je_spieler', {
+    inputs: ['sim_quote'],
     title: 'Siegquote je Variante und Spielerzahl',
-    description: 'Siege durch Testnächte je Variante und Spielerzahl, über alle Stufen.',
-    fn: (skal_quote) => {
+    description: 'Siege durch Testnächte je Lauf, Variante und Spielerzahl, über alle Stufen des Laufs.',
+    fn: (sim_quote) => {
       const out = new Map();
-      for (const r of skal_quote) {
-        const key = r.variante + '|' + r.spieler;
-        const o = out.get(key) || { variante: r.variante, variante_name: r.variante_name, reihenfolge: +r.reihenfolge, spieler: +r.spieler, laeufe: 0, siege: 0 };
-        o.laeufe += +r.laeufe;
-        o.siege += +r.siege;
+      for (const r of sim_quote) {
+        const id = r.lauf + '/' + r.variante, key = id + '|' + r.spieler;
+        const o = out.get(key) || { id, lauf: r.lauf, variante: r.variante, spieler: +r.spieler, laeufe: 0, siege: 0, tode: 0 };
+        o.laeufe += +r.laeufe; o.siege += +r.siege; o.tode += (+r.tode_je_lauf || 0) * (+r.laeufe);
+        out.set(key, o);
+      }
+      return [...out.values()].map((o) => ({ id: o.id, lauf: o.lauf, variante: o.variante, spieler: o.spieler, laeufe: o.laeufe, siege: o.siege,
+        siegquote: o.laeufe ? o.siege / o.laeufe : 0, tode_je_lauf: o.laeufe ? o.tode / o.laeufe : 0 }));
+    },
+  });
+
+  dash.calc('sim_je_stufe', {
+    inputs: ['sim_quote'],
+    title: 'Siegquote je Variante und Stufe',
+    description: 'Siege durch Testnächte je Lauf, Variante und Stufe, über alle Spielerzahlen des Laufs.',
+    fn: (sim_quote) => {
+      const out = new Map();
+      for (const r of sim_quote) {
+        const id = r.lauf + '/' + r.variante, key = id + '|' + r.stufe;
+        const o = out.get(key) || { id, lauf: r.lauf, variante: r.variante, stufe: +r.stufe, laeufe: 0, siege: 0 };
+        o.laeufe += +r.laeufe; o.siege += +r.siege;
         out.set(key, o);
       }
       return [...out.values()].map((o) => ({ ...o, siegquote: o.laeufe ? o.siege / o.laeufe : 0 }));
     },
   });
 
-  dash.calc('skal_spanne', {
-    inputs: ['skal_gesamt'],
+  dash.calc('sim_spanne', {
+    inputs: ['sim_je_spieler'],
     title: 'Spanne der Siegquote je Variante',
-    description: 'Niedrigste und höchste Siegquote einer Variante über alle Spielerzahlen.',
-    fn: (skal_gesamt) => {
+    description: 'Niedrigste und höchste Siegquote einer Variante über ihre Spielerzahlen und der größte Abstand zum Ziel von 70 %.',
+    fn: (sim_je_spieler) => {
       const out = new Map();
-      for (const r of skal_gesamt) {
-        const o = out.get(r.variante) || { variante: r.variante, variante_name: r.variante_name, min: 1, max: 0 };
-        o.min = Math.min(o.min, r.siegquote);
-        o.max = Math.max(o.max, r.siegquote);
-        out.set(r.variante, o);
+      for (const r of sim_je_spieler) {
+        const o = out.get(r.id) || { id: r.id, lauf: r.lauf, variante: r.variante, min: 1, max: 0, abstand: 0, spielerzahlen: 0 };
+        o.min = Math.min(o.min, r.siegquote); o.max = Math.max(o.max, r.siegquote);
+        o.abstand = Math.max(o.abstand, Math.abs(r.siegquote - 0.7)); o.spielerzahlen += 1;
+        out.set(r.id, o);
       }
-      return [...out.values()].map((o) => ({ ...o, spanne: Math.round(o.min * 100) + '–' + Math.round(o.max * 100) + ' %' }));
+      return [...out.values()].map((o) => ({ ...o, spanne: Math.round(o.min * 100) === Math.round(o.max * 100) ? Math.round(o.min * 100) + ' %' : Math.round(o.min * 100) + '–' + Math.round(o.max * 100) + ' %' }));
     },
   });
 
-  for (const [name, v] of [['sk-spanne-neu', 'TF'], ['sk-spanne-heute', 'aktuell']]) {
-    dash.draw(name, (el) => {
-      const d = dash.data('skal_spanne');
-      const r = d.status === 'ok' ? d.data.find((x) => x.variante === v) : null;
-      el.textContent = r ? r.spanne : '—';
-    });
+  dash.calc('auswahl', {
+    inputs: ['sim_laeufe', 'sim_varianten', 'sim_spanne'],
+    title: 'Server-Stand und Vergleich je Lauf',
+    description: 'Je Lauf die Variante mit der Server-Config und die Variante, deren Siegquoten am nächsten an 70 % liegen; „standard“ markiert den neuesten geeichten Lauf mit Server-Config über mindestens drei Spielerzahlen.',
+    fn: (sim_laeufe, sim_varianten, sim_spanne) => {
+      const span = new Map(sim_spanne.map((s) => [s.id, s]));
+      const geeicht = ['Großer Lauf', 'Skalierung', 'Klassen', 'Serverlast'];
+      const rows = [];
+      let standard = null;
+      for (const l of [...sim_laeufe].sort((a, b) => String(b.zeit).localeCompare(String(a.zeit)))) {
+        const vs = sim_varianten.filter((v) => v.lauf === l.lauf);
+        const server = vs.find((v) => v.server_stand === true || v.server_stand === 'true');
+        const others = vs.filter((v) => v !== server && span.has(v.id)).sort((a, b) => span.get(a.id).abstand - span.get(b.id).abstand);
+        const row = { lauf: l.lauf, art: l.art, zeit: l.zeit, testnaechte: +l.testnaechte, server: server ? server.id : (vs[0] ? vs[0].id : null),
+          vorschlag: others[0] ? others[0].id : null, standard: false };
+        if (!standard && server && geeicht.includes(l.art) && (span.get(server.id)?.spielerzahlen || 0) >= 3) { standard = row; row.standard = true; }
+        rows.push(row);
+      }
+      return rows;
+    },
+  });
+
+  dash.calc('kennzahlen', {
+    inputs: ['sim_laeufe'],
+    title: 'Sim-Läufe und Testnächte',
+    description: 'Zahl der Sim-Läufe und Summe ihrer Testnächte.',
+    fn: (sim_laeufe) => [{ laeufe: sim_laeufe.length, testnaechte: sim_laeufe.reduce((a, l) => a + (+l.testnaechte || 0), 0) }],
+  });
+
+  dash.calc('echt_je_spieler', {
+    inputs: ['echte_naechte'],
+    title: 'Echte Siegquote je Spielerzahl',
+    description: 'Gewonnene durch alle echten Nächte je Spielerzahl, alle Stufen.',
+    fn: (echte_naechte) => {
+      const out = new Map();
+      for (const n of echte_naechte) {
+        const o = out.get(+n.spieler) || { spieler: +n.spieler, naechte: 0, siege: 0 };
+        o.naechte += 1; o.siege += n.ergebnis === 'gewonnen' ? 1 : 0;
+        out.set(+n.spieler, o);
+      }
+      return [...out.values()].map((o) => ({ ...o, siegquote: o.naechte ? o.siege / o.naechte : 0 })).sort((a, b) => a.spieler - b.spieler);
+    },
+  });
+
+  dash.calc('echt_gesamt', {
+    inputs: ['echte_naechte'],
+    title: 'Echte Nächte zusammen',
+    description: 'Zahl, Siege und Siegquote aller echten Nächte, die neueste Nacht und die Summe der 1-Klick-Bewertungen.',
+    fn: (echte_naechte) => {
+      const o = { naechte: echte_naechte.length, siege: 0, letzte: '', zu_leicht: 0, passt: 0, zu_schwer: 0 };
+      for (const n of echte_naechte) {
+        o.siege += n.ergebnis === 'gewonnen' ? 1 : 0;
+        if (String(n.datum) > o.letzte) o.letzte = String(n.datum);
+        o.zu_leicht += +n.zu_leicht || 0; o.passt += +n.passt || 0; o.zu_schwer += +n.zu_schwer || 0;
+      }
+      const votes = o.zu_leicht + o.passt + o.zu_schwer;
+      return [{ ...o, siegquote: o.naechte ? o.siege / o.naechte : 0, passt_anteil: votes ? o.passt / votes : 0 }];
+    },
+  });
+
+  // ---------- selection ----------
+  nb.rowsOk = (id) => nb.ok(id) || [];
+  nb.auswahl = () => nb.rowsOk('auswahl');
+  nb.std = () => nb.auswahl().find((r) => r.standard === true || r.standard === 'true') || nb.auswahl()[0] || null;
+  nb.basis = () => { const p = dash.params().basis; return nb.auswahl().find((r) => r.lauf === p) || nb.std(); };
+  nb.varsOf = (lauf) => nb.rowsOk('sim_varianten').filter((v) => v.lauf === lauf);
+  nb.vorschlag = () => {
+    const b = nb.basis(); if (!b) return null;
+    const p = dash.params().vorschlag;
+    return nb.varsOf(b.lauf).some((v) => v.id === p) ? p : b.vorschlag;
+  };
+  nb.side = (s) => {
+    const p = dash.params(), std = nb.std();
+    let lauf = p['lauf_' + s];
+    if (!lauf || !nb.varsOf(lauf).length) lauf = std ? std.lauf : null;
+    if (!lauf) return null;
+    const vs = nb.varsOf(lauf);
+    let id = p['var_' + s];
+    if (!vs.some((v) => v.id === id)) {
+      const a = nb.auswahl().find((r) => r.lauf === lauf);
+      id = s === 'a' ? (a && a.server) : (a && (a.vorschlag || a.server));
+      if (!vs.some((v) => v.id === id)) id = vs[0] && vs[0].id;
+    }
+    return id;
+  };
+  nb.label = (id) => (id ? id.replace('/', ' · ') : '–');
+  nb.where = (el, field, value) => { el.setAttribute('data-where', field + '=' + encodeURIComponent(value)); };
+
+  // ---------- tabs ----------
+  nb.tabs = ['ueberblick', 'vergleich', 'klassen', 'abende', 'analysen'];
+  nb.show = (name, link) => {
+    if (!nb.tabs.includes(name)) name = 'ueberblick';
+    for (const sec of document.querySelectorAll('[data-panel]')) sec.hidden = sec.id !== name;
+    for (const b of document.querySelectorAll('.nb-tabs [data-tab]')) b.setAttribute('aria-selected', b.dataset.tab === name ? 'true' : 'false');
+    if (link) dash.setLink(name);
+  };
+  for (const b of document.querySelectorAll('.nb-tabs [data-tab]')) b.addEventListener('click', () => nb.show(b.dataset.tab, true));
+  nb.show(location.hash.slice(1), false);
+
+  // ---------- fixed controls ----------
+  for (const [cls, param, dflt] of [['.nb-sicht', 'sicht', 'b'], ['.nb-wert', 'wert', 'schaden_je_lauf'], ['.nb-beitrag', 'beitrag', 'alle'], ['.nb-art', 'art', '']]) {
+    for (const sel of document.querySelectorAll(cls)) sel.addEventListener('change', () => dash.setParams({ [param]: sel.value || null }));
+    nb[param] = () => dash.params()[param] ?? dflt;
   }
-
-  dash.draw('sk-chart', (el) => {
-    const c = dash.data('skal_gesamt');
-    if (c.status !== 'ok') { if (!nbFail(el, c.status)) el.replaceChildren(); return; }
-    el.replaceChildren();
-    const data = c.data;
-    const vars = [...new Map(data.map((r) => [r.variante, r])).values()].sort((a, b) => a.reihenfolge - b.reihenfolge);
-    // the proposal in the first color, today muted and dashed, the rest in order
-    const colorOf = new Map();
-    let k = 1;
-    for (const v of vars) colorOf.set(v.variante, v.variante === 'TF' ? dash.colors[0] : v.variante === 'aktuell' ? 'var(--cds-chart-muted)' : dash.colors[k++ % dash.colors.length]);
-    const players = [...new Set(data.map((r) => r.spieler))].sort((a, b) => a - b);
-    const W = Math.max(280, el.clientWidth);
-    const svg = d3.select(el).append('svg').attr('width', '100%');
-    // legend, wrapped
-    const items = [];
-    let lx = 0, ly = 0;
-    for (const v of vars) {
-      const t = svg.append('text').attr('font-size', 12).text(v.variante_name);
-      const w = 16 + t.node().getComputedTextLength() + 18;
-      t.remove();
-      if (lx + w > W && lx > 0) { lx = 0; ly += 18; }
-      items.push({ v, x: lx, y: ly });
-      lx += w;
-    }
-    const top = ly + 18 + 12;
-    const tickW = (() => { const t = svg.append('text').attr('font-size', 11).text('100 %'); const w = t.node().getComputedTextLength(); t.remove(); return w; })();
-    const m = { left: tickW + 10, right: 12, bottom: 26 };
-    const H = top + 220 + m.bottom;
-    svg.attr('viewBox', `0 0 ${W} ${H}`);
-    for (const it of items) {
-      const sel = it.v.variante === 'TF';
-      svg.append('rect').attr('x', it.x).attr('y', it.y + 2).attr('width', 10).attr('height', 10).attr('rx', 2).attr('fill', colorOf.get(it.v.variante));
-      svg.append('text').attr('x', it.x + 14).attr('y', it.y + 7).attr('dy', '0.32em').attr('font-size', 12)
-        .attr('fill', sel ? 'var(--color-fg)' : 'var(--color-fg-muted)').attr('font-weight', sel ? 600 : 400).text(it.v.variante_name);
-    }
-    const x = d3.scaleLinear([players[0], players[players.length - 1]], [m.left + 8, W - m.right - 8]);
-    const y = d3.scaleLinear([0, 1], [H - m.bottom, top]);
-    for (const q of [0, 0.25, 0.5, 0.75, 1]) {
-      svg.append('line').attr('x1', m.left).attr('x2', W - m.right).attr('y1', y(q)).attr('y2', y(q)).attr('stroke', 'var(--cds-chart-grid)');
-      svg.append('text').attr('x', m.left - 6).attr('y', y(q)).attr('dy', '0.32em').attr('text-anchor', 'end').attr('font-size', 11).attr('fill', 'var(--color-fg-muted)').text(nbPct(q));
-    }
-    const step = players.length > 1 ? x(players[1]) - x(players[0]) : W;
-    for (const p of players) {
-      svg.append('text').attr('x', x(p)).attr('y', H - 8).attr('text-anchor', 'middle').attr('font-size', 11).attr('fill', 'var(--color-fg-muted)')
-        .text(step < 34 ? String(p) : nbPlayers(p).replace(' Spieler', ' Sp.'));
-    }
-    svg.append('line').attr('x1', m.left).attr('x2', W - m.right).attr('y1', y(nbTarget)).attr('y2', y(nbTarget)).attr('stroke', 'var(--cds-chart-reference)').attr('stroke-dasharray', '4 3');
-    const order = [...vars].sort((a, b) => (a.variante === 'TF') - (b.variante === 'TF'));
-    for (const v of order) {
-      const pts = players.map((p) => data.find((r) => r.variante === v.variante && r.spieler === p) || null);
-      const line = d3.line().defined((d) => d).x((d) => x(d.spieler)).y((d) => y(d.siegquote));
-      const sel = v.variante === 'TF';
-      svg.append('path').attr('d', line(pts)).attr('fill', 'none').attr('stroke', colorOf.get(v.variante))
-        .attr('stroke-width', sel ? 3 : 2).attr('stroke-linecap', 'round').attr('stroke-linejoin', 'round')
-        .attr('stroke-dasharray', v.variante === 'aktuell' ? '6 4' : null);
-      for (const d of pts) if (d) svg.append('circle').attr('cx', x(d.spieler)).attr('cy', y(d.siegquote)).attr('r', sel ? 3.5 : 2.5).attr('fill', colorOf.get(v.variante));
-    }
-    const rule = svg.append('line').attr('y1', top).attr('y2', H - m.bottom).attr('stroke', 'var(--cds-chart-axis)').attr('visibility', 'hidden');
-    svg.append('rect').attr('x', m.left).attr('y', top).attr('width', W - m.left - m.right).attr('height', H - m.bottom - top).attr('fill', 'transparent')
-      .on('mousemove', (ev) => {
-        const [px] = d3.pointer(ev, svg.node());
-        const p = players.reduce((best, q) => (Math.abs(x(q) - px) < Math.abs(x(best) - px) ? q : best), players[0]);
-        rule.attr('x1', x(p)).attr('x2', x(p)).attr('visibility', 'visible');
-        const lines = [nbPlayers(p)];
-        for (const v of vars) {
-          const r = data.find((d) => d.variante === v.variante && d.spieler === p);
-          if (r) lines.push(`${v.variante_name}: ${nbPct(r.siegquote)} (${r.siege} von ${r.laeufe})`);
-        }
-        const [ex, ey] = d3.pointer(ev, el);
-        nbTip(el, lines, ex, ey);
-      })
-      .on('mouseleave', () => { rule.attr('visibility', 'hidden'); nbTipOff(el); });
-  });
-
-  dash.draw('sk-vor-rows', (tb) => {
-    const d = dash.data('skal_vorschlag');
-    tb.replaceChildren();
-    if (d.status !== 'ok') return;
-    for (const r of [...d.data].sort((a, b) => a.spieler - b.spieler)) {
-      const tr = tb.insertRow();
-      tr.dataset.key = String(r.spieler);
-      nbCell(tr, nbPlayers(r.spieler), 'nb-l nb-main');
-      nbCell(tr, nbNum.format(+r.limit), 'nb-main');
-      nbCell(tr, nbNum.format(+r.limit_heute));
-      nbCell(tr, nbPct(+r.welle_vs_heute));
-      nbCell(tr, nbPct(+r.schaden_leben));
+  dash.onData(() => {
+    for (const [cls, param] of [['.nb-sicht', 'sicht'], ['.nb-wert', 'wert'], ['.nb-beitrag', 'beitrag'], ['.nb-art', 'art']]) {
+      for (const sel of document.querySelectorAll(cls)) sel.value = nb[param]();
     }
   });
 
-  dash.draw('sk-ohne-chart', (el) => {
-    const d = dash.data('skal_ohne_kill');
-    if (d.status !== 'ok') { if (!nbFail(el, d.status)) el.replaceChildren(); return; }
+  // ---------- header ----------
+  dash.draw('take-server', (el) => {
+    const b = nb.basis(), sp = b && nb.rowsOk('sim_spanne').find((r) => r.id === b.server);
+    if (b) nb.where(el, 'id', b.server);
+    el.textContent = sp ? sp.spanne : '—';
+  });
+  dash.draw('take-server-id', (el) => { const b = nb.basis(); if (b) nb.where(el, 'id', b.server); el.textContent = b && b.server ? b.server : '—'; });
+  dash.draw('take-vor', (el) => {
+    const id = nb.vorschlag(), sp = id && nb.rowsOk('sim_spanne').find((r) => r.id === id);
+    if (id) nb.where(el, 'id', id);
+    el.textContent = sp ? sp.spanne : '—';
+  });
+  dash.draw('take-vor-id', (el) => { const id = nb.vorschlag(); if (id) nb.where(el, 'id', id); el.textContent = id || '—'; });
+  dash.draw('take-echt', (el) => {
+    const g = nb.ok('echt_gesamt');
+    el.textContent = g && g[0] ? nb.pct(+g[0].siegquote) : '—';
+  });
+  dash.draw('meta-lauf', (el) => { const l = nb.ok('sim_laeufe'); el.textContent = l && l[0] ? l[0].lauf : '—'; });
+  dash.draw('meta-zeit', (el) => { const l = nb.ok('sim_laeufe'); el.textContent = l && l[0] ? nb.when(l[0].zeit) : '—'; });
+  dash.draw('meta-echt', (el) => { const g = nb.ok('echt_gesamt'); el.textContent = g && g[0] && g[0].letzte ? nb.when(g[0].letzte) : '—'; });
+
+  // ---------- Überblick ----------
+  dash.draw('sel-basis', (sel) => {
+    const rows = nb.auswahl().filter((r) => ['Großer Lauf', 'Skalierung', 'Klassen', 'Serverlast'].includes(r.art));
+    sel.replaceChildren(...rows.map((r) => new Option(`${r.lauf} · ${r.art} · ${nb.when(r.zeit)}`, r.lauf)));
+    const b = nb.basis(); sel.value = b ? b.lauf : '';
+    sel.onchange = () => dash.setParams({ basis: sel.value, vorschlag: null });
+  });
+  dash.draw('sel-vorschlag', (sel) => {
+    const b = nb.basis();
+    const vs = b ? nb.varsOf(b.lauf).filter((v) => v.id !== b.server) : [];
+    sel.replaceChildren(...vs.map((v) => new Option(v.variante, v.id)));
+    sel.disabled = !vs.length;
+    sel.value = nb.vorschlag() || '';
+    sel.onchange = () => dash.setParams({ vorschlag: sel.value });
+  });
+  dash.draw('vor-name', (el) => { const id = nb.vorschlag(); if (id) nb.where(el, 'id', id); el.textContent = id ? id.split('/')[1] : '—'; });
+  dash.draw('vor-einst', (el) => { const id = nb.vorschlag(), v = nb.rowsOk('sim_varianten').find((r) => r.id === id); if (id) nb.where(el, 'id', id); el.textContent = v ? v.einstellungen : '—'; });
+
+  dash.draw('ampel', (el) => {
+    const sp = nb.ok('sim_je_spieler');
+    if (!sp) { nb.fail(el, 'sim_je_spieler'); return; }
+    const b = nb.basis(); if (!b) { nb.empty(el, 'Noch kein passender Lauf.'); return; }
+    const vid = nb.vorschlag(), echt = nb.rowsOk('echt_je_spieler');
+    const srv = sp.filter((r) => r.id === b.server), vor = sp.filter((r) => r.id === vid);
+    const players = [...new Set([...srv, ...vor, ...echt].map((r) => +r.spieler))].sort((a, c) => a - c);
     el.replaceChildren();
-    const rows = [...d.data].sort((a, b) => a.spieler - b.spieler);
-    const W = Math.max(260, el.clientWidth), bh = 20, gap = 6, H = rows.length * (bh + gap);
+    const W = Math.max(280, el.clientWidth), rowH = 26, top = 22, H = top + players.length * rowH + 22;
     const svg = d3.select(el).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`);
-    let nameW = 0;
-    for (const r of rows) { const t = svg.append('text').attr('font-size', 12).text(nbPlayers(r.spieler)); nameW = Math.max(nameW, t.node().getComputedTextLength()); t.remove(); }
-    const x = d3.scaleLinear([0, d3.max(rows, (r) => +r.nicht_getoetet) || 1], [0, Math.max(40, W - nameW - 12 - 44)]);
-    const parts = [['creeper_gesprengt', dash.colors[0]], ['phantom_weg', dash.colors[1]], ['rest', 'var(--cds-chart-muted)']];
-    rows.forEach((r, i) => {
-      const yy = i * (bh + gap);
-      svg.append('text').attr('x', nameW).attr('y', yy + bh / 2).attr('dy', '0.32em').attr('text-anchor', 'end').attr('font-size', 12).attr('fill', 'var(--color-fg)').text(nbPlayers(r.spieler));
-      let x0 = nameW + 8;
-      for (const [f, col] of parts) {
-        const w = Math.max(0, x(+r[f]));
-        svg.append('rect').attr('x', x0).attr('y', yy + 2).attr('width', w).attr('height', bh - 4).attr('fill', col)
-          .on('mousemove', (ev) => { const [px, py] = d3.pointer(ev, el); nbTip(el, [nbPlayers(r.spieler), `nie getötet: ${nbPct(+r.nicht_getoetet)} (${nbNum.format(+r.getoetet_je_nacht)} von ${nbNum.format(+r.gespawnt_je_nacht)} je Nacht getötet)`, `Creeper gesprengt: ${nbPct(+r.creeper_gesprengt)}`, `Phantom weggeflogen: ${nbPct(+r.phantom_weg)}`, `anders weg oder noch da: ${nbPct(+r.rest)}`], px, py); })
-          .on('mouseleave', () => nbTipOff(el));
-        x0 += w;
-      }
-      svg.append('text').attr('x', x0 + 4).attr('y', yy + bh / 2).attr('dy', '0.32em').attr('font-size', 12).attr('fill', 'var(--color-fg-muted)').text(nbPct(+r.nicht_getoetet));
+    const labW = nb.textW(svg, '10 Spieler', 12) + 8;
+    const valText = (p) => {
+      const s = srv.find((r) => r.spieler === p), v = vor.find((r) => r.spieler === p), e = echt.find((r) => +r.spieler === p);
+      const parts = [];
+      if (s) parts.push(nb.pct(s.siegquote));
+      if (v) parts.push('→ ' + nb.pct(v.siegquote));
+      if (e && W >= 520) parts.push('· echt ' + e.siege + '/' + e.naechte);
+      return parts.join(' ');
+    };
+    const valW = Math.min(W * 0.42, (d3.max(players, (p) => nb.textW(svg, valText(p), 12)) || 0) + 16);
+    const x = d3.scaleLinear([0, 1], [labW + 8, W - valW]);
+    svg.append('rect').attr('x', x(0.55)).attr('width', x(0.85) - x(0.55)).attr('y', top - 6).attr('height', H - top - 16).attr('fill', 'color-mix(in srgb, var(--cds-chart-muted) 14%, transparent)');
+    for (const q of [0, 0.25, 0.5, 0.75, 1]) {
+      svg.append('line').attr('x1', x(q)).attr('x2', x(q)).attr('y1', top - 6).attr('y2', H - 22).attr('stroke', 'var(--cds-chart-grid)');
+      svg.append('text').attr('x', x(q)).attr('y', H - 6).attr('text-anchor', 'middle').attr('font-size', 11).attr('fill', 'var(--color-fg-muted)').text(nb.pct(q));
+    }
+    svg.append('line').attr('x1', x(nb.target)).attr('x2', x(nb.target)).attr('y1', top - 6).attr('y2', H - 22).attr('stroke', 'var(--cds-chart-reference)').attr('stroke-dasharray', '4 3');
+    // legend
+    const lg = [['ring', 'Server-Stand'], ['dot', 'Vergleich'], ['diamond', 'echt']];
+    let lx = labW + 8;
+    for (const [kind, text] of lg) {
+      if (kind === 'ring') svg.append('circle').attr('cx', lx + 5).attr('cy', 8).attr('r', 4.5).attr('fill', 'var(--color-panel)').attr('stroke', 'var(--cds-chart-muted)').attr('stroke-width', 2);
+      if (kind === 'dot') svg.append('circle').attr('cx', lx + 5).attr('cy', 8).attr('r', 5).attr('fill', dash.colors[0]);
+      if (kind === 'diamond') svg.append('path').attr('d', d3.symbol(d3.symbolDiamond, 60)()).attr('transform', `translate(${lx + 5},8)`).attr('fill', dash.colors[1]);
+      const t = svg.append('text').attr('x', lx + 14).attr('y', 8).attr('dy', '0.32em').attr('font-size', 11).attr('fill', 'var(--color-fg-muted)').text(text);
+      lx += 14 + t.node().getComputedTextLength() + 16;
+    }
+    players.forEach((p, i) => {
+      const yy = top + i * rowH + rowH / 2;
+      const s = srv.find((r) => r.spieler === p), v = vor.find((r) => r.spieler === p), e = echt.find((r) => +r.spieler === p);
+      svg.append('text').attr('x', labW).attr('y', yy).attr('dy', '0.32em').attr('text-anchor', 'end').attr('font-size', 12).attr('fill', 'var(--color-fg)').text(nb.players(p));
+      svg.append('line').attr('x1', x(0)).attr('x2', x(1)).attr('y1', yy).attr('y2', yy).attr('stroke', 'var(--cds-chart-grid)');
+      if (s && v) svg.append('line').attr('x1', x(s.siegquote)).attr('x2', x(v.siegquote)).attr('y1', yy).attr('y2', yy).attr('stroke', 'var(--cds-chart-muted)').attr('stroke-width', 2);
+      if (s) svg.append('circle').attr('cx', x(s.siegquote)).attr('cy', yy).attr('r', 5).attr('fill', 'var(--color-panel)').attr('stroke', 'var(--cds-chart-muted)').attr('stroke-width', 2);
+      if (v) svg.append('circle').attr('cx', x(v.siegquote)).attr('cy', yy).attr('r', 5.5).attr('fill', dash.colors[0]);
+      if (e) svg.append('path').attr('d', d3.symbol(d3.symbolDiamond, 70)()).attr('transform', `translate(${x(+e.siegquote)},${yy})`).attr('fill', dash.colors[1]);
+      svg.append('text').attr('x', W - valW + 10).attr('y', yy).attr('dy', '0.32em').attr('font-size', 12).attr('fill', 'var(--color-fg-muted)').text(valText(p));
+      svg.append('rect').attr('x', 0).attr('y', yy - rowH / 2).attr('width', W).attr('height', rowH).attr('fill', 'transparent')
+        .on('mousemove', (ev) => {
+          const lines = [nb.players(p)];
+          if (s) lines.push(`Server-Stand (${nb.label(b.server)}): ${nb.pct(s.siegquote)} (${s.siege} von ${s.laeufe}), ${nb.dec.format(s.tode_je_lauf)} Tode je Nacht`);
+          if (v) lines.push(`Vergleich (${nb.label(vid)}): ${nb.pct(v.siegquote)} (${v.siege} von ${v.laeufe}), ${nb.dec.format(v.tode_je_lauf)} Tode je Nacht`);
+          lines.push(e ? `Echte Nächte: ${nb.pct(+e.siegquote)} (${e.siege} von ${e.naechte})` : 'Echte Nächte: noch keine');
+          const [px, py] = d3.pointer(ev, el); nb.tip(el, lines, px, py);
+        })
+        .on('mouseleave', () => nb.tipOff(el));
     });
   });
 
-  dash.draw('sk-variante', (sel) => {
-    const c = dash.data('skal_gesamt');
-    const seen = new Map();
-    for (const r of c.status === 'ok' ? c.data : []) seen.set(r.variante, r);
-    const opts = [...seen.values()].sort((a, b) => a.reihenfolge - b.reihenfolge);
-    sel.replaceChildren(...opts.map((o) => new Option(o.variante_name, o.variante)));
-    sel.value = skCur();
-    sel.onchange = () => dash.setParams({ skal: sel.value });
-  });
+  for (const [name, field, fmt] of [['kpi-laeufe', 'laeufe', (v) => nb.num.format(v)], ['kpi-sim', 'testnaechte', (v) => nb.num.format(v)]]) {
+    dash.draw(name, (el) => { const k = nb.ok('kennzahlen'); el.textContent = k && k[0] ? fmt(+k[0][field]) : '—'; });
+  }
+  dash.draw('kpi-echt', (el) => { const g = nb.ok('echt_gesamt'); el.textContent = g && g[0] ? nb.num.format(+g[0].naechte) : '—'; });
+  dash.draw('kpi-passt', (el) => { const g = nb.ok('echt_gesamt'); el.textContent = g && g[0] ? nb.pct(+g[0].passt_anteil) : '—'; });
 
-  dash.calc('skal_uk', {
-    inputs: ['skal_unterklassen'],
-    title: 'Unterklassen je Variante, dazu heute',
-    description: 'Jede Unterklasse je Variante des Skalierungs-Laufs, dazu ihre Siegquote mit der heutigen Einstellung (Variante aktuell) im selben Lauf.',
-    fn: (skal_unterklassen) => {
-      const heute = new Map(skal_unterklassen.filter((r) => r.variante === 'aktuell').map((r) => [r.unterklasse, +r.siegquote]));
-      return skal_unterklassen.map((r) => ({ ...r, siegquote_heute: heute.has(r.unterklasse) ? heute.get(r.unterklasse) : null }));
-    },
-  });
-
-  window.skSort = { key: 'siegquote', dir: -1 };
-  dash.draw('sk-uk-rows', (tb) => {
-    const d = dash.data('skal_uk');
+  nb.openRun = (lauf, side) => {
+    const a = nb.auswahl().find((r) => r.lauf === lauf);
+    const id = a ? (side === 'b' ? (a.vorschlag || a.server) : a.server) : null;
+    dash.setParams({ ['lauf_' + side]: lauf, ['var_' + side]: id });
+  };
+  nb.runRows = (tb, rows) => {
     tb.replaceChildren();
-    if (d.status !== 'ok') return;
-    const rows = d.data.filter((r) => r.variante === skCur());
-    const { key, dir } = skSort;
-    rows.sort((a, b) => (key === 'name' || key === 'klasse' ? String(a[key]).localeCompare(String(b[key]), 'de') : ((+a[key] || 0) - (+b[key] || 0))) * dir || String(a.name).localeCompare(String(b.name), 'de'));
+    const a = nb.side('a') || '', bsel = nb.side('b') || '';
     for (const r of rows) {
       const tr = tb.insertRow();
-      tr.dataset.key = encodeURIComponent(r.variante) + ',' + encodeURIComponent(r.unterklasse);
-      nbCell(tr, r.name, 'nb-l nb-main');
-      nbCell(tr, r.klasse, 'nb-l');
-      nbCell(tr, nbNum.format(+r.laeufe));
-      nbQuote(tr, +r.siegquote);
-      if (r.siegquote_heute == null) nbCell(tr, '–'); else nbQuote(tr, +r.siegquote_heute);
-      nbCell(tr, nbNum.format(+r.schaden_je_lauf));
-      nbCell(tr, nbNum.format(+r.erhalten_je_lauf));
-      nbCell(tr, nbNum.format(+r.heilung_je_lauf));
-      nbCell(tr, nbDec.format(+r.tode_je_lauf));
-    }
-  });
-  const skSortHeads = () => {
-    for (const th of document.querySelectorAll('.sk-sortable th[data-sort]')) {
-      if (th.dataset.sort === skSort.key) th.setAttribute('aria-sort', skSort.dir > 0 ? 'ascending' : 'descending');
-      else th.removeAttribute('aria-sort');
+      tr.dataset.key = r.lauf;
+      tr.className = 'nb-click' + (a.startsWith(r.lauf + '/') || bsel.startsWith(r.lauf + '/') ? ' nb-on' : '');
+      nb.cell(tr, r.lauf, 'nb-l nb-main');
+      nb.cell(tr, r.art, 'nb-l');
+      nb.cell(tr, nb.when(r.zeit), 'nb-l');
+      nb.cell(tr, nb.num.format(+r.testnaechte));
+      if (tb.dataset.draw === 'alle-rows') { nb.cell(tr, r.stufen || '–', 'nb-l'); nb.cell(tr, r.spieler || '–', 'nb-l'); }
+      nb.cell(tr, r.beschreibung, 'nb-l nb-wrap');
     }
   };
-  for (const th of document.querySelectorAll('.sk-sortable th[data-sort]')) {
-    th.addEventListener('click', () => {
-      const k = th.dataset.sort;
-      skSort.dir = skSort.key === k ? -skSort.dir : (k === 'name' || k === 'klasse' ? 1 : -1);
-      skSort.key = k;
-      skSortHeads();
-      dash.draw('sk-uk-rows');
+  dash.draw('neueste-rows', (tb) => { const l = nb.ok('sim_laeufe'); if (!l) { tb.replaceChildren(); return; } nb.runRows(tb, [...l].sort((x, y) => String(y.zeit).localeCompare(String(x.zeit))).slice(0, 6)); });
+  dash.draw('alle-rows', (tb) => { const l = nb.ok('sim_laeufe'); if (!l) { tb.replaceChildren(); return; } const art = nb.art(); nb.runRows(tb, [...l].filter((r) => !art || r.art === art).sort((x, y) => String(y.zeit).localeCompare(String(x.zeit)))); });
+  for (const tb of document.querySelectorAll('tbody[data-draw=neueste-rows], tbody[data-draw=alle-rows]')) {
+    tb.addEventListener('click', (ev) => {
+      const tr = ev.target.closest('tr[data-key]'); if (!tr) return;
+      if (tb.dataset.draw === 'neueste-rows') { nb.openRun(tr.dataset.key, 'b'); nb.show('vergleich', true); }
+      else nb.openRun(tr.dataset.key, ev.shiftKey ? 'b' : 'a');
     });
   }
-  skSortHeads();
 
-  window.ukSicht = () => dash.params().beitrag ?? 'alle';
-  for (const sel of document.querySelectorAll('#uk-beitrag-sicht')) {
-    sel.value = ukSicht();
-    sel.addEventListener('change', () => dash.setParams({ beitrag: sel.value }));
+  // ---------- A / B pickers (Vergleich and Klassen) ----------
+  for (const s of ['a', 'b']) {
+    dash.draw('sel-lauf-' + s, (sel) => {
+      const l = nb.rowsOk('sim_laeufe');
+      sel.replaceChildren(...[...l].sort((x, y) => String(y.zeit).localeCompare(String(x.zeit))).map((r) => new Option(`${r.lauf} · ${r.art} · ${nb.when(r.zeit)}`, r.lauf)));
+      const id = nb.side(s); sel.value = id ? id.split('/')[0] : '';
+      sel.onchange = () => nb.openRun(sel.value, s);
+    });
+    dash.draw('sel-var-' + s, (sel) => {
+      const id = nb.side(s), lauf = id ? id.split('/')[0] : null;
+      const vs = lauf ? nb.varsOf(lauf) : [];
+      sel.replaceChildren(...vs.map((v) => new Option(v.variante + (v.server_stand === true || v.server_stand === 'true' ? ' (Server-Stand)' : ''), v.id)));
+      sel.value = id || '';
+      sel.onchange = () => dash.setParams({ ['lauf_' + s]: lauf, ['var_' + s]: sel.value });
+    });
+    dash.draw(s + '-besch', (el) => { const id = nb.side(s), lauf = id && id.split('/')[0]; const l = nb.rowsOk('sim_laeufe').find((r) => r.lauf === lauf); if (lauf) nb.where(el, 'lauf', lauf); el.textContent = l ? l.beschreibung : '—'; });
+    for (const [part, field, fmt] of [['einst', 'einstellungen', String], ['bots', 'bots', String], ['n', 'testnaechte', (v) => nb.num.format(+v)]]) {
+      dash.draw(`${s}-${part}`, (el) => { const id = nb.side(s), v = nb.rowsOk('sim_varianten').find((r) => r.id === id); if (id) nb.where(el, 'id', id); el.textContent = v ? fmt(v[field]) : '—'; });
+    }
   }
-  dash.draw('uk-beitrag-chart', (el) => {
-    const d = dash.data('uk_beitrag');
-    if (d.status !== 'ok') { if (!nbFail(el, d.status)) el.replaceChildren(); return; }
+
+  // ---------- Läufe vergleichen ----------
+  nb.ab = () => {
+    const a = nb.side('a'), b = nb.side('b');
+    return [
+      { side: 'a', id: a, label: 'A ' + nb.label(a), color: 'var(--cds-chart-muted)', dashed: true },
+      { side: 'b', id: b, label: 'B ' + nb.label(b), color: dash.colors[0], strong: true },
+    ].filter((x) => x.id);
+  };
+  dash.draw('cmp-spieler', (el) => {
+    const d = nb.ok('sim_je_spieler'); if (!d) { nb.fail(el, 'sim_je_spieler'); return; }
+    const ab = nb.ab(); const rows = d.filter((r) => ab.some((s) => s.id === r.id));
+    const xs = [...new Set(rows.map((r) => +r.spieler))].sort((a, b) => a - b);
+    nb.lines(el, xs, ab.map((s) => ({ ...s, at: (v) => rows.find((r) => r.id === s.id && +r.spieler === v) || null })), 'Spieler', nb.players);
+  });
+  dash.draw('cmp-stufe', (el) => {
+    const d = nb.ok('sim_je_stufe'); if (!d) { nb.fail(el, 'sim_je_stufe'); return; }
+    const ab = nb.ab(); const rows = d.filter((r) => ab.some((s) => s.id === r.id));
+    const xs = [...new Set(rows.map((r) => +r.stufe))].sort((a, b) => a - b);
+    nb.lines(el, xs, ab.map((s) => ({ ...s, at: (v) => rows.find((r) => r.id === s.id && +r.stufe === v) || null })), 'Stufe', (v) => 'Stufe ' + v);
+  });
+  nb.pivotAB = (el, rows, rowKey, colKey, rowLabel, corner, unit, rowSort) => {
+    const a = nb.side('a'), b = nb.side('b'), sicht = nb.sicht();
+    const of = (id) => rows.filter((r) => r.lauf + '/' + r.variante === id);
+    const ra = of(a), rb = of(b);
+    const pick = sicht === 'a' ? ra : rb;
+    const rowsOf = [...new Set((sicht === 'diff' ? [...ra, ...rb] : pick).map(rowKey))];
+    const colsOf = [...new Set((sicht === 'diff' ? [...ra, ...rb] : pick).map(colKey))].sort((x, y) => x - y);
+    rowsOf.sort(rowSort || ((x, y) => x - y));
+    if (!rowsOf.length) { nb.empty(el, 'Keine Daten für diese Auswahl.'); return; }
+    const find = (set, r, c) => set.find((x) => rowKey(x) === r && colKey(x) === c && +x.laeufe);
+    nb.pivot(el, rowsOf, colsOf, (r, c) => {
+      if (sicht !== 'diff') { const v = find(pick, r, c); return v ? { color: nb.cellColor(+v.siegquote), text: nb.pct(+v.siegquote), n: v.laeufe + ' ' + unit } : null; }
+      const va = find(ra, r, c), vb = find(rb, r, c);
+      if (!va || !vb) return null;
+      const dlt = +vb.siegquote - +va.siegquote;
+      return { color: nb.diffColor(dlt), text: nb.pp(dlt), n: nb.pct(+va.siegquote) + ' → ' + nb.pct(+vb.siegquote) };
+    }, rowLabel, nb.players, corner);
+  };
+  dash.draw('cmp-matrix', (el) => {
+    const d = nb.ok('sim_quote'); if (!d) { nb.fail(el, 'sim_quote'); return; }
+    nb.pivotAB(el, d, (r) => +r.stufe, (r) => +r.spieler, String, 'Stufe', 'Nächte');
+  });
+  nb.mixOrder = ['zufall', 'tank_heiler', 'nur_schaden', 'tanks_technik', 'beschwoerer'];
+  dash.draw('cmp-gruppen', (el) => {
+    const d = nb.ok('sim_gruppen'); if (!d) { nb.fail(el, 'sim_gruppen'); return; }
+    const names = new Map(d.map((r) => [r.mischung, r.gruppenart]));
+    const ord = (k) => { const i = nb.mixOrder.indexOf(k); return i < 0 ? 99 : i; };
+    nb.pivotAB(el, d, (r) => r.mischung, (r) => +r.spieler, (k) => names.get(k) || k, 'Gruppe', 'Nächte', (x, y) => ord(x) - ord(y));
+  });
+  dash.draw('cmp-gegner', (el) => {
+    const d = nb.ok('sim_gegner'); if (!d) { nb.fail(el, 'sim_gegner'); return; }
+    const a = nb.side('a'), b = nb.side('b');
+    const ga = d.filter((r) => r.lauf + '/' + r.variante === a), gb = d.filter((r) => r.lauf + '/' + r.variante === b);
+    const byTyp = new Map();
+    for (const [set, k] of [[ga, 'a'], [gb, 'b']]) for (const r of set) { const o = byTyp.get(r.typ) || { name: r.name, a: 0, b: 0, sa: 0, sb: 0 }; o[k] = +r.anteil; o['s' + k] = +r.schaden; byTyp.set(r.typ, o); }
+    const rows = [...byTyp.values()].sort((x, y) => Math.max(y.a, y.b) - Math.max(x.a, x.b)).slice(0, 10);
+    if (!rows.length) { nb.empty(el, 'Keine Daten für diese Auswahl.'); return; }
+    nb.bars(el, rows, [{ key: 'a', color: 'var(--cds-chart-muted)' }, { key: 'b', color: dash.colors[0] }],
+      (r) => [r.name, `A ${nb.label(a)}: ${nb.pct(r.a)} des Schadens (${nb.num.format(r.sa)})`, `B ${nb.label(b)}: ${nb.pct(r.b)} des Schadens (${nb.num.format(r.sb)})`]);
+  });
+
+  // ---------- Klassen ----------
+  nb.classOrder = ['Krieger', 'Wächter', 'Bogenschütze', 'Techniker', 'Beschwörer'];
+  nb.fmtWert = (k, v) => (v == null || isNaN(v) ? '–' : k === 'siegquote' ? nb.pct(v) : k === 'tode_je_lauf' ? nb.dec.format(v) : nb.num.format(v));
+  dash.draw('uk-chart', (el) => {
+    const d = nb.ok('sim_uk'); if (!d) { nb.fail(el, 'sim_uk'); return; }
+    const a = nb.side('a'), b = nb.side('b'), key = nb.wert();
+    const of = (id) => new Map(d.filter((r) => r.lauf + '/' + r.variante === id && +r.laeufe > 0).map((r) => [r.unterklasse, r]));
+    const ma = of(a), mb = of(b);
+    const subs = [...new Set([...ma.keys(), ...mb.keys()])].map((u) => ({ u, ra: ma.get(u), rb: mb.get(u) }));
+    if (!subs.length) { nb.empty(el, 'Keine Unterklassen in dieser Auswahl.'); return; }
+    const info = (s) => s.rb || s.ra;
+    subs.sort((x, y) => nb.classOrder.indexOf(info(x).klasse) - nb.classOrder.indexOf(info(y).klasse) || (+(y.rb?.[key] ?? -1) - +(x.rb?.[key] ?? -1)));
     el.replaceChildren();
-    const klein = ukSicht() === 'klein';
+    const W = Math.max(300, el.clientWidth), bh = 8, rowH = 2 * bh + 2 + 9, headH = 20;
+    const groups = []; let cur = null;
+    for (const s of subs) { if (!cur || cur.k !== info(s).klasse) { cur = { k: info(s).klasse, items: [] }; groups.push(cur); } cur.items.push(s); }
+    const H = 24 + groups.length * headH + subs.length * rowH + 4;
+    const svg = d3.select(el).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`);
+    const nameW = Math.min(W * 0.35, d3.max(subs, (s) => nb.textW(svg, info(s).name, 12)));
+    const vals = subs.flatMap((s) => [s.ra?.[key], s.rb?.[key]]).filter((v) => v != null).map(Number);
+    const max = key === 'siegquote' ? 1 : (d3.max(vals) || 1);
+    const valW = nb.textW(svg, '00.000', 11) + 8;
+    const x = d3.scaleLinear([0, max], [nameW + 10, W - valW]);
+    const bVals = subs.map((s) => s.rb?.[key]).filter((v) => v != null).map(Number);
+    const mean = bVals.length ? d3.mean(bVals) : null;
+    const yTop = 20, yBot = H - 4;
+    if (mean != null && key === 'schaden_je_lauf') svg.append('rect').attr('x', x(mean * 0.75)).attr('width', x(Math.min(max, mean * 1.25)) - x(mean * 0.75)).attr('y', yTop).attr('height', yBot - yTop).attr('fill', 'color-mix(in srgb, var(--cds-chart-muted) 14%, transparent)');
+    if (key === 'siegquote') svg.append('line').attr('x1', x(nb.target)).attr('x2', x(nb.target)).attr('y1', yTop).attr('y2', yBot).attr('stroke', 'var(--cds-chart-reference)').attr('stroke-dasharray', '4 3');
+    else if (mean != null) {
+      svg.append('line').attr('x1', x(mean)).attr('x2', x(mean)).attr('y1', yTop).attr('y2', yBot).attr('stroke', 'var(--cds-chart-reference)').attr('stroke-dasharray', '4 3');
+      svg.append('text').attr('x', x(mean)).attr('y', 10).attr('text-anchor', 'middle').attr('font-size', 11).attr('fill', 'var(--color-fg-muted)').text('Schnitt B ' + nb.fmtWert(key, mean));
+    }
+    let y = 24;
+    for (const g of groups) {
+      svg.append('text').attr('x', 0).attr('y', y + 10).attr('font-size', 11).attr('font-weight', 600).attr('fill', 'var(--color-fg-muted)').text(g.k);
+      y += headH;
+      for (const s of g.items) {
+        svg.append('text').attr('x', nameW).attr('y', y + bh + 1).attr('dy', '0.32em').attr('text-anchor', 'end').attr('font-size', 12).attr('fill', 'var(--color-fg)').text(info(s).name);
+        [[s.ra, 'var(--cds-chart-muted)', 0], [s.rb, dash.colors[0], bh + 2]].forEach(([r, col, off]) => {
+          if (!r) return;
+          const v = +r[key];
+          svg.append('rect').attr('x', x(0)).attr('y', y + off).attr('width', Math.max(1, x(v) - x(0))).attr('height', bh).attr('rx', 2).attr('fill', col);
+          svg.append('text').attr('x', x(v) + 4).attr('y', y + off + bh / 2).attr('dy', '0.32em').attr('font-size', 10).attr('fill', 'var(--color-fg-muted)').text(nb.fmtWert(key, v));
+        });
+        svg.append('rect').attr('x', 0).attr('y', y - 2).attr('width', W).attr('height', rowH).attr('fill', 'transparent')
+          .on('mousemove', (ev) => {
+            const lines = [`${info(s).name} (${info(s).klasse})`];
+            if (s.ra) lines.push(`A ${nb.label(a)}: ${nb.fmtWert(key, +s.ra[key])} · ${nb.num.format(+s.ra.laeufe)} Nächte`);
+            if (s.rb) lines.push(`B ${nb.label(b)}: ${nb.fmtWert(key, +s.rb[key])} · ${nb.num.format(+s.rb.laeufe)} Nächte`);
+            if (s.ra && s.rb && +s.ra[key]) lines.push(key === 'siegquote' ? 'Unterschied: ' + nb.pp(+s.rb[key] - +s.ra[key]) : 'Unterschied: ' + (((+s.rb[key] / +s.ra[key]) - 1) * 100 >= 0 ? '+' : '−') + Math.abs(Math.round(((+s.rb[key] / +s.ra[key]) - 1) * 100)) + ' %');
+            const [px, py] = d3.pointer(ev, el); nb.tip(el, lines, px, py);
+          })
+          .on('mouseleave', () => nb.tipOff(el));
+        y += rowH;
+      }
+    }
+  });
+  dash.draw('uk-rows', (tb) => {
+    tb.replaceChildren();
+    const d = nb.ok('sim_uk'); if (!d) return;
+    const a = nb.side('a'), b = nb.side('b'), key = nb.wert();
+    const pick = (id) => d.filter((r) => r.lauf + '/' + r.variante === id);
+    const ra = pick(a), rb = a === b ? [] : pick(b);
+    const subs = [...new Set([...ra, ...rb].map((r) => r.unterklasse))];
+    const val = (u) => { const r = rb.find((x) => x.unterklasse === u) || ra.find((x) => x.unterklasse === u); return r ? r : {}; };
+    subs.sort((x, y) => nb.classOrder.indexOf(val(x).klasse) - nb.classOrder.indexOf(val(y).klasse) || (+val(y)[key] || 0) - (+val(x)[key] || 0));
+    for (const u of subs) {
+      let first = true;
+      for (const r of [ra.find((x) => x.unterklasse === u), rb.find((x) => x.unterklasse === u)]) {
+        if (!r) continue;
+        const tr = tb.insertRow();
+        tr.dataset.key = [r.lauf, r.variante, r.unterklasse].map(encodeURIComponent).join(',');
+        if (first) tr.className = 'nb-grp';
+        nb.cell(tr, r.name, 'nb-l' + (first ? ' nb-main' : ''));
+        nb.cell(tr, r.klasse, 'nb-l');
+        nb.cell(tr, r.lauf, 'nb-l');
+        nb.cell(tr, r.variante, 'nb-l');
+        nb.cell(tr, nb.num.format(+r.laeufe));
+        nb.quote(tr, +r.siegquote);
+        nb.cell(tr, nb.num.format(+r.schaden_je_lauf));
+        nb.cell(tr, nb.num.format(+r.erhalten_je_lauf));
+        nb.cell(tr, nb.num.format(+r.heilung_je_lauf));
+        nb.cell(tr, nb.dec.format(+r.tode_je_lauf));
+        first = false;
+      }
+    }
+  });
+  dash.draw('uk-beitrag', (el) => {
+    const d = nb.ok('uk_beitrag'); if (!d) { nb.fail(el, 'uk_beitrag'); return; }
+    el.replaceChildren();
+    const klein = nb.beitrag() === 'klein';
     const val = (r) => +(klein ? r.beitrag_klein : r.beitrag);
     const err = (r) => +(klein ? r.beitrag_klein_fehler : r.beitrag_fehler) || 0;
-    const rows = [...d.data].sort((a, b) => val(b) - val(a));
+    const rows = [...d].sort((a, b) => val(b) - val(a));
     const pp = (v) => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v * 100).toLocaleString('de-DE', { maximumFractionDigits: 1 });
-    const W = Math.max(280, el.clientWidth), bh = 20, gap = 5, top = 4, H = top + rows.length * (bh + gap) + 22;
+    const W = Math.max(280, el.clientWidth), bh = 18, gap = 5, top = 4, H = top + rows.length * (bh + gap) + 22;
     const svg = d3.select(el).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`);
-    let nameW = 0;
-    for (const r of rows) { const t = svg.append('text').attr('font-size', 12).text(r.name); nameW = Math.max(nameW, t.node().getComputedTextLength()); t.remove(); }
+    const nameW = d3.max(rows, (r) => nb.textW(svg, r.name, 12));
     const lim = Math.max(0.05, d3.max(rows, (r) => Math.abs(val(r)) + err(r)) || 0.1);
     const x = d3.scaleLinear([-lim, lim], [nameW + 48, W - 40]);
-    const ticks = x.ticks(W < 420 ? 4 : 8);
-    for (const t of ticks) {
+    for (const t of x.ticks(W < 420 ? 4 : 8)) {
       svg.append('line').attr('x1', x(t)).attr('x2', x(t)).attr('y1', top).attr('y2', H - 20).attr('stroke', t === 0 ? 'var(--cds-chart-axis)' : 'var(--cds-chart-grid)');
       svg.append('text').attr('x', x(t)).attr('y', H - 6).attr('text-anchor', 'middle').attr('font-size', 11).attr('fill', 'var(--color-fg-muted)').text(pp(t));
     }
@@ -952,29 +1094,111 @@
         .attr('fill', v >= 0 ? dash.colors[0] : 'var(--cds-chart-status-critical)')
         .on('mousemove', (ev) => {
           const [px, py] = d3.pointer(ev, el);
-          nbTip(el, [`${r.name} (${r.klasse})`,
-            `Siege: ${pp(v)} Punkte (± ${nbDec.format(e * 100)}), ${nbNum.format(+(klein ? r.laeufe_klein : r.laeufe))} Nächte`,
-            `Schaden ${nbDec.format(+r.schaden_rel)}× · Kills ${nbDec.format(+r.kills_rel)}× · Eingesteckt ${nbDec.format(+r.eingesteckt_rel)}× der eigenen Gruppe`,
-            `Tode je Nacht ${nbDec.format(+r.tode_je_nacht)}` + (+r.heilung_je_nacht > 0 ? ` · Heilung je Nacht ${nbNum.format(+r.heilung_je_nacht)}` : '')], px, py);
+          nb.tip(el, [`${r.name} (${r.klasse})`, `Siege: ${pp(v)} Punkte (± ${nb.dec.format(e * 100)}), ${nb.num.format(+(klein ? r.laeufe_klein : r.laeufe))} Nächte`,
+            `Schaden ${nb.dec.format(+r.schaden_rel)}× · Kills ${nb.dec.format(+r.kills_rel)}× · Eingesteckt ${nb.dec.format(+r.eingesteckt_rel)}× der eigenen Gruppe`], px, py);
         })
-        .on('mouseleave', () => nbTipOff(el));
-      if (e > 0) {
-        svg.append('line').attr('x1', x(v - e)).attr('x2', x(v + e)).attr('y1', yy + bh / 2).attr('y2', yy + bh / 2).attr('stroke', 'var(--color-fg-muted)').attr('stroke-width', 1);
-      }
-      const lx = v >= 0 ? x(v + e) + 4 : x(v - e) - 4;
-      svg.append('text').attr('x', lx).attr('y', yy + bh / 2).attr('dy', '0.32em').attr('text-anchor', v >= 0 ? 'start' : 'end').attr('font-size', 11).attr('fill', 'var(--color-fg-muted)').text(pp(v));
+        .on('mouseleave', () => nb.tipOff(el));
+      if (e > 0) svg.append('line').attr('x1', x(v - e)).attr('x2', x(v + e)).attr('y1', yy + bh / 2).attr('y2', yy + bh / 2).attr('stroke', 'var(--color-fg-muted)');
+      svg.append('text').attr('x', v >= 0 ? x(v + e) + 4 : x(v - e) - 4).attr('y', yy + bh / 2).attr('dy', '0.32em').attr('text-anchor', v >= 0 ? 'start' : 'end').attr('font-size', 11).attr('fill', 'var(--color-fg-muted)').text(pp(v));
     });
   });
 
-  dash.draw('sk-matrix', (el) => {
-    const z = dash.data('skal_quote');
-    if (z.status !== 'ok') { if (!nbFail(el, z.status)) el.replaceChildren(); return; }
-    const rows = z.data.filter((r) => r.variante === skCur());
-    const levels = [...new Set(rows.map((r) => +r.stufe))].sort((a, b) => a - b);
-    const groups = [...new Set(rows.map((r) => +r.spieler))].sort((a, b) => a - b);
-    nbPivot(el, levels, groups, (lv, g) => {
-      const r = rows.find((x) => +x.stufe === lv && +x.spieler === g);
-      return r && +r.laeufe ? { q: +r.siegquote, n: r.laeufe + (+r.laeufe === 1 ? ' Nacht' : ' Nächte') } : null;
-    }, (lv) => String(lv), nbPlayers, 'Stufe');
+  // ---------- Echte Abende ----------
+  dash.draw('echt-matrix', (el) => {
+    const d = nb.ok('echte_zellen'); if (!d) { nb.fail(el, 'echte_zellen'); return; }
+    const bands = [...new Map(d.map((r) => [r.stufen, +r.ordnung])).entries()].sort((a, b) => a[1] - b[1]).map((e) => e[0]);
+    const groups = [...new Set(d.map((r) => +r.spieler))].sort((a, b) => a - b);
+    nb.pivot(el, bands, groups, (bd, g) => {
+      const r = d.find((x) => x.stufen === bd && +x.spieler === g);
+      return r ? { color: nb.cellColor(+r.siegquote), text: nb.pct(+r.siegquote), n: r.naechte + (+r.naechte === 1 ? ' Nacht' : ' Nächte') } : null;
+    }, (bd) => bd, nb.players, 'Stufe');
   });
+  for (const [name, field] of [['vote-leicht', 'zu_leicht'], ['vote-passt', 'passt'], ['vote-schwer', 'zu_schwer']]) {
+    dash.draw(name, (el) => { const g = nb.ok('echt_gesamt'); el.textContent = g && g[0] ? nb.num.format(+g[0][field]) : '—'; });
+  }
+  dash.draw('echt-gegner', (el) => {
+    const d = nb.ok('echte_gegner'); if (!d) { nb.fail(el, 'echte_gegner'); return; }
+    const rows = [...d].sort((a, b) => b.anteil - a.anteil).slice(0, 10).map((r) => ({ ...r, anteil: +r.anteil }));
+    nb.bars(el, rows, [{ key: 'anteil', color: dash.colors[0] }], (r) => [r.name, `${nb.pct(r.anteil)} des Schadens · ${nb.num.format(+r.schaden)} Leben`]);
+  });
+  dash.draw('dg-rows', (tb) => {
+    tb.replaceChildren();
+    const d = nb.ok('echte_dungeons'); if (!d) return;
+    for (const r of [...d].sort((a, b) => b.versuche - a.versuche)) {
+      const tr = tb.insertRow(); tr.dataset.key = encodeURIComponent(r.typ);
+      nb.cell(tr, r.name, 'nb-l nb-main'); nb.cell(tr, nb.num.format(+r.versuche)); nb.cell(tr, nb.num.format(+r.siege)); nb.quote(tr, +r.siegquote);
+    }
+  });
+  dash.draw('euk-rows', (tb) => {
+    tb.replaceChildren();
+    const d = nb.ok('echte_unterklassen'); if (!d) return;
+    for (const r of [...d].sort((a, b) => b.naechte - a.naechte || String(a.name).localeCompare(String(b.name), 'de'))) {
+      const tr = tb.insertRow(); tr.dataset.key = encodeURIComponent(r.name);
+      nb.cell(tr, r.name, 'nb-l nb-main'); nb.cell(tr, r.klasse, 'nb-l'); nb.cell(tr, nb.num.format(+r.naechte)); nb.quote(tr, +r.siegquote);
+      nb.cell(tr, nb.num.format(+r.schaden_je_min)); nb.cell(tr, nb.num.format(+r.erhalten_je_min)); nb.cell(tr, nb.dec.format(+r.tode_je_nacht));
+    }
+  });
+  dash.draw('nacht-rows', (tb) => {
+    tb.replaceChildren();
+    const d = nb.ok('echte_naechte'); if (!d) return;
+    for (const r of [...d].sort((a, b) => String(b.datum).localeCompare(String(a.datum))).slice(0, 20)) {
+      const tr = tb.insertRow(); tr.dataset.key = encodeURIComponent(r.nacht);
+      nb.cell(tr, r.datum, 'nb-l'); nb.cell(tr, String(r.stufe)); nb.cell(tr, String(r.spieler)); nb.cell(tr, r.unterklassen, 'nb-l nb-wrap');
+      nb.cell(tr, r.ergebnis, 'nb-l'); nb.cell(tr, nb.secs(+r.sekunden)); nb.cell(tr, nb.num.format(+r.kills)); nb.cell(tr, nb.num.format(+r.killziel));
+      nb.cell(tr, r.boss || '–', 'nb-l'); nb.cell(tr, r.build, 'nb-l');
+    }
+  });
+
+  // ---------- Analysen ----------
+  dash.draw('eich-rows', (tb) => {
+    tb.replaceChildren();
+    const d = nb.ok('eichung'); if (!d) return;
+    const best = {};
+    for (const r of d) if (r.quelle === 'sim' && r.abstand != null && (!best[r.art] || +r.abstand < +best[r.art].abstand)) best[r.art] = r;
+    const rows = [...d].sort((a, b) => (a.art === b.art ? 0 : a.art === 'allein' ? -1 : 1) || (a.quelle === 'echt' ? -1 : b.quelle === 'echt' ? 1 : (+a.abstand) - (+b.abstand)));
+    for (const r of rows) {
+      const tr = tb.insertRow();
+      tr.dataset.key = encodeURIComponent(r.variante) + ',' + encodeURIComponent(r.art);
+      if (r.quelle === 'echt') tr.className = 'nb-real'; else if (best[r.art] === r) tr.className = 'nb-best';
+      nb.cell(tr, r.name, 'nb-l nb-main');
+      nb.cell(tr, r.art === 'allein' ? 'allein' : 'Gruppe', 'nb-l');
+      nb.cell(tr, nb.num.format(+r.n)); nb.cell(tr, nb.num.format(+r.schaden_je_min)); nb.cell(tr, nb.num.format(+r.erhalten_je_min));
+      nb.cell(tr, nb.pct(+r.tod_anteil)); nb.cell(tr, nb.secs(r.ueberlebt_s == null ? null : +r.ueberlebt_s)); nb.cell(tr, nb.pct(+r.fern_anteil));
+      nb.cell(tr, r.quelle === 'echt' || r.abstand == null ? '–' : nb.dec.format(+r.abstand));
+    }
+  });
+  dash.draw('sk-vor-rows', (tb) => {
+    tb.replaceChildren();
+    const d = nb.ok('skal_vorschlag'); if (!d) return;
+    for (const r of [...d].sort((a, b) => a.spieler - b.spieler)) {
+      const tr = tb.insertRow(); tr.dataset.key = String(r.spieler);
+      nb.cell(tr, nb.players(r.spieler), 'nb-l nb-main'); nb.cell(tr, nb.num.format(+r.limit), 'nb-main'); nb.cell(tr, nb.num.format(+r.limit_heute));
+      nb.cell(tr, nb.pct(+r.welle_vs_heute)); nb.cell(tr, nb.pct(+r.schaden_leben));
+    }
+  });
+  dash.draw('sk-ohne', (el) => {
+    const d = nb.ok('skal_ohne_kill'); if (!d) { nb.fail(el, 'skal_ohne_kill'); return; }
+    el.replaceChildren();
+    const rows = [...d].sort((a, b) => a.spieler - b.spieler);
+    const W = Math.max(260, el.clientWidth), bh = 20, gap = 6, H = rows.length * (bh + gap);
+    const svg = d3.select(el).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`);
+    const nameW = d3.max(rows, (r) => nb.textW(svg, nb.players(r.spieler), 12));
+    const x = d3.scaleLinear([0, d3.max(rows, (r) => +r.nicht_getoetet) || 1], [0, Math.max(40, W - nameW - 12 - 44)]);
+    const parts = [['creeper_gesprengt', dash.colors[0]], ['phantom_weg', dash.colors[1]], ['rest', 'var(--cds-chart-muted)']];
+    rows.forEach((r, i) => {
+      const yy = i * (bh + gap);
+      svg.append('text').attr('x', nameW).attr('y', yy + bh / 2).attr('dy', '0.32em').attr('text-anchor', 'end').attr('font-size', 12).attr('fill', 'var(--color-fg)').text(nb.players(r.spieler));
+      let x0 = nameW + 8;
+      for (const [f, col] of parts) {
+        const w = Math.max(0, x(+r[f]));
+        svg.append('rect').attr('x', x0).attr('y', yy + 2).attr('width', w).attr('height', bh - 4).attr('fill', col)
+          .on('mousemove', (ev) => { const [px, py] = d3.pointer(ev, el); nb.tip(el, [nb.players(r.spieler), `nie getötet: ${nb.pct(+r.nicht_getoetet)}`, `Creeper gesprengt: ${nb.pct(+r.creeper_gesprengt)}`, `Phantom weggeflogen: ${nb.pct(+r.phantom_weg)}`, `anders weg oder noch da: ${nb.pct(+r.rest)}`], px, py); })
+          .on('mouseleave', () => nb.tipOff(el));
+        x0 += w;
+      }
+      svg.append('text').attr('x', x0 + 4).attr('y', yy + bh / 2).attr('dy', '0.32em').attr('font-size', 12).attr('fill', 'var(--color-fg-muted)').text(nb.pct(+r.nicht_getoetet));
+    });
+  });
+  for (const sw of document.querySelectorAll('.nb-sw-c0')) sw.style.background = dash.colors[0];
+  for (const sw of document.querySelectorAll('.nb-sw-c1')) sw.style.background = dash.colors[1];
 </script>
