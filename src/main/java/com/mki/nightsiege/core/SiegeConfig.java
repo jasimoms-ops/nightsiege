@@ -100,6 +100,17 @@ public class SiegeConfig {
      */
     public List<Double> mobHealthByPlayers = new ArrayList<>();
     public int maxLiveMobs = 40;
+    /**
+     * Nachschub (Simon 30.10.: "maximal 40 Monster, aber immer wenn eins stirbt kommt direkt eins nach, so dass
+     * konstanter Druck da ist"): every monster of the night that dies or vanishes is replaced at once, so the
+     * field stays full; the live cap is at most refillCap. The waves keep their rhythm (ladders, raid plan,
+     * phantoms, nemesis) and top the field up. Off: the waves alone, as before.
+     */
+    public boolean refillSpawns = false;
+    /** Nachschub: the highest live cap, for any group size. */
+    public int refillCap = 40;
+    /** Nachschub: ticks between two replacements (5 = up to four a second). */
+    public int refillGapTicks = 5;
     public int batchIntervalSeconds = 38;
     /**
      * The playtest (Simon, 28 October 2026: "equally hard with any number of players"): every further
@@ -1120,6 +1131,8 @@ public class SiegeConfig {
         soloScaling = Double.isNaN(soloScaling) ? 1.0 : clampDouble(soloScaling, 0.1, 3.0);
         livePerPlayer = Double.isNaN(livePerPlayer) ? 0.0 : clampDouble(livePerPlayer, 0.0, 3.0);
         maxLiveMobsCap = clamp(maxLiveMobsCap, Math.max(1, maxLiveMobs), 500);
+        refillCap = clamp(refillCap, 1, 500);
+        refillGapTicks = clamp(refillGapTicks, 1, 400);
         overflowHealth = Double.isNaN(overflowHealth) ? 0.0 : clampDouble(overflowHealth, 0.0, 3.0);
         soloDamageTaken = Double.isNaN(soloDamageTaken) ? 1.0 : clampDouble(soloDamageTaken, 0.1, 2.0);
         if (liveCapByPlayers == null) {
