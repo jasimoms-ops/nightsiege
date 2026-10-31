@@ -116,13 +116,12 @@ final class SsNachtScenes {
         EventLookTest.onServer(context, (player, m) -> state("voted", player, m));
         context.waitTicks(10);
 
-        // --- 2. In bed in a thunderstorm before the horn: the horn wakes the sleeper.
-        game.getServer().runCommand("weather thunder");
+        // --- 2. In bed before the horn (as in a thunderstorm by day): the horn wakes the sleeper.
         game.getServer().runCommand("time set 11700");
         context.waitTicks(20);
         EventLookTest.onServer(context, (player, m) -> {
-            Object r = player.startSleepInBed(EventLookTest.survivalBed(player));
-            log("thunder sleep before horn: result=" + r + " sleeping=" + player.isSleeping());
+            player.startSleeping(EventLookTest.survivalBed(player));   // straight into bed (a storm's rain takes a while)
+            log("in bed before horn: sleeping=" + player.isSleeping() + " blocked=" + m.sleepBlocked(player.level().getServer()));
         });
         context.waitTicks(15);
         game.getServer().runCommand("time set 12100");
@@ -133,7 +132,6 @@ final class SsNachtScenes {
         });
         context.waitTicks(20);
         EventLookTest.closeScreen(context);
-        game.getServer().runCommand("weather clear");
 
         // --- 3. Sleeping after the horn is refused.
         game.getServer().runCommand("time set 13000");
@@ -293,6 +291,28 @@ final class SsNachtScenes {
                     + " (expect 0 < ahead <= " + m.config().daysBetweenSieges + ")");
         });
         context.waitTicks(10);
+
+        // --- 10. Peaceful: the real night is called off at the horn (no free win).
+        EventLookTest.onServer(context, (player, m) -> {
+            m.save().nextSiegeDay = m.clockDayFor(player.level().getServer());
+            m.save().clearVotes();
+        });
+        context.waitTicks(10);
+        game.getServer().runCommand("time set 1100");
+        context.waitTicks(60);
+        EventLookTest.onServer(context, (player, m) -> m.vote(player, true));
+        context.waitTicks(20);
+        game.getServer().runCommand("difficulty peaceful");
+        game.getServer().runCommand("time set 12100");
+        context.waitTicks(60);
+        EventLookTest.closeScreen(context);
+        EventLookTest.onServer(context, (player, m) -> {
+            state("peaceful", player, m);
+            log("PEACEFUL: nightComing=" + m.nightComing(player.level().getServer()) + " kit=" + m.kits().hasStash(player)
+                    + " nextSiegeDay=" + m.save().nextSiegeDay + " (expect false false 3)");
+        });
+        context.waitTicks(10);
+        game.getServer().runCommand("difficulty normal");
         game.getServer().runCommand("gamemode creative @p");
         log("done");
     }
