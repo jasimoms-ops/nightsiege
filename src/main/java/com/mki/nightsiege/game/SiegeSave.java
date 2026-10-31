@@ -416,6 +416,8 @@ public class SiegeSave {
      * progress: a progress reset leaves them standing (the hall of fame).
      */
     public com.mki.nightsiege.core.NightRecords records = new com.mki.nightsiege.core.NightRecords();
+    /** The Ruhmeshalle (31.10.): left alone by the progress reset, like the records. */
+    public com.mki.nightsiege.core.HallOfFame hall = new com.mki.nightsiege.core.HallOfFame();
 
     /** Siege nights held so far (real ones, won or lost): numbers the nights for catching up. */
     public int nightsHeld;

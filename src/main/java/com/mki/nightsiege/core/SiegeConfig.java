@@ -487,6 +487,13 @@ public class SiegeConfig {
     public boolean statsLogger = true;
 
     /**
+     * The Ruhmeshalle's badge thresholds (31.10.): badge → "bronze/silver/gold", e.g.
+     * "schlaechter": "250/1000/5000". Empty uses the standard of {@code HallBadges}.
+     * The Ruhmeshalle needs {@link #statsLogger} on.
+     */
+    public java.util.Map<String, String> hallBadgeTiers = new java.util.LinkedHashMap<>();
+
+    /**
      * Damage by share of the max health (Simon, 28 October 2026: "mehr mit Max-Health-Damage"): on
      * top of the usual hit, armour does not lessen it, a shield blocks it. The shares are in the
      * code (see {@code PercentDamage}); these factors scale all of them for the bosses and the machines.
@@ -1169,6 +1176,9 @@ public class SiegeConfig {
         refillGapTicks = clamp(refillGapTicks, 1, 400);
         overflowHealth = Double.isNaN(overflowHealth) ? 0.0 : clampDouble(overflowHealth, 0.0, 3.0);
         soloDamageTaken = Double.isNaN(soloDamageTaken) ? 1.0 : clampDouble(soloDamageTaken, 0.1, 2.0);
+        if (hallBadgeTiers == null) {
+            hallBadgeTiers = new java.util.LinkedHashMap<>();
+        }
         if (liveCapByPlayers == null) {
             liveCapByPlayers = new ArrayList<>();
         }

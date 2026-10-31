@@ -110,6 +110,19 @@ public final class StatsRecorder {
         public Map<String, String> bewertung = new LinkedHashMap<>();
         /** Optional with it: player → the subclass they found strongest tonight. */
         public Map<String, String> staerksteKlasse = new LinkedHashMap<>();
+        /**
+         * The curiosities of the night (Ruhmeshalle, Simon 30.10.): player → key → value. Counts
+         * ("creeper", "kletterer", "halbesHerz", "geschosse", "traenke", "retter", "nemesis",
+         * "bossLetzterTreffer") and the night's bests ("weitesterTreffer" in blocks, "blutrausch"
+         * kills in 10 s, "mehrfach" kills with one blow, "ohneTreffer" seconds, "letzterMann" 1).
+         */
+        public Map<String, Map<String, Double>> kuriositaeten = new LinkedHashMap<>();
+        /** Who killed the defenders: player → monster type → times. */
+        public Map<String, Map<String, Integer>> todDurch = new LinkedHashMap<>();
+        /** Bosses and wardens of the night that fell. */
+        public int bosseBesiegt;
+        /** What each defender killed: player → monster type → kills. */
+        public Map<String, Map<String, Integer>> opfer = new LinkedHashMap<>();
     }
 
     public static final class Basis {
@@ -288,6 +301,12 @@ public final class StatsRecorder {
     private long dungeonStartTick;
     private AttemptFile camp;
     private long campStartTick;
+    /** Curiosities: when each defender's last kills came (game time), kills in one tick, the last hit taken. */
+    private final Map<UUID, java.util.ArrayDeque<Long>> killTimes = new HashMap<>();
+    private final Map<UUID, long[]> killTick = new HashMap<>();
+    private final Map<UUID, Long> lastHitAt = new HashMap<>();
+    private final Map<UUID, Long> halfHeartAt = new HashMap<>();
+    private final Map<UUID, Long> rescueAt = new HashMap<>();
 
     StatsRecorder(SiegeManager manager) {
         this.m = manager;
@@ -517,6 +536,7 @@ public final class StatsRecorder {
         }
         nightStartTick = gameTime;
         wave = null;
+        clearCurios();
         mobSince.clear();
         mobType.clear();
         hitBy.clear();
@@ -528,6 +548,7 @@ public final class StatsRecorder {
     }
 
     void addPlayer(ServerPlayer player) {
+        lastHitAt.putIfAbsent(player.getUUID(), player.level().getGameTime());
         if (night != null && !night.spieler.containsKey(player.getScoreboardName())) {
             night.spieler.put(player.getScoreboardName(), describe(m, player));
         }
@@ -679,6 +700,9 @@ public final class StatsRecorder {
                 }
             }
             hitBy.computeIfAbsent(victim.getUUID(), k -> new HashSet<>()).add(attacker.getUUID());
+            if (!companion && (from.startsWith("nah:") || from.startsWith("fern:") || from.startsWith("geschoss:"))) {
+                kurMax(attacker, "weitesterTreffer", Math.round(attacker.distanceTo(victim) * 10.0) / 10.0);
+            }
         }
         if (victimIsMob) {
             lifeLeft.put(victim.getUUID(), victim.getHealth());
@@ -693,6 +717,16 @@ public final class StatsRecorder {
                 machine.schadenAnSpielern += taken;
             } else {
                 type = "umgebung:" + damageType(source);
+            }
+            long now = defender.level().getGameTime();
+            Long last = lastHitAt.put(defender.getUUID(), now);
+            if (last != null) {
+                kurMax(defender, "ohneTreffer", Math.floor((now - last) / 20.0));
+            }
+            if (defender.isAlive() && defender.getHealth() > 0f && defender.getHealth() <= 1.0f
+                    && now - halfHeartAt.getOrDefault(defender.getUUID(), Long.MIN_VALUE / 2) > 100) {
+                halfHeartAt.put(defender.getUUID(), now);
+                kurAdd(defender, "halbesHerz", 1);
             }
             SpielerWelle w = pw(defender);
             w.erhalten += taken;
@@ -751,6 +785,8 @@ public final class StatsRecorder {
                 by = "klasse:" + who;
             }
             pw(player).kills++;
+            killCurios(player, mob);
+            night.opfer.computeIfAbsent(player.getScoreboardName(), k -> new LinkedHashMap<>()).merge(type, 1, Integer::sum);
             Set<UUID> helpers = hitBy.remove(id);
             if (helpers != null) {
                 for (UUID helper : helpers) {
@@ -765,10 +801,129 @@ public final class StatsRecorder {
             hitBy.remove(id);
         }
         g.getoetetVon.merge(by, 1, Integer::sum);
+        if (BossService.isBoss(mob) || mob.entityTags().contains(WardenNight.TAG)) {
+            night.bosseBesiegt++;
+        }
+    }
+
+    // ------------------------------------------------------------------ curiosities (Ruhmeshalle, 31.10.)
+
+    private Map<String, Double> kur(ServerPlayer player) {
+        return night.kuriositaeten.computeIfAbsent(player.getScoreboardName(), k -> new LinkedHashMap<>());
+    }
+
+    private void kurAdd(ServerPlayer player, String key, double value) {
+        if (night != null && player != null) {
+            kur(player).merge(key, value, Double::sum);
+        }
+    }
+
+    private void kurMax(ServerPlayer player, String key, double value) {
+        if (night != null && player != null) {
+            kur(player).merge(key, value, Math::max);
+        }
+    }
+
+    private void clearCurios() {
+        killTimes.clear();
+        killTick.clear();
+        lastHitAt.clear();
+        halfHeartAt.clear();
+        rescueAt.clear();
+    }
+
+    /** A kill of the night: frenzy (kills in 10 s), kills with one blow, creepers, climbers, bosses, nemeses. */
+    private void killCurios(ServerPlayer player, Mob mob) {
+        long now = mob.level().getGameTime();
+        java.util.ArrayDeque<Long> times = killTimes.computeIfAbsent(player.getUUID(), k -> new java.util.ArrayDeque<>());
+        times.addLast(now);
+        while (!times.isEmpty() && now - times.peekFirst() > 200) {
+            times.pollFirst();
+        }
+        kurMax(player, "blutrausch", times.size());
+        long[] same = killTick.computeIfAbsent(player.getUUID(), k -> new long[] {Long.MIN_VALUE, 0});
+        if (same[0] == now) {
+            same[1]++;
+        } else {
+            same[0] = now;
+            same[1] = 1;
+        }
+        kurMax(player, "mehrfach", same[1]);
+        if (mob instanceof net.minecraft.world.entity.monster.Creeper) {
+            kurAdd(player, "creeper", 1);
+        }
+        if (mob.onClimbable()) {
+            kurAdd(player, "kletterer", 1);
+        }
+        if (BossService.isBoss(mob) || mob.entityTags().contains(WardenNight.TAG)) {
+            kurAdd(player, "bossLetzterTreffer", 1);
+        }
+        if (mob.entityTags().contains(Nemesis.TAG)) {
+            kurAdd(player, "nemesis", 1);
+        }
+    }
+
+    /** A defender was killed: by what (for the arch-enemy of the Ruhmeshalle). */
+    void playerKilled(ServerPlayer player, DamageSource source) {
+        if (night == null) {
+            return;
+        }
+        Entity raw = source == null ? null : source.getEntity();
+        String type = raw != null && !(raw instanceof ServerPlayer)
+                ? mobType.getOrDefault(raw.getUUID(), typeOf(raw))
+                : "umgebung:" + (source == null ? "?" : damageType(source));
+        night.todDurch.computeIfAbsent(player.getScoreboardName(), k -> new LinkedHashMap<>()).merge(type, 1, Integer::sum);
+    }
+
+    /** The last one standing of a group of at least two. */
+    void lastStanding(ServerPlayer player) {
+        kurMax(player, "letzterMann", 1);
+    }
+
+    /** A shot or a throw of a defender came into the world (arrows, bolts, tridents, potions). */
+    void projectile(Entity entity) {
+        if (night == null || !(entity instanceof net.minecraft.world.entity.projectile.Projectile proj)
+                || !(proj.getOwner() instanceof ServerPlayer owner) || entity.getDeltaMovement().lengthSqr() < 0.01) {
+            return;
+        }
+        if (!night.spieler.containsKey(owner.getScoreboardName())) {
+            return;
+        }
+        String path = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).getPath();
+        if (path.contains("potion")) {
+            kurAdd(owner, "traenke", 1);
+        } else if (path.contains("arrow") || path.contains("trident") || path.contains("bolt")) {
+            kurAdd(owner, "geschosse", 1);
+        }
+    }
+
+    /** A healer healed a teammate who had less than three hearts left (once per 10 s and teammate). */
+    public static void rescue(ServerPlayer healer, ServerPlayer target) {
+        try {
+            SiegeManager manager = SiegeManager.get();
+            if (manager == null || healer == null || target == null || healer == target) {
+                return;
+            }
+            StatsRecorder r = manager.stats();
+            if (r.night == null) {
+                return;
+            }
+            long now = target.level().getGameTime();
+            if (now - r.rescueAt.getOrDefault(target.getUUID(), Long.MIN_VALUE / 2) > 200) {
+                r.rescueAt.put(target.getUUID(), now);
+                r.kurAdd(healer, "retter", 1);
+            }
+        } catch (RuntimeException e) {
+            // The statistics never get in the way of a heal.
+        }
     }
 
     /** A defender fell. */
     void playerFell(ServerPlayer player) {
+        Long last = lastHitAt.remove(player.getUUID());
+        if (night != null && last != null) {
+            kurMax(player, "ohneTreffer", Math.floor((player.level().getGameTime() - last) / 20.0));
+        }
         if (night != null) {
             pw(player).tode++;
             night.tode++;
@@ -883,9 +1038,10 @@ public final class StatsRecorder {
 
     // ------------------------------------------------------------------ the end of the night
 
-    void endNight(long gameTime, String result, int killGoal, int kills, Set<UUID> liveMobs) {
+    /** Ends the night's protocol; returns the finished night (null without one). */
+    NightFile endNight(long gameTime, String result, int killGoal, int kills, Set<UUID> liveMobs) {
         if (night == null) {
-            return;
+            return null;
         }
         closeWave(gameTime, liveMobs == null ? 0 : liveMobs.size());
         night.ende = now();
@@ -904,6 +1060,14 @@ public final class StatsRecorder {
         }
         writeLater(nightPath, night);
         NightSiegeMod.LOGGER.info("[Night Siege] Statistik der Nacht geschrieben: {}", nightPath == null ? "-" : nightPath.getFileName());
+        for (Map.Entry<UUID, Long> e : lastHitAt.entrySet()) {
+            ServerPlayer p = server == null ? null : server.getPlayerList().getPlayer(e.getKey());
+            if (p != null) {
+                kurMax(p, "ohneTreffer", Math.floor((gameTime - e.getValue()) / 20.0));
+            }
+        }
+        clearCurios();
+        NightFile done = night;
         lastFinished = night;
         lastPath = nightPath;
         night = null;
@@ -913,6 +1077,7 @@ public final class StatsRecorder {
         hitBy.clear();
         lifeLeft.clear();
         machineOf.clear();
+        return done;
     }
 
     /**
@@ -1002,7 +1167,11 @@ public final class StatsRecorder {
         camp.dauerSekunden = (int) Math.max(0, (server.overworld().getGameTime() - campStartTick) / 20);
         Path dir = folder();
         writeLater(dir == null ? null : dir.resolve("heerlager_" + LocalDateTime.now().format(FILE_TIME) + ".json"), camp);
+        AttemptFile doneCamp = camp;
         camp = null;
+        if (!m.inPlaytest()) {
+            HallService.addAttempt(m, server, doneCamp, true);   // the Ruhmeshalle (31.10.)
+        }
     }
 
     // ------------------------------------------------------------------ dungeons
@@ -1070,7 +1239,11 @@ public final class StatsRecorder {
         dungeon.schadenErhalten = Math.round(dungeon.schadenErhalten * 10.0) / 10.0;
         Path dir = folder();
         writeLater(dir == null ? null : dir.resolve("dungeon_" + LocalDateTime.now().format(FILE_TIME) + ".json"), dungeon);
+        AttemptFile doneDungeon = dungeon;
         dungeon = null;
+        if (!m.inPlaytest()) {
+            HallService.addAttempt(m, server, doneDungeon, true);   // the Ruhmeshalle (31.10.)
+        }
     }
 
     // ------------------------------------------------------------------ crates
@@ -1097,6 +1270,14 @@ public final class StatsRecorder {
         line.infernit = roll.infernite;
         Path dir = folder();
         appendLater(dir == null ? null : dir.resolve("kisten.jsonl"), line);
+        if (!m.inPlaytest()) {
+            HallService.addCrate(m, server, player.getUUID().toString(), player.getScoreboardName(), line.seltenheit, true);
+        }
+    }
+
+    /** The logger's folder (the Ruhmeshalle reads the nights before it from there once). */
+    Path statsFolder() {
+        return folder();
     }
 
     // ------------------------------------------------------------------ tests
