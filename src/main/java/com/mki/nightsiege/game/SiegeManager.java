@@ -598,7 +598,7 @@ public final class SiegeManager {
             NightSiegeMod.LOGGER.info("[Night Siege] {} Skills mit Server-Werten", tweaked);
         }
         Json.write(configPath, config);
-        DungeonContent.active = config.dungeonsEnabled && config.legacyDungeons;   // the caravan's old maps
+        DungeonContent.active = config.dungeonsEnabled && config.legacyDungeons;   // the old dungeons (their maps came from the caravan, gone since 31.10.)
 
         SiegeSave loadedSave = savePath == null ? null : Json.read(savePath, SiegeSave.class);
         save = loadedSave == null ? new SiegeSave() : loadedSave;

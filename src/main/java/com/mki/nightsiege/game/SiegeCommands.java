@@ -222,13 +222,6 @@ public final class SiegeCommands {
                         .then(Commands.literal("polarlicht_ende").executes(ctx -> {
                             SiegeManager.get().bonus().endAurora(ctx.getSource().getServer());
                             return 1;
-                        }))
-                        .then(Commands.literal("karawane").executes(ctx -> {
-                            if (SiegeManager.get().bonus().spawnCaravan(ctx.getSource().getServer()) == null) {
-                                fail(ctx.getSource(), Component.translatable("nightsiege.cmd.caravan_failed"));
-                                return 0;
-                            }
-                            return 1;
                         })))
                 .then(Commands.literal("stop").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                         .executes(SiegeCommands::stop))

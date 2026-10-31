@@ -198,9 +198,6 @@ public class SiegeConfig {
     public double auroraChance = 0.125;
     /** Seconds between the free experience points under the aurora. */
     public int auroraPointSeconds = 180;
-    /** Chance each morning that the trader caravan comes, once enough days have passed. */
-    public double caravanChance = 0.35;
-    public int caravanMinDays = 3;
 
     public double bloodMoonMobMultiplier = 1.5;
     public double bloodMoonHealthMultiplier = 1.3;
@@ -1237,8 +1234,6 @@ public class SiegeConfig {
         netherRiftCount = clamp(netherRiftCount, 1, 8);
         auroraChance = clampDouble(auroraChance, 0.0, 1.0);
         auroraPointSeconds = clamp(auroraPointSeconds, 5, 3600);
-        caravanChance = clampDouble(caravanChance, 0.0, 1.0);
-        caravanMinDays = clamp(caravanMinDays, 1, 100);
         campChance = clampDouble(campChance, 0.0, 1.0);
         campMinDistance = clamp(campMinDistance, 40, 400);
         campMaxDistance = clamp(campMaxDistance, campMinDistance, 500);

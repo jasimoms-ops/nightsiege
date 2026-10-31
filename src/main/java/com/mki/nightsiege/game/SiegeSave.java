@@ -33,8 +33,6 @@ public class SiegeSave {
     public List<NemesisRecord> nemeses = new ArrayList<>();
     /** Counter for the nemeses' ids. */
     public int nemesisCounter;
-    /** Clock day the trader caravan last came. */
-    public long lastCaravanDay = -1000L;
     /** True once the free starter core has been handed out in this world. */
     public boolean starterCoreGiven;
     /** Uuids of players who already received the guide book. */

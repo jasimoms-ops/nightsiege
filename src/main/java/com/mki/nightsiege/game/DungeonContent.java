@@ -99,7 +99,7 @@ public final class DungeonContent {
         }
     }
 
-    /** Dungeon maps in chests (off: since October 2026 only the trader caravan sells them). */
+    /** Dungeon maps in chests (off since October 2026; the trader caravan that sold them is gone too, 31.10.). */
     private static final boolean MAPS_IN_CHESTS = false;
 
     private static void registerLoot() {
@@ -108,7 +108,7 @@ public final class DungeonContent {
                 return;
             }
             if (!enabledInFile() || !MAPS_IN_CHESTS) {
-                return;   // maps only come from the trader caravan now
+                return;   // no maps in chests (the old dungeons are off)
             }
             Float chance = MAP_LOOT.get(key.identifier().getPath());
             if (chance == null) {
