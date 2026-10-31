@@ -1345,6 +1345,9 @@ public final class Expeditions {
      * Survival safety (31.10., D4): a dungeon taken down whose ground is not on the disk yet lies near
      * this one (a crash would take it down again over the new one's blocks): the new one waits.
      */
+    /** When the build last asked for a world save (game time). */
+    private long lastSaveAsked = Long.MIN_VALUE / 2;
+
     private boolean nearUnsaved(SiegeSave.ExpeditionRecord rec) {
         if (unsavedTeardowns.isEmpty()) {
             return false;
@@ -1365,7 +1368,16 @@ public final class Expeditions {
             return false;   // the ground of the one before comes back first (it could lie where this one goes)
         }
         if (!b.sync && nearUnsaved(rec)) {
-            return false;   // (31.10.) nor before the world is saved with it: a crash would take it down again
+            // (31.10.) nor before the world is saved with it: a crash would take it down again. Instead of
+            // waiting for the autosave (up to 5 min; the playtest's dungeons stood still), it saves itself,
+            // at most every 10 s; AFTER_SAVE then lets it go on.
+            if (now - lastSaveAsked >= 200) {
+                lastSaveAsked = now;
+                NightSiegeMod.LOGGER.info("[Night Siege] Dungeon {} wartet auf den Abbau davor: Welt wird gespeichert", rec.kind);
+                net.minecraft.server.MinecraftServer server = level.getServer();
+                server.execute(() -> server.saveAllChunks(true, false, false));   // after the tick, not inside it
+            }
+            return false;
         }
         if (b.stage == Build.SITE && !b.anywhere && !b.sync) {
             return stepSite(level, rec, b, now);   // survival safety 31.10. (D3): its place is checked
