@@ -176,7 +176,7 @@ final class Ss2DungeonScenes {
         // As one who walked back to the bench while it is taken down: the hill comes back round him.
         EventLookTest.onServer(context, (player, manager) -> {
             ServerLevel level = (ServerLevel) player.level();
-            player.teleportTo(level, fx - 3.5, fy, bz + 1.5, java.util.Set.of(), player.getYRot(), player.getXRot(), true);
+            player.teleportTo(level, fx - 3.5, fy + 0.5, bz + 0.5, java.util.Set.of(), player.getYRot(), player.getXRot(), true);
         });
         boolean done = false;
         for (int i = 0; i < 40 && !done; i++) {
