@@ -47,7 +47,7 @@ import java.util.function.Supplier;
  * The night kit: when a night starts, a defender's own inventory is put away
  * (in the save, so nothing is lost on a crash) and the kit of the class they
  * play takes its place. After the night their own things come back, together
- * with the valuable drops they picked up; everything else of the night goes.
+ * with everything else they picked up; only the kit goes (Simon 31.10.).
  *
  * <p>Kit items carry a mark: they never break, cannot be put into containers
  * and vanish when dropped.</p>
@@ -113,9 +113,99 @@ public final class KitService {
     // stash
     // ------------------------------------------------------------------
 
+    /** Where a swap stands (see {@link SiegeSave.KitStash#state}); "" in older saves counts as applied. */
+    public static final String STATE_APPLYING = "applying";
+    public static final String STATE_APPLIED = "applied";
+    public static final String STATE_RESTORING = "restoring";
+
+    /** Set while own things go back into an inventory: what does not fit falls and must stay on the ground. */
+    private static int returning;
+    /** Stacks that fell at the feet while {@link #returning} (for the message). */
+    private static int returnedDrops;
+
     public boolean hasStash(ServerPlayer player) {
         SiegeSave s = save.get();
         return s.kitStashes != null && s.kitStashes.containsKey(player.getUUID().toString());
+    }
+
+    private SiegeSave.KitStash stashOf(ServerPlayer player) {
+        SiegeSave s = save.get();
+        return s.kitStashes == null ? null : s.kitStashes.get(player.getUUID().toString());
+    }
+
+    /** True while the kit restore waits for a dead player to respawn. */
+    public boolean waitsForRespawn(ServerPlayer player) {
+        SiegeSave.KitStash stash = stashOf(player);
+        return stash != null && stash.restoreOnRespawn;
+    }
+
+    /**
+     * True (and counted) for an item that falls at a player's feet while their own things go back
+     * (Simon 31.10.: survival safety): the clean-up of fresh drops (a siege monster's loot that died
+     * close by) must leave it lying.
+     */
+    public static boolean returnedDrop(net.minecraft.world.entity.Entity entity) {
+        if (returning > 0 && entity instanceof net.minecraft.world.entity.item.ItemEntity) {
+            returnedDrops++;
+            return true;
+        }
+        return false;
+    }
+
+    /** Puts own things back into free slots (stacking where it fits); what has no room falls at the feet. */
+    private static int giveBack(ServerPlayer player, List<ItemStack> stacks) {
+        returning++;
+        int before = returnedDrops;
+        try {
+            for (ItemStack stack : stacks) {
+                if (!stack.isEmpty()) {
+                    player.getInventory().placeItemBackInInventory(stack);
+                }
+            }
+        } finally {
+            returning--;
+        }
+        return returnedDrops - before;
+    }
+
+    /**
+     * The open window lets go of what it holds (Simon 31.10.: survival safety): an open container
+     * closes, the item on the cursor and the crafting grid (the own 2x2 one as well) go into the
+     * inventory. Before the kit goes on, so nothing of the own things is left outside the stash and
+     * ends up in the kit; before it goes back, so no kit item stays on the cursor and survives.
+     */
+    static void flushMenus(ServerPlayer player) {
+        returning++;   // an item without room falls at the feet: it stays there
+        try {
+            if (player.containerMenu != player.inventoryMenu) {
+                player.closeContainer();   // its removed(): cursor and crafting slots into the inventory
+            }
+            player.inventoryMenu.removed(player);   // the own window: the cursor and the 2x2 grid
+        } catch (RuntimeException e) {
+            NightSiegeMod.LOGGER.warn("[Night Siege] Fenster von {} nicht geleert: {}", player.getScoreboardName(), e.toString());
+        } finally {
+            returning--;
+        }
+    }
+
+    /**
+     * Writes the player's own data to disk now, not only at the next autosave (Simon 31.10.: survival
+     * safety): after a kit swap and after reward crates came or were opened, so a crash cannot leave
+     * the mod's save and the player's inventory telling different stories.
+     */
+    public static void savePlayer(ServerPlayer player) {
+        if (player == null || SimBots.isBot(player)) {
+            return;
+        }
+        net.minecraft.server.MinecraftServer server = player.level().getServer();
+        if (server == null || server.getPlayerList().getPlayer(player.getUUID()) != player) {
+            return;   // not in the list (any more): a body left behind on respawn, a player logging out
+        }
+        try {
+            ((com.mki.nightsiege.mixin.PlayerListInvoker) server.getPlayerList()).nightsiege$save(player);
+        } catch (RuntimeException e) {
+            NightSiegeMod.LOGGER.warn("[Night Siege] Spielerdaten von {} nicht gespeichert: {}", player.getScoreboardName(), e.toString());
+        }
     }
 
     /** Puts the own inventory away and hands out the kit. Nothing happens if the player already wears it. */
@@ -123,9 +213,12 @@ public final class KitService {
         if (!config.get().nightKits) {
             return;
         }
+        flushMenus(player);
         List<ItemStack> carried = new ArrayList<>();
+        SiegeSave.KitStash stash = null;
         if (!hasStash(player)) {
-            SiegeSave.KitStash stash = new SiegeSave.KitStash();
+            stash = new SiegeSave.KitStash();
+            stash.state = STATE_APPLYING;
             HolderLookup.Provider regs = player.level().registryAccess();
             Inventory inv = player.getInventory();
             for (int i = 0; i < inv.getContainerSize(); i++) {
@@ -136,8 +229,8 @@ public final class KitService {
                     stash.items.add("");
                     continue;
                 }
-                String json = encode(stack, regs);
-                if (!stack.isEmpty() && json.isEmpty()) {
+                String text = store(stack, regs);
+                if (!stack.isEmpty() && text.isEmpty()) {
                     // Something the save cannot hold: better no kit than a lost item.
                     player.sendSystemMessage(Component.translatable("nightsiege.kit.failed_item", stack.getHoverName())
                             .withStyle(net.minecraft.ChatFormatting.RED));
@@ -145,7 +238,7 @@ public final class KitService {
                             player.getScoreboardName(), BuiltInRegistries.ITEM.getKey(stack.getItem()));
                     return;
                 }
-                stash.items.add(json);
+                stash.items.add(text);
             }
             if (save.get().kitStashes == null) {
                 save.get().kitStashes = new java.util.HashMap<>();
@@ -154,6 +247,7 @@ public final class KitService {
             persist.run();   // written before the inventory is touched
             inv.clearContent();
         } else {
+            // The stash holds the own things already (a new kit after a death before the night, a refill).
             clearKit(player);
         }
         give(player, level);
@@ -161,6 +255,11 @@ public final class KitService {
             player.getInventory().placeItemBackInInventory(crate);
         }
         resync(player);
+        savePlayer(player);   // the kit is in the player's data on disk now, too
+        if (stash != null) {
+            stash.state = STATE_APPLIED;
+            persist.run();
+        }
         player.sendSystemMessage(Component.translatable("nightsiege.kit.equipped").withStyle(net.minecraft.ChatFormatting.AQUA));
     }
 
@@ -174,13 +273,93 @@ public final class KitService {
         give(player, level);
     }
 
-    /** Takes the kit away and gives the own inventory back, with the valuable drops of the night. */
+    /**
+     * A swap the server did not finish writing (a crash between the mod's save and the player's data,
+     * Simon 31.10.: survival safety) is put right: when the player's inventory is still (or again) the
+     * own one, the stash goes without being put back; otherwise the swap counts as done (applying) or
+     * runs again (restoring). Returns true when the stash went.
+     */
+    public boolean settle(ServerPlayer player) {
+        SiegeSave.KitStash stash = stashOf(player);
+        if (stash == null || player.isDeadOrDying()) {
+            return false;
+        }
+        String state = stash.state == null ? "" : stash.state;
+        boolean applying = STATE_APPLYING.equals(state);
+        if (!applying && !STATE_RESTORING.equals(state)) {
+            return false;
+        }
+        if (!holdsOwnThings(player, stash)) {
+            if (applying) {
+                stash.state = STATE_APPLIED;   // the kit got into the player's data: an ordinary stash
+                persist.run();
+            }
+            return false;   // restoring: the inventory still has the kit, the restore runs again
+        }
+        NightSiegeMod.LOGGER.warn("[Night Siege] Kit-Tausch von {} war beim Absturz halb fertig ({}): das eigene Inventar ist da, der Speicher des Kits wird verworfen",
+                player.getScoreboardName(), state);
+        save.get().kitStashes.remove(player.getUUID().toString());
+        persist.run();
+        return true;
+    }
+
+    /** True when the inventory holds no kit item and every readable thing of the stash in its slot. */
+    private static boolean holdsOwnThings(ServerPlayer player, SiegeSave.KitStash stash) {
+        Inventory inv = player.getInventory();
+        for (int i = 0; i < inv.getContainerSize(); i++) {
+            if (kitThing(inv.getItem(i))) {
+                return false;
+            }
+        }
+        HolderLookup.Provider regs = player.level().registryAccess();
+        for (int i = 0; i < stash.items.size() && i < inv.getContainerSize(); i++) {
+            String raw = stash.items.get(i);
+            if (raw == null || raw.isEmpty()) {
+                continue;
+            }
+            ItemStack want = load(raw, regs);
+            if (want == null) {
+                continue;   // unreadable: it cannot tell
+            }
+            ItemStack have = inv.getItem(i);
+            // Loose things stack onto own ones when they go back: at least as many is the own thing.
+            if (!ItemStack.isSameItemSameComponents(have, want) || have.getCount() < want.getCount()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Takes the kit away and gives the own inventory back; whatever else the player holds stays. */
     public void restore(ServerPlayer player) {
+        restore(player, true);
+    }
+
+    /**
+     * As above. Since 31.10. (Simon: "alles behalten, was kein Kit-Gegenstand ist") the player keeps
+     * everything that is not a kit item: the own things go back to their slots, what was picked up in
+     * the night into free ones (at the feet when full). With {@code crates} the reward crates that
+     * waited for the kit to go come right after (the playtest gives them itself, after its own swap).
+     */
+    public void restore(ServerPlayer player, boolean crates) {
         SiegeSave s = save.get();
         String id = player.getUUID().toString();
         SiegeSave.KitStash stash = s.kitStashes == null ? null : s.kitStashes.get(id);
         if (stash == null) {
             return;
+        }
+        if (player.isDeadOrDying()) {
+            // A dead body (death screen, logged out dead) would take the own things along and lose them
+            // on respawn (Simon 31.10.: survival safety): they come back after the respawn.
+            if (!stash.restoreOnRespawn) {
+                stash.restoreOnRespawn = true;
+                persist.run();
+            }
+            NightSiegeMod.LOGGER.info("[Night Siege] Kit von {} geht nach dem Wiederbeleben zurück (gerade tot)", player.getScoreboardName());
+            return;
+        }
+        if (settle(player)) {
+            return;   // a crash had left the swap half done: the own inventory is there already
         }
         if (Companions.get() != null) {
             Companions.get().endFight(player);   // the souls of a camp or dungeon fight do not carry into the night
@@ -191,34 +370,39 @@ public final class KitService {
             player.setGameMode(mode);
         }
         rememberLayout(player);   // the next kit of this class comes sorted the same way
+        flushMenus(player);   // a kit item on the cursor or in the crafting grid goes with the kit
         GainGear.emptyQuiver(player);
         GainKeys.newKit(player);
+        stash.state = STATE_RESTORING;
+        persist.run();
         Inventory inv = player.getInventory();
-        List<ItemStack> keep = new ArrayList<>();
+        List<ItemStack> found = new ArrayList<>();
         for (int i = 0; i < inv.getContainerSize(); i++) {
             ItemStack stack = inv.getItem(i);
-            if (!stack.isEmpty() && !isKit(stack) && valuable(stack)) {
-                keep.add(stack.copy());
+            if (!stack.isEmpty() && !kitThing(stack)) {
+                found.add(stack.copy());   // picked up, taken from a chest, a crate of the playtest ...
             }
         }
         inv.clearContent();
         HolderLookup.Provider regs = player.level().registryAccess();
-        List<String> broken = new ArrayList<>(stash.broken == null ? List.of() : stash.broken);
-        for (int i = 0; i < stash.items.size() && i < inv.getContainerSize(); i++) {
-            String json = stash.items.get(i);
-            if (json == null || json.isEmpty()) {
+        List<String> unreadable = new ArrayList<>(stash.broken == null ? List.of() : stash.broken);
+        List<ItemStack> loose = new ArrayList<>();
+        for (int i = 0; i < stash.items.size(); i++) {
+            String raw = stash.items.get(i);
+            if (raw == null || raw.isEmpty()) {
                 continue;
             }
-            ItemStack stack = decode(json, regs);
-            if (stack.isEmpty()) {
-                broken.add(json);
+            ItemStack stack = load(raw, regs);
+            if (stack == null) {
+                unreadable.add(raw);   // one bad entry does not stop the others
+            } else if (i < inv.getContainerSize() && inv.getItem(i).isEmpty()) {
+                inv.setItem(i, stack);   // the own things go back slot by slot
             } else {
-                inv.setItem(i, stack);
+                loose.add(stack);
             }
         }
-        for (ItemStack stack : keep) {
-            inv.placeItemBackInInventory(stack);
-        }
+        loose.addAll(found);
+        int fell = giveBack(player, loose);
         resync(player);
         // Safety net (Simon 29.10.: kit items put into a vase): kit items left in containers, frames or on
         // stands around the player go with the kit.
@@ -227,22 +411,42 @@ public final class KitService {
         } catch (RuntimeException e) {
             NightSiegeMod.LOGGER.warn("[Night Siege] Kit-Reste um {} nicht entfernt: {}", player.getScoreboardName(), e.toString());
         }
-        if (broken.isEmpty()) {
-            s.kitStashes.remove(id);
-        } else {
-            // Never throw an item away: what could not be read stays in the save.
-            NightSiegeMod.LOGGER.warn("[Night Siege] {} Gegenstände von {} konnten nicht zurückgegeben werden",
-                    broken.size(), player.getScoreboardName());
-            stash.items = new ArrayList<>();
-            stash.broken = broken;
-            stash.gameMode = "";
+        savePlayer(player);   // the own inventory is on disk before the stash goes
+        if (!unreadable.isEmpty()) {
+            quarantine(player, unreadable);
         }
+        s.kitStashes.remove(id);
         persist.run();
-        if (!keep.isEmpty()) {
-            player.sendSystemMessage(Component.translatable("nightsiege.kit.loot", keep.size())
+        if (!found.isEmpty()) {
+            player.sendSystemMessage(Component.translatable("nightsiege.kit.loot", found.size())
                     .withStyle(net.minecraft.ChatFormatting.GREEN));
         }
+        if (fell > 0) {
+            player.sendSystemMessage(Component.translatable("nightsiege.kit.dropped", fell)
+                    .withStyle(net.minecraft.ChatFormatting.YELLOW));
+        }
         player.sendSystemMessage(Component.translatable("nightsiege.kit.returned").withStyle(net.minecraft.ChatFormatting.AQUA));
+        if (crates && SiegeManager.get() != null) {
+            SiegeManager.get().crates().deliverPending(player);   // the crates won with the kit on (Simon 31.10.)
+        }
+    }
+
+    /**
+     * Stash entries that cannot be read back go into the quarantine of the save, as the raw text they
+     * were stored as (Simon 31.10.: survival safety): never thrown away, never blocking the next kit.
+     */
+    public void quarantine(ServerPlayer player, List<String> raws) {
+        SiegeSave s = save.get();
+        if (s.kitQuarantine == null) {
+            s.kitQuarantine = new java.util.HashMap<>();
+        }
+        s.kitQuarantine.computeIfAbsent(player.getUUID().toString(), k -> new ArrayList<>()).addAll(raws);
+        for (String raw : raws) {
+            NightSiegeMod.LOGGER.error("[Night Siege] Gegenstand von {} ({}) laesst sich nicht lesen, liegt in der Quarantaene (kitQuarantine im Speicher): {}",
+                    player.getScoreboardName(), player.getUUID(), raw.length() > 300 ? raw.substring(0, 300) + "..." : raw);
+        }
+        player.sendSystemMessage(Component.translatable("nightsiege.kit.quarantine", raws.size())
+                .withStyle(net.minecraft.ChatFormatting.RED));
     }
 
     /** Notes the game mode a fallen defender had, so the night's end puts it back. */
@@ -280,7 +484,6 @@ public final class KitService {
         return false;
     }
 
-    /** True for drops that may leave the night: the listed items and armour or weapons of diamond or better. */
     /** A crate of the playtest: it goes with the player, kit or not. */
     static boolean playtestCrate(ItemStack stack) {
         if (stack == null || stack.isEmpty()) {
@@ -288,29 +491,6 @@ public final class KitService {
         }
         net.minecraft.world.item.component.CustomData data = stack.get(DataComponents.CUSTOM_DATA);
         return data != null && data.copyTag().getBooleanOr("crate_playtest", false);
-    }
-
-    public boolean valuable(ItemStack stack) {
-        if (playtestCrate(stack)) {
-            return true;   // unopened playtest crates come back with the own things
-        }
-        Identifier id = BuiltInRegistries.ITEM.getKey(stack.getItem());
-        SiegeConfig cfg = config.get();
-        if (cfg.valuableDrops != null && cfg.valuableDrops.contains(id.toString())) {
-            return true;
-        }
-        net.minecraft.world.item.component.CustomData data = stack.get(DataComponents.CUSTOM_DATA);
-        if (data != null && data.copyTag().contains("nemesis_trophy")) {
-            return true;   // a nemesis's trophy (update 2) always goes home
-        }
-        if (!cfg.keepDiamondGear) {
-            return false;
-        }
-        String path = id.getPath();
-        boolean material = path.startsWith("diamond_") || path.startsWith("netherite_") || path.startsWith("infernite_");
-        boolean gear = stack.has(DataComponents.EQUIPPABLE) || stack.has(DataComponents.WEAPON)
-                || stack.has(DataComponents.TOOL);
-        return material && gear;
     }
 
     // ------------------------------------------------------------------
@@ -855,6 +1035,67 @@ public final class KitService {
                     .result().orElse(ItemStack.EMPTY);
         } catch (RuntimeException e) {
             return ItemStack.EMPTY;
+        }
+    }
+
+    /** Marks the stash's text form (NBT as SNBT); entries without it are JSON (saves before 31.10.). */
+    private static final String SNBT = "snbt:";
+
+    /**
+     * An own item as text for the stash and the playtest (Simon 31.10.: survival safety). JSON lost the
+     * number types of free NBT (a crate's level came back as a byte and no longer stacked with a new
+     * crate), so it is SNBT now, checked by reading it back; JSON only if that does not come back the same.
+     * "" for an empty stack or when neither works.
+     */
+    public static String store(ItemStack stack, HolderLookup.Provider regs) {
+        if (stack == null || stack.isEmpty()) {
+            return "";
+        }
+        try {
+            java.util.Optional<net.minecraft.nbt.Tag> tag = ItemStack.CODEC
+                    .encodeStart(regs.createSerializationContext(net.minecraft.nbt.NbtOps.INSTANCE), stack).result();
+            if (tag.isPresent() && tag.get() instanceof net.minecraft.nbt.CompoundTag compound) {
+                String text = SNBT + compound.toString();
+                ItemStack back = load(text, regs);
+                if (back != null && ItemStack.matches(stack, back)) {
+                    return text;
+                }
+            }
+        } catch (RuntimeException e) {
+            NightSiegeMod.LOGGER.warn("[Night Siege] Gegenstand nicht als SNBT speicherbar: {}", e.toString());
+        }
+        return encode(stack, regs);
+    }
+
+    /**
+     * Reads an entry of {@link #store} (or the older JSON). Returns null when it cannot be read (an item
+     * of a removed mod, a broken entry), so the caller can keep the raw text instead of losing it.
+     */
+    public static ItemStack load(String raw, HolderLookup.Provider regs) {
+        if (raw == null || raw.isEmpty()) {
+            return ItemStack.EMPTY;
+        }
+        try {
+            com.mojang.serialization.DataResult<ItemStack> result;
+            if (raw.startsWith(SNBT)) {
+                net.minecraft.nbt.CompoundTag tag = net.minecraft.nbt.TagParser.parseCompoundFully(raw.substring(SNBT.length()));
+                result = ItemStack.CODEC.parse(regs.createSerializationContext(net.minecraft.nbt.NbtOps.INSTANCE), tag);
+            } else {
+                result = ItemStack.CODEC.parse(regs.createSerializationContext(JsonOps.INSTANCE), JsonParser.parseString(raw));
+            }
+            ItemStack stack = result.result().orElse(null);
+            if (stack == null || stack.isEmpty()) {
+                NightSiegeMod.LOGGER.warn("[Night Siege] Gegenstand nicht lesbar: {}",
+                        result.error().map(e -> e.message()).orElse("leer"));
+                return null;
+            }
+            if (!raw.startsWith(SNBT)) {
+                CrateService.normalize(stack);   // the old JSON form shrank a crate's numbers
+            }
+            return stack;
+        } catch (com.mojang.brigadier.exceptions.CommandSyntaxException | RuntimeException e) {
+            NightSiegeMod.LOGGER.warn("[Night Siege] Gegenstand nicht lesbar: {}", e.toString());
+            return null;
         }
     }
 }

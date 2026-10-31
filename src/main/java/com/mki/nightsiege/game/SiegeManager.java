@@ -358,6 +358,12 @@ public final class SiegeManager {
                 }
             }
         });
+        // Back from the dead (Simon 31.10.: survival safety): a kit restore that waited, or a new kit.
+        ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> {
+            if (!alive) {
+                safe("Kit nach dem Tod", () -> afterRespawn(newPlayer));
+            }
+        });
         ServerLivingEntityEvents.AFTER_DAMAGE.register((entity, source, baseDamage, taken, blocked) -> {
             logDamage(entity, source, taken);
             if (active && entity instanceof ServerPlayer hitPlayer && participants.contains(hitPlayer.getUUID())) {
@@ -447,8 +453,8 @@ public final class SiegeManager {
                 entity.discard();   // infernite or an old dungeon's thing on the ground
                 return;
             }
-            if (NightDrops.isLoot(entity)) {
-                entity.discard();   // loot of a siege monster
+            if (!KitService.returnedDrop(entity) && NightDrops.isLoot(entity)) {
+                entity.discard();   // loot of a siege monster (not own things without room after the kit, 31.10.)
                 return;
             }
             if (entity instanceof net.minecraft.world.entity.item.ItemEntity drop && KitService.isKit(drop.getItem())) {
@@ -3703,6 +3709,39 @@ public final class SiegeManager {
         }
     }
 
+    /**
+     * A player respawned after a real death (Simon 31.10.: survival safety). A kit restore that waited
+     * for the respawn runs now; whoever died between the horn and the start (or in a night without
+     * kits) gets a fresh kit while the night still needs them, without a new stash: it holds the own
+     * things already. Crates and playtest things that waited come too.
+     */
+    private void afterRespawn(ServerPlayer player) {
+        if (kits.hasStash(player)) {
+            MinecraftServer server = player.level().getServer();
+            if (kits.waitsForRespawn(player)) {
+                kits.restore(player);
+            } else if (config.nightKits && server != null && needsKitNow(server, player)) {
+                kits.equip(player, levelForKit());
+                NightSiegeMod.LOGGER.info("[Night Siege] {} hat nach dem Tod ein neues Kit", player.getScoreboardName());
+            }
+        }
+        playtest.afterRespawn(player);
+        crates.deliverPending(player);
+    }
+
+    /** True while tonight's kit belongs on this player: the night runs with them standing, or it is coming for them. */
+    private boolean needsKitNow(MinecraftServer server, ServerPlayer player) {
+        UUID id = player.getUUID();
+        if (active) {
+            return participants.contains(id) && !fallen.contains(id);   // a fallen one watches as a drone
+        }
+        if (pendingTest != null) {
+            return true;   // a test night's preparation: who wore its kit gets it again
+        }
+        return nightComing(server) && isRegistered(player)
+                && (openNight || (save.accepted != null && save.accepted.contains(id.toString())));
+    }
+
     /** One defender after the night: own inventory back; a spectator stands at the core again. */
     private void endNightFor(ServerPlayer player) {
         boolean drone = Drones.isDrone(player);
@@ -4058,6 +4097,7 @@ public final class SiegeManager {
         if (bosses.spawned()) {
             bosses.syncTo(player);
         }
+        kits.settle(player);   // a kit swap a crash left half done (Simon 31.10.: survival safety)
         MinecraftServer joinServer = player.level().getServer();
         boolean stillTonight = (active && participants.contains(player.getUUID())) || pendingTest != null
                 || (joinServer != null && nightComing(joinServer));

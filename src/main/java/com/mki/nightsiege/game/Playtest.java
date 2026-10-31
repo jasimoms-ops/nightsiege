@@ -185,6 +185,12 @@ public final class Playtest {
         if (m.mainCore() == null) {
             return "nightsiege.playtest.no_core";
         }
+        // Restores of an earlier playtest that still wait for offline players are kept aside, never
+        // overwritten by this one (Simon 31.10.: survival safety; they would keep the planning skills).
+        keepWaitingRestores();
+        for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+            giveBackWaiting(p);   // online again but not given back yet: before anything is taken
+        }
         List<ServerPlayer> players = new ArrayList<>();
         if (alone != null) {
             if (!m.isRegistered(alone)) {
@@ -193,7 +199,7 @@ public final class Playtest {
             players.add(alone);
         } else {
             for (ServerPlayer p : server.getPlayerList().getPlayers()) {
-                if (m.isRegistered(p) && !p.isSpectator()) {
+                if (m.isRegistered(p) && !p.isSpectator() && !p.isDeadOrDying()) {
                     players.add(p);
                 }
             }
@@ -204,6 +210,9 @@ public final class Playtest {
         for (ServerPlayer p : players) {
             if (m.kits().hasStash(p)) {
                 return "nightsiege.playtest.kit_worn";
+            }
+            if (m.save().playtestRestores != null && m.save().playtestRestores.containsKey(p.getUUID().toString())) {
+                return "nightsiege.playtest.restore_waiting";   // their real things are not back yet (dead)
             }
         }
         SiegeConfig cfg = m.config();
@@ -225,7 +234,7 @@ public final class Playtest {
             Inventory inv = p.getInventory();
             for (int i = 0; i < inv.getContainerSize(); i++) {
                 ItemStack stack = inv.getItem(i);
-                String json = KitService.encode(stack, regs);
+                String json = KitService.store(stack, regs);   // SNBT: the numbers stay as they are (31.10.)
                 if (!stack.isEmpty() && json.isEmpty()) {
                     NightSiegeMod.LOGGER.warn("[Night Siege] Playtest: Gegenstand von {} lässt sich nicht speichern", pp.name);
                     return "nightsiege.playtest.item_unsaved";
@@ -903,11 +912,10 @@ public final class Playtest {
         m.persist();
         for (Map.Entry<String, SiegeSave.PlaytestPlayer> e : s.players.entrySet()) {
             ServerPlayer p = server.getPlayerList().getPlayer(UUID.fromString(e.getKey()));
-            if (p != null) {
-                restore(p, e.getValue());
+            if (p != null && restore(p, e.getValue())) {
                 p.sendSystemMessage(Component.translatable(messageKey).withStyle(ChatFormatting.GOLD));
             } else {
-                e.getValue().restorePending = true;
+                e.getValue().restorePending = true;   // away or dead: when they log in or respawn
             }
         }
         NightSiegeMod.LOGGER.info("[Night Siege] Playtest beendet ({}), alles zurückgesetzt", messageKey);
@@ -925,36 +933,108 @@ public final class Playtest {
 
     /** A player logs in: what the playtest took comes back if it ended while they were away. */
     void onJoin(ServerPlayer player) {
+        if (giveBackWaiting(player)) {
+            return;
+        }
         SiegeSave.PlaytestState s = state();
         if (s == null) {
             return;
         }
         SiegeSave.PlaytestPlayer pp = s.players.get(player.getUUID().toString());
-        if (pp == null) {
-            return;
-        }
-        if (s.finished && pp.restorePending) {
-            restore(player, pp);
-            player.sendSystemMessage(Component.translatable("nightsiege.playtest.reset_join").withStyle(ChatFormatting.GOLD));
-            cleanUp();
-        } else if (!s.finished) {
+        if (pp != null && !s.finished) {
             send(player, "plan".equals(s.phase));
         }
     }
 
-    private void restore(ServerPlayer player, SiegeSave.PlaytestPlayer pp) {
+    /** Back from the dead (Simon 31.10.: survival safety): a restore that waited for the respawn. */
+    void afterRespawn(ServerPlayer player) {
+        giveBackWaiting(player);
+    }
+
+    /**
+     * Gives a player back what a finished playtest took, if that still waits: the restore kept aside
+     * from an earlier playtest first (the oldest holds the real things), else the one of the last.
+     * Returns true when something came back.
+     */
+    private boolean giveBackWaiting(ServerPlayer player) {
+        String id = player.getUUID().toString();
+        Map<String, SiegeSave.PlaytestPlayer> kept = m.save().playtestRestores;
+        SiegeSave.PlaytestPlayer old = kept == null ? null : kept.get(id);
+        SiegeSave.PlaytestState s = state();
+        SiegeSave.PlaytestPlayer pp = s == null || !s.finished ? null : s.players.get(id);
+        if (old != null) {
+            if (!restore(player, old)) {
+                return false;   // dead: after the respawn
+            }
+            kept.remove(id);
+            if (pp != null && pp.restorePending) {
+                pp.restorePending = false;   // a newer one would only bring the playtest's things back
+                pp.items = new ArrayList<>();
+                pp.skills = "";
+            }
+            m.persist();
+        } else if (pp != null && pp.restorePending) {
+            if (!restore(player, pp)) {
+                return false;
+            }
+        } else {
+            return false;
+        }
+        player.sendSystemMessage(Component.translatable("nightsiege.playtest.reset_join").withStyle(ChatFormatting.GOLD));
+        cleanUp();
+        return true;
+    }
+
+    /** A new playtest starts: the restores of the last one that still wait move aside (the oldest stays). */
+    private void keepWaitingRestores() {
+        SiegeSave.PlaytestState s = state();
+        if (s == null || !s.finished || s.players == null) {
+            return;
+        }
+        for (Map.Entry<String, SiegeSave.PlaytestPlayer> e : s.players.entrySet()) {
+            if (e.getValue() != null && e.getValue().restorePending) {
+                if (m.save().playtestRestores == null) {
+                    m.save().playtestRestores = new java.util.HashMap<>();
+                }
+                if (m.save().playtestRestores.putIfAbsent(e.getKey(), e.getValue()) == null) {
+                    NightSiegeMod.LOGGER.info("[Night Siege] Playtest: Rückgabe für {} wartet weiter (beiseitegelegt)", e.getValue().name);
+                }
+                e.getValue().restorePending = false;
+            }
+        }
+        m.persist();
+    }
+
+    /** Puts back what the playtest took. False (nothing done) while the player is dead: after the respawn. */
+    private boolean restore(ServerPlayer player, SiegeSave.PlaytestPlayer pp) {
+        if (player.isDeadOrDying()) {
+            return false;   // the body would take it along and lose it on respawn (Simon 31.10.)
+        }
         MinecraftServer server = player.level().getServer();
         if (m.kits().hasStash(player)) {
-            m.kits().restore(player);   // the kit goes first, then the inventory of before
+            m.kits().restore(player, false);   // the kit goes first, then the inventory of before; crates after it
         }
         Inventory inv = player.getInventory();
         inv.clearContent();
         HolderLookup.Provider regs = player.level().registryAccess();
-        for (int i = 0; i < pp.items.size() && i < inv.getContainerSize(); i++) {
-            ItemStack stack = KitService.decode(pp.items.get(i), regs);
-            if (!stack.isEmpty()) {
+        List<String> unreadable = new ArrayList<>();
+        List<ItemStack> loose = new ArrayList<>();
+        for (int i = 0; i < pp.items.size(); i++) {
+            String raw = pp.items.get(i);
+            ItemStack stack = KitService.load(raw, regs);
+            if (stack == null) {
+                unreadable.add(raw);   // kept in the quarantine, the rest comes back
+            } else if (!stack.isEmpty() && i < inv.getContainerSize()) {
                 inv.setItem(i, stack);
+            } else if (!stack.isEmpty()) {
+                loose.add(stack);
             }
+        }
+        for (ItemStack stack : loose) {
+            inv.placeItemBackInInventory(stack);
+        }
+        if (!unreadable.isEmpty()) {
+            m.kits().quarantine(player, unreadable);
         }
         PlayerSkills before = pp.skills == null || pp.skills.isEmpty() ? null : Json.fromJson(pp.skills, PlayerSkills.class);
         if (before == null) {
@@ -969,12 +1049,16 @@ public final class Playtest {
         pp.restorePending = false;
         pp.items = new ArrayList<>();
         pp.skills = "";
+        player.inventoryMenu.sendAllDataToRemote();
+        KitService.savePlayer(player);   // the real things on disk before the save forgets them (Simon 31.10.)
         m.persist();
         if (ServerPlayNetworking.canSend(player, CoreNetworking.ScreenPayload.TYPE)) {
             PlaytestData data = new PlaytestData();
             data.phase = "done";
             ServerPlayNetworking.send(player, new CoreNetworking.ScreenPayload("playtest_update", Json.toJson(data)));
         }
+        m.crates().deliverPending(player);   // real crates that waited for the playtest to end
+        return true;
     }
 
     /** The save forgets the playtest once nobody waits for their things any more. */

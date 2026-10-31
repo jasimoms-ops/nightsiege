@@ -92,8 +92,23 @@ public class SiegeSave {
      * round"): player → class → item key → inventory slot, noted when the kit goes back.
      */
     public Map<String, Map<String, Map<String, Integer>>> kitLayouts = new HashMap<>();
-    /** Reward crates won while offline, by player uuid: "CLASS|KIND|LEVEL" each. */
+    /**
+     * Reward crates waiting for their player, by player uuid: "CLASS|KIND|LEVEL" each. Won while
+     * offline, or while the night kit is on (Simon 31.10.: crates never go into the kit inventory).
+     */
     public Map<String, List<String>> pendingCrates = new HashMap<>();
+    /**
+     * Kit stash entries that could not be read back (an item of a removed mod, a Minecraft update),
+     * by player uuid, as the raw text they were stored as (Simon 31.10.: survival safety). Kept so an
+     * admin can recover them; the player is not stuck with a stash that never goes.
+     */
+    public Map<String, List<String>> kitQuarantine = new HashMap<>();
+    /**
+     * Playtest restores that still wait for an offline player when a new playtest starts, by player
+     * uuid (Simon 31.10.: a second playtest overwrote them). The oldest one stays: it holds the real
+     * inventory and skills.
+     */
+    public Map<String, PlaytestPlayer> playtestRestores = new HashMap<>();
     /**
      * Blocks the crate gains set down for one night only (barricades, banners, ladders,
      * light): "dimension|x|y|z|block id" each. Kept so a crash cannot leave them standing.
@@ -286,12 +301,23 @@ public class SiegeSave {
 
     /** One defender's handed-in inventory. */
     public static class KitStash {
-        /** One entry per inventory slot: the item as JSON, or "" for an empty slot. */
+        /**
+         * One entry per inventory slot: the item as text ("snbt:" + SNBT since 31.10., JSON before),
+         * or "" for an empty slot. Entries past the inventory's size are loose things (go into free slots).
+         */
         public List<String> items = new ArrayList<>();
         /** The game mode before the night turned the player into a spectator, or "" if unchanged. */
         public String gameMode = "";
-        /** Items that could not be read back (kept, so they are not lost). */
+        /** Items that could not be read back (saves before 31.10.; they move to {@link SiegeSave#kitQuarantine}). */
         public List<String> broken = new ArrayList<>();
+        /**
+         * Where the swap stands (Simon 31.10.: survival safety): "applying" while the kit goes on,
+         * "applied" once the player's own data is saved with it, "restoring" while it goes back.
+         * "" (saves from before) counts as applied. A half-done swap after a crash is found by it.
+         */
+        public String state = "";
+        /** The night is over but the player was dead: the own things come back after the respawn. */
+        public boolean restoreOnRespawn;
     }
 
     public boolean isRegistered(String uuid) {

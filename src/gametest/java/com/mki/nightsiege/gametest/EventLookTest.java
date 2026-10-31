@@ -147,6 +147,9 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("survival")) {
                     survivalScene(context, game);   // a real night in survival, start to end (Simon 30.10., 23:51)
                 }
+                if (want.contains("ss-inventar")) {
+                    SsInventarScenes.run(context, game);   // survival safety: kit swap, crates, crashes, death (31.10.)
+                }
                 if (want.contains("ladders")) {
                     // The climbing scenes, then the ladder cases of 28 October 2026 (block beside, ladder above the ground).
                     ladderScene(context, game);
@@ -929,7 +932,7 @@ public class EventLookTest implements FabricClientGameTest {
     }
 
     /** The slot of a menu that shows this slot of the player's inventory, or -1. */
-    private static int menuSlotOf(net.minecraft.world.inventory.AbstractContainerMenu menu,
+    static int menuSlotOf(net.minecraft.world.inventory.AbstractContainerMenu menu,
                                   net.minecraft.world.entity.player.Inventory inv, int invSlot) {
         for (int i = 0; i < menu.slots.size(); i++) {
             net.minecraft.world.inventory.Slot s = menu.slots.get(i);
@@ -941,7 +944,7 @@ public class EventLookTest implements FabricClientGameTest {
     }
 
     /** Kit items in a container, counted by stack size. */
-    private static int kitCount(net.minecraft.world.Container box) {
+    static int kitCount(net.minecraft.world.Container box) {
         int n = 0;
         for (int i = 0; i < box.getContainerSize(); i++) {
             if (com.mki.nightsiege.game.KitService.isKit(box.getItem(i))) {
@@ -5445,7 +5448,7 @@ public class EventLookTest implements FabricClientGameTest {
     }
 
     /** A core on flat ground near the player, when none is known yet (the scenes that need one, run alone). */
-    private static void ensureCore(ClientGameTestContext context, TestSingleplayerContext game) {
+    static void ensureCore(ClientGameTestContext context, TestSingleplayerContext game) {
         boolean none = context.computeOnClient(client -> com.mki.nightsiege.game.SiegeManager.get().save().cores.isEmpty());
         if (!none) {
             return;
@@ -7591,7 +7594,7 @@ public class EventLookTest implements FabricClientGameTest {
     }
 
     /** Something to do on the integrated server with the test player and the siege manager. */
-    private interface OnServer {
+    interface OnServer {
         void run(net.minecraft.server.level.ServerPlayer player, com.mki.nightsiege.game.SiegeManager manager);
     }
 
@@ -7602,7 +7605,7 @@ public class EventLookTest implements FabricClientGameTest {
         }
     }
 
-    private static void onServer(ClientGameTestContext context, OnServer action) {
+    static void onServer(ClientGameTestContext context, OnServer action) {
         context.runOnClient(client -> {
             net.minecraft.server.MinecraftServer server = client.getSingleplayerServer();
             server.execute(() -> {
@@ -7840,7 +7843,7 @@ public class EventLookTest implements FabricClientGameTest {
         context.waitTicks(10);
     }
 
-    private static void closeScreen(ClientGameTestContext context) {
+    static void closeScreen(ClientGameTestContext context) {
         context.runOnClient(client -> {
             if (client.gui.screen() != null) {
                 client.gui.setScreen(null);
