@@ -313,6 +313,10 @@ public final class SiegeCommands {
                                 .then(Commands.literal("aufholen").executes(SiegeCommands::pointsCatchUp))
                                 .then(Commands.argument("anzahl", IntegerArgumentType.integer(-100000, 100000))
                                         .executes(SiegeCommands::pointsGive))))
+                // The Ruhmeshalle (31.10.): empty it, or read every logger file in again (titles stay).
+                .then(Commands.literal("ruhmeshalle").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                        .then(Commands.literal("leeren").then(Commands.literal("bestaetigen").executes(ctx -> hallReset(ctx, false))))
+                        .then(Commands.literal("neu_einlesen").executes(ctx -> hallReset(ctx, true))))
                 .then(Commands.literal("dev")
                         .then(Commands.literal("reset").executes(SiegeCommands::devReset))
                         .then(Commands.argument("punkte", IntegerArgumentType.integer(1, 100000))
@@ -689,6 +693,13 @@ public final class SiegeCommands {
             return 0;
         }
         reply(ctx.getSource(), Component.translatable("nightsiege.cmd.points_caught_up", target.getScoreboardName(), level, added, now));
+        return 1;
+    }
+
+    private static int hallReset(CommandContext<CommandSourceStack> ctx, boolean rebuild) {
+        SiegeManager m = SiegeManager.get();
+        int heroes = HallService.reset(m, ctx.getSource().getServer(), rebuild, ctx.getSource().getTextName());
+        reply(ctx.getSource(), Component.translatable(rebuild ? "nightsiege.cmd.hall_rebuilt" : "nightsiege.cmd.hall_cleared", heroes));
         return 1;
     }
 

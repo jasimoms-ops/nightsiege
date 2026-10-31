@@ -428,6 +428,35 @@ public final class HallService {
         return out;
     }
 
+    // ------------------------------------------------------------------ admin
+
+    /**
+     * Empties the Ruhmeshalle (/nightsiege ruhmeshalle leeren bestaetigen); with rebuild it reads
+     * every logger file in again (/nightsiege ruhmeshalle neu_einlesen), the chosen titles stay.
+     * Returns how many defenders the hall had.
+     */
+    public static int reset(SiegeManager m, MinecraftServer server, boolean rebuild, String by) {
+        HallOfFame old = hall(m);
+        int heroes = old.heroes.size();
+        HallOfFame fresh = new HallOfFame();
+        if (rebuild) {
+            old.heroes.forEach((uuid, h) -> {
+                if (h.title != null && !h.title.isEmpty()) {
+                    fresh.hero(uuid, h.name).title = h.title;
+                }
+            });
+        }
+        fresh.imported = !rebuild;
+        m.save().hall = fresh;
+        m.persist();
+        NightSiegeMod.LOGGER.info("[Night Siege] Ruhmeshalle {} von {} ({} Verteidiger vorher)", rebuild ? "neu eingelesen" : "geleert",
+                by, heroes);
+        if (rebuild) {
+            importOnce(m, server);
+        }
+        return heroes;
+    }
+
     // ------------------------------------------------------------------ the nights before
 
     /**
