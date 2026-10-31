@@ -205,7 +205,7 @@ final class SsInventarScenes {
             inv.setItem(1, shulker);
             inv.setItem(2, new ItemStack(Items.ENDER_PEARL, 16));
             inv.setItem(3, PotionContents.createItemStack(Items.POTION, Potions.HEALING));
-            inv.setItem(4, CrateService.crate(SkillClass.WARRIOR, CrateKind.NORMAL, 4));   // an own crate (number types)
+            inv.setItem(4, CrateService.crate(SkillClass.WARRIOR, CrateKind.NORMAL, 9));   // an own crate (number types)
             inv.setItem(5, new ItemStack(Items.TORCH, 64));
             net.minecraft.world.item.Item[] fill = {Items.COBBLESTONE, Items.OAK_LOG, Items.IRON_INGOT, Items.BREAD, Items.ARROW};
             for (int i = 9; i < 27; i++) {
@@ -369,7 +369,7 @@ final class SsInventarScenes {
             int crates = crates(player);
             check(crates >= 2 && pending(manager, player) == 0, "crates after the restore: " + crates + " (own + won in the night), pending "
                     + pending(manager, player));
-            ItemStack fresh = CrateService.crate(SkillClass.WARRIOR, CrateKind.NORMAL, 4);
+            ItemStack fresh = CrateService.crate(SkillClass.WARRIOR, CrateKind.NORMAL, 9);
             check(ItemStack.isSameItemSameComponents(fresh, player.getInventory().getItem(4)),
                     "own crate stacks with a new one after the stash (number types kept)");
             if (player.level().getBlockEntity(chestPos[0]) instanceof ChestBlockEntity box) {
