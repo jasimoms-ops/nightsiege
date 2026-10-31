@@ -77,7 +77,9 @@ public class CoreScreen extends Screen {
         // The scouts' report of a dungeon, with its map (dungeon update, 27 October 2026).
         SCOUT(null, "minecraft:filled_map", "minecraft:textures/block/spruce_planks.png", 0xFFE8C77A, "scout"),
         // The curse altar and the wanted posters of the nemeses (update 2 "Fluch & Rache", 28 October 2026).
-        CURSE(null, "minecraft:wither_skeleton_skull", "minecraft:textures/block/nether_bricks.png", 0xFFE0506A, "curse");
+        CURSE(null, "minecraft:wither_skeleton_skull", "minecraft:textures/block/nether_bricks.png", 0xFFE0506A, "curse"),
+        // The Ruhmeshalle (31 October 2026): podium, chronicles, badges, curiosities, bestiary.
+        HALL(null, "minecraft:golden_helmet", "minecraft:textures/block/deepslate_bricks.png", 0xFFFFC94A, "hall");
 
         final SkillClass clazz;
         final String icon;
@@ -803,7 +805,7 @@ public class CoreScreen extends Screen {
             }
         }
         applyShownProfile();
-        boolean big = activeTab == Tab.CLASSES
+        boolean big = activeTab == Tab.CLASSES || activeTab == Tab.HALL
                 || (activeTab.clazz != null && stats.skillsEnabled && isGrid(activeTab.clazz.name()));
         // The start page gets room for the profile list next to its cards.
         boolean wideStats = activeTab == Tab.STATS && hasClass() || activeTab == Tab.SCOUT || activeTab == Tab.CURSE;
@@ -924,6 +926,14 @@ public class CoreScreen extends Screen {
             }
         }
 
+        if (activeTab == Tab.HALL) {
+            // The Ruhmeshalle asks the server for its data (again after a few seconds).
+            if (HallPages.wantsData()) {
+                HallPages.asked();
+                send("hall:open");
+            }
+            return;
+        }
         if (activeTab == Tab.CURSE) {
             // Each stone of the altar is a button (laid on or taken off); sealed while a night runs.
             if (stats.cursesEnabled && !stats.altarSealed) {
@@ -2242,6 +2252,10 @@ public class CoreScreen extends Screen {
         if (super.mouseClicked(event, doubleClick)) {
             return true;
         }
+        if (activeTab == Tab.HALL && confirming == null && !confirmingReset && !choosingUnlock
+                && HallPages.click(event.x(), event.y())) {
+            return true;
+        }
         // The collection (balance update 2): a click on a gain ability puts it onto the first gain key.
         if (activeTab == Tab.COLLECTION && hoveredGain != null && com.mki.nightsiege.core.CrateGains.keyAbility(hoveredGain.id())
                 && gainStage(collectionClass(), hoveredGain.id()) > 0) {
@@ -2298,6 +2312,9 @@ public class CoreScreen extends Screen {
     /** The mouse wheel zooms in and out, around the point under the mouse. */
     @Override
     public boolean mouseScrolled(double x, double y, double scrollX, double scrollY) {
+        if (activeTab == Tab.HALL && HallPages.scroll(x, y, scrollY)) {
+            return true;
+        }
         if (confirming == null && !confirmingReset && !choosingUnlock && scrollProfiles(x, y, scrollY)) {
             return true;
         }
@@ -2411,6 +2428,8 @@ public class CoreScreen extends Screen {
             drawScout(gui, font);
         } else if (activeTab == Tab.CURSE) {
             curseTip = drawCurses(gui, font, mouseX, mouseY);
+        } else if (activeTab == Tab.HALL) {
+            hallTip = HallPages.draw(gui, font, innerX(), innerY(), innerW(), innerH(), mouseX, mouseY, this::send);
         } else if (activeTab == Tab.COLLECTION) {
             hoveredGain = drawCollection(gui, font, mouseX, mouseY);
         } else if (!stats.skillsEnabled) {
@@ -2451,9 +2470,15 @@ public class CoreScreen extends Screen {
                 gainTooltip(gui, font, hoveredGain, mouseX, mouseY);
             } else if (curseTip != null && activeTab == Tab.CURSE) {
                 tooltip(gui, font, curseTip, mouseX, mouseY);
+            } else if (hallTip != null && activeTab == Tab.HALL) {
+                gui.nextStratum();   // above the figures on the podium
+                tooltip(gui, font, hallTip, mouseX, mouseY);
             }
         }
     }
+
+    /** The tooltip of the Ruhmeshalle under the mouse (drawn last). */
+    private List<String> hallTip;
 
     private Tab tabAt(int mouseX, int mouseY) {
         Tab[] tabs = visibleTabs();
@@ -2484,6 +2509,9 @@ public class CoreScreen extends Screen {
         }
         if (tab == Tab.CURSE) {
             return Component.translatable("nightsiege.ui.banner_title.curse").getString();
+        }
+        if (tab == Tab.HALL) {
+            return Component.translatable("nightsiege.ui.banner_title.hall").getString();
         }
         return Component.translatable(tab.clazz.translationKey()).getString();
     }
@@ -2590,6 +2618,9 @@ public class CoreScreen extends Screen {
         if (tab == Tab.CURSE) {
             return Component.translatable("nightsiege.ui.banner_title.curse").getString();
         }
+        if (tab == Tab.HALL) {
+            return Component.translatable("nightsiege.ui.banner_title.hall").getString();
+        }
         return Component.translatable(tab.clazz.translationKey()).getString();
     }
 
@@ -2627,7 +2658,7 @@ public class CoreScreen extends Screen {
             }
             return;
         }
-        if (activeTab == Tab.COLLECTION || activeTab == Tab.PERKS) {
+        if (activeTab == Tab.COLLECTION || activeTab == Tab.PERKS || activeTab == Tab.HALL) {
             // Vault and altar: dark stone, a warm (gold) or violet glow from the edge.
             gui.enableScissor(x, y, x + w, y + h);
             for (int ty = y; ty < y + h; ty += 16) {
@@ -2637,10 +2668,10 @@ public class CoreScreen extends Screen {
             }
             gui.disableScissor();
             gui.fill(x, y, x + w, y + h, 0xC40E0C14);
-            int rgb = activeTab == Tab.COLLECTION ? 0xE8B84A : 0x9A5CFF;
+            int rgb = activeTab == Tab.PERKS ? 0x9A5CFF : 0xE8B84A;
             for (int i = 0; i < 16; i++) {
                 int a = Math.max(0, 0x20 - i * 2);
-                if (activeTab == Tab.COLLECTION) {
+                if (activeTab != Tab.PERKS) {
                     gui.fill(x, y + i, x + w, y + i + 1, (a << 24) | rgb);
                 } else {
                     gui.fill(x, y + h - 1 - i, x + w, y + h - i, (a << 24) | rgb);
@@ -3135,6 +3166,11 @@ public class CoreScreen extends Screen {
         }
         if (activeTab == Tab.PERKS) {
             gui.text(font, Component.translatable("nightsiege.ui.footer_perks").getString(), left + 10, top + H - 19, TITLE, false);
+            return;
+        }
+        if (activeTab == Tab.HALL) {
+            String foot = font.plainSubstrByWidth(Component.translatable("nightsiege.hall.footer").getString(), W - 90);
+            gui.text(font, foot, left + 10, top + H - 19, TITLE, false);
             return;
         }
         if (activeTab == Tab.COLLECTION || activeTab == Tab.CLASSES) {

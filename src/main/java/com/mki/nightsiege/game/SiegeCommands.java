@@ -307,6 +307,16 @@ public final class SiegeCommands {
                                     return 1;
                                 })
                                 .then(Commands.literal("bestaetigen").executes(SiegeCommands::wipePlayers))))
+                // Skill points for latecomers (Simon 30.10., 23:44: "falls an Tag 5 oder so noch Personen hinzukommen").
+                .then(Commands.literal("punkte").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                        .then(Commands.argument("spieler", net.minecraft.commands.arguments.EntityArgument.player())
+                                .then(Commands.literal("aufholen").executes(SiegeCommands::pointsCatchUp))
+                                .then(Commands.argument("anzahl", IntegerArgumentType.integer(-100000, 100000))
+                                        .executes(SiegeCommands::pointsGive))))
+                // The Ruhmeshalle (31.10.): empty it, or read every logger file in again (titles stay).
+                .then(Commands.literal("ruhmeshalle").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                        .then(Commands.literal("leeren").then(Commands.literal("bestaetigen").executes(ctx -> hallReset(ctx, false))))
+                        .then(Commands.literal("neu_einlesen").executes(ctx -> hallReset(ctx, true))))
                 .then(Commands.literal("dev")
                         .then(Commands.literal("reset").executes(SiegeCommands::devReset))
                         .then(Commands.argument("punkte", IntegerArgumentType.integer(1, 100000))
@@ -656,6 +666,40 @@ public final class SiegeCommands {
         // Counts as survived, so stopping never triggers the punishment.
         manager.finish(source.getLevel().getServer(), true);
         reply(source, Component.translatable("nightsiege.cmd.stopped"));
+        return 1;
+    }
+
+    /** /nightsiege punkte <spieler> <anzahl>: gives (or, negative, takes) skill points. */
+    private static int pointsGive(CommandContext<CommandSourceStack> ctx) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer target = net.minecraft.commands.arguments.EntityArgument.getPlayer(ctx, "spieler");
+        int amount = IntegerArgumentType.getInteger(ctx, "anzahl");
+        int now = SiegeManager.get().grantPoints(target, amount, ctx.getSource().getTextName());
+        reply(ctx.getSource(), Component.translatable(amount >= 0 ? "nightsiege.cmd.points_given" : "nightsiege.cmd.points_taken",
+                target.getScoreboardName(), Math.abs(amount), now));
+        return 1;
+    }
+
+    /** /nightsiege punkte <spieler> aufholen: up to the points one would have by the world's level. */
+    private static int pointsCatchUp(CommandContext<CommandSourceStack> ctx) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer target = net.minecraft.commands.arguments.EntityArgument.getPlayer(ctx, "spieler");
+        SiegeManager m = SiegeManager.get();
+        int level = m.currentLevel();
+        int target0 = TestKit.pointsBefore(level, m.config());
+        int added = m.catchUpPoints(target, ctx.getSource().getTextName());
+        int now = m.save().skillsOf(target.getUUID().toString()).points();
+        if (added <= 0) {
+            reply(ctx.getSource(), Component.translatable("nightsiege.cmd.points_up_to_date", target.getScoreboardName(),
+                    m.save().skillsOf(target.getUUID().toString()).earned, target0, level));
+            return 0;
+        }
+        reply(ctx.getSource(), Component.translatable("nightsiege.cmd.points_caught_up", target.getScoreboardName(), level, added, now));
+        return 1;
+    }
+
+    private static int hallReset(CommandContext<CommandSourceStack> ctx, boolean rebuild) {
+        SiegeManager m = SiegeManager.get();
+        int heroes = HallService.reset(m, ctx.getSource().getServer(), rebuild, ctx.getSource().getTextName());
+        reply(ctx.getSource(), Component.translatable(rebuild ? "nightsiege.cmd.hall_rebuilt" : "nightsiege.cmd.hall_cleared", heroes));
         return 1;
     }
 

@@ -435,6 +435,9 @@ public final class SiegeManager {
                         && combat.guardian().onUseEntity(server, entity, hand)
                         ? net.minecraft.world.InteractionResult.SUCCESS : net.minecraft.world.InteractionResult.PASS);
         ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> {
+            if (active && entity instanceof net.minecraft.world.entity.projectile.Projectile) {
+                safe("Statistik", () -> stats.projectile(entity));   // shots and throws for the Ruhmeshalle (31.10.)
+            }
             if (entity.entityTags().contains(Rigs.TAG) && !Rigs.isLive(entity)) {
                 entity.discard();   // a piece of a tower rig or a drone from before a restart
                 return;
@@ -519,6 +522,7 @@ public final class SiegeManager {
             }
         }
         playtest.afterRestart(server);   // a playtest that ran when the server went down is undone
+        safe("Ruhmeshalle", () -> HallService.importOnce(this, server));   // the nights before it, once (31.10.)
         NightSiegeMod.LOGGER.info("[Night Siege] {} Cores bekannt, {} Belagerungen bestanden",
                 save.cores == null ? 0 : save.cores.size(), save.siegesWon);
         // CI only: the balance tool's team simulation (29 October 2026).
@@ -3274,7 +3278,16 @@ public final class SiegeManager {
 
     /** Writes the night's protocol lines. */
     private void logNight(String result, int blasted, int required) {
-        safe("Statistik", () -> stats.endNight(world == null ? 0L : world.getGameTime(), result, required, nightKills, liveMobs));
+        StatsRecorder.NightFile finished = null;
+        try {
+            finished = stats.endNight(world == null ? 0L : world.getGameTime(), result, required, nightKills, liveMobs);
+        } catch (RuntimeException e) {
+            NightSiegeMod.LOGGER.warn("[Night Siege] Statistik fehlgeschlagen: {}", e.toString());
+        }
+        if (finished != null && !testRun && !inPlaytest() && nightNumber >= 0 && !"abgebrochen".equals(result) && world != null) {
+            StatsRecorder.NightFile night0 = finished;
+            safe("Ruhmeshalle", () -> HallService.addNight(this, world.getServer(), night0, true));
+        }
         try {
             nightLog.dug += digger.takeBroken();
             String eventName = bossLabel != null ? bossLabel : currentEvent.name().toLowerCase(java.util.Locale.ROOT);
@@ -3974,6 +3987,7 @@ public final class SiegeManager {
         }
         if (!fallen.contains(id)) {
             safe("Nemesis", () -> nemesis.onDefenderKilled(nemesisHost, player, source));   // the killer flees and comes back
+            safe("Statistik", () -> stats.playerKilled(player, source));   // the arch-enemy of the Ruhmeshalle
         }
         markFallen(player);
     }
@@ -3986,6 +4000,20 @@ public final class SiegeManager {
         nightLog.of(id, player.getScoreboardName()).deaths++;
         safe("Statistik", () -> stats.playerFell(player));
         save.statsOf(id.toString(), player.getScoreboardName()).fallen++;
+        if (participants.size() >= 2) {
+            ServerPlayer lastOne = null;
+            int standing = 0;
+            for (UUID p : participants) {
+                if (!fallen.contains(p)) {
+                    standing++;
+                    lastOne = player.level().getServer().getPlayerList().getPlayer(p);
+                }
+            }
+            if (standing == 1 && lastOne != null) {
+                ServerPlayer one = lastOne;
+                safe("Statistik", () -> stats.lastStanding(one));   // "Letzter Mann" (Ruhmeshalle)
+            }
+        }
         MinecraftServer server = player.level().getServer();
         broadcast(server, Component.translatable("nightsiege.msg.defender_down",
                 player.getScoreboardName(), countStanding()).withStyle(ChatFormatting.RED));
@@ -4621,6 +4649,15 @@ public final class SiegeManager {
         String[] parts = action.split(":", 2);
         String verb = parts[0];
         String argument = parts.length > 1 ? parts[1] : "";
+        if (verb.equals("hall")) {
+            // The Ruhmeshalle (31.10.): for everybody, signed up or not.
+            if (argument.startsWith("title:")) {
+                HallService.chooseTitle(this, player, argument.substring(6));
+            } else {
+                HallService.send(this, player);
+            }
+            return;
+        }
         if (!isRegistered(player) && !verb.equals("dungeon")) {
             // Not signed up: the mod stays out of the way (keys do nothing, the core only offers the sign-up).
             if (!verb.equals("ult") && !verb.equals("shield") && !verb.equals("ult2") && !verb.equals("quiver")
@@ -5181,6 +5218,40 @@ public final class SiegeManager {
         save.coreSkills().award(Math.max(0, amount));
         persist();
         openCoreWindow(player);
+    }
+
+    /**
+     * Gives a player skill points (negative: takes them; never below 0). Returns the points the
+     * player has now. For latecomers (Simon 30.10., 23:44); the player is told, the log notes it.
+     */
+    public int grantPoints(ServerPlayer player, int amount, String by) {
+        PlayerSkills skills = save.skillsOf(player.getUUID().toString());
+        if (amount >= 0) {
+            skills.award(amount);
+        } else {
+            int take = Math.min(skills.points, -amount);
+            skills.spend(take);
+            skills.earned = Math.max(0, skills.earned - take);
+        }
+        persist();
+        NightSiegeMod.LOGGER.info("[Night Siege] Skillpunkte: {} {} {} von {} (jetzt {})", player.getScoreboardName(),
+                amount >= 0 ? "+" : "-", Math.abs(amount), by, skills.points());
+        player.sendSystemMessage(Component.translatable(amount >= 0 ? "nightsiege.msg.points_received" : "nightsiege.msg.points_removed",
+                Math.abs(amount), skills.points()).withStyle(amount >= 0 ? ChatFormatting.AQUA : ChatFormatting.GRAY));
+        return skills.points();
+    }
+
+    /**
+     * Brings a latecomer up to the points one would have earned by the world's level (the same sum as
+     * the test kits and the bots). Returns the points added, 0 when the player has that many already.
+     */
+    public int catchUpPoints(ServerPlayer player, String by) {
+        PlayerSkills skills = save.skillsOf(player.getUUID().toString());
+        int add = Math.max(0, TestKit.pointsBefore(currentLevel(), config) - skills.earned);
+        if (add > 0) {
+            grantPoints(player, add, by + " (aufholen bis Stufe " + currentLevel() + ")");
+        }
+        return add;
     }
 
     /** Creative only: frees a player to pick a different class. */

@@ -1111,6 +1111,9 @@ public final class GuardianEffects {
         }
         float amount = (float) (base * power);
         float real = Math.min(amount, Math.max(0f, target.getMaxHealth() - target.getHealth()));
+        if (real > 0 && healer != null && target != healer && target.getHealth() < 6f) {
+            StatsRecorder.rescue(healer, target);   // "Retter" (Ruhmeshalle, 31.10.)
+        }
         if (real > 0) {
             target.heal(real);
         }
