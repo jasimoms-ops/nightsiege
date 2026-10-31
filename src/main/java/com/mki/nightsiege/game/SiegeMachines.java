@@ -947,7 +947,7 @@ public final class SiegeMachines {
                         continue;
                     }
                     NightDamage.record(level, pos, state);
-                    level.destroyBlock(pos, false);
+                    NightDamage.asAttacker(() -> level.destroyBlock(pos, false));   // what falls off with it comes back too, no drops (31.10.)
                 }
             }
         }

@@ -63,8 +63,11 @@ public final class TempBlocks {
     /** Sets a block for the night if the spot is free. Returns true when it stands. */
     public static boolean place(ServerLevel level, BlockPos pos, BlockState state) {
         BlockState there = level.getBlockState(pos);
-        if (!(there.isAir() || there.canBeReplaced()) || !there.getFluidState().isEmpty() && !state.is(Blocks.LIGHT)) {
+        if (!(there.isAir() || there.canBeReplaced()) || !there.getFluidState().isEmpty()) {
             return false;
+        }
+        if (state.is(Blocks.LIGHT) && !there.isAir()) {
+            return false;   // light only into air: in water it took the source away for good (Simon 31.10.: survival safety)
         }
         if (!level.setBlock(pos, state, Block.UPDATE_ALL)) {
             return false;

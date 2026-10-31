@@ -1784,7 +1784,9 @@ public final class Expeditions {
                     busy[0] = true;
                     BlockState old = t.snap.old(LEVEL_CHUNK, t.index);
                     BlockPos pos = t.levelPlaces.get(t.index);
-                    if (old != null && level.getBlockState(pos) != old) {
+                    // The levelled ground: earth, grass and the path were the dungeon's; a player's things stay (31.10.).
+                    if (old != null && level.getBlockState(pos) != old && com.mki.nightsiege.game.Teardown.mayReset(level, pos, old, now -> now.is(Blocks.DIRT)
+                            || now.is(Blocks.GRASS_BLOCK) || now.is(Blocks.DIRT_PATH) || dungeonOwn(t.plan, pos, now))) {
                         level.setBlock(pos, old, BULK);
                     }
                 }
@@ -1828,7 +1830,8 @@ public final class Expeditions {
                 busy[0] = true;
                 BlockState old = t.snap.old(t.cursor, t.index);
                 BlockPos pos = t.where.get(t.index);
-                if (old != null && level.getBlockState(pos) != old) {
+                if (old != null && level.getBlockState(pos) != old
+                        && com.mki.nightsiege.game.Teardown.mayReset(level, pos, old, now -> dungeonOwn(t.plan, pos, now))) {   // a player's things stay (31.10.)
                     level.setBlock(pos, old, BULK);
                 }
             }
@@ -1839,6 +1842,15 @@ public final class Expeditions {
             t.chunks++;
             t.dirty = true;
         }
+    }
+
+    /** Survival safety (31.10.): a block the dungeon set at this spot itself (its plan; the arena's bars). */
+    private static boolean dungeonOwn(ExpeditionLayout.Plan p, BlockPos pos, BlockState now) {
+        BlockState want = p.blocks.get(pos);
+        if (want == null) {
+            want = p.fill.get(pos);
+        }
+        return now.is(Blocks.IRON_BARS) || want != null && now.is(want.getBlock());
     }
 
     /**

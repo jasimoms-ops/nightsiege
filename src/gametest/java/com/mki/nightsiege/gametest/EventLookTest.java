@@ -157,6 +157,9 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("ss-inventar")) {
                     SsInventarScenes.run(context, game);   // survival safety: kit swap, crates, crashes, death (31.10.)
                 }
+                if (want.contains("ss-welt")) {
+                    SsWeltScenes.run(context, game);   // survival safety: the mending after the night (Simon 31.10.)
+                }
                 if (want.contains("ladders")) {
                     // The climbing scenes, then the ladder cases of 28 October 2026 (block beside, ladder above the ground).
                     ladderScene(context, game);
@@ -598,11 +601,14 @@ public class EventLookTest implements FabricClientGameTest {
             level.setBlock(fix.offset(4, -1, 0), net.minecraft.world.level.block.Blocks.FARMLAND.defaultBlockState(), 3);
             level.setBlock(fix.offset(0, 0, -8), planks, 3);
             int before = com.mki.nightsiege.game.NightDamage.lostCount();
-            level.explode(null, fix.getX() + 0.5, fix.getY() + 0.5, fix.getZ() + 0.5, 3.0f,
-                    net.minecraft.world.level.Level.ExplosionInteraction.TNT);
-            level.setBlock(fix.offset(-4, 1, 0), net.minecraft.world.level.block.Blocks.FIRE.defaultBlockState(), 3);
-            level.setBlock(fix.offset(-4, 0, 0), net.minecraft.world.level.block.Blocks.FIRE.defaultBlockState(), 3);   // burnt
-            level.setBlock(fix.offset(4, -1, 0), net.minecraft.world.level.block.Blocks.DIRT.defaultBlockState(), 3);   // trampled
+            // As the night's attackers (since 31.10. only their damage is written down).
+            com.mki.nightsiege.game.NightDamage.asAttacker(() -> {
+                level.explode(null, fix.getX() + 0.5, fix.getY() + 0.5, fix.getZ() + 0.5, 3.0f,
+                        net.minecraft.world.level.Level.ExplosionInteraction.TNT);
+                level.setBlock(fix.offset(-4, 1, 0), net.minecraft.world.level.block.Blocks.FIRE.defaultBlockState(), 3);
+                level.setBlock(fix.offset(-4, 0, 0), net.minecraft.world.level.block.Blocks.FIRE.defaultBlockState(), 3);   // burnt
+                level.setBlock(fix.offset(4, -1, 0), net.minecraft.world.level.block.Blocks.DIRT.defaultBlockState(), 3);   // trampled
+            });
             com.mki.nightsiege.game.NightDamage.playerBegin();
             level.destroyBlock(fix.offset(0, 0, -8), false);   // a player's own (out of the blast)
             com.mki.nightsiege.game.NightDamage.playerEnd();
@@ -1960,7 +1966,7 @@ public class EventLookTest implements FabricClientGameTest {
     }
 
     /** Clears a square yard on the server (grass floor, air above) around a middle and returns its ground height. */
-    private static int yard(ClientGameTestContext context, TestSingleplayerContext game, int cx, int cz, int out, int high) {
+    static int yard(ClientGameTestContext context, TestSingleplayerContext game, int cx, int cz, int out, int high) {
         game.getServer().runCommand("forceload add %d %d %d %d".formatted(cx - out - 8, cz - out - 8, cx + out + 8, cz + out + 8));
         context.waitTicks(40);
         final int[] ground = new int[1];

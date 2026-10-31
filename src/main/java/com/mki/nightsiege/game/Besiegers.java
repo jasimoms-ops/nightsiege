@@ -559,7 +559,9 @@ public final class Besiegers {
                         continue;
                     }
                     NightDamage.record(world, pos, state);   // back after the night
-                    if (world.destroyBlock(pos, false)) {
+                    boolean[] gone = {false};
+                    NightDamage.asAttacker(() -> gone[0] = world.destroyBlock(pos, false));   // torches on it: back too, no drops (31.10.)
+                    if (gone[0]) {
                         removed++;
                     }
                 }

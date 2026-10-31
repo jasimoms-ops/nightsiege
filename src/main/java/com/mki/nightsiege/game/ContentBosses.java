@@ -817,7 +817,7 @@ final class ContentBosses {
                 for (int dy = 0; dy < height && broken < MAX_BREAK; dy++) {
                     BlockPos at = BlockPos.containing(front.x + side.x * i, beast.getY() + dy + 0.1, front.z + side.z * i);
                     if (breakable(level, at, host)) {
-                        level.destroyBlock(at, false);
+                        NightDamage.asAttacker(() -> level.destroyBlock(at, false));   // the night's: back after it (31.10.)
                         broken++;
                         any = true;
                     }
@@ -860,7 +860,7 @@ final class ContentBosses {
                     for (int dy = 0; dy < depth; dy++) {
                         BlockPos at = middle.offset(dx, -dy, dz);
                         if (breakable(level, at, host)) {
-                            level.destroyBlock(at, false);
+                            NightDamage.asAttacker(() -> level.destroyBlock(at, false));   // the night's: back after it (31.10.)
                         }
                     }
                 }
