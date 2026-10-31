@@ -9534,7 +9534,8 @@ public class EventLookTest implements FabricClientGameTest {
             if (!"choice".equals(fourth)) {
                 fails.add("a fourth potion is not shut: " + fourth);
             }
-            if (!ids.equals(java.util.List.of("escape", "heal", "slow", "weak", "acid"))) {
+            // Since 30.10. the potions share one key ("brew", the wheel picks), Simon 30.10.
+            if (!ids.equals(java.util.List.of("escape", "brew", "acid"))) {
                 fails.add("alchemist bar " + ids);
             }
         });
@@ -9542,10 +9543,14 @@ public class EventLookTest implements FabricClientGameTest {
         context.waitTicks(30);
         context.takeScreenshot("tech_alchemist_bar");
         int zonesBefore = context.computeOnClient(client -> com.mki.nightsiege.game.AlchemyZones.count());
-        onServer(context, (player, manager) -> manager.onCoreAction(player, "slot:" + Math.max(0, manager.abilitySlotOf(player, "slow"))));
+        onServer(context, (player, manager) -> {
+            manager.onCoreAction(player, "brew:slow");
+            manager.onCoreAction(player, "slot:" + Math.max(0, manager.abilitySlotOf(player, "brew")));
+        });
         context.waitTicks(25);
         onServer(context, (player, manager) -> {
-            manager.onCoreAction(player, "slot:" + Math.max(0, manager.abilitySlotOf(player, "weak")));
+            manager.onCoreAction(player, "brew:weak");
+            manager.onCoreAction(player, "slot:" + Math.max(0, manager.abilitySlotOf(player, "brew")));
             long now = player.level().getGameTime();
             int slow = manager.kits().traps().brewCooldownLeft(player, com.mki.nightsiege.core.BrewKind.SLOW, now);
             int heal = manager.kits().traps().brewCooldownLeft(player, com.mki.nightsiege.core.BrewKind.HEAL, now);
