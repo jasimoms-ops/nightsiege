@@ -185,3 +185,28 @@ net.minecraft.world.TickRateManager
 # Dungeon-Bau ueber mehrere Ticks (30.10.): wann hasChunk wahr ist, wie Tickets erneuert werden
 !net.minecraft.server.level.ServerChunkCache#hasChunk,chunkAbsent,getChunkNow,addTicketWithRadius
 !net.minecraft.world.level.TicketStorage#addTicket,purgeStaleTickets
+
+# ss2-alltag (31.10.): event effects only near the core (positional attribute layers), kit blocks, kit potions
+net.minecraft.world.attribute.EnvironmentAttributeSystem
+net.minecraft.world.attribute.EnvironmentAttributeSystem$Builder
+net.minecraft.world.attribute.EnvironmentAttributeLayer
+net.minecraft.world.attribute.EnvironmentAttributeLayer$Positional
+net.minecraft.world.attribute.EnvironmentAttributeLayer$TimeBased
+net.minecraft.world.attribute.EnvironmentAttributeLayer$Constant
+net.minecraft.world.attribute.EnvironmentAttributeReader
+net.minecraft.world.attribute.SpatialAttributeInterpolator
+net.minecraft.world.attribute.EnvironmentAttributeProbe
+?net.minecraft.world.entity.Mob#world/attribute
+?net.minecraft.world.entity.LivingEntity#world/attribute
+?net.minecraft.world.entity.Entity#world/attribute
+?net.minecraft.world.entity.monster.piglin.AbstractPiglin#world/attribute
+?net.minecraft.world.entity.monster.hoglin.Hoglin#world/attribute
+?net.minecraft.world.level.Level#world/attribute
+?net.minecraft.server.level.ServerLevel#world/attribute
+?net.minecraft.world.level.NaturalSpawner#world/attribute
+?net.minecraft.world.entity.monster.Monster#world/attribute
+?net.minecraft.world.level.block.DaylightDetectorBlock#world/attribute
+!net.minecraft.world.item.ItemStack#finishUsingItem
+?net.minecraft.world.item.PotionItem#GLASS_BOTTLE
+net.minecraft.world.item.BlockItem
+net.minecraft.world.item.component.UseRemainder
