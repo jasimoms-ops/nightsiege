@@ -160,6 +160,9 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("ss-welt")) {
                     SsWeltScenes.run(context, game);   // survival safety: the mending after the night (Simon 31.10.)
                 }
+                if (want.contains("ss-nacht")) {
+                    SsNachtScenes.run(context, game);   // Survival-Sicherheit: accepts, sleeping, missed night, stop, /time set (31.10.)
+                }
                 if (want.contains("ladders")) {
                     // The climbing scenes, then the ladder cases of 28 October 2026 (block beside, ladder above the ground).
                     ladderScene(context, game);
@@ -5579,7 +5582,7 @@ public class EventLookTest implements FabricClientGameTest {
     }
 
     /** The player's inventory slot by slot as text (item, count, every component), for the before/after check. */
-    private static java.util.List<String> survivalSnapshot(net.minecraft.server.level.ServerPlayer player) {
+    static java.util.List<String> survivalSnapshot(net.minecraft.server.level.ServerPlayer player) {
         java.util.List<String> out = new java.util.ArrayList<>();
         net.minecraft.core.HolderLookup.Provider regs = player.level().registryAccess();
         net.minecraft.world.entity.player.Inventory inv = player.getInventory();
@@ -5590,7 +5593,7 @@ public class EventLookTest implements FabricClientGameTest {
         return out;
     }
 
-    private static String survivalShort(String json) {
+    static String survivalShort(String json) {
         if (json == null || json.isEmpty()) {
             return "-";
         }
@@ -5854,7 +5857,7 @@ public class EventLookTest implements FabricClientGameTest {
     }
 
     /** A bed two blocks south of the player; returns its head. */
-    private static BlockPos survivalBed(net.minecraft.server.level.ServerPlayer player) {
+    static BlockPos survivalBed(net.minecraft.server.level.ServerPlayer player) {
         net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
         BlockPos bed = player.blockPosition().offset(0, 0, 2);
         net.minecraft.world.level.block.state.BlockState foot = net.minecraft.core.registries.BuiltInRegistries.BLOCK

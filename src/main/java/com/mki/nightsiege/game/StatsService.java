@@ -129,7 +129,7 @@ public final class StatsService {
         stats.daysUntilSiege = siegeDay < 0 ? -1 : (int) Math.max(0, siegeDay - day);
         stats.voteOpen = manager.voteOpen(server);
         stats.accepted = manager.acceptedCount();
-        stats.acceptsRequired = cfg.requiredAccepts;
+        stats.acceptsRequired = manager.requiredAccepts();   // at most the config's, else all invited (31.10.)
         stats.registeredCount = save.registered == null ? 0 : save.registered.size();
         String me = viewer.getUUID().toString();
         stats.myVote = save.accepted != null && save.accepted.contains(me) ? "yes"
@@ -141,7 +141,7 @@ public final class StatsService {
         stats.extraSiegeToday = manager.extraSiegeToday(server);
         stats.extraSiegeBy = stats.extraSiegeToday && save.extraCalledBy != null ? save.extraCalledBy : "";
         stats.playersNear = stats.accepted;
-        stats.playersRequired = cfg.requiredAccepts;
+        stats.playersRequired = manager.requiredAccepts();
         stats.coreRadius = (int) cfg.coreRadius;
         stats.clockRunning = stats.voteOpen || stats.nightComing;
 

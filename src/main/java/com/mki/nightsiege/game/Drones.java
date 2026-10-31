@@ -169,7 +169,9 @@ public final class Drones {
         if (scale != null) {
             scale.removeModifier(SCALE_ID);
         }
-        player.removeEffect(MobEffects.INVISIBILITY);
+        if (hasDroneInvisibility(player)) {
+            player.removeEffect(MobEffects.INVISIBILITY);   // only the drone's: a potion's stays
+        }
         Abilities abilities = player.getAbilities();
         abilities.flying = false;
         abilities.mayfly = player.isCreative() || player.isSpectator();
@@ -177,10 +179,19 @@ public final class Drones {
         player.onUpdateAbilities();
     }
 
-    /** A player joined who is no drone: drone traces left from before a restart go. */
+    /**
+     * The drone's invisibility: endless, level I, without particles or icon. It is saved with the
+     * player (the size is not), so it is how a drone that logged out is found again (Simon 31.10.).
+     */
+    static boolean hasDroneInvisibility(ServerPlayer player) {
+        MobEffectInstance effect = player.getEffect(MobEffects.INVISIBILITY);
+        return effect != null && effect.isInfiniteDuration() && effect.getAmplifier() == 0 && !effect.isVisible();
+    }
+
+    /** A player joined who is no drone: drone traces left from before a restart or a logout go. */
     public static void cleanup(ServerPlayer player) {
         AttributeInstance scale = player.getAttribute(Attributes.SCALE);
-        if (!isDrone(player) && scale != null && scale.hasModifier(SCALE_ID)) {
+        if (!isDrone(player) && (scale != null && scale.hasModifier(SCALE_ID) || hasDroneInvisibility(player))) {
             restoreBody(player);
             if (player.gameMode() == GameType.ADVENTURE) {
                 player.setGameMode(GameType.SURVIVAL);

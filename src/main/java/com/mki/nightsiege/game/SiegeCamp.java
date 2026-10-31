@@ -1592,6 +1592,9 @@ public final class SiegeCamp {
             return;
         }
         camp.destroyed = true;
+        if (m.save().machinesDay == camp.day) {
+            m.save().machinesDay = -1L;   // machines given back by a broken-off night do not outlive a destroyed camp (31.10.)
+        }
         m.stats().campDestroyed(camp.day);
         NightSiegeMod.LOGGER.info("[Night Siege] Belagerungswerkstatt zerstört: keine Maschinen in der Nacht von Tag {}", camp.day);
         m.broadcastRegistered(server, Component.translatable("nightsiege.camp.destroyed",

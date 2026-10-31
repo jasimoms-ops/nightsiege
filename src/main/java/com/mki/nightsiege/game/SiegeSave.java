@@ -74,6 +74,11 @@ public class SiegeSave {
     public long voteDay = -1L;
     public List<String> accepted = new ArrayList<>();
     public List<String> declined = new ArrayList<>();
+    /**
+     * Everyone who got today's invitation (Simon 31.10.: survival safety): a real night needs at most
+     * the config's accepts, otherwise all invited players.
+     */
+    public List<String> invited = new ArrayList<>();
     /** Day an extra siege was last called at the core, and how often that day. */
     public long extraCalledDay = -1L;
     public int extraCallsToday;
@@ -358,8 +363,36 @@ public class SiegeSave {
         return registered.remove(uuid);
     }
 
+    /** Notes that this player got today's invitation. Returns false if already noted. */
+    public boolean invite(String uuid) {
+        if (invited == null) {
+            invited = new ArrayList<>();
+        }
+        if (uuid == null || invited.contains(uuid)) {
+            return false;
+        }
+        invited.add(uuid);
+        return true;
+    }
+
+    /** Distinct players invited today who are still signed up (answers included). */
+    public int invitedCount() {
+        java.util.Set<String> all = new java.util.HashSet<>();
+        for (List<String> list : java.util.Arrays.asList(invited, accepted, declined)) {
+            if (list != null) {
+                for (String id : list) {
+                    if (isRegistered(id)) {
+                        all.add(id);
+                    }
+                }
+            }
+        }
+        return all.size();
+    }
+
     /** Answers an invitation: true = accept. Returns false if nothing changed. */
     public boolean vote(String uuid, boolean yes) {
+        invite(uuid);   // whoever answers counts as invited (signed up after the invitations went out)
         if (accepted == null) {
             accepted = new ArrayList<>();
         }
@@ -382,6 +415,9 @@ public class SiegeSave {
         }
         if (declined != null) {
             declined.clear();
+        }
+        if (invited != null) {
+            invited.clear();
         }
     }
 
