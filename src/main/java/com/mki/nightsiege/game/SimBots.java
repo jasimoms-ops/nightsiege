@@ -60,17 +60,49 @@ public final class SimBots {
         return out;
     }
 
+    /**
+     * Every bot this tool brought in, the dead ones too. A bot that really died (outside the night no
+     * drone catches the fall) has no client to press "respawn": after a second its body leaves the level
+     * ({@link #all()} no longer lists it), but it stays in the server's player list until it is taken out.
+     */
+    public static List<ServerPlayer> known() {
+        return new ArrayList<>(BOTS.values());
+    }
+
+    /** True when this bot can play a run: alive, in the level, and the one the player list knows by its id. */
+    static boolean standing(MinecraftServer server, ServerPlayer bot) {
+        return bot != null && !bot.isRemoved() && bot.isAlive() && server.getPlayerList().getPlayer(bot.getUUID()) == bot;
+    }
+
     /** The same name always gives the same id, so a bot's save entries stay its own. */
     public static UUID idOf(String name) {
         return UUID.nameUUIDFromBytes(("nightsiege-bot:" + name).getBytes(StandardCharsets.UTF_8));
     }
 
-    /** Brings a bot into the world at this spot (survival, full health). Null when it failed. */
+    /**
+     * Brings a bot into the world at this spot (survival, full health). Null when it failed. A bot of
+     * this name that still stands is given back as it is; one that died (or is gone from the player list)
+     * is taken out first and comes back fresh, so no dead body with the last run's skills stays behind
+     * as a "defender" of the next night (31.10., one bot missing in 10–25 % of the test nights).
+     */
     public static ServerPlayer spawn(MinecraftServer server, ServerLevel level, String name, double x, double y, double z) {
         UUID id = idOf(name);
         Bot old = BOTS.get(id);
-        if (old != null && !old.isRemoved()) {
+        if (old != null && standing(server, old)) {
             return old;
+        }
+        if (old != null) {
+            System.out.println("[Night Siege sim] BOTNEU;" + name + ";" + (old.isAlive() ? "fort" : "tot"));
+            remove(server, old);
+        }
+        ServerPlayer stale = server.getPlayerList().getPlayer(id);
+        if (stale != null) {
+            // Something else under the bot's id (a copy the player list made of it): out as well.
+            try {
+                server.getPlayerList().remove(stale);
+            } catch (RuntimeException e) {
+                NightSiegeMod.LOGGER.warn("[Night Siege sim] Alter Eintrag von Bot {} ließ sich nicht entfernen: {}", name, e.toString());
+            }
         }
         GameProfile profile = new GameProfile(id, name);
         Bot bot = new Bot(server, level, profile);
@@ -86,7 +118,10 @@ public final class SimBots {
         BOTS.put(id, bot);
         bot.setGameMode(GameType.SURVIVAL);
         bot.teleportTo(level, x, y, z, java.util.Set.of(), 0f, 0f, true);
+        // Its save file may hold the body of a bot that died: health, fire and effects start over.
         bot.setHealth(bot.getMaxHealth());
+        bot.clearFire();
+        bot.removeAllEffects();
         bot.getFoodData().setFoodLevel(20);
         return bot;
     }
@@ -96,7 +131,7 @@ public final class SimBots {
         if (!(player instanceof Bot bot)) {
             return;
         }
-        BOTS.remove(bot.getUUID());
+        BOTS.remove(bot.getUUID(), bot);
         try {
             server.getPlayerList().remove(bot);
         } catch (RuntimeException e) {
@@ -105,9 +140,9 @@ public final class SimBots {
         bot.channel.close();
     }
 
-    /** Takes every bot out (end of the simulation, server stopping). */
+    /** Takes every bot out (end of the simulation, server stopping), the dead ones too. */
     public static void removeAll(MinecraftServer server) {
-        for (ServerPlayer bot : all()) {
+        for (ServerPlayer bot : known()) {
             remove(server, bot);
         }
         BOTS.clear();
