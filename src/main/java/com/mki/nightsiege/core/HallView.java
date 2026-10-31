@@ -20,4 +20,8 @@ public class HallView {
     public Map<String, double[]> tiers = new LinkedHashMap<>();
     /** Who is online right now. */
     public List<String> online = new ArrayList<>();
+    /** Monster type → the vanilla monster it looks like (for its spawn egg in the bestiary). */
+    public Map<String, String> beastLooks = new LinkedHashMap<>();
+    /** The new attackers nobody has met yet (shown as silhouettes). */
+    public List<String> unseen = new ArrayList<>();
 }

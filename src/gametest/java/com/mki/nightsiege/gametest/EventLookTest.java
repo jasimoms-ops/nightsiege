@@ -80,6 +80,9 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("curse")) {
                     curseScene(context, game);   // update 2: the curse altar and the nemesis
                 }
+                if (want.contains("ruhmeshalle")) {
+                    hallScene(context, game);   // the Ruhmeshalle and the points command (31 October 2026)
+                }
                 if (want.contains("dungeons")) {
                     dungeonScene(context, game);
                 }
@@ -6350,6 +6353,182 @@ public class EventLookTest implements FabricClientGameTest {
      * one taken off), the window with the altar and the wanted posters, a test night under the curses,
      * a nemesis called back, promoted, a new one made, one slain and its trophy.
      */
+    /**
+     * The Ruhmeshalle (31 October 2026): a hall with the player and five made-up defenders, the
+     * badge thresholds, the points command, then every page of the tab as a picture.
+     */
+    private static void hallScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.core.HallOfFame hall = manager.save().hall;
+            hall.heroes.clear();
+            hall.bestiary.clear();
+            hall.curioBests.clear();
+            String[][] people = {
+                    {player.getUUID().toString(), player.getScoreboardName(), "blademaster", "warrior"},
+                    {"6b1b6c47-1d8a-4c1e-9a0a-000000000001", "Ritter_Kai", "bulwark", "guardian"},
+                    {"6b1b6c47-1d8a-4c1e-9a0a-000000000002", "Mia_Bogen", "swift", "archer"},
+                    {"6b1b6c47-1d8a-4c1e-9a0a-000000000003", "Heilerin", "medic", "guardian"},
+                    {"6b1b6c47-1d8a-4c1e-9a0a-000000000004", "Tuefftler", "gunner", "engineer"},
+                    {"6b1b6c47-1d8a-4c1e-9a0a-000000000005", "Lukas", "necromancer", "summoner"}};
+            com.mki.nightsiege.core.HallOfFame.LastNight last = new com.mki.nightsiege.core.HallOfFame.LastNight();
+            last.date = "2026-10-30";
+            last.night = 14;
+            last.level = 9;
+            last.result = "gewonnen";
+            for (int i = 0; i < people.length; i++) {
+                String[] p = people[i];
+                com.mki.nightsiege.core.HallOfFame.Hero h = hall.hero(p[0], p[1]);
+                h.nights = 14 - i;
+                h.held = 11 - i;
+                h.lost = 3;
+                h.kills = 1200 - i * 170;
+                h.assists = 300 - i * 30;
+                h.deaths = 2 + i;
+                h.bosses = 9 - i;
+                h.dealt = 48000 - i * 6000;
+                h.taken = 9000 + i * 500;
+                h.intercepted = i == 1 ? 31000 : 2000;
+                h.healed = i == 3 ? 6500 : 300;
+                h.towerKills = i == 4 ? 640 : 0;
+                h.nightsNoDeath = 9 - i;
+                h.streak = 4;
+                h.bestStreak = 8 - i;
+                h.dungeons = 6;
+                h.dungeonsWon = 5 - Math.min(4, i);
+                h.camps = 3;
+                h.campsDestroyed = 2;
+                h.crates = 120 - i * 15;
+                h.rareCrates = 9;
+                h.maxCurses = Math.max(0, 3 - i);
+                h.dealtBy.put("nah", 30000.0 - i * 3000);
+                h.dealtBy.put("fern", 9000.0);
+                h.dealtBy.put("faehigkeit", 6000.0);
+                h.dealtBy.put("turm", i == 4 ? 15000.0 : 500.0);
+                com.mki.nightsiege.core.HallOfFame.SubLine sub = new com.mki.nightsiege.core.HallOfFame.SubLine();
+                sub.clazz = p[3];
+                sub.nights = h.nights - 2;
+                sub.held = h.held - 2;
+                sub.kills = h.kills - 200;
+                sub.dealt = h.dealt - 5000;
+                h.subs.put(p[2], sub);
+                com.mki.nightsiege.core.HallOfFame.SubLine other = new com.mki.nightsiege.core.HallOfFame.SubLine();
+                other.clazz = "archer";
+                other.nights = 2;
+                other.held = 2;
+                other.kills = 200;
+                other.dealt = 5000;
+                h.subs.put("heavy", other);
+                h.victims.put("minecraft:zombie", 400 - i * 20);
+                h.victims.put("nightsiege:revenant", 90);
+                h.killedBy.put("nightsiege:executioner", 2);
+                h.takenFrom.put("minecraft:skeleton", 3000.0);
+                for (int n = 0; n < 10; n++) {
+                    com.mki.nightsiege.core.HallOfFame.NightMini mini = new com.mki.nightsiege.core.HallOfFame.NightMini();
+                    mini.date = "2026-10-" + (21 + n);
+                    mini.night = 5 + n;
+                    mini.level = 1 + n;
+                    mini.held = n % 4 != 2;
+                    mini.dealt = 2000 + n * 600 - i * 200;
+                    mini.kills = 50 + n * 8;
+                    mini.deaths = n % 3;
+                    mini.sub = p[2];
+                    h.recent.add(mini);
+                }
+                hall.curio(p[0], h, "weitesterTreffer", 52.4 - i * 6, "2026-10-29");
+                hall.curio(p[0], h, "blutrausch", 13 - i, "2026-10-29");
+                hall.curio(p[0], h, "mehrfach", 6 - Math.min(5, i), "2026-10-29");
+                hall.curio(p[0], h, "creeper", 30 + i, "2026-10-29");
+                hall.curio(p[0], h, "ohneTreffer", 240 - i * 20, "2026-10-29");
+                hall.curio(p[0], h, "retter", i == 3 ? 40 : 2, "2026-10-29");
+                hall.curio(p[0], h, "geschosse", i == 2 ? 3800 : 100, "2026-10-29");
+                com.mki.nightsiege.core.HallOfFame.Entry e = new com.mki.nightsiege.core.HallOfFame.Entry();
+                e.uuid = p[0];
+                e.name = p[1];
+                e.clazz = p[3];
+                e.sub = p[2];
+                e.kills = 140 - i * 17;
+                e.dealt = 5200 - i * 700;
+                e.healed = i == 3 ? 900 : 40;
+                e.intercepted = i == 1 ? 3100 : 200;
+                e.bosses = i < 2 ? 1 : 0;
+                e.deaths = i % 3;
+                e.held = true;
+                last.entries.add(e);
+                java.util.List<String> up = com.mki.nightsiege.core.HallBadges.update(h, manager.config().hallBadgeTiers);
+                System.out.println("[Night Siege test] hall badges " + p[1] + " " + up);
+            }
+            hall.lastNight = last;
+            String[] beasts = {"minecraft:zombie", "minecraft:skeleton", "minecraft:creeper", "nightsiege:revenant", "nightsiege:executioner",
+                    "minecraft:zombie+elite", "boss:minecraft:wither_skeleton", "maschine"};
+            for (int i = 0; i < beasts.length; i++) {
+                com.mki.nightsiege.core.HallOfFame.Beast b = hall.bestiary.computeIfAbsent(beasts[i], k -> new com.mki.nightsiege.core.HallOfFame.Beast());
+                b.seen = 900 - i * 100;
+                b.killed = 880 - i * 100;
+                b.killedPlayers = i % 3;
+                b.damageToPlayers = 4000 - i * 300;
+            }
+            // Badge thresholds: 1000 kills is silver, 5000 gold.
+            double[] t = com.mki.nightsiege.core.HallBadges.tiers(com.mki.nightsiege.core.HallBadges.byId("schlaechter"), java.util.Map.of());
+            System.out.println("[Night Siege test] hall tiers schlaechter=" + java.util.Arrays.toString(t)
+                    + " 999=" + com.mki.nightsiege.core.HallBadges.tier(999, t) + " 1000=" + com.mki.nightsiege.core.HallBadges.tier(1000, t)
+                    + " 5000=" + com.mki.nightsiege.core.HallBadges.tier(5000, t)
+                    + " override=" + java.util.Arrays.toString(com.mki.nightsiege.core.HallBadges.tiers(
+                    com.mki.nightsiege.core.HallBadges.byId("schlaechter"), java.util.Map.of("schlaechter", "10/20,5/x"))));
+            com.mki.nightsiege.core.HallOfFame.Hero mine = hall.heroes.get(player.getUUID().toString());
+            mine.badges.put("bollwerk", 3);
+            manager.onCoreAction(player, "hall:title:bollwerk");
+            System.out.println("[Night Siege test] hall title=" + mine.title + " gold=" + mine.badges);
+        });
+        context.waitTicks(10);
+        // The points command: a fixed amount, taken away again, then catching up.
+        game.getServer().runCommand("nightsiege punkte @p 5");
+        game.getServer().runCommand("nightsiege punkte @p -2");
+        game.getServer().runCommand("nightsiege punkte @p aufholen");
+        context.waitTicks(10);
+        String[][] pages = {{"PODIUM", "hall_podium"}, {"CHRONICLE", "hall_chronicle"}, {"BADGES", "hall_badges"},
+                {"CURIOS", "hall_curios"}, {"BESTIARY", "hall_bestiary"}};
+        showTab(context, "HALL");
+        context.waitTicks(20);
+        for (String[] page : pages) {
+            context.runOnClient(client -> {
+                try {
+                    Class<?> pagesClass = Class.forName("com.mki.nightsiege.client.HallPages");
+                    java.lang.reflect.Field field = pagesClass.getDeclaredField("page");
+                    field.setAccessible(true);
+                    @SuppressWarnings({"unchecked", "rawtypes"})
+                    Object value = Enum.valueOf((Class) field.getType(), page[0]);
+                    field.set(null, value);
+                } catch (ReflectiveOperationException e) {
+                    System.out.println("[Night Siege test] could not set the hall page: " + e);
+                }
+            });
+            context.waitTicks(10);
+            context.takeScreenshot(page[1]);
+        }
+        // The podium of all time, by damage.
+        context.runOnClient(client -> {
+            try {
+                Class<?> pagesClass = Class.forName("com.mki.nightsiege.client.HallPages");
+                java.lang.reflect.Field page = pagesClass.getDeclaredField("page");
+                page.setAccessible(true);
+                @SuppressWarnings({"unchecked", "rawtypes"})
+                Object podium = Enum.valueOf((Class) page.getType(), "PODIUM");
+                page.set(null, podium);
+                java.lang.reflect.Field last = pagesClass.getDeclaredField("lastNight");
+                last.setAccessible(true);
+                last.set(null, false);
+                java.lang.reflect.Field cat = pagesClass.getDeclaredField("category");
+                cat.setAccessible(true);
+                cat.set(null, "dealt");
+            } catch (ReflectiveOperationException e) {
+                System.out.println("[Night Siege test] could not set the podium: " + e);
+            }
+        });
+        context.waitTicks(10);
+        context.takeScreenshot("hall_podium_total");
+        closeScreen(context);
+    }
+
     private static void curseScene(ClientGameTestContext context, TestSingleplayerContext game) {
         BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
         int cx = pos.getX() + 300;

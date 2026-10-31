@@ -386,7 +386,32 @@ public final class HallService {
                 v.online.add(p.getUUID().toString());
             }
         }
+        java.util.Set<String> met = new java.util.HashSet<>();
+        for (String type : hall.bestiary.keySet()) {
+            String plain = plainType(type);
+            met.add(plain);
+            Foes.Role role = Foes.roleOf(plain);
+            v.beastLooks.put(type, role != null ? role.base() : "maschine".equals(plain) ? "minecraft:ravager" : plain);
+        }
+        for (Foes.Role role : Foes.Role.values()) {
+            if (!met.contains(role.entryId())) {
+                v.unseen.add(role.entryId());
+                v.beastLooks.put(role.entryId(), role.base());
+            }
+        }
         return v;
+    }
+
+    /** A logger monster type without its boss and elite marks ("boss:minecraft:zombie+elite" → "minecraft:zombie"). */
+    static String plainType(String type) {
+        String t = type == null ? "" : type;
+        if (t.startsWith("boss:")) {
+            t = t.substring(5);
+        }
+        if (t.endsWith("+elite")) {
+            t = t.substring(0, t.length() - 6);
+        }
+        return t;
     }
 
     private static Map<String, Integer> top(Map<String, Integer> all) {

@@ -109,6 +109,9 @@ public class NightSiegeClient implements ClientModInitializer {
                                 NightStatsScreen.queue(stats);
                             }
                         }
+                    } else if ("hall".equals(payload.kind())) {
+                        // The Ruhmeshalle (31 October 2026): the core window's tab draws it.
+                        HallPages.receive(Json.fromJson(payload.json(), com.mki.nightsiege.core.HallView.class));
                     } else if ("spotter".equals(payload.kind())) {
                         com.mki.nightsiege.core.SpotterData data =
                                 Json.fromJson(payload.json(), com.mki.nightsiege.core.SpotterData.class);
