@@ -132,6 +132,9 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("playtest")) {
                     playtestScene(context, game);   // the playtest (28 October 2026)
                 }
+                if (want.contains("ss2-netz")) {
+                    Ss2NetzScenes.run(context, game);   // survival safety 2: packets, profiles, playtest, core rights (31.10.)
+                }
                 if (want.contains("ui")) {
                     // The windows at the end of the full run (the full run outgrew its 40 minutes, 29 October 2026).
                     ensureCore(context, game);   // alone, no scene before it placed a core (30 October 2026)
@@ -2555,7 +2558,7 @@ public class EventLookTest implements FabricClientGameTest {
     }
 
     /** Hits every dungeon monster standing now with a deadly player blow. */
-    private static void killDungeonMobs(ClientGameTestContext context, String label) {
+    static void killDungeonMobs(ClientGameTestContext context, String label) {
         onServer(context, (player, manager) -> {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
             java.util.List<net.minecraft.world.entity.Mob> mobs = manager.expeditions().testMobs(level);

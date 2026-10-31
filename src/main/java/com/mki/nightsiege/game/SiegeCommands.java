@@ -384,28 +384,33 @@ public final class SiegeCommands {
         String nodeId = StringArgumentType.getString(ctx, "node");
         PlayerSkills skills = manager.save().skillsOf(player.getUUID().toString());
         SkillNode node = manager.skillTree().get(nodeId);
-        if (node == null) {
+        // The shared core tree has no effect any more (content update): its points would be lost.
+        if (node == null || node.clazz().isShared()) {
             fail(source, Component.translatable("nightsiege.cmd.unknown_skill", nodeId));
             return 0;
         }
-        if (!manager.skillTree().unlock(nodeId, skills)) {
-            fail(source, Component.translatable(
-                    "nightsiege.menu.blocked_" + manager.skillTree().blockedReason(nodeId, skills),
-                    node.costFor(skills.levelOf(nodeId))));
+        // (Simon 31.10.: survival safety 2) The same way as the window's button: signed up, skills on, the
+        // node's own profile, and the skills only applied to a defender of the running night (before, any
+        // player who bought a level while any night ran kept the whole profile's bonuses until relog).
+        if (!manager.isRegistered(player)) {
+            fail(source, Component.translatable("nightsiege.msg.not_registered"));
             return 0;
         }
-        // An ultimate at its top level earns one unlock (a new class or subclass), as in the window.
-        manager.skillTree().grantUltUnlocks(skills);
-        manager.persist();
-        // Skills gelten nur waehrend einer Belagerung. Laeuft gerade eine, wird
-        // der Kauf sofort wirksam, sonst erst in der naechsten Nacht.
-        if (manager.isActive()) {
-            SkillService.apply(player, skills, manager.skillTree());
+        if (!manager.config().skillsEnabled) {
+            fail(source, Component.translatable("nightsiege.cmd.skills_off"));
+            return 0;
         }
-        manager.persist();
+        String profile = skills.profileFor(node.clazz());
+        int before = profile == null ? 0 : skills.levelInProfile(profile, nodeId);
+        if (!manager.onBuySkill(player, nodeId)) {
+            String reason = profile == null ? "" : skills.asProfile(profile, () -> manager.skillTree().blockedReason(nodeId, skills));
+            fail(source, reason == null || reason.isEmpty()
+                    ? Component.translatable("nightsiege.cmd.skill_not_bought", Component.translatable(node.translationKey()))
+                    : Component.translatable("nightsiege.menu.blocked_" + reason, node.costFor(before)));
+            return 0;
+        }
         reply(source, Component.translatable("nightsiege.cmd.skill_bought",
-                Component.translatable(node.translationKey()), skills.levelOf(nodeId)));
-        manager.openCoreWindow(player);
+                Component.translatable(node.translationKey()), skills.levelInProfile(profile, nodeId)));
         return 1;
     }
 
@@ -848,7 +853,11 @@ public final class SiegeCommands {
         }
         SiegeManager manager = SiegeManager.get();
         com.mki.nightsiege.core.CoreStats stats = new com.mki.nightsiege.core.CoreStats();
-        BaseDefense.forgetScans();
+        if (manager.isAdmin(player)) {
+            // A fresh look only for operators (survival safety 2): a burst of the command by anyone started a
+            // new flood fill (up to 250k blocks) each time; the others see the scan of the last 30 seconds.
+            BaseDefense.forgetScans();
+        }
         CoreRecord best = null;
         double bestDistance = Double.MAX_VALUE;
         String dimension = SiegeManager.dimensionName(level);
