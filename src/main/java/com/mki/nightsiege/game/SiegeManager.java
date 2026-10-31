@@ -951,6 +951,15 @@ public final class SiegeManager {
         return null;
     }
 
+    /** Tests: the siege clock's day and time of day. */
+    public long clockDayFor(MinecraftServer server) {
+        return clockDay(server);
+    }
+
+    public int clockTimeFor(MinecraftServer server) {
+        return clockTime(server);
+    }
+
     private long clockDay(MinecraftServer server) {
         return SiegeMath.dayOf(server.overworld().getOverworldClockTime());
     }
