@@ -2107,6 +2107,7 @@ public final class TrapService {
             actionBar(player, Component.translatable("nightsiege.msg.spotter_night_only"));
             return;
         }
+        SpotterChunks.allow(player);   // its camera may report now (31.10.)
         com.mki.nightsiege.core.SpotterData data = new com.mki.nightsiege.core.SpotterData();
         BlockPos center = spotCenter(level, player);
         data.centerX = center.getX();
@@ -2140,6 +2141,16 @@ public final class TrapService {
         }
         net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(player,
                 new CoreNetworking.ScreenPayload("spotter", Json.toJson(data)));
+    }
+
+    /** Who may hold the bird's-eye view open: the demolition expert defending now, or creative (as openSpotter). */
+    private boolean maySpot(ServerPlayer player) {
+        if (player.getAbilities().instabuild) {
+            return true;
+        }
+        PlayerSkills skills = save.get().skillsOf(player.getUUID().toString());
+        SiegeManager m = SiegeManager.get();
+        return SkillTree.SUB_DEMOLITION.equals(tree.subclassOf(skills)) && m != null && m.isDefending(player);
     }
 
     /** The middle of the view: the core in the player's world, else where the player stands. */
@@ -2192,8 +2203,29 @@ public final class TrapService {
             return;
         }
         if (parts.length >= 3 && parts[0].equals("cam")) {
+            // Survival safety (31.10.): the camera loads chunks, so only a demolition expert whose view
+            // the server opened (SpotterChunks.allow) may report one, as often as the client does it,
+            // and only within the view's circle around its middle.
+            if (!SpotterChunks.allowed(player) || !maySpot(player)) {
+                SpotterChunks.report(player, null, null);
+                return;
+            }
             try {
-                SpotterChunks.report(player, Double.parseDouble(parts[1]), Double.parseDouble(parts[2]));
+                double x = Double.parseDouble(parts[1]);
+                double z = Double.parseDouble(parts[2]);
+                if (!Double.isFinite(x) || !Double.isFinite(z)) {
+                    return;
+                }
+                BlockPos center = spotCenter(level, player);
+                double radius = SkillValues.get(TrapKind.MORTAR.id(), "spotradius", 48) + 16.0;
+                double dx = x - center.getX();
+                double dz = z - center.getZ();
+                double d = Math.sqrt(dx * dx + dz * dz);
+                if (d > radius) {
+                    x = center.getX() + dx * radius / d;
+                    z = center.getZ() + dz * radius / d;
+                }
+                SpotterChunks.report(player, x, z);
             } catch (NumberFormatException ignored) {
                 // a broken report changes nothing
             }

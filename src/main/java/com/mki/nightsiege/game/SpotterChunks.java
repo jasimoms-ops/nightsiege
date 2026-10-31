@@ -25,11 +25,35 @@ public final class SpotterChunks {
     private static final double MAX_FROM_BODY = 200;
     /** Without a new report for this long the view counts as closed (ticks). */
     private static final long TIMEOUT = 80;
+    /** At most one camera report this often (ticks; the client sends one per chunk crossed or second). */
+    private static final long MIN_GAP = 4;
+    /** The radius of the ticket that keeps the ground under the camera loaded (chunks). */
+    private static final int TICKET_RADIUS = 4;
 
-    private record Center(ChunkPos pos, double x, double z, long at) {
+    /** The view's middle, the camera, the last report and the chunk whose ticket this view holds. */
+    private record Center(ChunkPos pos, double x, double z, long at, ChunkPos ticket) {
     }
 
     private static final Map<UUID, Center> CENTERS = new ConcurrentHashMap<>();
+    /**
+     * Players whose view the server opened (TrapService.openSpotter, 31.10. survival safety): only
+     * they may report a camera; the view's close (or the timeout) ends it.
+     */
+    private static final java.util.Set<UUID> ALLOWED = ConcurrentHashMap.newKeySet();
+    /** When each player's last camera report was taken (game time). */
+    private static final Map<UUID, Long> LAST = new ConcurrentHashMap<>();
+
+    /** The server opened this player's bird's-eye view: its camera may report from now on. */
+    public static void allow(ServerPlayer player) {
+        if (player != null) {
+            ALLOWED.add(player.getUUID());
+        }
+    }
+
+    /** Whether this player's camera may report (the view was opened by the server and not closed). */
+    public static boolean allowed(ServerPlayer player) {
+        return player != null && ALLOWED.contains(player.getUUID());
+    }
 
     private SpotterChunks() {
     }
@@ -58,11 +82,22 @@ public final class SpotterChunks {
         }
         Center old = CENTERS.get(player.getUUID());
         if (x == null || z == null || Math.hypot(x - player.getX(), z - player.getZ()) > MAX_FROM_BODY) {
-            if (CENTERS.remove(player.getUUID()) != null) {
+            if (x == null || z == null) {
+                ALLOWED.remove(player.getUUID());   // the view closed: a new one must be opened by the server
+            }
+            Center gone = CENTERS.remove(player.getUUID());
+            if (gone != null) {
+                release(level, gone);
                 refresh(level, player);
             }
             return;
         }
+        long now = level.getGameTime();
+        Long last = LAST.get(player.getUUID());
+        if (old != null && last != null && now - last < MIN_GAP && now >= last) {
+            return;   // too often: the next report (at the latest in a second) moves it
+        }
+        LAST.put(player.getUUID(), now);
         ChunkPos pos = new ChunkPos((int) Math.floor(x) >> 4, (int) Math.floor(z) >> 4);
         // The body's own chunk stays among the sent ones: the middle moves at most to two
         // chunks short of the edge towards the camera.
@@ -77,15 +112,19 @@ public final class SpotterChunks {
             double k = max / d;
             pos = new ChunkPos(body.x() + (int) Math.round(dx * k), body.z() + (int) Math.round(dz * k));
         }
-        CENTERS.put(player.getUUID(), new Center(pos, x, z, level.getGameTime()));
         // The ground under the camera stays loaded while the view is open (the ticket runs out
-        // by itself two seconds after the last report).
+        // by itself two seconds after the last report). One ticket per view: the one before is
+        // given back at once when the camera moves on to another chunk (31.10.).
         ChunkPos cam = new ChunkPos((int) Math.floor(x) >> 4, (int) Math.floor(z) >> 4);
         try {
-            level.getChunkSource().addTicketWithRadius(TicketType.ENDER_PEARL, cam, 4);
+            level.getChunkSource().addTicketWithRadius(TicketType.ENDER_PEARL, cam, TICKET_RADIUS);
         } catch (RuntimeException ignored) {
             // loading is a help, not a must
         }
+        if (old != null && old.ticket() != null && !old.ticket().equals(cam)) {
+            release(level, old);
+        }
+        CENTERS.put(player.getUUID(), new Center(pos, x, z, now, cam));
         if (old == null || !old.pos().equals(pos)) {
             refresh(level, player);
         } else {
@@ -104,12 +143,27 @@ public final class SpotterChunks {
             ServerPlayer player = server.getPlayerList().getPlayer(e.getKey());
             if (player == null) {
                 it.remove();
-                continue;
+                ALLOWED.remove(e.getKey());
+                LAST.remove(e.getKey());
+                continue;   // its ticket runs out by itself (two seconds)
             }
             if (player.level() instanceof ServerLevel level && level.getGameTime() - e.getValue().at() > TIMEOUT) {
-                it.remove();
+                it.remove();   // still allowed: a lag spike must not lock the view (only its close does)
+                release(level, e.getValue());
                 refresh(level, player);
             }
+        }
+    }
+
+    /** Gives a view's ticket back (it would also run out by itself after two seconds). */
+    private static void release(ServerLevel level, Center c) {
+        if (c == null || c.ticket() == null) {
+            return;
+        }
+        try {
+            level.getChunkSource().removeTicketWithRadius(TicketType.ENDER_PEARL, c.ticket(), TICKET_RADIUS);
+        } catch (RuntimeException ignored) {
+            // as above
         }
     }
 

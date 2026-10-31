@@ -195,3 +195,17 @@ net.minecraft.client.player.AbstractClientPlayer
 net.minecraft.client.resources.SkinManager
 net.minecraft.world.entity.player.PlayerSkin
 net.minecraft.client.gui.render.state.pip.*
+# Survival-Sicherheit (31.10.): Spawn-Schutz, Tasten, Speichern
+net.minecraft.server.MinecraftServer
+net.minecraft.server.dedicated.DedicatedServer
+net.minecraft.server.level.ServerLevel
+net.minecraft.world.level.Level
+net.minecraft.client.KeyMapping$Category
+!net.minecraft.server.network.ServerGamePacketListenerImpl#handleUseItemOn
+!net.minecraft.server.level.ServerPlayerGameMode#handleBlockBreakAction
+!net.minecraft.server.level.ServerPlayer#mayInteract
+!net.minecraft.world.entity.Entity#mayInteract
+!net.minecraft.server.dedicated.DedicatedServer#isUnderSpawnProtection
+!net.minecraft.server.level.ServerLevel#mayInteract
+!net.minecraft.world.level.Level#mayInteract
+!net.minecraft.client.KeyMapping#click,set,setDown

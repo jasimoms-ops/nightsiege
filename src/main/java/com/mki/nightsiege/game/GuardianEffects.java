@@ -185,8 +185,12 @@ public final class GuardianEffects {
         // Monster strength per type: outside the skill floor, so it also reaches the bulwark.
         // The share of the max health (bosses, machines) stays the share it says (28 October 2026).
         boolean share = PercentDamage.is(source);
+        // Survival safety (31.10.): the factors (strength per type, class, level, group) are for
+        // Night Siege's own monsters only; a vanilla monster in the world (or the Nether) hits and is
+        // hit as in vanilla, by day and by night.
+        boolean ownAttacker = SiegeManager.isNightSiegeMob(source.getEntity());
         float monster = tuning != null && victim instanceof ServerPlayer && source.getEntity() instanceof Enemy && !share
-                ? tuning.monsterDamageFactor(source.getEntity()) : 1f;
+                && ownAttacker ? tuning.monsterDamageFactor(source.getEntity()) : 1f;
         if (victim instanceof ServerPlayer hit) {
             if (source.getEntity() instanceof Enemy) {
                 RAW_HIT.put(hit.getUUID(), amount * monster);   // for the logger, before the defender's cuts
@@ -195,12 +199,15 @@ public final class GuardianEffects {
             }
         }
         if (tuning != null && source.getEntity() instanceof ServerPlayer hitter && victim instanceof Enemy
+                && SiegeManager.isNightSiegeMob(victim)
                 && !CombatEffects.inFollowUp()) {   // a follow-up hit already carries the factor
             outside *= tuning.damageFactor(hitter);   // server balancing per class and subclass
         }
         if (tuning != null && victim instanceof ServerPlayer hurt && source.getEntity() instanceof Enemy) {
-            outside *= tuning.damageTakenFactor(hurt);
-            outside *= TankGuard.damageFactor(hurt);   // a bulwark or shield fighter near (Simon 30.10.)
+            if (ownAttacker) {
+                outside *= tuning.damageTakenFactor(hurt);
+                outside *= TankGuard.damageFactor(hurt);   // a bulwark or shield fighter near (Simon 30.10.)
+            }
             Companions.ownerHurt(hurt, source.getEntity());   // the golem draws the golemsmith's attackers
             if (source.is(DamageTypeTags.IS_PROJECTILE)) {
                 if (TrapService.shieldBlocks(hurt)) {
@@ -210,7 +217,7 @@ public final class GuardianEffects {
             }
             if ((source.getEntity() instanceof net.minecraft.world.entity.monster.zombie.Zombie
                     || source.getEntity() instanceof net.minecraft.world.entity.monster.spider.Spider)
-                    && !BossService.isBoss(source.getEntity()) && !share) {   // the grave king and the queen hit everyone alike
+                    && !BossService.isBoss(source.getEntity()) && !share && ownAttacker) {   // the grave king and the queen hit everyone alike
                 outside *= tuning.zombieSpiderFactor(hurt);   // zombies and spiders hit the melee classes harder
             }
         }
