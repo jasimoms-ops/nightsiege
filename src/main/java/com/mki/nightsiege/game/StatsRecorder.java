@@ -345,21 +345,8 @@ public final class StatsRecorder {
             return;
         }
         String json = Json.toJson(data);   // built here, on the server thread
-        WRITER.execute(() -> {
-            try {
-                Files.createDirectories(path.getParent());
-                Path tmp = path.resolveSibling(path.getFileName() + ".tmp");
-                Files.writeString(tmp, json, StandardCharsets.UTF_8);
-                Files.move(tmp, path, java.nio.file.StandardCopyOption.REPLACE_EXISTING,
-                        java.nio.file.StandardCopyOption.ATOMIC_MOVE);
-            } catch (IOException e) {
-                try {
-                    Files.writeString(path, json, StandardCharsets.UTF_8);
-                } catch (IOException again) {
-                    NightSiegeMod.LOGGER.warn("[Night Siege] Statistik nicht geschrieben ({}): {}", path.getFileName(), again.toString());
-                }
-            }
-        });
+        // The same safe write as the save (temp file, to the disk, one rename; 31.10.), without a .bak.
+        WRITER.execute(() -> Json.writeNow(path, json, false));
     }
 
     private void appendLater(Path path, Object line) {

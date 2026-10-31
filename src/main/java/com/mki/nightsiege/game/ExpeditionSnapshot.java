@@ -236,7 +236,7 @@ final class ExpeditionSnapshot {
                     }
                 }
             }
-            Files.move(tmp, file, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            Json.commit(tmp, file, false);   // to the disk, then one rename (as the save, 31.10.)
         } catch (IOException e) {
             NightSiegeMod.LOGGER.warn("[Night Siege] Dungeon-Schnappschuss {} nicht gespeichert: {}", file, e.toString());
         }

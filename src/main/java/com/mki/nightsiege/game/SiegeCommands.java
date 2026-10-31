@@ -781,7 +781,7 @@ public final class SiegeCommands {
 
     private static int reload(CommandContext<CommandSourceStack> ctx) {
         CommandSourceStack source = ctx.getSource();
-        SiegeManager.get().reload();
+        SiegeManager.get().reloadKeepingState();   // the state in memory is written first (31.10.)
         reply(source, Component.translatable("nightsiege.cmd.reloaded"));
         return 1;
     }

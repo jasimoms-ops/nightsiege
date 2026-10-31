@@ -324,7 +324,11 @@ public final class SiegeManager {
         combat.setArrowBonus(defense::arrowBonus);
         ArrowRain.use(combat);   // the archers' arrow rain hits through the combat effects (Simon 30.10.)   // the core perks are gone (content update, 29 October 2026)
         traps.setTeslaBoost(() -> active && currentEvent == SiegeEvent.THUNDER ? config.thunderTeslaMultiplier : 1.0);
+        // A file problem of the server before (single player: another world) is not this one's (31.10.).
+        ServerLifecycleEvents.SERVER_STARTING.register(server -> Json.clearNotices());
         ServerLifecycleEvents.SERVER_STARTED.register(server -> onServerStarted(server));
+        // The save is written on its own thread (Json): the server waits for the last write before it is gone.
+        ServerLifecycleEvents.SERVER_STOPPED.register(server -> Json.flush());
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
             TeamSim.stop(server);
             SimBots.removeAll(server);
@@ -534,7 +538,18 @@ public final class SiegeManager {
         BaseDefense.forgetScans();
     }
 
-    /** Reads config and saved state from disk. Also used by the reload command. */
+    /**
+     * The reload command (Simon 31.10.: survival safety): the state in memory is written first, it
+     * would be lost otherwise (the countdown, a skill bought a moment ago, the kit stashes); then the
+     * config is read again from the disk, which is what the command is for.
+     */
+    public void reloadKeepingState() {
+        syncSchedulerToSave();
+        persist();
+        reload();
+    }
+
+    /** Reads config and saved state from disk (server start; the command goes through reloadKeepingState). */
     public void reload() {
         Path configPath = Json.configFile(CONFIG_FILE);
         SiegeConfig loaded = Json.read(configPath, SiegeConfig.class);
@@ -658,9 +673,32 @@ public final class SiegeManager {
     }
 
     public void persist() {
+        saveDirty = false;
+        saveDirtyTicks = 0;
         if (savePath != null) {
             Json.write(savePath, save);
         }
+    }
+
+    /** Something in the save changed that may wait (PlayerBuilt): written within SOON_TICKS, or with the next persist. */
+    private boolean saveDirty;
+    private int saveDirtyTicks;
+    /** At most every 30 s for the changes that may wait (31.10.). */
+    private static final int SOON_TICKS = 600;
+
+    /** The save changed, but it need not be written at once (written from the tick, and at the stop). */
+    public void persistSoon() {
+        saveDirty = true;
+    }
+
+    /** For the test: whether a change is waiting for its write. */
+    public boolean persistPending() {
+        return saveDirty;
+    }
+
+    /** The save file of this world (for the test). */
+    public Path savePath() {
+        return savePath;
     }
 
     // ------------------------------------------------------------------
@@ -723,6 +761,9 @@ public final class SiegeManager {
             trapSaveCounter = 0;
             trapsDirty = false;
             persist();
+        }
+        if (saveDirty && ++saveDirtyTicks >= SOON_TICKS) {
+            persist();   // the marks of PlayerBuilt and the like, at most every 30 s (31.10.)
         }
 
         long gameTime = server.overworld().getGameTime();
@@ -4051,6 +4092,7 @@ public final class SiegeManager {
             return;
         }
         RetiredItems.purgePlayer(player);
+        tellFileProblems(player);   // a broken save or config (31.10.): the operators hear of it
         events.forget(player.getUUID());
         HealthView.forget(player.getUUID());
         Drones.cleanup(player);
@@ -4605,7 +4647,7 @@ public final class SiegeManager {
             case "quiver" -> "koecher";
             case "shield" -> "schild";
             case "staffhit" -> "stab";
-            case "spot" -> "vogelperspektive";
+            case "spot" -> argument.startsWith("cam") || argument.startsWith("close") ? null : "vogelperspektive";   // the camera's reports are no use of it (31.10.)
             case "tower" -> "turm_menue";
             case "jump" -> "doppelsprung";
             case "slot" -> {
@@ -4916,6 +4958,21 @@ public final class SiegeManager {
             return own.hasClass();   // the playtest's planning: change the class as often as one likes
         }
         return own.hasClass() && !own.classResetUsed && own.profiles().size() <= 1 && !own.earnedUnlock();
+    }
+
+    /**
+     * Survival safety (31.10.): an operator who joins hears when the save or the config could not be
+     * read since the server started, and what came of it (the .bak loaded, or a fresh start), so it
+     * never goes by unnoticed. The broken file is kept beside it either way.
+     */
+    public void tellFileProblems(ServerPlayer player) {
+        if (!isAdmin(player)) {
+            return;
+        }
+        for (Json.Notice n : Json.notices()) {
+            player.sendSystemMessage(Component.translatable(n.recovered() ? "nightsiege.msg.file_recovered" : "nightsiege.msg.file_reset",
+                    n.file(), n.kept()).withStyle(n.recovered() ? ChatFormatting.GOLD : ChatFormatting.RED));
+        }
     }
 
     /** Server operators (permission level 2). */
@@ -5319,10 +5376,42 @@ public final class SiegeManager {
     /**
      * True for a monster against another monster, the summoner's companions aside: a zombie
      * hit by a skeleton's arrow does not go for the skeleton, and the arrow does it no harm.
+     * Since 31.10. (survival safety) only where Night Siege's own monsters are in it: two vanilla
+     * monsters fight as ever (a skeleton's arrow kills the creeper for its music disc, a charged
+     * creeper's blast takes heads, the Wither goes for the mobs).
      */
     public static boolean infighting(Entity attacker, Entity victim) {
         return attacker instanceof net.minecraft.world.entity.monster.Enemy && victim instanceof net.minecraft.world.entity.monster.Enemy
-                && attacker != victim && !Companions.isCompanion(attacker) && !Companions.isCompanion(victim);
+                && attacker != victim && !Companions.isCompanion(attacker) && !Companions.isCompanion(victim)
+                && (isNightSiegeMob(attacker) || isNightSiegeMob(victim));
+    }
+
+    /** Entity tags of Night Siege's own monsters: the night's, bosses, the war camp, dungeons, machines, foes. */
+    private static final java.util.Set<String> OWN_MOB_TAGS = java.util.Set.of(
+            MobFactory.TAG, MobFactory.TAG_ELITE, SiegeCamp.TAG, Expeditions.TAG, Expeditions.CHAMPION_TAG,
+            BossService.TAG_BOSS, BossService.TAG_PART, BossService.TAG_MOUNT,
+            SiegeMachines.TAG_CREW, SiegeMachines.TAG_MACHINE, Foes.TAG, Foes.TAG_RISEN, Foes.TAG_GRAVE,
+            WardenNight.TAG, Nemesis.TAG);
+
+    /**
+     * True for a monster of Night Siege (a night's, a boss, the war camp's, a dungeon's, a playtest's):
+     * only these take the mod's damage factors and its no-infighting rule (31.10.); a vanilla monster
+     * stays vanilla, in a night too.
+     */
+    public static boolean isNightSiegeMob(Entity entity) {
+        if (entity == null) {
+            return false;
+        }
+        java.util.Set<String> tags = entity.entityTags();
+        if (tags.isEmpty()) {
+            return false;
+        }
+        for (String tag : tags) {
+            if (OWN_MOB_TAGS.contains(tag)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
