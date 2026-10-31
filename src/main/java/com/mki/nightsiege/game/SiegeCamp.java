@@ -604,6 +604,26 @@ public final class SiegeCamp {
         if (!m.save().campGrounds.contains(key)) {
             m.save().campGrounds.add(key);
         }
+        // Survival safety (Simon 31.10., D6): no animal, villager or pet in a palisade, a tent wall or the earth:
+        // monsters there go, the rest is put out of the camp's ground (before, they suffocated in its blocks).
+        AABB area = areaOf(center, facing, camp.id);
+        List<Entity> stayed = new ArrayList<>();
+        for (Entity e : level.getEntitiesOfClass(Entity.class, area, e -> e instanceof LivingEntity && !(e instanceof Player)
+                && e.isAlive() && !isCampMob(e) && !Expeditions.ours(e))) {
+            if (SafeGround.goesQuietly(e)) {
+                e.discard();
+                continue;
+            }
+            Vec3 out = outside(level, center, e);
+            if (e.isPassenger()) {
+                e.stopRiding();
+            }
+            if (out != null) {
+                SafeGround.moveTo(level, e, out);
+            } else {
+                stayed.add(e);   // no loaded ground outside: on top of its own column once the camp stands
+            }
+        }
         Map<BlockPos, BlockState> floor = CampLayout.floor(center, facing, camp.id);
         for (Map.Entry<BlockPos, BlockState> e : floor.entrySet()) {
             BlockPos under = e.getKey();
@@ -630,6 +650,13 @@ public final class SiegeCamp {
         }
         for (Map.Entry<BlockPos, BlockState> e : CampLayout.blocks(center, facing, camp.id).entrySet()) {
             level.setBlock(e.getKey(), e.getValue(), Block.UPDATE_CLIENTS);
+        }
+        // Whoever its blocks closed round anyway (a player of the admin's or the playtest's camp) goes on top.
+        SafeGround.liftStuck(level, area);
+        for (Entity e : stayed) {
+            if (e.isAlive() && SafeGround.stuck(level, e)) {
+                SafeGround.toSurface(level, e);
+            }
         }
         camp.built = true;
         m.stats().campBuilt(camp.day);
@@ -1694,6 +1721,11 @@ public final class SiegeCamp {
         }
         Map<BlockPos, BlockState> blocks = CampLayout.blocks(center, camp.facing, camp.id);
         if (m.save().campGrounds != null && m.save().campGrounds.contains(camp.id + "|" + camp.dimension)) {
+            // Survival safety (Simon 31.10., D2): whoever stands in a block while its ground comes back, or
+            // logs in in one later (left during the fight), goes on top (SafeGround).
+            SafeGround.remember(m.save(), "camp", camp.id, camp.dimension, areaOf(center, camp.facing, camp.id),
+                    m.dayNow(server));
+            m.persist();
             // Written down when it was built: the old ground comes back chunk by chunk (restoreGround),
             // trees, hills and all. Its barrels are not emptied any more (Simon 31.10.: survival safety):
             // what lies in one is a player's, and a barrel with something in it stays standing. What the camp
@@ -1754,9 +1786,46 @@ public final class SiegeCamp {
         return out;
     }
 
+    /** The box round every spot the camp changes (its ground from the earth below to the cleared air, the forecourt). */
+    static AABB areaOf(BlockPos center, int facing, long id) {
+        int x0 = Integer.MAX_VALUE;
+        int y0 = Integer.MAX_VALUE;
+        int z0 = Integer.MAX_VALUE;
+        int x1 = Integer.MIN_VALUE;
+        int y1 = Integer.MIN_VALUE;
+        int z1 = Integer.MIN_VALUE;
+        for (BlockPos pos : spots(center, facing, id)) {
+            x0 = Math.min(x0, pos.getX());
+            y0 = Math.min(y0, pos.getY());
+            z0 = Math.min(z0, pos.getZ());
+            x1 = Math.max(x1, pos.getX());
+            y1 = Math.max(y1, pos.getY());
+            z1 = Math.max(z1, pos.getZ());
+        }
+        return new AABB(x0, y0, z0, x1 + 1, y1 + 2, z1 + 1);
+    }
+
+    /** Out of the camp's ground, in the direction of {@code e} from the middle, on top of the ground there (or null). */
+    private static Vec3 outside(ServerLevel level, BlockPos center, Entity e) {
+        double dx = e.getX() - (center.getX() + 0.5);
+        double dz = e.getZ() - (center.getZ() + 0.5);
+        double len = Math.sqrt(dx * dx + dz * dz);
+        if (len < 1e-3) {
+            dx = 1;
+            dz = 0;
+            len = 1;
+        }
+        double r = CampLayout.FORE_FAR + 4;
+        int x = (int) Math.floor(center.getX() + 0.5 + dx / len * r);
+        int z = (int) Math.floor(center.getZ() + 0.5 + dz / len * r);
+        BlockPos top = SafeGround.surface(level, x, z);
+        return top == null ? null : new Vec3(x + 0.5, top.getY(), z + 0.5);
+    }
+
     /**
      * Update 30.10. (Simon: "auf keinen fall in irgendwelchen von spieler platzierten blöcken"): every
      * spot the camp would change is nature (or water), and no chunk it touches holds a player's building.
+     * Survival safety (31.10., D6): and nobody stands there, nor someone's animal, a villager, an armor stand.
      */
     static boolean untouched(ServerLevel level, BlockPos center, int facing, long id, Reasons why) {
         java.util.Set<Long> seen = new java.util.HashSet<>();
@@ -1778,6 +1847,14 @@ public final class SiegeCamp {
                 }
                 return false;
             }
+        }
+        for (Entity e : level.getEntitiesOfClass(Entity.class, areaOf(center, facing, id).inflate(2.0),
+                e -> e instanceof Player p && !p.isSpectator() || SafeGround.someones(e))) {
+            if (why != null) {
+                why.detail = "im Lager: " + net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(e.getType())
+                        + " bei " + e.blockPosition();
+            }
+            return false;
         }
         return true;
     }
@@ -1822,8 +1899,8 @@ public final class SiegeCamp {
             if (System.nanoTime() >= deadline) {
                 break;
             }
-            if (key.equals(standingKey)) {
-                continue;   // only the standing camp's ground is written down
+            if (key.equals(standingKey) || groundUnsaved.contains(key)) {
+                continue;   // only the standing camp's ground is written down; a finished one waits for the world save
             }
             String[] parts = key.split("\\|", 2);
             int id;
@@ -1908,12 +1985,14 @@ public final class SiegeCamp {
             groundPut += put[0];
             boolean busy = groundWhere != null && key.equals(groundKey);
             if (!busy && snap.chunkCount() == 0) {
-                snap.delete();
-                groundSnaps.remove(key);
+                // Survival safety (Simon 31.10., D4): its snapshot and its line go only once the world is saved
+                // with the ground (afterWorldSave); after a crash before that, the ground comes back again.
+                SafeGround.done(server, m.save(), "camp", id);
+                groundUnsaved.add(key);
+                groundFinished.put(key, groundSnaps.remove(key));   // deleted with the world save, not read again
                 groundBlocks.remove(key);
                 groundPlans.remove(key);
                 groundClock.remove(key);
-                pending.remove(key);
                 changed = true;
                 NightSiegeMod.LOGGER.info("[Night Siege] Gelände des Heerlagers {} wiederhergestellt", id);
                 NightSiegeMod.LOGGER.info("[Night Siege] Heerlager-Gelände: {} ms in {} Ticks (längster Tick {} ms)",
@@ -1923,6 +2002,38 @@ public final class SiegeCamp {
         if (changed) {
             m.persist();
         }
+    }
+
+    /** Camps whose ground is all back but not on the disk yet ("id|dimension"); see {@link #afterWorldSave}. */
+    private final Set<String> groundUnsaved = new HashSet<>();
+    /** Their snapshots, so the save need not read a big file again only to delete it. */
+    private final Map<String, ExpeditionSnapshot> groundFinished = new java.util.HashMap<>();
+
+    /**
+     * The world is saved (survival safety 31.10., D4): the chunks of ground put back before it are
+     * forgotten in the snapshot's file too; a camp whose ground is all back goes with its file.
+     */
+    void afterWorldSave(MinecraftServer server) {
+        for (ExpeditionSnapshot snap : groundSnaps.values()) {
+            snap.commit();
+        }
+        if (groundUnsaved.isEmpty()) {
+            return;
+        }
+        List<String> pending = m.save().campGrounds;
+        for (String key : groundUnsaved) {
+            try {
+                ExpeditionSnapshot done = groundFinished.remove(key);
+                (done != null ? done : ExpeditionSnapshot.loadCamp(server, Integer.parseInt(key.split("\\|", 2)[0]))).delete();
+            } catch (NumberFormatException e) {
+                // (not a camp's key: only its line goes)
+            }
+            if (pending != null) {
+                pending.remove(key);
+            }
+        }
+        groundUnsaved.clear();
+        m.persist();
     }
 
     /** A chunk and its eight neighbours are loaded (nothing is loaded here in the middle of a tick). */

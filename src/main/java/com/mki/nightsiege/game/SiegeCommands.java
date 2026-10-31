@@ -778,7 +778,8 @@ public final class SiegeCommands {
     /** The reported dungeon is built now (its ground is loaded for it, over the next seconds). */
     private static int expeditionBuild(CommandContext<CommandSourceStack> ctx) {
         Expeditions exp = SiegeManager.get().expeditions();
-        net.minecraft.core.BlockPos door = exp.buildNow(ctx.getSource().getServer());
+        ServerPlayer asker = ctx.getSource().getPlayer();   // told when no safe place is found (31.10.)
+        net.minecraft.core.BlockPos door = exp.buildNow(ctx.getSource().getServer(), asker == null ? null : asker.getUUID());
         if (door == null) {
             boolean busy = exp.building();
             if (busy) {

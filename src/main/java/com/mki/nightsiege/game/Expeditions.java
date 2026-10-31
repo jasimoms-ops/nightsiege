@@ -285,6 +285,12 @@ public final class Expeditions {
         return out;
     }
 
+    /** The spots of a dungeon by chunk (its plan worked out if need be). */
+    private Map<Long, List<Spot>> spotsOf(SiegeSave.ExpeditionRecord rec) {
+        plan(rec);
+        return byChunk;
+    }
+
     /** The chunks from the gatehouse outwards. */
     private static List<Long> outwards(java.util.Collection<Long> chunks, SiegeSave.ExpeditionRecord rec) {
         int ocx = rec.x >> 4;
@@ -978,6 +984,14 @@ public final class Expeditions {
                 return false;
             }
         }
+        // Survival safety (Simon 31.10., D3/D6): no one's things where it goes (armor stands, frames, a
+        // villager, someone's animal); wild animals and monsters are put out of the way when it is built.
+        for (Entity e : level.getEntitiesOfClass(Entity.class, candidate.bounds.inflate(2.0), SafeGround::someones)) {
+            why.built++;
+            why.detail = "Dungeon-Raum: " + net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(e.getType())
+                    + " bei " + e.blockPosition();
+            return false;
+        }
         return true;
     }
 
@@ -1029,6 +1043,18 @@ public final class Expeditions {
         /** A player may stand where the gatehouse goes (built by itself, not by the playtest or an admin). */
         boolean careful;
         long waitSince = -1L;
+        /** Since when a player stands where the halls go (survival safety 31.10., D5). */
+        long hallWaitSince = -1L;
+        /** "dungeon hier": built where the admin says, no site check (31.10.: every other build is checked). */
+        boolean anywhere;
+        /** The playtest's and the admin's build: places tried for it (31.10., D3), the one looked at now. */
+        int siteTries;
+        int siteX = Integer.MIN_VALUE;
+        int siteZ;
+        /** Its plan, once worked out, while the chunks of the whole dungeon load for the check of every spot. */
+        Prepared sitePlan;
+        /** Whom to tell when no place is found (the admin of "dungeon bauen"). */
+        UUID asker;
         /** Tests: all at once, the chunks loaded on the way. */
         boolean sync;
         boolean busy;
@@ -1068,6 +1094,10 @@ public final class Expeditions {
         rec.complete = false;
         rec.layout = LAYOUT;
         rec.chunksDone.clear();
+        unsavedChunks.clear();   // (survival safety 31.10.: set, not on the disk yet)
+        unsavedChunksId = rec.id;
+        rec.levelDone = false;   // its ground is levelled later (and counts once the world is saved)
+        checkedComplete = rec.id;   // built in this run: nothing to look at after a restart
         Build b = carry != null ? carry : new Build(rec.id, rec.dimension);
         long t0 = System.nanoTime();
         if (ready != null && ready.origin().equals(origin)) {
@@ -1141,12 +1171,204 @@ public final class Expeditions {
             b.savedAt = now;
             m.persist();   // which chunks stand (a restart goes on from there)
         }
+        if (rec.built && b.stage != Build.SITE && !level.players().isEmpty()) {
+            // Survival safety (31.10., D5): whoever its blocks closed round goes on top (before his next tick).
+            SafeGround.liftStuck(level, area(rec, plan(rec)));
+        }
+    }
+
+    /** How many places the playtest's and the admin's dungeon tries before it gives up (31.10., D3). */
+    static final int SITE_TRIES = 8;
+
+    /**
+     * Survival safety (Simon 31.10., D3): the playtest's dungeon and the admin's ("dungeon bauen") get
+     * the check of a dungeon built by itself; before, the reported spot was taken as it was, over
+     * player bases, villages or a player in a cave. One place after the other, from the reported spot
+     * outwards: its gatehouse ground (loaded for it), no player's building in any chunk along the way,
+     * then its plan, the chunks of the whole dungeon loaded, every spot it sets nature (no chest, no
+     * spawner, no planks), no one's things (armor stands, frames, pets, villagers). After
+     * {@link #SITE_TRIES} places it gives up (the playtest goes on without it).
+     */
+    private boolean stepSite(ServerLevel level, SiegeSave.ExpeditionRecord rec, Build b, long now) {
+        if (b.siteX == Integer.MIN_VALUE) {
+            if (b.siteTries >= SITE_TRIES) {
+                failSite(level, rec, b);
+                return false;
+            }
+            nextSite(level, rec, b);
+        }
+        if (b.sitePlan == null && b.planning == null) {
+            if (!asked(level, b.want, b, now)) {
+                return false;   // the ground there is still loading
+            }
+            b.busy = true;
+            SiegeCamp.Reasons why = new SiegeCamp.Reasons();
+            Integer floor = SiegeCamp.site(level, b.siteX, b.siteZ, 9, 12, false, false, why);
+            if (floor == null) {
+                rejectSite(rec, b, why);
+                return false;
+            }
+            BlockPos at = groundOrigin(level, new BlockPos(b.siteX, floor, b.siteZ));
+            if (builtAlong(level, rec, at, why)) {
+                rejectSite(rec, b, why);
+                return false;
+            }
+            b.planning = workOut(at, rec.facing, kind(rec), rec.rooms, rec.id);   // its plan, in the background
+            b.planAt = at;
+            return false;
+        }
+        if (b.sitePlan == null) {
+            asked(level, b.want, b, now);
+            Prepared ready = ready(b.planning, b.planAt, rec.facing, kind(rec), rec.rooms, rec.id);
+            if (ready == null) {
+                return false;
+            }
+            b.planning = null;
+            b.sitePlan = ready;
+            b.planNanos += ready.nanos();
+            // The chunks of the whole dungeon, for the check of every spot.
+            Set<Long> all = new HashSet<>(ready.byChunk().keySet());
+            AABB box = levelBoxAt(b.planAt, rec.facing);
+            for (int cx = (int) Math.floor(box.minX) >> 4; cx <= (int) Math.floor(box.maxX) >> 4; cx++) {
+                for (int cz = (int) Math.floor(box.minZ) >> 4; cz <= (int) Math.floor(box.maxZ) >> 4; cz++) {
+                    all.add(chunkKey(cx, cz));
+                }
+            }
+            want(level, b, withRing(all));
+            return false;
+        }
+        if (!asked(level, b.want, b, now)) {
+            return false;
+        }
+        b.busy = true;
+        SiegeCamp.Reasons why = new SiegeCamp.Reasons();
+        long t0 = System.nanoTime();
+        Boolean free = freeOfPlayers(level, rec, b.planAt, b.sitePlan.plan(), why);
+        b.checkNanos += System.nanoTime() - t0;
+        if (free == null) {
+            return false;   // (all asked for are loaded: not again)
+        }
+        if (!free) {
+            rejectSite(rec, b, why);
+            return false;
+        }
+        Prepared ready = b.sitePlan;
+        b.sitePlan = null;
+        NightSiegeMod.LOGGER.info("[Night Siege] Dungeon {}: Platz geprüft bei {} {} {} (Versuch {})", rec.kind,
+                b.planAt.getX(), b.planAt.getY(), b.planAt.getZ(), b.siteTries + 1);
+        beginBuild(level, rec, b.planAt, ready, b);
+        return false;
+    }
+
+    /** The next place to try: the reported spot, then further and further round it. */
+    private void nextSite(ServerLevel level, SiegeSave.ExpeditionRecord rec, Build b) {
+        int x = rec.x;
+        int z = rec.z;
+        if (b.siteTries > 0) {
+            double angle = random.nextDouble() * Math.PI * 2.0;
+            double d = 32 + 24 * b.siteTries;
+            x += (int) Math.round(Math.cos(angle) * d);
+            z += (int) Math.round(Math.sin(angle) * d);
+        }
+        b.siteX = x;
+        b.siteZ = z;
+        b.sitePlan = null;
+        b.planning = null;
+        Set<Long> site = new HashSet<>();
+        for (int cx = (x - 14) >> 4; cx <= (x + 14) >> 4; cx++) {
+            for (int cz = (z - 14) >> 4; cz <= (z + 14) >> 4; cz++) {
+                site.add(chunkKey(cx, cz));
+            }
+        }
+        want(level, b, withRing(site));
+    }
+
+    /** The chunks a job asks for from now (those no longer needed are let go). */
+    private static void want(ServerLevel level, Build b, Set<Long> want) {
+        Set<Long> gone = new HashSet<>(b.want);
+        gone.removeAll(want);
+        release(level, gone);
+        b.want.clear();
+        b.want.addAll(want);
+        b.askedAt = Long.MIN_VALUE;
+    }
+
+    private void rejectSite(SiegeSave.ExpeditionRecord rec, Build b, SiegeCamp.Reasons why) {
+        NightSiegeMod.LOGGER.info("[Night Siege] Dungeon {}: Platz {} {} verworfen ({})", rec.kind, b.siteX, b.siteZ, why);
+        b.siteTries++;
+        b.siteX = Integer.MIN_VALUE;
+        b.sitePlan = null;
+        b.planning = null;
+    }
+
+    /** No place was safe: the job ends, the dungeon stays reported (built by itself later, with its checks). */
+    private void failSite(ServerLevel level, SiegeSave.ExpeditionRecord rec, Build b) {
+        NightSiegeMod.LOGGER.info("[Night Siege] Dungeon {}: kein sicherer Platz zum Bauen nach {} Orten", rec.kind, b.siteTries);
+        cancelJob(level.getServer());
+        if (prepping) {
+            prepping = false;
+            prepFailed = true;
+        }
+        tell(level.getServer(), b.asker, Component.translatable("nightsiege.cmd.expedition_no_spot"));
+    }
+
+    /** A player's building in any chunk along the way (the marks in the save, no chunk loaded for it). */
+    private static boolean builtAlong(ServerLevel level, SiegeSave.ExpeditionRecord rec, BlockPos origin, SiegeCamp.Reasons why) {
+        int length = ExpeditionLayout.length(rec.rooms) + 8;
+        Set<Long> seen = new HashSet<>();
+        for (int lz = -11; lz <= length; lz += 4) {
+            for (int lx = -40; lx <= 40; lx += 4) {
+                BlockPos at = CampLayout.world(origin, rec.facing, lx, 0, lz);
+                int cx = at.getX() >> 4;
+                int cz = at.getZ() >> 4;
+                if (seen.add(PlayerBuilt.key(cx, cz)) && PlayerBuilt.marked(level, cx, cz)) {
+                    why.built++;
+                    why.detail = "Spieler haben bei Chunk " + cx + " " + cz + " gebaut";
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** {@link #levelBox} for a gatehouse at this spot. */
+    private static AABB levelBoxAt(BlockPos origin, int facing) {
+        SiegeSave.ExpeditionRecord at = new SiegeSave.ExpeditionRecord();
+        at.x = origin.getX();
+        at.y = origin.getY();
+        at.z = origin.getZ();
+        at.facing = facing;
+        return levelBox(at);
+    }
+
+    /**
+     * Survival safety (31.10., D4): a dungeon taken down whose ground is not on the disk yet lies near
+     * this one (a crash would take it down again over the new one's blocks): the new one waits.
+     */
+    private boolean nearUnsaved(SiegeSave.ExpeditionRecord rec) {
+        if (unsavedTeardowns.isEmpty()) {
+            return false;
+        }
+        double reach = ExpeditionLayout.length(rec.rooms) + 16;   // as far as it can reach (see protects)
+        AABB mine = new AABB(rec.x - reach, -4096, rec.z - reach, rec.x + reach + 1, 4096, rec.z + reach + 1);
+        for (Teardown t : unsavedTeardowns.values()) {
+            if (t.rec.dimension.equals(rec.dimension) && t.plan != null && area(t.rec, t.plan).intersects(mine)) {
+                return true;   // only where the two would touch (the playtest's next one is not held up)
+            }
+        }
+        return false;
     }
 
     /** Builds until the deadline. True when the dungeon is complete. */
     private boolean stepBuild(ServerLevel level, SiegeSave.ExpeditionRecord rec, Build b, long now, long deadline) {
         if (!teardowns.isEmpty() && !b.sync) {
             return false;   // the ground of the one before comes back first (it could lie where this one goes)
+        }
+        if (!b.sync && nearUnsaved(rec)) {
+            return false;   // (31.10.) nor before the world is saved with it: a crash would take it down again
+        }
+        if (b.stage == Build.SITE && !b.anywhere && !b.sync) {
+            return stepSite(level, rec, b, now);   // survival safety 31.10. (D3): its place is checked
         }
         if (b.stage == Build.SITE) {
             if (b.want.isEmpty()) {
@@ -1204,13 +1426,29 @@ public final class Expeditions {
                         return false;
                     }
                 }
-                if (!snap.has(LEVEL_CHUNK)) {
-                    if (!b.sync && b.careful && !clearOfPlayers(level, rec, now, b)) {
+                // Survival safety (31.10., D4): levelled again after a crash that lost it (written down,
+                // not on the disk): only where the ground is still as it was before the dungeon.
+                boolean again = snap.has(LEVEL_CHUNK) && Boolean.FALSE.equals(rec.levelDone) && unsavedLevelId != rec.id;
+                if (!snap.has(LEVEL_CHUNK) || again) {
+                    if (!b.sync && !clearOfPlayers(level, rec, now, b)) {
                         return false;   // someone stands where the gatehouse goes: a little while
                     }
-                    // What stands where the ground is levelled goes back last when the dungeon is gone.
-                    snap.record(LEVEL_CHUNK, level, levelSpots(rec));
-                    levelGround(level, rec);
+                    // No animal, villager or pet walled into the gatehouse or the earth (31.10., D6).
+                    SafeGround.clearCreatures(level, levelBox(rec), front(level, rec, p), Expeditions::ours);
+                    if (again) {
+                        Map<BlockPos, BlockState> was = new HashMap<>();
+                        List<BlockPos> where = snap.places(LEVEL_CHUNK) != null ? snap.places(LEVEL_CHUNK) : levelSpots(rec);
+                        for (int i = 0; i < where.size(); i++) {
+                            was.put(where.get(i), snap.old(LEVEL_CHUNK, i));
+                        }
+                        levelGround(level, rec, pos -> level.getBlockState(pos) == was.get(pos));
+                        NightSiegeMod.LOGGER.info("[Night Siege] Dungeon {}: Gelände nach einem Absturz erneut geebnet", rec.kind);
+                    } else {
+                        // What stands where the ground is levelled goes back last when the dungeon is gone.
+                        snap.record(LEVEL_CHUNK, level, levelSpots(rec));
+                        levelGround(level, rec, null);
+                    }
+                    unsavedLevelId = rec.id;
                 }
                 b.busy = true;
                 b.stage = Build.NEAR;
@@ -1224,7 +1462,7 @@ public final class Expeditions {
                 long next = Long.MIN_VALUE;
                 boolean left = false;
                 for (long key : list) {
-                    if (rec.chunksDone.contains(key)) {
+                    if (chunkDone(rec, key)) {
                         continue;
                     }
                     left = true;
@@ -1239,6 +1477,9 @@ public final class Expeditions {
                 }
                 if (next == Long.MIN_VALUE) {
                     return false;   // the next chunks are still loading
+                }
+                if (!b.sync && !hallsClear(level, p, b, now)) {
+                    return false;   // someone in a cave where the halls go: a little while (31.10., D5)
                 }
                 cursorChunk = next;
                 cursorIndex = 0;
@@ -1273,8 +1514,11 @@ public final class Expeditions {
                 b.busy = true;
                 Spot s = spots.get(cursorIndex);
                 BlockState there = level.getBlockState(s.pos());
-                if (there.hasBlockEntity() && !there.is(Blocks.SPAWNER)) {
-                    continue;   // somebody's chest stays where it is
+                if (there.hasBlockEntity()) {
+                    // Somebody's chest stays where it is. Survival safety (Simon 31.10., D3): a spawner too (the
+                    // snapshot keeps only the block, it came back without its monster), and every other block
+                    // entity with its data.
+                    continue;
                 }
                 if (s.fill() && !(there.isAir() || there.canBeReplaced() || !there.getFluidState().isEmpty())) {
                     continue;   // the ground above the vaults only where there is none
@@ -1284,7 +1528,13 @@ public final class Expeditions {
                     level.setBlock(s.pos(), want, BULK);
                 }
             }
-            rec.chunksDone.add(cursorChunk);
+            // Survival safety (31.10., D4): into chunksDone only with the next world save (afterWorldSave);
+            // before, it was saved every 5 s ahead of the world and a crash left holes that were never set.
+            if (unsavedChunksId != rec.id) {
+                unsavedChunks.clear();
+                unsavedChunksId = rec.id;
+            }
+            unsavedChunks.add(cursorChunk);
             cursorChunk = Long.MIN_VALUE;
             b.dirty = true;
         }
@@ -1354,7 +1604,9 @@ public final class Expeditions {
         if (b.waitSince < 0) {
             b.waitSince = now;
         }
-        if (now - b.waitSince < 600) {
+        // Survival safety (31.10., D3): the playtest's and the admin's dungeon too (before, no check at
+        // all); they do not wait (nobody of them stands there), whoever does is put before the door at once.
+        if (b.careful && now - b.waitSince < 600) {
             return false;
         }
         BlockPos door = plan(rec).door;
@@ -1364,9 +1616,54 @@ public final class Expeditions {
         return true;
     }
 
+    /**
+     * Survival safety (Simon 31.10., D5): before the next chunk is set, nobody stands where the halls,
+     * ways and arena go (with their walls), anywhere along the dungeon (it reaches 150–250 blocks; before,
+     * only the gatehouse was looked at and a player in a cave by the halls was walled in). Built by itself
+     * it waits 30 s for him to go; then, or at once for the playtest's and the admin's, he is put on top
+     * of the ground. Creative players and spectators fly out by themselves.
+     */
+    private boolean hallsClear(ServerLevel level, ExpeditionLayout.Plan p, Build b, long now) {
+        List<ServerPlayer> there = new ArrayList<>();
+        for (ServerPlayer player : level.players()) {
+            if (!player.isSpectator() && !player.getAbilities().instabuild && p.bounds.contains(player.position())
+                    && inside(p, player, 3.0)) {
+                there.add(player);
+            }
+        }
+        if (there.isEmpty()) {
+            b.hallWaitSince = -1L;
+            return true;
+        }
+        if (b.hallWaitSince < 0) {
+            b.hallWaitSince = now;
+            for (ServerPlayer player : there) {
+                player.sendSystemMessage(Component.translatable("nightsiege.expedition.build_leave").withStyle(ChatFormatting.GOLD));
+            }
+        }
+        if (b.careful && now - b.hallWaitSince < 600) {
+            return false;
+        }
+        for (ServerPlayer player : there) {
+            BlockPos top = SafeGround.surface(level, player.getBlockX(), player.getBlockZ());
+            if (top != null) {
+                // On top of the ground above him (above whatever of the dungeon stands there already).
+                player.teleportTo(level, player.getX(), top.getY(), player.getZ(), java.util.Set.of(), player.getYRot(),
+                        player.getXRot(), true);
+                player.resetFallDistance();
+                player.sendSystemMessage(Component.translatable("nightsiege.expedition.build_moved").withStyle(ChatFormatting.GRAY));
+                NightSiegeMod.LOGGER.info("[Night Siege] {} stand beim Bau des Dungeons in seinen Hallen und wurde nach oben gebracht",
+                        player.getScoreboardName());
+            }
+        }
+        b.hallWaitSince = -1L;
+        return true;
+    }
+
     /** The dungeon stands, every block of it. */
     private void finishBuild(ServerLevel level, SiegeSave.ExpeditionRecord rec, Build b) {
         rec.complete = true;
+        checkedComplete = rec.id;   // (31.10.) complete in this run: on the disk with the next world save
         job = null;
         cursorChunk = Long.MIN_VALUE;
         release(level, b.want);
@@ -1414,8 +1711,11 @@ public final class Expeditions {
         }
     }
 
-    /** Levels the ground round the gatehouse: away with trees and hills, earth into dips, grass and the path. */
-    private static void levelGround(ServerLevel level, SiegeSave.ExpeditionRecord rec) {
+    /**
+     * Levels the ground round the gatehouse: away with trees and hills, earth into dips, grass and the path.
+     * {@code may}: only these spots (null: all); survival safety (31.10.): no block entity is ever replaced.
+     */
+    private static void levelGround(ServerLevel level, SiegeSave.ExpeditionRecord rec, java.util.function.Predicate<BlockPos> may) {
         BlockPos origin = new BlockPos(rec.x, rec.y, rec.z);
         for (int lx = -8; lx <= 8; lx++) {
             for (int lz = -10; lz <= 7; lz++) {
@@ -1423,22 +1723,26 @@ public final class Expeditions {
                 for (int up = 0; up <= 14; up++) {
                     BlockPos pos = column.above(up);
                     BlockState there = level.getBlockState(pos);
-                    if (!there.isAir() && !there.hasBlockEntity() && SiegeCamp.natural(there)) {
+                    if (!there.isAir() && !there.hasBlockEntity() && SiegeCamp.natural(there) && (may == null || may.test(pos))) {
                         level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS);
                     }
                 }
                 for (int down = 2; down <= 12; down++) {
                     BlockPos pos = column.below(down);
                     BlockState there = level.getBlockState(pos);
-                    if (!there.isAir() && !there.canBeReplaced() && there.getFluidState().isEmpty()) {
+                    if (!there.isAir() && !there.canBeReplaced() && there.getFluidState().isEmpty() || there.hasBlockEntity()) {
                         break;
+                    }
+                    if (may != null && !may.test(pos)) {
+                        continue;
                     }
                     level.setBlock(pos, Blocks.DIRT.defaultBlockState(), Block.UPDATE_CLIENTS);
                 }
                 BlockPos under = column.below();
                 boolean path = Math.abs(lx) <= 1 && lz <= -6;
-                if (path || level.getBlockState(under).isAir() || level.getBlockState(under).canBeReplaced()
-                        || !level.getBlockState(under).getFluidState().isEmpty()) {
+                BlockState floor = level.getBlockState(under);
+                if ((path || floor.isAir() || floor.canBeReplaced() || !floor.getFluidState().isEmpty())
+                        && !floor.hasBlockEntity() && (may == null || may.test(under))) {
                     level.setBlock(under, path ? Blocks.DIRT_PATH.defaultBlockState() : Blocks.GRASS_BLOCK.defaultBlockState(),
                             Block.UPDATE_CLIENTS);
                 }
@@ -1591,24 +1895,64 @@ public final class Expeditions {
         }
     }
 
-    /** Everyone inside out before the gate, items lying about there too, the dungeon's monsters gone. */
+    /**
+     * Everyone inside out, items lying about there too, the dungeon's monsters gone. Survival safety
+     * (Simon 31.10., D2): everyone in the whole place (the fallen on the waiting benches too, who stood
+     * in the gatehouse when its hill came back) is put before it, past the levelled ground, where the
+     * ground does not change; the place is remembered (see SafeGround: who stands in a block while the
+     * ground comes back, or logs in in one later, goes on top).
+     */
     private void evacuate(ServerLevel level, SiegeSave.ExpeditionRecord rec, ExpeditionLayout.Plan p) {
-        BlockPos door = p.door;
-        for (ServerPlayer player : level.players()) {
-            if (p.bounds.contains(player.position()) && (inside(p, player, 1.0) || player.getY() < rec.y - 1)) {
-                player.teleportTo(level, door.getX() + 0.5, door.getY(), door.getZ() + 0.5, java.util.Set.of(),
-                        player.getYRot(), player.getXRot(), true);
+        AABB area = area(rec, p);
+        AABB gatehouse = levelBox(rec);
+        Vec3 front = front(level, rec, p);
+        for (ServerPlayer player : new ArrayList<>(level.players())) {
+            if (!player.isSpectator() && (sealed(p, rec, player) || gatehouse.contains(player.position()))) {
+                player.teleportTo(level, front.x, front.y, front.z, java.util.Set.of(), player.getYRot(), player.getXRot(), true);
+                player.resetFallDistance();
             }
         }
         for (net.minecraft.world.entity.item.ItemEntity item : level.getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class,
-                p.bounds)) {
-            item.teleportTo(door.getX() + 0.5, door.getY() + 0.5, door.getZ() + 0.5);
+                area)) {
+            item.teleportTo(front.x, front.y + 0.5, front.z);
         }
-        for (Entity e : level.getEntitiesOfClass(Entity.class, p.bounds.inflate(4), Expeditions::isExpeditionMob)) {
+        for (Entity e : level.getEntitiesOfClass(Entity.class, area.inflate(4), Expeditions::isExpeditionMob)) {
             BossService.dropFoeLook(level.getServer(), e.getId());
             e.discard();
         }
-        sweep(level, p);   // nothing else is walled in when the ground comes back
+        sweep(level, p, front);   // nothing else is walled in when the ground comes back
+        SafeGround.clearCreatures(level, gatehouse, front, Expeditions::ours);   // the gatehouse's (31.10.)
+        SafeGround.remember(m.save(), "dungeon", rec.id, rec.dimension, area, m.dayNow(level.getServer()));
+    }
+
+    /** The whole place of a dungeon: its bounds and the levelled ground round the gatehouse. */
+    private static AABB area(SiegeSave.ExpeditionRecord rec, ExpeditionLayout.Plan p) {
+        AABB level = levelBox(rec);
+        AABB b = p.bounds;
+        return new AABB(Math.min(b.minX, level.minX), Math.min(b.minY, level.minY), Math.min(b.minZ, level.minZ),
+                Math.max(b.maxX, level.maxX), Math.max(b.maxY, level.maxY) + 2, Math.max(b.maxZ, level.maxZ)).inflate(1.0);
+    }
+
+    /** The levelled ground round the gatehouse (see {@link #levelSpots}), from below the floor to the sky. */
+    private static AABB levelBox(SiegeSave.ExpeditionRecord rec) {
+        BlockPos origin = new BlockPos(rec.x, rec.y, rec.z);
+        BlockPos a = CampLayout.world(origin, rec.facing, -8, -13, -10);
+        BlockPos c = CampLayout.world(origin, rec.facing, 8, 16, 7);
+        return new AABB(Math.min(a.getX(), c.getX()), Math.min(a.getY(), c.getY()), Math.min(a.getZ(), c.getZ()),
+                Math.max(a.getX(), c.getX()) + 1, Math.max(a.getY(), c.getY()) + 1, Math.max(a.getZ(), c.getZ()) + 1);
+    }
+
+    /**
+     * Before the dungeon, past its levelled ground (Simon 31.10.): on top of the ground there, which the
+     * dungeon never changed (the door itself lies on the levelled ground, which comes back last).
+     */
+    private static Vec3 front(ServerLevel level, SiegeSave.ExpeditionRecord rec, ExpeditionLayout.Plan p) {
+        BlockPos at = CampLayout.world(new BlockPos(rec.x, rec.y, rec.z), rec.facing, 0, 0, -13);
+        BlockPos top = SafeGround.surface(level, at.getX(), at.getZ());
+        if (top == null) {
+            return new Vec3(p.door.getX() + 0.5, p.door.getY(), p.door.getZ() + 0.5);
+        }
+        return new Vec3(top.getX() + 0.5, top.getY(), top.getZ() + 0.5);
     }
 
     /**
@@ -1695,11 +2039,13 @@ public final class Expeditions {
         List<SiegeSave.ExpeditionRecord> gone = m.save().expeditionTeardowns;
         if (gone != null) {
             for (SiegeSave.ExpeditionRecord rec : new ArrayList<>(gone)) {
-                teardownOf(server, rec);
+                if (!unsavedTeardowns.containsKey(rec.id)) {   // (31.10.) done, waiting for the world save
+                    teardownOf(server, rec);
+                }
             }
         }
         SiegeSave.ExpeditionRecord rec = record();
-        if (rec != null && rec.won && rec.built && rec.restoring && rec.layout >= LAYOUT) {
+        if (rec != null && rec.won && rec.built && rec.restoring && rec.layout >= LAYOUT && !unsavedTeardowns.containsKey(rec.id)) {
             teardownOf(server, rec);
         }
     }
@@ -1876,26 +2222,91 @@ public final class Expeditions {
         return where;
     }
 
-    /** All back: the snapshot and the record go. */
+    /**
+     * All back: the snapshot and the record go. Survival safety (Simon 31.10.): whoever stands in a
+     * block anywhere in the place now goes on top (D2: before, only who stood by the door); and the
+     * snapshot and the record only go once the world is saved (D4, see {@link #afterWorldSave}): until
+     * then a crash brings the dungeon's blocks back from the disk, and the teardown runs again.
+     */
     private void finishTeardown(ServerLevel level, Teardown t) {
-        ExpeditionLayout.Plan p = t.plan;
-        for (ServerPlayer player : level.players()) {
-            if (player.distanceToSqr(p.door.getX() + 0.5, p.door.getY(), p.door.getZ() + 0.5) < 36.0) {
-                BlockPos up = level.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, player.blockPosition());
-                if (up.getY() > player.getY()) {
-                    player.teleportTo(level, player.getX(), up.getY(), player.getZ(), java.util.Set.of(),
-                            player.getYRot(), player.getXRot(), true);
-                }
-            }
-        }
-        t.snap.delete();
+        SafeGround.liftStuck(level, area(t.rec, t.plan));
+        SafeGround.done(level.getServer(), m.save(), "dungeon", t.rec.id);
         release(level, t.want);
-        dropTeardown(t);
+        teardowns.remove(t.rec.id);
+        unsavedTeardowns.put(t.rec.id, t);
+        if (snapshot == t.snap) {
+            snapshot = null;
+            snapshotId = -1;
+        }
+        if (m.save().expedition == t.rec) {
+            m.save().expedition = null;   // the next one may be reported; kept below until the world is saved
+            plan = null;
+        }
+        if (m.save().expeditionTeardowns == null) {
+            m.save().expeditionTeardowns = new ArrayList<>();
+        }
+        if (!m.save().expeditionTeardowns.contains(t.rec)) {
+            m.save().expeditionTeardowns.add(t.rec);
+        }
         NightSiegeMod.LOGGER.info("[Night Siege] Dungeon {} ist abgebaut, das Gelände wie vorher", t.rec.kind);
         NightSiegeMod.LOGGER.info("[Night Siege] Dungeon-Abbau: {} ms in {} Ticks (längster Tick {} ms), {} Chunks, fertig nach {} s",
                 t.work / 1_000_000L, t.busyTicks, t.longest / 1_000_000L, t.chunks,
                 String.format(Locale.ROOT, "%.1f", (System.nanoTime() - t.born) / 1e9));
         m.persist();
+    }
+
+    /** Teardowns done whose ground is not on the disk yet (by id): their snapshot and record go with the next world save. */
+    private final Map<Integer, Teardown> unsavedTeardowns = new java.util.LinkedHashMap<>();
+    /**
+     * Survival safety (31.10., D4): chunks of the dungeon being built that are set but not on the disk
+     * yet (they go into {@code chunksDone} with the next world save; after a crash they are set again),
+     * and the dungeon whose ground was levelled since.
+     */
+    private final Set<Long> unsavedChunks = new HashSet<>();
+    private int unsavedChunksId = -1;
+    private int unsavedLevelId = -1;
+    /** The complete dungeon of before a restart was looked at once (were all its chunks on the disk?). */
+    private int checkedComplete = -1;
+
+    /** A chunk of the dungeon of now is set (in this run, or on the disk). */
+    private boolean chunkDone(SiegeSave.ExpeditionRecord rec, long key) {
+        return rec.chunksDone.contains(key) || unsavedChunksId == rec.id && unsavedChunks.contains(key);
+    }
+
+    /**
+     * The world is saved (Fabric's AFTER_SAVE: the autosave, /save-all, the stop): what was built and
+     * taken down before it is on the disk now. The chunks set go into the record, the levelled ground
+     * counts, the chunks put back are forgotten in their snapshots, a teardown done goes with its file.
+     */
+    void afterWorldSave(MinecraftServer server) {
+        boolean changed = false;
+        SiegeSave.ExpeditionRecord rec = record();
+        if (rec != null && unsavedChunksId == rec.id && !unsavedChunks.isEmpty()) {
+            for (long key : unsavedChunks) {
+                if (!rec.chunksDone.contains(key)) {
+                    rec.chunksDone.add(key);
+                }
+            }
+            changed = true;
+        }
+        unsavedChunks.clear();
+        if (rec != null && unsavedLevelId == rec.id) {
+            rec.levelDone = true;
+            changed = true;
+        }
+        unsavedLevelId = -1;
+        for (Teardown t : teardowns.values()) {
+            t.snap.commit();
+        }
+        for (Teardown t : new ArrayList<>(unsavedTeardowns.values())) {
+            t.snap.delete();
+            dropTeardown(t);
+            changed = true;
+        }
+        unsavedTeardowns.clear();
+        if (changed) {
+            m.persist();
+        }
     }
 
     /** The teardown is over (or given up): its record goes from wherever it is. */
@@ -1937,6 +2348,17 @@ public final class Expeditions {
             tickTeardown(server, teardowns.values().iterator().next(), now, deadline);
         }
         SiegeSave.ExpeditionRecord rec = record();
+        if (rec != null && rec.built && rec.complete && !rec.won && rec.layout >= LAYOUT && checkedComplete != rec.id
+                && fighters.isEmpty()) {
+            // Survival safety (31.10., D4): a dungeon complete before a restart whose last chunks never reached
+            // the disk (a crash) is set again where they are missing (only one built since this update).
+            checkedComplete = rec.id;
+            if (rec.levelDone != null && (!rec.levelDone || !rec.chunksDone.containsAll(spotsOf(rec).keySet()))) {
+                rec.complete = false;
+                m.persist();
+                NightSiegeMod.LOGGER.warn("[Night Siege] Dungeon {}: nach einem Absturz nicht ganz auf der Platte, wird fertig gebaut", rec.kind);
+            }
+        }
         if (job == null && rec != null && rec.built && !rec.complete && !rec.won && rec.layout >= LAYOUT) {
             job = new Build(rec.id, rec.dimension);   // half built (a restart, or the playtest gave it back): on with it
         }
@@ -1964,12 +2386,18 @@ public final class Expeditions {
         ExpeditionLayout.Plan p = plan(rec);
         for (ServerPlayer player : level.players()) {
             UUID id = player.getUUID();
-            if (fighters.contains(id) || out.contains(id) || !m.isRegistered(player) || player.isSpectator()
-                    || player.getAbilities().instabuild || !player.isAlive() || Drones.isDrone(player)) {
+            if (fighters.contains(id) || player.isSpectator() || player.getAbilities().instabuild || !player.isAlive()
+                    || Drones.isDrone(player)) {
                 continue;
             }
             // Only who was in the ready round goes in (the tests and the playtest: anyone signed up).
-            if (!openEntry && !allowed.contains(id)) {
+            boolean may = !out.contains(id) && m.isRegistered(player) && (openEntry || allowed.contains(id));
+            if (!may) {
+                // Survival safety (Simon 31.10., D1): who ran down without a place in the round (or is
+                // not signed up, or fell) would be shut in when the gate closes: back before the gatehouse.
+                if (inside(p, player, 0.0) && putOut(level.getServer(), player, false)) {
+                    player.sendSystemMessage(Component.translatable("nightsiege.expedition.not_yours").withStyle(ChatFormatting.GRAY));
+                }
                 continue;
             }
             if (inside(p, player, 0.0)) {
@@ -2339,18 +2767,88 @@ public final class Expeditions {
         if (list != null && list.contains(player.getUUID().toString()) && !fighters.contains(player.getUUID())) {
             giveBack(player);
         }
+        // Survival safety (31.10., D1/D2): where he stands is looked at once his chunk is loaded
+        // (the dungeon's sealed part, ground of a dungeon or camp that came back meanwhile).
+        SafeGround.expect(player.getUUID());
     }
 
-    /** Everyone out of the fight; the monsters of the open room and the arena go. */
+    /**
+     * Everyone out of the fight; the monsters of the open room and the arena go. Survival safety
+     * (Simon 31.10., D1): an end without a win (the horn, the night, the server stopping, the dungeon
+     * taken away) also puts every fighter out of the sealed part, before the gatehouse (before, he got
+     * his things back down in the hall, the stair gate shut behind him).
+     */
     void endAll(MinecraftServer server, String messageKey) {
+        endAll(server, messageKey, true);
+    }
+
+    /** As above; {@code putOut} false only for the win (the fighters walk out in the 30 s before it collapses). */
+    private void endAll(MinecraftServer server, String messageKey, boolean putOut) {
         for (UUID id : new ArrayList<>(fighters)) {
             ServerPlayer p = server.getPlayerList().getPlayer(id);
             if (p != null) {
                 leave(p, messageKey);
+                if (putOut) {
+                    putOut(server, p, false);
+                }
             }
         }
         fighters.clear();
         resetAttempt(server, false);
+    }
+
+    /**
+     * Survival safety (31.10., D1): a player in the dungeon's sealed part (the stair, the halls, the
+     * arena) who does not fight (any more) is put before the gatehouse; {@code seat}: on a waiting bench
+     * instead (a fighter counted as fallen while the others fight on). True when he was moved.
+     */
+    private boolean putOut(MinecraftServer server, ServerPlayer player, boolean seat) {
+        SiegeSave.ExpeditionRecord rec = record();
+        if (rec == null || !rec.built || rec.layout < LAYOUT) {
+            return false;
+        }
+        ServerLevel level = SiegeManager.levelByName(server, rec.dimension);
+        if (level == null || player.level() != level || player.isSpectator()) {
+            return false;
+        }
+        ExpeditionLayout.Plan p = plan(rec);
+        if (!sealed(p, rec, player)) {
+            return false;
+        }
+        BlockPos to = seat ? p.waiting.get(Math.floorMod(out.size() - 1, p.waiting.size())) : p.door;
+        player.teleportTo(level, to.getX() + 0.5, to.getY() + (seat ? 0.5 : 0.0), to.getZ() + 0.5, java.util.Set.of(),
+                player.getYRot(), player.getXRot(), true);
+        player.resetFallDistance();
+        NightSiegeMod.LOGGER.info("[Night Siege] {} aus dem verschlossenen Teil des Dungeons {} gebracht ({})",
+                player.getScoreboardName(), rec.kind, seat ? "Wartebank" : "vor das Tor");
+        return true;
+    }
+
+    /** In the sealed part: the stair, the ways, halls and arena, or below the gatehouse floor inside the dungeon's bounds. */
+    private boolean sealed(ExpeditionLayout.Plan p, SiegeSave.ExpeditionRecord rec, Entity e) {
+        return p.bounds.contains(e.position()) && (inside(p, e, 1.0) || e.getY() < rec.y - 1);
+    }
+
+    /**
+     * Survival safety (31.10., D1): a player logged in (his chunk loaded, see SafeGround): one who stands
+     * in the sealed part of the dungeon without fighting goes out (on a bench while the fight he left
+     * goes on, else before the gatehouse). True when he was moved.
+     */
+    boolean arrive(ServerLevel level, ServerPlayer player) {
+        SiegeSave.ExpeditionRecord rec = record();
+        if (rec == null || !rec.built || rec.restoring || fighters.contains(player.getUUID())
+                || !SiegeManager.dimensionName(level).equals(rec.dimension)) {
+            return false;
+        }
+        boolean seat = !fighters.isEmpty() && out.contains(player.getUUID());
+        if (!putOut(level.getServer(), player, seat)) {
+            return false;
+        }
+        if (seat && bar != null) {
+            bar.addPlayer(player);
+        }
+        player.sendSystemMessage(Component.translatable("nightsiege.expedition.put_out").withStyle(ChatFormatting.GRAY));
+        return true;
     }
 
     /** The fallen fighter: whole again, own things back, put down before the gate. */
@@ -3106,7 +3604,7 @@ public final class Expeditions {
                         COLLAPSE_TICKS / 20).withStyle(ChatFormatting.YELLOW)));
             }
         }
-        endAll(server, null);
+        endAll(server, null, false);   // they walk out in the 30 s before it collapses
         // After the own things are back (the kit's stash would take it away again).
         if (fragmentTo != null && fragment != null && !playtest) {
             ItemStack stack = new ItemStack(fragment);
@@ -3231,6 +3729,21 @@ public final class Expeditions {
         return true;
     }
 
+    /** The mod's own creatures (the dungeon's monsters, companions, bosses, the night's own) and whatever carries a player. */
+    static boolean ours(Entity entity) {
+        for (String tag : entity.entityTags()) {
+            if (tag.startsWith("nightsiege")) {
+                return true;
+            }
+        }
+        for (Entity rider : entity.getPassengers()) {
+            if (rider instanceof Player) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** Loose things in a dungeon's space before its walls go up: items, orbs, arrows stuck in the ground. */
     private static boolean litter(Entity entity) {
         return entity instanceof net.minecraft.world.entity.item.ItemEntity || entity instanceof net.minecraft.world.entity.ExperienceOrb
@@ -3262,21 +3775,46 @@ public final class Expeditions {
      */
     private static void clearChunk(ServerLevel level, ExpeditionLayout.Plan p, long chunk) {
         for (AABB box : spaceIn(p, chunk)) {
-            for (Entity e : level.getEntitiesOfClass(Entity.class, box, e -> intruder(e) || litter(e))) {
-                e.discard();
+            // Survival safety (Simon 31.10., D3/D6): only monsters and stuck arrows go; animals, villagers and
+            // pets are put on top of the ground, items and orbs too (a player's things from a death in a cave).
+            SafeGround.clearCreatures(level, box, null, Expeditions::ours);
+            for (Entity e : level.getEntitiesOfClass(Entity.class, box, Expeditions::litter)) {
+                if (e instanceof net.minecraft.world.entity.projectile.arrow.AbstractArrow) {
+                    e.discard();
+                } else {
+                    BlockPos top = SafeGround.surface(level, e.getBlockX(), e.getBlockZ());
+                    if (top == null) {
+                        e.discard();
+                    } else {
+                        e.teleportTo(e.getX(), top.getY() + 0.25, e.getZ());
+                    }
+                }
             }
         }
     }
 
     /** Every second while a dungeon stands: creatures that came in from outside go (endermen teleport in). */
     private static void sweep(ServerLevel level, ExpeditionLayout.Plan p) {
+        sweep(level, p, null);
+    }
+
+    /**
+     * As above. Survival safety (Simon 31.10., D3/D6): only monsters go; an animal, a villager or a
+     * golem that got in is put out instead, at {@code out} (null: before the gatehouse door).
+     */
+    private static void sweep(ServerLevel level, ExpeditionLayout.Plan p, Vec3 out) {
+        Vec3 to = out != null ? out : new Vec3(p.door.getX() + 0.5, p.door.getY(), p.door.getZ() + 0.5);
         for (AABB box : p.inside) {
             if (!level.hasChunkAt(BlockPos.containing(box.getCenter()))) {
                 continue;
             }
             // With the walls: a cave monster walled in when the halls went up goes before it suffocates and drops its loot.
             for (Mob mob : level.getEntitiesOfClass(Mob.class, box.inflate(2.0), Expeditions::intruder)) {
-                mob.discard();
+                if (mob instanceof net.minecraft.world.entity.monster.Enemy) {
+                    mob.discard();
+                } else {
+                    SafeGround.moveTo(level, mob, to);
+                }
             }
         }
     }
@@ -3473,6 +4011,11 @@ public final class Expeditions {
      * background). Its door once it stands complete (or a won one), else null: see {@link #building}.
      */
     public BlockPos buildNow(MinecraftServer server) {
+        return buildNow(server, null);
+    }
+
+    /** As above; {@code asker} is told when no safe place is found (survival safety 31.10.: its place is checked). */
+    public BlockPos buildNow(MinecraftServer server, UUID asker) {
         SiegeSave.ExpeditionRecord rec = record();
         if (rec == null || rec.won && !rec.built) {
             return null;
@@ -3483,6 +4026,7 @@ public final class Expeditions {
         if (job == null) {
             Build b = new Build(rec.id, rec.dimension);
             b.stage = rec.built ? Build.FAR : Build.SITE;
+            b.asker = asker;
             job = b;
         }
         return null;
@@ -3567,6 +4111,7 @@ public final class Expeditions {
         plan = null;
         Build b = new Build(rec.id, rec.dimension);
         b.stage = Build.SITE;   // its spot is given: only the plan is worked out (in the background) first
+        b.anywhere = true;   // where the admin stands, no site check (it still sets no block over a chest or spawner)
         b.planAt = groundOrigin(level, origin);
         b.planning = workOut(b.planAt, facing, kind, rooms, rec.id);
         job = b;
@@ -3636,7 +4181,7 @@ public final class Expeditions {
                 rec.chunksDone.size(), rec.complete);
     }
 
-    /** Tests: dungeons whose ground is still coming back. */
+    /** Tests: dungeons whose ground is still coming back (not those only waiting for the world save). */
     public int teardownsLeft() {
         Set<Integer> ids = new HashSet<>(teardowns.keySet());
         if (m.save().expeditionTeardowns != null) {
@@ -3644,6 +4189,71 @@ public final class Expeditions {
                 ids.add(rec.id);
             }
         }
+        ids.removeAll(unsavedTeardowns.keySet());
         return ids.size();
+    }
+
+    /** Tests: teardowns done whose snapshot and record wait for the next world save (31.10.). */
+    public int teardownsUnsaved() {
+        return unsavedTeardowns.size();
+    }
+
+    // Tests of the survival safety (Simon 31.10., scene "ss2-dungeon").
+
+    /** Tests: the fight ends as at the horn ({@code horn}) or as when the server stops. */
+    public void testEndAll(MinecraftServer server, boolean horn) {
+        endAll(server, horn ? "nightsiege.expedition.night" : null);
+    }
+
+    /** Tests: the fighter falls (as when his life runs out in the fight). */
+    public void testFall(ServerPlayer player) {
+        if (fighters.contains(player.getUUID())) {
+            fallOut(player.level().getServer(), player);
+        }
+    }
+
+    /** Tests: the champion falls now (the dungeon is won; it collapses after its 30 s). */
+    public void testWin(MinecraftServer server) {
+        SiegeSave.ExpeditionRecord rec = record();
+        ServerLevel level = rec == null ? null : SiegeManager.levelByName(server, rec.dimension);
+        if (level != null && rec.built && !rec.won) {
+            win(server, level, rec);
+        }
+    }
+
+    /** Tests: the 30 s to get out are over (it collapses with the next tick). */
+    public void testCollapseNow(MinecraftServer server) {
+        SiegeSave.ExpeditionRecord rec = record();
+        if (rec != null && rec.won) {
+            rec.collapseAt = server.overworld().getGameTime();
+        }
+    }
+
+    /** Tests: one tick of the dungeons now (the collapse, the teardown's first step). */
+    public void testTickAll(MinecraftServer server) {
+        tick(server);
+    }
+
+    /** Tests: the player logs in now, his chunk loaded (as SafeGround looks at a login). */
+    public void testArrive(ServerPlayer player) {
+        if (player.level() instanceof ServerLevel level) {
+            SafeGround.arrive(m, level, player);
+        }
+    }
+
+    /** Tests: does the entity stand in a block? */
+    public static boolean testStuck(Entity e) {
+        return e.level() instanceof ServerLevel level && SafeGround.stuck(level, e);
+    }
+
+    /** Tests: the places remembered and how many were put on top. */
+    public String testSafeGround() {
+        return SafeGround.testState(m.save());
+    }
+
+    /** Tests: in the sealed part of the dungeon of now? */
+    public boolean testSealed(Entity e) {
+        SiegeSave.ExpeditionRecord rec = record();
+        return rec != null && rec.built && sealed(plan(rec), rec, e);
     }
 }

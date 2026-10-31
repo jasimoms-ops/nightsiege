@@ -148,6 +148,29 @@ public class SiegeSave {
     public List<ExpeditionRecord> expeditionTeardowns = new ArrayList<>();
     /** Players wearing a kit from a dungeon fight (it goes back when they leave, fall or log in later). */
     public List<String> expeditionKits = new ArrayList<>();
+    /**
+     * Survival safety (Simon 31.10.): where a dungeon or a war camp was taken down. Who stands in a block
+     * there while the ground comes back, or logs in later in one (offline during the fight, on the
+     * waiting bench), is put on top of the ground (see SafeGround).
+     */
+    public List<GoneSite> goneSites = new ArrayList<>();
+
+    /** A place a dungeon or a camp was taken down (its area, and whether its ground is still coming back). */
+    public static class GoneSite {
+        /** "dungeon" or "camp". */
+        public String kind = "";
+        public int id;
+        public String dimension = "";
+        public int minX;
+        public int minY;
+        public int minZ;
+        public int maxX;
+        public int maxY;
+        public int maxZ;
+        public boolean restoring;
+        /** The day it was taken down (the oldest go first when there are too many). */
+        public long day;
+    }
 
     /** The playtest running now (Simon, 28 October 2026), or null. Kept so a restart can undo it. */
     public PlaytestState playtest;
@@ -279,6 +302,11 @@ public class SiegeSave {
         /** After the win: when the dungeon goes (game time), and whether it is being taken down now. */
         public long collapseAt;
         public boolean restoring;
+        /**
+         * Survival safety (31.10.): the ground round the gatehouse is levelled and the world was saved
+         * since (false: written down, but a crash may have lost the levelling; null: a dungeon of before).
+         */
+        public Boolean levelDone;
     }
 
     /**

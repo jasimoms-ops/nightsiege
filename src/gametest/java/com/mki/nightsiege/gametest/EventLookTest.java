@@ -86,6 +86,9 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("dungeons")) {
                     dungeonScene(context, game);
                 }
+                if (want.contains("ss2-dungeon")) {
+                    Ss2DungeonScenes.run(context, game);   // survival safety 2: dungeon and camp (31 October 2026)
+                }
                 if (want.contains("dungeondump")) {
                     dungeonDumpScene(context, game);   // every block of the eight dungeons as a file (29 October 2026)
                 }
@@ -2420,7 +2423,7 @@ public class EventLookTest implements FabricClientGameTest {
      * test world): the chunks loaded, a pillar of stone under the gatehouse; the halls and the
      * arena stand in the air below. Returns the height one walks on.
      */
-    private static int dungeonGround(ClientGameTestContext context, TestSingleplayerContext game, int cx, int cz, int rooms) {
+    static int dungeonGround(ClientGameTestContext context, TestSingleplayerContext game, int cx, int cz, int rooms) {
         int top = -6;
         int cz2 = 20 + 43 * rooms + 38;
         game.getServer().runCommand("forceload add %d %d %d %d".formatted(cx - 34, cz - 14, cx + 34, cz + cz2 + 32));
