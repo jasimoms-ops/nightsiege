@@ -114,3 +114,9 @@ jar {
         rename { "${it}_${project.base.archivesName.get()}" }
     }
 }
+
+// Every build also compiles the client test scenes (31 October 2026): a broken scene shows in a
+// quick build already, not only when the long client test starts.
+tasks.named('build') {
+    dependsOn tasks.matching { it.name == 'compileGametestJava' }
+}
