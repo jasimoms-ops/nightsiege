@@ -6506,6 +6506,11 @@ public class EventLookTest implements FabricClientGameTest {
         for (String[] row : byClass) {
             com.mki.nightsiege.core.SkillClass c = com.mki.nightsiege.core.SkillClass.valueOf(row[0]);
             own.unlockClass(c);
+            // Key abilities a crate of an earlier scene drew by chance (e.g. a guardian's grappling hook) go:
+            // the keys below are checked against this list only (31.10.).
+            for (String id : com.mki.nightsiege.core.CrateGains.KEY_ABILITIES) {
+                own.setGainStage(c, id, 0);
+            }
             for (int i = 1; i < row.length; i++) {
                 String[] kv = row[i].split(":");
                 own.setGainStage(c, kv[0], Integer.parseInt(kv[1]));
