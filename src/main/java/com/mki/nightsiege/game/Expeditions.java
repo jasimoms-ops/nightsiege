@@ -1346,15 +1346,14 @@ public final class Expeditions {
      * this one (a crash would take it down again over the new one's blocks): the new one waits.
      */
     private boolean nearUnsaved(SiegeSave.ExpeditionRecord rec) {
+        if (unsavedTeardowns.isEmpty()) {
+            return false;
+        }
+        double reach = ExpeditionLayout.length(rec.rooms) + 16;   // as far as it can reach (see protects)
+        AABB mine = new AABB(rec.x - reach, -4096, rec.z - reach, rec.x + reach + 1, 4096, rec.z + reach + 1);
         for (Teardown t : unsavedTeardowns.values()) {
-            if (!t.rec.dimension.equals(rec.dimension)) {
-                continue;
-            }
-            double reach = ExpeditionLayout.length(t.rec.rooms) + ExpeditionLayout.length(rec.rooms) + 48;
-            double dx = t.rec.x - rec.x;
-            double dz = t.rec.z - rec.z;
-            if (dx * dx + dz * dz < reach * reach) {
-                return true;
+            if (t.rec.dimension.equals(rec.dimension) && t.plan != null && area(t.rec, t.plan).intersects(mine)) {
+                return true;   // only where the two would touch (the playtest's next one is not held up)
             }
         }
         return false;
