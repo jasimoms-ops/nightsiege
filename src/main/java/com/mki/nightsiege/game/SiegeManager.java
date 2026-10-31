@@ -1119,9 +1119,13 @@ public final class SiegeManager {
         }
     }
 
-    /** Accepts tonight's real night needs: the config's number at most, otherwise everyone invited (Simon 31.10.). */
+    /**
+     * Accepts tonight's real night needs: the config's number at most, otherwise everyone invited
+     * (Simon 31.10.). Before any invitation (the core window) as if every signed-up player were invited.
+     */
     public int requiredAccepts() {
-        return SiegeRhythm.requiredAccepts(config, save.invitedCount());
+        int invited = save.invitedCount();
+        return SiegeRhythm.requiredAccepts(config, invited > 0 ? invited : save.registered == null ? 0 : save.registered.size());
     }
 
     /** True on Peaceful: monsters vanish at once, a night would be a free win (Simon 31.10.). */
