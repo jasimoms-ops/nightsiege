@@ -535,11 +535,14 @@ public class EventLookTest implements FabricClientGameTest {
             level.setBlock(fix.offset(4, -1, 0), net.minecraft.world.level.block.Blocks.FARMLAND.defaultBlockState(), 3);
             level.setBlock(fix.offset(0, 0, -8), planks, 3);
             int before = com.mki.nightsiege.game.NightDamage.lostCount();
-            level.explode(null, fix.getX() + 0.5, fix.getY() + 0.5, fix.getZ() + 0.5, 3.0f,
-                    net.minecraft.world.level.Level.ExplosionInteraction.TNT);
-            level.setBlock(fix.offset(-4, 1, 0), net.minecraft.world.level.block.Blocks.FIRE.defaultBlockState(), 3);
-            level.setBlock(fix.offset(-4, 0, 0), net.minecraft.world.level.block.Blocks.FIRE.defaultBlockState(), 3);   // burnt
-            level.setBlock(fix.offset(4, -1, 0), net.minecraft.world.level.block.Blocks.DIRT.defaultBlockState(), 3);   // trampled
+            // As the night's attackers (since 31.10. only their damage is written down).
+            com.mki.nightsiege.game.NightDamage.asAttacker(() -> {
+                level.explode(null, fix.getX() + 0.5, fix.getY() + 0.5, fix.getZ() + 0.5, 3.0f,
+                        net.minecraft.world.level.Level.ExplosionInteraction.TNT);
+                level.setBlock(fix.offset(-4, 1, 0), net.minecraft.world.level.block.Blocks.FIRE.defaultBlockState(), 3);
+                level.setBlock(fix.offset(-4, 0, 0), net.minecraft.world.level.block.Blocks.FIRE.defaultBlockState(), 3);   // burnt
+                level.setBlock(fix.offset(4, -1, 0), net.minecraft.world.level.block.Blocks.DIRT.defaultBlockState(), 3);   // trampled
+            });
             com.mki.nightsiege.game.NightDamage.playerBegin();
             level.destroyBlock(fix.offset(0, 0, -8), false);   // a player's own (out of the blast)
             com.mki.nightsiege.game.NightDamage.playerEnd();

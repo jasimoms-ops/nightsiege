@@ -244,6 +244,32 @@ public final class TrapService {
         return true;
     }
 
+    /**
+     * Simon 31.10. (survival safety): a trap that stands again by itself after the night (any trap
+     * at home lost in a night: rebuilt, or its spare part back in the inventory) drops no trap item
+     * when a blast or a monster breaks it – else it would be there twice.
+     */
+    public boolean comesBack(ServerLevel level, BlockPos pos) {
+        TrapRecord record = find(level, pos);
+        return record != null && !record.field && NightDamage.recording(level);
+    }
+
+    /** The traps lost tonight that stand again after it (for the damage log on disk). */
+    public List<TrapRecord> recycledNow() {
+        return new ArrayList<>(recycled);
+    }
+
+    /** After a crash mid-night: the traps that night lost stand again now. Returns how many were waiting. */
+    public int recycleAfterCrash(MinecraftServer server, List<TrapRecord> lost) {
+        if (lost == null || lost.isEmpty()) {
+            return 0;
+        }
+        recycled.addAll(lost);
+        int count = lost.size();
+        recycle(server);
+        return count;
+    }
+
     /** After the night: recycled traps stand where they stood (if the spot is free). */
     public void recycle(MinecraftServer server) {
         spareUsed.clear();
@@ -508,6 +534,7 @@ public final class TrapService {
                     // Ersatzteil (id recycling, 27 October 2026): back in the owner's inventory at once.
                 } else if (NightDamage.recording(level) || gainOf(record, "recycling") > 0) {
                     recycled.add(record);   // every trap lost in the night stands again after it (27 October 2026)
+                    NightDamage.changed();   // also after a crash (the damage log on disk, 31.10.)
                 }
                 continue;
             }

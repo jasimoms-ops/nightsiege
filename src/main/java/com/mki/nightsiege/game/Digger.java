@@ -104,7 +104,7 @@ public final class Digger {
             state.ticks += elapsedTicks;
             if (state.ticks >= cfg.digTicksPerBlock * slowdown * hardness.applyAsDouble(world, target)) {
                 NightDamage.record(world, target, world.getBlockState(target));   // back after the night
-                world.destroyBlock(target, false);
+                NightDamage.asAttacker(() -> world.destroyBlock(target, false));   // what falls off with it too, no drops (31.10.)
                 broken++;
                 state.target = null;
                 state.ticks = 0;

@@ -4,7 +4,6 @@ import com.mki.nightsiege.core.PlayerSkills;
 import com.mki.nightsiege.core.SiegeConfig;
 import com.mki.nightsiege.core.SkillEffect;
 import com.mki.nightsiege.core.SkillTree;
-import it.unimi.dsi.fastutil.longs.LongArrayList;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.MinecraftServer;
@@ -14,14 +13,10 @@ import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
-import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.LiquidBlock;
-import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.Heightmap;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -40,8 +35,6 @@ public final class BaseDefense {
     /** Blocks in front of and behind the wall that still count as "on the wall". */
     private static final double WALL_INSIDE = 4.0;
     private static final double WALL_OUTSIDE = 2.5;
-    private static final int MAX_SNAPSHOT = 600_000;
-    private static final int MAX_CHECKS = 2_500_000;
     private static final double[] REBUILD_SHARE = {0.0, 0.4, 0.7, 1.0};
 
     private static BaseDefense activeDefense;
@@ -52,8 +45,6 @@ public final class BaseDefense {
     private double battlements;
     private boolean beacon;
     private int rebuild;
-    private final LongArrayList savedPos = new LongArrayList();
-    private final List<BlockState> savedState = new ArrayList<>();
 
     /** Scans the base and reads the core tree at the start of a night. */
     public void begin(ServerLevel world, BlockPos anchor, SiegeConfig cfg, PlayerSkills core, SkillTree tree,
@@ -73,10 +64,13 @@ public final class BaseDefense {
         this.beacon = false;
         this.rebuild = REBUILD_SHARE.length - 1;
         digger.setSlowdown(1.0);
-        savedPos.clear();
-        savedState.clear();
-        snapshot();
-        NightDamage.begin(world, anchor);
+        // Survival safety (Simon 31.10.): no snapshot of the whole base any more. It put back what was there
+        // at dusk wherever a spot was empty after the night, whoever had emptied it: a trench a player dug,
+        // a gate a player opened, a piston door (its blocks moved and came back at the old spots as well).
+        // Only what the night's attackers broke comes back now, written down as it breaks (NightDamage),
+        // within the base's radius and the field in front of its walls.
+        int reach = Math.max(cfg.baseRadius, base == null ? 0 : (int) Math.ceil(base.reach())) + NightDamage.FIELD_MARGIN;
+        NightDamage.begin(world, anchor, reach);
         activeDefense = this;
     }
 
@@ -91,8 +85,6 @@ public final class BaseDefense {
         battlements = 0;
         beacon = false;
         rebuild = 0;
-        savedPos.clear();
-        savedState.clear();
     }
 
     public BaseScan base() {
@@ -192,80 +184,17 @@ public final class BaseDefense {
 
     // ------------------------------------------------------------------ rebuilding
 
-    /** Remembers every block of the base (except containers and fluids) before the night. */
-    private void snapshot() {
-        if (base == null) {
-            return;
-        }
-        double margin = 2.5;
-        int r = (int) Math.ceil(base.reach() + margin);
-        int checks = 0;
-        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
-        for (int x = anchor.getX() - r; x <= anchor.getX() + r; x++) {
-            for (int z = anchor.getZ() - r; z <= anchor.getZ() + r; z++) {
-                if (!base.near(x, z, margin) || !world.hasChunk(x >> 4, z >> 4)) {
-                    continue;
-                }
-                for (int y = anchor.getY() - 8; y <= anchor.getY() + 24; y++) {
-                    if (++checks > MAX_CHECKS || savedPos.size() >= MAX_SNAPSHOT) {
-                        return;
-                    }
-                    pos.set(x, y, z);
-                    BlockState state = world.getBlockState(pos);
-                    if (state.isAir() || state.hasBlockEntity() || state.getBlock() instanceof LiquidBlock
-                            || ModContent.trapOf(state) != null || ModContent.isCore(state)) {
-                        continue;   // traps come back with their record (TrapService.recycle), the core never breaks
-                    }
-                    savedPos.add(pos.asLong());
-                    savedState.add(state);
-                }
-            }
-        }
-    }
-
     /**
-     * Mends what the night broke: a share of the missing blocks comes back, solid
-     * blocks first and from the bottom up. Damage done after this call (the blast
-     * of a lost night) stays. Returns the number of blocks put back.
+     * Mends what the night's attackers broke (NightDamage): solid blocks first and from the bottom
+     * up. Damage done after this call (the blast of a lost night) stays. Returns the number of
+     * blocks put back.
      */
     public int restore(Random random) {
         if (rebuild <= 0 || world == null) {
             return 0;
         }
         NightDamage.douse(world);   // the night's fire goes out before anything comes back
-        List<Integer> missing = new ArrayList<>();
-        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
-        for (int i = 0; i < savedPos.size(); i++) {
-            pos.set(BlockPos.of(savedPos.getLong(i)));
-            if (!world.hasChunk(pos.getX() >> 4, pos.getZ() >> 4)) {
-                continue;
-            }
-            BlockState now = world.getBlockState(pos);
-            if (now != savedState.get(i) && (now.isAir() || now.canBeReplaced())) {
-                missing.add(i);
-            }
-        }
-        double share = REBUILD_SHARE[Math.min(REBUILD_SHARE.length - 1, rebuild)];
-        if (share < 1.0) {
-            Collections.shuffle(missing, random);
-            missing = new ArrayList<>(missing.subList(0, (int) Math.round(missing.size() * share)));
-        }
-        missing.sort((a, b) -> {
-            boolean fullA = isFull(savedState.get(a), savedPos.getLong(a));
-            boolean fullB = isFull(savedState.get(b), savedPos.getLong(b));
-            if (fullA != fullB) {
-                return fullA ? -1 : 1;
-            }
-            return Integer.compare(BlockPos.getY(savedPos.getLong(a)), BlockPos.getY(savedPos.getLong(b)));
-        });
-        int put = 0;
-        for (int i : missing) {
-            if (world.setBlock(BlockPos.of(savedPos.getLong(i)), savedState.get(i), Block.UPDATE_CLIENTS)) {
-                put++;
-            }
-        }
-        // Everything else monsters broke in the night, also outside the base's snapshot.
-        put += NightDamage.restore(world);
+        int put = NightDamage.restore(world);
         if (put > 0 && anchor != null) {
             world.sendParticles(ParticleTypes.HAPPY_VILLAGER, anchor.getX() + 0.5, anchor.getY() + 1.5,
                     anchor.getZ() + 0.5, 30, 1.5, 1.0, 1.5, 0.0);
@@ -274,41 +203,14 @@ public final class BaseDefense {
     }
 
     /**
-     * The trowel (a guardian's crate gain): every block of the base that the night broke
-     * within {@code radius} of a spot comes back at once. Returns the number put back.
+     * The trowel (a guardian's crate gain): what the night's attackers broke within
+     * {@code radius} of a spot comes back at once. Returns the number put back.
      */
     public int restoreNear(BlockPos center, double radius) {
-        if (world == null || savedPos.isEmpty() || center == null) {
+        if (world == null || center == null) {
             return 0;
         }
-        double r2 = radius * radius;
-        List<Integer> missing = new ArrayList<>();
-        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
-        for (int i = 0; i < savedPos.size(); i++) {
-            pos.set(BlockPos.of(savedPos.getLong(i)));
-            if (pos.distSqr(center) > r2 || !world.hasChunk(pos.getX() >> 4, pos.getZ() >> 4)) {
-                continue;
-            }
-            BlockState now = world.getBlockState(pos);
-            if (now != savedState.get(i) && (now.isAir() || now.canBeReplaced())) {
-                missing.add(i);
-            }
-        }
-        missing.sort((a, b) -> Integer.compare(BlockPos.getY(savedPos.getLong(a)), BlockPos.getY(savedPos.getLong(b))));
-        int put = 0;
-        for (int i : missing) {
-            BlockPos at = BlockPos.of(savedPos.getLong(i));
-            if (world.getEntitiesOfClass(net.minecraft.world.entity.LivingEntity.class, new net.minecraft.world.phys.AABB(at)).isEmpty()
-                    && world.setBlock(at, savedState.get(i), Block.UPDATE_CLIENTS)) {
-                put++;
-                world.sendParticles(ParticleTypes.WAX_ON, at.getX() + 0.5, at.getY() + 0.5, at.getZ() + 0.5, 3, 0.3, 0.3, 0.3, 0);
-            }
-        }
-        return put;
-    }
-
-    private boolean isFull(BlockState state, long packed) {
-        return state.isCollisionShapeFullBlock(world, BlockPos.of(packed));
+        return NightDamage.restoreNear(world, center, radius);
     }
 
     // ------------------------------------------------------------------ the core window

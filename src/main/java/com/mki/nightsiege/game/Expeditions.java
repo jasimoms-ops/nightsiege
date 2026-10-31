@@ -879,7 +879,7 @@ public final class Expeditions {
      */
     private void restoreStep(ServerLevel level, SiegeSave.ExpeditionRecord rec, int budget, boolean loadOne) {
         ExpeditionSnapshot snap = snapshot(level.getServer(), rec);
-        plan(rec);
+        ExpeditionLayout.Plan p = plan(rec);
         boolean loaded = false;
         while (budget > 0) {
             if (cursorChunk == Long.MIN_VALUE) {
@@ -921,7 +921,8 @@ public final class Expeditions {
             for (; cursorIndex < where.size() && budget > 0; cursorIndex++, budget--) {
                 BlockState old = snap.old(cursorChunk, cursorIndex);
                 BlockPos pos = where.get(cursorIndex);
-                if (old != null && level.getBlockState(pos) != old) {
+                if (old != null && level.getBlockState(pos) != old
+                        && Teardown.mayReset(level, pos, old, now -> dungeonOwn(p, pos, now))) {   // a player's things stay (31.10.)
                     level.setBlock(pos, old, Block.UPDATE_CLIENTS);
                 }
             }
@@ -932,6 +933,15 @@ public final class Expeditions {
                 m.persist();
             }
         }
+    }
+
+    /** Survival safety (31.10.): a block the dungeon set at this spot itself (its plan; the arena's bars). */
+    private static boolean dungeonOwn(ExpeditionLayout.Plan p, BlockPos pos, BlockState now) {
+        BlockState want = p.blocks.get(pos);
+        if (want == null) {
+            want = p.fill.get(pos);
+        }
+        return now.is(Blocks.IRON_BARS) || want != null && now.is(want.getBlock());
     }
 
     /** The chunks to take back: the plan's from the gatehouse outwards, then any other the snapshot knows. */
@@ -971,16 +981,19 @@ public final class Expeditions {
 
     /** All back: the levelled ground too, the snapshot and the record go. */
     private void finishRestore(ServerLevel level, SiegeSave.ExpeditionRecord rec, ExpeditionSnapshot snap) {
+        ExpeditionLayout.Plan p = plan(rec);
         if (snap.has(LEVEL_CHUNK)) {
             List<BlockPos> where = snap.places(LEVEL_CHUNK) != null ? snap.places(LEVEL_CHUNK) : levelSpots(rec);
             for (int i = 0; i < where.size(); i++) {
                 BlockState old = snap.old(LEVEL_CHUNK, i);
-                if (old != null && level.getBlockState(where.get(i)) != old) {
-                    level.setBlock(where.get(i), old, Block.UPDATE_CLIENTS);
+                BlockPos pos = where.get(i);
+                // The levelled ground: earth, grass and the path were the dungeon's; a player's things stay (31.10.).
+                if (old != null && level.getBlockState(pos) != old && Teardown.mayReset(level, pos, old, now -> now.is(Blocks.DIRT)
+                        || now.is(Blocks.GRASS_BLOCK) || now.is(Blocks.DIRT_PATH) || dungeonOwn(p, pos, now))) {
+                    level.setBlock(pos, old, Block.UPDATE_CLIENTS);
                 }
             }
         }
-        ExpeditionLayout.Plan p = plan(rec);
         for (ServerPlayer player : level.players()) {
             if (player.distanceToSqr(p.door.getX() + 0.5, p.door.getY(), p.door.getZ() + 0.5) < 36.0) {
                 BlockPos up = level.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, player.blockPosition());

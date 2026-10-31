@@ -1685,13 +1685,9 @@ public final class SiegeCamp {
         }
         Map<BlockPos, BlockState> blocks = CampLayout.blocks(center, camp.facing, camp.id);
         if (m.save().campGrounds != null && m.save().campGrounds.contains(camp.id + "|" + camp.dimension)) {
-            // Written down when it was built: its chests empty now, then the old ground comes back
-            // chunk by chunk (restoreGround), trees, hills and all.
-            for (BlockPos pos : blocks.keySet()) {
-                if (level.hasChunk(pos.getX() >> 4, pos.getZ() >> 4) && level.getBlockEntity(pos) instanceof Container container) {
-                    container.clearContent();
-                }
-            }
+            // Written down when it was built: the old ground comes back chunk by chunk (restoreGround),
+            // trees, hills and all. Its barrels are not emptied any more (Simon 31.10.: survival safety):
+            // what lies in one is a player's, and a barrel with something in it stays standing.
             for (int i = 0; i < 20; i++) {
                 level.sendParticles(ParticleTypes.CAMPFIRE_COSY_SMOKE, center.getX() + random.nextGaussian() * 8, center.getY() + 1,
                         center.getZ() + random.nextGaussian() * 8, 1, 0, 0.05, 0, 0.01);
@@ -1708,8 +1704,8 @@ public final class SiegeCamp {
                 continue;   // someone changed it: leave it
             }
             BlockEntity be = level.getBlockEntity(e.getKey());
-            if (be instanceof Container container) {
-                container.clearContent();
+            if (be instanceof Container container && !container.isEmpty()) {
+                continue;   // something lies in it, a player's: it stays (31.10.)
             }
             level.setBlock(e.getKey(), Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS);
             taken++;
@@ -1776,92 +1772,115 @@ public final class SiegeCamp {
     }
 
     /** The camps whose old ground is coming back: a few chunks every tick, once their chunks are loaded. */
-    private ExpeditionSnapshot groundSnap;
-    private String groundKey;
+    private final Map<String, ExpeditionSnapshot> groundSnaps = new java.util.HashMap<>();
+    /** Per waiting camp the blocks it set itself (its layout's), so a player's blocks there stay (31.10.). */
+    private final Map<String, java.util.Set<Block>> groundBlocks = new java.util.HashMap<>();
     /** For the tests: blocks of old ground put back so far. */
     private int groundPut;
 
+    /**
+     * Survival safety (Simon 31.10.): every waiting camp in turn, each with the chunks of it that are
+     * loaded now (the first one waiting for a chunk nobody visits no longer holds up the others).
+     * A spot keeps a player's thing (a chest with something in it, a block of their own, a portal).
+     */
     private void restoreGround(MinecraftServer server) {
         List<String> pending = m.save().campGrounds;
         if (pending == null || pending.isEmpty()) {
             return;
         }
         SiegeSave.CampRecord standing = camp();
-        String key = null;
-        for (String k : pending) {
-            if (standing == null || !k.equals(standing.id + "|" + standing.dimension)) {
-                key = k;
+        String standingKey = standing == null ? null : standing.id + "|" + standing.dimension;
+        int[] budget = {6000};
+        boolean changed = false;
+        for (String key : new ArrayList<>(pending)) {
+            if (budget[0] <= 0) {
                 break;
             }
-        }
-        if (key == null) {
-            return;   // only the standing camp's ground is written down
-        }
-        String[] parts = key.split("\\|", 2);
-        int id;
-        try {
-            id = Integer.parseInt(parts[0]);
-        } catch (NumberFormatException e) {
-            pending.remove(key);
-            return;
-        }
-        ServerLevel level = parts.length > 1 ? SiegeManager.levelByName(server, parts[1]) : null;
-        if (level == null) {
-            pending.remove(key);
-            m.persist();
-            return;
-        }
-        if (groundSnap == null || !key.equals(groundKey)) {
-            groundSnap = ExpeditionSnapshot.loadCamp(server, id);
-            groundKey = key;
-        }
-        int budget = 6000;
-        int[] put = {0};
-        for (long chunk : groundSnap.keys()) {
-            if (budget <= 0) {
-                break;
+            if (key.equals(standingKey)) {
+                continue;   // only the standing camp's ground is written down
             }
-            int cx = (int) chunk;
-            int cz = (int) (chunk >>> 32);
-            if (!level.hasChunk(cx, cz)) {
-                continue;   // back once someone comes by
-            }
-            List<BlockPos> where = groundSnap.places(chunk);
-            if (where == null) {
-                groundSnap.forget(chunk);
+            String[] parts = key.split("\\|", 2);
+            int id;
+            try {
+                id = Integer.parseInt(parts[0]);
+            } catch (NumberFormatException e) {
+                pending.remove(key);
+                changed = true;
                 continue;
             }
-            List<Integer> order = new ArrayList<>();
-            for (int i = 0; i < where.size(); i++) {
-                order.add(i);
+            ServerLevel level = parts.length > 1 ? SiegeManager.levelByName(server, parts[1]) : null;
+            if (level == null) {
+                pending.remove(key);
+                groundSnaps.remove(key);
+                changed = true;
+                continue;
             }
-            order.sort((a, b) -> Integer.compare(where.get(a).getY(), where.get(b).getY()));   // from the bottom up
-            NightDamage.quietly(() -> {
-                for (int i : order) {
-                    BlockState old = groundSnap.old(chunk, i);
-                    BlockPos pos = where.get(i);
-                    if (old == null || level.getBlockState(pos) == old) {
-                        continue;
-                    }
-                    if (level.getBlockEntity(pos) instanceof Container container) {
-                        container.clearContent();
-                    }
-                    level.setBlock(pos, old, Block.UPDATE_CLIENTS);
-                    put[0]++;
+            final int campId = id;
+            ExpeditionSnapshot snap = groundSnaps.computeIfAbsent(key, k -> ExpeditionSnapshot.loadCamp(server, campId));
+            java.util.Set<Block> own = groundBlocks.computeIfAbsent(key, k -> campBlocks(campId));
+            int[] put = {0};
+            for (long chunk : snap.keys()) {
+                if (budget[0] <= 0) {
+                    break;
                 }
-            });
-            budget -= where.size();
-            groundSnap.forget(chunk);
+                int cx = (int) chunk;
+                int cz = (int) (chunk >>> 32);
+                if (!level.hasChunk(cx, cz)) {
+                    continue;   // back once someone comes by
+                }
+                List<BlockPos> where = snap.places(chunk);
+                if (where == null) {
+                    snap.forget(chunk);
+                    continue;
+                }
+                List<Integer> order = new ArrayList<>();
+                for (int i = 0; i < where.size(); i++) {
+                    order.add(i);
+                }
+                order.sort((a, b) -> Integer.compare(where.get(a).getY(), where.get(b).getY()));   // from the bottom up
+                NightDamage.quietly(() -> {
+                    for (int i : order) {
+                        BlockState old = snap.old(chunk, i);
+                        BlockPos pos = where.get(i);
+                        if (old == null || level.getBlockState(pos) == old
+                                || !Teardown.mayReset(level, pos, old, now -> own.contains(now.getBlock()))) {
+                            continue;
+                        }
+                        level.setBlock(pos, old, Block.UPDATE_CLIENTS);
+                        put[0]++;
+                    }
+                });
+                budget[0] -= where.size();
+                snap.forget(chunk);
+            }
+            groundPut += put[0];
+            if (snap.chunkCount() == 0) {
+                snap.delete();
+                groundSnaps.remove(key);
+                groundBlocks.remove(key);
+                pending.remove(key);
+                changed = true;
+                NightSiegeMod.LOGGER.info("[Night Siege] Gelände des Heerlagers {} wiederhergestellt", id);
+            }
         }
-        groundPut += put[0];
-        if (groundSnap.chunkCount() == 0) {
-            groundSnap.delete();
-            groundSnap = null;
-            groundKey = null;
-            pending.remove(key);
+        if (changed) {
             m.persist();
-            NightSiegeMod.LOGGER.info("[Night Siege] Gelände des Heerlagers {} wiederhergestellt", id);
         }
+    }
+
+    /** The blocks a camp of this id sets (its layout, its floor, the earth under it). */
+    private static java.util.Set<Block> campBlocks(long id) {
+        java.util.Set<Block> out = new java.util.HashSet<>();
+        for (BlockState s : CampLayout.blocks(BlockPos.ZERO, 0, id).values()) {
+            out.add(s.getBlock());
+        }
+        for (BlockState s : CampLayout.floor(BlockPos.ZERO, 0, id).values()) {
+            out.add(s.getBlock());
+        }
+        out.add(Blocks.DIRT);
+        out.add(Blocks.GRASS_BLOCK);
+        out.add(Blocks.COARSE_DIRT);
+        return out;
     }
 
     /** For the tests: blocks of old ground put back, and camps still waiting for theirs. */

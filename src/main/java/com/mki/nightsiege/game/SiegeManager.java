@@ -344,6 +344,7 @@ public final class SiegeManager {
             noteTickLoad();
         });
         NightDamage.exclude(camp::covers);   // the war camp is not the night's to mend
+        ServerLifecycleEvents.SERVER_STOPPING.register(server -> safe("Reparatur", () -> NightDamage.flush(server)));   // the damage log on disk (31.10.)
         // Object parameters keep these handlers compiling across Fabric versions.
         ServerLivingEntityEvents.AFTER_DEATH.register((entity, source) -> onDeath(entity, source));
         ServerEntityCombatEvents.AFTER_KILLED_OTHER_ENTITY.register(
@@ -517,6 +518,7 @@ public final class SiegeManager {
             if (left > 0) {
                 NightSiegeMod.LOGGER.info("[Night Siege] {} Nacht-Blöcke von einem Absturz aufgeräumt", left);
             }
+            safe("Reparatur nach Absturz", () -> NightDamage.recover(server));   // a night that crashed: its damage on disk is mended now (31.10.)
         }
         playtest.afterRestart(server);   // a playtest that ran when the server went down is undone
         NightSiegeMod.LOGGER.info("[Night Siege] {} Cores bekannt, {} Belagerungen bestanden",
@@ -3423,6 +3425,12 @@ public final class SiegeManager {
 
     /** The rebuilding of the core tree mends the base; then the night's base is forgotten. */
     private void mendBase(MinecraftServer server) {
+        // The night's temporary blocks go first (Simon 31.10.: survival safety): a barricade, the war banner,
+        // a ladder or light standing in a gap kept the gap from being filled, and went right after: a hole for good.
+        int temp = TempBlocks.clearAll(server);
+        if (temp > 0) {
+            NightSiegeMod.LOGGER.info("[Night Siege] {} Nacht-Blöcke vor der Reparatur abgebaut", temp);
+        }
         int repaired = defense.restore(random);
         if (repaired > 0) {
             broadcast(server, Component.translatable("nightsiege.msg.rebuilt", repaired)
