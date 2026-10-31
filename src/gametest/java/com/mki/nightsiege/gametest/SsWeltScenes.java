@@ -175,8 +175,8 @@ final class SsWeltScenes {
             log("breach: lost=" + NightDamage.isLost(w1) + "/" + NightDamage.isLost(w1up) + " barricade=" + fence + " ladder=" + ladder
                     + " now " + level.getBlockState(w1).getBlock() + " / " + level.getBlockState(w1up).getBlock());
             // A player opens the wall and knocks the support from under the sand.
-            boolean took = player.gameMode().destroyBlock(w2);
-            boolean support = player.gameMode().destroyBlock(sandSupport);
+            boolean took = player.gameMode.destroyBlock(w2);
+            boolean support = player.gameMode.destroyBlock(sandSupport);
             log("player took wall=" + took + " lost=" + NightDamage.isLost(w2) + " support=" + support);
             // A player's TNT inside and outside the base, and a siege creeper inside and outside.
             for (BlockPos at : List.of(new BlockPos(cx - 3, cy + 2, cz + 4), new BlockPos(far, farY[0] + 2, cz))) {
