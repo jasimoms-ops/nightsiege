@@ -5603,7 +5603,7 @@ public class EventLookTest implements FabricClientGameTest {
             if (!manager.isRegistered(player)) {
                 manager.register(player);
             }
-            long day = player.level().getServer().overworld().getDayTime() / 24000L;
+            long day = com.mki.nightsiege.core.SiegeMath.dayOf(player.level().getServer().overworld().getOverworldClockTime());
             manager.save().nextSiegeDay = day + 3;   // no siege today or tonight
             manager.save().clearVotes();
             home[0] = c.x + 6.5;
@@ -5778,7 +5778,7 @@ public class EventLookTest implements FabricClientGameTest {
         });
         context.waitTicks(180);
         onServer(context, (player, manager) -> {
-            everydayLog("after sleeping: sleeping=" + player.isSleeping() + " time=" + (player.level().getServer().overworld().getDayTime() % 24000L)
+            everydayLog("after sleeping: sleeping=" + player.isSleeping() + " time=" + com.mki.nightsiege.core.SiegeMath.timeOfDay(player.level().getServer().overworld().getOverworldClockTime())
                     + " (vanilla: morning) active=" + manager.isActive() + " kit=" + manager.kits().hasStash(player)
                     + " nextSiegeDay=" + manager.save().nextSiegeDay);
             if (player.isSleeping()) {
