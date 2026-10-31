@@ -4207,6 +4207,11 @@ public final class Expeditions {
         }
     }
 
+    /** Tests: one tick of the dungeons now (the collapse, the teardown's first step). */
+    public void testTickAll(MinecraftServer server) {
+        tick(server);
+    }
+
     /** Tests: the player logs in now, his chunk loaded (as SafeGround looks at a login). */
     public void testArrive(ServerPlayer player) {
         if (player.level() instanceof ServerLevel level) {

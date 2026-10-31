@@ -70,6 +70,18 @@ final class Ss2DungeonScenes {
         return e.blockPosition().getX() + " " + e.blockPosition().getY() + " " + e.blockPosition().getZ();
     }
 
+    /** Down in the first hall (the sealed part). */
+    private static void inHall(ServerPlayer player, int fx, int fy, int bz) {
+        player.teleportTo((ServerLevel) player.level(), fx + 0.5, fy - 20, bz + 45.5, java.util.Set.of(), player.getYRot(),
+                player.getXRot(), true);
+    }
+
+    /** As the autosave (Fabric's AFTER_SAVE runs after it); "save-all" is a command of the dedicated server only. */
+    private static void saveWorld(ClientGameTestContext context) {
+        EventLookTest.onServer(context, (player, manager) -> player.level().getServer().saveAllChunks(true, false, true));
+        context.waitTicks(20);
+    }
+
     private static String spawnerData(ServerLevel level, BlockPos pos) {
         net.minecraft.world.level.block.entity.BlockEntity be = level.getBlockEntity(pos);
         return be == null ? "kein" : be.saveWithoutMetadata(level.registryAccess()).toString();
@@ -124,16 +136,16 @@ final class Ss2DungeonScenes {
         for (int round = 0; round < 2; round++) {
             final boolean horn = round == 0;
             EventLookTest.onServer(context, (player, manager) -> {
+                // Down the stairs into the hall: the fight begins.
+                inHall(player, fx, fy, bz);
                 manager.expeditions().testJoin(player);
                 log((horn ? "horn" : "stopp") + " vorher: kämpfer=" + manager.expeditions().isFighter(player)
                         + " kit=" + manager.kits().hasStash(player) + " muscheln=" + shells(player));
             });
-            context.waitTicks(20);
+            context.waitTicks(30);
             EventLookTest.closeScreen(context);
-            game.getServer().runCommand("tp @p %d.5 %d %d.5".formatted(fx, fy - 20, bz + 45));
-            context.waitTicks(20);
             EventLookTest.onServer(context, (player, manager) -> {
-                boolean sealedBefore = manager.expeditions().testSealed(player);
+                boolean sealedBefore = manager.expeditions().testSealed(player) && manager.expeditions().isFighter(player);
                 String at = where(player);
                 manager.expeditions().testEndAll(player.level().getServer(), horn);
                 log((horn ? "horn" : "stopp") + ": in der Halle=" + sealedBefore + " bei " + at + " -> kämpfer="
@@ -155,26 +167,28 @@ final class Ss2DungeonScenes {
         context.waitTicks(20);
 
         // 2. A fallen player on the waiting bench when the dungeon is won.
-        EventLookTest.onServer(context, (player, manager) -> manager.expeditions().testJoin(player));
-        context.waitTicks(20);
+        EventLookTest.onServer(context, (player, manager) -> {
+            inHall(player, fx, fy, bz);
+            manager.expeditions().testJoin(player);
+        });
+        context.waitTicks(30);
         EventLookTest.closeScreen(context);
-        game.getServer().runCommand("tp @p %d.5 %d %d.5".formatted(fx, fy - 20, bz + 45));
-        context.waitTicks(20);
         EventLookTest.onServer(context, (player, manager) -> {
+            boolean fighter = manager.expeditions().isFighter(player);
             manager.expeditions().testFall(player);
-            log("gefallen: kämpfer=" + manager.expeditions().isFighter(player) + " bei " + where(player)
-                    + " (Bänke bei z " + bz + ".." + (bz + 3) + ")");
+            log("gefallen: war kämpfer=" + fighter + " -> kämpfer=" + manager.expeditions().isFighter(player) + " bei " + where(player)
+                    + " (Bänke bei x " + (fx - 4) + "/" + (fx + 4) + " z " + bz + ".." + (bz + 3) + ")");
         });
         context.waitTicks(20);
         EventLookTest.onServer(context, (player, manager) -> {
-            manager.expeditions().testWin(player.level().getServer());
-            manager.expeditions().testCollapseNow(player.level().getServer());
-        });
-        context.waitTicks(10);
-        EventLookTest.onServer(context, (player, manager) -> log("eingestürzt: spieler bei " + where(player) + " | "
-                + manager.expeditions().testState() + " | " + manager.expeditions().testSafeGround()));
-        // As one who walked back to the bench while it is taken down: the hill comes back round him.
-        EventLookTest.onServer(context, (player, manager) -> {
+            net.minecraft.server.MinecraftServer server = player.level().getServer();
+            String bench = where(player);
+            manager.expeditions().testWin(server);
+            manager.expeditions().testCollapseNow(server);
+            manager.expeditions().testTickAll(server);   // it collapses: everyone out
+            log("eingestürzt: bank-spieler " + bench + " -> " + where(player) + " | " + manager.expeditions().testState()
+                    + " | " + manager.expeditions().testSafeGround());
+            // As one who walks back to the bench while it is taken down: the hill comes back round him.
             ServerLevel level = (ServerLevel) player.level();
             player.teleportTo(level, fx - 3.5, fy + 0.5, bz + 0.5, java.util.Set.of(), player.getYRot(), player.getXRot(), true);
         });
@@ -209,8 +223,7 @@ final class Ss2DungeonScenes {
         });
         context.waitTicks(10);
         // The world saved: the teardown's snapshot and record go now (D4).
-        game.getServer().runCommand("save-all");
-        context.waitTicks(40);
+        saveWorld(context);
         EventLookTest.onServer(context, (player, manager) -> log("nach dem speichern: wartend=" + manager.expeditions().teardownsUnsaved()
                 + " einträge=" + manager.save().expeditionTeardowns.size()));
         context.waitTicks(10);
@@ -229,6 +242,7 @@ final class Ss2DungeonScenes {
                 log("bauen: keine Meldung");
                 return;
             }
+            level.getChunk(rec.x >> 4, rec.z >> 4);   // loaded (or generated) for the boards
             int y = level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, rec.x, rec.z);
             for (int dx = -4; dx <= 4; dx++) {
                 for (int dz = -4; dz <= 4; dz++) {
@@ -323,8 +337,7 @@ final class Ss2DungeonScenes {
                     + com.mki.nightsiege.game.Expeditions.testStuck(player));
         });
         context.waitTicks(10);
-        game.getServer().runCommand("save-all");
-        context.waitTicks(40);
+        saveWorld(context);
         EventLookTest.onServer(context, (player, manager) -> log("lager gespeichert: " + manager.camp().groundState()));
         context.waitTicks(10);
     }
