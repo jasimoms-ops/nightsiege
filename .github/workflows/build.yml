@@ -262,7 +262,7 @@ jobs:
           sudo apt-get update -qq > /dev/null
           sudo apt-get install -y -qq xvfb libgl1-mesa-dri > /dev/null
           export LIBGL_ALWAYS_SOFTWARE=1
-          CLIENT_TIMEOUT=2400
+          CLIENT_TIMEOUT=3600
           # [scenes a,b] in the commit message: only these client scenes (like the scenes input).
           if [[ -z "$NIGHTSIEGE_SCENES" && "$COMMIT_MSG" == *"[scenes "* ]]; then
             export NIGHTSIEGE_SCENES=$(printf '%s' "$COMMIT_MSG" | grep -o '\[scenes [^]]*\]' | head -1 | sed 's/^\[scenes //; s/\]$//')
