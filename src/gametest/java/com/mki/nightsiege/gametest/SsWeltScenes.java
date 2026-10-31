@@ -115,6 +115,7 @@ final class SsWeltScenes {
         final int[] farY = new int[1];
         final int[] counts = new int[8];
         final Path[] backup = new Path[1];
+        final List<BlockPos> hutLostSpots = new ArrayList<>();
 
         EventLookTest.onServer(context, (player, manager) -> {
             ServerLevel level = (ServerLevel) player.level();
@@ -174,10 +175,14 @@ final class SsWeltScenes {
             boolean ladder = TempBlocks.place(level, w1up, Blocks.LADDER.defaultBlockState().setValue(LadderBlock.FACING, Direction.NORTH));
             log("breach: lost=" + NightDamage.isLost(w1) + "/" + NightDamage.isLost(w1up) + " barricade=" + fence + " ladder=" + ladder
                     + " now " + level.getBlockState(w1).getBlock() + " / " + level.getBlockState(w1up).getBlock());
-            // A player opens the wall and knocks the support from under the sand.
+            // A player opens the wall and knocks the support from under the sand (bare-handed: in creative a
+            // kit sword breaks nothing).
+            ItemStack held = player.getMainHandItem().copy();
+            player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, ItemStack.EMPTY);
             boolean took = player.gameMode.destroyBlock(w2);
             boolean support = player.gameMode.destroyBlock(sandSupport);
-            log("player took wall=" + took + " lost=" + NightDamage.isLost(w2) + " support=" + support);
+            player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, held);
+            log("player took wall=" + took + " lost=" + NightDamage.isLost(w2) + " support=" + support + " mode=" + player.gameMode());
             // A player's TNT inside and outside the base, and a siege creeper inside and outside.
             for (BlockPos at : List.of(new BlockPos(cx - 3, cy + 2, cz + 4), new BlockPos(far, farY[0] + 2, cz))) {
                 PrimedTnt tnt = new PrimedTnt(level, at.getX() + 0.5, at.getY(), at.getZ() + 0.5, player);
@@ -208,6 +213,7 @@ final class SsWeltScenes {
             for (BlockPos p : hut) {
                 if (NightDamage.isLost(p)) {
                     hutLost++;
+                    hutLostSpots.add(p);
                 }
             }
             int tntLost = 0;
@@ -266,7 +272,7 @@ final class SsWeltScenes {
             log("RESULT light into water refused=" + !light + " water=" + level.getBlockState(water).getBlock());
             // "Crash": the log of the night is back on disk while the craters are open again; the start mends them.
             if (backup[0] != null) {
-                for (BlockPos p : hut) {
+                for (BlockPos p : hutLostSpots) {
                     level.setBlock(p, Blocks.AIR.defaultBlockState(), 2);
                 }
                 try {
@@ -285,7 +291,8 @@ final class SsWeltScenes {
         EventLookTest.onServer(context, (player, manager) -> {
             ServerLevel level = (ServerLevel) player.level();
             Path file = level.getServer().getWorldPath(LevelResource.ROOT).resolve("nightsiege").resolve("night-damage.dat");
-            log("RESULT crash mended=" + (count(level, hut, Blocks.OAK_PLANKS) == 9) + " planks=" + count(level, hut, Blocks.OAK_PLANKS)
+            log("RESULT crash mended=" + (count(level, hutLostSpots, Blocks.OAK_PLANKS) == hutLostSpots.size())
+                    + " planks " + count(level, hutLostSpots, Blocks.OAK_PLANKS) + "/" + hutLostSpots.size()
                     + " file gone=" + !Files.exists(file) + " " + NightDamage.state());
         });
         context.waitTicks(10);
@@ -337,6 +344,7 @@ final class SsWeltScenes {
                     + " cobblestone stays=" + level.getBlockState(cobble).is(Blocks.COBBLESTONE)
                     + " other diffs=" + diffs + first + " " + manager.camp().groundState());
         });
+        context.waitTicks(20);
         game.getServer().runCommand("forceload remove all");
     }
 }
