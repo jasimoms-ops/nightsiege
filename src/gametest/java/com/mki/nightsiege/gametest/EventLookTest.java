@@ -6716,9 +6716,15 @@ public class EventLookTest implements FabricClientGameTest {
             com.mki.nightsiege.game.CoreRecord c = com.mki.nightsiege.game.SiegeManager.get().save().cores.get(0);
             return new int[]{c.x, c.y, c.z};
         });
+        // Next to the core first (31.10.): the scenes before may leave the player far off, its chunk unloaded.
+        game.getServer().runCommand("tp @p %d.5 %d %d.5".formatted(core[0] + 3, core[1], core[2] + 3));
+        context.waitTicks(40);
         // A right click on the core signs up and opens the menu at once (hotfix 24.10.).
         onServer(context, (player, manager) -> {
             manager.save().unregister(player.getUUID().toString());
+            com.mki.nightsiege.game.CoreRecord rec = manager.save().cores.get(0);
+            System.out.println("[Night Siege test] B2 core block: " + player.level().getBlockState(
+                    new net.minecraft.core.BlockPos(rec.x, rec.y, rec.z)).getBlock() + " cores=" + manager.save().cores.size());
             com.mki.nightsiege.game.CoreRecord c = manager.save().cores.get(0);
             net.minecraft.core.BlockPos pos = new net.minecraft.core.BlockPos(c.x, c.y, c.z);
             try {
