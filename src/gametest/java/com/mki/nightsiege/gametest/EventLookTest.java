@@ -176,6 +176,9 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("ss2-alltag")) {
                     Ss2AlltagScenes.run(context, game);   // survival safety 2: everyday play outside the nights (Simon 31.10.)
                 }
+                if (want.contains("alltag")) {
+                    everydayScene(context, game);   // an ordinary survival day without a siege (Simon 31.10., 10:21)
+                }
                 if (want.contains("ladders")) {
                     // The climbing scenes, then the ladder cases of 28 October 2026 (block beside, ladder above the ground).
                     ladderScene(context, game);
@@ -5571,6 +5574,307 @@ public class EventLookTest implements FabricClientGameTest {
     }
 
     /** A core on flat ground near the player, when none is known yet (the scenes that need one, run alone). */
+    /** A bed two blocks south of the player; returns its head. */
+    private static BlockPos everydayBed(net.minecraft.server.level.ServerPlayer player) {
+        net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+        BlockPos bed = player.blockPosition().offset(0, 0, 2);
+        net.minecraft.world.level.block.state.BlockState foot = net.minecraft.core.registries.BuiltInRegistries.BLOCK
+                .getValue(net.minecraft.resources.Identifier.withDefaultNamespace("red_bed")).defaultBlockState()
+                .setValue(net.minecraft.world.level.block.BedBlock.FACING, net.minecraft.core.Direction.SOUTH);
+        level.setBlock(bed, foot, 3);
+        level.setBlock(bed.offset(0, 0, 1), foot.setValue(net.minecraft.world.level.block.BedBlock.PART,
+                net.minecraft.world.level.block.state.properties.BedPart.HEAD), 3);
+        return bed.offset(0, 0, 1);
+    }
+
+    private static void everydayLog(String line) {
+        System.out.println("[Night Siege test] alltag " + line);
+    }
+
+    private static net.minecraft.world.entity.Mob everydayMob(net.minecraft.server.level.ServerLevel level,
+                                                              net.minecraft.world.entity.EntityType<? extends net.minecraft.world.entity.Mob> type,
+                                                              double x, double y, double z) {
+        net.minecraft.world.entity.Mob mob = type.create(level, net.minecraft.world.entity.EntitySpawnReason.COMMAND);
+        if (mob == null) {
+            return null;
+        }
+        mob.setPos(x, y, z);
+        mob.setPersistenceRequired();
+        level.addFreshEntity(mob);
+        return mob;
+    }
+
+    private static String everydayItems(net.minecraft.server.level.ServerLevel level, net.minecraft.world.phys.AABB box) {
+        java.util.Map<String, Integer> count = new java.util.TreeMap<>();
+        for (net.minecraft.world.entity.item.ItemEntity e : level.getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, box)) {
+            String id = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(e.getItem().getItem()).getPath();
+            count.merge(id, e.getItem().getCount(), Integer::sum);
+        }
+        return count.toString();
+    }
+
+    /**
+     * Survival spot check, round 2 (Simon 31.10., 10:21: "Starte weitere Stichproben"): an ordinary
+     * survival day and night WITHOUT a siege, with a core in the world – does vanilla still behave like
+     * vanilla? Zombie damage (overworld, Nether), healing, tool wear, mob loot, skeleton against creeper
+     * (music disc), a creeper beside the base, death drops, sleeping through a normal night, commands.
+     */
+    private static void everydayScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        ensureCore(context, game);
+        final double[] home = new double[3];
+        game.getServer().runCommand("gamemode survival @p");
+        game.getServer().runCommand("difficulty normal");
+        game.getServer().runCommand("gamerule keep_inventory false");
+        game.getServer().runCommand("gamerule keepInventory false");
+        game.getServer().runCommand("gamerule mob_griefing true");
+        game.getServer().runCommand("gamerule mobGriefing true");
+        game.getServer().runCommand("gamerule advance_time true");
+        game.getServer().runCommand("gamerule doDaylightCycle true");
+        game.getServer().runCommand("time set 1000");
+        game.getServer().runCommand("effect clear @p");
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.game.CoreRecord c = manager.mainCore();
+            if (!manager.isRegistered(player)) {
+                manager.register(player);
+            }
+            long day = com.mki.nightsiege.core.SiegeMath.dayOf(player.level().getServer().overworld().getOverworldClockTime());
+            manager.save().nextSiegeDay = day + 3;   // no siege today or tonight
+            manager.save().clearVotes();
+            home[0] = c.x + 6.5;
+            home[1] = c.y;
+            home[2] = c.z + 0.5;
+            player.getInventory().clearContent();
+            player.teleportTo((net.minecraft.server.level.ServerLevel) player.level(), home[0], home[1], home[2], java.util.Set.of(), 0f, 0f, true);
+            player.setHealth(player.getMaxHealth());
+            everydayLog("setup: core=" + c.x + " " + c.y + " " + c.z + " active=" + manager.isActive() + " mode=" + player.gameMode()
+                    + " nextSiegeDay=" + manager.save().nextSiegeDay);
+        });
+        context.waitTicks(20);
+
+        // A zombie hits the player beside the base (vanilla on Normal: 3 damage without armour).
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            net.minecraft.world.entity.Mob z = everydayMob(level, net.minecraft.world.entity.EntityTypes.ZOMBIE, player.getX() + 2, player.getY(), player.getZ());
+            float hp = player.getHealth();
+            boolean hit = z != null && z.doHurtTarget(level, player);
+            everydayLog("zombie hit overworld: hit=" + hit + " hp " + hp + " -> " + player.getHealth() + " lost=" + (hp - player.getHealth())
+                    + " (vanilla 3.0)");
+            if (z != null) {
+                z.discard();
+            }
+        });
+        context.waitTicks(40);
+        // Healing after the hit (vanilla: heal(4) gives 4).
+        onServer(context, (player, manager) -> {
+            player.setHealth(10f);
+            player.heal(4f);
+            everydayLog("heal: 10 + 4 -> " + player.getHealth() + " (vanilla 14.0)");
+            player.setHealth(player.getMaxHealth());
+        });
+        context.waitTicks(10);
+
+        // Tool wear: three sword hits on a zombie (vanilla: damage +1 per hit).
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_SWORD));
+            net.minecraft.world.entity.Mob z = everydayMob(level, net.minecraft.world.entity.EntityTypes.ZOMBIE, player.getX() + 1.5, player.getY(), player.getZ());
+            if (z != null) {
+                z.setNoAi(true);
+                for (int i = 0; i < 3; i++) {
+                    z.invulnerableTime = 0;
+                    player.attack(z);
+                }
+            }
+            everydayLog("sword wear: damage=" + player.getMainHandItem().getDamageValue() + " (vanilla 3) zombieHp=" + (z == null ? -1 : z.getHealth()));
+            if (z != null) {
+                z.discard();
+            }
+            player.getInventory().clearContent();
+        });
+        context.waitTicks(10);
+
+        // Mob loot outside a night stays on the ground (only siege monsters drop nothing).
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            double x = player.getX() + 4;
+            for (int i = 0; i < 6; i++) {
+                net.minecraft.world.entity.Mob z = everydayMob(level, net.minecraft.world.entity.EntityTypes.ZOMBIE, x, player.getY(), player.getZ() + i - 3);
+                if (z != null) {
+                    z.hurtServer(level, level.damageSources().playerAttack(player), 200f);
+                }
+            }
+            for (int i = 0; i < 4; i++) {
+                net.minecraft.world.entity.Mob cow = everydayMob(level, net.minecraft.world.entity.EntityTypes.COW, x + 2, player.getY(), player.getZ() + i - 2);
+                if (cow != null) {
+                    cow.hurtServer(level, level.damageSources().playerAttack(player), 200f);
+                }
+            }
+        });
+        context.waitTicks(30);
+        onServer(context, (player, manager) -> everydayLog("mob loot (6 zombies, 4 cows by the player): "
+                + everydayItems((net.minecraft.server.level.ServerLevel) player.level(), player.getBoundingBox().inflate(10))
+                + " (vanilla: beef/leather from every cow, some rotten flesh)"));
+        context.waitTicks(5);
+        game.getServer().runCommand("execute at @p run kill @e[type=item,distance=..16]");
+
+        // A skeleton hurts a creeper, then kills it: vanilla damages, the creeper drops a music disc.
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            net.minecraft.world.entity.Mob creeper = everydayMob(level, net.minecraft.world.entity.EntityTypes.CREEPER, player.getX() - 5, player.getY(), player.getZ() + 4);
+            net.minecraft.world.entity.Mob skeleton = everydayMob(level, net.minecraft.world.entity.EntityTypes.SKELETON, player.getX() - 8, player.getY(), player.getZ() + 4);
+            if (creeper == null || skeleton == null) {
+                everydayLog("infighting: spawn failed");
+                return;
+            }
+            creeper.setNoAi(true);
+            skeleton.setNoAi(true);
+            float hp = creeper.getHealth();
+            creeper.hurtServer(level, level.damageSources().mobAttack(skeleton), 4f);
+            float after = creeper.getHealth();
+            creeper.invulnerableTime = 0;
+            creeper.hurtServer(level, level.damageSources().mobAttack(skeleton), 200f);
+            everydayLog("infighting: creeper hp " + hp + " -> " + after + " (vanilla " + (hp - 4) + "), after lethal hit alive=" + creeper.isAlive());
+            skeleton.discard();
+        });
+        context.waitTicks(30);
+        onServer(context, (player, manager) -> everydayLog("creeper killed by skeleton drops: "
+                + everydayItems((net.minecraft.server.level.ServerLevel) player.level(), player.getBoundingBox().inflate(14))
+                + " (vanilla: a music_disc_*)"));
+        context.waitTicks(5);
+        game.getServer().runCommand("execute at @p run kill @e[type=item,distance=..20]");
+        game.getServer().runCommand("execute at @p run kill @e[type=creeper,distance=..20]");
+
+        // A creeper blows up beside the base outside a night: vanilla crater, nothing rebuilt later.
+        // The same far from any core (400 blocks off, forced chunk) as the vanilla reference.
+        for (int off : new int[] {10, 400}) {
+        final int[] box = {(int) Math.floor(home[0]) + off, (int) Math.floor(home[1]), (int) Math.floor(home[2])};
+        final String where = off == 10 ? "beside base" : "far reference";
+        if (off > 100) {
+            game.getServer().runCommand("forceload add " + box[0] + " " + box[2] + " " + (box[0] + 4) + " " + (box[2] + 2));
+            context.waitTicks(40);
+        }
+        game.getServer().runCommand("fill " + box[0] + " " + box[1] + " " + (box[2] - 2) + " " + (box[0] + 4) + " " + (box[1] + 2)
+                + " " + (box[2] + 2) + " cobblestone");
+        context.waitTicks(10);
+        game.getServer().runCommand("summon creeper " + (box[0] + 2) + " " + (box[1] + 3) + " " + box[2] + " {Fuse:1s,ignited:1b}");
+        context.waitTicks(60);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            int left = 0;
+            for (int x = 0; x <= 4; x++) {
+                for (int y = 0; y <= 2; y++) {
+                    for (int z = -2; z <= 2; z++) {
+                        left += level.getBlockState(new BlockPos(box[0] + x, box[1] + y, box[2] + z)).is(net.minecraft.world.level.block.Blocks.COBBLESTONE) ? 1 : 0;
+                    }
+                }
+            }
+            everydayLog("creeper " + where + ": cobblestone left " + left + " of 75 drops="
+                    + everydayItems(level, new net.minecraft.world.phys.AABB(box[0] - 4, box[1] - 2, box[2] - 6, box[0] + 8, box[1] + 6, box[2] + 6)));
+        });
+        context.waitTicks(10);
+        game.getServer().runCommand("execute at @p run kill @e[type=item,distance=..30]");
+        if (off > 100) {
+            game.getServer().runCommand("forceload remove " + box[0] + " " + box[2] + " " + (box[0] + 4) + " " + (box[2] + 2));
+        }
+        }
+
+        // Death outside a night: vanilla drops everything.
+        final double[] deathAt = new double[3];
+        onServer(context, (player, manager) -> {
+            player.getInventory().clearContent();
+            player.getInventory().add(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND_SWORD));
+            player.getInventory().add(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.COBBLESTONE, 16));
+            player.getInventory().add(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.BREAD, 5));
+            deathAt[0] = player.getX();
+            deathAt[1] = player.getY();
+            deathAt[2] = player.getZ();
+            player.hurtServer((net.minecraft.server.level.ServerLevel) player.level(), player.damageSources().generic(), 500f);
+            everydayLog("death: alive=" + player.isAlive() + " keepsInventory=" + manager.keepsInventory(player));
+        });
+        context.waitTicks(30);
+        onServer(context, (player, manager) -> {
+            everydayLog("death drops: " + everydayItems((net.minecraft.server.level.ServerLevel) player.level(),
+                    new net.minecraft.world.phys.AABB(deathAt[0] - 6, deathAt[1] - 4, deathAt[2] - 6, deathAt[0] + 6, deathAt[1] + 4, deathAt[2] + 6))
+                    + " (vanilla: diamond_sword 1, cobblestone 16, bread 5)");
+            if (!player.isAlive()) {
+                player.connection.handleClientCommand(new net.minecraft.network.protocol.game.ServerboundClientCommandPacket(
+                        net.minecraft.network.protocol.game.ServerboundClientCommandPacket.Action.PERFORM_RESPAWN));
+            }
+        });
+        context.waitTicks(40);
+        closeScreen(context);
+        onServer(context, (player, manager) -> {
+            int items = 0;
+            for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+                items += player.getInventory().getItem(i).isEmpty() ? 0 : 1;
+            }
+            everydayLog("after respawn: alive=" + player.isAlive() + " slotsFilled=" + items + " (vanilla 0) mode=" + player.gameMode());
+            player.teleportTo((net.minecraft.server.level.ServerLevel) player.level(), home[0], home[1], home[2], java.util.Set.of(), 0f, 0f, true);
+        });
+        context.waitTicks(20);
+        game.getServer().runCommand("execute at @p run kill @e[type=item,distance=..40]");
+
+        // A normal night: sleeping works, the morning comes, no siege, no kit (no test monster left nearby).
+        game.getServer().runCommand("execute at @p run kill @e[type=!minecraft:player,distance=..64]");
+        game.getServer().runCommand("time set 13000");
+        context.waitTicks(10);
+        onServer(context, (player, manager) -> {
+            Object result = player.startSleepInBed(everydayBed(player));
+            everydayLog("sleep on a normal night: result=" + result + " sleeping=" + player.isSleeping());
+        });
+        context.waitTicks(180);
+        onServer(context, (player, manager) -> {
+            everydayLog("after sleeping: sleeping=" + player.isSleeping() + " time=" + com.mki.nightsiege.core.SiegeMath.timeOfDay(player.level().getServer().overworld().getOverworldClockTime())
+                    + " (vanilla: morning) active=" + manager.isActive() + " kit=" + manager.kits().hasStash(player)
+                    + " nextSiegeDay=" + manager.save().nextSiegeDay);
+            if (player.isSleeping()) {
+                player.stopSleeping();
+            }
+        });
+        context.waitTicks(10);
+        closeScreen(context);
+
+        // Commands at night outside a siege.
+        game.getServer().runCommand("time set 18000");
+        game.getServer().runCommand("execute as @p run give @s minecraft:stone 3");
+        context.waitTicks(10);
+        onServer(context, (player, manager) -> {
+            int stone = 0;
+            for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+                net.minecraft.world.item.ItemStack st = player.getInventory().getItem(i);
+                stone += st.is(net.minecraft.world.item.Items.STONE) ? st.getCount() : 0;
+            }
+            everydayLog("command at night: stone=" + stone + " (vanilla 3)");
+        });
+        context.waitTicks(10);
+
+        // The Nether: a zombie hits like in vanilla there too.
+        game.getServer().runCommand("execute in minecraft:the_nether run tp @p 0.5 128 0.5");
+        context.waitTicks(80);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            player.setHealth(player.getMaxHealth());
+            net.minecraft.world.entity.Mob z = everydayMob(level, net.minecraft.world.entity.EntityTypes.ZOMBIE, player.getX() + 2, player.getY(), player.getZ());
+            float hp = player.getHealth();
+            boolean hit = z != null && z.doHurtTarget(level, player);
+            everydayLog("zombie hit nether: dim=" + level.dimension() + " hit=" + hit + " hp " + hp + " -> " + player.getHealth()
+                    + " lost=" + (hp - player.getHealth()) + " (vanilla 3.0)");
+            if (z != null) {
+                z.discard();
+            }
+        });
+        context.waitTicks(20);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel overworld = player.level().getServer().overworld();
+            player.teleportTo(overworld, home[0], home[1], home[2], java.util.Set.of(), 0f, 0f, true);
+            everydayLog("END: active=" + manager.isActive() + " kit=" + manager.kits().hasStash(player) + " mode=" + player.gameMode());
+        });
+        context.waitTicks(40);
+        closeScreen(context);
+        game.getServer().runCommand("gamemode creative @p");
+        game.getServer().runCommand("time set 1000");
+    }
+
     static void ensureCore(ClientGameTestContext context, TestSingleplayerContext game) {
         boolean none = context.computeOnClient(client -> com.mki.nightsiege.game.SiegeManager.get().save().cores.isEmpty());
         if (!none) {

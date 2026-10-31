@@ -272,6 +272,9 @@ public final class NightDamage {
      * the attacker cannot break, or it is a trap that stands again after the night (TrapService).
      */
     public static boolean keepsDrops(Level level, BlockPos pos) {
+        if (level != null && !level.isClientSide() && TempBlocks.isTemp(level, pos)) {
+            return true;   // a night block (kit torch, ladder, barricade) never drops, a creeper's blast neither (31.10.)
+        }
         if (world == null || level != world || quiet > 0) {
             return false;
         }
