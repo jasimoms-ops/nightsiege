@@ -610,7 +610,7 @@ public final class SiegeCamp {
         List<Entity> stayed = new ArrayList<>();
         for (Entity e : level.getEntitiesOfClass(Entity.class, area, e -> e instanceof LivingEntity && !(e instanceof Player)
                 && e.isAlive() && !isCampMob(e) && !Expeditions.ours(e))) {
-            if (e instanceof net.minecraft.world.entity.monster.Enemy && !SafeGround.someones(e)) {
+            if (SafeGround.goesQuietly(e)) {
                 e.discard();
                 continue;
             }

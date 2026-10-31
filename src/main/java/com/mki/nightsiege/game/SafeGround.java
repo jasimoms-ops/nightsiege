@@ -171,8 +171,8 @@ final class SafeGround {
         int moved = 0;
         for (Entity e : level.getEntitiesOfClass(Entity.class, area, e -> e instanceof LivingEntity && !(e instanceof Player)
                 && e.isAlive() && (skip == null || !skip.test(e)))) {
-            if (e instanceof Enemy && !someones(e)) {
-                e.discard();   // a cave monster: it would only suffocate there and drop its loot
+            if (goesQuietly(e)) {
+                e.discard();
                 continue;
             }
             if (e.isPassenger()) {
@@ -192,6 +192,15 @@ final class SafeGround {
     }
 
     // ------------------------------------------------------------------ places taken down
+
+    /**
+     * A wild monster, or a fish or squid of an underground pool (on land it would only die): where blocks
+     * are set it goes quietly, as before (it would suffocate in the walls and drop its loot).
+     */
+    static boolean goesQuietly(Entity e) {
+        String category = e.getType().getCategory().name();
+        return (e instanceof Enemy || category.contains("WATER") || category.equals("AXOLOTLS")) && !someones(e);
+    }
 
     /** The area of a gone site. */
     static AABB area(SiegeSave.GoneSite site) {
