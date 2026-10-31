@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * Wächter-Schutz (Simon, 30 October 2026): the tanks gave up much of their damage, in return their
@@ -37,15 +38,25 @@ public final class TankGuard {
     private record Tank(ServerPlayer player, double radius, double damage, double knockback) {
     }
 
-    /** Twice a second: who stands near which tank (the server tick). */
-    static void tick(MinecraftServer server, SiegeConfig cfg, Function<ServerPlayer, String> subclassOf) {
+    /**
+     * Twice a second: who stands near which tank (the server tick). Since 31.10. (survival safety 2)
+     * only between players who fight right now ({@code fighting}: defenders of the night, fighters in a
+     * dungeon or at the war camp); everyone else loses the knockback modifier at once.
+     */
+    static void tick(MinecraftServer server, SiegeConfig cfg, Function<ServerPlayer, String> subclassOf,
+                     Predicate<ServerPlayer> fighting) {
         if (++counter % 10 != 0 || cfg == null) {
             return;
         }
         Map<UUID, Double> damage = new HashMap<>();
         Map<UUID, Double> knockback = new HashMap<>();
         for (ServerLevel level : server.getAllLevels()) {
-            List<ServerPlayer> players = level.players();
+            List<ServerPlayer> players = new ArrayList<>();
+            for (ServerPlayer p : level.players()) {
+                if (fighting.test(p)) {
+                    players.add(p);
+                }
+            }
             if (players.size() < 2) {
                 continue;
             }

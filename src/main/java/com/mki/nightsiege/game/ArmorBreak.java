@@ -16,7 +16,8 @@ import net.minecraft.world.entity.monster.zombie.Zombie;
 
 /**
  * Rüstungsbruch (Simon's idea, balance update 26 October 2026): a zombie's hit or a
- * creeper's blast lowers the player's armour for a few seconds.
+ * creeper's blast lowers the player's armour for a few seconds – since 31.10. only in a night or a
+ * fight and only from the mod's own monsters.
  *
  * <p>A real status effect, so the player sees its icon and time. Each amplifier step takes
  * 10 % of the armour, so the config share (default 30 %) becomes the amplifier. Another
@@ -47,6 +48,13 @@ public final class ArmorBreak {
         boolean zombie = attacker instanceof Zombie && source.getDirectEntity() == attacker;
         boolean creeper = attacker instanceof Creeper && source.is(net.minecraft.tags.DamageTypeTags.IS_EXPLOSION);
         if (!(zombie || creeper) || BossService.isBoss(attacker)) {
+            return;
+        }
+        // Survival safety 2 (Simon 31.10.): only in a fight (a defender of the night, a fighter in a dungeon
+        // or at the war camp) and only from Night Siege's own monsters; a zombie of everyday play leaves the
+        // armour alone, also in the Nether or for a player who never signed up.
+        SiegeManager m = SiegeManager.get();
+        if (m == null || !m.isDefending(player) || !OwnMobs.is(attacker)) {
             return;
         }
         int amplifier = Math.max(0, (int) Math.round(config.armorBreakShare * 10.0) - 1);

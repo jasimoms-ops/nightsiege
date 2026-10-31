@@ -46,6 +46,9 @@ final class RangedGuard {
                 || BossService.isBoss(mob) || Companions.isCompanion(mob) || !mob.isAlive()) {
             return;
         }
+        if (!m.isDefending(player)) {
+            return;   // survival safety 2 (Simon 31.10.): only while he defends the night or fights in a dungeon or at the camp
+        }
         PlayerSkills skills = m.save().skillsOf(player.getUUID().toString());
         SkillClass clazz = skills == null ? null : skills.clazz();
         if (clazz != SkillClass.ARCHER && clazz != SkillClass.ENGINEER) {

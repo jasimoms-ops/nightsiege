@@ -299,6 +299,49 @@ public final class SiegeManager {
         return active;
     }
 
+    /**
+     * True for a spot in the defended area of the running night (a real, test or playtest night): its
+     * world, within naturalSpawnBlockRadius of its core. Survival safety 2 (Simon 31.10.): traps and
+     * towers at home work only there and only then.
+     */
+    public boolean inNightArea(Level level, double x, double z) {
+        ServerLevel w = world;
+        BlockPos a = anchor;
+        return active && w != null && a != null && level == w && inDefendedRadius(a, x, z);
+    }
+
+    /**
+     * True for a spot where an event's gameplay values hold (survival safety 2, Simon 31.10.): the
+     * defended area of the running night, of a test in its preparation or of the night the horn
+     * announced (the eclipse starts at the horn). The look of the event stays for everyone.
+     */
+    public static boolean inEventArea(Level level, double x, double z) {
+        SiegeManager m = INSTANCE;
+        if (level == null || m.config == null) {
+            return false;
+        }
+        ServerLevel w = m.world;
+        BlockPos center = m.active && w == level ? m.anchor : null;
+        PendingTest prep = m.pendingTest;
+        if (center == null && prep != null && prep.world == level) {
+            center = prep.anchor;
+        }
+        String blocked = m.spawnBlockWorld;
+        if (center == null && blocked != null && level.getGameTime() < m.spawnBlockUntil
+                && blocked.equals(dimensionName(level))) {
+            center = m.spawnBlockCenter;
+        }
+        return center != null && m.inDefendedRadius(center, x, z);
+    }
+
+    /** Within naturalSpawnBlockRadius of a core (flat distance): the defended area. */
+    private boolean inDefendedRadius(BlockPos center, double x, double z) {
+        double r = config.naturalSpawnBlockRadius;
+        double dx = x - (center.getX() + 0.5);
+        double dz = z - (center.getZ() + 0.5);
+        return dx * dx + dz * dz <= r * r;
+    }
+
     public int currentLevel() {
         if (!active) {
             int playtestLevel = playtest.level();
@@ -693,8 +736,10 @@ public final class SiegeManager {
     private void onEndTick(MinecraftServer server) {
         tickModCheck(server);
         safe("Wächter-Schutz", () -> TankGuard.tick(server, config,
-                p -> skillTree.subclassOf(save.skillsOf(p.getUUID().toString()))));
+                p -> skillTree.subclassOf(save.skillsOf(p.getUUID().toString())), this::isDefending));
         safe("Reparatur", () -> NightDamage.tick(server));
+        safe("Kit-Blöcke", () -> KitBlocks.tick(server,
+                id -> save.kitStashes != null && save.kitStashes.containsKey(id.toString())));   // survival safety 2 (31.10.)
         MeleeSim.tick(server);
         TeamSim.tick(server);
         TrapService.clearHitting();
