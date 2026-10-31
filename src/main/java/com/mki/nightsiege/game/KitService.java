@@ -97,6 +97,10 @@ public final class KitService {
         if (stack.isEnchanted()) {
             stack.set(DataComponents.ENCHANTMENT_GLINT_OVERRIDE, false);
         }
+        // No plain glass bottle from a kit potion (Simon 31.10.: survival safety 2): drunk, it leaves nothing.
+        if (stack.has(DataComponents.USE_REMAINDER)) {
+            stack.remove(DataComponents.USE_REMAINDER);
+        }
         // Design update (29 October 2026): kit netherite has a violet rim (tools/armor/kit20_icons.py).
         String piece = stack.is(net.minecraft.world.item.Items.NETHERITE_HELMET) ? "helmet"
                 : stack.is(net.minecraft.world.item.Items.NETHERITE_CHESTPLATE) ? "chestplate"
@@ -530,7 +534,7 @@ public final class KitService {
             // Crate gain "Notfall-Mörser" (once the emergency mine): one more mortar tower tonight.
             if (gainLevel(skills, clazz, "notfallmine") > 0 && ModContent.TRAP_ITEMS.get(TrapKind.MORTAR) != null
                     && tree.trapTier(TrapKind.MORTAR, skills) > 0) {
-                inv.placeItemBackInInventory(new ItemStack(ModContent.TRAP_ITEMS.get(TrapKind.MORTAR), 1));
+                inv.placeItemBackInInventory(mark(new ItemStack(ModContent.TRAP_ITEMS.get(TrapKind.MORTAR), 1)));   // a kit item (31.10.)
             }
         } else {
             traps.giveRemote(player, skills);

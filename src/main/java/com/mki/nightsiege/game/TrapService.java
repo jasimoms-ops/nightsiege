@@ -47,9 +47,10 @@ import java.util.function.Supplier;
  * Runs the engineer's traps: who may place them, what they do each tick,
  * reloading the turret and the free traps at the start of a siege.
  *
- * <p>Traps only ever hurt monsters ({@link Enemy}), never players or animals,
- * and they work by day as well as by night. A trap is as strong as its owner's
- * current skill tier, so upgrades reach traps that are already placed.</p>
+ * <p>Traps only ever hurt monsters ({@link Enemy}), never players or animals. Since 31.10.
+ * (survival safety 2, Simon) they work only in a night and in a fight: at home in the defended
+ * area of a running night, a field tower while its engineer's dungeon or camp fight runs. A trap is
+ * as strong as its owner's current skill tier, so upgrades reach traps that are already placed.</p>
  */
 public final class TrapService {
 
@@ -164,6 +165,34 @@ public final class TrapService {
         return count;
     }
 
+    /**
+     * Whether a trap or tower works right now (Simon 31.10.: survival safety 2, "Fallen und Türme nur
+     * nachts und im Kampf"): one at home only in the defended area of a running night (a real, test
+     * or playtest night), a field tower while its engineer's dungeon or camp fight runs (it goes when
+     * the fight ends, see tick). By day nothing fires: no mob farm with the owner's kills.
+     */
+    boolean worksNow(ServerLevel level, TrapRecord record) {
+        if (mortarsAnyTime || record.field) {
+            return true;   // the client test's day scenes; a field tower stands only while its fight runs
+        }
+        SiegeManager m = SiegeManager.get();
+        return m != null && m.inNightArea(level, record.x + 0.5, record.z + 0.5);
+    }
+
+    /**
+     * Marks a hand-out of the kit as a kit item (Simon 31.10.: survival safety 2): free traps, the remote,
+     * a spare part for a player who wears the kit. They cannot go into a chest and go with the kit, so
+     * nobody keeps them for the next night. Only the mark: the remote keeps its energy bar.
+     */
+    private static ItemStack kitHandout(ServerPlayer player, ItemStack stack) {
+        SiegeManager m = SiegeManager.get();
+        if (m != null && m.kits() != null && m.kits().hasStash(player)) {
+            net.minecraft.world.item.component.CustomData.update(net.minecraft.core.component.DataComponents.CUSTOM_DATA,
+                    stack, tag -> tag.putBoolean(KitService.KIT_TAG, true));
+        }
+        return stack;
+    }
+
     /** True while the player fights in a dungeon or at the war camp (his traps there are field traps). */
     static boolean fieldFight(ServerPlayer player) {
         SiegeManager m = SiegeManager.get();
@@ -239,7 +268,7 @@ public final class TrapService {
             return false;
         }
         spareUsed.add(record.owner);
-        owner.getInventory().placeItemBackInInventory(new ItemStack(ModContent.TRAP_ITEMS.get(kind), 1));
+        owner.getInventory().placeItemBackInInventory(kitHandout(owner, new ItemStack(ModContent.TRAP_ITEMS.get(kind), 1)));
         actionBar(owner, Component.translatable("nightsiege.msg.spare_back"));
         return true;
     }
@@ -442,7 +471,7 @@ public final class TrapService {
                 count = Math.min(count, Math.max(0, maxFor(kind, tier, skills) - have));
             }
             if (count > 0) {
-                player.getInventory().placeItemBackInInventory(new ItemStack(ModContent.TRAP_ITEMS.get(kind), count));
+                player.getInventory().placeItemBackInInventory(kitHandout(player, new ItemStack(ModContent.TRAP_ITEMS.get(kind), count)));
                 total += count;
             }
         }
@@ -549,6 +578,9 @@ public final class TrapService {
             }
             if (fixes.containsKey(key(record))) {
                 continue;   // being strengthened: it waits the 3 s
+            }
+            if (!worksNow(level, record)) {
+                continue;   // by day or away from the night it stands still (Simon 31.10.: survival safety 2)
             }
             if (now < record.readyAt) {
                 continue;
@@ -705,7 +737,7 @@ public final class TrapService {
      * The mortar fires steadily onto the spot its engineer set with the remote (X key while
      * looking at a block); without a spot it stays quiet (Simon's playtest, 25 October 2026).
      */
-    /** For the client test: mortars fire outside a siege night too. */
+    /** For the client test: mortars (since 31.10. every trap and tower, also manned ones) work outside a night too. */
     public static volatile boolean mortarsAnyTime;
 
     private void tickMortar(ServerLevel level, BlockPos pos, TrapRecord record, int tier, long now) {
@@ -729,7 +761,7 @@ public final class TrapService {
         afterShot(level, pos, record);
         level.sendParticles(ParticleTypes.SMOKE, aim.x, aim.y + 0.1, aim.z, 6, 0.4, 0.02, 0.4, 0.0);
         record.readyAt = now + quicker(record, now, slowed(TrapKind.MORTAR, TrapKind.MORTAR.cooldownTicks(tier)));
-        dirty = true;
+        // No save for a shot (Simon 31.10.: survival safety 2): readyAt is not saved, the tower has endless shells.
     }
 
     private void tickBrewer(ServerLevel level, BlockPos pos, TrapRecord record, int tier, long now) {
@@ -743,7 +775,7 @@ public final class TrapService {
         lob(level, record, muzzle, lead(muzzle, target), KitProjectile.BREW, tier, 1.0, 1.0);
         afterShot(level, pos, record);
         record.readyAt = now + quicker(record, now, TrapKind.BREWER.cooldownTicks(tier));
-        dirty = true;
+        // No save for a shot (survival safety 2): nothing saved changed.
     }
 
     /** Fires a shell or a potion in a high arc (over walls) onto a spot. */
@@ -1059,7 +1091,7 @@ public final class TrapService {
             level.sendParticles(ParticleTypes.ELECTRIC_SPARK, muzzle.x, muzzle.y, muzzle.z, 3, 0.2, 0.2, 0.2, 0.05);
         }
         record.readyAt = now + turretCooldown(record, tier, now);
-        dirty = true;
+        // No save for a shot (survival safety 2): endless arrows, readyAt is not saved.
     }
 
     /** Damage of one turret arrow, before the manned or unmanned factor. */
@@ -1460,6 +1492,11 @@ public final class TrapService {
                 return false;
             }
         }
+        String refused = mannedRefusal(level, player, record);
+        if (refused != null) {
+            actionBar(player, Component.translatable(refused));
+            return true;
+        }
         Seat taken = seats.get(key(record));
         if (taken != null) {
             if (!taken.player.equals(player.getUUID())) {
@@ -1510,6 +1547,23 @@ public final class TrapService {
         actionBar(player, Component.translatable(kind == TrapKind.TESLA
                 ? "nightsiege.msg.tower_manned_tesla" : "nightsiege.msg.tower_manned_turret"));
         return true;
+    }
+
+    /**
+     * Why this player may not sit down in this tower now, or null (Simon 31.10.: survival safety 2): only
+     * while the tower works (in the night or its fight) and only its engineer, a defender of the running
+     * night or, for a field tower, a fighter of the dungeon or camp fight; creative players may always.
+     */
+    private String mannedRefusal(ServerLevel level, ServerPlayer player, TrapRecord record) {
+        if (!worksNow(level, record)) {
+            return "nightsiege.msg.tower_night_only";
+        }
+        if (player.getAbilities().instabuild || player.getUUID().toString().equals(record.owner)) {
+            return null;
+        }
+        SiegeManager m = SiegeManager.get();
+        boolean ally = m != null && (record.field ? m.fieldFighter(player) : m.isDefending(player));
+        return ally ? null : "nightsiege.msg.tower_not_yours";
     }
 
     /** The seat: a small invisible marker armour stand with the tower's two weapons in its hands. */
@@ -1583,8 +1637,9 @@ public final class TrapService {
             Entity stand = level == null ? null : level.getEntity(seat.stand);
             TrapRecord record = level == null ? null : find(level, seat.pos);
             if (level == null || player == null || stand == null || !player.isAlive() || player.getVehicle() != stand
-                    || record == null || ModContent.trapOf(level.getBlockState(seat.pos)) != seat.kind) {
-                release(server, seat);
+                    || record == null || ModContent.trapOf(level.getBlockState(seat.pos)) != seat.kind
+                    || !worksNow(level, record)) {
+                release(server, seat);   // also when the night or the fight is over (survival safety 2)
                 continue;
             }
             float yaw = player.getYRot();
@@ -1645,7 +1700,7 @@ public final class TrapService {
             level.sendParticles(ParticleTypes.ELECTRIC_SPARK, out.x, out.y, out.z, 3, 0.2, 0.2, 0.2, 0.05);
         }
         seat.readyAt = now + turretCooldown(record, tier, now);
-        dirty = true;
+        // No save for a shot (survival safety 2).
     }
 
     /**
@@ -1700,7 +1755,7 @@ public final class TrapService {
         level.sendParticles(ParticleTypes.END_ROD, from.x, from.y, from.z, 6, 0.1, 0.1, 0.1, 0.05);
         playAt(level, seat.pos, SoundEvents.LIGHTNING_BOLT_IMPACT, 0.7f, 1.6f);
         seat.readyAt = now + teslaCooldown(level, seat.pos, record, tier, now);
-        dirty = true;
+        // No save for a shot (survival safety 2).
     }
 
     /** Takes energy without the "too little" line (the beam says it its own way). */
@@ -1715,6 +1770,15 @@ public final class TrapService {
         energy.put(player.getUUID(), Math.max(0.0, have - cost));
         showEnergy(player);
         return true;
+    }
+
+    /**
+     * True when a tower's (or a drone's) arrow must fly through this creature (Simon 31.10.: survival
+     * safety 2): it strikes monsters only, like every trap, never a player, pet, villager or companion.
+     */
+    public static boolean sparedByTowerArrow(AbstractArrow arrow, Entity target) {
+        return arrow.entityTags().contains("nightsiege_turret")
+                && (!(target instanceof Enemy) || Companions.isCompanion(target));
     }
 
     /** An arrow of a manned turret struck a creature: on the head it counts double. */
@@ -3294,7 +3358,7 @@ public final class TrapService {
                 return;
             }
         }
-        player.getInventory().placeItemBackInInventory(new ItemStack(ModContent.REMOTE));
+        player.getInventory().placeItemBackInInventory(kitHandout(player, new ItemStack(ModContent.REMOTE)));
         player.sendSystemMessage(Component.translatable("nightsiege.msg.remote_given"));
     }
 

@@ -28,6 +28,12 @@ import java.util.concurrent.ConcurrentHashMap;
  * level gets one extra layer here that blends the active event in, fading over
  * a few seconds. The client keeps its own state (set by the server through a
  * message); the server keeps one per dimension.</p>
+ *
+ * <p>Survival safety 2 (Simon 31.10.): the look stays for everyone, but the gameplay values hold
+ * on the server only in the defended area around the core ({@link SiegeManager#inEventArea}):
+ * undead burn and piglins turn everywhere else as ever, and the eclipse's sky light is the
+ * clients' alone (on the server it would darken the whole dimension: monsters by day, daylight
+ * sensors off). Monsters near the core still see the eclipse's dark ({@link #monsterLight}).</p>
  */
 public final class EventAtmosphere {
 
@@ -83,13 +89,20 @@ public final class EventAtmosphere {
     private static final Map<String, State> SERVER = new ConcurrentHashMap<>();
     private static final Map<String, EnvironmentAttributeMap> LOOKS = new HashMap<>();
     private static final Set<EnvironmentAttribute<?>> TOUCHED = new HashSet<>();
+    /** Gameplay values: on the server only near the core of the night (a positional layer). */
+    private static final Set<EnvironmentAttribute<?>> GAMEPLAY = Set.of(
+            EnvironmentAttributes.MONSTERS_BURN, EnvironmentAttributes.PIGLINS_ZOMBIFY);
+    /** The clients' light only: on the server the sky light sets the darkness of the whole dimension. */
+    private static final Set<EnvironmentAttribute<?>> CLIENT_ONLY = Set.of(EnvironmentAttributes.SKY_LIGHT_LEVEL);
+    /** The eclipse's factor on the sky light (and on the light monsters near the core see). */
+    private static final float ECLIPSE_SKY_LIGHT = 0.27f;
 
     static {
         LOOKS.put(ECLIPSE, EnvironmentAttributeMap.builder()
                 .modify(EnvironmentAttributes.SKY_COLOR, ColorModifier.MULTIPLY_RGB, rgb(0x120C1E))
                 .modify(EnvironmentAttributes.FOG_COLOR, ColorModifier.MULTIPLY_RGB, rgb(0x1C1628))
                 .modify(EnvironmentAttributes.CLOUD_COLOR, ColorModifier.MULTIPLY_ARGB, ARGB.color(255, 0x34, 0x30, 0x44))
-                .modify(EnvironmentAttributes.SKY_LIGHT_LEVEL, FloatModifier.MULTIPLY, 0.27f)
+                .modify(EnvironmentAttributes.SKY_LIGHT_LEVEL, FloatModifier.MULTIPLY, ECLIPSE_SKY_LIGHT)
                 .modify(EnvironmentAttributes.SKY_LIGHT_FACTOR, FloatModifier.MULTIPLY, 0.22f)
                 .modify(EnvironmentAttributes.SKY_LIGHT_COLOR, ColorModifier.MULTIPLY_RGB, rgb(0x9A80FF))
                 .modify(EnvironmentAttributes.STAR_BRIGHTNESS, FloatModifier.MAXIMUM, 0.6f)
@@ -234,26 +247,55 @@ public final class EventAtmosphere {
 
     private static <V> void addLayer(EnvironmentAttributeSystem.Builder builder, Level level, EnvironmentAttribute<V> attribute) {
         boolean celestial = isCelestial(attribute);
+        if (!level.isClientSide() && CLIENT_ONLY.contains(attribute)) {
+            return;   // survival safety 2: the eclipse darkens the clients' sky, not the server's whole dimension
+        }
+        if (!level.isClientSide() && GAMEPLAY.contains(attribute)) {
+            // Survival safety 2 (Simon 31.10.): only in the defended area of the night (asked at the monster's spot).
+            builder.addPositionalLayer(attribute, (result, pos, biomes) -> pos == null
+                    || !SiegeManager.inEventArea(level, pos.x, pos.z) ? result : blend(level, attribute, result));
+            return;
+        }
         builder.addTimeBasedLayer(attribute, (result, cacheTickId) -> {
-            State state = stateFor(level);
-            if (state == null) {
-                return result;
-            }
-            float strength = state.strength;
-            String shown = state.shown;
             if (celestial) {
-                return level.isClientSide() ? celestial(attribute, result, shown, strength) : result;
+                State state = stateFor(level);
+                return state == null || !level.isClientSide() ? result
+                        : celestial(attribute, result, state.shown, state.strength);
             }
-            if (strength <= 0.001f || shown.isEmpty()) {
-                return result;
-            }
-            EnvironmentAttributeMap look = LOOKS.get(shown);
-            if (look == null || !look.contains(attribute)) {
-                return result;
-            }
-            V changed = look.applyModifier(attribute, result);
-            return attribute.type().stateChangeLerp().apply(Math.min(1f, strength), result, changed);
+            return blend(level, attribute, result);
         });
+    }
+
+    /** The value with the shown event's modifier blended in by its strength. */
+    private static <V> V blend(Level level, EnvironmentAttribute<V> attribute, V result) {
+        State state = stateFor(level);
+        if (state == null) {
+            return result;
+        }
+        float strength = state.strength;
+        String shown = state.shown;
+        if (strength <= 0.001f || shown.isEmpty()) {
+            return result;
+        }
+        EnvironmentAttributeMap look = LOOKS.get(shown);
+        if (look == null || !look.contains(attribute)) {
+            return result;
+        }
+        V changed = look.applyModifier(attribute, result);
+        return attribute.type().stateChangeLerp().apply(Math.min(1f, strength), result, changed);
+    }
+
+    /**
+     * The light a monster sees (its "magic" light value, for burning, spiders' anger, endermen): in the
+     * defended area during an eclipse as dark as the eclipse makes the sky (survival safety 2: the
+     * server's sky itself stays bright, see {@link #CLIENT_ONLY}).
+     */
+    public static float monsterLight(Level level, double x, double z, float light) {
+        if (light <= 0f || SERVER.isEmpty() || !SiegeManager.inEventArea(level, x, z)) {
+            return light;
+        }
+        float strength = serverStrength(SiegeManager.dimensionName(level), ECLIPSE);
+        return strength <= 0.001f ? light : light * (1f - Math.min(1f, strength) * (1f - ECLIPSE_SKY_LIGHT));
     }
 
     private static State stateFor(Level level) {

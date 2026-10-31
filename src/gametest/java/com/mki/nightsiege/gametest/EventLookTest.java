@@ -61,6 +61,10 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("machines")) {
                     machineScene(context, game);
                 }
+                if (want.contains("bar") || want.contains("tech")) {
+                    // Towers work only in a night since 31.10. (survival safety 2); these scenes try them by day.
+                    com.mki.nightsiege.game.TrapService.mortarsAnyTime = true;
+                }
                 if (want.contains("bar")) {
                     alchemistScene(context, game);   // the ability bar of the alchemist and the healer
                     summonerScene(context, game);    // ... and of the summoners
@@ -168,6 +172,9 @@ public class EventLookTest implements FabricClientGameTest {
                 }
                 if (want.contains("ss-nacht")) {
                     SsNachtScenes.run(context, game);   // Survival-Sicherheit: accepts, sleeping, missed night, stop, /time set (31.10.)
+                }
+                if (want.contains("ss2-alltag")) {
+                    Ss2AlltagScenes.run(context, game);   // survival safety 2: everyday play outside the nights (Simon 31.10.)
                 }
                 if (want.contains("ladders")) {
                     // The climbing scenes, then the ladder cases of 28 October 2026 (block beside, ladder above the ground).
@@ -9970,7 +9977,7 @@ public class EventLookTest implements FabricClientGameTest {
         context.waitTicks(5);
     }
 
-    private static void place(net.minecraft.server.level.ServerLevel level, com.mki.nightsiege.game.SiegeManager manager,
+    static void place(net.minecraft.server.level.ServerLevel level, com.mki.nightsiege.game.SiegeManager manager,
                               net.minecraft.server.level.ServerPlayer player, net.minecraft.core.BlockPos pos,
                               com.mki.nightsiege.core.TrapKind kind) {
         level.setBlock(pos, com.mki.nightsiege.game.ModContent.TRAP_BLOCKS.get(kind).defaultBlockState(), 3);
