@@ -4770,7 +4770,9 @@ public final class SiegeManager {
             case "roster" -> unregister(player);
             case "extrasiege" -> onCallExtraSiege(player);
             case "vote" -> {
-                vote(player, argument.equals("yes"));
+                if (!tooSoon(player, verb)) {   // each vote writes the save and tells everyone (survival safety 2)
+                    vote(player, argument.equals("yes"));
+                }
                 openCoreWindow(player);
             }
             case "buy" -> onBuySkill(player, argument);
@@ -4823,10 +4825,7 @@ public final class SiegeManager {
             case "curse" -> {   // the curse altar (update 2): a stone laid on or taken off
                 // At most one stone every half second per player: each one tells every registered player
                 // in the chat (survival safety 2).
-                long curseNow = player.level().getServer() == null ? 0L : player.level().getServer().getTickCount();
-                Long curseLast = curseClickAt.get(player.getUUID());
-                if (curseLast == null || curseNow - curseLast >= CURSE_CLICK_TICKS || curseNow < curseLast) {
-                    curseClickAt.put(player.getUUID(), curseNow);
+                if (!tooSoon(player, verb)) {
                     Curses.toggle(this, player, argument);
                 }
                 openCoreWindow(player);
@@ -4835,9 +4834,24 @@ public final class SiegeManager {
         }
     }
 
-    /** The last curse stone click of each player (survival safety 2). */
-    private final Map<UUID, Long> curseClickAt = new HashMap<>();
-    private static final int CURSE_CLICK_TICKS = 10;
+    /**
+     * The last click of each player on a button that tells everyone in the chat (a curse stone, a vote):
+     * at most one every CLICK_TICKS per player and button (survival safety 2).
+     */
+    private final Map<String, Long> clickAt = new HashMap<>();
+    private static final int CLICK_TICKS = 10;
+
+    private boolean tooSoon(ServerPlayer player, String verb) {
+        MinecraftServer server = player.level().getServer();
+        long now = server == null ? 0L : server.getTickCount();
+        String key = player.getUUID() + ":" + verb;
+        Long last = clickAt.get(key);
+        if (last != null && now - last < CLICK_TICKS && now >= last) {
+            return true;
+        }
+        clickAt.put(key, now);
+        return false;
+    }
 
     private static int parseAmount(String text) {
         try {
