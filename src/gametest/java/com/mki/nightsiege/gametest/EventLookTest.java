@@ -83,6 +83,9 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("dungeons")) {
                     dungeonScene(context, game);
                 }
+                if (want.contains("ss2-dungeon")) {
+                    Ss2DungeonScenes.run(context, game);   // survival safety 2: dungeon and camp (31 October 2026)
+                }
                 if (want.contains("dungeondump")) {
                     dungeonDumpScene(context, game);   // every block of the eight dungeons as a file (29 October 2026)
                 }
@@ -1948,7 +1951,7 @@ public class EventLookTest implements FabricClientGameTest {
     }
 
     /** Clears a square yard on the server (grass floor, air above) around a middle and returns its ground height. */
-    private static int yard(ClientGameTestContext context, TestSingleplayerContext game, int cx, int cz, int out, int high) {
+    static int yard(ClientGameTestContext context, TestSingleplayerContext game, int cx, int cz, int out, int high) {
         game.getServer().runCommand("forceload add %d %d %d %d".formatted(cx - out - 8, cz - out - 8, cx + out + 8, cz + out + 8));
         context.waitTicks(40);
         final int[] ground = new int[1];
@@ -2396,7 +2399,7 @@ public class EventLookTest implements FabricClientGameTest {
      * test world): the chunks loaded, a pillar of stone under the gatehouse; the halls and the
      * arena stand in the air below. Returns the height one walks on.
      */
-    private static int dungeonGround(ClientGameTestContext context, TestSingleplayerContext game, int cx, int cz, int rooms) {
+    static int dungeonGround(ClientGameTestContext context, TestSingleplayerContext game, int cx, int cz, int rooms) {
         int top = -6;
         int cz2 = 20 + 43 * rooms + 38;
         game.getServer().runCommand("forceload add %d %d %d %d".formatted(cx - 34, cz - 14, cx + 34, cz + cz2 + 32));
@@ -7408,7 +7411,7 @@ public class EventLookTest implements FabricClientGameTest {
     }
 
     /** Something to do on the integrated server with the test player and the siege manager. */
-    private interface OnServer {
+    interface OnServer {
         void run(net.minecraft.server.level.ServerPlayer player, com.mki.nightsiege.game.SiegeManager manager);
     }
 
@@ -7419,7 +7422,7 @@ public class EventLookTest implements FabricClientGameTest {
         }
     }
 
-    private static void onServer(ClientGameTestContext context, OnServer action) {
+    static void onServer(ClientGameTestContext context, OnServer action) {
         context.runOnClient(client -> {
             net.minecraft.server.MinecraftServer server = client.getSingleplayerServer();
             server.execute(() -> {
@@ -7657,7 +7660,7 @@ public class EventLookTest implements FabricClientGameTest {
         context.waitTicks(10);
     }
 
-    private static void closeScreen(ClientGameTestContext context) {
+    static void closeScreen(ClientGameTestContext context) {
         context.runOnClient(client -> {
             if (client.gui.screen() != null) {
                 client.gui.setScreen(null);

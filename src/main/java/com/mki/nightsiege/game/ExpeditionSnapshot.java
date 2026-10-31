@@ -73,6 +73,7 @@ final class ExpeditionSnapshot {
         ExpeditionSnapshot snap = new ExpeditionSnapshot(path);
         if (Files.exists(snap.file)) {
             List<String> lines = new ArrayList<>();
+            boolean cut = false;
             try (BufferedReader in = new BufferedReader(new InputStreamReader(
                     new GZIPInputStream(Files.newInputStream(snap.file)), StandardCharsets.UTF_8))) {
                 String read;
@@ -81,9 +82,11 @@ final class ExpeditionSnapshot {
                 }
             } catch (IOException | RuntimeException e) {
                 // A member cut off by a crash: what was read before it still counts.
+                cut = true;
                 NightSiegeMod.LOGGER.warn("[Night Siege] Dungeon-Schnappschuss {} nur teilweise lesbar ({} Zeilen): {}",
                         snap.file, lines.size(), e.toString());
             }
+            int dropped = 0;
             try {
                 int at = 0;
                 while (at < lines.size()) {
@@ -102,6 +105,10 @@ final class ExpeditionSnapshot {
                     long key = Long.parseLong(head[1]);
                     int count = Integer.parseInt(head[2]);
                     int palette = Integer.parseInt(head[3]);
+                    // Survival safety (Simon 31.10., D4): a chunk cut off by a crash (palette, indices or
+                    // places missing) is not taken: before, it came as a chunk of nothing but unknown spots,
+                    // counted as written down, was never written down again and never put back.
+                    boolean whole = at + palette < lines.size();
                     BlockState[] pal = new BlockState[palette];
                     for (int i = 0; i < palette; i++) {
                         pal[i] = parse(at < lines.size() ? lines.get(at++) : null);
@@ -109,26 +116,46 @@ final class ExpeditionSnapshot {
                     String idx = at < lines.size() ? lines.get(at++) : null;
                     BlockState[] states = new BlockState[count];
                     String[] parts = idx == null || idx.isEmpty() ? new String[0] : idx.split(" ");
+                    whole &= parts.length == count || count == 0;
                     for (int i = 0; i < count && i < parts.length; i++) {
                         int p = Integer.parseInt(parts[i]);
                         states[i] = p >= 0 && p < pal.length ? pal[p] : null;
+                        whole &= states[i] != null;
                     }
-                    snap.chunks.put(key, states);
+                    long[] places = null;
                     if (at < lines.size() && lines.get(at).startsWith("L ")) {
                         // Where each spot is (since 29 October 2026): the dungeon goes back right
                         // even when its plan has changed since it was built.
                         String[] where = lines.get(at++).substring(2).trim().split(" ");
                         if (where.length == count) {
-                            long[] places = new long[count];
+                            places = new long[count];
                             for (int i = 0; i < count; i++) {
                                 places[i] = Long.parseLong(where[i]);
                             }
-                            snap.places.put(key, places);
+                        } else {
+                            whole = false;
                         }
+                    } else if (cut && at >= lines.size()) {
+                        whole = false;   // the last chunk of a cut file: its places may be what was lost
+                    }
+                    if (!whole) {
+                        dropped++;
+                        continue;
+                    }
+                    snap.chunks.put(key, states);
+                    if (places != null) {
+                        snap.places.put(key, places);
                     }
                 }
             } catch (RuntimeException e) {
+                cut = true;
                 NightSiegeMod.LOGGER.warn("[Night Siege] Dungeon-Schnappschuss {} nicht lesbar: {}", snap.file, e.toString());
+            }
+            if (cut || dropped > 0) {
+                // Written anew from what is whole: a member appended after a cut one would never be read.
+                NightSiegeMod.LOGGER.warn("[Night Siege] Dungeon-Schnappschuss {}: {} unvollständige Chunks verworfen, Datei neu geschrieben",
+                        snap.file, dropped);
+                snap.save();
             }
         }
         return snap;
@@ -202,17 +229,38 @@ final class ExpeditionSnapshot {
         return new ArrayList<>(chunks.keySet());
     }
 
-    /** A chunk put back: gone from the snapshot (a line "F" appended to the file, not the whole file anew). */
+    /**
+     * A chunk put back: gone from the snapshot. Survival safety (Simon 31.10., D4): its line "F" goes
+     * into the file only with {@link #commit}, once the world is saved (the blocks put back reach the
+     * disk only then; after a crash before it the chunk is put back again).
+     */
     void forget(long chunk) {
         places.remove(chunk);
         if (chunks.remove(chunk) != null) {
-            append("F " + chunk + "\n");
+            unsaved.add(chunk);
         }
+    }
+
+    /** Chunks put back since the world was last saved (their "F" lines still to write). */
+    private final List<Long> unsaved = new ArrayList<>();
+
+    /** The world is saved: the chunks put back before it are forgotten in the file too. */
+    void commit() {
+        if (unsaved.isEmpty()) {
+            return;
+        }
+        StringBuilder text = new StringBuilder(unsaved.size() * 24);
+        for (long chunk : unsaved) {
+            text.append("F ").append(chunk).append('\n');
+        }
+        unsaved.clear();
+        append(text.toString());
     }
 
     void delete() {
         chunks.clear();
         places.clear();
+        unsaved.clear();
         try {
             Files.deleteIfExists(file);
         } catch (IOException e) {

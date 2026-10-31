@@ -338,6 +338,12 @@ public final class SiegeManager {
             syncSchedulerToSave();
             persist();
         });
+        // Survival safety (Simon 31.10., D4): what the dungeons and the camp built or took down counts as done
+        // only once the world is saved with it (after a crash before that, it is done again).
+        ServerLifecycleEvents.AFTER_SAVE.register((server, flush, force) -> {
+            safe("Dungeons", () -> expeditions.afterWorldSave(server));
+            safe("Heerlager", () -> camp.afterWorldSave(server));
+        });
         ServerTickEvents.START_SERVER_TICK.register(server -> tickStartNanos = System.nanoTime());
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             onEndTick(server);
@@ -734,6 +740,8 @@ public final class SiegeManager {
             safe("Dungeons", () -> expeditions.tick(server));
             safe("Maschinen-Probe", () -> machines.tickTrials(server, config, gameTime));
         }
+        // Survival safety (31.10.): nobody stuck in ground that came back, logins looked at (at night too).
+        safe("Sicherer Boden", () -> SafeGround.tick(server, this));
         if (active) {
             tickSiege(server);
             return;
