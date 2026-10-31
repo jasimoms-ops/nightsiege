@@ -132,7 +132,7 @@ public final class ArrowRain {
     }
 
     static int pause() {
-        return (int) Math.max(0, SkillValues.get(NODE, "pause", 100));
+        return (int) Math.max(0, SkillValues.get(NODE, "pause", 160));
     }
 
     static double range() {

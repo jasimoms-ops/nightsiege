@@ -139,7 +139,7 @@ final class SkillValuesArcher {
         // Per monster and rain, after the subclass factors: about 3 (swift 12 × 0.25, heavy 4 × 0.43 × 1.75,
         // bolter 6 × 1.0 × 0.6, trapper 6 × 0.35 and slowed).
         def("arrow_rain", "dur", 60);               // ticks the rain falls
-        def("arrow_rain", "pause", 100);            // ticks after the rain until the next one (Simon: 5 s)
+        def("arrow_rain", "pause", 160);            // ticks after the rain until the next one (Simon 31.10.: 8 s, was 5 s)
         def("arrow_rain", "range", 32.0);           // blocks to the spot looked at
         def("arrow_rain", "mult", 1.0);             // on every hit (for balancing)
         def("arrow_rain", "radius_swift", 4.0);

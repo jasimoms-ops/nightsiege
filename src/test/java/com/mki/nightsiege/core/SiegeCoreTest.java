@@ -167,9 +167,9 @@ class SiegeCoreTest {
 
     @Test
     void arrowRainHasItsNumbersForEveryArcher() {
-        // Simon 30.10.: the rain falls 3 s, then 5 s pause until the next one.
+        // Simon 30.10.: the rain falls 3 s; 31.10.: then 8 s pause until the next one (was 5 s).
         assertEquals(60, SkillValues.get("arrow_rain", "dur", -1), 1e-9);
-        assertEquals(100, SkillValues.get("arrow_rain", "pause", -1), 1e-9);
+        assertEquals(160, SkillValues.get("arrow_rain", "pause", -1), 1e-9);
         assertEquals(1.0, SkillValues.get("arrow_rain", "mult", -1), 1e-9);
         for (String sub : List.of(SkillTree.SUB_SWIFT, SkillTree.SUB_HEAVY, SkillTree.SUB_BOLTER, SkillTree.SUB_TRAPPER)) {
             assertTrue(SkillValues.get("arrow_rain", "radius_" + sub, -1) > 0, sub);
