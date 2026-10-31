@@ -1687,7 +1687,9 @@ public final class SiegeCamp {
         if (m.save().campGrounds != null && m.save().campGrounds.contains(camp.id + "|" + camp.dimension)) {
             // Written down when it was built: the old ground comes back chunk by chunk (restoreGround),
             // trees, hills and all. Its barrels are not emptied any more (Simon 31.10.: survival safety):
-            // what lies in one is a player's, and a barrel with something in it stays standing.
+            // what lies in one is a player's, and a barrel with something in it stays standing. What the camp
+            // set where is kept for that, so a player's block there stays too.
+            groundPlans.put(camp.id + "|" + camp.dimension, campPlan(center, camp.facing, camp.id));
             for (int i = 0; i < 20; i++) {
                 level.sendParticles(ParticleTypes.CAMPFIRE_COSY_SMOKE, center.getX() + random.nextGaussian() * 8, center.getY() + 1,
                         center.getZ() + random.nextGaussian() * 8, 1, 0, 0.05, 0, 0.01);
@@ -1773,8 +1775,10 @@ public final class SiegeCamp {
 
     /** The camps whose old ground is coming back: a few chunks every tick, once their chunks are loaded. */
     private final Map<String, ExpeditionSnapshot> groundSnaps = new java.util.HashMap<>();
-    /** Per waiting camp the blocks it set itself (its layout's), so a player's blocks there stay (31.10.). */
+    /** Per waiting camp the kinds of blocks it set (after a restart, when its plan is not known any more). */
     private final Map<String, java.util.Set<Block>> groundBlocks = new java.util.HashMap<>();
+    /** Per camp taken down since the start: what it set at each spot, so a player's blocks there stay (31.10.). */
+    private final Map<String, Map<BlockPos, BlockState>> groundPlans = new java.util.HashMap<>();
     /** For the tests: blocks of old ground put back so far. */
     private int groundPut;
 
@@ -1818,6 +1822,7 @@ public final class SiegeCamp {
             final int campId = id;
             ExpeditionSnapshot snap = groundSnaps.computeIfAbsent(key, k -> ExpeditionSnapshot.loadCamp(server, campId));
             java.util.Set<Block> own = groundBlocks.computeIfAbsent(key, k -> campBlocks(campId));
+            Map<BlockPos, BlockState> plan = groundPlans.get(key);
             int[] put = {0};
             for (long chunk : snap.keys()) {
                 if (budget[0] <= 0) {
@@ -1842,8 +1847,8 @@ public final class SiegeCamp {
                     for (int i : order) {
                         BlockState old = snap.old(chunk, i);
                         BlockPos pos = where.get(i);
-                        if (old == null || level.getBlockState(pos) == old
-                                || !Teardown.mayReset(level, pos, old, now -> own.contains(now.getBlock()))) {
+                        if (old == null || level.getBlockState(pos) == old || !Teardown.mayReset(level, pos, old,
+                                now -> plan == null ? own.contains(now.getBlock()) : plan.get(pos) != null && now.is(plan.get(pos).getBlock()))) {
                             continue;
                         }
                         level.setBlock(pos, old, Block.UPDATE_CLIENTS);
@@ -1858,6 +1863,7 @@ public final class SiegeCamp {
                 snap.delete();
                 groundSnaps.remove(key);
                 groundBlocks.remove(key);
+                groundPlans.remove(key);
                 pending.remove(key);
                 changed = true;
                 NightSiegeMod.LOGGER.info("[Night Siege] Gelände des Heerlagers {} wiederhergestellt", id);
@@ -1866,6 +1872,25 @@ public final class SiegeCamp {
         if (changed) {
             m.persist();
         }
+    }
+
+    /** What a camp sets at each spot: its blocks, its floor, the air cleared above, the earth filled in below (see buildNow). */
+    private static Map<BlockPos, BlockState> campPlan(BlockPos center, int facing, long id) {
+        Map<BlockPos, BlockState> out = new java.util.HashMap<>();
+        int floorY = center.getY();
+        for (Map.Entry<BlockPos, BlockState> e : CampLayout.floor(center, facing, id).entrySet()) {
+            int x = e.getKey().getX();
+            int z = e.getKey().getZ();
+            for (int y = floorY - 11; y <= floorY - 2; y++) {
+                out.put(new BlockPos(x, y, z), Blocks.DIRT.defaultBlockState());
+            }
+            for (int y = floorY; y <= floorY + CampLayout.CLEAR; y++) {
+                out.put(new BlockPos(x, y, z), Blocks.AIR.defaultBlockState());
+            }
+            out.put(e.getKey(), e.getValue());
+        }
+        out.putAll(CampLayout.blocks(center, facing, id));
+        return out;
     }
 
     /** The blocks a camp of this id sets (its layout, its floor, the earth under it). */
