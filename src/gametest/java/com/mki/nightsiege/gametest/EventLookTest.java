@@ -61,6 +61,10 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("machines")) {
                     machineScene(context, game);
                 }
+                if (want.contains("bar") || want.contains("tech")) {
+                    // Towers work only in a night since 31.10. (survival safety 2); these scenes try them by day.
+                    com.mki.nightsiege.game.TrapService.mortarsAnyTime = true;
+                }
                 if (want.contains("bar")) {
                     alchemistScene(context, game);   // the ability bar of the alchemist and the healer
                     summonerScene(context, game);    // ... and of the summoners
