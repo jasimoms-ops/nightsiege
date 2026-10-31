@@ -3052,15 +3052,24 @@ public final class Expeditions {
         Set<UUID> who = new LinkedHashSet<>(joined);
         int lvl = m.currentLevel();
         SiegeConfig cfg = m.config();
-        m.crates().awardEach(server, who, CrateKind.EVENT, lvl);
+        // (Simon 31.10.: survival safety 2) A playtest's dungeon pays nothing real: no night fragment (it
+        // would turn the next real night into a special night) and no real crates (the playtest hands out
+        // its own). The points go with the playtest's skills, which its end puts back.
+        boolean playtest = m.inPlaytest();
+        if (!playtest) {
+            m.crates().awardEach(server, who, CrateKind.EVENT, lvl);
+        }
         for (UUID id : who) {
             if (cfg.expeditionSkillPoints > 0) {
                 m.save().skillsOf(id.toString()).award(cfg.expeditionSkillPoints);
             }
             ServerPlayer player = server.getPlayerList().getPlayer(id);
             if (player != null) {
-                player.sendSystemMessage(Component.translatable("nightsiege.expedition.reward", cfg.expeditionSkillPoints,
-                        Component.translatable("item.nightsiege.night_fragment_" + kind.fragment().id())).withStyle(ChatFormatting.AQUA));
+                player.sendSystemMessage((playtest
+                        ? Component.translatable("nightsiege.expedition.reward_playtest", cfg.expeditionSkillPoints)
+                        : Component.translatable("nightsiege.expedition.reward", cfg.expeditionSkillPoints,
+                                Component.translatable("item.nightsiege.night_fragment_" + kind.fragment().id())))
+                        .withStyle(ChatFormatting.AQUA));
                 level.playSound(null, player.blockPosition(), SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.PLAYERS, 1f, 1f);
             }
         }
@@ -3072,7 +3081,8 @@ public final class Expeditions {
         m.broadcastRegistered(server, Component.translatable("nightsiege.expedition.won", String.join(", ", names),
                 Component.translatable(kind.translationKey())).withStyle(ChatFormatting.GREEN, ChatFormatting.BOLD));
         NightSiegeMod.LOGGER.info("[Night Siege] Dungeon {} bezwungen von {}", rec.kind, names);
-        m.stats().dungeonEnd("gewonnen", List.of("klassenkiste_je_spieler", "punkte_je_spieler:" + cfg.expeditionSkillPoints,
+        m.stats().dungeonEnd("gewonnen", playtest ? List.of("punkte_je_spieler:" + cfg.expeditionSkillPoints, "playtest")
+                : List.of("klassenkiste_je_spieler", "punkte_je_spieler:" + cfg.expeditionSkillPoints,
                 "fragment:" + kind.fragment().id()));
         for (UUID id : who) {
             ServerPlayer player = server.getPlayerList().getPlayer(id);
@@ -3086,7 +3096,7 @@ public final class Expeditions {
         }
         endAll(server, null);
         // After the own things are back (the kit's stash would take it away again).
-        if (fragmentTo != null && fragment != null) {
+        if (fragmentTo != null && fragment != null && !playtest) {
             ItemStack stack = new ItemStack(fragment);
             if (!fragmentTo.getInventory().add(stack)) {
                 fragmentTo.drop(stack, false);

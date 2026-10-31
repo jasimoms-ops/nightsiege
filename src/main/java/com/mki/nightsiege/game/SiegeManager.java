@@ -658,9 +658,38 @@ public final class SiegeManager {
     }
 
     public void persist() {
+        shortSaveTicks = -1;   // everything is written now (survival safety 2)
         if (savePath != null) {
             Json.write(savePath, save);
+            savesWritten++;
         }
+    }
+
+    /**
+     * (Simon 31.10.: survival safety 2) The window's buttons (a curse stone, a gain key, a profile, a
+     * skill) changed the save, but it need not be written at once: written within SHORT_SAVE_TICKS from
+     * the tick, or with the next persist (also at the stop). A flood of clicks writes once, not each time.
+     * Package ss-speichern has its own persistSoon (30 s) for PlayerBuilt; to be unified at the merge.
+     */
+    public void persistShortly() {
+        if (shortSaveTicks < 0) {
+            shortSaveTicks = SHORT_SAVE_TICKS;
+        }
+    }
+
+    /** Ticks until the waiting short save is written (-1: none waits). */
+    private int shortSaveTicks = -1;
+    private static final int SHORT_SAVE_TICKS = 40;
+    /** For the test: how often the save was written since the start. */
+    private int savesWritten;
+
+    public int savesWritten() {
+        return savesWritten;
+    }
+
+    /** For the test: whether a short save waits. */
+    public boolean shortSavePending() {
+        return shortSaveTicks >= 0;
     }
 
     // ------------------------------------------------------------------
@@ -723,6 +752,16 @@ public final class SiegeManager {
             trapSaveCounter = 0;
             trapsDirty = false;
             persist();
+        }
+        if (shortSaveTicks >= 0 && --shortSaveTicks <= 0) {
+            persist();   // the window's changes of the last two seconds (survival safety 2)
+        }
+        flushCoreWindows(server);
+        if (!save.starterCoreGiven && server.overworld().getGameTime() % 100 == 0) {
+            // The starter core waits for the first operator (Simon 31.10.): one made op while online gets it too.
+            for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+                giveStarterCore(player);
+            }
         }
 
         long gameTime = server.overworld().getGameTime();
@@ -4109,9 +4148,16 @@ public final class SiegeManager {
         }
     }
 
-    /** The very first player of a world is handed one core, once ever. */
-    private void giveStarterCore(ServerPlayer player) {
+    /**
+     * The very first operator of a world is handed one core, once ever. (Simon 31.10.: only operators
+     * place a core; a first player who is no operator gets none, it waits for the first operator.)
+     * Public for the test.
+     */
+    public void giveStarterCore(ServerPlayer player) {
         if (!config.giveStarterCore || save.starterCoreGiven || ModContent.SIEGE_CORE_ITEM == null) {
+            return;
+        }
+        if (!isAdmin(player) || SimBots.isBot(player)) {
             return;
         }
         save.starterCoreGiven = true;
@@ -4271,9 +4317,37 @@ public final class SiegeManager {
         persist();
     }
 
+    /**
+     * (Simon 31.10.: survival safety 2) Only operators may place the core, and only in the overworld
+     * (before, anyone could craft one and set it at somebody else's base or in the Nether or the End,
+     * and every siege, scan and mend ran there). Null when this placement is allowed, otherwise the
+     * key of the message. Checked on both sides when the block is placed ({@link SiegeCoreBlock}).
+     */
+    public static String coreRefusal(net.minecraft.world.entity.player.Player player, Level level) {
+        if (level == null || !Level.OVERWORLD.equals(level.dimension())) {
+            return "nightsiege.msg.core_overworld_only";
+        }
+        if (player == null || !net.minecraft.commands.Commands.LEVEL_GAMEMASTERS.check(player.permissions())) {
+            return "nightsiege.msg.core_op_only";
+        }
+        return null;
+    }
+
     public void onCorePlaced(ServerLevel level, BlockPos pos, LivingEntity placer) {
         String dimension = dimensionName(level);
         if (save.findCore(dimension, pos.getX(), pos.getY(), pos.getZ()) != null) {
+            return;
+        }
+        if (!Level.OVERWORLD.equals(level.dimension())) {
+            // Survival safety 2: the core belongs in the overworld (the block refuses it before; this is for
+            // every other way a core block gets set). The item goes back.
+            level.removeBlock(pos, false);
+            if (placer instanceof ServerPlayer player) {
+                if (!player.getAbilities().instabuild) {
+                    player.getInventory().placeItemBackInInventory(new ItemStack(ModContent.SIEGE_CORE_ITEM));
+                }
+                player.sendSystemMessage(Component.translatable("nightsiege.msg.core_overworld_only").withStyle(ChatFormatting.RED));
+            }
             return;
         }
         CoreRecord existing = mainCore();
@@ -4412,6 +4486,13 @@ public final class SiegeManager {
                     Component.translatable("nightsiege.fragment.busy").withStyle(ChatFormatting.YELLOW)));
             return true;
         }
+        if (playtest.running()) {
+            // (Simon 31.10.: survival safety 2) The playtest's nights do not use it up, and its end does not
+            // take it back: the next real night would turn special. Kept in the hand.
+            player.connection.send(new net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket(
+                    Component.translatable("nightsiege.fragment.playtest").withStyle(ChatFormatting.YELLOW)));
+            return true;
+        }
         if (set != null) {
             player.connection.send(new net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket(
                     Component.translatable("nightsiege.fragment.already",
@@ -4465,8 +4546,56 @@ public final class SiegeManager {
         }
     }
 
+    /**
+     * (Simon 31.10.: survival safety 2) The window's state is big (every node of every profile, over
+     * 100 KB of JSON). It goes to one player at most every WINDOW_TICKS; a request in between is sent
+     * when that time is up, so the last state always arrives.
+     */
+    private static final int WINDOW_TICKS = 5;
+    private final Map<UUID, Long> windowSentAt = new HashMap<>();
+    private final Set<UUID> windowWaiting = new HashSet<>();
+    /** For the test: how many window states were built and sent since the start. */
+    private int windowsSent;
+
+    public int windowsSent() {
+        return windowsSent;
+    }
+
+    /** The windows asked for while their player's last one was too fresh. */
+    private void flushCoreWindows(MinecraftServer server) {
+        if (windowWaiting.isEmpty()) {
+            return;
+        }
+        long now = server.getTickCount();
+        for (UUID id : new ArrayList<>(windowWaiting)) {
+            ServerPlayer player = server.getPlayerList().getPlayer(id);
+            if (player == null) {
+                windowWaiting.remove(id);
+                windowSentAt.remove(id);
+                continue;
+            }
+            Long last = windowSentAt.get(id);
+            if (last == null || now - last >= WINDOW_TICKS) {
+                windowWaiting.remove(id);
+                openCoreWindow(player);
+            }
+        }
+    }
+
     /** Sends the window state, or falls back to chat for a client without it. */
     public void openCoreWindow(ServerPlayer player) {
+        MinecraftServer windowServer = player.level().getServer();
+        if (windowServer != null) {
+            long now = windowServer.getTickCount();
+            Long last = windowSentAt.get(player.getUUID());
+            if (last != null && now - last < WINDOW_TICKS && now >= last) {
+                windowWaiting.add(player.getUUID());   // sent from the tick once the time is up
+                return;
+            }
+            windowSentAt.put(player.getUUID(), now);
+            windowWaiting.remove(player.getUUID());
+        }
+        windowsSent++;
         if (player.level() instanceof ServerLevel here) {
             PlayerSkills own = save.skillsOf(player.getUUID().toString());
             ClassTags.update(here.getServer(), player, own, skillTree.subclassOfProfile(own, own.chosenClass));
@@ -4667,9 +4796,9 @@ public final class SiegeManager {
                 // The collection: a gain ability onto the first gain key ("gainkey:CLASS:id").
                 String[] bits = argument.split(":", 2);
                 if (bits.length == 2 && GainKeys.choose(this, player, bits[0], bits[1])) {
-                    persist();
+                    persistShortly();   // not a full write per click (survival safety 2)
                     sendUltHud(player);
-                    StatsService.sendTo(player, this);
+                    openCoreWindow(player);   // through the window's limit (survival safety 2)
                 }
             }
             case "wheel" -> onWheel(player, argument);
@@ -4692,12 +4821,23 @@ public final class SiegeManager {
             case "playtest" -> playtest.onAction(player, argument);   // the playtest window (28 October 2026)
             case "feedback" -> safe("Bewertung", () -> stats.feedback(player, argument));   // 1-click feedback (29 October 2026)
             case "curse" -> {   // the curse altar (update 2): a stone laid on or taken off
-                Curses.toggle(this, player, argument);
+                // At most one stone every half second per player: each one tells every registered player
+                // in the chat (survival safety 2).
+                long curseNow = player.level().getServer() == null ? 0L : player.level().getServer().getTickCount();
+                Long curseLast = curseClickAt.get(player.getUUID());
+                if (curseLast == null || curseNow - curseLast >= CURSE_CLICK_TICKS || curseNow < curseLast) {
+                    curseClickAt.put(player.getUUID(), curseNow);
+                    Curses.toggle(this, player, argument);
+                }
                 openCoreWindow(player);
             }
             default -> openCoreWindow(player);
         }
     }
+
+    /** The last curse stone click of each player (survival safety 2). */
+    private final Map<UUID, Long> curseClickAt = new HashMap<>();
+    private static final int CURSE_CLICK_TICKS = 10;
 
     private static int parseAmount(String text) {
         try {
@@ -4798,14 +4938,13 @@ public final class SiegeManager {
         openCoreWindow(player);
     }
 
-    /** A player clicked a node in the window ("node" or "node@PROFILE"). */
-    public void onBuySkill(ServerPlayer player, String nodeId) {
+    /** A player clicked a node in the window ("node" or "node@PROFILE"). True when a level was bought. */
+    public boolean onBuySkill(ServerPlayer player, String nodeId) {
         if (nodeId != null && nodeId.contains("@")) {
             int at = nodeId.indexOf('@');
-            onBuySkill(player, nodeId.substring(0, at), nodeId.substring(at + 1));
-        } else {
-            onBuySkill(player, nodeId, null);
+            return onBuySkill(player, nodeId.substring(0, at), nodeId.substring(at + 1));
         }
+        return onBuySkill(player, nodeId, null);
     }
 
     /**
@@ -4813,34 +4952,35 @@ public final class SiegeManager {
      * (Simon, 26 October 2026): they can be spent in every own profile. Without a
      * profile key the played profile (or the oldest one of the node's class) is meant.
      */
-    public void onBuySkill(ServerPlayer player, String nodeId, String profileKey) {
+    public boolean onBuySkill(ServerPlayer player, String nodeId, String profileKey) {
         if (player == null || nodeId == null || !config.skillsEnabled) {
-            return;
+            return false;
         }
         var node = skillTree.get(nodeId);
         if (node == null) {
-            return;
+            return false;
         }
         PlayerSkills own = save.skillsOf(player.getUUID().toString());
         if (node.clazz().isShared()) {
             // The core tree is paid from the shared pot that donations fill.
-            if (skillTree.unlock(nodeId, save.coreSkills())) {
-                persist();
+            boolean boughtCore = skillTree.unlock(nodeId, save.coreSkills());
+            if (boughtCore) {
+                persistShortly();   // survival safety 2: not a full write per click
             }
             openCoreWindow(player);
-            return;
+            return boughtCore;
         }
         String key = profileKey != null && !profileKey.isBlank() ? profileKey : own.profileFor(node.clazz());
         if (key == null || !own.hasProfile(key) || PlayerSkills.classOfKey(key) != node.clazz()) {
             player.sendSystemMessage(Component.translatable("nightsiege.msg.class_not_leveling")
                     .withStyle(ChatFormatting.RED));
             openCoreWindow(player);
-            return;
+            return false;
         }
         boolean bought = own.asProfile(key, () -> skillTree.unlock(nodeId, own));
         if (bought) {
             rewardMaxedUltimate(player, own, node, key);
-            persist();
+            persistShortly();   // survival safety 2: not a full write per click
             // Skills only hold during a siege, so apply at once only if one runs.
             if (key.equals(own.chosenClass) && active && participants.contains(player.getUUID())
                     && !fallen.contains(player.getUUID())) {
@@ -4848,6 +4988,7 @@ public final class SiegeManager {
             }
         }
         openCoreWindow(player);
+        return bought;
     }
 
     /** The new classes this player could open with an unlock. */
@@ -5097,9 +5238,16 @@ public final class SiegeManager {
             player.sendSystemMessage(Component.translatable("nightsiege.msg.class_locked").withStyle(ChatFormatting.RED));
             return;
         }
+        if (!key.equals(own.chosenClass) && kits.hasStash(player) && !inClassWindow(player)) {
+            // (Simon 31.10.: survival safety 2) With a kit on (a dungeon or camp fight, a coming or running
+            // night, a test) a switch handed out a whole fresh kit: potions, golden apples, pearls, a full
+            // quiver - again and again with two profiles. Only the class window's countdown may switch.
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.play_not_with_kit").withStyle(ChatFormatting.RED));
+            return;
+        }
         if (!key.equals(own.chosenClass)) {
             own.switchToProfile(key);
-            persist();
+            persistShortly();   // survival safety 2: not a full write per click
             SkillService.clear(player);
             if (kits.hasStash(player)) {
                 kits.refit(player, levelForKit());   // the kit of the new class for tonight
@@ -5128,6 +5276,20 @@ public final class SiegeManager {
 
     /** Defenders who still have the class window of tonight open. */
     private final Set<UUID> classPicking = new HashSet<>();
+
+    /**
+     * True while this player's class window counts down (survival safety 2): it is open (no class
+     * confirmed yet) and the night is coming, a test night is being prepared, or the war drum's or the
+     * seal stone's ready round runs.
+     */
+    public boolean inClassWindow(ServerPlayer player) {
+        if (player == null || !classPicking.contains(player.getUUID())) {
+            return false;
+        }
+        MinecraftServer server = player.level().getServer();
+        return pendingTest != null || (server != null && nightComing(server))
+                || camp.inRound(player) || expeditions.inRound(player);
+    }
 
     /** The one free class change at the core: class open again, all points back. */
     public void onClassReset(ServerPlayer player) {
@@ -5581,15 +5743,20 @@ public final class SiegeManager {
     private List<ServerPlayer> defendersNear(MinecraftServer server, ServerLevel targetWorld, BlockPos center, boolean test) {
         List<ServerPlayer> near = playersNear(server, targetWorld, center, config.participantRadius);
         List<ServerPlayer> out = new ArrayList<>();
+        // (Simon 31.10.: survival safety 2) A playtest's night is for its players only: before, every
+        // registered player within the radius got a kit, his inventory swapped, and fought along.
+        // The admin's test night (/nightsiege test) still takes the registered players around.
+        boolean playtestNight = test && playtest.running();
         for (ServerPlayer player : near) {
             String id = player.getUUID().toString();
-            boolean ok = test || openNight ? save.isRegistered(id)
+            boolean ok = playtestNight ? playtest.takesPart(player.getUUID())
+                    : test || openNight ? save.isRegistered(id)
                     : save.isRegistered(id) && save.accepted != null && save.accepted.contains(id);
             if (ok) {
                 out.add(player);
             }
         }
-        if (test && out.isEmpty()) {
+        if (test && out.isEmpty() && !playtestNight) {
             return near;
         }
         return out;

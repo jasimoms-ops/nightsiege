@@ -129,6 +129,9 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("playtest")) {
                     playtestScene(context, game);   // the playtest (28 October 2026)
                 }
+                if (want.contains("ss2-netz")) {
+                    Ss2NetzScenes.run(context, game);   // survival safety 2: packets, profiles, playtest, core rights (31.10.)
+                }
                 if (want.contains("ui")) {
                     // The windows at the end of the full run (the full run outgrew its 40 minutes, 29 October 2026).
                     ensureCore(context, game);   // alone, no scene before it placed a core (30 October 2026)
@@ -2534,7 +2537,7 @@ public class EventLookTest implements FabricClientGameTest {
     }
 
     /** Hits every dungeon monster standing now with a deadly player blow. */
-    private static void killDungeonMobs(ClientGameTestContext context, String label) {
+    static void killDungeonMobs(ClientGameTestContext context, String label) {
         onServer(context, (player, manager) -> {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
             java.util.List<net.minecraft.world.entity.Mob> mobs = manager.expeditions().testMobs(level);
@@ -5537,7 +5540,7 @@ public class EventLookTest implements FabricClientGameTest {
     }
 
     /** A core on flat ground near the player, when none is known yet (the scenes that need one, run alone). */
-    private static void ensureCore(ClientGameTestContext context, TestSingleplayerContext game) {
+    static void ensureCore(ClientGameTestContext context, TestSingleplayerContext game) {
         boolean none = context.computeOnClient(client -> com.mki.nightsiege.game.SiegeManager.get().save().cores.isEmpty());
         if (!none) {
             return;
@@ -7408,7 +7411,7 @@ public class EventLookTest implements FabricClientGameTest {
     }
 
     /** Something to do on the integrated server with the test player and the siege manager. */
-    private interface OnServer {
+    interface OnServer {
         void run(net.minecraft.server.level.ServerPlayer player, com.mki.nightsiege.game.SiegeManager manager);
     }
 
@@ -7419,7 +7422,7 @@ public class EventLookTest implements FabricClientGameTest {
         }
     }
 
-    private static void onServer(ClientGameTestContext context, OnServer action) {
+    static void onServer(ClientGameTestContext context, OnServer action) {
         context.runOnClient(client -> {
             net.minecraft.server.MinecraftServer server = client.getSingleplayerServer();
             server.execute(() -> {
@@ -7657,7 +7660,7 @@ public class EventLookTest implements FabricClientGameTest {
         context.waitTicks(10);
     }
 
-    private static void closeScreen(ClientGameTestContext context) {
+    static void closeScreen(ClientGameTestContext context) {
         context.runOnClient(client -> {
             if (client.gui.screen() != null) {
                 client.gui.setScreen(null);

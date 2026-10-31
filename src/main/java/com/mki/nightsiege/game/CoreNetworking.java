@@ -121,13 +121,58 @@ public final class CoreNetworking {
         PayloadTypeRegistry.serverboundPlay().register(CoreActionPayload.TYPE, CoreActionPayload.CODEC);
     }
 
+    /**
+     * (Simon 31.10.: survival safety 2) A modified client could send thousands of window actions a
+     * second, and every one rebuilt the whole core window or wrote the save. Each player now has a small
+     * bucket: up to {@link #BURST} actions at once, refilled by one per server tick (20 a second); the rest
+     * is dropped here, before it reaches the server's task queue. A normal client never comes near it.
+     */
+    static final int BURST = 20;
+    /** Per player: {tokens, tick of the last refill}. */
+    private static final java.util.Map<java.util.UUID, long[]> BUCKETS = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final java.util.concurrent.atomic.AtomicInteger ADMITTED = new java.util.concurrent.atomic.AtomicInteger();
+    private static final java.util.concurrent.atomic.AtomicInteger DROPPED = new java.util.concurrent.atomic.AtomicInteger();
+
+    /** True when this action of the player may go on (one token taken), false when it is dropped. */
+    static boolean admit(java.util.UUID player, long tick) {
+        long[] bucket = BUCKETS.computeIfAbsent(player, id -> new long[]{BURST, tick});
+        synchronized (bucket) {
+            if (tick > bucket[1]) {
+                bucket[0] = Math.min(BURST, bucket[0] + (tick - bucket[1]));
+                bucket[1] = tick;
+            }
+            if (bucket[0] <= 0) {
+                DROPPED.incrementAndGet();
+                return false;
+            }
+            bucket[0]--;
+            ADMITTED.incrementAndGet();
+            return true;
+        }
+    }
+
+    /** For the test: window actions let through since the start. */
+    public static int admitted() {
+        return ADMITTED.get();
+    }
+
+    /** For the test: window actions dropped by the bucket since the start. */
+    public static int dropped() {
+        return DROPPED.get();
+    }
+
     /** Server side handler for skill purchases. */
     public static void registerServerReceivers() {
         ServerPlayNetworking.registerGlobalReceiver(CoreActionPayload.TYPE,
                 (payload, context) -> {
+                    if (!admit(context.player().getUUID(), context.server().getTickCount())) {
+                        return;   // too many at once: dropped (survival safety 2)
+                    }
                     // Network threads must not touch world state directly.
                     context.server().execute(() ->
                             SiegeManager.get().onCoreAction(context.player(), payload.action()));
                 });
+        net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents.DISCONNECT.register(
+                (handler, server) -> BUCKETS.remove(handler.player.getUUID()));
     }
 }

@@ -78,7 +78,7 @@ public final class Curses {
         for (CurseKind k : now) {
             save.curses.add(k.id());
         }
-        m.persist();
+        m.persistShortly();   // written within two seconds, not on every click (survival safety 2)
         MinecraftServer server = player.level().getServer();
         Component msg = Component.translatable(on ? "nightsiege.curse.laid" : "nightsiege.curse.taken",
                 player.getScoreboardName(), Component.translatable(kind.translationKey()), now.size(), cfg.curseMax)
