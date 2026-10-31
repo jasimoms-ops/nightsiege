@@ -128,6 +128,20 @@ public final class CrateService {
         award(server, defenders, kind, level, 0);
     }
 
+    /**
+     * A crate read back from the old JSON form of the stash had its numbers shrunk (the level as a
+     * byte), so it no longer stacked with a new crate (Simon 31.10.): the numbers become ints again.
+     */
+    public static void normalize(ItemStack stack) {
+        if (CRATE == null || stack == null || !stack.is(CRATE) || !stack.has(DataComponents.CUSTOM_DATA)) {
+            return;
+        }
+        CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> {
+            tag.getInt("crate_level").ifPresent(v -> tag.putInt("crate_level", v));
+            tag.getInt("crate_curse").ifPresent(v -> tag.putInt("crate_curse", v));
+        });
+    }
+
     /** A crate of the playtest (28 October 2026): it opens only for players of a running playtest. */
     public static ItemStack playtestCrate(SkillClass clazz, CrateKind kind, int level) {
         ItemStack stack = crate(clazz, kind, level, 0);
@@ -170,25 +184,50 @@ public final class CrateService {
             if (clazz == null) {
                 return;
             }
+            SiegeManager m = SiegeManager.get();
+            if (m != null && m.playtest().takesPart(id)) {
+                // A playtest gives its own crates; a real one from it would outlive the playtest (Simon 31.10.).
+                NightSiegeMod.LOGGER.info("[Night Siege] Keine echte Kiste im Playtest fuer {}", id);
+                return;
+            }
             ServerPlayer player = server.getPlayerList().getPlayer(id);
-            if (player != null) {
+            if (player != null && !waits(player)) {
                 give(player, crate(clazz, kind, level, curses));
+                KitService.savePlayer(player);   // on disk at once, not at the next autosave
             } else {
-                // Offline: the crate waits in the save until they come back.
+                // Offline, or the night kit is on: the crate waits in the save (Simon 31.10.: never into the
+                // kit inventory, which goes at the restore); it comes when they are back or the kit goes.
                 Map<String, List<String>> pending = save.get().pendingCrates;
                 if (pending == null) {
                     save.get().pendingCrates = pending = new java.util.HashMap<>();
                 }
                 pending.computeIfAbsent(id.toString(), k -> new ArrayList<>())
                         .add(clazz.name() + "|" + kind.name() + "|" + level + (curses > 0 ? "|" + curses : ""));
+                if (player != null) {
+                    player.sendSystemMessage(Component.translatable("nightsiege.crate.after_kit").withStyle(ChatFormatting.LIGHT_PURPLE));
+                    player.level().playSound(null, player.blockPosition(), SoundEvents.PLAYER_LEVELUP, SoundSource.PLAYERS, 0.6f, 1.4f);
+                }
             }
         }
     }
 
-    /** Crates won while the player was away. */
+    /**
+     * True while crates must wait for a player (Simon 31.10.: survival safety): the night kit is on
+     * (its inventory goes at the restore), they take part in a playtest (its inventory goes at the end)
+     * or they are dead (the body's inventory is gone on respawn).
+     */
+    private static boolean waits(ServerPlayer player) {
+        SiegeManager m = SiegeManager.get();
+        return player.isDeadOrDying() || m != null && (m.kits().hasStash(player) || m.playtest().takesPart(player.getUUID()));
+    }
+
+    /** Crates won while the player was away or wore the kit. */
     public void deliverPending(ServerPlayer player) {
         Map<String, List<String>> pending = save.get().pendingCrates;
-        List<String> list = pending == null ? null : pending.remove(player.getUUID().toString());
+        if (pending == null || !pending.containsKey(player.getUUID().toString()) || waits(player)) {
+            return;   // they come after the kit, the playtest or the respawn
+        }
+        List<String> list = pending.remove(player.getUUID().toString());
         if (list == null || list.isEmpty()) {
             return;
         }
@@ -213,6 +252,7 @@ public final class CrateService {
             }
             give(player, crate(SkillClass.byName(parts[0]), CrateKind.byName(parts[1]), level, curses));
         }
+        KitService.savePlayer(player);   // in the player's data before the save forgets them
         persist.run();
     }
 
@@ -271,6 +311,7 @@ public final class CrateService {
             player.getInventory().placeItemBackInInventory(new ItemStack(InferniteContent.INGOT));
         }
         persist.run();
+        KitService.savePlayer(player);   // the crate is gone from the inventory on disk too (Simon 31.10.: no second roll after a crash)
         boolean window = ServerPlayNetworking.canSend(player, CoreNetworking.ScreenPayload.TYPE);
         if (window) {
             ServerPlayNetworking.send(player, new CoreNetworking.ScreenPayload("crate", Json.toJson(roll)));

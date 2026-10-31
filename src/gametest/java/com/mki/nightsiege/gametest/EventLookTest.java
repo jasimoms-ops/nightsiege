@@ -154,6 +154,9 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("ss-speichern")) {
                     SsSpeichernScenes.run(context, game);   // survival safety: save, keys, infighting (31.10.)
                 }
+                if (want.contains("ss-inventar")) {
+                    SsInventarScenes.run(context, game);   // survival safety: kit swap, crates, crashes, death (31.10.)
+                }
                 if (want.contains("ladders")) {
                     // The climbing scenes, then the ladder cases of 28 October 2026 (block beside, ladder above the ground).
                     ladderScene(context, game);
@@ -989,7 +992,7 @@ public class EventLookTest implements FabricClientGameTest {
     }
 
     /** The slot of a menu that shows this slot of the player's inventory, or -1. */
-    private static int menuSlotOf(net.minecraft.world.inventory.AbstractContainerMenu menu,
+    static int menuSlotOf(net.minecraft.world.inventory.AbstractContainerMenu menu,
                                   net.minecraft.world.entity.player.Inventory inv, int invSlot) {
         for (int i = 0; i < menu.slots.size(); i++) {
             net.minecraft.world.inventory.Slot s = menu.slots.get(i);
@@ -1001,7 +1004,7 @@ public class EventLookTest implements FabricClientGameTest {
     }
 
     /** Kit items in a container, counted by stack size. */
-    private static int kitCount(net.minecraft.world.Container box) {
+    static int kitCount(net.minecraft.world.Container box) {
         int n = 0;
         for (int i = 0; i < box.getContainerSize(); i++) {
             if (com.mki.nightsiege.game.KitService.isKit(box.getItem(i))) {
