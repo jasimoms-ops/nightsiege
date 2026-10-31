@@ -185,3 +185,13 @@ net.minecraft.world.TickRateManager
 # Dungeon-Bau ueber mehrere Ticks (30.10.): wann hasChunk wahr ist, wie Tickets erneuert werden
 !net.minecraft.server.level.ServerChunkCache#hasChunk,chunkAbsent,getChunkNow,addTicketWithRadius
 !net.minecraft.world.level.TicketStorage#addTicket,purgeStaleTickets
+# Ruhmeshalle (31.10.): Spielfiguren und Köpfe im Fenster
+net.minecraft.client.gui.screens.inventory.InventoryScreen
+net.minecraft.client.gui.GuiGraphicsExtractor
+net.minecraft.client.gui.components.PlayerFaceExtractor
+net.minecraft.client.gui.components.PlayerFaceRenderer
+net.minecraft.client.player.RemotePlayer
+net.minecraft.client.player.AbstractClientPlayer
+net.minecraft.client.resources.SkinManager
+net.minecraft.world.entity.player.PlayerSkin
+net.minecraft.client.gui.render.state.pip.*
