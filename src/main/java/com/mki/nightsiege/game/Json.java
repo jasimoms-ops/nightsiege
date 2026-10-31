@@ -148,12 +148,25 @@ public final class Json {
     }
 
     private static <T> T parse(Path file, Class<T> type) throws IOException {
-        try (Reader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
-            T value = GSON.fromJson(reader, type);
-            if (value == null) {
-                throw new IOException("leer");   // an empty file is a write cut short, not a first start
+        for (int attempt = 0; ; attempt++) {
+            try (Reader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
+                T value = GSON.fromJson(reader, type);
+                if (value == null) {
+                    throw new IOException("leer");   // an empty file is a write cut short, not a first start
+                }
+                return value;
+            } catch (FileSystemException busy) {
+                // Windows: held for a moment by a virus scanner or a backup tool, not broken
+                if (attempt >= 3 || busy instanceof java.nio.file.NoSuchFileException) {
+                    throw busy;
+                }
+                try {
+                    Thread.sleep(100L);
+                } catch (InterruptedException stop) {
+                    Thread.currentThread().interrupt();
+                    throw busy;
+                }
             }
-            return value;
         }
     }
 
