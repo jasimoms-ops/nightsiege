@@ -5681,7 +5681,7 @@ public class EventLookTest implements FabricClientGameTest {
                 + everydayItems((net.minecraft.server.level.ServerLevel) player.level(), player.getBoundingBox().inflate(10))
                 + " (vanilla: beef/leather from every cow, some rotten flesh)"));
         context.waitTicks(5);
-        game.getServer().runCommand("kill @e[type=item,distance=..16]");
+        game.getServer().runCommand("execute at @p run kill @e[type=item,distance=..16]");
 
         // A skeleton hurts a creeper, then kills it: vanilla damages, the creeper drops a music disc.
         onServer(context, (player, manager) -> {
@@ -5707,11 +5707,18 @@ public class EventLookTest implements FabricClientGameTest {
                 + everydayItems((net.minecraft.server.level.ServerLevel) player.level(), player.getBoundingBox().inflate(14))
                 + " (vanilla: a music_disc_*)"));
         context.waitTicks(5);
-        game.getServer().runCommand("kill @e[type=item,distance=..20]");
-        game.getServer().runCommand("kill @e[type=creeper,distance=..20]");
+        game.getServer().runCommand("execute at @p run kill @e[type=item,distance=..20]");
+        game.getServer().runCommand("execute at @p run kill @e[type=creeper,distance=..20]");
 
         // A creeper blows up beside the base outside a night: vanilla crater, nothing rebuilt later.
-        final int[] box = {(int) Math.floor(home[0]) + 10, (int) Math.floor(home[1]), (int) Math.floor(home[2])};
+        // The same far from any core (400 blocks off, forced chunk) as the vanilla reference.
+        for (int off : new int[] {10, 400}) {
+        final int[] box = {(int) Math.floor(home[0]) + off, (int) Math.floor(home[1]), (int) Math.floor(home[2])};
+        final String where = off == 10 ? "beside base" : "far reference";
+        if (off > 100) {
+            game.getServer().runCommand("forceload add " + box[0] + " " + box[2] + " " + (box[0] + 4) + " " + (box[2] + 2));
+            context.waitTicks(40);
+        }
         game.getServer().runCommand("fill " + box[0] + " " + box[1] + " " + (box[2] - 2) + " " + (box[0] + 4) + " " + (box[1] + 2)
                 + " " + (box[2] + 2) + " cobblestone");
         context.waitTicks(10);
@@ -5727,11 +5734,15 @@ public class EventLookTest implements FabricClientGameTest {
                     }
                 }
             }
-            everydayLog("creeper beside base: cobblestone left " + left + " of 75 (vanilla: fewer than 75) drops="
+            everydayLog("creeper " + where + ": cobblestone left " + left + " of 75 drops="
                     + everydayItems(level, new net.minecraft.world.phys.AABB(box[0] - 4, box[1] - 2, box[2] - 6, box[0] + 8, box[1] + 6, box[2] + 6)));
         });
         context.waitTicks(10);
-        game.getServer().runCommand("kill @e[type=item,distance=..30]");
+        game.getServer().runCommand("execute at @p run kill @e[type=item,distance=..30]");
+        if (off > 100) {
+            game.getServer().runCommand("forceload remove " + box[0] + " " + box[2] + " " + (box[0] + 4) + " " + (box[2] + 2));
+        }
+        }
 
         // Death outside a night: vanilla drops everything.
         final double[] deathAt = new double[3];
@@ -5767,9 +5778,10 @@ public class EventLookTest implements FabricClientGameTest {
             player.teleportTo((net.minecraft.server.level.ServerLevel) player.level(), home[0], home[1], home[2], java.util.Set.of(), 0f, 0f, true);
         });
         context.waitTicks(20);
-        game.getServer().runCommand("kill @e[type=item,distance=..40]");
+        game.getServer().runCommand("execute at @p run kill @e[type=item,distance=..40]");
 
-        // A normal night: sleeping works, the morning comes, no siege, no kit.
+        // A normal night: sleeping works, the morning comes, no siege, no kit (no test monster left nearby).
+        game.getServer().runCommand("execute at @p run kill @e[type=!minecraft:player,distance=..64]");
         game.getServer().runCommand("time set 13000");
         context.waitTicks(10);
         onServer(context, (player, manager) -> {
