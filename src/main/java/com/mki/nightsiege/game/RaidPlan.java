@@ -601,20 +601,24 @@ public final class RaidPlan {
         if (now % 10 != 0) {
             return;
         }
-        Iterator<Map.Entry<UUID, Order>> it = orders.entrySet().iterator();
-        while (it.hasNext()) {
-            Map.Entry<UUID, Order> e = it.next();
+        // A copy of the orders (fix 04.11., ConcurrentModificationException in simbot1): steering can set a
+        // target, drop a rider or let a revenant rise, and those come back here through enlist() and change
+        // the map while it is walked.
+        for (Map.Entry<UUID, Order> e : new ArrayList<>(orders.entrySet())) {
             UUID id = e.getKey();
             Order order = e.getValue();
+            if (orders.get(id) != order) {
+                continue;   // gone or given a new order meanwhile
+            }
             Entity entity = world.getEntity(id);
             if (!(entity instanceof Mob mob) || !mob.isAlive() || !live.contains(id)) {
-                it.remove();
+                orders.remove(id);
                 continue;
             }
             try {
                 steer(mob, order, now, defenders, climbing);
             } catch (RuntimeException ex) {
-                it.remove();   // never take the night down for one monster
+                orders.remove(id);   // never take the night down for one monster
             }
         }
     }

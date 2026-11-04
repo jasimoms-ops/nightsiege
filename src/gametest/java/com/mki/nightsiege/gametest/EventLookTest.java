@@ -2128,7 +2128,7 @@ public class EventLookTest implements FabricClientGameTest {
         context.waitTicks(40);
         context.takeScreenshot("camp_night");
 
-        // The forecourt (content update): the war drum, the fire, the benches, the gate behind.
+        // The forecourt (content update): the start stone (was the war drum), the fire, the benches, the gate behind.
         game.getServer().runCommand("time set 1500");
         camera(game, cx + 0.5, cy + 9, cz + 38.5, cx + 0.5, cy, cz + 22.5);
         context.waitTicks(40);
@@ -2162,7 +2162,8 @@ public class EventLookTest implements FabricClientGameTest {
             }
             BlockPos drum = manager.camp().testDrum();
             boolean struck = manager.camp().onDrum(player, drum);
-            System.out.println("[Night Siege test] camp drum " + drum + " struck=" + struck + " inRound="
+            System.out.println("[Night Siege test] camp start stone " + drum + " block="
+                    + player.level().getBlockState(drum).getBlock() + " struck=" + struck + " inRound="
                     + manager.camp().inRound(player) + " starter=" + manager.camp().roundStarter(player) + " "
                     + manager.camp().testRound(level));
         });
@@ -2216,7 +2217,7 @@ public class EventLookTest implements FabricClientGameTest {
             if (bench != null) {
                 bench.invulnerableTime = 0;
                 bench.hurtServer(level, level.damageSources().playerAttack(player), 120f);
-                System.out.println("[Night Siege test] camp bench before the ring is open: " + Math.round(bench.getHealth()) + "/"
+                System.out.println("[Night Siege test] camp bench with the tent guards up (ring always open, takes blows): " + Math.round(bench.getHealth()) + "/"
                         + Math.round(bench.getMaxHealth()));
             }
             // The tent guards fall: the inner ring opens.

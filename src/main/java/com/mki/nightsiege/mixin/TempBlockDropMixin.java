@@ -1,6 +1,7 @@
 package com.mki.nightsiege.mixin;
 
 import com.mki.nightsiege.game.TempBlocks;
+import com.mki.nightsiege.game.TrapService;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
@@ -17,7 +18,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 /**
  * A night block drops nothing, whatever breaks it (survival safety 2, Simon 31.10.): a kit torch or
  * ladder that falls off with the wall a monster dug away, a climbing arrow's ladder, a barricade.
- * Mined by a player it goes without a drop anyway (SiegeManager's break hook).
+ * Mined by a player it goes without a drop anyway (SiegeManager's break hook). A trap set down from a
+ * kit item (a free trap of the night) drops nothing either (Simon 31.10.).
  */
 @Mixin(Block.class)
 public abstract class TempBlockDropMixin {
@@ -25,7 +27,7 @@ public abstract class TempBlockDropMixin {
     @Inject(method = "dropResources(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;)V",
             at = @At("HEAD"), cancellable = true)
     private static void nightsiege$noDrop(BlockState state, Level level, BlockPos pos, CallbackInfo ci) {
-        if (level != null && !level.isClientSide() && TempBlocks.isTemp(level, pos)) {
+        if (level != null && !level.isClientSide() && (TempBlocks.isTemp(level, pos) || TrapService.kitTrapAt(level, pos))) {
             ci.cancel();
         }
     }
@@ -33,7 +35,7 @@ public abstract class TempBlockDropMixin {
     @Inject(method = "dropResources(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/LevelAccessor;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/entity/BlockEntity;)V",
             at = @At("HEAD"), cancellable = true)
     private static void nightsiege$noDropAt(BlockState state, LevelAccessor level, BlockPos pos, BlockEntity be, CallbackInfo ci) {
-        if (level instanceof Level real && !real.isClientSide() && TempBlocks.isTemp(real, pos)) {
+        if (level instanceof Level real && !real.isClientSide() && (TempBlocks.isTemp(real, pos) || TrapService.kitTrapAt(real, pos))) {
             ci.cancel();
         }
     }
@@ -42,7 +44,7 @@ public abstract class TempBlockDropMixin {
             at = @At("HEAD"), cancellable = true)
     private static void nightsiege$noDropBy(BlockState state, Level level, BlockPos pos, BlockEntity be, Entity breaker,
                                             ItemStack tool, CallbackInfo ci) {
-        if (level != null && !level.isClientSide() && TempBlocks.isTemp(level, pos)) {
+        if (level != null && !level.isClientSide() && (TempBlocks.isTemp(level, pos) || TrapService.kitTrapAt(level, pos))) {
             ci.cancel();
         }
     }

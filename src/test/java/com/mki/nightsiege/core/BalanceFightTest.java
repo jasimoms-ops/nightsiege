@@ -27,21 +27,38 @@ class BalanceFightTest {
     }
 
     @Test
-    void championShareGoesByLevelBands() {
+    void championShareIs30InTheDungeonAnd15InANight() {
+        // Simon 30.10. 23:52/23:57: 30 % of the max health per hit in the dungeon, 15 % in a night.
         SiegeConfig c = cfg();
-        assertEquals(0.04, c.championPercent(1), 1e-9);
-        assertEquals(0.04, c.championPercent(9), 1e-9);
-        assertEquals(0.05, c.championPercent(10), 1e-9);
-        assertEquals(0.05, c.championPercent(19), 1e-9);
-        assertEquals(0.06, c.championPercent(20), 1e-9);
-        assertEquals(0.06, c.championPercent(60), 1e-9);
+        assertEquals(0.30, c.championPercent(1), 1e-9);
+        assertEquals(0.30, c.championPercent(20), 1e-9);
+        assertEquals(0.30, c.championPercent(60), 1e-9);
+        assertEquals(0.30, c.championPercent(10, false), 1e-9);
+        assertEquals(0.15, c.championPercent(10, true), 1e-9);
         assertEquals(0.5, c.championPercentShield, 1e-9);
         // A hand-edited config cannot break it.
         c.championPercentDamage = null;
         c.championPercentDamageSteps = null;
+        c.championNightPercent = Double.NaN;
         c.hitLifestealLowFactor = Double.NaN;
         c.sanitize();
-        assertEquals(0.04, c.championPercent(5), 1e-9);
+        assertEquals(0.30, c.championPercent(5), 1e-9);
+        assertEquals(0.15, c.championPercent(5, true), 1e-9);
         assertEquals(2.5, c.hitLifestealLevelFactor(1), 1e-9);
+    }
+
+    @Test
+    void update18BringsTheChampionShareAndTheCampWithoutGrace() {
+        // The server's config of 31.10. (settings 17, champions 4-6 %, camp grace 10 s).
+        SiegeConfig server = new SiegeConfig();
+        server.settingsVersion = 17;
+        server.championPercentDamage = new double[] {0.04, 0.05, 0.06};
+        server.championPercentDamageSteps = new int[] {10, 20};
+        server.campGraceSeconds = 10;
+        server.sanitize();
+        assertEquals(18, server.settingsVersion);
+        assertEquals(0.30, server.championPercent(25), 1e-9);
+        assertEquals(0.15, server.championPercent(25, true), 1e-9);
+        assertEquals(0, server.campGraceSeconds);
     }
 }

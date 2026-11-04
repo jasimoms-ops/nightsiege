@@ -310,7 +310,8 @@ jobs:
           ladder, seen = [], set()
           for l in text.splitlines():
               if "[Night Siege test] ladder" in l or "besiegers" in l or "Sprengcreeper" in l or "[Night Siege test] tower" in l or "[Night Siege test] summoner" in l or "[Night Siege test] drone" in l or "[Night Siege test] spotter" in l or "[Night Siege test] alchemist" in l or "[Night Siege test] keys" in l or "[Night Siege test] towers" in l or "[Night Siege test] wheel" in l or "[Night Siege test] foes" in l or "[Night Siege test] raid" in l or "[Night Siege test] curse" in l or "[Night Siege test] percent" in l or "[Night Siege test] overhang" in l or "[Night Siege test] boss" in l:
-                  body = l[l.index("[Night Siege"):].strip()[:200]
+                  at = l.find("[Night Siege")   # "besiegers"/"Sprengcreeper" lines may come without the prefix
+                  body = (l[at:] if at >= 0 else l).strip()[:200]
                   if body not in seen:
                       seen.add(body)
                       ladder.append(body)
@@ -408,7 +409,20 @@ jobs:
           # so the jar of main stays untouched until the branch is merged.
           BRANCH="${GITHUB_REF_NAME}"
           if [ "$BRANCH" = "main" ]; then TARGET=dist; else TARGET="dist-${BRANCH}"; fi
-          git push -f origin dist-tmp:$TARGET
+          # Single scenes run side by side on one branch (fix 04.11.): each scene set gets its own dist
+          # branch, so one run does not overwrite another's logs.
+          SCENES="${{ github.event.inputs.scenes }}"
+          if [ -n "$SCENES" ]; then
+            SLUG=$(echo "$SCENES" | tr 'A-Z' 'a-z' | tr -c 'a-z0-9\n' '-' | sed 's/-\+/-/g; s/^-//; s/-$//' | cut -c1-40)
+            TARGET="${TARGET}-${SLUG}"
+          fi
+          echo "dist-tmp -> $TARGET"
+          # Several runs at once can collide on the push (ref lock): try again a few times.
+          for i in 1 2 3 4 5; do
+            if git push -f origin dist-tmp:$TARGET; then break; fi
+            if [ "$i" = 5 ]; then exit 1; fi
+            sleep $((i * 7))
+          done
 
       - name: Ergebnis weiterreichen
         if: steps.build.outcome == 'failure'

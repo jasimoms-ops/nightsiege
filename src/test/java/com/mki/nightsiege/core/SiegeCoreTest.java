@@ -100,7 +100,7 @@ class SiegeCoreTest {
         server.subclassDamage.put("alchemist", 1.15);
         server.subclassDamageTaken.put("soulcatcher", 1.1666);
         server.sanitize();
-        assertEquals(17, server.settingsVersion);
+        assertEquals(SiegeConfig.SETTINGS_VERSION, server.settingsVersion);
         assertEquals(0.6, server.soloScaling, 1e-9);
         assertEquals(9, SiegeMath.liveCap(1, server));
         assertEquals(33, SiegeMath.liveCap(4, server));

@@ -233,7 +233,7 @@ final class CampLayout {
                 out.put(world(center, facing, lx, -1, lz), state);
             }
         }
-        // The forecourt: trodden earth, a path to the gate, planks under the drum.
+        // The forecourt: trodden earth, a path to the gate, planks round the start stone.
         for (int lx = -FORE_HALF; lx <= FORE_HALF; lx++) {
             for (int lz = FORE_NEAR; lz <= FORE_FAR; lz++) {
                 if (Math.sqrt(lx * lx + lz * lz) < PALISADE + 0.5) {
@@ -242,6 +242,8 @@ final class CampLayout {
                 BlockState state;
                 if (lx == 0 || lx == 1) {
                     state = Blocks.DIRT_PATH.defaultBlockState();
+                } else if (lx == 3 && lz == 20) {
+                    state = Blocks.POLISHED_BLACKSTONE_BRICKS.defaultBlockState();   // under the start stone
                 } else if (lx >= 2 && lx <= 4 && lz >= 19 && lz <= 21) {
                     state = Blocks.SPRUCE_PLANKS.defaultBlockState();
                 } else {
@@ -320,8 +322,9 @@ final class CampLayout {
         for (int lx = -2; lx <= 3; lx++) {
             b.put(lx, 3, FORE_FAR, axis(Blocks.DARK_OAK_LOG, Direction.Axis.X));
         }
-        // The war drum: a barrel standing up between two posts with lanterns.
-        b.put(3, 0, 20, Blocks.BARREL.defaultBlockState().setValue(BlockStateProperties.FACING, Direction.UP));
+        // The start stone (Simon 30.10. 23:52: "vor dem Lager Block wie im Dungeon"): a lodestone like the
+        // dungeon's seal stone, on a dark plinth between two posts with lanterns.
+        b.put(3, 0, 20, Blocks.LODESTONE.defaultBlockState());
         for (int lx : new int[] {2, 4}) {
             b.put(lx, 0, 20, Blocks.DARK_OAK_FENCE.defaultBlockState());
             b.put(lx, 1, 20, Blocks.LANTERN.defaultBlockState());
@@ -421,7 +424,7 @@ final class CampLayout {
         }
     }
 
-    /** The inner ring: a lower palisade round the workshop, its gate shut by iron bars at first. */
+    /** The inner ring: a lower palisade round the workshop, its gate always open (Simon 30.10. 23:52). */
     private static void innerRing(Builder b) {
         int r = (int) INNER + 1;
         for (int lx = -r; lx <= r; lx++) {
@@ -448,7 +451,7 @@ final class CampLayout {
         for (int lx = -1; lx <= 1; lx++) {
             b.put(lx, 3, INNER_GATE_Z, axis(Blocks.DARK_OAK_LOG, Direction.Axis.X));
             for (int ly = 0; ly <= 2; ly++) {
-                b.put(lx, ly, INNER_GATE_Z, Blocks.IRON_BARS.defaultBlockState());
+                b.put(lx, ly, INNER_GATE_Z, Blocks.AIR.defaultBlockState());
             }
         }
     }

@@ -436,7 +436,7 @@ public class SiegeConfig {
     public double campWorkshopHealth = 300;
     public double campWorkshopHealthPerPlayer = 0.3;
     /** Seconds after entering the palisade before the guards attack. */
-    public int campGraceSeconds = 10;
+    public int campGraceSeconds = 0;   // Simon 30.10. 23:52: the guards attack at once (was 10)
     /** Siege machines in nights after a camp. */
     public boolean machinesEnabled = true;
     /** Seconds into the night before the machines are set up. */
@@ -505,8 +505,14 @@ public class SiegeConfig {
      * end of a night) takes this share of the target's max health on top, like a boss's: 4 % below
      * level 10, 5 % below 20, then 6 % (one share more for each step reached). No level factor.
      */
-    public double[] championPercentDamage = {0.04, 0.05, 0.06};
-    public int[] championPercentDamageSteps = {10, 20};
+    public double[] championPercentDamage = {0.30};
+    public int[] championPercentDamageSteps = {};
+    /**
+     * Simon 30.10. 23:52/23:57: in his dungeon a champion's hit takes 30 % of the max health
+     * ({@link #championPercentDamage}), his leap and his skills too; the warden at the end of a night
+     * takes this share instead (15 %). A raised shield lets {@link #championPercentShield} through.
+     */
+    public double championNightPercent = 0.15;
     /** What of that share goes through a raised shield (0.5 = half, like the guardian's shield way). */
     public double championPercentShield = 0.5;
     /** Simon 30.10.: one hit of the heavy archer takes at most this share of a dungeon champion's max health (0 = no cap). */
@@ -864,7 +870,12 @@ public class SiegeConfig {
         return hitLifestealLowFactor + (1.0 - hitLifestealLowFactor) * t;
     }
 
-    /** Share of the max health (0.04 = 4 %) a dungeon champion's normal hit takes on top at this level. */
+    /** Share of the max health a champion's hit takes: in a dungeon by level band, in a night {@link #championNightPercent}. */
+    public double championPercent(int level, boolean night) {
+        return night ? championNightPercent : championPercent(level);
+    }
+
+    /** Share of the max health (0.30 = 30 %) a dungeon champion's hit takes at this level. */
     public double championPercent(int level) {
         if (championPercentDamage == null || championPercentDamage.length == 0) {
             return 0.0;
@@ -1011,7 +1022,7 @@ public class SiegeConfig {
      */
     public int settingsVersion = 0;
     /** The newest settings version (the migrations below end there). */
-    public static final int SETTINGS_VERSION = 17;
+    public static final int SETTINGS_VERSION = 18;
     /** Version of the dungeon list in this file. Older lists are replaced on load. */
     /** Which structures hold dungeons, how hard they are and what lives there. */
     /** Perks from core fragments work within this many blocks of the main core. */
@@ -1531,6 +1542,15 @@ public class SiegeConfig {
             }
             settingsVersion = 17;
         }
+        if (settingsVersion < 18) {
+            // Simon 30.10. 23:52/23:57 (built 04.11.): the champions hit for 30 % of the max health in their
+            // dungeon and 15 % in a night, every blow, leap and skill; the war camp starts without grace.
+            championPercentDamage = new double[] {0.30};
+            championPercentDamageSteps = new int[0];
+            championNightPercent = 0.15;
+            campGraceSeconds = 0;
+            settingsVersion = 18;
+        }
         if (Double.isNaN(meleeLifesteal)) {
             meleeLifesteal = 0.08;
         }
@@ -1545,15 +1565,16 @@ public class SiegeConfig {
         hitLifestealMinTicks = clamp(hitLifestealMinTicks, 1, 1200);
         hitLifestealCleave = Double.isNaN(hitLifestealCleave) ? 0.5 : Math.min(1.0, Math.max(0.0, hitLifestealCleave));
         if (championPercentDamage == null || championPercentDamage.length == 0) {
-            championPercentDamage = new double[] {0.04, 0.05, 0.06};
+            championPercentDamage = new double[] {0.30};
         }
         for (int i = 0; i < championPercentDamage.length; i++) {
             double v = championPercentDamage[i];
             championPercentDamage[i] = Double.isNaN(v) ? 0.0 : Math.min(1.0, Math.max(0.0, v));
         }
         if (championPercentDamageSteps == null) {
-            championPercentDamageSteps = new int[] {10, 20};
+            championPercentDamageSteps = new int[0];
         }
+        championNightPercent = Double.isNaN(championNightPercent) ? 0.15 : Math.min(1.0, Math.max(0.0, championNightPercent));
         championPercentShield = Double.isNaN(championPercentShield) ? 0.5 : Math.min(1.0, Math.max(0.0, championPercentShield));
         if (antiHealMobs == null) {
             antiHealMobs = new java.util.ArrayList<>(java.util.List.of("minecraft:spider", "minecraft:cave_spider", "minecraft:witch"));

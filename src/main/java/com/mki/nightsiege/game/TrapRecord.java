@@ -22,6 +22,11 @@ public class TrapRecord {
      * field caps and goes when its engineer's fight there ends.
      */
     public boolean field;
+    /**
+     * Set down from a kit item, a free trap of the night (Simon 31.10.: "Eine Kit-Falle droppt beim
+     * Abbauen nichts"): mined or blown up it gives no trap back.
+     */
+    public boolean kit;
     /** Shots the tower shield (crate gain) still blocks for the gunner in the seat. */
     public int shield;
     /** Damage the tower took for its gunner (Simon, 27 October 2026); 0 = whole. */

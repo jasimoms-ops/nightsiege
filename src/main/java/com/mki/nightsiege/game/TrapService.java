@@ -214,6 +214,30 @@ public final class TrapService {
         level.playSound(null, pos, SoundEvents.PISTON_EXTEND, SoundSource.BLOCKS, 0.5f, 1.6f);
     }
 
+    /** A trap set down from a kit item (the block item mixin, KitBlocks): it drops nothing when it goes. */
+    public void markKit(ServerLevel level, BlockPos pos) {
+        TrapRecord record = find(level, pos);
+        if (record != null && !record.kit) {
+            record.kit = true;
+            dirty = true;
+        }
+    }
+
+    /** True for a trap or tower set down from a kit item (no drop, TempBlockDropMixin). */
+    public boolean isKitTrap(ServerLevel level, BlockPos pos) {
+        TrapRecord record = find(level, pos);
+        return record != null && record.kit;
+    }
+
+    /** For the drop mixin: whether the block here is a kit trap of the running server. */
+    public static boolean kitTrapAt(net.minecraft.world.level.Level level, BlockPos pos) {
+        if (!(level instanceof ServerLevel server) || ModContent.trapOf(server.getBlockState(pos)) == null) {
+            return false;
+        }
+        SiegeManager m = SiegeManager.get();
+        return m != null && m.trapService() != null && m.trapService().isKitTrap(server, pos);
+    }
+
     /** Forgets a trap whose block was broken. Returns true when there was one. */
     public boolean onBroken(ServerLevel level, BlockPos pos) {
         String dimension = SiegeManager.dimensionName(level);
@@ -322,6 +346,7 @@ public final class TrapService {
             String dimension = SiegeManager.dimensionName(level);
             traps().removeIf(t -> t.matches(dimension, pos.getX(), pos.getY(), pos.getZ()));
             TrapRecord record = new TrapRecord(kind.id(), dimension, pos.getX(), pos.getY(), pos.getZ(), old.owner);
+            record.kit = old.kit;   // a kit trap that comes back stays one (no drop)
             int tier = tierOf(record);
             record.uses = fullUses(kind, tier, record);
             traps().add(record);

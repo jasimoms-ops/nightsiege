@@ -35,8 +35,16 @@ public final class KitBlocks {
     /** A player set a block down from a kit item (the block item mixin). */
     public static void placed(ServerPlayer player, ServerLevel level, BlockPos pos) {
         BlockState state = level.getBlockState(pos);
-        if (state.isAir() || ModContent.trapOf(state) != null || ModContent.isCore(state)) {
-            return;   // traps and towers stand for good, as ever (TrapService)
+        if (ModContent.trapOf(state) != null) {
+            // Traps and towers stand for good, as ever (TrapService), but a kit one drops nothing (Simon 31.10.).
+            SiegeManager m = SiegeManager.get();
+            if (m != null && m.trapService() != null) {
+                m.trapService().markKit(level, pos);
+            }
+            return;
+        }
+        if (state.isAir() || ModContent.isCore(state)) {
+            return;
         }
         TempBlocks.remember(level, pos, state);
         BY_PLAYER.computeIfAbsent(player.getUUID(), k -> new ArrayList<>())

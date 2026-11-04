@@ -65,6 +65,11 @@ import java.util.UUID;
  * takes no hits. While it stands, reinforcement comes from the tents every 60 s: 1 and 1 per
  * fighter, up to 8 guards alive. The workbench has 300 life and 30 % more per further attacker.</p>
  *
+ * <p>Simon 30.10. 23:52 ("innerer Ring immer offen, vor dem Lager Block wie im Dungeon … dann geht es
+ * los und die Monster greifen an"): the inner ring stands open from the start (the workbench takes
+ * blows at once), the drum is a start stone like the dungeon's seal stone (its runes light up with
+ * those ready), and there is no grace any more ({@code campGraceSeconds} 0).</p>
+ *
  * <p>Content update (Simon 28/29 October 2026): the fight starts at the war drum in the forecourt.
  * A strike opens the ready round ({@link StartRound}): everyone signed up within 20 blocks chooses
  * a class; when all are ready they stand inside the gate, iron bars shut it, the war horn sounds,
@@ -677,7 +682,9 @@ public final class SiegeCamp {
         camp.guards.clear();
         camp.tentGuards.clear();
         camp.crossbows.clear();
-        camp.ringOpen = false;
+        // Simon 30.10. 23:52: the inner ring is always open (a camp built before keeps its bars: they go now).
+        camp.ringOpen = true;
+        clearInnerGate(level, camp);
         spawnTentGuards(level, camp, tents);
         spawnCrossbows(level, camp, crossbowsFor(players));
         Zombie bench = workbench(level, camp);
@@ -938,7 +945,7 @@ public final class SiegeCamp {
             }
         }
         beat(level, drum, 0.7f);
-        NightSiegeMod.LOGGER.info("[Night Siege] Bereit-Runde an der Kriegstrommel von {} mit {} Spielern",
+        NightSiegeMod.LOGGER.info("[Night Siege] Bereit-Runde am Startstein des Heerlagers von {} mit {} Spielern",
                 player.getScoreboardName(), r.size());
         return true;
     }
@@ -1019,6 +1026,8 @@ public final class SiegeCamp {
             round = null;
         } else if (round.allReady()) {
             startFight(level, camp, center, now);
+        } else if (now % 10 == 0) {
+            DungeonFx.runes(level, round.at, round.readyCount(), round.size());   // like the seal stone
         }
     }
 
@@ -1111,6 +1120,18 @@ public final class SiegeCamp {
     }
 
     // ------------------------------------------------------------------ the inner ring, reinforcement, the towers
+
+    /** Iron bars of an inner gate built before the ring stayed open (camps from before 04.11.). */
+    private static void clearInnerGate(ServerLevel level, SiegeSave.CampRecord camp) {
+        BlockPos center = new BlockPos(camp.x, camp.y, camp.z);
+        NightDamage.quietly(() -> {
+            for (BlockPos pos : CampLayout.innerGate(center, camp.facing)) {
+                if (level.getBlockState(pos).is(Blocks.IRON_BARS)) {
+                    level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
+                }
+            }
+        });
+    }
 
     /** The tent guards have fallen: the inner ring's gate opens (the workbench may be struck now). */
     private void checkRing(ServerLevel level, SiegeSave.CampRecord camp, BlockPos center) {
@@ -1254,7 +1275,7 @@ public final class SiegeCamp {
 
     /** The drum's beat. */
     private static void beat(ServerLevel level, BlockPos drum, float pitch) {
-        level.playSound(null, drum, SoundEvents.NOTE_BLOCK_BASEDRUM.value(), SoundSource.BLOCKS, 3f, pitch);
+        level.playSound(null, drum, SoundEvents.BELL_BLOCK, SoundSource.BLOCKS, 1.2f, pitch);   // the start stone, like the seal stone
         level.sendParticles(ParticleTypes.NOTE, drum.getX() + 0.5, drum.getY() + 1.2, drum.getZ() + 0.5, 1, 0, 0, 0, 0.5);
     }
 
@@ -1305,9 +1326,11 @@ public final class SiegeCamp {
         player.connection.send(new ClientboundSetTitlesAnimationPacket(10, 60, 20));
         player.connection.send(new ClientboundSetTitleTextPacket(Component.translatable("nightsiege.camp.title")
                 .withStyle(ChatFormatting.DARK_RED, ChatFormatting.BOLD)));
-        player.connection.send(new ClientboundSetSubtitleTextPacket(Component.translatable("nightsiege.camp.subtitle", seconds)
-                .withStyle(ChatFormatting.GOLD)));
-        player.sendSystemMessage(Component.translatable("nightsiege.camp.enter", seconds).withStyle(ChatFormatting.GOLD));
+        boolean now0 = seconds <= 0;   // no grace (Simon 30.10.): the guards attack at once
+        player.connection.send(new ClientboundSetSubtitleTextPacket(Component.translatable(
+                now0 ? "nightsiege.camp.subtitle_now" : "nightsiege.camp.subtitle", seconds).withStyle(ChatFormatting.GOLD)));
+        player.sendSystemMessage(Component.translatable(now0 ? "nightsiege.camp.enter_now" : "nightsiege.camp.enter", seconds)
+                .withStyle(ChatFormatting.GOLD));
         KitService kits = m.kits();
         if (m.config().nightKits && !kits.hasStash(player)) {
             kits.equip(player, m.kitLevel());

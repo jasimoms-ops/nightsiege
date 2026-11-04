@@ -101,7 +101,7 @@ final class ChampionBrains {
                 for (ServerPlayer player : host.fighters()) {
                     for (Vec3 p : trail) {
                         if (player.position().distanceToSqr(p) < 1.4) {
-                            PercentDamage.hit(level, player, champion, champion, 3.0, siegeLevel, cfg, 1.0);
+                            ChampionStrikes.skillHit(level, player, champion, cfg, siegeLevel, 0.1, false);   // the lava trail: a tenth a tick
                             player.igniteForSeconds(2f);
                             break;
                         }
@@ -151,7 +151,7 @@ final class ChampionBrains {
                 level.playSound(null, champion.blockPosition(), SoundEvents.MACE_SMASH_GROUND_HEAVY, SoundSource.HOSTILE, 1.6f, 0.8f);
                 for (ServerPlayer player : host.fighters()) {
                     if (player.distanceToSqr(champion) < 3.0 * 3.0) {
-                        PercentDamage.hit(level, player, champion, champion, 6.0, siegeLevel, cfg, 1.0);
+                        ChampionStrikes.skillHit(level, player, champion, cfg, siegeLevel, 1.0, false);
                         Vec3 push = player.position().subtract(champion.position()).multiply(1, 0, 1);
                         if (push.lengthSqr() > 1e-4) {
                             push = push.normalize().scale(0.7);
@@ -205,11 +205,11 @@ final class ChampionBrains {
         switch (kind) {
             case STONE_CRYPT -> {
                 if (which == 0) {
-                    // Grave breath: 6 % to everyone within 8, he heals by what it took.
+                    // Grave breath: the champion share (30 % / 15 % in a night) to everyone within 8, he heals by what it took.
                     float healed = 0;
                     for (ServerPlayer p : fighters) {
                         if (p.distanceToSqr(champion) <= 64) {
-                            healed += PercentDamage.hit(level, p, champion, champion, 6.0, siegeLevel, cfg, 1.0);
+                            healed += ChampionStrikes.skillHit(level, p, champion, cfg, siegeLevel, 1.0, false);
                         }
                     }
                     champion.heal(Math.max(champion.getMaxHealth() * 0.02f, healed));
@@ -244,7 +244,7 @@ final class ChampionBrains {
             }
             case ILLAGER_KEEP -> {
                 if (which == 0) {
-                    // Lightning through the shield: 8 % that no shield stops.
+                    // Lightning through the shield: the champion share that no shield stops.
                     LightningBolt bolt = net.minecraft.world.entity.EntityTypes.LIGHTNING_BOLT.create(level,
                             net.minecraft.world.entity.EntitySpawnReason.TRIGGERED);
                     if (bolt != null) {
@@ -252,9 +252,7 @@ final class ChampionBrains {
                         bolt.setVisualOnly(true);
                         level.addFreshEntity(bolt);
                     }
-                    float amount = PercentDamage.amount(target, 8.0, siegeLevel, cfg, 1.0);
-                    target.invulnerableTime = 0;
-                    target.hurtServer(level, level.damageSources().magic(), amount);
+                    ChampionStrikes.skillHit(level, target, champion, cfg, siegeLevel, 1.0, true);   // no shield stops it
                 } else {
                     for (Mob mob : host.arenaMobs()) {
                         if (mob != champion && mob.isAlive()) {
@@ -354,10 +352,10 @@ final class ChampionBrains {
             }
             case NETHER_FORGE -> {
                 if (which == 0) {
-                    // The hammer: 10 % round him, up into the air.
+                    // The hammer: the champion share round him, up into the air.
                     for (ServerPlayer p : fighters) {
                         if (p.distanceToSqr(champion) <= 16) {
-                            PercentDamage.hit(level, p, champion, champion, 10.0, siegeLevel, cfg, 1.0);
+                            ChampionStrikes.skillHit(level, p, champion, cfg, siegeLevel, 1.0, false);
                             p.setDeltaMovement(p.getDeltaMovement().add(0, 0.6, 0));
                             p.hurtMarked = true;
                         }
@@ -395,14 +393,14 @@ final class ChampionBrains {
     private void splinter(ServerLevel level, ServerPlayer p, int siegeLevel, SiegeConfig cfg) {
         level.sendParticles(ParticleTypes.ITEM_SNOWBALL, p.getX(), p.getY() + 3, p.getZ(), 40, 0.8, 0.4, 0.8, 0.1);
         level.playSound(null, p.blockPosition(), SoundEvents.GLASS_BREAK, SoundSource.HOSTILE, 1.5f, 1.4f);
-        PercentDamage.hit(level, p, champion, champion, 5.0, siegeLevel, cfg, 1.0);
+        ChampionStrikes.skillHit(level, p, champion, cfg, siegeLevel, 1.0, false);
         p.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 60, 1));
     }
 
     private void spark(ServerLevel level, ServerPlayer p, int siegeLevel, SiegeConfig cfg) {
         level.sendParticles(ParticleTypes.SOUL_FIRE_FLAME, p.getX(), p.getY() + 2.5, p.getZ(), 30, 0.6, 0.6, 0.6, 0.05);
         level.playSound(null, p.blockPosition(), SoundEvents.FIRECHARGE_USE, SoundSource.HOSTILE, 1.5f, 0.8f);
-        PercentDamage.hit(level, p, champion, champion, 6.0, siegeLevel, cfg, 1.0);
+        ChampionStrikes.skillHit(level, p, champion, cfg, siegeLevel, 1.0, false);
         p.igniteForSeconds(3f);
     }
 
