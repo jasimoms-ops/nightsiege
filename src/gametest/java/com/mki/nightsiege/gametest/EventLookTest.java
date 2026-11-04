@@ -142,6 +142,9 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("playtest")) {
                     playtestScene(context, game);   // the playtest (28 October 2026)
                 }
+                if (want.contains("pt2-flow")) {
+                    Pt2FlowScenes.run(context, game);   // Playtest 2: scaling, pause, variety, no harm, crates (04.11.)
+                }
                 if (want.contains("ss2-netz")) {
                     Ss2NetzScenes.run(context, game);   // survival safety 2: packets, profiles, playtest, core rights (31.10.)
                 }
@@ -163,6 +166,9 @@ public class EventLookTest implements FabricClientGameTest {
                 }
                 if (want.contains("survival")) {
                     survivalScene(context, game);   // a real night in survival, start to end (Simon 30.10., 23:51)
+                }
+                if (want.contains("pt2-dungeon")) {
+                    Pt2DungeonScenes.run(context, game);   // Playtest 2: basins, guards awake at once, barriers at dungeon and camp (04.11.)
                 }
                 if (want.contains("ss-speichern")) {
                     SsSpeichernScenes.run(context, game);   // survival safety: save, keys, infighting (31.10.)

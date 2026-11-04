@@ -117,12 +117,17 @@ final class Ss2AlltagScenes {
         return player.gameMode.useItemOn(player, level, held, InteractionHand.MAIN_HAND, hit).consumesAction();
     }
 
+    private static final java.util.List<net.minecraft.world.entity.LightningBolt> BOLTS = new java.util.ArrayList<>();
+
     /** A real (not visual-only) lightning strike at this spot. */
     private static void bolt(ServerLevel level, BlockPos at) {
         net.minecraft.world.entity.LightningBolt bolt = EntityTypes.LIGHTNING_BOLT.create(level, EntitySpawnReason.TRIGGERED);
         if (bolt != null) {
             bolt.snapTo(at.getX() + 0.5, at.getY(), at.getZ() + 0.5);
-            level.addFreshEntity(bolt);
+            boolean added = level.addFreshEntity(bolt);
+            BOLTS.add(bolt);
+            log("THUNDER bolt at " + at + " added=" + added + " ground=" + level.getBlockState(at.below()).getBlock()
+                    + " air=" + level.getBlockState(at).isAir() + " rain=" + level.isRainingAt(at));
         }
     }
 
@@ -473,8 +478,16 @@ final class Ss2AlltagScenes {
             game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(
                     at.getX() - 2, cy, at.getZ() - 2, at.getX() + 2, cy + 3, at.getZ() + 2));
         }
+        // Lightning only lights fires on normal or hard, and with fire spreading (the test world is easy).
+        game.getServer().runCommand("difficulty normal");
+        game.getServer().runCommand("gamerule doFireTick true");
+        game.getServer().runCommand("gamerule fire_spread_radius_around_player 128");
         context.waitTicks(5);
-        EventLookTest.onServer(context, (player, manager) -> bolt((ServerLevel) player.level(), plainBolt));
+        EventLookTest.onServer(context, (player, manager) -> {
+            ServerLevel level = (ServerLevel) player.level();
+            log("THUNDER world: difficulty=" + level.getDifficulty());
+            bolt(level, plainBolt);
+        });
         context.waitTicks(10);
         EventLookTest.onServer(context, (player, manager) -> {
             ServerLevel level = (ServerLevel) player.level();
@@ -482,15 +495,20 @@ final class Ss2AlltagScenes {
                     com.mki.nightsiege.game.EventAtmosphere.THUNDER, 1);
             bolt(level, stormBolt);
         });
-        context.waitTicks(10);
+        context.waitTicks(4);
         EventLookTest.onServer(context, (player, manager) -> {
             ServerLevel level = (ServerLevel) player.level();
-            log("THUNDER lightning fire: without the event=" + fires(level, plainBolt) + " in the thunder night=" + fires(level, stormBolt)
-                    + " (expected some / 0; without the event 0 means fire is off in this world)");
+            int plainLit = BOLTS.size() > 0 ? BOLTS.get(0).getBlocksSetOnFire() : -1;
+            int stormLit = BOLTS.size() > 1 ? BOLTS.get(1).getBlocksSetOnFire() : -1;
+            BOLTS.clear();
+            log("THUNDER lightning set on fire: without the event=" + plainLit + " in the thunder night=" + stormLit
+                    + " (fire blocks now " + fires(level, plainBolt) + " / " + fires(level, stormBolt)
+                    + "; expected more than 0 / 0)");
             com.mki.nightsiege.game.EventAtmosphere.setServer(SiegeManager.dimensionName(level), "", 1);
         });
         game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air replace minecraft:fire".formatted(
                 cx - 10, cy - 1, cz - 10, cx - 2, cy + 3, cz + 10));
+        game.getServer().runCommand("difficulty easy");
         context.waitTicks(100);
         EventLookTest.onServer(context, (player, manager) -> {
             ServerLevel level = (ServerLevel) player.level();

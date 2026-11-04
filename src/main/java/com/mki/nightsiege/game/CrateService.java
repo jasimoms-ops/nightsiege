@@ -272,14 +272,9 @@ public final class CrateService {
         if (stack.isEmpty() || !stack.is(CRATE)) {
             return;
         }
-        // One crate at a time: holding the button opened several in a second and the band of each
-        // was gone before it stopped (Simon 28.10.: "Kisten können nicht richtig geöffnet werden").
-        long now = player.level().getGameTime();
-        Long last = lastOpened.get(player.getUUID());
-        if (last != null && now - last < CrateFx.SPIN_TICKS + 10 && now >= last) {
+        if (!startOpening(player)) {
             return;
         }
-        lastOpened.put(player.getUUID(), now);
         CustomData data = stack.get(DataComponents.CUSTOM_DATA);
         net.minecraft.nbt.CompoundTag tag = data == null ? new net.minecraft.nbt.CompoundTag() : data.copyTag();
         SkillClass clazz = SkillClass.byName(tag.getStringOr("crate_class", ""));
@@ -300,8 +295,44 @@ public final class CrateService {
         CrateKind kind = CrateKind.byName(tag.getStringOr("crate_kind", "NORMAL"));
         int level = Math.max(1, tag.getIntOr("crate_level", 1));
         int curses = Math.max(0, tag.getIntOr("crate_curse", 0));
+        reveal(player, own, clazz, kind, level, curses, () -> stack.shrink(1));
+    }
+
+    /**
+     * One crate at a time: holding the button opened several in a second and the band of each was gone
+     * before it stopped (Simon 28.10.: "Kisten können nicht richtig geöffnet werden"). False while the
+     * band of the last one still spins; otherwise the time of this one is noted.
+     */
+    private boolean startOpening(ServerPlayer player) {
+        long now = player.level().getGameTime();
+        Long last = lastOpened.get(player.getUUID());
+        if (last != null && now - last < CrateFx.SPIN_TICKS + 10 && now >= last) {
+            return false;
+        }
+        lastOpened.put(player.getUUID(), now);
+        return true;
+    }
+
+    /**
+     * A crate the playtest owes this player, opened without an item (Simon 04.11.: "Playtest 2" – the
+     * crate items went into the kit's stash and could not be opened): the same roll, band and note as
+     * a crate in the hand, in any phase, kit or not. False (nothing done) while a band still spins.
+     */
+    public boolean openOwed(ServerPlayer player, SkillClass clazz, CrateKind kind, int level) {
+        if (player == null || clazz == null || !startOpening(player)) {
+            return false;
+        }
+        PlayerSkills own = save.get().skillsOf(player.getUUID().toString());
+        reveal(player, own, clazz, kind, Math.max(1, level), 0, () -> {
+        });
+        return true;
+    }
+
+    /** Rolls the crate, takes it ({@code take}), applies the gain and shows the band and the note. */
+    private void reveal(ServerPlayer player, PlayerSkills own, SkillClass clazz, CrateKind kind, int level, int curses,
+                        Runnable take) {
         CrateRoll roll = roll(own, clazz, kind, level, curses);
-        stack.shrink(1);
+        take.run();
         try {
             SiegeManager.get().stats().crate(player, clazz.name(), kind.name(), level, roll);
         } catch (RuntimeException e) {

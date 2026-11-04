@@ -156,8 +156,16 @@ public final class Expeditions {
     /** The effects of the fight: half life reached, the champion's entrance, the guards waking. */
     private boolean phase2;
     private long championShownAt = -1L;
-    private final Map<UUID, Long> wakeAt = new HashMap<>();
     private boolean roomAwake;
+    /** A guard of the room of now was struck by someone of the fight (a fighter, his arrow, tower or companion). */
+    private boolean roomStruck;
+    /** Tests: the last room that woke ("room|game time|guards|why"). */
+    private String lastWake = "-";
+    /** Since when each fighter is in water below the floor (Playtest 2: out after 2 s), and how often one was pulled out. */
+    private final Map<UUID, Long> wetSince = new HashMap<>();
+    private int rescues;
+    /** When each player was last told how the stair gate opens (game time). */
+    private final Map<UUID, Long> toldGate = new HashMap<>();
     /** The ring of light round the dome, lit once round in 3 s when the arena closes. */
     private long ringAt = -1L;
     private ServerBossEvent bar;
@@ -814,6 +822,7 @@ public final class Expeditions {
         }
         if (now % 2 == 0 && !fighters.isEmpty()) {
             keepOffStair(level, plan(rec));
+            pullOut(level, rec, plan(rec), now);
         }
         if (now % 10 == 0 && (!fighters.isEmpty() || !joined.isEmpty())) {
             tickFight(server, level, rec, now);
@@ -2385,7 +2394,10 @@ public final class Expeditions {
     // ------------------------------------------------------------------ fighters
 
     private boolean inside(ExpeditionLayout.Plan p, Entity e, double margin) {
-        Vec3 at = e.position();
+        return inside(p, e.position(), margin);
+    }
+
+    private static boolean inside(ExpeditionLayout.Plan p, Vec3 at, double margin) {
         for (AABB box : p.inside) {
             if (box.inflate(margin).contains(at)) {
                 return true;
@@ -2393,6 +2405,26 @@ public final class Expeditions {
         }
         return false;
     }
+
+    /**
+     * The tests' open entry: anyone signed up who goes down joins, the stair gate stands open. The
+     * playtest's open entry goes through the ready round since Playtest 2 (Simon 04.11. 23:28: "da man
+     * einfach dran vorbeilaufen kann"), see {@link #playtestEntry()}.
+     */
+    private boolean straightIn() {
+        return openEntry && !playtestEntry();
+    }
+
+    /**
+     * The playtest's dungeon: the gate stays shut until all its players online are ready at the seal
+     * stone (no way past it any more); once they fight, one brought late by the playtest joins them.
+     */
+    private boolean playtestEntry() {
+        return openEntry && (testPlaytest || m.playtest().running());
+    }
+
+    /** Tests: the open entry behaves as the playtest's (without a playtest running). */
+    private boolean testPlaytest;
 
     private void checkEntries(ServerLevel level, SiegeSave.ExpeditionRecord rec, long now) {
         ExpeditionLayout.Plan p = plan(rec);
@@ -2402,8 +2434,13 @@ public final class Expeditions {
                     || Drones.isDrone(player)) {
                 continue;
             }
-            // Only who was in the ready round goes in (the tests and the playtest: anyone signed up).
-            boolean may = !out.contains(id) && m.isRegistered(player) && (openEntry || allowed.contains(id));
+            // Only who was in the ready round goes in (the tests: anyone signed up; the playtest: its players once
+            // the fight is on, so the playtest can bring the late ones).
+            boolean may = !out.contains(id) && m.isRegistered(player) && (allowed.contains(id) || straightIn()
+                    || playtestEntry() && !fighters.isEmpty() && m.playtest().takesPart(id));
+            if (!inside(p, player, 0.0)) {
+                hintGate(p, player, now);
+            }
             if (!may) {
                 // Survival safety (Simon 31.10., D1): who ran down without a place in the round (or is
                 // not signed up, or fell) would be shut in when the gate closes: back before the gatehouse.
@@ -2426,6 +2463,67 @@ public final class Expeditions {
         final Set<UUID> members = new LinkedHashSet<>();
         final Set<UUID> ready = new HashSet<>();
         long startedAt;
+        /** The playtest's round: all its players online, wherever they stand (nobody drops out by walking off). */
+        boolean anywhere;
+    }
+
+    /**
+     * One standing at the shut stair gate learns how it opens (Playtest 2: the round at the seal stone),
+     * every 3 s while he stays there.
+     */
+    private void hintGate(ExpeditionLayout.Plan p, ServerPlayer player, long now) {
+        if (straightIn() || !fighters.isEmpty() || gateOpenUntil > 0 || gateRiseAt > 0 || !m.isRegistered(player)) {
+            return;
+        }
+        BlockPos g = gateMiddle(p);
+        if (player.distanceToSqr(g.getX() + 0.5, g.getY() + 0.5, g.getZ() + 0.5) > 3.0 * 3.0) {
+            return;
+        }
+        Long told = toldGate.get(player.getUUID());
+        if (told != null && now - told < 60) {
+            return;
+        }
+        toldGate.put(player.getUUID(), now);
+        Component text = round == null ? Component.translatable("nightsiege.expedition.gate_hint")
+                : Component.translatable("nightsiege.expedition.gate_wait", round.ready.size(), round.members.size());
+        player.connection.send(new ClientboundSetActionBarTextPacket(text.copy().withStyle(ChatFormatting.YELLOW)));
+    }
+
+    /** The stair gate's bottom middle (x 0, y 0 of the gate). */
+    private static BlockPos gateMiddle(ExpeditionLayout.Plan p) {
+        return p.stairGate.get(p.stairGate.size() / 2 - 2);
+    }
+
+    /**
+     * Bars into the stair gate (Playtest 2): whoever stands in it and does not fight steps back into
+     * the gatehouse first, so nobody is shut into the bars.
+     */
+    private void barStairGate(ServerLevel level, ExpeditionLayout.Plan p) {
+        int x0 = Integer.MAX_VALUE;
+        int y0 = Integer.MAX_VALUE;
+        int z0 = Integer.MAX_VALUE;
+        int x1 = Integer.MIN_VALUE;
+        int y1 = Integer.MIN_VALUE;
+        int z1 = Integer.MIN_VALUE;
+        for (BlockPos pos : p.stairGate) {
+            x0 = Math.min(x0, pos.getX());
+            y0 = Math.min(y0, pos.getY());
+            z0 = Math.min(z0, pos.getZ());
+            x1 = Math.max(x1, pos.getX());
+            y1 = Math.max(y1, pos.getY());
+            z1 = Math.max(z1, pos.getZ());
+        }
+        BlockPos g = gateMiddle(p);
+        if (loaded(level, g.getX() >> 4, g.getZ() >> 4)) {
+            // The seal stone lies two before the gate: one step before the gate, back in the gatehouse.
+            BlockPos back = new BlockPos((g.getX() + p.seal.getX()) / 2, g.getY(), (g.getZ() + p.seal.getZ()) / 2);
+            for (ServerPlayer player : level.getEntitiesOfClass(ServerPlayer.class, new AABB(x0, y0, z0, x1 + 1, y1 + 1, z1 + 1),
+                    pl -> !fighters.contains(pl.getUUID()) && !pl.isSpectator())) {
+                player.teleportTo(level, back.getX() + 0.5, back.getY(), back.getZ() + 0.5, java.util.Set.of(), player.getYRot(),
+                        player.getXRot(), true);
+            }
+        }
+        setGate(level, p.stairGate, true);
     }
 
     private Round round;
@@ -2435,7 +2533,10 @@ public final class Expeditions {
     private long gateOpenUntil = -1L;
     /** The gate goes up row by row from here (2 s). */
     private long gateRiseAt = -1L;
-    /** Tests and the playtest: anyone signed up who goes down joins (no ready round, the gate open). */
+    /**
+     * Tests: anyone signed up who goes down joins (no ready round, the gate open). The playtest sets it
+     * too, but there the round at the seal stone is needed all the same since Playtest 2 ({@link #playtestEntry()}).
+     */
     private boolean openEntry;
     /** Where each fighter last stood inside (who gets out is put back there). */
     private final Map<UUID, Vec3> lastInside = new HashMap<>();
@@ -2510,11 +2611,14 @@ public final class Expeditions {
         Round r = new Round();
         r.starter = player.getUUID();
         r.startedAt = now;
+        // The playtest's round (Simon 04.11. 23:28): all its players online are in it, wherever they stand.
+        r.anywhere = playtestEntry();
         for (ServerPlayer other : level.players()) {
             if (m.isRegistered(other) && other.isAlive() && !other.isSpectator() && !Drones.isDrone(other)
                     && m.save().skillsOf(other.getUUID().toString()).hasClass()
                     && !out.contains(other.getUUID())
-                    && other.distanceToSqr(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5) <= ROUND_RADIUS * ROUND_RADIUS) {
+                    && (r.anywhere ? testPlaytest || m.playtest().takesPart(other.getUUID())
+                    : other.distanceToSqr(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5) <= ROUND_RADIUS * ROUND_RADIUS)) {
                 r.members.add(other.getUUID());
             }
         }
@@ -2598,7 +2702,7 @@ public final class Expeditions {
             for (UUID id : new ArrayList<>(round.members)) {
                 ServerPlayer player = level.getServer().getPlayerList().getPlayer(id);
                 boolean gone = player == null || player.level() != level || !player.isAlive()
-                        || player.distanceToSqr(seal.getX() + 0.5, seal.getY(), seal.getZ() + 0.5) > ROUND_RADIUS * ROUND_RADIUS;
+                        || !round.anywhere && player.distanceToSqr(seal.getX() + 0.5, seal.getY(), seal.getZ() + 0.5) > ROUND_RADIUS * ROUND_RADIUS;
                 if (gone) {
                     round.members.remove(id);
                     round.ready.remove(id);
@@ -2647,8 +2751,19 @@ public final class Expeditions {
                 allowed.clear();
             }
         }
-        if (openEntry && level.getBlockState(p.stairGate.get(0)).is(Blocks.IRON_BARS)) {
-            setGate(level, p.stairGate, false);
+        if (straightIn()) {
+            if (level.getBlockState(p.stairGate.get(0)).is(Blocks.IRON_BARS)) {
+                setGate(level, p.stairGate, false);   // the tests go straight down
+            }
+        } else if (round == null && gateOpenUntil < 0 && gateRiseAt < 0 && now % 100 == 0) {
+            // The gate is the barrier until the round is ready (Playtest 2, Simon 04.11. 23:28): open without a
+            // round for it (a restart in the 30 s after a round, the tests' open entry before) it shuts again.
+            BlockPos first = p.stairGate.get(0);
+            if (loaded(level, first.getX() >> 4, first.getZ() >> 4) && !level.getBlockState(first).is(Blocks.IRON_BARS)) {
+                barStairGate(level, p);
+                allowed.clear();
+                level.playSound(null, first, SoundEvents.IRON_DOOR_CLOSE, SoundSource.BLOCKS, 2f, 0.5f);
+            }
         }
     }
 
@@ -2676,10 +2791,10 @@ public final class Expeditions {
 
     private void closeStairGate(ServerLevel level, ExpeditionLayout.Plan p) {
         gateOpenUntil = -1L;
-        if (openEntry) {
+        if (straightIn()) {
             return;
         }
-        setGate(level, p.stairGate, true);
+        barStairGate(level, p);
         level.playSound(null, p.stairGate.get(0), SoundEvents.IRON_DOOR_CLOSE, SoundSource.BLOCKS, 2f, 0.5f);
     }
 
@@ -2745,6 +2860,7 @@ public final class Expeditions {
         UUID id = player.getUUID();
         fighters.remove(id);
         grace.remove(id);
+        wetSince.remove(id);
         if (record() != null) {
             DungeonFx.leave(player, kind(record()));
         }
@@ -2911,17 +3027,24 @@ public final class Expeditions {
             if (player.level() != level) {
                 leave(player, "nightsiege.expedition.left");
             } else if (!inside(p, player, 1.5)) {
-                // Locked in (content update): who gets out (pearl, hook, climbing arrow) is put back.
+                // Locked in (content update): who gets out (pearl, hook, climbing arrow) is put back. Playtest 2
+                // (Simon 04.11.): in the playtest and the tests too – before, a step out of the area there was the
+                // end of the attempt ("verlassen"), and the rooms cleared so far were lost with it.
                 Vec3 back = lastInside.get(id);
-                if (back != null && !openEntry) {
+                if (back == null && p.stairFoot != null) {
+                    back = Vec3.atBottomCenterOf(p.stairFoot);
+                }
+                if (back != null) {
                     player.teleportTo(level, back.x, back.y, back.z, java.util.Set.of(), player.getYRot(), player.getXRot(), true);
+                    player.resetFallDistance();
                     player.connection.send(new ClientboundSetActionBarTextPacket(Component.translatable("nightsiege.expedition.no_escape")
                             .withStyle(ChatFormatting.RED)));
+                    NightSiegeMod.LOGGER.info("[Night Siege] {} war aus dem Dungeon {} hinaus, zurückgesetzt", player.getScoreboardName(), rec.kind);
                 } else {
                     leave(player, "nightsiege.expedition.left");
                 }
-            } else if (player.onGround()) {
-                lastInside.put(id, player.position());
+            } else if (player.onGround() && !player.isInWater() && !player.isInLava()) {
+                lastInside.put(id, player.position());   // dry ground only (not the bottom of a basin)
             }
         }
         if (fighters.isEmpty()) {
@@ -2947,6 +3070,10 @@ public final class Expeditions {
                         spawnRoom(level, rec, p, kind, room, lvl);
                         break;
                     }
+                }
+                Set<UUID> spawned = roomMobs.get(room);
+                if (spawned != null) {
+                    wakeRoom(level, p, room, spawned, now);   // in the same tick (Playtest 2: they attack at once)
                 }
             } else {
                 mobs.removeIf(id -> !(level.getEntity(id) instanceof LivingEntity l) || !l.isAlive());
@@ -3053,13 +3180,13 @@ public final class Expeditions {
             if (mob != null) {
                 toughen(mob, kind);
                 mobs.add(mob.getUUID());
-                mob.setNoAi(true);   // statues until someone reaches the middle or strikes one (content update)
+                mob.setNoAi(true);   // statues until a fighter is in the room's zone or strikes one (wakeRoom)
             }
         }
         sendLooks(level);
         roomMobs.put(room, mobs);
         roomAwake = false;
-        wakeAt.clear();
+        roomStruck = false;
         // The hall's title: its theme, which hall of how many.
         String module = room < p.roomModules.size() ? p.roomModules.get(room) : "";
         for (UUID id : fighters) {
@@ -3074,39 +3201,45 @@ public final class Expeditions {
         }
     }
 
-    /** The guards wake group by group, a second apart, when one comes close or strikes one. */
+    /**
+     * The guards wake, all in the same tick, as soon as a fighter is in the room's zone (its corridor
+     * and the hall, the basins too) or one of them is struck (Playtest 2, Simon 04.11.: "Dungeon-Wächter
+     * greifen sofort an"; before, they stood as statues until someone came within 10 blocks of the
+     * middle, and woke group by group a second apart).
+     */
     private void wakeRoom(ServerLevel level, ExpeditionLayout.Plan p, int room, Set<UUID> mobs, long now) {
-        if (!roomAwake) {
-            BlockPos center = p.roomCenters.get(room);
-            boolean near = false;
-            for (UUID id : fighters) {
-                ServerPlayer player = level.getServer().getPlayerList().getPlayer(id);
-                if (player != null && player.distanceToSqr(center.getX() + 0.5, center.getY(), center.getZ() + 0.5) < 10.0 * 10.0) {
-                    near = true;
-                }
-            }
-            for (UUID id : mobs) {
-                if (level.getEntity(id) instanceof Mob mob && mob.getHealth() < mob.getMaxHealth()) {
-                    near = true;
-                }
-            }
-            if (!near) {
-                return;
-            }
-            roomAwake = true;
-            int i = 0;
-            for (UUID id : mobs) {
-                wakeAt.put(id, now + 20L * (i++ % 4));
-            }
-            level.playSound(null, center, SoundEvents.EVOKER_PREPARE_SUMMON, SoundSource.HOSTILE, 2f, 0.7f);
+        if (roomAwake) {
+            return;
         }
-        for (Map.Entry<UUID, Long> e : new ArrayList<>(wakeAt.entrySet())) {
-            if (now >= e.getValue() && level.getEntity(e.getKey()) instanceof Mob mob) {
-                mob.setNoAi(false);
+        AABB zone = p.roomZones.get(room);
+        boolean near = false;
+        for (UUID id : fighters) {
+            ServerPlayer player = level.getServer().getPlayerList().getPlayer(id);
+            if (player != null && player.level() == level && zone.contains(player.position())) {
+                near = true;
+                break;
+            }
+        }
+        // Struck by someone of the fight (not hurt by a wall or a fall: a statue standing in a block woke them early).
+        if (!near && !roomStruck) {
+            return;
+        }
+        roomAwake = true;
+        int woke = 0;
+        for (UUID id : mobs) {
+            if (level.getEntity(id) instanceof Mob mob) {
+                for (Mob one : riders(mob)) {
+                    one.setNoAi(false);
+                }
                 level.sendParticles(ParticleTypes.SOUL, mob.getX(), mob.getY() + 1, mob.getZ(), 8, 0.3, 0.6, 0.3, 0.02);
-                wakeAt.remove(e.getKey());
+                woke++;
             }
         }
+        BlockPos center = p.roomCenters.get(room);
+        level.playSound(null, center, SoundEvents.EVOKER_PREPARE_SUMMON, SoundSource.HOSTILE, 2f, 0.7f);
+        lastWake = room + "|" + now + "|" + woke + "|" + (near ? "zone" : "treffer");
+        NightSiegeMod.LOGGER.info("[Night Siege] Dungeon-Raum {}: {} Wächter auf einmal wach ({})", room + 1, woke,
+                near ? "Kämpfer in der Zone" : "getroffen");
     }
 
     /**
@@ -3409,6 +3542,96 @@ public final class Expeditions {
         mob.setPersistenceRequired();
     }
 
+    /** Playtest 2 (Simon 04.11.): how long a fighter may swim below the floor before he is pulled out (lava: at once). */
+    static final int BASIN_TICKS = 40;
+
+    /**
+     * A fighter in the water of a basin below the floor (the cellar's round well and its channel and
+     * well, the cistern's ring) is put on the nearest dry floor at its edge after 2 s, one in lava (the
+     * forge's trench and pool, the ring in its arena) at once (Simon 04.11.: "wenn man in das
+     * Wasserbecken fällt, kommt man nicht mehr raus"; the round well is two deep behind a wall).
+     */
+    private void pullOut(ServerLevel level, SiegeSave.ExpeditionRecord rec, ExpeditionLayout.Plan p, long now) {
+        for (UUID id : fighters) {
+            ServerPlayer player = level.getServer().getPlayerList().getPlayer(id);
+            if (player == null || player.level() != level || player.isSpectator() || !player.isAlive()) {
+                wetSince.remove(id);
+                continue;
+            }
+            boolean lava = player.isInLava();
+            int floor = floorUnder(rec, p, player);
+            if (!lava && !player.isInWater() || player.getY() > floor - 0.25) {
+                wetSince.remove(id);
+                continue;
+            }
+            long since = wetSince.computeIfAbsent(id, k -> now);
+            if (!lava && now - since < BASIN_TICKS) {
+                continue;
+            }
+            BlockPos edge = edgeOf(level, p, player, floor);
+            Vec3 to = edge != null ? Vec3.atBottomCenterOf(edge) : lastInside.get(id);
+            if (to == null) {
+                continue;
+            }
+            wetSince.remove(id);
+            rescues++;
+            player.teleportTo(level, to.x, to.y, to.z, java.util.Set.of(), player.getYRot(), player.getXRot(), true);
+            player.setDeltaMovement(Vec3.ZERO);
+            player.resetFallDistance();
+            if (lava) {
+                player.clearFire();
+            }
+            lastInside.put(id, to);
+            player.connection.send(new ClientboundSetActionBarTextPacket(Component.translatable(lava ? "nightsiege.expedition.lava_out"
+                    : "nightsiege.expedition.basin_out").withStyle(ChatFormatting.AQUA)));
+            NightSiegeMod.LOGGER.info("[Night Siege] {} aus dem Becken gezogen ({}, nach {} Ticks) im Dungeon {}", player.getScoreboardName(),
+                    lava ? "Lava" : "Wasser", now - since, rec.kind);
+        }
+    }
+
+    /** The walk level over the entity (world y): the arena's floor in the arena, else the halls'. */
+    private static int floorUnder(SiegeSave.ExpeditionRecord rec, ExpeditionLayout.Plan p, Entity e) {
+        AABB a = p.arena;
+        boolean arena = a != null && e.getX() >= a.minX && e.getX() < a.maxX && e.getZ() >= a.minZ && e.getZ() < a.maxZ;
+        return rec.y + (arena ? ExpeditionLayout.ARENA_Y : ExpeditionLayout.HALL_Y);
+    }
+
+    /** The nearest dry floor within 8 blocks of the entity (at the edge of the basin it is in), or null. */
+    private static BlockPos edgeOf(ServerLevel level, ExpeditionLayout.Plan p, Entity e, int floor) {
+        BlockPos best = null;
+        double bestDist = Double.MAX_VALUE;
+        for (int dx = -8; dx <= 8; dx++) {
+            for (int dz = -8; dz <= 8; dz++) {
+                BlockPos at = new BlockPos(e.getBlockX() + dx, floor, e.getBlockZ() + dz);
+                double d = Vec3.atBottomCenterOf(at).distanceToSqr(e.getX(), floor, e.getZ());
+                if (d < bestDist && dryFloor(level, p, at)) {
+                    best = at;
+                    bestDist = d;
+                }
+            }
+        }
+        return best;
+    }
+
+    /** Solid ground without water or lava (and no magma), room for the body, inside the dungeon (not behind a wall). */
+    private static boolean dryFloor(ServerLevel level, ExpeditionLayout.Plan p, BlockPos at) {
+        if (!inside(p, Vec3.atBottomCenterOf(at), 0.0)) {
+            return false;
+        }
+        BlockPos under = at.below();
+        BlockState ground = level.getBlockState(under);
+        if (ground.getCollisionShape(level, under).isEmpty() || !ground.getFluidState().isEmpty() || ground.is(Blocks.MAGMA_BLOCK)) {
+            return false;
+        }
+        for (BlockPos body : new BlockPos[] {at, at.above()}) {
+            BlockState state = level.getBlockState(body);
+            if (!state.getCollisionShape(level, body).isEmpty() || !state.getFluidState().isEmpty()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /**
      * The stair keeps the dungeon's monsters in (Simon 30.10., 03:26: "sie können direkt angreifen
      * aber den raum nicht die treppe hoch verlassen"): one that sets foot on it is pushed back down,
@@ -3512,15 +3735,16 @@ public final class Expeditions {
         brains = null;
         phase2 = false;
         championShownAt = -1L;
-        wakeAt.clear();
         roomAwake = false;
+        roomStruck = false;
         lastInside.clear();
+        wetSince.clear();
         allowed.clear();
         gateOpenUntil = -1L;
         // (Only a complete one: one still being built gets its gates with its blocks, and a gate set
         // before its chunk is written down would stay in the ground when it goes.)
-        if (level != null && rec.built && rec.complete && !rec.won && !openEntry) {
-            setGate(level, plan(rec).stairGate, true);   // the next attempt starts at the seal stone again
+        if (level != null && rec.built && rec.complete && !rec.won && !straightIn()) {
+            barStairGate(level, plan(rec));   // the next attempt starts at the seal stone again
         }
         arenaClosed = false;
         if (level != null && rec.built && rec.complete && !rec.won && rec.cleared == 0) {
@@ -3671,6 +3895,9 @@ public final class Expeditions {
             return;
         }
         Entity raw = source.getEntity();
+        if (isExpeditionMob(victim) && raw != null && !isExpeditionMob(raw)) {
+            roomStruck = true;   // the room's statues wake (wakeRoom)
+        }
         Entity hitter = Companions.isCompanion(raw) ? Companions.ownerPlayer(raw) : raw;
         if (isExpeditionMob(victim) && hitter instanceof ServerPlayer p && fighters.contains(p.getUUID())) {
             m.stats().dungeonDamage(true, taken);
@@ -4054,8 +4281,13 @@ public final class Expeditions {
      * so the players are taken to a finished one and the server does not stand still meanwhile.
      */
     public void prepare(MinecraftServer server) {
+        prepare(server, null);
+    }
+
+    /** As above, of a set kind (null: by the ground); the playtest picks its three (Simon 04.11.: "Playtest 2"). */
+    public void prepare(MinecraftServer server, ExpeditionKind forced) {
         removeAll(server);
-        boolean out = scout(server, null, true, null);
+        boolean out = scout(server, forced, true, null);
         prepping = out;
         prepFailed = !out;
     }
@@ -4267,5 +4499,35 @@ public final class Expeditions {
     public boolean testSealed(Entity e) {
         SiegeSave.ExpeditionRecord rec = record();
         return rec != null && rec.built && sealed(plan(rec), rec, e);
+    }
+
+    // Tests of Playtest 2 (Simon 04.11., scene "pt2-dungeon").
+
+    /** Tests: the open entry behaves as the playtest's (the round at the seal stone), without a playtest running. */
+    public void testPlaytest(boolean value) {
+        testPlaytest = value;
+    }
+
+    /** Tests: inside the dungeon (as the fight sees it, the basins included)? */
+    public boolean testInside(Entity e) {
+        SiegeSave.ExpeditionRecord rec = record();
+        return rec != null && rec.built && inside(plan(rec), e, 1.5);
+    }
+
+    /** Tests: the guards of the room of now come at once, wherever the fighters stand (they stay statues until wakeRoom). */
+    public int testSpawnRoom(MinecraftServer server) {
+        SiegeSave.ExpeditionRecord rec = record();
+        ServerLevel level = rec == null ? null : SiegeManager.levelByName(server, rec.dimension);
+        if (level == null || !rec.built || rec.won || rec.cleared >= rec.rooms || roomMobs.containsKey(rec.cleared)) {
+            return -1;
+        }
+        spawnRoom(level, rec, plan(rec), kind(rec), rec.cleared, m.currentLevel());
+        return roomMobs.get(rec.cleared).size();
+    }
+
+    /** Tests: the last room that woke ("room|game time|guards"), pulled out of basins so far, attempts of the dungeon. */
+    public String testWake() {
+        SiegeSave.ExpeditionRecord rec = record();
+        return "wach=" + lastWake + " gezogen=" + rescues + " versuche=" + (rec == null ? -1 : rec.attempts);
     }
 }
