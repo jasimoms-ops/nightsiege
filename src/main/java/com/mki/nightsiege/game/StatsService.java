@@ -138,6 +138,11 @@ public final class StatsService {
         stats.extraSiegeOn = cfg.extraSiegePerDay > 0;
         stats.extraSiegeFromLevel = cfg.extraSiegeFromLevel;
         stats.extraSiegeBlock = manager.extraSiegeBlock(server).name();
+        stats.warOn = cfg.warLeaderEnabled;
+        String warBlock = manager.warLeader().blockReason(server);
+        stats.warBlock = warBlock == null ? "" : warBlock;
+        stats.warLeader = manager.warLeader().leaderName();
+        stats.warMine = manager.warLeader().isLeader(viewer);
         stats.extraSiegeToday = manager.extraSiegeToday(server);
         stats.extraSiegeBy = stats.extraSiegeToday && save.extraCalledBy != null ? save.extraCalledBy : "";
         stats.playersNear = stats.accepted;

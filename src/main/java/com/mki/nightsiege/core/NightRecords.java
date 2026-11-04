@@ -167,6 +167,8 @@ public class NightRecords {
         public int streakBest;
         public int serverStreak;
         public int serverBest;
+        /** The war leader's rounds (Kriegsführer, 29 October 2026): lines "key\u0001arg…" for the page. */
+        public List<String> war = new ArrayList<>();
     }
 
     public View view(String viewerUuid) {
