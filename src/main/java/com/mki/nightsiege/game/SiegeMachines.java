@@ -637,8 +637,8 @@ public final class SiegeMachines {
                     return false;
                 }
                 Wall climb = climbable(level, wall);
-                Wall aim = climb != null ? climb : wall;
-                Vec3 to = new Vec3(aim.x() + 0.5 + aim.face().getStepX() * 0.6, aim.top() - 0.5, aim.z() + 0.5 + aim.face().getStepZ() * 0.6);
+                Wall hookAt = climb != null ? climb : wall;
+                Vec3 to = new Vec3(hookAt.x() + 0.5 + hookAt.face().getStepX() * 0.6, hookAt.top() - 0.5, hookAt.z() + 0.5 + hookAt.face().getStepZ() * 0.6);
                 turnTo(machine, to);
                 launch(machine, machine.at(0, 1.8, 2.0), to, now, 18, 3, Blocks.IRON_BLOCK.defaultBlockState(), 0.3f, climb);
                 sound(level, machine.base, SoundEvents.CROSSBOW_SHOOT, 1.6f, 0.5f);
