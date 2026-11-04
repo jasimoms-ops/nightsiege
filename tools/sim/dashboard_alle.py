@@ -135,6 +135,10 @@ LABELS = {
 
 # Runs whose variant is the server's state although it carries values of its own (they came onto the
 # server by config afterwards): run -> variant.
+# Simon 04.11.: "alles Veraltete löschen" - das Dashboard zeigt nur die Läufe, die den heutigen Stand
+# beschreiben (Server-Stand seit 31.10. und die Prüfläufe dazu). Ältere Läufe bleiben in ihren dist-Branches.
+AKTUELL = ["final6", "final5", "bollwerk1"]
+
 SERVER_STAND = {"bogen1": "aktuell", "balance1": "aktuell", "balance2": "aktuell", "final4": "s40", "final5": "r4"}
 
 
@@ -177,7 +181,10 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("out")
     ap.add_argument("--remote", default="origin")
+    ap.add_argument("--nur", default=",".join(AKTUELL),
+                    help="nur diese Läufe (Komma-Liste, leer = alle); Standard: die Läufe, die den heutigen Stand beschreiben")
     a = ap.parse_args()
+    nur = {x.strip() for x in a.nur.split(",") if x.strip()}
     os.makedirs(a.out, exist_ok=True)
     refs = git("for-each-ref", "--format=%(refname:short)\t%(subject)\t%(committerdate:unix)",
                "refs/remotes/%s/dist-balance-run-*" % a.remote).splitlines()
@@ -188,6 +195,8 @@ def main():
         when = datetime.datetime.fromtimestamp(int(stamp), BERLIN).strftime("%Y-%m-%d %H:%M")
         name = ref.split("/dist-", 1)[1]                       # balance-run-skal4
         kurz = name[len("balance-run-"):]
+        if nur and kurz not in nur:
+            continue
         found = re.search(r"[0-9a-f]{40}", subject)
         sha = found.group(0) if found else ""
         msg = git("log", "-1", "--format=%B", sha) if sha else ""

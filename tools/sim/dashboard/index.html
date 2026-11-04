@@ -89,7 +89,7 @@
     <button type="button" role="tab" id="tab-vergleich" data-tab="vergleich" aria-controls="vergleich">Läufe vergleichen</button>
     <button type="button" role="tab" id="tab-klassen" data-tab="klassen" aria-controls="klassen">Klassen</button>
     <button type="button" role="tab" id="tab-abende" data-tab="abende" aria-controls="abende">Echte Abende</button>
-    <button type="button" role="tab" id="tab-analysen" data-tab="analysen" aria-controls="analysen">Analysen</button>
+    <button type="button" role="tab" id="tab-analysen" data-tab="analysen" aria-controls="analysen">So ist gemessen</button>
   </nav>
 
   <!-- ===================== Überblick ===================== -->
@@ -293,24 +293,12 @@
         </div>
       </div>
 
-      <div class="nb-card nb-wide" id="beitrag">
-        <h3>Was jede Unterklasse ihrer Gruppe bringt</h3>
-        <p class="nb-sub">Auswertung vom 30.10. über 2 496 zufällige Gruppen aus gross1, skal3 und skal4: wie viel öfter eine Gruppe gewinnt, wenn die Unterklasse dabei ist, verglichen mit anderen Gruppen gleicher Größe auf derselben Stufe, in Prozentpunkten. Der Strich zeigt die Unsicherheit.</p>
-        <div class="nb-controls">
-          <label for="nb-beitrag">Gruppen</label>
-          <select id="nb-beitrag" class="nb-beitrag" aria-label="Welche Gruppen">
-            <option value="alle">alle Gruppengrößen</option>
-            <option value="klein">nur 1–3 Spieler</option>
-          </select>
-        </div>
-        <div class="nb-chart" data-draw="uk-beitrag" data-source="uk_beitrag"></div>
-      </div>
     </div>
   </section>
 
   <!-- ===================== Echte Abende ===================== -->
   <section class="nb-section" id="abende" role="tabpanel" aria-labelledby="tab-abende" data-panel hidden>
-    <p class="nb-secnote">Aus den Logger-Dateien des Servers, ohne Spielernamen. Abgebrochene Nächte zählen nicht. Stand: Nächte bis <span data-draw="meta-echt" data-source="echt_gesamt" data-field="letzte" data-row="0">—</span>.</p>
+    <p class="nb-secnote">Aus den Logger-Dateien des Servers, ohne Spielernamen, seit dem Balancing vom 30.10. 21:57 (ältere Abende entfernt). Abgebrochene Nächte zählen nicht. Bisher sind es Simons Playtests allein, und die Testnächte rechneten noch mit zu vielen Monstern (wird mit Playtest 2 behoben). Stand: Nächte bis <span data-draw="meta-echt" data-source="echt_gesamt" data-field="letzte" data-row="0">—</span>.</p>
     <div class="nb-grid">
       <div class="nb-card" id="echt-matrix">
         <h3>Siegquote eurer Nächte</h3>
@@ -396,61 +384,15 @@
 
   <!-- ===================== Analysen ===================== -->
   <section class="nb-section" id="analysen" role="tabpanel" aria-labelledby="tab-analysen" data-panel hidden>
-    <p class="nb-secnote">Einzelne Auswertungen, die nicht aus einem Lauf allein kommen. Sie werden nicht von selbst neu berechnet; ihr Stand steht jeweils dabei.</p>
+    <p class="nb-secnote">Wie die Sim misst und woher die Daten kommen. Das Dashboard zeigt nur, was zum heutigen Stand gehört; ältere Läufe und Auswertungen sind entfernt (Simon 04.11.).</p>
     <div class="nb-grid">
-      <div class="nb-card nb-wide" id="eichung">
-        <h3>Spielen die Bots wie ihr?</h3>
-        <p class="nb-sub">Stand 29.10. (Lauf eich2). Jede Bot-Variante neben euren echten Nächten (Stufe 1–15, ohne Bossnächte). Kleinster Abstand = passt am besten.</p>
-        <div class="nb-tablebox">
-          <table class="nb-tbl" data-source="eichung" data-row-key="variante,art">
-            <thead>
-              <tr>
-                <th class="nb-l" data-field="name">Wer</th>
-                <th class="nb-l" data-field="art">Spieler</th>
-                <th data-field="n">Spieler-Nächte</th>
-                <th data-field="schaden_je_min">Schaden/min</th>
-                <th data-field="erhalten_je_min">Eingesteckt/min</th>
-                <th data-field="tod_anteil">Mit Tod</th>
-                <th data-field="ueberlebt_s">Überlebt (Median)</th>
-                <th data-field="fern_anteil">Von Fernkämpfern</th>
-                <th data-field="abstand">Abstand</th>
-              </tr>
-            </thead>
-            <tbody data-draw="eich-rows"></tbody>
-          </table>
-        </div>
-      </div>
-      <div class="nb-card" id="skal-vorschlag">
-        <h3>Skalierungs-Vorschlag</h3>
-        <p class="nb-sub">Stand 30.10., aus skal3 und skal4: Monster gleichzeitig je Spielerzahl statt eines Limits für alle, kleinere Wellen, für kleine Gruppen schwächere Monster, dazu der Creeper-Schalter. Geprüft in skal5 (Variante „neu“).</p>
-        <div class="nb-tablebox">
-          <table class="nb-tbl" data-source="skal_vorschlag" data-row-key="spieler">
-            <thead>
-              <tr>
-                <th class="nb-l" data-field="spieler">Spieler</th>
-                <th data-field="limit">Monster gleichzeitig</th>
-                <th data-field="limit_heute">bisher</th>
-                <th data-field="welle_vs_heute">Welle ggü. bisher</th>
-                <th data-field="schaden_leben">Schaden und Leben</th>
-              </tr>
-            </thead>
-            <tbody data-draw="sk-vor-rows"></tbody>
-          </table>
-        </div>
-      </div>
-      <div class="nb-card" id="skal-ohne">
-        <h3>Warum Solo und Duo am Kill-Ziel scheitern</h3>
-        <p class="nb-sub">Stand 30.10., Lauf skal4 (Tabelle ohne Schalter): Anteil der gespawnten Monster, die nie getötet wurden. Ohne Creeper-Schalter zählen sie trotzdem zum Kill-Ziel.</p>
-        <p class="nb-legend"><span><i class="nb-swatch nb-sw-c0"></i>Creeper gesprengt</span><span><i class="nb-swatch nb-sw-c1"></i>Phantom weggeflogen</span><span><i class="nb-swatch nb-sw-mid"></i>anders weg oder noch da</span></p>
-        <div class="nb-chart" data-draw="sk-ohne" data-source="skal_ohne_kill"></div>
-      </div>
       <div class="nb-card nb-wide" id="begriffe">
         <h3>So ist gemessen</h3>
         <dl class="nb-def">
           <dt>Team-Sim</dt>
           <dd>Bots spielen echte Testnächte auf einem Server ohne Grafik, auf der Kopie deiner Burg (9 × 9 Chunks um den Core, Stand 29.10.). Jeder hat die Punkte, die man bis zu dieser Stufe hätte, und das Kit der Stufe, aber keine Kisten-Gewinne. Alle Monster der Server-Liste sind dabei, auch die aus Takes a Pillage und Friends &amp; Foes.</dd>
           <dt>Lauf und Variante</dt>
-          <dd>Ein Lauf ist ein Auftrag an die Sim (Branch balance-run-…). Jede Variante darin spielt dieselben Gruppen; „aktuell“ ist meist die Server-Config, die anderen ändern einzelne Werte. Kam eine andere Variante danach auf den Server (z. B. „s40“ in final4), ist sie als Server-Stand markiert. „Server-Stand“ im Überblick ist diese Variante im neuesten geeichten Lauf, der mindestens drei Spielerzahlen abdeckt; „Vergleich“ ist dort die Variante, deren Siegquoten am nächsten an 70 % liegen, solange du keine andere wählst.</dd>
+          <dd>Ein Lauf ist ein Auftrag an die Sim (Branch balance-run-…). Jede Variante darin spielt dieselben Gruppen; „aktuell“ ist meist die Server-Config, die anderen ändern einzelne Werte. Kam eine andere Variante danach auf den Server (z. B. „r4“ in final5), ist sie als Server-Stand markiert. „Server-Stand“ im Überblick ist diese Variante im neuesten geeichten Lauf, der mindestens drei Spielerzahlen abdeckt; „Vergleich“ ist dort die Variante, deren Siegquoten am nächsten an 70 % liegen, solange du keine andere wählst.</dd>
           <dt>Gruppen</dt>
           <dd>Zufällig gewählt wie echte Spieler (keine Unterklasse doppelt), dazu ab 2 Spielern die Vorlagen Tank + Heiler + Schaden, Nur Schaden, Tanks + Techniker und Nur Beschwörer.</dd>
           <dt>Bots</dt>
@@ -458,7 +400,7 @@
           <dt>Monster gleichzeitig und Creeper-Schalter</dt>
           <dd>Ist das Limit gleichzeitig lebender Monster erreicht, kommen neue erst nach, wenn welche sterben, und das Kill-Ziel sinkt. Mit dem Creeper-Schalter zählen Monster nicht mehr zum Kill-Ziel, die ohne Kill verschwinden (gesprengte Creeper, weggeflogene Phantome, geflohene Nemesis).</dd>
           <dt>Daten nachladen</dt>
-          <dd>Die Sim-Daten kommen aus allen Branches dist-balance-run-* (Skript tools/sim/dashboard_alle.py), die echten Abende aus den Logger-Dateien des Servers (tools/sim/echte_naechte.py). Sag Claude „Bring das Balance-Dashboard auf den Stand“; ein Auftrag, der das regelmäßig macht, lässt sich später anlegen.</dd>
+          <dd>Die Sim-Daten kommen aus den Branches dist-balance-run-* der Läufe zum heutigen Stand (Skript tools/sim/dashboard_alle.py, Liste AKTUELL; ältere Läufe bleiben in ihren Branches), die echten Abende aus den Logger-Dateien des Servers (tools/sim/echte_naechte.py). Sag Claude „Bring das Balance-Dashboard auf den Stand“; ein Auftrag, der das regelmäßig macht, lässt sich später anlegen.</dd>
         </dl>
       </div>
     </div>
@@ -1001,7 +943,7 @@
 
   // ---------- Überblick ----------
   dash.draw('sel-basis', (sel) => {
-    const rows = nb.auswahl().filter((r) => ['Großer Lauf', 'Skalierung', 'Klassen', 'Serverlast'].includes(r.art));
+    const rows = nb.auswahl().filter((r) => ['Großer Lauf', 'Skalierung', 'Klassen', 'Serverlast', 'Balancing', 'Probe'].includes(r.art));
     sel.replaceChildren(...rows.map((r) => new Option(`${r.lauf} · ${r.art} · ${nb.when(r.zeit)}`, r.lauf)));
     const b = nb.basis(); sel.value = b ? b.lauf : '';
     sel.onchange = () => dash.setParams({ basis: sel.value, vorschlag: null });
