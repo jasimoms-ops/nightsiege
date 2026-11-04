@@ -27,14 +27,14 @@ class BalanceFightTest {
     }
 
     @Test
-    void championShareIs30InTheDungeonAnd15InANight() {
-        // Simon 30.10. 23:52/23:57: 30 % of the max health per hit in the dungeon, 15 % in a night.
+    void championShareIs30InTheDungeonAndInANight() {
+        // Simon 30.10. 23:52, 04.11. 23:19: 30 % of the max health per hit, in the dungeon and in a night.
         SiegeConfig c = cfg();
         assertEquals(0.30, c.championPercent(1), 1e-9);
         assertEquals(0.30, c.championPercent(20), 1e-9);
         assertEquals(0.30, c.championPercent(60), 1e-9);
         assertEquals(0.30, c.championPercent(10, false), 1e-9);
-        assertEquals(0.15, c.championPercent(10, true), 1e-9);
+        assertEquals(0.30, c.championPercent(10, true), 1e-9);
         assertEquals(0.5, c.championPercentShield, 1e-9);
         // A hand-edited config cannot break it.
         c.championPercentDamage = null;
@@ -43,7 +43,7 @@ class BalanceFightTest {
         c.hitLifestealLowFactor = Double.NaN;
         c.sanitize();
         assertEquals(0.30, c.championPercent(5), 1e-9);
-        assertEquals(0.15, c.championPercent(5, true), 1e-9);
+        assertEquals(0.30, c.championPercent(5, true), 1e-9);
         assertEquals(2.5, c.hitLifestealLevelFactor(1), 1e-9);
     }
 
@@ -58,7 +58,7 @@ class BalanceFightTest {
         server.sanitize();
         assertEquals(18, server.settingsVersion);
         assertEquals(0.30, server.championPercent(25), 1e-9);
-        assertEquals(0.15, server.championPercent(25, true), 1e-9);
+        assertEquals(0.30, server.championPercent(25, true), 1e-9);
         assertEquals(0, server.campGraceSeconds);
     }
 }

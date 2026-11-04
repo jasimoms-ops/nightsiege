@@ -16,9 +16,10 @@ import net.minecraft.world.entity.projectile.Projectile;
  * the champion in his dungeon and for the warden at the end of a night (both wear
  * {@link WardenNight#TAG}); the night's other monsters stay as they are.
  *
- * <p>Simon 30.10. 23:52/23:57 (built 04.11.): 30 % of the max health per hit in the dungeon, 15 % in
- * a night ({@link SiegeConfig#championPercent(int, boolean)}), and the same for his leap and his
- * skills ({@link #skillHit}); a raised shield still lets only half through.</p>
+ * <p>Simon 30.10. 23:52 and 04.11. 23:19: 30 % of the max health per hit, in the dungeon and in a
+ * night alike ({@link SiegeConfig#championPercent(int, boolean)}, the night's share is its own config
+ * value), and the same for his leap and his skills ({@link #skillHit}); a raised shield still lets
+ * only half through.</p>
  */
 final class ChampionStrikes {
 
@@ -65,8 +66,8 @@ final class ChampionStrikes {
     }
 
     /**
-     * A leap or skill of the champion on one player: the champion's share of the max health (30 % in
-     * the dungeon, 15 % in a night) times {@code scale} (1 for a blow; the lava trail ticks with a
+     * A leap or skill of the champion on one player: the champion's share of the max health (30 %)
+     * times {@code scale} (1 for a blow; the lava trail ticks with a
      * tenth). A raised shield lets {@code championPercentShield} through, {@code through}: no shield helps.
      * Returns the damage aimed.
      */

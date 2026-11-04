@@ -508,11 +508,12 @@ public class SiegeConfig {
     public double[] championPercentDamage = {0.30};
     public int[] championPercentDamageSteps = {};
     /**
-     * Simon 30.10. 23:52/23:57: in his dungeon a champion's hit takes 30 % of the max health
+     * Simon 30.10. 23:52: in his dungeon a champion's hit takes 30 % of the max health
      * ({@link #championPercentDamage}), his leap and his skills too; the warden at the end of a night
-     * takes this share instead (15 %). A raised shield lets {@link #championPercentShield} through.
+     * takes this share (Simon 04.11. 23:19: "genauso stark wie in den Dungeons", 30 %; was to be 15 %).
+     * A raised shield lets {@link #championPercentShield} through.
      */
-    public double championNightPercent = 0.15;
+    public double championNightPercent = 0.30;
     /** What of that share goes through a raised shield (0.5 = half, like the guardian's shield way). */
     public double championPercentShield = 0.5;
     /** Simon 30.10.: one hit of the heavy archer takes at most this share of a dungeon champion's max health (0 = no cap). */
@@ -1543,11 +1544,11 @@ public class SiegeConfig {
             settingsVersion = 17;
         }
         if (settingsVersion < 18) {
-            // Simon 30.10. 23:52/23:57 (built 04.11.): the champions hit for 30 % of the max health in their
-            // dungeon and 15 % in a night, every blow, leap and skill; the war camp starts without grace.
+            // Simon 30.10. 23:52 and 04.11. 23:19: the champions hit for 30 % of the max health, in their
+            // dungeon and in a night alike, every blow, leap and skill; the war camp starts without grace.
             championPercentDamage = new double[] {0.30};
             championPercentDamageSteps = new int[0];
-            championNightPercent = 0.15;
+            championNightPercent = 0.30;
             campGraceSeconds = 0;
             settingsVersion = 18;
         }
@@ -1574,7 +1575,7 @@ public class SiegeConfig {
         if (championPercentDamageSteps == null) {
             championPercentDamageSteps = new int[0];
         }
-        championNightPercent = Double.isNaN(championNightPercent) ? 0.15 : Math.min(1.0, Math.max(0.0, championNightPercent));
+        championNightPercent = Double.isNaN(championNightPercent) ? 0.30 : Math.min(1.0, Math.max(0.0, championNightPercent));
         championPercentShield = Double.isNaN(championPercentShield) ? 0.5 : Math.min(1.0, Math.max(0.0, championPercentShield));
         if (antiHealMobs == null) {
             antiHealMobs = new java.util.ArrayList<>(java.util.List.of("minecraft:spider", "minecraft:cave_spider", "minecraft:witch"));

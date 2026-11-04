@@ -205,7 +205,7 @@ final class ChampionBrains {
         switch (kind) {
             case STONE_CRYPT -> {
                 if (which == 0) {
-                    // Grave breath: the champion share (30 % / 15 % in a night) to everyone within 8, he heals by what it took.
+                    // Grave breath: the champion share (30 %) to everyone within 8, he heals by what it took.
                     float healed = 0;
                     for (ServerPlayer p : fighters) {
                         if (p.distanceToSqr(champion) <= 64) {
