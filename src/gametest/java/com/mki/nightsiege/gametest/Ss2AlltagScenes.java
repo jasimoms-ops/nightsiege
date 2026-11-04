@@ -117,6 +117,31 @@ final class Ss2AlltagScenes {
         return player.gameMode.useItemOn(player, level, held, InteractionHand.MAIN_HAND, hit).consumesAction();
     }
 
+    private static final java.util.List<net.minecraft.world.entity.LightningBolt> BOLTS = new java.util.ArrayList<>();
+
+    /** A real (not visual-only) lightning strike at this spot. */
+    private static void bolt(ServerLevel level, BlockPos at) {
+        net.minecraft.world.entity.LightningBolt bolt = EntityTypes.LIGHTNING_BOLT.create(level, EntitySpawnReason.TRIGGERED);
+        if (bolt != null) {
+            bolt.snapTo(at.getX() + 0.5, at.getY(), at.getZ() + 0.5);
+            boolean added = level.addFreshEntity(bolt);
+            BOLTS.add(bolt);
+            log("THUNDER bolt at " + at + " added=" + added + " ground=" + level.getBlockState(at.below()).getBlock()
+                    + " air=" + level.getBlockState(at).isAir() + " rain=" + level.isRainingAt(at));
+        }
+    }
+
+    /** Fire blocks within 3 blocks of this spot. */
+    private static int fires(ServerLevel level, BlockPos at) {
+        int n = 0;
+        for (BlockPos p : BlockPos.betweenClosed(at.offset(-3, -1, -3), at.offset(3, 3, 3))) {
+            if (level.getBlockState(p).is(Blocks.FIRE)) {
+                n++;
+            }
+        }
+        return n;
+    }
+
     private static Zombie zombie(ServerLevel level, double x, double y, double z, boolean own) {
         Zombie zombie = EntityTypes.ZOMBIE.create(level, EntitySpawnReason.EVENT);
         if (zombie == null) {
@@ -358,6 +383,29 @@ final class Ss2AlltagScenes {
             log("NIGHT plain block mined: block now=" + level.getBlockState(ownSpot).getBlock() + " drops=" + drops(level, ownSpot, 3)
                     + " (expected a cobblestone)");
             clearDrops(level, ownSpot, 3);
+            // A free trap of the night (a kit item) set down and mined: no trap comes back (Simon 31.10., fix 04.11.).
+            Item spikeItem = ModContent.TRAP_ITEMS.get(TrapKind.SPIKE);
+            int trapSlot = spikeItem == null ? -1 : kitSlot(inv, spikeItem);
+            if (trapSlot >= 0) {
+                toHand(player, trapSlot);
+                BlockPos trapFloor = new BlockPos(cx + 7, cy - 1, cz + 3);
+                BlockPos trapAt = trapFloor.above();
+                int trapsBefore = count(inv, spikeItem, null);
+                boolean trapPlaced = placeOn(player, level, trapFloor);
+                int trapsSet = count(inv, spikeItem, null);
+                boolean marked = manager.trapService().isKitTrap(level, trapAt);
+                ItemStack rest = inv.getItem(inv.getSelectedSlot());
+                inv.setItem(inv.getSelectedSlot(), new ItemStack(Items.IRON_PICKAXE));
+                clearDrops(level, trapAt, 4);
+                player.gameMode.destroyBlock(trapAt);
+                inv.setItem(inv.getSelectedSlot(), rest);   // the traps not set back in the hand (the count below)
+                log("NIGHT kit trap: set=" + trapPlaced + " marked=" + marked + " traps " + trapsBefore + " -> " + trapsSet
+                        + " mined: block now=" + level.getBlockState(trapAt).getBlock() + " drops=" + drops(level, trapAt, 3)
+                        + " traps after=" + count(inv, spikeItem, null) + " (expected air, keine, same as set)");
+                clearDrops(level, trapAt, 4);
+            } else {
+                log("NIGHT kit trap: no kit spike trap in the pack");
+            }
             // Left standing: a kit cobblestone with a kit torch on it.
             int again = kitSlot(inv, Items.COBBLESTONE);
             if (again >= 0) {
@@ -420,6 +468,47 @@ final class Ss2AlltagScenes {
             log("AFTER eventArea core=" + SiegeManager.inEventArea(level, cx + 0.5, cz + 0.5) + " (expected false)");
             heal(level, trapZombies);
         });
+        // Simon 04.11. 23:54: the thunder night's storm covers the world, but its lightning sets no block on fire.
+        // A bolt on planks without the event (the control) and one with it.
+        BlockPos plainBolt = new BlockPos(cx - 6, cy, cz - 6);
+        BlockPos stormBolt = new BlockPos(cx - 6, cy, cz + 6);
+        for (BlockPos at : new BlockPos[] {plainBolt, stormBolt}) {
+            game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:oak_planks".formatted(
+                    at.getX() - 2, cy - 1, at.getZ() - 2, at.getX() + 2, cy - 1, at.getZ() + 2));
+            game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(
+                    at.getX() - 2, cy, at.getZ() - 2, at.getX() + 2, cy + 3, at.getZ() + 2));
+        }
+        // Lightning only lights fires on normal or hard, and with fire spreading (the test world is easy).
+        game.getServer().runCommand("difficulty normal");
+        game.getServer().runCommand("gamerule doFireTick true");
+        game.getServer().runCommand("gamerule fire_spread_radius_around_player 128");
+        context.waitTicks(5);
+        EventLookTest.onServer(context, (player, manager) -> {
+            ServerLevel level = (ServerLevel) player.level();
+            log("THUNDER world: difficulty=" + level.getDifficulty());
+            bolt(level, plainBolt);
+        });
+        context.waitTicks(10);
+        EventLookTest.onServer(context, (player, manager) -> {
+            ServerLevel level = (ServerLevel) player.level();
+            com.mki.nightsiege.game.EventAtmosphere.setServer(SiegeManager.dimensionName(level),
+                    com.mki.nightsiege.game.EventAtmosphere.THUNDER, 1);
+            bolt(level, stormBolt);
+        });
+        context.waitTicks(4);
+        EventLookTest.onServer(context, (player, manager) -> {
+            ServerLevel level = (ServerLevel) player.level();
+            for (net.minecraft.world.entity.LightningBolt b : BOLTS) {
+                log("THUNDER bolt set on fire=" + b.getBlocksSetOnFire() + " removed=" + b.isRemoved());
+            }
+            BOLTS.clear();
+            log("THUNDER lightning fire: without the event=" + fires(level, plainBolt) + " in the thunder night=" + fires(level, stormBolt)
+                    + " (expected some / 0; without the event 0 means fire is off in this world)");
+            com.mki.nightsiege.game.EventAtmosphere.setServer(SiegeManager.dimensionName(level), "", 1);
+        });
+        game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air replace minecraft:fire".formatted(
+                cx - 10, cy - 1, cz - 10, cx - 2, cy + 3, cz + 10));
+        game.getServer().runCommand("difficulty easy");
         context.waitTicks(100);
         EventLookTest.onServer(context, (player, manager) -> {
             ServerLevel level = (ServerLevel) player.level();

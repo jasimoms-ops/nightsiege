@@ -2226,8 +2226,11 @@ public class EventLookTest implements FabricClientGameTest {
                 System.out.println("[Night Siege test] camp bench with the tent guards up (ring always open, takes blows): " + Math.round(bench.getHealth()) + "/"
                         + Math.round(bench.getMaxHealth()));
             }
-            // The tent guards fall: the inner ring opens.
-            for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+            // The tent guards fall (the ring is open anyway since 04.11.). Over a copy of the entities: a death
+            // adds drops and orbs to the list being walked, and the loop never ended (the scene's "hang").
+            java.util.List<net.minecraft.world.entity.Entity> all = new java.util.ArrayList<>();
+            level.getAllEntities().forEach(all::add);
+            for (net.minecraft.world.entity.Entity e : all) {
                 if (com.mki.nightsiege.game.SiegeCamp.isCampMob(e) && e instanceof net.minecraft.world.entity.Mob mob
                         && mob.getType() == net.minecraft.world.entity.EntityTypes.VINDICATOR) {
                     mob.invulnerableTime = 0;
