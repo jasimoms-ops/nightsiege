@@ -25,6 +25,11 @@ public class PlaytestScreen extends Screen {
 
     /** The last state the server sent (for the core window's way back and a refresh). */
     private static PlaytestData last;
+    /**
+     * The phase in which "Kiste öffnen" was pressed here (Playtest 2, 04.11.): when the crate's window
+     * closes in the same phase, this window comes back for the next one. Null otherwise.
+     */
+    private static String crateFrom;
 
     private PlaytestData data;
     private int left;
@@ -50,6 +55,7 @@ public class PlaytestScreen extends Screen {
             return;
         }
         if (client.gui.screen() instanceof PlaytestScreen screen) {
+            crateFrom = null;   // still here: no crate window came (the last band still spun)
             boolean fightStarts = data != null && !data.phase.equals(screen.data.phase)
                     && ("interlude".equals(data.phase) || "night".equals(data.phase));
             if (data == null || "done".equals(data.phase) || fightStarts) {
@@ -66,6 +72,17 @@ public class PlaytestScreen extends Screen {
     /** A new connection knows nothing of an old playtest. */
     public static void clear() {
         last = null;
+        crateFrom = null;
+    }
+
+    /** The crate's window closed: back here if it was opened from here and the phase is still the same. */
+    public static void afterCrate() {
+        String from = crateFrom;
+        crateFrom = null;
+        if (from != null && last != null && from.equals(last.phase) && !"done".equals(last.phase)
+                && Minecraft.getInstance().gui.screen() == null) {
+            reopen();
+        }
     }
 
     /** True while this player plans their path: the core window leads back here. */
@@ -91,6 +108,11 @@ public class PlaytestScreen extends Screen {
         return "plan".equals(data.phase);
     }
 
+    /** Paused because nobody was online (Playtest 2): "Bereit" again, then the part comes again. */
+    private boolean paused() {
+        return "paused".equals(data.phase);
+    }
+
     @Override
     protected void init() {
         primary.clear();
@@ -108,22 +130,28 @@ public class PlaytestScreen extends Screen {
             primary.add(treeButton);
         }
         x += tw + 4;
+        // "Kiste öffnen (N)": the next crate opens at once, in every phase and with a kit on (Playtest 2, 04.11.).
         Component crates = Component.translatable("nightsiege.playtest.btn_crates", data.crates);
         int cw = Math.max(96, font.width(crates) + 14);
-        Button crateButton = Button.builder(crates, b -> send("crates")).bounds(x, y, cw, 20).build();
+        Button crateButton = Button.builder(crates, b -> {
+                    crateFrom = data.phase;
+                    send("crates");
+                }).bounds(x, y, cw, 20)
+                .tooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("nightsiege.playtest.btn_crates_tip")))
+                .build();
         crateButton.active = data.crates > 0 && data.hasClass;
         addRenderableWidget(crateButton);
-        if (!plan() && data.crates > 0) {
+        if (!plan() && !paused() && data.crates > 0) {
             primary.add(crateButton);
         }
         int right = left + w - 8;
-        if (plan()) {
+        if (plan() || paused()) {
             Component ready = Component.translatable(data.ready ? "nightsiege.playtest.btn_unready" : "nightsiege.playtest.btn_ready");
             int rw = Math.max(90, font.width(ready) + 14);
             Button readyButton = Button.builder(ready, b -> send("ready")).bounds(right - rw, y, rw, 20).build();
             // Always pressable: the server answers ("pick a class first") and sends the state of now.
             addRenderableWidget(readyButton);
-            if (!data.ready && data.hasClass) {
+            if (!data.ready && (data.hasClass || paused())) {
                 primary.add(readyButton);
             }
         } else {
@@ -165,6 +193,7 @@ public class PlaytestScreen extends Screen {
             case "pause_night" -> Component.translatable("nightsiege.playtest.t_night_soon", night).getString();
             case "night" -> Component.translatable("nightsiege.playtest.t_night", night).getString();
             case "after_night" -> Component.translatable("nightsiege.playtest.t_night_over", night).getString();
+            case "paused" -> Component.translatable("nightsiege.playtest.t_paused").getString();
             default -> Component.translatable("nightsiege.playtest.t_done").getString();
         };
     }
@@ -187,7 +216,9 @@ public class PlaytestScreen extends Screen {
         }
         // One line about the own path under the title.
         String line;
-        if (plan()) {
+        if (paused()) {
+            line = Component.translatable("nightsiege.playtest.l_paused", pausedPartName()).getString();
+        } else if (plan()) {
             line = data.hasClass
                     ? Component.translatable("nightsiege.playtest.l_plan", className(data.clazz, data.subclass), data.planned).getString()
                     : Component.translatable("nightsiege.playtest.l_plan_none").getString();
@@ -195,6 +226,26 @@ public class PlaytestScreen extends Screen {
             line = Component.translatable("nightsiege.playtest.l_run", data.learned, data.planned, data.points).getString();
         }
         small(gui, font, font.plainSubstrByWidth(line, (int) ((w - 20) / 0.8f)), left + 10, top + 32, PurpleUi.LIGHT, 0.8f);
+    }
+
+    /** What comes after the pause: the camp, the dungeon (its kind) or the night. */
+    private String pausedPartName() {
+        int step = Math.max(0, data.step) + ("next".equals(data.pausedPart) ? 1 : 0);
+        if (step >= data.nights.size()) {
+            return "";
+        }
+        if ("night".equals(data.pausedPart)) {
+            return Component.translatable("nightsiege.playtest.t_night", step + 1).getString();
+        }
+        return interludeName(data.nights.get(step));
+    }
+
+    /** "Heerlager", or the dungeon's kind ("Steingruft"); "Dungeon" when it is not known. */
+    private static String interludeName(PlaytestData.Night night) {
+        if ("dungeon".equals(night.interlude) && night.dungeon != null && !night.dungeon.isEmpty()) {
+            return Component.translatable("nightsiege.expedition." + night.dungeon).getString();
+        }
+        return Component.translatable("nightsiege.playtest.i_" + night.interlude).getString();
     }
 
     private void drawSchedule(GuiGraphicsExtractor gui, Font font, int x, int y, int width) {
@@ -214,7 +265,7 @@ public class PlaytestScreen extends Screen {
             int color = night.done ? PurpleUi.DIM : current ? PurpleUi.GOLD : PurpleUi.LIGHT;
             String mark = night.done ? "✓" : String.valueOf(i + 1);
             gui.text(font, mark, x + 10, rowY + (rowH - 3 - 8) / 2, night.done ? PurpleUi.GREEN : color, false);
-            String before = Component.translatable("nightsiege.playtest.i_" + night.interlude).getString();
+            String before = interludeName(night);
             String nightText = Component.translatable("nightsiege.playtest.n_level", night.level).getString();
             small(gui, font, before + "  →  " + nightText, x + 22, rowY + 4, color, 0.8f);
             if (!night.boss.isEmpty()) {
@@ -222,6 +273,12 @@ public class PlaytestScreen extends Screen {
                         Component.translatable("nightsiege.boss." + night.boss)).getString();
                 small(gui, font, font.plainSubstrByWidth(boss, (int) ((width - 30) / 0.7f)), x + 22, rowY + 13,
                         night.done ? PurpleUi.DIM : PurpleUi.RED, 0.7f);
+            } else if (night.event != null && !night.event.isEmpty()) {
+                // The night's event, picked at the start (Playtest 2).
+                String event = Component.translatable("nightsiege.playtest.n_event",
+                        Component.translatable("nightsiege.event." + night.event.toLowerCase(Locale.ROOT))).getString();
+                small(gui, font, font.plainSubstrByWidth(event, (int) ((width - 30) / 0.7f)), x + 22, rowY + 13,
+                        night.done ? PurpleUi.DIM : PurpleUi.GREY, 0.7f);
             } else {
                 small(gui, font, Component.translatable("nightsiege.playtest.n_random").getString(), x + 22, rowY + 13,
                         PurpleUi.DIM, 0.7f);
@@ -245,7 +302,7 @@ public class PlaytestScreen extends Screen {
             if (!mate.online) {
                 status = Component.translatable("nightsiege.playtest.away").getString();
                 statusColor = PurpleUi.DIM;
-            } else if (plan()) {
+            } else if (plan() || paused()) {
                 status = mate.ready ? "✓" : "…";
                 statusColor = mate.ready ? PurpleUi.GREEN : PurpleUi.GREY;
             } else {

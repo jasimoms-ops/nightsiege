@@ -248,8 +248,8 @@ public final class BossService {
             NightSiegeMod.LOGGER.warn("[Night Siege] Boss {} nicht erschaffen", kind.id());
             return false;
         }
-        double perPlayer = host.config().perPlayer(SiegeManager.get() != null && SiegeManager.get().inPlaytest(),
-                host.config().bossHealthPerExtraPlayer);
+        // A playtest night's boss too, like a real night's (Simon 04.11.: "Playtest 2").
+        double perPlayer = host.config().bossHealthPerExtraPlayer;
         double health = BossPlan.health(kind.baseHealth(), host.level(), defenders, host.config(), perPlayer) * healthShare;
         // The golem and the ravager hit hard as they are: the new bosses start from a lighter blow.
         switch (kind) {

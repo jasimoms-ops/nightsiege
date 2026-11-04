@@ -3,9 +3,11 @@ package com.mki.nightsiege.game;
 import com.mki.nightsiege.NightSiegeMod;
 import com.mki.nightsiege.core.BossKind;
 import com.mki.nightsiege.core.CrateKind;
+import com.mki.nightsiege.core.ExpeditionKind;
 import com.mki.nightsiege.core.PlayerSkills;
 import com.mki.nightsiege.core.PlaytestData;
 import com.mki.nightsiege.core.SiegeConfig;
+import com.mki.nightsiege.core.SiegeEvent;
 import com.mki.nightsiege.core.SkillClass;
 import com.mki.nightsiege.core.SkillNode;
 import com.mki.nightsiege.core.SkillTree;
@@ -19,12 +21,19 @@ import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.tags.DamageTypeTags;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.effect.MobEffect;
+import net.minecraft.world.effect.MobEffectCategory;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.levelgen.Heightmap;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -48,6 +57,12 @@ import java.util.UUID;
  *   <li>The end (or /nightsiege playtest stop, or a restart): skills and inventory back as before, the
  *   world's own dungeon and camp back too.</li>
  * </ol>
+ *
+ * <p>"Playtest 2" (Simon 04.11.): its nights scale like real nights; the three dungeons are three
+ * different kinds and every night without a boss has its own event, both picked at the start (what
+ * the last playtests had comes less often); with nobody of it online it pauses (the running part ends)
+ * and goes on with that part once everyone online is ready again; between the fights nobody is hurt;
+ * the crates are opened straight from the menu, at any time.
  */
 public final class Playtest {
 
@@ -221,11 +236,24 @@ public final class Playtest {
         s.levels = levelsFor(target);
         s.interludes = new ArrayList<>(List.of("camp", "dungeon", "dungeon", "dungeon"));
         Collections.shuffle(s.interludes, random);
+        SiegeSave.PlaytestRecent recent = recent();
         if (cfg.bossesEnabled) {
             s.bossNight = 1 + random.nextInt(NIGHTS - 1);   // not the first night
-            BossKind[] kinds = BossKind.values();
-            s.boss = kinds[random.nextInt(kinds.length)].id();
+            // Playtest 2 (Simon 04.11.): not a boss of the last two playtests, if there is another.
+            List<String> bosses = new ArrayList<>();
+            for (BossKind k : BossKind.values()) {
+                if (!last(recent.bosses, 2).contains(k.id())) {
+                    bosses.add(k.id());
+                }
+            }
+            if (bosses.isEmpty()) {
+                for (BossKind k : BossKind.values()) {
+                    bosses.add(k.id());
+                }
+            }
+            s.boss = bosses.get(random.nextInt(bosses.size()));
         }
+        planVariety(s, cfg, recent);
         // Inventories first: whatever the save cannot hold stops the playtest before anything changed.
         for (ServerPlayer p : players) {
             SiegeSave.PlaytestPlayer pp = new SiegeSave.PlaytestPlayer();
@@ -273,8 +301,10 @@ public final class Playtest {
             ClassTags.update(server, p, fresh, null);
         }
         m.persist();
-        NightSiegeMod.LOGGER.info("[Night Siege] Playtest bis Stufe {} mit {} Spielern: Stufen {}, vorher {}, Boss in Nacht {} ({})",
-                target, players.size(), s.levels, s.interludes, s.bossNight + 1, s.boss);
+        remember(recent, s);
+        m.persist();
+        NightSiegeMod.LOGGER.info("[Night Siege] Playtest bis Stufe {} mit {} Spielern: Stufen {}, vorher {}, Dungeons {}, Ereignisse {}, Boss in Nacht {} ({})",
+                target, players.size(), s.levels, s.interludes, s.dungeons, s.events, s.bossNight + 1, s.boss);
         for (ServerPlayer p : players) {
             p.sendSystemMessage(Component.translatable("nightsiege.playtest.started", target).withStyle(ChatFormatting.GOLD));
             p.sendSystemMessage(Component.translatable("nightsiege.playtest.plan_hint").withStyle(ChatFormatting.YELLOW));
@@ -298,7 +328,7 @@ public final class Playtest {
         switch (action) {
             case "tree" -> m.openCoreWindow(player);
             case "ready" -> toggleReady(player, pp);
-            case "crates" -> claimCrates(player, pp);
+            case "crates" -> openCrate(player, pp);
             default -> send(player, true);
         }
     }
@@ -309,11 +339,25 @@ public final class Playtest {
     }
 
     private void toggleReady(ServerPlayer player, SiegeSave.PlaytestPlayer pp) {
-        if (!planning()) {
+        SiegeSave.PlaytestState s = state();
+        boolean paused = s != null && "paused".equals(s.phase);
+        if (!planning() && !paused) {
             send(player, true);
             return;
         }
         PlayerSkills own = m.save().skillsOf(player.getUUID().toString());
+        if (paused) {
+            // Back after the pause (Playtest 2): the path is fixed, everyone online ready goes on.
+            pp.ready = !pp.ready;
+            m.persist();
+            MinecraftServer server = player.level().getServer();
+            if (pp.ready) {
+                broadcast(server, Component.translatable("nightsiege.playtest.is_ready", player.getDisplayName(), pp.path.size())
+                        .withStyle(ChatFormatting.GREEN));
+            }
+            refreshAll(server);
+            return;
+        }
         if (!pp.ready && !own.hasClass()) {
             player.sendSystemMessage(Component.translatable("nightsiege.playtest.need_class").withStyle(ChatFormatting.RED));
             send(player, true);
@@ -336,8 +380,13 @@ public final class Playtest {
         refreshAll(server);
     }
 
-    /** Hands out the crates waiting for this player. */
-    private void claimCrates(ServerPlayer player, SiegeSave.PlaytestPlayer pp) {
+    /**
+     * Opens the next crate waiting for this player, at once (Simon 04.11.: "Playtest 2" – as items they
+     * went into the kit's stash in a dungeon or a night and could not be opened): the same roll and
+     * band as a playtest crate in the hand, in every phase, kit or not. Its gain works from the next
+     * part (the kit worn now is not swapped in the middle of a fight).
+     */
+    private void openCrate(ServerPlayer player, SiegeSave.PlaytestPlayer pp) {
         SiegeSave.PlaytestState s = state();
         PlayerSkills own = m.save().skillsOf(player.getUUID().toString());
         SkillClass clazz = own.clazz();
@@ -346,41 +395,36 @@ public final class Playtest {
             send(player, true);
             return;
         }
-        SiegeConfig cfg = m.config();
-        int level = level();
-        int normal = 0;
-        int event = 0;
-        int fragment = 0;
-        for (int i = 0; i < pp.cratesDue; i++) {
-            int index = pp.cratesGiven + i + 1;
-            // Every boss night (one in bossEvery) brought a fragment crate, event nights an event crate.
-            if (cfg.bossesEnabled && cfg.bossEvery > 0 && index % Math.max(1, (int) Math.round(cfg.bossEvery * (1.0 + cfg.bonusCrateChance))) == 0) {
-                fragment++;
-            } else if (random.nextDouble() < cfg.eventChance) {
-                event++;
-            } else {
-                normal++;
-            }
+        CrateKind kind = crateKind(pp.cratesGiven + 1, m.config());
+        if (!m.crates().openOwed(player, clazz, kind, level())) {
+            // The band of the last one still runs: one at a time.
+            player.sendSystemMessage(Component.translatable("nightsiege.playtest.crate_spinning").withStyle(ChatFormatting.GRAY));
+            send(player, false);
+            return;
         }
-        give(player, clazz, CrateKind.NORMAL, level, normal);
-        give(player, clazz, CrateKind.EVENT, level, event);
-        give(player, clazz, CrateKind.FRAGMENT, level, fragment);
-        int count = pp.cratesDue;
-        pp.cratesGiven += count;
-        pp.cratesDue = 0;
+        pp.cratesGiven++;
+        pp.cratesDue = Math.max(0, pp.cratesDue - 1);
         m.persist();
-        player.sendSystemMessage(Component.translatable("nightsiege.playtest.crates_given", count, level)
-                .withStyle(ChatFormatting.LIGHT_PURPLE));
+        if (pp.cratesDue > 0) {
+            player.sendSystemMessage(crateLink(pp.cratesDue));
+        }
         send(player, false);
     }
 
-    private static void give(ServerPlayer player, SkillClass clazz, CrateKind kind, int level, int count) {
-        if (count <= 0) {
-            return;
+    /** The kind of a player's n-th crate: every boss night (one in bossEvery) brought a fragment crate, event nights an event crate. */
+    private CrateKind crateKind(int index, SiegeConfig cfg) {
+        if (cfg.bossesEnabled && cfg.bossEvery > 0
+                && index % Math.max(1, (int) Math.round(cfg.bossEvery * (1.0 + cfg.bonusCrateChance))) == 0) {
+            return CrateKind.FRAGMENT;
         }
-        ItemStack stack = CrateService.playtestCrate(clazz, kind, level);
-        stack.setCount(count);
-        player.getInventory().placeItemBackInInventory(stack);
+        return random.nextDouble() < cfg.eventChance ? CrateKind.EVENT : CrateKind.NORMAL;
+    }
+
+    /** "N crates wait – click: the next one opens" (runs /nightsiege playtest kisten). */
+    private static Component crateLink(int count) {
+        return Component.translatable("nightsiege.playtest.crates_waiting", count).withStyle(style -> style
+                .withColor(ChatFormatting.LIGHT_PURPLE).withUnderlined(true)
+                .withClickEvent(new ClickEvent.RunCommand("/nightsiege playtest kisten")));
     }
 
     // ------------------------------------------------------------------ the flow
@@ -395,13 +439,22 @@ public final class Playtest {
         if (now % 20 != 0) {
             return;
         }
+        if (!"plan".equals(s.phase) && !"paused".equals(s.phase) && nobodyOnline(server, s) && pause(server, s)) {
+            return;   // nobody of it online: the running part ends, the step waits (Playtest 2, 04.11.)
+        }
         if (now % 100 == 0 && !"night".equals(s.phase)) {
             clearWildMonsters(server, s);   // between the parts nothing natural hunts the players (Simon 29.10.)
         }
+        keepFed(server, s);
         switch (s.phase) {
             case "plan" -> {
                 if (allReady(server, s)) {
                     beginNights(server, s);
+                }
+            }
+            case "paused" -> {
+                if (allReady(server, s)) {
+                    resume(server, s);   // everyone online is back and ready: that part again
                 }
             }
             case "pause_interlude" -> {
@@ -484,6 +537,7 @@ public final class Playtest {
                 s.phaseEnds = now + AFTER_NIGHT_SECONDS * 20L;   // the usual pause follows ("weiter" again skips it)
             }
             case "after_night" -> nextStep(server, s);
+            case "paused" -> resume(server, s);
             default -> {
                 return false;
             }
@@ -532,20 +586,26 @@ public final class Playtest {
                 p.sendSystemMessage(Component.translatable("nightsiege.playtest.step", s.step + 1, NIGHTS, level, budget,
                         learned, pp.path.size()).withStyle(ChatFormatting.AQUA));
                 if (pp.cratesDue > 0) {
-                    // Straight into the inventory (Simon 29.10.: one only got them from the chat link);
-                    // they stay with the player through every kit.
-                    claimCrates(p, pp);
+                    // They wait behind "Kiste öffnen" in the menu and this link (Playtest 2, 04.11.: as
+                    // items they went into the kit's stash in a dungeon or a night and could not be opened).
+                    p.sendSystemMessage(crateLink(pp.cratesDue));
                 }
             }
         }
+        toInterludePause(server, s);
+    }
+
+    /** The pause before the camp or the dungeon of this step (after a step began, or after a pause). */
+    private void toInterludePause(MinecraftServer server, SiegeSave.PlaytestState s) {
         s.phase = "pause_interlude";
         s.phaseEnds = server.overworld().getGameTime() + PAUSE_INTERLUDE_SECONDS * 20L;
         s.campWon = false;
         waitSince = -1L;
         if ("dungeon".equals(s.interludes.get(s.step))) {
             // The dungeon is searched and built during the pause (update 30.10.: in one tick it held
-            // the server up for seconds); the players are taken there once it stands.
-            m.expeditions().prepare(server);
+            // the server up for seconds); the players are taken there once it stands. Its kind was
+            // picked at the start (Playtest 2: three different ones, not by the ground).
+            m.expeditions().prepare(server, dungeonOf(s));
         }
         m.persist();
         broadcast(server, Component.translatable("nightsiege.playtest.next_" + s.interludes.get(s.step), PAUSE_INTERLUDE_SECONDS)
@@ -748,7 +808,7 @@ public final class Playtest {
         Expeditions exp = m.expeditions();
         String prep = exp.preparation(server);
         if (prep.isEmpty()) {
-            exp.prepare(server);   // not prepared (a restart in the pause): now
+            exp.prepare(server, dungeonOf(s));   // not prepared (a restart in the pause): now
             prep = exp.preparation(server);
         }
         if ("failed".equals(prep)) {
@@ -855,8 +915,7 @@ public final class Playtest {
 
     private void toNightPause(MinecraftServer server, SiegeSave.PlaytestState s) {
         for (ServerPlayer p : online(server, s)) {
-            p.setHealth(p.getMaxHealth());
-            p.clearFire();
+            refresh(p);
             m.sendToCore(p);
         }
         s.phase = "pause_night";
@@ -885,14 +944,16 @@ public final class Playtest {
         if (level != null) {
             for (ServerPlayer p : online(server, s)) {
                 m.sendToCore(p);
+                refresh(p);   // the start of a part: full life and food (Playtest 2)
             }
-            m.ensureNight(server, com.mki.nightsiege.core.SiegeEvent.NONE);
+            m.ensureNight(server, SiegeEvent.NONE);
             m.setTestMachines(s.campWon);
-            // No fixed event: the night rolls one like a real night (a boss night has none).
+            // Playtest 2 (Simon 04.11.): the event picked for this night at the start, never none (a boss
+            // night has none); a playtest of before rolls one like a real night.
             ok = m.prepareTest(server, level, new BlockPos(core.x, core.y, core.z), lvl,
-                    boss != null ? com.mki.nightsiege.core.SiegeEvent.NONE : null, boss);
+                    boss != null ? SiegeEvent.NONE : eventOf(s), boss);
         }
-        s.campWon = false;
+        // s.campWon stays until the next step: a night broken off by a pause comes again with the machines.
         if (!ok) {
             m.setTestMachines(false);
             broadcast(server, Component.translatable("nightsiege.playtest.night_failed").withStyle(ChatFormatting.RED));
@@ -902,7 +963,7 @@ public final class Playtest {
             s.phase = "night";
             s.phaseEnds = -1L;
             NightSiegeMod.LOGGER.info("[Night Siege] Playtest: Nacht {} auf Stufe {}{}", s.step + 1, lvl,
-                    boss == null ? "" : " mit " + boss.id());
+                    boss == null ? ", Ereignis " + (eventOf(s) == null ? "gewürfelt" : eventOf(s).name()) : " mit " + boss.id());
         }
         m.persist();
         refreshAll(server);
@@ -915,6 +976,322 @@ public final class Playtest {
         }
         s.step++;
         startStep(server, s);
+    }
+
+    // ------------------------------------------------------------------ the pause (Playtest 2)
+
+    /**
+     * Tests: the playtest acts as if none of its players were online (a real logout would end the
+     * client test). Only the pause looks at it.
+     */
+    public static boolean testAway;
+
+    private boolean nobodyOnline(MinecraftServer server, SiegeSave.PlaytestState s) {
+        return testAway || online(server, s).isEmpty();
+    }
+
+    /**
+     * Nobody of the playtest is online (Simon 04.11.: "Playtest 2" – it went on alone and built dungeon
+     * after dungeon until the restart): the running part ends without a result – a test night is broken
+     * off (monsters gone, the base mended, the night's blocks gone, kits off), a dungeon or camp fight
+     * ended and its building taken down – and the playtest waits. The part comes again once everyone
+     * online is ready: the camp or dungeon when it paused during or before it, else the night; after a
+     * night the next step. False when there is nothing to pause (planning waits by itself, and after the
+     * last night the end comes as it would).
+     */
+    private boolean pause(MinecraftServer server, SiegeSave.PlaytestState s) {
+        String part;
+        switch (s.phase) {
+            case "pause_interlude", "interlude" -> part = "interlude";
+            case "pause_night", "night" -> part = "night";
+            case "after_night" -> {
+                if (s.step + 1 >= NIGHTS) {
+                    return false;
+                }
+                part = "next";
+            }
+            default -> {
+                return false;
+            }
+        }
+        String was = s.phase;
+        // Paused first: whatever the ending below sets off never sees the old phase.
+        s.phase = "paused";
+        s.pausedPart = part;
+        s.phaseEnds = -1L;
+        waitSince = -1L;
+        if ("interlude".equals(part)) {
+            dropInterlude(server, s);
+        } else if ("night".equals(part)) {
+            if (m.isPreparing()) {
+                m.cancelPreparation();
+            }
+            if (m.isActive()) {
+                m.abort(server);   // no result, no reward, nothing lost
+            }
+            m.setTestMachines(false);
+        }
+        for (SiegeSave.PlaytestPlayer pp : s.players.values()) {
+            pp.ready = false;
+        }
+        m.persist();
+        NightSiegeMod.LOGGER.info("[Night Siege] Playtest pausiert (niemand online) in {} von Schritt {}: danach {}",
+                was, s.step + 1, part);
+        return true;
+    }
+
+    /** The camp or the dungeon of this step goes, built or still being searched and built. */
+    private void dropInterlude(MinecraftServer server, SiegeSave.PlaytestState s) {
+        if ("camp".equals(s.interludes.get(s.step))) {
+            m.camp().endAll(server);
+            m.camp().openEntry(false);
+            if (m.save().camp != null) {
+                m.camp().remove(server);
+            }
+            m.save().machinesDay = -1L;
+        } else {
+            m.expeditions().endAll(server, null);
+            m.expeditions().removeAll(server);   // also a search or a build still going on
+            m.expeditions().openEntry(false);
+        }
+        s.campWon = false;
+    }
+
+    /** Everyone online is ready again after a pause: the part that was left, with the usual short pause before it. */
+    private void resume(MinecraftServer server, SiegeSave.PlaytestState s) {
+        String part = s.pausedPart == null ? "" : s.pausedPart;
+        s.pausedPart = "";
+        for (SiegeSave.PlaytestPlayer pp : s.players.values()) {
+            pp.ready = true;
+        }
+        NightSiegeMod.LOGGER.info("[Night Siege] Playtest geht weiter: Schritt {}, {}", s.step + 1, part);
+        broadcast(server, Component.translatable("nightsiege.playtest.resumed", partName(s, part)).withStyle(ChatFormatting.GREEN));
+        switch (part) {
+            case "night" -> toNightPause(server, s);
+            case "next" -> nextStep(server, s);
+            default -> toInterludePause(server, s);
+        }
+        m.persist();
+    }
+
+    /** What comes after the pause, for the chat: the camp, the dungeon (its kind), or the night. */
+    private Component partName(SiegeSave.PlaytestState s) {
+        return partName(s, s.pausedPart);
+    }
+
+    private Component partName(SiegeSave.PlaytestState s, String part) {
+        int step = "next".equals(part) ? s.step + 1 : s.step;
+        if (step < 0 || step >= s.levels.size()) {
+            return Component.empty();
+        }
+        if ("night".equals(part)) {
+            return Component.translatable("nightsiege.playtest.t_night", step + 1);
+        }
+        if ("camp".equals(s.interludes.get(step))) {
+            return Component.translatable("nightsiege.playtest.i_camp");
+        }
+        String kind = s.dungeons == null || step >= s.dungeons.size() ? "" : s.dungeons.get(step);
+        ExpeditionKind k = ExpeditionKind.byId(kind);
+        return k == null ? Component.translatable("nightsiege.playtest.i_dungeon") : Component.translatable(k.translationKey());
+    }
+
+    // ------------------------------------------------------------------ no harm between the rounds (Playtest 2)
+
+    /**
+     * Simon 04.11. ("Playtest 2": "kein Tod zwischen den Runden"): a player of a running playtest takes
+     * damage only as a defender of the running night or a fighter of the dungeon or camp fight (its
+     * ready round over) – not while planning, in the pauses, on the way or before the fight starts. The
+     * void and /kill still go through.
+     */
+    boolean allowDamage(Entity entity, DamageSource source) {
+        if (!(entity instanceof ServerPlayer player) || source == null || !takesPart(player.getUUID())) {
+            return true;
+        }
+        return source.is(DamageTypeTags.BYPASSES_INVULNERABILITY) || m.isDefending(player);
+    }
+
+    /** Once a second: outside the fights nobody of the playtest goes hungry. */
+    private void keepFed(MinecraftServer server, SiegeSave.PlaytestState s) {
+        for (ServerPlayer p : online(server, s)) {
+            if (!m.isDefending(p) && p.isAlive()) {
+                if (p.getFoodData().getFoodLevel() < 20) {
+                    p.getFoodData().setFoodLevel(20);
+                }
+                if (p.getFoodData().getSaturationLevel() < 5f) {
+                    p.getFoodData().setSaturation(5f);
+                }
+            }
+        }
+    }
+
+    /** The start of a part (camp, dungeon, night): full life and food, no fire, no harmful effect. */
+    private static void refresh(ServerPlayer p) {
+        if (!p.isAlive()) {
+            return;
+        }
+        p.setHealth(p.getMaxHealth());
+        p.getFoodData().setFoodLevel(20);
+        p.getFoodData().setSaturation(5f);
+        p.clearFire();
+        p.resetFallDistance();
+        List<net.minecraft.core.Holder<MobEffect>> bad = new ArrayList<>();
+        for (MobEffectInstance effect : p.getActiveEffects()) {
+            if (effect.getEffect().value().getCategory() == MobEffectCategory.HARMFUL) {
+                bad.add(effect.getEffect());
+            }
+        }
+        for (net.minecraft.core.Holder<MobEffect> effect : bad) {
+            p.removeEffect(effect);
+        }
+    }
+
+    // ------------------------------------------------------------------ variety (Playtest 2)
+
+    /** Events a playtest night can have: all but the eclipse, a day event (a test night is always made night). */
+    private static final SiegeEvent[] NIGHT_EVENTS = {SiegeEvent.BLOOD_MOON, SiegeEvent.THEME_WAVE, SiegeEvent.FOG,
+            SiegeEvent.THUNDER, SiegeEvent.NETHER_RIFT, SiegeEvent.FROST};
+    /** Entries kept of the last playtests (per list), and how many of the newest count as recent. */
+    private static final int RECENT_KEPT = 24;
+    private static final int RECENT_DUNGEONS = 6;
+    private static final int RECENT_EVENTS = 6;
+
+    /**
+     * Simon 04.11. ("Playtest 2": "mehr Abwechslung"): the dungeons of the playtest are different kinds out
+     * of all eight (not by the ground: around the base it was nearly always the crypt or the keep), every
+     * night without a boss has an event, none twice and never none; what the last playtests had comes last.
+     */
+    private void planVariety(SiegeSave.PlaytestState s, SiegeConfig cfg, SiegeSave.PlaytestRecent recent) {
+        int dungeons = 0;
+        for (String i : s.interludes) {
+            if ("dungeon".equals(i)) {
+                dungeons++;
+            }
+        }
+        List<String> kinds = new ArrayList<>();
+        for (ExpeditionKind k : ExpeditionKind.values()) {
+            kinds.add(k.id());
+        }
+        List<String> pickedKinds = pickVaried(kinds, recent.dungeons, dungeons, RECENT_DUNGEONS, random);
+        s.dungeons = new ArrayList<>();
+        int k = 0;
+        for (String i : s.interludes) {
+            s.dungeons.add("dungeon".equals(i) && k < pickedKinds.size() ? pickedKinds.get(k++) : "");
+        }
+        int nights = 0;
+        for (int i = 0; i < NIGHTS; i++) {
+            if (i != s.bossNight) {
+                nights++;
+            }
+        }
+        // The events the config lets come first; one it has turned off only if there are too few.
+        List<String> on = new ArrayList<>();
+        List<String> off = new ArrayList<>();
+        for (SiegeEvent e : NIGHT_EVENTS) {
+            (eventWeight(e, cfg) > 0 ? on : off).add(e.name());
+        }
+        List<String> pickedEvents = pickVaried(on, recent.events, nights, RECENT_EVENTS, random);
+        if (pickedEvents.size() < nights) {
+            pickedEvents.addAll(pickVaried(off, recent.events, nights - pickedEvents.size(), RECENT_EVENTS, random));
+        }
+        s.events = new ArrayList<>();
+        int e = 0;
+        for (int i = 0; i < NIGHTS; i++) {
+            s.events.add(i != s.bossNight && e < pickedEvents.size() ? pickedEvents.get(e++) : "");
+        }
+    }
+
+    /**
+     * {@code count} different ids of {@code all}: first those not among the newest {@code window} of
+     * {@code recent} (at random), then the recent ones, the one used longest ago first.
+     */
+    static List<String> pickVaried(List<String> all, List<String> recent, int count, int window, Random random) {
+        List<String> newest = last(recent, window);
+        List<String> fresh = new ArrayList<>();
+        List<String> used = new ArrayList<>();
+        for (String id : all) {
+            (newest.contains(id) ? used : fresh).add(id);
+        }
+        Collections.shuffle(fresh, random);
+        used.sort(Comparator.comparingInt(newest::lastIndexOf));
+        List<String> out = new ArrayList<>(fresh);
+        out.addAll(used);
+        return new ArrayList<>(out.subList(0, Math.max(0, Math.min(count, out.size()))));
+    }
+
+    private static List<String> last(List<String> list, int n) {
+        if (list == null || list.isEmpty()) {
+            return List.of();
+        }
+        return new ArrayList<>(list.subList(Math.max(0, list.size() - n), list.size()));
+    }
+
+    private static int eventWeight(SiegeEvent e, SiegeConfig cfg) {
+        return switch (e) {
+            case BLOOD_MOON -> cfg.bloodMoonWeight;
+            case THEME_WAVE -> cfg.themeWaveWeight;
+            case FOG -> cfg.fogWeight;
+            case THUNDER -> cfg.thunderWeight;
+            case NETHER_RIFT -> cfg.netherRiftWeight;
+            case FROST -> cfg.frostWeight;
+            default -> 0;
+        };
+    }
+
+    /** The save's history of the last playtests (made whole if an old save lacks it). */
+    private SiegeSave.PlaytestRecent recent() {
+        SiegeSave.PlaytestRecent r = m.save().playtestRecent;
+        if (r == null) {
+            r = m.save().playtestRecent = new SiegeSave.PlaytestRecent();
+        }
+        if (r.dungeons == null) {
+            r.dungeons = new ArrayList<>();
+        }
+        if (r.events == null) {
+            r.events = new ArrayList<>();
+        }
+        if (r.bosses == null) {
+            r.bosses = new ArrayList<>();
+        }
+        return r;
+    }
+
+    /** This playtest's dungeon kinds, events and boss go into the history (the oldest drop out). */
+    private static void remember(SiegeSave.PlaytestRecent r, SiegeSave.PlaytestState s) {
+        for (String id : s.dungeons) {
+            if (!id.isEmpty()) {
+                r.dungeons.add(id);
+            }
+        }
+        for (String id : s.events) {
+            if (!id.isEmpty()) {
+                r.events.add(id);
+            }
+        }
+        if (s.boss != null && !s.boss.isEmpty()) {
+            r.bosses.add(s.boss);
+        }
+        for (List<String> list : List.of(r.dungeons, r.events, r.bosses)) {
+            while (list.size() > RECENT_KEPT) {
+                list.remove(0);
+            }
+        }
+    }
+
+    /** The dungeon kind picked for this step, or null (a playtest of before: by the ground). */
+    private static ExpeditionKind dungeonOf(SiegeSave.PlaytestState s) {
+        return s.dungeons == null || s.step < 0 || s.step >= s.dungeons.size() ? null : ExpeditionKind.byId(s.dungeons.get(s.step));
+    }
+
+    /** The event picked for this step's night, or null (a playtest of before: rolled like a real night). */
+    private static SiegeEvent eventOf(SiegeSave.PlaytestState s) {
+        if (s.events == null || s.step < 0 || s.step >= s.events.size() || s.events.get(s.step).isEmpty()) {
+            return null;
+        }
+        try {
+            return SiegeEvent.valueOf(s.events.get(s.step));
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     // ------------------------------------------------------------------ the end
@@ -979,7 +1356,16 @@ public final class Playtest {
         }
         SiegeSave.PlaytestPlayer pp = s.players.get(player.getUUID().toString());
         if (pp != null && !s.finished) {
-            send(player, "plan".equals(s.phase));
+            boolean paused = "paused".equals(s.phase);
+            if (paused) {
+                // Back to a paused playtest (Playtest 2): the part they left is gone; at the core the menu
+                // asks for "Bereit", and with everyone online ready that part comes again.
+                m.sendToCore(player);
+                player.sendSystemMessage(Component.translatable("nightsiege.playtest.paused_join", partName(s))
+                        .withStyle(ChatFormatting.YELLOW));
+                player.sendSystemMessage(menuLink());
+            }
+            send(player, "plan".equals(s.phase) || paused);
         }
     }
 
@@ -1141,7 +1527,7 @@ public final class Playtest {
             level.getChunk(x >> 4, z >> 4);
             int y = ground ? level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z) : at.getY();
             p.teleportTo(level, x + 0.5, y, z + 0.5, java.util.Set.of(), p.getYRot(), p.getXRot(), true);
-            p.setHealth(p.getMaxHealth());
+            refresh(p);   // the start of a part: full life and food, no fire, nothing harmful (Playtest 2)
             i++;
         }
     }
@@ -1186,6 +1572,7 @@ public final class Playtest {
         MinecraftServer server = player.level().getServer();
         PlaytestData data = new PlaytestData();
         data.phase = s.finished ? "done" : s.phase;
+        data.pausedPart = s.pausedPart == null ? "" : s.pausedPart;
         data.step = s.step;
         data.target = s.target;
         for (int i = 0; i < NIGHTS && i < s.levels.size(); i++) {
@@ -1193,7 +1580,10 @@ public final class Playtest {
             night.level = s.levels.get(i);
             night.interlude = i < s.interludes.size() ? s.interludes.get(i) : "";
             night.boss = i == s.bossNight ? s.boss : "";
-            night.done = i < s.step || (i == s.step && "after_night".equals(s.phase));
+            night.dungeon = s.dungeons != null && i < s.dungeons.size() ? s.dungeons.get(i) : "";
+            night.event = s.events != null && i < s.events.size() && i != s.bossNight ? s.events.get(i) : "";
+            night.done = i < s.step || (i == s.step && ("after_night".equals(s.phase)
+                    || "paused".equals(s.phase) && "next".equals(s.pausedPart)));
             data.nights.add(night);
         }
         long now = server == null ? 0L : server.overworld().getGameTime();
@@ -1228,7 +1618,8 @@ public final class Playtest {
         if (s == null) {
             return "kein Playtest";
         }
-        return "phase=" + s.phase + " step=" + s.step + " levels=" + s.levels + " interludes=" + s.interludes
+        return "phase=" + s.phase + ("paused".equals(s.phase) ? ":" + s.pausedPart : "") + " step=" + s.step
+                + " levels=" + s.levels + " interludes=" + s.interludes + " dungeons=" + s.dungeons + " events=" + s.events
                 + " boss=" + (s.bossNight + 1) + ":" + s.boss + " players=" + pathSummary(s) + " finished=" + s.finished;
     }
 
@@ -1256,5 +1647,28 @@ public final class Playtest {
     public String interlude() {
         SiegeSave.PlaytestState s = state();
         return s == null || s.step < 0 || s.step >= s.interludes.size() ? "" : s.interludes.get(s.step);
+    }
+
+    /** The dungeon kinds of the steps ("" before the camp), for the tests. */
+    public List<String> dungeonPlan() {
+        SiegeSave.PlaytestState s = state();
+        return s == null || s.dungeons == null ? List.of() : List.copyOf(s.dungeons);
+    }
+
+    /** The events of the nights ("" for the boss night), for the tests. */
+    public List<String> eventPlan() {
+        SiegeSave.PlaytestState s = state();
+        return s == null || s.events == null ? List.of() : List.copyOf(s.events);
+    }
+
+    /** The part a paused playtest plays again ("" when not paused), for the tests. */
+    public String pausedPart() {
+        SiegeSave.PlaytestState s = state();
+        return s == null || !"paused".equals(s.phase) ? "" : s.pausedPart;
+    }
+
+    /** Tests: a player of the playtest logs in again (as the join event would call it). */
+    public void testJoin(ServerPlayer player) {
+        onJoin(player);
     }
 }

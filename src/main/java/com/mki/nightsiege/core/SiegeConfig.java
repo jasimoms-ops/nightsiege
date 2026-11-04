@@ -123,11 +123,14 @@ public class SiegeConfig {
     public int batchIntervalSeconds = 38;
     /**
      * The playtest (Simon, 28 October 2026: "equally hard with any number of players"): every further
-     * player brings this share of a lone player's monsters (1 = each as many as alone). The same share
-     * goes for the boss's life, the camp's guards and the dungeon's monsters.
+     * player brings this share of a lone player's guards in the camp and monsters in the dungeon
+     * (1 = each as many as alone). Its nights scale like real nights since 04.11. ("Playtest 2").
      */
     public double playtestPlayerScaling = 1.0;
-    /** The playtest: the cap of live monsters grows by this share of itself for every further player (at most 120). */
+    /**
+     * Unused since 04.11. ("Playtest 2": a playtest night scales like a real night, liveCapByPlayers and
+     * fieldRefCaps). Kept so the config files that have it still read as before.
+     */
     public double playtestLivePerPlayer = 0.5;
 
     public double healthPerLevel = 0.06;
@@ -910,7 +913,10 @@ public class SiegeConfig {
         return atOne + (1.0 - atOne) * t;
     }
 
-    /** Players scale things by this share per further player: in a playtest playtestPlayerScaling, else {@code normal}. */
+    /**
+     * Players scale things by this share per further player: in a playtest playtestPlayerScaling, else
+     * {@code normal}. (Not used by the nights since 04.11., "Playtest 2": they scale like real nights.)
+     */
     public double perPlayer(boolean playtest, double normal) {
         return playtest ? playtestPlayerScaling : normal;
     }

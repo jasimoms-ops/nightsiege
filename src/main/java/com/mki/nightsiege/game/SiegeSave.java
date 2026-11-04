@@ -174,6 +174,18 @@ public class SiegeSave {
 
     /** The playtest running now (Simon, 28 October 2026), or null. Kept so a restart can undo it. */
     public PlaytestState playtest;
+    /**
+     * What the last playtests brought, newest last (Simon 04.11.: "Playtest 2", more variety): their
+     * dungeon kinds, events and bosses come less often in the next one.
+     */
+    public PlaytestRecent playtestRecent = new PlaytestRecent();
+
+    /** The dungeon kinds, events and bosses of the last playtests (ids, newest last, a few dozen at most). */
+    public static class PlaytestRecent {
+        public List<String> dungeons = new ArrayList<>();
+        public List<String> events = new ArrayList<>();
+        public List<String> bosses = new ArrayList<>();
+    }
 
     /**
      * A playtest: four test nights of rising level, before each a war camp or a dungeon, the
@@ -188,10 +200,23 @@ public class SiegeSave {
         /** Which night brings a boss (index), or -1. */
         public int bossNight = -1;
         public String boss = "";
+        /**
+         * (Playtest 2, Simon 04.11.) The dungeon kind before each night (ExpeditionKind id, "" before the
+         * camp) and the event of each night (SiegeEvent name, "" for the boss night), fixed at the start.
+         * Empty in a playtest begun before: the scouts and the night pick as they did.
+         */
+        public List<String> dungeons = new ArrayList<>();
+        public List<String> events = new ArrayList<>();
         /** The night being played (0-3), -1 while the paths are planned. */
         public int step = -1;
-        /** plan, pause_interlude, interlude, pause_night, night, after_night, done. */
+        /** plan, pause_interlude, interlude, pause_night, night, after_night, paused, done. */
         public String phase = "plan";
+        /**
+         * (Playtest 2) Paused because nobody of it was online: the part played again once everyone online
+         * is ready – "interlude" (the camp or dungeon of this step), "night" (its night) or "next" (the
+         * next step, paused after a night).
+         */
+        public String pausedPart = "";
         /** Game time the current pause or interlude ends at (-1: none). */
         public long phaseEnds = -1L;
         public boolean finished;

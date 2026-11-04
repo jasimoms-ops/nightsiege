@@ -473,7 +473,8 @@ public final class SiegeManager {
             return dies;
         });
         ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) ->
-                !infighting(source.getEntity(), entity) && allowModDamage(entity, source.getEntity()) && combat.allowDamage(entity, source, amount)
+                playtest.allowDamage(entity, source)   // no harm between the playtest's rounds (Playtest 2, 04.11.)
+                        && !infighting(source.getEntity(), entity) && allowModDamage(entity, source.getEntity()) && combat.allowDamage(entity, source, amount)
                         && CrateEffects.allowDamage(entity, source) && Companions.allowDamage(entity, source)
                         && bossesAllowDamage(entity, source, amount)
                         && camp.allowDamage(entity, source) && machines.allowDamage(entity, source)
@@ -3157,7 +3158,7 @@ public final class SiegeManager {
     /** Monsters one wave brings with the defenders there now. */
     private int wantedPerWave() {
         int players = presentCount();
-        double perPlayer = config.perPlayer(playtest.running(), config.playerScaling);
+        double perPlayer = config.playerScaling;   // a playtest night too, like a real one (Playtest 2, 04.11.)
         // What the cap leaves out comes as life (per-player scaling, 29 October 2026).
         overflowHealth = SiegeMath.overflowHealthFactor(SiegeMath.mobsWanted(siegeLevel, players, config, perPlayer), maxLive(), config);
         return (int) Math.round(SiegeMath.mobsPerBatch(siegeLevel, players, config, perPlayer, maxLive())
@@ -3546,15 +3547,13 @@ public final class SiegeManager {
         return playtest.running();
     }
 
-    /** Monsters alive at once at most: in a playtest the cap grows with the players. */
+    /**
+     * Monsters alive at once at most, by the defenders here (livePerPlayer, 29.10.). A playtest night
+     * scales like a real night (Simon 04.11.: "Playtest 2" – alone it held 40 monsters at once instead
+     * of 6, at field strength 1; playtestLivePerPlayer is no longer used).
+     */
     public int maxLive() {
-        int cap;
-        if (!playtest.running()) {
-            cap = SiegeMath.liveCap(presentCount(), config);   // livePerPlayer, 29.10.
-        } else {
-            int players = presentCount();
-            cap = (int) Math.min(120, Math.round(config.maxLiveMobs * (1.0 + config.playtestLivePerPlayer * (players - 1))));
-        }
+        int cap = SiegeMath.liveCap(presentCount(), config);
         return config.refillSpawns ? Math.min(cap, config.refillCap) : cap;   // Nachschub: at most 40 (30.10.)
     }
 

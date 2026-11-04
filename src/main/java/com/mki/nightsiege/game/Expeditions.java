@@ -4054,8 +4054,13 @@ public final class Expeditions {
      * so the players are taken to a finished one and the server does not stand still meanwhile.
      */
     public void prepare(MinecraftServer server) {
+        prepare(server, null);
+    }
+
+    /** As above, of a set kind (null: by the ground); the playtest picks its three (Simon 04.11.: "Playtest 2"). */
+    public void prepare(MinecraftServer server, ExpeditionKind forced) {
         removeAll(server);
-        boolean out = scout(server, null, true, null);
+        boolean out = scout(server, forced, true, null);
         prepping = out;
         prepFailed = !out;
     }

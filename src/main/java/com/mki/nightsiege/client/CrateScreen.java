@@ -66,6 +66,12 @@ public class CrateScreen extends Screen {
     }
 
     @Override
+    public void onClose() {
+        super.onClose();
+        PlaytestScreen.afterCrate();   // opened from the playtest menu: back there for the next one (Playtest 2)
+    }
+
+    @Override
     protected void init() {
         W = Math.max(300, Math.min(460, this.width - 10));
         VIEW_W = W - 40;

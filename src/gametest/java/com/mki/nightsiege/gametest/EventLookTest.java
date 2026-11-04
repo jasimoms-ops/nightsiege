@@ -139,6 +139,9 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("playtest")) {
                     playtestScene(context, game);   // the playtest (28 October 2026)
                 }
+                if (want.contains("pt2-flow")) {
+                    Pt2FlowScenes.run(context, game);   // Playtest 2: scaling, pause, variety, no harm, crates (04.11.)
+                }
                 if (want.contains("ss2-netz")) {
                     Ss2NetzScenes.run(context, game);   // survival safety 2: packets, profiles, playtest, core rights (31.10.)
                 }

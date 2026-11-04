@@ -6,8 +6,10 @@ import java.util.List;
 /** The playtest window (Simon, 28 October 2026): plan, nights, team, ready and crates. */
 public class PlaytestData {
 
-    /** plan, pause_interlude, interlude, pause_night, night, after_night, done. */
+    /** plan, pause_interlude, interlude, pause_night, night, after_night, paused, done. */
     public String phase = "";
+    /** While paused (nobody was online, Playtest 2): the part that comes again – interlude, night or next. */
+    public String pausedPart = "";
     /** The night being played (0-3), -1 while planning. */
     public int step = -1;
     public int target;
@@ -34,6 +36,10 @@ public class PlaytestData {
         public String interlude = "";
         /** Boss id when this night brings one, else empty. */
         public String boss = "";
+        /** The dungeon kind before it (ExpeditionKind id), empty before the camp (Playtest 2). */
+        public String dungeon = "";
+        /** The night's event (SiegeEvent name), empty for the boss night or when it is rolled (Playtest 2). */
+        public String event = "";
         public boolean done;
     }
 
