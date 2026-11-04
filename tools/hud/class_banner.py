@@ -13,7 +13,8 @@ emblem keeps its pixels on the 12 x 22 face.
 Writes
   src/main/resources/assets/nightsiege/textures/entity/banner/crest_<class>_{dark,gold}.png  (64 x 64)
   src/main/resources/assets/nightsiege/textures/entity/shield/crest_<class>_{dark,gold}.png  (128 x 128)
-  build/class_banners.png  (preview: standing banner, wall banner, shield, with the vanilla dyes)
+  src/main/resources/assets/nightsiege/textures/gui/class_banner/<class>.png  (22 x 43, for the class tab)
+  build/class_banners.png  (preview: standing banner and shield, with the vanilla dyes)
 
     python3 tools/hud/class_banner.py
 """
@@ -198,6 +199,18 @@ def main():
             shifted = {(x + 2, y + 2): v for (x, y), v in sl[name].items()}
             # shield plate box 12 x 22 x 1 at (0, 0), here at double density: front at (2, 2), back at (28, 2)
             layer_png(shifted, 128, (2, 2), (28, 2)).save(os.path.join(TEX, "shield", "crest_%s_%s.png" % (cls, name)))
+
+    # The class tab of the core window draws the banners as pictures (cloth and crossbar, 22 x 43).
+    gui = os.path.join(ROOT, "src/main/resources/assets/nightsiege/textures/gui/class_banner")
+    os.makedirs(gui, exist_ok=True)
+    for cls in CLASSES:
+        pic = Image.new("RGBA", (22, 43), (0, 0, 0, 0))
+        bar, bar_d = (102, 76, 44, 255), (84, 62, 36, 255)
+        for x in range(22):
+            for y in (0, 1):
+                pic.putpixel((x, y), bar if x % 5 else bar_d)
+        pic.alpha_composite(cloth(cls, FW, FH, random.Random(7 + CLASSES.index(cls))), (1, 2))
+        pic.save(os.path.join(gui, cls + ".png"))
 
     # Preview: per class a standing banner (pole and crossbar) and the shield beside it, 8 x
     # (the shield's texels are half as big, so it is drawn at 4 x: the sizes match the game).

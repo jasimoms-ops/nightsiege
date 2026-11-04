@@ -4080,6 +4080,7 @@ public final class SiegeManager {
         }
         playtest.afterRespawn(player);
         crates.deliverPending(player);
+        safe("Klassenbanner", () -> ClassBanners.deliverPending(this, player));
     }
 
     /** True while tonight's kit belongs on this player: the night runs with them standing, or it is coming for them. */
@@ -4513,6 +4514,7 @@ public final class SiegeManager {
             Drones.start(player);   // fallen before they left: back up as a drone
         }
         crates.deliverPending(player);
+        safe("Klassenbanner", () -> ClassBanners.deliverPending(this, player));
         playtest.onJoin(player);   // things back after a playtest that ended while away
         // Skills gelten nur waehrend einer Belagerung. Beim Betreten werden
         // daher Reste entfernt, etwa nach einem Absturz mitten in der Nacht.
@@ -5190,6 +5192,13 @@ public final class SiegeManager {
             }
             case "buy" -> onBuySkill(player, argument);
             case "class" -> onChooseClass(player, argument);
+            case "banner" -> {
+                // The class banner from the class card (update 6): once a Minecraft day.
+                if (!tooSoon(player, verb)) {
+                    ClassBanners.request(this, player, argument);
+                    openCoreWindow(player);
+                }
+            }
             case "sub" -> onFixSubclass(player, argument);
             case "play" -> onPlayClass(player, argument);
             case "classreset" -> onClassReset(player);
@@ -5593,6 +5602,7 @@ public final class SiegeManager {
             traps.giveRemote(player, own);
             player.sendSystemMessage(Component.translatable("nightsiege.msg.class_chosen",
                     Component.translatable(chosen.translationKey())).withStyle(ChatFormatting.GREEN));
+            safe("Klassenbanner", () -> ClassBanners.onNewClass(this, player, chosen));   // update 6: the banner comes with the class
             openCoreWindow(player);
             return;
         }
@@ -5603,6 +5613,7 @@ public final class SiegeManager {
             return;
         }
         String key = null;
+        boolean newClass = !own.hasUnlocked(chosen);
         if (!own.hasUnlocked(chosen)) {
             // A new class: its first profile, the subclass is chosen in the tree as usual.
             if (!subclass.isEmpty() && !skillTree.subclassesOf(chosen).contains(subclass)) {
@@ -5623,6 +5634,9 @@ public final class SiegeManager {
         persist();
         player.sendSystemMessage(Component.translatable("nightsiege.msg.profile_new",
                 profileName(own, key)).withStyle(ChatFormatting.GREEN));
+        if (newClass) {
+            safe("Klassenbanner", () -> ClassBanners.onNewClass(this, player, chosen));   // update 6
+        }
         if (!(active && participants.contains(player.getUUID()))) {
             onPlayClass(player, key);   // the new profile is played from now on (Simon, 27 October 2026)
             return;

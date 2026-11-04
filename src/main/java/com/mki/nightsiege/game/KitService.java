@@ -432,6 +432,7 @@ public final class KitService {
         player.sendSystemMessage(Component.translatable("nightsiege.kit.returned").withStyle(net.minecraft.ChatFormatting.AQUA));
         if (crates && SiegeManager.get() != null) {
             SiegeManager.get().crates().deliverPending(player);   // the crates won with the kit on (Simon 31.10.)
+            ClassBanners.deliverPending(SiegeManager.get(), player);   // class banners too (update 6)
         }
     }
 

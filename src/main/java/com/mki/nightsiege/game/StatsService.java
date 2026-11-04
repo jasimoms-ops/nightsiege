@@ -219,6 +219,7 @@ public final class StatsService {
             line.complete = line.unlocked && tree.isComplete(skills, c);
             line.ultDone = line.unlocked && tree.ultimateMaxed(skills, c);
             line.subclass = tree.chosenSubclass(skills, c);
+            line.bannerToday = line.unlocked && ClassBanners.takenToday(manager, viewer, c);
             if (line.unlocked) {
                 String fixedWay = "";
                 com.mki.nightsiege.core.SkillTree.SubclassInfo fixed =

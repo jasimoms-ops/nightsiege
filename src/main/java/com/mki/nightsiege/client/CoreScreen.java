@@ -2256,6 +2256,18 @@ public class CoreScreen extends Screen {
                 && HallPages.click(event.x(), event.y())) {
             return true;
         }
+        // The class banner on an own class card (update 6): a click fetches it, once a Minecraft day.
+        if (activeTab == Tab.CLASSES && confirming == null && !confirmingReset && !choosingUnlock && bannerTip != null
+                && bannerHover != null) {
+            for (ClassCard card : classCards) {
+                int[] b = bannerRect(card);
+                if (card.clazz() == bannerHover && card.line().unlocked && event.x() >= b[0] && event.x() < b[0] + b[2]
+                        && event.y() >= b[1] && event.y() < b[1] + b[3]) {
+                    send("banner:" + card.clazz().name());
+                    return true;
+                }
+            }
+        }
         // The collection (balance update 2): a click on a gain ability puts it onto the first gain key.
         if (activeTab == Tab.COLLECTION && hoveredGain != null && com.mki.nightsiege.core.CrateGains.keyAbility(hoveredGain.id())
                 && gainStage(collectionClass(), hoveredGain.id()) > 0) {
@@ -2473,6 +2485,8 @@ public class CoreScreen extends Screen {
             } else if (hallTip != null && activeTab == Tab.HALL) {
                 gui.nextStratum();   // above the figures on the podium
                 tooltip(gui, font, hallTip, mouseX, mouseY);
+            } else if (bannerTip != null && activeTab == Tab.CLASSES) {
+                tooltip(gui, font, bannerTip, mouseX, mouseY);
             }
         }
     }
@@ -3057,9 +3071,27 @@ public class CoreScreen extends Screen {
         }
         gui.text(font, font.plainSubstrByWidth(head, innerW() - 12), innerX() + 6, innerY() + 3,
                 stats.nextClassOpen ? 0xFFFFD86B : 0xFFCFC7DD, true);
+        bannerTip = null;
         for (ClassCard card : classCards) {
             drawClassCard(gui, font, card, mouseX, mouseY);
         }
+    }
+
+    /** The tooltip of the class banner under the mouse (update 6). */
+    private List<String> bannerTip;
+    /** The class whose banner the mouse is over (own classes only: a click fetches it). */
+    private SkillClass bannerHover;
+
+    /** Where a card's class banner hangs: x, y, w, h (22 x 43 picture, crossbar included). */
+    private static int[] bannerRect(ClassCard card) {
+        int sy = card.y() + 15;
+        int h = card.standH() - 4;
+        int w = Math.round(h * 22f / 43f);
+        if (w > card.w() - 14) {
+            w = card.w() - 14;
+            h = Math.round(w * 43f / 22f);
+        }
+        return new int[]{card.x() + (card.w() - w) / 2, sy + 2 + (card.standH() - 4 - h) / 2, w, h};
     }
 
     private void drawClassCard(GuiGraphicsExtractor gui, Font font, ClassCard card, int mouseX, int mouseY) {
@@ -3084,13 +3116,35 @@ public class CoreScreen extends Screen {
         gui.text(font, name, 0, 0, line.played ? 0xFFFFD86B : open ? 0xFFFFFFFF : 0xFF8F879F, true);
         gui.pose().popMatrix();
 
-        // The armour stand of the class's subclass, a shadow while there is none.
+        // The class banner, large, on every card (update 6, Simon 4 November 2026); the own subclass
+        // stands smaller in front of it, below the emblem ("man sieht keine Schatten, nur Figuren, die man hat").
         int sy = y + 15;
         int sh = card.standH();
         gui.fill(x + 4, sy, x + w - 4, sy + sh, 0xFF2C2740);
         gui.fill(x + 5, sy + 1, x + w - 5, sy + sh - 1, 0xFF0E0C14);
         boolean own = line.unlocked && ClassStands.has(line.subclass);
-        ClassStands.draw(gui, own ? line.subclass : ClassStands.firstOf(card.clazz()), !own, x + 6, sy + 2, w - 12, sh - 4);
+        int[] b = bannerRect(card);
+        boolean overBanner = line.unlocked && mouseX >= b[0] && mouseX < b[0] + b[2] && mouseY >= b[1] && mouseY < b[1] + b[3];
+        if (overBanner) {
+            gui.fill(b[0] - 1, b[1] - 1, b[0] + b[2] + 1, b[1] + b[3] + 1, line.bannerToday ? 0xFF5E5870 : 0xFFFFD86B);
+            gui.fill(b[0], b[1], b[0] + b[2], b[1] + b[3], 0xFF0E0C14);
+        }
+        Identifier banner = Identifier.fromNamespaceAndPath("nightsiege",
+                "textures/gui/class_banner/" + card.clazz().name().toLowerCase(java.util.Locale.ROOT) + ".png");
+        gui.blit(RenderPipelines.GUI_TEXTURED, banner, b[0], b[1], 0f, 0f, b[2], b[3], 22, 43, 22, 43);
+        if (own) {
+            // The emblem ends at row 24 of the picture (crossbar 2 + cloth row 22): the figure starts below it.
+            int top = b[1] + Math.round(24f * b[3] / 43f);
+            ClassStands.draw(gui, line.subclass, false, x + 6, top, w - 12, sy + sh - 2 - top);
+        }
+        if (overBanner) {
+            bannerHover = card.clazz();
+            List<String> tip = new ArrayList<>();
+            tip.add(Component.translatable("nightsiege.banner.name", Component.translatable(card.clazz().translationKey())).getString());
+            tip.add((line.bannerToday ? "§8" : "§e") + Component.translatable(line.bannerToday
+                    ? "nightsiege.ui.banner_taken_today" : "nightsiege.ui.banner_take").getString());
+            bannerTip = tip;
+        }
         String badgeKey;
         int badgeFg;
         int badgeBg;

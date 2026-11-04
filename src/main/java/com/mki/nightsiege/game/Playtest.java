@@ -1095,6 +1095,7 @@ public final class Playtest {
             ServerPlayNetworking.send(player, new CoreNetworking.ScreenPayload("playtest_update", Json.toJson(data)));
         }
         m.crates().deliverPending(player);   // real crates that waited for the playtest to end
+        ClassBanners.deliverPending(m, player);   // class banners too (update 6)
         return true;
     }
 
