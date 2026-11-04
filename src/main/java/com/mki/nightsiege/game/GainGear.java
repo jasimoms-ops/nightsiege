@@ -187,20 +187,21 @@ public final class GainGear {
     public static void addKitItems(KitService kits, PlayerSkills skills, SkillClass clazz, String way, List<ItemStack> out) {
         // Balance update 2 (Simon 29.10.): crate gains with an ability of their own are on the gain keys
         // (GainKeys), the arrow kinds in the quiver; what is thrown, eaten or set down stays an item.
+        // Update 6: these are the crate items of the hotbar, chosen on the kit page (KitArrange).
         if (lvl(kits, skills, clazz, "wurfspeere") > 0) {
-            out.add(Gadgets.make(Items.IRON_SPEAR, "wurfspeer", 4));
+            out.add(KitService.fromGain(Gadgets.make(Items.IRON_SPEAR, "wurfspeer", 4), "wurfspeere"));
         }
         if (lvl(kits, skills, clazz, "kriegsbanner") > 0) {
-            out.add(Gadgets.make(Items.BANNER.red(), "kriegsbanner", 1));
+            out.add(KitService.fromGain(Gadgets.make(Items.BANNER.red(), "kriegsbanner", 1), "kriegsbanner"));
         }
         if (clazz == SkillClass.WARRIOR) {
             int axes = lvl(kits, skills, clazz, "wurfbeile");
             if (axes > 0) {
-                out.add(Gadgets.make(Items.IRON_AXE, "wurfbeil", 2 * axes));
+                out.add(KitService.fromGain(Gadgets.make(Items.IRON_AXE, "wurfbeil", 2 * axes), "wurfbeile"));
             }
         } else if (clazz == SkillClass.GUARDIAN) {
             if (lvl(kits, skills, clazz, "barrikaden") > 0) {
-                out.add(Gadgets.make(Items.OAK_FENCE, "barrikade", 3));
+                out.add(KitService.fromGain(Gadgets.make(Items.OAK_FENCE, "barrikade", 3), "barrikaden"));
             }
         } else if (clazz == SkillClass.ENGINEER) {
             // The reusable flash grenade for every engineer (Simon, 28 October 2026; it was the

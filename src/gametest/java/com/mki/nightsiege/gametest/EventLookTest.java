@@ -87,6 +87,9 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("ruhmeshalle")) {
                     hallScene(context, game);   // the Ruhmeshalle and the points command (31 October 2026)
                 }
+                if (want.contains("update6")) {
+                    update6Scene(context, game);   // class banners and the kit page (4 November 2026)
+                }
                 if (want.contains("dungeons")) {
                     dungeonScene(context, game);
                 }
@@ -7014,6 +7017,208 @@ public class EventLookTest implements FabricClientGameTest {
      * The Ruhmeshalle (31 October 2026): a hall with the player and five made-up defenders, the
      * badge thresholds, the points command, then every page of the tab as a picture.
      */
+    /**
+     * Update 6 (4 November 2026): the class banners (with the class, from the card once a day, not to
+     * be copied, on the ground, the wall and a shield), the class tab with the banners, the kit page and
+     * the kit as handed out (crate items only in the hotbar, the choice, automatic).
+     */
+    private static void update6Scene(ClientGameTestContext context, TestSingleplayerContext game) {
+        java.util.List<String> fails = new java.util.ArrayList<>();
+        int[] at = new int[3];
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
+            player.getInventory().clearContent();
+            int before = 0;
+            if (!own.hasClass()) {
+                String sub = com.mki.nightsiege.core.SkillTree.subclassInfosOf(com.mki.nightsiege.core.SkillClass.WARRIOR).get(0).node();
+                manager.onChooseClass(player, "WARRIOR:" + sub);
+            } else {
+                own.unlockClass(com.mki.nightsiege.core.SkillClass.WARRIOR);
+                manager.save().bannerDays.clear();
+                manager.onCoreAction(player, "banner:WARRIOR");
+            }
+            int banners = countBanners(player);
+            System.out.println("[Night Siege test] update6 banner with the class: " + banners);
+            if (banners < 1) {
+                fails.add("no class banner with the class");
+            }
+            // the card: once a day
+            manager.onCoreAction(player, "banner:WARRIOR");
+            int again = countBanners(player);
+            System.out.println("[Night Siege test] update6 banner the same day: " + again);
+            if (again != banners) {
+                fails.add("a second banner on the same day");
+            }
+            // copying at the crafting table is shut, a vanilla patterned banner still copies
+            net.minecraft.world.item.ItemStack ours = com.mki.nightsiege.game.ClassBanners.create(
+                    com.mki.nightsiege.core.SkillClass.WARRIOR, player.level().registryAccess());
+            net.minecraft.world.item.ItemStack blank = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.BANNER.red());
+            net.minecraft.world.item.ItemStack vanilla = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.BANNER.red());
+            var patterns = player.level().registryAccess().lookupOrThrow(net.minecraft.core.registries.Registries.BANNER_PATTERN);
+            vanilla.set(net.minecraft.core.component.DataComponents.BANNER_PATTERNS,
+                    new net.minecraft.world.level.block.entity.BannerPatternLayers.Builder()
+                            .add(patterns.getOrThrow(net.minecraft.world.level.block.entity.BannerPatterns.STRIPE_TOP),
+                                    net.minecraft.world.item.DyeColor.YELLOW).build());
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            boolean copyOurs = level.getServer().getRecipeManager().getRecipeFor(net.minecraft.world.item.crafting.RecipeType.CRAFTING,
+                    net.minecraft.world.item.crafting.CraftingInput.of(2, 1, java.util.List.of(ours, blank)), level).isPresent();
+            boolean copyVanilla = level.getServer().getRecipeManager().getRecipeFor(net.minecraft.world.item.crafting.RecipeType.CRAFTING,
+                    net.minecraft.world.item.crafting.CraftingInput.of(2, 1, java.util.List.of(vanilla, blank.copy())), level).isPresent();
+            System.out.println("[Night Siege test] update6 copy: class banner=" + copyOurs + " vanilla=" + copyVanilla);
+            if (copyOurs) {
+                fails.add("a class banner could be copied");
+            }
+            if (!copyVanilla) {
+                fails.add("the vanilla copy recipe does not work any more");
+            }
+            // the five banners on the ground and on the wall, in front of the player
+            net.minecraft.core.BlockPos p = player.blockPosition();
+            at[0] = p.getX();
+            at[1] = p.getY();
+            at[2] = p.getZ();
+            com.mki.nightsiege.core.SkillClass[] all = {com.mki.nightsiege.core.SkillClass.WARRIOR,
+                    com.mki.nightsiege.core.SkillClass.GUARDIAN, com.mki.nightsiege.core.SkillClass.ARCHER,
+                    com.mki.nightsiege.core.SkillClass.ENGINEER, com.mki.nightsiege.core.SkillClass.SUMMONER};
+            for (int i = 0; i < all.length; i++) {
+                net.minecraft.world.item.ItemStack b = com.mki.nightsiege.game.ClassBanners.create(all[i], level.registryAccess());
+                net.minecraft.world.level.block.Block standing = ((net.minecraft.world.item.BannerItem) b.getItem()).getBlock();
+                net.minecraft.core.BlockPos ground = p.offset(-5, 0, -4 + 2 * i);
+                for (int dy = 0; dy < 3; dy++) {
+                    level.setBlockAndUpdate(ground.above(dy), net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
+                    level.setBlockAndUpdate(ground.offset(-1, dy, 0), net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
+                }
+                level.setBlockAndUpdate(ground.below(), net.minecraft.world.level.block.Blocks.STONE_BRICKS.defaultBlockState());
+                level.setBlockAndUpdate(ground, standing.defaultBlockState()
+                        .setValue(net.minecraft.world.level.block.BannerBlock.ROTATION, 4));
+                if (level.getBlockEntity(ground) instanceof net.minecraft.world.level.block.entity.BannerBlockEntity be) {
+                    be.applyComponentsFromItemStack(b);
+                    be.setChanged();
+                    level.sendBlockUpdated(ground, be.getBlockState(), be.getBlockState(), 3);
+                }
+            }
+            // a shield with the warrior banner in the off hand
+            net.minecraft.world.item.ItemStack shield = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.SHIELD);
+            shield.set(net.minecraft.core.component.DataComponents.BASE_COLOR, net.minecraft.world.item.DyeColor.RED);
+            shield.set(net.minecraft.core.component.DataComponents.BANNER_PATTERNS, ours.get(net.minecraft.core.component.DataComponents.BANNER_PATTERNS));
+            player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.OFFHAND, shield);
+            player.getInventory().setItem(0, ours.copy());
+            player.getInventory().setSelectedSlot(0);
+        });
+        game.getServer().runCommand("time set noon");
+        game.getServer().runCommand("weather clear");
+        // the banner action opens the core window (the packet comes a little later): close it before looking
+        context.waitTicks(20);
+        closeScreen(context);
+        context.waitTicks(30);
+        context.getInput().lookAt(90.0f, 10.0f);
+        context.waitTicks(20);
+        context.takeScreenshot("update6_banners");
+        inventoryShot(context, "update6_banner_inventory");
+
+        // The class tab: the banner on every card, the own figure in front of it.
+        onServer(context, (player, manager) -> {
+            player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.OFFHAND, net.minecraft.world.item.ItemStack.EMPTY);
+            player.getInventory().clearContent();
+            com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
+            com.mki.nightsiege.core.SkillClass w = com.mki.nightsiege.core.SkillClass.WARRIOR;
+            for (String[] g : new String[][]{{"wurfspeere", "1"}, {"kriegsbanner", "1"}, {"wurfbeile", "3"}, {"heiltrank", "2"},
+                    {"fackeln", "1"}, {"wurfperlen", "1"}, {"baukiste", "1"}, {"schaerfe", "1"}, {"sprungstiefel", "1"},
+                    {"kampfhorn", "1"}, {"kletterhaken", "1"}}) {
+                own.setGainStage(w, g[0], Integer.parseInt(g[1]));
+            }
+            manager.onPlayClass(player, "WARRIOR");
+        });
+        context.waitTicks(10);
+        showTab(context, "CLASSES");
+        context.waitTicks(20);
+        context.takeScreenshot("update6_class_tab");
+        closeScreen(context);
+
+        // The kit as handed out, automatic: crate items only in the hotbar.
+        onServer(context, (player, manager) -> {
+            manager.onCoreAction(player, "kit:auto:WARRIOR");
+            manager.kits().equip(player, 5);
+            System.out.println("[Night Siege test] update6 kit auto: " + kitLine(player));
+            for (int i = 9; i < 36; i++) {
+                if (!com.mki.nightsiege.game.KitService.gainOf(player.getInventory().getItem(i)).isEmpty()) {
+                    fails.add("a crate item outside the hotbar (auto): slot " + i);
+                }
+            }
+            manager.kits().restore(player);
+            // only the war banner chosen
+            manager.onCoreAction(player, "kit:save:WARRIOR:{\"layout\":{},\"choice\":[\"kriegsbanner\"]}");
+            manager.kits().equip(player, 5);
+            String line = kitLine(player);
+            System.out.println("[Night Siege test] update6 kit chosen: " + line);
+            for (int i = 0; i < 36; i++) {
+                String g = com.mki.nightsiege.game.KitService.gainOf(player.getInventory().getItem(i));
+                if (!g.isEmpty() && !g.equals("kriegsbanner")) {
+                    fails.add("a crate item that was not chosen: " + g);
+                }
+            }
+            if (!line.contains("kriegsbanner")) {
+                fails.add("the chosen war banner is missing");
+            }
+            manager.kits().restore(player);
+            manager.onCoreAction(player, "kit:auto:WARRIOR");
+        });
+        context.waitTicks(10);
+        showTab(context, "KIT");
+        context.waitTicks(30);
+        context.takeScreenshot("update6_kit_page");
+        // the other two small tabs on the right: always along, gain keys
+        String[] rightShots = {"", "update6_kit_passive", "update6_kit_keys"};
+        for (int k = 1; k <= 2; k++) {
+            final int tab = k;
+            context.runOnClient(client -> {
+                try {
+                    java.lang.reflect.Field field = Class.forName("com.mki.nightsiege.client.KitPages").getDeclaredField("rightTab");
+                    field.setAccessible(true);
+                    field.setInt(null, tab);
+                } catch (ReflectiveOperationException e) {
+                    System.out.println("[Night Siege test] could not set the kit tab: " + e);
+                }
+            });
+            context.waitTicks(5);
+            context.takeScreenshot(rightShots[k]);
+        }
+        context.runOnClient(client -> {
+            try {
+                java.lang.reflect.Field field = Class.forName("com.mki.nightsiege.client.KitPages").getDeclaredField("rightTab");
+                field.setAccessible(true);
+                field.setInt(null, 0);
+            } catch (ReflectiveOperationException e) {
+                System.out.println("[Night Siege test] could not set the kit tab: " + e);
+            }
+        });
+        closeScreen(context);
+        System.out.println("[Night Siege test] update6 done, problems: " + (fails.isEmpty() ? "none" : String.join("; ", fails)));
+    }
+
+    private static int countBanners(net.minecraft.server.level.ServerPlayer player) {
+        int n = 0;
+        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+            if (com.mki.nightsiege.game.ClassBanners.isClassBanner(player.getInventory().getItem(i))) {
+                n += player.getInventory().getItem(i).getCount();
+            }
+        }
+        return n;
+    }
+
+    private static String kitLine(net.minecraft.server.level.ServerPlayer player) {
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < 36; i++) {
+            net.minecraft.world.item.ItemStack st = player.getInventory().getItem(i);
+            if (st.isEmpty()) {
+                continue;
+            }
+            String g = com.mki.nightsiege.game.KitService.gainOf(st);
+            out.append(i).append('=').append(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(st.getItem()).getPath())
+                    .append(g.isEmpty() ? "" : "[" + g + "]").append(' ');
+        }
+        return out.toString();
+    }
+
     private static void hallScene(ClientGameTestContext context, TestSingleplayerContext game) {
         onServer(context, (player, manager) -> {
             com.mki.nightsiege.core.HallOfFame hall = manager.save().hall;
