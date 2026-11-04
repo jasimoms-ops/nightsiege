@@ -260,15 +260,27 @@ final class KitPages {
         int rx = gx + 9 * s + 12;
         int rw = x + w - 4 - rx;
         String[] tabs = {"nightsiege.kitpage.tab_crate", "nightsiege.kitpage.tab_passive", "nightsiege.kitpage.tab_keys"};
-        int tw = (rw - 4) / 3;
-        rightTabs.clear();
+        // as wide as their words, the rest shared out; equal and cut short when they do not fit
+        int[] tws = new int[3];
+        int words = 0;
         for (int k = 0; k < 3; k++) {
-            int tx = rx + k * (tw + 2);
+            tws[k] = font.width(tr(tabs[k])) + 10;
+            words += tws[k];
+        }
+        int spare = rw - 4 - words;
+        for (int k = 0; k < 3; k++) {
+            tws[k] = spare >= 0 ? tws[k] + spare / 3 : (rw - 4) / 3;
+        }
+        rightTabs.clear();
+        int tx = rx;
+        for (int k = 0; k < 3; k++) {
+            int tw = tws[k];
             String label = font.plainSubstrByWidth(tr(tabs[k]), tw - 6);
             boolean on = k == rightTab;
             boolean hover = in(mouseX, mouseY, tx, top - 1, tw, 13);
             PurpleUi.button(gui, font, tx, top - 1, tw, 13, label, true, hover, on);
             rightTabs.put(k, new int[]{tx, top - 1, tw, 13});
+            tx += tw + 2;
         }
         int ry = top + 15;
         int bottom = y + h - 2;

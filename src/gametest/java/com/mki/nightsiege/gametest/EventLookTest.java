@@ -7100,7 +7100,8 @@ public class EventLookTest implements FabricClientGameTest {
         });
         game.getServer().runCommand("time set noon");
         game.getServer().runCommand("weather clear");
-        // the banner action opened the core window: close it before looking at the banners
+        // the banner action opens the core window (the packet comes a little later): close it before looking
+        context.waitTicks(20);
         closeScreen(context);
         context.waitTicks(30);
         context.getInput().lookAt(90.0f, 10.0f);
@@ -7159,6 +7160,31 @@ public class EventLookTest implements FabricClientGameTest {
         showTab(context, "KIT");
         context.waitTicks(30);
         context.takeScreenshot("update6_kit_page");
+        // the other two small tabs on the right: always along, gain keys
+        String[] rightShots = {"", "update6_kit_passive", "update6_kit_keys"};
+        for (int k = 1; k <= 2; k++) {
+            final int tab = k;
+            context.runOnClient(client -> {
+                try {
+                    java.lang.reflect.Field field = Class.forName("com.mki.nightsiege.client.KitPages").getDeclaredField("rightTab");
+                    field.setAccessible(true);
+                    field.setInt(null, tab);
+                } catch (ReflectiveOperationException e) {
+                    System.out.println("[Night Siege test] could not set the kit tab: " + e);
+                }
+            });
+            context.waitTicks(5);
+            context.takeScreenshot(rightShots[k]);
+        }
+        context.runOnClient(client -> {
+            try {
+                java.lang.reflect.Field field = Class.forName("com.mki.nightsiege.client.KitPages").getDeclaredField("rightTab");
+                field.setAccessible(true);
+                field.setInt(null, 0);
+            } catch (ReflectiveOperationException e) {
+                System.out.println("[Night Siege test] could not set the kit tab: " + e);
+            }
+        });
         closeScreen(context);
         System.out.println("[Night Siege test] update6 done, problems: " + (fails.isEmpty() ? "none" : String.join("; ", fails)));
     }
