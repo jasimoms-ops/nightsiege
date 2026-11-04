@@ -98,12 +98,20 @@ final class Pt2FlowScenes {
         return "camp".equals(m.playtest().interlude()) ? m.save().camp != null : m.save().expedition != null;
     }
 
-    /** A hit of 4 by nothing in particular: whether it took any life. */
+    /** A hit of 4 by nothing in particular: whether it went through (life or absorption taken, or the hit counted). */
     private static boolean hurts(ServerPlayer player) {
-        float before = player.getHealth();
+        float before = player.getHealth() + player.getAbsorptionAmount();
         player.invulnerableTime = 0;
-        player.hurtServer((ServerLevel) player.level(), player.level().damageSources().generic(), 4f);
-        return player.getHealth() < before;
+        boolean hit = player.hurtServer((ServerLevel) player.level(), player.level().damageSources().generic(), 4f);
+        float after = player.getHealth() + player.getAbsorptionAmount();
+        log("  hit: returned " + hit + ", life+absorption " + before + " -> " + after + ", mode " + player.gameMode()
+                + ", invulnerable " + player.getAbilities().invulnerable);
+        return hit || after < before;
+    }
+
+    /** The step the playtest is at (0-3). */
+    private static int step(SiegeManager m) {
+        return m.save().playtest == null ? -1 : m.save().playtest.step;
     }
 
     // ------------------------------------------------------------------ the scene
@@ -118,6 +126,8 @@ final class Pt2FlowScenes {
         game.getServer().runCommand("gamemode survival @p");
         game.getServer().runCommand("effect clear @p");
         context.waitTicks(10);
+        server(context, "mode", (player, m) -> log("game mode " + player.gameMode() + ", invulnerable " + player.getAbilities().invulnerable));
+        context.waitTicks(5);
         // The server's night scaling of 04.11. (the test world's config may differ): the cap by group size, the field.
         final Object[] saved = new Object[8];
         server(context, "setup", (player, m) -> {
@@ -237,11 +247,13 @@ final class Pt2FlowScenes {
             m.playtest().skip(player.level().getServer());
         });
         context.waitTicks(40);
+        final int[] stepAt = new int[2];
         final String at = waitFor(context, 150, "interlude");
         server(context, "interlude", (player, m) -> {
             String kind = m.playtest().interlude();
             String built = m.save().expedition == null ? "-" : m.save().expedition.kind;
-            String planned = m.playtest().dungeonPlan().get(0);
+            String planned = m.playtest().dungeonPlan().get(Math.max(0, step(m)));
+            stepAt[0] = step(m);
             log("part 1: phase=" + m.playtest().phase() + " " + kind + " built=" + built + " planned=" + planned
                     + " health=" + player.getHealth() + "/" + player.getMaxHealth() + " food=" + player.getFoodData().getFoodLevel()
                     + " fighter=" + m.isDefending(player));
@@ -279,7 +291,7 @@ final class Pt2FlowScenes {
         server(context, "resumed 1", (player, m) -> {
             log("after Bereit: " + m.playtest().status());
             SiegeSave.PlaytestState s = m.save().playtest;
-            check("pause_interlude".equals(s.phase) && s.step == 0, "after Bereit the same step's camp/dungeon comes again (short pause first)");
+            check("pause_interlude".equals(s.phase) && s.step == stepAt[0], "after Bereit the same step's camp/dungeon comes again (short pause first)");
             m.playtest().skip(player.level().getServer());
         });
         context.waitTicks(40);
@@ -288,7 +300,7 @@ final class Pt2FlowScenes {
             String built = m.save().expedition == null ? "-" : m.save().expedition.kind;
             log("part 1 again: phase=" + m.playtest().phase() + " " + m.playtest().interlude() + " built=" + built);
             check("interlude".equals(m.playtest().phase()) && partStands(m), "the same part is played again (" + atAgain + ")");
-            check(!"dungeon".equals(m.playtest().interlude()) || m.playtest().dungeonPlan().get(0).equals(built),
+            check(!"dungeon".equals(m.playtest().interlude()) || m.playtest().dungeonPlan().get(step(m)).equals(built),
                     "again the planned dungeon kind");
             m.playtest().skip(player.level().getServer());   // the part ends
         });
@@ -319,11 +331,11 @@ final class Pt2FlowScenes {
             double realField = SiegeMath.fieldStrength(1, real, cfg);
             log("scaling: live cap " + m.maxLive() + " (real solo " + real + "), field " + field + " (real solo " + realField
                     + "), defenders " + m.presentCount() + ", monster life x" + m.overflowHealthFactor()
-                    + ", event " + m.currentEventKey() + " planned " + m.playtest().eventPlan().get(0));
+                    + ", event " + m.currentEventKey() + " planned " + m.playtest().eventPlan().get(step(m)));
             check(m.maxLive() == 6 && m.maxLive() == real, "a solo playtest night holds the real solo cap (6), not 40");
             check(Math.abs(field - realField) < 1e-9 && field > 1.0, "its field strength is a real solo night's (9/6)");
-            check(m.playtest().eventPlan().get(0).equals(m.currentEventKey())
-                    || "THEME_WAVE".equals(m.playtest().eventPlan().get(0)) && m.currentEventKey().isEmpty(),
+            String plannedEvent = m.playtest().eventPlan().get(step(m));
+            check(plannedEvent.equals(m.currentEventKey()) || "THEME_WAVE".equals(plannedEvent) && m.currentEventKey().isEmpty(),
                     "the night has the event of the plan");
             boolean hurt = hurts(player);
             log("hit as a defender: hurt=" + hurt + " health=" + player.getHealth());
@@ -364,6 +376,7 @@ final class Pt2FlowScenes {
             check("paused".equals(m.playtest().phase()) && "night".equals(m.playtest().pausedPart()),
                     "nobody online in the night: paused, the night to play again");
             check(!m.isActive() && !m.isPreparing() && !m.kits().hasStash(player), "the test night was broken off, the kit is off");
+            stepAt[1] = step(m);
             Playtest.testAway = false;
             m.playtest().testJoin(player);
             m.playtest().onAction(player, "ready");
@@ -372,7 +385,7 @@ final class Pt2FlowScenes {
         server(context, "resumed 2", (player, m) -> {
             SiegeSave.PlaytestState s = m.save().playtest;
             log("after Bereit: " + m.playtest().status());
-            check("pause_night".equals(s.phase) && s.step == 0, "after Bereit the same night comes again (short pause first)");
+            check("pause_night".equals(s.phase) && s.step == stepAt[1], "after Bereit the same night comes again (short pause first)");
             m.playtest().skip(player.level().getServer());
             log("the night again: active=" + m.isActive() + " " + m.playtest().status());
             check(m.isActive() && "night".equals(m.playtest().phase()), "the night is played again");

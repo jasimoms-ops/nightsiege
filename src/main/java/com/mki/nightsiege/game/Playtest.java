@@ -477,6 +477,7 @@ public final class Playtest {
                 }
             }
             case "night" -> {
+                nightBegins(server, s);
                 if (!m.isActive() && !m.isPreparing()) {
                     s.phase = "after_night";
                     s.phaseEnds = now + AFTER_NIGHT_SECONDS * 20L;
@@ -962,11 +963,32 @@ public final class Playtest {
         } else {
             s.phase = "night";
             s.phaseEnds = -1L;
+            nightBegun = false;
+            nightBegins(server, s);   // without a preparation time it runs already
             NightSiegeMod.LOGGER.info("[Night Siege] Playtest: Nacht {} auf Stufe {}{}", s.step + 1, lvl,
                     boss == null ? ", Ereignis " + (eventOf(s) == null ? "gewürfelt" : eventOf(s).name()) : " mit " + boss.id());
         }
         m.persist();
         refreshAll(server);
+    }
+
+    /** The test night of this step has begun (its preparation is over) and its defenders were refreshed. */
+    private boolean nightBegun;
+
+    /**
+     * The test night begins (Playtest 2): its defenders start with full life and food, no fire and
+     * nothing harmful – after the night's skills and kit, which raise the max life.
+     */
+    private void nightBegins(MinecraftServer server, SiegeSave.PlaytestState s) {
+        if (nightBegun || !m.isActive()) {
+            return;
+        }
+        nightBegun = true;
+        for (ServerPlayer p : online(server, s)) {
+            if (m.isDefending(p)) {
+                refresh(p);
+            }
+        }
     }
 
     private void nextStep(MinecraftServer server, SiegeSave.PlaytestState s) {
