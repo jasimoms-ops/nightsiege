@@ -473,8 +473,16 @@ final class Ss2AlltagScenes {
             game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(
                     at.getX() - 2, cy, at.getZ() - 2, at.getX() + 2, cy + 3, at.getZ() + 2));
         }
+        // Lightning only lights fires on normal or hard, and with fire spreading (the test world is easy).
+        game.getServer().runCommand("difficulty normal");
+        game.getServer().runCommand("gamerule doFireTick true");
+        game.getServer().runCommand("gamerule fire_spread_radius_around_player 128");
         context.waitTicks(5);
-        EventLookTest.onServer(context, (player, manager) -> bolt((ServerLevel) player.level(), plainBolt));
+        EventLookTest.onServer(context, (player, manager) -> {
+            ServerLevel level = (ServerLevel) player.level();
+            log("THUNDER world: difficulty=" + level.getDifficulty());
+            bolt(level, plainBolt);
+        });
         context.waitTicks(10);
         EventLookTest.onServer(context, (player, manager) -> {
             ServerLevel level = (ServerLevel) player.level();
@@ -491,6 +499,7 @@ final class Ss2AlltagScenes {
         });
         game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air replace minecraft:fire".formatted(
                 cx - 10, cy - 1, cz - 10, cx - 2, cy + 3, cz + 10));
+        game.getServer().runCommand("difficulty easy");
         context.waitTicks(100);
         EventLookTest.onServer(context, (player, manager) -> {
             ServerLevel level = (ServerLevel) player.level();
