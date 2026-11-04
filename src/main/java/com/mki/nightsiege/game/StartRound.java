@@ -30,6 +30,8 @@ final class StartRound {
     final long startedAt;
     private final Set<UUID> members = new LinkedHashSet<>();
     private final Set<UUID> ready = new HashSet<>();
+    /** The playtest's round (Playtest 2, Simon 04.11.): all its players online, nobody drops out by walking off. */
+    boolean anywhere;
 
     StartRound(UUID starter, BlockPos at, long now) {
         this.starter = starter;
@@ -87,7 +89,7 @@ final class StartRound {
     /** True when someone stands close enough to the block to join or stay. */
     boolean near(ServerPlayer player, ServerLevel level) {
         return player != null && player.level() == level && player.isAlive()
-                && player.distanceToSqr(at.getX() + 0.5, at.getY(), at.getZ() + 0.5) <= RADIUS * RADIUS;
+                && (anywhere || player.distanceToSqr(at.getX() + 0.5, at.getY(), at.getZ() + 0.5) <= RADIUS * RADIUS);
     }
 
     /**

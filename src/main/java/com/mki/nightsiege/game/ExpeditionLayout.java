@@ -69,6 +69,8 @@ public final class ExpeditionLayout {
     static final int R = 22;
     /** The halls lie offset: left, right (Simon: "Knicke"). */
     static final int[] OFFSET = {0, -14, 14, -14, 14};
+    /** How deep the basins of the halls reach below the floor (the cellar's round well: water 2 deep on its floor at -3). */
+    static final int BASIN = 3;
 
     /** Everything about one built dungeon, in world coordinates. */
     public static final class Plan {
@@ -183,7 +185,8 @@ public final class ExpeditionLayout {
             int prev = i == 0 ? 0 : OFFSET[i - 1];
             int lo = Math.min(Math.min(prev, ox) - 3, ox - HALF);
             int hi = Math.max(Math.max(prev, ox) + 3, ox + HALF);
-            plan.roomZones.add(b.box(lo, HALL_Y, c, hi, HALL_Y + HALL_H - 1, z0 + LEN - 1));
+            // Down to the bottom of the basins (Playtest 2, Simon 04.11.): who fell into the cellar's well is still in the room.
+            plan.roomZones.add(b.box(lo, HALL_Y - BASIN, c, hi, HALL_Y + HALL_H - 1, z0 + LEN - 1));
             plan.roomHalls.add(b.box(ox - HALF, HALL_Y, z0, ox + HALF, HALL_Y + HALL_H - 1, z0 + LEN - 1));
         }
         for (int x = -2; x <= 2; x++) {
@@ -227,7 +230,11 @@ public final class ExpeditionLayout {
                     + (i == rooms ? 4 : 0)));
         }
         for (int i = 0; i < rooms; i++) {
-            plan.inside.add(plan.roomHalls.get(i));
+            // The hall with its basins (Playtest 2, Simon 04.11.: "wenn man in das Wasserbecken fällt, kommt man nicht
+            // mehr raus und der Dungeon bricht ab"): the round well is two deep, one swimming at its bottom counted as
+            // out of the dungeon and left the attempt. Its water and the channels, trenches and pools lie in here now.
+            AABB hall = plan.roomHalls.get(i);
+            plan.inside.add(new AABB(hall.minX, hall.minY - BASIN, hall.minZ, hall.maxX, hall.maxY, hall.maxZ));
         }
         plan.inside.add(b.box(-R - 6, ARENA_Y - 4, cz - R - 2, R + 6, ARENA_Y + 16, cz + R + 6));
         int reach = Math.max(HALF + 16, R + 7);
