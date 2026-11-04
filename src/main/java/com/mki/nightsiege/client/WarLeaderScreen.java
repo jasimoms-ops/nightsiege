@@ -59,9 +59,11 @@ public class WarLeaderScreen extends Screen {
     private static final double MIN_HEIGHT = 12;
     private static final double ROOF_GAP = 10;
     private static final String[] TABS = {"squad", "machine", "boss", "card"};
-    private static final int SHOP_W = 138;
-    private static final int SIDE_W = 146;
-    private static final int ROW_H = 13;
+    // Simon 05.11.: "das Design ein wenig zu groß": narrower panels, as tall as their content.
+    private static final int SHOP_W = 112;
+    private static final int SIDE_W = 116;
+    private static final int ROW_H = 11;
+    private static final int SQ_H = 11;
 
     /** The open screen (the camera follows it). */
     private static WarLeaderScreen active;
@@ -574,11 +576,18 @@ public class WarLeaderScreen extends Screen {
     }
 
     private int shopTop() {
-        return 34;
+        return 28;
     }
 
+    /** The lowest a panel may reach (above the hint line). */
+    private int panelFloor() {
+        return this.height - 24;
+    }
+
+    /** The shop: its tabs, the rows of its list and the line about the hovered thing. */
     private int shopBottom() {
-        return this.height - 26;
+        int rows = Math.max(4, shown().size());
+        return Math.min(panelFloor(), shopTop() + 26 + rows * ROW_H + 22);
     }
 
     private int sideX() {
@@ -589,20 +598,20 @@ public class WarLeaderScreen extends Screen {
         if (x >= shopX() - 1 && x < shopX() + SHOP_W + 1 && y >= shopTop() - 1 && y < shopBottom() + 1) {
             return true;
         }
-        if (x >= sideX() - 1 && x < sideX() + SIDE_W + 1 && y >= shopTop() - 1 && y < shopBottom() + 1) {
+        if (x >= sideX() - 1 && x < sideX() + SIDE_W + 1 && y >= shopTop() - 1 && y < sideBottom() + 1) {
             return true;
         }
         int bw = topW();
-        return y < 30 && x >= (this.width - bw) / 2.0 - 2 && x < (this.width + bw) / 2.0 + 2;
+        return y < 25 && x >= (this.width - bw) / 2.0 - 2 && x < (this.width + bw) / 2.0 + 2;
     }
 
     private int topW() {
-        return Math.min(this.width - 2 * (SHOP_W + 14), 260);
+        return Math.min(this.width - 2 * (SHOP_W + 14), 210);
     }
 
     /** Rows of the shop that fit. */
     private int shopRows() {
-        return Math.max(3, (shopBottom() - 24 - (shopTop() + 30)) / ROW_H);
+        return Math.max(3, (shopBottom() - 22 - (shopTop() + 26)) / ROW_H);
     }
 
     private List<WarLeaderData.Item> shown() {
@@ -630,7 +639,7 @@ public class WarLeaderScreen extends Screen {
             }
             return true;
         }
-        int rowTop = shopTop() + 30;
+        int rowTop = shopTop() + 26;
         int i = (int) ((y - rowTop) / ROW_H);
         List<WarLeaderData.Item> items = shown();
         if (y >= rowTop && i >= 0 && i < shopRows() && shopFirst + i < items.size()) {
@@ -648,12 +657,12 @@ public class WarLeaderScreen extends Screen {
 
     private boolean sideClick(double x, double y) {
         int x0 = sideX();
-        if (x < x0 || x >= x0 + SIDE_W || y < shopTop() || y >= shopBottom()) {
+        if (x < x0 || x >= x0 + SIDE_W || y < shopTop() || y >= sideBottom()) {
             return false;
         }
         // The two buttons under the squads.
         int by = squadsBottom() + 3;
-        if (y >= by && y < by + 14) {
+        if (y >= by && y < by + 12) {
             int half = (SIDE_W - 12) / 2;
             if (x < x0 + 4 + half) {
                 if (squad >= 0) {
@@ -666,8 +675,8 @@ public class WarLeaderScreen extends Screen {
             }
             return true;
         }
-        int rowTop = shopTop() + 16;
-        int i = (int) ((y - rowTop) / 12);
+        int rowTop = shopTop() + 14;
+        int i = (int) ((y - rowTop) / SQ_H);
         if (y >= rowTop && i >= 0 && i < squadRows() && squadFirst + i < data.squads.size()) {
             WarLeaderData.Squad s = data.squads.get(squadFirst + i);
             squad = s.id;
@@ -680,13 +689,23 @@ public class WarLeaderScreen extends Screen {
         return true;
     }
 
+    /** Rows of squads: as many as there are (at least 2), as many as fit. */
     private int squadRows() {
-        int space = (shopBottom() - shopTop()) / 2 - 36;
-        return Math.max(3, space / 12);
+        int fit = Math.max(2, ((panelFloor() - shopTop()) / 2 - 30) / SQ_H);
+        return Math.max(2, Math.min(fit, data.squads.size()));
     }
 
     private int squadsBottom() {
-        return shopTop() + 16 + squadRows() * 12;
+        return shopTop() + 14 + squadRows() * SQ_H;
+    }
+
+    /** The side panel ends under its last defender (the sandbox has none: under the buttons). */
+    private int sideBottom() {
+        int by = squadsBottom() + 3 + 12;
+        if (data.defenders.isEmpty()) {
+            return Math.min(panelFloor(), by + 4);
+        }
+        return Math.min(panelFloor(), by + 6 + 10 + data.defenders.size() * 9 + 3);
     }
 
     private void note(String text) {
@@ -817,7 +836,8 @@ public class WarLeaderScreen extends Screen {
         int y = b[1] + 8;
         if ("end".equals(data.phase)) {
             String head = tr("won".equals(data.result) ? "nightsiege.war.end.title_won"
-                    : "lost".equals(data.result) ? "nightsiege.war.end.title_lost" : "nightsiege.war.end.title_aborted");
+                    : "lost".equals(data.result) ? "nightsiege.war.end.title_lost"
+                    : "sandbox".equals(data.result) ? "nightsiege.war.end.title_sandbox" : "nightsiege.war.end.title_aborted");
             gui.text(font, head, (this.width - font.width(head)) / 2, y, "won".equals(data.result) ? GOLD : "lost".equals(data.result) ? RED : GREY, true);
             y += 18;
             for (String line : data.lines) {
@@ -922,8 +942,25 @@ public class WarLeaderScreen extends Screen {
             if (sel) {
                 frame(gui, s[0] - 6, s[1] - 6, s[0] + 6, s[1] + 6, GOLD);
             }
-            String label = shortName(q.item) + " " + q.alive;
-            small(gui, font, label, s[0] + 5, s[1] - 3, sel ? GOLD : color, 0.6f);
+            String label = shortName(q.item) + (q.machine ? "" : " " + q.alive);
+            small(gui, font, label, s[0] + 5, s[1] - 3, sel ? GOLD : color, 0.55f);
+            if (q.machine && q.aimed) {
+                // Where it shoots: a red cross, a thin line from the machine when it is picked.
+                int[] a = project(q.aimX, groundY(q.aimX, q.aimZ), q.aimZ);
+                if (a != null) {
+                    gui.fill(a[0] - 4, a[1], a[0] + 5, a[1] + 1, RED);
+                    gui.fill(a[0], a[1] - 4, a[0] + 1, a[1] + 5, RED);
+                    frame(gui, a[0] - 3, a[1] - 3, a[0] + 4, a[1] + 4, sel ? GOLD : 0xC0FF3030);
+                    if (sel) {
+                        int steps = 12;
+                        for (int k = 1; k < steps; k++) {
+                            int px = s[0] + (a[0] - s[0]) * k / steps;
+                            int py = s[1] + (a[1] - s[1]) * k / steps;
+                            gui.fill(px, py, px + 1, py + 1, 0xA0FFD86B);
+                        }
+                    }
+                }
+            }
         }
         // The defenders: a dot, their name and life.
         for (WarLeaderData.Mate m : data.defenders) {
@@ -946,7 +983,9 @@ public class WarLeaderScreen extends Screen {
         if (hover != null && squad >= 0 && !menu) {
             int[] s = project(hover.getX() + 0.5, hover.getY() + 1, hover.getZ() + 0.5);
             if (s != null) {
-                small(gui, font, tr("nightsiege.war.target_here"), s[0] + 9, s[1] + 6, RED, 0.6f);
+                WarLeaderData.Squad sq = squadById(squad);
+                small(gui, font, tr(sq != null && sq.machine ? "nightsiege.war.fire_here" : "nightsiege.war.target_here"),
+                        s[0] + 9, s[1] + 6, RED, 0.55f);
             }
         }
     }
@@ -964,21 +1003,23 @@ public class WarLeaderScreen extends Screen {
     private void drawTop(GuiGraphicsExtractor gui, Font font) {
         int w = topW();
         int x0 = (this.width - w) / 2;
-        panel(gui, x0, 4, x0 + w, 28);
+        panel(gui, x0, 3, x0 + w, 23);
         String phase = "prep".equals(data.phase) ? tr("nightsiege.war.top_prep", clock(data.seconds))
+                : data.sandbox ? tr("nightsiege.war.top_sandbox", data.wave)
                 : tr("nightsiege.war.top_wave", data.wave, data.waves, clock(data.seconds));
-        gui.text(font, phase, x0 + 6, 8, "prep".equals(data.phase) ? LIGHT : 0xFFFF8A6A, true);
-        String gold = "◆ " + data.gold;
-        gui.text(font, gold, x0 + w - 6 - font.width(gold), 8, GOLD, true);
-        String sub = data.nextGold > 0 ? tr("nightsiege.war.top_next", data.nextGold) : tr("nightsiege.war.top_last");
+        small(gui, font, phase, x0 + 5, 6, "prep".equals(data.phase) ? LIGHT : 0xFFFF8A6A, 0.85f);
+        String gold = data.sandbox ? "◆ ∞" : "◆ " + data.gold;
+        small(gui, font, gold, x0 + w - 5 - (int) Math.ceil(font.width(gold) * 0.85f), 6, GOLD, 0.85f);
+        String sub = data.sandbox ? tr("nightsiege.war.top_sandbox_sub")
+                : data.nextGold > 0 ? tr("nightsiege.war.top_next", data.nextGold) : tr("nightsiege.war.top_last");
         if (!data.card.isEmpty()) {
             sub = tr("nightsiege.war.top_card", tr("nightsiege.war.card." + data.card)) + "  ·  " + sub;
         }
-        small(gui, font, sub, x0 + 6, 19, data.card.isEmpty() ? GREY : RED, 0.7f);
+        small(gui, font, font.plainSubstrByWidth(sub, (int) ((w - 10) / 0.6f)), x0 + 5, 15, data.card.isEmpty() ? GREY : RED, 0.6f);
         if (ticks < noticeUntil && !notice.isEmpty()) {
-            int nw = (int) Math.ceil(font.width(notice) * 0.8f);
-            panel(gui, (this.width - nw) / 2 - 5, 31, (this.width + nw) / 2 + 5, 42);
-            small(gui, font, notice, (this.width - nw) / 2, 33, ORANGE, 0.8f);
+            int nw = (int) Math.ceil(font.width(notice) * 0.7f);
+            panel(gui, (this.width - nw) / 2 - 4, 26, (this.width + nw) / 2 + 4, 35);
+            small(gui, font, notice, (this.width - nw) / 2, 28, ORANGE, 0.7f);
         }
     }
 
@@ -991,21 +1032,21 @@ public class WarLeaderScreen extends Screen {
         for (int i = 0; i < TABS.length; i++) {
             boolean sel = TABS[i].equals(tab);
             int tx = x0 + i * tabW;
-            gui.fill(tx + 1, top + 1, tx + tabW - 1, top + 12, sel ? 0xFF3A2F12 : 0xFF1A1622);
+            gui.fill(tx + 1, top + 1, tx + tabW - 1, top + 11, sel ? 0xFF3A2F12 : 0xFF1A1622);
             String name = tr("nightsiege.war.tab." + TABS[i]);
-            small(gui, font, font.plainSubstrByWidth(name, (int) ((tabW - 4) / 0.65f)), tx + 3, top + 4, sel ? GOLD : GREY, 0.65f);
+            small(gui, font, font.plainSubstrByWidth(name, (int) ((tabW - 4) / 0.58f)), tx + 2, top + 4, sel ? GOLD : GREY, 0.58f);
         }
         String at = tr("nightsiege.war.shop_at", point + 1);
-        small(gui, font, at, x0 + 4, top + 17, LIGHT, 0.7f);
-        int y = top + 30;
+        small(gui, font, at, x0 + 4, top + 15, LIGHT, 0.62f);
+        int y = top + 26;
         WarLeaderData.Item over = null;
         List<WarLeaderData.Item> list = shown();
         shopFirst = Math.max(0, Math.min(shopFirst, Math.max(0, list.size() - shopRows())));
         if (shopFirst > 0) {
-            small(gui, font, "▲", x0 + SHOP_W - 10, top + 17, GREY, 0.7f);
+            small(gui, font, "▲", x0 + SHOP_W - 9, top + 15, GREY, 0.62f);
         }
         if (shopFirst + shopRows() < list.size()) {
-            small(gui, font, "▼ " + (list.size() - shopFirst - shopRows()), x0 + SHOP_W - 22, bottom - 30, GREY, 0.7f);
+            small(gui, font, "▼ " + (list.size() - shopFirst - shopRows()), x0 + SHOP_W - 20, bottom - 27, GREY, 0.62f);
         }
         for (int n = shopFirst; n < list.size() && n < shopFirst + shopRows(); n++) {
             WarLeaderData.Item it = list.get(n);
@@ -1017,26 +1058,26 @@ public class WarLeaderScreen extends Screen {
             }
             gui.pose().pushMatrix();
             gui.pose().translate(x0 + 3, y + 1);
-            gui.pose().scale(0.7f, 0.7f);
+            gui.pose().scale(0.56f, 0.56f);
             gui.item(icon(it.id), 0, 0);
             gui.pose().popMatrix();
             String name = itemName(it.id) + (it.count > 1 ? " ×" + it.count : "");
-            small(gui, font, font.plainSubstrByWidth(name, (int) ((SHOP_W - 44) / 0.7f)), x0 + 17, y + 3, ok ? 0xFFFFFFFF : DIM, 0.7f);
-            String price = String.valueOf(it.price);
+            small(gui, font, font.plainSubstrByWidth(name, (int) ((SHOP_W - 36) / 0.62f)), x0 + 14, y + 3, ok ? 0xFFFFFFFF : DIM, 0.62f);
+            String price = data.sandbox ? "" : "◆" + it.price;
             int pc = ok ? GOLD : "poor".equals(it.state) ? RED : DIM;
-            small(gui, font, "◆" + price, x0 + SHOP_W - 5 - (int) Math.ceil(font.width("◆" + price) * 0.7f), y + 3, pc, 0.7f);
+            small(gui, font, price, x0 + SHOP_W - 4 - (int) Math.ceil(font.width(price) * 0.62f), y + 3, pc, 0.62f);
             y += ROW_H;
         }
         // What the hovered thing is, or the hint.
         String about = over != null ? describe(over) : tr("nightsiege.war.shop_hint");
-        int ly = bottom - 22;
-        for (net.minecraft.util.FormattedCharSequence part : font.split(net.minecraft.network.chat.FormattedText.of(about), (int) ((SHOP_W - 8) / 0.6f))) {
+        int ly = bottom - 20;
+        for (net.minecraft.util.FormattedCharSequence part : font.split(net.minecraft.network.chat.FormattedText.of(about), (int) ((SHOP_W - 8) / 0.55f))) {
             if (ly > bottom - 6) {
                 break;
             }
             gui.pose().pushMatrix();
             gui.pose().translate(x0 + 4, ly);
-            gui.pose().scale(0.6f, 0.6f);
+            gui.pose().scale(0.55f, 0.55f);
             gui.text(font, part, 0, 0, over != null && !"ok".equals(over.state) ? ORANGE : GREY, false);
             gui.pose().popMatrix();
             ly += 6;
@@ -1058,46 +1099,51 @@ public class WarLeaderScreen extends Screen {
     private void drawSide(GuiGraphicsExtractor gui, Font font, int mouseX, int mouseY) {
         int x0 = sideX();
         int top = shopTop();
-        int bottom = shopBottom();
+        int bottom = sideBottom();
         panel(gui, x0, top, x0 + SIDE_W, bottom);
-        small(gui, font, tr("nightsiege.war.squads", data.squads.size()), x0 + 4, top + 4, GOLD, 0.75f);
-        int y = top + 16;
+        small(gui, font, tr("nightsiege.war.squads", data.squads.size()), x0 + 4, top + 4, GOLD, 0.65f);
+        int y = top + 14;
         int rows = squadRows();
         squadFirst = Math.max(0, Math.min(squadFirst, Math.max(0, data.squads.size() - rows)));
         for (int i = squadFirst; i < Math.min(squadFirst + rows, data.squads.size()); i++) {
             WarLeaderData.Squad s = data.squads.get(i);
             boolean sel = s.id == squad;
-            boolean hot = mouseX >= x0 && mouseX < x0 + SIDE_W && mouseY >= y && mouseY < y + 12;
+            boolean hot = mouseX >= x0 && mouseX < x0 + SIDE_W && mouseY >= y && mouseY < y + SQ_H;
             if (sel || hot) {
-                gui.fill(x0 + 1, y, x0 + SIDE_W - 1, y + 11, sel ? 0xC03A2F12 : 0xC0241E34);
+                gui.fill(x0 + 1, y, x0 + SIDE_W - 1, y + SQ_H - 1, sel ? 0xC03A2F12 : 0xC0241E34);
             }
             int color = orderColor(s.order);
-            gui.fill(x0 + 3, y + 3, x0 + 7, y + 7, color);
-            String name = shortName(s.item) + " " + s.alive + "/" + s.total;
-            small(gui, font, font.plainSubstrByWidth(name, (int) (70 / 0.65f)), x0 + 10, y + 2, sel ? GOLD : LIGHT, 0.65f);
+            gui.fill(x0 + 3, y + 3, x0 + 6, y + 6, color);
+            String name = shortName(s.item) + (s.machine ? "" : " " + s.alive + "/" + s.total);
+            small(gui, font, font.plainSubstrByWidth(name, (int) (62 / 0.58f)), x0 + 9, y + 2, sel ? GOLD : LIGHT, 0.58f);
             String state = orderText(s);
-            small(gui, font, state, x0 + SIDE_W - 4 - (int) Math.ceil(font.width(state) * 0.6f), y + 3, color, 0.6f);
-            y += 12;
+            small(gui, font, state, x0 + SIDE_W - 4 - (int) Math.ceil(font.width(state) * 0.55f), y + 3, color, 0.55f);
+            y += SQ_H;
         }
         if (data.squads.size() > rows) {
             // More than fit: the wheel scrolls, the header shows where.
             String more = (squadFirst > 0 ? "▲ " : "") + (squadFirst + rows < data.squads.size() ? "▼ " + (data.squads.size() - squadFirst - rows) : "");
-            small(gui, font, more, x0 + SIDE_W - 4 - (int) Math.ceil(font.width(more) * 0.65f), top + 5, GREY, 0.65f);
+            small(gui, font, more, x0 + SIDE_W - 4 - (int) Math.ceil(font.width(more) * 0.58f), top + 4, GREY, 0.58f);
         }
         if (data.squads.isEmpty()) {
-            small(gui, font, tr("nightsiege.war.squads_none"), x0 + 4, y, GREY, 0.65f);
+            small(gui, font, tr("nightsiege.war.squads_none"), x0 + 4, y + 1, GREY, 0.58f);
         }
         int by = squadsBottom() + 3;
         int half = (SIDE_W - 12) / 2;
-        boolean overG = mouseX >= x0 + 4 && mouseX < x0 + 4 + half && mouseY >= by && mouseY < by + 14;
-        boolean overS = mouseX >= x0 + 8 + half && mouseX < x0 + 8 + 2 * half && mouseY >= by && mouseY < by + 14;
-        PurpleUi.button(gui, font, x0 + 4, by, half, 14, tr("nightsiege.war.btn_gather"), squad >= 0, overG, false);
-        PurpleUi.button(gui, font, x0 + 8 + half, by, half, 14, tr("nightsiege.war.btn_storm"), true, overS, true);
+        boolean overG = mouseX >= x0 + 4 && mouseX < x0 + 4 + half && mouseY >= by && mouseY < by + 12;
+        boolean overS = mouseX >= x0 + 8 + half && mouseX < x0 + 8 + 2 * half && mouseY >= by && mouseY < by + 12;
+        WarLeaderData.Squad picked = squad >= 0 ? squadById(squad) : null;
+        String gatherLabel = tr(picked != null && picked.machine ? "nightsiege.war.btn_free" : "nightsiege.war.btn_gather");
+        PurpleUi.button(gui, font, x0 + 4, by, half, 12, gatherLabel, squad >= 0, overG, false);
+        PurpleUi.button(gui, font, x0 + 8 + half, by, half, 12, tr("nightsiege.war.btn_storm"), true, overS, true);
+        if (data.defenders.isEmpty()) {
+            return;   // the sandbox: nobody defends
+        }
         // The defenders.
-        int dy = by + 20;
+        int dy = by + 18;
         gui.fill(x0 + 3, dy - 3, x0 + SIDE_W - 3, dy - 2, LINE);
-        small(gui, font, tr("nightsiege.war.defenders"), x0 + 4, dy, GOLD, 0.75f);
-        dy += 11;
+        small(gui, font, tr("nightsiege.war.defenders"), x0 + 4, dy, GOLD, 0.65f);
+        dy += 10;
         for (WarLeaderData.Mate m : data.defenders) {
             if (dy + 10 > bottom - 2) {
                 break;
@@ -1105,13 +1151,13 @@ public class WarLeaderScreen extends Screen {
             float share = m.max <= 0 ? 0 : m.health / m.max;
             int c = m.fallen ? DIM : share > 0.6f ? GREEN : share > 0.3f ? GOLD : RED;
             String name = (m.fallen ? "✝ " : "") + m.name;
-            small(gui, font, font.plainSubstrByWidth(name, (int) (80 / 0.65f)), x0 + 4, dy + 1, m.fallen ? DIM : LIGHT, 0.65f);
+            small(gui, font, font.plainSubstrByWidth(name, (int) (66 / 0.58f)), x0 + 4, dy + 1, m.fallen ? DIM : LIGHT, 0.58f);
             if (!m.fallen) {
-                int bx = x0 + SIDE_W - 46;
-                gui.fill(bx, dy + 2, bx + 40, dy + 5, 0xC0000000);
-                gui.fill(bx, dy + 2, bx + Math.round(40 * Math.max(0f, Math.min(1f, share))), dy + 5, c);
+                int bx = x0 + SIDE_W - 38;
+                gui.fill(bx, dy + 2, bx + 34, dy + 4, 0xC0000000);
+                gui.fill(bx, dy + 2, bx + Math.round(34 * Math.max(0f, Math.min(1f, share))), dy + 4, c);
             }
-            dy += 10;
+            dy += 9;
         }
     }
 
@@ -1119,7 +1165,7 @@ public class WarLeaderScreen extends Screen {
         return switch (s.order == null ? "" : s.order) {
             case "coming" -> tr("nightsiege.war.order.coming", s.seconds);
             case "gather" -> tr("nightsiege.war.order.gather", s.seconds);
-            case "target" -> tr("nightsiege.war.order.target");
+            case "target" -> tr(s.machine ? "nightsiege.war.order.aimed" : "nightsiege.war.order.target");
             case "storm" -> tr("nightsiege.war.order.storm");
             default -> tr("nightsiege.war.order.free");
         };
@@ -1129,14 +1175,15 @@ public class WarLeaderScreen extends Screen {
         String text;
         WarLeaderData.Squad s = squad >= 0 ? squadById(squad) : null;
         if (s != null) {
-            text = s.ownWill ? tr("nightsiege.war.hint_own", shortName(s.item)) : tr("nightsiege.war.hint_squad", shortName(s.item));
+            text = s.machine ? tr("nightsiege.war.hint_machine", shortName(s.item))
+                    : s.ownWill ? tr("nightsiege.war.hint_own", shortName(s.item)) : tr("nightsiege.war.hint_squad", shortName(s.item));
         } else {
             text = tr("nightsiege.war.hint", point + 1);
         }
-        int w = (int) Math.ceil(font.width(text) * 0.7f);
-        int y = this.height - 18;
-        panel(gui, (this.width - w) / 2 - 5, y - 2, (this.width + w) / 2 + 5, y + 9);
-        small(gui, font, text, (this.width - w) / 2, y, s != null ? GOLD : LIGHT, 0.7f);
+        int w = (int) Math.ceil(font.width(text) * 0.6f);
+        int y = this.height - 14;
+        panel(gui, (this.width - w) / 2 - 4, y - 2, (this.width + w) / 2 + 4, y + 7);
+        small(gui, font, text, (this.width - w) / 2, y, s != null ? GOLD : LIGHT, 0.6f);
     }
 
     private void drawMenu(GuiGraphicsExtractor gui, Font font, int mouseX, int mouseY) {
@@ -1149,7 +1196,8 @@ public class WarLeaderScreen extends Screen {
         int bw = b[2] - 20;
         int y0 = b[1] + 20;
         String[] labels = {tr("nightsiege.war.menu_back"), tr("nightsiege.war.menu_game"),
-                tr(confirmGiveUp ? "nightsiege.war.menu_giveup_sure" : "nightsiege.war.menu_giveup")};
+                tr(data.sandbox ? (confirmGiveUp ? "nightsiege.war.menu_sandbox_end_sure" : "nightsiege.war.menu_sandbox_end")
+                        : confirmGiveUp ? "nightsiege.war.menu_giveup_sure" : "nightsiege.war.menu_giveup")};
         for (int i = 0; i < 3; i++) {
             int y = y0 + i * 20;
             boolean over = mouseX >= bx && mouseX < bx + bw && mouseY >= y && mouseY < y + 16;

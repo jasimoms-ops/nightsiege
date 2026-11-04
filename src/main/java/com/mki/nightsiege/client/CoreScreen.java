@@ -943,6 +943,19 @@ public class CoreScreen extends Screen {
                     goldButtons.add(addRenderableWidget(wb));
                     bx += ww + 4;
                 }
+                // The sandbox (Simon 05.11.): alone, nobody defends, endless gold.
+                Component sand = Component.translatable("nightsiege.ui.war_sandbox");
+                int sw = Math.max(54, font.width(sand) + 12);
+                if (!running && bx + sw <= rightLimit) {
+                    Button sb = Button.builder(sand, b -> {
+                        send("war:sandbox");
+                        onClose();
+                    }).bounds(bx, footerY, sw, 18).tooltip(net.minecraft.client.gui.components.Tooltip.create(free
+                            ? Component.translatable("nightsiege.ui.war_sandbox_hint") : Component.translatable(stats.warBlock))).build();
+                    sb.active = free;
+                    goldButtons.add(addRenderableWidget(sb));
+                    bx += sw + 4;
+                }
             }
             if (!stats.siegeActive && !stats.nightComing) {
                 Component leave = Component.translatable("nightsiege.ui.unregister");

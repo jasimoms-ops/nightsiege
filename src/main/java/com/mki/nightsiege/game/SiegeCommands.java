@@ -255,6 +255,17 @@ public final class SiegeCommands {
                             reply(ctx.getSource(), Component.translatable(why == null ? "nightsiege.war.bot_started" : why));
                             return why == null ? 1 : 0;
                         }))
+                        // The sandbox (Simon 05.11.): alone as the leader, nobody defends, endless gold.
+                        .then(Commands.literal("sandbox")
+                                .executes(ctx -> {
+                                    SiegeManager.get().warLeader().requestSandbox(ctx.getSource().getPlayerOrException(), 0);
+                                    return 1;
+                                })
+                                .then(Commands.argument("stufe", IntegerArgumentType.integer(1, 20)).executes(ctx -> {
+                                    SiegeManager.get().warLeader().requestSandbox(ctx.getSource().getPlayerOrException(),
+                                            IntegerArgumentType.getInteger(ctx, "stufe"));
+                                    return 1;
+                                })))
                         .then(Commands.literal("stop").executes(ctx -> {
                             boolean ok = SiegeManager.get().warLeader().stop(ctx.getSource().getServer());
                             reply(ctx.getSource(), Component.translatable(ok ? "nightsiege.war.stopped" : "nightsiege.war.none"));

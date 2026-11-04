@@ -34,6 +34,8 @@ public class WarLeaderData {
     public String card = "";
     public int machines;
     public int machinesMax;
+    /** The sandbox (Simon 05.11.): nobody defends, endless gold, everything open, no end. */
+    public boolean sandbox;
     /** The ready round: who is in it and ready, when the leader may go without the rest. */
     public List<Mate> lobby = new ArrayList<>();
     public int forceIn;
@@ -83,6 +85,11 @@ public class WarLeaderData {
         /** Seconds until it storms by itself (gather), or comes (coming). */
         public int seconds;
         public boolean ownWill;
+        /** A machine: it takes a target to shoot at (Simon 05.11.); where it aims now. */
+        public boolean machine;
+        public boolean aimed;
+        public double aimX;
+        public double aimZ;
     }
 
     public static class Mate {

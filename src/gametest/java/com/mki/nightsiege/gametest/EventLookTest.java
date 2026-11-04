@@ -10521,6 +10521,83 @@ public class EventLookTest implements FabricClientGameTest {
                 + " clock=" + Math.floorMod(player.level().getServer().overworld().getOverworldClockTime(), 24000L)
                 + " records=" + manager.save().war.rounds + "/" + manager.save().war.defenderWins + " restore=" + (manager.save().warLeader != null)));
         closeScreen(context);
+        // 6. The sandbox (Simon 05.11.): alone, nobody defends, endless gold, machines aimed by hand.
+        final int[] recordsBefore = new int[1];
+        onServer(context, (player, manager) -> {
+            recordsBefore[0] = manager.save().war == null ? 0 : manager.save().war.rounds;
+            manager.warLeader().requestSandbox(player, 6);
+        });
+        context.waitTicks(20);
+        final int[] machineSquad = {-1};
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.MinecraftServer server = player.level().getServer();
+            com.mki.nightsiege.core.WarLeaderData data = manager.warLeader().testData(server);
+            String boss = null;
+            StringBuilder states = new StringBuilder();
+            for (com.mki.nightsiege.core.WarLeaderData.Item it : data.shop) {
+                if ("boss".equals(it.group) && boss == null) {
+                    boss = it.id;
+                }
+                if (!"ok".equals(it.state)) {
+                    states.append(it.id).append('=').append(it.state).append(' ');
+                }
+            }
+            System.out.println("[Night Siege test] war sandbox: " + manager.warLeader().status() + " sandbox=" + data.sandbox
+                    + " round=" + manager.isWarRound() + " spectator=" + player.isSpectator() + " bosses=" + data.shop.stream()
+                    .filter(i -> "boss".equals(i.group)).count() + " notOk=[" + states + "] bar=" + manager.bossBarText());
+            System.out.println("[Night Siege test] war sandbox buy prep: mortar=" + manager.warLeader().testBuy(server, "machine.mortar", 0)
+                    + " trebuchet=" + manager.warLeader().testBuy(server, "machine.trebuchet", 1)
+                    + " eisenritter=" + manager.warLeader().testBuy(server, "eisenritter", 0)
+                    + " zombies=" + manager.warLeader().testBuy(server, "zombies", 2)
+                    + " card=" + manager.warLeader().testBuy(server, "card.blutmond", 0)
+                    + " boss " + boss + "=" + manager.warLeader().testBuy(server, boss, 3)
+                    + " boss2=" + manager.warLeader().testBuy(server, boss, 3)
+                    + " gold=" + manager.warLeader().testGold() + " squads=" + manager.warLeader().testSquads());
+        });
+        context.waitTicks(420);   // 15 s build-up, the squads 3 s after their flare
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.MinecraftServer server = player.level().getServer();
+            com.mki.nightsiege.core.WarLeaderData data = manager.warLeader().testData(server);
+            for (com.mki.nightsiege.core.WarLeaderData.Squad q : data.squads) {
+                if (q.machine && machineSquad[0] < 0 && !"coming".equals(q.order)) {
+                    machineSquad[0] = q.id;
+                }
+            }
+            System.out.println("[Night Siege test] war sandbox wave: " + manager.warLeader().status() + " round=" + manager.isWarRound()
+                    + " active=" + manager.isActive() + " machines=" + manager.machines().standing() + " boss=" + manager.bosses().spawned()
+                    + " squads=" + manager.warLeader().testSquads() + " machineSquad=" + machineSquad[0]);
+            manager.warLeader().testOrder(server, machineSquad[0], "target", core.getX() + 6.5, core.getZ() + 4.5);
+            com.mki.nightsiege.core.WarLeaderData after = manager.warLeader().testData(server);
+            for (com.mki.nightsiege.core.WarLeaderData.Squad q : after.squads) {
+                if (q.id == machineSquad[0]) {
+                    System.out.println(String.format(java.util.Locale.ROOT, "[Night Siege test] war sandbox aim: order=%s aimed=%s at %.1f,%.1f (wanted %d,%d)",
+                            q.order, q.aimed, q.aimX, q.aimZ, core.getX() + 6, core.getZ() + 4));
+                }
+            }
+            manager.warLeader().testOrder(server, machineSquad[0], "target", core.getX() + 400.5, core.getZ());   // out of reach
+        });
+        context.runOnClient(client -> {
+            if (client.gui.screen() instanceof com.mki.nightsiege.client.WarLeaderScreen w) {
+                w.testMove(core.getX() + 0.5, core.getZ() - 6.5, 60);
+                w.testPick(0, machineSquad[0], "machine");
+            }
+        });
+        context.waitTicks(200);
+        context.takeScreenshot("war_09_sandbox");
+        onServer(context, (player, manager) -> {
+            System.out.println("[Night Siege test] war sandbox later: round=" + manager.isWarRound() + " active=" + manager.isActive()
+                    + " squads=" + manager.warLeader().testSquads() + " breaches=" + manager.besiegerBreaches() + " bar=" + manager.bossBarText());
+            manager.warLeader().onAction(player, "giveup");
+        });
+        context.waitTicks(20);
+        onServer(context, (player, manager) -> System.out.println("[Night Siege test] war sandbox end: round=" + manager.isWarRound()
+                + " active=" + manager.isActive() + " " + manager.warLeader().status() + " creative=" + player.getAbilities().instabuild
+                + " spectator=" + player.isSpectator() + " records=" + manager.save().war.rounds + " (before " + recordsBefore[0] + ")"
+                + " restore=" + (manager.save().warLeader != null)));
+        context.runOnClient(client -> System.out.println("[Night Siege test] war sandbox end screen="
+                + (client.gui.screen() instanceof com.mki.nightsiege.client.WarLeaderScreen w ? w.testPhase() : String.valueOf(client.gui.screen()))));
+        context.takeScreenshot("war_10_sandbox_end");
+        closeScreen(context);
         // Clean up: the bots, the config, the old core.
         onServer(context, (player, manager) -> {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();

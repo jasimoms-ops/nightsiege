@@ -2026,8 +2026,8 @@ public final class SiegeManager {
         }
         boolean test = forcedLevel > 0;
         List<ServerPlayer> nearby = defendersNear(server, targetWorld, targetAnchor, test);
-        if (nearby.isEmpty()) {
-            return false;
+        if (nearby.isEmpty() && !(warRound && warLeader.sandbox())) {
+            return false;   // (the war leader's sandbox has no defenders, Simon 05.11.)
         }
         if (peaceful(server)) {
             // Monsters vanish at once on Peaceful (Simon 31.10.): no real night, a test night only with a warning.
@@ -2387,7 +2387,7 @@ public final class SiegeManager {
             }
         }
         presentDefenders = present;   // waves, monster life and the field go by who is here (Simon 31.10.)
-        if (standing == 0) {
+        if (standing == 0 && !(warRound && warLeader.sandbox())) {   // the sandbox: nobody defends, it goes on
             if (bossVictoryAt > 0) {
                 finish(server, true);   // the boss fell first
                 return;

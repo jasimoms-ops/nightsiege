@@ -147,6 +147,7 @@ public final class WarLeader {
         public String ende = "";
         public String kriegsfuehrer = "";
         public boolean bot;
+        public boolean sandbox;
         public int stufe;
         public List<String> verteidiger = new ArrayList<>();
         public List<String> gefallen = new ArrayList<>();
@@ -168,6 +169,16 @@ public final class WarLeader {
     private UUID leader;
     private String leaderName = "";
     private boolean bot;
+    /**
+     * The sandbox (Simon 05.11.: "sandbox mäßig alleine probieren", "keiner verteidigt, ich kann Sachen
+     * steuern und commanden"): no defenders, endless gold, everything open from the start, waves without
+     * end until the leader stops it, no records.
+     */
+    private boolean sandbox;
+    /** Sandbox: a short build-up and waves without end. */
+    static final int SANDBOX_PREP = 15;
+    static final int SANDBOX_WAVES = 99;
+    static final int SANDBOX_MACHINES = 6;
     private StartRound round;
     private long lobbySince;
 
@@ -221,6 +232,19 @@ public final class WarLeader {
         return phase == Phase.ROUND;
     }
 
+    /** The round is the leader's sandbox (nobody defends). */
+    public boolean sandbox() {
+        return sandbox && phase != Phase.NONE;
+    }
+
+    private int prepSeconds(SiegeConfig cfg) {
+        return sandbox ? SANDBOX_PREP : cfg.warPrepSeconds;
+    }
+
+    private int waveCount(SiegeConfig cfg) {
+        return sandbox ? SANDBOX_WAVES : cfg.warWaves;
+    }
+
     /** The leader of a ready round or round ("" when none runs). */
     public String leaderName() {
         return phase == Phase.NONE ? "" : leaderName;
@@ -261,7 +285,7 @@ public final class WarLeader {
 
     /** The whole round in ticks: the build-up and the waves. */
     int totalTicks(SiegeConfig cfg) {
-        return (cfg.warPrepSeconds + cfg.warWaves * cfg.warWaveSeconds) * 20;
+        return (prepSeconds(cfg) + waveCount(cfg) * cfg.warWaveSeconds) * 20;
     }
 
     /** A gathering squad's monsters fight only who comes out to their point. */
@@ -283,10 +307,12 @@ public final class WarLeader {
     Component barTitle() {
         SiegeConfig cfg = m.config();
         int elapsed = m.warElapsedTicks();
-        int prep = cfg.warPrepSeconds * 20;
+        int prep = prepSeconds(cfg) * 20;
         Component title;
         if (elapsed < prep) {
             title = Component.translatable("nightsiege.war.bar_prep", leaderName, clock((prep - elapsed) / 20));
+        } else if (sandbox) {
+            title = Component.translatable("nightsiege.war.bar_sandbox", leaderName, currentWave(cfg, elapsed));
         } else {
             int w = currentWave(cfg, elapsed);
             int left = Math.max(0, waveTicksLeft(cfg, elapsed)) / 20;
@@ -299,16 +325,16 @@ public final class WarLeader {
         return title;
     }
 
-    private static int currentWave(SiegeConfig cfg, int elapsed) {
-        int prep = cfg.warPrepSeconds * 20;
+    private int currentWave(SiegeConfig cfg, int elapsed) {
+        int prep = prepSeconds(cfg) * 20;
         if (elapsed < prep) {
             return 0;
         }
-        return Math.min(cfg.warWaves, 1 + (elapsed - prep) / Math.max(1, cfg.warWaveSeconds * 20));
+        return Math.min(waveCount(cfg), 1 + (elapsed - prep) / Math.max(1, cfg.warWaveSeconds * 20));
     }
 
-    private static int waveTicksLeft(SiegeConfig cfg, int elapsed) {
-        int prep = cfg.warPrepSeconds * 20;
+    private int waveTicksLeft(SiegeConfig cfg, int elapsed) {
+        int prep = prepSeconds(cfg) * 20;
         if (elapsed < prep) {
             return prep - elapsed;
         }
@@ -362,6 +388,56 @@ public final class WarLeader {
         openLobby(server, level.getGameTime());
         NightSiegeMod.LOGGER.info("[Night Siege] Kriegsführer-Runde: Bereit-Runde von {} mit {} Spielern",
                 leaderName, round.size());
+    }
+
+    /**
+     * The sandbox (Simon 05.11.): the player alone as the leader, nobody defends, no ready round. Starts
+     * at once with the world's level (or the one given, 1-20).
+     */
+    public void requestSandbox(ServerPlayer player, int wantedLevel) {
+        if (player == null || player.level().getServer() == null) {
+            return;
+        }
+        MinecraftServer server = player.level().getServer();
+        if (!m.config().warLeaderEnabled) {
+            tell(player, "nightsiege.war.off", ChatFormatting.GRAY);
+            return;
+        }
+        if (phase != Phase.NONE) {
+            if (isLeader(player)) {
+                sendData(player, true);
+            } else {
+                tell(player, "nightsiege.war.taken", ChatFormatting.GRAY, leaderName);
+            }
+            return;
+        }
+        String block = blockReason(server);
+        if (block != null) {
+            tell(player, block, ChatFormatting.GRAY);
+            return;
+        }
+        CoreRecord rec = m.mainCore();
+        ServerLevel level = SiegeManager.levelByName(server, rec.dimension);
+        if (level == null) {
+            tell(player, "nightsiege.war.no_core", ChatFormatting.GRAY);
+            return;
+        }
+        world = level;
+        core = new BlockPos(rec.x, rec.y, rec.z);
+        leader = player.getUUID();
+        leaderName = player.getScoreboardName();
+        bot = false;
+        sandbox = true;
+        forcedLevel = wantedLevel > 0 ? Math.min(20, wantedLevel) : 0;
+        round = null;
+        roster.clear();
+        rosterNames.clear();
+        NightSiegeMod.LOGGER.info("[Night Siege] Kriegsführer-Sandbox von {}", leaderName);
+        begin(server);
+        if (phase != Phase.ROUND) {
+            sandbox = false;
+        }
+        forcedLevel = 0;
     }
 
     /** Why a round cannot begin now (a translation key), or null. */
@@ -550,7 +626,7 @@ public final class WarLeader {
         SiegeConfig cfg = m.config();
         roster.clear();
         rosterNames.clear();
-        for (UUID id : round.members()) {
+        for (UUID id : round == null ? List.<UUID>of() : round.members()) {
             ServerPlayer p = server.getPlayerList().getPlayer(id);
             if (p != null) {
                 roster.add(id);
@@ -560,7 +636,7 @@ public final class WarLeader {
         }
         round = null;
         ServerPlayer lead = leaderPlayer(server);
-        if (roster.isEmpty() || (!bot && lead == null)) {
+        if ((roster.isEmpty() && !sandbox) || (!bot && lead == null)) {
             cancelLobby(server, "nightsiege.war.go_nobody");
             return;
         }
@@ -591,7 +667,7 @@ public final class WarLeader {
         bossBought = false;
         nextSquad = 1;
         wave = 0;
-        waves = cfg.warWaves;
+        waves = waveCount(cfg);
         phase = Phase.ROUND;
         if (!m.startWar(server, world, core, level)) {
             phase = Phase.NONE;
@@ -613,13 +689,18 @@ public final class WarLeader {
         roundGold = WarShop.roundGold(level, roster.size(), cfg, cfg.perPlayer(m.inPlaytest(), cfg.playerScaling), m.maxLive());
         gold = WarShop.waveGold(roundGold, 1, waves);
         bossOffers.clear();
-        bossOffers.addAll(WarShop.bossOffers(random));
+        if (sandbox) {
+            bossOffers.addAll(List.of(BossKind.values()));   // the sandbox: every boss
+        } else {
+            bossOffers.addAll(WarShop.bossOffers(random));
+        }
         camX = core.getX() + 0.5;
         camZ = core.getZ() + 0.5;
         file = new RoundFile();
         file.start = LocalDateTime.now().format(DATE);
         file.kriegsfuehrer = bot ? "Bot" : leaderName;
         file.bot = bot;
+        file.sandbox = sandbox;
         file.stufe = level;
         file.verteidiger.addAll(rosterNames.values());
         file.rundenGold = roundGold;
@@ -633,13 +714,15 @@ public final class WarLeader {
         }
         botNext = world.getGameTime() + 40;
         botWave = -1;
-        Component text = Component.translatable("nightsiege.war.begin", bot ? "Bot" : leaderName, cfg.warPrepSeconds,
+        Component text = sandbox ? Component.translatable("nightsiege.war.begin_sandbox", leaderName, SANDBOX_PREP)
+                .withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD)
+                : Component.translatable("nightsiege.war.begin", bot ? "Bot" : leaderName, cfg.warPrepSeconds,
                 waves, cfg.warWaveSeconds / 60).withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD);
         for (ServerPlayer p : everyone(server)) {
             p.sendSystemMessage(text);
         }
         if (lead != null) {
-            tell(lead, "nightsiege.war.lead_help", ChatFormatting.YELLOW);
+            tell(lead, sandbox ? "nightsiege.war.lead_help_sandbox" : "nightsiege.war.lead_help", ChatFormatting.YELLOW);
             sendData(lead, true);
         }
         NightSiegeMod.LOGGER.info("[Night Siege] Kriegsführer-Runde beginnt: {} gegen {} Verteidiger, Stufe {}, Gold {} (Welle 1: {}), {} Sammelplätze, Sicht {}",
@@ -1138,6 +1221,10 @@ public final class WarLeader {
             requestStart(player);
             return;
         }
+        if (verb.equals("sandbox")) {
+            requestSandbox(player, p.length >= 2 ? parse(p[1], 0) : 0);
+            return;
+        }
         if (!isLeader(player)) {
             return;
         }
@@ -1242,7 +1329,11 @@ public final class WarLeader {
                 s = q;
             }
         }
-        if (s == null || s.ownWill || s.isMachine() || s.isBoss()) {
+        if (s == null || s.ownWill || s.isBoss()) {
+            return;
+        }
+        if (s.isMachine()) {
+            aimMachine(server, s, what, x, z);
             return;
         }
         if (file != null) {
@@ -1283,6 +1374,42 @@ public final class WarLeader {
         }
     }
 
+    /**
+     * A machine's order (Simon 05.11.: like the demolitionist, both ways): "target" aims it at the spot,
+     * it shoots there as its reload allows; "gather" (or "free") gives it back its own will.
+     */
+    private void aimMachine(MinecraftServer server, Squad s, String what, double x, double z) {
+        ServerPlayer lead = leaderPlayer(server);
+        if ("target".equals(what)) {
+            if (Double.isNaN(x) || Double.isNaN(z) || !inView(x, z)) {
+                return;
+            }
+            boolean any = false;
+            for (UUID id : s.members) {
+                any |= m.machines().aim(id, new Vec3(x, core.getY(), z));
+            }
+            if (!any) {
+                if (lead != null) {
+                    tell(lead, s.spawned ? "nightsiege.war.machine_far" : "nightsiege.war.machine_coming", ChatFormatting.GRAY);
+                }
+                return;
+            }
+            s.order = "target";
+            s.tx = x;
+            s.tz = z;
+            log("befehl", String.format(Locale.ROOT, "maschine#%d@%.0f,%.0f", s.id, x, z), s.point, 0);
+        } else {
+            for (UUID id : s.members) {
+                m.machines().aim(id, null);
+            }
+            s.order = "free";
+            log("befehl", "maschine_frei#" + s.id, s.point, 0);
+        }
+        if (file != null) {
+            file.befehle++;
+        }
+    }
+
     private boolean inView(double x, double z) {
         double dx = x - (core.getX() + 0.5);
         double dz = z - (core.getZ() + 0.5);
@@ -1304,19 +1431,21 @@ public final class WarLeader {
             if (c == null) {
                 return null;
             }
-            if (w < 1) {
+            if (w < 1 && !sandbox) {
                 return "nightsiege.war.card_prep";
             }
-            if (usedCards.contains(c.id())) {
+            if (usedCards.contains(c.id()) && !sandbox) {
                 return "nightsiege.war.card_used";
             }
             if (card != null) {
                 return "nightsiege.war.card_busy";
             }
-            if (gold < c.price()) {
+            if (gold < c.price() && !sandbox) {
                 return "nightsiege.war.poor";
             }
-            gold -= c.price();
+            if (!sandbox) {
+                gold -= c.price();
+            }
             usedCards.add(c.id());
             card = c;
             cardEnds = now + cfg.warWaveSeconds * 20L;
@@ -1341,10 +1470,10 @@ public final class WarLeader {
             if (kind == null) {
                 return null;
             }
-            if (w < cfg.warMachineFromWave) {
+            if (w < cfg.warMachineFromWave && !sandbox) {
                 return "nightsiege.war.later";
             }
-            if (machinesStanding() >= cfg.warMaxMachines) {
+            if (machinesStanding() >= (sandbox ? SANDBOX_MACHINES : cfg.warMaxMachines)) {
                 return "nightsiege.war.machines_full";
             }
         } else if (item.startsWith("boss.")) {
@@ -1352,10 +1481,10 @@ public final class WarLeader {
             if (kind == null || !bossOffers.contains(kind)) {
                 return null;
             }
-            if (w < cfg.warBossFromWave) {
+            if (w < cfg.warBossFromWave && !sandbox) {
                 return "nightsiege.war.later";
             }
-            if (bossBought) {
+            if (sandbox ? squads.stream().anyMatch(Squad::isBoss) : bossBought) {   // the sandbox: one boss at a time
                 return "nightsiege.war.boss_used";
             }
         } else {
@@ -1363,7 +1492,7 @@ public final class WarLeader {
             if (sq == null) {
                 return null;
             }
-            if (fromLevel(sq) > level) {
+            if (fromLevel(sq) > level && !sandbox) {
                 return "nightsiege.war.level";
             }
             if (m.liveCount() + pendingMonsters() + sq.size() > m.maxLive()) {
@@ -1372,17 +1501,19 @@ public final class WarLeader {
             mobs = sq.mobs();
             ownWill = sq.ownWill();
         }
-        if (gold < price) {
+        if (gold < price && !sandbox) {
             return "nightsiege.war.poor";
         }
-        gold -= price;
+        if (!sandbox) {
+            gold -= price;
+        }
         spent(price);
         if (item.startsWith("boss.")) {
             bossBought = true;
         }
         Squad s = new Squad(nextSquad++, item, point, ownWill, mobs, now);
         long delay = cfg.warSquadDelaySeconds * 20L;
-        long from = wave < 1 ? roundStart + cfg.warPrepSeconds * 20L : now;
+        long from = wave < 1 ? roundStart + prepSeconds(cfg) * 20L : now;
         s.spawnAt = from + delay;
         s.total = item.startsWith("machine.") || item.startsWith("boss.") ? 1 : mobs.size();
         squads.add(s);
@@ -1500,6 +1631,10 @@ public final class WarLeader {
 
     /** The leader gives up (or is away too long): the defenders win. */
     private void giveUp(MinecraftServer server, String key) {
+        if (sandbox) {
+            m.finish(server, true);   // the sandbox: ended, nothing to tell
+            return;
+        }
         for (ServerPlayer p : everyone(server)) {
             tell(p, key, ChatFormatting.GOLD, leaderName);
         }
@@ -1522,16 +1657,16 @@ public final class WarLeader {
         }
         long now = world == null ? 0L : world.getGameTime();
         int seconds = (int) Math.max(0, (now - roundStart) / 20);
-        int wavesSeconds = Math.max(0, seconds - m.config().warPrepSeconds);
+        int wavesSeconds = Math.max(0, seconds - prepSeconds(m.config()));
         List<String> fallen = new ArrayList<>();
         List<String> standing = new ArrayList<>();
         for (UUID id : roster) {
             (m.isFallen(id) ? fallen : standing).add(rosterNames.getOrDefault(id, "?"));
         }
-        String result = won == null ? "aborted" : won ? "lost" : "won";
+        String result = sandbox ? "sandbox" : won == null ? "aborted" : won ? "lost" : "won";
         List<String> lines = new ArrayList<>();
         SiegeSave.WarRecords rec = m.save().war == null ? (m.save().war = new SiegeSave.WarRecords()) : m.save().war;
-        boolean count = won != null && !bot && !TeamSim.running();
+        boolean count = won != null && !bot && !sandbox && !TeamSim.running();
         if (count) {
             rec.rounds++;
             if (won) {
@@ -1565,7 +1700,9 @@ public final class WarLeader {
             }
         }
         // The end panel's lines (translation keys with their values).
-        if (won == null) {
+        if (sandbox) {
+            lines.add(0, line("nightsiege.war.end.sandbox", Math.max(0, wave), clock(seconds)));
+        } else if (won == null) {
             lines.add(0, line("nightsiege.war.end.aborted"));
         } else if (won) {
             lines.add(0, line("nightsiege.war.end.defenders", standing.size(), roster.size()));
@@ -1589,7 +1726,8 @@ public final class WarLeader {
             }
         }
         // Chat: the result for everyone in it.
-        Component text = won == null ? Component.translatable("nightsiege.war.chat_aborted").withStyle(ChatFormatting.GRAY)
+        Component text = sandbox ? Component.translatable("nightsiege.war.chat_sandbox", leaderName).withStyle(ChatFormatting.GRAY)
+                : won == null ? Component.translatable("nightsiege.war.chat_aborted").withStyle(ChatFormatting.GRAY)
                 : won ? Component.translatable("nightsiege.war.chat_defenders", standing.size(), roster.size(), leaderName)
                 .withStyle(ChatFormatting.GREEN, ChatFormatting.BOLD)
                 : Component.translatable("nightsiege.war.chat_leader", leaderName, Math.max(1, wave), clock(wavesSeconds))
@@ -1606,7 +1744,7 @@ public final class WarLeader {
             file.gefallen.addAll(fallen);
             file.welle = wave;
             file.sekunden = seconds;
-            file.ergebnis = won == null ? "abgebrochen" : won ? "verteidiger" : "kriegsfuehrer";
+            file.ergebnis = sandbox ? "sandbox" : won == null ? "abgebrochen" : won ? "verteidiger" : "kriegsfuehrer";
             RoundFile f = file;
             m.stats().warRound(f);
             NightSiegeMod.LOGGER.info("[Night Siege] Kriegsführer-Runde vorbei: {} nach {} s (Welle {}), Gold {} von {}, {} Käufe, {} Befehle, gefallen {}",
@@ -1632,6 +1770,7 @@ public final class WarLeader {
         phase = Phase.NONE;
         leader = null;
         bot = false;
+        sandbox = false;
         roster.clear();
         squads.clear();
         memberOf.clear();
@@ -1825,7 +1964,8 @@ public final class WarLeader {
         d.startZ = camZ;
         d.card = card == null ? "" : card.id();
         d.machines = machinesStanding();
-        d.machinesMax = cfg.warMaxMachines;
+        d.machinesMax = sandbox ? SANDBOX_MACHINES : cfg.warMaxMachines;
+        d.sandbox = sandbox;
         for (int i = 0; i < points.size(); i++) {
             WarLeaderData.Point pt = new WarLeaderData.Point();
             pt.index = i;
@@ -1853,7 +1993,18 @@ public final class WarLeader {
             q.alive = s.spawned ? s.members.size() : q.total;
             q.order = s.spawned ? s.order : "coming";
             q.point = s.point;
-            q.ownWill = s.ownWill || s.isMachine() || s.isBoss();
+            q.ownWill = s.ownWill || s.isBoss();
+            q.machine = s.isMachine();
+            if (s.isMachine() && s.spawned) {
+                for (UUID id : s.members) {
+                    Vec3 aim = m.machines().aimOf(id);
+                    if (aim != null) {
+                        q.aimed = true;
+                        q.aimX = aim.x;
+                        q.aimZ = aim.z;
+                    }
+                }
+            }
             Vec3 c = centre(s);
             if (c != null) {
                 q.x = c.x;
@@ -1888,26 +2039,29 @@ public final class WarLeader {
             it.count = sq.size();
             it.from = fromLevel(sq);
             it.ownWill = sq.ownWill();
-            it.state = fromLevel(sq) > level ? "level" : live + sq.size() > m.maxLive() ? "full" : gold < sq.price() ? "poor" : "ok";
+            it.state = fromLevel(sq) > level && !sandbox ? "level" : live + sq.size() > m.maxLive() ? "full"
+                    : gold < sq.price() && !sandbox ? "poor" : "ok";
             d.shop.add(it);
         }
         for (SiegeMachineKind kind : SiegeMachineKind.values()) {
             WarLeaderData.Item it = item("machine." + kind.id(), "machine", WarShop.MACHINE_PRICE);
             it.from = cfg.warMachineFromWave;
-            it.state = wave < cfg.warMachineFromWave ? "wave" : machinesStanding() >= cfg.warMaxMachines ? "full"
-                    : gold < WarShop.MACHINE_PRICE ? "poor" : "ok";
+            it.state = wave < cfg.warMachineFromWave && !sandbox ? "wave" : machinesStanding() >= d.machinesMax ? "full"
+                    : gold < WarShop.MACHINE_PRICE && !sandbox ? "poor" : "ok";
             d.shop.add(it);
         }
         for (BossKind kind : bossOffers) {
             WarLeaderData.Item it = item("boss." + kind.id(), "boss", WarShop.BOSS_PRICE);
             it.from = cfg.warBossFromWave;
-            it.state = bossBought ? "used" : wave < cfg.warBossFromWave ? "wave" : gold < WarShop.BOSS_PRICE ? "poor" : "ok";
+            it.state = sandbox ? (squads.stream().anyMatch(Squad::isBoss) ? "busy" : "ok")
+                    : bossBought ? "used" : wave < cfg.warBossFromWave ? "wave" : gold < WarShop.BOSS_PRICE ? "poor" : "ok";
             d.shop.add(it);
         }
         for (WarShop.Card c : WarShop.Card.values()) {
             WarLeaderData.Item it = item("card." + c.id(), "card", c.price());
             it.from = 1;
-            it.state = usedCards.contains(c.id()) ? "used" : wave < 1 ? "wave" : card != null ? "busy" : gold < c.price() ? "poor" : "ok";
+            it.state = sandbox ? (card != null ? "busy" : "ok")
+                    : usedCards.contains(c.id()) ? "used" : wave < 1 ? "wave" : card != null ? "busy" : gold < c.price() ? "poor" : "ok";
             d.shop.add(it);
         }
         return d;
@@ -2012,8 +2166,9 @@ public final class WarLeader {
             return "Kriegsführer: Bereit-Runde von " + leaderName + ", " + (round == null ? 0 : round.readyCount()) + "/"
                     + (round == null ? 0 : round.size()) + " bereit";
         }
-        return String.format(Locale.ROOT, "Kriegsführer: %s, Welle %d/%d, Gold %d (Runde %d), %d Trupps, %d Sammelplätze, Sicht %d, Karte %s",
-                leaderName, wave, waves, gold, roundGold, squads.size(), points.size(), radius, card == null ? "-" : card.id());
+        return String.format(Locale.ROOT, "Kriegsführer%s: %s, Welle %d/%d, Gold %s (Runde %d), %d Trupps, %d Sammelplätze, Sicht %d, Karte %s",
+                sandbox ? "-Sandbox" : "", leaderName, wave, waves, sandbox ? "∞" : String.valueOf(gold), roundGold, squads.size(),
+                points.size(), radius, card == null ? "-" : card.id());
     }
 
     /**
