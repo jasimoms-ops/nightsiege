@@ -117,12 +117,17 @@ final class Ss2AlltagScenes {
         return player.gameMode.useItemOn(player, level, held, InteractionHand.MAIN_HAND, hit).consumesAction();
     }
 
+    private static final java.util.List<net.minecraft.world.entity.LightningBolt> BOLTS = new java.util.ArrayList<>();
+
     /** A real (not visual-only) lightning strike at this spot. */
     private static void bolt(ServerLevel level, BlockPos at) {
         net.minecraft.world.entity.LightningBolt bolt = EntityTypes.LIGHTNING_BOLT.create(level, EntitySpawnReason.TRIGGERED);
         if (bolt != null) {
             bolt.snapTo(at.getX() + 0.5, at.getY(), at.getZ() + 0.5);
-            level.addFreshEntity(bolt);
+            boolean added = level.addFreshEntity(bolt);
+            BOLTS.add(bolt);
+            log("THUNDER bolt at " + at + " added=" + added + " ground=" + level.getBlockState(at.below()).getBlock()
+                    + " air=" + level.getBlockState(at).isAir() + " rain=" + level.isRainingAt(at));
         }
     }
 
@@ -490,9 +495,13 @@ final class Ss2AlltagScenes {
                     com.mki.nightsiege.game.EventAtmosphere.THUNDER, 1);
             bolt(level, stormBolt);
         });
-        context.waitTicks(10);
+        context.waitTicks(4);
         EventLookTest.onServer(context, (player, manager) -> {
             ServerLevel level = (ServerLevel) player.level();
+            for (net.minecraft.world.entity.LightningBolt b : BOLTS) {
+                log("THUNDER bolt set on fire=" + b.getBlocksSetOnFire() + " removed=" + b.isRemoved());
+            }
+            BOLTS.clear();
             log("THUNDER lightning fire: without the event=" + fires(level, plainBolt) + " in the thunder night=" + fires(level, stormBolt)
                     + " (expected some / 0; without the event 0 means fire is off in this world)");
             com.mki.nightsiege.game.EventAtmosphere.setServer(SiegeManager.dimensionName(level), "", 1);
