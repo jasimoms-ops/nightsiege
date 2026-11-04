@@ -358,6 +358,26 @@ final class Ss2AlltagScenes {
             log("NIGHT plain block mined: block now=" + level.getBlockState(ownSpot).getBlock() + " drops=" + drops(level, ownSpot, 3)
                     + " (expected a cobblestone)");
             clearDrops(level, ownSpot, 3);
+            // A free trap of the night (a kit item) set down and mined: no trap comes back (Simon 31.10., fix 04.11.).
+            Item spikeItem = ModContent.TRAP_ITEMS.get(TrapKind.SPIKE);
+            int trapSlot = spikeItem == null ? -1 : kitSlot(inv, spikeItem);
+            if (trapSlot >= 0) {
+                toHand(player, trapSlot);
+                BlockPos trapFloor = new BlockPos(cx + 7, cy - 1, cz + 3);
+                BlockPos trapAt = trapFloor.above();
+                int trapsBefore = count(inv, spikeItem, null);
+                boolean trapPlaced = placeOn(player, level, trapFloor);
+                int trapsSet = count(inv, spikeItem, null);
+                inv.setItem(inv.getSelectedSlot(), new ItemStack(Items.IRON_PICKAXE));
+                clearDrops(level, trapAt, 4);
+                player.gameMode.destroyBlock(trapAt);
+                log("NIGHT kit trap: set=" + trapPlaced + " traps " + trapsBefore + " -> " + trapsSet
+                        + " mined: block now=" + level.getBlockState(trapAt).getBlock() + " drops=" + drops(level, trapAt, 3)
+                        + " traps after=" + count(inv, spikeItem, null) + " (expected air, keine, same as set)");
+                clearDrops(level, trapAt, 4);
+            } else {
+                log("NIGHT kit trap: no kit spike trap in the pack");
+            }
             // Left standing: a kit cobblestone with a kit torch on it.
             int again = kitSlot(inv, Items.COBBLESTONE);
             if (again >= 0) {
