@@ -368,9 +368,11 @@ final class Ss2AlltagScenes {
                 int trapsBefore = count(inv, spikeItem, null);
                 boolean trapPlaced = placeOn(player, level, trapFloor);
                 int trapsSet = count(inv, spikeItem, null);
+                ItemStack rest = inv.getItem(inv.getSelectedSlot());
                 inv.setItem(inv.getSelectedSlot(), new ItemStack(Items.IRON_PICKAXE));
                 clearDrops(level, trapAt, 4);
                 player.gameMode.destroyBlock(trapAt);
+                inv.setItem(inv.getSelectedSlot(), rest);   // the traps not set back in the hand (the count below)
                 log("NIGHT kit trap: set=" + trapPlaced + " traps " + trapsBefore + " -> " + trapsSet
                         + " mined: block now=" + level.getBlockState(trapAt).getBlock() + " drops=" + drops(level, trapAt, 3)
                         + " traps after=" + count(inv, spikeItem, null) + " (expected air, keine, same as set)");

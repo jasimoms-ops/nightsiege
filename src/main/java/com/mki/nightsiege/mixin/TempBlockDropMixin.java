@@ -27,7 +27,7 @@ public abstract class TempBlockDropMixin {
     @Inject(method = "dropResources(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;)V",
             at = @At("HEAD"), cancellable = true)
     private static void nightsiege$noDrop(BlockState state, Level level, BlockPos pos, CallbackInfo ci) {
-        if (level != null && !level.isClientSide() && (TempBlocks.isTemp(level, pos) || TrapService.kitTrapAt(level, pos))) {
+        if (level != null && !level.isClientSide() && (TempBlocks.isTemp(level, pos) || TrapService.kitTrapAt(level, pos, state))) {
             ci.cancel();
         }
     }
@@ -35,7 +35,7 @@ public abstract class TempBlockDropMixin {
     @Inject(method = "dropResources(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/LevelAccessor;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/entity/BlockEntity;)V",
             at = @At("HEAD"), cancellable = true)
     private static void nightsiege$noDropAt(BlockState state, LevelAccessor level, BlockPos pos, BlockEntity be, CallbackInfo ci) {
-        if (level instanceof Level real && !real.isClientSide() && (TempBlocks.isTemp(real, pos) || TrapService.kitTrapAt(real, pos))) {
+        if (level instanceof Level real && !real.isClientSide() && (TempBlocks.isTemp(real, pos) || TrapService.kitTrapAt(real, pos, state))) {
             ci.cancel();
         }
     }
@@ -44,7 +44,7 @@ public abstract class TempBlockDropMixin {
             at = @At("HEAD"), cancellable = true)
     private static void nightsiege$noDropBy(BlockState state, Level level, BlockPos pos, BlockEntity be, Entity breaker,
                                             ItemStack tool, CallbackInfo ci) {
-        if (level != null && !level.isClientSide() && (TempBlocks.isTemp(level, pos) || TrapService.kitTrapAt(level, pos))) {
+        if (level != null && !level.isClientSide() && (TempBlocks.isTemp(level, pos) || TrapService.kitTrapAt(level, pos, state))) {
             ci.cancel();
         }
     }

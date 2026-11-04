@@ -275,6 +275,9 @@ public final class NightDamage {
         if (level != null && !level.isClientSide() && TempBlocks.isTemp(level, pos)) {
             return true;   // a night block (kit torch, ladder, barricade) never drops, a creeper's blast neither (31.10.)
         }
+        if (level != null && !level.isClientSide() && TrapService.kitTrapAt(level, pos, level.getBlockState(pos))) {
+            return true;   // a kit trap (free trap of the night) neither, blown up or knocked down (04.11.)
+        }
         if (world == null || level != world || quiet > 0) {
             return false;
         }

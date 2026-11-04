@@ -229,9 +229,12 @@ public final class TrapService {
         return record != null && record.kit;
     }
 
-    /** For the drop mixin: whether the block here is a kit trap of the running server. */
-    public static boolean kitTrapAt(net.minecraft.world.level.Level level, BlockPos pos) {
-        if (!(level instanceof ServerLevel server) || ModContent.trapOf(server.getBlockState(pos)) == null) {
+    /**
+     * For the drop mixin: whether {@code state} (the block that goes, already gone from the world when a
+     * player mines it) is a kit trap here; its record goes only after the drop.
+     */
+    public static boolean kitTrapAt(net.minecraft.world.level.Level level, BlockPos pos, BlockState state) {
+        if (!(level instanceof ServerLevel server) || state == null || ModContent.trapOf(state) == null) {
             return false;
         }
         SiegeManager m = SiegeManager.get();
