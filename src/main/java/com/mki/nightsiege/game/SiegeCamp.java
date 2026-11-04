@@ -115,8 +115,13 @@ public final class SiegeCamp {
     private long burnUntil = -1L;
     /** The ready round at the war drum, or null. */
     private StartRound round;
-    /** Tests and the playtest: whoever steps inside joins (no ready round). */
+    /**
+     * The playtest: once the fight is on, whoever it brings inside joins. Since Playtest 2 (Simon 04.11.
+     * 23:28) the fight begins with the ready round at the start stone there too, with all its players.
+     */
     private boolean openEntry;
+    /** When each player was last told how the gate opens (game time). */
+    private final Map<UUID, Long> toldGate = new HashMap<>();
     /** Where each fighter last stood inside (who gets out is put back there). */
     private final Map<UUID, Vec3> lastInside = new HashMap<>();
     /** The iron bars in the gate while a fight is on. */
@@ -232,9 +237,11 @@ public final class SiegeCamp {
             return;
         }
         if (now % 5 == 0) {
-            if (openEntry) {
-                checkEntries(level, camp, center, now);
-            } else if (!fighters.isEmpty()) {
+            if (fighters.isEmpty()) {
+                holdGate(level, camp, center, now);   // shut until the round is ready (Playtest 2), the playtest too
+            } else if (openEntry) {
+                checkEntries(level, camp, center, now);   // the playtest brings the late ones to the fight
+            } else {
                 keepOut(level, camp, center);
             }
         }
@@ -856,9 +863,88 @@ public final class SiegeCamp {
 
     // ------------------------------------------------------------------ the ready round (the war drum)
 
-    /** Tests and the playtest: whoever steps inside joins, without the ready round. */
+    /** The playtest: the late ones it brings in join the fight; its round takes all its players (see {@link #openEntry}). */
     public void openEntry(boolean value) {
         openEntry = value;
+    }
+
+    /** The playtest's round: all its players online, wherever they stand. */
+    private boolean playtestRound() {
+        return openEntry && m.playtest().running();
+    }
+
+    /**
+     * The way in is shut until the ready round at the start stone is complete (Playtest 2, Simon 04.11.
+     * 23:28: "Der Start-Block für Heerlager und Dungeon funktioniert nicht richtig, da man einfach dran
+     * vorbeilaufen kann. Es sollte eine Barriere geben, bis alle am Block bereit gemacht haben"). While no
+     * fight is on, iron bars stand in the palisade's gate (temporary blocks: they never stay), whoever is
+     * inside the palisade without fighting is put before the gate, and one standing at the gate learns how
+     * it opens. When all are ready they are put inside and the fight's bars shut the forecourt as well
+     * (startFight); after the fight the barrier stands again.
+     */
+    private void holdGate(ServerLevel level, SiegeSave.CampRecord camp, BlockPos center, long now) {
+        if (camp.destroyed) {
+            return;
+        }
+        boolean shut = false;
+        for (BlockPos pos : CampLayout.gate(center, camp.facing)) {
+            if (!Expeditions.loaded(level, pos.getX() >> 4, pos.getZ() >> 4) || level.getBlockState(pos).is(Blocks.IRON_BARS)) {
+                continue;
+            }
+            if (!level.getEntitiesOfClass(Player.class, new AABB(pos)).isEmpty()) {
+                continue;   // nobody is shut into the bars: next time
+            }
+            shut |= TempBlocks.place(level, pos, Blocks.IRON_BARS.defaultBlockState());   // (not the lantern under the beam)
+        }
+        if (shut) {
+            BlockPos mid = CampLayout.world(center, camp.facing, 0, 1, CampLayout.GATE_Z);
+            level.playSound(null, mid, SoundEvents.CHAIN_PLACE, SoundSource.BLOCKS, 1.2f, 0.6f);
+        }
+        BlockPos before = CampLayout.outsideGate(center, camp.facing);
+        for (ServerPlayer p : level.players()) {
+            if (p.isSpectator() || p.getAbilities().instabuild || Drones.isDrone(p) || !p.isAlive()
+                    || Math.abs(p.getY() - center.getY()) > 10) {
+                continue;
+            }
+            double dx = p.getX() - (center.getX() + 0.5);
+            double dz = p.getZ() - (center.getZ() + 0.5);
+            if (dx * dx + dz * dz <= CampLayout.INSIDE * CampLayout.INSIDE) {
+                // Over the palisade, logged in inside, or inside before the gate shut: out before the gate.
+                p.teleportTo(level, before.getX() + 0.5, before.getY(), before.getZ() + 0.5, java.util.Set.of(), p.getYRot(),
+                        p.getXRot(), true);
+                p.resetFallDistance();
+                p.connection.send(new net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket(
+                        Component.translatable("nightsiege.camp.shut").withStyle(ChatFormatting.YELLOW)));
+                NightSiegeMod.LOGGER.info("[Night Siege] {} vor das Tor des Heerlagers gebracht (noch keine fertige Bereit-Runde)",
+                        p.getScoreboardName());
+                continue;
+            }
+            int[] l = CampLayout.local(center, camp.facing, p.blockPosition());
+            if (!m.isRegistered(p) || Math.abs(l[0]) > 3 || l[1] < CampLayout.GATE_Z || l[1] > CampLayout.GATE_Z + 3) {
+                continue;
+            }
+            Long told = toldGate.get(p.getUUID());
+            if (told != null && now - told < 60) {
+                continue;
+            }
+            toldGate.put(p.getUUID(), now);
+            Component text = round == null ? Component.translatable("nightsiege.camp.gate_hint")
+                    : Component.translatable("nightsiege.camp.gate_wait", round.readyCount(), round.size());
+            p.connection.send(new net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket(
+                    text.copy().withStyle(ChatFormatting.YELLOW)));
+        }
+    }
+
+    /** The barrier's bars go (the camp goes, burns or its fight is broken off): by their places, none stays behind. */
+    private static void openBarrier(ServerLevel level, SiegeSave.CampRecord camp) {
+        if (camp == null || !camp.built) {
+            return;
+        }
+        for (BlockPos pos : CampLayout.gate(new BlockPos(camp.x, camp.y, camp.z), camp.facing)) {
+            if (TempBlocks.isTemp(level, pos)) {
+                TempBlocks.remove(level, pos);
+            }
+        }
     }
 
     /** True for a member of the ready round (for the class window). */
@@ -928,13 +1014,16 @@ public final class SiegeCamp {
             return true;
         }
         StartRound r = new StartRound(id, drum, level.getGameTime());
+        // The playtest's round (Playtest 2, Simon 04.11.): all its players online, wherever they stand.
+        boolean all = playtestRound();
         for (ServerPlayer other : level.players()) {
             if (other != player && m.isRegistered(other) && !other.isSpectator() && !Drones.isDrone(other)
                     && !other.getAbilities().instabuild && m.save().skillsOf(other.getUUID().toString()).hasClass()
-                    && r.near(other, level)) {
+                    && (all ? other.isAlive() && m.playtest().takesPart(other.getUUID()) : r.near(other, level))) {
                 r.add(other.getUUID());
             }
         }
+        r.anywhere = all;
         round = r;
         Component text = Component.translatable("nightsiege.camp.round_open", player.getDisplayName()).withStyle(ChatFormatting.GOLD);
         for (UUID member : r.members()) {
@@ -1475,6 +1564,7 @@ public final class SiegeCamp {
         ServerLevel level = camp == null ? null : SiegeManager.levelByName(server, camp.dimension);
         if (level != null) {
             openGate(level);
+            openBarrier(level, camp);   // (Playtest 2) it stands again with the next tick if the camp stays
         }
     }
 
