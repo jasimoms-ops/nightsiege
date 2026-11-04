@@ -373,7 +373,7 @@ final class Pt2DungeonScenes {
                     manager.onChooseClass(player, "WARRIOR");
                 }
                 manager.camp().openEntry(playtest);
-                manager.camp().testCamp(level, new BlockPos(cx, cy, cz), 0, 999_990L - mode);
+                manager.camp().testCamp(level, new BlockPos(cx, cy, cz), 0, playtest ? 999_989L : 999_990L);
                 log("lager gebaut (" + tag + "): " + manager.camp().testRound(level));
             });
             context.waitTicks(20);
