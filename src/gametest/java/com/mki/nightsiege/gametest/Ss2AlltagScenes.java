@@ -498,12 +498,12 @@ final class Ss2AlltagScenes {
         context.waitTicks(4);
         EventLookTest.onServer(context, (player, manager) -> {
             ServerLevel level = (ServerLevel) player.level();
-            for (net.minecraft.world.entity.LightningBolt b : BOLTS) {
-                log("THUNDER bolt set on fire=" + b.getBlocksSetOnFire() + " removed=" + b.isRemoved());
-            }
+            int plainLit = BOLTS.size() > 0 ? BOLTS.get(0).getBlocksSetOnFire() : -1;
+            int stormLit = BOLTS.size() > 1 ? BOLTS.get(1).getBlocksSetOnFire() : -1;
             BOLTS.clear();
-            log("THUNDER lightning fire: without the event=" + fires(level, plainBolt) + " in the thunder night=" + fires(level, stormBolt)
-                    + " (expected some / 0; without the event 0 means fire is off in this world)");
+            log("THUNDER lightning set on fire: without the event=" + plainLit + " in the thunder night=" + stormLit
+                    + " (fire blocks now " + fires(level, plainBolt) + " / " + fires(level, stormBolt)
+                    + "; expected more than 0 / 0)");
             com.mki.nightsiege.game.EventAtmosphere.setServer(SiegeManager.dimensionName(level), "", 1);
         });
         game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air replace minecraft:fire".formatted(
