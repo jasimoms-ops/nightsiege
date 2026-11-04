@@ -237,7 +237,7 @@ final class Pt2FlowScenes {
             m.playtest().skip(player.level().getServer());
         });
         context.waitTicks(40);
-        String at = waitFor(context, 150, "interlude");
+        final String at = waitFor(context, 150, "interlude");
         server(context, "interlude", (player, m) -> {
             String kind = m.playtest().interlude();
             String built = m.save().expedition == null ? "-" : m.save().expedition.kind;
@@ -283,11 +283,11 @@ final class Pt2FlowScenes {
             m.playtest().skip(player.level().getServer());
         });
         context.waitTicks(40);
-        at = waitFor(context, 150, "interlude");
+        final String atAgain = waitFor(context, 150, "interlude");
         server(context, "interlude again", (player, m) -> {
             String built = m.save().expedition == null ? "-" : m.save().expedition.kind;
             log("part 1 again: phase=" + m.playtest().phase() + " " + m.playtest().interlude() + " built=" + built);
-            check("interlude".equals(m.playtest().phase()) && partStands(m), "the same part is played again (" + at + ")");
+            check("interlude".equals(m.playtest().phase()) && partStands(m), "the same part is played again (" + atAgain + ")");
             check(!"dungeon".equals(m.playtest().interlude()) || m.playtest().dungeonPlan().get(0).equals(built),
                     "again the planned dungeon kind");
             m.playtest().skip(player.level().getServer());   // the part ends
@@ -390,6 +390,7 @@ final class Pt2FlowScenes {
 
         // The end: everything back.
         server(context, "end", (player, m) -> {
+            Playtest.testAway = false;
             m.playtest().finish(player.level().getServer(), "nightsiege.playtest.stopped");
             SiegeConfig cfg = m.config();
             @SuppressWarnings("unchecked")
