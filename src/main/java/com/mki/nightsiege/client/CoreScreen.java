@@ -926,7 +926,8 @@ public class CoreScreen extends Screen {
                         : running ? Component.translatable("nightsiege.ui.war_running", stats.warLeader)
                         : Component.translatable("nightsiege.ui.war_start");
                 int ww = Math.max(90, font.width(war) + 12);
-                if (bx + ww > rightLimit) {
+                int sandW = running ? 0 : Math.max(54, font.width(Component.translatable("nightsiege.ui.war_sandbox")) + 12) + 4;
+                if (bx + ww + sandW > rightLimit) {
                     war = Component.translatable("nightsiege.ui.war_short");
                     ww = Math.max(60, font.width(war) + 12);
                 }

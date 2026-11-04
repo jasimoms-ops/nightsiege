@@ -10583,6 +10583,8 @@ public class EventLookTest implements FabricClientGameTest {
             }
         });
         context.waitTicks(200);
+        context.runOnClient(client -> System.out.println("[Night Siege test] war sandbox picked=" + machineSquad[0] + " screen="
+                + (client.gui.screen() instanceof com.mki.nightsiege.client.WarLeaderScreen w ? w.testSquad() : -2)));
         context.takeScreenshot("war_09_sandbox");
         onServer(context, (player, manager) -> {
             System.out.println("[Night Siege test] war sandbox later: round=" + manager.isWarRound() + " active=" + manager.isActive()

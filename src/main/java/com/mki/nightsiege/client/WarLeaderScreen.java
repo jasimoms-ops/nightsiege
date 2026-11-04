@@ -944,6 +944,11 @@ public class WarLeaderScreen extends Screen {
             }
             String label = shortName(q.item) + (q.machine ? "" : " " + q.alive);
             small(gui, font, label, s[0] + 5, s[1] - 3, sel ? GOLD : color, 0.55f);
+        }
+        // Where the machines shoot: a red cross (also when the machine itself is off the screen).
+        for (WarLeaderData.Squad q : data.squads) {
+            boolean sel = q.id == squad;
+            int[] s = "coming".equals(q.order) ? null : project(q.x, groundY(q.x, q.z), q.z);
             if (q.machine && q.aimed) {
                 // Where it shoots: a red cross, a thin line from the machine when it is picked.
                 int[] a = project(q.aimX, groundY(q.aimX, q.aimZ), q.aimZ);
@@ -951,7 +956,7 @@ public class WarLeaderScreen extends Screen {
                     gui.fill(a[0] - 4, a[1], a[0] + 5, a[1] + 1, RED);
                     gui.fill(a[0], a[1] - 4, a[0] + 1, a[1] + 5, RED);
                     frame(gui, a[0] - 3, a[1] - 3, a[0] + 4, a[1] + 4, sel ? GOLD : 0xC0FF3030);
-                    if (sel) {
+                    if (sel && s != null) {
                         int steps = 12;
                         for (int k = 1; k < steps; k++) {
                             int px = s[0] + (a[0] - s[0]) * k / steps;
@@ -1133,7 +1138,7 @@ public class WarLeaderScreen extends Screen {
         boolean overG = mouseX >= x0 + 4 && mouseX < x0 + 4 + half && mouseY >= by && mouseY < by + 12;
         boolean overS = mouseX >= x0 + 8 + half && mouseX < x0 + 8 + 2 * half && mouseY >= by && mouseY < by + 12;
         WarLeaderData.Squad picked = squad >= 0 ? squadById(squad) : null;
-        String gatherLabel = tr(picked != null && picked.machine ? "nightsiege.war.btn_free" : "nightsiege.war.btn_gather");
+        String gatherLabel = tr(picked != null && picked.machine ? "nightsiege.war.btn_free" : "nightsiege.war.btn_gather_short");
         PurpleUi.button(gui, font, x0 + 4, by, half, 12, gatherLabel, squad >= 0, overG, false);
         PurpleUi.button(gui, font, x0 + 8 + half, by, half, 12, tr("nightsiege.war.btn_storm"), true, overS, true);
         if (data.defenders.isEmpty()) {
@@ -1313,6 +1318,10 @@ public class WarLeaderScreen extends Screen {
 
     public void testMenu(boolean open) {
         menu = open;
+    }
+
+    public int testSquad() {
+        return squad;
     }
 
     public String testPhase() {
