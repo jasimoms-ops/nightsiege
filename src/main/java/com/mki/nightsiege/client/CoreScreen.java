@@ -78,6 +78,8 @@ public class CoreScreen extends Screen {
         SCOUT(null, "minecraft:filled_map", "minecraft:textures/block/spruce_planks.png", 0xFFE8C77A, "scout"),
         // The curse altar and the wanted posters of the nemeses (update 2 "Fluch & Rache", 28 October 2026).
         CURSE(null, "minecraft:wither_skeleton_skull", "minecraft:textures/block/nether_bricks.png", 0xFFE0506A, "curse"),
+        // The kit page (update 6, 4 November 2026): the kit of each own class, crate items for the hotbar, gain keys.
+        KIT(null, "minecraft:iron_chestplate", "minecraft:textures/block/spruce_planks.png", 0xFF9CC4FF, "kit"),
         // The Ruhmeshalle (31 October 2026): podium, chronicles, badges, curiosities, bestiary.
         HALL(null, "minecraft:golden_helmet", "minecraft:textures/block/deepslate_bricks.png", 0xFFFFC94A, "hall");
 
@@ -805,7 +807,7 @@ public class CoreScreen extends Screen {
             }
         }
         applyShownProfile();
-        boolean big = activeTab == Tab.CLASSES || activeTab == Tab.HALL
+        boolean big = activeTab == Tab.CLASSES || activeTab == Tab.HALL || activeTab == Tab.KIT
                 || (activeTab.clazz != null && stats.skillsEnabled && isGrid(activeTab.clazz.name()));
         // The start page gets room for the profile list next to its cards.
         boolean wideStats = activeTab == Tab.STATS && hasClass() || activeTab == Tab.SCOUT || activeTab == Tab.CURSE;
@@ -926,6 +928,13 @@ public class CoreScreen extends Screen {
             }
         }
 
+        if (activeTab == Tab.KIT) {
+            // The kit page asks the server for the kit of the class shown (again after a few seconds).
+            if (KitPages.wantsData()) {
+                send(KitPages.request(stats == null ? null : stats.myClass));
+            }
+            return;
+        }
         if (activeTab == Tab.HALL) {
             // The Ruhmeshalle asks the server for its data (again after a few seconds).
             if (HallPages.wantsData()) {
@@ -2256,6 +2265,10 @@ public class CoreScreen extends Screen {
                 && HallPages.click(event.x(), event.y())) {
             return true;
         }
+        if (activeTab == Tab.KIT && confirming == null && !confirmingReset && !choosingUnlock
+                && KitPages.click(event.x(), event.y())) {
+            return true;
+        }
         // The class banner on an own class card (update 6): a click fetches it, once a Minecraft day.
         if (activeTab == Tab.CLASSES && confirming == null && !confirmingReset && !choosingUnlock && bannerTip != null
                 && bannerHover != null) {
@@ -2310,6 +2323,9 @@ public class CoreScreen extends Screen {
 
     @Override
     public boolean mouseReleased(net.minecraft.client.input.MouseButtonEvent event) {
+        if (activeTab == Tab.KIT && KitPages.release(event.x(), event.y())) {
+            return true;
+        }
         if (panning) {
             panning = false;
             if (panned < 3 && selectedId != null && gridAt(event.x(), event.y()) == null) {
@@ -2442,6 +2458,8 @@ public class CoreScreen extends Screen {
             curseTip = drawCurses(gui, font, mouseX, mouseY);
         } else if (activeTab == Tab.HALL) {
             hallTip = HallPages.draw(gui, font, innerX(), innerY(), innerW(), innerH(), mouseX, mouseY, this::send);
+        } else if (activeTab == Tab.KIT) {
+            kitTip = KitPages.draw(gui, font, innerX(), innerY(), innerW(), innerH(), mouseX, mouseY, this::send);
         } else if (activeTab == Tab.COLLECTION) {
             hoveredGain = drawCollection(gui, font, mouseX, mouseY);
         } else if (!stats.skillsEnabled) {
@@ -2487,12 +2505,17 @@ public class CoreScreen extends Screen {
                 tooltip(gui, font, hallTip, mouseX, mouseY);
             } else if (bannerTip != null && activeTab == Tab.CLASSES) {
                 tooltip(gui, font, bannerTip, mouseX, mouseY);
+            } else if (kitTip != null && activeTab == Tab.KIT) {
+                gui.nextStratum();   // above the items
+                tooltip(gui, font, kitTip, mouseX, mouseY);
             }
         }
     }
 
     /** The tooltip of the Ruhmeshalle under the mouse (drawn last). */
     private List<String> hallTip;
+    /** The tooltip of the kit page under the mouse (update 6). */
+    private List<String> kitTip;
 
     private Tab tabAt(int mouseX, int mouseY) {
         Tab[] tabs = visibleTabs();
@@ -2526,6 +2549,9 @@ public class CoreScreen extends Screen {
         }
         if (tab == Tab.HALL) {
             return Component.translatable("nightsiege.ui.banner_title.hall").getString();
+        }
+        if (tab == Tab.KIT) {
+            return Component.translatable("nightsiege.ui.banner_title.kit").getString();
         }
         return Component.translatable(tab.clazz.translationKey()).getString();
     }
@@ -2634,6 +2660,9 @@ public class CoreScreen extends Screen {
         }
         if (tab == Tab.HALL) {
             return Component.translatable("nightsiege.ui.banner_title.hall").getString();
+        }
+        if (tab == Tab.KIT) {
+            return Component.translatable("nightsiege.ui.banner_title.kit").getString();
         }
         return Component.translatable(tab.clazz.translationKey()).getString();
     }
@@ -3224,6 +3253,11 @@ public class CoreScreen extends Screen {
         }
         if (activeTab == Tab.HALL) {
             String foot = font.plainSubstrByWidth(Component.translatable("nightsiege.hall.footer").getString(), W - 90);
+            gui.text(font, foot, left + 10, top + H - 19, TITLE, false);
+            return;
+        }
+        if (activeTab == Tab.KIT) {
+            String foot = font.plainSubstrByWidth(Component.translatable("nightsiege.kitpage.footer").getString(), W - 90);
             gui.text(font, foot, left + 10, top + H - 19, TITLE, false);
             return;
         }
