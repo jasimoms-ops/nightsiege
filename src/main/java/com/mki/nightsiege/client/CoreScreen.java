@@ -931,9 +931,14 @@ public class CoreScreen extends Screen {
                     war = Component.translatable("nightsiege.ui.war_short");
                     ww = Math.max(60, font.width(war) + 12);
                 }
+                if (bx + ww + sandW > rightLimit && !stats.warMine) {
+                    war = Component.literal("⚔");   // narrow: the sword alone, the tooltip says what it is
+                    ww = 22;
+                }
                 if (bx + ww <= rightLimit) {
                     Component tip = stats.warMine ? Component.translatable("nightsiege.ui.war_mine_hint")
-                            : free ? Component.translatable("nightsiege.ui.war_hint")
+                            : free ? Component.translatable("nightsiege.ui.war_start").copy().append("\n")
+                            .append(Component.translatable("nightsiege.ui.war_hint"))
                             : running ? Component.translatable("nightsiege.ui.war_running_hint", stats.warLeader)
                             : Component.translatable(stats.warBlock);
                     Button wb = Button.builder(war, b -> {
