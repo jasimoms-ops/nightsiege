@@ -70,6 +70,12 @@ final class KitPages {
     private static final Map<String, int[]> ownedAbilities = new LinkedHashMap<>();
     private static int[] autoButton;
     private static int[] optionsArea;
+    /** The tab of the right side: 0 crate items, 1 always along, 2 gain keys. */
+    private static int rightTab;
+    private static final Map<Integer, int[]> rightTabs = new LinkedHashMap<>();
+    private static int[] listArea;
+    private static int listScroll;
+    private static int listMax;
 
     private static final int GOLD = 0xFFFFD86B;
     private static final int RED = 0xFFE05A5A;
@@ -161,13 +167,12 @@ final class KitPages {
         String lvl = tr("nightsiege.kitpage.level", view.level);
         gui.text(font, lvl, x + w - 4 - font.width(lvl), y + 5, PurpleUi.GREY, true);
 
-        // Left: armour, the inventory and the hotbar.
+        // Left: armour, the inventory and the hotbar (vanilla's 18-pixel slots, 20 when there is room).
         int top = y + 22;
-        int leftW = Math.min(w * 3 / 5, 300);
-        slotSize = Math.max(16, Math.min(22, (leftW - 30) / 10));
+        slotSize = h >= 210 && w >= 420 ? 20 : 18;
         int s = slotSize;
-        int gx = x + 6 + s + 8;
-        gui.text(font, tr("nightsiege.kitpage.inventory"), gx, top, PurpleUi.LIGHT, true);
+        int gx = x + 6 + s + 6;
+        gui.text(font, font.plainSubstrByWidth(tr("nightsiege.kitpage.inventory"), 9 * s), gx, top, PurpleUi.LIGHT, true);
         int iy = top + 11;
         for (int i = 9; i < KitArrange.SLOTS; i++) {
             int col = (i - 9) % 9;
@@ -175,15 +180,15 @@ final class KitPages {
             slotX[i] = gx + col * s;
             slotY[i] = iy + row * s;
         }
-        int hy = iy + 3 * s + 14;
-        gui.text(font, tr("nightsiege.kitpage.hotbar"), gx, hy - 11, GOLD, true);
+        int hy = iy + 3 * s + 13;
+        gui.text(font, font.plainSubstrByWidth(tr("nightsiege.kitpage.hotbar"), 9 * s), gx, hy - 11, GOLD, true);
         for (int i = 0; i < 9; i++) {
             slotX[i] = gx + i * s;
             slotY[i] = hy;
         }
         // the hotbar's gold frame
-        gui.fill(gx - 2, hy - 2, gx + 9 * s + 2, hy + s + 2, 0xFF8A6A2A);
-        gui.fill(gx - 1, hy - 1, gx + 9 * s + 1, hy + s + 1, 0xFF1A1622);
+        gui.fill(gx - 2, hy - 2, gx + 9 * s + 1, hy + s + 1, 0xFF8A6A2A);
+        gui.fill(gx - 1, hy - 1, gx + 9 * s, hy + s, 0xFF1A1622);
         for (int i = 0; i < KitArrange.SLOTS; i++) {
             boolean hover = in(mouseX, mouseY, slotX[i], slotY[i], s, s);
             boolean crate = !gains[i].isEmpty();
@@ -226,144 +231,53 @@ final class KitPages {
                 tip = List.of(offhand.getHoverName().getString(), "§8" + tr("nightsiege.kitpage.fixed_offhand"));
             }
         }
-        // Under the hotbar: how many places are free, and "automatic".
+        // Under the hotbar: how many places are free, the state, and "automatic" on the right.
         int free = 0;
         for (int i = 0; i < 9; i++) {
             if (stacks[i].isEmpty()) {
                 free++;
             }
         }
-        int ly = hy + s + 6;
-        small(gui, font, tr("nightsiege.kitpage.free", free), gx, ly, free > 0 ? PurpleUi.LIGHT : PurpleUi.GREY, 0.8f);
-        String state = tr(view.chosen ? "nightsiege.kitpage.state_chosen" : "nightsiege.kitpage.state_auto");
-        small(gui, font, state, gx, ly + 9, view.chosen ? GREEN : PurpleUi.GREY, 0.8f);
+        int ly = hy + s + 5;
         String auto = tr("nightsiege.kitpage.auto");
         int aw = font.width(auto) + 12;
         int axb = gx + 9 * s - aw;
+        int textW = (int) ((axb - 4 - gx) / 0.8f);
+        small(gui, font, font.plainSubstrByWidth(tr("nightsiege.kitpage.free", free), textW), gx, ly, free > 0 ? PurpleUi.LIGHT : PurpleUi.GREY, 0.8f);
+        String state = tr(view.chosen ? "nightsiege.kitpage.state_chosen" : "nightsiege.kitpage.state_auto");
+        small(gui, font, font.plainSubstrByWidth(state, textW), gx, ly + 8, view.chosen ? GREEN : PurpleUi.GREY, 0.8f);
         boolean ah = in(mouseX, mouseY, axb, ly, aw, 14);
         PurpleUi.button(gui, font, axb, ly, aw, 14, auto, view.chosen, ah, false);
         autoButton = new int[]{axb, ly, aw, 14};
         if (ah) {
             tip = List.of(auto, "§7" + tr("nightsiege.kitpage.auto_tip"));
         }
-        if (!message.isEmpty() && System.currentTimeMillis() - messageAt < 5000) {
-            small(gui, font, font.plainSubstrByWidth(message, (int) ((leftW + 40) / 0.8f)), x + 6, ly + 20, messageColor, 0.8f);
+        if (!message.isEmpty() && System.currentTimeMillis() - messageAt < 5000 && ly + 26 < y + h) {
+            small(gui, font, font.plainSubstrByWidth(message, (int) ((9 * s + s + 6) / 0.8f)), x + 6, ly + 18, messageColor, 0.8f);
         }
 
-        // Right: the crate items, the gains that always count, the gain keys.
-        int rx = x + 6 + leftW + 30;
-        int rw = x + w - 6 - rx;
-        if (rw < 120) {
-            rx = x + w - 126;
-            rw = 120;
+        // Right: three small tabs (crate items, always along, gain keys).
+        int rx = gx + 9 * s + 12;
+        int rw = x + w - 4 - rx;
+        String[] tabs = {"nightsiege.kitpage.tab_crate", "nightsiege.kitpage.tab_passive", "nightsiege.kitpage.tab_keys"};
+        int tw = (rw - 4) / 3;
+        rightTabs.clear();
+        for (int k = 0; k < 3; k++) {
+            int tx = rx + k * (tw + 2);
+            String label = font.plainSubstrByWidth(tr(tabs[k]), tw - 6);
+            boolean on = k == rightTab;
+            boolean hover = in(mouseX, mouseY, tx, top - 1, tw, 13);
+            PurpleUi.button(gui, font, tx, top - 1, tw, 13, label, true, hover, on);
+            rightTabs.put(k, new int[]{tx, top - 1, tw, 13});
         }
-        int ry = top;
-        gui.text(font, tr("nightsiege.kitpage.crate_head"), rx, ry, GOLD, true);
-        ry += 11;
-        int listTop = ry;
-        if (view.options.isEmpty()) {
-            small(gui, font, tr("nightsiege.kitpage.crate_none"), rx, ry, PurpleUi.GREY, 0.8f);
-            ry += 10;
-        }
-        for (KitPageView.Option o : view.options) {
-            boolean taken = taken(o.gain);
-            int rowH = 18;
-            boolean hover = in(mouseX, mouseY, rx, ry, rw, rowH);
-            gui.fill(rx, ry, rx + rw, ry + rowH - 1, hover ? 0xFF2A2436 : taken ? 0xFF1E2A1C : 0xFF16131D);
-            gui.fill(rx, ry, rx + 2, ry + rowH - 1, rarityColor(o.gain));
-            List<ItemStack> list = optionStacks.getOrDefault(o.gain, List.of());
-            if (!list.isEmpty() && !(dragOption != null && dragOption.equals(o.gain))) {
-                gui.item(list.get(0), rx + 4, ry + 1);
-            }
-            String name = tr("nightsiege.gain." + o.gain);
-            String places = list.size() > 1 ? " · " + tr("nightsiege.kitpage.places", list.size()) : "";
-            String st = tr(taken ? "nightsiege.kitpage.in_hotbar" : "nightsiege.kitpage.at_home");
-            int stw = (int) (font.width(st) * 0.7f);
-            gui.text(font, font.plainSubstrByWidth(name + places, rw - 26 - stw - 4), rx + 23, ry + 5, taken ? 0xFFFFFFFF : PurpleUi.LIGHT, true);
-            small(gui, font, st, rx + rw - 3 - stw, ry + 6, taken ? GREEN : PurpleUi.DIM, 0.7f);
-            optionRows.put(o.gain, new int[]{rx, ry, rw, rowH});
-            if (hover && dragSlot < 0 && dragOption == null) {
-                List<String> t = new ArrayList<>();
-                t.add(name);
-                String desc = "nightsiege.gain." + o.gain + ".desc";
-                if (net.minecraft.locale.Language.getInstance().has(desc)) {
-                    t.add("§7" + tr(desc));
-                }
-                t.add("§8" + tr(taken ? "nightsiege.kitpage.click_home" : "nightsiege.kitpage.click_take"));
-                tip = t;
-            }
-            ry += rowH;
-        }
-        optionsArea = new int[]{rx, listTop, rw, Math.max(18, ry - listTop)};
-        ry += 6;
-        // The gains that always count.
-        if (!view.passive.isEmpty()) {
-            gui.text(font, tr("nightsiege.kitpage.passive_head"), rx, ry, PurpleUi.LIGHT, true);
-            ry += 11;
-            int px = rx;
-            for (String g : view.passive) {
-                if (px + 18 > rx + rw) {
-                    px = rx;
-                    ry += 18;
-                }
-                gui.fill(px, ry, px + 17, ry + 17, rarityColor(g));
-                gui.fill(px + 1, ry + 1, px + 16, ry + 16, 0xFF0E0C14);
-                gui.item(CoreScreen.iconOf(CrateGains.icon(g)), px + 1, ry + 1);
-                if (in(mouseX, mouseY, px, ry, 17, 17)) {
-                    List<String> t = new ArrayList<>();
-                    t.add(tr("nightsiege.gain." + g));
-                    String desc = "nightsiege.gain." + g + ".desc";
-                    if (net.minecraft.locale.Language.getInstance().has(desc)) {
-                        t.add("§7" + tr(desc));
-                    }
-                    t.add("§8" + tr("nightsiege.kitpage.passive_tip"));
-                    tip = t;
-                }
-                px += 19;
-            }
-            ry += 22;
-        }
-        // The gain keys.
-        if (view.keyCount > 0 && (!view.keyOwned.isEmpty() || !view.keys.isEmpty())) {
-            gui.text(font, tr("nightsiege.kitpage.keys_head"), rx, ry, PurpleUi.LIGHT, true);
-            ry += 11;
-            String[] letters = {"N", "M", "J"};
-            int kx = rx;
-            for (int k = 0; k < view.keyCount; k++) {
-                String id = k < view.keys.size() ? view.keys.get(k) : "";
-                boolean hover = in(mouseX, mouseY, kx, ry, 30, 20);
-                gui.fill(kx, ry, kx + 30, ry + 20, id.isEmpty() ? PurpleUi.LINE : GOLD);
-                gui.fill(kx + 1, ry + 1, kx + 29, ry + 19, hover ? 0xFF2A2436 : 0xFF0E0C14);
-                gui.text(font, letters[Math.min(2, k)], kx + 3, ry + 6, GOLD, true);
-                if (!id.isEmpty()) {
-                    gui.item(CoreScreen.iconOf(CrateGains.icon(id)), kx + 12, ry + 2);
-                    keyBoxes.put(id, new int[]{kx, ry, 30, 20});
-                    if (hover) {
-                        tip = List.of(tr("nightsiege.gain." + id), "§8" + tr("nightsiege.kitpage.key_remove"));
-                    }
-                }
-                kx += 34;
-            }
-            ry += 24;
-            int ox = rx;
-            for (String id : view.keyOwned) {
-                if (view.keys.contains(id)) {
-                    continue;
-                }
-                if (ox + 18 > rx + rw) {
-                    ox = rx;
-                    ry += 18;
-                }
-                boolean hover = in(mouseX, mouseY, ox, ry, 17, 17);
-                gui.fill(ox, ry, ox + 17, ry + 17, hover ? GOLD : PurpleUi.LINE);
-                gui.fill(ox + 1, ry + 1, ox + 16, ry + 16, 0xFF0E0C14);
-                gui.item(CoreScreen.iconOf(CrateGains.icon(id)), ox + 1, ry + 1);
-                ownedAbilities.put(id, new int[]{ox, ry, 17, 17});
-                if (hover) {
-                    tip = List.of(tr("nightsiege.gain." + id), "§8" + tr("nightsiege.kitpage.key_put"));
-                }
-                ox += 19;
-            }
+        int ry = top + 15;
+        int bottom = y + h - 2;
+        if (rightTab == 0) {
+            tip = crateList(gui, font, rx, ry, rw, bottom, mouseX, mouseY, tip);
+        } else if (rightTab == 1) {
+            tip = passiveList(gui, font, rx, ry, rw, mouseX, mouseY, tip);
+        } else {
+            tip = keyList(gui, font, rx, ry, rw, mouseX, mouseY, tip);
         }
 
         // What the mouse carries.
@@ -376,6 +290,161 @@ final class KitPages {
             gui.itemDecorations(font, carried, mouseX - 8, mouseY - 8);
         }
         return tip;
+    }
+
+    /** The crate items with a place of their own (scrolls when there are many). */
+    private static List<String> crateList(GuiGraphicsExtractor gui, Font font, int rx, int ry, int rw, int bottom,
+                                          int mouseX, int mouseY, List<String> tip) {
+        int listTop = ry;
+        listArea = new int[]{rx, listTop, rw, bottom - listTop};
+        optionsArea = listArea;
+        if (view.options.isEmpty()) {
+            small(gui, font, tr("nightsiege.kitpage.crate_none"), rx, ry, PurpleUi.GREY, 0.8f);
+            listMax = 0;
+            return tip;
+        }
+        int rowH = 16;
+        int content = view.options.size() * rowH;
+        listMax = Math.max(0, content - (bottom - listTop));
+        listScroll = Math.max(0, Math.min(listScroll, listMax));
+        gui.enableScissor(rx, listTop, rx + rw, bottom);
+        int yy = listTop - listScroll;
+        for (KitPageView.Option o : view.options) {
+            boolean taken = taken(o.gain);
+            boolean visible = yy + rowH > listTop && yy < bottom;
+            boolean hover = visible && in(mouseX, mouseY, rx, Math.max(yy, listTop), rw, Math.min(yy + rowH, bottom) - Math.max(yy, listTop));
+            gui.fill(rx, yy, rx + rw - (listMax > 0 ? 4 : 0), yy + rowH - 1, hover ? 0xFF2A2436 : taken ? 0xFF1E2A1C : 0xFF16131D);
+            gui.fill(rx, yy, rx + 2, yy + rowH - 1, rarityColor(o.gain));
+            List<ItemStack> list = optionStacks.getOrDefault(o.gain, List.of());
+            if (!list.isEmpty() && !(dragOption != null && dragOption.equals(o.gain))) {
+                gui.pose().pushMatrix();
+                gui.pose().translate(rx + 4, yy + 1);
+                gui.pose().scale(0.875f, 0.875f);
+                gui.item(list.get(0), 0, 0);
+                gui.pose().popMatrix();
+            }
+            String name = tr("nightsiege.gain." + o.gain);
+            String places = list.size() > 1 ? " ×" + list.size() : "";
+            String st = tr(taken ? "nightsiege.kitpage.in_hotbar" : "nightsiege.kitpage.at_home");
+            int stw = (int) (font.width(st) * 0.7f);
+            int nameRoom = rw - 22 - stw - 8 - (listMax > 0 ? 4 : 0);
+            gui.text(font, font.plainSubstrByWidth(name + places, nameRoom), rx + 20, yy + 4, taken ? 0xFFFFFFFF : PurpleUi.LIGHT, true);
+            small(gui, font, st, rx + rw - 4 - stw - (listMax > 0 ? 4 : 0), yy + 5, taken ? GREEN : PurpleUi.DIM, 0.7f);
+            if (visible) {
+                optionRows.put(o.gain, new int[]{rx, Math.max(yy, listTop), rw, Math.min(yy + rowH, bottom) - Math.max(yy, listTop)});
+            }
+            if (hover && dragSlot < 0 && dragOption == null) {
+                List<String> t = new ArrayList<>();
+                t.add(name + (list.size() > 1 ? " · " + tr("nightsiege.kitpage.places", list.size()) : ""));
+                String desc = "nightsiege.gain." + o.gain + ".desc";
+                if (net.minecraft.locale.Language.getInstance().has(desc)) {
+                    t.add("§7" + tr(desc));
+                }
+                t.add("§8" + tr(taken ? "nightsiege.kitpage.click_home" : "nightsiege.kitpage.click_take"));
+                tip = t;
+            }
+            yy += rowH;
+        }
+        gui.disableScissor();
+        if (listMax > 0) {
+            int track = bottom - listTop;
+            int knob = Math.max(10, track * track / content);
+            int ky = listTop + (int) ((track - knob) * (listScroll / (double) listMax));
+            gui.fill(rx + rw - 3, listTop, rx + rw - 1, bottom, 0x40FFFFFF);
+            gui.fill(rx + rw - 3, ky, rx + rw - 1, ky + knob, GOLD);
+        }
+        return tip;
+    }
+
+    /** The crate gains without a place of their own: they always count. */
+    private static List<String> passiveList(GuiGraphicsExtractor gui, Font font, int rx, int ry, int rw, int mouseX, int mouseY,
+                                            List<String> tip) {
+        small(gui, font, font.plainSubstrByWidth(tr("nightsiege.kitpage.passive_head"), (int) (rw / 0.8f)), rx, ry, PurpleUi.LIGHT, 0.8f);
+        ry += 10;
+        if (view.passive.isEmpty()) {
+            small(gui, font, tr("nightsiege.kitpage.passive_none"), rx, ry, PurpleUi.GREY, 0.8f);
+            return tip;
+        }
+        int px = rx;
+        for (String g : view.passive) {
+            if (px + 18 > rx + rw) {
+                px = rx;
+                ry += 19;
+            }
+            gui.fill(px, ry, px + 17, ry + 17, rarityColor(g));
+            gui.fill(px + 1, ry + 1, px + 16, ry + 16, 0xFF0E0C14);
+            gui.item(CoreScreen.iconOf(CrateGains.icon(g)), px + 1, ry + 1);
+            if (in(mouseX, mouseY, px, ry, 17, 17)) {
+                List<String> t = new ArrayList<>();
+                t.add(tr("nightsiege.gain." + g));
+                String desc = "nightsiege.gain." + g + ".desc";
+                if (net.minecraft.locale.Language.getInstance().has(desc)) {
+                    t.add("§7" + tr(desc));
+                }
+                t.add("§8" + tr("nightsiege.kitpage.passive_tip"));
+                tip = t;
+            }
+            px += 19;
+        }
+        return tip;
+    }
+
+    /** The gain keys N, M (J) and the abilities that may go on them. */
+    private static List<String> keyList(GuiGraphicsExtractor gui, Font font, int rx, int ry, int rw, int mouseX, int mouseY,
+                                        List<String> tip) {
+        if (view.keyOwned.isEmpty() && view.keys.isEmpty()) {
+            small(gui, font, font.plainSubstrByWidth(tr("nightsiege.kitpage.keys_none"), (int) (rw / 0.8f)), rx, ry, PurpleUi.GREY, 0.8f);
+            return tip;
+        }
+        String[] letters = {"N", "M", "J"};
+        int kx = rx;
+        for (int k = 0; k < view.keyCount; k++) {
+            String id = k < view.keys.size() ? view.keys.get(k) : "";
+            boolean hover = in(mouseX, mouseY, kx, ry, 30, 20);
+            gui.fill(kx, ry, kx + 30, ry + 20, id.isEmpty() ? PurpleUi.LINE : GOLD);
+            gui.fill(kx + 1, ry + 1, kx + 29, ry + 19, hover ? 0xFF2A2436 : 0xFF0E0C14);
+            gui.text(font, letters[Math.min(2, k)], kx + 3, ry + 6, GOLD, true);
+            if (!id.isEmpty()) {
+                gui.item(CoreScreen.iconOf(CrateGains.icon(id)), kx + 12, ry + 2);
+                keyBoxes.put(id, new int[]{kx, ry, 30, 20});
+                if (hover) {
+                    tip = List.of(tr("nightsiege.gain." + id), "§8" + tr("nightsiege.kitpage.key_remove"));
+                }
+            }
+            kx += 34;
+        }
+        ry += 25;
+        small(gui, font, font.plainSubstrByWidth(tr("nightsiege.kitpage.keys_owned"), (int) (rw / 0.8f)), rx, ry, PurpleUi.LIGHT, 0.8f);
+        ry += 10;
+        int ox = rx;
+        for (String id : view.keyOwned) {
+            if (view.keys.contains(id)) {
+                continue;
+            }
+            if (ox + 18 > rx + rw) {
+                ox = rx;
+                ry += 19;
+            }
+            boolean hover = in(mouseX, mouseY, ox, ry, 17, 17);
+            gui.fill(ox, ry, ox + 17, ry + 17, hover ? GOLD : PurpleUi.LINE);
+            gui.fill(ox + 1, ry + 1, ox + 16, ry + 16, 0xFF0E0C14);
+            gui.item(CoreScreen.iconOf(CrateGains.icon(id)), ox + 1, ry + 1);
+            ownedAbilities.put(id, new int[]{ox, ry, 17, 17});
+            if (hover) {
+                tip = List.of(tr("nightsiege.gain." + id), "§8" + tr("nightsiege.kitpage.key_put"));
+            }
+            ox += 19;
+        }
+        return tip;
+    }
+
+    /** The mouse wheel over the crate list. */
+    static boolean scroll(double mx, double my, double dy) {
+        if (rightTab != 0 || listArea == null || listMax <= 0 || !in(mx, my, listArea)) {
+            return false;
+        }
+        listScroll = (int) Math.max(0, Math.min(listMax, listScroll - dy * 12));
+        return true;
     }
 
     private static List<String> slotTip(int i) {
@@ -403,6 +472,13 @@ final class KitPages {
                     askedAt = System.currentTimeMillis();
                     sender.accept("kit:open:" + shown);
                 }
+                return true;
+            }
+        }
+        for (Map.Entry<Integer, int[]> e : rightTabs.entrySet()) {
+            if (in(mx, my, e.getValue())) {
+                rightTab = e.getKey();
+                listScroll = 0;
                 return true;
             }
         }

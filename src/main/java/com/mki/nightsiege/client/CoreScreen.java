@@ -2343,6 +2343,9 @@ public class CoreScreen extends Screen {
         if (activeTab == Tab.HALL && HallPages.scroll(x, y, scrollY)) {
             return true;
         }
+        if (activeTab == Tab.KIT && KitPages.scroll(x, y, scrollY)) {
+            return true;
+        }
         if (confirming == null && !confirmingReset && !choosingUnlock && scrollProfiles(x, y, scrollY)) {
             return true;
         }
@@ -3257,7 +3260,7 @@ public class CoreScreen extends Screen {
             return;
         }
         if (activeTab == Tab.KIT) {
-            String foot = font.plainSubstrByWidth(Component.translatable("nightsiege.kitpage.footer").getString(), W - 90);
+            String foot = font.plainSubstrByWidth(Component.translatable("nightsiege.kitpage.footer").getString(), W - 84);
             gui.text(font, foot, left + 10, top + H - 19, TITLE, false);
             return;
         }

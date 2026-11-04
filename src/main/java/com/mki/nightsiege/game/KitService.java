@@ -682,7 +682,8 @@ public final class KitService {
                 inv.setItem(i, ItemStack.EMPTY);
             }
         }
-        int[] slots = com.mki.nightsiege.core.KitArrange.place(things(kit), layoutOf(player, clazz), choiceOf(player, clazz));
+        List<String> choice = choiceOf(player, clazz);
+        int[] slots = com.mki.nightsiege.core.KitArrange.place(things(kit), layoutOf(player, clazz), choice);
         List<ItemStack> rest = new ArrayList<>();
         int home = 0;
         for (int i = 0; i < kit.size(); i++) {
@@ -691,7 +692,9 @@ public final class KitService {
             if (slot >= 0 && inv.getItem(slot).isEmpty()) {
                 inv.setItem(slot, stack);
             } else if (!gainOf(stack).isEmpty()) {
-                home++;   // a crate item without a hotbar place: not tonight
+                if (choice == null || choice.contains(gainOf(stack))) {
+                    home++;   // wanted, but without a hotbar place: not tonight (the unchosen ones are no news)
+                }
             } else {
                 rest.add(stack);
             }

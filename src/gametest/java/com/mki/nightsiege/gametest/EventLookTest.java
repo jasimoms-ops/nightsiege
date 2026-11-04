@@ -7097,8 +7097,11 @@ public class EventLookTest implements FabricClientGameTest {
             player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.OFFHAND, shield);
             player.getInventory().setItem(0, ours.copy());
             player.getInventory().setSelectedSlot(0);
-            game.getServer().runCommand("time set noon");
         });
+        game.getServer().runCommand("time set noon");
+        game.getServer().runCommand("weather clear");
+        // the banner action opened the core window: close it before looking at the banners
+        closeScreen(context);
         context.waitTicks(30);
         context.getInput().lookAt(90.0f, 10.0f);
         context.waitTicks(20);
