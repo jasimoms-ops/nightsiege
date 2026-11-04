@@ -572,6 +572,15 @@ public final class SiegeManager {
                 TempBlocks.remove(serverLevel, pos);
                 return false;
             }
+            // A kit trap (a free trap of the night, Simon 31.10.) goes without giving a trap back (fix 04.11.).
+            if (level instanceof ServerLevel serverLevel && !player.getAbilities().instabuild
+                    && TrapService.kitTrapAt(serverLevel, pos, state)) {
+                NightDamage.quietly(() -> serverLevel.setBlock(pos, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(),
+                        net.minecraft.world.level.block.Block.UPDATE_ALL));
+                serverLevel.levelEvent(2001, pos, net.minecraft.world.level.block.Block.getId(state));   // break particles and sound
+                onBlockBroken(serverLevel, pos);
+                return false;
+            }
             return true;
         });
         PlayerBlockBreakEvents.AFTER.register(
