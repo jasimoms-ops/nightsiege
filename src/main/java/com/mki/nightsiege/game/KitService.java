@@ -84,6 +84,26 @@ public final class KitService {
         return data != null && data.copyTag().getBooleanOr(KIT_TAG, false);
     }
 
+    /** Crate items of the kit carry the gain they come from (update 6: the kit page chooses them). */
+    public static final String GAIN_TAG = "nightsiege_kit_gain";
+
+    /** Marks a kit stack as the item of a crate gain (it takes a hotbar place of its own). */
+    public static ItemStack fromGain(ItemStack stack, String gain) {
+        if (stack != null && !stack.isEmpty() && gain != null && !gain.isEmpty()) {
+            CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> tag.putString(GAIN_TAG, gain));
+        }
+        return stack;
+    }
+
+    /** The crate gain a kit stack comes from, or "". */
+    public static String gainOf(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) {
+            return "";
+        }
+        CustomData data = stack.get(DataComponents.CUSTOM_DATA);
+        return data == null ? "" : data.copyTag().getStringOr(GAIN_TAG, "");
+    }
+
     /** Marks an item as part of the kit: unbreakable, no glint, not to be stored. */
     public static ItemStack mark(ItemStack stack) {
         if (stack.isEmpty()) {
@@ -535,12 +555,13 @@ public final class KitService {
             // Crate gain "Notfall-Mörser" (once the emergency mine): one more mortar tower tonight.
             if (gainLevel(skills, clazz, "notfallmine") > 0 && ModContent.TRAP_ITEMS.get(TrapKind.MORTAR) != null
                     && tree.trapTier(TrapKind.MORTAR, skills) > 0) {
-                inv.placeItemBackInInventory(mark(new ItemStack(ModContent.TRAP_ITEMS.get(TrapKind.MORTAR), 1)));   // a kit item (31.10.)
+                inv.placeItemBackInInventory(mark(fromGain(new ItemStack(ModContent.TRAP_ITEMS.get(TrapKind.MORTAR), 1),
+                        "notfallmine")));   // a kit item (31.10.), a crate item of the hotbar (update 6)
             }
         } else {
             traps.giveRemote(player, skills);
         }
-        applyLayout(player, clazz);
+        arrange(player, clazz);
         resync(player);
     }
 
@@ -573,6 +594,10 @@ public final class KitService {
         }
         if (stack.has(DataComponents.POTION_CONTENTS)) {
             key.append('|').append(stack.getHoverName().getString());
+        }
+        String gain = gainOf(stack);
+        if (!gain.isEmpty()) {
+            key.append("|g:").append(gain);   // a crate item (update 6): its own place, the hotbar only
         }
         return key.toString();
     }
@@ -610,14 +635,44 @@ public final class KitService {
                 .put(clazz.name(), layout);
     }
 
-    /** Puts the new kit's items where the player kept them last time; new things fill the free slots. */
-    private void applyLayout(ServerPlayer player, SkillClass clazz) {
+    /** Tools and stone: they go up into the inventory unless the player keeps them in the hotbar. */
+    static boolean backThing(ItemStack stack) {
+        return stack.is(Items.WOODEN_PICKAXE) || stack.is(Items.WOODEN_AXE) || stack.is(Items.WOODEN_SHOVEL)
+                || stack.is(Items.COBBLESTONE);
+    }
+
+    /** The kit stacks as the arrangement sees them. */
+    static List<com.mki.nightsiege.core.KitArrange.Thing> things(List<ItemStack> stacks) {
+        List<com.mki.nightsiege.core.KitArrange.Thing> out = new ArrayList<>();
+        for (ItemStack stack : stacks) {
+            String gain = gainOf(stack);
+            com.mki.nightsiege.core.CrateGains.Gain g = gain.isEmpty() ? null : com.mki.nightsiege.core.CrateGains.get(gain);
+            out.add(new com.mki.nightsiege.core.KitArrange.Thing(layoutKey(stack), gain, backThing(stack),
+                    g == null ? 0 : g.rarity().ordinal()));
+        }
+        return out;
+    }
+
+    /** The player's layout of a class's kit (numbered key → slot), or null. */
+    public Map<String, Integer> layoutOf(ServerPlayer player, SkillClass clazz) {
         Map<String, Map<String, Integer>> mine = save.get().kitLayouts == null || clazz == null ? null
                 : save.get().kitLayouts.get(player.getUUID().toString());
-        Map<String, Integer> layout = mine == null ? null : mine.get(clazz.name());
-        if (layout == null || layout.isEmpty()) {
-            return;
-        }
+        return mine == null ? null : mine.get(clazz.name());
+    }
+
+    /** The crate gains chosen for a class's hotbar on the kit page, or null (automatic). */
+    public List<String> choiceOf(ServerPlayer player, SkillClass clazz) {
+        Map<String, List<String>> mine = save.get().kitCrateChoice == null || clazz == null ? null
+                : save.get().kitCrateChoice.get(player.getUUID().toString());
+        return mine == null ? null : mine.get(clazz.name());
+    }
+
+    /**
+     * Puts the new kit's things in their places (update 6, see KitArrange): the kit's own things where
+     * the player keeps them, the chosen crate items into the hotbar; a crate item without a hotbar
+     * place stays at home tonight.
+     */
+    private void arrange(ServerPlayer player, SkillClass clazz) {
         Inventory inv = player.getInventory();
         List<ItemStack> kit = new ArrayList<>();
         for (int i = 0; i < MAIN_SLOTS && i < inv.getContainerSize(); i++) {
@@ -627,20 +682,26 @@ public final class KitService {
                 inv.setItem(i, ItemStack.EMPTY);
             }
         }
+        int[] slots = com.mki.nightsiege.core.KitArrange.place(things(kit), layoutOf(player, clazz), choiceOf(player, clazz));
         List<ItemStack> rest = new ArrayList<>();
-        Map<String, Integer> seen = new java.util.HashMap<>();
-        for (ItemStack stack : kit) {
-            String key = layoutKey(stack);
-            int n = seen.merge(key, 1, Integer::sum);
-            Integer slot = layout.get(n == 1 ? key : key + "#" + n);
-            if (slot != null && slot >= 0 && slot < MAIN_SLOTS && inv.getItem(slot).isEmpty()) {
+        int home = 0;
+        for (int i = 0; i < kit.size(); i++) {
+            ItemStack stack = kit.get(i);
+            int slot = slots[i];
+            if (slot >= 0 && inv.getItem(slot).isEmpty()) {
                 inv.setItem(slot, stack);
+            } else if (!gainOf(stack).isEmpty()) {
+                home++;   // a crate item without a hotbar place: not tonight
             } else {
                 rest.add(stack);
             }
         }
         for (ItemStack stack : rest) {
             inv.placeItemBackInInventory(stack);
+        }
+        if (home > 0) {
+            NightSiegeMod.LOGGER.info("[Night Siege] Kit {}: {} Kisten-Items ohne Hotbar-Platz bleiben zu Hause",
+                    player.getScoreboardName(), home);
         }
     }
 
@@ -693,7 +754,7 @@ public final class KitService {
     }
 
     /** Builds the kit of the class the player plays, without handing anything out. */
-    private Kit build(ServerPlayer player, PlayerSkills skills, int level) {
+    Kit build(ServerPlayer player, PlayerSkills skills, int level) {
         SkillClass clazz = skills.clazz();
         String way = skills.pathTaken(tree);
         if (way.isEmpty()) {
@@ -809,9 +870,12 @@ public final class KitService {
             GainGear.decorateShield(shield, gainLevel(skills, clazz, "turmschild") > 0, gainLevel(skills, clazz, "leichtschild") > 0);
             ClassShields.decorate(shield, tree.subclassOf(skills), player.level().registryAccess());   // the subclass's colours (27 October 2026)
             offhand = shield;
-            int potions = (way.equals(SkillTree.WAY_BLESSING) ? 2 : 0) + gainLevel(skills, clazz, "verbandskasten");
-            for (int i = 0; i < potions; i++) {
+            int wayPotions = way.equals(SkillTree.WAY_BLESSING) ? 2 : 0;
+            for (int i = 0; i < wayPotions; i++) {
                 hotbar.add(PotionContents.createItemStack(Items.POTION, Potions.STRONG_HEALING));
+            }
+            for (int i = 0; i < gainLevel(skills, clazz, "verbandskasten"); i++) {
+                hotbar.add(fromGain(PotionContents.createItemStack(Items.POTION, Potions.STRONG_HEALING), "verbandskasten"));
             }
         } else if (clazz == SkillClass.SUMMONER) {
             // The staff (the summoner's own attack, orders, calls and spells) and no sword (Simon,
@@ -865,20 +929,20 @@ public final class KitService {
         }
         int heal = gainLevel(skills, clazz, "heiltrank");
         for (int i = 0; i < (heal >= 2 ? 3 : heal >= 1 ? 2 : 0); i++) {
-            hotbar.add(PotionContents.createItemStack(Items.POTION, Potions.STRONG_HEALING));
+            hotbar.add(fromGain(PotionContents.createItemStack(Items.POTION, Potions.STRONG_HEALING), "heiltrank"));
         }
         if (gainLevel(skills, clazz, "fackeln") > 0) {
-            hotbar.add(new ItemStack(Items.TORCH, 16));
+            hotbar.add(fromGain(new ItemStack(Items.TORCH, 16), "fackeln"));
         }
         if (gainLevel(skills, clazz, "wurfperlen") > 0) {
-            hotbar.add(new ItemStack(Items.ENDER_PEARL, 2));
+            hotbar.add(fromGain(new ItemStack(Items.ENDER_PEARL, 2), "wurfperlen"));
         }
         // Building blocks for everyone to patch the walls (Simon, 25 October 2026); the building
         // box doubles them and adds ladders.
         boolean box = gainLevel(skills, clazz, "baukiste") > 0;
         hotbar.add(new ItemStack(Items.COBBLESTONE, box ? 64 : 32));
         if (box) {
-            hotbar.add(new ItemStack(Items.LADDER, 8));
+            hotbar.add(fromGain(new ItemStack(Items.LADDER, 8), "baukiste"));
         }
         GainGear.addKitItems(this, skills, clazz, way, hotbar);
         // Wooden tools in every kit (Simon 29.10.): to dig, chop and clear; last, so they never push

@@ -1825,7 +1825,7 @@ public final class SiegeManager {
     }
 
     /** The level the kit is built for: the running night, the test in preparation or the coming night. */
-    private int levelForKit() {
+    public int levelForKit() {
         if (active) {
             return siegeLevel;
         }
@@ -4585,7 +4585,7 @@ public final class SiegeManager {
     }
 
     /** The ult slots and the ability bar of one player. */
-    private void sendUltHud(ServerPlayer player) {
+    public void sendUltHud(ServerPlayer player) {
         MinecraftServer server = player.level().getServer();
         if (server == null) {
             return;
@@ -5192,6 +5192,7 @@ public final class SiegeManager {
             }
             case "buy" -> onBuySkill(player, argument);
             case "class" -> onChooseClass(player, argument);
+            case "kit" -> KitPage.onAction(this, player, argument);   // the kit page (update 6)
             case "banner" -> {
                 // The class banner from the class card (update 6): once a Minecraft day.
                 if (!tooSoon(player, verb)) {
