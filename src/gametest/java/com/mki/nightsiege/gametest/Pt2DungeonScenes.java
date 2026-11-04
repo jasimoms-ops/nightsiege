@@ -89,6 +89,17 @@ final class Pt2DungeonScenes {
         return "wächter=" + all + " wach=" + awake;
     }
 
+    /** Each guard: its kind, life and whether it stands in a block. */
+    private static String detail(ServerLevel level, com.mki.nightsiege.game.SiegeManager manager) {
+        StringBuilder out = new StringBuilder();
+        for (Mob mob : manager.expeditions().testMobs(level)) {
+            out.append(' ').append(net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(mob.getType()).getPath())
+                    .append(String.format(java.util.Locale.ROOT, " %.1f/%.1f", mob.getHealth(), mob.getMaxHealth()))
+                    .append(mob.isInWall() ? " imBlock" : "").append(';');
+        }
+        return out.toString();
+    }
+
     // ------------------------------------------------------------------ the dungeon
 
     private static void dungeon(ClientGameTestContext context, TestSingleplayerContext game) {
@@ -146,11 +157,13 @@ final class Pt2DungeonScenes {
         // room's zone (its corridor, 29 blocks from the middle of the hall): all awake in the same tick.
         EventLookTest.onServer(context, (player, manager) -> {
             int n = manager.expeditions().testSpawnRoom(player.level().getServer());
-            log("raum 2 gerufen (Kämpfer noch in Halle 1): " + n + " | " + mobs((ServerLevel) player.level(), manager));
+            log("raum 2 gerufen (Kämpfer noch in Halle 1): " + n + " | " + mobs((ServerLevel) player.level(), manager)
+                    + " |" + detail((ServerLevel) player.level(), manager));
         });
         context.waitTicks(40);
         EventLookTest.onServer(context, (player, manager) -> log("raum 2 nach 2 s, Kämpfer bei " + where(player) + ": "
-                + mobs((ServerLevel) player.level(), manager) + " | " + manager.expeditions().testWake()));
+                + mobs((ServerLevel) player.level(), manager) + " | " + manager.expeditions().testWake()
+                + " |" + detail((ServerLevel) player.level(), manager)));
         final long[] stepAt = new long[1];
         EventLookTest.onServer(context, (player, manager) -> {
             to(player, fx + 0.5, hy, bz + 64.5, 0f);

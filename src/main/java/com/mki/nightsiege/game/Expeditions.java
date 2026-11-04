@@ -157,7 +157,9 @@ public final class Expeditions {
     private boolean phase2;
     private long championShownAt = -1L;
     private boolean roomAwake;
-    /** Tests: the last room that woke ("room|game time|guards"). */
+    /** A guard of the room of now was struck by someone of the fight (a fighter, his arrow, tower or companion). */
+    private boolean roomStruck;
+    /** Tests: the last room that woke ("room|game time|guards|why"). */
     private String lastWake = "-";
     /** Since when each fighter is in water below the floor (Playtest 2: out after 2 s), and how often one was pulled out. */
     private final Map<UUID, Long> wetSince = new HashMap<>();
@@ -3184,6 +3186,7 @@ public final class Expeditions {
         sendLooks(level);
         roomMobs.put(room, mobs);
         roomAwake = false;
+        roomStruck = false;
         // The hall's title: its theme, which hall of how many.
         String module = room < p.roomModules.size() ? p.roomModules.get(room) : "";
         for (UUID id : fighters) {
@@ -3217,12 +3220,8 @@ public final class Expeditions {
                 break;
             }
         }
-        for (UUID id : mobs) {
-            if (!near && level.getEntity(id) instanceof Mob mob && mob.getHealth() < mob.getMaxHealth()) {
-                near = true;
-            }
-        }
-        if (!near) {
+        // Struck by someone of the fight (not hurt by a wall or a fall: a statue standing in a block woke them early).
+        if (!near && !roomStruck) {
             return;
         }
         roomAwake = true;
@@ -3238,8 +3237,9 @@ public final class Expeditions {
         }
         BlockPos center = p.roomCenters.get(room);
         level.playSound(null, center, SoundEvents.EVOKER_PREPARE_SUMMON, SoundSource.HOSTILE, 2f, 0.7f);
-        lastWake = room + "|" + now + "|" + woke;
-        NightSiegeMod.LOGGER.info("[Night Siege] Dungeon-Raum {}: {} Wächter auf einmal wach", room + 1, woke);
+        lastWake = room + "|" + now + "|" + woke + "|" + (near ? "zone" : "treffer");
+        NightSiegeMod.LOGGER.info("[Night Siege] Dungeon-Raum {}: {} Wächter auf einmal wach ({})", room + 1, woke,
+                near ? "Kämpfer in der Zone" : "getroffen");
     }
 
     /**
@@ -3736,6 +3736,7 @@ public final class Expeditions {
         phase2 = false;
         championShownAt = -1L;
         roomAwake = false;
+        roomStruck = false;
         lastInside.clear();
         wetSince.clear();
         allowed.clear();
@@ -3894,6 +3895,9 @@ public final class Expeditions {
             return;
         }
         Entity raw = source.getEntity();
+        if (isExpeditionMob(victim) && raw != null && !isExpeditionMob(raw)) {
+            roomStruck = true;   // the room's statues wake (wakeRoom)
+        }
         Entity hitter = Companions.isCompanion(raw) ? Companions.ownerPlayer(raw) : raw;
         if (isExpeditionMob(victim) && hitter instanceof ServerPlayer p && fighters.contains(p.getUUID())) {
             m.stats().dungeonDamage(true, taken);
