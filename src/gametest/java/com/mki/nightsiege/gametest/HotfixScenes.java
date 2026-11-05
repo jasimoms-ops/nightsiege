@@ -368,23 +368,35 @@ final class HotfixScenes {
 
         // ---------------------------------------------------------------- the ember colossus reaches you
         // Simon 05.11.: "der Magma-Cube-Boss ist viel zu leicht, da er nie an einen rankommt". Now he leaps
-        // at his target every 5 s and his landing hurts.
+        // at his target every 5 s and his landing hurts. The player gets 200 life for it: the test watches
+        // the leaps and what they cost, not a death.
         game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %d.5 %d %d.5 0 0", cx, cy, cz));
         game.getServer().runCommand("gamemode survival @p");
         context.waitTicks(5);
+        final net.minecraft.resources.Identifier tough = net.minecraft.resources.Identifier.fromNamespaceAndPath("nightsiege", "test_tough");
         server(context, "colossus night", (player, m) -> {
             ServerLevel level = (ServerLevel) player.level();
             m.config().testPrepSeconds = 1;
-            boolean ok = m.prepareTest(level.getServer(), level, new BlockPos(cx, cy, cz), 8,
+            boolean ok = m.prepareTest(level.getServer(), level, new BlockPos(cx + 8, cy, cz + 8), 8,
                     com.mki.nightsiege.core.SiegeEvent.NONE, com.mki.nightsiege.core.BossKind.EMBER_COLOSSUS);
             log("colossus night prepared=" + ok);
         });
         context.waitTicks(60);
         EventLookTest.closeScreen(context);
-        final float[] colossus = new float[3];   // lowest health, closest distance, pounces
+        final float[] colossus = new float[4];   // most life lost, closest distance, pounces, life lost by the pounces
         colossus[1] = 1e9f;
+        final float[] lastHp = new float[1];
+        final int[] lastPounces = new int[1];
         server(context, "colossus", (player, m) -> {
             ServerLevel level = (ServerLevel) player.level();
+            var hp = player.getAttribute(Attributes.MAX_HEALTH);
+            if (hp != null) {
+                hp.removeModifier(tough);
+                hp.addTransientModifier(new net.minecraft.world.entity.ai.attributes.AttributeModifier(tough, 180.0,
+                        net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADD_VALUE));
+            }
+            player.setHealth(player.getMaxHealth());
+            lastHp[0] = player.getHealth();
             m.bossNow(level.getServer());
             Mob boss = m.bosses().boss(level);
             check(boss != null, "the ember colossus comes");
@@ -392,41 +404,51 @@ final class HotfixScenes {
                 boss.teleportTo(player.getX() + 12, player.getY(), player.getZ());
                 boss.setTarget(player);
             }
-            player.setHealth(player.getMaxHealth());
-            colossus[0] = player.getHealth();
         });
-        for (int i = 0; i < 40; i++) {
-            context.waitTicks(10);
+        for (int i = 0; i < 60; i++) {
+            context.waitTicks(5);
+            final int at = i * 5;
             server(context, "colossus watch", (player, m) -> {
                 ServerLevel level = (ServerLevel) player.level();
                 Mob boss = m.bosses().boss(level);
-                if (boss == null) {
+                if (boss == null || !m.isActive()) {
                     return;
                 }
                 if (boss.getTarget() != player) {
                     boss.setTarget(player);
                 }
-                colossus[0] = Math.min(colossus[0], player.getHealth());
+                float lost = player.getMaxHealth() - player.getHealth();
+                colossus[0] = Math.max(colossus[0], lost);
                 colossus[1] = (float) Math.min(colossus[1], Math.sqrt(boss.distanceToSqr(player)));
                 String stats = m.bosses().testBrainStats();
-                if (stats.startsWith("pounces=")) {
-                    colossus[2] = Integer.parseInt(stats.substring(8));
+                int pounces = stats.startsWith("pounces=") ? Integer.parseInt(stats.substring(8)) : lastPounces[0];
+                if (pounces > lastPounces[0]) {
+                    colossus[3] += Math.max(0f, lastHp[0] - player.getHealth());
+                    log(String.format(java.util.Locale.ROOT, "colossus t=%d: landing %d, life %.1f -> %.1f, distance %.1f",
+                            at, pounces, lastHp[0], player.getHealth(), Math.sqrt(boss.distanceToSqr(player))));
                 }
-                if (player.getHealth() < player.getMaxHealth() * 0.5f) {
-                    player.setHealth(player.getMaxHealth());   // the test watches the leaps, not a death
+                colossus[2] = pounces;
+                lastPounces[0] = pounces;
+                if (player.getHealth() < player.getMaxHealth() * 0.4f) {
+                    player.setHealth(player.getMaxHealth());
                 }
+                lastHp[0] = player.getHealth();
             });
         }
         server(context, "colossus result", (player, m) -> {
-            log(String.format(java.util.Locale.ROOT, "colossus: pounces=%.0f closest=%.1f lowest hp=%.1f of %.0f",
-                    colossus[2], colossus[1], colossus[0], player.getMaxHealth()));
+            log(String.format(java.util.Locale.ROOT, "colossus: pounces=%.0f closest=%.1f most lost=%.1f by landings=%.1f night=%s",
+                    colossus[2], colossus[1], colossus[0], colossus[3], m.isActive()));
             check(colossus[2] >= 1, "the ember colossus leaps at the player");
             check(colossus[1] < 4.0f, "the ember colossus gets to the player (closest " + colossus[1] + ")");
-            check(colossus[0] < player.getMaxHealth(), "the ember colossus hurts the player");
+            check(colossus[0] > 0f, "the ember colossus hurts the player");
             if (m.isActive()) {
                 m.abort(player.level().getServer());
             }
             m.config().testPrepSeconds = saved[0];
+            var hp = player.getAttribute(Attributes.MAX_HEALTH);
+            if (hp != null) {
+                hp.removeModifier(tough);
+            }
             player.setHealth(player.getMaxHealth());
         });
         context.waitTicks(20);
