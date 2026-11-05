@@ -46,6 +46,10 @@ PALETTES = {
                             pants=stops('060506', '121012', '201c20', '2e282e'), eye=hexc('ff2c2c'), glow=hexc('9c1018'),
                             detail=hexc('5e0a0e'), bone=stops('0c0b0e', '2a2530', '575064', '8c8498'),
                             creeper=NEUTRAL['creeper'], spider=NEUTRAL['spider']),
+    # the stunner (Simon 05.11.: its own look; the golden helmet does not show on an illager): royal blue and gold
+    'foe_stunner': dict(skin=stops('262428', '4a474e', '76727c', 'a09ca8'), cloth=stops('080c22', '18224e', '2e3e80', '4c5eae'),
+                        pants=stops('080a14', '141a2e', '222a48', '343e62'), eye=hexc('ffe25a'), glow=hexc('e8b828'),
+                        detail=hexc('d8a62a'), **NEUTRAL),
     'foe_treasure_raider': dict(skin=stops('262428', '4a474e', '76727c', 'a09ca8'), cloth=stops('3a2606', '7a5414', 'b8862a', 'e8c050'),
                                 pants=stops('1a1206', '342410', '503a1c', '6c5028'), eye=hexc('fff0a0'), glow=hexc('e8b828'),
                                 detail=hexc('ffe28a'), **NEUTRAL),
@@ -62,6 +66,8 @@ FOES = {
     # the tank breakers of the content update (Simon 29.10.: "Diener mit Hammer", "Henker")
     'foe_breaker': [('illager/vindicator.png', 'vindicator', 'illager')],
     'foe_executioner': [('skeleton/wither_skeleton.png', 'wither_skeleton', 'skeleton')],
+    # the stunner of the balance hotfix (Simon 05.11.)
+    'foe_stunner': [('illager/vindicator.png', 'vindicator', 'illager')],
 }
 FAMILIES = {k: (v[0][2],) for k, v in FOES.items()}
 GOLD = hexc('d8a62a')
@@ -252,7 +258,25 @@ def executioner(f):
     return out
 
 
-DESIGNS = {'foe_breaker': breaker, 'foe_executioner': executioner, 'foe_revenant': revenant, 'foe_tunneler': tunneler, 'foe_iron_knight': iron_knight,
+def stunner(f):
+    """A golden helmet with a crest and cheek guards, a bell at the belt, a spiked mace on the back."""
+    if f != 'illager':
+        return []
+    out = [block('head', (-4.7, -10.7, -4.7), (9, 3, 9), 'gold', key='helm')]
+    out.append(block('head', (-5.2, -8.2, -5.2), (10, 1, 10), 'gold', key='rim'))
+    out += sym([block('head', (-4.7, -7.4, -4.7), (1, 5, 3), 'gold', key='cheek')])
+    out.append(block('head', (-0.5, -7.4, -5.1), (1, 3, 1), 'gold', key='nose'))
+    out.append(block('head', (-0.5, -13.7, -2.5), (1, 3, 6), 'crimson', key='crest'))
+    out += sym([block('body', (-6.8, -1.2, -3.4), (4, 3, 7), 'gold', key='pad')])
+    out.append(block('body', (2.6, 11.0, -3.6), (2, 2, 2), 'gold', key='bell'))
+    out.append(block('body', (-0.5, -4.0, 3.4), (1, 15, 1), 'pole', key='haft'))
+    out.append(block('body', (-2.5, -8.0, 2.4), (5, 5, 3), 'iron', key='mace'))
+    out += sym([block('body', (-3.5, -6.5, 3.0), (1, 2, 1), 'gold', key='spike')])
+    out.append(block('body', (-0.5, -9.0, 3.0), (1, 1, 1), 'gold', key='spike_top'))
+    return out
+
+
+DESIGNS = {'foe_stunner': stunner, 'foe_breaker': breaker, 'foe_executioner': executioner, 'foe_revenant': revenant, 'foe_tunneler': tunneler, 'foe_iron_knight': iron_knight,
            'foe_standard_bearer': standard_bearer, 'foe_grappler': grappler, 'foe_treasure_raider': treasure_raider}
 
 
@@ -276,6 +300,9 @@ def details(tex, family, ev, seed):
         p.lines(['body', 'robe'], sides, 1, 5, hexc('2a1e14'), k=0.8)
     elif ev == 'foe_breaker' and family == 'illager':
         p.edge(['body', 'robe'], sides, -1, hexc('8a929c'))
+    elif ev == 'foe_stunner' and family == 'illager':
+        p.edge(['body', 'robe'], sides, -1, GOLD)
+        p.lines(['body', 'robe'], sides, 1, 6, hexc('0a0e24'), k=0.7)
     elif ev == 'foe_executioner':
         p.lines(['body', 'arm', 'leg'], sides, 1, 4, hexc('5e0a0e'), k=0.8)
     elif ev == 'foe_treasure_raider' and family == 'illager':

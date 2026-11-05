@@ -43,6 +43,7 @@ public final class EventGearShapes {
         foe_treasure_raider();
         foe_breaker();
         foe_executioner();
+        foe_stunner();
         champion_stone_crypt();
         champion_desert_crypt();
         champion_illager_keep();
@@ -1031,6 +1032,24 @@ public final class EventGearShapes {
                 new Box("body", -0.500f, -0.500f, -0.500f, 1, 1, 1, 54, 21, false, 3.736f, -0.351f, 0.000f, 0.000f, 0.000f, 7.226f))));
     }
 
+    private static void foe_stunner() {
+        SETS.put("foe_stunner/illager", new Set(64, 64, List.of(
+                new Box("head", -4.700f, -10.700f, -4.700f, 9, 3, 9, 4, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -5.200f, -8.200f, -5.200f, 10, 1, 10, 0, 16, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -4.700f, -7.400f, -4.700f, 1, 5, 3, 14, 27, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", 3.700f, -7.400f, -4.700f, 1, 5, 3, 14, 27, true, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -0.500f, -7.400f, -5.100f, 1, 3, 1, 38, 27, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("head", -0.500f, -13.700f, -2.500f, 1, 3, 6, 0, 27, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", -6.800f, -1.200f, -3.400f, 4, 3, 7, 40, 16, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", 2.800f, -1.200f, -3.400f, 4, 3, 7, 40, 16, true, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", 2.600f, 11.000f, -3.600f, 2, 2, 2, 42, 27, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", -0.500f, -4.000f, 3.400f, 1, 15, 1, 0, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", -2.500f, -8.000f, 2.400f, 5, 5, 3, 22, 27, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", -3.500f, -6.500f, 3.000f, 1, 2, 1, 50, 27, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", 2.500f, -6.500f, 3.000f, 1, 2, 1, 50, 27, true, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
+                new Box("body", -0.500f, -9.000f, 3.000f, 1, 1, 1, 54, 27, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f))));
+    }
+
     private static void champion_stone_crypt() {
         SETS.put("champion_stone_crypt/skeleton", new Set(64, 32, List.of(
                 new Box("body", -4.000f, -3.000f, 2.400f, 8, 12, 2, 4, 0, false, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f, 0.000f),
@@ -1542,6 +1561,7 @@ public final class EventGearShapes {
             Map.entry("foe_treasure_raider", List.of("illager/pillager.png=pillager")),
             Map.entry("foe_breaker", List.of("illager/vindicator.png=vindicator")),
             Map.entry("foe_executioner", List.of("skeleton/wither_skeleton.png=wither_skeleton")),
+            Map.entry("foe_stunner", List.of("illager/vindicator.png=vindicator")),
             Map.entry("champion_stone_crypt", List.of("skeleton/wither_skeleton.png=wither_skeleton")),
             Map.entry("champion_desert_crypt", List.of("zombie/husk.png=husk")),
             Map.entry("champion_illager_keep", List.of("illager/vindicator.png=vindicator")),
@@ -1585,6 +1605,7 @@ public final class EventGearShapes {
             "foe_treasure_raider/pillager",
             "foe_breaker/vindicator",
             "foe_executioner/wither_skeleton",
+            "foe_stunner/vindicator",
             "champion_stone_crypt/wither_skeleton",
             "champion_desert_crypt/husk",
             "champion_illager_keep/vindicator",

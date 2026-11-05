@@ -328,10 +328,9 @@ public final class Foes {
         mob.addTag(TAG);
         mob.addTag(role.tag());
         ROLES.put(mob.getUUID(), role);
-        mob.setCustomName(Component.translatable(role.translationKey()));
-        if (role != Role.STUNNER) {
-            BossService.foeLook(mob, "foe_" + role.id());   // its own look (design update, 29 October 2026)
-        }
+        // No name tag (Simon 05.11.: "die von uns designten extra mobs sollten keine name tags mehr haben"):
+        // each is told apart by its own look, the stunner too since 05.11.
+        BossService.foeLook(mob, "foe_" + role.id());   // its own look (design update, 29 October 2026)
         if (mob instanceof Zombie zombie) {
             zombie.setBaby(false);
         }
@@ -381,10 +380,9 @@ public final class Foes {
             case BREAKER -> mob.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.MACE));   // the smith's hammer
             case EXECUTIONER -> mob.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_AXE));
             case STUNNER -> {
-                // A golden helmet and a mace: told apart from the breaker at a glance (no look of its own yet).
+                // A mace in the hand; the golden helmet, the crest and the spiked mace on the back are its look (05.11.).
                 mob.setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.GOLDEN_HELMET));
                 mob.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.MACE));
-                mob.setCustomNameVisible(true);
             }
             case TREASURE_RAIDER -> {
                 mob.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.GOLD_INGOT));
@@ -392,7 +390,6 @@ public final class Foes {
                 times(mob, Attributes.MAX_HEALTH, 2.0);
                 times(mob, Attributes.MOVEMENT_SPEED, 1.25);
                 mob.setHealth(mob.getMaxHealth());
-                mob.setCustomNameVisible(true);
                 mob.setGlowingTag(true);
             }
         }
