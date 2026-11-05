@@ -250,19 +250,27 @@ public final class WarriorArts {
         return entity.entityTags().contains(TAG) && !LIVE.contains(entity.getUUID());
     }
 
-    /** A new night or the end of one: everything stops, every F is ready. */
+    /**
+     * A new night or the end of one: everything stops, every F is ready. Players who fight in a dungeon or at
+     * the war camp right then keep theirs (Fehler-Stichprobe 05.11.).
+     */
     public static void reset() {
-        READY.clear();
-        TOTAL.clear();
-        DANCES.clear();
-        for (Frenzy f : FRENZIES.values()) {
-            f.end = Long.MIN_VALUE / 4;   // the next tick takes the attack speed away
+        Set<UUID> keep = WarriorSpirit.keptFighters();
+        READY.keySet().removeIf(id -> !keep.contains(id));
+        TOTAL.keySet().removeIf(id -> !keep.contains(id));
+        DANCES.keySet().removeIf(id -> !keep.contains(id));
+        for (Map.Entry<UUID, Frenzy> e : FRENZIES.entrySet()) {
+            if (!keep.contains(e.getKey())) {
+                e.getValue().end = Long.MIN_VALUE / 4;   // the next tick takes the attack speed away
+            }
         }
-        for (Throw t : THROWS) {
-            removeDisplay(t);
+        for (Throw t : new ArrayList<>(THROWS)) {
+            if (!keep.contains(t.owner)) {
+                removeDisplay(t);
+                THROWS.remove(t);
+            }
         }
-        THROWS.clear();
-        GROUNDS.clear();
+        GROUNDS.removeIf(g -> !keep.contains(g.owner));
     }
 
     static void forget(UUID player) {
@@ -360,14 +368,16 @@ public final class WarriorArts {
         }
         ServerLevel level = d.level;
         Entity planned = level.getEntity(d.order.get(d.index));
-        LivingEntity target = planned instanceof LivingEntity l && l.isAlive() ? l : null;
+        // Every jump needs a free line from where the warrior stands now: no dance through walls
+        // (Fehler-Stichprobe 05.11.: out of the castle or into another room of a dungeon).
+        LivingEntity target = planned instanceof LivingEntity l && l.isAlive() && player.hasLineOfSight(l) ? l : null;
         if (target == null) {
-            // The planned one fell already: the nearest one still standing.
+            // The planned one fell already or is out of sight: the nearest one he can see.
             double r = SkillValues.get("w_combo", "f_radius", 6);
             double best = Double.MAX_VALUE;
             for (LivingEntity e : CombatEffects.enemies(level, player.position(), r, 3.0)) {
                 double dd = e.distanceToSqr(player);
-                if (e.isAlive() && dd < best) {
+                if (e.isAlive() && dd < best && player.hasLineOfSight(e)) {
                     best = dd;
                     target = e;
                 }
@@ -487,6 +497,7 @@ public final class WarriorArts {
             }
             strikeAlong(t.level, owner, t.pos, next, t.hitOut, now);
         } else {
+            // Back it comes, through a wall too (it must reach the hand); it only strikes what it sees (clearLine).
             Vec3 hand = owner.position().add(0, owner.getBbHeight() * 0.55, 0);
             Vec3 to = hand.subtract(t.pos);
             double d = to.length();
@@ -526,6 +537,9 @@ public final class WarriorArts {
             if (flatDistance(e.position(), a, b) > reach || y < e.getY() - 0.6 || y > e.getY() + e.getBbHeight() + 0.6) {
                 continue;
             }
+            if (!clearLine(level, owner, b, e)) {
+                continue;   // a wall between the axe and the monster (Fehler-Stichprobe 05.11.: it struck through walls)
+            }
             done.add(e.getUUID());
             damage += WarriorSpirit.strike(level, e, src, dmg, "faehigkeit:" + WarriorSpiritMath.abilityId(SkillTree.SUB_AXE), false);
             throwHits++;
@@ -533,6 +547,18 @@ public final class WarriorArts {
                 WarriorSpirit.cleave(level, e, 1.0, now);
             }
         }
+    }
+
+    /** True when no block stands between the axe at {@code from} and the monster's body (its middle or its eyes). */
+    static boolean clearLine(ServerLevel level, Entity owner, Vec3 from, LivingEntity e) {
+        Vec3[] spots = {new Vec3(e.getX(), e.getY(0.5), e.getZ()), e.getEyePosition()};
+        for (Vec3 to : spots) {
+            BlockHitResult hit = level.clip(new ClipContext(from, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, owner));
+            if (hit.getType() != HitResult.Type.BLOCK) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Sideways distance of a point from the segment a–b (heights left out). */

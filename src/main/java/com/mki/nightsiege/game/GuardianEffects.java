@@ -81,6 +81,9 @@ public final class GuardianEffects {
     private final CombatEffects combat;
     private Credit credit = (player, amount, from) -> {
     };
+    /** A heal by a player of another class (the paladin's Lichtschlag): only the statistics, no skill points. */
+    private HealStats healStats = (player, amount) -> {
+    };
     private final Random random = new Random();
 
     private final Map<UUID, Long> blockStart = new HashMap<>();
@@ -120,6 +123,16 @@ public final class GuardianEffects {
         this.skillsFor = skillsFor;
         this.combat = combat;
         instance = this;
+    }
+
+    /** Counts a heal of another class in the night's statistics (Fehler-Stichprobe 05.11.: the paladin "never healed"). */
+    public interface HealStats {
+        void accept(ServerPlayer player, double amount);
+    }
+
+    public void setHealStats(HealStats stats) {
+        this.healStats = stats == null ? (player, amount) -> {
+        } : stats;
     }
 
     public void setCredit(Credit credit) {
@@ -1126,6 +1139,9 @@ public final class GuardianEffects {
             target.heal(real);
         }
         if (!guardian) {
+            if (healer != null && target != healer && real > 0) {
+                healStats.accept(healer, real);   // counted, but the skill points for healing stay the guardians'
+            }
             return real;
         }
         double overflow = tree.totalBonus(SkillEffect.OVERFLOW, skills);

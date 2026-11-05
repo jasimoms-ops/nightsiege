@@ -29,9 +29,11 @@ import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -89,6 +91,9 @@ public final class WarriorSpirit {
         long sentAt = Long.MIN_VALUE / 4;
         boolean dirty;
     }
+
+    /** The server of the last tick (for the resets: who fights in a dungeon right now). */
+    private static MinecraftServer server;
 
     /** The last swing of a player (Player.attack): when, how charged, and whether it was counted. */
     private static final class Swing {
@@ -190,19 +195,44 @@ public final class WarriorSpirit {
         send(player, m);
     }
 
-    /** A new night (or its end): every meter and chain back to 0, bleeding and broken armour gone. */
+    /**
+     * A new night (or its end): every meter and chain back to 0, bleeding and broken armour gone. Players who
+     * fight in a dungeon or at the war camp right then keep theirs (Fehler-Stichprobe 05.11.).
+     */
     public static void reset() {
-        for (Meter m : METERS.values()) {
+        Set<UUID> keep = keptFighters();
+        for (Map.Entry<UUID, Meter> e : METERS.entrySet()) {
+            if (keep.contains(e.getKey())) {
+                continue;
+            }
+            Meter m = e.getValue();
             m.value = 0.0;
             m.chain = 0;
             m.dirty = true;
         }
-        SWINGS.clear();
-        BLEEDS.clear();
-        for (Map.Entry<UUID, Crack> e : new ArrayList<>(CRACKS.entrySet())) {
-            uncrack(e.getValue().level(), e.getKey());
+        SWINGS.keySet().removeIf(id -> !keep.contains(id));
+        BLEEDS.removeIf(b -> !keep.contains(b.owner));
+        if (keep.isEmpty()) {
+            for (Map.Entry<UUID, Crack> e : new ArrayList<>(CRACKS.entrySet())) {
+                uncrack(e.getValue().level(), e.getKey());
+            }
+            CRACKS.clear();
+        }   // else the broken armour mends by itself within seconds (tick)
+    }
+
+    /** The online players who fight in a dungeon or at the war camp right now. */
+    static Set<UUID> keptFighters() {
+        SiegeManager m = SiegeManager.get();
+        if (m == null || server == null) {
+            return Set.of();
         }
-        CRACKS.clear();
+        Set<UUID> out = new HashSet<>();
+        for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+            if (m.fightsAway(p)) {
+                out.add(p.getUUID());
+            }
+        }
+        return out;
     }
 
     /** The kit was put on: this warrior starts at 0. */
@@ -459,6 +489,7 @@ public final class WarriorSpirit {
 
     /** The meters fall, chains break, the bleeding bleeds, broken armour comes back, the F abilities run. */
     static void tick(MinecraftServer server) {
+        WarriorSpirit.server = server;
         long now = server.overworld().getGameTime();
         if (!METERS.isEmpty()) {
             for (Map.Entry<UUID, Meter> e : METERS.entrySet()) {
