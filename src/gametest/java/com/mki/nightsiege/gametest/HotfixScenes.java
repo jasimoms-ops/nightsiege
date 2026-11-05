@@ -250,7 +250,13 @@ final class HotfixScenes {
         final boolean[] first = new boolean[1];
         for (int i = 0; i < 12 && !first[0]; i++) {
             context.waitTicks(10);
-            server(context, "stunner wait", (player, m) -> first[0] = stunner[0] == null || Stuns.stunned(player));
+            server(context, "stunner wait", (player, m) -> {
+                first[0] = stunner[0] == null || Stuns.stunned(player);
+                if (!first[0]) {   // the night's archers may knock him away: keep the stunner at his side
+                    stunner[0].teleportTo(player.getX(), player.getY(), player.getZ() + 1.5);
+                    stunner[0].setTarget(player);
+                }
+            });
         }
         server(context, "stunned", (player, m) -> {
             if (stunner[0] == null) {
