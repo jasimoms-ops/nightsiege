@@ -103,7 +103,10 @@ public final class EventGear {
         List<EventGearShapes.Box> boxes = set.boxes();
         for (int i = 0; i < boxes.size(); i++) {
             EventGearShapes.Box b = boxes.get(i);
-            PartDefinition bone = root.getChild(b.bone());
+            PartDefinition bone = root;
+            for (String step : b.bone().split("/")) {
+                bone = bone.getChild(step);   // a bone inside a bone: "neck/head" (Bosse 2)
+            }
             CubeListBuilder cubes = CubeListBuilder.create().texOffs(b.u(), b.v()).mirror(b.mirror())
                     .addBox(b.x(), b.y(), b.z(), b.w(), b.h(), b.d());
             bone.addOrReplaceChild("ns_gear_" + i, cubes, PartPose.offsetAndRotation(b.px(), b.py(), b.pz(), b.rx(), b.ry(), b.rz()));
@@ -112,7 +115,11 @@ public final class EventGear {
         // Only the gear is drawn: the monster's own cubes stay with the monster.
         Set<ModelPart> gear = Collections.newSetFromMap(new IdentityHashMap<>());
         for (int i = 0; i < boxes.size(); i++) {
-            gear.add(baked.getChild(boxes.get(i).bone()).getChild("ns_gear_" + i));
+            ModelPart bone = baked;
+            for (String step : boxes.get(i).bone().split("/")) {
+                bone = bone.getChild(step);
+            }
+            gear.add(bone.getChild("ns_gear_" + i));
         }
         for (ModelPart part : baked.getAllParts()) {
             if (!gear.contains(part)) {

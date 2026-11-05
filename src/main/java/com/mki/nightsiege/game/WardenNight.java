@@ -236,6 +236,12 @@ public final class WardenNight {
 
     /** True for a boss's guard (Bosse 2), not the night's warden. */
     private boolean guard;
+    /** His share of a warden's life (a guard: bossGuardLife). */
+    private double lifeShare = 1.0;
+
+    public double lifeShare() {
+        return lifeShare;
+    }
 
     public boolean guard() {
         return guard;
@@ -264,6 +270,7 @@ public final class WardenNight {
         }
         ServerLevel level = host.world();
         guard = asGuard;
+        this.lifeShare = lifeShare;
         Mob mob = asGuard ? host.spawnGuard(kind.champion(), spot) : host.spawnAdd(kind.champion(), spot);
         if (mob == null) {
             mob = asGuard ? host.spawnGuard("minecraft:wither_skeleton", spot) : host.spawnAdd("minecraft:wither_skeleton", spot);
@@ -396,6 +403,7 @@ public final class WardenNight {
         }
         kind = null;
         guard = false;
+        lifeShare = 1.0;
         wardenId = null;
         networkId = -1;
         spawned = false;

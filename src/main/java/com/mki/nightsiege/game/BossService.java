@@ -353,6 +353,18 @@ public final class BossService {
     /** For the tests: the boss's abilities wait (while it is photographed). */
     public static boolean testHold;
 
+    /** For the tests: the boss's next ability now (the storm witch lands). */
+    public void testNudge(long now) {
+        if (brain != null) {
+            brain.testNudge(now);
+        }
+    }
+
+    /** For the tests: what the boss's abilities did so far (Bosse 2). */
+    public String brainStats() {
+        return brain == null ? "-" : brain.stats();
+    }
+
     /** Every tick of the night once the boss is there. */
     public void tick(Host host, long now) {
         if (!spawned || fallen || brain == null || testHold) {

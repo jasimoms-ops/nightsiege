@@ -142,6 +142,12 @@ final class ContentBosses {
         }
 
         @Override
+        String stats() {
+            return String.format(java.util.Locale.ROOT, "boulders=%d armors=%d armorLeft=%.0f avalanche=%s dazed=%s",
+                    boulders, armorsBroken, armor, avalanche, stunned);
+        }
+
+        @Override
         void spawned(BossService.Host host, Mob boss) {
             super.spawned(host, boss);
             nextStomp = spawnedAt + 100;
@@ -639,6 +645,11 @@ final class ContentBosses {
             return eruptions;
         }
 
+        @Override
+        String stats() {
+            return "pounces=" + pounces() + " eruptions=" + eruptions + " split=" + split + " whiteHot=" + whiteHot;
+        }
+
         /**
          * The eruption (Bosse 2): he sinks in, warning rings glow round the defenders, and 1.5 s later
          * a lump of magma falls on each (15 %, it sets on fire and leaves a crack). True while he sinks.
@@ -876,6 +887,18 @@ final class ContentBosses {
             return vexes;
         }
 
+        @Override
+        void testNudge(long now) {
+            if (flight == Flight.CIRCLE) {
+                landAt = now;
+            }
+        }
+
+        @Override
+        String stats() {
+            return "strikes=" + strikes + " eyes=" + eyes + " vexes=" + vexes + " eyeNow=" + (eyeUntil > 0) + " flight=" + flight;
+        }
+
         /**
          * The lightning strike (Bosse 2): a ring of sparks under a defender (two below half), and
          * after 1.5 s the bolt comes down on it: 20 % to whoever still stands there.
@@ -1011,8 +1034,8 @@ final class ContentBosses {
                         BossService.sound(level, landing, SoundEvents.PHANTOM_FLAP, 2.0f, 0.5f);
                         // On the ground she calls two vexes (Bosse 2).
                         for (int i = 0; i < VEXES; i++) {
-                            double a = host.random().nextDouble() * Math.PI * 2.0;
-                            BlockPos spot = BlockPos.containing(landing.x + Math.cos(a) * 2.0, landing.y + 1.5, landing.z + Math.sin(a) * 2.0);
+                            double turn = host.random().nextDouble() * Math.PI * 2.0;
+                            BlockPos spot = BlockPos.containing(landing.x + Math.cos(turn) * 2.0, landing.y + 1.5, landing.z + Math.sin(turn) * 2.0);
                             if (host.spawnAdd("minecraft:vex", spot) != null) {
                                 vexes++;
                             }
@@ -1243,6 +1266,11 @@ final class ContentBosses {
 
         int debrisHits() {
             return debrisHits;
+        }
+
+        @Override
+        String stats() {
+            return "charges=" + charges + " tramples=" + tramples + " debrisHits=" + debrisHits + " enraged=" + enraged;
         }
 
         @Override

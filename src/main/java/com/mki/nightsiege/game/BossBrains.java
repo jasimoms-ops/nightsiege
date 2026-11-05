@@ -112,6 +112,15 @@ final class BossBrains {
         void died(ServerLevel level) {
         }
 
+        /** For the tests: what the boss's abilities did so far. */
+        String stats() {
+            return "";
+        }
+
+        /** For the tests: brings the next ability now (the storm witch lands). */
+        void testNudge(long now) {
+        }
+
         static boolean below(Mob boss, double share) {
             return boss.getHealth() < boss.getMaxHealth() * share;
         }

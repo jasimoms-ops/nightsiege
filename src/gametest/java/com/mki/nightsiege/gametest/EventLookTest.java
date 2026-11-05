@@ -4715,6 +4715,14 @@ public class EventLookTest implements FabricClientGameTest {
                 System.out.println("[Night Siege test] boss " + id + " night=" + manager.isActive() + " planned="
                         + manager.bosses().kind() + " spawned=" + now + " boss=" + (boss == null ? "-" : boss.getType().toShortString()
                         + " hp=" + Math.round(boss.getHealth()) + " scale=" + boss.getScale()));
+                // Bosse 2 (Simon 05.11.): the boss's guard, two dungeon wardens with half a warden's life.
+                StringBuilder guards = new StringBuilder();
+                for (com.mki.nightsiege.game.WardenNight g : manager.bossGuardsForTest()) {
+                    net.minecraft.world.entity.Mob m = g.warden(level);
+                    guards.append(' ').append(g.kind().id()).append(" hp=").append(m == null ? "-" : String.valueOf(Math.round(m.getMaxHealth())))
+                            .append(" share=").append(g.lifeShare()).append(" guard=").append(g.guard());
+                }
+                System.out.println("[Night Siege test] boss " + id + " guards=" + manager.bossGuardsForTest().size() + guards);
                 if (boss != null) {
                     // Hold the boss still for the photo, close to the camera (its abilities wait too).
                     com.mki.nightsiege.game.BossService.testHold = true;
@@ -4735,6 +4743,17 @@ public class EventLookTest implements FabricClientGameTest {
                     if (rider != null) {
                         rider.setNoAi(true);
                     }
+                    int side = 0;
+                    for (com.mki.nightsiege.game.WardenNight g : manager.bossGuardsForTest()) {
+                        net.minecraft.world.entity.Mob m = g.warden(level);
+                        if (m != null) {
+                            m.setNoAi(true);
+                            m.teleportTo(cx + (side++ == 0 ? -4.0 : 5.0), cy, cz - 3.5);
+                            m.setYRot(0f);
+                            m.setYHeadRot(0f);
+                            m.yBodyRot = 0f;
+                        }
+                    }
                 }
             });
             context.waitTicks(10);
@@ -4751,6 +4770,13 @@ public class EventLookTest implements FabricClientGameTest {
             game.getServer().runCommand("time set 18000");
             context.waitTicks(20);
             context.takeScreenshot("boss_" + id);
+            // By night with night vision, a step further back: the boss with its guard (Bosse 2).
+            game.getServer().runCommand("effect give @p minecraft:night_vision 30 0 true");
+            game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %d.5 %d %.1f facing %d.5 %.1f %.1f",
+                    cx, cy, cz - 4.5 + back + 2.0, cx, cy + eyeAt, cz - 4.5));
+            context.waitTicks(20);
+            context.takeScreenshot("boss_" + id + "_guard");
+            game.getServer().runCommand("effect clear @p minecraft:night_vision");
             context.runOnClient(client -> hud(client, true));
             if (kind == com.mki.nightsiege.core.BossKind.BONE_LICH) {
                 // A soul crystal of the shield, up close.
@@ -4803,8 +4829,44 @@ public class EventLookTest implements FabricClientGameTest {
                 if (rider != null) {
                     rider.setNoAi(false);
                 }
+                for (com.mki.nightsiege.game.WardenNight g : manager.bossGuardsForTest()) {
+                    net.minecraft.world.entity.Mob m = g.warden(level);
+                    if (m != null) {
+                        m.setNoAi(false);
+                    }
+                }
             });
-            game.getServer().runCommand("tp @p %d.5 %d %d.5 180 10".formatted(cx, cy, cz + 3));
+            if (kind == com.mki.nightsiege.core.BossKind.RAM_TITAN) {
+                // Bosse 2: whoever stands behind the titan for two seconds is trampled (it stands still, facing south).
+                onServer(context, (player, manager) -> {
+                    net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                    net.minecraft.world.entity.Mob boss = manager.bosses().boss(level);
+                    if (boss != null) {
+                        boss.setNoAi(true);
+                        boss.teleportTo(cx + 0.5, cy, cz - 2.5);
+                        boss.setYRot(0f);
+                        boss.yBodyRot = 0f;
+                    }
+                });
+                game.getServer().runCommand("tp @p %d.5 %d %d.5 180 10".formatted(cx, cy, cz - 6));
+                context.waitTicks(70);
+                onServer(context, (player, manager) -> {
+                    net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                    System.out.println("[Night Siege test] boss ram_titan behind: " + manager.bosses().brainStats()
+                            + " player at z=" + String.format(java.util.Locale.ROOT, "%.1f", player.getZ() - cz));
+                    net.minecraft.world.entity.Mob boss = manager.bosses().boss(level);
+                    if (boss != null) {
+                        boss.setNoAi(false);
+                    }
+                });
+            }
+            if (kind == com.mki.nightsiege.core.BossKind.STORM_WITCH) {
+                // Bosse 2: she lands (the test brings it now) and calls her two vexes.
+                onServer(context, (player, manager) -> manager.bosses().testNudge(player.level().getGameTime()));
+            }
+            // The frost jarl throws his ice at whoever keeps away (8 blocks and more).
+            int stand = kind == com.mki.nightsiege.core.BossKind.FROST_JARL ? 7 : 3;
+            game.getServer().runCommand("tp @p %d.5 %d %d.5 180 10".formatted(cx, cy, cz + stand));
             for (int t = 0; t < 12; t++) {
                 context.waitTicks(20);
                 final int sec = t + 1;
@@ -4877,6 +4939,43 @@ public class EventLookTest implements FabricClientGameTest {
                 closeScreen(context);
                 context.takeScreenshot("boss_ember_colossus_split");
             }
+            // Bosse 2: the second half of the four new bosses (below half), and what their abilities did.
+            if (kind == com.mki.nightsiege.core.BossKind.FROST_JARL || kind == com.mki.nightsiege.core.BossKind.STORM_WITCH
+                    || kind == com.mki.nightsiege.core.BossKind.RAM_TITAN || kind == com.mki.nightsiege.core.BossKind.EMBER_COLOSSUS) {
+                final boolean witch = kind == com.mki.nightsiege.core.BossKind.STORM_WITCH;
+                if (witch) {
+                    game.getServer().runCommand("tp @p %d.5 %d %d.5 180 10".formatted(cx + 7, cy, cz));
+                }
+                onServer(context, (player, manager) -> {
+                    net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                    net.minecraft.world.entity.Mob boss = manager.bosses().boss(level);
+                    System.out.println("[Night Siege test] boss " + id + " before half: " + manager.bosses().brainStats());
+                    if (kind == com.mki.nightsiege.core.BossKind.EMBER_COLOSSUS) {
+                        net.minecraft.world.entity.Mob half = manager.bosses().riderOf(level);
+                        if (half != null) {
+                            half.invulnerableTime = 0;
+                            half.hurtServer(level, level.damageSources().playerAttack(player), 100000f);   // one half down: white-hot
+                        }
+                    } else if (boss != null) {
+                        boss.setHealth(boss.getMaxHealth() * 0.45f);
+                    }
+                });
+                context.waitTicks(60);
+                onServer(context, (player, manager) -> System.out.println(String.format(java.util.Locale.ROOT,
+                        "[Night Siege test] boss %s half 3s: %s player from core=%.1f", id, manager.bosses().brainStats(),
+                        Math.hypot(player.getX() - (cx + 0.5), player.getZ() - (cz + 0.5)))));
+                context.waitTicks(80);
+                onServer(context, (player, manager) -> {
+                    net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                    int vexes = 0;
+                    for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                        if (e instanceof net.minecraft.world.entity.monster.Vex && e.isAlive()) {
+                            vexes++;
+                        }
+                    }
+                    System.out.println("[Night Siege test] boss " + id + " half 7s: " + manager.bosses().brainStats() + " vexes alive=" + vexes);
+                });
+            }
             // Down with it: the lich's shield must hold until its crystals are gone.
             onServer(context, (player, manager) -> {
                 net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
@@ -4915,8 +5014,15 @@ public class EventLookTest implements FabricClientGameTest {
             });
             context.waitTicks(80);
             onServer(context, (player, manager) -> {
+                int wardens = 0;
+                for (net.minecraft.world.entity.Entity e : ((net.minecraft.server.level.ServerLevel) player.level()).getAllEntities()) {
+                    if (e != null && e.isAlive() && e.entityTags().contains(com.mki.nightsiege.game.WardenNight.TAG)) {
+                        wardens++;
+                    }
+                }
                 System.out.println("[Night Siege test] boss " + id + " after the fall: night active=" + manager.isActive()
-                        + " speed=" + player.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED));
+                        + " speed=" + player.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED)
+                        + " guards left=" + manager.bossGuardsForTest().size() + " wardens alive=" + wardens);
                 if (BLAST_SPOT != null) {
                     net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
                     System.out.println("[Night Siege test] night damage after the night block="
@@ -4981,7 +5087,7 @@ public class EventLookTest implements FabricClientGameTest {
                     }
                     running[0] = manager.isActive();
                     System.out.println("[Night Siege test] " + mode + " step " + at + ": active=" + manager.isActive() + " state="
-                            + manager.finaleState() + " bosses=" + alive);
+                            + manager.finaleState() + " bosses=" + alive + " guards=" + manager.bossGuardsForTest().size());
                 });
                 if (step == (group ? 0 : 7)) {
                     context.takeScreenshot(mode + "_bar");
