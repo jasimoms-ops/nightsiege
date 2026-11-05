@@ -153,10 +153,10 @@ final class Pt2FlowScenes {
                 m.kits().restore(player);
             }
             m.save().register(player.getUUID().toString());
-            // What the last playtests had: five dungeon kinds, three events, two bosses.
+            // What the last playtests had: five dungeon kinds, two events, two bosses (no theme wave since 5 November).
             SiegeSave.PlaytestRecent recent = new SiegeSave.PlaytestRecent();
             recent.dungeons.addAll(List.of("stone_crypt", "illager_keep", "deep_cellar", "nether_forge", "desert_crypt"));
-            recent.events.addAll(List.of("BLOOD_MOON", "FOG", "THUNDER"));
+            recent.events.addAll(List.of("BLOOD_MOON", "FOG"));
             recent.bosses.addAll(List.of("grave_king", "warlord"));
             m.save().playtestRecent = recent;
             PlayerSkills own = m.save().skillsOf(player.getUUID().toString());
@@ -198,7 +198,8 @@ final class Pt2FlowScenes {
             }
             check(allSet && events.size() == Playtest.NIGHTS, "every non-boss night has its own event, none twice, never NONE or ECLIPSE");
             List<String> fresh = new ArrayList<>(seen);
-            fresh.retainAll(List.of("THEME_WAVE", "NETHER_RIFT", "FROST"));
+            fresh.retainAll(List.of("THUNDER", "NETHER_RIFT", "FROST"));
+            check(!seen.contains("THEME_WAVE"), "no theme wave in the plan (removed 5 November)");
             check(fresh.size() >= Math.min(3, seen.size()), "the events of the last playtest come last");
             check(s.bossNight < 0 || !List.of("grave_king", "warlord").contains(s.boss), "the boss is none of the last two playtests");
             List<String> history = m.save().playtestRecent.dungeons;
@@ -335,8 +336,7 @@ final class Pt2FlowScenes {
             check(m.maxLive() == 6 && m.maxLive() == real, "a solo playtest night holds the real solo cap (6), not 40");
             check(Math.abs(field - realField) < 1e-9 && field > 1.0, "its field strength is a real solo night's (9/6)");
             String plannedEvent = m.playtest().eventPlan().get(step(m));
-            check(plannedEvent.equals(m.currentEventKey()) || "THEME_WAVE".equals(plannedEvent) && m.currentEventKey().isEmpty(),
-                    "the night has the event of the plan");
+            check(plannedEvent.equals(m.currentEventKey()), "the night has the event of the plan");
             boolean hurt = hurts(player);
             log("hit as a defender: hurt=" + hurt + " health=" + player.getHealth());
             check(hurt, "as a defender of the running night the participant does take damage");

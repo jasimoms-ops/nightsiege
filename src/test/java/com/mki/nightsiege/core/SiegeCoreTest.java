@@ -964,7 +964,6 @@ class SiegeCoreTest {
     void onlyBloodMoonChangesWaveStrength() {
         SiegeConfig c = cfg();
         assertEquals(1.0, SiegeEvent.NONE.mobCountMultiplier(c), 1e-9);
-        assertEquals(1.0, SiegeEvent.THEME_WAVE.healthMultiplier(c), 1e-9);
         assertTrue(SiegeEvent.BLOOD_MOON.mobCountMultiplier(c) > 1.0);
     }
 
@@ -2461,7 +2460,6 @@ class SiegeCoreTest {
     @Test
     void onlyEventsWithASkyHaveAnAtmosphere() {
         assertEquals("", SiegeEvent.NONE.atmosphere());
-        assertEquals("", SiegeEvent.THEME_WAVE.atmosphere());
         assertEquals("ECLIPSE", SiegeEvent.ECLIPSE.atmosphere());
         assertEquals("FROST", SiegeEvent.FROST.atmosphere());
     }
@@ -2865,6 +2863,21 @@ class SiegeCoreTest {
         // the finale: 3 minutes before dawn, at most half the night
         assertEquals(3600, BossPlan.finaleTicks(20000, c));
         assertEquals(2000, BossPlan.finaleTicks(4000, c));
+    }
+
+    @Test
+    void themeWaveIsGone() {
+        SiegeConfig c = new SiegeConfig();
+        c.sanitize();
+        c.eventChance = 1.0;
+        c.eventMinLevel = 1;
+        Random random = new Random(7);
+        for (int i = 0; i < 2000; i++) {
+            assertNotEquals("THEME_WAVE", EventPicker.pick(10, random, c).name());
+        }
+        for (SiegeEvent e : SiegeEvent.values()) {
+            assertNotEquals("THEME_WAVE", e.name());
+        }
     }
 
     @Test

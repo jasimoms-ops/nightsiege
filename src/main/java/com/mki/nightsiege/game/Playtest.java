@@ -1170,8 +1170,8 @@ public final class Playtest {
     // ------------------------------------------------------------------ variety (Playtest 2)
 
     /** Events a playtest night can have: all but the eclipse, a day event (a test night is always made night). */
-    private static final SiegeEvent[] NIGHT_EVENTS = {SiegeEvent.BLOOD_MOON, SiegeEvent.THEME_WAVE, SiegeEvent.FOG,
-            SiegeEvent.THUNDER, SiegeEvent.NETHER_RIFT, SiegeEvent.FROST};
+    private static final SiegeEvent[] NIGHT_EVENTS = {SiegeEvent.BLOOD_MOON, SiegeEvent.FOG,
+            SiegeEvent.THUNDER, SiegeEvent.NETHER_RIFT, SiegeEvent.FROST};   // no theme wave (Simon 5 November 2026)
     /** Entries kept of the last playtests (per list), and how many of the newest count as recent. */
     private static final int RECENT_KEPT = 24;
     private static final int RECENT_DUNGEONS = 6;
@@ -1250,7 +1250,6 @@ public final class Playtest {
     private static int eventWeight(SiegeEvent e, SiegeConfig cfg) {
         return switch (e) {
             case BLOOD_MOON -> cfg.bloodMoonWeight;
-            case THEME_WAVE -> cfg.themeWaveWeight;
             case FOG -> cfg.fogWeight;
             case THUNDER -> cfg.thunderWeight;
             case NETHER_RIFT -> cfg.netherRiftWeight;

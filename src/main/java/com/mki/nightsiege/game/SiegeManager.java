@@ -251,7 +251,6 @@ public final class SiegeManager {
         }
     }
     private SiegeEvent currentEvent = SiegeEvent.NONE;
-    private String themeMobId;
     /** Tick at which a boss night won by the boss's fall ends (a few seconds of triumph), or -1. */
     private long bossVictoryAt = -1L;
     /** "boss_<id>" for the night's protocol and statistics window of a boss night, else null. */
@@ -2138,13 +2137,6 @@ public final class SiegeManager {
                 save.nightFragment = null;
             }
         }
-        themeMobId = null;
-        if (currentEvent == SiegeEvent.THEME_WAVE) {
-            themeMobId = pickAvailableMob();
-            if (themeMobId == null) {
-                currentEvent = SiegeEvent.NONE;
-            }
-        }
 
         // The event is never named. A blood moon only shows as a red bar.
         bossBar = new ServerBossEvent(com.mki.nightsiege.core.NightBarIds.make(com.mki.nightsiege.core.NightBarIds.Kind.NIGHT),
@@ -2226,23 +2218,6 @@ public final class SiegeManager {
         return true;
     }
 
-    private String pickAvailableMob() {
-        for (int attempt = 0; attempt < 12; attempt++) {
-            String candidate = pool.pick(siegeLevel, random, unavailableMobs);
-            if (candidate == null) {
-                return null;
-            }
-            if (MobFactory.isUnavailable(candidate)) {
-                unavailableMobs.add(candidate);
-                continue;
-            }
-            if (Foes.isCapped(candidate)) {
-                continue;   // a night of only tunnelers or banners would make no sense
-            }
-            return candidate;
-        }
-        return null;
-    }
 
     /** Blood moon haze, on a slow beat so it stays cheap. */
     private void tickAtmosphere(MinecraftServer server) {
@@ -3400,10 +3375,8 @@ public final class SiegeManager {
         besiegers.aimAt(plan == null ? Double.NaN : plan.main());
         wavePlan = plan;
         for (int i = 0; i < count; i++) {
-            String entityId = themeMobId != null
-                    ? themeMobId
-                    : foes.limit(pool.pick(siegeLevel, random, unavailableMobs), waveFoes, siegeLevel, config,
-                            () -> pool.pick(siegeLevel, random, unavailableMobs));   // tunnelers, banners, grapplers only a few
+            String entityId = foes.limit(pool.pick(siegeLevel, random, unavailableMobs), waveFoes, siegeLevel, config,
+                    () -> pool.pick(siegeLevel, random, unavailableMobs));   // tunnelers, banners, grapplers only a few
             if (entityId == null) {
                 break;
             }
@@ -3448,7 +3421,7 @@ public final class SiegeManager {
             goalDown = Component.translatable("nightsiege.bar.goal_no_room");   // no spot for some of them
         }
         // Phantoms in every night (Simon, 27 October 2026): a few come with the second wave.
-        if (wavesStarted == 2 && themeMobId == null) {
+        if (wavesStarted == 2) {
             int phantoms = Math.max(0, config.nightPhantoms) + (int) Math.floor(Math.max(0.0, config.nightPhantomsPerLevel) * siegeLevel);
             for (int i = 0; i < Math.min(phantoms, 12); i++) {
                 Mob phantom = spawnMob("minecraft:phantom", false);
@@ -3467,9 +3440,7 @@ public final class SiegeManager {
         // Some of them carry ladders; a sapper creeper may come along (it does not count for the kill goal).
         besiegers.afterWave(world, anchor, defense.base(), wave, siegeLevel, config, random, currentEvent,
                 sapper -> liveMobs.add(sapper.getUUID()));
-        if (themeMobId == null) {
-            safe("Schatz-Pluenderer", () -> foes.afterWave(foesHost, wavesStarted));
-        }
+        safe("Schatz-Pluenderer", () -> foes.afterWave(foesHost, wavesStarted));
         safe("Nemesis", () -> nemesis.onWave(nemesisHost, wavesStarted));   // the nemeses come with the second wave
     }
 
@@ -3486,10 +3457,8 @@ public final class SiegeManager {
             return;
         }
         nextRefill = now + Math.max(1, config.refillGapTicks);
-        String entityId = themeMobId != null
-                ? themeMobId
-                : foes.limit(pool.pick(siegeLevel, random, unavailableMobs), waveFoesNow, siegeLevel, config,
-                        () -> pool.pick(siegeLevel, random, unavailableMobs));
+        String entityId = foes.limit(pool.pick(siegeLevel, random, unavailableMobs), waveFoesNow, siegeLevel, config,
+                () -> pool.pick(siegeLevel, random, unavailableMobs));
         if (entityId == null) {
             return;
         }
@@ -4412,7 +4381,6 @@ public final class SiegeManager {
         world = null;
         anchor = null;
         currentEvent = SiegeEvent.NONE;
-        themeMobId = null;
         participants.clear();
         fallen.clear();
         liveMobs.clear();

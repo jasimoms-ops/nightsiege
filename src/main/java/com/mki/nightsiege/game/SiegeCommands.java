@@ -208,7 +208,6 @@ public final class SiegeCommands {
                                                         java.util.Arrays.stream(com.mki.nightsiege.core.ExpeditionKind.values())
                                                                 .map(com.mki.nightsiege.core.ExpeditionKind::id), b))
                                                 .executes(ctx -> testWarden(ctx, StringArgumentType.getString(ctx, "name")))))
-                                .then(Commands.literal("thema").executes(ctx -> test(ctx, SiegeEvent.THEME_WAVE)))
                                 .then(Commands.literal("finsternis").executes(ctx -> test(ctx, SiegeEvent.ECLIPSE)))
                                 .then(Commands.literal("nebel").executes(ctx -> test(ctx, SiegeEvent.FOG)))
                                 .then(Commands.literal("gewitter").executes(ctx -> test(ctx, SiegeEvent.THUNDER)))

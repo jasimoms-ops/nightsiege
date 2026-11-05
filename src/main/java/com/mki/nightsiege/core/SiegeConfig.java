@@ -171,7 +171,6 @@ public class SiegeConfig {
     /** No events below this siege level, so the first nights stay plain. */
     public int eventMinLevel = 3;
     public int bloodMoonWeight = 10;
-    public int themeWaveWeight = 7;
     public int eclipseWeight = 7;
     public int fogWeight = 7;
     public int thunderWeight = 7;
@@ -1268,7 +1267,6 @@ public class SiegeConfig {
         eventChance = clampDouble(eventChance, 0.0, 1.0);
         eventMinLevel = Math.max(1, eventMinLevel);
         bloodMoonWeight = Math.max(0, bloodMoonWeight);
-        themeWaveWeight = Math.max(0, themeWaveWeight);
         eclipseWeight = Math.max(0, eclipseWeight);
         fogWeight = Math.max(0, fogWeight);
         thunderWeight = Math.max(0, thunderWeight);

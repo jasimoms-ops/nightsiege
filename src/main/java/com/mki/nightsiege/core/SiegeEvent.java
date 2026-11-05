@@ -6,8 +6,8 @@ public enum SiegeEvent {
     NONE,
     /** More mobs, tougher and harder hitting. */
     BLOOD_MOON,
-    /** The whole night is made of a single mob type. */
-    THEME_WAVE,
+    // The theme wave (a whole night of a single mob type) is gone (Simon 5 November 2026: "die Themennacht
+    // muss entfernt werden"). Saves and playtest plans keep event names; an unknown one loads as none.
     /** At noon the sun goes dark and the siege comes by day; the undead do not burn. */
     ECLIPSE,
     /** Thick fog, silent monsters, more spiders and creepers. */
