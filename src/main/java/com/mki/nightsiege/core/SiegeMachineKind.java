@@ -74,6 +74,16 @@ public enum SiegeMachineKind {
         return (l - 1) / 5 + 1;
     }
 
+    /** A camp left standing (Simon 05.11.: "deutlich mehr"): the level's count times the factor, at most max. */
+    public static int campCount(int level, double factor, int max) {
+        return Math.max(1, Math.min(max, (int) Math.round(countFor(level) * factor)));
+    }
+
+    /** A night's own machines from level 10 (Simon 05.11.: "eine weniger"): the level's count minus fewer, at least one. */
+    public static int randomCount(int level, int fewer, int max) {
+        return Math.max(1, Math.min(max, countFor(level) - Math.max(0, fewer)));
+    }
+
     /** Which machines come: every kind once before any comes twice, in a random order. */
     public static List<SiegeMachineKind> pick(int count, Random random) {
         List<SiegeMachineKind> out = new ArrayList<>();

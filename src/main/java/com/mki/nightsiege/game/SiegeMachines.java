@@ -221,10 +221,23 @@ public final class SiegeMachines {
 
     /** Tonight comes with machines: how many follows from the level. */
     public void plan(int level) {
+        plan(level, SiegeMachineKind.countFor(level), "Befehl");
+    }
+
+    /** Tonight comes with this many machines; why (camp, the night's own, a broken-off night) goes to the log. */
+    public void plan(int level, int count, String why) {
         planned.clear();
-        planned.addAll(SiegeMachineKind.pick(SiegeMachineKind.countFor(level), random));
+        planned.addAll(SiegeMachineKind.pick(Math.max(1, count), random));
         setUpAt = -1L;
-        NightSiegeMod.LOGGER.info("[Night Siege] Belagerungsmaschinen heute Nacht: {}", planned);
+        tonightCount = planned.size();
+        NightSiegeMod.LOGGER.info("[Night Siege] Belagerungsmaschinen heute Nacht ({}, Stufe {}): {}", why, level, planned);
+    }
+
+    /** Machines planned for tonight at the night's start (they come again as many if it is broken off). */
+    private int tonightCount;
+
+    public int tonightCount() {
+        return tonightCount;
     }
 
     /** Admin: machines into the running night at once. */
@@ -1375,6 +1388,7 @@ public final class SiegeMachines {
     void reset(MinecraftServer server) {
         planned.clear();
         setUpAt = -1L;
+        tonightCount = 0;
         nightTotal = 0;
         saboteurs.clear();
         if (bar != null) {

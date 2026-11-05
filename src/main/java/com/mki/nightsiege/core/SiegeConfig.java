@@ -478,6 +478,27 @@ public class SiegeConfig {
     public int warGatherMax = 60;
     /** Siege machines in nights after a camp. */
     public boolean machinesEnabled = true;
+    /**
+     * Simon 05.11. 12:50 ("Belagerungswaffen ab Stufe 10 deutlich häufiger, aber ohne Heerlager"): from this
+     * level a night without a camp's machines brings machines of its own with this chance, this much more per
+     * level (Simon: 50 % at level 10, up to 100 % at level 20). Not in boss, warden, finale and late nights.
+     */
+    public int machinesRandomFromLevel = 10;
+    public double machinesRandomChance = 0.5;
+    public double machinesRandomChancePerLevel = 0.05;
+    /** Such a night brings this many machines fewer than the level's count (Simon: "eine weniger"), at least one. */
+    public int machinesRandomFewer = 1;
+    /** A camp left standing sends this many times the level's machines (Simon: "doppelt so viele"), at most so many. */
+    public double machinesCampFactor = 2.0;
+    public int machinesMax = 8;
+
+    /** The chance of a night's own machines at this level (0 below the level they start at). */
+    public double machinesRandomChanceAt(int level) {
+        if (level < machinesRandomFromLevel) {
+            return 0.0;
+        }
+        return Math.max(0.0, Math.min(1.0, machinesRandomChance + machinesRandomChancePerLevel * (level - machinesRandomFromLevel)));
+    }
     /** Seconds into the night before the machines are set up. */
     public int machineStartSeconds = 40;
     /** Factors on the machines' life and on what their shots do. */
@@ -1334,6 +1355,12 @@ public class SiegeConfig {
         campWorkshopHealth = clampDouble(campWorkshopHealth, 10.0, 5000.0);
         campGraceSeconds = clamp(campGraceSeconds, 0, 60);
         machineStartSeconds = clamp(machineStartSeconds, 0, 600);
+        machinesRandomFromLevel = clamp(machinesRandomFromLevel, 1, 1000);
+        machinesRandomChance = Double.isNaN(machinesRandomChance) ? 0.5 : clampDouble(machinesRandomChance, 0.0, 1.0);
+        machinesRandomChancePerLevel = Double.isNaN(machinesRandomChancePerLevel) ? 0.05 : clampDouble(machinesRandomChancePerLevel, 0.0, 1.0);
+        machinesRandomFewer = clamp(machinesRandomFewer, 0, 10);
+        machinesCampFactor = Double.isNaN(machinesCampFactor) ? 2.0 : clampDouble(machinesCampFactor, 0.0, 10.0);
+        machinesMax = clamp(machinesMax, 1, 12);
         warGoldShare = Double.isNaN(warGoldShare) ? 0.11 : clampDouble(warGoldShare, 0.01, 5.0);
         warGoldPerMob = Double.isNaN(warGoldPerMob) ? 1.2 : clampDouble(warGoldPerMob, 0.1, 10.0);
         warMachineShare = Double.isNaN(warMachineShare) ? 0.35 : clampDouble(warMachineShare, 0.0, 5.0);

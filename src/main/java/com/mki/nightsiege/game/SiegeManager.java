@@ -259,6 +259,8 @@ public final class SiegeManager {
     private com.mki.nightsiege.core.BossKind testBoss;
     /** The next test night brings the siege machines (a playtest's camp won), taken at its start. */
     private boolean testMachines;
+    /** For the tests: the next night's own machines (from level 10) come for sure (true), never (false) or as rolled (null). */
+    private Boolean testRandomMachines;
     private final Set<UUID> participants = new HashSet<>();
     private final Set<UUID> fallen = new HashSet<>();
     private final Set<UUID> liveMobs = new HashSet<>();
@@ -2121,17 +2123,37 @@ public final class SiegeManager {
             NightSiegeMod.LOGGER.info("[Night Siege] Wächter der Nacht: {}", tonightWarden.id());
         }
         safe("Dungeons", () -> expeditions.endAll(server, "nightsiege.expedition.night"));
-        // The machines of a war camp left standing (or that won) come tonight.
+        // The machines of a war camp left standing (or that won) come tonight: twice the level's (Simon 05.11.).
         machines.reset(server);
         boolean machinesTonight = testRun ? testMachines
                 : save.machinesDay >= 0 && save.machinesDay == clockDay(server);
+        int carried = testRun ? 0 : save.machinesCount;
         testMachines = false;
-        machinesNight = config.machinesEnabled && machinesTonight;
+        machinesNight = false;
         if (config.machinesEnabled && machinesTonight) {
-            machines.plan(siegeLevel);
+            machinesNight = true;
+            if (carried > 0) {
+                machines.plan(siegeLevel, carried, "abgebrochene Nacht");
+            } else {
+                machines.plan(siegeLevel, com.mki.nightsiege.core.SiegeMachineKind.campCount(siegeLevel, config.machinesCampFactor,
+                        config.machinesMax), "Heerlager");
+            }
+        } else if (config.machinesEnabled && (!testRun || playtest.running() || testRandomMachines != null)
+                && tonightBoss == null && tonightWarden == null && !finaleNight && !lateNight && !warRound
+                && kind == com.mki.nightsiege.core.BossPlan.NightKind.NORMAL) {
+            // Simon 05.11. 12:50: from level 10 machines come more often without a camp (50 %, +5 % a level).
+            double chance = config.machinesRandomChanceAt(siegeLevel);
+            boolean roll = testRandomMachines != null ? testRandomMachines : chance > 0 && random.nextDouble() < chance;
+            if (roll && (chance > 0 || testRandomMachines != null)) {
+                machinesNight = true;
+                machines.plan(siegeLevel, com.mki.nightsiege.core.SiegeMachineKind.randomCount(siegeLevel, config.machinesRandomFewer,
+                        config.machinesMax), String.format(java.util.Locale.ROOT, "ohne Heerlager, Chance %.0f %%", chance * 100));
+            }
         }
+        testRandomMachines = null;
         if (!testRun) {
             save.machinesDay = -1L;
+            save.machinesCount = 0;
         }
         currentEvent = tonightBoss != null || finaleNight || lateNight ? SiegeEvent.NONE : forcedEvent != null ? forcedEvent : pickEventNow(server);
         save.specialNight = false;
@@ -2977,8 +2999,18 @@ public final class SiegeManager {
     }
 
     /** The next test night brings siege machines (the playtest's camp won or stood). */
-    void setTestMachines(boolean machines) {
+    public void setTestMachines(boolean machines) {
         testMachines = machines;
+    }
+
+    /** For the tests: the next night's own machines come for sure (true), never (false) or as rolled (null). */
+    public void setTestRandomMachines(Boolean machines) {
+        testRandomMachines = machines;
+    }
+
+    /** True while tonight's machines are planned or standing (for the tests). */
+    public boolean machinesTonight() {
+        return machinesNight;
     }
 
     /** The class cards as before a night (the camp fight opens them). */
@@ -4089,6 +4121,7 @@ public final class SiegeManager {
             return;
         }
         boolean machinesWere = machinesNight;
+        int machinesCountWere = machines.tonightCount();
         active = false;
         clearSkillsFromParticipants(server);
         SiegeTeams.cleanUp(server);
@@ -4124,6 +4157,7 @@ public final class SiegeManager {
             }
             if (machinesWere && config.machinesEnabled) {
                 save.machinesDay = save.nextSiegeDay;   // the camp's machines come with the next night
+                save.machinesCount = Math.max(0, machinesCountWere);   // as many as tonight (a camp's doubled ones stay doubled)
             }
             save.specialNight = false;
             persist();

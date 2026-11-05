@@ -684,9 +684,12 @@ public final class ExpeditionLayout {
             for (int x = 12; x <= 15; x++) {
                 h.sym(x, 4, z, b.first(Part.GALLERY));
             }
-            for (int j = 0; j <= 4; j++) {
+            // Down along the back wall: five steps from the gallery's floor (+5) to the hall's. The top step lies
+            // level with the gallery; with four, its edge stood a full block over the last step (Simon 05.11.: "am
+            // Ende einer Treppe sitzt ein Block").
+            for (int j = 0; j <= 5; j++) {
                 int x = 11 - j;
-                int top = 4 - j;
+                int top = j == 0 ? 4 : 5 - j;
                 for (int y = 0; y < top; y++) {
                     h.sym(x, y, z, b.first(Part.GALLERY));
                 }
@@ -985,10 +988,14 @@ public final class ExpeditionLayout {
                 }
             }
         }
+        // Three steps up to it (+3): with two its edge stood a full block over the last step (Simon 05.11.).
         for (int x = -3; x <= 3; x++) {
             h.put(x, 0, 23, b.first(Part.GALLERY));
-            h.put(x, 1, 23, b.stairs(Direction.SOUTH));
-            h.put(x, 0, 22, b.stairs(Direction.SOUTH));
+            h.put(x, 1, 23, b.first(Part.GALLERY));
+            h.put(x, 2, 23, b.stairs(Direction.SOUTH));
+            h.put(x, 0, 22, b.first(Part.GALLERY));
+            h.put(x, 1, 22, b.stairs(Direction.SOUTH));
+            h.put(x, 0, 21, b.stairs(Direction.SOUTH));
         }
         for (int x : new int[] {-5, 5}) {
             h.lamp(x, 3, 24);
@@ -1311,20 +1318,21 @@ public final class ExpeditionLayout {
         for (int z = 14; z <= 17; z++) {
             h.sym(13, 0, z, b.rail());
         }
-        // The forge with its glowing mouth and a chimney to the ceiling.
+        // The forge with its glowing mouth and a chimney to the ceiling. It stood right before the exit gate
+        // with one row free (Simon 05.11.: "im 1. Raum wird die Tür blockiert"); now three rows lie between.
         for (int x = -4; x <= 4; x++) {
-            for (int z = 24; z <= 28; z++) {
+            for (int z = 21; z <= 25; z++) {
                 for (int y = 0; y <= 3; y++) {
                     h.put(x, y, z, Part.WALL);
                 }
             }
         }
         for (int x = -1; x <= 1; x++) {
-            h.put(x, 1, 24, b.lampState());
-            h.put(x, 2, 24, b.lampState());
+            h.put(x, 1, 21, b.lampState());
+            h.put(x, 2, 21, b.lampState());
         }
         for (int x = -2; x <= 2; x++) {
-            for (int z = 26; z <= 28; z++) {
+            for (int z = 23; z <= 25; z++) {
                 for (int y = 4; y < HALL_H; y++) {
                     h.put(x, y, z, Part.WALL_TOP);
                 }
@@ -1343,7 +1351,7 @@ public final class ExpeditionLayout {
         h.sym(6, 1, 11, Part.COVER);
         h.center(-4, 12);
         h.center(4, 19);
-        h.center(-4, 21);
+        h.center(-7, 21);   // was (-4, 21): the forge stands there now
         h.center(4, 9);
     }
 

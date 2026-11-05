@@ -2954,4 +2954,25 @@ class SiegeCoreTest {
         assertEquals(2, v.myBest);
         assertFalse(v.classes.isEmpty());
     }
+
+    @org.junit.jupiter.api.Test
+    void siegeMachinesFromLevelTenAndACampsDoubled() {
+        SiegeConfig cfg = new SiegeConfig();
+        org.junit.jupiter.api.Assertions.assertEquals(0.0, cfg.machinesRandomChanceAt(9), 1e-9);
+        org.junit.jupiter.api.Assertions.assertEquals(0.5, cfg.machinesRandomChanceAt(10), 1e-9);
+        org.junit.jupiter.api.Assertions.assertEquals(0.75, cfg.machinesRandomChanceAt(15), 1e-9);
+        org.junit.jupiter.api.Assertions.assertEquals(1.0, cfg.machinesRandomChanceAt(20), 1e-9);
+        org.junit.jupiter.api.Assertions.assertEquals(1.0, cfg.machinesRandomChanceAt(40), 1e-9);
+        // own: one fewer than the level's count (2 on 10, 3 on 15, 4 on 20)
+        org.junit.jupiter.api.Assertions.assertEquals(1, SiegeMachineKind.randomCount(10, cfg.machinesRandomFewer, cfg.machinesMax));
+        org.junit.jupiter.api.Assertions.assertEquals(2, SiegeMachineKind.randomCount(15, cfg.machinesRandomFewer, cfg.machinesMax));
+        org.junit.jupiter.api.Assertions.assertEquals(3, SiegeMachineKind.randomCount(20, cfg.machinesRandomFewer, cfg.machinesMax));
+        // a camp left standing: twice the level's, at most 8
+        org.junit.jupiter.api.Assertions.assertEquals(2, SiegeMachineKind.campCount(1, cfg.machinesCampFactor, cfg.machinesMax));
+        org.junit.jupiter.api.Assertions.assertEquals(4, SiegeMachineKind.campCount(10, cfg.machinesCampFactor, cfg.machinesMax));
+        org.junit.jupiter.api.Assertions.assertEquals(6, SiegeMachineKind.campCount(15, cfg.machinesCampFactor, cfg.machinesMax));
+        org.junit.jupiter.api.Assertions.assertEquals(8, SiegeMachineKind.campCount(20, cfg.machinesCampFactor, cfg.machinesMax));
+        org.junit.jupiter.api.Assertions.assertEquals(8, SiegeMachineKind.campCount(30, cfg.machinesCampFactor, cfg.machinesMax));
+    }
+
 }
