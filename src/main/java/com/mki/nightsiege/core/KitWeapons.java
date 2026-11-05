@@ -7,12 +7,16 @@ import java.util.Map;
  * The kit weapon of every subclass (Simon, 27 October 2026: "for every subclass a kit weapon,
  * like the armour"). Only the look and the name change: the kit sets the item model component
  * to {@code nightsiege:kit/<key>} on its main weapon; damage, enchantments and material stay
- * those of the kit. The textures come from tools/weapons/designs.py.
+ * those of the kit. The textures come from tools/weapons/designs.py (the designs in kit_v2.py,
+ * 32x32 by kit_v3.py, 3D by models3d.py).
+ *
+ * <p>Since 05.11. (Simon: "die Tanks könnten … den Mace als Waffe haben") the shield fighter and
+ * the bulwark carry a mace instead of a sword: Wappenkolben and Mauerbrecher.</p>
  */
 public final class KitWeapons {
 
     /** What kind of kit item carries the look. */
-    public enum Kind { SWORD, AXE, BOW, CROSSBOW, STAFF }
+    public enum Kind { SWORD, AXE, BOW, CROSSBOW, STAFF, MACE }
 
     /** The look of one subclass: resource key and the kit item it goes on. */
     public record Look(String subclass, String key, Kind kind) {
@@ -36,8 +40,8 @@ public final class KitWeapons {
         add(SkillTree.SUB_HEAVY, "heavy_siegebow", Kind.BOW);
         add(SkillTree.SUB_BOLTER, "bolter_launcher", Kind.CROSSBOW);
         add(SkillTree.SUB_TRAPPER, "trapper_netbow", Kind.CROSSBOW);
-        add(SkillTree.SUB_SHIELDFIGHTER, "shieldfighter_crestsword", Kind.SWORD);
-        add(SkillTree.SUB_BULWARK, "bulwark_wallbreaker", Kind.SWORD);
+        add(SkillTree.SUB_SHIELDFIGHTER, "shieldfighter_crestmace", Kind.MACE);
+        add(SkillTree.SUB_BULWARK, "bulwark_wallmace", Kind.MACE);
         add(SkillTree.SUB_MEDIC, "medic_lancet", Kind.SWORD);
         add(SkillTree.SUB_WARDEN, "warden_wardblade", Kind.SWORD);
         add(SkillTree.SUB_GUNNER, "gunner_wrenchblade", Kind.SWORD);

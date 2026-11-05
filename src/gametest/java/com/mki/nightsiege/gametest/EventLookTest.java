@@ -145,6 +145,13 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("krieger")) {
                     KriegerScenes.run(context, game);   // the warrior rework: Kampfgeist, finishers, F (Simon 05.11.)
                 }
+                if (want.contains("streitkolben")) {
+                    StreitkolbenScenes.run(context, game);   // the tanks' mace: kit, 2.5 x damage, 0.8 a second, no smash (05.11.)
+                }
+                if (want.contains("guardian")) {
+                    ensureCore(context, game);   // alone, no scene before it placed a core
+                    guardianScene(context);   // the guardian's trees, shield throw, charge, dome and sanctuary (alone since 05.11.)
+                }
                 if (want.contains("ss2-netz")) {
                     Ss2NetzScenes.run(context, game);   // survival safety 2: packets, profiles, playtest, core rights (31.10.)
                 }
@@ -990,6 +997,7 @@ public class EventLookTest implements FabricClientGameTest {
             case BOW -> "minecraft:bow";
             case CROSSBOW -> "minecraft:crossbow";
             case STAFF -> "nightsiege:summoning_staff";
+            case MACE -> "minecraft:mace";   // the tanks' mace (05.11.)
         };
     }
 

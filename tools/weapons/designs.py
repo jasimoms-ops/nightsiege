@@ -713,7 +713,9 @@ def states_sheet(path):
 
 KINDS = {'swift_huntbow': 'bow', 'heavy_siegebow': 'bow', 'bolter_launcher': 'crossbow', 'trapper_netbow': 'crossbow',
          'axe_bearded': 'axe', 'paladin_sunaxe': 'axe', 'tamer_packstaff': 'staff', 'golemsmith_forgestaff': 'staff',
-         'necromancer_bonestaff': 'staff', 'soulcatcher_lanternstaff': 'staff'}
+         'necromancer_bonestaff': 'staff', 'soulcatcher_lanternstaff': 'staff',
+         # the tanks' maces (05.11.): a plain handheld picture, no sword ridge in kit_v3
+         'shieldfighter_crestmace': 'mace', 'bulwark_wallmace': 'mace'}
 
 
 def install(root):

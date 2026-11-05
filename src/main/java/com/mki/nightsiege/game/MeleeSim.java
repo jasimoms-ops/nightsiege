@@ -432,7 +432,7 @@ public final class MeleeSim {
             if (close != null) {
                 player.lookAt(EntityAnchorArgument.Anchor.EYES, close.getEyePosition());
             }
-            if (inReach && hold(player, MeleeSim::isMelee) && player.getAttackStrengthScale(0.5f) >= 0.95f) {
+            if (inReach && hold(player, MeleeSim::isMelee) && charged(player)) {
                 if (player.isUsingItem() && player.getUsedItemHand() == InteractionHand.MAIN_HAND) {
                     player.stopUsingItem();
                 }
@@ -523,6 +523,16 @@ public final class MeleeSim {
             player.releaseUsingItem();
             shots++;
         }
+    }
+
+    /**
+     * The bots swing like a player who waits for the attack indicator: only when the weapon in hand is charged
+     * (95 %, as the balancing was measured with). The charge follows the weapon's attack speed, so the tanks'
+     * slow mace (0.8 a second, Simon 05.11.) hits about every 24 ticks with 97 % of its damage, the sword every
+     * 12 with all of it; the mace's damage a second in the sim is within 1 % of a player's at full charge.
+     */
+    static boolean charged(ServerPlayer player) {
+        return player.getAttackStrengthScale(0.5f) >= 0.95f;
     }
 
     static boolean isMelee(ItemStack stack) {

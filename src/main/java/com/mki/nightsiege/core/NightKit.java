@@ -42,6 +42,66 @@ public final class NightKit {
         return level >= 6 ? Material.DIAMOND : Material.IRON;
     }
 
+    // ------------------------------------------------------------------
+    // the tanks' mace (Simon 05.11.: "die Tanks könnten … den Mace als Waffe haben, der viel Schaden
+    // macht, aber nicht schnell angreifen kann")
+    // ------------------------------------------------------------------
+
+    /** A hit of the shield fighter's and the bulwark's mace against a kit sword hit of the same level. */
+    public static final double MACE_DAMAGE_FACTOR = 2.5;
+    /** Swings a second: the kit sword (vanilla) and the tanks' mace; 2.5 x 0.8 / 1.6 = 1.25 times the damage a second. */
+    public static final double SWORD_SPEED = 1.6;
+    public static final double MACE_SPEED = 0.8;
+    /** A player's own attack damage and attack speed, before the weapon (vanilla attributes). */
+    public static final double PLAYER_DAMAGE = 1.0;
+    public static final double PLAYER_SPEED = 4.0;
+
+    /** What Sharpness adds to a melee hit (vanilla: 1 at level I and half a point for every level above). */
+    public static double sharpnessBonus(int level) {
+        return level <= 0 ? 0.0 : 0.5 * level + 0.5;
+    }
+
+    /**
+     * The attack damage modifier of the kit sword of a material: vanilla's 3 plus the material's bonus
+     * (iron 2, diamond 3, netherite 4), from level 20 one point more. The kit reads the real sword's
+     * numbers; these are for the table and the tests.
+     */
+    public static double swordDamageModifier(Material material) {
+        return switch (material) {
+            case IRON -> 5.0;
+            case DIAMOND -> 6.0;
+            case NETHERITE -> 7.0;
+            case INFERNITE -> 8.0;
+        };
+    }
+
+    /**
+     * The attack damage modifier of the tanks' mace (it replaces the vanilla mace's own): a full hit
+     * deals {@link #MACE_DAMAGE_FACTOR} times a full hit of the kit sword. {@code swordDamage} is the
+     * sword's attack damage with the player's own point (6 for iron, 9 for the netherite of level 20);
+     * both weapons carry the same Sharpness, which the mace adds on top as on any weapon.
+     */
+    public static double maceDamageModifier(double swordDamage, int sharpness) {
+        double sharp = sharpnessBonus(sharpness);
+        return MACE_DAMAGE_FACTOR * (swordDamage + sharp) - sharp - PLAYER_DAMAGE;
+    }
+
+    /** The attack speed modifier of the tanks' mace (it replaces the vanilla mace's -3.4): 0.8 swings a second. */
+    public static double maceSpeedModifier() {
+        return MACE_SPEED - PLAYER_SPEED;
+    }
+
+    /** A full hit of the kit sword at a level with this Sharpness (vanilla numbers, see {@link #swordDamageModifier}). */
+    public static double swordHit(int level, int sharpness) {
+        return PLAYER_DAMAGE + swordDamageModifier(weapon(level)) + sharpnessBonus(sharpness);
+    }
+
+    /** A full hit of the tanks' mace at a level with this Sharpness. */
+    public static double maceHit(int level, int sharpness) {
+        double sword = PLAYER_DAMAGE + swordDamageModifier(weapon(level));
+        return PLAYER_DAMAGE + maceDamageModifier(sword, sharpness) + sharpnessBonus(sharpness);
+    }
+
     /** Protection on every armour piece: I up to 2, II up to 5, III up to 10, IV from 11. */
     public static int protection(int level) {
         return level >= 11 ? 4 : level >= 6 ? 3 : level >= 3 ? 2 : 1;

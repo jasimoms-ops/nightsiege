@@ -241,6 +241,12 @@ public class NightSiegeClient implements ClientModInitializer {
                 lines.add(Component.translatable("nightsiege.tooltip.shield_energy").withStyle(ChatFormatting.AQUA));
             }
         });
+        // The tanks' mace (Simon 05.11.): hard and slow, and no smash attack from a fall.
+        ItemTooltipCallback.EVENT.register((stack, context, type, lines) -> {
+            if (com.mki.nightsiege.game.KitService.isKitMace(stack)) {
+                lines.add(Component.translatable("nightsiege.tooltip.kit_mace").withStyle(ChatFormatting.AQUA));
+            }
+        });
         // Event looks: hoods and rags over zombies and skeletons, the 3D gear on every event monster.
         net.fabricmc.fabric.api.client.rendering.v1.LivingEntityRenderLayerRegistrationCallback.EVENT.register(
                 NightSiegeClient::eventLayers);

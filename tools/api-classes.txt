@@ -253,3 +253,21 @@ net.minecraft.world.attribute.EnvironmentAttributeProbe
 net.minecraft.world.item.BlockItem
 net.minecraft.world.item.component.UseRemainder
 net.minecraft.world.entity.LightningBolt
+
+# Streitkolben der Tanks (05.11.): the mace, its smash, the attack and the item attributes
+net.minecraft.world.item.MaceItem
+!net.minecraft.world.item.MaceItem#canSmashAttack,getAttackDamageBonus,postHurtEnemy,hurtEnemy,getDamageSource,createAttributes,knockback
+net.minecraft.world.item.Item
+net.minecraft.world.item.Item$Properties
+!net.minecraft.world.item.Item$Properties#sword,attributes
+net.minecraft.world.item.component.ItemAttributeModifiers
+net.minecraft.world.item.component.ItemAttributeModifiers$Entry
+net.minecraft.world.item.component.ItemAttributeModifiers$Builder
+net.minecraft.world.item.component.Weapon
+net.minecraft.world.entity.ai.attributes.AttributeModifier
+net.minecraft.world.entity.ai.attributes.AttributeModifier$Operation
+!net.minecraft.world.entity.player.Player#attack,getAttackStrengthScale,getCurrentItemAttackStrengthDelay,cannotAttackWithItem,itemAttackInteraction,canCriticalAttack,createAttackSource,getEnchantedDamage
+net.minecraft.world.item.enchantment.EnchantmentHelper
+!net.minecraft.world.item.enchantment.EnchantmentHelper#modifyDamage,runIterationOnItem
+?net.minecraft.world.item.ToolMaterial#float
+?net.minecraft.world.item.Items#MaceItem
