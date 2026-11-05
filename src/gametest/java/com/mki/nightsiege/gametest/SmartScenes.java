@@ -158,19 +158,25 @@ final class SmartScenes {
         context.waitTicks(5);
 
         // ---------------------------------------------------------------- up: elites from level 5
+        // One wave per step, a few ticks apart: the gone monsters leave the field first.
+        final int[] elitesSeen = new int[2];
         server(context, "up5", (player, m) -> {
             m.setSmartStep(5);
             before[2] = Elites.made();
-            int spawned = 0;
-            for (int i = 0; i < 4; i++) {
+        });
+        for (int i = 0; i < 4; i++) {
+            server(context, "up5 wave " + i, (player, m) -> {
                 m.testWave(player.level().getServer());
-                spawned += m.nightMobCount();
+                elitesSeen[1] += m.lastWaveSize();
                 clear(player);
-            }
+            });
+            context.waitTicks(6);
+        }
+        server(context, "up5 check", (player, m) -> {
             int elites = Elites.made() - before[2];
-            log("step 5: " + elites + " elites of about " + spawned + " monsters (25 % wanted)");
-            check(elites > 0, "at +5 elites come on level 6 (" + elites + ")");
-            check(elites < spawned, "but not every monster is one");
+            log("step 5: " + elites + " elites of " + elitesSeen[1] + " wave monsters (25 % wanted)");
+            check(elites >= 2, "at +5 elites come on level 6 (" + elites + ")");
+            check(elites < elitesSeen[1], "but not every monster is one");
         });
         context.waitTicks(5);
 
@@ -203,8 +209,14 @@ final class SmartScenes {
             check(Elites.made() == before[2], "far down no elites, not even the fixed ones (" + (Elites.made() - before[2]) + ")");
             clear(player);
             m.setSmartStep(-1);
+        });
+        context.waitTicks(6);
+        server(context, "down -1", (player, m) -> {
+            before[2] = Elites.made();
             m.testWave(player.level().getServer());
-            log("at -1 with fixed elites for all: " + (Elites.made() - before[2]) + " elites");
+            int elites = Elites.made() - before[2];
+            log("at -1 with fixed elites for all: " + elites + " of " + m.lastWaveSize());
+            check(m.lastWaveSize() == 0 || elites > 0, "at -1 the fixed elites still come (" + elites + ")");
             clear(player);
             var c = m.config();
             c.eliteMobs = false;
