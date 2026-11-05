@@ -168,7 +168,8 @@ public final class WardenNight {
         BossService.set(mob, Attributes.MAX_HEALTH, health);
         mob.setHealth((float) health);
         BossService.set(mob, Attributes.SCALE, 1.35);
-        BossService.set(mob, Attributes.KNOCKBACK_RESISTANCE, 0.8);
+        BossService.set(mob, Attributes.KNOCKBACK_RESISTANCE, 1.0);   // was 0.8 (Simon 05.11.: no knockback)
+        BossService.set(mob, Attributes.EXPLOSION_KNOCKBACK_RESISTANCE, 1.0);
         AttributeInstance range = mob.getAttribute(Attributes.FOLLOW_RANGE);
         if (range != null) {
             range.setBaseValue(Math.max(range.getBaseValue(), 64.0));

@@ -2866,6 +2866,37 @@ class SiegeCoreTest {
     }
 
     @Test
+    void dungeonMonstersHitWithTenToTwentyPercent() {
+        SiegeConfig c = new SiegeConfig();
+        c.sanitize();
+        assertEquals(0.10, c.dungeonMobPercent(1), 1e-9);
+        assertEquals(0.20, c.dungeonMobPercent(20), 1e-9);
+        assertEquals(0.20, c.dungeonMobPercent(50), 1e-9);
+        double mid = c.dungeonMobPercent(10);
+        assertTrue(mid > 0.14 && mid < 0.15, "level 10: " + mid);
+    }
+
+    @Test
+    void noSpidersInTheDungeons() {
+        for (ExpeditionKind kind : ExpeditionKind.values()) {
+            for (String mob : kind.mobs()) {
+                assertFalse(mob.contains("spider"), kind.id() + " has " + mob);
+            }
+            assertFalse(kind.champion().contains("spider"), kind.id() + " champion");
+        }
+    }
+
+    @Test
+    void stunnerDefaults() {
+        SiegeConfig c = new SiegeConfig();
+        c.sanitize();
+        assertEquals(8, c.stunnerFromLevel);
+        assertEquals(1.5, c.stunnerSeconds, 1e-9);
+        assertEquals(3.0, c.stunnerRadius, 1e-9);
+        assertTrue(c.stunnersMax >= 1);
+    }
+
+    @Test
     void themeWaveIsGone() {
         SiegeConfig c = new SiegeConfig();
         c.sanitize();

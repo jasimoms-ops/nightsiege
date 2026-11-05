@@ -319,11 +319,30 @@ final class ContentBosses {
      * The ember colossus: a giant magma cube that leaves cracks of lava behind (3 % of the max
      * health per second to whoever stands in them, through shields), and at half its health
      * breaks into two halves with 40 % each.
+     *
+     * <p>Simon 05.11.: "der Magma-Cube-Boss ist viel zu leicht, da er nie an einen rankommt". Every
+     * {@link #POUNCE_EVERY} ticks each half leaps at its target (3 to 24 blocks away, over walls too);
+     * where it lands, every defender within {@link #POUNCE_RADIUS} blocks takes {@link #POUNCE_SHARE} %
+     * of the max health (a raised shield takes the blow), and a crack opens.</p>
      */
     static final class EmberColossus extends BossBrains.Brain {
         static final double CRACK_SHARE = 3.0;
         static final double HALF_SHARE = 0.4;
         static final int CRACK_TICKS = 12 * 20;
+        static final double POUNCE_SHARE = 12.0;
+        static final double POUNCE_RADIUS = 3.5;
+        static final int POUNCE_EVERY = 5 * 20;
+
+        /** One half's leap at its target: when the next may come, and whether it is in the air. */
+        static final class Pounce {
+            long next;
+            long since;
+            boolean inAir;
+            int landed;
+        }
+
+        final Pounce pounceA = new Pounce();
+        final Pounce pounceB = new Pounce();
         record Crack(Vec3 at, long until) {
         }
 
@@ -378,13 +397,56 @@ final class ContentBosses {
                 }
             }
             stuckA.leap(host, boss, now, 5.0);
+            pounce(host, boss, pounceA, now);
             if (other != null) {
                 stuckB.leap(host, other, now, 5.0);
+                pounce(host, other, pounceB, now);
                 if (now % 20 == 0 && (other.getTarget() == null || !other.getTarget().isAlive())) {
                     service.aim(host, other);
                 }
             }
             tickCracks(host, boss, now);
+        }
+
+        /** Leaps of the halves so far (for the test). */
+        int pounces() {
+            return pounceA.landed + pounceB.landed;
+        }
+
+        /** The leap at the target and its landing (Simon 05.11.). */
+        private void pounce(BossService.Host host, Mob body, Pounce p, long now) {
+            ServerLevel level = host.world();
+            if (p.inAir) {
+                if (body.onGround() && now - p.since > 6) {
+                    p.inAir = false;
+                    p.landed++;
+                    Vec3 at = body.position();
+                    level.sendParticles(ParticleTypes.LAVA, at.x, at.y + 0.3, at.z, 30, POUNCE_RADIUS * 0.5, 0.2, POUNCE_RADIUS * 0.5, 0.2);
+                    level.sendParticles(ParticleTypes.EXPLOSION, at.x, at.y + 0.3, at.z, 2, 0.8, 0.2, 0.8, 0.0);
+                    BossService.sound(level, at, SoundEvents.MAGMA_CUBE_SQUISH, 2.0f, 0.5f);
+                    for (ServerPlayer player : host.defenders()) {
+                        if (player.distanceToSqr(at) < POUNCE_RADIUS * POUNCE_RADIUS && Math.abs(player.getY() - at.y) < 2.5) {
+                            PercentDamage.hit(level, player, body, body, POUNCE_SHARE, host.level(), host.config(),
+                                    host.config().bossPercentDamage);
+                        }
+                    }
+                    cracks.add(new Crack(at, now + CRACK_TICKS));
+                } else if (now - p.since > 80) {
+                    p.inAir = false;   // never came down on the ground (water, a ledge): try again later
+                }
+                return;
+            }
+            if (now < p.next || !body.onGround() || !(body.getTarget() instanceof ServerPlayer target) || !target.isAlive()) {
+                return;
+            }
+            double d2 = target.distanceToSqr(body);
+            if (d2 < 3.0 * 3.0 || d2 > 24.0 * 24.0) {
+                return;
+            }
+            BossBrains.leap(level, body, target.position(), 2.5);
+            p.inAir = true;
+            p.since = now;
+            p.next = now + POUNCE_EVERY;
         }
 
         /** A new crack where a half stands on the ground (not right beside the last one). */

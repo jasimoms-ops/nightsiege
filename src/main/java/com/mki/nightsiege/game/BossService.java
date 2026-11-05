@@ -70,6 +70,19 @@ public final class BossService {
 
     /** Tag of a boss (and the warlord's ravager). */
     public static final String TAG_BOSS = "nightsiege_boss";
+
+    /**
+     * Bosses, their parts and mounts, and the dungeon champions (in a dungeon and at the end of a
+     * night) take no push of any kind (Simon 05.11.: "Bosse dürfen kein Knockback bekommen").
+     */
+    public static boolean immovable(net.minecraft.world.entity.Entity entity) {
+        if (entity == null || entity.level().isClientSide()) {
+            return false;
+        }
+        var tags = entity.entityTags();
+        return tags.contains(TAG_BOSS) || tags.contains(TAG_PART) || tags.contains(Expeditions.CHAMPION_TAG)
+                || tags.contains(WardenNight.TAG);
+    }
     /** Tag of a part of a boss fight: the hitbox of a soul crystal or egg sac, and its look. */
     public static final String TAG_PART = "nightsiege_bosspart";
     /** Tag of the storm witch's phantom: it cannot be hurt, so towers and monsters leave it alone. */
@@ -748,6 +761,7 @@ public final class BossService {
         }
         set(mob, Attributes.SCALE, scale);
         set(mob, Attributes.KNOCKBACK_RESISTANCE, 1.0);
+        set(mob, Attributes.EXPLOSION_KNOCKBACK_RESISTANCE, 1.0);   // Simon 05.11.: no knockback at all
         set(mob, Attributes.FOLLOW_RANGE, 96.0);
         AttributeInstance step = mob.getAttribute(Attributes.STEP_HEIGHT);
         if (step != null) {

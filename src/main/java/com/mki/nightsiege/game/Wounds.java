@@ -35,7 +35,8 @@ public final class Wounds {
         }
         Entity attacker = source.getEntity();
         SiegeManager m = SiegeManager.get();
-        if (attacker == null || m == null || !m.isActive() || Companions.isCompanion(attacker)) {
+        // In a night, and since 05.11. also in a dungeon or at the camp (Simon: "funktioniert Anti-Heal überhaupt?").
+        if (attacker == null || m == null || !(m.isActive() || m.isDefending(player)) || Companions.isCompanion(attacker)) {
             return;
         }
         SiegeConfig cfg = m.config();

@@ -117,7 +117,9 @@ public final class Foes {
         TREASURE_RAIDER("treasure_raider", "minecraft:pillager"),
         // The tank breakers (content update, 29 October 2026): only when a shieldfighter or bulwark plays.
         BREAKER("breaker", "minecraft:vindicator"),
-        EXECUTIONER("executioner", "minecraft:wither_skeleton");
+        EXECUTIONER("executioner", "minecraft:wither_skeleton"),
+        // The stunner (Simon 05.11.): the counter to the melee classes, a ground slam that stuns.
+        STUNNER("stunner", "minecraft:vindicator");
 
         private final String id;
         private final String base;
@@ -204,6 +206,11 @@ public final class Foes {
         /** A defender who plays a tank (shieldfighter or bulwark): the tank breakers come for them. */
         default boolean isTank(ServerPlayer player) {
             return false;
+        }
+
+        /** A defender who fights hand to hand (a warrior or a tank): the stunners come for them. */
+        default boolean isMelee(ServerPlayer player) {
+            return isTank(player);
         }
 
         /** The shield-lock of a breaker is halved for this defender ("Fester Griff"). */
@@ -322,7 +329,9 @@ public final class Foes {
         mob.addTag(role.tag());
         ROLES.put(mob.getUUID(), role);
         mob.setCustomName(Component.translatable(role.translationKey()));
-        BossService.foeLook(mob, "foe_" + role.id());   // its own look (design update, 29 October 2026)
+        if (role != Role.STUNNER) {
+            BossService.foeLook(mob, "foe_" + role.id());   // its own look (design update, 29 October 2026)
+        }
         if (mob instanceof Zombie zombie) {
             zombie.setBaby(false);
         }
@@ -371,6 +380,12 @@ public final class Foes {
             }
             case BREAKER -> mob.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.MACE));   // the smith's hammer
             case EXECUTIONER -> mob.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_AXE));
+            case STUNNER -> {
+                // A golden helmet and a mace: told apart from the breaker at a glance (no look of its own yet).
+                mob.setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.GOLDEN_HELMET));
+                mob.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.MACE));
+                mob.setCustomNameVisible(true);
+            }
             case TREASURE_RAIDER -> {
                 mob.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.GOLD_INGOT));
                 mob.setItemSlot(EquipmentSlot.OFFHAND, ItemStack.EMPTY);
@@ -496,6 +511,11 @@ public final class Foes {
         fallsSaved = 0;
         treasureOutcome = "";
         executionerNext.clear();
+        stunnerNext.clear();
+        stunnerSlam.clear();
+        stunnersTonight = 0;
+        stunsLanded = 0;
+        stunsBlocked = 0;
         breakersTonight = 0;
         executionersTonight = 0;
         shieldsBroken = 0;
@@ -513,6 +533,7 @@ public final class Foes {
             spawnTreasure(host);
         }
         spawnTankBreakers(host);
+        spawnStunners(host);
     }
 
     /**
@@ -545,10 +566,105 @@ public final class Foes {
             host.addMob(mob);
             if (role == Role.BREAKER) {
                 breakersTonight++;
+            } else if (role == Role.STUNNER) {
+                stunnersTonight++;
             } else {
                 executionersTonight++;
             }
         }
+    }
+
+    /**
+     * The stunners (Simon 05.11.): from stunnerFromLevel on, with every wave one for the first two
+     * melee defenders and one more for every two after (1, 1, 2, 2, 3 …), at most stunnersMax alive.
+     */
+    private void spawnStunners(Host host) {
+        SiegeConfig cfg = host.config();
+        if (host.level() < cfg.stunnerFromLevel || cfg.stunnersMax <= 0) {
+            return;
+        }
+        int melee = 0;
+        for (ServerPlayer p : host.defenders()) {
+            if (host.isMelee(p)) {
+                melee++;
+            }
+        }
+        if (melee == 0) {
+            return;
+        }
+        int want = Math.min(1 + (melee - 1) / 2, cfg.stunnersMax - living(Role.STUNNER));
+        for (int i = 0; i < want; i++) {
+            spawnRole(host, Role.STUNNER);
+        }
+    }
+
+    /** For the stunners: when each may slam next, and when its wind-up ends (0: none running). */
+    private final Map<UUID, Long> stunnerNext = new HashMap<>();
+    private final Map<UUID, Long> stunnerSlam = new HashMap<>();
+    public int stunnersTonight;
+    public int stunsLanded;
+    public int stunsBlocked;
+
+    /**
+     * The stunner: next to whom it fights it winds up for stunnerWindupSeconds (it stands still, sparks
+     * and a bell warn), then its slam stuns every defender within stunnerRadius blocks for stunnerSeconds.
+     * A raised shield or a step back takes the slam.
+     */
+    private void tickStunner(Host host, Mob mob, long now) {
+        if (!(mob.level() instanceof ServerLevel level)) {
+            return;
+        }
+        SiegeConfig cfg = host.config();
+        UUID id = mob.getUUID();
+        Long slam = stunnerSlam.get(id);
+        if (slam != null) {
+            mob.getNavigation().stop();
+            mob.setDeltaMovement(0, Math.min(0, mob.getDeltaMovement().y), 0);
+            if (now % 4 == 0) {
+                level.sendParticles(ParticleTypes.CRIT, mob.getX(), mob.getY() + 2.2, mob.getZ(), 4, 0.3, 0.2, 0.3, 0.02);
+            }
+            if (now < slam) {
+                return;
+            }
+            stunnerSlam.remove(id);
+            stunnerNext.put(id, now + Math.round(cfg.stunnerEverySeconds * 20));
+            slam(host, level, mob, cfg);
+            return;
+        }
+        if (!(mob.getTarget() instanceof ServerPlayer player) || !player.isAlive()
+                || mob.distanceToSqr(player) > cfg.stunnerRadius * cfg.stunnerRadius
+                || now < stunnerNext.getOrDefault(id, 0L)) {
+            return;
+        }
+        stunnerSlam.put(id, now + Math.max(2, Math.round(cfg.stunnerWindupSeconds * 20)));
+        mob.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
+        level.playSound(null, mob.getX(), mob.getY(), mob.getZ(), SoundEvents.BELL_BLOCK, SoundSource.HOSTILE, 1.2f, 0.6f);
+    }
+
+    /** The stunner's slam: every defender close by is stunned, unless he holds up a shield. */
+    private void slam(Host host, ServerLevel level, Mob mob, SiegeConfig cfg) {
+        level.playSound(null, mob.getX(), mob.getY(), mob.getZ(), SoundEvents.MACE_SMASH_GROUND_HEAVY, SoundSource.HOSTILE, 1.4f, 0.8f);
+        level.sendParticles(ParticleTypes.EXPLOSION, mob.getX(), mob.getY() + 0.2, mob.getZ(), 2, 0.6, 0.1, 0.6, 0.0);
+        level.sendParticles(ParticleTypes.CLOUD, mob.getX(), mob.getY() + 0.1, mob.getZ(), 24, cfg.stunnerRadius * 0.5, 0.05,
+                cfg.stunnerRadius * 0.5, 0.05);
+        int ticks = (int) Math.round(cfg.stunnerSeconds * 20);
+        for (ServerPlayer p : host.defenders()) {
+            if (p.distanceToSqr(mob) > cfg.stunnerRadius * cfg.stunnerRadius || Math.abs(p.getY() - mob.getY()) > 2.0) {
+                continue;
+            }
+            if (p.isBlocking()) {
+                stunsBlocked++;
+                level.playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.SHIELD_BLOCK.value(), SoundSource.PLAYERS, 1.0f, 0.9f);
+                continue;
+            }
+            Stuns.stun(p, ticks);
+            stunsLanded++;
+        }
+    }
+
+    /** For the test: the stunner's wind-up starts now (its target must stand close). */
+    public void stunnerNow(Mob mob) {
+        stunnerNext.remove(mob.getUUID());
     }
 
     /** For the tank breakers: when the executioner strikes next, per monster. */
@@ -667,6 +783,7 @@ public final class Foes {
                 case STANDARD_BEARER -> tickBearer(host, mob, defenders, now);
                 case GRAPPLER -> tickGrappler(host, mob, defenders, now);
                 case EXECUTIONER -> tickExecutioner(host, mob, now);
+                case STUNNER -> tickStunner(host, mob, now);
                 default -> {
                 }
             }

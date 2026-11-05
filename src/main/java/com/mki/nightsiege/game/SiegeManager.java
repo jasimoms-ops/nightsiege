@@ -596,6 +596,7 @@ public final class SiegeManager {
             expeditions.afterDamage(entity, source, taken);
             safe("Ballista-Treffer", () -> machines.afterBoltHit(entity, source, blocked));
             safe("Wächter-Treffer", () -> ChampionStrikes.afterHit(this, entity, source, blocked));   // balance update 2 (29.10.)
+            safe("Dungeon-Treffer", () -> ChampionStrikes.dungeonMobHit(this, entity, source, blocked));   // Simon 05.11.
         });
         ServerLivingEntityEvents.ALLOW_DEATH.register((entity, source, amount) -> {
             if (!camp.allowDeath(entity, source) || !machines.allowDeath(entity, source) || !expeditions.allowDeath(entity)) {
@@ -631,6 +632,13 @@ public final class SiegeManager {
                 Drones.isDrone(player) ? InteractionResult.FAIL : InteractionResult.PASS);
         net.fabricmc.fabric.api.event.player.AttackEntityCallback.EVENT.register((player, world, hand, entity, hit) ->
                 Drones.isDrone(player) ? InteractionResult.FAIL : InteractionResult.PASS);
+        // Stunned (the stunner, 05.11.): no blow, no item, no block broken until it wears off.
+        net.fabricmc.fabric.api.event.player.AttackEntityCallback.EVENT.register((player, world, hand, entity, hit) ->
+                Stuns.stunned(player) ? InteractionResult.FAIL : InteractionResult.PASS);
+        net.fabricmc.fabric.api.event.player.UseItemCallback.EVENT.register((player, world, hand) ->
+                Stuns.stunned(player) ? InteractionResult.FAIL : InteractionResult.PASS);
+        net.fabricmc.fabric.api.event.player.AttackBlockCallback.EVENT.register((player, world, hand, pos, dir) ->
+                Stuns.stunned(player) ? InteractionResult.FAIL : InteractionResult.PASS);
         net.fabricmc.fabric.api.event.player.AttackBlockCallback.EVENT.register((player, world, hand, pos, dir) ->
                 Drones.isDrone(player) ? InteractionResult.FAIL : InteractionResult.PASS);
         // Crate gadgets (B2): thrown, blown, placed or tied to an ally.
@@ -995,6 +1003,7 @@ public final class SiegeManager {
 
     private void onEndTick(MinecraftServer server) {
         tickModCheck(server);
+        safe("Betäubung", () -> Stuns.tick(server));   // the stunner (05.11.)
         safe("Wächter-Schutz", () -> TankGuard.tick(server, config,
                 p -> skillTree.subclassOf(save.skillsOf(p.getUUID().toString())), this::isDefending));
         safe("Reparatur", () -> NightDamage.tick(server));
@@ -3202,6 +3211,12 @@ public final class SiegeManager {
         }
 
         @Override
+        public boolean isMelee(ServerPlayer player) {
+            PlayerSkills own = save.skillsOf(player.getUUID().toString());
+            return own != null && own.hasClass() && own.clazz() == com.mki.nightsiege.core.SkillClass.WARRIOR || isTank(player);
+        }
+
+        @Override
         public boolean firmGrip(ServerPlayer player) {
             PlayerSkills own = save.skillsOf(player.getUUID().toString());
             return own.hasClass() && kits.gainLevel(own, own.clazz(), "fester_griff") > 0;
@@ -4371,6 +4386,7 @@ public final class SiegeManager {
 
     private void clearSiegeState() {
         Wounds.clear();
+        Stuns.clear(world != null ? world.getServer() : null);
         openNight = false;
         trapsHanded.clear();
         spawnBlockWorld = null;
@@ -5349,6 +5365,9 @@ public final class SiegeManager {
                 offerRegistration(player);
             }
             return;
+        }
+        if (Stuns.stunned(player) && Stuns.blocks(verb)) {
+            return;   // stunned by a stunner (05.11.): no ability, no ultimate, no gain key
         }
         if (active) {
             String ability = abilityName(player, verb, argument);

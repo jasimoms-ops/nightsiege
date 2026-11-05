@@ -106,6 +106,20 @@ public final class LadderClimb {
     /** Ticks a monster that let go is left to its own AI. */
     private static final int RELEASE = 100;
 
+    /**
+     * Dead-end ladders (Simon 05.11.: "Monster gehen an Leitern, wodurch sie überhaupt keinen erreichen
+     * können, und sind dann da stuck"). Per foot: climbs that failed (pushed off, let go, given up, or
+     * over the top and still no way on) and climbs that made it over. A ladder that keeps failing
+     * counts as a dead end for the rest of the night, and no monster picks it any more.
+     */
+    private final Map<BlockPos, int[]> ladderLog = new HashMap<>();
+    private final Set<BlockPos> deadEnds = new HashSet<>();
+    /** The foot a monster came over the top from, and when: checked once it should be on its way. */
+    private final Map<UUID, BlockPos> toppedFrom = new HashMap<>();
+    private final Map<UUID, Long> toppedAt = new HashMap<>();
+    /** Failed climbs from which a ladder counts as a dead end (if it failed far more often than it worked). */
+    static final int DEAD_FAILS = 4;
+
     /** What the ladders did in this night (for the log and the gametest, 30 October 2026). */
     public static final class Stats {
         public int searches;
@@ -117,12 +131,16 @@ public final class LadderClimb {
         public int letGo;
         public int waited;
         public int pushedOff;
+        public int stuckOnTop;
+        public int deadEnds;
+        public int noExit;
 
         @Override
         public String toString() {
             return "Suchen " + searches + " (mit gesperrter Leiter " + searchesWithSkip + "), gefunden " + found
                     + ", aufgestiegen " + boarded + ", oben " + topped + ", Weg aufgegeben " + gaveUpWalk
-                    + ", losgelassen " + letGo + ", gewartet " + waited + ", unten abgerutscht " + pushedOff;
+                    + ", losgelassen " + letGo + ", gewartet " + waited + ", unten abgerutscht " + pushedOff
+                    + ", oben fest " + stuckOnTop + ", Sackgassen " + deadEnds + ", ohne Ausstieg " + noExit;
         }
     }
 
@@ -151,6 +169,10 @@ public final class LadderClimb {
 
     public void reset() {
         stats = new Stats();
+        ladderLog.clear();
+        deadEnds.clear();
+        toppedFrom.clear();
+        toppedAt.clear();
         toppedNow.clear();
         gaveUpUntil.clear();
         turn.clear();
@@ -169,6 +191,8 @@ public final class LadderClimb {
 
     public void forget(UUID id) {
         toppedNow.remove(id);
+        toppedFrom.remove(id);
+        toppedAt.remove(id);
         gaveUpUntil.remove(id);
         waitSince.remove(id);
         turn.values().removeIf(id::equals);
@@ -281,6 +305,9 @@ public final class LadderClimb {
                     if (!isClimbable(world.getBlockState(mob.blockPosition().above()))) {
                         toppedNow.add(id);
                         stats.topped++;
+                        logClimb(foot, true);
+                        toppedFrom.put(id, foot);
+                        toppedAt.put(id, now);
                         goals.remove(id);
                         goalSince.remove(id);
                         endTurn(foot, id);
@@ -297,6 +324,17 @@ public final class LadderClimb {
             // The target came into reach after all (no wall in between): let the monster fight.
             boolean inReach = target != null && mob.distanceToSqr(target) < 16.0
                     && Math.abs(mob.getY() - target.getY()) < 2.0 && mob.getSensing().hasLineOfSight(target);
+            BlockPos cameFrom = toppedFrom.get(id);
+            if (cameFrom != null && now - toppedAt.getOrDefault(id, now) > OVER_THE_TOP + 40) {
+                // Over the top a while ago: if there is still no way on, that ladder led nowhere.
+                toppedFrom.remove(id);
+                toppedAt.remove(id);
+                if (!inReach && stuck(mob, goal)) {
+                    stats.stuckOnTop++;
+                    logClimb(cameFrom, false);
+                    logClimb(cameFrom, false);   // counts double: it is the clearest sign of a dead end
+                }
+            }
             Long climbed = climbedAt.get(id);
             if (climbed != null && now - climbed < OVER_THE_TOP && !inReach) {
                 if (toppedNow.contains(id)) {
@@ -307,6 +345,7 @@ public final class LadderClimb {
                 // Off the ladder near the bottom (pushed off, or slipped): not over the wall, back to the ladder.
                 climbedAt.remove(id);
                 stats.pushedOff++;
+                logClimb(goals.get(id), false);
             }
             BlockPos foot = goals.get(id);
             if (foot != null && (!isClimbable(world.getBlockState(foot)) || inReach
@@ -314,6 +353,7 @@ public final class LadderClimb {
                 if (now - goalSince.getOrDefault(id, now) > GIVE_UP) {
                     bar(id, foot, now);
                     stats.gaveUpWalk++;
+                    logClimb(foot, false);
                 }
                 endTurn(foot, id);
                 goals.remove(id);
@@ -343,7 +383,7 @@ public final class LadderClimb {
                 if (skip != null) {
                     stats.searchesWithSkip++;
                 }
-                foot = findLadder(world, mob, goal, skip);
+                foot = findLadder(world, mob, goal, skip, deadEnds, stats);
                 if (foot == null) {
                     continue;
                 }
@@ -549,6 +589,7 @@ public final class LadderClimb {
             foot = foot.below();
         }
         bar(id, foot, now);
+        logClimb(foot, false);
         endTurn(foot, id);
         progress.remove(id);
         climbedAt.remove(id);
@@ -585,6 +626,62 @@ public final class LadderClimb {
     private void bar(UUID id, BlockPos foot, long now) {
         gaveUp.put(id, foot);
         gaveUpUntil.put(id, now + BARRED);
+    }
+
+    /** One climb at the ladder with this foot that worked or failed; enough failures make it a dead end. */
+    private void logClimb(BlockPos foot, boolean over) {
+        if (foot == null) {
+            return;
+        }
+        int[] l = ladderLog.computeIfAbsent(foot.immutable(), k -> new int[2]);
+        if (over) {
+            l[1]++;
+            return;
+        }
+        l[0]++;
+        if (l[0] >= DEAD_FAILS && l[0] >= 3 * l[1] && deadEnds.add(foot.immutable())) {
+            stats.deadEnds++;
+        }
+    }
+
+    /** True when the ladder with this foot counts as a dead end tonight (for the gametest). */
+    public boolean deadEnd(BlockPos foot) {
+        return foot != null && deadEnds.contains(foot);
+    }
+
+    /**
+     * True when a monster can get off at the top of the column with this foot: a spot beside the top
+     * rung, one or two blocks up, with room for it and ground under it (Simon 05.11.: a ladder under a
+     * roof or up a closed tower leads nowhere).
+     */
+    public static boolean hasExit(ServerLevel world, BlockPos foot) {
+        BlockPos top = foot;
+        for (int i = 0; i < 64 && isClimbable(world.getBlockState(top.above())); i++) {
+            top = top.above();
+        }
+        java.util.List<BlockPos> levels = new java.util.ArrayList<>(java.util.List.of(top, top.above()));
+        if (open(world, top.above())) {
+            levels.add(top.above(2));   // it may jump off the last rung
+        }
+        for (BlockPos at : levels) {
+            for (Direction d : Direction.Plane.HORIZONTAL) {
+                if (standable(world, at.relative(d))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean open(ServerLevel world, BlockPos at) {
+        BlockState state = world.getBlockState(at);
+        return state.getCollisionShape(world, at).isEmpty() && state.getFluidState().isEmpty();
+    }
+
+    /** Room for a monster two blocks high, with solid ground under it. */
+    private static boolean standable(ServerLevel world, BlockPos at) {
+        return open(world, at) && open(world, at.above()) && world.getBlockState(at.below()).blocksMotion()
+                && !isClimbable(world.getBlockState(at.below()));
     }
 
     /**
@@ -699,6 +796,11 @@ public final class LadderClimb {
      * (on its inner side, in a tower) do not count.
      */
     static BlockPos findLadder(ServerLevel world, Mob mob, BlockPos goal, BlockPos skip) {
+        return findLadder(world, mob, goal, skip, java.util.Set.of(), null);
+    }
+
+    /** As above, leaving out tonight's dead ends and ladders without a way off at the top. */
+    static BlockPos findLadder(ServerLevel world, Mob mob, BlockPos goal, BlockPos skip, Set<BlockPos> dead, Stats stats) {
         BlockPos from = mob.blockPosition();
         java.util.List<BlockPos> feet = new java.util.ArrayList<>();
         java.util.List<Double> scores = new java.util.ArrayList<>();
@@ -718,6 +820,15 @@ public final class LadderClimb {
                     }
                     if (pos.equals(skip)) {
                         continue;   // given up on a moment ago
+                    }
+                    if (dead.contains(pos)) {
+                        continue;   // a dead end tonight
+                    }
+                    if (!hasExit(world, pos)) {
+                        if (stats != null) {
+                            stats.noExit++;
+                        }
+                        continue;   // no way off at the top
                     }
                     feet.add(pos.immutable());
                     scores.add(Math.sqrt(pos.distSqr(from)) + Math.sqrt(pos.distSqr(goal)));

@@ -555,6 +555,15 @@ public class SiegeConfig {
     public double championNightPercent = 0.30;
     /** What of that share goes through a raised shield (0.5 = half, like the guardian's shield way). */
     public double championPercentShield = 0.5;
+    /**
+     * Simon 05.11. 04:57: "die Monster in den Dungeons müssen auch Max-Health-Damage von 10–20 % machen".
+     * Every blow or shot of a dungeon monster (not the champion, he has his own share) takes this share of
+     * the target's max health on top: dungeonMobPercentMin on level 1, rising evenly to dungeonMobPercentMax
+     * on level dungeonMobPercentMaxLevel. A raised shield lets championPercentShield of it through.
+     */
+    public double dungeonMobPercentMin = 0.10;
+    public double dungeonMobPercentMax = 0.20;
+    public int dungeonMobPercentMaxLevel = 20;
     /** Simon 30.10.: one hit of the heavy archer takes at most this share of a dungeon champion's max health (0 = no cap). */
     public double heavyChampionCap = 0.08;
     /**
@@ -727,6 +736,19 @@ public class SiegeConfig {
     public double breakerShieldLockSeconds = 4.0;
     public double executionerPercent = 8.0;
     public double executionerEverySeconds = 6.0;
+    /**
+     * The stunner (Simon 05.11.: "ein Mob, der stunnen kann, als Konter gegen die Nahkampfklassen"): from
+     * this level, one per wave for the first two melee defenders and one more for every two after, at most
+     * stunnersMax alive. Next to whom it fights it winds up for stunnerWindupSeconds, then its slam stuns
+     * every defender within stunnerRadius blocks for stunnerSeconds (no moving, hitting or keys); a raised
+     * shield or a step back takes it. It may slam again after stunnerEverySeconds.
+     */
+    public int stunnerFromLevel = 8;
+    public int stunnersMax = 4;
+    public double stunnerEverySeconds = 8.0;
+    public double stunnerWindupSeconds = 1.0;
+    public double stunnerRadius = 3.0;
+    public double stunnerSeconds = 1.5;
     /** The treasure raider: chance per night from a level on (not in boss nights), seconds before it is gone, chance of a crate. */
     public double treasureRaiderChance = 0.2;
     public int treasureRaiderFromLevel = 3;
@@ -908,6 +930,13 @@ public class SiegeConfig {
         }
         double t = (Math.max(1, level) - 1) / (double) (hitLifestealLowUntil - 1);
         return hitLifestealLowFactor + (1.0 - hitLifestealLowFactor) * t;
+    }
+
+    /** Share of the max health (0.10 = 10 %) a dungeon monster's hit takes at this level (Simon 05.11.). */
+    public double dungeonMobPercent(int level) {
+        int top = Math.max(2, dungeonMobPercentMaxLevel);
+        double t = Math.max(0.0, Math.min(1.0, (level - 1) / (double) (top - 1)));
+        return dungeonMobPercentMin + (dungeonMobPercentMax - dungeonMobPercentMin) * t;
     }
 
     /** Share of the max health a champion's hit takes: in a dungeon by level band, in a night {@link #championNightPercent}. */
@@ -1636,6 +1665,15 @@ public class SiegeConfig {
             championPercentDamageSteps = new int[0];
         }
         championNightPercent = Double.isNaN(championNightPercent) ? 0.30 : Math.min(1.0, Math.max(0.0, championNightPercent));
+        dungeonMobPercentMin = Double.isNaN(dungeonMobPercentMin) ? 0.10 : Math.min(1.0, Math.max(0.0, dungeonMobPercentMin));
+        dungeonMobPercentMax = Double.isNaN(dungeonMobPercentMax) ? 0.20 : Math.min(1.0, Math.max(dungeonMobPercentMin, dungeonMobPercentMax));
+        dungeonMobPercentMaxLevel = Math.max(2, Math.min(1000, dungeonMobPercentMaxLevel));
+        stunnerFromLevel = Math.max(1, stunnerFromLevel);
+        stunnersMax = Math.max(0, Math.min(20, stunnersMax));
+        stunnerEverySeconds = Double.isNaN(stunnerEverySeconds) ? 8.0 : Math.min(120.0, Math.max(1.0, stunnerEverySeconds));
+        stunnerWindupSeconds = Double.isNaN(stunnerWindupSeconds) ? 1.0 : Math.min(5.0, Math.max(0.1, stunnerWindupSeconds));
+        stunnerRadius = Double.isNaN(stunnerRadius) ? 3.0 : Math.min(8.0, Math.max(1.0, stunnerRadius));
+        stunnerSeconds = Double.isNaN(stunnerSeconds) ? 1.5 : Math.min(10.0, Math.max(0.0, stunnerSeconds));
         championPercentShield = Double.isNaN(championPercentShield) ? 0.5 : Math.min(1.0, Math.max(0.0, championPercentShield));
         if (antiHealMobs == null) {
             antiHealMobs = new java.util.ArrayList<>(java.util.List.of("minecraft:spider", "minecraft:cave_spider", "minecraft:witch"));

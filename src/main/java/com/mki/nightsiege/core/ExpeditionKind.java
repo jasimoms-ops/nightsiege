@@ -123,8 +123,9 @@ public enum ExpeditionKind {
                     .put(Part.THRONE, "lantern"),
             List.of("snow", "frozen", "ice", "grove", "peaks", "slopes")),
     POISON_SWAMP("poison_swamp", Layout.CELLAR, NightFragment.MIST,
-            List.of("minecraft:witch", "minecraft:bogged", "minecraft:bogged", "minecraft:spider", "minecraft:spider",
-                    "minecraft:cave_spider"),
+            // No spiders in the dungeons (Simon 05.11.: "die sind immer an der Decke verbuggt").
+            List.of("minecraft:witch", "minecraft:bogged", "minecraft:bogged", "minecraft:drowned", "minecraft:drowned",
+                    "minecraft:zombie"),
             "minecraft:witch",
             palette()
                     .put(Part.WALL, "mud_bricks 45, packed_mud 20, mossy_cobblestone 15, moss_block 10, mangrove_roots 10")
@@ -151,7 +152,8 @@ public enum ExpeditionKind {
                     .put(Part.THRONE, "verdant_froglight"),
             List.of("swamp", "mangrove", "jungle")),
     DEEP_CELLAR("deep_cellar", Layout.CELLAR, NightFragment.SHADOW,
-            List.of("minecraft:spider", "minecraft:cave_spider", "minecraft:cave_spider", "minecraft:skeleton",
+            // No spiders in the dungeons (Simon 05.11.): zombies and revenants instead.
+            List.of("minecraft:zombie", "minecraft:zombie", "nightsiege:revenant", "minecraft:skeleton",
                     "minecraft:skeleton"),
             "minecraft:skeleton",
             palette()

@@ -59,6 +59,38 @@ final class ChampionStrikes {
         PercentDamage.hitFlat(level, player, source.getEntity(), source.getDirectEntity(), percent, blocked);
     }
 
+    /** A dungeon monster (not the champion): it hits with a share of the max health on top (Simon 05.11.). */
+    static boolean isDungeonMob(Entity entity) {
+        return entity != null && entity.entityTags().contains(Expeditions.TAG) && !isChampion(entity);
+    }
+
+    /**
+     * Simon 05.11. 04:57: "die Monster in den Dungeons müssen auch Max-Health-Damage von 10–20 % machen".
+     * After a dungeon monster's own blow or shot on a player: {@link SiegeConfig#dungeonMobPercent} of
+     * the max health on top (10 % on level 1 up to 20 % on level 20), half of it through a raised shield.
+     */
+    static void dungeonMobHit(SiegeManager m, LivingEntity victim, DamageSource source, boolean blocked) {
+        if (m == null || !(victim instanceof ServerPlayer player) || !(player.level() instanceof ServerLevel level)
+                || PercentDamage.inHit() || PercentDamage.is(source)) {
+            return;
+        }
+        Entity attacker = source.getEntity();
+        Entity direct = source.getDirectEntity();
+        if (!isDungeonMob(attacker) || direct == null
+                || !(direct == attacker || direct instanceof Projectile shot && shot.getOwner() == attacker)) {
+            return;
+        }
+        SiegeConfig cfg = m.config();
+        double percent = cfg.dungeonMobPercent(m.currentLevel()) * 100.0;
+        if (blocked) {
+            percent *= cfg.championPercentShield;
+        }
+        if (percent <= 0) {
+            return;
+        }
+        PercentDamage.hitFlat(level, player, attacker, direct, percent, blocked);
+    }
+
     /** The warden at the end of a night (not the champion in his dungeon). */
     static boolean inNight(Entity champion) {
         return champion != null && champion.entityTags().contains(WardenNight.TAG)
