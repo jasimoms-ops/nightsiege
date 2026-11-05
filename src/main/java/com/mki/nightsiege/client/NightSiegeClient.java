@@ -328,7 +328,9 @@ public class NightSiegeClient implements ClientModInitializer {
                                     net.minecraft.client.renderer.entity.LivingEntityRenderer<?, ?, ?> renderer,
                                     net.fabricmc.fabric.api.client.rendering.v1.LivingEntityRenderLayerRegistrationCallback.RegistrationHelper helper,
                                     net.minecraft.client.renderer.entity.EntityRendererProvider.Context context) {
-        if (!eventMob(type)) {
+        // The iron golem only for the frost jarl's and ember colossus's glow and gear (Bosse 2); no event aura.
+        boolean golem = type == net.minecraft.world.entity.EntityTypes.IRON_GOLEM;
+        if (!eventMob(type) && !golem) {
             return;
         }
         net.minecraft.client.renderer.entity.RenderLayerParent parent = (net.minecraft.client.renderer.entity.RenderLayerParent) renderer;
@@ -345,7 +347,7 @@ public class NightSiegeClient implements ClientModInitializer {
                 java.util.function.Predicate<net.minecraft.client.renderer.entity.state.LivingEntityRenderState> any = state -> true;
                 helper.register(new EventClothingLayer(parent, model, "skeleton", any));
             }
-            if (EVENT_MOBS.contains(type)) {
+            if (EVENT_MOBS.contains(type) || golem) {
                 helper.register(new EventGear.Glow(renderer));
             }
             EventGear.Kind kind = EventGear.kindOf(renderer.getModel());

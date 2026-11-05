@@ -896,6 +896,28 @@ public final class BossService {
         return true;
     }
 
+    /**
+     * The ember colossus glows brighter as it loses its life (Bosse 2): at 66 % and 33 % of its bar its
+     * halves wear the looks "ember_colossus_2" and "_3" (brighter seams, the same gear).
+     */
+    void emberStage(ServerLevel level) {
+        if (kind != BossKind.EMBER_COLOSSUS || maxTotal <= 0) {
+            return;
+        }
+        double share = currentTotal(level) / maxTotal;
+        String stage = share > 0.66 ? kind.id() : share > 0.33 ? kind.id() + "_2" : kind.id() + "_3";
+        boolean changed = false;
+        for (Mob body : new Mob[] {boss(level), rider(level)}) {
+            if (body != null && !stage.equals(looks.get(body.getId()))) {
+                look(body.getId(), stage);
+                changed = true;
+            }
+        }
+        if (changed) {
+            syncAll(level.getServer());
+        }
+    }
+
     /** Throws a player away from a point. */
     static void knock(ServerPlayer player, Vec3 from, double strength, double up) {
         Vec3 away = player.position().subtract(from).multiply(1, 0, 1);

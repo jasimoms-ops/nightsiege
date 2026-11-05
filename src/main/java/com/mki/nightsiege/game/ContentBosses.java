@@ -563,6 +563,9 @@ final class ContentBosses {
                 }
             }
             Mob other = service.rider(level);
+            if (now % 20 == 0) {
+                service.emberStage(level);   // brighter at 66 % and 33 % (Bosse 2)
+            }
             if (halves && other == null && !whiteHot) {
                 // One half is down: the other burns white-hot.
                 whiteHot = true;

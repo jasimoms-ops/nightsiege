@@ -46,7 +46,9 @@ public final class EventGear {
     /** How the gear model is made: the model class the monster uses, on the gear of a family. */
     public enum Kind {
         ZOMBIE("humanoid"), DROWNED("humanoid"), SKELETON("skeleton"), CREEPER("creeper"), SPIDER("spider"),
-        ILLAGER("illager"), WITCH("witch");
+        ILLAGER("illager"), WITCH("witch"),
+        // Bosse 2 (Simon 05.11.): the gear of the four new bosses.
+        IRON_GOLEM("iron_golem"), RAVAGER("ravager"), PHANTOM("phantom"), MAGMA_CUBE("magma_cube");
 
         final String family;
 
@@ -98,6 +100,10 @@ public final class EventGear {
             case SPIDER -> mesh(SpiderModel.createSpiderBodyLayer());
             case ILLAGER -> mesh(net.minecraft.client.model.monster.illager.IllagerModel.createBodyLayer());
             case WITCH -> mesh(net.minecraft.client.model.monster.witch.WitchModel.createBodyLayer());
+            case IRON_GOLEM -> mesh(net.minecraft.client.model.animal.golem.IronGolemModel.createBodyLayer());
+            case RAVAGER -> mesh(net.minecraft.client.model.monster.ravager.RavagerModel.createBodyLayer());
+            case PHANTOM -> mesh(net.minecraft.client.model.monster.phantom.PhantomModel.createBodyLayer());
+            case MAGMA_CUBE -> mesh(net.minecraft.client.model.monster.slime.MagmaCubeModel.createBodyLayer());
         };
         PartDefinition root = mesh.getRoot();
         List<EventGearShapes.Box> boxes = set.boxes();
@@ -134,6 +140,10 @@ public final class EventGear {
             case SPIDER -> new SpiderModel(baked);
             case ILLAGER -> new net.minecraft.client.model.monster.illager.IllagerModel<>(baked);
             case WITCH -> new net.minecraft.client.model.monster.witch.WitchModel(baked);
+            case IRON_GOLEM -> new net.minecraft.client.model.animal.golem.IronGolemModel(baked);
+            case RAVAGER -> new net.minecraft.client.model.monster.ravager.RavagerModel(baked);
+            case PHANTOM -> new net.minecraft.client.model.monster.phantom.PhantomModel(baked);
+            case MAGMA_CUBE -> new net.minecraft.client.model.monster.slime.MagmaCubeModel(baked);
         };
     }
 
@@ -163,6 +173,18 @@ public final class EventGear {
         }
         if (model instanceof net.minecraft.client.model.monster.witch.WitchModel) {
             return Kind.WITCH;
+        }
+        if (model instanceof net.minecraft.client.model.animal.golem.IronGolemModel) {
+            return Kind.IRON_GOLEM;
+        }
+        if (model instanceof net.minecraft.client.model.monster.ravager.RavagerModel) {
+            return Kind.RAVAGER;
+        }
+        if (model instanceof net.minecraft.client.model.monster.phantom.PhantomModel) {
+            return Kind.PHANTOM;
+        }
+        if (model instanceof net.minecraft.client.model.monster.slime.MagmaCubeModel) {
+            return Kind.MAGMA_CUBE;
         }
         return null;
     }
