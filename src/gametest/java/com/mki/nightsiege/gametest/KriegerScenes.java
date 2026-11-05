@@ -23,6 +23,7 @@ import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.monster.zombie.Zombie;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.GameType;
 import net.minecraft.world.phys.AABB;
 
 import java.util.ArrayList;
@@ -43,6 +44,8 @@ final class KriegerScenes {
     private static final List<String> FAILS = Collections.synchronizedList(new ArrayList<>());
     private static int checks;
     private static final String TAG = "krieger_test";
+    /** The target's Slowness level right after the 4th hit of {@link #fourHits} (-1 none). */
+    private static int lastSlow = -1;
     /** The spot of the scene: x, y, z. */
     private static final double[] HOME = new double[3];
 
@@ -139,6 +142,8 @@ final class KriegerScenes {
                 player.attack(target[0]);
                 if (n == 4) {
                     sideHp[1] = side[0] == null ? 0f : side[0].getHealth();
+                    MobEffectInstance slow = target[0].getEffect(MobEffects.SLOWNESS);
+                    lastSlow = slow == null ? -1 : slow.getAmplifier();
                 }
                 log(String.format(Locale.ROOT, "%s hit %d: spirit=%.1f chain=%d finishers=%d last=%s emp=%s target=%.1f",
                         what, n, WarriorSpirit.value(player), WarriorSpirit.chain(player), WarriorSpirit.finishers(),
@@ -350,6 +355,7 @@ final class KriegerScenes {
             log("axe: armour=" + (armour == null ? -1 : armour.getValue()) + " slow=" + (slow == null ? "-" : slow.getAmplifier() + "/" + slow.getDuration()));
             check("spalter".equals(WarriorSpirit.lastFinisher()) && WarriorSpirit.finishers() == finBefore[0] + 1, "axe fighter: finisher Spalter");
             check(WarriorSpirit.cracked(target[0]), "Spalter: the target's armour is broken");
+            check(lastSlow >= 3, "Spalter knocks the target down (Slowness IV right after the hit, is " + lastSlow + ")");
         });
         context.waitTicks(90);
         server(context, "axe armour back", (player, m) -> {
@@ -529,15 +535,17 @@ final class KriegerScenes {
             m.onCoreAction(player, "ult2");
             check(WarriorArts.used() == counter[0] && near(WarriorSpirit.value(player), 20.0), "F with 20 Kampfgeist does nothing");
         });
-        game.getServer().runCommand("gamemode survival @p");
-        context.waitTicks(10);
         server(context, "no fight", (player, m) -> {
+            player.setGameMode(GameType.SURVIVAL);
             WarriorSpirit.set(player, 60);
             counter[0] = WarriorArts.used();
+            boolean defending = m.isDefending(player);
             m.onCoreAction(player, "ult2");
+            log("no fight: mode=" + player.gameMode() + " instabuild=" + player.getAbilities().instabuild + " defending=" + defending
+                    + " used " + counter[0] + "->" + WarriorArts.used() + " spirit=" + WarriorSpirit.value(player));
             check(WarriorArts.used() == counter[0] && near(WarriorSpirit.value(player), 60.0), "F outside a fight does nothing (survival)");
+            player.setGameMode(GameType.CREATIVE);
         });
-        game.getServer().runCommand("gamemode creative @p");
         context.waitTicks(10);
 
         // ------------------------------------------------ 8. 0 with the kit and every night; the kit HUD
