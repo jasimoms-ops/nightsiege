@@ -357,7 +357,8 @@ final class StreitkolbenScenes {
                     "iron ward: with the mace in hand the shield in the off hand still gives its armour");
         });
         context.waitTicks(5);
-        server(context, "raise", (player, m) -> player.startUsingItem(InteractionHand.OFF_HAND));
+        // Raised like a player does it: the use key held (a raise on the server alone is let go by the client).
+        context.runOnClient(client -> client.options.keyUse.setDown(true));
         context.waitTicks(12);
         server(context, "block", (player, m) -> {
             ServerLevel level = (ServerLevel) player.level();
@@ -377,9 +378,15 @@ final class StreitkolbenScenes {
             log("block: blocking=" + blocking + " hit=" + hit + " took " + f(took) + ", the husk lost " + f(riposte) + " (riposte)");
             check(took < 0.5f, "the blocked blow does no harm (" + f(took) + ")");
             check(riposte > 1.0f, "riposte: the blocked husk is struck back (" + f(riposte) + ")");
-            player.stopUsingItem();
         });
+        context.runOnClient(client -> client.options.keyUse.setDown(false));
         context.waitTicks(5);
+        server(context, "lowered", (player, m) -> {
+            if (player.isUsingItem()) {
+                player.stopUsingItem();
+            }
+        });
+        context.waitTicks(3);
         // Revenge charges from what came through: a blow without the shield up, then the mace hit takes it along.
         server(context, "unblocked", (player, m) -> {
             ServerLevel level = (ServerLevel) player.level();
