@@ -619,6 +619,7 @@ public final class SiegeManager {
                         && WarriorArts.allowDamage(entity, source)   // no damage in the Klingentanz (Simon 05.11.)
                         && FriendlyFire.allow(entity, source));   // no friendly fire in the night (27 October 2026)
         combat.guardian().setCredit(this::creditTank);
+        combat.guardian().setHealStats(this::creditHealOnly);
         traps.setMarker(combat::remoteMark);
         Digger.hardness = traps::digFactor;
         RemoteItem.handler = traps::useRemote;
@@ -4257,6 +4258,11 @@ public final class SiegeManager {
     }
 
     /** True while the player fights in a dungeon expedition or at the war camp: the kit is that fight's. */
+    /** True while this player fights in a dungeon or at the war camp (their Kampfgeist outlasts a night's start or end). */
+    public boolean fightsAway(ServerPlayer player) {
+        return player != null && kitOfAFight(player);
+    }
+
     private boolean kitOfAFight(ServerPlayer player) {
         return expeditions.isFighter(player) || camp.isFighter(player);
     }
@@ -5244,6 +5250,14 @@ public final class SiegeManager {
         }
         if (entity instanceof ServerPlayer victim && participants.contains(victim.getUUID())) {
             nightLog.of(victim.getUUID(), victim.getScoreboardName()).taken += taken;
+        }
+    }
+
+    /** A heal of a player of another class than guardian (the paladin): the statistics only. */
+    private void creditHealOnly(ServerPlayer player, double amount) {
+        if (active && amount > 0) {
+            nightLog.of(player.getUUID(), player.getScoreboardName()).healed += amount;
+            stats.healGiven(player, amount);
         }
     }
 

@@ -118,6 +118,20 @@ final class KriegerScenes {
         home(player);
     }
 
+    /** A stone wall {@code dx} east of home, 3 high, from z-3 to z+3 (or air again). */
+    private static void wall(ServerPlayer player, int dx, boolean stone) {
+        ServerLevel level = (ServerLevel) player.level();
+        int x = (int) Math.floor(HOME[0]) + dx;
+        int y = (int) Math.floor(HOME[1]);
+        int z = (int) Math.floor(HOME[2]);
+        for (int dz = -3; dz <= 3; dz++) {
+            for (int dy = 0; dy < 3; dy++) {
+                level.setBlock(new net.minecraft.core.BlockPos(x, y + dy, z + dz),
+                        (stone ? net.minecraft.world.level.block.Blocks.STONE : net.minecraft.world.level.block.Blocks.AIR).defaultBlockState(), 3);
+            }
+        }
+    }
+
     private static void home(ServerPlayer player) {
         player.getAbilities().flying = false;
         player.onUpdateAbilities();
@@ -471,6 +485,31 @@ final class KriegerScenes {
             home(player);
         });
         context.waitTicks(5);
+        // Fehler-Stichprobe 05.11.: the dance never jumps through a wall. The one he sees falls at the first
+        // jump; the next one stands behind a wall, in reach but out of sight.
+        final Mob[] behind = new Mob[1];
+        final float[] behindHp = new float[1];
+        server(context, "dance wall", (player, m) -> {
+            ServerLevel level = (ServerLevel) player.level();
+            wall(player, 2, true);
+            dummy(level, -2, 0, 1f);
+            behind[0] = dummy(level, 4, 0, 200f);
+            behindHp[0] = behind[0].getHealth();
+            WarriorArts.reset();
+            WarriorSpirit.set(player, 60);
+            m.onCoreAction(player, "ult2");
+        });
+        context.waitTicks(25);
+        server(context, "dance wall check", (player, m) -> {
+            double wallX = Math.floor(HOME[0]) + 2;
+            log("dance wall: at " + player.position() + " behind hp " + behindHp[0] + "->" + behind[0].getHealth());
+            check(player.getX() < wallX && behind[0].getHealth() >= behindHp[0],
+                    "Klingentanz: no jump through the wall (x " + player.getX() + ", wall at " + wallX + ")");
+            clearDummies(player);
+            wall(player, 2, false);
+            home(player);
+        });
+        context.waitTicks(5);
         // Raserei: faster, more damage taken, a kill lengthens it.
         final long[] left = new long[1];
         server(context, "frenzy", (player, m) -> {
@@ -529,6 +568,26 @@ final class KriegerScenes {
             check(WarriorArts.throwHits() - counter[1] >= 3, "Axtwurf hits on the way out and back");
             check(WarriorArts.axesInFlight() == 0 && displays == 0, "the axe came back, its display is gone");
             clearDummies(player);
+        });
+        context.waitTicks(5);
+        // Fehler-Stichprobe 05.11.: the axe strikes nothing behind a wall.
+        server(context, "throw wall", (player, m) -> {
+            ServerLevel level = (ServerLevel) player.level();
+            home(player);
+            wall(player, 2, true);
+            line[0] = dummy(level, 3.5, 0, 200f);
+            lineHp[0] = line[0].getHealth();
+            WarriorArts.reset();
+            WarriorSpirit.set(player, 60);
+            m.onCoreAction(player, "ult2");
+        });
+        context.waitTicks(30);
+        server(context, "throw wall check", (player, m) -> {
+            log("throw wall: behind hp " + lineHp[0] + "->" + line[0].getHealth() + " in flight=" + WarriorArts.axesInFlight());
+            check(line[0].getHealth() >= lineHp[0] && WarriorArts.axesInFlight() == 0,
+                    "Axtwurf: no hit through the wall, the axe came back");
+            clearDummies(player);
+            wall(player, 2, false);
         });
         context.waitTicks(5);
         // Weihegrund: regeneration for the players inside, the undead burn and are slowed.
