@@ -9280,6 +9280,20 @@ public class EventLookTest implements FabricClientGameTest {
         context.runOnClient(client -> hidden[0] = com.mki.nightsiege.core.KitView.hideCrafting
                 && !client.player.inventoryMenu.getSlot(1).isActive());
         System.out.println("[Night Siege test] kit inventory: crafting hidden=" + hidden[0]);
+        if (!hidden[0]) {
+            // What the client saw (Fehler-Stichprobe 05.11.: once in a long run after the dungeons).
+            context.runOnClient(client -> System.out.println("[Night Siege test] kit inventory why: screen="
+                    + (client.gui.screen() == null ? "-" : client.gui.screen().getClass().getSimpleName())
+                    + " worn=" + com.mki.nightsiege.client.KitHud.worn() + " hide=" + com.mki.nightsiege.core.KitView.hideCrafting
+                    + " slot1active=" + client.player.inventoryMenu.getSlot(1).isActive()
+                    + " kitItems=" + java.util.stream.IntStream.range(0, client.player.getInventory().getContainerSize())
+                            .filter(i -> com.mki.nightsiege.game.KitService.isKit(client.player.getInventory().getItem(i))).count()));
+            onServer(context, (player, manager) -> System.out.println("[Night Siege test] kit inventory why (server): active="
+                    + manager.isActive() + " defending=" + manager.isDefending(player) + " kitItems="
+                    + java.util.stream.IntStream.range(0, player.getInventory().getContainerSize())
+                            .filter(i -> com.mki.nightsiege.game.KitService.isKit(player.getInventory().getItem(i))).count()
+                    + " fightsAway=" + manager.fightsAway(player) + " at " + player.blockPosition()));
+        }
         context.takeScreenshot("kithud_inventory");
         closeScreen(context);
         context.waitTicks(5);
