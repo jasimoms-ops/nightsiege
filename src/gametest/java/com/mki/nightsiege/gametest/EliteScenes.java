@@ -204,6 +204,13 @@ final class EliteScenes {
         });
 
         // ---------------------------------------------------------------- the statistics: life really lost
+        server(context, "armour", (player, m) -> {
+            player.setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.DIAMOND_HELMET));
+            player.setItemSlot(EquipmentSlot.CHEST, new ItemStack(Items.DIAMOND_CHESTPLATE));
+            player.setItemSlot(EquipmentSlot.LEGS, new ItemStack(Items.DIAMOND_LEGGINGS));
+            player.setItemSlot(EquipmentSlot.FEET, new ItemStack(Items.DIAMOND_BOOTS));
+        });
+        context.waitTicks(5);   // the armour's attributes come with the player's next tick
         server(context, "statistics", (player, m) -> {
             ServerLevel level = (ServerLevel) player.level();
             double[] t0 = m.stats().testTotals(player);
@@ -211,10 +218,7 @@ final class EliteScenes {
             if (t0 == null) {
                 return;
             }
-            player.setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.DIAMOND_HELMET));
-            player.setItemSlot(EquipmentSlot.CHEST, new ItemStack(Items.DIAMOND_CHESTPLATE));
-            player.setItemSlot(EquipmentSlot.LEGS, new ItemStack(Items.DIAMOND_LEGGINGS));
-            player.setItemSlot(EquipmentSlot.FEET, new ItemStack(Items.DIAMOND_BOOTS));
+            log("armour " + f(player.getArmorValue()));
             Mob zombie = mob(level, EntityTypes.ZOMBIE, player.getX() + 2, player.getY(), player.getZ());
             player.setHealth(20f);
             float lost = hit(level, player, zombie, 8f);
