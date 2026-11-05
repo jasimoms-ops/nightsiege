@@ -49,7 +49,8 @@ import java.util.UUID;
  * </ul>
  *
  * A swing counts once (the sweep's other monsters do not add to it) and only when it was charged
- * (attack strength at least {@code w_spirit.charge}), so fast clicking fills nothing. The finishers'
+ * (attack strength at least {@code w_spirit.charge}), so fast clicking fills nothing. The blademaster's
+ * combo has no cooldown: his swings count by its rhythm instead (at most {@code w_combo.hits} a second). The finishers'
  * hits count in the statistics as "finisher:&lt;id&gt;". All numbers are skill values
  * ({@link WarriorSpiritMath}).
  */
@@ -94,6 +95,7 @@ public final class WarriorSpirit {
         long tick = Long.MIN_VALUE;
         float charge;
         boolean counted;
+        long lastCounted = Long.MIN_VALUE / 4;
     }
 
     /** Blutiger Hieb's bleeding: a share of the hit, once a second. */
@@ -253,10 +255,13 @@ public final class WarriorSpirit {
             return;
         }
         Swing s = SWINGS.get(player.getUUID());
-        if (s == null || s.tick != now || s.counted || s.charge + 1.0e-4 < WarriorSpiritMath.minCharge()) {
+        // The blademaster's combo has no cooldown: his swings count by its rhythm, not by the charge.
+        boolean combo = SkillTree.SUB_BLADEMASTER.equals(sub);
+        if (s == null || s.tick != now || s.counted || !WarriorSpiritMath.swingCounts(s.charge, combo, now, s.lastCounted)) {
             return;   // not a swing of this tick, its other monsters (the sweep), or an uncharged click
         }
         s.counted = true;
+        s.lastCounted = now;
         Meter m = meter(player);
         m.value = WarriorSpiritMath.add(m.value, WarriorSpiritMath.gainHit());
         m.lastFight = now;

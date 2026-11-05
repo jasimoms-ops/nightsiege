@@ -37,6 +37,29 @@ class WarriorSpiritTest {
         assertEquals(50, WarriorSpiritMath.abilityCost(), 1e-9);
     }
 
+    /** Simon 05.11.: the blademaster's fast clicks (his combo, no cooldown) must fill the chain too. */
+    @Test
+    void blademasterSwingsCountByHisComboRhythm() {
+        assertEquals(5, WarriorSpiritMath.comboGap());   // 4 full hits a second
+        // Others: only a charged swing counts.
+        assertTrue(WarriorSpiritMath.swingCounts(0.8, false, 100, 99));
+        assertFalse(WarriorSpiritMath.swingCounts(0.5, false, 100, 0));
+        // Blademaster: a charged swing counts, an uncharged one 5 ticks after his last counted swing too.
+        assertTrue(WarriorSpiritMath.swingCounts(0.9, true, 100, 98));
+        assertTrue(WarriorSpiritMath.swingCounts(0.3, true, 105, 100));
+        assertFalse(WarriorSpiritMath.swingCounts(0.3, true, 104, 100));
+        // Clicking every 2 ticks for a second counts at most 4 swings.
+        long last = Long.MIN_VALUE / 4;
+        int counted = 0;
+        for (long tick = 0; tick < 20; tick += 2) {
+            if (WarriorSpiritMath.swingCounts(0.4, true, tick, last)) {
+                counted++;
+                last = tick;
+            }
+        }
+        assertTrue(counted >= 3 && counted <= 4, "counted " + counted);
+    }
+
     @Test
     void finisherAndAbilityValuesOfEverySubclass() {
         assertEquals(2.5, SkillValues.get("w_combo", "fin_radius", -1), 1e-9);

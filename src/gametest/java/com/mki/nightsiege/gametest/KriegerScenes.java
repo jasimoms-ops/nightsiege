@@ -262,6 +262,33 @@ final class KriegerScenes {
                     "an uncharged click fills nothing (" + v + " -> " + WarriorSpirit.value(player) + ")");
         });
         context.waitTicks(16);
+        // Simon 05.11.: the blademaster clicks fast (his combo, no cooldown); his clicks fill the chain at
+        // its rhythm (one counted swing every 5 ticks at most), not only fully charged ones.
+        final double[] fast = new double[2];
+        final int[] fastFin = new int[1];
+        for (int i = 0; i < 10; i++) {
+            final int n = i;
+            server(context, "fast " + n, (player, m) -> {
+                if (n == 0) {
+                    fast[0] = WarriorSpirit.value(player);
+                    fastFin[0] = WarriorSpirit.finishers();
+                    log("fast: combo active=" + com.mki.nightsiege.game.Combo.active(player)
+                            + " charge=" + player.getAttackStrengthScale(0.5f));
+                }
+                target[0].invulnerableTime = 0;
+                player.attack(target[0]);
+                if (n == 9) {
+                    fast[1] = WarriorSpirit.value(player);
+                    double counted = (fast[1] - fast[0]) / 4.0;
+                    log(String.format(Locale.ROOT, "fast: spirit %.1f -> %.1f (counted %.1f) chain=%d finishers +%d",
+                            fast[0], fast[1], counted, WarriorSpirit.chain(player), WarriorSpirit.finishers() - fastFin[0]));
+                    check(counted >= 3 - 1.0e-6 && counted <= 4 + 1.0e-6,
+                            "blademaster: 10 fast clicks in 1 s count 3-4 swings (counted " + counted + ")");
+                }
+            });
+            context.waitTicks(2);
+        }
+        context.waitTicks(16);
 
         // ------------------------------------------------ 3. a kill and a hit taken
         server(context, "kill", (player, m) -> {

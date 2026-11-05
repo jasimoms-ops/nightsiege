@@ -175,6 +175,26 @@ public final class WarriorSpiritMath {
         return SkillValues.get(NODE, "charge", 0.8);
     }
 
+    /**
+     * Ticks between two counted swings of a blademaster: his combo fights without the sword cooldown,
+     * at most {@code w_combo.hits} full hits a second (Simon 05.11.: his fast clicks did not fill the chain).
+     */
+    public static long comboGap() {
+        return Math.max(1L, Math.round(20.0 / Math.max(0.1, SkillValues.get("w_combo", "hits", 4.0))));
+    }
+
+    /**
+     * True when a swing counts for the meter and the chain: charged enough, or for the blademaster
+     * ({@code combo}) at least {@link #comboGap()} ticks after his last counted swing, however charged.
+     * Click spam still fills no more than his combo's rhythm.
+     */
+    public static boolean swingCounts(double charge, boolean combo, long now, long lastCounted) {
+        if (charge + 1.0e-4 >= minCharge()) {
+            return true;
+        }
+        return combo && now - lastCounted >= comboGap();
+    }
+
     /** The chain's count after a hit at {@code now}; the hit before it was at {@code lastHit}. */
     public static int chainAfterHit(int chain, long lastHit, long now) {
         if (chain <= 0 || now - lastHit > chainWindow() || chain >= chainHits()) {
