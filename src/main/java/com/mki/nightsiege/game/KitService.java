@@ -527,6 +527,7 @@ public final class KitService {
         // Balance update 2 (Simon 29.10.): the arrow kinds in the quiver, the gain abilities on their keys.
         GainGear.fillQuiver(player, this, skills);
         GainKeys.newKit(player);
+        WarriorSpirit.reset(player);   // Kampfgeist starts at 0 whenever the kit is put on (Simon 05.11.)
 
         // Traps and the remote, as before (topped up to the free amount).
         if (clazz == SkillClass.ENGINEER) {

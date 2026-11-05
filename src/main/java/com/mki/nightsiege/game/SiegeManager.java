@@ -375,7 +375,8 @@ public final class SiegeManager {
         CoreNetworking.registerTypes();
         CoreNetworking.registerServerReceivers();
         combat.setArrowBonus(defense::arrowBonus);
-        ArrowRain.use(combat);   // the archers' arrow rain hits through the combat effects (Simon 30.10.)   // the core perks are gone (content update, 29 October 2026)
+        ArrowRain.use(combat);   // the archers' arrow rain hits through the combat effects (Simon 30.10.)
+        WarriorSpirit.use(combat);   // the warriors' finishers and F abilities too (Simon 05.11.)   // the core perks are gone (content update, 29 October 2026)
         traps.setTeslaBoost(() -> active && currentEvent == SiegeEvent.THUNDER ? config.thunderTeslaMultiplier : 1.0);
         // A file problem of the server before (single player: another world) is not this one's (31.10.).
         ServerLifecycleEvents.SERVER_STARTING.register(server -> Json.clearNotices());
@@ -480,6 +481,7 @@ public final class SiegeManager {
                         && camp.allowDamage(entity, source) && machines.allowDamage(entity, source)
                         && expeditions.allowDamage(entity, source)
                         && foes.allowDamage(entity, source)
+                        && WarriorArts.allowDamage(entity, source)   // no damage in the Klingentanz (Simon 05.11.)
                         && FriendlyFire.allow(entity, source));   // no friendly fire in the night (27 October 2026)
         combat.guardian().setCredit(this::creditTank);
         traps.setMarker(combat::remoteMark);
@@ -521,6 +523,10 @@ public final class SiegeManager {
             }
             if (entity.entityTags().contains(Rigs.TAG) && !Rigs.isLive(entity)) {
                 entity.discard();   // a piece of a tower rig or a drone from before a restart
+                return;
+            }
+            if (WarriorArts.stray(entity)) {
+                entity.discard();   // a thrown axe (Axtwurf) from before a restart
                 return;
             }
             if (entity.entityTags().contains(TrapService.SEAT_TAG) && !traps.isLiveSeat(entity)) {
@@ -4651,6 +4657,14 @@ public final class SiegeManager {
                     state.nameAb2 = "nightsiege.abilitybar.f_rain";
                     state.cooldownAb2Ticks = ArrowRain.cooldownLeft(player, now);
                     state.totalAb2Ticks = ArrowRain.cooldownTotal(player);
+                } else if (WarriorArts.has(own, skillTree)) {
+                    // The warrior's F ability (Simon 05.11.): grey until the Kampfgeist pays for it.
+                    state.hasAb2 = true;
+                    state.iconAb2 = com.mki.nightsiege.core.WarriorSpiritMath.abilityIcon(sub);
+                    state.nameAb2 = "nightsiege.warrior_f." + com.mki.nightsiege.core.WarriorSpiritMath.abilityId(sub);
+                    state.cooldownAb2Ticks = WarriorArts.cooldownLeft(player, now);
+                    state.totalAb2Ticks = WarriorArts.cooldownTotal(player, sub);
+                    state.ab2Dim = !com.mki.nightsiege.core.WarriorSpiritMath.canUseAbility(WarriorSpirit.value(player));
                 }
             }
             // By day no abilities on screen (Simon 28.10.): only in a fight (night, test, camp, dungeon),
@@ -4694,6 +4708,16 @@ public final class SiegeManager {
                 state.gaugeColor = 0xFF3FA0E0;
                 state.units = traps.unitsOf(player);
             }
+            case WARRIOR -> {
+                // Kampfgeist (Simon 05.11.): a bar in the warrior's colour, glowing from 50 on.
+                double spirit = WarriorSpirit.value(player);
+                state.gauge = true;
+                state.gaugeValue = (float) spirit;
+                state.gaugeMax = (float) com.mki.nightsiege.core.WarriorSpiritMath.max();
+                state.gaugeName = "nightsiege.kithud.spirit";
+                state.gaugeColor = 0xFFFF6B4A;
+                state.gaugeGlow = com.mki.nightsiege.core.WarriorSpiritMath.glows(spirit);
+            }
             case GUARDIAN -> {
                 double share = combat.guardian().shieldShare(player, own);
                 if (share >= 0.0) {
@@ -4713,6 +4737,11 @@ public final class SiegeManager {
     /** The traps and towers (for the class simulation). */
     public TrapService trapService() {
         return traps;
+    }
+
+    /** The combat effects (for the tests: a new night's reset). */
+    public CombatEffects combatEffects() {
+        return combat;
     }
 
     public void onTrapPlaced(ServerLevel level, BlockPos pos, LivingEntity placer, TrapKind kind) {
@@ -5994,6 +6023,12 @@ public final class SiegeManager {
         // The archers' arrow rain (Simon 30.10.: "die Bogenschützen haben doch nichts auf F").
         if (ArrowRain.has(effectiveSkills(player))) {
             ArrowRain.fire(player, this);
+            return;
+        }
+        // The warriors' F ability for Kampfgeist (Simon 05.11.: "the only class with nothing on F").
+        if (WarriorArts.has(effectiveSkills(player), skillTree)) {
+            WarriorArts.fire(player, this);
+            sendUltHud(player);
             return;
         }
         // Fähigkeit 2 (F, Simon 27 October 2026): the order of the remote or the staff in hand.

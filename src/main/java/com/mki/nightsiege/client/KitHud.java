@@ -557,6 +557,9 @@ public final class KitHud {
                     : (int) Math.floor(s.gaugeValue) + "/" + Math.round(s.gaugeMax);
             blit(gui, ICON_CLASS, x, r1, 7, 7);
             smallBar(gui, font, bx, r1, s.gaugeValue / s.gaugeMax, c, lightC, text, -1f);
+            if (s.gaugeGlow) {
+                glow(gui, bx, r1, BAR_W, 7, c, now, s.gaugeValue / s.gaugeMax);   // the warrior's Kampfgeist from 50 on (Simon 05.11.)
+            }
         }
 
         // Armour, or the air while under water.
@@ -580,6 +583,22 @@ public final class KitHud {
         blit(gui, ICON_FOOD, x, r3, 7, 7);
         smallBar(gui, font, bx, r3, food / 20f, hungry ? 0xFF667A2A : 0xFFB0702A, hungry ? 0xFF8EA040 : 0xFFDDA050,
                 String.valueOf(food), Math.min(1f, sat / 20f));
+    }
+
+    /** A pulsing frame in the bar's colour around a bar, and a light line over its filling. */
+    private static void glow(GuiGraphicsExtractor gui, int x, int y, int w, int h, int color, long now, float share) {
+        float pulse = 0.5f + 0.5f * (float) Math.sin(now / 140.0);
+        int rgb = color & 0xFFFFFF;
+        int outer = (Math.round(0x40 + 0x90 * pulse) << 24) | rgb;
+        int inner = (Math.round(0x30 + 0x60 * pulse) << 24) | 0xFFF0C8;
+        gui.fill(x - 1, y - 1, x + w + 1, y, outer);
+        gui.fill(x - 1, y + h, x + w + 1, y + h + 1, outer);
+        gui.fill(x - 1, y, x, y + h, outer);
+        gui.fill(x + w, y, x + w + 1, y + h, outer);
+        int lit = Math.round((w - 4) * Math.max(0f, Math.min(1f, share)));
+        if (lit > 0) {
+            gui.fill(x + 2, y + 2, x + 2 + lit, y + 3, inner);
+        }
     }
 
     /** A bar of 7: inner 52 x 3, value text on the right. */

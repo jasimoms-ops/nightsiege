@@ -307,6 +307,13 @@ public final class StatsService {
             line.lane = tree.laneOf(node.id());
             line.amount = node.amountPerLevel();
             line.values = com.mki.nightsiege.core.SkillValues.of(node.id());
+            if (com.mki.nightsiege.core.WarriorSpiritMath.isSubNode(node.id())) {
+                // The warrior subclass's text tells of Kampfgeist and the chain too (Simon 05.11.): {sp_cost} ...
+                for (Map.Entry<String, Double> v : com.mki.nightsiege.core.SkillValues.of(
+                        com.mki.nightsiege.core.WarriorSpiritMath.NODE).entrySet()) {
+                    line.values.putIfAbsent("sp_" + v.getKey(), v.getValue());
+                }
+            }
             stats.nodes.add(line);
         }
         return stats;

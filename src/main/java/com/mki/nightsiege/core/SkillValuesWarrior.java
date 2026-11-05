@@ -143,5 +143,62 @@ final class SkillValuesWarrior {
         def("w_martyr", "hp", 4);
         def("w_martyr", "every", 60);          // display only: shared aura pace (CombatEffects.HEAL_INTERVAL)
         def("w_martyr", "radius", 8);          // display only: shared aura reach (CombatEffects.HEAL_RADIUS)
+
+        // --- Kampfgeist, combo finishers and F (Simon 05.11.: "ja alles super bau das so"), see WarriorSpiritMath.
+        // The meter, every warrior.
+        def("w_spirit", "max", 100);
+        def("w_spirit", "hit", 4);             // per melee hit on a monster
+        def("w_spirit", "kill", 10);           // per kill
+        def("w_spirit", "hurt", 6);            // per hit taken from a monster
+        def("w_spirit", "idle", 100);          // ticks without fighting before it falls
+        def("w_spirit", "decay", 5);           // per second once it falls
+        def("w_spirit", "glow", 50);           // the bar glows, the F field lights up
+        def("w_spirit", "cost", 50);           // what F costs
+        def("w_spirit", "charge", 0.8);        // least attack charge of a swing that counts (no click spam)
+        // The chain: every chain-th melee hit is a finisher; it breaks after window ticks without a hit.
+        def("w_spirit", "chain", 4);
+        def("w_spirit", "window", 40);
+        def("w_spirit", "empcost", 30);        // a finisher at a full meter is empowered and costs this
+        def("w_spirit", "empfactor", 2.0);     // ... for double the effect
+        // Klingenmeister: finisher Klingenwirbel, F Klingentanz.
+        def("w_combo", "fin_radius", 2.5);     // blocks around the warrior
+        def("w_combo", "fin_share", 0.6);      // share of the hit on every monster around
+        def("w_combo", "f_jumps", 3);
+        def("w_combo", "f_radius", 6);         // blocks to the monsters he jumps to
+        def("w_combo", "f_gap", 5);            // ticks between two jumps
+        def("w_combo", "f_dmg", 6);            // a jump's hit on world level 1 (grows like the monsters' life)
+        def("w_combo", "f_cd", 160);           // ticks
+        // Berserker: finisher Blutiger Hieb, F Raserei.
+        def("bloodlust", "fin_bonus", 0.5);    // extra damage share of the hit ...
+        def("bloodlust", "fin_perlost", 0.1);  // ... and this much more per missing tenth of his life
+        def("bloodlust", "fin_bleed", 0.3);    // share of the hit the bleeding deals over its time
+        def("bloodlust", "fin_bleedtime", 60); // ticks
+        def("bloodlust", "f_time", 120);       // ticks of the frenzy ...
+        def("bloodlust", "f_extend", 20);      // ... each kill in it adds this ...
+        def("bloodlust", "f_max", 240);        // ... up to this long in all
+        def("bloodlust", "f_speed", 0.3);      // attack speed in it
+        def("bloodlust", "f_steal", 2.0);      // factor on his life steal in it
+        def("bloodlust", "f_taken", 0.15);     // more damage taken in it
+        def("bloodlust", "f_cd", 200);
+        // Axtkämpfer: finisher Spalter, F Axtwurf.
+        def("heavy_blow", "fin_armor", 0.3);   // share of the target's armour it loses ...
+        def("heavy_blow", "fin_time", 80);     // ... for this many ticks
+        def("heavy_blow", "fin_slow", 20);     // knocked down: Slowness IV, ticks
+        def("heavy_blow", "fin_crack", 0.0);   // optional: the target also takes this much more damage (0 = off)
+        def("heavy_blow", "f_range", 12);      // blocks the axe flies out
+        def("heavy_blow", "f_speed", 1.5);     // blocks a tick
+        def("heavy_blow", "f_width", 1.3);     // blocks beside its path that it hits
+        def("heavy_blow", "f_dmg", 5);         // a hit on world level 1 (grows like the monsters' life), out and back
+        def("heavy_blow", "f_cd", 160);
+        // Paladin: finisher Lichtschlag, F Weihegrund.
+        def("smite", "fin_heal", 2);           // life for every player within fin_radius (half a heart = 1)
+        def("smite", "fin_radius", 6);
+        def("smite", "fin_burn", 60);          // ticks the undead around burn
+        def("smite", "f_radius", 6);
+        def("smite", "f_time", 160);           // ticks the ground lasts
+        def("smite", "f_regen", 50);           // Regeneration I for the players inside, renewed every second
+        def("smite", "f_slow", 30);            // Slowness I for the monsters inside, renewed every second
+        def("smite", "f_holy", 1.0);           // holy damage a second on the undead inside (level 1, grows like their life)
+        def("smite", "f_cd", 240);
     }
 }

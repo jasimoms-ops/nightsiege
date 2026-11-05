@@ -458,6 +458,10 @@ public final class StatsRecorder {
         if (ArrowRain.hitting()) {
             return "faehigkeit:pfeilregen";   // the archers' arrow rain (Simon 30.10.)
         }
+        String warrior = WarriorSpirit.statsSource();
+        if (warrior != null) {
+            return warrior;   // the warriors' finishers and F abilities (Simon 05.11.): "finisher:spalter" ...
+        }
         Entity direct = source.getDirectEntity();
         if (direct != null && direct != player) {
             if (direct.entityTags().contains("nightsiege_turret")) {

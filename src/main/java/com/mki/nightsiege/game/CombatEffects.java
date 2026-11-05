@@ -139,6 +139,8 @@ public final class CombatEffects {
     public void newSiege() {
         angelUsed.clear();
         guardian.newNight();   // full shield energy
+        WarriorSpirit.reset();   // Kampfgeist starts at 0 every night (Simon 05.11.)
+        WarriorArts.reset();
     }
 
     // ------------------------------------------------------------------
@@ -602,6 +604,13 @@ public final class CombatEffects {
             if (tuning != null) {
                 ArmorBreak.afterHit(hurt, source, taken, tuning.config());   // zombies and creepers crack the armour
             }
+            // A hit taken from a monster fills a warrior's Kampfgeist (Simon 05.11.).
+            if (taken > 0 && source.getEntity() instanceof Enemy && !Companions.isCompanion(source.getEntity())) {
+                PlayerSkills hurtSkills = skillsFor.apply(hurt);
+                if (hurtSkills != null && hurtSkills.clazz() == SkillClass.WARRIOR) {
+                    WarriorSpirit.onHurt(hurt, level.getGameTime());
+                }
+            }
         }
         long now = level.getGameTime();
         if (victim instanceof Enemy && taken > 0 && source.getEntity() instanceof ServerPlayer player) {
@@ -842,8 +851,9 @@ public final class CombatEffects {
         if (skills.clazz() == SkillClass.WARRIOR && SkillTree.SUB_BERSERKER.equals(tree.subclassOf(skills))
                 && player.getHealth() < player.getMaxHealth() * SkillValues.get("bloodlust", "below", 0.5)) {
             // Blutklinge (Simon 26.10.): +5 % life steal in the bloodlust (no longer tied to Parade).
-            double steal = SkillValues.get("bloodlust", "steal", 0.12)
-                    + (SkillTree.has(skills, "w_bloodblade") ? SkillValues.get("w_bloodblade", "steal", 0.05) : 0.0);
+            double steal = (SkillValues.get("bloodlust", "steal", 0.12)
+                    + (SkillTree.has(skills, "w_bloodblade") ? SkillValues.get("w_bloodblade", "steal", 0.05) : 0.0))
+                    * WarriorArts.stealFactor(player);   // Raserei: double life steal (Simon 05.11.)
             if (steal > 0) {
                 steal(player, (float) ((taken + extra) * steal));
             }
@@ -852,6 +862,10 @@ public final class CombatEffects {
         // more on the low levels and at least half a heart (balance update 2, 29.10.).
         if (skills.clazz() == SkillClass.WARRIOR && taken + extra > 0) {
             stealOnHit(player, tree.subclassOf(skills), taken + extra, cleaved, now);
+        }
+        // Kampfgeist and the combo chain (Simon 05.11.): every 4th hit in a row is the subclass's finisher.
+        if (skills.clazz() == SkillClass.WARRIOR) {
+            WarriorSpirit.onSwing(this, level, player, skills, tree.subclassOf(skills), victim, (float) (taken + extra), now);
         }
         return extra;
     }
@@ -966,6 +980,10 @@ public final class CombatEffects {
             return;
         }
         PlayerSkills skills = skillsFor.apply(player);
+        if (skills != null && skills.clazz() == SkillClass.WARRIOR) {
+            WarriorSpirit.onKill(player, level.getGameTime());   // Kampfgeist (Simon 05.11.)
+            WarriorArts.onKill(player, level.getGameTime());     // a kill lengthens the Raserei
+        }
         if (skills != null && tree.totalBonus(SkillEffect.MOMENTUM, skills) > 0) {
             momentumUntil.put(player.getUUID(), level.getGameTime() + (long) SkillValues.get("w_momentum", "window", 60));
         }
@@ -1056,6 +1074,7 @@ public final class CombatEffects {
         if (!dealingBonus && victim instanceof Enemy && source.getEntity() instanceof ServerPlayer striker
                 && source.getDirectEntity() == striker) {
             killingBlowSteal(striker, victim);
+            killingBlowSpirit(striker, victim);
         }
         if (dealingBonus || !(victim.level() instanceof ServerLevel level) || !(victim instanceof Enemy)
                 || !(source.getEntity() instanceof ServerPlayer player) || !(source.getDirectEntity() instanceof AbstractArrow arrow)) {
@@ -1093,6 +1112,20 @@ public final class CombatEffects {
         }
         double dealt = Math.min(victim.getMaxHealth(), player.getAttributeValue(Attributes.ATTACK_DAMAGE));
         stealOnHit(player, tree.subclassOf(skills), dealt, 0.0, player.level().getGameTime());
+    }
+
+    /**
+     * A killing melee blow of a warrior counts for Kampfgeist and the chain like any other hit (Simon
+     * 05.11.; AFTER_DAMAGE leaves killing hits out). What it did: about the weapon's damage.
+     */
+    private void killingBlowSpirit(ServerPlayer player, LivingEntity victim) {
+        PlayerSkills skills = skillsFor.apply(player);
+        if (skills == null || skills.clazz() != SkillClass.WARRIOR || !holdsWayWeapon(player, skills)
+                || !(player.level() instanceof ServerLevel level)) {
+            return;
+        }
+        float dealt = (float) Math.min(victim.getMaxHealth(), player.getAttributeValue(Attributes.ATTACK_DAMAGE));
+        WarriorSpirit.onSwing(this, level, player, skills, tree.subclassOf(skills), victim, dealt, level.getGameTime());
     }
 
     private static long turretKey(AbstractArrow arrow, LivingEntity victim) {
@@ -1482,6 +1515,7 @@ public final class CombatEffects {
     public void tick(MinecraftServer server) {
         long now = server.overworld().getGameTime();
         currentTime = now;
+        WarriorSpirit.tick(server);   // Kampfgeist, finishers and the warriors' F abilities (Simon 05.11.)
         if (!delayed.isEmpty()) {
             List<Delayed> due = new ArrayList<>();
             delayed.removeIf(d -> {
@@ -1653,6 +1687,8 @@ public final class CombatEffects {
         divineReadyAt.remove(player);
         tripReadyAt.remove(player);
         guardian.forget(player);
+        WarriorSpirit.forget(player);
+        WarriorArts.forget(player);
     }
 
     // ------------------------------------------------------------------

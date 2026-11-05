@@ -458,6 +458,11 @@ public final class MeleeSim {
         if (now % 60 == 0) {
             m.onCoreAction(player, "ult");
         }
+        // The warriors' F (Simon 05.11.): as soon as the Kampfgeist pays for it and a monster is close.
+        if (clazz == SkillClass.WARRIOR && close != null && now % 5 == 0 && WarriorArts.ready(player, now)
+                && player.distanceTo(close) <= WarriorArts.botReach(m.skillTree().subclassOf(skills))) {
+            m.onCoreAction(player, "ult2");
+        }
         if (guardian && player.isBlocking() && now % 40 == 20) {
             m.onCoreAction(player, "shield");
         }
@@ -757,6 +762,7 @@ public final class MeleeSim {
             dummiesDead = 0;
             dummiesGone = 0;
             BY_SOURCE.clear();
+            WarriorSpirit.resetCounters();
             hpSingle = 0;
             hpGroup = 0;
             LAST_HP.clear();
@@ -991,6 +997,9 @@ public final class MeleeSim {
         for (java.util.Map.Entry<String, Double> e : BY_SOURCE.entrySet()) {
             diag.append(String.format(Locale.ROOT, " %s=%.0f", e.getKey(), e.getValue()));
         }
+        if ("WARRIOR".equals(run.sub()[0])) {
+            diag.append(" | Kampfgeist: ").append(WarriorSpirit.counters());   // the warrior rework (Simon 05.11.)
+        }
         System.out.println(diag);
         NightSiegeMod.LOGGER.info(diag.toString());
         m.abort(level.getServer());
@@ -1125,6 +1134,9 @@ public final class MeleeSim {
         if (bench && benchStage < 2 && DUMMY_SPOTS.containsKey(victim.getUUID())) {
             String key = source.getMsgId() + ":" + (by == null ? "-" : by == source.getDirectEntity() ? by.getType().toShortString()
                     : by.getType().toShortString() + "/" + (source.getDirectEntity() == null ? "-" : source.getDirectEntity().getType().toShortString()));
+            if (WarriorSpirit.statsSource() != null) {
+                key = WarriorSpirit.statsSource();   // a warrior's finisher or F ability (Simon 05.11.)
+            }
             BY_SOURCE.merge(key, (double) amount, Double::sum);
             // Self or companions and spells: only the health this hit really took.
             float after = Math.max(0f, victim.getHealth());
