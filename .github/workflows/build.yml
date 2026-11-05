@@ -150,6 +150,12 @@ jobs:
           if found:
               names = zipfile.ZipFile(found).namelist()
               for w in want:
+                  if w.startswith("%"):
+                      # "%Text": alle Klassen, deren Pfad den Text enthaelt (nur Namen)
+                      pat = w[1:]
+                      hits = [n for n in names if n.endswith(".class") and pat in n]
+                      out.write("== names %s\n%s\n\n" % (pat, "\n".join(hits[:200])))
+                      continue
                   if w.startswith("?"):
                       # "?Klasse#text": in welchen Methoden die Zeile mit "text" vorkommt
                       cls, _, pat = w[1:].partition("#")
