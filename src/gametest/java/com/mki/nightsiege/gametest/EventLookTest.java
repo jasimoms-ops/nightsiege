@@ -8292,6 +8292,39 @@ public class EventLookTest implements FabricClientGameTest {
                         mob.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED), gear, riders));
             }
         });
+        // A second row (05.11.): the tank breakers and the stunner (do they have their own looks?) and two elites.
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            String[] ids = {"nightsiege:breaker", "nightsiege:executioner", "nightsiege:stunner", "minecraft:zombie", "minecraft:skeleton"};
+            for (int i = 0; i < ids.length; i++) {
+                net.minecraft.world.entity.Mob mob = com.mki.nightsiege.game.MobFactory.spawnAt(level,
+                        new BlockPos(cx - 6 + i * 3, cy, cz - r - 9), ids[i], 10, manager.config(), new java.util.Random(1),
+                        com.mki.nightsiege.core.SiegeEvent.NONE, false);
+                if (mob == null) {
+                    System.out.println("[Night Siege test] foes row 2 FAILED " + ids[i]);
+                    continue;
+                }
+                if (i == 3) {
+                    com.mki.nightsiege.game.Elites.make(level, mob, java.util.EnumSet.of(com.mki.nightsiege.game.Elites.Affix.FAST), manager.config());
+                } else if (i == 4) {
+                    com.mki.nightsiege.game.Elites.make(level, mob, java.util.EnumSet.of(com.mki.nightsiege.game.Elites.Affix.WOUNDS), manager.config());
+                }
+                mob.setNoAi(true);
+                mob.setYRot(180f);
+                mob.setYHeadRot(180f);
+                mob.yBodyRot = 180f;
+                lineup.add(mob.getUUID());
+                StringBuilder gear = new StringBuilder();
+                for (net.minecraft.world.entity.EquipmentSlot slot : net.minecraft.world.entity.EquipmentSlot.values()) {
+                    if (!mob.getItemBySlot(slot).isEmpty()) {
+                        gear.append(slot.getName()).append('=').append(net.minecraft.core.registries.BuiltInRegistries.ITEM
+                                .getKey(mob.getItemBySlot(slot).getItem()).getPath()).append(' ');
+                    }
+                }
+                System.out.println("[Night Siege test] foes row 2 " + ids[i] + " tags=" + mob.entityTags() + " name="
+                        + (mob.getCustomName() == null ? "-" : mob.getCustomName().getString()) + " gear=[" + gear.toString().trim() + "]");
+            }
+        });
         context.waitTicks(10);
         game.getServer().runCommand("setblock %d %d %d minecraft:barrier".formatted(cx, cy + 6, cz - r + 2));
         game.getServer().runCommand("tp @p %d.5 %d %d.5 facing %d.5 %d %d.5".formatted(cx, cy + 7, cz - r + 2, cx, cy + 1, cz - r - 5));
