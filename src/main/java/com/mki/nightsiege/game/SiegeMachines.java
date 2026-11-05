@@ -131,6 +131,8 @@ public final class SiegeMachines {
         long sabotageAt = -1L;
         float pitch;
         final List<Rope> ropes = new ArrayList<>();
+        /** Where the war leader aims it (Kriegsführer, Simon 05.11.: like the demolitionist), or null: it picks itself. */
+        Vec3 aim;
 
         Machine(SiegeMachineKind kind, ServerLevel level, Vec3 base, float yaw, boolean trial, Vec3 trialTarget) {
             this.kind = kind;
@@ -553,13 +555,49 @@ public final class SiegeMachines {
         return target.distanceToSqr(machine.base) < reach * reach;
     }
 
+    /** Machines this far from their aim shoot no more at it (the trebuchet throws furthest). */
+    public static final double AIM_REACH = 110.0;
+
+    /**
+     * The war leader aims a machine (Kriegsführer, Simon 05.11.: "wie der Sprengmeister", both: without an
+     * order it picks itself, with a click it shoots there). It shoots as soon as its reload allows. Null
+     * gives it back its own will. False when no such machine stands or the spot is out of its reach.
+     */
+    public boolean aim(UUID hitbox, Vec3 at) {
+        for (Machine machine : machines) {
+            if (hitbox.equals(machine.hitbox)) {
+                if (at != null && machine.base.distanceToSqr(at.x, machine.base.y, at.z) > AIM_REACH * AIM_REACH) {
+                    return false;
+                }
+                machine.aim = at == null ? null : groundAt(machine.level, at);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Where a machine is aimed (for the leader's map), or null. */
+    public Vec3 aimOf(UUID hitbox) {
+        for (Machine machine : machines) {
+            if (hitbox.equals(machine.hitbox)) {
+                return machine.aim;
+            }
+        }
+        return null;
+    }
+
     /** One shot of a machine; false when it found nothing to shoot at. */
     private boolean fire(Field f, SiegeConfig cfg, Machine machine, long now) {
         ServerLevel level = machine.level;
-        Vec3 anchor = f.anchor();
+        Vec3 aim = machine.aim;
+        Vec3 anchor = aim != null ? aim : f.anchor();
         switch (machine.kind) {
             case TREBUCHET -> {
+                // Aimed: the wall on the way there, within a few blocks of the spot; else the spot itself.
                 Wall wall = findWall(level, machine.base, anchor, 110, random);
+                if (aim != null && wall != null && Math.hypot(wall.x() + 0.5 - aim.x, wall.z() + 0.5 - aim.z) > 6.0) {
+                    wall = null;
+                }
                 Vec3 to = wall != null
                         ? new Vec3(wall.x() + 0.5 + wall.face().getStepX() * 0.6, wall.ground() + Math.max(1.0, (wall.top() - wall.ground()) * 0.55),
                                 wall.z() + 0.5 + wall.face().getStepZ() * 0.6)
@@ -570,7 +608,7 @@ public final class SiegeMachines {
                 return true;
             }
             case MORTAR -> {
-                Vec3 to = insideTarget(f, machine);
+                Vec3 to = aim != null ? spread(level, aim, 1.5) : insideTarget(f, machine);
                 swing(machine, now);
                 launch(machine, machine.at(0, 2.0, 1.2), to, now, 60, 24, Blocks.COAL_BLOCK.defaultBlockState(), 0.55f, null);
                 sound(level, machine.base, SoundEvents.GENERIC_EXPLODE.value(), 1.6f, 1.6f);
@@ -579,7 +617,7 @@ public final class SiegeMachines {
                 return true;
             }
             case FIRE, PLAGUE -> {
-                Vec3 to = insideTarget(f, machine);
+                Vec3 to = aim != null ? spread(level, aim, 1.0) : insideTarget(f, machine);
                 swing(machine, now);
                 BlockState load = machine.kind == SiegeMachineKind.FIRE ? Blocks.MAGMA_BLOCK.defaultBlockState()
                         : Blocks.BONE_BLOCK.defaultBlockState();
@@ -599,8 +637,8 @@ public final class SiegeMachines {
                     return false;
                 }
                 Wall climb = climbable(level, wall);
-                Wall aim = climb != null ? climb : wall;
-                Vec3 to = new Vec3(aim.x() + 0.5 + aim.face().getStepX() * 0.6, aim.top() - 0.5, aim.z() + 0.5 + aim.face().getStepZ() * 0.6);
+                Wall hookAt = climb != null ? climb : wall;
+                Vec3 to = new Vec3(hookAt.x() + 0.5 + hookAt.face().getStepX() * 0.6, hookAt.top() - 0.5, hookAt.z() + 0.5 + hookAt.face().getStepZ() * 0.6);
                 turnTo(machine, to);
                 launch(machine, machine.at(0, 1.8, 2.0), to, now, 18, 3, Blocks.IRON_BLOCK.defaultBlockState(), 0.3f, climb);
                 sound(level, machine.base, SoundEvents.CROSSBOW_SHOOT, 1.6f, 0.5f);
@@ -610,6 +648,11 @@ public final class SiegeMachines {
                 return false;
             }
         }
+    }
+
+    /** An aimed shot lands round its spot, as a salvo of the demolitionist does. */
+    private Vec3 spread(ServerLevel level, Vec3 at, double sigma) {
+        return groundAt(level, at.add(random.nextGaussian() * sigma, 0, random.nextGaussian() * sigma));
     }
 
     /** Where a shell lands: mostly by a defender inside the walls, else somewhere within them. */
@@ -702,8 +745,8 @@ public final class SiegeMachines {
                 continue;
             }
             double d = p.distanceToSqr(muzzle);
-            if (d > 72 * 72 || d < 9) {
-                continue;
+            if (d > 72 * 72 || d < 9 || (machine.aim != null && p.distanceToSqr(machine.aim) > 8 * 8)) {
+                continue;   // aimed: only who stands by the spot
             }
             Vec3 eye = p.getEyePosition();
             BlockHitResult hit = level.clip(new ClipContext(muzzle, eye, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, p));
@@ -717,10 +760,11 @@ public final class SiegeMachines {
                 best = p;
             }
         }
-        if (best == null) {
+        if (best == null && (machine.aim == null || machine.aim.distanceToSqr(muzzle) > 72 * 72)) {
             return false;
         }
-        Vec3 aim = best.getEyePosition().add(best.getDeltaMovement().scale(6)).subtract(0, 0.35, 0);
+        Vec3 aim = best != null ? best.getEyePosition().add(best.getDeltaMovement().scale(6)).subtract(0, 0.35, 0)
+                : machine.aim.add(0, 1.0, 0);   // aimed and nobody there: the bolt goes to the spot
         turnTo(machine, aim);
         Vec3 dir = aim.subtract(muzzle);
         Arrow bolt = new Arrow(level, muzzle.x, muzzle.y, muzzle.z, new ItemStack(Items.ARROW), null);
