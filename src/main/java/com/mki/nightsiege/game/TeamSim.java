@@ -995,12 +995,15 @@ public final class TeamSim {
                     } else if (f.getType() == boolean.class) {
                         f.setBoolean(cfg, Boolean.parseBoolean(value));
                     } else if (List.class.isAssignableFrom(f.getType())) {
-                        // A list as numbers with "/" between them: liveCapByPlayers=8/12/20/30
+                        // A list as numbers with "/" between them: liveCapByPlayers=8/12/20/30; or names (05.11.):
+                        // antiHealMobs=minecraft:spider/minecraft:witch
                         boolean ints = f.getGenericType().getTypeName().contains("Integer");
+                        boolean names = f.getGenericType().getTypeName().contains("String");
                         List<Object> list = new ArrayList<>();
                         for (String part : value.split("/")) {
                             if (!part.isBlank()) {
-                                list.add(ints ? (Object) (int) Math.round(Double.parseDouble(part)) : (Object) Double.parseDouble(part));
+                                list.add(names ? (Object) part.trim()
+                                        : ints ? (Object) (int) Math.round(Double.parseDouble(part)) : (Object) Double.parseDouble(part));
                             }
                         }
                         f.set(cfg, list);
