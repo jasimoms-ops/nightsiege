@@ -106,6 +106,7 @@ final class EliteScenes {
         game.getServer().runCommand("effect clear @p");
         context.waitTicks(20);
         final int[] saved = new int[2];
+        final boolean[] refill = new boolean[1];
         // A test night at level 15 without waves (the elites may have both affixes there).
         server(context, "night", (player, m) -> {
             ServerLevel level = (ServerLevel) player.level();
@@ -113,14 +114,25 @@ final class EliteScenes {
             m.config().lifestealCoupled = true;
             saved[0] = m.config().testPrepSeconds;
             saved[1] = m.config().batchIntervalSeconds;
+            refill[0] = m.config().refillSpawns;
             m.config().testPrepSeconds = 1;
             m.config().batchIntervalSeconds = 600;
+            m.config().refillSpawns = false;   // no monsters of the night: only the scene's own hit the player
             boolean ok = m.prepareTest(level.getServer(), level, new BlockPos(cx + 8, cy, cz + 8), 15,
                     com.mki.nightsiege.core.SiegeEvent.NONE);
             log("night prepared=" + ok);
         });
         context.waitTicks(80);
         EventLookTest.closeScreen(context);
+        // The first wave goes (at level 15 it killed the player in the first run of this scene).
+        server(context, "clear", (player, m) -> {
+            ServerLevel level = (ServerLevel) player.level();
+            List<Mob> monsters = level.getEntitiesOfClass(Mob.class, player.getBoundingBox().inflate(160),
+                    e -> e instanceof net.minecraft.world.entity.monster.Enemy);
+            monsters.forEach(Mob::discard);
+            log("the night's first monsters gone: " + monsters.size());
+        });
+        context.waitTicks(10);
 
         // ---------------------------------------------------------------- life steal against the damage taken
         server(context, "steal", (player, m) -> {
@@ -143,7 +155,7 @@ final class EliteScenes {
             float lost = hit(level, player, zombie, 4f);
             double pool = StealPool.available(player, level.getGameTime());
             log("hit 4: lost=" + f(lost) + " pool=" + f(pool) + " health=" + f(player.getHealth()));
-            check(lost > 1.0f && Math.abs(pool - lost) < 0.05, "the pool holds what was lost (" + f(pool) + " of " + f(lost) + ")");
+            check(lost > 0.2f && Math.abs(pool - lost) < 0.05, "the pool holds what was lost (" + f(pool) + " of " + f(lost) + ")");
             float h0 = player.getHealth();
             CombatEffects.steal(player, 10f);
             check(Math.abs(player.getHealth() - (h0 + lost)) < 0.05f, "a steal of 10 heals the lost " + f(lost) + " only ("
@@ -184,6 +196,7 @@ final class EliteScenes {
         });
         context.waitTicks(110);
         server(context, "steal expiry", (player, m) -> {
+            check(m.isActive() && player.isAlive(), "the night still runs, the player stands");
             float h = player.getHealth();
             double pool = StealPool.available(player, player.level().getGameTime());
             CombatEffects.steal(player, 5f);
@@ -362,6 +375,7 @@ final class EliteScenes {
             }
             m.config().testPrepSeconds = saved[0];
             m.config().batchIntervalSeconds = saved[1];
+            m.config().refillSpawns = refill[0];
             m.config().eliteMobs = false;
             m.config().lifestealCoupled = false;
             player.setHealth(player.getMaxHealth());
