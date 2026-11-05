@@ -48,6 +48,9 @@ public class EventLookTest implements FabricClientGameTest {
             }
             setUpScene(context, game);
             registrationScene(context);
+            // A night's own siege machines from level 10 (Simon 05.11.) are rolled at random: the scenes keep them
+            // away so a test night stays as it was; the scene "maschinen" turns them on for itself.
+            onServer(context, (player, manager) -> manager.config().machinesRandomFromLevel = 1000);
             String only = System.getenv("NIGHTSIEGE_SCENES");
             if (only != null && !only.isBlank() && !shaderRun) {
                 // A dispatch with "scenes": only these, for a quick look (27 October 2026).
@@ -147,6 +150,9 @@ public class EventLookTest implements FabricClientGameTest {
                 }
                 if (want.contains("pt2-flow")) {
                     Pt2FlowScenes.run(context, game);   // Playtest 2: scaling, pause, variety, no harm, crates (04.11.)
+                }
+                if (want.contains("maschinen")) {
+                    MaschinenScenes.run(context, game);   // siege machines from level 10, a camp's doubled (05.11.)
                 }
                 if (want.contains("hotfix")) {
                     HotfixScenes.run(context, game);   // the balance hotfix: anti-heal, breaker, stunner, pushes, ladders (05.11.)

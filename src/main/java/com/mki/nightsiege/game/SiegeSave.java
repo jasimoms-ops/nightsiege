@@ -146,6 +146,11 @@ public class SiegeSave {
     public long campRolledDay = -1L;
     /** Siege day whose night brings the machines for sure (the camp won and is gone), or -1. */
     public long machinesDay = -1L;
+    /**
+     * How many machines that night brings: 0 = a camp's (the level's count times machinesCampFactor),
+     * more = so many (the machines of a broken-off night come again as they were).
+     */
+    public int machinesCount = 0;
     /** Players wearing a kit from the camp fight (it goes back when they leave, fall or log in later). */
     public List<String> campKits = new ArrayList<>();
 

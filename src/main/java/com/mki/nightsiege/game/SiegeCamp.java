@@ -1721,6 +1721,7 @@ public final class SiegeCamp {
             m.stats().campFell();
             m.stats().campWon(camp.day);
             m.save().machinesDay = camp.day;
+            m.save().machinesCount = 0;   // a camp's: twice the level's (Simon 05.11.)
             NightSiegeMod.LOGGER.info("[Night Siege] Das Heerlager hat gesiegt: Belagerungsmaschinen in der Nacht von Tag {}", camp.day);
             m.broadcastRegistered(server, Component.translatable("nightsiege.camp.won",
                     player == null ? Component.literal("?") : player.getDisplayName()).withStyle(ChatFormatting.DARK_RED));
@@ -1774,6 +1775,7 @@ public final class SiegeCamp {
         }
         if (camp.built && !camp.destroyed) {
             m.save().machinesDay = m.dayNow(server);
+            m.save().machinesCount = 0;   // a camp's: twice the level's (Simon 05.11.)
             NightSiegeMod.LOGGER.info("[Night Siege] Das Heerlager steht noch: Belagerungsmaschinen heute Nacht");
         }
         remove(server);
