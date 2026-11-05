@@ -61,12 +61,15 @@ public class EventLookTest implements FabricClientGameTest {
                 // A dispatch with "scenes": only these, for a quick look (27 October 2026).
                 java.util.List<String> want = java.util.Arrays.asList(only.toLowerCase(Locale.ROOT).replace(" ", "").split(","));
                 if (want.contains("camp")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     campScene(context, game);
                 }
                 if (want.contains("base")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     baseScene(context, game);   // the base, a test night and the mending after it
                 }
                 if (want.contains("machines")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     machineScene(context, game);
                 }
                 if (want.contains("bar") || want.contains("tech")) {
@@ -74,6 +77,7 @@ public class EventLookTest implements FabricClientGameTest {
                     com.mki.nightsiege.game.TrapService.mortarsAnyTime = true;
                 }
                 if (want.contains("bar")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     alchemistScene(context, game);   // the ability bar of the alchemist and the healer
                     summonerScene(context, game);    // ... and of the summoners
                 }
@@ -81,104 +85,140 @@ public class EventLookTest implements FabricClientGameTest {
                     soulcatcherScene(context, game);   // souls in the dungeon, the spells without G (28 October 2026)
                 }
                 if (want.contains("tech")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     techScene(context, game);   // the engineer after the playtest of 28 October 2026
                 }
                 if (want.contains("foes")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     foeScene(context, game);
                 }
                 if (want.contains("raid")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     raidScene(context, game);
                 }
                 if (want.contains("curse")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     curseScene(context, game);   // update 2: the curse altar and the nemesis
                 }
                 if (want.contains("ruhmeshalle")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     hallScene(context, game);   // the Ruhmeshalle and the points command (31 October 2026)
                 }
                 if (want.contains("update6")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     update6Scene(context, game);   // class banners and the kit page (4 November 2026)
                 }
                 if (want.contains("dungeons")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     dungeonScene(context, game);
                 }
                 if (want.contains("ss2-dungeon")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     Ss2DungeonScenes.run(context, game);   // survival safety 2: dungeon and camp (31 October 2026)
                 }
                 if (want.contains("dungeondump")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     dungeonDumpScene(context, game);   // every block of the eight dungeons as a file (29 October 2026)
                 }
                 if (want.contains("warleader") || want.contains("krieg")) {
                     warLeaderScene(context, game);   // the war leader's round (29 October 2026)
                 }
                 if (want.contains("warden")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     wardenScene(context, game);   // the eight dungeon wardens (29 October 2026)
                 }
                 if (want.contains("guards")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     guardScene(context, game);   // the dungeon guards in their warden's look (29 October 2026, 22:06)
                 }
                 if (want.contains("mobs")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     mobLineup(context, game);   // the event monsters of every event
                 }
                 if (want.contains("stats")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     statsScene(context, game);
                     nightStatsScene(context);
                 }
                 if (want.contains("percent")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     percentScene(context, game);   // shares of the max health (28 October 2026)
                 }
                 if (want.contains("weapons")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     kitWeaponScene(context, game);   // the kit weapons, 3D since 29 October 2026
                 }
                 if (want.contains("bosses")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     bossScene(context, game);   // all eight bosses (four more since the content update, 29 October 2026)
                 }
                 if (want.contains("campground")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     campGroundScene(context, game);   // the camp's ground comes back (30 October 2026)
                 }
                 if (want.contains("bossai")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     bossAiScene(context, game);   // the spider queen and the bone lich behind walls (30 October 2026)
                 }
                 if (want.contains("subtrees")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     subTreeShots(context);   // one tree per subclass (content update, 29 October 2026)
                 }
                 if (want.contains("treebg")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     treeSceneShots(context);   // the skill tree backgrounds v2 (29 October 2026)
                 }
                 if (want.contains("kithud")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     kitHudScene(context, game);   // the kit HUD (28 October 2026)
                 }
                 if (want.contains("overhang")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     overhangScene(context, game);   // spiders under an overhang
                 }
                 if (want.contains("playtest")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     playtestScene(context, game);   // the playtest (28 October 2026)
                 }
                 if (want.contains("pt2-flow")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     Pt2FlowScenes.run(context, game);   // Playtest 2: scaling, pause, variety, no harm, crates (04.11.)
                 }
                 if (want.contains("maschinen")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     MaschinenScenes.run(context, game);   // siege machines from level 10, a camp's doubled (05.11.)
                 }
                 if (want.contains("elite")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     EliteScenes.run(context, game);   // life steal against the damage taken, elites, revenant wounds, hall (05.11.)
                 }
+                if (want.contains("fehler")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
+                    FehlerScenes.run(context, game);   // Fehler-Stichprobe 05.11. abends: nemesis after the drone, vexes go with the night
+                }
                 if (want.contains("hotfix")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     HotfixScenes.run(context, game);   // the balance hotfix: anti-heal, breaker, stunner, pushes, ladders (05.11.)
                 }
                 if (want.contains("krieger")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     KriegerScenes.run(context, game);   // the warrior rework: Kampfgeist, finishers, F (Simon 05.11.)
                 }
                 if (want.contains("streitkolben")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     StreitkolbenScenes.run(context, game);   // the tanks' mace: kit, 2.5 x damage, 0.8 a second, no smash (05.11.)
                 }
                 if (want.contains("guardian")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     ensureCore(context, game);   // alone, no scene before it placed a core
                     guardianScene(context);   // the guardian's trees, shield throw, charge, dome and sanctuary (alone since 05.11.)
                 }
                 if (want.contains("ss2-netz")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     Ss2NetzScenes.run(context, game);   // survival safety 2: packets, profiles, playtest, core rights (31.10.)
                 }
                 if (want.contains("ui")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     // The windows at the end of the full run (the full run outgrew its 40 minutes, 29 October 2026).
                     ensureCore(context, game);   // alone, no scene before it placed a core (30 October 2026)
                     versionBScene(context, game);
@@ -186,39 +226,51 @@ public class EventLookTest implements FabricClientGameTest {
                     classUiScene(context, game);
                 }
                 if (want.contains("bolzen")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     bolterAimScene(context, game);   // where the bolter's bolt flies (Simon 30.10., 11:50)
                 }
                 if (want.contains("leiterburg")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     ladderCastleScene(context, game);   // the same on the copy of Simon's castle (30.10.)
                 }
                 if (want.contains("leitersturm")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     ladderCrowdScene(context, game);   // many monsters at one ladder in a real night (Simon 30.10., 16:12)
                 }
                 if (want.contains("survival")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     survivalScene(context, game);   // a real night in survival, start to end (Simon 30.10., 23:51)
                 }
                 if (want.contains("pt2-dungeon")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     Pt2DungeonScenes.run(context, game);   // Playtest 2: basins, guards awake at once, barriers at dungeon and camp (04.11.)
                 }
                 if (want.contains("ss-speichern")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     SsSpeichernScenes.run(context, game);   // survival safety: save, keys, infighting (31.10.)
                 }
                 if (want.contains("ss-inventar")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     SsInventarScenes.run(context, game);   // survival safety: kit swap, crates, crashes, death (31.10.)
                 }
                 if (want.contains("ss-welt")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     SsWeltScenes.run(context, game);   // survival safety: the mending after the night (Simon 31.10.)
                 }
                 if (want.contains("ss-nacht")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     SsNachtScenes.run(context, game);   // Survival-Sicherheit: accepts, sleeping, missed night, stop, /time set (31.10.)
                 }
                 if (want.contains("ss2-alltag")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     Ss2AlltagScenes.run(context, game);   // survival safety 2: everyday play outside the nights (Simon 31.10.)
                 }
                 if (want.contains("alltag")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     everydayScene(context, game);   // an ordinary survival day without a siege (Simon 31.10., 10:21)
                 }
                 if (want.contains("ladders")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
                     // The climbing scenes, then the ladder cases of 28 October 2026 (block beside, ladder above the ground).
                     ladderScene(context, game);
                     ladderTargetScene(context, game, true);
@@ -5114,9 +5166,17 @@ public class EventLookTest implements FabricClientGameTest {
                             }
                         }
                     }
+                    // First gather, then strike: a boss falling while the world's entities are walked can loop the walk
+                    // forever (Fehler-Stichprobe 05.11. abends: the double boss night hung here once).
+                    java.util.List<net.minecraft.world.entity.Mob> bossMobs = new java.util.ArrayList<>();
                     for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
                         if (e instanceof net.minecraft.world.entity.Mob m && m.isAlive()
                                 && m.entityTags().contains(com.mki.nightsiege.game.BossService.TAG_BOSS)) {
+                            bossMobs.add(m);
+                        }
+                    }
+                    for (net.minecraft.world.entity.Mob m : bossMobs) {
+                        {
                             alive.add(m.getType().toShortString() + " " + Math.round(m.getHealth()) + "/" + Math.round(m.getMaxHealth()));
                             if (strike) {
                                 m.invulnerableTime = 0;
@@ -8655,6 +8715,27 @@ public class EventLookTest implements FabricClientGameTest {
         if (client.gui.hud.isHidden() == shown) {
             client.gui.hud.toggle();
         }
+    }
+
+    /**
+     * Before a scene: the player alive (a scene before may have left him dead, Fehler-Stichprobe 05.11. abends:
+     * a vex killed him after a night and the next scene hit a dead player), no screen open, full life.
+     */
+    static void alive(ClientGameTestContext context) {
+        onServer(context, (player, manager) -> {
+            if (!player.isAlive()) {
+                System.out.println("[Night Siege test] the player was dead before the scene: respawn");
+                player.connection.handleClientCommand(new net.minecraft.network.protocol.game.ServerboundClientCommandPacket(
+                        net.minecraft.network.protocol.game.ServerboundClientCommandPacket.Action.PERFORM_RESPAWN));
+            }
+        });
+        context.waitTicks(20);
+        closeScreen(context);
+        onServer(context, (player, manager) -> {
+            if (player.isAlive()) {
+                player.setHealth(player.getMaxHealth());
+            }
+        });
     }
 
     static void onServer(ClientGameTestContext context, OnServer action) {

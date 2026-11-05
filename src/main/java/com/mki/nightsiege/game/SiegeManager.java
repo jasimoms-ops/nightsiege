@@ -607,7 +607,7 @@ public final class SiegeManager {
             if (!camp.allowDeath(entity, source) || !machines.allowDeath(entity, source) || !expeditions.allowDeath(entity)) {
                 return false;   // a fighter at the camp or in a dungeon, the camp's workbench or a machine's hit box
             }
-            boolean dies = combat.allowDeath(entity) && allowNightDeath(entity);
+            boolean dies = combat.allowDeath(entity) && allowNightDeath(entity, source);
             if (dies && !config.siegeMobDrops) {
                 NightDrops.onDeath(entity);   // siege monsters drop nothing (Simon, 26 October 2026)
             }
@@ -709,6 +709,14 @@ public final class SiegeManager {
                     && !(entity instanceof Mob campOrDungeon && foughtOutsideTheNight(campOrDungeon))) {
                 entity.discard();   // a monster of a night that ended without us (a crash, Simon 31.10.)
                 return;
+            }
+            if (active && this.world != null && entity.level() == this.world && !entity.entityTags().contains(NIGHT_MOB_TAG)
+                    && entity instanceof net.minecraft.world.entity.TraceableEntity owned
+                    && owned.getOwner() instanceof Mob master
+                    && (liveMobs.contains(master.getUUID()) || master.entityTags().contains(NIGHT_MOB_TAG))) {
+                // What a monster of the night calls up (a magician's vexes) goes with the night (Fehler-Stichprobe 05.11.
+                // abends: they outlived it and killed after dawn, a plain death with the things dropped).
+                entity.addTag(NIGHT_MOB_TAG);
             }
             archer.onEntityLoad(entity, world, skillTree, this::liveSkillsFor);
             CrateEffects.onArrow(entity);
@@ -4392,11 +4400,17 @@ public final class SiegeManager {
      * A defender takes fatal damage in the night: instead of dying they watch the
      * rest of it as a spectator near the core. Returns false to cancel the death.
      */
-    private boolean allowNightDeath(Object entity) {
+    private boolean allowNightDeath(Object entity, net.minecraft.world.damagesource.DamageSource source) {
         if (!(entity instanceof ServerPlayer player) || !active || !config.nightKits
                 || !participants.contains(player.getUUID()) || fallen.contains(player.getUUID())) {
             return true;
         }
+        // The blow that would have killed (Fehler-Stichprobe 05.11. abends: the drone took the death away, and with it
+        // everything that came after a real death): the rest of the life counts as lost, the killer is the arch-enemy
+        // in the Ruhmeshalle and may become a nemesis.
+        safe("Statistik", () -> StealPool.settle(player, source));
+        safe("Nemesis", () -> nemesis.onDefenderKilled(nemesisHost, player, source));
+        safe("Statistik", () -> stats.playerKilled(player, source));
         kits.rememberGameMode(player);
         player.setHealth(player.getMaxHealth());
         player.removeAllEffects();
@@ -4572,9 +4586,14 @@ public final class SiegeManager {
         }
         liveMobs.clear();
         // Monsters of the night that dropped out of the list (their chunk unloaded and came back, 31.10.).
+        // And every vex near the core that is no summoner's ghost: a magician's of the night (05.11.).
         List<Entity> strays = new ArrayList<>();
+        double reach = Math.max(160.0, config.naturalSpawnBlockRadius);
         for (Entity e : world.getAllEntities()) {
             if (e.entityTags().contains(NIGHT_MOB_TAG) && !Companions.isCompanion(e)) {
+                strays.add(e);
+            } else if (e instanceof net.minecraft.world.entity.monster.Vex && anchor != null && !Companions.isCompanion(e)
+                    && e.distanceToSqr(anchor.getX() + 0.5, anchor.getY(), anchor.getZ() + 0.5) < reach * reach) {
                 strays.add(e);
             }
         }
