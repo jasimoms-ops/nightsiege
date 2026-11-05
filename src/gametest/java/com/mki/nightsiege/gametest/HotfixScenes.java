@@ -28,6 +28,7 @@ import net.minecraft.world.level.block.LadderBlock;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * The balance hotfix of 5 November 2026 (Simon: "funktionieren Anti-Heal und Schild-Durchschlag überhaupt?"):
@@ -147,7 +148,13 @@ final class HotfixScenes {
             took[0] = player.getMaxHealth() - player.getHealth();
             player.setHealth(player.getMaxHealth());
             player.invulnerableTime = 0;
+            // A dungeon's monsters only hurt the players in its fight: for this one blow he is one of them.
+            java.util.Set<UUID> fighters = fightersOf(m.expeditions());
+            boolean added = fighters != null && fighters.add(player.getUUID());
             dungeon.doHurtTarget(level, player);
+            if (added) {
+                fighters.remove(player.getUUID());
+            }
             took[1] = player.getMaxHealth() - player.getHealth();
             double share = m.config().dungeonMobPercent(m.currentLevel()) * player.getMaxHealth();
             log(String.format(java.util.Locale.ROOT, "dungeon share: plain took=%.2f dungeon took=%.2f share=%.2f (level %d)",
@@ -238,7 +245,12 @@ final class HotfixScenes {
             m.foes().stunnerNow(stunner[0]);
             speed[0] = player.getAttributeValue(Attributes.MOVEMENT_SPEED);
         });
-        context.waitTicks(34);   // wind-up (1 s) and the slam
+        // Wind-up (1 s) and the slam; the server may lag behind the test's ticks, so wait for it, at most 6 s.
+        final boolean[] first = new boolean[1];
+        for (int i = 0; i < 12 && !first[0]; i++) {
+            context.waitTicks(10);
+            server(context, "stunner wait", (player, m) -> first[0] = stunner[0] == null || Stuns.stunned(player));
+        }
         server(context, "stunned", (player, m) -> {
             if (stunner[0] == null) {
                 return;
@@ -250,7 +262,11 @@ final class HotfixScenes {
             check(now < 1e-6, "stunned, the player cannot move");
             check(Stuns.blocks("ult") && Stuns.blocks("slot") && !Stuns.blocks("buy"), "stunned, the ability keys do nothing");
         });
-        context.waitTicks(40);
+        final boolean[] over = new boolean[1];
+        for (int i = 0; i < 12 && !over[0]; i++) {
+            context.waitTicks(10);
+            server(context, "stun wait", (player, m) -> over[0] = !Stuns.stunned(player));
+        }
         server(context, "stun over", (player, m) -> {
             if (stunner[0] == null) {
                 return;
@@ -268,7 +284,12 @@ final class HotfixScenes {
             stunner[0].setTarget(player);
             m.foes().stunnerNow(stunner[0]);
         });
-        context.waitTicks(34);
+        // The server may lag behind the test's ticks: wait until the slam came, at most 6 s.
+        final boolean[] slammed = new boolean[1];
+        for (int i = 0; i < 12 && !slammed[0]; i++) {
+            context.waitTicks(10);
+            server(context, "stunner wait", (player, m) -> slammed[0] = m.foes().stunsBlocked >= 1 || Stuns.stunned(player));
+        }
         server(context, "stunner blocked", (player, m) -> {
             if (stunner[0] == null) {
                 return;
@@ -318,4 +339,17 @@ final class HotfixScenes {
         context.waitTicks(20);
         log("summary: " + checks + " checks, " + FAILS.size() + " failed" + (FAILS.isEmpty() ? "" : ": " + FAILS));
     }
+
+    @SuppressWarnings("unchecked")
+    private static java.util.Set<UUID> fightersOf(Expeditions expeditions) {
+        try {
+            java.lang.reflect.Field field = Expeditions.class.getDeclaredField("fighters");
+            field.setAccessible(true);
+            return (java.util.Set<UUID>) field.get(expeditions);
+        } catch (ReflectiveOperationException e) {
+            log("no fighters field: " + e);
+            return null;
+        }
+    }
+
 }
