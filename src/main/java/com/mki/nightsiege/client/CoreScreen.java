@@ -918,6 +918,53 @@ public class CoreScreen extends Screen {
                 addRenderableWidget(cb);
                 bx += cw + 4;
             }
+            if (stats.warOn) {
+                // The war leader's round (Kriegsführer, 29 October 2026): whoever presses first leads the monsters.
+                boolean running = !stats.warLeader.isEmpty();
+                boolean free = stats.warMine || !running && stats.warBlock.isEmpty();
+                int rightLimit = left + W - 66 - (!stats.siegeActive && !stats.nightComing
+                        ? Math.max(70, font.width(Component.translatable("nightsiege.ui.unregister")) + 12) + 4 : 0);
+                Component war = stats.warMine ? Component.translatable("nightsiege.ui.war_mine")
+                        : running ? Component.translatable("nightsiege.ui.war_running", stats.warLeader)
+                        : Component.translatable("nightsiege.ui.war_start");
+                int ww = Math.max(90, font.width(war) + 12);
+                int sandW = running ? 0 : Math.max(54, font.width(Component.translatable("nightsiege.ui.war_sandbox")) + 12) + 4;
+                if (bx + ww + sandW > rightLimit) {
+                    war = Component.translatable("nightsiege.ui.war_short");
+                    ww = Math.max(60, font.width(war) + 12);
+                }
+                if (bx + ww + sandW > rightLimit && !stats.warMine) {
+                    war = Component.literal("⚔");   // narrow: the sword alone, the tooltip says what it is
+                    ww = 22;
+                }
+                if (bx + ww <= rightLimit) {
+                    Component tip = stats.warMine ? Component.translatable("nightsiege.ui.war_mine_hint")
+                            : free ? Component.translatable("nightsiege.ui.war_start").copy().append("\n")
+                            .append(Component.translatable("nightsiege.ui.war_hint"))
+                            : running ? Component.translatable("nightsiege.ui.war_running_hint", stats.warLeader)
+                            : Component.translatable(stats.warBlock);
+                    Button wb = Button.builder(war, b -> {
+                        send("war:start");
+                        onClose();
+                    }).bounds(bx, footerY, ww, 18).tooltip(net.minecraft.client.gui.components.Tooltip.create(tip)).build();
+                    wb.active = free;
+                    goldButtons.add(addRenderableWidget(wb));
+                    bx += ww + 4;
+                }
+                // The sandbox (Simon 05.11.): alone, nobody defends, endless gold.
+                Component sand = Component.translatable("nightsiege.ui.war_sandbox");
+                int sw = Math.max(54, font.width(sand) + 12);
+                if (!running && bx + sw <= rightLimit) {
+                    Button sb = Button.builder(sand, b -> {
+                        send("war:sandbox");
+                        onClose();
+                    }).bounds(bx, footerY, sw, 18).tooltip(net.minecraft.client.gui.components.Tooltip.create(free
+                            ? Component.translatable("nightsiege.ui.war_sandbox_hint") : Component.translatable(stats.warBlock))).build();
+                    sb.active = free;
+                    goldButtons.add(addRenderableWidget(sb));
+                    bx += sw + 4;
+                }
+            }
             if (!stats.siegeActive && !stats.nightComing) {
                 Component leave = Component.translatable("nightsiege.ui.unregister");
                 int lw = Math.max(70, font.width(leave) + 12);

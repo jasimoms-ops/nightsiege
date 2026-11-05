@@ -79,6 +79,8 @@ public final class TeamSim {
     private static int randomRuns = 6;
     private static int templateRuns = 1;
     private static boolean fullTree;
+    /** "krieg": every run is a war leader's round with a bot leader instead of a test night (29 October 2026). */
+    private static boolean warMode;
     private static int shard;
     private static int shards = 1;
     private static Path copyFile;
@@ -209,6 +211,7 @@ public final class TeamSim {
         randomRuns = 6;
         templateRuns = 1;
         fullTree = false;
+        warMode = false;
         shard = 0;
         shards = 1;
         copyFile = null;
@@ -226,6 +229,8 @@ public final class TeamSim {
                 templateRuns = Integer.parseInt(token.substring(1));
             } else if (token.equals("voll")) {
                 fullTree = true;
+            } else if (token.equals("krieg")) {
+                warMode = true;
             } else if (token.startsWith("shard=")) {
                 String[] p = token.substring(6).split("/");
                 shard = Integer.parseInt(p[0]);
@@ -446,7 +451,7 @@ public final class TeamSim {
                             }
                         }
                     }
-                    if (m.isActive()) {
+                    if (m.isActive() && (!warMode || now - phaseTick > 20)) {
                         phase = Phase.FIGHT;
                         fightStart = now;
                         for (Map.Entry<UUID, TeamBrain> e : brains.entrySet()) {
@@ -576,12 +581,26 @@ public final class TeamSim {
         shellBursts = 0;
         shellVictims = 0;
         applyConfig(m, Map.of("testPrepSeconds", "12"));   // time for the engineers' traps
-        boolean ok = m.prepareTest(server, world, core, run.level(), SiegeEvent.NONE);
+        boolean ok;
+        if (warMode) {
+            // A war leader's round: a bot leads the monsters, the group defends (its own build-up first).
+            List<ServerPlayer> group = new ArrayList<>();
+            for (UUID id : brains.keySet()) {
+                ServerPlayer bot = server.getPlayerList().getPlayer(id);
+                if (bot != null) {
+                    group.add(bot);
+                }
+            }
+            ok = m.warLeader().startBotRound(server, world, core, run.level(), group);
+            maxTicks = (m.config().warPrepSeconds + m.config().warWaves * m.config().warWaveSeconds + 120) * 20;
+        } else {
+            ok = m.prepareTest(server, world, core, run.level(), SiegeEvent.NONE);
+            maxTicks = (SiegeMath.durationSeconds(run.level(), m.config()) + 120) * 20;
+        }
         if (!ok) {
             record(server, m, "start_fehlgeschlagen");
             return;
         }
-        maxTicks = (SiegeMath.durationSeconds(run.level(), m.config()) + 120) * 20;
         phase = Phase.PREP;
         phaseTick = now;
     }

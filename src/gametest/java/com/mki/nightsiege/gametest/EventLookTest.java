@@ -99,6 +99,9 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("dungeondump")) {
                     dungeonDumpScene(context, game);   // every block of the eight dungeons as a file (29 October 2026)
                 }
+                if (want.contains("warleader") || want.contains("krieg")) {
+                    warLeaderScene(context, game);   // the war leader's round (29 October 2026)
+                }
                 if (want.contains("warden")) {
                     wardenScene(context, game);   // the eight dungeon wardens (29 October 2026)
                 }
@@ -10403,6 +10406,440 @@ public class EventLookTest implements FabricClientGameTest {
             }
         });
         context.takeScreenshot("bolt_" + label + "_hit");
+    }
+
+    /**
+     * The war leader's round (Kriegsführer, 29 October 2026): the player leads, two bots defend a
+     * walled base. The ready round, the build-up, purchases at a gathering point, the flare, the
+     * squads and their orders, a machine, the boss and a card; the leader wins when the bots fall.
+     * Then a round the leader gives up and one the defenders hold by time. After each the leader is
+     * back where he stood, in his game mode, at his time of day.
+     */
+    private static void warLeaderScene(ClientGameTestContext context, TestSingleplayerContext game) {
+        closeScreen(context);
+        BlockPos pos = context.computeOnClient(client -> client.player.blockPosition());
+        int cx = pos.getX() + 420;
+        int cz = pos.getZ() + 320;
+        game.getServer().runCommand("forceload add %d %d %d %d".formatted(cx - 112, cz - 112, cx + 112, cz + 112));
+        context.waitTicks(80);
+        final int[] ground = new int[1];
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            level.getChunk(cx >> 4, cz >> 4);
+            ground[0] = level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, cx, cz);
+        });
+        context.waitTicks(10);
+        int cy = ground[0];
+        int out = 96;
+        for (int part = -out; part <= out; part += 8) {
+            int z1 = cz + part;
+            int z2 = Math.min(cz + out, z1 + 7);
+            game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:grass_block".formatted(cx - out, cy - 1, z1, cx + out, cy - 1, z2));
+            game.getServer().runCommand("fill %d %d %d %d %d %d minecraft:air".formatted(cx - out, cy, z1, cx + out, cy + 12, z2));
+        }
+        int r = 12;
+        String wall = "fill %d %d %d %d %d %d minecraft:stone_bricks";
+        game.getServer().runCommand(wall.formatted(cx - r, cy, cz - r, cx + r, cy + 5, cz - r));
+        game.getServer().runCommand(wall.formatted(cx - r, cy, cz + r, cx + r, cy + 5, cz + r));
+        game.getServer().runCommand(wall.formatted(cx - r, cy, cz - r, cx - r, cy + 5, cz + r));
+        game.getServer().runCommand(wall.formatted(cx + r, cy, cz - r, cx + r, cy + 5, cz + r));
+        game.getServer().runCommand("setblock %d %d %d minecraft:oak_door[half=lower,facing=north]".formatted(cx, cy, cz - r));
+        game.getServer().runCommand("setblock %d %d %d minecraft:oak_door[half=upper,facing=north]".formatted(cx, cy + 1, cz - r));
+        game.getServer().runCommand("time set 6000");
+        game.getServer().runCommand("weather clear");
+        game.getServer().runCommand("tp @p %d.5 %d %d.5 0 0".formatted(cx, cy, cz - 30));
+        context.waitTicks(20);
+        BlockPos core = new BlockPos(cx, cy, cz + 5);
+        final int[] keep = new int[10];
+        final java.util.List<com.mki.nightsiege.game.CoreRecord> oldCores = new java.util.ArrayList<>();
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            oldCores.addAll(manager.save().cores);
+            manager.save().cores.clear();
+            manager.save().cores.add(new com.mki.nightsiege.game.CoreRecord(
+                    com.mki.nightsiege.game.SiegeManager.dimensionName(level), core.getX(), core.getY(), core.getZ()));
+            level.setBlock(core, com.mki.nightsiege.game.ModContent.SIEGE_CORE.defaultBlockState(), 3);
+            com.mki.nightsiege.game.BaseDefense.forgetScans();
+            manager.save().register(player.getUUID().toString());
+            com.mki.nightsiege.core.SiegeConfig cfg = manager.config();
+            keep[0] = cfg.warPrepSeconds;
+            keep[1] = cfg.warWaveSeconds;
+            keep[2] = cfg.warWaves;
+            keep[3] = cfg.warSquadDelaySeconds;
+            keep[4] = cfg.warAutoStormSeconds;
+            keep[5] = cfg.warMachineFromWave;
+            keep[6] = cfg.warBossFromWave;
+            keep[7] = cfg.warForceSeconds;
+            keep[8] = cfg.nightPhantoms;
+            keep[9] = cfg.sapperFromLevel;
+            cfg.sapperFromLevel = 1;
+            cfg.warPrepSeconds = 12;
+            cfg.warWaveSeconds = 40;
+            cfg.warWaves = 2;
+            cfg.warSquadDelaySeconds = 3;
+            cfg.warAutoStormSeconds = 20;
+            cfg.warMachineFromWave = 1;
+            cfg.warBossFromWave = 1;
+            cfg.warForceSeconds = 0;
+            String[][] subs = {{"WARRIOR", "w_combo"}, {"GUARDIAN", "g_bastion"}};
+            for (int i = 0; i < 2; i++) {
+                net.minecraft.server.level.ServerPlayer bot = com.mki.nightsiege.game.SimBots.spawn(level.getServer(), level,
+                        "WarBot" + (i + 1), cx - 2 + i * 4 + 0.5, cy, cz + 0.5);
+                if (bot == null) {
+                    System.out.println("[Night Siege test] war bot " + i + " missing");
+                    continue;
+                }
+                String id = bot.getUUID().toString();
+                manager.save().register(id);
+                manager.save().skills.put(id, com.mki.nightsiege.game.MeleeSim.build(manager.skillTree(),
+                        com.mki.nightsiege.core.SkillClass.valueOf(subs[i][0]), subs[i][1]));
+            }
+        });
+        context.waitTicks(40);
+        // 0. The core window's button (on the overview, which a player with a class sees first).
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
+            if (!own.hasClass()) {
+                own.unlockClass(com.mki.nightsiege.core.SkillClass.WARRIOR);
+                own.switchTo(com.mki.nightsiege.core.SkillClass.WARRIOR);
+            }
+            manager.openCoreWindow(player);
+        });
+        context.waitTicks(20);
+        // The overview tab, where the button sits (the window opens on the classes for a new player).
+        context.runOnClient(client -> {
+            if (client.gui.screen() instanceof com.mki.nightsiege.client.CoreScreen coreScreen) {
+                try {
+                    java.lang.reflect.Field tab = com.mki.nightsiege.client.CoreScreen.class.getDeclaredField("activeTab");
+                    tab.setAccessible(true);
+                    @SuppressWarnings({"unchecked", "rawtypes"})
+                    Object stats = Enum.valueOf((Class) tab.getType(), "STATS");
+                    tab.set(coreScreen, stats);
+                    java.lang.reflect.Method rebuild = net.minecraft.client.gui.screens.Screen.class.getDeclaredMethod("rebuildWidgets");
+                    rebuild.setAccessible(true);
+                    rebuild.invoke(coreScreen);
+                } catch (ReflectiveOperationException e) {
+                    System.out.println("[Night Siege test] war core tab: " + e);
+                }
+            }
+        });
+        context.waitTicks(10);
+        context.takeScreenshot("war_00_core_button");
+        closeScreen(context);
+        // 1. The ready round: the player leads, the bots are in it.
+        onServer(context, (player, manager) -> {
+            player.setGameMode(net.minecraft.world.level.GameType.CREATIVE);
+            manager.warLeader().requestStart(player);
+            System.out.println("[Night Siege test] war lobby: " + manager.warLeader().status()
+                    + " members=" + manager.warLeader().roundMembers().size());
+        });
+        context.waitTicks(20);
+        context.runOnClient(client -> System.out.println("[Night Siege test] war lobby screen="
+                + (client.gui.screen() instanceof com.mki.nightsiege.client.WarLeaderScreen w ? w.testPhase() : String.valueOf(client.gui.screen()))));
+        context.takeScreenshot("war_01_lobby");
+        final double[] before = new double[4];
+        onServer(context, (player, manager) -> {
+            before[0] = player.getX();
+            before[1] = player.getY();
+            before[2] = player.getZ();
+            before[3] = Math.floorMod(player.level().getServer().overworld().getOverworldClockTime(), 24000L);
+            for (net.minecraft.server.level.ServerPlayer bot : com.mki.nightsiege.game.SimBots.all()) {
+                manager.warLeader().onRoundReady(bot);
+            }
+        });
+        context.waitTicks(30);
+        final int[][] points = new int[1][];
+        onServer(context, (player, manager) -> {
+            java.util.List<BlockPos> ps = manager.warLeader().testPoints();
+            points[0] = new int[ps.size() * 3];
+            StringBuilder line = new StringBuilder();
+            for (int i = 0; i < ps.size(); i++) {
+                BlockPos p = ps.get(i);
+                points[0][i * 3] = p.getX();
+                points[0][i * 3 + 1] = p.getY();
+                points[0][i * 3 + 2] = p.getZ();
+                double d = Math.sqrt(Math.pow(p.getX() - core.getX(), 2) + Math.pow(p.getZ() - core.getZ(), 2));
+                line.append(String.format(java.util.Locale.ROOT, " %d:%.0f", i, d));
+            }
+            System.out.println("[Night Siege test] war begun round=" + manager.isWarRound() + " " + manager.warLeader().status());
+            System.out.println("[Night Siege test] war points (distance to core):" + line + " radius=" + manager.warLeader().testRadius()
+                    + " gold=" + manager.warLeader().testGold() + " roundGold=" + manager.warLeader().testRoundGold());
+            System.out.println("[Night Siege test] war leader spectator=" + player.isSpectator() + " y=" + Math.round(player.getY())
+                    + " clock=" + Math.floorMod(player.level().getServer().overworld().getOverworldClockTime(), 24000L)
+                    + " bar=" + manager.bossBarText());
+            // Purchases in the build-up: squads yes (they come with wave 1), machines and cards not yet.
+            net.minecraft.server.MinecraftServer server = player.level().getServer();
+            manager.warLeader().testAddGold(150);   // enough to try the machine, the boss and a card later
+            System.out.println("[Night Siege test] war buy prep: zombies=" + manager.warLeader().testBuy(server, "zombies", 0)
+                    + " skelette=" + manager.warLeader().testBuy(server, "skelette", 0)
+                    + " creeper=" + manager.warLeader().testBuy(server, "creeper", 1)
+                    + " ladders=" + manager.warLeader().testBuy(server, "leitertraeger", 0)
+                    + " sapper=" + manager.warLeader().testBuy(server, "sprengmeister", 0)
+                    + " machine=" + manager.warLeader().testBuy(server, "machine.trebuchet", 0)
+                    + " card=" + manager.warLeader().testBuy(server, "card.nebel", 0)
+                    + " gold=" + manager.warLeader().testGold() + " squads=" + manager.warLeader().testSquads());
+        });
+        context.waitTicks(20);
+        context.runOnClient(client -> {
+            if (client.gui.screen() instanceof com.mki.nightsiege.client.WarLeaderScreen w) {
+                System.out.println("[Night Siege test] war view phase=" + w.testPhase());
+                w.testMove(core.getX() + 0.5, core.getZ() - 10.5, 46);
+            } else {
+                System.out.println("[Night Siege test] war view missing: " + client.gui.screen());
+            }
+        });
+        context.waitTicks(20);
+        context.takeScreenshot("war_02_view_prep");
+        // 2. Wave 1: the flare, then the squads at their point.
+        context.runOnClient(client -> {
+            if (client.gui.screen() instanceof com.mki.nightsiege.client.WarLeaderScreen w && points[0] != null && points[0].length >= 3) {
+                w.testMove(points[0][0] + 0.5, points[0][2] + 0.5, 22);
+            }
+        });
+        context.waitTicks(185);
+        context.takeScreenshot("war_03_flare");
+        context.waitTicks(80);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.MinecraftServer server = player.level().getServer();
+            System.out.println("[Night Siege test] war wave1: " + manager.warLeader().status() + " squads=" + manager.warLeader().testSquads()
+                    + " live=" + manager.raid().states());
+            System.out.println("[Night Siege test] war buy wave1: machine=" + manager.warLeader().testBuy(server, "machine.trebuchet", 2)
+                    + " card=" + manager.warLeader().testBuy(server, "card.blutmond", 0)
+                    + " card2=" + manager.warLeader().testBuy(server, "card.nebel", 0)
+                    + " gold=" + manager.warLeader().testGold() + " bar=" + manager.bossBarText());
+        });
+        context.waitTicks(20);
+        context.takeScreenshot("war_04_squads");
+        context.waitTicks(60);
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.MinecraftServer server = player.level().getServer();
+            int first = manager.warLeader().testFirstSquad();
+            manager.warLeader().testOrder(server, first, "target", core.getX() + 0.5, core.getZ() - 12 + 0.5);
+            manager.warLeader().testOrder(server, 4, "target", core.getX() + 0.5, core.getZ() - 12 + 0.5);   // the ladder carriers
+            manager.warLeader().testOrder(server, 5, "target", core.getX() + 0.5, core.getZ() - 12 + 0.5);   // the sapper
+            System.out.println("[Night Siege test] war order target #" + first + ": " + manager.warLeader().testSquads()
+                    + " raid=" + manager.raid().states() + " machines=" + manager.machines().standing());
+            // The boss: one of the three offered.
+            String bossOffer = null;
+            com.mki.nightsiege.core.WarLeaderData data = manager.warLeader().testData(server);
+            for (com.mki.nightsiege.core.WarLeaderData.Item it : data.shop) {
+                if ("boss".equals(it.group) && bossOffer == null) {
+                    bossOffer = it.id;
+                }
+            }
+            System.out.println("[Night Siege test] war buy boss " + bossOffer + "=" + manager.warLeader().testBuy(server, bossOffer, 3)
+                    + " again=" + manager.warLeader().testBuy(server, bossOffer, 3) + " gold=" + manager.warLeader().testGold());
+        });
+        context.waitTicks(100);
+        onServer(context, (player, manager) -> {
+            manager.warLeader().testStormAll();
+            System.out.println("[Night Siege test] war storm: " + manager.warLeader().testSquads() + " raid=" + manager.raid().states()
+                    + " boss=" + manager.bosses().spawned() + " machines=" + manager.machines().standing() + " bar=" + manager.bossBarText());
+        });
+        context.runOnClient(client -> {
+            if (client.gui.screen() instanceof com.mki.nightsiege.client.WarLeaderScreen w) {
+                w.testMove(core.getX() + 0.5, core.getZ() - 14.5, 52);
+                w.testPick(0, -1, "machine");
+            }
+        });
+        context.waitTicks(100);
+        context.takeScreenshot("war_05_battle");
+        context.waitTicks(200);
+        onServer(context, (player, manager) -> System.out.println("[Night Siege test] war ways in: breaches=" + manager.besiegerBreaches()
+                + " ladders=" + com.mki.nightsiege.game.TempBlocks.all((net.minecraft.server.level.ServerLevel) player.level(),
+                net.minecraft.world.level.block.Blocks.LADDER).size() + " raid=" + manager.raid().states()
+                + " entries=" + manager.raid().entries().size() + " squads=" + manager.warLeader().testSquads()));
+        context.runOnClient(client -> {
+            if (client.gui.screen() instanceof com.mki.nightsiege.client.WarLeaderScreen w) {
+                w.testMenu(true);
+            }
+        });
+        context.waitTicks(5);
+        context.takeScreenshot("war_06_menu");
+        context.runOnClient(client -> {
+            if (client.gui.screen() instanceof com.mki.nightsiege.client.WarLeaderScreen w) {
+                w.testMenu(false);
+            }
+        });
+        // 3. The leader wins: both defenders fall.
+        onServer(context, (player, manager) -> {
+            for (net.minecraft.server.level.ServerPlayer bot : com.mki.nightsiege.game.SimBots.all()) {
+                bot.hurtServer((net.minecraft.server.level.ServerLevel) bot.level(), bot.level().damageSources().generic(), 5000f);
+            }
+        });
+        context.waitTicks(40);
+        onServer(context, (player, manager) -> {
+            System.out.println("[Night Siege test] war end1: round=" + manager.isWarRound() + " active=" + manager.isActive()
+                    + " " + manager.warLeader().status() + " creative=" + player.getAbilities().instabuild
+                    + " spectator=" + player.isSpectator()
+                    + String.format(java.util.Locale.ROOT, " back=%.1f,%.1f,%.1f (was %.1f,%.1f,%.1f)", player.getX(), player.getY(), player.getZ(),
+                    before[0], before[1], before[2])
+                    + " clock=" + Math.floorMod(player.level().getServer().overworld().getOverworldClockTime(), 24000L) + " (was " + (long) before[3] + ")"
+                    + " restore=" + (manager.save().warLeader != null)
+                    + " records=" + manager.save().war.rounds + "/" + manager.save().war.leaderWins + "/" + manager.save().war.fastestSeconds);
+        });
+        context.runOnClient(client -> System.out.println("[Night Siege test] war end screen="
+                + (client.gui.screen() instanceof com.mki.nightsiege.client.WarLeaderScreen w ? w.testPhase() : String.valueOf(client.gui.screen()))));
+        context.takeScreenshot("war_07_end");
+        closeScreen(context);
+        onServer(context, (player, manager) -> manager.sendRecords(player));
+        context.waitTicks(20);
+        context.takeScreenshot("war_08_records");
+        closeScreen(context);
+        // 4. A round the leader gives up.
+        context.waitTicks(60);
+        onServer(context, (player, manager) -> {
+            for (net.minecraft.server.level.ServerPlayer bot : com.mki.nightsiege.game.SimBots.all()) {
+                bot.setHealth(bot.getMaxHealth());
+            }
+            manager.warLeader().requestStart(player);
+        });
+        context.waitTicks(10);
+        onServer(context, (player, manager) -> {
+            for (net.minecraft.server.level.ServerPlayer bot : com.mki.nightsiege.game.SimBots.all()) {
+                manager.warLeader().onRoundReady(bot);
+            }
+        });
+        context.waitTicks(30);
+        onServer(context, (player, manager) -> {
+            System.out.println("[Night Siege test] war round2: " + manager.warLeader().status() + " round=" + manager.isWarRound());
+            manager.warLeader().onAction(player, "giveup");
+        });
+        context.waitTicks(20);
+        onServer(context, (player, manager) -> System.out.println("[Night Siege test] war end2: round=" + manager.isWarRound()
+                + " " + manager.warLeader().status() + " creative=" + player.getAbilities().instabuild
+                + " records=" + manager.save().war.rounds + "/" + manager.save().war.defenderWins));
+        closeScreen(context);
+        // 5. The defenders hold by time (a short round).
+        onServer(context, (player, manager) -> {
+            com.mki.nightsiege.core.SiegeConfig cfg = manager.config();
+            cfg.warPrepSeconds = 5;
+            cfg.warWaveSeconds = 10;
+            cfg.warWaves = 1;
+            manager.warLeader().requestStart(player);
+        });
+        context.waitTicks(10);
+        onServer(context, (player, manager) -> {
+            for (net.minecraft.server.level.ServerPlayer bot : com.mki.nightsiege.game.SimBots.all()) {
+                manager.warLeader().onRoundReady(bot);
+            }
+        });
+        context.waitTicks(30);
+        onServer(context, (player, manager) -> System.out.println("[Night Siege test] war round3: " + manager.warLeader().status()));
+        context.waitTicks(340);
+        onServer(context, (player, manager) -> System.out.println("[Night Siege test] war end3: round=" + manager.isWarRound()
+                + " active=" + manager.isActive() + " " + manager.warLeader().status() + " creative=" + player.getAbilities().instabuild
+                + " clock=" + Math.floorMod(player.level().getServer().overworld().getOverworldClockTime(), 24000L)
+                + " records=" + manager.save().war.rounds + "/" + manager.save().war.defenderWins + " restore=" + (manager.save().warLeader != null)));
+        closeScreen(context);
+        // 6. The sandbox (Simon 05.11.): alone, nobody defends, endless gold, machines aimed by hand.
+        final int[] recordsBefore = new int[1];
+        onServer(context, (player, manager) -> {
+            recordsBefore[0] = manager.save().war == null ? 0 : manager.save().war.rounds;
+            manager.warLeader().requestSandbox(player, 6);
+        });
+        context.waitTicks(20);
+        final int[] machineSquad = {-1};
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.MinecraftServer server = player.level().getServer();
+            com.mki.nightsiege.core.WarLeaderData data = manager.warLeader().testData(server);
+            String boss = null;
+            StringBuilder states = new StringBuilder();
+            for (com.mki.nightsiege.core.WarLeaderData.Item it : data.shop) {
+                if ("boss".equals(it.group) && boss == null) {
+                    boss = it.id;
+                }
+                if (!"ok".equals(it.state)) {
+                    states.append(it.id).append('=').append(it.state).append(' ');
+                }
+            }
+            System.out.println("[Night Siege test] war sandbox: " + manager.warLeader().status() + " sandbox=" + data.sandbox
+                    + " round=" + manager.isWarRound() + " spectator=" + player.isSpectator() + " bosses=" + data.shop.stream()
+                    .filter(i -> "boss".equals(i.group)).count() + " notOk=[" + states + "] bar=" + manager.bossBarText());
+            System.out.println("[Night Siege test] war sandbox buy prep: mortar=" + manager.warLeader().testBuy(server, "machine.mortar", 0)
+                    + " trebuchet=" + manager.warLeader().testBuy(server, "machine.trebuchet", 1)
+                    + " eisenritter=" + manager.warLeader().testBuy(server, "eisenritter", 0)
+                    + " zombies=" + manager.warLeader().testBuy(server, "zombies", 2)
+                    + " card=" + manager.warLeader().testBuy(server, "card.blutmond", 0)
+                    + " boss " + boss + "=" + manager.warLeader().testBuy(server, boss, 3)
+                    + " boss2=" + manager.warLeader().testBuy(server, boss, 3)
+                    + " gold=" + manager.warLeader().testGold() + " squads=" + manager.warLeader().testSquads());
+        });
+        context.waitTicks(420);   // 15 s build-up, the squads 3 s after their flare
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.MinecraftServer server = player.level().getServer();
+            com.mki.nightsiege.core.WarLeaderData data = manager.warLeader().testData(server);
+            for (com.mki.nightsiege.core.WarLeaderData.Squad q : data.squads) {
+                if (q.machine && machineSquad[0] < 0 && !"coming".equals(q.order)) {
+                    machineSquad[0] = q.id;
+                }
+            }
+            System.out.println("[Night Siege test] war sandbox wave: " + manager.warLeader().status() + " round=" + manager.isWarRound()
+                    + " active=" + manager.isActive() + " machines=" + manager.machines().standing() + " boss=" + manager.bosses().spawned()
+                    + " squads=" + manager.warLeader().testSquads() + " machineSquad=" + machineSquad[0]);
+            manager.warLeader().testOrder(server, machineSquad[0], "target", core.getX() + 6.5, core.getZ() + 4.5);
+            com.mki.nightsiege.core.WarLeaderData after = manager.warLeader().testData(server);
+            for (com.mki.nightsiege.core.WarLeaderData.Squad q : after.squads) {
+                if (q.id == machineSquad[0]) {
+                    System.out.println(String.format(java.util.Locale.ROOT, "[Night Siege test] war sandbox aim: order=%s aimed=%s at %.1f,%.1f (wanted %d,%d)",
+                            q.order, q.aimed, q.aimX, q.aimZ, core.getX() + 6, core.getZ() + 4));
+                }
+            }
+            manager.warLeader().testOrder(server, machineSquad[0], "target", core.getX() + 400.5, core.getZ());   // out of reach
+        });
+        context.runOnClient(client -> {
+            if (client.gui.screen() instanceof com.mki.nightsiege.client.WarLeaderScreen w) {
+                w.testMove(core.getX() + 0.5, core.getZ() - 6.5, 60);
+                w.testPick(0, machineSquad[0], "machine");
+            }
+        });
+        context.waitTicks(200);
+        context.runOnClient(client -> System.out.println("[Night Siege test] war sandbox picked=" + machineSquad[0] + " screen="
+                + (client.gui.screen() instanceof com.mki.nightsiege.client.WarLeaderScreen w ? w.testSquad() : -2)));
+        context.takeScreenshot("war_09_sandbox");
+        onServer(context, (player, manager) -> {
+            System.out.println("[Night Siege test] war sandbox later: round=" + manager.isWarRound() + " active=" + manager.isActive()
+                    + " squads=" + manager.warLeader().testSquads() + " breaches=" + manager.besiegerBreaches() + " bar=" + manager.bossBarText());
+            manager.warLeader().onAction(player, "giveup");
+        });
+        context.waitTicks(20);
+        onServer(context, (player, manager) -> System.out.println("[Night Siege test] war sandbox end: round=" + manager.isWarRound()
+                + " active=" + manager.isActive() + " " + manager.warLeader().status() + " creative=" + player.getAbilities().instabuild
+                + " spectator=" + player.isSpectator() + " records=" + manager.save().war.rounds + " (before " + recordsBefore[0] + ")"
+                + " restore=" + (manager.save().warLeader != null)));
+        context.runOnClient(client -> System.out.println("[Night Siege test] war sandbox end screen="
+                + (client.gui.screen() instanceof com.mki.nightsiege.client.WarLeaderScreen w ? w.testPhase() : String.valueOf(client.gui.screen()))));
+        context.takeScreenshot("war_10_sandbox_end");
+        closeScreen(context);
+        // Clean up: the bots, the config, the old core.
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            for (net.minecraft.server.level.ServerPlayer bot : new java.util.ArrayList<>(com.mki.nightsiege.game.SimBots.all())) {
+                manager.save().skills.remove(bot.getUUID().toString());
+                manager.save().unregister(bot.getUUID().toString());
+                com.mki.nightsiege.game.SimBots.remove(level.getServer(), bot);
+            }
+            com.mki.nightsiege.core.SiegeConfig cfg = manager.config();
+            cfg.warPrepSeconds = keep[0];
+            cfg.warWaveSeconds = keep[1];
+            cfg.warWaves = keep[2];
+            cfg.warSquadDelaySeconds = keep[3];
+            cfg.warAutoStormSeconds = keep[4];
+            cfg.warMachineFromWave = keep[5];
+            cfg.warBossFromWave = keep[6];
+            cfg.warForceSeconds = keep[7];
+            cfg.sapperFromLevel = keep[9];
+            if (!oldCores.isEmpty()) {
+                // The core of the scenes before comes back; without one, this one stays (the later scenes need one).
+                level.setBlock(core, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
+                manager.save().cores.clear();
+                manager.save().cores.addAll(oldCores);
+            }
+            com.mki.nightsiege.game.BaseDefense.forgetScans();
+        });
+        game.getServer().runCommand("forceload remove %d %d %d %d".formatted(cx - 112, cz - 112, cx + 112, cz + 112));
+        game.getServer().runCommand("tp @p %d %d %d".formatted(pos.getX(), pos.getY(), pos.getZ()));
+        context.waitTicks(20);
     }
 
     /**
