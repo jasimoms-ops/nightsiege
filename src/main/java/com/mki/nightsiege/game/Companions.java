@@ -1350,7 +1350,7 @@ public final class Companions {
             }
         }
         if (SkillTree.has(skills, "d_ghoul") && dealt > 0) {
-            owner.heal(dealt * (float) bonus(SkillEffect.GHOUL_HUNGER, skills));   // Ghulhunger
+            CombatEffects.steal(owner, dealt * (float) bonus(SkillEffect.GHOUL_HUNGER, skills));   // Ghulhunger (life steal, 05.11.)
         }
         if (SkillTree.has(skills, "d_dance")) {
             healKind(level, owner.getUUID(), Kind.WOLF, (float) bonus(SkillEffect.DEATH_DANCE, skills));   // Totentanz
@@ -1361,7 +1361,7 @@ public final class Companions {
     /** Seelenpakt: a monster killed by the bolt or a spell heals the summoner. */
     private void pact(ServerPlayer owner, PlayerSkills skills, LivingEntity victim) {
         if (!victim.isAlive() && SkillTree.has(skills, "d_pact")) {
-            owner.heal((float) bonus(SkillEffect.SOUL_PACT, skills));
+            CombatEffects.steal(owner, (float) bonus(SkillEffect.SOUL_PACT, skills));   // life steal since 05.11.
         }
     }
 
@@ -2236,7 +2236,7 @@ public final class Companions {
             healKind(level, hitter.owner, Kind.MINION, (float) bonus(SkillEffect.DEATH_DANCE, skills));
         }
         if (hitter.kind == Kind.SPIRIT && owner != null && SkillTree.has(skills, "s_moonpack")) {
-            owner.heal((float) v("s_moonpack", "heal", 1.0));
+            CombatEffects.steal(owner, (float) v("s_moonpack", "heal", 1.0));   // life steal since 05.11.
         }
         // Golemwerk: a golem's punch throws the monster away.
         if ((hitter.kind == Kind.GOLEM || hitter.kind == Kind.TITAN) && owner != null && SkillTree.has(skills, "s_golemwork")) {
@@ -2262,7 +2262,7 @@ public final class Companions {
             return;
         }
         if (SkillTree.has(skills, "d_pact")) {
-            owner.heal((float) bonus(SkillEffect.SOUL_PACT, skills));   // Seelenpakt
+            CombatEffects.steal(owner, (float) bonus(SkillEffect.SOUL_PACT, skills));   // Seelenpakt (life steal, 05.11.)
         }
         if (SkillTree.has(skills, "l_cross_harvest") && killer instanceof LivingEntity living) {
             living.heal(living.getMaxHealth() * (float) v("l_cross_harvest", "heal", 0.2));

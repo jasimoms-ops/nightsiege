@@ -85,6 +85,8 @@ public final class StatsRecorder {
         public String ende = "";
         public boolean abgeschlossen;
         public boolean test;
+        /** A night of the playtest mode (05.11.: the Ruhmeshalle takes these too, marked as playtest). */
+        public boolean playtest;
         public int nacht;
         public int stufe;
         public String ereignis = "";
@@ -208,6 +210,17 @@ public final class StatsRecorder {
         public int geblockt;
         /** Life back from life steal (hit, kill and combo heals, the berserker's bloodlust), as it landed. */
         public double lebensraub;
+        /**
+         * The life really lost (05.11.): after armour, shield, reductions and absorption. "erhalten" is
+         * the hit before armour (Fabric's damage taken), so it was far above the healing.
+         */
+        public double verloren;
+        /** What absorption hearts took off (golden apples, gains). */
+        public double absorbiert;
+        /** Life steal that the coupling to the damage taken held back (StealPool, 05.11.). */
+        public double lebensraubGekappt;
+        /** Life given back without a heal: the night totem, the second chance, refills (05.11.). */
+        public double heilungSonst;
         public int drohneSekunden;
         public double drohneSchaden;
         public Map<String, Integer> faehigkeiten = new LinkedHashMap<>();
@@ -500,6 +513,7 @@ public final class StatsRecorder {
         night.build = build();
         night.start = now();
         night.test = test;
+        night.playtest = test && m.inPlaytest() && !m.isWarRound();
         night.nacht = number;
         night.stufe = level;
         night.ereignis = event == null ? "" : event;
@@ -961,6 +975,86 @@ public final class StatsRecorder {
     /** Set by the combat effects while a life-steal heal lands (Simon 30.10.: "hast du Werte der Lifesteal-Heilung"). */
     static boolean stealing;
 
+    /** From the hurt mixin (via StealPool): the life a defender really lost, and what absorption took. */
+    static void onLost(ServerPlayer player, DamageSource source, float lost, float absorbed) {
+        SiegeManager m = SiegeManager.get();
+        if (m == null) {
+            return;
+        }
+        StatsRecorder r = m.stats();
+        if (r.night == null || !m.isDefending(player)) {
+            return;
+        }
+        SpielerWelle w = r.pw(player);
+        w.verloren += lost;
+        w.absorbiert += absorbed;
+    }
+
+    /** A life-steal heal was asked for; what the coupling held back is counted (only of the missing life). */
+    static void onStealCut(ServerPlayer player, float wanted, float allowed) {
+        try {
+            SiegeManager m = SiegeManager.get();
+            if (m == null || m.stats().night == null || !m.isDefending(player)) {
+                return;
+            }
+            double room = Math.max(0.0, player.getMaxHealth() - player.getHealth());
+            double cut = Math.min(wanted, room) - allowed;
+            if (cut > 1.0e-4) {
+                m.stats().pw(player).lebensraubGekappt += cut;
+            }
+        } catch (RuntimeException e) {
+            // The statistics never get in the way of a heal.
+        }
+    }
+
+    /**
+     * Tests: this night's sums for a player: erhalten, verloren, absorbiert, heilungErhalten, lebensraub,
+     * lebensraubGekappt, heilungSonst (null without a night).
+     */
+    public double[] testTotals(ServerPlayer player) {
+        if (night == null) {
+            return null;
+        }
+        double[] out = new double[7];
+        List<Welle> all = new ArrayList<>(night.wellen);
+        if (wave != null && !all.contains(wave)) {
+            all.add(wave);
+        }
+        for (Welle w : all) {
+            SpielerWelle p = w.spieler.get(player.getScoreboardName());
+            if (p == null) {
+                continue;
+            }
+            out[0] += p.erhalten;
+            out[1] += p.verloren;
+            out[2] += p.absorbiert;
+            out[3] += p.heilungErhalten;
+            out[4] += p.lebensraub;
+            out[5] += p.lebensraubGekappt;
+            out[6] += p.heilungSonst;
+        }
+        return out;
+    }
+
+    /** Depth of heal() on this thread (the heal mixin): its own setHealth is no extra heal. */
+    public static final ThreadLocal<int[]> HEALING = ThreadLocal.withInitial(() -> new int[1]);
+
+    /** From the setHealth mixin: life given back without heal() (totem, second chance, refill). */
+    public static void onDirectHeal(LivingEntity entity, float amount) {
+        if (amount <= 0f || !(entity instanceof ServerPlayer player) || player.level().isClientSide()) {
+            return;
+        }
+        try {
+            SiegeManager m = SiegeManager.get();
+            if (m == null || m.stats().night == null || !m.isDefending(player)) {
+                return;
+            }
+            m.stats().pw(player).heilungSonst += amount;
+        } catch (RuntimeException e) {
+            // The statistics never get in the way of a heal.
+        }
+    }
+
     /**
      * A monster's hit on a defender before any reduction, blocked or not (what a tank holds off). The
      * amount is the hit before the defender's own cuts (30.10.: {@code base} already had the subclass
@@ -1160,7 +1254,7 @@ public final class StatsRecorder {
         writeLater(dir == null ? null : dir.resolve("heerlager_" + LocalDateTime.now().format(FILE_TIME) + ".json"), camp);
         AttemptFile doneCamp = camp;
         camp = null;
-        if (!m.inPlaytest()) {
+        {   // the playtest counts too since 05.11. (Simon: "das soll auch die aus dem playtest übernehmen")
             HallService.addAttempt(m, server, doneCamp, true);   // the Ruhmeshalle (31.10.)
         }
     }
@@ -1243,7 +1337,7 @@ public final class StatsRecorder {
         writeLater(dir == null ? null : dir.resolve("dungeon_" + LocalDateTime.now().format(FILE_TIME) + ".json"), dungeon);
         AttemptFile doneDungeon = dungeon;
         dungeon = null;
-        if (!m.inPlaytest()) {
+        {   // the playtest counts too since 05.11. (Simon: "das soll auch die aus dem playtest übernehmen")
             HallService.addAttempt(m, server, doneDungeon, true);   // the Ruhmeshalle (31.10.)
         }
     }
@@ -1272,7 +1366,7 @@ public final class StatsRecorder {
         line.infernit = roll.infernite;
         Path dir = folder();
         appendLater(dir == null ? null : dir.resolve("kisten.jsonl"), line);
-        if (!m.inPlaytest()) {
+        {   // the playtest counts too since 05.11. (Simon: "das soll auch die aus dem playtest übernehmen")
             HallService.addCrate(m, server, player.getUUID().toString(), player.getScoreboardName(), line.seltenheit, true);
         }
     }

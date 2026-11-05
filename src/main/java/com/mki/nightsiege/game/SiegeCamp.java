@@ -2078,7 +2078,7 @@ public final class SiegeCamp {
                         BlockState old = snap.old(groundChunk, i);
                         BlockPos pos = groundWhere.get(i);
                         if (old == null || level.getBlockState(pos) == old || !Teardown.mayReset(level, pos, old,
-                                now -> plan == null ? own.contains(now.getBlock()) : plan.get(pos) != null && now.is(plan.get(pos).getBlock()))) {
+                                now -> plan == null ? own.contains(now.getBlock()) : Teardown.setThere(plan.get(pos), now))) {
                             continue;
                         }
                         level.setBlock(pos, old, Expeditions.BULK);

@@ -62,7 +62,8 @@ public final class SiegeTeams {
         }
         try {
             Scoreboard scoreboard = server.getScoreboard();
-            for (String name : new String[]{BLOOD_MOON, CHAMPION, GRAVE, GHOST, NEMESIS}) {
+            for (String name : new String[]{BLOOD_MOON, CHAMPION, GRAVE, GHOST, NEMESIS,
+                    Elites.TEAM_FAST, Elites.TEAM_WOUNDS, Elites.TEAM_BOTH}) {
                 PlayerTeam team = scoreboard.getPlayerTeam(name);
                 if (team != null) {
                     scoreboard.removePlayerTeam(team);

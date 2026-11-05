@@ -273,7 +273,8 @@ final class HallPages {
             HallOfFame.LastNight n = view.lastNight;
             info = n == null ? tr("nightsiege.hall.no_last")
                     : tr("nightsiege.hall.last_info", n.night, n.level, date(n.date),
-                    tr("gewonnen".equals(n.result) ? "nightsiege.hall.result.held" : "nightsiege.hall.result.lost"));
+                    tr("gewonnen".equals(n.result) ? "nightsiege.hall.result.held" : "nightsiege.hall.result.lost"))
+                    + (n.playtest ? " · " + tr("nightsiege.hall.playtest") : "");
         } else {
             int nights = 0;
             for (HallOfFame.Hero hero : view.heroes.values()) {
@@ -743,11 +744,12 @@ final class HallPages {
             boolean hover = mouseX >= bx && mouseX < bx + bw && mouseY >= ly && mouseY < base + 12;
             int color = n.held ? (hover ? 0xFFA0F0A8 : GREEN) : (hover ? 0xFFF08080 : RED);
             gui.fill(bx, base - bh, bx + bw, base, color);
-            String label = "N" + n.night;
+            String label = (n.playtest ? "P" : "N") + n.night;   // P: a playtest night (05.11.)
             small(gui, font, font.plainSubstrByWidth(label, (int) (bw / 0.6f) + 4), bx, base + 3, PurpleUi.GREY, 0.6f);
             List<String> tip = new ArrayList<>();
             tip.add(tr("nightsiege.hall.recent_tip_title", n.night, n.level, date(n.date)));
-            tip.add((n.held ? "§a" : "§c") + tr(n.held ? "nightsiege.hall.result.held" : "nightsiege.hall.result.lost"));
+            tip.add((n.held ? "§a" : "§c") + tr(n.held ? "nightsiege.hall.result.held" : "nightsiege.hall.result.lost")
+                    + (n.playtest ? " §8· " + tr("nightsiege.hall.playtest") : ""));
             tip.add("§7" + subName(n.sub));
             tip.add("§7" + tr("nightsiege.hall.cat.dealt") + ": §f" + num(n.dealt));
             tip.add("§7" + tr("nightsiege.hall.cat.kills") + ": §f" + num(n.kills));

@@ -331,8 +331,8 @@ public final class CombatEffects {
             hits++;
         }
         if (hits > 0 && SkillTree.has(skills, "w_bloodstorm")) {
-            player.heal((float) Math.min(SkillValues.get("w_bloodstorm", "max", 8),
-                    hits * SkillValues.get("w_bloodstorm", "heal", 1)));
+            steal(player, (float) Math.min(SkillValues.get("w_bloodstorm", "max", 8),
+                    hits * SkillValues.get("w_bloodstorm", "heal", 1)));   // life steal since 05.11. (StealPool)
         }
         for (int i = 0; i < 12; i++) {
             double a = Math.PI * 2 * i / 12;
@@ -774,7 +774,7 @@ public final class CombatEffects {
             }
             if (undead && SkillTree.has(skills, "w_holy_strike")) {
                 victim.igniteForSeconds((float) (SkillValues.get("w_holy_strike", "burn", 80) / 20.0));
-                player.heal((float) SkillValues.get("w_holy_strike", "heal", 1));
+                steal(player, (float) SkillValues.get("w_holy_strike", "heal", 1));   // life steal since 05.11.
             }
             if (SkillTree.has(skills, "w_bladefrenzy")) {
                 player.addEffect(new MobEffectInstance(MobEffects.STRENGTH, (int) SkillValues.get("w_bladefrenzy", "time", 60), 0));
@@ -816,7 +816,7 @@ public final class CombatEffects {
                         near.igniteForSeconds((float) (SkillValues.get("w_crusader", "burn", 60) / 20.0));
                     }
                     if (healed + crusaderHeal <= crusaderMax + 1.0e-4f) {
-                        player.heal(crusaderHeal);
+                        steal(player, crusaderHeal);   // life steal since 05.11.
                         healed += crusaderHeal;
                     }
                 }
@@ -1452,11 +1452,22 @@ public final class CombatEffects {
         return followUp;
     }
 
-    /** A life-steal heal: counted apart in the statistics (Simon 30.10.). */
-    private static void steal(ServerPlayer player, float amount) {
+    /**
+     * A life-steal heal: counted apart in the statistics (Simon 30.10.). Since 05.11. it heals no
+     * more than the player lost in the last seconds (see {@link StealPool}); the rest is counted as cut.
+     */
+    public static void steal(ServerPlayer player, float amount) {
+        if (amount <= 0f) {
+            return;
+        }
+        float allowed = StealPool.take(player, amount, player.level().getGameTime());
+        StatsRecorder.onStealCut(player, amount, allowed);
+        if (allowed <= 0f) {
+            return;
+        }
         StatsRecorder.stealing = true;
         try {
-            player.heal(amount);
+            player.heal(allowed);
         } finally {
             StatsRecorder.stealing = false;
         }

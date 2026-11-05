@@ -46,13 +46,17 @@ public final class HallService {
 
     // ------------------------------------------------------------------ nights
 
-    /** A real night ended (or one of the nights before, from its file). */
+    /**
+     * A real night ended (or one of the nights before, from its file). Since 05.11. playtest nights
+     * count too (Simon: "das soll auch die aus dem playtest übernehmen"), marked as playtest; other
+     * test nights, the war leader's rounds and the balance sim stay out.
+     */
     public static void addNight(SiegeManager m, MinecraftServer server, StatsRecorder.NightFile n, boolean live) {
-        if (n == null || n.test || (n.sim != null && !n.sim.isEmpty())) {
+        if (n == null || (n.sim != null && !n.sim.isEmpty()) || n.test && !n.playtest) {
             return;
         }
-        boolean won = "gewonnen".equals(n.ergebnis);
-        if (!won && !"ziel_verfehlt".equals(n.ergebnis) && !"verloren".equals(n.ergebnis)) {
+        boolean won = "gewonnen".equals(n.ergebnis) || "test_gehalten".equals(n.ergebnis);
+        if (!won && !"ziel_verfehlt".equals(n.ergebnis) && !"verloren".equals(n.ergebnis) && !"test_verloren".equals(n.ergebnis)) {
             return;   // aborted or unfinished
         }
         HallOfFame hall = hall(m);
@@ -63,7 +67,8 @@ public final class HallService {
         last.date = date;
         last.night = n.nacht;
         last.level = n.stufe;
-        last.result = n.ergebnis;
+        last.result = n.test ? (won ? "gewonnen" : "verloren") : n.ergebnis;
+        last.playtest = n.test;
         List<String> touched = new ArrayList<>();
         for (StatsRecorder.Spieler s : n.spieler.values()) {
             if (s.uuid == null || s.uuid.isEmpty()) {
@@ -170,6 +175,7 @@ public final class HallService {
             mini.night = n.nacht;
             mini.level = n.stufe;
             mini.held = won;
+            mini.playtest = n.test;
             mini.dealt = Math.round(dealt);
             mini.kills = kills;
             mini.deaths = deaths;
@@ -447,6 +453,7 @@ public final class HallService {
             });
         }
         fresh.imported = !rebuild;
+        fresh.importedPlaytest = !rebuild;
         m.save().hall = fresh;
         m.persist();
         NightSiegeMod.LOGGER.info("[Night Siege] Ruhmeshalle {} von {} ({} Verteidiger vorher)", rebuild ? "neu eingelesen" : "geleert",
@@ -466,23 +473,30 @@ public final class HallService {
      */
     public static void importOnce(SiegeManager m, MinecraftServer server) {
         HallOfFame hall = hall(m);
-        if (hall.imported || server == null) {
+        // The real nights once (31.10.), the playtest nights once more (05.11.); dungeons, camps and crates
+        // came with the first read already, the playtest's ones too.
+        boolean nights = !hall.imported;
+        boolean playtests = !hall.importedPlaytest;
+        if (!nights && !playtests || server == null) {
             return;
         }
         Path dir = m.stats().statsFolder();
         hall.imported = true;
+        hall.importedPlaytest = true;
         if (dir == null || !Files.isDirectory(dir)) {
             m.persist();
             return;
         }
         Thread t = new Thread(() -> {
             List<Object> read = new ArrayList<>();
-            int[] count = new int[4];
+            int[] count = new int[5];
             try (Stream<Path> files = Files.list(dir)) {
-                for (Path f : files.sorted().toList()) {
+                // In the order they were played: "night_2026-…" and "testnacht_2026-…" by their date.
+                for (Path f : files.sorted(java.util.Comparator.comparing(
+                        (Path p) -> p.getFileName().toString().replaceFirst("^[a-z]+_", ""))).toList()) {
                     String name = f.getFileName().toString();
                     try {
-                        if (name.startsWith("night_") && name.endsWith(".json")) {
+                        if (nights && name.startsWith("night_") && name.endsWith(".json")) {
                             {
                                 StatsRecorder.NightFile n = Json.read(f, StatsRecorder.NightFile.class);
                                 if (n != null && n.abgeschlossen) {
@@ -490,6 +504,17 @@ public final class HallService {
                                     count[0]++;
                                 }
                             }
+                        } else if (playtests && name.startsWith("testnacht_") && name.endsWith(".json")) {
+                            // The test nights before 05.11. did not say whether they were the playtest's: on this
+                            // server they all were (or Simon's own tests); the sim's runs stay out.
+                            StatsRecorder.NightFile n = Json.read(f, StatsRecorder.NightFile.class);
+                            if (n != null && n.abgeschlossen && n.test && (n.sim == null || n.sim.isEmpty())) {
+                                n.playtest = true;
+                                read.add(n);
+                                count[4]++;
+                            }
+                        } else if (!nights) {
+                            continue;
                         } else if ((name.startsWith("dungeon_") || name.startsWith("heerlager_")) && name.endsWith(".json")) {
                             {
                                 StatsRecorder.AttemptFile a = Json.read(f, StatsRecorder.AttemptFile.class);
@@ -537,8 +562,8 @@ public final class HallService {
                     }
                 }
                 m.persist();
-                NightSiegeMod.LOGGER.info("[Night Siege] Ruhmeshalle: {} Nächte, {} Dungeons/Heerlager, {} Kisten übernommen ({} Dateien nicht lesbar), {} Spieler",
-                        count[0], count[1], count[2], count[3], hall.heroes.size());
+                NightSiegeMod.LOGGER.info("[Night Siege] Ruhmeshalle: {} Nächte, {} Playtest-Nächte, {} Dungeons/Heerlager, {} Kisten übernommen ({} Dateien nicht lesbar), {} Spieler",
+                        count[0], count[4], count[1], count[2], count[3], hall.heroes.size());
             });
         }, "nightsiege-hall-import");
         t.setDaemon(true);

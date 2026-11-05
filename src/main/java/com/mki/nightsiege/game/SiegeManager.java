@@ -578,6 +578,7 @@ public final class SiegeManager {
             }
         });
         ServerLivingEntityEvents.AFTER_DAMAGE.register((entity, source, baseDamage, taken, blocked) -> {
+            StealPool.settle(entity, source);   // the life really lost, before a totem heals (Simon 05.11.)
             logDamage(entity, source, taken);
             if (active && entity instanceof ServerPlayer hitPlayer && participants.contains(hitPlayer.getUUID())) {
                 safe("Statistik", () -> stats.incoming(hitPlayer, source, baseDamage, blocked));   // what a tank holds off (Simon 30.10.)
@@ -2483,6 +2484,7 @@ public final class SiegeManager {
             tickSpectators(server);
             CrateEffects.tick(world, upright);
             safe("Statistik", () -> stats.tickSecond(world.getGameTime(), liveMobs, participants, world, traps));
+            safe("Elite", () -> Elites.sparkle(world, liveMobs));   // the elites' sparks (Simon 05.11.)
         }
         defense.tick(liveMobs, world.getGameTime());
         if (world.getGameTime() % 20 == 0) {
@@ -3468,6 +3470,9 @@ public final class SiegeManager {
                     : spawnMob(entityId, champion, angle);
             if (mob != null) {
                 events.onSpawned(currentEvent, mob, world);
+                if (!champion) {
+                    safe("Elite", () -> Elites.maybe(world, mob, siegeLevel, config, random));   // Simon 05.11.
+                }
                 liveMobs.add(mob.getUUID());
                 spawnedTotal++;
                 for (Entity rider : mob.getPassengers()) {
@@ -3481,7 +3486,7 @@ public final class SiegeManager {
                     aimAtDefender(server, mob);
                 }
                 Fx.mobSpawned(world, config, mob, spawned < config.audibleSpawnsPerBatch);
-                if (currentEvent == SiegeEvent.BLOOD_MOON && config.bloodMoonGlow) {
+                if (currentEvent == SiegeEvent.BLOOD_MOON && config.bloodMoonGlow && !Elites.isElite(mob)) {
                     SiegeTeams.mark(server, mob, SiegeTeams.BLOOD_MOON, TeamColor.DARK_RED);
                 }
                 wave.add(mob);
@@ -3550,6 +3555,7 @@ public final class SiegeManager {
             return;
         }
         events.onSpawned(currentEvent, mob, world);
+        safe("Elite", () -> Elites.maybe(world, mob, siegeLevel, config, random));   // Simon 05.11.
         liveMobs.add(mob.getUUID());
         spawnedTotal++;
         for (Entity rider : mob.getPassengers()) {
@@ -3562,7 +3568,7 @@ public final class SiegeManager {
             aimAtDefender(server, mob);
         }
         Fx.mobSpawned(world, config, mob, false);
-        if (currentEvent == SiegeEvent.BLOOD_MOON && config.bloodMoonGlow) {
+        if (currentEvent == SiegeEvent.BLOOD_MOON && config.bloodMoonGlow && !Elites.isElite(mob)) {
             SiegeTeams.mark(server, mob, SiegeTeams.BLOOD_MOON, TeamColor.DARK_RED);
         }
     }
@@ -3787,7 +3793,9 @@ public final class SiegeManager {
         } catch (RuntimeException e) {
             NightSiegeMod.LOGGER.warn("[Night Siege] Statistik fehlgeschlagen: {}", e.toString());
         }
-        if (finished != null && !testRun && !inPlaytest() && nightNumber >= 0 && !"abgebrochen".equals(result) && world != null) {
+        // Since 05.11. the playtest's nights count too (addNight keeps out the other tests and the sim).
+        if (finished != null && (!testRun && !inPlaytest() || finished.playtest) && nightNumber >= 0
+                && !"abgebrochen".equals(result) && world != null) {
             StatsRecorder.NightFile night0 = finished;
             safe("Ruhmeshalle", () -> HallService.addNight(this, world.getServer(), night0, true));
         }
@@ -4453,6 +4461,8 @@ public final class SiegeManager {
 
     private void clearSiegeState() {
         Wounds.clear();
+        StealPool.clear();
+        Elites.clear();
         Stuns.clear(world != null ? world.getServer() : null);
         openNight = false;
         trapsHanded.clear();

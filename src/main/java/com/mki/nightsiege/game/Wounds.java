@@ -16,8 +16,8 @@ import java.util.UUID;
 
 /**
  * Klaffende Wunden, the anti-heal of League of Legends (Simon, 25 October 2026): some
- * monsters (spiders and witches by default, config antiHealMobs) leave wounds from
- * level 5 on. While a player is wounded every heal is halved: life steal, potions,
+ * monsters (spiders, witches and since 05.11. revenants by default, config antiHealMobs) leave
+ * wounds from level 5 on, elite monsters with the affix "Heilungshemmend" always. While a player is wounded every heal is halved: life steal, potions,
  * regeneration, healers, natural regeneration. Each hit renews the wounds.
  */
 public final class Wounds {
@@ -40,12 +40,19 @@ public final class Wounds {
             return;
         }
         SiegeConfig cfg = m.config();
-        if (cfg.antiHealShare <= 0 || m.currentLevel() < cfg.antiHealFromLevel || cfg.antiHealMobs == null) {
+        // Elite monsters with the affix "Heilungshemmend" wound with every hit (Simon 05.11.).
+        boolean elite = Elites.wounds(attacker);
+        if (cfg.antiHealShare <= 0 || !elite && (m.currentLevel() < cfg.antiHealFromLevel || cfg.antiHealMobs == null)) {
             return;
         }
-        String id = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(attacker.getType()).toString();
-        if (!cfg.antiHealMobs.contains(id)) {
-            return;
+        if (!elite) {
+            String id = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(attacker.getType()).toString();
+            Foes.Role role = Foes.roleOf(attacker);
+            // The new attackers by their entry id: the revenant (Simon 05.11.) is a zombie underneath.
+            boolean listed = cfg.antiHealMobs.contains(id) || role != null && cfg.antiHealMobs.contains("nightsiege:" + role.id());
+            if (!listed) {
+                return;
+            }
         }
         long now = level.getGameTime();
         Long before = UNTIL.put(player.getUUID(), now + Math.round(cfg.antiHealSeconds * 20.0));

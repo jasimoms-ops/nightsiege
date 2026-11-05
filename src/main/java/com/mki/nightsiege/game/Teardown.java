@@ -46,6 +46,20 @@ final class Teardown {
         return ours == null || ours.test(now);
     }
 
+    /**
+     * The same block as the dungeon or camp set, or the earth it set grown over (05.11.: after a dungeon
+     * went, 1–3 grass blocks were left where it had set dirt and grass had spread onto it).
+     */
+    static boolean setThere(BlockState want, BlockState now) {
+        return want != null && (now.is(want.getBlock()) || earth(want) && earth(now));
+    }
+
+    /** Earth that grass and mycelium grow over (and that turns back to dirt under a block). */
+    static boolean earth(BlockState state) {
+        return state.is(Blocks.DIRT) || state.is(Blocks.GRASS_BLOCK) || state.is(Blocks.MYCELIUM) || state.is(Blocks.PODZOL)
+                || state.is(Blocks.DIRT_PATH) || state.is(Blocks.COARSE_DIRT) || state.is(Blocks.ROOTED_DIRT);
+    }
+
     private static boolean nextToPortal(ServerLevel level, BlockPos pos) {
         for (Direction d : Direction.values()) {
             if (level.getBlockState(pos.relative(d)).is(Blocks.NETHER_PORTAL)) {

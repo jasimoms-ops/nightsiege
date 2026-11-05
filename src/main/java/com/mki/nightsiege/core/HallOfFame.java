@@ -19,6 +19,8 @@ public class HallOfFame {
     public int version = 1;
     /** True once the logger files of the nights before were read in. */
     public boolean imported;
+    /** True once the playtest nights before were read in (05.11.: the hall takes those too). */
+    public boolean importedPlaytest;
     /** Every defender by UUID. */
     public Map<String, Hero> heroes = new LinkedHashMap<>();
     /** The monsters of the server by type (as the logger names them). */
@@ -96,6 +98,8 @@ public class HallOfFame {
         public int night;
         public int level;
         public boolean held;
+        /** A night of the playtest mode. */
+        public boolean playtest;
         public double dealt;
         public int kills;
         public int deaths;
@@ -122,6 +126,8 @@ public class HallOfFame {
         public int night;
         public int level;
         public String result = "";
+        /** A night of the playtest mode. */
+        public boolean playtest;
         public List<Entry> entries = new ArrayList<>();
     }
 

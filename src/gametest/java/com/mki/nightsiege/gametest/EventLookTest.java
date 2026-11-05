@@ -51,6 +51,11 @@ public class EventLookTest implements FabricClientGameTest {
             // A night's own siege machines from level 10 (Simon 05.11.) are rolled at random: the scenes keep them
             // away so a test night stays as it was; the scene "maschinen" turns them on for itself.
             onServer(context, (player, manager) -> manager.config().machinesRandomFromLevel = 1000);
+            // So do the elites and the life steal against the damage taken (Simon 05.11.): the scene "elite" has them.
+            onServer(context, (player, manager) -> {
+                manager.config().eliteMobs = false;
+                manager.config().lifestealCoupled = false;
+            });
             String only = System.getenv("NIGHTSIEGE_SCENES");
             if (only != null && !only.isBlank() && !shaderRun) {
                 // A dispatch with "scenes": only these, for a quick look (27 October 2026).
@@ -153,6 +158,9 @@ public class EventLookTest implements FabricClientGameTest {
                 }
                 if (want.contains("maschinen")) {
                     MaschinenScenes.run(context, game);   // siege machines from level 10, a camp's doubled (05.11.)
+                }
+                if (want.contains("elite")) {
+                    EliteScenes.run(context, game);   // life steal against the damage taken, elites, revenant wounds, hall (05.11.)
                 }
                 if (want.contains("hotfix")) {
                     HotfixScenes.run(context, game);   // the balance hotfix: anti-heal, breaker, stunner, pushes, ladders (05.11.)

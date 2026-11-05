@@ -2217,7 +2217,7 @@ public final class Expeditions {
         if (want == null) {
             want = p.fill.get(pos);
         }
-        return now.is(Blocks.IRON_BARS) || want != null && now.is(want.getBlock());
+        return now.is(Blocks.IRON_BARS) || Teardown.setThere(want, now);   // earth grown over counts (05.11.)
     }
 
     /**

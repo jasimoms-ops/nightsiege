@@ -610,13 +610,39 @@ public class SiegeConfig {
     public double championSpeed = 1.2;
     /** Siege monsters drop items and experience (false since Simon's call of 26 October 2026: they drop nothing). */
     public boolean siegeMobDrops = false;
-    /** Klaffende Wunden (anti-heal, Simon 25 October 2026): these monsters halve all healing of the player they hit. */
+    /**
+     * Klaffende Wunden (anti-heal, Simon 25 October 2026): these monsters halve all healing of the player they hit.
+     * The new attackers by their entry id ("nightsiege:revenant", Simon 05.11.).
+     */
     public java.util.List<String> antiHealMobs = new java.util.ArrayList<>(java.util.List.of(
-            "minecraft:spider", "minecraft:cave_spider", "minecraft:witch"));
+            "minecraft:spider", "minecraft:cave_spider", "minecraft:witch", "nightsiege:revenant"));
     /** Share of healing the wounds take away, for how many seconds after a hit, from which level on. */
     public double antiHealShare = 0.5;
     public double antiHealSeconds = 4.0;
     public int antiHealFromLevel = 5;
+    /**
+     * Life steal only against the damage taken (Simon 05.11.): life steal heals at most this share of the
+     * life the player lost in the last lifestealTakenSeconds (false = as before, from the damage dealt alone).
+     */
+    public boolean lifestealCoupled = true;
+    public double lifestealTakenShare = 1.0;
+    public double lifestealTakenSeconds = 5.0;
+    /**
+     * Elite monsters (Simon 05.11.): from eliteMobFromLevel on this share of the night's monsters is an elite
+     * (rising in a line to eliteMobChanceMax at eliteMobMaxLevel), from eliteMobTwoFromLevel on with both
+     * affixes at eliteMobTwoChance. Elites have eliteMobLife times the life and glow in their affix's colour.
+     */
+    public boolean eliteMobs = true;
+    public int eliteMobFromLevel = 10;
+    public double eliteMobChance = 0.125;
+    public double eliteMobChanceMax = 0.2;
+    public int eliteMobMaxLevel = 20;
+    public int eliteMobTwoFromLevel = 15;
+    public double eliteMobTwoChance = 0.35;
+    public double eliteMobLife = 1.75;
+    /** Affix "Schnell": this much faster, and this much shorter between melee attacks. */
+    public double eliteFastSpeed = 0.4;
+    public double eliteFastAttack = 0.3;
     /** Shield energy (Simon 26.10.): seconds of blocking at a stretch, and seconds charged per second when not blocking. */
     public double shieldEnergySeconds = 6.0;
     public double shieldRechargePerSecond = 1.0;
@@ -1430,6 +1456,13 @@ public class SiegeConfig {
             }
             contentVersion = 2;
         }
+        if (contentVersion < 3) {
+            // Simon 05.11.: the revenant leaves gaping wounds too.
+            if (antiHealMobs != null && !antiHealMobs.contains("nightsiege:revenant")) {
+                antiHealMobs.add("nightsiege:revenant");
+            }
+            contentVersion = 3;
+        }
         bossEvery = clamp(bossEvery <= 0 ? 4 : bossEvery, 1, 100);
         bossFinaleSeconds = clamp(bossFinaleSeconds <= 0 ? 180 : bossFinaleSeconds, 30, 1200);
         bossGroupEvery = clamp(bossGroupEvery, 0, 1000);
@@ -1712,11 +1745,24 @@ public class SiegeConfig {
         stunnerSeconds = Double.isNaN(stunnerSeconds) ? 1.5 : Math.min(10.0, Math.max(0.0, stunnerSeconds));
         championPercentShield = Double.isNaN(championPercentShield) ? 0.5 : Math.min(1.0, Math.max(0.0, championPercentShield));
         if (antiHealMobs == null) {
-            antiHealMobs = new java.util.ArrayList<>(java.util.List.of("minecraft:spider", "minecraft:cave_spider", "minecraft:witch"));
+            antiHealMobs = new java.util.ArrayList<>(java.util.List.of("minecraft:spider", "minecraft:cave_spider", "minecraft:witch",
+                    "nightsiege:revenant"));
         }
         antiHealShare = Double.isNaN(antiHealShare) ? 0.5 : Math.min(1.0, Math.max(0.0, antiHealShare));
         antiHealSeconds = Double.isNaN(antiHealSeconds) || antiHealSeconds <= 0 ? 4.0 : Math.min(30.0, antiHealSeconds);
         antiHealFromLevel = Math.max(1, antiHealFromLevel);
+        lifestealTakenShare = Double.isNaN(lifestealTakenShare) ? 1.0 : clampDouble(lifestealTakenShare, 0.0, 5.0);
+        lifestealTakenSeconds = Double.isNaN(lifestealTakenSeconds) || lifestealTakenSeconds <= 0 ? 5.0
+                : clampDouble(lifestealTakenSeconds, 0.5, 60.0);
+        eliteMobFromLevel = clamp(eliteMobFromLevel, 1, 1000);
+        eliteMobChance = Double.isNaN(eliteMobChance) ? 0.125 : clampDouble(eliteMobChance, 0.0, 1.0);
+        eliteMobChanceMax = Double.isNaN(eliteMobChanceMax) ? 0.2 : clampDouble(eliteMobChanceMax, 0.0, 1.0);
+        eliteMobMaxLevel = clamp(eliteMobMaxLevel, eliteMobFromLevel, 1000);
+        eliteMobTwoFromLevel = clamp(eliteMobTwoFromLevel, 1, 1000);
+        eliteMobTwoChance = Double.isNaN(eliteMobTwoChance) ? 0.35 : clampDouble(eliteMobTwoChance, 0.0, 1.0);
+        eliteMobLife = Double.isNaN(eliteMobLife) || eliteMobLife <= 0 ? 1.75 : clampDouble(eliteMobLife, 1.0, 10.0);
+        eliteFastSpeed = Double.isNaN(eliteFastSpeed) ? 0.4 : clampDouble(eliteFastSpeed, 0.0, 3.0);
+        eliteFastAttack = Double.isNaN(eliteFastAttack) ? 0.3 : clampDouble(eliteFastAttack, 0.0, 0.9);
         if (Double.isNaN(zombieSpiderVsMelee) || zombieSpiderVsMelee <= 0) {
             zombieSpiderVsMelee = 2.0;
         }
