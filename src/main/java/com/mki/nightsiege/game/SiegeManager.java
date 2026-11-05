@@ -3025,6 +3025,7 @@ public final class SiegeManager {
             return false;
         }
         if (bosses.spawn(bossHost)) {
+            spawnBossGuards(server);
             spawnBatch(server, config.bossFinaleWave);
             return true;
         }

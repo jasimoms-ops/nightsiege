@@ -4768,6 +4768,15 @@ public class EventLookTest implements FabricClientGameTest {
             context.waitTicks(40);
             context.takeScreenshot("boss_" + id + "_day");
             game.getServer().runCommand("time set 18000");
+            // The fire of the day goes out at night (undead and the phantom burn by day only).
+            onServer(context, (player, manager) -> {
+                net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+                for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                    if (e instanceof net.minecraft.world.entity.Mob m && m.isAlive()) {
+                        m.clearFire();
+                    }
+                }
+            });
             context.waitTicks(20);
             context.takeScreenshot("boss_" + id);
             // By night with night vision, a step further back: the boss with its guard (Bosse 2).

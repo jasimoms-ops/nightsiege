@@ -1039,7 +1039,7 @@ final class ContentBosses {
                         for (int i = 0; i < VEXES; i++) {
                             double turn = host.random().nextDouble() * Math.PI * 2.0;
                             BlockPos spot = BlockPos.containing(landing.x + Math.cos(turn) * 2.0, landing.y + 1.5, landing.z + Math.sin(turn) * 2.0);
-                            if (host.spawnAdd("minecraft:vex", spot) != null) {
+                            if (host.spawnGuard("minecraft:vex", spot) != null) {   // even when the field is full
                                 vexes++;
                             }
                         }
