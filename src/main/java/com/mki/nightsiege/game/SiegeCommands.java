@@ -226,6 +226,11 @@ public final class SiegeCommands {
                         .executes(SiegeCommands::stop))
                 .then(Commands.literal("reload").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                         .executes(SiegeCommands::reload))
+                // The smart night (Simon 05.11. 20:26): its step now, and set by hand to try it.
+                .then(Commands.literal("schlau").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                        .executes(SiegeCommands::smartInfo)
+                        .then(Commands.argument("stufe", IntegerArgumentType.integer(-20, 20))
+                                .executes(ctx -> smartSet(ctx, IntegerArgumentType.getInteger(ctx, "stufe")))))
                 .then(Commands.literal("dungeon").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                         // The own dungeons (dungeon update, 27 October 2026).
                         .then(Commands.literal("melden").executes(ctx -> expeditionReport(ctx, null))
@@ -861,6 +866,33 @@ public final class SiegeCommands {
         SiegeManager.get().expeditions().buildHere(level, origin, facing, kind, rooms);   // over the next seconds
         reply(ctx.getSource(), Component.translatable("nightsiege.cmd.expedition_building"));
         return 1;
+    }
+
+    /** The smart night's step and its last look. */
+    private static int smartInfo(CommandContext<CommandSourceStack> ctx) {
+        SiegeManager m = SiegeManager.get();
+        com.mki.nightsiege.core.SmartNight smart = m.smartNight();
+        if (!m.isActive() || !smart.on()) {
+            fail(ctx.getSource(), Component.translatable("nightsiege.cmd.smart_off"));
+            return 0;
+        }
+        com.mki.nightsiege.core.SmartNight.Look look = smart.last();
+        String last = look == null ? "-" : String.format(java.util.Locale.ROOT, "%s, %.2f, %.0f %%, %.0f %%",
+                look.why(), look.stress(), look.life() * 100, look.lowest() * 100);
+        reply(ctx.getSource(), Component.translatable("nightsiege.cmd.smart_info", String.format("%+d", smart.step()),
+                smart.highest(), smart.lowest(), m.fieldRoom(), m.maxLive(), last));
+        return smart.step();
+    }
+
+    /** The smart night's step set by hand (inside its bounds). */
+    private static int smartSet(CommandContext<CommandSourceStack> ctx, int step) {
+        SiegeManager m = SiegeManager.get();
+        if (!m.isActive() || !m.smartNight().on()) {
+            fail(ctx.getSource(), Component.translatable("nightsiege.cmd.smart_off"));
+            return 0;
+        }
+        m.setSmartStep(step);
+        return smartInfo(ctx);
     }
 
     private static int reload(CommandContext<CommandSourceStack> ctx) {

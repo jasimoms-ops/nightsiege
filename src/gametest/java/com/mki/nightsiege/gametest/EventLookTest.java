@@ -50,12 +50,17 @@ public class EventLookTest implements FabricClientGameTest {
             registrationScene(context);
             // A night's own siege machines from level 10 (Simon 05.11.) are rolled at random: the scenes keep them
             // away so a test night stays as it was; the scene "maschinen" turns them on for itself.
-            onServer(context, (player, manager) -> manager.config().machinesRandomFromLevel = 1000);
-            // So do the elites and the life steal against the damage taken (Simon 05.11.): the scene "elite" has them.
-            onServer(context, (player, manager) -> {
-                manager.config().eliteMobs = false;
-                manager.config().lifestealCoupled = false;
-            });
+            // The team sim (NIGHTSIEGE_SIM) plays with the server's config as it is (05.11.: before, these were off there too).
+            boolean simRun = System.getenv("NIGHTSIEGE_SIM") != null;
+            if (!simRun) {
+                onServer(context, (player, manager) -> manager.config().machinesRandomFromLevel = 1000);
+                // So do the elites and the life steal against the damage taken (Simon 05.11.): the scene "elite" has them.
+                onServer(context, (player, manager) -> {
+                    manager.config().eliteMobs = false;
+                    manager.config().lifestealCoupled = false;
+                    manager.config().smartNight = false;   // the scene "schlau" has the smart night (05.11.)
+                });
+            }
             String only = System.getenv("NIGHTSIEGE_SCENES");
             if (only != null && !only.isBlank() && !shaderRun) {
                 // A dispatch with "scenes": only these, for a quick look (27 October 2026).
@@ -161,6 +166,9 @@ public class EventLookTest implements FabricClientGameTest {
                 }
                 if (want.contains("elite")) {
                     EliteScenes.run(context, game);   // life steal against the damage taken, elites, revenant wounds, hall (05.11.)
+                }
+                if (want.contains("schlau")) {
+                    SmartScenes.run(context, game);   // the smart night: steps up and down by how the defenders do (05.11.)
                 }
                 if (want.contains("hotfix")) {
                     HotfixScenes.run(context, game);   // the balance hotfix: anti-heal, breaker, stunner, pushes, ladders (05.11.)

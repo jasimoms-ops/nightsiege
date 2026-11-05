@@ -624,7 +624,7 @@ public class SiegeConfig {
      * Life steal only against the damage taken (Simon 05.11.): life steal heals at most this share of the
      * life the player lost in the last lifestealTakenSeconds (false = as before, from the damage dealt alone).
      */
-    public boolean lifestealCoupled = true;
+    public boolean lifestealCoupled = false;   // Simon 05.11. 19:48: life steal as before again (the coupling stays for later)
     public double lifestealTakenShare = 1.0;
     public double lifestealTakenSeconds = 5.0;
     /**
@@ -632,7 +632,7 @@ public class SiegeConfig {
      * (rising in a line to eliteMobChanceMax at eliteMobMaxLevel), from eliteMobTwoFromLevel on with both
      * affixes at eliteMobTwoChance. Elites have eliteMobLife times the life and glow in their affix's colour.
      */
-    public boolean eliteMobs = true;
+    public boolean eliteMobs = false;   // Simon 05.11. 19:51: "erstmal wieder raus" (the smart night still sends them)
     public int eliteMobFromLevel = 10;
     public double eliteMobChance = 0.125;
     public double eliteMobChanceMax = 0.2;
@@ -643,6 +643,40 @@ public class SiegeConfig {
     /** Affix "Schnell": this much faster, and this much shorter between melee attacks. */
     public double eliteFastSpeed = 0.4;
     public double eliteFastAttack = 0.3;
+    /**
+     * Schlaue Nacht (Simon 05.11. 20:26: "eine Mechanik, die die Nacht schlau macht und automatisch stärkere
+     * Mobs spawnt, wenn wir zu gut sind, oder andersrum"). Every smartNightEverySeconds the night looks at the
+     * last smartNightWindowSeconds: the defenders' life (average and lowest), their deaths and their kills.
+     * Too easy (stress below smartNightUpStress, enough kills): one step up, at most smartNightUpSteps. Too
+     * hard (stress above smartNightDownStress, or a death): one step down, at most smartNightDownSteps. Hidden
+     * (log and statistics only), every night starts at 0; not in the war leader's rounds, the bosses stay.
+     * Up: elites from smartNightEliteFromLevel (smartNightElitePerStep per step, on top of eliteMobs), the
+     * stunners, breakers and executioners smartNightSpecialLevelsPerStep levels earlier per step and from
+     * step 2 extra ones with the waves (from smartNightAnyClassFromStep for every defender, not only the
+     * fighters). Down: smartNightFewerPerStep fewer monsters at once per step, no extras, from step
+     * smartNightNoSpecialsAt no special monsters and no elites, and smartNightPauseSeconds without refills
+     * on every step down.
+     */
+    public boolean smartNight = true;
+    public int smartNightEverySeconds = 15;
+    public int smartNightWindowSeconds = 30;
+    public int smartNightUpSeconds = 30;
+    public int smartNightDownSeconds = 15;
+    public int smartNightUpSteps = 5;
+    public int smartNightDownSteps = 5;
+    public double smartNightUpStress = 0.2;
+    public double smartNightDownStress = 0.45;
+    /** Stress a death in the window adds (capped at 1). */
+    public double smartNightDeathStress = 0.35;
+    /** Kills in the window per defender needed to step up (nobody fighting is not "too good"). */
+    public double smartNightUpKillsPerPlayer = 1.5;
+    public int smartNightEliteFromLevel = 5;
+    public double smartNightElitePerStep = 0.05;
+    public int smartNightSpecialLevelsPerStep = 2;
+    public int smartNightAnyClassFromStep = 3;
+    public double smartNightFewerPerStep = 0.05;
+    public int smartNightNoSpecialsAt = -2;
+    public double smartNightPauseSeconds = 8.0;
     /** Shield energy (Simon 26.10.): seconds of blocking at a stretch, and seconds charged per second when not blocking. */
     public double shieldEnergySeconds = 6.0;
     public double shieldRechargePerSecond = 1.0;
@@ -1763,6 +1797,24 @@ public class SiegeConfig {
         eliteMobLife = Double.isNaN(eliteMobLife) || eliteMobLife <= 0 ? 1.75 : clampDouble(eliteMobLife, 1.0, 10.0);
         eliteFastSpeed = Double.isNaN(eliteFastSpeed) ? 0.4 : clampDouble(eliteFastSpeed, 0.0, 3.0);
         eliteFastAttack = Double.isNaN(eliteFastAttack) ? 0.3 : clampDouble(eliteFastAttack, 0.0, 0.9);
+        smartNightEverySeconds = clamp(smartNightEverySeconds, 1, 600);
+        smartNightWindowSeconds = clamp(smartNightWindowSeconds, 1, 600);
+        smartNightUpSeconds = clamp(smartNightUpSeconds, 0, 3600);
+        smartNightDownSeconds = clamp(smartNightDownSeconds, 0, 3600);
+        smartNightUpSteps = clamp(smartNightUpSteps, 0, 20);
+        smartNightDownSteps = clamp(smartNightDownSteps, 0, 20);
+        smartNightUpStress = Double.isNaN(smartNightUpStress) ? 0.2 : clampDouble(smartNightUpStress, 0.0, 1.0);
+        smartNightDownStress = Double.isNaN(smartNightDownStress) ? 0.45
+                : clampDouble(smartNightDownStress, smartNightUpStress, 2.0);
+        smartNightDeathStress = Double.isNaN(smartNightDeathStress) ? 0.35 : clampDouble(smartNightDeathStress, 0.0, 2.0);
+        smartNightUpKillsPerPlayer = Double.isNaN(smartNightUpKillsPerPlayer) ? 1.5 : clampDouble(smartNightUpKillsPerPlayer, 0.0, 100.0);
+        smartNightEliteFromLevel = clamp(smartNightEliteFromLevel, 1, 1000);
+        smartNightElitePerStep = Double.isNaN(smartNightElitePerStep) ? 0.05 : clampDouble(smartNightElitePerStep, 0.0, 0.5);
+        smartNightSpecialLevelsPerStep = clamp(smartNightSpecialLevelsPerStep, 0, 50);
+        smartNightAnyClassFromStep = clamp(smartNightAnyClassFromStep, 1, 21);
+        smartNightFewerPerStep = Double.isNaN(smartNightFewerPerStep) ? 0.05 : clampDouble(smartNightFewerPerStep, 0.0, 0.2);
+        smartNightNoSpecialsAt = clamp(smartNightNoSpecialsAt, -21, 0);
+        smartNightPauseSeconds = Double.isNaN(smartNightPauseSeconds) ? 8.0 : clampDouble(smartNightPauseSeconds, 0.0, 60.0);
         if (Double.isNaN(zombieSpiderVsMelee) || zombieSpiderVsMelee <= 0) {
             zombieSpiderVsMelee = 2.0;
         }

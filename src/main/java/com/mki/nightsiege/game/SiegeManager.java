@@ -220,6 +220,8 @@ public final class SiegeManager {
     private long nextRefill;
     private RaidPlan.Wave wavePlan;
     private Map<String, Integer> waveFoesNow = new HashMap<>();
+    /** Schlaue Nacht (Simon 05.11. 20:26): the night turns itself up or down by how the defenders do. */
+    private final com.mki.nightsiege.core.SmartNight smart = new com.mki.nightsiege.core.SmartNight();
     private int digAccumulator;
     /** Players waiting for the client-mod check, with the tick it is due. */
     private final Map<UUID, Integer> pendingModCheck = new HashMap<>();
@@ -325,6 +327,18 @@ public final class SiegeManager {
 
     int liveCount() {
         return liveMobs.size();
+    }
+
+    /** The night's monsters alive now (the tests). */
+    public int nightMobCount() {
+        return liveMobs.size();
+    }
+
+    /** How many monsters the last wave was to bring (the tests: 0 in the smart night's breather). */
+    private int lastWaveSize;
+
+    public int lastWaveSize() {
+        return lastWaveSize;
     }
 
     boolean isFallen(UUID id) {
@@ -2200,6 +2214,7 @@ public final class SiegeManager {
         spawnedTotal = 0;
         vanishedTotal = 0;
         slainNightMobs.clear();
+        smart.begin(world.getGameTime(), config.smartNight && !warRound, config);   // every night starts at 0 (05.11.)
         shownRequired = -1;
         goalDown = null;
         goalUp = null;
@@ -2485,6 +2500,7 @@ public final class SiegeManager {
             CrateEffects.tick(world, upright);
             safe("Statistik", () -> stats.tickSecond(world.getGameTime(), liveMobs, participants, world, traps));
             safe("Elite", () -> Elites.sparkle(world, liveMobs));   // the elites' sparks (Simon 05.11.)
+            safe("Schlaue Nacht", () -> tickSmart(upright));   // Simon 05.11. 20:26
         }
         defense.tick(liveMobs, world.getGameTime());
         if (world.getGameTime() % 20 == 0) {
@@ -3281,6 +3297,11 @@ public final class SiegeManager {
             PlayerSkills own = save.skillsOf(player.getUUID().toString());
             return own.hasClass() && kits.gainLevel(own, own.clazz(), "fester_griff") > 0;
         }
+
+        @Override
+        public int smartStep() {
+            return active ? smart.step() : 0;
+        }
     };
 
     public Foes foes() {
@@ -3429,8 +3450,9 @@ public final class SiegeManager {
         wavesStarted++;
         safe("Statistik", () -> stats.waveStart(world.getGameTime(), wavesStarted, liveMobs.size()));
         int wanted = (int) Math.round(wantedPerWave() * size);
-        int room = maxLive() - liveMobs.size();
-        int count = Math.min(wanted, Math.max(0, room));
+        int room = fieldRoom() - liveMobs.size();   // the smart night far down: fewer at once (05.11.)
+        int count = smart.paused(world.getGameTime()) ? 0 : Math.min(wanted, Math.max(0, room));
+        lastWaveSize = count;
         if (count > 0) {
             Fx.waveIncoming(server, config, participants);
         }
@@ -3471,7 +3493,7 @@ public final class SiegeManager {
             if (mob != null) {
                 events.onSpawned(currentEvent, mob, world);
                 if (!champion) {
-                    safe("Elite", () -> Elites.maybe(world, mob, siegeLevel, config, random));   // Simon 05.11.
+                    safe("Elite", () -> smartElite(mob));   // Simon 05.11.: fixed elites, and the smart night's
                 }
                 liveMobs.add(mob.getUUID());
                 spawnedTotal++;
@@ -3527,12 +3549,12 @@ public final class SiegeManager {
      * refillGapTicks, like one of the running wave (its raid plan, its limits on special foes).
      */
     private void refill(MinecraftServer server) {
-        if (world == null || liveMobs.size() >= maxLive()) {
+        if (world == null || liveMobs.size() >= fieldRoom()) {
             return;
         }
         long now = world.getGameTime();
-        if (now < nextRefill) {
-            return;
+        if (now < nextRefill || smart.paused(now)) {
+            return;   // the smart night's breather after a step down (05.11.)
         }
         nextRefill = now + Math.max(1, config.refillGapTicks);
         String entityId = foes.limit(pool.pick(siegeLevel, random, unavailableMobs), waveFoesNow, siegeLevel, config,
@@ -3555,7 +3577,7 @@ public final class SiegeManager {
             return;
         }
         events.onSpawned(currentEvent, mob, world);
-        safe("Elite", () -> Elites.maybe(world, mob, siegeLevel, config, random));   // Simon 05.11.
+        safe("Elite", () -> smartElite(mob));   // Simon 05.11.: fixed elites, and the smart night's
         liveMobs.add(mob.getUUID());
         spawnedTotal++;
         for (Entity rider : mob.getPassengers()) {
@@ -3774,6 +3796,86 @@ public final class SiegeManager {
     public int maxLive() {
         int cap = SiegeMath.liveCap(presentCount(), config);
         return config.refillSpawns ? Math.min(cap, config.refillCap) : cap;   // Nachschub: at most 40 (30.10.)
+    }
+
+    /**
+     * How many monsters of the night may be alive at once now: maxLive, fewer when the smart night has
+     * stepped down (Simon 05.11.: "Auch weniger Monster", at most −25 %). The monsters' life and the field
+     * strength keep going by maxLive, so fewer does not mean tougher.
+     */
+    public int fieldRoom() {
+        int cap = maxLive();
+        return Math.max(1, (int) Math.round(cap * com.mki.nightsiege.core.SmartNight.room(config, active ? smart.step() : 0)));
+    }
+
+    /** The smart night of the running night (the tests and the command read and set it). */
+    public com.mki.nightsiege.core.SmartNight smartNight() {
+        return smart;
+    }
+
+    /** For the tests and the command: the smart night's step set by hand. */
+    public void setSmartStep(int step) {
+        if (active && world != null && smart.on()) {
+            smart.force(world.getGameTime(), step, config);
+            smartStepped(smart.last());
+        }
+    }
+
+    /** The night ends: the smart night's course into the log and the night's statistics. */
+    private void noteSmartEnd() {
+        if (!smart.on()) {
+            return;
+        }
+        int elites = Elites.made();
+        int extras = foes.smartExtrasTonight;
+        NightSiegeMod.LOGGER.info("[Night Siege] Schlaue Nacht Ende: hoechste {}, tiefste {}, zuletzt {}, {} Schritte, Eliten {}, "
+                + "Extra-Sondermonster {}, Pausen {}", smart.highest(), smart.lowest(), smart.step(), smart.steps().size(),
+                elites, extras, smart.pauses());
+        safe("Statistik", () -> stats.smartEnd(smart, elites, extras));
+    }
+
+    /** A new monster of the night: an elite by the fixed chance (eliteMobs) and the smart night's. */
+    private void smartElite(Mob mob) {
+        int step = smart.step();
+        Elites.maybe(world, mob, siegeLevel, config, random,
+                com.mki.nightsiege.core.SmartNight.eliteChance(config, step, siegeLevel),
+                com.mki.nightsiege.core.SmartNight.specials(config, step));
+    }
+
+    /** Once a second: the defenders' life for the smart night, and its look when it is time. */
+    private void tickSmart(List<ServerPlayer> upright) {
+        if (!smart.on() || world == null) {
+            return;
+        }
+        long now = world.getGameTime();
+        double sum = 0;
+        double min = 1.0;
+        int n = 0;
+        for (ServerPlayer p : upright) {
+            if (!p.isAlive() || p.level() != world || p.getMaxHealth() <= 0) {
+                continue;
+            }
+            double share = p.getHealth() / p.getMaxHealth();
+            sum += share;
+            min = Math.min(min, share);
+            n++;
+        }
+        if (n > 0) {
+            smart.sample(now, sum / n, min);
+        }
+        smartStepped(smart.tick(now, presentCount(), config));
+    }
+
+    /** The smart night looked: a step goes into the log and the statistics (it stays hidden from the players). */
+    private void smartStepped(com.mki.nightsiege.core.SmartNight.Look look) {
+        if (look == null || look.change() == 0) {
+            return;
+        }
+        NightSiegeMod.LOGGER.info(String.format(java.util.Locale.ROOT,
+                "[Night Siege] Schlaue Nacht: Stufe %+d (%s, Druck %.2f, Leben %.0f %%, min %.0f %%, Tode %d, Kills %d, Feld %d von %d)",
+                look.step(), look.why(), look.stress(), look.life() * 100, look.lowest() * 100, look.deaths(), look.kills(),
+                fieldRoom(), maxLive()));
+        safe("Statistik", () -> stats.smartStep(look));
     }
 
     /** Notes a defender in the night's protocol, with class and subclass. */
@@ -4019,6 +4121,7 @@ public final class SiegeManager {
         ladders.reset();
         besiegers.reset();
         raid.reset();
+        noteSmartEnd();   // before the foes forget what they sent tonight
         foes.reset(world);
         companions.dismissAll(server);
         mendBase(server);
@@ -4463,6 +4566,7 @@ public final class SiegeManager {
         Wounds.clear();
         StealPool.clear();
         Elites.clear();
+        smart.end();
         Stuns.clear(world != null ? world.getServer() : null);
         openNight = false;
         trapsHanded.clear();
@@ -4607,6 +4711,7 @@ public final class SiegeManager {
         if (active && entity instanceof Mob killed && liveMobs.contains(killed.getUUID())) {
             nightKills++;
             slainNightMobs.add(killed.getUUID());
+            smart.kill(world.getGameTime());
             safe("Statistik", () -> stats.mobDied(killed, source));
             // A monster of the night can be raised by a summoner of the dead; souls for those near.
             safe("Seelen", () -> companions.onMonsterDeath(killed, false));
@@ -4654,7 +4759,11 @@ public final class SiegeManager {
     /** A defender is out for the night (dead, or watching as a spectator). */
     private void markFallen(ServerPlayer player) {
         UUID id = player.getUUID();
+        boolean first = !fallen.contains(id);
         fallen.add(id);
+        if (first && world != null) {
+            safe("Schlaue Nacht", () -> smartStepped(smart.death(world.getGameTime(), presentCount(), config)));
+        }
         companions.dismiss(player);
         nightLog.of(id, player.getScoreboardName()).deaths++;
         safe("Statistik", () -> stats.playerFell(player));

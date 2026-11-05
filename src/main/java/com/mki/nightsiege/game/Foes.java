@@ -2,6 +2,7 @@ package com.mki.nightsiege.game;
 
 import com.mki.nightsiege.core.SiegeConfig;
 import com.mki.nightsiege.core.SiegeEvent;
+import com.mki.nightsiege.core.SmartNight;
 import com.mki.nightsiege.mixin.BlockDisplayAccessor;
 import com.mki.nightsiege.mixin.DisplayAccessor;
 import com.mki.nightsiege.mixin.MobGoalsAccessor;
@@ -216,6 +217,11 @@ public final class Foes {
         /** The shield-lock of a breaker is halved for this defender ("Fester Griff"). */
         default boolean firmGrip(ServerPlayer player) {
             return false;
+        }
+
+        /** The smart night's step (05.11.): above 0 the special monsters come earlier and more, far below none. */
+        default int smartStep() {
+            return 0;
         }
     }
 
@@ -515,6 +521,8 @@ public final class Foes {
         stunsBlocked = 0;
         breakersTonight = 0;
         executionersTonight = 0;
+        smartExtras.clear();
+        smartExtrasTonight = 0;
         shieldsBroken = 0;
         executions = 0;
     }
@@ -529,8 +537,17 @@ public final class Foes {
         if (wave == treasureWave && !treasureCame) {
             spawnTreasure(host);
         }
+        if (!SmartNight.specials(host.config(), host.smartStep())) {
+            return;   // the smart night far down (05.11.): no special monsters for now
+        }
         spawnTankBreakers(host);
         spawnStunners(host);
+        spawnSmartExtras(host);
+    }
+
+    /** The level the special monsters go by: the smart night above 0 brings them earlier (05.11.). */
+    private static int specialLevel(Host host) {
+        return host.level() + SmartNight.levelBonus(host.config(), host.smartStep());
     }
 
     /**
@@ -545,18 +562,19 @@ public final class Foes {
                 tanks++;
             }
         }
-        if (tanks == 0 || host.level() < cfg.breakerFromLevel) {
+        int level = specialLevel(host);
+        if (tanks == 0 || level < cfg.breakerFromLevel) {
             return;
         }
         for (int i = 0; i < tanks; i++) {
             spawnRole(host, Role.BREAKER);
-            if (host.level() >= cfg.executionerFromLevel) {
+            if (level >= cfg.executionerFromLevel) {
                 spawnRole(host, Role.EXECUTIONER);
             }
         }
     }
 
-    private void spawnRole(Host host, Role role) {
+    private Mob spawnRole(Host host, Role role) {
         BlockPos spot = outsideSpot(host);
         Mob mob = spot == null ? null : host.spawn(role.entryId(), spot);
         if (mob != null) {
@@ -569,6 +587,7 @@ public final class Foes {
                 executionersTonight++;
             }
         }
+        return mob;
     }
 
     /**
@@ -577,12 +596,13 @@ public final class Foes {
      */
     private void spawnStunners(Host host) {
         SiegeConfig cfg = host.config();
-        if (host.level() < cfg.stunnerFromLevel || cfg.stunnersMax <= 0) {
+        if (specialLevel(host) < cfg.stunnerFromLevel || cfg.stunnersMax <= 0) {
             return;
         }
+        boolean anyClass = SmartNight.anyClass(cfg, host.smartStep());
         int melee = 0;
         for (ServerPlayer p : host.defenders()) {
-            if (host.isMelee(p)) {
+            if (anyClass || host.isMelee(p)) {
                 melee++;
             }
         }
@@ -592,6 +612,60 @@ public final class Foes {
         int want = Math.min(1 + (melee - 1) / 2, cfg.stunnersMax - living(Role.STUNNER));
         for (int i = 0; i < want; i++) {
             spawnRole(host, Role.STUNNER);
+        }
+    }
+
+    /** The extra special monsters of the smart night that are still about. */
+    private final Set<UUID> smartExtras = new HashSet<>();
+    public int smartExtrasTonight;
+
+    /**
+     * The smart night from step 2 (Simon 05.11.: "Sondermonster früher"): with every wave one more special
+     * monster (two from step 4), at most as many alive as the step. A stunner for the fighters, an executioner
+     * for the tanks, a breaker for a raised shield; from smartNightAnyClassFromStep stunners and executioners
+     * come for every defender.
+     */
+    private void spawnSmartExtras(Host host) {
+        int step = host.smartStep();
+        int per = SmartNight.extraPerWave(step);
+        if (per <= 0) {
+            return;
+        }
+        SiegeConfig cfg = host.config();
+        ServerLevel level = host.world();
+        smartExtras.removeIf(id -> !ROLES.containsKey(id) || level == null
+                || !(level.getEntity(id) instanceof Mob m) || !m.isAlive());
+        int room = SmartNight.extraAlive(step) - smartExtras.size();
+        if (room <= 0) {
+            return;
+        }
+        boolean anyClass = SmartNight.anyClass(cfg, step);
+        boolean melee = false;
+        boolean tank = false;
+        for (ServerPlayer p : host.defenders()) {
+            melee |= host.isMelee(p);
+            tank |= host.isTank(p);
+        }
+        int lvl = specialLevel(host);
+        List<Role> may = new ArrayList<>();
+        if (lvl >= cfg.stunnerFromLevel && cfg.stunnersMax > 0 && (melee || anyClass)) {
+            may.add(Role.STUNNER);
+        }
+        if (lvl >= cfg.executionerFromLevel && (tank || anyClass)) {
+            may.add(Role.EXECUTIONER);
+        }
+        if (lvl >= cfg.breakerFromLevel && tank) {
+            may.add(Role.BREAKER);
+        }
+        if (may.isEmpty()) {
+            return;
+        }
+        for (int i = 0; i < Math.min(per, room); i++) {
+            Mob mob = spawnRole(host, may.get(host.random().nextInt(may.size())));
+            if (mob != null) {
+                smartExtras.add(mob.getUUID());
+                smartExtrasTonight++;
+            }
         }
     }
 

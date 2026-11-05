@@ -125,6 +125,32 @@ public final class StatsRecorder {
         public int bosseBesiegt;
         /** What each defender killed: player → monster type → kills. */
         public Map<String, Map<String, Integer>> opfer = new LinkedHashMap<>();
+        /** The smart night (Simon 05.11. 20:26): how it turned itself up and down. */
+        public SchlaueNacht schlaueNacht = new SchlaueNacht();
+    }
+
+    /** The smart night of one night: whether it ran, its steps and what it sent. */
+    public static final class SchlaueNacht {
+        public boolean an;
+        public int hoechste;
+        public int tiefste;
+        public int ende;
+        public int eliten;
+        public int extraSondermonster;
+        public int pausen;
+        public List<Schritt> schritte = new ArrayList<>();
+    }
+
+    /** One step of the smart night: when, to which step, and what it saw (share of life, stress). */
+    public static final class Schritt {
+        public int sekunde;
+        public int stufe;
+        public String grund = "";
+        public double druck;
+        public double leben;
+        public double minLeben;
+        public int tode;
+        public int kills;
     }
 
     public static final class Basis {
@@ -500,6 +526,42 @@ public final class StatsRecorder {
     }
 
     // ------------------------------------------------------------------ the night
+
+    /** A step of the smart night (05.11.). */
+    void smartStep(com.mki.nightsiege.core.SmartNight.Look look) {
+        if (night == null || look == null) {
+            return;
+        }
+        Schritt st = new Schritt();
+        st.sekunde = (int) Math.max(0, (look.tick() - nightStartTick) / 20);
+        st.stufe = look.step();
+        st.grund = look.why();
+        st.druck = round2(look.stress());
+        st.leben = round2(look.life());
+        st.minLeben = round2(look.lowest());
+        st.tode = look.deaths();
+        st.kills = look.kills();
+        night.schlaueNacht.schritte.add(st);
+    }
+
+    /** The smart night at the end of the night. */
+    void smartEnd(com.mki.nightsiege.core.SmartNight smart, int elites, int extras) {
+        if (night == null || smart == null) {
+            return;
+        }
+        SchlaueNacht s = night.schlaueNacht;
+        s.an = smart.on();
+        s.hoechste = smart.highest();
+        s.tiefste = smart.lowest();
+        s.ende = smart.step();
+        s.eliten = elites;
+        s.extraSondermonster = extras;
+        s.pausen = smart.pauses();
+    }
+
+    private static double round2(double v) {
+        return Double.isNaN(v) ? 0.0 : Math.round(v * 100.0) / 100.0;
+    }
 
     void beginNight(long gameTime, int number, int level, boolean test, String event, boolean special, String fragment,
                     String boss, BaseScan base, List<ServerPlayer> players, long siegeDay) {
