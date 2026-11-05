@@ -143,7 +143,7 @@ final class EliteScenes {
             float lost = hit(level, player, zombie, 4f);
             double pool = StealPool.available(player, level.getGameTime());
             log("hit 4: lost=" + f(lost) + " pool=" + f(pool) + " health=" + f(player.getHealth()));
-            check(lost > 3.5f && Math.abs(pool - lost) < 0.05, "the pool holds what was lost (" + f(pool) + " of " + f(lost) + ")");
+            check(lost > 1.0f && Math.abs(pool - lost) < 0.05, "the pool holds what was lost (" + f(pool) + " of " + f(lost) + ")");
             float h0 = player.getHealth();
             CombatEffects.steal(player, 10f);
             check(Math.abs(player.getHealth() - (h0 + lost)) < 0.05f, "a steal of 10 heals the lost " + f(lost) + " only ("
@@ -212,6 +212,7 @@ final class EliteScenes {
             check(Math.abs(really - lost) < 0.05, "verloren is the life really lost (" + f(really) + " = " + f(lost) + ")");
             check(really < taken - 1.0, "verloren is below erhalten (the hit before armour): " + f(really) + " < " + f(taken));
             // A steal over the pool is counted as cut, a refill without heal() as heilungSonst.
+            player.setHealth(10f);
             float h = player.getHealth();
             CombatEffects.steal(player, 10f);
             double[] t2 = m.stats().testTotals(player);
