@@ -278,11 +278,21 @@ final class HotfixScenes {
             player.startUsingItem(InteractionHand.OFF_HAND);
         });
         context.waitTicks(10);
+        // The shield goes up as in play: empty main hand, the use key held on the client (a shield raised
+        // only on the server is let go again by the client).
+        server(context, "stunner shield hand", (player, m) -> {
+            player.setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
+            player.stopUsingItem();
+            raiseShield(player);
+        });
+        net.minecraft.client.KeyMapping use = context.computeOnClient(client -> client.options.keyUse);
+        context.getInput().holdKey(use);
+        context.waitTicks(10);
         server(context, "stunner shield", (player, m) -> {
             if (stunner[0] == null) {
                 return;
             }
-            raiseShield(player);
+            log("stunner shield: using=" + player.isUsingItem() + " blocking=" + player.isBlocking());
             stunner[0].teleportTo(player.getX(), player.getY(), player.getZ() + 1.5);
             stunner[0].setTarget(player);
             m.foes().stunnerNow(stunner[0]);
@@ -311,6 +321,7 @@ final class HotfixScenes {
             stunner[0].discard();
             player.stopUsingItem();
         });
+        context.getInput().releaseKey(use);
 
         // ---------------------------------------------------------------- ladders without a way off
         server(context, "ladders", (player, m) -> {
@@ -364,7 +375,7 @@ final class HotfixScenes {
     }
 
 
-    /** Shield in the off hand, off its cooldown (the breaker locked it), raised. */
+    /** Shield in the off hand, off its cooldown (the breaker locked it); the held use key raises it. */
     private static void raiseShield(ServerPlayer player) {
         ItemStack shield = player.getOffhandItem();
         if (!shield.is(Items.SHIELD)) {
@@ -372,9 +383,6 @@ final class HotfixScenes {
             player.setItemSlot(EquipmentSlot.OFFHAND, shield);
         }
         player.getCooldowns().removeCooldown(player.getCooldowns().getCooldownGroup(shield));
-        if (!player.isUsingItem()) {
-            player.startUsingItem(InteractionHand.OFF_HAND);
-        }
     }
 
 }
