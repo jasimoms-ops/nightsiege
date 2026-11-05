@@ -612,6 +612,9 @@ public final class BossService {
         if (brain instanceof BossBrains.Lich lich) {
             return "dashes=" + lich.dashes() + " shots=" + lich.shots() + " lift=" + Math.round(lich.lift);
         }
+        if (brain instanceof ContentBosses.EmberColossus colossus) {
+            return "pounces=" + colossus.pounces();
+        }
         return "-";
     }
 

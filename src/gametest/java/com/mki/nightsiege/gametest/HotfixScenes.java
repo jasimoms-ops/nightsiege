@@ -359,6 +359,71 @@ final class HotfixScenes {
             player.setItemSlot(EquipmentSlot.OFFHAND, ItemStack.EMPTY);
         });
         context.waitTicks(20);
+
+        // ---------------------------------------------------------------- the ember colossus reaches you
+        // Simon 05.11.: "der Magma-Cube-Boss ist viel zu leicht, da er nie an einen rankommt". Now he leaps
+        // at his target every 5 s and his landing hurts.
+        game.getServer().runCommand(String.format(java.util.Locale.ROOT, "tp @p %d.5 %d %d.5 0 0", cx, cy, cz));
+        game.getServer().runCommand("gamemode survival @p");
+        context.waitTicks(5);
+        server(context, "colossus night", (player, m) -> {
+            ServerLevel level = (ServerLevel) player.level();
+            m.config().testPrepSeconds = 1;
+            boolean ok = m.prepareTest(level.getServer(), level, new BlockPos(cx, cy, cz), 8,
+                    com.mki.nightsiege.core.SiegeEvent.NONE, com.mki.nightsiege.core.BossKind.EMBER_COLOSSUS);
+            log("colossus night prepared=" + ok);
+        });
+        context.waitTicks(60);
+        EventLookTest.closeScreen(context);
+        final float[] colossus = new float[3];   // lowest health, closest distance, pounces
+        colossus[1] = 1e9f;
+        server(context, "colossus", (player, m) -> {
+            ServerLevel level = (ServerLevel) player.level();
+            m.bossNow(level.getServer());
+            Mob boss = m.bosses().boss(level);
+            check(boss != null, "the ember colossus comes");
+            if (boss != null) {
+                boss.teleportTo(player.getX() + 12, player.getY(), player.getZ());
+                boss.setTarget(player);
+            }
+            player.setHealth(player.getMaxHealth());
+            colossus[0] = player.getHealth();
+        });
+        for (int i = 0; i < 40; i++) {
+            context.waitTicks(10);
+            server(context, "colossus watch", (player, m) -> {
+                ServerLevel level = (ServerLevel) player.level();
+                Mob boss = m.bosses().boss(level);
+                if (boss == null) {
+                    return;
+                }
+                if (boss.getTarget() != player) {
+                    boss.setTarget(player);
+                }
+                colossus[0] = Math.min(colossus[0], player.getHealth());
+                colossus[1] = (float) Math.min(colossus[1], Math.sqrt(boss.distanceToSqr(player)));
+                String stats = m.bosses().testBrainStats();
+                if (stats.startsWith("pounces=")) {
+                    colossus[2] = Integer.parseInt(stats.substring(8));
+                }
+                if (player.getHealth() < player.getMaxHealth() * 0.5f) {
+                    player.setHealth(player.getMaxHealth());   // the test watches the leaps, not a death
+                }
+            });
+        }
+        server(context, "colossus result", (player, m) -> {
+            log(String.format(java.util.Locale.ROOT, "colossus: pounces=%.0f closest=%.1f lowest hp=%.1f of %.0f",
+                    colossus[2], colossus[1], colossus[0], player.getMaxHealth()));
+            check(colossus[2] >= 1, "the ember colossus leaps at the player");
+            check(colossus[1] < 4.0f, "the ember colossus gets to the player (closest " + colossus[1] + ")");
+            check(colossus[0] < player.getMaxHealth(), "the ember colossus hurts the player");
+            if (m.isActive()) {
+                m.abort(player.level().getServer());
+            }
+            m.config().testPrepSeconds = saved[0];
+            player.setHealth(player.getMaxHealth());
+        });
+        context.waitTicks(20);
         log("summary: " + checks + " checks, " + FAILS.size() + " failed" + (FAILS.isEmpty() ? "" : ": " + FAILS));
     }
 
