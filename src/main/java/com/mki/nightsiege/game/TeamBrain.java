@@ -399,7 +399,7 @@ final class TeamBrain {
             if (close != null && (inReach || role != Role.HEALER || now < nextHeal - 10)) {
                 player.lookAt(EntityAnchorArgument.Anchor.EYES, close.getEyePosition());
             }
-            if (inReach && MeleeSim.hold(player, MeleeSim::isMelee) && player.getAttackStrengthScale(0.5f) >= 0.95f) {
+            if (inReach && MeleeSim.hold(player, MeleeSim::isMelee) && MeleeSim.charged(player)) {   // charged, like a player (the mace: 0.8 a second)
                 if (player.isUsingItem()) {
                     player.stopUsingItem();
                 }

@@ -18,8 +18,8 @@ from PIL import Image
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "src", "main", "resources",
                     "assets", "nightsiege")
-KEYS = ["blademaster_saber", "berserker_bloodblade", "axe_bearded", "paladin_sunaxe", "shieldfighter_crestsword",
-        "bulwark_wallbreaker", "medic_lancet", "warden_wardblade", "gunner_wrenchblade", "electrician_coilblade",
+KEYS = ["blademaster_saber", "berserker_bloodblade", "axe_bearded", "paladin_sunaxe", "shieldfighter_crestmace",
+        "bulwark_wallmace", "medic_lancet", "warden_wardblade", "gunner_wrenchblade", "electrician_coilblade",
         "demolition_fusemachete", "alchemist_vialknife", "tamer_packstaff", "golemsmith_forgestaff",
         "necromancer_bonestaff", "soulcatcher_lanternstaff"]
 PX = 16.0 / 32.0   # one texel in model units

@@ -427,40 +427,68 @@ def trapper(s):
 
 
 # ------------------------------------------------------------------ guardian
-@design('shieldfighter_crestsword', 'Wächter', 'Schildkämpfer', 'Wappenschwert',
-        'Ritterschwert mit blauer Hohlkehle, goldenes Kreuzgefäß mit blauem Stein, '
+# The tanks fight with a mace since 05.11. (Simon: "die Tanks könnten … den Mace als Waffe haben, der viel
+# Schaden macht, aber nicht schnell angreifen kann"); the swords Wappenschwert and Wallbrecher are gone.
+@design('shieldfighter_crestmace', 'Wächter', 'Schildkämpfer', 'Wappenkolben',
+        'Ritterlicher Flanschkolben: Stahlkern mit blauem Wappenstein, goldene Flansche und Spitze, '
         'blau-goldener Griff wie der Wappenrock.')
 def shieldfighter(s):
-    blade(s, -5, 11, 1.4, STEEL[1:], taper=3, fuller=hexc('4a6cc8'))
-    guard(s, -6, 4, GOLD[1:4], bend=0.0, thick=0.9, gem=hexc('203c6f'), gemhi=hexc('4a7ae0'))
-    grip(s, -10, -8, hexc('203c6f'), GOLD[3])
-    s.field(lambda a, d, x, y: (GOLD[4] if d < 0 else GOLD[2]) if a in (-11, -12) and abs(d) <= 1 else None)
-    dot(s, -12, 0, hexc('2f57b0'))
+    blue, bluemid, bluehi = hexc('203c6f'), hexc('2f57b0'), hexc('4a7ae0')
+    shaft(s, -13, 4, R('3a3f4a', '6d7584', 'a9b1bf'))
+    grip(s, -10, -6, blue, GOLD[3])
+    s.field(lambda a, d, x, y: (GOLD[4] if d < 0 else GOLD[2]) if a in (-12, -13) and abs(d) <= 1 else None)   # pommel
+    s.field(lambda a, d, x, y: (GOLD[3] if d <= 0 else GOLD[1]) if a == -5 and abs(d) <= 2 else None)   # collar
+    c = 7.5
+
+    def head(a, d, x, y):
+        u = a - c
+        if abs(u) <= 3.5 and abs(d) <= 2 - (abs(u) > 3):   # the steel core along the haft
+            return STEEL[4] if d < -1 else STEEL[3] if d < 0 else STEEL[2] if d == 0 else STEEL[1]
+        for lu in (-1.8, 1.8):   # two pointed gold flanges on each side
+            w = abs(d) - 2
+            if 1 <= w <= 3 and abs(u - lu) <= 1.7 - 0.45 * w:
+                return GOLD[4] if d < 0 and w == 1 else GOLD[3] if d < 0 else GOLD[2] if w < 3 else GOLD[1]
+        return None
+    s.field(head)
+    s.field(lambda a, d, x, y: (GOLD[4] if d <= 0 else GOLD[2]) if (a == 12 and abs(d) <= 1) or (a == 13 and d == 0)
+            else None)   # the finial
+    s.field(lambda a, d, x, y: (GOLD[3] if d <= 0 else GOLD[1]) if a == 3 and abs(d) <= 2 else None)   # under the head
+    dot(s, 8, 0, bluemid)   # the blue stone of the crest
+    dot(s, 7, -1, bluehi)
+    dot(s, 9, 1, blue)
+    dot(s, 8, -2, blue)
     outline(s, 0.36)
 
 
-@design('bulwark_wallbreaker', 'Wächter', 'Bollwerk', 'Wallbrecher',
-        'Schweres Breitschwert aus Plattenstahl, auf der Klingenwurzel das rot-goldene '
-        'Karomuster der Brustplatte, wuchtiges Parier mit Goldkante.')
+@design('bulwark_wallmace', 'Wächter', 'Bollwerk', 'Mauerbrecher',
+        'Schwerer Blockkolben aus Plattenstahl, die Schlagfläche rot-gold geviert wie die Brustplatte, '
+        'Eisenband mit Dornen, dicker Eisenschaft mit Ledergriff.')
 def bulwark(s):
-    blade(s, -4, 11, 2.6, R('4b4e53', '6d7279', '9ca2ac', 'b2b9c4', 'e4e9ef'), taper=3)
+    hi, lt, md, dk, sh = hexc('e4e9ef'), hexc('b2b9c4'), hexc('9ca2ac'), hexc('6d7279'), hexc('4b4e53')
+    gold, red = hexc('d8b445'), hexc('8a1a1a')
+    for x in range(16):   # a two-pixel haft of dark iron
+        for y in range(16):
+            a, d = x - y, x + y - 14
+            if -13 <= a <= 3 and -1 <= d <= 2:
+                s.put(x, y, dk if d <= 0 else sh if d == 1 else hexc('2a2b2f'))
+    grip(s, -11, -6, hexc('3e2a1a'), hexc('6e4a2c'))
+    s.field(lambda a, d, x, y: (hi if d <= 0 else dk) if a in (-12, -13) and -2 <= d <= 2 else None)   # pommel
+    c = 7.0
 
-    def checker(a, d, x, y):
-        if -3 <= a <= 0 and abs(d) <= 2:
-            return hexc('d8b445') if (a // 1) % 2 == 0 else hexc('8a1a1a')
-    s.field(checker)
-    hilt(s, [
-        'x.Gs....',
-        '..Gss...',
-        '...Gs...',
-        '..lLSs..',
-        '.lLl.SS.',
-        'PPL...S.',
-        'pP......',
-        '........',
-    ], {'G': hexc('d8b445'), 's': hexc('9ca2ac'), 'S': hexc('6d7279'), 'l': hexc('6e4a2c'), 'L': hexc('3e2a1a'),
-        'P': hexc('dfe4ea'), 'p': hexc('6d7279')})
-    s.put(1, 7, hexc('d8b445')); s.put(7, 13, hexc('4b4e53'))
+    def head(a, d, x, y):
+        u = a - c
+        if abs(u) > 3.5 or abs(d) > 5 or (abs(u) > 2.5 and abs(d) > 4):
+            return None
+        if abs(u) > 2.5 or abs(d) > 4:
+            return lt if d < 0 else md if u > 0 else dk   # the iron band round the block
+        if abs(u) <= 0.5 and abs(d) <= 1:
+            return hi if d < 0 else md   # the boss in the middle
+        return gold if (u > 0) == (d > 0) else red   # quartered like the breastplate
+    s.field(head)
+    s.field(lambda a, d, x, y: hi if (a, d) in ((12, -2), (12, 2), (11, 0), (12, 0)) else None)   # spikes on top
+    s.field(lambda a, d, x, y: lt if (a, d) in ((7, -6), (5, -6), (9, -6)) else dk if (a, d) in ((7, 6), (5, 6), (9, 6))
+            else None)   # and on the cheeks
+    s.field(lambda a, d, x, y: gold if a == 3 and abs(d) <= 3 else None)   # the gold edge under the head
     outline(s, 0.36)
 
 

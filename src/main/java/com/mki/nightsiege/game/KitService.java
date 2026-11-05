@@ -56,6 +56,8 @@ public final class KitService {
 
     /** Mark in the custom data of every kit item. */
     public static final String KIT_TAG = "nightsiege_kit";
+    /** Mark of the tanks' mace (Simon 05.11.): its numbers are set, the level-20 point included; no smash attack. */
+    public static final String MACE_TAG = "nightsiege_kit_mace";
 
     private final Supplier<SiegeSave> save;
     private final Supplier<SiegeConfig> config;
@@ -82,6 +84,22 @@ public final class KitService {
         }
         CustomData data = stack.get(DataComponents.CUSTOM_DATA);
         return data != null && data.copyTag().getBooleanOr(KIT_TAG, false);
+    }
+
+    /**
+     * The mace of a tank's kit (Simon 05.11.): a kit item or one built by {@link #tankMace}. Its vanilla
+     * smash attack (extra damage from a fall, the blast around the target) is off (MaceSmashMixin).
+     */
+    public static boolean isKitMace(ItemStack stack) {
+        if (stack == null || stack.isEmpty() || !(stack.getItem() instanceof net.minecraft.world.item.MaceItem)) {
+            return false;
+        }
+        CustomData data = stack.get(DataComponents.CUSTOM_DATA);
+        if (data == null) {
+            return false;
+        }
+        net.minecraft.nbt.CompoundTag tag = data.copyTag();
+        return tag.getBooleanOr(MACE_TAG, false) || tag.getBooleanOr(KIT_TAG, false);
     }
 
     /** Marks an item as part of the kit: unbreakable, no glint, not to be stored. */
@@ -803,7 +821,9 @@ public final class KitService {
             hotbar.addAll(stacks(Items.ARROW, arrows));
             // The spectral arrows (and every other arrow kind) are shots in the quiver now (balance update 2).
         } else if (clazz == SkillClass.GUARDIAN) {
-            hotbar.add(sword(ench, weapon, sharp));
+            // The tanks (way of the shield: shield fighter, bulwark) fight with a mace since 05.11. (Simon:
+            // "der viel Schaden macht, aber nicht schnell angreifen kann"); the healers keep the sword.
+            hotbar.add(way.equals(SkillTree.WAY_SHIELD) ? tankMace(ench, weapon, sharp) : sword(ench, weapon, sharp));
             ItemStack shield = new ItemStack(weapon == NightKit.Material.INFERNITE ? gear("infernite_shield", Items.SHIELD) : Items.SHIELD);
             GainGear.decorateShield(shield, gainLevel(skills, clazz, "turmschild") > 0, gainLevel(skills, clazz, "leichtschild") > 0);
             ClassShields.decorate(shield, tree.subclassOf(skills), player.level().registryAccess());   // the subclass's colours (27 October 2026)
@@ -846,8 +866,9 @@ public final class KitService {
         if (weapon == NightKit.Material.INFERNITE) {
             // Level 20: the netherite weapons hit one point harder (the old infernite gear).
             for (ItemStack stack : hotbar) {
-                if (stack.is(net.minecraft.tags.ItemTags.SWORDS) || stack.is(net.minecraft.tags.ItemTags.AXES)
-                        || stack.is(Items.MACE)) {
+                // The tanks' mace has its level-20 point already (2.5 times the sword's, see tankMace).
+                if ((stack.is(net.minecraft.tags.ItemTags.SWORDS) || stack.is(net.minecraft.tags.ItemTags.AXES)
+                        || stack.is(Items.MACE)) && !isKitMace(stack)) {
                     addAttribute(stack, Attributes.ATTACK_DAMAGE, "kit_tier20_damage", 1.0, EquipmentSlotGroup.MAINHAND);
                 }
             }
@@ -953,6 +974,7 @@ public final class KitService {
             case BOW -> stack.getItem() instanceof net.minecraft.world.item.BowItem;
             case CROSSBOW -> stack.getItem() instanceof net.minecraft.world.item.CrossbowItem;
             case STAFF -> ModContent.STAFF != null && stack.is(ModContent.STAFF);
+            case MACE -> stack.getItem() instanceof net.minecraft.world.item.MaceItem;
         };
     }
 
@@ -960,6 +982,44 @@ public final class KitService {
         ItemStack stack = new ItemStack(item(material, "sword"));
         enchant(stack, ench, Enchantments.SHARPNESS, sharp);
         return stack;
+    }
+
+    /**
+     * The kit sword of a level as the kit hands it out (material, Sharpness, from level 20 the extra point),
+     * not marked: the measure of the tanks' mace, and for the test scene.
+     */
+    public static ItemStack kitSword(HolderLookup.RegistryLookup<Enchantment> ench, NightKit.Material material, int sharp) {
+        ItemStack stack = sword(ench, material, sharp);
+        if (material == NightKit.Material.INFERNITE) {
+            addAttribute(stack, Attributes.ATTACK_DAMAGE, "kit_tier20_damage", 1.0, EquipmentSlotGroup.MAINHAND);
+        }
+        return stack;
+    }
+
+    /**
+     * The mace of the shield fighter and the bulwark (Simon 05.11.): the vanilla mace with the kit sword's
+     * Sharpness, its own numbers set as the item's base attributes in place of the vanilla mace's: a full hit
+     * deals 2.5 times a full hit of the kit sword of this level and material, 0.8 swings a second instead of
+     * the sword's 1.6 (1.25 times the damage a second). It grows with the level like the sword, since it is
+     * measured on the sword the kit would give. Its smash attack is off (MaceSmashMixin).
+     */
+    public static ItemStack tankMace(HolderLookup.RegistryLookup<Enchantment> ench, NightKit.Material material, int sharp) {
+        ItemStack sword = kitSword(ench, material, sharp);
+        double swordDamage = sword.getOrDefault(DataComponents.ATTRIBUTE_MODIFIERS, ItemAttributeModifiers.EMPTY)
+                .compute(Attributes.ATTACK_DAMAGE, NightKit.PLAYER_DAMAGE, EquipmentSlot.MAINHAND);
+        ItemStack mace = new ItemStack(Items.MACE);
+        // Applied as on the sword: the vanilla mace refuses Sharpness only at the anvil and the table, its damage
+        // counts on any weapon (Player.attack adds the enchanted damage of the item in hand).
+        enchant(mace, ench, Enchantments.SHARPNESS, sharp);
+        mace.set(DataComponents.ATTRIBUTE_MODIFIERS, ItemAttributeModifiers.builder()
+                .add(Attributes.ATTACK_DAMAGE, new AttributeModifier(Item.BASE_ATTACK_DAMAGE_ID,
+                        NightKit.maceDamageModifier(swordDamage, sharp), AttributeModifier.Operation.ADD_VALUE),
+                        EquipmentSlotGroup.MAINHAND)
+                .add(Attributes.ATTACK_SPEED, new AttributeModifier(Item.BASE_ATTACK_SPEED_ID,
+                        NightKit.maceSpeedModifier(), AttributeModifier.Operation.ADD_VALUE), EquipmentSlotGroup.MAINHAND)
+                .build());
+        CustomData.update(DataComponents.CUSTOM_DATA, mace, tag -> tag.putBoolean(MACE_TAG, true));
+        return mace;
     }
 
     private static List<ItemStack> stacks(Item item, int count) {
