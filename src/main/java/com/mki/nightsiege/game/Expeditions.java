@@ -2217,7 +2217,7 @@ public final class Expeditions {
         if (want == null) {
             want = p.fill.get(pos);
         }
-        return now.is(Blocks.IRON_BARS) || Teardown.setThere(want, now);   // earth grown over counts (05.11.)
+        return now.is(Blocks.IRON_BARS) || com.mki.nightsiege.game.Teardown.setThere(want, now);   // earth grown over counts (05.11.)
     }
 
     /**
