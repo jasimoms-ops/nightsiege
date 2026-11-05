@@ -138,9 +138,9 @@ final class SmartScenes {
         context.waitTicks(5);
 
         // ---------------------------------------------------------------- up: the special monsters earlier
-        server(context, "up3", (player, m) -> {
-            m.setSmartStep(3);
-            check(m.smartNight().step() == 3, "step +3 set");
+        server(context, "up4", (player, m) -> {
+            m.setSmartStep(4);
+            check(m.smartNight().step() == 4, "step +4 set");
             check(!m.smartNight().paused(player.level().getGameTime()), "up gives no pause");
             before[0] = m.foes().stunnersTonight;
             before[1] = m.foes().executionersTonight;
@@ -149,10 +149,10 @@ final class SmartScenes {
             int stunners = m.foes().stunnersTonight - before[0];
             int executioners = m.foes().executionersTonight - before[1];
             int extras = m.foes().smartExtrasTonight - before[3];
-            log("step 3, level 6: stunners " + stunners + ", executioners " + executioners + ", extras " + extras);
-            check(stunners >= 1, "at +3 the stunners come on level 6 (6 levels earlier, for every class from +3)");
-            check(extras == 1, "at +3 one extra special monster with the wave (" + extras + ")");
-            check(stunners + executioners >= 2, "so at least two special monsters (" + (stunners + executioners) + ")");
+            log("step 4, level 6: stunners " + stunners + ", executioners " + executioners + ", extras " + extras);
+            check(stunners >= 1, "at +4 the stunners come on level 6 (8 levels earlier, for every class from +4)");
+            check(extras == 2, "at +4 two extra special monsters with the wave (" + extras + ")");
+            check(stunners + executioners >= 3, "so at least three special monsters (" + (stunners + executioners) + ")");
             clear(player);
         });
         context.waitTicks(5);

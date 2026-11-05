@@ -54,8 +54,9 @@ class SmartNightTest {
         assertEquals(0, run(n, c, now, 44, 0.97, 0.9, 1, 2));
         assertEquals(1, run(n, c, now, 1, 0.97, 0.9, 1, 2));
         assertEquals(1, n.step());
-        // Then one step every 30 s at most, up to +5.
-        run(n, c, now, 29, 0.97, 0.9, 1, 2);
+        // Then one step every 45 s at most (sim schlau1: 30 s overshot for the pairs), up to +5.
+        assertEquals(45, c.smartNightUpSeconds);
+        run(n, c, now, 44, 0.97, 0.9, 1, 2);
         assertEquals(1, n.step());
         run(n, c, now, 1, 0.97, 0.9, 1, 2);
         assertEquals(2, n.step());
@@ -139,6 +140,32 @@ class SmartNightTest {
     }
 
     @Test
+    void deathsWeighByTheGroup() {
+        SiegeConfig c = cfg();
+        assertEquals(1.0, SmartNight.deathWeight(1), 1e-9);
+        assertEquals(1.0, SmartNight.deathWeight(3), 1e-9);
+        assertEquals(0.5, SmartNight.deathWeight(6), 1e-9);
+        assertEquals(0.3, SmartNight.deathWeight(10), 1e-9);
+        assertEquals(1, SmartNight.lowestCount(1));
+        assertEquals(1, SmartNight.lowestCount(3));
+        assertEquals(2, SmartNight.lowestCount(4));
+        assertEquals(4, SmartNight.lowestCount(10));
+        // Ten defenders, all well: one death does not step down at once, four in the window do.
+        SmartNight n = new SmartNight();
+        long[] now = {0};
+        n.begin(now[0], true, c);
+        run(n, c, now, 60, 0.9, 0.8, 3, 10);
+        int before = n.step();
+        now[0] += 200;
+        SmartNight.Look one = n.death(now[0], 10, c);
+        assertEquals(0, one.change(), one.why());
+        n.death(now[0] + 20, 10, c);
+        n.death(now[0] + 40, 10, c);
+        n.death(now[0] + 60, 10, c);
+        assertEquals(before - 1, n.step());   // the third or the fourth steps it down (once: 15 s apart)
+    }
+
+    @Test
     void comesBackFromBelowWhenCalm() {
         SiegeConfig c = cfg();
         SmartNight n = new SmartNight();
@@ -198,7 +225,7 @@ class SmartNightTest {
         assertEquals(0.0, SmartNight.eliteChance(c, 3, 4));
         assertEquals(0.05, SmartNight.eliteChance(c, 1, 5), 1e-9);
         assertEquals(0.25, SmartNight.eliteChance(c, 5, 5), 1e-9);
-        // Special monsters: two levels earlier per step, extras from step 2, every class from step 3.
+        // Special monsters: two levels earlier per step, extras from step 2, every class from step 4.
         assertEquals(0, SmartNight.levelBonus(c, -3));
         assertEquals(6, SmartNight.levelBonus(c, 3));
         assertEquals(0, SmartNight.extraPerWave(1));
@@ -206,8 +233,8 @@ class SmartNightTest {
         assertEquals(1, SmartNight.extraPerWave(3));
         assertEquals(2, SmartNight.extraPerWave(5));
         assertEquals(5, SmartNight.extraAlive(5));
-        assertFalse(SmartNight.anyClass(c, 2));
-        assertTrue(SmartNight.anyClass(c, 3));
+        assertFalse(SmartNight.anyClass(c, 3));
+        assertTrue(SmartNight.anyClass(c, 4));
         // Down: 5 % fewer at once per step (−25 % at −5), no specials and no elites from −2.
         assertEquals(1.0, SmartNight.room(c, 3));
         assertEquals(0.95, SmartNight.room(c, -1), 1e-9);

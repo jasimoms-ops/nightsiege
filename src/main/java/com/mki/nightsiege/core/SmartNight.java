@@ -10,8 +10,8 @@ import java.util.List;
  * automatisch stärkere Mobs spawnt, wenn wir zu gut sind, oder andersrum"). The night watches the
  * defenders and turns itself up or down one step at a time; every night starts at 0.
  *
- * <p>Once a second the night notes the defenders' life (average and lowest share of their max life),
- * every death and every kill. Every {@code smartNightEverySeconds} it looks at the last
+ * <p>Once a second the night notes the defenders' life (average share of their max life, and the
+ * average of the weakest third), every death and every kill. Every {@code smartNightEverySeconds} it looks at the last
  * {@code smartNightWindowSeconds}: the stress is {@code 1 − (0.6 × average + 0.4 × lowest)} plus
  * {@code smartNightDeathStress} per death. Below {@code smartNightUpStress} with enough kills and twice
  * in a row it goes one step up (at most {@code smartNightUpSteps}, not sooner than
@@ -170,11 +170,14 @@ public final class SmartNight {
         }
         int d = deaths.size();
         int k = kills.size();
-        double stress = stress(life, low, d, cfg);
+        // A death weighs by the group (sim schlau1: ten bots lose one now and then, that is no sign of a hard night).
+        double weighted = d * deathWeight(defenders);
+        double stress = stress(life, low, weighted, cfg);
         int change = 0;
         String why;
         double upBar = cfg.smartNightUpStress + (step < 0 ? 0.1 : 0.0);
         int killsNeeded = (int) Math.ceil(cfg.smartNightUpKillsPerPlayer * Math.max(1, defenders));
+        death = death && weighted >= 1.0 - 1e-9;   // at once only for one of up to three, two of four to six …
         if (death || stress > cfg.smartNightDownStress) {
             easyInRow = 0;
             long wait = (death ? 5L : Math.max(0, cfg.smartNightDownSeconds)) * 20L;
@@ -254,10 +257,23 @@ public final class SmartNight {
 
     // ------------------------------------------------------------------ the measure
 
-    /** 0 = nobody is ever hurt, about 0.5 = it gets tight; every death adds smartNightDeathStress. */
-    public static double stress(double life, double lowest, int deaths, SiegeConfig cfg) {
+    /**
+     * 0 = nobody is ever hurt, about 0.5 = it gets tight; every death adds smartNightDeathStress (deaths
+     * weighed by the group, see deathWeight).
+     */
+    public static double stress(double life, double lowest, double deaths, SiegeConfig cfg) {
         double s = 1.0 - (0.6 * clamp01(life) + 0.4 * clamp01(lowest));
-        return s + Math.min(1.0, Math.max(0, deaths) * cfg.smartNightDeathStress);
+        return s + Math.min(1.0, Math.max(0.0, deaths) * cfg.smartNightDeathStress);
+    }
+
+    /** What one death counts for in a group of this size: 1 for up to three, 3/n above (0.3 for ten). */
+    public static double deathWeight(int defenders) {
+        return Math.min(1.0, 3.0 / Math.max(1, defenders));
+    }
+
+    /** How many of the defenders standing count as "the lowest": the weakest third, at least one. */
+    public static int lowestCount(int standing) {
+        return Math.max(1, (int) Math.ceil(standing / 3.0));
     }
 
     // ------------------------------------------------------------------ what a step does

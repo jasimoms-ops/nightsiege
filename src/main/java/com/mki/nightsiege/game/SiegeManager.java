@@ -3848,20 +3848,26 @@ public final class SiegeManager {
             return;
         }
         long now = world.getGameTime();
-        double sum = 0;
-        double min = 1.0;
-        int n = 0;
+        List<Double> shares = new ArrayList<>();
         for (ServerPlayer p : upright) {
             if (!p.isAlive() || p.level() != world || p.getMaxHealth() <= 0) {
                 continue;
             }
-            double share = p.getHealth() / p.getMaxHealth();
-            sum += share;
-            min = Math.min(min, share);
-            n++;
+            shares.add((double) (p.getHealth() / p.getMaxHealth()));
         }
-        if (n > 0) {
-            smart.sample(now, sum / n, min);
+        if (!shares.isEmpty()) {
+            // The average, and the average of the weakest third (in a big group one is always low).
+            java.util.Collections.sort(shares);
+            double sum = 0;
+            for (double v : shares) {
+                sum += v;
+            }
+            int low = com.mki.nightsiege.core.SmartNight.lowestCount(shares.size());
+            double lowSum = 0;
+            for (int i = 0; i < low; i++) {
+                lowSum += shares.get(i);
+            }
+            smart.sample(now, sum / shares.size(), lowSum / low);
         }
         smartStepped(smart.tick(now, presentCount(), config));
     }

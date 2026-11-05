@@ -648,7 +648,8 @@ public class SiegeConfig {
      * Mobs spawnt, wenn wir zu gut sind, oder andersrum"). Every smartNightEverySeconds the night looks at the
      * last smartNightWindowSeconds: the defenders' life (average and lowest), their deaths and their kills.
      * Too easy (stress below smartNightUpStress, enough kills): one step up, at most smartNightUpSteps. Too
-     * hard (stress above smartNightDownStress, or a death): one step down, at most smartNightDownSteps. Hidden
+     * hard (stress above smartNightDownStress, or a death, weighed by the group): one step down, at most
+     * smartNightDownSteps. Hidden
      * (log and statistics only), every night starts at 0; not in the war leader's rounds, the bosses stay.
      * Up: elites from smartNightEliteFromLevel (smartNightElitePerStep per step, on top of eliteMobs), the
      * stunners, breakers and executioners smartNightSpecialLevelsPerStep levels earlier per step and from
@@ -660,7 +661,7 @@ public class SiegeConfig {
     public boolean smartNight = true;
     public int smartNightEverySeconds = 15;
     public int smartNightWindowSeconds = 30;
-    public int smartNightUpSeconds = 30;
+    public int smartNightUpSeconds = 45;   // sim schlau1: 30 s overshot for the pairs
     public int smartNightDownSeconds = 15;
     public int smartNightUpSteps = 5;
     public int smartNightDownSteps = 5;
@@ -673,7 +674,7 @@ public class SiegeConfig {
     public int smartNightEliteFromLevel = 5;
     public double smartNightElitePerStep = 0.05;
     public int smartNightSpecialLevelsPerStep = 2;
-    public int smartNightAnyClassFromStep = 3;
+    public int smartNightAnyClassFromStep = 4;   // sim schlau1: from 3 the pairs without fighters fell
     public double smartNightFewerPerStep = 0.05;
     public int smartNightNoSpecialsAt = -2;
     public double smartNightPauseSeconds = 8.0;
