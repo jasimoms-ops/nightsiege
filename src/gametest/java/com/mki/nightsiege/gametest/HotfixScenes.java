@@ -159,7 +159,8 @@ final class HotfixScenes {
             double share = m.config().dungeonMobPercent(m.currentLevel()) * player.getMaxHealth();
             log(String.format(java.util.Locale.ROOT, "dungeon share: plain took=%.2f dungeon took=%.2f share=%.2f (level %d)",
                     took[0], took[1], share, m.currentLevel()));
-            check(took[1] - took[0] > share * 0.8 && took[1] - took[0] < share * 1.2,
+            // The share goes through the player's own protection (class, armour), as the guardians' does.
+            check(took[1] - took[0] > share * 0.5 && took[1] - took[0] < share * 1.2,
                     "a dungeon monster's blow takes its share of the max health on top");
             plain.discard();
             dungeon.discard();
@@ -281,14 +282,24 @@ final class HotfixScenes {
             if (stunner[0] == null) {
                 return;
             }
+            raiseShield(player);
+            stunner[0].teleportTo(player.getX(), player.getY(), player.getZ() + 1.5);
             stunner[0].setTarget(player);
             m.foes().stunnerNow(stunner[0]);
         });
-        // The server may lag behind the test's ticks: wait until the slam came, at most 6 s.
+        // The server may lag behind the test's ticks: wait until the slam came, at most 6 s. The night's
+        // archers may knock him away in between: keep the stunner at his side and the shield up.
         final boolean[] slammed = new boolean[1];
         for (int i = 0; i < 12 && !slammed[0]; i++) {
             context.waitTicks(10);
-            server(context, "stunner wait", (player, m) -> slammed[0] = m.foes().stunsBlocked >= 1 || Stuns.stunned(player));
+            server(context, "stunner wait", (player, m) -> {
+                slammed[0] = m.foes().stunsBlocked >= 1 || Stuns.stunned(player);
+                if (!slammed[0] && stunner[0] != null) {
+                    raiseShield(player);
+                    stunner[0].teleportTo(player.getX(), player.getY(), player.getZ() + 1.5);
+                    stunner[0].setTarget(player);
+                }
+            });
         }
         server(context, "stunner blocked", (player, m) -> {
             if (stunner[0] == null) {
@@ -349,6 +360,20 @@ final class HotfixScenes {
         } catch (ReflectiveOperationException e) {
             log("no fighters field: " + e);
             return null;
+        }
+    }
+
+
+    /** Shield in the off hand, off its cooldown (the breaker locked it), raised. */
+    private static void raiseShield(ServerPlayer player) {
+        ItemStack shield = player.getOffhandItem();
+        if (!shield.is(Items.SHIELD)) {
+            shield = new ItemStack(Items.SHIELD);
+            player.setItemSlot(EquipmentSlot.OFFHAND, shield);
+        }
+        player.getCooldowns().removeCooldown(player.getCooldowns().getCooldownGroup(shield));
+        if (!player.isUsingItem()) {
+            player.startUsingItem(InteractionHand.OFF_HAND);
         }
     }
 
