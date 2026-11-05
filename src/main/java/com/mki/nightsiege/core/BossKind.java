@@ -70,6 +70,23 @@ public enum BossKind {
         return damage;
     }
 
+    /**
+     * The two dungeon wardens that come with the boss as its guard (Bosse 2, Simon 05.11.: "jeder boss
+     * mit 2 der wächter aus den dungeon als wache", fixed pairs that fit the boss).
+     */
+    public ExpeditionKind[] guards() {
+        return switch (this) {
+            case GRAVE_KING -> new ExpeditionKind[] {ExpeditionKind.STONE_CRYPT, ExpeditionKind.DESERT_CRYPT};
+            case SPIDER_QUEEN -> new ExpeditionKind[] {ExpeditionKind.POISON_SWAMP, ExpeditionKind.DEEP_CELLAR};
+            case BONE_LICH -> new ExpeditionKind[] {ExpeditionKind.BASALT_FORGE, ExpeditionKind.DEEP_CELLAR};
+            case WARLORD -> new ExpeditionKind[] {ExpeditionKind.ILLAGER_KEEP, ExpeditionKind.FROST_KEEP};
+            case FROST_JARL -> new ExpeditionKind[] {ExpeditionKind.FROST_KEEP, ExpeditionKind.ILLAGER_KEEP};
+            case EMBER_COLOSSUS -> new ExpeditionKind[] {ExpeditionKind.NETHER_FORGE, ExpeditionKind.BASALT_FORGE};
+            case STORM_WITCH -> new ExpeditionKind[] {ExpeditionKind.ILLAGER_KEEP, ExpeditionKind.POISON_SWAMP};
+            case RAM_TITAN -> new ExpeditionKind[] {ExpeditionKind.NETHER_FORGE, ExpeditionKind.STONE_CRYPT};
+        };
+    }
+
     /** The boss with this short name (or enum name), or null. */
     public static BossKind byId(String name) {
         if (name == null || name.isBlank()) {

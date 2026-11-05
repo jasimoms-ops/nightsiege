@@ -226,17 +226,47 @@ public final class WardenNight {
 
     /** The warden comes: where the monsters come from, with his bar, his title and his look. */
     public boolean spawn(BossService.Host host) {
-        if (kind == null || spawned) {
-            return false;
-        }
         ServerLevel level = host.world();
         BlockPos spot = host.spawnSpot();
         if (level == null || spot == null) {
             return false;
         }
-        Mob mob = host.spawnAdd(kind.champion(), spot);
+        return spawnAt(host, spot, 1.0, false);
+    }
+
+    /** True for a boss's guard (Bosse 2), not the night's warden. */
+    private boolean guard;
+
+    public boolean guard() {
+        return guard;
+    }
+
+    /**
+     * A boss's guard (Bosse 2, Simon 05.11.): a warden beside the boss, with {@code lifeShare} of a
+     * warden's life (Simon: "Halbes Leben"), his skills 1:1, without his own title; he comes even when
+     * the field is full. The win stays with the boss.
+     */
+    public boolean spawnGuard(BossService.Host host, BlockPos near, double lifeShare, int index) {
+        ServerLevel level = host.world();
+        if (level == null || near == null) {
+            return false;
+        }
+        double a = index * Math.PI + host.random().nextDouble() * 0.8;
+        double x = near.getX() + 0.5 + Math.cos(a) * 4.0;
+        double z = near.getZ() + 0.5 + Math.sin(a) * 4.0;
+        BlockPos spot = BlockPos.containing(x, BossService.surface(level, x, z), z);
+        return spawnAt(host, spot, lifeShare, true);
+    }
+
+    private boolean spawnAt(BossService.Host host, BlockPos spot, double lifeShare, boolean asGuard) {
+        if (kind == null || spawned) {
+            return false;
+        }
+        ServerLevel level = host.world();
+        guard = asGuard;
+        Mob mob = asGuard ? host.spawnGuard(kind.champion(), spot) : host.spawnAdd(kind.champion(), spot);
         if (mob == null) {
-            mob = host.spawnAdd("minecraft:wither_skeleton", spot);
+            mob = asGuard ? host.spawnGuard("minecraft:wither_skeleton", spot) : host.spawnAdd("minecraft:wither_skeleton", spot);
         }
         if (mob == null) {
             return false;   // the field is full: the next second
@@ -245,7 +275,7 @@ public final class WardenNight {
         // The same numbers as in his dungeon (Simon 30.10., 20:26: "die Wächter müssen in der Nacht genauso
         // werden wie in den Dungeons, Stats 1:1"): life ×dungeonChampionLife, +50 % per further fighter,
         // championSpeed, and his skills and leap (ChampionBrains); the percent strikes apply to both already.
-        double health = mob.getMaxHealth() * life(host.level(), kind, defenders, host.config());
+        double health = mob.getMaxHealth() * life(host.level(), kind, defenders, host.config()) * lifeShare;
         dress(mob, kind, health);
         AttributeInstance speed = mob.getAttribute(Attributes.MOVEMENT_SPEED);
         if (speed != null) {
@@ -262,12 +292,16 @@ public final class WardenNight {
         if (target != null) {
             mob.setTarget(target);
         }
-        bar = new ServerBossEvent(com.mki.nightsiege.core.NightBarIds.make(com.mki.nightsiege.core.NightBarIds.Kind.BOSS), name(kind),
+        Component barName = asGuard ? Component.translatable("nightsiege.boss.guard_bar", name(kind)) : name(kind);
+        bar = new ServerBossEvent(com.mki.nightsiege.core.NightBarIds.make(com.mki.nightsiege.core.NightBarIds.Kind.BOSS), barName,
                 color(kind.fragment()), BossEvent.BossBarOverlay.NOTCHED_10);   // the boss bars' look (design update)
-        bar.setDarkenScreen(true);
+        bar.setDarkenScreen(!asGuard);
         bar.setProgress(1f);
         for (ServerPlayer p : host.watchers()) {
             bar.addPlayer(p);
+            if (asGuard) {
+                continue;   // the boss has the title; the guard comes along
+            }
             p.connection.send(new ClientboundSetTitlesAnimationPacket(10, 70, 20));
             p.connection.send(new ClientboundSetTitleTextPacket(name(kind).withStyle(ChatFormatting.BOLD)));
             p.connection.send(new ClientboundSetSubtitleTextPacket(epithet(kind).copy().withStyle(ChatFormatting.GRAY)));
@@ -361,6 +395,7 @@ public final class WardenNight {
             BossService.dropFoeLook(server, networkId);
         }
         kind = null;
+        guard = false;
         wardenId = null;
         networkId = -1;
         spawned = false;

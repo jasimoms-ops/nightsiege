@@ -124,6 +124,11 @@ public final class BossService {
         /** A monster of the night at a spot (counted, aimed), or null when the field is full. */
         Mob spawnAdd(String entityId, BlockPos spot);
 
+        /** A boss's guard (Bosse 2): like {@link #spawnAdd}, but it comes even when the field is full. */
+        default Mob spawnGuard(String entityId, BlockPos spot) {
+            return spawnAdd(entityId, spot);
+        }
+
         /** A spot outside the walls where monsters come from. */
         BlockPos spawnSpot();
 

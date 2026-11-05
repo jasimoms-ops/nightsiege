@@ -251,6 +251,14 @@ public class SiegeConfig {
     public int wardenFinaleSeconds = 150;
     /** Ability points for every defender still standing when the warden falls. */
     public int wardenPoints = 2;
+    /**
+     * The boss's guard (Bosse 2, Simon 05.11.): in a boss night (and a playtest's boss night) the boss
+     * comes with the two dungeon wardens that belong to it (BossKind.guards), not in the Vierer- and
+     * Doppel-Bossnacht. They take no part in the win; when the boss falls they flee.
+     */
+    public boolean bossGuards = true;
+    /** The guards' life as a share of a warden of the night (0.5 = half, Simon 05.11.). */
+    public double bossGuardLife = 0.5;
 
     // --- tools ------------------------------------------------------------
     /** Only mobs carrying a fitting tool can break blocks. */
@@ -1412,6 +1420,7 @@ public class SiegeConfig {
         bossHealthPerExtraPlayer = clampDouble(bossHealthPerExtraPlayer, 0.0, 3.0);
         bossDamageMultiplier = clampDouble(bossDamageMultiplier <= 0 ? 1.0 : bossDamageMultiplier, 0.1, 10.0);
         wardenChance = clampDouble(wardenChance, 0.0, 1.0);
+        bossGuardLife = clampDouble(bossGuardLife <= 0 ? 0.5 : bossGuardLife, 0.05, 5.0);
         wardenFinaleSeconds = clamp(wardenFinaleSeconds <= 0 ? 150 : wardenFinaleSeconds, 30, 1200);
         wardenPoints = clamp(wardenPoints, 0, 20);
 

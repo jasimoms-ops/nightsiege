@@ -121,8 +121,13 @@ jobs:
           found = None
           for j in jars:
               try:
-                  if "net/minecraft/world/level/levelgen/structure/StructureStart.class" in zipfile.ZipFile(j).namelist():
-                      found = j; break
+                  n = zipfile.ZipFile(j).namelist()
+                  if "net/minecraft/world/level/levelgen/structure/StructureStart.class" in n:
+                      # Prefer the jar with the client classes too (the server jar has no models).
+                      if found is None or "net/minecraft/client/Minecraft.class" in n:
+                          found = j
+                      if "net/minecraft/client/Minecraft.class" in n:
+                          break
               except Exception:
                   pass
           # Vanilla pictures for the texture tools (tools/vanilla-extract.txt: one path prefix per line),

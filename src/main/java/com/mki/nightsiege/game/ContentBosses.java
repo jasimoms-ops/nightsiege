@@ -93,13 +93,25 @@ final class ContentBosses {
     // ================================================================== Frostjarl
 
     /**
-     * The frost jarl: a giant of pack ice. His stomp goes over shields (8 % of the max health
-     * through them); he raises walls of real ice for 15 s that cut a defender off from the
-     * others; below 30 % an avalanche comes down on every defender.
+     * The frost jarl: a giant of pack ice. His stomp goes over shields; he raises walls of real ice
+     * for 15 s that cut a defender off from the others, and throws blocks of ice at whoever keeps
+     * away from him. Below half an avalanche comes down on every defender, and now and then he
+     * wraps himself in an armour of ice that has to be broken (then he stands dazed for 3 s).
+     *
+     * <p>Bosse 2 (Simon 05.11.: "die vier neuen bosse müssen nochmal verbessert werden"): stomp 8 → 20 %,
+     * the ice block (15 %), the avalanche from 50 % (was 30 %), the frost armour.</p>
      */
     static final class FrostJarl extends BossBrains.Brain {
-        static final double STOMP_SHARE = 8.0;
+        static final double STOMP_SHARE = 20.0;
         static final double AVALANCHE_SHARE = 12.0;
+        static final double BOULDER_SHARE = 15.0;
+        static final int BOULDER_EVERY = 8 * 20;
+        static final int BOULDER_FLIGHT = 20;
+        static final double BOULDER_RADIUS = 2.5;
+        /** The armour swallows this share of his max health before it breaks. */
+        static final double ARMOR_SHARE = 0.15;
+        static final int ARMOR_EVERY = 25 * 20;
+        static final int STUN_TICKS = 3 * 20;
         static final int WALL_TICKS = 15 * 20;
         long nextStomp;
         long windupUntil;
@@ -112,6 +124,18 @@ final class ContentBosses {
         final List<BlockPos> ice = new ArrayList<>();
         long melt;
         final Stuck stuck = new Stuck();
+        long nextBoulder;
+        long boulderLands;
+        Vec3 boulderFrom;
+        Vec3 boulderAt;
+        int boulders;
+        /** What is left of the frost armour (0 = none). */
+        double armor;
+        long nextArmor;
+        long stunUntil;
+        boolean stunned;
+        int armorsBroken;
+        BossService.Host lastHost;
 
         FrostJarl(BossService service, BossKind kind) {
             super(service, kind);
@@ -122,16 +146,24 @@ final class ContentBosses {
             super.spawned(host, boss);
             nextStomp = spawnedAt + 100;
             nextWall = spawnedAt + 220;
+            nextBoulder = spawnedAt + 120;
             BossService.set(boss, Attributes.MOVEMENT_SPEED, 0.26);
         }
 
         @Override
         String phase(ServerLevel level) {
+            if (armor > 0) {
+                return "nightsiege.boss.phase.frost_armor";
+            }
+            if (stunned) {
+                return "nightsiege.boss.phase.dazed";
+            }
             return avalanche ? "nightsiege.boss.phase.avalanche" : null;
         }
 
         @Override
         void tick(BossService.Host host, Mob boss, long now) {
+            lastHost = host;
             ServerLevel level = host.world();
             if (now % 5 == 0) {
                 level.sendParticles(ParticleTypes.SNOWFLAKE, boss.getX(), boss.getY() + boss.getBbHeight() * 0.7, boss.getZ(),
@@ -140,11 +172,38 @@ final class ContentBosses {
             if (melt > 0 && now >= melt) {
                 meltWalls(level);
             }
-            if (!avalanche && below(boss, 0.3)) {
+            tickBoulder(host, boss, now);
+            if (stunned) {
+                // The armour broke: he stands dazed, the fighters' chance.
+                boss.getNavigation().stop();
+                if (now % 4 == 0) {
+                    level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, Blocks.ICE.defaultBlockState()),
+                            boss.getX(), boss.getY() + boss.getBbHeight(), boss.getZ(), 4, 0.6, 0.2, 0.6, 0.0);
+                }
+                if (now < stunUntil) {
+                    return;
+                }
+                stunned = false;
+                boss.setNoAi(false);
+            }
+            if (!avalanche && below(boss, 0.5)) {
                 avalanche = true;
                 nextAvalanche = now + 20;
+                nextArmor = now + 100;
                 tell(host, "nightsiege.boss.frost_jarl.avalanche", ChatFormatting.AQUA);
                 BossService.sound(level, boss.position(), SoundEvents.RAVAGER_ROAR, 2.0f, 0.4f);
+            }
+            if (avalanche && armor <= 0 && now >= nextArmor) {
+                armor = boss.getMaxHealth() * ARMOR_SHARE;
+                nextArmor = Long.MAX_VALUE;   // the next comes once this one is broken
+                tell(host, "nightsiege.boss.frost_jarl.armor", ChatFormatting.AQUA);
+                BossService.sound(level, boss.position(), SoundEvents.GLASS_PLACE, 2.0f, 0.4f);
+                BossService.sound(level, boss.position(), SoundEvents.POWDER_SNOW_PLACE, 2.0f, 0.5f);
+            }
+            if (armor > 0 && now % 4 == 0) {
+                level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, Blocks.PACKED_ICE.defaultBlockState()),
+                        boss.getX(), boss.getY() + boss.getBbHeight() * 0.5, boss.getZ(), 6,
+                        boss.getBbWidth() * 0.5, boss.getBbHeight() * 0.4, boss.getBbWidth() * 0.5, 0.0);
             }
             tickAvalanche(host, boss, now);
             if (windupUntil > 0) {
@@ -172,10 +231,93 @@ final class ContentBosses {
                     nextWall = now + 40;
                 }
             }
+            if (boulderLands == 0 && now >= nextBoulder) {
+                throwBoulder(host, boss, now);
+            }
             stuck.leap(host, boss, now, 6.0);
         }
 
-        /** 8 % through the shield and a frost that slows, within 6.5 blocks. */
+        /** The frost armour swallows the blows until it breaks; then he stands dazed. */
+        @Override
+        boolean allowDamage(ServerLevel level, LivingEntity victim, net.minecraft.world.damagesource.DamageSource source, float amount) {
+            if (armor <= 0 || !(victim instanceof Mob boss)) {
+                return true;
+            }
+            armor -= amount;
+            level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, Blocks.PACKED_ICE.defaultBlockState()),
+                    boss.getX(), boss.getY() + boss.getBbHeight() * 0.6, boss.getZ(), 12, 0.6, 0.6, 0.6, 0.1);
+            BossService.sound(level, boss.position(), SoundEvents.GLASS_HIT, 1.4f, 0.6f);
+            if (armor <= 0) {
+                armor = 0;
+                long now = level.getGameTime();
+                stunned = true;
+                stunUntil = now + STUN_TICKS;
+                nextArmor = now + ARMOR_EVERY;
+                windupUntil = 0;
+                armorsBroken++;
+                boss.setNoAi(true);
+                level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, Blocks.ICE.defaultBlockState()),
+                        boss.getX(), boss.getY() + boss.getBbHeight() * 0.5, boss.getZ(), 80, 1.0, 1.2, 1.0, 0.3);
+                BossService.sound(level, boss.position(), SoundEvents.GLASS_BREAK, 2.0f, 0.5f);
+                if (lastHost != null) {
+                    tell(lastHost, "nightsiege.boss.frost_jarl.armor_broken", ChatFormatting.GREEN);
+                }
+            }
+            return false;
+        }
+
+        /** The block of ice: at the defender farthest from him (8 to 32 blocks), a shadow first. */
+        private void throwBoulder(BossService.Host host, Mob boss, long now) {
+            ServerPlayer far = null;
+            double best = 8.0 * 8.0;
+            for (ServerPlayer p : host.defenders()) {
+                double d = p.distanceToSqr(boss);
+                if (d > best && d < 32.0 * 32.0) {
+                    best = d;
+                    far = p;
+                }
+            }
+            if (far == null) {
+                nextBoulder = now + 20;
+                return;
+            }
+            boulderFrom = boss.position().add(0, boss.getBbHeight() * 0.9, 0);
+            boulderAt = far.position();
+            boulderLands = now + BOULDER_FLIGHT;
+            nextBoulder = now + BOULDER_EVERY;
+            BossService.sound(host.world(), boss.position(), SoundEvents.IRON_GOLEM_ATTACK, 1.8f, 0.5f);
+        }
+
+        private void tickBoulder(BossService.Host host, Mob boss, long now) {
+            if (boulderLands == 0) {
+                return;
+            }
+            ServerLevel level = host.world();
+            double t = 1.0 - (boulderLands - now) / (double) BOULDER_FLIGHT;
+            Vec3 at = boulderFrom.lerp(boulderAt, t).add(0, Math.sin(Math.PI * t) * 6.0, 0);
+            level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, Blocks.PACKED_ICE.defaultBlockState()),
+                    at.x, at.y, at.z, 6, 0.3, 0.3, 0.3, 0.0);
+            level.sendParticles(ParticleTypes.SNOWFLAKE, at.x, at.y, at.z, 2, 0.2, 0.2, 0.2, 0.0);
+            if (now % 3 == 0) {
+                BossService.ring(level, new DustParticleOptions(0x9FD8FF, 1.2f), boulderAt, BOULDER_RADIUS, 16);
+            }
+            if (now < boulderLands) {
+                return;
+            }
+            boulderLands = 0;
+            boulders++;
+            float damage = BossService.abilityDamage(host, kind, 6.0);
+            for (ServerPlayer p : around(host, boulderAt, BOULDER_RADIUS)) {
+                BossService.strike(host, level, boss, p, damage, BOULDER_SHARE);
+                p.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 60, 1), boss);
+            }
+            level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, Blocks.PACKED_ICE.defaultBlockState()),
+                    boulderAt.x, boulderAt.y + 0.5, boulderAt.z, 60, 1.2, 0.5, 1.2, 0.2);
+            BossService.sound(level, boulderAt, SoundEvents.GLASS_BREAK, 2.0f, 0.4f);
+            BossService.sound(level, boulderAt, SoundEvents.MACE_SMASH_GROUND, 1.6f, 0.6f);
+        }
+
+        /** Stomp: 20 % through the shield and a frost that slows, within 6.5 blocks. */
         private void stomp(BossService.Host host, Mob boss) {
             ServerLevel level = host.world();
             Vec3 c = boss.position();
@@ -260,7 +402,7 @@ final class ContentBosses {
             melt = 0;
         }
 
-        /** Below 30 %: snow gathers over every defender for two seconds, then the avalanche falls. */
+        /** Below half: snow gathers over every defender for two seconds, then the avalanche falls. */
         private void tickAvalanche(BossService.Host host, Mob boss, long now) {
             if (!avalanche) {
                 return;
@@ -305,6 +447,7 @@ final class ContentBosses {
         @Override
         void died(ServerLevel level) {
             meltWalls(level);
+            boulderLands = 0;
         }
 
         @Override
@@ -324,9 +467,20 @@ final class ContentBosses {
      * {@link #POUNCE_EVERY} ticks each half leaps at its target (3 to 24 blocks away, over walls too);
      * where it lands, every defender within {@link #POUNCE_RADIUS} blocks takes {@link #POUNCE_SHARE} %
      * of the max health (a raised shield takes the blow), and a crack opens.</p>
+     *
+     * <p>Bosse 2 (Simon 05.11.): cracks 3 → 5 %/s; the eruption every 15 s (he sinks in, 1.5 s later six
+     * lumps of magma fall on warning rings round the defenders, 15 % each); when one half falls, the
+     * other goes white-hot (faster, a leap every 3 s, an eruption every 10 s).</p>
      */
     static final class EmberColossus extends BossBrains.Brain {
-        static final double CRACK_SHARE = 3.0;
+        static final double CRACK_SHARE = 5.0;
+        static final double ERUPTION_SHARE = 15.0;
+        static final int ERUPTION_EVERY = 15 * 20;
+        static final int WHITE_ERUPTION_EVERY = 10 * 20;
+        static final int ERUPTION_WINDUP = 30;
+        static final int ERUPTION_MARKS = 6;
+        static final double ERUPTION_RADIUS = 2.0;
+        static final int WHITE_POUNCE_EVERY = 3 * 20;
         static final double HALF_SHARE = 0.4;
         static final int CRACK_TICKS = 12 * 20;
         static final double POUNCE_SHARE = 12.0;
@@ -350,6 +504,14 @@ final class ContentBosses {
         boolean split;
         final Stuck stuckA = new Stuck();
         final Stuck stuckB = new Stuck();
+        /** Both halves stood once; when one is down the other goes white-hot. */
+        boolean halves;
+        boolean whiteHot;
+        long nextEruption;
+        long eruptionAt;
+        final List<Vec3> eruptionMarks = new ArrayList<>();
+        int eruptions;
+        boolean eruptionTold;
 
         EmberColossus(BossService service, BossKind kind) {
             super(service, kind);
@@ -359,6 +521,7 @@ final class ContentBosses {
         void spawned(BossService.Host host, Mob boss) {
             super.spawned(host, boss);
             body(boss);
+            nextEruption = spawnedAt + 200;
         }
 
         private static void body(Mob boss) {
@@ -368,6 +531,9 @@ final class ContentBosses {
 
         @Override
         String phase(ServerLevel level) {
+            if (whiteHot) {
+                return "nightsiege.boss.phase.white_hot";
+            }
             return split ? "nightsiege.boss.phase.split" : null;
         }
 
@@ -380,6 +546,7 @@ final class ContentBosses {
                     Mob other = service.rider(level);
                     if (other != null) {
                         body(other);
+                        halves = true;
                     }
                     level.sendParticles(ParticleTypes.LAVA, boss.getX(), boss.getY() + 1.0, boss.getZ(), 40, 1.5, 1.0, 1.5, 0.2);
                     level.sendParticles(ParticleTypes.EXPLOSION, boss.getX(), boss.getY() + 1.0, boss.getZ(), 4, 1.0, 0.5, 1.0, 0.0);
@@ -390,6 +557,24 @@ final class ContentBosses {
                 }
             }
             Mob other = service.rider(level);
+            if (halves && other == null && !whiteHot) {
+                // One half is down: the other burns white-hot.
+                whiteHot = true;
+                BossService.set(boss, Attributes.MOVEMENT_SPEED, 0.65);
+                pounceA.next = Math.min(pounceA.next, now + 20);
+                nextEruption = Math.min(nextEruption, now + 60);
+                level.sendParticles(ParticleTypes.FLAME, boss.getX(), boss.getY() + 1.0, boss.getZ(), 60, 1.2, 1.0, 1.2, 0.1);
+                BossService.sound(level, boss.position(), SoundEvents.BLAZE_SHOOT, 2.0f, 0.5f);
+                tell(host, "nightsiege.boss.ember_colossus.white_hot", ChatFormatting.YELLOW);
+            }
+            if (whiteHot && now % 3 == 0) {
+                level.sendParticles(ParticleTypes.FLAME, boss.getX(), boss.getY() + boss.getBbHeight() * 0.6, boss.getZ(),
+                        2, boss.getBbWidth() * 0.4, boss.getBbHeight() * 0.3, boss.getBbWidth() * 0.4, 0.01);
+            }
+            if (tickEruption(host, boss, now)) {
+                tickCracks(host, boss, now);
+                return;   // sunk in: he waits for the eruption
+            }
             if (now % 10 == 0) {
                 crack(boss, now);
                 if (other != null) {
@@ -446,7 +631,88 @@ final class ContentBosses {
             BossBrains.leap(level, body, target.position(), 2.5);
             p.inAir = true;
             p.since = now;
-            p.next = now + POUNCE_EVERY;
+            p.next = now + (whiteHot ? WHITE_POUNCE_EVERY : POUNCE_EVERY);
+        }
+
+        /** Eruptions so far (for the test). */
+        int eruptions() {
+            return eruptions;
+        }
+
+        /**
+         * The eruption (Bosse 2): he sinks in, warning rings glow round the defenders, and 1.5 s later
+         * a lump of magma falls on each (15 %, it sets on fire and leaves a crack). True while he sinks.
+         */
+        private boolean tickEruption(BossService.Host host, Mob boss, long now) {
+            ServerLevel level = host.world();
+            if (eruptionAt == 0) {
+                if (now < nextEruption || !boss.onGround() || pounceA.inAir) {
+                    return false;
+                }
+                eruptionMarks.clear();
+                List<ServerPlayer> near = new ArrayList<>();
+                for (ServerPlayer p : host.defenders()) {
+                    if (p.distanceToSqr(boss) < 32.0 * 32.0) {
+                        near.add(p);
+                        if (eruptionMarks.size() < ERUPTION_MARKS) {
+                            eruptionMarks.add(p.position());
+                        }
+                    }
+                }
+                if (near.isEmpty()) {
+                    nextEruption = now + 40;
+                    return false;
+                }
+                for (int i = 0; i < 20 && eruptionMarks.size() < ERUPTION_MARKS; i++) {
+                    ServerPlayer p = near.get(host.random().nextInt(near.size()));
+                    double a = host.random().nextDouble() * Math.PI * 2.0;
+                    double r = 2.5 + host.random().nextDouble() * 2.5;
+                    BlockPos spot = BossService.groundNear(level, p.getX() + Math.cos(a) * r, p.getY(), p.getZ() + Math.sin(a) * r);
+                    if (spot != null) {
+                        eruptionMarks.add(Vec3.atBottomCenterOf(spot));
+                    }
+                }
+                eruptionAt = now + ERUPTION_WINDUP;
+                nextEruption = now + (whiteHot ? WHITE_ERUPTION_EVERY : ERUPTION_EVERY);
+                BossService.sound(level, boss.position(), SoundEvents.LAVA_AMBIENT, 2.0f, 0.5f);
+                BossService.sound(level, boss.position(), SoundEvents.BASALT_BREAK, 2.0f, 0.4f);
+                if (!eruptionTold) {
+                    eruptionTold = true;
+                    tell(host, "nightsiege.boss.ember_colossus.eruption", ChatFormatting.GOLD);
+                }
+            }
+            boss.getNavigation().stop();
+            boss.setDeltaMovement(0, boss.getDeltaMovement().y, 0);
+            if (now % 3 == 0) {
+                level.sendParticles(ParticleTypes.LARGE_SMOKE, boss.getX(), boss.getY() + 0.3, boss.getZ(), 4,
+                        boss.getBbWidth() * 0.4, 0.1, boss.getBbWidth() * 0.4, 0.02);
+                level.sendParticles(ParticleTypes.LAVA, boss.getX(), boss.getY() + boss.getBbHeight(), boss.getZ(), 2, 0.5, 0.1, 0.5, 0.0);
+                for (Vec3 m : eruptionMarks) {
+                    BossService.ring(level, new DustParticleOptions(0xFF5A0A, 1.4f), m, ERUPTION_RADIUS, 14);
+                    level.sendParticles(ParticleTypes.SMALL_FLAME, m.x, m.y + 0.1, m.z, 2, 0.6, 0.0, 0.6, 0.0);
+                }
+            }
+            if (now < eruptionAt) {
+                return true;
+            }
+            eruptionAt = 0;
+            eruptions++;
+            float damage = BossService.abilityDamage(host, kind, 5.0);
+            Set<UUID> hit = new HashSet<>();
+            for (Vec3 m : eruptionMarks) {
+                level.sendParticles(ParticleTypes.LAVA, m.x, m.y + 0.3, m.z, 20, 0.8, 0.3, 0.8, 0.2);
+                level.sendParticles(ParticleTypes.EXPLOSION, m.x, m.y + 0.3, m.z, 1, 0.2, 0.1, 0.2, 0.0);
+                BossService.sound(level, m, SoundEvents.FIRECHARGE_USE, 1.4f, 0.6f);
+                for (ServerPlayer p : around(host, m, ERUPTION_RADIUS)) {
+                    if (hit.add(p.getUUID())) {
+                        BossService.strike(host, level, boss, p, damage, ERUPTION_SHARE);
+                        p.igniteForSeconds(3f);
+                    }
+                }
+                cracks.add(new Crack(m, now + CRACK_TICKS));
+            }
+            eruptionMarks.clear();
+            return false;
         }
 
         /** A new crack where a half stands on the ground (not right beside the last one). */
@@ -502,6 +768,8 @@ final class ContentBosses {
         @Override
         void cleanUp(ServerLevel level) {
             cracks.clear();
+            eruptionMarks.clear();
+            eruptionAt = 0;
         }
     }
 
@@ -511,9 +779,21 @@ final class ContentBosses {
      * The storm witch: she circles the base on her phantom, out of reach of swords. Chain
      * lightning jumps from defender to defender (6 % of the max health each), a storm sweeps
      * the defenders off the walls, and every 30 s she lands for 8 s – then she can be reached.
+     *
+     * <p>Bosse 2 (Simon 05.11.): chain lightning 6 → 10 %; a lightning strike on a warning ring (20 %);
+     * on the ground she calls two vexes; below half the eye of the storm pulls everyone in the base
+     * towards its middle for 6 s (where the chain lightning finds them all).</p>
      */
     static final class StormWitch extends BossBrains.Brain {
-        static final double BOLT_SHARE = 6.0;
+        static final double BOLT_SHARE = 10.0;
+        static final double STRIKE_SHARE = 20.0;
+        static final int STRIKE_EVERY = 7 * 20;
+        static final int STRIKE_WARN = 30;
+        static final double STRIKE_RADIUS = 2.5;
+        static final int EYE_EVERY = 20 * 20;
+        static final int EYE_TICKS = 6 * 20;
+        static final double EYE_RADIUS = 16.0;
+        static final int VEXES = 2;
         static final int FLY_TICKS = 30 * 20;
         static final int LAND_TICKS = 8 * 20;
         enum Flight { CIRCLE, DOWN, LANDED, UP }
@@ -526,6 +806,16 @@ final class ContentBosses {
         long nextBolt;
         long nextStorm;
         long stormAt;
+        long nextStrike;
+        long strikeAt;
+        final List<Vec3> strikeMarks = new ArrayList<>();
+        int strikes;
+        boolean eyePhase;
+        long nextEye;
+        long eyeUntil;
+        Vec3 eyeAt;
+        int eyes;
+        int vexes;
 
         StormWitch(BossService service, BossKind kind) {
             super(service, kind);
@@ -539,10 +829,14 @@ final class ContentBosses {
             landAt = spawnedAt + FLY_TICKS;
             nextBolt = spawnedAt + 80;
             nextStorm = spawnedAt + 200;
+            nextStrike = spawnedAt + 120;
         }
 
         @Override
         String phase(ServerLevel level) {
+            if (eyeUntil > 0) {
+                return "nightsiege.boss.phase.storm_eye";
+            }
             return flight == Flight.LANDED ? "nightsiege.boss.phase.landed" : "nightsiege.boss.phase.flying";
         }
 
@@ -561,6 +855,124 @@ final class ContentBosses {
                 nextBolt = now + (below(boss, 0.5) ? 80 : 110);
             }
             tickStorm(host, boss, now);
+            tickStrike(host, boss, now);
+            if (!eyePhase && below(boss, 0.5)) {
+                eyePhase = true;
+                nextEye = now + 20;
+            }
+            tickEye(host, boss, now);
+        }
+
+        /** For the tests: lightning strikes, storm eyes and vexes so far. */
+        int strikes() {
+            return strikes;
+        }
+
+        int eyes() {
+            return eyes;
+        }
+
+        int vexes() {
+            return vexes;
+        }
+
+        /**
+         * The lightning strike (Bosse 2): a ring of sparks under a defender (two below half), and
+         * after 1.5 s the bolt comes down on it: 20 % to whoever still stands there.
+         */
+        private void tickStrike(BossService.Host host, Mob boss, long now) {
+            ServerLevel level = host.world();
+            if (strikeAt == 0) {
+                if (now < nextStrike) {
+                    return;
+                }
+                nextStrike = now + STRIKE_EVERY;
+                List<ServerPlayer> near = new ArrayList<>();
+                for (ServerPlayer p : host.defenders()) {
+                    if (p.distanceToSqr(boss) < 40.0 * 40.0) {
+                        near.add(p);
+                    }
+                }
+                java.util.Collections.shuffle(near, host.random());
+                strikeMarks.clear();
+                for (int i = 0; i < near.size() && i < (below(boss, 0.5) ? 2 : 1); i++) {
+                    strikeMarks.add(near.get(i).position());
+                }
+                if (strikeMarks.isEmpty()) {
+                    return;
+                }
+                strikeAt = now + STRIKE_WARN;
+                BossService.sound(level, boss.position(), SoundEvents.EVOKER_PREPARE_ATTACK, 1.6f, 1.4f);
+            }
+            if (now % 3 == 0) {
+                for (Vec3 m : strikeMarks) {
+                    BossService.ring(level, ParticleTypes.ELECTRIC_SPARK, m, STRIKE_RADIUS, 16);
+                    BossService.ring(level, new DustParticleOptions(0xFFE34A, 1.2f), m, STRIKE_RADIUS * 0.6, 10);
+                }
+            }
+            if (now < strikeAt) {
+                return;
+            }
+            strikeAt = 0;
+            strikes++;
+            float damage = BossService.abilityDamage(host, kind, 6.0);
+            for (Vec3 m : strikeMarks) {
+                bolt(level, m);
+                for (ServerPlayer p : around(host, m, STRIKE_RADIUS)) {
+                    BossService.strike(host, level, boss, p, damage, STRIKE_SHARE);
+                }
+            }
+            strikeMarks.clear();
+        }
+
+        /**
+         * The eye of the storm (Bosse 2, below half, every 20 s): for 6 s a whirl at the core pulls
+         * every defender within 16 blocks towards its middle, harder the closer he is.
+         */
+        private void tickEye(BossService.Host host, Mob boss, long now) {
+            if (!eyePhase) {
+                return;
+            }
+            ServerLevel level = host.world();
+            if (eyeUntil == 0) {
+                if (now < nextEye) {
+                    return;
+                }
+                BlockPos a = host.anchor();
+                double x = a.getX() + 0.5;
+                double z = a.getZ() + 0.5;
+                eyeAt = new Vec3(x, BossService.surface(level, x, z), z);
+                eyeUntil = now + EYE_TICKS;
+                nextEye = now + EYE_EVERY;
+                eyes++;
+                tell(host, "nightsiege.boss.storm_witch.eye", ChatFormatting.YELLOW);
+                BossService.sound(level, eyeAt, SoundEvents.BREEZE_JUMP, 2.0f, 0.3f);
+            }
+            if (now % 2 == 0) {
+                double turn = now * 0.35;
+                for (int k = 0; k < 3; k++) {
+                    double a = turn + k * Math.PI * 2.0 / 3.0;
+                    for (double r = 2.0; r <= EYE_RADIUS; r += 3.5) {
+                        level.sendParticles(ParticleTypes.CLOUD, eyeAt.x + Math.cos(a + r * 0.25) * r, eyeAt.y + 0.4 + r * 0.15,
+                                eyeAt.z + Math.sin(a + r * 0.25) * r, 1, 0.0, 0.0, 0.0, 0.0);
+                    }
+                }
+            }
+            for (ServerPlayer p : host.defenders()) {
+                Vec3 to = eyeAt.subtract(p.position()).multiply(1, 0, 1);
+                double d = to.length();
+                if (d > EYE_RADIUS || d < 1.5 || Math.abs(p.getY() - eyeAt.y) > 8.0) {
+                    continue;
+                }
+                Vec3 pull = to.scale(1.0 / d);
+                Vec3 swirl = new Vec3(-pull.z, 0, pull.x);
+                double strength = 0.03 + 0.07 * (1.0 - d / EYE_RADIUS);
+                p.push(pull.x * strength + swirl.x * 0.02, 0.0, pull.z * strength + swirl.z * 0.02);
+                p.hurtMarked = true;
+            }
+            if (now >= eyeUntil) {
+                eyeUntil = 0;
+            }
         }
 
         /** Steers the phantom: round the base high up, down to land, a while on the ground, up again. */
@@ -597,6 +1009,15 @@ final class ContentBosses {
                         liftAt = now + LAND_TICKS;
                         tell(host, "nightsiege.boss.storm_witch.landed", ChatFormatting.GREEN);
                         BossService.sound(level, landing, SoundEvents.PHANTOM_FLAP, 2.0f, 0.5f);
+                        // On the ground she calls two vexes (Bosse 2).
+                        for (int i = 0; i < VEXES; i++) {
+                            double a = host.random().nextDouble() * Math.PI * 2.0;
+                            BlockPos spot = BlockPos.containing(landing.x + Math.cos(a) * 2.0, landing.y + 1.5, landing.z + Math.sin(a) * 2.0);
+                            if (host.spawnAdd("minecraft:vex", spot) != null) {
+                                vexes++;
+                            }
+                        }
+                        BossService.sound(level, landing, SoundEvents.EVOKER_PREPARE_SUMMON, 1.6f, 1.2f);
                     }
                 }
                 case LANDED -> {
@@ -723,6 +1144,9 @@ final class ContentBosses {
 
         @Override
         void died(ServerLevel level) {
+            eyeUntil = 0;
+            strikeAt = 0;
+            strikeMarks.clear();
             Mob mount = service.mount(level);
             if (mount != null) {
                 level.sendParticles(ParticleTypes.CLOUD, mount.getX(), mount.getY(), mount.getZ(), 30, 1.0, 0.5, 1.0, 0.1);
@@ -740,22 +1164,57 @@ final class ContentBosses {
 
     /**
      * The ram titan: a giant armoured ravager. Its charge runs through gates and walls and
-     * through the tank (12 % of the max health, no shield stops it); where it ends, the ground
-     * caves in (a 3 × 3 crater). Broken blocks come back after the night. Below half it rages.
+     * through the tank (no shield stops it); where it ends, the ground caves in (a 3 × 3 crater).
+     * Blocks it breaks fly on as debris. Whoever stands behind it is trampled. Broken blocks come
+     * back after the night. Below half it rages and charges twice in a row.
+     *
+     * <p>Bosse 2 (Simon 05.11.): charge 12 → 30 %, crater 10 → 15 %, the trample (20 %), the debris
+     * (10 %), the double charge below half.</p>
      */
     static final class RamTitan extends BossBrains.Brain {
         private static final Identifier RAGE = Identifier.fromNamespaceAndPath("nightsiege", "boss_ram_rage");
-        static final double CHARGE_SHARE = 12.0;
-        static final double CRATER_SHARE = 10.0;
+        static final double CHARGE_SHARE = 30.0;
+        static final double CRATER_SHARE = 15.0;
+        static final double TRAMPLE_SHARE = 20.0;
+        static final double DEBRIS_SHARE = 10.0;
         /** Most blocks one charge breaks. */
         static final int MAX_BREAK = 30;
+        /** Most pieces of debris one charge throws. */
+        static final int MAX_DEBRIS = 5;
+        /** How long a defender has to stand behind it before it tramples (ticks). */
+        static final int TRAMPLE_AFTER = 40;
+        static final double TRAMPLE_RANGE = 4.5;
+
+        /** A block the titan broke, flying on. */
+        static final class Debris {
+            Vec3 pos;
+            Vec3 vel;
+            final BlockState state;
+            int life;
+            final Set<UUID> hit = new HashSet<>();
+
+            Debris(Vec3 pos, Vec3 vel, BlockState state) {
+                this.pos = pos;
+                this.vel = vel;
+                this.state = state;
+            }
+        }
+
         long nextCharge;
         long windupUntil;
         long chargeUntil;
         Vec3 chargeDir;
         int broken;
+        int thrown;
         final Set<UUID> hitThisCharge = new HashSet<>();
         boolean enraged;
+        boolean secondCharge;
+        int behindTicks;
+        long nextTrample;
+        final List<Debris> debris = new ArrayList<>();
+        int charges;
+        int tramples;
+        int debrisHits;
 
         RamTitan(BossService service, BossKind kind) {
             super(service, kind);
@@ -773,9 +1232,23 @@ final class ContentBosses {
             return enraged ? "nightsiege.boss.phase.rage" : null;
         }
 
+        /** For the tests: charges, tramples and debris hits so far. */
+        int charges() {
+            return charges;
+        }
+
+        int tramples() {
+            return tramples;
+        }
+
+        int debrisHits() {
+            return debrisHits;
+        }
+
         @Override
         void tick(BossService.Host host, Mob beast, long now) {
             ServerLevel level = host.world();
+            tickDebris(host, beast);
             if (!enraged && below(beast, 0.5)) {
                 enraged = true;
                 AttributeInstance speed = beast.getAttribute(Attributes.MOVEMENT_SPEED);
@@ -799,15 +1272,28 @@ final class ContentBosses {
                     windupUntil = 0;
                     chargeUntil = now + 40;
                     broken = 0;
+                    thrown = 0;
                     hitThisCharge.clear();
+                    charges++;
                     BossService.sound(level, beast.position(), SoundEvents.RAVAGER_STEP, 2.0f, 0.5f);
                 }
+                return;
+            }
+            if (tickTrample(host, beast, now)) {
                 return;
             }
             if (now < nextCharge || !beast.onGround()) {
                 return;
             }
-            // The defender to run at: in reach, walls or not (it runs through them).
+            if (startCharge(host, beast, now, 30)) {
+                nextCharge = now + (enraged ? 150 : 220);
+            } else {
+                nextCharge = now + 20;
+            }
+        }
+
+        /** Turns towards the defender to run at (in reach, walls or not) and winds up. False when none is there. */
+        private boolean startCharge(BossService.Host host, Mob beast, long now, int windup) {
             ServerPlayer target = null;
             double best = 26.0 * 26.0;
             for (ServerPlayer p : host.defenders()) {
@@ -818,21 +1304,57 @@ final class ContentBosses {
                 }
             }
             if (target == null) {
-                nextCharge = now + 20;
-                return;
+                return false;
             }
             Vec3 dir = target.position().subtract(beast.position()).multiply(1, 0, 1);
             if (dir.lengthSqr() < 1.0e-4) {
-                return;
+                return false;
             }
             chargeDir = dir.normalize();
             float yaw = (float) (Math.atan2(chargeDir.z, chargeDir.x) * 180.0 / Math.PI) - 90f;
             beast.setYRot(yaw);
             beast.yBodyRot = yaw;
             beast.setYHeadRot(yaw);
-            windupUntil = now + 30;
-            nextCharge = now + (enraged ? 150 : 220);
-            BossService.sound(level, beast.position(), SoundEvents.RAVAGER_ROAR, 2.0f, 0.7f);
+            windupUntil = now + windup;
+            BossService.sound(host.world(), beast.position(), SoundEvents.RAVAGER_ROAR, 2.0f, 0.7f);
+            return true;
+        }
+
+        /**
+         * The trample (Bosse 2): whoever stands behind it for two seconds is kicked (20 %, far away).
+         * True when it kicked this tick.
+         */
+        private boolean tickTrample(BossService.Host host, Mob beast, long now) {
+            if (now % 5 != 0) {
+                return false;
+            }
+            double yaw = Math.toRadians(beast.yBodyRot);
+            Vec3 forward = new Vec3(-Math.sin(yaw), 0, Math.cos(yaw));
+            List<ServerPlayer> behind = new ArrayList<>();
+            for (ServerPlayer p : around(host, beast.position(), TRAMPLE_RANGE + beast.getBbWidth() * 0.5)) {
+                Vec3 to = p.position().subtract(beast.position()).multiply(1, 0, 1);
+                if (to.lengthSqr() > 1.0e-4 && to.normalize().dot(forward) < -0.2) {
+                    behind.add(p);
+                }
+            }
+            behindTicks = behind.isEmpty() ? 0 : behindTicks + 5;
+            if (behindTicks < TRAMPLE_AFTER || now < nextTrample) {
+                return false;
+            }
+            ServerLevel level = host.world();
+            behindTicks = 0;
+            nextTrample = now + 80;
+            tramples++;
+            float damage = BossService.abilityDamage(host, kind, 6.0);
+            for (ServerPlayer p : behind) {
+                BossService.strike(host, level, beast, p, damage, TRAMPLE_SHARE);
+                BossService.knock(p, beast.position(), 1.6, 0.6);
+            }
+            Vec3 back = beast.position().subtract(forward.scale(beast.getBbWidth() * 0.6));
+            level.sendParticles(ParticleTypes.CLOUD, back.x, back.y + 0.3, back.z, 20, 1.0, 0.2, 1.0, 0.05);
+            BossService.sound(level, back, SoundEvents.RAVAGER_ATTACK, 2.0f, 0.5f);
+            BossService.sound(level, back, SoundEvents.MACE_SMASH_GROUND, 1.4f, 0.7f);
+            return true;
         }
 
         private void tickCharge(BossService.Host host, Mob beast, long now) {
@@ -861,10 +1383,16 @@ final class ContentBosses {
             if (now >= chargeUntil) {
                 chargeUntil = 0;
                 crater(host, beast);
+                // Raging: straight into a second charge (Bosse 2).
+                if (enraged && !secondCharge && startCharge(host, beast, now, 10)) {
+                    secondCharge = true;
+                } else {
+                    secondCharge = false;
+                }
             }
         }
 
-        /** Breaks the blocks of the wall right in front of the titan (3 wide, up to its shoulders). */
+        /** Breaks the blocks of the wall right in front of the titan (3 wide, up to its shoulders); some fly on. */
         private void ram(BossService.Host host, Mob beast) {
             ServerLevel level = host.world();
             if (!NightDamage.recording(level)) {
@@ -879,14 +1407,52 @@ final class ContentBosses {
                 for (int dy = 0; dy < height && broken < MAX_BREAK; dy++) {
                     BlockPos at = BlockPos.containing(front.x + side.x * i, beast.getY() + dy + 0.1, front.z + side.z * i);
                     if (breakable(level, at, host)) {
+                        BlockState state = level.getBlockState(at);
                         NightDamage.asAttacker(() -> level.destroyBlock(at, false));   // the night's: back after it (31.10.)
                         broken++;
                         any = true;
+                        if (thrown < MAX_DEBRIS && debris.size() < 12 && (i == 0 || host.random().nextInt(3) == 0)) {
+                            thrown++;
+                            Vec3 spread = side.scale((host.random().nextDouble() - 0.5) * 0.3);
+                            debris.add(new Debris(Vec3.atCenterOf(at), chargeDir.scale(0.9).add(spread).add(0, 0.3, 0), state));
+                        }
                     }
                 }
             }
             if (any) {
                 BossService.sound(level, front, SoundEvents.ZOMBIE_BREAK_WOODEN_DOOR, 1.6f, 0.6f);
+            }
+        }
+
+        /** The debris flies on, falls, and hits whoever is in its way (10 %). */
+        private void tickDebris(BossService.Host host, Mob beast) {
+            if (debris.isEmpty()) {
+                return;
+            }
+            ServerLevel level = host.world();
+            float damage = BossService.abilityDamage(host, kind, 4.0);
+            Iterator<Debris> it = debris.iterator();
+            while (it.hasNext()) {
+                Debris d = it.next();
+                d.pos = d.pos.add(d.vel);
+                d.vel = d.vel.add(0, -0.06, 0);
+                d.life++;
+                level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, d.state), d.pos.x, d.pos.y, d.pos.z, 4, 0.2, 0.2, 0.2, 0.0);
+                AABB box = new AABB(d.pos.x - 0.7, d.pos.y - 0.7, d.pos.z - 0.7, d.pos.x + 0.7, d.pos.y + 0.7, d.pos.z + 0.7);
+                for (ServerPlayer p : host.defenders()) {
+                    if (box.intersects(p.getBoundingBox()) && d.hit.add(p.getUUID())) {
+                        BossService.strike(host, level, beast, p, damage, DEBRIS_SHARE);
+                        p.push(d.vel.x * 0.8, 0.3, d.vel.z * 0.8);
+                        p.hurtMarked = true;
+                        debrisHits++;
+                    }
+                }
+                BlockPos at = BlockPos.containing(d.pos);
+                boolean solid = !level.getBlockState(at).getCollisionShape(level, at).isEmpty();
+                if (d.life > 25 || (solid && d.life > 2)) {
+                    level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, d.state), d.pos.x, d.pos.y, d.pos.z, 12, 0.3, 0.3, 0.3, 0.1);
+                    it.remove();
+                }
             }
         }
 
@@ -927,6 +1493,16 @@ final class ContentBosses {
                     }
                 }
             }
+        }
+
+        @Override
+        void died(ServerLevel level) {
+            debris.clear();
+        }
+
+        @Override
+        void cleanUp(ServerLevel level) {
+            debris.clear();
         }
     }
 }

@@ -162,6 +162,8 @@ public final class SiegeManager {
     private com.mki.nightsiege.core.BossPlan.NightKind testKind;
     /** A dungeon warden at the end of a normal night (Simon, 29 October 2026: 20 %). */
     private final WardenNight warden = new WardenNight();
+    /** The boss's guard (Bosse 2, Simon 05.11.): two dungeon wardens beside the boss of a boss night. */
+    private final List<WardenNight> bossGuards = new ArrayList<>();
     /** The warden a test night brings (set by /nightsiege test <level> waechter, taken at its start). */
     private com.mki.nightsiege.core.ExpeditionKind testWarden;
     /** The war camp before a siege and the siege machines of the night after it (27 October 2026). */
@@ -2395,6 +2397,7 @@ public final class SiegeManager {
         // The boss night's finale: the boss and a last big wave; after that no more waves.
         if (!warRound && bosses.planned() && !bosses.spawned() && ticksLeft <= bossFinaleTicks() && world.getGameTime() % 20 == 0) {
             if (bosses.spawn(bossHost)) {
+                spawnBossGuards(server);   // before the last wave: they come even when the field is full
                 spawnBatch(server, config.bossFinaleWave);
             }
         }
@@ -2427,6 +2430,11 @@ public final class SiegeManager {
             }
         });
         safe("Wächter", () -> warden.tick(bossHost, world.getGameTime()));
+        safe("Leibwache", () -> {
+            for (WardenNight g : bossGuards) {
+                g.tick(bossHost, world.getGameTime());
+            }
+        });
         safe("Maschinen", () -> machines.tick(bossHost, config, world.getGameTime()));
         if (bossVictoryAt > 0 && world.getGameTime() >= bossVictoryAt) {
             finish(server, true);
@@ -3092,6 +3100,22 @@ public final class SiegeManager {
             liveMobs.add(mob.getUUID());
             spawnedTotal++;
             goalUp = Component.translatable("nightsiege.bar.goal_extra");
+            aimAtDefender(world.getServer(), mob);
+            return mob;
+        }
+
+        @Override
+        public Mob spawnGuard(String entityId, BlockPos spot) {
+            // The boss's guard (Bosse 2): it comes even when the field is full.
+            if (world == null || MobFactory.isUnavailable(entityId)) {
+                return null;
+            }
+            Mob mob = MobFactory.spawnAt(world, spot, entityId, siegeLevel, config, random, currentEvent, false);
+            if (mob == null) {
+                return null;
+            }
+            liveMobs.add(mob.getUUID());
+            spawnedTotal++;
             aimAtDefender(world.getServer(), mob);
             return mob;
         }
@@ -3941,6 +3965,7 @@ public final class SiegeManager {
             bossLabel = "waechter_" + wardenKind.id();
         }
         warden.reset(server);
+        resetBossGuards(server);
         machines.reset(server);
         bossVictoryAt = -1L;
         safe("Nemesis", () -> nemesis.endNight(nemesisHost));
@@ -4101,6 +4126,7 @@ public final class SiegeManager {
         bosses.reset(server);
         resetFinale(server);
         warden.reset(server);
+        resetBossGuards(server);
         machines.reset(server);
         bossVictoryAt = -1L;
         safe("Nemesis", () -> nemesis.endNight(nemesisHost));
@@ -4547,6 +4573,14 @@ public final class SiegeManager {
         if (active && entity instanceof Mob wardenMob && world != null && warden.onDeath(wardenMob, source) && bossVictoryAt < 0) {
             onWardenDown(world.getServer());
         }
+        if (active && entity instanceof Mob guardMob && world != null) {
+            for (WardenNight g : bossGuards) {
+                if (g.onDeath(guardMob, source)) {
+                    broadcast(world.getServer(), Component.translatable("nightsiege.boss.guard_down", WardenNight.name(g.kind()))
+                            .withStyle(ChatFormatting.GOLD));
+                }
+            }
+        }
         if (active && entity instanceof Mob mob && BossService.isBossOrPart(mob)) {
             if (bosses.onDeath(mob, source) && world != null && bossVictoryAt < 0) {
                 onBossDown(world.getServer(), mob);
@@ -4610,7 +4644,12 @@ public final class SiegeManager {
             return;
         }
         bossVictoryAt = world.getGameTime() + 60L;
+        boolean guardsLeft = bossGuards.stream().anyMatch(g -> g.spawned() && !g.fallen());
         routMonsters();
+        resetBossGuards(server);   // the boss is down: his guard flees with the others
+        if (guardsLeft) {
+            broadcast(server, Component.translatable("nightsiege.boss.guards_flee").withStyle(ChatFormatting.GRAY));
+        }
         UUID killer = bosses.killer();
         ServerPlayer hero = killer == null ? null : server.getPlayerList().getPlayer(killer);
         broadcast(server, Component.translatable(hero != null ? "nightsiege.msg.boss_down_by" : "nightsiege.msg.boss_down",
@@ -4626,6 +4665,48 @@ public final class SiegeManager {
         ServerPlayer hero = killer == null ? null : server.getPlayerList().getPlayer(killer);
         broadcast(server, Component.translatable(hero != null ? "nightsiege.warden.down_by" : "nightsiege.warden.down",
                 WardenNight.name(warden.kind()), hero == null ? "" : hero.getScoreboardName()).withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD));
+    }
+
+    /**
+     * The boss's guard (Bosse 2, Simon 05.11.): the two dungeon wardens that belong to the boss, with
+     * half a warden's life (bossGuardLife), beside it. Only in a boss night (a playtest's too), not in
+     * the Vierer- or Doppel-Bossnacht.
+     */
+    private void spawnBossGuards(MinecraftServer server) {
+        resetBossGuards(server);
+        com.mki.nightsiege.core.BossKind kind = bosses.kind();
+        Mob boss = bosses.boss(world);
+        if (!config.bossGuards || finaleNight || lateNight || kind == null || boss == null) {
+            return;
+        }
+        List<Component> names = new ArrayList<>();
+        int index = 0;
+        for (com.mki.nightsiege.core.ExpeditionKind k : kind.guards()) {
+            WardenNight g = new WardenNight();
+            g.plan(k);
+            if (g.spawnGuard(bossHost, boss.blockPosition(), config.bossGuardLife, index++)) {
+                bossGuards.add(g);
+                names.add(WardenNight.name(k));
+            }
+        }
+        NightSiegeMod.LOGGER.info("[Night Siege] Leibwache von {}: {}", kind.id(),
+                bossGuards.stream().map(g -> g.kind().id()).toList());
+        if (names.size() == 2) {
+            broadcast(server, Component.translatable("nightsiege.boss.guards_come",
+                    Component.translatable("nightsiege.boss." + kind.id()), names.get(0), names.get(1)).withStyle(ChatFormatting.RED));
+        }
+    }
+
+    private void resetBossGuards(MinecraftServer server) {
+        for (WardenNight g : bossGuards) {
+            g.reset(server);
+        }
+        bossGuards.clear();
+    }
+
+    /** For the tests: the boss's guard of tonight. */
+    public List<WardenNight> bossGuardsForTest() {
+        return bossGuards;
     }
 
     /** The monsters still standing flee in a puff of smoke. */
