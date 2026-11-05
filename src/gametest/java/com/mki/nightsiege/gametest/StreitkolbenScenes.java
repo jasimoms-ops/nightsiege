@@ -394,6 +394,7 @@ final class StreitkolbenScenes {
             if (husk == null) {
                 return;
             }
+            husk.removeAllEffects();   // the perfect block above weakened it (Weakness II): its blow would do nothing
             player.invulnerableTime = 0;
             float life = player.getHealth() + player.getAbsorptionAmount();
             husk.doHurtTarget(level, player);
