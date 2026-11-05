@@ -96,6 +96,16 @@ public class SiegeSave {
      */
     public Map<String, Map<String, Map<String, Integer>>> kitLayouts = new HashMap<>();
     /**
+     * The kit page (update 6, Simon 4 November 2026): player → class → the crate gains whose items come
+     * into the hotbar tonight. A class without an entry takes them on its own (rarest first, as many as
+     * fit the free hotbar places).
+     */
+    public Map<String, Map<String, List<String>>> kitCrateChoice = new HashMap<>();
+    /** Class banners (update 6): player → class → the day the last one was fetched (one a day). */
+    public Map<String, Map<String, Long>> bannerDays = new HashMap<>();
+    /** Class banners waiting for their player (the kit was on, or they were dead): player → classes. */
+    public Map<String, List<String>> pendingBanners = new HashMap<>();
+    /**
      * Reward crates waiting for their player, by player uuid: "CLASS|KIND|LEVEL" each. Won while
      * offline, or while the night kit is on (Simon 31.10.: crates never go into the kit inventory).
      */

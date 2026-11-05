@@ -110,6 +110,9 @@ public class NightSiegeClient implements ClientModInitializer {
                                 NightStatsScreen.queue(stats);
                             }
                         }
+                    } else if ("kit".equals(payload.kind())) {
+                        // The kit page (update 6): the core window's tab draws it.
+                        KitPages.receive(Json.fromJson(payload.json(), com.mki.nightsiege.core.KitPageView.class));
                     } else if ("hall".equals(payload.kind())) {
                         // The Ruhmeshalle (31 October 2026): the core window's tab draws it.
                         HallPages.receive(Json.fromJson(payload.json(), com.mki.nightsiege.core.HallView.class));

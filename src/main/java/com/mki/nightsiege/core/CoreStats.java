@@ -287,6 +287,8 @@ public class CoreStats {
         public String way = "";
         public int spent;
         public int total;
+        /** The class banner was fetched today already (update 6: one a Minecraft day). */
+        public boolean bannerToday;
     }
     public List<ClassLine> classLines = new ArrayList<>();
     /** Crate gains per class: gain id to stage. */
