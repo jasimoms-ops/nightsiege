@@ -1587,9 +1587,11 @@ public class EventLookTest implements FabricClientGameTest {
         System.out.println("[Night Siege test] ladder cases: " + passed + "/" + n + " PASS");
         onServer(context, (player, manager) -> {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
-            for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+            java.util.List<net.minecraft.world.entity.Entity> all = new java.util.ArrayList<>();
+            level.getAllEntities().forEach(all::add);
+            for (net.minecraft.world.entity.Entity e : all) {
                 for (String name : names) {
-                    if (e.entityTags().contains("ns_lc_" + name)) {
+                    if (e != null && !e.isRemoved() && e.entityTags().contains("ns_lc_" + name)) {
                         e.discard();
                     }
                 }
