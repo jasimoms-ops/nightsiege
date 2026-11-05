@@ -233,56 +233,72 @@ public class EventLookTest implements FabricClientGameTest {
             }
 
             if (!shaderRun) {
-                bossScene(context, game);
-                wardenScene(context, game);   // the eight dungeon wardens in their looks, and a warden night
-                guardScene(context, game);   // the dungeon guards in their warden's look
-                series(context, game, "event");
-                mobLineup(context, game);
-                context.runOnClient(client -> EventAtmosphere.setClient("", 1));
-                context.waitTicks(30);
-                context.takeScreenshot("event_99_night_normal");
-                warriorWindow(context, game);
-                doomScene(context);
-                baseScene(context, game);
-                inviteScene(context, game);
-                coreTreeScene(context);
-                armorScene(context, game);
-                kitWeaponScene(context, game);
-                guardianScene(context);
-                engineerScene(context);
-                ladderScene(context, game);
-                ladderTargetScene(context, game, true);
-                innerLadderScene(context, game);
-                ladderOverhangScene(context, game);
-                ladderCasesScene(context, game);   // block beside a ladder, ladder above the ground (28 October 2026)
-                nightHoldScene(context, game);
-                besiegerScene(context, game);   // again since 27 October 2026: more sappers, craters, free ladder ways
-                campScene(context, game);
-                machineScene(context, game);
-                foeScene(context, game);   // the new attackers of update 1 (27 October 2026)
-                raidScene(context, game);   // the raid's plan (27 October 2026)
-                curseScene(context, game);   // update 2 "Fluch & Rache" (28 October 2026)
-                dungeonScene(context, game);   // the own dungeons (dungeon update, 27 October 2026)
-                statsScene(context, game);   // the statistics logger (28 October 2026), after the camp and the dungeons
-                percentScene(context, game);   // bosses and machines take a share of the max health (28 October 2026)
-                overhangScene(context, game);   // spiders swing over an overhang
-                com.mki.nightsiege.game.TrapService.mortarsAnyTime = true;   // the scenes below test by day
-                mortarScene(context, game);
-                mannedScene(context, game);
-                alchemistScene(context, game);
-                techScene(context, game);   // grenade, blast jump, towers vs champions, three potions, field towers
-                spotterScene(context, game);
-                droneScene(context, game);
-                nightStatsScene(context);
-                // ladderTargetScene and towerScene are done (ladders fine, towers 2 volleys); kept for later checks.
-                // besiegerScene is done (ladders up, one hole per side); kept for later checks.
-                summonerScene(context, game);
-                soulcatcherScene(context, game);   // souls in the dungeon, the spells without G (28 October 2026)
-                kitHudScene(context, game);   // the kit HUD (28 October 2026)
-                playtestScene(context, game);   // the playtest (28 October 2026): plan, four steps, all back
-                versionBScene(context, game);
-                versionB2Scene(context, game);
-                classUiScene(context, game);
+                // Since 05.11. the full run goes in four parts on four runners (NIGHTSIEGE_FULLPART 1-4, CI);
+                // without it all four one after the other, as before. Scenes that build on each other stay together.
+                String partEnv = System.getenv("NIGHTSIEGE_FULLPART");
+                java.util.function.IntPredicate part = n -> partEnv == null || partEnv.isBlank() || partEnv.trim().equals(String.valueOf(n));
+                if (part.test(1)) {
+                    System.out.println("[Night Siege test] full part 1");
+                    bossScene(context, game);
+                    wardenScene(context, game);   // the eight dungeon wardens in their looks, and a warden night
+                    guardScene(context, game);   // the dungeon guards in their warden's look
+                    series(context, game, "event");
+                    mobLineup(context, game);
+                    context.runOnClient(client -> EventAtmosphere.setClient("", 1));
+                    context.waitTicks(30);
+                    context.takeScreenshot("event_99_night_normal");
+                    warriorWindow(context, game);
+                    doomScene(context);
+                    baseScene(context, game);
+                    inviteScene(context, game);
+                    coreTreeScene(context);
+                    armorScene(context, game);
+                    kitWeaponScene(context, game);
+                    guardianScene(context);
+                    engineerScene(context);
+                }
+                if (part.test(2)) {
+                    System.out.println("[Night Siege test] full part 2");
+                    ladderScene(context, game);
+                    ladderTargetScene(context, game, true);
+                    innerLadderScene(context, game);
+                    ladderOverhangScene(context, game);
+                    ladderCasesScene(context, game);   // block beside a ladder, ladder above the ground (28 October 2026)
+                    nightHoldScene(context, game);
+                    besiegerScene(context, game);   // again since 27 October 2026: more sappers, craters, free ladder ways
+                    machineScene(context, game);
+                    foeScene(context, game);   // the new attackers of update 1 (27 October 2026)
+                    raidScene(context, game);   // the raid's plan (27 October 2026)
+                    curseScene(context, game);   // update 2 "Fluch & Rache" (28 October 2026)
+                }
+                if (part.test(3)) {
+                    System.out.println("[Night Siege test] full part 3");
+                    campScene(context, game);
+                    dungeonScene(context, game);   // the own dungeons (dungeon update, 27 October 2026)
+                    statsScene(context, game);   // the statistics logger (28 October 2026), after the camp and the dungeons
+                    percentScene(context, game);   // bosses and machines take a share of the max health (28 October 2026)
+                    overhangScene(context, game);   // spiders swing over an overhang
+                }
+                if (part.test(4)) {
+                    System.out.println("[Night Siege test] full part 4");
+                    com.mki.nightsiege.game.TrapService.mortarsAnyTime = true;   // the scenes below test by day
+                    mortarScene(context, game);
+                    mannedScene(context, game);
+                    alchemistScene(context, game);
+                    techScene(context, game);   // grenade, blast jump, towers vs champions, three potions, field towers
+                    spotterScene(context, game);
+                    droneScene(context, game);
+                    nightStatsScene(context);
+                    // ladderTargetScene and towerScene are done (ladders fine, towers 2 volleys); kept for later checks.
+                    // besiegerScene is done (ladders up, one hole per side); kept for later checks.
+                    summonerScene(context, game);
+                    soulcatcherScene(context, game);   // souls in the dungeon, the spells without G (28 October 2026)
+                    kitHudScene(context, game);   // the kit HUD (28 October 2026)
+                    playtestScene(context, game);   // the playtest (28 October 2026): plan, four steps, all back
+                    versionBScene(context, game);
+                    versionB2Scene(context, game);
+                    classUiScene(context, game);
+                }
                 return;
             }
 

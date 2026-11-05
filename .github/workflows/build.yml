@@ -13,13 +13,74 @@ on:
         description: 'Nur diese Client-Szenen (z. B. "camp,machines"), ohne Server-Probelauf und Shader'
         type: string
         default: ''
+      api:
+        description: 'Auch den API-Auszug (javap) und vanilla.zip schreiben'
+        type: boolean
+        default: false
+      together:
+        description: 'Alle Szenen nacheinander in einem Spiel (wie vor dem 05.11.) statt parallel'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
 
 jobs:
-  build:
+  # Since 05.11. (Simon: "bekommen wir das hin das diese test nicht immer ewig dauern?") the work is split:
+  # every scene (or a small package of them) runs on a runner of its own, the full run in four parts plus
+  # the shader run and the server start side by side; "collect" puts the results into one dist branch.
+  plan:
     runs-on: ubuntu-latest
+    outputs:
+      groups: ${{ steps.p.outputs.groups }}
+      slug: ${{ steps.p.outputs.slug }}
+    steps:
+      - id: p
+        env:
+          SCENES: ${{ inputs.scenes }}
+          QUICK: ${{ inputs.quick }}
+          TOGETHER: ${{ inputs.together }}
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          python3 - <<'PY'
+          import json, math, os, re
+          msg = os.environ.get("COMMIT_MSG") or ""
+          scenes = (os.environ.get("SCENES") or "").strip()
+          m = re.search(r"\[scenes ([^\]]*)\]", msg)
+          if not scenes and m:
+              scenes = m.group(1).strip()
+          quick = os.environ.get("QUICK") == "true" or "[quick]" in msg
+          together = os.environ.get("TOGETHER") == "true" or "[together]" in msg
+          if quick:
+              groups = ["quick"]
+          elif "[sim" in msg:
+              groups = ["sim"]
+          elif scenes:
+              names = [x for x in scenes.lower().replace(" ", "").split(",") if x]
+              if together or len(names) <= 1:
+                  groups = ["s:" + ",".join(names)]
+              else:
+                  jobs = min(len(names), 6)
+                  size = math.ceil(len(names) / jobs)
+                  groups = ["s:" + ",".join(names[i:i + size]) for i in range(0, len(names), size)]
+          else:
+              groups = ["server", "full:1", "full:2", "full:3", "full:4"]
+              if "[noshader]" not in msg:
+                  groups.append("shader")
+          slug = re.sub(r"-+", "-", re.sub(r"[^a-z0-9]", "-", scenes.lower())).strip("-")[:40] if scenes else ""
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              out.write("groups=%s\n" % json.dumps(groups))
+              out.write("slug=%s\n" % slug)
+          print("::notice title=PLAN::%s" % " | ".join(groups))
+          PY
+
+  build:
+    needs: plan
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        group: ${{ fromJson(needs.plan.outputs.groups) }}
     steps:
       - uses: actions/checkout@v4
 
@@ -61,6 +122,7 @@ jobs:
       # Fuer den Shader-Test: Iris, Sodium und ein fremdes Shader-Pack von Modrinth
       # (das eigene Night-Siege-Pack legt die Mod selbst in den shaderpacks-Ordner).
       - name: Shader-Testmaterial laden
+        if: matrix.group == 'shader'
         continue-on-error: true
         run: |
           python3 - <<'PY'
@@ -110,7 +172,7 @@ jobs:
       # Signaturen ausgewaehlter Minecraft-Klassen (javap) fuer die Entwicklung:
       # die Entwicklungsumgebung hat keine Minecraft-Quellen.
       - name: API-Auszug
-        if: always()
+        if: always() && (inputs.api || matrix.group == 'quick' || matrix.group == 'server')
         continue-on-error: true
         run: |
           python3 - <<'PY'
@@ -232,7 +294,7 @@ jobs:
       # Registrierung, Rezepte, Tags, Weltgenerierung. Nach einigen Minuten
       # wird der Server einfach beendet.
       - name: Server-Probelauf
-        if: steps.build.outcome == 'success' && !inputs.quick && inputs.scenes == '' && !contains(github.event.head_commit.message, '[quick]') && !contains(github.event.head_commit.message, '[scenes')
+        if: steps.build.outcome == 'success' && matrix.group == 'server'
         continue-on-error: true
         run: |
           mkdir -p run
@@ -263,22 +325,23 @@ jobs:
       # eine Welt, prueft alle Mixins und fotografiert jedes Ereignis. Die Bilder
       # wandern mit der Jar in den dist-Branch.
       - name: Client-Test
-        if: steps.build.outcome == 'success' && !inputs.quick && !contains(github.event.head_commit.message, '[quick]')
+        if: steps.build.outcome == 'success' && matrix.group != 'quick' && matrix.group != 'server'
         continue-on-error: true
         env:
           COMMIT_MSG: ${{ github.event.head_commit.message }}
-          NIGHTSIEGE_SCENES: ${{ inputs.scenes }}
+          GROUP: ${{ matrix.group }}
         run: |
           set +e
+          # The group of this runner (plan job): "s:a,b" these scenes, "full:N" part N of the full run,
+          # "shader" only the shader run, "sim" the melee simulation of the commit message.
+          case "$GROUP" in
+            s:*) export NIGHTSIEGE_SCENES="${GROUP#s:}" ;;
+            full:*) export NIGHTSIEGE_FULLPART="${GROUP#full:}" ;;
+          esac
           sudo apt-get update -qq > /dev/null
           sudo apt-get install -y -qq xvfb libgl1-mesa-dri > /dev/null
           export LIBGL_ALWAYS_SOFTWARE=1
           CLIENT_TIMEOUT=3600
-          # [scenes a,b] in the commit message: only these client scenes (like the scenes input).
-          if [[ -z "$NIGHTSIEGE_SCENES" && "$COMMIT_MSG" == *"[scenes "* ]]; then
-            export NIGHTSIEGE_SCENES=$(printf '%s' "$COMMIT_MSG" | grep -o '\[scenes [^]]*\]' | head -1 | sed 's/^\[scenes //; s/\]$//')
-            echo "Szenen aus der Commit-Nachricht: $NIGHTSIEGE_SCENES"
-          fi
           # [sim] in the commit message: only the melee balance simulation, with more time.
           if [[ "$COMMIT_MSG" == *"[sim"* ]]; then
             SIMARG=$(printf '%s' "$COMMIT_MSG" | grep -o '\[sim[^]]*\]' | head -1 | sed 's/^\[sim//; s/\]$//')
@@ -286,17 +349,19 @@ jobs:
             CLIENT_TIMEOUT=12000
           fi
           # Shortly before the time is up: a thread dump of the game (shows where a hang sits).
-          ( sleep $((CLIENT_TIMEOUT - 60)); for p in $(pgrep -f "KnotClient|net.fabricmc.devlaunchinjector" || true); do echo "THREADDUMP $p" >> client-threads.txt; jstack "$p" >> client-threads.txt 2>&1 || true; done ) &
-          DUMPER=$!
-          timeout $CLIENT_TIMEOUT xvfb-run -a -s "-screen 0 1280x720x24" gradle runClientGameTest --no-daemon --stacktrace > client-output.txt 2>&1
-          echo "exit=$?" >> client-output.txt
-          kill $DUMPER 2>/dev/null || true
-          if [ -f client-threads.txt ]; then grep -A40 '"Server thread"\|"Render thread"\|"Test thread' client-threads.txt >> client-output.txt || true; fi
-          cp client-output.txt client-main-output.txt
           mkdir -p shots
-          find . -path ./shots -prune -o -name "*.png" -path "*screenshot*" -newer build.gradle -print | while read f; do cp "$f" shots/; done
-          # Zweiter Lauf mit Iris und Sodium: zuerst das eigene Pack, dann ein fremdes
-          if ls run-mods/*.jar > /dev/null 2>&1 && [[ "$COMMIT_MSG" != *"[noshader]"* ]] && [[ -z "$NIGHTSIEGE_SCENES" ]]; then
+          if [ "$GROUP" != "shader" ]; then
+            ( sleep $((CLIENT_TIMEOUT - 60)); for p in $(pgrep -f "KnotClient|net.fabricmc.devlaunchinjector" || true); do echo "THREADDUMP $p" >> client-threads.txt; jstack "$p" >> client-threads.txt 2>&1 || true; done ) &
+            DUMPER=$!
+            timeout $CLIENT_TIMEOUT xvfb-run -a -s "-screen 0 1280x720x24" gradle runClientGameTest --no-daemon --stacktrace > client-output.txt 2>&1
+            echo "exit=$?" >> client-output.txt
+            kill $DUMPER 2>/dev/null || true
+            if [ -f client-threads.txt ]; then grep -A40 '"Server thread"\|"Render thread"\|"Test thread' client-threads.txt >> client-output.txt || true; fi
+            cp client-output.txt client-main-output.txt
+            find . -path ./shots -prune -o -name "*.png" -path "*screenshot*" -newer build.gradle -print | while read f; do cp "$f" shots/; done
+          fi
+          # The shader run (its own runner since 05.11.): Iris and Sodium, first the own pack, then another one
+          if [ "$GROUP" = "shader" ] && ls run-mods/*.jar > /dev/null 2>&1; then
             export NIGHTSIEGE_WITH_IRIS=1
             export NIGHTSIEGE_SHADERPACKS="NightSiege-Photon.zip;$(ls -d $PWD/run-shaderpacks/* 2>/dev/null | tr '\n' ';')"
             timeout 2400 xvfb-run -a -s "-screen 0 1280x720x24" gradle runClientGameTest --no-daemon --stacktrace > client-shader-output.txt 2>&1
@@ -359,7 +424,7 @@ jobs:
           PY
 
       - name: Jar hochladen
-        if: always()
+        if: always() && strategy.job-index == 0
         uses: actions/upload-artifact@v4
         with:
           name: nightsiege-jar
@@ -368,18 +433,23 @@ jobs:
 
       # Artefakte liegen auf einem Speicher, den die Entwicklungsumgebung nicht
       # erreicht. Dateiinhalte aus einem Branch liefert die GitHub-API dagegen
-      # direkt aus, deshalb wandert die fertige Jar in den Branch "dist".
-      - name: Jar im dist-Branch bereitstellen
+      # direkt aus, deshalb wandert die fertige Jar in den Branch "dist". Since 05.11.
+      # every runner hands its part to the job "collect", which pushes one dist branch.
+      - name: Ergebnis dieses Teils sammeln
         if: steps.build.outcome == 'success'
+        env:
+          GROUP: ${{ matrix.group }}
         run: |
           set -e
           JAR=$(ls build/libs/*.jar | grep -v -- '-sources' | head -1)
           echo "gefunden: $JAR"
-          TMP=$(mktemp -d)
+          TMP=part
+          mkdir -p "$TMP/shots"
+          printf '%s' "$GROUP" > "$TMP/group.txt"
+          echo "${{ strategy.job-index }}" > "$TMP/index.txt"
           cp "$JAR" "$TMP/nightsiege.jar"
           cp api.txt "$TMP/api.txt" 2>/dev/null || true
           cp vanilla.zip "$TMP/vanilla.zip" 2>/dev/null || true
-          mkdir -p "$TMP/shots"
           cp shots/*.png "$TMP/shots/" 2>/dev/null || true
           # Haupt-Protokoll des Client-Tests (ohne Mixin-Audit) fuer die Fehlersuche
           if [ -f client-main-output.txt ]; then
@@ -393,42 +463,101 @@ jobs:
           if [ -f client-shader-output.txt ]; then
             grep -v "Force-loading class\|ALSA\|narrator" client-shader-output.txt | tail -c 2000000 > "$TMP/client-shader-log.txt" || true
           fi
-          # Simulation and test-bench lines (and errors) of the client test, for the evaluation
           # The dungeon dump of the scene "dungeondump" (every block of the eight dungeons)
-          DUMP=$(find . -name "nightsiege-dungeon-dump.txt.gz" -newer build.gradle 2>/dev/null | head -1)
+          DUMP=$(find . -name "nightsiege-dungeon-dump.txt.gz" -newer build.gradle -not -path "./part/*" 2>/dev/null | head -1)
           if [ -n "$DUMP" ]; then cp "$DUMP" "$TMP/nightsiege-dungeon-dump.txt.gz"; fi
+          # Simulation and test-bench lines (and errors) of the client test, for the evaluation
           if [ -f client-output.txt ] && grep -q "\[Night Siege sim\]" client-output.txt; then
             grep "\[Night Siege sim\]\|Exception\|Caused by" client-output.txt | tail -c 2000000 > "$TMP/sim-log.txt" || true
           fi
+          # Did the client test pass (first exit line)?
+          if [ -f client-output.txt ]; then grep -m1 -o "exit=[0-9]*" client-output.txt > "$TMP/exit.txt" || true; fi
+
+      - name: Teil weitergeben
+        if: steps.build.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: distpart-${{ strategy.job-index }}
+          path: part
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Ergebnis weiterreichen
+        if: steps.build.outcome == 'failure'
+        run: exit 1
+
+  # One dist branch for the whole run, as before the split: the jar, all pictures, the logs one after
+  # the other (each part under its own heading).
+  collect:
+    needs: [plan, build]
+    if: always() && needs.plan.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: distpart-*
+          path: parts
+
+      - name: Zusammenfuehren und in den dist-Branch
+        env:
+          SLUG: ${{ needs.plan.outputs.slug }}
+        run: |
+          set -e
+          ls parts || { echo "keine Teile"; exit 0; }
+          python3 - <<'PY'
+          import glob, os, shutil
+          parts = []
+          for d in glob.glob("parts/distpart-*"):
+              idx = int(open(os.path.join(d, "index.txt")).read().strip() or 0) if os.path.exists(os.path.join(d, "index.txt")) else 0
+              group = open(os.path.join(d, "group.txt")).read().strip() if os.path.exists(os.path.join(d, "group.txt")) else d
+              parts.append((idx, group, d))
+          parts.sort()
+          out = "out/dist"
+          os.makedirs(out + "/shots", exist_ok=True)
+          for name in ("nightsiege.jar", "api.txt", "vanilla.zip", "nightsiege-dungeon-dump.txt.gz"):
+              for _, _, d in parts:
+                  if os.path.exists(os.path.join(d, name)):
+                      shutil.copy(os.path.join(d, name), os.path.join(out, name))
+                      break
+          for log in ("client-main-log.txt", "client-shader-log.txt", "server-log.txt", "sim-log.txt"):
+              chunks = []
+              for _, group, d in parts:
+                  f = os.path.join(d, log)
+                  if os.path.exists(f):
+                      chunks.append("===== Teil %s =====\n" % group + open(f, encoding="utf-8", errors="replace").read())
+              if chunks:
+                  open(os.path.join(out, log), "w", encoding="utf-8").write("\n".join(chunks))
+          seen = set()
+          for idx, group, d in parts:
+              for f in sorted(glob.glob(os.path.join(d, "shots", "*.png"))):
+                  name = os.path.basename(f)
+                  if name in seen:
+                      name = "t%d_%s" % (idx, name)
+                  seen.add(name)
+                  shutil.copy(f, os.path.join(out, "shots", name))
+          lines = []
+          for idx, group, d in parts:
+              ex = open(os.path.join(d, "exit.txt")).read().strip() if os.path.exists(os.path.join(d, "exit.txt")) else "-"
+              lines.append("%s\t%s" % (group, ex))
+          open(os.path.join(out, "parts.txt"), "w").write("\n".join(lines) + "\n")
+          print("::notice title=TEILE::" + " | ".join(lines))
+          PY
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout --orphan dist-tmp
           git reset --hard
-          mkdir -p dist
-          cp "$TMP/nightsiege.jar" dist/nightsiege.jar
-          git add -f dist/nightsiege.jar
-          if [ -f "$TMP/api.txt" ]; then cp "$TMP/api.txt" dist/; git add -f dist/api.txt; fi
-          if [ -f "$TMP/vanilla.zip" ]; then cp "$TMP/vanilla.zip" dist/; git add -f dist/vanilla.zip; fi
-          if ls "$TMP/shots/"*.png > /dev/null 2>&1; then mkdir -p dist/shots; cp "$TMP/shots/"*.png dist/shots/; git add -f dist/shots; fi
-          if [ -f "$TMP/client-shader-log.txt" ]; then cp "$TMP/client-shader-log.txt" dist/; git add -f dist/client-shader-log.txt; fi
-          if [ -f "$TMP/client-main-log.txt" ]; then cp "$TMP/client-main-log.txt" dist/; git add -f dist/client-main-log.txt; fi
-          if [ -f "$TMP/sim-log.txt" ]; then cp "$TMP/sim-log.txt" dist/; git add -f dist/sim-log.txt; fi
-          if [ -f "$TMP/server-log.txt" ]; then cp "$TMP/server-log.txt" dist/; git add -f dist/server-log.txt; fi
-          if [ -f "$TMP/nightsiege-dungeon-dump.txt.gz" ]; then cp "$TMP/nightsiege-dungeon-dump.txt.gz" dist/; git add -f dist/nightsiege-dungeon-dump.txt.gz; fi
+          rm -rf dist
+          cp -r out/dist dist
+          git add -f dist
           git commit -m "Build von ${GITHUB_SHA}"
           # main fills "dist"; a work branch (version-b, ...) its own "dist-<branch>",
-          # so the jar of main stays untouched until the branch is merged.
+          # and a run of single scenes "dist-<branch>-<scenes>" (04.11.).
           BRANCH="${GITHUB_REF_NAME}"
           if [ "$BRANCH" = "main" ]; then TARGET=dist; else TARGET="dist-${BRANCH}"; fi
-          # Single scenes run side by side on one branch (fix 04.11.): each scene set gets its own dist
-          # branch, so one run does not overwrite another's logs.
-          SCENES="${{ github.event.inputs.scenes }}"
-          if [ -n "$SCENES" ]; then
-            SLUG=$(echo "$SCENES" | tr 'A-Z' 'a-z' | tr -c 'a-z0-9\n' '-' | sed 's/-\+/-/g; s/^-//; s/-$//' | cut -c1-40)
-            TARGET="${TARGET}-${SLUG}"
-          fi
+          if [ -n "$SLUG" ]; then TARGET="${TARGET}-${SLUG}"; fi
           echo "dist-tmp -> $TARGET"
-          # Several runs at once can collide on the push (ref lock): try again a few times.
           for i in 1 2 3 4 5; do
             if git push -f origin dist-tmp:$TARGET; then break; fi
             if [ "$i" = 5 ]; then exit 1; fi
@@ -436,5 +565,5 @@ jobs:
           done
 
       - name: Ergebnis weiterreichen
-        if: steps.build.outcome == 'failure'
+        if: needs.build.result == 'failure'
         run: exit 1
