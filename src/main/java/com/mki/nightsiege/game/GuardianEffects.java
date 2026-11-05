@@ -208,6 +208,7 @@ public final class GuardianEffects {
                 outside *= tuning.damageTakenFactor(hurt);
                 outside *= TankGuard.damageFactor(hurt);   // a bulwark or shield fighter near (Simon 30.10.)
             }
+            outside *= WarriorArts.takenFactor(hurt);   // the berserker's Raserei: more damage taken (Simon 05.11.)
             Companions.ownerHurt(hurt, source.getEntity());   // the golem draws the golemsmith's attackers
             if (source.is(DamageTypeTags.IS_PROJECTILE)) {
                 if (TrapService.shieldBlocks(hurt)) {

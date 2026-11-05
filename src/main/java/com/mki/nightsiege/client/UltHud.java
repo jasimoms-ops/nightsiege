@@ -86,7 +86,8 @@ public final class UltHud {
             fixed.add(new Cell(icon(s.icon), ultKey, s.cooldownTicks, s.totalTicks, false));
         }
         if (s.hasAb2) {
-            fixed.add(new Cell(icon(s.iconAb2), GainClient.orderKey(), s.cooldownAb2Ticks, s.totalAb2Ticks, false));
+            // Grey while it cannot be paid for (the warriors' Kampfgeist, 05.11.); gold once ready.
+            fixed.add(new Cell(icon(s.iconAb2), GainClient.orderKey(), s.cooldownAb2Ticks, s.totalAb2Ticks, false, s.ab2Dim));
         }
         if (s.has2) {
             fixed.add(new Cell(icon(s.icon2), GainClient.secondUltKey(), s.cooldown2Ticks, s.total2Ticks, false));

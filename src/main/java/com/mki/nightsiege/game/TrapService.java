@@ -2201,6 +2201,8 @@ public final class TrapService {
         EngineerEscape.reset();
         WarriorDash.reset();
         ArrowRain.reset();
+        WarriorArts.reset();    // the warriors' F abilities stop with the night (Simon 05.11.)
+        WarriorSpirit.reset();
     }
 
     // ------------------------------------------------------------------

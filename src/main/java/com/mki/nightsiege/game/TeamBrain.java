@@ -434,6 +434,14 @@ final class TeamBrain {
                     ArrowRain.fireAt(player, m, spot);
                 }
             }
+        } else if (clazz == SkillClass.WARRIOR) {
+            // The warriors' F (Simon 05.11.): as soon as the Kampfgeist pays for it and a monster is close;
+            // the finisher comes by itself with every fourth hit.
+            if (focused && now >= nextUlt2 && close != null && WarriorArts.ready(player, now)
+                    && player.distanceTo(close) <= WarriorArts.botReach(subclass)) {
+                nextUlt2 = now + iv(20);
+                m.onCoreAction(player, "ult2");
+            }
         } else if (now >= nextUlt2 && clazz != SkillClass.ENGINEER && clazz != SkillClass.SUMMONER) {
             nextUlt2 = now + iv(100);
             m.onCoreAction(player, "ult2");   // Fähigkeit 2

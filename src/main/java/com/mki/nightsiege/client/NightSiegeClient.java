@@ -79,6 +79,7 @@ public class NightSiegeClient implements ClientModInitializer {
                     DroneClient.clear();
                     NightKeys.setOwned(false);
                     PlaytestScreen.clear();
+                    WarriorHud.clear();
                 });
         ClientPlayNetworking.registerGlobalReceiver(CoreNetworking.ScreenPayload.TYPE,
                 (payload, context) -> context.client().execute(() -> {
@@ -124,6 +125,8 @@ public class NightSiegeClient implements ClientModInitializer {
                         DroneClient.set(payload.json());
                     } else if ("healthview".equals(payload.kind())) {
                         HealthViewClient.set(payload.json());
+                    } else if ("warrior".equals(payload.kind())) {
+                        WarriorHud.set(payload.json());   // Kampfgeist and the combo chain (Simon 05.11.)
                     } else if ("towers".equals(payload.kind())) {
                         // The engineer's tower menu (27 October 2026): opened by the remote, refreshed after a pick.
                         com.mki.nightsiege.core.TowerMenuData data =
@@ -250,6 +253,9 @@ public class NightSiegeClient implements ClientModInitializer {
         ClientTickEvents.START_CLIENT_TICK.register(StaffClient::tick);
         HudElementRegistry.attachElementAfter(VanillaHudElements.HOTBAR, ModContent.id("drone"),
                 (gui, delta) -> DroneClient.draw(gui));
+        // The warrior's combo chain: four dots under the crosshair (Simon 05.11.).
+        HudElementRegistry.attachElementAfter(VanillaHudElements.HOTBAR, ModContent.id("warrior_combo"),
+                (gui, delta) -> WarriorHud.draw(gui));
         // The wheel of Fähigkeit 3 is a HUD layer, so walking goes on while it is open (27 October 2026).
         // The wheel is gone (27 October 2026): the ability bar left of the off hand instead (UltHud).
         // Guardian: a left click while blocking is the shield action. Minecraft drops

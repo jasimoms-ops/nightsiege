@@ -47,6 +47,8 @@ public class UltState {
     /** Translation key of the gauge's name. */
     public String gaugeName = "";
     public int gaugeColor;
+    /** The gauge glows (the warrior's Kampfgeist from 50 on, Simon 05.11.). */
+    public boolean gaugeGlow;
     /** The left wing: the summoner's companions or the engineer's towers, grouped by kind. */
     public java.util.List<Unit> units = new java.util.ArrayList<>();
 
@@ -68,6 +70,8 @@ public class UltState {
     /** F's pause (the archers' arrow rain, Simon 30.10.): ticks left and the whole pause. */
     public int cooldownAb2Ticks;
     public int totalAb2Ticks;
+    /** F cannot be paid for now (the warrior's Kampfgeist is too low): its field stays grey. */
+    public boolean ab2Dim;
 
     /**
      * The ability bar (Simon, 27 October 2026, instead of the wheel): every spell, potion,

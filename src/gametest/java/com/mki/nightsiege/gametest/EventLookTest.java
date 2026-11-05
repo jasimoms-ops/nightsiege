@@ -142,6 +142,9 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("pt2-flow")) {
                     Pt2FlowScenes.run(context, game);   // Playtest 2: scaling, pause, variety, no harm, crates (04.11.)
                 }
+                if (want.contains("krieger")) {
+                    KriegerScenes.run(context, game);   // the warrior rework: Kampfgeist, finishers, F (Simon 05.11.)
+                }
                 if (want.contains("ss2-netz")) {
                     Ss2NetzScenes.run(context, game);   // survival safety 2: packets, profiles, playtest, core rights (31.10.)
                 }
