@@ -53,6 +53,8 @@ public final class LadderClimb {
     private static final int SEARCH = 20;
     /** How far up or down from the monster the foot of a ladder may be. */
     private static final int SEARCH_UP = 4;
+    /** Blocks around a ladder foot the checks may look at: such a column needs its neighbour chunks loaded. */
+    private static final int EDGE = 3;
     /** Off only for the gametest that shows the old behaviour. */
     public static boolean holdGoals = true;
     /** Ticks between two searches of the same monster. */
@@ -805,8 +807,29 @@ public final class LadderClimb {
         java.util.List<BlockPos> feet = new java.util.ArrayList<>();
         java.util.List<Double> scores = new java.util.ArrayList<>();
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+        // Only loaded chunks (load test on the server 07.11.: a monster at the edge of the loaded area made the
+        // search load a chunk in the tick, C2ME threw a ConcurrentModificationException). A column 3 blocks or
+        // less from an unloaded chunk is left out too, the checks around a foot look that far.
+        int minCx = (from.getX() - SEARCH - EDGE) >> 4;
+        int minCz = (from.getZ() - SEARCH - EDGE) >> 4;
+        int spanX = ((from.getX() + SEARCH + EDGE) >> 4) - minCx + 1;
+        int spanZ = ((from.getZ() + SEARCH + EDGE) >> 4) - minCz + 1;
+        boolean[] loaded = new boolean[spanX * spanZ];
+        for (int cx = 0; cx < spanX; cx++) {
+            for (int cz = 0; cz < spanZ; cz++) {
+                loaded[cx * spanZ + cz] = world.hasChunk(minCx + cx, minCz + cz);
+            }
+        }
         for (int dx = -SEARCH; dx <= SEARCH; dx++) {
             for (int dz = -SEARCH; dz <= SEARCH; dz++) {
+                int x = from.getX() + dx;
+                int z = from.getZ() + dz;
+                if (!loaded[(((x - EDGE) >> 4) - minCx) * spanZ + (((z - EDGE) >> 4) - minCz)]
+                        || !loaded[(((x + EDGE) >> 4) - minCx) * spanZ + (((z - EDGE) >> 4) - minCz)]
+                        || !loaded[(((x - EDGE) >> 4) - minCx) * spanZ + (((z + EDGE) >> 4) - minCz)]
+                        || !loaded[(((x + EDGE) >> 4) - minCx) * spanZ + (((z + EDGE) >> 4) - minCz)]) {
+                    continue;
+                }
                 for (int dy = -SEARCH_UP; dy <= SEARCH_UP; dy++) {
                     pos.set(from.getX() + dx, from.getY() + dy, from.getZ() + dz);
                     if (!isClimbable(world.getBlockState(pos)) || isClimbable(world.getBlockState(pos.below()))) {
