@@ -19,6 +19,10 @@ public class NightStatsData {
     public int required;
     public int waves;
     public int seconds;
+    /** The Letzte Bastion (Update 7): the wave the run fell in, 0 for any other night. */
+    public int bastionWave;
+    /** The Letzte Bastion: the waves held (fully beaten). */
+    public int bastionHeld;
     /** Index of the night's best defender in {@link #rows}, or -1. */
     public int mvp = -1;
     public List<Row> rows = new ArrayList<>();

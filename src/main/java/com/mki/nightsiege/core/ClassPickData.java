@@ -69,6 +69,8 @@ public class ClassPickData {
     public int sharpness;
     /** The dungeon's ready round (seal stone): no countdown, the starter may go without the others. */
     public boolean round;
+    /** The fun mode's lent profiles (Update 7): every subclass fully levelled, no gains. */
+    public boolean fun;
     public boolean starter;
     /** Seconds (from opening) until the starter's button works. */
     public int forceIn;

@@ -250,7 +250,7 @@ public class ClassPickScreen extends Screen {
 
     /** The question over the cards: before a night, or for a ready round (camp, dungeon). */
     private String titleKey() {
-        return data.round ? "nightsiege.pick.round_title" : "nightsiege.pick.title";
+        return data.fun ? "nightsiege.pick.fun_title" : data.round ? "nightsiege.pick.round_title" : "nightsiege.pick.title";
     }
 
     private boolean forceReady() {
@@ -306,7 +306,7 @@ public class ClassPickScreen extends Screen {
         String event = data.event == null || data.event.isEmpty() ? ""
                 : Component.translatable("nightsiege.event." + data.event.toLowerCase(Locale.ROOT)).getString()
                 .toUpperCase(Locale.ROOT);
-        String key = data.round ? "nightsiege.pick.round" : data.test ? "nightsiege.pick.test" : "nightsiege.pick.horn";
+        String key = data.fun ? "nightsiege.pick.fun" : data.round ? "nightsiege.pick.round" : data.test ? "nightsiege.pick.test" : "nightsiege.pick.horn";
         String line = Component.translatable(event.isEmpty() ? key : key + "_event", level, event).getString();
         small(gui, font, line, left + 10, top + 8, RED, 0.75f);
         float titleScale = w >= 460 ? 1.3f : 1.1f;

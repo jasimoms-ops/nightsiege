@@ -1471,7 +1471,8 @@ public final class SiegeManager {
         com.mki.nightsiege.core.ClassPickData data = new com.mki.nightsiege.core.ClassPickData();
         data.play = own.chosenClass == null ? "" : own.chosenClass;
         data.seconds = seconds;
-        data.level = config.funModeLoans && inFunRound(player) ? config.funKitLevel : levelForKit();
+        data.fun = config.funModeLoans && inFunRound(player);
+        data.level = data.fun ? config.funKitLevel : levelForKit();
         data.test = pendingTest != null;
         SiegeEvent tonight = pendingTest != null ? pendingTest.event : pendingEvent();
         data.event = tonight == null || tonight == SiegeEvent.NONE ? "" : tonight.name();
@@ -4240,6 +4241,10 @@ public final class SiegeManager {
             nightLog.write(night);
             if (!"abgebrochen".equals(result) && world != null) {
                 com.mki.nightsiege.core.NightStatsData summary = nightLog.summary(night);
+                if (bastionRound) {
+                    summary.bastionWave = Math.max(1, bastion.wave());
+                    summary.bastionHeld = bastion.held();
+                }
                 if (!testRun && !inPlaytest() && nightNumber >= 0) {
                     safe("Rekorde", () -> takeRecords(world.getServer(), summary.held()));
                 }

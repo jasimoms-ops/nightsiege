@@ -260,14 +260,17 @@ public class NightStatsScreen extends Screen {
     private void drawHeader(GuiGraphicsExtractor gui, Font font) {
         String event = data.event == null || data.event.isBlank() || "none".equals(data.event) ? ""
                 : Component.translatable("nightsiege.event." + data.event).getString();
-        String line = Component.translatable(data.test ? "nightsiege.stats.sub_test" : "nightsiege.stats.sub",
+        boolean bastion = data.bastionWave > 0;   // the Letzte Bastion (Update 7): its wave, not "test night"
+        String line = bastion ? Component.translatable("nightsiege.stats.sub_bastion", data.level).getString()
+                : Component.translatable(data.test ? "nightsiege.stats.sub_test" : "nightsiege.stats.sub",
                 data.level).getString() + (event.isEmpty() ? "" : " · " + event);
         small(gui, font, line.toUpperCase(Locale.ROOT), left + 10, top + 8, GREY, 0.75f);
-        String title = Component.translatable("nightsiege.stats.result." + data.result).getString();
+        String title = bastion ? Component.translatable("nightsiege.stats.result.bastion", data.bastionWave, data.bastionHeld).getString()
+                : Component.translatable("nightsiege.stats.result." + data.result).getString();
         gui.pose().pushMatrix();
         gui.pose().translate(left + 10, top + 18);
         gui.pose().scale(1.3f, 1.3f);
-        gui.text(font, title, 0, 0, data.held() ? GREEN : RED, true);
+        gui.text(font, title, 0, 0, bastion ? GOLD : data.held() ? GREEN : RED, true);
         gui.pose().popMatrix();
 
         // Three boxes on the right: kill goal, waves, time.
@@ -278,7 +281,7 @@ public class NightStatsScreen extends Screen {
         box(gui, font, bx, by, bw, Component.translatable("nightsiege.stats.kill_goal").getString(),
                 data.required > 0 ? data.kills + " / " + data.required : String.valueOf(data.kills), goal ? GREEN : RED);
         box(gui, font, bx + bw + 4, by, bw, Component.translatable("nightsiege.stats.waves").getString(),
-                String.valueOf(data.waves), WHITE);
+                String.valueOf(bastion ? data.bastionWave : data.waves), WHITE);
         box(gui, font, bx + 2 * (bw + 4), by, bw, Component.translatable("nightsiege.stats.time").getString(),
                 (data.seconds / 60) + ":" + String.format(Locale.ROOT, "%02d", data.seconds % 60), WHITE);
     }

@@ -183,6 +183,11 @@ public final class Bastion {
         return phase == Phase.ROUND ? wave : 0;
     }
 
+    /** The waves fully held in the running round. */
+    public int held() {
+        return phase == Phase.ROUND ? held : 0;
+    }
+
     public Step step() {
         return step;
     }

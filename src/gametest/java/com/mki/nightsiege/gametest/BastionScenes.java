@@ -358,11 +358,15 @@ final class BastionScenes {
                     "and the own profile is back");
             m.config().bastionFromLevel = 20;
         });
+        context.waitTicks(20);
+        context.takeScreenshot("bastion_05_end");   // the end window: "Gefallen in Welle n"
+        EventLookTest.closeScreen(context);
         EventLookTest.alive(context);
         game.getServer().runCommand("time set 13000");
         game.getServer().runCommand(String.format(Locale.ROOT, "tp @p %d.5 %d %d.5 90 -20", core[0].getX() + 5, core[0].getY(), core[0].getZ()));
         context.waitTicks(40);
-        context.takeScreenshot("bastion_05_board");
+        EventLookTest.closeScreen(context);
+        context.takeScreenshot("bastion_06_board");
         game.getServer().runCommand("time set 6000");
         log("summary: " + checks + " checks, " + FAILS.size() + " failed" + (FAILS.isEmpty() ? "" : ": " + FAILS));
     }
