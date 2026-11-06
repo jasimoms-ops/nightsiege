@@ -3549,7 +3549,9 @@ public final class SiegeManager {
         besiegers.afterWave(world, anchor, defense.base(), wave, siegeLevel, config, random, currentEvent,
                 sapper -> liveMobs.add(sapper.getUUID()));
         safe("Schatz-Pluenderer", () -> foes.afterWave(foesHost, wavesStarted));
-        safe("Nemesis", () -> nemesis.onWave(nemesisHost, wavesStarted));   // the nemeses come with the second wave
+        if (!warRound) {   // Fehler-Stichprobe 06.11. nachts (Simon: "Keine Nemesis im Kriegsführer")
+            safe("Nemesis", () -> nemesis.onWave(nemesisHost, wavesStarted));   // the nemeses come with the second wave
+        }
     }
 
     /**
@@ -4520,7 +4522,9 @@ public final class SiegeManager {
         // everything that came after a real death): the rest of the life counts as lost, the killer is the arch-enemy
         // in the Ruhmeshalle and may become a nemesis.
         safe("Statistik", () -> StealPool.settle(player, source));
-        safe("Nemesis", () -> nemesis.onDefenderKilled(nemesisHost, player, source));
+        if (!warRound) {   // Fehler-Stichprobe 06.11. nachts (Simon: "Keine Nemesis im Kriegsführer"): the leader's troops stay his
+            safe("Nemesis", () -> nemesis.onDefenderKilled(nemesisHost, player, source));
+        }
         safe("Statistik", () -> stats.playerKilled(player, source));
         kits.rememberGameMode(player);
         player.setHealth(player.getMaxHealth());
@@ -4777,7 +4781,9 @@ public final class SiegeManager {
             return;
         }
         if (!fallen.contains(id)) {
-            safe("Nemesis", () -> nemesis.onDefenderKilled(nemesisHost, player, source));   // the killer flees and comes back
+            if (!warRound) {   // no nemesis in the war leader's round (Fehler-Stichprobe 06.11. nachts)
+                safe("Nemesis", () -> nemesis.onDefenderKilled(nemesisHost, player, source));   // the killer flees and comes back
+            }
             safe("Statistik", () -> stats.playerKilled(player, source));   // the arch-enemy of the Ruhmeshalle
         }
         markFallen(player);

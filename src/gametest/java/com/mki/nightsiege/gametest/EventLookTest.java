@@ -205,6 +205,10 @@ public class EventLookTest implements FabricClientGameTest {
                     alive(context);   // a scene before may have left the player dead (05.11.)
                     FehlerScenes.run(context, game);   // Fehler-Stichprobe 05.11. abends: nemesis after the drone, vexes go with the night
                 }
+                if (want.contains("nemesis")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
+                    NemesisScenes.run(context, game);   // Fehler-Stichprobe 06.11. nachts: warden and boss guard stay on the field
+                }
                 if (want.contains("hotfix")) {
                     alive(context);   // a scene before may have left the player dead (05.11.)
                     HotfixScenes.run(context, game);   // the balance hotfix: anti-heal, breaker, stunner, pushes, ladders (05.11.)
@@ -10959,6 +10963,36 @@ public class EventLookTest implements FabricClientGameTest {
                 w.testMenu(false);
             }
         });
+        // Fehler-Stichprobe 06.11. nachts (Simon: "Keine Nemesis im Kriegsführer"): the first defender falls to one of
+        // the leader's monsters; it stays his and becomes no nemesis.
+        onServer(context, (player, manager) -> {
+            java.util.List<net.minecraft.server.level.ServerPlayer> bots = com.mki.nightsiege.game.SimBots.all();
+            if (bots.isEmpty()) {
+                System.out.println("[Night Siege test] war nemesis: no defender bot FAIL");
+                return;
+            }
+            net.minecraft.server.level.ServerPlayer bot = bots.get(0);
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) bot.level();
+            int nemesesBefore = manager.save().nemeses.size();
+            boolean defending = manager.isDefending(bot);
+            net.minecraft.world.entity.Mob killer = manager.foesHost().spawn("minecraft:zombie", bot.blockPosition().east(2));
+            if (killer == null) {
+                System.out.println("[Night Siege test] war nemesis: no zombie FAIL");
+                return;
+            }
+            killer.setNoAi(true);
+            manager.foesHost().addMob(killer);
+            bot.setHealth(3.0f);
+            bot.invulnerableTime = 0;
+            bot.hurtServer(level, level.damageSources().mobAttack(killer), 200f);
+            boolean stays = !killer.isRemoved() && killer.isAlive();
+            int nemesesAfter = manager.save().nemeses.size();
+            boolean ok = defending && !manager.isDefending(bot) && stays && nemesesAfter == nemesesBefore;
+            System.out.println("[Night Siege test] war nemesis: defending=" + defending + " -> " + manager.isDefending(bot)
+                    + " killer stays=" + stays + " nemeses " + nemesesBefore + " -> " + nemesesAfter + (ok ? " OK" : " FAIL"));
+            killer.discard();
+        });
+        context.waitTicks(10);
         // 3. The leader wins: both defenders fall.
         onServer(context, (player, manager) -> {
             for (net.minecraft.server.level.ServerPlayer bot : com.mki.nightsiege.game.SimBots.all()) {
