@@ -241,8 +241,10 @@ final class BastionScenes {
         server(context, "zombies", (player, m) -> {
             ServerLevel level = (ServerLevel) player.level();
             for (int i = 0; i < 2; i++) {
-                Zombie z = EntityType.ZOMBIE.create(level, EntitySpawnReason.REINFORCEMENT);
-                if (z == null) {
+                EntityType<?> type = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE
+                        .getValue(net.minecraft.resources.Identifier.withDefaultNamespace("zombie"));
+                net.minecraft.world.entity.Entity made = type == null ? null : type.create(level, EntitySpawnReason.REINFORCEMENT);
+                if (!(made instanceof Zombie z)) {
                     continue;
                 }
                 z.setPos(core[0].getX() + 12.5 + i * 3, core[0].getY(), core[0].getZ() + 12.5);
