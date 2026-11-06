@@ -685,7 +685,8 @@ public final class Bastion {
             }
             RunFile f = file;
             m.stats().bastionRun(f);
-            System.out.println(String.format(Locale.ROOT, "[Night Siege] BASTION;%s;%d;%d;%d;%d;%d;%s",
+            // "[Night Siege sim]" in the team sim: the CI's sim log keeps only those lines.
+            System.out.println(String.format(Locale.ROOT, (TeamSim.running() ? "[Night Siege sim]" : "[Night Siege]") + " BASTION;%s;%d;%d;%d;%d;%d;%s",
                     f.ergebnis, roster.size(), reached, held, kills, seconds, String.join(",", subKeys)));
         }
         NightSiegeMod.LOGGER.info("[Night Siege] Letzte Bastion vorbei: {} in Welle {} ({} gehalten), {} Kills, {} s, Platz {}",
