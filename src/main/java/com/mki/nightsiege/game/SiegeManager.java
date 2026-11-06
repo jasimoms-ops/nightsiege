@@ -4297,6 +4297,8 @@ public final class SiegeManager {
         ladders.reset();
         besiegers.reset();
         raid.reset();
+        // Fehlerprüfung 06.11.: a night broken off (a restart, the stop command) writes the smart night too.
+        noteSmartEnd();   // before the foes forget what they sent tonight
         foes.reset(world);
         companions.dismissAll(server);
         mendBase(server);

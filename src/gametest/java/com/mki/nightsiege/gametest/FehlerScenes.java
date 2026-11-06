@@ -161,8 +161,12 @@ final class FehlerScenes {
         EventLookTest.alive(context);
 
         // ---------------------------------------------------------------- 2: a magician's vexes go with the night
+        final boolean[] smartWas = new boolean[1];
         server(context, "night 2", (player, m) -> {
             ServerLevel level = (ServerLevel) player.level();
+            // Fehlerprüfung 06.11.: a night broken off writes the smart night too (this one is aborted below).
+            smartWas[0] = m.config().smartNight;
+            m.config().smartNight = true;
             log("night 2 prepared=" + m.prepareTest(level.getServer(), level, core, 12, com.mki.nightsiege.core.SiegeEvent.NONE));
         });
         context.waitTicks(80);
@@ -197,7 +201,18 @@ final class FehlerScenes {
                     "the magician's vex belongs to the night");
             check(vexes[1] != null && !vexes[1].entityTags().contains(SiegeManager.NIGHT_MOB_TAG),
                     "a vex without a master is not tagged (it goes by the core's reach)");
+            check(m.smartNight().on(), "the smart night runs in night 2");
+            m.setSmartStep(2);
+            StatsRecorder.lastFinished = null;
             m.abort(player.level().getServer());
+            StatsRecorder.NightFile n = StatsRecorder.lastFinished;
+            StatsRecorder.SchlaueNacht s = n == null ? null : n.schlaueNacht;
+            log("aborted night: result=" + (n == null ? "-" : n.ergebnis) + " schlaueNacht an=" + (s == null ? "-" : s.an)
+                    + " hoechste=" + (s == null ? "-" : s.hoechste) + " schritte=" + (s == null ? "-" : s.schritte.size()));
+            check(n != null && "abgebrochen".equals(n.ergebnis), "the broken-off night writes its file");
+            check(s != null && s.an && s.hoechste == 2 && !s.schritte.isEmpty(),
+                    "the broken-off night's file has the smart night (an, highest step 2)");
+            m.config().smartNight = smartWas[0];
         });
         context.waitTicks(10);
         server(context, "vex after", (player, m) -> {
@@ -208,6 +223,83 @@ final class FehlerScenes {
             m.config().testPrepSeconds = saved[0];
             m.config().batchIntervalSeconds = saved[1];
             m.config().refillSpawns = savedB[0];
+        });
+        context.waitTicks(10);
+        EventLookTest.alive(context);
+
+        // ---------------------------------------------------------------- Fehlerprüfung 06.11.: an old stash (peach, 25.10.)
+        server(context, "old stash", (player, m) -> {
+            net.minecraft.core.HolderLookup.Provider regs = player.level().registryAccess();
+            net.minecraft.world.entity.player.Inventory inv = player.getInventory();
+            inv.clearContent();
+            // In the inventory: a marked kit sword, own golden apples and unmarked kit armour of back then.
+            inv.setItem(0, com.mki.nightsiege.game.KitService.mark(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_SWORD)));
+            inv.setItem(1, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GOLDEN_APPLE, 5));
+            net.minecraft.world.item.ItemStack oldChest = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND_CHESTPLATE);
+            oldChest.set(net.minecraft.core.component.DataComponents.UNBREAKABLE, net.minecraft.util.Unit.INSTANCE);
+            oldChest.set(net.minecraft.core.component.DataComponents.ENCHANTMENT_GLINT_OVERRIDE, false);
+            inv.setItem(38, oldChest);
+            // The stash as peach's of 25.10.: the old JSON form, own things and two pieces of old kit armour.
+            SiegeSave.KitStash stash = new SiegeSave.KitStash();
+            for (int i = 0; i < 41; i++) {
+                stash.items.add("");
+            }
+            stash.items.set(0, "{\"id\":\"minecraft:diamond_sword\",\"count\":1}");
+            stash.items.set(1, "{\"id\":\"minecraft:bread\",\"count\":29}");
+            stash.items.set(12, "{\"id\":\"minecraft:diamond_boots\",\"count\":1,\"components\":{\"minecraft:enchantments\":{\"minecraft:protection\":3,\"minecraft:feather_falling\":3},\"minecraft:enchantment_glint_override\":false,\"minecraft:unbreakable\":{}}}");
+            stash.items.set(39, "{\"id\":\"minecraft:diamond_helmet\",\"count\":1,\"components\":{\"minecraft:enchantments\":{\"minecraft:protection\":3,\"minecraft:respiration\":2},\"minecraft:enchantment_glint_override\":false,\"minecraft:unbreakable\":{}}}");
+            stash.items.set(40, "{\"id\":\"minecraft:totem_of_undying\",\"count\":1}");
+            stash.gameMode = "survival";
+            stash.state = "";
+            if (m.save().kitStashes == null) {
+                m.save().kitStashes = new java.util.HashMap<>();
+            }
+            m.save().kitStashes.put(player.getUUID().toString(), stash);
+            m.kits().restore(player);
+            int unbreakableGlintless = 0;
+            boolean sword = false;
+            boolean bread = false;
+            boolean totem = false;
+            boolean apples = false;
+            boolean kitLeft = false;
+            for (int i = 0; i < inv.getContainerSize(); i++) {
+                net.minecraft.world.item.ItemStack st = inv.getItem(i);
+                if (st.isEmpty()) {
+                    continue;
+                }
+                if (st.has(net.minecraft.core.component.DataComponents.UNBREAKABLE)
+                        && Boolean.FALSE.equals(st.get(net.minecraft.core.component.DataComponents.ENCHANTMENT_GLINT_OVERRIDE))) {
+                    unbreakableGlintless++;
+                }
+                sword |= st.is(net.minecraft.world.item.Items.DIAMOND_SWORD);
+                bread |= st.is(net.minecraft.world.item.Items.BREAD) && st.getCount() == 29;
+                totem |= st.is(net.minecraft.world.item.Items.TOTEM_OF_UNDYING);
+                apples |= st.is(net.minecraft.world.item.Items.GOLDEN_APPLE) && st.getCount() == 5;
+                kitLeft |= com.mki.nightsiege.game.KitService.isKit(st);
+            }
+            log("old stash back: sword=" + sword + " bread=" + bread + " totem=" + totem + " apples=" + apples
+                    + " old kit gear left=" + unbreakableGlintless + " kit left=" + kitLeft + " stash=" + m.kits().hasStash(player));
+            check(sword && bread && totem, "the own things of an old stash come back");
+            check(apples, "what was picked up in the night stays");
+            check(unbreakableGlintless == 0, "the old unmarked kit armour goes with the kit (" + unbreakableGlintless + " left)");
+            check(!kitLeft && !m.kits().hasStash(player), "no kit item and no stash left");
+
+            // The same kind of thing in a stash of today ("snbt:") is the player's own and comes back.
+            inv.clearContent();
+            net.minecraft.world.item.ItemStack ownBoots = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND_BOOTS);
+            ownBoots.set(net.minecraft.core.component.DataComponents.UNBREAKABLE, net.minecraft.util.Unit.INSTANCE);
+            ownBoots.set(net.minecraft.core.component.DataComponents.ENCHANTMENT_GLINT_OVERRIDE, false);
+            SiegeSave.KitStash today = new SiegeSave.KitStash();
+            for (int i = 0; i < 41; i++) {
+                today.items.add("");
+            }
+            today.items.set(3, com.mki.nightsiege.game.KitService.store(ownBoots, regs));
+            today.state = "applied";
+            m.save().kitStashes.put(player.getUUID().toString(), today);
+            m.kits().restore(player);
+            check(inv.getItem(3).is(net.minecraft.world.item.Items.DIAMOND_BOOTS), "in a stash of today such boots stay the player's own");
+            inv.clearContent();
+            m.persist();
         });
         context.waitTicks(10);
         EventLookTest.alive(context);

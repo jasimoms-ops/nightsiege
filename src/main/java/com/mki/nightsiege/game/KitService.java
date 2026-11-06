@@ -418,10 +418,18 @@ public final class KitService {
         stash.state = STATE_RESTORING;
         persist.run();
         Inventory inv = player.getInventory();
+        // Fehlerprüfung 06.11. (Simon: peachs alte Kit-Rüstung): a stash in the old JSON form is from before
+        // 31.10., when the kit's gear did not carry the kit mark yet; that gear goes with the kit now.
+        boolean legacy = legacyStash(stash);
+        int oldGear = 0;
         List<ItemStack> found = new ArrayList<>();
         for (int i = 0; i < inv.getContainerSize(); i++) {
             ItemStack stack = inv.getItem(i);
             if (!stack.isEmpty() && !kitThing(stack)) {
+                if (legacy && oldKitGear(stack)) {
+                    oldGear += stack.getCount();
+                    continue;
+                }
                 found.add(stack.copy());   // picked up, taken from a chest, a crate of the playtest ...
             }
         }
@@ -437,11 +445,17 @@ public final class KitService {
             ItemStack stack = load(raw, regs);
             if (stack == null) {
                 unreadable.add(raw);   // one bad entry does not stop the others
+            } else if (legacy && oldKitGear(stack)) {
+                oldGear += stack.getCount();   // old kit gear that had got among the own things before 31.10.
             } else if (i < inv.getContainerSize() && inv.getItem(i).isEmpty()) {
                 inv.setItem(i, stack);   // the own things go back slot by slot
             } else {
                 loose.add(stack);
             }
+        }
+        if (oldGear > 0) {
+            NightSiegeMod.LOGGER.info("[Night Siege] Alte Kit-Ausrüstung ohne Kennzeichen von {} geht mit dem Kit: {} Stück (Kit-Lager von vor dem 31.10.)",
+                    player.getScoreboardName(), oldGear);
         }
         loose.addAll(found);
         int fell = giveBack(player, loose);
@@ -510,6 +524,31 @@ public final class KitService {
                 inv.setItem(i, ItemStack.EMPTY);
             }
         }
+    }
+
+    /**
+     * True for a stash written before 31.10. (survival safety): its things are in the old JSON form, not
+     * "snbt:". Back then the kit's gear was not marked yet (Fehlerprüfung 06.11.: peach's stash of 25.10.).
+     */
+    static boolean legacyStash(SiegeSave.KitStash stash) {
+        if (stash == null || stash.items == null) {
+            return false;
+        }
+        for (String raw : stash.items) {
+            if (raw != null && !raw.isEmpty()) {
+                return !raw.startsWith(SNBT);
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The kit's gear as {@link #mark} made it before the kit mark existed: unbreakable and without the
+     * enchantment glint. A survival player cannot make such a thing.
+     */
+    static boolean oldKitGear(ItemStack stack) {
+        return stack != null && !stack.isEmpty() && stack.has(DataComponents.UNBREAKABLE)
+                && Boolean.FALSE.equals(stack.get(DataComponents.ENCHANTMENT_GLINT_OVERRIDE));
     }
 
     private static boolean isTrapOrRemote(ItemStack stack) {
