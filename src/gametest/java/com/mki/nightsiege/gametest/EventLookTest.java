@@ -205,6 +205,10 @@ public class EventLookTest implements FabricClientGameTest {
                     alive(context);   // a scene before may have left the player dead (05.11.)
                     FehlerScenes.run(context, game);   // Fehler-Stichprobe 05.11. abends: nemesis after the drone, vexes go with the night
                 }
+                if (want.contains("probe")) {
+                    alive(context);
+                    ProbeScenes.run(context, game);   // Fehler-Stichprobe 06.11. nachts: warden and boss guard as killers
+                }
                 if (want.contains("hotfix")) {
                     alive(context);   // a scene before may have left the player dead (05.11.)
                     HotfixScenes.run(context, game);   // the balance hotfix: anti-heal, breaker, stunner, pushes, ladders (05.11.)
