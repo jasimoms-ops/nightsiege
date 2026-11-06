@@ -466,7 +466,8 @@ public class NightStatsScreen extends Screen {
             for (String line : v.war) {
                 String text = WarLeaderScreen.lineText(line);
                 small(gui, font, font.plainSubstrByWidth(text, (int) ((w - 20) / 0.65f)), left + 10, wy,
-                        line.startsWith("nightsiege.records.war_title") ? GOLD : LIGHT, 0.65f);
+                        line.startsWith("nightsiege.records.war_title") || line.startsWith("nightsiege.records.bastion_title")
+                                ? GOLD : LIGHT, 0.65f);
                 wy += 8;
             }
         } else {

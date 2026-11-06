@@ -143,6 +143,15 @@ public final class StatsService {
         stats.warBlock = warBlock == null ? "" : warBlock;
         stats.warLeader = manager.warLeader().leaderName();
         stats.warMine = manager.warLeader().isLeader(viewer);
+        // The Letzte Bastion (Update 7): the button on the start page, why it is greyed out, who started it.
+        stats.bastionOn = cfg.bastionEnabled;
+        String bastionBlock = manager.bastion().blockReason(server, false);
+        stats.bastionBlock = bastionBlock == null ? "" : bastionBlock;
+        stats.bastionStarter = manager.bastion().starterName();
+        stats.bastionFromLevel = cfg.bastionFromLevel;
+        // The fun mode's lent profile: the tree shows "Alles lernen" and "Bereit".
+        stats.funLoan = manager.playsLent(viewer) && (manager.bastion().inRound(viewer) || manager.warLeader().inRound(viewer));
+        stats.funReady = stats.funLoan && (manager.bastion().roundReady(viewer.getUUID()) || manager.warLeader().roundReady(viewer.getUUID()));
         stats.extraSiegeToday = manager.extraSiegeToday(server);
         stats.extraSiegeBy = stats.extraSiegeToday && save.extraCalledBy != null ? save.extraCalledBy : "";
         stats.playersNear = stats.accepted;

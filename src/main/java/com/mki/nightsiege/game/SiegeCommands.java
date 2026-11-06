@@ -279,6 +279,40 @@ public final class SiegeCommands {
                             reply(ctx.getSource(), Component.literal(SiegeManager.get().warLeader().status()));
                             return 1;
                         })))
+                // The Letzte Bastion (Update 7, 07.11.): the operator's test from a wave on (never counts), the
+                // ready round's stop, the record board anew, the state.
+                .then(Commands.literal("bastion").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                        .executes(ctx -> {
+                            SiegeManager.get().bastion().testStart(ctx.getSource().getPlayerOrException(), 1);
+                            return 1;
+                        })
+                        .then(Commands.argument("startwelle", IntegerArgumentType.integer(1, 200)).executes(ctx -> {
+                            SiegeManager.get().bastion().testStart(ctx.getSource().getPlayerOrException(),
+                                    IntegerArgumentType.getInteger(ctx, "startwelle"));
+                            return 1;
+                        }))
+                        .then(Commands.literal("stop").executes(ctx -> {
+                            SiegeManager m = SiegeManager.get();
+                            if (m.isBastionRound()) {
+                                m.abort(ctx.getSource().getServer());
+                                return 1;
+                            }
+                            if (m.bastion().lobbyOpen()) {
+                                m.bastion().cancel(ctx.getSource().getServer(), "nightsiege.bastion.stopped");
+                                return 1;
+                            }
+                            reply(ctx.getSource(), Component.translatable("nightsiege.bastion.none"));
+                            return 0;
+                        }))
+                        .then(Commands.literal("tafel").executes(ctx -> {
+                            int lines = SiegeManager.get().bastion().board(ctx.getSource().getServer());
+                            reply(ctx.getSource(), Component.translatable("nightsiege.bastion.board_made", lines));
+                            return lines;
+                        }))
+                        .then(Commands.literal("status").executes(ctx -> {
+                            reply(ctx.getSource(), Component.literal(SiegeManager.get().bastion().status()));
+                            return 1;
+                        })))
                 .then(Commands.literal("sim").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                         .executes(ctx -> sim(ctx, 10, 150))
                         // The balance tool's team simulation (29 October 2026): only on a test world.

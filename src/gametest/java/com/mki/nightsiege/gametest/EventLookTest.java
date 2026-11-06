@@ -193,6 +193,10 @@ public class EventLookTest implements FabricClientGameTest {
                     alive(context);   // a scene before may have left the player dead (05.11.)
                     MaschinenScenes.run(context, game);   // siege machines from level 10, a camp's doubled (05.11.)
                 }
+                if (want.contains("bastion")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
+                    BastionScenes.run(context, game);   // Update 7: the Letzte Bastion and the fun mode's lent profiles (07.11.)
+                }
                 if (want.contains("elite")) {
                     alive(context);   // a scene before may have left the player dead (05.11.)
                     EliteScenes.run(context, game);   // life steal against the damage taken, elites, revenant wounds, hall (05.11.)

@@ -177,6 +177,10 @@ public final class SiegeManager {
     private final WarLeader warLeader = new WarLeader(this);
     /** The running night is a war leader's round: no waves of its own, the leader buys them. */
     private boolean warRound;
+    /** The Letzte Bastion (Update 7, 07.11.): endless waves from level 20, a fun mode with lent full profiles. */
+    private final Bastion bastion = new Bastion(this);
+    /** The running night is a round of the Letzte Bastion: its waves, no clock. */
+    private boolean bastionRound;
     /** Where the boss of a war round comes (a gathering point), while it is set up; else null. */
     private BlockPos warSpot;
     /** The statistics logger for the December playtest (28 October 2026): files on the server only. */
@@ -309,6 +313,15 @@ public final class SiegeManager {
         return active && warRound;
     }
 
+    public Bastion bastion() {
+        return bastion;
+    }
+
+    /** True while a round of the Letzte Bastion runs (its night). */
+    public boolean isBastionRound() {
+        return active && bastionRound;
+    }
+
     ServerLevel nightWorld() {
         return world;
     }
@@ -366,6 +379,279 @@ public final class SiegeManager {
             }
         }
         return ok;
+    }
+
+    /**
+     * A round of the Letzte Bastion (Update 7): a test night of its own kind, from this wave on (the level of
+     * that wave). The waves, bosses and machines come from {@link #tickBastion}.
+     */
+    boolean startBastion(MinecraftServer server, ServerLevel targetWorld, BlockPos targetAnchor, int fromWave) {
+        bastionRound = true;
+        boolean ok = false;
+        try {
+            ok = start(server, targetWorld, targetAnchor, Math.max(1, bastion.levelFor(fromWave)), SiegeEvent.NONE);
+            if (ok) {
+                bastionWave(server, Math.max(1, fromWave));
+            }
+        } finally {
+            if (!ok) {
+                bastionRound = false;
+            }
+        }
+        return ok;
+    }
+
+    // ------------------------------------------------------------------
+    // the Letzte Bastion's waves (Update 7, Simon 29.10. and 06.11.)
+    // ------------------------------------------------------------------
+
+    /** Damage dealt and taken by the defenders tonight, all added up (the bastion's logger). */
+    private double[] nightDamage() {
+        double dealt = 0;
+        double taken = 0;
+        for (UUID id : nightLog.ids()) {
+            NightLog.Line line = nightLog.peek(id);
+            if (line != null) {
+                dealt += line.dealt;
+                taken += line.taken;
+            }
+        }
+        return new double[] {dealt, taken};
+    }
+
+    /** A wave of the bastion begins: its level, its kills, a boss, machines, nemeses. */
+    private void bastionWave(MinecraftServer server, int w) {
+        Bastion b = bastion;
+        long now = world.getGameTime();
+        b.wave = w;
+        siegeLevel = b.levelFor(w);
+        b.killsFrom = nightKills;
+        b.quota = com.mki.nightsiege.core.BastionMath.quota(maxLive(), config);
+        b.step = Bastion.Step.FIGHT;
+        b.stepSince = now;
+        b.bossWave = com.mki.nightsiege.core.BastionMath.bossWave(w, config);
+        b.bossSpawned = false;
+        b.bossDown = false;
+        b.boss = b.bossWave ? b.drawBoss() : null;
+        batchCooldown = 0;   // the wave's first monsters come at once
+        double[] dmg = nightDamage();
+        b.waveBegins(w, siegeLevel, now, dmg[0], dmg[1], fallen.size());
+        int machinesNow = com.mki.nightsiege.core.BastionMath.machines(w, config);
+        if (machinesNow > 0 && config.machinesEnabled) {
+            machines.plan(siegeLevel, machinesNow, "Letzte Bastion, Welle " + w);
+            machinesNight = true;
+        }
+        if (com.mki.nightsiege.core.BastionMath.nemesisWave(w, config) && !b.nemesisCalled) {
+            b.nemesisCalled = true;
+            safe("Nemesis", () -> nemesis.onWave(nemesisHost, 2));   // from wave 15 the nemeses may come back
+        }
+        MutableComponent text = Component.translatable("nightsiege.bastion.wave", w, b.quota).copy()
+                .withStyle(ChatFormatting.RED, ChatFormatting.BOLD);
+        if (b.boss != null) {
+            text.append(Component.literal("  ")).append(Component.translatable("nightsiege.bastion.wave_boss",
+                    Component.translatable("nightsiege.boss." + b.boss.id())).withStyle(ChatFormatting.DARK_RED));
+        }
+        if (machinesNow > 0 && config.machinesEnabled) {
+            text.append(Component.literal("  ")).append(Component.translatable("nightsiege.bastion.wave_machines", machinesNow)
+                    .withStyle(ChatFormatting.GOLD));
+        }
+        broadcast(server, text);
+        NightSiegeMod.LOGGER.info("[Night Siege] Letzte Bastion: Welle {} auf Stufe {}, {} Kills (Feld {}), Boss {}, Maschinen {}, Eliten {} %",
+                w, siegeLevel, b.quota, maxLive(), b.boss == null ? "-" : b.boss.id(), machinesNow,
+                Math.round(com.mki.nightsiege.core.BastionMath.eliteChance(w, config) * 100));
+    }
+
+    /** The boss of a boss wave: at once, with his guard (again every second until there is room). */
+    private void bastionBoss(MinecraftServer server) {
+        Bastion b = bastion;
+        if (b.boss == null) {
+            b.bossWave = false;
+            return;
+        }
+        if (!bosses.planned() || bosses.kind() != b.boss || bosses.spawned()) {
+            bosses.reset(server);
+            bosses.plan(b.boss);
+        }
+        if (bosses.spawn(bossHost)) {
+            b.bossSpawned = true;
+            spawnBossGuards(server);
+            broadcast(server, Component.translatable("nightsiege.msg.boss_night",
+                    Component.translatable("nightsiege.boss." + b.boss.id())).withStyle(ChatFormatting.DARK_RED, ChatFormatting.BOLD));
+        }
+    }
+
+    /** Every tick of a bastion round: fight to the wave's kills, the last ones fall, a pause, the next wave. */
+    private void tickBastion(MinecraftServer server) {
+        Bastion b = bastion;
+        long now = world.getGameTime();
+        if (b.step == Bastion.Step.FIGHT) {
+            if (b.bossWave && !b.bossSpawned && now % 20 == 0) {
+                bastionBoss(server);
+            }
+            boolean bossOk = !b.bossWave || b.bossDown;
+            if (nightKills - b.killsFrom >= b.quota && bossOk) {
+                b.step = Bastion.Step.CLEAR;
+                b.stepSince = now;
+                broadcast(server, Component.translatable("nightsiege.bastion.wave_kills", b.wave).withStyle(ChatFormatting.YELLOW));
+                return;
+            }
+            if (batchCooldown <= 0) {
+                spawnBatch(server);
+                batchCooldown = (int) Math.round(config.batchIntervalSeconds * 20.0);
+            } else {
+                batchCooldown--;
+            }
+            if (config.refillSpawns && wavesStarted > 0) {
+                refill(server);   // Nachschub as in a night
+            }
+            return;
+        }
+        if (b.step == Bastion.Step.CLEAR) {
+            if (liveMobs.isEmpty() || now - b.stepSince >= config.bastionClearSeconds * 20L) {
+                double[] dmg = nightDamage();
+                b.waveEnds(true, nightKills - b.killsFrom, now, dmg[0], dmg[1], fallen.size());
+                b.step = Bastion.Step.PAUSE;
+                b.pauseUntil = now + config.bastionPauseSeconds * 20L;
+                broadcast(server, Component.translatable("nightsiege.bastion.wave_held", b.wave, config.bastionPauseSeconds)
+                        .withStyle(ChatFormatting.GREEN, ChatFormatting.BOLD));
+            }
+            return;
+        }
+        if (now >= b.pauseUntil) {
+            bastionWave(server, b.wave + 1);
+        }
+    }
+
+    /** For the tests: the running bastion wave's kills are in at once (its boss down too). */
+    public void testBastionWaveDone() {
+        if (bastionRound) {
+            nightKills = Math.max(nightKills, bastion.killsFrom + bastion.quota);
+            bastion.bossDown = true;
+        }
+    }
+
+    /** For the tests: the bastion's pause over now. */
+    public void testBastionPauseOver() {
+        if (bastionRound && world != null) {
+            bastion.pauseUntil = world.getGameTime();
+            bastion.stepSince = world.getGameTime() - config.bastionClearSeconds * 20L;
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // the fun mode's lent profiles (Update 7, Simon 06.11.)
+    // ------------------------------------------------------------------
+
+    /** Lends a player a full profile of every subclass for a fun mode's round (the own one stays untouched). */
+    void lendFun(ServerPlayer player) {
+        if (player == null || !config.funModeLoans) {
+            return;
+        }
+        String id = player.getUUID().toString();
+        if (save.hasLoan(id)) {
+            return;
+        }
+        PlayerSkills own = save.realSkillsOf(id);
+        PlayerSkills lent = com.mki.nightsiege.core.FunProfile.build(skillTree, own, c -> mayChoose(player, c));
+        save.lend(id, lent);
+        if (SimBots.isBot(player)) {
+            com.mki.nightsiege.core.FunProfile.fill(skillTree, lent);   // the bots play the whole tree at once
+        }
+        SkillService.clear(player);
+        MinecraftServer server = player.level().getServer();
+        if (server != null) {
+            ClassTags.update(server, player, lent, skillTree.subclassOfProfile(lent, lent.chosenClass));
+        }
+        NightSiegeMod.LOGGER.info("[Night Siege] Spaßmodus: {} bekommt ein volles Leihprofil ({} Profile, spielt {})",
+                player.getScoreboardName(), lent.profiles().size(), lent.chosenClass);
+    }
+
+    /** The lent profile goes back (the round is over, called off, or the player left it). */
+    void endFun(MinecraftServer server, UUID id) {
+        if (id == null || !save.endLoan(id.toString())) {
+            return;
+        }
+        ServerPlayer p = server == null ? null : server.getPlayerList().getPlayer(id);
+        if (p != null) {
+            if (!(active && participants.contains(id))) {
+                SkillService.clear(p);
+            }
+            PlayerSkills own = save.realSkillsOf(id.toString());
+            ClassTags.update(server, p, own, skillTree.subclassOfProfile(own, own.chosenClass));
+        }
+    }
+
+    /** Lent profiles of players in no fun round any more go back (a log-out, a round that ended without us). */
+    private void sweepLoans(MinecraftServer server) {
+        Set<UUID> keep = new HashSet<>();
+        keep.addAll(bastion.roundMembers());
+        keep.addAll(warLeader.roundMembers());
+        if (active && (warRound || bastionRound)) {
+            keep.addAll(participants);
+        }
+        for (String id : new ArrayList<>(save.loans.keySet())) {
+            UUID uuid;
+            try {
+                uuid = UUID.fromString(id);
+            } catch (IllegalArgumentException e) {
+                save.endLoan(id);
+                continue;
+            }
+            if (!keep.contains(uuid)) {
+                NightSiegeMod.LOGGER.info("[Night Siege] Spaßmodus: Leihprofil von {} zurück (in keiner Runde mehr)", id);
+                endFun(server, uuid);
+            }
+        }
+    }
+
+    /** True while the player plays a fun mode's lent profile. */
+    public boolean playsLent(ServerPlayer player) {
+        return player != null && save.hasLoan(player.getUUID().toString());
+    }
+
+    /** The fun mode's ready round the player is in (the bastion's or the war leader's). */
+    private boolean inFunRound(ServerPlayer player) {
+        return bastion.inRound(player) || warLeader.inRound(player);
+    }
+
+    /** True when the player is ready in the fun mode's ready round. */
+    boolean funReady(ServerPlayer player) {
+        UUID id = player.getUUID();
+        return bastion.inRound(player) ? bastion.roundReady(id) : warLeader.inRound(player) && warLeader.roundReady(id);
+    }
+
+    /** The fun mode's buttons in the tree: "fill" (Alles lernen), "ready" (Bereit), "class" (another subclass). */
+    public void onFunAction(ServerPlayer player, String argument) {
+        if (player == null || !playsLent(player)) {
+            return;
+        }
+        PlayerSkills lent = save.skillsOf(player.getUUID().toString());
+        switch (argument == null ? "" : argument) {
+            case "fill" -> {
+                int n = com.mki.nightsiege.core.FunProfile.fill(skillTree, lent);
+                player.sendSystemMessage(Component.translatable("nightsiege.fun.filled", n, profileName(lent, lent.chosenClass))
+                        .withStyle(ChatFormatting.GREEN));
+                openCoreWindow(player);
+            }
+            case "ready" -> {
+                if (!inFunRound(player)) {
+                    return;
+                }
+                closeClassPick(player);
+                bastion.onRoundReady(player);
+                warLeader.onRoundReady(player);
+                player.sendSystemMessage(Component.translatable("nightsiege.fun.ready", profileName(lent, lent.chosenClass))
+                        .withStyle(ChatFormatting.GREEN));
+                refreshClassPicks(player.level().getServer());
+            }
+            case "class" -> {
+                if (inFunRound(player)) {
+                    sendClassPick(player, 0);
+                }
+            }
+            default -> {
+            }
+        }
     }
 
     /** A monster the war leader bought, at a gathering point: counted with the night's. */
@@ -539,6 +825,7 @@ public final class SiegeManager {
             SimBots.removeAll(server);
             safe("Dungeons", () -> expeditions.endAll(server, null));   // kits back, the arena's gate open
             safe("Kriegsführer", () -> warLeader.onServerStopping(server));   // the leader back on the ground
+            safe("Letzte Bastion", () -> bastion.onServerStopping(server));   // a ready round goes, the time comes back
             traps.releaseAll(server);   // gunners out of the towers, the seats go
             safe("Nacht beim Stopp", () -> endNightForStop(server));   // before vanilla saves the players
             Drones.stopAll(server);
@@ -732,6 +1019,7 @@ public final class SiegeManager {
                 // abends: they outlived it and killed after dawn, a plain death with the things dropped).
                 entity.addTag(NIGHT_MOB_TAG);
             }
+
             archer.onEntityLoad(entity, world, skillTree, this::liveSkillsFor);
             CrateEffects.onArrow(entity);
             GainGear.onArrowLoad(entity);
@@ -1086,8 +1374,12 @@ public final class SiegeManager {
             safe("Schlaf", () -> wakeSleepers(server));   // in bed before the horn: up (Simon 31.10.)
         }
         safe("Kriegsführer", () -> warLeader.tick(server));
-        if (!warLeader.busy()) {
-            safe("Playtest", () -> playtest.tick(server));   // the playtest waits while a war round runs
+        safe("Letzte Bastion", () -> bastion.tick(server));
+        if (gameTime % 40 == 0 && save.loans != null && !save.loans.isEmpty()) {
+            safe("Leihprofile", () -> sweepLoans(server));   // no lent profile outlives its fun round (Update 7)
+        }
+        if (!warLeader.busy() && !bastion.busy()) {
+            safe("Playtest", () -> playtest.tick(server));   // the playtest waits while a war round or the bastion runs
         }
 
         if (!active) {
@@ -1179,7 +1471,7 @@ public final class SiegeManager {
         com.mki.nightsiege.core.ClassPickData data = new com.mki.nightsiege.core.ClassPickData();
         data.play = own.chosenClass == null ? "" : own.chosenClass;
         data.seconds = seconds;
-        data.level = levelForKit();
+        data.level = config.funModeLoans && inFunRound(player) ? config.funKitLevel : levelForKit();
         data.test = pendingTest != null;
         SiegeEvent tonight = pendingTest != null ? pendingTest.event : pendingEvent();
         data.event = tonight == null || tonight == SiegeEvent.NONE ? "" : tonight.name();
@@ -1234,17 +1526,21 @@ public final class SiegeManager {
             }
         }
         boolean atWar = warLeader.inRound(player);
-        if (camp.inRound(player) || expeditions.inRound(player) || atWar) {
+        boolean atBastion = bastion.inRound(player);   // the Letzte Bastion's ready round (Update 7)
+        if (camp.inRound(player) || expeditions.inRound(player) || atWar || atBastion) {
             // A ready round (content update): the war drum's or the dungeon's seal stone's, its members,
             // who is ready, the starter's button. The war leader's round (29 October 2026): its leader
             // has his own screen, the defenders only pick.
             boolean atCamp = camp.inRound(player);
             long now = player.level().getGameTime();
             data.round = true;
-            data.starter = !atWar && (atCamp ? camp.roundStarter(player) : expeditions.roundStarter(player));
-            data.forceIn = atWar ? warLeader.roundForceIn(now) : atCamp ? camp.roundForceIn(now) : expeditions.roundForceIn(now);
+            data.starter = atBastion ? bastion.roundStarter(player)
+                    : !atWar && (atCamp ? camp.roundStarter(player) : expeditions.roundStarter(player));
+            data.forceIn = atBastion ? bastion.roundForceIn(now) : atWar ? warLeader.roundForceIn(now)
+                    : atCamp ? camp.roundForceIn(now) : expeditions.roundForceIn(now);
             data.team.clear();
-            for (UUID id : atWar ? warLeader.roundMembers() : atCamp ? camp.roundMembers() : expeditions.roundMembers()) {
+            for (UUID id : atBastion ? bastion.roundMembers() : atWar ? warLeader.roundMembers()
+                    : atCamp ? camp.roundMembers() : expeditions.roundMembers()) {
                 ServerPlayer other = player.level().getServer().getPlayerList().getPlayer(id);
                 if (other == null) {
                     continue;
@@ -1254,7 +1550,8 @@ public final class SiegeManager {
                         other.getScoreboardName(), os.className());
                 mate.subclass = skillTree.subclassOfProfile(os, os.chosenClass);
                 mate.self = other == player;
-                mate.ready = atWar ? warLeader.roundReady(id) : atCamp ? camp.roundReady(id) : expeditions.roundReady(id);
+                mate.ready = atBastion ? bastion.roundReady(id) : atWar ? warLeader.roundReady(id)
+                        : atCamp ? camp.roundReady(id) : expeditions.roundReady(id);
                 data.team.add(mate);
             }
         }
@@ -2010,6 +2307,9 @@ public final class SiegeManager {
 
     /** The level the kit is built for: the running night, the test in preparation or the coming night. */
     public int levelForKit() {
+        if (active && (warRound || bastionRound) && config.funModeLoans) {
+            return config.funKitLevel;   // the fun mode: the same kit for all (Update 7)
+        }
         if (active) {
             return siegeLevel;
         }
@@ -2084,11 +2384,13 @@ public final class SiegeManager {
         anchor = targetAnchor;
         testRun = test;
         // The curse stones on the altar act from the first wave (a test night tries them, no reward).
-        Curses.begin(config.cursesEnabled && !warRound ? Curses.chosen(save) : List.of());   // none in a war round
+        Curses.begin(config.cursesEnabled && !warRound && !bastionRound ? Curses.chosen(save) : List.of());   // none in a war round or the bastion
         nightCurses = Curses.count();
         siegeLevel = testRun ? Math.min(config.maxLevel, forcedLevel)
                 : SiegeMath.level(save.siegesWon, SiegeMath.dayOf(server.overworld().getGameTime()), config);
-        totalTicks = warRound ? warLeader.totalTicks(config) : SiegeMath.durationSeconds(siegeLevel, config) * 20;
+        totalTicks = warRound ? warLeader.totalTicks(config)
+                : bastionRound ? 20 * 60 * 120   // the bastion has no clock: two hours that never run down
+                : SiegeMath.durationSeconds(siegeLevel, config) * 20;
         ticksLeft = totalTicks;
         batchCooldown = 0;
         nextRefill = 0L;
@@ -2164,7 +2466,7 @@ public final class SiegeManager {
                         config.machinesMax), "Heerlager");
             }
         } else if (config.machinesEnabled && (!testRun || playtest.running() || testRandomMachines != null)
-                && tonightBoss == null && tonightWarden == null && !finaleNight && !lateNight && !warRound
+                && tonightBoss == null && tonightWarden == null && !finaleNight && !lateNight && !warRound && !bastionRound
                 && kind == com.mki.nightsiege.core.BossPlan.NightKind.NORMAL) {
             // Simon 05.11. 12:50: from level 10 machines come more often without a camp (50 %, +5 % a level).
             double chance = config.machinesRandomChanceAt(siegeLevel);
@@ -2222,7 +2524,7 @@ public final class SiegeManager {
         spawnedTotal = 0;
         vanishedTotal = 0;
         slainNightMobs.clear();
-        smart.begin(world.getGameTime(), config.smartNight && !warRound, config);   // every night starts at 0 (05.11.)
+        smart.begin(world.getGameTime(), config.smartNight && !warRound && !bastionRound, config);   // every night starts at 0 (05.11.)
         shownRequired = -1;
         goalDown = null;
         goalUp = null;
@@ -2253,7 +2555,7 @@ public final class SiegeManager {
             }
         }
 
-        if (!warRound) {
+        if (!warRound && !bastionRound) {
             broadcast(server, Component.translatable("nightsiege.msg.start", siegeLevel)
                     .withStyle(ChatFormatting.RED));
         }
@@ -2295,6 +2597,9 @@ public final class SiegeManager {
     private Component bossBarTitle() {
         if (warRound) {
             return warLeader.barTitle();   // the war leader's round: its build-up, waves and card
+        }
+        if (bastionRound) {
+            return bastion.barTitle(nightKills - bastion.killsFrom, world == null ? 0L : world.getGameTime());
         }
         Component title = save.specialNight
                 ? Component.translatable("nightsiege.bar.title_special", siegeLevel, secondsLeft())
@@ -2441,7 +2746,7 @@ public final class SiegeManager {
         }
 
         // The boss night's finale: the boss and a last big wave; after that no more waves.
-        if (!warRound && bosses.planned() && !bosses.spawned() && ticksLeft <= bossFinaleTicks() && world.getGameTime() % 20 == 0) {
+        if (!warRound && !bastionRound && bosses.planned() && !bosses.spawned() && ticksLeft <= bossFinaleTicks() && world.getGameTime() % 20 == 0) {
             if (bosses.spawn(bossHost)) {
                 spawnBossGuards(server);   // before the last wave: they come even when the field is full
                 spawnBatch(server, config.bossFinaleWave);
@@ -2458,7 +2763,9 @@ public final class SiegeManager {
                         .withStyle(ChatFormatting.GOLD));
             }
         }
-        if (!warRound && !finaleNight && !(lateNight && !finaleBosses.isEmpty()) && !bosses.spawned() && !warden.spawned()) {
+        if (bastionRound) {
+            safe("Letzte Bastion", () -> tickBastion(server));   // its waves, pauses, bosses and machines (Update 7)
+        } else if (!warRound && !finaleNight && !(lateNight && !finaleBosses.isEmpty()) && !bosses.spawned() && !warden.spawned()) {
             if (batchCooldown <= 0) {
                 spawnBatch(server);
                 double extraDelay = 0.0 /* the core tree is gone (27 October 2026) */;
@@ -2544,8 +2851,8 @@ public final class SiegeManager {
 
         // Monsters no longer dig through walls (Simon, 27 October 2026): no pickaxe and axe monsters.
 
-        if (bossVictoryAt > 0 || finaleNight) {
-            return;   // the boss is down: the night ends in a moment, the clock stands (the finale has none)
+        if (bossVictoryAt > 0 || finaleNight || bastionRound) {
+            return;   // the boss is down: the night ends in a moment, the clock stands (the finale and the bastion have none)
         }
         ticksLeft--;
         if (ticksLeft <= 0 && warRound) {
@@ -3021,8 +3328,8 @@ public final class SiegeManager {
     }
 
     boolean testPending() {
-        if (warLeader.busy()) {
-            return true;   // a war leader's ready round or round: the camp and the dungeons wait
+        if (warLeader.busy() || bastion.busy()) {
+            return true;   // a war leader's or the bastion's ready round or round: the camp and the dungeons wait
         }
         return pendingTest != null;
     }
@@ -3549,7 +3856,9 @@ public final class SiegeManager {
         besiegers.afterWave(world, anchor, defense.base(), wave, siegeLevel, config, random, currentEvent,
                 sapper -> liveMobs.add(sapper.getUUID()));
         safe("Schatz-Pluenderer", () -> foes.afterWave(foesHost, wavesStarted));
-        safe("Nemesis", () -> nemesis.onWave(nemesisHost, wavesStarted));   // the nemeses come with the second wave
+        if (!bastionRound) {
+            safe("Nemesis", () -> nemesis.onWave(nemesisHost, wavesStarted));   // the nemeses come with the second wave
+        }
     }
 
     /**
@@ -3844,6 +4153,12 @@ public final class SiegeManager {
 
     /** A new monster of the night: an elite by the fixed chance (eliteMobs) and the smart night's. */
     private void smartElite(Mob mob) {
+        if (bastionRound) {
+            // The bastion: fixed elites from wave 5, a little more every wave; no smart night (Update 7).
+            Elites.maybe(world, mob, siegeLevel, config, random,
+                    com.mki.nightsiege.core.BastionMath.eliteChance(bastion.wave, config), false);
+            return;
+        }
         int step = smart.step();
         Elites.maybe(world, mob, siegeLevel, config, random,
                 com.mki.nightsiege.core.SmartNight.eliteChance(config, step, siegeLevel),
@@ -4049,6 +4364,7 @@ public final class SiegeManager {
             com.mki.nightsiege.core.NightRecords.View view = save.records.view(player.getUUID().toString());
             copy.records = view;
             safe("Kriegsführer-Rekorde", () -> warLeader.recordLines(view.war, player));
+            safe("Bastion-Rekorde", () -> bastion.recordLines(view.war));
         }
         copy.openRecords = open;
         return copy;
@@ -4144,6 +4460,18 @@ public final class SiegeManager {
         // A boss night is won by the boss's fall alone, the kill goal does not count; so is a night whose warden came.
         int required = bossNight || wardenNight || warRound ? 0 : killsRequired();
         boolean quotaMet = nightKills >= required;
+        if (bastionRound) {
+            // The Letzte Bastion (Update 7): no reward, the record board; the lent profiles go back.
+            logNight("test_verloren", 0, 0);
+            testRun = false;
+            bastionRound = false;
+            int kills = nightKills;
+            double[] dmg = nightDamage();
+            bastion.waveEnds(false, nightKills - bastion.killsFrom, world == null ? 0L : world.getGameTime(), dmg[0], dmg[1], fallen.size());
+            safe("Letzte Bastion", () -> bastion.onEnd(server, true, kills));
+            clearSiegeState();
+            return;
+        }
         if (warRound) {
             // The war leader's round: no reward, its own records; the leader back on the ground.
             logNight(won ? "test_gehalten" : "test_verloren", 0, 0);
@@ -4303,7 +4631,7 @@ public final class SiegeManager {
         companions.dismissAll(server);
         mendBase(server);
         endKits(server);
-        logNight("abgebrochen", 0, warRound ? 0 : killsRequired());
+        logNight("abgebrochen", 0, warRound || bastionRound ? 0 : killsRequired());
         if (!testRun) {
             scheduleNextAfterNight(server);
             if (usedFragment != null && (save.nightFragment == null || save.nightFragment.isBlank())) {
@@ -4322,6 +4650,11 @@ public final class SiegeManager {
         if (warRound) {
             warRound = false;
             safe("Kriegsführer", () -> warLeader.onEnd(server, null));
+        }
+        if (bastionRound) {
+            bastionRound = false;
+            int kills = nightKills;
+            safe("Letzte Bastion", () -> bastion.onEnd(server, false, kills));
         }
         broadcast(server, Component.translatable(messageKey).withStyle(ChatFormatting.GRAY));
         clearSiegeState();
@@ -4707,10 +5040,49 @@ public final class SiegeManager {
             } else if (e instanceof net.minecraft.world.entity.monster.Vex && anchor != null && !Companions.isCompanion(e)
                     && e.distanceToSqr(anchor.getX() + 0.5, anchor.getY(), anchor.getZ() + 0.5) < reach * reach) {
                 strays.add(e);
+            } else if (e instanceof net.minecraft.world.entity.monster.zombie.Zombie zombie && anchor != null
+                    && !Companions.isCompanion(e) && isReinforcement(zombie)
+                    && e.distanceToSqr(anchor.getX() + 0.5, anchor.getY(), anchor.getZ() + 0.5) < reach * reach) {
+                // Vanilla's zombie reinforcement on Hard (07.11., the known gap of the Fehlerprüfung 06.11.): a zombie
+                // a hurt one called up near the core goes with the night, as the vexes do.
+                strays.add(e);
             }
         }
         for (Entity e : strays) {
             e.discard();
+        }
+    }
+
+    /** The modifier vanilla gives a zombie a hurt one called up (Hard): minecraft:reinforcement_callee_charge. */
+    private static net.minecraft.resources.Identifier reinforcementId;
+
+    /** True for a zombie of vanilla's reinforcement (it carries the callee's modifier). */
+    public static boolean isReinforcement(net.minecraft.world.entity.monster.zombie.Zombie zombie) {
+        net.minecraft.world.entity.ai.attributes.AttributeInstance chance =
+                zombie.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.SPAWN_REINFORCEMENTS_CHANCE);
+        if (chance == null) {
+            return false;
+        }
+        if (reinforcementId == null) {
+            try {
+                java.lang.reflect.Field f = net.minecraft.world.entity.monster.zombie.Zombie.class
+                        .getDeclaredField("ZOMBIE_REINFORCEMENT_CALLEE_CHARGE");
+                f.setAccessible(true);
+                reinforcementId = ((net.minecraft.world.entity.ai.attributes.AttributeModifier) f.get(null)).id();
+            } catch (ReflectiveOperationException | RuntimeException e) {
+                reinforcementId = net.minecraft.resources.Identifier.withDefaultNamespace("reinforcement_callee_charge");
+            }
+        }
+        return chance.hasModifier(reinforcementId);
+    }
+
+    /** For the tests: a zombie marked as vanilla's reinforcement (as a hurt zombie on Hard calls one up). */
+    public static void markReinforcement(net.minecraft.world.entity.monster.zombie.Zombie zombie) {
+        net.minecraft.world.entity.ai.attributes.AttributeInstance chance =
+                zombie.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.SPAWN_REINFORCEMENTS_CHANCE);
+        if (chance != null && !isReinforcement(zombie)) {
+            chance.addPermanentModifier(new net.minecraft.world.entity.ai.attributes.AttributeModifier(reinforcementId, -0.05,
+                    net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADD_VALUE));
         }
     }
 
@@ -4817,6 +5189,21 @@ public final class SiegeManager {
 
     /** The boss has fallen: the night is won; the monsters left flee, the night ends in three seconds. */
     private void onBossDown(MinecraftServer server, Mob boss) {
+        if (bastionRound) {
+            // The bastion's boss fell: the wave goes on to its kills, his guard flees (Update 7).
+            bastion.bossDown = true;
+            boolean guardsLeft = bossGuards.stream().anyMatch(g -> g.spawned() && !g.fallen());
+            resetBossGuards(server);
+            if (guardsLeft) {
+                broadcast(server, Component.translatable("nightsiege.boss.guards_flee").withStyle(ChatFormatting.GRAY));
+            }
+            UUID killer = bosses.killer();
+            ServerPlayer hero = killer == null ? null : server.getPlayerList().getPlayer(killer);
+            broadcast(server, Component.translatable(hero != null ? "nightsiege.msg.boss_down_by" : "nightsiege.msg.boss_down",
+                    Component.translatable("nightsiege.boss." + bosses.kind().id()),
+                    hero == null ? "" : hero.getScoreboardName()).withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD));
+            return;
+        }
         if (warRound) {
             // The war leader's boss fell: the round goes on.
             broadcast(server, Component.translatable("nightsiege.war.boss_down",
@@ -5712,7 +6099,14 @@ public final class SiegeManager {
             case "round_force" -> {   // a ready round (war drum or seal stone): go without the others
                 camp.forceRound(player);
                 expeditions.forceRound(player);
+                bastion.force(player);   // the Letzte Bastion's ready round (Update 7)
             }
+            case "bastion" -> {   // the Letzte Bastion (Update 7): the core window's button
+                if ("start".equals(argument)) {
+                    bastion.requestStart(player);
+                }
+            }
+            case "fun" -> onFunAction(player, argument);   // the fun mode's tree: fill, ready, another class
             case "playtest" -> playtest.onAction(player, argument);   // the playtest window (28 October 2026)
             case "war" -> warLeader.onAction(player, argument);   // the war leader's round (29 October 2026)
             case "feedback" -> safe("Bewertung", () -> stats.feedback(player, argument));   // 1-click feedback (29 October 2026)
@@ -5952,6 +6346,9 @@ public final class SiegeManager {
      * (testToolsForEveryone) every player may change the class as often as they like.
      */
     public boolean classResetAvailable(PlayerSkills own) {
+        if (save.loans != null && save.loans.containsValue(own)) {
+            return false;   // the fun mode's lent profile (Update 7)
+        }
         if (config.testToolsForEveryone || playtest.plansWith(own)) {
             return own.hasClass();   // the playtest's planning: change the class as often as one likes
         }
@@ -6015,6 +6412,9 @@ public final class SiegeManager {
         if (playtest != null && playtest.takesPart(player.getUUID())) {
             return;   // the playtest's skills are thrown away afterwards: no unlocks, no template (Simon 28.10.)
         }
+        if (playsLent(player)) {
+            return;   // the fun mode's lent profile: nothing is earned (Update 7)
+        }
         if (skillTree.grantUltUnlocks(own) > 0) {
             player.sendSystemMessage(Component.translatable("nightsiege.msg.unlock_earned",
                     profileName(own, key)).withStyle(ChatFormatting.GOLD));
@@ -6054,6 +6454,10 @@ public final class SiegeManager {
         SkillTree.SubclassInfo byNode = SkillTree.subclassByNode(subclass);
         if (byNode != null) {
             subclass = byNode.clazz() == chosen ? byNode.key() : "";
+        }
+        if (playsLent(player)) {
+            player.sendSystemMessage(Component.translatable("nightsiege.fun.not_now").withStyle(ChatFormatting.GRAY));
+            return;   // the fun mode has every subclass already; no unlock is used up (Update 7)
         }
         PlayerSkills own = save.skillsOf(player.getUUID().toString());
         if (!mayChoose(player, chosen)) {
@@ -6166,6 +6570,26 @@ public final class SiegeManager {
             player.sendSystemMessage(Component.translatable("nightsiege.msg.class_locked").withStyle(ChatFormatting.RED));
             return;
         }
+        if (playsLent(player)) {
+            // The fun mode (Update 7, Simon 06.11.): any subclass with its whole tree's points; the tree opens to
+            // spend them ("Alles lernen" fills it), "Bereit" there is the ready of the round.
+            if (!inFunRound(player)) {
+                player.sendSystemMessage(Component.translatable("nightsiege.msg.play_not_now").withStyle(ChatFormatting.RED));
+                return;
+            }
+            com.mki.nightsiege.core.FunProfile.play(skillTree, own, key);
+            SkillService.clear(player);
+            closeClassPick(player);
+            ClassTags.update(player.level().getServer(), player, own, skillTree.subclassOfProfile(own, own.chosenClass));
+            player.sendSystemMessage(Component.translatable("nightsiege.fun.picked", profileName(own, key), own.points())
+                    .withStyle(ChatFormatting.GOLD));
+            refreshClassPicks(player.level().getServer());
+            if (ServerPlayNetworking.canSend(player, CoreNetworking.ScreenPayload.TYPE)) {
+                ServerPlayNetworking.send(player, new CoreNetworking.ScreenPayload("playtest_tree", "{}"));   // straight to its tree
+            }
+            openCoreWindow(player);
+            return;
+        }
         if (!key.equals(own.chosenClass) && kits.hasStash(player) && !inClassWindow(player)) {
             // (Simon 31.10.: survival safety 2) With a kit on (a dungeon or camp fight, a coming or running
             // night, a test) a switch handed out a whole fresh kit: potions, golden apples, pearls, a full
@@ -6225,6 +6649,11 @@ public final class SiegeManager {
         if (player == null) {
             return;
         }
+        if (playsLent(player)) {
+            player.sendSystemMessage(Component.translatable("nightsiege.fun.not_now").withStyle(ChatFormatting.GRAY));
+            openCoreWindow(player);
+            return;   // the fun mode: the own class stays as it is (Update 7)
+        }
         PlayerSkills own = save.skillsOf(player.getUUID().toString());
         if (!own.hasClass()) {
             openCoreWindow(player);
@@ -6252,6 +6681,10 @@ public final class SiegeManager {
     public void onDonate(ServerPlayer player, int amount) {
         if (player == null || amount <= 0) {
             return;
+        }
+        if (playsLent(player)) {
+            player.sendSystemMessage(Component.translatable("nightsiege.fun.not_now").withStyle(ChatFormatting.GRAY));
+            return;   // the lent profile's points are no real points (Update 7)
         }
         PlayerSkills own = save.skillsOf(player.getUUID().toString());
         int moved = Math.min(amount, own.points());
@@ -6747,6 +7180,16 @@ public final class SiegeManager {
     private List<ServerPlayer> defendersNear(MinecraftServer server, ServerLevel targetWorld, BlockPos center, boolean test) {
         if (warRound) {
             return warLeader.rosterOnline(server, targetWorld);   // the war round: those of its ready round, never the leader
+        }
+        if (bastionRound) {
+            List<ServerPlayer> roster = new ArrayList<>();
+            for (UUID id : bastion.roster) {
+                ServerPlayer p = server.getPlayerList().getPlayer(id);
+                if (p != null && p.level() == targetWorld) {
+                    roster.add(p);
+                }
+            }
+            return roster;   // the bastion: those of its ready round
         }
         List<ServerPlayer> near = playersNear(server, targetWorld, center, config.participantRadius);
         List<ServerPlayer> out = new ArrayList<>();

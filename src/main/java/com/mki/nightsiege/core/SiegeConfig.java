@@ -480,6 +480,46 @@ public class SiegeConfig {
     /** Who stands this close to the core is in the ready round; after this the leader may go without those not ready. */
     public int warLobbyRadius = 48;
     public int warForceSeconds = 30;
+    /**
+     * The level the war leader's round fights at (Simon 06.11.: "immer Stufe 20"): the defenders play full
+     * lent profiles (the fun mode), so the round no longer goes by the world's level.
+     */
+    public int warLevel = 20;
+    // ---- the fun mode's lent profiles (Update 7, Simon 06.11.: "jede Klasse ... immer komplett durchgelevelt")
+    /** Rounds of the Letzte Bastion and the war leader: every defender plays a full lent profile of any subclass. */
+    public boolean funModeLoans = true;
+    /** The kit level of the fun mode (infernite from 20 on). */
+    public int funKitLevel = 20;
+    // ---- the Letzte Bastion (Update 7, Simon 29.10. and 06.11.)
+    /** The round can be started from the core window. */
+    public boolean bastionEnabled = true;
+    /** From this world level its runs count (Simon: "ab Nacht 20"); in a playtest it may start any time. */
+    public int bastionFromLevel = 20;
+    /** Ready players needed: this many, or every signed-up player online when fewer are on. */
+    public int bastionAccepts = 3;
+    /** Who stands this close to the core is in the ready round; after this the starter may go without those not ready. */
+    public int bastionLobbyRadius = 48;
+    public int bastionForceSeconds = 30;
+    /** Steps of the normal level curve per wave: wave n fights at level 20 + n of the full curve (not the quarter curve). */
+    public double bastionStepsPerWave = 1.0;
+    /** Kills a wave asks for: this many times the field (the monsters alive at once). */
+    public double bastionKillsPerField = 3.0;
+    /** After a wave's kills no new monsters; the last ones have this long before the pause starts anyway. */
+    public int bastionClearSeconds = 30;
+    /** The pause between two waves. */
+    public int bastionPauseSeconds = 20;
+    /** Every this many waves a boss (with his guards), from the bag. */
+    public int bastionBossEvery = 5;
+    /** From this wave, every this many waves one more siege machine (10: 1, 15: 2, 20: 3). */
+    public int bastionMachinesFromWave = 10;
+    public int bastionMachinesEvery = 5;
+    /** From this wave nemeses may come back. */
+    public int bastionNemesisFromWave = 15;
+    /** Fixed elites from this wave, this chance, this much more a wave, at most so much. */
+    public int bastionEliteFromWave = 5;
+    public double bastionEliteChance = 0.05;
+    public double bastionEliteChancePerWave = 0.02;
+    public double bastionEliteChanceMax = 0.4;
     /** Gathering points round the base, and how far before the wall they lie. */
     public int warGatherPoints = 8;
     public int warGatherMin = 30;
@@ -1446,6 +1486,24 @@ public class SiegeConfig {
         warBossFromWave = clamp(warBossFromWave, 1, 20);
         warLobbyRadius = clamp(warLobbyRadius, 8, 200);
         warForceSeconds = clamp(warForceSeconds, 0, 300);
+        warLevel = clamp(warLevel, 1, 200);
+        funKitLevel = clamp(funKitLevel, 1, 200);
+        bastionFromLevel = clamp(bastionFromLevel, 1, 1000);
+        bastionAccepts = clamp(bastionAccepts, 1, 20);
+        bastionLobbyRadius = clamp(bastionLobbyRadius, 8, 200);
+        bastionForceSeconds = clamp(bastionForceSeconds, 0, 300);
+        bastionStepsPerWave = Double.isNaN(bastionStepsPerWave) ? 1.0 : clampDouble(bastionStepsPerWave, 0.1, 10.0);
+        bastionKillsPerField = Double.isNaN(bastionKillsPerField) ? 3.0 : clampDouble(bastionKillsPerField, 0.2, 50.0);
+        bastionClearSeconds = clamp(bastionClearSeconds, 0, 600);
+        bastionPauseSeconds = clamp(bastionPauseSeconds, 0, 600);
+        bastionBossEvery = clamp(bastionBossEvery, 0, 100);
+        bastionMachinesFromWave = clamp(bastionMachinesFromWave, 1, 1000);
+        bastionMachinesEvery = clamp(bastionMachinesEvery, 1, 100);
+        bastionNemesisFromWave = clamp(bastionNemesisFromWave, 1, 1000);
+        bastionEliteFromWave = clamp(bastionEliteFromWave, 1, 1000);
+        bastionEliteChance = Double.isNaN(bastionEliteChance) ? 0.05 : clampDouble(bastionEliteChance, 0.0, 1.0);
+        bastionEliteChancePerWave = Double.isNaN(bastionEliteChancePerWave) ? 0.02 : clampDouble(bastionEliteChancePerWave, 0.0, 1.0);
+        bastionEliteChanceMax = Double.isNaN(bastionEliteChanceMax) ? 0.4 : clampDouble(bastionEliteChanceMax, 0.0, 1.0);
         warGatherPoints = clamp(warGatherPoints, 3, 16);
         warGatherMin = clamp(warGatherMin, 8, 120);
         warGatherMax = clamp(warGatherMax, warGatherMin, 160);

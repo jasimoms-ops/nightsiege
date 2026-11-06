@@ -211,6 +211,20 @@ public class SiegeSave {
     /** The war leader's round: its own records (a fun mode, no reward). */
     public WarRecords war = new WarRecords();
 
+    /** The time of day before a round of the Letzte Bastion (Update 7, 07.11.): kept for a crash, -1 when none runs. */
+    public int bastionTimeOfDay = -1;
+    /** The Letzte Bastion's best runs (Update 7): its only reward is fame. They stay through the progress reset. */
+    public List<com.mki.nightsiege.core.BastionMath.Run> bastionRuns = new ArrayList<>();
+    /** Rounds of the Letzte Bastion played (counted ones). */
+    public int bastionRounds;
+
+    /**
+     * The fun mode's lent profiles (Update 7, Simon 06.11.: "jede Klasse ... immer komplett durchgelevelt"):
+     * for a round of the Letzte Bastion or the war leader every defender plays a full profile of any
+     * subclass. Only in memory: after the round, a crash or a restart the own profile is back untouched.
+     */
+    public transient Map<String, PlayerSkills> loans = new HashMap<>();
+
     public static class WarRestore {
         public String id = "";
         public String name = "";
@@ -785,11 +799,41 @@ public class SiegeSave {
         return moved;
     }
 
+    /** The skills a player plays with now: a fun mode's lent profile (Update 7) if there is one, else their own. */
     public PlayerSkills skillsOf(String playerUuid) {
+        if (loans != null && playerUuid != null) {
+            PlayerSkills lent = loans.get(playerUuid);
+            if (lent != null) {
+                return lent;
+            }
+        }
+        return realSkillsOf(playerUuid);
+    }
+
+    /** The player's own skills, also while a fun mode lends them a profile (crates, the save). */
+    public PlayerSkills realSkillsOf(String playerUuid) {
         if (skills == null) {
             skills = new HashMap<>();
         }
         return skills.computeIfAbsent(playerUuid, key -> new PlayerSkills());
+    }
+
+    /** True while the player plays a fun mode's lent profile. */
+    public boolean hasLoan(String playerUuid) {
+        return loans != null && playerUuid != null && loans.containsKey(playerUuid);
+    }
+
+    /** Lends a profile for the fun mode (in memory only). */
+    public void lend(String playerUuid, PlayerSkills lent) {
+        if (loans == null) {
+            loans = new HashMap<>();
+        }
+        loans.put(playerUuid, lent);
+    }
+
+    /** Takes a lent profile back; true when there was one. */
+    public boolean endLoan(String playerUuid) {
+        return loans != null && playerUuid != null && loans.remove(playerUuid) != null;
     }
 
     public PlayerSkills coreSkills() {

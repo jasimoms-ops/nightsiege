@@ -1332,6 +1332,15 @@ public final class StatsRecorder {
         writeLater(dir == null ? null : dir.resolve("kriegsfuehrer_" + LocalDateTime.now().format(FILE_TIME) + ".json"), round);
     }
 
+    /** A run of the Letzte Bastion (Update 7): one file, every wave with its kills, deaths and damage. */
+    void bastionRun(Bastion.RunFile run) {
+        if (!on() || run == null) {
+            return;
+        }
+        Path dir = folder();
+        writeLater(dir == null ? null : dir.resolve("bastion_" + LocalDateTime.now().format(FILE_TIME) + ".json"), run);
+    }
+
     // ------------------------------------------------------------------ dungeons
 
     void dungeonJoin(ServerPlayer player, String kind, int level, int rooms, int attempt, long gameTime) {

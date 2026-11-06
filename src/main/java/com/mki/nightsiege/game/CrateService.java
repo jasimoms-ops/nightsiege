@@ -179,7 +179,7 @@ public final class CrateService {
 
     private void awardOne(MinecraftServer server, UUID id, CrateKind kind, int level, int curses) {
         {
-            PlayerSkills own = save.get().skillsOf(id.toString());
+            PlayerSkills own = save.get().realSkillsOf(id.toString());
             SkillClass clazz = own.clazz();
             if (clazz == null) {
                 return;
@@ -278,7 +278,7 @@ public final class CrateService {
         CustomData data = stack.get(DataComponents.CUSTOM_DATA);
         net.minecraft.nbt.CompoundTag tag = data == null ? new net.minecraft.nbt.CompoundTag() : data.copyTag();
         SkillClass clazz = SkillClass.byName(tag.getStringOr("crate_class", ""));
-        PlayerSkills own = save.get().skillsOf(player.getUUID().toString());
+        PlayerSkills own = save.get().realSkillsOf(player.getUUID().toString());
         if (clazz == null || clazz.isShared()) {
             clazz = own.clazz();
         }
@@ -322,7 +322,7 @@ public final class CrateService {
         if (player == null || clazz == null || !startOpening(player)) {
             return false;
         }
-        PlayerSkills own = save.get().skillsOf(player.getUUID().toString());
+        PlayerSkills own = save.get().realSkillsOf(player.getUUID().toString());
         reveal(player, own, clazz, kind, Math.max(1, level), 0, () -> {
         });
         return true;

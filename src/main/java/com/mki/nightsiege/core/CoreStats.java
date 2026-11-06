@@ -224,6 +224,14 @@ public class CoreStats {
     public String warLeader = "";
     /** The viewer leads it (the button takes him back to his window). */
     public boolean warMine;
+    /** The Letzte Bastion (Update 7): the button, why it is greyed out (a translation key, "" when free), who started a ready round or round. */
+    public boolean bastionOn;
+    public String bastionBlock = "";
+    public String bastionStarter = "";
+    public int bastionFromLevel = 20;
+    /** The viewer plays the fun mode's lent profile in a ready round (the tree's "Alles lernen" and "Bereit"), and is ready. */
+    public boolean funLoan;
+    public boolean funReady;
     public boolean extraSiegeToday;
     public String extraSiegeBy = "";
 

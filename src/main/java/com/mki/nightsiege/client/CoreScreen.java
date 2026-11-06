@@ -965,6 +965,34 @@ public class CoreScreen extends Screen {
                     bx += sw + 4;
                 }
             }
+            if (stats.bastionOn) {
+                // The Letzte Bastion (Update 7): endless waves, every subclass full, only fame.
+                int rightLimit = left + W - 66 - (!stats.siegeActive && !stats.nightComing
+                        ? Math.max(70, font.width(Component.translatable("nightsiege.ui.unregister")) + 12) + 4 : 0);
+                boolean free = stats.bastionBlock.isEmpty();
+                Component label = Component.translatable("nightsiege.ui.bastion_start");
+                int lw = Math.max(80, font.width(label) + 12);
+                if (bx + lw > rightLimit) {
+                    label = Component.translatable("nightsiege.ui.bastion_short");
+                    lw = Math.max(50, font.width(label) + 12);
+                }
+                if (bx + lw > rightLimit) {
+                    label = Component.literal("♜");   // narrow: the tower alone, the tooltip says what it is
+                    lw = 22;
+                }
+                if (bx + lw <= rightLimit) {
+                    Component tip = free ? Component.translatable("nightsiege.ui.bastion_start").copy().append("\n")
+                            .append(Component.translatable("nightsiege.ui.bastion_hint", stats.bastionFromLevel))
+                            : Component.translatable(stats.bastionBlock, stats.bastionFromLevel, stats.bastionStarter);
+                    Button bb = Button.builder(label, b -> {
+                        send("bastion:start");
+                        onClose();
+                    }).bounds(bx, footerY, lw, 18).tooltip(net.minecraft.client.gui.components.Tooltip.create(tip)).build();
+                    bb.active = free;
+                    goldButtons.add(addRenderableWidget(bb));
+                    bx += lw + 4;
+                }
+            }
             if (!stats.siegeActive && !stats.nightComing) {
                 Component leave = Component.translatable("nightsiege.ui.unregister");
                 int lw = Math.max(70, font.width(leave) + 12);
@@ -1063,6 +1091,15 @@ public class CoreScreen extends Screen {
             primaryMin = 134;
             // The subclass is chosen with the class, at the armour stands (26 October 2026).
             primaryPress = b -> openSubclassPick(pick);
+        } else if (stats.funLoan && (page == null || page.playing)) {
+            // The fun mode (Update 7): every subclass full; spend the points, then "Bereit" for the round.
+            primary = Component.translatable(stats.funReady ? "nightsiege.ui.fun_ready_done" : "nightsiege.ui.fun_ready");
+            primaryShort = Component.translatable("nightsiege.ui.fun_ready_short");
+            primaryMin = 90;
+            primaryPress = b -> {
+                send("fun:ready");
+                onClose();
+            };
         } else if (previewSub() && page != null && stats.unlocksFree > 0) {
             // Another subclass of an own class: an unlock can open it.
             primary = Component.translatable("nightsiege.ui.unlock_open");
@@ -1097,6 +1134,19 @@ public class CoreScreen extends Screen {
                 rebuildWidgets();
             }).bounds(footerX, footerY, kw, 18).build());
             footerX += kw + 4;
+        }
+        if (stats.funLoan && isClassTree(activeTab)) {
+            // The fun mode: learn the whole rest at once, or pick another subclass in the class window.
+            Component fill = Component.translatable("nightsiege.ui.fun_fill");
+            int fw = Math.max(70, font.width(fill) + 12);
+            goldButtons.add(addRenderableWidget(Button.builder(fill, b -> send("fun:fill")).bounds(footerX, footerY, fw, 18)
+                    .tooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("nightsiege.ui.fun_fill_hint")))
+                    .build()));
+            footerX += fw + 4;
+            Component other = Component.translatable("nightsiege.ui.fun_class");
+            int ow = Math.max(70, font.width(other) + 12);
+            addRenderableWidget(Button.builder(other, b -> send("fun:class")).bounds(footerX, footerY, ow, 18).build());
+            footerX += ow + 4;
         }
         if (stats.creative && activeTab != Tab.CORE) {
             Component grant = Component.translatable("nightsiege.ui.dev_grant");

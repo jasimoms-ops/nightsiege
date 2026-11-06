@@ -455,6 +455,9 @@ public final class WarLeader {
         if (TeamSim.running() && !bot) {
             return "nightsiege.war.fight";
         }
+        if (m.bastion().busy()) {
+            return "nightsiege.war.fight";   // the Letzte Bastion's ready round or round (Update 7)
+        }
         return null;
     }
 
@@ -488,12 +491,16 @@ public final class WarLeader {
         }
         for (ServerPlayer other : world.players()) {
             UUID id = other.getUUID();
+            boolean lent = m.config().funModeLoans;   // the fun mode (Update 7): every defender a full lent profile
             if (id.equals(leader) || round.has(id) || !m.isRegistered(other) || other.isSpectator() || Drones.isDrone(other)
-                    || (!bot && other.getAbilities().instabuild) || !m.save().skillsOf(id.toString()).hasClass()
+                    || (!bot && other.getAbilities().instabuild) || (!lent && !m.save().skillsOf(id.toString()).hasClass())
                     || !round.near(other, world)) {
                 continue;
             }
             round.add(id);
+            if (lent) {
+                m.lendFun(other);
+            }
             if (!first) {
                 other.sendSystemMessage(Component.translatable("nightsiege.war.lobby_open", leaderName, m.config().warLobbyRadius)
                         .withStyle(ChatFormatting.GOLD));
@@ -523,6 +530,7 @@ public final class WarLeader {
         addNearby(server, false);
         List<UUID> gone = round.dropGone(world);
         for (UUID id : gone) {
+            m.endFun(server, id);
             ServerPlayer p = server.getPlayerList().getPlayer(id);
             if (p != null) {
                 tell(p, "nightsiege.war.lobby_left", ChatFormatting.GRAY);
@@ -586,6 +594,7 @@ public final class WarLeader {
                 return;
             }
             for (UUID id : round.force(now)) {
+                m.endFun(server, id);
                 ServerPlayer p = server.getPlayerList().getPlayer(id);
                 if (p != null) {
                     tell(p, "nightsiege.war.lobby_dropped", ChatFormatting.GRAY);
@@ -601,6 +610,7 @@ public final class WarLeader {
     private void cancelLobby(MinecraftServer server, String key) {
         if (round != null) {
             for (UUID id : round.members()) {
+                m.endFun(server, id);
                 ServerPlayer p = server.getPlayerList().getPlayer(id);
                 if (p != null) {
                     tell(p, key, ChatFormatting.GRAY);
@@ -640,7 +650,8 @@ public final class WarLeader {
             cancelLobby(server, "nightsiege.war.go_nobody");
             return;
         }
-        level = forcedLevel > 0 ? forcedLevel : Math.max(1, m.currentLevel());
+        // Simon 06.11.: "immer Stufe 20" - the defenders play full lent profiles (the fun mode, Update 7).
+        level = forcedLevel > 0 ? forcedLevel : cfg.funModeLoans ? Math.max(1, cfg.warLevel) : Math.max(1, m.currentLevel());
         // The leader's place and the time of day, kept for a crash.
         SiegeSave.WarRestore keep = new SiegeSave.WarRestore();
         if (lead != null) {
@@ -671,6 +682,9 @@ public final class WarLeader {
         phase = Phase.ROUND;
         if (!m.startWar(server, world, core, level)) {
             phase = Phase.NONE;
+            for (UUID id : roster) {
+                m.endFun(server, id);
+            }
             restoreTime(server);
             restoreLeader(server);
             if (lead != null) {
@@ -1766,6 +1780,9 @@ public final class WarLeader {
             data.wave = wave;
             data.waves = waves;
             send(lead, "warleader", data);
+        }
+        for (UUID id : roster) {
+            m.endFun(server, id);   // the own profiles back (the fun mode, Update 7)
         }
         phase = Phase.NONE;
         leader = null;
