@@ -126,6 +126,21 @@ LABELS = {
         "max70_leben": "höchstens 70, Leben nach Feld-Stärke ×1",
         "max70_beides": "höchstens 70, Leben und Schaden nach Feld-Stärke je 0,5",
     },
+    "pruefung": {
+        "aktuell": "Server-Stand seit 06.11. 01:23: Balance-Hotfix, Bosse 2, Belagerungswaffen ab Stufe 10, Lebensraub wie 04.11., feste Eliten aus, Schlaue Nacht, Kombo 2",
+    },
+    "schlau2": {
+        "aktuell": "Schlaue Nacht (nachgestellt, so auf dem Server seit 06.11. 00:34), vor Kombo 2",
+        "ohne": "Server-Stand 05.11. 19:51 bis 06.11. 00:34: Schlaue Nacht aus, Lebensraub wie 04.11., feste Eliten aus",
+    },
+    "schlau1": {
+        "aktuell": "Schlaue Nacht, erste Fassung (05.11. 20:55, danach nachgestellt)",
+        "ohne": "Server-Stand 05.11. 19:51: Schlaue Nacht aus, Lebensraub wie 04.11., feste Eliten aus",
+    },
+    "elite1": {
+        "aktuell": "Lebensraub-Kopplung (100 % des Eingesteckten der letzten 5 s) und feste Eliten ab Stufe 10 (Server 05.11. 17:07 bis 19:49/19:51)",
+        "ohne": "Server-Stand 05.11. 14:44: ohne Kopplung, ohne Eliten, Wiedergänger ohne Wunden",
+    },
     "klassen4": {
         "aktuell": "Update-Stand (balance-2 + Skalierung + Creeper-Schalter) mit den alten Klassen-Werten",
         "klassen": "Update-Stand mit Klassen-Balance (Config-Migration 17; Schildkämpfer hier noch mit −49 %)",
@@ -137,9 +152,13 @@ LABELS = {
 # server by config afterwards): run -> variant.
 # Simon 04.11.: "alles Veraltete löschen" - das Dashboard zeigt nur die Läufe, die den heutigen Stand
 # beschreiben (Server-Stand seit 31.10. und die Prüfläufe dazu). Ältere Läufe bleiben in ihren dist-Branches.
-AKTUELL = ["final6", "final5", "bollwerk1"]
+# 07.11.: the server's state since 06.11. 01:23 is pruefung (Kombo 2 + Schlaue Nacht); schlau2/schlau1 measure the
+# smart night against the state before it, elite1 the life steal coupling and the elites (both off since 05.11. 19:49/51).
+# final6/final5/bollwerk1 (before the balance hotfix of 05.11.) are out of date now.
+AKTUELL = ["pruefung", "schlau2", "schlau1", "elite1"]
 
-SERVER_STAND = {"bogen1": "aktuell", "balance1": "aktuell", "balance2": "aktuell", "final4": "s40", "final5": "r4"}
+SERVER_STAND = {"bogen1": "aktuell", "balance1": "aktuell", "balance2": "aktuell", "final4": "s40", "final5": "r4",
+                "pruefung": "aktuell"}
 
 
 def parse_team(msg):

@@ -34,6 +34,17 @@ RUNS = {
         'aktuell': ('Stand 30.10. 22:25', 'Server-Stand 30.10. 22:25–31.10. 0:38 (Feld-Stärke 0,4, Referenz 4 Spieler 32); in der Sim zielen Sprengmeister-Bots jetzt ihre Mörser und Techniker überladen ihre Türme (Sim-Fix moerser-sim)'),
         'r4': ('Server-Stand 31.10.', 'Server-Stand seit 31.10. 0:38: wie davor, aber Feld-Referenz für 4 Spieler 26 statt 32 (Monster für 4 Spieler etwas schwächer); Sim mit Mörser-Fix'),
     },
+    'pruefung': {
+        'aktuell': ('Server-Stand 06.11.', 'Was seit 06.11. 01:23 auf dem Server läuft: Balance-Hotfix, Bosse 2 mit Leibwache, Belagerungswaffen ab Stufe 10, Lebensraub wie 04.11., feste Eliten aus, Schlaue Nacht, Kombo 2'),
+    },
+    'schlau2': {
+        'aktuell': ('Mit Schlauer Nacht', 'Schlaue Nacht in der nachgestellten Fassung (Server ab 06.11. 00:34), vor Kombo 2'),
+        'ohne': ('Ohne Schlaue Nacht', 'Server-Stand 05.11. 19:51 bis 06.11. 00:34: Schlaue Nacht aus'),
+    },
+    'elite1': {
+        'aktuell': ('Kopplung + Eliten', 'Lebensraub nur gegen Eingestecktes (100 %, 5 s), feste Eliten ab Stufe 10, Wiedergänger-Wunden (Server 05.11. 17:07 bis 19:49/19:51)'),
+        'ohne': ('Ohne beides', 'Server-Stand 05.11. 14:44: ohne Kopplung, ohne Eliten, Wiedergänger ohne Wunden'),
+    },
     'final4': {
         'aktuell': ('Feld-Stärke 0,45', 'Wie Server-Stand, aber Feld-Stärke 0,45 (so lief der Server 30.10. 21:57–22:25; Gruppen mit 4 Spielern 61 %)'),
         's40': ('Server-Stand 30.10.', 'Was seit 30.10. 22:25 auf dem Server läuft: Klassen-Paket mit Axtkämpfer 1,5, Seelenfänger 1,2, Totenbeschwörer 1,0; Pfeilregen auf F mit halbem Schaden; Nachschub (Feld 6 … 38) mit Feld-Stärke 0,4; Wächter-Nacht wie im Dungeon; Leiter-Fix'),
