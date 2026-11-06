@@ -81,6 +81,10 @@ public final class TeamSim {
     private static boolean fullTree;
     /** "krieg": every run is a war leader's round with a bot leader instead of a test night (29 October 2026). */
     private static boolean warMode;
+    /** "boss": every night a boss night, the eight bosses in turn (07.11.: Bosse 2 with the guard measured). */
+    private static boolean bossMode;
+    /** "bastion": a round of the Letzte Bastion from wave 1 with the whole tree (Update 7), at most 40 minutes. */
+    private static boolean bastionMode;
     private static int shard;
     private static int shards = 1;
     private static Path copyFile;
@@ -212,6 +216,8 @@ public final class TeamSim {
         templateRuns = 1;
         fullTree = false;
         warMode = false;
+        bossMode = false;
+        bastionMode = false;
         shard = 0;
         shards = 1;
         copyFile = null;
@@ -231,6 +237,11 @@ public final class TeamSim {
                 fullTree = true;
             } else if (token.equals("krieg")) {
                 warMode = true;
+            } else if (token.equals("boss")) {
+                bossMode = true;
+            } else if (token.equals("bastion")) {
+                bastionMode = true;
+                fullTree = true;   // the fun mode: every subclass full
             } else if (token.startsWith("shard=")) {
                 String[] p = token.substring(6).split("/");
                 shard = Integer.parseInt(p[0]);
@@ -593,6 +604,26 @@ public final class TeamSim {
             }
             ok = m.warLeader().startBotRound(server, world, core, run.level(), group);
             maxTicks = (m.config().warPrepSeconds + m.config().warWaves * m.config().warWaveSeconds + 120) * 20;
+        } else if (bastionMode) {
+            // The Letzte Bastion (Update 7): the group from wave 1 until all have fallen (at most 40 minutes).
+            List<ServerPlayer> group = new ArrayList<>();
+            for (UUID id : brains.keySet()) {
+                ServerPlayer bot = server.getPlayerList().getPlayer(id);
+                if (bot != null) {
+                    group.add(bot);
+                }
+            }
+            ok = m.bastion().startBotRound(server, world, core, 1, group);
+            maxTicks = 40 * 60 * 20;
+        } else if (bossMode) {
+            // A boss night, the eight in turn by the run (Bosse 2 with the guard, 07.11.).
+            com.mki.nightsiege.core.BossKind[] all = com.mki.nightsiege.core.BossKind.values();
+            com.mki.nightsiege.core.BossKind boss = all[Math.floorMod(run.index() + run.level() * 3 + run.group() * 5
+                    + run.mix().hashCode(), all.length)];
+            ok = m.prepareTest(server, world, core, run.level(), SiegeEvent.NONE, boss);
+            System.out.println("[Night Siege sim] BOSS;" + run.variant() + ";" + run.level() + ";" + run.group() + ";" + run.mix()
+                    + ";" + run.index() + ";" + boss.id());
+            maxTicks = (SiegeMath.durationSeconds(run.level(), m.config()) + 120) * 20;
         } else {
             ok = m.prepareTest(server, world, core, run.level(), SiegeEvent.NONE);
             maxTicks = (SiegeMath.durationSeconds(run.level(), m.config()) + 120) * 20;

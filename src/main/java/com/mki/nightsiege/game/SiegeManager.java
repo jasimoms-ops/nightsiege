@@ -3101,8 +3101,8 @@ public final class SiegeManager {
 
     /** Ticks before the end of the night at which the boss comes (a test night: 15 s after the start). */
     private int bossFinaleTicks() {
-        if (testRun) {
-            return Math.max(20, totalTicks - 300);
+        if (testRun && !TeamSim.running()) {
+            return Math.max(20, totalTicks - 300);   // the team sim's boss nights keep the real time (07.11.)
         }
         return com.mki.nightsiege.core.BossPlan.finaleTicks(totalTicks, config);
     }

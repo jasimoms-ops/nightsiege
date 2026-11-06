@@ -462,6 +462,29 @@ public final class Bastion {
         roster.clear();
     }
 
+    /** The team simulation (Update 7): the bots defend from this wave, no ready round, never counted. */
+    boolean startBotRound(MinecraftServer server, ServerLevel level, BlockPos at, int fromWave, List<ServerPlayer> defenders) {
+        if (phase != Phase.NONE || defenders.isEmpty()) {
+            return false;
+        }
+        world = level;
+        core = at;
+        starter = defenders.get(0).getUUID();
+        starterName = "Sim";
+        test = true;
+        counted = false;
+        playtestRun = false;
+        startWave = Math.max(1, fromWave);
+        round = new StartRound(starter, at, level.getGameTime(), 1000, 0, true);
+        for (ServerPlayer p : defenders) {
+            round.add(p.getUUID());
+            round.markReady(p.getUUID());
+        }
+        phase = Phase.LOBBY;
+        begin(server);
+        return phase == Phase.ROUND;
+    }
+
     // ------------------------------------------------------------------ the round
 
     /** All ready: the clock to midnight, the night of the round. */
