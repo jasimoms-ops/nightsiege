@@ -195,9 +195,43 @@ public final class WarriorSpiritMath {
         return combo && now - lastCounted >= comboGap();
     }
 
+    /**
+     * Hits of this subclass's chain (Kombo 2, Simon 06.11.): the axe fighter swings the slowest and needs
+     * {@code heavy_blow.fin_chain} (3), the others {@code w_spirit.chain} (4).
+     */
+    public static int chainHits(String sub) {
+        if (SkillTree.SUB_AXE.equals(sub)) {
+            return (int) Math.max(1, Math.round(SkillValues.get("heavy_blow", "fin_chain", 3.0)));
+        }
+        return chainHits();
+    }
+
+    /**
+     * Ticks the finisher waits once only it is left (Kombo 2, Simon 06.11.: "Finisher bleibt bereit"): the
+     * monster before often died at once, the next one is a few steps away.
+     */
+    public static long readyWindow() {
+        return Math.max(1L, Math.round(SkillValues.get(NODE, "ready", 120.0)));
+    }
+
+    /** True when the chain stands one hit before its finisher, which then waits {@link #readyWindow()}. */
+    public static boolean finisherReady(int chain, int hits) {
+        return hits > 1 && chain == hits - 1;
+    }
+
+    /** Ticks without a hit after which a chain of this count breaks: the ready window before the finisher. */
+    public static long windowFor(int chain, int hits) {
+        return finisherReady(chain, hits) ? Math.max(chainWindow(), readyWindow()) : chainWindow();
+    }
+
     /** The chain's count after a hit at {@code now}; the hit before it was at {@code lastHit}. */
     public static int chainAfterHit(int chain, long lastHit, long now) {
-        if (chain <= 0 || now - lastHit > chainWindow() || chain >= chainHits()) {
+        return chainAfterHit(chain, lastHit, now, chainHits());
+    }
+
+    /** As {@link #chainAfterHit(int, long, long)} for a chain of {@code hits} hits. */
+    public static int chainAfterHit(int chain, long lastHit, long now, int hits) {
+        if (chain <= 0 || now - lastHit > windowFor(chain, hits) || chain >= hits) {
             chain = 0;
         }
         return chain + 1;
@@ -205,12 +239,22 @@ public final class WarriorSpiritMath {
 
     /** The chain's count at {@code now} without a new hit (0 once it broke). */
     public static int chainNow(int chain, long lastHit, long now) {
-        return chain > 0 && now - lastHit <= chainWindow() ? chain : 0;
+        return chainNow(chain, lastHit, now, chainHits());
+    }
+
+    /** As {@link #chainNow(int, long, long)} for a chain of {@code hits} hits. */
+    public static int chainNow(int chain, long lastHit, long now, int hits) {
+        return chain > 0 && now - lastHit <= windowFor(chain, hits) ? chain : 0;
     }
 
     /** True when this count of the chain is its finisher. */
     public static boolean isFinisher(int chain) {
         return chain >= chainHits();
+    }
+
+    /** As {@link #isFinisher(int)} for a chain of {@code hits} hits. */
+    public static boolean isFinisher(int chain, int hits) {
+        return chain >= hits;
     }
 
     /** A finisher at a full meter is empowered (double effect, costs {@link #empowerCost()}). */

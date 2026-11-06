@@ -145,16 +145,22 @@ final class KriegerScenes {
     /** Four charged hits on {@code target}, {@code gap} ticks apart; the life of {@code side} before and after the 4th. */
     private static void fourHits(ClientGameTestContext context, String what, Mob[] target, Mob[] side, int gap,
                                  float[] sideHp, int[] finBefore) {
-        for (int i = 1; i <= 4; i++) {
+        hits(context, what, target, side, gap, sideHp, finBefore, 4);
+    }
+
+    /** {@code count} charged hits (a whole chain); the life of {@code side} before and after the last. */
+    private static void hits(ClientGameTestContext context, String what, Mob[] target, Mob[] side, int gap,
+                             float[] sideHp, int[] finBefore, int count) {
+        for (int i = 1; i <= count; i++) {
             final int n = i;
             server(context, what + " hit " + n, (player, m) -> {
-                if (n == 4) {
+                if (n == count) {
                     finBefore[0] = WarriorSpirit.finishers();
                     sideHp[0] = side[0] == null ? 0f : side[0].getHealth();
                 }
                 target[0].invulnerableTime = 0;
                 player.attack(target[0]);
-                if (n == 4) {
+                if (n == count) {
                     sideHp[1] = side[0] == null ? 0f : side[0].getHealth();
                     MobEffectInstance slow = target[0].getEffect(MobEffects.SLOWNESS);
                     lastSlow = slow == null ? -1 : slow.getAmplifier();
@@ -389,8 +395,10 @@ final class KriegerScenes {
             target[0] = dummy((ServerLevel) player.level(), 1.6, 0, 400f);
         });
         context.waitTicks(25);
-        fourHits(context, "axe", target, none, 25, sideHp, finBefore);
+        // Kombo 2 (Simon 06.11.): the axe fighter's chain is 3 hits.
+        hits(context, "axe", target, none, 25, sideHp, finBefore, 3);
         server(context, "axe check", (player, m) -> {
+            check(WarriorSpirit.chainHits(player) == 3, "axe fighter: his chain is 3 hits (is " + WarriorSpirit.chainHits(player) + ")");
             MobEffectInstance slow = target[0].getEffect(MobEffects.SLOWNESS);
             AttributeInstance armour = target[0].getAttribute(Attributes.ARMOR);
             log("axe: armour=" + (armour == null ? -1 : armour.getValue()) + " slow=" + (slow == null ? "-" : slow.getAmplifier() + "/" + slow.getDuration()));
@@ -403,6 +411,82 @@ final class KriegerScenes {
             check(!WarriorSpirit.cracked(target[0]), "after 4 s the armour is back");
             clearDummies(player);
         });
+        context.waitTicks(5);
+        // Kombo 2: with only the finisher left it waits 6 s (Simon 06.11.: "Finisher bleibt bereit").
+        final int[] readyFin = new int[1];
+        server(context, "ready", (player, m) -> {
+            WarriorSpirit.reset(player);
+            target[0] = dummy((ServerLevel) player.level(), 1.6, 0, 400f);
+        });
+        context.waitTicks(25);
+        for (int i = 1; i <= 2; i++) {
+            final int n = i;
+            server(context, "ready hit " + n, (player, m) -> {
+                target[0].invulnerableTime = 0;
+                player.attack(target[0]);
+            });
+            context.waitTicks(25);
+        }
+        context.waitTicks(75);   // 5 s after the 2nd hit: longer than the 2 s of a normal chain
+        server(context, "ready wait", (player, m) -> {
+            check(WarriorSpirit.chain(player) == 2, "5 s without a hit: the waiting finisher holds the chain (is "
+                    + WarriorSpirit.chain(player) + ")");
+            readyFin[0] = WarriorSpirit.finishers();
+        });
+        context.runOnClient(client -> check(com.mki.nightsiege.client.WarriorHud.ready(),
+                "client: the finisher's dot waits (ready, chain " + com.mki.nightsiege.client.WarriorHud.chain() + ")"));
+        server(context, "ready finisher", (player, m) -> {
+            target[0].invulnerableTime = 0;
+            player.attack(target[0]);
+            check(WarriorSpirit.finishers() == readyFin[0] + 1 && "spalter".equals(WarriorSpirit.lastFinisher()),
+                    "the hit after the wait is the finisher");
+        });
+        context.waitTicks(25);
+        for (int i = 1; i <= 2; i++) {
+            final int n = i;
+            server(context, "ready break hit " + n, (player, m) -> {
+                target[0].invulnerableTime = 0;
+                player.attack(target[0]);
+            });
+            context.waitTicks(25);
+        }
+        context.waitTicks(110);   // 6.75 s after the 2nd hit
+        server(context, "ready break", (player, m) -> {
+            check(WarriorSpirit.chain(player) == 0, "more than 6 s: the waiting finisher is gone too (chain "
+                    + WarriorSpirit.chain(player) + ")");
+            clearDummies(player);
+        });
+        context.waitTicks(5);
+        // Kombo 2 (Simon 06.11.: "Springt über"): the finisher kills, Spalter jumps to the next monster.
+        final Mob[] next = new Mob[1];
+        final int[] jumpBefore = new int[2];
+        server(context, "jump", (player, m) -> {
+            WarriorSpirit.reset(player);
+            target[0] = dummy((ServerLevel) player.level(), 1.6, 0, 400f);
+            next[0] = dummy((ServerLevel) player.level(), 2.6, 1.8, 400f);
+        });
+        context.waitTicks(25);
+        for (int i = 1; i <= 3; i++) {
+            final int n = i;
+            server(context, "jump hit " + n, (player, m) -> {
+                if (n == 3) {
+                    target[0].setHealth(1f);   // the finisher kills it
+                    jumpBefore[0] = WarriorSpirit.spalterJumps();
+                    jumpBefore[1] = WarriorSpirit.finishers();
+                }
+                target[0].invulnerableTime = 0;
+                player.attack(target[0]);
+                if (n == 3) {
+                    log("jump: target alive=" + target[0].isAlive() + " next cracked=" + WarriorSpirit.cracked(next[0])
+                            + " jumps +" + (WarriorSpirit.spalterJumps() - jumpBefore[0]));
+                    check(!target[0].isAlive() && WarriorSpirit.finishers() == jumpBefore[1] + 1, "the finisher killed its target");
+                    check(WarriorSpirit.cracked(next[0]) && WarriorSpirit.spalterJumps() == jumpBefore[0] + 1,
+                            "Spalter jumped to the next monster: its armour is broken");
+                }
+            });
+            context.waitTicks(25);
+        }
+        server(context, "jump done", (player, m) -> clearDummies(player));
         context.waitTicks(5);
         // Paladin: Lichtschlag heals and sets the undead on fire.
         final double[] healBefore = new double[1];

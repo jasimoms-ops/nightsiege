@@ -319,6 +319,11 @@ public final class StatsService {
                         com.mki.nightsiege.core.WarriorSpiritMath.NODE).entrySet()) {
                     line.values.putIfAbsent("sp_" + v.getKey(), v.getValue());
                 }
+                if ("heavy_blow".equals(node.id())) {
+                    // Kombo 2 (Simon 06.11.): the axe fighter's chain is shorter.
+                    line.values.put("sp_chain", (double) com.mki.nightsiege.core.WarriorSpiritMath.chainHits(
+                            com.mki.nightsiege.core.SkillTree.SUB_AXE));
+                }
             }
             stats.nodes.add(line);
         }

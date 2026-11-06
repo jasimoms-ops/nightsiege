@@ -144,16 +144,44 @@ class WarriorSpiritTest {
             }
         }
         assertEquals(3, finishers);
-        // A pause longer than 2 s breaks the chain.
+        // A pause longer than 2 s breaks the chain ...
         chain = WarriorSpiritMath.chainAfterHit(0, 0, 0);
         chain = WarriorSpiritMath.chainAfterHit(chain, 0, 20);
-        chain = WarriorSpiritMath.chainAfterHit(chain, 20, 40);
+        assertEquals(2, chain);
+        assertEquals(2, WarriorSpiritMath.chainNow(chain, 20, 60));
+        assertEquals(0, WarriorSpiritMath.chainNow(chain, 20, 61));
+        assertEquals(1, WarriorSpiritMath.chainAfterHit(chain, 20, 61));
+        // ... but with only the finisher left it waits 6 s (Kombo 2, Simon 06.11.).
+        chain = WarriorSpiritMath.chainAfterHit(chain, 0, 40);
         assertEquals(3, chain);
-        assertEquals(3, WarriorSpiritMath.chainNow(chain, 40, 80));
-        assertEquals(0, WarriorSpiritMath.chainNow(chain, 40, 81));
-        assertEquals(1, WarriorSpiritMath.chainAfterHit(chain, 40, 81));
+        assertTrue(WarriorSpiritMath.finisherReady(chain, 4));
+        assertEquals(3, WarriorSpiritMath.chainNow(chain, 40, 160));
+        assertEquals(0, WarriorSpiritMath.chainNow(chain, 40, 161));
+        assertEquals(4, WarriorSpiritMath.chainAfterHit(chain, 40, 160));
+        assertEquals(1, WarriorSpiritMath.chainAfterHit(chain, 40, 161));
         // After a finisher the next hit starts anew.
         assertEquals(1, WarriorSpiritMath.chainAfterHit(4, 100, 105));
+    }
+
+    /** Kombo 2 (Simon 06.11.): the axe fighter's chain is 3 hits, the finisher waits 6 s once it is next. */
+    @Test
+    void axeChainIsThreeAndTheFinisherWaits() {
+        assertEquals(3, WarriorSpiritMath.chainHits(SkillTree.SUB_AXE));
+        assertEquals(4, WarriorSpiritMath.chainHits(SkillTree.SUB_BERSERKER));
+        assertEquals(4, WarriorSpiritMath.chainHits(SkillTree.SUB_PALADIN));
+        assertEquals(4, WarriorSpiritMath.chainHits(SkillTree.SUB_BLADEMASTER));
+        assertEquals(120, WarriorSpiritMath.readyWindow());
+        assertEquals(40, WarriorSpiritMath.windowFor(1, 3));
+        assertEquals(120, WarriorSpiritMath.windowFor(2, 3));
+        assertFalse(WarriorSpiritMath.finisherReady(0, 1));
+        // One-hit kills with a few steps in between: hit, 1.5 s, hit, 5 s walking, finisher.
+        int chain = WarriorSpiritMath.chainAfterHit(0, -1000, 0, 3);
+        chain = WarriorSpiritMath.chainAfterHit(chain, 0, 30, 3);
+        assertEquals(2, chain);
+        chain = WarriorSpiritMath.chainAfterHit(chain, 30, 130, 3);
+        assertEquals(3, chain);
+        assertTrue(WarriorSpiritMath.isFinisher(chain, 3));
+        assertFalse(WarriorSpiritMath.isFinisher(3, 4));
     }
 
     @Test

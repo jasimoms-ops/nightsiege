@@ -158,6 +158,9 @@ final class SkillValuesWarrior {
         // The chain: every chain-th melee hit is a finisher; it breaks after window ticks without a hit.
         def("w_spirit", "chain", 4);
         def("w_spirit", "window", 40);
+        // Kombo 2 (Simon 06.11.: "als Axtkämpfer wird man niemals die volle Kombo bekommen"): with one hit
+        // left, the finisher waits this many ticks for the next hit, on any monster.
+        def("w_spirit", "ready", 120);
         def("w_spirit", "empcost", 30);        // a finisher at a full meter is empowered and costs this
         def("w_spirit", "empfactor", 2.0);     // ... for double the effect
         // Klingenmeister: finisher Klingenwirbel, F Klingentanz.
@@ -185,6 +188,8 @@ final class SkillValuesWarrior {
         def("heavy_blow", "fin_time", 80);     // ... for this many ticks
         def("heavy_blow", "fin_slow", 20);     // knocked down: Slowness IV, ticks
         def("heavy_blow", "fin_crack", 0.0);   // optional: the target also takes this much more damage (0 = off)
+        def("heavy_blow", "fin_chain", 3);     // Kombo 2: his chain is 3 hits (he swings the slowest)
+        def("heavy_blow", "fin_jump", 4);      // Kombo 2: blocks to the next monster when the target died
         def("heavy_blow", "f_range", 12);      // blocks the axe flies out
         def("heavy_blow", "f_speed", 1.5);     // blocks a tick
         def("heavy_blow", "f_width", 1.3);     // blocks beside its path that it hits

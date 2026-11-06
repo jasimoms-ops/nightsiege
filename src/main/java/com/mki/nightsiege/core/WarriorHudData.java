@@ -15,6 +15,9 @@ public class WarriorHudData {
     public int chain;
     public int hits = 4;
     public int window = 40;
+    /** Kombo 2: ticks the finisher waits once only it is left, and ticks left now until the chain breaks. */
+    public int ready = 120;
+    public int left;
     /** Finishers so far (the client flashes the dots when it grows) and whether the last was empowered. */
     public int fin;
     public boolean finEmp;
