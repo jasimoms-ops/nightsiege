@@ -54,7 +54,9 @@ final class BastionScenes {
         }
     }
 
+    /** Runs a step on the server thread and waits until it ran (onServer only queues it). */
     private static void server(ClientGameTestContext context, String step, EventLookTest.OnServer action) {
+        final java.util.concurrent.atomic.AtomicBoolean ran = new java.util.concurrent.atomic.AtomicBoolean();
         EventLookTest.onServer(context, (player, manager) -> {
             try {
                 action.run(player, manager);
@@ -62,8 +64,17 @@ final class BastionScenes {
                 FAILS.add(step + ": " + t);
                 log("ERROR in " + step + ": " + t);
                 t.printStackTrace(System.out);
+            } finally {
+                ran.set(true);
             }
         });
+        for (int i = 0; i < 200 && !ran.get(); i++) {
+            context.waitTick();
+        }
+        if (!ran.get()) {
+            FAILS.add(step + ": did not run on the server");
+            log("ERROR in " + step + ": did not run on the server within 10 s");
+        }
     }
 
     private static String id(ServerPlayer p) {
@@ -141,6 +152,10 @@ final class BastionScenes {
             check(BastionMath.needed(1, cfg) == 1 && BastionMath.needed(2, cfg) == 2 && BastionMath.needed(6, cfg) == 3,
                     "ready players needed: 3, or all online when fewer");
         });
+        if (core[0] == null) {
+            log("summary: " + checks + " checks, setup failed (no core): " + FAILS);
+            return;
+        }
         game.getServer().runCommand(String.format(Locale.ROOT, "tp @p %d.5 %d %d.5 90 10", core[0].getX() + 4, core[0].getY(), core[0].getZ()));
         game.getServer().runCommand("gamemode survival @p");
         game.getServer().runCommand("time set 6000");
