@@ -411,13 +411,17 @@ public final class Nemesis {
         h.persist();
     }
 
-    /** No boss, no machine crew, no creeper (it falls in its own blast), no vex. */
+    /**
+     * No boss, no machine crew, no creeper (it falls in its own blast), no vex; no warden of a warden night and
+     * no boss's guard either (Fehler-Stichprobe 06.11. nachts: the warden fled, and his night could not be won).
+     */
     static boolean mayBecome(Mob mob) {
         if (mob instanceof Creeper || mob instanceof net.minecraft.world.entity.monster.Vex) {
             return false;
         }
         Set<String> tags = mob.entityTags();
-        return !BossService.isBossOrPart(mob) && !tags.contains(SiegeMachines.TAG_CREW) && !tags.contains(SiegeMachines.TAG_MACHINE)
+        return !BossService.isBossOrPart(mob) && !tags.contains(WardenNight.TAG)
+                && !tags.contains(SiegeMachines.TAG_CREW) && !tags.contains(SiegeMachines.TAG_MACHINE)
                 && !Companions.isCompanion(mob) && !SiegeCamp.isCampMob(mob);
     }
 
