@@ -106,6 +106,10 @@ final class NemesisScenes {
         context.waitTicks(80);
         EventLookTest.closeScreen(context);
         final Mob[] warden = new Mob[1];
+        // Room on the field first: the warden comes through spawnAdd, which waits while the field is full
+        // (the first batch alone can fill it on level 8, 07.11.).
+        server(context, "warden room", (player, m) -> log("room made: " + clearOthers(player, null)));
+        context.waitTicks(10);
         server(context, "warden comes", (player, m) -> {
             ServerLevel level = (ServerLevel) player.level();
             boolean now = m.wardenNow(level.getServer());
