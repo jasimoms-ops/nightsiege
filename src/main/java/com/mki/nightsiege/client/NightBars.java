@@ -86,17 +86,23 @@ public final class NightBars {
 
     private static final com.mki.nightsiege.core.BossBarLayout.Focus<UUID> FOCUS = new com.mki.nightsiege.core.BossBarLayout.Focus<>();
 
+    /** The boss with the big bar this frame and the bosses drawn as small rows under it (Tor 2.3). */
+    private static UUID mainId;
+    private static java.util.List<BossEvent> minis = java.util.List.of();
+
     /**
-     * Draws all bars at the top when two or more boss bars of the mod are shown (Tor 2.3); false leaves the
-     * overlay to vanilla (no boss or one boss, or the switch is off). Other bars (the night, the camp, the
-     * Wither, the dragon) keep their place and look.
+     * The bars vanilla draws, in order (Tor 2.3). From two boss bars of the mod at once, only the boss with
+     * the big bar stays in the list, as the last one; the others are drawn as small rows under it
+     * ({@link #drawMinis}). Vanilla's loop, its other bars (night, camp, Wither, dragon) and other mods' hooks
+     * run as always; with no or one boss the list is untouched.
      */
-    public static boolean compactAll(com.mki.nightsiege.mixin.client.BossHealthOverlayInvoker overlay, GuiGraphicsExtractor gui) {
-        Map<UUID, net.minecraft.client.gui.components.LerpingBossEvent> events = overlay.nightsiege$events();
-        if (!compact || events.size() < 2) {
-            return false;
+    public static <E extends BossEvent> java.util.Collection<E> order(java.util.Collection<E> all) {
+        mainId = null;
+        minis = java.util.List.of();
+        if (!compact || all.size() < 2) {
+            return all;
         }
-        java.util.List<net.minecraft.client.gui.components.LerpingBossEvent> bars = new java.util.ArrayList<>(events.values());
+        java.util.List<E> bars = new java.util.ArrayList<>(all);
         boolean[] boss = new boolean[bars.size()];
         java.util.List<UUID> ids = new java.util.ArrayList<>();
         java.util.List<Float> progress = new java.util.ArrayList<>();
@@ -107,33 +113,47 @@ public final class NightBars {
                 progress.add(bars.get(i).getProgress());
             }
         }
-        UUID mainId = FOCUS.pick(ids, progress, System.currentTimeMillis());
+        UUID pick = FOCUS.pick(ids, progress, System.currentTimeMillis());
         if (ids.size() < 2) {
-            return false;
+            return all;
         }
         int main = -1;
         for (int i = 0; i < bars.size(); i++) {
-            if (bars.get(i).getId().equals(mainId)) {
+            if (bars.get(i).getId().equals(pick)) {
                 main = i;
             }
         }
-        gui.nextStratum();
-        net.minecraft.client.gui.Font font = net.minecraft.client.Minecraft.getInstance().font;
-        int x = gui.guiWidth() / 2 - 91;
+        java.util.List<E> shown = new java.util.ArrayList<>();
+        java.util.List<BossEvent> rows = new java.util.ArrayList<>();
         for (com.mki.nightsiege.core.BossBarLayout.Slot slot
-                : com.mki.nightsiege.core.BossBarLayout.layout(boss, main, gui.guiHeight())) {
-            net.minecraft.client.gui.components.LerpingBossEvent event = bars.get(slot.index());
+                : com.mki.nightsiege.core.BossBarLayout.layout(boss, main, Integer.MAX_VALUE)) {
             if (slot.mini()) {
-                drawMini(gui, font, x, slot.y(), event);
-                continue;
+                rows.add(bars.get(slot.index()));
+            } else {
+                shown.add(bars.get(slot.index()));
+                if (boss[slot.index()]) {
+                    mainId = bars.get(slot.index()).getId();
+                }
             }
-            if (!draw(gui, x, slot.y(), event)) {
-                overlay.nightsiege$extractBar(gui, x, slot.y(), event);
-            }
-            net.minecraft.network.chat.Component name = event.getName();
-            gui.text(font, name, gui.guiWidth() / 2 - font.width(name) / 2, slot.y() - 9, -1);
         }
-        return true;
+        minis = rows;
+        return shown;
+    }
+
+    /** The small rows under the big boss bar drawn at {@code y}; like vanilla, nothing past a third of the screen. */
+    public static void drawMinis(GuiGraphicsExtractor gui, int x, int y, BossEvent event) {
+        if (mainId == null || !mainId.equals(event.getId())) {
+            return;
+        }
+        net.minecraft.client.gui.Font font = net.minecraft.client.Minecraft.getInstance().font;
+        int next = y + com.mki.nightsiege.core.BossBarLayout.BIG;
+        for (BossEvent row : minis) {
+            if (next >= gui.guiHeight() / 3) {
+                return;
+            }
+            drawMini(gui, font, x, next - com.mki.nightsiege.core.BossBarLayout.MINI_LIFT, row);
+            next += com.mki.nightsiege.core.BossBarLayout.MINI;
+        }
     }
 
     /** True for the bars that share the compact group: bosses (the Wächter too) and the nemesis. */

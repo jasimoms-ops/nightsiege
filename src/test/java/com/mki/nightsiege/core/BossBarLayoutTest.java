@@ -33,12 +33,12 @@ class BossBarLayoutTest {
 
     @Test
     void otherBarsKeepTheirPlace() {
-        // night bar, two bosses, the camp, a nemesis: the group stands where the first boss stood
+        // night bar, two bosses, the camp, a nemesis: the other bars keep their order, the group comes last
         boolean[] boss = {false, true, true, false, true};
         List<BossBarLayout.Slot> s = BossBarLayout.layout(boss, 4, GUI_H);
-        assertEquals(List.of(new BossBarLayout.Slot(0, 12, false), new BossBarLayout.Slot(4, 31, false),
-                new BossBarLayout.Slot(1, 39, true), new BossBarLayout.Slot(2, 49, true),
-                new BossBarLayout.Slot(3, 70, false)), s);
+        assertEquals(List.of(new BossBarLayout.Slot(0, 12, false), new BossBarLayout.Slot(3, 31, false),
+                new BossBarLayout.Slot(4, 50, false), new BossBarLayout.Slot(1, 58, true),
+                new BossBarLayout.Slot(2, 68, true)), s);
         // rows do not overlap: each starts below the one before ends
         for (int i = 1; i < s.size(); i++) {
             int prevEnd = s.get(i - 1).mini() ? s.get(i - 1).y() + 9 : s.get(i - 1).y() + 6;
@@ -52,6 +52,12 @@ class BossBarLayoutTest {
         List<BossBarLayout.Slot> s = BossBarLayout.layout(new boolean[] {false, true, true}, 0, GUI_H);
         assertEquals(new BossBarLayout.Slot(1, 31, false), s.get(1));
         assertEquals(new BossBarLayout.Slot(2, 39, true), s.get(2));
+        // the big bars are 19 apart, as vanilla's loop counts them
+        List<BossBarLayout.Slot> big = BossBarLayout.layout(new boolean[] {true, false, true, false}, 2, GUI_H)
+                .stream().filter(x -> !x.mini()).toList();
+        for (int i = 0; i < big.size(); i++) {
+            assertEquals(BossBarLayout.TOP + i * BossBarLayout.BIG, big.get(i).y());
+        }
     }
 
     @Test

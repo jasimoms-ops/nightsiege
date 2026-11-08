@@ -46,8 +46,8 @@ public final class BossBarLayout {
 
     /**
      * The slots, top to bottom. {@code boss[i]} marks the bars that may be compacted; {@code main} is the
-     * index of the boss with the big bar (a wrong one falls back to the first boss). The boss group stands
-     * where its first bar would stand; like vanilla, drawing stops once a third of the screen is reached.
+     * index of the boss with the big bar (a wrong one falls back to the first boss). The other bars keep
+     * their order, the boss group comes after them; like vanilla, drawing stops once a third of the screen is reached.
      */
     public static List<Slot> layout(boolean[] boss, int main, int guiHeight) {
         List<Slot> out = new ArrayList<>();
@@ -62,29 +62,29 @@ public final class BossBarLayout {
         }
         int limit = guiHeight / 3;
         int y = TOP;
-        boolean groupDone = false;
+        // the other bars keep their order; the boss group comes last (vanilla draws the big boss, the rows hang under it)
         for (int i = 0; i < boss.length; i++) {
-            if (!compact || !boss[i]) {
-                out.add(new Slot(i, y, false));
-                y += BIG;
-            } else if (!groupDone) {
-                groupDone = true;
-                out.add(new Slot(main, y, false));
-                y += BIG;
-                for (int j = 0; j < boss.length; j++) {
-                    if (boss[j] && j != main) {
-                        if (y >= limit) {
-                            return out;
-                        }
-                        out.add(new Slot(j, y - MINI_LIFT, true));
-                        y += MINI;
-                    }
-                }
-            } else {
+            if (compact && boss[i]) {
                 continue;
             }
+            out.add(new Slot(i, y, false));
+            y += BIG;
             if (y >= limit) {
-                break;
+                return out;
+            }
+        }
+        if (!compact) {
+            return out;
+        }
+        out.add(new Slot(main, y, false));
+        y += BIG;
+        for (int j = 0; j < boss.length; j++) {
+            if (boss[j] && j != main) {
+                if (y >= limit) {
+                    return out;
+                }
+                out.add(new Slot(j, y - MINI_LIFT, true));
+                y += MINI;
             }
         }
         return out;
