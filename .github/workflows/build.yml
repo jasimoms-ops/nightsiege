@@ -21,6 +21,10 @@ on:
         description: 'Alle Szenen nacheinander in einem Spiel (wie vor dem 05.11.) statt parallel'
         type: boolean
         default: false
+      sim:
+        description: 'Prüfstand/Sim wie "[sim ...]" in der Commit-Nachricht, z. B. "bench L5 L10" (leer = aus)'
+        type: string
+        default: ''
 
 permissions:
   contents: write
@@ -40,7 +44,7 @@ jobs:
           SCENES: ${{ inputs.scenes }}
           QUICK: ${{ inputs.quick }}
           TOGETHER: ${{ inputs.together }}
-          COMMIT_MSG: ${{ github.event.head_commit.message }}
+          COMMIT_MSG: ${{ github.event.head_commit.message || (inputs.sim != '' && format('[sim {0}] [noshader]', inputs.sim)) || '' }}
         run: |
           python3 - <<'PY'
           import json, math, os, re
@@ -328,7 +332,7 @@ jobs:
         if: steps.build.outcome == 'success' && matrix.group != 'quick' && matrix.group != 'server'
         continue-on-error: true
         env:
-          COMMIT_MSG: ${{ github.event.head_commit.message }}
+          COMMIT_MSG: ${{ github.event.head_commit.message || (inputs.sim != '' && format('[sim {0}] [noshader]', inputs.sim)) || '' }}
           GROUP: ${{ matrix.group }}
         run: |
           set +e
