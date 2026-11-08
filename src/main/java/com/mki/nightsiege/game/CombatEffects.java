@@ -1083,7 +1083,7 @@ public final class CombatEffects {
         double parry = tree.totalBonus(SkillEffect.PARRY, skills);
         boolean melee = source.getDirectEntity() == attacker;
         if (parry > 0 && melee && holdsWayWeapon(player, skills) && random.nextDouble() < parry) {
-            bonusHit(level, attacker, level.damageSources().playerAttack(player), (float) SkillValues.get("w_parry", "counter", 4));
+            bonusHit(level, attacker, level.damageSources().playerAttack(player), WarriorArts.scaled(SkillValues.get("w_parry", "counter", 4)));
             pushAway(attacker, player.position(), 0.7, 0.2);
             double heal = tree.totalBonus(SkillEffect.PARRY_HEAL, skills);
             if (heal > 0) {

@@ -120,6 +120,14 @@ public final class SiegeMath {
         return raw + cfg.healthPerLevel * stepsAboveCap(level, cfg);
     }
 
+    /**
+     * A fixed skill damage on this world level: grows like the monsters' life (+healthPerLevel per level),
+     * the same rule as the newer F abilities ({@code f_dmg}) and the shield skills (Tor 4).
+     */
+    public static double skillDamage(double base, int level, SiegeConfig cfg) {
+        return base * healthMultiplier(level, cfg);
+    }
+
     /** Attack damage multiplier applied to every siege mob. */
     public static double damageMultiplier(int level, SiegeConfig cfg) {
         int capped = Math.min(Math.max(1, level), Math.max(1, cfg.softCapLevel));
