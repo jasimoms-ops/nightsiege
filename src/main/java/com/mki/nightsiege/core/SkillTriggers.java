@@ -16,6 +16,6 @@ public final class SkillTriggers {
 
     /** Köcherwart (a_quiver): a shot of Infinity (nothing to give back) flies a free extra arrow instead. */
     public static boolean quiverTwin(boolean bow, boolean crossbow, boolean infinityShot) {
-        return bow && infinityShot;
+        return (bow || crossbow) && infinityShot;   // Tor 2.2: the crossbow way got nothing, though its kit has Infinity too
     }
 }

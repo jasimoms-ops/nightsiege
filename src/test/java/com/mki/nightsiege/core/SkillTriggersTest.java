@@ -18,4 +18,11 @@ class SkillTriggersTest {
         assertFalse(SkillTriggers.earthshock(0.0, false));
     }
 
+    @Test
+    void quiverExtraArrowWithTheCrossbowToo() {
+        assertTrue(SkillTriggers.quiverTwin(true, false, true));
+        assertTrue(SkillTriggers.quiverTwin(false, true, true));   // the crossbow way has the quiver as well
+        assertFalse(SkillTriggers.quiverTwin(false, true, false)); // a real arrow comes back instead
+        assertFalse(SkillTriggers.quiverTwin(false, false, true));
+    }
 }
