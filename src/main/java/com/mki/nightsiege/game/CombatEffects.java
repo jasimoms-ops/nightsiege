@@ -93,6 +93,7 @@ public final class CombatEffects {
     /** Warrior: hit streaks (stacks, last hit), the strong hit after a kill, the divine shield. */
     private final Map<UUID, long[]> combos = new HashMap<>();
     private final Map<UUID, Long> momentumUntil = new HashMap<>();
+    private final Map<UUID, Long> bloodPricePaid = new HashMap<>();
     private final Map<UUID, Long> divineReadyAt = new HashMap<>();
     /** Things an ultimate does a moment later (second slam, further whirlwind turns). */
     private final List<Delayed> delayed = new ArrayList<>();
@@ -773,8 +774,10 @@ public final class CombatEffects {
         if (price > 0) {
             bonus += price;
             float floor = (float) SkillValues.get("w_bloodprice", "floor", 6.0);
-            if (player.getHealth() > floor) {
-                // One life point (half a heart) per hit, but never below the floor.
+            long paid = bloodPricePaid.getOrDefault(player.getUUID(), Long.MIN_VALUE / 2);
+            if (player.getHealth() > floor && now - paid >= (long) SkillValues.get("w_bloodprice", "every", 20)) {
+                // One life point (half a heart) at most once a second (Tor 4: the combo hit 4 times a second), never below the floor.
+                bloodPricePaid.put(player.getUUID(), now);
                 player.setHealth(Math.max(floor, player.getHealth() - (float) SkillValues.get("w_bloodprice", "cost", 1.0)));
             }
         }
@@ -1743,6 +1746,7 @@ public final class CombatEffects {
         ultReadyAt.remove(player);
         combos.remove(player);
         momentumUntil.remove(player);
+        bloodPricePaid.remove(player);
         divineReadyAt.remove(player);
         tripReadyAt.remove(player);
         guardian.forget(player);
