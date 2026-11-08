@@ -1,5 +1,8 @@
 package com.mki.nightsiege.client;
 
+import com.mki.nightsiege.core.CooldownRing;
+import com.mki.nightsiege.core.HudSync;
+
 import com.mki.nightsiege.core.UltState;
 import com.mki.nightsiege.game.KitService;
 import com.mki.nightsiege.game.ModContent;
@@ -213,13 +216,15 @@ public final class KitHud {
         List<UltHud.Cell> big = s == null ? List.of() : UltHud.fixedCells(s, ultKey, false);
         List<UltHud.Cell> gains = s == null ? List.of() : UltHud.gainCells(s);
         List<UltHud.Cell> small = s == null ? List.of() : UltHud.choiceCells(s, mc);
+        // Tor 2 (08.11.): the pauses without a key of their own, small boxes right of Q, F and X.
+        List<UltHud.Cell> timers = s == null ? List.of() : UltHud.timerCells(s);
         boolean live = s != null && s.live;
 
         // The layout from left to right; sections without boxes take no room.
         int x = 6;
         int crestX = x;
         x += CREST_W + 5;   // room for the trim on its right (30.10.)
-        int bigW = big.isEmpty() ? 0 : big.size() * BIG_STEP - 2;
+        int bigW = big.isEmpty() && timers.isEmpty() ? 0 : big.size() * BIG_STEP + timers.size() * SMALL_STEP - 2;
         int smallW = small.isEmpty() ? 0 : small.size() * SMALL_STEP - 1;
         int abilW = Math.max(bigW, smallW);
         int abilX = x;
@@ -260,8 +265,12 @@ public final class KitHud {
                 ability(gui, mc.font, bx, by, BIG, c, live);
                 bx += BIG_STEP;
             }
+            for (UltHud.Cell c : timers) {
+                ability(gui, mc.font, bx, by + (BIG - SMALL) / 2, SMALL, c, live);
+                bx += SMALL_STEP;
+            }
             int cx = abilX + (abilW - smallW) / 2;
-            int cy = big.isEmpty() ? (H - SMALL) / 2 : 25;
+            int cy = big.isEmpty() && timers.isEmpty() ? (H - SMALL) / 2 : 25;
             for (UltHud.Cell c : small) {
                 ability(gui, mc.font, cx, cy, SMALL, c, live);
                 cx += SMALL_STEP;
@@ -373,15 +382,12 @@ public final class KitHud {
             if (!live || c.spent()) {
                 gui.fill(x + 1, y + 1, x + WING_SLOT - 1, y + WING_SLOT - 1, 0xA0000000);
             } else if (left > 0 && c.total() > 0) {
-                int shade = (int) Math.ceil((WING_SLOT - 2) * Math.min(1.0, left / (double) c.total()));
-                gui.fill(x + 1, y + WING_SLOT - 1 - shade, x + WING_SLOT - 1, y + WING_SLOT - 1, 0xB0000000);
+                gui.fill(x + 1, y + 1, x + WING_SLOT - 1, y + WING_SLOT - 1, 0x70000000);
+                ring(gui, x, y, WING_SLOT, left, c.total());
                 String sec = String.valueOf((left + 19) / 20);
                 small(gui, font, sec, x + WING_SLOT / 2f - font.width(sec) / 4f, y + 3f, 0xFFFFFFFF);
             }
-            String key = c.key() == null ? "?" : c.key().getTranslatedKeyMessage().getString();
-            if (key.length() > 3) {
-                key = key.substring(0, 3);
-            }
+            String key = c.keyText();
             small(gui, font, key, x + WING_SLOT - 0.5f - font.width(key) / 2f, y + WING_SLOT - 5.5f,
                     ready ? 0xFFF0D27A : 0xFFB8AC98);
             x += WING_SLOT + 2;
@@ -449,8 +455,9 @@ public final class KitHud {
         if (!live || c.spent()) {
             gui.fill(ix, iy, ix + icon, iy + icon, 0xA0000000);   // spent: a gain ability used up tonight
         } else if (left > 0 && c.total() > 0) {
-            int shade = (int) Math.ceil(icon * Math.min(1.0, left / (double) c.total()));
-            gui.fill(ix, iy + icon - shade, ix + icon, iy + icon, 0xB0000000);
+            // Tor 3.3 (Simon 08.11.): "Ring + Sekunden" instead of the shade rising in the box.
+            gui.fill(ix, iy, ix + icon, iy + icon, 0x70000000);
+            ring(gui, x, y, size, left, c.total());
             String seconds = String.valueOf((left + 19) / 20);
             if (bigBox) {
                 gui.text(font, seconds, ix + 8 - font.width(seconds) / 2, iy + 4, 0xFFFFFFFF, true);
@@ -458,13 +465,25 @@ public final class KitHud {
                 small(gui, font, seconds, ix + icon / 2f - font.width(seconds) / 4f, iy + 3, 0xFFFFFFFF);
             }
         }
-        Component label = c.key() == null ? Component.literal("?") : c.key().getTranslatedKeyMessage();
-        String text = label.getString();
-        if (text.length() > 3) {
-            text = text.substring(0, 3);
-        }
+        String text = c.keyText();
         int color = !live || c.spent() ? 0xFF9A9080 : left > 0 ? 0xFFB8AC98 : 0xFFF0D27A;
         small(gui, font, text, x + size - 2.5f - font.width(text) / 2f, y + size - 6.5f, color);
+    }
+
+    /** Ring colours: a dark groove, the time still to wait in the HUD's gold (red in the last three seconds). */
+    private static final int RING_TRACK = 0xFF1A0E0C;
+    private static final int RING_LIT = 0xFFE8C56B;
+    private static final int RING_LAST = 0xFFD8443A;
+
+    /** Tor 3.3: the pause as a ring on the box's edge, lit clockwise from the top middle for the time left. */
+    static void ring(GuiGraphicsExtractor gui, int x, int y, int size, long left, int total) {
+        for (int[] r : CooldownRing.runs(x, y, size, 1.0)) {
+            gui.fill(r[0], r[1], r[2], r[3], RING_TRACK);
+        }
+        int color = left <= 60 ? RING_LAST : RING_LIT;
+        for (int[] r : CooldownRing.runs(x, y, size, HudSync.shade(left, total))) {
+            gui.fill(r[0], r[1], r[2], r[3], color);
+        }
     }
 
     private static void small(GuiGraphicsExtractor gui, Font font, String text, float x, float y, int color) {

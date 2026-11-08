@@ -33,5 +33,8 @@ public class WheelData {
         public boolean open = true;
         /** The choice in use right now. */
         public boolean current;
+        /** Tor 2 (08.11.): its pause, for the box on the ability bar (0 = none). */
+        public int cooldownTicks;
+        public int totalTicks;
     }
 }

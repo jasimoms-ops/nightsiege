@@ -125,6 +125,44 @@ public final class CombatEffects {
         return guardian;
     }
 
+    /**
+     * Tor 2 (08.11.): whether this player heals others (the guardians' healing abilities, a heal aura,
+     * the paladin's martyr), so he gets the party's life list.
+     */
+    public boolean healsOthers(ServerPlayer player) {
+        PlayerSkills skills = skillsFor.apply(player);
+        if (skills == null || !skills.hasClass()) {
+            return false;
+        }
+        return guardian.healWheel(player) != null || tree.totalBonus(SkillEffect.HEAL_AURA, skills) > 0
+                || SkillTree.has(skills, "w_martyr");
+    }
+
+    /**
+     * Tor 2 (08.11.: "kein sichtbarer Cooldown außer G und Ult"): the pauses that run without a key of
+     * their own, as small boxes on the kit HUD (guardian: shield action, last stand; paladin: divine
+     * shield; archer: tripwire).
+     */
+    public List<com.mki.nightsiege.core.UltState.Slot> timers(ServerPlayer player, long now) {
+        List<com.mki.nightsiege.core.UltState.Slot> out = new ArrayList<>();
+        PlayerSkills skills = skillsFor.apply(player);
+        if (skills == null || !skills.hasClass()) {
+            return out;
+        }
+        guardian.timers(player, now, out);
+        if (SkillTree.has(skills, "w_divine_shield")) {
+            out.add(GuardianEffects.timer("divine_shield", "minecraft:golden_apple", "nightsiege.hud.timer.divine",
+                    "nightsiege.hud.key.passive", divineReadyAt.getOrDefault(player.getUUID(), 0L), now,
+                    (int) SkillValues.get("w_divine_shield", "every", 600)));
+        }
+        if (skills.clazz() == com.mki.nightsiege.core.SkillClass.ARCHER && tree.totalBonus(SkillEffect.TRIPWIRE, skills) > 0) {
+            out.add(GuardianEffects.timer("tripwire", "minecraft:tripwire_hook", "nightsiege.hud.timer.tripwire",
+                    "nightsiege.hud.key.passive", tripReadyAt.getOrDefault(player.getUUID(), 0L), now,
+                    (int) SkillValues.get("a_tripwire", "cd", 100)));
+        }
+        return out;
+    }
+
     /** Runs an action a few ticks later (the bounces of a thrown shield, the debris of a charge). */
     void schedule(int ticks, Runnable action) {
         delayed.add(new Delayed(currentTime + Math.max(1, ticks), action));
@@ -209,8 +247,7 @@ public final class CombatEffects {
         if (fired) {
             // In creative the ultimate is for trying out: only a short pause.
             int cooldown = player.getAbilities().instabuild ? 40
-                    : (int) Math.round((node.clazz() == SkillClass.WARRIOR || node.clazz() == SkillClass.SUMMONER
-                    ? SkillValues.get(node.id(), "cd" + rank, cooldownFor(rank)) : cooldownFor(rank))
+                    : (int) Math.round(com.mki.nightsiege.core.AbilityTips.ultCooldown(node, rank)
                     * cooldownScale.applyAsDouble(player));
             ultReadyAt.put(player.getUUID(), now + cooldown);
             ultTotal.put(player.getUUID(), cooldown);
@@ -1682,7 +1719,7 @@ public final class CombatEffects {
 
     /** Full cooldown at this rank. */
     public static int cooldownFor(int rank) {
-        return 600 - 100 * Math.max(1, rank);
+        return com.mki.nightsiege.core.AbilityTips.baseUltCooldown(rank);
     }
 
     public void setArrowBonus(java.util.function.ToDoubleFunction<ServerPlayer> bonus) {

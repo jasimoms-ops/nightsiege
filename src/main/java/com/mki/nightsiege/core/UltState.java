@@ -83,6 +83,12 @@ public class UltState {
      * of their own. {@link Slot#current} marks one that is spent (used up tonight or in this kit).
      */
     public java.util.List<Slot> gains = new java.util.ArrayList<>();
+    /**
+     * Tor 2 (08.11.): pauses without a key of their own (the guardians' shield action, their last stand, the
+     * paladin's divine shield, the trapper's tripwire), shown as small boxes with a running pause.
+     * {@link Slot#name} names it, {@link Slot#sub} is the key of the short label on the box.
+     */
+    public java.util.List<Slot> timers = new java.util.ArrayList<>();
 
     /** One ability of the bar. */
     public static class Slot {
@@ -107,4 +113,7 @@ public class UltState {
          */
         public boolean scroll;
     }
+
+    /** What each of Q, F, X does, for the tooltip in the inventory (Simon 08.11.). */
+    public java.util.List<AbilityTip> tips = new java.util.ArrayList<>();
 }
