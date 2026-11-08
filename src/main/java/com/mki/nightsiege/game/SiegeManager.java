@@ -5462,6 +5462,11 @@ public final class SiegeManager {
                 state.live = state.live || liveSkillsFor(player) != null;
                 state.slots = safeSlots(player);
                 try {
+                    state.timers = combat.timers(player, now);   // Tor 2: pauses without a key of their own
+                } catch (RuntimeException e) {
+                    NightSiegeMod.LOGGER.warn("[Night Siege] Abklingzeiten: {}", e.toString());
+                }
+                try {
                     state.gains = GainKeys.slots(this, player, now);
                 } catch (RuntimeException e) {
                     NightSiegeMod.LOGGER.warn("[Night Siege] Gewinn-Tasten: {}", e.toString());
@@ -5482,6 +5487,11 @@ public final class SiegeManager {
                     state.hasAb2 = true;
                     state.iconAb2 = "minecraft:glistering_melon_slice";
                     state.nameAb2 = "nightsiege.abilitybar.f_heal";
+                    int[] pause = combat.guardian().chosenHealPause(player);   // Tor 2: the chosen heal's pause
+                    if (pause != null) {
+                        state.cooldownAb2Ticks = pause[0];
+                        state.totalAb2Ticks = pause[1];
+                    }
                 } else if (own.clazz() == com.mki.nightsiege.core.SkillClass.ARCHER) {
                     // The arrow rain (Simon 30.10.): its pause runs on the F field.
                     state.hasAb2 = true;
@@ -7001,6 +7011,9 @@ public final class SiegeManager {
                 if (spells) {
                     slot.cooldownTicks = companions.spellCooldownLeft(player, o.id, now);
                     slot.totalTicks = companions.spellCooldownTotal(player, o.id);
+                } else {
+                    slot.cooldownTicks = o.cooldownTicks;   // Tor 2: the healers' pauses
+                    slot.totalTicks = o.totalTicks;
                 }
                 out.add(slot);
             }

@@ -213,13 +213,15 @@ public final class KitHud {
         List<UltHud.Cell> big = s == null ? List.of() : UltHud.fixedCells(s, ultKey, false);
         List<UltHud.Cell> gains = s == null ? List.of() : UltHud.gainCells(s);
         List<UltHud.Cell> small = s == null ? List.of() : UltHud.choiceCells(s, mc);
+        // Tor 2 (08.11.): the pauses without a key of their own, small boxes right of Q, F and X.
+        List<UltHud.Cell> timers = s == null ? List.of() : UltHud.timerCells(s);
         boolean live = s != null && s.live;
 
         // The layout from left to right; sections without boxes take no room.
         int x = 6;
         int crestX = x;
         x += CREST_W + 5;   // room for the trim on its right (30.10.)
-        int bigW = big.isEmpty() ? 0 : big.size() * BIG_STEP - 2;
+        int bigW = big.isEmpty() && timers.isEmpty() ? 0 : big.size() * BIG_STEP + timers.size() * SMALL_STEP - 2;
         int smallW = small.isEmpty() ? 0 : small.size() * SMALL_STEP - 1;
         int abilW = Math.max(bigW, smallW);
         int abilX = x;
@@ -260,8 +262,12 @@ public final class KitHud {
                 ability(gui, mc.font, bx, by, BIG, c, live);
                 bx += BIG_STEP;
             }
+            for (UltHud.Cell c : timers) {
+                ability(gui, mc.font, bx, by + (BIG - SMALL) / 2, SMALL, c, live);
+                bx += SMALL_STEP;
+            }
             int cx = abilX + (abilW - smallW) / 2;
-            int cy = big.isEmpty() ? (H - SMALL) / 2 : 25;
+            int cy = big.isEmpty() && timers.isEmpty() ? (H - SMALL) / 2 : 25;
             for (UltHud.Cell c : small) {
                 ability(gui, mc.font, cx, cy, SMALL, c, live);
                 cx += SMALL_STEP;
@@ -458,11 +464,7 @@ public final class KitHud {
                 small(gui, font, seconds, ix + icon / 2f - font.width(seconds) / 4f, iy + 3, 0xFFFFFFFF);
             }
         }
-        Component label = c.key() == null ? Component.literal("?") : c.key().getTranslatedKeyMessage();
-        String text = label.getString();
-        if (text.length() > 3) {
-            text = text.substring(0, 3);
-        }
+        String text = c.keyText();
         int color = !live || c.spent() ? 0xFF9A9080 : left > 0 ? 0xFFB8AC98 : 0xFFF0D27A;
         small(gui, font, text, x + size - 2.5f - font.width(text) / 2f, y + size - 6.5f, color);
     }
