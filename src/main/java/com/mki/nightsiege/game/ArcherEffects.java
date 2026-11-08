@@ -178,7 +178,7 @@ public final class ArcherEffects {
                 if (!back.isEmpty() && player.getInventory().add(back)) {
                     arrow.pickup = AbstractArrow.Pickup.CREATIVE_ONLY;
                 }
-            } else if (bow && arrow.pickup == AbstractArrow.Pickup.CREATIVE_ONLY) {
+            } else if (com.mki.nightsiege.core.SkillTriggers.quiverTwin(bow, crossbow, arrow.pickup == AbstractArrow.Pickup.CREATIVE_ONLY)) {
                 spawnTwin(arrow, level, player, weapon, damage * SkillValues.get("a_quiver", "extra", 0.5), 2.0f, false);
             }
         }

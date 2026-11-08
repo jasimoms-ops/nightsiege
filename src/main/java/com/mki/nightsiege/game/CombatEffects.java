@@ -747,7 +747,7 @@ public final class CombatEffects {
             level.sendParticles(ParticleTypes.SWEEP_ATTACK, victim.getX(), victim.getY(0.6), victim.getZ(), 1, 0, 0, 0, 0);
         }
         double shock = tree.totalBonus(SkillEffect.EARTHSHOCK, skills);
-        boolean falling = shock > 0 && player.fallDistance > SkillValues.get("w_earthshock", "fall", 1.5);
+        boolean falling = shock > 0 && com.mki.nightsiege.core.SkillTriggers.earthshock(player.fallDistance, player.onGround());
         if (falling) {
             bonus += shock;
         }

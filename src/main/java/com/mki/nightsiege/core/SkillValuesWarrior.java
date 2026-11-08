@@ -98,7 +98,7 @@ final class SkillValuesWarrior {
         def("w_holy_strike", "burn", 80);      // ticks
         def("w_holy_strike", "heal", 1);
         def("w_holy_strike", "chance", 0.10);  // own crit chance when nothing else gives one
-        def("w_earthshock", "fall", 1.5);      // blocks of falling
+        def("w_earthshock", "fall", 0.0);      // blocks of falling (Tor 2.2: 1.5 was more than a jump, it never fired)
         def("w_earthshock", "splash", 0.5);
         def("w_earthshock", "radius", 2.5);
         def("w_divine_shield", "every", 600);  // ticks
