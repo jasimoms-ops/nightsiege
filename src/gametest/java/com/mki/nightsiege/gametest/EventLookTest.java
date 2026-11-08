@@ -1243,6 +1243,8 @@ public class EventLookTest implements FabricClientGameTest {
             for (int i = 0; i < levels.length; i++) {
                 manager.save().siegesWon = levels[i] - 1;
                 player.setHealth(2f);
+                // Tor 4: from level 15 the axe heals at most what he lost lately (hitLifestealLateTakenShare).
+                com.mki.nightsiege.game.StealPool.lost(player, 30.0, level.getGameTime());
                 float before = dummy.getHealth();
                 dummy.invulnerableTime = 0;
                 dummy.hurtServer(level, level.damageSources().playerAttack(player), 30f);

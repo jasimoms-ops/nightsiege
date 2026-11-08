@@ -75,7 +75,9 @@ final class SkillValuesWarrior {
         def("w_heavyswing", "way", 0.3);       // attack speed the might way itself gives
         def("heavy_blow", "slow", 20);         // Slowness II, ticks
         def("heavy_blow", "lifesteal", 0.5);   // Simon 26.10.: factor on the axe fighter's kill heal (meleeLifesteal), -50 %
-        def("heavy_blow", "hp", -10);          // Simon 26.10.: life of the axe fighter (SkillService)
+        def("heavy_blow", "hp", -10);          // Simon 26.10.: life of the axe fighter (SkillService) ...
+        def("heavy_blow", "hplow", -6);        // ... Tor 4 (Simon 08.11.): only this much below world level "hplowuntil"
+        def("heavy_blow", "hplowuntil", 10);
         def("heavy_blow", "groupcut", 0.2);    // Simon 26.10.: cleave -20 % up to world level "groupfull1" ...
         def("heavy_blow", "groupfull1", 10);   // ... then back to +-0 in a line ...
         def("heavy_blow", "groupfull2", 20);   // ... at this level and above

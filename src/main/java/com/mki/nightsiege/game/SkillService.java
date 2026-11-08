@@ -50,7 +50,8 @@ public final class SkillService {
     /**
      * Simon 26.10.: life of the subclass on top of the skills: the axe fighter 10 less, the
      * paladin 5 less, every archer subclass 4 more (two hearts). The number sits on the subclass
-     * node as SkillValue "hp".
+     * node as SkillValue "hp". Below world level "hplowuntil" a node with "hplow" takes that instead
+     * (Tor 4: the axe fighter 6 less until level 10).
      */
     static double subclassHealth(SkillTree tree, PlayerSkills skills) {
         String node = switch (tree.subclassOf(skills)) {
@@ -62,7 +63,18 @@ public final class SkillService {
             case SkillTree.SUB_TRAPPER -> "a_netbolt";
             default -> null;
         };
-        return node == null ? 0.0 : SkillValues.get(node, "hp", 0.0);
+        if (node == null) {
+            return 0.0;
+        }
+        double low = SkillValues.get(node, "hplowuntil", 0.0);
+        if (low > 0) {
+            SiegeManager m = SiegeManager.get();
+            int level = m == null ? 1 : m.currentLevel();
+            if (level < low) {
+                return SkillValues.get(node, "hplow", SkillValues.get(node, "hp", 0.0));
+            }
+        }
+        return SkillValues.get(node, "hp", 0.0);
     }
 
     /** Keystones change several values at once. */
