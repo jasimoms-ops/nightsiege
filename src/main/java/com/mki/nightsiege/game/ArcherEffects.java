@@ -166,9 +166,11 @@ public final class ArcherEffects {
             arrow.igniteForSeconds(100f);
         }
 
-        // The heavy bow trades speed for weight: a short pause after every shot.
-        if (bow && SkillTree.has(skills, "heavy_draw")) {
-            player.getCooldowns().addCooldown(weapon, (int) SkillValues.get("heavy_draw", "pause", 12));
+        // The heavy bow used to pause after every shot; since Simon 08.11. (20:29) it has none by default.
+        // A server can still set skillTweaks.heavy_draw.values.pause.
+        int heavyPause = (int) SkillValues.get("heavy_draw", "pause", 0);
+        if (bow && heavyPause > 0 && SkillTree.has(skills, "heavy_draw")) {
+            player.getCooldowns().addCooldown(weapon, heavyPause);
         }
 
         // Quiver: now and then the arrow comes back. A bow with Infinity uses up no arrows,

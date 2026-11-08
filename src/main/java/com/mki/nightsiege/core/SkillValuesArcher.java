@@ -28,7 +28,7 @@ final class SkillValuesArcher {
         def("shrapnel", "hp", 4);
         def("a_netbolt", "hp", 4);
         def("a_netbolt", "splash", 2.0);            // Simon 27.10. (more crowd control): monsters this close to the target are slowed too, half as long
-        def("heavy_draw", "pause", 12);             // bow cooldown after every shot
+        def("heavy_draw", "pause", 0);              // bow cooldown after every shot (Simon 08.11. 20:29: none; was 12, server may still set one)
         def("heavy_draw", "power", 1);              // extra Power level on the kit bow (KitService)
         def("double_shot", "angle", 4.0);
         def("a_volley", "every", 4);
