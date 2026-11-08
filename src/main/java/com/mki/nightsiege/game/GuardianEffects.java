@@ -898,6 +898,44 @@ public final class GuardianEffects {
         return slot;
     }
 
+    /** The shield throw on a key of its own (Tor 3.1: was block + left click), null without it. */
+    public com.mki.nightsiege.core.UltState.Slot shieldSlot(ServerPlayer player) {
+        PlayerSkills skills = skillsFor.apply(player);
+        if (!isGuardian(skills) || tree.totalBonus(SkillEffect.SHIELD_THROW, skills) <= 0) {
+            return null;
+        }
+        long now = player.level().getGameTime();
+        com.mki.nightsiege.core.UltState.Slot slot = new com.mki.nightsiege.core.UltState.Slot();
+        slot.id = com.mki.nightsiege.core.AbilityKeys.SHIELD;
+        slot.icon = "minecraft:trident";
+        slot.name = "nightsiege.ability.shield_throw";
+        long ready = actionReadyAt.getOrDefault(player.getUUID(), 0L);
+        slot.cooldownTicks = ready > now ? (int) (ready - now) : 0;
+        slot.totalTicks = (int) Math.round(SkillValues.get("g_shieldthrow", "cd", 160.0));
+        return slot;
+    }
+
+    /** The shield throw's key (Tor 3.1): the shield action without having to block first. */
+    public void onShieldKey(ServerPlayer player) {
+        if (!(player.level() instanceof ServerLevel level) || !player.isAlive()) {
+            return;
+        }
+        PlayerSkills skills = skillsFor.apply(player);
+        if (!isGuardian(skills) || tree.totalBonus(SkillEffect.SHIELD_THROW, skills) <= 0) {
+            return;
+        }
+        long now = level.getGameTime();
+        long ready = actionReadyAt.getOrDefault(player.getUUID(), 0L);
+        if (now < ready) {
+            CombatEffects.actionBar(player, Component.translatable("nightsiege.msg.shield_action_wait", (ready - now + 19) / 20));
+            return;
+        }
+        if (throwShield(level, player, skills)) {
+            actionReadyAt.put(player.getUUID(), now + (player.getAbilities().instabuild ? 20
+                    : Math.round(SkillValues.get("g_shieldthrow", "cd", 160.0))));
+        }
+    }
+
     /** The self-heal key: the healing hand on himself. */
     public boolean castSelfHeal(ServerPlayer player) {
         if (!(player.level() instanceof ServerLevel level) || !player.isAlive()) {

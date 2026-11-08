@@ -33,11 +33,9 @@ public class SummonStaffItem extends Item {
 
     @Override
     public InteractionResult use(Level level, Player player, InteractionHand hand) {
-        if (!level.isClientSide() && player instanceof ServerPlayer server) {
-            // The pauses live in Companions: an item cooldown would also block the sneak actions.
-            handler.use(server, player.getItemInHand(hand));
-        }
-        return InteractionResult.SUCCESS;
+        // Tor 3.1 ("Nur Tasten", Simon 08.11.): the right click casts and calls no more; the spells,
+        // the call and the order are on Q, F and Y, the staff's attack is the left click.
+        return InteractionResult.PASS;
     }
 
     private static int[] souls(ItemStack stack) {

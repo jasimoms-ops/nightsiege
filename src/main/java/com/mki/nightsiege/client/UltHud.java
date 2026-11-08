@@ -56,10 +56,27 @@ public final class UltHud {
     }
 
     /** One box: {@code spent} greys out a gain ability used up for tonight or this kit. */
-    record Cell(ItemStack icon, KeyMapping key, int cooldown, int total, boolean current, boolean spent) {
-        Cell(ItemStack icon, KeyMapping key, int cooldown, int total, boolean current) {
-            this(icon, key, cooldown, total, current, false);
+    record Cell(ItemStack icon, KeyMapping key, int cooldown, int total, boolean current, boolean spent, boolean sneak) {
+        Cell(ItemStack icon, KeyMapping key, int cooldown, int total, boolean current, boolean spent) {
+            this(icon, key, cooldown, total, current, spent, false);
         }
+
+        Cell(ItemStack icon, KeyMapping key, int cooldown, int total, boolean current) {
+            this(icon, key, cooldown, total, current, false, false);
+        }
+    }
+
+    /** The key label of a box, from the player's own binding ("X", or sneak + "X" for the second ult). */
+    static net.minecraft.network.chat.Component keyLabel(Cell c) {
+        if (c.key() == null) {
+            return net.minecraft.network.chat.Component.literal("?");
+        }
+        net.minecraft.network.chat.Component key = c.key().getTranslatedKeyMessage();
+        if (!c.sneak()) {
+            return key;
+        }
+        return net.minecraft.network.chat.Component.empty()
+                .append(Minecraft.getInstance().options.keyShift.getTranslatedKeyMessage()).append("+").append(key);
     }
 
     /** Q, F and X, the ones the player has, and the gain keys behind them. */
@@ -90,7 +107,7 @@ public final class UltHud {
             fixed.add(new Cell(icon(s.iconAb2), GainClient.orderKey(), s.cooldownAb2Ticks, s.totalAb2Ticks, false, s.ab2Dim));
         }
         if (s.has2) {
-            fixed.add(new Cell(icon(s.icon2), GainClient.secondUltKey(), s.cooldown2Ticks, s.total2Ticks, false));
+            fixed.add(new Cell(icon(s.icon2), GainClient.secondUltKey(), s.cooldown2Ticks, s.total2Ticks, false, false, true));
         }
         // The gain keys N, M, J (balance update 2, 29 October 2026): the crate gains with an ability of their own.
         if (gains && s.gains != null) {
@@ -102,13 +119,13 @@ public final class UltHud {
         return fixed;
     }
 
-    /** The choices on R, G, Y, C, V, B (only learned ones come from the server). */
+    /** The abilities on Q, F, Y and the extra key, each with the key it fires on (Tor 3.1). */
     static List<Cell> choiceCells(UltState s, Minecraft mc) {
         List<Cell> choices = new ArrayList<>();
         if (s.slots != null) {
-            for (int i = 0; i < s.slots.size() && i < GainClient.SLOTS; i++) {
+            for (int i = 0; i < s.slots.size(); i++) {
                 UltState.Slot slot = s.slots.get(i);
-                choices.add(new Cell(iconOf(mc, slot), GainClient.slotKey(i), slot.cooldownTicks, slot.totalTicks, slot.current));
+                choices.add(new Cell(iconOf(mc, slot), GainClient.keyOf(slot), slot.cooldownTicks, slot.totalTicks, slot.current));
             }
         }
         return choices;
@@ -177,7 +194,7 @@ public final class UltHud {
             String seconds = String.valueOf((left + 19) / 20);
             gui.text(font, seconds, ix + 8 - font.width(seconds) / 2, iy + 4, 0xFFFFFFFF, true);
         }
-        Component label = c.key() == null ? Component.literal("?") : c.key().getTranslatedKeyMessage();
+        Component label = UltHud.keyLabel(c);   // the firing key, sneak + X for the second ult (Tor 3.1)
         String text = label.getString();
         if (text.length() > 3) {
             text = text.substring(0, 3);

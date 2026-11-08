@@ -975,10 +975,7 @@ public final class SiegeManager {
             return player instanceof ServerPlayer server && hand == net.minecraft.world.InteractionHand.MAIN_HAND
                     && machines.onUse(server, entity, config) ? InteractionResult.SUCCESS : InteractionResult.PASS;
         });
-        net.fabricmc.fabric.api.event.player.UseEntityCallback.EVENT.register((player, world, hand, entity, hit) ->
-                !world.isClientSide() && player instanceof ServerPlayer server
-                        && combat.guardian().onUseEntity(server, entity, hand)
-                        ? net.minecraft.world.InteractionResult.SUCCESS : net.minecraft.world.InteractionResult.PASS);
+        // The healing hand by right click on a teammate is gone (Tor 3.1, "Nur Tasten"): it is on its key now.
         ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> {
             if (active && entity instanceof net.minecraft.world.entity.projectile.Projectile) {
                 safe("Statistik", () -> stats.projectile(entity));   // shots and throws for the Ruhmeshalle (31.10.)
@@ -5493,10 +5490,6 @@ public final class SiegeManager {
                     state.hasAb2 = true;
                     state.iconAb2 = "minecraft:lead";
                     state.nameAb2 = "nightsiege.abilitybar.f_staff";
-                } else if (combat.guardian().healWheel(player) != null) {
-                    state.hasAb2 = true;
-                    state.iconAb2 = "minecraft:glistering_melon_slice";
-                    state.nameAb2 = "nightsiege.abilitybar.f_heal";
                 } else if (own.clazz() == com.mki.nightsiege.core.SkillClass.ARCHER) {
                     // The arrow rain (Simon 30.10.): its pause runs on the F field.
                     state.hasAb2 = true;
@@ -7039,6 +7032,18 @@ public final class SiegeManager {
                 out.add(self);   // the medic heals himself on a key of his own (Simon 30.10.)
             }
         }
+        if (own.hasClass()) {
+            com.mki.nightsiege.core.UltState.Slot shield = combat.guardian().shieldSlot(player);
+            if (shield != null) {
+                out.add(0, shield);   // the shield throw on its key (Tor 3.1: was block + left click)
+            }
+        }
+        // Tor 3.1 ("Nur Tasten"): each ability's key from the one table, the rest on the extra key.
+        String sub = own.hasClass() ? skillTree.subclassOf(own) : "";
+        for (com.mki.nightsiege.core.UltState.Slot slot : out) {
+            com.mki.nightsiege.core.AbilityKeys.Key key = com.mki.nightsiege.core.AbilityKeys.keyOf(sub, slot.id);
+            slot.key = (key == null ? com.mki.nightsiege.core.AbilityKeys.Key.EXTRA : key).name();
+        }
         while (out.size() > 6) {
             out.remove(out.size() - 1);
         }
@@ -7078,6 +7083,8 @@ public final class SiegeManager {
             GainGear.normalArrows(player);   // a tap on the arrow key: the normal arrows again
         } else if (GuardianEffects.SELF_HEAL.equals(id)) {
             combat.guardian().castSelfHeal(player);
+        } else if (com.mki.nightsiege.core.AbilityKeys.SHIELD.equals(id)) {
+            combat.guardian().onShieldKey(player);   // the shield throw (Tor 3.1)
         } else if (EngineerEscape.ID.equals(id)) {
             EngineerEscape.fire(player, traps);   // the engineers' and the heavy archer's blast jump
         } else if (traps.onEngineerSlot(player, id)) {

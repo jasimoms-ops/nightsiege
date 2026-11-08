@@ -33,7 +33,7 @@ public final class NightKeys {
 
     private static List<KeyMapping> abilities() {
         List<KeyMapping> out = new ArrayList<>(13);
-        for (KeyMapping m : new KeyMapping[] {NightSiegeClient.ultimateKey(), GainClient.orderKey(), GainClient.secondUltKey()}) {
+        for (KeyMapping m : new KeyMapping[] {NightSiegeClient.ultimateKey()}) {   // Q, F, Y are slot keys now (Tor 3.1)
             if (m != null && !m.isUnbound()) {
                 out.add(m);
             }

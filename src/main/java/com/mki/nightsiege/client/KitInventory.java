@@ -74,7 +74,7 @@ public final class KitInventory {
             for (UltHud.Cell c : cells) {
                 KitHud.blit(gui, SLOT, ax, ay, 18, 18);
                 gui.item(c.icon(), ax + 1, ay + 1);
-                String key = c.key() == null ? "?" : c.key().getTranslatedKeyMessage().getString();
+                String key = UltHud.keyLabel(c).getString();   // the firing key (Tor 3.1)
                 if (key.length() > 3) {
                     key = key.substring(0, 3);
                 }

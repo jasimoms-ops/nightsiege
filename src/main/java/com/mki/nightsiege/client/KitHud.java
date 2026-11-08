@@ -378,7 +378,7 @@ public final class KitHud {
                 String sec = String.valueOf((left + 19) / 20);
                 small(gui, font, sec, x + WING_SLOT / 2f - font.width(sec) / 4f, y + 3f, 0xFFFFFFFF);
             }
-            String key = c.key() == null ? "?" : c.key().getTranslatedKeyMessage().getString();
+            String key = UltHud.keyLabel(c).getString();   // the firing key (Tor 3.1)
             if (key.length() > 3) {
                 key = key.substring(0, 3);
             }
@@ -458,7 +458,7 @@ public final class KitHud {
                 small(gui, font, seconds, ix + icon / 2f - font.width(seconds) / 4f, iy + 3, 0xFFFFFFFF);
             }
         }
-        Component label = c.key() == null ? Component.literal("?") : c.key().getTranslatedKeyMessage();
+        Component label = UltHud.keyLabel(c);   // the firing key, sneak + X for the second ult (Tor 3.1)
         String text = label.getString();
         if (text.length() > 3) {
             text = text.substring(0, 3);
