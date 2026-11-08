@@ -532,6 +532,11 @@ public final class MeleeSim {
 
     /** Bow: draw fully and let go. Crossbow: load, then fire. Aimed a little above the target. */
     static void shoot(ServerPlayer player, ServerLevel level, Mob target) {
+        shoot(player, level, target, Vec3.ZERO);
+    }
+
+    /** {@code error}: the human bot's aim error (Tor 6.0), added to the aim point. */
+    static void shoot(ServerPlayer player, ServerLevel level, Mob target, Vec3 error) {
         // Any bow or crossbow item: the kit gives the subclass bows and from night 20 infernite ones,
         // which are not the vanilla items (the bench measured 0 damage for heavy shooters and crossbows).
         boolean crossbow = !hold(player, s -> s.getItem() instanceof net.minecraft.world.item.BowItem)
@@ -549,7 +554,7 @@ public final class MeleeSim {
             return;
         }
         double dist = player.distanceTo(target);
-        Vec3 aim = target.getEyePosition().add(0, dist * (crossbow ? 0.03 : 0.05), 0);
+        Vec3 aim = target.getEyePosition().add(0, dist * (crossbow ? 0.03 : 0.05), 0).add(error);
         player.lookAt(EntityAnchorArgument.Anchor.EYES, aim);
         if (crossbow) {
             ChargedProjectiles loaded = weapon.get(DataComponents.CHARGED_PROJECTILES);

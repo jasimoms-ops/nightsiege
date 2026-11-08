@@ -83,6 +83,14 @@ final class TeamBrain {
     private boolean focused = true;
     private long nextFocus;
     private long nextUlt;
+    /** Tor 6.0: the human switch ({@link BotHuman}); OFF = the bot as before. */
+    BotHuman h = BotHuman.OFF;
+    /** The core (retreat target), set by the team sim. */
+    Vec3 core;
+    /** Archers: stands on the wall top (true) or in front of the gate. */
+    boolean onWall = true;
+    private long retreatUntil;
+    private long lowSince = -1;
     private long nextUlt2;
     private long nextShield;
     private int staffTurn;
@@ -116,6 +124,44 @@ final class TeamBrain {
         this.subNode = sub[1];
         this.subclass = sub[2];
         this.role = roleOf(sub[2]);
+    }
+
+    /** Tor 6.0: switch the human behaviour on (after construction; draws from this bot's own random). */
+    void humanize(BotHuman human) {
+        this.h = human;
+        this.onWall = !human.on || rnd.nextDouble() < human.mauer;
+    }
+
+    private int late() {
+        return h.on ? rnd.nextInt((int) Math.max(1, h.spaet)) : 0;
+    }
+
+    private boolean forgot() {
+        return h.on && rnd.nextDouble() < h.vergessen;
+    }
+
+    private Vec3 aimError(double dist) {
+        if (!h.on || h.zielgrad <= 0) {
+            return Vec3.ZERO;
+        }
+        double r = dist * Math.tan(Math.toRadians(h.zielgrad));
+        return new Vec3(rnd.nextGaussian() * r, rnd.nextGaussian() * r * 0.5, rnd.nextGaussian() * r);
+    }
+
+    /** Potions and food; the human bot reacts late and drinks at a lower share. */
+    private void drink(ServerPlayer player, ServerLevel level, long now) {
+        if (now >= nextUse) {
+            boolean low = player.getHealth() < player.getMaxHealth() * (float) (h.on ? h.traenkeHp : 0.45);
+            if (h.on) {
+                lowSince = low ? (lowSince < 0 ? now : lowSince) : -1;
+                low = low && now - lowSince >= h.traenkeVerzug;
+            }
+            if (low && MeleeSim.use(player, level, true)) {
+                nextUse = now + 40;
+            } else if (player.getFoodData().getFoodLevel() < 14 && MeleeSim.use(player, level, false)) {
+                nextUse = now + 40;
+            }
+        }
     }
 
     static Role roleOf(String subclass) {
@@ -358,6 +404,21 @@ final class TeamBrain {
         Vec3 home = Vec3.atBottomCenterOf(post);
         boolean melee = role == Role.TANK || role == Role.MELEE || role == Role.HEALER || role == Role.SUMMONER;
         boolean seated = m.trapService().seatTop(player) != null;   // Tor 4b: a seated engineer stays in his tower
+        if (h.on && melee && core != null) {
+            // Retreat (Tor 6.0): red life, step back to the core for a while, drink, then back to the post.
+            if (now >= retreatUntil + (long) h.rueckTicks
+                    && player.getHealth() < player.getMaxHealth() * (float) h.rueckHp) {
+                retreatUntil = now + (long) h.rueckTicks;
+            }
+            if (now < retreatUntil) {
+                stepTowards(player, level, core, core, 99.0);
+                if (player.isUsingItem()) {
+                    player.stopUsingItem();
+                }
+                drink(player, level, now);
+                return;
+            }
+        }
         if (player.isInWall() || player.isInLava() || !seated && player.position().distanceToSqr(home) > (melee ? (leash + 3) * (leash + 3) : 9.0)) {
             stand(player, level);   // pushed into a wall, into lava or too far away: back to the post
         }
@@ -374,7 +435,7 @@ final class TeamBrain {
         }
 
         if (clazz == SkillClass.SUMMONER && focused && now >= nextStaff) {
-            nextStaff = now + iv(20);
+            nextStaff = now + iv(20) + late();
             staff(m, player, level, skills, close != null ? close : far);
         }
         if (clazz == SkillClass.ENGINEER && focused && now >= nextRemote) {
@@ -387,7 +448,7 @@ final class TeamBrain {
             aimMortars(m, player, level, skills, now);
         }
         if (role == Role.HEALER && focused && now >= nextHeal) {
-            nextHeal = now + iv(20);
+            nextHeal = now + iv(20) + late();
             heal(m, player, team);
         }
 
@@ -404,10 +465,14 @@ final class TeamBrain {
                 if (player.isUsingItem()) {
                     player.stopUsingItem();
                 }
-                player.attack(close);
+                if (h.on && rnd.nextDouble() < h.nahfehler) {
+                    player.resetAttackStrengthTicker();   // a wasted swing: the charge is gone, no hit
+                } else {
+                    player.attack(close);
+                }
                 player.swing(InteractionHand.MAIN_HAND, true);
             } else if (inReach && clazz == SkillClass.ARCHER) {
-                MeleeSim.shoot(player, level, close);
+                MeleeSim.shoot(player, level, close, aimError(player.distanceTo(close)));
             } else if (inReach && clazz == SkillClass.SUMMONER && now % 10 == 0
                     && MeleeSim.hold(player, s -> s.is(ModContent.STAFF))) {
                 m.onCoreAction(player, "staffhit");
@@ -418,7 +483,7 @@ final class TeamBrain {
                 player.startUsingItem(InteractionHand.OFF_HAND);
             }
         } else if (far != null) {
-            MeleeSim.shoot(player, level, far);
+            MeleeSim.shoot(player, level, far, aimError(player.distanceTo(far)));
         } else if (player.isUsingItem()) {
             player.stopUsingItem();
         }
@@ -426,15 +491,17 @@ final class TeamBrain {
         // 80 % of their range (vanilla), and the bulwark bots crouched all night without having the anchor.
         player.setShiftKeyDown(bulwark && SkillTree.has(skills, "g_anchor"));
         if (now >= nextUlt) {
-            nextUlt = now + iv(60);
-            m.onCoreAction(player, "ult");
+            nextUlt = now + iv(60) + late();
+            if (!forgot()) {
+                m.onCoreAction(player, "ult");
+            }
         }
         if (clazz == SkillClass.ARCHER) {
             // The arrow rain on F (Simon 30.10.): onto the thickest crowd in reach, as soon as it is ready.
             if (focused && now >= nextUlt2 && ArrowRain.cooldownLeft(player, now) == 0) {
-                nextUlt2 = now + iv(20);
+                nextUlt2 = now + iv(20) + late();
                 Vec3 spot = crowd(level, player, ArrowRain.range(), 4.0);
-                if (spot != null && ArrowRain.fireAt(player, m, spot)) {
+                if (spot != null && !forgot() && ArrowRain.fireAt(player, m, spot)) {
                     // Tor 4c.6: the bot's rain is a press of E like a player's (that one counts in countedKey)
                     m.stats().ability(player, "faehigkeit_f", com.mki.nightsiege.core.AbilityKeys.Key.ABILITY_2.name());
                 }
@@ -444,12 +511,16 @@ final class TeamBrain {
             // the finisher comes by itself with every fourth hit.
             if (focused && now >= nextUlt2 && close != null && WarriorArts.ready(player, now)
                     && player.distanceTo(close) <= WarriorArts.botReach(subclass)) {
-                nextUlt2 = now + iv(20);
-                m.onCoreAction(player, "ult2");
+                nextUlt2 = now + iv(20) + late();
+                if (!forgot()) {
+                    m.onCoreAction(player, "ult2");
+                }
             }
         } else if (now >= nextUlt2 && clazz != SkillClass.ENGINEER && clazz != SkillClass.SUMMONER) {
-            nextUlt2 = now + iv(100);
-            m.onCoreAction(player, "ult2");   // Fähigkeit 2
+            nextUlt2 = now + iv(100) + late();
+            if (!forgot()) {
+                m.onCoreAction(player, "ult2");   // Fähigkeit 2
+            }
         }
         if (guardian && player.isBlocking() && now >= nextShield) {
             nextShield = now + iv(40);
@@ -458,17 +529,12 @@ final class TeamBrain {
         // The ability bar (spells, potions, salvos): the next one that is ready, every two seconds.
         // Archers' keys only pick the arrow kind, healers fire theirs at a team-mate in heal().
         if (now >= nextSlot && focused && clazz != SkillClass.ARCHER && role != Role.HEALER && clazz != SkillClass.SUMMONER) {
-            nextSlot = now + iv(40);
-            fireReadySlot(m, player);
-        }
-        if (now >= nextUse) {
-            boolean low = player.getHealth() < player.getMaxHealth() * 0.45f;
-            if (low && MeleeSim.use(player, level, true)) {
-                nextUse = now + 40;
-            } else if (player.getFoodData().getFoodLevel() < 14 && MeleeSim.use(player, level, false)) {
-                nextUse = now + 40;
+            nextSlot = now + iv(40) + late();
+            if (!forgot()) {
+                fireReadySlot(m, player);
             }
         }
+        drink(player, level, now);
     }
 
     /** The staff like the class simulation: attack, every few turns the order, call or a spell. */

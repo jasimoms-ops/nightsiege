@@ -171,6 +171,8 @@ public final class StatsRecorder {
         /** Skill points spent in the played profile ("class level"). */
         public int punkteImProfil;
         public boolean ultStufe3;
+        /** Second of the night of this defender's first death, -1 = none (Tor 6.0, to calibrate the sim). */
+        public int ersterTodSekunde = -1;
         /** The kit of the night: the class of the played profile. */
         public String kit = "";
     }
@@ -1000,6 +1002,10 @@ public final class StatsRecorder {
         if (night != null) {
             pw(player).tode++;
             night.tode++;
+            Spieler first = night.spieler.get(player.getScoreboardName());
+            if (first != null && first.ersterTodSekunde < 0) {
+                first.ersterTodSekunde = second(player.level().getGameTime());
+            }
         }
     }
 

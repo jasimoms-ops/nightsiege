@@ -88,6 +88,19 @@ public final class TeamSim {
     private static int shard;
     private static int shards = 1;
     private static Path copyFile;
+    /**
+     * Tor 6.0 replay mode: "nachspiel=<file.json> [nachspiel_nur=id1,id2]" plays real nights as scenarios
+     * (cast, level, event, boss, points) instead of the level x group matrix; N is the number of seeds each.
+     * Key: the run's mix name "nacht_<id>".
+     */
+    private static final Map<String, Scenario> scenarios = new LinkedHashMap<>();
+    private static String scenarioFile = "";
+    private static String scenarioOnly = "";
+
+    /** One real night to replay (points < 0: the points one has by that level). */
+    record Scenario(String id, int level, List<String[]> subs, SiegeEvent event, com.mki.nightsiege.core.BossKind boss,
+                    int points) {
+    }
     /** Variant name → config overrides ("monsterDamage" → "0.8"); the first is the base. */
     private static final Map<String, Map<String, String>> variants = new LinkedHashMap<>();
     /** Overrides for every variant (like the class simulation's "key=value"). */
@@ -222,6 +235,9 @@ public final class TeamSim {
         shard = 0;
         shards = 1;
         copyFile = null;
+        scenarios.clear();
+        scenarioFile = "";
+        scenarioOnly = "";
         for (String token : args == null ? new String[0] : args.trim().split("\\s+")) {
             if (token.isBlank()) {
                 continue;
@@ -247,6 +263,10 @@ public final class TeamSim {
                 String[] p = token.substring(6).split("/");
                 shard = Integer.parseInt(p[0]);
                 shards = Math.max(1, Integer.parseInt(p[1]));
+            } else if (token.startsWith("nachspiel=")) {
+                scenarioFile = token.substring(10);
+            } else if (token.startsWith("nachspiel_nur=")) {
+                scenarioOnly = token.substring(14);
             } else if (token.startsWith("karte=")) {
                 copyFile = Path.of(token.substring(6));
             } else if (token.startsWith("V=")) {
@@ -268,6 +288,9 @@ public final class TeamSim {
                 common.put(p[0], p[1]);
             }
         }
+        if (!scenarioFile.isEmpty()) {
+            loadScenarios();
+        }
         if (levels.isEmpty()) {
             for (int l : DEFAULT_LEVELS) {
                 levels.add(l);
@@ -287,6 +310,71 @@ public final class TeamSim {
         }
     }
 
+    /**
+     * The scenario file: {"nacht":[{"id":"n1","stufe":5,"gruppe":["medic","swift"],"ereignis":"NETHER_RIFT",
+     * "boss":"ember_colossus","punkte":-1}]}; "gruppe" = subclass ids (MeleeSim.SUBCLASSES), boss/ereignis optional.
+     */
+    private static void loadScenarios() {
+        Path file = Path.of(scenarioFile);
+        if (!Files.exists(file) && System.getenv("GITHUB_WORKSPACE") != null) {
+            file = Path.of(System.getenv("GITHUB_WORKSPACE")).resolve(scenarioFile);
+        }
+        if (!Files.exists(file)) {
+            file = Path.of("..").resolve(scenarioFile);
+        }
+        java.util.Set<String> only = new java.util.HashSet<>();
+        for (String s : scenarioOnly.split(",")) {
+            if (!s.isBlank()) {
+                only.add(s.trim());
+            }
+        }
+        try {
+            com.google.gson.JsonObject root = com.google.gson.JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8))
+                    .getAsJsonObject();
+            for (com.google.gson.JsonElement el : root.getAsJsonArray("nacht")) {
+                com.google.gson.JsonObject o = el.getAsJsonObject();
+                String id = o.get("id").getAsString();
+                if (!only.isEmpty() && !only.contains(id)) {
+                    continue;
+                }
+                List<String[]> subs = new ArrayList<>();
+                for (com.google.gson.JsonElement g : o.getAsJsonArray("gruppe")) {
+                    String name = g.getAsString();
+                    String[] found = null;
+                    for (String[] s : MeleeSim.SUBCLASSES) {
+                        if (s[2].equals(name)) {
+                            found = s;
+                        }
+                    }
+                    if (found == null) {
+                        throw new IllegalArgumentException("unbekannte Unterklasse " + name + " in " + id);
+                    }
+                    subs.add(found);
+                }
+                SiegeEvent event = SiegeEvent.NONE;
+                if (o.has("ereignis") && !o.get("ereignis").isJsonNull() && !o.get("ereignis").getAsString().isBlank()) {
+                    event = SiegeEvent.valueOf(o.get("ereignis").getAsString().toUpperCase(Locale.ROOT));
+                }
+                com.mki.nightsiege.core.BossKind boss = null;
+                if (o.has("boss") && !o.get("boss").isJsonNull() && !o.get("boss").getAsString().isBlank()) {
+                    for (com.mki.nightsiege.core.BossKind b : com.mki.nightsiege.core.BossKind.values()) {
+                        if (b.id().equals(o.get("boss").getAsString())) {
+                            boss = b;
+                        }
+                    }
+                    if (boss == null) {
+                        throw new IllegalArgumentException("unbekannter Boss in " + id);
+                    }
+                }
+                int points = o.has("punkte") && !o.get("punkte").isJsonNull() ? o.get("punkte").getAsInt() : -1;
+                scenarios.put("nacht_" + id, new Scenario(id, o.get("stufe").getAsInt(), subs, event, boss, points));
+            }
+        } catch (IOException | RuntimeException e) {
+            throw new IllegalStateException("Nachspiel-Datei nicht lesbar (" + file + "): " + e, e);
+        }
+        System.out.println("[Night Siege sim] NACHSPIEL;" + scenarios.size() + " Szenarien aus " + file);
+    }
+
     private static void addInts(List<Integer> into, String csv) {
         for (String p : csv.split(",")) {
             if (!p.isBlank()) {
@@ -299,7 +387,14 @@ public final class TeamSim {
     private static void buildQueue() {
         queue.clear();
         List<Run> all = new ArrayList<>();
-        for (int level : levels) {
+        for (Scenario sc : scenarios.values()) {
+            for (String v : variants.keySet()) {
+                for (int i = 0; i < randomRuns; i++) {
+                    all.add(new Run(v, sc.level(), sc.subs().size(), "nacht_" + sc.id(), i, sc.subs()));
+                }
+            }
+        }
+        for (int level : scenarios.isEmpty() ? levels : List.<Integer>of()) {
             for (int group : groups) {
                 int n = 0;
                 List<Run> cell = new ArrayList<>();
@@ -570,10 +665,11 @@ public final class TeamSim {
             if (!m.save().isRegistered(id)) {
                 m.save().register(id);
             }
+            Scenario sc = scenarios.get(run.mix());
             PlayerSkills skills = fullTree
                     ? MeleeSim.build(m.skillTree(), SkillClass.valueOf(sub[0]), sub[1])
                     : MeleeSim.buildBudget(m.skillTree(), SkillClass.valueOf(sub[0]), sub[1],
-                    TestKit.pointsBefore(run.level(), m.config()));
+                    sc != null && sc.points() >= 0 ? sc.points() : TestKit.pointsBefore(run.level(), m.config()));
             m.save().skills.put(id, skills);
             if (bot.isSpectator() || !bot.isAlive()) {
                 bot.setGameMode(GameType.SURVIVAL);
@@ -584,9 +680,19 @@ public final class TeamSim {
             bot.getFoodData().setFoodLevel(20);
             bot.getFoodData().setSaturation(5f);
             bot.getInventory().clearContent();
-            TeamBrain brain = new TeamBrain(bot.getUUID(), sub, knob(run.variant(), sub[0], "koennen", CALIBRATED_SKILL),
-                    knob(run.variant(), sub[0], "wagemut", CALIBRATED_BOLDNESS),
-                    seed(run.level(), run.group(), run.mix(), run.index()) * 31 + i);
+            long botSeed = seed(run.level(), run.group(), run.mix(), run.index()) * 31 + i;
+            // Tor 6.0 "mensch=1": every bot its own skill (Gaussian around "koennen"), the human behaviours on.
+            BotHuman human = isHuman(run.variant()) ? BotHuman.of((k, d) -> humanKnob(run.variant(), k, d)) : BotHuman.OFF;
+            double botSkill = knob(run.variant(), sub[0], "koennen", CALIBRATED_SKILL);
+            if (human.on) {
+                botSkill = Math.max(0.3, Math.min(1.0, botSkill + gaussOf(botSeed) * human.streuung));
+            }
+            TeamBrain brain = new TeamBrain(bot.getUUID(), sub, botSkill,
+                    knob(run.variant(), sub[0], "wagemut", CALIBRATED_BOLDNESS), botSeed);
+            brain.humanize(human);
+            brain.core = Vec3.atBottomCenterOf(core);
+            System.out.println("[Night Siege sim] BOTKOENNEN;" + run.variant() + ";" + run.mix() + ";" + run.index() + ";"
+                    + sub[2] + ";" + String.format(Locale.ROOT, "%.2f", brain.skill));
             brains.put(bot.getUUID(), brain);
         }
         posts(m);
@@ -628,6 +734,11 @@ public final class TeamSim {
             }
             ok = m.bastion().startBotRound(server, world, core, 1, group);
             maxTicks = 40 * 60 * 20;
+        } else if (scenarios.containsKey(run.mix())) {
+            // Replay of a real night (Tor 6.0): its event and boss.
+            Scenario sc = scenarios.get(run.mix());
+            ok = m.prepareTest(server, world, core, run.level(), sc.event(), sc.boss());
+            maxTicks = (SiegeMath.durationSeconds(run.level(), m.config()) + (sc.boss() != null ? 420 : 120)) * 20;
         } else if (bossMode) {
             // A boss night, the eight in turn by the run (Bosse 2 with the guard, 07.11.).
             com.mki.nightsiege.core.BossKind[] all = com.mki.nightsiege.core.BossKind.values();
@@ -872,7 +983,7 @@ public final class TeamSim {
             };
             BlockPos spot = null;
             if (b.role == TeamBrain.Role.RANGED) {
-                spot = wallTop(g, lat, side);
+                spot = b.onWall ? wallTop(g, lat, side) : null;   // onWall is always true unless "mensch=1" (Tor 6.0)
                 if (spot == null) {
                     want = f.add(lat.scale(4 * side));
                 }
@@ -978,12 +1089,50 @@ public final class TeamSim {
         return fallback;
     }
 
+    /** A Gaussian from a seed; the seed is scrambled first (Random seeds one apart give nearly the same first values). */
+    static double gaussOf(long seed) {
+        Random r = new Random(Long.rotateLeft(seed * 0x9E3779B97F4A7C15L, 17) ^ 0x5EEDL);
+        r.nextGaussian();
+        return r.nextGaussian();
+    }
+
+    /** "mensch=1" (in a variant or for all): the human bots of Tor 6.0, see {@link BotHuman}. */
+    static boolean isHuman(String variant) {
+        for (Map<String, String> over : List.of(variants.getOrDefault(variant, Map.of()), common)) {
+            String v = over.get("mensch");
+            if (v != null) {
+                try {
+                    return Double.parseDouble(v) > 0;
+                } catch (NumberFormatException ignored) {
+                    return false;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** One human knob "mensch.<name>" (variant before common), not clamped; else the default. */
+    static double humanKnob(String variant, String name, double fallback) {
+        for (Map<String, String> over : List.of(variants.getOrDefault(variant, Map.of()), common)) {
+            String v = over.get("mensch." + name);
+            if (v != null) {
+                try {
+                    return Double.parseDouble(v);
+                } catch (NumberFormatException ignored) {
+                    // fall through
+                }
+            }
+        }
+        return fallback;
+    }
+
     private static void applyConfig(SiegeManager m, Map<String, String> over) {
         SiegeConfig cfg = m.config();
         for (Map.Entry<String, String> e : over.entrySet()) {
             String key = e.getKey();
             String value = e.getValue();
-            if (key.startsWith("koennen") || key.startsWith("wagemut") || key.equals("mit") || key.equals("nur")) {
+            if (key.startsWith("koennen") || key.startsWith("wagemut") || key.equals("mit") || key.equals("nur")
+                    || key.startsWith("mensch") || key.startsWith("nachspiel")) {
                 continue;   // the bots' knobs, not config values
             }
             try {
