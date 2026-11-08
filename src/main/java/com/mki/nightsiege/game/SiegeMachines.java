@@ -315,7 +315,9 @@ public final class SiegeMachines {
         for (int i = 0; i < kinds.size(); i++) {
             Vec3 spot = null;
             for (int attempt = 0; attempt < 14 && spot == null; attempt++) {
-                double a = start + i * Math.PI * 2.0 / kinds.size() + (attempt == 0 ? 0 : (random.nextDouble() - 0.5) * 1.4);
+                double a = com.mki.nightsiege.core.SpawnArc.spread(cfg, start, i, kinds.size())
+                        + (attempt == 0 ? 0 : (random.nextDouble() - 0.5) * (com.mki.nightsiege.core.SpawnArc.all(cfg) ? 1.4
+                        : Math.toRadians(com.mki.nightsiege.core.SpawnArc.widthDegrees(cfg)) / Math.max(1, kinds.size())));
                 double dx = Math.cos(a);
                 double dz = Math.sin(a);
                 double edge = host.baseEdge(anchor.getX() + 0.5 + dx * 30, anchor.getZ() + 0.5 + dz * 30);

@@ -153,6 +153,12 @@ public class SiegeConfig {
 
     public double spawnMinDistance = 20.0;
     public double spawnMaxDistance = 40.0;
+    /**
+     * The side the monsters come from, in compass degrees clockwise from north (Simon 08.11.): 45 to 135 is
+     * north-east over east to south-east. 0 to 360 is all around. Waves, bosses, wardens, machines, nemeses.
+     */
+    public double spawnArcFrom = 0.0;
+    public double spawnArcTo = 360.0;
     /** How far from the core the base scan looks for walls (set with /nightsiege base radius). */
     public int baseRadius = 64;
 

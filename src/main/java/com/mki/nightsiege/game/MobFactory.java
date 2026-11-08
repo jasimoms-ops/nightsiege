@@ -203,7 +203,7 @@ public final class MobFactory {
     public static BlockPos findSpawnSpot(ServerLevel world, BlockPos anchor, SiegeConfig cfg,
                                           Random random, double distanceBonus) {
         for (int attempt = 0; attempt < 24; attempt++) {
-            double angle = random.nextDouble() * Math.PI * 2.0;
+            double angle = com.mki.nightsiege.core.SpawnArc.random(cfg, random);
             double distance = cfg.spawnMinDistance + Math.max(0.0, distanceBonus)
                     + random.nextDouble() * (cfg.spawnMaxDistance - cfg.spawnMinDistance);
             int x = anchor.getX() + (int) Math.round(Math.cos(angle) * distance);

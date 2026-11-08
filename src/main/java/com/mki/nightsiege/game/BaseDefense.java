@@ -101,8 +101,10 @@ public final class BaseDefense {
         // The ground the scan found in front of the walls: from there a monster walks to the base.
         if (base.spawnSpotCount() > 0) {
             for (int attempt = 0; attempt < 8; attempt++) {
-                BlockPos spot = base.spawnNear(random.nextDouble() * Math.PI * 2.0, BaseScan.SLICES / 2, random);
-                if (spot != null && world.hasChunk(spot.getX() >> 4, spot.getZ() >> 4)
+                BlockPos spot = base.spawnNear(com.mki.nightsiege.core.SpawnArc.random(cfg, random),
+                        com.mki.nightsiege.core.SpawnArc.all(cfg) ? BaseScan.SLICES / 2 : 3, random);
+                if (spot != null && com.mki.nightsiege.core.SpawnArc.contains(cfg, base.angleOf(spot.getX() + 0.5, spot.getZ() + 0.5))
+                        && world.hasChunk(spot.getX() >> 4, spot.getZ() >> 4)
                         && world.getBlockState(spot).getCollisionShape(world, spot).isEmpty()
                         && world.getBlockState(spot.above()).getCollisionShape(world, spot.above()).isEmpty()
                         && world.getBlockState(spot).getFluidState().isEmpty()) {
@@ -111,7 +113,7 @@ public final class BaseDefense {
             }
         }
         for (int attempt = 0; attempt < 32; attempt++) {
-            double angle = random.nextDouble() * Math.PI * 2.0;
+            double angle = com.mki.nightsiege.core.SpawnArc.random(cfg, random);
             double cos = Math.cos(angle);
             double sin = Math.sin(angle);
             double edge = base.edgeTowards(anchor.getX() + 0.5 + cos * 8, anchor.getZ() + 0.5 + sin * 8);

@@ -1401,7 +1401,7 @@ public final class Foes {
         BaseScan base = host.base();
         Random random = host.random();
         for (int attempt = 0; attempt < 24; attempt++) {
-            double a = random.nextDouble() * Math.PI * 2.0;
+            double a = com.mki.nightsiege.core.SpawnArc.random(host.config(), random);
             double edge = base == null ? 10.0 : base.edgeTowards(anchor.getX() + 0.5 + Math.cos(a) * 8, anchor.getZ() + 0.5 + Math.sin(a) * 8);
             double d = edge + 8.0 + random.nextDouble() * 8.0;
             int x = anchor.getX() + (int) Math.round(Math.cos(a) * d);

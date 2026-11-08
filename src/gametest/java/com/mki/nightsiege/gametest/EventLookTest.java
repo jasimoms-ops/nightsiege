@@ -209,6 +209,10 @@ public class EventLookTest implements FabricClientGameTest {
                     alive(context);   // a scene before may have left the player dead (05.11.)
                     FehlerScenes.run(context, game);   // Fehler-Stichprobe 05.11. abends: nemesis after the drone, vexes go with the night
                 }
+                if (want.contains("richtung")) {
+                    alive(context);
+                    RichtungScenes.run(context, game);   // Simon 08.11.: monsters only from north-east to south-east
+                }
                 if (want.contains("nemesis")) {
                     alive(context);   // a scene before may have left the player dead (05.11.)
                     NemesisScenes.run(context, game);   // Fehler-Stichprobe 06.11. nachts: warden and boss guard stay on the field

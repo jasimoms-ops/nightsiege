@@ -3975,6 +3975,9 @@ public final class SiegeManager {
         if (MobFactory.isUnavailable(entityId)) {
             return null;
         }
+        if (!Double.isNaN(angle)) {
+            angle = com.mki.nightsiege.core.SpawnArc.fold(config, angle, random);   // nemeses towards their prey too
+        }
         BlockPos spot = Double.isNaN(angle) ? null : raid.spawnSpot(angle);
         if (spot == null) {
             spot = defense.spawnSpot(config, random);

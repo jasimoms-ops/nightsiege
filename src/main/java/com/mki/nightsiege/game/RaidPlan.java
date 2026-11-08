@@ -204,18 +204,21 @@ public final class RaidPlan {
         List<Entry> doors = new ArrayList<>(gates);
         if (!doors.isEmpty() && random.nextBoolean()) {
             Entry g = doors.get(random.nextInt(doors.size()));
-            if (base.spawnNear(g.angle, 3, random) != null) {
+            if (com.mki.nightsiege.core.SpawnArc.contains(cfg, g.angle) && base.spawnNear(g.angle, 3, random) != null) {
                 main = g.angle;
                 atGate = true;
             }
         }
         if (Double.isNaN(main)) {
-            for (int tries = 0; tries < 24; tries++) {
+            for (int tries = 0; tries < (com.mki.nightsiege.core.SpawnArc.all(cfg) ? 24 : 96); tries++) {
                 int s = random.nextInt(BaseScan.SLICES);
                 if (base.spawnSpots(s).isEmpty()) {
                     continue;
                 }
                 double a = BaseScan.angleOfSlice(s);
+                if (!com.mki.nightsiege.core.SpawnArc.contains(cfg, a)) {
+                    continue;   // only from the side set in the config (spawnArcFrom/To)
+                }
                 if (lastWave != null && tries < 16 && angleBetween(a, lastWave.main()) < Math.PI / 3) {
                     continue;   // not twice from the same side
                 }
@@ -229,7 +232,12 @@ public final class RaidPlan {
         double flank = Double.NaN;
         if (level >= cfg.raidFlankFromLevel && cfg.raidFlankShare > 0) {
             for (int tries = 0; tries < 12; tries++) {
-                double a = main + (random.nextBoolean() ? 1 : -1) * (Math.PI / 2 + random.nextDouble() * Math.PI / 2);
+                double a = com.mki.nightsiege.core.SpawnArc.all(cfg)
+                        ? main + (random.nextBoolean() ? 1 : -1) * (Math.PI / 2 + random.nextDouble() * Math.PI / 2)
+                        : com.mki.nightsiege.core.SpawnArc.random(cfg, random);   // the flank inside the arc too
+                if (!com.mki.nightsiege.core.SpawnArc.all(cfg) && angleBetween(a, main) < Math.PI / 6) {
+                    continue;
+                }
                 if (base.spawnNear(a, 2, random) != null) {
                     flank = a;
                     break;
@@ -268,6 +276,9 @@ public final class RaidPlan {
             BlockPos spot = base.spawnNear(angle + (random.nextDouble() - 0.5) * 0.35, tries < 4 ? 3 : 10, random);
             if (spot == null) {
                 return null;
+            }
+            if (!com.mki.nightsiege.core.SpawnArc.contains(cfg, base.angleOf(spot.getX() + 0.5, spot.getZ() + 0.5))) {
+                continue;
             }
             if (world.hasChunk(spot.getX() >> 4, spot.getZ() >> 4) && free(spot)) {
                 return spot;
