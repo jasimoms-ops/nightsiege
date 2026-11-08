@@ -83,6 +83,16 @@ public final class GainCooldownHud {
         boolean dim = spent || !live;
         double share = GainWheelLogic.readyShare(left, g.totalTicks);
         int lit = dim ? 0 : GainWheelLogic.litSegments(share, RING_SEGMENTS);
+        ItemStack icon = UltHud.icon(g.icon);
+        int ix = x + (SIZE - 16) / 2;
+        int iy = y + (SIZE - 16) / 2;
+        gui.item(icon, ix, iy);
+        if (dim) {
+            gui.fill(ix, iy, ix + 16, iy + 16, 0xA0000000);
+        } else if (left > 0) {
+            gui.fill(ix, iy, ix + 16, iy + 16, 0x80000000);
+        }
+        // The ring over the symbol's edge, so the shade does not hide it.
         double cx = x + SIZE / 2.0;
         double cy = y + SIZE / 2.0;
         double r = SIZE / 2.0 - 2.0;
@@ -93,14 +103,7 @@ public final class GainCooldownHud {
             int color = k < lit ? (left > 0 ? PurpleUi.GOLD_SHADE : PurpleUi.GOLD) : PurpleUi.DIM;
             gui.fill(px, py, px + 2, py + 2, color);
         }
-        ItemStack icon = UltHud.icon(g.icon);
-        int ix = x + (SIZE - 16) / 2;
-        int iy = y + (SIZE - 16) / 2;
-        gui.item(icon, ix, iy);
-        if (dim) {
-            gui.fill(ix, iy, ix + 16, iy + 16, 0xA0000000);
-        } else if (left > 0) {
-            gui.fill(ix, iy, ix + 16, iy + 16, 0x80000000);
+        if (!dim && left > 0) {
             String seconds = String.valueOf(GainWheelLogic.seconds(left));
             gui.text(font, seconds, x + SIZE / 2 - font.width(seconds) / 2, y + SIZE / 2 - 4, 0xFFFFFFFF, true);
         }
