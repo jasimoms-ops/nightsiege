@@ -222,4 +222,14 @@ public final class GainKeys {
         long[] pause = PAUSES.getOrDefault(player.getUUID(), Map.of()).get(id);
         return pause == null ? 0L : Math.max(0L, pause[0] - player.level().getGameTime());
     }
+
+    /** For the tests: a gain used, its pause running (ticks 0: pause gone). A scene has no real night to defend. */
+    public static void pauseForTests(ServerPlayer player, String id, int ticks) {
+        if (ticks <= 0) {
+            PAUSES.getOrDefault(player.getUUID(), new HashMap<>()).remove(id);
+            return;
+        }
+        PAUSES.computeIfAbsent(player.getUUID(), k -> new HashMap<>())
+                .put(id, new long[]{player.level().getGameTime() + ticks, ticks});
+    }
 }

@@ -4,15 +4,18 @@ import com.mki.nightsiege.client.GainClient;
 import com.mki.nightsiege.client.GainWheelScreen;
 import com.mki.nightsiege.client.NightKeys;
 import com.mki.nightsiege.client.UltHud;
+import com.mki.nightsiege.core.PlayerSkills;
+import com.mki.nightsiege.core.SkillClass;
 import com.mki.nightsiege.core.UltState;
+import com.mki.nightsiege.game.GainKeys;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.minecraft.client.KeyMapping;
 
 /**
- * Tor 3.2, scene "gewinne": the gain wheel on one key (R). Three gains (ready, cooling down, spent)
- * show at the right edge with their rings; the wheel opens with the second chosen; in the night
+ * Tor 3.2, scene "gewinne": the gain wheel on one key (R). Two real gains in the kit (one cooling
+ * down) show at the right edge with their rings; the wheel opens while R is held; in the night
  * the key reaches only the wheel, not vanilla and not another mod's mapping on R.
  * Every line starts with "[gewinne]"; pictures gewinne_01_hud and gewinne_02_rad.
  */
@@ -25,40 +28,57 @@ final class GewinneScenes {
         System.out.println("[gewinne] " + line);
     }
 
-    private static UltState.Slot gain(String id, String icon, int cooldown, int total, boolean spent) {
-        UltState.Slot s = new UltState.Slot();
-        s.id = id;
-        s.icon = icon;
-        s.name = "nightsiege.gain." + id;
-        s.cooldownTicks = cooldown;
-        s.totalTicks = total;
-        s.current = spent;
-        return s;
+    /** The two gains on the warrior's keys: the hook for everyone and the warrior's horn. */
+    private static final String[] GAINS = {"kletterhaken", "kampfhorn"};
+    private static final int[] oldStage = new int[GAINS.length];
+    private static String oldClass;
+
+    /** Every check as "[gewinne] OK/FAIL ..."; nothing seen counts as FAIL. */
+    private static void check(boolean ok, String what) {
+        log((ok ? "OK   " : "FAIL ") + what);
     }
 
     static void run(ClientGameTestContext context, TestSingleplayerContext game) {
         EventLookTest.ensureCore(context, game);
         game.getServer().runCommand("time set 18000");
         context.waitTicks(10);
-        context.runOnClient(client -> {
-            UltState s = new UltState();
-            s.live = true;
-            s.keys = true;
-            s.gains.add(gain("kampfhorn", "minecraft:goat_horn", 0, 1200, false));
-            s.gains.add(gain("kletterhaken", "minecraft:tripwire_hook", 300, 400, false));
-            s.gains.add(gain("tarnumhang", "minecraft:leather_chestplate", 0, 900, true));
-            UltHud.update(s);
+        // Tor 3.6: a real warrior with two gains on the keys and the night kit on (only then the
+        // server sends the gains), one gain used: its pause runs and shows as a ring.
+        EventLookTest.onServer(context, (player, m) -> {
+            if (!m.isRegistered(player)) {
+                m.register(player);
+            }
+            PlayerSkills own = m.save().skillsOf(player.getUUID().toString());
+            oldClass = own.chosenClass;
+            own.chosenClass = SkillClass.WARRIOR.name();
+            for (int i = 0; i < GAINS.length; i++) {
+                oldStage[i] = own.gainStage(SkillClass.WARRIOR, GAINS[i]);
+                own.setGainStage(SkillClass.WARRIOR, GAINS[i], 1);
+            }
+            m.kits().equip(player, 7);
+            GainKeys.pauseForTests(player, "kletterhaken", 400);
+            m.sendUltHud(player);
         });
-        context.waitTicks(2);
+        context.waitTicks(30);
+        int cooling = context.computeOnClient(client -> UltHud.state() == null ? 0
+                : (int) UltHud.state().gains.stream().filter(g -> g.cooldownTicks > 0).count());
         context.takeScreenshot("gewinne_01_hud");
-        context.runOnClient(client -> client.gui.setScreen(new GainWheelScreen(1)));
-        context.waitTicks(2);
-        context.takeScreenshot("gewinne_02_rad");
+        check(cooling > 0, "HUD: gain cooling down (" + cooling + ")");
+
+        // The wheel as the player opens it: R held past the hold time.
+        KeyMapping wheelKey = context.computeOnClient(client -> GainClient.wheelKey());
+        context.getInput().holdKey(wheelKey);
+        context.waitTicks(12);
         boolean open = context.computeOnClient(client -> client.gui.screen() instanceof GainWheelScreen);
-        context.runOnClient(client -> client.gui.setScreen(null));
+        int entries = context.computeOnClient(client -> UltHud.state() == null ? 0 : UltHud.state().gains.size());
+        context.takeScreenshot("gewinne_02_rad");
+        check(open, "wheel open on R held");
+        check(entries >= 2, "wheel entries (" + entries + ")");
+        context.runOnClient(client -> client.gui.setScreen(null));   // closed without using a gain
+        context.waitTicks(1);
+        context.getInput().releaseKey(wheelKey);
         context.waitTicks(2);
-        log("wheel open=" + open + " key=" + context.computeOnClient(client ->
-                GainClient.wheelKey().getTranslatedKeyMessage().getString()));
+        log("key=" + context.computeOnClient(client -> GainClient.wheelKey().getTranslatedKeyMessage().getString()));
 
         // Night exclusive: another mod's mapping on R and vanilla do not get the press, the wheel does.
         context.runOnClient(client -> {
@@ -83,6 +103,18 @@ final class GewinneScenes {
             other.setKey(InputConstants.UNKNOWN);
             KeyMapping.resetMapping();
             log("night R wheel=" + wheelClick + " other=" + otherClick + " | day other=" + otherByDay);
+            check(wheelClick && !otherClick && otherByDay, "R at night only for the wheel, by day for the others");
+        });
+        EventLookTest.onServer(context, (player, m) -> {
+            GainKeys.pauseForTests(player, "kletterhaken", 0);
+            PlayerSkills own = m.save().skillsOf(player.getUUID().toString());
+            for (int i = 0; i < GAINS.length; i++) {
+                own.setGainStage(SkillClass.WARRIOR, GAINS[i], oldStage[i]);
+            }
+            own.chosenClass = oldClass;
+            if (m.kits().hasStash(player)) {
+                m.kits().restore(player);   // own inventory back for the next scenes
+            }
         });
         context.runOnClient(client -> UltHud.update(new UltState()));
         game.getServer().runCommand("time set 1000");
