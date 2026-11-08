@@ -1008,7 +1008,9 @@ public class SiegeConfig {
             + "Aendern, speichern, dann /nightsiege reload - gilt sofort, ohne neue Mod-Version.";
     public Map<String, Double> classDamage = new LinkedHashMap<>();
     public Map<String, Double> classDamageTaken = new LinkedHashMap<>();
-    public Map<String, Double> subclassDamage = new LinkedHashMap<>();
+    public Map<String, Double> subclassDamage = new LinkedHashMap<>(Map.of("swift", SWIFT_DAMAGE));   // Tor 4: the quick shot 0.8
+    /** Tor 4 (Simon 08.11.): the quick shot's damage factor (was 1.3 on the server). */
+    static final double SWIFT_DAMAGE = 0.8;
     public Map<String, Double> subclassDamageTaken = new LinkedHashMap<>();
     /**
      * Wächter-Schutz (Simon 30.10.): teammates within the radius of a bulwark or shield fighter take
@@ -1615,6 +1617,7 @@ public class SiegeConfig {
         killQuotaShare = clampDouble(killQuotaShare, 0.0, 1.0);
         classDamage = filled(classDamage, CLASS_KEYS);
         classDamageTaken = filled(classDamageTaken, CLASS_KEYS);
+        boolean swiftMissing = subclassDamage == null || subclassDamage.get("swift") == null;
         subclassDamage = filled(subclassDamage, SUBCLASS_KEYS);
         subclassDamageTaken = filled(subclassDamageTaken, SUBCLASS_KEYS);
         subclassHealing = filled(subclassHealing, SUBCLASS_KEYS);
@@ -1840,7 +1843,13 @@ public class SiegeConfig {
             // Tor 4 (Simon 08.11.): the quick shot's damage 1.3 -> 0.8 (times 0.8 / 1.3, so a server's own value
             // moves alike); the towers take their gunner again after 10 s instead of 20 and hold 5 times his
             // life instead of 3 (only where the server set its own tweak; else the new code values count).
-            scale(subclassDamage, "swift", 0.8 / 1.3);
+            // Missing, the old server value 1.3 or already the new 0.8: 0.8; any other own value × 0.8 / 1.3.
+            double swift = subclassDamage.getOrDefault("swift", 1.0);
+            if (swiftMissing || Math.abs(swift - 1.3) < 1e-6 || Math.abs(swift - SWIFT_DAMAGE) < 1e-6) {
+                subclassDamage.put("swift", SWIFT_DAMAGE);
+            } else {
+                scale(subclassDamage, "swift", SWIFT_DAMAGE / 1.3);
+            }
             scaleTweak("e_longrange", "seatlock", 0.5);
             for (TrapKind tower : new TrapKind[] {TrapKind.TURRET, TrapKind.MORTAR, TrapKind.BREWER, TrapKind.TESLA}) {
                 scaleTweak(tower.id(), "seathealth", 5.0 / 3.0);

@@ -41,6 +41,25 @@ class Tor4WerteTest {
     }
 
     @Test
+    void update20GivesTheQuickShot08FreshAndFromTheServerAndScalesOwnValues() {
+        SiegeConfig fresh = new SiegeConfig();   // settings 0: every migration runs
+        fresh.sanitize();
+        assertEquals(0.8, fresh.subclassDamage.get("swift"), 1e-9);
+        SiegeConfig missing = new SiegeConfig();
+        missing.settingsVersion = 19;
+        missing.subclassDamage = new LinkedHashMap<>();   // a file without the key
+        missing.sanitize();
+        assertEquals(0.8, missing.subclassDamage.get("swift"), 1e-9);
+        SiegeConfig own = new SiegeConfig();
+        own.settingsVersion = 19;
+        own.subclassDamage.put("swift", 1.0);   // a server's own value: × 0.8 / 1.3
+        own.sanitize();
+        assertEquals(0.615, own.subclassDamage.get("swift"), 1e-3);
+        own.sanitize();
+        assertEquals(0.615, own.subclassDamage.get("swift"), 1e-3);
+    }
+
+    @Test
     void theAxeStealsLessFromLevel15() {
         SiegeConfig c = new SiegeConfig();
         c.settingsVersion = SiegeConfig.SETTINGS_VERSION;
