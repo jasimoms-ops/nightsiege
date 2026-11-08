@@ -31,31 +31,37 @@ final class SkillValuesArcher {
         def("heavy_draw", "pause", 0);              // bow cooldown after every shot (Simon 08.11. 20:29: none; was 12, server may still set one)
         def("heavy_draw", "power", 1);              // extra Power level on the kit bow (KitService)
         def("double_shot", "angle", 4.0);
+        def("double_shot", "share", 0.5);           // Tor 4 (Simon 08.11.): the twin arrow hits half as hard (was full)
         def("a_volley", "every", 4);
         def("a_volley", "arrows", 2);               // extra arrows of the fan
         def("a_volley", "angle", 8.0);
         def("piercing", "share", 0.7);
         def("a_knockarrow", "push", 1.0);
         def("a_knockarrow", "lift", 0.25);
+        def("a_knockarrow", "bonus", 0.2);          // Tor 4: the knock-back arrow also hits harder
+        def("a_knockarrow", "slow", 20);            // and slows (Slowness II) this long
         def("a_fire", "bonus", 0.15);               // own arrows against burning monsters
-        def("a_poison", "dur", 80);
+        def("a_poison", "dur", 120);                // Tor 4: was 80 (Poison II, ~10 life instead of ~6)
         def("b_mark", "dur", 120);
         def("a_firevolley", "mult", 1.5);           // damage of the extra arrows
         def("a_firevolley", "radius", 2.0);         // a burning arrow sets monsters around the target alight
         def("a_firevolley", "burn", 80);
         def("a_venomburst", "radius", 3.0);
         def("a_venomburst", "dur", 80);
-        def("a_eagle", "crit", 0.5);
+        def("a_eagle", "crit", 1.0);                // Tor 4: was 0.5
         def("b_cross_shrapnel", "radius", 2.5);
+        def("b_cross_shrapnel", "swift", 0.2);      // Tor 4: the quick shot's share (others keep the node amount)
         def("a_retreat", "dur", 40);
         def("arrow_storm", "dur1", 100);
         def("arrow_storm", "dur2", 140);
         def("arrow_storm", "dur3", 180);
         def("arrow_storm", "arrows", 2);
         def("arrow_storm", "angle", 8.0);
-        def("power_shot", "mult1", 3.0);
-        def("power_shot", "mult2", 3.75);
-        def("power_shot", "mult3", 4.5);
+        def("power_shot", "mult1", 5.0);           // Tor 4: was 3 / 3.75 / 4.5
+        def("power_shot", "mult2", 6.5);
+        def("power_shot", "mult3", 8.0);
+        def("power_shot", "pierce", 3);             // Tor 4: goes through this many monsters behind
+        def("power_shot", "share", 0.7);            // with this share of the damage
         def("power_shot", "speed", 1.25);           // faster flight, and arrow damage grows with speed
         def("power_shot", "armed", 200);            // the next shot within this time
         def("b_hunt", "radius1", 24.0);
@@ -75,8 +81,9 @@ final class SkillValuesArcher {
         def("b_pack", "dur", 200);
         def("b_pack", "range", 20.0);
         def("a_deadeye", "mult", 1.35);
+        def("a_deadeye", "swift", 1.25);            // Tor 4: the quick shot's multiplier
         def("a_deadeye", "health", 8.0);            // read in SkillService.keystone
-        def("a_skirmisher", "mult", 0.9);
+        def("a_skirmisher", "mult", 1.0);           // Tor 4: was 0.9
         def("a_skirmisher", "speed", 0.15);         // share of the base speed 0.1, read in SkillService.keystone
 
         // ----- way of the crossbow
@@ -100,6 +107,7 @@ final class SkillValuesArcher {
         def("a_clusterbolt", "bonus", 4.0);         // on top of the blast
         def("a_reloadrush", "dur", 60);
         def("x_cross_double", "angle", 4.0);
+        def("x_cross_double", "share", 0.6);        // Tor 4: the twin bolt hits with 60 % (was full)
         def("bolt_volley", "count1", 7);
         def("bolt_volley", "count2", 9);
         def("bolt_volley", "count3", 11);

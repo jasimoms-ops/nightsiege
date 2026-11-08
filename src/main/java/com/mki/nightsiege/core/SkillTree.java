@@ -307,7 +307,7 @@ public final class SkillTree {
         node(list, "a_hunternet", c, x, SkillEffect.HUNTER_NET, 1, 15, 0, 0.25, "a_netbolt|x_mark,a_punch|a_tripwire|x_mark", "x5", "minecraft:lead", 6, 3);
         node(list, "a_trapmaster", c, x, SkillEffect.TRAPMASTER, 1, 15, 0, 4.0, "a_tripwire", "x5", "minecraft:iron_bars", 6, 5);
         String x5 = "a_clusterbolt|a_hunternet|a_trapmaster";
-        node(list, "a_bracing", c, x, SkillEffect.BRACE, 1, 18, 0, 0.4, x5, "x6", "minecraft:anvil", 7, 1);
+        node(list, "a_bracing", c, x, SkillEffect.BRACE, 1, 18, 0, 0.6, x5, "x6", "minecraft:anvil", 7, 1);
         node(list, "a_reloadrush", c, x, SkillEffect.RELOAD_RUSH, 1, 18, 0, 1.0, x5, "x6", "minecraft:sugar", 7, 3);
         node(list, "x_cross_double", c, x, SkillEffect.DOUBLE_SHOT, 1, 18, 0, 1.0, x5, "x6", "minecraft:bow", 7, 5);
         String x6 = "a_bracing|a_reloadrush|x_cross_double";
@@ -339,7 +339,7 @@ public final class SkillTree {
         subNode(list, "bloodlust", c, e, SkillEffect.RAGE, 4, 4, 2, 0.15, "champion_bane", "e_sub", "minecraft:redstone", 5);
         node(list, "keen_edge", c, e, SkillEffect.CRIT_CHANCE, 1, 10, 0, 0.2, "w_combo:2", "e3", "minecraft:flint", 4, 0);
         node(list, "w_precision", c, e, SkillEffect.CRIT_POWER, 1, 10, 0, 0.5, "w_combo:2", "e3", "minecraft:target", 4, 2);
-        node(list, "blood_drinker", c, e, SkillEffect.MAX_HEALTH, 1, 10, 0, 4.0, "bloodlust:2", "e3", "minecraft:ghast_tear", 4, 4);
+        node(list, "blood_drinker", c, e, SkillEffect.MAX_HEALTH, 1, 10, 0, 12.0, "bloodlust:2", "e3", "minecraft:ghast_tear", 4, 4);
         node(list, "w_warcry", c, e, SkillEffect.WARCRY, 1, 10, 0, 1.0, "bloodlust:2", "e3", "minecraft:goat_horn", 4, 6);
         // Simon, 29 October 2026: a choice closes at most the next tier. The hybrid builds on the pick of
         // ring III, so it follows it directly (ring IV, was V); the talents follow the hybrid (ring V,
@@ -374,8 +374,8 @@ public final class SkillTree {
         subNode(list, "heavy_blow", c, m, SkillEffect.HEAVY_BLOW, 4, 4, 2, 1.0, "sunder", "m_sub", "minecraft:diamond_axe", 1);
         subNode(list, "smite", c, m, SkillEffect.SMITE, 4, 4, 2, 0.12, "sunder", "m_sub", "minecraft:golden_sword", 5);
         node(list, "w_cleave", c, m, SkillEffect.CLEAVE, 1, 10, 0, 0.4, "heavy_blow:2", "m3", "minecraft:stone_axe", 4, 0);
-        node(list, "w_headhunter", c, m, SkillEffect.HEADHUNTER, 1, 10, 0, 0.4, "heavy_blow:2", "m3", "minecraft:skeleton_skull", 4, 2);
-        node(list, "holy_vigor", c, m, SkillEffect.MAX_HEALTH, 1, 10, 0, 4.0, "smite:2", "m3", "minecraft:glow_berries", 4, 4);
+        node(list, "w_headhunter", c, m, SkillEffect.HEADHUNTER, 1, 10, 0, 0.8, "heavy_blow:2", "m3", "minecraft:skeleton_skull", 4, 2);
+        node(list, "holy_vigor", c, m, SkillEffect.MAX_HEALTH, 1, 10, 0, 12.0, "smite:2", "m3", "minecraft:glow_berries", 4, 4);
         node(list, "w_vow", c, m, SkillEffect.VOW, 1, 10, 0, 1.0, "smite:2", "m3", "minecraft:bell", 4, 6);
         // Simon, 29 October 2026: the hybrid follows ring III directly, the talents follow the hybrid
         // (see the way of the blade). Headsman and holy strike bring a small crit chance of their own
@@ -427,7 +427,7 @@ public final class SkillTree {
         node(list, "turret_tuning", c, m, SkillEffect.TRAP_BOOST, 1, 10, 0, 2.0, turret + ":2", "em3", "minecraft:redstone", 4, 0);
         node(list, "e_ammobelt", c, m, SkillEffect.AMMO_BELT, 1, 10, 0, 1.0, turret + ":2", "em3", "minecraft:arrow", 4, 2);
         node(list, "capacitor", c, m, SkillEffect.TRAP_BOOST, 1, 10, 0, 2.0, tesla + ":2", "em3", "minecraft:copper_block", 4, 4);
-        node(list, "e_chainbolt", c, m, SkillEffect.CHAIN_LIGHTNING, 1, 10, 0, 2.0, tesla + ":2", "em3", "minecraft:lightning_rod", 4, 6);
+        node(list, "e_chainbolt", c, m, SkillEffect.CHAIN_LIGHTNING, 1, 10, 0, 3.0, tesla + ":2", "em3", "minecraft:lightning_rod", 4, 6);
         String m3 = "turret_tuning|e_ammobelt|capacitor|e_chainbolt";
         node(list, "e_seeker", c, m, SkillEffect.SEEKER, 1, 12, 0, 0.3, m3, "em4", "minecraft:target", 5, 1);
         node(list, "e_overvolt", c, m, SkillEffect.OVERVOLT, 1, 12, 0, 1.0, m3, "em4", "minecraft:glowstone_dust", 5, 3);
@@ -667,7 +667,7 @@ public final class SkillTree {
 
         // ----- Way of blessing (healing and barriers)
         String b = WAY_BLESSING;
-        node(list, "g_prayer", c, b, SkillEffect.HEAL_POWER, 3, 3, 2, 0.08, "vitality", "gb1", "minecraft:book", 3, 1);
+        node(list, "g_prayer", c, b, SkillEffect.HEAL_POWER, 3, 3, 2, 0.15, "vitality", "gb1", "minecraft:book", 3, 1);
         node(list, "field_dressing", c, b, SkillEffect.HEAL_AURA, 3, 3, 2, 0.5, "vitality", "", "minecraft:glistering_melon_slice", 3, 3);
         node(list, "g_wardsign", c, b, SkillEffect.WARD_SIGN, 3, 3, 2, 0.04, "vitality", "gb1", "minecraft:white_banner", 3, 5);
         subNode(list, "g_healing_hand", c, b, SkillEffect.HEALING_HAND, 4, 4, 2, 1.0, "field_dressing", "gb_sub", "minecraft:honey_bottle", 1);
@@ -811,6 +811,9 @@ public final class SkillTree {
         SkillNode node = get(nodeId);
         if (node == null) {
             return "unknown";
+        }
+        if (node.clazz().isShared()) {
+            return "retired";   // the core tree is gone (Simon 27.10.); no points into it, even by a raw packet (Tor 4)
         }
         if (!node.clazz().isShared() && node.clazz() != skills.clazz()) {
             return skills.hasClass() ? "class" : "nochoice";

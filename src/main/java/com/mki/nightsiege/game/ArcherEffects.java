@@ -47,6 +47,8 @@ public final class ArcherEffects {
     private final com.mki.nightsiege.core.SkillTriggers.FirstOfTick quiverShot = new com.mki.nightsiege.core.SkillTriggers.FirstOfTick();
     /** Power shot of the sniper: goes through everything in its way. */
     public static final String SNIPER_TAG = "nightsiege_sniper";
+    /** The power shot without the sniper: pierces a few monsters (Tor 4). */
+    public static final String POWER_TAG = "nightsiege_power";
     /** Standfest: the crossbow bolt was shot while sneaking (checked at the shot, not at the hit). */
     public static final String BRACED_TAG = "nightsiege_braced";
     /** Arrow storm running: game time it ends. */
@@ -147,7 +149,8 @@ public final class ArcherEffects {
             }
         }
         if (SkillTree.has(skills, "a_deadeye")) {
-            damage *= SkillValues.get("a_deadeye", "mult", 1.35);
+            damage *= SkillTree.SUB_SWIFT.equals(tree.subclassOf(skills))
+                    ? SkillValues.get("a_deadeye", "swift", 1.25) : SkillValues.get("a_deadeye", "mult", 1.35);
         }
         if (SkillTree.has(skills, "a_skirmisher")) {
             damage *= SkillValues.get("a_skirmisher", "mult", 0.9);
@@ -205,7 +208,7 @@ public final class ArcherEffects {
         if (tree.totalBonus(SkillEffect.DOUBLE_SHOT, skills) >= 1.0) {
             String twinNode = crossbow ? "x_cross_double" : "double_shot";
             float side = (float) SkillValues.get(twinNode, "angle", 4.0);
-            spawnTwin(arrow, level, player, weapon, extraDamage, level.getRandom().nextBoolean() ? side : -side, fireVolley);
+            spawnTwin(arrow, level, player, weapon, extraDamage * SkillValues.get(twinNode, "share", 1.0), level.getRandom().nextBoolean() ? side : -side, fireVolley);
         }
         if (crossbow && tree.totalBonus(SkillEffect.MULTI_BOLT, skills) > 0) {
             spawnFan(arrow, level, player, weapon, damage, (int) SkillValues.get("a_multiload", "arrows", 2),
@@ -283,9 +286,7 @@ public final class ArcherEffects {
                                       double damage, int rank, boolean sniper) {
         double mult = SkillValues.get("power_shot", "mult" + rank, 2.25 + 0.75 * rank);
         arrow.setBaseDamage(damage * mult * (sniper ? SkillValues.get("a_sniper", "mult", 1.5) : 1.0));
-        if (sniper) {
-            arrow.entityTags().add(SNIPER_TAG);
-        }
+        arrow.entityTags().add(sniper ? SNIPER_TAG : POWER_TAG);
         arrow.setDeltaMovement(arrow.getDeltaMovement().scale(SkillValues.get("power_shot", "speed", 1.25)));
         arrow.setCritArrow(true);
         level.playSound(null, player.getX(), player.getY(), player.getZ(),

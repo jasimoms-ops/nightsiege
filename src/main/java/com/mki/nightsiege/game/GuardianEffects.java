@@ -333,7 +333,7 @@ public final class GuardianEffects {
                 thorns = SkillValues.get("g_hedgehog", "dmg", 4.0);   // the hedgehog brings its own spines
             }
             if (thorns > 0) {
-                float hurt = (float) (thorns * bladeshield(skills));
+                float hurt = WarriorArts.scaled(thorns * bladeshield(skills));   // grows with the world level (Tor 4)
                 DamageSource own = level.damageSources().playerAttack(player);
                 if (hedgehog) {
                     float mult = (float) SkillValues.get("g_hedgehog", "mult", 3.0);
@@ -398,7 +398,7 @@ public final class GuardianEffects {
         double counter = tree.totalBonus(SkillEffect.COUNTER, skills);
         if (counter > 0 && shieldWay(player, skills)) {
             String node = skills.levelOf("riposte") > 0 ? "riposte" : "b_cross_riposte";
-            float hurt = (float) (counter * (perfect ? SkillValues.get(node, "perfect", 2.0) : 1.0) * bladeshield(skills));
+            float hurt = WarriorArts.scaled(counter * (perfect ? SkillValues.get(node, "perfect", 2.0) : 1.0) * bladeshield(skills));
             combat.bonusHit(level, attacker, level.damageSources().playerAttack(player), hurt);
             CombatEffects.pushAway(attacker, player.position(), 0.9, 0.3);
             play(level, player, SoundEvents.SHIELD_BLOCK.value(), 0.8f, 1.4f);
@@ -411,7 +411,7 @@ public final class GuardianEffects {
         if (flat == null) {
             return;
         }
-        float hurt = (float) tree.totalBonus(SkillEffect.SHIELD_BASH, skills);
+        float hurt = WarriorArts.scaled(tree.totalBonus(SkillEffect.SHIELD_BASH, skills));
         DamageSource own = level.damageSources().playerAttack(player);
         for (LivingEntity victim : CombatEffects.enemies(level, player.position(), SkillValues.get("g_shieldbash", "range", 4.0), 2.0)) {
             Vec3 to = victim.position().subtract(player.position());
@@ -430,7 +430,7 @@ public final class GuardianEffects {
 
     /** Vengeance: a ring of force around the guardian. */
     private void shockwave(ServerLevel level, ServerPlayer player, float hurt) {
-        hurt = (float) (hurt * group(skillsFor.apply(player)));
+        hurt = WarriorArts.scaled(hurt * group(skillsFor.apply(player)));
         DamageSource own = level.damageSources().playerAttack(player);
         for (LivingEntity victim : CombatEffects.enemies(level, player.position(), SkillValues.get("g_vengeance", "radius", 3.5), 1.5)) {
             combat.bonusHit(level, victim, own, hurt);

@@ -1249,7 +1249,9 @@ public final class TrapService {
             hit.add(current);
             Vec3 end = current.position().add(0, current.getBbHeight() * 0.5, 0);
             spark(level, start, end);
-            current.hurtServer(level, source, damage);
+            // Leitstrahl (Tor 4): your marked monsters take more from the bolt.
+            current.hurtServer(level, source, beam && markedBy(record, current, now)
+                    ? (float) (damage * (1.0 + SkillValues.get("e_beacon", "bonus", 0.3))) : damage);
             start = end;
             // Jump to the nearest monster within four blocks not hit yet.
             Vec3 at = end;

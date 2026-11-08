@@ -332,10 +332,10 @@ public final class WarriorArts {
     }
 
     /** The damage of an ability's hit: its number on level 1, grown like the monsters' life. */
-    private static float scaled(double base) {
+    static float scaled(double base) {
         SiegeManager m = SiegeManager.get();
         int level = m == null ? 1 : Math.max(1, m.currentLevel());
-        return (float) (base * (m == null ? 1.0 : SiegeMath.healthMultiplier(level, m.config())));
+        return (float) (m == null ? base : SiegeMath.skillDamage(base, level, m.config()));
     }
 
     // --- Klingentanz

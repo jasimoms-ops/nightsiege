@@ -914,6 +914,9 @@ public final class Companions {
         if ("fear".equals(spellId) && skills != null && SkillTree.has(skills, "d_dread")) {
             cost = Math.max(0, cost - (int) Math.round(v("d_dread", "cheaper", 1)));
         }
+        if ("swarm".equals(spellId) && skills != null && SkillTree.has(skills, "d_haste")) {
+            cost = Math.max(1, cost - (int) Math.round(v("d_haste", "cheaper", 1)));
+        }
         if (skills != null && cost > 1 && gain(skills, "seelenzins") > 0) {
             cost -= 1;   // Seelenzins (crate gain, 27 October 2026)
         }

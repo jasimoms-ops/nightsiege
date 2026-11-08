@@ -93,6 +93,7 @@ public final class CombatEffects {
     /** Warrior: hit streaks (stacks, last hit), the strong hit after a kill, the divine shield. */
     private final Map<UUID, long[]> combos = new HashMap<>();
     private final Map<UUID, Long> momentumUntil = new HashMap<>();
+    private final Map<UUID, Long> bloodPricePaid = new HashMap<>();
     private final Map<UUID, Long> divineReadyAt = new HashMap<>();
     /** Things an ultimate does a moment later (second slam, further whirlwind turns). */
     private final List<Delayed> delayed = new ArrayList<>();
@@ -773,8 +774,10 @@ public final class CombatEffects {
         if (price > 0) {
             bonus += price;
             float floor = (float) SkillValues.get("w_bloodprice", "floor", 6.0);
-            if (player.getHealth() > floor) {
-                // One life point (half a heart) per hit, but never below the floor.
+            long paid = bloodPricePaid.getOrDefault(player.getUUID(), Long.MIN_VALUE / 2);
+            if (player.getHealth() > floor && now - paid >= (long) SkillValues.get("w_bloodprice", "every", 20)) {
+                // One life point (half a heart) at most once a second (Tor 4: the combo hit 4 times a second), never below the floor.
+                bloodPricePaid.put(player.getUUID(), now);
                 player.setHealth(Math.max(floor, player.getHealth() - (float) SkillValues.get("w_bloodprice", "cost", 1.0)));
             }
         }
@@ -1080,7 +1083,7 @@ public final class CombatEffects {
         double parry = tree.totalBonus(SkillEffect.PARRY, skills);
         boolean melee = source.getDirectEntity() == attacker;
         if (parry > 0 && melee && holdsWayWeapon(player, skills) && random.nextDouble() < parry) {
-            bonusHit(level, attacker, level.damageSources().playerAttack(player), (float) SkillValues.get("w_parry", "counter", 4));
+            bonusHit(level, attacker, level.damageSources().playerAttack(player), WarriorArts.scaled(SkillValues.get("w_parry", "counter", 4)));
             pushAway(attacker, player.position(), 0.7, 0.2);
             double heal = tree.totalBonus(SkillEffect.PARRY_HEAL, skills);
             if (heal > 0) {
@@ -1209,6 +1212,11 @@ public final class CombatEffects {
             pierceBehind(level, player, victim, arrow, taken * (float) SkillValues.get("a_sniper", "share", 0.8),
                     (int) SkillValues.get("a_sniper", "count", 6));
         }
+        boolean powerShot = arrow.entityTags().contains(ArcherEffects.POWER_TAG);
+        if (powerShot) {
+            pierceBehind(level, player, victim, arrow, taken * (float) SkillValues.get("power_shot", "share", 0.7),
+                    (int) SkillValues.get("power_shot", "pierce", 3));
+        }
 
         if (skills.clazz() == SkillClass.ARCHER) {
             String way = skills.pathTaken(tree);
@@ -1273,6 +1281,8 @@ public final class CombatEffects {
         if (tree.totalBonus(SkillEffect.ARROW_KNOCKBACK, skills) > 0) {
             pushAway(victim, player.position(), SkillValues.get("a_knockarrow", "push", 1.0),
                     SkillValues.get("a_knockarrow", "lift", 0.25));
+            extra += taken * SkillValues.get("a_knockarrow", "bonus", 0.2);
+            victim.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, (int) SkillValues.get("a_knockarrow", "slow", 20), 1));
         }
         double sunder = tree.totalBonus(SkillEffect.BOLT_SUNDER, skills);
         if (sunder > 0 && crossbow) {
@@ -1345,15 +1355,17 @@ public final class CombatEffects {
         if (shrapnel > 0) {
             Vec3 at = victim.position();
             double splash = SkillValues.get(crossbow ? "shrapnel" : "b_cross_shrapnel", "radius", 2.5);
+            double shrapnelShare = !crossbow && SkillTree.SUB_SWIFT.equals(tree.subclassOf(skills))
+                    ? Math.min(shrapnel, SkillValues.get("b_cross_shrapnel", "swift", 0.2)) : shrapnel;
             for (LivingEntity near : enemies(level, at, splash, 1.5)) {
                 if (near != victim) {
-                    followUpHit(level, near, source, (float) (taken * shrapnel));
+                    followUpHit(level, near, source, (float) (taken * shrapnelShare));
                 }
             }
             level.sendParticles(ParticleTypes.CRIT, at.x, at.y + 1.0, at.z, 10, 0.6, 0.4, 0.6, 0.2);
         }
         int pierce = (int) Math.round(tree.totalBonus(SkillEffect.PIERCE, skills));
-        if (pierce > 0 && !sniperShot) {   // the sniper's shot already goes through the line on its own
+        if (pierce > 0 && !sniperShot && !powerShot) {   // the sniper's shot already goes through the line on its own
             // Each way's pierce node carries the share it deals behind the target.
             String pierceNode = crossbow ? "a_punch" : SkillTree.has(skills, "piercing") ? "piercing" : "a_pierce";
             pierceBehind(level, player, victim, arrow, taken * (float) SkillValues.get(pierceNode, "share", 0.7), pierce);
@@ -1734,6 +1746,7 @@ public final class CombatEffects {
         ultReadyAt.remove(player);
         combos.remove(player);
         momentumUntil.remove(player);
+        bloodPricePaid.remove(player);
         divineReadyAt.remove(player);
         tripReadyAt.remove(player);
         guardian.forget(player);
