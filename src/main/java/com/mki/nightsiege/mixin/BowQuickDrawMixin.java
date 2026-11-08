@@ -9,7 +9,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import org.spongepowered.asm.mixin.Mixin;
 
-/** A quick-shot archer's tap shoots, however short (update 30.10., see {@link QuickDraw}). */
+/** A quick-shot archer has to draw his bow at least {@link QuickDraw#MIN_TICKS} (Tor 4, see {@link QuickDraw}). */
 @Mixin(BowItem.class)
 public abstract class BowQuickDrawMixin {
 
@@ -19,8 +19,8 @@ public abstract class BowQuickDrawMixin {
         if (!level.isClientSide() && QuickDraw.applies(entity)) {
             int duration = ((BowItem) (Object) this).getUseDuration(stack, entity);
             if (duration - timeLeft < QuickDraw.MIN_TICKS) {
-                timeLeft = duration - QuickDraw.MIN_TICKS;
                 QuickDraw.saved();
+                return false;   // too short: no shot, the bow is ready again at once
             }
         }
         return original.call(stack, level, entity, timeLeft);

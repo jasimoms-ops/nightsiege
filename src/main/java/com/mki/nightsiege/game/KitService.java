@@ -34,6 +34,7 @@ import net.minecraft.world.item.alchemy.PotionContents;
 import net.minecraft.world.item.alchemy.Potions;
 import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.item.component.ItemAttributeModifiers;
+import net.minecraft.world.item.component.UseEffects;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.GameType;
@@ -894,6 +895,8 @@ public final class KitService {
                 }
                 if (SkillTree.SUB_SWIFT.equals(sub)) {
                     power = 0;   // the quick shot: no power on the bow (Simon, 25 October 2026)
+                    // Tor 4 (Simon 08.11.): no slowdown while he draws (he has to draw at least QuickDraw.MIN_TICKS).
+                    bow.set(DataComponents.USE_EFFECTS, new UseEffects(true, true, 1.0f));
                 }
                 enchant(bow, ench, Enchantments.POWER, power);
                 // Every archer bow never runs out of arrows (Simon, 26 October 2026; was the quick shot only).
