@@ -200,6 +200,7 @@ public final class ArrowRain {
         RAINS.add(new Rain(player.getUUID(), level, spot, sub, now + 4, now + dur));
         fired++;
         double r = radius(sub);
+        CastFx.arrowVolley(level, player, spot, r);   // Tor 2: the throw and the circle, seen by all
         // The circle where it will come down, and the volley going up.
         for (int i = 0; i < 24; i++) {
             double a = Math.PI * 2 * i / 24;
@@ -241,6 +242,9 @@ public final class ArrowRain {
                 continue;
             }
             streaks(rain);
+            if ((now - rain.end) % 5 == 0) {
+                CastFx.rainPulse(rain.level, rain.center, radius(rain.sub));   // Tor 2: the circle glows while it rains
+            }
             if (now < rain.nextHit) {
                 continue;
             }
