@@ -43,6 +43,8 @@ public final class ArcherEffects {
     private final Map<UUID, long[]> powerArmed = new HashMap<>();
     /** Shots fired, for the volley's every fourth. */
     private final Map<UUID, Integer> volleyCount = new HashMap<>();
+    /** Köcherwart: only the first arrow of a tick is the shot (a Multishot crossbow looses three). */
+    private final com.mki.nightsiege.core.SkillTriggers.FirstOfTick quiverShot = new com.mki.nightsiege.core.SkillTriggers.FirstOfTick();
     /** Power shot of the sniper: goes through everything in its way. */
     public static final String SNIPER_TAG = "nightsiege_sniper";
     /** Standfest: the crossbow bolt was shot while sneaking (checked at the shot, not at the hit). */
@@ -172,13 +174,14 @@ public final class ArcherEffects {
         // Quiver: now and then the arrow comes back. A bow with Infinity uses up no arrows,
         // so there the quiver hands over a free extra arrow instead (balance update, 26 October 2026).
         double quiver = tree.totalBonus(SkillEffect.QUIVER, skills);
+        boolean mainArrow = quiverShot.first(player.getUUID(), now);
         if (quiver > 0 && !player.getAbilities().instabuild && level.getRandom().nextDouble() < quiver) {
             if (arrow.pickup == AbstractArrow.Pickup.ALLOWED) {
                 ItemStack back = arrow.getPickupItemStackOrigin().copyWithCount(1);
                 if (!back.isEmpty() && player.getInventory().add(back)) {
                     arrow.pickup = AbstractArrow.Pickup.CREATIVE_ONLY;
                 }
-            } else if (com.mki.nightsiege.core.SkillTriggers.quiverTwin(bow, crossbow, arrow.pickup == AbstractArrow.Pickup.CREATIVE_ONLY)) {
+            } else if (com.mki.nightsiege.core.SkillTriggers.quiverTwin(bow, crossbow, arrow.pickup == AbstractArrow.Pickup.CREATIVE_ONLY, mainArrow)) {
                 spawnTwin(arrow, level, player, weapon, damage * SkillValues.get("a_quiver", "extra", 0.5), 2.0f, false);
             }
         }
@@ -323,5 +326,6 @@ public final class ArcherEffects {
         powerArmed.remove(player);
         stormUntil.remove(player);
         volleyCount.remove(player);
+        quiverShot.forget(player);
     }
 }

@@ -30,9 +30,24 @@ class SkillTriggersTest {
 
     @Test
     void quiverExtraArrowWithTheCrossbowToo() {
-        assertTrue(SkillTriggers.quiverTwin(true, false, true));
-        assertTrue(SkillTriggers.quiverTwin(false, true, true));   // the crossbow way has the quiver as well
-        assertFalse(SkillTriggers.quiverTwin(false, true, false)); // a real arrow comes back instead
-        assertFalse(SkillTriggers.quiverTwin(false, false, true));
+        assertTrue(SkillTriggers.quiverTwin(true, false, true, true));
+        assertTrue(SkillTriggers.quiverTwin(false, true, true, true));   // the crossbow way has the quiver as well
+        assertFalse(SkillTriggers.quiverTwin(false, true, false, true)); // a real arrow comes back instead
+        assertFalse(SkillTriggers.quiverTwin(false, false, true, true));
+    }
+
+    @Test
+    void quiverOnlyForTheMainArrowOfAMultishot() {
+        // Multishot: three arrows in one tick, all of Infinity; only the first (middle) one may get a twin.
+        var gate = new SkillTriggers.FirstOfTick();
+        java.util.UUID p = java.util.UUID.randomUUID();
+        int twins = 0;
+        for (int i = 0; i < 3; i++) {
+            if (SkillTriggers.quiverTwin(false, true, true, gate.first(p, 100L))) {
+                twins++;
+            }
+        }
+        assertEquals(1, twins);
+        assertTrue(SkillTriggers.quiverTwin(false, true, true, gate.first(p, 125L)));   // the next shot again
     }
 }
