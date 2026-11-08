@@ -25,6 +25,12 @@ public final class StealPool {
 
     /** Per player: [game time, life left to heal back] of each loss, oldest first. */
     private static final Map<UUID, ArrayDeque<double[]>> LOST = new HashMap<>();
+    /**
+     * Tor 4 (Simon 08.11.): the same, kept always (also without the coupling), for the late hit life
+     * steal (config hitLifestealLate): from hitLifestealLateLevel the axe fighter heals no more than
+     * hitLifestealLateTakenShare of what he lost in the last lifestealTakenSeconds.
+     */
+    private static final Map<UUID, ArrayDeque<double[]>> LATE = new HashMap<>();
     /** Per player: life and absorption before a hit that is being dealt, and whether it is counted already. */
     private static final Map<UUID, float[]> OPEN = new HashMap<>();
     /** No more than this many losses are kept per player. */
@@ -97,15 +103,58 @@ public final class StealPool {
     /** A player lost this much life now. */
     public static void lost(ServerPlayer player, double amount, long now) {
         SiegeConfig cfg = cfg();
-        if (amount <= 0 || cfg == null || !cfg.lifestealCoupled) {
+        if (amount <= 0 || cfg == null) {
             return;
         }
-        ArrayDeque<double[]> q = LOST.computeIfAbsent(player.getUUID(), k -> new ArrayDeque<>());
+        if (cfg.hitLifestealLateTakenShare > 0) {
+            add(LATE.computeIfAbsent(player.getUUID(), k -> new ArrayDeque<>()), now, amount * cfg.hitLifestealLateTakenShare, cfg);
+        }
+        if (cfg.lifestealCoupled) {
+            add(LOST.computeIfAbsent(player.getUUID(), k -> new ArrayDeque<>()), now, amount * cfg.lifestealTakenShare, cfg);
+        }
+    }
+
+    private static void add(ArrayDeque<double[]> q, long now, double amount, SiegeConfig cfg) {
         prune(q, now, cfg);
-        q.addLast(new double[]{now, amount * cfg.lifestealTakenShare});
+        q.addLast(new double[]{now, amount});
         while (q.size() > MAX_ENTRIES) {
             q.pollFirst();
         }
+    }
+
+    /**
+     * The cap of the late hit life steal (Tor 4): how much of {@code amount} may heal, at most what is
+     * in the player's late pool (hitLifestealLateTakenShare of his losses of the last lifestealTakenSeconds),
+     * taken from it. With hitLifestealLateTakenShare 0 the whole heal.
+     */
+    public static float takeLate(ServerPlayer player, float amount, long now) {
+        SiegeConfig cfg = cfg();
+        if (amount <= 0f) {
+            return 0f;
+        }
+        if (cfg == null || cfg.hitLifestealLateTakenShare <= 0) {
+            return amount;
+        }
+        double want = Math.min(amount, Math.max(0.0, player.getMaxHealth() - player.getHealth()));
+        return (float) drain(LATE.get(player.getUUID()), want, now, cfg);
+    }
+
+    private static double drain(ArrayDeque<double[]> q, double want, long now, SiegeConfig cfg) {
+        if (want <= 0 || q == null) {
+            return 0.0;
+        }
+        prune(q, now, cfg);
+        double given = 0;
+        while (want - given > 1.0e-6 && !q.isEmpty()) {
+            double[] e = q.peekFirst();
+            double use = Math.min(e[1], want - given);
+            e[1] -= use;
+            given += use;
+            if (e[1] <= 1.0e-6) {
+                q.pollFirst();
+            }
+        }
+        return given;
     }
 
     /**
@@ -121,22 +170,7 @@ public final class StealPool {
             return amount;
         }
         double want = Math.min(amount, Math.max(0.0, player.getMaxHealth() - player.getHealth()));
-        ArrayDeque<double[]> q = LOST.get(player.getUUID());
-        if (want <= 0 || q == null) {
-            return 0f;
-        }
-        prune(q, now, cfg);
-        double given = 0;
-        while (want - given > 1.0e-6 && !q.isEmpty()) {
-            double[] e = q.peekFirst();
-            double use = Math.min(e[1], want - given);
-            e[1] -= use;
-            given += use;
-            if (e[1] <= 1.0e-6) {
-                q.pollFirst();
-            }
-        }
-        return (float) given;
+        return (float) drain(LOST.get(player.getUUID()), want, now, cfg);
     }
 
     /** What life steal could still heal back now (for the tests and the HUD). */
@@ -164,11 +198,13 @@ public final class StealPool {
     /** A player's pool is gone (death, the end of the night, a test). */
     public static void forget(UUID player) {
         LOST.remove(player);
+        LATE.remove(player);
     }
 
     /** The night ended. */
     public static void clear() {
         LOST.clear();
+        LATE.clear();
         OPEN.clear();
     }
 }

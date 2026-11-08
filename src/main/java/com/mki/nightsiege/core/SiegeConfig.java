@@ -394,6 +394,14 @@ public class SiegeConfig {
     /** The axe fighter's cleave (splash, Spaltaxt) heals at this share of the hit life steal (0.5 = half the rate). */
     public double hitLifestealCleave = 0.5;
     /**
+     * Tor 4 (Simon 08.11.: the axe fighter "spät unkillable"): from world level hitLifestealLateLevel the
+     * hit life steal of these subclasses is this share instead of hitLifesteal (axe 0.08 -> 0.06) ...
+     */
+    public Map<String, Double> hitLifestealLate = new LinkedHashMap<>(Map.of("axe", 0.06));
+    public int hitLifestealLateLevel = 15;
+    /** ... and heals at most this share of the life lost in the last lifestealTakenSeconds (0 = no cap). */
+    public double hitLifestealLateTakenShare = 1.0;
+    /**
      * The blademaster has no life steal on his hits; a kill in the middle of a combo heals him by
      * this share of the monster's maximum life instead.
      * @deprecated no longer read (balance update, 26 October 2026): use {@code skillTweaks.w_combo.values.killheal}.
@@ -1059,6 +1067,17 @@ public class SiegeConfig {
     public double hitLifesteal(String subclass) {
         Double v = hitLifesteal == null || subclass == null ? null : hitLifesteal.get(subclass);
         return v == null ? 0.0 : v;
+    }
+
+    /** True when this subclass's hit life steal is the late one on this world level (Tor 4, hitLifestealLate). */
+    public boolean hitLifestealLateAt(String subclass, int level) {
+        return subclass != null && hitLifestealLate != null && hitLifestealLate.containsKey(subclass)
+                && hitLifesteal(subclass) > 0 && level >= hitLifestealLateLevel;
+    }
+
+    /** The hit life steal share of this subclass on this world level (before hitLifestealLevelFactor). */
+    public double hitLifestealAt(String subclass, int level) {
+        return hitLifestealLateAt(subclass, level) ? hitLifestealLate.get(subclass) : hitLifesteal(subclass);
     }
 
     /** Factor on the hit life steal at this world level: hitLifestealLowFactor on level 1, 1 from hitLifestealLowUntil on. */
@@ -1817,6 +1836,17 @@ public class SiegeConfig {
             bastionWaveMaxSeconds = 180;
             settingsVersion = 19;
         }
+        if (settingsVersion < 20) {
+            // Tor 4 (Simon 08.11.): the quick shot's damage 1.3 -> 0.8 (times 0.8 / 1.3, so a server's own value
+            // moves alike); the towers take their gunner again after 10 s instead of 20 and hold 5 times his
+            // life instead of 3 (only where the server set its own tweak; else the new code values count).
+            scale(subclassDamage, "swift", 0.8 / 1.3);
+            scaleTweak("e_longrange", "seatlock", 0.5);
+            for (TrapKind tower : new TrapKind[] {TrapKind.TURRET, TrapKind.MORTAR, TrapKind.BREWER, TrapKind.TESLA}) {
+                scaleTweak(tower.id(), "seathealth", 5.0 / 3.0);
+            }
+            settingsVersion = 20;
+        }
         if (Double.isNaN(meleeLifesteal)) {
             meleeLifesteal = 0.08;
         }
@@ -1830,23 +1860,18 @@ public class SiegeConfig {
         hitLifestealMinHeal = Double.isNaN(hitLifestealMinHeal) ? 1.0 : Math.min(20.0, Math.max(0.0, hitLifestealMinHeal));
         hitLifestealMinTicks = clamp(hitLifestealMinTicks, 1, 1200);
         hitLifestealCleave = Double.isNaN(hitLifestealCleave) ? 0.5 : Math.min(1.0, Math.max(0.0, hitLifestealCleave));
+        if (hitLifestealLate == null) {
+            hitLifestealLate = new LinkedHashMap<>(Map.of("axe", 0.06));
+        }
+        hitLifestealLate.replaceAll((k, v) -> v == null || Double.isNaN(v) ? 0.0 : Math.min(1.0, Math.max(0.0, v)));
+        hitLifestealLateLevel = clamp(hitLifestealLateLevel, 1, 1000);
+        hitLifestealLateTakenShare = Double.isNaN(hitLifestealLateTakenShare) ? 1.0 : clampDouble(hitLifestealLateTakenShare, 0.0, 5.0);
         if (championPercentDamage == null || championPercentDamage.length == 0) {
             championPercentDamage = new double[] {0.30};
         }
         for (int i = 0; i < championPercentDamage.length; i++) {
             double v = championPercentDamage[i];
             championPercentDamage[i] = Double.isNaN(v) ? 0.0 : Math.min(1.0, Math.max(0.0, v));
-        if (settingsVersion < 20) {
-            // Tor 4 (Simon 08.11.): the quick shot's damage 1.3 -> 0.8 (times 0.8 / 1.3, so a server's own value
-            // moves alike); the towers take their gunner again after 10 s instead of 20 and hold 5 times his
-            // life instead of 3 (only where the server set its own tweak; else the new code values count).
-            scale(subclassDamage, "swift", 0.8 / 1.3);
-            scaleTweak("e_longrange", "seatlock", 0.5);
-            for (TrapKind tower : new TrapKind[] {TrapKind.TURRET, TrapKind.MORTAR, TrapKind.BREWER, TrapKind.TESLA}) {
-                scaleTweak(tower.id(), "seathealth", 5.0 / 3.0);
-            }
-            settingsVersion = 20;
-        }
         }
         if (championPercentDamageSteps == null) {
             championPercentDamageSteps = new int[0];
