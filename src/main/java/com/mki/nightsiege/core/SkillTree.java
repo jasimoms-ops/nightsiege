@@ -307,7 +307,7 @@ public final class SkillTree {
         node(list, "a_hunternet", c, x, SkillEffect.HUNTER_NET, 1, 15, 0, 0.25, "a_netbolt|x_mark,a_punch|a_tripwire|x_mark", "x5", "minecraft:lead", 6, 3);
         node(list, "a_trapmaster", c, x, SkillEffect.TRAPMASTER, 1, 15, 0, 4.0, "a_tripwire", "x5", "minecraft:iron_bars", 6, 5);
         String x5 = "a_clusterbolt|a_hunternet|a_trapmaster";
-        node(list, "a_bracing", c, x, SkillEffect.BRACE, 1, 18, 0, 0.4, x5, "x6", "minecraft:anvil", 7, 1);
+        node(list, "a_bracing", c, x, SkillEffect.BRACE, 1, 18, 0, 0.6, x5, "x6", "minecraft:anvil", 7, 1);
         node(list, "a_reloadrush", c, x, SkillEffect.RELOAD_RUSH, 1, 18, 0, 1.0, x5, "x6", "minecraft:sugar", 7, 3);
         node(list, "x_cross_double", c, x, SkillEffect.DOUBLE_SHOT, 1, 18, 0, 1.0, x5, "x6", "minecraft:bow", 7, 5);
         String x6 = "a_bracing|a_reloadrush|x_cross_double";
