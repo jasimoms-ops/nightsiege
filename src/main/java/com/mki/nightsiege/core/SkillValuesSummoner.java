@@ -107,7 +107,8 @@ final class SkillValuesSummoner {
         def("d_raise", "spellrange", 8.0);         // blocks more than the staff for the spells' target
         def("d_raise", "start", 4);                // souls at the start of a night
         def("d_raise", "cap", 12);                 // most souls
-        def("d_raise", "range", 16.0);             // blocks for souls and corpses
+        def("d_raise", "range", 16.0);             // blocks for corpses and the necromancer's souls
+        def("d_raise", "catcherrange", 24.0);      // blocks for the soulcatcher's souls (Tor 4, Simon 08.11.: 16 -> 24)
         def("d_raise", "slots", 2);                // raised corpses at once (the army apart)
         def("d_raise", "minhealth", 30.0);
         def("d_raise", "power", 1.7);              // damage factor of the raised dead
@@ -143,6 +144,7 @@ final class SkillValuesSummoner {
         def("d_corpse", "radius", 1.0);            // blocks more for the corpse's burst
         def("d_shards", "ghostradius", 2.5);       // blocks of a ghost's burst (Seelensplitter, 27 Oct 2026)
         def("d_dread", "cheaper", 1);              // souls less for Schrecken
+        def("d_haste", "cheaper", 1);              // souls less for the ghost swarm (Tor 4, Simon 08.11.: 4 -> 3)
         def("d_dread", "extra", 40);               // ticks Schrecken lasts longer
         def("d_dread", "more", 0.25);              // share more damage frightened monsters take
         def("d_cross_wolf", "pause", 1200);        // ticks after the wolf fell

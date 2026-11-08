@@ -908,11 +908,14 @@ public final class Companions {
         return spells.isEmpty() ? null : spells.get(Math.floorMod(spellIndex.getOrDefault(owner, 0), spells.size()));
     }
 
-    /** Souls a spell costs this summoner (Grauen makes Schrecken cheaper). */
+    /** Souls a spell costs this summoner (Grauen makes Schrecken cheaper, Geisterhast the ghost swarm). */
     static int spellCost(String spellId, PlayerSkills skills) {
         int cost = spellCost(spellId);
         if ("fear".equals(spellId) && skills != null && SkillTree.has(skills, "d_dread")) {
             cost = Math.max(0, cost - (int) Math.round(v("d_dread", "cheaper", 1)));
+        }
+        if ("swarm".equals(spellId) && skills != null && SkillTree.has(skills, "d_haste")) {
+            cost = Math.max(0, cost - (int) Math.round(v("d_haste", "cheaper", 1)));   // Geisterhast (Tor 4)
         }
         if (skills != null && cost > 1 && gain(skills, "seelenzins") > 0) {
             cost -= 1;   // Seelenzins (crate gain, 27 October 2026)
@@ -2344,7 +2347,8 @@ public final class Companions {
 
     /**
      * A monster of the night, of the war camp or of a dungeon fell: it may be raised for half a
-     * minute, and every summoner of the dead within 16 blocks gets a soul (Seelengier: sometimes two).
+     * minute, and every summoner of the dead within 16 blocks gets a soul (Seelengier: sometimes two);
+     * the soulcatcher within 24 (Tor 4, d_raise catcherrange). Corpses stay at 16 (raiseCorpse).
      */
     public void onMonsterDeath(Mob mob, boolean elite) {
         if (!(mob.level() instanceof ServerLevel level) || isCompanion(mob)) {
@@ -2357,13 +2361,19 @@ public final class Companions {
         while (!corpses.isEmpty() && (now - corpses.peekFirst().time() > age || corpses.size() > 80)) {
             corpses.pollFirst();
         }
+        double range = v("d_raise", "range", 16.0);
+        double catcherRange = v("d_raise", "catcherrange", 24.0);
         for (ServerPlayer player : level.players()) {
-            double range = v("d_raise", "range", 16.0);
-            if (player.distanceToSqr(mob) > range * range) {
+            double dist = player.distanceToSqr(mob);
+            if (dist > Math.max(range, catcherRange) * Math.max(range, catcherRange)) {
                 continue;
             }
             PlayerSkills skills = skillsFor.apply(player);
             if (skills == null || !SkillTree.WAY_DEAD.equals(skills.pathTaken(tree)) || !SkillTree.has(skills, "d_raise")) {
+                continue;
+            }
+            double own = SkillTree.SUB_SOULCATCHER.equals(tree.subclassOf(skills)) ? catcherRange : range;
+            if (dist > own * own) {
                 continue;
             }
             int gain = 1 + (player.getRandom().nextDouble() < bonus(SkillEffect.SOUL_GREED, skills) ? 1 : 0);
