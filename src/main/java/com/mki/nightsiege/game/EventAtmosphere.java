@@ -149,8 +149,10 @@ public final class EventAtmosphere {
                 .modify(EnvironmentAttributes.CLOUD_COLOR, ColorModifier.MULTIPLY_ARGB, ARGB.color(255, 0xC4, 0xD0, 0xE4))
                 .modify(EnvironmentAttributes.SKY_LIGHT_COLOR, ColorModifier.MULTIPLY_RGB, rgb(0xB4C8F0))
                 .modify(EnvironmentAttributes.STAR_BRIGHTNESS, FloatModifier.MULTIPLY, 0.0f)
+                // Snow: 1334 tries a tick within 16/32 blocks, 0.08 each (was 0.22, Tor 3.0b:
+                // about 36 %, lighter with shaders); fog and colours carry the look.
                 .set(EnvironmentAttributes.AMBIENT_PARTICLES, List.of(
-                        new AmbientParticle(ParticleTypes.SNOWFLAKE, 0.22f)))
+                        new AmbientParticle(ParticleTypes.SNOWFLAKE, 0.08f)))
                 .build());
         LOOKS.put(AURORA, EnvironmentAttributeMap.builder()
                 .modify(EnvironmentAttributes.SKY_COLOR, ColorModifier.ALPHA_BLEND, ARGB.color(60, 0x10, 0x40, 0x30))
