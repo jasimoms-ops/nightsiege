@@ -290,6 +290,10 @@ public class EventLookTest implements FabricClientGameTest {
                     alive(context);
                     GewinneScenes.run(context, game);   // Tor 3.2: the gain wheel on R, its rings, night exclusive
                 }
+                if (want.contains("funktionen")) {
+                    alive(context);
+                    FunktionenScenes.run(context, game);   // Tor 3.0d: Erdstoss on a real jump crit, Koecherwart with Multishot
+                }
                 if (want.contains("ss-inventar")) {
                     alive(context);   // a scene before may have left the player dead (05.11.)
                     SsInventarScenes.run(context, game);   // survival safety: kit swap, crates, crashes, death (31.10.)
