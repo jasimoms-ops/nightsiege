@@ -80,7 +80,7 @@ final class Hud2Scenes {
             for (UltState.Slot s : slots) {
                 check(s.totalTicks > 0, "box " + s.id + " knows its pause (" + s.totalTicks + " ticks)");
             }
-            check(m.combatEffects().healsOthers(player), "the medic counts as a healer");
+            check(com.mki.nightsiege.game.HealthView.healer(m, player), "the medic sees the party list (Tor 3.5)");
         });
         context.runOnClient(client -> {
             HudSync.Party p = new HudSync.Party();
@@ -99,7 +99,7 @@ final class Hud2Scenes {
             List<UltState.Slot> timers = m.combatEffects().timers(player, player.level().getGameTime());
             check(timers.stream().anyMatch(t -> t.id.equals("shield_action") && t.totalTicks > 0), "shield action timer");
             check(timers.stream().anyMatch(t -> t.id.equals("laststand") && t.totalTicks > 0), "last stand timer");
-            check(!m.combatEffects().healsOthers(player), "the shield fighter is no healer");
+            check(!com.mki.nightsiege.game.HealthView.healer(m, player), "the shield fighter sees no party list");
         });
         context.waitTicks(10);
         context.takeScreenshot("hud2_02_shield");

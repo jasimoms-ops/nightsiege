@@ -67,8 +67,10 @@ public final class UltHud {
 
         /** The short text on the box: its key, or the label of a pause without a key (Tor 2). */
         String keyText() {
-            String text = key != null ? key.getTranslatedKeyMessage().getString()
-                    : label != null ? Component.translatable(label).getString() : "?";
+            if (key != null) {
+                return AbilityKeys.shortLabel(key);   // Tor 3: always the key as bound
+            }
+            String text = label != null ? Component.translatable(label).getString() : "?";
             return text.length() > 3 ? text.substring(0, 3) : text;
         }
     }
@@ -96,7 +98,7 @@ public final class UltHud {
         if (s.gains != null) {
             for (int i = 0; i < s.gains.size() && i < GainClient.GAIN_KEYS; i++) {
                 UltState.Slot g = s.gains.get(i);
-                out.add(new Cell(icon(g.icon), GainClient.gainKey(i), g.cooldownTicks, g.totalTicks, false, g.current));
+                out.add(new Cell(icon(g.icon), AbilityKeys.mapping(AbilityKeys.Ability.GAIN, i), g.cooldownTicks, g.totalTicks, false, g.current));
             }
         }
         return out;
@@ -110,16 +112,16 @@ public final class UltHud {
         }
         if (s.hasAb2) {
             // Grey while it cannot be paid for (the warriors' Kampfgeist, 05.11.); gold once ready.
-            fixed.add(new Cell(icon(s.iconAb2), GainClient.orderKey(), s.cooldownAb2Ticks, s.totalAb2Ticks, false, s.ab2Dim));
+            fixed.add(new Cell(icon(s.iconAb2), AbilityKeys.mapping(AbilityKeys.Ability.ABILITY2, 0), s.cooldownAb2Ticks, s.totalAb2Ticks, false, s.ab2Dim));
         }
         if (s.has2) {
-            fixed.add(new Cell(icon(s.icon2), GainClient.secondUltKey(), s.cooldown2Ticks, s.total2Ticks, false));
+            fixed.add(new Cell(icon(s.icon2), AbilityKeys.mapping(AbilityKeys.Ability.ULT2, 0), s.cooldown2Ticks, s.total2Ticks, false));
         }
         // The gain keys N, M, J (balance update 2, 29 October 2026): the crate gains with an ability of their own.
         if (gains && s.gains != null) {
             for (int i = 0; i < s.gains.size() && i < GainClient.GAIN_KEYS; i++) {
                 UltState.Slot g = s.gains.get(i);
-                fixed.add(new Cell(icon(g.icon), GainClient.gainKey(i), g.cooldownTicks, g.totalTicks, false, g.current));
+                fixed.add(new Cell(icon(g.icon), AbilityKeys.mapping(AbilityKeys.Ability.GAIN, i), g.cooldownTicks, g.totalTicks, false, g.current));
             }
         }
         return fixed;
@@ -131,7 +133,7 @@ public final class UltHud {
         if (s.slots != null) {
             for (int i = 0; i < s.slots.size() && i < GainClient.SLOTS; i++) {
                 UltState.Slot slot = s.slots.get(i);
-                choices.add(new Cell(iconOf(mc, slot), GainClient.slotKey(i), slot.cooldownTicks, slot.totalTicks, slot.current));
+                choices.add(new Cell(iconOf(mc, slot), AbilityKeys.mapping(AbilityKeys.Ability.SLOT, i), slot.cooldownTicks, slot.totalTicks, slot.current));
             }
         }
         return choices;
@@ -196,8 +198,8 @@ public final class UltHud {
         if (!live || c.spent()) {
             gui.fill(ix, iy, ix + 16, iy + 16, 0xA0000000);
         } else if (left > 0 && c.total() > 0) {
-            int shade = (int) Math.ceil(16.0 * Math.min(1.0, left / (double) c.total()));
-            gui.fill(ix, iy + 16 - shade, ix + 16, iy + 16, 0xB0000000);
+            gui.fill(ix, iy, ix + 16, iy + 16, 0x70000000);
+            KitHud.ring(gui, x, y, CELL - 1, left, c.total());   // Tor 3.3: ring + seconds, as in the kit HUD
             String seconds = String.valueOf((left + 19) / 20);
             gui.text(font, seconds, ix + 8 - font.width(seconds) / 2, iy + 4, 0xFFFFFFFF, true);
         }

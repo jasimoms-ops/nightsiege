@@ -101,6 +101,50 @@ public final class HudSync {
         return out;
     }
 
+    /** Tor 3.5 (Simon 08.11.): a mate's state, shown in the list's colours. */
+    public enum State { WELL, HURT, LOW, DOWN }
+
+    /** Green above 60 % life, yellow above 30 %, red below, grey when fallen. */
+    public static State state(Mate m) {
+        if (m == null || m.health <= 0f) {
+            return State.DOWN;
+        }
+        float share = m.share();
+        return share > 0.6f ? State.WELL : share > 0.3f ? State.HURT : State.LOW;
+    }
+
+    /** Text colour of a state (the bar colours' light tone; grey for the fallen). */
+    public static int stateColor(State state) {
+        return switch (state) {
+            case WELL -> 0xFF7FAF45;
+            case HURT -> 0xFFE0B04A;
+            case LOW -> 0xFFD8443A;
+            case DOWN -> 0xFF8A8078;
+        };
+    }
+
+    /** Hearts of life as shown ("7.5", "10"): half a heart per point, a scratch still shows half a heart. */
+    public static String hearts(float health) {
+        if (health <= 0f) {
+            return "0";
+        }
+        int halves = (int) Math.ceil(health - 1e-4f);
+        return halves % 2 == 0 ? String.valueOf(halves / 2) : (halves / 2) + ".5";
+    }
+
+    /**
+     * Which group a player's list shows (Tor 3.5): the siege's defenders first, then a war camp's fighters,
+     * then a dungeon's (the playtest runs through these three). Null: in none of them, no list.
+     */
+    public static List<String> groupOf(String selfId, List<String> siege, List<String> camp, List<String> dungeon) {
+        for (List<String> group : java.util.Arrays.asList(siege, camp, dungeon)) {
+            if (group != null && group.contains(selfId)) {
+                return group;
+            }
+        }
+        return null;
+    }
+
     /** Body and highlight colour of a mate's bar: red-brown palette of the kit HUD, gold-green when well. */
     public static int[] barColors(float share) {
         if (share > 0.6f) {

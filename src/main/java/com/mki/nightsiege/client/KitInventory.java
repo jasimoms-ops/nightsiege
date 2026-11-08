@@ -61,8 +61,9 @@ public final class KitInventory {
 
     /** The tooltip of a field: Q, F, X from the server; a crate gain (N, M, J) from its own name and text. */
     private static com.mki.nightsiege.core.AbilityTip tipFor(UltState s, UltHud.Cell c, int gainIndex) {
-        String slot = c.key() == NightSiegeClient.ultimateKey() ? "q" : c.key() == GainClient.orderKey() ? "f"
-                : c.key() == GainClient.secondUltKey() ? "x" : null;
+        String slot = c.key() == AbilityKeys.mapping(AbilityKeys.Ability.ULT, 0) ? "q"
+                : c.key() == AbilityKeys.mapping(AbilityKeys.Ability.ABILITY2, 0) ? "f"
+                : c.key() == AbilityKeys.mapping(AbilityKeys.Ability.ULT2, 0) ? "x" : null;
         if (slot != null) {
             if (s.tips != null) {
                 for (com.mki.nightsiege.core.AbilityTip t : s.tips) {
@@ -129,24 +130,21 @@ public final class KitInventory {
         CELL_KEY.clear();
         if (s != null) {
             int gainIndex = 0;
-            List<UltHud.Cell> cells = UltHud.fixedCells(s, NightSiegeClient.ultimateKey());
+            List<UltHud.Cell> cells = UltHud.fixedCells(s, AbilityKeys.mapping(AbilityKeys.Ability.ULT, 0));
             int ax = left + 133 - (cells.size() * 20 - 2) / 2;
             int ay = top + 59;
             for (UltHud.Cell c : cells) {
                 KitHud.blit(gui, SLOT, ax, ay, 18, 18);
                 gui.item(c.icon(), ax + 1, ay + 1);
-                String key = c.key() == null ? "?" : c.key().getTranslatedKeyMessage().getString();
-                boolean gain = c.key() != NightSiegeClient.ultimateKey() && c.key() != GainClient.orderKey()
-                        && c.key() != GainClient.secondUltKey();
+                boolean gain = AbilityKeys.isGainKey(c.key());
                 CELL_AT.add(new int[]{ax, ay});
                 CELL_TIP.add(tipFor(s, c, gain ? gainIndex : -1));
-                CELL_KEY.add(key);
+                // Tor 3: the tooltip names the key as bound; a crate gain names none (its keys are going).
+                CELL_KEY.add(gain ? null : AbilityKeys.labelFor(c.key()));
                 if (gain) {
                     gainIndex++;
                 }
-                if (key.length() > 3) {
-                    key = key.substring(0, 3);
-                }
+                String key = c.keyText();
                 gui.pose().pushMatrix();
                 gui.pose().translate(ax + 16.5f - font.width(key) / 2f, ay + 12.5f);
                 gui.pose().scale(0.5f, 0.5f);

@@ -23,7 +23,7 @@ public final class AbilityTipText {
     }
 
     /**
-     * @param keyName the key as the player has it bound ("Q")
+     * @param keyName the key as the player has it bound ("Q"), null for none (crate gains)
      * @param lang    translation lookup, null for a missing key
      */
     public static List<String> lines(AbilityTip tip, String keyName, Function<String, String> lang) {
@@ -32,11 +32,14 @@ public final class AbilityTipText {
         AbilityTip.Part main = tip.main;
         String tag = lang.apply(AbilityTips.KEY + "slot." + tip.slot);
         out.add("§6" + text(lang, main.name) + (tag == null ? "" : "  §8" + tag));
-        String head = "§8" + tr(lang, "key", "§e" + keyName + "§8");
+        // Tor 3: the key as the player has it bound; none (null) for crate gains, whose keys are going.
+        String head = keyName == null || keyName.isBlank() ? "" : "§8" + tr(lang, "key", "§e" + keyName + "§8");
         if (main.level > 0 && main.maxLevel > 1) {
-            head += "  ·  " + tr(lang, "level", main.level, main.maxLevel);
+            head += (head.isEmpty() ? "§8" : "  ·  ") + tr(lang, "level", main.level, main.maxLevel);
         }
-        out.add(head);
+        if (!head.isEmpty()) {
+            out.add(head);
+        }
         String desc = lang.apply(main.desc);
         if (desc != null) {
             for (String part : fill(desc, main, german).split("\n")) {

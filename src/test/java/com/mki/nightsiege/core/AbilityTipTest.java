@@ -121,4 +121,21 @@ class AbilityTipTest {
         assertTrue(en.get(1).contains("3/3"), en.get(1));
         assertTrue(en.stream().anyMatch(s -> s.contains("§f§n")), "own rank marked");
     }
+
+    /** Tor 3: the key comes from the binding; a gain (no key) gets no key line, the rest stays. */
+    @Test
+    void theKeyLineFollowsTheBinding() throws Exception {
+        SkillTree tree = new SkillTree();
+        PlayerSkills p = new PlayerSkills();
+        p.chosenClass = SkillClass.WARRIOR.name();
+        p.setLevel("w_combo", 1);
+        p.setLevel("whirlwind", 3);
+        AbilityTip q = AbilityTips.build(tree, p, true, null, null, 0).get(0);
+        List<String> bound = AbilityTipText.lines(q, "Mouse 4", lang("en_us")::get);
+        assertTrue(bound.get(1).contains("Mouse 4") && bound.get(1).contains("3/3"), bound.get(1));
+        List<String> none = AbilityTipText.lines(q, null, lang("de_de")::get);
+        assertTrue(none.stream().noneMatch(s -> s.contains("Taste")), none.toString());
+        assertTrue(none.get(1).contains("3/3"), none.get(1));
+        assertEquals(bound.size(), none.size());
+    }
 }

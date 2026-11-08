@@ -84,4 +84,33 @@ class HudSyncTest {
         assertEquals(2f, back.mates.get(0).absorb, 1e-6);
         assertTrue(json.length() < 120, "small packet: " + json.length());
     }
+
+    /** Tor 3.5: colour by state, hearts as shown, which group a player sees. */
+    @Test
+    void partyStateHeartsAndGroup() {
+        assertEquals(HudSync.State.WELL, HudSync.state(new HudSync.Mate("a", "A", 20f, 20f, 0f)));
+        assertEquals(HudSync.State.HURT, HudSync.state(new HudSync.Mate("a", "A", 10f, 20f, 0f)));
+        assertEquals(HudSync.State.LOW, HudSync.state(new HudSync.Mate("a", "A", 5f, 20f, 0f)));
+        assertEquals(HudSync.State.DOWN, HudSync.state(new HudSync.Mate("a", "A", 0f, 20f, 4f)));
+        assertEquals(HudSync.State.WELL, HudSync.state(new HudSync.Mate("a", "A", 13f, 20f, 0f)));   // 65 %
+        assertEquals(HudSync.State.HURT, HudSync.state(new HudSync.Mate("a", "A", 12f, 20f, 0f)));   // 60 %: not well
+        java.util.Set<Integer> colors = new java.util.HashSet<>();
+        for (HudSync.State st : HudSync.State.values()) {
+            colors.add(HudSync.stateColor(st));
+        }
+        assertEquals(4, colors.size(), "four distinct colours");
+        assertEquals("10", HudSync.hearts(20f));
+        assertEquals("7.5", HudSync.hearts(15f));
+        assertEquals("7.5", HudSync.hearts(14.2f));   // a scratch still shows the half heart
+        assertEquals("0.5", HudSync.hearts(0.3f));
+        assertEquals("0", HudSync.hearts(0f));
+        List<String> siege = List.of("a", "b");
+        List<String> camp = List.of("c", "d");
+        List<String> dungeon = List.of("e");
+        assertSame(siege, HudSync.groupOf("a", siege, camp, dungeon));
+        assertSame(camp, HudSync.groupOf("d", siege, camp, dungeon));
+        assertSame(dungeon, HudSync.groupOf("e", siege, camp, dungeon));
+        assertNull(HudSync.groupOf("z", siege, camp, dungeon));
+        assertNull(HudSync.groupOf("a", null, null, null));
+    }
 }

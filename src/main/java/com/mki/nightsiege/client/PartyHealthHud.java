@@ -22,7 +22,7 @@ public final class PartyHealthHud {
     private static final int PLATE = 0xC0100C0A;
     private static final int TRIM = 0xFF5A4630;
     private static final int GOLD = 0xFFC9A45A;
-    private static final int TEXT = 0xFFF4EBDD;
+    private static final net.minecraft.resources.Identifier HEART = KitHud.tex("icon_heart");
 
     private static List<HudSync.Mate> mates = List.of();
 
@@ -76,15 +76,22 @@ public final class PartyHealthHud {
             HudSync.Mate m = list.get(i);
             int ry = y + 9 + i * ROW;
             float share = m.share();
-            boolean down = m.health <= 0f;
+            // Tor 3.5 (Simon 08.11.): name and hearts in the colour of the state (green, yellow, red, grey: fallen).
+            HudSync.State state = HudSync.state(m);
+            boolean down = state == HudSync.State.DOWN;
+            int color = HudSync.stateColor(state);
             String name = m.name == null ? "?" : m.name;
-            if (font.width(name) / 2 > 44) {
-                name = name.substring(0, Math.min(name.length(), 14)) + "…";
+            if (font.width(name) / 2 > 40) {
+                name = name.substring(0, Math.min(name.length(), 13)) + "…";
             }
-            small(gui, font, name, x + 4, ry + 0.5f, down ? 0xFF8A8078 : TEXT);
+            small(gui, font, name, x + 4, ry + 0.5f, color);
             String hp = down ? Component.translatable("nightsiege.hud.party.down").getString()
-                    : (int) Math.ceil(m.health) + "/" + Math.round(m.max);
-            small(gui, font, hp, x + W - 4 - font.width(hp) / 2f, ry + 0.5f, down ? 0xFFD8443A : TEXT);
+                    : HudSync.hearts(m.health);
+            float hx = x + W - 4 - font.width(hp) / 2f;
+            small(gui, font, hp, hx, ry + 0.5f, color);
+            if (!down) {
+                KitHud.blit(gui, HEART, Math.round(hx) - 6, ry, 5, 5);
+            }
             // the bar: dark well, life, gold for barriers
             int bx = x + 4;
             int bw = W - 8;
