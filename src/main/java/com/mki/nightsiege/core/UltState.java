@@ -112,6 +112,8 @@ public class UltState {
          * the choice; a tap uses it (a potion) or goes back to the plain one (arrows).
          */
         public boolean scroll;
+        /** The key that fires it (an {@link AbilityKeys.Key} name: Q, F, Y or SNEAK_Y; Tor 3.1). */
+        public String key = "";
     }
 
     /** What each of Q, F, X does, for the tooltip in the inventory (Simon 08.11.). */

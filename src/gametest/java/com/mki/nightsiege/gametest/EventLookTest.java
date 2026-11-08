@@ -209,6 +209,10 @@ public class EventLookTest implements FabricClientGameTest {
                     alive(context);
                     BossleistenScenes.run(context, game);   // Tor 2.3: compact boss bars, four bosses before/after (08.11.)
                 }
+                if (want.contains("steuerung")) {
+                    alive(context);
+                    SteuerungScenes.run(context, game);   // Tor 3.1: Nur Tasten, Q/F/Y und X (08.11.)
+                }
                 if (want.contains("elite")) {
                     alive(context);   // a scene before may have left the player dead (05.11.)
                     EliteScenes.run(context, game);   // life steal against the damage taken, elites, revenant wounds, hall (05.11.)

@@ -19,15 +19,18 @@ import org.lwjgl.glfw.GLFW;
  */
 public final class GainClient {
 
-    private static KeyMapping orderKey;
-    /** The second ultimate from the crate stays on X of its own (Simon, 27 October 2026). */
-    private static KeyMapping secondUltKey;
-    /** The keys of the ability bar (27 October 2026, instead of Fähigkeit 3 and its wheel). */
-    public static final int SLOTS = 6;
+    /**
+     * The ability keys (Tor 3.1, Simon 08.11.: "Nur Tasten"): Q, F, Y (sneak + Y: a fourth ability
+     * beyond three), in the order of {@link com.mki.nightsiege.core.AbilityKeys.Key}. New names, so the
+     * new defaults reach players whose options still hold the old R, G, Y, C, V, B bar.
+     */
+    public static final int SLOTS = 3;
+    /** The index {@link #keyIndex} gives a box on sneak + Y (the fourth ability, Tor 3.1). */
+    public static final int SNEAK_Y = 3;
     private static final KeyMapping[] SLOT_KEYS = new KeyMapping[SLOTS];
-    /** Around WASD: R, G, Y (Z on QWERTY), C, V, B. */
-    private static final int[] SLOT_DEFAULTS = {GLFW.GLFW_KEY_R, GLFW.GLFW_KEY_G, GLFW.GLFW_KEY_Z, GLFW.GLFW_KEY_C,
-            GLFW.GLFW_KEY_V, GLFW.GLFW_KEY_B};
+    private static final String[] SLOT_NAMES = {"key.nightsiege.skill_q", "key.nightsiege.skill_f", "key.nightsiege.skill_y"};
+    /** Q, F, Y (Z on QWERTY); the fourth ability of the alchemist and the necromancer is sneak + Y (Tor 3.1). */
+    private static final int[] SLOT_DEFAULTS = {GLFW.GLFW_KEY_Q, GLFW.GLFW_KEY_F, GLFW.GLFW_KEY_Z};
     /**
      * The gains with an ability of their own (balance update 2): at most three places ("Third Hand").
      * Tor 3.2 (Simon 08.11.): one key with a wheel instead of N, M, J, which the left hand could not
@@ -42,6 +45,8 @@ public final class GainClient {
     private static int gainHeld = -1;
     /** The arrow or potion key being held (its bar index), -1 for none; whether the wheel turned meanwhile. */
     private static int heldSlot = -1;
+    /** The key (Q, F, Y, extra) that holds it. */
+    private static int heldKey;
     private static boolean scrolled;
     private static double scrollSum;
     private static boolean jumpWasDown;
@@ -52,20 +57,26 @@ public final class GainClient {
     private GainClient() {
     }
 
+    /** The F key (the class's F field: arrow rain, warrior art, remote, staff order). */
     public static KeyMapping orderKey() {
-        return orderKey;
+        return SLOT_KEYS[1];
     }
 
+    /** The second ultimate of a crate: sneak + the ult key (Tor 3.1), so this is the ult key. */
     public static KeyMapping secondUltKey() {
-        return secondUltKey;
+        return NightSiegeClient.ultimateKey();
     }
 
-    /** The first bar key (the texts that still speak of "the choice key"). */
+    /** The arrow kinds' key (Y, Tor 3.1). */
     public static KeyMapping quiverKey() {
-        return SLOT_KEYS[0];
+        return SLOT_KEYS[2];
     }
 
+    /** Q, F, Y for 0, 1, 2; for {@link #SNEAK_Y} the Y key (shown with sneak in front). */
     public static KeyMapping slotKey(int index) {
+        if (index == SNEAK_Y) {
+            return SLOT_KEYS[2];
+        }
         return index >= 0 && index < SLOTS ? SLOT_KEYS[index] : null;
     }
 
@@ -97,13 +108,9 @@ public final class GainClient {
     }
 
     public static void init(KeyMapping.Category category) {
-        orderKey = KeyMappingHelper.registerKeyMapping(
-                new KeyMapping("key.nightsiege.ability2", GLFW.GLFW_KEY_F, category));   // Fähigkeit 2, the orders formerly on X (27 Oct 2026)
-        secondUltKey = KeyMappingHelper.registerKeyMapping(
-                new KeyMapping("key.nightsiege.second_ult", GLFW.GLFW_KEY_X, category));
         for (int i = 0; i < SLOTS; i++) {
             SLOT_KEYS[i] = KeyMappingHelper.registerKeyMapping(
-                    new KeyMapping("key.nightsiege.slot" + (i + 1), SLOT_DEFAULTS[i], category));
+                    new KeyMapping(SLOT_NAMES[i], SLOT_DEFAULTS[i], category));
         }
         // The old gain1..3 (N, M, J) are no longer registered: their lines in options.txt are simply
         // ignored, nothing to move over (the wheel key is new).
@@ -114,6 +121,43 @@ public final class GainClient {
         net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry.attachElementAfter(
                 net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements.HOTBAR,
                 com.mki.nightsiege.game.ModContent.id("gain_cooldowns"), (gui, delta) -> GainCooldownHud.draw(gui));
+    }
+
+    /** The key index (Q, F, Y, extra) a box of the bar is on, by its key from the server. */
+    public static int keyIndex(com.mki.nightsiege.core.UltState.Slot slot) {
+        if (slot == null || slot.key == null) {
+            return -1;
+        }
+        com.mki.nightsiege.core.AbilityKeys.Key[] keys = com.mki.nightsiege.core.AbilityKeys.Key.values();
+        for (int k = 0, at = 0; k < keys.length; k++) {
+            if (keys[k] == com.mki.nightsiege.core.AbilityKeys.Key.X) {
+                continue;
+            }
+            if (keys[k].name().equals(slot.key)) {
+                return at;
+            }
+            at++;
+        }
+        return -1;
+    }
+
+    /** The mapping a box of the bar fires on (Tor 3.1), or null. */
+    public static KeyMapping keyOf(com.mki.nightsiege.core.UltState.Slot slot) {
+        return slotKey(keyIndex(slot));
+    }
+
+    /** The bar index of the box on key k, -1 for none. */
+    private static int slotOn(int k) {
+        com.mki.nightsiege.core.UltState s = UltHud.state();
+        if (s == null || s.slots == null) {
+            return -1;
+        }
+        for (int i = 0; i < s.slots.size(); i++) {
+            if (keyIndex(s.slots.get(i)) == k) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     /** True when bar key i holds a set of choices (arrows, potions) that the mouse wheel goes through. */
@@ -156,28 +200,34 @@ public final class GainClient {
     }
 
     private static void tick(Minecraft client) {
-        while (orderKey.consumeClick()) {
-            send("ult2");
-        }
-        while (secondUltKey.consumeClick()) {
-            send("ult2x");
-        }
-        // The ability bar: each key its ability, at once (27 October 2026). The arrow and the potion key
-        // (Simon 30.10.): held, the mouse wheel changes the choice; let go without turning it, a tap.
-        for (int i = 0; i < SLOTS; i++) {
-            while (SLOT_KEYS[i].consumeClick()) {
-                if (client.gui.screen() == null && !underWheel(i)) {
-                    if (scrollSlot(i)) {
-                        heldSlot = i;
-                        scrolled = false;
-                        scrollSum = 0.0;
-                    } else {
-                        send("slot:" + i);
+        // Q, F and Y (Tor 3.1): each fires the box of the bar the server put on it; sneak + Y the fourth
+        // ability (alchemist, necromancer) when there is one; F without a box is the class's F field. The arrow and the potion key (Simon 30.10.):
+        // held, the mouse wheel changes the choice; let go without turning it, a tap.
+        for (int k = 0; k < SLOTS; k++) {
+            while (SLOT_KEYS[k].consumeClick()) {
+                if (client.gui.screen() != null) {
+                    continue;
+                }
+                if (underWheel(k)) {
+                    continue;   // the same key as the gain wheel: the wheel has it alone (Tor 3.2)
+                }
+                int i = k == 2 && client.options.keyShift.isDown() && slotOn(SNEAK_Y) >= 0 ? slotOn(SNEAK_Y) : slotOn(k);
+                if (i < 0) {
+                    com.mki.nightsiege.core.UltState s = UltHud.state();
+                    if (k == 1 && s != null && s.hasAb2) {
+                        send("ult2");
                     }
+                } else if (scrollSlot(i)) {
+                    heldSlot = i;
+                    heldKey = k;
+                    scrolled = false;
+                    scrollSum = 0.0;
+                } else {
+                    send("slot:" + i);
                 }
             }
         }
-        if (heldSlot >= 0 && !SLOT_KEYS[heldSlot].isDown()) {
+        if (heldSlot >= 0 && !SLOT_KEYS[heldKey].isDown()) {
             if (!scrolled) {
                 send("slot:" + heldSlot);
             }

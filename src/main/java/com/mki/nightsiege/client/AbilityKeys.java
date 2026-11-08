@@ -5,7 +5,8 @@ import net.minecraft.client.KeyMapping;
 /**
  * Tor 3 (08.11.): the one place the HUD and the tooltips ask which key an ability sits on. They show
  * what the player has bound (Options → Controls), never a fixed letter. Tor 3's new key layout
- * (tor3/steuerung: everything on Q/F/Y, the ult on X) only has to change {@link #mapping}.
+ * Tor 3.1 (tor3/steuerung): which ability sits on Q, F or Y comes only from core.AbilityKeys via
+ * UltState.Slot.key ({@link #forSlot}); this class is the thin client shell around it.
  */
 public final class AbilityKeys {
 
@@ -21,7 +22,7 @@ public final class AbilityKeys {
             case ULT -> NightSiegeClient.ultimateKey();
             case ABILITY2 -> GainClient.orderKey();
             case ULT2 -> GainClient.secondUltKey();
-            case SLOT -> GainClient.slotKey(index);
+            case SLOT -> GainClient.slotKey(index);   // index = key index (0 Q, 1 F, 2 Y, 3 sneak + Y), see forSlot
             case GAIN -> GainClient.gainKey(index);
         };
     }
@@ -29,6 +30,20 @@ public final class AbilityKeys {
     /** The bound key's name ("Q"), or null when unbound or unknown. */
     public static String labelFor(Ability ability, int index) {
         return labelFor(mapping(ability, index));
+    }
+
+    /** The key of a box of the bar (Tor 3.1: from UltState.Slot.key, the server's core.AbilityKeys). */
+    public static KeyMapping forSlot(com.mki.nightsiege.core.UltState.Slot slot) {
+        return GainClient.keyOf(slot);
+    }
+
+    /** The full key text of a HUD box, "Shift + X" for the second ult and a fourth ability (Tor 3.1). */
+    static String labelFor(UltHud.Cell cell) {
+        String key = labelFor(cell.key());
+        if (key == null || !cell.sneak()) {
+            return key;
+        }
+        return net.minecraft.client.Minecraft.getInstance().options.keyShift.getTranslatedKeyMessage().getString() + " + " + key;
     }
 
     /** The bound key's name of a mapping, or null when unbound or unknown. */

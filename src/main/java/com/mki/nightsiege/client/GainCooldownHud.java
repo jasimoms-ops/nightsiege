@@ -81,8 +81,6 @@ public final class GainCooldownHud {
         long left = GainWheelLogic.leftTicks(g.cooldownTicks, elapsed);
         boolean spent = g.current;   // used up tonight or in this kit
         boolean dim = spent || !live;
-        double share = GainWheelLogic.readyShare(left, g.totalTicks);
-        int lit = dim ? 0 : GainWheelLogic.litSegments(share, RING_SEGMENTS);
         ItemStack icon = UltHud.icon(g.icon);
         int ix = x + (SIZE - 16) / 2;
         int iy = y + (SIZE - 16) / 2;
@@ -92,17 +90,8 @@ public final class GainCooldownHud {
         } else if (left > 0) {
             gui.fill(ix, iy, ix + 16, iy + 16, 0x80000000);
         }
-        // The ring over the symbol's edge, so the shade does not hide it.
-        double cx = x + SIZE / 2.0;
-        double cy = y + SIZE / 2.0;
-        double r = SIZE / 2.0 - 2.0;
-        for (int k = 0; k < RING_SEGMENTS; k++) {
-            double a = Math.PI * 2 * (k + 0.5) / RING_SEGMENTS;
-            int px = (int) Math.round(cx + Math.sin(a) * r) - 1;
-            int py = (int) Math.round(cy - Math.cos(a) * r) - 1;
-            int color = k < lit ? (left > 0 ? PurpleUi.GOLD_SHADE : PurpleUi.GOLD) : PurpleUi.DIM;
-            gui.fill(px, py, px + 2, py + 2, color);
-        }
+        // The same ring as every other ability box (core/CooldownRing via KitHud.ring, Tor 3.3).
+        KitHud.ring(gui, x, y, SIZE, dim ? 0 : left, g.totalTicks);
         if (!dim && left > 0) {
             String seconds = String.valueOf(GainWheelLogic.seconds(left));
             gui.text(font, seconds, x + SIZE / 2 - font.width(seconds) / 2, y + SIZE / 2 - 4, 0xFFFFFFFF, true);

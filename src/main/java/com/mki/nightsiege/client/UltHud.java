@@ -56,19 +56,24 @@ public final class UltHud {
     }
 
     /** One box: {@code spent} greys out a gain ability used up for tonight or this kit. */
-    record Cell(ItemStack icon, KeyMapping key, int cooldown, int total, boolean current, boolean spent, String label) {
+    record Cell(ItemStack icon, KeyMapping key, int cooldown, int total, boolean current, boolean spent, String label,
+            boolean sneak) {
         Cell(ItemStack icon, KeyMapping key, int cooldown, int total, boolean current) {
-            this(icon, key, cooldown, total, current, false, null);
+            this(icon, key, cooldown, total, current, false, null, false);
         }
 
         Cell(ItemStack icon, KeyMapping key, int cooldown, int total, boolean current, boolean spent) {
-            this(icon, key, cooldown, total, current, spent, null);
+            this(icon, key, cooldown, total, current, spent, null, false);
+        }
+
+        Cell(ItemStack icon, KeyMapping key, int cooldown, int total, boolean current, boolean spent, String label) {
+            this(icon, key, cooldown, total, current, spent, label, false);
         }
 
         /** The short text on the box: its key, or the label of a pause without a key (Tor 2). */
         String keyText() {
             if (key != null) {
-                return AbilityKeys.shortLabel(key);   // Tor 3: always the key as bound
+                return sneak ? "⇧" + AbilityKeys.shortLabel(key) : AbilityKeys.shortLabel(key);   // Tor 3: the key as bound, sneak as ⇧
             }
             String text = label != null ? Component.translatable(label).getString() : "?";
             return text.length() > 3 ? text.substring(0, 3) : text;
@@ -115,7 +120,8 @@ public final class UltHud {
             fixed.add(new Cell(icon(s.iconAb2), AbilityKeys.mapping(AbilityKeys.Ability.ABILITY2, 0), s.cooldownAb2Ticks, s.totalAb2Ticks, false, s.ab2Dim));
         }
         if (s.has2) {
-            fixed.add(new Cell(icon(s.icon2), AbilityKeys.mapping(AbilityKeys.Ability.ULT2, 0), s.cooldown2Ticks, s.total2Ticks, false));
+            fixed.add(new Cell(icon(s.icon2), AbilityKeys.mapping(AbilityKeys.Ability.ULT2, 0), s.cooldown2Ticks, s.total2Ticks, false,
+                    false, null, true));   // Tor 3.1: sneak + X
         }
         // The gain keys N, M, J (balance update 2, 29 October 2026): the crate gains with an ability of their own.
         if (gains && s.gains != null) {
@@ -127,13 +133,15 @@ public final class UltHud {
         return fixed;
     }
 
-    /** The choices on R, G, Y, C, V, B (only learned ones come from the server). */
+    /** The abilities on Q, F, Y and sneak + Y, each with the key it fires on (Tor 3.1). */
     static List<Cell> choiceCells(UltState s, Minecraft mc) {
         List<Cell> choices = new ArrayList<>();
         if (s.slots != null) {
-            for (int i = 0; i < s.slots.size() && i < GainClient.SLOTS; i++) {
+            for (int i = 0; i < s.slots.size(); i++) {
                 UltState.Slot slot = s.slots.get(i);
-                choices.add(new Cell(iconOf(mc, slot), AbilityKeys.mapping(AbilityKeys.Ability.SLOT, i), slot.cooldownTicks, slot.totalTicks, slot.current));
+                // Tor 3.1: the key the server put the box on (Q, F, Y; sneak + Y for a fourth ability)
+                choices.add(new Cell(iconOf(mc, slot), GainClient.keyOf(slot), slot.cooldownTicks, slot.totalTicks, slot.current,
+                        false, null, GainClient.keyIndex(slot) == GainClient.SNEAK_Y));
             }
         }
         return choices;

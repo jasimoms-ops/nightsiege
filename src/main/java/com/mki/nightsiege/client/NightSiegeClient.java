@@ -228,7 +228,7 @@ public class NightSiegeClient implements ClientModInitializer {
 
         KeyMapping.Category category = KeyMapping.Category.register(ModContent.id("main"));
         ultimateKey = KeyMappingHelper.registerKeyMapping(
-                new KeyMapping("key.nightsiege.ability1", GLFW.GLFW_KEY_Q, category));   // Fähigkeit 1: the ultimate (27 Oct 2026)
+                new KeyMapping("key.nightsiege.ult", GLFW.GLFW_KEY_X, category));   // the ultimate on X (Tor 3.1, Simon 08.11.)
         guideKey = KeyMappingHelper.registerKeyMapping(
                 new KeyMapping("key.nightsiege.guide", GLFW.GLFW_KEY_H, category));
         GainClient.init(category);
@@ -279,28 +279,17 @@ public class NightSiegeClient implements ClientModInitializer {
                 (gui, delta) -> WarriorHud.draw(gui));
         // The wheel of Fähigkeit 3 is a HUD layer, so walking goes on while it is open (27 October 2026).
         // The wheel is gone (27 October 2026): the ability bar left of the off hand instead (UltHud).
-        // Guardian: a left click while blocking is the shield action. Minecraft drops
-        // attack clicks while an item is in use, so they are taken here first.
-        ClientTickEvents.START_CLIENT_TICK.register(client -> {
-            if (client.player == null || !client.player.isUsingItem()
-                    || !client.player.getUseItem().has(net.minecraft.core.component.DataComponents.BLOCKS_ATTACKS)) {
-                return;
-            }
-            boolean pressed = false;
-            while (client.options.keyAttack.consumeClick()) {
-                pressed = true;
-            }
-            if (pressed && ClientPlayNetworking.canSend(CoreNetworking.CoreActionPayload.TYPE)) {
-                ClientPlayNetworking.send(new CoreNetworking.CoreActionPayload("shield"));
-            }
-        });
+        // The shield action (block + left click) is gone (Tor 3.1, "Nur Tasten"): the shield throw is on Q.
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (guideKey.consumeClick()) {
                 Minecraft.getInstance().setScreenAndShow(new GuideScreen());
             }
             while (ultimateKey.consumeClick()) {
                 if (ClientPlayNetworking.canSend(CoreNetworking.CoreActionPayload.TYPE)) {
-                    ClientPlayNetworking.send(new CoreNetworking.CoreActionPayload("ult"));
+                    // Sneak + X: the second ultimate of a crate (Tor 3.1), X alone the ultimate.
+                    com.mki.nightsiege.core.UltState s = UltHud.state();
+                    boolean second = s != null && s.has2 && client.options.keyShift.isDown();
+                    ClientPlayNetworking.send(new CoreNetworking.CoreActionPayload(second ? "ult2x" : "ult"));
                 }
             }
         });
