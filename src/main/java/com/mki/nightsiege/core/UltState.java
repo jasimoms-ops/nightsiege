@@ -107,4 +107,7 @@ public class UltState {
          */
         public boolean scroll;
     }
+
+    /** What each of Q, F, X does, for the tooltip in the inventory (Simon 08.11.). */
+    public java.util.List<AbilityTip> tips = new java.util.ArrayList<>();
 }

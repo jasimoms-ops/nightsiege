@@ -796,20 +796,8 @@ public final class GuardianEffects {
 
     /** The healing abilities this guardian has, in wheel order: healing hand, ward, dome. */
     private List<String> heals(PlayerSkills skills) {
-        List<String> out = new ArrayList<>();
-        if (!isGuardian(skills)) {
-            return out;
-        }
-        if (tree.totalBonus(SkillEffect.HEALING_HAND, skills) > 0) {
-            out.add("hand");
-        }
-        if (tree.totalBonus(SkillEffect.WARD, skills) > 0) {
-            out.add("ward");
-        }
-        if (tree.totalBonus(SkillEffect.DOME, skills) > 0) {
-            out.add("dome");
-        }
-        return out;
+        // One rule for the wheel and the inventory tooltip (08.11.).
+        return com.mki.nightsiege.core.AbilityTips.heals(tree, skills);
     }
 
     private String healOf(ServerPlayer player, List<String> heals) {

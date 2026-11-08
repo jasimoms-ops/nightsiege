@@ -5499,6 +5499,15 @@ public final class SiegeManager {
                     state.ab2Dim = !com.mki.nightsiege.core.WarriorSpiritMath.canUseAbility(WarriorSpirit.value(player));
                 }
             }
+            if (isRegistered(player) && own.hasClass()) {
+                // The tooltips of Q, F, X in the inventory (Simon 08.11.), from the numbers the abilities use.
+                final com.mki.nightsiege.core.UltState tipState = state;
+                final PlayerSkills tipOwn = own;
+                final String tipSecond = second;
+                safe("Faehigkeiten-Tooltips", () -> tipState.tips = com.mki.nightsiege.core.AbilityTips.build(skillTree, tipOwn,
+                        tipState.has, tipState.hasAb2 ? tipState.nameAb2 : null, tipState.has2 ? tipSecond : null,
+                        SecondUlts.COOLDOWN_TICKS));
+            }
             // By day no abilities on screen (Simon 28.10.): only in a fight (night, test, camp, dungeon),
             // with a kit on, or in creative for trying things out.
             boolean fighting = liveSkillsFor(player) != null || kits.hasStash(player) || player.getAbilities().instabuild

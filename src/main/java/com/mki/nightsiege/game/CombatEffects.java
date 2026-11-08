@@ -209,8 +209,7 @@ public final class CombatEffects {
         if (fired) {
             // In creative the ultimate is for trying out: only a short pause.
             int cooldown = player.getAbilities().instabuild ? 40
-                    : (int) Math.round((node.clazz() == SkillClass.WARRIOR || node.clazz() == SkillClass.SUMMONER
-                    ? SkillValues.get(node.id(), "cd" + rank, cooldownFor(rank)) : cooldownFor(rank))
+                    : (int) Math.round(com.mki.nightsiege.core.AbilityTips.ultCooldown(node, rank)
                     * cooldownScale.applyAsDouble(player));
             ultReadyAt.put(player.getUUID(), now + cooldown);
             ultTotal.put(player.getUUID(), cooldown);
@@ -1680,7 +1679,7 @@ public final class CombatEffects {
 
     /** Full cooldown at this rank. */
     public static int cooldownFor(int rank) {
-        return 600 - 100 * Math.max(1, rank);
+        return com.mki.nightsiege.core.AbilityTips.baseUltCooldown(rank);
     }
 
     public void setArrowBonus(java.util.function.ToDoubleFunction<ServerPlayer> bonus) {
