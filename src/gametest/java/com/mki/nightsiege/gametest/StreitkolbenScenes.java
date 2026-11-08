@@ -232,10 +232,11 @@ final class StreitkolbenScenes {
             String all = String.join("\n", preview);
             check(all.contains("minecraft:mace") && all.contains("bulwark_wallmace") && !all.contains("_sword\""),
                     "the kit page of the bulwark shows the mace, no sword");
-            // The healers keep the sword.
+            // The medic keeps no mace: since Tor 4.7 he has the healers' staff instead of the sword.
             kit(player, m, SkillTree.SUB_MEDIC, 6);
-            check(find(player, s -> s.is(ItemTags.SWORDS)) >= 0 && find(player, KitService::isKitMace) < 0,
-                    "the medic keeps his sword");
+            check(find(player, s -> s.getItem() instanceof com.mki.nightsiege.game.HealerStaffItem) >= 0
+                            && find(player, KitService::isKitMace) < 0,
+                    "the medic keeps his healers' staff, no mace");
         });
         context.waitTicks(5);
 

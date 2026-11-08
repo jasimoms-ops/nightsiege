@@ -118,9 +118,10 @@ final class TankScenes {
         return out;
     }
 
+    /** Max health 1000: the attribute stops at 1024 (2000 became 1024, and every husk "lost" 976). */
     private static void tough(Mob mob) {
-        mob.getAttribute(Attributes.MAX_HEALTH).setBaseValue(2000.0);
-        mob.setHealth(2000f);
+        mob.getAttribute(Attributes.MAX_HEALTH).setBaseValue(1000.0);
+        mob.setHealth(1000f);
         mob.invulnerableTime = 0;
     }
 
@@ -188,7 +189,7 @@ final class TankScenes {
                         sub + ": at full life it keeps its pause, wounded right after it heals (" + f(player.getHealth() - wounded) + ")");
                 player.setHealth(player.getMaxHealth());
             });
-            context.waitTicks(5);
+            context.waitTicks(25);   // the wounded call above started the pause again (one pause per player)
         }
         server(context, "medic", (player, m) -> {
             kit(player, m, SkillTree.SUB_MEDIC);
@@ -224,19 +225,44 @@ final class TankScenes {
             strike(player, middle);
             int hurt = 0;
             for (Mob mob : group) {
-                float lost = 2000f - mob.getHealth();
+                float lost = 1000f - mob.getHealth();
                 log("  husk " + (mob == middle ? "middle" : "beside") + " lost " + f(lost) + " at " + f(mob.distanceTo(middle)) + " blocks");
                 if (lost > 0.01f) {
                     hurt++;
                 }
             }
-            check(2000f - middle.getHealth() > 1f, "the mace hits the husk it aims at (" + f(2000f - middle.getHealth()) + ")");
+            check(1000f - middle.getHealth() > 1f, "the mace hits the husk it aims at (" + f(1000f - middle.getHealth()) + ")");
             check(hurt == 1, "only one of three husks loses life (" + hurt + ")");
         });
         context.waitTicks(5);
         game.getServer().runCommand("kill @e[tag=" + GROUP + "]");
 
         // ---------------------------------------------------------------- 3: +25 % on an elite
+        // The night's own monsters may only be hit by a defender (mayFight): a test night without waves.
+        final int[] saved = new int[2];
+        final boolean[] refill = new boolean[1];
+        server(context, "night", (player, m) -> {
+            ServerLevel level = (ServerLevel) player.level();
+            saved[0] = m.config().testPrepSeconds;
+            saved[1] = m.config().batchIntervalSeconds;
+            refill[0] = m.config().refillSpawns;
+            m.config().testPrepSeconds = 1;
+            m.config().batchIntervalSeconds = 600;
+            m.config().refillSpawns = false;
+            boolean ok = m.prepareTest(level.getServer(), level, player.blockPosition(), 1,
+                    com.mki.nightsiege.core.SiegeEvent.NONE);
+            log("night prepared=" + ok);
+        });
+        context.waitTicks(80);
+        EventLookTest.closeScreen(context);
+        server(context, "clear", (player, m) -> {
+            ServerLevel level = (ServerLevel) player.level();
+            level.getEntitiesOfClass(Mob.class, player.getBoundingBox().inflate(160),
+                    e -> e instanceof net.minecraft.world.entity.monster.Enemy).forEach(Mob::discard);
+            check(m.isDefending(player), "the player defends the test night");
+            holdMace(player);
+        });
+        context.waitTicks(10);
         String own = "execute as @p at @p run summon minecraft:husk ^%s ^ ^2 {NoAI:1b,PersistenceRequired:1b,Tags:[\"nightsiege\",\"%s\"%s]}";
         game.getServer().runCommand(own.formatted("0.8", PLAIN, ""));
         game.getServer().runCommand(own.formatted("-0.8", ELITE, ",\"nightsiege_affix_elite\""));
@@ -250,7 +276,7 @@ final class TankScenes {
                 tough(plain);
                 tough(elite);
                 strike(player, plain);
-                lost[0] = 2000f - plain.getHealth();
+                lost[0] = 1000f - plain.getHealth();
             }
         });
         context.waitTicks(30);
@@ -258,7 +284,7 @@ final class TankScenes {
             Mob elite = tagged((ServerLevel) player.level(), ELITE).stream().findFirst().orElse(null);
             if (elite != null) {
                 strike(player, elite);
-                lost[1] = 2000f - elite.getHealth();
+                lost[1] = 1000f - elite.getHealth();
             }
             double ratio = lost[0] > 0 ? lost[1] / lost[0] : 0;
             log("mace: plain " + f(lost[0]) + ", elite " + f(lost[1]) + ", x" + f(ratio));
@@ -280,6 +306,12 @@ final class TankScenes {
         game.getServer().runCommand("kill @e[tag=" + PLAIN + "]");
         game.getServer().runCommand("kill @e[tag=" + ELITE + "]");
         server(context, "end", (player, m) -> {
+            if (m.isActive()) {
+                m.abort(player.level().getServer());
+            }
+            m.config().testPrepSeconds = saved[0];
+            m.config().batchIntervalSeconds = saved[1];
+            m.config().refillSpawns = refill[0];
             if (m.kits().hasStash(player)) {
                 m.kits().restore(player);
             }

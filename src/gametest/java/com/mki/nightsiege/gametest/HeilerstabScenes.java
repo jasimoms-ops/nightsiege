@@ -185,11 +185,12 @@ final class HeilerstabScenes {
             if (h != null) {
                 before[0] = h.getHealth();
                 before[1] = player.distanceTo(h);
+                // on the server: the step runs later than the test thread goes on (it read 0.0 there)
+                check(before[1] >= 8.0, "the husk is " + String.format(Locale.ROOT, "%.1f", before[1]) + " blocks away (8+)");
                 player.lookAt(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.EYES, h.position().add(0, h.getBbHeight() * 0.5, 0));
             }
             HealerStaffItem.resetForTest();
         });
-        check(before[1] >= 8.0, "the husk is " + String.format(Locale.ROOT, "%.1f", before[1]) + " blocks away (8+)");
         net.minecraft.client.KeyMapping attack = context.computeOnClient(client -> client.options.keyAttack);
         context.getInput().pressKey(attack);   // the real left click: mixin, key, server
         context.waitTicks(3);
