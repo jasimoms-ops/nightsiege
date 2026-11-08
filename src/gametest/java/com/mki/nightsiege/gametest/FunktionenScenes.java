@@ -228,11 +228,27 @@ final class FunktionenScenes {
         // 2: on the ground, full charge -> nothing
         Hit g = new Hit();
         place(context, g, 0);
+        server(context, "ground settle", (player, m) -> {
+            player.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
+            player.resetFallDistance();
+        });
         context.waitTicks(45);
-        server(context, "ground hit", (player, m) -> strike(player, g, player.onGround()));
+        // CI 08.11.: the player was still falling from the jump before; hit only once he stands.
+        for (int t = 0; t < 40 && !g.done; t++) {
+            server(context, "ground hit", (player, m) -> {
+                if (!g.done && player.onGround() && player.fallDistance == 0) {
+                    strike(player, g, true);
+                }
+            });
+            context.waitTicks(1);
+        }
         context.waitTicks(2);
+        if (!g.done) {
+            log("ground: setup, the player never stood still on the ground");
+        }
         check(g.done && g.setupOk && g.splash < 0.01f, String.format(Locale.ROOT,
-                "no Erdstoss on the ground: splash %.2f (charge %.2f, %s)", g.splash, g.charge, g.state));
+                "no Erdstoss on the ground: splash %.2f (charge %.2f, %s)%s", g.splash, g.charge, g.state,
+                g.done ? "" : " setup: never on the ground"));
         // 3: real jump, half charged -> nothing
         Hit h = jumpHit(context, jump, "jump half", true);
         check(h.done && h.setupOk && h.charge < 0.9f && h.splash < 0.01f, String.format(Locale.ROOT,
