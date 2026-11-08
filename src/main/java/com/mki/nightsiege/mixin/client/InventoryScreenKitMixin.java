@@ -59,4 +59,12 @@ public abstract class InventoryScreenKitMixin {
             ci.cancel();
         }
     }
+
+    /** The ability tooltips (Simon 08.11.): hovering Q, F, X on the plate tells what they do. */
+    @Inject(method = "extractBackground", at = @At("TAIL"))
+    private void nightsiege$abilityTips(GuiGraphicsExtractor gui, int mouseX, int mouseY, float delta, CallbackInfo ci) {
+        if (KitView.hideCrafting) {
+            KitInventory.drawTips(gui, mouseX, mouseY);
+        }
+    }
 }

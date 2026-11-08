@@ -29,6 +29,15 @@ public final class SkillText {
     }
 
     public static String fill(String raw, CoreStats.NodeLine node) {
+        return fill(raw, node, 0, german());
+    }
+
+    /**
+     * Like {@link #fill(String, CoreStats.NodeLine)}, but without the game's language (tests) and with
+     * {@code rank} &gt; 0 the player's own rank in a rank list {@code {x*}} shown bright, the others dim
+     * (the ability tooltips in the inventory, 08.11.). The text around it is grey (§7).
+     */
+    public static String fill(String raw, CoreStats.NodeLine node, int rank, boolean german) {
         if (raw == null || raw.indexOf('{') < 0 || node == null) {
             return raw;
         }
@@ -49,12 +58,16 @@ public final class SkillText {
                     if (sb.length() > 0) {
                         sb.append(" / ");
                     }
-                    sb.append(format(v, fmt));
+                    if (rank > 0) {
+                        sb.append(r == rank ? "§f§n" : "§8").append(format(v, fmt, german)).append("§7");
+                    } else {
+                        sb.append(format(v, fmt, german));
+                    }
                 }
                 text = sb.length() == 0 ? m.group() : sb.toString();
             } else {
                 Double v = value(node, name);
-                text = v == null ? m.group() : format(v, fmt);
+                text = v == null ? m.group() : format(v, fmt, german);
             }
             m.appendReplacement(out, Matcher.quoteReplacement(text));
         }
@@ -74,6 +87,10 @@ public final class SkillText {
     }
 
     static String format(double v, String fmt) {
+        return format(v, fmt, german());
+    }
+
+    static String format(double v, String fmt, boolean german) {
         boolean pct = fmt.contains("%");
         boolean factor = fmt.contains("x");
         if (pct) {
@@ -85,17 +102,17 @@ public final class SkillText {
         if (fmt.contains("s")) {
             v /= 20.0;
         }
-        String num = number(v);
+        String num = number(v, german);
         if (fmt.contains("+") && v > 0) {
             num = "+" + num;
         }
         if (factor) {
             return "×" + num;
         }
-        return pct ? num + (german() ? " %" : "%") : num;
+        return pct ? num + (german ? " %" : "%") : num;
     }
 
-    private static String number(double v) {
+    private static String number(double v, boolean german) {
         double r = Math.round(v * 100.0) / 100.0;
         String s;
         if (Math.abs(r - Math.rint(r)) < 1e-9) {
@@ -103,7 +120,7 @@ public final class SkillText {
         } else {
             s = String.format(Locale.ROOT, "%.2f", r).replaceAll("0+$", "");
         }
-        return german() ? s.replace('.', ',') : s;
+        return german ? s.replace('.', ',') : s;
     }
 
     private static boolean german() {

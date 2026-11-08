@@ -197,6 +197,10 @@ public class EventLookTest implements FabricClientGameTest {
                     alive(context);
                     Hud2Scenes.run(context, game);   // Tor 2: pauses on every box, the healers' party list (08.11.)
                 }
+                if (want.contains("tooltips")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
+                    TooltipScenes.run(context, game);   // the ability tooltips in the inventory, all 20 subclasses (08.11.)
+                }
                 if (want.contains("bastion")) {
                     alive(context);   // a scene before may have left the player dead (05.11.)
                     BastionScenes.run(context, game);   // Update 7: the Letzte Bastion and the fun mode's lent profiles (07.11.)
