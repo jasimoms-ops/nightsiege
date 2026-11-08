@@ -1198,6 +1198,20 @@ public class SiegeConfig {
         tweak.values.put(key, Math.round(tweak.values.get(key) * by * 1000.0) / 1000.0);
     }
 
+    /** Tor 4.2: the target for an old default (or none), the same step for a server's own value. */
+    private void tankTarget(String sub, double target, double... olds) {
+        double now = subclassDamage.getOrDefault(sub, 1.0);
+        boolean old = Math.abs(now - 1.0) < 1e-9;
+        for (double o : olds) {
+            old |= Math.abs(now - o) < 1e-9;
+        }
+        if (old) {
+            subclassDamage.put(sub, target);
+        } else {
+            scale(subclassDamage, sub, target / olds[0]);
+        }
+    }
+
     private static void scale(Map<String, Double> map, String key, double by) {
         double now = map.getOrDefault(key, 1.0);
         map.put(key, Math.max(0.1, Math.min(5.0, Math.round(now * by * 1000.0) / 1000.0)));
@@ -1818,10 +1832,11 @@ public class SiegeConfig {
             settingsVersion = 19;
         }
         if (settingsVersion < 21) {
-            // Tor 4.2 (Simon 08.11.): the tanks hit harder, shield fighter 0.7 -> 0.9 and bulwark 0.63 -> 0.8 on the
-            // server; multiplied, so a server's own value keeps its own share (version 20 is a parallel branch's).
-            scale(subclassDamage, "shieldfighter", 0.9 / 0.7);
-            scale(subclassDamage, "bulwark", 0.8 / 0.63);
+            // Tor 4.2 (Simon 08.11., Leiter): the tanks hit 0.9 (shield fighter) and 0.8 (bulwark), fresh and on the
+            // server alike; an old default or the server's value (or none, 1.0) becomes the target, only a real own
+            // value is multiplied (version 20 is a parallel branch's).
+            tankTarget("shieldfighter", 0.9, 0.7, 0.875);
+            tankTarget("bulwark", 0.8, 0.63);
             settingsVersion = 21;
         }
         if (Double.isNaN(meleeLifesteal)) {

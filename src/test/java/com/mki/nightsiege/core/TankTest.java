@@ -30,6 +30,27 @@ class TankTest {
     }
 
     @Test
+    void freshOldDefaultsAndOwnValues() {
+        SiegeConfig fresh = new SiegeConfig();
+        fresh.sanitize();
+        assertEquals(0.9, fresh.subclassDamage.get("shieldfighter"), EPS);
+        assertEquals(0.8, fresh.subclassDamage.get("bulwark"), EPS);
+        SiegeConfig oldDefault = new SiegeConfig();   // the old default of a fresh config (0.875) and none at all
+        oldDefault.settingsVersion = 20;
+        oldDefault.subclassDamage.put("shieldfighter", 0.875);
+        oldDefault.sanitize();
+        assertEquals(0.9, oldDefault.subclassDamage.get("shieldfighter"), EPS);
+        assertEquals(0.8, oldDefault.subclassDamage.get("bulwark"), EPS);
+        SiegeConfig own = new SiegeConfig();   // a server's own values: the same step
+        own.settingsVersion = 20;
+        own.subclassDamage.put("shieldfighter", 1.4);
+        own.subclassDamage.put("bulwark", 0.315);
+        own.sanitize();
+        assertEquals(1.8, own.subclassDamage.get("shieldfighter"), EPS);
+        assertEquals(0.4, own.subclassDamage.get("bulwark"), EPS);
+    }
+
+    @Test
     void theSelfHealIsOnYForBothTanksOnly() {
         for (String sub : new String[]{SkillTree.SUB_SHIELDFIGHTER, SkillTree.SUB_BULWARK}) {
             assertTrue(TankHeal.isTank(sub), sub);

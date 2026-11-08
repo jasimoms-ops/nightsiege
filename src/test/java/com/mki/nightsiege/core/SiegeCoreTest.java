@@ -414,8 +414,8 @@ class SiegeCoreTest {
         fresh.sanitize();
         // 1.25 since 25.10., -30 % since the DPS bench of 27.10.
         // Update 30.10. (settings 17) sets the class balancing of the team sim (klassen4); the shield fighter stays.
-        // Tor 4.2 (settings 21): shield fighter x 0.9 / 0.7, bulwark x 0.8 / 0.63.
-        assertEquals(1.125, fresh.subclassDamage.get("shieldfighter"), 1e-9);
+        // Tor 4.2 (settings 21): the tanks hit 0.9 and 0.8, fresh too.
+        assertEquals(0.9, fresh.subclassDamage.get("shieldfighter"), 1e-9);
         // Simon 27.10. (DPS bench, level 10): tamer +20 %, bolt archer -40 %, bulwark -15 %, medic heals 20 % more; the paladin stays.
         assertEquals(1.2, fresh.subclassDamage.get("tamer"), 1e-9);
         assertEquals(0.6, fresh.subclassDamage.get("bolter"), 1e-9);
