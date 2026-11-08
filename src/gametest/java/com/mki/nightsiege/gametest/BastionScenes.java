@@ -351,7 +351,8 @@ final class BastionScenes {
         context.waitTicks(140);
         server(context, "boss time up", (player, m) -> {
             ServerLevel level = (ServerLevel) player.level();
-            check(m.isBastionRound() && m.bastion().wave() == 5 && m.bastion().step() != Bastion.Step.FIGHT,
+            // The scene's short pause may already have brought wave 6 (no boss wave): both mean wave 5 ended in time.
+            check(m.isBastionRound() && (m.bastion().wave() >= 6 || (m.bastion().wave() == 5 && m.bastion().step() != Bastion.Step.FIGHT)),
                     "the boss wave ends after its time (" + m.bastion().wave() + ", " + m.bastion().step() + ")");
             check(!m.bosses().spawned() && m.bosses().boss(level) == null && m.bossGuardsForTest().isEmpty(),
                     "the living boss and his guard are gone with the wave");
