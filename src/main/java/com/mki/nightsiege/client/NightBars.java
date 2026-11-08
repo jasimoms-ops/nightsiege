@@ -81,6 +81,97 @@ public final class NightBars {
         return true;
     }
 
+    /** Compact boss bars (Tor 2.3): off only for the gametest's "before" picture. */
+    public static boolean compact = true;
+
+    private static final com.mki.nightsiege.core.BossBarLayout.Focus<UUID> FOCUS = new com.mki.nightsiege.core.BossBarLayout.Focus<>();
+
+    /**
+     * Draws all bars at the top when two or more boss bars of the mod are shown (Tor 2.3); false leaves the
+     * overlay to vanilla (no boss or one boss, or the switch is off). Other bars (the night, the camp, the
+     * Wither, the dragon) keep their place and look.
+     */
+    public static boolean compactAll(com.mki.nightsiege.mixin.client.BossHealthOverlayInvoker overlay, GuiGraphicsExtractor gui) {
+        Map<UUID, net.minecraft.client.gui.components.LerpingBossEvent> events = overlay.nightsiege$events();
+        if (!compact || events.size() < 2) {
+            return false;
+        }
+        java.util.List<net.minecraft.client.gui.components.LerpingBossEvent> bars = new java.util.ArrayList<>(events.values());
+        boolean[] boss = new boolean[bars.size()];
+        java.util.List<UUID> ids = new java.util.ArrayList<>();
+        java.util.List<Float> progress = new java.util.ArrayList<>();
+        for (int i = 0; i < bars.size(); i++) {
+            boss[i] = compactable(bars.get(i));
+            if (boss[i]) {
+                ids.add(bars.get(i).getId());
+                progress.add(bars.get(i).getProgress());
+            }
+        }
+        UUID mainId = FOCUS.pick(ids, progress, System.currentTimeMillis());
+        if (ids.size() < 2) {
+            return false;
+        }
+        int main = -1;
+        for (int i = 0; i < bars.size(); i++) {
+            if (bars.get(i).getId().equals(mainId)) {
+                main = i;
+            }
+        }
+        gui.nextStratum();
+        net.minecraft.client.gui.Font font = net.minecraft.client.Minecraft.getInstance().font;
+        int x = gui.guiWidth() / 2 - 91;
+        for (com.mki.nightsiege.core.BossBarLayout.Slot slot
+                : com.mki.nightsiege.core.BossBarLayout.layout(boss, main, gui.guiHeight())) {
+            net.minecraft.client.gui.components.LerpingBossEvent event = bars.get(slot.index());
+            if (slot.mini()) {
+                drawMini(gui, font, x, slot.y(), event);
+                continue;
+            }
+            if (!draw(gui, x, slot.y(), event)) {
+                overlay.nightsiege$extractBar(gui, x, slot.y(), event);
+            }
+            net.minecraft.network.chat.Component name = event.getName();
+            gui.text(font, name, gui.guiWidth() / 2 - font.width(name) / 2, slot.y() - 9, -1);
+        }
+        return true;
+    }
+
+    /** True for the bars that share the compact group: bosses (the Wächter too) and the nemesis. */
+    public static boolean compactable(BossEvent event) {
+        NightBarIds.Kind kind = NightBarIds.kindOf(event.getId());
+        return kind == NightBarIds.Kind.BOSS || kind == NightBarIds.Kind.NEMESIS;
+    }
+
+    /**
+     * A small row under the big boss bar (Tor 2.3): the name on the left, a thin bar in iron and gold on the
+     * right, 10 high instead of 19.
+     */
+    public static void drawMini(GuiGraphicsExtractor gui, net.minecraft.client.gui.Font font, int x, int top, BossEvent event) {
+        int nameW = 74;
+        int bx = x + 78;
+        int w = 182 - 78;
+        net.minecraft.network.chat.FormattedText name = event.getName();
+        if (font.width(name) > nameW) {
+            name = net.minecraft.network.chat.FormattedText.composite(font.substrByWidth(name, nameW - font.width("…")),
+                    net.minecraft.network.chat.FormattedText.of("…"));
+        }
+        gui.text(font, net.minecraft.locale.Language.getInstance().getVisualOrder(name), x, top + 1, 0xFFE0D2B4);
+        int y = top + 2;
+        float progress = Math.max(0f, Math.min(1f, event.getProgress()));
+        gui.fill(bx - 1, y, bx + w + 1, y + 5, 0xFF0A0807);
+        gui.fill(bx, y + 1, bx + w, y + 4, 0xFF6B5222);
+        gui.fill(bx, y + 1, bx + w, y + 2, 0xFFC9A55A);
+        gui.fill(bx, y + 2, bx + w, y + 4, 0xFF15110E);
+        int fill = Math.round(w * progress);
+        if (fill > 0) {
+            int body = color(event.getColor(), NightBarIds.kindOf(event.getId()));
+            gui.fill(bx, y + 2, bx + fill, y + 4, body);
+            gui.fill(bx, y + 2, bx + fill, y + 3, lighter(body));
+        }
+        gui.fill(bx + w + 1, y + 1, bx + w + 3, y + 4, 0xFF0A0807);
+        gui.fill(bx + w + 1, y + 2, bx + w + 3, y + 3, 0xFFE8C46A);
+    }
+
     private static int color(BossEvent.BossBarColor c, NightBarIds.Kind kind) {
         if (kind == NightBarIds.Kind.CAMP) {
             return 0xFFB8722E;   // wood orange

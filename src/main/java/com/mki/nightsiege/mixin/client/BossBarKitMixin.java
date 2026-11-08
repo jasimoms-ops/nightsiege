@@ -6,11 +6,21 @@ import net.minecraft.client.gui.components.BossHealthOverlay;
 import net.minecraft.world.BossEvent;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /** The bars at the top (design update, 29 October 2026): the mod's bars in iron and gold. */
 @Mixin(BossHealthOverlay.class)
 public abstract class BossBarKitMixin {
+
+    /** Compact boss bars (Tor 2.3): from two bosses at once the overlay is drawn here; one boss stays vanilla's way. */
+    @Inject(method = "extractRenderState", at = @At("HEAD"), cancellable = true)
+    private void nightsiege$compact(GuiGraphicsExtractor gui, CallbackInfo ci) {
+        if (NightBars.compactAll((BossHealthOverlayInvoker) this, gui)) {
+            ci.cancel();
+        }
+    }
 
     @Redirect(method = "extractRenderState", at = @At(value = "INVOKE",
             target = "Lnet/minecraft/client/gui/components/BossHealthOverlay;extractBar(Lnet/minecraft/client/gui/GuiGraphicsExtractor;IILnet/minecraft/world/BossEvent;)V"))
