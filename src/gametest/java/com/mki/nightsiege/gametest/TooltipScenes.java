@@ -8,7 +8,6 @@ import com.mki.nightsiege.core.SkillNode;
 import com.mki.nightsiege.core.SkillTree;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
-import net.minecraft.server.level.ServerLevel;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -66,7 +65,9 @@ final class TooltipScenes {
                     own.setLevel(n.id(), n.maxLevel());
                     learned.add(n.id());
                 }
-                manager.giveKits(player.level().getServer(), (ServerLevel) player.level(), player.blockPosition(), 7, true);
+                // the night kit worn (stash): in survival only then the server sends the abilities and tips
+                // (sendUltHud "fighting"), and the inventory shows the kit plate; giveKits only hands out items
+                manager.kits().equip(player, 7);
                 manager.sendUltHud(player);
             });
             context.waitTicks(30);
@@ -98,6 +99,11 @@ final class TooltipScenes {
             EventLookTest.closeScreen(context);
             context.waitTicks(5);
         }
+        EventLookTest.onServer(context, (player, manager) -> {
+            if (manager.kits().hasStash(player)) {
+                manager.kits().restore(player);   // own inventory back for the next scenes
+            }
+        });
         log("RESULT screenshots=" + shots);
         System.out.println("[Night Siege test] tooltips: " + full + " von " + SkillTree.SUBCLASSES.size());
     }
