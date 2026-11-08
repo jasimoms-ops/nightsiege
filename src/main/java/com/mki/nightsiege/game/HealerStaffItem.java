@@ -16,8 +16,11 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.CustomData;
+import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.CollisionContext;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -92,7 +95,8 @@ public class HealerStaffItem extends Item {
         if (now < READY.getOrDefault(player.getUUID(), 0L)) {
             return false;
         }
-        LivingEntity prey = CombatEffects.lookTarget(level, player, NightKit.HEALER_BOLT_RANGE);
+        // Prüfer-Fund 4: only a monster in sight, never one behind a wall or the floor.
+        LivingEntity prey = CombatEffects.lookTarget(level, player, NightKit.HEALER_BOLT_RANGE, true);
         if (prey == null) {
             return false;
         }
@@ -119,7 +123,7 @@ public class HealerStaffItem extends Item {
                 double best = Double.MAX_VALUE;
                 for (LivingEntity near : CombatEffects.enemies(b.level, b.pos, 6.0, 3.0)) {
                     double d = near.distanceToSqr(b.pos);
-                    if (d < best) {
+                    if (d < best && !blocked(b.level, b.pos, near.position().add(0, near.getBbHeight() * 0.6, 0))) {
                         best = d;
                         target = near;
                     }
@@ -134,6 +138,12 @@ public class HealerStaffItem extends Item {
             Vec3 aim = target.position().add(0, target.getBbHeight() * 0.6, 0);
             Vec3 to = aim.subtract(b.pos);
             double dist = to.length();
+            Vec3 next = dist <= NightKit.HEALER_BOLT_SPEED + 0.6 ? aim : b.pos.add(to.scale(NightKit.HEALER_BOLT_SPEED / dist));
+            if (blocked(b.level, b.pos, next)) {   // the bolt stops at blocks (Prüfer-Fund 4)
+                b.level.sendParticles(ParticleTypes.END_ROD, b.pos.x, b.pos.y, b.pos.z, 4, 0.1, 0.1, 0.1, 0.02);
+                BOLTS.remove(b);
+                continue;
+            }
             if (dist <= NightKit.HEALER_BOLT_SPEED + 0.6) {
                 BOLTS.remove(b);
                 ServerPlayer owner = server.getPlayerList().getPlayer(b.owner);
@@ -148,10 +158,16 @@ public class HealerStaffItem extends Item {
                 }
                 continue;
             }
-            b.pos = b.pos.add(to.scale(NightKit.HEALER_BOLT_SPEED / dist));
+            b.pos = next;
             b.level.sendParticles(ParticleTypes.END_ROD, b.pos.x, b.pos.y, b.pos.z, 2, 0.04, 0.04, 0.04, 0.0);
             b.level.sendParticles(ParticleTypes.WAX_OFF, b.pos.x, b.pos.y, b.pos.z, 1, 0.05, 0.05, 0.05, 0.0);
         }
+    }
+
+    /** True if a block stands between the two points. */
+    static boolean blocked(ServerLevel level, Vec3 from, Vec3 to) {
+        return level.clip(new ClipContext(from, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE,
+                CollisionContext.empty())).getType() != HitResult.Type.MISS;
     }
 
     /** For the scene: the staff may shoot again at once; the hit count from zero. */

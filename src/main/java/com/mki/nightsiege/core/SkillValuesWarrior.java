@@ -41,8 +41,8 @@ final class SkillValuesWarrior {
         def("w_bloodblade", "steal", 0.05);    // extra life steal in the bloodlust (Simon 26.10.)
         def("w_evasion", "speed", 30);         // Speed I after a dodge, ticks
         def("w_bloodprice", "cost", 1.0);      // life per hit (half a heart)
-        def("w_bloodprice", "floor", 6.0);
-        def("w_bloodprice", "every", 20);      // Tor 4: the cost at most once in this many ticks (was every hit)     // only above this life
+        def("w_bloodprice", "floor", 6.0);     // only above this life
+        def("w_bloodprice", "every", 20);      // Tor 4: the cost at most once in this many ticks (was every hit)
         def("execute", "limit1", 0.25);
         def("execute", "limit2", 0.30);
         def("execute", "limit3", 0.35);

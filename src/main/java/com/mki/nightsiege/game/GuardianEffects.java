@@ -188,6 +188,15 @@ public final class GuardianEffects {
         return (float) Math.min(amount, victim.getMaxHealth() * share);
     }
 
+    /**
+     * Tor 4.2: a special single foe (the mace's bonus): an elite, a boss or a boss part, the nemesis, a dungeon
+     * champion or the warden of the night.
+     */
+    public static boolean isSpecialFoe(Entity entity) {
+        return Elites.isElite(entity) || BossService.isBossOrPart(entity) || Nemesis.isNemesis(entity)
+                || ChampionStrikes.isChampion(entity);
+    }
+
     private float scaleDamage(LivingEntity victim, ServerLevel level, DamageSource source, float amount) {
         float factor = 1f;
         // Server balancing per class and subclass (and zombies/spiders against the melee classes) is
@@ -215,9 +224,8 @@ public final class GuardianEffects {
                 && !CombatEffects.inFollowUp()) {   // a follow-up hit already carries the factor
             outside *= tuning.damageFactor(hitter);   // server balancing per class and subclass
             if (source.getDirectEntity() == hitter && KitService.isKitMace(hitter.getMainHandItem())) {
-                // Tor 4.2: the tanks' mace is strong against one foe: elites and bosses take more from a direct hit
-                outside *= (float) com.mki.nightsiege.core.NightKit.maceTargetFactor(
-                        Elites.isElite(victim) || BossService.isBossOrPart(victim));
+                // Tor 4.2: the tanks' mace is strong against one foe: special foes take more from a direct hit
+                outside *= (float) com.mki.nightsiege.core.NightKit.maceTargetFactor(isSpecialFoe(victim));
             }
         }
         if (tuning != null && victim instanceof ServerPlayer hurt && source.getEntity() instanceof Enemy) {
@@ -987,9 +995,11 @@ public final class GuardianEffects {
         }
         float before = player.getHealth();
         float amount = com.mki.nightsiege.core.TankHeal.amount(player.getMaxHealth(), before);
-        if (amount > 0f) {
-            player.heal(amount);
+        if (amount <= 0f) {   // full health: no heal, the cooldown stays unused (Prüfer-Fund 5)
+            CombatEffects.actionBar(player, Component.translatable("nightsiege.msg.tankheal_full"));
+            return 0f;
         }
+        player.heal(amount);
         ring(level, player.position().add(0, 1.0, 0), 0.7, ParticleTypes.HEART, 6);
         play(level, player, SoundEvents.AMETHYST_BLOCK_CHIME, 1.0f, 0.8f);
         tankHealReadyAt.put(player.getUUID(), now + (player.getAbilities().instabuild ? 20

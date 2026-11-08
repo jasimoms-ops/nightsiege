@@ -29,7 +29,8 @@ import java.util.Objects;
 /**
  * "heilerstab" (Tor 4.7, Simon: "Geschoss auf Distanz"): medic and warden get the healers' staff instead of the
  * sword, the bolt deals a kit sword hit, and a left click with the staff hits a husk 10 blocks away. Pictures of
- * the staff in hand. Log lines start with "[heilerstab]"; a scene without a picture fails.
+ * the staff in hand; behind a wall it finds no target and a bolt stops at a wall (Prüfer-Fund 4). Log lines
+ * start with "[heilerstab]"; a scene without a picture fails.
  */
 final class HeilerstabScenes {
 
@@ -81,6 +82,21 @@ final class HeilerstabScenes {
             }
         }
         return -1;
+    }
+
+    /** A stone block of 3 x 4 x 3 five blocks ahead of the player's eyes (or air again). */
+    private static void wall(ServerPlayer player, boolean stone) {
+        net.minecraft.core.BlockPos mid = net.minecraft.core.BlockPos.containing(
+                player.getEyePosition().add(player.getLookAngle().scale(5.0)));
+        net.minecraft.world.level.block.state.BlockState state = (stone
+                ? net.minecraft.world.level.block.Blocks.STONE : net.minecraft.world.level.block.Blocks.AIR).defaultBlockState();
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dy = -1; dy <= 2; dy++) {   // from the feet up, the floor stays
+                for (int dz = -1; dz <= 1; dz++) {
+                    player.level().setBlockAndUpdate(mid.offset(dx, dy, dz), state);
+                }
+            }
+        }
     }
 
     private static Mob husk(ServerPlayer player) {
@@ -187,6 +203,25 @@ final class HeilerstabScenes {
             check(HealerStaffItem.hits() >= 1 && after < before[0], "the left click's bolt hits the husk at 8+ blocks");
         });
         check(pics > 0, "pictures: " + pics + " of 2");
+
+        // ---------------------------------------------------------------- 3: no bolt through a wall (Prüfer-Fund 4)
+        final boolean[] shot = new boolean[2];
+        server(context, "wall", (player, m) -> {
+            HealerStaffItem.resetForTest();
+            wall(player, true);
+            shot[0] = HealerStaffItem.attack(player);   // the husk behind the wall: no target
+            wall(player, false);
+            HealerStaffItem.resetForTest();
+            shot[1] = HealerStaffItem.attack(player);   // in sight: the bolt flies ...
+            wall(player, true);                         // ... and a wall rises in its way
+        });
+        context.waitTicks(20);
+        server(context, "wall end", (player, m) -> {
+            log("wall: behind it " + shot[0] + ", in sight " + shot[1] + ", hits " + HealerStaffItem.hits());
+            check(!shot[0], "behind a wall the staff finds no target");
+            check(shot[1] && HealerStaffItem.hits() == 0, "a bolt in flight stops at the wall");
+            wall(player, false);
+        });
 
         // The end: kit back, husk gone, nothing learned.
         game.getServer().runCommand("kill @e[tag=" + HUSK + "]");

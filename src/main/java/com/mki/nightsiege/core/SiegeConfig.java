@@ -1855,18 +1855,15 @@ public class SiegeConfig {
         }
         if (settingsVersion < 20) {
             // Tor 4 (Simon 08.11.): the quick shot's damage 1.3 -> 0.8 (times 0.8 / 1.3, so a server's own value
-            // moves alike); the towers take their gunner again after 10 s instead of 20 and hold 5 times his
-            // life instead of 3 (only where the server set its own tweak; else the new code values count).
-            // Missing, the old server value 1.3 or already the new 0.8: 0.8; any other own value × 0.8 / 1.3.
+            // moves alike). The towers (seat lock, seat health) moved to Tor 4b.3 and stay as they are here.
+            // Missing, the old default 1.0 (filled() writes it into every config), the old server value 1.3 or
+            // already the new 0.8: 0.8; any other own value × 0.8 / 1.3.
             double swift = subclassDamage.getOrDefault("swift", 1.0);
-            if (swiftMissing || Math.abs(swift - 1.3) < 1e-6 || Math.abs(swift - SWIFT_DAMAGE) < 1e-6) {
+            if (swiftMissing || Math.abs(swift - 1.0) < 1e-6 || Math.abs(swift - 1.3) < 1e-6
+                    || Math.abs(swift - SWIFT_DAMAGE) < 1e-6) {
                 subclassDamage.put("swift", SWIFT_DAMAGE);
             } else {
                 scale(subclassDamage, "swift", SWIFT_DAMAGE / 1.3);
-            }
-            scaleTweak("e_longrange", "seatlock", 0.5);
-            for (TrapKind tower : new TrapKind[] {TrapKind.TURRET, TrapKind.MORTAR, TrapKind.BREWER, TrapKind.TESLA}) {
-                scaleTweak(tower.id(), "seathealth", 5.0 / 3.0);
             }
             settingsVersion = 20;
         }

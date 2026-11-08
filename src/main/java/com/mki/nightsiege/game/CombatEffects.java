@@ -1778,6 +1778,11 @@ public final class CombatEffects {
 
     /** The monster the player is looking at, within reach. */
     static LivingEntity lookTarget(ServerLevel level, ServerPlayer player, double reach) {
+        return lookTarget(level, player, reach, false);
+    }
+
+    /** The monster the player is looking at, within reach; with {@code seen} only one not behind blocks. */
+    static LivingEntity lookTarget(ServerLevel level, ServerPlayer player, double reach, boolean seen) {
         Vec3 eye = player.getEyePosition();
         Vec3 look = player.getLookAngle();
         LivingEntity best = null;
@@ -1789,7 +1794,7 @@ public final class CombatEffects {
                 continue;
             }
             double dot = to.scale(1.0 / dist).dot(look);
-            if (dot > bestDot) {
+            if (dot > bestDot && (!seen || player.hasLineOfSight(e))) {
                 bestDot = dot;
                 best = e;
             }

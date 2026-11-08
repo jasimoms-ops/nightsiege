@@ -844,6 +844,7 @@ public final class SiegeManager {
             traps.releaseAll(server);   // gunners out of the towers, the seats go
             safe("Nacht beim Stopp", () -> endNightForStop(server));   // before vanilla saves the players
             Drones.stopAll(server);
+            HealerStaffItem.resetForTest();   // no bolt keeps a stopped world's level (Prüfer-Fund 7)
             if (active) {
                 events.end(server, world, currentEvent);
             }

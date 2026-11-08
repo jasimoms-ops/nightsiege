@@ -5,13 +5,20 @@ import com.mki.nightsiege.core.PlayerSkills;
 import com.mki.nightsiege.core.SkillClass;
 import com.mki.nightsiege.core.SkillTree;
 import com.mki.nightsiege.core.TankHeal;
+import com.mki.nightsiege.game.BossService;
+import com.mki.nightsiege.game.Expeditions;
+import com.mki.nightsiege.game.GuardianEffects;
 import com.mki.nightsiege.game.KitService;
+import com.mki.nightsiege.game.Nemesis;
 import com.mki.nightsiege.game.SiegeManager;
+import com.mki.nightsiege.game.WardenNight;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntitySpawnReason;
+import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Inventory;
@@ -174,6 +181,12 @@ final class TankScenes {
                 float before = player.getHealth();
                 float got = m.combatEffects().guardian().castTankHeal(player);
                 check(got == 0f && player.getHealth() == before, sub + ": at full life it heals nothing (" + f(got) + ")");
+                // Prüfer-Fund 5: the call at full life used no cooldown, a wounded call right after heals.
+                player.setHealth(player.getMaxHealth() * 0.5f);
+                float wounded = player.getHealth();
+                check(m.combatEffects().guardian().castTankHeal(player) > 0.5f,
+                        sub + ": at full life it keeps its pause, wounded right after it heals (" + f(player.getHealth() - wounded) + ")");
+                player.setHealth(player.getMaxHealth());
             });
             context.waitTicks(5);
         }
@@ -251,6 +264,17 @@ final class TankScenes {
             log("mace: plain " + f(lost[0]) + ", elite " + f(lost[1]) + ", x" + f(ratio));
             check(lost[0] > 1f && Math.abs(ratio - NightKit.MACE_ELITE_FACTOR) < 0.05,
                     "a mace hit on an elite deals x" + f(ratio) + " (want " + NightKit.MACE_ELITE_FACTOR + ")");
+
+            // Prüfer-Fund 3: the nemesis, the warden of the night and a dungeon champion are special foes too.
+            for (String tag : new String[] {Nemesis.TAG, WardenNight.TAG, Expeditions.CHAMPION_TAG, BossService.TAG_BOSS}) {
+                Mob probe = EntityTypes.HUSK.create((ServerLevel) player.level(), EntitySpawnReason.COMMAND);
+                if (probe != null) {
+                    probe.addTag(tag);
+                }
+                check(probe != null && GuardianEffects.isSpecialFoe(probe), "the mace's bonus reaches a foe tagged " + tag);
+            }
+            Mob plainProbe = EntityTypes.HUSK.create((ServerLevel) player.level(), EntitySpawnReason.COMMAND);
+            check(plainProbe != null && !GuardianEffects.isSpecialFoe(plainProbe), "a plain husk is no special foe");
         });
         context.waitTicks(5);
         game.getServer().runCommand("kill @e[tag=" + PLAIN + "]");

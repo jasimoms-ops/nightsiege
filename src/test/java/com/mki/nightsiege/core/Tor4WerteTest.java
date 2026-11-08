@@ -32,9 +32,10 @@ class Tor4WerteTest {
         assertEquals(SiegeConfig.SETTINGS_VERSION, server.settingsVersion);
         assertEquals(0.8, server.subclassDamage.get("swift"), 1e-3);
         assertEquals(1.75, server.subclassDamage.get("heavy"), 1e-9);
-        assertEquals(200, server.skillTweaks.get("e_longrange").values.get("seatlock"), 1e-9);
-        assertEquals(5, server.skillTweaks.get("arrow_turret").values.get("seathealth"), 1e-3);
-        assertNull(server.skillTweaks.get("tesla_coil"));   // untouched towers take the new built-in value
+        // The towers moved to Tor 4b.3: the server's tower tweaks stay as they are.
+        assertEquals(400, server.skillTweaks.get("e_longrange").values.get("seatlock"), 1e-9);
+        assertEquals(3, server.skillTweaks.get("arrow_turret").values.get("seathealth"), 1e-3);
+        assertNull(server.skillTweaks.get("tesla_coil"));
         // Run again: no second scaling.
         server.sanitize();
         assertEquals(0.8, server.subclassDamage.get("swift"), 1e-3);
@@ -50,13 +51,18 @@ class Tor4WerteTest {
         missing.subclassDamage = new LinkedHashMap<>();   // a file without the key
         missing.sanitize();
         assertEquals(0.8, missing.subclassDamage.get("swift"), 1e-9);
+        SiegeConfig oldDefault = new SiegeConfig();
+        oldDefault.settingsVersion = 19;
+        oldDefault.subclassDamage.put("swift", 1.0);   // the old default, written into every config by filled()
+        oldDefault.sanitize();
+        assertEquals(0.8, oldDefault.subclassDamage.get("swift"), 1e-9);
         SiegeConfig own = new SiegeConfig();
         own.settingsVersion = 19;
-        own.subclassDamage.put("swift", 1.0);   // a server's own value: × 0.8 / 1.3
+        own.subclassDamage.put("swift", 1.5);   // a server's own value: × 0.8 / 1.3
         own.sanitize();
-        assertEquals(0.615, own.subclassDamage.get("swift"), 1e-3);
+        assertEquals(0.923, own.subclassDamage.get("swift"), 1e-3);
         own.sanitize();
-        assertEquals(0.615, own.subclassDamage.get("swift"), 1e-3);
+        assertEquals(0.923, own.subclassDamage.get("swift"), 1e-3);
     }
 
     @Test
@@ -76,9 +82,10 @@ class Tor4WerteTest {
 
     @Test
     void theNewBuiltInValues() {
-        assertEquals(200, SkillValues.get("e_longrange", "seatlock", -1), 1e-9);
+        // The towers stay at 20 s and 3x until Tor 4b.3.
+        assertEquals(400, SkillValues.get("e_longrange", "seatlock", -1), 1e-9);
         for (TrapKind tower : new TrapKind[] {TrapKind.TURRET, TrapKind.MORTAR, TrapKind.BREWER, TrapKind.TESLA}) {
-            assertEquals(5.0, SkillValues.get(tower.id(), "seathealth", -1), 1e-9);
+            assertEquals(3.0, SkillValues.get(tower.id(), "seathealth", -1), 1e-9);
         }
         assertEquals(-10, SkillValues.get("heavy_blow", "hp", 0), 1e-9);
         assertEquals(-6, SkillValues.get("heavy_blow", "hplow", 0), 1e-9);
