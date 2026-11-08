@@ -427,7 +427,7 @@ public final class SkillTree {
         node(list, "turret_tuning", c, m, SkillEffect.TRAP_BOOST, 1, 10, 0, 2.0, turret + ":2", "em3", "minecraft:redstone", 4, 0);
         node(list, "e_ammobelt", c, m, SkillEffect.AMMO_BELT, 1, 10, 0, 1.0, turret + ":2", "em3", "minecraft:arrow", 4, 2);
         node(list, "capacitor", c, m, SkillEffect.TRAP_BOOST, 1, 10, 0, 2.0, tesla + ":2", "em3", "minecraft:copper_block", 4, 4);
-        node(list, "e_chainbolt", c, m, SkillEffect.CHAIN_LIGHTNING, 1, 10, 0, 2.0, tesla + ":2", "em3", "minecraft:lightning_rod", 4, 6);
+        node(list, "e_chainbolt", c, m, SkillEffect.CHAIN_LIGHTNING, 1, 10, 0, 3.0, tesla + ":2", "em3", "minecraft:lightning_rod", 4, 6);
         String m3 = "turret_tuning|e_ammobelt|capacitor|e_chainbolt";
         node(list, "e_seeker", c, m, SkillEffect.SEEKER, 1, 12, 0, 0.3, m3, "em4", "minecraft:target", 5, 1);
         node(list, "e_overvolt", c, m, SkillEffect.OVERVOLT, 1, 12, 0, 1.0, m3, "em4", "minecraft:glowstone_dust", 5, 3);

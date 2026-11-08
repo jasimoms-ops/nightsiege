@@ -48,7 +48,7 @@ final class SkillValuesSummoner {
         def("s_alpha", "damage", 2.0);             // factor
         def("s_alpha", "size", 1.35);
         def("s_snowguard", "slow", 50);            // ticks of Slowness II per snowball
-        def("s_howl", "every", 400);               // ticks
+        def("s_howl", "every", 200);              // Tor 4: was 400               // ticks
         def("s_howl", "length", 100);              // ticks
         def("l_cross_bones", "health", 30.0);
         def("l_cross_bones", "pause", 600);        // ticks after the skeleton fell
@@ -129,7 +129,8 @@ final class SkillValuesSummoner {
         def("d_necro", "cursedmg", 3.0);           // damage per second in the zone, before the skills and the night (27 Oct 2026)
         def("d_necro", "curseslow", 0);            // Slowness amplifier in the zone (0 = Slowness I)
         def("d_soulcatcher", "swarmcd", 120);      // ticks: Geisterschwarm at most every 6 s (Simon 27.10.)
-        def("d_soulcatcher", "swarmcost", 4);      // souls: Geisterschwarm (Simon 27.10.: 4)
+        def("d_soulcatcher", "swarmcost", 4);
+        def("d_haste", "cheaper", 1);              // Tor 4: Geisterhast makes the swarm this many souls cheaper      // souls: Geisterschwarm (Simon 27.10.: 4)
         def("d_soulcatcher", "ghosts", 3);
         def("d_soulcatcher", "ghost", 6.5);        // damage per ghost before the skills and the night
         def("d_soulcatcher", "ghostspeed", 0.7);   // blocks per tick
