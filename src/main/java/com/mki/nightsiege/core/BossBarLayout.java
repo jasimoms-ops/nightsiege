@@ -99,6 +99,80 @@ public final class BossBarLayout {
         return b;
     }
 
+    // ---- Tor 3.0c: the boss list in the top right corner (Simon 08.11.: "nehmen immer noch zu viel ein") ----
+
+    /** Vanilla's effect icons: 24 square, 25 apart from the right edge; good ones at y 1, bad ones a row lower (26). */
+    public static final int EFFECT = 24;
+    public static final int EFFECT_STEP = 25;
+    public static final int EFFECT_ROW = 26;
+    /** The corner list: outer width, row height, inner padding, gap to the screen edge and to the effect icons. */
+    public static final int CORNER_W = 124;
+    public static final int ROW = 12;
+    public static final int PAD = 3;
+    public static final int EDGE = 2;
+    public static final int GAP = 3;
+    /** The thin bar in each row; the name takes the rest. */
+    public static final int ROW_BAR = 44;
+
+    /** A rectangle in GUI pixels. */
+    public record Rect(int x, int y, int w, int h) {
+        public boolean overlaps(Rect o) {
+            return x < o.x + o.w && o.x < x + w && y < o.y + o.h && o.y < y + h;
+        }
+    }
+
+    /** The corner list: the dark frame around it and one rectangle per row, top to bottom (index = boss in list order). */
+    public record Corner(Rect panel, List<Rect> rows) {
+    }
+
+    /** Where vanilla draws the effect icons ({@code good}/{@code bad}: shown beneficial/harmful effects; demo shifts them 15 down). */
+    public static List<Rect> effectIcons(int guiWidth, int good, int bad, boolean demo) {
+        List<Rect> out = new ArrayList<>();
+        int top = demo ? 16 : 1;
+        for (int i = 1; i <= good; i++) {
+            out.add(new Rect(guiWidth - EFFECT_STEP * i, top, EFFECT, EFFECT));
+        }
+        for (int i = 1; i <= bad; i++) {
+            out.add(new Rect(guiWidth - EFFECT_STEP * i, top + EFFECT_ROW, EFFECT, EFFECT));
+        }
+        return out;
+    }
+
+    /**
+     * Top of the corner list: below the effect icons, so it follows how many icon rows are shown (none, good only,
+     * bad too). Below rather than left of them: left of the icons the list would move towards the middle with every
+     * new effect (eight effects are 200 pixels), below it only moves down by at most two icon rows and stays in the corner.
+     */
+    public static int cornerTop(int good, int bad, boolean demo) {
+        int top = demo ? 16 : 1;
+        if (bad > 0) {
+            return top + EFFECT_ROW + EFFECT + GAP;
+        }
+        if (good > 0) {
+            return top + EFFECT + GAP;
+        }
+        return EDGE;
+    }
+
+    /**
+     * The list of {@code count} bosses in the top right corner, under the effect icons. Rows that would reach past half
+     * the screen are left out (the right half below the list stays free for Jade, the middle for the night bar).
+     */
+    public static Corner corner(int guiWidth, int guiHeight, int count, int good, int bad, boolean demo) {
+        int top = cornerTop(good, bad, demo);
+        // narrow windows: never reach the night bar in the middle (182 wide)
+        int width = Math.min(CORNER_W, Math.max(80, (guiWidth - 182) / 2 - EDGE - 2));
+        int x = guiWidth - EDGE - width;
+        List<Rect> rows = new ArrayList<>();
+        int y = top + PAD;
+        for (int i = 0; i < count && y + ROW + PAD <= guiHeight / 2; i++) {
+            rows.add(new Rect(x + PAD, y, width - 2 * PAD, ROW));
+            y += ROW;
+        }
+        Rect panel = rows.isEmpty() ? new Rect(x, top, 0, 0) : new Rect(x, top, width, y + PAD - top);
+        return new Corner(panel, rows);
+    }
+
     /** Remembers which boss was hit last, to pick the big bar. */
     public static final class Focus<K> {
         private final Map<K, Float> last = new HashMap<>();

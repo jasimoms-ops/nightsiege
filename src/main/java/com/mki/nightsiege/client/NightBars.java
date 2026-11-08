@@ -27,6 +27,9 @@ public final class NightBars {
         if (kind == null) {
             return false;
         }
+        if (compactable(event)) {
+            middleBosses++;
+        }
         int w = 182;
         float progress = Math.max(0f, Math.min(1f, event.getProgress()));
         // frame: outline, gold rim, dark inside (7 high, the vanilla bar is 5)
@@ -81,8 +84,23 @@ public final class NightBars {
         return true;
     }
 
-    /** Compact boss bars (Tor 2.3): off only for the gametest's "before" picture. */
-    public static boolean compact = true;
+    /**
+     * Where the mod's boss bars go: CORNER (Tor 3.0c, Simon 08.11.: "nehmen immer noch zu viel ein", chosen
+     * "Klein in die Ecke") as a small list in the top right; MIDDLE is Tor 2.3's look (one big bar, small rows),
+     * CLASSIC every bar big. The other two only for the gametest's "before" pictures.
+     */
+    public enum Style { CLASSIC, MIDDLE, CORNER }
+
+    public static Style style = Style.CORNER;
+
+    /** The bosses in the corner list this frame (list order) and the one hit last. */
+    private static java.util.List<BossEvent> corner = java.util.List.of();
+    private static UUID focusId;
+    /** For the gametest: the last corner drawn, the effect icons it had to avoid, the mod's boss bars drawn in the middle. */
+    public static com.mki.nightsiege.core.BossBarLayout.Corner lastCorner;
+    public static java.util.List<com.mki.nightsiege.core.BossBarLayout.Rect> lastEffects = java.util.List.of();
+    public static int lastFocusRow = -1;
+    public static int middleBosses;
 
     private static final com.mki.nightsiege.core.BossBarLayout.Focus<UUID> FOCUS = new com.mki.nightsiege.core.BossBarLayout.Focus<>();
 
@@ -99,7 +117,27 @@ public final class NightBars {
     public static <E extends BossEvent> java.util.Collection<E> order(java.util.Collection<E> all) {
         mainId = null;
         minis = java.util.List.of();
-        if (!compact || all.size() < 2) {
+        corner = java.util.List.of();
+        middleBosses = 0;
+        if (style == Style.CORNER) {
+            java.util.List<E> shown = new java.util.ArrayList<>();
+            java.util.List<BossEvent> bosses = new java.util.ArrayList<>();
+            java.util.List<UUID> ids = new java.util.ArrayList<>();
+            java.util.List<Float> progress = new java.util.ArrayList<>();
+            for (E e : all) {
+                if (compactable(e)) {
+                    bosses.add(e);
+                    ids.add(e.getId());
+                    progress.add(e.getProgress());
+                } else {
+                    shown.add(e);
+                }
+            }
+            focusId = FOCUS.pick(ids, progress, System.currentTimeMillis());
+            corner = bosses;
+            return bosses.isEmpty() ? all : shown;
+        }
+        if (style == Style.CLASSIC || all.size() < 2) {
             return all;
         }
         java.util.List<E> bars = new java.util.ArrayList<>(all);
@@ -154,6 +192,98 @@ public final class NightBars {
             drawMini(gui, font, x, next - com.mki.nightsiege.core.BossBarLayout.MINI_LIFT, row);
             next += com.mki.nightsiege.core.BossBarLayout.MINI;
         }
+    }
+
+    /**
+     * The boss list in the top right corner (Tor 3.0c), drawn after vanilla's bars: a dark panel with a gold rim and
+     * studs, one row per boss (name, thin bar), the boss hit last in a bright gold frame. It starts below the effect
+     * icons, so it never covers them; the night bar stays in the middle.
+     */
+    public static void drawCorner(GuiGraphicsExtractor gui) {
+        lastCorner = null;
+        lastFocusRow = -1;
+        if (corner.isEmpty()) {
+            return;
+        }
+        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+        int good = 0;
+        int bad = 0;
+        if (mc.player != null) {
+            for (net.minecraft.world.effect.MobEffectInstance e : mc.player.getActiveEffects()) {
+                if (e.showIcon()) {
+                    if (e.getEffect().value().isBeneficial()) {
+                        good++;
+                    } else {
+                        bad++;
+                    }
+                }
+            }
+        }
+        com.mki.nightsiege.core.BossBarLayout.Corner c = com.mki.nightsiege.core.BossBarLayout.corner(
+                gui.guiWidth(), gui.guiHeight(), corner.size(), good, bad, mc.isDemo());
+        lastEffects = com.mki.nightsiege.core.BossBarLayout.effectIcons(gui.guiWidth(), good, bad, mc.isDemo());
+        lastCorner = c;
+        if (c.rows().isEmpty()) {
+            return;
+        }
+        com.mki.nightsiege.core.BossBarLayout.Rect p = c.panel();
+        int x0 = p.x();
+        int y0 = p.y();
+        int x1 = p.x() + p.w();
+        int y1 = p.y() + p.h();
+        // panel: black outline, dark gold rim, dark inside, a light gold line on top, gold studs in the corners
+        gui.fill(x0, y0, x1, y1, 0xFF0A0807);
+        gui.fill(x0 + 1, y0 + 1, x1 - 1, y1 - 1, 0xFF6B5222);
+        gui.fill(x0 + 2, y0 + 2, x1 - 2, y1 - 2, 0xE015110E);
+        gui.fill(x0 + 3, y0 + 1, x1 - 3, y0 + 2, 0xFFC9A55A);
+        for (int sx : new int[] {x0, x1 - 2}) {
+            for (int sy : new int[] {y0, y1 - 2}) {
+                gui.fill(sx, sy, sx + 2, sy + 2, 0xFFE8C46A);
+            }
+        }
+        net.minecraft.client.gui.Font font = mc.font;
+        boolean mark = corner.size() >= 2;
+        for (int i = 0; i < c.rows().size(); i++) {
+            BossEvent e = corner.get(i);
+            boolean focus = mark && e.getId().equals(focusId);
+            if (focus) {
+                lastFocusRow = i;
+            }
+            drawRow(gui, font, c.rows().get(i), e, focus);
+        }
+    }
+
+    /** One row of the corner list: name on the left, a thin bar in iron and gold on the right; the focus in a bright frame. */
+    private static void drawRow(GuiGraphicsExtractor gui, net.minecraft.client.gui.Font font,
+            com.mki.nightsiege.core.BossBarLayout.Rect r, BossEvent event, boolean focus) {
+        if (focus) {
+            gui.fill(r.x() - 1, r.y(), r.x() + r.w() + 1, r.y() + r.h(), 0xFFE8C46A);
+            gui.fill(r.x(), r.y() + 1, r.x() + r.w(), r.y() + r.h() - 1, 0xFF2A2014);
+        }
+        int w = com.mki.nightsiege.core.BossBarLayout.ROW_BAR;
+        int bx = r.x() + r.w() - w - 3;
+        int nameW = bx - r.x() - 5;
+        net.minecraft.network.chat.FormattedText name = event.getName();
+        if (font.width(name) > nameW) {
+            name = net.minecraft.network.chat.FormattedText.composite(font.substrByWidth(name, nameW - font.width("…")),
+                    net.minecraft.network.chat.FormattedText.of("…"));
+        }
+        gui.text(font, net.minecraft.locale.Language.getInstance().getVisualOrder(name), r.x() + 2, r.y() + 2,
+                focus ? 0xFFFFF0C8 : 0xFFC8B898);
+        int y = r.y() + 3;
+        float progress = Math.max(0f, Math.min(1f, event.getProgress()));
+        gui.fill(bx - 1, y, bx + w + 1, y + 6, 0xFF0A0807);
+        gui.fill(bx, y + 1, bx + w, y + 5, 0xFF6B5222);
+        gui.fill(bx, y + 1, bx + w, y + 2, 0xFFC9A55A);
+        gui.fill(bx, y + 2, bx + w, y + 5, 0xFF15110E);
+        int fill = Math.round(w * progress);
+        if (fill > 0) {
+            int body = color(event.getColor(), NightBarIds.kindOf(event.getId()));
+            gui.fill(bx, y + 2, bx + fill, y + 5, body);
+            gui.fill(bx, y + 2, bx + fill, y + 3, lighter(body));
+        }
+        gui.fill(bx + w + 1, y + 1, bx + w + 3, y + 5, 0xFF0A0807);
+        gui.fill(bx + w + 1, y + 2, bx + w + 3, y + 4, 0xFFE8C46A);
     }
 
     /** True for the bars that share the compact group: bosses (the Wächter too) and the nemesis. */
