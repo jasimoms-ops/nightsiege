@@ -56,10 +56,33 @@ public final class UltHud {
     }
 
     /** One box: {@code spent} greys out a gain ability used up for tonight or this kit. */
-    record Cell(ItemStack icon, KeyMapping key, int cooldown, int total, boolean current, boolean spent) {
+    record Cell(ItemStack icon, KeyMapping key, int cooldown, int total, boolean current, boolean spent, String label) {
         Cell(ItemStack icon, KeyMapping key, int cooldown, int total, boolean current) {
-            this(icon, key, cooldown, total, current, false);
+            this(icon, key, cooldown, total, current, false, null);
         }
+
+        Cell(ItemStack icon, KeyMapping key, int cooldown, int total, boolean current, boolean spent) {
+            this(icon, key, cooldown, total, current, spent, null);
+        }
+
+        /** The short text on the box: its key, or the label of a pause without a key (Tor 2). */
+        String keyText() {
+            String text = key != null ? key.getTranslatedKeyMessage().getString()
+                    : label != null ? Component.translatable(label).getString() : "?";
+            return text.length() > 3 ? text.substring(0, 3) : text;
+        }
+    }
+
+    /** Tor 2 (08.11.): the pauses without a key of their own (shield action, last stand, ...). */
+    static List<Cell> timerCells(UltState s) {
+        List<Cell> out = new ArrayList<>();
+        if (s.timers != null) {
+            for (int i = 0; i < s.timers.size() && i < 4; i++) {
+                UltState.Slot t = s.timers.get(i);
+                out.add(new Cell(icon(t.icon), null, t.cooldownTicks, t.totalTicks, false, false, t.sub));
+            }
+        }
+        return out;
     }
 
     /** Q, F and X, the ones the player has, and the gain keys behind them. */
@@ -125,7 +148,8 @@ public final class UltHud {
         if (KitHud.active() || s.kitsOn) {
             return;
         }
-        List<Cell> fixed = fixedCells(s, ultKey);
+        List<Cell> fixed = new ArrayList<>(fixedCells(s, ultKey));
+        fixed.addAll(timerCells(s));   // Tor 2: the pauses without a key
         List<Cell> choices = choiceCells(s, mc);
         if (fixed.isEmpty() && choices.isEmpty()) {
             return;
@@ -177,11 +201,7 @@ public final class UltHud {
             String seconds = String.valueOf((left + 19) / 20);
             gui.text(font, seconds, ix + 8 - font.width(seconds) / 2, iy + 4, 0xFFFFFFFF, true);
         }
-        Component label = c.key() == null ? Component.literal("?") : c.key().getTranslatedKeyMessage();
-        String text = label.getString();
-        if (text.length() > 3) {
-            text = text.substring(0, 3);
-        }
+        String text = c.keyText();
         int color = !live || c.spent() ? 0xFF808080 : left > 0 ? 0xFFAAAAAA : 0xFFFFD84A;
         gui.text(font, text, x + CELL / 2 - font.width(text) / 2, y - 9, color, true);
     }

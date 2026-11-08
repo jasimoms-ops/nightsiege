@@ -76,6 +76,7 @@ public class NightSiegeClient implements ClientModInitializer {
                     BossLooks.clear();
                     MannedClient.reset();
                     HealthViewClient.clear();
+                    PartyHealthHud.clear();
                     DroneClient.clear();
                     NightKeys.setOwned(false);
                     PlaytestScreen.clear();
@@ -134,6 +135,8 @@ public class NightSiegeClient implements ClientModInitializer {
                         DroneClient.set(payload.json());
                     } else if ("healthview".equals(payload.kind())) {
                         HealthViewClient.set(payload.json());
+                    } else if ("partyhealth".equals(payload.kind())) {
+                        PartyHealthHud.set(payload.json());   // Tor 2: the healers' party list
                     } else if ("warrior".equals(payload.kind())) {
                         WarriorHud.set(payload.json());   // Kampfgeist and the combo chain (Simon 05.11.)
                     } else if ("towers".equals(payload.kind())) {
@@ -196,6 +199,8 @@ public class NightSiegeClient implements ClientModInitializer {
                 });
         HudElementRegistry.attachElementAfter(VanillaHudElements.HOTBAR, ModContent.id("ultimate"),
                 (gui, delta) -> UltHud.draw(gui, ultimateKey));
+        HudElementRegistry.attachElementAfter(VanillaHudElements.HOTBAR, ModContent.id("party_health"),
+                (gui, delta) -> PartyHealthHud.draw(gui));   // Tor 2: the healers' party list
         // Kit HUD (Simon, 28 October 2026): while the kit is worn, its own panel takes the place of the
         // vanilla hotbar and bars; chat, item name, action bar and subtitles move up when they would
         // run into it.

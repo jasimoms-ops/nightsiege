@@ -1216,7 +1216,7 @@ public final class TrapService {
         }
         // Alone it strikes at 60 % (Simon, 26 October 2026): a gunner in the seat does better.
         float damage = (float) (teslaDamage(record, tier, now) * unmanned(TrapKind.TESLA));
-        discharge(level, record, tier, now, first, from, damage);
+        CastFx.teslaDischarge(level, from, discharge(level, record, tier, now, first, from, damage));   // Tor 2: the flash
         afterShot(level, pos, record);
         playAt(level, pos, SoundEvents.LIGHTNING_BOLT_IMPACT, 0.6f, 1.8f);
         record.readyAt = now + teslaCooldown(level, pos, record, tier, now);
@@ -1777,7 +1777,7 @@ public final class TrapService {
             return;
         }
         float damage = (float) (teslaDamage(record, tier, now) * manned(TrapKind.TESLA));
-        discharge(level, record, tier, now, first, from, damage);
+        CastFx.teslaDischarge(level, from, discharge(level, record, tier, now, first, from, damage));   // Tor 2
         afterShot(level, seat.pos, record);
         level.sendParticles(ParticleTypes.ELECTRIC_SPARK, first.getX(), first.getY(0.5), first.getZ(), 14, 0.3, 0.5, 0.3, 0.15);
         level.sendParticles(ParticleTypes.END_ROD, from.x, from.y, from.z, 6, 0.1, 0.1, 0.1, 0.05);

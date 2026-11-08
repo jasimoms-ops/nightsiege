@@ -843,6 +843,8 @@ public final class GuardianEffects {
                 case "ward" -> wardSkipUntil.getOrDefault(player.getUUID(), 0L);
                 default -> actionReadyAt.getOrDefault(player.getUUID(), 0L);
             };
+            o.cooldownTicks = com.mki.nightsiege.core.HudSync.left(ready, now);   // Tor 2: its pause on the bar
+            o.totalTicks = healPause(skills, id);
             if (ready > now) {
                 o.sub = "nightsiege.wheel.wait";
                 o.subArgs.add(String.valueOf((ready - now + 19) / 20));
@@ -872,6 +874,68 @@ public final class GuardianEffects {
         String current = healOf(player, heals);
         pickHeal(player, heals.get((heals.indexOf(current) + 1) % heals.size()));
         return true;
+    }
+
+    /** Tor 2 (08.11.): the full pause of a healing ability, for its box on the bar. */
+    private int healPause(PlayerSkills skills, String id) {
+        return switch (id) {
+            case "hand" -> every("g_healing_hand", "cd", 120.0);
+            case "ward" -> every(wardNode(skills), "interval", 160.0);
+            default -> every("g_dome", "cd", 500.0);
+        };
+    }
+
+    /** Tor 2 (08.11.): ticks left and the full pause of the healing ability chosen for F, or null without one. */
+    public int[] chosenHealPause(ServerPlayer player) {
+        PlayerSkills skills = skillsFor.apply(player);
+        List<String> heals = heals(skills);
+        if (heals.isEmpty()) {
+            return null;
+        }
+        String id = healOf(player, heals);
+        long ready = switch (id) {
+            case "hand" -> handReadyAt.getOrDefault(player.getUUID(), 0L);
+            case "ward" -> wardSkipUntil.getOrDefault(player.getUUID(), 0L);
+            default -> actionReadyAt.getOrDefault(player.getUUID(), 0L);
+        };
+        return new int[]{com.mki.nightsiege.core.HudSync.left(ready, player.level().getGameTime()), healPause(skills, id)};
+    }
+
+    /**
+     * Tor 2 (08.11.): the guardian's pauses without a key of their own: the shield action (left click
+     * while blocking: shield throw or dome) and the last stand.
+     */
+    public void timers(ServerPlayer player, long now, List<com.mki.nightsiege.core.UltState.Slot> out) {
+        PlayerSkills skills = skillsFor.apply(player);
+        if (!isGuardian(skills)) {
+            return;
+        }
+        boolean toss = tree.totalBonus(SkillEffect.SHIELD_THROW, skills) > 0;
+        boolean dome = tree.totalBonus(SkillEffect.DOME, skills) > 0;
+        if (toss || (dome && !heals(skills).contains("dome"))) {
+            out.add(timer("shield_action", toss ? "minecraft:shield" : "minecraft:glass",
+                    "nightsiege.hud.timer." + (toss ? "shieldthrow" : "dome"), "nightsiege.hud.key.block",
+                    actionReadyAt.getOrDefault(player.getUUID(), 0L), now,
+                    toss ? every("g_shieldthrow", "cd", 160.0) : every("g_dome", "cd", 500.0)));
+        }
+        if (tree.totalBonus(SkillEffect.LAST_STAND, skills) > 0) {
+            out.add(timer("laststand", "minecraft:totem_of_undying", "nightsiege.hud.timer.laststand",
+                    "nightsiege.hud.key.passive", lastStandReadyAt.getOrDefault(player.getUUID(), 0L), now,
+                    every("g_laststand", "cd", 600.0)));
+        }
+    }
+
+    /** One box of the timers row. */
+    static com.mki.nightsiege.core.UltState.Slot timer(String id, String icon, String name, String label,
+                                                       long ready, long now, int total) {
+        com.mki.nightsiege.core.UltState.Slot slot = new com.mki.nightsiege.core.UltState.Slot();
+        slot.id = id;
+        slot.icon = icon;
+        slot.name = name;
+        slot.sub = label;
+        slot.cooldownTicks = com.mki.nightsiege.core.HudSync.left(ready, now);
+        slot.totalTicks = total;
+        return slot;
     }
 
     /** The id of the medic's own healing key on the bar (Simon 30.10.). */
