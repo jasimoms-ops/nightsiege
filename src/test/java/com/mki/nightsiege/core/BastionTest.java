@@ -48,7 +48,7 @@ class BastionTest {
         old.bastionClearSeconds = 45;
         old.bastionPauseSeconds = 15;
         old.sanitize();
-        assertEquals(19, old.settingsVersion);
+        assertEquals(SiegeConfig.SETTINGS_VERSION, old.settingsVersion);
         assertEquals(180, old.bastionWaveMaxSeconds);
         assertEquals(45, old.bastionClearSeconds);
         assertEquals(15, old.bastionPauseSeconds);

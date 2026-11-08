@@ -6,8 +6,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * The tanks' mace (Simon 05.11.: "die Tanks könnten … den Mace als Waffe haben, der viel Schaden macht, aber
- * nicht schnell angreifen kann"): a hit 2.5 times the kit sword's of the same level, 0.8 swings a second
- * instead of 1.6, together 1.25 times the damage a second, growing with the level like the sword.
+ * nicht schnell angreifen kann"): a hit 2.5 times the kit sword's of the same level, 1.0 swing a second
+ * instead of 1.6 (Tor 4.2, was 0.8), together 1.5625 times the damage a second, growing with the level like the sword.
  */
 class StreitkolbenTest {
 
@@ -23,12 +23,12 @@ class StreitkolbenTest {
     }
 
     @Test
-    void maceSwingsHalfAsOftenAsTheSword() {
-        assertEquals(0.8, NightKit.PLAYER_SPEED + NightKit.maceSpeedModifier(), EPS);
-        assertEquals(-3.2, NightKit.maceSpeedModifier(), EPS);
-        assertEquals(0.5, NightKit.MACE_SPEED / NightKit.SWORD_SPEED, EPS);
-        // Minecraft's charge time: 20 / attack speed ticks.
-        assertEquals(25.0, 20.0 / NightKit.MACE_SPEED, EPS);
+    void maceSwingsOnceASecond() {
+        assertEquals(1.0, NightKit.PLAYER_SPEED + NightKit.maceSpeedModifier(), EPS);
+        assertEquals(-3.0, NightKit.maceSpeedModifier(), EPS);
+        assertEquals(0.625, NightKit.MACE_SPEED / NightKit.SWORD_SPEED, EPS);
+        // Minecraft's charge time: 20 / attack speed ticks (Tor 4.2: 20 instead of 25).
+        assertEquals(20.0, 20.0 / NightKit.MACE_SPEED, EPS);
         assertEquals(12.5, 20.0 / NightKit.SWORD_SPEED, EPS);
     }
 
@@ -43,7 +43,7 @@ class StreitkolbenTest {
     }
 
     @Test
-    void everyLevelHitsTwoAndAHalfTimesAndDealsAQuarterMoreASecond() {
+    void everyLevelHitsTwoAndAHalfTimesAndDealsMoreASecond() {
         for (int level = 1; level <= 30; level++) {
             for (int gain = 0; gain <= 1; gain++) {   // with and without the crate gain "Schärfe"
                 int sharp = NightKit.plusOne(NightKit.sharpness(level), gain, 5);
@@ -51,7 +51,7 @@ class StreitkolbenTest {
                 double mace = NightKit.maceHit(level, sharp);
                 assertEquals(2.5 * sword, mace, EPS, "level " + level + " sharpness " + sharp);
                 double perSecond = mace * NightKit.MACE_SPEED / (sword * NightKit.SWORD_SPEED);
-                assertEquals(1.25, perSecond, EPS, "level " + level);
+                assertEquals(1.5625, perSecond, EPS, "level " + level);
                 assertTrue(mace > sword, "level " + level);
             }
         }

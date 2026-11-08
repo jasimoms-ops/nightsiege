@@ -19,8 +19,9 @@ class AbilityKeysTest {
             SkillTree.SUB_GUNNER, SkillTree.SUB_ELECTRICIAN, SkillTree.SUB_DEMOLITION, SkillTree.SUB_ALCHEMIST,
             SkillTree.SUB_TAMER, SkillTree.SUB_GOLEMSMITH, SkillTree.SUB_NECROMANCER, SkillTree.SUB_SOULCATCHER);
 
-    /** The two subclasses with a fourth ability: on sneak + Y (Leiter 08.11.). */
-    private static final Set<String> OVERFLOW = Set.of(SkillTree.SUB_ALCHEMIST + ":acid", SkillTree.SUB_NECROMANCER + ":curse");
+    /** The fourth abilities on sneak + Y (Leiter 08.11.); the tanks' arrows since their self heal took Y (Tor 4.2). */
+    private static final Set<String> OVERFLOW = Set.of(SkillTree.SUB_ALCHEMIST + ":acid", SkillTree.SUB_NECROMANCER + ":curse",
+            SkillTree.SUB_SHIELDFIGHTER + ":quiver", SkillTree.SUB_BULWARK + ":quiver");
 
     @Test
     void allTwentySubclassesHaveATable() {

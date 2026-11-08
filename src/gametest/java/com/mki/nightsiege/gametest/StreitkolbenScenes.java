@@ -38,7 +38,7 @@ import java.util.Objects;
 /**
  * "Streitkolben" (Simon 05.11.: "die Tanks könnten … den Mace als Waffe haben, der viel Schaden macht, aber nicht
  * schnell angreifen kann"): the shield fighter and the bulwark get a mace in the kit (their own look, the sword's
- * Sharpness), a hit deals 2.5 times the kit sword's, 0.8 swings a second, a hit after a fall brings no smash bonus,
+ * Sharpness), a hit deals 2.5 times the kit sword's, 1.0 swing a second (Tor 4.2, was 0.8), a hit after a fall brings no smash bonus,
  * the shield in the off hand blocks, and the guardian's shield effects (riposte, iron ward, revenge) still work
  * with the mace in hand. Log lines start with "[streitkolben]".
  */
@@ -222,8 +222,8 @@ final class StreitkolbenScenes {
                             sword.getItem(), f(e), f(maceHit), f(maceHit / swordHit), f(attackSpeed(sword)), f(attackSpeed(mace))));
                     check(Math.abs(maceHit - 2.5 * swordHit) < 0.01, at + ": a mace hit " + f(maceHit) + " = 2.5 x the sword's " + f(swordHit));
                     check(Math.abs(maceHit - NightKit.maceHit(level, sharp)) < 0.01, at + ": the table's " + f(NightKit.maceHit(level, sharp)));
-                    check(Math.abs(attackSpeed(mace) - 0.8) < 0.001 && Math.abs(attackSpeed(sword) - 1.6) < 0.001,
-                            at + ": 0.8 swings a second (sword 1.6)");
+                    check(Math.abs(attackSpeed(mace) - NightKit.MACE_SPEED) < 0.001 && Math.abs(attackSpeed(sword) - 1.6) < 0.001,
+                            at + ": " + NightKit.MACE_SPEED + " swings a second (sword 1.6)");
                 }
             }
             // The class window's kit page shows the mace too.
@@ -259,23 +259,24 @@ final class StreitkolbenScenes {
                     hold(player, player.getInventory().getItem(slot), slot);
                 }
             });
-            context.waitTicks(30);   // the mace's charge (25 ticks)
+            context.waitTicks(30);   // the mace's charge (20 ticks since Tor 4.2)
             server(context, "mace hit " + level, (player, m) -> {
                 Mob pig = tagged((ServerLevel) player.level(), PIG);
                 log("level " + lv + ": attack speed " + f(player.getAttributeValue(Attributes.ATTACK_SPEED)) + ", charge time "
                         + f(player.getCurrentItemAttackStrengthDelay()) + " ticks");
-                check(Math.abs(player.getAttributeValue(Attributes.ATTACK_SPEED) - 0.8) < 0.01, "level " + lv + ": the player swings 0.8 a second with the mace");
+                check(Math.abs(player.getAttributeValue(Attributes.ATTACK_SPEED) - NightKit.MACE_SPEED) < 0.01, "level " + lv + ": the player swings "
+                        + NightKit.MACE_SPEED + " a second with the mace");
                 if (pig != null && KitService.isKitMace(player.getMainHandItem())) {
                     lost[base] = hit(player, pig, 0.0, "mace level " + lv);
                 }
             });
-            context.waitTicks(12);
+            context.waitTicks(8);
             server(context, "mace charge " + level, (player, m) -> {
                 float half = player.getAttackStrengthScale(0.5f);
-                log("level " + lv + ": 12 ticks after the mace hit the charge is " + f(half));
-                check(half < 0.6f, "level " + lv + ": half a second after a mace hit it is only half charged (" + f(half) + ")");
+                log("level " + lv + ": 8 ticks after the mace hit the charge is " + f(half));
+                check(half < 0.6f, "level " + lv + ": 0.4 s after a mace hit it is only half charged (" + f(half) + ")");
             });
-            context.waitTicks(18);
+            context.waitTicks(22);
             server(context, "mace fall " + level, (player, m) -> {
                 Mob pig = tagged((ServerLevel) player.level(), PIG);
                 if (pig != null && KitService.isKitMace(player.getMainHandItem())) {

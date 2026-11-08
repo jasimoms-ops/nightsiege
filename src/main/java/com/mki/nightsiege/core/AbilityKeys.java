@@ -11,7 +11,8 @@ import java.util.Map;
  *
  * <p>Ability ids are the ids of the ability bar ({@code UltState.Slot.id}) plus {@link #F_ACTION}
  * (the class's F field: arrow rain, warrior art, remote order, staff order) and {@link #ULT}.
- * {@link Key#SNEAK_Y} is sneak + Y: the fourth ability of the alchemist and the necromancer (Leiter 08.11.).
+ * {@link Key#SNEAK_Y} is sneak + Y: the fourth ability of the alchemist and the necromancer (Leiter 08.11.)
+ * and the tanks' arrow kinds (Tor 4.2: their self heal took Y).
  */
 public final class AbilityKeys {
 
@@ -45,8 +46,9 @@ public final class AbilityKeys {
             put(sub, e("dash", Key.Q), e(F_ACTION, Key.F), e("quiver", Key.Y));
         }
         // guardians: no F field of their own any more, every healing on its key
-        put(SkillTree.SUB_SHIELDFIGHTER, e(SHIELD, Key.Q), e("ward", Key.F), e("quiver", Key.Y));
-        put(SkillTree.SUB_BULWARK, e(SHIELD, Key.Q), e("ward", Key.F), e("quiver", Key.Y));
+        // Tor 4.2: the tanks' self heal on Y (the emergency key); their arrows, rare for a tank, on sneak + Y
+        put(SkillTree.SUB_SHIELDFIGHTER, e(SHIELD, Key.Q), e("ward", Key.F), e(TankHeal.ID, Key.Y), e("quiver", Key.SNEAK_Y));
+        put(SkillTree.SUB_BULWARK, e(SHIELD, Key.Q), e("ward", Key.F), e(TankHeal.ID, Key.Y), e("quiver", Key.SNEAK_Y));
         put(SkillTree.SUB_MEDIC, e("hand", Key.Q), e("selfheal", Key.F), e("quiver", Key.Y));
         put(SkillTree.SUB_WARDEN, e("ward", Key.Q), e("dome", Key.F), e("quiver", Key.Y));
         // engineers: the blast jump on Q, the remote on F; the alchemist's potions on Y

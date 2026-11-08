@@ -7071,6 +7071,12 @@ public final class SiegeManager {
             }
         }
         if (own.hasClass()) {
+            com.mki.nightsiege.core.UltState.Slot tankHeal = combat.guardian().tankHealSlot(player);
+            if (tankHeal != null) {
+                out.add(tankHeal);   // the tanks heal themselves on Y instead of potions (Tor 4.2)
+            }
+        }
+        if (own.hasClass()) {
             com.mki.nightsiege.core.UltState.Slot shield = combat.guardian().shieldSlot(player);
             if (shield != null) {
                 out.add(0, shield);   // the shield throw on its key (Tor 3.1: was block + left click)
@@ -7121,6 +7127,8 @@ public final class SiegeManager {
             GainGear.normalArrows(player);   // a tap on the arrow key: the normal arrows again
         } else if (GuardianEffects.SELF_HEAL.equals(id)) {
             combat.guardian().castSelfHeal(player);
+        } else if (com.mki.nightsiege.core.TankHeal.ID.equals(id)) {
+            combat.guardian().castTankHeal(player);   // the tanks' self heal (Tor 4.2)
         } else if (com.mki.nightsiege.core.AbilityKeys.SHIELD.equals(id)) {
             combat.guardian().onShieldKey(player);   // the shield throw (Tor 3.1)
         } else if (EngineerEscape.ID.equals(id)) {
