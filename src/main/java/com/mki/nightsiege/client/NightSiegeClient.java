@@ -23,6 +23,9 @@ import org.lwjgl.glfw.GLFW;
 /** Client side: the core window and the key for the ultimate. */
 public class NightSiegeClient implements ClientModInitializer {
 
+    /** Tor 3.6: the tooltips last received (the server leaves them out while they stay the same). */
+    private static List<com.mki.nightsiege.core.AbilityTip> lastTips = new java.util.ArrayList<>();
+
     /** Fires the ultimate of the player's path. R by default; rebindable under Controls. */
     private static KeyMapping ultimateKey;
     /** Opens the handbook. H by default. */
@@ -193,6 +196,11 @@ public class NightSiegeClient implements ClientModInitializer {
                 (payload, context) -> {
                     UltState state = Json.fromJson(payload.json(), UltState.class);
                     context.client().execute(() -> {
+                        if (state != null && state.tipsKept) {
+                            state.tips = lastTips;   // Tor 3.6: unchanged tooltips are not sent again
+                        } else if (state != null) {
+                            lastTips = state.tips;
+                        }
                         UltHud.update(state);
                         NightKeys.setOwned(state != null && state.keys);
                     });

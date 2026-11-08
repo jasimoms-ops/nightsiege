@@ -19,7 +19,6 @@ import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.tags.DamageTypeTags;
-import net.minecraft.world.InteractionHand;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectCategory;
@@ -898,15 +897,7 @@ public final class GuardianEffects {
         if (!isGuardian(skills)) {
             return;
         }
-        boolean toss = tree.totalBonus(SkillEffect.SHIELD_THROW, skills) > 0;
-        boolean dome = tree.totalBonus(SkillEffect.DOME, skills) > 0;
-        // Tor 3.1: the shield throw has its key (Q) and its box on the bar, so no timer box for it
-        if (!toss && dome && !heals(skills).contains("dome")) {
-            out.add(timer("shield_action", toss ? "minecraft:shield" : "minecraft:glass",
-                    "nightsiege.hud.timer." + (toss ? "shieldthrow" : "dome"), "nightsiege.hud.key.block",
-                    actionReadyAt.getOrDefault(player.getUUID(), 0L), now,
-                    toss ? every("g_shieldthrow", "cd", 160.0) : every("g_dome", "cd", 500.0)));
-        }
+        // Tor 3.1: the shield throw and the dome have their keys and boxes on the bar, so no timer box for them
         if (tree.totalBonus(SkillEffect.LAST_STAND, skills) > 0) {
             out.add(timer("laststand", "minecraft:totem_of_undying", "nightsiege.hud.timer.laststand",
                     "nightsiege.hud.key.passive", lastStandReadyAt.getOrDefault(player.getUUID(), 0L), now,
@@ -1073,20 +1064,6 @@ public final class GuardianEffects {
         if (ArmorBreak.EFFECT != null) {
             target.removeEffect(ArmorBreak.EFFECT);
         }
-    }
-
-    /** Right click on a teammate: the healing hand. Returns true when it was used. */
-    public boolean onUseEntity(ServerPlayer player, Entity target, InteractionHand hand) {
-        if (hand != InteractionHand.MAIN_HAND || !(target instanceof ServerPlayer mate) || mate == player
-                || !(player.level() instanceof ServerLevel level)) {
-            return false;
-        }
-        PlayerSkills skills = skillsFor.apply(player);
-        if (!isGuardian(skills) || tree.totalBonus(SkillEffect.HEALING_HAND, skills) <= 0) {
-            return false;
-        }
-        handHeal(level, player, skills, mate, level.getGameTime());
-        return true;
     }
 
     private void handHeal(ServerLevel level, ServerPlayer player, PlayerSkills skills, ServerPlayer target, long now) {

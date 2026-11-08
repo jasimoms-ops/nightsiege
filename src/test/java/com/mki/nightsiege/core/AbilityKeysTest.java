@@ -51,6 +51,42 @@ class AbilityKeysTest {
         assertEquals(OVERFLOW, overflow);
     }
 
+    /**
+     * Tor 3.6 (mod-pruefer): the bar took only one wheel, so a tamer with the arrow gain lost his
+     * call and a healer lost his arrows. With and without the gain, beside a wheel or not: every
+     * arrow kind and call of the table gets its slot.
+     */
+    @Test
+    void quiverAndCallKeepTheirSlot() {
+        Set<String> summoners = Set.of(SkillTree.SUB_TAMER, SkillTree.SUB_GOLEMSMITH, SkillTree.SUB_NECROMANCER, SkillTree.SUB_SOULCATCHER);
+        // the class's own wheel: spells (way of the dead), healings (guardians), never for the way of the light
+        Set<String> wheels = Set.of(SkillTree.SUB_NECROMANCER, SkillTree.SUB_SOULCATCHER,
+                SkillTree.SUB_SHIELDFIGHTER, SkillTree.SUB_BULWARK, SkillTree.SUB_MEDIC, SkillTree.SUB_WARDEN);
+        Set<String> engineers = Set.of(SkillTree.SUB_GUNNER, SkillTree.SUB_ELECTRICIAN, SkillTree.SUB_DEMOLITION, SkillTree.SUB_ALCHEMIST);
+        for (String sub : SUBS) {
+            if (engineers.contains(sub)) {
+                continue;   // their bar is TrapService.engineerSlots, without extras
+            }
+            for (boolean gain : new boolean[] {false, true}) {
+                List<String> extras = AbilityKeys.barExtras(sub, wheels.contains(sub), gain, summoners.contains(sub));
+                String what = sub + (gain ? " with" : " without") + " arrow gain";
+                for (AbilityKeys.Entry e : AbilityKeys.table().get(sub)) {
+                    if (e.id().equals(AbilityKeys.QUIVER)) {
+                        assertEquals(gain, extras.contains(AbilityKeys.QUIVER), what);
+                    }
+                    if (e.id().equals(AbilityKeys.CALL)) {
+                        assertTrue(extras.contains(AbilityKeys.CALL), what);
+                    }
+                }
+                for (String id : extras) {
+                    assertNotNull(AbilityKeys.keyOf(sub, id), what + ": " + id + " without a key");
+                }
+            }
+        }
+        // without a subclass and without a wheel the arrows still get a slot (sneak + Y)
+        assertEquals(List.of(AbilityKeys.QUIVER), AbilityKeys.barExtras("", false, true, false));
+    }
+
     @Test
     void unknownAbilityHasNoKey() {
         assertNull(AbilityKeys.keyOf(SkillTree.SUB_SWIFT, "raise"));

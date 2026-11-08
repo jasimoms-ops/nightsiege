@@ -118,4 +118,6 @@ public class UltState {
 
     /** What each of Q, F, X does, for the tooltip in the inventory (Simon 08.11.). */
     public java.util.List<AbilityTip> tips = new java.util.ArrayList<>();
+    /** Tor 3.6: the tips did not change since the last packet, so they were left out; the client keeps its own. */
+    public boolean tipsKept;
 }

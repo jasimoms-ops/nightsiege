@@ -23,6 +23,10 @@ public final class AbilityKeys {
     public static final String F_ACTION = "f";
     /** The guardian's shield throw (was: block + left click). */
     public static final String SHIELD = "shield";
+    /** The arrow kinds of the arrow gain. */
+    public static final String QUIVER = "quiver";
+    /** The summoner's call on the way of the light. */
+    public static final String CALL = "call";
 
     /** One ability of a subclass and its key. */
     public record Entry(String id, Key key) {
@@ -71,6 +75,22 @@ public final class AbilityKeys {
     /** Every subclass with its abilities (without the ultimate, which is X for all). */
     public static Map<String, List<Entry>> table() {
         return java.util.Collections.unmodifiableMap(TABLE);
+    }
+
+    /**
+     * Tor 3.6: the slots the bar adds beside the class's own wheel (spells, potions, healings):
+     * the arrow kinds with the arrow gain (beside a wheel only where the table gives them a key),
+     * and the summoner's call when he has no spell wheel. No ability may lose its key to another.
+     */
+    public static List<String> barExtras(String subclass, boolean classWheel, boolean quiverGain, boolean summoner) {
+        List<String> out = new java.util.ArrayList<>();
+        if (quiverGain && (!classWheel || keyOf(subclass, QUIVER) != null)) {
+            out.add(QUIVER);
+        }
+        if (summoner && !classWheel) {
+            out.add(CALL);
+        }
+        return out;
     }
 
     /**

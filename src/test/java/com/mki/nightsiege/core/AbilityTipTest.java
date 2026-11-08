@@ -106,6 +106,44 @@ class AbilityTipTest {
         assertTrue(tips >= 60, "tips " + tips);
     }
 
+    /**
+     * Tor 3.6 (mod-pruefer): the tooltips ride in the HUD packet (STRING_UTF8, at most 32767 chars).
+     * Every subclass with every node of its class taken: the whole packet stays below 16000 chars.
+     */
+    @Test
+    void hudPacketWithTooltipsStaysSmall() {
+        SkillTree tree = new SkillTree();
+        com.google.gson.Gson gson = new com.google.gson.GsonBuilder().setPrettyPrinting().create();   // as game.Json
+        Set<String> subNodes = new java.util.HashSet<>();
+        SkillTree.SUBCLASSES.forEach(i -> subNodes.add(i.node()));
+        int largest = 0;
+        String which = "";
+        for (SkillTree.SubclassInfo info : SkillTree.SUBCLASSES) {
+            PlayerSkills p = new PlayerSkills();
+            p.chosenClass = info.clazz().name();
+            p.setLevel(info.node(), 1);
+            for (SkillNode n : tree.all()) {
+                if (n.clazz() == info.clazz() && !subNodes.contains(n.id())) {
+                    p.setLevel(n.id(), n.maxLevel());
+                }
+            }
+            UltState state = new UltState();
+            state.tips = AbilityTips.build(tree, p, true, AbilityTips.fName(tree, p), SECOND.get(info.clazz().name()), 1800);
+            for (int i = 0; i < 6; i++) {
+                UltState.Slot slot = new UltState.Slot();
+                slot.id = "slot" + i;
+                slot.name = "nightsiege.ability.some_long_ability_name";
+                state.slots.add(slot);
+            }
+            int size = gson.toJson(state).length();
+            if (size > largest) {
+                largest = size;
+                which = info.key();
+            }
+        }
+        assertTrue(largest < 16000, "HUD packet of " + which + ": " + largest + " chars");
+    }
+
     /** Tor 3.4: every ability with a key in AbilityKeys, for all 20 subclasses: name, key, cooldown, no open placeholder. */
     @Test
     void everyAbilityOnAKeyHasATooltip() throws Exception {

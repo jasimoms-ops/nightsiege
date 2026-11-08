@@ -274,6 +274,8 @@ public final class SiegeManager {
     private final Set<UUID> liveMobs = new HashSet<>();
     /** Defenders without a connection, with the game time they went (Simon 31.10.: a minute's grace). */
     private final Map<UUID, Long> offlineSince = new HashMap<>();
+    /** Tor 3.6: the hash of the tooltips last sent on each connection (weak: gone with the connection). */
+    private final Map<Object, Integer> sentTips = new java.util.WeakHashMap<>();
     private final Map<UUID, String> defenderNames = new HashMap<>();
     private static final long DISCONNECT_GRACE_TICKS = 1200L;
     /** Defenders here right now (online or within the grace), counted every tick of the night. */
@@ -5536,6 +5538,13 @@ public final class SiegeManager {
             final PlayerSkills hudOwn = own;
             final com.mki.nightsiege.core.UltState hudState = state;
             safe("Kit-Leiste", () -> kitHudValues(player, hudOwn, hudState));
+            // Tor 3.6: the tooltips only when they changed (per connection: a new login gets them again).
+            int tipsHash = Json.toJson(state.tips).hashCode();
+            Integer lastTips = sentTips.put(player.connection, tipsHash);
+            if (lastTips != null && lastTips == tipsHash) {
+                state.tips = null;
+                state.tipsKept = true;
+            }
             ServerPlayNetworking.send(player, new CoreNetworking.UltHudPayload(Json.toJson(state)));
         }
     }
@@ -7003,13 +7012,12 @@ public final class SiegeManager {
         // The engineer (28 October 2026): the escape first, the alchemist's potions with their own pauses, his acid flask.
         List<com.mki.nightsiege.core.UltState.Slot> engineer = traps.engineerSlots(player, own, now);
         com.mki.nightsiege.core.WheelData wheel = engineer != null ? null : wheelOf(player);
+        boolean quiverWheel = wheel != null && "nightsiege.wheel.quiver".equals(wheel.title);
+        if (quiverWheel) {
+            wheel = null;   // the arrows come below, beside the class's own wheel (Tor 3.6)
+        }
         if (engineer != null) {
             out.addAll(engineer);
-        } else if (wheel != null && "nightsiege.wheel.quiver".equals(wheel.title)) {
-            com.mki.nightsiege.core.UltState.Slot quiver = GainGear.quiverSlot(player);
-            if (quiver != null) {
-                out.add(quiver);   // one key for the arrows (Simon 30.10.)
-            }
         } else if (wheel != null) {
             for (com.mki.nightsiege.core.WheelData.Option o : wheel.options) {
                 if (!o.open) {
@@ -7033,7 +7041,16 @@ public final class SiegeManager {
                 }
                 out.add(slot);
             }
-        } else if (own.clazz() == com.mki.nightsiege.core.SkillClass.SUMMONER && own.hasClass()) {
+        }
+        // Tor 3.6: the arrows and the call are added beside the wheel, not instead of it.
+        String barSub = own.hasClass() ? skillTree.subclassOf(own) : "";
+        boolean summoner = own.clazz() == com.mki.nightsiege.core.SkillClass.SUMMONER && own.hasClass();
+        List<String> extras = engineer != null ? List.of() : com.mki.nightsiege.core.AbilityKeys.barExtras(
+                barSub, wheel != null, GainGear.quiverSlot(player) != null, summoner);
+        if (extras.contains(com.mki.nightsiege.core.AbilityKeys.QUIVER)) {
+            out.add(GainGear.quiverSlot(player));   // one key for the arrows (Simon 30.10.)
+        }
+        if (extras.contains(com.mki.nightsiege.core.AbilityKeys.CALL)) {
             // The way of the light: the call (wolves or the golem back to you).
             com.mki.nightsiege.core.UltState.Slot slot = new com.mki.nightsiege.core.UltState.Slot();
             slot.id = "call";
