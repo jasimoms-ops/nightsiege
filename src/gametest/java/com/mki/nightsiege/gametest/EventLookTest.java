@@ -243,7 +243,11 @@ public class EventLookTest implements FabricClientGameTest {
                 }
                 if (want.contains("streitkolben")) {
                     alive(context);   // a scene before may have left the player dead (05.11.)
-                    StreitkolbenScenes.run(context, game);   // the tanks' mace: kit, 2.5 x damage, 0.8 a second, no smash (05.11.)
+                    StreitkolbenScenes.run(context, game);   // the tanks' mace: kit, 2.5 x damage, 1.0 a second (Tor 4.2), no smash (05.11.)
+                }
+                if (want.contains("tanks")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
+                    TankScenes.run(context, game);   // Tor 4.2: the tanks' self heal on Y, the mace hits one, +25 % on elites
                 }
                 if (want.contains("heilerstab")) {
                     alive(context);   // a scene before may have left the player dead (05.11.)

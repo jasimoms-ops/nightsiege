@@ -49,9 +49,20 @@ public final class NightKit {
 
     /** A hit of the shield fighter's and the bulwark's mace against a kit sword hit of the same level. */
     public static final double MACE_DAMAGE_FACTOR = 2.5;
-    /** Swings a second: the kit sword (vanilla) and the tanks' mace; 2.5 x 0.8 / 1.6 = 1.25 times the damage a second. */
+    /**
+     * Swings a second: the kit sword (vanilla) and the tanks' mace. Tor 4.2 (playtest: "Cooldown der Keule nervt"):
+     * 1.0 instead of 0.8, so 2.5 x 1.0 / 1.6 = 1.5625 times the sword's damage a second on one target (was 1.25).
+     * Against a group it stays one target: no sweep (not a sword), no smash (MaceSmashMixin).
+     */
     public static final double SWORD_SPEED = 1.6;
-    public static final double MACE_SPEED = 0.8;
+    public static final double MACE_SPEED = 1.0;
+    /** Tor 4.2 (Simon: "stark gegen einzelne Gegner"): a kit mace hit on an elite or a boss deals this much more. */
+    public static final double MACE_ELITE_FACTOR = 1.25;
+
+    /** The factor of a direct kit mace hit on this target. */
+    public static double maceTargetFactor(boolean eliteOrBoss) {
+        return eliteOrBoss ? MACE_ELITE_FACTOR : 1.0;
+    }
     /** A player's own attack damage and attack speed, before the weapon (vanilla attributes). */
     public static final double PLAYER_DAMAGE = 1.0;
     public static final double PLAYER_SPEED = 4.0;
@@ -86,7 +97,7 @@ public final class NightKit {
         return MACE_DAMAGE_FACTOR * (swordDamage + sharp) - sharp - PLAYER_DAMAGE;
     }
 
-    /** The attack speed modifier of the tanks' mace (it replaces the vanilla mace's -3.4): 0.8 swings a second. */
+    /** The attack speed modifier of the tanks' mace (it replaces the vanilla mace's -3.4): 1.0 swing a second. */
     public static double maceSpeedModifier() {
         return MACE_SPEED - PLAYER_SPEED;
     }

@@ -89,6 +89,8 @@ final class SkillValuesGuardian {
         def("g_healing_hand", "base", 2.0);        // heal = base + amount per level (health)
         def("g_healing_hand", "cd", 120.0);        // ticks
         def("g_healing_hand", "self", 0.5);        // share when healing yourself
+        def("tankheal", "share", 0.20);            // Tor 4.2: the tanks' self heal, share of the max health
+        def("tankheal", "cd", 1800.0);             // ... ticks (90 s): 2.7 health a minute, as the healers' two potions
         def("g_healing_hand", "range", 16.0);      // shield action: teammate in view within this reach
         def("g_ward", "base", 2.0);                // barrier = base + amount per level (health)
         def("g_ward", "interval", 160.0);

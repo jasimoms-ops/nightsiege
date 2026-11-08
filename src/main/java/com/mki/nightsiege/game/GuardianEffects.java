@@ -214,6 +214,11 @@ public final class GuardianEffects {
                 && SiegeManager.isNightSiegeMob(victim)
                 && !CombatEffects.inFollowUp()) {   // a follow-up hit already carries the factor
             outside *= tuning.damageFactor(hitter);   // server balancing per class and subclass
+            if (source.getDirectEntity() == hitter && KitService.isKitMace(hitter.getMainHandItem())) {
+                // Tor 4.2: the tanks' mace is strong against one foe: elites and bosses take more from a direct hit
+                outside *= (float) com.mki.nightsiege.core.NightKit.maceTargetFactor(
+                        Elites.isElite(victim) || BossService.isBossOrPart(victim));
+            }
         }
         if (tuning != null && victim instanceof ServerPlayer hurt && source.getEntity() instanceof Enemy) {
             if (ownAttacker) {
@@ -940,6 +945,56 @@ public final class GuardianEffects {
         slot.cooldownTicks = ready > now ? (int) (ready - now) : 0;
         slot.totalTicks = (int) Math.round(SkillValues.get("g_healing_hand", "cd", 120.0));
         return slot;
+    }
+
+    /** Tor 4.2: when each tank may heal himself again. */
+    private final Map<UUID, Long> tankHealReadyAt = new HashMap<>();
+
+    /** The tanks' self heal on its key (Tor 4.2), null for every other subclass. */
+    public com.mki.nightsiege.core.UltState.Slot tankHealSlot(ServerPlayer player) {
+        PlayerSkills skills = skillsFor.apply(player);
+        if (!isGuardian(skills) || !com.mki.nightsiege.core.TankHeal.isTank(tree.subclassOf(skills))) {
+            return null;
+        }
+        long now = player.level().getGameTime();
+        com.mki.nightsiege.core.UltState.Slot slot = new com.mki.nightsiege.core.UltState.Slot();
+        slot.id = com.mki.nightsiege.core.TankHeal.ID;
+        slot.icon = "minecraft:golden_apple";
+        slot.name = "nightsiege.ability.tankheal";
+        long ready = tankHealReadyAt.getOrDefault(player.getUUID(), 0L);
+        slot.cooldownTicks = ready > now ? (int) (ready - now) : 0;
+        slot.totalTicks = com.mki.nightsiege.core.TankHeal.cooldownTicks();
+        return slot;
+    }
+
+    /**
+     * The tanks' self heal (Tor 4.2, Simon: "nur für selbstheilung"): a share of his own max health, on himself
+     * only, whoever he looks at; never more than is missing. Returns what it healed (0 while it waits).
+     */
+    public float castTankHeal(ServerPlayer player) {
+        if (!(player.level() instanceof ServerLevel level) || !player.isAlive()) {
+            return 0f;
+        }
+        PlayerSkills skills = skillsFor.apply(player);
+        if (!isGuardian(skills) || !com.mki.nightsiege.core.TankHeal.isTank(tree.subclassOf(skills))) {
+            return 0f;
+        }
+        long now = level.getGameTime();
+        long ready = tankHealReadyAt.getOrDefault(player.getUUID(), 0L);
+        if (now < ready) {
+            CombatEffects.actionBar(player, Component.translatable("nightsiege.msg.healing_hand_wait", (ready - now + 19) / 20));
+            return 0f;
+        }
+        float before = player.getHealth();
+        float amount = com.mki.nightsiege.core.TankHeal.amount(player.getMaxHealth(), before);
+        if (amount > 0f) {
+            player.heal(amount);
+        }
+        ring(level, player.position().add(0, 1.0, 0), 0.7, ParticleTypes.HEART, 6);
+        play(level, player, SoundEvents.AMETHYST_BLOCK_CHIME, 1.0f, 0.8f);
+        tankHealReadyAt.put(player.getUUID(), now + (player.getAbilities().instabuild ? 20
+                : com.mki.nightsiege.core.TankHeal.cooldownTicks()));
+        return player.getHealth() - before;
     }
 
     /** The shield throw on a key of its own (Tor 3.1: was block + left click), null without it. */

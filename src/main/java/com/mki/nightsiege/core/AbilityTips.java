@@ -238,6 +238,10 @@ public final class AbilityTips {
                 fromNode(tree, own, tip, "g_healing_hand", "nightsiege.heal.self", KEY + "desc.selfheal");
                 tip.cooldownTicks = ticks("g_healing_hand", "cd", 120);
             }
+            case TankHeal.ID -> {
+                plain(tip, "nightsiege.ability.tankheal", "tankheal", TankHeal.ID);
+                tip.cooldownTicks = TankHeal.cooldownTicks();
+            }
             case "ward" -> {
                 String node = own.levelOf("g_ward") > 0 ? "g_ward" : "s_cross_ward";
                 fromNode(tree, own, tip, node, "nightsiege.heal.ward", null);
