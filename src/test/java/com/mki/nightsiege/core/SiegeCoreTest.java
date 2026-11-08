@@ -166,6 +166,18 @@ class SiegeCoreTest {
     }
 
     @Test
+    void heavyShotHasNoPauseButKeepsDrawAndDamage() {
+        // Simon 08.11. (20:29): no cooldown between heavy shots; draw (20 ticks) and damage stay.
+        assertEquals(0, SkillValues.get("heavy_draw", "pause", -1), 1e-9);
+        assertEquals(1, SkillValues.get("heavy_draw", "power", -1), 1e-9);
+        int draw = 20;
+        double shotsBefore = 1200.0 / (draw + 12), shotsAfter = 1200.0 / (draw + SkillValues.get("heavy_draw", "pause", -1));
+        assertEquals(37.5, shotsBefore, 1e-9);
+        assertEquals(60.0, shotsAfter, 1e-9);
+        assertEquals(1.6, shotsAfter / shotsBefore, 1e-9);   // same damage per shot: +60 % damage per minute
+    }
+
+    @Test
     void arrowRainHasItsNumbersForEveryArcher() {
         // Simon 30.10.: the rain falls 3 s; 31.10.: then 8 s pause until the next one (was 5 s).
         assertEquals(60, SkillValues.get("arrow_rain", "dur", -1), 1e-9);
