@@ -514,6 +514,8 @@ public class SiegeConfig {
     public int bastionClearSeconds = 30;
     /** The pause between two waves. */
     public int bastionPauseSeconds = 20;
+    /** A wave ends after its kills or at the latest after this long (a boss wave from the boss on); 0 = no limit (Simon 08.11.). */
+    public int bastionWaveMaxSeconds = 180;
     /** Every this many waves a boss (with his guards), from the bag. */
     public int bastionBossEvery = 5;
     /** From this wave, every this many waves one more siege machine (10: 1, 15: 2, 20: 3). */
@@ -1230,7 +1232,7 @@ public class SiegeConfig {
      */
     public int settingsVersion = 0;
     /** The newest settings version (the migrations below end there). */
-    public static final int SETTINGS_VERSION = 18;
+    public static final int SETTINGS_VERSION = 19;
     /** Version of the dungeon list in this file. Older lists are replaced on load. */
     /** Which structures hold dungeons, how hard they are and what lives there. */
     /** Perks from core fragments work within this many blocks of the main core. */
@@ -1502,6 +1504,7 @@ public class SiegeConfig {
         bastionKillsPerField = Double.isNaN(bastionKillsPerField) ? 3.0 : clampDouble(bastionKillsPerField, 0.2, 50.0);
         bastionClearSeconds = clamp(bastionClearSeconds, 0, 600);
         bastionPauseSeconds = clamp(bastionPauseSeconds, 0, 600);
+        bastionWaveMaxSeconds = clamp(bastionWaveMaxSeconds, 0, 3600);
         bastionBossEvery = clamp(bastionBossEvery, 0, 100);
         bastionMachinesFromWave = clamp(bastionMachinesFromWave, 1, 1000);
         bastionMachinesEvery = clamp(bastionMachinesEvery, 1, 100);
@@ -1808,6 +1811,11 @@ public class SiegeConfig {
             championNightPercent = 0.30;
             campGraceSeconds = 0;
             settingsVersion = 18;
+        }
+        if (settingsVersion < 19) {
+            // Simon 08.11.: a wave of the Letzte Bastion ends after its kills or at the latest after 3 min.
+            bastionWaveMaxSeconds = 180;
+            settingsVersion = 19;
         }
         if (Double.isNaN(meleeLifesteal)) {
             meleeLifesteal = 0.08;

@@ -14,6 +14,45 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class BastionTest {
 
     @Test
+    void aWaveEndsAfterThreeMinutesAtTheLatest() {
+        SiegeConfig cfg = new SiegeConfig();
+        assertEquals(180, cfg.bastionWaveMaxSeconds);
+        long start = 1000;
+        assertFalse(BastionMath.waveTimeUp(start + 180 * 20 - 1, start, cfg));
+        assertTrue(BastionMath.waveTimeUp(start + 180 * 20, start, cfg));
+        assertEquals(180, BastionMath.waveSecondsLeft(start, start, cfg));
+        assertEquals(1, BastionMath.waveSecondsLeft(start + 180 * 20 - 1, start, cfg));
+        // A boss wave before its boss: no clock yet.
+        assertFalse(BastionMath.waveTimeUp(start + 100000, -1, cfg));
+        assertEquals(-1, BastionMath.waveSecondsLeft(start, -1, cfg));
+        // 0 = no limit.
+        cfg.bastionWaveMaxSeconds = 0;
+        assertFalse(BastionMath.waveTimeUp(start + 100000, start, cfg));
+        assertEquals(-1, BastionMath.waveSecondsLeft(start, start, cfg));
+        cfg.settingsVersion = SiegeConfig.SETTINGS_VERSION;
+        cfg.bastionWaveMaxSeconds = -5;
+        cfg.sanitize();
+        assertEquals(0, cfg.bastionWaveMaxSeconds);
+    }
+
+    @Test
+    void update19SetsTheWaveLimitAndKeepsTheRest() {
+        SiegeConfig old = new SiegeConfig();
+        old.settingsVersion = 18;
+        old.bastionWaveMaxSeconds = 0;
+        old.bastionClearSeconds = 45;
+        old.bastionPauseSeconds = 15;
+        old.sanitize();
+        assertEquals(19, old.settingsVersion);
+        assertEquals(180, old.bastionWaveMaxSeconds);
+        assertEquals(45, old.bastionClearSeconds);
+        assertEquals(15, old.bastionPauseSeconds);
+        old.bastionWaveMaxSeconds = 0;   // switched off after the migration: stays off
+        old.sanitize();
+        assertEquals(0, old.bastionWaveMaxSeconds);
+    }
+
+    @Test
     void wavesClimbTheFullCurve() {
         SiegeConfig cfg = new SiegeConfig();
         // 20 + n of the full curve: with the quarter curve above 20 a wave takes four levels.

@@ -84,6 +84,8 @@ public final class Bastion {
     int killsFrom;
     int quota;
     long stepSince;
+    /** Since when the wave's time limit counts (a boss wave: from its boss); -1 = not yet. */
+    long fightSince = -1;
     long pauseUntil;
     boolean bossWave;
     boolean bossSpawned;
@@ -598,7 +600,7 @@ public final class Bastion {
     }
 
     /** The bar of the round. */
-    Component barTitle(int kills, long now) {
+    Component barTitle(int kills, long now, int secondsLeft) {
         if (step == Step.PAUSE) {
             return Component.translatable("nightsiege.bastion.bar_pause", wave + 1, Math.max(0, (pauseUntil - now + 19) / 20))
                     .withStyle(ChatFormatting.GOLD);
@@ -607,6 +609,9 @@ public final class Bastion {
             return Component.translatable("nightsiege.bastion.bar_clear", wave);
         }
         MutableComponent title = Component.translatable("nightsiege.bastion.bar_wave", wave, Math.min(kills, quota), quota);
+        if (secondsLeft >= 0) {
+            title = title.append(Component.translatable("nightsiege.bastion.bar_time", secondsLeft / 60, String.format("%02d", secondsLeft % 60)));
+        }
         if (bossWave && boss != null && !bossDown) {
             title = title.append(Component.literal("  ·  ")).append(Component.translatable(bossSpawned ? "nightsiege.bar.boss_here"
                     : "nightsiege.bar.boss_coming", Component.translatable("nightsiege.boss." + boss.id())).withStyle(ChatFormatting.RED));

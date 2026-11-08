@@ -251,6 +251,19 @@ final class BastionScenes {
         server(context, "wave 2", (player, m) -> check(m.bastion().wave() == 2 && m.bastion().step() == Bastion.Step.FIGHT
                 && m.foesHost().level() == 28, "wave 2 at level 28 (" + m.bastion().wave() + ", " + m.foesHost().level() + ")"));
 
+        // 5b. The wave ends after its time at the latest (Simon 08.11., 3 min; here 2 s): the last ones fall, no defeat.
+        final int[] limit = new int[1];
+        server(context, "time limit", (player, m) -> {
+            limit[0] = m.config().bastionWaveMaxSeconds;
+            m.config().bastionWaveMaxSeconds = 2;
+        });
+        context.waitTicks(60);
+        server(context, "time up", (player, m) -> {
+            check(m.isBastionRound() && m.bastion().wave() == 2 && m.bastion().step() == Bastion.Step.CLEAR,
+                    "the wave ends after its time, without its kills (" + m.bastion().wave() + ", " + m.bastion().step() + ")");
+            m.config().bastionWaveMaxSeconds = limit[0];
+        });
+
         // 6. Vanilla's zombie reinforcement goes with the night; a plain zombie stays.
         final Mob[] zombies = new Mob[2];
         server(context, "zombies", (player, m) -> {

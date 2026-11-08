@@ -56,7 +56,7 @@ class BalanceFightTest {
         server.championPercentDamageSteps = new int[] {10, 20};
         server.campGraceSeconds = 10;
         server.sanitize();
-        assertEquals(18, server.settingsVersion);
+        assertEquals(SiegeConfig.SETTINGS_VERSION, server.settingsVersion);
         assertEquals(0.30, server.championPercent(25), 1e-9);
         assertEquals(0.30, server.championPercent(25, true), 1e-9);
         assertEquals(0, server.campGraceSeconds);

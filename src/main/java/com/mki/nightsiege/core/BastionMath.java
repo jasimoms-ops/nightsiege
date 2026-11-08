@@ -61,6 +61,19 @@ public final class BastionMath {
         return Math.max(0.0, Math.min(cfg.bastionEliteChanceMax, c));
     }
 
+    /** True when a wave fighting since {@code fightSince} (ticks, below 0 = not yet: a boss wave before its boss) is over its time. */
+    public static boolean waveTimeUp(long now, long fightSince, SiegeConfig cfg) {
+        return cfg.bastionWaveMaxSeconds > 0 && fightSince >= 0 && now - fightSince >= cfg.bastionWaveMaxSeconds * 20L;
+    }
+
+    /** Seconds the wave has left, -1 without a running limit. */
+    public static int waveSecondsLeft(long now, long fightSince, SiegeConfig cfg) {
+        if (cfg.bastionWaveMaxSeconds <= 0 || fightSince < 0) {
+            return -1;
+        }
+        return (int) Math.max(0, (fightSince + cfg.bastionWaveMaxSeconds * 20L - now + 19) / 20);
+    }
+
     /** True from the wave on which nemeses may come back. */
     public static boolean nemesisWave(int wave, SiegeConfig cfg) {
         return wave >= Math.max(1, cfg.bastionNemesisFromWave);

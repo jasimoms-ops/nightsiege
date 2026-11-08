@@ -430,6 +430,7 @@ public final class SiegeManager {
         b.step = Bastion.Step.FIGHT;
         b.stepSince = now;
         b.bossWave = com.mki.nightsiege.core.BastionMath.bossWave(w, config);
+        b.fightSince = b.bossWave ? -1 : now;   // a boss wave's time counts from its boss
         b.bossSpawned = false;
         b.bossDown = false;
         b.boss = b.bossWave ? b.drawBoss() : null;
@@ -474,6 +475,7 @@ public final class SiegeManager {
         }
         if (bosses.spawn(bossHost)) {
             b.bossSpawned = true;
+            b.fightSince = world.getGameTime();
             spawnBossGuards(server);
             broadcast(server, Component.translatable("nightsiege.msg.boss_night",
                     Component.translatable("nightsiege.boss." + b.boss.id())).withStyle(ChatFormatting.DARK_RED, ChatFormatting.BOLD));
@@ -493,6 +495,13 @@ public final class SiegeManager {
                 b.step = Bastion.Step.CLEAR;
                 b.stepSince = now;
                 broadcast(server, Component.translatable("nightsiege.bastion.wave_kills", b.wave).withStyle(ChatFormatting.YELLOW));
+                return;
+            }
+            // Simon 08.11.: the wave ends after its kills or at the latest after bastionWaveMaxSeconds; then as after the kills.
+            if (com.mki.nightsiege.core.BastionMath.waveTimeUp(now, b.fightSince, config)) {
+                b.step = Bastion.Step.CLEAR;
+                b.stepSince = now;
+                broadcast(server, Component.translatable("nightsiege.bastion.wave_time", b.wave).withStyle(ChatFormatting.YELLOW));
                 return;
             }
             if (batchCooldown <= 0) {
@@ -2600,7 +2609,9 @@ public final class SiegeManager {
             return warLeader.barTitle();   // the war leader's round: its build-up, waves and card
         }
         if (bastionRound) {
-            return bastion.barTitle(nightKills - bastion.killsFrom, world == null ? 0L : world.getGameTime());
+            long barNow = world == null ? 0L : world.getGameTime();
+            return bastion.barTitle(nightKills - bastion.killsFrom, barNow,
+                    bastion.step() == Bastion.Step.FIGHT ? com.mki.nightsiege.core.BastionMath.waveSecondsLeft(barNow, bastion.fightSince, config) : -1);
         }
         Component title = save.specialNight
                 ? Component.translatable("nightsiege.bar.title_special", siegeLevel, secondsLeft())
