@@ -929,10 +929,13 @@ public final class CombatEffects {
         int level = nightLevel();
         Long last = minHealAt.get(player.getUUID());
         boolean minReady = last == null || now < last || now - last >= cfg.hitLifestealMinTicks;
-        if (minReady && dealt * cfg.hitLifesteal(subclass) * cfg.hitLifestealLevelFactor(level) < cfg.hitLifestealMinHeal) {
+        if (minReady && dealt * cfg.hitLifestealAt(subclass, level) * cfg.hitLifestealLevelFactor(level) < cfg.hitLifestealMinHeal) {
             minHealAt.put(player.getUUID(), now);   // the floor is used: the next one in hitLifestealMinTicks
         }
         float heal = (float) hitHeal(cfg, subclass, dealt, cleaved, level, minReady);
+        if (heal > 0f && cfg.hitLifestealLateAt(subclass, level)) {
+            heal = StealPool.takeLate(player, heal, now);   // Tor 4: late axe steal capped by the damage taken
+        }
         if (heal > 0f) {
             steal(player, heal);
         }
@@ -945,7 +948,7 @@ public final class CombatEffects {
      */
     public static double hitHeal(com.mki.nightsiege.core.SiegeConfig cfg, String subclass, double dealt, double cleaved,
                                  int level, boolean minReady) {
-        double share = cfg.hitLifesteal(subclass) * cfg.hitLifestealLevelFactor(level);
+        double share = cfg.hitLifestealAt(subclass, level) * cfg.hitLifestealLevelFactor(level);
         if (share <= 0 || dealt <= 0) {
             return 0.0;
         }

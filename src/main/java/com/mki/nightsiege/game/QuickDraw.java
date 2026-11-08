@@ -7,15 +7,15 @@ import net.minecraft.world.entity.LivingEntity;
 
 /**
  * The quick shot's tap (Simon 30.10.: "schnellschütze: schnelles rechts klick drücken funktioniert
- * nicht wirklich flüssig"). A bow shoots nothing when it is let go within two ticks of the press,
- * so every fast click of a quick-shot archer that was a little too fast came to nothing. For him a
- * tap counts as four ticks drawn; his draw assist pulls the arrow on to full force as before.
+ * nicht wirklich flüssig") – until Tor 4 a tap counted as four ticks drawn. Tor 4 (Simon 08.11.,
+ * "spannen statt spammen"): the quick shot has to draw his bow briefly, at least MIN_TICKS; a release
+ * before that shoots nothing (no arrow is used). His draw assist pulls the arrow on to full force as before.
  */
 public final class QuickDraw {
 
-    /** At least this many ticks drawn count for the quick shot (the bow needs three to shoot at all). */
-    public static final int MIN_TICKS = 4;
-    /** For the tests: taps that were too short and now shot. */
+    /** The quick shot has to draw at least this many ticks (half a second) before a release shoots. */
+    public static final int MIN_TICKS = 10;
+    /** For the tests: releases that were too short and shot nothing. */
     private static int saved;
 
     private QuickDraw() {

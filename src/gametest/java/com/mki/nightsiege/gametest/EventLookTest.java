@@ -1252,6 +1252,8 @@ public class EventLookTest implements FabricClientGameTest {
             for (int i = 0; i < levels.length; i++) {
                 manager.save().siegesWon = levels[i] - 1;
                 player.setHealth(2f);
+                // Tor 4: from level 15 the axe heals at most what he lost lately (hitLifestealLateTakenShare).
+                com.mki.nightsiege.game.StealPool.lost(player, 30.0, level.getGameTime());
                 float before = dummy.getHealth();
                 dummy.invulnerableTime = 0;
                 dummy.hurtServer(level, level.damageSources().playerAttack(player), 30f);
@@ -9840,7 +9842,7 @@ public class EventLookTest implements FabricClientGameTest {
             System.out.println(String.format(java.util.Locale.ROOT, "[Night Siege test] warrior dash: moved %.2f blocks (dx %.2f dz %.2f dy %.2f) dashes=%d",
                     Math.sqrt(dx * dx + dz * dz), dx, dz, player.getY() - dashFrom[1], com.mki.nightsiege.game.WarriorDash.dashes()));
         });
-        // Update 30.10.: the quick shot's tap: a bow let go one tick after the press still shoots.
+        // Tor 4: the quick shot has to draw 10 ticks; a bow let go one tick after the press shoots nothing (saved taps = blocked).
         final int[] arrowsBefore = new int[1];
         onServer(context, (player, manager) -> {
             com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
