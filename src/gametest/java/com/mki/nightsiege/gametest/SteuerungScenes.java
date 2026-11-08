@@ -31,7 +31,7 @@ final class SteuerungScenes {
             all[0]++;
             ok[0] += fine ? 1 : 0;
             all[0]++;
-            ok[0] += new com.mki.nightsiege.game.SummonStaffItem(new net.minecraft.world.item.Item.Properties())
+            ok[0] += com.mki.nightsiege.game.ModContent.STAFF   // the registered staff, no new item (registry is frozen)
                     .use(player.level(), player, net.minecraft.world.InteractionHand.MAIN_HAND)
                     == net.minecraft.world.InteractionResult.PASS ? 1 : 0;
         });

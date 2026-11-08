@@ -29,7 +29,8 @@ final class TooltipScenes {
 
     static void run(ClientGameTestContext context, TestSingleplayerContext game) {
         EventLookTest.ensureCore(context, game);
-        game.getServer().runCommand("gamemode creative @p");
+        // survival: in creative the vanilla InventoryScreen.init swaps to the creative inventory (no kit plate, no cells)
+        game.getServer().runCommand("gamemode survival @p");
         game.getServer().runCommand("time set 6000");
         context.waitTicks(10);
         final List<String> learned = new ArrayList<>();
