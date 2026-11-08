@@ -812,6 +812,9 @@ public final class SkillTree {
         if (node == null) {
             return "unknown";
         }
+        if (node.clazz().isShared()) {
+            return "retired";   // the core tree is gone (Simon 27.10.); no points into it, even by a raw packet (Tor 4)
+        }
         if (!node.clazz().isShared() && node.clazz() != skills.clazz()) {
             return skills.hasClass() ? "class" : "nochoice";
         }

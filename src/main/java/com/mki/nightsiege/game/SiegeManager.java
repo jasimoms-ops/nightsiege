@@ -6726,24 +6726,11 @@ public final class SiegeManager {
 
     /** Moves experience from a player into the shared core pot. */
     public void onDonate(ServerPlayer player, int amount) {
-        if (player == null || amount <= 0) {
-            return;
+        // The core tree is gone (Simon 27.10.): points donated to it could never be spent,
+        // so even a raw "donate" packet moves nothing (Tor 4).
+        if (player != null) {
+            openCoreWindow(player);
         }
-        if (playsLent(player)) {
-            player.sendSystemMessage(Component.translatable("nightsiege.fun.not_now").withStyle(ChatFormatting.GRAY));
-            return;   // the lent profile's points are no real points (Update 7)
-        }
-        PlayerSkills own = save.skillsOf(player.getUUID().toString());
-        int moved = Math.min(amount, own.points());
-        if (moved > 0) {
-            own.spend(moved);
-            own.donated += moved;
-            save.coreSkills().award(moved);
-            persist();
-            broadcast(player.level().getServer(), Component.translatable("nightsiege.msg.donated",
-                    player.getScoreboardName(), moved).withStyle(ChatFormatting.AQUA));
-        }
-        openCoreWindow(player);
     }
 
     /** Creative only: hands a player experience so a class can be tried out. */
