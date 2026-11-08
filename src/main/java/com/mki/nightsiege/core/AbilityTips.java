@@ -108,6 +108,7 @@ public final class AbilityTips {
             x.cooldownTicks = secondCooldown;
             out.add(x);
         }
+        out.addAll(barTips(tree, own));   // Tor 3.4: every ability on a key of its own
         return out;
     }
 
@@ -187,6 +188,135 @@ public final class AbilityTips {
             }
         }
         return tip;
+    }
+
+    // ------------------------------------------------------------------ the abilities on Q, F, Y, sneak + Y
+
+    /** Ticks between two dashes of a warrior (Simon: every 10 s); WarriorDash fires on it. */
+    public static final int DASH_PAUSE = 200;
+
+    /**
+     * Tor 3.4: a tooltip for every ability of the subclass that has a key in {@link AbilityKeys} (the
+     * F field has its own, {@link #fTip}); {@link AbilityTip#slot} is the ability id of the bar's box.
+     */
+    public static List<AbilityTip> barTips(SkillTree tree, PlayerSkills own) {
+        List<AbilityTip> out = new ArrayList<>();
+        if (own == null || !own.hasClass()) {
+            return out;
+        }
+        List<AbilityKeys.Entry> entries = AbilityKeys.table().get(tree.subclassOf(own));
+        if (entries == null) {
+            return out;
+        }
+        for (AbilityKeys.Entry e : entries) {
+            if (AbilityKeys.F_ACTION.equals(e.id())) {
+                continue;
+            }
+            AbilityTip tip = barTip(tree, own, e.id());
+            if (tip != null) {
+                tip.key = e.key().name();
+                out.add(tip);
+            }
+        }
+        return out;
+    }
+
+    /** One ability of the bar: name, text with the numbers it reads, its pause, the skills that change it. */
+    static AbilityTip barTip(SkillTree tree, PlayerSkills own, String id) {
+        AbilityTip tip = new AbilityTip();
+        tip.slot = id;
+        switch (id) {
+            case AbilityKeys.SHIELD -> {
+                fromNode(tree, own, tip, "g_shieldthrow", "nightsiege.ability.shield_throw", null);
+                tip.cooldownTicks = ticks("g_shieldthrow", "cd", 160);
+            }
+            case "hand" -> {
+                fromNode(tree, own, tip, "g_healing_hand", "nightsiege.heal.hand", null);
+                tip.cooldownTicks = ticks("g_healing_hand", "cd", 120);
+            }
+            case "selfheal" -> {
+                fromNode(tree, own, tip, "g_healing_hand", "nightsiege.heal.self", KEY + "desc.selfheal");
+                tip.cooldownTicks = ticks("g_healing_hand", "cd", 120);
+            }
+            case "ward" -> {
+                String node = own.levelOf("g_ward") > 0 ? "g_ward" : "s_cross_ward";
+                fromNode(tree, own, tip, node, "nightsiege.heal.ward", null);
+                tip.cooldownTicks = ticks(node, "interval", 160);
+            }
+            case "dome" -> {
+                fromNode(tree, own, tip, "g_dome", "nightsiege.heal.dome", null);
+                tip.cooldownTicks = ticks("g_dome", "cd", 500);
+            }
+            case "acid" -> {
+                fromNode(tree, own, tip, "e_acid_flask", "nightsiege.ability.acid", null);
+                tip.cooldownTicks = ticks("e_acid_flask", "pause", 240);
+            }
+            case "escape" -> {
+                plain(tip, "nightsiege.ability.escape", "escape", "e_escape");
+                tip.cooldownTicks = ticks("e_escape", "pause", 300);
+            }
+            case "dash" -> {
+                plain(tip, "nightsiege.ability.dash", "dash", null);
+                tip.cooldownTicks = DASH_PAUSE;
+            }
+            case "quiver" -> plain(tip, "nightsiege.wheel.quiver", "quiver", null);
+            case "brew" -> {
+                plain(tip, "nightsiege.wheel.brews", "brew", "potion_tower");
+                tip.cooldownTicks = ticks("potion_tower", "zonepause", 400);
+            }
+            case "call" -> {
+                plain(tip, "nightsiege.ability.call", "call", null);
+                tip.main.values.put("reach", SkillValues.get("s_callrange", "base", 16.0) + tree.totalBonus(SkillEffect.CALL_RANGE, own));
+                modsOf(tree, own, tip, "s_callrange");
+            }
+            case "raise", "wall", "curse" -> plain(tip, "nightsiege.spell." + id, id, "d_necro");
+            case "swarm", "fear" -> {
+                plain(tip, "nightsiege.spell." + id, id, "d_soulcatcher");
+                if ("swarm".equals(id)) {
+                    double cd = SkillValues.get("d_soulcatcher", "swarmcd", 120);
+                    if (SkillTree.has(own, "d_haste")) {
+                        cd -= tree.totalBonus(SkillEffect.GHOST_HASTE, own) * 20.0;   // as Companions.spellCooldown
+                    }
+                    tip.cooldownTicks = (int) Math.max(20, Math.round(cd));
+                }
+            }
+            default -> {
+                return null;
+            }
+        }
+        return tip;
+    }
+
+    /** The ability is a skill node: its text and numbers at the player's rank, the skills that need it. */
+    private static void fromNode(SkillTree tree, PlayerSkills own, AbilityTip tip, String nodeId, String name, String desc) {
+        SkillNode node = tree.get(nodeId);
+        if (node == null) {
+            plain(tip, name, nodeId, nodeId);
+            return;
+        }
+        tip.main = part(node, Math.max(1, own.levelOf(nodeId)));
+        tip.main.name = name;
+        if (desc != null) {
+            tip.main.desc = desc;
+        }
+        for (SkillNode n : tree.all()) {
+            if (n != node && own.levelOf(n.id()) > 0 && needs(n.requires(), nodeId)) {
+                tip.mods.add(part(n, own.levelOf(n.id())));
+            }
+        }
+    }
+
+    /** An ability without a node of its own: its text and the numbers of {@code values} (null: none). */
+    private static void plain(AbilityTip tip, String name, String desc, String values) {
+        tip.main.name = name;
+        tip.main.desc = KEY + "desc." + desc;
+        if (values != null) {
+            tip.main.values.putAll(SkillValues.of(values));
+        }
+    }
+
+    private static int ticks(String node, String key, double fallback) {
+        return (int) Math.round(SkillValues.get(node, key, fallback));
     }
 
     // ------------------------------------------------------------------ helpers

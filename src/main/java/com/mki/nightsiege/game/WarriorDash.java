@@ -25,7 +25,7 @@ public final class WarriorDash {
     /** Its id on the ability bar. */
     public static final String ID = "dash";
     /** Ticks between two dashes (Simon: every 10 s). */
-    static final int PAUSE = 200;
+    static final int PAUSE = com.mki.nightsiege.core.AbilityTips.DASH_PAUSE;
     /** About three blocks: on the ground the friction takes 45 % a tick, in the air the drag 9 %. */
     static final double GROUND_SPEED = 1.2;
     static final double AIR_SPEED = 0.28;

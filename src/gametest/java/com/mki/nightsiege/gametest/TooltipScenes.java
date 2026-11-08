@@ -34,7 +34,10 @@ final class TooltipScenes {
         game.getServer().runCommand("time set 6000");
         context.waitTicks(10);
         final List<String> learned = new ArrayList<>();
+        final java.util.Set<String> subNodes = new java.util.HashSet<>();
+        SkillTree.SUBCLASSES.forEach(i -> subNodes.add(i.node()));
         int shots = 0;
+        int full = 0;
         for (SkillTree.SubclassInfo info : SkillTree.SUBCLASSES) {
             EventLookTest.onServer(context, (player, manager) -> {
                 if (!manager.isRegistered(player)) {
@@ -48,13 +51,20 @@ final class TooltipScenes {
                 learned.clear();
                 own.setLevel(info.node(), 1);
                 learned.add(info.node());
+                // Tor 3.4: every ability of the class (not the other subclasses), and the way's first ultimate
+                boolean ult = false;
                 for (SkillNode n : manager.skillTree().all()) {
-                    if (n.clazz() == info.clazz() && n.effect().target() == SkillEffect.Target.ULTIMATE
-                            && info.way().equals(n.path())) {
-                        own.setLevel(n.id(), 2);
-                        learned.add(n.id());
-                        break;
+                    if (n.clazz() != info.clazz() || subNodes.contains(n.id())) {
+                        continue;
                     }
+                    if (n.effect().target() == SkillEffect.Target.ULTIMATE) {
+                        if (ult || !info.way().equals(n.path())) {
+                            continue;
+                        }
+                        ult = true;
+                    }
+                    own.setLevel(n.id(), n.maxLevel());
+                    learned.add(n.id());
                 }
                 manager.giveKits(player.level().getServer(), (ServerLevel) player.level(), player.blockPosition(), 7, true);
                 manager.sendUltHud(player);
@@ -66,7 +76,8 @@ final class TooltipScenes {
             int tips = context.computeOnClient(client -> UltHud.state() == null || UltHud.state().tips == null
                     ? 0 : UltHud.state().tips.size());
             log(info.key() + " tips=" + tips);
-            for (int i = 0; i < 3; i++) {
+            int fields = 0;
+            for (int i = 0; i < 16; i++) {   // Tor 3.4: every field, X and the bar's Q, F, Y, sneak + Y
                 final int cell = i;
                 double[] at = context.computeOnClient(client -> {
                     int[] c = KitInventory.cellCenter(cell);
@@ -80,10 +91,14 @@ final class TooltipScenes {
                 context.waitTicks(3);
                 context.takeScreenshot("tooltip_" + info.key() + "_" + cell);
                 shots++;
+                fields++;
             }
+            log((fields > 0 ? "OK   " : "FAIL ") + info.key() + " fields=" + fields);
+            full += fields > 0 ? 1 : 0;
             EventLookTest.closeScreen(context);
             context.waitTicks(5);
         }
         log("RESULT screenshots=" + shots);
+        System.out.println("[Night Siege test] tooltips: " + full + " von " + SkillTree.SUBCLASSES.size());
     }
 }

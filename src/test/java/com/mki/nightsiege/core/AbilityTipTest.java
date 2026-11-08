@@ -73,7 +73,7 @@ class AbilityTipTest {
                 assertEquals(info.key(), tree.subclassOf(p));
                 String f = AbilityTips.fName(tree, p);
                 List<AbilityTip> list = AbilityTips.build(tree, p, true, f, SECOND.get(info.clazz().name()), 1800);
-                assertEquals(f == null ? 2 : 3, list.size(), info.key() + " " + ult.id());
+                assertEquals(f == null ? 2 : 3, list.stream().filter(t -> t.key.isEmpty()).count(), info.key() + " " + ult.id());
                 for (AbilityTip tip : list) {
                     tips++;
                     for (Map.Entry<String, Map<String, String>> l : langs.entrySet()) {
@@ -104,6 +104,59 @@ class AbilityTipTest {
         }
         assertEquals(20, subclasses);
         assertTrue(tips >= 60, "tips " + tips);
+    }
+
+    /** Tor 3.4: every ability with a key in AbilityKeys, for all 20 subclasses: name, key, cooldown, no open placeholder. */
+    @Test
+    void everyAbilityOnAKeyHasATooltip() throws Exception {
+        SkillTree tree = new SkillTree();
+        Map<String, Map<String, String>> langs = Map.of("de_de", lang("de_de"), "en_us", lang("en_us"));
+        Set<String> subNodes = new java.util.HashSet<>();
+        SkillTree.SUBCLASSES.forEach(i -> subNodes.add(i.node()));
+        int subclasses = 0;
+        int abilities = 0;
+        for (SkillTree.SubclassInfo info : SkillTree.SUBCLASSES) {
+            PlayerSkills p = new PlayerSkills();
+            p.chosenClass = info.clazz().name();
+            for (SkillNode n : tree.all()) {   // everything of the class but the other subclasses, so the skill lines show too
+                if (n.clazz() == info.clazz() && (!subNodes.contains(n.id()) || n.id().equals(info.node()))) {
+                    p.setLevel(n.id(), 1);
+                }
+            }
+            assertEquals(info.key(), tree.subclassOf(p));
+            List<AbilityKeys.Entry> entries = AbilityKeys.table().get(info.key());
+            assertNotNull(entries, info.key() + " has no keys");
+            subclasses++;
+            List<AbilityTip> tips = AbilityTips.barTips(tree, p);
+            for (AbilityKeys.Entry e : entries) {
+                if (AbilityKeys.F_ACTION.equals(e.id())) {
+                    continue;   // the F field: the test above
+                }
+                abilities++;
+                AbilityTip tip = tips.stream().filter(t -> t.slot.equals(e.id())).findFirst().orElse(null);
+                assertNotNull(tip, info.key() + " " + e.id() + " has no tooltip");
+                assertEquals(e.key().name(), tip.key, info.key() + " " + e.id() + " key");
+                for (Map.Entry<String, Map<String, String>> l : langs.entrySet()) {
+                    Map<String, String> m = l.getValue();
+                    String where = l.getKey() + " " + info.key() + " " + e.id();
+                    assertNotNull(m.get(tip.main.name), where + " name " + tip.main.name);
+                    assertNotNull(m.get(tip.main.desc), where + " text " + tip.main.desc);
+                    List<String> lines = AbilityTipText.lines(tip, tip.key, m::get);
+                    assertTrue(lines.get(0).contains(m.get(tip.main.name)), where + " name line");
+                    assertTrue(lines.get(1).contains(tip.key), where + " key line");
+                    String cdPrefix = m.get(AbilityTips.KEY + "cooldown").replace("%s", "");
+                    String noCd = m.get(AbilityTips.KEY + "cooldown_none");
+                    assertTrue(lines.stream().anyMatch(s -> s.contains(cdPrefix) || s.contains(noCd)), where + " cooldown");
+                    for (String line : lines) {
+                        assertFalse(line.contains("{") || line.contains("}"), where + " open placeholder: " + line);
+                        assertFalse(line.contains("nightsiege."), where + " missing text: " + line);
+                        assertFalse(line.contains("%s") || line.contains("%1$s"), where + " open argument: " + line);
+                    }
+                }
+            }
+        }
+        assertEquals(20, subclasses);
+        assertTrue(abilities >= 40, "abilities " + abilities);
     }
 
     @Test

@@ -11,8 +11,10 @@ import java.util.Map;
  * ability uses ({@link SkillValues}, the player's skill nodes) and sent with the {@link UltState} as JSON.
  */
 public class AbilityTip {
-    /** Which field: "q" (ultimate), "f" (ability 2), "x" (second ultimate). */
+    /** Which field: "q" (ultimate), "f" (ability 2), "x" (second ultimate), else the bar ability's id (Tor 3.4). */
     public String slot = "";
+    /** Tor 3.4: a bar ability's key from {@link AbilityKeys} (Q, F, Y, SNEAK_Y); empty for the Q/F/X fields. */
+    public String key = "";
     /** The ability itself: name, text and its numbers. */
     public Part main = new Part();
     /** Full cooldown in ticks as the game uses it now; -1 when the ability has none of its own. */

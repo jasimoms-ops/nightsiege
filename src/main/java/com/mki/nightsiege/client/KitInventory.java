@@ -153,7 +153,38 @@ public final class KitInventory {
                 gui.pose().popMatrix();
                 ax += 20;
             }
+            // Tor 3.4: every ability on Q, F, Y, sneak + Y gets a field with its tooltip, in a column right of the panel.
+            List<UltHud.Cell> bar = UltHud.choiceCells(s, mc);
+            int bx = left + 180;
+            int by = top + 8;
+            for (int i = 0; i < bar.size() && i < s.slots.size(); i++) {
+                UltHud.Cell c = bar.get(i);
+                KitHud.blit(gui, SLOT, bx, by, 18, 18);
+                gui.item(c.icon(), bx + 1, by + 1);
+                CELL_AT.add(new int[]{bx, by});
+                CELL_TIP.add(barTip(s, s.slots.get(i).id));
+                CELL_KEY.add(AbilityKeys.labelFor(c));
+                String key = c.keyText();
+                gui.pose().pushMatrix();
+                gui.pose().translate(bx + 16.5f - font.width(key) / 2f, by + 12.5f);
+                gui.pose().scale(0.5f, 0.5f);
+                gui.text(font, key, 0, 0, 0xFFF0D27A, true);
+                gui.pose().popMatrix();
+                by += 20;
+            }
         }
+    }
+
+    /** The tooltip the server built for a box of the bar (its ability id), null when there is none. */
+    private static com.mki.nightsiege.core.AbilityTip barTip(UltState s, String id) {
+        if (s.tips != null && id != null) {
+            for (com.mki.nightsiege.core.AbilityTip t : s.tips) {
+                if (id.equals(t.slot)) {
+                    return t;
+                }
+            }
+        }
+        return null;
     }
 
     private static void value(GuiGraphicsExtractor gui, Font font, Identifier icon, int x, int y, String text) {
