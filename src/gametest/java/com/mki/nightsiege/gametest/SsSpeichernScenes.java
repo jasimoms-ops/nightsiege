@@ -194,15 +194,15 @@ final class SsSpeichernScenes {
         context.waitTicks(20);
     }
 
-    /** In the night (keys owned): another mod's mapping on N still fires, vanilla's save-hotbar on C does not. */
+    /** In the night (keys owned): another mod's mapping on G still fires, vanilla's save-hotbar on C does not. */
     private static void keysScene(ClientGameTestContext context) {
         context.runOnClient(client -> {
-            net.minecraft.client.KeyMapping gain = com.mki.nightsiege.client.GainClient.gainKey(0);
+            net.minecraft.client.KeyMapping gain = com.mki.nightsiege.client.GainClient.slotKey(1);   // Tor 3.2: the gain keys N, M, J are gone, G (bar 2) stands in
             net.minecraft.client.KeyMapping slot = com.mki.nightsiege.client.GainClient.slotKey(3);
             net.minecraft.client.KeyMapping voice = new net.minecraft.client.KeyMapping("key.ss_test.voice",
-                    org.lwjgl.glfw.GLFW.GLFW_KEY_N, gain.getCategory());
+                    org.lwjgl.glfw.GLFW.GLFW_KEY_G, gain.getCategory());
             net.minecraft.client.KeyMapping hotbar = client.options.keySaveHotbarActivator;
-            com.mojang.blaze3d.platform.InputConstants.Key n = com.mojang.blaze3d.platform.InputConstants.getKey("key.keyboard.n");
+            com.mojang.blaze3d.platform.InputConstants.Key n = com.mojang.blaze3d.platform.InputConstants.getKey("key.keyboard.g");
             com.mojang.blaze3d.platform.InputConstants.Key c = com.mojang.blaze3d.platform.InputConstants.getKey("key.keyboard.c");
             while (voice.consumeClick() || gain.consumeClick() || slot.consumeClick() || hotbar.consumeClick()) {
                 // drained
@@ -222,7 +222,7 @@ final class SsSpeichernScenes {
             com.mki.nightsiege.client.NightKeys.setOwned(false);
             voice.setKey(com.mojang.blaze3d.platform.InputConstants.UNKNOWN);
             net.minecraft.client.KeyMapping.resetMapping();
-            log("keys N voice=" + voiceClick + " voiceDown=" + voiceDown + " gain=" + gainClick
+            log("keys G voice=" + voiceClick + " voiceDown=" + voiceDown + " gain=" + gainClick
                     + " | C (hotbarOnC=" + hotbarOnC + " slotOnC=" + slotOnC + ") hotbar=" + hotbarClick + " slot=" + slotClick);
         });
         context.waitTicks(10);

@@ -44,12 +44,10 @@ public final class NightKeys {
                 out.add(m);
             }
         }
-        // The gain keys (balance update 2): in the kit they win over the map, the night vision and the like.
-        for (int i = 0; i < GainClient.GAIN_KEYS; i++) {
-            KeyMapping m = GainClient.gainKey(i);
-            if (m != null && !m.isUnbound()) {
-                out.add(m);
-            }
+        // The gain wheel key (Tor 3.2, one key for every gain): in the night it is Night Siege's alone too.
+        KeyMapping wheel = GainClient.wheelKey();
+        if (wheel != null && !wheel.isUnbound()) {
+            out.add(wheel);
         }
         return out;
     }
@@ -101,6 +99,15 @@ public final class NightKeys {
         return (name == null || !name.startsWith("key.nightsiege.")) && !vanilla().contains(m);   // the guide key and the like stay held back
     }
 
+    /**
+     * The gain wheel's key gives way to no one in the night, other mods included (Tor 3.2, Simon
+     * 08.11.: "nicht mod exklusiv geblockt"); the other ability keys still share with other mods (31.10.).
+     */
+    private static boolean wheelHas(InputConstants.Key key) {
+        KeyMapping wheel = GainClient.wheelKey();
+        return wheel != null && !wheel.isUnbound() && wheel.matches(key);
+    }
+
     /** The mappings bound to this key, as vanilla's click and set see them. */
     private static List<KeyMapping> boundTo(InputConstants.Key key) {
         try {
@@ -126,7 +133,7 @@ public final class NightKeys {
                 mine = true;
             }
         }
-        if (mine) {
+        if (mine && !wheelHas(key)) {
             for (KeyMapping m : boundTo(key)) {
                 if (otherMod(m, own)) {
                     KeyMappingAccessor counter = (KeyMappingAccessor) m;
@@ -150,7 +157,7 @@ public final class NightKeys {
                 mine = true;
             }
         }
-        if (mine) {
+        if (mine && !wheelHas(key)) {
             for (KeyMapping m : boundTo(key)) {
                 if (otherMod(m, own)) {
                     m.setDown(down);

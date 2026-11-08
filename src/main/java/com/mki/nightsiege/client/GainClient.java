@@ -15,7 +15,7 @@ import org.lwjgl.glfw.GLFW;
 
 /**
  * The client side of the crate gains and abilities: Fähigkeit 2 (F), the second-ult key (X),
- * the six keys of the ability bar and the double jump of the jump boots. The scope lives in a mixin.
+ * the six keys of the ability bar, the gain wheel (R) and the double jump of the jump boots. The scope lives in a mixin.
  */
 public final class GainClient {
 
@@ -28,10 +28,18 @@ public final class GainClient {
     /** Around WASD: R, G, Y (Z on QWERTY), C, V, B. */
     private static final int[] SLOT_DEFAULTS = {GLFW.GLFW_KEY_R, GLFW.GLFW_KEY_G, GLFW.GLFW_KEY_Z, GLFW.GLFW_KEY_C,
             GLFW.GLFW_KEY_V, GLFW.GLFW_KEY_B};
-    /** The gain keys (balance update 2, Simon 29.10.: N, M, J): the crate gains with an ability of their own. */
+    /**
+     * The gains with an ability of their own (balance update 2): at most three places ("Third Hand").
+     * Tor 3.2 (Simon 08.11.): one key with a wheel instead of N, M, J, which the left hand could not
+     * reach and which Simple Voice Chat also used. R: free in vanilla, in Simple Voice Chat (N, M, V, G,
+     * H, Caps Lock) and in Crawl on Demand (Z), next to the ability keys Q, F, Y and X.
+     */
     public static final int GAIN_KEYS = 3;
-    private static final KeyMapping[] GAIN_KEY_MAPPINGS = new KeyMapping[GAIN_KEYS];
-    private static final int[] GAIN_DEFAULTS = {GLFW.GLFW_KEY_N, GLFW.GLFW_KEY_M, GLFW.GLFW_KEY_J};
+    private static KeyMapping gainWheelKey;
+    /** The place used last (a tap uses it again); -1 before the first. */
+    private static int lastGain = -1;
+    /** Ticks the gain key has been held since its press, -1 while it is up. */
+    private static int gainHeld = -1;
     /** The arrow or potion key being held (its bar index), -1 for none; whether the wheel turned meanwhile. */
     private static int heldSlot = -1;
     private static boolean scrolled;
@@ -61,8 +69,31 @@ public final class GainClient {
         return index >= 0 && index < SLOTS ? SLOT_KEYS[index] : null;
     }
 
+    /** The key of gain place {@code index}: since Tor 3.2 the one wheel key for every place. */
     public static KeyMapping gainKey(int index) {
-        return index >= 0 && index < GAIN_KEYS ? GAIN_KEY_MAPPINGS[index] : null;
+        return index >= 0 && index < GAIN_KEYS ? gainWheelKey : null;
+    }
+
+    /** The gain key (hold: wheel, tap: the gain used last). */
+    public static KeyMapping wheelKey() {
+        return gainWheelKey;
+    }
+
+    /** Uses gain place {@code index} (the wheel, a tap) and keeps it for the next tap. */
+    public static void useGain(int index) {
+        lastGain = index;
+        send("gain:" + index);
+    }
+
+    private static int gainCount() {
+        com.mki.nightsiege.core.UltState s = UltHud.state();
+        return s == null || s.gains == null ? 0 : Math.min(s.gains.size(), GAIN_KEYS);
+    }
+
+    /** True when bar key i lies on the same key as the gain wheel: then the wheel has it alone. */
+    private static boolean underWheel(int i) {
+        return gainWheelKey != null && !gainWheelKey.isUnbound()
+                && SLOT_KEYS[i].saveString().equals(gainWheelKey.saveString());
     }
 
     public static void init(KeyMapping.Category category) {
@@ -74,11 +105,15 @@ public final class GainClient {
             SLOT_KEYS[i] = KeyMappingHelper.registerKeyMapping(
                     new KeyMapping("key.nightsiege.slot" + (i + 1), SLOT_DEFAULTS[i], category));
         }
-        for (int i = 0; i < GAIN_KEYS; i++) {
-            GAIN_KEY_MAPPINGS[i] = KeyMappingHelper.registerKeyMapping(
-                    new KeyMapping("key.nightsiege.gain" + (i + 1), GAIN_DEFAULTS[i], category));
-        }
+        // The old gain1..3 (N, M, J) are no longer registered: their lines in options.txt are simply
+        // ignored, nothing to move over (the wheel key is new).
+        gainWheelKey = KeyMappingHelper.registerKeyMapping(
+                new KeyMapping("key.nightsiege.gain_wheel", GLFW.GLFW_KEY_R, category));
         ClientTickEvents.END_CLIENT_TICK.register(GainClient::tick);
+        // The gain cooldowns as their own small element at the right edge (does not touch the kit HUD).
+        net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry.attachElementAfter(
+                net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements.HOTBAR,
+                com.mki.nightsiege.game.ModContent.id("gain_cooldowns"), (gui, delta) -> GainCooldownHud.draw(gui));
     }
 
     /** True when bar key i holds a set of choices (arrows, potions) that the mouse wheel goes through. */
@@ -131,7 +166,7 @@ public final class GainClient {
         // (Simon 30.10.): held, the mouse wheel changes the choice; let go without turning it, a tap.
         for (int i = 0; i < SLOTS; i++) {
             while (SLOT_KEYS[i].consumeClick()) {
-                if (client.gui.screen() == null) {
+                if (client.gui.screen() == null && !underWheel(i)) {
                     if (scrollSlot(i)) {
                         heldSlot = i;
                         scrolled = false;
@@ -148,10 +183,26 @@ public final class GainClient {
             }
             heldSlot = -1;
         }
-        for (int i = 0; i < GAIN_KEYS; i++) {
-            while (GAIN_KEY_MAPPINGS[i].consumeClick()) {
-                if (client.gui.screen() == null) {
-                    send("gain:" + i);
+        // The gain wheel (Tor 3.2): held a quarter second the wheel opens, a tap uses the last gain.
+        while (gainWheelKey.consumeClick()) {
+            if (client.gui.screen() == null && gainHeld < 0) {
+                gainHeld = 0;
+            }
+        }
+        if (gainHeld >= 0) {
+            int n = gainCount();
+            if (client.gui.screen() != null) {
+                gainHeld = -1;   // something else opened meanwhile
+            } else if (!gainWheelKey.isDown()) {
+                if (com.mki.nightsiege.core.GainWheelLogic.isTap(gainHeld)) {
+                    // without gains the server says so ("No ability for the gain keys yet")
+                    useGain(Math.max(0, com.mki.nightsiege.core.GainWheelLogic.tapIndex(lastGain, n)));
+                }
+                gainHeld = -1;
+            } else if (++gainHeld >= com.mki.nightsiege.core.GainWheelLogic.HOLD_TICKS) {
+                gainHeld = -1;
+                if (n > 0) {
+                    client.gui.setScreen(new GainWheelScreen(com.mki.nightsiege.core.GainWheelLogic.tapIndex(lastGain, n)));
                 }
             }
         }
