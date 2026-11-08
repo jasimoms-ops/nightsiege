@@ -1087,20 +1087,7 @@ class SiegeCoreTest {
         assertEquals("class", tree.blockedReason("warrior_drill", skills));
     }
 
-    @Test
-    void theCoreTreeNeedsNoClass() {
-        SkillTree tree = new SkillTree();
-        PlayerSkills pot = new PlayerSkills();
-        pot.award(100);
-        assertNull(tree.blockedReason("masonry", pot));
-        assertTrue(tree.unlock("masonry", pot));
-        // Battlements and rebuilding follow the masonry, the beacon fire the fortified ground.
-        assertNull(tree.blockedReason("battlements", pot));
-        assertNotNull(tree.blockedReason("rebuild", pot));
-        assertNotNull(tree.blockedReason("beacon_fire", pot));
-        assertTrue(tree.unlock("fortified", pot));
-        assertTrue(tree.unlock("beacon_fire", pot));
-    }
+    // theCoreTreeNeedsNoClass: the core tree is retired (Tor 4), see SkillbaumTor4Test.coreTreeCanNoLongerBeBought.
 
     @Test
     void theArcherPicksBowOrCrossbow() {
