@@ -499,6 +499,10 @@ public final class SiegeManager {
             }
             // Simon 08.11.: the wave ends after its kills or at the latest after bastionWaveMaxSeconds; then as after the kills.
             if (com.mki.nightsiege.core.BastionMath.waveTimeUp(now, b.fightSince, config)) {
+                if (com.mki.nightsiege.core.BastionMath.bossLeavesAtTimeUp(b.bossWave, b.bossSpawned, b.bossDown)) {
+                    bosses.reset(server);   // removed, not killed: no death event, no boss reward
+                    resetBossGuards(server);
+                }
                 b.step = Bastion.Step.CLEAR;
                 b.stepSince = now;
                 broadcast(server, Component.translatable("nightsiege.bastion.wave_time", b.wave).withStyle(ChatFormatting.YELLOW));
