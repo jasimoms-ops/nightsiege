@@ -284,6 +284,12 @@ public final class WarriorSpirit {
         s.counted = false;
     }
 
+    /** How charged this tick's swing was (0 when the hit came from no swing of this tick); Erdstoß asks it. */
+    public static float swingCharge(ServerPlayer player, long now) {
+        Swing s = player == null ? null : SWINGS.get(player.getUUID());
+        return s == null || s.tick != now ? 0f : s.charge;
+    }
+
     /**
      * A melee hit of a warrior on a monster with the weapon of his way (CombatEffects; a killing blow
      * too). {@code hit} is the damage of the hit. Fills the meter, counts the chain and fires the finisher.
