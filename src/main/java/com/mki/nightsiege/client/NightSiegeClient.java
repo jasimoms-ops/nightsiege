@@ -251,10 +251,20 @@ public class NightSiegeClient implements ClientModInitializer {
                     ? com.mki.nightsiege.core.KeyHint.REMOTE
                     : ModContent.STAFF != null && stack.is(ModContent.STAFF)
                     ? com.mki.nightsiege.core.KeyHint.STAFF
+                    : stack.getItem() instanceof com.mki.nightsiege.game.HealerStaffItem
+                    ? com.mki.nightsiege.core.KeyHint.HEALER_STAFF
                     : com.mki.nightsiege.core.KeyHint.forGadget(com.mki.nightsiege.game.Gadgets.of(stack));
             Component line = KeyHints.line(hint);
             if (line != null) {
                 lines.add(line);
+            }
+            if (stack.getItem() instanceof com.mki.nightsiege.game.HealerStaffItem) {
+                // Tor 4.7: what one bolt deals, how far and how often (the kit writes the damage on the staff).
+                lines.add(Component.translatable("nightsiege.tooltip.healer_staff",
+                        String.format(java.util.Locale.ROOT, "%.1f", com.mki.nightsiege.game.HealerStaffItem.boltDamage(stack)),
+                        (int) com.mki.nightsiege.core.NightKit.HEALER_BOLT_RANGE,
+                        String.format(java.util.Locale.ROOT, "%.2f", 20.0 / com.mki.nightsiege.core.NightKit.HEALER_BOLT_PAUSE))
+                        .withStyle(net.minecraft.ChatFormatting.GRAY));
             }
         });
         // Shield energy (Simon 26.10.): a short line on every kit shield.

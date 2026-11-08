@@ -410,6 +410,9 @@ final class TeamBrain {
             } else if (inReach && clazz == SkillClass.SUMMONER && now % 10 == 0
                     && MeleeSim.hold(player, s -> s.is(ModContent.STAFF))) {
                 m.onCoreAction(player, "staffhit");
+            } else if (guardian && close != null && now % 5 == 0 && player.distanceTo(close) <= com.mki.nightsiege.core.NightKit.HEALER_BOLT_RANGE
+                    && MeleeSim.hold(player, s -> s.getItem() instanceof HealerStaffItem)) {
+                m.onCoreAction(player, "staffhit");   // the healers' staff (Tor 4.7)
             } else if (guardian && !player.isUsingItem() && !player.getItemBySlot(EquipmentSlot.OFFHAND).isEmpty()) {
                 player.startUsingItem(InteractionHand.OFF_HAND);
             }

@@ -98,8 +98,8 @@ class StreitkolbenTest {
         assertNotEquals(shield.key(), bulwark.key());
         assertEquals("nightsiege:kit/shieldfighter_crestmace", shield.itemModel());
         assertEquals("nightsiege.kitweapon.bulwark_wallmace", bulwark.nameKey());
-        // The healers keep their swords.
-        assertEquals(KitWeapons.Kind.SWORD, KitWeapons.of(SkillTree.SUB_MEDIC).kind());
-        assertEquals(KitWeapons.Kind.SWORD, KitWeapons.of(SkillTree.SUB_WARDEN).kind());
+        // The healers carry their staff since Tor 4.7 (HeilerstabTest).
+        assertEquals(KitWeapons.Kind.HEALER_STAFF, KitWeapons.of(SkillTree.SUB_MEDIC).kind());
+        assertEquals(KitWeapons.Kind.HEALER_STAFF, KitWeapons.of(SkillTree.SUB_WARDEN).kind());
     }
 }

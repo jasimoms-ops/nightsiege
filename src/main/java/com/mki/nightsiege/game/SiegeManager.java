@@ -1347,6 +1347,7 @@ public final class SiegeManager {
         combat.tick(server);
         // Companions stay with summoners who defend the night (or try them out in creative).
         safe("Begleiter", () -> companions.tick(server, p -> isDefending(p) || p.getAbilities().instabuild));
+        safe("Heilerstab", () -> HealerStaffItem.tick(server));
         safe("Kisten-Effekt", () -> CrateFx.tick(server));
         EventAtmosphere.tickServer();
         BaseDefense.tickHighlights(server);
@@ -6113,7 +6114,11 @@ public final class SiegeManager {
             case "ult" -> onUltimateKey(player);
             case "ult2" -> onSecondKey(player);
             case "ult2x" -> SecondUlts.fire(player);   // X: the second ultimate alone (27 October 2026)
-            case "staffhit" -> companions.staffAttack(player);   // left click with the staff (27 October 2026)
+            case "staffhit" -> {   // left click with the staff (27 October 2026); the healers' staff since Tor 4.7
+                if (!HealerStaffItem.attack(player)) {
+                    companions.staffAttack(player);
+                }
+            }
             case "quiver" -> abilityThreeTap(player);
             case "slot" -> onSlotKey(player, parseAmount(argument));   // the ability bar (27 October 2026)
             case "cycle" -> onCycle(player, argument);   // arrows and potions: the key held, the wheel turned (30.10.)

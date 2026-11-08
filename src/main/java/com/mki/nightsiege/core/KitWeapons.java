@@ -16,7 +16,7 @@ import java.util.Map;
 public final class KitWeapons {
 
     /** What kind of kit item carries the look. */
-    public enum Kind { SWORD, AXE, BOW, CROSSBOW, STAFF, MACE }
+    public enum Kind { SWORD, AXE, BOW, CROSSBOW, STAFF, MACE, HEALER_STAFF }
 
     /** The look of one subclass: resource key and the kit item it goes on. */
     public record Look(String subclass, String key, Kind kind) {
@@ -42,8 +42,8 @@ public final class KitWeapons {
         add(SkillTree.SUB_TRAPPER, "trapper_netbow", Kind.CROSSBOW);
         add(SkillTree.SUB_SHIELDFIGHTER, "shieldfighter_crestmace", Kind.MACE);
         add(SkillTree.SUB_BULWARK, "bulwark_wallmace", Kind.MACE);
-        add(SkillTree.SUB_MEDIC, "medic_lancet", Kind.SWORD);
-        add(SkillTree.SUB_WARDEN, "warden_wardblade", Kind.SWORD);
+        add(SkillTree.SUB_MEDIC, "medic_healstaff", Kind.HEALER_STAFF);   // Tor 4.7: the healers' staff, no sword
+        add(SkillTree.SUB_WARDEN, "warden_wardstaff", Kind.HEALER_STAFF);
         add(SkillTree.SUB_GUNNER, "gunner_wrenchblade", Kind.SWORD);
         add(SkillTree.SUB_ELECTRICIAN, "electrician_coilblade", Kind.SWORD);
         add(SkillTree.SUB_DEMOLITION, "demolition_fusemachete", Kind.SWORD);

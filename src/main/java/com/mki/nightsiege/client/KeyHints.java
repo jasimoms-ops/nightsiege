@@ -74,6 +74,7 @@ public final class KeyHints {
             case REMOTE_RELOAD -> new KeyMapping[]{o.keyUse};
             // the X key does what sneak + right click did with the remote and the staff (25 October 2026)
             case REMOTE -> new KeyMapping[]{GainClient.orderKey(), o.keyUse, o.keyShift, GainClient.secondUltKey()};
+            case HEALER_STAFF -> new KeyMapping[]{o.keyAttack, o.keyUse};
             case STAFF -> new KeyMapping[]{o.keyAttack, GainClient.slotKey(0), GainClient.orderKey(), GainClient.slotKey(2),
                     o.keyShift, GainClient.secondUltKey()};
             // the ability bar (28 October 2026): the alchemist's potions and acid flask, the engineer's escape

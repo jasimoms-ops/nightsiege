@@ -245,6 +245,10 @@ public class EventLookTest implements FabricClientGameTest {
                     alive(context);   // a scene before may have left the player dead (05.11.)
                     StreitkolbenScenes.run(context, game);   // the tanks' mace: kit, 2.5 x damage, 0.8 a second, no smash (05.11.)
                 }
+                if (want.contains("heilerstab")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
+                    HeilerstabScenes.run(context, game);   // the healers' staff: kit, bolt at 10 blocks, pictures (Tor 4.7)
+                }
                 if (want.contains("guardian")) {
                     alive(context);   // a scene before may have left the player dead (05.11.)
                     ensureCore(context, game);   // alone, no scene before it placed a core
@@ -1134,6 +1138,7 @@ public class EventLookTest implements FabricClientGameTest {
             case CROSSBOW -> "minecraft:crossbow";
             case STAFF -> "nightsiege:summoning_staff";
             case MACE -> "minecraft:mace";   // the tanks' mace (05.11.)
+            case HEALER_STAFF -> "nightsiege:healer_staff";   // the healers' staff (Tor 4.7)
         };
     }
 
