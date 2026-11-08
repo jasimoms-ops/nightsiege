@@ -8,7 +8,9 @@ import net.minecraft.client.gui.components.LerpingBossEvent;
 import net.minecraft.world.BossEvent;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.util.Collection;
 
@@ -32,5 +34,11 @@ public abstract class BossBarKitMixin {
             ((BossHealthOverlayInvoker) self).nightsiege$extractBar(gui, x, y, event);
         }
         NightBars.drawMinis(gui, x, y, event);
+    }
+
+    /** Tor 3.0c: the mod's bosses as a small list in the top right corner, after vanilla's bars (no cancel). */
+    @Inject(method = "extractRenderState", at = @At("TAIL"))
+    private void nightsiege$corner(GuiGraphicsExtractor gui, CallbackInfo ci) {
+        NightBars.drawCorner(gui);
     }
 }

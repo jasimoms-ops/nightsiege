@@ -6,7 +6,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Compact boss bars (Tor 2.3): order, heights, share of the screen, the boss with the big bar. */
+/** Boss bars: Tor 2.3 compact middle (order, heights, the big bar) and Tor 3.0c corner list (top right, effects free). */
 class BossBarLayoutTest {
 
     /** 1080p at GUI scale 2. */
@@ -71,6 +71,64 @@ class BossBarLayoutTest {
         boolean[] plain = new boolean[30];
         List<BossBarLayout.Slot> s = BossBarLayout.layout(plain, -1, 240);
         assertTrue(s.get(s.size() - 1).y() < 80);
+    }
+
+    // ---- Tor 3.0c: the boss list in the top right corner ----
+
+    /** 1080p at GUI scale 2 and 3, and the small test window (854x480) at scale 2. */
+    private static final int[][] SCREENS = {{960, 540}, {640, 360}, {427, 240}};
+    /** Effect icons shown: none, two (good and bad, as in the scene), good only, bad only, many. */
+    private static final int[][] EFFECTS = {{0, 0}, {1, 1}, {2, 0}, {0, 3}, {8, 8}};
+
+    @Test
+    void cornerIsTopRightAndKeepsTheMiddleFree() {
+        for (int[] scr : SCREENS) {
+            for (int[] fx : EFFECTS) {
+                for (int n : new int[] {1, 4}) {
+                    String at = scr[0] + "x" + scr[1] + " effects " + fx[0] + "/" + fx[1] + " bosses " + n;
+                    BossBarLayout.Corner c = BossBarLayout.corner(scr[0], scr[1], n, fx[0], fx[1], false);
+                    BossBarLayout.Rect p = c.panel();
+                    assertEquals(n, c.rows().size(), at);
+                    assertTrue(p.x() >= scr[0] * 2 / 3, "right third: " + at);
+                    assertEquals(scr[0] - BossBarLayout.EDGE, p.x() + p.w(), "at the right edge: " + at);
+                    // the night bar in the middle (182 wide, name from y 3, bar to y 18) stays free
+                    BossBarLayout.Rect night = new BossBarLayout.Rect(scr[0] / 2 - 91, 3, 182, 16);
+                    assertFalse(p.overlaps(night), "night bar: " + at);
+                    for (BossBarLayout.Rect icon : BossBarLayout.effectIcons(scr[0], fx[0], fx[1], false)) {
+                        assertFalse(p.overlaps(icon), "effect icon " + icon + ": " + at);
+                    }
+                    for (int i = 0; i < n; i++) {
+                        BossBarLayout.Rect r = c.rows().get(i);
+                        assertTrue(r.x() >= p.x() && r.x() + r.w() <= p.x() + p.w() && r.y() >= p.y()
+                                && r.y() + r.h() <= p.y() + p.h(), "row inside the panel: " + at);
+                        if (i > 0) {
+                            assertFalse(r.overlaps(c.rows().get(i - 1)), "rows apart: " + at);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    void cornerStartsBelowTheEffectRows() {
+        assertEquals(BossBarLayout.EDGE, BossBarLayout.cornerTop(0, 0, false));
+        assertEquals(1 + 24 + 3, BossBarLayout.cornerTop(3, 0, false));
+        assertEquals(1 + 26 + 24 + 3, BossBarLayout.cornerTop(1, 1, false));
+        assertEquals(1 + 26 + 24 + 3, BossBarLayout.cornerTop(0, 1, false));
+        assertEquals(16 + 24 + 3, BossBarLayout.cornerTop(1, 0, true));
+        // four bosses with Strength and Slowness at GUI scale 2: 54 to 108 of 540, a tenth of the height, a seventh of the width
+        BossBarLayout.Corner c = BossBarLayout.corner(960, 540, 4, 1, 1, false);
+        assertEquals(new BossBarLayout.Rect(960 - 2 - 124, 54, 124, 4 * 12 + 6), c.panel());
+    }
+
+    @Test
+    void cornerNeverPastHalfTheScreen() {
+        for (int[] scr : SCREENS) {
+            BossBarLayout.Corner c = BossBarLayout.corner(scr[0], scr[1], 30, 1, 1, false);
+            assertTrue(c.panel().y() + c.panel().h() <= scr[1] / 2, scr[0] + "x" + scr[1]);
+            assertTrue(c.rows().size() >= 4, "four bosses fit: " + scr[0] + "x" + scr[1]);
+        }
     }
 
     @Test
