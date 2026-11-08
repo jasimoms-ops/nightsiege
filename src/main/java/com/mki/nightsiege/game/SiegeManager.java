@@ -1349,6 +1349,9 @@ public final class SiegeManager {
             sendUltHud(server);
             safe("Lebensanzeige", () -> HealthView.tick(server, this));
         }
+        if (server.overworld().getGameTime() % com.mki.nightsiege.core.HudSync.PARTY_EVERY == 0) {
+            safe("Gruppenleben", () -> HealthView.tickParty(server, this));   // Tor 2: the healers' list
+        }
         if (trapsDirty && ++trapSaveCounter >= 200) {
             trapSaveCounter = 0;
             trapsDirty = false;
