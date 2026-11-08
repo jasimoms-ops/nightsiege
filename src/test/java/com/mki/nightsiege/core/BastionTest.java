@@ -29,6 +29,11 @@ class BastionTest {
         cfg.bastionWaveMaxSeconds = 0;
         assertFalse(BastionMath.waveTimeUp(start + 100000, start, cfg));
         assertEquals(-1, BastionMath.waveSecondsLeft(start, start, cfg));
+        // At the limit a living boss leaves with the wave; a fallen or not yet come one does not matter.
+        assertTrue(BastionMath.bossLeavesAtTimeUp(true, true, false));
+        assertFalse(BastionMath.bossLeavesAtTimeUp(true, true, true));
+        assertFalse(BastionMath.bossLeavesAtTimeUp(true, false, false));
+        assertFalse(BastionMath.bossLeavesAtTimeUp(false, false, false));
         cfg.settingsVersion = SiegeConfig.SETTINGS_VERSION;
         cfg.bastionWaveMaxSeconds = -5;
         cfg.sanitize();

@@ -337,6 +337,31 @@ final class BastionScenes {
         game.getServer().runCommand("effect clear @p");
         EventLookTest.alive(context);
 
+        // 8b. A boss wave over its time (here 2 s from the boss): the living boss and his guard go, the wave is over.
+        game.getServer().runCommand("effect give @p minecraft:resistance 60 255 true");
+        game.getServer().runCommand("effect give @p minecraft:regeneration 60 255 true");
+        final int[] bossLimit = new int[1];
+        server(context, "boss time lobby", (player, m) -> {
+            bossLimit[0] = m.config().bastionWaveMaxSeconds;
+            m.config().bastionWaveMaxSeconds = 2;
+            m.bastion().testStart(player, 5);
+        });
+        context.waitTicks(10);
+        pickFillReady(context, "blademaster");
+        context.waitTicks(140);
+        server(context, "boss time up", (player, m) -> {
+            ServerLevel level = (ServerLevel) player.level();
+            check(m.isBastionRound() && m.bastion().wave() == 5 && m.bastion().step() != Bastion.Step.FIGHT,
+                    "the boss wave ends after its time (" + m.bastion().wave() + ", " + m.bastion().step() + ")");
+            check(!m.bosses().spawned() && m.bosses().boss(level) == null && m.bossGuardsForTest().isEmpty(),
+                    "the living boss and his guard are gone with the wave");
+            m.config().bastionWaveMaxSeconds = bossLimit[0];
+            m.abort(player.level().getServer());
+        });
+        waitEnd(context, 10);
+        game.getServer().runCommand("effect clear @p");
+        EventLookTest.alive(context);
+
         // 9. Wave 10: a siege machine.
         server(context, "machines lobby", (player, m) -> m.bastion().testStart(player, 10));
         context.waitTicks(10);

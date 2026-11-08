@@ -66,6 +66,11 @@ public final class BastionMath {
         return cfg.bastionWaveMaxSeconds > 0 && fightSince >= 0 && now - fightSince >= cfg.bastionWaveMaxSeconds * 20L;
     }
 
+    /** At the time limit a boss still standing leaves with his wave (no reward): the whole wave is over (Leiter 08.11.). */
+    public static boolean bossLeavesAtTimeUp(boolean bossWave, boolean bossSpawned, boolean bossDown) {
+        return bossWave && bossSpawned && !bossDown;
+    }
+
     /** Seconds the wave has left, -1 without a running limit. */
     public static int waveSecondsLeft(long now, long fightSince, SiegeConfig cfg) {
         if (cfg.bastionWaveMaxSeconds <= 0 || fightSince < 0) {
