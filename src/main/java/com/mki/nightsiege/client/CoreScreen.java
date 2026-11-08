@@ -3555,12 +3555,8 @@ public class CoreScreen extends Screen {
                 }
                 int onKey = gainKeyIndex(clazz, g.id());
                 if (onKey >= 0) {
-                    // On a gain key: its letter in gold at the bottom left of the showcase.
-                    net.minecraft.client.KeyMapping key = GainClient.gainKey(onKey);
-                    String letter = key == null ? "?" : key.getTranslatedKeyMessage().getString();
-                    if (letter.length() > 2) {
-                        letter = letter.substring(0, 2);
-                    }
+                    // In the gain wheel (Tor 3.2): its place in gold at the bottom left of the showcase.
+                    String letter = String.valueOf(onKey + 1);
                     smallText(gui, font, letter, tx + 2, y + box - 6, 0xFFFFD84A, 0.7f);
                 }
                 if (over) {
@@ -3629,7 +3625,8 @@ public class CoreScreen extends Screen {
             int onKey = gainKeyIndex(collectionClass(), g.id());
             net.minecraft.client.KeyMapping key = onKey >= 0 ? GainClient.gainKey(onKey) : null;
             if (key != null) {
-                lines.add("§e" + Component.translatable("nightsiege.ui.collection_on_key", key.getTranslatedKeyMessage()).getString());
+                lines.add("§e" + Component.translatable("nightsiege.ui.collection_on_key", onKey + 1,
+                        key.getTranslatedKeyMessage()).getString());
             } else if (stage > 0) {
                 lines.add("§7" + Component.translatable("nightsiege.ui.collection_to_key").getString());
             }
