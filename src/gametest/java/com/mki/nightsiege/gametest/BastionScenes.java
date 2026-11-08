@@ -296,6 +296,10 @@ final class BastionScenes {
         context.waitTicks(20);
 
         // 8. A boss wave: the boss comes, falls, the round goes on.
+        // The boss and its guard can kill the player on wave 5 (level 40) in the 2 s of the check: the round
+        // would end by the fall, not by the boss (08.11., a ravager boss).
+        game.getServer().runCommand("effect give @p minecraft:resistance 60 255 true");
+        game.getServer().runCommand("effect give @p minecraft:regeneration 60 255 true");
         server(context, "boss lobby", (player, m) -> m.bastion().testStart(player, 5));
         context.waitTicks(10);
         pickFillReady(context, "blademaster");
@@ -317,6 +321,7 @@ final class BastionScenes {
             m.abort(player.level().getServer());
         });
         waitEnd(context, 10);
+        game.getServer().runCommand("effect clear @p");
         EventLookTest.alive(context);
 
         // 9. Wave 10: a siege machine.
