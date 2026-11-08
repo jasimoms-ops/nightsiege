@@ -102,6 +102,47 @@ public final class NightKit {
         return PLAYER_DAMAGE + maceDamageModifier(sword, sharpness) + sharpnessBonus(sharpness);
     }
 
+    // ------------------------------------------------------------------
+    // the healers' staff (Tor 4.7, Simon: "Geschoss auf Distanz"): the medic and the warden shoot a
+    // homing magic bolt instead of swinging the sword
+    // ------------------------------------------------------------------
+
+    /** A bolt of the healers' staff against a full hit of the kit sword the level would give. */
+    public static final double HEALER_BOLT_FACTOR = 1.0;
+    /** Ticks between two bolts (1.33 a second, the sword swings 1.6 a second). */
+    public static final int HEALER_BOLT_PAUSE = 15;
+    /** How far the staff reaches (blocks, as the summoner's staff without skills). */
+    public static final double HEALER_BOLT_RANGE = 16.0;
+    /** Blocks a tick the bolt flies. */
+    public static final double HEALER_BOLT_SPEED = 1.4;
+
+    /**
+     * The damage of one bolt, measured on the kit sword's full hit (its attack damage with the player's own
+     * point plus its Sharpness bonus): it grows with the level and the material like the sword.
+     */
+    public static double healerBolt(double swordHit) {
+        return HEALER_BOLT_FACTOR * swordHit;
+    }
+
+    /** One bolt at a level with this Sharpness (vanilla numbers, as {@link #swordHit}). */
+    public static double healerBolt(int level, int sharpness) {
+        return healerBolt(swordHit(level, sharpness));
+    }
+
+    /**
+     * The staff's damage a second against the sword's at full use: 1.0 x (20 / 15) / 1.6 = 0.83. The bolt never
+     * misses and reaches 16 blocks, so a healer uses it more often than the sword; it may come to at most 1.3
+     * times the sword's damage in play (Tor 4.7), which needs 56 % more use than with the sword.
+     */
+    public static double healerStaffShare() {
+        return HEALER_BOLT_FACTOR * (20.0 / HEALER_BOLT_PAUSE) / SWORD_SPEED;
+    }
+
+    /** The healers (medic and warden, the way of the blessing) carry the staff instead of the sword. */
+    public static boolean healerStaff(SkillClass clazz, String way) {
+        return clazz == SkillClass.GUARDIAN && SkillTree.WAY_BLESSING.equals(way);
+    }
+
     /** Protection on every armour piece: I up to 2, II up to 5, III up to 10, IV from 11. */
     public static int protection(int level) {
         return level >= 11 ? 4 : level >= 6 ? 3 : level >= 3 ? 2 : 1;

@@ -928,7 +928,10 @@ public final class KitService {
         } else if (clazz == SkillClass.GUARDIAN) {
             // The tanks (way of the shield: shield fighter, bulwark) fight with a mace since 05.11. (Simon:
             // "der viel Schaden macht, aber nicht schnell angreifen kann"); the healers keep the sword.
-            hotbar.add(way.equals(SkillTree.WAY_SHIELD) ? tankMace(ench, weapon, sharp) : sword(ench, weapon, sharp));
+            // The healers (medic, warden) shoot with their staff since Tor 4.7 (Simon: "Geschoss auf Distanz").
+            hotbar.add(way.equals(SkillTree.WAY_SHIELD) ? tankMace(ench, weapon, sharp)
+                    : NightKit.healerStaff(clazz, way) && ModContent.HEALER_STAFF != null ? healerStaff(ench, weapon, sharp)
+                    : sword(ench, weapon, sharp));
             ItemStack shield = new ItemStack(weapon == NightKit.Material.INFERNITE ? gear("infernite_shield", Items.SHIELD) : Items.SHIELD);
             GainGear.decorateShield(shield, gainLevel(skills, clazz, "turmschild") > 0, gainLevel(skills, clazz, "leichtschild") > 0);
             ClassShields.decorate(shield, tree.subclassOf(skills), player.level().registryAccess());   // the subclass's colours (27 October 2026)
@@ -1082,6 +1085,7 @@ public final class KitService {
             case BOW -> stack.getItem() instanceof net.minecraft.world.item.BowItem;
             case CROSSBOW -> stack.getItem() instanceof net.minecraft.world.item.CrossbowItem;
             case STAFF -> ModContent.STAFF != null && stack.is(ModContent.STAFF);
+            case HEALER_STAFF -> stack.getItem() instanceof HealerStaffItem;
             case MACE -> stack.getItem() instanceof net.minecraft.world.item.MaceItem;
         };
     }
@@ -1102,6 +1106,19 @@ public final class KitService {
             addAttribute(stack, Attributes.ATTACK_DAMAGE, "kit_tier20_damage", 1.0, EquipmentSlotGroup.MAINHAND);
         }
         return stack;
+    }
+
+    /**
+     * The healers' staff (Tor 4.7): a bolt deals a full hit of the kit sword of this level and material
+     * (its attack damage and Sharpness, see {@link NightKit#healerBolt}), 1.33 bolts a second up to 16 blocks.
+     */
+    public static ItemStack healerStaff(HolderLookup.RegistryLookup<Enchantment> ench, NightKit.Material material, int sharp) {
+        ItemStack sword = kitSword(ench, material, sharp);
+        double swordDamage = sword.getOrDefault(DataComponents.ATTRIBUTE_MODIFIERS, ItemAttributeModifiers.EMPTY)
+                .compute(Attributes.ATTACK_DAMAGE, NightKit.PLAYER_DAMAGE, EquipmentSlot.MAINHAND);
+        ItemStack staff = new ItemStack(ModContent.HEALER_STAFF);
+        HealerStaffItem.setBoltDamage(staff, NightKit.healerBolt(swordDamage + NightKit.sharpnessBonus(sharp)));
+        return staff;
     }
 
     /**

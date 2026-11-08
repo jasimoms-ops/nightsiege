@@ -20,7 +20,13 @@ public final class StaffClient {
     }
 
     public static boolean holdsStaff(Minecraft client) {
-        return client.player != null && client.player.getMainHandItem().getItem() instanceof SummonStaffItem;
+        return client.player != null && (client.player.getMainHandItem().getItem() instanceof SummonStaffItem
+                || healer(client));
+    }
+
+    /** The healers' staff (Tor 4.7): the same left click, its bolt every 15 ticks. */
+    private static boolean healer(Minecraft client) {
+        return client.player != null && client.player.getMainHandItem().getItem() instanceof com.mki.nightsiege.game.HealerStaffItem;
     }
 
     /** The attack button went down with the staff in hand: the staff attacks instead of a hit. */
@@ -45,7 +51,8 @@ public final class StaffClient {
 
     private static void send(Minecraft client) {
         if (client.level != null) {
-            nextSend = client.level.getGameTime() + REPEAT;
+            // The healers' staff asks every 5 ticks, so its bolt comes as soon as the server's pause (15) is over.
+            nextSend = client.level.getGameTime() + (healer(client) ? 5 : REPEAT);
         }
         if (ClientPlayNetworking.canSend(CoreNetworking.CoreActionPayload.TYPE)) {
             ClientPlayNetworking.send(new CoreNetworking.CoreActionPayload("staffhit"));

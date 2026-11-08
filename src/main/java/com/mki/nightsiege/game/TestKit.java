@@ -174,6 +174,9 @@ public final class TestKit {
             out.add(sword);
         } else if (clazz == SkillClass.GUARDIAN) {
             out.add(sword);
+            if (way.isEmpty() || way.equals(SkillTree.WAY_BLESSING)) {
+                out.add("nightsiege:healer_staff");   // the healers' staff (Tor 4.7)
+            }
             out.add("minecraft:shield");
         } else if (clazz == SkillClass.SUMMONER) {
             out.add("nightsiege:summoning_staff");

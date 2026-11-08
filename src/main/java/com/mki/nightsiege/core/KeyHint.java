@@ -81,6 +81,8 @@ public enum KeyHint {
      * click orders, calls or casts, G calls or picks the spell, X orders.
      */
     STAFF,
+    /** The healers' staff (Tor 4.7): left click shoots the magic bolt, right click blocks with the shield. */
+    HEALER_STAFF,
     /** The staff's call (way of the light): sneak + right click into the air, or the G key. */
     STAFF_CALL,
     /** The staff's own attack: right click at a monster (call strike, soul bolt). */

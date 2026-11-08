@@ -33,6 +33,8 @@ public final class ModContent {
     public static Item REMOTE;
     /** The summoner's staff. */
     public static Item STAFF;
+    /** The healers' staff (medic and warden, Tor 4.7). */
+    public static Item HEALER_STAFF;
     public static final Map<TrapKind, Block> TRAP_BLOCKS = new EnumMap<>(TrapKind.class);
     public static final Map<TrapKind, Item> TRAP_ITEMS = new EnumMap<>(TrapKind.class);
     /** Spawn eggs of the siege machines (creative, 27 October 2026). */
@@ -89,6 +91,11 @@ public final class ModContent {
                 .rarity(net.minecraft.world.item.Rarity.UNCOMMON));
         Registry.register(BuiltInRegistries.ITEM, staffKey, STAFF);
 
+        ResourceKey<Item> healerKey = ResourceKey.create(Registries.ITEM, id("healer_staff"));
+        HEALER_STAFF = new HealerStaffItem(new Item.Properties().setId(healerKey).stacksTo(1)
+                .rarity(net.minecraft.world.item.Rarity.UNCOMMON));
+        Registry.register(BuiltInRegistries.ITEM, healerKey, HEALER_STAFF);
+
         for (com.mki.nightsiege.core.SiegeMachineKind kind : com.mki.nightsiege.core.SiegeMachineKind.values()) {
             ResourceKey<Item> eggKey = ResourceKey.create(Registries.ITEM, id("machine_" + kind.id()));
             Item egg = new MachineEggItem(kind, new Item.Properties().setId(eggKey)
@@ -113,6 +120,7 @@ public final class ModContent {
                     output.accept(GuideBook.create());
                     output.accept(REMOTE);
                     output.accept(STAFF);
+                    output.accept(HEALER_STAFF);
                     for (Item egg : MACHINE_EGGS.values()) {
                         output.accept(egg);
                     }
