@@ -7445,19 +7445,19 @@ public class EventLookTest implements FabricClientGameTest {
                 }
             }
             manager.kits().restore(player);
-            // only the war banner chosen
-            manager.onCoreAction(player, "kit:save:WARRIOR:{\"layout\":{},\"choice\":[\"kriegsbanner\"]}");
+            // only the building box chosen (Tor 5.7: the war banner is passive, no kit item any more)
+            manager.onCoreAction(player, "kit:save:WARRIOR:{\"layout\":{},\"choice\":[\"baukiste\"]}");
             manager.kits().equip(player, 5);
             String line = kitLine(player);
             System.out.println("[Night Siege test] update6 kit chosen: " + line);
             for (int i = 0; i < 36; i++) {
                 String g = com.mki.nightsiege.game.KitService.gainOf(player.getInventory().getItem(i));
-                if (!g.isEmpty() && !g.equals("kriegsbanner")) {
+                if (!g.isEmpty() && !g.equals("baukiste")) {
                     fails.add("a crate item that was not chosen: " + g);
                 }
             }
-            if (!line.contains("kriegsbanner")) {
-                fails.add("the chosen war banner is missing");
+            if (!line.contains("baukiste")) {
+                fails.add("the chosen building box is missing");
             }
             manager.kits().restore(player);
             manager.onCoreAction(player, "kit:auto:WARRIOR");
