@@ -13,7 +13,7 @@ import net.minecraft.world.entity.projectile.Projectile;
  * friends: twice the tesla, twice the paladin's hammer): while a siege runs, the defenders of
  * the night cannot hurt each other – not with blows, arrows, bolts, potions, explosions, the
  * tesla, the mortar, a trap or a tower. Healing and strengthening still reach them; outside
- * the night everything stays as it was. The summoner's companions spare players anyway.
+ * the night everything stays as it was. Since 09.11. the same holds in a dungeon and in the camp. The summoner's companions spare players anyway.
  */
 public final class FriendlyFire {
 
@@ -26,14 +26,24 @@ public final class FriendlyFire {
             return true;
         }
         SiegeManager m = SiegeManager.get();
-        if (m == null || !m.isActive() || m.config().nightFriendlyFire) {
+        if (m == null || m.config().nightFriendlyFire) {
             return true;
         }
         ServerPlayer from = responsible(source);
         if (from == null || from == hurt) {
             return true;
         }
-        return !(m.isNightPlayer(hurt) && m.isNightPlayer(from));
+        return !sameFight(m, hurt, from);
+    }
+
+    /**
+     * Both fight side by side: defenders of the night, fighters of the same dungeon (the playtest's
+     * too) or of the camp (Simon 09.11.: "bogen macht anderen spieler schaden" im Dungeon).
+     */
+    static boolean sameFight(SiegeManager m, ServerPlayer a, ServerPlayer b) {
+        return m.isNightPlayer(a) && m.isNightPlayer(b)
+                || m.expeditions().isFighter(a) && m.expeditions().isFighter(b)
+                || m.camp().isFighter(a) && m.camp().isFighter(b);
     }
 
     /** The player behind a hit: the hitter, the shooter of a projectile, the owner of a pet or a trap. */
