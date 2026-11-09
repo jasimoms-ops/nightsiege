@@ -146,6 +146,11 @@ final class HudNeuScenes {
                     if (n.clazz() != info.clazz() || subNodes.contains(n.id())) {
                         continue;
                     }
+                    // Only the subclass's own way (the game shuts the other, SkillTree "path"): with both ways
+                    // learned pathTaken hangs on the HashMap order (necromancer without his spells, k410 CI).
+                    if (!n.onTrunk() && !n.clazz().isShared() && !info.way().equals(n.path())) {
+                        continue;
+                    }
                     if (n.effect().target() == SkillEffect.Target.ULTIMATE) {
                         if (ult || !info.way().equals(n.path())) {
                             continue;
