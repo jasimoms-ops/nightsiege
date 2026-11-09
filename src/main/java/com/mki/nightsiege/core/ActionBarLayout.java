@@ -119,6 +119,15 @@ public final class ActionBarLayout {
     }
 
     public static Layout layout(int guiW, int guiH, Input in) {
+        return layout(guiW, guiH, in, false);
+    }
+
+    /**
+     * {@code ownBars}: the bar's own health line and hunger/armour lines in the status row (until Tor 9b; now only
+     * for the gametest's "before" pictures). Without them vanilla draws its hearts, armour and hunger above the
+     * status row ({@link #vanillaLift}); health and minis are then empty rects at the row's right end.
+     */
+    public static Layout layout(int guiW, int guiH, Input in, boolean ownBars) {
         List<Field> fields = new ArrayList<>();
         List<Integer> studs = new ArrayList<>();
         int abilY = (BAR_H - ABIL) / 2;
@@ -173,10 +182,14 @@ public final class ActionBarLayout {
         int sy = -STATUS_H - 1;
         Rect status = new Rect(PAD, sy, width - 2 * PAD, STATUS_H);
         int r = width - PAD;
-        Rect minis = new Rect(r - MINI_W, sy + 1, MINI_W, STATUS_H - 2);
-        r -= MINI_W + 3;
-        Rect health = new Rect(r - HEALTH_W, sy + 1, HEALTH_W, 7);
-        r -= HEALTH_W + 3;
+        Rect minis = new Rect(r, sy + 1, 0, STATUS_H - 2);
+        Rect health = new Rect(r, sy + 1, 0, 7);
+        if (ownBars) {
+            minis = new Rect(r - MINI_W, sy + 1, MINI_W, STATUS_H - 2);
+            r -= MINI_W + 3;
+            health = new Rect(r - HEALTH_W, sy + 1, HEALTH_W, 7);
+            r -= HEALTH_W + 3;
+        }
         Rect gauge = null;
         if (in.gauge) {
             gauge = new Rect(r - GAUGE_W, sy + 1, GAUGE_W, 7);
@@ -195,6 +208,31 @@ public final class ActionBarLayout {
         int top = guiH - Math.round(BAR_H * scale);
         return new Layout(left, top, scale, width, List.copyOf(fields), List.copyOf(studs), status, message, gauge,
                 health, minis, units);
+    }
+
+    /**
+     * Tor 9b (Simon 09.11.: hearts and hunger "more vanilla"): how far vanilla's hearts, armour, hunger and air go
+     * up so that their bottom row (vanilla: 39 above the bottom, 9 high, shaking 1 down) stays 2 px above the
+     * status row.
+     */
+    public static int vanillaLift(Layout l, int guiH) {
+        return Math.max(0, guiH - 28 - l.screen(l.status()).y());
+    }
+
+    /**
+     * Vanilla's rows after {@code lift}, as Hud.extractPlayerHealth places them: left the hearts ({@code max} +
+     * {@code absorb} health, 10 hearts a row, the rows closer together from the third on) with the armour above,
+     * right the hunger with the air above. 1 px more at the bottom for the shaking.
+     */
+    public static List<Rect> vanillaBars(int guiW, int guiH, int lift, float max, float absorb, boolean armor, boolean air) {
+        int y = guiH - 39 - lift;
+        int rows = Math.max(1, (int) Math.ceil((Math.max(0f, max) + Math.max(0f, absorb)) / 2f / 10f));
+        int rowH = Math.max(10 - (rows - 2), 3);
+        int leftTop = y - (rows - 1) * rowH - (armor ? 10 : 0) - 2;   // 2: the regeneration wave lifts a heart
+        int rightTop = y - (air ? 10 : 0) - 1;
+        int bottom = y + 10;
+        return List.of(new Rect(guiW / 2 - 91, leftTop, 81, bottom - leftTop),
+                new Rect(guiW / 2 + 10, rightTop, 81, bottom - rightTop));
     }
 
     /** The chat when closed: {@code lines} lines up to 40 px above the bottom, as wide as the chat setting allows. */

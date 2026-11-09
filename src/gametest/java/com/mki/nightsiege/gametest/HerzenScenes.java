@@ -2,6 +2,7 @@ package com.mki.nightsiege.gametest;
 
 import com.mki.nightsiege.client.KitHud;
 import com.mki.nightsiege.client.PartyHealthHud;
+import com.mki.nightsiege.core.ActionBarLayout;
 import com.mki.nightsiege.core.HudSync;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
@@ -23,7 +24,8 @@ import java.util.List;
  * Scene "herzen" (Tor 9b, Simon 09.11.: "hunger plus herzens anzeige mehr vanilla darstellen"): at night in
  * survival with the kit worn, three states at 1080p with GUI 2 and 3 - full (20 health, 4 absorption, armour),
  * much (40 health, 8 absorption: three heart rows, hungry) and low (3 health, 2 food: the shaking rows). Chat
- * lines, a bar message and the healers' party list on screen. Screenshots herzen_*. Log lines "[herzen]".
+ * lines, a bar message and the healers' party list on screen; "vorher" with the bar's own lines (KitHud.ownBars).
+ * Screenshots herzen_*. Log lines "[herzen]".
  */
 final class HerzenScenes {
 
@@ -112,9 +114,19 @@ final class HerzenScenes {
                         client.player.getFoodData().getFoodLevel(), client.player.getArmorValue()});
                 log(st.name() + " gui " + scale + ": health " + seen[0] + "/" + seen[1] + " +" + seen[2]
                         + ", food " + seen[3] + ", armour " + seen[4]);
+                context.runOnClient(client -> KitHud.ownBars = true);   // the look until Tor 9b
+                context.waitTicks(3);
+                pics += shot(context, "herzen_" + st.name() + "_vorher_gui" + scale);
+                context.runOnClient(client -> KitHud.ownBars = false);
+                context.waitTicks(3);
+                int heartsBefore = context.computeOnClient(client -> KitHud.vanillaHearts);
+                context.waitTicks(3);
                 pics += shot(context, "herzen_" + st.name() + "_gui" + scale);
+                checkRows(context, st.name() + " gui " + scale, seen,
+                        context.computeOnClient(client -> KitHud.vanillaHearts) - heartsBefore);
             }
         }
+        context.runOnClient(client -> KitHud.ownBars = false);
         context.runOnClient(client -> {
             PartyHealthHud.clear();
             client.options.guiScale().set(scaleBefore);
@@ -133,8 +145,38 @@ final class HerzenScenes {
         });
         game.getServer().runCommand("time set 1000");
         context.waitTicks(5);
-        check(pics == 6, "pictures: " + pics + " of 6");
+        check(pics == 12, "pictures: " + pics + " of 12");
         log("summary: " + checks + " checks, " + FAILS.size() + " failed" + (FAILS.isEmpty() ? "" : ": " + FAILS));
+    }
+
+    /** Vanilla drew its hearts, its rows stand apart from the bar, the party list and the (lifted) chat. */
+    private static void checkRows(ClientGameTestContext context, String at, float[] seen, int frames) {
+        ActionBarLayout.Layout l = context.computeOnClient(client -> KitHud.lastLayout);
+        List<ActionBarLayout.Rect> bars = context.computeOnClient(client -> KitHud.lastBars);
+        int[] screen = context.computeOnClient(client -> new int[]{client.getWindow().getGuiScaledWidth(),
+                client.getWindow().getGuiScaledHeight(),
+                ActionBarLayout.chatRight(client.options.chatWidth().get(), client.options.chatScale().get()),
+                KitHud.chatLift(), KitHud.vanillaLift()});
+        check(frames > 0 && l != null && bars.size() == 2 && screen[4] > 0,
+                at + ": vanilla hearts drawn in " + frames + " frames, lifted " + screen[4] + " px, rows " + bars);
+        if (l == null || bars.size() != 2) {
+            return;
+        }
+        int rows = (int) Math.ceil((seen[1] + seen[2]) / 20f);
+        List<ActionBarLayout.Rect> others = new ArrayList<>(l.parts());
+        others.add(ActionBarLayout.party(screen[1], 2));
+        others.add(ActionBarLayout.chat(screen[1] - screen[3], screen[2], 10));
+        others.addAll(ActionBarLayout.voiceChat(screen[1]));
+        List<String> hits = new ArrayList<>();
+        for (ActionBarLayout.Rect b : bars) {
+            for (ActionBarLayout.Rect o : others) {
+                if (b.overlaps(o)) {
+                    hits.add(b + "/" + o);
+                }
+            }
+        }
+        check(hits.isEmpty(), at + ": " + rows + " heart row(s), armour " + (int) seen[4] + ", nothing over the rows (chat up "
+                + screen[3] + ")" + (hits.isEmpty() ? "" : " " + hits));
     }
 
     private static int shot(ClientGameTestContext context, String name) {
