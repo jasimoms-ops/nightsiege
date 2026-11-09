@@ -2458,6 +2458,12 @@ public final class TrapService {
     /** Shells scattered in a circle around the spot (area, smoke and fire salvo). */
     private int scatter(ServerLevel level, List<TrapRecord> mortars, Vec3 center, int shells, double radius,
                         double damage, String mode) {
+        return scatter(level, mortars, center, shells, radius, damage, mode, 1.0);
+    }
+
+    /** As above, each shell's blast radius times {@code blast} (Sprengkraft). */
+    private int scatter(ServerLevel level, List<TrapRecord> mortars, Vec3 center, int shells, double radius,
+                        double damage, String mode, double blast) {
         int fired = 0;
         for (int i = 0; i < shells; i++) {
             Vec3 spot = center;
@@ -2466,7 +2472,7 @@ public final class TrapService {
                 double dist = Math.sqrt(level.getRandom().nextDouble()) * radius;
                 spot = center.add(Math.cos(ang) * dist, 0, Math.sin(ang) * dist);
             }
-            if (fireOne(level, mortars, spot, fired, damage, mode)) {
+            if (fireOne(level, mortars, spot, fired, damage, mode, blast)) {
                 fired++;
             }
         }
@@ -2475,6 +2481,11 @@ public final class TrapService {
 
     /** One shell from the next mortar (in turn) that reaches the spot. */
     private boolean fireOne(ServerLevel level, List<TrapRecord> mortars, Vec3 spot, int turn, double damage, String mode) {
+        return fireOne(level, mortars, spot, turn, damage, mode, 1.0);
+    }
+
+    private boolean fireOne(ServerLevel level, List<TrapRecord> mortars, Vec3 spot, int turn, double damage, String mode,
+                            double blast) {
         List<TrapRecord> able = new ArrayList<>();
         for (TrapRecord r : mortars) {
             if (reaches(r, spot) && canFire(r)) {
@@ -2487,7 +2498,7 @@ public final class TrapService {
         TrapRecord r = able.get(turn % able.size());
         Vec3 muzzle = Vec3.atCenterOf(new BlockPos(r.x, r.y, r.z)).add(0, 0.9, 0);
         int tier = tierOf(r);
-        lob(level, r, muzzle, spot, KitProjectile.SHELL, tier, damage, 1.0, mode);
+        lob(level, r, muzzle, spot, KitProjectile.SHELL, tier, damage, blast, mode);
         afterShot(level, new BlockPos(r.x, r.y, r.z), r);
         // A salvo shell is one of the mortar's own shots (Simon, 27 October 2026): it reloads
         // afterwards, so a salvo steers the fire instead of adding to it.
@@ -2598,7 +2609,8 @@ public final class TrapService {
     int[] targetPoint(ServerLevel level, ServerPlayer player, Vec3 spot, int shells, double damage) {
         List<TrapRecord> mortars = ownMortars(level, player);
         int aimed = pointFire(level, mortars, spot, level.getGameTime());
-        int fired = aimed > 0 ? scatter(level, mortars, spot, shells, 1.5, damage, "") : 0;
+        int fired = aimed > 0 ? scatter(level, mortars, spot, shells, 1.5, damage, "",
+                tree().blastScale(skillsOf(player))) : 0;
         if (aimed > 0) {
             dirty = true;
         }
@@ -2633,7 +2645,7 @@ public final class TrapService {
             }
             Vec3 muzzle = Vec3.atCenterOf(pos).add(0, 0.9, 0);
             lob(level, r, muzzle, lead(muzzle, target), KitProjectile.BREW, tierOf(r), 1.0,
-                    SkillValues.get(TrapKind.BREWER.id(), "big", 1.5) * Math.sqrt(area));
+                    SkillValues.get(TrapKind.BREWER.id(), "big", 1.5) * Math.sqrt(area) * tree().blastScale(skillsOf(player)));
             n++;
         }
         return n;

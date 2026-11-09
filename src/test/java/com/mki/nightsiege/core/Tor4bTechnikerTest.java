@@ -104,4 +104,16 @@ class Tor4bTechnikerTest {
         assertEquals(180, salvo, 1e-6);
         assertTrue(grenade + salvo <= 300);
     }
+
+    @Test
+    void blastPowerWidensTheSalvoAndTheBigThrows() {
+        // Sprengkraft (e_blastpower) had no effect after the remote went: now Zielpunkt's salvo and
+        // Siedepunkt's big throws take its +50 % on their radius, as the remote's salvo did.
+        SkillTree tree = new SkillTree();
+        PlayerSkills p = new PlayerSkills();
+        p.chosenClass = SkillClass.ENGINEER.name();
+        assertEquals(1.0, tree.blastScale(p), 1e-9);
+        p.setLevel("e_blastpower", 1);
+        assertEquals(1.5, tree.blastScale(p), 1e-9);
+    }
 }

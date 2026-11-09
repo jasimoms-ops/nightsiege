@@ -1487,6 +1487,11 @@ public final class SkillTree {
         return sum;
     }
 
+    /** Sprengkraft (e_blastpower): radius factor for the salvos and big throws of the engineer's abilities. */
+    public double blastScale(PlayerSkills skills) {
+        return 1.0 + totalBonus(SkillEffect.BLAST_POWER, skills);
+    }
+
     /** The tier a player has a trap at, or 0 when it is not theirs to use. */
     public int trapTier(TrapKind kind, PlayerSkills skills) {
         if (kind == null || skills == null || skills.clazz() != SkillClass.ENGINEER) {
