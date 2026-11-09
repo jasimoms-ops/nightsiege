@@ -248,6 +248,8 @@ public final class SiegeManager {
         final int totalTicks;
         int ticksLeft;
         com.mki.nightsiege.core.BossKind boss;
+        /** Tor 9.1 (i): a playtest night's build-up ("Bereit", 2 min at most) instead of the fixed time, or null. */
+        com.mki.nightsiege.core.SetupPhase setup;
 
         PendingTest(ServerLevel world, BlockPos anchor, int level, SiegeEvent event, int ticks) {
             this.world = world;
@@ -2194,6 +2196,15 @@ public final class SiegeManager {
     /** /nightsiege test <level> boss <name>: a test night that ends with this boss (it comes 15 s in). */
     public boolean prepareTest(MinecraftServer server, ServerLevel targetWorld, BlockPos targetAnchor,
                                int level, SiegeEvent event, com.mki.nightsiege.core.BossKind boss) {
+        return prepareTest(server, targetWorld, targetAnchor, level, event, boss, false);
+    }
+
+    /**
+     * Tor 9.1 (i): with setup the preparation is the playtest's build-up – kit and towers at once,
+     * the night when everyone is ready (10 s countdown) or after 2 min at the latest.
+     */
+    public boolean prepareTest(MinecraftServer server, ServerLevel targetWorld, BlockPos targetAnchor,
+                               int level, SiegeEvent event, com.mki.nightsiege.core.BossKind boss, boolean setup) {
         if (active || pendingTest != null) {
             return false;
         }
@@ -2202,28 +2213,102 @@ public final class SiegeManager {
         if (nearby.isEmpty()) {
             return false;
         }
-        if (config.testPrepSeconds <= 0) {
+        if (config.testPrepSeconds <= 0) {   // 0 = no preparation at all, also no build-up (the scenes)
             testBoss = boss;
             return startTest(server, targetWorld, targetAnchor, level, event);
         }
+        int prepSeconds = setup ? com.mki.nightsiege.core.SetupPhase.MAX_SECONDS : config.testPrepSeconds;
+        lastSetupSeconds = -1;
         trapsHanded.clear();
         int shownLevel = Math.min(config.maxLevel, level);
-        pendingTest = new PendingTest(targetWorld, targetAnchor, level, event, config.testPrepSeconds * 20);
+        pendingTest = new PendingTest(targetWorld, targetAnchor, level, event, prepSeconds * 20);
         pendingTest.boss = boss;
+        if (setup) {
+            pendingTest.setup = new com.mki.nightsiege.core.SetupPhase(targetWorld.getGameTime());
+        }
         for (ServerPlayer player : nearby) {
             equipKit(player);
-            sendClassPick(player, config.testPrepSeconds);
+            sendClassPick(player, prepSeconds);
         }
         prepBar = new ServerBossEvent(com.mki.nightsiege.core.NightBarIds.make(com.mki.nightsiege.core.NightBarIds.Kind.PREP),
-                Component.translatable("nightsiege.bar.prep", shownLevel, config.testPrepSeconds),
+                setup ? setupBarName(shownLevel, 0, nearby.size(), prepSeconds, false)
+                        : Component.translatable("nightsiege.bar.prep", shownLevel, config.testPrepSeconds),
                 BossEvent.BossBarColor.YELLOW, BossEvent.BossBarOverlay.PROGRESS);
         prepBar.setProgress(1.0f);
         for (ServerPlayer player : nearby) {
             prepBar.addPlayer(player);
         }
-        broadcast(server, Component.translatable("nightsiege.msg.prep_start", shownLevel, config.testPrepSeconds)
+        broadcast(server, setup ? Component.translatable("nightsiege.msg.setup_start", shownLevel, prepSeconds)
+                        .withStyle(ChatFormatting.GOLD).append(" ").append(readyLink())
+                : Component.translatable("nightsiege.msg.prep_start", shownLevel, config.testPrepSeconds)
                 .withStyle(ChatFormatting.GOLD));
         return true;
+    }
+
+    /** The bar of the build-up: level, ready of online, seconds; "countdown" in the last part. */
+    private static Component setupBarName(int level, int ready, int online, int seconds, boolean countdown) {
+        return Component.translatable(countdown ? "nightsiege.bar.setup_countdown" : "nightsiege.bar.setup",
+                level, ready, online, seconds);
+    }
+
+    /** "[Bereit]" in the chat: the same as /nightsiege playtest bereit. */
+    static Component readyLink() {
+        return Component.translatable("nightsiege.msg.setup_ready_link").withStyle(style -> style
+                .withColor(ChatFormatting.GREEN).withUnderlined(true)
+                .withClickEvent(new net.minecraft.network.chat.ClickEvent.RunCommand("/nightsiege playtest bereit")));
+    }
+
+    /** True while a playtest night's build-up runs (Tor 9.1 i). */
+    public boolean inSetup() {
+        return pendingTest != null && pendingTest.setup != null;
+    }
+
+    /** "Bereit" in the build-up: toggles; null when no build-up runs. */
+    public Boolean toggleSetupReady(UUID id) {
+        return inSetup() ? pendingTest.setup.toggle(id) : null;
+    }
+
+    /** Seconds of the last finished build-up (Tor 9.1 i, for the night statistics and the tests), or -1. */
+    private int lastSetupSeconds = -1;
+
+    public int lastSetupSeconds() {
+        return lastSetupSeconds;
+    }
+
+    /** One tick of the build-up; true when the night comes now. */
+    private boolean tickSetup(MinecraftServer server, PendingTest prep) {
+        long now = prep.world.getGameTime();
+        List<UUID> online = new ArrayList<>();
+        for (ServerPlayer p : playtest.onlinePlayers(server)) {
+            online.add(p.getUUID());
+        }
+        com.mki.nightsiege.core.SetupPhase.Step step = prep.setup.tick(now, online);
+        int shownLevel = Math.min(config.maxLevel, prep.level);
+        switch (step) {
+            case COUNTDOWN_STARTED -> broadcast(server, Component.translatable(prep.setup.forced()
+                    ? "nightsiege.msg.setup_time_up" : "nightsiege.msg.setup_all_ready",
+                    prep.setup.secondsLeft(now)).withStyle(ChatFormatting.YELLOW));
+            case COUNTDOWN_ABORTED -> broadcast(server, Component.translatable("nightsiege.msg.setup_aborted")
+                    .withStyle(ChatFormatting.GRAY).append(" ").append(readyLink()));
+            case GO -> {
+                lastSetupSeconds = prep.setup.seconds(now);
+                NightSiegeMod.LOGGER.info("[Night Siege] Playtest: Aufbauphase {} s", lastSetupSeconds);
+                return true;
+            }
+            default -> {
+            }
+        }
+        if (now % 20 == 0 && prepBar != null) {
+            int seconds = prep.setup.secondsLeft(now);
+            prepBar.setName(setupBarName(shownLevel, prep.setup.readyCount(online), online.size(), seconds, prep.setup.counting()));
+            prepBar.setProgress(Math.max(0f, Math.min(1f, seconds * 20f / prep.totalTicks)));
+            prepBar.setColor(prep.setup.counting() ? BossEvent.BossBarColor.RED : BossEvent.BossBarColor.YELLOW);
+            for (ServerPlayer player : defendersNear(server, prep.world, prep.anchor, true)) {
+                prepBar.addPlayer(player);
+                equipKit(player);   // whoever comes along in the build-up gets their kit too
+            }
+        }
+        return false;
     }
 
     /**
@@ -2308,6 +2393,12 @@ public final class SiegeManager {
 
     private void tickPreparation(MinecraftServer server) {
         PendingTest prep = pendingTest;
+        if (prep.setup != null) {
+            if (!tickSetup(server, prep)) {
+                return;
+            }
+            prep.ticksLeft = 1;   // the night comes now (below)
+        }
         prep.ticksLeft--;
         if (prep.ticksLeft > 0) {
             if (prep.ticksLeft % 20 == 0 && prepBar != null) {
@@ -2332,6 +2423,8 @@ public final class SiegeManager {
         if (!startTest(server, prep.world, prep.anchor, prep.level, prep.event)) {
             trapsHanded.clear();
             broadcast(server, Component.translatable("nightsiege.cmd.no_target").withStyle(ChatFormatting.GRAY));
+        } else if (lastSetupSeconds >= 0) {
+            stats.setupSeconds(lastSetupSeconds);   // Tor 9.1 (i): the build-up in the night's statistics
         }
     }
 

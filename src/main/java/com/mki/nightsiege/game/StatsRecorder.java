@@ -99,6 +99,8 @@ public final class StatsRecorder {
         public String boss = "";
         public String ergebnis = "läuft";
         public int dauerSekunden;
+        /** Tor 9.1 (i): seconds of the playtest's build-up before this night ("Bereit", 2 min at most); 0 otherwise. */
+        public int aufbauSekunden;
         public int killZiel;
         public int kills;
         public int gespawnt;
@@ -683,6 +685,19 @@ public final class StatsRecorder {
     static String nightFileName(boolean test, boolean spieltest, LocalDateTime time) {
         String prefix = spieltest ? "spieltest_" : test ? "testnacht_" : "night_";
         return prefix + time.format(FILE_TIME) + ".json";
+    }
+
+    /** Tor 9.1 (i): the build-up before the night that just began. */
+    void setupSeconds(int seconds) {
+        if (night != null) {
+            night.aufbauSekunden = Math.max(0, seconds);
+            writeLater(nightPath, night);
+        }
+    }
+
+    /** The build-up of the running night (for the tests), or -1 without a night file. */
+    public int setupSecondsForTests() {
+        return night == null ? -1 : night.aufbauSekunden;
     }
 
     void addPlayer(ServerPlayer player) {
