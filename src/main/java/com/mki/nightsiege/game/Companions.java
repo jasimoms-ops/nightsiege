@@ -398,7 +398,9 @@ public final class Companions {
     private static boolean allowDamageUnsafe(LivingEntity victim, DamageSource source) {
         Entity attacker = source.getEntity();
         if (diagOn && attacker != null && isCompanion(attacker)) {
-            DIAG.computeIfAbsent(attacker.getUUID(), k -> new int[3])[1]++;   // GOLEMDIAG: a hit reached the damage gate
+            DIAG.computeIfAbsent(attacker.getUUID(), k -> new int[4])[1]++;   // GOLEMDIAG: a hit reached the damage gate
+            DIAG_GATE.put(attacker.getUUID(), victim.getType().toShortString() + "/inv" + victim.invulnerableTime
+                    + "/" + source.getMsgId());
         }
         if (isCompanion(victim)) {
             if (attacker instanceof Player || isCompanion(attacker)) {
@@ -420,6 +422,10 @@ public final class Companions {
 
     /** GOLEMDIAG (Tor 4c.6, bench only): per companion the swings seen (iron golem attack animation), hits at the damage gate. */
     private static final Map<UUID, int[]> DIAG = new HashMap<>();
+    /** GOLEMDIAG 2: the last victim at the gate (type, its hurt pause, damage kind), the last hit that landed, the target at a swing. */
+    private static final Map<UUID, String> DIAG_GATE = new HashMap<>();
+    private static final Map<UUID, String> DIAG_LANDED = new HashMap<>();
+    private static final Map<UUID, String> DIAG_SWING = new HashMap<>();
     private static boolean diagOn;
 
     /** Called every tick by the bench for the summoner bot: counts the golem's swings. */
@@ -427,10 +433,12 @@ public final class Companions {
         diagOn = true;
         for (Mob mob : mobsOf(level, owner)) {
             if (mob instanceof IronGolem golem) {
-                int[] d = DIAG.computeIfAbsent(mob.getUUID(), k -> new int[3]);
+                int[] d = DIAG.computeIfAbsent(mob.getUUID(), k -> new int[4]);
                 int anim = golem.getAttackAnimationTick();
                 if (anim > d[2]) {
                     d[0]++;
+                    LivingEntity t = golem.getTarget();
+                    DIAG_SWING.put(mob.getUUID(), t == null ? "-" : t.getType().toShortString() + "@" + String.format(java.util.Locale.ROOT, "%.1f", golem.distanceTo(t)));
                 }
                 d[2] = anim;
             }
@@ -453,13 +461,13 @@ public final class Companions {
                 }
             }
             net.minecraft.world.level.pathfinder.Path path = mob.getNavigation().getPath();
-            int[] d = DIAG.getOrDefault(mob.getUUID(), new int[3]);
+            int[] d = DIAG.getOrDefault(mob.getUUID(), new int[4]);
             AttributeInstance speed = mob.getAttribute(Attributes.MOVEMENT_SPEED);
             AttributeInstance dmg = mob.getAttribute(Attributes.ATTACK_DAMAGE);
             out.add(String.format(java.util.Locale.ROOT,
                     "kind=%s;type=%s;pos=%.1f,%.1f,%.1f;d_owner=%.1f;target=%s;d_target=%.2f;tgt_noai=%s;in_melee=%s;los=%s;"
                             + "canAttack=%s;allied=%s;noai=%s;goals=%s;nav_done=%s;path=%s;stuck_ticks=%d;order=%s;"
-                            + "swings=%d;gate_hits=%d;speed=%.3f;atk=%.1f;hp=%.0f/%.0f",
+                            + "swings=%d;gate_hits=%d;landed=%d;last_gate=%s;last_landed=%s;swing_target=%s;speed=%.3f;atk=%.1f;hp=%.0f/%.0f",
                     c == null ? "-" : c.kind, mob.getType().toShortString(), mob.getX(), mob.getY(), mob.getZ(),
                     player == null ? -1.0 : mob.distanceTo(player),
                     t == null ? "-" : t.getType().toShortString(), t == null ? -1.0 : mob.distanceTo(t),
@@ -468,7 +476,8 @@ public final class Companions {
                     mob.getNavigation().isDone(), path == null ? "-" : path.getNodeCount() + (path.canReach() ? "/reach" : "/noreach"),
                     c == null ? -1 : now - c.lastMoved,
                     order == null ? "none" : order.target() != null ? "target" : order.hold() != null ? "hold" : "?",
-                    d[0], d[1], speed == null ? -1.0 : speed.getValue(), dmg == null ? -1.0 : dmg.getValue(),
+                    d[0], d[1], d[3], DIAG_GATE.getOrDefault(mob.getUUID(), "-"), DIAG_LANDED.getOrDefault(mob.getUUID(), "-"),
+                    DIAG_SWING.getOrDefault(mob.getUUID(), "-"), speed == null ? -1.0 : speed.getValue(), dmg == null ? -1.0 : dmg.getValue(),
                     mob.getHealth(), mob.getMaxHealth()));
         }
         return out;
@@ -2268,6 +2277,10 @@ public final class Companions {
     public void afterDamage(LivingEntity victim, DamageSource source, float taken) {
         Entity attacker = source.getEntity();
         Companion hitter = attacker == null ? null : ALL.get(attacker.getUUID());
+        if (diagOn && hitter != null) {   // GOLEMDIAG 2: the hit came through (with what it took)
+            DIAG.computeIfAbsent(attacker.getUUID(), k -> new int[4])[3]++;
+            DIAG_LANDED.put(attacker.getUUID(), victim.getType().toShortString() + "/" + String.format(java.util.Locale.ROOT, "%.1f", taken));
+        }
         if (hitter == null || !(victim instanceof Enemy) || taken <= 0 || !(victim.level() instanceof ServerLevel level)) {
             return;
         }

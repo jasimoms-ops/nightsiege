@@ -444,8 +444,7 @@ public final class MeleeSim {
             if ((now - fightStart) % 100 == 0) {
                 for (String line : Companions.diagLines(level, player.getUUID(), now)) {
                     String diag = "GOLEMDIAG;" + queue.get(index).level() + ";t=" + (now - fightStart) / 20 + ";stage=" + benchStage + ";" + line;
-                    System.out.println(diag);
-                    NightSiegeMod.LOGGER.info(diag);
+                    System.out.println(diag);   // once: stdout lands in the server log already
                 }
             }
         }
