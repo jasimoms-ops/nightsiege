@@ -113,6 +113,8 @@ final class KlassencheckScenes {
         }
         int near = level.getEntitiesOfClass(Entity.class, player.getBoundingBox().inflate(32),
                 e -> e != player && !e.entityTags().contains(HUSK)).size();
+        // Tor 4c.6: the medic's dome is a zone only (radius 4, the husks stand at 6) - count the player's zones too
+        near += SiegeManager.get() == null ? 0 : SiegeManager.get().combatEffects().guardian().zonesOf(player.getUUID());
         return new double[]{lost, huskEffects, player.getHealth() + player.getAbsorptionAmount(),
                 player.getActiveEffects().size(), near, player.getX(), player.getY(), player.getZ(),
                 player.getDeltaMovement().length()};
@@ -131,6 +133,7 @@ final class KlassencheckScenes {
 
     /** The test hook "the ult charged" and every other pause back to 0, so each key can fire once. */
     private static void ready(ServerPlayer player, SiegeManager m) {
+        m.kits().traps().resetZones();   // Tor 4c.6: the alchemist's potion and acid pauses (end of the night only)
         m.combatEffects().forget(player.getUUID());
         m.combatEffects().guardian().forget(player.getUUID());
         EngineerAbilities.reset();
@@ -268,29 +271,33 @@ final class KlassencheckScenes {
         for (SkillTree.SubclassInfo info : SkillTree.SUBCLASSES) {
             int failsBefore = FAILS.size();
             String sub = info.key();
-            // Tor 4c.6: the night of level 1 ends after about four minutes (CI: during demolition); from then on
-            // nothing counted and the gain items worked by day. A new test night when the last one is over.
-            final boolean[] renewed = new boolean[1];
-            server(context, sub + " night", (player, m) -> {
-                if (!m.isActive()) {
-                    ServerLevel level = (ServerLevel) player.level();
-                    renewed[0] = m.prepareTest(level.getServer(), level, player.blockPosition(), 1, com.mki.nightsiege.core.SiegeEvent.NONE);
-                    log("     " + sub + ": night renewed=" + renewed[0]);
-                }
-            });
-            context.waitTicks(2);
-            if (renewed[0]) {
-                context.waitTicks(80);
-                EventLookTest.closeScreen(context);
-                server(context, sub + " night clear", (player, m) -> {
-                    ((ServerLevel) player.level()).getEntitiesOfClass(Mob.class, player.getBoundingBox().inflate(160),
-                            e -> e instanceof net.minecraft.world.entity.monster.Enemy).forEach(Mob::discard);
-                    check(m.isDefending(player), sub + ": the player defends the renewed night");
-                });
-                context.waitTicks(5);
-            }
             for (int lvl : LEVELS) {
                 final String tag = sub + " " + lvl;
+                // Tor 4c.6: the night of level 1 ends after about four minutes (CI: during demolition); from then on
+                // nothing counted and the gain items worked by day. A new test night when the last one is over
+                // (or nearly: it also ended during demolition 10/20 and soulcatcher 20), checked before every level.
+                final boolean[] renewed = new boolean[1];
+                server(context, tag + " night", (player, m) -> {
+                    if (!m.isActive() || m.secondsLeft() < 30) {
+                        if (m.isActive()) {
+                            m.abort(player.level().getServer());
+                        }
+                        ServerLevel level = (ServerLevel) player.level();
+                        renewed[0] = m.prepareTest(level.getServer(), level, player.blockPosition(), 1, com.mki.nightsiege.core.SiegeEvent.NONE);
+                        log("     " + tag + ": night renewed=" + renewed[0]);
+                    }
+                });
+                context.waitTicks(2);
+                if (renewed[0]) {
+                    context.waitTicks(80);
+                    EventLookTest.closeScreen(context);
+                    server(context, sub + " night clear", (player, m) -> {
+                        ((ServerLevel) player.level()).getEntitiesOfClass(Mob.class, player.getBoundingBox().inflate(160),
+                                e -> e instanceof net.minecraft.world.entity.monster.Enemy).forEach(Mob::discard);
+                        check(m.isDefending(player), tag + ": the player defends the renewed night");
+                    });
+                    context.waitTicks(5);
+                }
                 game.getServer().runCommand("kill @e[tag=" + HUSK + "]");
                 String husk = "execute as @p at @p run summon minecraft:husk ^%s ^ ^6 {NoAI:1b,PersistenceRequired:1b,Tags:[\"nightsiege\",\"" + HUSK + "\"]}";
                 for (String side : new String[]{"0", "1.2", "-1.2"}) {
@@ -386,7 +393,8 @@ final class KlassencheckScenes {
                         twice |= !keys.add(s.key);
                         noEntry |= AbilityKeys.keyOf(sub, s.id) == null;
                         boolean tip = tips.stream().anyMatch(t -> s.id.equals(t.slot));
-                        boolean icon = s.icon != null && !s.icon.isBlank() && s.name != null && !s.name.isBlank();
+                        // Tor 4c.6: the alchemist's potion box has no icon id, the client draws a potion in its colour (UltHud:233)
+                        boolean icon = (s.icon != null && !s.icon.isBlank() || s.color >= 0) && s.name != null && !s.name.isBlank();
                         if (!tip || !icon) {
                             noLook = true;
                             log("     " + tag + ": " + s.id + " tooltip=" + tip + " icon=" + icon);

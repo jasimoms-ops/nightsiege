@@ -1467,6 +1467,11 @@ public final class GuardianEffects {
     // zones: the dome, the sanctuary, the spring of life
     // ------------------------------------------------------------------
 
+    /** Test access (Tor 4c.6): the zones a player has up (the dome changes nothing else a scene can see). */
+    public int zonesOf(UUID player) {
+        return (int) zones.stream().filter(z -> z.owner().equals(player)).count();
+    }
+
     private void tickZones(long now) {
         if (zones.isEmpty()) {
             return;
@@ -1832,5 +1837,7 @@ public final class GuardianEffects {
         barrierFrom.remove(player);
         absorbBefore.remove(player);
         ironhideUp.remove(player);
+        wardSkipUntil.remove(player);   // Tor 4c.6: the ward's and the self heal's pauses were left out
+        tankHealReadyAt.remove(player);
     }
 }
