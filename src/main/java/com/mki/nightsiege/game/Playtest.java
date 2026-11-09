@@ -87,7 +87,8 @@ public final class Playtest {
     /** (Prüfer 09.11.) Started by a non-OP: the idle watch ends it after 10 min in "plan"/"paused". */
     private boolean limited;
     /** Game tick the current "plan"/"paused" began (-1: not waiting), its phase, and whether warned. */
-    private long idleSince = -1;
+    private long idleSince = NO_WAIT;   // no wait running (not -1: a scene can age the wait below 0)
+    private static final long NO_WAIT = Long.MIN_VALUE;
     private String idlePhase;
     private boolean idleWarned;
     /** For the scenes' diagnosis: calls of tick while a playtest runs, looks of the idle watch. */
@@ -261,7 +262,7 @@ public final class Playtest {
         String problem = start(server, target, chosen);
         if (problem == null) {
             limited = byNonOp;
-            idleSince = -1;
+            idleSince = NO_WAIT;
             starter = by == null ? null : by.getUUID();
             lastStartTick = server.getTickCount();
             if (chosen != null) {
@@ -375,7 +376,7 @@ public final class Playtest {
         m.save().machinesDay = -1L;
         m.save().playtest = s;
         limited = false;   // an OP start or a scene's; the start by a non-OP sets it right after
-        idleSince = -1;
+        idleSince = NO_WAIT;
         m.persist();   // written before anything of the players is touched
         for (ServerPlayer p : players) {
             PlayerSkills fresh = new PlayerSkills();
@@ -1452,10 +1453,10 @@ public final class Playtest {
     private boolean idleWatch(MinecraftServer server, SiegeSave.PlaytestState s, long now) {
         idleLooks++;
         if (!"plan".equals(s.phase) && !"paused".equals(s.phase)) {
-            idleSince = -1;
+            idleSince = NO_WAIT;
             return false;
         }
-        if (idleSince < 0 || !s.phase.equals(idlePhase)) {
+        if (idleSince == NO_WAIT || !s.phase.equals(idlePhase)) {
             idleSince = now;   // a new wait begins: a step forward was made
             idlePhase = s.phase;
             idleWarned = false;
@@ -1481,21 +1482,21 @@ public final class Playtest {
     /** For scenes: the current wait began that many ticks earlier. */
     public void ageIdleForTests(MinecraftServer server, long ticks) {
         SiegeSave.PlaytestState s = state();
-        if (idleSince < 0 && s != null && ("plan".equals(s.phase) || "paused".equals(s.phase))) {
+        if (idleSince == NO_WAIT && s != null && ("plan".equals(s.phase) || "paused".equals(s.phase))) {
             // The watch had not looked yet (it checks once a second; a slow start left the scene ahead of it,
             // 09.11. pt-start 8): the wait begins now, as the watch's first look would set it.
             idleSince = server.getTickCount();
             idlePhase = s.phase;
             idleWarned = false;
         }
-        if (idleSince >= 0) {
+        if (idleSince != NO_WAIT) {
             idleSince -= ticks;
         }
     }
 
     /** For scenes: the idle watch's state in one line (diagnosis). */
     public String idleInfoForTests(MinecraftServer server) {
-        return "nonOp=" + limited + " since=" + idleSince + " idleTicks=" + (idleSince < 0 ? -1 : server.getTickCount() - idleSince)
+        return "nonOp=" + limited + " since=" + idleSince + " idleTicks=" + (idleSince == NO_WAIT ? -1 : server.getTickCount() - idleSince)
                 + " phase=" + idlePhase + " warned=" + idleWarned + " looks=" + idleLooks + " tickCalls=" + tickCalls
                 + " serverTick=" + server.getTickCount() + " gameTime=" + server.overworld().getGameTime();
     }
