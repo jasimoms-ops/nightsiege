@@ -5,6 +5,7 @@ import com.mki.nightsiege.core.SkillValues;
 import com.mki.nightsiege.core.UltState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.particles.DustParticleOptions;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.monster.Enemy;
@@ -37,6 +38,16 @@ public final class AxeAim {
         return mark != null && onMonster;
     }
 
+    /**
+     * A summoner's companion (the server's throw skips them, TrapService.enemies). Its entity tag stays on the
+     * server; every companion that counts as a monster (skeleton, vex, minion) carries a name
+     * {@code nightsiege.companion.*}, which the client sees.
+     */
+    static boolean companion(LivingEntity e) {
+        return e.getCustomName() != null && e.getCustomName().getContents() instanceof TranslatableContents t
+                && t.getKey().startsWith("nightsiege.companion.");
+    }
+
     public static void tick(Minecraft mc) {
         mark = null;
         UltState s = UltHud.state();
@@ -56,7 +67,7 @@ public final class AxeAim {
         LivingEntity best = null;
         double bestD = Double.MAX_VALUE;
         AABB around = new AABB(eye, end).inflate(width + 1.0, 2.5, width + 1.0);
-        for (LivingEntity e : mc.level.getEntitiesOfClass(LivingEntity.class, around, e -> e instanceof Enemy && e.isAlive())) {
+        for (LivingEntity e : mc.level.getEntitiesOfClass(LivingEntity.class, around, e -> e instanceof Enemy && e.isAlive() && !companion(e))) {
             AABB body = e.getBoundingBox().inflate(width, 0.6, width);
             if (body.contains(eye) || body.clip(eye, end).isPresent()) {
                 double d = e.distanceToSqr(eye);
