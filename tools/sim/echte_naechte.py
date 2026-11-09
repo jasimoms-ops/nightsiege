@@ -10,7 +10,9 @@ Schreibt (ohne Spielernamen, nur Unterklassen und Zahlen):
   echte_unterklassen.json je Unterklasse: Naechte, Siege, Schaden/eingesteckt je Minute, Tode je Nacht
   echte_gegner.json       Schaden an Spielern je Gegnertyp (Anteil)
   echte_dungeons.json     Versuche und Siege je Dungeon und fuer das Heerlager
-Naechte der Team-Sim (Feld "sim") und abgebrochene Naechte zaehlen nicht.
+  echte_gruppen.json      Tor 7.3: Naechte/Siege und Dungeon-/Heerlager-Versuche je Gruppe (echt / spieltest / test)
+Naechte der Team-Sim (Feld "sim") und abgebrochene Naechte zaehlen nicht. Spieltest-Naechte (spieltest_*.json)
+zaehlen mit; jede Zeile in echte_naechte.json traegt ihre "gruppe".
 """
 import argparse
 import collections
@@ -55,7 +57,7 @@ def main():
         day = (n.get("start") or f.split("_", 1)[-1])[:10]
         if a.ab and day < a.ab or a.build and n.get("build") != a.build:
             continue
-        if f.startswith(("night_", "testnacht_")):
+        if f.startswith(("night_", "testnacht_", "spieltest_")):
             nights.append((f, n))
         elif f.startswith(("dungeon_", "heerlager_")):
             dungeons.append(n)
@@ -63,6 +65,10 @@ def main():
     rows, cells = [], collections.defaultdict(lambda: {"naechte": 0, "siege": 0})
     subs = collections.defaultdict(lambda: {"naechte": 0, "siege": 0, "schaden": 0.0, "erhalten": 0.0, "minuten": 0.0, "tode": 0})
     foes = collections.defaultdict(float)
+    groups = collections.defaultdict(lambda: {"naechte": 0, "siege": 0, "versuche": 0})
+
+    def group(n):
+        return "spieltest" if n.get("spieltest") else "test" if n.get("test") else "echt"
     for f, n in nights:
         outcome = n.get("ergebnis") or "?"
         if outcome == "abgebrochen" or not n.get("abgeschlossen", True):
@@ -95,11 +101,13 @@ def main():
             s["erhalten"] += e
             s["tode"] += t
             s["minuten"] += secs / 60.0
+        groups[group(n)]["naechte"] += 1
+        groups[group(n)]["siege"] += int(won)
         c = cells[(band(level), len(players))]
         c["naechte"] += 1
         c["siege"] += int(won)
         rows.append({
-            "nacht": f.split(".")[0], "datum": (n.get("start") or "")[:16].replace("T", " "), "build": n.get("build") or "",
+            "nacht": f.split(".")[0], "gruppe": group(n), "datum": (n.get("start") or "")[:16].replace("T", " "), "build": n.get("build") or "",
             "stufe": level, "spieler": len(players), "unterklassen": ", ".join(sorted(sub_names)),
             "ergebnis": "gewonnen" if won else "verloren", "sekunden": secs, "kills": n.get("kills", 0),
             "killziel": n.get("killZiel", 0), "boss": n.get("boss") or "", "tode": n.get("tode", 0),
@@ -129,10 +137,12 @@ def main():
         if n.get("ergebnis") in ("abgebrochen", "verlassen"):
             continue
         t = n.get("typ") or n.get("art") or "?"
+        groups[group(n)]["versuche"] += 1
         dg[t]["versuche"] += 1
         dg[t]["siege"] += int(n.get("ergebnis") in ("gewonnen", "zerstoert"))
     write("echte_dungeons.json", [{"typ": k, "name": DUNGEONS.get(k, k), "versuche": v["versuche"], "siege": v["siege"],
                                    "siegquote": round(v["siege"] / v["versuche"], 4)} for k, v in sorted(dg.items(), key=lambda kv: -kv[1]["versuche"])])
+    write("echte_gruppen.json", [dict(gruppe=k, **v) for k, v in sorted(groups.items())])
     print("Echte Abende: %d Nächte, %d Unterklassen, %d Dungeon-/Heerlager-Arten" % (len(rows), len(subs), len(dg)))
 
 

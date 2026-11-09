@@ -5,7 +5,7 @@ Liest alle Dateien aus <welt>/nightsiege/stats/ (night_*.json, dungeon_*.json,
 heerlager_*.json, kisten.jsonl) und schreibt Tabellen als CSV (Semikolon, deutsches
 Excel) in einen Ausgabeordner:
 
-  siege_je_stufe.csv     Nächte, Siege, Siegquote je Weltstufe
+  siege_je_stufe.csv     Nächte, Siege, Siegquote je Gruppe (echt / spieltest / test) und Weltstufe
   klassen.csv            Schaden, Heilung, Kills, Tode je Unterklasse (je Spieler-Welle gemittelt)
   tasten.csv             Tastendrücke je Platz (ABILITY_1..4, ULT, ULT2) und Sekunden Turm-Sitz/zu Fuß je Unterklasse
   schadensquellen.csv    Schaden nach Quelle (nah:…, fern:…, turm:…, begleiter …)
@@ -16,13 +16,19 @@ Excel) in einen Ausgabeordner:
   kisten.csv             Seltenheiten je Kistenart (gezählt und in Prozent)
 
 Aufruf: python3 auswertung.py <stats-ordner> [ausgabe-ordner] [--mit-tests] [--version <build>]
-Testnächte (testnacht_*.json) bleiben ohne --mit-tests draußen.
+Testnächte (testnacht_*.json, /nightsiege test) bleiben ohne --mit-tests draußen.
+Spieltest-Nächte (spieltest_*.json, Feld "spieltest", Tor 7.3) zählen immer mit, als eigene Gruppe.
 """
 import csv
 import json
 import sys
 from collections import defaultdict
 from pathlib import Path
+
+
+def gruppe(d):
+    """Tor 7.3: echt, spieltest (Playtest) oder test (/nightsiege test)."""
+    return "spieltest" if d.get("spieltest") else "test" if d.get("test") else "echt"
 
 
 def lesen(ordner, mit_tests, nur_build):
@@ -36,7 +42,7 @@ def lesen(ordner, mit_tests, nur_build):
             continue
         art = d.get("art")
         if art == "nacht":
-            if d.get("test") and not mit_tests:
+            if gruppe(d) == "test" and not mit_tests:
                 continue
             naechte.append(d)
         elif art == "dungeon":
@@ -83,12 +89,12 @@ def main():
     for n in naechte:
         if not n.get("abgeschlossen"):
             continue
-        s = stufen[n.get("stufe", 0)]
+        s = stufen[(gruppe(n), n.get("stufe", 0))]
         s[0] += 1
         if n.get("ergebnis") in ("gewonnen", "test_gehalten"):
             s[1] += 1
-    schreiben(aus / "siege_je_stufe.csv", ["stufe", "naechte", "siege", "siegquote"],
-              [[k, v[0], v[1], round(v[1] / v[0], 3) if v[0] else 0.0] for k, v in sorted(stufen.items())])
+    schreiben(aus / "siege_je_stufe.csv", ["gruppe", "stufe", "naechte", "siege", "siegquote"],
+              [[k[0], k[1], v[0], v[1], round(v[1] / v[0], 3) if v[0] else 0.0] for k, v in sorted(stufen.items())])
 
     # Klassen und Schadensquellen
     klassen = defaultdict(lambda: defaultdict(float))
@@ -158,9 +164,9 @@ def main():
         return [[d.get("start"), d.get("typ"), d.get("stufe"), d.get("versuch"), len(d.get("spieler", [])),
                  " ".join((s.get("unterklasse") or s.get("klasse") or "?") for s in d.get("spieler", [])),
                  d.get("raeumeGeraeumt"), d.get("raeume"), d.get("wellenErreicht"), d.get("championErreicht"),
-                 d.get("tode"), d.get("dauerSekunden"), d.get("ergebnis")] for d in liste]
+                 d.get("tode"), d.get("dauerSekunden"), d.get("ergebnis"), gruppe(d)] for d in liste]
     kopf = ["start", "typ", "stufe", "versuch", "spieler", "klassen", "raeume_geraeumt", "raeume", "wellen",
-            "champion", "tode", "dauer_s", "ergebnis"]
+            "champion", "tode", "dauer_s", "ergebnis", "gruppe"]
     schreiben(aus / "dungeons.csv", kopf, versuche(dungeons))
     schreiben(aus / "heerlager.csv", kopf, versuche(lager))
 
@@ -175,6 +181,10 @@ def main():
         zeilen.append([art, summe] + [z.get(s, 0) for s in seltenheiten] + [round(z.get(s, 0) / summe, 3) for s in seltenheiten])
     schreiben(aus / "kisten.csv", ["kistenart", "geoeffnet"] + seltenheiten + [s + "_anteil" for s in seltenheiten], zeilen)
 
+    je = defaultdict(int)
+    for n in naechte:
+        je[gruppe(n)] += 1
+    print("Nächte je Gruppe: " + ", ".join(f"{k} {v}" for k, v in sorted(je.items())))
     print(f"{len(naechte)} Nächte, {len(dungeons)} Dungeon-Versuche, {len(lager)} Heerlager-Versuche, "
           f"{len(kisten)} Kisten -> {aus}")
     return 0
