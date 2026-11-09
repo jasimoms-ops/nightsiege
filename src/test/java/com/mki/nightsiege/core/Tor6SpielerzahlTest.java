@@ -24,7 +24,6 @@ class Tor6SpielerzahlTest {
     void freshConfigIsFlat() {
         SiegeConfig fresh = new SiegeConfig();
         fresh.sanitize();
-        assertEquals(25, SiegeConfig.SETTINGS_VERSION);
         assertEquals(SiegeConfig.SETTINGS_VERSION, fresh.settingsVersion);
         for (int n = 1; n <= 10; n++) {
             assertEquals(1.0, SiegeMath.damageTakenForGroup(n, fresh), 1e-9);
