@@ -187,7 +187,7 @@ final class InventarScenes {
                 check(owned.contains(GainCharges.POTION) && owned.contains(GainCharges.APPLE) && owned.contains(GainCharges.PEARL)
                         && !owned.contains("kriegsbanner") && !owned.contains("verbandskasten"),
                         c + ": charge fields on 1-3, the banner passive: " + owned);
-                check(!GainGear.bannerOwnerNear(player), c + ": the banner does not count for its owner himself");
+                check(GainGear.bannerOwnerNear(player), c + ": the banner counts for its owner himself (Chef 09.11. 11:00)");
             });
             context.waitTicks(5);
         }

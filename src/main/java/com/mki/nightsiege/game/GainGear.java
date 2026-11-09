@@ -934,8 +934,8 @@ public final class GainGear {
     }
 
     /**
-     * Tor 5.7 (Chef 09.11. 09:12): the war banner is passive – a defender within 10 blocks of another
-     * defender who owns it hits 10 % harder (not stacking, the owner himself not).
+     * Tor 5.7 (Chef 09.11. 09:12, 11:00): the war banner is passive – a defender within 10 blocks of a
+     * defender who owns it (the owner himself too) hits 10 % harder, once: a second banner does not stack.
      */
     public static boolean bannerOwnerNear(ServerPlayer player) {
         SiegeManager m = SiegeManager.get();
@@ -943,7 +943,7 @@ public final class GainGear {
             return false;
         }
         for (ServerPlayer other : level.players()) {
-            if (other == player || !other.isAlive() || other.isSpectator()
+            if (!other.isAlive() || other.isSpectator()
                     || other.distanceToSqr(player) > BANNER_RADIUS * BANNER_RADIUS || !m.isDefending(other)) {
                 continue;
             }
