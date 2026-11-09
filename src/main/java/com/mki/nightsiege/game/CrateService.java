@@ -5,6 +5,7 @@ import com.mki.nightsiege.core.CrateGains;
 import com.mki.nightsiege.core.CrateKind;
 import com.mki.nightsiege.core.CrateRarity;
 import com.mki.nightsiege.core.CrateRoll;
+import com.mki.nightsiege.core.CrateSummary;
 import com.mki.nightsiege.core.PlayerSkills;
 import com.mki.nightsiege.core.SiegeConfig;
 import com.mki.nightsiege.core.SkillClass;
@@ -272,9 +273,22 @@ public final class CrateService {
         if (stack.isEmpty() || !stack.is(CRATE)) {
             return;
         }
+        if (player.isShiftKeyDown()) {
+            openAll(player);   // sneak + right click: every crate at once, as one overview (Tor 9.1 h)
+            return;
+        }
         if (!startOpening(player)) {
             return;
         }
+        openStack(player, stack, false);
+    }
+
+    /**
+     * Opens one crate of {@code stack}: the same parsing, roll and statistics line for the single crate
+     * and for "alle öffnen". Quiet: no band, light or chat note (the overview shows them). Null when
+     * nothing was rolled (no class, a leftover playtest crate).
+     */
+    private CrateRoll openStack(ServerPlayer player, ItemStack stack, boolean quiet) {
         CustomData data = stack.get(DataComponents.CUSTOM_DATA);
         net.minecraft.nbt.CompoundTag tag = data == null ? new net.minecraft.nbt.CompoundTag() : data.copyTag();
         SkillClass clazz = SkillClass.byName(tag.getStringOr("crate_class", ""));
@@ -284,18 +298,89 @@ public final class CrateService {
         }
         if (clazz == null) {
             player.sendSystemMessage(Component.translatable("nightsiege.crate.no_class").withStyle(ChatFormatting.RED));
-            return;
+            return null;
         }
         if (tag.getBooleanOr("crate_playtest", false) && !SiegeManager.get().playtest().takesPart(player.getUUID())) {
             // A playtest crate left over: it belongs to the playtest only.
             stack.shrink(stack.getCount());
             player.sendSystemMessage(Component.translatable("nightsiege.playtest.crate_gone").withStyle(ChatFormatting.GRAY));
-            return;
+            return null;
         }
         CrateKind kind = CrateKind.byName(tag.getStringOr("crate_kind", "NORMAL"));
         int level = Math.max(1, tag.getIntOr("crate_level", 1));
         int curses = Math.max(0, tag.getIntOr("crate_curse", 0));
-        reveal(player, own, clazz, kind, level, curses, () -> stack.shrink(1));
+        return reveal(player, own, clazz, kind, level, curses, () -> stack.shrink(1), quiet ? null : "crate_all");
+    }
+
+    /**
+     * "Alle öffnen" (Tor 9.1 h, Simon 09.11.): every crate in the player's inventory, one after the other
+     * with the very roll, odds and statistics line of a single crate, then one overview window instead
+     * of a band each. Only the player's own inventory and skills are touched (co-op safe). Null when
+     * no crate was opened.
+     */
+    public CrateSummary openAll(ServerPlayer player) {
+        if (player == null || player.isDeadOrDying() || CRATE == null) {
+            return null;
+        }
+        List<CrateRoll> rolls = new ArrayList<>();
+        net.minecraft.world.entity.player.Inventory inv = player.getInventory();
+        for (int i = 0; i < inv.getContainerSize(); i++) {
+            ItemStack stack = inv.getItem(i);
+            while (!stack.isEmpty() && stack.is(CRATE)) {
+                int before = stack.getCount();
+                CrateRoll roll = openStack(player, stack, true);
+                if (roll != null) {
+                    rolls.add(roll);
+                } else if (stack.getCount() >= before) {
+                    return finishAll(player, rolls);   // no class: nothing more opens
+                }
+            }
+        }
+        return finishAll(player, rolls);
+    }
+
+    /**
+     * One crate the playtest owes, rolled quietly for its "alle öffnen" (the same roll and statistics
+     * line as {@link #openOwed}); {@link #finishAll} shows them together.
+     */
+    public CrateRoll rollOwed(ServerPlayer player, SkillClass clazz, CrateKind kind, int level) {
+        PlayerSkills own = save.get().realSkillsOf(player.getUUID().toString());
+        return reveal(player, own, clazz, kind, Math.max(1, level), 0, () -> {
+        }, null);
+    }
+
+    /** After "alle öffnen": saved once, the overview window, one light for the rarest gain, one chat line. */
+    public CrateSummary finishAll(ServerPlayer player, List<CrateRoll> rolls) {
+        if (rolls.isEmpty()) {
+            player.sendSystemMessage(Component.translatable("nightsiege.crate.none").withStyle(ChatFormatting.GRAY));
+            return null;
+        }
+        persist.run();
+        KitService.savePlayer(player);   // the crates are gone on disk too (no second roll after a crash)
+        CrateSummary summary = CrateSummary.of(rolls);
+        if (ServerPlayNetworking.canSend(player, CoreNetworking.ScreenPayload.TYPE)) {
+            ServerPlayNetworking.send(player, new CoreNetworking.ScreenPayload("crate_all", Json.toJson(summary)));
+        }
+        CrateSummary.Entry best = summary.best();
+        CrateFx.schedule(player, CrateRarity.byName(best.rarity), best.gain, 0);
+        player.sendSystemMessage(Component.translatable("nightsiege.crate.all_result", summary.crates, summary.fresh,
+                summary.points).withStyle(ChatFormatting.LIGHT_PURPLE));
+        NightSiegeMod.LOGGER.info("[Night Siege] {} Kisten von {} auf einmal: {} neu, {} Punkte", summary.crates,
+                player.getScoreboardName(), summary.fresh, summary.points);
+        return summary;
+    }
+
+    /** Crate items in the player's inventory (for the button "Alle öffnen (N)"). */
+    private static int cratesIn(ServerPlayer player) {
+        int n = 0;
+        net.minecraft.world.entity.player.Inventory inv = player.getInventory();
+        for (int i = 0; i < inv.getContainerSize(); i++) {
+            ItemStack stack = inv.getItem(i);
+            if (!stack.isEmpty() && stack.is(CRATE)) {
+                n += stack.getCount();
+            }
+        }
+        return n;
     }
 
     /**
@@ -324,15 +409,19 @@ public final class CrateService {
         }
         PlayerSkills own = save.get().realSkillsOf(player.getUUID().toString());
         reveal(player, own, clazz, kind, Math.max(1, level), 0, () -> {
-        });
+        }, "playtest:crates_all");
         return true;
     }
 
-    /** Rolls the crate, takes it ({@code take}), applies the gain and shows the band and the note. */
-    private void reveal(ServerPlayer player, PlayerSkills own, SkillClass clazz, CrateKind kind, int level, int curses,
-                        Runnable take) {
+    /**
+     * Rolls the crate, takes it ({@code take}), applies the gain and shows the band and the note.
+     * {@code allAction} is what the window's "Alle öffnen" sends; null = quiet (part of "alle öffnen").
+     */
+    private CrateRoll reveal(ServerPlayer player, PlayerSkills own, SkillClass clazz, CrateKind kind, int level, int curses,
+                             Runnable take, String allAction) {
         CrateRoll roll = roll(own, clazz, kind, level, curses);
         take.run();
+        revealedForTests++;
         try {
             SiegeManager.get().stats().crate(player, clazz.name(), kind.name(), level, roll);
         } catch (RuntimeException e) {
@@ -341,6 +430,14 @@ public final class CrateService {
         if (roll.infernite && InferniteContent.INGOT != null) {
             player.getInventory().placeItemBackInInventory(new ItemStack(InferniteContent.INGOT));
         }
+        if (allAction == null) {
+            NightSiegeMod.LOGGER.info("[Night Siege] Kiste von {}: {} ({}){}", player.getScoreboardName(), roll.gain,
+                    roll.rarity, roll.duplicate ? " doppelt" : "");
+            return roll;
+        }
+        roll.allAction = allAction;
+        roll.more = "crate_all".equals(allAction) ? cratesIn(player)
+                : Math.max(0, SiegeManager.get().playtest().cratesDue(player.getUUID()) - 1);
         persist.run();
         KitService.savePlayer(player);   // the crate is gone from the inventory on disk too (Simon 31.10.: no second roll after a crash)
         boolean window = ServerPlayNetworking.canSend(player, CoreNetworking.ScreenPayload.TYPE);
@@ -359,7 +456,11 @@ public final class CrateService {
         }
         NightSiegeMod.LOGGER.info("[Night Siege] Kiste von {}: {} ({}){}", player.getScoreboardName(), roll.gain,
                 roll.rarity, roll.duplicate ? " doppelt" : "");
+        return roll;
     }
+
+    /** Crates rolled since the start (single and "alle öffnen" alike), for the scene "loot". */
+    public static int revealedForTests;
 
     /** The odds of a crate from a night won under curses: half a step up the chain for each one. */
     public static int[] cursedOdds(SiegeConfig cfg, CrateKind kind, int curses) {

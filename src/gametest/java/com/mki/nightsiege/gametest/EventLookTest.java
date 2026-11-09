@@ -189,6 +189,10 @@ public class EventLookTest implements FabricClientGameTest {
                     alive(context);   // a scene before may have left the player dead (05.11.)
                     Pt2FlowScenes.run(context, game);   // Playtest 2: scaling, pause, variety, no harm, crates (04.11.)
                 }
+                if (want.contains("pt-start")) {
+                    alive(context);
+                    PtStartScenes.run(context, game);   // Tor 9.1 j: playtest start and stop without OP, not during a night
+                }
                 if (want.contains("maschinen")) {
                     alive(context);   // a scene before may have left the player dead (05.11.)
                     MaschinenScenes.run(context, game);   // siege machines from level 10, a camp's doubled (05.11.)
