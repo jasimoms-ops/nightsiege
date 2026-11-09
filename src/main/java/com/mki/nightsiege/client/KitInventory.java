@@ -42,6 +42,9 @@ public final class KitInventory {
         return i < 0 || i >= CELL_AT.size() ? null : new int[]{CELL_AT.get(i)[0] + 9, CELL_AT.get(i)[1] + 9};
     }
 
+    /** Tor 3.2c: where the locked place 3 was drawn (x, y of its 18x18 field), null when it is free. */
+    private static int[] lockAt;
+
     /** The gain place (0-2) under the mouse in the kit inventory, -1 for none (Tor 3.2b). */
     public static int gainAt(double mouseX, double mouseY) {
         if (!com.mki.nightsiege.core.KitView.hideCrafting) {
@@ -58,6 +61,13 @@ public final class KitInventory {
 
     /** The tooltip of the ability under the mouse (Simon 08.11.), drawn on top of everything. */
     public static void drawTips(GuiGraphicsExtractor gui, int mouseX, int mouseY) {
+        int[] lock = lockAt;
+        if (lock != null && mouseX >= lock[0] && mouseX < lock[0] + 18 && mouseY >= lock[1] && mouseY < lock[1] + 18) {
+            // Tor 3.2c (chief 03:30): place 3 belongs to the gain "Dritte Hand"
+            Font font = Minecraft.getInstance().font;
+            gui.setTooltipForNextFrame(font, font.split(Component.translatable("nightsiege.gainkey.locked"), 220), mouseX, mouseY, TIP_STYLE);
+            return;
+        }
         for (int i = 0; i < CELL_AT.size(); i++) {
             int[] at = CELL_AT.get(i);
             com.mki.nightsiege.core.AbilityTip tip = CELL_TIP.get(i);
@@ -150,10 +160,12 @@ public final class KitInventory {
         CELL_TIP.clear();
         CELL_KEY.clear();
         CELL_GAIN.clear();
+        lockAt = null;
         if (s != null) {
             int gainIndex = 0;
             List<UltHud.Cell> cells = UltHud.fixedCells(s, AbilityKeys.mapping(AbilityKeys.Ability.ULT, 0));
-            int ax = left + 133 - (cells.size() * 20 - 2) / 2;
+            boolean locked = s.kitsOn && s.gainPlaces < 3;   // Tor 3.2c: place 3 grey with a lock
+            int ax = left + 133 - ((cells.size() + (locked ? 1 : 0)) * 20 - 2) / 2;
             int ay = top + 59;
             for (UltHud.Cell c : cells) {
                 KitHud.blit(gui, SLOT, ax, ay, 18, 18);
@@ -174,6 +186,12 @@ public final class KitInventory {
                 gui.text(font, key, 0, 0, 0xFFF0D27A, true);
                 gui.pose().popMatrix();
                 ax += 20;
+            }
+            if (locked) {
+                KitHud.blit(gui, SLOT, ax, ay, 18, 18);
+                gui.fill(ax + 1, ay + 1, ax + 17, ay + 17, 0x80000000);
+                KitHud.lock(gui, ax + 6, ay + 5);
+                lockAt = new int[]{ax, ay};
             }
             // Tor 3.4: every ability on places 1-4 gets a field with its tooltip, in a column right of the panel.
             List<UltHud.Cell> bar = UltHud.choiceCells(s, mc);

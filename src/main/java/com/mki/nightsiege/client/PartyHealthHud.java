@@ -60,6 +60,12 @@ public final class PartyHealthHud {
         int sh = mc.getWindow().getGuiScaledHeight();
         int x = sw - W - 3;
         int y = Math.max(24, sh / 2 - h / 2 - 20);
+        if (!KitHud.legacy) {
+            // Tor 3.2c: left middle, a fixed place of its own (the bosses have the top right)
+            com.mki.nightsiege.core.ActionBarLayout.Rect at = com.mki.nightsiege.core.ActionBarLayout.party(sh, n);
+            x = at.x();
+            y = at.y();
+        }
         // the plate with a bronze trim and gold corner studs
         gui.fill(x, y, x + W, y + h, PLATE);
         gui.fill(x, y, x + W, y + 1, TRIM);

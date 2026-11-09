@@ -32,8 +32,8 @@ public final class GainCooldownHud {
         Minecraft mc = Minecraft.getInstance();
         UltState s = UltHud.state();
         if (s == null || s.gains == null || s.gains.isEmpty() || mc.player == null
-                || !(s.keys || s.live)) {
-            return;
+                || !(s.keys || s.live) || (KitHud.active() && !KitHud.legacy)) {
+            return;   // Tor 3.2c: with the kit the gains sit on places 1-3 of the action bar
         }
         List<UltState.Slot> gains = s.gains;
         int n = Math.min(gains.size(), GainClient.GAIN_KEYS);

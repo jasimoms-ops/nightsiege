@@ -213,6 +213,9 @@ public class NightSiegeClient implements ClientModInitializer {
         // vanilla hotbar and bars; chat, item name, action bar and subtitles move up when they would
         // run into it.
         ClientTickEvents.END_CLIENT_TICK.register(KitHud::tick);
+        // Tor 3.2c: at night the mod's short messages show above the action bar instead of in the chat.
+        net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents.ALLOW_GAME.register(
+                (text, overlay) -> overlay || !KitHud.toBar(text));
         HudElementRegistry.attachElementAfter(VanillaHudElements.HOTBAR, ModContent.id("kit_hud"),
                 (gui, delta) -> KitHud.draw(gui, ultimateKey));
         for (net.minecraft.resources.Identifier vanilla : List.of(VanillaHudElements.HOTBAR, VanillaHudElements.ARMOR_BAR,

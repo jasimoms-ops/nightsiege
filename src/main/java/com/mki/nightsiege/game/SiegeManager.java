@@ -5487,6 +5487,7 @@ public final class SiegeManager {
                 }
                 try {
                     state.gains = GainKeys.slots(this, player, now);
+                    state.gainPlaces = GainKeys.keyCount(kits(), own, own.clazz());   // Tor 3.2c: the lock on place 3
                 } catch (RuntimeException e) {
                     NightSiegeMod.LOGGER.warn("[Night Siege] Gewinn-Tasten: {}", e.toString());
                 }

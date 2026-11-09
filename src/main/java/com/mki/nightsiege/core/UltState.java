@@ -83,6 +83,8 @@ public class UltState {
      * of their own. {@link Slot#current} marks one that is spent (used up tonight or in this kit).
      */
     public java.util.List<Slot> gains = new java.util.ArrayList<>();
+    /** Tor 3.2c: how many gain places the class has (2, 3 with the gain "Dritte Hand"); place 3 shows a lock without it. */
+    public int gainPlaces = 2;
     /**
      * Tor 2 (08.11.): pauses without a key of their own (the guardians' shield action, their last stand, the
      * paladin's divine shield, the trapper's tripwire), shown as small boxes with a running pause.

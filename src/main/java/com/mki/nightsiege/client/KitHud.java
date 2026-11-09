@@ -1,5 +1,6 @@
 package com.mki.nightsiege.client;
 
+import com.mki.nightsiege.core.ActionBarLayout;
 import com.mki.nightsiege.core.CooldownRing;
 import com.mki.nightsiege.core.HudSync;
 
@@ -99,6 +100,38 @@ public final class KitHud {
         messageUntil = System.currentTimeMillis() + 3000L;
     }
 
+    /** For the tests: toasts kept away at night (Tor 3.2c). */
+    public static volatile int blockedToasts;
+
+    /** Tor 3.2c: at night (kit worn) the advancement and recipe toasts stay away; the rest (system, tutorial) shows. */
+    public static boolean blocksToast(net.minecraft.client.gui.components.toasts.Toast toast) {
+        boolean block = active() && (toast instanceof net.minecraft.client.gui.components.toasts.AdvancementToast
+                || toast instanceof net.minecraft.client.gui.components.toasts.RecipeToast);
+        if (block) {
+            blockedToasts++;
+        }
+        return block;
+    }
+
+    /**
+     * Tor 3.2c: a short mod message shows above the action bar instead of in the chat (at night, one line,
+     * only the mod's own "nightsiege.msg.*" lines). False keeps it in the chat.
+     */
+    public static boolean toBar(Component text) {
+        if (!active() || legacy || text == null
+                || !(text.getContents() instanceof net.minecraft.network.chat.contents.TranslatableContents t)
+                || !t.getKey().startsWith("nightsiege.msg.")) {
+            return false;
+        }
+        String plain = text.getString();
+        if (plain.indexOf('\n') >= 0 || Minecraft.getInstance().font.width(text) > 240) {
+            return false;
+        }
+        message = text;
+        messageUntil = System.currentTimeMillis() + 3500L;
+        return true;
+    }
+
     /** True while some kit item is in the inventory (checked once a tick). */
     private static boolean worn;
     /** The red that is lost shows a moment longer, then runs down (like in League). */
@@ -170,6 +203,10 @@ public final class KitHud {
         int height = mc.getWindow().getGuiScaledHeight();
         double scale = mc.options.chatScale().get();
         int right = 4 + (int) Math.ceil((Math.floor(mc.options.chatWidth().get() * 280.0 + 40.0) + 8) * scale);
+        ActionBarLayout.Layout bar = lastLayout;
+        if (!legacy && bar != null) {
+            return ActionBarLayout.chatLift(bar.parts(), height, right);   // Tor 3.2c: the bar sits below the chat
+        }
         if (right <= lastLeft) {
             return 0;
         }
@@ -185,7 +222,7 @@ public final class KitHud {
         Minecraft mc = Minecraft.getInstance();
         int height = mc.getWindow().getGuiScaledHeight();
         int tooltip = height - 59 + (mc.player != null && mc.player.isCreative() ? 14 : 0);
-        int archTop = lastTop - ARCH_H;
+        int archTop = legacy ? lastTop - ARCH_H : lastTop;
         return Math.max(0, tooltip + 10 - archTop);
     }
 
@@ -202,12 +239,8 @@ public final class KitHud {
     // drawing
     // ------------------------------------------------------------------
 
-    public static void draw(GuiGraphicsExtractor gui, KeyMapping ultKey) {
-        if (!active()) {
-            lastLeft = Integer.MAX_VALUE;
-            lastTop = Integer.MAX_VALUE;
-            return;
-        }
+    /** The panel before Tor 3.2c (crest, abilities, bars, hotbar in two rows). */
+    private static void drawPanel(GuiGraphicsExtractor gui, KeyMapping ultKey) {
         Minecraft mc = Minecraft.getInstance();
         LocalPlayer p = mc.player;
         UltState s = UltHud.state();
@@ -283,6 +316,404 @@ public final class KitHud {
         gainSlots(gui, mc.font, w / 2, gains, live);
         message(gui, mc.font, w / 2, !gains.isEmpty());
         gui.pose().popMatrix();
+    }
+
+    // ------------------------------------------------------------------
+    // Tor 3.2c: the action bar (Simon 09.11., draft approved 03:30)
+    // ------------------------------------------------------------------
+
+    /** Tor 3.2c: the old panel (crest, arches, wings) only for the gametest's "before" pictures. */
+    public static boolean legacy;
+    /** For the tests: the action bar drawn last (null while none is drawn). */
+    public static volatile ActionBarLayout.Layout lastLayout;
+    /** For the tests: the keys of the fields drawn last, in their order, and how many showed a pause running. */
+    public static volatile List<String> lastKeys = List.of();
+    public static volatile int lastLoading;
+
+    private static final int FRAME_OUT = 0xFF0A0807;
+    private static final int FRAME_RIM = 0xFF4A3816;
+    private static final int FRAME_GOLD = 0xFFC9A55A;
+    private static final int FRAME_GOLD_HI = 0xFFE8C56B;
+    private static final int FIELD_IN = 0xFF1D1813;
+    private static final int TRIM_SHADE = 0xFF6B5222;
+    /** The ult's charge: violet, like the night bar. */
+    private static final int ULT_RING = 0xFFA77BE8;
+    private static final long FLASH_MS = 600L;
+    private static final java.util.Map<String, Long> READY_AT = new java.util.HashMap<>();
+    private static final java.util.Set<String> READY = new java.util.HashSet<>();
+
+    public static void draw(GuiGraphicsExtractor gui, KeyMapping ultKey) {
+        if (!active()) {
+            lastLeft = Integer.MAX_VALUE;
+            lastTop = Integer.MAX_VALUE;
+            lastLayout = null;
+            return;
+        }
+        if (legacy) {
+            lastLayout = null;
+            drawPanel(gui, ultKey);
+            return;
+        }
+        drawBar(gui, ultKey);
+    }
+
+    /** The place 0-3 (Q E F C) a key fires, -1 for none. */
+    private static int placeOf(KeyMapping key) {
+        for (int i = 0; i < 4 && key != null; i++) {
+            if (GainClient.slotKey(i) == key) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private static void drawBar(GuiGraphicsExtractor gui, KeyMapping ultKey) {
+        Minecraft mc = Minecraft.getInstance();
+        LocalPlayer p = mc.player;
+        Font font = mc.font;
+        UltState s = UltHud.state();
+        boolean live = s != null && s.live;
+        UltHud.Cell[] places = new UltHud.Cell[4];
+        UltHud.Cell ult = null;
+        UltHud.Cell ult2 = null;
+        List<UltHud.Cell> timers = List.of();
+        List<UltHud.Cell> gains = List.of();
+        if (s != null) {
+            for (UltHud.Cell c : UltHud.fixedCells(s, ultKey, false)) {
+                if (c.key() == ultKey) {
+                    ult = c;
+                } else if (c.key() == AbilityKeys.mapping(AbilityKeys.Ability.ULT2, 0)) {
+                    ult2 = c;
+                } else {
+                    int at = placeOf(c.key());
+                    if (at >= 0 && places[at] == null) {
+                        places[at] = c;
+                    }
+                }
+            }
+            for (UltHud.Cell c : UltHud.choiceCells(s, mc)) {
+                int at = placeOf(c.key());
+                if (at >= 0 && places[at] == null) {
+                    places[at] = c;
+                }
+            }
+            timers = UltHud.timerCells(s);
+            gains = UltHud.gainCells(s);
+        }
+        boolean gauge = s != null && s.gauge && s.gaugeMax > 0f;
+        int units = s == null || s.units == null ? 0 : s.units.size();
+        int gainPlaces = s == null ? 2 : Math.max(0, Math.min(3, s.gainPlaces));
+        ActionBarLayout.Input in = new ActionBarLayout.Input(new boolean[]{true, true, true, places[3] != null},
+                timers.size(), ult2 != null, gainPlaces, gauge, units, !p.getOffhandItem().isEmpty());
+        int sw = mc.getWindow().getGuiScaledWidth();
+        int sh = mc.getWindow().getGuiScaledHeight();
+        ActionBarLayout.Layout l = ActionBarLayout.layout(sw, sh, in);
+        lastLayout = l;
+        lastLeft = l.left();
+        int top = Integer.MAX_VALUE;
+        for (ActionBarLayout.Rect r : l.parts()) {
+            top = Math.min(top, r.y());
+        }
+        lastTop = top;
+
+        gui.pose().pushMatrix();
+        gui.pose().translate(l.left(), l.top());
+        if (l.scale() < 1f) {
+            gui.pose().scale(l.scale(), l.scale());
+        }
+        frame(gui, l);
+        long now = System.currentTimeMillis();
+        List<String> keys = new java.util.ArrayList<>();
+        int loading = 0;
+        Inventory inv = p.getInventory();
+        for (ActionBarLayout.Field f : l.fields()) {
+            ActionBarLayout.Rect r = f.at();
+            keys.add(f.key());
+            switch (f.kind()) {
+                case ABILITY -> loading += field(gui, font, r, places[f.index()], live, GainClient.slotKey(f.index()), f.key(), now, false);
+                case TIMER -> loading += field(gui, font, r, timers.get(f.index()), live, null, f.key(), now, false);
+                case ULT -> loading += field(gui, font, r, f.index() == 0 ? ult : ult2, live,
+                        f.index() == 0 ? ultKey : AbilityKeys.mapping(AbilityKeys.Ability.ULT2, 0), f.key(), now, f.index() == 0);
+                case GAIN -> loading += field(gui, font, r, f.index() < gains.size() ? gains.get(f.index()) : null, live,
+                        GainClient.gainKey(f.index()), f.key(), now, false);
+                case LOCKED -> locked(gui, font, r);
+                case HOTBAR -> itemSlot(gui, font, r, inv.getItem(f.index()), inv.getSelectedSlot() == f.index());
+                case OFFHAND -> itemSlot(gui, font, r, p.getOffhandItem(), false);
+            }
+        }
+        lastKeys = List.copyOf(keys);
+        lastLoading = loading;
+        statusRow(gui, font, p, s, l, now);
+        gui.pose().popMatrix();
+    }
+
+    /** The slim frame: dark, a gold line on top with studs at its ends, a gold stud between the groups. */
+    private static void frame(GuiGraphicsExtractor gui, ActionBarLayout.Layout l) {
+        int w = l.width();
+        int h = ActionBarLayout.BAR_H;
+        gui.fill(0, 1, w, h, 0xC8120E0C);
+        gui.fill(0, 0, w, 1, FRAME_GOLD);
+        gui.fill(1, 1, w - 1, 2, TRIM_SHADE);
+        gui.fill(0, 1, 1, h, TRIM_SHADE);
+        gui.fill(w - 1, 1, w, h, TRIM_SHADE);
+        for (int sx : new int[]{-1, w - 2}) {
+            gui.fill(sx - 1, -2, sx + 3, 2, FRAME_OUT);
+            gui.fill(sx, -1, sx + 2, 1, FRAME_GOLD_HI);
+        }
+        int cy = h / 2;
+        for (int sx : l.studs()) {
+            gui.fill(sx - 1, cy - 2, sx + 2, cy + 3, FRAME_OUT);
+            gui.fill(sx - 1, cy, sx + 2, cy + 1, FRAME_GOLD);
+            gui.fill(sx, cy - 1, sx + 1, cy + 2, FRAME_GOLD_HI);
+        }
+    }
+
+    /**
+     * One field of the bar: its symbol, its key top left, gold rim when ready and a short glow when it just got
+     * ready; while it loads the symbol stays (darker) with the ring and the seconds (chief 03:30: never a plain
+     * grey patch). The ult's ring is violet and fills up as it charges. Returns 1 while a pause runs.
+     */
+    private static int field(GuiGraphicsExtractor gui, Font font, ActionBarLayout.Rect r, UltHud.Cell c, boolean live,
+                             KeyMapping key, String id, long now, boolean ultCharge) {
+        int x = r.x();
+        int y = r.y();
+        int size = r.w();
+        long left = c == null ? 0L : Math.max(0L, c.cooldown() - UltHud.elapsedTicks());
+        boolean spent = c != null && (!live || c.spent());
+        boolean loadingNow = c != null && !spent && left > 0 && c.total() > 0;
+        boolean ready = c != null && live && !c.spent() && left == 0;
+        if (ready && READY.add(id)) {
+            READY_AT.put(id, now);
+        } else if (!ready) {
+            READY.remove(id);
+        }
+        gui.fill(x, y, x + size, y + size, FRAME_OUT);
+        gui.fill(x + 1, y + 1, x + size - 1, y + size - 1, ready ? FRAME_GOLD : FRAME_RIM);
+        gui.fill(x + 2, y + 2, x + size - 2, y + size - 2, FIELD_IN);
+        int icon = size >= 16 + 4 ? 16 : size - 3;
+        int ix = x + (size - icon) / 2;
+        int iy = y + (size - icon) / 2;
+        if (c != null) {
+            if (icon == 16) {
+                gui.item(c.icon(), ix, iy);
+            } else {
+                gui.pose().pushMatrix();
+                gui.pose().translate(ix, iy);
+                gui.pose().scale(icon / 16f, icon / 16f);
+                gui.item(c.icon(), 0, 0);
+                gui.pose().popMatrix();
+            }
+        }
+        if (spent) {
+            gui.fill(ix, iy, ix + icon, iy + icon, 0xA0000000);
+        } else if (loadingNow) {
+            gui.fill(ix, iy, ix + icon, iy + icon, 0x78000000);
+            if (ultCharge) {
+                for (int[] run : CooldownRing.runs(x, y, size, 1.0)) {
+                    gui.fill(run[0], run[1], run[2], run[3], RING_TRACK);
+                }
+                for (int[] run : CooldownRing.runs(x, y, size, 1.0 - HudSync.shade(left, c.total()))) {
+                    gui.fill(run[0], run[1], run[2], run[3], ULT_RING);
+                }
+            } else {
+                ring(gui, x, y, size, left, c.total());
+            }
+            String seconds = String.valueOf((left + 19) / 20);
+            if (icon == 16) {
+                gui.text(font, seconds, x + size / 2 - font.width(seconds) / 2 + 1, y + size / 2 - 3, 0xFFFFFFFF, true);
+            } else {
+                small(gui, font, seconds, x + size / 2f - font.width(seconds) / 4f, y + size / 2f - 1.5f, 0xFFFFFFFF);
+            }
+        }
+        Long since = READY_AT.get(id);
+        if (ready && since != null && now - since < FLASH_MS) {
+            int a = Math.round(0xC0 * (1f - (now - since) / (float) FLASH_MS));
+            int glow = (a << 24) | 0xFFF0C0;
+            gui.fill(x - 1, y - 1, x + size + 1, y, glow);
+            gui.fill(x - 1, y + size, x + size + 1, y + size + 1, glow);
+            gui.fill(x - 1, y, x, y + size, glow);
+            gui.fill(x + size, y, x + size + 1, y + size, glow);
+            gui.fill(ix, iy, ix + icon, iy + icon, ((a / 3) << 24) | 0xFFF0C0);
+        }
+        String text = c != null ? c.keyText() : key != null ? AbilityKeys.shortLabel(key) : "";
+        int color = c == null || spent ? 0xFF8A8070 : loadingNow ? 0xFFB8AC98 : 0xFFF0D27A;
+        small(gui, font, text, x + 2.5f, y + 2f, color);
+        return loadingNow ? 1 : 0;
+    }
+
+    /** Place 3 without the gain "Dritte Hand": grey, with a small iron lock (its tooltip is in the kit window). */
+    private static void locked(GuiGraphicsExtractor gui, Font font, ActionBarLayout.Rect r) {
+        int x = r.x();
+        int y = r.y();
+        int size = r.w();
+        gui.fill(x, y, x + size, y + size, FRAME_OUT);
+        gui.fill(x + 1, y + 1, x + size - 1, y + size - 1, 0xFF2A2622);
+        gui.fill(x + 2, y + 2, x + size - 2, y + size - 2, 0xFF151311);
+        lock(gui, x + size / 2 - 3, y + size / 2 - 4);
+        small(gui, font, "3", x + 2.5f, y + 2f, 0xFF6E665A);
+    }
+
+    /** A 7 x 8 padlock in iron with a gold keyhole. */
+    static void lock(GuiGraphicsExtractor gui, int x, int y) {
+        gui.fill(x + 1, y, x + 6, y + 1, 0xFF8A8A8A);
+        gui.fill(x + 1, y, x + 2, y + 4, 0xFF8A8A8A);
+        gui.fill(x + 5, y, x + 6, y + 4, 0xFF6A6A6A);
+        gui.fill(x, y + 3, x + 7, y + 8, 0xFF5A5A5E);
+        gui.fill(x, y + 3, x + 7, y + 4, 0xFF9A9AA0);
+        gui.fill(x + 3, y + 5, x + 4, y + 7, FRAME_GOLD_HI);
+    }
+
+    /** A hotbar place: dark field, the item with its count and wear; the chosen one with a gold rim. */
+    private static void itemSlot(GuiGraphicsExtractor gui, Font font, ActionBarLayout.Rect r, ItemStack stack, boolean selected) {
+        int x = r.x();
+        int y = r.y();
+        int size = r.w();
+        gui.fill(x, y, x + size, y + size, FRAME_OUT);
+        gui.fill(x + 1, y + 1, x + size - 1, y + size - 1, selected ? FRAME_GOLD_HI : 0xFF3A2E1E);
+        gui.fill(x + 2, y + 2, x + size - 2, y + size - 2, selected ? 0xFF2A2318 : FIELD_IN);
+        if (!stack.isEmpty()) {
+            gui.item(stack, x + 2, y + 2);
+            gui.itemDecorations(font, stack, x + 2, y + 2);
+        }
+    }
+
+    /** The status row above the bar: the last message, the class gauge, health, then hunger and armour as thin lines. */
+    private static void statusRow(GuiGraphicsExtractor gui, Font font, LocalPlayer p, UltState s, ActionBarLayout.Layout l, long now) {
+        // message
+        ActionBarLayout.Rect m = l.message();
+        if (message != null && now <= messageUntil && m.w() > 10) {
+            float fade = Math.min(1f, (messageUntil - now) / 500f);
+            int alpha = Math.max(16, Math.round(255 * fade));
+            int width = font.width(message);
+            float scale = Math.max(0.5f, Math.min(1f, (m.w() - 6) / (float) Math.max(1, width)));
+            float shown = width * scale;
+            gui.fill(m.x(), m.y(), m.x() + Math.round(shown) + 6, m.y() + m.h(), (Math.round(0xC0 * fade) << 24) | 0x100C0A);
+            gui.fill(m.x(), m.y() + m.h() - 1, m.x() + Math.round(shown) + 6, m.y() + m.h(), (Math.round(0xC0 * fade) << 24) | 0x6B5222);
+            gui.pose().pushMatrix();
+            gui.pose().translate(m.x() + 3, m.y() + m.h() / 2f - 4f * scale);
+            gui.pose().scale(scale, scale);
+            gui.text(font, message, 0, 0, (alpha << 24) | 0xF4E6C8, true);
+            gui.pose().popMatrix();
+        }
+        // the class gauge
+        if (l.gauge() != null && s != null) {
+            ActionBarLayout.Rect g = l.gauge();
+            int c = s.gaugeColor | 0xFF000000;
+            int lightC = 0xFF000000 | Math.min(0xFF, ((c >> 16) & 0xFF) + 50) << 16
+                    | Math.min(0xFF, ((c >> 8) & 0xFF) + 50) << 8 | Math.min(0xFF, (c & 0xFF) + 50);
+            String text = s.gaugeMax == 100f && s.gaugeName.endsWith("shield")
+                    ? Math.round(s.gaugeValue) + "%"
+                    : (int) Math.floor(s.gaugeValue) + "/" + Math.round(s.gaugeMax);
+            blit(gui, ICON_CLASS, g.x(), g.y(), 7, 7);
+            thinBar(gui, font, g.x() + 9, g.y(), g.w() - 9, s.gaugeValue / s.gaugeMax, c, lightC, text);
+            if (s.gaugeGlow) {
+                glow(gui, g.x() + 9, g.y(), g.w() - 9, 7, c, now, s.gaugeValue / s.gaugeMax);
+            }
+        }
+        // health, with the gold of absorption and the light trail of what was just lost
+        ActionBarLayout.Rect h = l.health();
+        float hp = Math.max(0f, p.getHealth());
+        float max = Math.max(1f, p.getMaxHealth());
+        float absorb = Math.max(0f, p.getAbsorptionAmount());
+        float total = Math.max(max, hp + absorb);
+        blit(gui, ICON_HEART, h.x(), h.y(), 7, 7);
+        int bx = h.x() + 9;
+        int bw = h.w() - 9;
+        gui.fill(bx, h.y(), bx + bw, h.y() + 7, FRAME_OUT);
+        gui.fill(bx + 1, h.y() + 1, bx + bw - 1, h.y() + 6, 0xFF1A0E0C);
+        int inner = bw - 2;
+        if (trail < hp) {
+            trail = hp;
+        }
+        if (hp < lastHp - 0.01f) {
+            holdUntil = now + 450;
+        }
+        if (now > holdUntil && trail > hp) {
+            float dt = Math.min(0.1f, (now - lastFrame) / 1000f);
+            trail = Math.max(hp, trail - dt * max * 0.8f);
+        }
+        lastHp = hp;
+        lastFrame = now;
+        int hpW = Math.round(inner * hp / total);
+        int trailW = Math.round(inner * Math.min(trail, total) / total);
+        int absW = Math.round(inner * (hp + absorb) / total) - hpW;
+        if (trailW > hpW) {
+            gui.fill(bx + 1 + hpW, h.y() + 1, bx + 1 + trailW, h.y() + 6, 0xFFE8C9A0);
+        }
+        int body = 0xFFA8261F;
+        int light = 0xFFD8443A;
+        if (p.hasEffect(MobEffects.WITHER)) {
+            body = 0xFF3B3532;
+            light = 0xFF5E5650;
+        } else if (p.hasEffect(MobEffects.POISON)) {
+            body = 0xFF6A8A22;
+            light = 0xFF94B43C;
+        } else if (p.isFullyFrozen()) {
+            body = 0xFF5F98BE;
+            light = 0xFF9CCDE8;
+        }
+        if (hp <= max * 0.2f && (now / 300) % 2 == 0) {
+            light = 0xFFFF6A5A;
+        }
+        bar(gui, bx + 1, h.y() + 1, hpW, 5, body, light);
+        if (absW > 0) {
+            bar(gui, bx + 1 + hpW, h.y() + 1, absW, 5, 0xFFC99A2E, 0xFFF0CC5A);
+        }
+        String hpText = (int) Math.ceil(hp) + (absorb > 0.5f ? "+" + (int) Math.ceil(absorb) : "") + "/" + (int) Math.ceil(max);
+        small(gui, font, hpText, bx + bw / 2f - font.width(hpText) / 4f, h.y() + 1.5f, 0xFFF4EBDD);
+        // hunger and armour (or air under water): two thin lines, smaller at night (3.2c)
+        ActionBarLayout.Rect mi = l.minis();
+        int food = p.getFoodData().getFoodLevel();
+        boolean hungry = p.hasEffect(MobEffects.HUNGER);
+        line(gui, mi.x(), mi.y() + 1, mi.w(), food / 20f, hungry ? 0xFF8EA040 : 0xFFDDA050);
+        int air = p.getAirSupply();
+        int maxAir = Math.max(1, p.getMaxAirSupply());
+        if (p.isUnderWater() || air < maxAir) {
+            line(gui, mi.x(), mi.y() + 4, mi.w(), Math.max(0, air) / (float) maxAir, 0xFF8CC8EE);
+        } else {
+            line(gui, mi.x(), mi.y() + 4, mi.w(), Math.min(1f, p.getArmorValue() / 20f), 0xFF98A6B6);
+        }
+        // companions or towers: a small row above the right end
+        if (l.units() != null && s != null && s.units != null) {
+            ActionBarLayout.Rect u = l.units();
+            int x = u.x();
+            for (int i = 0; i < s.units.size() && i < 4; i++) {
+                unit(gui, font, x, u.y(), s.units.get(i));
+                x += ActionBarLayout.UNIT_STEP;
+            }
+        }
+    }
+
+    private static void line(GuiGraphicsExtractor gui, int x, int y, int w, float share, int color) {
+        gui.fill(x, y, x + w, y + 2, 0xC0000000);
+        int lit = Math.round(w * Math.max(0f, Math.min(1f, share)));
+        if (lit > 0) {
+            gui.fill(x, y, x + lit, y + 2, color);
+        }
+    }
+
+    private static void thinBar(GuiGraphicsExtractor gui, Font font, int x, int y, int w, float share, int body, int light, String text) {
+        gui.fill(x, y, x + w, y + 7, FRAME_OUT);
+        gui.fill(x + 1, y + 1, x + w - 1, y + 6, 0xFF1A0E0C);
+        bar(gui, x + 1, y + 1, Math.round((w - 2) * Math.max(0f, Math.min(1f, share))), 5, body, light);
+        small(gui, font, text, x + w / 2f - font.width(text) / 4f, y + 1.5f, 0xFFF4EBDD);
+    }
+
+    private static void unit(GuiGraphicsExtractor gui, Font font, int x, int y, UltState.Unit u) {
+        blit(gui, SLOT_WING, x, y, WING_SLOT, WING_SLOT);
+        gui.pose().pushMatrix();
+        gui.pose().translate(x + 1.5f, y + 1.5f);
+        gui.pose().scale(0.5f, 0.5f);
+        gui.item(UltHud.icon(u.icon), 0, 0);
+        gui.pose().popMatrix();
+        if (u.health >= 0f) {
+            int hw = Math.round((WING_SLOT - 2) * u.health);
+            gui.fill(x + 1, y + WING_SLOT - 2, x + WING_SLOT - 1, y + WING_SLOT - 1, 0xFF1A0E0C);
+            gui.fill(x + 1, y + WING_SLOT - 2, x + 1 + hw, y + WING_SLOT - 1,
+                    u.health > 0.5f ? 0xFF5FC04A : u.health > 0.25f ? 0xFFE0B040 : 0xFFD8443A);
+        }
+        String count = u.max > 0 ? u.count + "/" + u.max : String.valueOf(u.count);
+        small(gui, font, count, x + WING_SLOT - 0.5f - font.width(count) / 2f, y + WING_SLOT - 5.5f, 0xFFF4EBDD);
     }
 
     static void blit(GuiGraphicsExtractor gui, Identifier id, int x, int y, int w, int h) {
