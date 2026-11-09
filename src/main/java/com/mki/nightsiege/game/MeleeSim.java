@@ -1190,7 +1190,13 @@ public final class MeleeSim {
      * playtest does ({@link Playtest#learnLikeAPlayer}).
      */
     public static PlayerSkills buildBudget(SkillTree tree, SkillClass clazz, String subclassNode, int points) {
-        PlayerSkills full = build(tree, clazz, subclassNode);
+        return buildBudget(tree, clazz, subclassNode, points, null);
+    }
+
+    /** As above; with {@code pickOrder} the choices are picked by chance (Tor 6.5, "wahl=zufall"). */
+    public static PlayerSkills buildBudget(SkillTree tree, SkillClass clazz, String subclassNode, int points,
+                                           java.util.Random pickOrder) {
+        PlayerSkills full = build(tree, clazz, subclassNode, pickOrder);
         PlayerSkills p = new PlayerSkills();
         p.chosenClass = clazz.name();
         planSubclass(p, clazz, subclassNode);   // its node at level 1 for free, as with a player's class pick
@@ -1218,6 +1224,18 @@ public final class MeleeSim {
 
     /** A full skill tree for one subclass: its way, its subclass node, every other node that can be had. */
     public static PlayerSkills build(SkillTree tree, SkillClass clazz, String subclassNode) {
+        return build(tree, clazz, subclassNode, null);
+    }
+
+    /**
+     * As above; with {@code pickOrder} the nodes are visited in a shuffled order, so the first free member of every
+     * choice group (and of the salvos and potions) is a random one instead of the first in the tree (Tor 6.5).
+     */
+    public static PlayerSkills build(SkillTree tree, SkillClass clazz, String subclassNode, java.util.Random pickOrder) {
+        List<SkillNode> order = new java.util.ArrayList<>(tree.ofClass(clazz));
+        if (pickOrder != null) {
+            java.util.Collections.shuffle(order, pickOrder);
+        }
         PlayerSkills p = new PlayerSkills();
         p.chosenClass = clazz.name();
         planSubclass(p, clazz, subclassNode);
@@ -1226,7 +1244,7 @@ public final class MeleeSim {
         boolean changed = true;
         while (changed) {
             changed = false;
-            for (SkillNode n : tree.ofClass(clazz)) {
+            for (SkillNode n : order) {
                 if (!(n.onTrunk() || way.equals(n.path()))) {
                     continue;
                 }

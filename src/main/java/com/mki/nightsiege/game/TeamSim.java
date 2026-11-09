@@ -99,7 +99,7 @@ public final class TeamSim {
 
     /** One real night to replay (points < 0: the points one has by that level). */
     record Scenario(String id, int level, List<String[]> subs, SiegeEvent event, com.mki.nightsiege.core.BossKind boss,
-                    int points) {
+                    int points, double skill) {
     }
     /** Variant name → config overrides ("monsterDamage" → "0.8"); the first is the base. */
     private static final Map<String, Map<String, String>> variants = new LinkedHashMap<>();
@@ -118,6 +118,12 @@ public final class TeamSim {
     private static final List<Run> queue = new ArrayList<>();
     private static final List<Result> results = new ArrayList<>();
     private static final Map<UUID, TeamBrain> brains = new LinkedHashMap<>();
+    /** Tor 6.1/6.5: per run the learned choice nodes of each bot, the tick-time samples, the live monsters. */
+    private static final List<String> pendingNodes = new ArrayList<>();
+    private static final List<Long> tickSamples = new ArrayList<>();
+    private static final List<String> tickRows = new ArrayList<>();
+    private static final List<String> extraCsv = new ArrayList<>();
+    private static int liveMax;
     private static BlockPos core;
     private static ServerLevel world;
     private static String groundKind = "-";
@@ -188,6 +194,7 @@ public final class TeamSim {
     private static void begin(Phase first, MinecraftServer server) {
         buildQueue();
         results.clear();
+        extraCsv.clear();
         brains.clear();
         index = 0;
         phase = first;
@@ -367,7 +374,9 @@ public final class TeamSim {
                     }
                 }
                 int points = o.has("punkte") && !o.get("punkte").isJsonNull() ? o.get("punkte").getAsInt() : -1;
-                scenarios.put("nacht_" + id, new Scenario(id, o.get("stufe").getAsInt(), subs, event, boss, points));
+                // Tor 6.1: optional "koennen" = the bots' skill of this night (0.5/0.7/0.9 in the raster), else the knob.
+                double skill = o.has("koennen") && !o.get("koennen").isJsonNull() ? o.get("koennen").getAsDouble() : -1;
+                scenarios.put("nacht_" + id, new Scenario(id, o.get("stufe").getAsInt(), subs, event, boss, points, skill));
             }
         } catch (IOException | RuntimeException e) {
             throw new IllegalStateException("Nachspiel-Datei nicht lesbar (" + file + "): " + e, e);
@@ -594,6 +603,9 @@ public final class TeamSim {
                         record(server, m, "zeit");
                         return;
                     }
+                    if ((now - fightStart) % 200 == 199) {
+                        sampleTicks(server, now - fightStart);
+                    }
                     List<ServerPlayer> standing = new ArrayList<>();
                     for (UUID id : brains.keySet()) {
                         ServerPlayer bot = server.getPlayerList().getPlayer(id);
@@ -636,6 +648,10 @@ public final class TeamSim {
         applyConfig(m, common);
         applyConfig(m, variants.getOrDefault(run.variant(), Map.of()));
         clearField(m);
+        pendingNodes.clear();
+        tickSamples.clear();
+        tickRows.clear();
+        liveMax = 0;
         // The bots: as many as the group, "Bot01" to "BotNN" every time, the NN-th playing the NN-th subclass.
         // Picked by name, not by place in the list (31.10.): a bot that died after the night was missing from
         // SimBots.all(), so the others moved up a place, the last name came twice (one subclass lost) and the
@@ -666,11 +682,28 @@ public final class TeamSim {
                 m.save().register(id);
             }
             Scenario sc = scenarios.get(run.mix());
+            // Tor 6.5 / 8.3b "wahl=zufall": at every choice node the bot picks by chance (fixed seed per bot and run);
+            // 20 % of the bots keep the standard path as the control. Without the knob: the standard path as always.
+            long botSeed = seed(run.level(), run.group(), run.mix(), run.index()) * 31 + i;
+            Random pickOrder = null;
+            if ("zufall".equals(common.get("wahl")) || "zufall".equals(variants.getOrDefault(run.variant(), Map.of()).get("wahl"))) {
+                Random ctl = new Random(Long.rotateLeft(botSeed * 0x9E3779B97F4A7C15L, 23) ^ 0xB0A7L);
+                if (ctl.nextDouble() >= 0.2) {
+                    pickOrder = ctl;
+                }
+            }
             PlayerSkills skills = fullTree
-                    ? MeleeSim.build(m.skillTree(), SkillClass.valueOf(sub[0]), sub[1])
+                    ? MeleeSim.build(m.skillTree(), SkillClass.valueOf(sub[0]), sub[1], pickOrder)
                     : MeleeSim.buildBudget(m.skillTree(), SkillClass.valueOf(sub[0]), sub[1],
-                    sc != null && sc.points() >= 0 ? sc.points() : TestKit.pointsBefore(run.level(), m.config()));
+                    sc != null && sc.points() >= 0 ? sc.points() : TestKit.pointsBefore(run.level(), m.config()), pickOrder);
             m.save().skills.put(id, skills);
+            StringBuilder nodes = new StringBuilder();
+            for (com.mki.nightsiege.core.SkillNode n : m.skillTree().ofClass(SkillClass.valueOf(sub[0]))) {
+                if (n.inGroup() && skills.levelOf(n.id()) > 0) {
+                    nodes.append(nodes.length() == 0 ? "" : "+").append(n.id());
+                }
+            }
+            pendingNodes.add(sub[2] + ";" + (pickOrder == null ? "standard" : "zufall") + ";" + nodes);
             if (bot.isSpectator() || !bot.isAlive()) {
                 bot.setGameMode(GameType.SURVIVAL);
             }
@@ -680,10 +713,9 @@ public final class TeamSim {
             bot.getFoodData().setFoodLevel(20);
             bot.getFoodData().setSaturation(5f);
             bot.getInventory().clearContent();
-            long botSeed = seed(run.level(), run.group(), run.mix(), run.index()) * 31 + i;
             // Tor 6.0 "mensch=1": every bot its own skill (Gaussian around "koennen"), the human behaviours on.
             BotHuman human = isHuman(run.variant()) ? BotHuman.of((k, d) -> humanKnob(run.variant(), k, d)) : BotHuman.OFF;
-            double botSkill = knob(run.variant(), sub[0], "koennen", CALIBRATED_SKILL);
+            double botSkill = sc != null && sc.skill() >= 0 ? sc.skill() : knob(run.variant(), sub[0], "koennen", CALIBRATED_SKILL);
             if (human.on) {
                 botSkill = Math.max(0.3, Math.min(1.0, botSkill + gaussOf(botSeed) * human.streuung));
             }
@@ -787,6 +819,47 @@ public final class TeamSim {
         return name;
     }
 
+    /**
+     * Tor 6.1: every 200 ticks of the fight the last 100 tick times (work time, the sim runs sprinting) and
+     * the live monsters, one TICK row each (Tickzeit gegen lebende Monster); the run's P95 comes from all samples.
+     */
+    private static void sampleTicks(MinecraftServer server, long fightTick) {
+        int live = 0;
+        for (net.minecraft.world.entity.Entity e : world.getAllEntities()) {
+            if (e instanceof Enemy && e.isAlive()) {
+                live++;
+            }
+        }
+        liveMax = Math.max(liveMax, live);
+        long[] times = server.getTickTimesNanos().clone();
+        long[] window = new long[times.length];
+        int n = 0;
+        for (long t : times) {
+            if (t > 0) {
+                window[n++] = t;
+                tickSamples.add(t);
+            }
+        }
+        if (n > 0) {
+            java.util.Arrays.sort(window, 0, n);
+            tickRows.add(fightTick + ";" + live + ";" + String.format(Locale.ROOT, "%.2f",
+                    window[Math.min(n - 1, (int) Math.ceil(0.95 * n) - 1)] / 1e6) + ";"
+                    + String.format(Locale.ROOT, "%.2f", window[n - 1] / 1e6));
+        }
+    }
+
+    private static double tickP95() {
+        if (tickSamples.isEmpty()) {
+            return -1;
+        }
+        long[] a = new long[tickSamples.size()];
+        for (int i = 0; i < a.length; i++) {
+            a[i] = tickSamples.get(i);
+        }
+        java.util.Arrays.sort(a);
+        return a[Math.min(a.length - 1, (int) Math.ceil(0.95 * a.length) - 1)] / 1e6;
+    }
+
     /** The night is over (or never came): one result, then the pause. */
     private static void record(MinecraftServer server, SiegeManager m, String problem) {
         Run run = queue.get(index);
@@ -815,6 +888,26 @@ public final class TeamSim {
         Result r = new Result(run, outcome, held, won, kills, goal, night == null ? 0 : night.dauerSekunden,
                 night == null ? 0 : night.tode, bySub);
         results.add(r);
+        // Tor 6.1: RASTER row (event, boss, skill, tick time, live monsters, decided early = lost in the first third
+        // of the planned time) and the choice nodes (KNOTEN) and tick windows (TICK) of the run.
+        Scenario scn = scenarios.get(run.mix());
+        double skillSum = 0;
+        for (TeamBrain b : brains.values()) {
+            skillSum += b.skill;
+        }
+        double skillMean = brains.isEmpty() ? -1 : skillSum / brains.size();
+        int planned = SiegeMath.durationSeconds(run.level(), m.config());
+        boolean early = !won && r.seconds() * 3 < planned;
+        String key = run.variant() + ";" + run.level() + ";" + run.group() + ";" + run.mix() + ";" + run.index();
+        extraCsv.add(String.format(Locale.ROOT, "RASTER;%s;%s;%s;%.2f;%d;%.2f;%d;%d;%d;%d;%s", key,
+                scn == null ? "NONE" : scn.event().name(), scn == null || scn.boss() == null ? "-" : scn.boss().id(),
+                skillMean, won ? 1 : 0, tickP95(), liveMax, early ? 1 : 0, r.deaths(), r.seconds(), outcome));
+        for (String nodeRow : pendingNodes) {
+            extraCsv.add("KNOTEN;" + key + ";" + nodeRow);
+        }
+        for (String tickRow : tickRows) {
+            extraCsv.add("TICK;" + key + ";" + tickRow);
+        }
         StringBuilder subs = new StringBuilder();
         for (String[] s : run.subs()) {
             subs.append(subs.length() == 0 ? "" : "+").append(s[2]);
@@ -1133,7 +1226,7 @@ public final class TeamSim {
             String key = e.getKey();
             String value = e.getValue();
             if (key.startsWith("koennen") || key.startsWith("wagemut") || key.equals("mit") || key.equals("nur")
-                    || key.startsWith("mensch") || key.startsWith("nachspiel")) {
+                    || key.startsWith("mensch") || key.startsWith("nachspiel") || key.equals("wahl")) {
                 continue;   // the bots' knobs, not config values
             }
             try {
@@ -1365,6 +1458,10 @@ public final class TeamSim {
                             r.run().level(), r.run().group(), r.run().mix(), r.run().index(), sub, v[0], v[1], v[2], v[3], v[4]));
                 }
             }
+            csv.add("art;variante;stufe;gruppe;mischung;lauf;ereignis;boss;koennen;sieg;mspt_p95;lebende_max;frueh;tode;sekunden;ergebnis");
+            csv.add("art;variante;stufe;gruppe;mischung;lauf;unterklasse;wahl;knoten");
+            csv.add("art;variante;stufe;gruppe;mischung;lauf;kampftick;lebende;mspt_p95_fenster;mspt_max_fenster");
+            csv.addAll(extraCsv);
             Files.write(Json.configFile("nightsiege-teamsim.csv"), csv, StandardCharsets.UTF_8);
             List<String> txt = new ArrayList<>();
             for (String s : summary) {
