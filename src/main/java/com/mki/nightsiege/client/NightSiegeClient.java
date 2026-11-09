@@ -236,7 +236,7 @@ public class NightSiegeClient implements ClientModInitializer {
 
         KeyMapping.Category category = KeyMapping.Category.register(ModContent.id("main"));
         ultimateKey = KeyMappingHelper.registerKeyMapping(
-                new KeyMapping("key.nightsiege.ult", GLFW.GLFW_KEY_X, category));   // the ultimate on X (Tor 3.1, Simon 08.11.)
+                new KeyMapping("key.nightsiege.ult", com.mki.nightsiege.core.AbilityKeys.Key.ULT.glfw(), category));   // X (Tor 3.1)
         guideKey = KeyMappingHelper.registerKeyMapping(
                 new KeyMapping("key.nightsiege.guide", GLFW.GLFW_KEY_H, category));
         GainClient.init(category);
@@ -304,10 +304,8 @@ public class NightSiegeClient implements ClientModInitializer {
             }
             while (ultimateKey.consumeClick()) {
                 if (ClientPlayNetworking.canSend(CoreNetworking.CoreActionPayload.TYPE)) {
-                    // Sneak + X: the second ultimate of a crate (Tor 3.1), X alone the ultimate.
-                    com.mki.nightsiege.core.UltState s = UltHud.state();
-                    boolean second = s != null && s.has2 && client.options.keyShift.isDown();
-                    ClientPlayNetworking.send(new CoreNetworking.CoreActionPayload(second ? "ult2x" : "ult"));
+                    // X: the ultimate; the second ultimate of a crate is on R (GainClient, Tor 3.2b).
+                    ClientPlayNetworking.send(new CoreNetworking.CoreActionPayload("ult"));
                 }
             }
         });

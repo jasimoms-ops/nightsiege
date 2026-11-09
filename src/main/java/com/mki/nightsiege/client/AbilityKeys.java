@@ -22,7 +22,7 @@ public final class AbilityKeys {
             case ULT -> NightSiegeClient.ultimateKey();
             case ABILITY2 -> GainClient.orderKey();
             case ULT2 -> GainClient.secondUltKey();
-            case SLOT -> GainClient.slotKey(index);   // index = key index (0 Q, 1 F, 2 Y, 3 sneak + Y), see forSlot
+            case SLOT -> GainClient.slotKey(index);   // index = place 0-3 (Q, E, F, C), see forSlot
             case GAIN -> GainClient.gainKey(index);
         };
     }
@@ -64,7 +64,7 @@ public final class AbilityKeys {
         return text.length() > 3 ? text.substring(0, 3) : text;
     }
 
-    /** True for the crate gains' keys (their tooltips show no key: the gain keys are going, tor3/gewinne). */
+    /** True for the crate gains' keys 1, 2, 3 (Tor 3.2b). */
     public static boolean isGainKey(KeyMapping mapping) {
         if (mapping == null) {
             return false;

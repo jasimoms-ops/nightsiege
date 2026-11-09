@@ -48,11 +48,11 @@ public final class KeyHints {
         KeyMapping[] used = switch (hint) {
             case ULT, ULT_LOOK, ULT_UPGRADE -> new KeyMapping[]{NightSiegeClient.ultimateKey()};
             case ULT_SHOT -> new KeyMapping[]{NightSiegeClient.ultimateKey(), o.keyUse};
-            // Tor 3.1: the second ult is sneak + the ult key
-            case ULT2, ULT2_REMOTE, ULT2_STAFF -> new KeyMapping[]{o.keyShift, GainClient.secondUltKey()};
+            // Tor 3.2b: the second ult on its own key (R)
+            case ULT2, ULT2_REMOTE, ULT2_STAFF -> new KeyMapping[]{GainClient.secondUltKey()};
             case STAFF_SNEAK_X -> new KeyMapping[]{GainClient.orderKey(), o.keyShift};
             case QUIVER -> new KeyMapping[]{GainClient.quiverKey()};
-            case GAIN_KEY -> new KeyMapping[]{GainClient.wheelKey()};
+            case GAIN_KEY -> new KeyMapping[]{GainClient.gainKey(0), GainClient.gainKey(1), GainClient.gainKey(2)};
             case QUIVER_SHOT -> new KeyMapping[]{GainClient.quiverKey(), o.keyUse};
             case AIR_JUMP -> new KeyMapping[]{o.keyJump};
             case JUMP_ATTACK -> new KeyMapping[]{o.keyJump, o.keyAttack};
@@ -62,23 +62,23 @@ public final class KeyHints {
             // the staff's own attack is the left click (27 October 2026)
             case STAFF_ATTACK -> new KeyMapping[]{o.keyAttack};
             // the summoner's staff (26 October 2026): the call, the spells
-            // Tor 3.1 ("Nur Tasten"): the call on Q, the spells on Q, F, Y or sneak + Y, the
-            // healing hand on Q, the shield throw on Q and the dome on F; no right click any more
+            // Tor 3.1 ("Nur Tasten"), places since 3.2b: the call on place 1, the spells on places 1-4,
+            // the healing hand and the shield throw on place 1, the dome on place 2; no right click
             case STAFF_CALL, USE_MATE_OR_SHIELD -> new KeyMapping[]{GainClient.slotKey(0)};
             case STAFF_SPELL -> new KeyMapping[]{GainClient.slotKey(0), GainClient.slotKey(1), GainClient.slotKey(2),
-                    o.keyShift, GainClient.slotKey(2)};
+                    GainClient.slotKey(3)};
             case SHIELD_ACTION -> new KeyMapping[]{GainClient.slotKey(0), GainClient.slotKey(1)};
             case SNEAK, SNEAK_SHOOT -> new KeyMapping[]{o.keyShift};
             case SNEAK_BLOCK -> new KeyMapping[]{o.keyShift, o.keyUse};
             case SNEAK_USE, REMOTE_DETONATE, STAFF_X_MINION -> new KeyMapping[]{GainClient.orderKey()};
             case REMOTE_RELOAD -> new KeyMapping[]{o.keyUse};
             // the X key does what sneak + right click did with the remote and the staff (25 October 2026)
-            case REMOTE -> new KeyMapping[]{GainClient.orderKey(), o.keyUse, o.keyShift, GainClient.secondUltKey()};
+            case REMOTE -> new KeyMapping[]{GainClient.orderKey(), o.keyUse, GainClient.secondUltKey()};
             case HEALER_STAFF -> new KeyMapping[]{o.keyAttack, o.keyUse};
             case STAFF -> new KeyMapping[]{o.keyAttack, GainClient.slotKey(0), GainClient.orderKey(), GainClient.slotKey(2),
-                    o.keyShift, GainClient.secondUltKey()};
+                    GainClient.secondUltKey()};
             // the ability bar (28 October 2026): the alchemist's potions and acid flask, the engineer's escape
-            case BAR -> new KeyMapping[]{GainClient.slotKey(2), o.keyShift, GainClient.slotKey(2)};   // the alchemist: potions Y, acid sneak + Y
+            case BAR -> new KeyMapping[]{GainClient.slotKey(2), GainClient.slotKey(3)};   // the alchemist: potions place 3, acid place 4
             case BAR_FIRST -> new KeyMapping[]{GainClient.slotKey(0)};
             default -> new KeyMapping[0];
         };

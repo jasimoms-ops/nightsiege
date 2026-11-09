@@ -1,5 +1,6 @@
 package com.mki.nightsiege.client;
 
+import com.mki.nightsiege.core.AbilityKeys.Key;
 import com.mki.nightsiege.game.CoreNetworking;
 import com.mki.nightsiege.game.Gadgets;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -11,41 +12,34 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.phys.Vec3;
-import org.lwjgl.glfw.GLFW;
 
 /**
- * The client side of the crate gains and abilities: Fähigkeit 2 (F), the second-ult key (X),
- * the six keys of the ability bar, the gain wheel (R) and the double jump of the jump boots. The scope lives in a mixin.
+ * The client side of the crate gains and abilities: the ability places 1-4, the second ult (R), the
+ * gain places 1-3, the inventory key of the night (I) and the double jump of the jump boots. The
+ * scope lives in a mixin. Every default key comes from {@link com.mki.nightsiege.core.AbilityKeys}.
  */
 public final class GainClient {
 
     /**
-     * The ability keys (Tor 3.1, Simon 08.11.: "Nur Tasten"): Q, F, Y (sneak + Y: a fourth ability
-     * beyond three), in the order of {@link com.mki.nightsiege.core.AbilityKeys.Key}. New names, so the
-     * new defaults reach players whose options still hold the old R, G, Y, C, V, B bar.
+     * The ability places 1-4 (Tor 3.2b, Chef 09.11. 01:38): Q, E, F, C by default, in the order of
+     * {@link com.mki.nightsiege.core.AbilityKeys#ABILITY_PLACES}. New names, so the new defaults reach
+     * players whose options still hold the old Q, F, Y.
      */
-    public static final int SLOTS = 3;
-    /** The index {@link #keyIndex} gives a box on sneak + Y (the fourth ability, Tor 3.1). */
-    public static final int SNEAK_Y = 3;
+    public static final int SLOTS = 4;
     private static final KeyMapping[] SLOT_KEYS = new KeyMapping[SLOTS];
-    private static final String[] SLOT_NAMES = {"key.nightsiege.skill_q", "key.nightsiege.skill_f", "key.nightsiege.skill_y"};
-    /** Q, F, Y (Z on QWERTY); the fourth ability of the alchemist and the necromancer is sneak + Y (Tor 3.1). */
-    private static final int[] SLOT_DEFAULTS = {GLFW.GLFW_KEY_Q, GLFW.GLFW_KEY_F, GLFW.GLFW_KEY_Z};
     /**
-     * The gains with an ability of their own (balance update 2): at most three places ("Third Hand").
-     * Tor 3.2 (Simon 08.11.): one key with a wheel instead of N, M, J, which the left hand could not
-     * reach and which Simple Voice Chat also used. R: free in vanilla, in Simple Voice Chat (N, M, V, G,
-     * H, Caps Lock) and in Crawl on Demand (Z), next to the ability keys Q, F, Y and X.
+     * The gain places (Tor 3.2b, Simon 09.11.: "Gewinne auf die Tasten 1-3" instead of the wheel):
+     * in the night 1, 2, 3 fire the gains, the hotbar choice on 1-3 waits until the morning.
      */
     public static final int GAIN_KEYS = 3;
-    private static KeyMapping gainWheelKey;
-    /** The place used last (a tap uses it again); -1 before the first. */
-    private static int lastGain = -1;
-    /** Ticks the gain key has been held since its press, -1 while it is up. */
-    private static int gainHeld = -1;
+    private static final KeyMapping[] GAIN_KEY = new KeyMapping[GAIN_KEYS];
+    /** The second ultimate of a crate (R, Tor 3.2b: no sneak + X any more). */
+    private static KeyMapping secondUltKey;
+    /** The inventory in the night (I): E is an ability then (Tor 3.2b). */
+    private static KeyMapping inventoryKey;
     /** The arrow or potion key being held (its bar index), -1 for none; whether the wheel turned meanwhile. */
     private static int heldSlot = -1;
-    /** The key (Q, F, Y, extra) that holds it. */
+    /** The key (place 1-4) that holds it. */
     private static int heldKey;
     private static boolean scrolled;
     private static double scrollSum;
@@ -57,88 +51,88 @@ public final class GainClient {
     private GainClient() {
     }
 
-    /** The F key (the class's F field: arrow rain, warrior art, remote, staff order). */
+    /** Place 2 (E): the class's own field (arrow rain, warrior art, remote, staff order). */
     public static KeyMapping orderKey() {
         return SLOT_KEYS[1];
     }
 
-    /** The second ultimate of a crate: sneak + the ult key (Tor 3.1), so this is the ult key. */
+    /** The second ultimate of a crate (R). */
     public static KeyMapping secondUltKey() {
-        return NightSiegeClient.ultimateKey();
+        return secondUltKey;
     }
 
-    /** The arrow kinds' key (Y, Tor 3.1). */
+    /** The arrow kinds' key (place 3, F; the tanks have them on place 4). */
     public static KeyMapping quiverKey() {
         return SLOT_KEYS[2];
     }
 
-    /** Q, F, Y for 0, 1, 2; for {@link #SNEAK_Y} the Y key (shown with sneak in front). */
+    /** The inventory key of the night (I). */
+    public static KeyMapping inventoryKey() {
+        return inventoryKey;
+    }
+
+    /** The key of ability place {@code index} (0 = place 1), or null. */
     public static KeyMapping slotKey(int index) {
-        if (index == SNEAK_Y) {
-            return SLOT_KEYS[2];
-        }
         return index >= 0 && index < SLOTS ? SLOT_KEYS[index] : null;
     }
 
-    /** The key of gain place {@code index}: since Tor 3.2 the one wheel key for every place. */
+    /** The key of gain place {@code index} (0 = key 1), or null. */
     public static KeyMapping gainKey(int index) {
-        return index >= 0 && index < GAIN_KEYS ? gainWheelKey : null;
+        return index >= 0 && index < GAIN_KEYS ? GAIN_KEY[index] : null;
     }
 
-    /** The gain key (hold: wheel, tap: the gain used last). */
-    public static KeyMapping wheelKey() {
-        return gainWheelKey;
-    }
-
-    /** Uses gain place {@code index} (the wheel, a tap) and keeps it for the next tap. */
+    /** Uses gain place {@code index}. */
     public static void useGain(int index) {
-        lastGain = index;
         send("gain:" + index);
     }
 
-    private static int gainCount() {
-        com.mki.nightsiege.core.UltState s = UltHud.state();
-        return s == null || s.gains == null ? 0 : Math.min(s.gains.size(), GAIN_KEYS);
-    }
-
-    /** True when bar key i lies on the same key as the gain wheel: then the wheel has it alone. */
-    private static boolean underWheel(int i) {
-        return gainWheelKey != null && !gainWheelKey.isUnbound()
-                && SLOT_KEYS[i].saveString().equals(gainWheelKey.saveString());
+    private static KeyMapping register(String name, Key key, KeyMapping.Category category) {
+        return KeyMappingHelper.registerKeyMapping(new KeyMapping(name, key.glfw(), category));
     }
 
     public static void init(KeyMapping.Category category) {
         for (int i = 0; i < SLOTS; i++) {
-            SLOT_KEYS[i] = KeyMappingHelper.registerKeyMapping(
-                    new KeyMapping(SLOT_NAMES[i], SLOT_DEFAULTS[i], category));
+            SLOT_KEYS[i] = register("key.nightsiege.ability_" + (i + 1),
+                    com.mki.nightsiege.core.AbilityKeys.ABILITY_PLACES.get(i), category);
         }
-        // The old gain1..3 (N, M, J) are no longer registered: their lines in options.txt are simply
-        // ignored, nothing to move over (the wheel key is new).
-        gainWheelKey = KeyMappingHelper.registerKeyMapping(
-                new KeyMapping("key.nightsiege.gain_wheel", GLFW.GLFW_KEY_R, category));
+        secondUltKey = register("key.nightsiege.ult2", Key.ULT2, category);
+        // The gain wheel (R) and the old gain1..3 are no longer registered: their lines in options.txt
+        // are simply ignored, nothing to move over.
+        for (int i = 0; i < GAIN_KEYS; i++) {
+            GAIN_KEY[i] = register("key.nightsiege.gain_" + (i + 1),
+                    com.mki.nightsiege.core.AbilityKeys.GAIN_PLACES.get(i), category);
+        }
+        inventoryKey = register("key.nightsiege.inventory", Key.INVENTORY, category);
         ClientTickEvents.END_CLIENT_TICK.register(GainClient::tick);
+        // Tor 3.2b: in the kit inventory a click on a gain's field puts the next free gain on that place.
+        net.fabricmc.fabric.api.client.screen.v1.ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
+            if (screen instanceof net.minecraft.client.gui.screens.inventory.InventoryScreen) {
+                net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents.allowMouseClick(screen).register((shown, event) -> {
+                    int place = KitInventory.gainAt(event.x(), event.y());
+                    if (place < 0) {
+                        return true;
+                    }
+                    send("gainplace:" + place);
+                    return false;
+                });
+            }
+        });
         // The gain cooldowns as their own small element at the right edge (does not touch the kit HUD).
         net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry.attachElementAfter(
                 net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements.HOTBAR,
                 com.mki.nightsiege.game.ModContent.id("gain_cooldowns"), (gui, delta) -> GainCooldownHud.draw(gui));
     }
 
-    /** The key index (Q, F, Y, extra) a box of the bar is on, by its key from the server. */
+    /** The ability place (0-3) a box of the bar is on, by its key from the server; -1 for none. */
     public static int keyIndex(com.mki.nightsiege.core.UltState.Slot slot) {
-        if (slot == null || slot.key == null) {
+        if (slot == null || slot.key == null || slot.key.isEmpty()) {
             return -1;
         }
-        com.mki.nightsiege.core.AbilityKeys.Key[] keys = com.mki.nightsiege.core.AbilityKeys.Key.values();
-        for (int k = 0, at = 0; k < keys.length; k++) {
-            if (keys[k] == com.mki.nightsiege.core.AbilityKeys.Key.X) {
-                continue;
-            }
-            if (keys[k].name().equals(slot.key)) {
-                return at;
-            }
-            at++;
+        try {
+            return Key.valueOf(slot.key).place();
+        } catch (IllegalArgumentException e) {
+            return -1;   // a key name of an older server
         }
-        return -1;
     }
 
     /** The mapping a box of the bar fires on (Tor 3.1), or null. */
@@ -199,19 +193,24 @@ public final class GainClient {
         }
     }
 
+    /**
+     * True when a press of these keys is an ability: only while the server gives the keys to Night
+     * Siege (night, kit, fight). By day E opens the inventory and 1-3 pick the hotbar, nothing else.
+     */
+    private static boolean acting(Minecraft client) {
+        return NightKeys.owned() && client.gui.screen() == null;
+    }
+
     private static void tick(Minecraft client) {
-        // Q, F and Y (Tor 3.1): each fires the box of the bar the server put on it; sneak + Y the fourth
-        // ability (alchemist, necromancer) when there is one; F without a box is the class's F field. The arrow and the potion key (Simon 30.10.):
-        // held, the mouse wheel changes the choice; let go without turning it, a tap.
+        // Places 1-4 (Tor 3.2b): each fires the box of the bar the server put on it; place 2 without
+        // a box is the class's own field. The arrow and the potion key (Simon 30.10.): held, the mouse
+        // wheel changes the choice; let go without turning it, a tap.
         for (int k = 0; k < SLOTS; k++) {
             while (SLOT_KEYS[k].consumeClick()) {
-                if (client.gui.screen() != null) {
+                if (!acting(client)) {
                     continue;
                 }
-                if (underWheel(k)) {
-                    continue;   // the same key as the gain wheel: the wheel has it alone (Tor 3.2)
-                }
-                int i = k == 2 && client.options.keyShift.isDown() && slotOn(SNEAK_Y) >= 0 ? slotOn(SNEAK_Y) : slotOn(k);
+                int i = slotOn(k);
                 if (i < 0) {
                     com.mki.nightsiege.core.UltState s = UltHud.state();
                     if (k == 1 && s != null && s.hasAb2) {
@@ -233,27 +232,25 @@ public final class GainClient {
             }
             heldSlot = -1;
         }
-        // The gain wheel (Tor 3.2): held a quarter second the wheel opens, a tap uses the last gain.
-        while (gainWheelKey.consumeClick()) {
-            if (client.gui.screen() == null && gainHeld < 0) {
-                gainHeld = 0;
+        // R: the second ultimate of a crate (Tor 3.2b).
+        while (secondUltKey.consumeClick()) {
+            com.mki.nightsiege.core.UltState s = UltHud.state();
+            if (acting(client) && s != null && s.has2) {
+                send("ult2x");
             }
         }
-        if (gainHeld >= 0) {
-            int n = gainCount();
-            if (client.gui.screen() != null) {
-                gainHeld = -1;   // something else opened meanwhile
-            } else if (!gainWheelKey.isDown()) {
-                if (com.mki.nightsiege.core.GainWheelLogic.isTap(gainHeld)) {
-                    // without gains the server says so ("No ability for the gain keys yet")
-                    useGain(Math.max(0, com.mki.nightsiege.core.GainWheelLogic.tapIndex(lastGain, n)));
+        // 1, 2, 3: the gains on their places (Tor 3.2b); without a gain the server says so.
+        for (int g = 0; g < GAIN_KEYS; g++) {
+            while (GAIN_KEY[g].consumeClick()) {
+                if (acting(client)) {
+                    useGain(g);
                 }
-                gainHeld = -1;
-            } else if (++gainHeld >= com.mki.nightsiege.core.GainWheelLogic.HOLD_TICKS) {
-                gainHeld = -1;
-                if (n > 0) {
-                    client.gui.setScreen(new GainWheelScreen(com.mki.nightsiege.core.GainWheelLogic.tapIndex(lastGain, n)));
-                }
+            }
+        }
+        // I: the inventory in the night, where E is an ability.
+        while (inventoryKey.consumeClick()) {
+            if (acting(client) && client.player != null) {
+                client.gui.setScreen(new net.minecraft.client.gui.screens.inventory.InventoryScreen(client.player));
             }
         }
         LocalPlayer player = client.player;

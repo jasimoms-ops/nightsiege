@@ -2,7 +2,7 @@ package com.mki.nightsiege.core;
 
 /**
  * Tor 4.2 (Simon 08.11.: "die zwei klassen könnten eine fähigkeit bekommen zum heilen statt tränken allerdings nur
- * für selbstheilung"): the shield fighter and the bulwark heal themselves on key Y, never anyone else.
+ * für selbstheilung"): the shield fighter and the bulwark heal themselves on place 3 (F, Tor 3.2b), never anyone else.
  *
  * <p>The numbers replace the healers' two kit potions (Strong Healing, 8 health each = 16 a night): a night lasts
  * 4 to 10 minutes, about 6, so 16 / 6 = 2.7 health a minute. 20 % of 20 health every 90 s is 4 / 1.5 = 2.7 a

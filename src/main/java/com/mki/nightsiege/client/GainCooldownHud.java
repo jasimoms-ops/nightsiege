@@ -12,8 +12,8 @@ import java.util.List;
 /**
  * The cooldowns of the crate gains (Tor 3.2, Simon 08.11.: "man sieht aber irgendwo in der ui die
  * cooldowns"): a small column at the middle of the right screen edge, each gain as its symbol in a
- * ring that fills gold while the pause runs out, the seconds on top. The gain wheel draws its places
- * with the same {@link #gain} medallion. Its own element, hooked in by {@link GainClient#init}: it
+ * ring that fills gold while the pause runs out, the seconds on top, its key (1, 2, 3; Tor 3.2b) beside
+ * it. Its own element, hooked in by {@link GainClient#init}: it
  * does not touch the kit HUD. The right edge keeps clear of chat (bottom left), Jade (top middle),
  * Simple Voice Chat (top left) and the effects (top right).
  */
@@ -32,7 +32,7 @@ public final class GainCooldownHud {
         Minecraft mc = Minecraft.getInstance();
         UltState s = UltHud.state();
         if (s == null || s.gains == null || s.gains.isEmpty() || mc.player == null
-                || mc.gui.screen() instanceof GainWheelScreen || !(s.keys || s.live)) {
+                || !(s.keys || s.live)) {
             return;
         }
         List<UltState.Slot> gains = s.gains;
@@ -50,15 +50,9 @@ public final class GainCooldownHud {
         long elapsed = UltHud.elapsedTicks();
         for (int i = 0; i < n; i++) {
             gain(gui, mc.font, x, y + i * STEP, gains.get(i), elapsed, s.live, false);
-        }
-        // The wheel key once, small, at the top left of the column.
-        net.minecraft.client.KeyMapping key = GainClient.wheelKey();
-        if (key != null && !key.isUnbound()) {
-            String text = key.getTranslatedKeyMessage().getString();
-            if (text.length() > 3) {
-                text = text.substring(0, 3);
-            }
-            gui.text(mc.font, text, x + SIZE / 2 - mc.font.width(text) / 2, y - 14, PurpleUi.GOLD, true);
+            // Tor 3.2b: each gain's own key (1, 2, 3) left of its medallion.
+            String text = AbilityKeys.shortLabel(GainClient.gainKey(i));
+            gui.text(mc.font, text, x - 2 - mc.font.width(text), y + i * STEP + SIZE / 2 - 4, PurpleUi.GOLD, true);
         }
     }
 

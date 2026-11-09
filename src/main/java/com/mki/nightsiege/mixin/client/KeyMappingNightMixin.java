@@ -9,8 +9,8 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * In the night the ability keys (Q, F, Y by default) belong to Night Siege alone (Simon,
- * 27 October 2026): a press reaches only the ability, not "drop item" or "swap hands".
+ * In the night the night keys (Q, E, F, C, X, R, 1-3, I by default, Tor 3.2b) belong to Night Siege
+ * alone (Simon, 27 October 2026; 09.11.: other mods too): a press reaches only the ability.
  */
 @Mixin(KeyMapping.class)
 public abstract class KeyMappingNightMixin {

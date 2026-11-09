@@ -8,12 +8,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * The ability keys (Simon, 27 October 2026): Fähigkeit 1 (Q, the ultimate), Fähigkeit 2 (F, the
- * orders), the second ultimate (X) and the six keys of the ability bar (R, G, Y, C, V, B: every
- * spell, potion, healing ability or arrow kind on its own key, instead of the wheel). While the
- * server says they are Night Siege's (in the night, or with a class item in hand) a press on their
- * key reaches only them and other mods' mappings: vanilla's "drop item" and "swap hands" on the same
- * key wait until the morning (31.10.: Simple Voice Chat's N, M, V, G work in the night again).
+ * The night keys (Tor 3.2b, Chef 09.11. 01:38): the ability places Q, E, F, C, the ult X, the second
+ * ult R, the gains 1, 2, 3 and the inventory I. While the server says they are Night Siege's (in the
+ * night, in a fight, with the kit on) a press on their key reaches only them: not vanilla (drop item,
+ * swap hands, inventory on E, the hotbar on 1-3) and not another mod's mapping on the same key
+ * (Just Zoom on C, for example). By day E and 1-3 are vanilla's again. Simple Voice Chat keeps its
+ * own keys (N, M, V, G, H), none of which is a night key.
  */
 public final class NightKeys {
 
@@ -22,7 +22,7 @@ public final class NightKeys {
     private NightKeys() {
     }
 
-    /** From the server once a second: whether the ability keys are Night Siege's alone right now. */
+    /** From the server once a second: whether the night keys are Night Siege's alone right now. */
     public static void setOwned(boolean value) {
         owned = value;
     }
@@ -31,137 +31,53 @@ public final class NightKeys {
         return owned;
     }
 
-    private static List<KeyMapping> abilities() {
+    /** Every night key that is bound. */
+    static List<KeyMapping> abilities() {
         List<KeyMapping> out = new ArrayList<>(13);
-        for (KeyMapping m : new KeyMapping[] {NightSiegeClient.ultimateKey()}) {   // Q, F, Y are slot keys now (Tor 3.1)
-            if (m != null && !m.isUnbound()) {
-                out.add(m);
-            }
-        }
+        add(out, NightSiegeClient.ultimateKey());
         for (int i = 0; i < GainClient.SLOTS; i++) {
-            KeyMapping m = GainClient.slotKey(i);
-            if (m != null && !m.isUnbound()) {
-                out.add(m);
-            }
+            add(out, GainClient.slotKey(i));
         }
-        // The gain wheel key (Tor 3.2, one key for every gain): in the night it is Night Siege's alone too.
-        KeyMapping wheel = GainClient.wheelKey();
-        if (wheel != null && !wheel.isUnbound()) {
-            out.add(wheel);
+        add(out, GainClient.secondUltKey());
+        for (int i = 0; i < GainClient.GAIN_KEYS; i++) {
+            add(out, GainClient.gainKey(i));
         }
+        add(out, GainClient.inventoryKey());
         return out;
     }
 
-    /**
-     * The mappings of vanilla Minecraft itself (the fields of Options, the hotbar keys among them):
-     * only these give way to a night ability on the same key. Another mod's mapping (Simple Voice
-     * Chat: N, M, V, G by default) still gets the press (Simon 31.10.: survival safety).
-     */
-    private static java.util.Set<KeyMapping> vanilla;
-
-    private static java.util.Set<KeyMapping> vanilla() {
-        java.util.Set<KeyMapping> known = vanilla;
-        if (known != null) {
-            return known;
-        }
-        java.util.Set<KeyMapping> out = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
-        net.minecraft.client.Options options = net.minecraft.client.Minecraft.getInstance().options;
-        if (options == null) {
-            return out;   // too early: asked again next time
-        }
-        for (java.lang.reflect.Field f : net.minecraft.client.Options.class.getFields()) {
-            try {
-                if (java.lang.reflect.Modifier.isStatic(f.getModifiers())) {
-                    continue;
-                }
-                Object value = f.get(options);
-                if (value instanceof KeyMapping m) {
-                    out.add(m);
-                } else if (value instanceof KeyMapping[] all && all != options.keyMappings) {
-                    java.util.Collections.addAll(out, all);   // the hotbar keys (keyMappings holds every mod's too)
-                }
-            } catch (IllegalAccessException | RuntimeException ignored) {
-                // a field we cannot read is no mapping of ours to hold back
-            }
-        }
-        vanilla = out;
-        return out;
-    }
-
-    /** True for a mapping of another mod: it gets the press although a night ability has the key. */
-    private static boolean otherMod(KeyMapping m, List<KeyMapping> mine) {
-        for (KeyMapping own : mine) {
-            if (own == m) {
-                return false;
-            }
-        }
-        String name = m.getName();
-        return (name == null || !name.startsWith("key.nightsiege.")) && !vanilla().contains(m);   // the guide key and the like stay held back
-    }
-
-    /**
-     * The gain wheel's key gives way to no one in the night, other mods included (Tor 3.2, Simon
-     * 08.11.: "nicht mod exklusiv geblockt"); the other ability keys still share with other mods (31.10.).
-     */
-    private static boolean wheelHas(InputConstants.Key key) {
-        KeyMapping wheel = GainClient.wheelKey();
-        return wheel != null && !wheel.isUnbound() && wheel.matches(key);
-    }
-
-    /** The mappings bound to this key, as vanilla's click and set see them. */
-    private static List<KeyMapping> boundTo(InputConstants.Key key) {
-        try {
-            java.util.Map<InputConstants.Key, List<KeyMapping>> map = KeyMappingAccessor.nightsiege$map();
-            List<KeyMapping> list = map == null ? null : map.get(key);
-            return list == null ? List.of() : List.copyOf(list);
-        } catch (RuntimeException e) {
-            return List.of();
+    private static void add(List<KeyMapping> out, KeyMapping m) {
+        if (m != null && !m.isUnbound()) {
+            out.add(m);
         }
     }
 
-    /** A key press: true when it went to an ability alone (and to other mods' mappings on the key). */
+    /** A key press: true when it went to a night key alone. */
     public static boolean click(InputConstants.Key key) {
         if (!owned || key == null) {
             return false;
         }
         boolean mine = false;
-        List<KeyMapping> own = abilities();
-        for (KeyMapping m : own) {
+        for (KeyMapping m : abilities()) {
             if (m.matches(key)) {
                 KeyMappingAccessor counter = (KeyMappingAccessor) m;
                 counter.nightsiege$setClickCount(counter.nightsiege$clickCount() + 1);
                 mine = true;
             }
         }
-        if (mine && !wheelHas(key)) {
-            for (KeyMapping m : boundTo(key)) {
-                if (otherMod(m, own)) {
-                    KeyMappingAccessor counter = (KeyMappingAccessor) m;
-                    counter.nightsiege$setClickCount(counter.nightsiege$clickCount() + 1);
-                }
-            }
-        }
         return mine;
     }
 
-    /** A key going down or up: true when vanilla's mappings on it do not see it (other mods' do). */
+    /** A key going down or up: true when no other mapping on it sees it. */
     public static boolean set(InputConstants.Key key, boolean down) {
         if (!owned || key == null) {
             return false;
         }
         boolean mine = false;
-        List<KeyMapping> own = abilities();
-        for (KeyMapping m : own) {
+        for (KeyMapping m : abilities()) {
             if (m.matches(key)) {
                 m.setDown(down);
                 mine = true;
-            }
-        }
-        if (mine && !wheelHas(key)) {
-            for (KeyMapping m : boundTo(key)) {
-                if (otherMod(m, own)) {
-                    m.setDown(down);
-                }
             }
         }
         return mine;

@@ -97,7 +97,7 @@ public final class UltHud {
         return fixedCells(s, ultKey, true);
     }
 
-    /** The gain keys N, M, J (for the kit HUD's middle arch, 30.10.). */
+    /** The gain keys 1, 2, 3 (for the kit HUD's middle arch, 30.10.; Tor 3.2b). */
     static List<Cell> gainCells(UltState s) {
         List<Cell> out = new ArrayList<>();
         if (s.gains != null) {
@@ -121,9 +121,9 @@ public final class UltHud {
         }
         if (s.has2) {
             fixed.add(new Cell(icon(s.icon2), AbilityKeys.mapping(AbilityKeys.Ability.ULT2, 0), s.cooldown2Ticks, s.total2Ticks, false,
-                    false, null, true));   // Tor 3.1: sneak + X
+                    false, null, false));   // R (Tor 3.2b)
         }
-        // The gain keys N, M, J (balance update 2, 29 October 2026): the crate gains with an ability of their own.
+        // The gain keys 1, 2, 3 (Tor 3.2b): the crate gains with an ability of their own.
         if (gains && s.gains != null) {
             for (int i = 0; i < s.gains.size() && i < GainClient.GAIN_KEYS; i++) {
                 UltState.Slot g = s.gains.get(i);
@@ -133,15 +133,15 @@ public final class UltHud {
         return fixed;
     }
 
-    /** The abilities on Q, F, Y and sneak + Y, each with the key it fires on (Tor 3.1). */
+    /** The abilities on places 1-4 (Q, E, F, C), each with the key it fires on (Tor 3.2b). */
     static List<Cell> choiceCells(UltState s, Minecraft mc) {
         List<Cell> choices = new ArrayList<>();
         if (s.slots != null) {
             for (int i = 0; i < s.slots.size(); i++) {
                 UltState.Slot slot = s.slots.get(i);
-                // Tor 3.1: the key the server put the box on (Q, F, Y; sneak + Y for a fourth ability)
+                // the place the server put the box on (Tor 3.2b: no sneak any more)
                 choices.add(new Cell(iconOf(mc, slot), GainClient.keyOf(slot), slot.cooldownTicks, slot.totalTicks, slot.current,
-                        false, null, GainClient.keyIndex(slot) == GainClient.SNEAK_Y));
+                        false, null, false));
             }
         }
         return choices;
