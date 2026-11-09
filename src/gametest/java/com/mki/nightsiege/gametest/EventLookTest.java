@@ -213,6 +213,10 @@ public class EventLookTest implements FabricClientGameTest {
                     alive(context);
                     HudNeuScenes.run(context, game);   // Tor 3.2c: action bar in key order, before/after at GUI 2 and 3 (09.11.)
                 }
+                if (want.contains("herzen")) {
+                    alive(context);
+                    HerzenScenes.run(context, game);   // Tor 9b: vanilla hearts, armour and hunger above the action bar (09.11.)
+                }
                 if (want.contains("bossleisten")) {
                     alive(context);
                     BossleistenScenes.run(context, game);   // Tor 2.3: compact boss bars, four bosses before/after (08.11.)

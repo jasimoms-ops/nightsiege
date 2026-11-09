@@ -205,7 +205,9 @@ public final class KitHud {
         int right = 4 + (int) Math.ceil((Math.floor(mc.options.chatWidth().get() * 280.0 + 40.0) + 8) * scale);
         ActionBarLayout.Layout bar = lastLayout;
         if (!legacy && bar != null) {
-            return ActionBarLayout.chatLift(bar.parts(), height, right);   // Tor 3.2c: the bar sits below the chat
+            List<ActionBarLayout.Rect> parts = new java.util.ArrayList<>(bar.parts());
+            parts.addAll(lastBars);   // Tor 9b: and below vanilla's hearts and armour
+            return ActionBarLayout.chatLift(parts, height, right);   // Tor 3.2c: the bar sits below the chat
         }
         if (right <= lastLeft) {
             return 0;
@@ -223,6 +225,11 @@ public final class KitHud {
         int height = mc.getWindow().getGuiScaledHeight();
         int tooltip = height - 59 + (mc.player != null && mc.player.isCreative() ? 14 : 0);
         int archTop = legacy ? lastTop - ARCH_H : lastTop;
+        if (!legacy) {
+            for (ActionBarLayout.Rect r : lastBars) {
+                archTop = Math.min(archTop, r.y());   // Tor 9b: above vanilla's rows, as in vanilla
+            }
+        }
         return Math.max(0, tooltip + 10 - archTop);
     }
 
@@ -324,6 +331,29 @@ public final class KitHud {
 
     /** Tor 3.2c: the old panel (crest, arches, wings) only for the gametest's "before" pictures. */
     public static boolean legacy;
+    /** Tor 9b: the bar's own health and hunger lines instead of vanilla's rows, only for the "before" pictures. */
+    public static boolean ownBars;
+    /** For the tests and the chat: vanilla's hearts/armour and hunger/air on the screen (empty: not drawn). */
+    public static volatile List<ActionBarLayout.Rect> lastBars = List.of();
+    /** For the tests: frames in which vanilla drew its hearts with the kit HUD on. */
+    public static volatile int vanillaHearts;
+
+    /** True while the kit HUD draws its own bars and vanilla's hearts, armour, hunger and air stay hidden. */
+    public static boolean hidesVanillaBars() {
+        return active() && (legacy || ownBars);
+    }
+
+    /**
+     * Tor 9b (Simon 09.11.): how far vanilla's hearts, armour, hunger and air go up, so that they stand above the
+     * action bar's status row (0 without the kit HUD: exactly where vanilla puts them).
+     */
+    public static int vanillaLift() {
+        ActionBarLayout.Layout l = lastLayout;
+        if (!active() || legacy || ownBars || l == null) {
+            return 0;
+        }
+        return ActionBarLayout.vanillaLift(l, Minecraft.getInstance().getWindow().getGuiScaledHeight());
+    }
     /** For the tests: the action bar drawn last (null while none is drawn). */
     public static volatile ActionBarLayout.Layout lastLayout;
     /** For the tests: the keys of the fields drawn last, in their order, and how many showed a pause running. */
@@ -352,10 +382,12 @@ public final class KitHud {
             lastLeft = Integer.MAX_VALUE;
             lastTop = Integer.MAX_VALUE;
             lastLayout = null;
+            lastBars = List.of();
             return;
         }
         if (legacy) {
             lastLayout = null;
+            lastBars = List.of();
             drawPanel(gui, ultKey);
             return;
         }
@@ -412,8 +444,12 @@ public final class KitHud {
                 timers.size(), ult2 != null, gainPlaces, gauge, units, !p.getOffhandItem().isEmpty());
         int sw = mc.getWindow().getGuiScaledWidth();
         int sh = mc.getWindow().getGuiScaledHeight();
-        ActionBarLayout.Layout l = ActionBarLayout.layout(sw, sh, in);
+        ActionBarLayout.Layout l = ActionBarLayout.layout(sw, sh, in, ownBars);
         lastLayout = l;
+        boolean air = p.isEyeInFluid(net.minecraft.tags.FluidTags.WATER) || p.getAirSupply() < p.getMaxAirSupply();
+        lastBars = ownBars || mc.gameMode == null || !mc.gameMode.canHurtPlayer() ? List.of()
+                : ActionBarLayout.vanillaBars(sw, sh, ActionBarLayout.vanillaLift(l, sh), p.getMaxHealth(),
+                p.getAbsorptionAmount(), p.getArmorValue() > 0, air);
         lastLeft = l.left();
         int top = Integer.MAX_VALUE;
         for (ActionBarLayout.Rect r : l.parts()) {
@@ -629,6 +665,22 @@ public final class KitHud {
                 glow(gui, g.x() + 9, g.y(), g.w() - 9, 7, c, now, s.gaugeValue / s.gaugeMax);
             }
         }
+        if (l.health().w() > 0) {
+            ownBars(gui, font, p, l, now);   // Tor 9b: otherwise vanilla's hearts and hunger stand above the row
+        }
+        // companions or towers: a small row above the right end
+        if (l.units() != null && s != null && s.units != null) {
+            ActionBarLayout.Rect u = l.units();
+            int x = u.x();
+            for (int i = 0; i < s.units.size() && i < 4; i++) {
+                unit(gui, font, x, u.y(), s.units.get(i));
+                x += ActionBarLayout.UNIT_STEP;
+            }
+        }
+    }
+
+    /** Until Tor 9b: the bar's own health line and the hunger/armour lines (now only for the "before" pictures). */
+    private static void ownBars(GuiGraphicsExtractor gui, Font font, LocalPlayer p, ActionBarLayout.Layout l, long now) {
         // health, with the gold of absorption and the light trail of what was just lost
         ActionBarLayout.Rect h = l.health();
         float hp = Math.max(0f, p.getHealth());
@@ -691,15 +743,6 @@ public final class KitHud {
             line(gui, mi.x(), mi.y() + 4, mi.w(), Math.max(0, air) / (float) maxAir, 0xFF8CC8EE);
         } else {
             line(gui, mi.x(), mi.y() + 4, mi.w(), Math.min(1f, p.getArmorValue() / 20f), 0xFF98A6B6);
-        }
-        // companions or towers: a small row above the right end
-        if (l.units() != null && s != null && s.units != null) {
-            ActionBarLayout.Rect u = l.units();
-            int x = u.x();
-            for (int i = 0; i < s.units.size() && i < 4; i++) {
-                unit(gui, font, x, u.y(), s.units.get(i));
-                x += ActionBarLayout.UNIT_STEP;
-            }
         }
     }
 
