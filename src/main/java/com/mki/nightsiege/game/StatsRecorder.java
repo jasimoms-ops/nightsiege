@@ -327,6 +327,10 @@ public final class StatsRecorder {
         public List<String> belohnung = new ArrayList<>();
         public double schadenAusgeteilt;
         public double schadenErhalten;
+        /** 09.11. (night rules in the dungeon): abilities per player as in the night, name -> what -> uses. */
+        public Map<String, Map<String, Integer>> faehigkeiten = new LinkedHashMap<>();
+        /** The same per key (Q/E/F/C/X/R, gewinn:...), name -> key -> uses. */
+        public Map<String, Map<String, Integer>> tasten = new LinkedHashMap<>();
     }
 
     /** One crate opened (a line of kisten.jsonl). */
@@ -1274,6 +1278,25 @@ public final class StatsRecorder {
                 w.tasten.merge(key, 1, Integer::sum);
             }
         }
+        AttemptFile f = attemptOf(player);
+        if (f != null) {   // a dungeon or camp fight: the same counts in its file (09.11.)
+            String name = player.getScoreboardName();
+            f.faehigkeiten.computeIfAbsent(name, k -> new LinkedHashMap<>()).merge(what, 1, Integer::sum);
+            if (key != null) {
+                f.tasten.computeIfAbsent(name, k -> new LinkedHashMap<>()).merge(key, 1, Integer::sum);
+            }
+        }
+    }
+
+    private AttemptFile attemptOf(ServerPlayer player) {
+        return m.expeditions().isFighter(player) ? dungeon : m.camp().isFighter(player) ? camp : null;
+    }
+
+    /** Tests (09.11.): uses per key of a player in the running dungeon or camp attempt, 0 for none. */
+    public int testAttemptKeyUses(ServerPlayer player, String key) {
+        AttemptFile f = attemptOf(player);
+        Map<String, Integer> keys = f == null ? null : f.tasten.get(player.getScoreboardName());
+        return keys == null ? 0 : keys.getOrDefault(key, 0);
     }
 
     // ------------------------------------------------------------------ machines

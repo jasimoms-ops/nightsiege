@@ -6413,7 +6413,7 @@ public final class SiegeManager {
         if (Stuns.stunned(player) && Stuns.blocks(verb)) {
             return;   // stunned by a stunner (05.11.): no ability, no ultimate, no gain key
         }
-        if (active && !verb.equals("slot") && keyPause(player, verb) == null) {   // the others count only when they fired (Prüfer-Fund 4b)
+        if ((active || kitOfAFight(player)) && !verb.equals("slot") && keyPause(player, verb) == null) {   // the others count only when they fired (Prüfer-Fund 4b)
             String ability = abilityName(player, verb, argument);
             if (ability != null) {
                 String key = com.mki.nightsiege.core.AbilityKeys.statsKey(verb, slotKey(player, verb, argument));
@@ -7503,7 +7503,7 @@ public final class SiegeManager {
 
     /** X, F, the second ultimate: counted in the statistics only when the pause started (Prüfer-Fund 4b). */
     private void countedKey(ServerPlayer player, String verb, String argument, Runnable press) {
-        int[] before = active ? keyPause(player, verb) : null;
+        int[] before = active || kitOfAFight(player) ? keyPause(player, verb) : null;
         String ability = before == null ? null : abilityName(player, verb, argument);
         press.run();
         if (ability == null) {
@@ -7524,7 +7524,7 @@ public final class SiegeManager {
         int index = parseAmount(argument);
         List<com.mki.nightsiege.core.UltState.Slot> slots = abilitySlots(player);
         com.mki.nightsiege.core.UltState.Slot before = index >= 0 && index < slots.size() ? slots.get(index) : null;
-        String ability = active ? abilityName(player, "slot", argument) : null;
+        String ability = active || kitOfAFight(player) ? abilityName(player, "slot", argument) : null;
         String key = before == null ? null : com.mki.nightsiege.core.AbilityKeys.statsKey("slot", before.key);
         onSlotKey(player, index);
         if (ability == null || before == null) {

@@ -36,20 +36,19 @@ public final class HealthView {
 
     /** Once a second: who should see which defenders' life. */
     public static void tick(MinecraftServer server, SiegeManager m) {
+        // Since 09.11. (Simon: in the dungeon the night's rules) also in a dungeon and in the camp: isDefending covers them.
         StringBuilder ids = new StringBuilder();
-        if (m.isActive()) {
-            for (ServerPlayer p : server.getPlayerList().getPlayers()) {
-                if (m.isDefending(p)) {
-                    if (!ids.isEmpty()) {
-                        ids.append(',');
-                    }
-                    ids.append(p.getUUID());
+        for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+            if (m.isDefending(p)) {
+                if (!ids.isEmpty()) {
+                    ids.append(',');
                 }
+                ids.append(p.getUUID());
             }
         }
         boolean refresh = server.overworld().getGameTime() % 200 == 0;
         for (ServerPlayer p : server.getPlayerList().getPlayers()) {
-            String show = m.isActive() && m.isDefending(p) && healer(m, p) ? ids.toString() : "";
+            String show = m.isDefending(p) && healer(m, p) ? ids.toString() : "";
             String last = SENT.getOrDefault(p.getUUID(), "");
             if (!show.equals(last) || (refresh && !show.isEmpty())) {
                 SENT.put(p.getUUID(), show);
