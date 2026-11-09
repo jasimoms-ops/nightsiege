@@ -111,7 +111,7 @@ final class HudNeuScenes {
                 b.addPlayer(player);
             }
             player.addEffect(new MobEffectInstance(MobEffects.STRENGTH, 20 * 600, 0));
-            player.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 20 * 600, 0));
+            player.addEffect(new MobEffectInstance(MobEffects.MINING_FATIGUE, 20 * 600, 0));   // not slowness: w_unstoppable lifts it
         });
         int[] window = context.computeOnClient(client -> new int[]{client.getWindow().getWidth(), client.getWindow().getHeight()});
         int scaleBefore = context.computeOnClient(client -> client.options.guiScale().get());
@@ -165,7 +165,7 @@ final class HudNeuScenes {
                 // the effects last: learning and putting on the kit may clear one (CI 595bc43c: only 1 icon left)
                 player.removeAllEffects();
                 player.addEffect(new MobEffectInstance(MobEffects.STRENGTH, 20 * 600, 0));
-                player.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 20 * 600, 0));
+                player.addEffect(new MobEffectInstance(MobEffects.MINING_FATIGUE, 20 * 600, 0));   // not slowness: w_unstoppable lifts it
             });
             context.waitTicks(30);
             int mates = three ? 4 : 0;
