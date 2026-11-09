@@ -1188,9 +1188,16 @@ public final class GuardianEffects {
         }
         float hurt = (float) (tree.totalBonus(SkillEffect.SHIELD_THROW, skills) * bladeshield(skills));
         ItemStack stack = player.getUseItem();
-        Item item = stack.getItem();
+        if (stack.isEmpty()) {
+            // Tor 4c.6: on Q the tank need not be blocking (the empty use item crashed the particles)
+            stack = player.getOffhandItem().getItem() instanceof net.minecraft.world.item.ShieldItem
+                    ? player.getOffhandItem() : player.getMainHandItem();
+        }
+        Item item = stack.isEmpty() ? net.minecraft.world.item.Items.SHIELD : stack.getItem();
         player.stopUsingItem();
-        player.getCooldowns().addCooldown(stack, 3 * chain.size() + 6);
+        if (!stack.isEmpty()) {
+            player.getCooldowns().addCooldown(stack, 3 * chain.size() + 6);
+        }
         play(level, player, SoundEvents.TRIDENT_THROW.value(), 1.0f, 0.8f);
         DamageSource own = level.damageSources().playerAttack(player);
         ParticleOptions look = new ItemParticleOption(ParticleTypes.ITEM, item);
