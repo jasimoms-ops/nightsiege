@@ -337,6 +337,45 @@ final class EliteScenes {
             Elites.make(level, two, EnumSet.allOf(Elites.Affix.class), cfg);
             PlayerTeam team3 = level.getServer().getScoreboard().getPlayersTeam(two.getScoreboardName());
             check(team3 != null && Elites.TEAM_BOTH.equals(team3.getName()) && Elites.affixes(two).size() == 2, "both: purple, two affixes");
+            // Tor 9b (Simon 09.11.): a breeze elite gets half the life bonus, its affixes stay.
+            Mob breeze0 = mob(level, EntityTypes.BREEZE, player.getX() + 6, player.getY(), player.getZ() - 4);
+            Mob breeze = mob(level, EntityTypes.BREEZE, player.getX() - 6, player.getY(), player.getZ() - 4);
+            Elites.make(level, breeze, EnumSet.of(Elites.Affix.WOUNDS), cfg);
+            double bl = breeze.getMaxHealth() / breeze0.getMaxHealth();
+            log("breeze elite: life x" + f(bl));
+            check(Math.abs(bl - (1 + (cfg.eliteMobLife - 1) / 2)) < 0.01 && Elites.has(breeze, Elites.Affix.WOUNDS),
+                    "a breeze elite has half the bonus (x" + f(bl) + "), same affix");
+            breeze0.discard();
+            breeze.discard();
+            // Tor 9b (Simon 09.11.): a caster's blindness and slowness on a player are cut, the player's own are not.
+            com.mki.nightsiege.game.CasterCurbs.clear();
+            Mob evoker = mob(level, EntityTypes.EVOKER, player.getX() + 3, player.getY(), player.getZ() - 6);
+            Mob target = mob(level, EntityTypes.ZOMBIE, player.getX() - 3, player.getY(), player.getZ() - 6);
+            var blind = net.minecraft.world.effect.MobEffects.BLINDNESS;
+            var slow = net.minecraft.world.effect.MobEffects.SLOWNESS;
+            player.removeEffect(blind);
+            player.removeEffect(slow);
+            player.addEffect(new net.minecraft.world.effect.MobEffectInstance(blind, 400, 0), evoker);
+            var pb = player.getEffect(blind);
+            check(pb != null && pb.getDuration() <= 40, "caster blindness 20 s -> at most 2 s (" + (pb == null ? "-" : pb.getDuration()) + ")");
+            player.removeEffect(blind);
+            boolean again = player.addEffect(new net.minecraft.world.effect.MobEffectInstance(blind, 400, 0), evoker);
+            check(!again && player.getEffect(blind) == null, "the same caster effect only after 6 s");
+            player.addEffect(new net.minecraft.world.effect.MobEffectInstance(slow, 100, 2), evoker);
+            var ps = player.getEffect(slow);
+            check(ps != null && ps.getDuration() <= 60 && ps.getAmplifier() == 0, "caster slowness III 5 s -> I, at most 3 s ("
+                    + (ps == null ? "-" : ps.getAmplifier() + "/" + ps.getDuration()) + ")");
+            player.removeEffect(slow);
+            player.addEffect(new net.minecraft.world.effect.MobEffectInstance(slow, 100, 2));
+            ps = player.getEffect(slow);
+            check(ps != null && ps.getAmplifier() == 2 && ps.getDuration() > 60, "slowness without a caster stays");
+            target.addEffect(new net.minecraft.world.effect.MobEffectInstance(slow, 100, 2), evoker);
+            var ts = target.getEffect(slow);
+            check(ts != null && ts.getAmplifier() == 2 && ts.getDuration() > 60, "a caster's slowness on a monster stays");
+            player.removeEffect(slow);
+            evoker.discard();
+            target.discard();
+            com.mki.nightsiege.game.CasterCurbs.clear();
             // Not for a champion or a nemesis-like special one.
             Mob champ = mob(level, EntityTypes.ZOMBIE, player.getX() - 2, player.getY(), player.getZ() + 6);
             champ.addTag(MobFactory.TAG_ELITE);
