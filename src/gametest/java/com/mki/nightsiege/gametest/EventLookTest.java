@@ -205,6 +205,10 @@ public class EventLookTest implements FabricClientGameTest {
                     alive(context);   // a scene before may have left the player dead (05.11.)
                     BastionScenes.run(context, game);   // Update 7: the Letzte Bastion and the fun mode's lent profiles (07.11.)
                 }
+                if (want.contains("hudneu")) {
+                    alive(context);
+                    HudNeuScenes.run(context, game);   // Tor 3.2c: action bar in key order, before/after at GUI 2 and 3 (09.11.)
+                }
                 if (want.contains("bossleisten")) {
                     alive(context);
                     BossleistenScenes.run(context, game);   // Tor 2.3: compact boss bars, four bosses before/after (08.11.)

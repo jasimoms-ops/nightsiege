@@ -40,7 +40,14 @@ public final class UltHud {
     private UltHud() {
     }
 
+    /** Gametest only (Tor 3.2c "hudneu"): changes every state that comes, e.g. a pause running for the pictures. */
+    public static volatile java.util.function.Consumer<UltState> testEdit;
+
     public static void update(UltState fresh) {
+        java.util.function.Consumer<UltState> edit = testEdit;
+        if (edit != null && fresh != null) {
+            edit.accept(fresh);
+        }
         state = fresh;
         receivedAt = System.currentTimeMillis();
     }
