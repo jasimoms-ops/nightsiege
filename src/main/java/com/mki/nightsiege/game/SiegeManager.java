@@ -274,6 +274,12 @@ public final class SiegeManager {
     private final Set<UUID> liveMobs = new HashSet<>();
     /** Defenders without a connection, with the game time they went (Simon 31.10.: a minute's grace). */
     private final Map<UUID, Long> offlineSince = new HashMap<>();
+    /** Tor 6.4: defenders online but out of the night (presentRadius, another world), with the game time they went. */
+    private final Map<UUID, Long> awaySince = new HashMap<>();
+    /** Tor 6.4: the group size the living elites and bosses were last scaled for. */
+    private int scaledFor;
+    /** Tor 6.4: extra elite chance of tonight's wave for the monsters the live cap left out (overflowEliteCost). */
+    private double overflowElites;
     /** Tor 3.6: the hash of the tooltips last sent on each connection (weak: gone with the connection). */
     private final Map<Object, Integer> sentTips = new java.util.WeakHashMap<>();
     private final Map<UUID, String> defenderNames = new HashMap<>();
@@ -2426,6 +2432,8 @@ public final class SiegeManager {
         fallen.clear();
         liveMobs.clear();
         offlineSince.clear();
+        awaySince.clear();
+        overflowElites = 0.0;
         digger.reset();
         ladders.reset();
         besiegers.reset();
@@ -2433,6 +2441,10 @@ public final class SiegeManager {
             participants.add(player.getUUID());
         }
         presentDefenders = participants.size();
+        scaledFor = presentDefenders;
+        if (com.mki.nightsiege.core.SoloHelper.wanted(config, presentDefenders)) {
+            NightSiegeMod.LOGGER.info("[Night Siege] Solo-Helfer: gewuenscht (Geruest, noch ohne Wirkung)");
+        }
         wavesStarted = 0;
         waveWeight.clear();
         CrateEffects.reset();
@@ -2741,7 +2753,20 @@ public final class SiegeManager {
                 offlineSince.putIfAbsent(id, nowTick);
             }
             boolean here = online || nowTick - offlineSince.get(id) < DISCONNECT_GRACE_TICKS;
-            if (here) {
+            // Tor 6.4: the night's size goes by who is in it: offline or out of range (presentRadius, another world)
+            // for longer than the grace, a defender no longer counts; back, he counts again (participants stays).
+            boolean inRange = warRound || bastionRound || onlinePlayer != null && onlinePlayer.level() == world
+                    && onlinePlayer.distanceToSqr(anchor.getX() + 0.5, anchor.getY(), anchor.getZ() + 0.5)
+                    <= config.presentRadius * config.presentRadius;
+            if (!online || inRange) {
+                awaySince.remove(id);
+            } else {
+                awaySince.putIfAbsent(id, nowTick);
+            }
+            long offlineTicks = online ? 0L : nowTick - offlineSince.get(id);
+            long awayTicks = online && !inRange ? nowTick - awaySince.get(id) : 0L;
+            if (SiegeMath.countsForSize(online, offlineTicks, DISCONNECT_GRACE_TICKS, inRange, awayTicks,
+                    config.presentGraceSeconds * 20L)) {
                 present++;
             }
             if (fallen.contains(id)) {
@@ -2759,6 +2784,10 @@ public final class SiegeManager {
             }
         }
         presentDefenders = present;   // waves, monster life and the field go by who is here (Simon 31.10.)
+        if (presentCount() != scaledFor) {
+            scaledFor = presentCount();
+            safe("Neu skalieren", () -> rescaleForGroup(scaledFor));
+        }
         if (standing == 0 && !(warRound && warLeader.sandbox())) {   // the sandbox: nobody defends, it goes on
             if (bossVictoryAt > 0) {
                 finish(server, true);   // the boss fell first
@@ -3471,6 +3500,11 @@ public final class SiegeManager {
         }
 
         @Override
+        public int headcount() {
+            return presentCount();   // Tor 6.4: the boss's life goes by who is in the night, like the waves
+        }
+
+        @Override
         public List<ServerPlayer> defenders() {
             List<ServerPlayer> list = new ArrayList<>();
             if (world == null) {
@@ -3758,10 +3792,31 @@ public final class SiegeManager {
         return true;
     }
 
+    /**
+     * Tor 6.4: someone joined or left: the living elites and bosses take the new group's life (they keep their share
+     * of it). Waves, the live cap and the field read presentCount() themselves.
+     */
+    private void rescaleForGroup(int defenders) {
+        NightSiegeMod.LOGGER.info("[Night Siege] Gruppe jetzt {}: Eliten und Bosse neu skaliert", defenders);
+        if (world == null) {
+            return;
+        }
+        for (UUID id : liveMobs) {
+            if (world.getEntity(id) instanceof Mob mob && Elites.isElite(mob)) {
+                Elites.regroup(mob, config, defenders);
+            }
+        }
+        for (BossService b : allBosses()) {
+            b.rescale(world, defenders);
+        }
+    }
+
     /** Monsters one wave brings with the defenders there now. */
     private int wantedPerWave() {
         int players = presentCount();
         double perPlayer = config.playerScaling;   // a playtest night too, like a real one (Playtest 2, 04.11.)
+        // Tor 6.4: beyond the live cap the wave's budget comes as elites.
+        overflowElites = SiegeMath.overflowEliteChance(SiegeMath.mobsWanted(siegeLevel, players, config, perPlayer), maxLive(), config);
         // What the cap leaves out comes as life (per-player scaling, 29 October 2026).
         overflowHealth = SiegeMath.overflowHealthFactor(SiegeMath.mobsWanted(siegeLevel, players, config, perPlayer), maxLive(), config);
         return (int) Math.round(SiegeMath.mobsPerBatch(siegeLevel, players, config, perPlayer, maxLive())
@@ -4210,7 +4265,7 @@ public final class SiegeManager {
         }
         int step = smart.step();
         Elites.maybe(world, mob, siegeLevel, config, random,
-                com.mki.nightsiege.core.SmartNight.eliteChance(config, step, siegeLevel),
+                com.mki.nightsiege.core.SmartNight.eliteChance(config, step, siegeLevel) + overflowElites,
                 com.mki.nightsiege.core.SmartNight.specials(config, step));
     }
 

@@ -104,6 +104,37 @@ public final class SiegeMath {
         return 1.0;
     }
 
+    /**
+     * Tor 6.4: life of an elite or a boss for this many defenders here: 1 + perPlayer × further players
+     * (Diablo III's +50 % per player; normal monsters grow in number instead).
+     */
+    public static double groupHealth(int playerCount, double perPlayer) {
+        return 1.0 + Math.max(0.0, perPlayer) * Math.max(0, playerCount - 1);
+    }
+
+    /**
+     * Tor 6.4: the extra elite chance of each monster of a wave whose wanted size goes beyond the cap:
+     * (wanted − cap) ÷ overflowEliteCost elites spread over the cap's monsters, at most 1; 0 within the cap or off.
+     */
+    public static double overflowEliteChance(double wanted, int cap, SiegeConfig cfg) {
+        if (cfg.overflowEliteCost <= 0 || cap <= 0 || wanted <= cap) {
+            return 0.0;
+        }
+        return Math.min(1.0, (wanted - cap) / cfg.overflowEliteCost / cap);
+    }
+
+    /**
+     * Tor 6.4: whether a defender of the night still counts for its size: online and in range, or out of it
+     * (offline, or away from the night) for less than its grace. Coming back he counts again at once.
+     */
+    public static boolean countsForSize(boolean online, long offlineTicks, long offlineGrace,
+                                        boolean inRange, long awayTicks, long awayGrace) {
+        if (!online) {
+            return offlineTicks < offlineGrace;
+        }
+        return inRange || awayTicks < awayGrace;
+    }
+
     /** Life factor for monsters a capped batch could not bring (overflowHealth; 1 = no overflow). */
     public static double overflowHealthFactor(double wanted, int cap, SiegeConfig cfg) {
         if (cfg.overflowHealth <= 0 || cap <= 0 || wanted <= cap) {

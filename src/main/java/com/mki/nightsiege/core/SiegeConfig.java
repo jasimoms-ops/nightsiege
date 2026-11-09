@@ -132,6 +132,28 @@ public class SiegeConfig {
      * fieldRefCaps). Kept so the config files that have it still read as before.
      */
     public double playtestLivePerPlayer = 0.5;
+    /**
+     * Tor 6.4 (Chef 09.11.): extra life of a night's elite for every defender here beyond the first
+     * (1 + share × further, like the bosses' bossHealthPerExtraPlayer). Rescaled when someone joins or leaves.
+     */
+    public double eliteHealthPerExtraPlayer = 0.5;
+    /**
+     * Tor 6.4: the monsters a wave wants beyond the live cap (maxLiveMobsCap, at most 120) come as elites:
+     * this many left-out monsters buy one elite (0 = off; the budget is lost as before). Measured in Tor 7/8.
+     */
+    public double overflowEliteCost = 3.0;
+    /**
+     * Tor 6.4: a defender out of the night (further than this from the anchor, or in another world) for longer
+     * than presentGraceSeconds no longer counts for the night's size; back in range, he counts again.
+     */
+    public double presentRadius = 180.0;
+    public int presentGraceSeconds = 30;
+    /**
+     * Tor 6.4, only the frame (decided after Tor 8): a lone defender gets a helper instead of fewer monsters
+     * (Deep Rock Galactic's Bosco) when solo nights win under soloHelperBelow (0.65). Off: nothing happens.
+     */
+    public boolean soloHelper = false;
+    public double soloHelperBelow = 0.65;
 
     public double healthPerLevel = 0.06;
     public double maxHealthMultiplier = 2.5;
@@ -1285,7 +1307,7 @@ public class SiegeConfig {
      */
     public int settingsVersion = 0;
     /** The newest settings version (the migrations below end there). */
-    public static final int SETTINGS_VERSION = 24;
+    public static final int SETTINGS_VERSION = 25;
     /** Version of the dungeon list in this file. Older lists are replaced on load. */
     /** Which structures hold dungeons, how hard they are and what lives there. */
     /** Perks from core fragments work within this many blocks of the main core. */
@@ -1427,6 +1449,11 @@ public class SiegeConfig {
         baseMobsPerBatch = Math.max(1, baseMobsPerBatch);
         mobsPerLevel = Math.max(0.0, mobsPerLevel);
         playerScaling = Math.max(0.0, playerScaling);
+        eliteHealthPerExtraPlayer = Double.isNaN(eliteHealthPerExtraPlayer) ? 0.5 : clampDouble(eliteHealthPerExtraPlayer, 0.0, 3.0);
+        overflowEliteCost = Double.isNaN(overflowEliteCost) ? 3.0 : clampDouble(overflowEliteCost, 0.0, 100.0);
+        presentRadius = Double.isNaN(presentRadius) ? 180.0 : clampDouble(presentRadius, 16.0, 2000.0);
+        presentGraceSeconds = clamp(presentGraceSeconds, 0, 600);
+        soloHelperBelow = Double.isNaN(soloHelperBelow) ? 0.65 : clampDouble(soloHelperBelow, 0.0, 1.0);
         playtestPlayerScaling = Double.isNaN(playtestPlayerScaling) ? 1.0 : clampDouble(playtestPlayerScaling, 0.0, 2.0);
         playtestLivePerPlayer = Double.isNaN(playtestLivePerPlayer) ? 0.5 : clampDouble(playtestLivePerPlayer, 0.0, 2.0);
         lowLevelDamageTaken = Double.isNaN(lowLevelDamageTaken) ? 0.75 : clampDouble(lowLevelDamageTaken, 0.3, 1.5);
@@ -1940,6 +1967,18 @@ public class SiegeConfig {
                 campReinforceSeconds = 40;
             }
             settingsVersion = 24;
+        }
+        if (settingsVersion < 25) {
+            // Tor 6.4 (Chef 09.11.): the monsters' damage and the normal monsters' life are the same for every group
+            // size (more players bring more monsters, not tougher ones). The tables of update 17 on their old standard
+            // become the target (empty = 1); any other own table stays.
+            if (List.of(0.7, 0.9, 0.95, 1.0).equals(damageTakenByPlayers)) {
+                damageTakenByPlayers = new ArrayList<>();
+            }
+            if (List.of(0.7, 0.9, 0.95, 1.0).equals(mobHealthByPlayers)) {
+                mobHealthByPlayers = new ArrayList<>();
+            }
+            settingsVersion = 25;
         }
         if (Double.isNaN(meleeLifesteal)) {
             meleeLifesteal = 0.08;

@@ -108,6 +108,10 @@ public final class StatsRecorder {
         public List<Welle> wellen = new ArrayList<>();
         public Map<String, Gegner> gegner = new LinkedHashMap<>();
         public Map<String, Turm> tuerme = new LinkedHashMap<>();
+        /** Tor 6.4: 95th percentile of the server's tick time over the whole night (ms; the live cap's gauge). */
+        public double msptP95;
+        /** Tor 6.4: the most monsters of the night alive at once over the whole night. */
+        public int lebendMax;
         /** 1-click feedback after the night (balance tool, 29 October 2026): player → leicht / passt / schwer. */
         public Map<String, String> bewertung = new LinkedHashMap<>();
         /** Optional with it: player → the subclass they found strongest tonight. */
@@ -211,6 +215,8 @@ public final class StatsRecorder {
         public double msptSchnitt;
         public double msptMax;
         public int ticksUeber50;
+        /** Tor 6.4: 95th percentile of the tick time in this wave (ms). */
+        public double msptP95;
         public int lebendMax;
         public int mobsMax;
     }
@@ -574,6 +580,7 @@ public final class StatsRecorder {
             return;
         }
         night = new NightFile();
+        nightLoad.clear();
         night.sim = simLabel == null ? "" : simLabel;
         night.version = version();
         night.build = build();
@@ -654,6 +661,9 @@ public final class StatsRecorder {
         wave.msptSchnitt = tickCount == 0 ? 0 : Math.round(tickSumMs / tickCount * 10.0) / 10.0;
         wave.msptMax = Math.round(tickMaxMs * 10.0) / 10.0;
         wave.ticksUeber50 = ticksOver50;
+        wave.msptP95 = Math.round(waveLoad.percentile(0.95) * 10.0) / 10.0;
+        night.lebendMax = Math.max(night.lebendMax, Math.max(liveMax, liveNow));
+        waveLoad.clear();
         wave.lebendMax = Math.max(liveMax, liveNow);
         wave.mobsMax = mobsMax;
         tickSumMs = 0;
@@ -669,6 +679,8 @@ public final class StatsRecorder {
     private int tickCount;
     private double tickMaxMs;
     private int ticksOver50;
+    private final com.mki.nightsiege.core.TickLoad waveLoad = new com.mki.nightsiege.core.TickLoad();
+    private final com.mki.nightsiege.core.TickLoad nightLoad = new com.mki.nightsiege.core.TickLoad();
     private int liveMax;
     private int mobsMax;
 
@@ -680,6 +692,8 @@ public final class StatsRecorder {
         tickSumMs += ms;
         tickCount++;
         tickMaxMs = Math.max(tickMaxMs, ms);
+        waveLoad.add(ms);
+        nightLoad.add(ms);
         if (ms > 50.0) {
             ticksOver50++;
         }
@@ -1224,6 +1238,7 @@ public final class StatsRecorder {
         }
         closeWave(gameTime, liveMobs == null ? 0 : liveMobs.size());
         night.ende = now();
+        night.msptP95 = Math.round(nightLoad.percentile(0.95) * 10.0) / 10.0;
         night.abgeschlossen = true;
         night.ergebnis = result;
         night.dauerSekunden = second(gameTime);

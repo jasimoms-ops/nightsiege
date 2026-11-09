@@ -75,6 +75,8 @@ public final class Elites {
 
     private static final Identifier LIFE = Identifier.fromNamespaceAndPath("nightsiege", "elite_life");
     private static final Identifier SPEED = Identifier.fromNamespaceAndPath("nightsiege", "elite_speed");
+    /** Tor 6.4: the elite's extra life for the defenders here (eliteHealthPerExtraPlayer), rescaled on join/leave. */
+    private static final Identifier GROUP = Identifier.fromNamespaceAndPath("nightsiege", "elite_group");
 
     /** Elites made this night (for the tests and the statistics). */
     private static int made;
@@ -150,6 +152,8 @@ public final class Elites {
             life.addPermanentModifier(new AttributeModifier(LIFE, cfg.eliteMobLife - 1.0, AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
             mob.setHealth(mob.getMaxHealth());
         }
+        SiegeManager sm = SiegeManager.get();
+        regroup(mob, cfg, sm == null ? 1 : sm.presentCount());
         if (affixes.contains(Affix.FAST)) {
             AttributeInstance speed = mob.getAttribute(Attributes.MOVEMENT_SPEED);
             if (speed != null && !speed.hasModifier(SPEED) && cfg.eliteFastSpeed > 0) {
@@ -163,6 +167,28 @@ public final class Elites {
         SiegeTeams.mark(level.getServer(), mob, both ? TEAM_BOTH : one == Affix.FAST ? TEAM_FAST : TEAM_WOUNDS,
                 both ? TeamColor.LIGHT_PURPLE : one == Affix.FAST ? TeamColor.YELLOW : TeamColor.DARK_GREEN);
         made++;
+    }
+
+    /**
+     * Tor 6.4: the elite's life for this many defenders here, 1 + eliteHealthPerExtraPlayer × further; the share of
+     * its life it still has stays (Realm of the Mad God), so a join or a leave neither heals nor wounds it.
+     */
+    public static void regroup(Mob mob, SiegeConfig cfg, int defenders) {
+        AttributeInstance life = mob.getAttribute(Attributes.MAX_HEALTH);
+        if (life == null || !mob.entityTags().contains(TAG)) {
+            return;
+        }
+        double extra = com.mki.nightsiege.core.SiegeMath.groupHealth(defenders, cfg.eliteHealthPerExtraPlayer) - 1.0;
+        AttributeModifier now = life.getModifier(GROUP);
+        if (now != null && Math.abs(now.amount() - extra) < 1e-9 || now == null && extra <= 0) {
+            return;
+        }
+        float share = mob.getMaxHealth() <= 0 ? 1f : mob.getHealth() / mob.getMaxHealth();
+        life.removeModifier(GROUP);
+        if (extra > 0) {
+            life.addPermanentModifier(new AttributeModifier(GROUP, extra, AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
+        }
+        mob.setHealth(Math.max(1f, share * mob.getMaxHealth()));
     }
 
     /** "Elite · Schnell · Heilungshemmend" in the affixes' colours. */

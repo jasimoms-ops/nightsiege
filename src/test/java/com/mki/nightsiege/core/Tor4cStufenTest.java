@@ -80,7 +80,7 @@ class Tor4cStufenTest {
     void freshConfigHasNoTweaksForThem() {
         SiegeConfig fresh = new SiegeConfig();
         fresh.sanitize();
-        assertEquals(24, SiegeConfig.SETTINGS_VERSION);
+        assertEquals(25, SiegeConfig.SETTINGS_VERSION);
         assertEquals(SiegeConfig.SETTINGS_VERSION, fresh.settingsVersion);
         assertNull(fresh.skillTweaks.get("ground_slam"));
         assertNull(fresh.skillTweaks.get("e_backup"));
