@@ -1981,7 +1981,7 @@ public final class TrapService {
         if (lock != null && now < lock && !creative) {
             return;
         }
-        double reach = SkillValues.get("potion_tower", "zonerange", 10);
+        double reach = SkillValues.get("potion_tower", "zonerange", 10) * EngineerAbilities.seatThrow(seatKind(player));
         Vec3 spot = throwSpot(level, player, reach);
         if (spot == null) {
             actionBar(player, Component.translatable("nightsiege.msg.zone_far", (int) Math.round(reach)));

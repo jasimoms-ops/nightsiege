@@ -116,4 +116,20 @@ class Tor4bTechnikerTest {
         p.setLevel("e_blastpower", 1);
         assertEquals(1.5, tree.blastScale(p), 1e-9);
     }
+
+    @Test
+    void theThrowFliesFurtherFromAnArrowTurretOrTeslaSeat() {
+        // Chef 09.11. 05:35: no mortar seat; seated in an arrow turret or a tesla coil the grenade
+        // and the alchemist's potion fly +50 % further (14 -> 21 blocks, potion 10 -> 15).
+        double grenade = SkillValues.get("t_grenade", "range", 0);
+        double potion = SkillValues.get("potion_tower", "zonerange", 0);
+        assertEquals(14, grenade * EngineerAbilities.seatThrow(null), 1e-9);
+        assertEquals(21, grenade * EngineerAbilities.seatThrow(TrapKind.TURRET.id()), 1e-9);
+        assertEquals(21, grenade * EngineerAbilities.seatThrow(TrapKind.TESLA.id()), 1e-9);
+        assertEquals(14, grenade * EngineerAbilities.seatThrow(TrapKind.MORTAR.id()), 1e-9);
+        assertEquals(10, potion * EngineerAbilities.seatThrow(null), 1e-9);
+        assertEquals(15, potion * EngineerAbilities.seatThrow(TrapKind.TURRET.id()), 1e-9);
+        assertEquals(15, potion * EngineerAbilities.seatThrow(TrapKind.TESLA.id()), 1e-9);
+        assertEquals(-1, SkillValues.get("t_grenade", "seatrange", -1), 1e-9);
+    }
 }

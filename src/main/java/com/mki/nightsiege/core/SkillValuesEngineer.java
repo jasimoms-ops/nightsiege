@@ -168,7 +168,6 @@ final class SkillValuesEngineer {
         def("t_grenade", "dmg", 6);                                      // x tonight's level (Konzept 8; Auflage 1: <= ~1150/min)
         def("t_grenade", "radius", 3);
         def("t_grenade", "range", 14);
-        def("t_grenade", "seatrange", 40);                               // from a mortar's seat the mortar throws it
         def("t_grenade", "fuse", 20);                                    // ticks it sticks before it goes off
         def("t_grenade", "mark", 160);                                   // ticks the hit monsters stay marked
         def("t_target", "pause", 400);                                   // Zielpunkt (Sprengmeister), 20 s

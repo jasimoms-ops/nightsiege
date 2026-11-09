@@ -237,6 +237,15 @@ public final class EngineerAbilities {
         return seat == null ? 1.0 : SkillValues.get("t_tech", "seatreach", 1.5);
     }
 
+    /**
+     * Chef 09.11. 05:35 (no mortar seat): sitting in an arrow turret or a tesla coil, the demolition
+     * expert's grenade and the alchemist's potion fly +50 % further. seatKind from TrapService.seatKind.
+     */
+    public static double seatThrow(String seatKind) {
+        return TrapKind.TURRET.id().equals(seatKind) || TrapKind.TESLA.id().equals(seatKind)
+                ? SkillValues.get("t_tech", "seatreach", 1.5) : 1.0;
+    }
+
     /** Fernsteuerung: more blocks for every throw and beam. */
     private static double extraReach(SkillTree tree, PlayerSkills skills) {
         return tree.totalBonus(SkillEffect.REMOTE_RANGE, skills);
@@ -393,12 +402,10 @@ public final class EngineerAbilities {
 
     // ----- Sprengmeister
 
-    /** Haftgranate: sticks where it lands and goes off after a moment; in a mortar's seat the mortar throws it far. */
+    /** Haftgranate: sticks where it lands and goes off after a moment; from a seat it flies +50 % further. */
     private static boolean grenade(ServerLevel level, ServerPlayer player, TrapService traps, SkillTree tree,
                                    PlayerSkills skills, Vec3 seat, long now) {
-        boolean mortar = seat != null && TrapKind.MORTAR.id().equals(traps.seatKind(player));
-        double reach = (mortar ? val(GRENADE, "seatrange", 40) : val(GRENADE, "range", 14) * seatReach(seat))
-                + extraReach(tree, skills);
+        double reach = val(GRENADE, "range", 14) * seatThrow(traps.seatKind(player)) + extraReach(tree, skills);
         Vec3 spot = TrapService.throwSpot(level, player, reach);
         if (spot == null) {
             bar(player, Component.translatable("nightsiege.msg.zone_far", (int) Math.round(reach)));
