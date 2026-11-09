@@ -403,7 +403,8 @@ final class Krieger410Scenes {
                     + " sub=" + (s == null ? "?" : s.sub) + " keys=" + (s != null && s.keys) + " live=" + (s != null && s.live);
         });
         log("day: " + day);
-        check(day.startsWith("false mark=null") && !day.contains("sub=?") && !day.contains("sub= "),
+        // The kit off restores the own skills too, so the sub may be empty: the state just must have come.
+        check(day.startsWith("false mark=null") && !day.contains("sub=?") && day.contains("keys=false live=false"),
                 "by day without a kit no ring and no mark (" + day + ")");
         game.getServer().runCommand("gamemode creative @p");
         context.waitTicks(5);
