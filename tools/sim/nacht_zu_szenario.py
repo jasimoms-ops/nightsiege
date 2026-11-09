@@ -2,7 +2,7 @@
 """Tor 6.0: aus echten Nachtdateien (night_*.json des Loggers) Nachspiel-Szenarien bauen.
 
 Aufruf: nacht_zu_szenario.py <ordner-oder-dateien…> [--ausgabe tools/sim/eichung/szenarien.json] [--neu] [--praefix r]
-  Liest jede Gruppennacht (keine Sim-Nacht, kein Dungeon/Heerlager, >= 2 Spieler), schreibt je Nacht ein Szenario
+  Liest night_*, testnacht_* und spieltest_*.json; jede Gruppennacht (keine Sim-Nacht, kein Dungeon/Heerlager, >= 2 Spieler), schreibt je Nacht ein Szenario
   (Stufe, Besetzung als Unterklassen, Ereignis, Boss, Punkte -1, echt = Ergebnis/Dauer/Tode) und haengt es an die
   Ausgabedatei an (vorhandene ids bleiben; --neu ersetzt die Datei). Spielernamen kommen NIE in die Ausgabe:
   nur Unterklassen, die Szenario-id ist <praefix><Nummer>_<Stufe>, echt_datei der Dateiname (night_<Zeit>.json).
@@ -26,7 +26,7 @@ def nights(paths):
             files.append(p)
         for f in files:
             base = os.path.basename(f)
-            if not (base.startswith("night_") and base.endswith(".json")):
+            if not (base.startswith(("night_", "testnacht_", "spieltest_")) and base.endswith(".json")):
                 continue
             try:
                 with open(f, encoding="utf-8") as fh:
@@ -51,10 +51,18 @@ def szenario(base, n, sid):
             "sekunden": n.get("dauerSekunden", 0), "tode": n.get("tode", 0), "kills": n.get("kills", 0)}
     if not n.get("ereignis"):
         luecken.append("kein Ereignis (Logger: leer)")
-    luecken.append("Punkte-/Kit-Stand: Stufenstand angenommen")
+    # punkteImProfil (Logger ab Tor 7): ausgegebene Punkte je Spieler; Szenario nimmt den Median der Werte > 0
+    pts = sorted(i.get("punkteImProfil", 0) for i in (n.get("spieler") or {}).values() if i.get("punkteImProfil", 0) > 0)
+    punkte = pts[len(pts) // 2] if pts else -1
+    if punkte < 0:
+        luecken.append("Punkte-/Kit-Stand: Stufenstand angenommen")
+    if n.get("ersterTodSekunde", -1) >= 0:
+        echt["ersterTodSekunde"] = n["ersterTodSekunde"]
+        echt["ersterTodWelle"] = n.get("ersterTodWelle", -1)
+    echt["spieltest"] = bool(n.get("spieltest"))
     luecken.append("Burg: Sim-Burg statt der echten")
     return {"id": sid, "stufe": n.get("stufe", 0), "gruppe": subs, "ereignis": (n.get("ereignis") or "").upper(),
-            "boss": n.get("boss") or "", "punkte": -1, "echt_datei": base, "echt": echt, "luecken": luecken}
+            "boss": n.get("boss") or "", "punkte": punkte, "echt_datei": base, "echt": echt, "luecken": luecken}
 
 
 def main():
