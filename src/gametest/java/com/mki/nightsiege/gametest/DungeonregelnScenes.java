@@ -443,7 +443,8 @@ final class DungeonregelnScenes {
             key[0] = KlassencheckScenes.statsKey(player, m, press);
             usesBefore[0] = uses(player, m, key[0]);
             pauseBefore[0] = KlassencheckScenes.pause(player, m, press);
-            skip[0] = pauseBefore[0] > 0;
+            // the bodyguard needs a second player to guard (as in klassencheck): not testable alone
+            skip[0] = pauseBefore[0] > 0 || what[0].contains("leibwaechter");
             m.onCoreAction(player, press);
         });
         context.waitTicks(10);
