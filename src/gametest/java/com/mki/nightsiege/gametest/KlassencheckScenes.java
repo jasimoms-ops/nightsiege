@@ -310,6 +310,7 @@ final class KlassencheckScenes {
                 context.waitTicks(5);
                 final List<String> presses = new ArrayList<>();
                 final int[] problems = new int[1];
+                final net.minecraft.core.BlockPos[] mortar = new net.minecraft.core.BlockPos[1];
                 server(context, tag + " setup", (player, m) -> {
                     ServerLevel level = (ServerLevel) player.level();
                     for (Mob h : husks(level)) {
@@ -357,6 +358,11 @@ final class KlassencheckScenes {
                         own.gainKeyChoice.remove(info.clazz().name());
                     }
                     m.kits().equip(player, lvl);
+                    if (SkillTree.SUB_DEMOLITION.equals(sub)) {
+                        // Tor 4c.6: the target point fires the own mortars - one 2 blocks beside him (as in TechnikerScenes)
+                        mortar[0] = player.blockPosition().offset(0, 0, 2);
+                        EventLookTest.place(level, m, player, mortar[0], com.mki.nightsiege.core.TrapKind.MORTAR);
+                    }
                     ready(player, m);
                     m.sendUltHud(player);
                     problems[0] = SiegeManager.barProblems().size();
@@ -520,6 +526,10 @@ final class KlassencheckScenes {
                             UltState.Slot s = slots.get(Integer.parseInt(press.substring(5)));
                             what[0] = s.key + "(" + s.id + ")";
                             total[0] = s.totalTicks;
+                            if (EngineerAbilities.TARGET.equals(s.id) && !targets.isEmpty()) {
+                                // Tor 4c.6: the target point needs a block looked at - the ground at the husk's feet
+                                player.lookAt(EntityAnchorArgument.Anchor.EYES, targets.get(0).position());
+                            }
                         }
                         key[0] = statsKey(player, m, press);
                         usesBefore[0] = key[0] == null ? 0 : m.stats().testKeyUses(player, key[0]);
@@ -562,6 +572,10 @@ final class KlassencheckScenes {
                     context.waitTicks(info.clazz() == SkillClass.SUMMONER ? 9 : 2);
                 }
                 server(context, tag + " end", (player, m) -> {
+                    if (mortar[0] != null) {
+                        m.kits().traps().releaseAll(player.level().getServer());
+                        player.level().setBlock(mortar[0], net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
+                    }
                     player.setHealth(player.getMaxHealth());
                     player.removeAllEffects();
                 });
