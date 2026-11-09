@@ -427,6 +427,34 @@ public final class Companions {
     private static final Map<UUID, String> DIAG_LANDED = new HashMap<>();
     private static final Map<UUID, String> DIAG_SWING = new HashMap<>();
     private static boolean diagOn;
+    /** GOLEMDIAG 3: per companion the last hit through hurtServer (before/after), and which damage handler said no how often. */
+    private static final Map<UUID, String> DIAG_HURT = new HashMap<>();
+    private static final Map<UUID, Map<String, Integer>> DIAG_BLOCK = new HashMap<>();
+
+    /** GOLEMDIAG 3: true while the bench diagnosis runs and a companion hits. */
+    public static boolean diagFor(DamageSource source) {
+        return diagOn && source != null && source.getEntity() != null && isCompanion(source.getEntity());
+    }
+
+    /** GOLEMDIAG 3: the damage handler that stopped a companion's hit (counted per name). */
+    public static void diagBlocked(DamageSource source, String handler) {
+        DIAG_BLOCK.computeIfAbsent(source.getEntity().getUUID(), k -> new java.util.TreeMap<>()).merge(handler, 1, Integer::sum);
+    }
+
+    /** GOLEMDIAG 3: state at the start of hurtServer (null when not diagnosed). */
+    public static String diagHurtBefore(LivingEntity victim, DamageSource source, float raw, float scaled, float lastHurt) {
+        if (!diagFor(source)) {
+            return null;
+        }
+        return String.format(java.util.Locale.ROOT, "%s/raw%.1f/scaled%.1f/inv%d/lastHurt%.1f/hp%.1f", victim.getType().toShortString(),
+                raw, scaled, victim.invulnerableTime, lastHurt, victim.getHealth());
+    }
+
+    /** GOLEMDIAG 3: what hurtServer made of it (return value, health after, dead). */
+    public static void diagHurtAfter(LivingEntity victim, DamageSource source, String before, boolean hit, float lastHurt) {
+        DIAG_HURT.put(source.getEntity().getUUID(), before + String.format(java.util.Locale.ROOT, ">ret%s/hp%.1f/lastHurt%.1f/dead%s",
+                hit, victim.getHealth(), lastHurt, victim.isDeadOrDying()));
+    }
 
     /** Called every tick by the bench for the summoner bot: counts the golem's swings. */
     public static void diagTick(ServerLevel level, UUID owner) {
@@ -467,7 +495,7 @@ public final class Companions {
             out.add(String.format(java.util.Locale.ROOT,
                     "kind=%s;type=%s;pos=%.1f,%.1f,%.1f;d_owner=%.1f;target=%s;d_target=%.2f;tgt_noai=%s;in_melee=%s;los=%s;"
                             + "canAttack=%s;allied=%s;noai=%s;goals=%s;nav_done=%s;path=%s;stuck_ticks=%d;order=%s;"
-                            + "swings=%d;gate_hits=%d;landed=%d;last_gate=%s;last_landed=%s;swing_target=%s;speed=%.3f;atk=%.1f;hp=%.0f/%.0f",
+                            + "swings=%d;gate_hits=%d;landed=%d;last_gate=%s;last_landed=%s;swing_target=%s;speed=%.3f;atk=%.1f;hp=%.0f/%.0f;hurt=%s;blocked=%s",
                     c == null ? "-" : c.kind, mob.getType().toShortString(), mob.getX(), mob.getY(), mob.getZ(),
                     player == null ? -1.0 : mob.distanceTo(player),
                     t == null ? "-" : t.getType().toShortString(), t == null ? -1.0 : mob.distanceTo(t),
@@ -478,7 +506,8 @@ public final class Companions {
                     order == null ? "none" : order.target() != null ? "target" : order.hold() != null ? "hold" : "?",
                     d[0], d[1], d[3], DIAG_GATE.getOrDefault(mob.getUUID(), "-"), DIAG_LANDED.getOrDefault(mob.getUUID(), "-"),
                     DIAG_SWING.getOrDefault(mob.getUUID(), "-"), speed == null ? -1.0 : speed.getValue(), dmg == null ? -1.0 : dmg.getValue(),
-                    mob.getHealth(), mob.getMaxHealth()));
+                    mob.getHealth(), mob.getMaxHealth(), DIAG_HURT.getOrDefault(mob.getUUID(), "-"),
+                    DIAG_BLOCK.getOrDefault(mob.getUUID(), Map.of())));
         }
         return out;
     }

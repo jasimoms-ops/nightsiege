@@ -930,8 +930,9 @@ public final class SiegeManager {
             }
             return dies;
         });
-        ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) ->
-                playtest.allowDamage(entity, source)   // no harm between the playtest's rounds (Playtest 2, 04.11.)
+        ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) -> Companions.diagFor(source)
+                ? diagAllowDamage(entity, source, amount)   // GOLEMDIAG 3 (bench only): the same chain, step by step
+                : playtest.allowDamage(entity, source)   // no harm between the playtest's rounds (Playtest 2, 04.11.)
                         && !infighting(source.getEntity(), entity) && allowModDamage(entity, source.getEntity()) && combat.allowDamage(entity, source, amount)
                         && CrateEffects.allowDamage(entity, source) && Companions.allowDamage(entity, source)
                         && bossesAllowDamage(entity, source, amount)
@@ -2919,6 +2920,25 @@ public final class SiegeManager {
         all.add(bosses);
         all.addAll(finaleBosses);
         return all;
+    }
+
+    /** GOLEMDIAG 3: the ALLOW_DAMAGE chain above in the same order, noting the first handler that says no. */
+    private boolean diagAllowDamage(LivingEntity entity, net.minecraft.world.damagesource.DamageSource source, float amount) {
+        String no = !playtest.allowDamage(entity, source) ? "playtest"
+                : infighting(source.getEntity(), entity) ? "infighting"
+                : !allowModDamage(entity, source.getEntity()) ? "modDamage"
+                : !combat.allowDamage(entity, source, amount) ? "combat"
+                : !CrateEffects.allowDamage(entity, source) ? "crates"
+                : !Companions.allowDamage(entity, source) ? "companions"
+                : !bossesAllowDamage(entity, source, amount) ? "bosses"
+                : !camp.allowDamage(entity, source) ? "camp"
+                : !machines.allowDamage(entity, source) ? "machines"
+                : !expeditions.allowDamage(entity, source) ? "expeditions"
+                : !foes.allowDamage(entity, source) ? "foes"
+                : !WarriorArts.allowDamage(entity, source) ? "warriorArts"
+                : !FriendlyFire.allow(entity, source) ? "friendlyFire" : null;
+        Companions.diagBlocked(source, no == null ? "none" : no);
+        return no == null;
     }
 
     private boolean bossesAllowDamage(LivingEntity victim, net.minecraft.world.damagesource.DamageSource source, float amount) {
