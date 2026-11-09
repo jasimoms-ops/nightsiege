@@ -114,6 +114,8 @@ final class GewinneScenes {
         });
 
         // The choice in the inventory: a click on gain place 2 brings the third gain there.
+        game.getServer().runCommand("gamemode survival @p");   // creative opens the creative inventory (Lehre Tor 3)
+        context.waitTicks(5);
         context.runOnClient(client -> client.gui.setScreen(
                 new net.minecraft.client.gui.screens.inventory.InventoryScreen(client.player)));
         context.waitTicks(10);
@@ -160,6 +162,7 @@ final class GewinneScenes {
         });
         context.runOnClient(client -> UltHud.update(new UltState()));
         game.getServer().runCommand("time set 1000");
+        game.getServer().runCommand("gamemode creative @p");
         context.waitTicks(5);
         log((all > 0 && ok == all ? "OK   " : "FAIL ") + ok + " von " + all);
         log("done");

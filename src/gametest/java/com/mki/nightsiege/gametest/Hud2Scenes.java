@@ -99,7 +99,7 @@ final class Hud2Scenes {
             List<UltState.Slot> timers = m.combatEffects().timers(player, player.level().getGameTime());
             // Tor 3.1: the shield throw is a box of its own on Q (no longer block + left click in the timer row)
             check(m.abilitySlots(player).stream().anyMatch(t -> t.id.equals(com.mki.nightsiege.core.AbilityKeys.SHIELD)
-                    && "Q".equals(t.key) && t.totalTicks > 0)
+                    && com.mki.nightsiege.core.AbilityKeys.Key.ABILITY_1.name().equals(t.key) && t.totalTicks > 0)
                     && timers.stream().noneMatch(t -> t.id.equals("shield_action")), "shield action timer");
             check(timers.stream().anyMatch(t -> t.id.equals("laststand") && t.totalTicks > 0), "last stand timer");
             check(!com.mki.nightsiege.game.HealthView.healer(m, player), "the shield fighter sees no party list");

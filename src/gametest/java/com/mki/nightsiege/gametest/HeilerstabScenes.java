@@ -167,6 +167,7 @@ final class HeilerstabScenes {
             int slot = find(player, s -> s.getItem() instanceof HealerStaffItem);
             if (slot >= 0 && slot < 9) {
                 player.getInventory().setSelectedSlot(slot);
+                player.connection.send(new net.minecraft.network.protocol.game.ClientboundSetHeldSlotPacket(slot));
             }
         });
         context.waitTicks(10);

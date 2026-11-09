@@ -11,6 +11,19 @@ import static org.junit.jupiter.api.Assertions.*;
 /** The kit page's arrangement (update 6): crate items only in the hotbar, as many as fit. */
 class KitArrangeTest {
 
+    @Test
+    void nightHeldNeverOnGainPlaces() {
+        assertEquals(5, KitArrange.nightHeld(5, 4));
+        assertEquals(3, KitArrange.nightHeld(0, 0), "a choice on place 1 goes to the first weapon");
+        assertEquals(8, KitArrange.nightHeld(2, 3), "the wheel back from place 4 goes round to 9");
+        assertEquals(3, KitArrange.nightHeld(0, 8), "the wheel on from place 9 goes round to 4");
+        for (int s = 0; s < KitArrange.HOTBAR; s++) {
+            for (int b = 0; b < KitArrange.HOTBAR; b++) {
+                assertTrue(KitArrange.nightHeld(s, b) >= KitArrange.FIRST);
+            }
+        }
+    }
+
     private static KitArrange.Thing own(String key) {
         return new KitArrange.Thing(key, "", false, 0);
     }

@@ -202,6 +202,14 @@ public final class GainClient {
     }
 
     private static void tick(Minecraft client) {
+        // Tor 3.2b: at night the hand never rests on places 1-3 (empty, they are the gain keys).
+        if (NightKeys.owned() && client.player != null) {
+            net.minecraft.world.entity.player.Inventory inv = client.player.getInventory();
+            int held = com.mki.nightsiege.core.KitArrange.nightHeld(inv.getSelectedSlot(), inv.getSelectedSlot());
+            if (held != inv.getSelectedSlot()) {
+                inv.setSelectedSlot(held);
+            }
+        }
         // Places 1-4 (Tor 3.2b): each fires the box of the bar the server put on it; place 2 without
         // a box is the class's own field. The arrow and the potion key (Simon 30.10.): held, the mouse
         // wheel changes the choice; let go without turning it, a tap.

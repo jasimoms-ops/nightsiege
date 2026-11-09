@@ -33,6 +33,17 @@ public final class KitArrange {
     public static final int FIRST = 3;
     public static final int SLOTS = 36;
 
+    /**
+     * The hotbar place to hold at night (Tor 3.2b): places 1-3 stay empty for the gain keys, so a choice
+     * there goes to the kit's first place; turned back from it (the wheel), round to the last one.
+     */
+    public static int nightHeld(int selected, int before) {
+        if (selected >= FIRST && selected < HOTBAR) {
+            return selected;
+        }
+        return before == FIRST ? HOTBAR - 1 : FIRST;
+    }
+
     private KitArrange() {
     }
 

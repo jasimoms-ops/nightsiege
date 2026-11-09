@@ -297,6 +297,7 @@ public final class KitService {
         for (ItemStack crate : carried) {
             player.getInventory().placeItemBackInInventory(crate);
         }
+        holdFirstWeapon(player);
         resync(player);
         savePlayer(player);   // the kit is in the player's data on disk now, too
         if (stash != null) {
@@ -314,6 +315,23 @@ public final class KitService {
         rememberLayout(player);
         clearKit(player);
         give(player, level);
+        holdFirstWeapon(player);
+    }
+
+    /** Tor 3.2b: the hand on the kit's first place from 4 on (1-3 are the empty gain places), told to the client. */
+    private static void holdFirstWeapon(ServerPlayer player) {
+        Inventory inv = player.getInventory();
+        int slot = com.mki.nightsiege.core.KitArrange.FIRST;
+        for (int i = com.mki.nightsiege.core.KitArrange.FIRST; i < com.mki.nightsiege.core.KitArrange.HOTBAR; i++) {
+            if (!inv.getItem(i).isEmpty()) {
+                slot = i;
+                break;
+            }
+        }
+        inv.setSelectedSlot(slot);
+        if (player.connection != null) {
+            player.connection.send(new net.minecraft.network.protocol.game.ClientboundSetHeldSlotPacket(slot));
+        }
     }
 
     /**
