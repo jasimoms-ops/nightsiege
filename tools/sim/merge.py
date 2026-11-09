@@ -21,6 +21,7 @@ TARGET = 0.70
 def main(src, dst):
     os.makedirs(os.path.join(dst, "stats"), exist_ok=True)
     runs, bots, logs, nights = [], [], [], []
+    extra = []   # Tor 6.1: RASTER-, KNOTEN-, TICK-Zeilen
     for root, _dirs, files in os.walk(src):
         for f in sorted(files):
             path = os.path.join(root, f)
@@ -31,6 +32,8 @@ def main(src, dst):
                         runs.append(parts)
                     elif parts[0] == "BOT" and len(parts) >= 12:
                         bots.append(parts)
+                    elif parts[0] in ("RASTER", "KNOTEN", "TICK"):
+                        extra.append(parts)
             elif f.endswith(".json") and os.path.basename(root) == "stats":
                 # Jobs schreiben in derselben Sekunde gleich benannte Dateien: Job-Ordner voranstellen.
                 part = os.path.basename(os.path.dirname(root))

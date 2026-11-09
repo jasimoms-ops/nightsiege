@@ -902,6 +902,7 @@ public final class TeamSim {
         extraCsv.add(String.format(Locale.ROOT, "RASTER;%s;%s;%s;%.2f;%d;%.2f;%d;%d;%d;%d;%s", key,
                 scn == null ? "NONE" : scn.event().name(), scn == null || scn.boss() == null ? "-" : scn.boss().id(),
                 skillMean, won ? 1 : 0, tickP95(), liveMax, early ? 1 : 0, r.deaths(), r.seconds(), outcome));
+        System.out.println("[Night Siege sim] " + extraCsv.get(extraCsv.size() - 1));   // also in the log: survives a killed job
         for (String nodeRow : pendingNodes) {
             extraCsv.add("KNOTEN;" + key + ";" + nodeRow);
         }
