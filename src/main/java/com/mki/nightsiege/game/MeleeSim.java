@@ -75,7 +75,37 @@ public final class MeleeSim {
 
     private enum Phase { SETUP, PREP, FIGHT, PAUSE, DONE }
 
-    private record Run(String[] sub, int level) {
+    /** {@code group}/{@code pick}: only in the A/B bench (Tor 8.3b), the choice group and the option the bot must take. */
+    private record Run(String[] sub, int level, String group, String pick) {
+        Run(String[] sub, int level) {
+            this(sub, level, null, null);
+        }
+    }
+
+    /** Tor 8.3b part 3: bench every option of every choice node ("wahlab" in the sim arguments). */
+    public static boolean wahlAb;
+    /** One A/B measurement: subclass, group, option, level, dps on one target, dps on six. */
+    private record Ab(String subclass, String group, String node, int level, double dps1, double dps6) {
+    }
+
+    private static final List<Ab> AB = new ArrayList<>();
+
+    /** Weaker than this against the best option of the group: "deutlich schwächer" (ziele.md 8.3b). */
+    public static final double AB_WEAK = 0.75;
+
+    /** The choice groups a subclass's way can pick from: group -> options (at least two), in tree order. */
+    public static java.util.Map<String, List<String>> choiceGroups(SkillTree tree, SkillClass clazz, String subclassNode) {
+        SkillNode sub = tree.get(subclassNode);
+        String way = sub == null ? "" : sub.path();
+        java.util.Map<String, List<String>> out = new java.util.LinkedHashMap<>();
+        for (SkillNode n : tree.ofClass(clazz)) {
+            if (!n.inGroup() || !(n.onTrunk() || way.equals(n.path())) || (sub != null && n.group().equals(sub.group()))) {
+                continue;
+            }
+            out.computeIfAbsent(n.group(), k -> new ArrayList<>()).add(n.id());
+        }
+        out.values().removeIf(l -> l.size() < 2);
+        return out;
     }
 
     /** One finished run. */
@@ -246,11 +276,21 @@ public final class MeleeSim {
                 if (!only.isEmpty() && !only.contains(sub[0]) && !only.contains(sub[2])) {
                     continue;
                 }
+                if (wahlAb && benchMode) {
+                    for (java.util.Map.Entry<String, List<String>> g
+                            : choiceGroups(m.skillTree(), SkillClass.valueOf(sub[0]), sub[1]).entrySet()) {
+                        for (String option : g.getValue()) {
+                            queue.add(new Run(sub, level, g.getKey(), option));
+                        }
+                    }
+                    continue;
+                }
                 queue.add(new Run(sub, level));
             }
         }
         RESULTS.clear();
         BENCH.clear();
+        AB.clear();
         bench = benchMode;
         if (bench) {
             // No waves on the bench: only the training zombies.
@@ -298,9 +338,11 @@ public final class MeleeSim {
                 Run run = queue.get(index);
                 // On the bench only the engineer needs the time to set up his traps.
                 m.config().testPrepSeconds = bench && !run.sub()[0].equals("ENGINEER") ? 3 : PREP_SECONDS;
+                java.util.Set<String> prefer = run.pick() == null ? null : java.util.Set.of(run.pick());
                 PlayerSkills skills = budget
-                        ? buildBudget(m.skillTree(), SkillClass.valueOf(run.sub()[0]), run.sub()[1], TestKit.pointsBefore(run.level(), m.config()))
-                        : build(m.skillTree(), SkillClass.valueOf(run.sub()[0]), run.sub()[1]);
+                        ? buildBudget(m.skillTree(), SkillClass.valueOf(run.sub()[0]), run.sub()[1],
+                        TestKit.pointsBefore(run.level(), m.config()), null, prefer)
+                        : build(m.skillTree(), SkillClass.valueOf(run.sub()[0]), run.sub()[1], null, prefer);
                 m.save().skills.put(player.getUUID().toString(), skills);
                 resetBot(m, player, skills);
                 clearMonsters(level);
@@ -1113,6 +1155,9 @@ public final class MeleeSim {
                 HITS[0] / BLOWS, HITS[1] / BLOWS, HITS[2] / BLOWS, HITS[3] / BLOWS,
                 dealtSelf / (2.0 * BENCH_SECONDS), dealtCompanions / (2.0 * BENCH_SECONDS));
         BENCH.add(b);
+        if (run.pick() != null) {
+            AB.add(new Ab(b.subclass(), run.group(), run.pick(), b.level(), b.dpsSingle(), b.dpsGroup()));
+        }
         String line = String.format(Locale.ROOT,
                 "[Night Siege sim] Prüfstand Stufe %2d %-13s DPS 1 Ziel %6.1f  6 Ziele %6.1f  Kills %2d/%2d  Heilung %4.2f/s"
                         + "  Team %4.2f/s  Leben %4.0f  Axt %4.1f -> %4.1f  Zombie %4.1f -> %4.1f"
@@ -1168,6 +1213,51 @@ public final class MeleeSim {
                     b.teamHealPerSecond(), b.maxHealth(), b.axeRaw(), b.axeLost(), b.zombieRaw(), b.zombieLost(),
                     b.dpsSelf(), b.dpsCompanions()));
         }
+        out.addAll(abReport());
+        return out;
+    }
+
+    /**
+     * Tor 8.3b part 3: per choice node one row, options side by side (A, B, further ones after), ratio = weakest to
+     * strongest option, "deutlich schwächer" below {@link #AB_WEAK}, "ohne Wirkung" when the bench sees no difference.
+     * Columns: DPS on one target / on six. The ratio is the worse of the two.
+     */
+    static List<String> abReport() {
+        List<String> out = new ArrayList<>();
+        if (AB.isEmpty()) {
+            return out;
+        }
+        out.add("[Night Siege sim] WAHLAB: Bot allein, je Wahlknoten jede Option erzwungen; DPS 1 Ziel / 6 Ziele; Verhältnis = schwächste / stärkste Option (der schlechtere der zwei Prüfstände)");
+        out.add("[Night Siege sim] WAHLAB;stufe;unterklasse;gruppe;optionen(knoten=dps1/dps6);verhaeltnis_1;verhaeltnis_6;urteil");
+        java.util.Map<String, List<Ab>> rows = new java.util.LinkedHashMap<>();
+        for (Ab a : AB) {
+            rows.computeIfAbsent(a.level() + ";" + a.subclass() + ";" + a.group(), k -> new ArrayList<>()).add(a);
+        }
+        for (java.util.Map.Entry<String, List<Ab>> e : rows.entrySet()) {
+            List<Ab> l = e.getValue();
+            double min1 = Double.MAX_VALUE, max1 = 0, min6 = Double.MAX_VALUE, max6 = 0;
+            StringBuilder opts = new StringBuilder();
+            for (Ab a : l) {
+                min1 = Math.min(min1, a.dps1());
+                max1 = Math.max(max1, a.dps1());
+                min6 = Math.min(min6, a.dps6());
+                max6 = Math.max(max6, a.dps6());
+                opts.append(opts.length() == 0 ? "" : " | ").append(String.format(Locale.ROOT, "%s=%.1f/%.1f", a.node(), a.dps1(), a.dps6()));
+            }
+            double r1 = max1 <= 0 ? 1.0 : min1 / max1;
+            double r6 = max6 <= 0 ? 1.0 : min6 / max6;
+            String verdict;
+            if (max1 <= 0 && max6 <= 0) {
+                verdict = "ohne Schaden im Prüfstand";
+            } else if (Math.min(r1, r6) < AB_WEAK) {
+                verdict = "DEUTLICH SCHWÄCHER";
+            } else if (Math.min(r1, r6) > 0.98) {
+                verdict = "gleich";
+            } else {
+                verdict = "ok";
+            }
+            out.add(String.format(Locale.ROOT, "[Night Siege sim] WAHLAB;%s;%s;%.2f;%.2f;%s", e.getKey(), opts, r1, r6, verdict));
+        }
         return out;
     }
 
@@ -1198,7 +1288,13 @@ public final class MeleeSim {
     /** As above; with {@code pickOrder} the choices are picked by chance (Tor 6.5, "wahl=zufall"). */
     public static PlayerSkills buildBudget(SkillTree tree, SkillClass clazz, String subclassNode, int points,
                                            java.util.Random pickOrder) {
-        PlayerSkills full = build(tree, clazz, subclassNode, pickOrder);
+        return buildBudget(tree, clazz, subclassNode, points, pickOrder, null);
+    }
+
+    /** As above; with {@code prefer} (see {@link #build(SkillTree, SkillClass, String, java.util.Random, java.util.Set)}). */
+    public static PlayerSkills buildBudget(SkillTree tree, SkillClass clazz, String subclassNode, int points,
+                                           java.util.Random pickOrder, java.util.Set<String> prefer) {
+        PlayerSkills full = build(tree, clazz, subclassNode, pickOrder, prefer);
         PlayerSkills p = new PlayerSkills();
         p.chosenClass = clazz.name();
         planSubclass(p, clazz, subclassNode);   // its node at level 1 for free, as with a player's class pick
@@ -1234,9 +1330,31 @@ public final class MeleeSim {
      * choice group (and of the salvos and potions) is a random one instead of the first in the tree (Tor 6.5).
      */
     public static PlayerSkills build(SkillTree tree, SkillClass clazz, String subclassNode, java.util.Random pickOrder) {
+        return build(tree, clazz, subclassNode, pickOrder, null);
+    }
+
+    /**
+     * As above; {@code prefer} names nodes that are learned first and shut out the other members of their choice
+     * group (Tor 8.3b part 3, the A/B bench: "this option, not the other").
+     */
+    public static PlayerSkills build(SkillTree tree, SkillClass clazz, String subclassNode, java.util.Random pickOrder,
+                                     java.util.Set<String> prefer) {
         List<SkillNode> order = new java.util.ArrayList<>(tree.ofClass(clazz));
         if (pickOrder != null) {
             java.util.Collections.shuffle(order, pickOrder);
+        }
+        java.util.Set<String> shutOut = new java.util.HashSet<>();
+        if (prefer != null && !prefer.isEmpty()) {
+            order.sort(java.util.Comparator.comparingInt(n -> prefer.contains(n.id()) ? 0 : 1));   // stable
+            for (SkillNode n : order) {
+                if (prefer.contains(n.id()) && n.inGroup()) {
+                    for (SkillNode o : order) {
+                        if (o != n && o.inGroup() && o.group().equals(n.group()) && !prefer.contains(o.id())) {
+                            shutOut.add(o.id());
+                        }
+                    }
+                }
+            }
         }
         PlayerSkills p = new PlayerSkills();
         p.chosenClass = clazz.name();
@@ -1247,7 +1365,7 @@ public final class MeleeSim {
         while (changed) {
             changed = false;
             for (SkillNode n : order) {
-                if (!(n.onTrunk() || way.equals(n.path()))) {
+                if (!(n.onTrunk() || way.equals(n.path())) || shutOut.contains(n.id())) {
                     continue;
                 }
                 // The subclass group: only the subclass node itself.

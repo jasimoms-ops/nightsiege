@@ -6735,6 +6735,10 @@ public class EventLookTest implements FabricClientGameTest {
                 simLevels.add(Integer.parseInt(token.substring(1)));
             } else if (token.equals("bench")) {
                 benchRun = true;
+            } else if (token.equals("wahlab")) {
+                // Tor 8.3b part 3: every option of every choice node on the bench (with "bench"), table WAHLAB at the end.
+                com.mki.nightsiege.game.MeleeSim.wahlAb = true;
+                System.out.println("[Night Siege sim] Wahlknoten A/B im Prüfstand");
             } else if (token.equals("punkte")) {
                 // Only the points one has by that level, spent like the playtest (28 October 2026).
                 com.mki.nightsiege.game.MeleeSim.budget = true;
