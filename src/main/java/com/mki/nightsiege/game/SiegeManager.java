@@ -6088,7 +6088,7 @@ public final class SiegeManager {
         if (Stuns.stunned(player) && Stuns.blocks(verb)) {
             return;   // stunned by a stunner (05.11.): no ability, no ultimate, no gain key
         }
-        if (active && !verb.equals("slot")) {   // a box counts only when it fired (onSlotKeyCounted, Prüfer-Fund 4b)
+        if (active && !verb.equals("slot") && keyPause(player, verb) == null) {   // the others count only when they fired (Prüfer-Fund 4b)
             String ability = abilityName(player, verb, argument);
             if (ability != null) {
                 String key = com.mki.nightsiege.core.AbilityKeys.statsKey(verb, slotKey(player, verb, argument));
@@ -6120,9 +6120,9 @@ public final class SiegeManager {
             case "donate" -> onDonate(player, parseAmount(argument));
             case "dev" -> onDevAction(player, argument);
             case "wipegains" -> wipeAllGains(player);
-            case "ult" -> onUltimateKey(player);
-            case "ult2" -> onSecondKey(player);
-            case "ult2x" -> SecondUlts.fire(player);   // X: the second ultimate alone (27 October 2026)
+            case "ult" -> countedKey(player, verb, argument, () -> onUltimateKey(player));
+            case "ult2" -> countedKey(player, verb, argument, () -> onSecondKey(player));
+            case "ult2x" -> countedKey(player, verb, argument, () -> SecondUlts.fire(player));   // X: the second ultimate alone (27 October 2026)
             case "staffhit" -> {   // left click with the staff (27 October 2026); the healers' staff since Tor 4.7
                 if (!HealerStaffItem.attack(player)) {
                     companions.staffAttack(player);
@@ -7115,6 +7115,52 @@ public final class SiegeManager {
     }
 
     /** A bar key (R, G, Y, C, V, B): the ability on it, at once. */
+    /**
+     * Prüfer-Fund 4b: {pause left, pause total} behind X, F and the second ultimate, or null when the key
+     * has no pause to tell a real use by (then it counts on every press, as before).
+     */
+    private int[] keyPause(ServerPlayer player, String verb) {
+        MinecraftServer server = player.level().getServer();
+        long now = server == null ? 0 : server.overworld().getGameTime();
+        switch (verb) {
+            case "ult" -> {
+                return skillTree.ultimateOf(effectiveSkills(player)) == null ? new int[]{0, 1}
+                        : new int[]{combat.cooldownLeft(player.getUUID(), now), 1};
+            }
+            case "ult2x" -> {
+                return new int[]{SecondUlts.secondsLeft(player) * 20, SecondUlts.COOLDOWN_TICKS};
+            }
+            case "ult2" -> {
+                PlayerSkills own = effectiveSkills(player);
+                if (ArrowRain.has(own)) {
+                    return new int[]{ArrowRain.cooldownLeft(player, now), 1};
+                }
+                if (WarriorArts.has(own, skillTree)) {
+                    return new int[]{WarriorArts.cooldownLeft(player, now), 1};
+                }
+                return null;   // the staff's order, the healers' cast: no pause of their own here
+            }
+            default -> {
+                return null;
+            }
+        }
+    }
+
+    /** X, F, the second ultimate: counted in the statistics only when the pause started (Prüfer-Fund 4b). */
+    private void countedKey(ServerPlayer player, String verb, String argument, Runnable press) {
+        int[] before = active ? keyPause(player, verb) : null;
+        String ability = before == null ? null : abilityName(player, verb, argument);
+        press.run();
+        if (ability == null) {
+            return;
+        }
+        int[] after = keyPause(player, verb);
+        if (com.mki.nightsiege.core.AbilityKeys.fired(before[0], after == null ? -1 : after[0], before[1])) {
+            String key = com.mki.nightsiege.core.AbilityKeys.statsKey(verb, null);
+            safe("Statistik", () -> stats.ability(player, ability, key));
+        }
+    }
+
     /**
      * Prüfer-Fund 4b (Auflage 5): a bar key counts in the statistics only when its ability really
      * fired – not pressed in its pause, not without a target (then no pause starts).
