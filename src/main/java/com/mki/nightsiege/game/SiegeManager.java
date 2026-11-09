@@ -6366,6 +6366,7 @@ public final class SiegeManager {
             }
             case "fun" -> onFunAction(player, argument);   // the fun mode's tree: fill, ready, another class
             case "playtest" -> playtest.onAction(player, argument);   // the playtest window (28 October 2026)
+            case "crate_all" -> crates.openAll(player);   // the crate window's "Alle öffnen" (Tor 9.1 h)
             case "war" -> warLeader.onAction(player, argument);   // the war leader's round (29 October 2026)
             case "feedback" -> safe("Bewertung", () -> stats.feedback(player, argument));   // 1-click feedback (29 October 2026)
             case "curse" -> {   // the curse altar (update 2): a stone laid on or taken off

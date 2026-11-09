@@ -329,6 +329,7 @@ public final class Playtest {
             case "tree" -> m.openCoreWindow(player);
             case "ready" -> toggleReady(player, pp);
             case "crates" -> openCrate(player, pp);
+            case "crates_all" -> openAllCrates(player, pp);   // the crate window's "Alle öffnen" (Tor 9.1 h)
             default -> send(player, true);
         }
     }
@@ -408,6 +409,31 @@ public final class Playtest {
         if (pp.cratesDue > 0) {
             player.sendSystemMessage(crateLink(pp.cratesDue));
         }
+        send(player, false);
+    }
+
+    /**
+     * Every crate the playtest still owes this player at once (Tor 9.1 h): one after the other with the
+     * same kind, roll and statistics line as {@link #openCrate}, then one overview window.
+     */
+    private void openAllCrates(ServerPlayer player, SiegeSave.PlaytestPlayer pp) {
+        SiegeSave.PlaytestState s = state();
+        PlayerSkills own = m.save().skillsOf(player.getUUID().toString());
+        SkillClass clazz = own.clazz();
+        if (pp.cratesDue <= 0 || clazz == null || s == null) {
+            player.sendSystemMessage(Component.translatable("nightsiege.playtest.no_crates").withStyle(ChatFormatting.GRAY));
+            send(player, true);
+            return;
+        }
+        java.util.List<com.mki.nightsiege.core.CrateRoll> rolls = new java.util.ArrayList<>();
+        while (pp.cratesDue > 0) {
+            CrateKind kind = crateKind(pp.cratesGiven + 1, m.config());
+            rolls.add(m.crates().rollOwed(player, clazz, kind, level()));
+            pp.cratesGiven++;
+            pp.cratesDue--;
+        }
+        m.persist();
+        m.crates().finishAll(player, rolls);
         send(player, false);
     }
 
