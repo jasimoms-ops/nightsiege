@@ -133,4 +133,23 @@ class AbilityKeysTest {
         assertNull(AbilityKeys.statsKey("gain", "ABILITY_1"));
         assertNull(AbilityKeys.statsKey(null, null));
     }
+
+    /** Prüfer-Fund 4b: hammering a key in the pause or without a target counts nothing; one real use counts once. */
+    @Test
+    void onlyRealUsesCount() {
+        int counted = 0;
+        int cooldown = 0;
+        for (int press = 0; press < 10; press++) {   // ten presses, the first fires (pause 200 starts)
+            int after = press == 0 ? 200 : cooldown;
+            if (AbilityKeys.fired(cooldown, after, 200)) {
+                counted++;
+            }
+            cooldown = after;
+        }
+        assertEquals(1, counted);
+        assertFalse(AbilityKeys.fired(0, 0, 200));    // no target: no pause started
+        assertFalse(AbilityKeys.fired(0, -1, 200));   // the box went away
+        assertTrue(AbilityKeys.fired(0, 0, 0));       // a box without a pause counts as before
+        assertFalse(AbilityKeys.fired(15, 15, 0));
+    }
 }

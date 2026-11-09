@@ -6088,7 +6088,7 @@ public final class SiegeManager {
         if (Stuns.stunned(player) && Stuns.blocks(verb)) {
             return;   // stunned by a stunner (05.11.): no ability, no ultimate, no gain key
         }
-        if (active) {
+        if (active && !verb.equals("slot")) {   // a box counts only when it fired (onSlotKeyCounted, Prüfer-Fund 4b)
             String ability = abilityName(player, verb, argument);
             if (ability != null) {
                 String key = com.mki.nightsiege.core.AbilityKeys.statsKey(verb, slotKey(player, verb, argument));
@@ -6129,7 +6129,7 @@ public final class SiegeManager {
                 }
             }
             case "quiver" -> abilityThreeTap(player);
-            case "slot" -> onSlotKey(player, parseAmount(argument));   // the ability bar (27 October 2026)
+            case "slot" -> onSlotKeyCounted(player, argument);   // the ability bar (27 October 2026)
             case "cycle" -> onCycle(player, argument);   // arrows and potions: the key held, the wheel turned (30.10.)
             case "gain" -> {
                 GainKeys.onKey(this, player, parseAmount(argument));   // the gain keys 1, 2, 3 (Tor 3.2b)
@@ -7115,6 +7115,33 @@ public final class SiegeManager {
     }
 
     /** A bar key (R, G, Y, C, V, B): the ability on it, at once. */
+    /**
+     * Prüfer-Fund 4b (Auflage 5): a bar key counts in the statistics only when its ability really
+     * fired – not pressed in its pause, not without a target (then no pause starts).
+     */
+    private void onSlotKeyCounted(ServerPlayer player, String argument) {
+        int index = parseAmount(argument);
+        List<com.mki.nightsiege.core.UltState.Slot> slots = abilitySlots(player);
+        com.mki.nightsiege.core.UltState.Slot before = index >= 0 && index < slots.size() ? slots.get(index) : null;
+        String ability = active ? abilityName(player, "slot", argument) : null;
+        String key = before == null ? null : com.mki.nightsiege.core.AbilityKeys.statsKey("slot", before.key);
+        onSlotKey(player, index);
+        if (ability == null || before == null) {
+            return;
+        }
+        List<com.mki.nightsiege.core.UltState.Slot> now = abilitySlots(player);
+        int after = -1;
+        for (com.mki.nightsiege.core.UltState.Slot s : now) {
+            if (s.id.equals(before.id)) {
+                after = s.cooldownTicks;
+                break;
+            }
+        }
+        if (com.mki.nightsiege.core.AbilityKeys.fired(before.cooldownTicks, after, before.totalTicks)) {
+            safe("Statistik", () -> stats.ability(player, ability, key));
+        }
+    }
+
     private void onSlotKey(ServerPlayer player, int index) {
         List<com.mki.nightsiege.core.UltState.Slot> slots = abilitySlots(player);
         if (index < 0 || index >= slots.size()) {

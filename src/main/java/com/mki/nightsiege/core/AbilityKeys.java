@@ -139,6 +139,18 @@ public final class AbilityKeys {
     }
 
     /**
+     * Prüfer-Fund 4b (Auflage 5): did a bar box really fire on its key? Not when it was still in its
+     * pause; a box with a pause fired when its pause started; a box without any pause always counts.
+     * {@code after} is -1 when the box is gone after the press.
+     */
+    public static boolean fired(int pauseBefore, int pauseAfter, int pauseTotal) {
+        if (pauseBefore > 0) {
+            return false;
+        }
+        return pauseTotal <= 0 || pauseAfter > 0;
+    }
+
+    /**
      * Tor 4b (Auflage 5): the key a pressed ability sits on, for the statistics: ABILITY_1 to ABILITY_4,
      * ULT (X) or ULT2 (R); null for anything else. {@code slotKey} is the box's {@code UltState.Slot.key}.
      */
