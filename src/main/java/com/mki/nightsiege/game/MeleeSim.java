@@ -148,6 +148,22 @@ public final class MeleeSim {
     private static final java.util.Map<UUID, Float> SPLIT_HP = new java.util.HashMap<>();
     /** The summoner bot's turn with the staff (attack, order or call, spell in turn). */
     private static int staffTurn;
+    /**
+     * BENCHDIAG (Tor 4, tank damage on the bench): the bot's swings with the weapon in hand, their charge, the hits
+     * and the health they took, how often the item in hand changed, ticks in reach, kit items left from the run before.
+     */
+    private static int diagSwings;
+    private static double diagCharge;
+    private static int diagHits;
+    private static double diagMelee;
+    private static int diagSwaps;
+    private static int diagTicks;
+    private static int diagInReach;
+    private static int diagLeftover;
+    private static double diagStaffStart;
+    private static net.minecraft.world.item.Item diagLastHand;
+    private static String diagMain = "-";
+    private static String diagOff = "-";
     /** Hits of each kind on the bench's last stage. */
     private static final int BLOWS = 8;
     /** Seconds per stage of the bench. */
@@ -286,6 +302,7 @@ public final class MeleeSim {
                         ? buildBudget(m.skillTree(), SkillClass.valueOf(run.sub()[0]), run.sub()[1], TestKit.pointsBefore(run.level(), m.config()))
                         : build(m.skillTree(), SkillClass.valueOf(run.sub()[0]), run.sub()[1]);
                 m.save().skills.put(player.getUUID().toString(), skills);
+                resetBot(m, player, skills);
                 clearMonsters(level);
                 clearTraps(level, m, player);
                 player.setGameMode(GameType.SURVIVAL);
@@ -439,8 +456,19 @@ public final class MeleeSim {
                 if (player.isUsingItem() && guardian) {
                     player.stopUsingItem();
                 }
+                float charge = player.getAttackStrengthScale(0.5f);
+                float hpBefore = close.getHealth();
                 player.attack(close);
                 player.swing(InteractionHand.MAIN_HAND, true);
+                if (bench) {
+                    diagSwings++;
+                    diagCharge += charge;
+                    float lost = hpBefore - Math.max(0f, close.getHealth());
+                    if (lost > 0f) {
+                        diagHits++;
+                        diagMelee += lost;
+                    }
+                }
             } else if (inReach && clazz == SkillClass.ARCHER && close != null) {
                 shoot(player, level, close);   // no sword in the kit any more (27 October 2026): shoot point blank
             } else if (inReach && clazz == SkillClass.SUMMONER && close != null && now % 10 == 0
@@ -456,6 +484,19 @@ public final class MeleeSim {
             shoot(player, level, far);
         } else if (player.isUsingItem()) {
             player.stopUsingItem();
+        }
+        if (bench) {
+            diagTicks++;
+            if (inReach) {
+                diagInReach++;
+            }
+            net.minecraft.world.item.Item hand = player.getMainHandItem().getItem();
+            if (diagLastHand != null && hand != diagLastHand) {
+                diagSwaps++;
+            }
+            diagLastHand = hand;
+            diagMain = itemName(player.getMainHandItem());
+            diagOff = itemName(player.getItemBySlot(EquipmentSlot.OFFHAND));
         }
         player.setShiftKeyDown(bulwark);
         if (now % 60 == 0) {
@@ -651,6 +692,50 @@ public final class MeleeSim {
         return best;
     }
 
+    /**
+     * Tor 4 (tank damage on the bench): the bot as fresh before every run, so the order of the runs plays no part.
+     * Kit items left from the run before go (counted for BENCHDIAG), item cooldowns, the mod's own modifiers on
+     * attack speed, damage and reach, the staff's bolts and pause end; the skills are put on anew. The bot's own
+     * things stay (the sim also runs by command on a server); effects, health and the new kit follow in SETUP.
+     */
+    private static void resetBot(SiegeManager m, ServerPlayer player, PlayerSkills skills) {
+        if (player.isUsingItem()) {
+            player.stopUsingItem();
+        }
+        Inventory inv = player.getInventory();
+        diagLeftover = 0;
+        for (int i = 0; i < inv.getContainerSize(); i++) {
+            ItemStack stack = inv.getItem(i);
+            if (stack.isEmpty()) {
+                continue;
+            }
+            player.getCooldowns().removeCooldown(player.getCooldowns().getCooldownGroup(stack));
+            if (KitService.isKit(stack) || KitService.isKitMace(stack) || stack.getItem() instanceof HealerStaffItem) {
+                diagLeftover++;
+                inv.setItem(i, ItemStack.EMPTY);
+            }
+        }
+        SkillService.clear(player);
+        for (var attribute : List.of(Attributes.ATTACK_SPEED, Attributes.ATTACK_DAMAGE, Attributes.ENTITY_INTERACTION_RANGE)) {
+            var instance = player.getAttribute(attribute);
+            if (instance == null) {
+                continue;
+            }
+            for (var modifier : List.copyOf(instance.getModifiers())) {
+                if (NightSiegeMod.MOD_ID.equals(modifier.id().getNamespace())) {
+                    instance.removeModifier(modifier.id());
+                }
+            }
+        }
+        SkillService.apply(player, skills, m.skillTree());
+        HealerStaffItem.resetForTest();
+        player.resetAttackStrengthTicker();
+    }
+
+    private static String itemName(ItemStack stack) {
+        return stack.isEmpty() ? "-" : net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()).getPath();
+    }
+
     private static BlockPos standPos() {
         return core.offset(2, 0, 0);
     }
@@ -783,6 +868,17 @@ public final class MeleeSim {
             dealtCompanions = 0;
             SPLIT_HP.clear();
             staffTurn = 0;
+            diagSwings = 0;
+            diagCharge = 0;
+            diagHits = 0;
+            diagMelee = 0;
+            diagSwaps = 0;
+            diagTicks = 0;
+            diagInReach = 0;
+            diagLastHand = null;
+            diagMain = "-";
+            diagOff = "-";
+            diagStaffStart = HealerStaffItem.dealt();
             clearMonsters(level);
             DUMMIES.clear();
             DUMMY_SPOTS.clear();
@@ -1015,6 +1111,19 @@ public final class MeleeSim {
         }
         System.out.println(diag);
         NightSiegeMod.LOGGER.info(diag.toString());
+        // BENCHDIAG (Tor 4): what the bot held and how it swung on the two damage stages; "keule" is the health its
+        // own swings took (any weapon in hand), "stab" the healers' staff bolts, the rest the sources as above.
+        StringBuilder sources = new StringBuilder(String.format(Locale.ROOT, "keule:%.0f,stab:%.0f", diagMelee,
+                HealerStaffItem.dealt() - diagStaffStart));
+        for (java.util.Map.Entry<String, Double> e : BY_SOURCE.entrySet()) {
+            sources.append(String.format(Locale.ROOT, ",%s:%.0f", e.getKey(), e.getValue()));
+        }
+        String benchDiag = String.format(Locale.ROOT,
+                "BENCHDIAG;%d;%s;mainhand=%s;offhand=%s;swings=%d;charge_avg=%.2f;hits=%d;dmg_by_source=%s;swaps=%d;inreach=%d/%d;leftover=%d;atkspeed=%.2f",
+                run.level(), run.sub()[2], diagMain, diagOff, diagSwings, diagSwings == 0 ? 0.0 : diagCharge / diagSwings, diagHits,
+                sources, diagSwaps, diagInReach, diagTicks, diagLeftover, player.getAttributeValue(Attributes.ATTACK_SPEED));
+        System.out.println(benchDiag);
+        NightSiegeMod.LOGGER.info(benchDiag);
         m.abort(level.getServer());
         clearMonsters(level);
         phase = Phase.PAUSE;
