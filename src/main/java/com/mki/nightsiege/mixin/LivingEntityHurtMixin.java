@@ -6,6 +6,7 @@ import com.mki.nightsiege.core.WarriorSpiritMath;
 import com.mki.nightsiege.game.Combo;
 import com.mki.nightsiege.game.Companions;
 import com.mki.nightsiege.game.GuardianEffects;
+import com.mki.nightsiege.game.KillingHits;
 import com.mki.nightsiege.game.StealPool;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.damagesource.DamageSource;
@@ -30,6 +31,7 @@ public abstract class LivingEntityHurtMixin {
         LivingEntity self = (LivingEntity) (Object) this;
         float scaled = GuardianEffects.scale(self, level, source, damage);
         boolean began = StealPool.begin(self);
+        boolean counting = KillingHits.begin(self);   // killing hits for the counters (GOLEMDIAG 3)
         String diag = Companions.diagHurtBefore(self, source, damage, scaled, lastHurt);   // GOLEMDIAG 3 (bench only)
         try {
             boolean hit = original.call(level, source, scaled);
@@ -39,6 +41,7 @@ public abstract class LivingEntityHurtMixin {
             return hit;
         } finally {
             StealPool.end(self, source, began);
+            KillingHits.end(self, source, counting);
         }
     }
 

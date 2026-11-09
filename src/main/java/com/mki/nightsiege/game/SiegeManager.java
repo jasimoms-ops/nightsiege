@@ -896,6 +896,7 @@ public final class SiegeManager {
         });
         ServerLivingEntityEvents.AFTER_DAMAGE.register((entity, source, baseDamage, taken, blocked) -> {
             StealPool.settle(entity, source);   // the life really lost, before a totem heals (Simon 05.11.)
+            KillingHits.reported(entity);   // counted here, not again as a killing hit
             logDamage(entity, source, taken);
             if (active && entity instanceof ServerPlayer hitPlayer && participants.contains(hitPlayer.getUUID())) {
                 safe("Statistik", () -> stats.incoming(hitPlayer, source, baseDamage, blocked));   // what a tank holds off (Simon 30.10.)
@@ -5947,6 +5948,13 @@ public final class SiegeManager {
      * the siege's own monsters count.
      */
     /** Damage for the night's protocol: dealt to siege monsters, taken by defenders. */
+    /** A killing hit (AFTER_DAMAGE leaves it out, GOLEMDIAG 3): only the counters, no game effects. */
+    void killingHit(LivingEntity entity, net.minecraft.world.damagesource.DamageSource source, float taken) {
+        logDamage(entity, source, taken);
+        MeleeSim.onDamage(entity, source, taken);
+        safe("Begleiter-Treffer", () -> Companions.countHit(entity, source, taken));
+    }
+
     private void logDamage(Entity entity, net.minecraft.world.damagesource.DamageSource source, float taken) {
         if (!active || taken <= 0) {
             return;

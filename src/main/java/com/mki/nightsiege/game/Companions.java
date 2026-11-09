@@ -2313,13 +2313,19 @@ public final class Companions {
      * After a hit: the melee hits of the raised dead splash a little, Totentanz heals, the
      * moon pack heals the summoner, Golemwerk throws.
      */
-    public void afterDamage(LivingEntity victim, DamageSource source, float taken) {
+    /** The counting part of a companion's hit; also for killing hits (KillingHits, GOLEMDIAG 3). */
+    static void countHit(LivingEntity victim, DamageSource source, float taken) {
         Entity attacker = source.getEntity();
-        Companion hitter = attacker == null ? null : ALL.get(attacker.getUUID());
-        if (diagOn && hitter != null) {   // GOLEMDIAG 2: the hit came through (with what it took)
+        if (diagOn && attacker != null && ALL.containsKey(attacker.getUUID())) {   // GOLEMDIAG 2: the hit came through (with what it took)
             DIAG.computeIfAbsent(attacker.getUUID(), k -> new int[4])[3]++;
             DIAG_LANDED.put(attacker.getUUID(), victim.getType().toShortString() + "/" + String.format(java.util.Locale.ROOT, "%.1f", taken));
         }
+    }
+
+    public void afterDamage(LivingEntity victim, DamageSource source, float taken) {
+        Entity attacker = source.getEntity();
+        Companion hitter = attacker == null ? null : ALL.get(attacker.getUUID());
+        countHit(victim, source, taken);
         if (hitter == null || !(victim instanceof Enemy) || taken <= 0 || !(victim.level() instanceof ServerLevel level)) {
             return;
         }
