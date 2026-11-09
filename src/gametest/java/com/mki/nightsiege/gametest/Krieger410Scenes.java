@@ -389,6 +389,11 @@ final class Krieger410Scenes {
         context.waitTicks(5);
 
         // By day without a kit (survival, no night): the ring and the mark are off, Minecraft's indicator shows.
+        server(context, "kit off", (player, m) -> {
+            if (m.kits().hasStash(player)) {
+                m.kits().restore(player);   // the kit from the axe throw (equip above) would keep keys on
+            }
+        });
         game.getServer().runCommand("time set 1500");
         game.getServer().runCommand("gamemode survival @p");
         context.waitTicks(30);   // the kit HUD's state comes once a second
