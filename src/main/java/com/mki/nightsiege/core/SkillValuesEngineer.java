@@ -142,13 +142,13 @@ final class SkillValuesEngineer {
         // (19:15 and 19:51: breaking, repairing and reloading go); the engineer strengthens his
         // towers there with a code.
         for (TrapKind tower : new TrapKind[] {TrapKind.TURRET, TrapKind.MORTAR, TrapKind.BREWER, TrapKind.TESLA}) {
-            def(tower.id(), "seathealth", 3.0);                            // tower health for its gunner: × the player's
+            def(tower.id(), "seathealth", 5.0);                            // tower health for its gunner: × the player's (Tor 4: 3 -> 5)
         }
         def("e_longrange", "fixtime", 60);                               // ticks a strengthening takes after the code
         def("e_longrange", "buffcode", 5);                               // arrows of a strengthening code
         def("e_longrange", "buffpower", 1.5);                            // damage factor of a strengthened tower
         def("e_longrange", "bufftime", 400);                             // ticks it stays strengthened
-        def("e_longrange", "seatlock", 400);                             // ticks a tower overrun under its gunner takes nobody
+        def("e_longrange", "seatlock", 200);                             // ticks a tower overrun under its gunner takes nobody (Tor 4: 20 -> 10 s)
         def("e_longrange", "golemtowers", 2);                            // towers the copper golem looks after
         def("e_longrange", "shield", 20);                                // shots the tower shield (crate gain) blocks
 

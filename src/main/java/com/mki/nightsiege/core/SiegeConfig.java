@@ -1267,7 +1267,7 @@ public class SiegeConfig {
      */
     public int settingsVersion = 0;
     /** The newest settings version (the migrations below end there). */
-    public static final int SETTINGS_VERSION = 21;
+    public static final int SETTINGS_VERSION = 22;
     /** Version of the dungeon list in this file. Older lists are replaced on load. */
     /** Which structures hold dungeons, how hard they are and what lives there. */
     /** Perks from core fragments work within this many blocks of the main core. */
@@ -1874,6 +1874,16 @@ public class SiegeConfig {
             tankTarget("shieldfighter", 0.9, 0.7, 0.875);
             tankTarget("bulwark", 0.8, 0.63);
             settingsVersion = 21;
+        }
+        if (settingsVersion < 22) {
+            // Tor 4b.3 (Simon 08.11.): a tower takes its gunner again after 10 s instead of 20 and holds 5 times his
+            // life instead of 3. The code values are the targets; a server tweak on the old value (400 / 3) becomes
+            // the target, an own value moves by the same step (× 0.5 / × 5/3). No tweak: the code value counts.
+            scaleTweak("e_longrange", "seatlock", 0.5);
+            for (TrapKind tower : new TrapKind[] {TrapKind.TURRET, TrapKind.MORTAR, TrapKind.BREWER, TrapKind.TESLA}) {
+                scaleTweak(tower.id(), "seathealth", 5.0 / 3.0);
+            }
+            settingsVersion = 22;
         }
         if (Double.isNaN(meleeLifesteal)) {
             meleeLifesteal = 0.08;

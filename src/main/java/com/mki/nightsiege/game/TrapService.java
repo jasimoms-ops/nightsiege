@@ -1424,9 +1424,9 @@ public final class TrapService {
         return (float) (1.0 - guard);
     }
 
-    /** A tower's health for the one sitting in it: three times the player's own (`seathealth` 3). */
+    /** A tower's health for the one sitting in it: five times the player's own (`seathealth` 5, Tor 4). */
     private static float towerHealth(ServerPlayer player, TrapRecord record) {
-        double k = SkillValues.get(record.kind, "seathealth", 3.0);
+        double k = SkillValues.get(record.kind, "seathealth", 5.0);
         return (float) (player.getMaxHealth() * k);
     }
 
@@ -1456,8 +1456,8 @@ public final class TrapService {
         float now = Math.max(0f, max - record.hpLost);
         if (now <= 0.01f) {
             // Overrun (Simon, 27 October 2026: nothing breaks any more): the gunner falls out,
-            // the tower fights on by itself and takes nobody for 20 s, then it is whole again.
-            long lock = Math.round(SkillValues.get("e_longrange", "seatlock", 400));
+            // the tower fights on by itself and takes nobody for 10 s (Tor 4; was 20 s), then it is whole again.
+            long lock = Math.round(SkillValues.get("e_longrange", "seatlock", 200));
             record.hpLost = 0f;
             record.seatLockedUntil = level.getGameTime() + lock;
             level.sendParticles(ParticleTypes.LARGE_SMOKE, c.x, c.y + 0.9, c.z, 14, 0.3, 0.2, 0.3, 0.02);
