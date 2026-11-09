@@ -24,7 +24,8 @@ class AbilityKeysTest {
 
     /** The fourth abilities on place 4 (C): alchemist, necromancer, and the tanks' arrows (their self heal is on 3). */
     private static final Set<String> FOURTH = Set.of(SkillTree.SUB_ALCHEMIST + ":acid", SkillTree.SUB_NECROMANCER + ":curse",
-            SkillTree.SUB_SHIELDFIGHTER + ":quiver", SkillTree.SUB_BULWARK + ":quiver");
+            SkillTree.SUB_SHIELDFIGHTER + ":quiver", SkillTree.SUB_BULWARK + ":quiver",
+            SkillTree.SUB_MEDIC + ":dome");   // Tor 4c.1: was on C by fallback, now by the table
 
     @Test
     void allTwentySubclassesHaveATable() {
