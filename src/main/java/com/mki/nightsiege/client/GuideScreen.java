@@ -181,6 +181,9 @@ public class GuideScreen extends Screen {
         Chapter open = chapters().get(Math.max(0, Math.min(chapters().size() - 1, chapter)));
         String key = "nightsiege.guide." + open.id() + ".body";
         String body = Language.getInstance().has(key) ? Language.getInstance().getOrDefault(key) : key;
+        if (Language.getInstance().has(key + "2")) {
+            body = body + "\n\n" + Language.getInstance().getOrDefault(key + "2");   // a second part (Tor 9.1 i: the build-up)
+        }
 
         List<Line> lines = new ArrayList<>();
         for (String raw : body.split("\n")) {

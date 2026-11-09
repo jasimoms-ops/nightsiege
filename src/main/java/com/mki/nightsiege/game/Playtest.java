@@ -340,6 +340,14 @@ public final class Playtest {
 
     private void toggleReady(ServerPlayer player, SiegeSave.PlaytestPlayer pp) {
         SiegeSave.PlaytestState s = state();
+        Boolean setupReady = s != null && "night".equals(s.phase) ? m.toggleSetupReady(player.getUUID()) : null;
+        if (setupReady != null) {
+            // Tor 9.1 (i): "Bereit" in the build-up before the night (again: not ready, breaks the countdown off).
+            broadcast(player.level().getServer(), Component.translatable(setupReady ? "nightsiege.playtest.setup_ready"
+                    : "nightsiege.playtest.setup_unready", player.getDisplayName())
+                    .withStyle(setupReady ? ChatFormatting.GREEN : ChatFormatting.GRAY));
+            return;
+        }
         boolean paused = s != null && "paused".equals(s.phase);
         if (!planning() && !paused) {
             send(player, true);
@@ -952,7 +960,7 @@ public final class Playtest {
             // Playtest 2 (Simon 04.11.): the event picked for this night at the start, never none (a boss
             // night has none); a playtest of before rolls one like a real night.
             ok = m.prepareTest(server, level, new BlockPos(core.x, core.y, core.z), lvl,
-                    boss != null ? SiegeEvent.NONE : eventOf(s), boss);
+                    boss != null ? SiegeEvent.NONE : eventOf(s), boss, true);   // Tor 9.1 (i): with the build-up
         }
         // s.campWon stays until the next step: a night broken off by a pause comes again with the machines.
         if (!ok) {
