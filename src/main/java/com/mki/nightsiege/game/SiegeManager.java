@@ -6049,6 +6049,16 @@ public final class SiegeManager {
         };
     }
 
+    /** The key name of the pressed box for "slot:<i>" (Tor 4b, Auflage 5), else null. */
+    private String slotKey(ServerPlayer player, String verb, String argument) {
+        if (!verb.equals("slot")) {
+            return null;
+        }
+        int index = parseAmount(argument);
+        List<com.mki.nightsiege.core.UltState.Slot> slots = abilitySlots(player);
+        return index >= 0 && index < slots.size() ? slots.get(index).key : null;
+    }
+
     public void onCoreAction(ServerPlayer player, String action) {
         if (player == null || action == null || action.isBlank()) {
             return;
@@ -6081,7 +6091,8 @@ public final class SiegeManager {
         if (active) {
             String ability = abilityName(player, verb, argument);
             if (ability != null) {
-                safe("Statistik", () -> stats.ability(player, ability));
+                String key = com.mki.nightsiege.core.AbilityKeys.statsKey(verb, slotKey(player, verb, argument));
+                safe("Statistik", () -> stats.ability(player, ability, key));
             }
         }
         switch (verb) {

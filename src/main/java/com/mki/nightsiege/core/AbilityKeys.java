@@ -139,6 +139,30 @@ public final class AbilityKeys {
     }
 
     /**
+     * Tor 4b (Auflage 5): the key a pressed ability sits on, for the statistics: ABILITY_1 to ABILITY_4,
+     * ULT (X) or ULT2 (R); null for anything else. {@code slotKey} is the box's {@code UltState.Slot.key}.
+     */
+    public static String statsKey(String verb, String slotKey) {
+        if (verb == null) {
+            return null;
+        }
+        return switch (verb) {
+            case "ult" -> Key.ULT.name();
+            case "ult2" -> Key.ABILITY_2.name();   // the class's own field, sent from place 2 (GainClient)
+            case "ult2x" -> Key.ULT2.name();
+            case "slot" -> {
+                for (Key key : ABILITY_PLACES) {
+                    if (key.name().equals(slotKey)) {
+                        yield key.name();
+                    }
+                }
+                yield null;
+            }
+            default -> null;
+        };
+    }
+
+    /**
      * The key of an ability of this subclass: {@link Key#ULT} for the ultimate, the table's key, or
      * null when the subclass does not have it (the caller then shows and fires it on {@link Key#ABILITY_4}).
      */

@@ -250,7 +250,11 @@ public final class StatsRecorder {
         public int drohneSekunden;
         public double drohneSchaden;
         public Map<String, Integer> faehigkeiten = new LinkedHashMap<>();
+        /** Tor 4b (Auflage 5): uses per key, ABILITY_1 to ABILITY_4, ULT (X), ULT2 (R). */
+        public Map<String, Integer> tasten = new LinkedHashMap<>();
         public int turmSekunden;
+        /** Tor 4b (Auflage 5): seconds alive on foot (not seated in a tower, not a drone). */
+        public int fussSekunden;
     }
 
     public static final class Gegner {
@@ -724,6 +728,8 @@ public final class StatsRecorder {
             }
             if (Drones.isDrone(p)) {
                 pw(p).drohneSekunden++;
+            } else if (p.isAlive() && !p.isSpectator() && (traps == null || !traps.isSeated(p))) {
+                pw(p).fussSekunden++;
             }
             if (traps != null && traps.isSeated(p)) {
                 pw(p).turmSekunden++;
@@ -1141,8 +1147,17 @@ public final class StatsRecorder {
 
     /** An ability key or menu used in the night. */
     void ability(ServerPlayer player, String what) {
+        ability(player, what, null);
+    }
+
+    /** The same, also counted on its key (Tor 4b, Auflage 5); key null: only the old field. */
+    void ability(ServerPlayer player, String what, String key) {
         if (night != null && m.isDefending(player)) {
-            pw(player).faehigkeiten.merge(what, 1, Integer::sum);
+            SpielerWelle w = pw(player);
+            w.faehigkeiten.merge(what, 1, Integer::sum);
+            if (key != null) {
+                w.tasten.merge(key, 1, Integer::sum);
+            }
         }
     }
 

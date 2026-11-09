@@ -116,4 +116,21 @@ class AbilityKeysTest {
         assertNull(AbilityKeys.keyOf(SkillTree.SUB_SWIFT, "raise"));
         assertNull(AbilityKeys.keyOf(null, "dash"));
     }
+
+    /** Tor 4b, Auflage 5: the statistics count each key on its own (not only "faehigkeit_f"). */
+    @Test
+    void statsCountEachKeyOnItsOwn() {
+        assertEquals("ULT", AbilityKeys.statsKey("ult", null));
+        assertEquals("ABILITY_2", AbilityKeys.statsKey("ult2", null));
+        assertEquals("ULT2", AbilityKeys.statsKey("ult2x", null));
+        Set<String> seen = new HashSet<>();
+        for (AbilityKeys.Key key : AbilityKeys.ABILITY_PLACES) {
+            seen.add(AbilityKeys.statsKey("slot", key.name()));
+        }
+        assertEquals(Set.of("ABILITY_1", "ABILITY_2", "ABILITY_3", "ABILITY_4"), seen);
+        assertNull(AbilityKeys.statsKey("slot", "GAIN_1"));
+        assertNull(AbilityKeys.statsKey("slot", null));
+        assertNull(AbilityKeys.statsKey("gain", "ABILITY_1"));
+        assertNull(AbilityKeys.statsKey(null, null));
+    }
 }
