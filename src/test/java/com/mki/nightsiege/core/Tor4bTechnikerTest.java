@@ -132,4 +132,13 @@ class Tor4bTechnikerTest {
         assertEquals(15, potion * EngineerAbilities.seatThrow(TrapKind.TESLA.id()), 1e-9);
         assertEquals(-1, SkillValues.get("t_grenade", "seatrange", -1), 1e-9);
     }
+
+    /** 4b.7 (Chef 08:05): gunner group on the bench St.20 7104/min -> ~4500; levers that hit groups, not one target. */
+    @Test
+    void gunnerGroupLevers() {
+        assertEquals(3, SkillValues.get("t_pierce", "targets", -1), 1e-9);
+        assertEquals(0.3, SkillValues.get("t_suppress", "rate", -1), 1e-9);
+        assertEquals(2.5, SkillValues.get("t_pierce", "dmg", -1), 1e-9);    // one target unchanged
+        assertEquals(0.6, SkillValues.get("t_suppress", "dmg", -1), 1e-9);
+    }
 }

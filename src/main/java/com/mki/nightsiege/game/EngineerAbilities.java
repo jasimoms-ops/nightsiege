@@ -302,7 +302,7 @@ public final class EngineerAbilities {
             }
         }
         line.sort(Comparator.comparingDouble(e -> e.distanceToSqr(a)));
-        int most = (int) Math.round(val(PIERCE, "targets", 5));
+        int most = (int) Math.round(val(PIERCE, "targets", 3));
         double damage = traps.turretArrow(player) * val(PIERCE, "dmg", 2.5) * overvolt(skills);
         int hit = 0;
         for (LivingEntity e : line) {

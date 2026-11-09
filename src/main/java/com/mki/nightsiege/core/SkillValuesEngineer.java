@@ -144,11 +144,11 @@ final class SkillValuesEngineer {
         def("t_tech", "toolbag", 0.1);                                   // werkzeugtasche: place 2 pauses this share shorter
         def("t_pierce", "pause", 200);                                   // Durchschlag (Schuetze), 10 s
         def("t_pierce", "dmg", 2.5);                                     // x a turret arrow of his tier
-        def("t_pierce", "targets", 5);
+        def("t_pierce", "targets", 3);                                   // 4b.7: 5 -> 3 (bench group St.20 7104/min, aim ~4500)
         def("t_pierce", "range", 32);
         def("t_suppress", "pause", 400);                                 // Sperrfeuer (Schuetze), 20 s
         def("t_suppress", "time", 80);                                   // 4 s
-        def("t_suppress", "rate", 0.6);                                  // own arrow turrets +60 % fire rate
+        def("t_suppress", "rate", 0.3);                                  // own arrow turrets +30 % fire rate (4b.7: was +60 %)
         def("t_suppress", "radius", 16);
         def("t_suppress", "every", 10);                                  // ticks between his own bolts
         def("t_suppress", "dmg", 0.6);                                   // x a turret arrow per bolt

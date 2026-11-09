@@ -1129,8 +1129,8 @@ public final class TrapService {
             cooldown = Math.max(3, (int) (cooldown / ultSpeed()));
         }
         if (rushed(record, now)) {
-            // Sperrfeuer (Tor 4b): +60 % fire rate
-            cooldown = Math.max(3, (int) Math.round(cooldown / (1.0 + SkillValues.get("t_suppress", "rate", 0.6))));
+            // Sperrfeuer (Tor 4b): +30 % fire rate (4b.7)
+            cooldown = Math.max(3, (int) Math.round(cooldown / (1.0 + SkillValues.get("t_suppress", "rate", 0.3))));
         }
         return cooldown;
     }
