@@ -90,6 +90,9 @@ public final class Playtest {
     private long idleSince = -1;
     private String idlePhase;
     private boolean idleWarned;
+    /** For the scenes' diagnosis: calls of tick while a playtest runs, looks of the idle watch. */
+    private long tickCalls;
+    private long idleLooks;
 
     Playtest(SiegeManager manager) {
         this.m = manager;
@@ -553,6 +556,13 @@ public final class Playtest {
         if (s == null || s.finished) {
             return;
         }
+        tickCalls++;
+        // The idle watch counts server ticks, not the world's game time (that one stops with /tick freeze
+        // and in the client gametest, 09.11. pt-start 8): once a second.
+        long serverTick = server.getTickCount();
+        if (serverTick % 20 == 0 && idleWatch(server, s, serverTick)) {
+            return;   // a non-OP's playtest stood still too long: it ended (Prüfer 09.11.)
+        }
         long now = server.overworld().getGameTime();
         if (now % 20 != 0) {
             return;
@@ -564,9 +574,6 @@ public final class Playtest {
             clearWildMonsters(server, s);   // between the parts nothing natural hunts the players (Simon 29.10.)
         }
         keepFed(server, s);
-        if (idleWatch(server, s, now)) {
-            return;   // a non-OP's playtest stood still too long: it ended (Prüfer 09.11.)
-        }
         switch (s.phase) {
             case "plan" -> {
                 if (allReady(server, s)) {
@@ -1443,6 +1450,7 @@ public final class Playtest {
      * nights wait meanwhile): a warning a minute before, then the normal end. True when it ended.
      */
     private boolean idleWatch(MinecraftServer server, SiegeSave.PlaytestState s, long now) {
+        idleLooks++;
         if (!"plan".equals(s.phase) && !"paused".equals(s.phase)) {
             idleSince = -1;
             return false;
@@ -1476,13 +1484,20 @@ public final class Playtest {
         if (idleSince < 0 && s != null && ("plan".equals(s.phase) || "paused".equals(s.phase))) {
             // The watch had not looked yet (it checks once a second; a slow start left the scene ahead of it,
             // 09.11. pt-start 8): the wait begins now, as the watch's first look would set it.
-            idleSince = server.overworld().getGameTime();
+            idleSince = server.getTickCount();
             idlePhase = s.phase;
             idleWarned = false;
         }
         if (idleSince >= 0) {
             idleSince -= ticks;
         }
+    }
+
+    /** For scenes: the idle watch's state in one line (diagnosis). */
+    public String idleInfoForTests(MinecraftServer server) {
+        return "nonOp=" + limited + " since=" + idleSince + " idleTicks=" + (idleSince < 0 ? -1 : server.getTickCount() - idleSince)
+                + " phase=" + idlePhase + " warned=" + idleWarned + " looks=" + idleLooks + " tickCalls=" + tickCalls
+                + " serverTick=" + server.getTickCount() + " gameTime=" + server.overworld().getGameTime();
     }
 
     /** /nightsiege playtest stop, the last night's end or a restart: everything back as it was. */

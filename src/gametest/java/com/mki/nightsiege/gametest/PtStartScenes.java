@@ -159,12 +159,16 @@ final class PtStartScenes {
             check(m.playtest().running(), "start without OP for the idle watch (7 of 8): " + m.playtest().status());
         });
         context.waitTicks(30);
-        server(context, "idle age", (player, m) ->
-                m.playtest().ageIdleForTests(player.level().getServer(), com.mki.nightsiege.core.PlaytestAccess.IDLE_LIMIT_TICKS));
-        context.waitTicks(60);   // the watch looks once a second (every 20 game ticks): room for two looks
+        server(context, "idle age", (player, m) -> {
+            log("idle before age: " + m.playtest().idleInfoForTests(player.level().getServer()));
+            m.playtest().ageIdleForTests(player.level().getServer(), com.mki.nightsiege.core.PlaytestAccess.IDLE_LIMIT_TICKS);
+            log("idle after age: " + m.playtest().idleInfoForTests(player.level().getServer()));
+        });
+        context.waitTicks(60);   // the watch looks once a second (every 20 server ticks): room for two looks
         server(context, "idle end", (player, m) -> {
+            String idle = m.playtest().idleInfoForTests(player.level().getServer());
             check(!m.playtest().running() && !m.kits().hasStash(player),
-                    "10 min in plan without moving on: ended and given back (8 of 8): " + m.playtest().status());
+                    "10 min in plan without moving on: ended and given back (8 of 8): " + idle + " " + m.playtest().status());
             if (m.playtest().running()) {
                 m.playtest().finish(player.level().getServer(), "nightsiege.playtest.stopped");
             }
