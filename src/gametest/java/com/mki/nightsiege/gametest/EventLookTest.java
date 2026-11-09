@@ -314,6 +314,10 @@ public class EventLookTest implements FabricClientGameTest {
                     alive(context);
                     LootScenes.run(context, game);   // Tor 5.4: a crate per class, the new gain on 1-3
                 }
+                if (want.contains("inventar")) {
+                    alive(context);
+                    InventarScenes.run(context, game);   // Tor 5.7: only allowed things, charges on 1-3, old items collected
+                }
                 if (want.contains("funktionen")) {
                     alive(context);
                     FunktionenScenes.run(context, game);   // Tor 3.0d: Erdstoss on a real jump crit, Koecherwart with Multishot

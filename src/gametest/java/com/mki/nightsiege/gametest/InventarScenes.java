@@ -1,5 +1,6 @@
 package com.mki.nightsiege.gametest;
 
+import com.mki.nightsiege.core.CrateGains;
 import com.mki.nightsiege.core.GainCharges;
 import com.mki.nightsiege.core.PlayerSkills;
 import com.mki.nightsiege.core.SkillClass;
@@ -194,7 +195,6 @@ final class InventarScenes {
         // 2. The healing potion on key 1: health up at once, one charge less; a second press right after is locked.
         final int[] charges = new int[1];
         server(context, "potion", (player, m) -> {
-            GainKeys.choose(m, player, SkillClass.GUARDIAN.name(), GainCharges.POTION);   // guardian from step 1 is gone: set again
             PlayerSkills own = m.save().skillsOf(player.getUUID().toString());
             own.switchTo(SkillClass.GUARDIAN);
             own.gains.put(SkillClass.GUARDIAN.name(), new HashMap<>(gains(SkillClass.GUARDIAN)));
@@ -277,6 +277,25 @@ final class InventarScenes {
                     "chest: the axe went, the own apples stay (" + gone + " gone)");
             check(bannersLeft == 0 && applesLeft == 1, "shulker box: the banner went, the apples stay");
             player.getInventory().setItem(21, ItemStack.EMPTY);
+        });
+        context.waitTicks(5);
+
+        // 4. Throwing spears and axes: no longer in the crates; owners get the duplicate points back once.
+        server(context, "retired", (player, m) -> {
+            check(CrateGains.get("wurfspeere") == null && CrateGains.get("wurfbeile") == null,
+                    "throwing spears and axes are no longer obtainable");
+            PlayerSkills own = m.save().skillsOf(player.getUUID().toString());
+            Map<String, Integer> warrior = new HashMap<>();
+            warrior.put("wurfspeere", 1);
+            warrior.put("wurfbeile", 3);
+            own.gains.put(SkillClass.WARRIOR.name(), warrior);
+            boolean was = m.save().loot57Migrated;
+            m.save().loot57Migrated = false;
+            int paid = m.save().migrateLoot57();
+            m.save().loot57Migrated = was || m.save().loot57Migrated;
+            check(paid > 0 && !warrior.containsKey("wurfspeere") && !warrior.containsKey("wurfbeile"),
+                    "spear 1 + axe 3 stages: gains gone, " + paid + " points back");
+            check(m.save().migrateLoot57() == 0, "the payback runs only once");
         });
         context.waitTicks(5);
 
