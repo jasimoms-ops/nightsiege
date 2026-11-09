@@ -614,6 +614,11 @@ public class SiegeSave {
 
     /** Siege nights held so far (real ones, won or lost): numbers the nights for catching up. */
     public int nightsHeld;
+    /** The smart night's outer loop (Tor 6.6, OuterLoop): offset on the normal monsters' life, ±15 %. */
+    public double outerLoop;
+    /** Real nights the outer loop has counted (won, lost). */
+    public int outerLoopWon;
+    public int outerLoopLost;
     /** The number on the next crown of the Vierer-Nacht (one more after every won one). */
     public int season = 1;
     /**
@@ -734,6 +739,104 @@ public class SiegeSave {
                     int points = stage * retired.getValue();
                     own.award(points);
                     paid += points;
+                }
+            }
+        }
+        return paid;
+    }
+
+    /** True once Tor 5.4 moved the gains that left the crates onto their successors. */
+    public boolean loot5Migrated;
+
+    /**
+     * Tor 5.4 (Chef 22:42): fackeln -> baukiste, spektralpfeile -> lichtpfeile, fester_griff -> turmschild,
+     * leuchtschild -> schildlaterne (stage 1 of the successor; already owning it, the old gain's duplicate
+     * points per stage instead). Stages above a gain's new top (proviant 4 -> 2) pay their duplicate points.
+     * Runs once; returns the points paid.
+     */
+    public int migrateLoot5() {
+        if (loot5Migrated) {
+            return 0;
+        }
+        loot5Migrated = true;
+        int paid = 0;
+        if (skills == null) {
+            return 0;
+        }
+        for (PlayerSkills own : skills.values()) {
+            if (own == null || own.gains == null) {
+                continue;
+            }
+            for (java.util.Map.Entry<String, java.util.Map<String, Integer>> byClass : own.gains.entrySet()) {
+                java.util.Map<String, Integer> map = byClass.getValue();
+                if (map == null) {
+                    continue;
+                }
+                for (com.mki.nightsiege.core.CrateGains.Moved moved : com.mki.nightsiege.core.CrateGains.LOOT_5) {
+                    if (!moved.clazz().equals("*") && !moved.clazz().equals(byClass.getKey())) {
+                        continue;
+                    }
+                    Integer stage = map.remove(moved.from());
+                    if (stage == null || stage <= 0) {
+                        continue;
+                    }
+                    if (map.getOrDefault(moved.to(), 0) > 0) {
+                        int points = stage * moved.rarity().duplicatePoints();
+                        own.award(points);
+                        paid += points;
+                    } else {
+                        map.put(moved.to(), 1);
+                    }
+                }
+                for (java.util.Map.Entry<String, Integer> e : map.entrySet()) {
+                    com.mki.nightsiege.core.CrateGains.Gain gain = com.mki.nightsiege.core.CrateGains.get(e.getKey());
+                    if (gain != null && !gain.consumable() && e.getValue() != null && e.getValue() > gain.topStage()) {
+                        int points = (e.getValue() - gain.topStage()) * gain.rarity().duplicatePoints();
+                        own.award(points);
+                        paid += points;
+                        e.setValue(gain.topStage());
+                    }
+                }
+            }
+        }
+        return paid;
+    }
+
+    /** True once Tor 5.7 paid back the throwing spears and axes. */
+    public boolean loot57Migrated;
+
+    /**
+     * Tor 5.7 (Chef 09.11. 09:12): wurfspeere and wurfbeile left the game; their owners get the duplicate
+     * points of the old rarity per stage, the gains go. Runs once; returns the points paid.
+     */
+    public int migrateLoot57() {
+        if (loot57Migrated) {
+            return 0;
+        }
+        loot57Migrated = true;
+        int paid = 0;
+        if (skills == null) {
+            return 0;
+        }
+        for (PlayerSkills own : skills.values()) {
+            if (own == null || own.gains == null) {
+                continue;
+            }
+            for (java.util.Map.Entry<String, java.util.Map<String, Integer>> byClass : own.gains.entrySet()) {
+                java.util.Map<String, Integer> map = byClass.getValue();
+                if (map == null) {
+                    continue;
+                }
+                for (com.mki.nightsiege.core.CrateGains.Moved gone : com.mki.nightsiege.core.CrateGains.RETIRED_57) {
+                    if (!gone.clazz().equals("*") && !gone.clazz().equals(byClass.getKey())) {
+                        continue;
+                    }
+                    Integer stage = map.remove(gone.from());
+                    if (stage != null && stage > 0) {
+                        int points = stage * gone.rarity().duplicatePoints();
+                        own.award(points);
+                        paid += points;
+                    }
                 }
             }
         }

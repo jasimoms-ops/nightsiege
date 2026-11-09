@@ -60,6 +60,7 @@ public class GuideScreen extends Screen {
             new Chapter("intro", "nightsiege:siege_core"),
             new Chapter("core", "minecraft:respawn_anchor"),
             new Chapter("siege", "minecraft:zombie_head"),
+            new Chapter("gains", "minecraft:chest"),   // Tor 5.4: the crate gains
             new Chapter("events", "minecraft:redstone"),
             new Chapter("bonus", "minecraft:emerald"),
             new Chapter("classes", "minecraft:nether_star"),
@@ -180,6 +181,9 @@ public class GuideScreen extends Screen {
         Chapter open = chapters().get(Math.max(0, Math.min(chapters().size() - 1, chapter)));
         String key = "nightsiege.guide." + open.id() + ".body";
         String body = Language.getInstance().has(key) ? Language.getInstance().getOrDefault(key) : key;
+        if (Language.getInstance().has(key + "2")) {
+            body = body + "\n\n" + Language.getInstance().getOrDefault(key + "2");   // a second part (Tor 9.1 i: the build-up)
+        }
 
         List<Line> lines = new ArrayList<>();
         for (String raw : body.split("\n")) {

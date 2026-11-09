@@ -248,6 +248,8 @@ public final class SiegeManager {
         final int totalTicks;
         int ticksLeft;
         com.mki.nightsiege.core.BossKind boss;
+        /** Tor 9.1 (i): a playtest night's build-up ("Bereit", 2 min at most) instead of the fixed time, or null. */
+        com.mki.nightsiege.core.SetupPhase setup;
 
         PendingTest(ServerLevel world, BlockPos anchor, int level, SiegeEvent event, int ticks) {
             this.world = world;
@@ -274,6 +276,12 @@ public final class SiegeManager {
     private final Set<UUID> liveMobs = new HashSet<>();
     /** Defenders without a connection, with the game time they went (Simon 31.10.: a minute's grace). */
     private final Map<UUID, Long> offlineSince = new HashMap<>();
+    /** Tor 6.4: defenders online but out of the night (presentRadius, another world), with the game time they went. */
+    private final Map<UUID, Long> awaySince = new HashMap<>();
+    /** Tor 6.4: the group size the living elites and bosses were last scaled for. */
+    private int scaledFor;
+    /** Tor 6.4: extra elite chance of tonight's wave for the monsters the live cap left out (overflowEliteCost). */
+    private double overflowElites;
     /** Tor 3.6: the hash of the tooltips last sent on each connection (weak: gone with the connection). */
     private final Map<Object, Integer> sentTips = new java.util.WeakHashMap<>();
     private final Map<UUID, String> defenderNames = new HashMap<>();
@@ -1188,6 +1196,18 @@ public final class SiegeManager {
             NightSiegeMod.LOGGER.info("[Night Siege] Fernbedienungs-Gewinne umgestellt: {} Punkte zurück", paid);
             persist();
         }
+        // Tor 5.4: gains that left the crates go to their successors (fackeln -> baukiste, ...), once per save.
+        if (!save.loot5Migrated) {
+            int paid = save.migrateLoot5();
+            NightSiegeMod.LOGGER.info("[Night Siege] Gewinne Tor 5.4 umgestellt: {} Punkte zurück", paid);
+            persist();
+        }
+        // Tor 5.7: the throwing spears and axes left, their owners get the duplicate points once per save.
+        if (!save.loot57Migrated) {
+            int paid = save.migrateLoot57();
+            NightSiegeMod.LOGGER.info("[Night Siege] Wurfspeere/Wurfbeile Tor 5.7 zurückgezahlt: {} Punkte", paid);
+            persist();
+        }
         // The alchemist's potions became nodes, three of seven (28 October 2026): once per save.
         if (!save.brewsMigrated) {
             int brewProfiles = 0;
@@ -1761,6 +1781,14 @@ public final class SiegeManager {
         return !active && warnedDay == day && startedDay != day;
     }
 
+    /** Game ticks until the horn of the next real night (eclipse too), -1 when no siege day is planned. */
+    public long ticksUntilHorn(MinecraftServer server) {
+        if (save.nextSiegeDay < 0) {
+            return -1L;
+        }
+        return Math.max(0L, (save.nextSiegeDay - clockDay(server)) * 24000L + closeTime() - clockTime(server));
+    }
+
     /**
      * No sleeping from the horn until the siege is over (Simon 31.10.: survival safety): while a real
      * night is coming or running, a test night (also the playtest's) is prepared or running.
@@ -2141,6 +2169,8 @@ public final class SiegeManager {
     private String usedFragment;
     /** How often a survived wave counts for each defender this night (catching up on missed nights). */
     private final Map<UUID, Integer> waveWeight = new HashMap<>();
+    /** Defenders with a latecomer pool this night (Tor 6.7): the others count a mentor night. */
+    private final Set<UUID> poolTonight = new HashSet<>();
     /** Number of the running siege night, for catching up; -1 in tests. */
     private int nightNumber = -1;
     /** Defenders who died this night with their inventory kept: it comes back when they respawn. */
@@ -2174,6 +2204,15 @@ public final class SiegeManager {
     /** /nightsiege test <level> boss <name>: a test night that ends with this boss (it comes 15 s in). */
     public boolean prepareTest(MinecraftServer server, ServerLevel targetWorld, BlockPos targetAnchor,
                                int level, SiegeEvent event, com.mki.nightsiege.core.BossKind boss) {
+        return prepareTest(server, targetWorld, targetAnchor, level, event, boss, false);
+    }
+
+    /**
+     * Tor 9.1 (i): with setup the preparation is the playtest's build-up – kit and towers at once,
+     * the night when everyone is ready (10 s countdown) or after 2 min at the latest.
+     */
+    public boolean prepareTest(MinecraftServer server, ServerLevel targetWorld, BlockPos targetAnchor,
+                               int level, SiegeEvent event, com.mki.nightsiege.core.BossKind boss, boolean setup) {
         if (active || pendingTest != null) {
             return false;
         }
@@ -2182,28 +2221,102 @@ public final class SiegeManager {
         if (nearby.isEmpty()) {
             return false;
         }
-        if (config.testPrepSeconds <= 0) {
+        if (config.testPrepSeconds <= 0) {   // 0 = no preparation at all, also no build-up (the scenes)
             testBoss = boss;
             return startTest(server, targetWorld, targetAnchor, level, event);
         }
+        int prepSeconds = setup ? com.mki.nightsiege.core.SetupPhase.MAX_SECONDS : config.testPrepSeconds;
+        lastSetupSeconds = -1;
         trapsHanded.clear();
         int shownLevel = Math.min(config.maxLevel, level);
-        pendingTest = new PendingTest(targetWorld, targetAnchor, level, event, config.testPrepSeconds * 20);
+        pendingTest = new PendingTest(targetWorld, targetAnchor, level, event, prepSeconds * 20);
         pendingTest.boss = boss;
+        if (setup) {
+            pendingTest.setup = new com.mki.nightsiege.core.SetupPhase(targetWorld.getGameTime());
+        }
         for (ServerPlayer player : nearby) {
             equipKit(player);
-            sendClassPick(player, config.testPrepSeconds);
+            sendClassPick(player, prepSeconds);
         }
         prepBar = new ServerBossEvent(com.mki.nightsiege.core.NightBarIds.make(com.mki.nightsiege.core.NightBarIds.Kind.PREP),
-                Component.translatable("nightsiege.bar.prep", shownLevel, config.testPrepSeconds),
+                setup ? setupBarName(shownLevel, 0, nearby.size(), prepSeconds, false)
+                        : Component.translatable("nightsiege.bar.prep", shownLevel, config.testPrepSeconds),
                 BossEvent.BossBarColor.YELLOW, BossEvent.BossBarOverlay.PROGRESS);
         prepBar.setProgress(1.0f);
         for (ServerPlayer player : nearby) {
             prepBar.addPlayer(player);
         }
-        broadcast(server, Component.translatable("nightsiege.msg.prep_start", shownLevel, config.testPrepSeconds)
+        broadcast(server, setup ? Component.translatable("nightsiege.msg.setup_start", shownLevel, prepSeconds)
+                        .withStyle(ChatFormatting.GOLD).append(" ").append(readyLink())
+                : Component.translatable("nightsiege.msg.prep_start", shownLevel, config.testPrepSeconds)
                 .withStyle(ChatFormatting.GOLD));
         return true;
+    }
+
+    /** The bar of the build-up: level, ready of online, seconds; "countdown" in the last part. */
+    private static Component setupBarName(int level, int ready, int online, int seconds, boolean countdown) {
+        return Component.translatable(countdown ? "nightsiege.bar.setup_countdown" : "nightsiege.bar.setup",
+                level, ready, online, seconds);
+    }
+
+    /** "[Bereit]" in the chat: the same as /nightsiege playtest bereit. */
+    static Component readyLink() {
+        return Component.translatable("nightsiege.msg.setup_ready_link").withStyle(style -> style
+                .withColor(ChatFormatting.GREEN).withUnderlined(true)
+                .withClickEvent(new net.minecraft.network.chat.ClickEvent.RunCommand("/nightsiege playtest bereit")));
+    }
+
+    /** True while a playtest night's build-up runs (Tor 9.1 i). */
+    public boolean inSetup() {
+        return pendingTest != null && pendingTest.setup != null;
+    }
+
+    /** "Bereit" in the build-up: toggles; null when no build-up runs. */
+    public Boolean toggleSetupReady(UUID id) {
+        return inSetup() ? pendingTest.setup.toggle(id) : null;
+    }
+
+    /** Seconds of the last finished build-up (Tor 9.1 i, for the night statistics and the tests), or -1. */
+    private int lastSetupSeconds = -1;
+
+    public int lastSetupSeconds() {
+        return lastSetupSeconds;
+    }
+
+    /** One tick of the build-up; true when the night comes now. */
+    private boolean tickSetup(MinecraftServer server, PendingTest prep) {
+        long now = prep.world.getGameTime();
+        List<UUID> online = new ArrayList<>();
+        for (ServerPlayer p : playtest.onlinePlayers(server)) {
+            online.add(p.getUUID());
+        }
+        com.mki.nightsiege.core.SetupPhase.Step step = prep.setup.tick(now, online);
+        int shownLevel = Math.min(config.maxLevel, prep.level);
+        switch (step) {
+            case COUNTDOWN_STARTED -> broadcast(server, Component.translatable(prep.setup.forced()
+                    ? "nightsiege.msg.setup_time_up" : "nightsiege.msg.setup_all_ready",
+                    prep.setup.secondsLeft(now)).withStyle(ChatFormatting.YELLOW));
+            case COUNTDOWN_ABORTED -> broadcast(server, Component.translatable("nightsiege.msg.setup_aborted")
+                    .withStyle(ChatFormatting.GRAY).append(" ").append(readyLink()));
+            case GO -> {
+                lastSetupSeconds = prep.setup.seconds(now);
+                NightSiegeMod.LOGGER.info("[Night Siege] Playtest: Aufbauphase {} s", lastSetupSeconds);
+                return true;
+            }
+            default -> {
+            }
+        }
+        if (now % 20 == 0 && prepBar != null) {
+            int seconds = prep.setup.secondsLeft(now);
+            prepBar.setName(setupBarName(shownLevel, prep.setup.readyCount(online), online.size(), seconds, prep.setup.counting()));
+            prepBar.setProgress(Math.max(0f, Math.min(1f, seconds * 20f / prep.totalTicks)));
+            prepBar.setColor(prep.setup.counting() ? BossEvent.BossBarColor.RED : BossEvent.BossBarColor.YELLOW);
+            for (ServerPlayer player : defendersNear(server, prep.world, prep.anchor, true)) {
+                prepBar.addPlayer(player);
+                equipKit(player);   // whoever comes along in the build-up gets their kit too
+            }
+        }
+        return false;
     }
 
     /**
@@ -2288,6 +2401,12 @@ public final class SiegeManager {
 
     private void tickPreparation(MinecraftServer server) {
         PendingTest prep = pendingTest;
+        if (prep.setup != null) {
+            if (!tickSetup(server, prep)) {
+                return;
+            }
+            prep.ticksLeft = 1;   // the night comes now (below)
+        }
         prep.ticksLeft--;
         if (prep.ticksLeft > 0) {
             if (prep.ticksLeft % 20 == 0 && prepBar != null) {
@@ -2312,6 +2431,8 @@ public final class SiegeManager {
         if (!startTest(server, prep.world, prep.anchor, prep.level, prep.event)) {
             trapsHanded.clear();
             broadcast(server, Component.translatable("nightsiege.cmd.no_target").withStyle(ChatFormatting.GRAY));
+        } else if (lastSetupSeconds >= 0) {
+            stats.setupSeconds(lastSetupSeconds);   // Tor 9.1 (i): the build-up in the night's statistics
         }
     }
 
@@ -2426,6 +2547,8 @@ public final class SiegeManager {
         fallen.clear();
         liveMobs.clear();
         offlineSince.clear();
+        awaySince.clear();
+        overflowElites = 0.0;
         digger.reset();
         ladders.reset();
         besiegers.reset();
@@ -2433,8 +2556,13 @@ public final class SiegeManager {
             participants.add(player.getUUID());
         }
         presentDefenders = participants.size();
+        scaledFor = presentDefenders;
+        if (com.mki.nightsiege.core.SoloHelper.wanted(config, presentDefenders)) {
+            NightSiegeMod.LOGGER.info("[Night Siege] Solo-Helfer: gewuenscht (Geruest, noch ohne Wirkung)");
+        }
         wavesStarted = 0;
         waveWeight.clear();
+        poolTonight.clear();
         CrateEffects.reset();
         GainGear.reset();
         SecondUlts.reset();
@@ -2741,7 +2869,20 @@ public final class SiegeManager {
                 offlineSince.putIfAbsent(id, nowTick);
             }
             boolean here = online || nowTick - offlineSince.get(id) < DISCONNECT_GRACE_TICKS;
-            if (here) {
+            // Tor 6.4: the night's size goes by who is in it: offline or out of range (presentRadius, another world)
+            // for longer than the grace, a defender no longer counts; back, he counts again (participants stays).
+            boolean inRange = warRound || bastionRound || onlinePlayer != null && onlinePlayer.level() == world
+                    && onlinePlayer.distanceToSqr(anchor.getX() + 0.5, anchor.getY(), anchor.getZ() + 0.5)
+                    <= config.presentRadius * config.presentRadius;
+            if (!online || inRange) {
+                awaySince.remove(id);
+            } else {
+                awaySince.putIfAbsent(id, nowTick);
+            }
+            long offlineTicks = online ? 0L : nowTick - offlineSince.get(id);
+            long awayTicks = online && !inRange ? nowTick - awaySince.get(id) : 0L;
+            if (SiegeMath.countsForSize(online, offlineTicks, DISCONNECT_GRACE_TICKS, inRange, awayTicks,
+                    config.presentGraceSeconds * 20L)) {
                 present++;
             }
             if (fallen.contains(id)) {
@@ -2759,6 +2900,10 @@ public final class SiegeManager {
             }
         }
         presentDefenders = present;   // waves, monster life and the field go by who is here (Simon 31.10.)
+        if (presentCount() != scaledFor) {
+            scaledFor = presentCount();
+            safe("Neu skalieren", () -> rescaleForGroup(scaledFor));
+        }
         if (standing == 0 && !(warRound && warLeader.sandbox())) {   // the sandbox: nobody defends, it goes on
             if (bossVictoryAt > 0) {
                 finish(server, true);   // the boss fell first
@@ -3471,6 +3616,11 @@ public final class SiegeManager {
         }
 
         @Override
+        public int headcount() {
+            return presentCount();   // Tor 6.4: the boss's life goes by who is in the night, like the waves
+        }
+
+        @Override
         public List<ServerPlayer> defenders() {
             List<ServerPlayer> list = new ArrayList<>();
             if (world == null) {
@@ -3656,7 +3806,7 @@ public final class SiegeManager {
         @Override
         public boolean firmGrip(ServerPlayer player) {
             PlayerSkills own = save.skillsOf(player.getUUID().toString());
-            return own.hasClass() && kits.gainLevel(own, own.clazz(), "fester_griff") > 0;
+            return own.hasClass() && kits.gainLevel(own, own.clazz(), "turmschild") > 0;   // Tor 5.4: in the tower shield
         }
 
         @Override
@@ -3716,12 +3866,52 @@ public final class SiegeManager {
             return;
         }
         PlayerSkills skills = save.skillsOf(player.getUUID().toString());
+        if (config.lateJoiners) {
+            joinLate(player, skills);
+            return;
+        }
         int weight = WaveXp.catchUp(nightNumber, skills.lastNight, config.catchUpMax);
         skills.lastNight = nightNumber;
         waveWeight.put(player.getUUID(), weight);
         if (weight > 1) {
             player.sendSystemMessage(Component.translatable("nightsiege.msg.catch_up", weight - 1, weight)
                     .withStyle(ChatFormatting.AQUA));
+        }
+    }
+
+    /**
+     * The latecomer system (Tor 6.7, formula D): the floor lifts the points to a steady player's minus
+     * lateJoinerNights nights, missed nights fill the pool (at most as many nights, never past the gap).
+     */
+    private void joinLate(ServerPlayer player, PlayerSkills skills) {
+        if (skills.lastNight == nightNumber) {
+            if (skills.catchUpPool > 0) {
+                poolTonight.add(player.getUUID());
+            }
+            return;   // back in the same night: floor and pool are done
+        }
+        int missed = com.mki.nightsiege.core.CatchUp.missed(nightNumber, skills.lastNight);
+        skills.lastNight = nightNumber;
+        int level = currentLevel();
+        int expected = TestKit.pointsBefore(level, config);
+        int behind = TestKit.pointsBefore(Math.max(1, level - config.lateJoinerNights), config);
+        int perNight = expected - TestKit.pointsBefore(Math.max(1, level - 1), config);
+        int floor = com.mki.nightsiege.core.CatchUp.floorAdd(skills.earned, behind);
+        if (floor > 0) {
+            skills.award(floor);
+            NightSiegeMod.LOGGER.info("[Night Siege] Nachzuegler-Boden: {} +{} (Stufe {}, jetzt {})",
+                    player.getScoreboardName(), floor, level, skills.points());
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.late_floor", floor, level)
+                    .withStyle(ChatFormatting.AQUA));
+        }
+        skills.catchUpPool = com.mki.nightsiege.core.CatchUp.pool(skills.catchUpPool, missed, perNight,
+                expected - behind, expected, skills.earned);
+        if (skills.catchUpPool > 0) {
+            poolTonight.add(player.getUUID());
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.late_pool", skills.catchUpPool)
+                    .withStyle(ChatFormatting.AQUA));
+        } else {
+            skills.catchUpFraction = 0.0;
         }
     }
 
@@ -3732,16 +3922,25 @@ public final class SiegeManager {
         }
         double reach = config.participantRadius * 1.5;
         for (UUID id : participants) {
+            ServerPlayer player = server.getPlayerList().getPlayer(id);
+            // The latecomer pool pays the wave once more, also to the fallen (Tor 6.7).
+            int bonus = player == null || !config.lateJoiners ? 0
+                    : com.mki.nightsiege.core.CatchUp.bonus(save.skillsOf(id.toString()),
+                            save.specialNight ? config.specialNightXpMultiplier : 1, config.wavesPerPoint,
+                            config.pointGainMultiplier);
+            if (bonus > 0 && fallen.contains(id)) {
+                player.connection.send(new net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket(
+                        Component.translatable("nightsiege.msg.wave_point", wavesStarted, bonus).withStyle(ChatFormatting.AQUA)));
+            }
             if (fallen.contains(id)) {
                 continue;
             }
-            ServerPlayer player = server.getPlayerList().getPlayer(id);
             if (player == null || player.level() != world
                     || player.distanceToSqr(anchor.getX() + 0.5, anchor.getY(), anchor.getZ() + 0.5) > reach * reach) {
                 continue;
             }
             int weight = waveWeight.getOrDefault(id, 1) * (save.specialNight ? config.specialNightXpMultiplier : 1);
-            int points = WaveXp.survive(save.skillsOf(id.toString()), weight, config.wavesPerPoint,
+            int points = bonus + WaveXp.survive(save.skillsOf(id.toString()), weight, config.wavesPerPoint,
                     config.pointGainMultiplier * CrateEffects.pointFactor(player));
             player.connection.send(new net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket(points > 0
                     ? Component.translatable("nightsiege.msg.wave_point", wavesStarted, points).withStyle(ChatFormatting.AQUA)
@@ -3758,10 +3957,31 @@ public final class SiegeManager {
         return true;
     }
 
+    /**
+     * Tor 6.4: someone joined or left: the living elites and bosses take the new group's life (they keep their share
+     * of it). Waves, the live cap and the field read presentCount() themselves.
+     */
+    private void rescaleForGroup(int defenders) {
+        NightSiegeMod.LOGGER.info("[Night Siege] Gruppe jetzt {}: Eliten und Bosse neu skaliert", defenders);
+        if (world == null) {
+            return;
+        }
+        for (UUID id : liveMobs) {
+            if (world.getEntity(id) instanceof Mob mob && Elites.isElite(mob)) {
+                Elites.regroup(mob, config, defenders);
+            }
+        }
+        for (BossService b : allBosses()) {
+            b.rescale(world, defenders);
+        }
+    }
+
     /** Monsters one wave brings with the defenders there now. */
     private int wantedPerWave() {
         int players = presentCount();
         double perPlayer = config.playerScaling;   // a playtest night too, like a real one (Playtest 2, 04.11.)
+        // Tor 6.4: beyond the live cap the wave's budget comes as elites.
+        overflowElites = SiegeMath.overflowEliteChance(SiegeMath.mobsWanted(siegeLevel, players, config, perPlayer), maxLive(), config);
         // What the cap leaves out comes as life (per-player scaling, 29 October 2026).
         overflowHealth = SiegeMath.overflowHealthFactor(SiegeMath.mobsWanted(siegeLevel, players, config, perPlayer), maxLive(), config);
         return (int) Math.round(SiegeMath.mobsPerBatch(siegeLevel, players, config, perPlayer, maxLive())
@@ -4174,6 +4394,14 @@ public final class SiegeManager {
         return Math.max(1, (int) Math.round(cap * com.mki.nightsiege.core.SmartNight.room(config, active ? smart.step() : 0)));
     }
 
+    /**
+     * Tor 6.6, the outer loop: life factor of a real night's normal monsters (1 in test, playtest, war
+     * leader and bastion nights and outside a night).
+     */
+    public double outerLoopFactor() {
+        return active && !testRun && !inPlaytest() ? com.mki.nightsiege.core.OuterLoop.factor(save.outerLoop, config) : 1.0;
+    }
+
     /** The smart night of the running night (the tests and the command read and set it). */
     public com.mki.nightsiege.core.SmartNight smartNight() {
         return smart;
@@ -4188,7 +4416,18 @@ public final class SiegeManager {
     }
 
     /** The night ends: the smart night's course into the log and the night's statistics. */
-    private void noteSmartEnd() {
+    private void noteSmartEnd(Boolean won) {
+        // Tor 6.6: decided early (lost in the first third or pressure never above 0.2), with and without the smart night.
+        double elapsed = totalTicks <= 0 ? 1.0 : 1.0 - Math.max(0, ticksLeft) / (double) totalTicks;
+        double peak = smart.peakStress();
+        boolean early = won != null && com.mki.nightsiege.core.OuterLoop.decidedEarly(won, elapsed, peak);
+        boolean steering = smart.on();
+        safe("Statistik", () -> stats.smartMeasure(steering, early, elapsed, peak));
+        if (won != null) {
+            NightSiegeMod.LOGGER.info(String.format(java.util.Locale.ROOT,
+                    "[Night Siege] Schlaue Nacht Messung: %s, frueh entschieden %s, Zeit %.0f %%, Spitzendruck %.2f",
+                    steering ? "an" : "aus", early ? "ja" : "nein", elapsed * 100, peak));
+        }
         if (!smart.on()) {
             return;
         }
@@ -4210,13 +4449,13 @@ public final class SiegeManager {
         }
         int step = smart.step();
         Elites.maybe(world, mob, siegeLevel, config, random,
-                com.mki.nightsiege.core.SmartNight.eliteChance(config, step, siegeLevel),
+                com.mki.nightsiege.core.SmartNight.eliteChance(config, step, siegeLevel) + overflowElites,
                 com.mki.nightsiege.core.SmartNight.specials(config, step));
     }
 
     /** Once a second: the defenders' life for the smart night, and its look when it is time. */
     private void tickSmart(List<ServerPlayer> upright) {
-        if (!smart.on() || world == null) {
+        if (!smart.watching() || world == null) {   // measures also with the smart night off (Tor 6.6)
             return;
         }
         long now = world.getGameTime();
@@ -4268,6 +4507,15 @@ public final class SiegeManager {
     /** Writes the night's protocol lines. */
     private void logNight(String result, int blasted, int required) {
         StatsRecorder.NightFile finished = null;
+        if (!testRun && nightNumber >= 0 && !poolTonight.isEmpty() && world != null) {
+            // Mentor nights (Tor 6.7): everyone else who stood in a night with a latecomer.
+            for (UUID id : participants) {
+                ServerPlayer mentor = poolTonight.contains(id) ? null : world.getServer().getPlayerList().getPlayer(id);
+                if (mentor != null) {
+                    safe("Statistik", () -> stats.mentor(mentor));
+                }
+            }
+        }
         try {
             finished = stats.endNight(world == null ? 0L : world.getGameTime(), result, required, nightKills, liveMobs);
         } catch (RuntimeException e) {
@@ -4504,7 +4752,7 @@ public final class SiegeManager {
         ladders.reset();
         besiegers.reset();
         raid.reset();
-        noteSmartEnd();   // before the foes forget what they sent tonight
+        noteSmartEnd(won);   // before the foes forget what they sent tonight
         foes.reset(world);
         companions.dismissAll(server);
         mendBase(server);
@@ -4619,6 +4867,22 @@ public final class SiegeManager {
                     .withStyle(ChatFormatting.RED));
         }
 
+        // Tor 6.6, the outer loop: only real nights count (the tests and the playtest returned above).
+        if (!inPlaytest()) {
+            boolean held = won && quotaMet;
+            double before = com.mki.nightsiege.core.OuterLoop.clamp(save.outerLoop, config);
+            save.outerLoop = com.mki.nightsiege.core.OuterLoop.next(before, held, config);
+            if (held) {
+                save.outerLoopWon++;
+            } else {
+                save.outerLoopLost++;
+            }
+            double after = save.outerLoop;
+            NightSiegeMod.LOGGER.info(String.format(java.util.Locale.ROOT,
+                    "[Night Siege] Aeussere Schleife: %+.1f %% -> %+.1f %% (%s, %d gewonnen, %d verloren)",
+                    before * 100, after * 100, held ? "Sieg" : "Niederlage", save.outerLoopWon, save.outerLoopLost));
+            safe("Statistik", () -> stats.outerLoop(before, after, config.smartNightOuterLoop));
+        }
         logNight(result, blasted, required);
         save.specialNight = false;
         if (curses > 0 && save.curses != null) {
@@ -4679,7 +4943,7 @@ public final class SiegeManager {
         besiegers.reset();
         raid.reset();
         // Fehlerprüfung 06.11.: a night broken off (a restart, the stop command) writes the smart night too.
-        noteSmartEnd();   // before the foes forget what they sent tonight
+        noteSmartEnd(null);   // before the foes forget what they sent tonight (broken off: not decided early)
         foes.reset(world);
         companions.dismissAll(server);
         mendBase(server);
@@ -6203,6 +6467,7 @@ public final class SiegeManager {
             }
             case "fun" -> onFunAction(player, argument);   // the fun mode's tree: fill, ready, another class
             case "playtest" -> playtest.onAction(player, argument);   // the playtest window (28 October 2026)
+            case "crate_all" -> crates.openAll(player);   // the crate window's "Alle öffnen" (Tor 9.1 h)
             case "war" -> warLeader.onAction(player, argument);   // the war leader's round (29 October 2026)
             case "feedback" -> safe("Bewertung", () -> stats.feedback(player, argument));   // 1-click feedback (29 October 2026)
             case "curse" -> {   // the curse altar (update 2): a stone laid on or taken off
@@ -7126,7 +7391,14 @@ public final class SiegeManager {
             problems.add("cut to 6 boxes: " + ids.subList(6, ids.size()));
         }
         for (String problem : problems) {
-            if (BAR_PROBLEMS.add(problem)) {
+            if (!BAR_PROBLEMS.add(problem)) {
+                continue;
+            }
+            if ((sub == null || sub.isEmpty()) && problem.startsWith("no key entry")) {
+                // No subclass yet (e.g. a warrior with only the dash): the table goes by subclass, so the free
+                // place is the wanted way, not a fault (09.11.); assign still keeps every key once.
+                NightSiegeMod.LOGGER.info("[Night Siege] Fähigkeitenleiste (ohne Unterklasse): {}", problem);
+            } else {
                 NightSiegeMod.LOGGER.error("[Night Siege] Fähigkeitenleiste: {}", problem);
             }
         }

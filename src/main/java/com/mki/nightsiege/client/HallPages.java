@@ -594,6 +594,10 @@ final class HallPages {
         rows.add(new String[]{tr("nightsiege.hall.chron.dungeons"), num(h.dungeonsWon) + " / " + num(h.dungeons)});
         rows.add(new String[]{tr("nightsiege.hall.chron.camps"), num(h.campsDestroyed) + " / " + num(h.camps)});
         rows.add(new String[]{tr("nightsiege.hall.chron.crates"), num(h.crates) + " (" + tr("nightsiege.hall.chron.rare", num(h.rareCrates)) + ")"});
+        double mentor = h.curios == null ? 0 : h.curios.getOrDefault("mentor", 0.0);
+        if (mentor > 0) {
+            rows.add(new String[]{tr("nightsiege.hall.chron.mentor"), num(mentor)});   // Tor 6.7
+        }
         if (h.maxCurses > 0) {
             rows.add(new String[]{tr("nightsiege.hall.chron.curses"), num(h.maxCurses)});
         }

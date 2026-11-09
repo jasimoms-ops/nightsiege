@@ -3171,8 +3171,10 @@ public final class Expeditions {
                            int room, int lvl) {
         Set<UUID> mobs = new HashSet<>();
         boolean test = m.inPlaytest();   // the playtest: as many for each player as for one alone (Simon 28.10.)
-        int count = more(kind, test ? ExpeditionKind.guards(lvl, fighters.size(), m.config().playtestPlayerScaling, 24)
-                : ExpeditionKind.guards(lvl, fighters.size()));
+        // Tor 6.11 (Chef 09.11.): the playtest's cap 24 -> 14 like a real dungeon, from 3 fighters a quarter fewer.
+        double share = ExpeditionKind.groupShare(fighters.size(), m.config());
+        int count = more(kind, test ? ExpeditionKind.guards(lvl, fighters.size(), m.config().playtestPlayerScaling, 14, share)
+                : ExpeditionKind.guards(lvl, fighters.size(), 0.5, 14, share));
         List<BlockPos> spots = p.roomSpots.get(room);
         for (int i = 0; i < count; i++) {
             BlockPos spot = spots.get(i % spots.size());
@@ -3336,8 +3338,10 @@ public final class Expeditions {
             level.playSound(null, p.arenaCenter, SoundEvents.IRON_DOOR_OPEN, SoundSource.BLOCKS, 3f, 0.5f);
         }
         m.stats().dungeonProgress(rec.cleared, wave, false);
-        int count = more(kind, m.inPlaytest() ? ExpeditionKind.wave(lvl, fighters.size(), m.config().playtestPlayerScaling, 32)
-                : ExpeditionKind.wave(lvl, fighters.size()));
+        // Tor 6.11 (Chef 09.11.): the playtest's cap 32 -> 16 like a real dungeon, from 3 fighters a quarter fewer.
+        double share = ExpeditionKind.groupShare(fighters.size(), m.config());
+        int count = more(kind, m.inPlaytest() ? ExpeditionKind.wave(lvl, fighters.size(), m.config().playtestPlayerScaling, 16, share)
+                : ExpeditionKind.wave(lvl, fighters.size(), 0.5, 16, share));
         for (int i = 0; i < count; i++) {
             BlockPos spot = p.waveSpots.get(i % p.waveSpots.size());
             Mob mob = spawn(level, rec, kind.mobs().get(random.nextInt(kind.mobs().size())), spot);

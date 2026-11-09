@@ -106,7 +106,7 @@ class SiegeCoreTest {
         assertEquals(33, SiegeMath.liveCap(4, server));
         assertEquals(114, SiegeMath.liveCap(10, server));
         assertEquals(120, SiegeMath.liveCap(12, server));   // past the table +8 per player, at most 120
-        assertEquals(0.7, SiegeMath.damageTakenForGroup(1, server), 1e-9);
+        assertEquals(0.7, SiegeMath.damageTakenForGroup(1, server), 1e-9);   // Chef 09.11. 12:05: the solo damping stays
         assertEquals(0.95, SiegeMath.healthForGroup(3, server), 1e-9);
         assertEquals(1.0, SiegeMath.healthForGroup(8, server), 1e-9);
         assertTrue(server.quotaSkipsVanished);
@@ -731,13 +731,16 @@ class SiegeCoreTest {
             // 27.10. evening: the crate review – warrior 13 (Spaltaxt for Plünderung), archer 14 (Teernetz),
             // guardian 15 (Wundsalbe), engineer 18 (Munitionskiste, Sappeur-Alarm, Langes Gebräu), summoner 15 (Seelenzins).
             // 29.10. (balance update 2): Köcher and Blendgranaten left (archer 13, engineer 17), Dritte Hand came (17 general).
+            // Tor 5.4: fackeln (16 general), spektralpfeile for Brandpfeile, fester_griff and leuchtschild left
+            // (guardian 13), the summoner got Rudelführer, Grabesodem, Treue, Rudelruf (19).
+            // Tor 5.7: wurfspeere (15 general) and wurfbeile left, the warrior got the Wetzstein (13).
             int own = switch (c) {
-                case WARRIOR, ARCHER -> 13;
-                case GUARDIAN, SUMMONER -> 15;
+                case WARRIOR, ARCHER, GUARDIAN -> 13;
+                case SUMMONER -> 19;
                 case ENGINEER -> 17;
                 default -> 0;
             };
-            assertEquals(own + 17, CrateGains.forCollection(c).size(), c + " has " + own + " gains and 17 general ones");
+            assertEquals(own + 15, CrateGains.forCollection(c).size(), c + " has " + own + " gains and 15 general ones");
             for (int i = 0; i < 400; i++) {
                 CrateGains.Gain g = CrateGains.roll(c, "", weights, 0.7, random);
                 assertNotNull(g);
@@ -798,9 +801,9 @@ class SiegeCoreTest {
         assertEquals(4, NightKit.sharpness(10));
         assertEquals(5, NightKit.sharpness(14));
         assertEquals(2, NightKit.foodTier(11, 0));
-        assertEquals(3, NightKit.foodTier(11, 4));
-        assertEquals(0, NightKit.provisionApples(11, 0));
-        assertTrue(NightKit.provisionApples(11, 4) > 2);
+        assertEquals(2, NightKit.foodTier(11, 2), "Tor 5.4: golden carrots at most, no apples");
+        assertEquals(1, NightKit.foodTier(1, 1));
+        assertEquals(2, NightKit.foodTier(1, 2));
         assertEquals(64, NightKit.archerArrows(1));
         assertEquals(128, NightKit.archerArrows(20));
     }
@@ -1344,9 +1347,9 @@ class SiegeCoreTest {
         for (CrateGains.Gain g : CrateGains.all()) {
             ids.add(g.id());
         }
-        for (String id : new String[]{"dritte_hand", "sprungstiefel", "zielfernrohr", "wurfspeere", "wurfbeile",
+        for (String id : new String[]{"dritte_hand", "sprungstiefel", "zielfernrohr", "heiltrank", "notration", "wurfperlen",
                 "oelfass", "kletterhaken", "kampfhorn", "tarnumhang", "signalhorn", "mauerkelle", "ersatzbatterie",
-                "kriegsbanner", "barrikaden", "leibwaechter", "schlachtentrance", "lockpfeil", "magnetfeld", "spiegelschild",
+                "verbandskasten", "barrikaden", "leibwaechter", "schlachtentrance", "lockpfeil", "magnetfeld", "spiegelschild",
                 "rueckrufpfeife", "geisterross", "futternapf", "totenglocke", "seelentausch"}) {
             assertTrue(ids.contains(id), id);
             assertNotEquals(KeyHint.NONE, KeyHint.forGain(id), id);

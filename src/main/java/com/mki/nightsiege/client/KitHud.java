@@ -553,6 +553,10 @@ public final class KitHud {
         String text = c != null ? c.keyText() : key != null ? AbilityKeys.shortLabel(key) : "";
         int color = c == null || spent ? 0xFF8A8070 : loadingNow ? 0xFFB8AC98 : 0xFFF0D27A;
         small(gui, font, text, x + 2.5f, y + 2f, color);
+        if (c != null && c.count() != null) {
+            // Tor 5.7: the charges left, bottom right as on an item stack
+            gui.text(font, c.count(), x + size - 1 - font.width(c.count()), y + size - 9, spent ? 0xFF9A9080 : 0xFFFFFFFF, true);
+        }
         return loadingNow ? 1 : 0;
     }
 

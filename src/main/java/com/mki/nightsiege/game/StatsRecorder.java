@@ -87,6 +87,8 @@ public final class StatsRecorder {
         public boolean test;
         /** A night of the playtest mode (05.11.: the Ruhmeshalle takes these too, marked as playtest). */
         public boolean playtest;
+        /** Tor 7.3: a night of the playtest (Spieltest), file spieltest_<time>.json; real test nights stay testnacht_. */
+        public boolean spieltest;
         public int nacht;
         public int stufe;
         public String ereignis = "";
@@ -97,10 +99,15 @@ public final class StatsRecorder {
         public String boss = "";
         public String ergebnis = "läuft";
         public int dauerSekunden;
+        /** Tor 9.1 (i): seconds of the playtest's build-up before this night ("Bereit", 2 min at most); 0 otherwise. */
+        public int aufbauSekunden;
         public int killZiel;
         public int kills;
         public int gespawnt;
         public int tode;
+        /** Tor 7.3: second and wave of the night's first death (-1 = nobody fell). */
+        public int ersterTodSekunde = -1;
+        public int ersterTodWelle = -1;
         public Basis basis;
         public Map<String, Spieler> spieler = new LinkedHashMap<>();
         public Heerlager heerlager = new Heerlager();
@@ -108,6 +115,10 @@ public final class StatsRecorder {
         public List<Welle> wellen = new ArrayList<>();
         public Map<String, Gegner> gegner = new LinkedHashMap<>();
         public Map<String, Turm> tuerme = new LinkedHashMap<>();
+        /** Tor 6.4: 95th percentile of the server's tick time over the whole night (ms; the live cap's gauge). */
+        public double msptP95;
+        /** Tor 6.4: the most monsters of the night alive at once over the whole night. */
+        public int lebendMax;
         /** 1-click feedback after the night (balance tool, 29 October 2026): player → leicht / passt / schwer. */
         public Map<String, String> bewertung = new LinkedHashMap<>();
         /** Optional with it: player → the subclass they found strongest tonight. */
@@ -139,6 +150,18 @@ public final class StatsRecorder {
         public int extraSondermonster;
         public int pausen;
         public List<Schritt> schritte = new ArrayList<>();
+        /** Tor 6.6: the smart night steered tonight (false = it only measured). */
+        public boolean steuert;
+        /** Tor 6.6: decided early (lost in the first third, or pressure never above 0.2). */
+        public boolean fruehEntschieden;
+        /** Share of the night's time that ran (0..1) and the highest pressure (-1 = no look). */
+        public double zeitAnteil;
+        public double spitzenDruck = -1;
+        /** Tor 6.6, the outer loop: offset on the normal monsters' life before and after this night (real nights). */
+        public boolean schleifeGezaehlt;
+        public boolean schleifeAn;
+        public double schleifeVorher;
+        public double schleifeNachher;
     }
 
     /** One step of the smart night: when, to which step, and what it saw (share of life, stress). */
@@ -175,6 +198,8 @@ public final class StatsRecorder {
         public int ersterTodSekunde = -1;
         /** The kit of the night: the class of the played profile. */
         public String kit = "";
+        /** Tor 7.3 (ziele 9.1 a): the learned skill nodes of the played profile, node id -> level. */
+        public Map<String, Integer> knoten = new LinkedHashMap<>();
     }
 
     public static final class Heerlager {
@@ -213,6 +238,8 @@ public final class StatsRecorder {
         public double msptSchnitt;
         public double msptMax;
         public int ticksUeber50;
+        /** Tor 6.4: 95th percentile of the tick time in this wave (ms). */
+        public double msptP95;
         public int lebendMax;
         public int mobsMax;
     }
@@ -281,6 +308,8 @@ public final class StatsRecorder {
     /** One dungeon or war camp attempt. */
     public static final class AttemptFile {
         public String art = "";
+        /** Tor 7.3: an attempt during the playtest (Spieltest). */
+        public boolean spieltest;
         public String version = "";
         public String build = "";
         public String start = "";
@@ -445,6 +474,14 @@ public final class StatsRecorder {
             s.punkteImProfil = s.profil.isEmpty() ? 0 : tree.pointsSpentProfile(skills, s.profil);
             s.ultStufe3 = skills.clazz() != null && tree.ultimateMaxed(skills, skills.clazz());
             s.kit = s.klasse;
+            if (!s.profil.isEmpty()) {
+                for (com.mki.nightsiege.core.SkillNode node : tree.ofClass(PlayerSkills.classOfKey(s.profil))) {
+                    int level = skills.levelInProfile(s.profil, node.id());
+                    if (level > 0) {
+                        s.knoten.put(node.id(), level);
+                    }
+                }
+            }
         } catch (RuntimeException e) {
             // A half-made profile must not stop the protocol.
         }
@@ -550,6 +587,30 @@ public final class StatsRecorder {
         night.schlaueNacht.schritte.add(st);
     }
 
+    /** Tor 6.6: the night's measure for the pair comparison, with and without the smart night. */
+    void smartMeasure(boolean steering, boolean early, double elapsed, double peak) {
+        if (night == null) {
+            return;
+        }
+        SchlaueNacht s = night.schlaueNacht;
+        s.steuert = steering;
+        s.fruehEntschieden = early;
+        s.zeitAnteil = round2(Math.max(0.0, Math.min(1.0, elapsed)));
+        s.spitzenDruck = peak < 0 ? -1 : round2(peak);
+    }
+
+    /** Tor 6.6: the outer loop's offset before and after this real night. */
+    void outerLoop(double before, double after, boolean on) {
+        if (night == null) {
+            return;
+        }
+        SchlaueNacht s = night.schlaueNacht;
+        s.schleifeGezaehlt = true;
+        s.schleifeAn = on;
+        s.schleifeVorher = Math.round(before * 1000.0) / 1000.0;
+        s.schleifeNachher = Math.round(after * 1000.0) / 1000.0;
+    }
+
     /** The smart night at the end of the night. */
     void smartEnd(com.mki.nightsiege.core.SmartNight smart, int elites, int extras) {
         if (night == null || smart == null) {
@@ -576,12 +637,14 @@ public final class StatsRecorder {
             return;
         }
         night = new NightFile();
+        nightLoad.clear();
         night.sim = simLabel == null ? "" : simLabel;
         night.version = version();
         night.build = build();
         night.start = now();
         night.test = test;
         night.playtest = test && m.inPlaytest() && !m.isWarRound();
+        night.spieltest = night.playtest;
         night.nacht = number;
         night.stufe = level;
         night.ereignis = event == null ? "" : event;
@@ -616,8 +679,27 @@ public final class StatsRecorder {
         lifeLeft.clear();
         machineOf.clear();
         Path dir = folder();
-        nightPath = dir == null ? null : dir.resolve((test ? "testnacht_" : "night_") + LocalDateTime.now().format(FILE_TIME) + ".json");
+        nightPath = dir == null ? null : dir.resolve(nightFileName(test, night.spieltest, LocalDateTime.now()));
         writeLater(nightPath, night);
+    }
+
+    /** Tor 7.3: the night's file name: night_, testnacht_ (/nightsiege test) or spieltest_ (the playtest). */
+    static String nightFileName(boolean test, boolean spieltest, LocalDateTime time) {
+        String prefix = spieltest ? "spieltest_" : test ? "testnacht_" : "night_";
+        return prefix + time.format(FILE_TIME) + ".json";
+    }
+
+    /** Tor 9.1 (i): the build-up before the night that just began. */
+    void setupSeconds(int seconds) {
+        if (night != null) {
+            night.aufbauSekunden = Math.max(0, seconds);
+            writeLater(nightPath, night);
+        }
+    }
+
+    /** The build-up of the running night (for the tests), or -1 without a night file. */
+    public int setupSecondsForTests() {
+        return night == null ? -1 : night.aufbauSekunden;
     }
 
     void addPlayer(ServerPlayer player) {
@@ -656,6 +738,9 @@ public final class StatsRecorder {
         wave.msptSchnitt = tickCount == 0 ? 0 : Math.round(tickSumMs / tickCount * 10.0) / 10.0;
         wave.msptMax = Math.round(tickMaxMs * 10.0) / 10.0;
         wave.ticksUeber50 = ticksOver50;
+        wave.msptP95 = Math.round(waveLoad.percentile(0.95) * 10.0) / 10.0;
+        night.lebendMax = Math.max(night.lebendMax, Math.max(liveMax, liveNow));
+        waveLoad.clear();
         wave.lebendMax = Math.max(liveMax, liveNow);
         wave.mobsMax = mobsMax;
         tickSumMs = 0;
@@ -671,6 +756,8 @@ public final class StatsRecorder {
     private int tickCount;
     private double tickMaxMs;
     private int ticksOver50;
+    private final com.mki.nightsiege.core.TickLoad waveLoad = new com.mki.nightsiege.core.TickLoad();
+    private final com.mki.nightsiege.core.TickLoad nightLoad = new com.mki.nightsiege.core.TickLoad();
     private int liveMax;
     private int mobsMax;
 
@@ -682,6 +769,8 @@ public final class StatsRecorder {
         tickSumMs += ms;
         tickCount++;
         tickMaxMs = Math.max(tickMaxMs, ms);
+        waveLoad.add(ms);
+        nightLoad.add(ms);
         if (ms > 50.0) {
             ticksOver50++;
         }
@@ -899,6 +988,11 @@ public final class StatsRecorder {
         }
     }
 
+    /** A mentor night (Tor 6.7): stood in a night with a latecomer catching up. */
+    public void mentor(ServerPlayer player) {
+        kurAdd(player, "mentor", 1);
+    }
+
     private void clearCurios() {
         killTimes.clear();
         killTick.clear();
@@ -1004,7 +1098,11 @@ public final class StatsRecorder {
             night.tode++;
             Spieler first = night.spieler.get(player.getScoreboardName());
             if (first != null && first.ersterTodSekunde < 0) {
-                first.ersterTodSekunde = second(player.level().getGameTime());
+                first.ersterTodSekunde = second(player.level().getGameTime());   // per player (6.0)
+            }
+            if (night.ersterTodSekunde < 0) {
+                night.ersterTodSekunde = second(player.level().getGameTime());   // the night's first death (7.3)
+                night.ersterTodWelle = wave == null ? 0 : wave.nummer;
             }
         }
     }
@@ -1230,6 +1328,7 @@ public final class StatsRecorder {
         }
         closeWave(gameTime, liveMobs == null ? 0 : liveMobs.size());
         night.ende = now();
+        night.msptP95 = Math.round(nightLoad.percentile(0.95) * 10.0) / 10.0;
         night.abgeschlossen = true;
         night.ergebnis = result;
         night.dauerSekunden = second(gameTime);
@@ -1327,6 +1426,7 @@ public final class StatsRecorder {
             camp.build = build();
             camp.start = now();
             camp.typ = "heerlager";
+            camp.spieltest = m.inPlaytest();
             camp.stufe = level;
             campStartTick = gameTime;
         }
@@ -1392,6 +1492,7 @@ public final class StatsRecorder {
             dungeon.build = build();
             dungeon.start = now();
             dungeon.typ = kind;
+            dungeon.spieltest = m.inPlaytest();
             dungeon.stufe = level;
             dungeon.raeume = rooms;
             dungeon.wellen = rooms;

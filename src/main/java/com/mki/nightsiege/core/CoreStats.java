@@ -257,6 +257,8 @@ public class CoreStats {
     public String myProfile = "";
     public int points;
     public int earned;
+    /** Latecomer pool still to pay (Tor 6.7), 0 when none. */
+    public int catchUpPool;
     public int donated;
     public String pathTaken = "";
     /** Warrior subclass (blademaster, berserker, axe, paladin), or empty. */

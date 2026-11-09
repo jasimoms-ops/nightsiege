@@ -148,7 +148,7 @@ public class HallOfFame {
 
     /** The curiosities that add up over the nights; all others keep the best night. */
     public static final java.util.Set<String> SUMMED = java.util.Set.of("creeper", "kletterer", "halbesHerz", "geschosse",
-            "traenke", "retter", "nemesis", "bossLetzterTreffer", "sturmschritte");
+            "traenke", "retter", "nemesis", "bossLetzterTreffer", "sturmschritte", "mentor");
     /** The curiosities in the order of the page. */
     public static final List<String> CURIOS = List.of("weitesterTreffer", "blutrausch", "mehrfach", "creeper", "kletterer",
             "halbesHerz", "ohneTreffer", "bossLetzterTreffer", "geschosse", "traenke", "sturmschritte", "retter", "nemesis");

@@ -80,6 +80,31 @@ public class CrateScreen extends Screen {
         top = (this.height - H) / 2;
         addRenderableWidget(Button.builder(Component.translatable("gui.done"), b -> onClose())
                 .bounds(left + W - 76, top + H - 28, 64, 20).build());
+        if (roll.more > 0 && roll.allAction != null && !roll.allAction.isEmpty()) {
+            // The rest at once, as one overview (Tor 9.1 h): the server rolls them like single crates.
+            Component all = Component.translatable("nightsiege.crate.open_all", roll.more);
+            int aw = Math.max(90, Minecraft.getInstance().font.width(all) + 14);
+            addRenderableWidget(Button.builder(all, b -> {
+                        b.active = false;
+                        net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(
+                                new com.mki.nightsiege.game.CoreNetworking.CoreActionPayload(roll.allAction));
+                    }).bounds(left + W - 80 - aw, top + H - 28, aw, 20)
+                    .tooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("nightsiege.crate.open_all_tip")))
+                    .build());
+        }
+    }
+
+    /** A click while the band turns stops it on the gain at once (Tor 9.1 h). */
+    @Override
+    public boolean mouseClicked(net.minecraft.client.input.MouseButtonEvent event, boolean doubleClick) {
+        if (super.mouseClicked(event, doubleClick)) {
+            return true;
+        }
+        if (spinning()) {
+            finishNow();
+            return true;
+        }
+        return false;
     }
 
     /** 0 at the start, 1 when the band stands. */

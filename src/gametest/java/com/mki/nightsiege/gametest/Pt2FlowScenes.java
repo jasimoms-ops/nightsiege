@@ -401,6 +401,42 @@ final class Pt2FlowScenes {
         });
         context.waitTicks(10);
 
+        // ---------------------------------------------------------------- Tor 9.1 (i): the build-up before the night
+        server(context, "setup start", (player, m) -> {
+            Playtest.testAway = false;
+            m.config().testPrepSeconds = 60;   // with a preparation the playtest night gets its build-up
+            SiegeSave.PlaytestState s = m.save().playtest;
+            s.phase = "pause_night";   // the same night once more, now with the build-up
+            m.playtest().skip(player.level().getServer());
+            log("setup: phase=" + m.playtest().phase() + " inSetup=" + m.inSetup() + " active=" + m.isActive()
+                    + " kit=" + m.kits().hasStash(player));
+            check(m.inSetup() && !m.isActive() && "night".equals(m.playtest().phase()), "aufbau: the build-up runs, the night waits");
+            check(m.kits().hasStash(player), "aufbau: the kit is there from the start of the build-up");
+            m.playtest().onAction(player, "ready");
+        });
+        context.waitTicks(60);
+        server(context, "setup abort", (player, m) -> {
+            check(m.inSetup() && !m.isActive(), "aufbau: ready, the 10 s countdown runs (3 s in: no night yet)");
+            m.playtest().onAction(player, "ready");   // again: not ready, the countdown breaks off
+        });
+        context.waitTicks(240);
+        server(context, "setup aborted", (player, m) -> {
+            log("after the abort: inSetup=" + m.inSetup() + " active=" + m.isActive());
+            check(m.inSetup() && !m.isActive(), "aufbau: countdown broken off, 12 s later still no night");
+            m.playtest().onAction(player, "ready");
+        });
+        context.waitTicks(240);
+        server(context, "setup go", (player, m) -> {
+            int secs = m.lastSetupSeconds();
+            int logged = m.stats().setupSecondsForTests();
+            log("setup over: active=" + m.isActive() + " setup seconds=" + secs + " in the statistics=" + logged);
+            check(m.isActive() && !m.inSetup(), "aufbau: everyone ready, after the countdown the night runs");
+            check(secs >= 20 && secs <= 40, "aufbau: the build-up lasted about 27 s (" + secs + ")");
+            check(logged == secs || logged == -1, "aufbau: the night statistics have the build-up (" + logged + ", -1 = logger off)");
+            m.playtest().skip(player.level().getServer());   // the night ends
+        });
+        context.waitTicks(20);
+
         // The end: everything back.
         server(context, "end", (player, m) -> {
             Playtest.testAway = false;

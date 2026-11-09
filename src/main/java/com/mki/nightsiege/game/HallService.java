@@ -504,7 +504,7 @@ public final class HallService {
                                     count[0]++;
                                 }
                             }
-                        } else if (playtests && name.startsWith("testnacht_") && name.endsWith(".json")) {
+                        } else if (playtests && (name.startsWith("testnacht_") || name.startsWith("spieltest_")) && name.endsWith(".json")) {   // spieltest_ since Tor 7.3
                             // The test nights before 05.11. did not say whether they were the playtest's: on this
                             // server they all were (or Simon's own tests); the sim's runs stay out.
                             StatsRecorder.NightFile n = Json.read(f, StatsRecorder.NightFile.class);

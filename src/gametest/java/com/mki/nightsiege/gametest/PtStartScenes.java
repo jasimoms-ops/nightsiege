@@ -1,0 +1,188 @@
+package com.mki.nightsiege.gametest;
+
+import com.mki.nightsiege.game.SiegeManager;
+import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
+import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.permissions.PermissionSet;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+/**
+ * Tor 9.1 j, package pt-start (Simon 09.11. 09:26: "Playtest aber für alle möglich, also ich kann auch
+ * alleine einen starten"): a player without OP types the commands. During a (test) night the start is
+ * refused; with nothing running the start alone works, a second start is refused, the player stops it
+ * and the next start waits for the cooldown. Log lines start with "[pt-start]".
+ */
+final class PtStartScenes {
+
+    private static final List<String> FAILS = Collections.synchronizedList(new ArrayList<>());
+    private static int checks;
+    private static final long[] oldSiegeDay = {-1L};
+
+    private PtStartScenes() {
+    }
+
+    private static void log(String line) {
+        System.out.println("[pt-start] " + line);
+    }
+
+    private static void check(boolean ok, String what) {
+        checks++;
+        log((ok ? "OK   " : "FAIL ") + what);
+        if (!ok) {
+            FAILS.add(what);
+        }
+    }
+
+    private static void server(ClientGameTestContext context, String step, EventLookTest.OnServer action) {
+        EventLookTest.onServer(context, (player, manager) -> {
+            try {
+                action.run(player, manager);
+            } catch (Throwable t) {
+                FAILS.add(step + ": " + t);
+                log("ERROR in " + step + ": " + t);
+                t.printStackTrace(System.out);
+            }
+        });
+    }
+
+    /** The command as this player without any OP rights. */
+    private static void asNonOp(ServerPlayer player, String command) {
+        CommandSourceStack source = player.createCommandSourceStack().withPermission(PermissionSet.NO_PERMISSIONS);
+        player.level().getServer().getCommands().performPrefixedCommand(source, command);
+    }
+
+    static void run(ClientGameTestContext context, TestSingleplayerContext game) {
+        FAILS.clear();
+        checks = 0;
+        EventLookTest.ensureCore(context, game);
+        EventLookTest.closeScreen(context);
+        game.getServer().runCommand("time set 1000");
+        game.getServer().runCommand("weather clear");
+        game.getServer().runCommand("gamemode survival @p");
+        context.waitTicks(10);
+        server(context, "setup", (player, m) -> {
+            if (m.playtest().running()) {
+                m.playtest().finish(player.level().getServer(), "nightsiege.playtest.stopped");
+            }
+            if (m.kits().hasStash(player)) {
+                m.kits().restore(player);
+            }
+            m.save().register(player.getUUID().toString());
+            m.playtest().resetCooldownForTests();
+            // the next real night two days on: room for starts without OP (at least 30 min, Prüfer 09.11.)
+            oldSiegeDay[0] = m.save().nextSiegeDay;
+            m.save().nextSiegeDay = m.clockDayFor(player.level().getServer()) + 2;
+        });
+        context.waitTicks(10);
+
+        // 1. A (test) night is prepared or runs: the start without OP is refused.
+        // "nightsiege test" needs a player as source; from the console it did nothing (09.11.)
+        game.getServer().runCommand("execute as @p at @p run nightsiege test 5");
+        context.waitTicks(10);
+        server(context, "during night", (player, m) -> {
+            boolean night = m.isActive() || m.isPreparing();
+            asNonOp(player, "nightsiege playtest 5 allein");
+            log("night=" + night + " playtest=" + m.playtest().running());
+            check(night && !m.playtest().running(), "start without OP during a night refused (1 of 8)");
+        });
+        context.waitTicks(5);
+        game.getServer().runCommand("nightsiege stop");
+        context.waitTicks(40);
+        server(context, "after night", (player, m) -> {
+            if (m.isActive() || m.isPreparing()) {
+                m.cancelPreparation();
+            }
+            log("after stop: active=" + m.isActive() + " preparing=" + m.isPreparing());
+        });
+        context.waitTicks(40);
+
+        // 2. Nothing runs: the start alone without OP works.
+        server(context, "start alone", (player, m) -> {
+            asNonOp(player, "nightsiege playtest 5 allein");
+            check(m.playtest().running() && m.playtest().takesPart(player.getUUID())
+                    && m.playtest().startedBy(player.getUUID()) && m.playtest().playerCount() == 1,
+                    "start alone without OP works (2 of 8): " + m.playtest().status());
+        });
+        context.waitTicks(10);
+
+        // 3. A second start while it runs is refused (still the same playtest).
+        server(context, "second start", (player, m) -> {
+            long before = m.playtest().lastStartTick();
+            asNonOp(player, "nightsiege playtest 6 allein");
+            check(m.playtest().running() && m.playtest().lastStartTick() == before, "second start refused (3 of 8)");
+        });
+        context.waitTicks(10);
+
+        // 4. The starter stops it without OP.
+        server(context, "stop", (player, m) -> {
+            asNonOp(player, "nightsiege playtest stop");
+            check(!m.playtest().running(), "stop without OP by the starter (4 of 8)");
+        });
+        context.waitTicks(20);
+
+        // 5. At once again: the cooldown holds.
+        server(context, "cooldown", (player, m) -> {
+            asNonOp(player, "nightsiege playtest 5 allein");
+            check(!m.playtest().running(), "new start within the cooldown refused (5 of 8)");
+            if (m.playtest().running()) {
+                m.playtest().finish(player.level().getServer(), "nightsiege.playtest.stopped");
+            }
+            m.playtest().resetCooldownForTests();
+        });
+        context.waitTicks(20);
+
+        // 6. The real night's horn in less than 30 min (today, morning): the start without OP is refused.
+        server(context, "night soon", (player, m) -> {
+            long day = m.clockDayFor(player.level().getServer());
+            m.save().nextSiegeDay = day;
+            long toHorn = m.ticksUntilHorn(player.level().getServer());
+            asNonOp(player, "nightsiege playtest 5 allein");
+            boolean refused = !m.playtest().running();
+            m.save().nextSiegeDay = day + 2;   // back at once: no invitation round in between
+            check(refused && toHorn < com.mki.nightsiege.core.PlaytestAccess.MIN_TICKS_BEFORE_NIGHT,
+                    "start without OP " + toHorn / 1200 + " min before the night refused (6 of 8)");
+            if (m.playtest().running()) {
+                m.playtest().finish(player.level().getServer(), "nightsiege.playtest.stopped");
+            }
+            m.playtest().resetCooldownForTests();
+        });
+        context.waitTicks(20);
+
+        // 7. The playtest of a non-OP standing still 10 min in "plan" ends by itself, the normal way.
+        server(context, "idle start", (player, m) -> {
+            asNonOp(player, "nightsiege playtest 5 allein");
+            check(m.playtest().running(), "start without OP for the idle watch (7 of 8): " + m.playtest().status());
+        });
+        context.waitTicks(30);
+        server(context, "idle age", (player, m) -> {
+            log("idle before age: " + m.playtest().idleInfoForTests(player.level().getServer()));
+            m.playtest().ageIdleForTests(player.level().getServer(), com.mki.nightsiege.core.PlaytestAccess.IDLE_LIMIT_TICKS);
+            log("idle after age: " + m.playtest().idleInfoForTests(player.level().getServer()));
+        });
+        context.waitTicks(60);   // the watch looks once a second (every 20 server ticks): room for two looks
+        server(context, "idle end", (player, m) -> {
+            String idle = m.playtest().idleInfoForTests(player.level().getServer());
+            check(!m.playtest().running() && !m.kits().hasStash(player),
+                    "10 min in plan without moving on: ended and given back (8 of 8): " + idle + " " + m.playtest().status());
+            if (m.playtest().running()) {
+                m.playtest().finish(player.level().getServer(), "nightsiege.playtest.stopped");
+            }
+            m.playtest().resetCooldownForTests();
+            m.save().nextSiegeDay = oldSiegeDay[0];
+        });
+        context.waitTicks(20);
+        EventLookTest.closeScreen(context);
+        game.getServer().runCommand("time set 1500");
+        context.waitTicks(10);
+        if (checks == 0) {
+            FAILS.add("no checks");
+        }
+        log("summary: " + checks + " checks, " + FAILS.size() + " failed" + (FAILS.isEmpty() ? "" : ": " + FAILS));
+        log(FAILS.isEmpty() && checks == 8 ? "OK" : "FAIL");
+    }
+}

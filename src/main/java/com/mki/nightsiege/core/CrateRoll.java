@@ -47,4 +47,7 @@ public class CrateRoll {
     /** Gains this class's kit holds now, and all there are. */
     public int collected;
     public int total;
+    /** Crates still waiting after this one, and what the window's "Alle öffnen" sends for them (Tor 9.1 h). */
+    public int more;
+    public String allAction = "";
 }

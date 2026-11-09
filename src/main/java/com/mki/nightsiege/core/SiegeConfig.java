@@ -71,6 +71,17 @@ public class SiegeConfig {
      * (soloScaling + playerScaling × further players). 1 = as before.
      */
     public double soloScaling = 1.0;
+    /**
+     * Tor 6.2 Grundtabelle (Formel A): the monster budget of a wave is today's count (baseMobsPerBatch +
+     * mobsPerLevel x steps) x (soloScaling + playerScaling x further players), times one factor per kit jump
+     * reached (level >= budgetJumpLevels[i] -> x budgetJumpFactors[i], the s6/s11/s20 of Formel A as e^s) and
+     * times the factor of the group's bucket (budgetGroupFrom = lowest group size of each bucket 1 | 2 | 3-4 |
+     * 5-6 | 7+, budgetGroupFactors = c_k). All factors 1 = exactly today's numbers; Tor 8 sets them by sim.
+     */
+    public List<Integer> budgetJumpLevels = new ArrayList<>(List.of(6, 11, 20));
+    public List<Double> budgetJumpFactors = new ArrayList<>(List.of(1.0, 1.0, 1.0));
+    public List<Integer> budgetGroupFrom = new ArrayList<>(List.of(1, 2, 3, 5, 7));
+    public List<Double> budgetGroupFactors = new ArrayList<>(List.of(1.0, 1.0, 1.0, 1.0, 1.0));
     /** Normal nights: the cap of live monsters grows by this share of itself for every further player (0 = as before). */
     public double livePerPlayer = 0.0;
     /** The highest cap of live monsters however many play (Simon 29.10.: 120 should run fine). */
@@ -132,6 +143,29 @@ public class SiegeConfig {
      * fieldRefCaps). Kept so the config files that have it still read as before.
      */
     public double playtestLivePerPlayer = 0.5;
+    /**
+     * Tor 6.4 (Chef 09.11.): extra life of a night's elite for every defender here beyond the first
+     * (1 + share × further, like the bosses' bossHealthPerExtraPlayer). Rescaled when someone joins or leaves.
+     * Chef 09.11. 12:05: off in the package (0 = ×1 for any group); a parameter for Tor 8 (e.g. 0.5).
+     */
+    public double eliteHealthPerExtraPlayer = 0.0;
+    /**
+     * Tor 6.4: the monsters a wave wants beyond the live cap (maxLiveMobsCap, at most 120) come as elites:
+     * this many left-out monsters buy one elite (0 = off; the budget is lost as before). Measured in Tor 7/8.
+     */
+    public double overflowEliteCost = 3.0;
+    /**
+     * Tor 6.4: a defender out of the night (further than this from the anchor, or in another world) for longer
+     * than presentGraceSeconds no longer counts for the night's size; back in range, he counts again.
+     */
+    public double presentRadius = 180.0;
+    public int presentGraceSeconds = 30;
+    /**
+     * Tor 6.4, only the frame (decided after Tor 8): a lone defender gets a helper instead of fewer monsters
+     * (Deep Rock Galactic's Bosco) when solo nights win under soloHelperBelow (0.65). Off: nothing happens.
+     */
+    public boolean soloHelper = false;
+    public double soloHelperBelow = 0.65;
 
     public double healthPerLevel = 0.06;
     public double maxHealthMultiplier = 2.5;
@@ -207,7 +241,8 @@ public class SiegeConfig {
     /** Seconds between the free experience points under the aurora. */
     public int auroraPointSeconds = 180;
 
-    public double bloodMoonMobMultiplier = 1.5;
+    /** Tor 6.10 (Chef 09.11.): the blood moon brings 1.3 times the monsters (was 1.5). */
+    public double bloodMoonMobMultiplier = 1.3;
     public double bloodMoonHealthMultiplier = 1.3;
     public double bloodMoonDamageMultiplier = 1.15;
 
@@ -319,8 +354,18 @@ public class SiegeConfig {
     public int wavesPerPoint = 2;
     /** Factor on the points from survived waves (1.5 = half as much again); the test kits count with it too. */
     public double pointGainMultiplier = 1.5;
-    /** Players who missed nights: waves count (missed + 1) times in their next night, at most this often. */
+    /**
+     * The old catch-up (only with {@link #lateJoiners} off): waves count (missed + 1) times in the next
+     * night, at most this often. Shut down by Tor 6.7, kept so it can be switched back.
+     */
     public int catchUpMax = 4;
+    /**
+     * The latecomer system (Tor 6.7, formula D) instead of the multiple waves: a points floor at the
+     * night's start and a pool that pays every held wave twice until caught up. Off = the old catchUpMax.
+     */
+    public boolean lateJoiners = true;
+    /** Floor and pool of the latecomer system: the points of a steady player minus this many nights. */
+    public int lateJoinerNights = 2;
     /** Defenders who die in a siege keep their inventory. */
     public boolean keepInventoryInSiege = true;
     /** Learned levels each defender loses when a night is lost (the level stays, the night comes again). */
@@ -452,12 +497,12 @@ public class SiegeConfig {
     public double campCrossbowSeconds = 2.5;
     public double campCrossbowRange = 30;
     /** Reinforcement while the workbench stands: every this many seconds this many plus this many per fighter, up to this many guards alive. */
-    public int campReinforceSeconds = 60;
+    public int campReinforceSeconds = 40;   // Tor 6.12 (Chef 09.11.): was 60
     public int campReinforceBase = 1;
     public int campReinforcePerPlayer = 1;
     public int campReinforceCap = 8;
     /** Life of the workshop's siege workbench, and its share more for each further attacker (Simon 29.10.: +30 %). */
-    public double campWorkshopHealth = 300;
+    public double campWorkshopHealth = 450;   // Tor 6.12 (Chef 09.11.): was 300
     public double campWorkshopHealthPerPlayer = 0.3;
     /** Seconds after entering the palisade before the guards attack. */
     public int campGraceSeconds = 0;   // Simon 30.10. 23:52: the guards attack at once (was 10)
@@ -649,6 +694,12 @@ public class SiegeConfig {
     public double dungeonMobPercentMin = 0.10;
     public double dungeonMobPercentMax = 0.20;
     public int dungeonMobPercentMaxLevel = 20;
+    /**
+     * Tor 6.11 (Chef 09.11., Simon: "Gruppenabschlag"): from this many fighters a dungeon's guard rooms and arena
+     * waves bring only this share of their monsters (before the cap), in the playtest and in a real dungeon.
+     */
+    public int dungeonGroupFrom = 3;
+    public double dungeonGroupMobs = 0.75;
     /** Simon 30.10.: one hit of the heavy archer takes at most this share of a dungeon champion's max health (0 = no cap). */
     public double heavyChampionCap = 0.08;
     /**
@@ -722,7 +773,7 @@ public class SiegeConfig {
     public int smartNightUpSteps = 5;
     public int smartNightDownSteps = 5;
     public double smartNightUpStress = 0.2;
-    public double smartNightDownStress = 0.45;
+    public double smartNightDownStress = 0.50;   // Tor 6.6 Formel C (was 0.45)
     /** Stress a death in the window adds (capped at 1). */
     public double smartNightDeathStress = 0.35;
     /** Kills in the window per defender needed to step up (nobody fighting is not "too good"). */
@@ -731,7 +782,16 @@ public class SiegeConfig {
     public double smartNightElitePerStep = 0.05;
     public int smartNightSpecialLevelsPerStep = 2;
     public int smartNightAnyClassFromStep = 4;   // sim schlau1: from 3 the pairs without fighters fell
-    public double smartNightFewerPerStep = 0.05;
+    public double smartNightFewerPerStep = 0.03;   // Tor 6.6 Formel C (was 0.05): at most -15 % instead of -25 %
+    /**
+     * The outer loop (Tor 6.6, Formel C, see OuterLoop): between real nights the normal monsters' life
+     * goes +smartNightOuterWin after a won night and -smartNightOuterLoss after a lost one, within
+     * +-smartNightOuterCap. Kept in the world's save; test and playtest nights do not count.
+     */
+    public boolean smartNightOuterLoop = true;
+    public double smartNightOuterWin = 0.02;
+    public double smartNightOuterLoss = 0.047;
+    public double smartNightOuterCap = 0.15;
     public int smartNightNoSpecialsAt = -2;
     public double smartNightPauseSeconds = 8.0;
     /** Shield energy (Simon 26.10.): seconds of blocking at a stretch, and seconds charged per second when not blocking. */
@@ -1278,7 +1338,7 @@ public class SiegeConfig {
      */
     public int settingsVersion = 0;
     /** The newest settings version (the migrations below end there). */
-    public static final int SETTINGS_VERSION = 23;
+    public static final int SETTINGS_VERSION = 27;
     /** Version of the dungeon list in this file. Older lists are replaced on load. */
     /** Which structures hold dungeons, how hard they are and what lives there. */
     /** Perks from core fragments work within this many blocks of the main core. */
@@ -1420,6 +1480,11 @@ public class SiegeConfig {
         baseMobsPerBatch = Math.max(1, baseMobsPerBatch);
         mobsPerLevel = Math.max(0.0, mobsPerLevel);
         playerScaling = Math.max(0.0, playerScaling);
+        eliteHealthPerExtraPlayer = Double.isNaN(eliteHealthPerExtraPlayer) ? 0.0 : clampDouble(eliteHealthPerExtraPlayer, 0.0, 3.0);
+        overflowEliteCost = Double.isNaN(overflowEliteCost) ? 3.0 : clampDouble(overflowEliteCost, 0.0, 100.0);
+        presentRadius = Double.isNaN(presentRadius) ? 180.0 : clampDouble(presentRadius, 16.0, 2000.0);
+        presentGraceSeconds = clamp(presentGraceSeconds, 0, 600);
+        soloHelperBelow = Double.isNaN(soloHelperBelow) ? 0.65 : clampDouble(soloHelperBelow, 0.0, 1.0);
         playtestPlayerScaling = Double.isNaN(playtestPlayerScaling) ? 1.0 : clampDouble(playtestPlayerScaling, 0.0, 2.0);
         playtestLivePerPlayer = Double.isNaN(playtestLivePerPlayer) ? 0.5 : clampDouble(playtestLivePerPlayer, 0.0, 2.0);
         lowLevelDamageTaken = Double.isNaN(lowLevelDamageTaken) ? 0.75 : clampDouble(lowLevelDamageTaken, 0.3, 1.5);
@@ -1448,6 +1513,10 @@ public class SiegeConfig {
         }
         liveCapByPlayers.replaceAll(v -> v == null ? 1 : clamp(v, 1, 500));
         liveCapStep = clamp(liveCapStep, 0, 100);
+        budgetJumpLevels = budgetLevels(budgetJumpLevels, List.of(6, 11, 20));
+        budgetJumpFactors = budgetFactors(budgetJumpFactors, budgetJumpLevels.size());
+        budgetGroupFrom = budgetLevels(budgetGroupFrom, List.of(1, 2, 3, 5, 7));
+        budgetGroupFactors = budgetFactors(budgetGroupFactors, budgetGroupFrom.size());
         bulwarkGuardRadius = Double.isNaN(bulwarkGuardRadius) ? 6.0 : clampDouble(bulwarkGuardRadius, 0.0, 32.0);
         bulwarkGuardDamage = Double.isNaN(bulwarkGuardDamage) ? 0.15 : clampDouble(bulwarkGuardDamage, 0.0, 0.9);
         bulwarkGuardKnockback = Double.isNaN(bulwarkGuardKnockback) ? 0.5 : clampDouble(bulwarkGuardKnockback, 0.0, 1.0);
@@ -1916,6 +1985,41 @@ public class SiegeConfig {
             }
             settingsVersion = 23;
         }
+        if (settingsVersion < 24) {
+            // Tor 6.10-6.12 (Chef 09.11.): absolute targets. A value on the old server standard becomes the target,
+            // any other value (own or already the target) stays. The code default of damagePerLevel (0.04) is not
+            // the server's (0.1) and stays as it is.
+            if (Math.abs(damagePerLevel - 0.1) < 1e-6) {
+                damagePerLevel = 0.08;
+            }
+            if (Math.abs(bloodMoonMobMultiplier - 1.5) < 1e-6) {
+                bloodMoonMobMultiplier = 1.3;
+            }
+            if (Math.abs(campWorkshopHealth - 300) < 1e-6) {
+                campWorkshopHealth = 450;
+            }
+            if (campReinforceSeconds == 60) {
+                campReinforceSeconds = 40;
+            }
+            settingsVersion = 24;
+        }
+        if (settingsVersion < 25) {
+            // Tor 6.4 wanted flat tables here (damageTakenByPlayers, mobHealthByPlayers empty). Chef 09.11. 12:05: out
+            // of the package, the solo damping 0.7/0.9/0.95/1.0 stays; this step changes nothing. Tor 8 switches it
+            // by setting both tables to [] in the config (no migration needed).
+            settingsVersion = 25;
+        }
+        if (settingsVersion < 27) {
+            // Tor 6.6 (Formel C): the smart night evens out instead of carrying the nights. Absolute targets like
+            // 24: a value on the old standard becomes the target, any other (own or already the target) stays.
+            if (Math.abs(smartNightFewerPerStep - 0.05) < 1e-6) {
+                smartNightFewerPerStep = 0.03;
+            }
+            if (Math.abs(smartNightDownStress - 0.45) < 1e-6) {
+                smartNightDownStress = 0.50;
+            }
+            settingsVersion = 27;
+        }
         if (Double.isNaN(meleeLifesteal)) {
             meleeLifesteal = 0.08;
         }
@@ -1949,6 +2053,8 @@ public class SiegeConfig {
         dungeonMobPercentMin = Double.isNaN(dungeonMobPercentMin) ? 0.10 : Math.min(1.0, Math.max(0.0, dungeonMobPercentMin));
         dungeonMobPercentMax = Double.isNaN(dungeonMobPercentMax) ? 0.20 : Math.min(1.0, Math.max(dungeonMobPercentMin, dungeonMobPercentMax));
         dungeonMobPercentMaxLevel = Math.max(2, Math.min(1000, dungeonMobPercentMaxLevel));
+        dungeonGroupFrom = clamp(dungeonGroupFrom, 2, 100);
+        dungeonGroupMobs = Double.isNaN(dungeonGroupMobs) ? 0.75 : Math.min(1.0, Math.max(0.1, dungeonGroupMobs));
         stunnerFromLevel = Math.max(1, stunnerFromLevel);
         stunnersMax = Math.max(0, Math.min(20, stunnersMax));
         stunnerEverySeconds = Double.isNaN(stunnerEverySeconds) ? 8.0 : Math.min(120.0, Math.max(1.0, stunnerEverySeconds));
@@ -1982,7 +2088,7 @@ public class SiegeConfig {
         smartNightUpSteps = clamp(smartNightUpSteps, 0, 20);
         smartNightDownSteps = clamp(smartNightDownSteps, 0, 20);
         smartNightUpStress = Double.isNaN(smartNightUpStress) ? 0.2 : clampDouble(smartNightUpStress, 0.0, 1.0);
-        smartNightDownStress = Double.isNaN(smartNightDownStress) ? 0.45
+        smartNightDownStress = Double.isNaN(smartNightDownStress) ? 0.50
                 : clampDouble(smartNightDownStress, smartNightUpStress, 2.0);
         smartNightDeathStress = Double.isNaN(smartNightDeathStress) ? 0.35 : clampDouble(smartNightDeathStress, 0.0, 2.0);
         smartNightUpKillsPerPlayer = Double.isNaN(smartNightUpKillsPerPlayer) ? 1.5 : clampDouble(smartNightUpKillsPerPlayer, 0.0, 100.0);
@@ -1990,7 +2096,10 @@ public class SiegeConfig {
         smartNightElitePerStep = Double.isNaN(smartNightElitePerStep) ? 0.05 : clampDouble(smartNightElitePerStep, 0.0, 0.5);
         smartNightSpecialLevelsPerStep = clamp(smartNightSpecialLevelsPerStep, 0, 50);
         smartNightAnyClassFromStep = clamp(smartNightAnyClassFromStep, 1, 21);
-        smartNightFewerPerStep = Double.isNaN(smartNightFewerPerStep) ? 0.05 : clampDouble(smartNightFewerPerStep, 0.0, 0.2);
+        smartNightFewerPerStep = Double.isNaN(smartNightFewerPerStep) ? 0.03 : clampDouble(smartNightFewerPerStep, 0.0, 0.2);
+        smartNightOuterWin = Double.isNaN(smartNightOuterWin) ? 0.02 : clampDouble(smartNightOuterWin, 0.0, 0.5);
+        smartNightOuterLoss = Double.isNaN(smartNightOuterLoss) ? 0.047 : clampDouble(smartNightOuterLoss, 0.0, 0.5);
+        smartNightOuterCap = Double.isNaN(smartNightOuterCap) ? 0.15 : clampDouble(smartNightOuterCap, 0.0, 0.5);
         smartNightNoSpecialsAt = clamp(smartNightNoSpecialsAt, -21, 0);
         smartNightPauseSeconds = Double.isNaN(smartNightPauseSeconds) ? 8.0 : clampDouble(smartNightPauseSeconds, 0.0, 60.0);
         if (Double.isNaN(zombieSpiderVsMelee) || zombieSpiderVsMelee <= 0) {
@@ -2131,6 +2240,7 @@ public class SiegeConfig {
             effectMobReplacements = defaultEffectMobReplacements();
         }
         catchUpMax = clamp(catchUpMax, 1, 10);
+        lateJoinerNights = clamp(lateJoinerNights, 0, 10);
         defeatSkillLoss = clamp(defeatSkillLoss, 0, 20);
 
         toolEquipChance = clampDouble(toolEquipChance, 0.0, 1.0);
@@ -2173,6 +2283,28 @@ public class SiegeConfig {
     /** A positive factor (0.05 to 10), or the default when unset or nonsense. */
     private static double positive(double value, double fallback) {
         return Double.isNaN(value) || value <= 0 ? fallback : Math.min(10.0, Math.max(0.05, value));
+    }
+
+    /** Tor 6.2: a level list of the Grundtabelle, null entries out, each 1-1000, sorted; null = the standard. */
+    private static List<Integer> budgetLevels(List<Integer> list, List<Integer> standard) {
+        List<Integer> out = new ArrayList<>();
+        for (Integer v : list == null ? standard : list) {
+            if (v != null) {
+                out.add(clamp(v, 1, 1000));
+            }
+        }
+        out.sort(null);
+        return out;
+    }
+
+    /** Tor 6.2: factors of the Grundtabelle, one per entry (missing or NaN = 1), each 0.25-4. */
+    private static List<Double> budgetFactors(List<Double> list, int size) {
+        List<Double> out = new ArrayList<>();
+        for (int i = 0; i < size; i++) {
+            Double v = list != null && i < list.size() ? list.get(i) : null;
+            out.add(v == null || v.isNaN() ? 1.0 : clampDouble(v, 0.25, 4.0));
+        }
+        return out;
     }
 
     private static int clamp(int value, int min, int max) {

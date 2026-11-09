@@ -56,7 +56,39 @@ public final class SiegeMath {
     public static double mobsWanted(int level, int playerCount, SiegeConfig cfg, double perPlayer) {
         double raw = cfg.baseMobsPerBatch + cfg.mobsPerLevel * growthSteps(level, cfg);
         double players = Math.max(0.0, cfg.soloScaling) + Math.max(0.0, perPlayer) * Math.max(0, playerCount - 1);
-        return raw * players;
+        return raw * players * budgetFactor(level, playerCount, cfg);
+    }
+
+    /**
+     * Tor 6.2 Grundtabelle (Formel A): the product of the kit-jump factors this level has reached and the
+     * factor of this group size's bucket. 1 with the standard values, so the waves stay as before.
+     */
+    public static double budgetFactor(int level, int playerCount, SiegeConfig cfg) {
+        double f = 1.0;
+        java.util.List<Integer> jumps = cfg.budgetJumpLevels;
+        java.util.List<Double> jf = cfg.budgetJumpFactors;
+        if (jumps != null && jf != null) {
+            for (int i = 0; i < jumps.size() && i < jf.size(); i++) {
+                if (jumps.get(i) != null && jf.get(i) != null && level >= jumps.get(i)) {
+                    f *= jf.get(i);
+                }
+            }
+        }
+        java.util.List<Integer> from = cfg.budgetGroupFrom;
+        java.util.List<Double> gf = cfg.budgetGroupFactors;
+        if (from != null && gf != null) {
+            int n = Math.max(1, playerCount);
+            int k = -1;
+            for (int i = 0; i < from.size() && i < gf.size(); i++) {
+                if (from.get(i) != null && gf.get(i) != null && n >= from.get(i)) {
+                    k = i;
+                }
+            }
+            if (k >= 0) {
+                f *= gf.get(k);
+            }
+        }
+        return f;
     }
 
     /** The cap of live monsters on a normal night: grows by livePerPlayer for every further player, at most maxLiveMobsCap. */
@@ -102,6 +134,37 @@ public final class SiegeMath {
             return table.get(Math.min(table.size() - 1, Math.max(0, playerCount - 1)));
         }
         return 1.0;
+    }
+
+    /**
+     * Tor 6.4: life of an elite or a boss for this many defenders here: 1 + perPlayer × further players
+     * (Diablo III's +50 % per player; normal monsters grow in number instead).
+     */
+    public static double groupHealth(int playerCount, double perPlayer) {
+        return 1.0 + Math.max(0.0, perPlayer) * Math.max(0, playerCount - 1);
+    }
+
+    /**
+     * Tor 6.4: the extra elite chance of each monster of a wave whose wanted size goes beyond the cap:
+     * (wanted − cap) ÷ overflowEliteCost elites spread over the cap's monsters, at most 1; 0 within the cap or off.
+     */
+    public static double overflowEliteChance(double wanted, int cap, SiegeConfig cfg) {
+        if (cfg.overflowEliteCost <= 0 || cap <= 0 || wanted <= cap) {
+            return 0.0;
+        }
+        return Math.min(1.0, (wanted - cap) / cfg.overflowEliteCost / cap);
+    }
+
+    /**
+     * Tor 6.4: whether a defender of the night still counts for its size: online and in range, or out of it
+     * (offline, or away from the night) for less than its grace. Coming back he counts again at once.
+     */
+    public static boolean countsForSize(boolean online, long offlineTicks, long offlineGrace,
+                                        boolean inRange, long awayTicks, long awayGrace) {
+        if (!online) {
+            return offlineTicks < offlineGrace;
+        }
+        return inRange || awayTicks < awayGrace;
     }
 
     /** Life factor for monsters a capped batch could not bring (overflowHealth; 1 = no overflow). */

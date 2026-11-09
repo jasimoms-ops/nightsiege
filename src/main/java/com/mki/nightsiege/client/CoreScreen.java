@@ -4790,6 +4790,11 @@ public class CoreScreen extends Screen {
                 gui.text(font, cells[i][1], cx, ry + 10, color, true);
             }
         }
+        if (stats.catchUpPool > 0) {
+            // The latecomer pool (Tor 6.7) at the foot of the card.
+            String pool = font.plainSubstrByWidth(Component.translatable("nightsiege.ui.late_pool", stats.catchUpPool).getString(), w - 16);
+            gui.text(font, pool, x + 8, y + h - 11, 0xFF55FFFF, true);
+        }
     }
 
     private void drawRanking(GuiGraphicsExtractor gui, Font font, int x, int y, int w, int h) {

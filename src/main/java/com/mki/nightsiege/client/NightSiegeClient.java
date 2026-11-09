@@ -170,6 +170,13 @@ public class NightSiegeClient implements ClientModInitializer {
                         if (roll != null) {
                             client.setScreenAndShow(new CrateScreen(roll));
                         }
+                    } else if ("crate_all".equals(payload.kind())) {
+                        // "Alle öffnen" (Tor 9.1 h): one overview of every crate opened.
+                        com.mki.nightsiege.core.CrateSummary summary =
+                                Json.fromJson(payload.json(), com.mki.nightsiege.core.CrateSummary.class);
+                        if (summary != null) {
+                            client.setScreenAndShow(new CrateSummaryScreen(summary));
+                        }
                     }
                 }));
         ClientPlayNetworking.registerGlobalReceiver(CoreNetworking.EventSkyPayload.TYPE,

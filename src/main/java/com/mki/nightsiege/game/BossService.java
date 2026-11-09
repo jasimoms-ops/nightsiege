@@ -118,6 +118,11 @@ public final class BossService {
         /** The defenders still standing, in the boss's world. */
         List<ServerPlayer> defenders();
 
+        /** Tor 6.4: the defenders the boss's life goes by (the night: those here); the standing ones by default. */
+        default int headcount() {
+            return Math.max(1, defenders().size());
+        }
+
         /** Everyone who sees the boss bar (the defenders, the fallen watching). */
         List<ServerPlayer> watchers();
 
@@ -169,6 +174,8 @@ public final class BossService {
     private boolean spawned;
     private boolean fallen;
     private double maxTotal = 1.0;
+    /** Tor 6.4: the group factor (1 + bossHealthPerExtraPlayer × further) the boss's life stands on now. */
+    private double groupFactor = 1.0;
     /** Who dealt the killing blow (for the champion's points), or null. */
     private UUID killer;
     final List<Part> parts = new ArrayList<>();
@@ -258,7 +265,7 @@ public final class BossService {
         if (spot == null) {
             return false;
         }
-        int defenders = Math.max(1, host.defenders().size());
+        int defenders = host.headcount();
         this.host = host;
         brain = BossBrains.create(kind, this);
         Mob boss = create(level, kind.entityId(), spot, host.random());
@@ -287,6 +294,7 @@ public final class BossService {
         forgetLooks();
         look(boss.getId(), kind.id());
         maxTotal = boss.getMaxHealth();
+        groupFactor = com.mki.nightsiege.core.SiegeMath.groupHealth(defenders, perPlayer);
         if (kind == BossKind.WARLORD) {
             Mob rider = create(level, BossKind.WARLORD_RIDER, spot, host.random());
             if (rider != null) {
@@ -600,6 +608,36 @@ public final class BossService {
         fallen = false;
         killer = null;
         maxTotal = 1.0;
+        groupFactor = 1.0;
+    }
+
+    /**
+     * Tor 6.4: someone joined or left the night: the boss (and his rider or second half) take the life of the new
+     * group, 1 + bossHealthPerExtraPlayer × further, and keep the share they still have (Monster Hunter World left
+     * a lone hunter with the group's boss). Invisible hit boxes stay as they are.
+     */
+    public void rescale(ServerLevel level, int defenders) {
+        if (!spawned || fallen || host == null || level == null) {
+            return;
+        }
+        double next = com.mki.nightsiege.core.SiegeMath.groupHealth(defenders, host.config().bossHealthPerExtraPlayer);
+        double ratio = next / groupFactor;
+        if (Math.abs(ratio - 1.0) < 1e-9) {
+            return;
+        }
+        for (UUID id : new UUID[] {bossId, riderId}) {
+            Entity e = id == null ? null : level.getEntity(id);
+            if (e instanceof LivingEntity l && l.isAlive()) {
+                float share = l.getMaxHealth() <= 0 ? 1f : l.getHealth() / l.getMaxHealth();
+                AttributeInstance life = l.getAttribute(Attributes.MAX_HEALTH);
+                if (life != null) {
+                    life.setBaseValue(life.getBaseValue() * ratio);
+                    l.setHealth(Math.max(1f, share * l.getMaxHealth()));
+                }
+            }
+        }
+        maxTotal *= ratio;
+        groupFactor = next;
     }
 
     private static void discard(ServerLevel level, UUID id) {

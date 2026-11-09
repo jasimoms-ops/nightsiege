@@ -9,6 +9,7 @@ import com.mki.nightsiege.core.PlaytestData;
 import com.mki.nightsiege.core.SiegeConfig;
 import com.mki.nightsiege.core.SiegeEvent;
 import com.mki.nightsiege.core.SkillClass;
+import com.mki.nightsiege.core.PlaytestAccess;
 import com.mki.nightsiege.core.SkillNode;
 import com.mki.nightsiege.core.SkillTree;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -77,6 +78,22 @@ public final class Playtest {
 
     private final SiegeManager m;
     private final Random random = new Random();
+    /** (Tor 9.1 j) Who started the running playtest (null: the console or before a restart). */
+    private UUID starter;
+    /** (Tor 9.1 j) Server tick of the last start, for the cooldown of non-OPs; -1 for none. */
+    private long lastStartTick = -1;
+    /** (Tor 9.1 j) Who said "mitmachen", and at which server tick. */
+    private final java.util.Map<UUID, Long> joins = new java.util.HashMap<>();
+    /** (Prüfer 09.11.) Started by a non-OP: the idle watch ends it after 10 min in "plan"/"paused". */
+    private boolean limited;
+    /** Game tick the current "plan"/"paused" began (-1: not waiting), its phase, and whether warned. */
+    private long idleSince = NO_WAIT;   // no wait running (not -1: a scene can age the wait below 0)
+    private static final long NO_WAIT = Long.MIN_VALUE;
+    private String idlePhase;
+    private boolean idleWarned;
+    /** For the scenes' diagnosis: calls of tick while a playtest runs, looks of the idle watch. */
+    private long tickCalls;
+    private long idleLooks;
 
     Playtest(SiegeManager manager) {
         this.m = manager;
@@ -183,7 +200,7 @@ public final class Playtest {
 
     /** Starts a playtest for every signed-up player online; returns null or the translation key of why not. */
     public String start(MinecraftServer server, int target) {
-        return start(server, target, null);
+        return start(server, target, (ServerPlayer) null);
     }
 
     /**
@@ -191,6 +208,73 @@ public final class Playtest {
      * playtest possible alone"), the others online go on as they were.
      */
     public String start(MinecraftServer server, int target, ServerPlayer alone) {
+        return start(server, target, alone == null ? null : List.of(alone));
+    }
+
+    // ------------------------------------------------------------------ start for everyone (Tor 9.1 j)
+
+    /** Whether that player started the running playtest. */
+    public boolean startedBy(UUID id) {
+        return running() && id != null && id.equals(starter);
+    }
+
+    /** Server tick of the last start, -1 for none. */
+    public long lastStartTick() {
+        return lastStartTick;
+    }
+
+    /** For scenes: forget the last start (no cooldown). */
+    public void resetCooldownForTests() {
+        lastStartTick = -1;
+    }
+
+    /** "/nightsiege playtest mitmachen": the player takes part in the next playtest a non-OP starts. */
+    public void join(ServerPlayer player, long now) {
+        joins.values().removeIf(at -> !PlaytestAccess.joinHolds(now, at));   // old ones go (Prüfer 09.11.)
+        joins.put(player.getUUID(), now);
+    }
+
+    /**
+     * The players of a start by a non-OP: the starter first, then (unless alone) those online who said
+     * "mitmachen" within the last minutes, registered and alive, at most {@link PlaytestAccess#MAX_PLAYERS}.
+     */
+    public List<ServerPlayer> chosenBy(MinecraftServer server, ServerPlayer self, boolean alone, long now) {
+        List<ServerPlayer> chosen = new ArrayList<>();
+        chosen.add(self);
+        joins.values().removeIf(at -> !PlaytestAccess.joinHolds(now, at));   // old ones go (Prüfer 09.11.)
+        if (!alone) {
+            for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+                Long at = joins.get(p.getUUID());
+                if (p != self && at != null && PlaytestAccess.joinHolds(now, at) && m.isRegistered(p)
+                        && !p.isSpectator() && !p.isDeadOrDying() && chosen.size() < PlaytestAccess.MAX_PLAYERS) {
+                    chosen.add(p);
+                }
+            }
+        }
+        return chosen;
+    }
+
+    /**
+     * Starts a playtest with exactly these players ({@code null}: every signed-up player online, the OP
+     * way); remembers the starter and the tick for the cooldown. Returns null or the key of why not.
+     */
+    public String start(MinecraftServer server, int target, List<ServerPlayer> chosen, ServerPlayer by, boolean byNonOp) {
+        String problem = start(server, target, chosen);
+        if (problem == null) {
+            limited = byNonOp;
+            idleSince = NO_WAIT;
+            starter = by == null ? null : by.getUUID();
+            lastStartTick = server.getTickCount();
+            if (chosen != null) {
+                for (ServerPlayer p : chosen) {
+                    joins.remove(p.getUUID());
+                }
+            }
+        }
+        return problem;
+    }
+
+    private String start(MinecraftServer server, int target, List<ServerPlayer> chosen) {
         if (running()) {
             return "nightsiege.playtest.already";
         }
@@ -207,11 +291,13 @@ public final class Playtest {
             giveBackWaiting(p);   // online again but not given back yet: before anything is taken
         }
         List<ServerPlayer> players = new ArrayList<>();
-        if (alone != null) {
-            if (!m.isRegistered(alone)) {
-                return "nightsiege.playtest.not_registered";
+        if (chosen != null) {
+            for (ServerPlayer p : chosen) {
+                if (!m.isRegistered(p)) {
+                    return "nightsiege.playtest.not_registered";
+                }
+                players.add(p);
             }
-            players.add(alone);
         } else {
             for (ServerPlayer p : server.getPlayerList().getPlayers()) {
                 if (m.isRegistered(p) && !p.isSpectator() && !p.isDeadOrDying()) {
@@ -289,6 +375,8 @@ public final class Playtest {
         m.save().camp = null;
         m.save().machinesDay = -1L;
         m.save().playtest = s;
+        limited = false;   // an OP start or a scene's; the start by a non-OP sets it right after
+        idleSince = NO_WAIT;
         m.persist();   // written before anything of the players is touched
         for (ServerPlayer p : players) {
             PlayerSkills fresh = new PlayerSkills();
@@ -329,6 +417,7 @@ public final class Playtest {
             case "tree" -> m.openCoreWindow(player);
             case "ready" -> toggleReady(player, pp);
             case "crates" -> openCrate(player, pp);
+            case "crates_all" -> openAllCrates(player, pp);   // the crate window's "Alle öffnen" (Tor 9.1 h)
             default -> send(player, true);
         }
     }
@@ -340,6 +429,14 @@ public final class Playtest {
 
     private void toggleReady(ServerPlayer player, SiegeSave.PlaytestPlayer pp) {
         SiegeSave.PlaytestState s = state();
+        Boolean setupReady = s != null && "night".equals(s.phase) ? m.toggleSetupReady(player.getUUID()) : null;
+        if (setupReady != null) {
+            // Tor 9.1 (i): "Bereit" in the build-up before the night (again: not ready, breaks the countdown off).
+            broadcast(player.level().getServer(), Component.translatable(setupReady ? "nightsiege.playtest.setup_ready"
+                    : "nightsiege.playtest.setup_unready", player.getDisplayName())
+                    .withStyle(setupReady ? ChatFormatting.GREEN : ChatFormatting.GRAY));
+            return;
+        }
         boolean paused = s != null && "paused".equals(s.phase);
         if (!planning() && !paused) {
             send(player, true);
@@ -411,6 +508,31 @@ public final class Playtest {
         send(player, false);
     }
 
+    /**
+     * Every crate the playtest still owes this player at once (Tor 9.1 h): one after the other with the
+     * same kind, roll and statistics line as {@link #openCrate}, then one overview window.
+     */
+    private void openAllCrates(ServerPlayer player, SiegeSave.PlaytestPlayer pp) {
+        SiegeSave.PlaytestState s = state();
+        PlayerSkills own = m.save().skillsOf(player.getUUID().toString());
+        SkillClass clazz = own.clazz();
+        if (pp.cratesDue <= 0 || clazz == null || s == null) {
+            player.sendSystemMessage(Component.translatable("nightsiege.playtest.no_crates").withStyle(ChatFormatting.GRAY));
+            send(player, true);
+            return;
+        }
+        java.util.List<com.mki.nightsiege.core.CrateRoll> rolls = new java.util.ArrayList<>();
+        while (pp.cratesDue > 0) {
+            CrateKind kind = crateKind(pp.cratesGiven + 1, m.config());
+            rolls.add(m.crates().rollOwed(player, clazz, kind, level()));
+            pp.cratesGiven++;
+            pp.cratesDue--;
+        }
+        m.persist();
+        m.crates().finishAll(player, rolls);
+        send(player, false);
+    }
+
     /** The kind of a player's n-th crate: every boss night (one in bossEvery) brought a fragment crate, event nights an event crate. */
     private CrateKind crateKind(int index, SiegeConfig cfg) {
         if (cfg.bossesEnabled && cfg.bossEvery > 0
@@ -434,6 +556,13 @@ public final class Playtest {
         SiegeSave.PlaytestState s = state();
         if (s == null || s.finished) {
             return;
+        }
+        tickCalls++;
+        // The idle watch counts server ticks, not the world's game time (that one stops with /tick freeze
+        // and in the client gametest, 09.11. pt-start 8): once a second.
+        long serverTick = server.getTickCount();
+        if (serverTick % 20 == 0 && idleWatch(server, s, serverTick)) {
+            return;   // a non-OP's playtest stood still too long: it ended (Prüfer 09.11.)
         }
         long now = server.overworld().getGameTime();
         if (now % 20 != 0) {
@@ -952,7 +1081,7 @@ public final class Playtest {
             // Playtest 2 (Simon 04.11.): the event picked for this night at the start, never none (a boss
             // night has none); a playtest of before rolls one like a real night.
             ok = m.prepareTest(server, level, new BlockPos(core.x, core.y, core.z), lvl,
-                    boss != null ? SiegeEvent.NONE : eventOf(s), boss);
+                    boss != null ? SiegeEvent.NONE : eventOf(s), boss, true);   // Tor 9.1 (i): with the build-up
         }
         // s.campWon stays until the next step: a night broken off by a pause comes again with the machines.
         if (!ok) {
@@ -1316,6 +1445,61 @@ public final class Playtest {
     }
 
     // ------------------------------------------------------------------ the end
+
+    /**
+     * (Prüfer 09.11.) A playtest a non-OP started may not wait for ever in "plan"/"paused" (the real
+     * nights wait meanwhile): a warning a minute before, then the normal end. True when it ended.
+     */
+    private boolean idleWatch(MinecraftServer server, SiegeSave.PlaytestState s, long now) {
+        idleLooks++;
+        if (!"plan".equals(s.phase) && !"paused".equals(s.phase)) {
+            idleSince = NO_WAIT;
+            return false;
+        }
+        if (idleSince == NO_WAIT || !s.phase.equals(idlePhase)) {
+            idleSince = now;   // a new wait begins: a step forward was made
+            idlePhase = s.phase;
+            idleWarned = false;
+            return false;
+        }
+        switch (PlaytestAccess.idleStep(limited, now - idleSince, idleWarned)) {
+            case WARN -> {
+                idleWarned = true;
+                for (ServerPlayer p : online(server, s)) {
+                    p.sendSystemMessage(Component.translatable("nightsiege.playtest.idle_warn").withStyle(ChatFormatting.RED));
+                }
+            }
+            case END -> {
+                finish(server, "nightsiege.playtest.idle_end");
+                return true;
+            }
+            default -> {
+            }
+        }
+        return false;
+    }
+
+    /** For scenes: the current wait began that many ticks earlier. */
+    public void ageIdleForTests(MinecraftServer server, long ticks) {
+        SiegeSave.PlaytestState s = state();
+        if (idleSince == NO_WAIT && s != null && ("plan".equals(s.phase) || "paused".equals(s.phase))) {
+            // The watch had not looked yet (it checks once a second; a slow start left the scene ahead of it,
+            // 09.11. pt-start 8): the wait begins now, as the watch's first look would set it.
+            idleSince = server.getTickCount();
+            idlePhase = s.phase;
+            idleWarned = false;
+        }
+        if (idleSince != NO_WAIT) {
+            idleSince -= ticks;
+        }
+    }
+
+    /** For scenes: the idle watch's state in one line (diagnosis). */
+    public String idleInfoForTests(MinecraftServer server) {
+        return "nonOp=" + limited + " since=" + idleSince + " idleTicks=" + (idleSince == NO_WAIT ? -1 : server.getTickCount() - idleSince)
+                + " phase=" + idlePhase + " warned=" + idleWarned + " looks=" + idleLooks + " tickCalls=" + tickCalls
+                + " serverTick=" + server.getTickCount() + " gameTime=" + server.overworld().getGameTime();
+    }
 
     /** /nightsiege playtest stop, the last night's end or a restart: everything back as it was. */
     public void finish(MinecraftServer server, String messageKey) {
