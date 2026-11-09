@@ -337,6 +337,16 @@ final class EliteScenes {
             Elites.make(level, two, EnumSet.allOf(Elites.Affix.class), cfg);
             PlayerTeam team3 = level.getServer().getScoreboard().getPlayersTeam(two.getScoreboardName());
             check(team3 != null && Elites.TEAM_BOTH.equals(team3.getName()) && Elites.affixes(two).size() == 2, "both: purple, two affixes");
+            // Tor 9b (Simon 09.11.): a breeze elite gets half the life bonus, its affixes stay.
+            Mob breeze0 = mob(level, EntityTypes.BREEZE, player.getX() + 6, player.getY(), player.getZ() - 4);
+            Mob breeze = mob(level, EntityTypes.BREEZE, player.getX() - 6, player.getY(), player.getZ() - 4);
+            Elites.make(level, breeze, EnumSet.of(Elites.Affix.WOUNDS), cfg);
+            double bl = breeze.getMaxHealth() / breeze0.getMaxHealth();
+            log("breeze elite: life x" + f(bl));
+            check(Math.abs(bl - (1 + (cfg.eliteMobLife - 1) / 2)) < 0.01 && Elites.has(breeze, Elites.Affix.WOUNDS),
+                    "a breeze elite has half the bonus (x" + f(bl) + "), same affix");
+            breeze0.discard();
+            breeze.discard();
             // Not for a champion or a nemesis-like special one.
             Mob champ = mob(level, EntityTypes.ZOMBIE, player.getX() - 2, player.getY(), player.getZ() + 6);
             champ.addTag(MobFactory.TAG_ELITE);

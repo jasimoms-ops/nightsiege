@@ -148,8 +148,10 @@ public final class Elites {
             mob.addTag(a.tag());
         }
         AttributeInstance life = mob.getAttribute(Attributes.MAX_HEALTH);
-        if (life != null && !life.hasModifier(LIFE) && cfg.eliteMobLife > 1.0) {
-            life.addPermanentModifier(new AttributeModifier(LIFE, cfg.eliteMobLife - 1.0, AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
+        double bonus = com.mki.nightsiege.core.EliteLife.bonus(
+                net.minecraft.world.entity.EntityType.getKey(mob.getType()).toString(), cfg.eliteMobLife);
+        if (life != null && !life.hasModifier(LIFE) && bonus > 0) {
+            life.addPermanentModifier(new AttributeModifier(LIFE, bonus, AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
             mob.setHealth(mob.getMaxHealth());
         }
         SiegeManager sm = SiegeManager.get();
