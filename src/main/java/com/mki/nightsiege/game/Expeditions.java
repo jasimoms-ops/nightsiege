@@ -4400,6 +4400,15 @@ public final class Expeditions {
         }
     }
 
+    /** Tests (scene dungeonregeln): a (fake) player counts as a fighter or not, within one server step. */
+    public void testFighter(UUID id, boolean on) {
+        if (on) {
+            fighters.add(id);
+        } else {
+            fighters.remove(id);
+        }
+    }
+
     /** Tests: one step of the fight now (as every half second). */
     public void testTick(MinecraftServer server) {
         SiegeSave.ExpeditionRecord rec = record();
