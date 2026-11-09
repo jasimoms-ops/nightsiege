@@ -25,6 +25,41 @@ class Krieger410Test {
         assertEquals(0.8, WarriorSpiritMath.whirlPush(false), 1e-9);
     }
 
+    /** CI 4.10: turns 2 and 3 of Klingensturm missed, the monsters had slid out (vanilla knockback + lift on top). */
+    @Test
+    void bladestormKeepsMonstersInReach() {
+        double reach = SkillValues.get("whirlwind", "radius1", -1);   // the smallest radius (rank 1)
+        double start = 2.5;                                           // a monster 2.5 out (the scene: 2.5 and 2.9, radius 5)
+        double before = slide(WarriorSpiritMath.whirlPush(true) + 0.4, 0.4);   // old: 0.4 knockback and hop on top
+        assertTrue(start + 2 * before > reach, "the old way slid out: " + (start + 2 * before));
+        double now = slide(WarriorSpiritMath.whirlPush(true), WarriorSpiritMath.whirlLift(true));
+        assertTrue(start + 2 * now < reach, "turn 3 still reaches: " + (start + 2 * now) + " < " + reach);
+        assertEquals(0.3, WarriorSpiritMath.whirlLift(false), 1e-9);
+    }
+
+    /** Blocks a monster slides after a push (Minecraft: air drag 0.91, gravity 0.08, ground friction 0.546). */
+    private static double slide(double push, double lift) {
+        double x = 0.0;
+        double y = 0.0;
+        double vx = push;
+        double vy = lift;
+        for (int t = 0; t < 100; t++) {
+            x += vx;
+            if (y > 0.0 || vy > 0.0) {
+                y += vy;
+                vy = (vy - 0.08) * 0.98;
+                vx *= 0.91;
+                if (y <= 0.0) {
+                    y = 0.0;
+                    vy = 0.0;
+                }
+            } else {
+                vx *= 0.546;
+            }
+        }
+        return x;
+    }
+
     @Test
     void rageGrowsWithLifeMissing() {
         assertEquals(0.0, WarriorSpiritMath.missing(20, 20), 1e-9);

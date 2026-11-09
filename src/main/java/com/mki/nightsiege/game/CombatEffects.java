@@ -367,8 +367,12 @@ public final class CombatEffects {
         DamageSource source = level.damageSources().playerAttack(player);
         int hits = 0;
         for (LivingEntity victim : enemies(level, center, r, 1.5)) {
+            Vec3 before = victim.getDeltaMovement();
             bonusHit(level, victim, source, damage);
-            pushAway(victim, center, WarriorSpiritMath.whirlPush(storm), 0.3);   // Klingensturm: 0.25, turns 2 and 3 hit
+            if (storm) {
+                victim.setDeltaMovement(before);   // no vanilla knockback (0.4 + hop) on top: only the storm's own push
+            }
+            pushAway(victim, center, WarriorSpiritMath.whirlPush(storm), WarriorSpiritMath.whirlLift(storm));   // Klingensturm: 0.25 flat, turns 2 and 3 hit
             hits++;
         }
         if (hits > 0 && SkillTree.has(skills, "w_bloodstorm")) {

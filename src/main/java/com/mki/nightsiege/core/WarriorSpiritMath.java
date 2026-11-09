@@ -325,6 +325,11 @@ public final class WarriorSpiritMath {
         return bladestorm ? SkillValues.get("w_bladestorm", "push", 0.25) : 0.8;
     }
 
+    /** Wirbelwind: the lift of a turn's push (none with Klingensturm: airborne they slide out of the radius). */
+    public static double whirlLift(boolean bladestorm) {
+        return bladestorm ? 0.0 : 0.3;
+    }
+
     /** Klingenmeister: the factor on the knockback of his sword hits while the Kombo is on. */
     public static double comboKnockback() {
         return Math.max(0.0, SkillValues.get("w_combo", "knock", 0.3));
