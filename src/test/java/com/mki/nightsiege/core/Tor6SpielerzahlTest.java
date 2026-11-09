@@ -9,41 +9,49 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** Tor 6.4 (Chef 09.11.): group size – flat damage and life, elite/boss life, presence, cap, tick gauge, migration 25. */
+/**
+ * Tor 6.4 (Chef 09.11.): group size – presence, cap, tick gauge. Chef 09.11. 12:05: the solo damping (tables
+ * 0.7/0.9/0.95/1.0) stays and the elites' life does not grow with the group; migration 25 changes nothing.
+ */
 class Tor6SpielerzahlTest {
 
     private static SiegeConfig oldServer() {
         SiegeConfig c = new SiegeConfig();
-        c.settingsVersion = 24;
+        c.settingsVersion = 23;
         c.damageTakenByPlayers = new ArrayList<>(List.of(0.7, 0.9, 0.95, 1.0));
         c.mobHealthByPlayers = new ArrayList<>(List.of(0.7, 0.9, 0.95, 1.0));
         return c;
     }
 
     @Test
-    void freshConfigIsFlat() {
+    void freshConfigKeepsSoloDamping() {
         SiegeConfig fresh = new SiegeConfig();
         fresh.sanitize();
         assertEquals(SiegeConfig.SETTINGS_VERSION, fresh.settingsVersion);
+        assertEquals(List.of(0.7, 0.9, 0.95, 1.0), fresh.damageTakenByPlayers);
+        assertEquals(List.of(0.7, 0.9, 0.95, 1.0), fresh.mobHealthByPlayers);
+        assertEquals(0.7, SiegeMath.damageTakenForGroup(1, fresh), 1e-9);
+        assertEquals(0.9, SiegeMath.healthForGroup(2, fresh), 1e-9);
+        assertEquals(1.0, SiegeMath.damageTakenForGroup(10, fresh), 1e-9);
+        assertEquals(0.0, fresh.eliteHealthPerExtraPlayer, 1e-9);
         for (int n = 1; n <= 10; n++) {
-            assertEquals(1.0, SiegeMath.damageTakenForGroup(n, fresh), 1e-9);
-            assertEquals(1.0, SiegeMath.healthForGroup(n, fresh), 1e-9);
+            assertEquals(1.0, SiegeMath.groupHealth(n, fresh.eliteHealthPerExtraPlayer), 1e-9);   // elites ×1
         }
-        assertEquals(0.5, fresh.eliteHealthPerExtraPlayer, 1e-9);
         assertEquals(0.5, fresh.bossHealthPerExtraPlayer, 1e-9);
         assertEquals(120, fresh.maxLiveMobsCap);
         assertFalse(fresh.soloHelper);
     }
 
     @Test
-    void serverStandardBecomesFlatOnce() {
+    void serverTableFromVersion23Stays() {
         SiegeConfig server = oldServer();
         server.sanitize();
         assertEquals(SiegeConfig.SETTINGS_VERSION, server.settingsVersion);
-        assertTrue(server.damageTakenByPlayers.isEmpty());
-        assertTrue(server.mobHealthByPlayers.isEmpty());
-        assertEquals(1.0, SiegeMath.damageTakenForGroup(1, server), 1e-9);   // was 0.7
-        assertEquals(1.0, SiegeMath.healthForGroup(2, server), 1e-9);        // was 0.9
+        assertEquals(List.of(0.7, 0.9, 0.95, 1.0), server.damageTakenByPlayers);
+        assertEquals(List.of(0.7, 0.9, 0.95, 1.0), server.mobHealthByPlayers);
+        assertEquals(0.7, SiegeMath.damageTakenForGroup(1, server), 1e-9);
+        assertEquals(0.9, SiegeMath.healthForGroup(2, server), 1e-9);
+        assertEquals(0.0, server.eliteHealthPerExtraPlayer, 1e-9);
     }
 
     @Test
@@ -70,13 +78,14 @@ class Tor6SpielerzahlTest {
     }
 
     @Test
-    void numbersGrowWithPlayersDamageDoesNot() {
+    void numbersGrowWithPlayers() {
         SiegeConfig c = new SiegeConfig();
         c.settingsVersion = 16;   // the server's way: soloScaling 0.6, the cap table
         c.sanitize();
         double one = SiegeMath.mobsWanted(10, 1, c, c.playerScaling);
         assertEquals(one * 4, SiegeMath.mobsWanted(10, 4, c, c.playerScaling), 1e-9);   // 0.6 per player, linear
-        assertEquals(SiegeMath.damageTakenForGroup(1, c), SiegeMath.damageTakenForGroup(8, c), 1e-9);
+        assertEquals(0.7, SiegeMath.damageTakenForGroup(1, c), 1e-9);   // the solo damping stays (Chef 09.11. 12:05)
+        assertEquals(1.0, SiegeMath.damageTakenForGroup(8, c), 1e-9);
     }
 
     @Test

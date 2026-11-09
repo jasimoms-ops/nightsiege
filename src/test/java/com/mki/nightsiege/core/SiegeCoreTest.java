@@ -106,8 +106,8 @@ class SiegeCoreTest {
         assertEquals(33, SiegeMath.liveCap(4, server));
         assertEquals(114, SiegeMath.liveCap(10, server));
         assertEquals(120, SiegeMath.liveCap(12, server));   // past the table +8 per player, at most 120
-        assertEquals(1.0, SiegeMath.damageTakenForGroup(1, server), 1e-9);   // Tor 6.4 (migration 25): flat again
-        assertEquals(1.0, SiegeMath.healthForGroup(3, server), 1e-9);
+        assertEquals(0.7, SiegeMath.damageTakenForGroup(1, server), 1e-9);   // Chef 09.11. 12:05: the solo damping stays
+        assertEquals(0.95, SiegeMath.healthForGroup(3, server), 1e-9);
         assertEquals(1.0, SiegeMath.healthForGroup(8, server), 1e-9);
         assertTrue(server.quotaSkipsVanished);
         assertEquals(0.9, server.subclassDamage.get("alchemist"), 1e-9);

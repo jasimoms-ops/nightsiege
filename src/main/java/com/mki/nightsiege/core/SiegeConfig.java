@@ -146,8 +146,9 @@ public class SiegeConfig {
     /**
      * Tor 6.4 (Chef 09.11.): extra life of a night's elite for every defender here beyond the first
      * (1 + share × further, like the bosses' bossHealthPerExtraPlayer). Rescaled when someone joins or leaves.
+     * Chef 09.11. 12:05: off in the package (0 = ×1 for any group); a parameter for Tor 8 (e.g. 0.5).
      */
-    public double eliteHealthPerExtraPlayer = 0.5;
+    public double eliteHealthPerExtraPlayer = 0.0;
     /**
      * Tor 6.4: the monsters a wave wants beyond the live cap (maxLiveMobsCap, at most 120) come as elites:
      * this many left-out monsters buy one elite (0 = off; the budget is lost as before). Measured in Tor 7/8.
@@ -1479,7 +1480,7 @@ public class SiegeConfig {
         baseMobsPerBatch = Math.max(1, baseMobsPerBatch);
         mobsPerLevel = Math.max(0.0, mobsPerLevel);
         playerScaling = Math.max(0.0, playerScaling);
-        eliteHealthPerExtraPlayer = Double.isNaN(eliteHealthPerExtraPlayer) ? 0.5 : clampDouble(eliteHealthPerExtraPlayer, 0.0, 3.0);
+        eliteHealthPerExtraPlayer = Double.isNaN(eliteHealthPerExtraPlayer) ? 0.0 : clampDouble(eliteHealthPerExtraPlayer, 0.0, 3.0);
         overflowEliteCost = Double.isNaN(overflowEliteCost) ? 3.0 : clampDouble(overflowEliteCost, 0.0, 100.0);
         presentRadius = Double.isNaN(presentRadius) ? 180.0 : clampDouble(presentRadius, 16.0, 2000.0);
         presentGraceSeconds = clamp(presentGraceSeconds, 0, 600);
@@ -2003,15 +2004,9 @@ public class SiegeConfig {
             settingsVersion = 24;
         }
         if (settingsVersion < 25) {
-            // Tor 6.4 (Chef 09.11.): the monsters' damage and the normal monsters' life are the same for every group
-            // size (more players bring more monsters, not tougher ones). The tables of update 17 on their old standard
-            // become the target (empty = 1); any other own table stays.
-            if (List.of(0.7, 0.9, 0.95, 1.0).equals(damageTakenByPlayers)) {
-                damageTakenByPlayers = new ArrayList<>();
-            }
-            if (List.of(0.7, 0.9, 0.95, 1.0).equals(mobHealthByPlayers)) {
-                mobHealthByPlayers = new ArrayList<>();
-            }
+            // Tor 6.4 wanted flat tables here (damageTakenByPlayers, mobHealthByPlayers empty). Chef 09.11. 12:05: out
+            // of the package, the solo damping 0.7/0.9/0.95/1.0 stays; this step changes nothing. Tor 8 switches it
+            // by setting both tables to [] in the config (no migration needed).
             settingsVersion = 25;
         }
         if (settingsVersion < 27) {
