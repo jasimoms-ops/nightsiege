@@ -205,6 +205,7 @@ public final class TeamSim {
     }
 
     /**
+     * "nur=<unterklasse>" = every bot that subclass (Tor 4c.4).
      * "L1,3,5 G2,4 N6 T1 voll shard=0/4 karte=… V=neu:monsterDamage=0.8,mobsPerLevel=1.6 trapDamage=0.7".
      */
     static void parse(String args) {
@@ -305,7 +306,7 @@ public final class TeamSim {
                 for (int i = 0; i < randomRuns; i++) {
                     cell.add(new Run("", level, group, "zufall", n++, compose("zufall", group, seed(level, group, "zufall", i))));
                 }
-                if (group >= 2) {
+                if (group >= 2 && common.get("nur") == null) {
                     for (String t : TEMPLATES) {
                         for (int i = 0; i < templateRuns; i++) {
                             cell.add(new Run("", level, group, t, n++, compose(t, group, seed(level, group, t, i))));
@@ -366,6 +367,18 @@ public final class TeamSim {
         Random random = new Random(seed);
         List<String[]> out = new ArrayList<>();
         List<String[]> all = new ArrayList<>(List.of(MeleeSim.SUBCLASSES));
+        // Sim knob "nur=golemsmith" (Tor 4c.4): every bot of every group is this one subclass.
+        String only = common.get("nur");
+        if (only != null && !only.isBlank()) {
+            for (String[] s : MeleeSim.SUBCLASSES) {
+                if (s[2].equals(only.trim())) {
+                    for (int i = 0; i < group; i++) {
+                        out.add(s);
+                    }
+                    return out;
+                }
+            }
+        }
         switch (mix) {
             case "tank_heiler" -> {
                 out.add(pick(random, TeamBrain.Role.TANK));
@@ -970,7 +983,7 @@ public final class TeamSim {
         for (Map.Entry<String, String> e : over.entrySet()) {
             String key = e.getKey();
             String value = e.getValue();
-            if (key.startsWith("koennen") || key.startsWith("wagemut") || key.equals("mit")) {
+            if (key.startsWith("koennen") || key.startsWith("wagemut") || key.equals("mit") || key.equals("nur")) {
                 continue;   // the bots' knobs, not config values
             }
             try {
