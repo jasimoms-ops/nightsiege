@@ -392,7 +392,7 @@ public final class MeleeSim {
         SkillClass clazz = skills.clazz();
         boolean guardian = clazz == SkillClass.GUARDIAN;
         boolean bulwark = SkillTree.SUB_BULWARK.equals(m.skillTree().subclassOf(skills));
-        if (player.position().distanceToSqr(Vec3.atBottomCenterOf(standPos())) > 36.0) {
+        if (player.position().distanceToSqr(Vec3.atBottomCenterOf(standPos())) > 36.0 && m.trapService().seatTop(player) == null) {
             stand(player);
         }
         Mob close = nearest(level, player, 10.0);
@@ -441,7 +441,7 @@ public final class MeleeSim {
         // Tor 4b: the engineer fires his places 2 and 3 whenever they are ready (no remote any more).
         if (clazz == SkillClass.ENGINEER && now >= nextRemote) {
             nextRemote = now + 10;
-            EngineerAbilities.botUse(m, player, close);
+            EngineerAbilities.botUse(m, player, close != null ? close : far);
         }
 
         boolean ranged = clazz == SkillClass.ARCHER || clazz == SkillClass.ENGINEER;
@@ -1006,7 +1006,7 @@ public final class MeleeSim {
                     dummy(m, level, e.getKey(), run.level());
                 }
             }
-            if (player.position().distanceToSqr(Vec3.atBottomCenterOf(standPos())) > 4.0) {
+            if (player.position().distanceToSqr(Vec3.atBottomCenterOf(standPos())) > 4.0 && m.trapService().seatTop(player) == null) {   // seated engineer stays (Tor 4b)
                 stand(player);
             }
             try {

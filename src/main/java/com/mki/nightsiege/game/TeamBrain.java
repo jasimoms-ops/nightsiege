@@ -357,7 +357,8 @@ final class TeamBrain {
         boolean bulwark = SkillTree.SUB_BULWARK.equals(m.skillTree().subclassOf(skills));
         Vec3 home = Vec3.atBottomCenterOf(post);
         boolean melee = role == Role.TANK || role == Role.MELEE || role == Role.HEALER || role == Role.SUMMONER;
-        if (player.isInWall() || player.isInLava() || player.position().distanceToSqr(home) > (melee ? (leash + 3) * (leash + 3) : 9.0)) {
+        boolean seated = m.trapService().seatTop(player) != null;   // Tor 4b: a seated engineer stays in his tower
+        if (player.isInWall() || player.isInLava() || !seated && player.position().distanceToSqr(home) > (melee ? (leash + 3) * (leash + 3) : 9.0)) {
             stand(player, level);   // pushed into a wall, into lava or too far away: back to the post
         }
         Mob close = MeleeSim.nearest(level, player, melee ? leash + 4 : 10.0);

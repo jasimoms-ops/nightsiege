@@ -608,18 +608,61 @@ public final class EngineerAbilities {
         player.connection.send(new ClientboundSetActionBarTextPacket(text));
     }
 
-    /** For the bots (bench, team sim): fire places 2 and 3 when ready, looking at the target. */
+    /**
+     * For the bots (bench, team sim), like an average player: with an own arrow turret or tesla coil
+     * close by he sits in it (and holds fire); each ability fires when it is ready and the target is in
+     * its reach, aimed at the body (Durchschlag, Kettenblitz) or at the ground under it (fields, Zielpunkt).
+     */
     static void botUse(SiegeManager m, ServerPlayer player, LivingEntity aim) {
+        if (aim == null || !aim.isAlive() || !(player.level() instanceof ServerLevel level)) {
+            return;   // no target: an average player keeps his abilities
+        }
+        TrapService traps = m.trapService();
+        botSeat(level, traps, player, aim);
+        Vec3 seat = traps.seatTop(player);
+        double dist = origin(player, seat).distanceTo(aim.position().add(0, aim.getBbHeight() * 0.5, 0));
         List<UltState.Slot> slots = m.abilitySlots(player);
         for (int i = 0; i < slots.size(); i++) {
             String id = slots.get(i).id;
-            if (isOne(id) && slots.get(i).cooldownTicks <= 0) {
-                if (aim != null) {
-                    player.lookAt(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.EYES,
-                            aim.position().add(0, aim.getBbHeight() * 0.5, 0));
-                }
-                m.onCoreAction(player, "slot:" + i);
+            if (!isOne(id) || slots.get(i).cooldownTicks > 0 || dist > botReach(id) * seatReach(seat)) {
+                continue;
             }
+            boolean ground = STATIC.equals(id) || GRENADE.equals(id) || TARGET.equals(id);
+            player.lookAt(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.EYES,
+                    ground ? aim.position().add(0, -0.1, 0) : aim.position().add(0, aim.getBbHeight() * 0.5, 0));
+            m.onCoreAction(player, "slot:" + i);
+        }
+    }
+
+    /** The reach a bot waits for before it fires (before the seat; Fernsteuerung left out). */
+    private static double botReach(String id) {
+        return switch (id) {
+            case PIERCE -> val(PIERCE, "range", 32);
+            case CHAIN -> val(CHAIN, "range", 16);
+            case STATIC -> val(STATIC, "range", 14);
+            case GRENADE -> val(GRENADE, "range", 14);
+            case TARGET -> val(TARGET, "range", 48);
+            case SUPPRESS -> val(SUPPRESS, "radius", 16);
+            case BOIL -> val(BOIL, "radius", 16);
+            default -> 0;
+        };
+    }
+
+    /** A bot sits in an own arrow turret or tesla coil within 5 blocks, when the target is within 24 of it. */
+    private static void botSeat(ServerLevel level, TrapService traps, ServerPlayer player, LivingEntity aim) {
+        if (traps.seatTop(player) == null) {
+            for (Vec3 at : traps.ownTrapsNear(level, player, player.position(), 5.0)) {
+                BlockPos pos = BlockPos.containing(at);
+                if (TowerBlock.mannable(ModContent.trapOf(level.getBlockState(pos))) && at.distanceTo(aim.position()) <= 24.0) {
+                    traps.tryMount(level, pos, player, net.minecraft.world.item.ItemStack.EMPTY);
+                    if (traps.seatTop(player) != null) {
+                        break;
+                    }
+                }
+            }
+        }
+        if (traps.seatTop(player) != null) {
+            traps.onManAction(player, true);   // a seated player holds fire
         }
     }
 }
