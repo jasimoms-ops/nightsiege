@@ -342,8 +342,18 @@ public class SiegeConfig {
     public int wavesPerPoint = 2;
     /** Factor on the points from survived waves (1.5 = half as much again); the test kits count with it too. */
     public double pointGainMultiplier = 1.5;
-    /** Players who missed nights: waves count (missed + 1) times in their next night, at most this often. */
+    /**
+     * The old catch-up (only with {@link #lateJoiners} off): waves count (missed + 1) times in the next
+     * night, at most this often. Shut down by Tor 6.7, kept so it can be switched back.
+     */
     public int catchUpMax = 4;
+    /**
+     * The latecomer system (Tor 6.7, formula D) instead of the multiple waves: a points floor at the
+     * night's start and a pool that pays every held wave twice until caught up. Off = the old catchUpMax.
+     */
+    public boolean lateJoiners = true;
+    /** Floor and pool of the latecomer system: the points of a steady player minus this many nights. */
+    public int lateJoinerNights = 2;
     /** Defenders who die in a siege keep their inventory. */
     public boolean keepInventoryInSiege = true;
     /** Learned levels each defender loses when a night is lost (the level stays, the night comes again). */
@@ -2197,6 +2207,7 @@ public class SiegeConfig {
             effectMobReplacements = defaultEffectMobReplacements();
         }
         catchUpMax = clamp(catchUpMax, 1, 10);
+        lateJoinerNights = clamp(lateJoinerNights, 0, 10);
         defeatSkillLoss = clamp(defeatSkillLoss, 0, 20);
 
         toolEquipChance = clampDouble(toolEquipChance, 0.0, 1.0);
