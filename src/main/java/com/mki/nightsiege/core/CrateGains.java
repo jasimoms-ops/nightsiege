@@ -134,13 +134,15 @@ public final class CrateGains {
         // "blendgranaten" left the crates (Simon 29.10.): the kit's flash grenade is back after 7 s; owners got points back.
         add("pfeilkiste", e, CrateRarity.COMMON, 1, false, SkillTree.WAY_MECHANICS, true);
         add("werkzeugtasche", e, CrateRarity.COMMON, 1, false, "", true);
-        add("verstaerkt", e, CrateRarity.UNCOMMON, 3, false, "", true);
-        add("ersatzbatterie", e, CrateRarity.UNCOMMON, 1, false, "", true);
+        add("verstaerkt", e, CrateRarity.COMMON, 3, false, "", true);   // Tor 4b.5: U -> C (Chemie had one common gain)
+        add("kalibrierung", e, CrateRarity.COMMON, 3, false, "", true);   // Tor 4b.5: +5 % damage of all towers per stage
+        add("ersatzbatterie", e, CrateRarity.UNCOMMON, 1, false, "", true);   // Tor 4b: "Notschalter", places 2+3 ready 1x a night
+        add("saeurekanister", e, CrateRarity.UNCOMMON, 1, false, SkillTree.WAY_CHEMISTRY, true);   // Tor 4b.5: +20 % area
         only("notfallmine", e, CrateRarity.UNCOMMON, SkillTree.SUB_DEMOLITION);   // the mortar is the demolition expert's (29.10.)
         add("stahlturm", e, CrateRarity.RARE, 1, false, SkillTree.WAY_MECHANICS, true);
-        add("zweite_ladung", e, CrateRarity.RARE, 1, false, "", true);
+        // "zweite_ladung" and "recycling" left the crates with the remote (Tor 4b.5, Chef 22:42): owners of the
+        // second charge have the Notschalter (ersatzbatterie) instead, recycling paid back (RETIRED_4B).
         add("oelfass", e, CrateRarity.RARE, 1, false, SkillTree.WAY_CHEMISTRY, true);
-        add("recycling", e, CrateRarity.RARE, 1, false, "", true);
         add("ueberkapazitaet", e, CrateRarity.EPIC, 1, false, "", true);
         add("tarnfallen", e, CrateRarity.EPIC, 1, false, "", true);
         add("kupfergolem", e, CrateRarity.EPIC, 1, false, "", true);   // both ways since 27 October 2026: it tends two towers
@@ -205,7 +207,7 @@ public final class CrateGains {
             Map.entry("leichtschild", "minecraft:rabbit_hide"), Map.entry("spiegelschild", "minecraft:amethyst_shard"),
             Map.entry("blendgranaten", "minecraft:snowball"),
             Map.entry("pfeilkiste", "minecraft:barrel"), Map.entry("werkzeugtasche", "minecraft:smithing_table"),
-            Map.entry("verstaerkt", "minecraft:iron_block"), Map.entry("ersatzbatterie", "minecraft:redstone"),
+            Map.entry("verstaerkt", "minecraft:iron_block"), Map.entry("kalibrierung", "minecraft:comparator"), Map.entry("saeurekanister", "minecraft:honey_bottle"), Map.entry("ersatzbatterie", "minecraft:redstone"),
             Map.entry("notfallmine", "minecraft:tnt_minecart"), Map.entry("stahlturm", "minecraft:dispenser"),
             Map.entry("zweite_ladung", "minecraft:repeater"), Map.entry("oelfass", "minecraft:lava_bucket"),
             Map.entry("recycling", "minecraft:hopper"), Map.entry("ueberkapazitaet", "minecraft:ender_chest"),
@@ -250,6 +252,13 @@ public final class CrateGains {
     public static final Map<String, Integer> RETIRED = Map.of(
             SkillClass.ENGINEER.name() + ":blendgranaten", CrateRarity.COMMON.duplicatePoints(),
             SkillClass.ARCHER.name() + ":koecher", CrateRarity.EPIC.duplicatePoints());
+
+    /** Tor 4b.5: gains that left with the remote and what one stage pays back (rare duplicate points). */
+    public static final Map<String, Integer> RETIRED_4B = Map.of(
+            SkillClass.ENGINEER.name() + ":recycling", CrateRarity.RARE.duplicatePoints());
+
+    /** Tor 4b.5: gains that left with the remote and the gain their owners get instead. */
+    public static final Map<String, String> RENAMED_4B = Map.of(SkillClass.ENGINEER.name() + ":zweite_ladung", "ersatzbatterie");
 
     /**
      * The gains whose ability sits on a gain key instead of an item in the kit (balance update 2,

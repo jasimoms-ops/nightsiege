@@ -691,6 +691,55 @@ public class SiegeSave {
         return paid;
     }
 
+    /** True once Tor 4b.5 moved the engineers' remote gains (zweite_ladung, recycling). */
+    public boolean remoteGainsMigrated;
+
+    /**
+     * Tor 4b.5: zweite_ladung becomes the Notschalter (ersatzbatterie, one stage; already owning it, the
+     * duplicate points of a rare stage instead), recycling pays its rare duplicate points per stage.
+     * Runs once; returns the points paid.
+     */
+    public int migrateRemoteGains() {
+        if (remoteGainsMigrated) {
+            return 0;
+        }
+        remoteGainsMigrated = true;
+        int paid = 0;
+        if (skills == null) {
+            return 0;
+        }
+        for (PlayerSkills own : skills.values()) {
+            if (own == null || own.gains == null) {
+                continue;
+            }
+            for (java.util.Map.Entry<String, String> moved : com.mki.nightsiege.core.CrateGains.RENAMED_4B.entrySet()) {
+                String[] key = moved.getKey().split(":", 2);
+                java.util.Map<String, Integer> map = own.gains.get(key[0]);
+                Integer stage = map == null ? null : map.remove(key[1]);
+                if (stage != null && stage > 0) {
+                    if (map.getOrDefault(moved.getValue(), 0) > 0) {
+                        int points = stage * com.mki.nightsiege.core.CrateRarity.RARE.duplicatePoints();
+                        own.award(points);
+                        paid += points;
+                    } else {
+                        map.put(moved.getValue(), 1);
+                    }
+                }
+            }
+            for (java.util.Map.Entry<String, Integer> retired : com.mki.nightsiege.core.CrateGains.RETIRED_4B.entrySet()) {
+                String[] key = retired.getKey().split(":", 2);
+                java.util.Map<String, Integer> map = own.gains.get(key[0]);
+                Integer stage = map == null ? null : map.remove(key[1]);
+                if (stage != null && stage > 0) {
+                    int points = stage * retired.getValue();
+                    own.award(points);
+                    paid += points;
+                }
+            }
+        }
+        return paid;
+    }
+
     /** Version of the skill trees the levels below were learned in. */
     public int skillTreeVersion;
     public static final int SKILL_TREE_VERSION = 8;

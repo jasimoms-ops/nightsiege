@@ -1180,6 +1180,12 @@ public final class SiegeManager {
             NightSiegeMod.LOGGER.info("[Night Siege] Entfernte Kisten-Gewinne zurückgezahlt: {} Punkte", paid);
             persist();
         }
+        // Tor 4b.5: the remote's gains left (zweite_ladung -> Notschalter, recycling paid back), once per save.
+        if (!save.remoteGainsMigrated) {
+            int paid = save.migrateRemoteGains();
+            NightSiegeMod.LOGGER.info("[Night Siege] Fernbedienungs-Gewinne umgestellt: {} Punkte zurück", paid);
+            persist();
+        }
         // The alchemist's potions became nodes, three of seven (28 October 2026): once per save.
         if (!save.brewsMigrated) {
             int brewProfiles = 0;

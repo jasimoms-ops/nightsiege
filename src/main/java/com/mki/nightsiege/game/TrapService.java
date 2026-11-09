@@ -577,9 +577,7 @@ public final class TrapService {
                 dirty = true;
                 if (record.field) {
                     // A field tower lost in the dungeon or at the camp stays lost (no spare, no rebuild at home).
-                } else if (gainOf(record, "recycling") > 0 && spareBack(server, record, kind)) {
-                    // Ersatzteil (id recycling, 27 October 2026): back in the owner's inventory at once.
-                } else if (NightDamage.recording(level) || gainOf(record, "recycling") > 0) {
+                } else if (NightDamage.recording(level)) {   // recycling left the crates (Tor 4b.5)
                     recycled.add(record);   // every trap lost in the night stands again after it (27 October 2026)
                     NightDamage.changed();   // also after a crash (the damage log on disk, 31.10.)
                 }
@@ -703,7 +701,7 @@ public final class TrapService {
      * mortar and potion thrower only got faster before).
      */
     private double towerPower(TrapRecord record, long now) {
-        double gain = 1.0 + 0.1 * gainOf(record, "verstaerkt");
+        double gain = (1.0 + 0.1 * gainOf(record, "verstaerkt")) * (1.0 + 0.05 * gainOf(record, "kalibrierung"));
         if (record.ambushNight != GainGear.nightId() && gainOf(record, "tarnfallen") > 0) {
             record.ambushNight = GainGear.nightId();
             gain *= 1.5;
@@ -806,6 +804,9 @@ public final class TrapService {
     private void lob(ServerLevel level, TrapRecord record, Vec3 from, Vec3 to, String kind, int tier,
                      double damageScale, double radiusScale, String mode) {
         boolean shell = KitProjectile.SHELL.equals(kind);
+        if (gainOf(record, "saeurekanister") > 0) {
+            radiusScale *= Math.sqrt(1.2);   // Tor 4b.5: Säurekanister, +20 % area of shells and potion splashes
+        }
         ItemStack look = shell ? new ItemStack("smoke".equals(mode) ? Items.FIREWORK_STAR : Items.FIRE_CHARGE)
                 : PotionContents.createItemStack(Items.SPLASH_POTION, Potions.POISON);
         KitProjectile shot = new KitProjectile(level, from.x, from.y, from.z, look, kind);
@@ -3096,6 +3097,10 @@ public final class TrapService {
     /** Damage factor: doubled while overcharged by the remote, tripled with overvolt. */
     private double power(TrapRecord record, long now) {
         double gain = 1.0 + 0.1 * gainOf(record, "verstaerkt");   // crate gain: stronger traps in the night
+        TrapKind kind = TrapKind.byId(record.kind);
+        if (kind != null && kind.isTower()) {
+            gain *= 1.0 + 0.05 * gainOf(record, "kalibrierung");   // Tor 4b.5: Kalibrierung, +5 % per stage
+        }
         if (record.ambushNight != GainGear.nightId() && gainOf(record, "tarnfallen") > 0) {
             record.ambushNight = GainGear.nightId();   // hidden traps: the first strike of the night hits harder
             gain *= 1.5;

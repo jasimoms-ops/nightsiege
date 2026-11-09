@@ -80,6 +80,9 @@ public final class AlchemyZones {
             time = Math.round(time * 1.5);   // Langes Gebräu (crate gain, 27 October 2026)
         }
         Zone zone = new Zone(SiegeManager.dimensionName(level), at, kind, now + time, now);
+        if (shot.getOwner() instanceof net.minecraft.server.level.ServerPlayer owner && CrateEffects.gainLevel(owner, "saeurekanister") > 0) {
+            area *= 1.2;   // Tor 4b.5: Säurekanister, +20 % area
+        }
         zone.scale = Math.sqrt(area);
         ZONES.add(zone);
         level.playSound(null, BlockPos.containing(at), SoundEvents.SPLASH_POTION_BREAK, SoundSource.PLAYERS, 1.0f, 1.0f);

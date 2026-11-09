@@ -6799,7 +6799,7 @@ public class EventLookTest implements FabricClientGameTest {
                 {"GUARDIAN", "barrikaden:1", "signalhorn:1", "mauerkelle:1", "leibwaechter:1", "turmschild:1",
                         "leichtschild:1", "schildlaterne:1", "spiegelschild:1"},
                 {"ENGINEER", "ersatzbatterie:1", "oelfass:1", "kupfergolem:1", "magnetfeld:1",
-                        "werkzeugtasche:1", "zweite_ladung:1", "stahlturm:1", "recycling:1", "tarnfallen:1"}};
+                        "werkzeugtasche:1", "kalibrierung:1", "stahlturm:1", "saeurekanister:1", "tarnfallen:1"}};
         for (String[] row : byClass) {
             com.mki.nightsiege.core.SkillClass c = com.mki.nightsiege.core.SkillClass.valueOf(row[0]);
             own.unlockClass(c);
