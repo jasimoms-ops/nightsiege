@@ -27,7 +27,7 @@ final class LootScenes {
     }
 
     private static final Set<String> RETIRED = Set.of("fackeln", "spektralpfeile", "fester_griff", "leuchtschild",
-            "zweite_ladung", "recycling", "koecher", "blendgranaten");
+            "zweite_ladung", "recycling", "koecher", "blendgranaten", "wurfspeere", "wurfbeile");
     private static int ok;
     private static int all;
 
@@ -81,7 +81,9 @@ final class LootScenes {
                 check(retired == null, clazz + ": no retired gain in " + rolls + " crates" + (retired == null ? "" : " (" + retired + ")"));
                 check(won != null, clazz + ": a key gain came out of the crate after " + rolls + ": " + won);
                 List<String> keys = GainKeys.assigned(m, own, clazz);
-                check(won != null && keys.contains(won), clazz + ": new gain on the keys 1-3: " + keys);
+                String key = com.mki.nightsiege.core.GainCharges.FIRST_AID.equals(won)
+                        ? com.mki.nightsiege.core.GainCharges.POTION : won;   // Tor 5.7: the first-aid kit is in the field "Heiltrank"
+                check(won != null && keys.contains(key), clazz + ": new gain on the keys 1-3: " + keys);
                 if (clazz == SkillClass.ARCHER) {
                     own.setGainStage(clazz, "brandpfeile", 1);
                     own.setGainStage(clazz, "lichtpfeile", 1);
