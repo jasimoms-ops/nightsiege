@@ -1211,6 +1211,17 @@ public class SiegeConfig {
         tweak.values.put(key, value);
     }
 
+    /** Tor 4c.5: a tweak on the old default becomes the absolute target; any other value stays as it is. */
+    private void tweakTarget(String node, String key, double old, double target) {
+        SkillTweak tweak = skillTweaks == null ? null : skillTweaks.get(node);
+        if (tweak == null || tweak.values == null || tweak.values.get(key) == null) {
+            return;
+        }
+        if (Math.abs(tweak.values.get(key) - old) < 1e-6) {
+            tweak.values.put(key, target);
+        }
+    }
+
     private void scaleTweak(String node, String key, double by) {
         SkillTweak tweak = skillTweaks == null ? null : skillTweaks.get(node);
         if (tweak == null || tweak.values == null || tweak.values.get(key) == null) {
@@ -1890,22 +1901,18 @@ public class SiegeConfig {
         if (settingsVersion < 23) {
             // Tor 4c.5 (Chef 09.11. 10:15): Bodenstampfer 8/11/14 -> 11/15/20 in 6/7/8 blocks, Notstrom from 60 %
             // health instead of 30 %, Wachsames Auge +25 % instead of +15 %. The code values are the targets; a server
-            // tweak on the old value becomes the target, an own value moves by the same step. No tweak: the code
-            // value counts. Feuersturm, Märtyrer, Fesselbolzen and Läutern got new keys (nothing to move).
+            // tweak on the old default becomes the absolute target, any other value (own or already the target) stays.
+            // Feuersturm, Märtyrer, Fesselbolzen and Läutern got new keys (nothing to move).
             double[][] slam = {{8, 11}, {11, 15}, {14, 20}};
             double[][] reach = {{5, 6}, {6, 7}, {7, 8}};
             for (int rank = 1; rank <= 3; rank++) {
-                scaleTweak("ground_slam", "dmg" + rank, slam[rank - 1][1] / slam[rank - 1][0]);
-                scaleTweak("ground_slam", "radius" + rank, reach[rank - 1][1] / reach[rank - 1][0]);
+                tweakTarget("ground_slam", "dmg" + rank, slam[rank - 1][0], slam[rank - 1][1]);
+                tweakTarget("ground_slam", "radius" + rank, reach[rank - 1][0], reach[rank - 1][1]);
             }
-            scaleTweak("e_backup", "below", 2.0);
-            SkillTweak backup = skillTweaks == null ? null : skillTweaks.get("e_backup");
-            if (backup != null && backup.values != null && backup.values.get("below") != null) {
-                backup.values.put("below", Math.min(1.0, backup.values.get("below")));   // a share of health
-            }
+            tweakTarget("e_backup", "below", 0.3, 0.6);
             SkillTweak watchful = skillTweaks == null ? null : skillTweaks.get("a_watchful");
-            if (watchful != null && watchful.amount != null) {
-                watchful.amount = Math.round(watchful.amount * 0.25 / 0.15 * 1000.0) / 1000.0;
+            if (watchful != null && watchful.amount != null && Math.abs(watchful.amount - 0.15) < 1e-6) {
+                watchful.amount = 0.25;
             }
             settingsVersion = 23;
         }

@@ -469,7 +469,7 @@ public final class CombatEffects {
             return;
         }
         double r = SkillValues.get("ground_slam", "radius" + rank, 5.0 + rank);
-        float damage = (float) SkillValues.get("ground_slam", "dmg" + rank, 6.5f + 4.5f * rank) * scale;   // 11 / 15 / 20 (Tor 4c.5)
+        float damage = (float) SkillValues.get("ground_slam", "dmg" + rank, rank <= 1 ? 11 : rank == 2 ? 15 : 20) * scale;   // 11 / 15 / 20 (Tor 4c.5)
         Vec3 center = player.position();
         DamageSource source = level.damageSources().playerAttack(player);
         for (LivingEntity victim : enemies(level, center, r, 2.0)) {

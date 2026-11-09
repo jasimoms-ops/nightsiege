@@ -88,12 +88,12 @@ class Tor4cStufenTest {
     }
 
     @Test
-    void serverOldValuesBecomeTargetsOwnValuesMoveAlike() {
+    void serverOldValuesBecomeTargetsOtherValuesStay() {
         SiegeConfig server = new SiegeConfig();
         server.settingsVersion = 22;
         SiegeConfig.SkillTweak slam = tweak("dmg1", 8);       // old default written by the server
         slam.values.put("dmg3", 14.0);
-        slam.values.put("radius2", 6.0);
+        slam.values.put("radius2", 7.0);                       // already the target
         slam.values.put("radius3", 10.0);                      // own value
         server.skillTweaks.put("ground_slam", slam);
         server.skillTweaks.put("e_backup", tweak("below", 0.3));
@@ -102,23 +102,29 @@ class Tor4cStufenTest {
         server.skillTweaks.put("a_watchful", watchful);
         server.sanitize();
         assertEquals(SiegeConfig.SETTINGS_VERSION, server.settingsVersion);
-        assertEquals(11, server.skillTweaks.get("ground_slam").values.get("dmg1"), 1e-3);
-        assertEquals(20, server.skillTweaks.get("ground_slam").values.get("dmg3"), 1e-3);
-        assertEquals(7, server.skillTweaks.get("ground_slam").values.get("radius2"), 1e-3);
-        assertEquals(10 * 8.0 / 7.0, server.skillTweaks.get("ground_slam").values.get("radius3"), 1e-3);
+        assertEquals(11, server.skillTweaks.get("ground_slam").values.get("dmg1"), 1e-9);
+        assertEquals(20, server.skillTweaks.get("ground_slam").values.get("dmg3"), 1e-9);
+        assertEquals(7, server.skillTweaks.get("ground_slam").values.get("radius2"), 1e-9);
+        assertEquals(10, server.skillTweaks.get("ground_slam").values.get("radius3"), 1e-9);
         assertEquals(0.6, server.skillTweaks.get("e_backup").values.get("below"), 1e-9);
         assertEquals(0.25, server.skillTweaks.get("a_watchful").amount, 1e-9);
         server.sanitize();   // no second step
-        assertEquals(11, server.skillTweaks.get("ground_slam").values.get("dmg1"), 1e-3);
+        assertEquals(11, server.skillTweaks.get("ground_slam").values.get("dmg1"), 1e-9);
         assertEquals(0.6, server.skillTweaks.get("e_backup").values.get("below"), 1e-9);
     }
 
     @Test
-    void ownBackupShareStaysAShare() {
+    void serverValuesAlreadyOnTheTargetStay() {
         SiegeConfig server = new SiegeConfig();
         server.settingsVersion = 22;
-        server.skillTweaks.put("e_backup", tweak("below", 0.7));
+        server.skillTweaks.put("e_backup", tweak("below", 0.6));
+        server.skillTweaks.put("ground_slam", tweak("dmg2", 15));
+        SiegeConfig.SkillTweak watchful = new SiegeConfig.SkillTweak();
+        watchful.amount = 0.25;
+        server.skillTweaks.put("a_watchful", watchful);
         server.sanitize();
-        assertEquals(1.0, server.skillTweaks.get("e_backup").values.get("below"), 1e-9);
+        assertEquals(0.6, server.skillTweaks.get("e_backup").values.get("below"), 1e-9);
+        assertEquals(15, server.skillTweaks.get("ground_slam").values.get("dmg2"), 1e-9);
+        assertEquals(0.25, server.skillTweaks.get("a_watchful").amount, 1e-9);
     }
 }
