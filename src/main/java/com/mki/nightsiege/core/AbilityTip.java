@@ -13,7 +13,7 @@ import java.util.Map;
 public class AbilityTip {
     /** Which field: "q" (ultimate), "f" (ability 2), "x" (second ultimate), else the bar ability's id (Tor 3.4). */
     public String slot = "";
-    /** Tor 3.4: a bar ability's key from {@link AbilityKeys} (Q, F, Y, SNEAK_Y); empty for the Q/F/X fields. */
+    /** Tor 3.4: a bar ability's key from {@link AbilityKeys} (ABILITY_1 to ABILITY_4); empty for the class's own fields. */
     public String key = "";
     /** The ability itself: name, text and its numbers. */
     public Part main = new Part();

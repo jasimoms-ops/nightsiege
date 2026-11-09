@@ -7075,11 +7075,11 @@ public final class SiegeManager {
                 out.add(0, shield);   // the shield throw on its key (Tor 3.1: was block + left click)
             }
         }
-        // Tor 3.1 ("Nur Tasten"): each ability's key from the one table, the rest on sneak + Y.
+        // Tor 3.1 ("Nur Tasten"): each ability's key from the one table, the rest on place 4 (C, Tor 3.2b).
         String sub = own.hasClass() ? skillTree.subclassOf(own) : "";
         for (com.mki.nightsiege.core.UltState.Slot slot : out) {
             com.mki.nightsiege.core.AbilityKeys.Key key = com.mki.nightsiege.core.AbilityKeys.keyOf(sub, slot.id);
-            slot.key = (key == null ? com.mki.nightsiege.core.AbilityKeys.Key.SNEAK_Y : key).name();
+            slot.key = (key == null ? com.mki.nightsiege.core.AbilityKeys.Key.ABILITY_4 : key).name();
         }
         while (out.size() > 6) {
             out.remove(out.size() - 1);

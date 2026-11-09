@@ -54,8 +54,8 @@ class TankTest {
     void theSelfHealIsOnYForBothTanksOnly() {
         for (String sub : new String[]{SkillTree.SUB_SHIELDFIGHTER, SkillTree.SUB_BULWARK}) {
             assertTrue(TankHeal.isTank(sub), sub);
-            assertEquals(AbilityKeys.Key.Y, AbilityKeys.keyOf(sub, TankHeal.ID), sub);
-            assertEquals(AbilityKeys.Key.SNEAK_Y, AbilityKeys.keyOf(sub, AbilityKeys.QUIVER), sub);
+            assertEquals(AbilityKeys.Key.ABILITY_3, AbilityKeys.keyOf(sub, TankHeal.ID), sub);
+            assertEquals(AbilityKeys.Key.ABILITY_4, AbilityKeys.keyOf(sub, AbilityKeys.QUIVER), sub);
         }
         for (String sub : new String[]{SkillTree.SUB_MEDIC, SkillTree.SUB_WARDEN, SkillTree.SUB_AXE, SkillTree.SUB_SWIFT}) {
             assertFalse(TankHeal.isTank(sub), sub);

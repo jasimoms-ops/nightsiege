@@ -6,18 +6,59 @@ import java.util.Map;
 
 /**
  * Which key fires which ability, for every subclass (Tor 3.1, Simon 08.11.: "Nur Tasten"). The one
- * place the server (UltState.Slot.key), the HUD and the tooltips read: Q, F and Y for the abilities,
- * X for the ultimate, sneak + X for the second ultimate of a crate. The right click is the weapon only.
+ * place the server (UltState.Slot.key), the HUD, the tooltips and the client's default keys read.
+ * The right click is the weapon only.
+ *
+ * <p>Tor 3.2b (Simon 09.11., Chef 01:38): the abilities are named by their place, not by a letter.
+ * Place 1 / 2 / 3 = Q / E / F, place 4 = C (the fourth ability of the alchemist and the necromancer,
+ * the tanks' arrow kinds), X the ultimate, R the second ultimate of a crate, 1 / 2 / 3 the gains,
+ * I the inventory in the night (E is an ability then). No "sneak + key" any more. All of them are
+ * Night Siege's alone in the night; by day E and 1-3 are vanilla's again.
  *
  * <p>Ability ids are the ids of the ability bar ({@code UltState.Slot.id}) plus {@link #F_ACTION}
- * (the class's F field: arrow rain, warrior art, remote order, staff order) and {@link #ULT}.
- * {@link Key#SNEAK_Y} is sneak + Y: the fourth ability of the alchemist and the necromancer (Leiter 08.11.)
- * and the tanks' arrow kinds (Tor 4.2: their self heal took Y).
+ * (the class's own field on place 2: arrow rain, warrior art, remote order, staff order) and {@link #ULT}.
  */
 public final class AbilityKeys {
 
-    /** The keys; each has a KeyMapping of its own on the client, so the player can rebind it. */
-    public enum Key { Q, F, Y, X, SNEAK_Y }
+    /**
+     * The keys, each with its default (a letter or digit: the client's KeyMapping default, so the
+     * player can rebind it). The ability places come first, in their order.
+     */
+    public enum Key {
+        ABILITY_1("Q"), ABILITY_2("E"), ABILITY_3("F"), ABILITY_4("C"), ULT("X"), ULT2("R"),
+        GAIN_1("1"), GAIN_2("2"), GAIN_3("3"), INVENTORY("I");
+
+        private final String letter;
+
+        Key(String letter) {
+            this.letter = letter;
+        }
+
+        /** The default key as printed on the keyboard ("Q", "1"). */
+        public String letter() {
+            return letter;
+        }
+
+        /** The default key's GLFW code: for A-Z and 0-9 it is the character itself. */
+        public int glfw() {
+            return letter.charAt(0);
+        }
+
+        /** True for the four ability places. */
+        public boolean ability() {
+            return ordinal() <= ABILITY_4.ordinal();
+        }
+
+        /** The place of an ability key, 0 for place 1; -1 for the other keys. */
+        public int place() {
+            return ability() ? ordinal() : -1;
+        }
+    }
+
+    /** The ability places in order (place 1 to 4). */
+    public static final List<Key> ABILITY_PLACES = List.of(Key.ABILITY_1, Key.ABILITY_2, Key.ABILITY_3, Key.ABILITY_4);
+    /** The gain places 1 to 3. */
+    public static final List<Key> GAIN_PLACES = List.of(Key.GAIN_1, Key.GAIN_2, Key.GAIN_3);
 
     public static final String ULT = "ult";
     /** The F field of the class (UltState.hasAb2). */
@@ -36,31 +77,32 @@ public final class AbilityKeys {
     private static final Map<String, List<Entry>> TABLE = new LinkedHashMap<>();
 
     static {
-        // archers: the arrow rain on F, the arrow kinds on Y, the heavy archer's blast jump on Q
-        put(SkillTree.SUB_SWIFT, e(F_ACTION, Key.F), e("quiver", Key.Y));
-        put(SkillTree.SUB_HEAVY, e("escape", Key.Q), e(F_ACTION, Key.F), e("quiver", Key.Y));
-        put(SkillTree.SUB_BOLTER, e(F_ACTION, Key.F), e("quiver", Key.Y));
-        put(SkillTree.SUB_TRAPPER, e(F_ACTION, Key.F), e("quiver", Key.Y));
-        // warriors: the dash on Q, the Kampfgeist art on F
+        // Places: 1 = Q, 2 = E, 3 = F, 4 = C (Tor 3.2b). Place 2 is the class's own field (F_ACTION).
+        // archers: the arrow rain on place 2, the arrow kinds on 3, the heavy archer's blast jump on 1
+        put(SkillTree.SUB_SWIFT, e(F_ACTION, Key.ABILITY_2), e("quiver", Key.ABILITY_3));
+        put(SkillTree.SUB_HEAVY, e("escape", Key.ABILITY_1), e(F_ACTION, Key.ABILITY_2), e("quiver", Key.ABILITY_3));
+        put(SkillTree.SUB_BOLTER, e(F_ACTION, Key.ABILITY_2), e("quiver", Key.ABILITY_3));
+        put(SkillTree.SUB_TRAPPER, e(F_ACTION, Key.ABILITY_2), e("quiver", Key.ABILITY_3));
+        // warriors: the dash on 1, the Kampfgeist art on 2
         for (String sub : List.of(SkillTree.SUB_BLADEMASTER, SkillTree.SUB_BERSERKER, SkillTree.SUB_AXE, SkillTree.SUB_PALADIN)) {
-            put(sub, e("dash", Key.Q), e(F_ACTION, Key.F), e("quiver", Key.Y));
+            put(sub, e("dash", Key.ABILITY_1), e(F_ACTION, Key.ABILITY_2), e("quiver", Key.ABILITY_3));
         }
         // guardians: no F field of their own any more, every healing on its key
-        // Tor 4.2: the tanks' self heal on Y (the emergency key); their arrows, rare for a tank, on sneak + Y
-        put(SkillTree.SUB_SHIELDFIGHTER, e(SHIELD, Key.Q), e("ward", Key.F), e(TankHeal.ID, Key.Y), e("quiver", Key.SNEAK_Y));
-        put(SkillTree.SUB_BULWARK, e(SHIELD, Key.Q), e("ward", Key.F), e(TankHeal.ID, Key.Y), e("quiver", Key.SNEAK_Y));
-        put(SkillTree.SUB_MEDIC, e("hand", Key.Q), e("selfheal", Key.F), e("quiver", Key.Y));
-        put(SkillTree.SUB_WARDEN, e("ward", Key.Q), e("dome", Key.F), e("quiver", Key.Y));
-        // engineers: the blast jump on Q, the remote on F; the alchemist's potions on Y
-        put(SkillTree.SUB_GUNNER, e("escape", Key.Q), e(F_ACTION, Key.F));
-        put(SkillTree.SUB_ELECTRICIAN, e("escape", Key.Q), e(F_ACTION, Key.F));
-        put(SkillTree.SUB_DEMOLITION, e("escape", Key.Q), e(F_ACTION, Key.F));
-        put(SkillTree.SUB_ALCHEMIST, e("escape", Key.Q), e(F_ACTION, Key.F), e("brew", Key.Y), e("acid", Key.SNEAK_Y));
-        // summoners: the order on F; the call or the spells on Q and Y
-        put(SkillTree.SUB_TAMER, e("call", Key.Q), e(F_ACTION, Key.F), e("quiver", Key.Y));
-        put(SkillTree.SUB_GOLEMSMITH, e("call", Key.Q), e(F_ACTION, Key.F), e("quiver", Key.Y));
-        put(SkillTree.SUB_NECROMANCER, e("raise", Key.Q), e(F_ACTION, Key.F), e("wall", Key.Y), e("curse", Key.SNEAK_Y));
-        put(SkillTree.SUB_SOULCATCHER, e("swarm", Key.Q), e("fear", Key.F));
+        // Tor 4.2: the tanks' self heal on place 3; their arrows, rare for a tank, on place 4 (C, Tor 3.2b)
+        put(SkillTree.SUB_SHIELDFIGHTER, e(SHIELD, Key.ABILITY_1), e("ward", Key.ABILITY_2), e(TankHeal.ID, Key.ABILITY_3), e("quiver", Key.ABILITY_4));
+        put(SkillTree.SUB_BULWARK, e(SHIELD, Key.ABILITY_1), e("ward", Key.ABILITY_2), e(TankHeal.ID, Key.ABILITY_3), e("quiver", Key.ABILITY_4));
+        put(SkillTree.SUB_MEDIC, e("hand", Key.ABILITY_1), e("selfheal", Key.ABILITY_2), e("quiver", Key.ABILITY_3));
+        put(SkillTree.SUB_WARDEN, e("ward", Key.ABILITY_1), e("dome", Key.ABILITY_2), e("quiver", Key.ABILITY_3));
+        // engineers: the blast jump on 1, the remote on 2; the alchemist's potions on 3, the acid on 4
+        put(SkillTree.SUB_GUNNER, e("escape", Key.ABILITY_1), e(F_ACTION, Key.ABILITY_2));
+        put(SkillTree.SUB_ELECTRICIAN, e("escape", Key.ABILITY_1), e(F_ACTION, Key.ABILITY_2));
+        put(SkillTree.SUB_DEMOLITION, e("escape", Key.ABILITY_1), e(F_ACTION, Key.ABILITY_2));
+        put(SkillTree.SUB_ALCHEMIST, e("escape", Key.ABILITY_1), e(F_ACTION, Key.ABILITY_2), e("brew", Key.ABILITY_3), e("acid", Key.ABILITY_4));
+        // summoners: the order on 2; the call or the spells on 1, 3 and 4
+        put(SkillTree.SUB_TAMER, e("call", Key.ABILITY_1), e(F_ACTION, Key.ABILITY_2), e("quiver", Key.ABILITY_3));
+        put(SkillTree.SUB_GOLEMSMITH, e("call", Key.ABILITY_1), e(F_ACTION, Key.ABILITY_2), e("quiver", Key.ABILITY_3));
+        put(SkillTree.SUB_NECROMANCER, e("raise", Key.ABILITY_1), e(F_ACTION, Key.ABILITY_2), e("wall", Key.ABILITY_3), e("curse", Key.ABILITY_4));
+        put(SkillTree.SUB_SOULCATCHER, e("swarm", Key.ABILITY_1), e("fear", Key.ABILITY_2));
     }
 
     private AbilityKeys() {
@@ -96,12 +138,12 @@ public final class AbilityKeys {
     }
 
     /**
-     * The key of an ability of this subclass: X for the ultimate, the table's key, or null when
-     * the subclass does not have it (the caller then shows and fires it on {@link Key#SNEAK_Y}).
+     * The key of an ability of this subclass: {@link Key#ULT} for the ultimate, the table's key, or
+     * null when the subclass does not have it (the caller then shows and fires it on {@link Key#ABILITY_4}).
      */
     public static Key keyOf(String subclass, String abilityId) {
         if (ULT.equals(abilityId)) {
-            return Key.X;
+            return Key.ULT;
         }
         List<Entry> entries = subclass == null ? null : TABLE.get(subclass);
         if (entries != null) {

@@ -9,7 +9,10 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Tor 3.1 ("Nur Tasten"): every ability of all 20 subclasses on one key out of Q, F, Y, X; none twice. */
+/**
+ * Tor 3.1 ("Nur Tasten"), Tor 3.2b (Chef 09.11. 01:38): every ability of all 20 subclasses on one place
+ * out of 1-4 (Q, E, F, C), the ult on X; no key twice, no "sneak + key" any more.
+ */
 class AbilityKeysTest {
 
     private static final List<String> SUBS = List.of(
@@ -19,8 +22,8 @@ class AbilityKeysTest {
             SkillTree.SUB_GUNNER, SkillTree.SUB_ELECTRICIAN, SkillTree.SUB_DEMOLITION, SkillTree.SUB_ALCHEMIST,
             SkillTree.SUB_TAMER, SkillTree.SUB_GOLEMSMITH, SkillTree.SUB_NECROMANCER, SkillTree.SUB_SOULCATCHER);
 
-    /** The fourth abilities on sneak + Y (Leiter 08.11.); the tanks' arrows since their self heal took Y (Tor 4.2). */
-    private static final Set<String> OVERFLOW = Set.of(SkillTree.SUB_ALCHEMIST + ":acid", SkillTree.SUB_NECROMANCER + ":curse",
+    /** The fourth abilities on place 4 (C): alchemist, necromancer, and the tanks' arrows (their self heal is on 3). */
+    private static final Set<String> FOURTH = Set.of(SkillTree.SUB_ALCHEMIST + ":acid", SkillTree.SUB_NECROMANCER + ":curse",
             SkillTree.SUB_SHIELDFIGHTER + ":quiver", SkillTree.SUB_BULWARK + ":quiver");
 
     @Test
@@ -31,25 +34,45 @@ class AbilityKeysTest {
 
     @Test
     void everyAbilityOneKeyNoneTwice() {
-        Set<AbilityKeys.Key> allowed = EnumSet.of(AbilityKeys.Key.Q, AbilityKeys.Key.F, AbilityKeys.Key.Y);
-        Set<String> overflow = new HashSet<>();
+        Set<String> fourth = new HashSet<>();
         for (String sub : SUBS) {
-            Set<AbilityKeys.Key> used = EnumSet.of(AbilityKeys.Key.X);   // the ult
-            assertEquals(AbilityKeys.Key.X, AbilityKeys.keyOf(sub, AbilityKeys.ULT), sub);
+            Set<AbilityKeys.Key> used = EnumSet.of(AbilityKeys.Key.ULT);
+            assertEquals(AbilityKeys.Key.ULT, AbilityKeys.keyOf(sub, AbilityKeys.ULT), sub);
             Set<String> ids = new HashSet<>();
             for (AbilityKeys.Entry e : AbilityKeys.table().get(sub)) {
                 assertTrue(ids.add(e.id()), sub + ": " + e.id() + " twice");
                 assertEquals(e.key(), AbilityKeys.keyOf(sub, e.id()), sub + ":" + e.id());
-                if (e.key() == AbilityKeys.Key.SNEAK_Y) {
-                    overflow.add(sub + ":" + e.id());
-                    continue;
-                }
-                assertTrue(allowed.contains(e.key()), sub + ":" + e.id() + " on " + e.key());
+                assertTrue(e.key().ability(), sub + ":" + e.id() + " on " + e.key());
                 assertTrue(used.add(e.key()), sub + ": key " + e.key() + " twice");
+                if (e.key() == AbilityKeys.Key.ABILITY_4) {
+                    fourth.add(sub + ":" + e.id());
+                }
             }
             assertFalse(AbilityKeys.table().get(sub).isEmpty(), sub);
         }
-        assertEquals(OVERFLOW, overflow);
+        assertEquals(FOURTH, fourth);
+    }
+
+    /** Chef 01:38: Q / E / F, C, X, R, 1-3, I; every default key once, none with sneak, Y free. */
+    @Test
+    void nightLayoutEveryKeyOnce() {
+        StringBuilder all = new StringBuilder();
+        Set<String> letters = new HashSet<>();
+        for (AbilityKeys.Key key : AbilityKeys.Key.values()) {
+            assertTrue(letters.add(key.letter()), key + " twice: " + key.letter());
+            assertFalse(key.name().contains("SNEAK"), key.name());
+            all.append(key.letter());
+        }
+        assertEquals("QEFCXR123I", all.toString());
+        assertFalse(letters.contains("Y"), "Y is free again (Xaeros Minimap)");
+        assertEquals(List.of("Q", "E", "F", "C"), AbilityKeys.ABILITY_PLACES.stream().map(AbilityKeys.Key::letter).toList());
+        assertEquals(List.of("1", "2", "3"), AbilityKeys.GAIN_PLACES.stream().map(AbilityKeys.Key::letter).toList());
+        for (int i = 0; i < AbilityKeys.ABILITY_PLACES.size(); i++) {
+            assertEquals(i, AbilityKeys.ABILITY_PLACES.get(i).place());
+        }
+        assertEquals(-1, AbilityKeys.Key.ULT2.place());
+        assertEquals('Q', AbilityKeys.Key.ABILITY_1.glfw());   // GLFW_KEY_Q
+        assertEquals('1', AbilityKeys.Key.GAIN_1.glfw());      // GLFW_KEY_1
     }
 
     /**
@@ -84,7 +107,7 @@ class AbilityKeysTest {
                 }
             }
         }
-        // without a subclass and without a wheel the arrows still get a slot (sneak + Y)
+        // without a subclass and without a wheel the arrows still get a slot (place 4, C)
         assertEquals(List.of(AbilityKeys.QUIVER), AbilityKeys.barExtras("", false, true, false));
     }
 

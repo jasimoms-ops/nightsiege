@@ -112,7 +112,7 @@ public class UltState {
          * the choice; a tap uses it (a potion) or goes back to the plain one (arrows).
          */
         public boolean scroll;
-        /** The key that fires it (an {@link AbilityKeys.Key} name: Q, F, Y or SNEAK_Y; Tor 3.1). */
+        /** The key that fires it (an {@link AbilityKeys.Key} name: ABILITY_1 to ABILITY_4; Tor 3.1, places since 3.2b). */
         public String key = "";
     }
 
