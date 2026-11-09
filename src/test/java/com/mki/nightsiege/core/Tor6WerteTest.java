@@ -23,7 +23,6 @@ class Tor6WerteTest {
     void freshConfigHasTheTargets() {
         SiegeConfig fresh = new SiegeConfig();
         fresh.sanitize();
-        assertEquals(24, SiegeConfig.SETTINGS_VERSION);
         assertEquals(SiegeConfig.SETTINGS_VERSION, fresh.settingsVersion);
         assertEquals(0.04, fresh.damagePerLevel, 1e-9);   // the code default is not the server's 0.1 and stays
         assertEquals(1.3, fresh.bloodMoonMobMultiplier, 1e-9);

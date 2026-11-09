@@ -149,7 +149,8 @@ public final class SmartNight {
             return null;
         }
         deaths.addLast(now);
-        return look(now, defenders, cfg, true);
+        Look l = look(now, defenders, cfg, true);
+        return on ? l : null;   // off: only measured, no effect (Tor 6.6)
     }
 
     /** Every tick of the night: a look when it is time (null otherwise). */
