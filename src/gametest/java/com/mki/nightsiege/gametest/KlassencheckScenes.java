@@ -283,12 +283,19 @@ final class KlassencheckScenes {
                 // Tor 4c.6: the night of level 1 ends after about four minutes (CI: during demolition); from then on
                 // nothing counted and the gain items worked by day. A new test night when the last one is over
                 // (or nearly: it also ended during demolition 10/20 and soulcatcher 20), checked before every level.
+                // CI ef371ee4: aborting the nearly ended night and starting the next at once killed the player
+                // (out of the world, a drone from then on) - so wait until it ends by itself (at most 30 s)
+                final boolean[] soon = new boolean[1];
+                server(context, tag + " night soon", (player, m) -> soon[0] = m.isActive() && m.secondsLeft() < 30);
+                context.waitTicks(2);   // server(...) only queues the step
+                for (int w = 0; w < 40 && soon[0]; w++) {
+                    context.waitTicks(20);
+                    server(context, tag + " night wait", (player, m) -> soon[0] = m.isActive());
+                    context.waitTicks(2);
+                }
                 final boolean[] renewed = new boolean[1];
                 server(context, tag + " night", (player, m) -> {
-                    if (!m.isActive() || m.secondsLeft() < 30) {
-                        if (m.isActive()) {
-                            m.abort(player.level().getServer());
-                        }
+                    if (!m.isActive()) {
                         ServerLevel level = (ServerLevel) player.level();
                         renewed[0] = m.prepareTest(level.getServer(), level, player.blockPosition(), 1, com.mki.nightsiege.core.SiegeEvent.NONE);
                         log("     " + tag + ": night renewed=" + renewed[0]);
@@ -564,6 +571,15 @@ final class KlassencheckScenes {
                         check(changed(before[0], after), tag + ": " + what[0] + " does something");
                         if (pauseBefore[0] >= 0 && total[0] > 0) {
                             check(left > 0, tag + ": " + what[0] + " pause started (" + left + ")");
+                            if (left <= 0 && press.startsWith("gain:")) {
+                                // Tor 4c.6 diag: which gain, and what the grapple's ray (24 blocks) would hit
+                                PlayerSkills own = m.save().skillsOf(player.getUUID().toString());
+                                List<String> gk = GainKeys.assigned(m, own, own.clazz());
+                                int gi = Integer.parseInt(press.substring(5));
+                                log("     " + tag + ": " + press + " = " + (gi < gk.size() ? gk.get(gi) : "?")
+                                        + " pick=" + player.pick(24.0, 0f, false).getType() + " xRot=" + player.getXRot()
+                                        + " y=" + player.getY());
+                            }
                         }
                         if (key[0] != null) {
                             int uses = m.stats().testKeyUses(player, key[0]);
