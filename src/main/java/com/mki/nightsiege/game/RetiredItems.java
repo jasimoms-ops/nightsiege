@@ -12,14 +12,21 @@ import net.minecraft.world.Container;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.ItemStackTemplate;
+import net.minecraft.world.item.component.BundleContents;
+import net.minecraft.world.item.component.ItemContainerContents;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.LevelChunkSection;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * What the content update took out of the game (Simon, 28/29 October 2026): infernite (ore,
@@ -56,10 +63,64 @@ public final class RetiredItems {
             if (retired(container.getItem(i))) {
                 container.setItem(i, ItemStack.EMPTY);
                 gone++;
+            } else {
+                gone += purgeInside(container.getItem(i), 0);   // shulker boxes and bundles (Prüfer-Fund 4b)
             }
         }
         if (gone > 0) {
             container.setChanged();
+        }
+        return gone;
+    }
+
+    /**
+     * Takes retired stacks out of what an item carries (a shulker box's contents, a bundle), nested
+     * a few levels deep; returns how many stacks went. A broken component is left alone.
+     */
+    static int purgeInside(ItemStack stack, int depth) {
+        if (stack == null || stack.isEmpty() || depth > 4) {
+            return 0;
+        }
+        int gone = 0;
+        try {
+            ItemContainerContents box = stack.get(DataComponents.CONTAINER);
+            if (box != null && box != ItemContainerContents.EMPTY) {
+                List<ItemStack> items = box.allItemsCopyStream().collect(Collectors.toCollection(ArrayList::new));
+                int here = 0;
+                for (int i = 0; i < items.size(); i++) {
+                    if (retired(items.get(i))) {
+                        items.set(i, ItemStack.EMPTY);   // keep the slots in place
+                        here++;
+                    } else {
+                        here += purgeInside(items.get(i), depth + 1);
+                    }
+                }
+                if (here > 0) {
+                    stack.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(items));
+                    gone += here;
+                }
+            }
+            BundleContents bundle = stack.get(DataComponents.BUNDLE_CONTENTS);
+            if (bundle != null && !bundle.isEmpty()) {
+                List<ItemStackTemplate> kept = new ArrayList<>();
+                int here = 0;
+                for (ItemStack inner : bundle.itemCopyStream().toList()) {
+                    if (retired(inner)) {
+                        here++;
+                        continue;
+                    }
+                    here += purgeInside(inner, depth + 1);
+                    if (!inner.isEmpty()) {
+                        kept.add(ItemStackTemplate.fromNonEmptyStack(inner));
+                    }
+                }
+                if (here > 0) {
+                    stack.set(DataComponents.BUNDLE_CONTENTS, kept.isEmpty() ? BundleContents.EMPTY : new BundleContents(kept));
+                    gone += here;
+                }
+            }
+        } catch (RuntimeException e) {
+            NightSiegeMod.LOGGER.warn("[Night Siege] Inhalt von {} nicht geprüft: {}", stack, e.toString());
         }
         return gone;
     }
