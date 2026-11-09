@@ -1003,16 +1003,13 @@ public final class KitService {
         int foodTier = NightKit.foodTier(level, gainLevel(skills, clazz, "proviant"));
         Item food = foodTier == 0 ? Items.BREAD : foodTier == 1 ? Items.COOKED_BEEF : Items.GOLDEN_CARROT;
         hotbar.add(new ItemStack(food, 32));
-        int apples = NightKit.provisionApples(level, gainLevel(skills, clazz, "proviant")) + gainLevel(skills, clazz, "notration");
+        int apples = gainLevel(skills, clazz, "notration");   // Tor 5.4: provisions give no apples any more
         if (apples > 0) {
             hotbar.add(new ItemStack(Items.GOLDEN_APPLE, apples));
         }
         int heal = gainLevel(skills, clazz, "heiltrank");
         for (int i = 0; i < (heal >= 2 ? 3 : heal >= 1 ? 2 : 0); i++) {
             hotbar.add(fromGain(PotionContents.createItemStack(Items.POTION, Potions.STRONG_HEALING), "heiltrank"));
-        }
-        if (gainLevel(skills, clazz, "fackeln") > 0) {
-            hotbar.add(fromGain(new ItemStack(Items.TORCH, 16), "fackeln"));
         }
         if (gainLevel(skills, clazz, "wurfperlen") > 0) {
             hotbar.add(fromGain(new ItemStack(Items.ENDER_PEARL, 2), "wurfperlen"));
@@ -1023,6 +1020,7 @@ public final class KitService {
         hotbar.add(new ItemStack(Items.COBBLESTONE, box ? 64 : 32));
         if (box) {
             hotbar.add(fromGain(new ItemStack(Items.LADDER, 8), "baukiste"));
+            hotbar.add(fromGain(new ItemStack(Items.TORCH, 16), "baukiste"));   // Tor 5.4: the torches of "fackeln"
         }
         GainGear.addKitItems(this, skills, clazz, way, hotbar);
         // Wooden tools in every kit (Simon 29.10.): to dig, chop and clear; last, so they never push
@@ -1059,11 +1057,9 @@ public final class KitService {
         if (gainLevel(skills, clazz, "feuerklinge") > 0) {
             enchant(stack, ench, Enchantments.FIRE_ASPECT, 2);
         }
-        if (sword && gainLevel(skills, clazz, "schwung") > 0) {
-            enchant(stack, ench, Enchantments.SWEEPING_EDGE, gainLevel(skills, clazz, "schwung"));
-        }
-        if (gainLevel(skills, clazz, "gestaehlt") > 0) {
-            addAttribute(stack, Attributes.ATTACK_DAMAGE, "kit_steel", 1.0, EquipmentSlotGroup.MAINHAND);
+        // Tor 5.4: Schwung is +5 % sword damage per stage (CrateEffects.factor), no knockback enchantment any more.
+        if (gainLevel(skills, clazz, "gestaehlt") > 0) {   // Tor 5.4: +1 per stage, two stages
+            addAttribute(stack, Attributes.ATTACK_DAMAGE, "kit_steel", gainLevel(skills, clazz, "gestaehlt"), EquipmentSlotGroup.MAINHAND);
         }
         if (gainLevel(skills, clazz, "zweihaender") > 0) {   // sword or axe (27 October 2026)
             addAttribute(stack, Attributes.ENTITY_INTERACTION_RANGE, "kit_greatsword", 1.5, EquipmentSlotGroup.MAINHAND);

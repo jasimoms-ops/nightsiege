@@ -498,13 +498,14 @@ public final class GainGear {
         return 400;
     }
 
-    /** War horn: monsters within 8 blocks run away for 3 s, 60 s pause. */
+    /**
+     * War horn: monsters within 8 blocks are slowed (Slowness III) and weakened (Weakness I) for 3 s, 60 s
+     * pause. Tor 5.4: they no longer run away – a fighter wants them in reach.
+     */
     private static int warHorn(ServerPlayer player, ServerLevel level) {
-        long until = level.getGameTime() + 60;
         for (Mob mob : enemies(level, player.position(), 8.0)) {
-            mob.setTarget(null);
-            CALM.put(mob.getUUID(), until);
-            FLEE.put(mob.getUUID(), new Away(until, player.position()));
+            mob.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 60, 2, false, true), player);
+            mob.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, 60, 0, false, true), player);
         }
         level.playSound(null, player.blockPosition(), SoundEvents.RAID_HORN.value(), SoundSource.PLAYERS, 1.2f, 1.3f);
         level.sendParticles(ParticleTypes.SONIC_BOOM, player.getX(), player.getY() + 1.2, player.getZ(), 1, 0, 0, 0, 0);
@@ -526,9 +527,17 @@ public final class GainGear {
         return 900;
     }
 
-    /** Signal horn: allies see the guardian through walls for 10 s, 60 s pause. */
+    /**
+     * Signal horn: allies see the guardian through walls for 10 s, and (Tor 5.4, Sammelruf) allies within
+     * 16 blocks run 20 % faster for 5 s (Speed I); 60 s pause.
+     */
     private static int signal(ServerPlayer player, ServerLevel level) {
         player.addEffect(new MobEffectInstance(MobEffects.GLOWING, 200, 0, false, false, true));
+        for (ServerPlayer ally : level.players()) {
+            if (ally != player && ally.distanceToSqr(player) <= 256.0) {
+                ally.addEffect(new MobEffectInstance(MobEffects.SPEED, 100, 0, false, true, true));
+            }
+        }
         level.playSound(null, player.blockPosition(), SoundEvents.BELL_BLOCK, SoundSource.PLAYERS, 2f, 1f);
         level.playSound(null, player.blockPosition(), SoundEvents.BELL_RESONATE, SoundSource.PLAYERS, 1f, 1f);
         return 1200;
@@ -804,7 +813,7 @@ public final class GainGear {
 
     /** The kind of a player's special arrow (light, climb, storm), read from its tag or its item. */
     private static String kindOf(AbstractArrow arrow) {
-        for (String k : new String[]{"light", "climb", "storm", "spectral"}) {
+        for (String k : new String[]{"light", "climb", "storm", "fire"}) {
             if (arrow.entityTags().contains("ns_arrow_" + k)) {
                 return k;
             }
@@ -815,10 +824,18 @@ public final class GainGear {
         return Gadgets.arrowKind(arrow.getPickupItemStackOrigin());
     }
 
-    /** A player's arrow hit a monster: the spectral kind from the quiver makes it glow for 10 s. */
+    /**
+     * A player's arrow hit a monster. Tor 5.4: the light arrows make it glow for 10 s (they took in the
+     * spectral arrows), the fire arrows set it on fire for 4 s.
+     */
     public static void onArrowHitEntity(AbstractArrow arrow, LivingEntity victim) {
-        if (victim != null && arrow.entityTags().contains("ns_arrow_spectral")) {
+        if (victim == null) {
+            return;
+        }
+        if (arrow.entityTags().contains("ns_arrow_light")) {
             victim.addEffect(new MobEffectInstance(MobEffects.GLOWING, 200, 0));
+        } else if (arrow.entityTags().contains("ns_arrow_fire")) {
+            victim.igniteForSeconds(4f);
         }
     }
 
@@ -1145,7 +1162,7 @@ public final class GainGear {
 
     private static final List<ArrowKind> ARROW_KINDS = List.of(
             new ArrowKind("light", "lichtpfeile", 16, 0xFFE36B, "minecraft:glowstone_dust"),
-            new ArrowKind("spectral", "spektralpfeile", 16, 0xF2D46B, "minecraft:spectral_arrow"),
+            new ArrowKind("fire", "brandpfeile", 16, 0xFF7A2E, "minecraft:fire_charge"),   // Tor 5.4 (spektralpfeile left)
             new ArrowKind("climb", "kletterpfeile", 4, 0x9C6B3A, "minecraft:ladder"),
             new ArrowKind("storm", "sturmpfeile", 8, 0xBFE9FF, "minecraft:wind_charge"));
 

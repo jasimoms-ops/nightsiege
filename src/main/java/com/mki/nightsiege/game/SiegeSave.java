@@ -740,6 +740,63 @@ public class SiegeSave {
         return paid;
     }
 
+    /** True once Tor 5.4 moved the gains that left the crates onto their successors. */
+    public boolean loot5Migrated;
+
+    /**
+     * Tor 5.4 (Chef 22:42): fackeln -> baukiste, spektralpfeile -> lichtpfeile, fester_griff -> turmschild,
+     * leuchtschild -> schildlaterne (stage 1 of the successor; already owning it, the old gain's duplicate
+     * points per stage instead). Stages above a gain's new top (proviant 4 -> 2) pay their duplicate points.
+     * Runs once; returns the points paid.
+     */
+    public int migrateLoot5() {
+        if (loot5Migrated) {
+            return 0;
+        }
+        loot5Migrated = true;
+        int paid = 0;
+        if (skills == null) {
+            return 0;
+        }
+        for (PlayerSkills own : skills.values()) {
+            if (own == null || own.gains == null) {
+                continue;
+            }
+            for (java.util.Map.Entry<String, java.util.Map<String, Integer>> byClass : own.gains.entrySet()) {
+                java.util.Map<String, Integer> map = byClass.getValue();
+                if (map == null) {
+                    continue;
+                }
+                for (com.mki.nightsiege.core.CrateGains.Moved moved : com.mki.nightsiege.core.CrateGains.LOOT_5) {
+                    if (!moved.clazz().equals("*") && !moved.clazz().equals(byClass.getKey())) {
+                        continue;
+                    }
+                    Integer stage = map.remove(moved.from());
+                    if (stage == null || stage <= 0) {
+                        continue;
+                    }
+                    if (map.getOrDefault(moved.to(), 0) > 0) {
+                        int points = stage * moved.rarity().duplicatePoints();
+                        own.award(points);
+                        paid += points;
+                    } else {
+                        map.put(moved.to(), 1);
+                    }
+                }
+                for (java.util.Map.Entry<String, Integer> e : map.entrySet()) {
+                    com.mki.nightsiege.core.CrateGains.Gain gain = com.mki.nightsiege.core.CrateGains.get(e.getKey());
+                    if (gain != null && !gain.consumable() && e.getValue() != null && e.getValue() > gain.topStage()) {
+                        int points = (e.getValue() - gain.topStage()) * gain.rarity().duplicatePoints();
+                        own.award(points);
+                        paid += points;
+                        e.setValue(gain.topStage());
+                    }
+                }
+            }
+        }
+        return paid;
+    }
+
     /** Version of the skill trees the levels below were learned in. */
     public int skillTreeVersion;
     public static final int SKILL_TREE_VERSION = 8;

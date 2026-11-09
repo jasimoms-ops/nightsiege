@@ -198,17 +198,13 @@ public final class NightKit {
         return Math.min(vanillaMax + 1, base + Math.max(0, bonus));
     }
 
-    /** Food: 0 bread, 1 cooked beef, 2 golden carrots, 3 golden carrots and golden apples. */
+    /**
+     * Food: 0 bread, 1 cooked beef, 2 golden carrots. Tor 5.4: provisions have two stages and no golden
+     * apples any more (those are the notration's).
+     */
     public static int foodTier(int level, int provisionStage) {
         int base = level >= 11 ? 2 : level >= 6 ? 1 : 0;
-        return Math.min(3, base + Math.max(0, provisionStage));
-    }
-
-    /** Golden apples from provisions beyond the top food tier (two per extra stage). */
-    public static int provisionApples(int level, int provisionStage) {
-        int base = level >= 11 ? 2 : level >= 6 ? 1 : 0;
-        int over = base + Math.max(0, provisionStage) - 3;
-        return over >= 0 ? 2 + 2 * over : 0;
+        return Math.min(2, base + Math.max(0, provisionStage));
     }
 
     /** Arrows of the archer: 64, and 16 more every five levels. */

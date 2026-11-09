@@ -89,6 +89,20 @@ public final class CrateEffects {
                 && victim.getHealth() < victim.getMaxHealth() * 0.25f && has(attacker, "hinrichter")) {
             factor *= 1.5f;
         }
+        if (source.getEntity() instanceof ServerPlayer attacker && victim instanceof Enemy) {
+            // Tor 5.4: Schwung, +5 % sword damage per stage (was knockback, which pushed targets out of reach).
+            if (source.getDirectEntity() == attacker && attacker.getMainHandItem().is(net.minecraft.tags.ItemTags.SWORDS)) {
+                int swing = level(attacker, "schwung");
+                if (swing > 0) {
+                    factor *= 1f + 0.05f * swing;
+                }
+            }
+            // Tor 5.4: Zielfernrohr, +15 % arrow damage on targets more than 20 blocks away.
+            if (source.getDirectEntity() instanceof AbstractArrow && attacker.distanceToSqr(victim) > 400.0
+                    && has(attacker, "zielfernrohr")) {
+                factor *= 1.15f;
+            }
+        }
         if (victim instanceof ServerPlayer player) {
             if (source.is(DamageTypeTags.IS_EXPLOSION) && has(player, "bombenfest")) {
                 factor *= 0.25f;
@@ -191,13 +205,13 @@ public final class CrateEffects {
     /** Once a second in the night: glowing shield, the guardian's firm grip, straight arrows that flew too far. */
     public static void tick(ServerLevel world, Iterable<ServerPlayer> defenders) {
         for (ServerPlayer player : defenders) {
-            if (has(player, "leuchtschild")) {
+            if (has(player, "schildlaterne")) {   // Tor 5.4: the lantern took in the glowing shield
                 AABB box = player.getBoundingBox().inflate(6.0);
                 for (LivingEntity mob : world.getEntitiesOfClass(LivingEntity.class, box, e -> e instanceof Enemy)) {
                     mob.addEffect(new MobEffectInstance(MobEffects.GLOWING, 40, 0, false, false));
                 }
             }
-            if (has(player, "fester_griff")) {
+            if (has(player, "turmschild")) {   // Tor 5.4: the tower shield took in the firm grip
                 ItemStack shield = player.getOffhandItem();
                 if (!shield.isEmpty() && player.getCooldowns().isOnCooldown(shield)) {
                     player.getCooldowns().removeCooldown(player.getCooldowns().getCooldownGroup(shield));

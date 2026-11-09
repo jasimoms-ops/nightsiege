@@ -474,6 +474,10 @@ public final class Companions {
                     factor *= (float) (1.0 + self.bonus(SkillEffect.HOWL, skills));
                 }
             }
+            // Späherfalke (Tor 5.4): glowing monsters take +10 % from the companions.
+            if (victim instanceof Enemy && victim.hasEffect(MobEffects.GLOWING) && gain(skills, "spaehfalke") > 0) {
+                factor *= 1.10f;
+            }
             // Mischrudel: wolves and the skeleton together.
             if (SkillTree.has(skills, "s_mixedpack") && (hitter.kind == Kind.WOLF || hitter.kind == Kind.SKELETON)
                     && self.mixedOn(victim, hitter.owner)) {
@@ -862,7 +866,9 @@ public final class Companions {
             return (int) Math.round(v("s_shepherd", "slots", 1));   // Einsamer Hirte: one, twice as strong
         }
         int slots = (int) Math.round(v("s_packcall", "slots", 2)) + (int) Math.floor(bonus(SkillEffect.PACK_SLOTS, skills) + 1.0e-9);
-        return Math.max(1, Math.min((int) Math.round(v("s_tamer", "max", 4)), slots));
+        // Tor 5.4: Rudelruf, one wolf more, also above the tamer's top (companions are no monsters for the 120 cap).
+        int call = gain(skills, "rudelruf") > 0 ? 1 : 0;
+        return Math.max(1, Math.min((int) Math.round(v("s_tamer", "max", 4)), slots) + call);
     }
 
     // ------------------------------------------------------------------
@@ -1693,6 +1699,23 @@ public final class Companions {
             lead = Math.max(lead, v("s_shepherd", "health", 2.0));
         }
         scale *= lead;
+        scale *= gainHealth(skills, kind);
+        return scale;
+    }
+
+    /**
+     * Tor 5.4 crate gains on a companion's health: Treue +15 % for every companion; Rudelruf +15 % for the
+     * golem (and the lone shepherd's wolf, who gets no second one).
+     */
+    double gainHealth(PlayerSkills skills, Kind kind) {
+        double scale = 1.0;
+        if (gain(skills, "treue") > 0) {
+            scale *= 1.15;
+        }
+        if (gain(skills, "rudelruf") > 0 && (kind == Kind.GOLEM
+                || (kind == Kind.WOLF && SkillTree.has(skills, "s_shepherd")))) {
+            scale *= 1.15;
+        }
         return scale;
     }
 
@@ -1700,6 +1723,9 @@ public final class Companions {
         double scale = (1.0 + bonus(SkillEffect.SUMMON_DAMAGE, skills)) * nightScale(true);
         if (kind == Kind.GOLEM || kind == Kind.TITAN) {
             scale *= 1.0 + bonus(SkillEffect.GOLEM_CALL, skills);
+        }
+        if (kind == Kind.WOLF || kind == Kind.GOLEM) {
+            scale *= 1.0 + 0.10 * gain(skills, "rudelfuehrer");   // Tor 5.4: Rudelführer, +10 % per stage
         }
         double lead = alpha ? v("s_alpha", "damage", 2.0) : 1.0;
         if (SkillTree.has(skills, "s_shepherd") && (kind == Kind.WOLF || kind == Kind.GOLEM)) {
@@ -2439,7 +2465,7 @@ public final class Companions {
                 spawn(level, player, skills, Kind.GOLEM);
             }
         } else if (SkillTree.has(skills, "s_packcall")) {
-            int wolves = (int) Math.round(v("s_packcall", "startwolves", 2));
+            int wolves = (int) Math.round(v("s_packcall", "startwolves", 2)) + (gain(skills, "rudelruf") > 0 ? 1 : 0);
             for (int i = 0; i < Math.min(wolves, room); i++) {
                 spawn(level, player, skills, Kind.WOLF);
             }
@@ -2543,7 +2569,8 @@ public final class Companions {
         double nightDamage = m == null ? 1.0 : m.mobDamageFactor();
         double own = (1.0 + bonus(SkillEffect.NECRO_POWER, skills))
                 * (1.0 + (SkillTree.has(skills, "d_lich") ? bonus(SkillEffect.LICH, skills) : 0.0));
-        double life = Math.max(v("d_raise", "minhealth", 30.0), mob.getMaxHealth() * strength) * night * (1.0 + bonus(SkillEffect.SUMMON_HEALTH, skills)) * own;
+        double life = Math.max(v("d_raise", "minhealth", 30.0), mob.getMaxHealth() * strength) * night * (1.0 + bonus(SkillEffect.SUMMON_HEALTH, skills)) * own
+                * (1.0 + 0.10 * gain(skills, "grabesodem")) * gainHealth(skills, Kind.MINION);   // Tor 5.4: Grabesodem, Treue
         // Champion der Toten: every 4th of the army rises as a champion, twice as strong and bigger.
         boolean champion = false;
         if (army && SkillTree.has(skills, "d_champion")) {

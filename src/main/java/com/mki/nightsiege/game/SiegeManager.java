@@ -1186,6 +1186,12 @@ public final class SiegeManager {
             NightSiegeMod.LOGGER.info("[Night Siege] Fernbedienungs-Gewinne umgestellt: {} Punkte zurück", paid);
             persist();
         }
+        // Tor 5.4: gains that left the crates go to their successors (fackeln -> baukiste, ...), once per save.
+        if (!save.loot5Migrated) {
+            int paid = save.migrateLoot5();
+            NightSiegeMod.LOGGER.info("[Night Siege] Gewinne Tor 5.4 umgestellt: {} Punkte zurück", paid);
+            persist();
+        }
         // The alchemist's potions became nodes, three of seven (28 October 2026): once per save.
         if (!save.brewsMigrated) {
             int brewProfiles = 0;
@@ -3635,7 +3641,7 @@ public final class SiegeManager {
         @Override
         public boolean firmGrip(ServerPlayer player) {
             PlayerSkills own = save.skillsOf(player.getUUID().toString());
-            return own.hasClass() && kits.gainLevel(own, own.clazz(), "fester_griff") > 0;
+            return own.hasClass() && kits.gainLevel(own, own.clazz(), "turmschild") > 0;   // Tor 5.4: in the tower shield
         }
 
         @Override

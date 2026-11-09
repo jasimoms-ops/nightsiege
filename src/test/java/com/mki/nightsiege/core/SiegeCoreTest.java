@@ -731,13 +731,15 @@ class SiegeCoreTest {
             // 27.10. evening: the crate review – warrior 13 (Spaltaxt for Plünderung), archer 14 (Teernetz),
             // guardian 15 (Wundsalbe), engineer 18 (Munitionskiste, Sappeur-Alarm, Langes Gebräu), summoner 15 (Seelenzins).
             // 29.10. (balance update 2): Köcher and Blendgranaten left (archer 13, engineer 17), Dritte Hand came (17 general).
+            // Tor 5.4: fackeln (16 general), spektralpfeile for Brandpfeile, fester_griff and leuchtschild left
+            // (guardian 13), the summoner got Rudelführer, Grabesodem, Treue, Rudelruf (19).
             int own = switch (c) {
-                case WARRIOR, ARCHER -> 13;
-                case GUARDIAN, SUMMONER -> 15;
+                case WARRIOR, ARCHER, GUARDIAN -> 13;
+                case SUMMONER -> 19;
                 case ENGINEER -> 17;
                 default -> 0;
             };
-            assertEquals(own + 17, CrateGains.forCollection(c).size(), c + " has " + own + " gains and 17 general ones");
+            assertEquals(own + 16, CrateGains.forCollection(c).size(), c + " has " + own + " gains and 16 general ones");
             for (int i = 0; i < 400; i++) {
                 CrateGains.Gain g = CrateGains.roll(c, "", weights, 0.7, random);
                 assertNotNull(g);
@@ -798,9 +800,9 @@ class SiegeCoreTest {
         assertEquals(4, NightKit.sharpness(10));
         assertEquals(5, NightKit.sharpness(14));
         assertEquals(2, NightKit.foodTier(11, 0));
-        assertEquals(3, NightKit.foodTier(11, 4));
-        assertEquals(0, NightKit.provisionApples(11, 0));
-        assertTrue(NightKit.provisionApples(11, 4) > 2);
+        assertEquals(2, NightKit.foodTier(11, 2), "Tor 5.4: golden carrots at most, no apples");
+        assertEquals(1, NightKit.foodTier(1, 1));
+        assertEquals(2, NightKit.foodTier(1, 2));
         assertEquals(64, NightKit.archerArrows(1));
         assertEquals(128, NightKit.archerArrows(20));
     }

@@ -52,9 +52,9 @@ public final class CrateGains {
 
     static {
         // ---- general: every class ----
-        add("proviant", null, CrateRarity.COMMON, 4, false, "", true);
+        add("proviant", null, CrateRarity.COMMON, 2, false, "", true);   // Tor 5.4: 2 stages (steak, golden carrots), no apples
         add("schutz", null, CrateRarity.COMMON, 1, true, "", true);
-        add("fackeln", null, CrateRarity.COMMON, 1, false, "", true);
+        // "fackeln" left the crates (Tor 5.4): its torches are in the baukiste, owners have the baukiste (LOOT_5).
         add("notration", null, CrateRarity.COMMON, 3, false, "", true);
         add("baukiste", null, CrateRarity.UNCOMMON, 1, false, "", true);
         add("heiltrank", null, CrateRarity.UNCOMMON, 2, false, "", true);
@@ -65,7 +65,7 @@ public final class CrateGains {
         addConsumable("glueck", null, CrateRarity.RARE);
         add("totem", null, CrateRarity.EPIC, 1, false, "", true);
         add("kletterhaken", null, CrateRarity.EPIC, 1, false, "", true);
-        add("federleicht", null, CrateRarity.EPIC, 1, false, "", true);
+        add("federleicht", null, CrateRarity.RARE, 1, false, "", true);   // Tor 5.4: E -> R
         add("zweite_chance", null, CrateRarity.EPIC, 1, false, "", true);
         add("kriegsbanner", null, CrateRarity.LEGENDARY, 1, false, "", true);
         // A third gain key (balance update 2, Simon 29.10.: "2 Gewinn-Tasten reichen, man kann eine 3. gewinnen"),
@@ -78,10 +78,10 @@ public final class CrateGains {
         SkillClass w = SkillClass.WARRIOR;
         add("schaerfe", w, CrateRarity.COMMON, 1, true, "", true);
         add("wurfbeile", w, CrateRarity.COMMON, 3, false, "", true);
-        add("gestaehlt", w, CrateRarity.COMMON, 1, false, "", true);
+        add("gestaehlt", w, CrateRarity.COMMON, 2, false, "", true);   // Tor 5.4: +1/+2 damage
         // "pluenderung" did nothing since siege monsters drop nothing; the cleaving axe instead (27.10.).
         add("spaltaxt", w, CrateRarity.UNCOMMON, 1, false, SkillTree.WAY_MIGHT, true);
-        add("schwung", w, CrateRarity.UNCOMMON, 1, true, SkillTree.WAY_BLADE, true);   // the sword only (27.10.)
+        add("schwung", w, CrateRarity.UNCOMMON, 2, false, SkillTree.WAY_BLADE, true);   // Tor 5.4: +5 % sword damage per stage, no knockback
         add("kriegsgurt", w, CrateRarity.UNCOMMON, 1, false, "", true);
         add("feuerklinge", w, CrateRarity.RARE, 1, false, "", true);
         add("blitzklinge", w, CrateRarity.RARE, 1, false, "", true);
@@ -98,7 +98,8 @@ public final class CrateGains {
         add("staerke", a, CrateRarity.COMMON, 1, true, SkillTree.WAY_BOW, true);
         add("schnellladen", a, CrateRarity.COMMON, 1, true, SkillTree.WAY_CROSSBOW, true);
         add("lichtpfeile", a, CrateRarity.UNCOMMON, 1, false, "", true);
-        add("spektralpfeile", a, CrateRarity.UNCOMMON, 1, false, "", true);
+        // "spektralpfeile" left (Tor 5.4): the light arrows make the monster hit glow too (LOOT_5).
+        add("brandpfeile", a, CrateRarity.UNCOMMON, 1, false, "", true);   // Tor 5.4: 16 shots, set on fire 4 s
         add("zielfernrohr", a, CrateRarity.UNCOMMON, 1, false, "", true);
         add("kletterpfeile", a, CrateRarity.RARE, 1, false, "", true);
         add("sturmpfeile", a, CrateRarity.RARE, 1, false, "", true);
@@ -113,14 +114,13 @@ public final class CrateGains {
 
         // ---- guardian ----
         SkillClass g = SkillClass.GUARDIAN;
-        add("fester_griff", g, CrateRarity.RARE, 1, false, "", true);   // rare since 27 October 2026 (Simon: too common)
+        // "fester_griff" and "leuchtschild" left (Tor 5.4): in turmschild and schildlaterne now (LOOT_5).
         add("projektilschutz", g, CrateRarity.COMMON, 1, true, "", true);
-        add("verbandskasten", g, CrateRarity.COMMON, 1, false, "", true);
+        add("verbandskasten", g, CrateRarity.COMMON, 2, false, "", true);   // Tor 5.4: +1/+2 potions
         add("turmschild", g, CrateRarity.UNCOMMON, 1, false, "", true);
         add("barrikaden", g, CrateRarity.UNCOMMON, 1, false, "", true);
         add("signalhorn", g, CrateRarity.UNCOMMON, 1, false, "", true);
         add("mauerkelle", g, CrateRarity.RARE, 1, false, "", true);
-        add("leuchtschild", g, CrateRarity.RARE, 1, false, "", true);
         add("bombenfest", g, CrateRarity.RARE, 1, false, "", true);
         add("schildlaterne", g, CrateRarity.RARE, 1, false, "", true);
         add("deckung", g, CrateRarity.EPIC, 1, false, "", true);
@@ -169,6 +169,11 @@ public final class CrateGains {
         add("seelengefaess", s, CrateRarity.EPIC, 1, false, SkillTree.WAY_DEAD, true);
         add("seelentausch", s, CrateRarity.LEGENDARY, 1, false, "", true);
         add("seelenzins", s, CrateRarity.EPIC, 1, false, SkillTree.WAY_DEAD, true);   // 27.10.: cheaper spells
+        // Tor 5.4 (Chef 22:42): the summoners had the smallest pools (8-10).
+        add("rudelfuehrer", s, CrateRarity.COMMON, 2, false, SkillTree.WAY_WILD, true);   // wolves / golem +10 % damage per stage
+        add("grabesodem", s, CrateRarity.COMMON, 2, false, SkillTree.WAY_DEAD, true);   // raised corpses +10 % health per stage
+        add("treue", s, CrateRarity.RARE, 1, false, "", true);   // every companion +15 % health
+        add("rudelruf", s, CrateRarity.RARE, 1, false, SkillTree.WAY_WILD, true);   // tamer +1 wolf, golemsmith golem +15 % health
     }
 
     private static final Map<String, String> ICONS = Map.ofEntries(
@@ -192,7 +197,7 @@ public final class CrateGains {
             Map.entry("kampfrausch", "minecraft:sugar"), Map.entry("schlachtentrance", "minecraft:clock"),
             Map.entry("koecherfuellung", "minecraft:arrow"),
             Map.entry("staerke", "minecraft:bow"), Map.entry("schnellladen", "minecraft:crossbow"),
-            Map.entry("lichtpfeile", "minecraft:glowstone_dust"), Map.entry("spektralpfeile", "minecraft:spectral_arrow"),
+            Map.entry("lichtpfeile", "minecraft:glowstone_dust"), Map.entry("brandpfeile", "minecraft:fire_charge"),
             Map.entry("zielfernrohr", "minecraft:spyglass"), Map.entry("kletterpfeile", "minecraft:ladder"),
             Map.entry("sturmpfeile", "minecraft:wind_charge"),
             Map.entry("tarnumhang", "minecraft:phantom_membrane"), Map.entry("koecher", "minecraft:bundle"),
@@ -212,7 +217,9 @@ public final class CrateGains {
             Map.entry("zweite_ladung", "minecraft:repeater"), Map.entry("oelfass", "minecraft:lava_bucket"),
             Map.entry("recycling", "minecraft:hopper"), Map.entry("ueberkapazitaet", "minecraft:ender_chest"),
             Map.entry("tarnfallen", "minecraft:tinted_glass"), Map.entry("kupfergolem", "minecraft:copper_block"), Map.entry("geschuetzschild", "minecraft:shield"),
-            Map.entry("magnetfeld", "minecraft:lodestone"),
+            Map.entry("magnetfeld", "minecraft:lodestone"), Map.entry("rudelfuehrer", "minecraft:bone"),
+            Map.entry("grabesodem", "minecraft:rotten_flesh"), Map.entry("treue", "minecraft:name_tag"),
+            Map.entry("rudelruf", "minecraft:wolf_spawn_egg"),
             Map.entry("futterbeutel", "minecraft:beef"), Map.entry("knochenstaub", "minecraft:bone_meal"),
             Map.entry("rueckrufpfeife", "minecraft:lead"), Map.entry("wolfspanzer", "minecraft:wolf_armor"),
             Map.entry("golemplatten", "minecraft:heavy_weighted_pressure_plate"), Map.entry("grabkerzen", "minecraft:purple_candle"),
@@ -259,6 +266,20 @@ public final class CrateGains {
 
     /** Tor 4b.5: gains that left with the remote and the gain their owners get instead. */
     public static final Map<String, String> RENAMED_4B = Map.of(SkillClass.ENGINEER.name() + ":zweite_ladung", "ersatzbatterie");
+
+    /**
+     * Tor 5.4 (Chef 22:42): gains that left the crates and the gain that took them in, with the old
+     * rarity (an owner of the successor gets its duplicate points per stage instead). "*" = every class
+     * (a general gain sits in each class's map).
+     */
+    public record Moved(String clazz, String from, String to, CrateRarity rarity) {
+    }
+
+    public static final List<Moved> LOOT_5 = List.of(
+            new Moved("*", "fackeln", "baukiste", CrateRarity.COMMON),
+            new Moved(SkillClass.ARCHER.name(), "spektralpfeile", "lichtpfeile", CrateRarity.UNCOMMON),
+            new Moved(SkillClass.GUARDIAN.name(), "fester_griff", "turmschild", CrateRarity.RARE),
+            new Moved(SkillClass.GUARDIAN.name(), "leuchtschild", "schildlaterne", CrateRarity.RARE));
 
     /**
      * The gains whose ability sits on a gain key instead of an item in the kit (balance update 2,
