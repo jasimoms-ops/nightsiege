@@ -168,9 +168,12 @@ final class Krieger410Scenes {
 
         // ------------------------------------------------ 1. Blutrausch: grows with the life missing, aura, vignette
         final double[] rage = new double[4];
-        server(context, "rage", (player, m) -> {
+        server(context, "rage setup", (player, m) -> {
             player.getInventory().clearContent();
             become(player, m, new ItemStack(Items.IRON_SWORD), "bloodlust");
+        });
+        context.waitTicks(5);   // the sword's attack speed comes with the next entity tick (else 4.0 is the base)
+        server(context, "rage", (player, m) -> {
             WarriorArts.reset();
             WarriorSpirit.reset();
             WarriorSpirit.set(player, 60);
@@ -192,7 +195,10 @@ final class Krieger410Scenes {
             rage[2] = WarriorArts.rageBonus(player);
             rage[3] = player.getAttributeValue(Attributes.ATTACK_SPEED);
             log(String.format(Locale.ROOT, "rage 30 %% life: dmg=%.3f speed=%.3f", rage[2], rage[3]));
-            check(Math.abs(rage[2] - WarriorSpiritMath.rageDamage(0.7)) < 0.01 && rage[2] > rage[0],
+            // The player regenerates a little in the 12 ticks: expect the bonus for the life missing now.
+            double missing = WarriorSpiritMath.missing(player.getHealth(), player.getMaxHealth());
+            log(String.format(Locale.ROOT, "rage low: missing=%.3f", missing));
+            check(missing > 0.5 && Math.abs(rage[2] - WarriorSpiritMath.rageDamage(missing)) < 0.01 && rage[2] > rage[0],
                     "Blutrausch at 30 % life: more damage (" + rage[0] + " -> " + rage[2] + ")");
             check(rage[3] > rage[1] + 0.01, "Blutrausch at 30 % life: faster swings (" + rage[1] + " -> " + rage[3] + ")");
         });
@@ -281,12 +287,14 @@ final class Krieger410Scenes {
         server(context, "knock combo hit", (player, m) -> {
             dummy[0].setDeltaMovement(Vec3.ZERO);
             dummy[0].invulnerableTime = 0;
+            Combo.tick(player, true);   // the Kombo only ticks in a night; here by hand (sword in hand, learned)
             boolean combo = Combo.active(player);
             player.attack(dummy[0]);
             push[1] = flat(dummy[0].getDeltaMovement());
             log(String.format(Locale.ROOT, "knockback: plain %.3f, Kombo %.3f (combo=%s)", push[0], push[1], combo));
             check(combo && push[0] > 0.05 && push[1] < push[0] * 0.5,
                     "Kombo hits push less (" + String.format(Locale.ROOT, "%.3f -> %.3f", push[0], push[1]) + ")");
+            Combo.clear(player);
             clear(player);
         });
         context.waitTicks(5);
@@ -305,6 +313,7 @@ final class Krieger410Scenes {
             high[0] = zombie((ServerLevel) player.level(), 12, 3, 0, 500f, false);
             highHp[0] = high[0].getHealth();
         });
+        context.waitTicks(5);   // home()'s teleport sets the pitch to 0: look up only after it
         // Eye 1.62 above the floor, the zombie's middle 3 + 0.975: look up at it.
         float pitch = (float) -Math.toDegrees(Math.atan2(3 + 0.975 - 1.62, 12.0));
         context.getInput().lookAt(-90.0f, pitch);
