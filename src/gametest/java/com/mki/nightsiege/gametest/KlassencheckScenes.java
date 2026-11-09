@@ -268,6 +268,27 @@ final class KlassencheckScenes {
         for (SkillTree.SubclassInfo info : SkillTree.SUBCLASSES) {
             int failsBefore = FAILS.size();
             String sub = info.key();
+            // Tor 4c.6: the night of level 1 ends after about four minutes (CI: during demolition); from then on
+            // nothing counted and the gain items worked by day. A new test night when the last one is over.
+            final boolean[] renewed = new boolean[1];
+            server(context, sub + " night", (player, m) -> {
+                if (!m.isActive()) {
+                    ServerLevel level = (ServerLevel) player.level();
+                    renewed[0] = m.prepareTest(level.getServer(), level, player.blockPosition(), 1, com.mki.nightsiege.core.SiegeEvent.NONE);
+                    log("     " + sub + ": night renewed=" + renewed[0]);
+                }
+            });
+            context.waitTicks(2);
+            if (renewed[0]) {
+                context.waitTicks(80);
+                EventLookTest.closeScreen(context);
+                server(context, sub + " night clear", (player, m) -> {
+                    ((ServerLevel) player.level()).getEntitiesOfClass(Mob.class, player.getBoundingBox().inflate(160),
+                            e -> e instanceof net.minecraft.world.entity.monster.Enemy).forEach(Mob::discard);
+                    check(m.isDefending(player), sub + ": the player defends the renewed night");
+                });
+                context.waitTicks(5);
+            }
             for (int lvl : LEVELS) {
                 final String tag = sub + " " + lvl;
                 game.getServer().runCommand("kill @e[tag=" + HUSK + "]");
@@ -452,6 +473,9 @@ final class KlassencheckScenes {
                         List<Mob> targets = husks(level);
                         if (!targets.isEmpty()) {
                             Mob t = targets.get(0);
+                            if (press.equals("ult")) {
+                                t.setHealth(t.getMaxHealth() * 0.1f);   // Tor 4c.6: the execute strikes only a weakened monster
+                            }
                             player.lookAt(EntityAnchorArgument.Anchor.EYES, t.position().add(0, t.getBbHeight() * 0.5, 0));
                         }
                         List<UltState.Slot> slots = m.abilitySlots(player);
