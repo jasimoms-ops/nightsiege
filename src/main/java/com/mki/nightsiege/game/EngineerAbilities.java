@@ -5,6 +5,7 @@ import com.mki.nightsiege.core.SkillClass;
 import com.mki.nightsiege.core.SkillEffect;
 import com.mki.nightsiege.core.SkillTree;
 import com.mki.nightsiege.core.SkillValues;
+import com.mki.nightsiege.core.StingLock;
 import com.mki.nightsiege.core.TrapKind;
 import com.mki.nightsiege.core.UltState;
 import net.minecraft.core.BlockPos;
@@ -63,6 +64,10 @@ public final class EngineerAbilities {
     private static final Map<UUID, Map<String, Long>> READY = new HashMap<>();
     /** What runs on over several ticks: Sperrfeuer bursts, Statikfelder, Haftgranaten. */
     private static final List<Running> RUNNING = new ArrayList<>();
+    /** Ticks between two stings of a Statikfeld. */
+    private static final long STING_EVERY = 20;
+    /** Shared hit lock of a player's Statikfelder: no stacking of the Netzwerk fields. */
+    private static final StingLock STUNG = new StingLock();
 
     private EngineerAbilities() {
     }
@@ -151,6 +156,7 @@ public final class EngineerAbilities {
     public static void reset() {
         READY.clear();
         RUNNING.clear();
+        STUNG.clear();
     }
 
     // ------------------------------------------------------------------ the bar
@@ -465,6 +471,7 @@ public final class EngineerAbilities {
         if (RUNNING.isEmpty()) {
             return;
         }
+        Map<ServerPlayer, List<Running>> due = new HashMap<>();
         for (Iterator<Running> it = RUNNING.iterator(); it.hasNext(); ) {
             Running r = it.next();
             ServerPlayer player = server.getPlayerList().getPlayer(r.player);
@@ -488,8 +495,8 @@ public final class EngineerAbilities {
                     if (now > r.until) {
                         it.remove();
                     } else if (now >= r.next) {
-                        r.next = now + 20;
-                        sting(level, player, r);
+                        r.next = now + STING_EVERY;
+                        due.computeIfAbsent(player, k -> new ArrayList<>()).add(r);   // stung together below
                     }
                 }
                 case SUPPRESS -> {
@@ -501,6 +508,11 @@ public final class EngineerAbilities {
                     }
                 }
                 default -> it.remove();
+            }
+        }
+        for (Map.Entry<ServerPlayer, List<Running>> e : due.entrySet()) {
+            if (e.getKey().level() instanceof ServerLevel level) {
+                sting(level, e.getKey(), e.getValue());
             }
         }
     }
@@ -519,15 +531,38 @@ public final class EngineerAbilities {
         level.playSound(null, BlockPos.containing(at), SoundEvents.GENERIC_EXPLODE.value(), SoundSource.PLAYERS, 0.8f, 1.3f);
     }
 
-    private static void sting(ServerLevel level, ServerPlayer player, Running r) {
+    /**
+     * One pulse of all due Statikfelder of a player (Prüfer-Fund 4b): one entity query over all of them,
+     * each monster stung at most once per pulse ({@link #STUNG}, also across casts), the sparks shared out.
+     */
+    private static void sting(ServerLevel level, ServerPlayer player, List<Running> fields) {
         double damage = val(STATIC, "dmg", 1) * TrapService.levelScale();
-        for (LivingEntity e : TrapService.around(level, r.at, r.radius)) {
+        AABB box = null;
+        for (Running r : fields) {
+            AABB one = new AABB(r.at, r.at).inflate(r.radius, 2.0, r.radius);
+            box = box == null ? one : box.minmax(one);
+        }
+        long now = level.getGameTime();
+        for (LivingEntity e : TrapService.enemies(level, box)) {
+            boolean inside = false;
+            for (Running r : fields) {
+                if (e.distanceToSqr(r.at) <= r.radius * r.radius + 4.0) {   // as TrapService.around
+                    inside = true;
+                    break;
+                }
+            }
+            if (!inside || !STUNG.tryHit(player.getUUID(), e.getId(), now, STING_EVERY)) {
+                continue;
+            }
             hurt(level, player, e, damage);
             if (!BossService.isBossOrPart(e)) {
                 e.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 30, 1));
             }
         }
-        level.sendParticles(ParticleTypes.ELECTRIC_SPARK, r.at.x, r.at.y + 0.3, r.at.z, 24, r.radius * 0.45, 0.2, r.radius * 0.45, 0.05);
+        int sparks = Math.max(6, 24 / fields.size());
+        for (Running r : fields) {
+            level.sendParticles(ParticleTypes.ELECTRIC_SPARK, r.at.x, r.at.y + 0.3, r.at.z, sparks, r.radius * 0.45, 0.2, r.radius * 0.45, 0.05);
+        }
     }
 
     /** One bolt of the Sperrfeuer: at the monster looked at, else the nearest in reach. */
