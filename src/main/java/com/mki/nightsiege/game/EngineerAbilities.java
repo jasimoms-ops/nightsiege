@@ -484,8 +484,8 @@ public final class EngineerAbilities {
             ServerPlayer player = server.getPlayerList().getPlayer(r.player);
             ServerLevel level = player != null && player.level() instanceof ServerLevel l
                     && SiegeManager.dimensionName(l).equals(r.dimension) ? l : null;
-            if (level == null) {
-                it.remove();   // logged out, died away or left the world: it ends
+            if (level == null || !player.isAlive()) {
+                it.remove();   // logged out, died, or left the world: it ends (night end: reset())
                 continue;
             }
             long now = level.getGameTime();
