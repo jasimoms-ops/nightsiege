@@ -9,6 +9,7 @@ import com.mki.nightsiege.core.PlaytestData;
 import com.mki.nightsiege.core.SiegeConfig;
 import com.mki.nightsiege.core.SiegeEvent;
 import com.mki.nightsiege.core.SkillClass;
+import com.mki.nightsiege.core.PlaytestAccess;
 import com.mki.nightsiege.core.SkillNode;
 import com.mki.nightsiege.core.SkillTree;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -77,6 +78,12 @@ public final class Playtest {
 
     private final SiegeManager m;
     private final Random random = new Random();
+    /** (Tor 9.1 j) Who started the running playtest (null: the console or before a restart). */
+    private UUID starter;
+    /** (Tor 9.1 j) Server tick of the last start, for the cooldown of non-OPs; -1 for none. */
+    private long lastStartTick = -1;
+    /** (Tor 9.1 j) Who said "mitmachen", and at which server tick. */
+    private final java.util.Map<UUID, Long> joins = new java.util.HashMap<>();
 
     Playtest(SiegeManager manager) {
         this.m = manager;
@@ -183,7 +190,7 @@ public final class Playtest {
 
     /** Starts a playtest for every signed-up player online; returns null or the translation key of why not. */
     public String start(MinecraftServer server, int target) {
-        return start(server, target, null);
+        return start(server, target, (ServerPlayer) null);
     }
 
     /**
@@ -191,6 +198,69 @@ public final class Playtest {
      * playtest possible alone"), the others online go on as they were.
      */
     public String start(MinecraftServer server, int target, ServerPlayer alone) {
+        return start(server, target, alone == null ? null : List.of(alone));
+    }
+
+    // ------------------------------------------------------------------ start for everyone (Tor 9.1 j)
+
+    /** Whether that player started the running playtest. */
+    public boolean startedBy(UUID id) {
+        return running() && id != null && id.equals(starter);
+    }
+
+    /** Server tick of the last start, -1 for none. */
+    public long lastStartTick() {
+        return lastStartTick;
+    }
+
+    /** For scenes: forget the last start (no cooldown). */
+    public void resetCooldownForTests() {
+        lastStartTick = -1;
+    }
+
+    /** "/nightsiege playtest mitmachen": the player takes part in the next playtest a non-OP starts. */
+    public void join(ServerPlayer player, long now) {
+        joins.put(player.getUUID(), now);
+    }
+
+    /**
+     * The players of a start by a non-OP: the starter first, then (unless alone) those online who said
+     * "mitmachen" within the last minutes, registered and alive, at most {@link PlaytestAccess#MAX_PLAYERS}.
+     */
+    public List<ServerPlayer> chosenBy(MinecraftServer server, ServerPlayer self, boolean alone, long now) {
+        List<ServerPlayer> chosen = new ArrayList<>();
+        chosen.add(self);
+        if (!alone) {
+            for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+                Long at = joins.get(p.getUUID());
+                if (p != self && at != null && PlaytestAccess.joinHolds(now, at) && m.isRegistered(p)
+                        && !p.isSpectator() && !p.isDeadOrDying() && chosen.size() < PlaytestAccess.MAX_PLAYERS) {
+                    chosen.add(p);
+                }
+            }
+        }
+        return chosen;
+    }
+
+    /**
+     * Starts a playtest with exactly these players ({@code null}: every signed-up player online, the OP
+     * way); remembers the starter and the tick for the cooldown. Returns null or the key of why not.
+     */
+    public String start(MinecraftServer server, int target, List<ServerPlayer> chosen, ServerPlayer by) {
+        String problem = start(server, target, chosen);
+        if (problem == null) {
+            starter = by == null ? null : by.getUUID();
+            lastStartTick = server.getTickCount();
+            if (chosen != null) {
+                for (ServerPlayer p : chosen) {
+                    joins.remove(p.getUUID());
+                }
+            }
+        }
+        return problem;
+    }
+
+    private String start(MinecraftServer server, int target, List<ServerPlayer> chosen) {
         if (running()) {
             return "nightsiege.playtest.already";
         }
@@ -207,11 +277,13 @@ public final class Playtest {
             giveBackWaiting(p);   // online again but not given back yet: before anything is taken
         }
         List<ServerPlayer> players = new ArrayList<>();
-        if (alone != null) {
-            if (!m.isRegistered(alone)) {
-                return "nightsiege.playtest.not_registered";
+        if (chosen != null) {
+            for (ServerPlayer p : chosen) {
+                if (!m.isRegistered(p)) {
+                    return "nightsiege.playtest.not_registered";
+                }
+                players.add(p);
             }
-            players.add(alone);
         } else {
             for (ServerPlayer p : server.getPlayerList().getPlayers()) {
                 if (m.isRegistered(p) && !p.isSpectator() && !p.isDeadOrDying()) {

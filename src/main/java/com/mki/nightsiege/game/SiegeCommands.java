@@ -56,14 +56,25 @@ public final class SiegeCommands {
                                 }))))
                 // The playtest (Simon, 28 October 2026): four nights of rising level along planned paths.
                 .then(Commands.literal("playtest")
+                        // Tor 9.1 j (Simon 09.11.): start and stop for everyone, no OP needed (PlaytestAccess).
                         .then(Commands.argument("zielstufe", IntegerArgumentType.integer(4, 1000))
-                                .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                                 .executes(ctx -> playtestStart(ctx, false))
                                 .then(Commands.literal("allein").executes(ctx -> playtestStart(ctx, true))))
-                        .then(Commands.literal("stop").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                        .then(Commands.literal("mitmachen").executes(ctx -> asPlayer(ctx, p -> {
+                                    SiegeManager.get().playtest().join(p, ctx.getSource().getServer().getTickCount());
+                                    reply(ctx.getSource(), Component.translatable("nightsiege.playtest.joined"));
+                                })))
+                        .then(Commands.literal("stop")
                                 .executes(ctx -> {
                                     if (!SiegeManager.get().playtest().running()) {
                                         fail(ctx.getSource(), Component.translatable("nightsiege.playtest.none"));
+                                        return 0;
+                                    }
+                                    ServerPlayer by = ctx.getSource().getPlayer();
+                                    if (!com.mki.nightsiege.core.PlaytestAccess.mayStop(isOp(ctx.getSource()),
+                                            by != null && SiegeManager.get().playtest().startedBy(by.getUUID()),
+                                            by != null && SiegeManager.get().playtest().takesPart(by.getUUID()))) {
+                                        fail(ctx.getSource(), Component.translatable("nightsiege.playtest.stop_denied"));
                                         return 0;
                                     }
                                     boolean inIt = ctx.getSource().getPlayer() != null
@@ -694,7 +705,24 @@ public final class SiegeCommands {
             fail(ctx.getSource(), Component.translatable("nightsiege.cmd.player_only"));
             return 0;
         }
-        String problem = SiegeManager.get().playtest().start(ctx.getSource().getServer(), target, alone ? self : null);
+        // Tor 9.1 j: everyone may start, never during a night or another playtest; non-OPs with a cooldown
+        // and only with themselves and those who said "mitmachen" (nobody is pulled in).
+        net.minecraft.server.MinecraftServer server = ctx.getSource().getServer();
+        SiegeManager m = SiegeManager.get();
+        boolean op = isOp(ctx.getSource());
+        long now = server.getTickCount();
+        String problem = com.mki.nightsiege.core.PlaytestAccess.startProblem(op, self != null, m.playtest().running(),
+                m.isActive() || m.isPreparing() || m.nightComing(server), now, m.playtest().lastStartTick());
+        if ("nightsiege.playtest.cooldown".equals(problem)) {
+            fail(ctx.getSource(), Component.translatable(problem,
+                    com.mki.nightsiege.core.PlaytestAccess.cooldownSecondsLeft(now, m.playtest().lastStartTick())));
+            return 0;
+        }
+        if (problem == null) {
+            java.util.List<ServerPlayer> chosen = op ? (alone ? java.util.List.of(self) : null)
+                    : m.playtest().chosenBy(server, self, alone, now);
+            problem = m.playtest().start(server, target, chosen, self);
+        }
         if (problem != null) {
             fail(ctx.getSource(), Component.translatable(problem));
             return 0;
@@ -703,6 +731,11 @@ public final class SiegeCommands {
         reply(ctx.getSource(), Component.translatable("nightsiege.playtest.started_admin", target,
                 levels.get(0) + " / " + levels.get(1) + " / " + levels.get(2) + " / " + levels.get(3)));
         return 1;
+    }
+
+    /** OP (level 2), the console too. */
+    private static boolean isOp(CommandSourceStack source) {
+        return Commands.LEVEL_GAMEMASTERS.check(source.permissions());
     }
 
     private static int asPlayer(CommandContext<CommandSourceStack> ctx, java.util.function.Consumer<ServerPlayer> action) {
