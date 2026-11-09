@@ -169,6 +169,9 @@ public final class EngineerAbilities {
         slot.icon = icon(id);
         slot.name = "nightsiege.ability." + id;
         slot.sub = "nightsiege.ability." + id + ".sub";
+        if (PIERCE.equals(id)) {
+            slot.subArgs.add(String.valueOf(Math.round(val(PIERCE, "targets", 3))));   // Tor 4c.6: the text reads the value
+        }
         slot.cooldownTicks = cooldownLeft(player, id, now);
         slot.totalTicks = (int) pause(player, tree, skills, id);
         return slot;
@@ -535,7 +538,7 @@ public final class EngineerAbilities {
         PlayerSkills skills = traps.skillsOf(player);
         double damage = val(GRENADE, "dmg", 6) * TrapService.levelScale()
                 * (1.0 + SkillValues.get("e_detonator", "dmg", 0.15) * traps.tree().totalBonus(SkillEffect.DETONATOR, skills));
-        double radius = val(GRENADE, "radius", 3);
+        double radius = val(GRENADE, "radius", 3) * traps.tree().blastScale(skills);   // Tor 4c.6: Sprengkraft as its text says
         long mark = now + Math.round(val(GRENADE, "mark", 160));
         for (LivingEntity e : TrapService.around(level, at, radius)) {
             hurt(level, player, e, damage);

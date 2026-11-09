@@ -956,7 +956,7 @@ public final class Companions {
             return false;
         }
         spellIndex.put(player.getUUID(), at);
-        nextSpell.remove(player.getUUID());
+        // Tor 4c.6: the bar keys come here too, so the 1 s pause between spells stays (tests use resetPause)
         return castSpell(level, player, skills, level.getGameTime());
     }
 
