@@ -222,6 +222,11 @@ final class TechnikerScenes {
                 m.kits().traps().resetZones();
                 boolean ok = m.kits().traps().tryMount(level, tower[1], player, ItemStack.EMPTY);
                 check(ok && m.kits().traps().isSeated(player), sub + ": sits in his " + SEAT.get(sub).id());
+                if (SkillTree.SUB_DEMOLITION.equals(sub) || SkillTree.SUB_ALCHEMIST.equals(sub)) {
+                    // Chef 09.11. 05:35: grenade and potion fly +50 % further from a turret or tesla seat
+                    double far = EngineerAbilities.seatThrow(m.kits().traps().seatKind(player));
+                    check(far > 1.0, sub + ": the throw flies further in the seat (x" + far + ")");
+                }
                 before[0] = lost(level);
                 fireAll(player, m, sub, "in the seat");
             });
