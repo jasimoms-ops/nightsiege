@@ -721,6 +721,7 @@ public final class GuardianEffects {
         }
         if (SkillTree.has(skills, "g_cleanse")) {
             cleanse(weakest);
+            heal(player, weakest, (float) SkillValues.get("g_cleanse", "heal", 2.0));   // Tor 4c.5 A6b
         }
     }
 
@@ -1115,6 +1116,7 @@ public final class GuardianEffects {
         }
         if (SkillTree.has(skills, "g_cleanse")) {
             cleanse(target);
+            heal(player, target, (float) SkillValues.get("g_cleanse", "heal", 2.0));   // Tor 4c.5 A6b
         }
         salve(player, target);
         wardSkipUntil.put(player.getUUID(), now + (player.getAbilities().instabuild ? 20 : every(node, "interval", 160.0)));

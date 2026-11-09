@@ -468,8 +468,8 @@ public final class CombatEffects {
         if (!player.isAlive()) {
             return;
         }
-        double r = SkillValues.get("ground_slam", "radius" + rank, 4.0 + rank);
-        float damage = (float) SkillValues.get("ground_slam", "dmg" + rank, 5f + 3f * rank) * scale;   // 8 / 11 / 14
+        double r = SkillValues.get("ground_slam", "radius" + rank, 5.0 + rank);
+        float damage = (float) SkillValues.get("ground_slam", "dmg" + rank, 6.5f + 4.5f * rank) * scale;   // 11 / 15 / 20 (Tor 4c.5)
         Vec3 center = player.position();
         DamageSource source = level.damageSources().playerAttack(player);
         for (LivingEntity victim : enemies(level, center, r, 2.0)) {
@@ -1349,7 +1349,12 @@ public final class CombatEffects {
                         20, 1.2, 0.2, 1.2, 0.0);
             }
             if (tree.totalBonus(SkillEffect.SHACKLE, skills) > 0) {
-                victim.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, (int) SkillValues.get("a_shackle", "dur", 40), 9));
+                victim.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, shackleTicks(false), 9));
+                for (LivingEntity near : enemies(level, victim.position(), SkillValues.get("a_shackle", "radius", 2.0), 1.5)) {
+                    if (near != victim) {
+                        near.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, shackleTicks(true), 9));
+                    }
+                }
             }
             double explosive = tree.totalBonus(SkillEffect.EXPLOSIVE, skills);
             boolean cluster = tree.totalBonus(SkillEffect.CLUSTER, skills) > 0;
@@ -1631,13 +1636,25 @@ public final class CombatEffects {
                 if (!mate.isAlive() || mate.distanceToSqr(medic) > radius * radius) {
                     continue;
                 }
-                float amount = (float) heal + (martyr && mate != medic ? (float) SkillValues.get("w_martyr", "heal", 1.5) : 0f);
+                float amount = (float) heal + (martyr ? (float) martyrHeal(mate == medic) : 0f);
                 if (amount > 0 && guardian.heal(medic, mate, amount) > 0) {
                     level.sendParticles(ParticleTypes.HEART, mate.getX(), mate.getY() + 2.0, mate.getZ(),
                             1, 0.2, 0.1, 0.2, 0.0);
                 }
             }
         }
+    }
+
+    /** Tor 4c.5 A3: what the martyr's aura heals a teammate per pulse, and himself (w_martyr.self of it). */
+    public static double martyrHeal(boolean self) {
+        double heal = SkillValues.get("w_martyr", "heal", 1.5);
+        return self ? heal * SkillValues.get("w_martyr", "self", 0.5) : heal;
+    }
+
+    /** Tor 4c.5 A6: ticks a shackle bolt holds its target, and the monsters close to it (a_shackle.near of that). */
+    public static int shackleTicks(boolean near) {
+        double dur = SkillValues.get("a_shackle", "dur", 60);
+        return (int) Math.round(near ? dur * SkillValues.get("a_shackle", "near", 0.5) : dur);
     }
 
     /** Every half second: crossbow speed and the tripwire. */

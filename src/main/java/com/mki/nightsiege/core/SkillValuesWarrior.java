@@ -108,12 +108,12 @@ final class SkillValuesWarrior {
         def("w_earthshock", "radius", 2.5);
         def("w_divine_shield", "every", 600);  // ticks
         def("w_divine_shield", "min", 4);      // smallest hit it catches
-        def("ground_slam", "dmg1", 8);
-        def("ground_slam", "dmg2", 11);
-        def("ground_slam", "dmg3", 14);
-        def("ground_slam", "radius1", 5);
-        def("ground_slam", "radius2", 6);
-        def("ground_slam", "radius3", 7);
+        def("ground_slam", "dmg1", 11);   // Tor 4c.5 A2: was 8
+        def("ground_slam", "dmg2", 15);   // Tor 4c.5 A2: was 11
+        def("ground_slam", "dmg3", 20);   // Tor 4c.5 A2: was 14
+        def("ground_slam", "radius1", 6);   // Tor 4c.5 A2: was 5
+        def("ground_slam", "radius2", 7);   // Tor 4c.5 A2: was 6
+        def("ground_slam", "radius3", 8);   // Tor 4c.5 A2: was 7
         def("ground_slam", "slow", 60);        // Slowness III, ticks
         def("ground_slam", "cd1", 500);
         def("ground_slam", "cd2", 400);
@@ -145,6 +145,7 @@ final class SkillValuesWarrior {
         def("w_colossus", "hp", 12);
         def("w_colossus", "slow", 0.10);       // share of the base walking speed (0.1)
         def("w_martyr", "heal", 1.5);          // life per aura pulse for each teammate
+        def("w_martyr", "self", 0.5);          // Tor 4c.5 A3: share of that heal the martyr gets himself (was 0)
         def("w_martyr", "hp", 4);
         def("w_martyr", "every", 60);          // display only: shared aura pace (CombatEffects.HEAL_INTERVAL)
         def("w_martyr", "radius", 8);          // display only: shared aura reach (CombatEffects.HEAL_RADIUS)

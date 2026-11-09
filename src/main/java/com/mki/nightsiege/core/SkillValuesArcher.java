@@ -44,6 +44,7 @@ final class SkillValuesArcher {
         def("a_poison", "dur", 120);                // Tor 4: was 80 (Poison II, ~10 life instead of ~6)
         def("b_mark", "dur", 120);
         def("a_firevolley", "mult", 1.5);           // damage of the extra arrows
+        def("a_firestorm", "mult", 1.75);           // Tor 4c.5 A1: damage of the storm arrows with Feuersturm (was 1.0)
         def("a_firevolley", "radius", 2.0);         // a burning arrow sets monsters around the target alight
         def("a_firevolley", "burn", 80);
         def("a_venomburst", "radius", 3.0);
@@ -97,6 +98,8 @@ final class SkillValuesArcher {
         def("a_snarefield", "dur", 80);
         def("a_snarefield", "level", 3);            // Slowness IV
         def("a_shackle", "dur", 60);                // 27.10.: was 2 s
+        def("a_shackle", "radius", 2.0);            // Tor 4c.5 A6: monsters this close to the target are held too...
+        def("a_shackle", "near", 0.5);              // ...for this share of the time
         def("a_punch", "share", 0.7);
         def("a_tripwire", "radius", 4.0);           // 27.10.: was 3 blocks, 2 s, every 5 s
         def("a_tripwire", "dur", 60);

@@ -208,7 +208,7 @@ final class SkillValuesEngineer {
         def("e_network", "radius", 6);
         def("e_beacon", "targets", 2);
         def("e_beacon", "bonus", 0.3);                                   // Tor 4b.4: bolts hit your marked monsters this much harder                                   // Kettenblitz jumps this much further
-        def("e_backup", "below", 0.3);                                   // share of health under which...
+        def("e_backup", "below", 0.6);                                   // share of health under which... (Tor 4c.5 A7: was 0.3)
         def("e_backup", "speed", 2.0);                                   // ...the pauses run this many times faster
         def("e_fortress", "cost", 0.2);                                  // pauses of places 2 and 3 this share longer
         def("e_fortress", "slots", 1);

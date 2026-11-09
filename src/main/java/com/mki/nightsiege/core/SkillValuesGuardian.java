@@ -95,6 +95,7 @@ final class SkillValuesGuardian {
         def("g_ward", "base", 2.0);                // barrier = base + amount per level (health)
         def("g_ward", "interval", 160.0);
         def("g_ward", "radius", 12.0);
+        def("g_cleanse", "heal", 2.0);             // Tor 4c.5 A6b: Läutern also heals the weakest this much per pulse (health)
         def("guardian_angel", "reach", 24.0);
         def("guardian_angel", "hp", 8.0);
         def("guardian_angel", "regen", 100.0);     // ticks of Regeneration II

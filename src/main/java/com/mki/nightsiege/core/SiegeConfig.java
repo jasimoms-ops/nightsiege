@@ -1267,7 +1267,7 @@ public class SiegeConfig {
      */
     public int settingsVersion = 0;
     /** The newest settings version (the migrations below end there). */
-    public static final int SETTINGS_VERSION = 22;
+    public static final int SETTINGS_VERSION = 23;
     /** Version of the dungeon list in this file. Older lists are replaced on load. */
     /** Which structures hold dungeons, how hard they are and what lives there. */
     /** Perks from core fragments work within this many blocks of the main core. */
@@ -1886,6 +1886,28 @@ public class SiegeConfig {
             // Tor 4b.4: the ammo belt 0.2 -> 0.5 (an old tweak becomes the target, an own one moves alike).
             scaleTweak("e_ammobelt", "speed", 2.5);
             settingsVersion = 22;
+        }
+        if (settingsVersion < 23) {
+            // Tor 4c.5 (Chef 09.11. 10:15): Bodenstampfer 8/11/14 -> 11/15/20 in 6/7/8 blocks, Notstrom from 60 %
+            // health instead of 30 %, Wachsames Auge +25 % instead of +15 %. The code values are the targets; a server
+            // tweak on the old value becomes the target, an own value moves by the same step. No tweak: the code
+            // value counts. Feuersturm, Märtyrer, Fesselbolzen and Läutern got new keys (nothing to move).
+            double[][] slam = {{8, 11}, {11, 15}, {14, 20}};
+            double[][] reach = {{5, 6}, {6, 7}, {7, 8}};
+            for (int rank = 1; rank <= 3; rank++) {
+                scaleTweak("ground_slam", "dmg" + rank, slam[rank - 1][1] / slam[rank - 1][0]);
+                scaleTweak("ground_slam", "radius" + rank, reach[rank - 1][1] / reach[rank - 1][0]);
+            }
+            scaleTweak("e_backup", "below", 2.0);
+            SkillTweak backup = skillTweaks == null ? null : skillTweaks.get("e_backup");
+            if (backup != null && backup.values != null && backup.values.get("below") != null) {
+                backup.values.put("below", Math.min(1.0, backup.values.get("below")));   // a share of health
+            }
+            SkillTweak watchful = skillTweaks == null ? null : skillTweaks.get("a_watchful");
+            if (watchful != null && watchful.amount != null) {
+                watchful.amount = Math.round(watchful.amount * 0.25 / 0.15 * 1000.0) / 1000.0;
+            }
+            settingsVersion = 23;
         }
         if (Double.isNaN(meleeLifesteal)) {
             meleeLifesteal = 0.08;

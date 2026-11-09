@@ -319,7 +319,7 @@ public final class SkillTree {
         node(list, "a_deathtrap", c, x, SkillEffect.DEATHTRAP, 1, 25, 0, 0.5, "a_netrain", "x_mastery", "minecraft:wither_rose", 9, 4);
         node(list, "x_pack", c, x, SkillEffect.PACK, 1, 25, 0, 1.0, "x_hunt", "x_mastery", "minecraft:bone", 9, 6);
         node(list, "a_siegeengine", c, x, SkillEffect.SIEGE_ENGINE, 1, 30, 0, 1.0, "a_barrage|a_widenet|a_deathtrap|x_pack", "x_key", "minecraft:dispenser", 10, 2);
-        node(list, "a_watchful", c, x, SkillEffect.WATCHFUL, 1, 30, 0, 0.15, "a_barrage|a_widenet|a_deathtrap|x_pack", "x_key", "minecraft:observer", 10, 4);
+        node(list, "a_watchful", c, x, SkillEffect.WATCHFUL, 1, 30, 0, 0.25, "a_barrage|a_widenet|a_deathtrap|x_pack", "x_key", "minecraft:observer", 10, 4);
     }
 
     private static void warrior(List<SkillNode> list) {

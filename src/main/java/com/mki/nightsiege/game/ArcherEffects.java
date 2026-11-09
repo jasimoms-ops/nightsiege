@@ -225,10 +225,11 @@ public final class ArcherEffects {
         if (storm != null) {
             if (now <= storm) {
                 boolean burning = SkillTree.has(skills, "a_firestorm");
-                spawnFan(arrow, level, player, weapon, damage * extraScale, (int) SkillValues.get("arrow_storm", "arrows", 2),
+                double stormDamage = stormArrowDamage(damage * extraScale, burning);
+                spawnFan(arrow, level, player, weapon, stormDamage, (int) SkillValues.get("arrow_storm", "arrows", 2),
                         (float) SkillValues.get("arrow_storm", "angle", 8.0), burning);
                 if (SkillTree.has(skills, "a_tempest")) {
-                    spawnFan(arrow, level, player, weapon, damage * extraScale, (int) SkillValues.get("a_tempest", "arrows", 2),
+                    spawnFan(arrow, level, player, weapon, stormDamage, (int) SkillValues.get("a_tempest", "arrows", 2),
                             (float) SkillValues.get("a_tempest", "angle", 16.0), burning);
                 }
                 if (burning) {
@@ -240,6 +241,11 @@ public final class ArcherEffects {
                 stormUntil.remove(player.getUUID());
             }
         }
+    }
+
+    /** Tor 4c.5 A1: the storm arrows hit this hard; with Feuersturm they burn and hit harder (a_firestorm.mult). */
+    public static double stormArrowDamage(double damage, boolean firestorm) {
+        return firestorm ? damage * SkillValues.get("a_firestorm", "mult", 1.75) : damage;
     }
 
     /** Shots written to the log in this dungeon fight, per player (the diagnosis below). */
