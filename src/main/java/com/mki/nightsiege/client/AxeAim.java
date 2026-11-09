@@ -40,7 +40,7 @@ public final class AxeAim {
     public static void tick(Minecraft mc) {
         mark = null;
         UltState s = UltHud.state();
-        if (mc.player == null || mc.level == null || s == null || !SkillTree.SUB_AXE.equals(s.sub) || !s.hasAb2 || s.ab2Dim
+        if (mc.player == null || mc.level == null || s == null || !(s.keys || s.live) || !SkillTree.SUB_AXE.equals(s.sub) || !s.hasAb2 || s.ab2Dim
                 || s.cooldownAb2Ticks - UltHud.elapsedTicks() > 0 || !mc.player.getMainHandItem().is(ItemTags.AXES)) {
             return;
         }

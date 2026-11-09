@@ -388,6 +388,21 @@ final class Krieger410Scenes {
         });
         context.waitTicks(5);
 
+        // By day without a kit (survival, no night): the ring and the mark are off, Minecraft's indicator shows.
+        game.getServer().runCommand("time set 1500");
+        game.getServer().runCommand("gamemode survival @p");
+        context.waitTicks(30);   // the kit HUD's state comes once a second
+        String day = context.computeOnClient(client -> {
+            UltState s = com.mki.nightsiege.client.UltHud.state();
+            return com.mki.nightsiege.client.StrikeRing.shown() + " mark=" + com.mki.nightsiege.client.AxeAim.mark()
+                    + " sub=" + (s == null ? "?" : s.sub) + " keys=" + (s != null && s.keys) + " live=" + (s != null && s.live);
+        });
+        log("day: " + day);
+        check(day.startsWith("false mark=null") && !day.contains("sub=?") && !day.contains("sub= "),
+                "by day without a kit no ring and no mark (" + day + ")");
+        game.getServer().runCommand("gamemode creative @p");
+        context.waitTicks(5);
+
         // The end: kit back, nothing learned.
         server(context, "end", (player, m) -> {
             clear(player);

@@ -27,11 +27,14 @@ public final class StrikeRing {
     private StrikeRing() {
     }
 
-    /** True when the ring stands in for Minecraft's indicator (a melee subclass, first person). */
+    /**
+     * True when the ring stands in for Minecraft's indicator: a melee subclass with the kit on (night, kit,
+     * camp, dungeon or creative, like the other kit HUD parts), first person. Else Minecraft's own shows.
+     */
     public static boolean shown() {
         Minecraft mc = Minecraft.getInstance();
         UltState s = UltHud.state();
-        return s != null && s.sub != null && SUBS.contains(s.sub) && mc.player != null && !mc.player.isSpectator()
+        return s != null && (s.keys || s.live) && s.sub != null && SUBS.contains(s.sub) && mc.player != null && !mc.player.isSpectator()
                 && mc.options.getCameraType().isFirstPerson() && !DroneClient.localDrone();
     }
 
