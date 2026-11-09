@@ -58,6 +58,14 @@ public final class PlaytestAccess {
         return left <= 0 ? 0 : (int) ((left + 19) / 20);
     }
 
+    /** Highest target level a non-OP may choose (Chef 09.11.). */
+    public static final int MAX_LEVEL_NON_OP = 25;
+
+    /** Null when that target level is allowed, else the translation key (it takes the highest level). */
+    public static String levelProblem(boolean op, int target) {
+        return op || (target >= 1 && target <= MAX_LEVEL_NON_OP) ? null : "nightsiege.playtest.level_limit";
+    }
+
     /** Whether this one may stop the running playtest. */
     public static boolean mayStop(boolean op, boolean starter, boolean participant) {
         return op || starter || participant;

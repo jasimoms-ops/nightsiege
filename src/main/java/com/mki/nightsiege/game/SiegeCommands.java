@@ -718,6 +718,11 @@ public final class SiegeCommands {
                     com.mki.nightsiege.core.PlaytestAccess.cooldownSecondsLeft(now, m.playtest().lastStartTick())));
             return 0;
         }
+        if (problem == null && com.mki.nightsiege.core.PlaytestAccess.levelProblem(op, target) != null) {
+            fail(ctx.getSource(), Component.translatable("nightsiege.playtest.level_limit",
+                    com.mki.nightsiege.core.PlaytestAccess.MAX_LEVEL_NON_OP));
+            return 0;
+        }
         if (problem == null) {
             java.util.List<ServerPlayer> chosen = op ? (alone ? java.util.List.of(self) : null)
                     : m.playtest().chosenBy(server, self, alone, now);

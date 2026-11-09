@@ -52,6 +52,15 @@ class PlaytestAccessTest {
     }
 
     @Test
+    void nonOpTargetLevelUpTo25() {
+        assertNull(PlaytestAccess.levelProblem(false, 1));
+        assertNull(PlaytestAccess.levelProblem(false, 25));
+        assertEquals("nightsiege.playtest.level_limit", PlaytestAccess.levelProblem(false, 26));
+        assertEquals("nightsiege.playtest.level_limit", PlaytestAccess.levelProblem(false, 0));
+        assertNull(PlaytestAccess.levelProblem(true, 1000));
+    }
+
+    @Test
     void joinHoldsFiveMinutes() {
         assertTrue(PlaytestAccess.joinHolds(100, 100));
         assertTrue(PlaytestAccess.joinHolds(100 + PlaytestAccess.JOIN_WINDOW_TICKS, 100));
