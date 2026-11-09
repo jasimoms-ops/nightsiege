@@ -56,7 +56,39 @@ public final class SiegeMath {
     public static double mobsWanted(int level, int playerCount, SiegeConfig cfg, double perPlayer) {
         double raw = cfg.baseMobsPerBatch + cfg.mobsPerLevel * growthSteps(level, cfg);
         double players = Math.max(0.0, cfg.soloScaling) + Math.max(0.0, perPlayer) * Math.max(0, playerCount - 1);
-        return raw * players;
+        return raw * players * budgetFactor(level, playerCount, cfg);
+    }
+
+    /**
+     * Tor 6.2 Grundtabelle (Formel A): the product of the kit-jump factors this level has reached and the
+     * factor of this group size's bucket. 1 with the standard values, so the waves stay as before.
+     */
+    public static double budgetFactor(int level, int playerCount, SiegeConfig cfg) {
+        double f = 1.0;
+        java.util.List<Integer> jumps = cfg.budgetJumpLevels;
+        java.util.List<Double> jf = cfg.budgetJumpFactors;
+        if (jumps != null && jf != null) {
+            for (int i = 0; i < jumps.size() && i < jf.size(); i++) {
+                if (jumps.get(i) != null && jf.get(i) != null && level >= jumps.get(i)) {
+                    f *= jf.get(i);
+                }
+            }
+        }
+        java.util.List<Integer> from = cfg.budgetGroupFrom;
+        java.util.List<Double> gf = cfg.budgetGroupFactors;
+        if (from != null && gf != null) {
+            int n = Math.max(1, playerCount);
+            int k = -1;
+            for (int i = 0; i < from.size() && i < gf.size(); i++) {
+                if (from.get(i) != null && gf.get(i) != null && n >= from.get(i)) {
+                    k = i;
+                }
+            }
+            if (k >= 0) {
+                f *= gf.get(k);
+            }
+        }
+        return f;
     }
 
     /** The cap of live monsters on a normal night: grows by livePerPlayer for every further player, at most maxLiveMobsCap. */
