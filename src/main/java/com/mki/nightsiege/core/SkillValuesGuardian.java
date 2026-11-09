@@ -20,8 +20,12 @@ final class SkillValuesGuardian {
         def("g_shieldwall", "cap", 4.0);           // at most this much absorption from the wall (health)
         def("g_shieldwall", "block", 10.0);        // ticks of extra shield energy per level (Simon 26.10.: was riposte only)
         // The riposte's block limit (3 s, 2 s rest) gave way to the shield energy of every shield (Simon 26.10.).
+        def("riposte", "hpearly", 6);              // Tor 9b P5 (Spieltest 09.11.): shield fighter +6 life on world level 1...
+        def("riposte", "hpearlyuntil", 10);        // ...falling in a straight line to 0 on this level (EarlyBonus.health)
         def("riposte", "perfect", 2.0);            // perfect blocks throw back this many times as much
         def("b_cross_riposte", "perfect", 2.0);
+        def("g_bastion", "hpearly", 6);            // Tor 9b P5: the same for the bulwark
+        def("g_bastion", "hpearlyuntil", 10);
         def("g_bastion", "count", 4.0);            // monsters counted at most
         def("g_bastion", "radius", 8.0);
         def("g_bastion", "group", 0.75);           // Simon 26.10.: the bulwark's damage on groups (hedgehog, vengeance, charge, debris)
