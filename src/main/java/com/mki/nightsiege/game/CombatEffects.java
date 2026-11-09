@@ -93,6 +93,8 @@ public final class CombatEffects {
 
     /** Warrior: hit streaks (stacks, last hit), the strong hit after a kill, the divine shield. */
     private final Map<UUID, long[]> combos = new HashMap<>();
+    /** Tor 9b (P1): the paladin's golden hearts from jump hits. */
+    private final com.mki.nightsiege.core.JumpWard jumpWard = new com.mki.nightsiege.core.JumpWard();
     private final Map<UUID, Long> momentumUntil = new HashMap<>();
     private final Map<UUID, Long> bloodPricePaid = new HashMap<>();
     private final Map<UUID, Long> divineReadyAt = new HashMap<>();
@@ -795,9 +797,11 @@ public final class CombatEffects {
             level.sendParticles(ParticleTypes.SWEEP_ATTACK, victim.getX(), victim.getY(0.6), victim.getZ(), 1, 0, 0, 0, 0);
         }
         double shock = tree.totalBonus(SkillEffect.EARTHSHOCK, skills);
-        boolean falling = shock > 0 && com.mki.nightsiege.core.SkillTriggers.earthshock(player.fallDistance, player.onGround(),
+        boolean jumpHit = com.mki.nightsiege.core.SkillTriggers.earthshock(player.fallDistance, player.onGround(),
                 WarriorSpirit.swingCharge(player, now), player.onClimbable(), player.isInWater(), player.isPassenger(),
                 player.hasEffect(MobEffects.BLINDNESS));
+        boolean falling = shock > 0 && jumpHit;
+        int jumpTargets = 1;   // Tor 9b (P1): the target and every monster the Erdstoß splash strikes
         if (falling) {
             bonus += shock;
         }
@@ -858,6 +862,9 @@ public final class CombatEffects {
                 if (near == victim) {
                     continue;
                 }
+                if (falling) {
+                    jumpTargets++;
+                }
                 float before = near.getHealth();
                 followUpHit(level, near, source, splash);
                 cleaved += axeSteal ? Math.max(0f, before - near.getHealth()) : 0f;
@@ -874,6 +881,13 @@ public final class CombatEffects {
             if (falling) {
                 level.sendParticles(ParticleTypes.EXPLOSION, victim.getX(), victim.getY(), victim.getZ(), 2, 0.6, 0.1, 0.6, 0.0);
                 play(level, player, SoundEvents.MACE_SMASH_GROUND, 0.8f, 1.0f);
+            }
+        }
+        if (jumpHit && SkillTree.SUB_PALADIN.equals(tree.subclassOf(skills))) {
+            // Tor 9b (P1): one golden heart per monster the jump hit strikes, at most four, gone 10 s after the last
+            float add = jumpWard.onJumpHit(player.getUUID(), jumpTargets, player.getAbsorptionAmount(), now);
+            if (add > 0f) {
+                GuardianEffects.addAbsorption(player, add, Math.max(0f, player.getAbsorptionAmount()) + add);
             }
         }
 
@@ -1700,6 +1714,10 @@ public final class CombatEffects {
 
     /** Every half second: the warrior's attack speed, war cry, vow and the unstoppable keystone. */
     private void warriorTick(ServerPlayer player, int counter) {
+        float jumpGone = jumpWard.tick(player.getUUID(), player.getAbsorptionAmount(), currentTime);
+        if (jumpGone > 0f) {
+            player.setAbsorptionAmount(Math.max(0f, player.getAbsorptionAmount() - jumpGone));   // only this source's share
+        }
         AttributeInstance speed = player.getAttribute(Attributes.ATTACK_SPEED);
         PlayerSkills skills = skillsFor.apply(player);
         boolean warrior = skills != null && skills.clazz() == SkillClass.WARRIOR && player.isAlive();
@@ -1773,6 +1791,7 @@ public final class CombatEffects {
     public void forget(UUID player) {
         ultReadyAt.remove(player);
         combos.remove(player);
+        jumpWard.forget(player);
         momentumUntil.remove(player);
         bloodPricePaid.remove(player);
         divineReadyAt.remove(player);
