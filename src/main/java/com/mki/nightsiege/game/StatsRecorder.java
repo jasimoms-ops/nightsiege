@@ -87,6 +87,8 @@ public final class StatsRecorder {
         public boolean test;
         /** A night of the playtest mode (05.11.: the Ruhmeshalle takes these too, marked as playtest). */
         public boolean playtest;
+        /** Tor 7.3: a night of the playtest (Spieltest), file spieltest_<time>.json; real test nights stay testnacht_. */
+        public boolean spieltest;
         public int nacht;
         public int stufe;
         public String ereignis = "";
@@ -101,6 +103,9 @@ public final class StatsRecorder {
         public int kills;
         public int gespawnt;
         public int tode;
+        /** Tor 7.3: second and wave of the night's first death (-1 = nobody fell). */
+        public int ersterTodSekunde = -1;
+        public int ersterTodWelle = -1;
         public Basis basis;
         public Map<String, Spieler> spieler = new LinkedHashMap<>();
         public Heerlager heerlager = new Heerlager();
@@ -189,6 +194,8 @@ public final class StatsRecorder {
         public boolean ultStufe3;
         /** The kit of the night: the class of the played profile. */
         public String kit = "";
+        /** Tor 7.3 (ziele 9.1 a): the learned skill nodes of the played profile, node id -> level. */
+        public Map<String, Integer> knoten = new LinkedHashMap<>();
     }
 
     public static final class Heerlager {
@@ -297,6 +304,8 @@ public final class StatsRecorder {
     /** One dungeon or war camp attempt. */
     public static final class AttemptFile {
         public String art = "";
+        /** Tor 7.3: an attempt during the playtest (Spieltest). */
+        public boolean spieltest;
         public String version = "";
         public String build = "";
         public String start = "";
@@ -461,6 +470,14 @@ public final class StatsRecorder {
             s.punkteImProfil = s.profil.isEmpty() ? 0 : tree.pointsSpentProfile(skills, s.profil);
             s.ultStufe3 = skills.clazz() != null && tree.ultimateMaxed(skills, skills.clazz());
             s.kit = s.klasse;
+            if (!s.profil.isEmpty()) {
+                for (com.mki.nightsiege.core.SkillNode node : tree.ofClass(PlayerSkills.classOfKey(s.profil))) {
+                    int level = skills.levelInProfile(s.profil, node.id());
+                    if (level > 0) {
+                        s.knoten.put(node.id(), level);
+                    }
+                }
+            }
         } catch (RuntimeException e) {
             // A half-made profile must not stop the protocol.
         }
@@ -623,6 +640,7 @@ public final class StatsRecorder {
         night.start = now();
         night.test = test;
         night.playtest = test && m.inPlaytest() && !m.isWarRound();
+        night.spieltest = night.playtest;
         night.nacht = number;
         night.stufe = level;
         night.ereignis = event == null ? "" : event;
@@ -657,8 +675,14 @@ public final class StatsRecorder {
         lifeLeft.clear();
         machineOf.clear();
         Path dir = folder();
-        nightPath = dir == null ? null : dir.resolve((test ? "testnacht_" : "night_") + LocalDateTime.now().format(FILE_TIME) + ".json");
+        nightPath = dir == null ? null : dir.resolve(nightFileName(test, night.spieltest, LocalDateTime.now()));
         writeLater(nightPath, night);
+    }
+
+    /** Tor 7.3: the night's file name: night_, testnacht_ (/nightsiege test) or spieltest_ (the playtest). */
+    static String nightFileName(boolean test, boolean spieltest, LocalDateTime time) {
+        String prefix = spieltest ? "spieltest_" : test ? "testnacht_" : "night_";
+        return prefix + time.format(FILE_TIME) + ".json";
     }
 
     void addPlayer(ServerPlayer player) {
@@ -1055,6 +1079,10 @@ public final class StatsRecorder {
         if (night != null) {
             pw(player).tode++;
             night.tode++;
+            if (night.ersterTodSekunde < 0) {
+                night.ersterTodSekunde = second(player.level().getGameTime());
+                night.ersterTodWelle = wave == null ? 0 : wave.nummer;
+            }
         }
     }
 
@@ -1377,6 +1405,7 @@ public final class StatsRecorder {
             camp.build = build();
             camp.start = now();
             camp.typ = "heerlager";
+            camp.spieltest = m.inPlaytest();
             camp.stufe = level;
             campStartTick = gameTime;
         }
@@ -1442,6 +1471,7 @@ public final class StatsRecorder {
             dungeon.build = build();
             dungeon.start = now();
             dungeon.typ = kind;
+            dungeon.spieltest = m.inPlaytest();
             dungeon.stufe = level;
             dungeon.raeume = rooms;
             dungeon.wellen = rooms;
