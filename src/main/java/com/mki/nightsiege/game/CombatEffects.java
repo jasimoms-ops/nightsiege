@@ -157,7 +157,7 @@ public final class CombatEffects {
                     "nightsiege.hud.key.passive", divineReadyAt.getOrDefault(player.getUUID(), 0L), now,
                     (int) SkillValues.get("w_divine_shield", "every", 600)));
         }
-        if (skills.clazz() == com.mki.nightsiege.core.SkillClass.ARCHER && tree.totalBonus(SkillEffect.TRIPWIRE, skills) > 0) {
+        if (skills.clazz() == com.mki.nightsiege.core.SkillClass.ARCHER && tripSlow(skills) != null) {
             out.add(GuardianEffects.timer("tripwire", "minecraft:tripwire_hook", "nightsiege.hud.timer.tripwire",
                     "nightsiege.hud.key.passive", tripReadyAt.getOrDefault(player.getUUID(), 0L), now,
                     (int) SkillValues.get("a_tripwire", "cd", 100)));
@@ -1657,6 +1657,13 @@ public final class CombatEffects {
         return (int) Math.round(near ? dur * SkillValues.get("a_shackle", "near", 0.5) : dur);
     }
 
+    /** The tripwire's slow {ticks, amplifier} of an archer, or null (EarlyBonus.tripSlow). */
+    private int[] tripSlow(PlayerSkills skills) {
+        boolean tripwire = tree.totalBonus(SkillEffect.TRIPWIRE, skills) > 0;
+        return com.mki.nightsiege.core.EarlyBonus.tripSlow(SkillTree.SUB_TRAPPER.equals(tree.subclassOf(skills)),
+                tripwire, tripwire && tree.totalBonus(SkillEffect.TRAPMASTER, skills) > 0);
+    }
+
     /** Every half second: crossbow speed and the tripwire. */
     private void archerTick(ServerPlayer player, long now) {
         AttributeInstance move = player.getAttribute(Attributes.MOVEMENT_SPEED);
@@ -1674,21 +1681,23 @@ public final class CombatEffects {
                 move.removeModifier(XBOW_SPEED);
             }
         }
-        if (!archer || !(player.level() instanceof ServerLevel level)
-                || tree.totalBonus(SkillEffect.TRIPWIRE, skills) <= 0
+        int[] slow = archer ? tripSlow(skills) : null;   // Tor 9b P4: a trapper has a base one without a skill point
+        if (slow == null || !(player.level() instanceof ServerLevel level)
                 || now < tripReadyAt.getOrDefault(player.getUUID(), 0L)) {
             return;
         }
+        boolean learned = tree.totalBonus(SkillEffect.TRIPWIRE, skills) > 0;
         List<LivingEntity> close = enemies(level, player.position(), SkillValues.get("a_tripwire", "radius", 3.0), 1.5);
         if (close.isEmpty()) {
             return;
         }
-        double master = tree.totalBonus(SkillEffect.TRAPMASTER, skills);
+        double master = learned ? tree.totalBonus(SkillEffect.TRAPMASTER, skills) : 0.0;
         DamageSource source = level.damageSources().playerAttack(player);
-        int trip = (int) SkillValues.get("a_tripwire", "dur", 40);
         for (LivingEntity victim : close) {
-            victim.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, trip, master > 0 ? 9 : 1));
-            pushAway(victim, player.position(), 0.6, 0.1);
+            victim.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, slow[0], slow[1]));
+            if (learned) {
+                pushAway(victim, player.position(), 0.6, 0.1);   // the base one only slows
+            }
             if (master > 0) {
                 bonusHit(level, victim, source, (float) master);
             }

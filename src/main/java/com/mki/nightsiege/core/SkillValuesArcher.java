@@ -27,6 +27,8 @@ final class SkillValuesArcher {
         def("heavy_draw", "hp", 4);
         def("shrapnel", "hp", 4);
         def("a_netbolt", "hp", 4);
+        def("a_netbolt", "trip", 40);               // Tor 9b P4 (Spieltest 09.11.): base tripwire of every trapper, no skill point: Slowness I 2 s
+        def("a_netbolt", "triplevel", 0);           // ...amplifier 0 = Slowness I (the learned tripwire replaces it when bigger)
         def("a_netbolt", "splash", 2.0);            // Simon 27.10. (more crowd control): monsters this close to the target are slowed too, half as long
         def("heavy_draw", "pause", 0);              // bow cooldown after every shot (Simon 08.11. 20:29: none; was 12, server may still set one)
         def("heavy_draw", "power", 1);              // extra Power level on the kit bow (KitService)
