@@ -2101,8 +2101,8 @@ public class EventLookTest implements FabricClientGameTest {
             data.waves = 9;
             data.seconds = 265;
             String[][] rows = {{"OpaSimoms", "warrior", "berserker", "412", "180", "0", "52", "0"},
-                    {"Quxo", "engineer", "alchemist", "355", "64", "0", "41", "1"},
-                    {"peachkosderechte", "guardian", "medic", "120", "142", "260", "17", "0"},
+                    {"Spieler1", "engineer", "alchemist", "355", "64", "0", "41", "1"},
+                    {"Spieler2", "guardian", "medic", "120", "142", "260", "17", "0"},
                     {client.player.getScoreboardName(), "archer", "heavy", "290", "96", "0", "21", "2"}};
             for (String[] r : rows) {
                 com.mki.nightsiege.core.NightStatsData.Row row = new com.mki.nightsiege.core.NightStatsData.Row();
@@ -9693,7 +9693,7 @@ public class EventLookTest implements FabricClientGameTest {
             net.minecraft.core.BlockPos at = player.blockPosition().relative(player.getDirection(), 3);
             ((net.minecraft.server.level.ServerLevel) player.level()).setBlockAndUpdate(at, net.minecraft.world.level.block.Blocks.POLISHED_DEEPSLATE.defaultBlockState());
             crown[0] = com.mki.nightsiege.game.SiegeCrown.showOnCore((net.minecraft.server.level.ServerLevel) player.level(), at);
-            player.getInventory().setItem(8, com.mki.nightsiege.game.SiegeCrown.trophy(1, "29.10.2026", java.util.List.of("Simon", "Quxo")));
+            player.getInventory().setItem(8, com.mki.nightsiege.game.SiegeCrown.trophy(1, "29.10.2026", java.util.List.of("Spieler0", "Spieler1")));
             player.getInventory().setSelectedSlot(8);
         });
         context.waitTicks(10);

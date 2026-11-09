@@ -2932,7 +2932,7 @@ class SiegeCoreTest {
         NightRecords r = new NightRecords();
         List<NightRecords.Line> one = List.of(
                 new NightRecords.Line("a", "Simon", "WARRIOR", "berserker", 300, 20, 0, 80),
-                new NightRecords.Line("b", "Quxo", "GUARDIAN", "medic", 50, 3, 120, 200));
+                new NightRecords.Line("b", "Spieler1", "GUARDIAN", "medic", 50, 3, 120, 200));
         List<NightRecords.Broken> first = r.offer(one, true, 1, "2026-10-29");
         assertTrue(first.stream().anyMatch(b -> b.kind().equals("class") && b.stat().equals("dealt")));
         assertEquals(300, r.best.get("WARRIOR|dealt").value, 1e-9);
@@ -2944,7 +2944,7 @@ class SiegeCoreTest {
         assertEquals(2, (int) r.streak.get("a"));
         assertEquals(2, r.serverStreak);
         // A missed night ends the player's streak, a lost one ends everybody's.
-        r.offer(List.of(new NightRecords.Line("b", "Quxo", "GUARDIAN", "medic", 10, 1, 10, 10)), true, 3, "x");
+        r.offer(List.of(new NightRecords.Line("b", "Spieler1", "GUARDIAN", "medic", 10, 1, 10, 10)), true, 3, "x");
         assertEquals(1, (int) r.streak.get("b"));
         r.offer(List.of(new NightRecords.Line("a", "Simon", "WARRIOR", "berserker", 10, 1, 0, 10)), false, 4, "x");
         assertEquals(0, (int) r.streak.get("a"));
