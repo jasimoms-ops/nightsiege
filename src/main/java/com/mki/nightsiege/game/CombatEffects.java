@@ -1660,8 +1660,9 @@ public final class CombatEffects {
     /** The tripwire's slow {ticks, amplifier} of an archer, or null (EarlyBonus.tripSlow). */
     private int[] tripSlow(PlayerSkills skills) {
         boolean tripwire = tree.totalBonus(SkillEffect.TRIPWIRE, skills) > 0;
+        SiegeManager m = SiegeManager.get();
         return com.mki.nightsiege.core.EarlyBonus.tripSlow(SkillTree.SUB_TRAPPER.equals(tree.subclassOf(skills)),
-                tripwire, tripwire && tree.totalBonus(SkillEffect.TRAPMASTER, skills) > 0);
+                m == null ? 1 : m.currentLevel(), tripwire, tripwire && tree.totalBonus(SkillEffect.TRAPMASTER, skills) > 0);
     }
 
     /** Every half second: crossbow speed and the tripwire. */

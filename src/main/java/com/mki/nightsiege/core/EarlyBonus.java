@@ -24,13 +24,13 @@ public final class EarlyBonus {
 
     /**
      * The tripwire's slow as {ticks, amplifier}, or null when the player has none. A trapper has the
-     * base one ("a_netbolt" trip/triplevel); the learned tripwire replaces it where it is bigger (no
-     * doubling), the trap master holds them fast.
+     * base one ("a_netbolt" trip/triplevel) below world level "tripuntil" (no late buff); the learned
+     * tripwire replaces it where it is bigger (no doubling), the trap master holds them fast.
      */
-    public static int[] tripSlow(boolean trapper, boolean tripwire, boolean master) {
+    public static int[] tripSlow(boolean trapper, int level, boolean tripwire, boolean master) {
         int ticks = 0;
         int amp = -1;
-        if (trapper) {
+        if (trapper && level < SkillValues.get("a_netbolt", "tripuntil", 10)) {
             ticks = (int) SkillValues.get("a_netbolt", "trip", 40);
             amp = (int) SkillValues.get("a_netbolt", "triplevel", 0);
         }
