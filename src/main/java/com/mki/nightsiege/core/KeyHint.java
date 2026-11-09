@@ -26,8 +26,6 @@ public enum KeyHint {
     ULT_UPGRADE,
     /** The second-ult key (X). */
     ULT2,
-    /** The second ult of the engineer: X, with the remote in hand sneak + X. */
-    ULT2_REMOTE,
     /** The second ult of the summoner: X at a companion, with the staff in hand sneak + X. */
     ULT2_STAFF,
     /** The quiver key (G). */
@@ -66,16 +64,6 @@ public enum KeyHint {
     DRAW,
     /** The X key (it was sneak and right click until 25 October 2026). */
     SNEAK_USE,
-    /** The remote: right click, or the X key. */
-    REMOTE,
-    /** The remote: right click on an own trap (overcharge). */
-    REMOTE_BOOST,
-    /** The remote: right click on a monster (mark). */
-    REMOTE_MARK,
-    /** The remote: the X key on a trap (reload). */
-    REMOTE_RELOAD,
-    /** The remote: the X key on a mortar, flame trap or potion tower (detonate). */
-    REMOTE_DETONATE,
     /**
      * The summoner's staff as a whole (26 October 2026): right click attacks, sneak + right
      * click orders, calls or casts, G calls or picks the spell, X orders.

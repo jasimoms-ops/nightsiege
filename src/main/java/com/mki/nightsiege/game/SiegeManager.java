@@ -6032,7 +6032,6 @@ public final class SiegeManager {
             case "shield" -> "schild";
             case "staffhit" -> "stab";
             case "spot" -> argument.startsWith("cam") || argument.startsWith("close") ? null : "vogelperspektive";   // the camera's reports are no use of it (31.10.)
-            case "tower" -> "turm_menue";
             case "jump" -> "doppelsprung";
             case "slot" -> {
                 int index = parseAmount(argument);
