@@ -157,6 +157,10 @@ final class HudNeuScenes {
                 }
                 manager.kits().equip(player, 12);
                 manager.sendUltHud(player);
+                // the effects last: learning and putting on the kit may clear one (CI 595bc43c: only 1 icon left)
+                player.removeAllEffects();
+                player.addEffect(new MobEffectInstance(MobEffects.STRENGTH, 20 * 600, 0));
+                player.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 20 * 600, 0));
             });
             context.waitTicks(30);
             int mates = three ? 4 : 0;
