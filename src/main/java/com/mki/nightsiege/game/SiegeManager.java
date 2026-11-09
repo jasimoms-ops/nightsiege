@@ -1430,6 +1430,7 @@ public final class SiegeManager {
             safe("Heerlager", () -> camp.tick(server));
             safe("Dungeons", () -> expeditions.tick(server));
             safe("Maschinen-Probe", () -> machines.tickTrials(server, config, gameTime));
+            safe("Kampf-Ticks", () -> tickAwayFighters(server, gameTime));   // dungeon/camp = night rules (Simon 09.11.)
         }
         // Survival safety (31.10.): nobody stuck in ground that came back, logins looked at (at night too).
         safe("Sicherer Boden", () -> SafeGround.tick(server, this));
@@ -4454,6 +4455,38 @@ public final class SiegeManager {
     }
 
     /** Once a second: the defenders' life for the smart night, and its look when it is time. */
+    /**
+     * The night's per-player ticks for who fights in a dungeon (the playtest's too) or in the camp
+     * (Simon 09.11.: "klingenmeister kann nur normal schnell schlagen" im Dungeon): the combo tempo,
+     * the gain gear, the second ults, the companions' gains, the crate effects. Leaving the fight
+     * clears the combo (SkillService.clear); a combo left over (logged out mid-fight) goes here.
+     */
+    private void tickAwayFighters(MinecraftServer server, long gameTime) {
+        Map<ServerLevel, List<ServerPlayer>> byLevel = new HashMap<>();
+        for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+            if (kitOfAFight(p) && p.isAlive() && p.level() instanceof ServerLevel level) {
+                byLevel.computeIfAbsent(level, k -> new ArrayList<>()).add(p);
+            } else if (gameTime % 20 == 0 && Combo.active(p)) {
+                Combo.clear(p);
+            }
+        }
+        for (Map.Entry<ServerLevel, List<ServerPlayer>> e : byLevel.entrySet()) {
+            ServerLevel level = e.getKey();
+            List<ServerPlayer> fighting = e.getValue();
+            GainGear.tick(level, fighting);
+            SecondUlts.tick(level);
+            safe("Begleiter-Gewinne", () -> companions.nightTick(level, fighting));
+            if (level.getGameTime() % 5 == 0) {
+                for (ServerPlayer p : fighting) {
+                    Combo.tick(p, SkillTree.has(save.skillsOf(p.getUUID().toString()), "w_combo"));
+                }
+            }
+            if (level.getGameTime() % 20 == 0) {
+                CrateEffects.tick(level, fighting);
+            }
+        }
+    }
+
     private void tickSmart(List<ServerPlayer> upright) {
         if (!smart.watching() || world == null) {   // measures also with the smart night off (Tor 6.6)
             return;
