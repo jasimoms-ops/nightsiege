@@ -140,6 +140,7 @@ final class GewinneScenes {
         List<String>[] after = new List[1];
         EventLookTest.onServer(context, (player, m) -> after[0] = GainKeys.assigned(m,
                 m.save().skillsOf(player.getUUID().toString()), SkillClass.GUARDIAN));
+        context.waitTicks(5);   // onServer only queues the step on the server thread
         check(before[0] != null && after[0] != null && after[0].size() == 2 && after[0].get(0).equals(before[0].get(0))
                 && !after[0].get(1).equals(before[0].get(1)) && !before[0].contains(after[0].get(1)),
                 "click on place 2: " + before[0] + " -> " + after[0]);
