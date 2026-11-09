@@ -742,6 +742,11 @@ public final class GainGear {
     }
 
     /** Monsters near a spot run away from it for a while and attack nobody (the soulcatcher's fright). */
+    /** Test access (Tor 4c.6): how many monsters are calmed (fright, lure) right now. */
+    public static int calmForTests() {
+        return CALM.size();
+    }
+
     public static int scare(ServerLevel level, Vec3 center, double radius, int ticks) {
         long until = level.getGameTime() + ticks;
         int n = 0;

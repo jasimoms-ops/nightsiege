@@ -115,9 +115,13 @@ final class KlassencheckScenes {
                 e -> e != player && !e.entityTags().contains(HUSK)).size();
         // Tor 4c.6: the medic's dome is a zone only (radius 4, the husks stand at 6) - count the player's zones too
         near += SiegeManager.get() == null ? 0 : SiegeManager.get().combatEffects().guardian().zonesOf(player.getUUID());
+        // Tor 4c.6: bone wall, curse zone and fright change only blocks, zones and the calm list
+        near += Companions.get() == null ? 0 : Companions.get().spellMarksForTests(player.getUUID());
+        near += GainGear.calmForTests();
         return new double[]{lost, huskEffects, player.getHealth() + player.getAbsorptionAmount(),
                 player.getActiveEffects().size(), near, player.getX(), player.getY(), player.getZ(),
-                player.getDeltaMovement().length()};
+                player.getDeltaMovement().length(),
+                player.getAttributeValue(Attributes.ATTACK_SPEED)};   // Tor 4c.6: the berserker's frenzy is attack speed only
     }
 
     /** Something happened: monsters hurt or with an effect, life healed, an effect, an entity more, moved or pushed. */
@@ -128,7 +132,7 @@ final class KlassencheckScenes {
             }
         }
         double moved = Math.abs(b[5] - a[5]) + Math.abs(b[6] - a[6]) + Math.abs(b[7] - a[7]);
-        return moved > 0.3 || Math.abs(b[8] - a[8]) > 0.2;
+        return moved > 0.3 || Math.abs(b[8] - a[8]) > 0.2 || b[9] - a[9] > 1e-3;
     }
 
     /** The test hook "the ult charged" and every other pause back to 0, so each key can fire once. */
@@ -474,6 +478,22 @@ final class KlassencheckScenes {
                     final String[] key = new String[1];
                     final String[] what = new String[1];
                     final int[] total = new int[1];
+                    // Tor 4c.6: dash and escape carried the player away (execute reach 5, blade dance 6, chain line);
+                    // before every press he stands 3.5 blocks before the first husk, at rest
+                    server(context, tag + " " + press + " place", (player, m) -> {
+                        List<Mob> targets = husks((ServerLevel) player.level());
+                        if (!targets.isEmpty()) {
+                            Mob t = targets.get(0);
+                            net.minecraft.world.phys.Vec3 away = new net.minecraft.world.phys.Vec3(player.getX() - t.getX(), 0, player.getZ() - t.getZ());
+                            if (away.lengthSqr() < 1.0e-4) {
+                                away = new net.minecraft.world.phys.Vec3(1, 0, 0);
+                            }
+                            net.minecraft.world.phys.Vec3 spot = t.position().add(away.normalize().scale(3.5));
+                            player.teleportTo(spot.x, t.getY(), spot.z);
+                            player.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
+                        }
+                    });
+                    context.waitTicks(3);
                     server(context, tag + " " + press, (player, m) -> {
                         ServerLevel level = (ServerLevel) player.level();
                         player.setHealth(player.getMaxHealth() * 0.5f);
@@ -486,6 +506,12 @@ final class KlassencheckScenes {
                                 t.setHealth(t.getMaxHealth() * 0.1f);   // Tor 4c.6: the execute strikes only a weakened monster
                             }
                             player.lookAt(EntityAnchorArgument.Anchor.EYES, t.position().add(0, t.getBbHeight() * 0.5, 0));
+                            if (Companions.get() != null && (SkillTree.SUB_NECROMANCER.equals(sub) || SkillTree.SUB_SOULCATCHER.equals(sub))) {
+                                // Tor 4c.6: raise and the army of the dead need fallen monsters; the husks never fall
+                                for (Mob h : targets) {
+                                    Companions.get().onMonsterDeath(h, false);
+                                }
+                            }
                         }
                         List<UltState.Slot> slots = m.abilitySlots(player);
                         what[0] = press;
@@ -508,6 +534,18 @@ final class KlassencheckScenes {
                             log("SKIP " + tag + ": " + what[0] + " still in its pause from before (" + pauseBefore[0] + ")");
                             return;
                         }
+                        if (press.startsWith("gain:")) {
+                            PlayerSkills own = m.save().skillsOf(player.getUUID().toString());
+                            List<String> gk = GainKeys.assigned(m, own, own.clazz());
+                            int gi = Integer.parseInt(press.substring(5));
+                            if (gi < gk.size() && "leibwaechter".equals(gk.get(gi))) {
+                                // Tor 4c.6: the bodyguard chain binds to a second defending player (GainGear.bodyguardKey);
+                                // a client gametest has only one player - not testable here
+                                skips++;
+                                log("SKIP " + tag + ": " + what[0] + " (leibwaechter) needs a second player");
+                                return;
+                            }
+                        }
                         double[] after = look(player);
                         int left = pause(player, m, press);
                         check(changed(before[0], after), tag + ": " + what[0] + " does something");
@@ -519,7 +557,9 @@ final class KlassencheckScenes {
                             check(uses > usesBefore[0], tag + ": " + what[0] + " counted on " + key[0] + " (" + usesBefore[0] + " -> " + uses + ")");
                         }
                     });
-                    context.waitTicks(2);
+                    // Tor 4c.6: summoner spells have a common pause of 20 ticks (Companions nextSpell, d_raise spellpause):
+                    // 3 + 10 + 9 = 22 ticks from press to press
+                    context.waitTicks(info.clazz() == SkillClass.SUMMONER ? 9 : 2);
                 }
                 server(context, tag + " end", (player, m) -> {
                     player.setHealth(player.getMaxHealth());

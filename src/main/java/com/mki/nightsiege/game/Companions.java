@@ -1081,6 +1081,11 @@ public final class Companions {
         souls.put(player.getUUID(), Math.max(0, amount));
     }
 
+    /** Test access (Tor 4c.6): the spells' marks a scene can count - curse zones of this player and bone wall blocks. */
+    public int spellMarksForTests(java.util.UUID owner) {
+        return (int) zones.stream().filter(z -> z.owner().equals(owner)).count() + walls.size();
+    }
+
     /** Ticks until a spell with its own cooldown comes again (0: ready). */
     public int spellCooldownLeft(ServerPlayer player, String id, long now) {
         return (int) Math.max(0L, spellReady.getOrDefault(player.getUUID() + ":" + id, 0L) - now);
