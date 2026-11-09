@@ -9624,8 +9624,11 @@ public class EventLookTest implements FabricClientGameTest {
             System.out.println("[Night Siege test] kit hud alchemist: potions=" + (wheel == null ? 0 : wheel.options.size())
                     + " learned=" + open + " boxes=" + shown);
             // The blast jump first (28 October 2026), then one key for all potions (30 October 2026).
-            if (shown != (open > 0 ? 2 : 1)) {
-                throw new AssertionError("kit hud: " + shown + " boxes for " + open + " learned potions (one key) and the blast jump");
+            // Tor 4b (Variante B): the subclass's own abilities sit between them (TrapService.engineerSlots).
+            int want = 1 + com.mki.nightsiege.game.EngineerAbilities.of(manager.skillTree().subclassOf(own)).size()
+                    + (open > 0 ? 1 : 0) + (com.mki.nightsiege.core.SkillTree.has(own, "e_acid_flask") ? 1 : 0);
+            if (shown != want) {
+                throw new AssertionError("kit hud: " + shown + " boxes for " + open + " learned potions (one key), the blast jump and the subclass (want " + want + ")");
             }
         });
         context.waitTicks(30);
