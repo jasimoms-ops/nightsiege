@@ -1471,7 +1471,15 @@ public final class Playtest {
     }
 
     /** For scenes: the current wait began that many ticks earlier. */
-    public void ageIdleForTests(long ticks) {
+    public void ageIdleForTests(MinecraftServer server, long ticks) {
+        SiegeSave.PlaytestState s = state();
+        if (idleSince < 0 && s != null && ("plan".equals(s.phase) || "paused".equals(s.phase))) {
+            // The watch had not looked yet (it checks once a second; a slow start left the scene ahead of it,
+            // 09.11. pt-start 8): the wait begins now, as the watch's first look would set it.
+            idleSince = server.overworld().getGameTime();
+            idlePhase = s.phase;
+            idleWarned = false;
+        }
         if (idleSince >= 0) {
             idleSince -= ticks;
         }

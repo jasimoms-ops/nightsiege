@@ -7391,7 +7391,14 @@ public final class SiegeManager {
             problems.add("cut to 6 boxes: " + ids.subList(6, ids.size()));
         }
         for (String problem : problems) {
-            if (BAR_PROBLEMS.add(problem)) {
+            if (!BAR_PROBLEMS.add(problem)) {
+                continue;
+            }
+            if ((sub == null || sub.isEmpty()) && problem.startsWith("no key entry")) {
+                // No subclass yet (e.g. a warrior with only the dash): the table goes by subclass, so the free
+                // place is the wanted way, not a fault (09.11.); assign still keeps every key once.
+                NightSiegeMod.LOGGER.info("[Night Siege] Fähigkeitenleiste (ohne Unterklasse): {}", problem);
+            } else {
                 NightSiegeMod.LOGGER.error("[Night Siege] Fähigkeitenleiste: {}", problem);
             }
         }

@@ -160,8 +160,8 @@ final class PtStartScenes {
         });
         context.waitTicks(30);
         server(context, "idle age", (player, m) ->
-                m.playtest().ageIdleForTests(com.mki.nightsiege.core.PlaytestAccess.IDLE_LIMIT_TICKS));
-        context.waitTicks(30);
+                m.playtest().ageIdleForTests(player.level().getServer(), com.mki.nightsiege.core.PlaytestAccess.IDLE_LIMIT_TICKS));
+        context.waitTicks(60);   // the watch looks once a second (every 20 game ticks): room for two looks
         server(context, "idle end", (player, m) -> {
             check(!m.playtest().running() && !m.kits().hasStash(player),
                     "10 min in plan without moving on: ended and given back (8 of 8): " + m.playtest().status());

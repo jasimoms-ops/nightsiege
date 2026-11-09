@@ -9980,8 +9980,21 @@ public class EventLookTest implements FabricClientGameTest {
             start[0] = player.getX();
             start[1] = player.getY();
             start[2] = player.getZ();
+            // The husk strolls during the 30 ticks of waiting and was once out of the 3.5-block blast (09.11.,
+            // also dist-kit-dupe-test): put it 2 blocks in front of him right before the blast.
+            double huskAt = -1;
+            java.util.List<net.minecraft.world.entity.Entity> husks = new java.util.ArrayList<>();
+            for (net.minecraft.world.entity.Entity e : ((net.minecraft.server.level.ServerLevel) player.level()).getAllEntities()) {
+                if (e.entityTags().contains("ns_tech_push")) {
+                    husks.add(e);
+                }
+            }
+            for (net.minecraft.world.entity.Entity e : husks) {
+                huskAt = e.distanceTo(player);   // where it had strolled to (diagnosis)
+                e.teleportTo(player.getX(), player.getY(), player.getZ() + 2.0);
+            }
             System.out.println("[Night Siege test] tech escape before: ground=" + player.onGround()
-                    + " slot=" + manager.abilitySlotOf(player, "escape"));
+                    + " slot=" + manager.abilitySlotOf(player, "escape") + " husk at " + huskAt);
             manager.onCoreAction(player, "slot:" + Math.max(0, manager.abilitySlotOf(player, "escape")));
         });
         context.waitTicks(4);
