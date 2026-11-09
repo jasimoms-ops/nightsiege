@@ -22,6 +22,7 @@ import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
@@ -278,6 +279,11 @@ public final class EngineerAbilities {
         if (seat != null) {
             to = from.add(to.subtract(from).normalize().scale(range));
         }
+        // Prüfer-Fund 4b: the bolt stops at the first solid block, not through walls.
+        HitResult wall = level.clip(new ClipContext(from, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player));
+        if (wall.getType() == HitResult.Type.BLOCK) {
+            to = wall.getLocation();
+        }
         final Vec3 a = from;
         final Vec3 b = to;
         List<LivingEntity> line = new ArrayList<>();
@@ -324,7 +330,7 @@ public final class EngineerAbilities {
     private static boolean chain(ServerLevel level, ServerPlayer player, TrapService traps, SkillTree tree,
                                  PlayerSkills skills, Vec3 seat, long now) {
         double range = (val(CHAIN, "range", 16) + extraReach(tree, skills)) * seatReach(seat);
-        LivingEntity first = CombatEffects.lookTarget(level, player, range);
+        LivingEntity first = CombatEffects.lookTarget(level, player, range, true);   // not through walls (Prüfer-Fund 4b)
         if (first == null) {
             bar(player, Component.translatable("nightsiege.msg.tech_no_target"));
             return false;
@@ -347,7 +353,8 @@ public final class EngineerAbilities {
             from = at;
             LivingEntity near = null;
             for (LivingEntity e : TrapService.enemies(level, next.getBoundingBox().inflate(jump))) {
-                if (!hit.contains(e) && e.distanceTo(next) <= jump && (near == null || e.distanceToSqr(next) < near.distanceToSqr(next))) {
+                if (!hit.contains(e) && e.distanceTo(next) <= jump && (near == null || e.distanceToSqr(next) < near.distanceToSqr(next))
+                        && next.hasLineOfSight(e)) {
                     near = e;
                 }
             }
