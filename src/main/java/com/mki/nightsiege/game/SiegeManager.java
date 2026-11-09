@@ -2141,6 +2141,8 @@ public final class SiegeManager {
     private String usedFragment;
     /** How often a survived wave counts for each defender this night (catching up on missed nights). */
     private final Map<UUID, Integer> waveWeight = new HashMap<>();
+    /** Defenders with a latecomer pool this night (Tor 6.7): the others count a mentor night. */
+    private final Set<UUID> poolTonight = new HashSet<>();
     /** Number of the running siege night, for catching up; -1 in tests. */
     private int nightNumber = -1;
     /** Defenders who died this night with their inventory kept: it comes back when they respawn. */
@@ -2435,6 +2437,7 @@ public final class SiegeManager {
         presentDefenders = participants.size();
         wavesStarted = 0;
         waveWeight.clear();
+        poolTonight.clear();
         CrateEffects.reset();
         GainGear.reset();
         SecondUlts.reset();
@@ -3716,12 +3719,52 @@ public final class SiegeManager {
             return;
         }
         PlayerSkills skills = save.skillsOf(player.getUUID().toString());
+        if (config.lateJoiners) {
+            joinLate(player, skills);
+            return;
+        }
         int weight = WaveXp.catchUp(nightNumber, skills.lastNight, config.catchUpMax);
         skills.lastNight = nightNumber;
         waveWeight.put(player.getUUID(), weight);
         if (weight > 1) {
             player.sendSystemMessage(Component.translatable("nightsiege.msg.catch_up", weight - 1, weight)
                     .withStyle(ChatFormatting.AQUA));
+        }
+    }
+
+    /**
+     * The latecomer system (Tor 6.7, formula D): the floor lifts the points to a steady player's minus
+     * lateJoinerNights nights, missed nights fill the pool (at most as many nights, never past the gap).
+     */
+    private void joinLate(ServerPlayer player, PlayerSkills skills) {
+        if (skills.lastNight == nightNumber) {
+            if (skills.catchUpPool > 0) {
+                poolTonight.add(player.getUUID());
+            }
+            return;   // back in the same night: floor and pool are done
+        }
+        int missed = com.mki.nightsiege.core.CatchUp.missed(nightNumber, skills.lastNight);
+        skills.lastNight = nightNumber;
+        int level = currentLevel();
+        int expected = TestKit.pointsBefore(level, config);
+        int behind = TestKit.pointsBefore(Math.max(1, level - config.lateJoinerNights), config);
+        int perNight = expected - TestKit.pointsBefore(Math.max(1, level - 1), config);
+        int floor = com.mki.nightsiege.core.CatchUp.floorAdd(skills.earned, behind);
+        if (floor > 0) {
+            skills.award(floor);
+            NightSiegeMod.LOGGER.info("[Night Siege] Nachzuegler-Boden: {} +{} (Stufe {}, jetzt {})",
+                    player.getScoreboardName(), floor, level, skills.points());
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.late_floor", floor, level)
+                    .withStyle(ChatFormatting.AQUA));
+        }
+        skills.catchUpPool = com.mki.nightsiege.core.CatchUp.pool(skills.catchUpPool, missed, perNight,
+                expected - behind, expected, skills.earned);
+        if (skills.catchUpPool > 0) {
+            poolTonight.add(player.getUUID());
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.late_pool", skills.catchUpPool)
+                    .withStyle(ChatFormatting.AQUA));
+        } else {
+            skills.catchUpFraction = 0.0;
         }
     }
 
@@ -3732,16 +3775,25 @@ public final class SiegeManager {
         }
         double reach = config.participantRadius * 1.5;
         for (UUID id : participants) {
+            ServerPlayer player = server.getPlayerList().getPlayer(id);
+            // The latecomer pool pays the wave once more, also to the fallen (Tor 6.7).
+            int bonus = player == null || !config.lateJoiners ? 0
+                    : com.mki.nightsiege.core.CatchUp.bonus(save.skillsOf(id.toString()),
+                            save.specialNight ? config.specialNightXpMultiplier : 1, config.wavesPerPoint,
+                            config.pointGainMultiplier);
+            if (bonus > 0 && fallen.contains(id)) {
+                player.connection.send(new net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket(
+                        Component.translatable("nightsiege.msg.wave_point", wavesStarted, bonus).withStyle(ChatFormatting.AQUA)));
+            }
             if (fallen.contains(id)) {
                 continue;
             }
-            ServerPlayer player = server.getPlayerList().getPlayer(id);
             if (player == null || player.level() != world
                     || player.distanceToSqr(anchor.getX() + 0.5, anchor.getY(), anchor.getZ() + 0.5) > reach * reach) {
                 continue;
             }
             int weight = waveWeight.getOrDefault(id, 1) * (save.specialNight ? config.specialNightXpMultiplier : 1);
-            int points = WaveXp.survive(save.skillsOf(id.toString()), weight, config.wavesPerPoint,
+            int points = bonus + WaveXp.survive(save.skillsOf(id.toString()), weight, config.wavesPerPoint,
                     config.pointGainMultiplier * CrateEffects.pointFactor(player));
             player.connection.send(new net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket(points > 0
                     ? Component.translatable("nightsiege.msg.wave_point", wavesStarted, points).withStyle(ChatFormatting.AQUA)
@@ -4268,6 +4320,15 @@ public final class SiegeManager {
     /** Writes the night's protocol lines. */
     private void logNight(String result, int blasted, int required) {
         StatsRecorder.NightFile finished = null;
+        if (!testRun && nightNumber >= 0 && !poolTonight.isEmpty() && world != null) {
+            // Mentor nights (Tor 6.7): everyone else who stood in a night with a latecomer.
+            for (UUID id : participants) {
+                ServerPlayer mentor = poolTonight.contains(id) ? null : world.getServer().getPlayerList().getPlayer(id);
+                if (mentor != null) {
+                    safe("Statistik", () -> stats.mentor(mentor));
+                }
+            }
+        }
         try {
             finished = stats.endNight(world == null ? 0L : world.getGameTime(), result, required, nightKills, liveMobs);
         } catch (RuntimeException e) {

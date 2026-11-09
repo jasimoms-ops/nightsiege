@@ -261,6 +261,7 @@ public final class StatsService {
         }
         stats.points = skills.points();
         stats.earned = skills.earned;
+        stats.catchUpPool = cfg.lateJoiners ? skills.catchUpPool : 0;
         stats.donated = skills.donated;
         stats.pathTaken = skills.pathTaken(tree);
         stats.subclass = tree.subclassOfProfile(skills, skills.chosenClass);

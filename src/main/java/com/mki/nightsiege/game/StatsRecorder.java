@@ -897,6 +897,11 @@ public final class StatsRecorder {
         }
     }
 
+    /** A mentor night (Tor 6.7): stood in a night with a latecomer catching up. */
+    public void mentor(ServerPlayer player) {
+        kurAdd(player, "mentor", 1);
+    }
+
     private void clearCurios() {
         killTimes.clear();
         killTick.clear();

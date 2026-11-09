@@ -35,6 +35,10 @@ public class PlayerSkills {
     public double pointFraction;
     /** Number of the last siege night this player stood in, or -1 for none. */
     public int lastNight = -1;
+    /** Latecomer pool (Tor 6.7): points still to catch up, paid once more per wave held (see {@link CatchUp}). */
+    public int catchUpPool;
+    /** Part of a pool point left over from the waves. */
+    public double catchUpFraction;
     /**
      * Learned levels of the player's other profiles, by profile key. The profile
      * being played keeps its levels in {@link #levels}, so every skill effect only
