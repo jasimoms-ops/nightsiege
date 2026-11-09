@@ -77,7 +77,8 @@ final class PtStartScenes {
         context.waitTicks(10);
 
         // 1. A (test) night is prepared or runs: the start without OP is refused.
-        game.getServer().runCommand("nightsiege test 5");
+        // "nightsiege test" needs a player as source; from the console it did nothing (09.11.)
+        game.getServer().runCommand("execute as @p at @p run nightsiege test 5");
         context.waitTicks(10);
         server(context, "during night", (player, m) -> {
             boolean night = m.isActive() || m.isPreparing();
