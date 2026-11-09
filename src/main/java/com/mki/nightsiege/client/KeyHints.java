@@ -49,7 +49,7 @@ public final class KeyHints {
             case ULT, ULT_LOOK, ULT_UPGRADE -> new KeyMapping[]{NightSiegeClient.ultimateKey()};
             case ULT_SHOT -> new KeyMapping[]{NightSiegeClient.ultimateKey(), o.keyUse};
             // Tor 3.2b: the second ult on its own key (R)
-            case ULT2, ULT2_REMOTE, ULT2_STAFF -> new KeyMapping[]{GainClient.secondUltKey()};
+            case ULT2, ULT2_STAFF -> new KeyMapping[]{GainClient.secondUltKey()};
             case STAFF_SNEAK_X -> new KeyMapping[]{GainClient.orderKey(), o.keyShift};
             case QUIVER -> new KeyMapping[]{GainClient.quiverKey()};
             case GAIN_KEY -> new KeyMapping[]{GainClient.gainKey(0), GainClient.gainKey(1), GainClient.gainKey(2)};
@@ -57,8 +57,6 @@ public final class KeyHints {
             case AIR_JUMP -> new KeyMapping[]{o.keyJump};
             case JUMP_ATTACK -> new KeyMapping[]{o.keyJump, o.keyAttack};
             case USE, USE_BLOCK, PLACE_TRAP, USE_MATE, DRAW, BLOCK, PERFECT_BLOCK -> new KeyMapping[]{o.keyUse};
-            // the remote (27 October 2026): overcharge and mark on Fähigkeit 2, the right click is the tower menu
-            case REMOTE_BOOST, REMOTE_MARK -> new KeyMapping[]{GainClient.orderKey()};
             // the staff's own attack is the left click (27 October 2026)
             case STAFF_ATTACK -> new KeyMapping[]{o.keyAttack};
             // the summoner's staff (26 October 2026): the call, the spells
@@ -70,10 +68,7 @@ public final class KeyHints {
             case SHIELD_ACTION -> new KeyMapping[]{GainClient.slotKey(0), GainClient.slotKey(1)};
             case SNEAK, SNEAK_SHOOT -> new KeyMapping[]{o.keyShift};
             case SNEAK_BLOCK -> new KeyMapping[]{o.keyShift, o.keyUse};
-            case SNEAK_USE, REMOTE_DETONATE, STAFF_X_MINION -> new KeyMapping[]{GainClient.orderKey()};
-            case REMOTE_RELOAD -> new KeyMapping[]{o.keyUse};
-            // the X key does what sneak + right click did with the remote and the staff (25 October 2026)
-            case REMOTE -> new KeyMapping[]{GainClient.orderKey(), o.keyUse, GainClient.secondUltKey()};
+            case SNEAK_USE, STAFF_X_MINION -> new KeyMapping[]{GainClient.orderKey()};
             case HEALER_STAFF -> new KeyMapping[]{o.keyAttack, o.keyUse};
             case STAFF -> new KeyMapping[]{o.keyAttack, GainClient.slotKey(0), GainClient.orderKey(), GainClient.slotKey(2),
                     GainClient.secondUltKey()};

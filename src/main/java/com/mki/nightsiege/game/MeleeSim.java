@@ -421,10 +421,10 @@ public final class MeleeSim {
                     level.getEntitiesOfClass(Mob.class, player.getBoundingBox().inflate(16),
                             e -> e instanceof Enemy && !Companions.isCompanion(e)).size()));
         }
-        // The engineer overcharges a tower now and then.
-        if (clazz == SkillClass.ENGINEER && now >= nextRemote && !TOWERS.isEmpty()) {
-            nextRemote = now + 200;
-            m.kits().traps().useRemote(player, TOWERS.get((int) ((now / 200) % TOWERS.size())), true);   // overcharge (Fähigkeit 2)
+        // Tor 4b: the engineer fires his places 2 and 3 whenever they are ready (no remote any more).
+        if (clazz == SkillClass.ENGINEER && now >= nextRemote) {
+            nextRemote = now + 10;
+            EngineerAbilities.botUse(m, player, close);
         }
 
         boolean ranged = clazz == SkillClass.ARCHER || clazz == SkillClass.ENGINEER;

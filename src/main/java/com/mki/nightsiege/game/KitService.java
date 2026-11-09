@@ -574,9 +574,6 @@ public final class KitService {
         if (stack.isEmpty()) {
             return false;
         }
-        if (ModContent.REMOTE != null && stack.is(ModContent.REMOTE)) {
-            return true;
-        }
         for (Item item : ModContent.TRAP_ITEMS.values()) {
             if (stack.is(item)) {
                 return true;
@@ -635,8 +632,6 @@ public final class KitService {
                 inv.placeItemBackInInventory(mark(fromGain(new ItemStack(ModContent.TRAP_ITEMS.get(TrapKind.MORTAR), 1),
                         "notfallmine")));   // a kit item (31.10.), a crate item of the hotbar (update 6)
             }
-        } else {
-            traps.giveRemote(player, skills);
         }
         arrange(player, clazz);
         resync(player);
@@ -803,9 +798,6 @@ public final class KitService {
                 if (trap != null && e.getValue() > 0) {
                     all.add(new ItemStack(trap, e.getValue()));
                 }
-            }
-            if (ModContent.REMOTE != null) {
-                all.add(new ItemStack(ModContent.REMOTE));
             }
         }
         // Same items stack together (the potions, arrows in several stacks).

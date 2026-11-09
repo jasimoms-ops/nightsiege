@@ -29,7 +29,10 @@ public final class ModContent {
     public static Item SIEGE_CORE_ITEM;
     public static CreativeModeTab TAB;
     public static Item GUIDE;
-    /** The engineer's remote. */
+    /**
+     * The engineer's old remote (left the game with Tor 4b): still registered so old worlds load, it does
+     * nothing and RetiredItems takes it out of inventories, ender chests and containers.
+     */
     public static Item REMOTE;
     /** The summoner's staff. */
     public static Item STAFF;
@@ -82,8 +85,7 @@ public final class ModContent {
         Registry.register(BuiltInRegistries.ITEM, guideKey, GUIDE);
 
         ResourceKey<Item> remoteKey = ResourceKey.create(Registries.ITEM, id("remote_control"));
-        REMOTE = new RemoteItem(new Item.Properties().setId(remoteKey).durability(100)
-                .rarity(net.minecraft.world.item.Rarity.UNCOMMON));
+        REMOTE = new Item(new Item.Properties().setId(remoteKey));
         Registry.register(BuiltInRegistries.ITEM, remoteKey, REMOTE);
 
         ResourceKey<Item> staffKey = ResourceKey.create(Registries.ITEM, id("summoning_staff"));
@@ -118,7 +120,6 @@ public final class ModContent {
                 .displayItems((params, output) -> {
                     output.accept(SIEGE_CORE_ITEM);
                     output.accept(GuideBook.create());
-                    output.accept(REMOTE);
                     output.accept(STAFF);
                     output.accept(HEALER_STAFF);
                     for (Item egg : MACHINE_EGGS.values()) {

@@ -53,8 +53,8 @@ class SkillbaumTor4Test {
         assertEquals(12.0, tree.get("holy_vigor").amountPerLevel(), 1e-9);
         assertEquals(0.15, tree.get("g_prayer").amountPerLevel(), 1e-9);
         // The engineer proposals (ammo belt, chain bolt, guiding beam) moved to Tor 4b.4.
-        assertEquals(0.2, SkillValues.get("e_ammobelt", "speed", 0), 1e-9);
-        assertEquals(2.0, tree.get("e_chainbolt").amountPerLevel(), 1e-9);
+        assertEquals(0.5, SkillValues.get("e_ammobelt", "speed", 0), 1e-9);   // Tor 4b.4
+        assertEquals(3.0, tree.get("e_chainbolt").amountPerLevel(), 1e-9);
         assertEquals(200, SkillValues.get("s_howl", "every", 0), 1e-9);
         assertEquals(1, SkillValues.get("d_haste", "cheaper", 0), 1e-9);
     }

@@ -26,8 +26,6 @@ public enum KeyHint {
     ULT_UPGRADE,
     /** The second-ult key (X). */
     ULT2,
-    /** The second ult of the engineer: X, with the remote in hand sneak + X. */
-    ULT2_REMOTE,
     /** The second ult of the summoner: X at a companion, with the staff in hand sneak + X. */
     ULT2_STAFF,
     /** The quiver key (G). */
@@ -66,16 +64,6 @@ public enum KeyHint {
     DRAW,
     /** The X key (it was sneak and right click until 25 October 2026). */
     SNEAK_USE,
-    /** The remote: right click, or the X key. */
-    REMOTE,
-    /** The remote: right click on an own trap (overcharge). */
-    REMOTE_BOOST,
-    /** The remote: right click on a monster (mark). */
-    REMOTE_MARK,
-    /** The remote: the X key on a trap (reload). */
-    REMOTE_RELOAD,
-    /** The remote: the X key on a mortar, flame trap or potion tower (detonate). */
-    REMOTE_DETONATE,
     /**
      * The summoner's staff as a whole (26 October 2026): right click attacks, sneak + right
      * click orders, calls or casts, G calls or picks the spell, X orders.
@@ -142,13 +130,14 @@ public enum KeyHint {
             // The alchemist (28 October 2026): every learned potion and the acid flask on a bar key.
             Map.entry(SkillEffect.BREW, BAR),
             Map.entry(SkillEffect.ACID_FLASK, BAR),
-            Map.entry(SkillEffect.DETONATOR, REMOTE_DETONATE),
-            Map.entry(SkillEffect.OVERCHARGE_TIME, REMOTE_BOOST),
-            Map.entry(SkillEffect.NETWORK, REMOTE_BOOST),
-            Map.entry(SkillEffect.SEEKER, REMOTE_MARK),
-            Map.entry(SkillEffect.REMOTE_ENERGY, REMOTE),
-            Map.entry(SkillEffect.REMOTE_RANGE, REMOTE),
-            Map.entry(SkillEffect.RECHARGE, REMOTE),
+            // Tor 4b: the remote's skills improve the abilities on the bar keys
+            Map.entry(SkillEffect.DETONATOR, BAR),
+            Map.entry(SkillEffect.OVERCHARGE_TIME, BAR),
+            Map.entry(SkillEffect.NETWORK, BAR),
+            Map.entry(SkillEffect.SEEKER, BAR),
+            Map.entry(SkillEffect.REMOTE_ENERGY, BAR),
+            Map.entry(SkillEffect.REMOTE_RANGE, BAR),
+            Map.entry(SkillEffect.RECHARGE, BAR),
             // ultimates with something to do besides the key
             Map.entry(SkillEffect.EXECUTE, ULT_LOOK),
             Map.entry(SkillEffect.ARROW_STORM, ULT_SHOT),
@@ -254,9 +243,6 @@ public enum KeyHint {
     public static KeyHint forGain(String id) {
         if (id == null) {
             return NONE;
-        }
-        if (id.equals("magnetfeld")) {
-            return ULT2_REMOTE;
         }
         if (id.equals("seelentausch")) {
             return ULT2_STAFF;

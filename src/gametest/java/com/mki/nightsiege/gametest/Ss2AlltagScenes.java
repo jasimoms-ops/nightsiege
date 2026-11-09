@@ -328,9 +328,6 @@ final class Ss2AlltagScenes {
                     handouts.append(kind.id()).append(" kit=").append(count(inv, item, true)).append(" plain=").append(count(inv, item, false)).append("; ");
                 }
             }
-            if (ModContent.REMOTE != null) {
-                handouts.append("remote kit=").append(count(inv, ModContent.REMOTE, true)).append(" plain=").append(count(inv, ModContent.REMOTE, false));
-            }
             log("NIGHT handouts: " + handouts + " (expected plain=0)");
             // Armour break: only Night Siege's own zombies, only for a defender.
             Zombie everyday = find(level, hitters[0]);

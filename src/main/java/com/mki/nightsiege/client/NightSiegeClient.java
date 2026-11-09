@@ -147,16 +147,7 @@ public class NightSiegeClient implements ClientModInitializer {
                     } else if ("rage".equals(payload.kind())) {
                         RageFx.set(payload.json());   // Tor 4.10: the berserker's Blutrausch, a red vignette
                     } else if ("towers".equals(payload.kind())) {
-                        // The engineer's tower menu (27 October 2026): opened by the remote, refreshed after a pick.
-                        com.mki.nightsiege.core.TowerMenuData data =
-                                Json.fromJson(payload.json(), com.mki.nightsiege.core.TowerMenuData.class);
-                        if (client.gui.screen() instanceof TowerMenuScreen open) {
-                            open.refresh(data);
-                        } else if (client.gui.screen() instanceof SpotterScreen spot) {
-                            spot.towers(data);   // the bird's-eye view's maintenance panel (27 October 2026)
-                        } else if (data != null && data.open && client.player != null) {
-                            client.setScreenAndShow(new TowerMenuScreen(data));
-                        }
+                        // The tower menu left with the remote (Tor 4b); an old server's menu is ignored.
                     } else if ("wheel".equals(payload.kind())) {
                         // The wheel is gone (27 October 2026: the ability bar instead); an old server's wheel is ignored.
                     } else if ("brewmenu".equals(payload.kind())) {
@@ -254,9 +245,7 @@ public class NightSiegeClient implements ClientModInitializer {
         GuideItem.opener = () -> Minecraft.getInstance().setScreenAndShow(new GuideScreen());
         // Kit gadgets and the remote: which key they need, with the player's own bindings.
         ItemTooltipCallback.EVENT.register((stack, context, type, lines) -> {
-            com.mki.nightsiege.core.KeyHint hint = stack.is(ModContent.REMOTE)
-                    ? com.mki.nightsiege.core.KeyHint.REMOTE
-                    : ModContent.STAFF != null && stack.is(ModContent.STAFF)
+            com.mki.nightsiege.core.KeyHint hint = ModContent.STAFF != null && stack.is(ModContent.STAFF)
                     ? com.mki.nightsiege.core.KeyHint.STAFF
                     : stack.getItem() instanceof com.mki.nightsiege.game.HealerStaffItem
                     ? com.mki.nightsiege.core.KeyHint.HEALER_STAFF

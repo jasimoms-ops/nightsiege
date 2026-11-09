@@ -7,6 +7,7 @@ Excel) in einen Ausgabeordner:
 
   siege_je_stufe.csv     Nächte, Siege, Siegquote je Weltstufe
   klassen.csv            Schaden, Heilung, Kills, Tode je Unterklasse (je Spieler-Welle gemittelt)
+  tasten.csv             Tastendrücke je Platz (ABILITY_1..4, ULT, ULT2) und Sekunden Turm-Sitz/zu Fuß je Unterklasse
   schadensquellen.csv    Schaden nach Quelle (nah:…, fern:…, turm:…, begleiter …)
   gegner.csv             gespawnt, getötet, Überlebenszeit, Schaden an Spielern je Gegnertyp
   tuerme.csv             Schaden und Kills bemannt/unbemannt je Turmart
@@ -91,6 +92,7 @@ def main():
 
     # Klassen und Schadensquellen
     klassen = defaultdict(lambda: defaultdict(float))
+    tasten = defaultdict(lambda: defaultdict(float))   # Tor 4b: ältere Nächte haben "tasten"/"fussSekunden" nicht
     quellen = defaultdict(float)
     for n in naechte:
         wer = {name: (s.get("unterklasse") or s.get("klasse") or "?") for name, s in n.get("spieler", {}).items()}
@@ -103,6 +105,12 @@ def main():
                     k[feld] += w.get(feld, 0)
                 for q, v in w.get("schadenNachQuelle", {}).items():
                     quellen[q] += v
+                t = tasten[wer.get(name, "?")]
+                t["spieler_wellen"] += 1
+                t["turmSekunden"] += w.get("turmSekunden", 0)
+                t["fussSekunden"] += w.get("fussSekunden", 0)
+                for taste, v in w.get("tasten", {}).items():
+                    t[taste] += v
     zeilen = []
     for name, k in sorted(klassen.items()):
         n = max(1.0, k["spieler_wellen"])
@@ -111,6 +119,10 @@ def main():
     schreiben(aus / "klassen.csv", ["unterklasse", "spieler_wellen", "schaden_je_welle", "erhalten_je_welle",
                                      "heilung_gegeben_je_welle", "heilung_erhalten_je_welle", "kills_je_welle",
                                      "assists_je_welle", "tode_je_welle"], zeilen)
+    plaetze = ["ABILITY_1", "ABILITY_2", "ABILITY_3", "ABILITY_4", "ULT", "ULT2"]
+    schreiben(aus / "tasten.csv", ["unterklasse", "spieler_wellen"] + plaetze + ["turm_sekunden", "fuss_sekunden"],
+              [[name, int(t["spieler_wellen"])] + [int(t[k]) for k in plaetze]
+               + [int(t["turmSekunden"]), int(t["fussSekunden"])] for name, t in sorted(tasten.items())])
     gesamt = sum(quellen.values()) or 1.0
     schreiben(aus / "schadensquellen.csv", ["quelle", "schaden", "anteil"],
               [[q, round(v, 1), round(v / gesamt, 3)] for q, v in sorted(quellen.items(), key=lambda x: -x[1])])

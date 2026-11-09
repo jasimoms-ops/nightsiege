@@ -613,7 +613,7 @@ public final class CombatEffects {
                 + (ball ? SkillValues.get("e_ball_lightning", "jumps", 4.0) : 0.0));
         double jump = SkillValues.get("thunderstorm", "jump", 6.0);
         if (SkillTree.has(skills, "e_superconductor")) {
-            traps.fillRemote(player);
+            EngineerAbilities.ready(player);   // Tor 4b: places 2 and 3 ready again
             traps.overcharge(player, level.getGameTime() + Math.round(SkillValues.get("e_superconductor", "time", 80)));
         }
         List<LivingEntity> hit = new ArrayList<>();

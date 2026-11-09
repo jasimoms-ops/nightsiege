@@ -32,9 +32,9 @@ class Tor4WerteTest {
         assertEquals(SiegeConfig.SETTINGS_VERSION, server.settingsVersion);
         assertEquals(0.8, server.subclassDamage.get("swift"), 1e-3);
         assertEquals(1.75, server.subclassDamage.get("heavy"), 1e-9);
-        // The towers moved to Tor 4b.3: the server's tower tweaks stay as they are.
-        assertEquals(400, server.skillTweaks.get("e_longrange").values.get("seatlock"), 1e-9);
-        assertEquals(3, server.skillTweaks.get("arrow_turret").values.get("seathealth"), 1e-3);
+        // Tor 4b.3 (update 22): the server's old tower tweaks become the new targets.
+        assertEquals(200, server.skillTweaks.get("e_longrange").values.get("seatlock"), 1e-9);
+        assertEquals(5, server.skillTweaks.get("arrow_turret").values.get("seathealth"), 1e-3);
         assertNull(server.skillTweaks.get("tesla_coil"));
         // Run again: no second scaling.
         server.sanitize();
@@ -82,10 +82,10 @@ class Tor4WerteTest {
 
     @Test
     void theNewBuiltInValues() {
-        // The towers stay at 20 s and 3x until Tor 4b.3.
-        assertEquals(400, SkillValues.get("e_longrange", "seatlock", -1), 1e-9);
+        // Tor 4b.3: the towers take their gunner after 10 s and hold 5x his life.
+        assertEquals(200, SkillValues.get("e_longrange", "seatlock", -1), 1e-9);
         for (TrapKind tower : new TrapKind[] {TrapKind.TURRET, TrapKind.MORTAR, TrapKind.BREWER, TrapKind.TESLA}) {
-            assertEquals(3.0, SkillValues.get(tower.id(), "seathealth", -1), 1e-9);
+            assertEquals(5.0, SkillValues.get(tower.id(), "seathealth", -1), 1e-9);
         }
         assertEquals(-10, SkillValues.get("heavy_blow", "hp", 0), 1e-9);
         assertEquals(-6, SkillValues.get("heavy_blow", "hplow", 0), 1e-9);
