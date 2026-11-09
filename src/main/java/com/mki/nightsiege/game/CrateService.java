@@ -397,7 +397,7 @@ public final class CrateService {
         roll.odds = weights.clone();
         CrateGains.Gain win = CrateGains.roll(clazz, way, sub, weights, cfg.crateClassShare, random);
         if (win == null) {
-            win = CrateGains.get("fackeln");
+            win = CrateGains.get("proviant");
         }
         roll.gain = win.id();
         roll.rarity = win.rarity().name();

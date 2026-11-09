@@ -188,22 +188,9 @@ public final class GainGear {
         // Balance update 2 (Simon 29.10.): crate gains with an ability of their own are on the gain keys
         // (GainKeys), the arrow kinds in the quiver; what is thrown, eaten or set down stays an item.
         // Update 6: these are the crate items of the hotbar, chosen on the kit page (KitArrange).
-        if (lvl(kits, skills, clazz, "wurfspeere") > 0) {
-            out.add(KitService.fromGain(Gadgets.make(Items.IRON_SPEAR, "wurfspeer", 4), "wurfspeere"));
-        }
-        if (lvl(kits, skills, clazz, "kriegsbanner") > 0) {
-            out.add(KitService.fromGain(Gadgets.make(Items.BANNER.red(), "kriegsbanner", 1), "kriegsbanner"));
-        }
-        if (clazz == SkillClass.WARRIOR) {
-            int axes = lvl(kits, skills, clazz, "wurfbeile");
-            if (axes > 0) {
-                out.add(KitService.fromGain(Gadgets.make(Items.IRON_AXE, "wurfbeil", 2 * axes), "wurfbeile"));
-            }
-        } else if (clazz == SkillClass.GUARDIAN) {
-            if (lvl(kits, skills, clazz, "barrikaden") > 0) {
-                out.add(KitService.fromGain(Gadgets.make(Items.OAK_FENCE, "barrikade", 3), "barrikaden"));
-            }
-        } else if (clazz == SkillClass.ENGINEER) {
+        // Tor 5.7 (Simon 09.11.): no gain items any more – the spears and axes left, the barricades are
+        // charges on 1-3 (GainCharges), the war banner works without being set (bannerOwnerNear).
+        if (clazz == SkillClass.ENGINEER) {
             // The reusable flash grenade for every engineer (Simon, 28 October 2026; it was the
             // alchemist's alone since 26 October): one, it comes back after 7 s (Simon 29.10., was 15 s).
             out.add(Gadgets.make(Items.FIREWORK_STAR, "alchemie_blende", 1));
@@ -408,6 +395,46 @@ public final class GainGear {
         };
     }
 
+    /**
+     * Tor 5.7: one charge of a gain field, at once (no drinking, no eating). Returns the lock in ticks,
+     * or -1 when nothing happened (then no charge is taken).
+     */
+    public static int useCharge(ServerPlayer player, ServerLevel level, String field) {
+        switch (field) {
+            case com.mki.nightsiege.core.GainCharges.POTION -> {
+                player.heal(8.0f);   // as a potion of healing II
+                level.sendParticles(ParticleTypes.HEART, player.getX(), player.getY() + 1.2, player.getZ(), 5, 0.4, 0.4, 0.4, 0);
+                level.playSound(null, player.blockPosition(), SoundEvents.GENERIC_DRINK.value(), SoundSource.PLAYERS, 0.8f, 1.2f);
+            }
+            case com.mki.nightsiege.core.GainCharges.APPLE -> {
+                // as a golden apple: regeneration II 5 s, absorption 2 min, the food
+                player.addEffect(new MobEffectInstance(MobEffects.REGENERATION, 100, 1));
+                player.addEffect(new MobEffectInstance(MobEffects.ABSORPTION, 2400, 0));
+                player.getFoodData().eat(net.minecraft.world.food.Foods.GOLDEN_APPLE);
+                level.playSound(null, player.blockPosition(), SoundEvents.PLAYER_BURP, SoundSource.PLAYERS, 0.6f, 1.0f);
+            }
+            case com.mki.nightsiege.core.GainCharges.PEARL -> {
+                var pearl = new net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownEnderpearl(level, player,
+                        new ItemStack(Items.ENDER_PEARL));
+                pearl.shootFromRotation(player, player.getXRot(), player.getYRot(), 0f, 1.5f, 1.0f);
+                level.addFreshEntity(pearl);
+                level.playSound(null, player.blockPosition(), SoundEvents.ENDER_PEARL_THROW, SoundSource.PLAYERS, 0.5f, 0.4f);
+            }
+            case com.mki.nightsiege.core.GainCharges.BARRICADE -> {
+                // in front of the player: two blocks ahead, on the ground he stands on
+                BlockPos front = player.blockPosition().relative(player.getDirection(), 2);
+                BlockHitResult hit = new BlockHitResult(Vec3.atCenterOf(front.below()).add(0, 0.5, 0), Direction.UP, front.below(), false);
+                if (!placeBarricade(player, level, hit)) {
+                    return -1;
+                }
+            }
+            default -> {
+                return -1;
+            }
+        }
+        return com.mki.nightsiege.core.GainCharges.LOCK_TICKS;
+    }
+
     /** True when a once-a-night gain ability was used tonight (the trowel, the spare battery). */
     public static boolean usedTonight(ServerPlayer player, String id) {
         return switch (id) {
@@ -524,13 +551,14 @@ public final class GainGear {
         return 400;
     }
 
-    /** War horn: monsters within 8 blocks run away for 3 s, 60 s pause. */
+    /**
+     * War horn: monsters within 8 blocks are slowed (Slowness III) and weakened (Weakness I) for 3 s, 60 s
+     * pause. Tor 5.4: they no longer run away – a fighter wants them in reach.
+     */
     private static int warHorn(ServerPlayer player, ServerLevel level) {
-        long until = level.getGameTime() + 60;
         for (Mob mob : enemies(level, player.position(), 8.0)) {
-            mob.setTarget(null);
-            CALM.put(mob.getUUID(), until);
-            FLEE.put(mob.getUUID(), new Away(until, player.position()));
+            mob.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 60, 2, false, true), player);
+            mob.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, 60, 0, false, true), player);
         }
         level.playSound(null, player.blockPosition(), SoundEvents.RAID_HORN.value(), SoundSource.PLAYERS, 1.2f, 1.3f);
         level.sendParticles(ParticleTypes.SONIC_BOOM, player.getX(), player.getY() + 1.2, player.getZ(), 1, 0, 0, 0, 0);
@@ -552,9 +580,17 @@ public final class GainGear {
         return 900;
     }
 
-    /** Signal horn: allies see the guardian through walls for 10 s, 60 s pause. */
+    /**
+     * Signal horn: allies see the guardian through walls for 10 s, and (Tor 5.4, Sammelruf) allies within
+     * 16 blocks run 20 % faster for 5 s (Speed I); 60 s pause.
+     */
     private static int signal(ServerPlayer player, ServerLevel level) {
         player.addEffect(new MobEffectInstance(MobEffects.GLOWING, 200, 0, false, false, true));
+        for (ServerPlayer ally : level.players()) {
+            if (ally != player && ally.distanceToSqr(player) <= 256.0) {
+                ally.addEffect(new MobEffectInstance(MobEffects.SPEED, 100, 0, false, true, true));
+            }
+        }
         level.playSound(null, player.blockPosition(), SoundEvents.BELL_BLOCK, SoundSource.PLAYERS, 2f, 1f);
         level.playSound(null, player.blockPosition(), SoundEvents.BELL_RESONATE, SoundSource.PLAYERS, 1f, 1f);
         return 1200;
@@ -835,7 +871,7 @@ public final class GainGear {
 
     /** The kind of a player's special arrow (light, climb, storm), read from its tag or its item. */
     private static String kindOf(AbstractArrow arrow) {
-        for (String k : new String[]{"light", "climb", "storm", "spectral"}) {
+        for (String k : new String[]{"light", "climb", "storm", "fire"}) {
             if (arrow.entityTags().contains("ns_arrow_" + k)) {
                 return k;
             }
@@ -846,10 +882,18 @@ public final class GainGear {
         return Gadgets.arrowKind(arrow.getPickupItemStackOrigin());
     }
 
-    /** A player's arrow hit a monster: the spectral kind from the quiver makes it glow for 10 s. */
+    /**
+     * A player's arrow hit a monster. Tor 5.4: the light arrows make it glow for 10 s (they took in the
+     * spectral arrows), the fire arrows set it on fire for 4 s.
+     */
     public static void onArrowHitEntity(AbstractArrow arrow, LivingEntity victim) {
-        if (victim != null && arrow.entityTags().contains("ns_arrow_spectral")) {
+        if (victim == null) {
+            return;
+        }
+        if (arrow.entityTags().contains("ns_arrow_light")) {
             victim.addEffect(new MobEffectInstance(MobEffects.GLOWING, 200, 0));
+        } else if (arrow.entityTags().contains("ns_arrow_fire")) {
+            victim.igniteForSeconds(4f);
         }
     }
 
@@ -878,7 +922,8 @@ public final class GainGear {
     /** Damage factors: the war banner for attackers, the bodyguard chain for victims. */
     public static float damageFactor(LivingEntity victim, DamageSource source) {
         float factor = 1f;
-        if (source.getEntity() instanceof ServerPlayer attacker && victim instanceof Enemy && nearBanner(attacker)) {
+        if (source.getEntity() instanceof ServerPlayer attacker && victim instanceof Enemy
+                && (nearBanner(attacker) || bannerOwnerNear(attacker))) {
             factor *= BANNER_FACTOR;
         }
         if (victim instanceof ServerPlayer ally && guardOf(ally) != null) {
@@ -917,6 +962,28 @@ public final class GainGear {
             return null;
         }
         return guard;
+    }
+
+    /**
+     * Tor 5.7 (Chef 09.11. 09:12, 11:00): the war banner is passive – a defender within 10 blocks of a
+     * defender who owns it (the owner himself too) hits 10 % harder, once: a second banner does not stack.
+     */
+    public static boolean bannerOwnerNear(ServerPlayer player) {
+        SiegeManager m = SiegeManager.get();
+        if (m == null || !(player.level() instanceof ServerLevel level) || !m.isDefending(player)) {
+            return false;
+        }
+        for (ServerPlayer other : level.players()) {
+            if (!other.isAlive() || other.isSpectator()
+                    || other.distanceToSqr(player) > BANNER_RADIUS * BANNER_RADIUS || !m.isDefending(other)) {
+                continue;
+            }
+            PlayerSkills own = m.save().skillsOf(other.getUUID().toString());
+            if (own != null && own.hasClass() && m.kits().gainLevel(own, own.clazz(), "kriegsbanner") > 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean nearBanner(ServerPlayer player) {
@@ -1176,7 +1243,7 @@ public final class GainGear {
 
     private static final List<ArrowKind> ARROW_KINDS = List.of(
             new ArrowKind("light", "lichtpfeile", 16, 0xFFE36B, "minecraft:glowstone_dust"),
-            new ArrowKind("spectral", "spektralpfeile", 16, 0xF2D46B, "minecraft:spectral_arrow"),
+            new ArrowKind("fire", "brandpfeile", 16, 0xFF7A2E, "minecraft:fire_charge"),   // Tor 5.4 (spektralpfeile left)
             new ArrowKind("climb", "kletterpfeile", 4, 0x9C6B3A, "minecraft:ladder"),
             new ArrowKind("storm", "sturmpfeile", 8, 0xBFE9FF, "minecraft:wind_charge"));
 

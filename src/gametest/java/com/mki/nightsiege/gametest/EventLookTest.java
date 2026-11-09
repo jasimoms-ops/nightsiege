@@ -314,6 +314,14 @@ public class EventLookTest implements FabricClientGameTest {
                     alive(context);
                     GewinneScenes.run(context, game);   // Tor 3.2: the gain wheel on R, its rings, night exclusive
                 }
+                if (want.contains("loot")) {
+                    alive(context);
+                    LootScenes.run(context, game);   // Tor 5.4: a crate per class, the new gain on 1-3
+                }
+                if (want.contains("inventar")) {
+                    alive(context);
+                    InventarScenes.run(context, game);   // Tor 5.7: only allowed things, charges on 1-3, old items collected
+                }
                 if (want.contains("funktionen")) {
                     alive(context);
                     FunktionenScenes.run(context, game);   // Tor 3.0d: Erdstoss on a real jump crit, Koecherwart with Multishot
@@ -6807,7 +6815,7 @@ public class EventLookTest implements FabricClientGameTest {
                 {"WARRIOR", "wurfbeile:3", "kampfhorn:1", "schlachtentrance:1", "wurfspeere:1", "kletterhaken:1",
                         "kriegsbanner:1", "sprungstiefel:1"},
                 {"ARCHER", "lichtpfeile:1", "kletterpfeile:1", "sturmpfeile:1", "tarnumhang:1",
-                        "zielfernrohr:1", "lenkpfeile:1", "lockpfeil:1", "spektralpfeile:1"},
+                        "zielfernrohr:1", "lenkpfeile:1", "lockpfeil:1", "brandpfeile:1"},
                 {"GUARDIAN", "barrikaden:1", "signalhorn:1", "mauerkelle:1", "leibwaechter:1", "turmschild:1",
                         "leichtschild:1", "schildlaterne:1", "spiegelschild:1"},
                 {"ENGINEER", "ersatzbatterie:1", "oelfass:1", "kupfergolem:1", "magnetfeld:1",
@@ -7143,7 +7151,7 @@ public class EventLookTest implements FabricClientGameTest {
                 b2Fails.add("special arrow stacks in the kit: " + stacks);
             }
             // Update 30.10.: one arrow key (held + wheel), no key per kind.
-            if (q == null || q.shots.getOrDefault("light", 0) != 16 || q.shots.getOrDefault("spectral", 0) != 16
+            if (q == null || q.shots.getOrDefault("light", 0) != 16 || q.shots.getOrDefault("fire", 0) != 16
                     || !bar.contains("quiver") || bar.contains("light") || bar.contains("storm")) {
                 b2Fails.add("quiver " + (q == null ? "-" : q.shots) + " bar " + bar);
             }
@@ -7418,7 +7426,7 @@ public class EventLookTest implements FabricClientGameTest {
             com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
             com.mki.nightsiege.core.SkillClass w = com.mki.nightsiege.core.SkillClass.WARRIOR;
             for (String[] g : new String[][]{{"wurfspeere", "1"}, {"kriegsbanner", "1"}, {"wurfbeile", "3"}, {"heiltrank", "2"},
-                    {"fackeln", "1"}, {"wurfperlen", "1"}, {"baukiste", "1"}, {"schaerfe", "1"}, {"sprungstiefel", "1"},
+                    {"wurfperlen", "1"}, {"baukiste", "1"}, {"schaerfe", "1"}, {"sprungstiefel", "1"},
                     {"kampfhorn", "1"}, {"kletterhaken", "1"}}) {
                 own.setGainStage(w, g[0], Integer.parseInt(g[1]));
             }
@@ -7441,19 +7449,19 @@ public class EventLookTest implements FabricClientGameTest {
                 }
             }
             manager.kits().restore(player);
-            // only the war banner chosen
-            manager.onCoreAction(player, "kit:save:WARRIOR:{\"layout\":{},\"choice\":[\"kriegsbanner\"]}");
+            // only the building box chosen (Tor 5.7: the war banner is passive, no kit item any more)
+            manager.onCoreAction(player, "kit:save:WARRIOR:{\"layout\":{},\"choice\":[\"baukiste\"]}");
             manager.kits().equip(player, 5);
             String line = kitLine(player);
             System.out.println("[Night Siege test] update6 kit chosen: " + line);
             for (int i = 0; i < 36; i++) {
                 String g = com.mki.nightsiege.game.KitService.gainOf(player.getInventory().getItem(i));
-                if (!g.isEmpty() && !g.equals("kriegsbanner")) {
+                if (!g.isEmpty() && !g.equals("baukiste")) {
                     fails.add("a crate item that was not chosen: " + g);
                 }
             }
-            if (!line.contains("kriegsbanner")) {
-                fails.add("the chosen war banner is missing");
+            if (!line.contains("baukiste")) {
+                fails.add("the chosen building box is missing");
             }
             manager.kits().restore(player);
             manager.onCoreAction(player, "kit:auto:WARRIOR");

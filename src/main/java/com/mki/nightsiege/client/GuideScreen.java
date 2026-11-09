@@ -60,6 +60,7 @@ public class GuideScreen extends Screen {
             new Chapter("intro", "nightsiege:siege_core"),
             new Chapter("core", "minecraft:respawn_anchor"),
             new Chapter("siege", "minecraft:zombie_head"),
+            new Chapter("gains", "minecraft:chest"),   // Tor 5.4: the crate gains
             new Chapter("events", "minecraft:redstone"),
             new Chapter("bonus", "minecraft:emerald"),
             new Chapter("classes", "minecraft:nether_star"),

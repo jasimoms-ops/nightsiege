@@ -64,7 +64,12 @@ public final class UltHud {
 
     /** One box: {@code spent} greys out a gain ability used up for tonight or this kit. */
     record Cell(ItemStack icon, KeyMapping key, int cooldown, int total, boolean current, boolean spent, String label,
-            boolean sneak) {
+            boolean sneak, String count) {
+        Cell(ItemStack icon, KeyMapping key, int cooldown, int total, boolean current, boolean spent, String label,
+             boolean sneak) {
+            this(icon, key, cooldown, total, current, spent, label, sneak, null);
+        }
+
         Cell(ItemStack icon, KeyMapping key, int cooldown, int total, boolean current) {
             this(icon, key, cooldown, total, current, false, null, false);
         }
@@ -110,10 +115,17 @@ public final class UltHud {
         if (s.gains != null) {
             for (int i = 0; i < s.gains.size() && i < GainClient.GAIN_KEYS; i++) {
                 UltState.Slot g = s.gains.get(i);
-                out.add(new Cell(icon(g.icon), AbilityKeys.mapping(AbilityKeys.Ability.GAIN, i), g.cooldownTicks, g.totalTicks, false, g.current));
+                out.add(new Cell(icon(g.icon), AbilityKeys.mapping(AbilityKeys.Ability.GAIN, i), g.cooldownTicks, g.totalTicks, false,
+                        g.current, null, false, countOf(g)));
             }
         }
         return out;
+    }
+
+    /** Tor 5.7: the charges left on a gain field (potions, apples, pearls, barricades, oil), or null. */
+    static String countOf(UltState.Slot g) {
+        return g != null && "nightsiege.wheel.count".equals(g.sub) && g.subArgs != null && !g.subArgs.isEmpty()
+                ? g.subArgs.get(0) : null;
     }
 
     /** Q, F and X, the ones the player has; with {@code gains} the gain keys behind them too. */
@@ -134,7 +146,8 @@ public final class UltHud {
         if (gains && s.gains != null) {
             for (int i = 0; i < s.gains.size() && i < GainClient.GAIN_KEYS; i++) {
                 UltState.Slot g = s.gains.get(i);
-                fixed.add(new Cell(icon(g.icon), AbilityKeys.mapping(AbilityKeys.Ability.GAIN, i), g.cooldownTicks, g.totalTicks, false, g.current));
+                fixed.add(new Cell(icon(g.icon), AbilityKeys.mapping(AbilityKeys.Ability.GAIN, i), g.cooldownTicks, g.totalTicks, false,
+                        g.current, null, false, countOf(g)));
             }
         }
         return fixed;
