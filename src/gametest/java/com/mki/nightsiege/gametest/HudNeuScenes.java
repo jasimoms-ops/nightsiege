@@ -192,7 +192,7 @@ final class HudNeuScenes {
         game.getServer().runCommand("advancement grant @p only minecraft:story/mine_stone");
         context.waitTicks(20);
         int after = context.computeOnClient(client -> KitHud.blockedToasts);
-        boolean shown = context.computeOnClient(client -> client.toastManager().getToast(
+        boolean shown = context.computeOnClient(client -> client.gui.toastManager().getToast(
                 net.minecraft.client.gui.components.toasts.AdvancementToast.class, net.minecraft.client.gui.components.toasts.Toast.NO_TOKEN) != null);
         check(after > before && !shown, "toast at night kept away (" + (after - before) + " blocked, shown=" + shown + ")");
 
