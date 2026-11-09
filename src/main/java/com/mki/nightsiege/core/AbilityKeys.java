@@ -93,11 +93,12 @@ public final class AbilityKeys {
         put(SkillTree.SUB_BULWARK, e(SHIELD, Key.ABILITY_1), e("ward", Key.ABILITY_2), e(TankHeal.ID, Key.ABILITY_3), e("quiver", Key.ABILITY_4));
         put(SkillTree.SUB_MEDIC, e("hand", Key.ABILITY_1), e("selfheal", Key.ABILITY_2), e("quiver", Key.ABILITY_3));
         put(SkillTree.SUB_WARDEN, e("ward", Key.ABILITY_1), e("dome", Key.ABILITY_2), e("quiver", Key.ABILITY_3));
-        // engineers: the blast jump on 1, the remote on 2; the alchemist's potions on 3, the acid on 4
-        put(SkillTree.SUB_GUNNER, e("escape", Key.ABILITY_1), e(F_ACTION, Key.ABILITY_2));
-        put(SkillTree.SUB_ELECTRICIAN, e("escape", Key.ABILITY_1), e(F_ACTION, Key.ABILITY_2));
-        put(SkillTree.SUB_DEMOLITION, e("escape", Key.ABILITY_1), e(F_ACTION, Key.ABILITY_2));
-        put(SkillTree.SUB_ALCHEMIST, e("escape", Key.ABILITY_1), e(F_ACTION, Key.ABILITY_2), e("brew", Key.ABILITY_3), e("acid", Key.ABILITY_4));
+        // engineers (Tor 4b, Variante B "Turm als Waffe"): the blast jump on 1 (in a seat the Abwehrring),
+        // each subclass's own abilities on 2 and 3; the alchemist's potions on 3, the acid on 4
+        put(SkillTree.SUB_GUNNER, e("escape", Key.ABILITY_1), e("pierce", Key.ABILITY_2), e("suppress", Key.ABILITY_3));
+        put(SkillTree.SUB_ELECTRICIAN, e("escape", Key.ABILITY_1), e("chain", Key.ABILITY_2), e("static", Key.ABILITY_3));
+        put(SkillTree.SUB_DEMOLITION, e("escape", Key.ABILITY_1), e("grenade", Key.ABILITY_2), e("target", Key.ABILITY_3));
+        put(SkillTree.SUB_ALCHEMIST, e("escape", Key.ABILITY_1), e("boil", Key.ABILITY_2), e("brew", Key.ABILITY_3), e("acid", Key.ABILITY_4));
         // summoners: the order on 2; the call or the spells on 1, 3 and 4
         put(SkillTree.SUB_TAMER, e("call", Key.ABILITY_1), e(F_ACTION, Key.ABILITY_2), e("quiver", Key.ABILITY_3));
         put(SkillTree.SUB_GOLEMSMITH, e("call", Key.ABILITY_1), e(F_ACTION, Key.ABILITY_2), e("quiver", Key.ABILITY_3));

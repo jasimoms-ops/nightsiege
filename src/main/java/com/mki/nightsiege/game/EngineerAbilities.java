@@ -383,7 +383,7 @@ public final class EngineerAbilities {
     /** Haftgranate: sticks where it lands and goes off after a moment; in a mortar's seat the mortar throws it far. */
     private static boolean grenade(ServerLevel level, ServerPlayer player, TrapService traps, SkillTree tree,
                                    PlayerSkills skills, Vec3 seat, long now) {
-        boolean mortar = seat != null && traps.seatKind(player) == TrapKind.MORTAR;
+        boolean mortar = seat != null && TrapKind.MORTAR.id().equals(traps.seatKind(player));
         double reach = (mortar ? val(GRENADE, "seatrange", 40) : val(GRENADE, "range", 14) * seatReach(seat))
                 + extraReach(tree, skills);
         Vec3 spot = TrapService.throwSpot(level, player, reach);

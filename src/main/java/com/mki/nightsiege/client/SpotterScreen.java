@@ -118,7 +118,6 @@ public class SpotterScreen extends Screen {
         // view only needs the frustum (27 October 2026). Back on when the view closes.
         Minecraft.getInstance().smartCull = false;
         reportCamera(true);
-        send("tower:list");
     }
 
     /** The state of the own towers (answer to "tower:list", and after a fix). */
@@ -312,9 +311,6 @@ public class SpotterScreen extends Screen {
         if (down(client, client.options.keyShift)) {
             onClose();
             return;
-        }
-        if (ticks % 20 == 0) {
-            send("tower:list");
         }
         markTowers(client);
         // While a code is typed, WASD and the arrow keys belong to the code, not to the camera.
@@ -668,7 +664,6 @@ public class SpotterScreen extends Screen {
             gui.text(font, warn, (this.width - font.width(warn)) / 2, 10, RED, true);
         }
 
-        drawService(gui, font, mouseX, mouseY);
 
         // The red X on the cursor, and the spot under it.
         redX(gui, mouseX, mouseY, readyAt[selected] > ticks);

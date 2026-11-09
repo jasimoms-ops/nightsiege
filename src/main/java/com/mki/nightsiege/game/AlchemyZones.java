@@ -34,6 +34,8 @@ public final class AlchemyZones {
         final BrewKind kind;
         final long until;
         long nextPulse;
+        /** Radius factor (Siedepunkt, Tor 4b: twice the area = radius × √2). */
+        double scale = 1.0;
 
         Zone(String dimension, Vec3 center, BrewKind kind, long until, long nextPulse) {
             this.dimension = dimension;
@@ -56,7 +58,18 @@ public final class AlchemyZones {
 
     /** A zone potion burst: its cloud starts here. */
     public static void land(ServerLevel level, KitProjectile shot, Vec3 at) {
-        BrewKind kind = BrewKind.byId(shot.data());
+        String data = shot.data() == null ? "" : shot.data();
+        double area = 1.0;
+        int at2 = data.indexOf('@');
+        if (at2 > 0) {
+            try {
+                area = Math.max(1.0, Math.min(4.0, Double.parseDouble(data.substring(at2 + 1))));
+            } catch (NumberFormatException e) {
+                area = 1.0;
+            }
+            data = data.substring(0, at2);
+        }
+        BrewKind kind = BrewKind.byId(data);
         if (kind == null) {
             return;
         }
@@ -66,7 +79,9 @@ public final class AlchemyZones {
         if (shot.getOwner() instanceof net.minecraft.server.level.ServerPlayer thrower && CrateEffects.gainLevel(thrower, "doppelbrau") > 0) {
             time = Math.round(time * 1.5);   // Langes Gebräu (crate gain, 27 October 2026)
         }
-        ZONES.add(new Zone(SiegeManager.dimensionName(level), at, kind, now + time, now));
+        Zone zone = new Zone(SiegeManager.dimensionName(level), at, kind, now + time, now);
+        zone.scale = Math.sqrt(area);
+        ZONES.add(zone);
         level.playSound(null, BlockPos.containing(at), SoundEvents.SPLASH_POTION_BREAK, SoundSource.PLAYERS, 1.0f, 1.0f);
         DustParticleOptions dust = new DustParticleOptions(kind.color(), 2.0f);
         level.sendParticles(dust, at.x, at.y + 0.4, at.z, 50, 1.2, 0.4, 1.2, 0.0);
@@ -91,7 +106,7 @@ public final class AlchemyZones {
                 it.remove();
                 continue;
             }
-            double r = radius();
+            double r = radius() * zone.scale;
             if (now % 4 == 0) {
                 DustParticleOptions dust = new DustParticleOptions(zone.kind.color(), 1.6f);
                 int ring = 18;

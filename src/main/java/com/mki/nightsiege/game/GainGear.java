@@ -546,13 +546,13 @@ public final class GainGear {
         return true;
     }
 
-    /** Spare battery: fills the remote, once a night. */
+    /** Notschalter (crate gain "ersatzbatterie", Tor 4b): places 2 and 3 ready at once, once a night. */
     private static boolean battery(ServerPlayer player, ServerLevel level) {
         if (!BATTERY_USED.add(player.getUUID())) {
             bar(player, Component.translatable("nightsiege.gadget.once_a_night"));
             return false;
         }
-        SiegeManager.get().kits().traps().fillRemote(player);
+        EngineerAbilities.ready(player);
         level.sendParticles(ParticleTypes.ELECTRIC_SPARK, player.getX(), player.getY() + 1, player.getZ(), 25, 0.3, 0.5, 0.3, 0.1);
         level.playSound(null, player.blockPosition(), SoundEvents.BEACON_ACTIVATE, SoundSource.PLAYERS, 0.6f, 1.8f);
         return true;

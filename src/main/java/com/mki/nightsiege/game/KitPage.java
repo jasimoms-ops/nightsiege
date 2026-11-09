@@ -148,9 +148,6 @@ public final class KitPage {
                 if (m.kits().gainLevel(skills, clazz, "notfallmine") > 0 && ModContent.TRAP_ITEMS.get(TrapKind.MORTAR) != null) {
                     stacks.add(KitService.fromGain(new ItemStack(ModContent.TRAP_ITEMS.get(TrapKind.MORTAR), 1), "notfallmine"));
                 }
-                if (ModContent.REMOTE != null) {
-                    stacks.add(new ItemStack(ModContent.REMOTE));
-                }
             }
             return new Built(kit, stacks, KitService.things(stacks));
         });

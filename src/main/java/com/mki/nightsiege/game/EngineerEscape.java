@@ -78,7 +78,11 @@ public final class EngineerEscape {
             bar(player, Component.translatable("nightsiege.msg.escape_fight_only"));
             return;
         }
-        if (traps.isSeated(player) || player.isPassenger() || Drones.isDrone(player)) {
+        if (traps.isSeated(player)) {
+            ring(level, player, traps, creative);   // Tor 4b: in the seat the Abwehrring
+            return;
+        }
+        if (player.isPassenger() || Drones.isDrone(player)) {
             bar(player, Component.translatable("nightsiege.msg.escape_seated"));
             return;
         }
@@ -127,6 +131,40 @@ public final class EngineerEscape {
         level.sendParticles(ParticleTypes.LARGE_SMOKE, at.x, at.y + 0.2, at.z, 10, 0.5, 0.1, 0.5, 0.02);
         level.playSound(null, BlockPos.containing(at), SoundEvents.GENERIC_EXPLODE.value(), SoundSource.PLAYERS, 0.6f, 1.6f);
         bar(player, Component.translatable("nightsiege.msg.escape_fired", hit));
+    }
+
+    /**
+     * The Abwehrring (Tor 4b, Variante B): in a tower's seat place 1 throws the monsters around the
+     * tower away and gives the tower a share of its health back; same pause as the jump.
+     */
+    private static void ring(ServerLevel level, ServerPlayer player, TrapService traps, boolean creative) {
+        long now = level.getGameTime();
+        int left = cooldownLeft(player, now);
+        if (left > 0 && !creative) {
+            bar(player, Component.translatable("nightsiege.msg.escape_wait", (left + 19) / 20));
+            return;
+        }
+        Vec3 top = traps.seatTop(player);
+        Vec3 at = top == null ? player.position() : top.subtract(0, 1.2, 0);
+        double radius = SkillValues.get("e_escape", "ringradius", 4);
+        double push = SkillValues.get("e_escape", "ringpush", 5) * 0.3;   // blocks to a push of about that far
+        int hit = 0;
+        for (Mob mob : GainGear.enemies(level, at, radius)) {
+            Vec3 away = mob.position().subtract(at).multiply(1, 0, 1);
+            away = away.lengthSqr() < 1.0e-4 ? new Vec3(1, 0, 0) : away.normalize();
+            double give = Math.max(0.0, 1.0 - mob.getAttributeValue(Attributes.KNOCKBACK_RESISTANCE));
+            if (give > 0.01) {
+                mob.push(away.x * push * give, 0.4 * give, away.z * push * give);
+                mob.hurtMarked = true;
+            }
+            hit++;
+        }
+        traps.mendSeat(player, SkillValues.get("e_escape", "ringmend", 0.2));
+        READY.put(player.getUUID(), now + pause());
+        level.sendParticles(ParticleTypes.EXPLOSION, at.x, at.y + 0.5, at.z, 1, 0, 0, 0, 0);
+        level.sendParticles(ParticleTypes.CLOUD, at.x, at.y + 0.3, at.z, 30, radius * 0.4, 0.1, radius * 0.4, 0.1);
+        level.playSound(null, BlockPos.containing(at), SoundEvents.GENERIC_EXPLODE.value(), SoundSource.PLAYERS, 0.6f, 1.2f);
+        bar(player, Component.translatable("nightsiege.msg.escape_ring", hit));
     }
 
     private static void bar(ServerPlayer player, Component text) {

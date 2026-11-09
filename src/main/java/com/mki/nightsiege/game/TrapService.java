@@ -71,14 +71,14 @@ public final class TrapService {
     private int tickCounter;
     /** Engineers whose turrets are overcharged: owner uuid to the game time it ends. */
     private final java.util.Map<String, Long> overchargedUntil = new java.util.HashMap<>();
-    /** Single traps overcharged with the remote: trap key to the game time it ends. */
-    private final java.util.Map<String, Long> boostedUntil = new java.util.HashMap<>();
+    /** Sperrfeuer (Tor 4b): arrow turrets that fire faster, trap key to the game time it ends. */
+    private final java.util.Map<String, Long> rushUntil = new java.util.HashMap<>();
+    /** Siedepunkt (Tor 4b): the alchemist's next potion flies at once and wider, until then (and how much area). */
+    private final java.util.Map<UUID, double[]> boilUntil = new java.util.HashMap<>();
     /** Towers strengthened in the tower menu (Simon, 27 October 2026): trap key to the game time it ends. */
     private final java.util.Map<String, Long> strengthenedUntil = new java.util.HashMap<>();
-    /** Monsters marked with a remote: monster uuid to (owner, end). */
+    /** Monsters marked by an engineer's ability (Zielsucher, Haftgranate): monster uuid to (owner, end). */
     private final java.util.Map<UUID, RemoteMark> remoteMarks = new java.util.HashMap<>();
-    /** Energy of every engineer's remote. */
-    private final java.util.Map<UUID, Double> energy = new java.util.HashMap<>();
     /** Lends the combat marks (extra damage taken, glowing) to the remote and the acid. */
     private Marker marker = (victim, bonus, until, glow) -> {
     };
@@ -95,16 +95,6 @@ public final class TrapService {
         this.marker = marker;
     }
 
-    /** Base energy of the remote and what each order costs. */
-    public static final double REMOTE_ENERGY = 100.0;
-    public static final double COST_OVERCHARGE = 30.0;
-    /** Overcharging a tesla coil takes the whole remote, an arrow turret 70 % (shares of the maximum). */
-    public static final double OVERCHARGE_TESLA_SHARE = 1.0;
-    public static final double OVERCHARGE_TURRET_SHARE = 0.7;
-    public static final double COST_MARK = 10.0;
-    public static final double COST_DETONATE = 20.0;
-    public static final double COST_RELOAD = 40.0;
-    public static final double REMOTE_RANGE = 24.0;
 
     public TrapService(Supplier<SiegeSave> save, SkillTree tree) {
         this.save = save;
@@ -506,7 +496,6 @@ public final class TrapService {
         if (total > 0) {
             player.sendSystemMessage(Component.translatable("nightsiege.msg.free_traps", total));
         }
-        giveRemote(player, skills);
     }
 
     // ------------------------------------------------------------------
@@ -543,13 +532,14 @@ public final class TrapService {
         tickSeats(server);
         tickFixes(server);
         AlchemyZones.tick(server);
+        EngineerAbilities.tick(server, this);   // Tor 4b: fields, bursts, grenades
         ArrowRain.tick(server);   // the archers' arrow rain (Simon 30.10.)
         if (++tickCounter < TICK_INTERVAL) {
             return takeDirty();
         }
         SpotterChunks.tick(server);
         tickCounter = 0;
-        rechargeRemotes(server);
+        remoteMarks.values().removeIf(m -> m.until() < server.overworld().getGameTime());
         if (++dotTick % 2 == 0) {
             tickDots(server);
         }
@@ -1137,6 +1127,10 @@ public final class TrapService {
         if (ultOvercharged(record, now)) {
             cooldown = Math.max(3, (int) (cooldown / ultSpeed()));
         }
+        if (rushed(record, now)) {
+            // Sperrfeuer (Tor 4b): +60 % fire rate
+            cooldown = Math.max(3, (int) Math.round(cooldown / (1.0 + SkillValues.get("t_suppress", "rate", 0.6))));
+        }
         return cooldown;
     }
 
@@ -1146,7 +1140,7 @@ public final class TrapService {
                 pos.getX() + 1, pos.getY() + 2.2, pos.getZ() + 1));
     }
 
-    private static List<LivingEntity> around(ServerLevel level, Vec3 center, double r) {
+    static List<LivingEntity> around(ServerLevel level, Vec3 center, double r) {
         List<LivingEntity> out = new ArrayList<>();
         for (LivingEntity e : enemies(level, new AABB(center, center).inflate(r, 2.0, r))) {
             if (e.distanceToSqr(center) <= r * r + 4.0) {
@@ -1768,14 +1762,6 @@ public final class TrapService {
             return;
         }
         PlayerSkills skills = save.get().skillsOf(gunner.getUUID().toString());
-        double price = SkillValues.get("tesla_coil", "boltcost", 0.0);
-        if (price > 0 && !payQuiet(gunner, cost(skills, price))) {
-            if (now >= seat.lowNoticeAt) {
-                seat.lowNoticeAt = now + 20;
-                actionBar(gunner, Component.translatable("nightsiege.msg.beam_empty"));
-            }
-            return;
-        }
         float damage = (float) (teslaDamage(record, tier, now) * manned(TrapKind.TESLA));
         CastFx.teslaDischarge(level, from, discharge(level, record, tier, now, first, from, damage));   // Tor 2
         afterShot(level, seat.pos, record);
@@ -1784,20 +1770,6 @@ public final class TrapService {
         playAt(level, seat.pos, SoundEvents.LIGHTNING_BOLT_IMPACT, 0.7f, 1.6f);
         seat.readyAt = now + teslaCooldown(level, seat.pos, record, tier, now);
         // No save for a shot (survival safety 2).
-    }
-
-    /** Takes energy without the "too little" line (the beam says it its own way). */
-    private boolean payQuiet(ServerPlayer player, double cost) {
-        if (player.getAbilities().instabuild) {
-            return true;
-        }
-        double have = energyOf(player);
-        if (have + 1e-6 < cost) {
-            return false;
-        }
-        energy.put(player.getUUID(), Math.max(0.0, have - cost));
-        showEnergy(player);
-        return true;
     }
 
     /**
@@ -1957,7 +1929,7 @@ public final class TrapService {
     }
 
     /** The block or monster looked at within reach, whichever is nearer; null when nothing is. */
-    private static Vec3 throwSpot(ServerLevel level, ServerPlayer player, double reach) {
+    static Vec3 throwSpot(ServerLevel level, ServerPlayer player, double reach) {
         Vec3 eye = player.getEyePosition();
         Vec3 spot = null;
         net.minecraft.world.phys.HitResult hit = player.pick(reach, 0f, false);
@@ -2017,6 +1989,10 @@ public final class TrapService {
                 java.util.Optional.empty(), java.util.Optional.of(brew.color()), List.of(), java.util.Optional.empty()));
         KitProjectile shot = new KitProjectile(level, player, look, KitProjectile.ZONE);
         shot.setData(brew.id());
+        double[] boil = boilUntil.remove(player.getUUID());
+        if (boil != null && now <= boil[0]) {
+            shot.setData(brew.id() + "@" + boil[1]);   // Siedepunkt: this cloud covers more area
+        }
         lobFlask(level, shot, spot);
         zoneReady.computeIfAbsent(player.getUUID(), k -> new java.util.EnumMap<>(BrewKind.class)).put(brew, now + brewPause(brew));
         zoneLock.put(player.getUUID(), now + Math.round(SkillValues.get("potion_tower", "zonelock", 20)));
@@ -2120,6 +2096,10 @@ public final class TrapService {
         }
         List<com.mki.nightsiege.core.UltState.Slot> out = new ArrayList<>();
         out.add(EngineerEscape.slot(player, now));
+        // Tor 4b: the subclass's own abilities (their places come from AbilityKeys).
+        for (String id : EngineerAbilities.of(tree.subclassOf(skills))) {
+            out.add(EngineerAbilities.slot(player, tree, skills, id, now));
+        }
         if (!SkillTree.SUB_ALCHEMIST.equals(tree.subclassOf(skills))) {
             return out;
         }
@@ -2176,6 +2156,9 @@ public final class TrapService {
             EngineerEscape.fire(player, this);
             return true;
         }
+        if (EngineerAbilities.fire(player, this, id)) {
+            return true;
+        }
         if (BREW_SLOT.equals(id)) {
             throwBrew(player);   // a tap: the chosen potion
             return true;
@@ -2199,6 +2182,9 @@ public final class TrapService {
         zoneLock.clear();
         acidReady.clear();
         EngineerEscape.reset();
+        EngineerAbilities.reset();   // Tor 4b
+        rushUntil.clear();
+        boilUntil.clear();
         WarriorDash.reset();
         ArrowRain.reset();
         WarriorArts.reset();    // the warriors' F abilities stop with the night (Simon 05.11.)
@@ -2527,128 +2513,131 @@ public final class TrapService {
     }
 
     // ------------------------------------------------------------------
-    // the remote
+    // Tor 4b (Variante B): what the engineer's abilities need from the towers (EngineerAbilities)
     // ------------------------------------------------------------------
+
+    SkillTree tree() {
+        return tree;
+    }
+
+    PlayerSkills skillsOf(ServerPlayer player) {
+        return save.get().skillsOf(player.getUUID().toString());
+    }
+
+    /** The top of the tower the player sits in (where its abilities go out from), null on foot. */
+    Vec3 seatTop(ServerPlayer player) {
+        Seat seat = seatOf.get(player.getUUID());
+        return seat == null ? null : Vec3.atCenterOf(seat.pos).add(0, 1.2, 0);
+    }
+
+    /** Abwehrring: the seated tower gets this share of its health back. */
+    void mendSeat(ServerPlayer player, double share) {
+        Seat seat = seatOf.get(player.getUUID());
+        if (seat == null || !(player.level() instanceof ServerLevel level)) {
+            return;
+        }
+        TrapRecord record = find(level, seat.pos);
+        if (record != null) {
+            record.hpLost = Math.max(0f, record.hpLost - (float) (towerHealth(player, record) * share));
+        }
+    }
+
+    /** Marks a monster for this engineer: his towers take it first, Zielsprengung goes off on it, +bonus damage. */
+    void markFor(ServerPlayer player, LivingEntity monster, double bonus, long until) {
+        remoteMarks.put(monster.getUUID(), new RemoteMark(player.getUUID().toString(), until));
+        if (bonus > 0) {
+            marker.mark(monster, bonus, until, true);
+        }
+    }
+
+    /** One turret arrow of this engineer (his turret tier, tonight's level), before manned or not. */
+    double turretArrow(ServerPlayer player) {
+        int tier = Math.max(1, tree.trapTier(TrapKind.TURRET, skillsOf(player)));
+        return TrapKind.TURRET.damage(tier) * levelScale();
+    }
+
+    /** Sperrfeuer: his arrow turrets within the radius fire faster until then; returns how many. */
+    int rush(ServerLevel level, ServerPlayer player, Vec3 center, double radius, long until) {
+        String owner = player.getUUID().toString();
+        String dim = SiegeManager.dimensionName(level);
+        int n = 0;
+        for (TrapRecord r : traps()) {
+            if (TrapKind.TURRET.id().equals(r.kind) && owner.equals(r.owner) && dim.equals(r.dimension)
+                    && Vec3.atCenterOf(new BlockPos(r.x, r.y, r.z)).distanceToSqr(center) <= radius * radius) {
+                rushUntil.merge(key(r), until, Math::max);
+                r.readyAt = Math.min(r.readyAt, level.getGameTime());
+                n++;
+            }
+        }
+        return n;
+    }
+
+    private boolean rushed(TrapRecord record, long now) {
+        Long until = rushUntil.isEmpty() ? null : rushUntil.get(key(record));
+        return until != null && now <= until;
+    }
+
+    /** Netzwerk: the spots of his traps and towers within the radius. */
+    List<Vec3> ownTrapsNear(ServerLevel level, ServerPlayer player, Vec3 center, double radius) {
+        String owner = player.getUUID().toString();
+        String dim = SiegeManager.dimensionName(level);
+        List<Vec3> out = new ArrayList<>();
+        for (TrapRecord r : traps()) {
+            Vec3 at = Vec3.atCenterOf(new BlockPos(r.x, r.y, r.z));
+            if (owner.equals(r.owner) && dim.equals(r.dimension) && at.distanceToSqr(center) <= radius * radius) {
+                out.add(at);
+            }
+        }
+        return out;
+    }
+
+    /** Zielpunkt: his mortars that reach the spot fire there from now on, plus a salvo. {aimed, shells fired}. */
+    int[] targetPoint(ServerLevel level, ServerPlayer player, Vec3 spot, int shells, double damage) {
+        List<TrapRecord> mortars = ownMortars(level, player);
+        int aimed = pointFire(level, mortars, spot, level.getGameTime());
+        int fired = aimed > 0 ? scatter(level, mortars, spot, shells, 1.5, damage, "") : 0;
+        if (aimed > 0) {
+            dirty = true;
+        }
+        return new int[]{aimed, fired};
+    }
+
+    /** Siedepunkt: the next potion of this alchemist flies at once and covers this much more area. */
+    void boilNext(ServerPlayer player, long until, double area) {
+        boilUntil.put(player.getUUID(), new double[]{until, area});
+        BrewKind current = brewOf(player, skillsOf(player));
+        Map<BrewKind, Long> own = zoneReady.get(player.getUUID());
+        if (own != null && current != null) {
+            own.remove(current);
+        }
+        zoneLock.remove(player.getUUID());
+    }
+
+    /** Siedepunkt: his potion throwers within the radius make a big throw now, area times the factor. */
+    int boilBrewers(ServerLevel level, ServerPlayer player, Vec3 center, double radius, double area) {
+        String owner = player.getUUID().toString();
+        String dim = SiegeManager.dimensionName(level);
+        int n = 0;
+        for (TrapRecord r : traps()) {
+            BlockPos pos = new BlockPos(r.x, r.y, r.z);
+            if (!TrapKind.BREWER.id().equals(r.kind) || !owner.equals(r.owner) || !dim.equals(r.dimension)
+                    || Vec3.atCenterOf(pos).distanceToSqr(center) > radius * radius || !canFire(r)) {
+                continue;
+            }
+            LivingEntity target = brewerTarget(level, pos, r);
+            if (target == null) {
+                continue;
+            }
+            Vec3 muzzle = Vec3.atCenterOf(pos).add(0, 0.9, 0);
+            lob(level, r, muzzle, lead(muzzle, target), KitProjectile.BREW, tierOf(r), 1.0,
+                    SkillValues.get(TrapKind.BREWER.id(), "big", 1.5) * Math.sqrt(area));
+            n++;
+        }
+        return n;
+    }
 
     static final String TAG_CHARGED = "nightsiege_charged";
     static final String TAG_BLAST = "nightsiege_blast";
-
-    /** The engineer's remote was used, pointing at a block (null: at whatever is in sight). */
-    public void useRemote(ServerPlayer player, BlockPos clicked) {
-        useRemote(player, clicked, false);
-    }
-
-    /**
-     * The remote's orders. {@code second}: the second order, given with the X key while the
-     * remote is in hand (it was sneak + right click until 25 October 2026): detonate, the
-     * mortar's salvo, reload, and aiming a mortar at a block.
-     */
-    public void useRemote(ServerPlayer player, BlockPos clicked, boolean second) {
-        if (!(player.level() instanceof ServerLevel level)) {
-            return;
-        }
-        PlayerSkills skills = save.get().skillsOf(player.getUUID().toString());
-        boolean creative = player.getAbilities().instabuild;
-        if (skills.clazz() != SkillClass.ENGINEER && !creative) {
-            actionBar(player, Component.translatable("nightsiege.msg.remote_engineer_only"));
-            return;
-        }
-        // The right click (Simon, 27 October 2026): always the tower menu – the state of every
-        // tower and trap, strengthen the towers with a code there.
-        if (!second) {
-            openTowerMenu(player, true);
-            return;
-        }
-        long now = level.getGameTime();
-        // Fähigkeit 2: overcharge a trap (mortar, flame trap and potion thrower also fire at once),
-        // mark a monster, aim the mortars at a block; the alchemist throws his potion zone.
-        boolean alchemist = SkillTree.SUB_ALCHEMIST.equals(tree.subclassOf(skills));
-        double range = remoteRange(skills);
-        BlockPos trapPos = clicked;
-        if (trapPos == null || ModContent.trapOf(level.getBlockState(trapPos)) == null) {
-            trapPos = null;
-            net.minecraft.world.phys.HitResult hit = player.pick(range, 0f, false);
-            if (hit instanceof net.minecraft.world.phys.BlockHitResult block
-                    && hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK) {
-                BlockPos at = block.getBlockPos();
-                if (ModContent.trapOf(level.getBlockState(at)) != null) {
-                    trapPos = at;
-                } else if (ModContent.trapOf(level.getBlockState(at.above())) != null) {
-                    trapPos = at.above();
-                }
-            }
-        }
-        LivingEntity monster = CombatEffects.lookTarget(level, player, range);
-        if (monster == null && trapPos == null && !alchemist) {
-            // A boss or champion is marked from further away (28 October 2026), so the towers can be set on it.
-            LivingEntity far = CombatEffects.lookTarget(level, player, range * bossRange());
-            if (bigTarget(far)) {
-                monster = far;
-            }
-        }
-        if (trapPos != null && (monster == null
-                || player.getEyePosition().distanceToSqr(Vec3.atCenterOf(trapPos)) <= monster.distanceToSqr(player))) {
-            TrapRecord record = find(level, trapPos);
-            if (record == null || (!record.owner.equals(player.getUUID().toString()) && !creative)) {
-                actionBar(player, Component.translatable("nightsiege.msg.remote_not_yours"));
-                return;
-            }
-            TrapKind kind = TrapKind.byId(record.kind);
-            if (!pay(player, skills, overchargeCost(skills, kind))) {
-                return;
-            }
-            boost(level, record, skills, now, 1.0);
-            if (tree.totalBonus(SkillEffect.NETWORK, skills) > 0) {
-                Vec3 c = Vec3.atCenterOf(trapPos);
-                double reach = SkillValues.get("e_network", "radius", 6.0);
-                double share = SkillValues.get("e_network", "share", 0.5);
-                for (TrapRecord other : traps()) {
-                    if (other != record && other.owner.equals(record.owner) && other.dimension.equals(record.dimension)
-                            && Vec3.atCenterOf(new BlockPos(other.x, other.y, other.z)).distanceToSqr(c) <= reach * reach) {
-                        boost(level, other, skills, now, share);
-                    }
-                }
-            }
-            // The old "detonate" is part of the overcharge now: mortar salvo, big throw, flame burst.
-            if ((kind == TrapKind.MORTAR || kind == TrapKind.FLAME || kind == TrapKind.BREWER)
-                    && detonateBlocked(level, trapPos, record, kind) == null) {
-                detonate(level, trapPos, record, kind, skills);
-                if (kind.isTower()) {
-                    afterShot(level, trapPos, record);
-                }
-                report(player, skills, "nightsiege.msg.remote_detonated");
-            } else {
-                report(player, skills, "nightsiege.msg.remote_overcharged");
-            }
-            return;
-        }
-        if (alchemist) {
-            throwZone(level, player, skills, now);
-            return;
-        }
-        if (monster != null) {
-            if (pay(player, skills, cost(skills, SkillValues.get("e_seeker", "mark", COST_MARK)))) {
-                double bonus = SkillValues.get("e_seeker", "base", 0.15) + tree.totalBonus(SkillEffect.SEEKER, skills);
-                long until = now + Math.round(SkillValues.get("e_seeker", "time", 160));
-                remoteMarks.put(monster.getUUID(), new RemoteMark(player.getUUID().toString(), until));
-                marker.mark(monster, bonus, until, true);
-                spark(level, player.getEyePosition().subtract(0, 0.2, 0), monster.position().add(0, monster.getBbHeight() * 0.6, 0));
-                level.playSound(null, monster.getX(), monster.getY(), monster.getZ(), SoundEvents.NOTE_BLOCK_PLING.value(),
-                        SoundSource.PLAYERS, 0.8f, 1.8f);
-                report(player, skills, "nightsiege.msg.remote_marked");
-            }
-            return;
-        }
-        if (aimMortar(level, player, range, now)) {
-            return;
-        }
-        actionBar(player, Component.translatable("nightsiege.msg.remote_no_target"));
-    }
-
-    /** How far the remote reaches (also the tower menu's reach for repairs). */
-    double remoteRange(PlayerSkills skills) {
-        return SkillValues.get("e_longrange", "base", REMOTE_RANGE) + tree.totalBonus(SkillEffect.REMOTE_RANGE, skills);
-    }
 
     // ------------------------------------------------------------------
     // the tower menu (Simon, 27 October 2026): no magazines, no wear, no repairs any more
@@ -2703,133 +2692,6 @@ public final class TrapService {
     /** Ticks a strengthening takes once the code is in (3 s). */
     private static long fixTicks() {
         return Math.round(SkillValues.get("e_longrange", "fixtime", 60));
-    }
-
-    /**
-     * The demolition expert's bird's-eye view reaches every own tower within its radius
-     * (Simon, 27 October 2026: strengthen from the binoculars too).
-     */
-    private boolean spotterReaches(ServerLevel level, ServerPlayer player, BlockPos pos) {
-        if (!SpotterChunks.isOpen(player)) {
-            return false;
-        }
-        BlockPos center = spotCenter(level, player);
-        double radius = SkillValues.get(TrapKind.MORTAR.id(), "spotradius", 48) + 2.0;
-        double dx = pos.getX() + 0.5 - center.getX();
-        double dz = pos.getZ() + 0.5 - center.getZ();
-        return dx * dx + dz * dz <= radius * radius;
-    }
-
-    /** The right click with the remote: the state of every own trap in this world. */
-    public void openTowerMenu(ServerPlayer player, boolean open) {
-        if (!(player.level() instanceof ServerLevel level)) {
-            return;
-        }
-        PlayerSkills skills = save.get().skillsOf(player.getUUID().toString());
-        com.mki.nightsiege.core.TowerMenuData data = new com.mki.nightsiege.core.TowerMenuData();
-        data.open = open;
-        data.range = (int) Math.round(remoteRange(skills));
-        data.fixSeconds = (int) Math.round(fixTicks() / 20.0);
-        data.buffArrows = (int) Math.round(SkillValues.get("e_longrange", "buffcode", 5));
-        data.buffPercent = (int) Math.round((SkillValues.get("e_longrange", "buffpower", 1.5) - 1.0) * 100.0);
-        data.buffSeconds = (int) Math.round(SkillValues.get("e_longrange", "bufftime", 400) / 20.0);
-        data.golem = CrateEffects.gainLevel(player, "kupfergolem") > 0;
-        data.golemMax = (int) Math.round(SkillValues.get("e_longrange", "golemtowers", 2));
-        String owner = player.getUUID().toString();
-        String dim = SiegeManager.dimensionName(level);
-        long now = level.getGameTime();
-        double reach = remoteRange(skills);
-        for (TrapRecord record : traps()) {
-            TrapKind kind = TrapKind.byId(record.kind);
-            if (kind == null || !owner.equals(record.owner) || !dim.equals(record.dimension)) {
-                continue;
-            }
-            com.mki.nightsiege.core.TowerMenuData.Row row = new com.mki.nightsiege.core.TowerMenuData.Row();
-            row.kind = kind.id();
-            row.x = record.x;
-            row.y = record.y;
-            row.z = record.z;
-            double d = Math.sqrt(player.distanceToSqr(Vec3.atCenterOf(new BlockPos(record.x, record.y, record.z))));
-            row.dist = (int) Math.round(d);
-            row.inRange = d <= reach + 0.5 || player.getAbilities().instabuild
-                    || spotterReaches(level, player, new BlockPos(record.x, record.y, record.z));
-            if (kind.isFloorPlate()) {
-                row.fullUses = fullUses(kind, tierOf(record), record);
-                row.uses = Math.min(record.uses, row.fullUses);
-            }
-            Fix fix = fixes.get(key(record));
-            row.working = fix == null ? 0 : (int) Math.max(1, fix.doneAt() - now);
-            row.golem = record.golem;
-            row.tower = kind.isTower();
-            Long strong = strengthenedUntil.get(key(record));
-            row.buffed = strong == null ? 0 : (int) Math.max(0, strong - now);
-            data.rows.add(row);
-        }
-        data.rows.sort(Comparator.comparingInt((com.mki.nightsiege.core.TowerMenuData.Row r) -> r.tower ? 0 : 1)
-                .thenComparingInt(r -> r.dist));
-        net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(player,
-                new CoreNetworking.ScreenPayload("towers", Json.toJson(data)));
-    }
-
-    /** From the tower menu: "buff:x:y:z" (strengthen a tower, the code was right) or "golem:x:y:z" (the golem's two towers). */
-    public void onTowerAction(ServerPlayer player, String argument) {
-        if (!(player.level() instanceof ServerLevel level)) {
-            return;
-        }
-        String[] parts = argument.split(":");
-        if (parts.length >= 1 && "list".equals(parts[0])) {
-            openTowerMenu(player, false);   // the bird's-eye view asks for the state of the towers
-            return;
-        }
-        if (parts.length < 4) {
-            return;
-        }
-        BlockPos pos;
-        try {
-            pos = new BlockPos(Integer.parseInt(parts[1]), Integer.parseInt(parts[2]), Integer.parseInt(parts[3]));
-        } catch (NumberFormatException e) {
-            return;
-        }
-        TrapRecord record = find(level, pos);
-        boolean creative = player.getAbilities().instabuild;
-        if (record == null || (!record.owner.equals(player.getUUID().toString()) && !creative)) {
-            return;
-        }
-        PlayerSkills skills = save.get().skillsOf(player.getUUID().toString());
-        if ("golem".equals(parts[0])) {
-            if (CrateEffects.gainLevel(player, "kupfergolem") <= 0 || !TrapKind.byId(record.kind).isTower()) {
-                return;
-            }
-            if (!record.golem) {
-                int most = (int) Math.round(SkillValues.get("e_longrange", "golemtowers", 2));
-                long have = traps().stream().filter(t -> t.golem && t.owner.equals(record.owner)).count();
-                if (have >= most) {
-                    actionBar(player, Component.translatable("nightsiege.msg.golem_full", most));
-                    openTowerMenu(player, false);
-                    return;
-                }
-            }
-            record.golem = !record.golem;
-            dirty = true;
-            openTowerMenu(player, false);
-            return;
-        }
-        if (!"buff".equals(parts[0])) {
-            return;
-        }
-        long now = level.getGameTime();
-        double d = Math.sqrt(player.distanceToSqr(Vec3.atCenterOf(pos)));
-        boolean reached = d <= remoteRange(skills) + 0.5 || creative || spotterReaches(level, player, pos);
-        if (!canStrengthen(record, now) || fixes.containsKey(key(record)) || !reached) {
-            openTowerMenu(player, false);
-            return;
-        }
-        long ticks = gainOf(record, "werkzeugtasche") > 0 ? Math.round(fixTicks() * 0.6) : fixTicks();
-        fixes.put(key(record), new Fix(player.getUUID(), now + (creative ? 10 : ticks), false));
-        playAt(level, pos, SoundEvents.BEACON_POWER_SELECT, 0.8f, 1.2f);
-        actionBar(player, Component.translatable("nightsiege.msg.tower_buffing",
-                Component.translatable("block.nightsiege." + record.kind), Math.max(1, ticks / 20)));
-        openTowerMenu(player, false);
     }
 
     /**
@@ -2889,13 +2751,21 @@ public final class TrapService {
     public List<BlockPos> golemWork(ServerLevel level, String owner, Vec3 near) {
         String dim = SiegeManager.dimensionName(level);
         List<BlockPos> out = new ArrayList<>();
+        // Tor 4b: the tower menu is gone, so the golem keeps its towers itself: the nearest own ones.
+        List<TrapRecord> own = new ArrayList<>();
         for (TrapRecord record : traps()) {
-            if (record.golem && owner.equals(record.owner) && dim.equals(record.dimension)
-                    && canStrengthen(record, level.getGameTime()) && !fixes.containsKey(key(record))) {
+            TrapKind kind = TrapKind.byId(record.kind);
+            if (kind != null && kind.isTower() && owner.equals(record.owner) && dim.equals(record.dimension)) {
+                own.add(record);
+            }
+        }
+        own.sort(Comparator.comparingDouble(r -> near.distanceToSqr(Vec3.atCenterOf(new BlockPos(r.x, r.y, r.z)))));
+        int most = (int) Math.round(SkillValues.get("e_longrange", "golemtowers", 2));
+        for (TrapRecord record : own.subList(0, Math.min(most, own.size()))) {
+            if (canStrengthen(record, level.getGameTime()) && !fixes.containsKey(key(record))) {
                 out.add(new BlockPos(record.x, record.y, record.z));
             }
         }
-        out.sort(Comparator.comparingDouble(p -> near.distanceToSqr(Vec3.atCenterOf(p))));
         return out;
     }
 
@@ -3108,69 +2978,12 @@ public final class TrapService {
         return true;
     }
 
-    private void boost(ServerLevel level, TrapRecord record, PlayerSkills skills, long now, double share) {
-        long length = Math.round((SkillValues.get("e_circuit", "base", 100) + tree.totalBonus(SkillEffect.OVERCHARGE_TIME, skills)) * share);
-        boostedUntil.merge(key(record), now + length, Math::max);
-        record.readyAt = Math.min(record.readyAt, now);
-        BlockPos pos = new BlockPos(record.x, record.y, record.z);
-        Vec3 c = Vec3.atCenterOf(pos).add(0, 0.6, 0);
-        level.sendParticles(ParticleTypes.ELECTRIC_SPARK, c.x, c.y, c.z, 20, 0.4, 0.4, 0.4, 0.1);
-        playAt(level, pos, SoundEvents.BEACON_POWER_SELECT, 0.7f, 1.8f);
-    }
-
-    /** Why an X order on this trap would fire at nothing (a language key), or null when it can go. */
-    private String detonateBlocked(ServerLevel level, BlockPos pos, TrapRecord record, TrapKind kind) {
-        if (kind == TrapKind.MORTAR && !record.aimed) {
-            return "nightsiege.msg.remote_no_aim";
-        }
-        if (kind == TrapKind.BREWER && brewerTarget(level, pos, record) == null) {
-            return "nightsiege.msg.remote_no_group";
-        }
-        return null;
-    }
-
     /** The group the potion thrower's big throw would go for, or null. */
     private LivingEntity brewerTarget(ServerLevel level, BlockPos pos, TrapRecord record) {
         int tier = tierOf(record);
         Vec3 muzzle = Vec3.atCenterOf(pos).add(0, 0.9, 0);
         double range = TrapKind.BREWER.radius(tier) + bonus(record, SkillEffect.TOWER_RANGE);
         return bestGroup(level, record, muzzle, range, TrapKind.BREWER.splash(tier), level.getGameTime(), null);
-    }
-
-    /** Sets a floor trap off from afar, stronger with the detonator. */
-    private void detonate(ServerLevel level, BlockPos pos, TrapRecord record, TrapKind kind, PlayerSkills skills) {
-        int tier = tierOf(record);
-        long now = level.getGameTime();
-        double damage = 1.0 + SkillValues.get("e_detonator", "dmg", 0.15) * tree.totalBonus(SkillEffect.DETONATOR, skills);
-        double radius = 1.0 + tree.totalBonus(SkillEffect.BLAST_POWER, skills);
-        switch (kind) {
-            case MORTAR -> {
-                // The salvo: three shells at once onto the set spot, a little spread.
-                if (!record.aimed) {
-                    break;
-                }
-                Vec3 muzzle = Vec3.atCenterOf(pos).add(0, 0.9, 0);
-                Vec3 aim = aimSpot(level, record);
-                int salvo = (int) Math.round(SkillValues.get(TrapKind.MORTAR.id(), "salvo", 3));
-                for (int i = 0; i < salvo; i++) {
-                    double a = Math.PI * 2 * i / salvo;
-                    Vec3 spot = i == 0 ? aim : aim.add(Math.cos(a) * 1.8, 0, Math.sin(a) * 1.8);
-                    lob(level, record, muzzle, spot, KitProjectile.SHELL, tier, damage, radius);
-                }
-            }
-            case FLAME -> fireFlame(level, pos, record, tier, now, damage, radius);
-            case BREWER -> {
-                // The big throw: half as wide again (and with the plague skill it bursts).
-                Vec3 muzzle = Vec3.atCenterOf(pos).add(0, 0.9, 0);
-                LivingEntity target = brewerTarget(level, pos, record);
-                if (target != null) {
-                    lob(level, record, muzzle, lead(muzzle, target), KitProjectile.BREW, tier, damage,
-                            radius * SkillValues.get(TrapKind.BREWER.id(), "big", 1.5));
-                }
-            }
-            default -> {
-            }
-        }
     }
 
     private boolean canReload(TrapRecord record, TrapKind kind) {
@@ -3237,17 +3050,6 @@ public final class TrapService {
         }
     }
 
-    /** Fills a remote to the top (the superconductor). */
-    public void fillRemote(ServerPlayer player) {
-        energy.put(player.getUUID(), maxEnergy(save.get().skillsOf(player.getUUID().toString())));
-        showEnergy(player);
-    }
-
-    /** The remote's full charge, for the kit HUD's gauge. */
-    public double maxEnergyOf(ServerPlayer player) {
-        return maxEnergy(save.get().skillsOf(player.getUUID().toString()));
-    }
-
     /** The kit HUD's left wing (29 October 2026): the engineer's traps and towers by kind, with their limit. */
     public java.util.List<com.mki.nightsiege.core.UltState.Unit> unitsOf(ServerPlayer player) {
         java.util.List<com.mki.nightsiege.core.UltState.Unit> out = new java.util.ArrayList<>();
@@ -3266,130 +3068,6 @@ public final class TrapService {
             out.add(u);
         }
         return out;
-    }
-
-    public double energyOf(ServerPlayer player) {
-        PlayerSkills skills = save.get().skillsOf(player.getUUID().toString());
-        double max = maxEnergy(skills);
-        double now = energy.computeIfAbsent(player.getUUID(), k -> max);
-        if (now > max) {
-            // The battery was unlearned (a reset): never more than the remote holds.
-            energy.put(player.getUUID(), max);
-            return max;
-        }
-        return now;
-    }
-
-    private double maxEnergy(PlayerSkills skills) {
-        double max = SkillValues.get("e_battery", "base", REMOTE_ENERGY)
-                + (skills == null ? 0 : tree.totalBonus(SkillEffect.REMOTE_ENERGY, skills));
-        SiegeManager m = SiegeManager.get();
-        if (skills != null && m != null
-                && m.kits().gainLevel(skills, com.mki.nightsiege.core.SkillClass.ENGINEER, "zweite_ladung") > 0) {
-            max *= 1.5;   // crate gain: a second charge in the remote
-        }
-        return max;
-    }
-
-    /**
-     * What overcharging this trap costs: a share of the full remote for the tesla coil and
-     * the arrow turret (field technician and fortress builder still count, never more than
-     * the remote holds), the old flat price for every other trap.
-     */
-    public double overchargeCost(PlayerSkills skills, TrapKind kind) {
-        // Every shooting tower costs a share of the full remote (Simon, 26 October 2026: 90 %).
-        double share = kind != null && kind.isTower() ? SkillValues.get(kind.id(), "overcharge", 0.9) : 0.0;
-        if (share <= 0) {
-            return cost(skills, kind == null ? COST_OVERCHARGE : SkillValues.get(kind.id(), "overcharge", COST_OVERCHARGE));
-        }
-        double max = maxEnergy(skills);
-        return Math.min(max, cost(skills, share * max));
-    }
-
-    private double cost(PlayerSkills skills, double base) {
-        double scale = 1.0;
-        if (SkillTree.has(skills, "e_fortress")) {
-            scale *= 1.0 + SkillValues.get("e_fortress", "cost", 0.3);
-        }
-        if (SkillTree.has(skills, "e_fieldtech")) {
-            scale *= 1.0 - SkillValues.get("e_fieldtech", "cost", 0.4);
-        }
-        return Math.max(1.0, base * scale);
-    }
-
-    private boolean pay(ServerPlayer player, PlayerSkills skills, double cost) {
-        double have = energyOf(player);
-        if (player.getAbilities().instabuild) {
-            return true;
-        }
-        if (have + 1e-6 < cost) {
-            actionBar(player, Component.translatable("nightsiege.msg.remote_low",
-                    (int) Math.floor(have), (int) Math.ceil(cost)));
-            return false;
-        }
-        energy.put(player.getUUID(), Math.max(0.0, have - cost));
-        showEnergy(player);
-        return true;
-    }
-
-    private void report(ServerPlayer player, PlayerSkills skills, String key) {
-        actionBar(player, Component.translatable(key).append(Component.literal("  ⚡ ")).append(Component.literal(
-                (int) Math.floor(energyOf(player)) + "/" + (int) Math.round(maxEnergy(skills)))));
-    }
-
-    /** Every remote fills up again by itself, faster with skills; the bar on the item shows how full. */
-    private void rechargeRemotes(MinecraftServer server) {
-        remoteMarks.values().removeIf(m -> m.until() < server.overworld().getGameTime());
-        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            PlayerSkills skills = save.get().skillsOf(player.getUUID().toString());
-            if (skills.clazz() != SkillClass.ENGINEER) {
-                continue;
-            }
-            double max = maxEnergy(skills);
-            double now = energyOf(player);
-            if (now < max) {
-                // Energy per second, handed out every five ticks.
-                double rate = SkillValues.get("e_fastcharge", "rate", 5.0) / 4.0 * (1.0 + tree.totalBonus(SkillEffect.RECHARGE, skills));
-                if (now < max * SkillValues.get("e_backup", "below", 0.3) && tree.totalBonus(SkillEffect.BACKUP_POWER, skills) > 0) {
-                    rate *= SkillValues.get("e_backup", "speed", 2.0);
-                }
-                energy.put(player.getUUID(), Math.min(max, now + rate));
-            }
-            if (++barCounter % 4 == 0) {
-                showEnergy(player);
-            }
-        }
-    }
-
-    private int barCounter;
-
-    private void showEnergy(ServerPlayer player) {
-        if (ModContent.REMOTE == null) {
-            return;
-        }
-        PlayerSkills skills = save.get().skillsOf(player.getUUID().toString());
-        double max = maxEnergy(skills);
-        int damage = (int) Math.round(100.0 * (1.0 - Math.min(max, energyOf(player)) / max));
-        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
-            ItemStack stack = player.getInventory().getItem(i);
-            if (stack.is(ModContent.REMOTE) && stack.getDamageValue() != damage) {
-                stack.setDamageValue(damage);
-            }
-        }
-    }
-
-    /** Every engineer carries a remote; a lost one comes back with the free traps. */
-    public void giveRemote(ServerPlayer player, PlayerSkills skills) {
-        if (ModContent.REMOTE == null || skills == null || skills.clazz() != SkillClass.ENGINEER) {
-            return;
-        }
-        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
-            if (player.getInventory().getItem(i).is(ModContent.REMOTE)) {
-                return;
-            }
-        }
-        player.getInventory().placeItemBackInInventory(kitHandout(player, new ItemStack(ModContent.REMOTE)));
-        player.sendSystemMessage(Component.translatable("nightsiege.msg.remote_given"));
     }
 
     // ------------------------------------------------------------------
@@ -3413,18 +3091,6 @@ public final class TrapService {
         return record.dimension + ":" + record.x + ":" + record.y + ":" + record.z;
     }
 
-    private boolean boosted(TrapRecord record, long now) {
-        Long until = boostedUntil.get(key(record));
-        if (until == null) {
-            return false;
-        }
-        if (now > until) {
-            boostedUntil.remove(key(record));
-            return false;
-        }
-        return true;
-    }
-
     /** Damage factor: doubled while overcharged by the remote, tripled with overvolt. */
     private double power(TrapRecord record, long now) {
         double gain = 1.0 + 0.1 * gainOf(record, "verstaerkt");   // crate gain: stronger traps in the night
@@ -3435,17 +3101,9 @@ public final class TrapService {
         return overcharged(record, now) * gain;
     }
 
-    /**
-     * The remote's overcharge on one trap: ×2, with overvolt ×3; 1 when it is not overcharged.
-     * The strengthening from the tower menu (×1.5) comes on top.
-     */
+    /** The copper golem's strengthening (×1.5); 1 otherwise (the remote's overcharge left with Tor 4b). */
     private double overcharged(TrapRecord record, long now) {
-        double menu = strengthened(record, now);
-        if (!boosted(record, now)) {
-            return menu;
-        }
-        return menu * (bonus(record, SkillEffect.OVERVOLT) > 0 ? SkillValues.get("e_overvolt", "power", 3.0)
-                : SkillValues.get("e_overvolt", "base", 2.0));
+        return strengthened(record, now);
     }
 
     /** True while the owner's ultimate overcharge runs (arrow turrets and tesla coils fire faster). */
@@ -3499,7 +3157,7 @@ public final class TrapService {
         if (gainOf(record, "werkzeugtasche") > 0) {
             ticks = Math.max(3, (int) Math.round(ticks * 0.7));   // tool bag: traps re-arm sooner
         }
-        return boosted(record, now) ? Math.max(3, ticks / 2) : ticks;
+        return ticks;
     }
 
     /** The armour piercer: turret and tesla hit harder while the ultimate overcharge runs. */

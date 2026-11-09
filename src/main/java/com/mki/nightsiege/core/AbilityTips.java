@@ -58,7 +58,7 @@ public final class AbilityTips {
     public static String fName(SkillTree tree, PlayerSkills own) {
         String sub = tree.subclassOf(own);
         if (own.clazz() == SkillClass.ENGINEER) {
-            return "nightsiege.abilitybar.f_remote";
+            return null;   // Tor 4b: no remote; places 2 and 3 are the subclass's own abilities (barTips)
         }
         if (own.clazz() == SkillClass.SUMMONER && !SkillTree.SUB_SOULCATCHER.equals(sub)) {
             return "nightsiege.abilitybar.f_staff";
@@ -134,14 +134,6 @@ public final class AbilityTips {
         String sub = tree.subclassOf(own);
         Map<String, Double> v = tip.main.values;
         switch (fName) {
-            case "nightsiege.abilitybar.f_remote" -> {
-                tip.main.desc = KEY + "desc.remote";
-                for (String id : new String[]{"e_longrange", "e_seeker", "e_circuit", "e_detonator"}) {
-                    prefixed(v, id);
-                }
-                modsOf(tree, own, tip, "e_longrange", "e_seeker", "e_circuit", "e_overvolt", "e_fortress", "e_fieldtech",
-                        "e_detonator");
-            }
             case "nightsiege.abilitybar.f_staff" -> {
                 tip.main.desc = KEY + "desc.staff";
                 prefixed(v, "s_callrange");
@@ -191,6 +183,16 @@ public final class AbilityTips {
     }
 
     // ------------------------------------------------------------------ the abilities on Q, F, Y, sneak + Y
+
+    /** Tor 4b: the skills (the remote's 13 old nodes) that change each engineer ability (qa/tor-4b/skillbaeume.md). */
+    public static final Map<String, String[]> ENGINEER_MODS = Map.of(
+            "pierce", new String[]{"e_battery", "e_fastcharge", "e_backup", "e_longrange", "e_overvolt", "e_seeker", "e_fieldtech", "e_fortress"},
+            "suppress", new String[]{"e_battery", "e_fastcharge", "e_backup", "e_circuit", "e_network", "e_fieldtech", "e_fortress"},
+            "chain", new String[]{"e_battery", "e_fastcharge", "e_backup", "e_longrange", "e_overvolt", "e_seeker", "e_beacon", "e_fieldtech", "e_fortress"},
+            "static", new String[]{"e_battery", "e_fastcharge", "e_backup", "e_longrange", "e_circuit", "e_network", "e_fieldtech", "e_fortress"},
+            "grenade", new String[]{"e_battery", "e_longrange", "e_detonator", "e_targetblast"},
+            "target", new String[]{"e_battery", "e_longrange", "e_detonator", "e_targetblast"},
+            "boil", new String[]{"e_battery", "e_detonator"});
 
     /** Ticks between two dashes of a warrior (Simon: every 10 s); WarriorDash fires on it. */
     public static final int DASH_PAUSE = 200;
@@ -258,6 +260,12 @@ public final class AbilityTips {
             case "escape" -> {
                 plain(tip, "nightsiege.ability.escape", "escape", "e_escape");
                 tip.cooldownTicks = ticks("e_escape", "pause", 300);
+            }
+            // Tor 4b (Variante B): the engineers' own abilities; the remote's old skills improve them
+            case "pierce", "suppress", "chain", "static", "grenade", "target", "boil" -> {
+                plain(tip, "nightsiege.ability." + id, id, "t_" + id);
+                tip.cooldownTicks = ticks("t_" + id, "pause", 200);
+                modsOf(tree, own, tip, ENGINEER_MODS.getOrDefault(id, new String[0]));
             }
             case "dash" -> {
                 plain(tip, "nightsiege.ability.dash", "dash", null);

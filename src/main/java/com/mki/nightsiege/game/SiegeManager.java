@@ -944,7 +944,6 @@ public final class SiegeManager {
         combat.guardian().setHealStats(this::creditHealOnly);
         traps.setMarker(combat::remoteMark);
         Digger.hardness = traps::digFactor;
-        RemoteItem.handler = traps::useRemote;
         SummonStaffItem.handler = companions::useStaff;
         // A drone uses nothing, places nothing and hits nothing; its crossbow is the attack button.
         net.fabricmc.fabric.api.event.player.UseItemCallback.EVENT.register((player, world, hand) ->
@@ -5493,11 +5492,8 @@ public final class SiegeManager {
                 // Fähigkeit 2 (F): what it does for this class. The soul catcher has no companions
                 // to send (Simon 27.10.: "F does nothing for him"), so he gets no F field.
                 String sub = skillTree.subclassOf(own);
-                if (own.clazz() == com.mki.nightsiege.core.SkillClass.ENGINEER) {
-                    state.hasAb2 = true;
-                    state.iconAb2 = "nightsiege:remote_control";
-                    state.nameAb2 = "nightsiege.abilitybar.f_remote";
-                } else if (own.clazz() == com.mki.nightsiege.core.SkillClass.SUMMONER
+                // Tor 4b: the engineer has no F field any more; his place 2 is a box of the bar.
+                if (own.clazz() == com.mki.nightsiege.core.SkillClass.SUMMONER
                         && !SkillTree.SUB_SOULCATCHER.equals(sub)) {
                     state.hasAb2 = true;
                     state.iconAb2 = "minecraft:lead";
@@ -5570,12 +5566,7 @@ public final class SiegeManager {
                 }
             }
             case ENGINEER -> {
-                state.gauge = true;
-                state.gaugeValue = (float) traps.energyOf(player);
-                state.gaugeMax = (float) traps.maxEnergyOf(player);
-                state.gaugeName = "nightsiege.kithud.energy";
-                state.gaugeColor = 0xFF3FA0E0;
-                state.units = traps.unitsOf(player);
+                state.units = traps.unitsOf(player);   // Tor 4b: no remote, no energy gauge
             }
             case WARRIOR -> {
                 // Kampfgeist (Simon 05.11.): a bar in the warrior's colour, glowing from 50 on.
@@ -6147,7 +6138,6 @@ public final class SiegeManager {
             case "jump" -> GainGear.onDoubleJump(player);
             // A manned tower: the attack button pressed (1) or let go (0).
             case "man" -> traps.onManAction(player, "1".equals(argument));
-            case "tower" -> traps.onTowerAction(player, argument);   // the tower menu (27 October 2026)
             // A drone's crossbow: the attack button pressed (1) or let go (0).
             case "drone" -> Drones.onFireButton(player, "1".equals(argument));
             // The alchemist's potion menu: the potion picked.
@@ -6535,7 +6525,6 @@ public final class SiegeManager {
             own.playOpened(first != null ? first : chosen.name());
             persist();
             ClassTags.update(player.level().getServer(), player, own, skillTree.chosenSubclass(own, own.clazz()));
-            traps.giveRemote(player, own);
             player.sendSystemMessage(Component.translatable("nightsiege.msg.class_chosen",
                     Component.translatable(chosen.translationKey())).withStyle(ChatFormatting.GREEN));
             safe("Klassenbanner", () -> ClassBanners.onNewClass(this, player, chosen));   // update 6: the banner comes with the class
@@ -6663,8 +6652,6 @@ public final class SiegeManager {
             SkillService.clear(player);
             if (kits.hasStash(player)) {
                 kits.refit(player, levelForKit());   // the kit of the new class for tonight
-            } else {
-                traps.giveRemote(player, own);
             }
         }
         player.sendSystemMessage(Component.translatable("nightsiege.msg.play_class",
@@ -6975,10 +6962,6 @@ public final class SiegeManager {
         }
         // Fähigkeit 2 (F, Simon 27 October 2026): the order of the remote or the staff in hand.
         // The second ultimate has its own key X now, so the two never get in each other's way.
-        if (ModContent.REMOTE != null && held.is(ModContent.REMOTE)) {
-            traps.useRemote(player, null, true);
-            return;
-        }
         if (held.getItem() instanceof SummonStaffItem) {
             companions.command(player);
             return;

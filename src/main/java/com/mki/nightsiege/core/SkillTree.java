@@ -411,7 +411,7 @@ public final class SkillTree {
         String spike = TrapKind.SPIKE.id();
         String snare = TrapKind.SNARE.id();
         node(list, spike, c, "", SkillEffect.TRAP, 3, 3, 2, 1.0, anySubclassNode(c), "", "nightsiege:spike_trap", 1, 3);
-        node(list, "e_battery", c, "", SkillEffect.REMOTE_ENERGY, 3, 3, 2, 10.0, spike, "e_stem", "minecraft:copper_ingot", 2, 1);
+        node(list, "e_battery", c, "", SkillEffect.REMOTE_ENERGY, 3, 3, 2, 0.04, spike, "e_stem", "minecraft:copper_ingot", 2, 1);
         node(list, snare, c, "", SkillEffect.TRAP, 3, 3, 2, 1.0, spike + ":2", "", "nightsiege:snare_trap", 2, 3);
         node(list, "e_finemech", c, "", SkillEffect.TRAP_DURABILITY, 3, 3, 2, 0.17, spike, "e_stem", "minecraft:clock", 2, 5);
 
@@ -419,9 +419,9 @@ public final class SkillTree {
         String m = WAY_MECHANICS;
         String turret = TrapKind.TURRET.id();
         String tesla = TrapKind.TESLA.id();
-        node(list, "e_longrange", c, m, SkillEffect.REMOTE_RANGE, 3, 3, 2, 5.0, snare, "em1", "minecraft:spyglass", 3, 1);
+        node(list, "e_longrange", c, m, SkillEffect.REMOTE_RANGE, 3, 3, 2, 2.0, snare, "em1", "minecraft:spyglass", 3, 1);
         node(list, "e_circuit", c, m, SkillEffect.OVERCHARGE_TIME, 3, 3, 2, 20.0, snare, "", "minecraft:repeater", 3, 3);
-        node(list, "e_fastcharge", c, m, SkillEffect.RECHARGE, 3, 3, 2, 0.17, snare, "em1", "minecraft:redstone_torch", 3, 5);
+        node(list, "e_fastcharge", c, m, SkillEffect.RECHARGE, 3, 3, 2, 0.05, snare, "em1", "minecraft:redstone_torch", 3, 5);
         subNode(list, turret, c, m, SkillEffect.TRAP, 3, 4, 3, 1.0, "e_circuit", "em_sub", "nightsiege:arrow_turret", 1);
         subNode(list, tesla, c, m, SkillEffect.TRAP, 3, 4, 3, 1.0, "e_circuit", "em_sub", "nightsiege:tesla_coil", 5);
         node(list, "turret_tuning", c, m, SkillEffect.TRAP_BOOST, 1, 10, 0, 2.0, turret + ":2", "em3", "minecraft:redstone", 4, 0);
@@ -429,7 +429,7 @@ public final class SkillTree {
         node(list, "capacitor", c, m, SkillEffect.TRAP_BOOST, 1, 10, 0, 2.0, tesla + ":2", "em3", "minecraft:copper_block", 4, 4);
         node(list, "e_chainbolt", c, m, SkillEffect.CHAIN_LIGHTNING, 1, 10, 0, 2.0, tesla + ":2", "em3", "minecraft:lightning_rod", 4, 6);
         String m3 = "turret_tuning|e_ammobelt|capacitor|e_chainbolt";
-        node(list, "e_seeker", c, m, SkillEffect.SEEKER, 1, 12, 0, 0.3, m3, "em4", "minecraft:target", 5, 1);
+        node(list, "e_seeker", c, m, SkillEffect.SEEKER, 1, 12, 0, 0.15, m3, "em4", "minecraft:target", 5, 1);
         node(list, "e_overvolt", c, m, SkillEffect.OVERVOLT, 1, 12, 0, 1.0, m3, "em4", "minecraft:glowstone_dust", 5, 3);
         node(list, "m_cross_mine", c, m, SkillEffect.TRAP, 1, 12, 0, 1.0, m3, "em4", "nightsiege:mortar_tower", 5, 5,
                 "e_network");

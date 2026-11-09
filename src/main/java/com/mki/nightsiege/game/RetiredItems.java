@@ -32,7 +32,7 @@ import java.util.Set;
 public final class RetiredItems {
 
     private static final Set<String> OLD_DUNGEON = Set.of("dungeon_core", "dungeon_core_spent", "dungeon_map",
-            "dungeon_compass");
+            "dungeon_compass", "remote_control");   // Tor 4b: the engineer's remote left the game
 
     private RetiredItems() {
     }

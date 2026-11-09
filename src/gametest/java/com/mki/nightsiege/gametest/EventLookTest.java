@@ -9120,82 +9120,27 @@ public class EventLookTest implements FabricClientGameTest {
         onServer(context, (player, manager) -> {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
             net.minecraft.core.BlockPos at = player.blockPosition();
-            player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND,
-                    new net.minecraft.world.item.ItemStack(com.mki.nightsiege.game.ModContent.REMOTE));
             net.minecraft.core.BlockPos turret = at.offset(2, 0, 3);
             net.minecraft.core.BlockPos mine = at.offset(4, 0, 0);
             net.minecraft.core.BlockPos mine2 = at.offset(4, 0, 2);
             place(level, manager, player, turret, com.mki.nightsiege.core.TrapKind.TURRET);
             place(level, manager, player, mine, com.mki.nightsiege.core.TrapKind.MORTAR);
             place(level, manager, player, mine2, com.mki.nightsiege.core.TrapKind.MORTAR);
-            manager.kits().traps().useRemote(player, turret, true);   // Fähigkeit 2: overcharge
-            manager.kits().traps().useRemote(player, null, true);     // Fähigkeit 2: mark what is in sight
+            // Tor 4b: the remote is gone; the subclass's own abilities on places 2 and 3
+            for (String id : com.mki.nightsiege.game.EngineerAbilities.ALL) {
+                int slot = manager.abilitySlotOf(player, id);
+                if (slot >= 0) {
+                    manager.onCoreAction(player, "slot:" + slot);
+                }
+            }
         });
         context.waitTicks(6);
         context.takeScreenshot("engineer_remote");
-        onServer(context, (player, manager) -> manager.kits().traps().useRemote(player, player.blockPosition().offset(4, 0, 0), true));
-        context.waitTicks(4);
-        context.takeScreenshot("engineer_detonate");
-        towerMenuScene(context);
         context.waitTicks(20);
         onServer(context, (player, manager) -> manager.onCoreAction(player, "ult"));
         context.waitTicks(6);
         context.takeScreenshot("engineer_bombardment");
         context.waitTicks(5);
-    }
-
-    /**
-     * The tower menu (Simon, 27 October 2026): the arrow turret and a mortar are strengthened
-     * (19:15/19:51: nothing breaks or runs empty any more – an old broken turret works again);
-     * the right click with the remote shows them, the codes are typed and 3 s later they work.
-     */
-    private static void towerMenuScene(ClientGameTestContext context) {
-        onServer(context, (player, manager) -> {
-            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
-            net.minecraft.core.BlockPos at = player.blockPosition();
-            com.mki.nightsiege.game.TrapRecord turret = manager.kits().traps().recordAt(level, at.offset(2, 0, 3));
-            com.mki.nightsiege.game.TrapRecord mortar = manager.kits().traps().recordAt(level, at.offset(4, 0, 0));
-            if (turret != null) {
-                turret.broken = true;   // as in an old save: the next tick clears it
-            }
-            com.mki.nightsiege.game.RemoteItem.handler.use(player, null);   // right click: the tower menu
-        });
-        context.waitTicks(10);
-        context.runOnClient(client -> {
-            boolean open = client.gui.screen() instanceof com.mki.nightsiege.client.TowerMenuScreen;
-            System.out.println("[Night Siege test] towers menu=" + open + " rows="
-                    + (open ? ((com.mki.nightsiege.client.TowerMenuScreen) client.gui.screen()).rows().size() : -1));
-        });
-        context.takeScreenshot("tower_menu");
-        context.runOnClient(client -> {
-            if (client.gui.screen() instanceof com.mki.nightsiege.client.TowerMenuScreen menu) {
-                menu.testShowCode(menu.rowOf(com.mki.nightsiege.core.TrapKind.TURRET.id()));
-            }
-        });
-        context.waitTicks(3);
-        context.takeScreenshot("tower_code");
-        context.runOnClient(client -> {
-            if (client.gui.screen() instanceof com.mki.nightsiege.client.TowerMenuScreen menu) {
-                menu.testBuff(menu.rowOf(com.mki.nightsiege.core.TrapKind.TURRET.id()));
-                menu.testBuff(menu.rowOf(com.mki.nightsiege.core.TrapKind.MORTAR.id()));
-            }
-        });
-        context.waitTicks(20);
-        context.takeScreenshot("tower_working");
-        context.waitTicks(60);
-        onServer(context, (player, manager) -> {
-            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
-            net.minecraft.core.BlockPos at = player.blockPosition();
-            com.mki.nightsiege.game.TrapRecord turret = manager.kits().traps().recordAt(level, at.offset(2, 0, 3));
-            com.mki.nightsiege.game.TrapRecord mortar = manager.kits().traps().recordAt(level, at.offset(4, 0, 0));
-            System.out.println("[Night Siege test] towers after fix turret broken=" + (turret == null ? "?" : turret.broken)
-                    + " strengthened=" + (turret != null && manager.kits().traps().strengthenedForTest(turret))
-                    + " mortar strengthened=" + (mortar != null && manager.kits().traps().strengthenedForTest(mortar)));
-            com.mki.nightsiege.game.RemoteItem.handler.use(player, null);   // the menu again: the turret shows strengthened
-        });
-        context.waitTicks(6);
-        context.takeScreenshot("tower_buffed");
-        closeScreen(context);
     }
 
     /**
@@ -9727,8 +9672,6 @@ public class EventLookTest implements FabricClientGameTest {
             for (String brew : new String[] {"brew_heal", "brew_poison", "brew_slow"}) {
                 own.levels.put(brew, 1);   // three of the seven potions (28 October 2026)
             }
-            player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND,
-                    new net.minecraft.world.item.ItemStack(com.mki.nightsiege.game.ModContent.REMOTE));
             System.out.println("[Night Siege test] alchemist sub=" + manager.skillTree().subclassOf(own));
         });
         // The ability bar (Simon, 27 October 2026, instead of the wheel): every potion on a key of its own.

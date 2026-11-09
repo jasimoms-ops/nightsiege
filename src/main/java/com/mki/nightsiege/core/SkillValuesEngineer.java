@@ -135,6 +135,49 @@ final class SkillValuesEngineer {
         def("e_escape", "knock", 1.2);                                   // push on the monsters
         def("e_escape", "slow", 40);                                     // ticks the monsters crawl after it
         def("e_escape", "heal", 4.0);                                    // health back (two hearts, Simon 29.10.)
+        // Tor 4b (Variante B "Turm als Waffe", Chef 09.11. 01:20): place 1 in a seat is the Abwehrring.
+        def("e_escape", "ringradius", 4);                                // blocks around the tower
+        def("e_escape", "ringpush", 5);                                  // blocks the monsters fly
+        def("e_escape", "ringmend", 0.2);                                // share of the tower health back
+        // The subclasses' own abilities on places 2 and 3 (EngineerAbilities); from a seat +50 % reach.
+        def("t_tech", "seatreach", 1.5);
+        def("t_tech", "toolbag", 0.1);                                   // werkzeugtasche: place 2 pauses this share shorter
+        def("t_pierce", "pause", 200);                                   // Durchschlag (Schuetze), 10 s
+        def("t_pierce", "dmg", 2.5);                                     // x a turret arrow of his tier
+        def("t_pierce", "targets", 5);
+        def("t_pierce", "range", 32);
+        def("t_suppress", "pause", 400);                                 // Sperrfeuer (Schuetze), 20 s
+        def("t_suppress", "time", 80);                                   // 4 s
+        def("t_suppress", "rate", 0.6);                                  // own arrow turrets +60 % fire rate
+        def("t_suppress", "radius", 16);
+        def("t_suppress", "every", 10);                                  // ticks between his own bolts
+        def("t_suppress", "dmg", 0.6);                                   // x a turret arrow per bolt
+        def("t_chain", "pause", 120);                                    // Kettenblitz (Elektriker), 6 s
+        def("t_chain", "dmg", 6);                                        // x tonight's level per jump
+        def("t_chain", "targets", 4);
+        def("t_chain", "seattargets", 6);
+        def("t_chain", "range", 16);
+        def("t_chain", "jump", 6);
+        def("t_static", "pause", 360);                                   // Statikfeld (Elektriker), 18 s
+        def("t_static", "time", 120);                                    // 6 s
+        def("t_static", "radius", 4);
+        def("t_static", "seatradius", 6);
+        def("t_static", "dmg", 1);                                       // x tonight's level per second
+        def("t_static", "range", 14);
+        def("t_grenade", "pause", 200);                                  // Haftgranate (Sprengmeister), 10 s (Konzept 8 s, Auflage 1)
+        def("t_grenade", "dmg", 6);                                      // x tonight's level (Konzept 8; Auflage 1: <= ~1150/min)
+        def("t_grenade", "radius", 3);
+        def("t_grenade", "range", 14);
+        def("t_grenade", "seatrange", 40);                               // from a mortar's seat the mortar throws it
+        def("t_grenade", "fuse", 20);                                    // ticks it sticks before it goes off
+        def("t_grenade", "mark", 160);                                   // ticks the hit monsters stay marked
+        def("t_target", "pause", 400);                                   // Zielpunkt (Sprengmeister), 20 s
+        def("t_target", "shells", 2);                                    // the salvo on top (Konzept 3, Auflage 1)
+        def("t_target", "range", 48);
+        def("t_boil", "pause", 240);                                     // Siedepunkt (Alchemist), 12 s
+        def("t_boil", "time", 200);                                      // 10 s for the next potion
+        def("t_boil", "area", 2.0);                                      // x the area of the next potion
+        def("t_boil", "radius", 16);                                     // own potion throwers that throw big at once
         def("spike_trap", "overcharge", 30);
         def("snare_trap", "overcharge", 30);
         def("flame_trap", "overcharge", 30);
@@ -152,32 +195,24 @@ final class SkillValuesEngineer {
         def("e_longrange", "golemtowers", 2);                            // towers the copper golem looks after
         def("e_longrange", "shield", 20);                                // shots the tower shield (crate gain) blocks
 
-        // ----- trunk
-        def("e_battery", "base", 100);                                   // energy of the remote without skills
-        def("e_fastcharge", "rate", 5);                                  // energy per second without skills (1.25 every 5 ticks)
-
-        // ----- mechanics
-        def("e_longrange", "base", 24);                                  // blocks the remote reaches
-        def("e_circuit", "base", 100);                                   // ticks an overcharge lasts
+        // ----- mechanics (Tor 4b: the remote's nodes improve the abilities, qa/tor-4b/skillbaeume.md)
         // Cross talents lend a trap of the other way at this tier.
         for (String cross : new String[]{"m_cross_mine", "m_cross_poison", "c_cross_turret", "c_cross_tesla"}) {
             def(cross, "tier", 2);
         }
         def("e_ammobelt", "speed", 0.2);                                 // turrets shoot this much faster (endless arrows)
         def("e_ammobelt", "reload", 40);                                 // energy of a repair with X (name kept for server tweaks)
-        def("e_seeker", "base", 0.15);                                   // extra damage of a mark without the skill
         def("e_seeker", "time", 160);                                    // ticks a mark lasts
-        def("e_seeker", "mark", 10);                                     // energy of a mark
-        def("e_overvolt", "base", 2.0);                                  // damage factor while overcharged
-        def("e_overvolt", "power", 3.0);                                 // with overvolt
+        def("e_overvolt", "dmg", 0.4);                                   // Durchschlag and Kettenblitz hit this much harder
         def("e_charged", "jump", 4);                                     // blocks
         def("e_network", "share", 0.5);
         def("e_network", "radius", 6);
-        def("e_backup", "below", 0.3);
-        def("e_backup", "speed", 2.0);
-        def("e_fortress", "cost", 0.3);                                  // remote costs this share more
+        def("e_beacon", "targets", 2);                                   // Kettenblitz jumps this much further
+        def("e_backup", "below", 0.3);                                   // share of health under which...
+        def("e_backup", "speed", 2.0);                                   // ...the pauses run this many times faster
+        def("e_fortress", "cost", 0.2);                                  // pauses of places 2 and 3 this share longer
         def("e_fortress", "slots", 1);
-        def("e_fieldtech", "cost", 0.4);                                 // remote costs this share less
+        def("e_fieldtech", "cost", 0.25);                                // pauses of places 2 and 3 this share shorter
         def("e_fieldtech", "slots", 1);
         for (int r = 1; r <= 3; r++) {
             def("overcharge", "time" + r, 160 + 40 * r);                 // ticks
@@ -197,9 +232,8 @@ final class SkillValuesEngineer {
         def("e_superconductor", "time", 80);
 
         // ----- chemistry
-        def("e_detonator", "cost", 20);                                  // energy of an X order without the skill
-        def("e_detonator", "save", 4);                                   // less energy per level
-        def("e_detonator", "dmg", 0.15);                                 // harder per level
+        def("e_detonator", "dmg", 0.15);                                 // Haftgranate and Zielpunkt salvo harder per level
+        def("e_detonator", "area", 0.1);                                 // Siedepunkt: more area per level
         def("e_acid", "slow", 1);                                        // extra slowness levels
         def("e_chain_reaction", "count", 3);
         def("e_chain_reaction", "dmg", 1.0 / 3.0);

@@ -376,9 +376,9 @@ final class TeamBrain {
             nextStaff = now + iv(20);
             staff(m, player, level, skills, close != null ? close : far);
         }
-        if (clazz == SkillClass.ENGINEER && now >= nextRemote && !towers.isEmpty()) {
-            nextRemote = now + iv(200);
-            m.kits().traps().useRemote(player, towers.get((int) ((now / 200) % towers.size())), true);   // overcharge
+        if (clazz == SkillClass.ENGINEER && focused && now >= nextRemote) {
+            nextRemote = now + iv(20);
+            EngineerAbilities.botUse(m, player, close != null ? close : far);   // Tor 4b: places 2 and 3
         }
         // Like a player with the spotter (Feldstecher): the mortars onto the thickest crowd they reach.
         if (!mortars.isEmpty() && focused && now >= nextAim) {
