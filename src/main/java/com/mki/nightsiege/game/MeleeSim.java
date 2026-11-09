@@ -438,6 +438,17 @@ public final class MeleeSim {
                     level.getEntitiesOfClass(Mob.class, player.getBoundingBox().inflate(16),
                             e -> e instanceof Enemy && !Companions.isCompanion(e)).size()));
         }
+        // GOLEMDIAG (Tor 4c.6): the golemsmith's golem dealt nothing on the bench; every 5 s one line per companion.
+        if (clazz == SkillClass.SUMMONER) {
+            Companions.diagTick(level, player.getUUID());
+            if ((now - fightStart) % 100 == 0) {
+                for (String line : Companions.diagLines(level, player.getUUID(), now)) {
+                    String diag = "GOLEMDIAG;" + queue.get(index).level() + ";t=" + (now - fightStart) / 20 + ";stage=" + benchStage + ";" + line;
+                    System.out.println(diag);
+                    NightSiegeMod.LOGGER.info(diag);
+                }
+            }
+        }
         // Tor 4b: the engineer fires his places 2 and 3 whenever they are ready (no remote any more).
         if (clazz == SkillClass.ENGINEER && now >= nextRemote) {
             nextRemote = now + 10;
