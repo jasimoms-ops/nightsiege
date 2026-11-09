@@ -152,6 +152,9 @@ final class KlassencheckScenes {
         WarriorSpirit.set(player, 100);
         if (Companions.get() != null) {
             Companions.get().soulsForTest(player, 99);
+            // Tor 4c.6: the call spawned nothing when the last level's wolves/golem filled the places or its pause ran
+            Companions.get().dismiss(player);
+            Companions.get().callReadyForTests(player.getUUID());
         }
     }
 
