@@ -153,6 +153,11 @@ public final class EngineerAbilities {
         }
     }
 
+    /** Test access (Tor 4c.6): what of this player still runs on (the grenade's fuse, the static field). */
+    public static int runningForTests(UUID player) {
+        return (int) RUNNING.stream().filter(r -> r.player.equals(player)).count();
+    }
+
     /** End or start of a night: every ability ready, nothing runs on. */
     public static void reset() {
         READY.clear();

@@ -114,26 +114,29 @@ final class KlassencheckScenes {
         }
         int near = level.getEntitiesOfClass(Entity.class, player.getBoundingBox().inflate(32),
                 e -> e != player && !e.entityTags().contains(HUSK)).size();
-        // Tor 4c.6: the medic's dome is a zone only (radius 4, the husks stand at 6) - count the player's zones too
-        near += SiegeManager.get() == null ? 0 : SiegeManager.get().combatEffects().guardian().zonesOf(player.getUUID());
-        // Tor 4c.6: bone wall, curse zone and fright change only blocks, zones and the calm list
-        near += Companions.get() == null ? 0 : Companions.get().spellMarksForTests(player.getUUID());
-        near += GainGear.calmForTests();
+        // Tor 4c.6: what changes no entity, life or effect, each on its own place (a mark ending elsewhere hid one):
+        // 10 the guardian's zones (dome), 11 curse zones and bone wall blocks, 12 calmed monsters (fright, horn),
+        // 13 what runs on (grenade fuse), 9 attack speed (the berserker's frenzy)
+        SiegeManager sm = SiegeManager.get();
         return new double[]{lost, huskEffects, player.getHealth() + player.getAbsorptionAmount(),
                 player.getActiveEffects().size(), near, player.getX(), player.getY(), player.getZ(),
                 player.getDeltaMovement().length(),
-                player.getAttributeValue(Attributes.ATTACK_SPEED)};   // Tor 4c.6: the berserker's frenzy is attack speed only
+                player.getAttributeValue(Attributes.ATTACK_SPEED),
+                sm == null ? 0 : sm.combatEffects().guardian().zonesOf(player.getUUID()),
+                Companions.get() == null ? 0 : Companions.get().spellMarksForTests(player.getUUID()),
+                GainGear.calmForTests(),
+                EngineerAbilities.runningForTests(player.getUUID())};
     }
 
     /** Something happened: monsters hurt or with an effect, life healed, an effect, an entity more, moved or pushed. */
     private static boolean changed(double[] a, double[] b) {
-        for (int i = 0; i < 5; i++) {
-            if (b[i] - a[i] > 1e-3) {
+        for (int i = 0; i < a.length; i++) {
+            if ((i < 5 || i > 8) && b[i] - a[i] > 1e-3) {
                 return true;
             }
         }
         double moved = Math.abs(b[5] - a[5]) + Math.abs(b[6] - a[6]) + Math.abs(b[7] - a[7]);
-        return moved > 0.3 || Math.abs(b[8] - a[8]) > 0.2 || b[9] - a[9] > 1e-3;
+        return moved > 0.3 || Math.abs(b[8] - a[8]) > 0.2;
     }
 
     /** The test hook "the ult charged" and every other pause back to 0, so each key can fire once. */
@@ -518,6 +521,7 @@ final class KlassencheckScenes {
                     server(context, tag + " " + press, (player, m) -> {
                         ServerLevel level = (ServerLevel) player.level();
                         player.setHealth(player.getMaxHealth() * 0.5f);
+                        player.setAbsorptionAmount(0f);   // Tor 4c.6: the ward's barrier shows only when none is left from before
                         player.getFoodData().setFoodLevel(15);   // no natural regeneration: a heal is the key's
                         player.getFoodData().setSaturation(0f);
                         List<Mob> targets = husks(level);
@@ -574,6 +578,9 @@ final class KlassencheckScenes {
                         double[] after = look(player);
                         int left = pause(player, m, press);
                         check(changed(before[0], after), tag + ": " + what[0] + " does something");
+                        if (!changed(before[0], after)) {
+                            log("     " + tag + ": " + what[0] + " look " + java.util.Arrays.toString(before[0]) + " -> " + java.util.Arrays.toString(after));
+                        }
                         if (pauseBefore[0] >= 0 && total[0] > 0) {
                             check(left > 0, tag + ": " + what[0] + " pause started (" + left + ")");
                             if (left <= 0 && !press.startsWith("gain:")) {

@@ -108,6 +108,14 @@ class AbilityKeysTest {
                 }
             }
         }
+        // Tor 4c.6: every summoner, also without his wheel (no spell yet, start of the night): each extra has its key
+        for (String sub : summoners) {
+            for (boolean gain : new boolean[] {false, true}) {
+                for (String id : AbilityKeys.barExtras(sub, false, gain, true)) {
+                    assertNotNull(AbilityKeys.keyOf(sub, id), sub + " without wheel: " + id + " without a key");
+                }
+            }
+        }
         // without a subclass and without a wheel the arrows still get a slot (place 4, C)
         assertEquals(List.of(AbilityKeys.QUIVER), AbilityKeys.barExtras("", false, true, false));
     }

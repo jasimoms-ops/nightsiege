@@ -130,10 +130,14 @@ public final class AbilityKeys {
      */
     public static List<String> barExtras(String subclass, boolean classWheel, boolean quiverGain, boolean summoner) {
         List<String> out = new java.util.ArrayList<>();
-        if (quiverGain && (!classWheel || keyOf(subclass, QUIVER) != null)) {
+        // Tor 4c.6: no arrow box without a key entry either (necromancer/soulcatcher without the wheel)
+        boolean noSub = subclass == null || subclass.isBlank();
+        if (quiverGain && (noSub && !classWheel || keyOf(subclass, QUIVER) != null)) {
             out.add(QUIVER);
         }
-        if (summoner && !classWheel) {
+        // Tor 4c.6: only the way of the light calls; a necromancer without his spell wheel (CI: at the start of a
+        // night) got a "call" box without a key entry (fallback ABILITY_1); a summoner without a subclass keeps it
+        if (summoner && !classWheel && (subclass == null || subclass.isBlank() || keyOf(subclass, CALL) != null)) {
             out.add(CALL);
         }
         return out;
