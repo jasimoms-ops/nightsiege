@@ -75,4 +75,38 @@ public final class PlaytestAccess {
     public static boolean joinHolds(long now, long joinedAt) {
         return joinedAt >= 0 && now >= joinedAt && now - joinedAt <= JOIN_WINDOW_TICKS;
     }
+
+    // Tor 9.1 j, Prüfer 09.11.: a non-OP must not hold the real night back with a playtest.
+
+    /** A non-OP starts only with at least this much game time before the next real night's horn (30 min). */
+    public static final long MIN_TICKS_BEFORE_NIGHT = 20L * 60 * 30;
+    /** A playtest a non-OP started ends after this long in "plan"/"paused" without moving on (10 min). */
+    public static final long IDLE_LIMIT_TICKS = 20L * 60 * 10;
+    /** The warning comes this long before (1 min). */
+    public static final long IDLE_WARN_BEFORE_TICKS = 20L * 60;
+
+    /**
+     * Null when the next real night leaves room, else the translation key. {@code ticksToHorn} &lt; 0:
+     * no siege day planned yet (then nothing blocks).
+     */
+    public static String nightProblem(boolean op, long ticksToHorn) {
+        return op || ticksToHorn < 0 || ticksToHorn >= MIN_TICKS_BEFORE_NIGHT ? null : "nightsiege.playtest.night_soon";
+    }
+
+    /** What the idle watch does now. */
+    public enum Idle { NONE, WARN, END }
+
+    /**
+     * The idle watch of a playtest: only for a start by a non-OP ({@code limited}); {@code idleTicks} in
+     * "plan"/"paused" since the phase began; {@code warned}: the warning was sent already.
+     */
+    public static Idle idleStep(boolean limited, long idleTicks, boolean warned) {
+        if (!limited || idleTicks < IDLE_LIMIT_TICKS - IDLE_WARN_BEFORE_TICKS) {
+            return Idle.NONE;
+        }
+        if (idleTicks >= IDLE_LIMIT_TICKS) {
+            return Idle.END;
+        }
+        return warned ? Idle.NONE : Idle.WARN;
+    }
 }

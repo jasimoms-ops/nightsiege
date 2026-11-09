@@ -69,4 +69,28 @@ class PlaytestAccessTest {
         assertFalse(PlaytestAccess.joinHolds(100, -1));
         assertEquals(10, PlaytestAccess.MAX_PLAYERS);
     }
+
+    @Test
+    void nonOpOnlyWithThirtyMinutesBeforeTheNight() {
+        long min = PlaytestAccess.MIN_TICKS_BEFORE_NIGHT;
+        assertEquals(20L * 60 * 30, min);
+        assertEquals("nightsiege.playtest.night_soon", PlaytestAccess.nightProblem(false, min - 1));
+        assertEquals("nightsiege.playtest.night_soon", PlaytestAccess.nightProblem(false, 0));
+        assertNull(PlaytestAccess.nightProblem(false, min));
+        assertNull(PlaytestAccess.nightProblem(false, -1));   // no siege day planned
+        assertNull(PlaytestAccess.nightProblem(true, 0));     // OP as before
+    }
+
+    @Test
+    void idleWatchWarnsAfterNineAndEndsAfterTenMinutes() {
+        long limit = PlaytestAccess.IDLE_LIMIT_TICKS;
+        long warn = limit - PlaytestAccess.IDLE_WARN_BEFORE_TICKS;
+        assertEquals(20L * 60 * 10, limit);
+        assertEquals(PlaytestAccess.Idle.NONE, PlaytestAccess.idleStep(true, warn - 1, false));
+        assertEquals(PlaytestAccess.Idle.WARN, PlaytestAccess.idleStep(true, warn, false));
+        assertEquals(PlaytestAccess.Idle.NONE, PlaytestAccess.idleStep(true, warn + 20, true));   // once
+        assertEquals(PlaytestAccess.Idle.END, PlaytestAccess.idleStep(true, limit, true));
+        assertEquals(PlaytestAccess.Idle.END, PlaytestAccess.idleStep(true, limit, false));
+        assertEquals(PlaytestAccess.Idle.NONE, PlaytestAccess.idleStep(false, limit * 10, false));   // OP start
+    }
 }

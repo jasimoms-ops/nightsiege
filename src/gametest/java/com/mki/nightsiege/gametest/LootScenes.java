@@ -106,10 +106,14 @@ final class LootScenes {
         int[] single = new int[2];
         EventLookTest.onServer(context, (player, m) -> {
             int before = CrateService.revealedForTests;
+            // sneaking too: only this one crate (the sneak way to "alle öffnen" is gone, Prüfer 09.11.)
+            player.setShiftKeyDown(true);
             m.crates().open(player, net.minecraft.world.InteractionHand.MAIN_HAND);
+            player.setShiftKeyDown(false);
             single[0] = CrateService.revealedForTests - before;
             single[1] = player.getMainHandItem().getCount();
-            check(single[0] == 1 && single[1] == 0, "einzeln: 1 Kiste ergibt " + single[0] + " Gewinn, Hand leer");
+            check(single[0] == 1 && single[1] == 0 && !player.getInventory().getItem(30).isEmpty(),
+                    "einzeln (geschlichen): 1 Kiste ergibt " + single[0] + " Gewinn, Hand leer, Rest bleibt");
         });
         context.waitTicks(10);
         String button = context.computeOnClient(client -> client.gui.screen() instanceof CrateScreen ? "crate" : String.valueOf(client.gui.screen()));

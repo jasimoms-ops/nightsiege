@@ -273,10 +273,8 @@ public final class CrateService {
         if (stack.isEmpty() || !stack.is(CRATE)) {
             return;
         }
-        if (player.isShiftKeyDown()) {
-            openAll(player);   // sneak + right click: every crate at once, as one overview (Tor 9.1 h)
-            return;
-        }
+        // No sneak way to "alle öffnen" any more (Prüfer 09.11.: sneaking with a crate opened all by
+        // accident); only the button in the crate window does it.
         if (!startOpening(player)) {
             return;
         }

@@ -718,6 +718,12 @@ public final class SiegeCommands {
                     com.mki.nightsiege.core.PlaytestAccess.cooldownSecondsLeft(now, m.playtest().lastStartTick())));
             return 0;
         }
+        long toHorn = m.ticksUntilHorn(server);
+        if (problem == null && com.mki.nightsiege.core.PlaytestAccess.nightProblem(op, toHorn) != null) {
+            fail(ctx.getSource(), Component.translatable("nightsiege.playtest.night_soon", toHorn / 20L / 60L,
+                    com.mki.nightsiege.core.PlaytestAccess.MIN_TICKS_BEFORE_NIGHT / 20L / 60L));
+            return 0;
+        }
         if (problem == null && com.mki.nightsiege.core.PlaytestAccess.levelProblem(op, target) != null) {
             fail(ctx.getSource(), Component.translatable("nightsiege.playtest.level_limit",
                     com.mki.nightsiege.core.PlaytestAccess.MAX_LEVEL_NON_OP));
@@ -726,7 +732,7 @@ public final class SiegeCommands {
         if (problem == null) {
             java.util.List<ServerPlayer> chosen = op ? (alone ? java.util.List.of(self) : null)
                     : m.playtest().chosenBy(server, self, alone, now);
-            problem = m.playtest().start(server, target, chosen, self);
+            problem = m.playtest().start(server, target, chosen, self, !op);
         }
         if (problem != null) {
             fail(ctx.getSource(), Component.translatable(problem));

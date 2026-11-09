@@ -1781,6 +1781,14 @@ public final class SiegeManager {
         return !active && warnedDay == day && startedDay != day;
     }
 
+    /** Game ticks until the horn of the next real night (eclipse too), -1 when no siege day is planned. */
+    public long ticksUntilHorn(MinecraftServer server) {
+        if (save.nextSiegeDay < 0) {
+            return -1L;
+        }
+        return Math.max(0L, (save.nextSiegeDay - clockDay(server)) * 24000L + closeTime() - clockTime(server));
+    }
+
     /**
      * No sleeping from the horn until the siege is over (Simon 31.10.: survival safety): while a real
      * night is coming or running, a test night (also the playtest's) is prepared or running.
