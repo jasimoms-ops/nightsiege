@@ -9,7 +9,7 @@ import java.util.Set;
 
 /**
  * Scene "steuerung" (Tor 3.1, Simon 08.11.: "Nur Tasten"): every box of the ability bar has exactly one
- * key out of Q, F, Y (or sneak + Y), no key twice; the HUD shows the mapping the client fires on;
+ * place out of 1-4 (Q, E, F, C; Tor 3.2b, no sneak), no key twice; the HUD shows the mapping the client fires on;
  * the ult is on X; the summoner's staff does nothing on right click. Fälle "x von y" in the log.
  */
 final class SteuerungScenes {
@@ -24,7 +24,8 @@ final class SteuerungScenes {
             Set<String> used = new HashSet<>();
             boolean fine = true;
             for (var slot : manager.abilitySlots(player)) {
-                boolean known = !slot.key.isEmpty() && !AbilityKeys.Key.X.name().equals(slot.key);
+                boolean known = java.util.Arrays.stream(AbilityKeys.Key.values())
+                        .anyMatch(k -> k.ability() && k.name().equals(slot.key));   // Tor 3.2b: places 1-4 only
                 fine &= known && used.add(slot.key);
                 System.out.println("[Night Siege test] steuerung: " + slot.id + " -> " + slot.key);
             }

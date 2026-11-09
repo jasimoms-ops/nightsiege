@@ -78,7 +78,7 @@ final class TooltipScenes {
                     ? 0 : UltHud.state().tips.size());
             log(info.key() + " tips=" + tips);
             int fields = 0;
-            for (int i = 0; i < 16; i++) {   // Tor 3.4: every field, X and the bar's Q, F, Y, sneak + Y
+            for (int i = 0; i < 16; i++) {   // Tor 3.4: every field, X, R, the gains 1-3 and the places Q, E, F, C
                 final int cell = i;
                 double[] at = context.computeOnClient(client -> {
                     int[] c = KitInventory.cellCenter(cell);
