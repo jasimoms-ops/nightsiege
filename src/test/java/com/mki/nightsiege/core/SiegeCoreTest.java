@@ -1327,12 +1327,12 @@ class SiegeCoreTest {
         assertEquals(KeyHint.SNEAK_BLOCK, KeyHint.forNode(tree, "g_hedgehog"));
         assertEquals(KeyHint.JUMP_ATTACK, KeyHint.forNode(tree, "w_earthshock"));
         assertEquals(KeyHint.SNEAK_SHOOT, KeyHint.forNode(tree, "a_bracing"));
-        assertEquals(KeyHint.REMOTE_DETONATE, KeyHint.forNode(tree, "e_detonator"));
+        assertEquals(KeyHint.BAR, KeyHint.forNode(tree, "e_detonator"));   // Tor 4b: improves the bar keys
         // The summoner's spells: each on its key of the bar, the right click with the staff casts it again.
         assertEquals(KeyHint.STAFF_SPELL, KeyHint.forNode(tree, "d_corpse"));
         assertEquals(KeyHint.STAFF_SPELL, KeyHint.forNode(tree, "d_haste"));
         assertEquals(KeyHint.STAFF_SPELL, KeyHint.forNode(tree, "d_host"));
-        assertEquals(KeyHint.ULT2_REMOTE, KeyHint.forGain("magnetfeld"));
+        assertEquals(KeyHint.ULT2, KeyHint.forGain("magnetfeld"));   // Tor 4b: no remote
         assertEquals(KeyHint.ULT2_STAFF, KeyHint.forGain("seelentausch"));
         assertEquals(KeyHint.QUIVER_SHOT, KeyHint.forGain("sturmpfeile"));
         assertEquals(KeyHint.NONE, KeyHint.forGain("totem"));
