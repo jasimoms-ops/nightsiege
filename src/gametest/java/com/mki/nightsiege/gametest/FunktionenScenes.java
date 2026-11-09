@@ -202,6 +202,7 @@ final class FunktionenScenes {
         boolean setupOk;
         float charge;
         float splash;
+        float absorb;   // Tor 9b (P1): absorption the hit gave the paladin
         String state = "";
     }
 
@@ -225,6 +226,9 @@ final class FunktionenScenes {
         Hit a = jumpHit(context, jump, "jump full", false);
         check(a.done && a.setupOk && a.splash > 0.01f, String.format(Locale.ROOT,
                 "Erdstoss on a real jump crit: splash %.2f (charge %.2f, %s)", a.splash, a.charge, a.state));
+        // Tor 9b (P1): one golden heart per monster struck (target + side = 2 hearts), at most 4
+        check(a.done && a.absorb > 3.99f && a.absorb < 8.01f, String.format(Locale.ROOT,
+                "paladin jump hit gives golden hearts: +%.2f absorption (2 monsters, expected 4)", a.absorb));
         // 2: on the ground, full charge -> nothing
         Hit g = new Hit();
         place(context, g, 0);
@@ -249,6 +253,8 @@ final class FunktionenScenes {
         check(g.done && g.setupOk && g.splash < 0.01f, String.format(Locale.ROOT,
                 "no Erdstoss on the ground: splash %.2f (charge %.2f, %s)%s", g.splash, g.charge, g.state,
                 g.done ? "" : " setup: never on the ground"));
+        check(g.done && g.absorb < 0.01f, String.format(Locale.ROOT,
+                "no golden hearts from a hit on the ground: +%.2f", g.absorb));
         // 3: real jump, half charged -> nothing
         Hit h = jumpHit(context, jump, "jump half", true);
         check(h.done && h.setupOk && h.charge < 0.9f && h.splash < 0.01f, String.format(Locale.ROOT,
@@ -285,8 +291,10 @@ final class FunktionenScenes {
         hit.setupOk = setupOk;
         float before = hit.side.getHealth();
         hit.target.invulnerableTime = 0;
+        float absorbBefore = player.getAbsorptionAmount();
         player.attack(hit.target);
         hit.splash = before - hit.side.getHealth();
+        hit.absorb = player.getAbsorptionAmount() - absorbBefore;
         hit.done = true;
         log("hit " + hit.state + String.format(Locale.ROOT, " charge=%.2f splash=%.2f", hit.charge, hit.splash));
     }
