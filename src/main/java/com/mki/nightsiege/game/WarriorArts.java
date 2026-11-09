@@ -58,8 +58,8 @@ import java.util.UUID;
  * <ul>
  *   <li>Klingenmeister, <b>Klingentanz</b>: three quick jumps to monsters within 6 blocks, one hit
  *       each; no damage while dancing.</li>
- *   <li>Berserker, <b>Raserei</b>: 6 s of +30 % attack speed and double life steal, but 15 % more
- *       damage taken; every kill in it adds a second.</li>
+ *   <li>Berserker, <b>Blutrausch</b> (Tor 4.10, id "raserei"): 8 s of more attack speed, damage and life
+ *       steal, all growing with the life missing, but 15 % more damage taken; every kill in it adds a second.</li>
  *   <li>Axtkämpfer, <b>Axtwurf</b>: the axe flies straight ahead (up to 12 blocks) and back and hits
  *       everything on its way, with Spalter's broken armour.</li>
  *   <li>Paladin, <b>Weihegrund</b>: a consecrated circle of 6 blocks for 8 s: players inside regenerate,
@@ -226,9 +226,27 @@ public final class WarriorArts {
         return f == null ? 0L : Math.max(0L, f.end - player.level().getGameTime());
     }
 
-    /** The factor on the berserker's life steal (double in the frenzy). */
+    /** The factor on the berserker's life steal in the Blutrausch (x2, up to x3 with less life; Tor 4.10). */
     static double stealFactor(ServerPlayer player) {
-        return frenzied(player) ? SkillValues.get("bloodlust", "f_steal", 2.0) : 1.0;
+        return frenzied(player) ? WarriorSpiritMath.rageSteal(missing(player)) : 1.0;
+    }
+
+    /** The extra melee damage share in the Blutrausch (+25 %, up to +60 % with less life; Tor 4.10), else 0. */
+    public static double rageBonus(ServerPlayer player) {
+        return frenzied(player) ? WarriorSpiritMath.rageDamage(missing(player)) : 0.0;
+    }
+
+    private static double missing(ServerPlayer player) {
+        return WarriorSpiritMath.missing(player.getHealth(), player.getMaxHealth());
+    }
+
+    /** Ticks of Blutrausch left to the berserker's client (red vignette; 0 = over). */
+    private static void sendRage(ServerPlayer player, long ticks) {
+        if (player.connection != null && net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.canSend(player,
+                CoreNetworking.ScreenPayload.TYPE)) {
+            net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(player,
+                    new CoreNetworking.ScreenPayload("rage", Long.toString(Math.max(0L, ticks))));
+        }
     }
 
     /** The factor on the damage a player takes from monsters (more in the frenzy). */
@@ -242,6 +260,7 @@ public final class WarriorArts {
         if (f != null && now <= f.end) {
             f.end = Math.min(f.cap, f.end + Math.max(0L, Math.round(SkillValues.get("bloodlust", "f_extend", 20))));
             frenzyKills++;
+            sendRage(player, f.end - now);
         }
     }
 
@@ -425,6 +444,7 @@ public final class WarriorArts {
         FRENZIES.put(player.getUUID(), new Frenzy(now + time, now + cap));
         frenzies++;
         speed(player, true);
+        sendRage(player, time);
         level.sendParticles(RAGE, player.getX(), player.getY(1.0), player.getZ(), 24, 0.4, 0.5, 0.4, 0.0);
         level.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.RAVAGER_ROAR, SoundSource.PLAYERS, 0.6f, 1.3f);
         return true;
@@ -436,7 +456,7 @@ public final class WarriorArts {
             return;
         }
         if (on) {
-            attack.addOrUpdateTransientModifier(new AttributeModifier(FRENZY_SPEED, SkillValues.get("bloodlust", "f_speed", 0.3),
+            attack.addOrUpdateTransientModifier(new AttributeModifier(FRENZY_SPEED, WarriorSpiritMath.rageSpeed(missing(player)),
                     AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
         } else if (attack.getModifier(FRENZY_SPEED) != null) {
             attack.removeModifier(FRENZY_SPEED);
@@ -452,12 +472,9 @@ public final class WarriorArts {
     // --- Axtwurf
 
     private static boolean axeThrow(ServerLevel level, ServerPlayer player, long now) {
-        Vec3 dir = CombatEffects.flatLook(player);
-        if (dir == null) {
-            double yaw = Math.toRadians(player.getYRot());
-            dir = new Vec3(-Math.sin(yaw), 0, Math.cos(yaw));
-        }
-        Vec3 start = player.position().add(0, player.getBbHeight() * 0.55, 0).add(dir.scale(0.6));
+        // Tor 4.10: along the crosshair (the whole look, from the eyes), no fall.
+        Vec3 dir = player.getLookAngle().normalize();
+        Vec3 start = player.getEyePosition().add(dir.scale(0.6));
         ItemStack held = player.getMainHandItem();
         ItemStack shown = held.isEmpty() ? new ItemStack(Items.IRON_AXE) : held.copyWithCount(1);
         Display.ItemDisplay display = new Display.ItemDisplay(EntityTypes.ITEM_DISPLAY, level);
@@ -495,7 +512,9 @@ public final class WarriorArts {
             if (t.travelled >= range) {
                 t.back = true;
             }
-            strikeAlong(t.level, owner, t.pos, next, t.hitOut, now);
+            if (strikeAlong(t.level, owner, t.pos, next, t.hitOut, now)) {
+                t.back = true;   // Durchschlag spent: it turns at this monster (Tor 4.10)
+            }
         } else {
             // Back it comes, through a wall too (it must reach the hand); it only strikes what it sees (clearLine).
             Vec3 hand = owner.position().add(0, owner.getBbHeight() * 0.55, 0);
@@ -521,20 +540,29 @@ public final class WarriorArts {
         return home;
     }
 
-    /** Every monster along the axe's way this tick, once on the way out and once on the way back. */
-    private static void strikeAlong(ServerLevel level, ServerPlayer owner, Vec3 a, Vec3 b, Set<UUID> done, long now) {
+    /**
+     * The monsters along the axe's way this tick, nearest first, once on the way out and once on the way back,
+     * at most {@link WarriorSpiritMath#throwHitsMax()} each way; true when that many are hit.
+     */
+    private static boolean strikeAlong(ServerLevel level, ServerPlayer owner, Vec3 a, Vec3 b, Set<UUID> done, long now) {
+        int most = WarriorSpiritMath.throwHitsMax();
+        if (done.size() >= most) {
+            return true;
+        }
         double width = SkillValues.get("heavy_blow", "f_width", 1.3);
         AABB box = new AABB(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.min(a.z, b.z),
                 Math.max(a.x, b.x), Math.max(a.y, b.y), Math.max(a.z, b.z)).inflate(width + 1.0, 2.5, width + 1.0);
         DamageSource src = level.damageSources().playerAttack(owner);
         float dmg = scaled(SkillValues.get("heavy_blow", "f_dmg", 5));
-        for (LivingEntity e : TrapService.enemies(level, box)) {
+        List<LivingEntity> near = new ArrayList<>(TrapService.enemies(level, box));
+        near.sort(Comparator.comparingDouble(e -> e.distanceToSqr(a)));
+        for (LivingEntity e : near) {
             if (done.contains(e.getUUID())) {
                 continue;
             }
-            double reach = width + e.getBbWidth() / 2.0;
-            double y = (a.y + b.y) / 2.0;
-            if (flatDistance(e.position(), a, b) > reach || y < e.getY() - 0.6 || y > e.getY() + e.getBbHeight() + 0.6) {
+            // Tor 4.10: the way may climb or fall (the whole look), so the body box beside it in 3D.
+            AABB body = e.getBoundingBox().inflate(width, 0.6, width);
+            if (!body.contains(a) && !body.contains(b) && body.clip(a, b).isEmpty()) {
                 continue;
             }
             if (!clearLine(level, owner, b, e)) {
@@ -546,7 +574,11 @@ public final class WarriorArts {
             if (e.isAlive()) {
                 WarriorSpirit.cleave(level, e, 1.0, now);
             }
+            if (done.size() >= most) {
+                return true;
+            }
         }
+        return false;
     }
 
     /** True when no block stands between the axe at {@code from} and the monster's body (its middle or its eyes). */
@@ -559,17 +591,6 @@ public final class WarriorArts {
             }
         }
         return false;
-    }
-
-    /** Sideways distance of a point from the segment a–b (heights left out). */
-    static double flatDistance(Vec3 p, Vec3 a, Vec3 b) {
-        double dx = b.x - a.x;
-        double dz = b.z - a.z;
-        double len = dx * dx + dz * dz;
-        double t = len < 1.0e-9 ? 0.0 : Math.max(0.0, Math.min(1.0, ((p.x - a.x) * dx + (p.z - a.z) * dz) / len));
-        double cx = a.x + dx * t - p.x;
-        double cz = a.z + dz * t - p.z;
-        return Math.sqrt(cx * cx + cz * cz);
     }
 
     private static void removeDisplay(Throw t) {
@@ -663,11 +684,12 @@ public final class WarriorArts {
                 if (player == null || !player.isAlive() || now > e.getValue().end) {
                     if (player != null) {
                         speed(player, false);
+                        sendRage(player, 0L);
                     }
                     it.remove();
-                } else if (now % 10 == 0 && player.level() instanceof ServerLevel level) {
-                    speed(player, true);
-                    level.sendParticles(RAGE, player.getX(), player.getY(0.8), player.getZ(), 4, 0.3, 0.4, 0.3, 0.0);
+                } else if (now % 5 == 0 && player.level() instanceof ServerLevel level) {
+                    speed(player, true);   // grows with the life missing (Tor 4.10)
+                    level.sendParticles(RAGE, player.getX(), player.getY(0.8), player.getZ(), 6, 0.35, 0.5, 0.35, 0.0);
                 }
             }
         }

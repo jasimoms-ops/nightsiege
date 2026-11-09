@@ -84,6 +84,7 @@ public class NightSiegeClient implements ClientModInitializer {
                     NightKeys.setOwned(false);
                     PlaytestScreen.clear();
                     WarriorHud.clear();
+                    RageFx.clear();
                 });
         ClientPlayNetworking.registerGlobalReceiver(CoreNetworking.ScreenPayload.TYPE,
                 (payload, context) -> context.client().execute(() -> {
@@ -142,6 +143,8 @@ public class NightSiegeClient implements ClientModInitializer {
                         PartyHealthHud.set(payload.json());   // Tor 2: the healers' party list
                     } else if ("warrior".equals(payload.kind())) {
                         WarriorHud.set(payload.json());   // Kampfgeist and the combo chain (Simon 05.11.)
+                    } else if ("rage".equals(payload.kind())) {
+                        RageFx.set(payload.json());   // Tor 4.10: the berserker's Blutrausch, a red vignette
                     } else if ("towers".equals(payload.kind())) {
                         // The engineer's tower menu (27 October 2026): opened by the remote, refreshed after a pick.
                         com.mki.nightsiege.core.TowerMenuData data =
@@ -295,6 +298,12 @@ public class NightSiegeClient implements ClientModInitializer {
         // The warrior's combo chain: four dots under the crosshair (Simon 05.11.).
         HudElementRegistry.attachElementAfter(VanillaHudElements.HOTBAR, ModContent.id("warrior_combo"),
                 (gui, delta) -> WarriorHud.draw(gui));
+        // Tor 4.10: the red vignette of the Blutrausch, the swing ring at the crosshair, the axe's aim mark.
+        HudElementRegistry.attachElementAfter(VanillaHudElements.MISC_OVERLAYS, ModContent.id("rage_vignette"),
+                (gui, delta) -> RageFx.draw(gui));
+        HudElementRegistry.attachElementAfter(VanillaHudElements.CROSSHAIR, ModContent.id("strike_ring"),
+                (gui, delta) -> StrikeRing.draw(gui));
+        ClientTickEvents.END_CLIENT_TICK.register(AxeAim::tick);
         // The wheel of Fähigkeit 3 is a HUD layer, so walking goes on while it is open (27 October 2026).
         // The wheel is gone (27 October 2026): the ability bar left of the off hand instead (UltHud).
         // The shield action (block + left click) is gone (Tor 3.1, "Nur Tasten"): the shield throw is on Q.

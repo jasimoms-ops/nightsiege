@@ -69,8 +69,8 @@ class WarriorSpiritTest {
         assertEquals(0.5, SkillValues.get("bloodlust", "fin_bonus", -1), 1e-9);
         assertEquals(0.1, SkillValues.get("bloodlust", "fin_perlost", -1), 1e-9);
         assertEquals(60, SkillValues.get("bloodlust", "fin_bleedtime", -1), 1e-9);
-        assertEquals(120, SkillValues.get("bloodlust", "f_time", -1), 1e-9);
-        assertEquals(0.3, SkillValues.get("bloodlust", "f_speed", -1), 1e-9);
+        assertEquals(160, SkillValues.get("bloodlust", "f_time", -1), 1e-9);
+        assertEquals(0.5, SkillValues.get("bloodlust", "f_speed", -1), 1e-9);
         assertEquals(2.0, SkillValues.get("bloodlust", "f_steal", -1), 1e-9);
         assertEquals(0.15, SkillValues.get("bloodlust", "f_taken", -1), 1e-9);
         assertEquals(20, SkillValues.get("bloodlust", "f_extend", -1), 1e-9);
