@@ -545,6 +545,11 @@ final class KlassencheckScenes {
                             UltState.Slot s = slots.get(Integer.parseInt(press.substring(5)));
                             what[0] = s.key + "(" + s.id + ")";
                             total[0] = s.totalTicks;
+                            if ("wall".equals(s.id)) {
+                                // Tor 4c.6 (CI e2c480dc: walls 0 -> 0): the wall stands 3 blocks ahead and sets no block
+                                // where a monster stands - the husks at 3.5 blocks filled all five columns. Look away (west).
+                                player.lookAt(EntityAnchorArgument.Anchor.EYES, player.getEyePosition().add(-5, 0, 0));
+                            }
                             if (EngineerAbilities.TARGET.equals(s.id) && !targets.isEmpty()) {
                                 // Tor 4c.6: the target point needs a block looked at - the ground at the husk's feet
                                 player.lookAt(EntityAnchorArgument.Anchor.EYES, targets.get(0).position());
