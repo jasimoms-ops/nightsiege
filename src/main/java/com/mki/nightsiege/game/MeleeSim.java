@@ -580,6 +580,11 @@ public final class MeleeSim {
     }
 
     static boolean isMelee(ItemStack stack) {
+        // Not the kit's wooden axe (a tool, KitService.backThing): the healers took it as their weapon and its
+        // slot went into the guardian's kit layout, so the tanks swung it too (BENCHDIAG, Tor 4).
+        if (KitService.backThing(stack)) {
+            return false;
+        }
         return stack.is(ItemTags.SWORDS) || stack.is(ItemTags.AXES) || stack.getItem() instanceof net.minecraft.world.item.MaceItem;
     }
 
