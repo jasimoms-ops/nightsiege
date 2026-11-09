@@ -61,13 +61,14 @@ public final class StrikeRing {
         } else {
             fill = 0xB0C8C8C8;
         }
-        int cx = mc.getWindow().getGuiScaledWidth() / 2;
-        int cy = mc.getWindow().getGuiScaledHeight() / 2;
+        // the middle pixel of the vanilla crosshair, not the screen half (Simon 09.11.: ring sat right and low)
+        int cx = com.mki.nightsiege.core.CrosshairMath.center(mc.getWindow().getGuiScaledWidth());
+        int cy = com.mki.nightsiege.core.CrosshairMath.center(mc.getWindow().getGuiScaledHeight());
         int lit = full ? DOTS : (int) Math.floor(charge * DOTS);
         for (int i = 0; i < DOTS; i++) {
             double a = 2.0 * Math.PI * i / DOTS - Math.PI / 2.0;
-            int x = cx + (int) Math.round(Math.cos(a) * RADIUS);
-            int y = cy + (int) Math.round(Math.sin(a) * RADIUS);
+            int x = cx + com.mki.nightsiege.core.CrosshairMath.symRound(Math.cos(a) * RADIUS);
+            int y = cy + com.mki.nightsiege.core.CrosshairMath.symRound(Math.sin(a) * RADIUS);
             gui.fill(x, y, x + 1, y + 1, i < lit ? fill : 0x50000000);
         }
     }
