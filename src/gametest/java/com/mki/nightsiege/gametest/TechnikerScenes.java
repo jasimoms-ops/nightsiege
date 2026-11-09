@@ -43,6 +43,15 @@ final class TechnikerScenes {
             SkillTree.SUB_ELECTRICIAN, TrapKind.TESLA,
             SkillTree.SUB_DEMOLITION, TrapKind.MORTAR,
             SkillTree.SUB_ALCHEMIST, TrapKind.BREWER);
+    /**
+     * Subclass → the tower he sits in. Only the arrow turret and the tesla coil have a seat
+     * (TowerBlock.mannable); the demolition expert and the alchemist sit in an arrow turret.
+     */
+    private static final Map<String, TrapKind> SEAT = Map.of(
+            SkillTree.SUB_GUNNER, TrapKind.TURRET,
+            SkillTree.SUB_ELECTRICIAN, TrapKind.TESLA,
+            SkillTree.SUB_DEMOLITION, TrapKind.TURRET,
+            SkillTree.SUB_ALCHEMIST, TrapKind.TURRET);
 
     private TechnikerScenes() {
     }
@@ -167,7 +176,7 @@ final class TechnikerScenes {
         context.waitTicks(5);
 
         for (String sub : List.of(SkillTree.SUB_GUNNER, SkillTree.SUB_ELECTRICIAN, SkillTree.SUB_DEMOLITION, SkillTree.SUB_ALCHEMIST)) {
-            final BlockPos[] tower = new BlockPos[1];
+            final BlockPos[] tower = new BlockPos[2];
             final float[] before = new float[1];
             game.getServer().runCommand("kill @e[tag=" + HUSK + "]");
             String husk = "execute as @p at @p run summon minecraft:husk ^%s ^ ^7 {NoAI:1b,PersistenceRequired:1b,Tags:[\"nightsiege\",\"" + HUSK + "\"]}";
@@ -190,6 +199,12 @@ final class TechnikerScenes {
                 // his tower 2 blocks beside him, a mortar for the target point of the demolition expert
                 tower[0] = player.blockPosition().offset(0, 0, 2);
                 EventLookTest.place(level, m, player, tower[0], TOWER.get(sub));
+                tower[1] = tower[0];
+                if (SEAT.get(sub) != TOWER.get(sub)) {
+                    // his seat 2 blocks on the other side (mortar and potion thrower have none)
+                    tower[1] = player.blockPosition().offset(0, 0, -2);
+                    EventLookTest.place(level, m, player, tower[1], SEAT.get(sub));
+                }
                 before[0] = lost(level);
                 fireAll(player, m, sub, "on foot");
             });
@@ -205,8 +220,8 @@ final class TechnikerScenes {
                 EngineerAbilities.reset();
                 EngineerEscape.reset();
                 m.kits().traps().resetZones();
-                boolean ok = m.kits().traps().tryMount(level, tower[0], player, ItemStack.EMPTY);
-                check(ok && m.kits().traps().isSeated(player), sub + ": sits in his " + TOWER.get(sub).id());
+                boolean ok = m.kits().traps().tryMount(level, tower[1], player, ItemStack.EMPTY);
+                check(ok && m.kits().traps().isSeated(player), sub + ": sits in his " + SEAT.get(sub).id());
                 before[0] = lost(level);
                 fireAll(player, m, sub, "in the seat");
             });
@@ -218,6 +233,7 @@ final class TechnikerScenes {
                 check(got > 0f, sub + " in the seat: the abilities hurt the monsters (" + got + ")");
                 m.kits().traps().releaseAll(level.getServer());
                 level.setBlock(tower[0], net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
+                level.setBlock(tower[1], net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
             });
             context.waitTicks(10);
         }
