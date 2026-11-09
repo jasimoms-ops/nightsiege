@@ -690,6 +690,7 @@ public final class TeamSim {
             TeamBrain brain = new TeamBrain(bot.getUUID(), sub, botSkill,
                     knob(run.variant(), sub[0], "wagemut", CALIBRATED_BOLDNESS), botSeed);
             brain.humanize(human);
+            brain.wallShift = human.on ? BotHuman.wallShift(human.mauerVersatz, gaussOf(botSeed * 7 + 3)) : 0;
             brain.core = Vec3.atBottomCenterOf(core);
             System.out.println("[Night Siege sim] BOTKOENNEN;" + run.variant() + ";" + run.mix() + ";" + run.index() + ";"
                     + sub[2] + ";" + String.format(Locale.ROOT, "%.2f", brain.skill));
@@ -983,7 +984,7 @@ public final class TeamSim {
             };
             BlockPos spot = null;
             if (b.role == TeamBrain.Role.RANGED) {
-                spot = b.onWall ? wallTop(g, lat, side) : null;   // onWall is always true unless "mensch=1" (Tor 6.0)
+                spot = b.onWall ? wallTop(g, lat, side, b.wallShift) : null;   // onWall is always true unless "mensch=1" (Tor 6.0)
                 if (spot == null) {
                     want = f.add(lat.scale(4 * side));
                 }
@@ -1001,8 +1002,8 @@ public final class TeamSim {
     }
 
     /** A spot on top of the wall beside this gate, at least three blocks up. */
-    private static BlockPos wallTop(BaseScan.Gate g, Vec3 lat, int side) {
-        for (int k = 2; k <= 8; k++) {
+    private static BlockPos wallTop(BaseScan.Gate g, Vec3 lat, int side, int shift) {
+        for (int k = 2 + shift; k <= 8 + shift; k++) {
             for (int s : new int[]{side, -side}) {
                 int x = (int) Math.round(g.pos().getX() + lat.x * k * s);
                 int z = (int) Math.round(g.pos().getZ() + lat.z * k * s);

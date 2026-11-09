@@ -89,6 +89,8 @@ final class TeamBrain {
     Vec3 core;
     /** Archers: stands on the wall top (true) or in front of the gate. */
     boolean onWall = true;
+    /** Tor 6.0: blocks along the wall away from the ideal spot (BotHuman.mauerVersatz). */
+    int wallShift;
     private long retreatUntil;
     private long lowSince = -1;
     private long nextUlt2;
@@ -134,6 +136,42 @@ final class TeamBrain {
 
     private int late() {
         return h.on ? rnd.nextInt((int) Math.max(1, h.spaet)) : 0;
+    }
+
+    private long bossSince = -1;
+
+    /** The nearest monster (old bot) or, with "mensch=1", the one a player would go for (BotHuman.pick). */
+    private Mob pickTarget(ServerLevel level, ServerPlayer player, double radius, long now) {
+        if (!h.on || h.ziel <= 0) {
+            return MeleeSim.nearest(level, player, radius);
+        }
+        java.util.List<Mob> mobs = level.getEntitiesOfClass(Mob.class, player.getBoundingBox().inflate(radius),
+                e -> e instanceof net.minecraft.world.entity.monster.Enemy && e.isAlive() && !Companions.isCompanion(e));
+        if (mobs.isEmpty()) {
+            return null;
+        }
+        boolean seen = false;
+        for (Mob mob : mobs) {
+            seen |= BossService.isBoss(mob);
+        }
+        if (seen && bossSince < 0) {
+            bossSince = now;
+        } else if (!seen && bossSince >= 0 && now - bossSince > 40) {
+            bossSince = -1;   // the boss is gone
+        }
+        boolean notice = BotHuman.noticed(now, bossSince, h.ereignisVerzug);
+        double[] dist = new double[mobs.size()];
+        int[] prio = new int[mobs.size()];
+        double[] hp = new double[mobs.size()];
+        for (int i = 0; i < dist.length; i++) {
+            Mob mob = mobs.get(i);
+            dist[i] = player.distanceTo(mob);
+            boolean boss = BossService.isBoss(mob);
+            prio[i] = boss && !notice ? 0 : BotHuman.prio(
+                    net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(mob.getType()).getPath(), boss);
+            hp[i] = mob.getHealth() / Math.max(1f, mob.getMaxHealth());
+        }
+        return mobs.get(BotHuman.pick(dist, prio, hp, h.ziel));
     }
 
     private boolean forgot() {
@@ -422,8 +460,8 @@ final class TeamBrain {
         if (player.isInWall() || player.isInLava() || !seated && player.position().distanceToSqr(home) > (melee ? (leash + 3) * (leash + 3) : 9.0)) {
             stand(player, level);   // pushed into a wall, into lava or too far away: back to the post
         }
-        Mob close = MeleeSim.nearest(level, player, melee ? leash + 4 : 10.0);
-        Mob far = MeleeSim.nearest(level, player, 32.0);
+        Mob close = pickTarget(level, player, melee ? leash + 4 : 10.0, now);
+        Mob far = pickTarget(level, player, 32.0, now);
         double reach = player.getAttributeValue(Attributes.ENTITY_INTERACTION_RANGE);
         boolean inReach = close != null && player.distanceTo(close) <= reach + 0.3;
 
