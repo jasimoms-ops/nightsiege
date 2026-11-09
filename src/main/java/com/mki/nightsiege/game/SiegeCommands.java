@@ -906,6 +906,13 @@ public final class SiegeCommands {
     private static int smartInfo(CommandContext<CommandSourceStack> ctx) {
         SiegeManager m = SiegeManager.get();
         com.mki.nightsiege.core.SmartNight smart = m.smartNight();
+        // Tor 6.6: the outer loop between the real nights, shown always.
+        SiegeSave save = m.save();
+        reply(ctx.getSource(), Component.translatable("nightsiege.cmd.smart_outer",
+                String.format(java.util.Locale.ROOT, "%+.1f", com.mki.nightsiege.core.OuterLoop.clamp(save.outerLoop, m.config()) * 100),
+                m.config().smartNightOuterLoop ? Component.translatable("nightsiege.cmd.smart_outer_on")
+                        : Component.translatable("nightsiege.cmd.smart_outer_off"),
+                save.outerLoopWon, save.outerLoopLost));
         if (!m.isActive() || !smart.on()) {
             fail(ctx.getSource(), Component.translatable("nightsiege.cmd.smart_off"));
             return 0;

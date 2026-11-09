@@ -614,6 +614,11 @@ public class SiegeSave {
 
     /** Siege nights held so far (real ones, won or lost): numbers the nights for catching up. */
     public int nightsHeld;
+    /** The smart night's outer loop (Tor 6.6, OuterLoop): offset on the normal monsters' life, ±15 %. */
+    public double outerLoop;
+    /** Real nights the outer loop has counted (won, lost). */
+    public int outerLoopWon;
+    public int outerLoopLost;
     /** The number on the next crown of the Vierer-Nacht (one more after every won one). */
     public int season = 1;
     /**

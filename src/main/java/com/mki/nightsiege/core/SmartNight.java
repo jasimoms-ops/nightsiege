@@ -22,6 +22,10 @@ import java.util.List;
  * <p>Simon's answers 05.11.: +50 % / −25 %, hidden, up only with elites (from level 5) and the special
  * monsters earlier, down also with fewer monsters, no reward. What a step does lies in the static
  * levers below (the night and the foes ask them).</p>
+ *
+ * <p>Tor 6.6 (Formel C): neutral on average (fewer 0.03 per step = at most −15 %, down bar 0.50). It also
+ * measures with the setting off ({@link #watching()}, {@link #peakStress()}), so a night with and one without
+ * can be compared; the outer loop between nights lies in {@link OuterLoop}.</p>
  */
 public final class SmartNight {
 
@@ -38,6 +42,10 @@ public final class SmartNight {
     private final ArrayDeque<Long> kills = new ArrayDeque<>();
     private final List<Look> steps = new ArrayList<>();
     private boolean on;
+    /** Measuring (Tor 6.6): from begin to end, also with the smart night off, for the pair comparison. */
+    private boolean watching;
+    /** The highest pressure of the night's looks (-1 before the first look). */
+    private double peakStress = -1;
     private long nextLook;
     private long lastStep;
     private int step;
@@ -51,6 +59,8 @@ public final class SmartNight {
     /** A new night: back to 0. {@code on} false (war leader, the setting off) keeps it at 0 all night. */
     public void begin(long now, boolean on, SiegeConfig cfg) {
         this.on = on;
+        this.watching = true;
+        this.peakStress = -1;
         samples.clear();
         deaths.clear();
         kills.clear();
@@ -69,11 +79,22 @@ public final class SmartNight {
     /** The night is over (or none runs): nothing more happens until the next begins. */
     public void end() {
         on = false;
+        watching = false;
         pauseUntil = 0;
     }
 
     public boolean on() {
         return on;
+    }
+
+    /** True from the night's begin to its end, also when the smart night does not steer (Tor 6.6). */
+    public boolean watching() {
+        return watching;
+    }
+
+    /** The highest pressure seen tonight, -1 if the night never looked (Tor 6.6, "früh entschieden"). */
+    public double peakStress() {
+        return peakStress;
     }
 
     /** The step now (0 while off). */
@@ -110,21 +131,21 @@ public final class SmartNight {
 
     /** Once a second: the defenders' average and lowest share of their max life (only those standing). */
     public void sample(long now, double avg, double min) {
-        if (on) {
+        if (watching) {
             samples.addLast(new Sample(now, clamp01(avg), clamp01(min)));
         }
     }
 
     /** A monster of the night fell. */
     public void kill(long now) {
-        if (on) {
+        if (watching) {
             kills.addLast(now);
         }
     }
 
     /** A defender fell: the night looks at once (and steps down unless it just did). */
     public Look death(long now, int defenders, SiegeConfig cfg) {
-        if (!on) {
+        if (!watching) {
             return null;
         }
         deaths.addLast(now);
@@ -133,7 +154,7 @@ public final class SmartNight {
 
     /** Every tick of the night: a look when it is time (null otherwise). */
     public Look tick(long now, int defenders, SiegeConfig cfg) {
-        if (!on || now < nextLook) {
+        if (!watching || now < nextLook) {
             return null;
         }
         nextLook = now + Math.max(1, cfg.smartNightEverySeconds) * 20L;
@@ -173,6 +194,14 @@ public final class SmartNight {
         // A death weighs by the group (sim schlau1: ten bots lose one now and then, that is no sign of a hard night).
         double weighted = d * deathWeight(defenders);
         double stress = stress(life, low, weighted, cfg);
+        if (!samples.isEmpty() || d > 0) {
+            peakStress = Math.max(peakStress, stress);
+        }
+        if (!on) {
+            Look l = new Look(now, life, low, d, k, stress, step, 0, "aus");   // only measures, never steps
+            last = l;
+            return l;
+        }
         int change = 0;
         String why;
         double upBar = cfg.smartNightUpStress + (step < 0 ? 0.1 : 0.0);

@@ -174,6 +174,9 @@ public final class MobFactory {
         SiegeManager sm = SiegeManager.get();
         if (sm != null) {
             healthMul *= sm.overflowHealthFactor();   // monsters the cap left out come as life (29.10.)
+            if (!elite) {
+                healthMul *= sm.outerLoopFactor();   // the outer loop on the normal monsters, real nights only (Tor 6.6)
+            }
         }
 
         AttributeInstance health = mob.getAttribute(Attributes.MAX_HEALTH);

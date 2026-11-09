@@ -143,6 +143,18 @@ public final class StatsRecorder {
         public int extraSondermonster;
         public int pausen;
         public List<Schritt> schritte = new ArrayList<>();
+        /** Tor 6.6: the smart night steered tonight (false = it only measured). */
+        public boolean steuert;
+        /** Tor 6.6: decided early (lost in the first third, or pressure never above 0.2). */
+        public boolean fruehEntschieden;
+        /** Share of the night's time that ran (0..1) and the highest pressure (-1 = no look). */
+        public double zeitAnteil;
+        public double spitzenDruck = -1;
+        /** Tor 6.6, the outer loop: offset on the normal monsters' life before and after this night (real nights). */
+        public boolean schleifeGezaehlt;
+        public boolean schleifeAn;
+        public double schleifeVorher;
+        public double schleifeNachher;
     }
 
     /** One step of the smart night: when, to which step, and what it saw (share of life, stress). */
@@ -552,6 +564,30 @@ public final class StatsRecorder {
         st.tode = look.deaths();
         st.kills = look.kills();
         night.schlaueNacht.schritte.add(st);
+    }
+
+    /** Tor 6.6: the night's measure for the pair comparison, with and without the smart night. */
+    void smartMeasure(boolean steering, boolean early, double elapsed, double peak) {
+        if (night == null) {
+            return;
+        }
+        SchlaueNacht s = night.schlaueNacht;
+        s.steuert = steering;
+        s.fruehEntschieden = early;
+        s.zeitAnteil = round2(Math.max(0.0, Math.min(1.0, elapsed)));
+        s.spitzenDruck = peak < 0 ? -1 : round2(peak);
+    }
+
+    /** Tor 6.6: the outer loop's offset before and after this real night. */
+    void outerLoop(double before, double after, boolean on) {
+        if (night == null) {
+            return;
+        }
+        SchlaueNacht s = night.schlaueNacht;
+        s.schleifeGezaehlt = true;
+        s.schleifeAn = on;
+        s.schleifeVorher = Math.round(before * 1000.0) / 1000.0;
+        s.schleifeNachher = Math.round(after * 1000.0) / 1000.0;
     }
 
     /** The smart night at the end of the night. */
