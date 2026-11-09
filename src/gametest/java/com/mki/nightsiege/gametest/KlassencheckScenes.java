@@ -59,6 +59,7 @@ final class KlassencheckScenes {
     private static int checks;
     private static int skips;
     private static final String HUSK = "ns_kc_husk";
+    private static final double[] HOME = new double[3];
     private static final int[] LEVELS = {1, 5, 10, 20};
     /** Gains with an ability on the gain keys (GainGear.useAbility) and the second ultimates. */
     private static final List<String> KEY_GAINS = List.of("kletterhaken", "kampfhorn", "tarnumhang", "signalhorn",
@@ -156,6 +157,13 @@ final class KlassencheckScenes {
             Companions.get().dismiss(player);
             Companions.get().callReadyForTests(player.getUUID());
         }
+    }
+
+    /** Back to the fixed spot on the ground, at rest, no fall damage (Tor 4c.6). */
+    private static void home(ServerPlayer player, SiegeManager m) {
+        player.teleportTo(HOME[0], HOME[1], HOME[2]);
+        player.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
+        player.resetFallDistance();
     }
 
     /** The pause behind a press, -1 when the key has none to read here. */
@@ -268,6 +276,12 @@ final class KlassencheckScenes {
             level.getEntitiesOfClass(Mob.class, player.getBoundingBox().inflate(160),
                     e -> e instanceof net.minecraft.world.entity.monster.Enemy).forEach(Mob::discard);
             check(m.isDefending(player), "the player defends the test night");
+            // CI 44cebb51: dash, escape and the place step carried the player off the ground (y down to -175);
+            // a fixed spot on the ground: every level and every press starts there, the husks 3.5 blocks east
+            HOME[0] = player.getX();
+            HOME[1] = player.getY();
+            HOME[2] = player.getZ();
+            log("home " + player.blockPosition() + " onGround=" + player.onGround());
         });
         context.waitTicks(5);
 
@@ -313,9 +327,12 @@ final class KlassencheckScenes {
                     context.waitTicks(5);
                 }
                 game.getServer().runCommand("kill @e[tag=" + HUSK + "]");
-                String husk = "execute as @p at @p run summon minecraft:husk ^%s ^ ^6 {NoAI:1b,PersistenceRequired:1b,Tags:[\"nightsiege\",\"" + HUSK + "\"]}";
-                for (String side : new String[]{"0", "1.2", "-1.2"}) {
-                    game.getServer().runCommand(husk.formatted(side));
+                server(context, tag + " home", KlassencheckScenes::home);
+                context.waitTicks(3);
+                String husk = "summon minecraft:husk %s %s %s {NoAI:1b,PersistenceRequired:1b,Tags:[\"nightsiege\",\"" + HUSK + "\"]}";
+                for (double side : new double[]{0, 1.2, -1.2}) {
+                    game.getServer().runCommand(String.format(java.util.Locale.ROOT, husk,
+                            HOME[0] + 3.5, HOME[1], HOME[2] + side));
                 }
                 context.waitTicks(5);
                 final List<String> presses = new ArrayList<>();
@@ -496,19 +513,7 @@ final class KlassencheckScenes {
                     final int[] total = new int[1];
                     // Tor 4c.6: dash and escape carried the player away (execute reach 5, blade dance 6, chain line);
                     // before every press he stands 3.5 blocks before the first husk, at rest
-                    server(context, tag + " " + press + " place", (player, m) -> {
-                        List<Mob> targets = husks((ServerLevel) player.level());
-                        if (!targets.isEmpty()) {
-                            Mob t = targets.get(0);
-                            net.minecraft.world.phys.Vec3 away = new net.minecraft.world.phys.Vec3(player.getX() - t.getX(), 0, player.getZ() - t.getZ());
-                            if (away.lengthSqr() < 1.0e-4) {
-                                away = new net.minecraft.world.phys.Vec3(1, 0, 0);
-                            }
-                            net.minecraft.world.phys.Vec3 spot = t.position().add(away.normalize().scale(3.5));
-                            player.teleportTo(spot.x, t.getY(), spot.z);
-                            player.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
-                        }
-                    });
+                    server(context, tag + " " + press + " place", KlassencheckScenes::home);
                     context.waitTicks(3);
                     server(context, tag + " " + press, (player, m) -> {
                         ServerLevel level = (ServerLevel) player.level();
@@ -571,6 +576,13 @@ final class KlassencheckScenes {
                         check(changed(before[0], after), tag + ": " + what[0] + " does something");
                         if (pauseBefore[0] >= 0 && total[0] > 0) {
                             check(left > 0, tag + ": " + what[0] + " pause started (" + left + ")");
+                            if (left <= 0 && !press.startsWith("gain:")) {
+                                // Tor 4c.6 diag: blade dance (radius 6, line of sight, spirit) and target point (pick)
+                                List<Mob> hs = husks((ServerLevel) player.level());
+                                log("     " + tag + ": " + press + " no pause: spirit=" + WarriorSpirit.value(player)
+                                        + " husk=" + (hs.isEmpty() ? "-" : String.format(java.util.Locale.ROOT, "%.1f", Math.sqrt(hs.get(0).distanceToSqr(player))))
+                                        + " pick=" + player.pick(48.0, 0f, false).getType() + " y=" + player.getY());
+                            }
                             if (left <= 0 && press.startsWith("gain:")) {
                                 // Tor 4c.6 diag: which gain, and what the grapple's ray (24 blocks) would hit
                                 PlayerSkills own = m.save().skillsOf(player.getUUID().toString());
