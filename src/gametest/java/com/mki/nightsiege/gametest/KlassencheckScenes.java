@@ -140,7 +140,7 @@ final class KlassencheckScenes {
     }
 
     /** The test hook "the ult charged" and every other pause back to 0, so each key can fire once. */
-    private static void ready(ServerPlayer player, SiegeManager m) {
+    static void ready(ServerPlayer player, SiegeManager m) {
         m.kits().traps().resetZones();   // Tor 4c.6: the alchemist's potion and acid pauses (end of the night only)
         m.combatEffects().forget(player.getUUID());
         m.combatEffects().guardian().forget(player.getUUID());
@@ -170,7 +170,7 @@ final class KlassencheckScenes {
     }
 
     /** The pause behind a press, -1 when the key has none to read here. */
-    private static int pause(ServerPlayer player, SiegeManager m, String press) {
+    static int pause(ServerPlayer player, SiegeManager m, String press) {
         long now = player.level().getGameTime();
         PlayerSkills own = m.save().skillsOf(player.getUUID().toString());
         if (press.startsWith("slot:")) {
@@ -193,7 +193,7 @@ final class KlassencheckScenes {
     }
 
     /** The statistics key of a press ("tasten"), null for the gain keys (they are not counted per key). */
-    private static String statsKey(ServerPlayer player, SiegeManager m, String press) {
+    static String statsKey(ServerPlayer player, SiegeManager m, String press) {
         if (press.startsWith("slot:")) {
             int i = Integer.parseInt(press.substring(5));
             List<UltState.Slot> slots = m.abilitySlots(player);
