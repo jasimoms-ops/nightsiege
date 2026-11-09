@@ -680,7 +680,9 @@ public final class MeleeSim {
                 return true;
             }
         }
-        return false;
+        // Tor 5.7: potions and golden apples are charges on the gain keys now.
+        return heal && (GainKeys.fireField(player, com.mki.nightsiege.core.GainCharges.POTION)
+                || GainKeys.fireField(player, com.mki.nightsiege.core.GainCharges.APPLE));
     }
 
     static Mob nearest(ServerLevel level, ServerPlayer player, double radius) {

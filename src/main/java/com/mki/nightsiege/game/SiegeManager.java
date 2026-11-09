@@ -1192,6 +1192,12 @@ public final class SiegeManager {
             NightSiegeMod.LOGGER.info("[Night Siege] Gewinne Tor 5.4 umgestellt: {} Punkte zurück", paid);
             persist();
         }
+        // Tor 5.7: the throwing spears and axes left, their owners get the duplicate points once per save.
+        if (!save.loot57Migrated) {
+            int paid = save.migrateLoot57();
+            NightSiegeMod.LOGGER.info("[Night Siege] Wurfspeere/Wurfbeile Tor 5.7 zurückgezahlt: {} Punkte", paid);
+            persist();
+        }
         // The alchemist's potions became nodes, three of seven (28 October 2026): once per save.
         if (!save.brewsMigrated) {
             int brewProfiles = 0;

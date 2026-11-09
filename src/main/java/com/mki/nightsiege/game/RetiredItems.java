@@ -44,9 +44,31 @@ public final class RetiredItems {
     private RetiredItems() {
     }
 
+    /** Tor 5.7: the gadgets that left the kit (spears, axes; banner and barricades are passive or charges now). */
+    private static final Set<String> GAIN_GADGETS = Set.of("wurfspeer", "wurfbeil", "kriegsbanner", "barrikade");
+    /** Tor 5.7: kit stacks of these gains are charges on 1-3 now (or gone with their points). */
+    private static final Set<String> GAIN_STACKS = Set.of("wurfspeere", "wurfbeile", "kriegsbanner", "barrikaden",
+            "heiltrank", "verbandskasten", "wurfperlen");
+
+    /**
+     * Tor 5.7 (Simon 09.11.): a loot item of the old kits – a thrown or set gadget, a gain's stack, or a kit
+     * potion, golden apple or ender pearl. They come as charges on the gain keys now. A player's own
+     * potions and apples (no kit mark) stay.
+     */
+    static boolean oldLoot(ItemStack stack) {
+        if (GAIN_GADGETS.contains(Gadgets.of(stack)) || GAIN_STACKS.contains(KitService.gainOf(stack))) {
+            return true;
+        }
+        return KitService.isKit(stack) && (stack.is(net.minecraft.world.item.Items.POTION)
+                || stack.is(net.minecraft.world.item.Items.GOLDEN_APPLE) || stack.is(net.minecraft.world.item.Items.ENDER_PEARL));
+    }
+
     public static boolean retired(ItemStack stack) {
         if (stack == null || stack.isEmpty()) {
             return false;
+        }
+        if (oldLoot(stack)) {
+            return true;
         }
         Identifier id = BuiltInRegistries.ITEM.getKey(stack.getItem());
         if (!NightSiegeMod.MOD_ID.equals(id.getNamespace())) {

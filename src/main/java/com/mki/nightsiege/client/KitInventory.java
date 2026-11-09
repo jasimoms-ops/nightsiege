@@ -185,6 +185,14 @@ public final class KitInventory {
                 gui.pose().scale(0.5f, 0.5f);
                 gui.text(font, key, 0, 0, 0xFFF0D27A, true);
                 gui.pose().popMatrix();
+                if (c.count() != null) {
+                    // Tor 5.7: the charges left on the field, top right
+                    gui.pose().pushMatrix();
+                    gui.pose().translate(ax + 17f - font.width(c.count()) / 2f, ay + 1.5f);
+                    gui.pose().scale(0.5f, 0.5f);
+                    gui.text(font, c.count(), 0, 0, 0xFFFFFFFF, true);
+                    gui.pose().popMatrix();
+                }
                 ax += 20;
             }
             if (locked) {

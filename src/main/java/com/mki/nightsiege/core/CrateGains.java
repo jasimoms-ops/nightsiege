@@ -59,7 +59,7 @@ public final class CrateGains {
         add("baukiste", null, CrateRarity.UNCOMMON, 1, false, "", true);
         add("heiltrank", null, CrateRarity.UNCOMMON, 2, false, "", true);
         add("wurfperlen", null, CrateRarity.UNCOMMON, 1, false, "", true);
-        add("wurfspeere", null, CrateRarity.UNCOMMON, 1, false, "", true);
+        // "wurfspeere" left the crates (Tor 5.7, Simon 09.11. 08:50): owners got the duplicate points back (RETIRED_57).
         add("sprungstiefel", null, CrateRarity.RARE, 1, false, "", true);
         add("amulett", null, CrateRarity.RARE, 1, false, "", true);
         addConsumable("glueck", null, CrateRarity.RARE);
@@ -77,7 +77,8 @@ public final class CrateGains {
         // ---- warrior ----
         SkillClass w = SkillClass.WARRIOR;
         add("schaerfe", w, CrateRarity.COMMON, 1, true, "", true);
-        add("wurfbeile", w, CrateRarity.COMMON, 3, false, "", true);
+        // "wurfbeile" left the crates (Tor 5.7): points back (RETIRED_57); the whetstone instead (Chef 09.11. 09:12).
+        add("wetzstein", w, CrateRarity.COMMON, 3, false, "", true);   // +4 % melee damage per stage, passive
         add("gestaehlt", w, CrateRarity.COMMON, 2, false, "", true);   // Tor 5.4: +1/+2 damage
         // "pluenderung" did nothing since siege monsters drop nothing; the cleaving axe instead (27.10.).
         add("spaltaxt", w, CrateRarity.UNCOMMON, 1, false, SkillTree.WAY_MIGHT, true);
@@ -189,6 +190,7 @@ public final class CrateGains {
             Map.entry("kletterhaken", "minecraft:tripwire_hook"), Map.entry("federleicht", "minecraft:feather"),
             Map.entry("zweite_chance", "minecraft:recovery_compass"), Map.entry("kriegsbanner", "minecraft:red_banner"),
             Map.entry("schaerfe", "minecraft:iron_sword"), Map.entry("wurfbeile", "minecraft:iron_axe"),
+            Map.entry("wetzstein", "minecraft:grindstone"),
             Map.entry("gestaehlt", "minecraft:iron_ingot"), Map.entry("spaltaxt", "minecraft:diamond_axe"),
             Map.entry("schwung", "minecraft:golden_sword"), Map.entry("kriegsgurt", "minecraft:iron_chestplate"),
             Map.entry("feuerklinge", "minecraft:blaze_powder"), Map.entry("blitzklinge", "minecraft:lightning_rod"),
@@ -282,17 +284,25 @@ public final class CrateGains {
             new Moved(SkillClass.GUARDIAN.name(), "leuchtschild", "schildlaterne", CrateRarity.RARE));
 
     /**
+     * Tor 5.7 (Simon 09.11. 08:50, Chef 09:12): the throwing spears and axes left the game; their owners
+     * get the duplicate points of the old rarity once per stage. "*" = every class (a general gain).
+     */
+    public static final List<Moved> RETIRED_57 = List.of(
+            new Moved("*", "wurfspeere", "", CrateRarity.UNCOMMON),
+            new Moved(SkillClass.WARRIOR.name(), "wurfbeile", "", CrateRarity.COMMON));
+
+    /**
      * The gains whose ability sits on a gain key instead of an item in the kit (balance update 2,
      * Simon 29.10.: "alle Sachen aus den Beutekisten, die eine Fähigkeit geben, mit einem Knopf"),
      * in the order they fill the keys when nothing is chosen (rarer first is decided by the caller).
      */
     public static final List<String> KEY_ABILITIES = List.of("kletterhaken", "kampfhorn", "tarnumhang", "signalhorn",
             "mauerkelle", "leibwaechter", "ersatzbatterie", "oelfass", "rueckrufpfeife", "geisterross", "futternapf",
-            "totenglocke");
+            "totenglocke", GainCharges.POTION, GainCharges.APPLE, GainCharges.PEARL, GainCharges.BARRICADE);
 
-    /** True for a gain whose ability is on a gain key. */
+    /** True for a gain whose ability is on a gain key (the first-aid kit: in the field "Heiltrank", Tor 5.7). */
     public static boolean keyAbility(String id) {
-        return id != null && KEY_ABILITIES.contains(id);
+        return id != null && (KEY_ABILITIES.contains(id) || GainCharges.FIRST_AID.equals(id));
     }
 
     public static Gain get(String id) {

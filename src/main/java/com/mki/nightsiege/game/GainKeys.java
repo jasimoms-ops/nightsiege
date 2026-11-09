@@ -65,6 +65,13 @@ public final class GainKeys {
             way = planned == null ? "" : planned;
         }
         for (String id : CrateGains.KEY_ABILITIES) {
+            if (com.mki.nightsiege.core.GainCharges.isField(id)) {
+                // Tor 5.7: a field with charges is owned while the kit brings any (the first-aid kit too).
+                if (chargesPerKit(m, skills, clazz, id, way) > 0) {
+                    out.add(id);
+                }
+                continue;
+            }
             CrateGains.Gain gain = CrateGains.get(id);
             if (gain == null || (gain.clazz() != null && gain.clazz() != clazz) || m.kits().gainLevel(skills, clazz, id) <= 0) {
                 continue;
@@ -181,7 +188,7 @@ public final class GainKeys {
                     Component.translatable("nightsiege.gain." + id), (pause[0] - now + 19) / 20));
             return;
         }
-        int left = usesLeft(player, id);
+        int left = usesLeft(m, skills, player, id);
         if (left == 0) {
             GainGear.bar(player, Component.translatable("nightsiege.gainkey.used_up", Component.translatable("nightsiege.gain." + id)));
             return;
@@ -190,7 +197,8 @@ public final class GainKeys {
             GainGear.bar(player, Component.translatable("nightsiege.gadget.once_a_night"));
             return;
         }
-        int ticks = GainGear.useAbility(player, level, id);
+        int ticks = com.mki.nightsiege.core.GainCharges.isField(id) ? GainGear.useCharge(player, level, id)
+                : GainGear.useAbility(player, level, id);
         if (ticks < 0) {
             return;
         }
@@ -203,11 +211,55 @@ public final class GainKeys {
     }
 
     /** Uses left in this kit, or -1 for no limit. */
-    private static int usesLeft(ServerPlayer player, String id) {
+    private static int usesLeft(SiegeManager m, PlayerSkills skills, ServerPlayer player, String id) {
+        if (com.mki.nightsiege.core.GainCharges.isField(id)) {
+            // Tor 5.7: the charges of the kit (potions, apples, pearls, barricades), full again with each kit.
+            Integer left = LEFT.getOrDefault(player.getUUID(), Map.of()).get(id);
+            return left != null ? left : chargesPerKit(m, skills, skills.clazz(), id, null);
+        }
         if (!id.equals("oelfass")) {
             return -1;
         }
         return LEFT.getOrDefault(player.getUUID(), Map.of()).getOrDefault(id, OIL_PER_KIT);
+    }
+
+    /** Tor 5.7: the charges a field brings per kit ({@code way} null: looked up). */
+    public static int chargesPerKit(SiegeManager m, PlayerSkills skills, SkillClass clazz, String field, String way) {
+        if (skills == null || clazz == null) {
+            return 0;
+        }
+        String w = way;
+        if (w == null) {
+            w = skills.as(clazz, () -> skills.pathTaken(m.skillTree()));
+            if (w.isEmpty()) {
+                String planned = m.skillTree().wayOfSubclass(clazz, m.skillTree().subclassOfProfile(skills, skills.profileFor(clazz)));
+                w = planned == null ? "" : planned;
+            }
+        }
+        boolean blessing = clazz == SkillClass.GUARDIAN && SkillTree.WAY_BLESSING.equals(w);
+        return com.mki.nightsiege.core.GainCharges.perKit(field, id -> m.kits().gainLevel(skills, clazz, id), blessing);
+    }
+
+    /** Tor 5.7, for the bots: fires a charge field if it is on a key and has a charge left; true when one went. */
+    public static boolean fireField(ServerPlayer player, String field) {
+        SiegeManager m = SiegeManager.get();
+        PlayerSkills skills = m == null ? null : m.save().skillsOf(player.getUUID().toString());
+        if (skills == null || !skills.hasClass()) {
+            return false;
+        }
+        int index = assigned(m, skills, skills.clazz()).indexOf(field);
+        int before = chargesLeft(m, player, field);
+        if (index < 0 || before <= 0) {
+            return false;
+        }
+        onKey(m, player, index);
+        return chargesLeft(m, player, field) < before;
+    }
+
+    /** For the tests: the charges left on a field in this kit. */
+    public static int chargesLeft(SiegeManager m, ServerPlayer player, String field) {
+        PlayerSkills skills = m.save().skillsOf(player.getUUID().toString());
+        return skills == null || !skills.hasClass() ? 0 : Math.max(0, usesLeft(m, skills, player, field));
     }
 
     /** The boxes of the gain keys for the HUD: icon, name, pause, and spent ones greyed. */
@@ -227,7 +279,7 @@ public final class GainKeys {
                 slot.totalTicks = (int) pause[1];
                 slot.cooldownTicks = (int) Math.max(0L, pause[0] - now);
             }
-            int left = usesLeft(player, id);
+            int left = usesLeft(m, skills, player, id);
             if (left >= 0) {
                 slot.sub = "nightsiege.wheel.count";
                 slot.subArgs.add(String.valueOf(left));

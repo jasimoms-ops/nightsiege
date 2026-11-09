@@ -97,6 +97,13 @@ public final class CrateEffects {
                     factor *= 1f + 0.05f * swing;
                 }
             }
+            // Tor 5.7 (Chef 09.11. 09:12): Wetzstein, +4 % melee damage per stage (three stages).
+            if (source.getDirectEntity() == attacker) {
+                int whet = level(attacker, "wetzstein");
+                if (whet > 0) {
+                    factor *= 1f + 0.04f * whet;
+                }
+            }
             // Tor 5.4: Zielfernrohr, +15 % arrow damage on targets more than 20 blocks away.
             if (source.getDirectEntity() instanceof AbstractArrow && attacker.distanceToSqr(victim) > 400.0
                     && has(attacker, "zielfernrohr")) {

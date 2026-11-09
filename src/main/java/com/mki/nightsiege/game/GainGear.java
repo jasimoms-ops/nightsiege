@@ -188,22 +188,9 @@ public final class GainGear {
         // Balance update 2 (Simon 29.10.): crate gains with an ability of their own are on the gain keys
         // (GainKeys), the arrow kinds in the quiver; what is thrown, eaten or set down stays an item.
         // Update 6: these are the crate items of the hotbar, chosen on the kit page (KitArrange).
-        if (lvl(kits, skills, clazz, "wurfspeere") > 0) {
-            out.add(KitService.fromGain(Gadgets.make(Items.IRON_SPEAR, "wurfspeer", 4), "wurfspeere"));
-        }
-        if (lvl(kits, skills, clazz, "kriegsbanner") > 0) {
-            out.add(KitService.fromGain(Gadgets.make(Items.BANNER.red(), "kriegsbanner", 1), "kriegsbanner"));
-        }
-        if (clazz == SkillClass.WARRIOR) {
-            int axes = lvl(kits, skills, clazz, "wurfbeile");
-            if (axes > 0) {
-                out.add(KitService.fromGain(Gadgets.make(Items.IRON_AXE, "wurfbeil", 2 * axes), "wurfbeile"));
-            }
-        } else if (clazz == SkillClass.GUARDIAN) {
-            if (lvl(kits, skills, clazz, "barrikaden") > 0) {
-                out.add(KitService.fromGain(Gadgets.make(Items.OAK_FENCE, "barrikade", 3), "barrikaden"));
-            }
-        } else if (clazz == SkillClass.ENGINEER) {
+        // Tor 5.7 (Simon 09.11.): no gain items any more – the spears and axes left, the barricades are
+        // charges on 1-3 (GainCharges), the war banner works without being set (bannerOwnerNear).
+        if (clazz == SkillClass.ENGINEER) {
             // The reusable flash grenade for every engineer (Simon, 28 October 2026; it was the
             // alchemist's alone since 26 October): one, it comes back after 7 s (Simon 29.10., was 15 s).
             out.add(Gadgets.make(Items.FIREWORK_STAR, "alchemie_blende", 1));
@@ -380,6 +367,46 @@ public final class GainGear {
                     Companions.get() == null ? -1 : Companions.get().useGadgetKey(player, level, id);
             default -> -1;
         };
+    }
+
+    /**
+     * Tor 5.7: one charge of a gain field, at once (no drinking, no eating). Returns the lock in ticks,
+     * or -1 when nothing happened (then no charge is taken).
+     */
+    public static int useCharge(ServerPlayer player, ServerLevel level, String field) {
+        switch (field) {
+            case com.mki.nightsiege.core.GainCharges.POTION -> {
+                player.heal(8.0f);   // as a potion of healing II
+                level.sendParticles(ParticleTypes.HEART, player.getX(), player.getY() + 1.2, player.getZ(), 5, 0.4, 0.4, 0.4, 0);
+                level.playSound(null, player.blockPosition(), SoundEvents.GENERIC_DRINK.value(), SoundSource.PLAYERS, 0.8f, 1.2f);
+            }
+            case com.mki.nightsiege.core.GainCharges.APPLE -> {
+                // as a golden apple: regeneration II 5 s, absorption 2 min, the food
+                player.addEffect(new MobEffectInstance(MobEffects.REGENERATION, 100, 1));
+                player.addEffect(new MobEffectInstance(MobEffects.ABSORPTION, 2400, 0));
+                player.getFoodData().eat(net.minecraft.world.food.Foods.GOLDEN_APPLE);
+                level.playSound(null, player.blockPosition(), SoundEvents.PLAYER_BURP, SoundSource.PLAYERS, 0.6f, 1.0f);
+            }
+            case com.mki.nightsiege.core.GainCharges.PEARL -> {
+                var pearl = new net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownEnderpearl(level, player,
+                        new ItemStack(Items.ENDER_PEARL));
+                pearl.shootFromRotation(player, player.getXRot(), player.getYRot(), 0f, 1.5f, 1.0f);
+                level.addFreshEntity(pearl);
+                level.playSound(null, player.blockPosition(), SoundEvents.ENDER_PEARL_THROW, SoundSource.PLAYERS, 0.5f, 0.4f);
+            }
+            case com.mki.nightsiege.core.GainCharges.BARRICADE -> {
+                // in front of the player: two blocks ahead, on the ground he stands on
+                BlockPos front = player.blockPosition().relative(player.getDirection(), 2);
+                BlockHitResult hit = new BlockHitResult(Vec3.atCenterOf(front.below()).add(0, 0.5, 0), Direction.UP, front.below(), false);
+                if (!placeBarricade(player, level, hit)) {
+                    return -1;
+                }
+            }
+            default -> {
+                return -1;
+            }
+        }
+        return com.mki.nightsiege.core.GainCharges.LOCK_TICKS;
     }
 
     /** True when a once-a-night gain ability was used tonight (the trowel, the spare battery). */
@@ -864,7 +891,8 @@ public final class GainGear {
     /** Damage factors: the war banner for attackers, the bodyguard chain for victims. */
     public static float damageFactor(LivingEntity victim, DamageSource source) {
         float factor = 1f;
-        if (source.getEntity() instanceof ServerPlayer attacker && victim instanceof Enemy && nearBanner(attacker)) {
+        if (source.getEntity() instanceof ServerPlayer attacker && victim instanceof Enemy
+                && (nearBanner(attacker) || bannerOwnerNear(attacker))) {
             factor *= BANNER_FACTOR;
         }
         if (victim instanceof ServerPlayer ally && guardOf(ally) != null) {
@@ -903,6 +931,28 @@ public final class GainGear {
             return null;
         }
         return guard;
+    }
+
+    /**
+     * Tor 5.7 (Chef 09.11. 09:12): the war banner is passive – a defender within 10 blocks of another
+     * defender who owns it hits 10 % harder (not stacking, the owner himself not).
+     */
+    public static boolean bannerOwnerNear(ServerPlayer player) {
+        SiegeManager m = SiegeManager.get();
+        if (m == null || !(player.level() instanceof ServerLevel level) || !m.isDefending(player)) {
+            return false;
+        }
+        for (ServerPlayer other : level.players()) {
+            if (other == player || !other.isAlive() || other.isSpectator()
+                    || other.distanceToSqr(player) > BANNER_RADIUS * BANNER_RADIUS || !m.isDefending(other)) {
+                continue;
+            }
+            PlayerSkills own = m.save().skillsOf(other.getUUID().toString());
+            if (own != null && own.hasClass() && m.kits().gainLevel(own, own.clazz(), "kriegsbanner") > 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean nearBanner(ServerPlayer player) {

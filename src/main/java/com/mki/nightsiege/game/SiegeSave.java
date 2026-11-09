@@ -797,6 +797,47 @@ public class SiegeSave {
         return paid;
     }
 
+    /** True once Tor 5.7 paid back the throwing spears and axes. */
+    public boolean loot57Migrated;
+
+    /**
+     * Tor 5.7 (Chef 09.11. 09:12): wurfspeere and wurfbeile left the game; their owners get the duplicate
+     * points of the old rarity per stage, the gains go. Runs once; returns the points paid.
+     */
+    public int migrateLoot57() {
+        if (loot57Migrated) {
+            return 0;
+        }
+        loot57Migrated = true;
+        int paid = 0;
+        if (skills == null) {
+            return 0;
+        }
+        for (PlayerSkills own : skills.values()) {
+            if (own == null || own.gains == null) {
+                continue;
+            }
+            for (java.util.Map.Entry<String, java.util.Map<String, Integer>> byClass : own.gains.entrySet()) {
+                java.util.Map<String, Integer> map = byClass.getValue();
+                if (map == null) {
+                    continue;
+                }
+                for (com.mki.nightsiege.core.CrateGains.Moved gone : com.mki.nightsiege.core.CrateGains.RETIRED_57) {
+                    if (!gone.clazz().equals("*") && !gone.clazz().equals(byClass.getKey())) {
+                        continue;
+                    }
+                    Integer stage = map.remove(gone.from());
+                    if (stage != null && stage > 0) {
+                        int points = stage * gone.rarity().duplicatePoints();
+                        own.award(points);
+                        paid += points;
+                    }
+                }
+            }
+        }
+        return paid;
+    }
+
     /** Version of the skill trees the levels below were learned in. */
     public int skillTreeVersion;
     public static final int SKILL_TREE_VERSION = 8;

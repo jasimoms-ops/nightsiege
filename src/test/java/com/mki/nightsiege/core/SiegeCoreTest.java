@@ -733,13 +733,14 @@ class SiegeCoreTest {
             // 29.10. (balance update 2): Köcher and Blendgranaten left (archer 13, engineer 17), Dritte Hand came (17 general).
             // Tor 5.4: fackeln (16 general), spektralpfeile for Brandpfeile, fester_griff and leuchtschild left
             // (guardian 13), the summoner got Rudelführer, Grabesodem, Treue, Rudelruf (19).
+            // Tor 5.7: wurfspeere (15 general) and wurfbeile left, the warrior got the Wetzstein (13).
             int own = switch (c) {
                 case WARRIOR, ARCHER, GUARDIAN -> 13;
                 case SUMMONER -> 19;
                 case ENGINEER -> 17;
                 default -> 0;
             };
-            assertEquals(own + 16, CrateGains.forCollection(c).size(), c + " has " + own + " gains and 16 general ones");
+            assertEquals(own + 15, CrateGains.forCollection(c).size(), c + " has " + own + " gains and 15 general ones");
             for (int i = 0; i < 400; i++) {
                 CrateGains.Gain g = CrateGains.roll(c, "", weights, 0.7, random);
                 assertNotNull(g);
@@ -1346,9 +1347,9 @@ class SiegeCoreTest {
         for (CrateGains.Gain g : CrateGains.all()) {
             ids.add(g.id());
         }
-        for (String id : new String[]{"dritte_hand", "sprungstiefel", "zielfernrohr", "wurfspeere", "wurfbeile",
+        for (String id : new String[]{"dritte_hand", "sprungstiefel", "zielfernrohr", "heiltrank", "notration", "wurfperlen",
                 "oelfass", "kletterhaken", "kampfhorn", "tarnumhang", "signalhorn", "mauerkelle", "ersatzbatterie",
-                "kriegsbanner", "barrikaden", "leibwaechter", "schlachtentrance", "lockpfeil", "magnetfeld", "spiegelschild",
+                "verbandskasten", "barrikaden", "leibwaechter", "schlachtentrance", "lockpfeil", "magnetfeld", "spiegelschild",
                 "rueckrufpfeife", "geisterross", "futternapf", "totenglocke", "seelentausch"}) {
             assertTrue(ids.contains(id), id);
             assertNotEquals(KeyHint.NONE, KeyHint.forGain(id), id);

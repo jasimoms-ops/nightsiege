@@ -949,13 +949,7 @@ public final class KitService {
             GainGear.decorateShield(shield, gainLevel(skills, clazz, "turmschild") > 0, gainLevel(skills, clazz, "leichtschild") > 0);
             ClassShields.decorate(shield, tree.subclassOf(skills), player.level().registryAccess());   // the subclass's colours (27 October 2026)
             offhand = shield;
-            int wayPotions = way.equals(SkillTree.WAY_BLESSING) ? 2 : 0;
-            for (int i = 0; i < wayPotions; i++) {
-                hotbar.add(PotionContents.createItemStack(Items.POTION, Potions.STRONG_HEALING));
-            }
-            for (int i = 0; i < gainLevel(skills, clazz, "verbandskasten"); i++) {
-                hotbar.add(fromGain(PotionContents.createItemStack(Items.POTION, Potions.STRONG_HEALING), "verbandskasten"));
-            }
+            // Tor 5.7: the blessing's two potions and the first-aid kit's are charges of the field "Heiltrank" (GainCharges).
         } else if (clazz == SkillClass.SUMMONER) {
             // The staff (the summoner's own attack, orders, calls and spells) and no sword (Simon,
             // 27 October 2026); food for the wolves or iron for the golem. Nothing here adds a companion.
@@ -1003,17 +997,7 @@ public final class KitService {
         int foodTier = NightKit.foodTier(level, gainLevel(skills, clazz, "proviant"));
         Item food = foodTier == 0 ? Items.BREAD : foodTier == 1 ? Items.COOKED_BEEF : Items.GOLDEN_CARROT;
         hotbar.add(new ItemStack(food, 32));
-        int apples = gainLevel(skills, clazz, "notration");   // Tor 5.4: provisions give no apples any more
-        if (apples > 0) {
-            hotbar.add(new ItemStack(Items.GOLDEN_APPLE, apples));
-        }
-        int heal = gainLevel(skills, clazz, "heiltrank");
-        for (int i = 0; i < (heal >= 2 ? 3 : heal >= 1 ? 2 : 0); i++) {
-            hotbar.add(fromGain(PotionContents.createItemStack(Items.POTION, Potions.STRONG_HEALING), "heiltrank"));
-        }
-        if (gainLevel(skills, clazz, "wurfperlen") > 0) {
-            hotbar.add(fromGain(new ItemStack(Items.ENDER_PEARL, 2), "wurfperlen"));
-        }
+        // Tor 5.7 (Simon 09.11.): golden apples, healing potions and ender pearls are charges on 1-3 (GainCharges).
         // Building blocks for everyone to patch the walls (Simon, 25 October 2026); the building
         // box doubles them and adds ladders.
         boolean box = gainLevel(skills, clazz, "baukiste") > 0;
