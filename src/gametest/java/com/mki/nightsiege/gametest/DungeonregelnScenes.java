@@ -457,7 +457,10 @@ final class DungeonregelnScenes {
             } else {
                 int left = KlassencheckScenes.pause(player, m, press);
                 int uses = uses(player, m, key[0]);
-                boolean fired = left > 0 || key[0] != null && uses > usesBefore[0];
+                // once-a-night gains (trowel, spare battery) have no pause: they fired when they are now used tonight
+                boolean onceNow = (what[0].contains("mauerkelle") && com.mki.nightsiege.game.GainGear.usedTonight(player, "mauerkelle"))
+                        || (what[0].contains("ersatzbatterie") && com.mki.nightsiege.game.GainGear.usedTonight(player, "ersatzbatterie"));
+                boolean fired = left > 0 || key[0] != null && uses > usesBefore[0] || onceNow;
                 check(fired, tag + ": " + what[0] + " fires (pause " + left + ", counted " + usesBefore[0] + " -> " + uses + ")");
                 if (key[0] != null) {
                     check(uses > usesBefore[0], tag + ": " + what[0] + " counted in the statistics on " + key[0]);
