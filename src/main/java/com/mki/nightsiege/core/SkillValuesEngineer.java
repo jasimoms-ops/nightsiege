@@ -200,14 +200,15 @@ final class SkillValuesEngineer {
         for (String cross : new String[]{"m_cross_mine", "m_cross_poison", "c_cross_turret", "c_cross_tesla"}) {
             def(cross, "tier", 2);
         }
-        def("e_ammobelt", "speed", 0.2);                                 // turrets shoot this much faster (endless arrows)
+        def("e_ammobelt", "speed", 0.5);                                 // turrets shoot this much faster (Tor 4b.4: 0.2 -> 0.5)
         def("e_ammobelt", "reload", 40);                                 // energy of a repair with X (name kept for server tweaks)
         def("e_seeker", "time", 160);                                    // ticks a mark lasts
         def("e_overvolt", "dmg", 0.4);                                   // Durchschlag and Kettenblitz hit this much harder
         def("e_charged", "jump", 4);                                     // blocks
         def("e_network", "share", 0.5);
         def("e_network", "radius", 6);
-        def("e_beacon", "targets", 2);                                   // Kettenblitz jumps this much further
+        def("e_beacon", "targets", 2);
+        def("e_beacon", "bonus", 0.3);                                   // Tor 4b.4: bolts hit your marked monsters this much harder                                   // Kettenblitz jumps this much further
         def("e_backup", "below", 0.3);                                   // share of health under which...
         def("e_backup", "speed", 2.0);                                   // ...the pauses run this many times faster
         def("e_fortress", "cost", 0.2);                                  // pauses of places 2 and 3 this share longer

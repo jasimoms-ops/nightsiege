@@ -20,6 +20,9 @@ class Tor4bTuermeTest {
     @Test
     void codeValuesAreTheTargets() {
         assertEquals(200, SkillValues.get("e_longrange", "seatlock", -1), 1e-9);
+        assertEquals(0.5, SkillValues.get("e_ammobelt", "speed", -1), 1e-9);   // Tor 4b.4
+        assertEquals(0.3, SkillValues.get("e_beacon", "bonus", -1), 1e-9);
+        assertEquals(3.0, new SkillTree().get("e_chainbolt").amountPerLevel(), 1e-9);
         for (TrapKind tower : new TrapKind[] {TrapKind.TURRET, TrapKind.MORTAR, TrapKind.BREWER, TrapKind.TESLA}) {
             assertEquals(5.0, SkillValues.get(tower.id(), "seathealth", -1), 1e-9);
         }
@@ -41,7 +44,9 @@ class Tor4bTuermeTest {
         server.skillTweaks.put("e_longrange", tweak("seatlock", 400));   // old default written by the server
         server.skillTweaks.put("mortar_tower", tweak("seathealth", 3));
         server.skillTweaks.put("tesla_coil", tweak("seathealth", 2.4));    // own value
+        server.skillTweaks.put("e_ammobelt", tweak("speed", 0.2));          // Tor 4b.4: old default
         server.sanitize();
+        assertEquals(0.5, server.skillTweaks.get("e_ammobelt").values.get("speed"), 1e-9);
         assertEquals(SiegeConfig.SETTINGS_VERSION, server.settingsVersion);
         assertEquals(200, server.skillTweaks.get("e_longrange").values.get("seatlock"), 1e-9);
         assertEquals(5, server.skillTweaks.get("mortar_tower").values.get("seathealth"), 1e-3);

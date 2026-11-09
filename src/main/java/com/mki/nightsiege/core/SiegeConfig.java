@@ -1883,6 +1883,8 @@ public class SiegeConfig {
             for (TrapKind tower : new TrapKind[] {TrapKind.TURRET, TrapKind.MORTAR, TrapKind.BREWER, TrapKind.TESLA}) {
                 scaleTweak(tower.id(), "seathealth", 5.0 / 3.0);
             }
+            // Tor 4b.4: the ammo belt 0.2 -> 0.5 (an old tweak becomes the target, an own one moves alike).
+            scaleTweak("e_ammobelt", "speed", 2.5);
             settingsVersion = 22;
         }
         if (Double.isNaN(meleeLifesteal)) {
