@@ -393,7 +393,8 @@ final class KlassencheckScenes {
                         }
                     }
                     log("     " + tag + ": bar " + bar + "presses " + presses);
-                    check(!slots.isEmpty(), tag + ": the bar has boxes");
+                    // Tor 4c.6: archers without the arrow gain have only their F field (E), which is no box
+                    check(!slots.isEmpty() || f != null, tag + ": the bar has boxes (or the F field)");
                     check(!twice, tag + ": no key twice");
                     check(slots.size() <= AbilityKeys.ABILITY_PLACES.size(), tag + ": " + slots.size() + " boxes, nothing cut off");
                     check(!noEntry && SiegeManager.barProblems().size() == problems[0]
