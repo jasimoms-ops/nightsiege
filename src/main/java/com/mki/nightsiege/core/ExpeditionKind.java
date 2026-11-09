@@ -403,8 +403,18 @@ public enum ExpeditionKind {
 
     /** As above with the share per further fighter and the cap given (the playtest scales per player). */
     public static int guards(int level, int fighters, double perPlayer, int cap) {
+        return guards(level, fighters, perPlayer, cap, 1.0);
+    }
+
+    /** As above, the count (before the cap) times share: the group discount, see {@link #groupShare}. */
+    public static int guards(int level, int fighters, double perPlayer, int cap, double share) {
         double base = 5 + Math.max(0, level) / 5.0;   // the halls are four times as big (29 October 2026)
-        return (int) Math.min(cap, Math.round(base * (1.0 + perPlayer * Math.max(0, fighters - 1))));
+        return (int) Math.min(cap, Math.round(base * (1.0 + perPlayer * Math.max(0, fighters - 1)) * share));
+    }
+
+    /** Tor 6.11: the share of a dungeon's monsters for so many fighters (dungeonGroupMobs from dungeonGroupFrom on). */
+    public static double groupShare(int fighters, SiegeConfig cfg) {
+        return fighters >= cfg.dungeonGroupFrom ? cfg.dungeonGroupMobs : 1.0;
     }
 
     /** Monsters in an arena wave. */
@@ -414,7 +424,12 @@ public enum ExpeditionKind {
 
     /** As above with the share per further fighter and the cap given. */
     public static int wave(int level, int fighters, double perPlayer, int cap) {
+        return wave(level, fighters, perPlayer, cap, 1.0);
+    }
+
+    /** As above, the count (before the cap) times share (the group discount). */
+    public static int wave(int level, int fighters, double perPlayer, int cap, double share) {
         double base = 4 + Math.max(0, level) / 4.0;
-        return (int) Math.min(cap, Math.round(base * (1.0 + perPlayer * Math.max(0, fighters - 1))));
+        return (int) Math.min(cap, Math.round(base * (1.0 + perPlayer * Math.max(0, fighters - 1)) * share));
     }
 }

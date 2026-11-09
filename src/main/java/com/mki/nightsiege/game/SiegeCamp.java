@@ -62,7 +62,7 @@ import java.util.UUID;
  * tent guards (vindicators, two before each tent) and 2 crossbowmen (pillagers) on the two
  * watchtowers, for each further attacker 2 tent guards and 1 crossbowman more (at most 4). The
  * inner ring round the workshop opens when the tent guards have fallen; until then the workbench
- * takes no hits. While it stands, reinforcement comes from the tents every 60 s: 1 and 1 per
+ * takes no hits. While it stands, reinforcement comes from the tents every 40 s (campReinforceSeconds): 1 and 1 per
  * fighter, up to 8 guards alive. The workbench has 300 life and 30 % more per further attacker.</p>
  *
  * <p>Simon 30.10. 23:52 ("innerer Ring immer offen, vor dem Lager Block wie im Dungeon … dann geht es

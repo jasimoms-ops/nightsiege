@@ -207,7 +207,8 @@ public class SiegeConfig {
     /** Seconds between the free experience points under the aurora. */
     public int auroraPointSeconds = 180;
 
-    public double bloodMoonMobMultiplier = 1.5;
+    /** Tor 6.10 (Chef 09.11.): the blood moon brings 1.3 times the monsters (was 1.5). */
+    public double bloodMoonMobMultiplier = 1.3;
     public double bloodMoonHealthMultiplier = 1.3;
     public double bloodMoonDamageMultiplier = 1.15;
 
@@ -452,12 +453,12 @@ public class SiegeConfig {
     public double campCrossbowSeconds = 2.5;
     public double campCrossbowRange = 30;
     /** Reinforcement while the workbench stands: every this many seconds this many plus this many per fighter, up to this many guards alive. */
-    public int campReinforceSeconds = 60;
+    public int campReinforceSeconds = 40;   // Tor 6.12 (Chef 09.11.): was 60
     public int campReinforceBase = 1;
     public int campReinforcePerPlayer = 1;
     public int campReinforceCap = 8;
     /** Life of the workshop's siege workbench, and its share more for each further attacker (Simon 29.10.: +30 %). */
-    public double campWorkshopHealth = 300;
+    public double campWorkshopHealth = 450;   // Tor 6.12 (Chef 09.11.): was 300
     public double campWorkshopHealthPerPlayer = 0.3;
     /** Seconds after entering the palisade before the guards attack. */
     public int campGraceSeconds = 0;   // Simon 30.10. 23:52: the guards attack at once (was 10)
@@ -649,6 +650,12 @@ public class SiegeConfig {
     public double dungeonMobPercentMin = 0.10;
     public double dungeonMobPercentMax = 0.20;
     public int dungeonMobPercentMaxLevel = 20;
+    /**
+     * Tor 6.11 (Chef 09.11., Simon: "Gruppenabschlag"): from this many fighters a dungeon's guard rooms and arena
+     * waves bring only this share of their monsters (before the cap), in the playtest and in a real dungeon.
+     */
+    public int dungeonGroupFrom = 3;
+    public double dungeonGroupMobs = 0.75;
     /** Simon 30.10.: one hit of the heavy archer takes at most this share of a dungeon champion's max health (0 = no cap). */
     public double heavyChampionCap = 0.08;
     /**
@@ -1278,7 +1285,7 @@ public class SiegeConfig {
      */
     public int settingsVersion = 0;
     /** The newest settings version (the migrations below end there). */
-    public static final int SETTINGS_VERSION = 23;
+    public static final int SETTINGS_VERSION = 24;
     /** Version of the dungeon list in this file. Older lists are replaced on load. */
     /** Which structures hold dungeons, how hard they are and what lives there. */
     /** Perks from core fragments work within this many blocks of the main core. */
@@ -1916,6 +1923,24 @@ public class SiegeConfig {
             }
             settingsVersion = 23;
         }
+        if (settingsVersion < 24) {
+            // Tor 6.10-6.12 (Chef 09.11.): absolute targets. A value on the old server standard becomes the target,
+            // any other value (own or already the target) stays. The code default of damagePerLevel (0.04) is not
+            // the server's (0.1) and stays as it is.
+            if (Math.abs(damagePerLevel - 0.1) < 1e-6) {
+                damagePerLevel = 0.08;
+            }
+            if (Math.abs(bloodMoonMobMultiplier - 1.5) < 1e-6) {
+                bloodMoonMobMultiplier = 1.3;
+            }
+            if (Math.abs(campWorkshopHealth - 300) < 1e-6) {
+                campWorkshopHealth = 450;
+            }
+            if (campReinforceSeconds == 60) {
+                campReinforceSeconds = 40;
+            }
+            settingsVersion = 24;
+        }
         if (Double.isNaN(meleeLifesteal)) {
             meleeLifesteal = 0.08;
         }
@@ -1949,6 +1974,8 @@ public class SiegeConfig {
         dungeonMobPercentMin = Double.isNaN(dungeonMobPercentMin) ? 0.10 : Math.min(1.0, Math.max(0.0, dungeonMobPercentMin));
         dungeonMobPercentMax = Double.isNaN(dungeonMobPercentMax) ? 0.20 : Math.min(1.0, Math.max(dungeonMobPercentMin, dungeonMobPercentMax));
         dungeonMobPercentMaxLevel = Math.max(2, Math.min(1000, dungeonMobPercentMaxLevel));
+        dungeonGroupFrom = clamp(dungeonGroupFrom, 2, 100);
+        dungeonGroupMobs = Double.isNaN(dungeonGroupMobs) ? 0.75 : Math.min(1.0, Math.max(0.1, dungeonGroupMobs));
         stunnerFromLevel = Math.max(1, stunnerFromLevel);
         stunnersMax = Math.max(0, Math.min(20, stunnersMax));
         stunnerEverySeconds = Double.isNaN(stunnerEverySeconds) ? 8.0 : Math.min(120.0, Math.max(1.0, stunnerEverySeconds));
