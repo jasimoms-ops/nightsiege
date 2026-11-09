@@ -444,7 +444,10 @@ final class DungeonregelnScenes {
             usesBefore[0] = uses(player, m, key[0]);
             pauseBefore[0] = KlassencheckScenes.pause(player, m, press);
             // the bodyguard needs a second player to guard (as in klassencheck): not testable alone
-            skip[0] = pauseBefore[0] > 0 || what[0].contains("leibwaechter");
+            // trowel and spare battery work once a night per player: an earlier subclass of this run used it
+            boolean onceUsed = (what[0].contains("mauerkelle") && com.mki.nightsiege.game.GainGear.usedTonight(player, "mauerkelle"))
+                    || (what[0].contains("ersatzbatterie") && com.mki.nightsiege.game.GainGear.usedTonight(player, "ersatzbatterie"));
+            skip[0] = pauseBefore[0] > 0 || what[0].contains("leibwaechter") || onceUsed;
             m.onCoreAction(player, press);
         });
         context.waitTicks(10);
