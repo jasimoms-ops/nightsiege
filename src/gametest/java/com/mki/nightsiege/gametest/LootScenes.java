@@ -74,7 +74,13 @@ final class LootScenes {
                     if (RETIRED.contains(roll.gain) && retired == null) {
                         retired = roll.gain;
                     }
-                    if (!roll.duplicate && CrateGains.keyAbility(roll.gain)) {
+                    // A way-bound key gain off the player's way (the bell without the way of the dead,
+                    // GainKeys.owned) may come out while the way is still open (CrateGains.drawable), but it
+                    // only goes onto the keys on its way – so it does not count as the new key gain here.
+                    CrateGains.Gain drawn = CrateGains.get(roll.gain);
+                    boolean heldBack = drawn != null && !drawn.way().isEmpty()
+                            && !GainKeys.owned(m, own, clazz).contains(roll.gain);
+                    if (!roll.duplicate && CrateGains.keyAbility(roll.gain) && !heldBack) {
                         won = roll.gain;
                     }
                 }
