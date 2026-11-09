@@ -611,7 +611,7 @@ final class KriegerScenes {
             long now = WarriorArts.frenzyLeft(player);
             check(!weak.isAlive() && now >= left[0] + 15, "a kill in the Raserei lengthens it (" + left[0] + " -> " + now + " ticks)");
         });
-        context.waitTicks(165);
+        context.waitTicks(205);   // Tor 4.10: 8 s + 1 s for the kill
         server(context, "frenzy over", (player, m) -> {
             check(!WarriorArts.frenzied(player) && !WarriorArts.frenzySpeedOn(player) && WarriorArts.takenFactor(player) == 1f,
                     "after the Raserei everything is back");

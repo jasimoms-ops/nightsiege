@@ -6,6 +6,7 @@ import com.mki.nightsiege.core.SkillEffect;
 import com.mki.nightsiege.core.SkillNode;
 import com.mki.nightsiege.core.SkillTree;
 import com.mki.nightsiege.core.SkillValues;
+import com.mki.nightsiege.core.WarriorSpiritMath;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
@@ -359,13 +360,19 @@ public final class CombatEffects {
             return;
         }
         double r = SkillValues.get("whirlwind", "radius" + rank, 3.5 + 0.5 * rank);
-        float damage = (float) SkillValues.get("whirlwind", "dmg" + rank, 4f + 3f * rank);   // 7 / 10 / 13
+        boolean storm = SkillTree.has(skills, "w_bladestorm");
+        float damage = (float) (SkillValues.get("whirlwind", "dmg" + rank, 4f + 3f * rank)   // 7 / 10 / 13
+                * WarriorSpiritMath.whirlFactor(storm));   // Tor 4.10: Klingensturm +20 %
         Vec3 center = player.position();
         DamageSource source = level.damageSources().playerAttack(player);
         int hits = 0;
         for (LivingEntity victim : enemies(level, center, r, 1.5)) {
+            Vec3 before = victim.getDeltaMovement();
             bonusHit(level, victim, source, damage);
-            pushAway(victim, center, 0.8, 0.3);
+            if (storm) {
+                victim.setDeltaMovement(before);   // no vanilla knockback (0.4 + hop) on top: only the storm's own push
+            }
+            pushAway(victim, center, WarriorSpiritMath.whirlPush(storm), WarriorSpiritMath.whirlLift(storm));   // Klingensturm: 0.25 flat, turns 2 and 3 hit
             hits++;
         }
         if (hits > 0 && SkillTree.has(skills, "w_bloodstorm")) {
@@ -721,6 +728,7 @@ public final class CombatEffects {
         if (rage > 0) {
             bonus += rage * (1.0 - player.getHealth() / Math.max(1f, player.getMaxHealth()));
         }
+        bonus += WarriorArts.rageBonus(player);   // Tor 4.10: Blutrausch (F) +25 %, up to +60 % with less life
         double critChance = tree.totalBonus(SkillEffect.CRIT_CHANCE, skills);
         double critBase = SkillValues.get(SkillTree.has(skills, "m_cross_keen") ? "m_cross_keen" : "keen_edge", "crit", 0.5);
         if (SkillTree.has(skills, "w_precision")) {

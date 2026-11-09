@@ -65,6 +65,8 @@ final class SkillValuesWarrior {
         def("w_bloody_execute", "regen", 100); // Regeneration I, ticks
         def("w_bladestorm", "pulses", 3);
         def("w_bladestorm", "gap", 10);        // ticks between two turns
+        def("w_bladestorm", "dmg", 1.2);       // Tor 4.10: factor on every turn's damage with Klingensturm
+        def("w_bladestorm", "push", 0.25);     // Tor 4.10: push of a turn (0.8 without), so turns 2 and 3 still hit
         def("w_bloodstorm", "heal", 1);        // life per monster hit
         def("w_bloodstorm", "max", 8);         // life per turn at most
         def("w_glass_cannon", "dmg", 0.3);
@@ -174,18 +176,24 @@ final class SkillValuesWarrior {
         def("w_combo", "f_gap", 5);            // ticks between two jumps
         def("w_combo", "f_dmg", 6);            // a jump's hit on world level 1 (grows like the monsters' life)
         def("w_combo", "f_cd", 160);           // ticks
-        // Berserker: finisher Blutiger Hieb, F Raserei.
+        def("w_combo", "knock", 0.3);          // Tor 4.10: factor on the knockback of his sword hits in the Kombo
+        // Berserker: finisher Blutiger Hieb, F Blutrausch (Tor 4.10, was Raserei; the id stays "raserei").
         def("bloodlust", "fin_bonus", 0.5);    // extra damage share of the hit ...
         def("bloodlust", "fin_perlost", 0.1);  // ... and this much more per missing tenth of his life
         def("bloodlust", "fin_bleed", 0.3);    // share of the hit the bleeding deals over its time
         def("bloodlust", "fin_bleedtime", 60); // ticks
-        def("bloodlust", "f_time", 120);       // ticks of the frenzy ...
+        def("bloodlust", "f_time", 160);       // ticks of the frenzy (Tor 4.10: 120 -> 160) ...
         def("bloodlust", "f_extend", 20);      // ... each kill in it adds this ...
         def("bloodlust", "f_max", 240);        // ... up to this long in all
-        def("bloodlust", "f_speed", 0.3);      // attack speed in it
-        def("bloodlust", "f_steal", 2.0);      // factor on his life steal in it
+        // Tor 4.10: speed, damage and life steal grow with the share of life missing (value + low x missing).
+        def("bloodlust", "f_speed", 0.5);      // attack speed in it (was 0.3) ...
+        def("bloodlust", "f_speedlow", 0.5);   // ... plus this at 0 life
+        def("bloodlust", "f_dmg", 0.25);       // extra melee damage in it ...
+        def("bloodlust", "f_dmglow", 0.35);    // ... plus this at 0 life
+        def("bloodlust", "f_steal", 2.0);      // factor on his life steal in it ...
+        def("bloodlust", "f_steallow", 1.0);   // ... plus this at 0 life (still capped by the life lost, StealPool)
         def("bloodlust", "f_taken", 0.15);     // more damage taken in it
-        def("bloodlust", "f_cd", 200);
+        def("bloodlust", "f_cd", 400);         // Tor 4.10: 200 -> 400
         // Axtkämpfer: finisher Spalter, F Axtwurf.
         def("heavy_blow", "fin_armor", 0.3);   // share of the target's armour it loses ...
         def("heavy_blow", "fin_time", 80);     // ... for this many ticks
@@ -194,9 +202,10 @@ final class SkillValuesWarrior {
         def("heavy_blow", "fin_chain", 3);     // Kombo 2: his chain is 3 hits (he swings the slowest)
         def("heavy_blow", "fin_jump", 4);      // Kombo 2: blocks to the next monster when the target died
         def("heavy_blow", "f_range", 12);      // blocks the axe flies out
-        def("heavy_blow", "f_speed", 1.5);     // blocks a tick
+        def("heavy_blow", "f_speed", 2.5);     // blocks a tick (Tor 4.10: 1.5 -> 2.5, along the crosshair)
         def("heavy_blow", "f_width", 1.3);     // blocks beside its path that it hits
-        def("heavy_blow", "f_dmg", 5);         // a hit on world level 1 (grows like the monsters' life), out and back
+        def("heavy_blow", "f_dmg", 7.5);       // a hit on world level 1 (grows like the monsters' life), out and back (Tor 4.10: 5 -> 7.5)
+        def("heavy_blow", "f_pierce", 2);      // Tor 4.10: monsters it flies through; it turns at the next (3 hits a way at most)
         def("heavy_blow", "f_cd", 160);
         // Paladin: finisher Lichtschlag, F Weihegrund.
         def("smite", "fin_heal", 2);           // life for every player within fin_radius (half a heart = 1)

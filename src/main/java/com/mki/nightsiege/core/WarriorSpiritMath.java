@@ -287,4 +287,55 @@ public final class WarriorSpiritMath {
     public static double cleaveArmour(double factor) {
         return Math.max(0.0, Math.min(0.95, SkillValues.get("heavy_blow", "fin_armor", 0.3) * factor));
     }
+
+    // ------------------------------------------------------------------ Tor 4.10: Blutrausch, Axtwurf, Klingensturm, Kombo
+
+    /** The share of life missing, 0 (full) to 1 (none). */
+    public static double missing(double health, double maxHealth) {
+        return maxHealth <= 0 ? 0.0 : Math.max(0.0, Math.min(1.0, 1.0 - health / maxHealth));
+    }
+
+    /** Blutrausch: extra attack speed (multiplier share), growing with the life missing. */
+    public static double rageSpeed(double missing) {
+        return SkillValues.get("bloodlust", "f_speed", 0.5) + SkillValues.get("bloodlust", "f_speedlow", 0.5) * clamp01(missing);
+    }
+
+    /** Blutrausch: extra melee damage share, growing with the life missing. */
+    public static double rageDamage(double missing) {
+        return SkillValues.get("bloodlust", "f_dmg", 0.25) + SkillValues.get("bloodlust", "f_dmglow", 0.35) * clamp01(missing);
+    }
+
+    /** Blutrausch: the factor on the life steal, growing with the life missing (the StealPool still caps it). */
+    public static double rageSteal(double missing) {
+        return SkillValues.get("bloodlust", "f_steal", 2.0) + SkillValues.get("bloodlust", "f_steallow", 1.0) * clamp01(missing);
+    }
+
+    /** Axtwurf: monsters one way of the axe hits at most (it flies through f_pierce and turns at the next). */
+    public static int throwHitsMax() {
+        return 1 + (int) Math.max(0, Math.round(SkillValues.get("heavy_blow", "f_pierce", 2)));
+    }
+
+    /** Wirbelwind: the factor on a turn's damage (more with Klingensturm). */
+    public static double whirlFactor(boolean bladestorm) {
+        return bladestorm ? SkillValues.get("w_bladestorm", "dmg", 1.2) : 1.0;
+    }
+
+    /** Wirbelwind: the push of a turn (less with Klingensturm, so the monsters stay for the next turns). */
+    public static double whirlPush(boolean bladestorm) {
+        return bladestorm ? SkillValues.get("w_bladestorm", "push", 0.25) : 0.8;
+    }
+
+    /** Wirbelwind: the lift of a turn's push (none with Klingensturm: airborne they slide out of the radius). */
+    public static double whirlLift(boolean bladestorm) {
+        return bladestorm ? 0.0 : 0.3;
+    }
+
+    /** Klingenmeister: the factor on the knockback of his sword hits while the Kombo is on. */
+    public static double comboKnockback() {
+        return Math.max(0.0, SkillValues.get("w_combo", "knock", 0.3));
+    }
+
+    private static double clamp01(double v) {
+        return Math.max(0.0, Math.min(1.0, v));
+    }
 }

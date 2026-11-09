@@ -245,6 +245,10 @@ public class EventLookTest implements FabricClientGameTest {
                     alive(context);   // a scene before may have left the player dead (05.11.)
                     KriegerScenes.run(context, game);   // the warrior rework: Kampfgeist, finishers, F (Simon 05.11.)
                 }
+                if (want.contains("krieger410")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
+                    Krieger410Scenes.run(context, game);   // Tor 4.10: Blutrausch, Axtwurf, Klingensturm, Kombo, swing ring
+                }
                 if (want.contains("streitkolben")) {
                     alive(context);   // a scene before may have left the player dead (05.11.)
                     StreitkolbenScenes.run(context, game);   // the tanks' mace: kit, 2.5 x damage, 1.0 a second (Tor 4.2), no smash (05.11.)
