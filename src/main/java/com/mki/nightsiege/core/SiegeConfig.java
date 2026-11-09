@@ -729,7 +729,7 @@ public class SiegeConfig {
     public int smartNightUpSteps = 5;
     public int smartNightDownSteps = 5;
     public double smartNightUpStress = 0.2;
-    public double smartNightDownStress = 0.45;
+    public double smartNightDownStress = 0.50;   // Tor 6.6 Formel C (was 0.45)
     /** Stress a death in the window adds (capped at 1). */
     public double smartNightDeathStress = 0.35;
     /** Kills in the window per defender needed to step up (nobody fighting is not "too good"). */
@@ -738,7 +738,16 @@ public class SiegeConfig {
     public double smartNightElitePerStep = 0.05;
     public int smartNightSpecialLevelsPerStep = 2;
     public int smartNightAnyClassFromStep = 4;   // sim schlau1: from 3 the pairs without fighters fell
-    public double smartNightFewerPerStep = 0.05;
+    public double smartNightFewerPerStep = 0.03;   // Tor 6.6 Formel C (was 0.05): at most -15 % instead of -25 %
+    /**
+     * The outer loop (Tor 6.6, Formel C, see OuterLoop): between real nights the normal monsters' life
+     * goes +smartNightOuterWin after a won night and -smartNightOuterLoss after a lost one, within
+     * +-smartNightOuterCap. Kept in the world's save; test and playtest nights do not count.
+     */
+    public boolean smartNightOuterLoop = true;
+    public double smartNightOuterWin = 0.02;
+    public double smartNightOuterLoss = 0.047;
+    public double smartNightOuterCap = 0.15;
     public int smartNightNoSpecialsAt = -2;
     public double smartNightPauseSeconds = 8.0;
     /** Shield energy (Simon 26.10.): seconds of blocking at a stretch, and seconds charged per second when not blocking. */
@@ -1285,7 +1294,7 @@ public class SiegeConfig {
      */
     public int settingsVersion = 0;
     /** The newest settings version (the migrations below end there). */
-    public static final int SETTINGS_VERSION = 24;
+    public static final int SETTINGS_VERSION = 27;
     /** Version of the dungeon list in this file. Older lists are replaced on load. */
     /** Which structures hold dungeons, how hard they are and what lives there. */
     /** Perks from core fragments work within this many blocks of the main core. */
@@ -1941,6 +1950,17 @@ public class SiegeConfig {
             }
             settingsVersion = 24;
         }
+        if (settingsVersion < 27) {
+            // Tor 6.6 (Formel C): the smart night evens out instead of carrying the nights. Absolute targets like
+            // 24: a value on the old standard becomes the target, any other (own or already the target) stays.
+            if (Math.abs(smartNightFewerPerStep - 0.05) < 1e-6) {
+                smartNightFewerPerStep = 0.03;
+            }
+            if (Math.abs(smartNightDownStress - 0.45) < 1e-6) {
+                smartNightDownStress = 0.50;
+            }
+            settingsVersion = 27;
+        }
         if (Double.isNaN(meleeLifesteal)) {
             meleeLifesteal = 0.08;
         }
@@ -2009,7 +2029,7 @@ public class SiegeConfig {
         smartNightUpSteps = clamp(smartNightUpSteps, 0, 20);
         smartNightDownSteps = clamp(smartNightDownSteps, 0, 20);
         smartNightUpStress = Double.isNaN(smartNightUpStress) ? 0.2 : clampDouble(smartNightUpStress, 0.0, 1.0);
-        smartNightDownStress = Double.isNaN(smartNightDownStress) ? 0.45
+        smartNightDownStress = Double.isNaN(smartNightDownStress) ? 0.50
                 : clampDouble(smartNightDownStress, smartNightUpStress, 2.0);
         smartNightDeathStress = Double.isNaN(smartNightDeathStress) ? 0.35 : clampDouble(smartNightDeathStress, 0.0, 2.0);
         smartNightUpKillsPerPlayer = Double.isNaN(smartNightUpKillsPerPlayer) ? 1.5 : clampDouble(smartNightUpKillsPerPlayer, 0.0, 100.0);
@@ -2017,7 +2037,10 @@ public class SiegeConfig {
         smartNightElitePerStep = Double.isNaN(smartNightElitePerStep) ? 0.05 : clampDouble(smartNightElitePerStep, 0.0, 0.5);
         smartNightSpecialLevelsPerStep = clamp(smartNightSpecialLevelsPerStep, 0, 50);
         smartNightAnyClassFromStep = clamp(smartNightAnyClassFromStep, 1, 21);
-        smartNightFewerPerStep = Double.isNaN(smartNightFewerPerStep) ? 0.05 : clampDouble(smartNightFewerPerStep, 0.0, 0.2);
+        smartNightFewerPerStep = Double.isNaN(smartNightFewerPerStep) ? 0.03 : clampDouble(smartNightFewerPerStep, 0.0, 0.2);
+        smartNightOuterWin = Double.isNaN(smartNightOuterWin) ? 0.02 : clampDouble(smartNightOuterWin, 0.0, 0.5);
+        smartNightOuterLoss = Double.isNaN(smartNightOuterLoss) ? 0.047 : clampDouble(smartNightOuterLoss, 0.0, 0.5);
+        smartNightOuterCap = Double.isNaN(smartNightOuterCap) ? 0.15 : clampDouble(smartNightOuterCap, 0.0, 0.5);
         smartNightNoSpecialsAt = clamp(smartNightNoSpecialsAt, -21, 0);
         smartNightPauseSeconds = Double.isNaN(smartNightPauseSeconds) ? 8.0 : clampDouble(smartNightPauseSeconds, 0.0, 60.0);
         if (Double.isNaN(zombieSpiderVsMelee) || zombieSpiderVsMelee <= 0) {

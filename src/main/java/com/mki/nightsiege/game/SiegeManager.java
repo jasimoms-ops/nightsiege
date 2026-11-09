@@ -4174,6 +4174,14 @@ public final class SiegeManager {
         return Math.max(1, (int) Math.round(cap * com.mki.nightsiege.core.SmartNight.room(config, active ? smart.step() : 0)));
     }
 
+    /**
+     * Tor 6.6, the outer loop: life factor of a real night's normal monsters (1 in test, playtest, war
+     * leader and bastion nights and outside a night).
+     */
+    public double outerLoopFactor() {
+        return active && !testRun && !inPlaytest() ? com.mki.nightsiege.core.OuterLoop.factor(save.outerLoop, config) : 1.0;
+    }
+
     /** The smart night of the running night (the tests and the command read and set it). */
     public com.mki.nightsiege.core.SmartNight smartNight() {
         return smart;
@@ -4188,7 +4196,18 @@ public final class SiegeManager {
     }
 
     /** The night ends: the smart night's course into the log and the night's statistics. */
-    private void noteSmartEnd() {
+    private void noteSmartEnd(Boolean won) {
+        // Tor 6.6: decided early (lost in the first third or pressure never above 0.2), with and without the smart night.
+        double elapsed = totalTicks <= 0 ? 1.0 : 1.0 - Math.max(0, ticksLeft) / (double) totalTicks;
+        double peak = smart.peakStress();
+        boolean early = won != null && com.mki.nightsiege.core.OuterLoop.decidedEarly(won, elapsed, peak);
+        boolean steering = smart.on();
+        safe("Statistik", () -> stats.smartMeasure(steering, early, elapsed, peak));
+        if (won != null) {
+            NightSiegeMod.LOGGER.info(String.format(java.util.Locale.ROOT,
+                    "[Night Siege] Schlaue Nacht Messung: %s, frueh entschieden %s, Zeit %.0f %%, Spitzendruck %.2f",
+                    steering ? "an" : "aus", early ? "ja" : "nein", elapsed * 100, peak));
+        }
         if (!smart.on()) {
             return;
         }
@@ -4216,7 +4235,7 @@ public final class SiegeManager {
 
     /** Once a second: the defenders' life for the smart night, and its look when it is time. */
     private void tickSmart(List<ServerPlayer> upright) {
-        if (!smart.on() || world == null) {
+        if (!smart.watching() || world == null) {   // measures also with the smart night off (Tor 6.6)
             return;
         }
         long now = world.getGameTime();
@@ -4504,7 +4523,7 @@ public final class SiegeManager {
         ladders.reset();
         besiegers.reset();
         raid.reset();
-        noteSmartEnd();   // before the foes forget what they sent tonight
+        noteSmartEnd(won);   // before the foes forget what they sent tonight
         foes.reset(world);
         companions.dismissAll(server);
         mendBase(server);
@@ -4619,6 +4638,22 @@ public final class SiegeManager {
                     .withStyle(ChatFormatting.RED));
         }
 
+        // Tor 6.6, the outer loop: only real nights count (the tests and the playtest returned above).
+        if (!inPlaytest()) {
+            boolean held = won && quotaMet;
+            double before = com.mki.nightsiege.core.OuterLoop.clamp(save.outerLoop, config);
+            save.outerLoop = com.mki.nightsiege.core.OuterLoop.next(before, held, config);
+            if (held) {
+                save.outerLoopWon++;
+            } else {
+                save.outerLoopLost++;
+            }
+            double after = save.outerLoop;
+            NightSiegeMod.LOGGER.info(String.format(java.util.Locale.ROOT,
+                    "[Night Siege] Aeussere Schleife: %+.1f %% -> %+.1f %% (%s, %d gewonnen, %d verloren)",
+                    before * 100, after * 100, held ? "Sieg" : "Niederlage", save.outerLoopWon, save.outerLoopLost));
+            safe("Statistik", () -> stats.outerLoop(before, after, config.smartNightOuterLoop));
+        }
         logNight(result, blasted, required);
         save.specialNight = false;
         if (curses > 0 && save.curses != null) {
@@ -4679,7 +4714,7 @@ public final class SiegeManager {
         besiegers.reset();
         raid.reset();
         // Fehlerprüfung 06.11.: a night broken off (a restart, the stop command) writes the smart night too.
-        noteSmartEnd();   // before the foes forget what they sent tonight
+        noteSmartEnd(null);   // before the foes forget what they sent tonight (broken off: not decided early)
         foes.reset(world);
         companions.dismissAll(server);
         mendBase(server);

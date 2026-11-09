@@ -237,8 +237,8 @@ class SmartNightTest {
         assertTrue(SmartNight.anyClass(c, 4));
         // Down: 5 % fewer at once per step (−25 % at −5), no specials and no elites from −2.
         assertEquals(1.0, SmartNight.room(c, 3));
-        assertEquals(0.95, SmartNight.room(c, -1), 1e-9);
-        assertEquals(0.75, SmartNight.room(c, -5), 1e-9);
+        assertEquals(0.97, SmartNight.room(c, -1), 1e-9);
+        assertEquals(0.85, SmartNight.room(c, -5), 1e-9);
         assertTrue(SmartNight.specials(c, -1));
         assertFalse(SmartNight.specials(c, -2));
         assertTrue(SmartNight.specials(c, 5));
