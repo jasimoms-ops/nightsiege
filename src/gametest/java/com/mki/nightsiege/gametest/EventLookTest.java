@@ -10064,7 +10064,13 @@ public class EventLookTest implements FabricClientGameTest {
                 fails.add("a fourth potion is not shut: " + fourth);
             }
             // Since 30.10. the potions share one key ("brew", the wheel picks), Simon 30.10.
-            if (!ids.equals(java.util.List.of("escape", "brew", "acid"))) {
+            // Tor 4b (Variante B): the subclass's own abilities sit between the blast jump and the potions.
+            java.util.List<String> want = new java.util.ArrayList<>();
+            want.add(com.mki.nightsiege.game.EngineerEscape.ID);
+            want.addAll(com.mki.nightsiege.game.EngineerAbilities.of(tree.subclassOf(own)));
+            want.add("brew");
+            want.add("acid");
+            if (!ids.equals(want)) {
                 fails.add("alchemist bar " + ids);
             }
         });
