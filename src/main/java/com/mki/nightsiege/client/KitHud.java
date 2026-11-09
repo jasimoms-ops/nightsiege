@@ -329,6 +329,11 @@ public final class KitHud {
     /** For the tests: the keys of the fields drawn last, in their order, and how many showed a pause running. */
     public static volatile List<String> lastKeys = List.of();
     public static volatile int lastLoading;
+    /** For the tests: ability fields with an ability (Q E F C X R) and those of them drawn without a symbol. */
+    public static volatile int lastFilled;
+    public static volatile int lastNoIcon;
+    private static int filled;
+    private static int noIcon;
 
     private static final int FRAME_OUT = 0xFF0A0807;
     private static final int FRAME_RIM = 0xFF4A3816;
@@ -425,6 +430,8 @@ public final class KitHud {
         long now = System.currentTimeMillis();
         List<String> keys = new java.util.ArrayList<>();
         int loading = 0;
+        filled = 0;
+        noIcon = 0;
         Inventory inv = p.getInventory();
         for (ActionBarLayout.Field f : l.fields()) {
             ActionBarLayout.Rect r = f.at();
@@ -443,6 +450,8 @@ public final class KitHud {
         }
         lastKeys = List.copyOf(keys);
         lastLoading = loading;
+        lastFilled = filled;
+        lastNoIcon = noIcon;
         statusRow(gui, font, p, s, l, now);
         gui.pose().popMatrix();
     }
@@ -490,6 +499,12 @@ public final class KitHud {
         gui.fill(x, y, x + size, y + size, FRAME_OUT);
         gui.fill(x + 1, y + 1, x + size - 1, y + size - 1, ready ? FRAME_GOLD : FRAME_RIM);
         gui.fill(x + 2, y + 2, x + size - 2, y + size - 2, FIELD_IN);
+        if (c != null && size == ActionBarLayout.ABIL) {
+            filled++;
+            if (c.icon() == null || c.icon().isEmpty()) {
+                noIcon++;
+            }
+        }
         int icon = size >= 16 + 4 ? 16 : size - 3;
         int ix = x + (size - icon) / 2;
         int iy = y + (size - icon) / 2;

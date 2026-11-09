@@ -91,7 +91,9 @@ final class HudNeuScenes {
         checks = 0;
         EventLookTest.ensureCore(context, game);
         EventLookTest.closeScreen(context);
-        game.getServer().runCommand("gamemode survival @p");   // the kit HUD as at night: survival, kit worn
+        // creative: the abilities count outside a siege only there (liveSkillsFor: instabuild), as in hud2;
+        // a real night (defending) gives them in survival too
+        game.getServer().runCommand("gamemode creative @p");
         game.getServer().runCommand("time set 13000");
         context.waitTicks(10);
         ServerBossEvent[] bars = new ServerBossEvent[3];
@@ -234,6 +236,8 @@ final class HudNeuScenes {
         ActionBarLayout.Layout l = context.computeOnClient(client -> KitHud.lastLayout);
         List<String> keys = context.computeOnClient(client -> KitHud.lastKeys);
         int loading = context.computeOnClient(client -> KitHud.lastLoading);
+        int filled = context.computeOnClient(client -> KitHud.lastFilled);
+        int noIcon = context.computeOnClient(client -> KitHud.lastNoIcon);
         int[] screen = context.computeOnClient(client -> new int[]{(int) client.getWindow().getGuiScale(),
                 client.getWindow().getGuiScaledWidth(), client.getWindow().getGuiScaledHeight(),
                 ActionBarLayout.chatRight(client.options.chatWidth().get(), client.options.chatScale().get())});
@@ -261,6 +265,7 @@ final class HudNeuScenes {
         ActionBarLayout.Field third = l.field("3");
         check(third != null && third.kind() == (three ? ActionBarLayout.Kind.GAIN : ActionBarLayout.Kind.LOCKED),
                 at + ": place 3 " + (third == null ? "missing" : third.kind()) + " (want " + (three ? "GAIN" : "LOCKED") + ")");
+        check(filled >= 3 && noIcon == 0, at + ": " + filled + " ability fields used (want at least 3), " + noIcon + " without a symbol (want 0)");
         check(loading >= 1, at + ": " + loading + " field(s) with a pause running (symbol, ring, seconds)");
         // overlaps
         List<ActionBarLayout.Rect> others = new ArrayList<>();
