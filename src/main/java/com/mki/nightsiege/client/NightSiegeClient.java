@@ -85,6 +85,7 @@ public class NightSiegeClient implements ClientModInitializer {
                     PlaytestScreen.clear();
                     WarriorHud.clear();
                     RageFx.clear();
+                    UltHud.update(null);   // else the swing ring stays on a server without the mod
                 });
         ClientPlayNetworking.registerGlobalReceiver(CoreNetworking.ScreenPayload.TYPE,
                 (payload, context) -> context.client().execute(() -> {
