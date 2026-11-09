@@ -19,11 +19,18 @@ import java.util.Map;
  * item without a free hotbar place stays at home tonight. Without a choice the crate items come on
  * their own, the rarest first; tools and stone then go up into the inventory.</p>
  *
+ * <p>Tor 3.2b (Simon 09.11.): in the night the keys 1-3 fire the gains, so hotbar places 1-3 cannot be
+ * picked by key. The kit's own things (weapons first) never go there, also not from an older layout:
+ * they get places from 4 on. Only crate items fill places 1-3 when 4-9 are full (the mouse wheel
+ * still reaches them).</p>
+ *
  * <p>Pure logic, no game objects, so it can be tested on its own.</p>
  */
 public final class KitArrange {
 
     public static final int HOTBAR = 9;
+    /** The first hotbar place for the kit's own things: 0-2 lie on the gain keys 1-3 (Tor 3.2b). */
+    public static final int FIRST = 3;
     public static final int SLOTS = 36;
 
     private KitArrange() {
@@ -85,7 +92,7 @@ public final class KitArrange {
                 continue;
             }
             Integer s = lay.get(keys.get(i));
-            if (s != null && s >= 0 && s < SLOTS && !used[s]) {
+            if (s != null && s >= FIRST && s < SLOTS && !used[s]) {
                 slot[i] = s;
                 used[s] = true;
             }
@@ -104,9 +111,9 @@ public final class KitArrange {
             if (t.crate() || slot[i] >= 0) {
                 continue;
             }
-            int s = t.back() ? free(used, HOTBAR, SLOTS) : free(used, 0, HOTBAR);
+            int s = t.back() ? free(used, HOTBAR, SLOTS) : free(used, FIRST, HOTBAR);
             if (s < 0) {
-                s = t.back() ? free(used, 0, HOTBAR) : free(used, HOTBAR, SLOTS);
+                s = t.back() ? free(used, FIRST, HOTBAR) : free(used, HOTBAR, SLOTS);
             }
             if (s >= 0) {
                 slot[i] = s;
@@ -118,7 +125,10 @@ public final class KitArrange {
             if (slot[i] >= 0) {
                 continue;
             }
-            int s = free(used, 0, HOTBAR);
+            int s = free(used, FIRST, HOTBAR);
+            if (s < 0) {
+                s = free(used, 0, FIRST);   // places 1-3 only for crate items, and only last
+            }
             if (s >= 0) {
                 slot[i] = s;
                 used[s] = true;
@@ -137,8 +147,8 @@ public final class KitArrange {
     }
 
     /**
-     * Cleans a layout sent from the kit page: crate items only in the hotbar, every slot once, only
-     * keys the kit has.
+     * Cleans a layout sent from the kit page: crate items only in the hotbar, the kit's own things not
+     * on places 1-3 (Tor 3.2b), every slot once, only keys the kit has.
      */
     public static Map<String, Integer> clean(List<Thing> things, Map<String, Integer> sent) {
         Map<String, Integer> out = new java.util.LinkedHashMap<>();
@@ -153,6 +163,9 @@ public final class KitArrange {
                 continue;
             }
             if (things.get(i).crate() && s >= HOTBAR) {
+                continue;
+            }
+            if (!things.get(i).crate() && s < FIRST) {
                 continue;
             }
             used[s] = true;

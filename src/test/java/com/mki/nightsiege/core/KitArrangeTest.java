@@ -62,10 +62,15 @@ class KitArrangeTest {
         t.add(crate("a", "common", 0));
         t.add(crate("b", "epic", 3));
         t.add(crate("c", "rare", 2));
+        t.add(crate("d", "uncommon", 1));
         int[] s = KitArrange.place(t, null, null);
         assertTrue(s[8] >= 0 && s[8] < 9, "the epic one comes");
         assertTrue(s[9] >= 0 && s[9] < 9, "the rare one comes");
+        assertTrue(s[10] >= 0 && s[10] < 9, "the uncommon one comes");
         assertEquals(-1, s[7], "the common one stays at home: no hotbar place left");
+        for (int i = 0; i < 7; i++) {
+            assertTrue(s[i] >= KitArrange.FIRST, "own things not on the gain places 1-3: " + i);
+        }
     }
 
     @Test
@@ -94,13 +99,28 @@ class KitArrangeTest {
     void aFullHotbarLeavesCrateItemsAtHome() {
         List<KitArrange.Thing> t = new ArrayList<>();
         java.util.Map<String, Integer> layout = new java.util.HashMap<>();
-        for (int i = 0; i < 9; i++) {
+        for (int i = 3; i < 9; i++) {
             t.add(own("thing" + i));
             layout.put("thing" + i, i);
         }
+        for (int i = 0; i < 3; i++) {
+            t.add(crate("c" + i, "gain" + i, 1));
+            layout.put("c" + i, i);
+        }
         t.add(crate("spear", "wurfspeere", 2));
-        int[] s = KitArrange.place(t, layout, List.of("wurfspeere"));
+        int[] s = KitArrange.place(t, layout, List.of("gain0", "gain1", "gain2", "wurfspeere"));
         assertEquals(-1, s[9]);
+    }
+
+    /** Tor 3.2b: a weapon kept on place 1-3 (an older layout) moves to place 4 or later. */
+    @Test
+    void weaponsLeaveTheGainPlaces() {
+        List<KitArrange.Thing> t = warrior();
+        int[] s = KitArrange.place(t, Map.of("sword", 0, "beef", 2), null);
+        assertTrue(s[0] >= KitArrange.FIRST && s[0] < KitArrange.HOTBAR, "sword at " + s[0]);
+        assertTrue(s[1] >= KitArrange.FIRST && s[1] < KitArrange.HOTBAR, "beef at " + s[1]);
+        int[] auto = KitArrange.place(t, null, null);
+        assertTrue(auto[0] >= KitArrange.FIRST, "sword at " + auto[0]);
     }
 
     @Test
@@ -115,14 +135,16 @@ class KitArrangeTest {
     void cleaningDropsCrateItemsBelowTheHotbarAndDoubleSlots() {
         List<KitArrange.Thing> t = warrior();
         Map<String, Integer> sent = new java.util.HashMap<>();
-        sent.put("sword", 0);
-        sent.put("beef", 0);
+        sent.put("sword", 4);
+        sent.put("beef", 4);
+        sent.put("cobblestone", 1);
         sent.put("spear", 12);
         sent.put("banner", 3);
         sent.put("unknown", 5);
         Map<String, Integer> out = KitArrange.clean(t, sent);
-        assertEquals(0, out.get("sword"));
-        assertFalse(out.containsKey("beef"), "slot 0 is taken");
+        assertEquals(4, out.get("sword"));
+        assertFalse(out.containsKey("beef"), "slot 4 is taken");
+        assertFalse(out.containsKey("cobblestone"), "own things not on the gain places 1-3");
         assertFalse(out.containsKey("spear"), "a crate item may not sit in the inventory");
         assertEquals(3, out.get("banner"));
         assertFalse(out.containsKey("unknown"));
