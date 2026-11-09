@@ -1104,6 +1104,23 @@ public final class StatsRecorder {
         return out;
     }
 
+    /** Tests (Tor 4c.1): this night's uses per key of a player ("tasten"), 0 for a key not used. */
+    public int testKeyUses(ServerPlayer player, String key) {
+        if (night == null) {
+            return 0;
+        }
+        List<Welle> all = new ArrayList<>(night.wellen);
+        if (wave != null && !all.contains(wave)) {
+            all.add(wave);
+        }
+        int sum = 0;
+        for (Welle w : all) {
+            SpielerWelle p = w.spieler.get(player.getScoreboardName());
+            sum += p == null ? 0 : p.tasten.getOrDefault(key, 0);
+        }
+        return sum;
+    }
+
     /** Depth of heal() on this thread (the heal mixin): its own setHealth is no extra heal. */
     public static final ThreadLocal<int[]> HEALING = ThreadLocal.withInitial(() -> new int[1]);
 

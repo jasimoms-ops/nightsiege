@@ -261,6 +261,10 @@ public class EventLookTest implements FabricClientGameTest {
                     alive(context);   // a scene before may have left the player dead (05.11.)
                     TechnikerScenes.run(context, game);   // Tor 4b: every engineer key on foot and in the seat
                 }
+                if (want.contains("klassencheck")) {
+                    alive(context);   // a scene before may have left the player dead (05.11.)
+                    KlassencheckScenes.run(context, game);   // Tor 4c.1: all 20 subclasses on 1/5/10/20, every key once
+                }
                 if (want.contains("heilerstab")) {
                     alive(context);   // a scene before may have left the player dead (05.11.)
                     HeilerstabScenes.run(context, game);   // the healers' staff: kit, bolt at 10 blocks, pictures (Tor 4.7)

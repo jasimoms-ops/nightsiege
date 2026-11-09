@@ -7084,14 +7084,36 @@ public final class SiegeManager {
         }
         // Tor 3.1 ("Nur Tasten"): each ability's key from the one table, the rest on place 4 (C, Tor 3.2b).
         String sub = own.hasClass() ? skillTree.subclassOf(own) : "";
+        // Tor 4c.1: a box without an entry takes a free place, not silently C; problems go to the log (once each)
+        List<String> ids = new ArrayList<>();
         for (com.mki.nightsiege.core.UltState.Slot slot : out) {
-            com.mki.nightsiege.core.AbilityKeys.Key key = com.mki.nightsiege.core.AbilityKeys.keyOf(sub, slot.id);
-            slot.key = (key == null ? com.mki.nightsiege.core.AbilityKeys.Key.ABILITY_4 : key).name();
+            ids.add(slot.id);
+        }
+        List<String> problems = new ArrayList<>();
+        List<com.mki.nightsiege.core.AbilityKeys.Key> keys = com.mki.nightsiege.core.AbilityKeys.assign(sub, ids, problems);
+        for (int i = 0; i < out.size(); i++) {
+            out.get(i).key = keys.get(i).name();
+        }
+        if (out.size() > 6) {
+            problems.add("cut to 6 boxes: " + ids.subList(6, ids.size()));
+        }
+        for (String problem : problems) {
+            if (BAR_PROBLEMS.add(problem)) {
+                NightSiegeMod.LOGGER.error("[Night Siege] Fähigkeitenleiste: {}", problem);
+            }
         }
         while (out.size() > 6) {
             out.remove(out.size() - 1);
         }
         return out;
+    }
+
+    /** Tor 4c.1: the bar's problems already logged (abilitySlots runs every second for every player). */
+    private static final java.util.Set<String> BAR_PROBLEMS = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    /** Tor 4c.1 (tests): the bar's problems logged since the start. */
+    public static java.util.Set<String> barProblems() {
+        return java.util.Collections.unmodifiableSet(BAR_PROBLEMS);
     }
 
     private List<com.mki.nightsiege.core.UltState.Slot> safeSlots(ServerPlayer player) {

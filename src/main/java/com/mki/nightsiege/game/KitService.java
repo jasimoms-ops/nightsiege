@@ -599,6 +599,11 @@ public final class KitService {
     public record Kit(ItemStack[] armor, ItemStack offhand, List<ItemStack> items) {
     }
 
+    /** Tests (Tor 4c.1): the kit this player would get at this level, to check the worn one is complete. */
+    public Kit kitForTests(ServerPlayer player, int level) {
+        return build(player, save.get().skillsOf(player.getUUID().toString()), level);
+    }
+
     /** Hands out the kit of the class the player plays, at the night's level, with the crate gains. */
     private void give(ServerPlayer player, int level) {
         PlayerSkills skills = save.get().skillsOf(player.getUUID().toString());

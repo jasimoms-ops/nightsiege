@@ -91,7 +91,8 @@ public final class AbilityKeys {
         // Tor 4.2: the tanks' self heal on place 3; their arrows, rare for a tank, on place 4 (C, Tor 3.2b)
         put(SkillTree.SUB_SHIELDFIGHTER, e(SHIELD, Key.ABILITY_1), e("ward", Key.ABILITY_2), e(TankHeal.ID, Key.ABILITY_3), e("quiver", Key.ABILITY_4));
         put(SkillTree.SUB_BULWARK, e(SHIELD, Key.ABILITY_1), e("ward", Key.ABILITY_2), e(TankHeal.ID, Key.ABILITY_3), e("quiver", Key.ABILITY_4));
-        put(SkillTree.SUB_MEDIC, e("hand", Key.ABILITY_1), e("selfheal", Key.ABILITY_2), e("quiver", Key.ABILITY_3));
+        // Tor 4c.1: the medic's dome (full tree) had no entry and fell back to C without a tooltip; now C by the table
+        put(SkillTree.SUB_MEDIC, e("hand", Key.ABILITY_1), e("selfheal", Key.ABILITY_2), e("quiver", Key.ABILITY_3), e("dome", Key.ABILITY_4));
         put(SkillTree.SUB_WARDEN, e("ward", Key.ABILITY_1), e("dome", Key.ABILITY_2), e("quiver", Key.ABILITY_3));
         // engineers (Tor 4b, Variante B "Turm als Waffe"): the blast jump on 1 (in a seat the Abwehrring),
         // each subclass's own abilities on 2 and 3; the alchemist's potions on 3, the acid on 4
@@ -175,8 +176,53 @@ public final class AbilityKeys {
     }
 
     /**
+     * Tor 4c.1: the keys of the bar's boxes in their order. Each box gets its table key; a box without an
+     * entry no longer lands silently on C: it takes the first place no other box (and no F field) holds,
+     * and {@code problems} gets a line for it. A key twice and more boxes than places are reported too.
+     */
+    public static List<Key> assign(String subclass, List<String> ids, List<String> problems) {
+        List<Key> out = new java.util.ArrayList<>();
+        java.util.Set<Key> taken = java.util.EnumSet.noneOf(Key.class);
+        Key f = keyOf(subclass, F_ACTION);
+        if (f != null) {
+            taken.add(f);
+        }
+        for (String id : ids) {
+            Key key = keyOf(subclass, id);
+            out.add(key);
+            if (key != null) {
+                taken.add(key);
+            }
+        }
+        java.util.Set<Key> seen = java.util.EnumSet.noneOf(Key.class);
+        for (int i = 0; i < out.size(); i++) {
+            Key key = out.get(i);
+            if (key == null) {
+                Key free = Key.ABILITY_4;
+                for (Key place : ABILITY_PLACES) {
+                    if (!taken.contains(place)) {
+                        free = place;
+                        break;
+                    }
+                }
+                taken.add(free);
+                out.set(i, free);
+                problems.add("no key entry for " + subclass + "/" + ids.get(i) + ", put on " + free);
+                key = free;
+            }
+            if (!seen.add(key)) {
+                problems.add("key " + key + " twice for " + subclass + " (" + ids.get(i) + ")");
+            }
+        }
+        if (ids.size() > ABILITY_PLACES.size()) {
+            problems.add(ids.size() + " boxes for " + ABILITY_PLACES.size() + " places for " + subclass + ": " + ids);
+        }
+        return out;
+    }
+
+    /**
      * The key of an ability of this subclass: {@link Key#ULT} for the ultimate, the table's key, or
-     * null when the subclass does not have it (the caller then shows and fires it on {@link Key#ABILITY_4}).
+     * null when the subclass does not have it (see {@link #assign} for the bar).
      */
     public static Key keyOf(String subclass, String abilityId) {
         if (ULT.equals(abilityId)) {

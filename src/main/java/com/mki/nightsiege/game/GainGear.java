@@ -247,12 +247,32 @@ public final class GainGear {
     /** Gadgets that are set down on a block. */
     private static final Set<String> PLACE_ON_BLOCK = Set.of("kriegsbanner", "barrikade");
 
+    /** Tor 4c.1 ("keine zweiten Wege", Simon 08:45): gains with an ability on the gain keys 1-3 ({@link #useAbility}). */
+    private static final Set<String> ON_GAIN_KEY = Set.of("kletterhaken", "kampfhorn", "tarnumhang", "signalhorn", "mauerkelle",
+            "ersatzbatterie", "leibwaechter", "oelfass", "rueckrufpfeife", "geisterross", "futternapf", "totenglocke");
+
+    /** True (with a note) when a right click with a gain of the gain keys is shut at night: only its key fires it. */
+    public static boolean keyOnlyAtNight(Player player, String id) {
+        if (!ON_GAIN_KEY.contains(id) || !(player instanceof ServerPlayer server)) {
+            return false;
+        }
+        SiegeManager m = SiegeManager.get();
+        if (m == null || !m.isDefending(server)) {
+            return false;
+        }
+        bar(server, Component.translatable("nightsiege.gainkey.use_key"));
+        return true;
+    }
+
     /** Right click in the air. */
     public static InteractionResult onUseItem(Player player, Level level, InteractionHand hand) {
         ItemStack stack = player.getItemInHand(hand);
         String id = Gadgets.of(stack);
         if (id.isEmpty() || !USE_ANYWHERE.contains(id)) {
             return InteractionResult.PASS;
+        }
+        if (keyOnlyAtNight(player, id)) {
+            return InteractionResult.FAIL;
         }
         if (player instanceof ServerPlayer server && level instanceof ServerLevel world) {
             use(server, world, stack, id);
@@ -269,6 +289,9 @@ public final class GainGear {
         }
         if (!USE_ANYWHERE.contains(id) && !PLACE_ON_BLOCK.contains(id)) {
             return InteractionResult.PASS;
+        }
+        if (keyOnlyAtNight(player, id)) {
+            return InteractionResult.FAIL;
         }
         if (player instanceof ServerPlayer server && level instanceof ServerLevel world) {
             if (PLACE_ON_BLOCK.contains(id)) {
@@ -290,6 +313,9 @@ public final class GainGear {
     public static InteractionResult onUseEntity(Player player, Level level, InteractionHand hand, Entity target) {
         ItemStack stack = player.getItemInHand(hand);
         String gadget = Gadgets.of(stack);
+        if (keyOnlyAtNight(player, gadget)) {
+            return InteractionResult.FAIL;
+        }
         if (SUMMONER_GADGETS.contains(gadget)) {
             // The lead and the saddle must not leash or saddle the companion clicked: they work as in the air.
             if (player instanceof ServerPlayer server && level instanceof ServerLevel world) {
