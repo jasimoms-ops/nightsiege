@@ -434,8 +434,9 @@ final class TeamBrain {
             if (focused && now >= nextUlt2 && ArrowRain.cooldownLeft(player, now) == 0) {
                 nextUlt2 = now + iv(20);
                 Vec3 spot = crowd(level, player, ArrowRain.range(), 4.0);
-                if (spot != null) {
-                    ArrowRain.fireAt(player, m, spot);
+                if (spot != null && ArrowRain.fireAt(player, m, spot)) {
+                    // Tor 4c.6: the bot's rain is a press of E like a player's (that one counts in countedKey)
+                    m.stats().ability(player, "faehigkeit_f", com.mki.nightsiege.core.AbilityKeys.Key.ABILITY_2.name());
                 }
             }
         } else if (clazz == SkillClass.WARRIOR) {
@@ -482,13 +483,16 @@ final class TeamBrain {
         staffTurn++;
         boolean sneak = dead ? staffTurn % 3 == 0 : staffTurn % 5 == 3 && aim != null;
         if (!dead && staffTurn % 5 == 1) {
-            m.onCoreAction(player, "quiver");
+            // Tor 4c.6: the call on its key of the bar (Q), as a player presses it (the old "quiver" verb counted on no key)
+            int call = m.abilitySlotOf(player, "call");
+            m.onCoreAction(player, call >= 0 ? "slot:" + call : "quiver");
         }
         if (dead && sneak) {
             int keys = Math.max(1, m.abilitySlots(player).size());
             m.onCoreAction(player, "slot:" + (staffTurn / 3) % keys);
-        } else if (sneak) {
-            player.getMainHandItem().use(level, player, InteractionHand.MAIN_HAND);
+        } else if (sneak || dead && staffTurn % 5 == 1 && aim != null) {
+            // Tor 4c.6: the order on E at the monster looked at (the right click casts nothing since Tor 3.1)
+            m.onCoreAction(player, "ult2");
         } else {
             m.onCoreAction(player, "staffhit");
         }
