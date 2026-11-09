@@ -31,6 +31,8 @@ public final class KitInventory {
     private static final List<int[]> CELL_AT = new java.util.ArrayList<>();
     private static final List<com.mki.nightsiege.core.AbilityTip> CELL_TIP = new java.util.ArrayList<>();
     private static final List<String> CELL_KEY = new java.util.ArrayList<>();
+    /** The gain place (0-2) of each field, -1 for an ability (Tor 3.2b: a click there changes the gain). */
+    private static final List<Integer> CELL_GAIN = new java.util.ArrayList<>();
 
     private KitInventory() {
     }
@@ -38,6 +40,20 @@ public final class KitInventory {
     /** Centre of the i-th ability field drawn last, in GUI pixels (the gametest points the mouse there); null if none. */
     public static int[] cellCenter(int i) {
         return i < 0 || i >= CELL_AT.size() ? null : new int[]{CELL_AT.get(i)[0] + 9, CELL_AT.get(i)[1] + 9};
+    }
+
+    /** The gain place (0-2) under the mouse in the kit inventory, -1 for none (Tor 3.2b). */
+    public static int gainAt(double mouseX, double mouseY) {
+        if (!com.mki.nightsiege.core.KitView.hideCrafting) {
+            return -1;
+        }
+        for (int i = 0; i < CELL_AT.size() && i < CELL_GAIN.size(); i++) {
+            int[] at = CELL_AT.get(i);
+            if (mouseX >= at[0] && mouseX < at[0] + 18 && mouseY >= at[1] && mouseY < at[1] + 18) {
+                return CELL_GAIN.get(i);
+            }
+        }
+        return -1;
     }
 
     /** The tooltip of the ability under the mouse (Simon 08.11.), drawn on top of everything. */
@@ -54,15 +70,19 @@ public final class KitInventory {
             for (String line : AbilityTipText.lines(tip, CELL_KEY.get(i), k -> language.has(k) ? language.getOrDefault(k) : null)) {
                 lines.addAll(font.split(Component.literal(line), 220));
             }
+            if (i < CELL_GAIN.size() && CELL_GAIN.get(i) >= 0) {
+                lines.addAll(font.split(Component.translatable("nightsiege.gainkey.inventory_hint")
+                        .withStyle(net.minecraft.ChatFormatting.GRAY), 220));
+            }
             gui.setTooltipForNextFrame(font, lines, mouseX, mouseY, TIP_STYLE);
             return;
         }
     }
 
-    /** The tooltip of a field: Q, F, X from the server; a crate gain (N, M, J) from its own name and text. */
+    /** The tooltip of a field: the abilities from the server; a crate gain (1, 2, 3) from its own name and text. */
     private static com.mki.nightsiege.core.AbilityTip tipFor(UltState s, UltHud.Cell c, int gainIndex) {
-        // Tor 3.1: the ult and the second ult share X (the second with sneak), so the sneak flag tells them apart
-        String slot = c.key() == AbilityKeys.mapping(AbilityKeys.Ability.ULT2, 0) && c.sneak() ? "x"
+        // Tor 3.2b: the second ult has its own key (R)
+        String slot = c.key() == AbilityKeys.mapping(AbilityKeys.Ability.ULT2, 0) ? "x"
                 : c.key() == AbilityKeys.mapping(AbilityKeys.Ability.ULT, 0) ? "q"
                 : c.key() == AbilityKeys.mapping(AbilityKeys.Ability.ABILITY2, 0) ? "f" : null;
         if (slot != null) {
@@ -129,6 +149,7 @@ public final class KitInventory {
         CELL_AT.clear();
         CELL_TIP.clear();
         CELL_KEY.clear();
+        CELL_GAIN.clear();
         if (s != null) {
             int gainIndex = 0;
             List<UltHud.Cell> cells = UltHud.fixedCells(s, AbilityKeys.mapping(AbilityKeys.Ability.ULT, 0));
@@ -140,8 +161,9 @@ public final class KitInventory {
                 boolean gain = AbilityKeys.isGainKey(c.key());
                 CELL_AT.add(new int[]{ax, ay});
                 CELL_TIP.add(tipFor(s, c, gain ? gainIndex : -1));
-                // Tor 3: the tooltip names the key as bound; a crate gain names none (its keys are going).
-                CELL_KEY.add(gain ? null : AbilityKeys.labelFor(c));
+                CELL_GAIN.add(gain ? gainIndex : -1);
+                // Tor 3: the tooltip names the key as bound, a crate gain its place 1-3 too (Tor 3.2b).
+                CELL_KEY.add(AbilityKeys.labelFor(c));
                 if (gain) {
                     gainIndex++;
                 }
@@ -153,7 +175,7 @@ public final class KitInventory {
                 gui.pose().popMatrix();
                 ax += 20;
             }
-            // Tor 3.4: every ability on Q, F, Y, sneak + Y gets a field with its tooltip, in a column right of the panel.
+            // Tor 3.4: every ability on places 1-4 gets a field with its tooltip, in a column right of the panel.
             List<UltHud.Cell> bar = UltHud.choiceCells(s, mc);
             int bx = left + 180;
             int by = top + 8;

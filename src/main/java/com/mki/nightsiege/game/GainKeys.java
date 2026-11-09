@@ -137,7 +137,28 @@ public final class GainKeys {
         return true;
     }
 
-    /** A gain key (N, M, J): the ability on it, at once. */
+    /**
+     * Tor 3.2b: a click on gain place {@code place} in the inventory puts the next owned gain that sits
+     * on no other place there (see {@link com.mki.nightsiege.core.GainPlaces}). False when nothing changed.
+     */
+    public static boolean cycle(SiegeManager m, ServerPlayer player, int place) {
+        PlayerSkills skills = m.save().skillsOf(player.getUUID().toString());
+        if (skills == null || !skills.hasClass()) {
+            return false;
+        }
+        SkillClass clazz = skills.clazz();
+        List<String> order = com.mki.nightsiege.core.GainPlaces.next(assigned(m, skills, clazz), owned(m, skills, clazz), place);
+        if (order == null) {
+            return false;
+        }
+        if (skills.gainKeyChoice == null) {
+            skills.gainKeyChoice = new HashMap<>();
+        }
+        skills.gainKeyChoice.put(clazz.name(), order);
+        return true;
+    }
+
+    /** A gain key (1, 2, 3 since Tor 3.2b): the ability on it, at once. */
     public static void onKey(SiegeManager m, ServerPlayer player, int index) {
         PlayerSkills skills = m.save().skillsOf(player.getUUID().toString());
         if (skills == null || !skills.hasClass() || !(player.level() instanceof ServerLevel level)) {

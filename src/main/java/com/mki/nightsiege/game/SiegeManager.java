@@ -6124,7 +6124,7 @@ public final class SiegeManager {
             case "slot" -> onSlotKey(player, parseAmount(argument));   // the ability bar (27 October 2026)
             case "cycle" -> onCycle(player, argument);   // arrows and potions: the key held, the wheel turned (30.10.)
             case "gain" -> {
-                GainKeys.onKey(this, player, parseAmount(argument));   // the gain keys N, M, J (balance update 2)
+                GainKeys.onKey(this, player, parseAmount(argument));   // the gain keys 1, 2, 3 (Tor 3.2b)
                 sendUltHud(player);
             }
             case "gainkey" -> {
@@ -6135,6 +6135,13 @@ public final class SiegeManager {
                     sendUltHud(player);
                     openCoreWindow(player);   // through the window's limit (survival safety 2)
                 }
+            }
+            case "gainplace" -> {
+                // Tor 3.2b: a click on a gain place in the inventory ("gainplace:0") brings the next free gain.
+                if (GainKeys.cycle(this, player, parseAmount(argument))) {
+                    persistShortly();
+                }
+                sendUltHud(player);
             }
             case "wheel" -> onWheel(player, argument);
             case "jump" -> GainGear.onDoubleJump(player);
