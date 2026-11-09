@@ -105,6 +105,28 @@ def regler(naechte, flach=False, maximum=0.15):
             "buckets": buckets, "regionen": regionen}
 
 
+def knobs(erg, maximum=0.15, sprung_alt=(1.0, 1.0, 1.0), gruppe_alt=(1.0,) * 5):
+    """Faktoren -> Config-Felder von 6.2 (SiegeConfig): budgetJumpFactors (je Sprung 6/11/20) und budgetGroupFactors.
+
+    Band-Faktor = n-gewichtetes Mittel der Stufen-Faktoren; Sprung = Verhaeltnis zum Band davor (wieder auf +-15 % gedeckelt),
+    neu = alt x Sprung. Faktor des ersten Bands (Stufe 1-5) ist nicht als Sprung ausdrueckbar: Hinweis fuer baseMobsPerBatch/mobsPerLevel.
+    """
+    band = []
+    for bi in range(len(rm.BAENDER)):
+        sub = [s for s in erg["stufen"] if rm.band_of(s["stufe"]) == bi]
+        n = sum(s["n"] for s in sub)
+        band.append(sum(s["faktor"] * s["n"] for s in sub) / n if n else 1.0)
+    sprung = []
+    for i in range(1, len(band)):
+        r = band[i] / band[i - 1]
+        sprung.append(min(1 + maximum, max(1 - maximum, r)) * sprung_alt[i - 1])
+    gruppe = {b["bucket"]: b["faktor"] for b in erg["buckets"]}
+    grp = [gruppe.get(b[0], 1.0) * gruppe_alt[i] for i, b in enumerate(rm.BUCKETS)]
+    return {"band_faktor": band, "jump": sprung, "group": grp,
+            "variante": "V=neu:budgetJumpFactors=%s,budgetGroupFactors=%s" % (
+                "/".join("%.3f" % v for v in sprung), "/".join("%.3f" % v for v in grp))}
+
+
 def text(erg, kopf):
     z = [kopf, "", "Regler (Formel A): Delta ln = 0,5*(logit p_hat - logit Ziel), je Lauf +-15 %; Faktor auf Anzahl x Leben der normalen Monster"]
     c = erg["koeffizienten"]
@@ -127,6 +149,12 @@ def text(erg, kopf):
         z.append("  %-7s %-5s n=%-4d roh %5.1f %% [%4.1f-%4.1f]  Modell %5.1f %%  %s Faktor %.2f%s" % (
             r["band"], r["bucket"], r["n"], 100 * r["roh"], 100 * r["lo"], 100 * r["hi"], 100 * r["modell"],
             "Stopp" if r["stopp"] else "     ", r["faktor"], "  (unsicher, n<20)" if r["n"] < 20 else ""))
+    k = erg.get("knobs")
+    if k:
+        z.append("")
+        z.append("Band-Faktoren (L1-5, 6-10, 11-19, 20+): " + ", ".join("%.3f" % v for v in k["band_faktor"])
+                 + "  (Faktor des ersten Bands: baseMobsPerBatch/mobsPerLevel entsprechend, nicht als Sprung)")
+        z.append("Fuer den naechsten Lauf (Team-Sim-Variante): " + k["variante"])
     return z
 
 
@@ -137,12 +165,15 @@ def main(argv=None):
     ap.add_argument("--flach", action="store_true")
     ap.add_argument("--max", type=float, default=0.15)
     ap.add_argument("--json")
+    ap.add_argument("--sprung-alt", default="1/1/1", help="heutige budgetJumpFactors, z. B. 1.1/1/0.95")
+    ap.add_argument("--gruppe-alt", default="1/1/1/1/1", help="heutige budgetGroupFactors")
     a = ap.parse_args(argv)
     naechte, info = rm.lade(a.quelle, a.variante)
     if not naechte:
         print("keine gueltigen Naechte")
         return None
     erg = regler(naechte, a.flach, a.max)
+    erg["knobs"] = knobs(erg, a.max, [float(v) for v in a.sprung_alt.split("/")], [float(v) for v in a.gruppe_alt.split("/")])
     print("\n".join(text(erg, rm.kopf(naechte, info))))
     if a.json:
         json.dump(erg, open(a.json, "w", encoding="utf-8"), indent=1)

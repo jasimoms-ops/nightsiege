@@ -97,6 +97,9 @@ def haupt():
     pruefe("Regler: zu leichte Stufe (L6-10) bekommt Faktor > 1 oder Stopp",
            any(s["faktor"] > 1.0 or s["stopp"] for s in erg["stufen"] if 6 <= s["stufe"] <= 10))
     pruefe("Regler: Ziel 75 -> 65 im Band", abs(rm.ziel_kurve(6) - 0.75) < 1e-9 and abs(rm.ziel_kurve(10) - 0.65) < 1e-9)
+    erg["knobs"] = tr.knobs(erg)
+    pruefe("Regler: Sprung-/Gruppenfaktoren fuer Config (3 und 5 Werte)", len(erg["knobs"]["jump"]) == 3 and len(erg["knobs"]["group"]) == 5,
+           erg["knobs"]["variante"])
     tr.text(erg, "x")
     # Rechnung aus der Recherche: 76 % -> +15 % (gedeckelt), 64 % -> -13 %
     pruefe("Formel A Beispiel 76 %", abs(tr.deckel(0.5 * (rm.logit(0.76) - rm.LOGIT_ZIEL), 0.15) - 1.15) < 1e-9)
