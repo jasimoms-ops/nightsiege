@@ -203,6 +203,7 @@ final class FunktionenScenes {
         float charge;
         float splash;
         float absorb;   // Tor 9b (P1): absorption the hit gave the paladin
+        int near;       // monsters within the Erdstoß radius of the target (diagnosis)
         String state = "";
     }
 
@@ -227,8 +228,9 @@ final class FunktionenScenes {
         check(a.done && a.setupOk && a.splash > 0.01f, String.format(Locale.ROOT,
                 "Erdstoss on a real jump crit: splash %.2f (charge %.2f, %s)", a.splash, a.charge, a.state));
         // Tor 9b (P1): one golden heart per monster struck (target + side = 2 hearts), at most 4
-        check(a.done && a.absorb > 3.99f && a.absorb < 8.01f, String.format(Locale.ROOT,
-                "paladin jump hit gives golden hearts: +%.2f absorption (2 monsters, expected 4)", a.absorb));
+        check(a.done && Math.abs(a.absorb - 4f) < 0.01f, String.format(Locale.ROOT,
+                "paladin jump hit gives golden hearts: +%.2f absorption (2 monsters, expected exactly 4; %d monsters within 2.5 of the target)",
+                a.absorb, a.near));
         // 2: on the ground, full charge -> nothing
         Hit g = new Hit();
         place(context, g, 0);
@@ -292,6 +294,8 @@ final class FunktionenScenes {
         float before = hit.side.getHealth();
         hit.target.invulnerableTime = 0;
         float absorbBefore = player.getAbsorptionAmount();
+        hit.near = player.level().getEntitiesOfClass(net.minecraft.world.entity.Mob.class,
+                hit.target.getBoundingBox().inflate(2.5, 1.5, 2.5), e -> e.isAlive()).size();
         player.attack(hit.target);
         hit.splash = before - hit.side.getHealth();
         hit.absorb = player.getAbsorptionAmount() - absorbBefore;
