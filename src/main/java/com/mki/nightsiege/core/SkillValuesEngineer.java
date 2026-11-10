@@ -216,7 +216,7 @@ final class SkillValuesEngineer {
         def("e_fieldtech", "slots", 1);
         for (int r = 1; r <= 3; r++) {
             def("overcharge", "time" + r, 160 + 40 * r);                 // ticks
-            def("thunderstorm", "dmg" + r, 6 + 2 * r);
+            def("thunderstorm", "dmg" + r, new double[] {10, 13, 15}[r - 1]);   // Tor 8: was 8/10/12
             def("thunderstorm", "jumps" + r, 4 + 2 * r);
             def("bombardment", "dmg" + r, 8 + 4 * r);
             def("bombardment", "blasts" + r, 3 + 2 * r);
