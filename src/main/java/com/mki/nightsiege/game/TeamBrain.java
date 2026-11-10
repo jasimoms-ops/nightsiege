@@ -85,6 +85,14 @@ final class TeamBrain {
     private long nextUlt;
     /** Tor 6.0: the human switch ({@link BotHuman}); OFF = the bot as before. */
     BotHuman h = BotHuman.OFF;
+    /**
+     * Tor 8.3 (sim knob "faehig", default 1): the bot uses its class like an average player of the
+     * logger's nights of 09.11. (keys pressed as often as theirs, towers kept from earlier nights,
+     * the bow kept drawn while looking away). 0 = the bot of Tor 8.1.
+     */
+    boolean able = true;
+    private long nextBolt;
+    private long nextUlt3;
     /** The core (retreat target), set by the team sim. */
     Vec3 core;
     /** Archers: stands on the wall top (true) or in front of the gate. */
@@ -227,6 +235,8 @@ final class TeamBrain {
         nextUlt = now + iv(60);
         nextUlt2 = now + iv(100);
         nextShield = now + 20;
+        nextBolt = now;
+        nextUlt3 = now + iv(200);
         focused = true;
         nextFocus = now;
         staffTurn = 0;
@@ -256,6 +266,9 @@ final class TeamBrain {
             return;
         }
         Inventory inv = player.getInventory();
+        if (able) {
+            stockTowers(m, player, inv);
+        }
         int n = 0;
         for (int i = 0; i < inv.getContainerSize(); i++) {
             ItemStack stack = inv.getItem(i);
@@ -278,6 +291,33 @@ final class TeamBrain {
                     mortars.add(pos);
                     mortarsPlaced++;
                 }
+            }
+        }
+    }
+
+    /**
+     * Tor 8.3: a player's towers stay standing at home from night to night and the kit tops them up
+     * (TrapService.giveFreeTraps), so after a few nights he has as many as his cap allows (logger 09.11.:
+     * the electrician's second tesla shot while he sat in the first). The sim night starts fresh, so the
+     * bot gets the towers of his earlier nights here, up to the cap of his tier.
+     */
+    private void stockTowers(SiegeManager m, ServerPlayer player, Inventory inv) {
+        PlayerSkills skills = m.save().skillsOf(player.getUUID().toString());
+        for (TrapKind kind : TrapKind.values()) {
+            net.minecraft.world.item.Item item = ModContent.TRAP_ITEMS.get(kind);
+            int tier = m.skillTree().trapTier(kind, skills);
+            if (!isTower(kind) || item == null || tier <= 0) {
+                continue;
+            }
+            int have = 0;
+            for (int i = 0; i < inv.getContainerSize(); i++) {
+                if (inv.getItem(i).is(item)) {
+                    have += inv.getItem(i).getCount();
+                }
+            }
+            int more = m.trapService().maxFor(kind, tier, skills) - have;
+            if (more > 0) {
+                inv.placeItemBackInInventory(new ItemStack(item, more));
             }
         }
     }
@@ -457,7 +497,10 @@ final class TeamBrain {
                 return;
             }
         }
-        if (player.isInWall() || player.isInLava() || !seated && player.position().distanceToSqr(home) > (melee ? (leash + 3) * (leash + 3) : 9.0)) {
+        boolean roams = able && core != null && role != Role.ENGINEER;   // Tor 8.3: fights where the monsters are
+        double away = roams ? player.position().distanceTo(core) : 0;
+        if (player.isInWall() || player.isInLava() || !seated && (roams ? away > HUNT + 3
+                : player.position().distanceToSqr(home) > (melee ? (leash + 3) * (leash + 3) : 9.0))) {
             stand(player, level);   // pushed into a wall, into lava or too far away: back to the post
         }
         Mob close = pickTarget(level, player, melee ? leash + 4 : 10.0, now);
@@ -465,15 +508,32 @@ final class TeamBrain {
         double reach = player.getAttributeValue(Attributes.ENTITY_INTERACTION_RANGE);
         boolean inReach = close != null && player.distanceTo(close) <= reach + 0.3;
 
-        // Melee: a few steps towards the monster, never further than the leash from the post.
-        if (melee && focused && close != null && !inReach && close.position().distanceTo(home) <= leash + 2) {
+        if (roams) {
+            // Tor 8.3 (sim log LAGE, 10.11.): half the monsters stood idle at the walls 40 blocks out, out of every
+            // bot's leash, while real players go out to them. With nothing close the bot walks to the nearest monster
+            // around the base (archers until one is in bow range, healers after the team-mate furthest out).
+            if (focused && melee && close != null && !inReach) {
+                walk(player, level, close.position());
+            } else if (focused && !melee && far != null && player.distanceTo(far) > 16.0) {
+                walk(player, level, far.position());   // archers close in to bow range (the aim error grows with distance)
+            } else if (focused && (melee ? close == null : far == null)) {
+                Vec3 to = huntSpot(level, player, team, now);
+                if (to != null) {
+                    walk(player, level, to);
+                } else if (player.position().distanceToSqr(home) > 2.0) {
+                    walk(player, level, home);
+                }
+            }
+        } else if (melee && focused && close != null && !inReach && close.position().distanceTo(home) <= leash + 2) {
+            // Melee: a few steps towards the monster, never further than the leash from the post.
             stepTowards(player, level, close.position(), home, leash);
         } else if (melee && close == null && player.position().distanceToSqr(home) > 2.0) {
             stepTowards(player, level, home, home, leash);
         }
 
         if (clazz == SkillClass.SUMMONER && focused && now >= nextStaff) {
-            nextStaff = now + iv(20) + late();
+            // Tor 8.3: a player clicks the staff again as soon as its pause is over (logger: 105 clicks a minute)
+            nextStaff = now + (able ? STAFF_PAUSE : iv(20) + late());
             staff(m, player, level, skills, close != null ? close : far);
         }
         if (clazz == SkillClass.ENGINEER && focused && now >= nextRemote) {
@@ -492,9 +552,9 @@ final class TeamBrain {
 
         boolean ranged = clazz == SkillClass.ARCHER || clazz == SkillClass.ENGINEER;
         if (!focused) {
-            if (player.isUsingItem()) {
+            if (player.isUsingItem() && !(able && ranged && drawing(player))) {
                 player.stopUsingItem();   // not paying attention: no blocking, no drawn bow
-            }
+            }   // Tor 8.3: a player looking away keeps the bow drawn and the crossbow loading (before, the load began anew)
         } else if (inReach || !ranged) {
             if (close != null && (inReach || role != Role.HEALER || now < nextHeal - 10)) {
                 player.lookAt(EntityAnchorArgument.Anchor.EYES, close.getEyePosition());
@@ -510,18 +570,25 @@ final class TeamBrain {
                 }
                 player.swing(InteractionHand.MAIN_HAND, true);
             } else if (inReach && clazz == SkillClass.ARCHER) {
-                MeleeSim.shoot(player, level, close, aimError(player.distanceTo(close)));
+                MeleeSim.shoot(player, level, close, aimError(player.distanceTo(close)), able);
             } else if (inReach && clazz == SkillClass.SUMMONER && now % 10 == 0
                     && MeleeSim.hold(player, s -> s.is(ModContent.STAFF))) {
                 m.onCoreAction(player, "staffhit");
-            } else if (guardian && close != null && now % 5 == 0 && player.distanceTo(close) <= com.mki.nightsiege.core.NightKit.HEALER_BOLT_RANGE
+            } else if (guardian && close != null && (able ? now >= nextBolt : now % 5 == 0)
+                    && player.distanceTo(close) <= com.mki.nightsiege.core.NightKit.HEALER_BOLT_RANGE
                     && MeleeSim.hold(player, s -> s.getItem() instanceof HealerStaffItem)) {
+                if (able) {
+                    // Tor 8.3: aimed at the monster's middle and again right when the bolt's pause is over (the bolt went
+                    // where the healer had just looked at a team-mate; logger: real wardens 4x the staff damage)
+                    player.lookAt(EntityAnchorArgument.Anchor.EYES, close.position().add(0, close.getBbHeight() * 0.5, 0));
+                    nextBolt = now + com.mki.nightsiege.core.NightKit.HEALER_BOLT_PAUSE;
+                }
                 m.onCoreAction(player, "staffhit");   // the healers' staff (Tor 4.7)
             } else if (guardian && !player.isUsingItem() && !player.getItemBySlot(EquipmentSlot.OFFHAND).isEmpty()) {
                 player.startUsingItem(InteractionHand.OFF_HAND);
             }
         } else if (far != null) {
-            MeleeSim.shoot(player, level, far, aimError(player.distanceTo(far)));
+            MeleeSim.shoot(player, level, far, aimError(player.distanceTo(far)), able);
         } else if (player.isUsingItem()) {
             player.stopUsingItem();
         }
@@ -554,13 +621,21 @@ final class TeamBrain {
                     m.onCoreAction(player, "ult2");
                 }
             }
-        } else if (now >= nextUlt2 && clazz != SkillClass.ENGINEER && clazz != SkillClass.SUMMONER) {
+        } else if (now >= nextUlt2 && clazz != SkillClass.ENGINEER && clazz != SkillClass.SUMMONER && !(able && guardian)) {
+            // Tor 8.3: guardians no longer cast F blindly (logger 09.11.: no warden and no shield fighter pressed F)
             nextUlt2 = now + iv(100) + late();
             if (!forgot()) {
                 m.onCoreAction(player, "ult2");   // Fähigkeit 2
             }
         }
-        if (guardian && player.isBlocking() && now >= nextShield) {
+        if (able && now >= nextUlt3) {
+            nextUlt3 = now + iv(200) + late();   // Tor 8.3: the second ultimate on X (logger: 0.3-0.4 a minute)
+            if (!forgot()) {
+                m.onCoreAction(player, "ult2x");
+            }
+        }
+        // Tor 8.3: no client sends "shield" any more (logger: 0 uses), only the old bot did
+        if (!able && guardian && player.isBlocking() && now >= nextShield) {
             nextShield = now + iv(40);
             m.onCoreAction(player, "shield");
         }
@@ -573,6 +648,15 @@ final class TeamBrain {
             }
         }
         drink(player, level, now);
+    }
+
+    /** Tor 8.3: the summoner's staff pause (d_raise boltpause), the clicks of a player as soon as it is over. */
+    private static final int STAFF_PAUSE = 20;
+
+    /** A bow or crossbow being drawn or loaded. */
+    private static boolean drawing(ServerPlayer player) {
+        net.minecraft.world.item.Item item = player.getUseItem().getItem();
+        return item instanceof net.minecraft.world.item.BowItem || item instanceof net.minecraft.world.item.CrossbowItem;
     }
 
     /** The staff like the class simulation: attack, every few turns the order, call or a spell. */
@@ -591,7 +675,17 @@ final class TeamBrain {
             int call = m.abilitySlotOf(player, "call");
             m.onCoreAction(player, call >= 0 ? "slot:" + call : "quiver");
         }
-        if (dead && sneak) {
+        if (able && dead) {
+            // Tor 8.3 (logger 09.11.: the soul catcher pressed the swarm 4 times a minute, fear and the order on F
+            // next to never): the swarm when it is ready, else the staff
+            int swarm = m.abilitySlotOf(player, "swarm");
+            List<com.mki.nightsiege.core.UltState.Slot> bar = m.abilitySlots(player);
+            if (aim != null && swarm >= 0 && swarm < bar.size() && bar.get(swarm).cooldownTicks <= 0) {
+                m.onCoreAction(player, "slot:" + swarm);
+            } else {
+                m.onCoreAction(player, "staffhit");
+            }
+        } else if (dead && sneak) {
             int keys = Math.max(1, m.abilitySlots(player).size());
             m.onCoreAction(player, "slot:" + (staffTurn / 3) % keys);
         } else if (sneak || dead && staffTurn % 5 == 1 && aim != null) {
@@ -628,7 +722,7 @@ final class TeamBrain {
         List<com.mki.nightsiege.core.UltState.Slot> slots = m.abilitySlots(player);
         for (int k = 0; k < slots.size(); k++) {
             int i = (slotTurn + k) % slots.size();
-            if (slots.get(i).cooldownTicks <= 0) {
+            if (slots.get(i).cooldownTicks <= 0 && !(able && skipSlot(slots.get(i).id, player))) {
                 m.onCoreAction(player, "slot:" + i);
                 slotTurn = i + 1;
                 return;
@@ -636,17 +730,86 @@ final class TeamBrain {
         }
     }
 
-    /** One small step towards {@code target}, on standable ground, never beyond the leash. */
-    private static void stepTowards(ServerPlayer player, ServerLevel level, Vec3 target, Vec3 home, double leash) {
+    /** Tor 8.3: how far from the core a roaming bot goes out for a monster (the sim castle's walls stand at about 40). */
+    static final double HUNT = 56.0;
+    private long nextHunt;
+    private Vec3 hunted;
+
+    /**
+     * Where a roaming bot goes with nothing close (every second anew): the nearest monster within {@link #HUNT}
+     * of the core; the healer instead goes to within 5 blocks of the team-mate furthest out. Null = stay.
+     */
+    private Vec3 huntSpot(ServerLevel level, ServerPlayer player, List<ServerPlayer> team, long now) {
+        if (now < nextHunt) {
+            return hunted != null && player.position().distanceToSqr(hunted) > (role == Role.HEALER ? 25.0 : role == Role.RANGED ? 256.0 : 1.0) ? hunted : null;
+        }
+        nextHunt = now + 20;
+        hunted = null;
+        if (role == Role.HEALER) {
+            double most = player.position().distanceTo(core) + 6.0;
+            for (ServerPlayer mate : team) {
+                double d = mate.position().distanceTo(core);
+                if (mate != player && d > most) {
+                    most = d;
+                    hunted = mate.position();
+                }
+            }
+            return hunted;
+        }
+        double best = Double.MAX_VALUE;
+        for (Mob mob : level.getEntitiesOfClass(Mob.class, new net.minecraft.world.phys.AABB(BlockPos.containing(core)).inflate(HUNT, 24, HUNT),
+                e -> e instanceof net.minecraft.world.entity.monster.Enemy && e.isAlive() && !Companions.isCompanion(e))) {
+            double d = mob.distanceToSqr(player);
+            if (mob.position().distanceTo(core) <= HUNT && d < best) {
+                best = d;
+                hunted = mob.position();
+            }
+        }
+        return hunted;
+    }
+
+    /**
+     * A step towards {@code target} around the base; when a wall is in the way the bot tries to the sides
+     * (up to 105 degrees), so it follows the wall to a way through like a player who knows his base.
+     */
+    private void walk(ServerPlayer player, ServerLevel level, Vec3 target) {
+        Vec3 d = new Vec3(target.x - player.getX(), 0, target.z - player.getZ());
+        if (d.lengthSqr() < 0.16) {
+            return;
+        }
+        int side = (int) (id.getLeastSignificantBits() & 1) == 0 ? 1 : -1;   // each bot keeps its own way round
+        for (int deg : new int[]{0, 35, -35, 70, -70, 105, -105}) {
+            double a = Math.toRadians(deg * side);
+            Vec3 dir = new Vec3(d.x * Math.cos(a) - d.z * Math.sin(a), 0, d.x * Math.sin(a) + d.z * Math.cos(a));
+            if (stepTowards(player, level, player.position().add(dir.normalize().scale(Math.min(2.0, d.length()))), core, HUNT)) {
+                return;
+            }
+        }
+    }
+
+    /**
+     * Tor 8.3 (logger 09.11.): keys a player leaves on the bar. The engineer's aimed abilities are fired at a
+     * target by EngineerAbilities.botUse (here they went off at nothing), his escape only when hurt (real 0.5 a
+     * minute, bot 2.6); the warriors' dash (real 0.1 a minute, bot 1.4-3.5) only took them away from the fight.
+     */
+    private boolean skipSlot(String slot, ServerPlayer player) {
+        if (clazz == SkillClass.ENGINEER) {
+            return EngineerAbilities.isOne(slot) || "escape".equals(slot) && player.getHealth() > player.getMaxHealth() * 0.4f;
+        }
+        return clazz == SkillClass.WARRIOR && "dash".equals(slot);
+    }
+
+    /** One small step towards {@code target}, on standable ground, never beyond the leash. True when the bot moved. */
+    private static boolean stepTowards(ServerPlayer player, ServerLevel level, Vec3 target, Vec3 home, double leash) {
         Vec3 here = player.position();
         Vec3 d = new Vec3(target.x - here.x, 0, target.z - here.z);
         double len = d.length();
         if (len < 0.4) {
-            return;
+            return false;
         }
         Vec3 next = here.add(d.scale(Math.min(STEP, len) / len));
         if (next.distanceTo(home) > leash) {
-            return;
+            return false;
         }
         // Only the column the step goes into, at most one block up or down (like walking). Before,
         // a free spot next to it was found but the bot was put at the step itself - into the wall.
@@ -662,7 +825,7 @@ final class TeamBrain {
             }
         }
         if (spot == null || dangerous(level, spot)) {
-            return;   // a player who knows his base does not step next to lava or fire
+            return false;   // a player who knows his base does not step next to lava or fire
         }
         double y = spot.getY();
         // The whole body must be free there (a player is 0.6 wide), not only the block in the middle.
@@ -670,9 +833,10 @@ final class TeamBrain {
         net.minecraft.world.phys.AABB body = new net.minecraft.world.phys.AABB(next.x - half, y + 0.01, next.z - half,
                 next.x + half, y + player.getBbHeight(), next.z + half);
         if (!level.noCollision(player, body)) {
-            return;
+            return false;
         }
         player.teleportTo(next.x, y, next.z);
+        return true;
     }
 
     /** For the log: a short line about this bot. */

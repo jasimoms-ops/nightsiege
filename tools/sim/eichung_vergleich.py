@@ -160,6 +160,8 @@ def main():
     used = set()
     out = []
     ps, real_wins, judged = [], 0, 0
+    # Tor 8.3: je Unterklasse ueber alle Naechte, je Minute (Summen ueber verschieden lange Naechte verzerren)
+    permin = collections.defaultdict(collections.Counter)
     allok = True
     for sc in scen:
         sid = sc["id"]
@@ -219,6 +221,17 @@ def main():
                                     ("faehigkeiten", "Faehigkeiten", True)):
                 vals = [r["subs"][sub][key] for r in runs if sub in r["subs"]]
                 rows.append(("%s %s" % (sub, label), verdict(rc[key], vals, cnt)))
+            sruns = [r for r in runs if sub in r["subs"]]
+            if real["dauer"] > 0 and sruns:
+                for key, label in (("schaden", "ausgeteilt/min"), ("erhalten", "erhalten/min")):
+                    vals = [r["subs"][sub][key] * 60.0 / r["dauer"] for r in sruns if r["dauer"] > 0]
+                    rows.append(("%s %s" % (sub, label), verdict(rc[key] * 60.0 / real["dauer"], vals)))
+                pm = permin[sub]
+                pm["echt_min"] += real["dauer"] / 60.0
+                pm["sim_min"] += statistics.mean(r["dauer"] for r in sruns) / 60.0
+                for key in ("schaden", "erhalten"):
+                    pm["echt_" + key] += rc[key]
+                    pm["sim_" + key] += statistics.mean(r["subs"][sub][key] for r in sruns)
             fd = [r["subs"][sub]["erster_tod"] for r in runs if sub in r["subs"]]
             died = [x for x in fd if x >= 0]
             if rc["erster_tod"] >= 0 and died:
@@ -228,6 +241,18 @@ def main():
                     "tot bei %ds" % rc["erster_tod"] if rc["erster_tod"] >= 0 else "kein Tod", len(died), len(fd)), None)))
         out.append("| Wert | Vergleich |\n|---|---|")
         out += ["| %s | %s |" % (name, v[0]) for name, v in rows]
+        out.append("")
+    if permin:
+        out.append("## Je Minute je Unterklasse, alle Naechte (echt / Sim, Verhaeltnis Sim/echt; Ziel 0,6-1,5)")
+        out.append("| Unterklasse | ausgeteilt/min | erhalten/min |\n|---|---|---|")
+        for sub in sorted(permin):
+            pm = permin[sub]
+            cells = []
+            for key in ("schaden", "erhalten"):
+                e = pm["echt_" + key] / pm["echt_min"] if pm["echt_min"] else 0.0
+                v = pm["sim_" + key] / pm["sim_min"] if pm["sim_min"] else 0.0
+                cells.append("%.0f / %.0f (%s)" % (e, v, ("%.2f" % (v / e)).replace(".", ",") if e else "-"))
+            out.append("| %s | %s | %s |" % (sub, cells[0], cells[1]))
         out.append("")
     if judged:
         dist = poisson_binomial(ps)
