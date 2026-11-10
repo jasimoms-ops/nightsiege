@@ -1295,7 +1295,13 @@ public final class TeamSim {
                     if (t.values == null) {
                         t.values = new java.util.LinkedHashMap<>();
                     }
-                    t.values.put(path[2], Double.parseDouble(value));
+                    if (path[2].equals("amount")) {
+                        // The node's value per level: sv.w_blessing.amount=1.0 (Tor 8)
+                        t.amount = Double.parseDouble(value);
+                        m.skillTree().applyTweaks(cfg.skillTweaks);
+                    } else {
+                        t.values.put(path[2], Double.parseDouble(value));
+                    }
                     com.mki.nightsiege.core.SkillValues.apply(cfg.skillTweaks);
                 } else if (key.startsWith("mob.")) {
                     // A field of a spawn-table entry: mob.minecraft:evoker.minLevel=11 (30.10.)
