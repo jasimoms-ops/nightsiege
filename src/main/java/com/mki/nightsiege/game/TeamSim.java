@@ -462,6 +462,15 @@ public final class TeamSim {
         return out;
     }
 
+    /** Tor 8.2 Zusatz: "prefer=a/b" (variant or common): these nodes are learned first, their group mates shut out. */
+    private static java.util.Set<String> preferred(String variant) {
+        String v = variants.getOrDefault(variant, Map.of()).getOrDefault("prefer", common.get("prefer"));
+        if (v == null || v.isBlank()) {
+            return null;
+        }
+        return new java.util.HashSet<>(java.util.Arrays.asList(v.split("/")));
+    }
+
     private static long seed(int level, int group, String mix, int i) {
         return ((long) level * 1_000_003L) ^ ((long) group * 7919L) ^ ((long) mix.hashCode() << 20) ^ (i * 104729L);
     }
@@ -693,9 +702,10 @@ public final class TeamSim {
                 }
             }
             PlayerSkills skills = fullTree
-                    ? MeleeSim.build(m.skillTree(), SkillClass.valueOf(sub[0]), sub[1], pickOrder)
+                    ? MeleeSim.build(m.skillTree(), SkillClass.valueOf(sub[0]), sub[1], pickOrder, preferred(run.variant()))
                     : MeleeSim.buildBudget(m.skillTree(), SkillClass.valueOf(sub[0]), sub[1],
-                    sc != null && sc.points() >= 0 ? sc.points() : TestKit.pointsBefore(run.level(), m.config()), pickOrder);
+                    sc != null && sc.points() >= 0 ? sc.points() : TestKit.pointsBefore(run.level(), m.config()), pickOrder,
+                    preferred(run.variant()));
             m.save().skills.put(id, skills);
             StringBuilder nodes = new StringBuilder();
             for (com.mki.nightsiege.core.SkillNode n : m.skillTree().ofClass(SkillClass.valueOf(sub[0]))) {
@@ -1227,11 +1237,16 @@ public final class TeamSim {
             String key = e.getKey();
             String value = e.getValue();
             if (key.startsWith("koennen") || key.startsWith("wagemut") || key.equals("mit") || key.equals("nur")
-                    || key.startsWith("mensch") || key.startsWith("nachspiel") || key.equals("wahl")) {
+                    || key.startsWith("mensch") || key.startsWith("nachspiel") || key.equals("wahl") || key.equals("prefer")) {
                 continue;   // the bots' knobs, not config values
             }
             try {
-                if (key.startsWith("sv.")) {
+                if (key.startsWith("amt.")) {
+                    // Tor 8.2 Zusatz: the amount of a skill node, e.g. amt.w_blessing=1.5 (the node's own number)
+                    backup.putIfAbsent("skillTweaks", copyTweaks(cfg.skillTweaks));
+                    cfg.skillTweaks.computeIfAbsent(key.substring(4), k -> new SiegeConfig.SkillTweak()).amount = Double.parseDouble(value);
+                    m.skillTree().applyTweaks(cfg.skillTweaks);
+                } else if (key.startsWith("sv.")) {
                     // A skill value like a server skill tweak: sv.d_soulcatcher.swarmcd=80 (30.10.)
                     String[] path = key.split("\\.", 3);
                     backup.putIfAbsent("skillTweaks", copyTweaks(cfg.skillTweaks));
@@ -1336,6 +1351,7 @@ public final class TeamSim {
         }
         backup.clear();
         com.mki.nightsiege.core.SkillValues.apply(cfg.skillTweaks);   // the server's skill values again
+        m.skillTree().applyTweaks(cfg.skillTweaks);
     }
 
     /** A copy of the skill tweaks, so a variant's sv.… values can be taken back. */
