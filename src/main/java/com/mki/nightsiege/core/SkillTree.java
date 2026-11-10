@@ -385,7 +385,8 @@ public final class SkillTree {
         node(list, "w_holy_strike", c, m, SkillEffect.HOLY_STRIKE, 1, 12, 0, 1.0, "holy_vigor|w_vow", "m5", "minecraft:blaze_rod", 5, 5);
         String m5 = "w_crusader|w_headsman|w_holy_strike";
         node(list, "w_momentum", c, m, SkillEffect.MOMENTUM, 1, 15, 0, 1.0, m5, "m4", "minecraft:rabbit_foot", 6, 1);
-        node(list, "w_blessing", c, m, SkillEffect.HEAL_AURA, 1, 15, 0, 1.0, m5, "m4", "minecraft:glistering_melon_slice", 6, 3);
+        // Tor 8 (Simon 10.11.): the aura of blessing heals +50 % (1 -> 1.5 life every 3 s), the pace stays.
+        node(list, "w_blessing", c, m, SkillEffect.HEAL_AURA, 1, 15, 0, 1.5, m5, "m4", "minecraft:glistering_melon_slice", 6, 3);
         node(list, "m_cross_keen", c, m, SkillEffect.CRIT_CHANCE, 1, 15, 0, 0.2, m5, "m4", "minecraft:flint", 6, 5);
         String m4 = "w_momentum|w_blessing|m_cross_keen";
         node(list, "w_earthshock", c, m, SkillEffect.EARTHSHOCK, 1, 18, 0, 0.6, m4, "m6", "minecraft:mace", 7, 1);

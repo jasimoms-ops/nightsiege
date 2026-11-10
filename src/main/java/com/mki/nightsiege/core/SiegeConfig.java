@@ -1338,7 +1338,7 @@ public class SiegeConfig {
      */
     public int settingsVersion = 0;
     /** The newest settings version (the migrations below end there). */
-    public static final int SETTINGS_VERSION = 27;
+    public static final int SETTINGS_VERSION = 28;
     /** Version of the dungeon list in this file. Older lists are replaced on load. */
     /** Which structures hold dungeons, how hard they are and what lives there. */
     /** Perks from core fragments work within this many blocks of the main core. */
@@ -2019,6 +2019,15 @@ public class SiegeConfig {
                 smartNightDownStress = 0.50;
             }
             settingsVersion = 27;
+        }
+        if (settingsVersion < 28) {
+            // Tor 8 (Simon 10.11.): the aura of blessing heals +50 % (1.0 -> 1.5 life per pulse). The code default
+            // is the target; a server tweak on the old default becomes the target, an own value stays.
+            SkillTweak blessing = skillTweaks == null ? null : skillTweaks.get("w_blessing");
+            if (blessing != null && blessing.amount != null && Math.abs(blessing.amount - 1.0) < 1e-6) {
+                blessing.amount = 1.5;
+            }
+            settingsVersion = 28;
         }
         if (Double.isNaN(meleeLifesteal)) {
             meleeLifesteal = 0.08;
