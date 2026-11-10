@@ -51,7 +51,8 @@ public final class SkillService {
      * Simon 26.10.: life of the subclass on top of the skills: the axe fighter 10 less, the
      * paladin 5 less, every archer subclass 4 more (two hearts). The number sits on the subclass
      * node as SkillValue "hp". Below world level "hplowuntil" a node with "hplow" takes that instead
-     * (Tor 4: the axe fighter 6 less until level 10).
+     * (Tor 4: the axe fighter 6 less until level 10). A node with "hpearly" adds that much on world
+     * level 1, falling to 0 on level "hpearlyuntil" (Tor 9b P5: shield fighter and bulwark +6 until 10).
      */
     static double subclassHealth(SkillTree tree, PlayerSkills skills) {
         String node = switch (tree.subclassOf(skills)) {
@@ -61,20 +62,22 @@ public final class SkillService {
             case SkillTree.SUB_HEAVY -> "heavy_draw";
             case SkillTree.SUB_BOLTER -> "shrapnel";
             case SkillTree.SUB_TRAPPER -> "a_netbolt";
+            case SkillTree.SUB_SHIELDFIGHTER -> "riposte";
+            case SkillTree.SUB_BULWARK -> "g_bastion";
             default -> null;
         };
         if (node == null) {
             return 0.0;
         }
+        SiegeManager m = SiegeManager.get();
+        int level = m == null ? 1 : m.currentLevel();
+        double hp = SkillValues.get(node, "hp", 0.0);
         double low = SkillValues.get(node, "hplowuntil", 0.0);
-        if (low > 0) {
-            SiegeManager m = SiegeManager.get();
-            int level = m == null ? 1 : m.currentLevel();
-            if (level < low) {
-                return SkillValues.get(node, "hplow", SkillValues.get(node, "hp", 0.0));
-            }
+        if (low > 0 && level < low) {
+            hp = SkillValues.get(node, "hplow", hp);
         }
-        return SkillValues.get(node, "hp", 0.0);
+        return hp + com.mki.nightsiege.core.EarlyBonus.health(SkillValues.get(node, "hpearly", 0.0),
+                SkillValues.get(node, "hpearlyuntil", 10.0), level);
     }
 
     /** Keystones change several values at once. */

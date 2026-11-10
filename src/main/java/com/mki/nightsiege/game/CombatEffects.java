@@ -93,6 +93,8 @@ public final class CombatEffects {
 
     /** Warrior: hit streaks (stacks, last hit), the strong hit after a kill, the divine shield. */
     private final Map<UUID, long[]> combos = new HashMap<>();
+    /** Tor 9b (P1): the paladin's golden hearts from jump hits. */
+    private final com.mki.nightsiege.core.JumpWard jumpWard = new com.mki.nightsiege.core.JumpWard();
     private final Map<UUID, Long> momentumUntil = new HashMap<>();
     private final Map<UUID, Long> bloodPricePaid = new HashMap<>();
     private final Map<UUID, Long> divineReadyAt = new HashMap<>();
@@ -157,7 +159,7 @@ public final class CombatEffects {
                     "nightsiege.hud.key.passive", divineReadyAt.getOrDefault(player.getUUID(), 0L), now,
                     (int) SkillValues.get("w_divine_shield", "every", 600)));
         }
-        if (skills.clazz() == com.mki.nightsiege.core.SkillClass.ARCHER && tree.totalBonus(SkillEffect.TRIPWIRE, skills) > 0) {
+        if (skills.clazz() == com.mki.nightsiege.core.SkillClass.ARCHER && tripSlow(skills) != null) {
             out.add(GuardianEffects.timer("tripwire", "minecraft:tripwire_hook", "nightsiege.hud.timer.tripwire",
                     "nightsiege.hud.key.passive", tripReadyAt.getOrDefault(player.getUUID(), 0L), now,
                     (int) SkillValues.get("a_tripwire", "cd", 100)));
@@ -795,9 +797,12 @@ public final class CombatEffects {
             level.sendParticles(ParticleTypes.SWEEP_ATTACK, victim.getX(), victim.getY(0.6), victim.getZ(), 1, 0, 0, 0, 0);
         }
         double shock = tree.totalBonus(SkillEffect.EARTHSHOCK, skills);
-        boolean falling = shock > 0 && com.mki.nightsiege.core.SkillTriggers.earthshock(player.fallDistance, player.onGround(),
+        boolean jumpHit = com.mki.nightsiege.core.SkillTriggers.earthshock(player.fallDistance, player.onGround(),
                 WarriorSpirit.swingCharge(player, now), player.onClimbable(), player.isInWater(), player.isPassenger(),
                 player.hasEffect(MobEffects.BLINDNESS));
+        boolean falling = shock > 0 && jumpHit;
+        // Tor 9b (P1): the target and every monster the Erdstoß splash strikes (each counted once per tick)
+        List<UUID> jumpTargets = new ArrayList<>(List.of(victim.getUUID()));
         if (falling) {
             bonus += shock;
         }
@@ -858,6 +863,9 @@ public final class CombatEffects {
                 if (near == victim) {
                     continue;
                 }
+                if (falling) {
+                    jumpTargets.add(near.getUUID());
+                }
                 float before = near.getHealth();
                 followUpHit(level, near, source, splash);
                 cleaved += axeSteal ? Math.max(0f, before - near.getHealth()) : 0f;
@@ -874,6 +882,13 @@ public final class CombatEffects {
             if (falling) {
                 level.sendParticles(ParticleTypes.EXPLOSION, victim.getX(), victim.getY(), victim.getZ(), 2, 0.6, 0.1, 0.6, 0.0);
                 play(level, player, SoundEvents.MACE_SMASH_GROUND, 0.8f, 1.0f);
+            }
+        }
+        if (jumpHit && SkillTree.SUB_PALADIN.equals(tree.subclassOf(skills))) {
+            // Tor 9b (P1): one golden heart per monster the jump hit strikes, at most four, gone 10 s after the last
+            float add = jumpWard.onJumpHit(player.getUUID(), jumpTargets, player.getAbsorptionAmount(), now);
+            if (add > 0f) {
+                GuardianEffects.addAbsorption(player, add, Math.max(0f, player.getAbsorptionAmount()) + add);
             }
         }
 
@@ -1657,6 +1672,14 @@ public final class CombatEffects {
         return (int) Math.round(near ? dur * SkillValues.get("a_shackle", "near", 0.5) : dur);
     }
 
+    /** The tripwire's slow {ticks, amplifier} of an archer, or null (EarlyBonus.tripSlow). */
+    private int[] tripSlow(PlayerSkills skills) {
+        boolean tripwire = tree.totalBonus(SkillEffect.TRIPWIRE, skills) > 0;
+        SiegeManager m = SiegeManager.get();
+        return com.mki.nightsiege.core.EarlyBonus.tripSlow(SkillTree.SUB_TRAPPER.equals(tree.subclassOf(skills)),
+                m == null ? 1 : m.currentLevel(), tripwire, tripwire && tree.totalBonus(SkillEffect.TRAPMASTER, skills) > 0);
+    }
+
     /** Every half second: crossbow speed and the tripwire. */
     private void archerTick(ServerPlayer player, long now) {
         AttributeInstance move = player.getAttribute(Attributes.MOVEMENT_SPEED);
@@ -1674,21 +1697,23 @@ public final class CombatEffects {
                 move.removeModifier(XBOW_SPEED);
             }
         }
-        if (!archer || !(player.level() instanceof ServerLevel level)
-                || tree.totalBonus(SkillEffect.TRIPWIRE, skills) <= 0
+        int[] slow = archer ? tripSlow(skills) : null;   // Tor 9b P4: a trapper has a base one without a skill point
+        if (slow == null || !(player.level() instanceof ServerLevel level)
                 || now < tripReadyAt.getOrDefault(player.getUUID(), 0L)) {
             return;
         }
+        boolean learned = tree.totalBonus(SkillEffect.TRIPWIRE, skills) > 0;
         List<LivingEntity> close = enemies(level, player.position(), SkillValues.get("a_tripwire", "radius", 3.0), 1.5);
         if (close.isEmpty()) {
             return;
         }
-        double master = tree.totalBonus(SkillEffect.TRAPMASTER, skills);
+        double master = learned ? tree.totalBonus(SkillEffect.TRAPMASTER, skills) : 0.0;
         DamageSource source = level.damageSources().playerAttack(player);
-        int trip = (int) SkillValues.get("a_tripwire", "dur", 40);
         for (LivingEntity victim : close) {
-            victim.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, trip, master > 0 ? 9 : 1));
-            pushAway(victim, player.position(), 0.6, 0.1);
+            victim.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, slow[0], slow[1]));
+            if (learned) {
+                pushAway(victim, player.position(), 0.6, 0.1);   // the base one only slows
+            }
             if (master > 0) {
                 bonusHit(level, victim, source, (float) master);
             }
@@ -1700,6 +1725,10 @@ public final class CombatEffects {
 
     /** Every half second: the warrior's attack speed, war cry, vow and the unstoppable keystone. */
     private void warriorTick(ServerPlayer player, int counter) {
+        float jumpGone = jumpWard.tick(player.getUUID(), player.getAbsorptionAmount(), currentTime);
+        if (jumpGone > 0f) {
+            player.setAbsorptionAmount(Math.max(0f, player.getAbsorptionAmount() - jumpGone));   // only this source's share
+        }
         AttributeInstance speed = player.getAttribute(Attributes.ATTACK_SPEED);
         PlayerSkills skills = skillsFor.apply(player);
         boolean warrior = skills != null && skills.clazz() == SkillClass.WARRIOR && player.isAlive();
@@ -1773,6 +1802,7 @@ public final class CombatEffects {
     public void forget(UUID player) {
         ultReadyAt.remove(player);
         combos.remove(player);
+        jumpWard.forget(player);
         momentumUntil.remove(player);
         bloodPricePaid.remove(player);
         divineReadyAt.remove(player);

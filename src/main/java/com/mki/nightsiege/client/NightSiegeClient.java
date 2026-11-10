@@ -220,13 +220,35 @@ public class NightSiegeClient implements ClientModInitializer {
                 (text, overlay) -> overlay || !KitHud.toBar(text));
         HudElementRegistry.attachElementAfter(VanillaHudElements.HOTBAR, ModContent.id("kit_hud"),
                 (gui, delta) -> KitHud.draw(gui, ultimateKey));
-        for (net.minecraft.resources.Identifier vanilla : List.of(VanillaHudElements.HOTBAR, VanillaHudElements.ARMOR_BAR,
-                VanillaHudElements.HEALTH_BAR, VanillaHudElements.FOOD_BAR, VanillaHudElements.AIR_BAR,
-                VanillaHudElements.MOUNT_HEALTH, VanillaHudElements.INFO_BAR, VanillaHudElements.EXPERIENCE_LEVEL)) {
+        for (net.minecraft.resources.Identifier vanilla : List.of(VanillaHudElements.HOTBAR,
+                VanillaHudElements.INFO_BAR, VanillaHudElements.EXPERIENCE_LEVEL)) {
             HudElementRegistry.replaceElement(vanilla, original -> (gui, delta) -> {
                 if (!KitHud.active()) {
                     original.extractRenderState(gui, delta);
                 }
+            });
+        }
+        // Tor 9b (Simon 09.11.: hearts and hunger "more vanilla"): with the kit, vanilla draws its own hearts
+        // (rows, golden absorption, shaking), armour, hunger and air, only moved up above the action bar.
+        for (net.minecraft.resources.Identifier vanilla : List.of(VanillaHudElements.ARMOR_BAR, VanillaHudElements.HEALTH_BAR,
+                VanillaHudElements.FOOD_BAR, VanillaHudElements.AIR_BAR, VanillaHudElements.MOUNT_HEALTH)) {
+            boolean hearts = vanilla.equals(VanillaHudElements.HEALTH_BAR);
+            HudElementRegistry.replaceElement(vanilla, original -> (gui, delta) -> {
+                if (KitHud.hidesVanillaBars()) {
+                    return;
+                }
+                int up = KitHud.vanillaLift();
+                if (up <= 0) {
+                    original.extractRenderState(gui, delta);
+                    return;
+                }
+                if (hearts) {
+                    KitHud.vanillaHearts++;
+                }
+                gui.pose().pushMatrix();
+                gui.pose().translate(0, -up);
+                original.extractRenderState(gui, delta);
+                gui.pose().popMatrix();
             });
         }
         lifted(VanillaHudElements.CHAT, KitHud::chatLift);

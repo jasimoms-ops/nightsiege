@@ -434,7 +434,17 @@ public final class SiegeManager {
         Bastion b = bastion;
         long now = world.getGameTime();
         b.wave = w;
+        int before = siegeLevel;
         siegeLevel = b.levelFor(w);
+        if (siegeLevel != before) {
+            // Life that hangs on the world level (axe fighter, Tor 9b shield fighter and bulwark) follows the new one.
+            for (UUID id : participants) {
+                ServerPlayer player = server.getPlayerList().getPlayer(id);
+                if (player != null && !fallen.contains(id)) {
+                    SkillService.apply(player, save.skillsOf(id.toString()), skillTree);
+                }
+            }
+        }
         b.killsFrom = nightKills;
         b.quota = com.mki.nightsiege.core.BastionMath.quota(maxLive(), config);
         b.step = Bastion.Step.FIGHT;

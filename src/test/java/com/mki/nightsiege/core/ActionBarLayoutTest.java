@@ -126,4 +126,47 @@ class ActionBarLayoutTest {
             }
         }
     }
+
+    /** Tor 9b: vanilla's hearts, armour, hunger and air above the status row, apart from every part of the bar. */
+    @Test
+    void vanillaRowsAboveTheBar() {
+        for (int[] screen : SCREENS) {
+            int w = screen[0];
+            int h = screen[1];
+            for (ActionBarLayout.Input in : inputs()) {
+                ActionBarLayout.Layout l = ActionBarLayout.layout(w, h, in);
+                String at = "gui " + (1920 / w) + " " + in;
+                assertEquals(0, l.health().w() + l.minis().w(), at + ": no own health or hunger lines");
+                int lift = ActionBarLayout.vanillaLift(l, h);
+                assertEquals(10, lift, at + ": lift");
+                for (float max : new float[]{20f, 40f, 80f}) {
+                    List<ActionBarLayout.Rect> bars = ActionBarLayout.vanillaBars(w, h, lift, max, 8f, true, true);
+                    assertFalse(bars.get(0).overlaps(bars.get(1)), at + ": hearts and hunger apart");
+                    List<ActionBarLayout.Rect> others = new ArrayList<>(l.parts());
+                    others.add(ActionBarLayout.party(h, HudSync.PARTY_MAX));
+                    others.addAll(ActionBarLayout.voiceChat(h));
+                    for (ActionBarLayout.Rect b : bars) {
+                        for (ActionBarLayout.Rect o : others) {
+                            assertFalse(b.overlaps(o), at + " max " + max + ": " + b + " overlaps " + o);
+                        }
+                    }
+                    // the chat goes above them where it would reach over the hearts (GUI 3), else it stays
+                    int chatRight = ActionBarLayout.chatRight(1.0, 1.0);
+                    List<ActionBarLayout.Rect> parts = new ArrayList<>(l.parts());
+                    parts.addAll(bars);
+                    int up = ActionBarLayout.chatLift(parts, h, chatRight);
+                    ActionBarLayout.Rect chat = ActionBarLayout.chat(h - up, chatRight, 10);
+                    for (ActionBarLayout.Rect b : parts) {
+                        assertFalse(chat.overlaps(b), at + " max " + max + ": chat over " + b);
+                    }
+                    if (w == 960) {
+                        assertEquals(0, up, at + ": chat stays at GUI 2");
+                    }
+                }
+            }
+        }
+        // the old look for the "before" pictures keeps its lines
+        ActionBarLayout.Layout own = ActionBarLayout.layout(960, 540, inputs().get(0), true);
+        assertEquals(ActionBarLayout.HEALTH_W, own.health().w());
+    }
 }

@@ -218,5 +218,9 @@ final class SkillValuesWarrior {
         def("smite", "f_slow", 30);            // Slowness I for the monsters inside, renewed every second
         def("smite", "f_holy", 1.0);           // holy damage a second on the undead inside (level 1, grows like their life)
         def("smite", "f_cd", 240);
+        // Tor 9b (P1): every monster a jump hit strikes gives absorption (core/JumpWard), not scaled by level
+        def("smite", "jump_absorb", 2);        // one golden heart per monster hit
+        def("smite", "jump_cap", 8);           // at most four golden hearts from this source
+        def("smite", "jump_time", 200);        // ticks after the last jump hit until they go
     }
 }
