@@ -579,6 +579,14 @@ public final class MeleeSim {
 
     /** {@code error}: the human bot's aim error (Tor 6.0), added to the aim point. */
     static void shoot(ServerPlayer player, ServerLevel level, Mob target, Vec3 error) {
+        shoot(player, level, target, error, false);
+    }
+
+    /**
+     * {@code quick} (Tor 8.3, team bots): the crossbow is let go as soon as it is loaded (its charge time with
+     * Quick Charge), not after a fixed 30 ticks; the kit's Quick Charge III loads in 10, so the old bot shot a third as often.
+     */
+    static void shoot(ServerPlayer player, ServerLevel level, Mob target, Vec3 error, boolean quick) {
         // Any bow or crossbow item: the kit gives the subclass bows and from night 20 infernite ones,
         // which are not the vanilla items (the bench measured 0 damage for heavy shooters and crossbows).
         boolean crossbow = !hold(player, s -> s.getItem() instanceof net.minecraft.world.item.BowItem)
@@ -607,7 +615,8 @@ public final class MeleeSim {
                 weapon.use(level, player, InteractionHand.MAIN_HAND);
             } else if (!player.isUsingItem()) {
                 weapon.use(level, player, InteractionHand.MAIN_HAND);   // loads like a player would (ammo, cooldown)
-            } else if (player.getTicksUsingItem() >= 30) {
+            } else if (player.getTicksUsingItem() >= (quick
+                    ? net.minecraft.world.item.CrossbowItem.getChargeDuration(weapon, player) + 1 : 30)) {
                 player.releaseUsingItem();
             }
             if (loaded != null && !loaded.isEmpty()) {

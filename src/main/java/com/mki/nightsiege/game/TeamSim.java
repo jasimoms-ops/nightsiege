@@ -722,6 +722,7 @@ public final class TeamSim {
             TeamBrain brain = new TeamBrain(bot.getUUID(), sub, botSkill,
                     knob(run.variant(), sub[0], "wagemut", CALIBRATED_BOLDNESS), botSeed);
             brain.humanize(human);
+            brain.able = knob(run.variant(), sub[0], "faehig", 1.0) > 0;   // Tor 8.3: "faehig=0" = the bots of Tor 8.1
             brain.wallShift = human.on ? BotHuman.wallShift(human.mauerVersatz, gaussOf(botSeed * 7 + 3)) : 0;
             brain.core = Vec3.atBottomCenterOf(core);
             System.out.println("[Night Siege sim] BOTKOENNEN;" + run.variant() + ";" + run.mix() + ";" + run.index() + ";"
@@ -831,6 +832,9 @@ public final class TeamSim {
             }
         }
         liveMax = Math.max(liveMax, live);
+        if (System.getenv("NIGHTSIEGE_LAGE") != null && core != null) {
+            lage(server, fightTick);   // Tor 8: where the monsters stand and how close each bot is (local diagnosis only)
+        }
         long[] times = server.getTickTimesNanos().clone();
         long[] window = new long[times.length];
         int n = 0;
@@ -846,6 +850,43 @@ public final class TeamSim {
                     window[Math.min(n - 1, (int) Math.ceil(0.95 * n) - 1)] / 1e6) + ";"
                     + String.format(Locale.ROOT, "%.2f", window[n - 1] / 1e6));
         }
+    }
+
+    /** LAGE;tick;monsters by distance to the core (<8, <16, <32, more);per bot: subclass:nearest monster:distance to post. */
+    private static void lage(MinecraftServer server, long fightTick) {
+        int[] rings = new int[4];
+        List<net.minecraft.world.entity.Entity> mobs = new ArrayList<>();
+        for (net.minecraft.world.entity.Entity e : world.getAllEntities()) {
+            if (e instanceof Enemy && e.isAlive() && !Companions.isCompanion(e)) {
+                double d = Math.sqrt(e.distanceToSqr(Vec3.atCenterOf(core)));
+                rings[d < 8 ? 0 : d < 16 ? 1 : d < 32 ? 2 : 3]++;
+                mobs.add(e);
+            }
+        }
+        StringBuilder sb = new StringBuilder("[Night Siege sim] LAGE;" + fightTick + ";" + rings[0] + "/" + rings[1] + "/" + rings[2] + "/" + rings[3]);
+        Map<String, Integer> farTypes = new TreeMap<>();
+        for (net.minecraft.world.entity.Entity e : mobs) {
+            if (e.distanceToSqr(Vec3.atCenterOf(core)) >= 32 * 32) {
+                String type = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).getPath()
+                        + (e instanceof net.minecraft.world.entity.Mob mob && mob.getTarget() != null ? "+" : "")
+                        + "@" + (int) Math.sqrt(e.distanceToSqr(Vec3.atCenterOf(core))) / 10 * 10;
+                farTypes.merge(type, 1, Integer::sum);
+            }
+        }
+        sb.append(";").append(farTypes);
+        for (Map.Entry<UUID, TeamBrain> b : brains.entrySet()) {
+            ServerPlayer bot = server.getPlayerList().getPlayer(b.getKey());
+            if (bot == null || b.getValue().post == null) {
+                continue;
+            }
+            double near = 99;
+            for (net.minecraft.world.entity.Entity e : mobs) {
+                near = Math.min(near, bot.distanceTo(e));
+            }
+            sb.append(String.format(Locale.ROOT, ";%s:%.0f:%.0f%s", b.getValue().subclass, near,
+                    Math.sqrt(bot.position().distanceToSqr(Vec3.atBottomCenterOf(b.getValue().post))), bot.isSpectator() ? "x" : ""));
+        }
+        System.out.println(sb);
     }
 
     private static double tickP95() {
@@ -1227,7 +1268,7 @@ public final class TeamSim {
             String key = e.getKey();
             String value = e.getValue();
             if (key.startsWith("koennen") || key.startsWith("wagemut") || key.equals("mit") || key.equals("nur")
-                    || key.startsWith("mensch") || key.startsWith("nachspiel") || key.equals("wahl")) {
+                    || key.startsWith("mensch") || key.startsWith("nachspiel") || key.equals("wahl") || key.startsWith("faehig")) {
                 continue;   // the bots' knobs, not config values
             }
             try {
