@@ -943,7 +943,8 @@ public final class SiegeManager {
             if (!camp.allowDeath(entity, source) || !machines.allowDeath(entity, source) || !expeditions.allowDeath(entity)) {
                 return false;   // a fighter at the camp or in a dungeon, the camp's workbench or a machine's hit box
             }
-            boolean dies = combat.allowDeath(entity) && allowNightDeath(entity, source);
+            boolean dies = combat.allowDeath(entity) && MeleeSim.allowDeath(entity)   // bench survival stage (Tor 8.3b)
+                    && allowNightDeath(entity, source);
             if (dies && !config.siegeMobDrops) {
                 NightDrops.onDeath(entity);   // siege monsters drop nothing (Simon, 26 October 2026)
             }
