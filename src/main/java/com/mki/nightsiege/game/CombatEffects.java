@@ -801,7 +801,8 @@ public final class CombatEffects {
                 WarriorSpirit.swingCharge(player, now), player.onClimbable(), player.isInWater(), player.isPassenger(),
                 player.hasEffect(MobEffects.BLINDNESS));
         boolean falling = shock > 0 && jumpHit;
-        int jumpTargets = 1;   // Tor 9b (P1): the target and every monster the Erdstoß splash strikes
+        // Tor 9b (P1): the target and every monster the Erdstoß splash strikes (each counted once per tick)
+        List<UUID> jumpTargets = new ArrayList<>(List.of(victim.getUUID()));
         if (falling) {
             bonus += shock;
         }
@@ -863,7 +864,7 @@ public final class CombatEffects {
                     continue;
                 }
                 if (falling) {
-                    jumpTargets++;
+                    jumpTargets.add(near.getUUID());
                 }
                 float before = near.getHealth();
                 followUpHit(level, near, source, splash);

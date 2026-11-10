@@ -31,6 +31,20 @@ class Tor9bPaladinTest {
     }
 
     @Test
+    void theSameAttackReportedTwiceCountsEachMonsterOnce() {
+        // CI 10.11.: 2 monsters gave +8 - the hit came in twice in one tick
+        JumpWard w = new JumpWard();
+        UUID a = UUID.randomUUID();
+        UUID b = UUID.randomUUID();
+        assertEquals(4f, w.onJumpHit(P, java.util.List.of(a, b), 0f, 50), 1e-6);
+        assertEquals(0f, w.onJumpHit(P, java.util.List.of(b, a), 4f, 50), 1e-6);
+        assertEquals(4f, w.own(P), 1e-6);
+        // the next jump (a later tick) counts them again
+        assertEquals(4f, w.onJumpHit(P, java.util.List.of(a, b), 4f, 70), 1e-6);
+        assertEquals(8f, w.own(P), 1e-6);
+    }
+
+    @Test
     void theCapCountsOnlyThisSource() {
         JumpWard w = new JumpWard();
         // 8 absorption of another source (iron hide, golden apple) do not block the jump hearts

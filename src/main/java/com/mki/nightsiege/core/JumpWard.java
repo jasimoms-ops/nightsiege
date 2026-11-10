@@ -1,7 +1,12 @@
 package com.mki.nightsiege.core;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -19,6 +24,8 @@ public final class JumpWard {
         float own;    // absorption this source gave that is still there
         float seen;   // the player's absorption after the last look
         long last;    // tick of the last jump hit
+        long tick = Long.MIN_VALUE;                // the tick of the monsters below
+        final Set<UUID> counted = new HashSet<>(); // monsters already counted in that tick
     }
 
     private final Map<UUID, State> states = new HashMap<>();
@@ -40,9 +47,34 @@ public final class JumpWard {
      * Returns the absorption to add (never past the cap of this source).
      */
     public float onJumpHit(UUID id, int targets, float current, long now) {
+        List<UUID> fresh = new ArrayList<>();
+        for (int i = 0; i < targets; i++) {
+            fresh.add(UUID.randomUUID());
+        }
+        return onJumpHit(id, fresh, current, now);
+    }
+
+    /**
+     * As above with the monsters struck: a monster counts once a tick, even when the same attack is
+     * reported twice (CI 10.11.: 2 monsters gave +8, the hit came in twice).
+     */
+    public float onJumpHit(UUID id, Collection<UUID> struck, float current, long now) {
         State s = states.computeIfAbsent(id, k -> new State());
         look(s, current);
-        float add = Math.max(0f, Math.min(perTarget() * Math.max(0, targets), cap() - s.own));
+        if (s.tick != now) {
+            s.tick = now;
+            s.counted.clear();
+        }
+        int targets = 0;
+        for (UUID m : struck) {
+            if (s.counted.add(m)) {
+                targets++;
+            }
+        }
+        if (targets == 0) {
+            return 0f;
+        }
+        float add = Math.max(0f, Math.min(perTarget() * targets, cap() - s.own));
         s.own += add;
         s.seen = Math.max(0f, current) + add;
         s.last = now;
