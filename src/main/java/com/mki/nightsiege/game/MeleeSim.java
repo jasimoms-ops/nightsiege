@@ -76,13 +76,17 @@ public final class MeleeSim {
     private enum Phase { SETUP, PREP, FIGHT, PAUSE, DONE }
 
     /** {@code group}/{@code pick}: only in the A/B bench (Tor 8.3b), the choice group and the option the bot must take. */
-    private record Run(String[] sub, int level, String group, String pick, List<String[]> also) {
+    /**
+     * {@code also}: further (group, option) pairs with the same skills; {@code check}: the A/B bench's control run (the
+     * cell's first build once more, Tor 8.3b: same option twice must give the same numbers).
+     */
+    private record Run(String[] sub, int level, String group, String pick, List<String[]> also, boolean check) {
         Run(String[] sub, int level) {
-            this(sub, level, null, null, List.of());
+            this(sub, level, null, null, List.of(), false);
         }
 
-        /** Same subclass and level: the A/B bench keeps the test night and only swaps the skills. */
-        boolean sameNight(Run o) {
+        /** Same subclass and level. */
+        boolean sameCell(Run o) {
             return o != null && o.sub() == sub && o.level() == level;
         }
     }
@@ -91,10 +95,6 @@ public final class MeleeSim {
     private static final int AB_STAGE_SECONDS = 8;
     /** Seconds per damage stage of this sim run. */
     private static int benchSeconds = 15;
-    /** The test night ended under an A/B run: the next run starts a fresh night. */
-    private static boolean freshNight;
-    /** Restarts of the current A/B run after its night ended (at most two). */
-    private static int redo;
 
     /** Tor 8.3b part 3: bench every option of every choice node ("wahlab" in the sim arguments). */
     public static boolean wahlAb;
@@ -325,11 +325,15 @@ public final class MeleeSim {
                             if (known != null) {
                                 known.also().add(new String[]{g.getKey(), option});
                             } else {
-                                byBuild.put(key, new Run(sub, level, g.getKey(), option, new ArrayList<>()));
+                                byBuild.put(key, new Run(sub, level, g.getKey(), option, new ArrayList<>(), false));
                             }
                         }
                     }
                     queue.addAll(byBuild.values());
+                    if (!byBuild.isEmpty()) {
+                        Run first = byBuild.values().iterator().next();
+                        queue.add(new Run(sub, level, first.group(), first.pick(), List.of(), true));
+                    }
                     continue;
                 }
                 queue.add(new Run(sub, level));
@@ -340,7 +344,6 @@ public final class MeleeSim {
         AB.clear();
         bench = benchMode;
         benchSeconds = bench && wahlAb ? AB_STAGE_SECONDS : BENCH_SECONDS;
-        freshNight = false;
         if (bench) {
             // No waves on the bench: only the training zombies.
             liveBackup = m.config().maxLiveMobs;
@@ -385,41 +388,21 @@ public final class MeleeSim {
                     return;
                 }
                 Run run = queue.get(index);
-                // On the bench only the engineer needs the time to set up his traps.
-                // (A/B bench: no preparation at all, the night starts at once.)
-                m.config().testPrepSeconds = bench && !run.sub()[0].equals("ENGINEER") ? (wahlAb ? 0 : 3) : PREP_SECONDS;
+                // On the bench only the engineer needs the time to set up his traps (3 s also on the A/B bench: with 0 s
+                // the archers measured 0 shots, Tor 8.3b run wahlab-5).
+                m.config().testPrepSeconds = bench && !run.sub()[0].equals("ENGINEER") ? 3 : PREP_SECONDS;
                 java.util.Set<String> prefer = run.pick() == null ? null : java.util.Set.of(run.pick());
                 PlayerSkills skills = budget
                         ? buildBudget(m.skillTree(), SkillClass.valueOf(run.sub()[0]), run.sub()[1],
                         TestKit.pointsBefore(run.level(), m.config()), null, prefer)
                         : build(m.skillTree(), SkillClass.valueOf(run.sub()[0]), run.sub()[1], null, prefer);
                 m.save().skills.put(player.getUUID().toString(), skills);
-                // A/B bench (Tor 8.3b): the next option of the same subclass and level keeps the night, the kit and
-                // the traps; only the skills change. A night that ended in between gives a fresh one.
-                boolean reuse = bench && wahlAb && !freshNight && index > 0 && run.sameNight(queue.get(index - 1)) && m.isActive();
-                freshNight = false;
-                resetBot(m, player, skills, reuse);
-                if (reuse) {
-                    clearMonsters(level);
-                    player.removeAllEffects();
-                    player.clearFire();
-                    player.setHealth(player.getMaxHealth());
-                    player.getFoodData().setFoodLevel(20);
-                    player.getFoodData().setSaturation(5f);
-                    player.setShiftKeyDown(false);
-                    stand(player);
-                    dealt = 0;
-                    taken = 0;
-                    benchReady = false;
-                    benchStage = 0;
-                    phase = Phase.FIGHT;
-                    fightStart = now;
-                    nextUse = now;
-                    nextStaff = now;
-                    nextRemote = now + 100;
-                    killsAtStart = m.nightKills();
-                    return;
-                }
+                // Every run in its own test night (Tor 8.3b: in a kept night every option after the first had ~40 %
+                // less Polster – once-a-night rescues, worn armor and the like carried over).
+                resetBot(m, player, skills);
+                player.setAbsorptionAmount(0f);
+                player.clearFire();
+                player.fallDistance = 0;
                 clearMonsters(level);
                 clearTraps(level, m, player);
                 player.setGameMode(GameType.SURVIVAL);
@@ -462,15 +445,6 @@ public final class MeleeSim {
             }
             case FIGHT -> {
                 if (bench) {
-                    if (wahlAb && !m.isActive() && redo < 2) {
-                        // The night ended under this A/B run: the run again, in a fresh night.
-                        redo++;
-                        freshNight = true;
-                        clearMonsters(level);
-                        phase = Phase.PAUSE;
-                        phaseTick = now;
-                        return;
-                    }
                     benchTick(m, player, level, now);
                     return;
                 }
@@ -846,8 +820,7 @@ public final class MeleeSim {
      * attack speed, damage and reach, the staff's bolts and pause end; the skills are put on anew. The bot's own
      * things stay (the sim also runs by command on a server); effects, health and the new kit follow in SETUP.
      */
-    /** {@code keepKit}: the A/B bench's next option in the same night keeps the night's kit (it comes only with a night). */
-    private static void resetBot(SiegeManager m, ServerPlayer player, PlayerSkills skills, boolean keepKit) {
+    private static void resetBot(SiegeManager m, ServerPlayer player, PlayerSkills skills) {
         if (player.isUsingItem()) {
             player.stopUsingItem();
         }
@@ -859,7 +832,7 @@ public final class MeleeSim {
                 continue;
             }
             player.getCooldowns().removeCooldown(player.getCooldowns().getCooldownGroup(stack));
-            if (!keepKit && (KitService.isKit(stack) || KitService.isKitMace(stack) || stack.getItem() instanceof HealerStaffItem)) {
+            if (KitService.isKit(stack) || KitService.isKitMace(stack) || stack.getItem() instanceof HealerStaffItem) {
                 diagLeftover++;
                 inv.setItem(i, ItemStack.EMPTY);
             }
@@ -1323,16 +1296,31 @@ public final class MeleeSim {
             double secs = Math.max(0.05, ((died ? survDeath : level.getGameTime()) - survStart) / 20.0);
             Ab ab = new Ab(b.subclass(), run.group(), run.pick(), b.level(), b.dpsSingle(), b.dpsGroup(),
                     survRaw, secs, survTaken * 60.0 / secs, died);
-            AB.add(ab);
+            if (run.check()) {
+                // Control run (Tor 8.3b): the cell's first build again; both must agree (target: within 5 %).
+                for (Ab a : AB) {
+                    if (a.level() == ab.level() && a.subclass().equals(ab.subclass()) && a.node().equals(ab.node())) {
+                        double dp = a.polster() <= 0 ? 0 : Math.abs(ab.polster() - a.polster()) / a.polster();
+                        double dd = a.dps6() <= 0 ? 0 : Math.abs(ab.dps6() - a.dps6()) / a.dps6();
+                        NightSiegeMod.LOGGER.info(String.format(Locale.ROOT,
+                                "[Night Siege sim] KONTROLLE;%d;%s;%s;polster=%.0f/%.0f;dps1=%.1f/%.1f;dps6=%.1f/%.1f;abweichung_polster=%.0f%%;abweichung_dps6=%.0f%%;%s",
+                                ab.level(), ab.subclass(), ab.node(), a.polster(), ab.polster(), a.dps1(), ab.dps1(), a.dps6(), ab.dps6(),
+                                100 * dp, 100 * dd, Math.max(dp, dd) <= 0.05 ? "ok" : "ABWEICHUNG"));
+                        break;
+                    }
+                }
+            } else {
+                AB.add(ab);
+            }
             StringBuilder same = new StringBuilder();
-            for (String[] o : run.also()) {   // the same skills: the same measurement
+            for (String[] o : run.check() ? List.<String[]>of() : run.also()) {   // the same skills: the same measurement
                 AB.add(new Ab(ab.subclass(), o[0], o[1], ab.level(), ab.dps1(), ab.dps6(), ab.polster(), ab.seconds(), ab.takenPerMin(), died));
                 same.append(same.length() == 0 ? ";gleicher_bau=" : ",").append(o[1]);
             }
-            String surv = String.format(Locale.ROOT, "UEBERLEBEN;%d;%s;%s;zeit_s=%.1f%s;polster=%.0f;erhalten_min=%.0f;schlaege=%d%s",
-                    ab.level(), ab.subclass(), ab.node(), secs, died ? "" : "+", survRaw, ab.takenPerMin(), survBlows, same);
-            System.out.println(surv);
-            NightSiegeMod.LOGGER.info(surv);
+            NightSiegeMod.LOGGER.info(String.format(Locale.ROOT,
+                    "[Night Siege sim] UEBERLEBEN;%d;%s;%s;zeit_s=%.1f%s;polster=%.0f;erhalten_min=%.0f;schlaege=%d;leben=%.0f%s%s",
+                    ab.level(), ab.subclass(), ab.node(), secs, died ? "" : "+", survRaw, ab.takenPerMin(), survBlows,
+                    player.getMaxHealth(), same, run.check() ? ";kontrolle" : ""));
         }
         String line = String.format(Locale.ROOT,
                 "[Night Siege sim] Prüfstand Stufe %2d %-13s DPS 1 Ziel %6.1f  6 Ziele %6.1f  Kills %2d/%2d  Heilung %4.2f/s"
@@ -1366,24 +1354,19 @@ public final class MeleeSim {
                 run.level(), run.sub()[2], diagMain, diagOff, diagSwings, diagSwings == 0 ? 0.0 : diagCharge / diagSwings, diagHits,
                 sources, diagSwaps, diagInReach, diagTicks, diagLeftover, player.getAttributeValue(Attributes.ATTACK_SPEED));
         System.out.println(benchDiag);
-        NightSiegeMod.LOGGER.info(benchDiag);
-        redo = 0;
+        NightSiegeMod.LOGGER.info("[Night Siege sim] " + benchDiag);   // once in the CI's sim-log (it keeps only these lines)
         Run next = index + 1 < queue.size() ? queue.get(index + 1) : null;
-        boolean keep = wahlAb && run.sameNight(next);
-        if (run.pick() != null && !keep) {
-            // Tor 8.3b: the WAHLAB rows of this subclass and level at once (a run cut off by the CI's time limit still counts).
+        if (run.pick() != null && !run.sameCell(next)) {
+            // Tor 8.3b: the WAHLAB rows of this subclass and level at once, once (a run cut off by the CI's time limit
+            // still counts); the end report leaves them out of the log.
             for (String row : abReport(run.level() + ";" + run.sub()[2] + ";")) {
-                System.out.println(row);
                 NightSiegeMod.LOGGER.info(row);
             }
         }
-        if (!keep) {
-            m.abort(level.getServer());
-        }
+        m.abort(level.getServer());
         clearMonsters(level);
         phase = Phase.PAUSE;
-        // The same night goes on: a short pause (10 ticks) instead of 40.
-        phaseTick = level.getGameTime() - (keep ? 30 : 0);
+        phaseTick = level.getGameTime();
         index++;
     }
 
@@ -1464,6 +1447,9 @@ public final class MeleeSim {
             String verdict;
             if (max1 <= 0 && max6 <= 0 && maxP <= 0) {
                 verdict = "ohne Wirkung im Prüfstand";
+            } else if (max1 <= 0 && max6 <= 0) {
+                // No damage at all: the bot did not fight (Tor 8.3b, archers in wahlab-5) – no verdict on damage.
+                verdict = "SCHADEN NICHT MESSBAR" + (rs < AB_WEAK ? ", Schutz schwächer" : "");
             } else if (rg < AB_WEAK) {
                 verdict = "DEUTLICH SCHWÄCHER";
             } else if (Math.min(Math.min(r1, r6), rs) > 0.98) {
@@ -1693,6 +1679,9 @@ public final class MeleeSim {
             lines.add(0, "[Night Siege sim] abgebrochen: " + problem);
         }
         for (String line : lines) {
+            if (bench && wahlAb && line.contains("] WAHLAB;") && !line.contains("WAHLAB;stufe")) {
+                continue;   // already in the log after each subclass and level (Tor 8.3b), the file keeps them
+            }
             System.out.println(line);
         }
         try {
