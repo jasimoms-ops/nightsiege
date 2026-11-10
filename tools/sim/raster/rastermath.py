@@ -219,7 +219,7 @@ def basis_merkmale(nacht, mit_inhalt=True):
     namen = ["const", "stufe", "s6", "s11", "s20"] + ["n_" + b[0] for b in BUCKETS[:-1]] + ["koennen"]
     werte = [1.0, (L - 13) / 12.0, float(L >= 6), float(L >= 11), float(L >= 20)]
     werte += [1.0 if bucket_of(nacht["n"]) == i else 0.0 for i in range(len(BUCKETS) - 1)]
-    werte += [(nacht["skill"] - 0.7) / 0.2]
+    werte += [(nacht["skill"] - 0.55) / 0.15]
     pen = [0.0, 0.0, 0.01, 0.01, 0.01] + [0.01] * (len(BUCKETS) - 1) + [0.0]
     if mit_inhalt:
         for e in EREIGNISSE:
@@ -256,5 +256,5 @@ def vorhersage(mod, nacht, mit_inhalt=True):
     return expit(sum(mod["beta"][idx[n]] * v for n, v in zip(nm, wv)))
 
 
-def referenz_nacht(stufe, n, skill=0.7):
+def referenz_nacht(stufe, n, skill=0.55):
     return {"stufe": stufe, "n": n, "skill": skill, "ereignis": "NONE", "boss": "-"}

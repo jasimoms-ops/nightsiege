@@ -67,7 +67,7 @@ def haupt():
     plan = rp.main(["raster", "--ausgabe", os.path.join(tmp, "plan.json"), "--n-pro-zelle", "8"])
     pruefe("Raster hat 25 x 10 x 8 = 2000 Naechte", len(plan) == 2000, str(len(plan)))
     sk = [x["koennen"] for x in plan]
-    pruefe("Koennen 1:2:1", abs(sk.count(0.5) / 2000 - 0.25) < 0.01 and abs(sk.count(0.7) / 2000 - 0.5) < 0.01)
+    pruefe("Koennen 1:2:1", abs(sk.count(0.4) / 2000 - 0.25) < 0.01 and abs(sk.count(0.55) / 2000 - 0.5) < 0.01)
     pruefe("Teams ohne doppelte Unterklasse", all(len(set(x["gruppe"])) == len(x["gruppe"]) for x in plan))
     pruefe("Solo und 10er dabei", {len(x["gruppe"]) for x in plan} == set(range(1, 11)))
     pruefe("Seed fest", rp.main(["raster", "--ausgabe", os.path.join(tmp, "p2.json")]) == plan)

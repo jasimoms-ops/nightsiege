@@ -5,7 +5,7 @@ Aufruf: raster_auswertung.py <ordner-oder-teamsim.csv|sim-log.txt> [--variante a
 Ausgabe (Text): n immer dabei.
   1. Siegquote je Stufe und je Spielerzahl-Bucket mit Wilson-Intervall
   2. gepooltes logistisches Modell (Stufe, Kit-Spruenge 6/11/20, Spielerzahl, Koennen, Ereignis, Boss)
-  3. Modell-Vorhersage je Stufe x Bucket (Koennen 0,7, ohne Ereignis) mit 95-%-Band; auffaellig = Band ganz ausserhalb 65-75 %
+  3. Modell-Vorhersage je Stufe x Bucket (Koennen 0,55, ohne Ereignis) mit 95-%-Band; auffaellig = Band ganz ausserhalb 65-75 %
   4. je Bot-Koennen, je Ereignis/Boss die rohe Quote
   5. Tickzeit gegen lebende Monster (P95 je Klasse lebender Monster, ab wann 50 ms), fruehe Entscheidungen je Band
 Zellen mit n < 20 gelten als unsicher (E. Messregeln); weniger als 8 Naechte je Stufe x Gruppe: nicht deuten.
@@ -79,13 +79,13 @@ def auswerten(naechte, info):
         out.append("  n=%-2d Spieler %s" % (n, fmt_q([x for x in naechte if x["n"] == n])))
     mod = rm.modell(naechte, True)
     out.append("")
-    out.append("2. Gepooltes Modell (logit, Ridge; Referenz Stufe 13, 7-10 Spieler, Koennen 0,7, ohne Ereignis/Boss), n=%d" % len(naechte))
+    out.append("2. Gepooltes Modell (logit, Ridge; Referenz Stufe 13, 7-10 Spieler, Koennen 0,55, ohne Ereignis/Boss), n=%d" % len(naechte))
     for nm, b, s in zip(mod["namen"], mod["beta"], mod["se"]):
         if nm.startswith(("ereignis_", "boss_")) and abs(b) < 1e-3:
             continue
         out.append("  %-22s %+6.2f +- %.2f" % (nm, b, rm.Z95 * s))
     out.append("")
-    out.append("3. Vorhersage Stufe x Bucket (Koennen 0,7, ohne Ereignis): Modell [95-%-Band]; ! = Band ganz ausserhalb 65-75 %")
+    out.append("3. Vorhersage Stufe x Bucket (Koennen 0,55, ohne Ereignis): Modell [95-%-Band]; ! = Band ganz ausserhalb 65-75 %")
     head = "  Stufe " + " ".join("%-18s" % b[0] for b in rm.BUCKETS)
     out.append(head)
     auffaellig = []
@@ -107,8 +107,8 @@ def auswerten(naechte, info):
     out.append("  auffaellig: %s" % (", ".join("L%d/%s" % z for z in auffaellig) or "keine"))
     out.append("")
     out.append("4. Rohquoten je Faktor")
-    for sk in sorted({round(x["skill"], 1) for x in naechte}):
-        out.append("  Koennen %.1f: %s" % (sk, fmt_q([x for x in naechte if round(x["skill"], 1) == sk])))
+    for sk in sorted({round(x["skill"], 2) for x in naechte}):
+        out.append("  Koennen %.2f: %s" % (sk, fmt_q([x for x in naechte if round(x["skill"], 2) == sk])))
     out.append("  ohne Ereignis/Boss: %s" % fmt_q([x for x in naechte if x["ereignis"] == "NONE" and x["boss"] == "-"]))
     for e in rm.EREIGNISSE:
         sub = [x for x in naechte if x["ereignis"] == e]

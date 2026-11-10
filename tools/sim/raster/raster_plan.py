@@ -25,7 +25,7 @@ from rastermath import BOSSE, EREIGNISSE, UNTERKLASSEN  # noqa: E402
 
 ALIAS = {"netherriss": ("ereignis", "NETHER_RIFT"), "blutmond": ("ereignis", "BLOOD_MOON"),
          "glutkoloss": ("boss", "ember_colossus")}
-SKILLS = [0.5, 0.7, 0.7, 0.9]  # 1:2:1
+SKILLS = [0.40, 0.55, 0.55, 0.70]  # 1:2:1 um den geeichten Wert 0,55 (Tor 8.1); 6.1 hatte 0,5/0,7/0,9
 
 
 def spanne(text):
