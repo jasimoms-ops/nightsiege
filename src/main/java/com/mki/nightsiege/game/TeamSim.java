@@ -56,7 +56,7 @@ public final class TeamSim {
      * balance-run-eich2 on the copy of Simon's castle): alone 0.8 / bold fitted best, groups 0.6 / bold,
      * so 0.7 and fully bold by default. "koennen=1 wagemut=0" is the perfect bot that holds its post.
      */
-    static final double CALIBRATED_SKILL = 0.7;
+    static final double CALIBRATED_SKILL = 0.55;   // Tor 8.1 Eichung (vorher 0.7), mit mensch=1 als Standard
     static final double CALIBRATED_BOLDNESS = 1.0;
     /** The target of the balance (Simon 01:17: about 70 % wins on the group's own level). */
     public static final double TARGET = 0.70;
@@ -1203,7 +1203,7 @@ public final class TeamSim {
                 }
             }
         }
-        return false;
+        return true;   // Tor 8.1: Mensch-Bots sind Standard, "mensch=0" schaltet sie ab
     }
 
     /** One human knob "mensch.<name>" (variant before common), not clamped; else the default. */
