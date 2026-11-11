@@ -138,6 +138,24 @@ public final class StatsRecorder {
         public Map<String, Map<String, Integer>> opfer = new LinkedHashMap<>();
         /** The smart night (Simon 05.11. 20:26): how it turned itself up and down. */
         public SchlaueNacht schlaueNacht = new SchlaueNacht();
+        /** Bossnacht neu (Simon 11.11.): every 10 s of a boss night its phase, the boss's life and his guard. */
+        public List<BossSchritt> bossVerlauf = new ArrayList<>();
+    }
+
+    /** One look at a boss night (every 10 s). */
+    public static final class BossSchritt {
+        public int sekunde;
+        /** "vor_boss" or "boss". */
+        public String phase = "";
+        /** The boss's life left in percent (100 before he comes). */
+        public double bossLeben;
+        /** His guard still standing. */
+        public int wachen;
+        /** The bone lich: soul shield up, soul crystals left (-1 = no lich or not here yet). */
+        public boolean schild;
+        public int kristalle = -1;
+        /** The boss off the ground (the lich hovers, the storm witch rides her phantom). */
+        public boolean fliegt;
     }
 
     /** The smart night of one night: whether it ran, its steps and what it sent. */
@@ -589,6 +607,22 @@ public final class StatsRecorder {
         st.tode = look.deaths();
         st.kills = look.kills();
         night.schlaueNacht.schritte.add(st);
+    }
+
+    /** Bossnacht neu (11.11.): a look at the boss night, every 10 s. */
+    void bossStep(long gameTime, String phase, double life, int guards, boolean shield, int crystals, boolean flies) {
+        if (night == null) {
+            return;
+        }
+        BossSchritt st = new BossSchritt();
+        st.sekunde = (int) Math.max(0, (gameTime - nightStartTick) / 20);
+        st.phase = phase;
+        st.bossLeben = life;
+        st.wachen = guards;
+        st.schild = shield;
+        st.kristalle = crystals;
+        st.fliegt = flies;
+        night.bossVerlauf.add(st);
     }
 
     /** Tor 6.6: the night's measure for the pair comparison, with and without the smart night. */

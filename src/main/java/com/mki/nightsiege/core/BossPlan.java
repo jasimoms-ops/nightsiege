@@ -50,7 +50,7 @@ public final class BossPlan {
     public enum NightKind {
         /** Waves only. */
         NORMAL,
-        /** One boss at the end of the night (every bossEvery-th night). */
+        /** One boss bossFinaleSeconds into the night (every bossEvery-th night), the others withdraw (Simon 11.11.). */
         BOSS,
         /** The "Vierer-Nacht": the bosses of the boss nights before, two at a time, no waves, no clock. */
         GROUP,
@@ -116,10 +116,5 @@ public final class BossPlan {
         List<BossKind> all = new ArrayList<>(List.of(BossKind.values()));
         Collections.shuffle(all, random);
         return new ArrayList<>(all.subList(0, Math.max(0, Math.min(count, all.size()))));
-    }
-
-    /** Ticks before the end of the night at which the boss comes: bossFinaleSeconds, at most half the night. */
-    public static int finaleTicks(int totalTicks, SiegeConfig cfg) {
-        return Math.max(20, Math.min(cfg.bossFinaleSeconds * 20, totalTicks / 2));
     }
 }

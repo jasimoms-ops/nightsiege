@@ -256,7 +256,7 @@ public class SiegeConfig {
     public int bossEvery = 4;
     /** Migrations of the content update (kept apart from settingsVersion, which belongs to the balancing). */
     public int contentVersion = 0;
-    /** Seconds before the end of the night at which the boss comes, with a last big wave (at most half the night). */
+    /** Seconds after the start of a boss night at which the boss and his guard come, the others withdraw (at most half the night; Simon 11.11.). */
     public int bossFinaleSeconds = 180;
     // --- boss rhythm (Simon 29 October 2026) ---
     /** Every this many nights the "Vierer-Nacht": the bosses of the boss nights before it, two at a time (0 = none). */
@@ -1063,6 +1063,8 @@ public class SiegeConfig {
     /** Short guide written into the config file. */
     public String tuningHelp = "classDamage/subclassDamage: Faktor auf den Schaden, den Spieler dieser Klasse/Unterklasse an Monstern machen. "
             + "classDamageTaken/subclassDamageTaken: Faktor auf den Schaden, den sie von Monstern bekommen. "
+            + "subclassDamageLevel: je Unterklasse Stufe -> Faktor (Nachtstufe, linear dazwischen), zusaetzlich zu subclassDamage; "
+            + "bei subclassDamageLevelTrapsOnly nur auf Turm- und Fallenschaden. alchemistDirectHit: Faktor auf eigene Treffer des Alchemisten. "
             + "subclassHealing: Faktor auf Heilung und Barrieren, die Spieler dieser Unterklasse geben. "
             + "skillTweaks: je Skill-ID amount (Wert je Stufe), cost (Grundkosten), costStep (Aufschlag je Stufe), maxLevel. "
             + "Aendern, speichern, dann /nightsiege reload - gilt sofort, ohne neue Mod-Version.";
@@ -1072,6 +1074,117 @@ public class SiegeConfig {
     /** Tor 4 (Simon 08.11.): the quick shot's damage factor (was 1.3 on the server). */
     static final double SWIFT_DAMAGE = 0.8;
     public Map<String, Double> subclassDamageTaken = new LinkedHashMap<>();
+    /**
+     * Paket 11.11. (Chef 15:45): a level curve per subclass on top of subclassDamage, points
+     * {"level": factor}, straight lines between them, the end values beyond. The level is the night's
+     * (as for lowLevelDamageDealt and the traps' growth; a playtest or the bench uses its test level).
+     */
+    public Map<String, Map<String, Double>> subclassDamageLevel = defaultDamageLevel();
+    /** Subclasses whose level curve hits only the damage of their towers and traps, not their own hits. */
+    public List<String> subclassDamageLevelTrapsOnly = new ArrayList<>(List.of("electrician", "trapper"));
+    /** Paket 11.11.: factor on the alchemist's own direct hits (sword, bow); towers, zones, poison and acid stay. */
+    public double alchemistDirectHit = ALCHEMIST_DIRECT_HIT;
+    static final double ALCHEMIST_DIRECT_HIT = 1.4;
+    /** Parsed level curves (levels, factors), built by {@link #sanitize} or on first use. */
+    private transient Map<String, double[][]> levelCurves;
+
+    private static Map<String, Map<String, Double>> defaultDamageLevel() {
+        Map<String, Map<String, Double>> out = new LinkedHashMap<>();
+        Map<String, Double> electrician = new LinkedHashMap<>();
+        electrician.put("5", 0.9);
+        electrician.put("10", 0.9);
+        electrician.put("20", 0.65);
+        out.put("electrician", electrician);
+        Map<String, Double> trapper = new LinkedHashMap<>();
+        trapper.put("1", 0.8);
+        trapper.put("10", 0.8);
+        trapper.put("15", 0.9);
+        trapper.put("20", 1.0);
+        out.put("trapper", trapper);
+        return out;
+    }
+
+    /** The level curve's factor for this subclass at this level (1 without a curve). */
+    public double damageLevelFactor(String subclass, int level) {
+        if (subclass == null) {
+            return 1.0;
+        }
+        if (levelCurves == null) {
+            levelCurves = parseCurves(subclassDamageLevel);
+        }
+        double[][] curve = levelCurves.get(subclass.toLowerCase(java.util.Locale.ROOT));
+        return curve == null ? 1.0 : interpolate(curve[0], curve[1], level);
+    }
+
+    /** True when this subclass's level curve hits only its towers and traps. */
+    public boolean damageLevelTrapsOnly(String subclass) {
+        return subclass != null && subclassDamageLevelTrapsOnly != null
+                && subclassDamageLevelTrapsOnly.contains(subclass.toLowerCase(java.util.Locale.ROOT));
+    }
+
+    /** Straight lines between the points (levels ascending), the end values beyond them. */
+    static double interpolate(double[] levels, double[] factors, double level) {
+        if (levels.length == 0) {
+            return 1.0;
+        }
+        if (level <= levels[0]) {
+            return factors[0];
+        }
+        for (int i = 1; i < levels.length; i++) {
+            if (level <= levels[i]) {
+                double t = (level - levels[i - 1]) / (levels[i] - levels[i - 1]);
+                return factors[i - 1] + t * (factors[i] - factors[i - 1]);
+            }
+        }
+        return factors[factors.length - 1];
+    }
+
+    /** Valid points only (level 1..1000, factor 0.1..5), sorted by level. */
+    private static Map<String, Map<String, Double>> cleanCurves(Map<String, Map<String, Double>> raw) {
+        Map<String, Map<String, Double>> out = new LinkedHashMap<>();
+        if (raw == null) {
+            return out;
+        }
+        for (Map.Entry<String, Map<String, Double>> e : raw.entrySet()) {
+            if (e.getKey() == null || e.getValue() == null) {
+                continue;
+            }
+            java.util.TreeMap<Integer, Double> points = new java.util.TreeMap<>();
+            for (Map.Entry<String, Double> p : e.getValue().entrySet()) {
+                Double v = p.getValue();
+                try {
+                    int level = Integer.parseInt(p.getKey().trim());
+                    if (v != null && !v.isNaN() && level >= 1 && level <= 1000) {
+                        points.put(level, Math.max(0.1, Math.min(5.0, v)));
+                    }
+                } catch (RuntimeException ignored) {
+                    // not a level: dropped
+                }
+            }
+            if (!points.isEmpty()) {
+                Map<String, Double> clean = new LinkedHashMap<>();
+                points.forEach((level, v) -> clean.put(String.valueOf(level), v));
+                out.put(e.getKey().toLowerCase(java.util.Locale.ROOT), clean);
+            }
+        }
+        return out;
+    }
+
+    private static Map<String, double[][]> parseCurves(Map<String, Map<String, Double>> raw) {
+        Map<String, double[][]> out = new java.util.HashMap<>();
+        cleanCurves(raw).forEach((sub, points) -> {
+            double[][] curve = new double[2][points.size()];
+            int i = 0;
+            for (Map.Entry<String, Double> p : points.entrySet()) {
+                curve[0][i] = Integer.parseInt(p.getKey());
+                curve[1][i] = p.getValue();
+                i++;
+            }
+            out.put(sub, curve);
+        });
+        return out;
+    }
+
     /**
      * Wächter-Schutz (Simon 30.10.): teammates within the radius of a bulwark or shield fighter take
      * this share less damage from monsters and this share less knockback. Only the strongest tank
@@ -1301,6 +1414,16 @@ public class SiegeConfig {
             subclassDamage.put(sub, target);
         } else {
             scale(subclassDamage, sub, target / olds[0]);
+        }
+    }
+
+    /** Paket 11.11.: the server's value {@code old} becomes the target; any other value takes the same step. */
+    private void damageTarget(String sub, double old, double target) {
+        double now = subclassDamage.getOrDefault(sub, 1.0);
+        if (Math.abs(now - old) < 1e-6) {
+            subclassDamage.put(sub, target);
+        } else {
+            scale(subclassDamage, sub, target / old);
         }
     }
 
@@ -1715,6 +1838,15 @@ public class SiegeConfig {
         subclassDamage = filled(subclassDamage, SUBCLASS_KEYS);
         subclassDamageTaken = filled(subclassDamageTaken, SUBCLASS_KEYS);
         subclassHealing = filled(subclassHealing, SUBCLASS_KEYS);
+        subclassDamageLevel = subclassDamageLevel == null ? defaultDamageLevel() : cleanCurves(subclassDamageLevel);
+        levelCurves = parseCurves(subclassDamageLevel);
+        if (subclassDamageLevelTrapsOnly == null) {
+            subclassDamageLevelTrapsOnly = new ArrayList<>(List.of("electrician", "trapper"));
+        }
+        subclassDamageLevelTrapsOnly.removeIf(java.util.Objects::isNull);
+        subclassDamageLevelTrapsOnly.replaceAll(k -> k.toLowerCase(java.util.Locale.ROOT));
+        alchemistDirectHit = Double.isNaN(alchemistDirectHit) || alchemistDirectHit <= 0 ? ALCHEMIST_DIRECT_HIT
+                : clampDouble(alchemistDirectHit, 0.1, 5.0);
         if (skillTweaks == null) {
             skillTweaks = new LinkedHashMap<>();
         }
@@ -2027,6 +2159,12 @@ public class SiegeConfig {
             if (blessing != null && blessing.amount != null && Math.abs(blessing.amount - 1.0) < 1e-6) {
                 blessing.amount = 1.5;
             }
+            // Paket 11.11. (Chef 15:45): gunner towers -20 %, axe +15 %, shield fighter +20 %. The server's
+            // value (v27) becomes the target, an own value takes the same step. The level curves
+            // (electrician, trapper) and alchemistDirectHit are new fields with their defaults.
+            damageTarget("gunner", 0.78, 0.62);
+            damageTarget("axe", 1.5, 1.725);
+            damageTarget("shieldfighter", 0.9, 1.08);
             settingsVersion = 28;
         }
         if (Double.isNaN(meleeLifesteal)) {

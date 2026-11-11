@@ -1971,8 +1971,17 @@ public final class SiegeManager {
         // The event is rolled now: an eclipse comes at noon, so the vote must know it.
         NightFragment fragment = NightFragment.byName(save.nightFragment);
         SiegeEvent pending = fragment != null ? fragment.event() : EventPicker.pick(currentLevel(), random, config);
-        if (comingKind() != com.mki.nightsiege.core.BossPlan.NightKind.NORMAL) {
-            pending = SiegeEvent.NONE;   // a boss night comes by night and has no event
+        com.mki.nightsiege.core.BossPlan.NightKind comingNight = comingKind();
+        if (comingNight == com.mki.nightsiege.core.BossPlan.NightKind.BOSS) {
+            // Bossnacht neu (Simon 11.11.): it starts as a normal night, with an event; a fragment waits, no eclipse (it comes by night).
+            if (fragment != null) {
+                pending = EventPicker.pick(currentLevel(), random, config);
+            }
+            if (pending == SiegeEvent.ECLIPSE) {
+                pending = SiegeEvent.NONE;
+            }
+        } else if (comingNight != com.mki.nightsiege.core.BossPlan.NightKind.NORMAL) {
+            pending = SiegeEvent.NONE;   // the Vierer- and the Doppel-Bossnacht have no event
         }
         if (pending == SiegeEvent.ECLIPSE && extraSiegeRuns()
                 && clockTime(server) + 1200 > config.eclipseWarningDayTime) {
@@ -2583,7 +2592,7 @@ public final class SiegeManager {
         }
 
         // The boss rhythm (Simon 29.10.): boss nights 4, 8, 12, 16, the Vierer-Nacht on 20 and 40, from 41
-        // every 2nd night two bosses after five minutes. A boss night has no event; a fragment waits.
+        // every 2nd night two bosses after five minutes. A boss night has an event (11.11.), no fragment; a fragment waits.
         resetFinale(server);
         com.mki.nightsiege.core.BossPlan.NightKind kind = testRun ? (testBoss != null ? com.mki.nightsiege.core.BossPlan.NightKind.BOSS : testKind != null ? testKind : com.mki.nightsiege.core.BossPlan.NightKind.NORMAL)
                 : comingKind();
@@ -2646,7 +2655,7 @@ public final class SiegeManager {
             save.machinesDay = -1L;
             save.machinesCount = 0;
         }
-        currentEvent = tonightBoss != null || finaleNight || lateNight ? SiegeEvent.NONE : forcedEvent != null ? forcedEvent : pickEventNow(server);
+        currentEvent = finaleNight || lateNight ? SiegeEvent.NONE : forcedEvent != null ? forcedEvent : pickEventNow(server);
         save.specialNight = false;
         usedFragment = null;
         NightFragment fragment = testRun || tonightBoss != null || finaleNight || lateNight ? null : NightFragment.byName(save.nightFragment);
@@ -2928,12 +2937,11 @@ public final class SiegeManager {
             return;
         }
 
-        // The boss night's finale: the boss and a last big wave; after that no more waves.
-        if (!warRound && !bastionRound && bosses.planned() && !bosses.spawned() && ticksLeft <= bossFinaleTicks() && world.getGameTime() % 20 == 0) {
-            if (bosses.spawn(bossHost)) {
-                spawnBossGuards(server);   // before the last wave: they come even when the field is full
-                spawnBatch(server, config.bossFinaleWave);
-            }
+        // Bossnacht neu (Simon 11.11.): after bossFinaleSeconds the boss and his guard come, the others withdraw;
+        // after that no more waves (the last big wave of the old finale is gone).
+        if (!warRound && !bastionRound && bosses.planned() && !bosses.spawned() && world.getGameTime() % 20 == 0
+                && com.mki.nightsiege.core.BossNight.due(totalTicks - ticksLeft, bossArrivalTicks())) {
+            bossArrives(server);
         }
         if (finaleNight) {
             tickFinale(server);
@@ -2948,7 +2956,8 @@ public final class SiegeManager {
         }
         if (bastionRound) {
             safe("Letzte Bastion", () -> tickBastion(server));   // its waves, pauses, bosses and machines (Update 7)
-        } else if (!warRound && !finaleNight && !(lateNight && !finaleBosses.isEmpty()) && !bosses.spawned() && !warden.spawned()) {
+        } else if (!warRound && !finaleNight && !(lateNight && !finaleBosses.isEmpty())
+                && com.mki.nightsiege.core.BossNight.reinforcements(bosses.planned(), bosses.spawned()) && !warden.spawned()) {
             if (batchCooldown <= 0) {
                 spawnBatch(server);
                 double extraDelay = 0.0 /* the core tree is gone (27 October 2026) */;
@@ -2972,6 +2981,10 @@ public final class SiegeManager {
             }
         });
         safe("Maschinen", () -> machines.tick(bossHost, config, world.getGameTime()));
+        safe("Rückzug", this::tickWithdraw);
+        if (bosses.planned() && !warRound && !bastionRound && world.getGameTime() % com.mki.nightsiege.core.BossNight.LOG_TICKS == 0) {
+            safe("Statistik", this::logBossStep);
+        }
         if (bossVictoryAt > 0 && world.getGameTime() >= bossVictoryAt) {
             finish(server, true);
             return;
@@ -3301,12 +3314,133 @@ public final class SiegeManager {
         return Math.max(20, Math.min(config.wardenFinaleSeconds * 20, totalTicks / 2));
     }
 
-    /** Ticks before the end of the night at which the boss comes (a test night: 15 s after the start). */
-    private int bossFinaleTicks() {
+    /** Ticks after the start of the night at which the boss comes (a test night: 15 s after the start). */
+    private int bossArrivalTicks() {
         if (testRun && !TeamSim.running()) {
-            return Math.max(20, totalTicks - 300);   // the team sim's boss nights keep the real time (07.11.)
+            return Math.min(300, Math.max(0, totalTicks - 20));   // the team sim's boss nights keep the real time (07.11.)
         }
-        return com.mki.nightsiege.core.BossPlan.finaleTicks(totalTicks, config);
+        return com.mki.nightsiege.core.BossNight.arrivalTicks(totalTicks, config);
+    }
+
+    /**
+     * Bossnacht neu (Simon 11.11.): the boss and his guard come; every other monster of the night
+     * withdraws, the machines of the night go, no more come.
+     */
+    private boolean bossArrives(MinecraftServer server) {
+        Set<UUID> before = new HashSet<>(liveMobs);
+        if (!bosses.spawn(bossHost)) {
+            return false;
+        }
+        spawnBossGuards(server);   // they come even when the field is full
+        safe("Maschinen", () -> machines.reset(server));
+        int gone = withdrawMonsters(before);
+        NightSiegeMod.LOGGER.info("[Night Siege] Boss {} kommt nach {} s, {} Monster ziehen sich zurück",
+                bosses.kind().id(), (totalTicks - ticksLeft) / 20, gone);
+        return true;
+    }
+
+    /** A monster withdrawing from the core since a tick; its place at the last stuck check. */
+    private static final class Withdrawal {
+        final long since;
+        net.minecraft.world.phys.Vec3 last;
+
+        Withdrawal(long since, net.minecraft.world.phys.Vec3 last) {
+            this.since = since;
+            this.last = last;
+        }
+    }
+
+    /** Monsters withdrawing in the boss night: no longer of the night (no kill, no loot, no statistics). */
+    private final Map<UUID, Withdrawal> withdrawing = new HashMap<>();
+
+    /** The given monsters of the night withdraw (all but the boss and his guard); returns how many. */
+    private int withdrawMonsters(Set<UUID> ids) {
+        long now = world.getGameTime();
+        Set<UUID> guards = new HashSet<>();
+        for (WardenNight g : bossGuards) {
+            Mob w = g.warden(world);
+            if (w != null) {
+                guards.add(w.getUUID());
+            }
+        }
+        int n = 0;
+        for (UUID id : ids) {
+            Entity e = world.getEntity(id);
+            boolean bossOrPart = e != null && BossService.isBossOrPart(e);
+            if (!com.mki.nightsiege.core.BossNight.withdraws(bossOrPart, guards.contains(id))) {
+                continue;
+            }
+            liveMobs.remove(id);   // no kill for the goal or the statistics from here on
+            digger.forget(id);
+            ladders.forget(id);
+            if (e instanceof Mob mob && mob.isAlive()) {
+                mob.setTarget(null);
+                mob.setInvulnerable(true);   // nobody kills it on its way: no loot
+                withdrawing.put(id, new Withdrawal(now, mob.position()));
+                n++;
+            }
+        }
+        return n;
+    }
+
+    /** Every tick: the withdrawing monsters run away from the core and are gone after 10 s, at once when stuck. */
+    private void tickWithdraw() {
+        if (withdrawing.isEmpty() || world == null || anchor == null) {
+            return;
+        }
+        long now = world.getGameTime();
+        net.minecraft.world.phys.Vec3 core = net.minecraft.world.phys.Vec3.atCenterOf(anchor);
+        java.util.Iterator<Map.Entry<UUID, Withdrawal>> it = withdrawing.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<UUID, Withdrawal> entry = it.next();
+            Withdrawal w = entry.getValue();
+            if (!(world.getEntity(entry.getKey()) instanceof Mob mob) || !mob.isAlive()) {
+                it.remove();
+                continue;
+            }
+            long away = now - w.since;
+            boolean checked = away > 0 && away % com.mki.nightsiege.core.BossNight.STUCK_CHECK_TICKS == 0;
+            double moved = checked ? Math.hypot(mob.getX() - w.last.x, mob.getZ() - w.last.z) : Double.NaN;
+            if (com.mki.nightsiege.core.BossNight.vanishes(away, checked, moved)) {
+                world.sendParticles(net.minecraft.core.particles.ParticleTypes.POOF, mob.getX(), mob.getY() + 0.8, mob.getZ(),
+                        8, 0.3, 0.5, 0.3, 0.02);
+                mob.discard();
+                it.remove();
+                continue;
+            }
+            if (checked) {
+                w.last = mob.position();
+            }
+            mob.setTarget(null);
+            if (away % 10 == 0 && !mob.isPassenger()) {
+                net.minecraft.world.phys.Vec3 off = mob.position().subtract(core).multiply(1, 0, 1);
+                net.minecraft.world.phys.Vec3 dir = off.lengthSqr() < 1e-4 ? new net.minecraft.world.phys.Vec3(1, 0, 0) : off.normalize();
+                net.minecraft.world.phys.Vec3 goal = mob.position().add(dir.scale(16));
+                mob.getNavigation().moveTo(goal.x, mob.getY(), goal.z, 1.4);
+            }
+        }
+    }
+
+    /** For the tests: how many monsters are withdrawing now. */
+    public int withdrawingForTest() {
+        return withdrawing.size();
+    }
+
+    /** Bossnacht neu: every 10 s the phase, the boss's life, his guard (and the lich's shield) into the night file. */
+    private void logBossStep() {
+        Mob boss = bosses.boss(world);
+        int guards = 0;
+        for (WardenNight g : bossGuards) {
+            if (g.spawned() && !g.fallen()) {
+                guards++;
+            }
+        }
+        double life = com.mki.nightsiege.core.BossNight.lifePercent(bosses.spawned(), bosses.fallen(),
+                boss == null ? 0 : boss.getHealth(), boss == null ? 0 : boss.getMaxHealth());
+        boolean lich = bosses.kind() == com.mki.nightsiege.core.BossKind.BONE_LICH;
+        boolean flies = boss != null && (boss.isNoGravity() || boss.isPassenger() || !boss.onGround());
+        stats.bossStep(world.getGameTime(), com.mki.nightsiege.core.BossNight.phase(bosses.spawned()).label(), life, guards,
+                boss != null && bosses.shielded(boss), lich && bosses.spawned() ? bosses.partsOf("crystal").size() : -1, flies);
     }
 
     /** The boss of the coming siege, or null when it is no boss night (drawn once and kept until it falls). */
@@ -3586,17 +3720,12 @@ public final class SiegeManager {
         }
     }
 
-    /** Admin and tests: the boss planned for this night comes now, with its last wave. */
+    /** Admin and tests: the boss planned for this night comes now, with his guard; the others withdraw. */
     public boolean bossNow(MinecraftServer server) {
         if (!active || !bosses.planned() || bosses.spawned()) {
             return false;
         }
-        if (bosses.spawn(bossHost)) {
-            spawnBossGuards(server);
-            spawnBatch(server, config.bossFinaleWave);
-            return true;
-        }
-        return false;
+        return bossArrives(server);
     }
 
     /** What the night lends its boss. */
@@ -4802,7 +4931,7 @@ public final class SiegeManager {
         endKits(server);
 
         // A boss night is won by the boss's fall alone, the kill goal does not count; so is a night whose warden came.
-        int required = bossNight || wardenNight || warRound ? 0 : killsRequired();
+        int required = !com.mki.nightsiege.core.BossNight.killGoalCounts(bossNight) || wardenNight || warRound ? 0 : killsRequired();
         boolean quotaMet = nightKills >= required;
         if (bastionRound) {
             // The Letzte Bastion (Update 7): no reward, the record board; the lent profiles go back.
@@ -5392,6 +5521,7 @@ public final class SiegeManager {
             }
         }
         liveMobs.clear();
+        withdrawing.clear();   // the withdrawing ones carry the night's tag: they go with the strays below
         // Monsters of the night that dropped out of the list (their chunk unloaded and came back, 31.10.).
         // And every vex near the core that is no summoner's ghost: a magician's of the night (05.11.).
         List<Entity> strays = new ArrayList<>();
@@ -7215,6 +7345,9 @@ public final class SiegeManager {
     public static boolean mayTarget(Mob mob, LivingEntity target) {
         if (target instanceof net.minecraft.world.entity.player.Player p && Drones.isDrone(p)) {
             return false;   // the drones of the fallen are left alone
+        }
+        if (INSTANCE != null && INSTANCE.withdrawing.containsKey(mob.getUUID())) {
+            return false;   // a monster withdrawing from the boss night fights nobody (Simon 11.11.)
         }
         if (BossService.isBoss(mob) && !(target instanceof net.minecraft.world.entity.player.Player)) {
             return false;   // a boss fights the defenders only (the frost jarl is an iron golem at heart)
