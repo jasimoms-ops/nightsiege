@@ -64,7 +64,7 @@ jobs:
     strategy:
       fail-fast: false
       # At most 14 of the 20 runners (05.11.): the tests next to a sim no longer wait half an hour.
-      max-parallel: 14
+      max-parallel: 20
       matrix:
         shard: ${{ fromJSON(needs.plan.outputs.shards) }}
     steps:
