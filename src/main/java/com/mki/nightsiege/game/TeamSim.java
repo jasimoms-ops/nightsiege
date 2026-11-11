@@ -83,6 +83,8 @@ public final class TeamSim {
     private static boolean warMode;
     /** "boss": every night a boss night, the eight bosses in turn (07.11.: Bosse 2 with the guard measured). */
     private static boolean bossMode;
+    /** "bosse=alle" or "bosse=grave_king,warlord": boss nights, the boss of a run = list[run index % size] (p1111). */
+    private static List<com.mki.nightsiege.core.BossKind> bossList = new ArrayList<>();
     /** "bastion": a round of the Letzte Bastion from wave 1 with the whole tree (Update 7), at most 40 minutes. */
     private static boolean bastionMode;
     private static int shard;
@@ -218,6 +220,7 @@ public final class TeamSim {
         fullTree = false;
         warMode = false;
         bossMode = false;
+        bossList = new ArrayList<>();
         bastionMode = false;
         shard = 0;
         shards = 1;
@@ -240,6 +243,19 @@ public final class TeamSim {
                 warMode = true;
             } else if (token.equals("boss")) {
                 bossMode = true;
+            } else if (token.startsWith("bosse=")) {
+                bossMode = true;
+                for (String id : token.substring(6).split(",")) {
+                    if (id.equals("alle")) {
+                        bossList.addAll(List.of(com.mki.nightsiege.core.BossKind.values()));
+                    } else {
+                        for (com.mki.nightsiege.core.BossKind k : com.mki.nightsiege.core.BossKind.values()) {
+                            if (k.id().equals(id)) {
+                                bossList.add(k);
+                            }
+                        }
+                    }
+                }
             } else if (token.equals("bastion")) {
                 bastionMode = true;
                 fullTree = true;   // the fun mode: every subclass full
@@ -633,6 +649,9 @@ public final class TeamSim {
             com.mki.nightsiege.core.BossKind[] all = com.mki.nightsiege.core.BossKind.values();
             com.mki.nightsiege.core.BossKind boss = all[Math.floorMod(run.index() + run.level() * 3 + run.group() * 5
                     + run.mix().hashCode(), all.length)];
+            if (!bossList.isEmpty()) {
+                boss = bossList.get(run.index() % bossList.size());
+            }
             ok = m.prepareTest(server, world, core, run.level(), SiegeEvent.NONE, boss);
             System.out.println("[Night Siege sim] BOSS;" + run.variant() + ";" + run.level() + ";" + run.group() + ";" + run.mix()
                     + ";" + run.index() + ";" + boss.id());
