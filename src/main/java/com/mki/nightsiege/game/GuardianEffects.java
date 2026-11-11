@@ -197,6 +197,31 @@ public final class GuardianEffects {
                 || ChampionStrikes.isChampion(entity);
     }
 
+    /**
+     * Paket 11.11.: the subclass's level curve (subclassDamageLevel; for subclassDamageLevelTrapsOnly only on
+     * their towers' and traps' blows) and the alchemist's direct hits (alchemistDirectHit: sword and bow,
+     * not his towers, zones, poison or acid flask).
+     */
+    static float subclassBlowFactor(SiegeManager m, ServerPlayer hitter, DamageSource source) {
+        com.mki.nightsiege.core.SiegeConfig cfg = m.config();
+        String sub = m.skillTree().subclassOf(m.save().skillsOf(hitter.getUUID().toString()));
+        if (cfg == null || sub == null) {
+            return 1f;
+        }
+        boolean trap = TrapService.towerOrTrapBlow(hitter, source);
+        double f = 1.0;
+        if (trap || !cfg.damageLevelTrapsOnly(sub)) {
+            f *= cfg.damageLevelFactor(sub, m.currentLevel());
+        }
+        if (SkillTree.SUB_ALCHEMIST.equals(sub) && !trap && !TrapService.inAreaBlow()) {
+            net.minecraft.world.entity.Entity direct = source.getDirectEntity();
+            if (direct == hitter || direct instanceof net.minecraft.world.entity.projectile.arrow.AbstractArrow) {
+                f *= cfg.alchemistDirectHit;
+            }
+        }
+        return (float) f;
+    }
+
     private float scaleDamage(LivingEntity victim, ServerLevel level, DamageSource source, float amount) {
         float factor = 1f;
         // Server balancing per class and subclass (and zombies/spiders against the melee classes) is
@@ -223,6 +248,7 @@ public final class GuardianEffects {
                 && SiegeManager.isNightSiegeMob(victim)
                 && !CombatEffects.inFollowUp()) {   // a follow-up hit already carries the factor
             outside *= tuning.damageFactor(hitter);   // server balancing per class and subclass
+            outside *= subclassBlowFactor(tuning, hitter, source);   // level curve, alchemist's direct hits (Paket 11.11.)
             if (source.getDirectEntity() == hitter && KitService.isKitMace(hitter.getMainHandItem())) {
                 // Tor 4.2: the tanks' mace is strong against one foe: special foes take more from a direct hit
                 outside *= (float) com.mki.nightsiege.core.NightKit.maceTargetFactor(isSpecialFoe(victim));

@@ -2069,12 +2069,17 @@ public final class TrapService {
         double acid = SkillValues.get("e_acid_flask", "acid", 0.25);
         int ticks = (int) Math.round(SkillValues.get("e_acid_flask", "time", 120));
         DamageSource source = level.damageSources().playerAttack(player);
-        for (LivingEntity victim : around(level, at, r)) {
-            victim.invulnerableTime = 0;
-            victim.hurtServer(level, source, (float) damage);
-            victim.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, Math.min(ticks, 60), 0));
-            marker.mark(victim, acid, now + ticks, false);
-            level.sendParticles(ACID_DUST, victim.getX(), victim.getY(0.6), victim.getZ(), 8, 0.3, 0.4, 0.3, 0.0);
+        areaBlow = true;   // a burst, no direct hit (alchemistDirectHit)
+        try {
+            for (LivingEntity victim : around(level, at, r)) {
+                victim.invulnerableTime = 0;
+                victim.hurtServer(level, source, (float) damage);
+                victim.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, Math.min(ticks, 60), 0));
+                marker.mark(victim, acid, now + ticks, false);
+                level.sendParticles(ACID_DUST, victim.getX(), victim.getY(0.6), victim.getZ(), 8, 0.3, 0.4, 0.3, 0.0);
+            }
+        } finally {
+            areaBlow = false;
         }
         level.sendParticles(ACID_DUST, at.x, at.y + 0.3, at.z, 60, r * 0.45, 0.3, r * 0.45, 0.0);
         level.sendParticles(ParticleTypes.SPLASH, at.x, at.y + 0.3, at.z, 24, r * 0.3, 0.1, r * 0.3, 0.1);
@@ -3406,6 +3411,25 @@ public final class TrapService {
         TrapService service = current;
         boolean manned = service != null && service.mannedTower(record);
         return record.kind + (manned ? "_bemannt" : "");
+    }
+
+    /** True while the alchemist's acid flask bursts (Paket 11.11.: no direct hit). */
+    private static boolean areaBlow;
+
+    static boolean inAreaBlow() {
+        return areaBlow;
+    }
+
+    /**
+     * True when this damage of the player is the blow of their tower or trap (a turret's or drone's arrow,
+     * or a trap striking right now), the same split as the statistics' "turm:" (Paket 11.11.).
+     */
+    static boolean towerOrTrapBlow(ServerPlayer owner, DamageSource source) {
+        Entity direct = source.getDirectEntity();
+        if (direct != null && direct != owner) {
+            return direct.entityTags().contains("nightsiege_turret");
+        }
+        return hittingKey(owner) != null;
     }
 
     /** The tower this player sits in ("tesla_coil" …), or null. */
