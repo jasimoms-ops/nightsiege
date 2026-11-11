@@ -161,6 +161,21 @@ public final class Nemesis {
         called = false;
     }
 
+    /**
+     * A nemesis leaves the field before dawn (the boss night's withdrawal, Simon 11.11.): it escaped,
+     * as at the night's end; its record stays as it is.
+     */
+    public void escape(Host h, UUID id) {
+        Live l = live.remove(id);
+        if (l == null) {
+            return;
+        }
+        l.bar.removeAllPlayers();
+        if (h != null) {
+            h.broadcast(Component.translatable("nightsiege.nemesis.escaped", fullName(l.rec)).withStyle(ChatFormatting.DARK_RED));
+        }
+    }
+
     private void endBars() {
         for (Live l : live.values()) {
             l.bar.removeAllPlayers();

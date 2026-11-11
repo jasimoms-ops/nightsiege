@@ -69,6 +69,25 @@ public final class BossNight {
         return ticksAway >= WITHDRAW_MAX_TICKS || checked && ticksAway > 0 && movedBlocks < STUCK_BLOCKS;
     }
 
+    /** A withdrawing monster (or a shot of it) harms nobody any more: no contact, no blow, no arrow. */
+    public static boolean hitAllowed(boolean attackerWithdrawing) {
+        return !attackerWithdrawing;
+    }
+
+    /**
+     * True for a monster of the night that loads (or turns up again) once the boss came and is
+     * neither of the night's monsters, the boss's side (boss, part, guard, what they call up) nor a
+     * companion: it was in an unloaded chunk at the withdrawal and goes at once.
+     */
+    public static boolean lateStray(boolean bossCame, boolean nightMob, boolean live, boolean bossSide, boolean companion) {
+        return bossCame && nightMob && !live && !bossSide && !companion;
+    }
+
+    /** No eclipse in a boss night (it comes by night), whichever way the event was picked. */
+    public static SiegeEvent eventFor(boolean bossNight, SiegeEvent picked) {
+        return bossNight && picked == SiegeEvent.ECLIPSE ? SiegeEvent.NONE : picked;
+    }
+
     /** The kill goal counts in no boss night: the boss is the goal. */
     public static boolean killGoalCounts(boolean bossNight) {
         return !bossNight;
