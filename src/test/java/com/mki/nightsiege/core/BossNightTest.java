@@ -76,10 +76,11 @@ class BossNightTest {
     }
 
     @Test
-    void noEclipseInABossNight() {
+    void noEventInABossNight() {
         assertEquals(SiegeEvent.NONE, BossNight.eventFor(true, SiegeEvent.ECLIPSE));
+        assertEquals(SiegeEvent.NONE, BossNight.eventFor(true, SiegeEvent.BLOOD_MOON));
         assertEquals(SiegeEvent.ECLIPSE, BossNight.eventFor(false, SiegeEvent.ECLIPSE));
-        assertEquals(SiegeEvent.NONE, BossNight.eventFor(true, SiegeEvent.NONE));
+        assertEquals(SiegeEvent.BLOOD_MOON, BossNight.eventFor(false, SiegeEvent.BLOOD_MOON));
     }
 
     @Test

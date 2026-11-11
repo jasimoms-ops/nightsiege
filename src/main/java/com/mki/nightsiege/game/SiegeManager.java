@@ -1975,17 +1975,8 @@ public final class SiegeManager {
         // The event is rolled now: an eclipse comes at noon, so the vote must know it.
         NightFragment fragment = NightFragment.byName(save.nightFragment);
         SiegeEvent pending = fragment != null ? fragment.event() : EventPicker.pick(currentLevel(), random, config);
-        com.mki.nightsiege.core.BossPlan.NightKind comingNight = comingKind();
-        if (comingNight == com.mki.nightsiege.core.BossPlan.NightKind.BOSS) {
-            // Bossnacht neu (Simon 11.11.): it starts as a normal night, with an event; a fragment waits, no eclipse (it comes by night).
-            if (fragment != null) {
-                pending = EventPicker.pick(currentLevel(), random, config);
-            }
-            if (pending == SiegeEvent.ECLIPSE) {
-                pending = SiegeEvent.NONE;
-            }
-        } else if (comingNight != com.mki.nightsiege.core.BossPlan.NightKind.NORMAL) {
-            pending = SiegeEvent.NONE;   // the Vierer- and the Doppel-Bossnacht have no event
+        if (comingKind() != com.mki.nightsiege.core.BossPlan.NightKind.NORMAL) {
+            pending = SiegeEvent.NONE;   // a boss night comes by night and has no event
         }
         if (pending == SiegeEvent.ECLIPSE && extraSiegeRuns()
                 && clockTime(server) + 1200 > config.eclipseWarningDayTime) {
@@ -2596,7 +2587,7 @@ public final class SiegeManager {
         }
 
         // The boss rhythm (Simon 29.10.): boss nights 4, 8, 12, 16, the Vierer-Nacht on 20 and 40, from 41
-        // every 2nd night two bosses after five minutes. A boss night has an event (11.11.), no fragment; a fragment waits.
+        // every 2nd night two bosses after five minutes. A boss night has no event; a fragment waits.
         resetFinale(server);
         com.mki.nightsiege.core.BossPlan.NightKind kind = testRun ? (testBoss != null ? com.mki.nightsiege.core.BossPlan.NightKind.BOSS : testKind != null ? testKind : com.mki.nightsiege.core.BossPlan.NightKind.NORMAL)
                 : comingKind();
@@ -2660,7 +2651,7 @@ public final class SiegeManager {
             save.machinesCount = 0;
         }
         currentEvent = finaleNight || lateNight ? SiegeEvent.NONE : forcedEvent != null ? forcedEvent : pickEventNow(server);
-        currentEvent = com.mki.nightsiege.core.BossNight.eventFor(tonightBoss != null, currentEvent);   // no eclipse in a boss night
+        currentEvent = com.mki.nightsiege.core.BossNight.eventFor(tonightBoss != null, currentEvent);   // a boss night has no event (Chef 11.11. 23:35)
         save.specialNight = false;
         usedFragment = null;
         NightFragment fragment = testRun || tonightBoss != null || finaleNight || lateNight ? null : NightFragment.byName(save.nightFragment);

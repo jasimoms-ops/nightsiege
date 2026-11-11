@@ -2,7 +2,7 @@ package com.mki.nightsiege.core;
 
 /**
  * Bossnacht neu (Simon 11.11.2026: "nach 3 minuten spawnt der boss und seine wächter und alle
- * anderen monster ziehen sich zurück bzw verschwinden"). A boss night starts as a normal night;
+ * anderen monster ziehen sich zurück bzw verschwinden"). A boss night starts with normal waves (no event);
  * after bossFinaleSeconds the boss and his guard come, every other monster withdraws from the core
  * and is gone within ten seconds (at once when it is stuck). Then no more waves, machines or camp
  * reinforcements; the boss's fall wins the night, the kill goal does not count.
@@ -83,9 +83,9 @@ public final class BossNight {
         return bossCame && nightMob && !live && !bossSide && !companion;
     }
 
-    /** No eclipse in a boss night (it comes by night), whichever way the event was picked. */
+    /** A boss night has no event (Chef 11.11. 23:35, as before), whichever way the event was picked. */
     public static SiegeEvent eventFor(boolean bossNight, SiegeEvent picked) {
-        return bossNight && picked == SiegeEvent.ECLIPSE ? SiegeEvent.NONE : picked;
+        return bossNight ? SiegeEvent.NONE : picked;
     }
 
     /** The kill goal counts in no boss night: the boss is the goal. */
