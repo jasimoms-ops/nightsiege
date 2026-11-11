@@ -256,7 +256,7 @@ public class SiegeConfig {
     public int bossEvery = 4;
     /** Migrations of the content update (kept apart from settingsVersion, which belongs to the balancing). */
     public int contentVersion = 0;
-    /** Seconds before the end of the night at which the boss comes, with a last big wave (at most half the night). */
+    /** Seconds after the start of a boss night at which the boss and his guard come, the others withdraw (at most half the night; Simon 11.11.). */
     public int bossFinaleSeconds = 180;
     // --- boss rhythm (Simon 29 October 2026) ---
     /** Every this many nights the "Vierer-Nacht": the bosses of the boss nights before it, two at a time (0 = none). */

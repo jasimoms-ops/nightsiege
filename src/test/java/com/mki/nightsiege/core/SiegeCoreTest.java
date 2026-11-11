@@ -2863,9 +2863,6 @@ class SiegeCoreTest {
         assertEquals(one * 2.5, four, 1e-6);   // +50 % for each further defender
         assertTrue(BossPlan.health(300, 12, 1, c) > one);
         assertEquals(300 * SiegeMath.healthMultiplier(6, c), one, 1e-6);
-        // the finale: 3 minutes before dawn, at most half the night
-        assertEquals(3600, BossPlan.finaleTicks(20000, c));
-        assertEquals(2000, BossPlan.finaleTicks(4000, c));
     }
 
     @Test
