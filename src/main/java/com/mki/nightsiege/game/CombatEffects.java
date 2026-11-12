@@ -558,6 +558,7 @@ public final class CombatEffects {
             LivingEntity aim = targets.get(i % targets.size());
             Vec3 at = i < targets.size() ? aim.position()
                     : aim.position().add(random.nextDouble() * 4 - 2, 0, random.nextDouble() * 4 - 2);
+            AbilityFx.area(player, at, radius);   // Z4: every blast its ring
             for (LivingEntity victim : enemies(level, at, radius, 1.5)) {
                 bonusHit(level, victim, source, damage);
                 pushAway(victim, at, 0.5, 0.4);
@@ -610,6 +611,7 @@ public final class CombatEffects {
             actionBar(player, Component.translatable("nightsiege.msg.ult_no_target"));
             return false;
         }
+        AbilityFx.area(player, player.position(), SkillValues.get("thunderstorm", "range", 16.0));   // Z4: the storm's reach
         DamageSource source = level.damageSources().playerAttack(player);
         PlayerSkills skills = skillsFor.apply(player);
         boolean ball = SkillTree.has(skills, "e_ball_lightning");

@@ -37,20 +37,57 @@ public final class AbilityFx {
     /** Monsters struck by abilities this tick, per player: entity ids. */
     private static final Map<ServerPlayer, List<Integer>> HITS = new LinkedHashMap<>();
     /** Sent payloads by kind, for the tests. */
-    private static final int[] SENT = new int[4];
+    private static final int[] SENT = new int[6];
+    /** Per player: {game tick, largest radius} of the areas in that tick - an ultimate's shock wave takes it. */
+    private static final Map<java.util.UUID, double[]> AREA = new java.util.HashMap<>();
+    /** Per player: the tick of the last cast (one burst per tick, e.g. shield key through the bar). */
+    private static final Map<java.util.UUID, Long> CAST = new java.util.HashMap<>();
 
     private AbilityFx() {
     }
 
     /** A key of the player fired (its pause started): arm, burst, and for an ultimate the big package. */
     public static void cast(ServerPlayer player, boolean ult) {
-        send(player, ult ? CoreNetworking.FxPayload.ULT : CoreNetworking.FxPayload.CAST, player.position(), 0f, List.of());
+        long now = player.level().getGameTime();
+        Long last = CAST.put(player.getUUID(), now);
+        if (!ult && last != null && last == now) {
+            return;
+        }
+        double[] area = AREA.get(player.getUUID());
+        float radius = ult && area != null && (long) area[0] == now ? (float) area[1] : 0f;   // the ult's real radius
+        send(player, ult ? CoreNetworking.FxPayload.ULT : CoreNetworking.FxPayload.CAST, player.position(), radius, List.of());
+    }
+
+    /** A key's code runs now: its own particles go to full clients bigger (OPEN ... CLOSE around it). */
+    public static void open(ServerPlayer player) {
+        send(player, CoreNetworking.FxPayload.OPEN, player.position(), 0f, List.of());
+    }
+
+    public static void close(ServerPlayer player) {
+        send(player, CoreNetworking.FxPayload.CLOSE, player.position(), 0f, List.of());
+    }
+
+    /** Runs a key's code between OPEN and CLOSE. */
+    public static void around(ServerPlayer player, Runnable press) {
+        open(player);
+        try {
+            press.run();
+        } finally {
+            close(player);
+        }
     }
 
     /** An area ability went off: its real radius as a ring on the ground. */
     public static void area(ServerPlayer player, Vec3 center, double radius) {
         if (player == null || center == null || !(radius > 0.3)) {
             return;
+        }
+        long now = player.level().getGameTime();
+        double[] last = AREA.get(player.getUUID());
+        if (last == null || (long) last[0] != now) {
+            AREA.put(player.getUUID(), new double[]{now, radius});
+        } else {
+            last[1] = Math.max(last[1], radius);
         }
         send(player, CoreNetworking.FxPayload.RING, center, (float) Math.min(48.0, radius), List.of());
     }
@@ -138,6 +175,8 @@ public final class AbilityFx {
 
     public static void reset() {
         HITS.clear();
+        AREA.clear();
+        CAST.clear();
         melee = 0;
     }
 }

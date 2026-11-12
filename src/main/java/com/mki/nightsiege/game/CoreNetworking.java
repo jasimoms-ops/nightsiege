@@ -86,7 +86,7 @@ public final class CoreNetworking {
 
     /**
      * Z4 (Simon 12.11.): server to client, an ability effect to draw. kind: 0 cast, 1 ultimate, 2 ring on the
-     * ground (radius), 3 hits (ids = the monsters struck). source: the entity id of the player behind it.
+     * ground (radius), 3 hits (ids = the monsters struck), 4/5 a key's own particles begin/end. source: the entity id of the player behind it.
      * Only sent to clients that know the type (ServerPlayNetworking.canSend), so an older client misses nothing.
      */
     public record FxPayload(int kind, int source, net.minecraft.world.phys.Vec3 pos, float radius, int color, int accent,
@@ -96,6 +96,9 @@ public final class CoreNetworking {
         public static final int ULT = 1;
         public static final int RING = 2;
         public static final int HITS = 3;
+        /** The ability's own particles follow until CLOSE: a full client draws them bigger, more, longer. */
+        public static final int OPEN = 4;
+        public static final int CLOSE = 5;
 
         public static final CustomPacketPayload.Type<FxPayload> TYPE =
                 new CustomPacketPayload.Type<>(ModContent.id("ability_fx"));

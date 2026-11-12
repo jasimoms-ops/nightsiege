@@ -205,6 +205,7 @@ final class EffekteScenes {
                 String when = full ? "nachher" : "vorher";
                 context.runOnClient(client -> FxSettings.setFull(full));
                 final int[] drawn = {AbilityFxClient.drawnForTests()};
+                final int boostBefore = AbilityFxClient.boostedForTests();
                 server(context, sub + " ability " + when, (player, m) -> {
                     home(player);
                     KlassencheckScenes.ready(player, m);
@@ -237,7 +238,8 @@ final class EffekteScenes {
                         shakes += shaking ? 1 : 0;
                     }
                 } else {
-                    check(castDrawn == 0 && ultDrawn == 0, sub + ": reduced draws none of the new effects");
+                    check(castDrawn == 0 && ultDrawn == 0 && AbilityFxClient.boostedForTests() == boostBefore,
+                            sub + ": reduced draws none of the new effects and keeps the old particles");
                 }
             }
         }
@@ -248,7 +250,8 @@ final class EffekteScenes {
         game.getServer().runCommand("kill @e[tag=" + HUSK + "]");
         int hits = AbilityFxClient.receivedForTests(CoreNetworking.FxPayload.HITS) - hitsBefore;
         log("ultimates fired (full)=" + ultsFull + " shakes=" + shakes + " hit messages=" + hits
-                + " rings=" + AbilityFx.sentForTests(CoreNetworking.FxPayload.RING));
+                + " rings=" + AbilityFx.sentForTests(CoreNetworking.FxPayload.RING) + " old particles bigger=" + AbilityFxClient.boostedForTests());
+        check(AbilityFxClient.boostedForTests() > 0, "the abilities' own particles came bigger with full effects");
         check(ultsFull >= 15, "at least 15 of 20 ultimates fired with full effects (" + ultsFull + ")");
         check(shakes == ultsFull, "every own ultimate shook the camera (" + shakes + "/" + ultsFull + ")");
         check(hits > 0, "ability hits flashed (" + hits + ")");

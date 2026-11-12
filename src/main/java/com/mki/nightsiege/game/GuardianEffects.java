@@ -475,6 +475,7 @@ public final class GuardianEffects {
             CombatEffects.pushAway(victim, player.position(), 0.8, 0.35);
         }
         ring(level, player.position().add(0, 0.2, 0), 3.0, ParticleTypes.CLOUD, 24);
+        AbilityFx.area(player, player.position(), SkillValues.get("g_vengeance", "radius", 3.5));   // Z4
         play(level, player, SoundEvents.MACE_SMASH_GROUND, 0.9f, 1.3f);
     }
 
@@ -822,6 +823,7 @@ public final class GuardianEffects {
         }
         boolean done = toss ? throwShield(level, player, skills) : raiseDome(level, player, now);
         if (done) {
+            AbilityFx.cast(player, false);   // Z4: the shield flew / the dome rose
             int cooldown = player.getAbilities().instabuild ? 20
                     : (int) Math.round(toss ? SkillValues.get("g_shieldthrow", "cd", 160.0) : SkillValues.get("g_dome", "cd", 500.0));
             actionReadyAt.put(player.getUUID(), now + cooldown);
@@ -1263,6 +1265,7 @@ public final class GuardianEffects {
     }
 
     private boolean raiseDome(ServerLevel level, ServerPlayer player, long now) {
+        AbilityFx.area(player, player.position(), SkillValues.get("g_dome", "radius", 4.0));   // Z4: the dome's real size
         zones.add(new Zone(ZoneKind.DOME, player.getUUID(), level, player.position(), SkillValues.get("g_dome", "radius", 4.0),
                 now + Math.round(SkillValues.get("g_dome", "time", 100.0))));
         play(level, player, SoundEvents.BEACON_POWER_SELECT, 1.0f, 1.4f);

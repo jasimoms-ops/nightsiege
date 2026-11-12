@@ -49,7 +49,11 @@ public final class AbilityFxClient {
     private static final FxBudget BUDGET = new FxBudget();
     private static final List<Pending> PENDING = new ArrayList<>();
     private static final Map<Integer, Integer> FLASH = new HashMap<>();
-    private static final int[] RECEIVED = new int[4];
+    private static final int[] RECEIVED = new int[6];
+    /** Between OPEN and CLOSE: the source whose key runs, its place; -1 for none. */
+    private static int openSource = -1;
+    private static Vec3 openAt;
+    private static int boosted;
     private static int drawn;
     private static int shake;
     private static long now;
@@ -65,10 +69,15 @@ public final class AbilityFxClient {
     public static void receive(CoreNetworking.FxPayload p) {
         Minecraft mc = Minecraft.getInstance();
         ClientLevel level = mc.level;
-        if (level == null || mc.player == null || p.kind() < 0 || p.kind() > 3) {
+        if (level == null || mc.player == null || p.kind() < 0 || p.kind() > 5) {
             return;
         }
         RECEIVED[p.kind()]++;
+        if (p.kind() == CoreNetworking.FxPayload.OPEN || p.kind() == CoreNetworking.FxPayload.CLOSE) {
+            openSource = p.kind() == CoreNetworking.FxPayload.OPEN ? p.source() : -1;
+            openAt = p.pos();
+            return;
+        }
         if (!FxSettings.full()) {
             return;   // reduziert: the old look
         }
@@ -105,9 +114,10 @@ public final class AbilityFxClient {
             level.addParticle(ColorParticleOption.create(ParticleTypes.FLASH, 0xFF000000 | p.accent()), true, false,
                     at.x, at.y + 1.0, at.z, 0, 0, 0);
         }
-        // the shock wave: a ring running outwards
+        // the shock wave: a ring running outwards to the ultimate's real radius (8 blocks for one without an area)
+        double reach = p.radius() > 0 ? Math.max(4.0, p.radius()) : SHOCK_RADIUS;
         for (int t = 0; t <= SHOCK_TICKS; t++) {
-            double r = 1.0 + (SHOCK_RADIUS - 1.0) * t / SHOCK_TICKS;
+            double r = 1.0 + (reach - 1.0) * t / SHOCK_TICKS;
             later(t, () -> ring(level, p.source(), at, r, p.color(), p.accent(), DUST, 0.5));
         }
         // its own sound: thunder over a deep beacon chord, loud enough over a fight
@@ -190,6 +200,58 @@ public final class AbilityFxClient {
         }
     }
 
+    /**
+     * A particle packet from the server (client thread, ClientPacketListenerMixin): while a key's code runs
+     * (OPEN ... CLOSE) and the effects are full, its own particles come {@link FxBudget#SIZE}× bigger,
+     * {@link FxBudget#LIFE}× longer and up to {@link FxBudget#COUNT}× as many (the extra ones from the budget).
+     * Returns false to leave the packet to Minecraft (reduced, other particles, minimal particle setting).
+     */
+    public static boolean boost(net.minecraft.network.protocol.game.ClientboundLevelParticlesPacket p) {
+        Minecraft mc = Minecraft.getInstance();
+        if (openSource < 0 || mc.level == null || !FxSettings.full()
+                || mc.options.particles().get() == net.minecraft.server.level.ParticleStatus.MINIMAL) {
+            return false;
+        }
+        if (openAt != null && openAt.distanceToSqr(p.getX(), p.getY(), p.getZ()) > 48 * 48) {
+            return false;
+        }
+        now = mc.level.getGameTime();
+        Vec3 eye = mc.gameRenderer.mainCamera().position();
+        RandomSource rnd = mc.level.getRandom();
+        int count = p.getCount();
+        float speed = p.getMaxSpeed();
+        if (count == 0) {
+            spawnBig(mc, p, eye, p.getX(), p.getY(), p.getZ(), speed * p.getXDist(), speed * p.getYDist(), speed * p.getZDist());
+            return true;
+        }
+        int n = count + take(openSource, (int) Math.ceil(count * (FxBudget.COUNT - 1.0)));
+        for (int i = 0; i < n; i++) {
+            double x = p.getX() + rnd.nextGaussian() * p.getXDist();
+            double y = p.getY() + rnd.nextGaussian() * p.getYDist();
+            double z = p.getZ() + rnd.nextGaussian() * p.getZDist();
+            spawnBig(mc, p, eye, x, y, z, rnd.nextGaussian() * speed, rnd.nextGaussian() * speed, rnd.nextGaussian() * speed);
+        }
+        return true;
+    }
+
+    private static void spawnBig(Minecraft mc, net.minecraft.network.protocol.game.ClientboundLevelParticlesPacket p, Vec3 eye,
+                                 double x, double y, double z, double dx, double dy, double dz) {
+        if (!p.isOverrideLimiter() && eye.distanceToSqr(x, y, z) > 1024.0) {
+            return;   // as Minecraft: unforced particles only within 32 blocks
+        }
+        net.minecraft.client.particle.Particle made = mc.particleEngine.createParticle(p.getParticle(), x, y, z, dx, dy, dz);
+        if (made != null) {
+            made.scale((float) FxBudget.SIZE);
+            made.setLifetime((int) Math.round(made.getLifetime() * FxBudget.LIFE));
+            boosted++;
+        }
+    }
+
+    /** Tests: old particles drawn bigger so far. */
+    public static int boostedForTests() {
+        return boosted;
+    }
+
     /** Every client tick: the pulses due, the flashes and the shake running down. */
     public static void tick(Minecraft mc) {
         if (mc.level != lastLevel) {
@@ -198,6 +260,7 @@ public final class AbilityFxClient {
             FLASH.clear();
             BUDGET.clear();
             shake = 0;
+            openSource = -1;
         }
         if (mc.level == null) {
             return;
