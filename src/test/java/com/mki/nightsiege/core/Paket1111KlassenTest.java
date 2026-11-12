@@ -85,6 +85,12 @@ class Paket1111KlassenTest {
         assertEquals(0.65, c.damageLevelFactor("electrician", 20), 1e-9);
         assertEquals(0.8, c.damageLevelFactor("trapper", 10), 1e-9);
         assertEquals(6.4, c.skillTweaks.get("potion_tower").values.get("hit"), 1e-9);   // area stays
+        assertTrue(c.bossPhaseHoldsDawn);   // Bossuhr on (Chef 12.11. 07:50)
+        assertEquals(600, c.bossPhaseMaxSeconds);
+        SiegeConfig off = server();
+        off.bossPhaseHoldsDawn = false;   // a v27 server with the switch written off: the step 27 -> 28 turns it on
+        off.sanitize();
+        assertTrue(off.bossPhaseHoldsDawn);
         int same = 0;
         for (String sub : SiegeConfig.SUBCLASS_KEYS) {
             if (sub.equals("gunner") || sub.equals("axe") || sub.equals("shieldfighter")) {
