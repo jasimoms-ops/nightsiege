@@ -95,6 +95,16 @@ final class HueterrufScenes {
         return null;
     }
 
+    /** One hit of 6 by the husk at full life, no absorption, no pause: the life lost (life + absorption). */
+    private static float hit(ServerPlayer player, ServerLevel level, Mob hitter) {
+        player.setAbsorptionAmount(0f);
+        player.setHealth(player.getMaxHealth());
+        player.invulnerableTime = 0;
+        float h = player.getHealth() + player.getAbsorptionAmount();
+        player.hurtServer(level, level.damageSources().mobAttack(hitter), 6f);
+        return h - player.getHealth() - player.getAbsorptionAmount();
+    }
+
     private static int slowTicks(Mob mob) {
         MobEffectInstance e = mob.getEffect(MobEffects.SLOWNESS);
         return e == null ? 0 : e.getDuration();
@@ -147,6 +157,14 @@ final class HueterrufScenes {
             check(m.isDefending(player), "the player defends the test night");
         });
         game.getServer().runCommand("gamemode survival @p");
+        // CI f5aa71dca: armour 20 in the same tick – the armour attributes follow the slots only on the next tick
+        server(context, "strip", (player, m) -> {
+            for (net.minecraft.world.entity.EquipmentSlot es : new net.minecraft.world.entity.EquipmentSlot[]{
+                    net.minecraft.world.entity.EquipmentSlot.HEAD, net.minecraft.world.entity.EquipmentSlot.CHEST,
+                    net.minecraft.world.entity.EquipmentSlot.LEGS, net.minecraft.world.entity.EquipmentSlot.FEET}) {
+                player.setItemSlot(es, net.minecraft.world.item.ItemStack.EMPTY);
+            }
+        });
         // CI 12.11.: the test world starts peaceful, where a summoned husk is gone at once (0 husks): normal for the scene
         game.getServer().runCommand("difficulty normal");
         context.waitTicks(2);
@@ -178,18 +196,14 @@ final class HueterrufScenes {
             player.invulnerableTime = 0;
             // CI 0d47c425b: x1.14 – the kit's absorption ate part of the first hit, and vanilla armour cuts by
             // the size of a hit; both hits now without armour, absorption and effects, life + absorption counted.
-            for (net.minecraft.world.entity.EquipmentSlot es : new net.minecraft.world.entity.EquipmentSlot[]{
-                    net.minecraft.world.entity.EquipmentSlot.HEAD, net.minecraft.world.entity.EquipmentSlot.CHEST,
-                    net.minecraft.world.entity.EquipmentSlot.LEGS, net.minecraft.world.entity.EquipmentSlot.FEET}) {
-                player.setItemSlot(es, net.minecraft.world.item.ItemStack.EMPTY);
-            }
             player.removeAllEffects();
             player.setAbsorptionAmount(0f);
             player.setHealth(player.getMaxHealth());
             log("armour " + player.getArmorValue() + ", absorption " + f(player.getAbsorptionAmount()) + ", max " + f(player.getMaxHealth()));
-            float h0 = player.getHealth() + player.getAbsorptionAmount();
-            player.hurtServer(level, level.damageSources().mobAttack(hitter), 6f);
-            float lost1 = h0 - player.getHealth() - player.getAbsorptionAmount();
+            float scaleBefore = com.mki.nightsiege.game.GuardianEffects.scale(player, level, level.damageSources().mobAttack(hitter), 6f);
+            float lost0 = hit(player, level, hitter);   // two unguarded hits: the same twice, or a first-hit effect shows
+            float lost1 = hit(player, level, hitter);
+            log("unguarded hits " + f(lost0) + ", " + f(lost1) + ", mod scale of 6 = " + f(scaleBefore));
             plain.forEach(p -> before.add(p.position()));
             guardAt[0] = guard.get(0).position();
             int slot = m.abilitySlotOf(player, GuardCall.ID);
@@ -214,9 +228,10 @@ final class HueterrufScenes {
             player.setHealth(player.getMaxHealth());
             log("guard factor now " + f(Companions.guardFactor(player)));
             check(Math.abs(Companions.guardFactor(player) - 0.6f) < 1e-4, "guard factor 0.6 right after the press");
-            float h1 = player.getHealth() + player.getAbsorptionAmount();
-            player.hurtServer(level, level.damageSources().mobAttack(hitter), 6f);
-            float lost2 = h1 - player.getHealth() - player.getAbsorptionAmount();
+            float scaleGuarded = com.mki.nightsiege.game.GuardianEffects.scale(player, level, level.damageSources().mobAttack(hitter), 6f);
+            log("mod scale of 6 guarded = " + f(scaleGuarded) + " (x" + f(scaleGuarded / Math.max(0.01f, scaleBefore)) + ")");
+            check(Math.abs(scaleGuarded / Math.max(0.01f, scaleBefore) - 0.6f) < 0.01f, "the mod's own damage path: x0.6 while guarded");
+            float lost2 = hit(player, level, hitter);
             log("hit before " + f(lost1) + ", guarded " + f(lost2));
             check(lost1 > 0.5f && Math.abs(lost2 / lost1 - 0.6f) < 0.05f, "guarded hit = 60 % (" + f(lost2 / Math.max(0.01f, lost1)) + ")");
             float h2 = player.getHealth();
