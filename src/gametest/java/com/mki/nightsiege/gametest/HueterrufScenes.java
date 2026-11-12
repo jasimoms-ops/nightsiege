@@ -147,6 +147,9 @@ final class HueterrufScenes {
             check(m.isDefending(player), "the player defends the test night");
         });
         game.getServer().runCommand("gamemode survival @p");
+        // CI 12.11.: the test world starts peaceful, where a summoned husk is gone at once (0 husks): normal for the scene
+        game.getServer().runCommand("difficulty normal");
+        context.waitTicks(2);
         String husk = "execute as @p at @p run summon minecraft:husk ^%s ^ ^2 {PersistenceRequired:1b,Tags:[\"nightsiege\",\"%s\"]}";
         game.getServer().runCommand(husk.formatted("1", PLAIN));
         game.getServer().runCommand(husk.formatted("-1", PLAIN));
@@ -165,6 +168,7 @@ final class HueterrufScenes {
             }
             List<Mob> plain = tagged(level, PLAIN);
             List<Mob> guard = tagged(level, GUARD);
+            log("difficulty " + level.getDifficulty() + ", husks " + plain.size() + ", guard " + guard.size());
             check(plain.size() == 2 && guard.size() == 1 && wolf[0] != null,
                     "two husks, a guard and a wolf (" + plain.size() + "/" + guard.size() + "/" + (wolf[0] != null) + ")");
             if (plain.size() != 2 || guard.size() != 1 || wolf[0] == null) {
