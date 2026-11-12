@@ -502,7 +502,10 @@ final class TeamBrain {
                 return;
             }
         }
-        boolean roams = able && core != null && role != Role.ENGINEER;   // Tor 8.3: fights where the monsters are
+        // Boss sim 12.11. (local lich run: at the boss only the engineers stood, two crystals untouched for 300 s): like
+        // a player who reads "destroy the three soul crystals", the engineer leaves his towers while the lich's shield holds.
+        Mob lich = role == Role.ENGINEER && able && core != null && !seated ? m.bosses().boss(level) : null;
+        boolean roams = able && core != null && (role != Role.ENGINEER || lich != null && m.bosses().shielded(lich));   // Tor 8.3: fights where the monsters are
         double away = roams ? player.position().distanceTo(core) : 0;
         if (player.isInWall() || player.isInLava() || !seated && (roams ? away > HUNT + 3
                 : player.position().distanceToSqr(home) > (melee ? (leash + 3) * (leash + 3) : 9.0))) {
