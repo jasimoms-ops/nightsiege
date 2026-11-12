@@ -26,9 +26,10 @@ import java.util.List;
 
 /**
  * Scene "herzen" (Z3, Simon 12.11.: "Leben, Hunger und Rüstung näher an die UI ... nur Herzen im anderen Design";
- * Chef 12.11. 18:10: nothing on the hearts): at night in survival with the kit worn, three states at 1080p with
- * GUI 2, 3 and 4 - low (3 of 20 health right after 64: vanilla still shows the lost rows, wither, armour 0, food 6),
- * 20 hearts (half heart, absorption, poison, armour 0, food empty) and 30+ hearts (absorption, armour 20, food full).
+ * Chef 12.11. 18:10: nothing on the hearts; Z3b 20:15: the hunger symbols in the own design too): at night in
+ * survival with the kit worn, four states at 1080p with GUI 2, 3 and 4 - low (3 of 20 health right after 64: vanilla
+ * still shows the lost rows, wither, armour 0, food half: 11), 20 hearts (half heart, absorption, poison, armour 0,
+ * food empty), 30+ hearts (absorption, armour 20, food full) and the hunger effect (green symbols, food 15).
  * A full chat (10 lines), the bar's warning, five companions' rows (Z2) and the healers' party list on screen; FAIL
  * when chat, warning, hearts and companions' rows overlap. Also the open chat at GUI 3 and one picture without the
  * kit (vanilla). Screenshots herzen_*. Log lines "[herzen]".
@@ -95,9 +96,10 @@ final class HerzenScenes {
         context.waitTicks(10);
         check(context.computeOnClient(client -> KitHud.active()), "kit HUD on in survival at night");
         List<State> states = List.of(
-                new State("wenig", 64, 20, 3f, 0, 6, false, MobEffects.WITHER),
+                new State("wenig", 64, 20, 3f, 0, 11, false, MobEffects.WITHER),
                 new State("zwanzig", 40, 40, 31f, 2, 0, false, MobEffects.POISON),
-                new State("dreissig", 64, 64, 64f, 4, 20, true, null));
+                new State("dreissig", 64, 64, 64f, 4, 20, true, null),
+                new State("hunger", 20, 20, 20f, 0, 15, true, MobEffects.HUNGER));
         int pics = 0;
         for (State st : states) {
             for (int scale : new int[]{2, 3, 4}) {
@@ -138,7 +140,11 @@ final class HerzenScenes {
                 log(st.name() + " gui " + scale + ": health " + seen[0] + "/" + seen[1] + " +" + seen[2]
                         + ", food " + seen[3] + ", armour " + seen[4]);
                 int hearts = context.computeOnClient(client -> KitHud.ownHeartSprites);
+                int food = context.computeOnClient(client -> KitHud.ownFoodSprites);
                 pics += shot(context, "herzen_" + st.name() + "_gui" + scale);
+                int foodNow = context.computeOnClient(client -> KitHud.ownFoodSprites);
+                check(foodNow > food, st.name() + " gui " + scale + ": own hunger symbols " + (foodNow - food)
+                        + " (food " + (int) seen[3] + (st.effect() == MobEffects.HUNGER ? ", hunger effect" : "") + ")");
                 checkRows(context, st.name() + " gui " + scale, seen,
                         context.computeOnClient(client -> KitHud.ownHeartSprites) - hearts, false);
             }
@@ -174,11 +180,13 @@ final class HerzenScenes {
         context.waitTicks(10);
         // without the kit everything stays vanilla: vanilla's sprites in vanilla's place
         int hearts = context.computeOnClient(client -> KitHud.ownHeartSprites);
+        int food = context.computeOnClient(client -> KitHud.ownFoodSprites);
         pics += shot(context, "herzen_ohnekit_gui2");
         boolean off = context.computeOnClient(client -> !KitHud.active() && KitHud.vanillaLift() == 0
                 && KitHud.heartSprite("NORMAL", false, false) == null);
-        check(off && context.computeOnClient(client -> KitHud.ownHeartSprites) == hearts,
-                "without the kit: vanilla hearts in vanilla's place");
+        check(off && context.computeOnClient(client -> KitHud.ownHeartSprites) == hearts
+                        && context.computeOnClient(client -> KitHud.ownFoodSprites) == food,
+                "without the kit: vanilla hearts and hunger symbols in vanilla's place");
         context.runOnClient(client -> {
             PartyHealthHud.clear();
             client.options.guiScale().set(scaleBefore);
@@ -187,7 +195,7 @@ final class HerzenScenes {
         context.getInput().resizeWindow(window[0], window[1]);
         game.getServer().runCommand("time set 1000");
         context.waitTicks(5);
-        check(pics == 11, "pictures: " + pics + " of 11");
+        check(pics == 14, "pictures: " + pics + " of 14");
         log("summary: " + checks + " checks, " + FAILS.size() + " failed" + (FAILS.isEmpty() ? "" : ": " + FAILS));
     }
 

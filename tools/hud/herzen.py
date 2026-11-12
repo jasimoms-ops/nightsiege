@@ -3,7 +3,7 @@
 Writes 9x9 sprites for every vanilla heart state to the gui atlas
 (assets/nightsiege/textures/gui/sprites/hud/heart/), KitHud.heartSprite picks them while the kit is worn.
 Optional argument: a preview PNG (8x, on dark and on light ground).
-Pure Python (no PIL): python tools/hud/herzen.py [preview.png]
+Z3b: also the hunger symbols (hud/food_*). Pure Python (no PIL): python tools/hud/herzen.py [preview.png [food.png]]
 """
 import os
 import struct
@@ -112,6 +112,60 @@ def sprites():
     return out
 
 
+# Z3b (Simon 12.11. 20:11): the hunger symbols in the same design - a leg of meat, meat top left, bone bottom right
+# as vanilla's; pale gold rim, dark inside. Half: the right part stays (vanilla's row runs right to left).
+FOOD = [
+    "..OOO....",
+    ".OmmmO...",
+    "OmmmmmO..",
+    "OmmmmmO..",
+    ".OmmmmO..",
+    "..OOmbO..",
+    "....ObbO.",
+    ".....ObbO",
+    "......OO.",
+]
+FOOD_FILLS = {"": (0xF08A5A, 0xC2562A, 0x7A3018), "_hunger": (0xC8D880, 0x7E8A2E, 0x4A5418)}
+FOOD_RIM = {"": 0xE6CF94, "_hunger": 0xC9D98E}
+FOOD_HIGHLIGHT = {(2, 1), (2, 2), (1, 2)}
+FOOD_SHADE = {(4, 4), (5, 4), (4, 5)}
+BONE = (0xF4EAD0, 0xC8B890)
+
+
+def food_empty(hunger):
+    px = [[None] * 9 for _ in range(9)]
+    for y, row in enumerate(FOOD):
+        for x, ch in enumerate(row):
+            if ch == "O":
+                px[y][x] = FOOD_RIM[hunger]
+            elif ch in "mb":
+                px[y][x] = EMPTY_TOP if y <= 2 else EMPTY
+    return px
+
+
+def food_fill(hunger, half):
+    hl, mid, shade = FOOD_FILLS[hunger]
+    px = [[None] * 9 for _ in range(9)]
+    for y, row in enumerate(FOOD):
+        for x, ch in enumerate(row):
+            if ch not in "mb" or (half and x < 4):
+                continue
+            if ch == "b":
+                px[y][x] = BONE[0] if x + y < 13 else BONE[1]
+            else:
+                px[y][x] = hl if (x, y) in FOOD_HIGHLIGHT else shade if (x, y) in FOOD_SHADE else mid
+    return px
+
+
+def foods():
+    out = {}
+    for hunger in ("", "_hunger"):
+        out["food_empty" + hunger] = food_empty(hunger)
+        out["food_full" + hunger] = food_fill(hunger, False)
+        out["food_half" + hunger] = food_fill(hunger, True)
+    return out
+
+
 def over(base, top):
     return [[t if t is not None else b for b, t in zip(rb, rt)] for rb, rt in zip(base, top)]
 
@@ -151,6 +205,28 @@ if __name__ == "__main__":
     for name, px in all_px.items():
         png(os.path.join(target, name + ".png"), px)
     print(len(all_px), "sprites ->", os.path.normpath(target))
+    hud = os.path.normpath(os.path.join(target, ".."))
+    food_px = foods()
+    for name, px in food_px.items():
+        png(os.path.join(hud, name + ".png"), px)
+    print(len(food_px), "food sprites ->", hud)
+    if len(sys.argv) > 2:
+        rows = []
+        for hunger in ("", "_hunger"):
+            e = food_px["food_empty" + hunger]
+            line = [e, over(e, food_px["food_full" + hunger]), over(e, food_px["food_half" + hunger])]
+            rows.append(line)
+        px = []
+        for ground in (0x2B3550, 0x1E261C):
+            for line in rows:
+                for y in range(9):
+                    r = [ground] * 2
+                    for img in line:
+                        r += [ground if c is None else c for c in img[y]] + [ground] * 2
+                    px.append(r)
+                px.append([ground] * len(px[-1]))
+        png(sys.argv[2], [[c for c in row for _ in range(8)] for row in px for _ in range(8)])
+        print("food preview ->", sys.argv[2])
     if len(sys.argv) > 1:
         preview(sys.argv[1], all_px)
         print("preview ->", sys.argv[1])

@@ -385,6 +385,18 @@ public final class KitHud {
         return name == null ? vanilla : HEARTS.computeIfAbsent(name, n -> ModContent.id("hud/heart/" + n));
     }
 
+    /** For the tests: how many hunger symbols were swapped for the mod's. */
+    public static volatile int ownFoodSprites;
+
+    /** Z3b: vanilla's hunger symbols (hud/food_*) in the mod's design while the kit is worn (same rule as the hearts). */
+    public static Identifier foodSprite(Identifier vanilla) {
+        if (!ownHearts() || !vanilla.getNamespace().equals("minecraft") || !vanilla.getPath().startsWith("hud/food_")) {
+            return vanilla;
+        }
+        ownFoodSprites++;
+        return HEARTS.computeIfAbsent(vanilla.getPath(), ModContent::id);
+    }
+
     /** For the tests: the action bar drawn last (null while none is drawn). */
     public static volatile ActionBarLayout.Layout lastLayout;
     /** For the tests: the keys of the fields drawn last, in their order, and how many showed a pause running. */
