@@ -479,6 +479,7 @@ public class EventLookTest implements FabricClientGameTest {
                 context.waitTicks(30);
                 context.takeScreenshot("shader_%d_00_normal".formatted(n));
                 series(context, game, "shader_" + n);
+                FxLastScenes.shaderShots(context, game, "shader_" + n);   // Z4: the new ability effects seen through the shader
             }
         }
     }

@@ -102,6 +102,53 @@ final class FxLastScenes {
         return n;
     }
 
+
+    /** Shader proof (Chef 12.11.): ult (column + ring), area ability (ring), hit flash, as pictures shader_N_fx_*. */
+    static void shaderShots(ClientGameTestContext context, TestSingleplayerContext game, String prefix) {
+        game.getServer().runCommand("time set 18000");
+        game.getServer().runCommand("gamemode creative @p");
+        game.getServer().runCommand("kill @e[tag=" + TAG + "]");
+        context.getInput().lookAt(-90.0f, 5.0f);
+        context.runOnClient(client -> FxSettings.setFull(true));
+        context.waitTicks(10);
+        final double[][] pos = new double[1][];
+        EventLookTest.onServer(context, (player, m) -> pos[0] = new double[]{player.getX(), player.getY(), player.getZ()});
+        context.waitTicks(2);
+        String husk = "summon minecraft:husk %s %s %s {NoAI:1b,Silent:1b,PersistenceRequired:1b,Tags:[\"" + TAG + "\",\"%s\"]}";
+        game.getServer().runCommand(String.format(java.util.Locale.ROOT, husk, pos[0][0] + 7, pos[0][1], pos[0][2], "caster"));
+        for (int i = 0; i < 5; i++) {
+            game.getServer().runCommand(String.format(java.util.Locale.ROOT, husk, pos[0][0] + 11 + i % 2, pos[0][1], pos[0][2] - 4 + i * 2.0, "target"));
+        }
+        context.waitTicks(10);
+        final List<Integer> c = new ArrayList<>();
+        final List<Integer> t = new ArrayList<>();
+        EventLookTest.onServer(context, (player, m) -> {
+            for (Mob h : ((ServerLevel) player.level()).getEntitiesOfClass(Mob.class, player.getBoundingBox().inflate(40),
+                    e -> e.entityTags().contains(TAG))) {
+                (h.entityTags().contains("caster") ? c : t).add(h.getId());
+            }
+        });
+        context.waitTicks(2);
+        if (c.isEmpty()) {
+            return;
+        }
+        final int src = c.get(0);
+        final Vec3 at = new Vec3(pos[0][0] + 7, pos[0][1], pos[0][2]);
+        context.runOnClient(client -> fire(CoreNetworking.FxPayload.ULT, src, at, 6f, 0xE03030, List.of()));
+        context.waitTicks(6);
+        context.getInput().setCursorPos(1, 1);
+        context.takeScreenshot(prefix + "_fx_ult");
+        context.waitTicks(60);
+        context.runOnClient(client -> fire(CoreNetworking.FxPayload.RING, src, at, 5f, 0x3070F0, List.of()));
+        context.waitTicks(8);
+        context.takeScreenshot(prefix + "_fx_ring");
+        context.waitTicks(40);
+        context.runOnClient(client -> fire(CoreNetworking.FxPayload.HITS, src, at, 0f, 0xE0C020, new ArrayList<>(t)));
+        context.waitTicks(2);
+        context.takeScreenshot(prefix + "_fx_treffer");
+        game.getServer().runCommand("kill @e[tag=" + TAG + "]");
+        context.waitTicks(5);
+    }
     /** {fps mean, frame p95 ms, particles alive max, started per tick, mean ms}. */
     private static double[] measure(ClientGameTestContext context, boolean full) {
         context.runOnClient(client -> {
