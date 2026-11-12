@@ -78,6 +78,7 @@ final class BegleiterScenes {
             log("class " + own.chosenClass + " alpha=" + own.levelOf("s_alpha") + " tamer=" + own.levelOf("s_tamer"));
         });
         context.waitTicks(20);
+        EventLookTest.closeScreen(context);
         for (int i = 0; i < 3; i++) {
             game.getServer().runCommand("say Zeile " + (i + 1) + " im Chat");
         }
@@ -136,7 +137,13 @@ final class BegleiterScenes {
                     client.options.guiScale().set(scale);
                     client.resizeGui();
                 });
-                context.waitTicks(4);
+                EventLookTest.closeScreen(context);   // the class window opened by the skill buys stays shut
+                context.getInput().setCursorPos(1919, 540);
+                String open = context.computeOnClient(client -> client.gui.screen() == null ? ""
+                        : client.gui.screen().getClass().getSimpleName());
+                boolean hud = context.computeOnClient(client -> KitHud.active() && KitHud.lastLayout != null);
+                check(open.isEmpty() && hud, pack.name() + " gui " + scale + ": no window open ('" + open
+                        + "'), kit bar drawn " + hud);
                 pics += shot(context, "begleiter_" + pack.name() + "_gui" + scale);
                 checkPlace(context, pack.name() + " gui " + scale, expected);
             }
