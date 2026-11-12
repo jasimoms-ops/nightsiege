@@ -52,21 +52,29 @@ public final class BossNight {
     }
 
     /**
-     * Bossuhr (switch bossPhaseHoldsDawn, Vorlauf 11.11., off by default): once the boss of a boss night came,
+     * Bossuhr (switch bossPhaseHoldsDawn, on since Chef 12.11. 07:50): once the boss of a boss night came,
      * the dawn waits while he stands. His fall (won) and the wipe-out (lost) end the night as before.
      */
     public static boolean holdsDawn(boolean on, boolean bossCame, boolean bossFell) {
         return on && bossCame && !bossFell;
     }
 
-    /** Bossuhr: the boss phase ran out ({@code phaseTicks} since the boss came): the night is lost, as at dawn. */
-    public static boolean phaseOver(int phaseTicks, int maxSeconds) {
-        return phaseTicks >= maxSeconds * 20;
+    /**
+     * Bossuhr: how long the boss phase may run, from the boss's arrival: the night's normal time left then or
+     * bossPhaseMaxSeconds, whichever is longer, so the clock never makes the night shorter (Prüfer 12.11.).
+     */
+    public static int phaseLimitTicks(int nightTicksLeftAtArrival, int maxSeconds) {
+        return Math.max(nightTicksLeftAtArrival, maxSeconds * 20);
+    }
+
+    /** Bossuhr: the boss phase ran out ({@code phaseTicks} since the boss came): the night is lost, as by the wipe-out. */
+    public static boolean phaseOver(int phaseTicks, int limitTicks) {
+        return phaseTicks >= limitTicks;
     }
 
     /** Bossuhr: ticks of the boss phase left, for the bar and the clock (never below 0). */
-    public static int phaseTicksLeft(int phaseTicks, int maxSeconds) {
-        return Math.max(0, maxSeconds * 20 - phaseTicks);
+    public static int phaseTicksLeft(int phaseTicks, int limitTicks) {
+        return Math.max(0, limitTicks - phaseTicks);
     }
 
     /** Bossuhr: the boss phase's time left as m:ss for the bar ("9:59", "1:00"). */

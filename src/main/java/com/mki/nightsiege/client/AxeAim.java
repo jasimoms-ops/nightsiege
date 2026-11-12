@@ -67,7 +67,7 @@ public final class AxeAim {
         LivingEntity best = null;
         double bestD = Double.MAX_VALUE;
         AABB around = new AABB(eye, end).inflate(width + 1.0, 2.5, width + 1.0);
-        for (LivingEntity e : mc.level.getEntitiesOfClass(LivingEntity.class, around, e -> e instanceof Enemy && e.isAlive() && !companion(e))) {
+        for (LivingEntity e : mc.level.getEntitiesOfClass(LivingEntity.class, around, e -> (e instanceof Enemy || BossLooks.of(e.getId()) != null) && e.isAlive() && !companion(e))) {
             AABB body = e.getBoundingBox().inflate(width, 0.6, width);
             if (body.contains(eye) || body.clip(eye, end).isPresent()) {
                 double d = e.distanceToSqr(eye);
