@@ -148,19 +148,24 @@ final class TeamBrain {
 
     private long bossSince = -1;
 
-    /** The nearest monster (old bot) or, with "mensch=1", the one a player would go for (BotHuman.pick). */
-    private Mob pickTarget(ServerLevel level, ServerPlayer player, double radius, long now) {
+    /**
+     * The nearest monster (old bot) or, with "mensch=1", the one a player would go for (BotHuman.pick).
+     * Boss sim 12.11. (like a player): the shielded lich and the witch's phantom are no target, the lich's
+     * crystals rank like the boss, and with {@code ground} only what a sword reaches from the ground
+     * (the lich and the storm witch up in the air are left to the archers).
+     */
+    private Mob pickTarget(ServerLevel level, ServerPlayer player, double radius, long now, boolean ground) {
         if (!h.on || h.ziel <= 0) {
             return MeleeSim.nearest(level, player, radius);
         }
         java.util.List<Mob> mobs = level.getEntitiesOfClass(Mob.class, player.getBoundingBox().inflate(radius),
-                e -> e instanceof net.minecraft.world.entity.monster.Enemy && e.isAlive() && !Companions.isCompanion(e));
+                e -> MeleeSim.fightable(e) && (!ground || e.getBoundingBox().minY - player.getY() < 3.5));
         if (mobs.isEmpty()) {
             return null;
         }
         boolean seen = false;
         for (Mob mob : mobs) {
-            seen |= BossService.isBoss(mob);
+            seen |= BossService.isBoss(mob) || mob.entityTags().contains(BossService.TAG_PART);
         }
         if (seen && bossSince < 0) {
             bossSince = now;
@@ -174,7 +179,7 @@ final class TeamBrain {
         for (int i = 0; i < dist.length; i++) {
             Mob mob = mobs.get(i);
             dist[i] = player.distanceTo(mob);
-            boolean boss = BossService.isBoss(mob);
+            boolean boss = BossService.isBoss(mob) || mob.entityTags().contains(BossService.TAG_PART);
             prio[i] = boss && !notice ? 0 : BotHuman.prio(
                     net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(mob.getType()).getPath(), boss);
             hp[i] = mob.getHealth() / Math.max(1f, mob.getMaxHealth());
@@ -503,8 +508,8 @@ final class TeamBrain {
                 : player.position().distanceToSqr(home) > (melee ? (leash + 3) * (leash + 3) : 9.0))) {
             stand(player, level);   // pushed into a wall, into lava or too far away: back to the post
         }
-        Mob close = pickTarget(level, player, melee ? leash + 4 : 10.0, now);
-        Mob far = pickTarget(level, player, 32.0, now);
+        Mob close = pickTarget(level, player, melee ? leash + 4 : 10.0, now, melee);
+        Mob far = pickTarget(level, player, 32.0, now, false);
         double reach = player.getAttributeValue(Attributes.ENTITY_INTERACTION_RANGE);
         boolean inReach = close != null && player.distanceTo(close) <= reach + 0.3;
 

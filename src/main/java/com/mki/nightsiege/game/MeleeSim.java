@@ -751,11 +751,19 @@ public final class MeleeSim {
                 || GainKeys.fireField(player, com.mki.nightsiege.core.GainCharges.APPLE));
     }
 
+    /**
+     * A monster a bot may fight (boss sim 12.11.): a monster or a boss (the frost jarl is an iron golem, no
+     * Enemy), alive, no companion, and not untouchable (the shielded lich, the storm witch's phantom).
+     */
+    static boolean fightable(net.minecraft.world.entity.Entity e) {
+        return (e instanceof Enemy || BossService.isBoss(e)) && e.isAlive() && !Companions.isCompanion(e)
+                && !(e instanceof net.minecraft.world.entity.LivingEntity living && TrapService.shielded(living));
+    }
+
     static Mob nearest(ServerLevel level, ServerPlayer player, double radius) {
         Mob best = null;
         double bestD = Double.MAX_VALUE;
-        for (Mob mob : level.getEntitiesOfClass(Mob.class, player.getBoundingBox().inflate(radius),
-                e -> e instanceof Enemy && e.isAlive() && !Companions.isCompanion(e))) {
+        for (Mob mob : level.getEntitiesOfClass(Mob.class, player.getBoundingBox().inflate(radius), MeleeSim::fightable)) {
             double d = mob.distanceToSqr(player);
             if (d < bestD) {
                 bestD = d;
