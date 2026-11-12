@@ -30,7 +30,6 @@ import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
-import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
 import net.minecraft.world.entity.projectile.arrow.Arrow;
 import net.minecraft.world.item.ItemStack;
@@ -652,7 +651,7 @@ public final class CombatEffects {
                 ArmorBreak.afterHit(hurt, source, taken, tuning.config());   // zombies and creepers crack the armour
             }
             // A hit taken from a monster fills a warrior's Kampfgeist (Simon 05.11.).
-            if (taken > 0 && source.getEntity() instanceof Enemy && !Companions.isCompanion(source.getEntity())) {
+            if (taken > 0 && BossService.isFoe(source.getEntity()) && !Companions.isCompanion(source.getEntity())) {
                 PlayerSkills hurtSkills = skillsFor.apply(hurt);
                 if (hurtSkills != null && hurtSkills.clazz() == SkillClass.WARRIOR) {
                     WarriorSpirit.onHurt(hurt, level.getGameTime());
@@ -660,7 +659,7 @@ public final class CombatEffects {
             }
         }
         long now = level.getGameTime();
-        if (victim instanceof Enemy && taken > 0 && source.getEntity() instanceof ServerPlayer player) {
+        if (BossService.isFoe(victim) && taken > 0 && source.getEntity() instanceof ServerPlayer player) {
             PlayerSkills skills = skillsFor.apply(player);
             double extra = 0.0;
             Mark mark = marks.get(victim.getUUID());
@@ -1044,7 +1043,7 @@ public final class CombatEffects {
 
     /** A kill readies the strong next hit of the momentum talent. */
     public void onKill(ServerPlayer player, Entity killed) {
-        if (!(killed instanceof Enemy) || !(player.level() instanceof ServerLevel level)) {
+        if (!BossService.isFoe(killed) || !(player.level() instanceof ServerLevel level)) {
             return;
         }
         PlayerSkills skills = skillsFor.apply(player);
@@ -1091,7 +1090,7 @@ public final class CombatEffects {
      */
     public boolean allowDamage(LivingEntity entity, DamageSource source, float amount) {
         if (dealingBonus || !(entity instanceof ServerPlayer player) || !(player.level() instanceof ServerLevel level)
-                || !(source.getEntity() instanceof LivingEntity attacker) || !(attacker instanceof Enemy) || amount <= 0) {
+                || !(source.getEntity() instanceof LivingEntity attacker) || !BossService.isFoe(attacker) || amount <= 0) {
             return true;
         }
         PlayerSkills skills = skillsFor.apply(player);
@@ -1139,12 +1138,12 @@ public final class CombatEffects {
      * hits, so this comes from the death of the monster.
      */
     public void afterKillingHit(LivingEntity victim, DamageSource source) {
-        if (!dealingBonus && victim instanceof Enemy && source.getEntity() instanceof ServerPlayer striker
+        if (!dealingBonus && BossService.isFoe(victim) && source.getEntity() instanceof ServerPlayer striker
                 && source.getDirectEntity() == striker) {
             killingBlowSteal(striker, victim);
             killingBlowSpirit(striker, victim);
         }
-        if (dealingBonus || !(victim.level() instanceof ServerLevel level) || !(victim instanceof Enemy)
+        if (dealingBonus || !(victim.level() instanceof ServerLevel level) || !BossService.isFoe(victim)
                 || !(source.getEntity() instanceof ServerPlayer player) || !(source.getDirectEntity() instanceof AbstractArrow arrow)) {
             return;
         }

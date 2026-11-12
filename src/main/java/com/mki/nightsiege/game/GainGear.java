@@ -27,7 +27,6 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
-import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
@@ -682,13 +681,13 @@ public final class GainGear {
         ServerPlayer thrower = owner instanceof ServerPlayer p ? p : null;
         switch (projectile.kind()) {
             case KitProjectile.AXE -> {
-                if (hit instanceof LivingEntity victim && victim instanceof Enemy) {
+                if (hit instanceof LivingEntity victim && BossService.isFoe(victim)) {
                     victim.hurtServer(level, level.damageSources().thrown(projectile, owner), 8.0f);
                     level.playSound(null, victim.blockPosition(), SoundEvents.PLAYER_ATTACK_SWEEP, SoundSource.PLAYERS, 1f, 0.8f);
                 }
             }
             case KitProjectile.SPEAR -> {
-                if (hit instanceof LivingEntity victim && victim instanceof Enemy) {
+                if (hit instanceof LivingEntity victim && BossService.isFoe(victim)) {
                     victim.hurtServer(level, level.damageSources().thrown(projectile, owner), 5.0f);
                     Vec3 push = projectile.getDeltaMovement().multiply(1, 0, 1).normalize();
                     victim.setDeltaMovement(victim.getDeltaMovement().add(push.scale(1.6)).add(0, 0.4, 0));
@@ -922,7 +921,7 @@ public final class GainGear {
     /** Damage factors: the war banner for attackers, the bodyguard chain for victims. */
     public static float damageFactor(LivingEntity victim, DamageSource source) {
         float factor = 1f;
-        if (source.getEntity() instanceof ServerPlayer attacker && victim instanceof Enemy
+        if (source.getEntity() instanceof ServerPlayer attacker && BossService.isFoe(victim)
                 && (nearBanner(attacker) || bannerOwnerNear(attacker))) {
             factor *= BANNER_FACTOR;
         }
@@ -938,7 +937,7 @@ public final class GainGear {
                 && victim.level() instanceof ServerLevel level) {
             storm(level, victim.position(), arrow.getOwner());
         }
-        if (source.getDirectEntity() instanceof AbstractArrow arrow && victim instanceof Enemy) {
+        if (source.getDirectEntity() instanceof AbstractArrow arrow && BossService.isFoe(victim)) {
             onArrowHitEntity(arrow, victim);   // the quiver's spectral arrows (balance update 2)
         }
         if (taken > 0 && victim instanceof ServerPlayer ally && victim.level() instanceof ServerLevel level) {
@@ -1472,7 +1471,7 @@ public final class GainGear {
     static List<Mob> enemies(ServerLevel level, Vec3 center, double radius) {
         AABB box = new AABB(center, center).inflate(radius);
         List<Mob> out = new ArrayList<>();
-        for (Mob mob : level.getEntitiesOfClass(Mob.class, box, m -> m instanceof Enemy && m.isAlive() && !Companions.isCompanion(m))) {
+        for (Mob mob : level.getEntitiesOfClass(Mob.class, box, m -> BossService.isFoe(m) && m.isAlive() && !Companions.isCompanion(m))) {
             if (mob.position().distanceToSqr(center) <= radius * radius) {
                 out.add(mob);
             }

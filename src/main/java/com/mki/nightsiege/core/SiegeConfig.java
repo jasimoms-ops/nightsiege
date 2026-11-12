@@ -280,6 +280,11 @@ public class SiegeConfig {
     public double bossFinaleWave = 1.5;
     /** Factor on the health of every boss. */
     public double bossHealthMultiplier = 1.0;
+    /**
+     * Factor on the health of one boss (Chef 12.11.): boss id (grave_king …) → factor, on top of
+     * bossHealthMultiplier. A boss not in the map stands on 1.0; empty = every boss as before.
+     */
+    public java.util.Map<String, Double> bossHealthPer = new java.util.LinkedHashMap<>();
     /** Extra boss health for every defender beyond the first (0.5 = +50 %). */
     public double bossHealthPerExtraPlayer = 0.5;
     /** Factor on the damage of every boss (blows and abilities). */
@@ -1080,8 +1085,8 @@ public class SiegeConfig {
      * (as for lowLevelDamageDealt and the traps' growth; a playtest or the bench uses its test level).
      */
     public Map<String, Map<String, Double>> subclassDamageLevel = defaultDamageLevel();
-    /** Subclasses whose level curve hits only the damage of their towers and traps, not their own hits. */
-    public List<String> subclassDamageLevelTrapsOnly = new ArrayList<>(List.of("electrician", "trapper"));
+    /** Subclasses whose level curve hits only the damage of their towers and traps. The trapper has no tower or floor trap: his "traps" are his net bolts, tripwire and net rain, so his curve hits all his damage (the slow stays). */
+    public List<String> subclassDamageLevelTrapsOnly = new ArrayList<>(List.of("electrician"));
     /** Paket 11.11.: factor on the alchemist's own direct hits (sword, bow); towers, zones, poison and acid stay. */
     public double alchemistDirectHit = ALCHEMIST_DIRECT_HIT;
     static final double ALCHEMIST_DIRECT_HIT = 1.4;
@@ -1269,6 +1274,12 @@ public class SiegeConfig {
         int top = Math.max(2, dungeonMobPercentMaxLevel);
         double t = Math.max(0.0, Math.min(1.0, (level - 1) / (double) (top - 1)));
         return dungeonMobPercentMin + (dungeonMobPercentMax - dungeonMobPercentMin) * t;
+    }
+
+    /** The health factor of one boss from {@link #bossHealthPer} (1.0 when it has none). */
+    public double bossHealthFor(String bossId) {
+        Double f = bossHealthPer == null || bossId == null ? null : bossHealthPer.get(bossId);
+        return f == null || Double.isNaN(f) || f <= 0 ? 1.0 : f;
     }
 
     /** Share of the max health a champion's hit takes: in a dungeon by level band, in a night {@link #championNightPercent}. */
@@ -1818,6 +1829,12 @@ public class SiegeConfig {
         bossFinaleWave = clampDouble(bossFinaleWave, 0.0, 5.0);
         bossHealthMultiplier = clampDouble(bossHealthMultiplier <= 0 ? 1.0 : bossHealthMultiplier, 0.1, 20.0);
         bossHealthPerExtraPlayer = clampDouble(bossHealthPerExtraPlayer, 0.0, 3.0);
+        if (bossHealthPer == null) {
+            bossHealthPer = new LinkedHashMap<>();
+        }
+        bossHealthPer = new LinkedHashMap<>(bossHealthPer);
+        bossHealthPer.entrySet().removeIf(e -> e.getKey() == null || e.getValue() == null || Double.isNaN(e.getValue()));
+        bossHealthPer.replaceAll((k, v) -> clampDouble(v <= 0 ? 1.0 : v, 0.1, 10.0));
         bossDamageMultiplier = clampDouble(bossDamageMultiplier <= 0 ? 1.0 : bossDamageMultiplier, 0.1, 10.0);
         wardenChance = clampDouble(wardenChance, 0.0, 1.0);
         bossGuardLife = clampDouble(bossGuardLife <= 0 ? 0.5 : bossGuardLife, 0.05, 5.0);
@@ -1841,7 +1858,7 @@ public class SiegeConfig {
         subclassDamageLevel = subclassDamageLevel == null ? defaultDamageLevel() : cleanCurves(subclassDamageLevel);
         levelCurves = parseCurves(subclassDamageLevel);
         if (subclassDamageLevelTrapsOnly == null) {
-            subclassDamageLevelTrapsOnly = new ArrayList<>(List.of("electrician", "trapper"));
+            subclassDamageLevelTrapsOnly = new ArrayList<>(List.of("electrician"));
         }
         subclassDamageLevelTrapsOnly.removeIf(java.util.Objects::isNull);
         subclassDamageLevelTrapsOnly.replaceAll(k -> k.toLowerCase(java.util.Locale.ROOT));
@@ -2165,6 +2182,8 @@ public class SiegeConfig {
             damageTarget("gunner", 0.78, 0.62);
             damageTarget("axe", 1.5, 1.725);
             damageTarget("shieldfighter", 0.9, 1.08);
+            // Chef 12.11.: bossHealthPer (one factor per boss) is a new field, empty = 1.0 for every boss; no value moves.
+            // Chef 12.11.: bossHealthPer (one factor per boss) is a new field, empty = 1.0 for every boss; no value moves.
             settingsVersion = 28;
         }
         if (Double.isNaN(meleeLifesteal)) {

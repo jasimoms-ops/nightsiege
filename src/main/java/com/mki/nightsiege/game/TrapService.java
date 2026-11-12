@@ -1781,7 +1781,7 @@ public final class TrapService {
      */
     public static boolean sparedByTowerArrow(AbstractArrow arrow, Entity target) {
         return arrow.entityTags().contains("nightsiege_turret")
-                && (!(target instanceof Enemy) || Companions.isCompanion(target));
+                && (!BossService.isFoe(target) || Companions.isCompanion(target));
     }
 
     /** An arrow of a manned turret struck a creature: on the head it counts double. */
@@ -3447,7 +3447,7 @@ public final class TrapService {
     }
 
     static List<LivingEntity> enemies(ServerLevel level, AABB box) {
-        return level.getEntitiesOfClass(LivingEntity.class, box, e -> e instanceof Enemy && e.isAlive()
+        return level.getEntitiesOfClass(LivingEntity.class, box, e -> BossService.isFoe(e) && e.isAlive()
                 && !Companions.isCompanion(e));   // the summoner's skeleton is no foe
     }
 
