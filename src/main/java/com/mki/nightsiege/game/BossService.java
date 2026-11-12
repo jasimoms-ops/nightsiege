@@ -321,7 +321,7 @@ public final class BossService {
             if (phantom != null) {
                 phantom.setNoAi(true);
                 phantom.setNoGravity(true);
-                phantom.setInvulnerable(true);
+                // Not invulnerable (12.11.): that dropped every hit before the damage event; mountHit stops its damage.
                 phantom.setPersistenceRequired();
                 set(phantom, Attributes.SCALE, 2.2);
                 phantom.addEffect(new MobEffectInstance(MobEffects.FIRE_RESISTANCE, MobEffectInstance.INFINITE_DURATION, 0, false, false));
@@ -707,6 +707,25 @@ public final class BossService {
     /** True for the storm witch's phantom. */
     public static boolean isMount(Entity entity) {
         return entity != null && entity.entityTags().contains(TAG_MOUNT);
+    }
+
+    /**
+     * Damage to the storm witch's phantom (12.11.): it takes none itself (before, it was invulnerable, and every
+     * arrow and blow that hit it was lost); a defender's hit goes on to the witch in the saddle, once, with the
+     * same source. False: the phantom's own damage stops here, before any other check (/kill and the void still go).
+     */
+    public static boolean mountHit(LivingEntity mount, DamageSource source, float amount) {
+        if (source.is(DamageTypeTags.BYPASSES_INVULNERABILITY)) {
+            return true;   // /kill and the void, as before
+        }
+        Entity by = source.getEntity();
+        Entity rider = mount.getFirstPassenger();
+        if (com.mki.nightsiege.core.BossNight.mountHitGoesToRider(
+                by instanceof net.minecraft.world.entity.player.Player || Companions.isCompanion(by), isBoss(rider))
+                && rider instanceof LivingEntity witch && mount.level() instanceof ServerLevel level) {
+            witch.hurtServer(level, source, amount);
+        }
+        return false;
     }
 
     public static boolean isBoss(Entity entity) {

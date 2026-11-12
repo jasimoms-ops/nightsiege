@@ -75,6 +75,14 @@ public final class BossNight {
     }
 
     /**
+     * The storm witch's phantom takes no damage itself (12.11.); a defender's hit on it (blow, arrow, a
+     * companion's) goes to the boss in its saddle. Monsters, the witch's own lightning and the world pass nothing on.
+     */
+    public static boolean mountHitGoesToRider(boolean byDefender, boolean riderIsBoss) {
+        return byDefender && riderIsBoss;
+    }
+
+    /**
      * True for a monster of the night that loads (or turns up again) once the boss came and is
      * neither of the night's monsters, the boss's side (boss, part, guard, what they call up) nor a
      * companion: it was in an unloaded chunk at the withdrawal and goes at once.
