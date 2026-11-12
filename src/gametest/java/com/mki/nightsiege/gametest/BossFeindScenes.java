@@ -59,7 +59,7 @@ final class BossFeindScenes {
         game.getServer().runCommand("time set 18000");
         game.getServer().runCommand("gamemode survival @p");
         game.getServer().runCommand("effect give @p minecraft:resistance 600 255 true");
-        for (BossKind kind : new BossKind[] {BossKind.FROST_JARL, BossKind.STORM_WITCH}) {
+        for (BossKind kind : new BossKind[] {BossKind.FROST_JARL, BossKind.STORM_WITCH, BossKind.BONE_LICH}) {
             game.getServer().runCommand("tp @p %d.5 %d %d.5".formatted(cx, cy, cz));
             context.waitTicks(5);
             EventLookTest.onServer(context, (player, manager) -> {
@@ -80,7 +80,7 @@ final class BossFeindScenes {
                     arrow.addTag("nightsiege_turret");
                     check(boss != null && !TrapService.sparedByTowerArrow(arrow, boss), "Turmpfeil trifft frost_jarl");
                     arrow.discard();
-                } else if (boss != null) {
+                } else if (kind == BossKind.STORM_WITCH && boss != null) {
                     half[0] = boss.getMaxHealth() * 0.5f;
                     boss.setHealth(half[0]);
                 }
@@ -110,6 +110,38 @@ final class BossFeindScenes {
                     } else {
                         System.out.println("[bossfeind] Hinweis: storm_witch gerade gelandet, Phantom-Pruefung entfaellt");
                     }
+                });
+            }
+            if (kind == BossKind.BONE_LICH) {
+                // 12.11. (boss sim: lich 4-7 %): with the crystals broken he sank outside the walls, out of a sword's
+                // reach. Now he drifts in towards the core (crystal ring, edge - 3) and lies on the ground there.
+                final double[] before = {-1};
+                EventLookTest.onServer(context, (player, manager) -> {
+                    ServerLevel level = (ServerLevel) player.level();
+                    Mob boss = manager.bosses().boss(level);
+                    if (boss != null) {
+                        before[0] = Math.hypot(boss.getX() - (cx + 0.5), boss.getZ() - (cz + 0.5));
+                    }
+                    for (java.util.UUID part : manager.bosses().partHitboxes()) {
+                        if (level.getEntity(part) instanceof net.minecraft.world.entity.LivingEntity crystal) {
+                            crystal.invulnerableTime = 0;
+                            crystal.hurtServer(level, level.damageSources().playerAttack(player), 5000f);
+                        }
+                    }
+                });
+                context.waitTicks(160);
+                EventLookTest.onServer(context, (player, manager) -> {
+                    ServerLevel level = (ServerLevel) player.level();
+                    Mob boss = manager.bosses().boss(level);
+                    if (boss == null) {
+                        check(false, "bone_lich fehlt");
+                        return;
+                    }
+                    double after = Math.hypot(boss.getX() - (cx + 0.5), boss.getZ() - (cz + 0.5));
+                    double above = boss.getY() - level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, boss.getBlockX(), boss.getBlockZ());
+                    check(manager.bosses().testLichExhausted(level.getGameTime()) && before[0] > 0 && after <= before[0] - 3.0 && above <= 1.5,
+                            String.format(java.util.Locale.ROOT, "bone_lich liegt erschoepft innen am Boden (Abstand %.1f -> %.1f, Hoehe %.1f)",
+                                    before[0], after, above));
                 });
             }
             EventLookTest.onServer(context, (player, manager) -> {
