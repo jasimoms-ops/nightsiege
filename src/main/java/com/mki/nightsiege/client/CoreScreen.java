@@ -4012,52 +4012,33 @@ public class CoreScreen extends Screen {
         if (all.isEmpty()) {
             String none = Component.translatable(stats.nemesisEnabled ? "nightsiege.ui.wanted_none" : "nightsiege.ui.wanted_off").getString();
             int ly = py + 4;
-            for (String line : wrap(font, none, (int) ((w - 14) / 0.8f))) {
-                smallText(gui, font, line, x + 7, ly, 0xFFA898B0, 0.8f);
-                ly += 9;
+            for (String line : wrap(font, none, w - 14)) {
+                gui.text(font, line, x + 7, ly, 0xFFC8B8D0, true);
+                ly += 10;
             }
             return null;
         }
-        int ph = 46;
+        // Every text at full size, long ones wrap; dark ink without a shadow on the paper, each at least 4.5:1
+        // against it (Paket 11.11., Simon 12.11.: "die Schrift im Nemesis-Fenster ist kaum lesbar").
         int shown = 0;
-        for (CoreStats.NemesisLine n : all) {
-            if (py + ph > y + h - 2) {
-                break;
-            }
+        for (int k = 0; k < all.size(); k++) {
+            CoreStats.NemesisLine n = all.get(k);
             boolean slain = !"lauert".equals(n.status);
-            // The parchment: yellowed, greyer once it is slain, a red rim while it is out tonight.
-            int paper = slain ? 0xFF8C8270 : 0xFFD9C89A;
-            int ink = slain ? 0xFF3A342C : 0xFF3A2414;
-            if (n.here) {
-                int glow = (int) (90 + 60 * Math.sin(now / 250.0));
-                gui.fill(x + 3, py - 2, x + w - 3, py + ph + 2, (glow << 24) | 0xE02030);
-            }
-            gui.fill(x + 5, py, x + w - 5, py + ph, 0xFF2A1A0C);
-            gui.fill(x + 6, py + 1, x + w - 6, py + ph - 1, paper);
-            gui.fill(x + 6, py + 1, x + w - 6, py + 3, slain ? 0xFF6E6656 : 0xFFBFA878);
-            // The monster in a small dark frame.
+            // The parchment: yellowed, a faded grey once it is slain, a red rim while it is out tonight.
+            int paper = slain ? 0xFFB4AA94 : 0xFFD9C89A;
+            int ink = slain ? 0xFF2A2620 : 0xFF3A2414;
             int ix = x + 10;
-            int iy = py + 6;
-            gui.fill(ix, iy, ix + 20, iy + 20, 0xFF2A1A0C);
-            gui.fill(ix + 1, iy + 1, ix + 19, iy + 19, slain ? 0xFF4A4438 : 0xFF5A3A22);
-            ItemStack egg = iconOf(n.type + "_spawn_egg");
-            gui.item(egg.isEmpty() ? iconOf("minecraft:skeleton_skull") : egg, ix + 2, iy + 2);
             int tx = ix + 24;
-            int tw = x + w - 9 - tx;
-            String stampText = slain ? "" : Component.translatable("nightsiege.ui.wanted_stamp").getString();
-            int stampW = 0;   // the stamp sits in the lower corner, the name has the whole line
-            int stampRoom = slain ? 0 : (int) (font.width(stampText) * 0.7f) + 10;
-            String name = n.name;
-            gui.text(font, font.plainSubstrByWidth(name, tw - stampW), tx, py + 5, ink, false);
-            if (n.test) {
-                int nw = Math.min(font.width(name), tw - stampW);
-                if (tx + nw + 4 + (int) (font.width("Test") * 0.6f) < x + w - 9 - stampW) {
-                    smallText(gui, font, "Test", tx + nw + 3, py + 7, slain ? 0xFF5A5448 : 0xFF8A6A40, 0.6f);
-                }
+            List<PosterLine> lines = new ArrayList<>();
+            String name = font.plainSubstrByWidth(n.name, x + w - 9 - tx);
+            lines.add(new PosterLine(name, tx, 4, ink));
+            if (n.test && tx + font.width(name) + 4 + font.width("Test") <= x + w - 9) {
+                lines.add(new PosterLine("Test", tx + font.width(name) + 4, 4, slain ? 0xFF3A342C : 0xFF6A4A20));
             }
+            int ly = 13;
             String rank = Component.translatable(com.mki.nightsiege.core.NemesisLore.titleKey(n.level)).getString()
                     + " · " + Component.translatable("nightsiege.nemesis.bar_level", n.level).getString();
-            smallText(gui, font, font.plainSubstrByWidth(rank, (int) (tw / 0.75f)), tx, py + 15, slain ? 0xFF4A443A : 0xFF7A1A10, 0.75f);
+            ly = posterFlow(font, lines, rank, ly, x, w, slain ? 0xFF3A342C : 0xFF7A1A10, 0);
             StringBuilder traits = new StringBuilder();
             for (String t : n.traits) {
                 if (traits.length() > 0) {
@@ -4065,23 +4046,57 @@ public class CoreScreen extends Screen {
                 }
                 traits.append(Component.translatable("nightsiege.nemesis.trait." + t).getString());
             }
-            smallText(gui, font, font.plainSubstrByWidth(traits.toString(), (int) (tw / 0.7f)), tx, py + 23, ink, 0.7f);
+            if (traits.length() > 0) {
+                ly = posterFlow(font, lines, traits.toString(), ly, x, w, ink, 0);
+            }
+            // The victims on one line (all of them in the tooltip).
             String victims = Component.translatable("nightsiege.ui.wanted_victims", String.join(", ", n.victims)).getString();
-            smallText(gui, font, font.plainSubstrByWidth(victims, (int) ((w - 22 - stampRoom) / 0.7f)), x + 10, py + 31, slain ? 0xFF3A342C : 0xFF5A1A10, 0.7f);
+            int vx = ly <= POSTER_ICON ? tx : ix;
+            int vw = x + w - 9 - vx;
+            String victimLine = victims;
+            if (font.width(victims) > vw) {
+                victimLine = font.plainSubstrByWidth(victims, vw - font.width("…")) + "…";
+            }
+            lines.add(new PosterLine(victimLine, vx, ly, slain ? 0xFF2A2620 : 0xFF5A1A10));
+            ly += 9;
             String state = slain
                     ? Component.translatable(n.slainBy.isEmpty() ? "nightsiege.ui.wanted_slain" : "nightsiege.ui.wanted_slain_by", n.slainBy).getString()
                     : n.here ? Component.translatable("nightsiege.ui.wanted_here").getString()
                     : Component.translatable("nightsiege.ui.wanted_reward").getString();
-            smallText(gui, font, font.plainSubstrByWidth(state, (int) ((w - 22 - stampRoom) / 0.7f)), x + 10, py + 38,
-                    slain ? 0xFF1A1A1A : n.here ? 0xFFB01010 : 0xFF6A4A10, 0.7f);
+            String stampText = slain ? "" : Component.translatable("nightsiege.ui.wanted_stamp").getString();
+            int stampRoom = slain ? 0 : font.width(stampText) + 10;
+            int stateEnd = posterFlow(font, lines, state, ly, x, w, slain ? 0xFF1A1A1A : n.here ? 0xFF9A0E0E : 0xFF5A3A08, stampRoom);
+            int stampY = stateEnd - 9;   // the stamp sits beside the last line of the state
+            int ph = Math.max(stateEnd, POSTER_ICON + 4) + 3;
+            boolean more = k < all.size() - 1;
+            if (py + ph > y + h - 2 - (more ? 11 : 0)) {
+                break;
+            }
+            if (n.here) {
+                int glow = (int) (90 + 60 * Math.sin(now / 250.0));
+                gui.fill(x + 3, py - 2, x + w - 3, py + ph + 2, (glow << 24) | 0xE02030);
+            }
+            gui.fill(x + 5, py, x + w - 5, py + ph, 0xFF2A1A0C);
+            gui.fill(x + 6, py + 1, x + w - 6, py + ph - 1, paper);
+            gui.fill(x + 6, py + 1, x + w - 6, py + 3, slain ? 0xFF9A9080 : 0xFFBFA878);
+            // The monster in a small dark frame.
+            int iy = py + 4;
+            gui.fill(ix, iy, ix + 20, iy + 20, 0xFF2A1A0C);
+            gui.fill(ix + 1, iy + 1, ix + 19, iy + 19, slain ? 0xFF4A4438 : 0xFF5A3A22);
+            ItemStack egg = iconOf(n.type + "_spawn_egg");
+            gui.item(egg.isEmpty() ? iconOf("minecraft:skeleton_skull") : egg, ix + 2, iy + 2);
             if (!slain) {
-                // The red stamp in the corner.
-                int sw = (int) (font.width(stampText) * 0.7f);
-                int sy = py + ph - 13;
-                gui.fill(x + w - 12 - sw, sy, x + w - 8, sy + 9, 0x30B01010);
-                gui.fill(x + w - 12 - sw, sy, x + w - 8, sy + 1, 0x80B01010);
-                gui.fill(x + w - 12 - sw, sy + 8, x + w - 8, sy + 9, 0x80B01010);
-                smallText(gui, font, stampText, x + w - 10 - sw, sy + 2, 0xFFB01010, 0.7f);
+                // The red stamp in the corner, beside the state.
+                int sw = font.width(stampText);
+                int sx = x + w - 9 - sw - 6;
+                int sy = py + stampY - 2;
+                gui.fill(sx, sy, x + w - 8, sy + 11, 0x20B01010);
+                gui.fill(sx, sy, x + w - 8, sy + 1, 0x80B01010);
+                gui.fill(sx, sy + 10, x + w - 8, sy + 11, 0x80B01010);
+                gui.text(font, stampText, sx + 3, sy + 2, 0xFF8A0C0C, false);
+            }
+            for (PosterLine line : lines) {
+                gui.text(font, line.text(), line.x(), py + line.dy(), line.color(), false);
             }
             if (mouseX >= x + 5 && mouseX < x + w - 5 && mouseY >= py && mouseY < py + ph) {
                 tip = new ArrayList<>();
@@ -4096,13 +4111,45 @@ public class CoreScreen extends Screen {
                     tip.add("§8" + Component.translatable("nightsiege.ui.wanted_tip_away", n.nightsAway).getString());
                 }
             }
-            py += ph + 5;
+            py += ph + 4;
             shown++;
         }
         if (shown < all.size()) {
-            smallText(gui, font, Component.translatable("nightsiege.ui.wanted_more", all.size() - shown).getString(), x + 8, y + h - 9, 0xFF8A7A90, 0.7f);
+            gui.text(font, Component.translatable("nightsiege.ui.wanted_more", all.size() - shown).getString(), x + 8, y + h - 10, 0xFFC8B8D0, true);
         }
         return tip;
+    }
+
+    /** The monster's frame on a poster ends here (from the poster's top); text beside it starts further right. */
+    private static final int POSTER_ICON = 24;
+
+    /** One text line on a poster: x on the screen, y from the poster's top. */
+    private record PosterLine(String text, int x, int dy, int color) {
+    }
+
+    /**
+     * Wraps a text onto the poster from line {@code dy} on: beside the monster's frame while beside it, then the
+     * whole width; {@code rightRoom} stays free at the right (the stamp). Returns the line after the text.
+     */
+    private static int posterFlow(Font font, List<PosterLine> lines, String text, int dy, int x, int w, int color, int rightRoom) {
+        int ix = x + 10;
+        String rest = text;
+        while (!rest.isEmpty()) {
+            int lx = dy <= POSTER_ICON ? ix + 24 : ix;
+            int lw = Math.max(20, x + w - 9 - lx - rightRoom);
+            List<String> wrapped = wrap(font, rest, lw);
+            String first = wrapped.isEmpty() ? rest : wrapped.get(0);
+            if (font.width(first) > lw) {
+                first = font.plainSubstrByWidth(first, lw);
+            }
+            if (first.isEmpty()) {
+                break;
+            }
+            lines.add(new PosterLine(first, lx, dy, color));
+            dy += 9;
+            rest = rest.substring(Math.min(rest.length(), first.length())).stripLeading();
+        }
+        return dy;
     }
 
     private void drawPerks(GuiGraphicsExtractor gui, Font font) {
