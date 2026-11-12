@@ -354,6 +354,38 @@ public final class KitHud {
         }
         return ActionBarLayout.vanillaLift(l, Minecraft.getInstance().getWindow().getGuiScaledHeight());
     }
+    /** Z3: the hearts in the kit HUD's design (sprites from tools/hud/herzen.py), only while the kit is worn. */
+    private static final java.util.Map<String, Identifier> HEARTS = new java.util.HashMap<>();
+    /** True while the hearts take the mod's sprites (kit worn, not the old looks of the "before" pictures). */
+    public static boolean ownHearts() {
+        return active() && !legacy && !ownBars;
+    }
+    /** For the tests: how many heart sprites were swapped for the mod's. */
+    public static volatile int ownHeartSprites;
+
+    /** The mod's sprite for vanilla's heart type ({@code CONTAINER}, {@code NORMAL}, ...), null: vanilla's own. */
+    public static Identifier heartSprite(String type, boolean half, boolean blinking) {
+        if (!ownHearts()) {
+            return null;
+        }
+        String name = type.equals("CONTAINER") ? "container" + (blinking ? "_blinking" : "")
+                : type.toLowerCase(java.util.Locale.ROOT).replace("poisioned", "poisoned")
+                + (half ? "_half" : "_full") + (blinking ? "_blinking" : "");
+        ownHeartSprites++;
+        return HEARTS.computeIfAbsent(name, n -> ModContent.id("hud/heart/" + n));
+    }
+
+    /** The mount's hearts (vanilla's vehicle_container/full/half sprites) in the mod's design while the kit is worn. */
+    public static Identifier mountHeartSprite(Identifier vanilla) {
+        if (!ownHearts() || !vanilla.getNamespace().equals("minecraft")) {
+            return vanilla;
+        }
+        String path = vanilla.getPath();
+        String name = path.endsWith("vehicle_container") ? "vehicle_container"
+                : path.endsWith("vehicle_full") ? "vehicle_full" : path.endsWith("vehicle_half") ? "vehicle_half" : null;
+        return name == null ? vanilla : HEARTS.computeIfAbsent(name, n -> ModContent.id("hud/heart/" + n));
+    }
+
     /** For the tests: the action bar drawn last (null while none is drawn). */
     public static volatile ActionBarLayout.Layout lastLayout;
     /** For the tests: the keys of the fields drawn last, in their order, and how many showed a pause running. */
@@ -444,12 +476,18 @@ public final class KitHud {
                 timers.size(), ult2 != null, gainPlaces, gauge, units, !p.getOffhandItem().isEmpty());
         int sw = mc.getWindow().getGuiScaledWidth();
         int sh = mc.getWindow().getGuiScaledHeight();
-        ActionBarLayout.Layout l = ActionBarLayout.layout(sw, sh, in, ownBars);
-        lastLayout = l;
         boolean air = p.isEyeInFluid(net.minecraft.tags.FluidTags.WATER) || p.getAirSupply() < p.getMaxAirSupply();
-        lastBars = ownBars || mc.gameMode == null || !mc.gameMode.canHurtPlayer() ? List.of()
-                : ActionBarLayout.vanillaBars(sw, sh, ActionBarLayout.vanillaLift(l, sh), p.getMaxHealth(),
-                p.getAbsorptionAmount(), p.getArmorValue() > 0, air);
+        int mount = p.getVehicle() instanceof net.minecraft.world.entity.LivingEntity v && v.showVehicleHealth()
+                ? (int) (v.getMaxHealth() + 0.5f) / 2 : 0;
+        // Z3 (Simon 12.11.): vanilla's rows right on the bar, the status row above them
+        List<ActionBarLayout.Rect> bars = ownBars || mc.gameMode == null || !mc.gameMode.canHurtPlayer() ? List.of()
+                : ActionBarLayout.vanillaBars(sw, sh, 0, p.getMaxHealth(), p.getAbsorptionAmount(),
+                p.getArmorValue() > 0, air, mount);
+        ActionBarLayout.Layout l = ActionBarLayout.layout(sw, sh, in, ownBars, bars);
+        lastLayout = l;
+        int lift = ActionBarLayout.vanillaLift(l, sh);
+        lastBars = lift == 0 || bars.isEmpty() ? bars : ActionBarLayout.vanillaBars(sw, sh, lift, p.getMaxHealth(),
+                p.getAbsorptionAmount(), p.getArmorValue() > 0, air, mount);
         lastLeft = l.left();
         int top = Integer.MAX_VALUE;
         for (ActionBarLayout.Rect r : l.parts()) {

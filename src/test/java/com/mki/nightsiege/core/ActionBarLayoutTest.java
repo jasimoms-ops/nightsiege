@@ -127,20 +127,30 @@ class ActionBarLayoutTest {
         }
     }
 
-    /** Tor 9b: vanilla's hearts, armour, hunger and air above the status row, apart from every part of the bar. */
+    /**
+     * Z3 (Simon 12.11.): vanilla's hearts, armour, hunger and air right on the bar, centred on it, the status row
+     * above them, apart from every part of the bar (until Z3: above the status row).
+     */
     @Test
     void vanillaRowsAboveTheBar() {
         for (int[] screen : SCREENS) {
             int w = screen[0];
             int h = screen[1];
             for (ActionBarLayout.Input in : inputs()) {
-                ActionBarLayout.Layout l = ActionBarLayout.layout(w, h, in);
                 String at = "gui " + (1920 / w) + " " + in;
-                assertEquals(0, l.health().w() + l.minis().w(), at + ": no own health or hunger lines");
-                int lift = ActionBarLayout.vanillaLift(l, h);
-                assertEquals(10, lift, at + ": lift");
                 for (float max : new float[]{20f, 40f, 80f}) {
-                    List<ActionBarLayout.Rect> bars = ActionBarLayout.vanillaBars(w, h, lift, max, 8f, true, true);
+                    List<ActionBarLayout.Rect> bars = ActionBarLayout.vanillaBars(w, h, 0, max, 8f, true, true);
+                    ActionBarLayout.Layout l = ActionBarLayout.layout(w, h, in, false, bars);
+                    assertEquals(0, l.health().w() + l.minis().w(), at + ": no own health or hunger lines");
+                    assertEquals(0, ActionBarLayout.vanillaLift(l, h), at + ": lift");
+                    ActionBarLayout.Rect frame = l.barOnScreen();
+                    for (ActionBarLayout.Rect b : bars) {
+                        assertTrue(b.bottom() <= frame.y() && b.bottom() >= frame.y() - 2, at + ": " + b + " right on " + frame);
+                    }
+                    int mid = (bars.get(0).x() + bars.get(1).right()) / 2;
+                    assertTrue(Math.abs(mid - (frame.x() + frame.w() / 2)) <= 1, at + ": centred on the bar");
+                    assertTrue(l.screen(l.status()).bottom() <= Math.min(bars.get(0).y(), bars.get(1).y()),
+                            at + " max " + max + ": status row above the rows");
                     assertFalse(bars.get(0).overlaps(bars.get(1)), at + ": hearts and hunger apart");
                     List<ActionBarLayout.Rect> others = new ArrayList<>(l.parts());
                     others.add(ActionBarLayout.party(h, HudSync.PARTY_MAX));
@@ -159,8 +169,8 @@ class ActionBarLayoutTest {
                     for (ActionBarLayout.Rect b : parts) {
                         assertFalse(chat.overlaps(b), at + " max " + max + ": chat over " + b);
                     }
-                    if (w == 960) {
-                        assertEquals(0, up, at + ": chat stays at GUI 2");
+                    if (w == 960) {   // Z3: the status row stands above the rows, the chat at most just above it
+                        assertTrue(up <= (h - 40) - l.screen(l.status()).y() + 2, at + ": chat up " + up);
                     }
                 }
             }

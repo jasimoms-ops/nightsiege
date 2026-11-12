@@ -215,7 +215,7 @@ public class EventLookTest implements FabricClientGameTest {
                 }
                 if (want.contains("herzen")) {
                     alive(context);
-                    HerzenScenes.run(context, game);   // Tor 9b: vanilla hearts, armour and hunger above the action bar (09.11.)
+                    HerzenScenes.run(context, game);   // Z3 (12.11.): own hearts, vanilla rows right on the action bar (Tor 9b: 09.11.)
                 }
                 if (want.contains("faktoren")) {
                     alive(context);
