@@ -263,6 +263,8 @@ public final class SiegeManager {
     private SiegeEvent currentEvent = SiegeEvent.NONE;
     /** Tick at which a boss night won by the boss's fall ends (a few seconds of triumph), or -1. */
     private long bossVictoryAt = -1L;
+    /** Bossuhr: ticks of the night run when the boss of a boss night came, or -1. */
+    private int bossPhaseFrom = -1;
     /** "boss_<id>" for the night's protocol and statistics window of a boss night, else null. */
     private String bossLabel;
     /** The boss a test night brings (set by /nightsiege test <level> boss, taken at its start). */
@@ -833,7 +835,22 @@ public final class SiegeManager {
     }
 
     public int secondsLeft() {
-        return active ? ticksLeft / 20 : 0;
+        return active ? clockTicks() / 20 : 0;
+    }
+
+    /** Bossuhr (Schalter bossPhaseHoldsDawn, 11.11.): the boss came and stands, the dawn waits. */
+    private boolean bossPhaseHolds() {
+        return bossPhaseFrom >= 0 && com.mki.nightsiege.core.BossNight.holdsDawn(config.bossPhaseHoldsDawn, bosses.spawned(), bosses.fallen());
+    }
+
+    /** Bossuhr: ticks since the boss came. */
+    private int bossPhaseTicks() {
+        return totalTicks - ticksLeft - bossPhaseFrom;
+    }
+
+    /** The clock the defenders see: the night's ticks left, while the boss holds the dawn the boss phase's. */
+    private int clockTicks() {
+        return bossPhaseHolds() ? com.mki.nightsiege.core.BossNight.phaseTicksLeft(bossPhaseTicks(), config.bossPhaseMaxSeconds) : ticksLeft;
     }
 
     // ------------------------------------------------------------------
@@ -2600,6 +2617,7 @@ public final class SiegeManager {
         com.mki.nightsiege.core.BossKind tonightBoss = kind != com.mki.nightsiege.core.BossPlan.NightKind.BOSS ? null : testRun ? testBoss : upcomingBoss();
         testBoss = null;
         bossVictoryAt = -1L;
+        bossPhaseFrom = -1;
         bosses.reset(server);
         if (tonightBoss != null) {
             bosses.plan(tonightBoss);
@@ -3054,6 +3072,15 @@ public final class SiegeManager {
             finish(server, true);   // the war round: the last wave ran out with defenders standing
             return;
         }
+        if (bossPhaseHolds()) {
+            // Bossuhr (Schalter bossPhaseHoldsDawn, 11.11.): no dawn while the boss stands, at most bossPhaseMaxSeconds.
+            if (com.mki.nightsiege.core.BossNight.phaseOver(bossPhaseTicks(), config.bossPhaseMaxSeconds)) {
+                broadcast(server, Component.translatable("nightsiege.msg.boss_survived",
+                        Component.translatable("nightsiege.boss." + bosses.kind().id())).withStyle(ChatFormatting.DARK_RED));
+                finish(server, false);
+            }
+            return;
+        }
         if (ticksLeft <= 0) {
             if (bosses.spawned() && !bosses.fallen()) {
                 // Dawn and the boss still stands: the night is lost.
@@ -3331,6 +3358,7 @@ public final class SiegeManager {
             return false;
         }
         spawnBossGuards(server);   // they come even when the field is full
+        bossPhaseFrom = totalTicks - ticksLeft;   // Bossuhr: the boss phase starts
         safe("Maschinen", () -> machines.reset(server));
         int gone = withdrawMonsters(before);
         NightSiegeMod.LOGGER.info("[Night Siege] Boss {} kommt nach {} s, {} Monster ziehen sich zurück",
@@ -4074,7 +4102,8 @@ public final class SiegeManager {
         if (bossBar == null) {
             return;
         }
-        bossBar.setProgress(totalTicks <= 0 ? 0.0f : Math.max(0.0f, (float) ticksLeft / totalTicks));
+        bossBar.setProgress(bossPhaseHolds() ? Math.min(1.0f, clockTicks() / (config.bossPhaseMaxSeconds * 20f))   // Bossuhr
+                : totalTicks <= 0 ? 0.0f : Math.max(0.0f, (float) ticksLeft / totalTicks));
         if (ticksLeft % 20 == 0) {
             bossBar.setName(bossBarTitle());
             for (ServerPlayer player : server.getPlayerList().getPlayers()) {

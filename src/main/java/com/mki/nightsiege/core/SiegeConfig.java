@@ -258,6 +258,10 @@ public class SiegeConfig {
     public int contentVersion = 0;
     /** Seconds after the start of a boss night at which the boss and his guard come, the others withdraw (at most half the night; Simon 11.11.). */
     public int bossFinaleSeconds = 180;
+    /** Bossuhr (Vorlauf 11.11., off): once the boss came, no dawn while he stands; the night ends with his fall, the wipe-out or after bossPhaseMaxSeconds (lost). */
+    public boolean bossPhaseHoldsDawn = false;
+    /** Bossuhr: the longest boss phase in seconds while bossPhaseHoldsDawn holds the dawn (60–1800). */
+    public int bossPhaseMaxSeconds = 600;
     // --- boss rhythm (Simon 29 October 2026) ---
     /** Every this many nights the "Vierer-Nacht": the bosses of the boss nights before it, two at a time (0 = none). */
     public int bossGroupEvery = 20;
@@ -1816,6 +1820,7 @@ public class SiegeConfig {
         }
         bossEvery = clamp(bossEvery <= 0 ? 4 : bossEvery, 1, 100);
         bossFinaleSeconds = clamp(bossFinaleSeconds <= 0 ? 180 : bossFinaleSeconds, 30, 1200);
+        bossPhaseMaxSeconds = clamp(bossPhaseMaxSeconds <= 0 ? 600 : bossPhaseMaxSeconds, 60, 1800);
         bossGroupEvery = clamp(bossGroupEvery, 0, 1000);
         bossLateFrom = clamp(bossLateFrom, 0, 10000);
         bossLateEvery = clamp(bossLateEvery, 0, 100);

@@ -51,6 +51,24 @@ public final class BossNight {
         return elapsed >= arrival;
     }
 
+    /**
+     * Bossuhr (switch bossPhaseHoldsDawn, Vorlauf 11.11., off by default): once the boss of a boss night came,
+     * the dawn waits while he stands. His fall (won) and the wipe-out (lost) end the night as before.
+     */
+    public static boolean holdsDawn(boolean on, boolean bossCame, boolean bossFell) {
+        return on && bossCame && !bossFell;
+    }
+
+    /** Bossuhr: the boss phase ran out ({@code phaseTicks} since the boss came): the night is lost, as at dawn. */
+    public static boolean phaseOver(int phaseTicks, int maxSeconds) {
+        return phaseTicks >= maxSeconds * 20;
+    }
+
+    /** Bossuhr: ticks of the boss phase left, for the bar and the clock (never below 0). */
+    public static int phaseTicksLeft(int phaseTicks, int maxSeconds) {
+        return Math.max(0, maxSeconds * 20 - phaseTicks);
+    }
+
     /** False once the boss of a boss night has come: no more waves, machines or camp reinforcements. */
     public static boolean reinforcements(boolean bossNight, boolean bossCame) {
         return !(bossNight && bossCame);
