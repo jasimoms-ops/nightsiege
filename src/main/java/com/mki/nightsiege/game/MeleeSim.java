@@ -509,6 +509,18 @@ public final class MeleeSim {
         } else if (player.isUsingItem()) {
             player.stopUsingItem();
         }
+        if (bench && clazz == SkillClass.ARCHER && (now - fightStart) % 100 == 0) {
+            // Paket 11.11.: the trapper stopped shooting on the long window; what the bow hand does every 5 s.
+            ItemStack hand = player.getMainHandItem();
+            net.minecraft.world.item.component.ChargedProjectiles loaded = hand.get(DataComponents.CHARGED_PROJECTILES);
+            System.out.println(String.format(Locale.ROOT,
+                    "[Night Siege sim] XBOWDIAG;%d;%s;t=%d;stage=%d;hand=%s;using=%b;ticks=%d;loaded=%b;cd=%b;arrows=%d;close=%s;far=%s;shots=%d;alive=%b",
+                    queue.get(index).level(), queue.get(index).sub()[2], (now - fightStart) / 20, benchStage, itemName(hand),
+                    player.isUsingItem(), player.getTicksUsingItem(), loaded != null && !loaded.isEmpty(),
+                    player.getCooldowns().isOnCooldown(hand), player.getInventory().countItem(Items.ARROW),
+                    close == null ? "-" : String.format(Locale.ROOT, "%.1f", player.distanceTo(close)),
+                    far == null ? "-" : String.format(Locale.ROOT, "%.1f", player.distanceTo(far)), shots, player.isAlive()));
+        }
         if (bench) {
             diagTicks++;
             if (inReach) {
@@ -887,6 +899,12 @@ public final class MeleeSim {
 
     /** Where the training zombies stand: in reach of melee, further out for bows and towers. */
     private static BlockPos dummySpot(SkillClass clazz) {
+        // Paket 11.11.: the alchemist stabs with his knife (his only own weapon) and the trapper's tripwire
+        // (3 blocks) springs only on monsters close by: as in a night, where they come to the defenders.
+        String sub = queue.isEmpty() || index >= queue.size() ? "" : queue.get(index).sub()[2];
+        if (bench && (sub.equals("alchemist") || sub.equals("trapper"))) {
+            return standPos().offset(2, 0, 0);
+        }
         int d = switch (clazz) {
             case ARCHER -> 10;
             case ENGINEER -> 7;
@@ -1184,7 +1202,7 @@ public final class MeleeSim {
                 "BENCHDIAG;%d;%s;mainhand=%s;offhand=%s;swings=%d;charge_avg=%.2f;hits=%d;dmg_by_source=%s;swaps=%d;inreach=%d/%d;leftover=%d;atkspeed=%.2f",
                 run.level(), run.sub()[2], diagMain, diagOff, diagSwings, diagSwings == 0 ? 0.0 : diagCharge / diagSwings, diagHits,
                 sources, diagSwaps, diagInReach, diagTicks, diagLeftover, player.getAttributeValue(Attributes.ATTACK_SPEED));
-        System.out.println(benchDiag);
+        System.out.println("[Night Siege sim] " + benchDiag);   // into the sim log too (Paket 11.11.)
         NightSiegeMod.LOGGER.info(benchDiag);
         m.abort(level.getServer());
         clearMonsters(level);
