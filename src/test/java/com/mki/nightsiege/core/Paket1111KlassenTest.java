@@ -47,7 +47,7 @@ class Paket1111KlassenTest {
         assertEquals(1.0, c.damageLevelFactor("trapper", 20), 1e-9);
         assertEquals(1.0, c.damageLevelFactor("axe", 20), 1e-9);
         assertTrue(c.damageLevelTrapsOnly("electrician"));
-        assertTrue(c.damageLevelTrapsOnly("trapper"));
+        assertFalse(c.damageLevelTrapsOnly("trapper"));   // his traps are bolts, tripwire, net rain: all his damage
         assertFalse(c.damageLevelTrapsOnly("gunner"));
         assertEquals(1.4, c.alchemistDirectHit, 1e-9);
     }
