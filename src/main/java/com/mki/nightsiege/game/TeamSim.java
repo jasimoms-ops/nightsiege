@@ -798,7 +798,7 @@ public final class TeamSim {
             // Replay of a real night (Tor 6.0): its event and boss.
             Scenario sc = scenarios.get(run.mix());
             ok = m.prepareTest(server, world, core, run.level(), sc.event(), sc.boss());
-            maxTicks = (SiegeMath.durationSeconds(run.level(), m.config()) + (sc.boss() != null ? 420 : 120)) * 20;
+            maxTicks = (SiegeMath.durationSeconds(run.level(), m.config()) + (sc.boss() != null ? 420 + bossClockSeconds(m.config()) : 120)) * 20;
         } else if (bossMode) {
             // A boss night, the eight in turn by the run (Bosse 2 with the guard, 07.11.).
             com.mki.nightsiege.core.BossKind[] all = com.mki.nightsiege.core.BossKind.values();
@@ -810,7 +810,7 @@ public final class TeamSim {
             ok = m.prepareTest(server, world, core, run.level(), SiegeEvent.NONE, boss);
             System.out.println("[Night Siege sim] BOSS;" + run.variant() + ";" + run.level() + ";" + run.group() + ";" + run.mix()
                     + ";" + run.index() + ";" + boss.id());
-            maxTicks = (SiegeMath.durationSeconds(run.level(), m.config()) + 120) * 20;
+            maxTicks = (SiegeMath.durationSeconds(run.level(), m.config()) + 120 + bossClockSeconds(m.config())) * 20;
         } else {
             ok = m.prepareTest(server, world, core, run.level(), SiegeEvent.NONE);
             maxTicks = (SiegeMath.durationSeconds(run.level(), m.config()) + 120) * 20;
@@ -1291,6 +1291,11 @@ public final class TeamSim {
             }
         }
         return fallback;
+    }
+
+    /** Bossuhr: while the boss holds the dawn a boss night runs up to bossPhaseMaxSeconds past its length; the sim waits that long. */
+    static int bossClockSeconds(SiegeConfig cfg) {
+        return cfg.bossPhaseHoldsDawn ? cfg.bossPhaseMaxSeconds : 0;
     }
 
     private static void applyConfig(SiegeManager m, Map<String, String> over) {
