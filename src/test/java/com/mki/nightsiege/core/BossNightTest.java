@@ -66,6 +66,13 @@ class BossNightTest {
     }
 
     @Test
+    void aDefendersHitOnTheWitchsPhantomGoesToHer() {
+        assertTrue(BossNight.mountHitGoesToRider(true, true));   // an arrow into the phantom: the witch takes it
+        assertFalse(BossNight.mountHitGoesToRider(false, true));   // her own lightning, a monster, the world
+        assertFalse(BossNight.mountHitGoesToRider(true, false));   // she landed and got off: the phantom takes nothing
+    }
+
+    @Test
     void monstersLoadedAfterTheBossCameGo() {
         assertTrue(BossNight.lateStray(true, true, false, false, false));   // unloaded at the withdrawal, loads now
         assertFalse(BossNight.lateStray(false, true, false, false, false));   // before the boss: nothing

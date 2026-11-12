@@ -949,6 +949,9 @@ public final class SiegeManager {
             }
             return dies;
         });
+        // The storm witch's phantom takes nothing; a defender's hit on it goes to her (12.11.), before every other check.
+        ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) ->
+                !BossService.isMount(entity) || BossService.mountHit(entity, source, amount));
         ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) -> Companions.diagFor(source)
                 ? diagAllowDamage(entity, source, amount)   // GOLEMDIAG 3 (bench only): the same chain, step by step
                 : playtest.allowDamage(entity, source)   // no harm between the playtest's rounds (Playtest 2, 04.11.)

@@ -93,6 +93,24 @@ final class BossFeindScenes {
                     check(boss instanceof Witch && half[0] > 0 && boss.getHealth() <= half[0] + 0.01f,
                             "storm_witch heilt sich nicht (Leben " + (boss == null ? "-" : boss.getHealth()) + " / " + half[0] + ")");
                 });
+                // 12.11.: a defender's hit on her phantom goes to her (the invulnerable phantom swallowed every arrow).
+                EventLookTest.onServer(context, (player, manager) -> {
+                    ServerLevel level = (ServerLevel) player.level();
+                    Mob boss = manager.bosses().boss(level);
+                    if (boss != null && boss.getVehicle() instanceof net.minecraft.world.entity.LivingEntity phantom) {
+                        float before = boss.getHealth();
+                        boss.invulnerableTime = 0;
+                        phantom.hurtServer(level, level.damageSources().playerAttack(player), 6.0f);
+                        check(boss.getHealth() < before && phantom.isAlive() && phantom.getHealth() >= phantom.getMaxHealth(),
+                                "Treffer aufs Phantom trifft storm_witch (" + before + " -> " + boss.getHealth() + ")");
+                        float after = boss.getHealth();
+                        boss.invulnerableTime = 0;
+                        phantom.hurtServer(level, level.damageSources().mobAttack(boss), 6.0f);
+                        check(boss.getHealth() >= after, "Monster-Treffer aufs Phantom trifft storm_witch nicht");
+                    } else {
+                        System.out.println("[bossfeind] Hinweis: storm_witch gerade gelandet, Phantom-Pruefung entfaellt");
+                    }
+                });
             }
             EventLookTest.onServer(context, (player, manager) -> {
                 if (manager.isActive()) {
