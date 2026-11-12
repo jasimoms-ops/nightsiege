@@ -217,9 +217,17 @@ public class EventLookTest implements FabricClientGameTest {
                     alive(context);
                     HerzenScenes.run(context, game);   // Tor 9b: vanilla hearts, armour and hunger above the action bar (09.11.)
                 }
+                if (want.contains("bossfeind")) {
+                    alive(context);
+                    BossFeindScenes.run(context, game);   // Paket 11.11.: frost jarl a foe, storm witch drinks no healing (12.11.)
+                }
                 if (want.contains("bossleisten")) {
                     alive(context);
                     BossleistenScenes.run(context, game);   // Tor 2.3: compact boss bars, four bosses before/after (08.11.)
+                }
+                if (want.contains("steckbriefe")) {
+                    alive(context);
+                    SteckbriefeScenes.run(context, game);   // Paket 11.11.: readable wanted posters, GUI 2 and 3, en/de (12.11.)
                 }
                 if (want.contains("steuerung")) {
                     alive(context);

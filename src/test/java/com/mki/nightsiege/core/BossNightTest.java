@@ -60,6 +60,30 @@ class BossNightTest {
     }
 
     @Test
+    void withdrawingMonstersHarmNobody() {
+        assertFalse(BossNight.hitAllowed(true));   // a slime's touch, a ravager's blow, its arrow in flight
+        assertTrue(BossNight.hitAllowed(false));
+    }
+
+    @Test
+    void monstersLoadedAfterTheBossCameGo() {
+        assertTrue(BossNight.lateStray(true, true, false, false, false));   // unloaded at the withdrawal, loads now
+        assertFalse(BossNight.lateStray(false, true, false, false, false));   // before the boss: nothing
+        assertFalse(BossNight.lateStray(true, true, true, false, false));   // a monster of the night now (a boss add)
+        assertFalse(BossNight.lateStray(true, true, false, true, false));   // the boss, a part, a guard or their summons
+        assertFalse(BossNight.lateStray(true, true, false, false, true));   // a companion
+        assertFalse(BossNight.lateStray(true, false, false, false, false));   // no monster of the night
+    }
+
+    @Test
+    void noEventInABossNight() {
+        assertEquals(SiegeEvent.NONE, BossNight.eventFor(true, SiegeEvent.ECLIPSE));
+        assertEquals(SiegeEvent.NONE, BossNight.eventFor(true, SiegeEvent.BLOOD_MOON));
+        assertEquals(SiegeEvent.ECLIPSE, BossNight.eventFor(false, SiegeEvent.ECLIPSE));
+        assertEquals(SiegeEvent.BLOOD_MOON, BossNight.eventFor(false, SiegeEvent.BLOOD_MOON));
+    }
+
+    @Test
     void bossLifeInPercent() {
         assertEquals(100.0, BossNight.lifePercent(false, false, 0, 0), 1e-9);
         assertEquals(62.5, BossNight.lifePercent(true, false, 625, 1000), 1e-9);

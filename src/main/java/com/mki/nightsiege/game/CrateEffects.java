@@ -13,7 +13,6 @@ import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LightningBolt;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.item.ItemStack;
@@ -85,11 +84,11 @@ public final class CrateEffects {
     /** Damage factors: executioner, blast proof and cover. */
     public static float factor(LivingEntity victim, DamageSource source) {
         float factor = 1f;
-        if (source.getEntity() instanceof ServerPlayer attacker && victim instanceof Enemy
+        if (source.getEntity() instanceof ServerPlayer attacker && BossService.isFoe(victim)
                 && victim.getHealth() < victim.getMaxHealth() * 0.25f && has(attacker, "hinrichter")) {
             factor *= 1.5f;
         }
-        if (source.getEntity() instanceof ServerPlayer attacker && victim instanceof Enemy) {
+        if (source.getEntity() instanceof ServerPlayer attacker && BossService.isFoe(victim)) {
             // Tor 5.4: Schwung, +5 % sword damage per stage (was knockback, which pushed targets out of reach).
             if (source.getDirectEntity() == attacker && attacker.getMainHandItem().is(net.minecraft.tags.ItemTags.SWORDS)) {
                 int swing = level(attacker, "schwung");
@@ -115,7 +114,7 @@ public final class CrateEffects {
                 factor *= 0.25f;
             }
             Entity from = source.getEntity();
-            if (from instanceof Enemy && behindCover(player, from)) {
+            if (BossService.isFoe(from) && behindCover(player, from)) {
                 factor *= 0.5f;
             }
         }
@@ -155,7 +154,7 @@ public final class CrateEffects {
             player.sendSystemMessage(Component.translatable("nightsiege.gain.totem.used"));
         }
         if (source.getEntity() instanceof ServerPlayer attacker && source.getDirectEntity() == attacker
-                && victim instanceof Enemy && victim.isAlive() && RANDOM.nextDouble() < 0.1
+                && BossService.isFoe(victim) && victim.isAlive() && RANDOM.nextDouble() < 0.1
                 && has(attacker, "blitzklinge") && victim.level() instanceof ServerLevel level) {
             LightningBolt bolt = net.minecraft.world.entity.EntityTypes.LIGHTNING_BOLT.create(level, net.minecraft.world.entity.EntitySpawnReason.TRIGGERED);
             if (bolt != null) {
@@ -193,7 +192,7 @@ public final class CrateEffects {
 
     /** Battle rush: a kill gives three seconds of speed. */
     public static void onKill(Entity killer, LivingEntity killed) {
-        if (killer instanceof ServerPlayer player && killed instanceof Enemy && has(player, "kampfrausch")) {
+        if (killer instanceof ServerPlayer player && BossService.isFoe(killed) && has(player, "kampfrausch")) {
             player.addEffect(new MobEffectInstance(MobEffects.SPEED, 60, 0, false, false, true));
         }
     }
@@ -214,7 +213,7 @@ public final class CrateEffects {
         for (ServerPlayer player : defenders) {
             if (has(player, "schildlaterne")) {   // Tor 5.4: the lantern took in the glowing shield
                 AABB box = player.getBoundingBox().inflate(6.0);
-                for (LivingEntity mob : world.getEntitiesOfClass(LivingEntity.class, box, e -> e instanceof Enemy)) {
+                for (LivingEntity mob : world.getEntitiesOfClass(LivingEntity.class, box, e -> BossService.isFoe(e))) {
                     mob.addEffect(new MobEffectInstance(MobEffects.GLOWING, 40, 0, false, false));
                 }
             }

@@ -2,7 +2,7 @@ package com.mki.nightsiege.core;
 
 /**
  * Bossnacht neu (Simon 11.11.2026: "nach 3 minuten spawnt der boss und seine wächter und alle
- * anderen monster ziehen sich zurück bzw verschwinden"). A boss night starts as a normal night;
+ * anderen monster ziehen sich zurück bzw verschwinden"). A boss night starts with normal waves (no event);
  * after bossFinaleSeconds the boss and his guard come, every other monster withdraws from the core
  * and is gone within ten seconds (at once when it is stuck). Then no more waves, machines or camp
  * reinforcements; the boss's fall wins the night, the kill goal does not count.
@@ -67,6 +67,25 @@ public final class BossNight {
      */
     public static boolean vanishes(long ticksAway, boolean checked, double movedBlocks) {
         return ticksAway >= WITHDRAW_MAX_TICKS || checked && ticksAway > 0 && movedBlocks < STUCK_BLOCKS;
+    }
+
+    /** A withdrawing monster (or a shot of it) harms nobody any more: no contact, no blow, no arrow. */
+    public static boolean hitAllowed(boolean attackerWithdrawing) {
+        return !attackerWithdrawing;
+    }
+
+    /**
+     * True for a monster of the night that loads (or turns up again) once the boss came and is
+     * neither of the night's monsters, the boss's side (boss, part, guard, what they call up) nor a
+     * companion: it was in an unloaded chunk at the withdrawal and goes at once.
+     */
+    public static boolean lateStray(boolean bossCame, boolean nightMob, boolean live, boolean bossSide, boolean companion) {
+        return bossCame && nightMob && !live && !bossSide && !companion;
+    }
+
+    /** A boss night has no event (Chef 11.11. 23:35, as before), whichever way the event was picked. */
+    public static SiegeEvent eventFor(boolean bossNight, SiegeEvent picked) {
+        return bossNight ? SiegeEvent.NONE : picked;
     }
 
     /** The kill goal counts in no boss night: the boss is the goal. */

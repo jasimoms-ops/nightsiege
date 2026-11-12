@@ -1582,6 +1582,15 @@ public final class Foes {
         return digs.size();
     }
 
+    /** The treasure raider goes at once, as when its time runs out (the boss night's withdrawal, Simon 11.11.). */
+    public boolean treasureEscapes(UUID id) {
+        if (treasure == null || !treasure.equals(id)) {
+            return false;
+        }
+        treasureGone = 0L;   // the next tick: smoke, "entkommen", the notice
+        return true;
+    }
+
     public UUID treasure() {
         return treasure;
     }

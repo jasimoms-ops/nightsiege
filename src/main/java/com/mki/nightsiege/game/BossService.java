@@ -275,7 +275,9 @@ public final class BossService {
         }
         // A playtest night's boss too, like a real night's (Simon 04.11.: "Playtest 2").
         double perPlayer = host.config().bossHealthPerExtraPlayer;
-        double health = BossPlan.health(kind.baseHealth(), host.level(), defenders, host.config(), perPlayer) * healthShare;
+        // Chef 12.11.: one factor per boss (bossHealthPer), the warlord's rider takes his.
+        double ownShare = healthShare * host.config().bossHealthFor(kind.id());
+        double health = BossPlan.health(kind.baseHealth(), host.level(), defenders, host.config(), perPlayer) * ownShare;
         // The golem and the ravager hit hard as they are: the new bosses start from a lighter blow.
         switch (kind) {
             case FROST_JARL -> set(boss, Attributes.ATTACK_DAMAGE, 6.0);
@@ -299,7 +301,7 @@ public final class BossService {
             Mob rider = create(level, BossKind.WARLORD_RIDER, spot, host.random());
             if (rider != null) {
                 double riderHealth = BossPlan.health(BossKind.WARLORD_RIDER_HEALTH, host.level(), defenders, host.config(), perPlayer)
-                        * healthShare;
+                        * ownShare;
                 prepare(rider, host, riderHealth, 1.35, kind.damage());
                 rider.setCustomName(Component.translatable("nightsiege.boss.warlord_rider"));
                 rider.snapTo(boss.getX(), boss.getY(), boss.getZ(), boss.getYRot(), 0f);
@@ -709,6 +711,15 @@ public final class BossService {
 
     public static boolean isBoss(Entity entity) {
         return entity != null && entity.entityTags().contains(TAG_BOSS);
+    }
+
+    /**
+     * True for a monster to fight: a vanilla monster (Enemy) or a boss. The frost jarl is an iron golem
+     * and no Enemy, so towers, traps, abilities, companions and the class bonuses passed him by (boss
+     * sim 11.11.: his life never fell under 97 %).
+     */
+    public static boolean isFoe(Entity entity) {
+        return entity instanceof net.minecraft.world.entity.monster.Enemy || isBoss(entity);
     }
 
     // ------------------------------------------------------------------ the clients' looks

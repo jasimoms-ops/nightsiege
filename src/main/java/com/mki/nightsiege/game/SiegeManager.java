@@ -959,7 +959,8 @@ public final class SiegeManager {
                         && expeditions.allowDamage(entity, source)
                         && foes.allowDamage(entity, source)
                         && WarriorArts.allowDamage(entity, source)   // no damage in the Klingentanz (Simon 05.11.)
-                        && FriendlyFire.allow(entity, source));   // no friendly fire in the night (27 October 2026)
+                        && FriendlyFire.allow(entity, source)   // no friendly fire in the night (27 October 2026)
+                        && com.mki.nightsiege.core.BossNight.hitAllowed(fromWithdrawing(source)));   // Bossnacht neu (11.11.)
         combat.guardian().setCredit(this::creditTank);
         combat.guardian().setHealStats(this::creditHealOnly);
         traps.setMarker(combat::remoteMark);
@@ -1050,6 +1051,9 @@ public final class SiegeManager {
                 // What a monster of the night calls up (a magician's vexes) goes with the night (Fehler-Stichprobe 05.11.
                 // abends: they outlived it and killed after dawn, a plain death with the things dropped).
                 entity.addTag(NIGHT_MOB_TAG);
+            }
+            if (active && bosses.spawned() && entity instanceof Mob && entity.entityTags().contains(NIGHT_MOB_TAG)) {
+                loadedInBossPhase.add(entity.getUUID());   // checked on the next tick (a boss add joins the night first)
             }
 
             archer.onEntityLoad(entity, world, skillTree, this::liveSkillsFor);
@@ -1971,17 +1975,8 @@ public final class SiegeManager {
         // The event is rolled now: an eclipse comes at noon, so the vote must know it.
         NightFragment fragment = NightFragment.byName(save.nightFragment);
         SiegeEvent pending = fragment != null ? fragment.event() : EventPicker.pick(currentLevel(), random, config);
-        com.mki.nightsiege.core.BossPlan.NightKind comingNight = comingKind();
-        if (comingNight == com.mki.nightsiege.core.BossPlan.NightKind.BOSS) {
-            // Bossnacht neu (Simon 11.11.): it starts as a normal night, with an event; a fragment waits, no eclipse (it comes by night).
-            if (fragment != null) {
-                pending = EventPicker.pick(currentLevel(), random, config);
-            }
-            if (pending == SiegeEvent.ECLIPSE) {
-                pending = SiegeEvent.NONE;
-            }
-        } else if (comingNight != com.mki.nightsiege.core.BossPlan.NightKind.NORMAL) {
-            pending = SiegeEvent.NONE;   // the Vierer- and the Doppel-Bossnacht have no event
+        if (comingKind() != com.mki.nightsiege.core.BossPlan.NightKind.NORMAL) {
+            pending = SiegeEvent.NONE;   // a boss night comes by night and has no event
         }
         if (pending == SiegeEvent.ECLIPSE && extraSiegeRuns()
                 && clockTime(server) + 1200 > config.eclipseWarningDayTime) {
@@ -2592,7 +2587,7 @@ public final class SiegeManager {
         }
 
         // The boss rhythm (Simon 29.10.): boss nights 4, 8, 12, 16, the Vierer-Nacht on 20 and 40, from 41
-        // every 2nd night two bosses after five minutes. A boss night has an event (11.11.), no fragment; a fragment waits.
+        // every 2nd night two bosses after five minutes. A boss night has no event; a fragment waits.
         resetFinale(server);
         com.mki.nightsiege.core.BossPlan.NightKind kind = testRun ? (testBoss != null ? com.mki.nightsiege.core.BossPlan.NightKind.BOSS : testKind != null ? testKind : com.mki.nightsiege.core.BossPlan.NightKind.NORMAL)
                 : comingKind();
@@ -2656,6 +2651,7 @@ public final class SiegeManager {
             save.machinesCount = 0;
         }
         currentEvent = finaleNight || lateNight ? SiegeEvent.NONE : forcedEvent != null ? forcedEvent : pickEventNow(server);
+        currentEvent = com.mki.nightsiege.core.BossNight.eventFor(tonightBoss != null, currentEvent);   // a boss night has no event (Chef 11.11. 23:35)
         save.specialNight = false;
         usedFragment = null;
         NightFragment fragment = testRun || tonightBoss != null || finaleNight || lateNight ? null : NightFragment.byName(save.nightFragment);
@@ -3373,18 +3369,105 @@ public final class SiegeManager {
             liveMobs.remove(id);   // no kill for the goal or the statistics from here on
             digger.forget(id);
             ladders.forget(id);
+            if (e != null && Nemesis.isNemesis(e)) {
+                safe("Nemesis", () -> nemesis.escape(nemesisHost, id));   // it escaped, as at dawn: its record stays
+            }
+            if (foes.treasureEscapes(id)) {
+                n++;
+                continue;   // the treasure raider goes its own way out (smoke, "entkommen")
+            }
             if (e instanceof Mob mob && mob.isAlive()) {
                 mob.setTarget(null);
                 mob.setInvulnerable(true);   // nobody kills it on its way: no loot
+                if (mob instanceof net.minecraft.world.entity.monster.Creeper creeper) {
+                    creeper.setSwellDir(-1);   // a lit creeper calms down
+                }
                 withdrawing.put(id, new Withdrawal(now, mob.position()));
                 n++;
             }
         }
+        sweepAtArrival(guards);
         return n;
+    }
+
+    /**
+     * At the boss's coming: shots of the withdrawing ones still in flight go, and every other
+     * monster of the night that is not in the list (a magician's vexes) withdraws too.
+     */
+    private void sweepAtArrival(Set<UUID> guards) {
+        double reach = Math.max(160.0, config.naturalSpawnBlockRadius);
+        net.minecraft.world.phys.AABB box = new net.minecraft.world.phys.AABB(anchor).inflate(reach);
+        long now = world.getGameTime();
+        for (Entity e : world.getEntities((Entity) null, box, x -> true)) {
+            if (e instanceof net.minecraft.world.entity.projectile.Projectile shot) {
+                Entity owner = shot.getOwner();
+                if (owner != null && withdrawing.containsKey(owner.getUUID())) {
+                    shot.discard();
+                }
+            } else if (e instanceof Mob mob && mob.isAlive() && !withdrawing.containsKey(mob.getUUID())
+                    && com.mki.nightsiege.core.BossNight.lateStray(true, mob.entityTags().contains(NIGHT_MOB_TAG),
+                            liveMobs.contains(mob.getUUID()), bossSide(mob, guards), Companions.isCompanion(mob))) {
+                mob.setTarget(null);
+                mob.setInvulnerable(true);
+                withdrawing.put(mob.getUUID(), new Withdrawal(now, mob.position()));
+            }
+        }
+    }
+
+    /** The boss's side: the boss, a part, a guard, or what one of them called up. */
+    private boolean bossSide(Entity e, Set<UUID> guards) {
+        if (BossService.isBossOrPart(e) || guards.contains(e.getUUID())) {
+            return true;
+        }
+        return e instanceof net.minecraft.world.entity.TraceableEntity owned && owned.getOwner() instanceof Entity master
+                && (BossService.isBossOrPart(master) || liveMobs.contains(master.getUUID()));
+    }
+
+    /** True when a blow or shot comes from a withdrawing monster. */
+    private boolean fromWithdrawing(net.minecraft.world.damagesource.DamageSource source) {
+        if (withdrawing.isEmpty()) {
+            return false;
+        }
+        Entity by = source.getEntity();
+        Entity direct = source.getDirectEntity();
+        return by != null && withdrawing.containsKey(by.getUUID()) || direct != null && withdrawing.containsKey(direct.getUUID());
+    }
+
+    /** Monsters of the night loaded since the boss came, checked on the next tick. */
+    private final Set<UUID> loadedInBossPhase = new HashSet<>();
+
+    /** Monsters of the night that were in an unloaded chunk at the withdrawal (or unloaded on the way) go at once. */
+    private void dropLateStrays() {
+        if (loadedInBossPhase.isEmpty()) {
+            return;
+        }
+        Set<UUID> guards = new HashSet<>();
+        for (WardenNight g : bossGuards) {
+            Mob w = g.warden(world);
+            if (w != null) {
+                guards.add(w.getUUID());
+            }
+        }
+        for (UUID id : new ArrayList<>(loadedInBossPhase)) {
+            if (world.getEntity(id) instanceof Mob mob && mob.isAlive() && !withdrawing.containsKey(id)
+                    && com.mki.nightsiege.core.BossNight.lateStray(bosses.spawned(), mob.entityTags().contains(NIGHT_MOB_TAG),
+                            liveMobs.contains(id), bossSide(mob, guards), Companions.isCompanion(mob))) {
+                if (Nemesis.isNemesis(mob)) {
+                    safe("Nemesis", () -> nemesis.escape(nemesisHost, id));
+                }
+                if (!foes.treasureEscapes(id)) {
+                    mob.discard();
+                }
+            }
+        }
+        loadedInBossPhase.clear();
     }
 
     /** Every tick: the withdrawing monsters run away from the core and are gone after 10 s, at once when stuck. */
     private void tickWithdraw() {
+        if (world != null) {
+            dropLateStrays();
+        }
         if (withdrawing.isEmpty() || world == null || anchor == null) {
             return;
         }
@@ -3438,7 +3521,8 @@ public final class SiegeManager {
         double life = com.mki.nightsiege.core.BossNight.lifePercent(bosses.spawned(), bosses.fallen(),
                 boss == null ? 0 : boss.getHealth(), boss == null ? 0 : boss.getMaxHealth());
         boolean lich = bosses.kind() == com.mki.nightsiege.core.BossKind.BONE_LICH;
-        boolean flies = boss != null && (boss.isNoGravity() || boss.isPassenger() || !boss.onGround());
+        // Out of reach above the ground (the witch on her landed phantom and the lich sunk down counted as flying, 12.11.).
+        boolean flies = boss != null && boss.getY() - BossService.surface(world, boss.getX(), boss.getZ()) > 2.0;
         stats.bossStep(world.getGameTime(), com.mki.nightsiege.core.BossNight.phase(bosses.spawned()).label(), life, guards,
                 boss != null && bosses.shielded(boss), lich && bosses.spawned() ? bosses.partsOf("crystal").size() : -1, flies);
     }
@@ -5521,6 +5605,7 @@ public final class SiegeManager {
             }
         }
         liveMobs.clear();
+        loadedInBossPhase.clear();
         withdrawing.clear();   // the withdrawing ones carry the night's tag: they go with the strays below
         // Monsters of the night that dropped out of the list (their chunk unloaded and came back, 31.10.).
         // And every vex near the core that is no summoner's ghost: a magician's of the night (05.11.).

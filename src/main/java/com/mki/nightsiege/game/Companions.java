@@ -339,7 +339,7 @@ public final class Companions {
      */
     public static void ownerHurt(ServerPlayer owner, Entity attacker) {
         if (instance == null || !(owner.level() instanceof ServerLevel level) || !(attacker instanceof Mob hitter)
-                || !(hitter instanceof Enemy) || isCompanion(hitter)) {
+                || !BossService.isFoe(hitter) || isCompanion(hitter)) {
             return;
         }
         long now = level.getGameTime();
@@ -367,7 +367,7 @@ public final class Companions {
         double r = v("s_golemsmith", "guardradius", 4.0);
         tauntTo(level, hitter, golem, ticks);
         for (Mob foe : level.getEntitiesOfClass(Mob.class, owner.getBoundingBox().inflate(r, 2.0, r),
-                e -> e instanceof Enemy && e.isAlive() && !isCompanion(e))) {
+                e -> BossService.isFoe(e) && e.isAlive() && !isCompanion(e))) {
             tauntTo(level, foe, golem, ticks);
         }
         level.sendParticles(ParticleTypes.ANGRY_VILLAGER, golem.getX(), golem.getY() + golem.getBbHeight(), golem.getZ(),
@@ -414,7 +414,7 @@ public final class Companions {
         if (isCompanion(attacker) && (victim instanceof Player || isCompanion(victim))) {
             return false;
         }
-        if (source.getDirectEntity() instanceof Snowball && isCompanion(attacker) && victim instanceof Enemy) {
+        if (source.getDirectEntity() instanceof Snowball && isCompanion(attacker) && BossService.isFoe(victim)) {
             victim.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, (int) Math.round(v("s_snowguard", "slow", 50)), 1));
         }
         return true;
@@ -519,13 +519,13 @@ public final class Companions {
             return 1f;
         }
         float factor = 1f;
-        if (!CURSED.isEmpty() && victim instanceof Enemy) {
+        if (!CURSED.isEmpty() && BossService.isFoe(victim)) {
             Long cursed = CURSED.get(victim.getUUID());
             if (cursed != null && victim.level().getGameTime() <= cursed) {
                 factor *= (float) (1.0 + v("d_necro", "curse", 0.25));   // Fluchzone
             }
         }
-        if (!DREADED.isEmpty() && victim instanceof Enemy) {
+        if (!DREADED.isEmpty() && BossService.isFoe(victim)) {
             Long dreaded = DREADED.get(victim.getUUID());
             if (dreaded != null && victim.level().getGameTime() <= dreaded) {
                 factor *= (float) (1.0 + v("d_dread", "more", 0.25));   // Grauen
@@ -545,7 +545,7 @@ public final class Companions {
         if (hitter != null && attacker instanceof LivingEntity living && !splashing) {
             PlayerSkills skills = self.skillsOf(hitter.owner, attacker);
             SiegeConfig cfg = self.config.get();
-            if (cfg != null && victim instanceof Enemy) {
+            if (cfg != null && BossService.isFoe(victim)) {
                 factor *= (float) Math.max(0.1, cfg.companionDamage);
                 // The server balancing per class and subclass reaches the companions too
                 // (Simon 27.10.: the beast tamer +20 % – his wolves deal most of his damage).
@@ -572,7 +572,7 @@ public final class Companions {
                 }
             }
             // Späherfalke (Tor 5.4): glowing monsters take +10 % from the companions.
-            if (victim instanceof Enemy && victim.hasEffect(MobEffects.GLOWING) && gain(skills, "spaehfalke") > 0) {
+            if (BossService.isFoe(victim) && victim.hasEffect(MobEffects.GLOWING) && gain(skills, "spaehfalke") > 0) {
                 factor *= 1.10f;
             }
             // Mischrudel: wolves and the skeleton together.
@@ -601,7 +601,7 @@ public final class Companions {
             }
         }
         // Unheilige Kraft: the summoner of the dead hits harder for every soul he carries.
-        if (attacker instanceof ServerPlayer summoner && victim instanceof Enemy && !isCompanion(victim)) {
+        if (attacker instanceof ServerPlayer summoner && BossService.isFoe(victim) && !isCompanion(victim)) {
             PlayerSkills skills = self.skillsFor.apply(summoner);
             if (SkillTree.has(skills, "d_unholy")) {
                 int carried = Math.min(self.soulsOf(summoner.getUUID()), (int) Math.round(v("d_unholy", "max", 10)));
@@ -2025,7 +2025,7 @@ public final class Companions {
                 continue;
             }
             for (Mob foe : level.getEntitiesOfClass(Mob.class, guard.getBoundingBox().inflate(radius),
-                    e -> e instanceof Enemy && e.isAlive() && !isCompanion(e) && e.getTarget() == owner)) {
+                    e -> BossService.isFoe(e) && e.isAlive() && !isCompanion(e) && e.getTarget() == owner)) {
                 Long paused = TAUNT_PAUSE.get(foe.getUUID());
                 if ((paused == null || now >= paused) && !TAUNTS.containsKey(foe.getUUID())
                         && foe.distanceToSqr(guard) <= radius * radius) {
@@ -2163,7 +2163,7 @@ public final class Companions {
         LivingEntity best = null;
         double bestDist = Double.MAX_VALUE;
         for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, box,
-                e -> e instanceof Enemy && e.isAlive() && !isCompanion(e))) {
+                e -> BossService.isFoe(e) && e.isAlive() && !isCompanion(e))) {
             if (e.position().distanceToSqr(center) > radius * radius || !also.test(e)) {
                 continue;
             }
@@ -2181,7 +2181,7 @@ public final class Companions {
         double tauntRadius = v("s_golemsmith", "tauntradius", 4.0);
         long tauntTicks = Math.round(v("s_golemsmith", "taunttime", 60));
         for (Mob foe : level.getEntitiesOfClass(Mob.class, golem.getBoundingBox().inflate(tauntRadius, 2.0, tauntRadius),
-                e -> e instanceof Enemy && e.isAlive() && !isCompanion(e))) {
+                e -> BossService.isFoe(e) && e.isAlive() && !isCompanion(e))) {
             tauntTo(level, foe, golem, tauntTicks);
         }
         double r = v("s_golemsmith", "slamradius", 3.5);
@@ -2202,7 +2202,7 @@ public final class Companions {
         DamageSource source = level.damageSources().mobAttack(titan);
         boolean fist = SkillTree.has(skills, "s_titanfist");
         for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, titan.getBoundingBox().inflate(r, 2.0, r),
-                e -> e instanceof Enemy && e.isAlive() && !isCompanion(e))) {
+                e -> BossService.isFoe(e) && e.isAlive() && !isCompanion(e))) {
             e.invulnerableTime = 0;
             e.hurtServer(level, source, damage);
             Vec3 away = e.position().subtract(titan.position()).multiply(1, 0, 1);
@@ -2352,7 +2352,7 @@ public final class Companions {
         Entity attacker = source.getEntity();
         Companion hitter = attacker == null ? null : ALL.get(attacker.getUUID());
         countHit(victim, source, taken);
-        if (hitter == null || !(victim instanceof Enemy) || taken <= 0 || !(victim.level() instanceof ServerLevel level)) {
+        if (hitter == null || !BossService.isFoe(victim) || taken <= 0 || !(victim.level() instanceof ServerLevel level)) {
             return;
         }
         ServerPlayer owner = level.getServer().getPlayerList().getPlayer(hitter.owner);
@@ -2399,7 +2399,7 @@ public final class Companions {
     /** A companion killed a monster: Seelenpakt heals the summoner, Seelenernte the companion and the staff's pause. */
     public void onKill(Entity killer, Entity killed) {
         Companion c = killer == null ? null : ALL.get(killer.getUUID());
-        if (c == null || !(killer.level() instanceof ServerLevel level) || !(killed instanceof Enemy)) {
+        if (c == null || !(killer.level() instanceof ServerLevel level) || !BossService.isFoe(killed)) {
             return;
         }
         ServerPlayer owner = level.getServer().getPlayerList().getPlayer(c.owner);
@@ -2774,7 +2774,7 @@ public final class Companions {
         double r = v("d_soulstorm", "radius", 10.0);
         DamageSource source = level.damageSources().playerAttack(player);
         for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, player.getBoundingBox().inflate(r, 3.0, r),
-                e -> e instanceof Enemy && e.isAlive() && !isCompanion(e))) {
+                e -> BossService.isFoe(e) && e.isAlive() && !isCompanion(e))) {
             if (e.distanceToSqr(player) > r * r) {
                 continue;
             }
