@@ -197,9 +197,7 @@ public final class KitHud {
             return 0;
         }
         Minecraft mc = Minecraft.getInstance();
-        if (mc.gui.screen() instanceof net.minecraft.client.gui.screens.ChatScreen) {
-            return 0;   // open chat: the clicks on its lines must stay where they are drawn
-        }
+        // Z3: the open chat goes up too, its hover and clicks with it (ChatScreenLiftMixin)
         int height = mc.getWindow().getGuiScaledHeight();
         double scale = mc.options.chatScale().get();
         int right = 4 + (int) Math.ceil((Math.floor(mc.options.chatWidth().get() * 280.0 + 40.0) + 8) * scale);
@@ -482,14 +480,18 @@ public final class KitHud {
         int mount = p.getVehicle() instanceof net.minecraft.world.entity.LivingEntity v && v.showVehicleHealth()
                 ? (int) (v.getMaxHealth() + 0.5f) / 2 : 0;
         // Z3 (Simon 12.11.): vanilla's rows right on the bar, the status row above them
+        // as vanilla counts its rows: the health it still shows after a loss counts too, absorption rounded up
+        float shownMax = Math.max(p.getMaxHealth(), Math.max(
+                ((com.mki.nightsiege.mixin.client.HudHealthAccessor) mc.gui.hud).nightsiege$displayHealth(),
+                (float) Math.ceil(p.getHealth())));
+        float absorb = (float) Math.ceil(p.getAbsorptionAmount());
         List<ActionBarLayout.Rect> bars = ownBars || mc.gameMode == null || !mc.gameMode.canHurtPlayer() ? List.of()
-                : ActionBarLayout.vanillaBars(sw, sh, 0, p.getMaxHealth(), p.getAbsorptionAmount(),
-                p.getArmorValue() > 0, air, mount);
+                : ActionBarLayout.vanillaBars(sw, sh, 0, shownMax, absorb, p.getArmorValue() > 0, air, mount);
         ActionBarLayout.Layout l = ActionBarLayout.layout(sw, sh, in, ownBars, bars);
         lastLayout = l;
         int lift = ActionBarLayout.vanillaLift(l, sh);
-        lastBars = lift == 0 || bars.isEmpty() ? bars : ActionBarLayout.vanillaBars(sw, sh, lift, p.getMaxHealth(),
-                p.getAbsorptionAmount(), p.getArmorValue() > 0, air, mount);
+        lastBars = lift == 0 || bars.isEmpty() ? bars : ActionBarLayout.vanillaBars(sw, sh, lift, shownMax,
+                absorb, p.getArmorValue() > 0, air, mount);
         lastLeft = l.left();
         int top = Integer.MAX_VALUE;
         for (ActionBarLayout.Rect r : l.parts()) {
