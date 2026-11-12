@@ -647,6 +647,8 @@ final class BossBrains {
         long nextGuards;
         boolean shield;
         boolean secondShield;
+        /** Game time the shield went up (lichShieldMaxSeconds: the crystals crumble after that long). */
+        long shieldSince;
         /**
          * Update 30.10. (Simon: "teleportieren sich … greifen garnicht richtig an … bleiben irgendwo
          * hängen"): no blink any more, he sweeps away in a second; he hovers above the walls so he
@@ -695,6 +697,13 @@ final class BossBrains {
                 raiseShield(host, now);
             }
             tickSoulArrows(level, now);
+            int maxShield = host.config().lichShieldMaxSeconds;
+            if (shield && maxShield > 0 && now - shieldSince >= maxShield * 20L) {
+                // Boss sim 12.11.: the shield holds at most lichShieldMaxSeconds, then the crystals crumble (as if broken).
+                for (BossService.Part part : service.partsOf("crystal")) {
+                    service.removePart(level, part);
+                }
+            }
             if (shield) {
                 if (service.partsOf("crystal").isEmpty()) {
                     shield = false;
@@ -1058,7 +1067,7 @@ final class BossBrains {
                 if (spot == null) {
                     continue;
                 }
-                double health = 30.0 * com.mki.nightsiege.core.SiegeMath.healthMultiplier(host.level(), host.config())
+                double health = host.config().lichCrystalHealth * com.mki.nightsiege.core.SiegeMath.healthMultiplier(host.level(), host.config())
                         * (1.0 + 0.5 * Math.max(0, host.defenders().size() - 1));
                 Vec3 at = new Vec3(spot.getX() + 0.5, spot.getY() + 0.3, spot.getZ() + 0.5);
                 if (service.addPart(level, at, "crystal", Blocks.SOUL_LANTERN.defaultBlockState(), 1.6f, health, now, 0) != null) {
@@ -1068,6 +1077,7 @@ final class BossBrains {
             }
             if (placed > 0) {
                 shield = true;
+                shieldSince = now;
                 for (ServerPlayer p : host.watchers()) {
                     level.playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.SOUL_ESCAPE, net.minecraft.sounds.SoundSource.HOSTILE, 1.0f, 0.5f);
                 }
