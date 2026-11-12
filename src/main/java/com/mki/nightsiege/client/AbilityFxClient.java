@@ -278,6 +278,11 @@ public final class AbilityFxClient {
         Vec3 eye = mc.gameRenderer.mainCamera().position();
         RandomSource rnd = mc.level.getRandom();
         boolean bright = bright(p.getParticle());
+        if (!bright && ownView(openSource)) {
+            // CI 1b70abcc3: the axe's slam explosions and the archers' poofs lived longer and filled 22-44 % of the own
+            // view - from one's own eyes smoke, clouds and explosions stay exactly as before
+            return false;
+        }
         int count = p.getCount();
         float speed = p.getMaxSpeed();
         if (count == 0) {
@@ -327,7 +332,7 @@ public final class AbilityFxClient {
         if (made != null) {
             boolean own = ownView(openSource);
             double size = near ? 1.0 : bright ? (own ? FxBudget.SIZE_OWN : FxBudget.SIZE) : FxBudget.DIM;
-            double life = bright ? FxBudget.LIFE : FxBudget.DIM;
+            double life = near ? 1.0 : bright ? FxBudget.LIFE : FxBudget.DIM;
             made.scale((float) size);
             made.setLifetime((int) Math.round(made.getLifetime() * life));
             boosted++;
