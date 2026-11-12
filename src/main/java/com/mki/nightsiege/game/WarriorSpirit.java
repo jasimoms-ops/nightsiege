@@ -543,6 +543,7 @@ public final class WarriorSpirit {
     /** Lichtschlag: the players around are healed, the undead around burn. */
     private static void lightStrike(ServerLevel level, ServerPlayer player, double factor) {
         double r = SkillValues.get("smite", "fin_radius", 6);
+        AbilityFx.area(player, player.position(), r);   // Z4: the real radius as a ring
         float heal = (float) (SkillValues.get("smite", "fin_heal", 2) * factor);
         float burn = (float) (SkillValues.get("smite", "fin_burn", 60) * factor / 20.0);
         if (heal > 0f) {

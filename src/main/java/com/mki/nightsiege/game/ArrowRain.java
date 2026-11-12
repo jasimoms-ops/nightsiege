@@ -201,6 +201,7 @@ public final class ArrowRain {
         fired++;
         double r = radius(sub);
         CastFx.arrowVolley(level, player, spot, r);   // Tor 2: the throw and the circle, seen by all
+        AbilityFx.area(player, spot, r);   // Z4: the real radius as a ring
         // The circle where it will come down, and the volley going up.
         for (int i = 0; i < 24; i++) {
             double a = Math.PI * 2 * i / 24;

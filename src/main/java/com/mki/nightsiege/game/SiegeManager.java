@@ -903,6 +903,7 @@ public final class SiegeManager {
         ServerTickEvents.START_SERVER_TICK.register(server -> tickStartNanos = System.nanoTime());
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             onEndTick(server);
+            safe("Effekte", () -> AbilityFx.tick(server));   // Z4: the ability hits of the tick flash
             noteTickLoad();
         });
         NightDamage.exclude(camp::covers);   // the war camp is not the night's to mend
@@ -940,6 +941,7 @@ public final class SiegeManager {
             StealPool.settle(entity, source);   // the life really lost, before a totem heals (Simon 05.11.)
             KillingHits.reported(entity);   // counted here, not again as a killing hit
             logDamage(entity, source, taken);
+            AbilityFx.afterDamage(entity, source);   // Z4: a monster hit by an ability flashes
             if (active && entity instanceof ServerPlayer hitPlayer && participants.contains(hitPlayer.getUUID())) {
                 safe("Statistik", () -> stats.incoming(hitPlayer, source, baseDamage, blocked));   // what a tank holds off (Simon 30.10.)
             }
@@ -6737,15 +6739,19 @@ public final class SiegeManager {
             case "ult2" -> countedKey(player, verb, argument, () -> onSecondKey(player));
             case "ult2x" -> countedKey(player, verb, argument, () -> SecondUlts.fire(player));   // X: the second ultimate alone (27 October 2026)
             case "staffhit" -> {   // left click with the staff (27 October 2026); the healers' staff since Tor 4.7
-                if (!HealerStaffItem.attack(player)) {
-                    companions.staffAttack(player);
-                }
+                AbilityFx.around(player, () -> {
+                    if (HealerStaffItem.attack(player)) {
+                        AbilityFx.cast(player, false);   // Z4: the healer's bolt left the staff
+                    } else {
+                        companions.staffAttack(player);
+                    }
+                });
             }
             case "quiver" -> abilityThreeTap(player);
             case "slot" -> onSlotKeyCounted(player, argument);   // the ability bar (27 October 2026)
             case "cycle" -> onCycle(player, argument);   // arrows and potions: the key held, the wheel turned (30.10.)
             case "gain" -> {
-                GainKeys.onKey(this, player, parseAmount(argument));   // the gain keys 1, 2, 3 (Tor 3.2b)
+                AbilityFx.around(player, () -> GainKeys.onKey(this, player, parseAmount(argument)));   // the gain keys 1, 2, 3 (Tor 3.2b)
                 sendUltHud(player);
             }
             case "gainkey" -> {
@@ -6774,7 +6780,7 @@ public final class SiegeManager {
             case "brew" -> traps.onBrewChoice(player, argument);
             // The demolition expert's bird's-eye view: a fire called on a spot.
             case "spot" -> traps.onSpotAction(player, argument);
-            case "shield" -> combat.guardian().onShieldAction(player);
+            case "shield" -> AbilityFx.around(player, () -> combat.guardian().onShieldAction(player));
             case "scout" -> expeditions.giveMap(player);   // the core window's "Karte mitnehmen"
             case "round_force" -> {   // a ready round (war drum or seal stone): go without the others
                 camp.forceRound(player);
@@ -7797,14 +7803,19 @@ public final class SiegeManager {
 
     /** X, F, the second ultimate: counted in the statistics only when the pause started (Prüfer-Fund 4b). */
     private void countedKey(ServerPlayer player, String verb, String argument, Runnable press) {
-        int[] before = active || kitOfAFight(player) ? keyPause(player, verb) : null;
-        String ability = before == null ? null : abilityName(player, verb, argument);
-        press.run();
-        if (ability == null) {
+        // Z4: the pause is read always (the effects show by day too), the statistics count only in a fight as before
+        int[] before = keyPause(player, verb);
+        String ability = before == null || !(active || kitOfAFight(player)) ? null : abilityName(player, verb, argument);
+        AbilityFx.around(player, press);   // Z4: the key's own particles bigger on full clients
+        if (before == null) {
             return;
         }
         int[] after = keyPause(player, verb);
         if (com.mki.nightsiege.core.AbilityKeys.fired(before[0], after == null ? -1 : after[0], before[1])) {
+            safe("Effekte", () -> AbilityFx.cast(player, verb.equals("ult") || verb.equals("ult2x")));
+            if (ability == null) {
+                return;
+            }
             String key = com.mki.nightsiege.core.AbilityKeys.statsKey(verb, null);
             safe("Statistik", () -> stats.ability(player, ability, key));
         }
@@ -7820,8 +7831,8 @@ public final class SiegeManager {
         com.mki.nightsiege.core.UltState.Slot before = index >= 0 && index < slots.size() ? slots.get(index) : null;
         String ability = active || kitOfAFight(player) ? abilityName(player, "slot", argument) : null;
         String key = before == null ? null : com.mki.nightsiege.core.AbilityKeys.statsKey("slot", before.key);
-        onSlotKey(player, index);
-        if (ability == null || before == null) {
+        AbilityFx.around(player, () -> onSlotKey(player, index));   // Z4
+        if (before == null) {
             return;
         }
         List<com.mki.nightsiege.core.UltState.Slot> now = abilitySlots(player);
@@ -7833,7 +7844,10 @@ public final class SiegeManager {
             }
         }
         if (com.mki.nightsiege.core.AbilityKeys.fired(before.cooldownTicks, after, before.totalTicks)) {
-            safe("Statistik", () -> stats.ability(player, ability, key));
+            safe("Effekte", () -> AbilityFx.cast(player, false));   // Z4
+            if (ability != null) {
+                safe("Statistik", () -> stats.ability(player, ability, key));
+            }
         }
     }
 

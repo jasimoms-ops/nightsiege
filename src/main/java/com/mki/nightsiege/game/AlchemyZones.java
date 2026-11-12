@@ -85,6 +85,9 @@ public final class AlchemyZones {
         }
         zone.scale = Math.sqrt(area);
         ZONES.add(zone);
+        if (shot.getOwner() instanceof net.minecraft.server.level.ServerPlayer thrower) {
+            AbilityFx.area(thrower, at, radius() * zone.scale);   // Z4: the cloud's real size
+        }
         level.playSound(null, BlockPos.containing(at), SoundEvents.SPLASH_POTION_BREAK, SoundSource.PLAYERS, 1.0f, 1.0f);
         DustParticleOptions dust = new DustParticleOptions(kind.color(), 2.0f);
         level.sendParticles(dust, at.x, at.y + 0.4, at.z, 50, 1.2, 0.4, 1.2, 0.0);

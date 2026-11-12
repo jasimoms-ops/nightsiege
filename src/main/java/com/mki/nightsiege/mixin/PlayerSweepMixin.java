@@ -27,5 +27,11 @@ public abstract class PlayerSweepMixin {
     @Inject(method = "attack(Lnet/minecraft/world/entity/Entity;)V", at = @At("HEAD"))
     private void nightsiege$noteSwing(Entity target, CallbackInfo ci) {
         WarriorSpirit.noteSwing((Player) (Object) this);
+        com.mki.nightsiege.game.AbilityFx.meleeStart((Player) (Object) this);   // Z4: melee hits do not flash as ability hits
+    }
+
+    @Inject(method = "attack(Lnet/minecraft/world/entity/Entity;)V", at = @At("RETURN"))
+    private void nightsiege$swingDone(Entity target, CallbackInfo ci) {
+        com.mki.nightsiege.game.AbilityFx.meleeEnd((Player) (Object) this);
     }
 }

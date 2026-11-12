@@ -2065,6 +2065,7 @@ public final class TrapService {
         }
         long now = level.getGameTime();
         double r = SkillValues.get("e_acid_flask", "radius", 3.0);
+        AbilityFx.area(player, at, r);   // Z4: the real radius as a ring
         double damage = towerHit(TrapKind.BREWER) * SkillValues.get("e_acid_flask", "dmg", 1.2);
         double acid = SkillValues.get("e_acid_flask", "acid", 0.25);
         int ticks = (int) Math.round(SkillValues.get("e_acid_flask", "time", 120));
@@ -3062,6 +3063,7 @@ public final class TrapService {
             Vec3 at = victim.position();
             float damage = (float) tree.totalBonus(SkillEffect.TARGET_BLAST, skills);
             double r = SkillValues.get("e_targetblast", "radius", 2.0);
+            AbilityFx.area(owner, at, r);   // Z4: the real radius as a ring
             for (LivingEntity near : enemies(level, new AABB(at, at).inflate(r, 1.5, r))) {
                 near.invulnerableTime = 0;
                 near.hurtServer(level, source, damage);

@@ -65,11 +65,18 @@ public final class StrikeRing {
         int cx = com.mki.nightsiege.core.CrosshairMath.center(mc.getWindow().getGuiScaledWidth());
         int cy = com.mki.nightsiege.core.CrosshairMath.center(mc.getWindow().getGuiScaledHeight());
         int lit = full ? DOTS : (int) Math.floor(charge * DOTS);
+        // Z4 (Simon 12.11.): with full effects the ring is larger and its dots bigger, a full one glows gold-white
+        boolean big = FxSettings.full();
+        double radius = big ? RADIUS + 2.0 : RADIUS;
+        int dot = big ? 2 : 1;
+        if (big && full) {
+            fill = onTarget ? 0xFFFFFFFF : 0xE0FFF2C0;
+        }
         for (int i = 0; i < DOTS; i++) {
             double a = 2.0 * Math.PI * i / DOTS - Math.PI / 2.0;
-            int x = cx + com.mki.nightsiege.core.CrosshairMath.symRound(Math.cos(a) * RADIUS);
-            int y = cy + com.mki.nightsiege.core.CrosshairMath.symRound(Math.sin(a) * RADIUS);
-            gui.fill(x, y, x + 1, y + 1, i < lit ? fill : 0x50000000);
+            int x = cx + com.mki.nightsiege.core.CrosshairMath.symRound(Math.cos(a) * radius) - (dot - 1) / 2;
+            int y = cy + com.mki.nightsiege.core.CrosshairMath.symRound(Math.sin(a) * radius) - (dot - 1) / 2;
+            gui.fill(x, y, x + dot, y + dot, i < lit ? fill : 0x50000000);
         }
     }
 }

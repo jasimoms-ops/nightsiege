@@ -202,6 +202,7 @@ public final class GainKeys {
         if (ticks < 0) {
             return;
         }
+        AbilityFx.cast(player, false);   // Z4: the gain went off
         if (left > 0) {
             LEFT.computeIfAbsent(player.getUUID(), k -> new HashMap<>()).put(id, left - 1);
         }

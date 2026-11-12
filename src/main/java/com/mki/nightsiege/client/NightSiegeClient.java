@@ -182,6 +182,18 @@ public class NightSiegeClient implements ClientModInitializer {
                         }
                     }
                 }));
+        // Z4 (Simon 12.11.): the abilities' bigger effects, drawn here; options per /effekte
+        ClientPlayNetworking.registerGlobalReceiver(CoreNetworking.FxPayload.TYPE,
+                (payload, context) -> {
+                    // in order with the particle packets around it (OPEN ... CLOSE): on the client thread at once
+                    if (context.client().isSameThread()) {
+                        AbilityFxClient.receive(payload);
+                    } else {
+                        context.client().execute(() -> AbilityFxClient.receive(payload));
+                    }
+                });
+        ClientTickEvents.END_CLIENT_TICK.register(AbilityFxClient::tick);
+        FxSettings.register();
         ClientPlayNetworking.registerGlobalReceiver(CoreNetworking.EventSkyPayload.TYPE,
                 (payload, context) -> context.client().execute(() ->
                         com.mki.nightsiege.game.EventAtmosphere.setClient(payload.event(), payload.fade())));
