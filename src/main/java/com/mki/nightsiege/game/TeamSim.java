@@ -11,7 +11,6 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Mob;
-import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -856,7 +855,7 @@ public final class TeamSim {
     private static void sampleTicks(MinecraftServer server, long fightTick) {
         int live = 0;
         for (net.minecraft.world.entity.Entity e : world.getAllEntities()) {
-            if (e instanceof Enemy && e.isAlive()) {
+            if (BossService.isFoe(e) && e.isAlive()) {
                 live++;
             }
         }
@@ -886,7 +885,7 @@ public final class TeamSim {
         int[] rings = new int[4];
         List<net.minecraft.world.entity.Entity> mobs = new ArrayList<>();
         for (net.minecraft.world.entity.Entity e : world.getAllEntities()) {
-            if (e instanceof Enemy && e.isAlive() && !Companions.isCompanion(e)) {
+            if (BossService.isFoe(e) && e.isAlive() && !Companions.isCompanion(e)) {
                 double d = Math.sqrt(e.distanceToSqr(Vec3.atCenterOf(core)));
                 rings[d < 8 ? 0 : d < 16 ? 1 : d < 32 ? 2 : 3]++;
                 mobs.add(e);
@@ -1216,7 +1215,7 @@ public final class TeamSim {
             return;
         }
         AABB box = new AABB(core).inflate(128.0);
-        for (Mob mob : world.getEntitiesOfClass(Mob.class, box, e -> e instanceof Enemy && !Companions.isCompanion(e))) {
+        for (Mob mob : world.getEntitiesOfClass(Mob.class, box, e -> BossService.isFoe(e) && !Companions.isCompanion(e))) {
             mob.discard();
         }
         for (BlockPos pos : BlockPos.betweenClosed(core.offset(-48, -6, -48), core.offset(48, 14, 48))) {

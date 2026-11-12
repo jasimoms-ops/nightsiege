@@ -478,7 +478,7 @@ public final class MeleeSim {
                     Companions.countOf(player.getUUID(), "golem"), Companions.countOf(player.getUUID(), "minion"),
                     Companions.get().soulsOf(player.getUUID()), player.getHealth(), player.getMaxHealth(),
                     level.getEntitiesOfClass(Mob.class, player.getBoundingBox().inflate(16),
-                            e -> e instanceof Enemy && !Companions.isCompanion(e)).size()));
+                            e -> BossService.isFoe(e) && !Companions.isCompanion(e)).size()));
         }
         // GOLEMDIAG (Tor 4c.6): the golemsmith's golem dealt nothing on the bench; every 5 s one line per companion.
         if (clazz == SkillClass.SUMMONER) {
@@ -828,7 +828,7 @@ public final class MeleeSim {
 
     private static void clearMonsters(ServerLevel level) {
         AABB box = new AABB(core).inflate(96.0);
-        for (Mob mob : level.getEntitiesOfClass(Mob.class, box, e -> e instanceof Enemy && !Companions.isCompanion(e))) {
+        for (Mob mob : level.getEntitiesOfClass(Mob.class, box, e -> BossService.isFoe(e) && !Companions.isCompanion(e))) {
             mob.discard();
         }
     }
@@ -1424,7 +1424,7 @@ public final class MeleeSim {
             taken += amount;
             return;
         }
-        if (!(victim instanceof Enemy) || Companions.isCompanion(victim)) {
+        if (!BossService.isFoe(victim) || Companions.isCompanion(victim)) {
             return;
         }
         Entity by = source.getEntity();
