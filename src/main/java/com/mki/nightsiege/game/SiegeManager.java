@@ -2653,11 +2653,14 @@ public final class SiegeManager {
         machinesNight = false;
         if (config.machinesEnabled && machinesTonight) {
             machinesNight = true;
+            // Vorwelle (Simon 12.11.): a boss night's machines come before the boss, so fewer by bossPreWaveFactor.
+            double pre = com.mki.nightsiege.core.BossNight.preWaveFactor(tonightBoss != null && !warRound && !bastionRound, false,
+                    config.bossPreWaveFactor);
             if (carried > 0) {
-                machines.plan(siegeLevel, carried, "abgebrochene Nacht");
+                machines.plan(siegeLevel, (int) Math.round(carried * pre), "abgebrochene Nacht");
             } else {
-                machines.plan(siegeLevel, com.mki.nightsiege.core.SiegeMachineKind.campCount(siegeLevel, config.machinesCampFactor,
-                        config.machinesMax), "Heerlager");
+                machines.plan(siegeLevel, (int) Math.round(com.mki.nightsiege.core.SiegeMachineKind.campCount(siegeLevel, config.machinesCampFactor,
+                        config.machinesMax) * pre), "Heerlager");
             }
         } else if (config.machinesEnabled && (!testRun || playtest.running() || testRandomMachines != null)
                 && tonightBoss == null && tonightWarden == null && !finaleNight && !lateNight && !warRound && !bastionRound
@@ -4301,8 +4304,8 @@ public final class SiegeManager {
         }
         wavesStarted++;
         safe("Statistik", () -> stats.waveStart(world.getGameTime(), wavesStarted, liveMobs.size()));
-        int wanted = (int) Math.round(wantedPerWave() * size);
-        int room = fieldRoom() - liveMobs.size();   // the smart night far down: fewer at once (05.11.)
+        int wanted = (int) Math.round(wantedPerWave() * size * preWaveFactor());   // Vorwelle (12.11.)
+        int room = preWaveRoom() - liveMobs.size();   // the smart night far down: fewer at once (05.11.)
         int count = smart.paused(world.getGameTime()) ? 0 : Math.min(wanted, Math.max(0, room));
         lastWaveSize = count;
         if (count > 0) {
@@ -4403,7 +4406,7 @@ public final class SiegeManager {
      * refillGapTicks, like one of the running wave (its raid plan, its limits on special foes).
      */
     private void refill(MinecraftServer server) {
-        if (world == null || liveMobs.size() >= fieldRoom()) {
+        if (world == null || liveMobs.size() >= preWaveRoom()) {
             return;
         }
         long now = world.getGameTime();
@@ -4663,6 +4666,18 @@ public final class SiegeManager {
     public int fieldRoom() {
         int cap = maxLive();
         return Math.max(1, (int) Math.round(cap * com.mki.nightsiege.core.SmartNight.room(config, active ? smart.step() : 0)));
+    }
+
+    /** Vorwelle (Simon 12.11.): bossPreWaveFactor in a boss night until its boss comes, else 1. */
+    private double preWaveFactor() {
+        return com.mki.nightsiege.core.BossNight.preWaveFactor(bosses.planned() && !warRound && !bastionRound, bosses.spawned(),
+                config.bossPreWaveFactor);
+    }
+
+    /** The field room for the waves and refills: smaller by the Vorwelle factor before a boss comes. */
+    private int preWaveRoom() {
+        double f = preWaveFactor();
+        return f >= 1.0 ? fieldRoom() : Math.max(1, (int) Math.round(fieldRoom() * f));
     }
 
     /**

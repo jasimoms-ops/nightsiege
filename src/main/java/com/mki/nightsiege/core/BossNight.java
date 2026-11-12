@@ -88,6 +88,18 @@ public final class BossNight {
         return ticksLeft % 20 == 0 && ticksLeft <= 60 * 20 && ticksLeft > 57 * 20;
     }
 
+    /**
+     * Vorwelle (Simon 12.11.: the waves of a boss night may be weaker until the boss comes): the share of the
+     * normal waves, refills and machines before the boss's arrival (bossPreWaveFactor, 0.2–1.0); 1 in any
+     * other night and once the boss came.
+     */
+    public static double preWaveFactor(boolean bossNight, boolean bossCame, double factor) {
+        if (!bossNight || bossCame || !Double.isFinite(factor)) {
+            return 1.0;
+        }
+        return Math.max(0.2, Math.min(1.0, factor));
+    }
+
     /** False once the boss of a boss night has come: no more waves, machines or camp reinforcements. */
     public static boolean reinforcements(boolean bossNight, boolean bossCame) {
         return !(bossNight && bossCame);

@@ -262,6 +262,8 @@ public class SiegeConfig {
     public boolean bossPhaseHoldsDawn = true;
     /** Bossuhr: the longest boss phase in seconds while bossPhaseHoldsDawn holds the dawn (60–1800). */
     public int bossPhaseMaxSeconds = 600;
+    /** Vorwelle (Simon 12.11.): share of the normal waves, refills and machines a boss night brings before its boss comes (0.2–1.0). */
+    public double bossPreWaveFactor = 1.0;
     /** Knochenlich: life of each soul crystal before level and player factors (was fixed 30; boss sim 12.11.). */
     public double lichCrystalHealth = 30.0;
     /** Knochenlich: the soul crystals crumble on their own after this many seconds of shield (0 = never, as before; boss sim 12.11.). */
@@ -1825,6 +1827,7 @@ public class SiegeConfig {
         bossEvery = clamp(bossEvery <= 0 ? 4 : bossEvery, 1, 100);
         bossFinaleSeconds = clamp(bossFinaleSeconds <= 0 ? 180 : bossFinaleSeconds, 30, 1200);
         bossPhaseMaxSeconds = clamp(bossPhaseMaxSeconds <= 0 ? 600 : bossPhaseMaxSeconds, 60, 1800);
+        bossPreWaveFactor = Double.isFinite(bossPreWaveFactor) ? clampDouble(bossPreWaveFactor, 0.2, 1.0) : 1.0;
         lichCrystalHealth = lichCrystalHealth > 0 && Double.isFinite(lichCrystalHealth) ? Math.min(lichCrystalHealth, 1000.0) : 30.0;
         lichShieldMaxSeconds = clamp(lichShieldMaxSeconds, 0, 1800);
         bossGroupEvery = clamp(bossGroupEvery, 0, 1000);
