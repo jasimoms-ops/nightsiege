@@ -15,6 +15,8 @@ import java.util.Map;
 public final class FxBudget {
 
     public static final double SIZE = 1.75;
+    /** The same from one's own eyes: the low end of Simon's 1.5-2 (nothing closes the view). */
+    public static final double SIZE_OWN = 1.5;
     public static final double COUNT = 1.5;
     public static final double LIFE = 1.5;
     /** Smoke, clouds, poofs, explosions: size, count and time at most this (Chef 12.11. 18:10). */

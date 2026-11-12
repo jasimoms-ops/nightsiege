@@ -47,6 +47,10 @@ public final class AbilityFxClient {
     private static final int SHAKE_TICKS = 10;
     /** The ring at the caster's feet on every key (blocks). */
     private static final double CAST_RING = 1.6;
+    /** ... seen by the others and in F5 (CI 1d981282a: 0.8 % apart for single target keys). */
+    private static final double CAST_RING_OUTSIDE = 2.2;
+    /** Dot size of the rings from one's own eyes (CI 1d981282a: archers 28 %, paladin 20 % of the view). */
+    private static final float OWN = 0.6f;
     /** Particles this close to the camera never grow (blocks). */
     private static final double NEAR = 3.0;
 
@@ -94,8 +98,9 @@ public final class AbilityFxClient {
             case CoreNetworking.FxPayload.CAST -> cast(level, src, p, false);
             case CoreNetworking.FxPayload.ULT -> cast(level, src, p, true);
             case CoreNetworking.FxPayload.RING -> {
-                for (int pulse = 0; pulse < 3; pulse++) {
-                    later(pulse * 6L, () -> ring(level, p.source(), p.pos(), p.radius(), p.color(), p.accent(), DUST * 0.85f, 1.0));
+                int pulses = ownView(p.source()) ? 2 : 3;   // CI 1d981282a: archers' rain 28 % of the own view
+                for (int pulse = 0; pulse < pulses; pulse++) {
+                    later(pulse * 7L, () -> ring(level, p.source(), p.pos(), p.radius(), p.color(), p.accent(), DUST * 0.85f, 1.0));
                 }
             }
             case CoreNetworking.FxPayload.HITS -> hits(level, p);
@@ -114,8 +119,9 @@ public final class AbilityFxClient {
             burst(level, p.source(), at, p.color(), p.accent(), ult ? 40 : 24, false);
         }
         // Chef 12.11. 18:10: every key visibly new - a ring in the class colour at the caster's feet, two pulses
+        double feet = own ? CAST_RING : CAST_RING_OUTSIDE;
         for (int pulse = 0; pulse < 2; pulse++) {
-            later(pulse * 5L, () -> ring(level, p.source(), at, CAST_RING, p.color(), p.accent(), DUST * 0.8f, 1.0));
+            later(pulse * 5L, () -> ring(level, p.source(), at, feet, p.color(), p.accent(), own ? DUST * 0.8f : DUST, 1.4));
         }
         if (!ult) {
             return;
@@ -132,6 +138,9 @@ public final class AbilityFxClient {
         double reach = p.radius() > 0 ? Math.max(4.0, p.radius()) : SHOCK_RADIUS;
         for (int t = 0; t <= SHOCK_TICKS; t++) {
             double r = 1.0 + (reach - 1.0) * t / SHOCK_TICKS;
+            if (own && r < 3.0) {
+                continue;   // CI 1d981282a: paladin's ult 20 % of the own view - the wave starts beyond arm's length
+            }
             later(t, () -> ring(level, p.source(), at, r, p.color(), p.accent(), DUST, 0.5));
         }
         // its own sound: thunder over a deep beacon chord, loud enough over a fight
@@ -185,8 +194,9 @@ public final class AbilityFxClient {
         if (n <= 0) {
             return;
         }
-        DustParticleOptions main = new DustParticleOptions(color, Math.min(4.0f, size));
-        DustParticleOptions acc = new DustParticleOptions(accent, Math.min(4.0f, size));
+        float dot = ownView(source) ? size * OWN : size;
+        DustParticleOptions main = new DustParticleOptions(color, Math.min(4.0f, dot));
+        DustParticleOptions acc = new DustParticleOptions(accent, Math.min(4.0f, dot));
         double phase = level.getRandom().nextDouble();
         for (int i = 0; i < n; i++) {
             double a = Math.PI * 2 * (i + phase) / n;
@@ -207,7 +217,7 @@ public final class AbilityFxClient {
                 continue;
             }
             FLASH.put(id, FLASH_TICKS);
-            int n = take(p.source(), 12);
+            int n = take(p.source(), 16);
             double top = e.getBbHeight() + 1.2;
             for (int i = 0; i < n; i++) {
                 double y = e.getY() + top * i / Math.max(1, n - 1);
@@ -274,7 +284,7 @@ public final class AbilityFxClient {
             spawnBig(mc, p, eye, bright, 0, p.getX(), p.getY(), p.getZ(), speed * p.getXDist(), speed * p.getYDist(), speed * p.getZDist());
             return true;
         }
-        double more = (bright ? FxBudget.COUNT : FxBudget.DIM) - 1.0;
+        double more = (bright && !ownView(openSource) ? FxBudget.COUNT : FxBudget.DIM) - 1.0;
         int n = count + take(openSource, (int) Math.floor(count * more));
         for (int i = 0; i < n; i++) {
             double x = p.getX() + rnd.nextGaussian() * p.getXDist();
@@ -315,7 +325,8 @@ public final class AbilityFxClient {
         }
         net.minecraft.client.particle.Particle made = mc.particleEngine.createParticle(p.getParticle(), x, y, z, dx, dy, dz);
         if (made != null) {
-            double size = near ? 1.0 : bright ? FxBudget.SIZE : FxBudget.DIM;
+            boolean own = ownView(openSource);
+            double size = near ? 1.0 : bright ? (own ? FxBudget.SIZE_OWN : FxBudget.SIZE) : FxBudget.DIM;
             double life = bright ? FxBudget.LIFE : FxBudget.DIM;
             made.scale((float) size);
             made.setLifetime((int) Math.round(made.getLifetime() * life));
