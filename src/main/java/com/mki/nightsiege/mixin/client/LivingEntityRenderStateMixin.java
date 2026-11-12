@@ -7,7 +7,20 @@ import org.spongepowered.asm.mixin.Unique;
 
 /** Gives every living render state room for the boss look its monster wears. */
 @Mixin(LivingEntityRenderState.class)
-public abstract class LivingEntityRenderStateMixin implements BossLookState {
+public abstract class LivingEntityRenderStateMixin implements BossLookState, com.mki.nightsiege.client.FlashState {
+
+    @Unique
+    private float nightsiege$flash;
+
+    @Override
+    public float nightsiege$flash() {
+        return nightsiege$flash;
+    }
+
+    @Override
+    public void nightsiege$setFlash(float flash) {
+        this.nightsiege$flash = flash;
+    }
 
     @Unique
     private String nightsiege$boss;

@@ -84,6 +84,38 @@ public final class CoreNetworking {
         }
     }
 
+    /**
+     * Z4 (Simon 12.11.): server to client, an ability effect to draw. kind: 0 cast, 1 ultimate, 2 ring on the
+     * ground (radius), 3 hits (ids = the monsters struck). source: the entity id of the player behind it.
+     * Only sent to clients that know the type (ServerPlayNetworking.canSend), so an older client misses nothing.
+     */
+    public record FxPayload(int kind, int source, net.minecraft.world.phys.Vec3 pos, float radius, int color, int accent,
+                            java.util.List<Integer> ids) implements CustomPacketPayload {
+
+        public static final int CAST = 0;
+        public static final int ULT = 1;
+        public static final int RING = 2;
+        public static final int HITS = 3;
+
+        public static final CustomPacketPayload.Type<FxPayload> TYPE =
+                new CustomPacketPayload.Type<>(ModContent.id("ability_fx"));
+
+        public static final StreamCodec<RegistryFriendlyByteBuf, FxPayload> CODEC = StreamCodec.composite(
+                ByteBufCodecs.VAR_INT, FxPayload::kind,
+                ByteBufCodecs.VAR_INT, FxPayload::source,
+                net.minecraft.world.phys.Vec3.STREAM_CODEC, FxPayload::pos,
+                ByteBufCodecs.FLOAT, FxPayload::radius,
+                ByteBufCodecs.INT, FxPayload::color,
+                ByteBufCodecs.INT, FxPayload::accent,
+                ByteBufCodecs.VAR_INT.apply(ByteBufCodecs.list(256)), FxPayload::ids,
+                FxPayload::new);
+
+        @Override
+        public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
     public record CoreActionPayload(String action) implements CustomPacketPayload {
 
         public static final CustomPacketPayload.Type<CoreActionPayload> TYPE =
@@ -118,6 +150,7 @@ public final class CoreNetworking {
         PayloadTypeRegistry.clientboundPlay().register(UltHudPayload.TYPE, UltHudPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(EventSkyPayload.TYPE, EventSkyPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(ScreenPayload.TYPE, ScreenPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(FxPayload.TYPE, FxPayload.CODEC);   // Z4
         PayloadTypeRegistry.serverboundPlay().register(CoreActionPayload.TYPE, CoreActionPayload.CODEC);
     }
 

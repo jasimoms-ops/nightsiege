@@ -45,6 +45,17 @@ public abstract class CameraMixin {
         }
     }
 
+    /** Z4: the short shake of one's own ultimate (the camera only; the aim stays where it was). */
+    @Inject(method = "update", at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/client/Camera;alignWithEntity(F)V", shift = At.Shift.AFTER))
+    private void nightsiege$ultShake(DeltaTracker tracker, CallbackInfo ci) {
+        float[] shake = com.mki.nightsiege.client.AbilityFxClient.shake(tracker.getGameTimeDeltaPartialTick(false));
+        if (shake != null && SpotterScreen.cameraAt(((Camera) (Object) this).getCameraEntityPartialTicks(tracker)) == null) {
+            Camera self = (Camera) (Object) this;
+            this.setRotation(self.yRot() + shake[0], self.xRot() + shake[1]);
+        }
+    }
+
     @Inject(method = "update", at = @At("TAIL"))
     private void nightsiege$birdsEye(DeltaTracker tracker, CallbackInfo ci) {
         double[] at = SpotterScreen.cameraAt(((Camera) (Object) this).getCameraEntityPartialTicks(tracker));

@@ -1343,6 +1343,7 @@ public final class GuardianEffects {
         PlayerSkills skills = skillsFor.apply(player);
         long now = level.getGameTime();
         double r = SkillValues.get("taunt", "radius" + rank, 7.0 + 3.0 * rank);   // 10 / 13 / 16
+        AbilityFx.area(player, player.position(), r);   // Z4: the real radius as a ring
         for (LivingEntity victim : CombatEffects.enemies(level, player.position(), r, 4.0)) {
             if (victim instanceof Mob mob) {
                 mob.setTarget(player);
@@ -1439,6 +1440,7 @@ public final class GuardianEffects {
         PlayerSkills skills = skillsFor.apply(player);
         boolean rebirth = SkillTree.has(skills, "g_rebirth");
         double reach = SkillValues.get("mass_heal", "radius", 12.0);
+        AbilityFx.area(player, player.position(), reach);   // Z4: the real radius as a ring
         float amount = (float) SkillValues.get("mass_heal", "heal" + rank, 6.0 + 4.0 * rank);
         int regen = (int) Math.round(SkillValues.get("mass_heal", "regen", 100.0));
         for (ServerPlayer mate : mates(level)) {
@@ -1470,6 +1472,7 @@ public final class GuardianEffects {
         long length = Math.round(SkillValues.get("g_sanctuary", "time" + rank, 100.0 + 20.0 * rank)
                 + (SkillTree.has(skills, "g_eternal_watch") ? SkillValues.get("g_eternal_watch", "time", 60.0) : 0.0));
         double radius = SkillValues.get("g_sanctuary", "radius", 8.0);
+        AbilityFx.area(player, player.position(), radius);   // Z4: the real radius as a ring
         zones.add(new Zone(ZoneKind.SANCTUARY, player.getUUID(), level, player.position(), radius,
                 level.getGameTime() + length));
         ring(level, player.position().add(0, 0.2, 0), radius, ParticleTypes.END_ROD, 60);

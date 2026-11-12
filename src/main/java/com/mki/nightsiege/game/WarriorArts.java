@@ -362,6 +362,7 @@ public final class WarriorArts {
     private static boolean dance(ServerLevel level, ServerPlayer player, long now) {
         double r = SkillValues.get("w_combo", "f_radius", 6);
         List<LivingEntity> near = new ArrayList<>(CombatEffects.enemies(level, player.position(), r, 3.0));
+        AbilityFx.area(player, player.position(), r);   // Z4: the real radius as a ring
         near.removeIf(e -> !e.isAlive() || !player.hasLineOfSight(e));
         if (near.isEmpty()) {
             bar(player, Component.translatable("nightsiege.msg.spirit_no_target"));

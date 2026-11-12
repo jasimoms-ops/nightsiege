@@ -1211,6 +1211,7 @@ public final class Companions {
                 * spellScale(skills, SkillEffect.NECRO_POWER)
                 * (gain(skills, "grabkerzen") > 0 ? 2.0 : 1.0));   // Leichenzorn (crate gain, 27 October 2026)
         double r = v("d_necro", "burstradius", 3.0) + (blast ? v("d_corpse", "radius", 1.0) : 0.0);
+        AbilityFx.area(owner, at, r);   // Z4: the real radius as a ring
         DamageSource source = level.damageSources().playerAttack(owner);
         for (LivingEntity e : CombatEffects.enemies(level, at, r, 2.0)) {
             spellHurt(level, e, source, damage);
@@ -1286,6 +1287,7 @@ public final class Companions {
             center = Vec3.atBottomCenterOf(block.getBlockPos().above());
         }
         double r = v("d_necro", "curseradius", 4.0) + (SkillTree.has(skills, "d_rot") ? bonus(SkillEffect.ROT, skills) : 0.0);
+        AbilityFx.area(player, center, r);   // Z4: the real radius as a ring
         zones.add(new Zone(player.getUUID(), level, center, r, now + spellTicks(skills, v("d_necro", "curselife", 120), true)));
         level.playSound(null, BlockPos.containing(center), SoundEvents.EVOKER_CAST_SPELL, SoundSource.PLAYERS, 1.0f, 0.6f);
         return true;
@@ -1325,6 +1327,7 @@ public final class Companions {
         LivingEntity target = spellTarget(level, player, skills);
         Vec3 center = target != null ? target.position() : player.position();
         double r = v("d_soulcatcher", "fearradius", 5.0) + (SkillTree.has(skills, "d_rot") ? bonus(SkillEffect.ROT, skills) : 0.0);
+        AbilityFx.area(player, center, r);   // Z4: the real radius as a ring
         boolean dread = SkillTree.has(skills, "d_dread");   // Grauen (27 October 2026)
         int ticks = (int) spellTicks(skills, v("d_soulcatcher", "feartime", 80) + (dread ? v("d_dread", "extra", 40) : 0), true);
         int scared = GainGear.scare(level, center, r, ticks);
@@ -2772,6 +2775,7 @@ public final class Companions {
 
     private void storm(ServerLevel level, ServerPlayer player, float damage) {
         double r = v("d_soulstorm", "radius", 10.0);
+        AbilityFx.area(player, player.position(), r);   // Z4: the real radius as a ring
         DamageSource source = level.damageSources().playerAttack(player);
         for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, player.getBoundingBox().inflate(r, 3.0, r),
                 e -> BossService.isFoe(e) && e.isAlive() && !isCompanion(e))) {

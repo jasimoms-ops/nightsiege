@@ -49,6 +49,17 @@ public abstract class LivingEntityRendererMixin {
         if (state instanceof BossLookState boss) {
             boss.nightsiege$setBoss(BossLooks.of(entity.getId()));
         }
+        if (state instanceof com.mki.nightsiege.client.FlashState flash) {
+            flash.nightsiege$setFlash(com.mki.nightsiege.client.AbilityFxClient.flash(entity.getId()));   // Z4
+        }
+    }
+
+    /** Z4: a monster hit by an ability flashes white for a moment (the creeper's overlay; shows with shaders). */
+    @Inject(method = "getWhiteOverlayProgress", at = @At("RETURN"), cancellable = true)
+    private void nightsiege$abilityFlash(LivingEntityRenderState state, CallbackInfoReturnable<Float> cir) {
+        if (state instanceof com.mki.nightsiege.client.FlashState flash && flash.nightsiege$flash() > cir.getReturnValueF()) {
+            cir.setReturnValue(flash.nightsiege$flash());
+        }
     }
 
     /** A boss wears its own look: while it is drawn, the textures come from its folder. */

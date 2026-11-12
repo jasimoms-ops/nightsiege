@@ -318,6 +318,7 @@ public final class CombatEffects {
         String packNode = SkillTree.has(skills, "x_pack") ? "x_pack" : "b_pack";
         double r = SkillValues.get(hunt, "radius" + rank, 16.0 + 8.0 * rank)
                 * (pack ? SkillValues.get(packNode, "radius", 1.5) : 1.0);
+                AbilityFx.area(player, player.position(), r);   // Z4: the real radius as a ring
         double bonus = SkillValues.get(hunt, "bonus" + rank, 0.3 + 0.1 * rank);
         int packTicks = (int) SkillValues.get(packNode, "dur", 200);
         if (pack) {
@@ -361,6 +362,7 @@ public final class CombatEffects {
             return;
         }
         double r = SkillValues.get("whirlwind", "radius" + rank, 3.5 + 0.5 * rank);
+        AbilityFx.area(player, player.position(), r);   // Z4: the real radius as a ring
         boolean storm = SkillTree.has(skills, "w_bladestorm");
         float damage = (float) (SkillValues.get("whirlwind", "dmg" + rank, 4f + 3f * rank)   // 7 / 10 / 13
                 * WarriorSpiritMath.whirlFactor(storm));   // Tor 4.10: Klingensturm +20 %
@@ -470,6 +472,7 @@ public final class CombatEffects {
             return;
         }
         double r = SkillValues.get("ground_slam", "radius" + rank, 5.0 + rank);
+        AbilityFx.area(player, player.position(), r);   // Z4: the real radius as a ring
         float damage = (float) SkillValues.get("ground_slam", "dmg" + rank, rank <= 1 ? 11 : rank == 2 ? 15 : 20) * scale;   // 11 / 15 / 20 (Tor 4c.5)
         Vec3 center = player.position();
         DamageSource source = level.damageSources().playerAttack(player);
@@ -493,6 +496,7 @@ public final class CombatEffects {
     /** Paladin: the undead burn in the light, everyone else is only stung; allies are mended. */
     private boolean holyLight(ServerLevel level, ServerPlayer player, int rank) {
         double r = SkillValues.get("holy_light", "radius" + rank, 8.0 + 2.0 * rank);
+        AbilityFx.area(player, player.position(), r);   // Z4: the real radius as a ring
         Vec3 center = player.position();
         DamageSource source = level.damageSources().playerAttack(player);
         PlayerSkills skills = skillsFor.apply(player);
@@ -573,6 +577,7 @@ public final class CombatEffects {
         boolean plague = SkillTree.has(skills, "e_plague");
         double acid = tree.totalBonus(SkillEffect.ACID_FOG, skills);
         double r = SkillValues.get("toxic_cloud", "radius" + rank, 6 + rank) + (plague ? SkillValues.get("e_plague", "radius", 3.0) : 0.0);
+        AbilityFx.area(player, player.position(), r);   // Z4: the real radius as a ring
         int ticks = (int) Math.round(SkillValues.get("toxic_cloud", "time" + rank, 120 + 40 * rank)
                 * (SkillTree.has(skills, "e_plague_doctor") ? SkillValues.get("e_plague_doctor", "poison", 2.0) : 1.0));
         long until = level.getGameTime() + ticks;
