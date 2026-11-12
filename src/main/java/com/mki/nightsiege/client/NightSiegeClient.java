@@ -244,12 +244,12 @@ public class NightSiegeClient implements ClientModInitializer {
                     return;
                 }
                 int up = KitHud.vanillaLift();
+                if (hearts && KitHud.active()) {
+                    KitHud.vanillaHearts++;   // Z3: with the kit in the own heart sprites (HeartSpriteMixin)
+                }
                 if (up <= 0) {
                     original.extractRenderState(gui, delta);
                     return;
-                }
-                if (hearts) {
-                    KitHud.vanillaHearts++;
                 }
                 gui.pose().pushMatrix();
                 gui.pose().translate(0, -up);

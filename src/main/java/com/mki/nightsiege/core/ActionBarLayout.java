@@ -128,6 +128,14 @@ public final class ActionBarLayout {
      * status row ({@link #vanillaLift}); health and minis are then empty rects at the row's right end.
      */
     public static Layout layout(int guiW, int guiH, Input in, boolean ownBars) {
+        return layout(guiW, guiH, in, ownBars, List.of());
+    }
+
+    /**
+     * Z3 (Simon 12.11.: hearts, hunger and armour "closer to the UI"): {@code vitals} are vanilla's rows on the screen
+     * ({@link #vanillaBars}, lift 0: right on the bar); the status row and the unit row go above them.
+     */
+    public static Layout layout(int guiW, int guiH, Input in, boolean ownBars, List<Rect> vitals) {
         List<Field> fields = new ArrayList<>();
         List<Integer> studs = new ArrayList<>();
         int abilY = (BAR_H - ABIL) / 2;
@@ -177,9 +185,15 @@ public final class ActionBarLayout {
             x += SLOT;
         }
         int width = x + PAD;
+        float scale = Math.min(1f, (guiW - 4) / (float) width);
+        int top = guiH - Math.round(BAR_H * scale);
+        int above = 0;
+        for (Rect v : vitals) {
+            above = Math.max(above, top - v.y);
+        }
 
-        // the status row above the bar: message | gauge | health | hunger and armour
-        int sy = -STATUS_H - 1;
+        // the status row above the bar (Z3: above vanilla's rows): message | gauge | health | hunger and armour
+        int sy = -STATUS_H - 1 - (int) Math.ceil(above / scale);
         Rect status = new Rect(PAD, sy, width - 2 * PAD, STATUS_H);
         int r = width - PAD;
         Rect minis = new Rect(r, sy + 1, 0, STATUS_H - 2);
@@ -203,20 +217,18 @@ public final class ActionBarLayout {
             units = new Rect(width - PAD - uw, sy - UNIT - 2, uw, UNIT);
         }
 
-        float scale = Math.min(1f, (guiW - 4) / (float) width);
         int left = (guiW - Math.round(width * scale)) / 2;
-        int top = guiH - Math.round(BAR_H * scale);
         return new Layout(left, top, scale, width, List.copyOf(fields), List.copyOf(studs), status, message, gauge,
                 health, minis, units);
     }
 
     /**
-     * Tor 9b (Simon 09.11.: hearts and hunger "more vanilla"): how far vanilla's hearts, armour, hunger and air go
-     * up so that their bottom row (vanilla: 39 above the bottom, 9 high, shaking 1 down) stays 2 px above the
-     * status row.
+     * How far vanilla's hearts, armour, hunger and air go up. Z3 (Simon 12.11.): their bottom row (vanilla: 39 above
+     * the bottom, 9 high, shaking 1 down) sits right on the bar's frame, the status row goes above them, so this is
+     * 0 unless the bar were taller than vanilla's 28 px (until Z3: above the status row, 10).
      */
     public static int vanillaLift(Layout l, int guiH) {
-        return Math.max(0, guiH - 28 - l.screen(l.status()).y());
+        return Math.max(0, guiH - 28 - l.barOnScreen().y());
     }
 
     /**
@@ -225,11 +237,18 @@ public final class ActionBarLayout {
      * right the hunger with the air above. 1 px more at the bottom for the shaking.
      */
     public static List<Rect> vanillaBars(int guiW, int guiH, int lift, float max, float absorb, boolean armor, boolean air) {
+        return vanillaBars(guiW, guiH, lift, max, absorb, armor, air, 0);
+    }
+
+    /** As above; {@code mountHearts} > 0: vanilla draws the mount's hearts (10 a row, upwards) instead of the hunger. */
+    public static List<Rect> vanillaBars(int guiW, int guiH, int lift, float max, float absorb, boolean armor, boolean air,
+                                         int mountHearts) {
         int y = guiH - 39 - lift;
         int rows = Math.max(1, (int) Math.ceil((Math.max(0f, max) + Math.max(0f, absorb)) / 2f / 10f));
         int rowH = Math.max(10 - (rows - 2), 3);
         int leftTop = y - (rows - 1) * rowH - (armor ? 10 : 0) - 2;   // 2: the regeneration wave lifts a heart
-        int rightTop = y - (air ? 10 : 0) - 1;
+        int mountUp = mountHearts > 0 ? (Math.min(30, mountHearts) + 9) / 10 * 10 - 10 : 0;
+        int rightTop = y - mountUp - (air ? 10 : 0) - 1;
         int bottom = y + 10;
         return List.of(new Rect(guiW / 2 - 91, leftTop, 81, bottom - leftTop),
                 new Rect(guiW / 2 + 10, rightTop, 81, bottom - rightTop));
