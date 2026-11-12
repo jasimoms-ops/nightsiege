@@ -1,4 +1,4 @@
-"""Z3 (Simon 12.11.): the hearts in the kit HUD's design - dark iron, gold trim, blood red.
+"""Z3 (Simon 12.11.): the hearts in the kit HUD's design - pale gold rim, dark inside, blood red.
 
 Writes 9x9 sprites for every vanilla heart state to the gui atlas
 (assets/nightsiege/textures/gui/sprites/hud/heart/), KitHud.heartSprite picks them while the kit is worn.
@@ -21,19 +21,21 @@ SHAPE = [
     "...OiO...",
     "....O....",
 ]
-GOLD = 0xC9A55A
-GOLD_DARK = 0x8A6A2C
-IRON = 0x0A0807
-RIM = 0x4A3816
-EMPTY = 0x1D1813
-EMPTY_TOP = 0x2A2318
-LIGHT = 0xF4E6C8
+# Chef 12.11. 18:10: empty hearts must read on the night - the rim pale gold, contrast >= 5.7:1 against night sky
+# 0x2B3550 / 0x3C4A6E, ground 0x1E261C and blood moon 0x4A1A1A (WCAG luminance; the old dark iron was 1-2.4:1).
+GOLD = 0xF6E3AE
+GOLD_DARK = 0xE6CF94
+IRON = 0xE6CF94
+RIM = 0xE6CF94
+EMPTY = 0x2A2118
+EMPTY_TOP = 0x382C1E
+LIGHT = 0xFFFFFF
 
 # highlight, middle, shade
 FILLS = {
-    "normal": (0xE5484A, 0xA8161C, 0x5E0A0E),
+    "normal": (0xFF7070, 0xD7262C, 0x8E1218),   # 3.2:1 against the empty inside
     "poisoned": (0xA6C44A, 0x5F7D18, 0x2E3F0A),
-    "withered": (0x6A625A, 0x34302C, 0x141210),
+    "withered": (0x8A8178, 0x4E4842, 0x24201C),
     "absorbing": (0xF4DC8E, 0xC9A55A, 0x7A5A22),
     "frozen": (0xD2EEFF, 0x6E9ED0, 0x2E5480),
     "vehicle": (0xEAB060, 0xB0702A, 0x5E3A14),

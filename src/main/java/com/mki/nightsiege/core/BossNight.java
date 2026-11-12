@@ -109,6 +109,14 @@ public final class BossNight {
         return tonight <= 0 ? 0 : Math.max(tonight, full);
     }
 
+    /**
+     * Vorwelle: tonight's machines of a camp ({@code full}) cut by the pre-wave factor, never below 1 when the camp
+     * had any (1 × 0.4 rounds to 0: the camp would be lost when the night is broken off).
+     */
+    public static int preWaveMachines(int full, double pre) {
+        return full <= 0 ? 0 : Math.max(1, (int) Math.round(full * pre));
+    }
+
     /** False once the boss of a boss night has come: no more waves, machines or camp reinforcements. */
     public static boolean reinforcements(boolean bossNight, boolean bossCame) {
         return !(bossNight && bossCame);

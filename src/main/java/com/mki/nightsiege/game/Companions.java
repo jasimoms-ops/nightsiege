@@ -433,6 +433,21 @@ public final class Companions {
         LAST_HIT.clear();
     }
 
+    /**
+     * A player left the server: his rows, grey rows, remembered hit and guard go. A running Hüterruf pause stays
+     * until the night's reset, like the other abilities' pauses (no fresh call by logging out and in).
+     */
+    public static void forgetPlayer(UUID player, long now) {
+        PETS_SENT.remove(player);
+        FALLEN.remove(player);
+        LAST_HIT.remove(player);
+        GUARDED_UNTIL.remove(player);
+        Long ready = GUARD_READY.get(player);
+        if (ready != null && ready <= now) {
+            GUARD_READY.remove(player);
+        }
+    }
+
     /** Hüterruf's box on the ability bar, with its pause. */
     public static com.mki.nightsiege.core.UltState.Slot guardCallSlot(ServerPlayer player, long now) {
         com.mki.nightsiege.core.UltState.Slot slot = new com.mki.nightsiege.core.UltState.Slot();
@@ -448,7 +463,7 @@ public final class Companions {
     /**
      * Hüterruf on its key: the shock wave (monsters back and slowed, bosses and guards only slowed), the damage cut,
      * the far companions back beside him, and all of them on the monster that hit him last. No damage at all.
-     * False when it did not fire (not his, not in a fight, in its pause).
+     * False when it did not fire (not his subclass, in its pause).
      */
     public boolean guardCall(ServerPlayer player) {
         PlayerSkills skills = skillsFor.apply(player);
