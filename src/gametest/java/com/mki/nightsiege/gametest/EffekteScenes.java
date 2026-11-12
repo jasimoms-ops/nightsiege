@@ -33,6 +33,8 @@ final class EffekteScenes {
     private static final String HUSK = "ns_fx_husk";
     private static final double[] HOME = new double[3];
     private static int checks;
+    /** Looking a little down: the crosshair meets the near husk at 2.5 blocks (melee and execute reach). */
+    private static final float PITCH = 10.0f;
     private static final List<String> FAILS = new ArrayList<>();
 
     private EffekteScenes() {
@@ -96,6 +98,39 @@ final class EffekteScenes {
         player.resetFallDistance();
     }
 
+    /** Husks at 20 % life (the execution needs under 25-35 %), the player a little hurt (heals need a wound). */
+    private static void weaken(net.minecraft.server.level.ServerPlayer player) {
+        for (Mob h : ((ServerLevel) player.level()).getEntitiesOfClass(Mob.class, player.getBoundingBox().inflate(20),
+                e -> e.entityTags().contains(HUSK))) {
+            h.setHealth(h.getMaxHealth() * 0.2f);
+        }
+        player.setHealth(player.getMaxHealth() * 0.6f);
+    }
+
+    /**
+     * Presses a key from home with every pause and resource ready, the husks weak; up to three tries
+     * (a target can be out of the crosshair for a tick). True when its effect message went out.
+     */
+    private static boolean fire(ClientGameTestContext context, String step, String press, int kind) {
+        for (int attempt = 0; attempt < 3; attempt++) {
+            final int sentBefore = AbilityFx.sentForTests(kind);
+            context.getInput().lookAt(-90.0f, PITCH);
+            context.waitTicks(1);
+            server(context, step, (player, m) -> {
+                home(player);
+                KlassencheckScenes.ready(player, m);
+                weaken(player);
+                m.onCoreAction(player, press);
+            });
+            context.waitTicks(2);   // server(...) only queues the step
+            if (AbilityFx.sentForTests(kind) > sentBefore) {
+                return true;
+            }
+            context.waitTicks(10);
+        }
+        return false;
+    }
+
     private static void shot(ClientGameTestContext context, String name) {
         context.getInput().setCursorPos(1, 1);   // lessons 12.11.: the cursor in an empty corner
         context.takeScreenshot(name);
@@ -110,8 +145,16 @@ final class EffekteScenes {
         game.getServer().runCommand("gamemode survival @p");
         game.getServer().runCommand("effect give @p minecraft:resistance 1200 4 true");
         game.getServer().runCommand("kill @e[tag=" + HUSK + "]");
-        context.runOnClient(client -> client.options.setCameraType(CameraType.THIRD_PERSON_BACK));
-        context.getInput().lookAt(-90.0f, 25.0f);
+        // pictures: third person from behind, a wide lens, no chat (CI 5ca7535db: the chat covered the middle)
+        final Object[] before = new Object[2];
+        context.runOnClient(client -> {
+            before[0] = client.options.chatVisibility().get();
+            before[1] = client.options.fov().get();
+            client.options.chatVisibility().set(net.minecraft.world.entity.player.ChatVisiblity.HIDDEN);
+            client.options.fov().set(100);
+            client.options.setCameraType(CameraType.THIRD_PERSON_BACK);
+        });
+        context.getInput().lookAt(-90.0f, PITCH);
         context.waitTicks(10);
         final int[] saved = new int[2];
         final boolean[] refill = new boolean[1];
@@ -156,8 +199,10 @@ final class EffekteScenes {
             server(context, sub + " home", (player, m) -> home(player));
             context.waitTicks(3);
             String husk = "summon minecraft:husk %s %s %s {NoAI:1b,PersistenceRequired:1b,Tags:[\"nightsiege\",\"" + HUSK + "\"]}";
-            for (double side : new double[]{0, 1.5, -1.5}) {
-                game.getServer().runCommand(String.format(java.util.Locale.ROOT, husk, HOME[0] + 4.0, HOME[1], HOME[2] + side));
+            // one husk in melee reach straight ahead, two 7 blocks out (rings and casts at range)
+            double[][] spots = {{2.5, 0}, {7.0, 1.5}, {7.0, -1.5}};
+            for (double[] at : spots) {
+                game.getServer().runCommand(String.format(java.util.Locale.ROOT, husk, HOME[0] + at[0], HOME[1], HOME[2] + at[1]));
             }
             context.waitTicks(5);
             final String[] press = new String[1];
@@ -165,8 +210,8 @@ final class EffekteScenes {
                 for (Mob h : ((ServerLevel) player.level()).getEntitiesOfClass(Mob.class, player.getBoundingBox().inflate(20),
                         e -> e.entityTags().contains(HUSK))) {
                     h.getAttribute(Attributes.MAX_HEALTH).setBaseValue(1000.0);
-                    h.setHealth(1000f);
                 }
+                weaken(player);
                 PlayerSkills own = m.save().skillsOf(player.getUUID().toString());
                 own.unlockClass(info.clazz());
                 own.switchTo(info.clazz());
@@ -206,30 +251,26 @@ final class EffekteScenes {
                 context.runOnClient(client -> FxSettings.setFull(full));
                 final int[] drawn = {AbilityFxClient.drawnForTests()};
                 final int boostBefore = AbilityFxClient.boostedForTests();
-                server(context, sub + " ability " + when, (player, m) -> {
-                    home(player);
-                    KlassencheckScenes.ready(player, m);
-                    m.onCoreAction(player, press[0]);
-                });
-                context.waitTicks(5);
-                shot(context, "effekte_" + sub + "_faehigkeit_" + when);
+                // the ability: the same moment in both looks, 4 ticks after it went off; no picture when it did not
+                boolean castFired = fire(context, sub + " ability " + when, press[0], CoreNetworking.FxPayload.CAST);
+                if (castFired) {
+                    context.waitTicks(4);
+                    shot(context, "effekte_" + sub + "_faehigkeit_" + when);
+                }
+                check(castFired, sub + " " + when + ": the ability (" + press[0] + ") went off");
                 context.waitTicks(15);
                 final int castDrawn = AbilityFxClient.drawnForTests() - drawn[0];
                 drawn[0] = AbilityFxClient.drawnForTests();
-                final int ultsBefore = AbilityFx.sentForTests(CoreNetworking.FxPayload.ULT);
-                server(context, sub + " ult " + when, (player, m) -> {
-                    home(player);
-                    KlassencheckScenes.ready(player, m);
-                    m.onCoreAction(player, "ult");
-                });
-                context.waitTicks(3);
+                boolean ultFired = fire(context, sub + " ult " + when, "ult", CoreNetworking.FxPayload.ULT);
                 boolean shaking = AbilityFxClient.shakingForTests();
-                context.waitTicks(3);
-                shot(context, "effekte_" + sub + "_ult_" + when);
+                if (ultFired) {
+                    context.waitTicks(4);
+                    shot(context, "effekte_" + sub + "_ult_" + when);
+                }
+                check(ultFired, sub + " " + when + ": the ultimate went off");
                 context.waitTicks(30);
                 int ultDrawn = AbilityFxClient.drawnForTests() - drawn[0];
-                boolean ultFired = AbilityFx.sentForTests(CoreNetworking.FxPayload.ULT) > ultsBefore;
-                log(sub + " " + when + ": ability particles=" + castDrawn + " ult fired=" + ultFired
+                log(sub + " " + when + ": ability fired=" + castFired + " particles=" + castDrawn + " ult fired=" + ultFired
                         + " ult particles=" + ultDrawn + " shake=" + shaking);
                 if (full) {
                     check(!ultFired || ultDrawn > 0, sub + ": full ultimate draws particles");
@@ -246,13 +287,14 @@ final class EffekteScenes {
         context.runOnClient(client -> {
             FxSettings.setFull(true);
             client.options.setCameraType(CameraType.FIRST_PERSON);
+            client.options.chatVisibility().set((net.minecraft.world.entity.player.ChatVisiblity) before[0]);
+            client.options.fov().set((Integer) before[1]);
         });
         game.getServer().runCommand("kill @e[tag=" + HUSK + "]");
         int hits = AbilityFxClient.receivedForTests(CoreNetworking.FxPayload.HITS) - hitsBefore;
         log("ultimates fired (full)=" + ultsFull + " shakes=" + shakes + " hit messages=" + hits
                 + " rings=" + AbilityFx.sentForTests(CoreNetworking.FxPayload.RING) + " old particles bigger=" + AbilityFxClient.boostedForTests());
         check(AbilityFxClient.boostedForTests() > 0, "the abilities' own particles came bigger with full effects");
-        check(ultsFull >= 15, "at least 15 of 20 ultimates fired with full effects (" + ultsFull + ")");
         check(shakes == ultsFull, "every own ultimate shook the camera (" + shakes + "/" + ultsFull + ")");
         check(hits > 0, "ability hits flashed (" + hits + ")");
         check(AbilityFx.sentForTests(CoreNetworking.FxPayload.RING) > 0, "area abilities drew their ring");
