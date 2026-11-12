@@ -221,6 +221,10 @@ public class EventLookTest implements FabricClientGameTest {
                     alive(context);
                     BossleistenScenes.run(context, game);   // Tor 2.3: compact boss bars, four bosses before/after (08.11.)
                 }
+                if (want.contains("steckbriefe")) {
+                    alive(context);
+                    SteckbriefeScenes.run(context, game);   // Paket 11.11.: readable wanted posters, GUI 2 and 3, en/de (12.11.)
+                }
                 if (want.contains("steuerung")) {
                     alive(context);
                     SteuerungScenes.run(context, game);   // Tor 3.1: Nur Tasten, Q/F/Y und X (08.11.)
