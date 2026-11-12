@@ -2664,7 +2664,7 @@ public final class SiegeManager {
                     config.bossPreWaveFactor);
             machinesFull = carried > 0 ? carried
                     : com.mki.nightsiege.core.SiegeMachineKind.campCount(siegeLevel, config.machinesCampFactor, config.machinesMax);
-            machines.plan(siegeLevel, (int) Math.round(machinesFull * pre), carried > 0 ? "abgebrochene Nacht" : "Heerlager");
+            machines.plan(siegeLevel, com.mki.nightsiege.core.BossNight.preWaveMachines(machinesFull, pre), carried > 0 ? "abgebrochene Nacht" : "Heerlager");
         } else if (config.machinesEnabled && (!testRun || playtest.running() || testRandomMachines != null)
                 && tonightBoss == null && tonightWarden == null && !finaleNight && !lateNight && !warRound && !bastionRound
                 && kind == com.mki.nightsiege.core.BossPlan.NightKind.NORMAL) {

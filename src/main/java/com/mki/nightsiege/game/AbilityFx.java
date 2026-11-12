@@ -179,4 +179,10 @@ public final class AbilityFx {
         CAST.clear();
         melee = 0;
     }
+
+    /** A player left the server: his last cast and area go. */
+    public static void forget(java.util.UUID player) {
+        AREA.remove(player);
+        CAST.remove(player);
+    }
 }

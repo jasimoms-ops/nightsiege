@@ -186,4 +186,15 @@ class BossNightTest {
         assertEquals(4, BossNight.machinesCarried(4, 0));   // random machines (no camp): as before
         assertEquals(0, BossNight.machinesCarried(0, 6));   // gone with the boss's arrival: 0 as before
     }
+
+    @Test
+    void oneCampMachineIsNeverLost() {
+        // 1 × 0.4 rounds to 0: tonight still 1, and a broken-off night carries the camp's 1 on.
+        int tonight = BossNight.preWaveMachines(1, BossNight.preWaveFactor(true, false, 0.4));
+        assertEquals(1, tonight);
+        assertEquals(1, BossNight.machinesCarried(tonight, 1));
+        assertEquals(2, BossNight.preWaveMachines(4, 0.5));
+        assertEquals(1, BossNight.preWaveMachines(2, 0.2));
+        assertEquals(0, BossNight.preWaveMachines(0, 0.5));   // no camp: none
+    }
 }

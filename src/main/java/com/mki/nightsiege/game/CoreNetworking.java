@@ -209,6 +209,10 @@ public final class CoreNetworking {
                             SiegeManager.get().onCoreAction(context.player(), payload.action()));
                 });
         net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents.DISCONNECT.register(
-                (handler, server) -> BUCKETS.remove(handler.player.getUUID()));
+                (handler, server) -> {
+                    BUCKETS.remove(handler.player.getUUID());
+                    Companions.forgetPlayer(handler.player.getUUID(), server.overworld().getGameTime());   // Paket 11.11.: no leftovers
+                    AbilityFx.forget(handler.player.getUUID());
+                });
     }
 }
