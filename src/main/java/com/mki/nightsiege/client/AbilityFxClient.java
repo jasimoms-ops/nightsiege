@@ -64,6 +64,16 @@ public final class AbilityFxClient {
     /** From one's own eyes: old smoke, clouds and poofs this big, explosions this big (one instead of the huge eight). */
     private static final float OWN_SMOKE = 0.6f;
     private static final float OWN_BLAST = 0.3f;
+    /**
+     * Prüfer 12.11. (F5: walls of clouds, alchemist ~40 %, shield ~25 %): seen from outside (F5, other players) old smoke,
+     * clouds and poofs half as many and this big, every left out one a small glowing dot in the class colour instead.
+     */
+    private static final float FAR_SMOKE = 0.8f;
+    private static final float FAR_BLAST = 0.5f;
+    /** A packet this full is a cloud over an area (toxic cloud: 150): it gets no extra particles and grows at most ×1.25. */
+    private static final int MASS = 60;
+    /** From one's own eyes the ult's column stands this far ahead (above the head it was out of sight). */
+    private static final double OWN_COLUMN_AHEAD = 6.0;
     /** The coloured edge of the screen on every own key: a sign that covers nothing (ticks). */
     private static final int EDGE_TICKS = 12;
 
@@ -77,6 +87,8 @@ public final class AbilityFxClient {
     /** Between OPEN and CLOSE: the source whose key runs, its place; -1 for none. */
     private static int openSource = -1;
     private static Vec3 openAt;
+    private static int openColor;
+    private static int openAccent;
     private static int boosted;
     private static int drawn;
     private static int shake;
@@ -103,6 +115,8 @@ public final class AbilityFxClient {
         if (p.kind() == CoreNetworking.FxPayload.OPEN || p.kind() == CoreNetworking.FxPayload.CLOSE) {
             openSource = p.kind() == CoreNetworking.FxPayload.OPEN ? p.source() : -1;
             openAt = p.pos();
+            openColor = p.color();
+            openAccent = p.accent();
             return;
         }
         if (!FxSettings.full()) {
@@ -151,8 +165,18 @@ public final class AbilityFxClient {
             return;
         }
         // the column of light: three pulses; seen from one's own eyes it starts above the head (no wall in the face)
+        // Prüfer 12.11. (shield fighter's charge: nothing new from one's own eyes): there a thin column stands ahead
+        Vec3 ahead = at;
+        if (own && src != null) {
+            Vec3 look = src.getLookAngle();
+            Vec3 flat = new Vec3(look.x, 0, look.z);
+            if (flat.lengthSqr() > 1.0E-4) {
+                ahead = at.add(flat.normalize().scale(OWN_COLUMN_AHEAD));
+            }
+        }
+        final Vec3 columnAt = ahead;
         for (int pulse = 0; pulse < 3; pulse++) {
-            later(pulse * 4L, () -> column(level, p.source(), at, p.accent(), own));
+            later(pulse * 4L, () -> column(level, p.source(), columnAt, p.accent(), own));
         }
         if (!own && take(p.source(), 1) > 0) {
             level.addParticle(ColorParticleOption.create(ParticleTypes.FLASH, 0xFF000000 | p.accent()), true, false,
@@ -165,7 +189,9 @@ public final class AbilityFxClient {
             if (own && r < 3.0) {
                 continue;   // CI 1d981282a: paladin's ult 20 % of the own view - the wave starts beyond arm's length
             }
-            later(t, () -> ring(level, p.source(), at, r, p.color(), p.accent(), DUST, 0.5, false));
+            // own view: around where the caster is now (a charge ran out of its own wave)
+            later(t, () -> ring(level, p.source(), own && src != null && src.isAlive() ? src.position() : at, r,
+                    p.color(), p.accent(), DUST, 0.5, false));
         }
         // its own sound: thunder over a deep beacon chord, loud enough over a fight
         level.playLocalSound(at.x, at.y, at.z, SoundEvents.TRIDENT_THUNDER.value(), SoundSource.PLAYERS, 1.1f, 1.35f, false);
@@ -203,8 +229,9 @@ public final class AbilityFxClient {
 
     private static void column(ClientLevel level, int source, Vec3 at, int accent, boolean own) {
         int n = take(source, 40);
-        DustParticleOptions dust = new DustParticleOptions(accent, Math.min(4.0f, DUST * 1.4f));
-        double from = own ? 3.5 : 0.0;
+        // own view: ahead and thin (OWN) instead of above the head
+        DustParticleOptions dust = new DustParticleOptions(accent, Math.min(4.0f, DUST * 1.4f) * (own ? OWN : 1.0f));
+        double from = 0.0;
         for (int i = 0; i < n; i++) {
             double y = at.y + from + i * 0.35;
             add(level, i % 2 == 0 ? dust : ParticleTypes.END_ROD, at.x, y, at.z, 0, 0.02, 0);
@@ -243,6 +270,10 @@ public final class AbilityFxClient {
     private static void hits(ClientLevel level, CoreNetworking.FxPayload p) {
         boolean own = ownView(p.source());
         Vec3 eye = Minecraft.getInstance().gameRenderer.mainCamera().position();
+        if (p.accent() == com.mki.nightsiege.core.FxColors.accent(com.mki.nightsiege.core.SkillClass.ENGINEER,
+                com.mki.nightsiege.core.SkillTree.SUB_ELECTRICIAN)) {
+            chain(level, p, eye, own);
+        }
         DustParticleOptions dust = new DustParticleOptions(p.color(), own ? DUST * 0.7f : DUST);
         DustParticleOptions acc = new DustParticleOptions(p.accent(), DUST * 0.7f);
         for (int id : p.ids()) {
@@ -260,6 +291,37 @@ public final class AbilityFxClient {
                 }
                 add(level, i % 3 == 0 ? ParticleTypes.ELECTRIC_SPARK : i % 3 == 1 ? acc : dust, e.getX(), y, e.getZ(), 0, 0.01, 0);
             }
+        }
+    }
+
+    /**
+     * Prüfer 12.11. (electrician's chain hardly seen from one's own eyes): a chain of sparks from the caster's chest
+     * from target to target, in the order they were struck; nothing nearer than {@link #OWN_CLEAR_NEW} to one's eyes.
+     */
+    private static void chain(ClientLevel level, CoreNetworking.FxPayload p, Vec3 eye, boolean own) {
+        Entity src = level.getEntity(p.source());
+        Vec3 from = src != null ? src.position().add(0, src.getBbHeight() * 0.7, 0) : p.pos().add(0, 1.2, 0);
+        DustParticleOptions acc = new DustParticleOptions(p.accent(), DUST * (own ? 0.6f : 0.8f));
+        for (int id : p.ids()) {
+            Entity e = level.getEntity(id);
+            if (!(e instanceof LivingEntity)) {
+                continue;
+            }
+            Vec3 to = e.position().add(0, e.getBbHeight() * 0.6, 0);
+            double len = from.distanceTo(to);
+            int n = take(p.source(), (int) Math.min(48, Math.ceil(len / 0.3)));
+            RandomSource rnd = level.getRandom();
+            for (int i = 0; i < n; i++) {
+                double f = (i + 0.5) / n;
+                double x = from.x + (to.x - from.x) * f + (rnd.nextDouble() - 0.5) * 0.25;
+                double y = from.y + (to.y - from.y) * f + (rnd.nextDouble() - 0.5) * 0.25;
+                double z = from.z + (to.z - from.z) * f + (rnd.nextDouble() - 0.5) * 0.25;
+                if (own && eye.distanceToSqr(x, y, z) < OWN_CLEAR_NEW * OWN_CLEAR_NEW) {
+                    continue;
+                }
+                add(level, i % 2 == 0 ? ParticleTypes.ELECTRIC_SPARK : acc, x, y, z, 0, 0, 0);
+            }
+            from = to;
         }
     }
 
@@ -315,25 +377,27 @@ public final class AbilityFxClient {
         Vec3 eye = mc.gameRenderer.mainCamera().position();
         RandomSource rnd = mc.level.getRandom();
         boolean bright = bright(p.getParticle());
-        if (!bright && ownView(openSource)) {
+        if (!bright) {
             // Chef 12.11. 20:10: from one's own eyes the old smoke, clouds and explosions may become smaller and fewer
-            // (CI 6a2f3ae4d: the bombardment's eight huge blasts per hit covered half of the own view already before)
-            ownDim(mc, p, eye, rnd);
+            // (CI 6a2f3ae4d: the bombardment's eight huge blasts per hit covered half of the own view already before);
+            // Prüfer 12.11.: in F5 and for other players too (walls of clouds), glowing dots instead
+            ownDim(mc, p, eye, rnd, ownView(openSource));
             return true;
         }
         int count = p.getCount();
+        boolean mass = count >= MASS;
         float speed = p.getMaxSpeed();
         if (count == 0) {
-            spawnBig(mc, p, eye, bright, 0, p.getX(), p.getY(), p.getZ(), speed * p.getXDist(), speed * p.getYDist(), speed * p.getZDist());
+            spawnBig(mc, p, eye, bright, false, 0, p.getX(), p.getY(), p.getZ(), speed * p.getXDist(), speed * p.getYDist(), speed * p.getZDist());
             return true;
         }
-        double more = (bright && !ownView(openSource) ? FxBudget.COUNT : FxBudget.DIM) - 1.0;
+        double more = mass ? 0.0 : (bright && !ownView(openSource) ? FxBudget.COUNT : FxBudget.DIM) - 1.0;
         int n = count + take(openSource, (int) Math.floor(count * more));
         for (int i = 0; i < n; i++) {
             double x = p.getX() + rnd.nextGaussian() * p.getXDist();
             double y = p.getY() + rnd.nextGaussian() * p.getYDist();
             double z = p.getZ() + rnd.nextGaussian() * p.getZDist();
-            spawnBig(mc, p, eye, bright, i, x, y, z, rnd.nextGaussian() * speed, rnd.nextGaussian() * speed, rnd.nextGaussian() * speed);
+            spawnBig(mc, p, eye, bright, mass, i, x, y, z, rnd.nextGaussian() * speed, rnd.nextGaussian() * speed, rnd.nextGaussian() * speed);
         }
         return true;
     }
@@ -357,7 +421,7 @@ public final class AbilityFxClient {
     }
 
     private static void spawnBig(Minecraft mc, net.minecraft.network.protocol.game.ClientboundLevelParticlesPacket p, Vec3 eye,
-                                 boolean bright, int index, double x, double y, double z, double dx, double dy, double dz) {
+                                 boolean bright, boolean mass, int index, double x, double y, double z, double dx, double dy, double dz) {
         double dist2 = eye.distanceToSqr(x, y, z);
         if (!p.isOverrideLimiter() && dist2 > 1024.0) {
             return;   // as Minecraft: unforced particles only within 32 blocks
@@ -372,7 +436,7 @@ public final class AbilityFxClient {
         }
         net.minecraft.client.particle.Particle made = mc.particleEngine.createParticle(p.getParticle(), x, y, z, dx, dy, dz);
         if (made != null) {
-            double size = near ? 1.0 : bright ? (own ? FxBudget.SIZE_OWN : FxBudget.SIZE) : FxBudget.DIM;
+            double size = near ? 1.0 : bright && !mass ? (own ? FxBudget.SIZE_OWN : FxBudget.SIZE) : FxBudget.DIM;
             double life = near ? 1.0 : bright ? FxBudget.LIFE : FxBudget.DIM;
             made.scale((float) size);
             made.setLifetime((int) Math.round(made.getLifetime() * life));
@@ -385,30 +449,52 @@ public final class AbilityFxClient {
      * none nearer than {@link #OWN_CLEAR}; the huge explosion (eight big blasts around) one small blast.
      */
     private static void ownDim(Minecraft mc, net.minecraft.network.protocol.game.ClientboundLevelParticlesPacket p, Vec3 eye,
-                               RandomSource rnd) {
+                               RandomSource rnd, boolean own) {
         ParticleOptions o = p.getParticle();
         boolean force = p.isOverrideLimiter();
+        float blast = own ? OWN_BLAST : FAR_BLAST;
         if (o.getType() == ParticleTypes.EXPLOSION_EMITTER) {
-            spawnOwn(mc, ParticleTypes.EXPLOSION, eye, force, OWN_BLAST, p.getX(), p.getY(), p.getZ(), 0, 0, 0);
+            spawnOwn(mc, ParticleTypes.EXPLOSION, eye, force, blast, own, p.getX(), p.getY(), p.getZ(), 0, 0, 0);
+            if (!own) {
+                glowFor(mc, p.getX(), p.getY(), p.getZ(), 6, 1.2, rnd);
+            }
             return;
         }
-        float size = o.getType() == ParticleTypes.EXPLOSION ? OWN_BLAST : OWN_SMOKE;
+        float size = o.getType() == ParticleTypes.EXPLOSION ? blast : own ? OWN_SMOKE : FAR_SMOKE;
         float speed = p.getMaxSpeed();
         if (p.getCount() == 0) {
-            spawnOwn(mc, o, eye, force, size, p.getX(), p.getY(), p.getZ(), speed * p.getXDist(), speed * p.getYDist(), speed * p.getZDist());
+            spawnOwn(mc, o, eye, force, size, own, p.getX(), p.getY(), p.getZ(), speed * p.getXDist(), speed * p.getYDist(), speed * p.getZDist());
             return;
         }
         int n = Math.max(1, p.getCount() / 2);
         for (int i = 0; i < n; i++) {
-            spawnOwn(mc, o, eye, force, size, p.getX() + rnd.nextGaussian() * p.getXDist(), p.getY() + rnd.nextGaussian() * p.getYDist(),
+            spawnOwn(mc, o, eye, force, size, own, p.getX() + rnd.nextGaussian() * p.getXDist(), p.getY() + rnd.nextGaussian() * p.getYDist(),
                     p.getZ() + rnd.nextGaussian() * p.getZDist(), rnd.nextGaussian() * speed, rnd.nextGaussian() * speed, rnd.nextGaussian() * speed);
+        }
+        if (!own) {   // the left out half: small glowing dots in the class colour (they light, they close nothing)
+            glowFor(mc, p.getX(), p.getY(), p.getZ(), p.getCount() - n, Math.max(0.3, Math.max(p.getXDist(), p.getZDist())), rnd);
         }
     }
 
-    private static void spawnOwn(Minecraft mc, ParticleOptions o, Vec3 eye, boolean force, float size,
+    /** Small glowing dots in the colours of the running key around a spot, instead of smoke (budget of the source). */
+    private static void glowFor(Minecraft mc, double x, double y, double z, int wanted, double spread, RandomSource rnd) {
+        if (mc.level == null || wanted <= 0) {
+            return;
+        }
+        int n = take(openSource, Math.min(24, wanted));
+        DustParticleOptions main = new DustParticleOptions(openColor, DUST * 0.6f);
+        DustParticleOptions acc = new DustParticleOptions(openAccent, DUST * 0.6f);
+        for (int i = 0; i < n; i++) {
+            add(mc.level, i % 3 == 0 ? acc : main, x + rnd.nextGaussian() * spread, y + rnd.nextGaussian() * 0.5,
+                    z + rnd.nextGaussian() * spread, 0, 0.03, 0);
+        }
+    }
+
+    private static void spawnOwn(Minecraft mc, ParticleOptions o, Vec3 eye, boolean force, float size, boolean own,
                                  double x, double y, double z, double dx, double dy, double dz) {
         double dist2 = eye.distanceToSqr(x, y, z);
-        if (!force && dist2 > 1024.0 || dist2 < OWN_CLEAR * OWN_CLEAR) {
+        double clear = own ? OWN_CLEAR : NEAR;
+        if (!force && dist2 > 1024.0 || dist2 < clear * clear) {
             return;
         }
         net.minecraft.client.particle.Particle made = mc.particleEngine.createParticle(o, x, y, z, dx, dy, dz);

@@ -37,6 +37,8 @@ final class EffekteScenes {
     private static final float PITCH = 10.0f;
     /** Chef 12.11. 18:10: effects cover at most ~15 % of the caster's own view. */
     private static final double MAX_COVER = 0.15;
+    /** Chef 12.11. 18:10 (no walls of clouds in F5 either): effects cover at most 20 % of the F5 picture. */
+    private static final double MAX_COVER_F5 = 0.20;
     /** ... and every subclass looks visibly new: at least this share of the picture differs before/after. */
     private static final double MIN_APART = 0.01;
     /** Presses per case for the median. */
@@ -332,6 +334,18 @@ final class EffekteScenes {
             respawn(game);
             context.waitTicks(5);
             final String[] press = new String[1];
+            // Prüfer 12.11.: both subclasses of a way fired the way's first ult (warden "Mass Heal!", soulcatcher
+            // "Army of the Dead!"); the second subclass of a way now shows the way's second ult
+            int earlier = 0;
+            for (SkillTree.SubclassInfo other : SkillTree.SUBCLASSES) {
+                if (other == info) {
+                    break;
+                }
+                if (other.way().equals(info.way())) {
+                    earlier++;
+                }
+            }
+            final int nth = earlier;
             server(context, sub + " setup", (player, m) -> {
                 for (Mob h : ((ServerLevel) player.level()).getEntitiesOfClass(Mob.class, player.getBoundingBox().inflate(20),
                         e -> e.entityTags().contains(HUSK))) {
@@ -347,7 +361,7 @@ final class EffekteScenes {
                 learned.clear();
                 own.setLevel(info.node(), 1);
                 learned.add(info.node());
-                boolean ult = false;
+                int ults = 0;
                 for (SkillNode n : m.skillTree().all()) {
                     if (n.clazz() != info.clazz() || subNodes.contains(n.id())) {
                         continue;
@@ -356,10 +370,10 @@ final class EffekteScenes {
                         continue;
                     }
                     if (n.effect().target() == SkillEffect.Target.ULTIMATE) {
-                        if (ult || !info.way().equals(n.path())) {
+                        if (!info.way().equals(n.path()) || ults++ != nth) {
                             continue;
                         }
-                        ult = true;
+                        log(sub + " ult: " + n.id());
                     }
                     own.setLevel(n.id(), n.maxLevel());
                     learned.add(n.id());
@@ -414,11 +428,17 @@ final class EffekteScenes {
                     log(String.format(java.util.Locale.ROOT, "%s %s %s: Deckung vorher %.1f %%, nachher %.1f %%, Unterschied vorher/nachher %.1f %% (Median aus %d)",
                             sub, view, what, coverOld * 100, cover * 100, apart * 100, REPEAT));
                     COVER.add(String.format(java.util.Locale.ROOT, "%s;%s;%s;%.1f;%.1f;%.1f", sub, view, what, coverOld * 100, cover * 100, apart * 100));
+                    System.out.println(String.format(java.util.Locale.ROOT, "DECKUNG;%s;%s;%s;%.1f;%.1f;%.1f",
+                            sub, view, what, coverOld * 100, cover * 100, apart * 100));
                     // Chef 12.11. 20:10: the full look covers at most 15 % of the own view, everywhere (old smoke, clouds,
                     // explosions and the berserker's vignette come smaller from one's own eyes)
                     if (firstPerson && cover >= 0) {
                         check(cover <= MAX_COVER, sub + " " + what + ": effects cover "
                                 + Math.round(cover * 100) + " % of the own view (max 15 %, old look " + Math.round(coverOld * 100) + " %)");
+                    }
+                    if (!firstPerson && cover >= 0) {
+                        check(cover <= MAX_COVER_F5, sub + " f5 " + what + ": effects cover "
+                                + Math.round(cover * 100) + " % of the F5 picture (max 20 %, old look " + Math.round(coverOld * 100) + " %)");
                     }
                     check(apart >= MIN_APART, sub + " " + view + " " + what + ": before and after differ only "
                             + String.format(java.util.Locale.ROOT, "%.1f", apart * 100) + " % of the picture (min "
