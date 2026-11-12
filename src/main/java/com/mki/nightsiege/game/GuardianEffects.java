@@ -260,6 +260,8 @@ public final class GuardianEffects {
             }
             outside *= WarriorArts.takenFactor(hurt);   // the berserker's Raserei: more damage taken (Simon 05.11.)
             Companions.ownerHurt(hurt, source.getEntity());   // the golem draws the golemsmith's attackers
+            Companions.noteHit(hurt, source.getEntity());   // Hüterruf: the companions go after the last hitter
+            outside *= Companions.guardFactor(hurt);   // Hüterruf: 40 % less for 4 s (Paket 11.11. Z1)
             if (source.is(DamageTypeTags.IS_PROJECTILE)) {
                 if (TrapService.shieldBlocks(hurt)) {
                     return 0f;   // the tower shield (crate gain) takes the shot whole

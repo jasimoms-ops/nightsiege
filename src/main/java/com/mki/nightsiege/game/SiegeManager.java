@@ -7675,6 +7675,9 @@ public final class SiegeManager {
             slot.name = "nightsiege.ability.call";
             out.add(slot);
         }
+        if (engineer == null && com.mki.nightsiege.core.AbilityKeys.keyOf(barSub, com.mki.nightsiege.core.GuardCall.ID) != null) {
+            out.add(Companions.guardCallSlot(player, now));   // Hüterruf of the way of the light (Paket 11.11. Z1)
+        }
         if (own.hasClass() && SkillTree.SUB_HEAVY.equals(skillTree.subclassOf(own))) {
             out.add(0, EngineerEscape.slot(player, now));   // the heavy archer gets the blast jump too (Simon 29.10.)
         }
@@ -7854,6 +7857,8 @@ public final class SiegeManager {
             EngineerEscape.fire(player, traps);   // the engineers' and the heavy archer's blast jump
         } else if (traps.onEngineerSlot(player, id)) {
             // the engineer's escape, the alchemist's potion or acid flask (28 October 2026)
+        } else if (com.mki.nightsiege.core.GuardCall.ID.equals(id)) {
+            companions.guardCall(player);   // Hüterruf (Paket 11.11. Z1)
         } else if ("call".equals(id)) {
             companions.selectKey(player);   // the way of the light: the call
         } else if (companions.spellWheel(player) != null) {

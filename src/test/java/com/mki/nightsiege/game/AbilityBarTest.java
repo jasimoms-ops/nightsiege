@@ -87,6 +87,9 @@ class AbilityBarTest {
             if (extras.contains(AbilityKeys.CALL)) {
                 out.add(AbilityKeys.CALL);
             }
+            if (AbilityKeys.keyOf(sub, com.mki.nightsiege.core.GuardCall.ID) != null) {
+                out.add(com.mki.nightsiege.core.GuardCall.ID);   // Hüterruf (Paket 11.11. Z1)
+            }
         }
         if (SkillTree.SUB_HEAVY.equals(sub)) {
             out.add(0, EngineerEscape.ID);

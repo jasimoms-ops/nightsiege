@@ -285,6 +285,10 @@ public class EventLookTest implements FabricClientGameTest {
                     alive(context);   // a scene before may have left the player dead (05.11.)
                     TechnikerScenes.run(context, game);   // Tor 4b: every engineer key on foot and in the seat
                 }
+                if (want.contains("hueterruf")) {
+                    alive(context);
+                    HueterrufScenes.run(context, game);   // Paket 11.11. Z1: Hüterruf of tamer and golemsmith (12.11.)
+                }
                 if (want.contains("klassencheck")) {
                     alive(context);   // a scene before may have left the player dead (05.11.)
                     KlassencheckScenes.run(context, game);   // Tor 4c.1: all 20 subclasses on 1/5/10/20, every key once
