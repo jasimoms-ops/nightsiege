@@ -100,6 +100,15 @@ public final class BossNight {
         return Math.max(0.2, Math.min(1.0, factor));
     }
 
+    /**
+     * Vorwelle: the machines a broken-off night gives to the next one. Fewer by bossPreWaveFactor tonight
+     * ({@code tonight}) never carry over: the next night gets the full count ({@code full}, 0 = not a camp's).
+     * None tonight (none planned, or gone with the boss's arrival) stays 0 as before.
+     */
+    public static int machinesCarried(int tonight, int full) {
+        return tonight <= 0 ? 0 : Math.max(tonight, full);
+    }
+
     /** False once the boss of a boss night has come: no more waves, machines or camp reinforcements. */
     public static boolean reinforcements(boolean bossNight, boolean bossCame) {
         return !(bossNight && bossCame);

@@ -175,4 +175,15 @@ class BossNightTest {
         c.sanitize();
         assertEquals(1.0, c.bossPreWaveFactor, 1e-9);
     }
+
+    @Test
+    void fewerMachinesNeverCarryOver() {
+        // Vorwelle: a camp's 6 machines, 0.5 tonight = 3; broken off, the next night gets all 6 again.
+        int tonight = (int) Math.round(6 * BossNight.preWaveFactor(true, false, 0.5));
+        assertEquals(3, tonight);
+        assertEquals(6, BossNight.machinesCarried(tonight, 6));
+        assertEquals(6, BossNight.machinesCarried(6, 6));   // factor 1: as before
+        assertEquals(4, BossNight.machinesCarried(4, 0));   // random machines (no camp): as before
+        assertEquals(0, BossNight.machinesCarried(0, 6));   // gone with the boss's arrival: 0 as before
+    }
 }
