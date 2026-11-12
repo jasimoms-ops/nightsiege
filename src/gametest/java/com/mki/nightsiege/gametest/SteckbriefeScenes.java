@@ -68,6 +68,7 @@ final class SteckbriefeScenes {
                 });
                 context.waitTicks(3);
                 showCurseTab(context);
+                context.getInput().setCursorPos(4, 4);   // no tooltip over the posters
                 int posters = markHere(context);
                 check(posters >= 3, lang + " gui " + scale + ": " + posters + " posters in the window (want at least 3)");
                 Path p = context.takeScreenshot("steckbriefe_" + lang + "_gui" + scale);
