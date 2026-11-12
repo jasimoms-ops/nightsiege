@@ -258,8 +258,8 @@ public class SiegeConfig {
     public int contentVersion = 0;
     /** Seconds after the start of a boss night at which the boss and his guard come, the others withdraw (at most half the night; Simon 11.11.). */
     public int bossFinaleSeconds = 180;
-    /** Bossuhr (Vorlauf 11.11., off): once the boss came, no dawn while he stands; the night ends with his fall, the wipe-out or after bossPhaseMaxSeconds (lost). */
-    public boolean bossPhaseHoldsDawn = false;
+    /** Bossuhr (Chef 12.11. 07:50): once the boss came, no dawn while he stands; the night ends with his fall, the wipe-out or after bossPhaseMaxSeconds (lost). */
+    public boolean bossPhaseHoldsDawn = true;
     /** Bossuhr: the longest boss phase in seconds while bossPhaseHoldsDawn holds the dawn (60–1800). */
     public int bossPhaseMaxSeconds = 600;
     // --- boss rhythm (Simon 29 October 2026) ---
@@ -2189,6 +2189,8 @@ public class SiegeConfig {
             damageTarget("shieldfighter", 0.9, 1.08);
             // Chef 12.11.: bossHealthPer (one factor per boss) is a new field, empty = 1.0 for every boss; no value moves.
             // Chef 12.11.: bossHealthPer (one factor per boss) is a new field, empty = 1.0 for every boss; no value moves.
+            // Chef 12.11. 07:50: the Bossuhr is on (no dawn while the boss stands, at most bossPhaseMaxSeconds).
+            bossPhaseHoldsDawn = true;
             settingsVersion = 28;
         }
         if (Double.isNaN(meleeLifesteal)) {

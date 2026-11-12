@@ -100,7 +100,7 @@ class BossNightTest {
     @Test
     void bossClockHoldsTheDawnOnlyWhenSwitchedOn() {
         SiegeConfig c = cfg();
-        assertFalse(c.bossPhaseHoldsDawn);   // off by default: the server stays as it is
+        assertTrue(c.bossPhaseHoldsDawn);   // on by default (Chef 12.11. 07:50)
         assertEquals(600, c.bossPhaseMaxSeconds);
         assertFalse(BossNight.holdsDawn(false, true, false));   // off: dawn ends the night as before
         assertFalse(BossNight.holdsDawn(true, false, false));   // on, before the boss: the normal clock
@@ -112,6 +112,14 @@ class BossNightTest {
         assertEquals(max * 20, BossNight.phaseTicksLeft(0, max));
         assertEquals(20, BossNight.phaseTicksLeft(max * 20 - 20, max));
         assertEquals(0, BossNight.phaseTicksLeft(max * 20 + 5, max));
+        assertEquals("10:00", BossNight.clock(BossNight.phaseTicksLeft(0, max)));   // the bar: m:ss
+        assertEquals("1:00", BossNight.clock(1200));
+        assertEquals("0:09", BossNight.clock(199));
+        assertFalse(BossNight.warnNow(1220));   // the HUD warning at 1:00, for three seconds
+        assertTrue(BossNight.warnNow(1200));
+        assertFalse(BossNight.warnNow(1199));
+        assertTrue(BossNight.warnNow(1160));
+        assertFalse(BossNight.warnNow(1140));
         c.bossPhaseMaxSeconds = 10;
         c.sanitize();
         assertEquals(60, c.bossPhaseMaxSeconds);

@@ -2793,7 +2793,9 @@ public final class SiegeManager {
             return bastion.barTitle(nightKills - bastion.killsFrom, barNow,
                     bastion.step() == Bastion.Step.FIGHT ? com.mki.nightsiege.core.BastionMath.waveSecondsLeft(barNow, bastion.fightSince, config) : -1);
         }
-        Component title = save.specialNight
+        Component title = bossPhaseHolds()   // Bossuhr: the boss phase's time left as m:ss
+                ? Component.translatable("nightsiege.bar.title_bossclock", siegeLevel, com.mki.nightsiege.core.BossNight.clock(clockTicks()))
+                : save.specialNight
                 ? Component.translatable("nightsiege.bar.title_special", siegeLevel, secondsLeft())
                 : Component.translatable("nightsiege.bar.title", siegeLevel, secondsLeft());
         if (Curses.count() > 0) {
@@ -3075,9 +3077,17 @@ public final class SiegeManager {
         if (bossPhaseHolds()) {
             // Bossuhr (Schalter bossPhaseHoldsDawn, 11.11.): no dawn while the boss stands, at most bossPhaseMaxSeconds.
             if (com.mki.nightsiege.core.BossNight.phaseOver(bossPhaseTicks(), config.bossPhaseMaxSeconds)) {
-                broadcast(server, Component.translatable("nightsiege.msg.boss_survived",
+                broadcast(server, Component.translatable("nightsiege.msg.bossclock_over",
                         Component.translatable("nightsiege.boss." + bosses.kind().id())).withStyle(ChatFormatting.DARK_RED));
-                finish(server, false);
+                finish(server, false);   // lost, as by the wipe-out
+            } else if (com.mki.nightsiege.core.BossNight.warnNow(clockTicks())) {
+                for (UUID id : participants) {   // HUD, not chat (Chef 12.11.)
+                    ServerPlayer player = server.getPlayerList().getPlayer(id);
+                    if (player != null) {
+                        player.connection.send(new net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket(
+                                Component.translatable("nightsiege.msg.bossclock_warning").withStyle(ChatFormatting.RED, ChatFormatting.BOLD)));
+                    }
+                }
             }
             return;
         }

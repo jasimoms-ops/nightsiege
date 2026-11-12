@@ -69,6 +69,17 @@ public final class BossNight {
         return Math.max(0, maxSeconds * 20 - phaseTicks);
     }
 
+    /** Bossuhr: the boss phase's time left as m:ss for the bar ("9:59", "1:00"). */
+    public static String clock(int ticksLeft) {
+        int s = Math.max(0, ticksLeft) / 20;
+        return s / 60 + ":" + String.format("%02d", s % 60);
+    }
+
+    /** Bossuhr (Chef 12.11.): the HUD warns at 1:00 left, shown for three seconds (60, 59, 58). */
+    public static boolean warnNow(int ticksLeft) {
+        return ticksLeft % 20 == 0 && ticksLeft <= 60 * 20 && ticksLeft > 57 * 20;
+    }
+
     /** False once the boss of a boss night has come: no more waves, machines or camp reinforcements. */
     public static boolean reinforcements(boolean bossNight, boolean bossCame) {
         return !(bossNight && bossCame);
