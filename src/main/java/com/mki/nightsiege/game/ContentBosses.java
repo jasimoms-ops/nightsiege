@@ -857,6 +857,11 @@ final class ContentBosses {
         @Override
         void tick(BossService.Host host, Mob boss, long now) {
             ServerLevel level = host.world();
+            if (boss instanceof net.minecraft.world.entity.monster.Witch witch && witch.isDrinkingPotion()) {
+                // A vanilla witch drinks healing whenever hurt (5 % a tick); the storm witch is no potion witch (boss sim 11.11.).
+                witch.setUsingItem(false);
+                witch.setItemSlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND, net.minecraft.world.item.ItemStack.EMPTY);
+            }
             Mob mount = service.mount(level);
             if (mount != null) {
                 fly(host, boss, mount, now);

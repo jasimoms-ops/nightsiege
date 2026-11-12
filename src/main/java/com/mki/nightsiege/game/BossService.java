@@ -711,6 +711,15 @@ public final class BossService {
         return entity != null && entity.entityTags().contains(TAG_BOSS);
     }
 
+    /**
+     * True for a monster to fight: a vanilla monster (Enemy) or a boss. The frost jarl is an iron golem
+     * and no Enemy, so towers, traps, abilities, companions and the class bonuses passed him by (boss
+     * sim 11.11.: his life never fell under 97 %).
+     */
+    public static boolean isFoe(Entity entity) {
+        return entity instanceof net.minecraft.world.entity.monster.Enemy || isBoss(entity);
+    }
+
     // ------------------------------------------------------------------ the clients' looks
 
     /** Tells one player which monsters wear a boss look (sent on join and whenever it changes). */

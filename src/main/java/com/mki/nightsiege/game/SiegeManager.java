@@ -3521,7 +3521,8 @@ public final class SiegeManager {
         double life = com.mki.nightsiege.core.BossNight.lifePercent(bosses.spawned(), bosses.fallen(),
                 boss == null ? 0 : boss.getHealth(), boss == null ? 0 : boss.getMaxHealth());
         boolean lich = bosses.kind() == com.mki.nightsiege.core.BossKind.BONE_LICH;
-        boolean flies = boss != null && (boss.isNoGravity() || boss.isPassenger() || !boss.onGround());
+        // Out of reach above the ground (the witch on her landed phantom and the lich sunk down counted as flying, 12.11.).
+        boolean flies = boss != null && boss.getY() - BossService.surface(world, boss.getX(), boss.getZ()) > 2.0;
         stats.bossStep(world.getGameTime(), com.mki.nightsiege.core.BossNight.phase(bosses.spawned()).label(), life, guards,
                 boss != null && bosses.shielded(boss), lich && bosses.spawned() ? bosses.partsOf("crystal").size() : -1, flies);
     }

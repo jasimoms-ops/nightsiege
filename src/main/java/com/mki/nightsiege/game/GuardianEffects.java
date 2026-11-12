@@ -30,7 +30,6 @@ import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
-import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.item.Item;
@@ -235,16 +234,16 @@ public final class GuardianEffects {
         // Night Siege's own monsters only; a vanilla monster in the world (or the Nether) hits and is
         // hit as in vanilla, by day and by night.
         boolean ownAttacker = SiegeManager.isNightSiegeMob(source.getEntity());
-        float monster = tuning != null && victim instanceof ServerPlayer && source.getEntity() instanceof Enemy && !share
+        float monster = tuning != null && victim instanceof ServerPlayer && BossService.isFoe(source.getEntity()) && !share
                 && ownAttacker ? tuning.monsterDamageFactor(source.getEntity()) : 1f;
         if (victim instanceof ServerPlayer hit) {
-            if (source.getEntity() instanceof Enemy) {
+            if (BossService.isFoe(source.getEntity())) {
                 RAW_HIT.put(hit.getUUID(), amount * monster);   // for the logger, before the defender's cuts
             } else {
                 RAW_HIT.remove(hit.getUUID());
             }
         }
-        if (tuning != null && source.getEntity() instanceof ServerPlayer hitter && victim instanceof Enemy
+        if (tuning != null && source.getEntity() instanceof ServerPlayer hitter && BossService.isFoe(victim)
                 && SiegeManager.isNightSiegeMob(victim)
                 && !CombatEffects.inFollowUp()) {   // a follow-up hit already carries the factor
             outside *= tuning.damageFactor(hitter);   // server balancing per class and subclass
@@ -254,7 +253,7 @@ public final class GuardianEffects {
                 outside *= (float) com.mki.nightsiege.core.NightKit.maceTargetFactor(isSpecialFoe(victim));
             }
         }
-        if (tuning != null && victim instanceof ServerPlayer hurt && source.getEntity() instanceof Enemy) {
+        if (tuning != null && victim instanceof ServerPlayer hurt && BossService.isFoe(source.getEntity())) {
             if (ownAttacker) {
                 outside *= tuning.damageTakenFactor(hurt);
                 outside *= TankGuard.damageFactor(hurt);   // a bulwark or shield fighter near (Simon 30.10.)
@@ -273,14 +272,14 @@ public final class GuardianEffects {
                 outside *= tuning.zombieSpiderFactor(hurt);   // zombies and spiders hit the melee classes harder
             }
         }
-        boolean followUp = CombatEffects.inFollowUp() && victim instanceof Enemy;   // its hit already had these
+        boolean followUp = CombatEffects.inFollowUp() && BossService.isFoe(victim);   // its hit already had these
         if (!followUp) {
             factor *= CrateEffects.factor(victim, source);   // crate gains of the night kit
         }
         factor *= Companions.damageFactor(victim, source);   // the summoner's companions
         factor *= Foes.hitFactor(victim, source);   // arrows glance off the iron knight (update 1)
         factor *= Nemesis.hitFactor(victim, source);   // a nemesis's armour, fireproofing and grudge (update 2)
-        if (!followUp && source.getEntity() instanceof ServerPlayer attacker && victim instanceof Enemy
+        if (!followUp && source.getEntity() instanceof ServerPlayer attacker && BossService.isFoe(victim)
                 && SkillTree.has(skillsFor.apply(attacker), "g_saint")) {
             factor *= (float) SkillValues.get("g_saint", "dmg", 0.7);   // the saint heals, but hits softer
         }
@@ -288,7 +287,7 @@ public final class GuardianEffects {
             return heavyCap(victim, source, amount * outside * factor);
         }
         absorbBefore.put(player.getUUID(), player.getAbsorptionAmount());
-        boolean fromMonster = source.getEntity() instanceof Enemy;
+        boolean fromMonster = BossService.isFoe(source.getEntity());
         for (Zone zone : zones) {
             if (zone.kind() == ZoneKind.SANCTUARY && zone.level() == level && inside(zone, player)) {
                 factor *= (float) SkillValues.get("g_sanctuary", "factor", 0.4);
@@ -349,7 +348,7 @@ public final class GuardianEffects {
         if (!isGuardian(skills) || !player.isAlive()) {
             return;
         }
-        LivingEntity attacker = source.getEntity() instanceof LivingEntity living && living instanceof Enemy
+        LivingEntity attacker = source.getEntity() instanceof LivingEntity living && BossService.isFoe(living)
                 ? living : null;
         if (attacker == null) {
             return;
