@@ -150,4 +150,29 @@ class BossNightTest {
         assertEquals(12.5, c.lichCrystalHealth, 1e-9);
         assertEquals(0, c.lichShieldMaxSeconds);
     }
+
+    @Test
+    void preWavesWeakerOnlyInABossNightBeforeTheBoss() {
+        // Vorwelle (Simon 12.11.: "ja dürfen sie"): the waves of a boss night may be weaker until the boss comes.
+        SiegeConfig c = cfg();
+        assertEquals(1.0, c.bossPreWaveFactor, 1e-9);   // standard: as before
+        assertEquals(1.0, BossNight.preWaveFactor(true, false, c.bossPreWaveFactor), 1e-9);
+        c.bossPreWaveFactor = 0.7;
+        c.sanitize();
+        assertEquals(0.7, c.bossPreWaveFactor, 1e-9);
+        assertEquals(0.7, BossNight.preWaveFactor(true, false, c.bossPreWaveFactor), 1e-9);   // boss night, before the boss
+        assertEquals(1.0, BossNight.preWaveFactor(true, true, c.bossPreWaveFactor), 1e-9);    // the boss came
+        assertEquals(1.0, BossNight.preWaveFactor(false, false, c.bossPreWaveFactor), 1e-9);  // normal, Vierer, late, bastion, war
+        assertEquals(1.0, BossNight.preWaveFactor(true, false, Double.NaN), 1e-9);
+        assertEquals(0.2, BossNight.preWaveFactor(true, false, 0.05), 1e-9);   // an unsanitized sim value
+        c.bossPreWaveFactor = 0.05;
+        c.sanitize();
+        assertEquals(0.2, c.bossPreWaveFactor, 1e-9);
+        c.bossPreWaveFactor = 3.0;
+        c.sanitize();
+        assertEquals(1.0, c.bossPreWaveFactor, 1e-9);
+        c.bossPreWaveFactor = Double.NaN;
+        c.sanitize();
+        assertEquals(1.0, c.bossPreWaveFactor, 1e-9);
+    }
 }
