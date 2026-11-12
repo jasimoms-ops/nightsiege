@@ -292,6 +292,8 @@ public final class SiegeManager {
     private int presentDefenders;
     /** The war camp's machines come tonight (given back when the night is broken off). */
     private boolean machinesNight;
+    /** Vorwelle (12.11.): tonight's camp machines before bossPreWaveFactor; a broken-off night gives these back. */
+    private int machinesFull;
     /** Every monster of a night carries it, so one left by a crash goes when its chunk loads. */
     public static final String NIGHT_MOB_TAG = "nightsiege_night";
     /** Vexes and phantoms: high-standing defenders first (Simon, 26 October 2026). */
@@ -2651,17 +2653,15 @@ public final class SiegeManager {
         int carried = testRun ? 0 : save.machinesCount;
         testMachines = false;
         machinesNight = false;
+        machinesFull = 0;
         if (config.machinesEnabled && machinesTonight) {
             machinesNight = true;
             // Vorwelle (Simon 12.11.): a boss night's machines come before the boss, so fewer by bossPreWaveFactor.
             double pre = com.mki.nightsiege.core.BossNight.preWaveFactor(tonightBoss != null && !warRound && !bastionRound, false,
                     config.bossPreWaveFactor);
-            if (carried > 0) {
-                machines.plan(siegeLevel, (int) Math.round(carried * pre), "abgebrochene Nacht");
-            } else {
-                machines.plan(siegeLevel, (int) Math.round(com.mki.nightsiege.core.SiegeMachineKind.campCount(siegeLevel, config.machinesCampFactor,
-                        config.machinesMax) * pre), "Heerlager");
-            }
+            machinesFull = carried > 0 ? carried
+                    : com.mki.nightsiege.core.SiegeMachineKind.campCount(siegeLevel, config.machinesCampFactor, config.machinesMax);
+            machines.plan(siegeLevel, (int) Math.round(machinesFull * pre), carried > 0 ? "abgebrochene Nacht" : "Heerlager");
         } else if (config.machinesEnabled && (!testRun || playtest.running() || testRandomMachines != null)
                 && tonightBoss == null && tonightWarden == null && !finaleNight && !lateNight && !warRound && !bastionRound
                 && kind == com.mki.nightsiege.core.BossPlan.NightKind.NORMAL) {
@@ -5235,7 +5235,7 @@ public final class SiegeManager {
             return;
         }
         boolean machinesWere = machinesNight;
-        int machinesCountWere = machines.tonightCount();
+        int machinesCountWere = com.mki.nightsiege.core.BossNight.machinesCarried(machines.tonightCount(), machinesFull);
         active = false;
         clearSkillsFromParticipants(server);
         SiegeTeams.cleanUp(server);
