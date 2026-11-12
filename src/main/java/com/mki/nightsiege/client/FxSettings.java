@@ -24,7 +24,7 @@ public final class FxSettings {
 
     /** What is stored. */
     public static final class Data {
-        public boolean full = false;   // Chef 12.11. 18:10: "reduziert" (the old look) until the full look passed the review
+        public boolean full = true;    // Chef 12.11. 22:20: "voll" as default after the second review passed (pruefer.md, Runde 2)
         public boolean shake = true;
     }
 
