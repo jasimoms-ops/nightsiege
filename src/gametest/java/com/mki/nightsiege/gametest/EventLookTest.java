@@ -6730,8 +6730,38 @@ public class EventLookTest implements FabricClientGameTest {
         java.util.List<Integer> simLevels = new java.util.ArrayList<>();
         int seconds = 150;
         boolean benchRun = false;
-        for (String token : System.getenv("NIGHTSIEGE_SIM").trim().split("\\s+")) {
-            if (token.matches("\\d+")) {
+        String[] simTokens = System.getenv("NIGHTSIEGE_SIM").trim().split("\\s+");
+        if (java.util.Arrays.asList(simTokens).contains("serverconfig")) {
+            // Paket 11.11.: the server's config (v27, tools/sim/server-config-v27.json) as the config file, read
+            // like /nightsiege reload: the same migration as on the server. Before the other tokens, which change it.
+            java.nio.file.Path from = null;
+            for (java.nio.file.Path dir = java.nio.file.Path.of("").toAbsolutePath(); dir != null && from == null; dir = dir.getParent()) {
+                java.nio.file.Path p = dir.resolve("tools/sim/server-config-v27.json");
+                from = java.nio.file.Files.isRegularFile(p) ? p : null;
+            }
+            final java.nio.file.Path source = from;
+            onServer(context, (player, manager) -> {
+                try {
+                    java.nio.file.Files.copy(source, com.mki.nightsiege.game.Json.configFile("nightsiege.json"),
+                            java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                    manager.reloadKeepingState();
+                    System.out.println("[Night Siege sim] Server-Config " + source + " geladen, settingsVersion "
+                            + manager.config().settingsVersion + ", axe " + manager.config().subclassDamage.get("axe")
+                            + ", shieldfighter " + manager.config().subclassDamage.get("shieldfighter"));
+                } catch (java.io.IOException | RuntimeException e) {
+                    System.out.println("[Night Siege sim] Server-Config FEHLT: " + source + " " + e);
+                }
+            });
+            context.waitTicks(5);
+        }
+        for (String token : simTokens) {
+            if (token.equals("serverconfig")) {
+                continue;
+            } else if (token.matches("fenster=\\d+")) {
+                // Paket 11.11.: seconds per stage of the bench (15 before).
+                com.mki.nightsiege.game.MeleeSim.benchSeconds = Math.max(5, Integer.parseInt(token.substring(8)));
+                System.out.println("[Night Siege sim] Prüfstand-Fenster " + com.mki.nightsiege.game.MeleeSim.benchSeconds + " s");
+            } else if (token.matches("\\d+")) {
                 if (!token.equals("1")) {
                     seconds = Integer.parseInt(token);
                 }

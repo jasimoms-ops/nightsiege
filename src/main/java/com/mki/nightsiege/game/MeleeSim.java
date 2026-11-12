@@ -91,7 +91,7 @@ public final class MeleeSim {
      */
     public record Bench(String subclass, int level, double dpsSingle, double dpsGroup, int killsSingle, int killsGroup,
                         double healPerSecond, double teamHealPerSecond, double maxHealth, double axeRaw, double axeLost,
-                        double zombieRaw, double zombieLost, double dpsSelf, double dpsCompanions) {
+                        double zombieRaw, double zombieLost, double dpsSelf, double dpsCompanions, String split) {
     }
 
     private static List<Run> queue = new ArrayList<>();
@@ -166,8 +166,17 @@ public final class MeleeSim {
     private static String diagOff = "-";
     /** Hits of each kind on the bench's last stage. */
     private static final int BLOWS = 8;
-    /** Seconds per stage of the bench. */
-    private static final int BENCH_SECONDS = 15;
+    /** Seconds per stage of the bench (token "fenster=N" of the sim, Paket 11.11.; 15 before). */
+    public static int benchSeconds = 15;
+    /**
+     * Paket 11.11.: the health the training zombies really lost, split by kind (EIGEN own swings and own
+     * arrows, FAEHIG the bot's other own blows: abilities, the acid flask, TURM towers and drones, FALLE floor
+     * traps, BEGLEITER companions and spells) and by stage (1 target, 6 targets).
+     */
+    private static final int EIGEN = 0, FAEHIG = 1, TURM = 2, FALLE = 3, BEGLEITER = 4;
+    private static final double[][] SPLIT = new double[5][2];
+    /** True while the bot's own swing lands (player.attack). */
+    private static boolean inSwing;
     private static List<Integer> levels = new ArrayList<>();
     private static Phase phase = Phase.DONE;
     private static int index;
@@ -468,7 +477,12 @@ public final class MeleeSim {
                 }
                 float charge = player.getAttackStrengthScale(0.5f);
                 float hpBefore = close.getHealth();
-                player.attack(close);
+                inSwing = true;
+                try {
+                    player.attack(close);
+                } finally {
+                    inSwing = false;
+                }
                 player.swing(InteractionHand.MAIN_HAND, true);
                 if (bench) {
                     diagSwings++;
@@ -626,6 +640,8 @@ public final class MeleeSim {
         TOWERS.clear();
         Inventory inv = player.getInventory();
         int slot = 0;
+        int plate = 0;
+        SkillClass clazz = m.save().skillsOf(player.getUUID().toString()).clazz();
         for (int i = 0; i < inv.getContainerSize(); i++) {
             ItemStack stack = inv.getItem(i);
             com.mki.nightsiege.core.TrapKind kind = ModContent.trapOf(stack);
@@ -633,7 +649,13 @@ public final class MeleeSim {
                 if (m.trapService().placeBlocked(player, kind) != null) {
                     break;
                 }
-                BlockPos pos = ringSpot(level, kind, slot++);
+                // Paket 11.11.: floor traps go under the training zombies' places (they stand still and would never
+                // step on one); towers and the plates beyond the six places as before.
+                BlockPos pos = kind.isFloorPlate() ? plateSpot(level, clazz, plate++) : null;
+                if (pos == null) {
+                    pos = ringSpot(level, kind, slot);
+                }
+                slot++;
                 if (pos == null) {
                     break;
                 }
@@ -648,6 +670,22 @@ public final class MeleeSim {
         }
         System.out.println("[Night Siege sim] Fallen gestellt: " + slot + ", Türme " + TOWERS.size());
     }
+
+    /**
+     * Paket 11.11.: the floor under the n-th place of the training zombies (the single one first): a trap
+     * strikes what stands on top of it, so the plate takes the ground block's place. Null when not free.
+     */
+    private static BlockPos plateSpot(ServerLevel level, SkillClass clazz, int n) {
+        if (!bench || n >= GROUP_PLACES.length) {
+            return null;
+        }
+        BlockPos pos = dummySpot(clazz).offset(GROUP_PLACES[n][0], -1, GROUP_PLACES[n][1]);
+        return level.getBlockState(pos.above()).isAir() && level.getBlockState(pos).is(net.minecraft.world.level.block.Blocks.GRASS_BLOCK)
+                ? pos : null;
+    }
+
+    /** The places of the six training zombies around the single one's spot. */
+    private static final int[][] GROUP_PLACES = {{0, 0}, {0, 1}, {0, -1}, {1, 0}, {1, 1}, {1, -1}};
 
     /** Towers close to the core, floor traps further out where the monsters come. */
     private static BlockPos ringSpot(ServerLevel level, com.mki.nightsiege.core.TrapKind kind, int n) {
@@ -667,10 +705,14 @@ public final class MeleeSim {
     }
 
     private static void clearTraps(ServerLevel level, SiegeManager m, ServerPlayer player) {
-        for (BlockPos pos : BlockPos.betweenClosed(core.offset(-12, 0, -12), core.offset(12, 2, 12))) {
+        for (BlockPos pos : BlockPos.betweenClosed(core.offset(-12, -1, -12), core.offset(14, 2, 12))) {
             if (ModContent.TRAP_BLOCKS.containsValue(level.getBlockState(pos).getBlock())) {
                 m.trapService().onBroken(level, pos.immutable());
-                level.removeBlock(pos, false);
+                if (pos.getY() < core.getY()) {
+                    level.setBlock(pos, net.minecraft.world.level.block.Blocks.GRASS_BLOCK.defaultBlockState(), 3);   // a plate in the floor (Paket 11.11.)
+                } else {
+                    level.removeBlock(pos, false);
+                }
             }
         }
         TOWERS.clear();
@@ -883,6 +925,9 @@ public final class MeleeSim {
             LAST_HP.clear();
             dealtSelf = 0;
             dealtCompanions = 0;
+            for (double[] row : SPLIT) {
+                java.util.Arrays.fill(row, 0.0);
+            }
             SPLIT_HP.clear();
             staffTurn = 0;
             diagSwings = 0;
@@ -916,7 +961,7 @@ public final class MeleeSim {
             aimMortars(m, level, dummySpot(clazz));
             return;
         }
-        if (t == 20L * BENCH_SECONDS) {
+        if (t == 20L * benchSeconds) {
             benchStage = 1;
             clearMonsters(level);
             DUMMIES.clear();
@@ -924,13 +969,13 @@ public final class MeleeSim {
             DUMMY_HEALTH.clear();
             RESPAWN.clear();
             BlockPos c = dummySpot(clazz);
-            for (int[] o : new int[][]{{0, 0}, {0, 1}, {0, -1}, {1, 0}, {1, 1}, {1, -1}}) {
+            for (int[] o : GROUP_PLACES) {
                 dummy(m, level, c.offset(o[0], 0, o[1]), run.level());
             }
             aimMortars(m, level, c.offset(1, 0, 0));
             return;
         }
-        if (t == 40L * BENCH_SECONDS) {
+        if (t == 40L * benchSeconds) {
             tendMate();
             mate = null;
             benchStage = 2;
@@ -1029,7 +1074,7 @@ public final class MeleeSim {
             return;
         }
         // The blows: a vindicator (axe) and a zombie of the level, four each, without a shield up.
-        long k = t - 40L * BENCH_SECONDS;
+        long k = t - 40L * benchSeconds;
         if (k % 10 != 5) {
             if (k > 20L * BLOWS + 20) {
                 record(m, player, run, level);
@@ -1103,10 +1148,10 @@ public final class MeleeSim {
     }
 
     private static void record(SiegeManager m, ServerPlayer player, Run run, ServerLevel level) {
-        Bench b = new Bench(run.sub()[2], run.level(), hpSingle / BENCH_SECONDS, hpGroup / BENCH_SECONDS, killsSingle,
-                killsGroup, healed / (2.0 * BENCH_SECONDS), teamHealed / (2.0 * BENCH_SECONDS), player.getMaxHealth(),
+        Bench b = new Bench(run.sub()[2], run.level(), hpSingle / benchSeconds, hpGroup / benchSeconds, killsSingle,
+                killsGroup, healed / (2.0 * benchSeconds), teamHealed / (2.0 * benchSeconds), player.getMaxHealth(),
                 HITS[0] / BLOWS, HITS[1] / BLOWS, HITS[2] / BLOWS, HITS[3] / BLOWS,
-                dealtSelf / (2.0 * BENCH_SECONDS), dealtCompanions / (2.0 * BENCH_SECONDS));
+                dealtSelf / (2.0 * benchSeconds), dealtCompanions / (2.0 * benchSeconds), splitColumns());
         BENCH.add(b);
         String line = String.format(Locale.ROOT,
                 "[Night Siege sim] Prüfstand Stufe %2d %-13s DPS 1 Ziel %6.1f  6 Ziele %6.1f  Kills %2d/%2d  Heilung %4.2f/s"
@@ -1148,6 +1193,21 @@ public final class MeleeSim {
         index++;
     }
 
+    /** Paket 11.11.: ";fenster;eigen_1;eigen_6;…;ohne_1;ohne_6", damage per second of each kind and stage. */
+    private static String splitColumns() {
+        StringBuilder out = new StringBuilder(";" + benchSeconds);
+        double[] sum = new double[2];
+        for (double[] row : SPLIT) {
+            for (int st = 0; st < 2; st++) {
+                out.append(String.format(Locale.ROOT, ";%.2f", row[st] / benchSeconds));
+                sum[st] += row[st];
+            }
+        }
+        out.append(String.format(Locale.ROOT, ";%.2f;%.2f", Math.max(0.0, hpSingle - sum[0]) / benchSeconds,
+                Math.max(0.0, hpGroup - sum[1]) / benchSeconds));
+        return out.toString();
+    }
+
     /** The bench table: one row per subclass and level. */
     public static List<String> benchReport() {
         List<String> out = new ArrayList<>();
@@ -1156,12 +1216,16 @@ public final class MeleeSim {
                 + " heilung_team = Heilung + neue Barrieren an ihm pro Sekunde");
         out.add("[Night Siege sim] dps_selbst / dps_begleiter: Schaden beider Ziel-Stufen pro Sekunde, eigene Treffer und Geschosse"
                 + " gegen Begleiter und Zauber (Beschwörer: Ziel etwa 50/50)");
-        out.add("[Night Siege sim] BENCH;stufe;unterklasse;dps_1;dps_6;kills_1;kills_6;heilung_s;heilung_team;leben;axt_roh;axt_verlust;zombie_roh;zombie_verlust;dps_selbst;dps_begleiter");
+        out.add("[Night Siege sim] fenster = Sekunden je Ziel-Stufe; eigen = eigene Hiebe und Pfeile, faehig = andere eigene Treffer"
+                + " (Fähigkeiten, Säureflasche), turm = Türme und Drohnen, falle = Bodenfallen, begleiter = Begleiter und Zauber,"
+                + " ohne = ohne Verursacher (Gift, Brand); je pro Sekunde, _1 = 1 Ziel, _6 = 6 Ziele");
+        out.add("[Night Siege sim] BENCH;stufe;unterklasse;dps_1;dps_6;kills_1;kills_6;heilung_s;heilung_team;leben;axt_roh;axt_verlust;zombie_roh;zombie_verlust;dps_selbst;dps_begleiter"
+                + ";fenster;eigen_1;eigen_6;faehig_1;faehig_6;turm_1;turm_6;falle_1;falle_6;begleiter_1;begleiter_6;ohne_1;ohne_6");
         for (Bench b : BENCH) {
             out.add(String.format(Locale.ROOT, "[Night Siege sim] BENCH;%d;%s;%.1f;%.1f;%d;%d;%.2f;%.2f;%.0f;%.1f;%.2f;%.1f;%.2f;%.1f;%.1f",
                     b.level(), b.subclass(), b.dpsSingle(), b.dpsGroup(), b.killsSingle(), b.killsGroup(), b.healPerSecond(),
                     b.teamHealPerSecond(), b.maxHealth(), b.axeRaw(), b.axeLost(), b.zombieRaw(), b.zombieLost(),
-                    b.dpsSelf(), b.dpsCompanions()));
+                    b.dpsSelf(), b.dpsCompanions()) + b.split());
         }
         return out;
     }
@@ -1257,6 +1321,23 @@ public final class MeleeSim {
     // bookkeeping
     // ------------------------------------------------------------------
 
+    /** Paket 11.11.: which of the bot's own blows this is (as the statistics' "turm:" split, plus the swing). */
+    private static int ownKind(Entity bot, DamageSource source) {
+        Entity direct = source.getDirectEntity();
+        if (direct != null && direct != bot) {
+            if (direct.entityTags().contains("nightsiege_turret")) {
+                return TURM;
+            }
+            return direct instanceof net.minecraft.world.entity.projectile.Projectile ? EIGEN : FAEHIG;
+        }
+        String trap = bot instanceof ServerPlayer p ? TrapService.hittingKey(p) : null;
+        if (trap != null) {
+            com.mki.nightsiege.core.TrapKind kind = com.mki.nightsiege.core.TrapKind.byId(trap.replace("_bemannt", ""));
+            return kind != null && kind.isTower() ? TURM : FALLE;
+        }
+        return inSwing ? EIGEN : FAEHIG;
+    }
+
     /** Damage of the bot's side: its own hits, its traps and towers, its companions. */
     public static void onDamage(LivingEntity victim, DamageSource source, float amount) {
         if (!running() || phase != Phase.FIGHT || amount <= 0) {
@@ -1285,8 +1366,10 @@ public final class MeleeSim {
             SPLIT_HP.put(victim.getUUID(), after);
             if (by != null && by.getUUID().equals(playerId) && !Companions.spellHit()) {
                 dealtSelf += real;
+                SPLIT[ownKind(by, source)][benchStage] += real;
             } else if (by != null && (by.getUUID().equals(playerId) || playerId.equals(Companions.ownerOf(by)))) {
                 dealtCompanions += real;
+                SPLIT[BEGLEITER][benchStage] += real;
             }
         }
         if (by != null && (by.getUUID().equals(playerId) || playerId.equals(Companions.ownerOf(by)))) {

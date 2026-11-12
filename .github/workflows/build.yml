@@ -351,6 +351,8 @@ jobs:
             SIMARG=$(printf '%s' "$COMMIT_MSG" | grep -o '\[sim[^]]*\]' | head -1 | sed 's/^\[sim//; s/\]$//')
             export NIGHTSIEGE_SIM="1 $SIMARG"
             CLIENT_TIMEOUT=12000
+            # A longer bench window (fenster=N, Paket 11.11.) needs more time; the job's limit is 360 min.
+            if [[ "$SIMARG" == *"fenster="* ]]; then CLIENT_TIMEOUT=18000; fi
           fi
           # Shortly before the time is up: a thread dump of the game (shows where a hang sits).
           mkdir -p shots
