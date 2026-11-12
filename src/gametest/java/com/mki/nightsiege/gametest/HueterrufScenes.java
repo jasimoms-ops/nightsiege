@@ -176,9 +176,20 @@ final class HueterrufScenes {
             }
             Mob hitter = plain.get(0);
             player.invulnerableTime = 0;
-            float h0 = player.getHealth();
+            // CI 0d47c425b: x1.14 – the kit's absorption ate part of the first hit, and vanilla armour cuts by
+            // the size of a hit; both hits now without armour, absorption and effects, life + absorption counted.
+            for (net.minecraft.world.entity.EquipmentSlot es : new net.minecraft.world.entity.EquipmentSlot[]{
+                    net.minecraft.world.entity.EquipmentSlot.HEAD, net.minecraft.world.entity.EquipmentSlot.CHEST,
+                    net.minecraft.world.entity.EquipmentSlot.LEGS, net.minecraft.world.entity.EquipmentSlot.FEET}) {
+                player.setItemSlot(es, net.minecraft.world.item.ItemStack.EMPTY);
+            }
+            player.removeAllEffects();
+            player.setAbsorptionAmount(0f);
+            player.setHealth(player.getMaxHealth());
+            log("armour " + player.getArmorValue() + ", absorption " + f(player.getAbsorptionAmount()) + ", max " + f(player.getMaxHealth()));
+            float h0 = player.getHealth() + player.getAbsorptionAmount();
             player.hurtServer(level, level.damageSources().mobAttack(hitter), 6f);
-            float lost1 = h0 - player.getHealth();
+            float lost1 = h0 - player.getHealth() - player.getAbsorptionAmount();
             plain.forEach(p -> before.add(p.position()));
             guardAt[0] = guard.get(0).position();
             int slot = m.abilitySlotOf(player, GuardCall.ID);
@@ -199,11 +210,15 @@ final class HueterrufScenes {
             check(d <= 3.5, "the wolf from 20 blocks is beside him (" + f(d) + ")");
             check(wolf[0].getTarget() == hitter, "the wolf goes for the husk that hit him");
             player.invulnerableTime = 0;
-            float h1 = player.getHealth();
+            player.setAbsorptionAmount(0f);
+            player.setHealth(player.getMaxHealth());
+            log("guard factor now " + f(Companions.guardFactor(player)));
+            check(Math.abs(Companions.guardFactor(player) - 0.6f) < 1e-4, "guard factor 0.6 right after the press");
+            float h1 = player.getHealth() + player.getAbsorptionAmount();
             player.hurtServer(level, level.damageSources().mobAttack(hitter), 6f);
-            float lost2 = h1 - player.getHealth();
+            float lost2 = h1 - player.getHealth() - player.getAbsorptionAmount();
             log("hit before " + f(lost1) + ", guarded " + f(lost2));
-            check(lost1 > 0.5f && Math.abs(lost2 / lost1 - 0.6f) < 0.03f, "guarded hit = 60 % (" + f(lost2 / Math.max(0.01f, lost1)) + ")");
+            check(lost1 > 0.5f && Math.abs(lost2 / lost1 - 0.6f) < 0.05f, "guarded hit = 60 % (" + f(lost2 / Math.max(0.01f, lost1)) + ")");
             float h2 = player.getHealth();
             m.onCoreAction(player, "slot:" + slot);   // again at once: it waits
             check(player.getHealth() == h2 && slowTicks(gu) <= gslow, "pressed again at once: nothing (the pause)");
