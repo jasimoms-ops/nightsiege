@@ -3396,6 +3396,26 @@ public final class TrapService {
         hitting = null;
     }
 
+    /**
+     * Test access (scene faktoren): one blow of this player's tower or trap of this kind ("tesla_coil",
+     * "brewer" …) on the victim, with the source the traps' tick uses. Returns the life the victim lost.
+     */
+    public static float trapBlowForTests(ServerLevel level, ServerPlayer owner, String kind, LivingEntity victim, float amount) {
+        TrapRecord record = new TrapRecord();
+        record.kind = kind;
+        record.owner = owner.getUUID().toString();
+        float before = victim.getHealth();
+        victim.invulnerableTime = 0;
+        victim.hurtServer(level, sourceFor(level, record), amount);
+        clearHitting();
+        return before - victim.getHealth();
+    }
+
+    /** Test access (scene faktoren): the acid flask's hit before the damage chain (as in onAcidLanded). */
+    public static double acidHitForTests() {
+        return towerHit(TrapKind.BREWER) * SkillValues.get("e_acid_flask", "dmg", 1.2);
+    }
+
     /** The kind of the trap whose blow this player's damage is ("arrow_turret", "tesla_coil_bemannt" …), or null. */
     static String hittingKey(ServerPlayer owner) {
         TrapRecord record = hitting;
