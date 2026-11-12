@@ -107,12 +107,15 @@ class BossNightTest {
         assertTrue(BossNight.holdsDawn(true, true, false));     // on, boss stands: no dawn
         assertFalse(BossNight.holdsDawn(true, true, true));     // boss fell: the night is won (no hold)
         int max = c.bossPhaseMaxSeconds;
-        assertFalse(BossNight.phaseOver(max * 20 - 1, max));    // the boss phase still runs
-        assertTrue(BossNight.phaseOver(max * 20, max));         // after bossPhaseMaxSeconds: lost
-        assertEquals(max * 20, BossNight.phaseTicksLeft(0, max));
-        assertEquals(20, BossNight.phaseTicksLeft(max * 20 - 20, max));
-        assertEquals(0, BossNight.phaseTicksLeft(max * 20 + 5, max));
-        assertEquals("10:00", BossNight.clock(BossNight.phaseTicksLeft(0, max)));   // the bar: m:ss
+        int limit = BossNight.phaseLimitTicks(420 * 20, max);   // boss at 3:00 of a 10-minute night: 7:00 left
+        assertEquals(max * 20, limit);                           // the clock gives 10:00
+        assertEquals(800 * 20, BossNight.phaseLimitTicks(800 * 20, max));   // never shorter than the normal night
+        assertFalse(BossNight.phaseOver(limit - 1, limit));    // the boss phase still runs
+        assertTrue(BossNight.phaseOver(limit, limit));         // after the limit: lost
+        assertEquals(limit, BossNight.phaseTicksLeft(0, limit));
+        assertEquals(20, BossNight.phaseTicksLeft(limit - 20, limit));
+        assertEquals(0, BossNight.phaseTicksLeft(limit + 5, limit));
+        assertEquals("10:00", BossNight.clock(BossNight.phaseTicksLeft(0, limit)));   // the bar: m:ss
         assertEquals("1:00", BossNight.clock(1200));
         assertEquals("0:09", BossNight.clock(199));
         assertFalse(BossNight.warnNow(1220));   // the HUD warning at 1:00, for three seconds

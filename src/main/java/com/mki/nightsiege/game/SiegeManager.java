@@ -850,7 +850,12 @@ public final class SiegeManager {
 
     /** The clock the defenders see: the night's ticks left, while the boss holds the dawn the boss phase's. */
     private int clockTicks() {
-        return bossPhaseHolds() ? com.mki.nightsiege.core.BossNight.phaseTicksLeft(bossPhaseTicks(), config.bossPhaseMaxSeconds) : ticksLeft;
+        return bossPhaseHolds() ? com.mki.nightsiege.core.BossNight.phaseTicksLeft(bossPhaseTicks(), bossPhaseLimit()) : ticksLeft;
+    }
+
+    /** Bossuhr: the boss phase's limit from the arrival, never shorter than the normal night (Prüfer 12.11.). */
+    private int bossPhaseLimit() {
+        return com.mki.nightsiege.core.BossNight.phaseLimitTicks(totalTicks - bossPhaseFrom, config.bossPhaseMaxSeconds);
     }
 
     // ------------------------------------------------------------------
@@ -3075,8 +3080,8 @@ public final class SiegeManager {
             return;
         }
         if (bossPhaseHolds()) {
-            // Bossuhr (Schalter bossPhaseHoldsDawn, 11.11.): no dawn while the boss stands, at most bossPhaseMaxSeconds.
-            if (com.mki.nightsiege.core.BossNight.phaseOver(bossPhaseTicks(), config.bossPhaseMaxSeconds)) {
+            // Bossuhr (Schalter bossPhaseHoldsDawn, 11.11.): no dawn while the boss stands, at most bossPhaseLimit().
+            if (com.mki.nightsiege.core.BossNight.phaseOver(bossPhaseTicks(), bossPhaseLimit())) {
                 broadcast(server, Component.translatable("nightsiege.msg.bossclock_over",
                         Component.translatable("nightsiege.boss." + bosses.kind().id())).withStyle(ChatFormatting.DARK_RED));
                 finish(server, false);   // lost, as by the wipe-out
@@ -4112,7 +4117,7 @@ public final class SiegeManager {
         if (bossBar == null) {
             return;
         }
-        bossBar.setProgress(bossPhaseHolds() ? Math.min(1.0f, clockTicks() / (config.bossPhaseMaxSeconds * 20f))   // Bossuhr
+        bossBar.setProgress(bossPhaseHolds() ? Math.min(1.0f, clockTicks() / (float) bossPhaseLimit())   // Bossuhr
                 : totalTicks <= 0 ? 0.0f : Math.max(0.0f, (float) ticksLeft / totalTicks));
         if (ticksLeft % 20 == 0) {
             bossBar.setName(bossBarTitle());

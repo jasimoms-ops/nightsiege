@@ -39,7 +39,6 @@ import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.MeleeAttackGoal;
 import net.minecraft.world.entity.animal.camel.CamelHusk;
-import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.monster.zombie.Husk;
 import net.minecraft.world.entity.monster.zombie.Zombie;
 import net.minecraft.world.item.DyeColor;
@@ -1135,7 +1134,7 @@ public final class Foes {
         ServerLevel level = host.world();
         double r = host.config().standardBearerRadius;
         AABB box = bearer.getBoundingBox().inflate(r, 4.0, r);
-        for (Mob other : level.getEntitiesOfClass(Mob.class, box, m -> m != bearer && m.isAlive() && m instanceof Enemy
+        for (Mob other : level.getEntitiesOfClass(Mob.class, box, m -> m != bearer && m.isAlive() && BossService.isFoe(m)
                 && m.entityTags().contains(MobFactory.TAG) && !m.entityTags().contains(TAG_GRAVE)
                 && !Companions.isCompanion(m) && !BossService.isBossOrPart(m))) {
             if (other.distanceToSqr(bearer) > r * r) {

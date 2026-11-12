@@ -2188,7 +2188,6 @@ public class SiegeConfig {
             damageTarget("axe", 1.5, 1.725);
             damageTarget("shieldfighter", 0.9, 1.08);
             // Chef 12.11.: bossHealthPer (one factor per boss) is a new field, empty = 1.0 for every boss; no value moves.
-            // Chef 12.11.: bossHealthPer (one factor per boss) is a new field, empty = 1.0 for every boss; no value moves.
             // Chef 12.11. 07:50: the Bossuhr is on (no dawn while the boss stands, at most bossPhaseMaxSeconds).
             bossPhaseHoldsDawn = true;
             settingsVersion = 28;
