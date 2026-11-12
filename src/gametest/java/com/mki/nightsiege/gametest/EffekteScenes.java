@@ -102,7 +102,12 @@ final class EffekteScenes {
     private static void weaken(net.minecraft.server.level.ServerPlayer player) {
         for (Mob h : ((ServerLevel) player.level()).getEntitiesOfClass(Mob.class, player.getBoundingBox().inflate(20),
                 e -> e.entityTags().contains(HUSK))) {
+            h.getAttribute(Attributes.MAX_HEALTH).setBaseValue(1000.0);
             h.setHealth(h.getMaxHealth() * 0.2f);
+            if (com.mki.nightsiege.game.Companions.get() != null) {
+                // CI b344cb0b6: the army of the dead raises fallen monsters - a corpse per husk (and a soul)
+                com.mki.nightsiege.game.Companions.get().onMonsterDeath(h, false);
+            }
         }
         player.setHealth(player.getMaxHealth() * 0.6f);
     }
@@ -111,9 +116,25 @@ final class EffekteScenes {
      * Presses a key from home with every pause and resource ready, the husks weak; up to three tries
      * (a target can be out of the crosshair for a tick). True when its effect message went out.
      */
-    private static boolean fire(ClientGameTestContext context, String step, String press, int kind) {
+    /**
+     * Fresh husks before every press (CI b344cb0b6: the execution and the berserker's ult killed the near one in
+     * "vorher", so "nachher" found no target): one in melee reach straight ahead, two 7 blocks out.
+     */
+    private static void respawn(TestSingleplayerContext game) {
+        game.getServer().runCommand("tp @e[tag=" + HUSK + "] ~ -200 ~");   // gone from the picture, no death animation
+        game.getServer().runCommand("kill @e[tag=" + HUSK + "]");
+        String husk = "summon minecraft:husk %s %s %s {NoAI:1b,PersistenceRequired:1b,Tags:[\"nightsiege\",\"" + HUSK + "\"]}";
+        double[][] spots = {{2.5, 0}, {7.0, 1.5}, {7.0, -1.5}};
+        for (double[] at : spots) {
+            game.getServer().runCommand(String.format(java.util.Locale.ROOT, husk, HOME[0] + at[0], HOME[1], HOME[2] + at[1]));
+        }
+    }
+
+    private static boolean fire(ClientGameTestContext context, TestSingleplayerContext game, String step, String press, int kind) {
         for (int attempt = 0; attempt < 3; attempt++) {
             final int sentBefore = AbilityFx.sentForTests(kind);
+            respawn(game);
+            context.waitTicks(2);
             context.getInput().lookAt(-90.0f, PITCH);
             context.waitTicks(1);
             server(context, step, (player, m) -> {
@@ -198,12 +219,7 @@ final class EffekteScenes {
             game.getServer().runCommand("kill @e[tag=" + HUSK + "]");
             server(context, sub + " home", (player, m) -> home(player));
             context.waitTicks(3);
-            String husk = "summon minecraft:husk %s %s %s {NoAI:1b,PersistenceRequired:1b,Tags:[\"nightsiege\",\"" + HUSK + "\"]}";
-            // one husk in melee reach straight ahead, two 7 blocks out (rings and casts at range)
-            double[][] spots = {{2.5, 0}, {7.0, 1.5}, {7.0, -1.5}};
-            for (double[] at : spots) {
-                game.getServer().runCommand(String.format(java.util.Locale.ROOT, husk, HOME[0] + at[0], HOME[1], HOME[2] + at[1]));
-            }
+            respawn(game);
             context.waitTicks(5);
             final String[] press = new String[1];
             server(context, sub + " setup", (player, m) -> {
@@ -211,7 +227,6 @@ final class EffekteScenes {
                         e -> e.entityTags().contains(HUSK))) {
                     h.getAttribute(Attributes.MAX_HEALTH).setBaseValue(1000.0);
                 }
-                weaken(player);
                 PlayerSkills own = m.save().skillsOf(player.getUUID().toString());
                 own.unlockClass(info.clazz());
                 own.switchTo(info.clazz());
@@ -252,7 +267,7 @@ final class EffekteScenes {
                 final int[] drawn = {AbilityFxClient.drawnForTests()};
                 final int boostBefore = AbilityFxClient.boostedForTests();
                 // the ability: the same moment in both looks, 4 ticks after it went off; no picture when it did not
-                boolean castFired = fire(context, sub + " ability " + when, press[0], CoreNetworking.FxPayload.CAST);
+                boolean castFired = fire(context, game, sub + " ability " + when, press[0], CoreNetworking.FxPayload.CAST);
                 if (castFired) {
                     context.waitTicks(4);
                     shot(context, "effekte_" + sub + "_faehigkeit_" + when);
@@ -261,7 +276,7 @@ final class EffekteScenes {
                 context.waitTicks(15);
                 final int castDrawn = AbilityFxClient.drawnForTests() - drawn[0];
                 drawn[0] = AbilityFxClient.drawnForTests();
-                boolean ultFired = fire(context, sub + " ult " + when, "ult", CoreNetworking.FxPayload.ULT);
+                boolean ultFired = fire(context, game, sub + " ult " + when, "ult", CoreNetworking.FxPayload.ULT);
                 boolean shaking = AbilityFxClient.shakingForTests();
                 if (ultFired) {
                     context.waitTicks(4);

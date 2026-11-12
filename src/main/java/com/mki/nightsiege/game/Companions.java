@@ -663,8 +663,8 @@ public final class Companions {
             return;
         }
         PlayerSkills skills = summonerSkills(player);
-        if (skills != null) {
-            order(level, player, skills, level.getGameTime(), true);
+        if (skills != null && order(level, player, skills, level.getGameTime(), true)) {
+            AbilityFx.cast(player, false);   // Z4: the order has no pause, so the key counts here when it was given
         }
     }
 
