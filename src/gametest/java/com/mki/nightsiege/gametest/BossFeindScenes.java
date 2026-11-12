@@ -122,6 +122,21 @@ final class BossFeindScenes {
                     if (boss != null) {
                         before[0] = Math.hypot(boss.getX() - (cx + 0.5), boss.getZ() - (cz + 0.5));
                     }
+                    // Chef 12.11. 09:50: every crystal at most 24 blocks from the core, on standable ground (no roof, not in blocks).
+                    int crystals = 0;
+                    for (java.util.UUID part : manager.bosses().partHitboxes()) {
+                        if (level.getEntity(part) instanceof net.minecraft.world.entity.LivingEntity crystal) {
+                            crystals++;
+                            BlockPos at = crystal.blockPosition();
+                            double far = Math.hypot(crystal.getX() - (cx + 0.5), crystal.getZ() - (cz + 0.5));
+                            boolean standable = !level.getBlockState(at.below()).getCollisionShape(level, at.below()).isEmpty()
+                                    && level.getBlockState(at).getCollisionShape(level, at).isEmpty()
+                                    && level.getBlockState(at.above()).getCollisionShape(level, at.above()).isEmpty();
+                            check(far <= 24.5 && standable, String.format(java.util.Locale.ROOT,
+                                    "bone_lich Kristall %d: %.1f Bloecke vom Kern, begehbarer Boden=%s", crystals, far, standable));
+                        }
+                    }
+                    check(crystals == 3, "bone_lich hat 3 Kristalle (" + crystals + ")");
                     for (java.util.UUID part : manager.bosses().partHitboxes()) {
                         if (level.getEntity(part) instanceof net.minecraft.world.entity.LivingEntity crystal) {
                             crystal.invulnerableTime = 0;

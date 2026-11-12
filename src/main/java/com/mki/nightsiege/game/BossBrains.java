@@ -972,8 +972,8 @@ final class BossBrains {
             double cz = a.getZ() + 0.5;
             double ang = Math.atan2(boss.getZ() - cz, boss.getX() - cx);
             double edge = host.baseEdge(boss.getX(), boss.getZ());
-            double radius = Math.min(Math.hypot(boss.getX() - cx, boss.getZ() - cz), edge > 0 ? Math.max(3.0, edge - 3.0) : 7.0);
-            BlockPos spot = BossService.groundNear(level, cx + Math.cos(ang) * radius, a.getY() + 1, cz + Math.sin(ang) * radius);
+            double radius = Math.min(Math.hypot(boss.getX() - cx, boss.getZ() - cz), com.mki.nightsiege.core.LichCrystals.radius(edge));
+            BlockPos spot = crystalGround(level, cx + Math.cos(ang) * radius, a.getY() + 1, cz + Math.sin(ang) * radius);
             restAt = spot == null ? null : new Vec3(spot.getX() + 0.5, spot.getY(), spot.getZ() + 0.5);
             BossService.sound(level, boss.position(), SoundEvents.SKELETON_HURT, 1.8f, 0.5f);
             tell(host, "nightsiege.boss.bone_lich.exhausted", ChatFormatting.GOLD);
@@ -1019,6 +1019,24 @@ final class BossBrains {
             soulArrows.clear();
         }
 
+        /**
+         * Standable ground for a crystal (or his rest) near the core's level: solid below, two free blocks, no water;
+         * the floor before a roof (Chef 12.11.; {@link BossService#groundNear} looks from the top down).
+         */
+        static BlockPos crystalGround(ServerLevel level, double x, double y, double z) {
+            BlockPos base = BlockPos.containing(x, y, z);
+            int dy = com.mki.nightsiege.core.LichCrystals.pick(d -> standable(level, base.above(d)));
+            return dy == com.mki.nightsiege.core.LichCrystals.NONE ? null : base.above(dy);
+        }
+
+        /** Solid below, the block and the one above free of collision, no fluid (a player can stand there). */
+        static boolean standable(ServerLevel level, BlockPos p) {
+            return !level.getBlockState(p.below()).getCollisionShape(level, p.below()).isEmpty()
+                    && level.getBlockState(p).getCollisionShape(level, p).isEmpty()
+                    && level.getBlockState(p.above()).getCollisionShape(level, p.above()).isEmpty()
+                    && level.getFluidState(p).isEmpty();
+        }
+
         /** Three soul crystals within the walls hold the shield up. */
         private void raiseShield(BossService.Host host, long now) {
             ServerLevel level = host.world();
@@ -1032,10 +1050,10 @@ final class BossBrains {
                 double far = cx + Math.cos(ang) * 20;
                 double farZ = cz + Math.sin(ang) * 20;
                 double edge = host.baseEdge(far, farZ);
-                double radius = edge > 0 ? Math.max(3.0, edge - 3.0) : 7.0;
-                BlockPos spot = BossService.groundNear(level, cx + Math.cos(ang) * radius, a.getY() + 1, cz + Math.sin(ang) * radius);
+                double radius = com.mki.nightsiege.core.LichCrystals.radius(edge);   // at most 24 out (Chef 12.11.)
+                BlockPos spot = crystalGround(level, cx + Math.cos(ang) * radius, a.getY() + 1, cz + Math.sin(ang) * radius);
                 if (spot == null) {
-                    spot = BossService.groundNear(level, cx + Math.cos(ang) * 3, a.getY() + 1, cz + Math.sin(ang) * 3);
+                    spot = crystalGround(level, cx + Math.cos(ang) * 3, a.getY() + 1, cz + Math.sin(ang) * 3);
                 }
                 if (spot == null) {
                     continue;
