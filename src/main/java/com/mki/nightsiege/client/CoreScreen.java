@@ -4036,14 +4036,14 @@ public class CoreScreen extends Screen {
                 lines.add(new PosterLine("Test", tx + font.width(name) + 4, 4, slain ? 0xFF3A342C : 0xFF6A4A20));
             }
             int ly = 13;
-            String title = Component.translatable(com.mki.nightsiege.core.NemesisLore.titleKey(n.level)).getString();
+            String rankTitle = Component.translatable(com.mki.nightsiege.core.NemesisLore.titleKey(n.level)).getString();
             String level = Component.translatable("nightsiege.nemesis.bar_level", n.level).getString();
             int rankColor = slain ? 0xFF3A342C : 0xFF7A1A10;
-            if (font.width(title + " · " + level) <= x + w - 9 - tx) {
-                ly = posterFlow(font, lines, title + " · " + level, ly, x, w, rankColor, 0);
+            if (font.width(rankTitle + " · " + level) <= x + w - 9 - tx) {
+                ly = posterFlow(font, lines, rankTitle + " · " + level, ly, x, w, rankColor, 0);
             } else {
                 // Too long for one line: the level gets its own line, never torn from its number.
-                ly = posterFlow(font, lines, title, ly, x, w, rankColor, 0);
+                ly = posterFlow(font, lines, rankTitle, ly, x, w, rankColor, 0);
                 lines.add(new PosterLine(level, ly <= POSTER_ICON ? tx : ix, ly, rankColor));
                 ly += 9;
             }
