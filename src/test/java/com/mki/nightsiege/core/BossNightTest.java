@@ -133,4 +133,21 @@ class BossNightTest {
         c.sanitize();
         assertEquals(600, c.bossPhaseMaxSeconds);
     }
+
+    @Test
+    void lichSwitchesKeepTheOldLichByDefault() {
+        SiegeConfig c = new SiegeConfig();
+        assertEquals(30.0, c.lichCrystalHealth, 1e-9);   // boss sim 12.11.: the switches exist, nothing moves yet
+        assertEquals(0, c.lichShieldMaxSeconds);
+        c.lichCrystalHealth = -1;
+        c.lichShieldMaxSeconds = 5000;
+        c.sanitize();
+        assertEquals(30.0, c.lichCrystalHealth, 1e-9);
+        assertEquals(1800, c.lichShieldMaxSeconds);
+        c.lichCrystalHealth = 12.5;
+        c.lichShieldMaxSeconds = -3;
+        c.sanitize();
+        assertEquals(12.5, c.lichCrystalHealth, 1e-9);
+        assertEquals(0, c.lichShieldMaxSeconds);
+    }
 }

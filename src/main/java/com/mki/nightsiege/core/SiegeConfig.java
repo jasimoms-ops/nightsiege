@@ -262,6 +262,10 @@ public class SiegeConfig {
     public boolean bossPhaseHoldsDawn = true;
     /** Bossuhr: the longest boss phase in seconds while bossPhaseHoldsDawn holds the dawn (60–1800). */
     public int bossPhaseMaxSeconds = 600;
+    /** Knochenlich: life of each soul crystal before level and player factors (was fixed 30; boss sim 12.11.). */
+    public double lichCrystalHealth = 30.0;
+    /** Knochenlich: the soul crystals crumble on their own after this many seconds of shield (0 = never, as before; boss sim 12.11.). */
+    public int lichShieldMaxSeconds = 0;
     // --- boss rhythm (Simon 29 October 2026) ---
     /** Every this many nights the "Vierer-Nacht": the bosses of the boss nights before it, two at a time (0 = none). */
     public int bossGroupEvery = 20;
@@ -1821,6 +1825,8 @@ public class SiegeConfig {
         bossEvery = clamp(bossEvery <= 0 ? 4 : bossEvery, 1, 100);
         bossFinaleSeconds = clamp(bossFinaleSeconds <= 0 ? 180 : bossFinaleSeconds, 30, 1200);
         bossPhaseMaxSeconds = clamp(bossPhaseMaxSeconds <= 0 ? 600 : bossPhaseMaxSeconds, 60, 1800);
+        lichCrystalHealth = lichCrystalHealth > 0 && Double.isFinite(lichCrystalHealth) ? Math.min(lichCrystalHealth, 1000.0) : 30.0;
+        lichShieldMaxSeconds = clamp(lichShieldMaxSeconds, 0, 1800);
         bossGroupEvery = clamp(bossGroupEvery, 0, 1000);
         bossLateFrom = clamp(bossLateFrom, 0, 10000);
         bossLateEvery = clamp(bossLateEvery, 0, 100);
