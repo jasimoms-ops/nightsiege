@@ -53,6 +53,9 @@ public final class AbilityFxClient {
     private static final FxBudget BUDGET = new FxBudget();
     private static final List<Pending> PENDING = new ArrayList<>();
     private static final Map<Integer, Integer> FLASH = new HashMap<>();
+    /** The particles drawn here (weak: gone with the particle). */
+    private static final java.util.Set<net.minecraft.client.particle.Particle> GLOWING =
+            java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
     private static final int[] RECEIVED = new int[6];
     /** Between OPEN and CLOSE: the source whose key runs, its place; -1 for none. */
     private static int openSource = -1;
@@ -107,7 +110,9 @@ public final class AbilityFxClient {
             living.swing(InteractionHand.MAIN_HAND, false);   // the arm, seen from every side (no packet back)
         }
         boolean own = ownView(p.source());
-        burst(level, p.source(), at, p.color(), p.accent(), ult ? 40 : 24, own);
+        if (!own) {   // CI 550877110 (berserker 18 %): from one's own eyes only the ring at the feet, no burst
+            burst(level, p.source(), at, p.color(), p.accent(), ult ? 40 : 24, false);
+        }
         // Chef 12.11. 18:10: every key visibly new - a ring in the class colour at the caster's feet, two pulses
         for (int pulse = 0; pulse < 2; pulse++) {
             later(pulse * 5L, () -> ring(level, p.source(), at, CAST_RING, p.color(), p.accent(), DUST * 0.8f, 1.0));
@@ -212,9 +217,24 @@ public final class AbilityFxClient {
     }
 
     private static void add(ClientLevel level, ParticleOptions particle, double x, double y, double z, double dx, double dy, double dz) {
-        // force: seen up to the payload's range, not only 32 blocks; Minecraft's particle setting still holds
-        level.addParticle(particle, true, false, x, y, z, dx, dy, dz);
-        drawn++;
+        // CI 550877110: coloured dust took the night's light and was hardly seen; the new particles glow
+        // (full light, also under shaders). Minecraft's particle setting still holds.
+        Minecraft mc = Minecraft.getInstance();
+        net.minecraft.server.level.ParticleStatus status = mc.options.particles().get();
+        if (status == net.minecraft.server.level.ParticleStatus.MINIMAL
+                || status == net.minecraft.server.level.ParticleStatus.DECREASED && level.getRandom().nextInt(3) == 0) {
+            return;
+        }
+        net.minecraft.client.particle.Particle made = mc.particleEngine.createParticle(particle, x, y, z, dx, dy, dz);
+        if (made != null) {
+            GLOWING.add(made);
+            drawn++;
+        }
+    }
+
+    /** True for the particles of these effects: drawn in full light (ParticleGlowMixin). */
+    public static boolean glows(net.minecraft.client.particle.Particle particle) {
+        return !GLOWING.isEmpty() && GLOWING.contains(particle);
     }
 
     private static int take(int source, int wanted) {
