@@ -48,6 +48,11 @@ public final class RageFx {
         int w = mc.getWindow().getGuiScaledWidth();
         int h = mc.getWindow().getGuiScaledHeight();
         int step = Math.max(2, Math.min(w, h) / (BANDS * 3));
+        if (FxSettings.full() && mc.options.getCameraType().isFirstPerson()) {
+            // Z4 (Chef 12.11. 18:10/20:10): with full effects nothing closes the own view - the vignette two thirds as deep
+            // (CI 6a2f3ae4d: 16 % of the own view)
+            step = Math.max(1, step * 2 / 3);
+        }
         for (int i = 0; i < BANDS; i++) {
             double fade = 1.0 - (double) i / BANDS;
             int alpha = (int) Math.round(255 * strength * fade * fade);

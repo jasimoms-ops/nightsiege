@@ -414,10 +414,10 @@ final class EffekteScenes {
                     log(String.format(java.util.Locale.ROOT, "%s %s %s: Deckung vorher %.1f %%, nachher %.1f %%, Unterschied vorher/nachher %.1f %% (Median aus %d)",
                             sub, view, what, coverOld * 100, cover * 100, apart * 100, REPEAT));
                     COVER.add(String.format(java.util.Locale.ROOT, "%s;%s;%s;%.1f;%.1f;%.1f", sub, view, what, coverOld * 100, cover * 100, apart * 100));
-                    // the new look may not cover more than 15 % of the own view; where the old one alone covers more
-                    // (the alchemist's cloud, the berserker's vignette), the new one may add at most 2 points
+                    // Chef 12.11. 20:10: the full look covers at most 15 % of the own view, everywhere (old smoke, clouds,
+                    // explosions and the berserker's vignette come smaller from one's own eyes)
                     if (firstPerson && cover >= 0) {
-                        check(cover <= MAX_COVER || cover <= coverOld + 0.02, sub + " " + what + ": effects cover "
+                        check(cover <= MAX_COVER, sub + " " + what + ": effects cover "
                                 + Math.round(cover * 100) + " % of the own view (max 15 %, old look " + Math.round(coverOld * 100) + " %)");
                     }
                     check(apart >= MIN_APART, sub + " " + view + " " + what + ": before and after differ only "

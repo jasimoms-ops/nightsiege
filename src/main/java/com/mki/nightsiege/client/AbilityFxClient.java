@@ -53,6 +53,19 @@ public final class AbilityFxClient {
     private static final float OWN = 0.6f;
     /** Particles this close to the camera never grow (blocks). */
     private static final double NEAR = 3.0;
+    /**
+     * Chef 12.11. 20:10, from one's own eyes (CI 6a2f3ae4d: archers' rain 20-31 %, bombardment 54-68 % of the view):
+     * old particles nearer than this are halved (bright ones) or left out (smoke, clouds), new ones left out.
+     */
+    private static final double OWN_CLEAR = 2.0;
+    private static final double OWN_CLEAR_NEW = 2.5;
+    /** From one's own eyes bright particles only grow and last longer beyond this (blocks). */
+    private static final double OWN_NEAR = 6.0;
+    /** From one's own eyes: old smoke, clouds and poofs this big, explosions this big (one instead of the huge eight). */
+    private static final float OWN_SMOKE = 0.6f;
+    private static final float OWN_BLAST = 0.3f;
+    /** The coloured edge of the screen on every own key: a sign that covers nothing (ticks). */
+    private static final int EDGE_TICKS = 12;
 
     private static final FxBudget BUDGET = new FxBudget();
     private static final List<Pending> PENDING = new ArrayList<>();
@@ -67,6 +80,9 @@ public final class AbilityFxClient {
     private static int boosted;
     private static int drawn;
     private static int shake;
+    private static int edge;
+    private static int edgeColor;
+    private static int edgeAccent;
     private static long now;
     private static ClientLevel lastLevel;
 
@@ -100,7 +116,7 @@ public final class AbilityFxClient {
             case CoreNetworking.FxPayload.RING -> {
                 int pulses = ownView(p.source()) ? 2 : 3;   // CI 1d981282a: archers' rain 28 % of the own view
                 for (int pulse = 0; pulse < pulses; pulse++) {
-                    later(pulse * 7L, () -> ring(level, p.source(), p.pos(), p.radius(), p.color(), p.accent(), DUST * 0.85f, 1.0));
+                    later(pulse * 7L, () -> ring(level, p.source(), p.pos(), p.radius(), p.color(), p.accent(), DUST * 0.85f, 1.0, false));
                 }
             }
             case CoreNetworking.FxPayload.HITS -> hits(level, p);
@@ -121,7 +137,15 @@ public final class AbilityFxClient {
         // Chef 12.11. 18:10: every key visibly new - a ring in the class colour at the caster's feet, two pulses
         double feet = own ? CAST_RING : CAST_RING_OUTSIDE;
         for (int pulse = 0; pulse < 2; pulse++) {
-            later(pulse * 5L, () -> ring(level, p.source(), at, feet, p.color(), p.accent(), own ? DUST * 0.8f : DUST, 1.4));
+            later(pulse * 5L, () -> ring(level, p.source(), at, feet, p.color(), p.accent(), own ? DUST * 0.8f : DUST, 1.4, true));
+        }
+        Minecraft mine = Minecraft.getInstance();
+        if (mine.player != null && p.source() == mine.player.getId()) {
+            // Chef 12.11. 20:10: one's own key also shows from one's own eyes without closing the view - the screen's edge
+            // lights up in the class colour (CI 6a2f3ae4d: 0.4-0.9 % apart for six subclasses)
+            edge = EDGE_TICKS;
+            edgeColor = p.color();
+            edgeAccent = p.accent();
         }
         if (!ult) {
             return;
@@ -141,7 +165,7 @@ public final class AbilityFxClient {
             if (own && r < 3.0) {
                 continue;   // CI 1d981282a: paladin's ult 20 % of the own view - the wave starts beyond arm's length
             }
-            later(t, () -> ring(level, p.source(), at, r, p.color(), p.accent(), DUST, 0.5));
+            later(t, () -> ring(level, p.source(), at, r, p.color(), p.accent(), DUST, 0.5, false));
         }
         // its own sound: thunder over a deep beacon chord, loud enough over a fight
         level.playLocalSound(at.x, at.y, at.z, SoundEvents.TRIDENT_THUNDER.value(), SoundSource.PLAYERS, 1.1f, 1.35f, false);
@@ -188,19 +212,27 @@ public final class AbilityFxClient {
     }
 
     /** A ring on the ground: n points, as many as the budget gives, spread evenly. */
-    private static void ring(ClientLevel level, int source, Vec3 c, double r, int color, int accent, float size, double density) {
+    private static void ring(ClientLevel level, int source, Vec3 c, double r, int color, int accent, float size, double density,
+                             boolean feet) {
         int want = (int) Math.max(16, Math.min(140, Math.round(Math.PI * 2 * r * 2.2 * density)));
         int n = take(source, want);
         if (n <= 0) {
             return;
         }
-        float dot = ownView(source) ? size * OWN : size;
+        boolean own = ownView(source);
+        Vec3 eye = Minecraft.getInstance().gameRenderer.mainCamera().position();
+        float dot = own ? size * OWN : size;
         DustParticleOptions main = new DustParticleOptions(color, Math.min(4.0f, dot));
         DustParticleOptions acc = new DustParticleOptions(accent, Math.min(4.0f, dot));
         double phase = level.getRandom().nextDouble();
         for (int i = 0; i < n; i++) {
             double a = Math.PI * 2 * (i + phase) / n;
-            add(level, i % 4 == 0 ? acc : main, c.x + Math.cos(a) * r, c.y + 0.15, c.z + Math.sin(a) * r, 0, 0.01, 0);
+            double x = c.x + Math.cos(a) * r;
+            double z = c.z + Math.sin(a) * r;
+            if (own && !feet && eye.distanceToSqr(x, c.y + 0.15, z) < OWN_CLEAR_NEW * OWN_CLEAR_NEW) {
+                continue;   // CI 6a2f3ae4d: a ring running under one's own eyes filled a fifth of the view
+            }
+            add(level, i % 4 == 0 ? acc : main, x, c.y + 0.15, z, 0, 0.01, 0);
         }
     }
 
@@ -209,7 +241,9 @@ public final class AbilityFxClient {
      * (Chef 12.11. 18:10: single target abilities like the electrician's chain must look new too).
      */
     private static void hits(ClientLevel level, CoreNetworking.FxPayload p) {
-        DustParticleOptions dust = new DustParticleOptions(p.color(), DUST);
+        boolean own = ownView(p.source());
+        Vec3 eye = Minecraft.getInstance().gameRenderer.mainCamera().position();
+        DustParticleOptions dust = new DustParticleOptions(p.color(), own ? DUST * 0.7f : DUST);
         DustParticleOptions acc = new DustParticleOptions(p.accent(), DUST * 0.7f);
         for (int id : p.ids()) {
             Entity e = level.getEntity(id);
@@ -221,6 +255,9 @@ public final class AbilityFxClient {
             double top = e.getBbHeight() + 1.2;
             for (int i = 0; i < n; i++) {
                 double y = e.getY() + top * i / Math.max(1, n - 1);
+                if (own && eye.distanceToSqr(e.getX(), y, e.getZ()) < OWN_CLEAR_NEW * OWN_CLEAR_NEW) {
+                    continue;
+                }
                 add(level, i % 3 == 0 ? ParticleTypes.ELECTRIC_SPARK : i % 3 == 1 ? acc : dust, e.getX(), y, e.getZ(), 0, 0.01, 0);
             }
         }
@@ -279,9 +316,10 @@ public final class AbilityFxClient {
         RandomSource rnd = mc.level.getRandom();
         boolean bright = bright(p.getParticle());
         if (!bright && ownView(openSource)) {
-            // CI 1b70abcc3: the axe's slam explosions and the archers' poofs lived longer and filled 22-44 % of the own
-            // view - from one's own eyes smoke, clouds and explosions stay exactly as before
-            return false;
+            // Chef 12.11. 20:10: from one's own eyes the old smoke, clouds and explosions may become smaller and fewer
+            // (CI 6a2f3ae4d: the bombardment's eight huge blasts per hit covered half of the own view already before)
+            ownDim(mc, p, eye, rnd);
+            return true;
         }
         int count = p.getCount();
         float speed = p.getMaxSpeed();
@@ -324,19 +362,88 @@ public final class AbilityFxClient {
         if (!p.isOverrideLimiter() && dist2 > 1024.0) {
             return;   // as Minecraft: unforced particles only within 32 blocks
         }
-        boolean near = dist2 < NEAR * NEAR;
+        boolean own = ownView(openSource);
+        boolean near = dist2 < (own ? OWN_NEAR * OWN_NEAR : NEAR * NEAR);
         if (near && !bright && index % 2 == 1) {
             return;   // smoke and clouds right before the eyes: every second one only (nothing closes the view)
         }
+        if (own && dist2 < OWN_CLEAR * OWN_CLEAR && index % 2 == 1) {
+            return;   // CI 6a2f3ae4d: the archers' rain circle right under one's own eyes - every second one only
+        }
         net.minecraft.client.particle.Particle made = mc.particleEngine.createParticle(p.getParticle(), x, y, z, dx, dy, dz);
         if (made != null) {
-            boolean own = ownView(openSource);
             double size = near ? 1.0 : bright ? (own ? FxBudget.SIZE_OWN : FxBudget.SIZE) : FxBudget.DIM;
             double life = near ? 1.0 : bright ? FxBudget.LIFE : FxBudget.DIM;
             made.scale((float) size);
             made.setLifetime((int) Math.round(made.getLifetime() * life));
             boosted++;
         }
+    }
+
+    /**
+     * From one's own eyes (full effects): a key's old smoke, clouds and poofs half as many and {@link #OWN_SMOKE} as big,
+     * none nearer than {@link #OWN_CLEAR}; the huge explosion (eight big blasts around) one small blast.
+     */
+    private static void ownDim(Minecraft mc, net.minecraft.network.protocol.game.ClientboundLevelParticlesPacket p, Vec3 eye,
+                               RandomSource rnd) {
+        ParticleOptions o = p.getParticle();
+        boolean force = p.isOverrideLimiter();
+        if (o.getType() == ParticleTypes.EXPLOSION_EMITTER) {
+            spawnOwn(mc, ParticleTypes.EXPLOSION, eye, force, OWN_BLAST, p.getX(), p.getY(), p.getZ(), 0, 0, 0);
+            return;
+        }
+        float size = o.getType() == ParticleTypes.EXPLOSION ? OWN_BLAST : OWN_SMOKE;
+        float speed = p.getMaxSpeed();
+        if (p.getCount() == 0) {
+            spawnOwn(mc, o, eye, force, size, p.getX(), p.getY(), p.getZ(), speed * p.getXDist(), speed * p.getYDist(), speed * p.getZDist());
+            return;
+        }
+        int n = Math.max(1, p.getCount() / 2);
+        for (int i = 0; i < n; i++) {
+            spawnOwn(mc, o, eye, force, size, p.getX() + rnd.nextGaussian() * p.getXDist(), p.getY() + rnd.nextGaussian() * p.getYDist(),
+                    p.getZ() + rnd.nextGaussian() * p.getZDist(), rnd.nextGaussian() * speed, rnd.nextGaussian() * speed, rnd.nextGaussian() * speed);
+        }
+    }
+
+    private static void spawnOwn(Minecraft mc, ParticleOptions o, Vec3 eye, boolean force, float size,
+                                 double x, double y, double z, double dx, double dy, double dz) {
+        double dist2 = eye.distanceToSqr(x, y, z);
+        if (!force && dist2 > 1024.0 || dist2 < OWN_CLEAR * OWN_CLEAR) {
+            return;
+        }
+        net.minecraft.client.particle.Particle made = mc.particleEngine.createParticle(o, x, y, z, dx, dy, dz);
+        if (made != null) {
+            made.scale(size);
+            boosted++;
+        }
+    }
+
+    /**
+     * The edge of the screen after one's own key (full effects, every view): the class colour outside, the subclass
+     * accent inside, one GUI pixel each, fading in the last ticks. Covers no part of the picture's middle.
+     */
+    public static void drawEdge(net.minecraft.client.gui.GuiGraphicsExtractor gui) {
+        if (edge <= 0 || !FxSettings.full()) {
+            return;
+        }
+        Minecraft mc = Minecraft.getInstance();
+        int w = mc.getWindow().getGuiScaledWidth();
+        int h = mc.getWindow().getGuiScaledHeight();
+        float a = Math.min(1f, edge / 4f);
+        frame(gui, 0, w, h, ((int) (0xE0 * a) << 24) | (edgeColor & 0xFFFFFF));
+        frame(gui, 1, w, h, ((int) (0x90 * a) << 24) | (edgeAccent & 0xFFFFFF));
+    }
+
+    private static void frame(net.minecraft.client.gui.GuiGraphicsExtractor gui, int in, int w, int h, int color) {
+        gui.fill(in, in, w - in, in + 1, color);
+        gui.fill(in, h - in - 1, w - in, h - in, color);
+        gui.fill(in, in + 1, in + 1, h - in - 1, color);
+        gui.fill(w - in - 1, in + 1, w - in, h - in - 1, color);
+    }
+
+    /** Tests: the screen's edge lights up now. */
+    public static boolean edgeForTests() {
+        return edge > 0;
     }
 
     /** Tests: old particles drawn bigger so far. */
@@ -352,6 +459,7 @@ public final class AbilityFxClient {
             FLASH.clear();
             BUDGET.clear();
             shake = 0;
+            edge = 0;
             openSource = -1;
         }
         if (mc.level == null) {
@@ -377,6 +485,9 @@ public final class AbilityFxClient {
         }
         if (shake > 0) {
             shake--;
+        }
+        if (edge > 0) {
+            edge--;
         }
     }
 

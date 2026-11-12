@@ -341,6 +341,9 @@ public class NightSiegeClient implements ClientModInitializer {
         // Tor 4.10: the red vignette of the Blutrausch, the swing ring at the crosshair, the axe's aim mark.
         HudElementRegistry.attachElementAfter(VanillaHudElements.MISC_OVERLAYS, ModContent.id("rage_vignette"),
                 (gui, delta) -> RageFx.draw(gui));
+        // Z4: the screen's edge in the class colour after one's own key (full effects)
+        HudElementRegistry.attachElementAfter(VanillaHudElements.MISC_OVERLAYS, ModContent.id("ability_edge"),
+                (gui, delta) -> AbilityFxClient.drawEdge(gui));
         HudElementRegistry.attachElementAfter(VanillaHudElements.CROSSHAIR, ModContent.id("strike_ring"),
                 (gui, delta) -> StrikeRing.draw(gui));
         ClientTickEvents.END_CLIENT_TICK.register(AxeAim::tick);
