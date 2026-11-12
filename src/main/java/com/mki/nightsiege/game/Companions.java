@@ -386,6 +386,132 @@ public final class Companions {
         steer(foe, guard);
     }
 
+    // ------------------------------------------------------------------ Hüterruf (Paket 11.11. Z1, core.GuardCall)
+
+    /** Hüterruf: owner → game time it is ready again. */
+    private static final Map<UUID, Long> GUARD_READY = new HashMap<>();
+    /** Hüterruf: owner → game time his damage cut ends. */
+    private static final Map<UUID, Long> GUARDED_UNTIL = new HashMap<>();
+    /** A player → the monster that hit him last and when (the companions go after it on Hüterruf). */
+    private static final Map<UUID, LastHit> LAST_HIT = new HashMap<>();
+
+    private record LastHit(UUID attacker, long time) {
+    }
+
+    /** A monster hit a player (GuardianEffects): remembered for Hüterruf's counter-attack. */
+    public static void noteHit(ServerPlayer victim, Entity attacker) {
+        if (attacker instanceof Mob mob && BossService.isFoe(mob) && !isCompanion(mob)) {
+            LAST_HIT.put(victim.getUUID(), new LastHit(mob.getUUID(), victim.level().getGameTime()));
+        }
+    }
+
+    /** The factor on a monster's hit on this player: 0.6 while his Hüterruf guards him, else 1. */
+    public static float guardFactor(ServerPlayer player) {
+        Long until = GUARDED_UNTIL.get(player.getUUID());
+        return until == null ? 1f : com.mki.nightsiege.core.GuardCall.takenFactor(until, player.level().getGameTime());
+    }
+
+    /** Ticks until this player's Hüterruf is ready (0: ready). */
+    public static int guardCooldownLeft(ServerPlayer player, long now) {
+        return com.mki.nightsiege.core.GuardCall.cooldownLeft(GUARD_READY.getOrDefault(player.getUUID(), 0L), now);
+    }
+
+    /** A new night, or the end of one (and the tests): every Hüterruf ready, no guard, no remembered hit. */
+    public static void resetGuardCall() {
+        GUARD_READY.clear();
+        GUARDED_UNTIL.clear();
+        LAST_HIT.clear();
+    }
+
+    /** Hüterruf's box on the ability bar, with its pause. */
+    public static com.mki.nightsiege.core.UltState.Slot guardCallSlot(ServerPlayer player, long now) {
+        com.mki.nightsiege.core.UltState.Slot slot = new com.mki.nightsiege.core.UltState.Slot();
+        slot.id = com.mki.nightsiege.core.GuardCall.ID;
+        slot.icon = "minecraft:bell";
+        slot.name = "nightsiege.ability.guardcall";
+        slot.sub = "nightsiege.ability.guardcall.sub";
+        slot.cooldownTicks = guardCooldownLeft(player, now);
+        slot.totalTicks = com.mki.nightsiege.core.GuardCall.cooldownTicks();
+        return slot;
+    }
+
+    /**
+     * Hüterruf on its key: the shock wave (monsters back and slowed, bosses and guards only slowed), the damage cut,
+     * the far companions back beside him, and all of them on the monster that hit him last. No damage at all.
+     * False when it did not fire (not his, not in a fight, in its pause).
+     */
+    public boolean guardCall(ServerPlayer player) {
+        PlayerSkills skills = skillsFor.apply(player);
+        if (!(player.level() instanceof ServerLevel level) || skills == null
+                || com.mki.nightsiege.core.AbilityKeys.keyOf(tree.subclassOf(skills), com.mki.nightsiege.core.GuardCall.ID) == null) {
+            CombatEffects.actionBar(player, Component.translatable("nightsiege.msg.guardcall_fight_only"));
+            return false;
+        }
+        long now = level.getGameTime();
+        UUID me = player.getUUID();
+        int left = guardCooldownLeft(player, now);
+        if (left > 0) {
+            CombatEffects.actionBar(player, Component.translatable("nightsiege.msg.guardcall_wait", (left + 19) / 20));
+            return false;
+        }
+        GUARD_READY.put(me, now + com.mki.nightsiege.core.GuardCall.cooldownTicks());
+        GUARDED_UNTIL.put(me, now + com.mki.nightsiege.core.GuardCall.guardTicks());
+        // The shock wave: back and slowed; bosses and guards (no push of any kind, Simon 05.11.) only slowed.
+        double r = com.mki.nightsiege.core.GuardCall.radius();
+        Vec3 look = player.getLookAngle();
+        int pushed = 0;
+        for (Mob foe : level.getEntitiesOfClass(Mob.class, player.getBoundingBox().inflate(r, 2.0, r),
+                e -> BossService.isFoe(e) && e.isAlive() && !isCompanion(e))) {
+            double dx = foe.getX() - player.getX();
+            double dz = foe.getZ() - player.getZ();
+            if (!com.mki.nightsiege.core.GuardCall.reaches(Math.sqrt(dx * dx + dz * dz))) {
+                continue;
+            }
+            boolean big = BossService.immovable(foe) || BossService.isBossOrPart(foe);
+            foe.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, com.mki.nightsiege.core.GuardCall.slowTicks(big),
+                    com.mki.nightsiege.core.GuardCall.SLOW_AMPLIFIER));
+            if (!big) {
+                double[] push = com.mki.nightsiege.core.GuardCall.push(dx, dz, look.x, look.z, false);
+                foe.setDeltaMovement(push[0], push[1], push[2]);
+                foe.hurtMarked = true;
+                pushed++;
+            }
+        }
+        // The far companions back beside him, then all of them on the monster that hit him last (at most 5 s ago).
+        LastHit hit = LAST_HIT.get(me);
+        LivingEntity avenge = hit != null && com.mki.nightsiege.core.GuardCall.freshHit(hit.time(), now)
+                && level.getEntity(hit.attacker()) instanceof LivingEntity foe && foe.isAlive() ? foe : null;
+        int recalled = 0;
+        for (Mob mob : mobsOf(level, me)) {
+            Companion c = ALL.get(mob.getUUID());
+            if (c == null) {
+                continue;
+            }
+            if (com.mki.nightsiege.core.GuardCall.recalls(mob.distanceTo(player))) {
+                Vec3 at = spot(level, player);   // 1.5 to 3 blocks beside him (or on his spot)
+                mob.teleportTo(at.x, at.y, at.z);
+                mob.getNavigation().stop();
+                c.lastPos = at;
+                c.lastLevel = level;
+                c.lastMoved = now;
+                level.sendParticles(ParticleTypes.POOF, at.x, at.y + 0.5, at.z, 4, 0.2, 0.2, 0.2, 0.01);
+                recalled++;
+            }
+            if (avenge != null) {
+                steer(mob, avenge);
+            }
+        }
+        if (avenge != null) {
+            orders.put(me, new Order(avenge.getUUID(), null, now + Math.round(v("s_callrange", "attacktime", 200))));
+            avenge.addEffect(new MobEffectInstance(MobEffects.GLOWING, 60, 0, false, false));
+        }
+        level.sendParticles(ParticleTypes.SONIC_BOOM, player.getX(), player.getY() + 1.0, player.getZ(), 1, 0, 0, 0, 0);
+        level.sendParticles(ParticleTypes.CLOUD, player.getX(), player.getY() + 0.2, player.getZ(), 24, r * 0.4, 0.05, r * 0.4, 0.05);
+        level.playSound(null, player.blockPosition(), SoundEvents.BELL_BLOCK, SoundSource.PLAYERS, 1.0f, 0.8f);
+        CombatEffects.actionBar(player, Component.translatable("nightsiege.msg.guardcall_done", pushed, recalled));
+        return true;
+    }
+
     /** Players and companions never hurt companions; companions never hurt players. Snowballs of the snow guard slow. */
     public static boolean allowDamage(LivingEntity victim, DamageSource source) {
         try {

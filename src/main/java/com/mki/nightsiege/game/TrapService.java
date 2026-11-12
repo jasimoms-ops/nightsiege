@@ -2194,6 +2194,7 @@ public final class TrapService {
         rushUntil.clear();
         boilUntil.clear();
         WarriorDash.reset();
+        Companions.resetGuardCall();   // Hüterruf (Paket 11.11. Z1)
         ArrowRain.reset();
         WarriorArts.reset();    // the warriors' F abilities stop with the night (Simon 05.11.)
         WarriorSpirit.reset();

@@ -281,6 +281,10 @@ public final class AbilityTips {
                 tip.main.values.put("reach", SkillValues.get("s_callrange", "base", 16.0) + tree.totalBonus(SkillEffect.CALL_RANGE, own));
                 modsOf(tree, own, tip, "s_callrange");
             }
+            case GuardCall.ID -> {
+                plain(tip, "nightsiege.ability.guardcall", "guardcall", GuardCall.ID);
+                tip.cooldownTicks = GuardCall.cooldownTicks();
+            }
             case "raise", "wall", "curse" -> plain(tip, "nightsiege.spell." + id, id, "d_necro");
             case "swarm", "fear" -> {
                 plain(tip, "nightsiege.spell." + id, id, "d_soulcatcher");

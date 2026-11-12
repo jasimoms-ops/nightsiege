@@ -101,8 +101,9 @@ public final class AbilityKeys {
         put(SkillTree.SUB_DEMOLITION, e("escape", Key.ABILITY_1), e("grenade", Key.ABILITY_2), e("target", Key.ABILITY_3));
         put(SkillTree.SUB_ALCHEMIST, e("escape", Key.ABILITY_1), e("boil", Key.ABILITY_2), e("brew", Key.ABILITY_3), e("acid", Key.ABILITY_4));
         // summoners: the order on 2; the call or the spells on 1, 3 and 4
-        put(SkillTree.SUB_TAMER, e("call", Key.ABILITY_1), e(F_ACTION, Key.ABILITY_2), e("quiver", Key.ABILITY_3));
-        put(SkillTree.SUB_GOLEMSMITH, e("call", Key.ABILITY_1), e(F_ACTION, Key.ABILITY_2), e("quiver", Key.ABILITY_3));
+        // Paket 11.11. Z1: the way of the light's Hüterruf on 4 (C): F, place 3, holds the arrow kinds
+        put(SkillTree.SUB_TAMER, e("call", Key.ABILITY_1), e(F_ACTION, Key.ABILITY_2), e("quiver", Key.ABILITY_3), e(GuardCall.ID, Key.ABILITY_4));
+        put(SkillTree.SUB_GOLEMSMITH, e("call", Key.ABILITY_1), e(F_ACTION, Key.ABILITY_2), e("quiver", Key.ABILITY_3), e(GuardCall.ID, Key.ABILITY_4));
         put(SkillTree.SUB_NECROMANCER, e("raise", Key.ABILITY_1), e(F_ACTION, Key.ABILITY_2), e("wall", Key.ABILITY_3), e("curse", Key.ABILITY_4));
         put(SkillTree.SUB_SOULCATCHER, e("swarm", Key.ABILITY_1), e("fear", Key.ABILITY_2));
     }

@@ -481,6 +481,15 @@ final class TeamBrain {
             player.lookAt(EntityAnchorArgument.Anchor.EYES, aim.position().add(0, aim.getBbHeight() * 0.5, 0));
         }
         staffTurn++;
+        if (!dead && aim != null && aim.distanceTo(player) <= com.mki.nightsiege.core.GuardCall.radius()
+                && player.getHealth() < player.getMaxHealth() * 0.6f
+                && Companions.guardCooldownLeft(player, level.getGameTime()) == 0) {
+            // Paket 11.11. Z1: Hüterruf on its key when a monster is on him and he is hurt, as a player would
+            int guard = m.abilitySlotOf(player, com.mki.nightsiege.core.GuardCall.ID);
+            if (guard >= 0) {
+                m.onCoreAction(player, "slot:" + guard);
+            }
+        }
         boolean sneak = dead ? staffTurn % 3 == 0 : staffTurn % 5 == 3 && aim != null;
         if (!dead && staffTurn % 5 == 1) {
             // Tor 4c.6: the call on its key of the bar (Q), as a player presses it (the old "quiver" verb counted on no key)

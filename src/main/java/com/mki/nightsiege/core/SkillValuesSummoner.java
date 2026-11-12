@@ -58,6 +58,17 @@ final class SkillValuesSummoner {
         def("s_golemwork", "lift", 0.35);
         def("s_wildness", "below", 0.5);           // share of health
         def("s_care", "every", 100);               // ticks
+        // Hüterruf (Paket 11.11., Chef 12.11. 15:00 Z1): the tamer's and golemsmith's defence, no damage (core.GuardCall)
+        def(GuardCall.ID, "radius", 4.0);          // blocks: the shock wave
+        def(GuardCall.ID, "push", 4.0);            // blocks a monster flies back (bosses and guards: none)
+        def(GuardCall.ID, "slow", 40);             // ticks of Slowness II on a monster
+        def(GuardCall.ID, "bossslow", 20);         // ticks on a boss or a guard
+        def(GuardCall.ID, "guard", 80);            // ticks the summoner takes less damage
+        def(GuardCall.ID, "cut", 0.40);            // share of the damage taken away
+        def(GuardCall.ID, "far", 12.0);            // blocks: companions further away come back
+        def(GuardCall.ID, "near", 3.0);            // ... to at most this far from him
+        def(GuardCall.ID, "memory", 100);          // ticks: the last hit on him the companions avenge
+        def(GuardCall.ID, "cd", 360);              // ticks (18 s)
         def("l_cross_harvest", "heal", 0.2);       // share of the companion's health
         def("s_wild_hunt", "count1", 4);
         def("s_wild_hunt", "count2", 5);
