@@ -80,6 +80,7 @@ public class NightSiegeClient implements ClientModInitializer {
                     MannedClient.reset();
                     HealthViewClient.clear();
                     PartyHealthHud.clear();
+                    PetHud.clear();
                     DroneClient.clear();
                     NightKeys.setOwned(false);
                     PlaytestScreen.clear();
@@ -142,6 +143,8 @@ public class NightSiegeClient implements ClientModInitializer {
                         HealthViewClient.set(payload.json());
                     } else if ("partyhealth".equals(payload.kind())) {
                         PartyHealthHud.set(payload.json());   // Tor 2: the healers' party list
+                    } else if ("pets".equals(payload.kind())) {
+                        PetHud.set(payload.json());   // Z2: every companion in a row with its life
                     } else if ("warrior".equals(payload.kind())) {
                         WarriorHud.set(payload.json());   // Kampfgeist and the combo chain (Simon 05.11.)
                     } else if ("rage".equals(payload.kind())) {
@@ -220,6 +223,9 @@ public class NightSiegeClient implements ClientModInitializer {
                 (text, overlay) -> overlay || !KitHud.toBar(text));
         HudElementRegistry.attachElementAfter(VanillaHudElements.HOTBAR, ModContent.id("kit_hud"),
                 (gui, delta) -> KitHud.draw(gui, ultimateKey));
+        // Z2 (Simon 12.11.): every companion in its own row left of the bar, after the bar (it reads its place)
+        HudElementRegistry.attachElementAfter(ModContent.id("kit_hud"), ModContent.id("pet_rows"),
+                (gui, delta) -> PetHud.draw(gui));
         for (net.minecraft.resources.Identifier vanilla : List.of(VanillaHudElements.HOTBAR,
                 VanillaHudElements.INFO_BAR, VanillaHudElements.EXPERIENCE_LEVEL)) {
             HudElementRegistry.replaceElement(vanilla, original -> (gui, delta) -> {

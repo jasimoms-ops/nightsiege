@@ -98,6 +98,9 @@ public final class Companions {
         Vec3 lastPos;
         long lastMoved;
         ServerLevel lastLevel;
+        /** Z2: its full health and type, for the grey row once it fell. */
+        float max;
+        String type = "";
 
         Companion(UUID id, UUID owner, Kind kind, long born) {
             this.id = id;
@@ -110,6 +113,13 @@ public final class Companions {
 
     /** Every living companion by its entity id (static: the damage and target hooks ask without an instance). */
     private static final Map<UUID, Companion> ALL = new HashMap<>();
+    /** Z2 (Simon 12.11.): fallen wolves, golems, snow golems and skeleton guards per summoner, until called again. */
+    private static final Map<UUID, List<Fallen>> FALLEN = new HashMap<>();
+    /** Z2: what each player was told last about his companions ("" for nothing). */
+    private static final Map<UUID, String> PETS_SENT = new HashMap<>();
+
+    private record Fallen(Kind kind, boolean alpha, String type, float max, long born, long died) {
+    }
     private static Companions instance;
 
     /** A monster that turned on a companion: whom it had before, and until when. */
@@ -1111,6 +1121,11 @@ public final class Companions {
         return true;
     }
 
+    /** For the tests (Z2): the next call waits this many ticks from now. */
+    public void callPauseForTests(UUID owner, long now, int ticks) {
+        nextCall.put(owner, now + ticks);
+    }
+
     /** For the tests: this many souls on the staff. */
     public void soulsForTest(ServerPlayer player, int amount) {
         souls.put(player.getUUID(), Math.max(0, amount));
@@ -1692,6 +1707,17 @@ public final class Companions {
             ALL.remove(mob.getUUID());
             return null;
         }
+        c.max = mob.getMaxHealth();
+        c.type = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(mob.getType()).toString();
+        List<Fallen> fallen = FALLEN.get(owner.getUUID());
+        if (fallen != null) {
+            for (int i = 0; i < fallen.size(); i++) {
+                if (fallen.get(i).kind() == kind) {
+                    fallen.remove(i);   // called again: its grey row goes
+                    break;
+                }
+            }
+        }
         level.sendParticles(kind == Kind.SPIRIT || kind == Kind.MOUNT ? ParticleTypes.SOUL : ParticleTypes.POOF,
                 at.x, at.y + 0.6, at.z, 12, 0.4, 0.4, 0.4, 0.02);
         return mob;
@@ -2242,6 +2268,13 @@ public final class Companions {
 
     /** A companion was killed in the fight: the titan's ore core stays, the pack gets a new alpha, a corpse bursts. */
     private void fell(ServerLevel level, ServerPlayer owner, Companion c) {
+        if (c.kind == Kind.WOLF || c.kind == Kind.GOLEM || c.kind == Kind.SNOW || c.kind == Kind.SKELETON) {
+            List<Fallen> fallen = FALLEN.computeIfAbsent(owner.getUUID(), k -> new ArrayList<>());
+            fallen.add(new Fallen(c.kind, c.alpha, c.type, c.max, c.born, level.getGameTime()));
+            while (fallen.size() > com.mki.nightsiege.core.PetRows.MAX_ROWS) {
+                fallen.remove(0);
+            }
+        }
         if (c.kind == Kind.TITAN) {
             oreCore(level, owner);
         } else if (c.kind == Kind.WOLF && c.alpha) {
@@ -2435,6 +2468,7 @@ public final class Companions {
             remove(server, c, entity);
         }
         ALL.clear();
+        FALLEN.clear();
         for (WallBlock w : walls) {
             TempBlocks.remove(w.level(), w.pos());
         }
@@ -3127,6 +3161,91 @@ public final class Companions {
             u.health = u.health < 0f ? share : Math.min(u.health, share);
         }
         return new java.util.ArrayList<>(out.values());
+    }
+
+    /**
+     * Z2 (Simon 12.11.: every wolf on its own in the bar with its life): one row per living companion of
+     * {@code owner}, and the fallen ones with the pause until they can be called again.
+     */
+    public java.util.List<com.mki.nightsiege.core.PetRows.Pet> petsOf(ServerLevel level, UUID owner, long now) {
+        java.util.List<com.mki.nightsiege.core.PetRows.Pet> out = new ArrayList<>();
+        for (Companion c : ALL.values()) {
+            if (!c.owner.equals(owner) || !(level.getEntity(c.id) instanceof LivingEntity body) || !body.isAlive()) {
+                continue;
+            }
+            com.mki.nightsiege.core.PetRows.Pet p = new com.mki.nightsiege.core.PetRows.Pet();
+            Identifier type = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(body.getType());
+            p.type = type.toString();
+            p.icon = eggOf(type.toString());
+            p.kind = c.kind.name().toLowerCase(java.util.Locale.ROOT);
+            p.hp = body.getHealth();
+            p.max = body.getMaxHealth();
+            p.alpha = c.alpha;
+            p.born = c.born;
+            c.max = p.max;
+            out.add(p);
+        }
+        java.util.List<Fallen> fallen = FALLEN.get(owner);
+        if (fallen != null) {
+            for (Fallen f : new ArrayList<>(fallen)) {
+                long ready = f.kind() == Kind.SKELETON ? nextBones.getOrDefault(owner, 0L) : nextCall.getOrDefault(owner, 0L);
+                int wait = com.mki.nightsiege.core.HudSync.left(ready, now);
+                if (wait == 0 && now - f.died() > com.mki.nightsiege.core.PetRows.FALLEN_SHOWN) {
+                    fallen.remove(f);   // long ready and not called again: the grey row goes
+                    continue;
+                }
+                com.mki.nightsiege.core.PetRows.Pet p = new com.mki.nightsiege.core.PetRows.Pet();
+                p.type = f.type();
+                p.icon = eggOf(f.type());
+                p.kind = f.kind().name().toLowerCase(java.util.Locale.ROOT);
+                p.max = f.max();
+                p.alpha = f.alpha();
+                p.dead = true;
+                p.waitTicks = wait;
+                p.born = f.born();
+                out.add(p);
+            }
+        }
+        return com.mki.nightsiege.core.PetRows.sorted(out);
+    }
+
+    private static String eggOf(String type) {
+        Identifier id = Identifier.tryParse(type == null || type.isEmpty() ? "minecraft:wolf" : type);
+        if (id == null) {
+            return "minecraft:bone";
+        }
+        Identifier egg = Identifier.fromNamespaceAndPath(id.getNamespace(), id.getPath() + "_spawn_egg");
+        return net.minecraft.core.registries.BuiltInRegistries.ITEM.containsKey(egg) ? egg.toString() : "minecraft:bone";
+    }
+
+    /** Z2: every half second each player with companions (or fallen ones) gets their rows, when they changed. */
+    public void tickPets(MinecraftServer server) {
+        long now = server.overworld().getGameTime();
+        boolean refresh = now % com.mki.nightsiege.core.PetRows.REFRESH == 0;
+        java.util.Set<UUID> owners = new java.util.HashSet<>(FALLEN.keySet());
+        for (Companion c : ALL.values()) {
+            owners.add(c.owner);
+        }
+        for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+            String last = PETS_SENT.getOrDefault(p.getUUID(), "");
+            if (!owners.contains(p.getUUID()) && last.isEmpty()) {
+                continue;
+            }
+            java.util.List<com.mki.nightsiege.core.PetRows.Pet> pets = p.level() instanceof ServerLevel level
+                    ? petsOf(level, p.getUUID(), now) : java.util.List.of();
+            String show = "";
+            if (!pets.isEmpty()) {
+                com.mki.nightsiege.core.PetRows.Pets all = new com.mki.nightsiege.core.PetRows.Pets();
+                all.pets = pets;
+                show = Json.toJson(all);
+            }
+            if (!show.equals(last) || (refresh && !show.isEmpty())) {
+                PETS_SENT.put(p.getUUID(), show);
+                if (net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.canSend(p, CoreNetworking.ScreenPayload.TYPE)) {
+                    net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(p, new CoreNetworking.ScreenPayload("pets", show));
+                }
+            }
+        }
     }
 
     /** Companions of one summoner, for the window and the tests. */

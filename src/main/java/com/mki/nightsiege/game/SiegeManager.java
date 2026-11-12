@@ -1433,6 +1433,7 @@ public final class SiegeManager {
         }
         if (server.overworld().getGameTime() % com.mki.nightsiege.core.HudSync.PARTY_EVERY == 0) {
             safe("Gruppenleben", () -> HealthView.tickParty(server, this));   // Tor 2: the healers' list
+            safe("Begleiterleben", () -> companions.tickPets(server));   // Z2: every companion's life, half a second
         }
         if (trapsDirty && ++trapSaveCounter >= 200) {
             trapSaveCounter = 0;

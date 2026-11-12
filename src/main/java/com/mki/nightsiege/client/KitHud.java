@@ -207,6 +207,7 @@ public final class KitHud {
         if (!legacy && bar != null) {
             List<ActionBarLayout.Rect> parts = new java.util.ArrayList<>(bar.parts());
             parts.addAll(lastBars);   // Tor 9b: and below vanilla's hearts and armour
+            parts.addAll(PetHud.lastRects);   // Z2: and above the companions' rows
             return ActionBarLayout.chatLift(parts, height, right);   // Tor 3.2c: the bar sits below the chat
         }
         if (right <= lastLeft) {
@@ -438,7 +439,8 @@ public final class KitHud {
             gains = UltHud.gainCells(s);
         }
         boolean gauge = s != null && s.gauge && s.gaugeMax > 0f;
-        int units = s == null || s.units == null ? 0 : s.units.size();
+        // Z2: with the companions' own rows the small symbols above the bar stay away (the towers keep them)
+        int units = s == null || s.units == null || PetHud.shown() ? 0 : s.units.size();
         int gainPlaces = s == null ? 2 : Math.max(0, Math.min(3, s.gainPlaces));
         ActionBarLayout.Input in = new ActionBarLayout.Input(new boolean[]{true, true, true, places[3] != null},
                 timers.size(), ult2 != null, gainPlaces, gauge, units, !p.getOffhandItem().isEmpty());
