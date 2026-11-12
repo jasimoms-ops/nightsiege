@@ -11,13 +11,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class BossHealthPerTest {
 
     @Test
-    void freshConfigLeavesEveryBossAlone() {
+    void freshConfigHasThePackageFactors() {
         SiegeConfig c = new SiegeConfig();
         c.sanitize();
-        assertTrue(c.bossHealthPer.isEmpty());
+        assertEquals(SiegeConfig.packageBossHealth(), c.bossHealthPer);   // Paket 11.11., Kv5
         for (BossKind k : BossKind.values()) {
-            assertEquals(1.0, c.bossHealthFor(k.id()), 1e-9);
+            assertEquals(SiegeConfig.packageBossHealth().getOrDefault(k.id(), 1.0), c.bossHealthFor(k.id()), 1e-9);
         }
+        assertEquals(1.0, c.bossHealthFor("grave_king"), 1e-9);
     }
 
     @Test
@@ -33,10 +34,10 @@ class BossHealthPerTest {
     }
 
     @Test
-    void oldConfigWithoutTheFieldGetsAnEmptyMap() {
+    void oldConfigWithoutTheFieldGetsThePackageFactors() {
         SiegeConfig c = new Gson().fromJson("{\"settingsVersion\":27,\"bossHealthPer\":null}", SiegeConfig.class);
         c.sanitize();
-        assertTrue(c.bossHealthPer.isEmpty());
+        assertEquals(SiegeConfig.packageBossHealth(), c.bossHealthPer);   // migration 27 -> 28
         c.bossHealthPer.put("warlord", 0.9);   // the sim's variant writes into it (TeamSim applyConfig)
         assertEquals(0.9, c.bossHealthFor("warlord"), 1e-9);
     }

@@ -87,6 +87,7 @@ class Paket1111KlassenTest {
         assertEquals(6.4, c.skillTweaks.get("potion_tower").values.get("hit"), 1e-9);   // area stays
         assertTrue(c.bossPhaseHoldsDawn);   // Bossuhr on (Chef 12.11. 07:50)
         assertEquals(600, c.bossPhaseMaxSeconds);
+        bossValues(c);
         SiegeConfig off = server();
         off.bossPhaseHoldsDawn = false;   // a v27 server with the switch written off: the step 27 -> 28 turns it on
         off.sanitize();
@@ -105,6 +106,54 @@ class Paket1111KlassenTest {
         assertEquals(15, same);   // the 14 others and the alchemist (his change is alchemistDirectHit)
         c.sanitize();   // no second step
         assertEquals(1.725, c.subclassDamage.get("axe"), 1e-9);
+    }
+
+    /** Paket 11.11., boss acceptance Kv5: every value, as the server (v27) and the sim have it after loading. */
+    private static void bossValues(SiegeConfig c) {
+        assertEquals(0.25, c.bossDamageMultiplier, 1e-9);
+        assertEquals(0.05, c.bossPercentDamage, 1e-9);
+        assertEquals(0.30, c.championNightPercent, 1e-9);   // the warden of a normal night stays
+        assertEquals(0.0, c.bossGuardPercent, 1e-9);        // the boss's guards: none
+        assertEquals(0.0, c.championPercent(10, true, true), 1e-9);
+        assertEquals(0.30, c.championPercent(10, true, false), 1e-9);
+        assertEquals(0.05, c.bossGuardLife, 1e-9);
+        assertEquals(0.35, c.bossHealthMultiplier, 1e-9);
+        assertEquals(0.5, c.bossHealthPerExtraPlayer, 1e-9);   // unchanged
+        assertEquals(SiegeConfig.BOSS_LICH_HEALTH, c.bossHealthFor("bone_lich"), 1e-9);
+        assertEquals(0.25, c.bossHealthFor("ember_colossus"), 1e-9);
+        assertEquals(0.35, c.bossHealthFor("storm_witch"), 1e-9);
+        assertEquals(0.35, c.bossHealthFor("frost_jarl"), 1e-9);
+        assertEquals(0.7, c.bossHealthFor("spider_queen"), 1e-9);
+        assertEquals(0.8, c.bossHealthFor("ram_titan"), 1e-9);
+        assertEquals(1.0, c.bossHealthFor("grave_king"), 1e-9);
+        assertEquals(1.0, c.bossHealthFor("warlord"), 1e-9);
+        assertEquals(SiegeConfig.BOSS_LICH_SHIELD_SECONDS, c.lichShieldMaxSeconds);
+        assertEquals(SiegeConfig.BOSS_PRE_WAVE, c.bossPreWaveFactor, 1e-9);
+    }
+
+    @Test
+    void freshConfigAndSimConfigGetTheBossValues() throws Exception {
+        SiegeConfig fresh = new SiegeConfig();
+        fresh.sanitize();
+        bossValues(fresh);
+        java.nio.file.Path sim = java.nio.file.Path.of("tools/sim/server-config.json");
+        assertTrue(java.nio.file.Files.exists(sim));
+        SiegeConfig s = new Gson().fromJson(java.nio.file.Files.readString(sim), SiegeConfig.class);
+        s.sanitize();
+        assertEquals(SiegeConfig.SETTINGS_VERSION, s.settingsVersion);
+        bossValues(s);
+        s.sanitize();   // no second step
+        bossValues(s);
+    }
+
+    @Test
+    void ownBossValueTakesTheSameStep() throws Exception {
+        SiegeConfig c = server();
+        c.bossHealthMultiplier = 3.0;   // twice the server's 1.5
+        c.bossDamageMultiplier = 2.5;
+        c.sanitize();
+        assertEquals(0.7, c.bossHealthMultiplier, 1e-9);
+        assertEquals(0.5, c.bossDamageMultiplier, 1e-9);
     }
 
     @Test

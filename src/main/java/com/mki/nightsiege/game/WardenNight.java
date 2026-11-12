@@ -45,6 +45,8 @@ public final class WardenNight {
 
     /** Tag of a dungeon champion that wears its dungeon's look. */
     public static final String TAG = "nightsiege_warden";
+    /** Worn on top of {@link #TAG} by a boss's guard (Paket 11.11.: its own percent share, bossGuardPercent). */
+    public static final String GUARD_TAG = "nightsiege_warden_guard";
 
     private ExpeditionKind kind;
     private UUID wardenId;
@@ -284,6 +286,9 @@ public final class WardenNight {
         // championSpeed, and his skills and leap (ChampionBrains); the percent strikes apply to both already.
         double health = mob.getMaxHealth() * life(host.level(), kind, defenders, host.config()) * lifeShare;
         dress(mob, kind, health);
+        if (asGuard) {
+            mob.addTag(GUARD_TAG);
+        }
         AttributeInstance speed = mob.getAttribute(Attributes.MOVEMENT_SPEED);
         if (speed != null) {
             speed.setBaseValue(speed.getBaseValue() * host.config().championSpeed);

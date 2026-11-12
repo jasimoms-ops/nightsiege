@@ -49,7 +49,7 @@ final class ChampionStrikes {
             return;
         }
         SiegeConfig cfg = m.config();
-        double percent = cfg.championPercent(m.currentLevel(), inNight(source.getEntity())) * 100.0;
+        double percent = cfg.championPercent(m.currentLevel(), inNight(source.getEntity()), isGuard(source.getEntity())) * 100.0;
         if (blocked) {
             percent *= cfg.championPercentShield;
         }
@@ -91,6 +91,11 @@ final class ChampionStrikes {
         PercentDamage.hitFlat(level, player, attacker, direct, percent, blocked);
     }
 
+    /** A boss's guard (Paket 11.11.: bossGuardPercent instead of championNightPercent). */
+    static boolean isGuard(Entity champion) {
+        return champion != null && champion.entityTags().contains(WardenNight.GUARD_TAG);
+    }
+
     /** The warden at the end of a night (not the champion in his dungeon). */
     static boolean inNight(Entity champion) {
         return champion != null && champion.entityTags().contains(WardenNight.TAG)
@@ -108,7 +113,7 @@ final class ChampionStrikes {
         if (cfg == null || player == null) {
             return 0f;
         }
-        double percent = cfg.championPercent(siegeLevel, inNight(champion)) * 100.0 * scale;
+        double percent = cfg.championPercent(siegeLevel, inNight(champion), isGuard(champion)) * 100.0 * scale;
         boolean blocked = !through && player.isBlocking();
         if (blocked) {
             percent *= cfg.championPercentShield;

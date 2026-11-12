@@ -138,7 +138,7 @@ class BossNightTest {
     void lichSwitchesKeepTheOldLichByDefault() {
         SiegeConfig c = new SiegeConfig();
         assertEquals(30.0, c.lichCrystalHealth, 1e-9);   // boss sim 12.11.: the switches exist, nothing moves yet
-        assertEquals(0, c.lichShieldMaxSeconds);
+        assertEquals(SiegeConfig.BOSS_LICH_SHIELD_SECONDS, c.lichShieldMaxSeconds);   // Paket 11.11., Kv5
         c.lichCrystalHealth = -1;
         c.lichShieldMaxSeconds = 5000;
         c.sanitize();
@@ -155,8 +155,8 @@ class BossNightTest {
     void preWavesWeakerOnlyInABossNightBeforeTheBoss() {
         // Vorwelle (Simon 12.11.: "ja dürfen sie"): the waves of a boss night may be weaker until the boss comes.
         SiegeConfig c = cfg();
-        assertEquals(1.0, c.bossPreWaveFactor, 1e-9);   // standard: as before
-        assertEquals(1.0, BossNight.preWaveFactor(true, false, c.bossPreWaveFactor), 1e-9);
+        assertEquals(SiegeConfig.BOSS_PRE_WAVE, c.bossPreWaveFactor, 1e-9);   // standard: Paket 11.11., Kv5
+        assertEquals(SiegeConfig.BOSS_PRE_WAVE, BossNight.preWaveFactor(true, false, c.bossPreWaveFactor), 1e-9);
         c.bossPreWaveFactor = 0.7;
         c.sanitize();
         assertEquals(0.7, c.bossPreWaveFactor, 1e-9);

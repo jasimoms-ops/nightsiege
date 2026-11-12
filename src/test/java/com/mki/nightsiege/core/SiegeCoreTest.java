@@ -2862,7 +2862,7 @@ class SiegeCoreTest {
         double four = BossPlan.health(300, 6, 4, c);
         assertEquals(one * 2.5, four, 1e-6);   // +50 % for each further defender
         assertTrue(BossPlan.health(300, 12, 1, c) > one);
-        assertEquals(300 * SiegeMath.healthMultiplier(6, c), one, 1e-6);
+        assertEquals(300 * c.bossHealthMultiplier * SiegeMath.healthMultiplier(6, c), one, 1e-6);   // Paket 11.11.: factor 0.35
     }
 
     @Test

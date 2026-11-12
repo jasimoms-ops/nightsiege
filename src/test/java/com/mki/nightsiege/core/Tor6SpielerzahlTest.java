@@ -73,8 +73,8 @@ class Tor6SpielerzahlTest {
         assertEquals(1.0, SiegeMath.groupHealth(0, 0.5), 1e-9);
         SiegeConfig c = new SiegeConfig();
         c.sanitize();
-        // the boss: 1 + 0.5 × further (BossPlan), level 1, factor 1
-        assertEquals(100.0 * 2.5 * SiegeMath.healthMultiplier(1, c), BossPlan.health(100.0, 1, 4, c), 1e-6);
+        // the boss: 1 + 0.5 × further (BossPlan), level 1, factor bossHealthMultiplier (Paket 11.11.: 0.35)
+        assertEquals(100.0 * 2.5 * c.bossHealthMultiplier * SiegeMath.healthMultiplier(1, c), BossPlan.health(100.0, 1, 4, c), 1e-6);
     }
 
     @Test

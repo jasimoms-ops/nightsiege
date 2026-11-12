@@ -262,12 +262,34 @@ public class SiegeConfig {
     public boolean bossPhaseHoldsDawn = true;
     /** Bossuhr: the longest boss phase in seconds while bossPhaseHoldsDawn holds the dawn (60–1800). */
     public int bossPhaseMaxSeconds = 600;
+    // --- Paket 11.11., boss acceptance Kv5 (sim N48: 64 % overall, bosses 41–74 %) ---
+    // The final round (balance-run-p1111-boss11) still weighs these three: change ONE line each, default and
+    // migration 27 -> 28 follow (try: lich 0.35, shield 60 s, pre-wave 0.4).
+    /** Knochenlich: his share in {@link #bossHealthPer}. */
+    public static final double BOSS_LICH_HEALTH = 0.5;
+    /** Knochenlich: the shield crumbles after this many seconds ({@link #lichShieldMaxSeconds}). */
+    public static final int BOSS_LICH_SHIELD_SECONDS = 90;
+    /** Vorwelle of a boss night ({@link #bossPreWaveFactor}). */
+    public static final double BOSS_PRE_WAVE = 0.5;
+
+    /** The health factor of each boss of the package (Kv5); the grave king and the warlord stay on 1.0. */
+    public static java.util.Map<String, Double> packageBossHealth() {
+        java.util.Map<String, Double> m = new java.util.LinkedHashMap<>();
+        m.put("bone_lich", BOSS_LICH_HEALTH);
+        m.put("ember_colossus", 0.25);
+        m.put("storm_witch", 0.35);
+        m.put("frost_jarl", 0.35);
+        m.put("spider_queen", 0.7);
+        m.put("ram_titan", 0.8);
+        return m;
+    }
+
     /** Vorwelle (Simon 12.11.): share of the normal waves, refills and machines a boss night brings before its boss comes (0.2–1.0). */
-    public double bossPreWaveFactor = 1.0;
+    public double bossPreWaveFactor = BOSS_PRE_WAVE;
     /** Knochenlich: life of each soul crystal before level and player factors (was fixed 30; boss sim 12.11.). */
     public double lichCrystalHealth = 30.0;
     /** Knochenlich: the soul crystals crumble on their own after this many seconds of shield (0 = never, as before; boss sim 12.11.). */
-    public int lichShieldMaxSeconds = 0;
+    public int lichShieldMaxSeconds = BOSS_LICH_SHIELD_SECONDS;
     // --- boss rhythm (Simon 29 October 2026) ---
     /** Every this many nights the "Vierer-Nacht": the bosses of the boss nights before it, two at a time (0 = none). */
     public int bossGroupEvery = 20;
@@ -289,16 +311,16 @@ public class SiegeConfig {
     /** Size of the last wave that comes with the boss, as a share of a normal wave. */
     public double bossFinaleWave = 1.5;
     /** Factor on the health of every boss. */
-    public double bossHealthMultiplier = 1.0;
+    public double bossHealthMultiplier = 0.35;
     /**
      * Factor on the health of one boss (Chef 12.11.): boss id (grave_king …) → factor, on top of
      * bossHealthMultiplier. A boss not in the map stands on 1.0; empty = every boss as before.
      */
-    public java.util.Map<String, Double> bossHealthPer = new java.util.LinkedHashMap<>();
+    public java.util.Map<String, Double> bossHealthPer = packageBossHealth();
     /** Extra boss health for every defender beyond the first (0.5 = +50 %). */
     public double bossHealthPerExtraPlayer = 0.5;
     /** Factor on the damage of every boss (blows and abilities). */
-    public double bossDamageMultiplier = 1.0;
+    public double bossDamageMultiplier = 0.25;
 
     // --- dungeon wardens in the nights (Simon, 29 October 2026) ---
     /** Chance that a normal night (no boss night) ends with one of the eight dungeon champions. */
@@ -314,7 +336,7 @@ public class SiegeConfig {
      */
     public boolean bossGuards = true;
     /** The guards' life as a share of a warden of the night (0.5 = half, Simon 05.11.). */
-    public double bossGuardLife = 0.5;
+    public double bossGuardLife = 0.05;
 
     // --- tools ------------------------------------------------------------
     /** Only mobs carrying a fitting tool can break blocks. */
@@ -679,7 +701,7 @@ public class SiegeConfig {
      * top of the usual hit, armour does not lessen it, a shield blocks it. The shares are in the
      * code (see {@code PercentDamage}); these factors scale all of them for the bosses and the machines.
      */
-    public double bossPercentDamage = 1.0;
+    public double bossPercentDamage = 0.05;
     public double machinePercentDamage = 1.0;
     /** The share grows with the level: 1 + step × (level − 10), never below the minimum. */
     public double percentDamageLevelStep = 0.05;
@@ -698,6 +720,8 @@ public class SiegeConfig {
      * A raised shield lets {@link #championPercentShield} through.
      */
     public double championNightPercent = 0.30;
+    /** The same share for a boss's guard (Paket 11.11., Kv5: 0); the warden of a normal night keeps championNightPercent. */
+    public double bossGuardPercent = 0.0;
     /** What of that share goes through a raised shield (0.5 = half, like the guardian's shield way). */
     public double championPercentShield = 0.5;
     /**
@@ -1297,6 +1321,11 @@ public class SiegeConfig {
         return night ? championNightPercent : championPercent(level);
     }
 
+    /** As above; a boss's guard (in a night) takes {@link #bossGuardPercent}. */
+    public double championPercent(int level, boolean night, boolean guard) {
+        return night && guard ? bossGuardPercent : championPercent(level, night);
+    }
+
     /** Share of the max health (0.30 = 30 %) a dungeon champion's hit takes at this level. */
     public double championPercent(int level) {
         if (championPercentDamage == null || championPercentDamage.length == 0) {
@@ -1439,6 +1468,14 @@ public class SiegeConfig {
     }
 
     /** Paket 11.11.: the server's value {@code old} becomes the target; any other value takes the same step. */
+    /** Migration to an absolute target: on the target, the server's or the old default it becomes the target, else scaled. */
+    static double bossTarget(double now, double server, double oldDefault, double target) {
+        if (Math.abs(now - target) < 1e-6 || Math.abs(now - server) < 1e-6 || Math.abs(now - oldDefault) < 1e-6) {
+            return target;
+        }
+        return Math.round(now * target / server * 1000.0) / 1000.0;
+    }
+
     private void damageTarget(String sub, double old, double target) {
         double now = subclassDamage.getOrDefault(sub, 1.0);
         if (Math.abs(now - old) < 1e-6) {
@@ -2199,6 +2236,21 @@ public class SiegeConfig {
             // Chef 12.11.: bossHealthPer (one factor per boss) is a new field, empty = 1.0 for every boss; no value moves.
             // Chef 12.11. 07:50: the Bossuhr is on (no dawn while the boss stands, at most bossPhaseMaxSeconds).
             bossPhaseHoldsDawn = true;
+            // Paket 11.11., boss acceptance Kv5 (sim N48: 64 %). Absolute targets: the server's value (v27) or the
+            // old code default becomes the target, an own value takes the same step. New fields start on the target.
+            bossDamageMultiplier = bossTarget(bossDamageMultiplier, 1.25, 1.0, 0.25);
+            bossPercentDamage = bossTarget(bossPercentDamage, 1.0, 1.0, 0.05);
+            bossGuardLife = Math.max(0.05, bossTarget(bossGuardLife, 0.5, 0.5, 0.05));
+            bossHealthMultiplier = Math.max(0.1, bossTarget(bossHealthMultiplier, 1.5, 1.0, 0.35));
+            if (bossHealthPer == null || bossHealthPer.isEmpty()) {
+                bossHealthPer = packageBossHealth();
+            }
+            if (lichShieldMaxSeconds == 0) {
+                lichShieldMaxSeconds = BOSS_LICH_SHIELD_SECONDS;
+            }
+            if (Math.abs(bossPreWaveFactor - 1.0) < 1e-6) {
+                bossPreWaveFactor = BOSS_PRE_WAVE;
+            }
             settingsVersion = 28;
         }
         if (Double.isNaN(meleeLifesteal)) {
@@ -2231,6 +2283,7 @@ public class SiegeConfig {
             championPercentDamageSteps = new int[0];
         }
         championNightPercent = Double.isNaN(championNightPercent) ? 0.30 : Math.min(1.0, Math.max(0.0, championNightPercent));
+        bossGuardPercent = Double.isNaN(bossGuardPercent) ? 0.0 : Math.min(1.0, Math.max(0.0, bossGuardPercent));
         dungeonMobPercentMin = Double.isNaN(dungeonMobPercentMin) ? 0.10 : Math.min(1.0, Math.max(0.0, dungeonMobPercentMin));
         dungeonMobPercentMax = Double.isNaN(dungeonMobPercentMax) ? 0.20 : Math.min(1.0, Math.max(dungeonMobPercentMin, dungeonMobPercentMax));
         dungeonMobPercentMaxLevel = Math.max(2, Math.min(1000, dungeonMobPercentMaxLevel));
