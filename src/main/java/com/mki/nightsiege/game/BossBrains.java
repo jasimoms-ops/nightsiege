@@ -634,6 +634,8 @@ final class BossBrains {
         static final int BLINK_PAUSE = 240;
         double angle;
         long exhaustedUntil;
+        /** Where he lies worn out: inside the walls (12.11.), or null (no ground found: where he is). */
+        Vec3 restAt;
         /** His soul arrows in flight (they fly straight and go after three seconds). */
         final Map<UUID, Long> soulArrows = new HashMap<>();
         long nextShot;
@@ -963,6 +965,16 @@ final class BossBrains {
             rainAt = null;
             closeTicks = 0;
             boss.addEffect(new MobEffectInstance(MobEffects.GLOWING, EXHAUSTED_TICKS, 0, false, false));
+            // Boss sim 12.11.: he sank where he hovered, outside the walls, out of every sword's reach. Now he
+            // drifts in over the wall and sinks inside it, where the crystals stood (edge - 3).
+            BlockPos a = host.anchor();
+            double cx = a.getX() + 0.5;
+            double cz = a.getZ() + 0.5;
+            double ang = Math.atan2(boss.getZ() - cz, boss.getX() - cx);
+            double edge = host.baseEdge(boss.getX(), boss.getZ());
+            double radius = Math.min(Math.hypot(boss.getX() - cx, boss.getZ() - cz), edge > 0 ? Math.max(3.0, edge - 3.0) : 7.0);
+            BlockPos spot = BossService.groundNear(level, cx + Math.cos(ang) * radius, a.getY() + 1, cz + Math.sin(ang) * radius);
+            restAt = spot == null ? null : new Vec3(spot.getX() + 0.5, spot.getY(), spot.getZ() + 0.5);
             BossService.sound(level, boss.position(), SoundEvents.SKELETON_HURT, 1.8f, 0.5f);
             tell(host, "nightsiege.boss.bone_lich.exhausted", ChatFormatting.GOLD);
         }
@@ -970,10 +982,19 @@ final class BossBrains {
         /** Worn out he sinks to the ground where he is and does nothing. */
         private void sink(BossService.Host host, Mob boss, long now) {
             ServerLevel level = host.world();
-            boss.noPhysics = false;   // worn out on the ground, not in it
             double ground = BossService.surface(level, boss.getX(), boss.getZ());
-            double dy = ground - boss.getY();
-            boss.setDeltaMovement(0, Math.max(-0.25, Math.min(0.05, dy * 0.3)), 0);
+            Vec3 flat = restAt == null ? Vec3.ZERO : new Vec3(restAt.x - boss.getX(), 0, restAt.z - boss.getZ());
+            double away = flat.length();
+            if (away > 0.4) {
+                // Over the wall into the base first, through it like the soul he is (12.11.).
+                boss.noPhysics = true;
+                double up = Math.max(ground, restAt.y) + 1.0 - boss.getY();
+                boss.setDeltaMovement(flat.scale(Math.min(0.35, away) / away).add(0, Math.max(-0.25, Math.min(0.2, up * 0.3)), 0));
+            } else {
+                boss.noPhysics = false;   // worn out on the ground, not in it
+                double dy = (restAt != null ? restAt.y : ground) - boss.getY();
+                boss.setDeltaMovement(0, Math.max(-0.25, Math.min(0.05, dy * 0.3)), 0);
+            }
             boss.hurtMarked = true;
             boss.getNavigation().stop();
             if (now % 4 == 0) {
