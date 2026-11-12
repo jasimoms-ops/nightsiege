@@ -35,6 +35,14 @@ final class EffekteScenes {
     private static int checks;
     /** Looking a little down: the crosshair meets the near husk at 2.5 blocks (melee and execute reach). */
     private static final float PITCH = 10.0f;
+    /** Chef 12.11. 18:10: effects cover at most ~15 % of the caster's own view. */
+    private static final double MAX_COVER = 0.15;
+    /** ... and every subclass looks visibly new: at least this share of the picture differs before/after. */
+    private static final double MIN_APART = 0.01;
+    /** A pixel counts as changed when a colour channel moved by more than this. */
+    private static final int STRONG = 48;
+    /** Lines sub;view;what;cover before;cover after;apart for the summary. */
+    private static final List<String> COVER = new ArrayList<>();
     private static final List<String> FAILS = new ArrayList<>();
 
     private EffekteScenes() {
@@ -152,14 +160,61 @@ final class EffekteScenes {
         return false;
     }
 
-    private static void shot(ClientGameTestContext context, String name) {
+    private static java.nio.file.Path shot(ClientGameTestContext context, String name) {
         context.getInput().setCursorPos(1, 1);   // lessons 12.11.: the cursor in an empty corner
-        context.takeScreenshot(name);
+        return context.takeScreenshot(name);
+    }
+
+    /** The same set-up as {@link #fire} without a key: the picture without any effect, at the same moment. */
+    private static void calm(ClientGameTestContext context, TestSingleplayerContext game, String step) {
+        respawn(game);
+        context.waitTicks(2);
+        context.getInput().lookAt(-90.0f, PITCH);
+        context.waitTicks(1);
+        server(context, step, (player, m) -> {
+            home(player);
+            KlassencheckScenes.ready(player, m);
+            weaken(player);
+        });
+        context.waitTicks(6);
+    }
+
+    /**
+     * Share of pixels that changed strongly between two pictures (any colour channel by more than
+     * {@link #STRONG}); every second pixel in both directions. -1 when one cannot be read.
+     */
+    static double changed(java.nio.file.Path a, java.nio.file.Path b) {
+        try {
+            java.awt.image.BufferedImage x = javax.imageio.ImageIO.read(a.toFile());
+            java.awt.image.BufferedImage y = javax.imageio.ImageIO.read(b.toFile());
+            if (x == null || y == null || x.getWidth() != y.getWidth() || x.getHeight() != y.getHeight()) {
+                return -1;
+            }
+            long all = 0;
+            long moved = 0;
+            for (int j = 0; j < x.getHeight(); j += 2) {
+                for (int i = 0; i < x.getWidth(); i += 2) {
+                    int p = x.getRGB(i, j);
+                    int q = y.getRGB(i, j);
+                    int d = Math.max(Math.abs((p >> 16 & 0xFF) - (q >> 16 & 0xFF)),
+                            Math.max(Math.abs((p >> 8 & 0xFF) - (q >> 8 & 0xFF)), Math.abs((p & 0xFF) - (q & 0xFF))));
+                    all++;
+                    if (d > STRONG) {
+                        moved++;
+                    }
+                }
+            }
+            return all == 0 ? -1 : (double) moved / all;
+        } catch (Exception e) {
+            log("picture not read: " + e);
+            return -1;
+        }
     }
 
     static void run(ClientGameTestContext context, TestSingleplayerContext game) {
         FAILS.clear();
         checks = 0;
+        COVER.clear();
         EventLookTest.ensureCore(context, game);
         EventLookTest.closeScreen(context);
         game.getServer().runCommand("time set 18000");
@@ -261,46 +316,81 @@ final class EffekteScenes {
                 press[0] = AbilityKeys.keyOf(sub, AbilityKeys.F_ACTION) != null ? "ult2" : slots > 1 ? "slot:1" : "slot:0";
             });
             context.waitTicks(5);
-            for (boolean full : new boolean[]{false, true}) {
-                String when = full ? "nachher" : "vorher";
-                context.runOnClient(client -> FxSettings.setFull(full));
-                final int[] drawn = {AbilityFxClient.drawnForTests()};
-                final int boostBefore = AbilityFxClient.boostedForTests();
-                // the ability: the same moment in both looks, 4 ticks after it went off; no picture when it did not
-                boolean castFired = fire(context, game, sub + " ability " + when, press[0], CoreNetworking.FxPayload.CAST);
-                if (castFired) {
-                    context.waitTicks(4);
-                    shot(context, "effekte_" + sub + "_faehigkeit_" + when);
-                }
-                check(castFired, sub + " " + when + ": the ability (" + press[0] + ") went off");
-                context.waitTicks(15);
-                final int castDrawn = AbilityFxClient.drawnForTests() - drawn[0];
-                drawn[0] = AbilityFxClient.drawnForTests();
-                boolean ultFired = fire(context, game, sub + " ult " + when, "ult", CoreNetworking.FxPayload.ULT);
-                boolean shaking = AbilityFxClient.shakingForTests();
-                if (ultFired) {
-                    context.waitTicks(4);
-                    shot(context, "effekte_" + sub + "_ult_" + when);
-                }
-                check(ultFired, sub + " " + when + ": the ultimate went off");
-                context.waitTicks(30);
-                int ultDrawn = AbilityFxClient.drawnForTests() - drawn[0];
-                log(sub + " " + when + ": ability fired=" + castFired + " particles=" + castDrawn + " ult fired=" + ultFired
-                        + " ult particles=" + ultDrawn + " shake=" + shaking);
-                if (full) {
-                    check(!ultFired || ultDrawn > 0, sub + ": full ultimate draws particles");
-                    if (ultFired) {
-                        ultsFull++;
-                        shakes += shaking ? 1 : 0;
+            // Chef 12.11. 18:10: first person and F5, each before/after, measured against a picture without effect.
+            // The shake is off for the pictures (it moves the whole picture) and checked once on its own below.
+            context.runOnClient(client -> FxSettings.setShake(false));
+            for (boolean firstPerson : new boolean[]{true, false}) {
+                String view = firstPerson ? "ich" : "f5";
+                context.runOnClient(client -> client.options.setCameraType(firstPerson ? CameraType.FIRST_PERSON : CameraType.THIRD_PERSON_BACK));
+                calm(context, game, sub + " " + view + " basis");
+                java.nio.file.Path basis = shot(context, "effekte_" + sub + "_" + view + "_basis");
+                java.nio.file.Path[][] pics = new java.nio.file.Path[2][2];   // [ability|ult][vorher|nachher]
+                for (boolean full : new boolean[]{false, true}) {
+                    String when = full ? "nachher" : "vorher";
+                    context.runOnClient(client -> FxSettings.setFull(full));
+                    final int[] drawn = {AbilityFxClient.drawnForTests()};
+                    final int boostBefore = AbilityFxClient.boostedForTests();
+                    // the same moment in both looks, 4 ticks after it went off; no picture when it did not
+                    boolean castFired = fire(context, game, sub + " ability " + when, press[0], CoreNetworking.FxPayload.CAST);
+                    if (castFired) {
+                        context.waitTicks(4);
+                        pics[0][full ? 1 : 0] = shot(context, "effekte_" + sub + "_" + view + "_faehigkeit_" + when);
                     }
-                } else {
-                    check(castDrawn == 0 && ultDrawn == 0 && AbilityFxClient.boostedForTests() == boostBefore,
-                            sub + ": reduced draws none of the new effects and keeps the old particles");
+                    check(castFired, sub + " " + view + " " + when + ": the ability (" + press[0] + ") went off");
+                    context.waitTicks(25);
+                    final int castDrawn = AbilityFxClient.drawnForTests() - drawn[0];
+                    drawn[0] = AbilityFxClient.drawnForTests();
+                    boolean ultFired = fire(context, game, sub + " ult " + when, "ult", CoreNetworking.FxPayload.ULT);
+                    if (ultFired) {
+                        context.waitTicks(4);
+                        pics[1][full ? 1 : 0] = shot(context, "effekte_" + sub + "_" + view + "_ult_" + when);
+                    }
+                    check(ultFired, sub + " " + view + " " + when + ": the ultimate went off");
+                    context.waitTicks(40);
+                    int ultDrawn = AbilityFxClient.drawnForTests() - drawn[0];
+                    if (full) {
+                        check(!ultFired || ultDrawn > 0, sub + " " + view + ": full ultimate draws particles");
+                    } else {
+                        check(castDrawn == 0 && ultDrawn == 0 && AbilityFxClient.boostedForTests() == boostBefore,
+                                sub + " " + view + ": reduced draws none of the new effects and keeps the old particles");
+                    }
+                }
+                for (int k = 0; k < 2; k++) {
+                    String what = k == 0 ? "faehigkeit" : "ult";
+                    if (pics[k][0] == null || pics[k][1] == null) {
+                        continue;
+                    }
+                    double coverOld = changed(basis, pics[k][0]);
+                    double cover = changed(basis, pics[k][1]);
+                    double apart = changed(pics[k][0], pics[k][1]);
+                    log(String.format(java.util.Locale.ROOT, "%s %s %s: Deckung vorher %.1f %%, nachher %.1f %%, Unterschied vorher/nachher %.1f %%",
+                            sub, view, what, coverOld * 100, cover * 100, apart * 100));
+                    COVER.add(String.format(java.util.Locale.ROOT, "%s;%s;%s;%.1f;%.1f;%.1f", sub, view, what, coverOld * 100, cover * 100, apart * 100));
+                    if (firstPerson) {
+                        check(cover <= MAX_COVER, sub + " " + what + ": effects cover " + Math.round(cover * 100) + " % of the own view (max 15 %)");
+                    }
+                    check(apart >= MIN_APART, sub + " " + view + " " + what + ": before and after differ only "
+                            + String.format(java.util.Locale.ROOT, "%.1f", apart * 100) + " % of the picture (min "
+                            + Math.round(MIN_APART * 100) + " %)");
                 }
             }
+            // the shake of one's own ultimate, once, without a picture
+            context.runOnClient(client -> {
+                FxSettings.setFull(true);
+                FxSettings.setShake(true);
+                client.options.setCameraType(CameraType.FIRST_PERSON);
+            });
+            boolean ultFired = fire(context, game, sub + " ult shake", "ult", CoreNetworking.FxPayload.ULT);
+            boolean shaking = AbilityFxClient.shakingForTests();
+            if (ultFired) {
+                ultsFull++;
+                shakes += shaking ? 1 : 0;
+            }
+            context.waitTicks(30);
         }
         context.runOnClient(client -> {
-            FxSettings.setFull(true);
+            FxSettings.setFull(false);   // the default since Chef 12.11. 18:10
+            FxSettings.setShake(true);
             client.options.setCameraType(CameraType.FIRST_PERSON);
             client.options.chatVisibility().set((net.minecraft.world.entity.player.ChatVisiblity) before[0]);
             client.options.fov().set((Integer) before[1]);
@@ -310,6 +400,7 @@ final class EffekteScenes {
         log("ultimates fired (full)=" + ultsFull + " shakes=" + shakes + " hit messages=" + hits
                 + " rings=" + AbilityFx.sentForTests(CoreNetworking.FxPayload.RING) + " old particles bigger=" + AbilityFxClient.boostedForTests());
         check(AbilityFxClient.boostedForTests() > 0, "the abilities' own particles came bigger with full effects");
+        log("Deckung (sub;sicht;was;vorher %;nachher %;unterschied %): " + String.join(" | ", COVER));
         check(shakes == ultsFull, "every own ultimate shook the camera (" + shakes + "/" + ultsFull + ")");
         check(hits > 0, "ability hits flashed (" + hits + ")");
         check(AbilityFx.sentForTests(CoreNetworking.FxPayload.RING) > 0, "area abilities drew their ring");

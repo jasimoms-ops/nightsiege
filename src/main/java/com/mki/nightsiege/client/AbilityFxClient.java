@@ -45,6 +45,10 @@ public final class AbilityFxClient {
     private static final int SHOCK_TICKS = 10;
     private static final int FLASH_TICKS = 5;
     private static final int SHAKE_TICKS = 10;
+    /** The ring at the caster's feet on every key (blocks). */
+    private static final double CAST_RING = 1.6;
+    /** Particles this close to the camera never grow (blocks). */
+    private static final double NEAR = 3.0;
 
     private static final FxBudget BUDGET = new FxBudget();
     private static final List<Pending> PENDING = new ArrayList<>();
@@ -102,15 +106,20 @@ public final class AbilityFxClient {
         if (src instanceof LivingEntity living) {
             living.swing(InteractionHand.MAIN_HAND, false);   // the arm, seen from every side (no packet back)
         }
-        burst(level, p.source(), at, p.color(), p.accent(), ult ? 48 : 30);
+        boolean own = ownView(p.source());
+        burst(level, p.source(), at, p.color(), p.accent(), ult ? 40 : 24, own);
+        // Chef 12.11. 18:10: every key visibly new - a ring in the class colour at the caster's feet, two pulses
+        for (int pulse = 0; pulse < 2; pulse++) {
+            later(pulse * 5L, () -> ring(level, p.source(), at, CAST_RING, p.color(), p.accent(), DUST * 0.8f, 1.0));
+        }
         if (!ult) {
             return;
         }
-        // the column of light: three pulses
+        // the column of light: three pulses; seen from one's own eyes it starts above the head (no wall in the face)
         for (int pulse = 0; pulse < 3; pulse++) {
-            later(pulse * 4L, () -> column(level, p.source(), at, p.accent()));
+            later(pulse * 4L, () -> column(level, p.source(), at, p.accent(), own));
         }
-        if (take(p.source(), 1) > 0) {
+        if (!own && take(p.source(), 1) > 0) {
             level.addParticle(ColorParticleOption.create(ParticleTypes.FLASH, 0xFF000000 | p.accent()), true, false,
                     at.x, at.y + 1.0, at.z, 0, 0, 0);
         }
@@ -129,24 +138,37 @@ public final class AbilityFxClient {
         }
     }
 
-    private static void burst(ClientLevel level, int source, Vec3 at, int color, int accent, int count) {
-        int n = take(source, count);
+    /** True when the effects of this source are seen from its own eyes (the local player in first person). */
+    private static boolean ownView(int source) {
+        Minecraft mc = Minecraft.getInstance();
+        return mc.player != null && source == mc.player.getId() && mc.options.getCameraType().isFirstPerson();
+    }
+
+    /**
+     * The burst around the caster. From one's own eyes it stays low around the feet, fewer and smaller
+     * (Chef 12.11. 18:10: nothing may close the view).
+     */
+    private static void burst(ClientLevel level, int source, Vec3 at, int color, int accent, int count, boolean own) {
+        int n = take(source, own ? count / 2 : count);
         RandomSource rnd = level.getRandom();
-        DustParticleOptions main = new DustParticleOptions(color, DUST);
-        DustParticleOptions acc = new DustParticleOptions(accent, DUST * 0.8f);
+        float size = own ? DUST * 0.6f : DUST;
+        DustParticleOptions main = new DustParticleOptions(color, size);
+        DustParticleOptions acc = new DustParticleOptions(accent, size * 0.8f);
         for (int i = 0; i < n; i++) {
             double a = rnd.nextDouble() * Math.PI * 2;
-            double d = 0.35 + rnd.nextDouble() * 0.5;
-            add(level, i % 3 == 0 ? acc : main, at.x + Math.cos(a) * d, at.y + 0.2 + rnd.nextDouble() * 1.8,
+            double d = own ? 0.9 + rnd.nextDouble() * 0.6 : 0.35 + rnd.nextDouble() * 0.5;
+            double h = own ? 0.1 + rnd.nextDouble() * 0.4 : 0.2 + rnd.nextDouble() * 1.8;
+            add(level, i % 3 == 0 ? acc : main, at.x + Math.cos(a) * d, at.y + h,
                     at.z + Math.sin(a) * d, Math.cos(a) * 0.05, 0.06 + rnd.nextDouble() * 0.06, Math.sin(a) * 0.05);
         }
     }
 
-    private static void column(ClientLevel level, int source, Vec3 at, int accent) {
+    private static void column(ClientLevel level, int source, Vec3 at, int accent, boolean own) {
         int n = take(source, 40);
         DustParticleOptions dust = new DustParticleOptions(accent, Math.min(4.0f, DUST * 1.4f));
+        double from = own ? 3.5 : 0.0;
         for (int i = 0; i < n; i++) {
-            double y = at.y + i * 0.35;
+            double y = at.y + from + i * 0.35;
             add(level, i % 2 == 0 ? dust : ParticleTypes.END_ROD, at.x, y, at.z, 0, 0.02, 0);
         }
     }
@@ -167,17 +189,24 @@ public final class AbilityFxClient {
         }
     }
 
+    /**
+     * Struck monsters flash white and get a thin bolt of light in the class colour from their feet up
+     * (Chef 12.11. 18:10: single target abilities like the electrician's chain must look new too).
+     */
     private static void hits(ClientLevel level, CoreNetworking.FxPayload p) {
         DustParticleOptions dust = new DustParticleOptions(p.color(), DUST);
+        DustParticleOptions acc = new DustParticleOptions(p.accent(), DUST * 0.7f);
         for (int id : p.ids()) {
             Entity e = level.getEntity(id);
             if (!(e instanceof LivingEntity)) {
                 continue;
             }
             FLASH.put(id, FLASH_TICKS);
-            int n = take(p.source(), 6);
+            int n = take(p.source(), 12);
+            double top = e.getBbHeight() + 1.2;
             for (int i = 0; i < n; i++) {
-                add(level, dust, e.getX(), e.getY(0.5), e.getZ(), 0, 0, 0);
+                double y = e.getY() + top * i / Math.max(1, n - 1);
+                add(level, i % 3 == 0 ? ParticleTypes.ELECTRIC_SPARK : i % 3 == 1 ? acc : dust, e.getX(), y, e.getZ(), 0, 0.01, 0);
             }
         }
     }
@@ -218,31 +247,58 @@ public final class AbilityFxClient {
         now = mc.level.getGameTime();
         Vec3 eye = mc.gameRenderer.mainCamera().position();
         RandomSource rnd = mc.level.getRandom();
+        boolean bright = bright(p.getParticle());
         int count = p.getCount();
         float speed = p.getMaxSpeed();
         if (count == 0) {
-            spawnBig(mc, p, eye, p.getX(), p.getY(), p.getZ(), speed * p.getXDist(), speed * p.getYDist(), speed * p.getZDist());
+            spawnBig(mc, p, eye, bright, 0, p.getX(), p.getY(), p.getZ(), speed * p.getXDist(), speed * p.getYDist(), speed * p.getZDist());
             return true;
         }
-        int n = count + take(openSource, (int) Math.ceil(count * (FxBudget.COUNT - 1.0)));
+        double more = (bright ? FxBudget.COUNT : FxBudget.DIM) - 1.0;
+        int n = count + take(openSource, (int) Math.floor(count * more));
         for (int i = 0; i < n; i++) {
             double x = p.getX() + rnd.nextGaussian() * p.getXDist();
             double y = p.getY() + rnd.nextGaussian() * p.getYDist();
             double z = p.getZ() + rnd.nextGaussian() * p.getZDist();
-            spawnBig(mc, p, eye, x, y, z, rnd.nextGaussian() * speed, rnd.nextGaussian() * speed, rnd.nextGaussian() * speed);
+            spawnBig(mc, p, eye, bright, i, x, y, z, rnd.nextGaussian() * speed, rnd.nextGaussian() * speed, rnd.nextGaussian() * speed);
         }
         return true;
     }
 
+    /**
+     * Chef 12.11. 18:10: only glowing, coloured and thin particles grow by the full factors (dust, end rod,
+     * sparks, crits, enchant, flames, souls, hearts); smoke, clouds, poofs and explosions at most ×1.25.
+     */
+    static boolean bright(ParticleOptions o) {
+        if (o instanceof DustParticleOptions || o instanceof net.minecraft.core.particles.DustColorTransitionOptions) {
+            return true;
+        }
+        net.minecraft.core.particles.ParticleType<?> t = o.getType();
+        return t == ParticleTypes.END_ROD || t == ParticleTypes.ELECTRIC_SPARK || t == ParticleTypes.CRIT
+                || t == ParticleTypes.ENCHANTED_HIT || t == ParticleTypes.ENCHANT || t == ParticleTypes.FLAME
+                || t == ParticleTypes.SOUL_FIRE_FLAME || t == ParticleTypes.SOUL || t == ParticleTypes.HEART
+                || t == ParticleTypes.HAPPY_VILLAGER || t == ParticleTypes.GLOW || t == ParticleTypes.WAX_ON
+                || t == ParticleTypes.WAX_OFF || t == ParticleTypes.SCRAPE || t == ParticleTypes.TOTEM_OF_UNDYING
+                || t == ParticleTypes.FIREWORK || t == ParticleTypes.WITCH || t == ParticleTypes.DRAGON_BREATH
+                || t == ParticleTypes.SONIC_BOOM || t == ParticleTypes.NOTE || t == ParticleTypes.DAMAGE_INDICATOR;
+    }
+
     private static void spawnBig(Minecraft mc, net.minecraft.network.protocol.game.ClientboundLevelParticlesPacket p, Vec3 eye,
-                                 double x, double y, double z, double dx, double dy, double dz) {
-        if (!p.isOverrideLimiter() && eye.distanceToSqr(x, y, z) > 1024.0) {
+                                 boolean bright, int index, double x, double y, double z, double dx, double dy, double dz) {
+        double dist2 = eye.distanceToSqr(x, y, z);
+        if (!p.isOverrideLimiter() && dist2 > 1024.0) {
             return;   // as Minecraft: unforced particles only within 32 blocks
+        }
+        boolean near = dist2 < NEAR * NEAR;
+        if (near && !bright && index % 2 == 1) {
+            return;   // smoke and clouds right before the eyes: every second one only (nothing closes the view)
         }
         net.minecraft.client.particle.Particle made = mc.particleEngine.createParticle(p.getParticle(), x, y, z, dx, dy, dz);
         if (made != null) {
-            made.scale((float) FxBudget.SIZE);
-            made.setLifetime((int) Math.round(made.getLifetime() * FxBudget.LIFE));
+            double size = near ? 1.0 : bright ? FxBudget.SIZE : FxBudget.DIM;
+            double life = bright ? FxBudget.LIFE : FxBudget.DIM;
+            made.scale((float) size);
+            made.setLifetime((int) Math.round(made.getLifetime() * life));
             boosted++;
         }
     }

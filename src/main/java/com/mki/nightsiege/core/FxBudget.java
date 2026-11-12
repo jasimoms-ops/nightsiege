@@ -17,6 +17,8 @@ public final class FxBudget {
     public static final double SIZE = 1.75;
     public static final double COUNT = 1.5;
     public static final double LIFE = 1.5;
+    /** Smoke, clouds, poofs, explosions: size, count and time at most this (Chef 12.11. 18:10). */
+    public static final double DIM = 1.25;
 
     /** Particles one player's effects may start at once (an ultimate fits). */
     public static final int CAPACITY = 480;
