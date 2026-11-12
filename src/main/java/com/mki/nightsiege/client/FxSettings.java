@@ -24,7 +24,7 @@ public final class FxSettings {
 
     /** What is stored. */
     public static final class Data {
-        public boolean full = true;
+        public boolean full = false;   // Chef 12.11. 18:10: "reduziert" (the old look) until the full look passed the review
         public boolean shake = true;
     }
 
