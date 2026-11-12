@@ -1085,8 +1085,8 @@ public class SiegeConfig {
      * (as for lowLevelDamageDealt and the traps' growth; a playtest or the bench uses its test level).
      */
     public Map<String, Map<String, Double>> subclassDamageLevel = defaultDamageLevel();
-    /** Subclasses whose level curve hits only the damage of their towers and traps, not their own hits. */
-    public List<String> subclassDamageLevelTrapsOnly = new ArrayList<>(List.of("electrician", "trapper"));
+    /** Subclasses whose level curve hits only the damage of their towers and traps. The trapper has no tower or floor trap: his "traps" are his net bolts, tripwire and net rain, so his curve hits all his damage (the slow stays). */
+    public List<String> subclassDamageLevelTrapsOnly = new ArrayList<>(List.of("electrician"));
     /** Paket 11.11.: factor on the alchemist's own direct hits (sword, bow); towers, zones, poison and acid stay. */
     public double alchemistDirectHit = ALCHEMIST_DIRECT_HIT;
     static final double ALCHEMIST_DIRECT_HIT = 1.4;
@@ -1858,7 +1858,7 @@ public class SiegeConfig {
         subclassDamageLevel = subclassDamageLevel == null ? defaultDamageLevel() : cleanCurves(subclassDamageLevel);
         levelCurves = parseCurves(subclassDamageLevel);
         if (subclassDamageLevelTrapsOnly == null) {
-            subclassDamageLevelTrapsOnly = new ArrayList<>(List.of("electrician", "trapper"));
+            subclassDamageLevelTrapsOnly = new ArrayList<>(List.of("electrician"));
         }
         subclassDamageLevelTrapsOnly.removeIf(java.util.Objects::isNull);
         subclassDamageLevelTrapsOnly.replaceAll(k -> k.toLowerCase(java.util.Locale.ROOT));
