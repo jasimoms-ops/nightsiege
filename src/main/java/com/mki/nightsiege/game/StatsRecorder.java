@@ -140,6 +140,9 @@ public final class StatsRecorder {
         public SchlaueNacht schlaueNacht = new SchlaueNacht();
         /** Bossnacht neu (Simon 11.11.): every 10 s of a boss night its phase, the boss's life and his guard. */
         public List<BossSchritt> bossVerlauf = new ArrayList<>();
+        /** Boss sim 12.11.: the defenders' damage to the boss (all his bodies) and to his parts (crystals, egg sacs). */
+        public double bossSchaden;
+        public double bossTeilSchaden;
     }
 
     /** One look at a boss night (every 10 s). */
@@ -887,6 +890,11 @@ public final class StatsRecorder {
         boolean companion = Companions.isCompanion(hitterRaw);
         Entity hitter = companion ? Companions.ownerPlayer(hitterRaw) : hitterRaw;
         if (victimIsMob && hitter instanceof ServerPlayer attacker) {
+            if (BossService.isBoss(victim)) {
+                night.bossSchaden += taken;
+            } else if (victim.entityTags().contains(BossService.TAG_PART)) {
+                night.bossTeilSchaden += taken;
+            }
             String from = sourceOf(attacker, source, companion);
             SpielerWelle w = pw(attacker);
             w.schaden += taken;

@@ -510,6 +510,19 @@ final class TeamBrain {
         }
         Mob close = pickTarget(level, player, melee ? leash + 4 : 10.0, now, melee);
         Mob far = pickTarget(level, player, 32.0, now, false);
+        // Boss sim 12.11.: like a player, the fighters go for the crystals and then the boss, past the guard; the
+        // archers shoot the boss wherever he is (the witch up in the air); melee waits under a flier for its landing.
+        Mob goal = roams && role != Role.HEALER ? bossGoal(level, player, now) : null;
+        boolean goalUnder = false;
+        if (goal != null) {
+            if (!melee) {
+                far = goal;
+            } else if (goal.getBoundingBox().minY - player.getY() < 3.5) {
+                close = goal;
+            } else if (close == null) {
+                goalUnder = true;
+            }
+        }
         double reach = player.getAttributeValue(Attributes.ENTITY_INTERACTION_RANGE);
         boolean inReach = close != null && player.distanceTo(close) <= reach + 0.3;
 
@@ -521,6 +534,8 @@ final class TeamBrain {
                 walk(player, level, close.position());
             } else if (focused && !melee && far != null && player.distanceTo(far) > 16.0) {
                 walk(player, level, far.position());   // archers close in to bow range (the aim error grows with distance)
+            } else if (focused && goalUnder) {
+                walk(player, level, goal.position());
             } else if (focused && (melee ? close == null : far == null)) {
                 Vec3 to = huntSpot(level, player, team, now);
                 if (to != null) {
@@ -739,6 +754,45 @@ final class TeamBrain {
     static final double HUNT = 56.0;
     private long nextHunt;
     private Vec3 hunted;
+    private long goalSince = -1;
+
+    /**
+     * Boss sim 12.11. (like a player, who knows the boss bar and his tricks): the goal of the boss fight within
+     * {@link #HUNT} of the core. While the lich's shield stands, the nearest soul crystal; else the boss (the
+     * nearest one, the colossus's halves), not the phantom under the witch. Null before the bot noticed the boss.
+     */
+    private Mob bossGoal(ServerLevel level, ServerPlayer player, long now) {
+        Mob boss = null;
+        Mob part = null;
+        boolean shielded = false;
+        double bossD = Double.MAX_VALUE;
+        double partD = Double.MAX_VALUE;
+        for (Mob mob : level.getEntitiesOfClass(Mob.class, new net.minecraft.world.phys.AABB(BlockPos.containing(core)).inflate(HUNT, 24, HUNT),
+                e -> e.isAlive() && BossService.isBossOrPart(e) && !BossService.isMount(e) && e.position().distanceTo(core) <= HUNT)) {
+            double d = mob.distanceToSqr(player);
+            if (BossService.isBoss(mob)) {
+                shielded |= TrapService.shielded(mob);
+                if (d < bossD && !TrapService.shielded(mob)) {
+                    bossD = d;
+                    boss = mob;
+                }
+            } else if (d < partD) {
+                partD = d;
+                part = mob;
+            }
+        }
+        if (boss == null && part == null && !shielded) {
+            goalSince = -1;
+            return null;
+        }
+        if (goalSince < 0) {
+            goalSince = now;
+        }
+        if (!BotHuman.noticed(now, goalSince, h.on ? h.ereignisVerzug : 0)) {
+            return null;
+        }
+        return shielded ? part : boss;
+    }
 
     /**
      * Where a roaming bot goes with nothing close (every second anew): the nearest monster within {@link #HUNT}

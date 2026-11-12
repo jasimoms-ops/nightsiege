@@ -52,7 +52,7 @@ def main(src, dst):
         out.write("art;variante;stufe;gruppe;mischung;lauf;unterklasse;schaden;erhalten;heilung;kills;tode\n")
         for b in bots:
             out.write(";".join(b) + "\n")
-        for art, kopf in (("RASTER", "art;variante;stufe;gruppe;mischung;lauf;ereignis;boss;koennen;sieg;mspt_p95;lebende_max;frueh;tode;sekunden;ergebnis"),
+        for art, kopf in (("RASTER", "art;variante;stufe;gruppe;mischung;lauf;ereignis;boss;koennen;sieg;mspt_p95;lebende_max;frueh;tode;sekunden;ergebnis;boss_schaden;teil_schaden"),
                           ("KNOTEN", "art;variante;stufe;gruppe;mischung;lauf;unterklasse;wahl;knoten"),
                           ("TICK", "art;variante;stufe;gruppe;mischung;lauf;kampftick;lebende;mspt_p95_fenster;mspt_max_fenster")):
             rows = [e for e in extra if e[0] == art]
