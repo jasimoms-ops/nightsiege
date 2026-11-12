@@ -289,6 +289,10 @@ public class EventLookTest implements FabricClientGameTest {
                     alive(context);
                     EffekteScenes.run(context, game);   // Z4 (Simon 12.11.): every subclass, one ability and the ult, old and new look
                 }
+                if (want.contains("fxlast")) {
+                    alive(context);
+                    FxLastScenes.run(context, game);   // Z4 load test: 6 casters + 120 monsters, effects reduced vs full
+                }
                 if (want.contains("dungeonregeln")) {
                     alive(context);   // a scene before may have left the player dead (05.11.)
                     DungeonregelnScenes.run(context, game);   // Simon 09.11.: in the dungeon the night's rules (friendly fire, Kombo, keys)
