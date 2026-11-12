@@ -96,4 +96,30 @@ class BossNightTest {
         assertEquals(62.5, BossNight.lifePercent(true, false, 625, 1000), 1e-9);
         assertEquals(0.0, BossNight.lifePercent(true, true, 400, 1000), 1e-9);
     }
+
+    @Test
+    void bossClockHoldsTheDawnOnlyWhenSwitchedOn() {
+        SiegeConfig c = cfg();
+        assertFalse(c.bossPhaseHoldsDawn);   // off by default: the server stays as it is
+        assertEquals(600, c.bossPhaseMaxSeconds);
+        assertFalse(BossNight.holdsDawn(false, true, false));   // off: dawn ends the night as before
+        assertFalse(BossNight.holdsDawn(true, false, false));   // on, before the boss: the normal clock
+        assertTrue(BossNight.holdsDawn(true, true, false));     // on, boss stands: no dawn
+        assertFalse(BossNight.holdsDawn(true, true, true));     // boss fell: the night is won (no hold)
+        int max = c.bossPhaseMaxSeconds;
+        assertFalse(BossNight.phaseOver(max * 20 - 1, max));    // the boss phase still runs
+        assertTrue(BossNight.phaseOver(max * 20, max));         // after bossPhaseMaxSeconds: lost
+        assertEquals(max * 20, BossNight.phaseTicksLeft(0, max));
+        assertEquals(20, BossNight.phaseTicksLeft(max * 20 - 20, max));
+        assertEquals(0, BossNight.phaseTicksLeft(max * 20 + 5, max));
+        c.bossPhaseMaxSeconds = 10;
+        c.sanitize();
+        assertEquals(60, c.bossPhaseMaxSeconds);
+        c.bossPhaseMaxSeconds = 5000;
+        c.sanitize();
+        assertEquals(1800, c.bossPhaseMaxSeconds);
+        c.bossPhaseMaxSeconds = 0;
+        c.sanitize();
+        assertEquals(600, c.bossPhaseMaxSeconds);
+    }
 }
