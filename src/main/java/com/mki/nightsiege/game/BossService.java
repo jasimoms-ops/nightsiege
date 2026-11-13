@@ -394,6 +394,9 @@ public final class BossService {
         // Lost far away (thrown, fled): back towards the base on its own feet (Simon 30.10.: the bosses
         // "teleportieren sich"). Only one lost very far, with no defender near it, is put back.
         BlockPos anchor = host.anchor();
+        // Kriegsführer 3: a boss with the leader's order walks where he said (no way home, no defender of its own).
+        SiegeManager sm = SiegeManager.get();
+        boolean led = sm != null && sm.warLeader().commanded(boss);
         if (now % 20 == 0 && !(brain instanceof BossBrains.Lich)) {
             double away = boss.distanceToSqr(anchor.getX() + 0.5, anchor.getY(), anchor.getZ() + 0.5);
             boolean watched = nearest(host.defenders(), boss.position(), 40.0) != null;
@@ -402,11 +405,11 @@ public final class BossService {
                 if (spot != null) {
                     boss.teleportTo(spot.getX() + 0.5, spot.getY(), spot.getZ() + 0.5);
                 }
-            } else if (away > 64.0 * 64.0 && !watched) {
+            } else if (away > 64.0 * 64.0 && !watched && !led) {
                 boss.getNavigation().moveTo(anchor.getX() + 0.5, anchor.getY(), anchor.getZ() + 0.5, 1.2);
             }
         }
-        if (now % 20 == 0 && (boss.getTarget() == null || !boss.getTarget().isAlive()) && !(brain instanceof BossBrains.Lich)) {
+        if (now % 20 == 0 && !led && (boss.getTarget() == null || !boss.getTarget().isAlive()) && !(brain instanceof BossBrains.Lich)) {
             aim(host, boss);
         }
         brain.tick(host, boss, now);

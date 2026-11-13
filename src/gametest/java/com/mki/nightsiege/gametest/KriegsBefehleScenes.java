@@ -472,13 +472,35 @@ final class KriegsBefehleScenes {
                     + " leiter=" + m.warLeader().testBuy(server, "leitertraeger", 0));
         });
         // A tunneler of its own will digs once the wave starts and comes up within ~10 s (Foes.tickTunneler); E on a
-        // tunneler that came up already is done at once (WarLeader.specialDone) - so it waits on H for the E check.
-        context.waitTicks(110);   // the flare, 3 s, then they are there (the wave starts later)
-        server(context, "sandbox hold tunneler", (player, m) -> {
-            int t = m.warLeader().testSquadOf("tunnelgraeber");
-            m.warLeader().testCommand(player, "cmd:" + t + ":hold:NaN:NaN:0");
-            log("sandbox hold tunneler: #" + t + " " + m.warLeader().testMobs(t).size() + " mobs, order=" + order(m, t));
+        // tunneler that came up already is done at once (WarLeader.specialDone). The sandbox's squads come only with
+        // the wave, so it gets an order while it is still coming (to its own point): from the start it waits for E.
+        server(context, "sandbox keep tunneler", (player, m) -> {
+            String done = "none";
+            for (WarLeaderData.Squad q : m.warLeader().testData(player.level().getServer()).squads) {
+                if ("tunnelgraeber".equals(q.item) && q.point >= 0 && q.point < m.warLeader().testPoints().size()) {
+                    BlockPos pt = m.warLeader().testPoints().get(q.point);
+                    m.warLeader().testCommand(player, String.format(Locale.ROOT, "cmd:%d:move:%.1f:%.1f:0", q.id, pt.getX() + 0.5, pt.getZ() + 0.5));
+                    done = "#" + q.id + " " + q.order + " -> " + order(m, q.id);
+                }
+            }
+            log("sandbox keep tunneler: " + done);
         });
+    }
+
+    /** The unit's job after E: {at work, counted} (a baby zombie carries no ladder). */
+    private static int[] specialJob(com.mki.nightsiege.game.SiegeManager m, int i, int squad) {
+        int ok = 0;
+        int counted = 0;
+        for (Mob mob : m.warLeader().testMobs(squad)) {
+            if (i == 0 && mob.isBaby()) {
+                continue;
+            }
+            counted++;
+            boolean job = i < 2 ? Besiegers.busy(mob)
+                    : Foes.orderedSpot(mob.getUUID()) != null || (i == 2 && !mob.getNavigation().isDone()) || (i == 2 && mob.isInvisible());
+            ok += job ? 1 : 0;
+        }
+        return new int[]{ok, counted};
     }
 
     /** In the sandbox: the special order of every unit type, the machine, the boss. */
@@ -491,8 +513,10 @@ final class KriegsBefehleScenes {
         final int[] machine = {-1};
         final int[] ladders = new int[1];
         final double[] bossFrom = new double[1];
+        final long[] t0 = new long[1];
         server(context, "specials", (player, m) -> {
             MinecraftServer server = player.level().getServer();
+            t0[0] = player.level().getGameTime();
             ladders[0] = com.mki.nightsiege.game.TempBlocks.all((ServerLevel) player.level(), net.minecraft.world.level.block.Blocks.LADDER).size();
             for (int i = 0; i < items.length; i++) {
                 id[i] = m.warLeader().testSquadOf(items[i]);
@@ -514,25 +538,41 @@ final class KriegsBefehleScenes {
             m.warLeader().testCommand(player, String.format(Locale.ROOT, "cmd:%d:move:%.1f:%.1f:0", boss[0], core.getX() + 0.5, core.getZ() - 40.5));
             m.warLeader().testCommand(player, String.format(Locale.ROOT, "cmd:%d:attack:%.1f:%.1f:0", machine[0], core.getX() - 5.5, core.getZ() + 3.5));
         });
-        context.waitTicks(10);
+        // Each order: the ticks until it took hold (plan: within 0.5 s = 10 ticks), polled every tick up to 40.
+        final long[] first = new long[items.length + 1];   // the boss last; -1: not (yet)
+        final String[] seen = new String[items.length + 1];
+        java.util.Arrays.fill(first, -1);
+        for (int t = 0; t < 40 && java.util.Arrays.stream(first).anyMatch(v -> v < 0); t++) {
+            server(context, "specials poll", (player, m) -> {
+                long dt = player.level().getGameTime() - t0[0];
+                for (int i = 0; i < items.length; i++) {
+                    int[] job = specialJob(m, i, id[i]);
+                    seen[i] = job[0] + "/" + job[1] + ", order=" + order(m, id[i]);
+                    if (first[i] < 0 && job[1] > 0 && job[0] == job[1] && order(m, id[i]).startsWith("special/")) {
+                        first[i] = dt;
+                    }
+                }
+                List<Mob> b = m.warLeader().testMobs(boss[0]);
+                Mob mover = b.isEmpty() ? null : b.get(0).getVehicle() instanceof Mob mount ? mount : b.get(0);
+                net.minecraft.world.level.pathfinder.Path path = mover == null ? null : mover.getNavigation().getPath();
+                seen[items.length] = "order=" + order(m, boss[0]) + " nav=" + (mover == null ? "-" : mover.getNavigation().getTargetPos())
+                        + " reach=" + (path == null ? "-" : path.canReach()) + " target=" + (b.isEmpty() || b.get(0).getTarget() == null ? "-"
+                        : b.get(0).getTarget().getName().getString());
+                if (first[items.length] < 0 && !b.isEmpty() && order(m, boss[0]).startsWith("move/")
+                        && headsFor(b.get(0), core.getX() + 0.5, core.getZ() - 40.5, 5.0)) {
+                    first[items.length] = dt;
+                    log("boss on its way after " + dt + " ticks: " + seen[items.length]);
+                }
+            });
+            context.waitTicks(1);
+        }
+        context.waitTicks(2);   // the last poll ran
         server(context, "specials 0.5 s", (player, m) -> {
             MinecraftServer server = player.level().getServer();
             String[] what = {"ladder carriers at work", "sapper at work", "tunneler has its spot", "grappler has its spot", "standard has its spot"};
             for (int i = 0; i < items.length; i++) {
-                List<Mob> mobs = m.warLeader().testMobs(id[i]);
-                int ok = 0;
-                int counted = 0;
-                for (Mob mob : mobs) {
-                    if (i == 0 && mob.isBaby()) {
-                        continue;   // a baby zombie carries no ladder
-                    }
-                    counted++;
-                    boolean job = i < 2 ? Besiegers.busy(mob)
-                            : Foes.orderedSpot(mob.getUUID()) != null || (i == 2 && !mob.getNavigation().isDone()) || (i == 2 && mob.isInvisible());
-                    ok += job ? 1 : 0;
-                }
-                check(id[i] >= 0 && counted > 0 && ok == counted && order(m, id[i]).startsWith("special/"),
-                        "E " + items[i] + ": " + what[i] + " " + ok + "/" + counted + ", order=" + order(m, id[i]));
+                check(id[i] >= 0 && first[i] >= 0 && first[i] <= 10,
+                        "E " + items[i] + ": " + what[i] + " after " + first[i] + " ticks (<= 10), now " + seen[i]);
             }
             for (WarLeaderData.Squad q : m.warLeader().testData(server).squads) {
                 if (q.id == machine[0]) {
@@ -540,9 +580,8 @@ final class KriegsBefehleScenes {
                             String.format(Locale.ROOT, "machine aims by right click: aimed=%s at %.1f,%.1f", q.aimed, q.aimX, q.aimZ));
                 }
             }
-            List<Mob> b = m.warLeader().testMobs(boss[0]);
-            check(!b.isEmpty() && order(m, boss[0]).startsWith("move/") && headsFor(b.get(0), core.getX() + 0.5, core.getZ() - 40.5, 5.0),
-                    "boss: move within 0.5 s, order=" + order(m, boss[0]) + " nav=" + (b.isEmpty() ? "-" : b.get(0).getNavigation().getTargetPos()));
+            check(first[items.length] >= 0 && first[items.length] <= 10,
+                    "boss: move within 0.5 s, after " + first[items.length] + " ticks (<= 10), now " + seen[items.length]);
             m.warLeader().testCommand(player, "now:" + boss[0]);
             m.warLeader().testCommand(player, "now:" + id[1]);   // the sapper goes off now
         });
