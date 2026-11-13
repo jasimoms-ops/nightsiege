@@ -2636,6 +2636,7 @@ public final class WarLeader {
                     u.x = l.getX();
                     u.y = l.getY();
                     u.z = l.getZ();
+                    u.entity = l.getId();
                     q.units.add(u);
                 }
             }

@@ -90,6 +90,16 @@ final class KriegsBefehleScenes {
         w.mouseReleased(new MouseButtonEvent(at[0], at[1], LEFT));
     }
 
+    /** The spots on the screen, for the log ("x,y x,y ..."). */
+    private static String onScreen(WarLeaderScreen w, List<double[]> spots) {
+        StringBuilder out = new StringBuilder();
+        for (double[] b : spots) {
+            int[] s = w.testProject(b[0], b[1], b[2]);
+            out.append(s == null ? "-" : s[0] + "," + s[1]).append(' ');
+        }
+        return out.toString().trim();
+    }
+
     private static double[] middle(List<Mob> mobs) {
         if (mobs.isEmpty()) {
             return null;
@@ -198,7 +208,7 @@ final class KriegsBefehleScenes {
             spread[0] = new double[]{x0, y, z0, x1, z1};
             spread[1] = middle(m.warLeader().testMobs(id[1]));
             for (Mob mob : m.warLeader().testMobs(id[1])) {
-                bones.add(new double[]{mob.getX(), mob.getY(), mob.getZ()});
+                bones.add(new double[]{mob.getX(), mob.getY(), mob.getZ(), mob.getId()});
             }
         });
         context.waitTicks(3);
@@ -233,7 +243,28 @@ final class KriegsBefehleScenes {
         });
         context.waitTicks(15);
         view(context, "groups", w -> {
-            int[] at = spread[1] == null ? null : w.testProject(spread[1][0], spread[1][1], spread[1][2]);
+            // Fresh, in this very tick: the skeletons where the client draws them (the server's spots from the
+            // "spread" step are 15+ ticks old, and they walk round their flag).
+            net.minecraft.client.multiplayer.ClientLevel cl = net.minecraft.client.Minecraft.getInstance().level;
+            double[] mid = spread[1];
+            int fresh = 0;
+            if (!bones.isEmpty()) {
+                mid = new double[3];
+                for (double[] b : bones) {
+                    net.minecraft.world.entity.Entity e = cl == null ? null : cl.getEntity((int) b[3]);
+                    if (e != null) {
+                        b[0] = e.getX();
+                        b[1] = e.getY();
+                        b[2] = e.getZ();
+                        fresh++;
+                    }
+                    mid[0] += b[0] / bones.size();
+                    mid[1] += b[1] / bones.size();
+                    mid[2] += b[2] / bones.size();
+                }
+            }
+            log("groups: " + fresh + "/" + bones.size() + " skeletons seen by the client");
+            int[] at = mid == null ? null : w.testProject(mid[0], mid[1], mid[2]);
             // The skeletons gather round their flag (WarLeader.steerGather, within 2 blocks), so their middle lies on
             // the flag, and a click within 10 pixels of a flag picks the flag (WarLeaderScreen.nearestFlag). Click
             // the skeleton furthest from every flag, as a player clicks the squad and not its flag.
@@ -263,7 +294,7 @@ final class KriegsBefehleScenes {
             int[] onFlag = null;
             double nearGap = 1e9;
             List<double[]> spots = new ArrayList<>(bones);
-            spots.add(spread[1]);
+            spots.add(mid);
             for (double[] b : spots) {
                 int[] s = w.testProject(b[0], b[1], b[2]);
                 for (double[] f : flags) {
@@ -275,12 +306,16 @@ final class KriegsBefehleScenes {
                 }
             }
             String cross = com.mki.nightsiege.client.WarCursor.testState();   // the cross before the click (mouse, snap)
+            log(String.format(Locale.ROOT, "before the flag click: skeletons on the screen %s, click %s, cross %s",
+                    onScreen(w, bones), onFlag == null ? "-" : onFlag[0] + "," + onFlag[1], cross));
             if (onFlag != null) {
                 click(w, onFlag);
             }
             check(onFlag != null && nearGap < 10 && w.testPicked().equals(String.valueOf(id[1])),
                     String.format(Locale.ROOT, "click on flag squad picks squad: picked=%s (want %d), flag %.0f px away (< 10), click at %d,%d, cross %s",
                             w.testPicked(), id[1], nearGap, onFlag == null ? 0 : onFlag[0], onFlag == null ? 0 : onFlag[1], cross));
+            log(String.format(Locale.ROOT, "before the click: skeletons on the screen %s, click %d,%d, cross %s",
+                    onScreen(w, bones), at[0], at[1], com.mki.nightsiege.client.WarCursor.testState()));
             click(w, at);
             boolean clicked = w.testPicked().equals(String.valueOf(id[1]));
             key(w, GLFW.GLFW_KEY_2, GLFW.GLFW_MOD_CONTROL);

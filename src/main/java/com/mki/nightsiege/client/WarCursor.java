@@ -266,6 +266,20 @@ public final class WarCursor {
                 action, reason, machine, distance, spread(), preview, screenX, screenY);
     }
 
+    /**
+     * Where a unit is now: the monster as it is drawn (the data comes every half second, a walking monster is
+     * then up to two blocks further), else the data's spot. Click, frame and cross take this one.
+     */
+    static double[] live(WarLeaderData.Unit u) {
+        Minecraft client = Minecraft.getInstance();
+        net.minecraft.world.entity.Entity e = u.entity < 0 || client.level == null ? null : client.level.getEntity(u.entity);
+        if (e == null) {
+            return new double[]{u.x, u.y, u.z};
+        }
+        Vec3 at = e.getPosition(partial);
+        return new double[]{at.x, at.y, at.z};
+    }
+
     // ------------------------------------------------------------------ the camera's picture
 
     /** Screen spot of a world spot, also off the screen (null behind or under the camera). */
@@ -413,7 +427,7 @@ public final class WarCursor {
             List<double[]> spots = new ArrayList<>();
             spots.add(new double[]{q.x, client.level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, (int) Math.floor(q.x), (int) Math.floor(q.z)), q.z});
             for (WarLeaderData.Unit u : q.units) {
-                spots.add(new double[]{u.x, u.y, u.z});
+                spots.add(live(u));
             }
             for (double[] w : spots) {
                 double[] s = project(w[0], w[1], w[2]);

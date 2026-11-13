@@ -134,6 +134,8 @@ public class WarLeaderData {
         public double x;
         public double y;
         public double z;
+        /** The monster's entity id (the client takes its live spot from there; -1: none). */
+        public int entity = -1;
     }
 
     public static class Mate {
