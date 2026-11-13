@@ -18,6 +18,13 @@ public class PlayerSkills {
     /** True once maxing the ultimate has paid out the infernite upgrade template. */
     public boolean templateGiven;
     public int earned;
+    /**
+     * Tor 11 (Erfahrungsvorrat): points from "Belagerung starten" waiting for this character; they flow in up to the
+     * points of the chapter's world level ({@link Chapters#flowPool}), the rest waits for the next level.
+     */
+    public int xpPool;
+    /** Part of a pool point left over. */
+    public double xpPoolFraction;
     /** Points this player has put into the shared core tree. */
     public int donated;
     public Map<String, Integer> levels = new HashMap<>();

@@ -681,6 +681,9 @@ public final class StatsRecorder {
         night.test = test;
         night.playtest = test && m.inPlaytest() && !m.isWarRound();
         night.spieltest = night.playtest;
+        if (test && m.inSiegeRound()) {
+            night.art = "belagerung";   // Tor 11: "Belagerung starten" (no effect on the world)
+        }
         night.nacht = number;
         night.stufe = level;
         night.ereignis = event == null ? "" : event;

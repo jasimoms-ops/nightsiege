@@ -918,6 +918,27 @@ public class CoreScreen extends Screen {
                 addRenderableWidget(cb);
                 bx += cw + 4;
             }
+            {
+                // Tor 11: "Belagerung starten" – the current character or a veteran, a night without effect on the world.
+                int rightLimit = left + W - 66 - (!stats.siegeActive && !stats.nightComing
+                        ? Math.max(70, font.width(Component.translatable("nightsiege.ui.unregister")) + 12) + 4 : 0);
+                Component label = Component.translatable("nightsiege.round.button");
+                int rw = Math.max(80, font.width(label) + 12);
+                if (bx + rw > rightLimit) {
+                    label = Component.literal("\u2694\u2605");
+                    rw = 26;
+                }
+                if (bx + rw <= rightLimit) {
+                    boolean free = stats.roundBlock.isEmpty() || stats.roundVeteranBlock.isEmpty() && !stats.veterans.isEmpty();
+                    Component tip = free ? Component.translatable("nightsiege.round.hint")
+                            : Component.translatable(stats.roundBlock, 48);
+                    Button rb = Button.builder(label, b -> Minecraft.getInstance().setScreenAndShow(new SiegeRoundScreen(stats, this)))
+                            .bounds(bx, footerY, rw, 18).tooltip(net.minecraft.client.gui.components.Tooltip.create(tip)).build();
+                    rb.active = free;
+                    goldButtons.add(addRenderableWidget(rb));
+                    bx += rw + 4;
+                }
+            }
             if (stats.warOn) {
                 // The war leader's round (Kriegsführer, 29 October 2026): whoever presses first leads the monsters.
                 boolean running = !stats.warLeader.isEmpty();
@@ -4745,6 +4766,11 @@ public class CoreScreen extends Screen {
         String chapterLine = Component.translatable(stats.chapterNight % 20 == 0 ? "nightsiege.chapter.finale" : "nightsiege.chapter.night",
                 stats.chapter, stats.chapterNight).getString() + (stats.chapterStars > 0 ? "  \u2605" + stats.chapterStars : "");
         gui.text(font, chapterLine, x + w - 8 - font.width(chapterLine), cy + (compact ? 1 : 4), GOLD, true);
+        if (stats.xpPool > 0) {
+            // Teil 2: "Vorrat: X Erfahrung, nutzbar bis Stufe Y"
+            String pool = Component.translatable("nightsiege.round.pool", stats.xpPool, stats.poolLevel).getString();
+            smallText(gui, font, pool, x + w - 8 - (int) (font.width(pool) * 0.75f), cy + (compact ? 11 : 15), 0xFF7FD8FF, 0.75f);
+        }
         cy += compact ? 11 : 17;
         if (stats.siegeActive) {
             gui.text(font, Component.translatable("nightsiege.ui.stat_active").getString(), x + 8, cy, RED, true);

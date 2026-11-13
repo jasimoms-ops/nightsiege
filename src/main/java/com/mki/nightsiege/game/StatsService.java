@@ -141,12 +141,19 @@ public final class StatsService {
         stats.warOn = cfg.warLeaderEnabled;
         String warBlock = manager.warLeader().blockReason(server);
         stats.warBlock = warBlock == null ? "" : warBlock;
+        String finaleLock = manager.finaleLock(viewer);   // Tor 11: from the first won finale on
+        if (finaleLock != null && stats.warLeader.isEmpty()) {
+            stats.warBlock = finaleLock;
+        }
         stats.warLeader = manager.warLeader().leaderName();
         stats.warMine = manager.warLeader().isLeader(viewer);
         // The Letzte Bastion (Update 7): the button on the start page, why it is greyed out, who started it.
         stats.bastionOn = cfg.bastionEnabled;
         String bastionBlock = manager.bastion().blockReason(server, false);
         stats.bastionBlock = bastionBlock == null ? "" : bastionBlock;
+        if (finaleLock != null) {
+            stats.bastionBlock = finaleLock;   // Tor 11
+        }
         stats.bastionStarter = manager.bastion().starterName();
         stats.bastionFromLevel = cfg.bastionFromLevel;
         // The fun mode's lent profile: the tree shows "Alles lernen" and "Bereit".
@@ -227,6 +234,26 @@ public final class StatsService {
         stats.chapterNight = manager.chapterNight();
         stats.firstFinaleWon = save.chapters().firstFinaleWon;
         stats.chapterStars = com.mki.nightsiege.core.Chapters.stars(save.chapters().veteransOf(viewer.getUUID().toString()));
+        // Teil 2: "Belagerung starten", the pool, the veterans to pick
+        String roundBlock = manager.roundBlock(server, viewer, com.mki.nightsiege.core.Chapters.CURRENT);
+        stats.roundBlock = roundBlock == null ? "" : roundBlock;
+        stats.roundOpenBy = manager.roundStarterName();
+        String vetBlock = manager.roundBlock(server, viewer, 0);
+        stats.roundVeteranBlock = vetBlock == null || "nightsiege.round.no_veteran".equals(vetBlock) ? "" : vetBlock;
+        PlayerSkills realOwn = save.realSkillsOf(viewer.getUUID().toString());
+        stats.xpPool = realOwn.xpPool;
+        stats.poolLevel = manager.currentLevel();
+        stats.roundExtras = Curses.chosen(save).size() + (save.nightFragment != null ? 1 : 0);
+        stats.roundLevel = manager.roundLevelOf(realOwn);
+        for (com.mki.nightsiege.core.Chapters.Veteran v : save.chapters().veteransOf(viewer.getUUID().toString())) {
+            CoreStats.VeteranChoice c = new CoreStats.VeteranChoice();
+            c.clazz = v.clazz;
+            c.sub = v.subclass;
+            c.chapter = v.chapter;
+            c.level = v.level;
+            c.finale = v.finale;
+            stats.veterans.add(c);
+        }
         for (com.mki.nightsiege.core.SkillClass c : com.mki.nightsiege.core.SkillClass.values()) {
             if (c.isShared() || !manager.mayChoose(viewer, c)) {
                 continue;

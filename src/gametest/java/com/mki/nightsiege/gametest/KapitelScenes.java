@@ -87,7 +87,10 @@ final class KapitelScenes {
         EventLookTest.ensureCore(context, game);
         game.getServer().runCommand("gamemode survival @p");
         game.getServer().runCommand("time set 6000");
+        int[] window = context.computeOnClient(client -> new int[]{client.getWindow().getWidth(), client.getWindow().getHeight()});
+        context.getInput().resizeWindow(1280, 720);   // GUI 3 in the CI window 854x480: room for the core buttons
         context.waitTicks(10);
+        final boolean[] cfgBefore = new boolean[3];
         // What the world had before, to give it back at the end.
         final Object[] before = new Object[8];
         final int[] beforeN = new int[3];
@@ -122,10 +125,23 @@ final class KapitelScenes {
             check(Chapters.finaleBosses(1, save.groupBosses).equals(Chapters.GROUP_ONE), "the finale brings the four of chapter 1");
             check(m.currentLevel() == 20, "world level 20 (" + m.currentLevel() + ")");
             check(!save.chapters().firstFinaleWon, "no finale won yet (Welt-Merker off)");
+            // Teil 2: war leader, bastion and the veterans wait for the first finale (the operator counts as a player here)
+            cfgBefore[0] = m.config().warLeaderEnabled;
+            cfgBefore[1] = m.config().bastionEnabled;
+            cfgBefore[2] = m.config().testToolsForEveryone;
+            m.config().warLeaderEnabled = true;
+            m.config().bastionEnabled = true;
+            m.config().testToolsForEveryone = false;
+            SiegeManager.finaleLockAsPlayer = true;
+            check("nightsiege.chapter.lock_finale".equals(m.finaleLock(player)), "before the first finale: buttons grey");
+            SiegeManager.finaleLockAsPlayer = false;
+            check(m.finaleLock(player) == null, "an operator has them open");
+            SiegeManager.finaleLockAsPlayer = true;
         });
         context.waitTicks(10);
         tab(context, "STATS");
         shot(context, "kapitel_vor_finale");
+        shot(context, "kapitel_knoepfe_gesperrt");
         EventLookTest.closeScreen(context);
 
         // The finale is won: the night counted (rhythm 20, won 20), then the chapter closes.
@@ -169,12 +185,14 @@ final class KapitelScenes {
             HallOfFame.Hero h = save.hall.heroes.get(uuid);
             check(h != null && h.veterans != null && !h.veterans.isEmpty() && h.veterans.get(h.veterans.size() - 1).chapter == 1,
                     "the hall of fame has the veteran");
+            check(m.finaleLock(player) == null, "after the first finale: buttons open");
         });
         context.waitTicks(10);
         tab(context, "CLASSES");
         shot(context, "kapitel_klassenwahl");
         tab(context, "STATS");
         shot(context, "kapitel_core_leiste");
+        shot(context, "kapitel_knoepfe_offen");
         EventLookTest.closeScreen(context);
 
         // The chapter bar of a night: a test night shows it here like a real one.
@@ -227,6 +245,89 @@ final class KapitelScenes {
             PlayerSkills own = m.save().skillsOf(player.getUUID().toString());
             check(own.hasClass() && own.clazz() == SkillClass.ARCHER, "the new character is an archer");
         });
+        EventLookTest.closeScreen(context);
+        context.waitTicks(10);
+
+        // Teil 2: the warrior veteran plays night 20 as a normal night, with a curse stone laid in.
+        final int[] round = new int[4];
+        server(context, "round", (player, m) -> {
+            var save = m.save();
+            if (save.curses == null) {
+                save.curses = new ArrayList<>();
+            }
+            round[0] = save.siegesWon;
+            round[1] = m.chapterNight();
+            save.curses.add(com.mki.nightsiege.core.CurseKind.TOUGH.id());
+            saved[0] = m.config().testPrepSeconds;
+            saved[1] = m.config().batchIntervalSeconds;
+            m.config().testPrepSeconds = 0;   // no build-up in the scene
+            m.config().batchIntervalSeconds = 600;
+            check(m.roundBlock(player.level().getServer(), player, 0) == null, "the veterans' loop is open");
+            com.mki.nightsiege.game.CoreRecord rec = m.mainCore();
+            if (rec != null) {
+                player.teleportTo(rec.x + 2.5, rec.y, rec.z + 2.5);   // at the core (48 blocks)
+            }
+            boolean ok = m.startSiegeRound(player, 0);
+            PlayerSkills played = save.skillsOf(player.getUUID().toString());
+            check(ok && m.isActive() && m.inSiegeRound(), "Belagerung starten runs");
+            check(played.clazz() == SkillClass.WARRIOR && save.realSkillsOf(player.getUUID().toString()).clazz() == SkillClass.ARCHER,
+                    "the veteran plays, the archer waits");
+            check(m.currentLevel() == 20, "night 20 of the veteran (level " + m.currentLevel() + ")");
+            check(m.roundBlock(player.level().getServer(), player, -1) != null, "no second round meanwhile");
+            check(m.isNightPlayer(player), "who pressed ready plays");
+        });
+        context.waitTicks(40);
+        shot(context, "kapitel_belagerung");
+        server(context, "round end", (player, m) -> {
+            var save = m.save();
+            PlayerSkills own = save.realSkillsOf(player.getUUID().toString());
+            int earnedBefore = own.earned;
+            m.roundWavesForTests(player.getUUID(), 20);
+            m.finish(player.level().getServer(), true);
+            double want = 20 * m.config().pointGainMultiplier / Math.max(1, m.config().wavesPerPoint) * 0.6;   // 50 % + 10 % (one curse)
+            log("pool " + own.xpPool + " (want ~" + want + "), earned " + earnedBefore + " -> " + own.earned + ", cap " + m.poolCap());
+            check(!m.isActive() && !m.inSiegeRound(), "the round is over");
+            check(own.xpPool + own.earned - earnedBefore >= Math.floor(want + 1e-9), "50 % + 10 % for the curse into the pool (waves and the won night)");
+            check(save.curses == null || save.curses.isEmpty(), "the curse stone is used up, as in a real night");
+            check(own.earned <= Math.max(earnedBefore, m.poolCap()), "it flows only up to the world level");
+            check(own.xpPool > 0, "the rest waits in the pool");
+            check(save.skillsOf(player.getUUID().toString()).clazz() == SkillClass.ARCHER, "the veteran went back");
+            check(save.chapters().veteransOf(player.getUUID().toString()).get(0).skills.earned == 500, "the frozen veteran is untouched");
+            check(save.siegesWon == round[0] && m.chapterNight() == round[1], "no effect on the world (level, night)");
+            var file = com.mki.nightsiege.game.StatsRecorder.lastFinished;
+            check(file != null && "belagerung".equals(file.art), "statistics: art belagerung");
+            check(save.chapters().round == null, "no round left in the save");
+            round[2] = own.xpPool;
+            round[3] = own.earned;
+            // The world level rises: the pool flows on up to the new level.
+            save.siegesWon += 3;
+            m.flowPools();
+            check(own.earned > round[3] && own.earned <= m.poolCap() && own.xpPool < round[2], "a higher level lets it flow on ("
+                    + round[3] + " -> " + own.earned + ", pool " + own.xpPool + ")");
+            save.siegesWon -= 3;
+            m.config().testPrepSeconds = saved[0];
+            m.config().batchIntervalSeconds = saved[1];
+            save.curses.remove(com.mki.nightsiege.core.CurseKind.TOUGH.id());
+        });
+        context.waitTicks(10);
+        tab(context, "STATS");
+        shot(context, "kapitel_vorrat");
+        context.runOnClient(client -> {
+            if (client.gui.screen() instanceof com.mki.nightsiege.client.CoreScreen core) {
+                try {
+                    java.lang.reflect.Field f = com.mki.nightsiege.client.CoreScreen.class.getDeclaredField("stats");
+                    f.setAccessible(true);
+                    Object s = f.get(core);
+                    if (s instanceof com.mki.nightsiege.core.CoreStats stats) {
+                        client.setScreenAndShow(new com.mki.nightsiege.client.SiegeRoundScreen(stats, core));
+                    }
+                } catch (ReflectiveOperationException e) {
+                    log("round window not opened: " + e);
+                }
+            }
+        });
+        context.waitTicks(10);
+        shot(context, "kapitel_belagerung_wahl");
         EventLookTest.closeScreen(context);
         context.waitTicks(10);
         // The hall: the chronicle of this player with the veteran card.
@@ -285,8 +386,13 @@ final class KapitelScenes {
                 save.pendingBanners.remove(uuid);
             }
             com.mki.nightsiege.game.ClassTags.update(player.level().getServer(), player, save.skillsOf(uuid), "");
+            SiegeManager.finaleLockAsPlayer = false;
+            m.config().warLeaderEnabled = cfgBefore[0];
+            m.config().bastionEnabled = cfgBefore[1];
+            m.config().testToolsForEveryone = cfgBefore[2];
             m.persist();
         });
+        context.getInput().resizeWindow(window[0], window[1]);
         context.waitTicks(10);
         if (shots == 0) {
             FAILS.add("no pictures");
