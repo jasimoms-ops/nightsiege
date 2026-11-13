@@ -1,12 +1,12 @@
 package com.mki.nightsiege.gametest;
 
 import com.mki.nightsiege.core.BastionMath;
-import com.mki.nightsiege.core.FunProfile;
 import com.mki.nightsiege.core.PlayerSkills;
 import com.mki.nightsiege.core.SiegeConfig;
 import com.mki.nightsiege.core.SkillClass;
 import com.mki.nightsiege.core.SkillTree;
 import com.mki.nightsiege.game.Bastion;
+import com.mki.nightsiege.game.FreeClassPick;
 import com.mki.nightsiege.game.CoreRecord;
 import com.mki.nightsiege.game.Json;
 import com.mki.nightsiege.game.SiegeManager;
@@ -97,7 +97,7 @@ final class BastionScenes {
             PlayerSkills lent = m.save().skillsOf(id(player));
             String key = keyOf(lent, subclass);
             m.onPlayClass(player, key);
-            m.onFunAction(player, "fill");
+            m.onFunAction(player, "recommended");
             m.onFunAction(player, "ready");
         });
         context.waitTicks(20);
@@ -138,7 +138,7 @@ final class BastionScenes {
             cfg.bastionClearSeconds = 2;
             before[0] = Json.toJson(m.save().realSkillsOf(id(player)));
             runsBefore[0] = m.save().bastionRuns == null ? 0 : m.save().bastionRuns.size();
-            check(cfg.warLevel == 20, "the war leader's round fights at level 20 (warLevel " + cfg.warLevel + ")");
+            check(cfg.warLevel == 25, "the war leader's round fights at level 25 (warLevel " + cfg.warLevel + ", K3)");
             // The numbers.
             check(BastionMath.levelForWave(1, cfg) == 24 && BastionMath.levelForWave(5, cfg) == 40,
                     "wave 1 at level 24, wave 5 at 40: 20 + n of the full curve (" + BastionMath.levelForWave(1, cfg) + ", "
@@ -186,8 +186,8 @@ final class BastionScenes {
             }
             check(lent.profiles().size() == expected && expected >= 16,
                     "every subclass is a profile of it (" + lent.profiles().size() + " of " + expected + ")");
-            int rest = FunProfile.remaining(m.skillTree(), lent, lent.chosenClass);
-            check(lent.points() == rest && rest > 0, "it has the whole tree's points (" + lent.points() + " = " + rest + ")");
+            int rest = FreeClassPick.budget(m.config());
+            check(lent.points() == rest && rest > 0, "it has the points of level 20 (" + lent.points() + " = " + rest + ", K3)");
             check(lent.gains == null || lent.gains.isEmpty(), "no crate gains");
             check(Json.toJson(m.save().realSkillsOf(id(player))).equals(before[0]), "the own profile is untouched");
         });
@@ -201,17 +201,18 @@ final class BastionScenes {
             check(key != null, "the berserker is one of the lent profiles");
             m.onPlayClass(player, key);
             check(key != null && key.equals(lent.chosenClass), "it is played now");
-            int rest = FunProfile.remaining(m.skillTree(), lent, key);
-            check(lent.points() == rest && rest > 0, "with its whole tree's points (" + lent.points() + ")");
+            int rest = FreeClassPick.budget(m.config());
+            check(lent.points() == rest && rest > 0, "with the points of level 20 (" + lent.points() + ", K3)");
             check(!m.classResetAvailable(lent), "no class change with a lent profile");
         });
         context.waitTicks(20);
         context.takeScreenshot("bastion_02_tree");
         server(context, "fill", (player, m) -> {
             PlayerSkills lent = m.save().skillsOf(id(player));
-            m.onFunAction(player, "fill");
-            check(m.skillTree().isCompleteProfile(lent, lent.chosenClass), "\"Alles lernen\" learns the whole tree");
-            check(lent.points() == 0, "no points left over (" + lent.points() + ")");
+            m.onFunAction(player, "recommended");
+            int spent = m.skillTree().pointsSpentProfile(lent, lent.chosenClass);
+            check(spent > 0 && spent <= FreeClassPick.budget(m.config()) && lent.points() < 10,
+                    "\"Empfohlener Aufbau\" spends the points of level 20 (" + spent + ", left " + lent.points() + ")");
             int donated = m.save().realSkillsOf(id(player)).donated;
             m.onDonate(player, 5);
             check(m.save().realSkillsOf(id(player)).donated == donated, "the lent points cannot go into the core tree");
