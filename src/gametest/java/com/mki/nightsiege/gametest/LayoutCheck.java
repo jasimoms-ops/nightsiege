@@ -118,7 +118,17 @@ final class LayoutCheck {
                     }
                 }
             }
-            System.out.println("[layout] footer " + row.size() + " buttons: " + describe(row));
+            // 13.11b: the core window's hint text must not lie under a button (a letter peeked out between them).
+            int[] t = screen instanceof com.mki.nightsiege.client.CoreScreen ? com.mki.nightsiege.client.CoreScreen.testFooterText : null;
+            if (t != null) {
+                for (Button b : all) {
+                    if (t[0] < b.getX() + b.getWidth() && b.getX() < t[2] && t[1] < b.getY() + b.getHeight() && b.getY() < t[3]) {
+                        out.add("hint text " + t[0] + ".." + t[2] + " under '" + b.getMessage().getString() + "'");
+                    }
+                }
+            }
+            System.out.println("[layout] footer " + row.size() + " buttons: " + describe(row)
+                    + (t == null ? " hint: none" : " hint: " + t[0] + ".." + t[2]));
             return out;
         });
     }

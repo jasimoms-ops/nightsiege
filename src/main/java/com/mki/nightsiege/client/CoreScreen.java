@@ -1208,6 +1208,8 @@ public class CoreScreen extends Screen {
         }
         int footerX = left + 8;
         int rightEdge = left + W - 66;   // "Fertig" sits right of it
+        footerTextFrom = left + 10;
+        footerTextTo = activeTab == Tab.CORE ? left + W - 134 : rightEdge - 4;
         int n = feet.size();
         int[] fullW = new int[n];
         int[] shortW = new int[n];
@@ -1238,8 +1240,19 @@ public class CoreScreen extends Screen {
                 goldButtons.add(button);
             }
             footerX = bx + w + 4;
+            if (i == primaryAt) {
+                footerTextTo = Math.min(footerTextTo, bx - 4);
+            } else {
+                footerTextFrom = footerX;
+            }
         }
     }
+
+    /** Paket 13.11b: the free stretch of the footer row for the hint text (no letter peeks out between buttons). */
+    private int footerTextFrom;
+    private int footerTextTo;
+    /** For the scenes: where the hint text stood in the last frame (x1, y1, x2, y2), or null. */
+    public static volatile int[] testFooterText;
 
     /** One footer button: label, short label (or null), wished width, action, tooltip, gold, when it gets short (low first). */
     private record Foot(Component label, Component shortLabel, int min, Button.OnPress press, Component tip,
@@ -3376,6 +3389,7 @@ public class CoreScreen extends Screen {
     }
 
     private void drawFooter(GuiGraphicsExtractor gui, Font font) {
+        testFooterText = null;
         if (activeTab == Tab.CURSE) {
             String foot = Component.translatable("nightsiege.ui.footer_curse").getString();
             int room = W - 90;
@@ -3419,7 +3433,12 @@ public class CoreScreen extends Screen {
         } else {
             return;
         }
-        gui.text(font, text, left + 10, top + H - 19, TITLE, false);
+        // Only in the free stretch beside the footer buttons; too narrow even smaller: left out (13.11b).
+        int room = footerTextTo - footerTextFrom;
+        if (room > 0 && font.width(text) * UiFit.MIN_SCALE <= room) {
+            PurpleUi.fitText(gui, font, text, footerTextFrom, top + H - 23, room, 16, TITLE, false, false);
+            testFooterText = new int[] {footerTextFrom, top + H - 19, footerTextFrom + Math.min(room, font.width(text)), top + H - 11};
+        }
     }
 
     private void drawConfirm(GuiGraphicsExtractor gui, Font font) {
