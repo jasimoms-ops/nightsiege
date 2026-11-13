@@ -150,6 +150,58 @@ public final class WarBotPlan {
         return out;
     }
 
+    /**
+     * The shopping list by the situation: as {@link #shopping(int)}, and for every defender standing high (a tower,
+     * the wall; at most three) two more archer squads, the ranged ones against them.
+     */
+    public static List<String> shopping(int defenders, int high) {
+        List<String> out = shopping(defenders);
+        for (int i = 0; i < Math.min(3, Math.max(0, high)); i++) {
+            out.addAll(List.of("skelette", "skelette"));
+        }
+        return out;
+    }
+
+    /** A squad of the shop as the bot weighs it: its id, price and monsters. */
+    public record Offer(String id, int price, int size) {
+    }
+
+    /**
+     * The next buy as a good human leader makes it: drawn from the list (the duplicates are its weights) among the
+     * squads that fit both the purse and the room left under the live cap, so a full field does not stop the
+     * small ones. Null when none fits.
+     */
+    public static Offer pick(List<Offer> wanted, int gold, int room, java.util.random.RandomGenerator random) {
+        List<Offer> fit = new ArrayList<>();
+        for (Offer o : wanted) {
+            if (o != null && o.price() <= gold && o.size() <= room) {
+                fit.add(o);
+            }
+        }
+        return fit.isEmpty() ? null : fit.get(random.nextInt(fit.size()));
+    }
+
+    /** Why nothing of the list fits: "voll" when the gold is there but the live cap leaves no room, else "arm". */
+    public static String stop(List<Offer> wanted, int gold, int room) {
+        for (Offer o : wanted) {
+            if (o != null && o.price() <= gold) {
+                return "voll";
+            }
+        }
+        return "arm";
+    }
+
+    /** Defenders standing high (on a tower, the wall): three blocks above the ground or more. */
+    public static int high(List<Defender> defenders, double groundY) {
+        int n = 0;
+        for (Defender d : defenders) {
+            if (d.y() >= groundY + 3) {
+                n++;
+            }
+        }
+        return n;
+    }
+
     /** Ladder carriers per wave: one, and one more for every three defenders. */
     public static int ladders(int defenders) {
         return 1 + Math.max(0, defenders) / 3;

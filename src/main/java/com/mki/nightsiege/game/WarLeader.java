@@ -36,6 +36,7 @@ import net.minecraft.world.phys.Vec3;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -890,6 +891,7 @@ public final class WarLeader {
 
     /** A new wave: its gold, half of the rest over. */
     private void newWave(MinecraftServer server, int w) {
+        botSpendLine(wave);
         // The first wave plays with the build-up's gold; every later one brings its own and half the rest.
         int carried = w == 1 ? gold : WarShop.carry(gold);
         int fresh = w == 1 ? 0 : WarShop.waveGold(roundGold, w, waves);
@@ -2086,6 +2088,7 @@ public final class WarLeader {
     }
 
     private void spent(int price) {
+        botWaveSpent += price;
         if (file != null) {
             file.ausgegeben += price;
         }
@@ -2298,6 +2301,7 @@ public final class WarLeader {
                 tell(p, "nightsiege.war.chat_record", ChatFormatting.GOLD, leaderName, clock(wavesSeconds));
             }
         }
+        botSpendLine(wave);
         // The statistics logger: one file per round.
         if (file != null) {
             file.ende = LocalDateTime.now().format(DATE);
@@ -2732,6 +2736,11 @@ public final class WarLeader {
         botLadders = -1;
         botAssaultAt = 0;
         botSpendAt = 0;
+        botCardAt = 0;
+        Arrays.fill(botWhy, 0);
+        botLiveSum = 0;
+        botLiveN = 0;
+        botWaveSpent = 0;
         world = level;
         core = at;
         leader = null;
@@ -2967,7 +2976,7 @@ public final class WarLeader {
     /** The bot's shopping, at the point nearest to the wall's weakest spot; fitting to the group's size. */
     private void spendBot(MinecraftServer server, long now, List<WarBotPlan.Defender> defs) {
         SiegeConfig cfg = m.config();
-        botSpendAt = now + 200;
+        botSpendAt = now + 40;   // Tor 10 botkauf: top up every two seconds (was ten)
         if (points.isEmpty()) {
             return;
         }
@@ -2993,7 +3002,11 @@ public final class WarLeader {
             SiegeMachineKind[] kinds = SiegeMachineKind.values();
             buy(server, "machine." + kinds[random.nextInt(kinds.length)].id(), main, now);
         }
-        if (wave >= 2 && card == null && random.nextDouble() < 0.3) {
+        boolean cardTime = now >= botCardAt;   // a card thought over every ten seconds, as before the quicker shopping
+        if (cardTime) {
+            botCardAt = now + 200;
+        }
+        if (wave >= 2 && card == null && cardTime && random.nextDouble() < 0.3) {
             WarShop.Card[] cards = WarShop.Card.values();
             WarShop.Card c = cards[random.nextInt(cards.length)];
             if (!usedCards.contains(c.id()) && gold >= c.price() + 10) {
@@ -3011,23 +3024,58 @@ public final class WarLeader {
                 buy(server, WarShop.SAPPER, main, now);
             }
         }
-        List<String> weights = WarBotPlan.shopping(defs.size());
-        int tries = 0;
-        while (gold >= 3 && tries++ < 60) {
-            String id = weights.get(random.nextInt(weights.size()));
+        // Tor 10 botkauf: buy what fits the purse and the room under the live cap (the same buy() as a human's),
+        // again every two seconds, so the field is topped up as soon as monsters fall.
+        List<WarBotPlan.Offer> wanted = new ArrayList<>();
+        for (String id : WarBotPlan.shopping(defs.size(), core == null ? 0 : WarBotPlan.high(defs, core.getY()))) {
             WarShop.Squad sq = WarShop.squad(id);
-            if (sq == null || fromLevel(sq) > level || sq.price() > gold) {
-                continue;
+            if (sq != null && fromLevel(sq) <= level) {
+                wanted.add(new WarBotPlan.Offer(id, sq.price(), sq.size()));
             }
-            String why = buy(server, id, random.nextDouble() < 0.75 ? main : flank, now);
-            if ("nightsiege.war.full".equals(why)) {
+        }
+        for (int tries = 0; tries < 60; tries++) {
+            int room = m.maxLive() - m.liveCount() - pendingMonsters();
+            WarBotPlan.Offer o = WarBotPlan.pick(wanted, gold, room, random);
+            if (o == null) {
+                botWhy["voll".equals(WarBotPlan.stop(wanted, gold, room)) ? 0 : 1]++;
+                botLive();
+                return;
+            }
+            if (buy(server, o.id(), random.nextDouble() < 0.75 ? main : flank, now) != null) {
                 break;
             }
         }
+        botWhy[2]++;
+        botLive();
+    }
+
+    /** The sim's look at the bot's purse: why a shopping round stopped (full, poor, sated) and how full the field was. */
+    private final int[] botWhy = new int[3];
+    private long botLiveSum;
+    private int botLiveN;
+    private int botWaveSpent;
+
+    private void botLive() {
+        botLiveSum += m.liveCount() + pendingMonsters();
+        botLiveN++;
+    }
+
+    /** One sim line per wave: BOTSPEND;wave;gold left;spent;live (mean at shopping);cap;why. */
+    private void botSpendLine(int w) {
+        if (!bot) {
+            return;
+        }
+        NightSiegeMod.LOGGER.info("[Night Siege sim] BOTSPEND;{};{};{};{};{};voll={},arm={},satt={}", w, gold, botWaveSpent,
+                botLiveN == 0 ? 0 : botLiveSum / botLiveN, m.maxLive(), botWhy[0], botWhy[1], botWhy[2]);
+        Arrays.fill(botWhy, 0);
+        botLiveSum = 0;
+        botLiveN = 0;
+        botWaveSpent = 0;
     }
 
     private long botAssaultAt;
     private long botSpendAt;
+    private long botCardAt;
     private int botLadders = -1;
 
     // ------------------------------------------------------------------ helpers
