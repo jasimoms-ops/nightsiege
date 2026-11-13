@@ -1099,7 +1099,7 @@ public final class WarLeader {
             }
             String use = MobFactory.isUnavailable(id) ? fallback(id) : id;
             BlockPos spot = spotNear(p);
-            Mob mob = spot == null ? null : m.warSpawn(use, spot);
+            Mob mob = spot == null ? null : m.warSpawn(use, spot, roster.size());
             if (mob == null) {
                 continue;
             }

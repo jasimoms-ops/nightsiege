@@ -180,6 +180,9 @@ public final class MobFactory {
             double chapter = sm.chapterFactor();   // Tor 11: chapter 3 +10 %, 4 +20 %, from 5 +30 % (life and damage)
             healthMul *= chapter;
             damageMul *= chapter;
+            double war = sm.warStrength();   // the war leader's round from the fifth defender on (Chef 13.11. 09:20)
+            healthMul *= war;
+            damageMul *= war;
         }
 
         AttributeInstance health = mob.getAttribute(Attributes.MAX_HEALTH);

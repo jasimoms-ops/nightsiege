@@ -112,6 +112,46 @@ class WarShopTest {
         assertEquals(4.0, cfg.warLiveCapFactor);
     }
 
+    // Chef 13.11. 09:20: warStrengthPerExtraDefender, the round's monsters stronger from the fifth defender on.
+    @Test
+    void warStrengthDefaultChangesNothing() {
+        SiegeConfig cfg = new SiegeConfig();
+        cfg.settingsVersion = SiegeConfig.SETTINGS_VERSION;
+        cfg.sanitize();
+        assertEquals(0.0, cfg.warStrengthPerExtraDefender);
+        for (int n = 0; n <= 10; n++) {
+            assertEquals(1.0, WarShop.strengthFactor(n, cfg));
+        }
+    }
+
+    @Test
+    void warStrengthFromTheFifthDefender() {
+        SiegeConfig cfg = new SiegeConfig();
+        cfg.warStrengthPerExtraDefender = 0.08;
+        assertEquals(1.0, WarShop.strengthFactor(4, cfg), 1e-9);
+        assertEquals(1.08, WarShop.strengthFactor(5, cfg), 1e-9);
+        assertEquals(1.16, WarShop.strengthFactor(6, cfg), 1e-9);
+        // Only the round: the night's own multipliers do not read it.
+        SiegeConfig plain = new SiegeConfig();
+        assertEquals(SiegeMath.healthMultiplier(25, plain), SiegeMath.healthMultiplier(25, cfg));
+        assertEquals(SiegeMath.damageMultiplier(25, plain), SiegeMath.damageMultiplier(25, cfg));
+    }
+
+    @Test
+    void warStrengthIsSanitized() {
+        SiegeConfig cfg = new SiegeConfig();
+        cfg.settingsVersion = SiegeConfig.SETTINGS_VERSION;
+        cfg.warStrengthPerExtraDefender = Double.NaN;
+        cfg.sanitize();
+        assertEquals(0.0, cfg.warStrengthPerExtraDefender);
+        cfg.warStrengthPerExtraDefender = 2;
+        cfg.sanitize();
+        assertEquals(0.5, cfg.warStrengthPerExtraDefender);
+        cfg.warStrengthPerExtraDefender = -1;
+        cfg.sanitize();
+        assertEquals(0.0, cfg.warStrengthPerExtraDefender);
+    }
+
     private static SiegeConfig withFactor(SiegeConfig cfg, double f) {
         cfg.warLiveCapFactor = f;
         return cfg;
