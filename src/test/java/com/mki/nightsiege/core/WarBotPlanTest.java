@@ -71,4 +71,54 @@ class WarBotPlanTest {
             assertNotNull(WarShop.squad(id), id);
         }
     }
+
+    // Tor 10 botkauf: the bot tops up under the live cap with what still fits, and says why it stops.
+    private static final WarBotPlan.Offer ZOMBIES = new WarBotPlan.Offer("zombies", 4, 4);
+    private static final WarBotPlan.Offer KNIGHT = new WarBotPlan.Offer("eisenritter", 5, 1);
+    private static final WarBotPlan.Offer GRAPPLE = new WarBotPlan.Offer("enterhaken", 3, 1);
+
+    @Test
+    void pickTakesASmallSquadWhenTheBigOnesNoLongerFit() {
+        java.util.Random r = new java.util.Random(1);
+        for (int i = 0; i < 50; i++) {
+            WarBotPlan.Offer o = WarBotPlan.pick(List.of(ZOMBIES, ZOMBIES, ZOMBIES, KNIGHT), 100, 2, r);
+            assertEquals("eisenritter", o.id());   // room 2: four zombies do not fit, the knight does
+        }
+    }
+
+    @Test
+    void pickRespectsThePurseAndTheCap() {
+        java.util.Random r = new java.util.Random(2);
+        assertNull(WarBotPlan.pick(List.of(ZOMBIES, KNIGHT), 100, 0, r));       // the field is full
+        assertNull(WarBotPlan.pick(List.of(ZOMBIES, KNIGHT), 3, 40, r));        // too poor for both
+        assertEquals("enterhaken", WarBotPlan.pick(List.of(ZOMBIES, KNIGHT, GRAPPLE), 3, 40, r).id());
+    }
+
+    @Test
+    void stopSaysFullOrPoor() {
+        assertEquals("voll", WarBotPlan.stop(List.of(ZOMBIES, KNIGHT), 100, 0));
+        assertEquals("arm", WarBotPlan.stop(List.of(ZOMBIES, KNIGHT), 3, 40));
+    }
+
+    @Test
+    void pickSpreadsOverTheList() {
+        java.util.Random r = new java.util.Random(3);
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (int i = 0; i < 100; i++) {
+            seen.add(WarBotPlan.pick(List.of(ZOMBIES, KNIGHT, GRAPPLE), 100, 40, r).id());
+        }
+        assertEquals(3, seen.size());
+    }
+
+    @Test
+    void archersAgainstDefendersStandingHigh() {
+        List<WarBotPlan.Defender> defs = List.of(
+                new WarBotPlan.Defender("a", 0, 70, 0, 20f, 20f),   // on a tower
+                new WarBotPlan.Defender("b", 5, 64, 0, 20f, 20f));
+        assertEquals(1, WarBotPlan.high(defs, 64));
+        long base = WarBotPlan.shopping(2).stream().filter("skelette"::equals).count();
+        long more = WarBotPlan.shopping(2, 1).stream().filter("skelette"::equals).count();
+        assertEquals(base + 2, more);
+        assertEquals(WarBotPlan.shopping(2, 3).size(), WarBotPlan.shopping(2, 9).size());   // at most three count
+    }
 }
