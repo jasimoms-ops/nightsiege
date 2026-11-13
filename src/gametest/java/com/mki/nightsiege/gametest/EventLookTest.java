@@ -11010,7 +11010,6 @@ public class EventLookTest implements FabricClientGameTest {
         });
         context.waitTicks(100);
         context.takeScreenshot("war_05_battle");
-        LeisteScenes.run(context);   // Chef 13.11.: warWinStandingDivisor on the bar (D = 3 for the check, then back)
         context.waitTicks(200);
         onServer(context, (player, manager) -> System.out.println("[Night Siege test] war ways in: breaches=" + manager.besiegerBreaches()
                 + " ladders=" + com.mki.nightsiege.game.TempBlocks.all((net.minecraft.server.level.ServerLevel) player.level(),
@@ -11096,6 +11095,7 @@ public class EventLookTest implements FabricClientGameTest {
         });
         context.waitTicks(10);
         KriegsBefehleScenes.main(context, core, points[0]);   // Kriegsführer 3, K1: picking and orders
+        LeisteScenes.run(context);   // Chef 13.11.: warWinStandingDivisor on the bar and in the window (after K1, all put back)
         // 3. The leader wins: both defenders fall.
         onServer(context, (player, manager) -> {
             for (net.minecraft.server.level.ServerPlayer bot : com.mki.nightsiege.game.SimBots.all()) {
