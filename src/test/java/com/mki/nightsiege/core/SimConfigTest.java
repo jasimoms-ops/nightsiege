@@ -16,7 +16,7 @@ class SimConfigTest {
     @Test
     void simConfigIsOnTodaysVersion() throws Exception {
         String json = Files.readString(Path.of("tools/sim/server-config.json"), StandardCharsets.UTF_8);
-        Matcher v = Pattern.compile("\"settingsVersion\"\s*:\s*(\d+)").matcher(json);
+        Matcher v = Pattern.compile("\"settingsVersion\"\\s*:\\s*(\\d+)").matcher(json);
         assertTrue(v.find());
         assertEquals(SiegeConfig.SETTINGS_VERSION, Integer.parseInt(v.group(1)),
                 "tools/sim/server-config.json: bring it up with the code's migrations (server values + sanitize)");
